@@ -38,6 +38,7 @@ Package manifests define supported cross-package entries. Do not bypass them wit
 | `pnpm dev`               | Start the current Project Tavern development server.      |
 | `pnpm check`             | Canonical local code-quality and product-behavior check.  |
 | `pnpm test`              | Run engine and game behavior tests.                       |
+| `pnpm test:coverage`     | Run unit tests with engine line-coverage reporting.       |
 | `pnpm test:e2e`          | Run browser user-flow tests.                              |
 | `pnpm build:poc`         | Build the current static Player.                          |
 | `pnpm release:poc`       | Build and prepare the local Artifact.                     |

@@ -21,6 +21,7 @@ Goal 完成时，新 Story 应能：
 - [AI authoring design](../design/ai-authoring.md)：作者接口、Composer、Agent 和 Tooling；
 - [E2E engine validation](../design/e2e-engine-validation.md)：测试消费者和场景矩阵；
 - [VN presentation runtime](../design/vn-presentation-runtime.md)：Stage、Transition、Interaction、Audio 和 player systems；
+- [Game viewport and UI shell](../design/game-viewport-and-ui-shell.md)：逻辑画布、缩放、主题 token、默认 surface 视觉基线和 player/debug 边界；
 - [Current architecture](../architecture.md) 与 [features](../features.md)：实施开始时的 live baseline。
 
 Design 决定目标合同，本文决定实施顺序。任务中发现真实冲突时先修订相应 design 并记录原因；不得用局部 patch 静默改变权威 State、公开权限或路线图边界。
@@ -263,6 +264,7 @@ R0 设计基线已经由本轮文档完成。当前 Goal 以它为输入，实�
 **Acceptance:**
 
 - E2E Story 无自定义 React Root 即可启动默认 UI；
+- default GameRoot 满足 [viewport/shell design](../design/game-viewport-and-ui-shell.md) 的 GameViewport、默认 surface 视觉基线与 player/debug 边界验收；
 - 添加一个 Story Overlay 和 Narrative/Stage contribution 不修改 composer；
 - Story Web entry 接近单次 `startWebGameApplication(application)`，不含 Session、Persistence、Diagnostics、Input、Automation 或 HMR wiring；
 - Base `GameHost` 不获得 DOM、AudioContext、RAF 或 page lifecycle 能力，Headless 不依赖 PresentationHost；
@@ -344,6 +346,7 @@ R0 设计基线已经由本轮文档完成。当前 Goal 以它为输入，实�
 - 支持 cut、crossfade 和一种 entry/move transition；
 - 支持 interruption、block/target-active/skip-to-end input policy、completion acknowledgment、reduced-motion、page visibility 和 disposal；
 - 加入 asset readiness policy；
+- 清理 PoC `activeCueId` 死字段接线，由真实 Transition Player/PresentationRun 取代；
 - 非 barrier transition 不修改 gameplay State。
 
 **Acceptance:**
@@ -522,6 +525,7 @@ R0 设计基线已经由本轮文档完成。当前 Goal 以它为输入，实�
 - Node/Browser semantic revision/outcome/interaction parity 通过；
 - say/choice/barrier Save/load 通过；
 - missing image/audio/renderer fallback 通过；
+- 1600×1000、1024×768、平板横屏与 200% zoom 下 letterbox 与核心画面可用；
 - no fixture/golden/sleep/coordinate-only test。
 
 ### Task F2 — Prove AI authoring canaries
@@ -553,6 +557,7 @@ Canary 分两轮：discovery run 可以暴露并推动 authoring helper/diagnost
 **Work:**
 
 - 迁移 PoC application entry、runtime/presentation common construction；
+- 移除 PoC 玩家常驻 UI 中的 debug 元素（semantic status 文本、诊断导出按钮），按 viewport/shell design §5 归位 DevDock/Settings；
 - 删除 superseded Story-local generic glue；
 - 让至少一条 PoC Narrative stage cue 实际控制背景/人物；
 - 保留 Tavern rules、formulas 和 content，除 contract migration 必需变化；

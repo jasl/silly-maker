@@ -41,6 +41,10 @@ Project Tavern 仍以“经营一家酒馆，并通过经营选择推动人物�
 7. 货币和比例是否真的需要 Decimal，还是整数最小单位与清晰上界更合适？
 8. 哪一组最小内容足以支持第一次有价值的人工试玩？
 
+## Active design documents
+
+- [Presentation and UI redesign](presentation-and-ui.md)：画面框架、视觉语言、素材计划与"能玩"验收；实现随 vNext C3/D/E2 分片推进。
+
 ## How a new design becomes active
 
 在 `docs/game/` 新增小而明确的活动文档，而不是编辑历史归档。建议按需要逐步形成：

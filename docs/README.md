@@ -16,6 +16,7 @@ Active documentation describes the code and decisions maintained after the first
 - [AI-friendly Story authoring](engine/design/ai-authoring.md) — Authoring Kit, diagnostics, composers, tooling, harness, and Agent contract.
 - [E2E engine validation](engine/design/e2e-engine-validation.md) — the new Engine Conformance Story and test ownership.
 - [VN presentation runtime](engine/design/vn-presentation-runtime.md) — semantic Stage, Transition, PendingInteraction, Audio, and player systems.
+- [Game viewport and UI shell](engine/design/game-viewport-and-ui-shell.md) — logical canvas, scaling, theme tokens, default surface baseline, and the player/debug boundary.
 - [vNext foundations implementation plan](engine/plans/2026-07-19-sillymaker-vnext-foundations.md) — current task order, acceptance, and stop conditions.
 
 These documents describe accepted targets and planned work. A capability remains unimplemented until the current implementation documents and behavior tests say otherwise.
@@ -27,6 +28,7 @@ These documents describe accepted targets and planned work. A capability remains
 ## Project Tavern
 
 - [Gameplay redesign status](game/README.md) — current product intent and what is deliberately open for redesign.
+- [Presentation and UI redesign](game/presentation-and-ui.md) — screen framework, visual language, asset plan, and the playable acceptance bar.
 
 New game-design documents should be added under `docs/game/` and linked from that page. The implementation is the best description of current behavior until a replacement design is accepted.
 
