@@ -130,6 +130,12 @@ importers:
         specifier: 6.2.5
         version: 6.2.5
 
+  game/stories/e2e:
+    dependencies:
+      "@sillymaker/base":
+        specifier: workspace:*
+        version: link:../../../engine/packages/base
+
   game/stories/poc:
     dependencies:
       "@sillymaker/base":

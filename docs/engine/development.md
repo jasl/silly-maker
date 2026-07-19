@@ -22,7 +22,8 @@ The workspace is ESM and uses one shared pnpm lockfile with exact dependency ver
 engine/packages/base   framework-neutral authoring, contracts, and runtime
 engine/packages/ui     generic React presentation and input
 engine/packages/web    browser Host and application adapters
-game/stories           concrete game Stories and application roots
+game/stories/e2e       neutral Engine Conformance Story (MIT test consumer)
+game/stories/poc       the Project Tavern PoC Story and application root
 scripts                maintained build, asset, and product tooling
 docs/engine            active engine documentation
 docs/game              active gameplay design

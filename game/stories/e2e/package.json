@@ -1,0 +1,17 @@
+{
+  "name": "@sillymaker/story-e2e",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "description": "Neutral Engine Conformance Story (Engine Lab): the engine's second consumer and maintained test application.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "pnpm --workspace-root exec vitest run game/stories/e2e/src"
+  },
+  "dependencies": {
+    "@sillymaker/base": "workspace:*"
+  }
+}

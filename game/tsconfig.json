@@ -1,4 +1,4 @@
 {
   "files": [],
-  "references": [{ "path": "./stories/poc" }]
+  "references": [{ "path": "./stories/e2e" }, { "path": "./stories/poc" }]
 }
