@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import type { RuntimeSessionStatusV1 } from "./presentation.js";
+import type { RuntimeSessionStatusV1 } from "./session-status.js";
 import type { Brand, DeepReadonly, NonNegativeSafeInteger } from "./values.js";
 
 export interface ReadonlyViewSourceV1<TViewModel> {

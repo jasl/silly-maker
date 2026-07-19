@@ -11,7 +11,7 @@ import type {
 import type {
   RuntimeSessionStatusV1,
   SessionDispatchOperationResultV1,
-} from "../../contracts/presentation.js";
+} from "../../contracts/session-status.js";
 import type {
   DeepReadonly,
   NonNegativeSafeInteger,
