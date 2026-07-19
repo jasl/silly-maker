@@ -64,6 +64,8 @@ export {
   stageSceneGraphSchemaV1,
 } from "./contracts/index.js";
 export {
+  collectGamePackageDiagnosticsV1,
+  createRuntimeSchemaV1,
   defineGamePackage,
   defineGameSimulation,
   defineGameplayModule,
@@ -71,9 +73,35 @@ export {
   definePresentationPatchSurface,
   defineSimulationPatchSurface,
   defineStoryToolingEntry,
+  fromStandardSchemaV1,
   resolveGamePackageV1,
 } from "./authoring/index.js";
-export type { PatchSurfaceV1 } from "./authoring/index.js";
+export type {
+  CollectGamePackageDiagnosticsOptionsV1,
+  GamePackageDiagnosticsResultV1,
+  PatchSurfaceV1,
+  RuntimeSchemaOptionsV1,
+  StandardSchemaLikeV1,
+  StandardSchemaOutputV1,
+} from "./authoring/index.js";
+export {
+  AuthoringDiagnosticErrorV1,
+  createDiagnosticV1,
+  diagnosticEnvelopeV1Schema,
+  extractDiagnosticsV1,
+  formatDiagnosticHumanV1,
+  formatDiagnosticsHumanV1,
+  parseDiagnosticEnvelopeV1,
+} from "./contracts/diagnostic-envelope.js";
+export type {
+  CreateDiagnosticInputV1,
+  DiagnosticEnvelopeV1,
+  DiagnosticLocationV1,
+  DiagnosticPhaseV1,
+  DiagnosticRelatedLocationV1,
+  DiagnosticSeverityV1,
+  DiagnosticSubjectV1,
+} from "./contracts/diagnostic-envelope.js";
 export type { RuntimeInvalidationControllerV1 } from "./runtime/index.js";
 export type {
   AppearanceLayerId,

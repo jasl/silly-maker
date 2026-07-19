@@ -12,6 +12,7 @@ import type {
   ResolvedAssetManifestV1,
 } from "../contracts/assets.js";
 import { canonicalJsonBytes } from "../contracts/canonical-json.js";
+import { extractDiagnosticsV1 } from "../contracts/diagnostic-envelope.js";
 import { digestBytes, digestCanonical } from "../contracts/digest.js";
 import type {
   GamePackageV1,
@@ -33,6 +34,7 @@ import {
   parseTextCatalogSetV1,
 } from "../contracts/presentation.js";
 import type { StageSceneGraphV1, TextCatalogSetV1, TextId } from "../contracts/presentation.js";
+import type { StrictJsonObjectV1, StrictJsonValueV1 } from "../contracts/strict-json.js";
 import {
   parseDigest,
   parseModuleId,
@@ -1077,17 +1079,48 @@ function validateAssetPatchSymbolsV1(
   }
 }
 
+function structuredFailureDetailsV1(message: string, cause: unknown): StrictJsonObjectV1 {
+  const diagnostics = extractDiagnosticsV1(cause);
+  if (diagnostics !== null) {
+    return Object.freeze({
+      message,
+      diagnostics: diagnostics as unknown as StrictJsonValueV1,
+    });
+  }
+  const causeCode = ownStringDataPropertyV1(cause, "code");
+  if (typeof causeCode === "string" && cause !== null && typeof cause === "object") {
+    const descriptor = Object.getOwnPropertyDescriptor(cause, "details");
+    if (descriptor !== undefined && descriptor.get === undefined && descriptor.set === undefined) {
+      try {
+        canonicalPresentationJsonBytesV1(descriptor.value);
+        return Object.freeze({
+          message,
+          cause: Object.freeze({
+            code: causeCode,
+            details: descriptor.value as StrictJsonValueV1,
+          }),
+        });
+      } catch {
+        // Fall through to the plain message envelope.
+      }
+    }
+    return Object.freeze({ message, cause: Object.freeze({ code: causeCode }) });
+  }
+  return Object.freeze({ message });
+}
+
 function failure<TResolved>(
   code: GamePackageResolutionFailureCodeV1,
   hotfixes: readonly HotfixEntryV1[],
   message: string,
+  cause?: unknown,
 ): GamePackageResolutionResultV1<TResolved> {
   return Object.freeze({
     kind: "failed",
     failure: Object.freeze({
       code,
       rejectedHotfixIds: safeRejectedHotfixIdsV1(hotfixes),
-      details: Object.freeze({ message }),
+      details: structuredFailureDetailsV1(message, cause),
     }),
   });
 }
@@ -1162,7 +1195,7 @@ export function resolveGamePackageV1<TSimulationFacet, TPresentationFacet>(
       return failure<TResolved>("story.define_thenable", [], "Story define returned thenable");
     }
   } catch (error) {
-    return failure<TResolved>("story.define_threw", [], errorMessage(error));
+    return failure<TResolved>("story.define_threw", [], errorMessage(error), error);
   }
 
   let first: SourceDefinitionLikeV1 | null = null;
@@ -1187,7 +1220,7 @@ export function resolveGamePackageV1<TSimulationFacet, TPresentationFacet>(
       return failure<TResolved>("story.define_thenable", [], "Story define returned thenable");
     }
   } catch (error) {
-    return failure<TResolved>("story.define_threw", [], errorMessage(error));
+    return failure<TResolved>("story.define_threw", [], errorMessage(error), error);
   }
 
   let second: SourceDefinitionLikeV1;
@@ -1208,7 +1241,7 @@ export function resolveGamePackageV1<TSimulationFacet, TPresentationFacet>(
       ownStringDataPropertyV1(error, "resolutionFailureKind") === "nondeterministic"
         ? "story.nondeterministic"
         : "story.contract_invalid";
-    return failure<TResolved>(code, [], errorMessage(error));
+    return failure<TResolved>(code, [], errorMessage(error), error);
   }
 
   let patches: ReturnType<typeof resolveHotfixesV1>;
@@ -1220,7 +1253,7 @@ export function resolveGamePackageV1<TSimulationFacet, TPresentationFacet>(
       entry.identity,
     );
   } catch (error) {
-    return failure<TResolved>(classify(error), hotfixes, errorMessage(error));
+    return failure<TResolved>(classify(error), hotfixes, errorMessage(error), error);
   }
 
   let simulationProgram: unknown;
@@ -1251,7 +1284,7 @@ export function resolveGamePackageV1<TSimulationFacet, TPresentationFacet>(
       );
     }
   } catch (error) {
-    return failure<TResolved>("story.materialization_threw", hotfixes, errorMessage(error));
+    return failure<TResolved>("story.materialization_threw", hotfixes, errorMessage(error), error);
   }
 
   let sceneGraph: StageSceneGraphV1;
@@ -1264,7 +1297,7 @@ export function resolveGamePackageV1<TSimulationFacet, TPresentationFacet>(
       "/simulationProgram",
     );
   } catch (error) {
-    return failure<TResolved>("story.program_invalid", hotfixes, errorMessage(error));
+    return failure<TResolved>("story.program_invalid", hotfixes, errorMessage(error), error);
   }
   try {
     canonicalPresentationJsonBytesV1(presentation);
@@ -1291,13 +1324,13 @@ export function resolveGamePackageV1<TSimulationFacet, TPresentationFacet>(
     presentation = deepFreezeAuthoringValueV1(normalizedPresentation);
     canonicalPresentationJsonBytesV1(presentation);
   } catch (error) {
-    return failure<TResolved>("story.presentation_invalid", hotfixes, errorMessage(error));
+    return failure<TResolved>("story.presentation_invalid", hotfixes, errorMessage(error), error);
   }
   try {
     sceneGraph = parseStageSceneGraphV1(first.presentation.uiSceneGraph);
     validateSceneGraphTextReferencesV1(sceneGraph, activeTextCatalogs);
   } catch (error) {
-    return failure<TResolved>("story.presentation_invalid", hotfixes, errorMessage(error));
+    return failure<TResolved>("story.presentation_invalid", hotfixes, errorMessage(error), error);
   }
 
   let gameSimulation: unknown;
@@ -1324,14 +1357,14 @@ export function resolveGamePackageV1<TSimulationFacet, TPresentationFacet>(
       gameSimulationIdentity.statefulModules,
     );
   } catch (error) {
-    return failure<TResolved>("story.simulation_invalid", hotfixes, errorMessage(error));
+    return failure<TResolved>("story.simulation_invalid", hotfixes, errorMessage(error), error);
   }
 
   let build: ReturnType<typeof resolveBuildIdentityV1>;
   try {
     build = resolveBuildIdentityV1(buildIdentityInput);
   } catch (error) {
-    return failure<TResolved>("build_identity.invalid", hotfixes, errorMessage(error));
+    return failure<TResolved>("build_identity.invalid", hotfixes, errorMessage(error), error);
   }
 
   let assets: ResolvedAssetManifestV1;
@@ -1349,13 +1382,14 @@ export function resolveGamePackageV1<TSimulationFacet, TPresentationFacet>(
       code.startsWith("asset.") ? code : "asset.governance_invalid",
       hotfixes,
       errorMessage(error),
+      error,
     );
   }
 
   try {
     validateSceneGraphAssetReferencesV1(sceneGraph, assets);
   } catch (error) {
-    return failure<TResolved>("story.presentation_invalid", hotfixes, errorMessage(error));
+    return failure<TResolved>("story.presentation_invalid", hotfixes, errorMessage(error), error);
   }
 
   try {
@@ -1413,6 +1447,6 @@ export function resolveGamePackageV1<TSimulationFacet, TPresentationFacet>(
     }) as TResolved;
     return Object.freeze({ kind: "resolved", resolved });
   } catch (error) {
-    return failure<TResolved>(classify(error), hotfixes, errorMessage(error));
+    return failure<TResolved>(classify(error), hotfixes, errorMessage(error), error);
   }
 }

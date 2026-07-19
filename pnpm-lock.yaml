@@ -78,7 +78,7 @@ importers:
         version: 4.4.3
 
   engine/packages/base:
-    dependencies:
+    devDependencies:
       zod:
         specifier: 4.4.3
         version: 4.4.3
@@ -135,6 +135,9 @@ importers:
       "@sillymaker/base":
         specifier: workspace:*
         version: link:../../../engine/packages/base
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
 
   game/stories/poc:
     dependencies:

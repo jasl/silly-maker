@@ -7,6 +7,8 @@
 ## Story authoring and resolution
 
 - Typed `GamePackage`, `GameSimulation`, and `GameplayModule` definitions.
+- A dedicated `@sillymaker/base/authoring` entry with `createRuntimeSchemaV1` (canonical-JSON output, deep-freeze, structured failures) and `fromStandardSchemaV1`, the official Zod adapter accepting any Standard Schema V1 implementation without leaking library types.
+- A shared versioned `DiagnosticEnvelopeV1` (stable code, severity, phase, subject, JSON-pointer location, suggestion, Strict JSON details) used by authoring/definition/resolution failures, plus `collectGamePackageDiagnosticsV1` to aggregate a package's failures as structured diagnostics with human and JSON output.
 - Separate simulation (`rule | value`) and presentation (`value | text | asset`) patch surfaces.
 - Validated, frozen resolution with Story, engine, state-contract, simulation, presentation, asset, and patch-set identity.
 - Story-local schemas, deterministic rule providers, command executors, queries, ViewModel projectors, scene graphs, catalogs, and renderer contributions.

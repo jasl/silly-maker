@@ -8,7 +8,7 @@ import type {
 } from "../contracts/gameplay-module.js";
 import { canonicalJsonBytes } from "../contracts/canonical-json.js";
 import { parseModuleId, parsePositiveSafeInteger, parseStateSlotId } from "../contracts/values.js";
-import { deepFreezeAuthoringValueV1 } from "./define-gameplay-module.js";
+import { deepFreezeAuthoringValueV1, moduleDefinitionErrorV1 } from "./define-gameplay-module.js";
 
 interface DefineGameSimulationV1<TTypes extends GameSimulationTypeMapV1> {
   <
@@ -71,17 +71,29 @@ function validateGameplayModuleV1(module: RuntimeRecord): void {
   }
   const slots = descriptor.stateSlots.map(parseStateSlotId);
   if (new Set(slots).size !== slots.length) {
-    throw new TypeError("duplicate State slot in GameplayModule");
+    throw moduleDefinitionErrorV1(
+      "authoring.module.duplicate_state_slot",
+      "duplicate State slot in GameplayModule",
+      id,
+    );
   }
   if (!Array.isArray(descriptor.dependencies)) {
     throw new TypeError("invalid GameplayModule dependencies");
   }
   const dependencies = descriptor.dependencies.map(parseModuleId);
   if (new Set(dependencies).size !== dependencies.length) {
-    throw new TypeError("duplicate GameplayModule dependency");
+    throw moduleDefinitionErrorV1(
+      "authoring.module.duplicate_dependency",
+      "duplicate GameplayModule dependency",
+      id,
+    );
   }
   if (dependencies.includes(id)) {
-    throw new TypeError("GameplayModule may not depend on itself");
+    throw moduleDefinitionErrorV1(
+      "authoring.module.self_dependency",
+      "GameplayModule may not depend on itself",
+      id,
+    );
   }
   requireNullableSchema(module.commandSchema, "GameplayModule command Schema");
   requireNullableSchema(module.querySchema, "GameplayModule query Schema");
@@ -153,8 +165,11 @@ function assertDependencyDag(modules: readonly RuntimeRecord[]): void {
     if (!Array.isArray(dependencies)) throw new TypeError("invalid GameplayModule dependencies");
     for (const dependency of dependencies) {
       if (!moduleIds.has(dependency)) {
-        throw new TypeError(
+        throw moduleDefinitionErrorV1(
+          "authoring.simulation.missing_dependency",
           `missing dependency ${String(dependency)} for ${String(descriptor.id)}`,
+          String(descriptor.id),
+          Object.freeze({ dependency: String(dependency) }),
         );
       }
     }
@@ -169,7 +184,13 @@ function assertDependencyDag(modules: readonly RuntimeRecord[]): void {
     ]),
   );
   function visit(id: unknown): void {
-    if (active.has(id)) throw new TypeError(`dependency cycle at ${String(id)}`);
+    if (active.has(id)) {
+      throw moduleDefinitionErrorV1(
+        "authoring.simulation.dependency_cycle",
+        `dependency cycle at ${String(id)}`,
+        String(id),
+      );
+    }
     if (complete.has(id)) return;
     active.add(id);
     const descriptor = requireRecord(byId.get(id)?.descriptor, "GameplayModule descriptor");
@@ -253,16 +274,28 @@ function validateRuntimeSimulationV1(simulationValue: unknown): unknown {
   const ids = modules.map(
     (module) => requireRecord(module.descriptor, "GameplayModule descriptor").id,
   );
-  if (new Set(ids).size !== ids.length) {
-    throw new TypeError("duplicate GameplayModule ID");
+  const duplicateId = ids.find((id, index) => ids.indexOf(id) !== index);
+  if (duplicateId !== undefined) {
+    throw moduleDefinitionErrorV1(
+      "authoring.simulation.duplicate_module_id",
+      "duplicate GameplayModule ID",
+      String(duplicateId),
+    );
   }
   const slots = modules.flatMap((module) => {
     const value = requireRecord(module.descriptor, "GameplayModule descriptor").stateSlots;
     if (!Array.isArray(value)) throw new TypeError("invalid GameplayModule stateSlots");
     return value;
   });
-  if (new Set(slots).size !== slots.length) {
-    throw new TypeError("duplicate State slot");
+  const duplicateSlot = slots.find((slot, index) => slots.indexOf(slot) !== index);
+  if (duplicateSlot !== undefined) {
+    throw moduleDefinitionErrorV1(
+      "authoring.simulation.duplicate_state_slot",
+      "duplicate State slot",
+      String(duplicateSlot),
+      Object.freeze({ stateSlot: String(duplicateSlot) }),
+      "state_slot",
+    );
   }
   for (const module of modules) {
     const descriptor = requireRecord(module.descriptor, "GameplayModule descriptor");

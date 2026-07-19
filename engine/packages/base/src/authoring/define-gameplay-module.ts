@@ -1,4 +1,8 @@
 // SPDX-License-Identifier: MIT
+import {
+  AuthoringDiagnosticErrorV1,
+  createDiagnosticV1,
+} from "../contracts/diagnostic-envelope.js";
 import type {
   GameSimulationTypeMapV1,
   ModuleOwnerProposalEnvelopeV1,
@@ -6,6 +10,26 @@ import type {
   StatelessGameplayModuleBindingV1,
 } from "../contracts/gameplay-module.js";
 import { parseModuleId, parsePositiveSafeInteger, parseStateSlotId } from "../contracts/values.js";
+
+export function moduleDefinitionErrorV1(
+  code: string,
+  message: string,
+  subjectId: string,
+  details: Readonly<Record<string, string>> = {},
+  subjectKind = "module",
+): AuthoringDiagnosticErrorV1 {
+  return new AuthoringDiagnosticErrorV1(
+    [
+      createDiagnosticV1({
+        code,
+        message,
+        subject: { kind: subjectKind, id: subjectId },
+        details,
+      }),
+    ],
+    message,
+  );
+}
 
 export function deepFreezeAuthoringValueV1<T>(value: T): T {
   const seen = new WeakSet<object>();
@@ -119,13 +143,25 @@ function validateGameplayModuleV1(bindingValue: unknown): unknown {
     parseModuleId,
   );
   if (new Set(slots).size !== slots.length) {
-    throw new TypeError("duplicate State slot in GameplayModule");
+    throw moduleDefinitionErrorV1(
+      "authoring.module.duplicate_state_slot",
+      "duplicate State slot in GameplayModule",
+      id,
+    );
   }
   if (new Set(dependencies).size !== dependencies.length) {
-    throw new TypeError("duplicate GameplayModule dependency");
+    throw moduleDefinitionErrorV1(
+      "authoring.module.duplicate_dependency",
+      "duplicate GameplayModule dependency",
+      id,
+    );
   }
   if (dependencies.includes(id)) {
-    throw new TypeError("GameplayModule may not depend on itself");
+    throw moduleDefinitionErrorV1(
+      "authoring.module.self_dependency",
+      "GameplayModule may not depend on itself",
+      id,
+    );
   }
   requireNullableSchema(binding.commandSchema, "GameplayModule command Schema");
   requireNullableSchema(binding.querySchema, "GameplayModule query Schema");

@@ -12,6 +12,7 @@
     "test": "pnpm --workspace-root exec vitest run game/stories/e2e/src"
   },
   "dependencies": {
-    "@sillymaker/base": "workspace:*"
+    "@sillymaker/base": "workspace:*",
+    "zod": "4.4.3"
   }
 }

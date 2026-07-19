@@ -27,6 +27,8 @@ Treat a revision as a compatibility statement. Change it when the corresponding 
 
 Each stateful module declares its owned State slot(s), schema, initial State, public read ports, owner-scoped proposals/apply behavior, and local invariants. Dependencies should name capabilities another module intentionally exposes.
 
+Schemas can be hand-written parse functions or, preferably, built through `@sillymaker/base/authoring`: `createRuntimeSchemaV1` wraps a parse function and `fromStandardSchemaV1` adapts a Zod (or any Standard Schema V1) schema. Both enforce canonical-JSON output, deep-freeze the result, and report failures as stable `DiagnosticEnvelopeV1` values with JSON pointers instead of bare exceptions. `collectGamePackageDiagnosticsV1` aggregates definition/resolution failures for a whole package the same way.
+
 The aggregate State should align with the modules the Story actually composes. Avoid a universal object containing optional fields for every possible module. Stateless gameplay services can remain named pure capabilities rather than fake State.
 
 ### Compose the simulation

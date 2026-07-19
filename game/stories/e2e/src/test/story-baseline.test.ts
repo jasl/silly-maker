@@ -6,6 +6,7 @@ import {
   createPristineRunIntegrityV1,
   createTransactionalRngV1,
   digestCanonical,
+  extractDiagnosticsV1,
   parseNonNegativeSafeInteger,
   rngStateV1Schema,
 } from "@sillymaker/base";
@@ -13,7 +14,11 @@ import { createGameSessionV1 } from "@sillymaker/base/runtime";
 import { createFixedBootstrapEntropyV1, resolveStoryForTestV1 } from "@sillymaker/base/testkit";
 
 import type { LabAttemptV1, LabCommandV1, LabSimulationTypesV1, LabSnapshotV1 } from "../index.js";
-import { labProcedureStepsToCompleteV1, labStoryEntryV1 } from "../index.js";
+import {
+  labProcedureStepsToCompleteV1,
+  labSamplesStateSchemaV1,
+  labStoryEntryV1,
+} from "../index.js";
 
 const fixedSeedV1 = 23049;
 
@@ -134,6 +139,24 @@ describe("Engine Lab story baseline", () => {
       },
     });
     expect(lab.session.getCurrentSnapshot()).toBe(running);
+  });
+
+  it("reports structured diagnostics with pointers for invalid module State", () => {
+    let thrown: unknown;
+    try {
+      labSamplesStateSchemaV1.parse({ collected: -1 });
+    } catch (error) {
+      thrown = error;
+    }
+    const diagnostics = extractDiagnosticsV1(thrown);
+    expect(diagnostics).not.toBeNull();
+    expect(diagnostics).toMatchObject([
+      {
+        code: "authoring.schema.invalid_value",
+        location: { jsonPointer: "/collected" },
+        subject: { kind: "module", id: "lab.samples" },
+      },
+    ]);
   });
 
   it("produces identical snapshots for the same seed and command transcript", async () => {

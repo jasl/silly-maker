@@ -53,6 +53,27 @@ import {
   rngStateV1Schema,
   runIntegrityV1Schema,
 } from "@sillymaker/base";
+import type {
+  DiagnosticEnvelopeV1,
+  DiagnosticPhaseV1,
+  DiagnosticSeverityV1,
+  GamePackageDiagnosticsResultV1,
+  StandardSchemaLikeV1,
+} from "@sillymaker/base";
+import {
+  AuthoringDiagnosticErrorV1,
+  collectGamePackageDiagnosticsV1,
+  createDiagnosticV1,
+  createRuntimeSchemaV1,
+  extractDiagnosticsV1,
+  formatDiagnosticsHumanV1,
+  fromStandardSchemaV1,
+} from "@sillymaker/base";
+import {
+  collectGamePackageDiagnosticsV1 as authoringCollectGamePackageDiagnosticsV1,
+  createRuntimeSchemaV1 as authoringCreateRuntimeSchemaV1,
+  fromStandardSchemaV1 as authoringFromStandardSchemaV1,
+} from "@sillymaker/base/authoring";
 import { createGameSessionV1 } from "@sillymaker/base/runtime";
 import type {
   GameSessionCompositionV1,
@@ -140,6 +161,34 @@ export type BaseConsumerValuesV1 = {
   validateToolingFixtures: typeof validateToolingFixturesV1;
   validateStory: typeof validateStoryV1;
 };
+
+export type AuthoringConsumerValuesV1 = {
+  authoringDiagnosticError: typeof AuthoringDiagnosticErrorV1;
+  collectGamePackageDiagnostics: typeof collectGamePackageDiagnosticsV1;
+  createDiagnostic: typeof createDiagnosticV1;
+  createRuntimeSchema: typeof createRuntimeSchemaV1;
+  extractDiagnostics: typeof extractDiagnosticsV1;
+  formatDiagnosticsHuman: typeof formatDiagnosticsHumanV1;
+  fromStandardSchema: typeof fromStandardSchemaV1;
+  authoringEntryCollect: typeof authoringCollectGamePackageDiagnosticsV1;
+  authoringEntryCreateRuntimeSchema: typeof authoringCreateRuntimeSchemaV1;
+  authoringEntryFromStandardSchema: typeof authoringFromStandardSchemaV1;
+};
+
+export type AuthoringConsumerTypesV1 = {
+  envelope: DiagnosticEnvelopeV1;
+  phase: DiagnosticPhaseV1;
+  severity: DiagnosticSeverityV1;
+  packageDiagnostics: GamePackageDiagnosticsResultV1;
+  standardSchemaLike: StandardSchemaLikeV1<unknown>;
+};
+
+declare const inferenceWitnessSchemaV1: StandardSchemaLikeV1<{ readonly count: number }> & {
+  readonly "~standard": { readonly types: { readonly output: { readonly count: number } } };
+};
+export const inferredStandardSchemaOutputV1: { readonly count: number } = fromStandardSchemaV1(
+  inferenceWitnessSchemaV1,
+).parse({});
 
 export type GameplayModuleDefinitionV1 = ReturnType<
   typeof defineGameplayModule<GameSimulationTypeMapV1>
