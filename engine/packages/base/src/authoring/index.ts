@@ -16,6 +16,27 @@ export type {
   StandardSchemaLikeV1,
   StandardSchemaOutputV1,
 } from "./runtime-schema.js";
+export { createGameAuthoringKitV1 } from "./game-authoring-kit.js";
+export type {
+  AuthoringKitAnyModuleV1,
+  AuthoringKitAnyStatefulModuleV1,
+  AuthoringKitAnyStatelessModuleV1,
+  AuthoringKitBindingOfV1,
+  AuthoringKitCompositionV1,
+  AuthoringKitStatefulBindingV1,
+  AuthoringKitStatefulModuleConfigV1,
+  AuthoringKitStatefulModuleV1,
+  AuthoringKitStatefulOwnerV1,
+  AuthoringKitStatelessModuleConfigV1,
+  AuthoringKitStatelessModuleV1,
+  CapabilityProviderContextV1,
+  CapabilityProvisionV1,
+  CapabilityRequirementsV1,
+  CapabilityTokenV1,
+  DependencyPortsOfV1,
+  GameAuthoringKitV1,
+  ProvideCapabilityV1,
+} from "./game-authoring-kit.js";
 export { collectGamePackageDiagnosticsV1 } from "./package-diagnostics.js";
 export type {
   CollectGamePackageDiagnosticsOptionsV1,

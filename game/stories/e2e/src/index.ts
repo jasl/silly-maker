@@ -10,10 +10,15 @@ export type {
   LabGameViewV1,
   LabQueriesV1,
   LabRejectionV1,
+  LabSamplesReadPortV1,
   LabSimulationTypesV1,
   LabSnapshotV1,
 } from "./gameplay/simulation.js";
-export { createLabGameSimulationV1, labProcedureStepsToCompleteV1 } from "./gameplay/simulation.js";
+export {
+  createLabGameSimulationV1,
+  labProcedureStepsToCompleteV1,
+  labSamplesReadCapabilityV1,
+} from "./gameplay/simulation.js";
 export type {
   LabGameStateV1,
   LabProcedurePhaseV1,

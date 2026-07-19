@@ -8,6 +8,7 @@
 
 - Typed `GamePackage`, `GameSimulation`, and `GameplayModule` definitions.
 - A dedicated `@sillymaker/base/authoring` entry with `createRuntimeSchemaV1` (canonical-JSON output, deep-freeze, structured failures) and `fromStandardSchemaV1`, the official Zod adapter accepting any Standard Schema V1 implementation without leaking library types.
+- `createGameAuthoringKitV1`: typed capability tokens, `requires`/`provides` with provider factories that build narrow read-only ports from the owner's State slice, a validated capability availability DAG plus an independent `initializesAfter` lifecycle DAG (stable diagnostic codes for missing/duplicate providers, cycles, and undeclared token access), stateful/stateless module helpers with derived proposal schemas, and composition into ordinary low-level module bindings. The low-level `defineGameplayModule`/`defineGameSimulation` API remains the escape hatch; one composition owns one resolved module graph.
 - A shared versioned `DiagnosticEnvelopeV1` (stable code, severity, phase, subject, JSON-pointer location, suggestion, Strict JSON details) used by authoring/definition/resolution failures, plus `collectGamePackageDiagnosticsV1` to aggregate a package's failures as structured diagnostics with human and JSON output.
 - Separate simulation (`rule | value`) and presentation (`value | text | asset`) patch surfaces.
 - Validated, frozen resolution with Story, engine, state-contract, simulation, presentation, asset, and patch-set identity.

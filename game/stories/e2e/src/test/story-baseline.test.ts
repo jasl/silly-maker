@@ -114,6 +114,25 @@ describe("Engine Lab story baseline", () => {
     expect(finished.commandSequence).toBe(2 + labProcedureStepsToCompleteV1);
   });
 
+  it("gates the procedure on the samples capability provided across modules", async () => {
+    const lab = createLabSessionV1();
+    const before = lab.session.getCurrentSnapshot();
+
+    const withoutSamples = await lab.session.dispatch({ kind: "lab.begin_procedure" });
+    expect(withoutSamples).toMatchObject({
+      kind: "executed",
+      execution: {
+        kind: "rejected",
+        reasons: [{ code: "lab.samples_required" }],
+      },
+    });
+    expect(lab.session.getCurrentSnapshot()).toBe(before);
+
+    await dispatchCommittedV1(lab.session, { kind: "lab.collect_sample" });
+    await dispatchCommittedV1(lab.session, { kind: "lab.begin_procedure" });
+    expect(lab.session.getCurrentSnapshot().state.simulation.procedure.phase).toBe("running");
+  });
+
   it("keeps the exact Snapshot on business rejection", async () => {
     const lab = createLabSessionV1();
     const before = lab.session.getCurrentSnapshot();
@@ -128,6 +147,7 @@ describe("Engine Lab story baseline", () => {
     });
     expect(lab.session.getCurrentSnapshot()).toBe(before);
 
+    await dispatchCommittedV1(lab.session, { kind: "lab.collect_sample" });
     await dispatchCommittedV1(lab.session, { kind: "lab.begin_procedure" });
     const running = lab.session.getCurrentSnapshot();
     const beginAgain = await lab.session.dispatch({ kind: "lab.begin_procedure" });

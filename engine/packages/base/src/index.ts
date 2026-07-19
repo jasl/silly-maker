@@ -65,6 +65,7 @@ export {
 } from "./contracts/index.js";
 export {
   collectGamePackageDiagnosticsV1,
+  createGameAuthoringKitV1,
   createRuntimeSchemaV1,
   defineGamePackage,
   defineGameSimulation,
@@ -77,7 +78,13 @@ export {
   resolveGamePackageV1,
 } from "./authoring/index.js";
 export type {
+  AuthoringKitCompositionV1,
+  CapabilityProviderContextV1,
+  CapabilityRequirementsV1,
+  CapabilityTokenV1,
   CollectGamePackageDiagnosticsOptionsV1,
+  DependencyPortsOfV1,
+  GameAuthoringKitV1,
   GamePackageDiagnosticsResultV1,
   PatchSurfaceV1,
   RuntimeSchemaOptionsV1,
