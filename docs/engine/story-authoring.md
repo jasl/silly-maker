@@ -83,6 +83,8 @@ Reuse the engine pattern, not the Tavern-specific ten-module partition, names, n
 
 ### Compose a Host application
 
+The steps below describe the current implementation. The accepted [AI authoring design](design/ai-authoring.md) will move generic construction into Base/UI/Web composers so a Story supplies configuration, simulation, semantic adaptation, projection, and contributions rather than rebuilding these services. Until that work lands, the current explicit composition remains authoritative.
+
 The Web application normally:
 
 1. creates a `GameHostV1` (IndexedDB, files, clock, navigation, logging, entropy);

@@ -10,6 +10,9 @@ Prefer a coherent maintainable system over compatibility with the completed firs
 
 Read only the documents relevant to the change:
 
+- `docs/engine/roadmap.md` — accepted vNext direction and continuous engine milestones.
+- `docs/engine/design/**` — accepted target contracts that are not necessarily implemented yet.
+- `docs/engine/plans/2026-07-19-sillymaker-vnext-foundations.md` — current vNext execution order and acceptance.
 - `docs/engine/architecture.md` — current package and runtime architecture.
 - `docs/engine/features.md` — implemented engine capabilities and boundaries.
 - `docs/engine/development.md` — setup, tests, and maintenance workflow.
@@ -18,6 +21,8 @@ Read only the documents relevant to the change:
 - `docs/game/README.md` — current Project Tavern design status.
 - `docs/policies/licensing.md` and `docs/policies/assets-and-references.md` — durable legal and source-material policy.
 - Root legal files (`LICENSE.md`, `NOTICE`, `THIRD_PARTY_NOTICES.md`, `TRADEMARKS.md`) — controlling legal scope.
+
+The roadmap and design documents describe accepted direction; they do not make a feature implemented. `architecture.md`, `features.md`, `story-authoring.md`, `development.md`, and `build-and-release.md` describe the live implementation and must be updated as each planned capability lands. Design owns the intended contract, while the active plan owns task order and acceptance; a task must not silently override a design decision.
 
 `docs/archive/2026-07-first-poc-goal/**` is a historical snapshot. It is not an implementation plan, acceptance contract, required reading set, or source of current constraints. Do not restore its Phase order, checkpoint, materialization, exact-host, balance-freeze, or commit choreography unless a new active design explicitly needs a particular idea.
 

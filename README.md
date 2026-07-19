@@ -28,6 +28,7 @@ pnpm dev
 
 - [文档地图](docs/README.md)
 - [SillyMaker 架构](docs/engine/architecture.md)
+- [SillyMaker 路线图](docs/engine/roadmap.md)
 - [引擎特性](docs/engine/features.md)
 - [开发与测试](docs/engine/development.md)
 - [Story 编写](docs/engine/story-authoring.md)
@@ -35,6 +36,7 @@ pnpm dev
 - [Project Tavern 玩法重设计状态](docs/game/README.md)
 - [许可政策](docs/policies/licensing.md)
 - [素材与参考资料政策](docs/policies/assets-and-references.md)
+- [vNext foundations 实施计划](docs/engine/plans/2026-07-19-sillymaker-vnext-foundations.md)
 
 首个 PoC Goal 的计划、规格、证据和旧 runbook 已整体移入[历史归档](docs/archive/2026-07-first-poc-goal/README.md)。归档用于追溯，不再约束当前开发。
 

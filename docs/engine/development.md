@@ -60,6 +60,8 @@ Commits can be organized for reviewability, but there is no required Phase-to-co
 
 ## Testing policy
 
+The current browser commands still exercise the PoC application. The accepted [E2E engine validation design](design/e2e-engine-validation.md) will split a neutral Engine Conformance Story from Tavern product flows; do not describe that target split as implemented until the new commands and Story exist.
+
 Tests and scripts are maintained when they protect product or reusable-engine value:
 
 - command commit/rejection/fault behavior;

@@ -144,3 +144,5 @@ Architecture evolution is expected. A substantial change should state:
 6. which active documents now describe it.
 
 Historical Phase plans and contract catalogs are evidence of one implementation journey, not approval requirements for the next design.
+
+The accepted evolution beyond this live baseline is tracked in the [engine roadmap](roadmap.md), [AI authoring design](design/ai-authoring.md), [E2E engine validation design](design/e2e-engine-validation.md), and [VN presentation runtime design](design/vn-presentation-runtime.md). Those documents do not alter the current data flow until their implementation and behavior tests land.

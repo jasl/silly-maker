@@ -61,9 +61,13 @@
 - Vite development and static Player builds.
 - Local Artifact preparation with legal notices and a technical manifest.
 
-## Current non-goals and open design areas
+## Current non-goals and planned design areas
 
-The engine does not currently provide a backend/account service, networked multiplayer authority, runtime LLM, arbitrary script sandbox, ECS, SQL query layer, or a general-purpose database client for UI. These are descriptions of the present implementation, not permanent bans.
+The engine does not currently provide a backend/account service, networked multiplayer authority, runtime LLM, ECS, SQL query layer, or a general-purpose database client for UI. These are descriptions of the present implementation, not permanent bans.
+
+The script-language decision is durable: Story, Module, Narrative, UI, and official Hotfix code use TypeScript/JavaScript. SillyMaker does not plan Ren'Py DSL/Save compatibility, a custom script interpreter, or an untrusted-code security sandbox. Direct Host-global access remains possible JavaScript but is outside the supported engine API.
+
+Semantic Stage/Transition, PendingInteraction, media/audio, VN player systems, typed Timeline, a bounded Presentation Scene Graph, advanced media/renderer adapters, authoring DevTools/editors, and Player rollback are planned in the [engine roadmap](roadmap.md). They are not implemented features yet.
 
 State access and persistence may be redesigned. The current exploratory direction is recorded in [the typed StateStore proposal](proposals/typed-state-store.md). Any adopted design should replace or simplify existing machinery rather than create two competing authoritative states.
 

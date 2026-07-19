@@ -2,6 +2,8 @@
 
 状态：**探索性、非绑定**。未选择 API、依赖、迁移时间或实现方案。
 
+本 proposal 不是 [vNext foundations plan](../plans/2026-07-19-sillymaker-vnext-foundations.md) 的前置依赖。只有 Engine Conformance Story、AI authoring canary 或 Tavern 玩法原型暴露出当前 object/module model 无法通过较小改进解决的具体问题时，才进入采用评估。
+
 ## Motivation
 
 SillyMaker 当前把每个 Story 的 Gameplay State 组合成一个普通、已验证的对象。GameplayModules 拥有明确 State slot，Story executor 协调写入，Queries 产生只读 DTO，GameSession 负责原子提交。这套模型正确但可能在玩法扩大后暴露重复样板：跨模块读写、关系查找、稳定排序、引用校验、索引重建和 Save 映射需要各自手写。
