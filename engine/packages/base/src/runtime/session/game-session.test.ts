@@ -1576,3 +1576,94 @@ describe("GameSession FIFO", () => {
     expect(observerFailures).toEqual([observerError]);
   });
 });
+
+describe("GameSession snapshot immutability", () => {
+  function createMutableSnapshot(
+    count: number,
+    integrity: Snapshot["integrity"] = createPristineRunIntegrityV1(),
+  ): Snapshot {
+    return {
+      state: { count },
+      rng: { cursor: 0 },
+      commandSequence: parseNonNegativeSafeInteger(count),
+      integrity,
+    };
+  }
+
+  function createMutableFixture(): ReturnType<typeof createGameSessionV1<Types>> {
+    return createGameSessionV1<Types>({
+      initialSnapshot: createMutableSnapshot(0),
+      commandSchema,
+      executionContext: undefined,
+      executeAttempt(snapshot, command) {
+        if (command.kind !== "increment") return attempt(snapshot as Snapshot, command);
+        const current = snapshot as Snapshot;
+        const next = createMutableSnapshot(current.state.count + 1, current.integrity);
+        return {
+          result: { kind: "committed", snapshot: next, facts: [{ count: next.state.count }] },
+          diagnostics: {
+            committedRngBefore: current.rng,
+            attemptedDraws: [] as readonly never[],
+            committedRngAfter: next.rng,
+          },
+        };
+      },
+      normalizeUnexpectedDispatchFault(_error, snapshot) {
+        return attempt(snapshot as Snapshot, { kind: "fault" });
+      },
+    });
+  }
+
+  it("deep-freezes the bootstrap Snapshot before exposing it", () => {
+    const created = createMutableFixture();
+
+    const current = created.session.getCurrentSnapshot();
+    expect(Object.isFrozen(current)).toBe(true);
+    expect(Object.isFrozen(current.state)).toBe(true);
+    expect(Object.isFrozen(current.rng)).toBe(true);
+    expect(() => {
+      (current.state as { count: number }).count = 99;
+    }).toThrowError(TypeError);
+    expect(current.state.count).toBe(0);
+  });
+
+  it("deep-freezes committed Snapshots even when the executor returns mutable data", async () => {
+    const created = createMutableFixture();
+
+    await created.session.dispatch({ kind: "increment" });
+
+    const current = created.session.getCurrentSnapshot();
+    expect(current.state.count).toBe(1);
+    expect(Object.isFrozen(current)).toBe(true);
+    expect(Object.isFrozen(current.state)).toBe(true);
+    expect(Object.isFrozen(current.rng)).toBe(true);
+    expect(() => {
+      (current.state as { count: number }).count = 99;
+    }).toThrowError(TypeError);
+    expect(created.session.getCurrentSnapshot().state.count).toBe(1);
+  });
+
+  it("recurses into mutable children below an already-frozen envelope", () => {
+    const partiallyFrozen = Object.freeze({
+      state: { count: 0 },
+      rng: { cursor: 0 },
+      commandSequence: parseNonNegativeSafeInteger(0),
+      integrity: createPristineRunIntegrityV1(),
+    });
+    const created = createGameSessionV1<Types>({
+      initialSnapshot: partiallyFrozen,
+      commandSchema,
+      executionContext: undefined,
+      executeAttempt(snapshot, command) {
+        return attempt(snapshot as Snapshot, command);
+      },
+      normalizeUnexpectedDispatchFault(_error, snapshot) {
+        return attempt(snapshot as Snapshot, { kind: "fault" });
+      },
+    });
+
+    const current = created.session.getCurrentSnapshot();
+    expect(Object.isFrozen(current.state)).toBe(true);
+    expect(Object.isFrozen(current.rng)).toBe(true);
+  });
+});

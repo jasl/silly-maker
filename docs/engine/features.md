@@ -15,7 +15,7 @@
 ## Runtime
 
 - One authoritative `GameSession` queue for gameplay dispatch and State replacement.
-- Immutable, schema-validated `GameSnapshot` values.
+- Immutable, schema-validated `GameSnapshot` values; the session deep-freezes every installed Snapshot so live mutation attempts throw.
 - Serializable purpose-labelled PRNG with rollback-safe command attempts.
 - Structured commit, rejection, validation, and fault outcomes.
 - Static module composition with explicit State ownership and dependency validation.

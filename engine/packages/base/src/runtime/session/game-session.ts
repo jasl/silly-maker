@@ -327,13 +327,37 @@ function debugAnchorReasonV1<
       });
 }
 
+/**
+ * Freezes every reachable own data property of an installed Snapshot in place.
+ * Snapshots are plain validated data; freezing enforces the immutability the
+ * type-level DeepReadonly promises, so a buggy consumer mutating a live
+ * Snapshot throws instead of silently corrupting authoritative state. A
+ * visited set guards traversal because already-frozen envelopes can still
+ * carry mutable children.
+ */
+function deepFreezeSnapshotV1<TSnapshot>(value: TSnapshot): TSnapshot {
+  const visited = new Set<object>();
+  const freeze = (current: unknown): void => {
+    if (current === null || typeof current !== "object" || visited.has(current)) return;
+    visited.add(current);
+    for (const descriptor of Object.values(Object.getOwnPropertyDescriptors(current))) {
+      if (descriptor.get === undefined && descriptor.set === undefined) {
+        freeze(descriptor.value);
+      }
+    }
+    Object.freeze(current);
+  };
+  freeze(value);
+  return value;
+}
+
 function createInternal<TTypes extends GameSimulationTypeMapV1>(
   input: GameSessionInputV1<TTypes>,
 ): GameSessionCompositionV1<TTypes> {
   type DispatchResult = Awaited<ReturnType<GameSessionV1<TTypes>["dispatch"]>>;
 
   runIntegrityV1Schema.parse(input.initialSnapshot.integrity);
-  let snapshot = input.initialSnapshot;
+  let snapshot = deepFreezeSnapshotV1(input.initialSnapshot);
   let stableStatus: Exclude<RuntimeSessionStatusV1, "busy"> = "ready";
   let pending = 0;
   let tail: Promise<void> = Promise.resolve();
@@ -433,10 +457,12 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
           const outcome = await operation(snapshot as DeepReadonly<TTypes["snapshot"]>);
           if (isHmrInvalidated()) return invalidatedResult();
           if (outcome.kind === "replace") {
-            const finalized = finalizeSnapshotIntegrityV1<TTypes["snapshot"]>(
-              snapshot as DeepReadonly<TTypes["snapshot"]>,
-              outcome.snapshot,
-              { kind: "accept_replacement" },
+            const finalized = deepFreezeSnapshotV1(
+              finalizeSnapshotIntegrityV1<TTypes["snapshot"]>(
+                snapshot as DeepReadonly<TTypes["snapshot"]>,
+                outcome.snapshot,
+                { kind: "accept_replacement" },
+              ),
             );
             if (outcome.anchor === "preserve_log" && finalized !== snapshot) {
               throw new TypeError("preserve_log replacement changed the Snapshot");
@@ -573,7 +599,7 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
           reportObserverFailure(error);
         }
         if (finalizedAttempt.result.kind === "committed") {
-          snapshot = finalizedAttempt.result.snapshot;
+          snapshot = deepFreezeSnapshotV1(finalizedAttempt.result.snapshot);
           publish();
           publishCommittedSnapshot();
         } else {
@@ -619,7 +645,7 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
             outcome.snapshot,
             { kind: "accept_replacement" },
           );
-          const finalized = Object.freeze({
+          const finalized = deepFreezeSnapshotV1({
             ...accepted,
             integrity: markRunModifiedV1(accepted.integrity, debugAnchorReasonV1(anchor, accepted)),
           }) as TTypes["snapshot"];
@@ -704,7 +730,7 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
           reportObserverFailure(error);
         }
         if (finalizedAttempt.result.kind === "committed") {
-          snapshot = finalizedAttempt.result.snapshot;
+          snapshot = deepFreezeSnapshotV1(finalizedAttempt.result.snapshot);
           publish();
           publishCommittedSnapshot();
         } else if (finalizedAttempt.result.kind === "faulted") {
