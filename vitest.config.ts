@@ -9,5 +9,10 @@ export default defineConfig({
       "scripts/**/*.test.ts",
     ],
     exclude: ["**/node_modules/**", "**/dist*/**", "engine/packages/web/e2e/**"],
+    coverage: {
+      provider: "v8",
+      include: ["engine/packages/*/src/**"],
+      reporter: ["text-summary", "json-summary"],
+    },
   },
 });
