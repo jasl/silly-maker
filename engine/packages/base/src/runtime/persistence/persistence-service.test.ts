@@ -1856,3 +1856,177 @@ describe("PersistenceServiceV1", () => {
     },
   );
 });
+
+describe("PersistenceService standard composition", () => {
+  interface MutableStoredRecordV1 {
+    slot: { storyId: string; slotId: string };
+    simulationLineage: unknown[];
+    provenance: { resolved: { patchSet: { [key: string]: unknown } } };
+  }
+
+  async function standardFixtureV1(provenance: BuildProvenanceV1 = provenanceV1()) {
+    const records = createMemoryHostRecordStoreV1();
+    const created = createSessionV1(snapshotV1(0));
+    const service = await createPersistenceServiceV1({
+      runtimeControl: created.runtimeControl,
+      records,
+      snapshotSchema: snapshotSchemaV1,
+      provenance,
+      adoptionDeclaration: null,
+      ownerId: ownerIdV1,
+      nextHandoffRequestId: () => "handoff.standard" as never,
+      validateReferences: (state: DeepReadonly<SyntheticStateV1>) =>
+        state.referenceId === "reference.valid"
+          ? Object.freeze([])
+          : Object.freeze(["reference.unknown"]),
+      validateInvariants: () => Object.freeze([]),
+      initialSimulationLineage: Object.freeze([]),
+      metadataClock: Object.freeze({ now: () => "2026-07-14T12:00:00.000Z" as IsoUtcInstant }),
+      exportFilename: "standard-save.json",
+    });
+    return Object.freeze({ records, ...created, service });
+  }
+
+  async function tamperStoredQuickV1(
+    records: HostAtomicRecordStoreV1,
+    mutate: (record: MutableStoredRecordV1) => void,
+  ): Promise<void> {
+    const key = createSaveSlotRecordKeyV1(storyIdV1, "quick");
+    const stored = await records.read("save", key);
+    if (stored === null) throw new Error("expected a stored quick Save record");
+    const parsed = JSON.parse(new TextDecoder().decode(stored.bytes)) as MutableStoredRecordV1;
+    mutate(parsed);
+    const committed = await records.commit([
+      {
+        kind: "put",
+        namespace: "save",
+        key,
+        expectedRevision: stored.revision,
+        bytes: textEncoderV1.encode(JSON.stringify(parsed)),
+      },
+    ]);
+    if (committed.kind !== "committed") throw new Error("tampering commit failed");
+  }
+
+  it("saves, reloads, and exports through the standard record schemas", async () => {
+    const base = provenanceV1();
+    const provenance = Object.freeze({
+      ...base,
+      resolved: Object.freeze({
+        ...base.resolved,
+        patchSet: Object.freeze({
+          digest: digestV1("patch:hotfixed"),
+          simulationDigest: digestV1("patch:simulation:hotfixed"),
+          presentationDigest: digestV1("patch:presentation:hotfixed"),
+          appliedHotfixes: Object.freeze([
+            Object.freeze({
+              identity: Object.freeze({
+                id: "hotfix.standard",
+                revision: parsePositiveSafeInteger(1),
+                digest: digestV1("hotfix:standard"),
+              }),
+              ordinal: parsePositiveSafeInteger(1),
+              replacements: Object.freeze([
+                Object.freeze({
+                  surface: "presentation" as const,
+                  symbolId: "symbol.standard",
+                  kind: "text" as const,
+                  previousProviderDigest: digestV1("provider:previous"),
+                  nextProviderDigest: digestV1("provider:next"),
+                }),
+              ]),
+            }),
+          ]),
+        }),
+      }),
+    });
+    const fixture = await standardFixtureV1(provenance);
+
+    await fixture.session.dispatch({ kind: "increment" });
+    await expect(fixture.service.port.save("quick")).resolves.toEqual({
+      kind: "saved",
+      slotId: "quick",
+    });
+
+    await fixture.session.dispatch({ kind: "increment" });
+    expect(fixture.session.getCurrentSnapshot().commandSequence).toBe(2);
+    await expect(fixture.service.port.load("quick")).resolves.toEqual({
+      kind: "loaded",
+      compatibility: "exact",
+      commandSequence: 1,
+    });
+    expect(fixture.session.getCurrentSnapshot().commandSequence).toBe(1);
+
+    const exported = await fixture.service.port.exportCurrentSave();
+    expect(exported).toMatchObject({
+      filename: "standard-save.json",
+      mediaType: "application/json",
+    });
+    await fixture.service.autoSaveIdle();
+  });
+
+  it("rejects loading a stored record whose slot identity was tampered", async () => {
+    const fixture = await standardFixtureV1();
+    await fixture.session.dispatch({ kind: "increment" });
+    await expect(fixture.service.port.save("quick")).resolves.toEqual({
+      kind: "saved",
+      slotId: "quick",
+    });
+    await tamperStoredQuickV1(fixture.records, (record) => {
+      record.slot.storyId = "story.other";
+    });
+
+    const snapshotBefore = fixture.session.getCurrentSnapshot();
+    await expect(fixture.service.port.load("quick")).resolves.toEqual({
+      kind: "rejected",
+      code: "invalid_record",
+    });
+    expect(fixture.session.getCurrentSnapshot()).toBe(snapshotBefore);
+    await fixture.service.autoSaveIdle();
+  });
+
+  it("rejects loading a stored record whose simulation lineage chain is broken", async () => {
+    const fixture = await standardFixtureV1();
+    await fixture.session.dispatch({ kind: "increment" });
+    await expect(fixture.service.port.save("quick")).resolves.toEqual({
+      kind: "saved",
+      slotId: "quick",
+    });
+    await tamperStoredQuickV1(fixture.records, (record) => {
+      record.simulationLineage = [
+        {
+          fromSimulationDigest: digestV1("lineage:broken"),
+          toSimulationDigest: digestV1("lineage:not-current"),
+          viaSimulationPatchSetDigest: digestV1("lineage-patch:broken"),
+          adoptedAtCommandSequence: 0,
+        },
+      ];
+    });
+
+    await expect(fixture.service.port.load("quick")).resolves.toEqual({
+      kind: "rejected",
+      code: "invalid_record",
+    });
+    expect(fixture.session.getCurrentSnapshot().commandSequence).toBe(1);
+    await fixture.service.autoSaveIdle();
+  });
+
+  it("rejects loading a stored record whose patch set shape is malformed", async () => {
+    const fixture = await standardFixtureV1();
+    await fixture.session.dispatch({ kind: "increment" });
+    await expect(fixture.service.port.save("quick")).resolves.toEqual({
+      kind: "saved",
+      slotId: "quick",
+    });
+    await tamperStoredQuickV1(fixture.records, (record) => {
+      delete record.provenance.resolved.patchSet.appliedHotfixes;
+    });
+
+    await expect(fixture.service.port.load("quick")).resolves.toEqual({
+      kind: "rejected",
+      code: "invalid_record",
+    });
+    expect(fixture.session.getCurrentSnapshot().commandSequence).toBe(1);
+    await fixture.service.autoSaveIdle();
+  });
+});
