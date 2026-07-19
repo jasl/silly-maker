@@ -4,6 +4,8 @@ import {
   AuthoringDiagnosticErrorV1,
   createDiagnosticV1,
 } from "../contracts/diagnostic-envelope.js";
+import type { CommandExecutionAttemptEnvelopeV1 } from "../contracts/execution.js";
+import { commitAttemptV1, faultAttemptV1, rejectAttemptV1 } from "../contracts/execution.js";
 import type {
   GameplayModuleBindingV1,
   GameSimulationTypeMapV1,
@@ -13,8 +15,14 @@ import type {
   StatefulGameplayModuleBindingV1,
   StatelessGameplayModuleBindingV1,
 } from "../contracts/gameplay-module.js";
+import type { RngDrawTraceV1, RngStateV1, RuleRngV1 } from "../contracts/rng.js";
 import type { DeepReadonly, ModuleId, RuntimeSchemaV1, StateSlotId } from "../contracts/values.js";
-import { parseModuleId, parsePositiveSafeInteger, parseStateSlotId } from "../contracts/values.js";
+import {
+  parseModuleId,
+  parseNonNegativeSafeInteger,
+  parsePositiveSafeInteger,
+  parseStateSlotId,
+} from "../contracts/values.js";
 import { defineGameplayModule } from "./define-gameplay-module.js";
 
 declare const capabilityPortBrandV1: unique symbol;
@@ -218,6 +226,65 @@ export type AuthoringKitBindingOfV1<TTypes extends GameSimulationTypeMapV1, TMod
       ? StatelessGameplayModuleBindingV1<TTypes, never, never, never, TCapabilities>
       : GameplayModuleBindingV1<TTypes>;
 
+export type KitOwnerOperationOfV1<TModule> =
+  TModule extends AuthoringKitStatefulModuleV1<
+    infer _TTypes,
+    infer _TStateSlice,
+    infer TOwnerOperation,
+    infer _TModuleCommand,
+    infer _TRequires
+  >
+    ? TOwnerOperation
+    : never;
+
+export type KitTransactionOutcomeV1<TTypes extends GameSimulationTypeMapV1> =
+  | { readonly kind: "transaction_complete" }
+  | { readonly kind: "transaction_reject"; readonly rejection: TTypes["rejection"] };
+
+export type KitProposeResultV1<TTypes extends GameSimulationTypeMapV1> =
+  | { readonly kind: "proposed" }
+  | { readonly kind: "rejected"; readonly rejection: TTypes["rejection"] };
+
+/**
+ * The Story-facing cross-owner transaction surface. All reads observe the
+ * command-start immutable Snapshot; each owner accepts at most one proposal;
+ * `complete()` only hands back a full candidate while validation, commit,
+ * rejection, fault, and RNG/sequence rollback stay engine-owned.
+ */
+export interface KitTransactionV1<TTypes extends GameSimulationTypeMapV1> {
+  read<TPort>(token: CapabilityTokenV1<TPort>): TPort;
+  propose<TModule extends AuthoringKitAnyStatefulModuleV1>(
+    module: TModule,
+    operation: KitOwnerOperationOfV1<TModule>,
+  ): KitProposeResultV1<TTypes>;
+  reject(rejection: TTypes["rejection"]): KitTransactionOutcomeV1<TTypes>;
+  complete(): KitTransactionOutcomeV1<TTypes>;
+}
+
+export interface KitTransactionRunnerConfigV1<TTypes extends GameSimulationTypeMapV1> {
+  readonly stateSchema: RuntimeSchemaV1<TTypes["state"]>;
+  createFault(cause: unknown): TTypes["fault"];
+  validateCandidate?(state: DeepReadonly<TTypes["state"]>): readonly string[];
+}
+
+export type KitAttemptOfV1<TTypes extends GameSimulationTypeMapV1> =
+  CommandExecutionAttemptEnvelopeV1<
+    TTypes["snapshot"],
+    TTypes["fact"],
+    TTypes["rejection"],
+    TTypes["fault"],
+    RngStateV1,
+    RngDrawTraceV1
+  >;
+
+export interface KitTransactionRunnerV1<TTypes extends GameSimulationTypeMapV1> {
+  execute(
+    snapshot: DeepReadonly<TTypes["snapshot"]>,
+    rng: RuleRngV1,
+    run: (transaction: KitTransactionV1<TTypes>) => KitTransactionOutcomeV1<TTypes>,
+  ): KitAttemptOfV1<TTypes>;
+}
+
 export interface AuthoringKitCompositionV1<
   TTypes extends GameSimulationTypeMapV1,
   TModules extends readonly AuthoringKitAnyModuleV1[],
@@ -234,6 +301,9 @@ export interface AuthoringKitCompositionV1<
     state: DeepReadonly<TTypes["state"]>,
     token: CapabilityTokenV1<TPort>,
   ): TPort;
+  createTransactionRunner(
+    config: KitTransactionRunnerConfigV1<TTypes>,
+  ): KitTransactionRunnerV1<TTypes>;
 }
 
 function kitDiagnosticV1(
@@ -260,6 +330,37 @@ function readStateSlotV1(state: unknown, slot: string): unknown {
     current = Reflect.get(current, property);
   }
   return current;
+}
+
+function writeStateSlotV1(state: unknown, slot: string, value: unknown): unknown {
+  const parts = slot.split(".");
+  const set = (current: unknown, index: number): unknown => {
+    if (current === null || typeof current !== "object" || Array.isArray(current)) {
+      throw new AuthoringDiagnosticErrorV1([
+        kitDiagnosticV1(
+          "authoring.capability.provider_state_missing",
+          `State slot ${slot} is absent from aggregate State`,
+          { kind: "state_slot", id: slot },
+        ),
+      ]);
+    }
+    const record = current as Readonly<Record<string, unknown>>;
+    const key = parts[index] as string;
+    if (!Object.hasOwn(record, key)) {
+      throw new AuthoringDiagnosticErrorV1([
+        kitDiagnosticV1(
+          "authoring.capability.provider_state_missing",
+          `State slot ${slot} is absent from aggregate State`,
+          { kind: "state_slot", id: slot },
+        ),
+      ]);
+    }
+    return {
+      ...record,
+      [key]: index === parts.length - 1 ? value : set(record[key], index + 1),
+    };
+  };
+  return set(state, 0);
 }
 
 function assertGraphIsDagV1(
@@ -372,6 +473,28 @@ type ErasedModuleV1 = ErasedStatefulModuleV1 | ErasedStatelessModuleV1;
 interface ErasedConsumerV1 {
   readonly requires: CapabilityRequirementsV1;
   readonly id: ModuleId;
+}
+
+interface ErasedTransactionSnapshotV1 {
+  readonly state: unknown;
+  readonly rng: RngStateV1;
+  readonly commandSequence: number;
+  readonly integrity: unknown;
+}
+
+interface ErasedRunnerConfigV1 {
+  readonly stateSchema: RuntimeSchemaV1<unknown>;
+  createFault(cause: unknown): unknown;
+  validateCandidate?(state: never): readonly string[];
+}
+
+type ErasedTransactionOutcomeV1 =
+  | { readonly kind: "transaction_complete"; readonly rejection?: undefined }
+  | { readonly kind: "transaction_reject"; readonly rejection: unknown };
+
+interface StagedProposalV1 {
+  readonly module: ErasedStatefulModuleV1;
+  readonly proposal: { readonly payload: unknown; readonly facts: readonly unknown[] };
 }
 
 export function createGameAuthoringKitV1<
@@ -618,15 +741,140 @@ export function createGameAuthoringKitV1<
       statefulModules.map((module) => [module.id, new Set(Object.values(module.requires))]),
     );
 
+    const proposalSchemasByModule = new Map<ModuleId, RuntimeSchemaV1<unknown>>();
+    const kitModulesById = new Map<ModuleId, ErasedStatefulModuleV1>();
+    for (const module of statefulModules) {
+      kitModulesById.set(module.id, module);
+      proposalSchemasByModule.set(
+        module.id,
+        module.config.owner.proposalSchema ??
+          deriveProposalSchemaV1(module.config.owner.operationSchema),
+      );
+    }
+
+    const createDependencyPortsFor = (consumer: ErasedConsumerV1, state: unknown) => {
+      const ports: Record<string, unknown> = {};
+      for (const [name, token] of Object.entries(consumer.requires)) {
+        ports[name] = buildPort(token, state);
+      }
+      return Object.freeze(ports);
+    };
+
+    const createTransactionRunner = (config: ErasedRunnerConfigV1) =>
+      Object.freeze({
+        execute(
+          snapshot: ErasedTransactionSnapshotV1,
+          rng: RuleRngV1,
+          run: (transaction: never) => ErasedTransactionOutcomeV1,
+        ) {
+          const staged = new Map<ModuleId, StagedProposalV1>();
+          const ownerRejections: unknown[] = [];
+          const transaction = Object.freeze({
+            read: (token: CapabilityTokenV1<unknown>) => buildPort(token, snapshot.state),
+            propose(moduleLike: { readonly id: ModuleId }, operation: unknown) {
+              const module = kitModulesById.get(moduleLike.id);
+              if (module === undefined) {
+                throw new AuthoringDiagnosticErrorV1([
+                  kitDiagnosticV1(
+                    "authoring.transaction.unknown_module",
+                    `module ${String(moduleLike.id)} is not part of this composition`,
+                    { kind: "module", id: String(moduleLike.id) },
+                  ),
+                ]);
+              }
+              if (staged.has(module.id)) {
+                throw new AuthoringDiagnosticErrorV1([
+                  kitDiagnosticV1(
+                    "authoring.transaction.duplicate_proposal",
+                    `owner ${String(module.id)} already staged a proposal in this transaction`,
+                    { kind: "module", id: String(module.id) },
+                  ),
+                ]);
+              }
+              const parsedOperation = module.config.owner.operationSchema.parse(operation);
+              const startSlice = readStateSlotV1(snapshot.state, module.stateSlot);
+              const dependencies = createDependencyPortsFor(module, snapshot.state);
+              const result = module.config.owner.propose(
+                startSlice as never,
+                parsedOperation as never,
+                dependencies as never,
+              ) as
+                | { readonly kind: "proposed"; readonly proposal: unknown }
+                | { readonly kind: "rejected"; readonly rejection: unknown };
+              if (result.kind === "rejected") {
+                ownerRejections.push(result.rejection);
+                return Object.freeze({ kind: "rejected" as const, rejection: result.rejection });
+              }
+              if (result.kind !== "proposed") {
+                throw new TypeError("owner.propose returned an invalid result");
+              }
+              const proposalSchema = proposalSchemasByModule.get(module.id);
+              if (proposalSchema === undefined) {
+                throw new TypeError("owner proposal schema disappeared after composition");
+              }
+              const proposal = proposalSchema.parse(result.proposal) as {
+                readonly payload: unknown;
+                readonly facts: readonly unknown[];
+              };
+              staged.set(module.id, { module, proposal });
+              return Object.freeze({ kind: "proposed" as const });
+            },
+            reject: (rejection: unknown) =>
+              Object.freeze({ kind: "transaction_reject" as const, rejection }),
+            complete: () => Object.freeze({ kind: "transaction_complete" as const }),
+          });
+
+          try {
+            const outcome = run(transaction as never);
+            if (outcome.kind === "transaction_reject") {
+              return rejectAttemptV1(snapshot, rng, [outcome.rejection]);
+            }
+            if (outcome.kind !== "transaction_complete") {
+              throw new TypeError("transaction run returned an invalid outcome");
+            }
+            if (ownerRejections.length > 0) {
+              return rejectAttemptV1(snapshot, rng, ownerRejections);
+            }
+            const ordered = [...staged.values()].sort((left, right) =>
+              String(left.module.id).localeCompare(String(right.module.id)),
+            );
+            let nextState: unknown = snapshot.state;
+            const facts: unknown[] = [];
+            for (const { module, proposal } of ordered) {
+              const startSlice = readStateSlotV1(snapshot.state, module.stateSlot);
+              const applied = module.config.owner.apply(startSlice as never, proposal as never);
+              const parsedSlice = module.config.state.schema.parse(applied);
+              nextState = writeStateSlotV1(nextState, module.stateSlot, parsedSlice);
+              facts.push(...proposal.facts);
+            }
+            const candidateState = config.stateSchema.parse(nextState);
+            const violations = config.validateCandidate?.(candidateState as never) ?? [];
+            if (violations.length > 0) {
+              throw new AuthoringDiagnosticErrorV1([
+                kitDiagnosticV1(
+                  "authoring.transaction.invariant_violation",
+                  `transaction candidate violated ${violations.length} invariant(s)`,
+                  { kind: "state", id: "candidate" },
+                  { violations: violations.join(", ") },
+                ),
+              ]);
+            }
+            const next = Object.freeze({
+              state: candidateState,
+              rng: rng.candidateState(),
+              commandSequence: parseNonNegativeSafeInteger(snapshot.commandSequence + 1),
+              integrity: snapshot.integrity,
+            });
+            return commitAttemptV1(snapshot, next as typeof snapshot, rng, facts);
+          } catch (error) {
+            return faultAttemptV1(snapshot, rng, config.createFault(error));
+          }
+        },
+      });
+
     return Object.freeze({
       modules: Object.freeze(bindings),
-      createDependencyPortsFor(consumer: ErasedConsumerV1, state: unknown) {
-        const ports: Record<string, unknown> = {};
-        for (const [name, token] of Object.entries(consumer.requires)) {
-          ports[name] = buildPort(token, state);
-        }
-        return Object.freeze(ports);
-      },
+      createDependencyPortsFor,
       readCapability(
         consumer: ErasedConsumerV1,
         state: unknown,
@@ -645,6 +893,7 @@ export function createGameAuthoringKitV1<
         }
         return buildPort(token, state);
       },
+      createTransactionRunner,
     });
   }
 

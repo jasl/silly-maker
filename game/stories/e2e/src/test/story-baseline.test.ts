@@ -133,6 +133,54 @@ describe("Engine Lab story baseline", () => {
     expect(lab.session.getCurrentSnapshot().state.simulation.procedure.phase).toBe("running");
   });
 
+  it("runs the cross-owner experiment atomically and rejects deterministically at the end", async () => {
+    const lab = createLabSessionV1();
+    await dispatchCommittedV1(lab.session, { kind: "lab.collect_sample" });
+    await dispatchCommittedV1(lab.session, { kind: "lab.begin_procedure" });
+    const samplesBefore = lab.session.getCurrentSnapshot().state.simulation.samples.collected;
+
+    const experiment = await lab.session.dispatch({ kind: "lab.run_experiment" });
+    expect(experiment).toMatchObject({
+      kind: "executed",
+      execution: {
+        kind: "committed",
+        facts: [
+          { kind: "lab.procedure_advanced", stepsTaken: 1 },
+          { kind: "lab.samples_consumed", amount: 1, remaining: samplesBefore - 1 },
+        ],
+      },
+    });
+    const afterFirst = lab.session.getCurrentSnapshot();
+    expect(afterFirst.state.simulation.samples.collected).toBe(samplesBefore - 1);
+    expect(afterFirst.state.simulation.procedure).toEqual({ phase: "running", stepsTaken: 1 });
+
+    // Whatever the RNG yielded (1..3), the second dispatch has exactly one
+    // legal outcome: with zero samples left it must starve atomically, and
+    // with samples left it must complete the procedure.
+    const second = await lab.session.dispatch({ kind: "lab.run_experiment" });
+    if (afterFirst.state.simulation.samples.collected === 0) {
+      expect(second).toMatchObject({
+        kind: "executed",
+        execution: { kind: "rejected", reasons: [{ code: "lab.insufficient_samples" }] },
+      });
+      expect(lab.session.getCurrentSnapshot()).toBe(afterFirst);
+      return;
+    }
+    expect(second).toMatchObject({ kind: "executed", execution: { kind: "committed" } });
+    const complete = lab.session.getCurrentSnapshot();
+    expect(complete.state.simulation.procedure).toEqual({
+      phase: "complete",
+      stepsTaken: labProcedureStepsToCompleteV1,
+    });
+
+    const afterComplete = await lab.session.dispatch({ kind: "lab.run_experiment" });
+    expect(afterComplete).toMatchObject({
+      kind: "executed",
+      execution: { kind: "rejected", reasons: [{ code: "lab.procedure_not_running" }] },
+    });
+    expect(lab.session.getCurrentSnapshot()).toBe(complete);
+  });
+
   it("keeps the exact Snapshot on business rejection", async () => {
     const lab = createLabSessionV1();
     const before = lab.session.getCurrentSnapshot();
@@ -184,7 +232,7 @@ describe("Engine Lab story baseline", () => {
       { kind: "lab.collect_sample" },
       { kind: "lab.begin_procedure" },
       { kind: "lab.collect_sample" },
-      { kind: "lab.advance_procedure" },
+      { kind: "lab.run_experiment" },
     ]);
 
     const digests: string[] = [];

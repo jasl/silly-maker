@@ -9,7 +9,6 @@ import type {
   NonZeroUint32,
   RngDrawTraceV1,
   RngStateV1,
-  RuleRngV1,
   RuntimeSchemaV1,
 } from "@sillymaker/base";
 import {
@@ -30,10 +29,12 @@ import {
 export type LabCommandV1 =
   | { readonly kind: "lab.collect_sample" }
   | { readonly kind: "lab.begin_procedure" }
-  | { readonly kind: "lab.advance_procedure" };
+  | { readonly kind: "lab.advance_procedure" }
+  | { readonly kind: "lab.run_experiment" };
 
 export type LabFactV1 =
   | { readonly kind: "lab.sample_collected"; readonly yield: number; readonly total: number }
+  | { readonly kind: "lab.samples_consumed"; readonly amount: number; readonly remaining: number }
   | {
       readonly kind: "lab.procedure_advanced";
       readonly phase: LabProcedureStateV1["phase"];
@@ -42,7 +43,10 @@ export type LabFactV1 =
 
 export interface LabRejectionV1 {
   readonly code:
-    "lab.procedure_already_running" | "lab.procedure_not_running" | "lab.samples_required";
+    | "lab.procedure_already_running"
+    | "lab.procedure_not_running"
+    | "lab.samples_required"
+    | "lab.insufficient_samples";
 }
 
 export interface LabFaultV1 {
@@ -105,9 +109,9 @@ export interface LabSamplesReadPortV1 {
   collectedCount(): number;
 }
 
-interface SamplesOperationV1 {
-  readonly yield: number;
-}
+type SamplesOperationV1 =
+  | { readonly kind: "collect"; readonly yield: number }
+  | { readonly kind: "consume"; readonly amount: number };
 
 type ProcedureOperationV1 = { readonly kind: "begin" } | { readonly kind: "advance" };
 
@@ -125,7 +129,8 @@ const commandSchemaV1: RuntimeSchemaV1<LabCommandV1> = Object.freeze({
     if (
       kind !== "lab.collect_sample" &&
       kind !== "lab.begin_procedure" &&
-      kind !== "lab.advance_procedure"
+      kind !== "lab.advance_procedure" &&
+      kind !== "lab.run_experiment"
     ) {
       throw new TypeError("invalid lab command kind");
     }
@@ -135,12 +140,23 @@ const commandSchemaV1: RuntimeSchemaV1<LabCommandV1> = Object.freeze({
 
 const samplesOperationSchemaV1: RuntimeSchemaV1<SamplesOperationV1> = Object.freeze({
   parse(value: unknown): SamplesOperationV1 {
-    if (value === null || typeof value !== "object" || Object.keys(value).join("\0") !== "yield") {
+    if (value === null || typeof value !== "object" || Array.isArray(value)) {
       throw new TypeError("invalid lab samples operation");
     }
-    const sampleYield = parseNonNegativeSafeInteger((value as { readonly yield?: unknown }).yield);
-    if (sampleYield < 1) throw new TypeError("lab sample yield must be positive");
-    return Object.freeze({ yield: sampleYield });
+    const kind = (value as { readonly kind?: unknown }).kind;
+    if (kind === "collect") {
+      const sampleYield = parseNonNegativeSafeInteger(
+        (value as { readonly yield?: unknown }).yield,
+      );
+      if (sampleYield < 1) throw new TypeError("lab sample yield must be positive");
+      return Object.freeze({ kind, yield: sampleYield });
+    }
+    if (kind === "consume") {
+      const amount = parseNonNegativeSafeInteger((value as { readonly amount?: unknown }).amount);
+      if (amount < 1) throw new TypeError("lab sample consumption must be positive");
+      return Object.freeze({ kind, amount });
+    }
+    throw new TypeError("invalid lab samples operation kind");
   },
 });
 
@@ -191,22 +207,37 @@ const samplesModuleV1 = kit.defineStatefulModule({
   owner: {
     operationSchema: samplesOperationSchemaV1,
     propose(state, operation) {
-      return Object.freeze({
-        kind: "proposed" as const,
-        proposal: Object.freeze({
-          payload: operation,
-          facts: Object.freeze([
-            Object.freeze({
+      if (operation.kind === "consume" && state.collected < operation.amount) {
+        return Object.freeze({
+          kind: "rejected" as const,
+          rejection: Object.freeze({ code: "lab.insufficient_samples" as const }),
+        });
+      }
+      const fact =
+        operation.kind === "collect"
+          ? Object.freeze({
               kind: "lab.sample_collected" as const,
               yield: operation.yield,
               total: state.collected + operation.yield,
-            }),
-          ]),
-        }),
+            })
+          : Object.freeze({
+              kind: "lab.samples_consumed" as const,
+              amount: operation.amount,
+              remaining: state.collected - operation.amount,
+            });
+      return Object.freeze({
+        kind: "proposed" as const,
+        proposal: Object.freeze({ payload: operation, facts: Object.freeze([fact]) }),
       });
     },
     apply(state, proposal) {
-      return Object.freeze({ collected: state.collected + proposal.payload.yield });
+      const operation = proposal.payload;
+      return Object.freeze({
+        collected:
+          operation.kind === "collect"
+            ? state.collected + operation.yield
+            : state.collected - operation.amount,
+      });
     },
   },
 });
@@ -294,56 +325,12 @@ export type LabGameSimulationV1 = GameSimulationV1<
   LabDebugCommandExecutorV1
 >;
 
-function rejectV1(
-  snapshot: LabSnapshotV1,
-  rng: RuleRngV1,
-  code: LabRejectionV1["code"],
-): LabAttemptV1 {
-  return Object.freeze({
-    result: Object.freeze({
-      kind: "rejected" as const,
-      snapshot,
-      reasons: Object.freeze([Object.freeze({ code })]),
-    }),
-    diagnostics: Object.freeze({
-      committedRngBefore: snapshot.rng,
-      attemptedDraws: rng.attemptedDraws(),
-      committedRngAfter: snapshot.rng,
-    }),
-  });
-}
+const labTransactionRunnerV1 = labCompositionV1.createTransactionRunner({
+  stateSchema: labGameStateSchemaV1,
+  createFault: () => Object.freeze({ code: "lab.executor_failed" as const }),
+});
 
 export function createLabGameSimulationV1(): LabGameSimulationV1 {
-  const samplesBinding = labCompositionV1.modules[0];
-  const procedureBinding = labCompositionV1.modules[1];
-
-  const commit = (
-    snapshot: LabSnapshotV1,
-    nextState: LabGameStateV1,
-    rng: RuleRngV1,
-    facts: readonly LabFactV1[],
-  ): LabAttemptV1 => {
-    const next = Object.freeze({
-      state: labGameStateSchemaV1.parse(nextState),
-      rng: rng.candidateState(),
-      commandSequence: parseNonNegativeSafeInteger(snapshot.commandSequence + 1),
-      integrity: snapshot.integrity,
-    });
-    return Object.freeze({
-      result: Object.freeze({
-        kind: "committed" as const,
-        snapshot: next,
-        facts: Object.freeze([...facts]),
-      }),
-      diagnostics: Object.freeze({
-        committedRngBefore: snapshot.rng,
-        attemptedDraws: rng.attemptedDraws(),
-        candidateRngAfter: rng.candidateState(),
-        committedRngAfter: next.rng,
-      }),
-    });
-  };
-
   const commandExecutor: LabCommandExecutorV1 = Object.freeze({
     executeAttempt(snapshot, command) {
       const rng = createTransactionalRngV1(snapshot.rng);
@@ -352,54 +339,38 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
       if (command.kind === "lab.collect_sample") {
         const sampleYield =
           rng.nextInt(Object.freeze({ purpose: "check:lab.sample_yield", exclusiveMax: 3 })) + 1;
-        const proposed = samplesBinding.owner.propose(
-          state.samples,
-          samplesOperationSchemaV1.parse({ yield: sampleYield }),
-          Object.freeze({}),
-        );
-        if (proposed.kind !== "proposed") {
-          return rejectV1(snapshot, rng, proposed.rejection.code);
+        return labTransactionRunnerV1.execute(snapshot, rng, (transaction) => {
+          transaction.propose(samplesModuleV1, { kind: "collect", yield: sampleYield });
+          return transaction.complete();
+        });
+      }
+
+      if (command.kind === "lab.run_experiment") {
+        return labTransactionRunnerV1.execute(snapshot, rng, (transaction) => {
+          if (state.procedure.phase !== "running") {
+            return transaction.reject({ code: "lab.procedure_not_running" });
+          }
+          if (transaction.read(labSamplesReadCapabilityV1).collectedCount() < 1) {
+            return transaction.reject({ code: "lab.insufficient_samples" });
+          }
+          transaction.propose(samplesModuleV1, { kind: "consume", amount: 1 });
+          transaction.propose(procedureModuleV1, { kind: "advance" });
+          return transaction.complete();
+        });
+      }
+
+      return labTransactionRunnerV1.execute(snapshot, rng, (transaction) => {
+        if (command.kind === "lab.begin_procedure" && state.procedure.phase !== "idle") {
+          return transaction.reject({ code: "lab.procedure_already_running" });
         }
-        const proposal = samplesBinding.ownerProposalSchema.parse(proposed.proposal);
-        const nextSamples = labSamplesStateSchemaV1.parse(
-          samplesBinding.owner.apply(state.samples, proposal),
-        );
-        return commit(
-          snapshot,
-          { simulation: { samples: nextSamples, procedure: state.procedure } },
-          rng,
-          proposal.facts,
-        );
-      }
-
-      if (command.kind === "lab.begin_procedure" && state.procedure.phase !== "idle") {
-        return rejectV1(snapshot, rng, "lab.procedure_already_running");
-      }
-      if (command.kind === "lab.advance_procedure" && state.procedure.phase !== "running") {
-        return rejectV1(snapshot, rng, "lab.procedure_not_running");
-      }
-
-      const dependencyPorts = labCompositionV1.createDependencyPortsFor(
-        procedureModuleV1,
-        snapshot.state,
-      );
-      const operation = procedureOperationSchemaV1.parse({
-        kind: command.kind === "lab.begin_procedure" ? "begin" : "advance",
+        if (command.kind === "lab.advance_procedure" && state.procedure.phase !== "running") {
+          return transaction.reject({ code: "lab.procedure_not_running" });
+        }
+        transaction.propose(procedureModuleV1, {
+          kind: command.kind === "lab.begin_procedure" ? "begin" : "advance",
+        });
+        return transaction.complete();
       });
-      const proposed = procedureBinding.owner.propose(state.procedure, operation, dependencyPorts);
-      if (proposed.kind !== "proposed") {
-        return rejectV1(snapshot, rng, proposed.rejection.code);
-      }
-      const proposal = procedureBinding.ownerProposalSchema.parse(proposed.proposal);
-      const nextProcedure = labProcedureStateSchemaV1.parse(
-        procedureBinding.owner.apply(state.procedure, proposal),
-      );
-      return commit(
-        snapshot,
-        { simulation: { samples: state.samples, procedure: nextProcedure } },
-        rng,
-        proposal.facts,
-      );
     },
   });
 

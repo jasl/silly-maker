@@ -46,6 +46,8 @@ Use `defineGameSimulation` to bind:
 
 Cross-module commands remain Story-owned orchestration. They gather validated owner proposals and commit a complete candidate or reject without changing the current Snapshot. Deterministic rule code uses the supplied serializable RNG capabilities rather than ambient time or `Math.random()`.
 
+The kit composition's `createTransactionRunner` owns the mechanics of that orchestration: the Story handler reads capabilities against the command-start Snapshot, stages at most one proposal per owner, and returns `complete()` or `reject(...)`; the engine validates slices and the aggregate candidate, collects facts, applies proposals in canonical module order, and produces the commit/reject/fault attempt envelope with full RNG and sequence rollback. The transaction surface exists only inside command executors; UI and automation never receive it.
+
 ### Design queries and semantic actions
 
 Queries are the read boundary for gameplay meaning. Return narrow, player-safe DTOs rather than raw State or content registries. Compute availability, explanations, forecasts, and execution from shared evaluators when they must agree.

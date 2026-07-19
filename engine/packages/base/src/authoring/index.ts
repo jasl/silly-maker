@@ -35,6 +35,13 @@ export type {
   CapabilityTokenV1,
   DependencyPortsOfV1,
   GameAuthoringKitV1,
+  KitAttemptOfV1,
+  KitOwnerOperationOfV1,
+  KitProposeResultV1,
+  KitTransactionOutcomeV1,
+  KitTransactionRunnerConfigV1,
+  KitTransactionRunnerV1,
+  KitTransactionV1,
   ProvideCapabilityV1,
 } from "./game-authoring-kit.js";
 export { collectGamePackageDiagnosticsV1 } from "./package-diagnostics.js";
