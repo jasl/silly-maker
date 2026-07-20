@@ -4,7 +4,7 @@ import { defineConfig, devices } from "@playwright/test";
 const prebuiltPocUrlV1 = "http://127.0.0.1:41731/nested/tavern/";
 
 export default defineConfig({
-  testDir: "./e2e",
+  testDir: "./e2e/poc",
   testMatch: "release-*.spec.ts",
   fullyParallel: false,
   workers: 1,

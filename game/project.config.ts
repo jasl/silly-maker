@@ -51,9 +51,21 @@ export const projectTavernConfigV1 = {
         module: "game/stories/e2e/src/tooling/simulation-target.ts",
         exportName: "createLabSimulationTargetV1",
       },
-      // The browser target arrives with C4; a build of this Story is an
-      // engine test Artifact, never a Project Tavern release.
-      web: null,
+      // A build of this Story is an engine test Artifact, never a Project
+      // Tavern release.
+      web: {
+        storyRoot: "game/stories/e2e",
+        applicationHtml: "game/stories/e2e/index.html",
+        applicationEntry: "game/stories/e2e/src/application/entry.tsx",
+        outDir: "dist/e2e",
+        base: "./",
+        sourcemap: false,
+        identity: {
+          module: "scripts/build-e2e-identity.mjs",
+          collectExport: "collectE2eBuildIdentityV1",
+          createPluginExport: "createE2eBuildIdentityVirtualPluginV1",
+        },
+      },
       releaseArtifact: false,
     },
   ],

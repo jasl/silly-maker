@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 import { defineConfig } from "@playwright/test";
 
-import { uiTargetsV1, uiTargetUrlV1 } from "./e2e/ui-targets.js";
+import { uiTargetsV1, uiTargetUrlV1 } from "./e2e/poc/ui-targets.js";
 
 const pocTargetV1 = uiTargetsV1.poc;
 
 export default defineConfig({
-  testDir: "./e2e/interaction",
+  testDir: "./e2e/poc/interaction",
   fullyParallel: false,
   workers: 1,
   retries: 0,

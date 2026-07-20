@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const packageTargets = Object.freeze({
   "@sillymaker/base": "engine/packages/base/src/index.ts",
+  "@sillymaker/base/authoring": "engine/packages/base/src/authoring/index.ts",
   "@sillymaker/base/runtime": "engine/packages/base/src/runtime/index.ts",
   "@sillymaker/base/testkit": "engine/packages/base/src/testkit/index.ts",
   "@sillymaker/tooling": "engine/packages/tooling/src/index.ts",
@@ -15,6 +16,7 @@ const packageTargets = Object.freeze({
   "@sillymaker/ui/assets": "engine/packages/ui/src/assets/index.ts",
   "@sillymaker/ui/debug": "engine/packages/ui/src/debug/index.ts",
   "@sillymaker/ui/diagnostics": "engine/packages/ui/src/diagnostics/index.ts",
+  "@sillymaker/ui/styles.css": "engine/packages/ui/src/theme/global.css",
   "@sillymaker/web": "engine/packages/web/src/index.ts",
   "@project-tavern/story-poc": "game/stories/poc/src/index.ts",
   "@project-tavern/story-poc/tooling": "game/stories/poc/src/tooling/index.ts",

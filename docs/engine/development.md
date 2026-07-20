@@ -41,7 +41,9 @@ Package manifests define supported cross-package entries. Do not bypass them wit
 | `pnpm check`             | Canonical local code-quality and product-behavior check.              |
 | `pnpm test`              | Run engine and game behavior tests.                                   |
 | `pnpm test:coverage`     | Run unit tests with engine line-coverage reporting.                   |
-| `pnpm test:e2e`          | Run browser user-flow tests.                                          |
+| `pnpm test:e2e:engine`   | Engine browser suite against the Engine Lab Story.                    |
+| `pnpm test:e2e:poc`      | Project Tavern product browser suite.                                 |
+| `pnpm test:e2e`          | Both browser suites (engine, then PoC).                               |
 | `pnpm story <cmd> <app>` | Inspect/check/simulate a declared application (JSON reports).         |
 | `pnpm check:stories`     | Structured Story diagnostics for every application (part of `check`). |
 | `pnpm simulate:e2e`      | Scripted Engine Lab run through the Agent port.                       |

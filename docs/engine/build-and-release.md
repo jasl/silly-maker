@@ -14,7 +14,11 @@ pnpm check:stories                    # check --all; part of pnpm check
 pnpm simulate:e2e                     # Engine Lab conformance simulation
 ```
 
-`simulate` drives the application's declared simulation target exclusively through the player-safe Agent port. An application without a target (currently the PoC, until its F3 migration) answers with a structured `project.simulation_unconfigured` diagnostic. A build of the Engine Lab Story is an engine test Artifact, never a Project Tavern release.
+`simulate` drives the application's declared simulation target exclusively through the player-safe Agent port. An application without a target (currently the PoC, until its F3 migration) answers with a structured `project.simulation_unconfigured` diagnostic.
+
+The Engine Lab Story also declares a browser target: `vite --mode e2e` serves it and `vite build --mode e2e` produces `dist/e2e`. That build is an engine test Artifact, never a Project Tavern release; `pnpm release:poc` remains the only product Artifact flow.
+
+Browser test suites are split by ownership: `pnpm test:e2e:engine` runs the engine suite against the Engine Lab (no Tavern text, IDs, or imports; declared projects cover desktop pointer, WebKit, touch, and a 16:10 tablet, with a pageerror/console diagnostic policy), `pnpm test:e2e:poc` runs the Project Tavern product suite, and `pnpm test:e2e` aggregates both.
 
 ## Development server
 

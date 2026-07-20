@@ -1,60 +1,19 @@
 // SPDX-License-Identifier: MIT
 import type { SessionLeaseOwnerId } from "@sillymaker/base";
-import type {
-  CoreAutosavePolicyV1,
-  CoreGameApplicationInstanceV1,
-  CoreSchedulerV1,
-} from "@sillymaker/base/runtime";
+import type { CoreAutosavePolicyV1, CoreSchedulerV1 } from "@sillymaker/base/runtime";
 import {
   createCoreGameApplicationInstanceV1,
-  defineCoreGameApplicationV1,
   resolveCoreGameApplicationV1,
 } from "@sillymaker/base/runtime";
 import type { HostAtomicRecordStoreV1, IsoUtcInstant } from "@sillymaker/base";
 import { createMemoryHostRecordStoreV1 } from "@sillymaker/base/testkit";
 import { createFixedBootstrapEntropyV1 } from "@sillymaker/base/testkit";
 
-import type {
-  LabActionDescriptorV1,
-  LabActionResultV1,
-  LabInvocationV1,
-  LabPreviewV1,
-} from "./semantic.js";
-import { labSemanticAdapterV1 } from "./semantic.js";
-import type { LabGameViewV1, LabQueriesV1, LabSimulationTypesV1 } from "../gameplay/simulation.js";
-import { labStoryEntryV1 } from "../story.js";
+import type { LabApplicationInstanceV1 } from "./core-definition.js";
+import { labCoreApplicationDefinitionV1 } from "./core-definition.js";
 
-/**
- * The Engine Lab core application definition: the whole application is the
- * GamePackage entry plus the semantic adapter. Session, persistence,
- * diagnostics, and lifecycle come from the Base composer.
- */
-export const labCoreApplicationDefinitionV1 = defineCoreGameApplicationV1<
-  unknown,
-  unknown,
-  LabSimulationTypesV1,
-  LabQueriesV1,
-  LabGameViewV1,
-  null,
-  LabActionDescriptorV1,
-  LabInvocationV1,
-  LabPreviewV1,
-  LabActionResultV1
->({
-  entry: labStoryEntryV1,
-  semantic: labSemanticAdapterV1,
-  exportFilename: "engine-lab-save.json",
-});
-
-export type LabApplicationInstanceV1 = CoreGameApplicationInstanceV1<
-  LabSimulationTypesV1,
-  LabGameViewV1,
-  null,
-  LabActionDescriptorV1,
-  LabInvocationV1,
-  LabPreviewV1,
-  LabActionResultV1
->;
+export type { LabApplicationInstanceV1 } from "./core-definition.js";
+export { labCoreApplicationDefinitionV1 } from "./core-definition.js";
 
 const labOwnerIdV1 = "owner.sillymaker.e2e.lab" as SessionLeaseOwnerId;
 const labFixedInstantV1 = "2026-07-20T00:00:00.000Z" as IsoUtcInstant;

@@ -217,6 +217,11 @@ export async function startWebGameApplicationV1<
     throw new TypeError("web.application_root_missing");
   }
 
+  // The default composer owns the engine theme baseline. Loading it here
+  // (not at module scope) keeps legacy custom Roots — the PoC until its F3
+  // migration — on their own style composition.
+  await import("@sillymaker/ui/styles.css");
+
   const host =
     options.host ??
     createWebHostV1({

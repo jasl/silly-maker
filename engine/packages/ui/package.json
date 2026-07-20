@@ -8,7 +8,8 @@
     ".": "./src/index.ts",
     "./assets": "./src/assets/index.ts",
     "./debug": "./src/debug/index.ts",
-    "./diagnostics": "./src/diagnostics/index.ts"
+    "./diagnostics": "./src/diagnostics/index.ts",
+    "./styles.css": "./src/theme/global.css"
   },
   "scripts": {
     "test": "pnpm --workspace-root exec vitest run engine/packages/ui/src"

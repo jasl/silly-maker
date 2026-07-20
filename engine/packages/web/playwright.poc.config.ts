@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 import { defineConfig, devices } from "@playwright/test";
 
-import { uiTargetsV1, uiTargetUrlV1 } from "./e2e/ui-targets.js";
+import { uiTargetsV1, uiTargetUrlV1 } from "./e2e/poc/ui-targets.js";
 
 const pocTargetV1 = uiTargetsV1.poc;
 
+/** Project Tavern product suite: flows, scenes, and content assertions. */
 export default defineConfig({
-  testDir: "./e2e",
+  testDir: "./e2e/poc",
   testIgnore: ["interaction/**", "release-*.spec.ts"],
   fullyParallel: false,
   workers: 1,
@@ -26,5 +27,15 @@ export default defineConfig({
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },
     { name: "webkit", use: { ...devices["Desktop Safari"] } },
+    {
+      name: "chromium-touch",
+      grep: /@responsive/,
+      use: {
+        browserName: "chromium",
+        viewport: { width: 1024, height: 768 },
+        hasTouch: true,
+        isMobile: false,
+      },
+    },
   ],
 });

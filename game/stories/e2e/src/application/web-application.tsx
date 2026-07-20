@@ -19,8 +19,8 @@ import type {
   LabInvocationV1,
   LabPreviewV1,
 } from "./semantic.js";
-import type { LabApplicationInstanceV1 } from "./core-application.js";
-import { labCoreApplicationDefinitionV1 } from "./core-application.js";
+import type { LabApplicationInstanceV1 } from "./core-definition.js";
+import { labCoreApplicationDefinitionV1 } from "./core-definition.js";
 import type { LabGameViewV1, LabQueriesV1, LabSimulationTypesV1 } from "../gameplay/simulation.js";
 import { labTextCatalogsV1 } from "../presentation.js";
 

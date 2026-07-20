@@ -155,7 +155,7 @@ describe.sequential("static PoC Artifact smoke", () => {
       reuseExistingServer: false,
       url: pocStaticServerContractV1.url,
     });
-    expect(prebuiltPlaywrightConfigV1.testDir).toBe("./e2e");
+    expect(prebuiltPlaywrightConfigV1.testDir).toBe("./e2e/poc");
     expect(String(prebuiltPlaywrightConfigV1.testMatch)).toContain("release-");
     expect(prebuiltPlaywrightConfigV1.use?.baseURL).toBe(pocStaticServerContractV1.url);
     expect(prebuiltPlaywrightConfigV1.projects?.map((project) => project.name)).toEqual([
