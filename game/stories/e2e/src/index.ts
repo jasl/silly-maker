@@ -47,6 +47,14 @@ export type {
   LabPreviewV1,
 } from "./application/semantic.js";
 export { labSemanticAdapterV1, parseLabInvocationV1 } from "./application/semantic.js";
+export type {
+  CreateLabApplicationInstanceOptionsV1,
+  LabApplicationInstanceV1,
+} from "./application/core-application.js";
+export {
+  createLabApplicationInstanceV1,
+  labCoreApplicationDefinitionV1,
+} from "./application/core-application.js";
 export type { LabSimulationProgramV1 } from "./story.js";
 export {
   labSimulationPatchSurfaceV1,

@@ -74,8 +74,16 @@ import {
   createRuntimeSchemaV1 as authoringCreateRuntimeSchemaV1,
   fromStandardSchemaV1 as authoringFromStandardSchemaV1,
 } from "@sillymaker/base/authoring";
-import { createGameSessionV1 } from "@sillymaker/base/runtime";
+import {
+  createCoreGameApplicationInstanceV1,
+  createGameSessionV1,
+  defineCoreGameApplicationV1,
+  resolveCoreGameApplicationV1,
+} from "@sillymaker/base/runtime";
 import type {
+  CoreGameApplicationInstanceV1,
+  CorePresentationAnchorV1,
+  CoreSemanticAdapterV1,
   GameSessionCompositionV1,
   GameSessionInputV1,
   GameSessionRuntimeControlV1,
@@ -108,6 +116,26 @@ export type BaseConsumerTypesV1 = {
   gameSessionComposition: GameSessionCompositionV1<GameSimulationTypeMapV1>;
   gameSessionInput: GameSessionInputV1<GameSimulationTypeMapV1>;
   gameSessionRuntimeControl: GameSessionRuntimeControlV1<unknown>;
+  coreApplicationInstance: CoreGameApplicationInstanceV1<
+    GameSimulationTypeMapV1,
+    unknown,
+    unknown,
+    unknown,
+    unknown,
+    unknown,
+    unknown
+  >;
+  corePresentationAnchor: CorePresentationAnchorV1;
+  coreSemanticAdapter: CoreSemanticAdapterV1<
+    GameSimulationTypeMapV1,
+    unknown,
+    unknown,
+    unknown,
+    unknown,
+    unknown,
+    unknown,
+    unknown
+  >;
   simulationContract: GameSimulationV1<
     GameSimulationTypeMapV1,
     readonly GameplayModuleBindingV1[],
@@ -136,8 +164,11 @@ export type BaseConsumerTypesV1 = {
 };
 
 export type BaseConsumerValuesV1 = {
+  createCoreGameApplicationInstance: typeof createCoreGameApplicationInstanceV1;
   createGameSession: typeof createGameSessionV1;
   createGameHarness: typeof createGameHarnessV1;
+  defineCoreGameApplication: typeof defineCoreGameApplicationV1;
+  resolveCoreGameApplication: typeof resolveCoreGameApplicationV1;
   createFixedBootstrapEntropy: typeof createFixedBootstrapEntropyV1;
   createMemoryHostRecordStore: typeof createMemoryHostRecordStoreV1;
   createGameSnapshotEnvelopeSchema: typeof createGameSnapshotEnvelopeSchemaV1;

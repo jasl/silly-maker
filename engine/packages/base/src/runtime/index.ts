@@ -23,6 +23,27 @@ export type {
   CreateInProcessAgentGamePortInputV1,
 } from "./application/agent-game-port.js";
 export {
+  createCoreGameApplicationInstanceV1,
+  defineCoreGameApplicationV1,
+  resolveCoreGameApplicationV1,
+} from "./application/core-game-application.js";
+export type {
+  CoreApplicationAdminV1,
+  CoreApplicationHostServicesV1,
+  CoreAutosavePolicyV1,
+  CoreEpochBoundOutcomeV1,
+  CoreGameApplicationDefinitionV1,
+  CoreGameApplicationInstanceV1,
+  CorePresentationAnchorOriginV1,
+  CorePresentationAnchorV1,
+  CoreSchedulerV1,
+  CoreSemanticAdapterV1,
+  CreateCoreGameApplicationInstanceOptionsV1,
+  ResolveCoreGameApplicationOptionsV1,
+  ResolveCoreGameApplicationResultV1,
+  ResolvedCoreGameApplicationV1,
+} from "./application/core-game-application.js";
+export {
   createCapabilityDisabledDebugToolsPortV1,
   createGameApplicationV1,
 } from "./application/game-application.js";
@@ -86,6 +107,7 @@ export { decodeSaveRecordV1, encodeSaveRecordV1 } from "./persistence/save-codec
 export { createAutoSaveQueueV1 } from "./persistence/auto-save-queue.js";
 export { createPersistenceServiceV1 } from "./persistence/persistence-service.js";
 export type {
+  PersistenceAutoSaveCaptureV1,
   PersistenceLeaseAcquisitionV1,
   PersistenceRebootstrapDisposalV1,
   PersistenceRebootstrapTakeoverV1,

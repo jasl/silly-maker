@@ -1,24 +1,14 @@
 // SPDX-License-Identifier: MIT
 import type { SessionLeaseOwnerId } from "../contracts/application.js";
-import type { SemanticGamePortSourceV1, SemanticGamePortV1 } from "../contracts/application.js";
-import { digestCanonical } from "../contracts/digest.js";
+import type { SemanticGamePortV1 } from "../contracts/application.js";
 import type { Digest } from "../contracts/values.js";
 import type { GamePackageV1 } from "../contracts/game-package.js";
-import type { GameSimulationTypeMapV1, GameSimulationV1 } from "../contracts/gameplay-module.js";
+import type { GameSimulationTypeMapV1 } from "../contracts/gameplay-module.js";
 import type { HostAtomicRecordStoreV1, IsoUtcInstant } from "../contracts/host.js";
 import { createMemoryHostRecordStoreV1 } from "../contracts/host.js";
-import { createTransactionalRngV1, rngStateV1Schema } from "../contracts/rng.js";
 import type { RuntimeSessionStatusV1 } from "../contracts/session-status.js";
-import {
-  createGameSnapshotEnvelopeSchemaV1,
-  createPristineRunIntegrityV1,
-} from "../contracts/snapshot.js";
-import type { DeepReadonly, NonZeroUint32 } from "../contracts/values.js";
-import {
-  parseNonNegativeSafeInteger,
-  parseNonZeroUint32,
-  parseRunId,
-} from "../contracts/values.js";
+import type { DeepReadonly } from "../contracts/values.js";
+import { parseNonZeroUint32, parseRunId } from "../contracts/values.js";
 import type {
   AgentCapabilityHandleV1,
   AgentDiagnosticsCapabilityV1,
@@ -31,34 +21,26 @@ import {
   createInProcessAgentGamePortV1,
 } from "../runtime/application/agent-game-port.js";
 import type {
-  GameSessionCompositionV1,
-  GameSessionDebugInputV1,
-  GameSessionV1,
-} from "../runtime/session/game-session.js";
-import { createGameSessionV1 } from "../runtime/session/game-session.js";
-import { createSemanticGamePortV1 } from "../runtime/application/semantic-game-port.js";
-import type { PersistenceServiceV1 } from "../runtime/persistence/persistence-service.js";
-import { createPersistenceServiceV1 } from "../runtime/persistence/persistence-service.js";
-import type { ReplayComparisonV1 } from "../runtime/diagnostics/replay.js";
-import { replayAuthoritativelyV1 } from "../runtime/diagnostics/replay.js";
+  CoreGameApplicationInstanceV1,
+  CoreSemanticAdapterV1,
+} from "../runtime/application/core-game-application.js";
 import {
-  createRuntimeFailureBufferV1,
-  createRuntimeFailureReporterV1,
-} from "../runtime/diagnostics/runtime-failures.js";
+  createCoreGameApplicationInstanceV1,
+  defineCoreGameApplicationV1,
+  resolveCoreGameApplicationV1,
+} from "../runtime/application/core-game-application.js";
+import type { GameSessionCompositionV1 } from "../runtime/session/game-session.js";
+import type { PersistenceServiceV1 } from "../runtime/persistence/persistence-service.js";
+import type { ReplayComparisonV1 } from "../runtime/diagnostics/replay.js";
 import { createFixedBootstrapEntropyV1 } from "./fixed-bootstrap-entropy.js";
-import { resolveStoryForTestV1 } from "./story-contracts.js";
-
-type SessionDispatchResultOfV1<TTypes extends GameSimulationTypeMapV1> = Awaited<
-  ReturnType<GameSessionV1<TTypes>["dispatch"]>
->;
+import { deterministicBuildIdentityInputV1 } from "./resolver-fixtures.js";
 
 /**
- * The Story-provided semantic adaptation the harness cannot own: queries,
- * projections, the action catalog, previews, and the invocation-to-command
- * mapping. Everything else (session, semantic port wiring, persistence,
- * diagnostics, entropy, disposal) is generic harness machinery.
+ * The Story-provided semantic adaptation the harness cannot own. This is the
+ * core composer's semantic adapter contract; the harness and real
+ * applications share one lifecycle and adaptation surface.
  */
-export interface GameHarnessSemanticAdapterV1<
+export type GameHarnessSemanticAdapterV1<
   TTypes extends GameSimulationTypeMapV1,
   TQueries,
   TGameView,
@@ -67,17 +49,16 @@ export interface GameHarnessSemanticAdapterV1<
   TInvocation,
   TPreview,
   TResult,
-> {
-  createQueries(state: DeepReadonly<TTypes["state"]>): TQueries;
-  projectGameView(queries: TQueries): TGameView;
-  projectNarrativeView(queries: TQueries): TNarrativeView;
-  actions(queries: TQueries): readonly TActionDescriptor[];
-  preview(queries: TQueries, invocation: DeepReadonly<TInvocation>): TPreview;
-  parseInvocation(value: unknown): TInvocation;
-  commandForInvocation(invocation: DeepReadonly<TInvocation>): TTypes["command"];
-  projectDispatchResult(result: SessionDispatchResultOfV1<TTypes>): TResult;
-  invalidInvocationResult(): TResult;
-}
+> = CoreSemanticAdapterV1<
+  TTypes,
+  TQueries,
+  TGameView,
+  TNarrativeView,
+  TActionDescriptor,
+  TInvocation,
+  TPreview,
+  TResult
+>;
 
 export interface CreateGameHarnessInputV1<
   TSimulationFacet,
@@ -168,6 +149,16 @@ export interface GameHarnessV1<
     TResult,
     RuntimeSessionStatusV1
   >;
+  /** The core application instance the harness is composed on. */
+  readonly application: CoreGameApplicationInstanceV1<
+    TTypes,
+    TGameView,
+    TNarrativeView,
+    TActionDescriptor,
+    TInvocation,
+    TPreview,
+    TResult
+  >;
   grantPersistenceCapability(): AgentCapabilityHandleV1<
     AgentPersistenceCapabilityV1<
       Awaited<ReturnType<PersistenceServiceV1<TTypes["snapshot"]>["port"]["save"]>>,
@@ -217,21 +208,11 @@ const defaultHarnessUuidV1 = "9e2f1a34-6d2b-4c33-8a41-5a3f6c1b2d4e";
 const harnessOwnerIdV1 = "owner.sillymaker.testkit.harness" as SessionLeaseOwnerId;
 const fixedHarnessInstantV1 = "2026-07-20T00:00:00.000Z" as IsoUtcInstant;
 
-function readBootstrapRngSeedV1(bootstrap: unknown): NonZeroUint32 {
-  if (bootstrap === null || typeof bootstrap !== "object") {
-    throw new TypeError(
-      "GameHarness requires a bootstrap input object carrying rngSeed; provide a Story bootstrap with an rngSeed field",
-    );
-  }
-  const descriptor = Object.getOwnPropertyDescriptor(bootstrap, "rngSeed");
-  if (descriptor === undefined || descriptor.get !== undefined || descriptor.set !== undefined) {
-    throw new TypeError(
-      "GameHarness requires a bootstrap input object carrying rngSeed; provide a Story bootstrap with an rngSeed field",
-    );
-  }
-  return parseNonZeroUint32(descriptor.value);
-}
-
+/**
+ * A deterministic headless harness composed on the core application
+ * composer: the harness and production applications share the same
+ * session/persistence/diagnostics lifecycle contract.
+ */
 export async function createGameHarnessV1<
   TSimulationFacet,
   TPresentationFacet,
@@ -267,114 +248,10 @@ export async function createGameHarnessV1<
     TResult
   >
 > {
-  const resolved = resolveStoryForTestV1(input.entry);
-  const gameSimulation = resolved.gameSimulation as GameSimulationV1<
+  const definition = defineCoreGameApplicationV1<
+    TSimulationFacet,
+    TPresentationFacet,
     TTypes,
-    readonly unknown[],
-    {
-      executeAttempt(
-        snapshot: DeepReadonly<TTypes["snapshot"]>,
-        command: DeepReadonly<TTypes["command"]>,
-        context: TTypes["executionContext"],
-      ): never;
-    },
-    {
-      validate(
-        snapshot: DeepReadonly<TTypes["snapshot"]>,
-        command: DeepReadonly<TTypes["debugCommand"]>,
-        context: TTypes["executionContext"],
-      ): never;
-      executeAttempt(
-        snapshot: DeepReadonly<TTypes["snapshot"]>,
-        command: DeepReadonly<TTypes["debugCommand"]>,
-        context: TTypes["executionContext"],
-      ): never;
-    }
-  >;
-
-  const entropy = createFixedBootstrapEntropyV1({
-    uuids: (input.uuids ?? [defaultHarnessUuidV1]).map((value) => String(parseRunId(value))),
-    seeds: (input.seeds ?? [input.seed ?? defaultHarnessSeedV1]).map((value) =>
-      parseNonZeroUint32(value),
-    ),
-  });
-  const bootstrap = gameSimulation.createBootstrapInput(entropy);
-  const snapshotSchema = createGameSnapshotEnvelopeSchemaV1(
-    gameSimulation.stateSchema,
-    rngStateV1Schema,
-  );
-  const initialSnapshot = snapshotSchema.parse({
-    state: gameSimulation.createInitialState(bootstrap as DeepReadonly<TTypes["bootstrapInput"]>),
-    rng: createTransactionalRngV1(readBootstrapRngSeedV1(bootstrap)).candidateState(),
-    commandSequence: parseNonNegativeSafeInteger(0),
-    integrity: createPristineRunIntegrityV1(),
-  }) as TTypes["snapshot"];
-
-  const now = input.now ?? (() => fixedHarnessInstantV1);
-  const runtimeFailures = createRuntimeFailureBufferV1();
-  const reportObserverFailure = createRuntimeFailureReporterV1({
-    failures: runtimeFailures,
-    now,
-    operation: "runtime.observer_notification_failed",
-    category: "runtime",
-    code: "runtime.async_operation_failed",
-  });
-
-  const created = createGameSessionV1<TTypes>({
-    initialSnapshot,
-    commandSchema: gameSimulation.commandSchema,
-    executionContext: undefined as TTypes["executionContext"],
-    executeAttempt: (snapshot, command) =>
-      gameSimulation.commandExecutor.executeAttempt(
-        snapshot,
-        command,
-        undefined as TTypes["executionContext"],
-      ),
-    normalizeUnexpectedDispatchFault(error, snapshot) {
-      if (input.normalizeUnexpectedDispatchFault !== undefined) {
-        return input.normalizeUnexpectedDispatchFault(error, snapshot);
-      }
-      throw error;
-    },
-    debug: Object.freeze({
-      validate: (snapshot, command) =>
-        gameSimulation.debugCommandExecutor.validate(
-          snapshot,
-          command,
-          undefined as TTypes["executionContext"],
-        ),
-      executeAttempt: (snapshot, command) =>
-        gameSimulation.debugCommandExecutor.executeAttempt(
-          snapshot,
-          command,
-          undefined as TTypes["executionContext"],
-        ),
-      normalizeUnexpectedFault(error: unknown): never {
-        throw error;
-      },
-    } satisfies GameSessionDebugInputV1<TTypes>),
-    onObserverFailure: reportObserverFailure,
-  });
-
-  const stateOfSnapshotV1 = (
-    snapshot: DeepReadonly<TTypes["snapshot"]>,
-  ): DeepReadonly<TTypes["state"]> =>
-    (snapshot as { readonly state: DeepReadonly<TTypes["state"]> }).state;
-
-  const source: SemanticGamePortSourceV1<TTypes["state"], RuntimeSessionStatusV1> = Object.freeze({
-    getCurrentState: () => stateOfSnapshotV1(created.session.getCurrentSnapshot()),
-    getAuthoritativeRevisionToken: () => created.session.getCurrentSnapshot(),
-    getStatus: () => created.session.getStatus(),
-    subscribe: (listener: () => void) => created.session.subscribe(listener),
-    reportSubscriberFailure: reportObserverFailure,
-    readStateAtQueueFront: <TReadResult>(
-      reader: (state: DeepReadonly<TTypes["state"]>) => TReadResult,
-    ) => created.runtimeControl.readAtQueueFront((snapshot) => reader(stateOfSnapshotV1(snapshot))),
-  });
-
-  const semantic = createSemanticGamePortV1<
-    TTypes["state"],
-    RuntimeSessionStatusV1,
     TQueries,
     TGameView,
     TNarrativeView,
@@ -383,51 +260,49 @@ export async function createGameHarnessV1<
     TPreview,
     TResult
   >({
-    source,
-    createQueries: (state) => input.semantic.createQueries(state),
-    projectGameView: (queries) => input.semantic.projectGameView(queries),
-    projectNarrativeView: (queries) => input.semantic.projectNarrativeView(queries),
-    actions: (queries) => input.semantic.actions(queries),
-    preview: (queries, invocation) => input.semantic.preview(queries, invocation),
-    dispatch: async (invocationValue) => {
-      let invocation: TInvocation;
-      try {
-        invocation = input.semantic.parseInvocation(invocationValue);
-      } catch {
-        return input.semantic.invalidInvocationResult();
-      }
-      const result = await created.session.dispatch(
-        input.semantic.commandForInvocation(
-          invocation as DeepReadonly<TInvocation>,
-        ) as DeepReadonly<TTypes["command"]>,
-      );
-      return input.semantic.projectDispatchResult(result);
-    },
-  });
-
-  const persistenceService = await createPersistenceServiceV1<TTypes["state"], TTypes["snapshot"]>({
-    runtimeControl: created.runtimeControl,
-    records: input.records ?? createMemoryHostRecordStoreV1(),
-    snapshotSchema: snapshotSchema as never,
-    provenance: resolved.provenance,
-    adoptionDeclaration: null,
-    ownerId: harnessOwnerIdV1,
-    nextHandoffRequestId: () => "handoff.sillymaker.testkit.harness" as never,
-    validateReferences: (state) => input.validateReferences?.(state as never) ?? [],
-    validateInvariants: () => [],
-    initialSimulationLineage: [],
-    metadataClock: Object.freeze({ now }),
+    entry: input.entry,
+    semantic: input.semantic,
+    ...(input.validateReferences === undefined
+      ? {}
+      : { validateReferences: input.validateReferences }),
     exportFilename: input.exportFilename ?? "sillymaker-harness-save.json",
+    ...(input.normalizeUnexpectedDispatchFault === undefined
+      ? {}
+      : { normalizeUnexpectedDispatchFault: input.normalizeUnexpectedDispatchFault }),
+  });
+  const resolved = resolveCoreGameApplicationV1(definition, {
+    buildIdentityInput: deterministicBuildIdentityInputV1,
+  });
+  if (resolved.kind === "failed") {
+    throw new TypeError(
+      `${resolved.failure.code}: ${String(resolved.failure.details.message ?? "Story resolution failed")}`,
+    );
+  }
+
+  const now = input.now ?? (() => fixedHarnessInstantV1);
+  const application = await createCoreGameApplicationInstanceV1(resolved.application, {
+    host: Object.freeze({
+      entropy: createFixedBootstrapEntropyV1({
+        uuids: (input.uuids ?? [defaultHarnessUuidV1]).map((value) => String(parseRunId(value))),
+        seeds: (input.seeds ?? [input.seed ?? defaultHarnessSeedV1]).map((value) =>
+          parseNonZeroUint32(value),
+        ),
+      }),
+      records: input.records ?? createMemoryHostRecordStoreV1(),
+      now,
+      ownerId: harnessOwnerIdV1,
+      nextHandoffRequestId: () => "handoff.sillymaker.testkit.harness",
+    }),
+    ...(input.capabilities === undefined ? {} : { capabilities: input.capabilities }),
   });
 
-  let disposed = false;
   const disposedResultV1: GameHarnessDisposedV1 = Object.freeze({
     kind: "harness_disposed" as const,
   });
 
   const trace = (): readonly GameHarnessTraceEntryV1[] =>
     Object.freeze(
-      created.commandLog.entries().map((entry, index) =>
+      application.admin.commandLog().map((entry, index) =>
         Object.freeze({
           ordinal: index + 1,
           outcome: entry.outcome.kind,
@@ -437,100 +312,54 @@ export async function createGameHarnessV1<
     ) as readonly GameHarnessTraceEntryV1[];
 
   const admin: GameHarnessAdminV1<TTypes> = Object.freeze({
-    commandLog: () => created.commandLog.entries(),
-    replayAuthoritatively: async () => {
-      const identity = Object.freeze({ provenance: resolved.provenance });
-      const currentSnapshot = created.session.getCurrentSnapshot();
-      return replayAuthoritativelyV1({
-        recordedIdentity: identity,
-        runtimeIdentity: identity,
-        replayBase: created.commandLog.replayBase(),
-        replayBaseStateDigest: created.commandLog.replayBaseStateDigest(),
-        commandLog: created.commandLog.entries() as never,
-        currentSnapshot: currentSnapshot as never,
-        currentStateDigest: digestCanonical("sillymaker:state:v1", currentSnapshot),
-        projectStableRejection: (rejection: unknown) => rejection,
-        projectStableFault: (fault: unknown) => fault,
-        createDriver: (replayBase: DeepReadonly<TTypes["snapshot"]>) => {
-          let replaySnapshot = replayBase;
-          return Object.freeze({
-            getCurrentSnapshot: () => replaySnapshot,
-            submit(logged: { readonly command: DeepReadonly<TTypes["command"]> }) {
-              const preSnapshot = replaySnapshot;
-              const attempt = gameSimulation.commandExecutor.executeAttempt(
-                preSnapshot as never,
-                logged.command,
-                undefined as TTypes["executionContext"],
-              ) as {
-                readonly result: { readonly kind: string; readonly snapshot: never };
-              };
-              if (attempt.result.kind === "committed") {
-                replaySnapshot = attempt.result.snapshot;
-              }
-              return Object.freeze({
-                ...attempt,
-                preSnapshot,
-                preStateDigest: digestCanonical("sillymaker:state:v1", preSnapshot),
-                postStateDigest: digestCanonical("sillymaker:state:v1", attempt.result.snapshot),
-              }) as never;
-            },
-          });
-        },
-      } as never);
-    },
-    inspectForTest: () =>
-      Object.freeze({
-        snapshot: created.session.getCurrentSnapshot(),
-        runtimeFailures: runtimeFailures.entries(),
-      }),
-    ...(input.capabilities?.debugTools === true ? { debugControl: created.debugControl } : {}),
+    commandLog: () => application.admin.commandLog(),
+    replayAuthoritatively: () => application.admin.replayAuthoritatively(),
+    inspectForTest: () => application.admin.inspectForTest(),
+    ...(application.admin.debugControl === undefined
+      ? {}
+      : { debugControl: application.admin.debugControl }),
   });
 
   const agent = createInProcessAgentGamePortV1({
     identity: Object.freeze({
-      storyId: resolved.provenance.story.id,
-      storyRevision: resolved.provenance.story.revision,
+      storyId: application.storyId,
+      storyRevision: application.storyRevision,
     }),
-    semantic,
+    semantic: application.semantic,
   });
 
   return Object.freeze({
-    semantic,
+    semantic: application.semantic,
     agent,
+    application,
     grantPersistenceCapability: () =>
       createAgentPersistenceCapabilityV1({
-        save: (slot) => persistenceService.port.save(slot),
-        load: (slot) => persistenceService.port.load(slot as never),
-        exportCurrentSave: () => persistenceService.port.exportCurrentSave(),
-        importSave: (bytes) => persistenceService.port.importSave(bytes),
+        save: (slot) => application.persistence.save(slot),
+        load: (slot) => application.persistence.load(slot as never),
+        exportCurrentSave: () => application.persistence.exportCurrentSave(),
+        importSave: (bytes) => application.persistence.importSave(bytes),
       }),
     grantDiagnosticsCapability: () =>
       createAgentDiagnosticsCapabilityV1<GameHarnessDiagnosticsReportV1>({
         exportDiagnostics: async () =>
           Object.freeze({
-            storyId: resolved.provenance.story.id,
-            runtimeFailures: runtimeFailures.entries(),
+            storyId: application.storyId,
+            runtimeFailures: application.diagnostics.runtimeFailures(),
             trace: trace(),
           }),
       }),
-    observe: () => semantic.observe(),
+    observe: () => application.semantic.observe(),
     preview: async (invocation: DeepReadonly<TInvocation>) =>
-      disposed ? disposedResultV1 : semantic.preview(invocation),
+      application.isDisposed() ? disposedResultV1 : application.semantic.preview(invocation),
     dispatch: async (invocation: DeepReadonly<TInvocation>) =>
-      disposed ? disposedResultV1 : semantic.dispatch(invocation),
-    waitForIdle: async () => (disposed ? disposedResultV1 : semantic.waitForIdle()),
+      application.isDisposed() ? disposedResultV1 : application.semantic.dispatch(invocation),
+    waitForIdle: async () =>
+      application.isDisposed() ? disposedResultV1 : application.semantic.waitForIdle(),
     trace,
-    stateDigest: () => digestCanonical("sillymaker:state:v1", created.session.getCurrentSnapshot()),
-    saves: persistenceService.port,
+    stateDigest: () => application.admin.stateDigest(),
+    saves: application.persistence,
     admin,
-    isDisposed: () => disposed,
-    async dispose() {
-      if (!disposed) {
-        disposed = true;
-        created.invalidationController.invalidateForHmr();
-        await persistenceService.disposeForRebootstrap();
-      }
-      return Object.freeze({ kind: "disposed" as const });
-    },
+    isDisposed: () => application.isDisposed(),
+    dispose: () => application.dispose(),
   });
 }

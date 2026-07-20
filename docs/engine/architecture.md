@@ -93,6 +93,8 @@ GameSimulation
 
 The semantic port previews and dispatches Story-specific semantic invocations at the Session queue boundary. UI, browser automation, and presentation code consume projections and semantic descriptors; they do not receive a Snapshot setter or a generic gameplay-State client.
 
+The Base application composer (`defineCoreGameApplicationV1` / `resolveCoreGameApplicationV1` / `createCoreGameApplicationInstanceV1`) distinguishes the author definition, the immutable resolved definition, and the disposable application instance that owns the live Session, persistence lease, listeners, autosave policy, and an instance-local presentation anchor/epoch. The testkit harness and headless applications compose on it; direct low-level construction remains available as an escape hatch.
+
 Renderer-local hover, animation, focus, overlay, and asset-loading state is non-authoritative. It may produce semantic or presentation intents, but it cannot independently decide gameplay availability or mutate Gameplay State.
 
 ## 6. Persistence and browser storage

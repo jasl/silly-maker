@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import type { GameHarnessSemanticAdapterV1 } from "@sillymaker/base/testkit";
+import type { CoreSemanticAdapterV1 } from "@sillymaker/base/runtime";
 
 import type {
   LabCommandV1,
@@ -91,7 +91,7 @@ export function parseLabInvocationV1(value: unknown): LabInvocationV1 {
   return Object.freeze({ kind: "invoke", actionId: actionId as LabActionIdV1 });
 }
 
-export const labSemanticAdapterV1: GameHarnessSemanticAdapterV1<
+export const labSemanticAdapterV1: CoreSemanticAdapterV1<
   LabSimulationTypesV1,
   LabQueriesV1,
   LabGameViewV1,

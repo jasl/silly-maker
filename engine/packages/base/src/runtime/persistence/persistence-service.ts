@@ -102,6 +102,12 @@ export interface PersistenceServiceV1<TSnapshot> {
     snapshot: DeepReadonly<TSnapshot>,
     simulationLineage: readonly DeepReadonly<SimulationAdoptionV1>[],
   ): void;
+  /**
+   * Enqueues one auto-save candidate for the given committed Snapshot. Used
+   * by application-level autosave policies when the service was created with
+   * `autoSaveCapture: "external"`; a no-op after disposal.
+   */
+  captureAutoSave(snapshot: DeepReadonly<TSnapshot>): void;
   autoSaveIdle(): Promise<void>;
   disposeForRebootstrap(): Promise<PersistenceRebootstrapDisposalV1>;
   takeOverForRebootstrap(
@@ -110,6 +116,13 @@ export interface PersistenceServiceV1<TSnapshot> {
 }
 
 export type PersistenceLeaseAcquisitionV1 = "acquire_initial" | "deferred_rebootstrap";
+
+/**
+ * Who feeds committed Snapshots into the auto-save queue: the service's own
+ * committed-snapshot subscription (default), or an external policy calling
+ * `captureAutoSave` (for example a debounced application autosave policy).
+ */
+export type PersistenceAutoSaveCaptureV1 = "committed_snapshots" | "external";
 
 export interface CreatePersistenceServiceOptionsV1<
   TState,
@@ -131,6 +144,7 @@ export interface CreatePersistenceServiceOptionsV1<
   readonly metadataClock: { now(): IsoUtcInstant };
   readonly exportFilename: string;
   readonly leaseAcquisition?: PersistenceLeaseAcquisitionV1;
+  readonly autoSaveCapture?: PersistenceAutoSaveCaptureV1;
 }
 
 export interface CreateStandardPersistenceServiceOptionsV1<
@@ -153,6 +167,7 @@ export interface CreateStandardPersistenceServiceOptionsV1<
   readonly metadataClock: { now(): IsoUtcInstant };
   readonly exportFilename: string;
   readonly leaseAcquisition?: PersistenceLeaseAcquisitionV1;
+  readonly autoSaveCapture?: PersistenceAutoSaveCaptureV1;
 }
 
 interface SaveCandidateV1<TSnapshot> {
@@ -449,7 +464,7 @@ async function createPersistenceServiceWithDependenciesV1<
     safelySavedCommandSequence = null;
   };
 
-  options.runtimeControl.subscribeCommittedSnapshots((snapshot) => {
+  const captureAutoSaveV1 = (snapshot: DeepReadonly<TSnapshot>): void => {
     if (lifecycle !== "active") return;
     try {
       autoQueue.enqueue(
@@ -462,7 +477,11 @@ async function createPersistenceServiceWithDependenciesV1<
     } catch {
       rememberFailureV1("persistence.capture_invalid");
     }
-  });
+  };
+
+  if ((options.autoSaveCapture ?? "committed_snapshots") === "committed_snapshots") {
+    options.runtimeControl.subscribeCommittedSnapshots(captureAutoSaveV1);
+  }
 
   const validationRejectionV1 = (
     result: ReturnType<typeof validateSaveImportCandidateV1>,
@@ -1010,6 +1029,7 @@ async function createPersistenceServiceWithDependenciesV1<
     port,
     getSimulationLineage: () => currentLineage,
     establishAnchor: establishAnchorV1,
+    captureAutoSave: captureAutoSaveV1,
     autoSaveIdle: () => autoQueue.idle(),
     disposeForRebootstrap: disposeForRebootstrapV1,
     takeOverForRebootstrap: takeOverForRebootstrapV1,
@@ -1392,5 +1412,6 @@ export function createPersistenceServiceV1<
     ...(options.leaseAcquisition === undefined
       ? {}
       : { leaseAcquisition: options.leaseAcquisition }),
+    ...(options.autoSaveCapture === undefined ? {} : { autoSaveCapture: options.autoSaveCapture }),
   });
 }
