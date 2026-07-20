@@ -74,7 +74,7 @@ describe("Engine Lab agent port", () => {
       agent.dispatch(staleInvocation),
       agent.dispatch(staleInvocation),
     ]);
-    expect(first).toEqual({ kind: "committed", facts: expect.anything() });
+    expect(first).toEqual({ kind: "committed" });
     expect(second).toEqual({ kind: "rejected", codes: ["lab.procedure_already_running"] });
     await harness.dispose();
   });
@@ -89,7 +89,7 @@ describe("Engine Lab agent port", () => {
       committed,
       actions: agent.describeActions(),
     });
-    for (const forbidden of ["snapshot", "rng", "integrity", "commandSequence", "debug"]) {
+    for (const forbidden of ["snapshot", "rng", "integrity", "commandSequence", "debug", "facts"]) {
       expect(serialized).not.toContain(forbidden);
     }
     expect("inspectForTest" in agent).toBe(false);

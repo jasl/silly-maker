@@ -3,7 +3,6 @@ import type { GameHarnessSemanticAdapterV1 } from "@sillymaker/base/testkit";
 
 import type {
   LabCommandV1,
-  LabFactV1,
   LabGameViewV1,
   LabQueriesV1,
   LabRejectionV1,
@@ -29,7 +28,7 @@ export type LabPreviewV1 =
   | { readonly kind: "blocked"; readonly code: LabRejectionV1["code"] };
 
 export type LabActionResultV1 =
-  | { readonly kind: "committed"; readonly facts: readonly LabFactV1[] }
+  | { readonly kind: "committed" }
   | { readonly kind: "rejected"; readonly codes: readonly LabRejectionV1["code"][] }
   | { readonly kind: "faulted"; readonly code: string }
   | {
@@ -126,10 +125,9 @@ export const labSemanticAdapterV1: GameHarnessSemanticAdapterV1<
     }
     const execution = result.execution;
     if (execution.kind === "committed") {
-      return Object.freeze({
-        kind: "committed" as const,
-        facts: execution.facts as readonly LabFactV1[],
-      });
+      // Committed facts stay engine evidence; agents observe outcomes through
+      // the published game view, never through a raw fact stream.
+      return Object.freeze({ kind: "committed" as const });
     }
     if (execution.kind === "rejected") {
       return Object.freeze({

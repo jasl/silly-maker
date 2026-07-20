@@ -109,13 +109,7 @@ describe("Engine Lab story baseline", () => {
     const samplesBefore = harness.observe().game.samplesCollected;
 
     const experiment = await harness.dispatch(invoke("lab.run_experiment"));
-    expect(experiment).toMatchObject({
-      kind: "committed",
-      facts: [
-        { kind: "lab.procedure_advanced", stepsTaken: 1 },
-        { kind: "lab.samples_consumed", amount: 1, remaining: samplesBefore - 1 },
-      ],
-    });
+    expect(experiment).toEqual({ kind: "committed" });
     const afterFirst = harness.observe();
     expect(afterFirst.game.samplesCollected).toBe(samplesBefore - 1);
     expect(afterFirst.game.procedureSteps).toBe(1);
