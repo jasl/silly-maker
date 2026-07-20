@@ -1,5 +1,26 @@
 // SPDX-License-Identifier: MIT
 export {
+  agentCapabilityRevokedV1,
+  createAgentDiagnosticsCapabilityV1,
+  createAgentPersistenceCapabilityV1,
+  createAgentTranscriptRecorderV1,
+  createInProcessAgentGamePortV1,
+} from "./application/agent-game-port.js";
+export type {
+  AgentCapabilityHandleV1,
+  AgentCapabilityRevokedV1,
+  AgentDiagnosticsCapabilityV1,
+  AgentGamePortV1,
+  AgentIdentityV1,
+  AgentPersistenceCapabilityV1,
+  AgentTranscriptEntryV1,
+  AgentTranscriptRecorderV1,
+  AgentWaitOptionsV1,
+  AgentWaitResultV1,
+  CreateAgentPersistenceCapabilityInputV1,
+  CreateInProcessAgentGamePortInputV1,
+} from "./application/agent-game-port.js";
+export {
   createCapabilityDisabledDebugToolsPortV1,
   createGameApplicationV1,
 } from "./application/game-application.js";

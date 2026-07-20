@@ -20,6 +20,17 @@ import {
   parseRunId,
 } from "../contracts/values.js";
 import type {
+  AgentCapabilityHandleV1,
+  AgentDiagnosticsCapabilityV1,
+  AgentGamePortV1,
+  AgentPersistenceCapabilityV1,
+} from "../runtime/application/agent-game-port.js";
+import {
+  createAgentDiagnosticsCapabilityV1,
+  createAgentPersistenceCapabilityV1,
+  createInProcessAgentGamePortV1,
+} from "../runtime/application/agent-game-port.js";
+import type {
   GameSessionCompositionV1,
   GameSessionDebugInputV1,
   GameSessionV1,
@@ -124,6 +135,12 @@ export interface GameHarnessAdminV1<TTypes extends GameSimulationTypeMapV1> {
   readonly debugControl?: GameSessionCompositionV1<TTypes>["debugControl"];
 }
 
+export interface GameHarnessDiagnosticsReportV1 {
+  readonly storyId: string;
+  readonly runtimeFailures: readonly unknown[];
+  readonly trace: readonly GameHarnessTraceEntryV1[];
+}
+
 export interface GameHarnessV1<
   TTypes extends GameSimulationTypeMapV1,
   TGameView,
@@ -141,6 +158,24 @@ export interface GameHarnessV1<
     TPreview,
     TResult,
     RuntimeSessionStatusV1
+  >;
+  readonly agent: AgentGamePortV1<
+    TGameView,
+    TNarrativeView,
+    TActionDescriptor,
+    TInvocation,
+    TPreview,
+    TResult,
+    RuntimeSessionStatusV1
+  >;
+  grantPersistenceCapability(): AgentCapabilityHandleV1<
+    AgentPersistenceCapabilityV1<
+      Awaited<ReturnType<PersistenceServiceV1<TTypes["snapshot"]>["port"]["save"]>>,
+      Awaited<ReturnType<PersistenceServiceV1<TTypes["snapshot"]>["port"]["exportCurrentSave"]>>
+    >
+  >;
+  grantDiagnosticsCapability(): AgentCapabilityHandleV1<
+    AgentDiagnosticsCapabilityV1<GameHarnessDiagnosticsReportV1>
   >;
   observe(): ReturnType<
     SemanticGamePortV1<
@@ -451,8 +486,33 @@ export async function createGameHarnessV1<
     ...(input.capabilities?.debugTools === true ? { debugControl: created.debugControl } : {}),
   });
 
+  const agent = createInProcessAgentGamePortV1({
+    identity: Object.freeze({
+      storyId: resolved.provenance.story.id,
+      storyRevision: resolved.provenance.story.revision,
+    }),
+    semantic,
+  });
+
   return Object.freeze({
     semantic,
+    agent,
+    grantPersistenceCapability: () =>
+      createAgentPersistenceCapabilityV1({
+        save: (slot) => persistenceService.port.save(slot),
+        load: (slot) => persistenceService.port.load(slot as never),
+        exportCurrentSave: () => persistenceService.port.exportCurrentSave(),
+        importSave: (bytes) => persistenceService.port.importSave(bytes),
+      }),
+    grantDiagnosticsCapability: () =>
+      createAgentDiagnosticsCapabilityV1<GameHarnessDiagnosticsReportV1>({
+        exportDiagnostics: async () =>
+          Object.freeze({
+            storyId: resolved.provenance.story.id,
+            runtimeFailures: runtimeFailures.entries(),
+            trace: trace(),
+          }),
+      }),
     observe: () => semantic.observe(),
     preview: async (invocation: DeepReadonly<TInvocation>) =>
       disposed ? disposedResultV1 : semantic.preview(invocation),
