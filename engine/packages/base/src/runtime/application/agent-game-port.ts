@@ -250,6 +250,40 @@ export interface AgentTranscriptRecorderV1<TAgent> {
   transcript(): readonly AgentTranscriptEntryV1[];
 }
 
+export type AgentTranscriptComparisonV1 =
+  | { readonly kind: "matching"; readonly entries: number }
+  | {
+      readonly kind: "diverged";
+      readonly ordinal: number;
+      readonly left: AgentTranscriptEntryV1 | null;
+      readonly right: AgentTranscriptEntryV1 | null;
+    };
+
+/**
+ * Compares two agent transcripts (for example in-process Node versus the
+ * JSONL host) for semantic parity: same operations, same player-safe
+ * outputs, in the same order.
+ */
+export function compareAgentTranscriptsV1(
+  left: readonly AgentTranscriptEntryV1[],
+  right: readonly AgentTranscriptEntryV1[],
+): AgentTranscriptComparisonV1 {
+  const length = Math.max(left.length, right.length);
+  for (let index = 0; index < length; index += 1) {
+    const leftEntry = left[index] ?? null;
+    const rightEntry = right[index] ?? null;
+    if (JSON.stringify(leftEntry) !== JSON.stringify(rightEntry)) {
+      return Object.freeze({
+        kind: "diverged" as const,
+        ordinal: index + 1,
+        left: leftEntry,
+        right: rightEntry,
+      });
+    }
+  }
+  return Object.freeze({ kind: "matching" as const, entries: left.length });
+}
+
 /**
  * Wraps an agent port so every operation and its player-safe output land in
  * an in-memory transcript. Different hosts replaying the same invocation

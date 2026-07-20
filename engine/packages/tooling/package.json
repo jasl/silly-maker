@@ -1,0 +1,17 @@
+{
+  "name": "@sillymaker/tooling",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "description": "Node-only SillyMaker tooling: the JSONL agent host protocol, with project/config commands to follow.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@sillymaker/base": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.3"
+  }
+}

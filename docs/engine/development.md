@@ -19,12 +19,13 @@ The workspace is ESM and uses one shared pnpm lockfile with exact dependency ver
 ## Repository layout
 
 ```text
-engine/packages/base   framework-neutral authoring, contracts, and runtime
-engine/packages/ui     generic React presentation and input
-engine/packages/web    browser Host and application adapters
-game/stories/e2e       neutral Engine Conformance Story (MIT test consumer)
-game/stories/poc       the Project Tavern PoC Story and application root
-scripts                maintained build, asset, and product tooling
+engine/packages/base     framework-neutral authoring, contracts, and runtime
+engine/packages/tooling  Node-only tooling (JSONL agent host protocol)
+engine/packages/ui       generic React presentation and input
+engine/packages/web      browser Host and application adapters
+game/stories/e2e         neutral Engine Conformance Story (MIT test consumer)
+game/stories/poc         the Project Tavern PoC Story and application root
+scripts                  maintained build, asset, and product tooling
 docs/engine            active engine documentation
 docs/game              active gameplay design
 docs/policies          durable repository policy

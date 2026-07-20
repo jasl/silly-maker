@@ -23,12 +23,14 @@ Project Tavern Story and application
 
 ## 2. Package responsibilities
 
-| Package                     | Workspace public entries                    | Responsibility                                                                                                                                                                                     |
-| --------------------------- | ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@sillymaker/base`          | `.`, `./runtime`, `./testkit`               | Contracts, authoring definitions, deterministic resolution, authoritative sessions, persistence orchestration, replay, diagnostics, and reusable behavior-test helpers.                            |
-| `@sillymaker/ui`            | `.`, `./assets`, `./debug`, `./diagnostics` | React shell, stage, characters, assets, interaction/input, overlays, narrative, settings, semantic/presentation bridges, and recovery UI.                                                          |
-| `@sillymaker/web`           | `.`                                         | Browser Host, IndexedDB record storage, files/images, mounting, routing, pointer input, capabilities, automation, Loader, and HMR rebootstrap.                                                     |
-| `@project-tavern/story-poc` | `.`, plus optional tooling entries          | Current Project Tavern Story definition, gameplay, presentation catalogs, semantic actions, application composition, and Story-specific tools. It is an example under redesign, not an engine API. |
+| Package                     | Workspace public entries                     | Responsibility                                                                                                                                                                                     |
+| --------------------------- | -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@sillymaker/base`          | `.`, `./authoring`, `./runtime`, `./testkit` | Contracts, authoring definitions and kit, deterministic resolution, authoritative sessions, persistence orchestration, replay, diagnostics, the agent port, and reusable behavior-test helpers.    |
+| `@sillymaker/tooling`       | `.`                                          | Node-only tooling: the JSONL agent host protocol and client. Project/config/build commands land here in later milestones. Never imported by Base/UI browser bundles.                               |
+| `@sillymaker/ui`            | `.`, `./assets`, `./debug`, `./diagnostics`  | React shell, stage, characters, assets, interaction/input, overlays, narrative, settings, semantic/presentation bridges, and recovery UI.                                                          |
+| `@sillymaker/web`           | `.`                                          | Browser Host, IndexedDB record storage, files/images, mounting, routing, pointer input, capabilities, automation, Loader, and HMR rebootstrap.                                                     |
+| `@sillymaker/story-e2e`     | `.`                                          | The neutral Engine Conformance Story (Engine Lab): the engine's second consumer and maintained test application.                                                                                   |
+| `@project-tavern/story-poc` | `.`, plus optional tooling entries           | Current Project Tavern Story definition, gameplay, presentation catalogs, semantic actions, application composition, and Story-specific tools. It is an example under redesign, not an engine API. |
 
 Cross-package imports use package exports and declared `workspace:*` dependencies. Application-only composition may stay internal to a Story package when no other package should consume it.
 

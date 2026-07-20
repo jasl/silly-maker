@@ -14,5 +14,9 @@
   "dependencies": {
     "@sillymaker/base": "workspace:*",
     "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@sillymaker/tooling": "workspace:*",
+    "@types/node": "24.13.3"
   }
 }
