@@ -1,0 +1,306 @@
+// SPDX-License-Identifier: MIT
+import type { ReactElement } from "react";
+
+import type { DeepReadonly } from "@sillymaker/base";
+import type {
+  DefaultGameRootLabelsV1,
+  DefaultGameRootSlotsV1,
+  GameUiProjectorV1,
+  RuntimePresentationPublicationV1,
+  SaveOverlayLabelsV1,
+} from "@sillymaker/ui";
+import { Button } from "@sillymaker/ui";
+import type { WebGameApplicationV1 } from "@sillymaker/web";
+
+import type {
+  LabActionDescriptorV1,
+  LabActionIdV1,
+  LabActionResultV1,
+  LabInvocationV1,
+  LabPreviewV1,
+} from "./semantic.js";
+import type { LabApplicationInstanceV1 } from "./core-application.js";
+import { labCoreApplicationDefinitionV1 } from "./core-application.js";
+import type { LabGameViewV1, LabQueriesV1, LabSimulationTypesV1 } from "../gameplay/simulation.js";
+import { labTextCatalogsV1 } from "../presentation.js";
+
+/** The Engine Lab logical canvas: a 16:10 design resolution. */
+export const labViewportCanvasV1 = Object.freeze({ width: 1600, height: 1000 });
+
+type LabSemanticPublicationV1 = ReturnType<LabApplicationInstanceV1["semantic"]["observe"]>;
+
+export interface LabPresentationViewV1 {
+  readonly stageName: string;
+  readonly samplesCollected: number;
+  readonly procedurePhase: LabGameViewV1["procedurePhase"];
+  readonly procedureSteps: number;
+  readonly anchorEpoch: number;
+}
+
+export type LabUiPublicationV1 = RuntimePresentationPublicationV1<
+  LabSemanticPublicationV1,
+  LabPresentationViewV1,
+  never
+>;
+
+export type LabUiOverlayIdV1 = "overlay.lab.journal";
+
+const labTextByIdV1: ReadonlyMap<string, string> = new Map(
+  labTextCatalogsV1.catalogs.flatMap((catalog) =>
+    catalog.entries.map((entry) => [entry.textId as string, entry.text] as const),
+  ),
+);
+
+export function labUiTextV1(textId: string): string {
+  const text = labTextByIdV1.get(textId);
+  if (text === undefined) throw new TypeError(`e2e.ui_text_missing:${textId}`);
+  return text;
+}
+
+const labActionTextIdsV1: Readonly<Record<LabActionIdV1, string>> = Object.freeze({
+  "lab.collect_sample": "text.e2e.lab.action.collect_sample",
+  "lab.begin_procedure": "text.e2e.lab.action.begin_procedure",
+  "lab.advance_procedure": "text.e2e.lab.action.advance_procedure",
+  "lab.run_experiment": "text.e2e.lab.action.run_experiment",
+});
+
+const labUiProjectorDefinitionV1: GameUiProjectorV1<
+  LabSemanticPublicationV1,
+  null,
+  Record<never, never>,
+  LabPresentationViewV1,
+  never
+> = {
+  resolvedCatalog: null,
+  initialUiState: Object.freeze({}),
+  project: (input) =>
+    Object.freeze({
+      view: Object.freeze({
+        stageName: labUiTextV1("text.e2e.lab.stage.name"),
+        samplesCollected: input.semantic.game.samplesCollected,
+        procedurePhase: input.semantic.game.procedurePhase,
+        procedureSteps: input.semantic.game.procedureSteps,
+        anchorEpoch: input.uiState.anchor.epoch,
+      }),
+      requiredAssetIds: Object.freeze([]),
+    }),
+};
+
+export const labUiProjectorV1 = Object.freeze(labUiProjectorDefinitionV1);
+
+type LabSemanticPortV1 = LabApplicationInstanceV1["semantic"];
+
+function LabHudV1(props: {
+  readonly publication: DeepReadonly<LabUiPublicationV1>;
+  readonly semantic: LabSemanticPortV1;
+}): ReactElement {
+  return (
+    <div data-lab-hud="true">
+      <p>
+        {labUiTextV1("text.e2e.lab.hud.samples")}
+        {String(props.publication.view.samplesCollected)} · {labUiTextV1("text.e2e.lab.hud.steps")}
+        {String(props.publication.view.procedureSteps)}
+      </p>
+      <div role="group" aria-label="实验操作">
+        {props.publication.semantic.actions.map((action) => (
+          <Button
+            key={action.actionId}
+            disabled={!action.enabled}
+            data-lab-action-id={action.actionId}
+            onClick={() =>
+              void props.semantic.dispatch(
+                Object.freeze({ kind: "invoke" as const, actionId: action.actionId }),
+              )
+            }
+          >
+            {labUiTextV1(labActionTextIdsV1[action.actionId])}
+          </Button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The Engine Lab Story contributions for the default GameRoot: a stage
+ * panel, a HUD with the action catalog, a completion narrative line, and a
+ * journal overlay — all added without modifying the composer.
+ */
+const labUiSlotsDefinitionV1: DefaultGameRootSlotsV1<
+  LabUiPublicationV1,
+  LabSemanticPortV1,
+  LabUiOverlayIdV1
+> = {
+  background: (context) => (
+    <section data-lab-stage="true" aria-label={context.publication.view.stageName}>
+      <h1>{context.publication.view.stageName}</h1>
+    </section>
+  ),
+  hud: (context) => <LabHudV1 publication={context.publication} semantic={context.semantic} />,
+  narrative: (context) =>
+    context.publication.view.procedurePhase === "complete" ? (
+      <p data-lab-narrative="complete">{labUiTextV1("text.e2e.lab.narrative.completed")}</p>
+    ) : null,
+  systemMenuExtras: (context) => (
+    <Button
+      onClick={() =>
+        context.intents.execute(
+          Object.freeze({ kind: "overlay.open" as const, overlayId: "overlay.lab.journal" }),
+        )
+      }
+    >
+      {labUiTextV1("text.e2e.lab.overlay.journal.open")}
+    </Button>
+  ),
+  overlayResolver: (context) =>
+    Object.freeze({
+      resolve: (overlayId: DeepReadonly<LabUiOverlayIdV1>) =>
+        overlayId === "overlay.lab.journal"
+          ? Object.freeze({
+              accessibleName: labUiTextV1("text.e2e.lab.overlay.journal.title"),
+              content: (
+                <dl data-lab-journal="true">
+                  <dt>{labUiTextV1("text.e2e.lab.hud.samples")}</dt>
+                  <dd>{String(context.publication.view.samplesCollected)}</dd>
+                  <dt>{labUiTextV1("text.e2e.lab.hud.steps")}</dt>
+                  <dd>{String(context.publication.view.procedureSteps)}</dd>
+                </dl>
+              ),
+            })
+          : null,
+    }),
+};
+
+export const labUiSlotsV1 = Object.freeze(labUiSlotsDefinitionV1);
+
+export const labRootLabelsV1: Partial<DefaultGameRootLabelsV1> = Object.freeze({
+  systemMenuLabel: "系统",
+  saveLabel: "保存",
+  settingsLabel: "设置",
+  settingsTitle: "设置",
+  settingsEmptyText: "暂无可配置项。",
+  closeLabel: "关闭",
+});
+
+export const labSaveOverlayLabelsV1: SaveOverlayLabelsV1 = Object.freeze({
+  accessibleName: "保存",
+  title: "保存",
+  storageLoading: "正在读取本地存档…",
+  storageReady: "本地存档可用",
+  storageBusy: "存档操作进行中",
+  storageUnavailable: "本地存储不可用",
+  slotsUnavailable: "无法读取存档槽",
+  safelySaved: (commandSequence: number) => `已安全保存至指令 ${String(commandSequence)}`,
+  lastFailure: (code: string) => `上次存档失败：${code}`,
+  slotNames: Object.freeze({
+    "auto.current": "当前自动存档",
+    "auto.previous": "上一自动存档",
+    quick: "快速存档",
+    manual: "手动存档",
+  }),
+  slotHealth: Object.freeze({
+    empty: "空",
+    valid: "可用",
+    invalid: "已损坏",
+    recovery_candidate: "可恢复",
+    unavailable: "不可用",
+  }),
+  quickSave: "快速保存",
+  manualSave: "手动保存",
+  importSave: "导入存档",
+  exportCurrentSave: "导出当前进度",
+  loadSlot: (slotName: string) => `载入${slotName}`,
+  clearSlot: (slotName: string) => `清除${slotName}`,
+  exportSlot: (slotName: string) => `导出${slotName}`,
+  confirmation: Object.freeze({
+    loadTitle: (slotName: string) => `载入${slotName}`,
+    loadDescription: (slotName: string) => `当前进度将被${slotName}替换。`,
+    clearTitle: (slotName: string) => `清除${slotName}`,
+    clearDescription: (slotName: string) => `${slotName}将被永久清除。`,
+    importTitle: "导入存档",
+    importDescription: "当前进度将被所选存档替换。",
+    confirmLabel: "确认",
+    cancelLabel: "取消",
+    pendingText: "正在处理…",
+    completedText: "操作完成",
+    failedText: "操作失败",
+  }),
+  operation: Object.freeze({
+    saving: (slotName: string) => `正在保存到${slotName}…`,
+    loading: (slotName: string) => `正在载入${slotName}…`,
+    clearing: (slotName: string) => `正在清除${slotName}…`,
+    importing: "正在导入存档…",
+    exporting: (slotName: string) => `正在导出${slotName}…`,
+    exportingCurrent: "正在导出当前进度…",
+    saved: (slotName: string) => `已保存到${slotName}`,
+    cleared: (slotName: string) => `已清除${slotName}`,
+    loadedExact: "已载入存档",
+    loadedAdopted: "已兼容载入存档",
+    importedExact: "已导入存档",
+    importedAdopted: "已兼容导入存档",
+    importCancelled: "已取消导入存档",
+    importFileRejected: Object.freeze({
+      too_large: "所选存档文件过大",
+      unsupported_type: "所选文件类型不受支持",
+    }),
+    exported: (slotName: string) => `已导出${slotName}`,
+    exportedCurrent: "已导出当前进度",
+    rejected: Object.freeze({
+      busy: "会话正忙",
+      unavailable: "存储不可用",
+      empty_slot: "存档槽为空",
+      conflict: "存档发生冲突",
+      invalid_record: "存档无效",
+      lineage_limit: "存档兼容链过长",
+      incompatible: "存档不兼容",
+    }),
+    exportRejected: Object.freeze({
+      unavailable: "存储不可用",
+      empty_slot: "存档槽为空",
+      conflict: "存档发生冲突",
+      invalid_record: "存档无效",
+    }),
+    faulted: (code: string) => `存档故障：${code}`,
+    unexpectedFailure: "存档操作意外失败",
+  }),
+});
+
+/**
+ * The complete Engine Lab browser application: one declaration consumed by
+ * `startWebGameApplicationV1`. The Story supplies the core definition, the
+ * projector, catalogs, and optional contributions — no custom React Root and
+ * no Session/Persistence/Diagnostics/Input/Automation/HMR wiring.
+ */
+export const labWebApplicationV1: WebGameApplicationV1<
+  unknown,
+  unknown,
+  LabSimulationTypesV1,
+  LabQueriesV1,
+  LabGameViewV1,
+  null,
+  LabActionDescriptorV1,
+  LabInvocationV1,
+  LabPreviewV1,
+  LabActionResultV1,
+  null,
+  Record<never, never>,
+  LabPresentationViewV1,
+  never,
+  LabUiOverlayIdV1
+> = Object.freeze({
+  applicationId: "e2e",
+  accessibleName: "引擎实验室",
+  viewport: Object.freeze({
+    canvas: labViewportCanvasV1,
+    fallbackSize: Object.freeze({ width: 1600, height: 1000 }),
+  }),
+  core: labCoreApplicationDefinitionV1,
+  ui: () =>
+    Object.freeze({
+      projector: labUiProjectorV1,
+      overlayIds: Object.freeze(["overlay.lab.journal" as const]),
+      slots: labUiSlotsV1,
+      labels: labRootLabelsV1,
+      saveLabels: labSaveOverlayLabelsV1,
+    }),
+});

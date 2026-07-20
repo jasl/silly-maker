@@ -5,14 +5,20 @@ import { RootErrorBoundaryV1 } from "../errors/root-error-boundary.js";
 import type { RootErrorBoundaryPropsV1 } from "../errors/root-error-boundary.js";
 import type { InputRouterV1 } from "../input/contracts.js";
 import { InputContextProviderV1 } from "../input/input-context.js";
+import { GameViewportV1 } from "../viewport/game-viewport.js";
+import type { GameViewportPropsV1 } from "../viewport/game-viewport.js";
 import { GameStageV1 } from "./game-stage.js";
 import type { GameStageLayersV1 } from "./game-stage.js";
 import styles from "./game-shell.module.css";
+
+export type GameShellViewportOptionsV1 = Omit<GameViewportPropsV1, "children">;
 
 export interface GameShellPropsV1 {
   readonly accessibleName: string;
   readonly layers: GameStageLayersV1;
   readonly inputRouter: InputRouterV1;
+  /** When present, the stage renders inside a managed GameViewport. */
+  readonly viewport?: GameShellViewportOptionsV1;
   readonly backdrop?: ReactNode;
   readonly devDock?: ReactNode;
   readonly errorBoundary?: Omit<
@@ -34,7 +40,13 @@ function recoveryLayersV1(system: ReactNode): GameStageLayersV1 {
 }
 
 export function GameShell(props: GameShellPropsV1): ReactElement {
-  const stage = <GameStageV1 accessibleName={props.accessibleName} layers={props.layers} />;
+  const bareStage = <GameStageV1 accessibleName={props.accessibleName} layers={props.layers} />;
+  const stage =
+    props.viewport === undefined ? (
+      bareStage
+    ) : (
+      <GameViewportV1 {...props.viewport}>{bareStage}</GameViewportV1>
+    );
   const protectedStage =
     props.errorBoundary === undefined ? (
       stage

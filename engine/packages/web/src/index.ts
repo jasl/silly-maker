@@ -21,7 +21,17 @@ export type {
   BrowserAutomationOperationResultV1,
   InstalledBrowserAutomationBridgeV1,
 } from "./automation/index.js";
-export { createPlayerUiPortsV1 } from "./application/create-player-ui-ports.js";
+export {
+  createPlayerSaveUiPortV1,
+  createPlayerUiPortsV1,
+} from "./application/create-player-ui-ports.js";
+export { startWebGameApplicationV1 } from "./application/start-web-game-application.js";
+export type {
+  StartWebGameApplicationOptionsV1,
+  StartedWebGameApplicationV1,
+  WebGameApplicationV1,
+  WebGameUiDefinitionV1,
+} from "./application/start-web-game-application.js";
 export type {
   PlayerUiDiagnosticsSourceV1,
   PlayerUiPersistenceSourceV1,

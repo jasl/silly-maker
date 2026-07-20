@@ -50,7 +50,18 @@ export const labTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
     {
       locale: "zh-CN",
       fallbackLocale: null,
-      entries: [{ textId: "text.e2e.lab.stage.name", text: "引擎实验室" }],
+      entries: [
+        { textId: "text.e2e.lab.stage.name", text: "引擎实验室" },
+        { textId: "text.e2e.lab.action.collect_sample", text: "采集样本" },
+        { textId: "text.e2e.lab.action.begin_procedure", text: "开始流程" },
+        { textId: "text.e2e.lab.action.advance_procedure", text: "推进流程" },
+        { textId: "text.e2e.lab.action.run_experiment", text: "进行实验" },
+        { textId: "text.e2e.lab.hud.samples", text: "样本" },
+        { textId: "text.e2e.lab.hud.steps", text: "流程进度" },
+        { textId: "text.e2e.lab.overlay.journal.title", text: "实验日志" },
+        { textId: "text.e2e.lab.overlay.journal.open", text: "实验日志" },
+        { textId: "text.e2e.lab.narrative.completed", text: "全部流程已完成。" },
+      ],
     },
   ],
 });

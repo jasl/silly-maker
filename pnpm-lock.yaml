@@ -148,6 +148,18 @@ importers:
       "@sillymaker/base":
         specifier: workspace:*
         version: link:../../../engine/packages/base
+      "@sillymaker/ui":
+        specifier: workspace:*
+        version: link:../../../engine/packages/ui
+      "@sillymaker/web":
+        specifier: workspace:*
+        version: link:../../../engine/packages/web
+      react:
+        specifier: 19.2.7
+        version: 19.2.7
+      react-dom:
+        specifier: 19.2.7
+        version: 19.2.7(react@19.2.7)
       zod:
         specifier: 4.4.3
         version: 4.4.3
@@ -158,6 +170,9 @@ importers:
       "@types/node":
         specifier: 24.13.3
         version: 24.13.3
+      "@types/react":
+        specifier: 19.2.17
+        version: 19.2.17
 
   game/stories/poc:
     dependencies:

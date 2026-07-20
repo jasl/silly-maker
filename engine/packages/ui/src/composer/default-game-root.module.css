@@ -1,0 +1,30 @@
+@import url("../theme/global.css");
+
+.default-root {
+  display: contents;
+}
+
+.default-root__stage-slot {
+  position: absolute;
+  inset: 0;
+  min-inline-size: 0;
+  min-block-size: 0;
+}
+
+/* The system menu is a shell-space band: anchored to the canvas top-end,
+   token-themed, and always legible over stage content. */
+.default-root__system-menu {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--silly-space-2);
+  align-items: center;
+  justify-content: flex-end;
+  inline-size: fit-content;
+  max-inline-size: 100%;
+  min-block-size: var(--silly-target-min-size);
+  padding: var(--silly-space-2);
+  border: 1px solid var(--silly-color-border);
+  border-radius: var(--silly-radius-card);
+  background: var(--silly-color-surface-translucent);
+  backdrop-filter: blur(0.5rem);
+}

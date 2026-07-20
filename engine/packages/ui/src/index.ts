@@ -190,6 +190,7 @@ export {
 } from "./shell/index.js";
 export type {
   GameShellPropsV1,
+  GameShellViewportOptionsV1,
   GameStageLayersV1,
   GameStagePropsV1,
   StageFrameV1,
@@ -229,3 +230,29 @@ export type {
   GameSymbolResolutionV1,
   GameSymbolSizeV1,
 } from "./symbols/index.js";
+export { GameViewportV1, useGameViewportV1 } from "./viewport/index.js";
+export type {
+  GameViewportCanvasV1,
+  GameViewportGeometryV1,
+  GameViewportPropsV1,
+  GameViewportSizeV1,
+} from "./viewport/index.js";
+export {
+  DefaultGameRootV1,
+  createGameUiCompositionV1,
+  defaultGameRootLabelsV1,
+} from "./composer/index.js";
+export type {
+  CreateGameUiCompositionInputV1,
+  DefaultGameRootLabelsV1,
+  DefaultGameRootPropsV1,
+  DefaultGameRootSlotContextV1,
+  DefaultGameRootSlotsV1,
+  GameUiAnchorSourceV1,
+  GameUiCompositionV1,
+  GameUiOverlayIdV1,
+  GameUiPresentationAnchorV1,
+  GameUiProjectorV1,
+  GameUiSemanticSourceV1,
+  GameUiStateV1,
+} from "./composer/index.js";

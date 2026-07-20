@@ -1,0 +1,30 @@
+@import url("../theme/global.css");
+
+.game-viewport {
+  display: grid;
+  place-items: center;
+  inline-size: 100%;
+  block-size: 100%;
+  min-inline-size: 0;
+  min-block-size: 0;
+  overflow: hidden;
+
+  /* The letterbox belongs to the shell: themed, never interactive. */
+  background: var(--silly-color-canvas);
+}
+
+.game-viewport__canvas {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+/* Neutralize the legacy responsive stage sizing inside a managed viewport:
+   the canvas box is the single sizing authority. */
+.game-viewport__canvas > main {
+  inline-size: 100%;
+  max-inline-size: none;
+  block-size: 100%;
+  max-block-size: none;
+  aspect-ratio: auto;
+}

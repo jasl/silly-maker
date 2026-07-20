@@ -1,6 +1,6 @@
 # Game viewport and UI shell design
 
-状态：2026-07-20 接受的目标设计；尚未实现。本文补足 [VN presentation runtime](vn-presentation-runtime.md) 与 [AI authoring](ai-authoring.md) C3 Composer 未覆盖的绘制与外壳标准；它约束这两份设计对应任务的实现，不新增独立里程碑。
+状态：2026-07-20 接受的目标设计。C3 已落地 `GameViewportV1`（逻辑画布/fit letterbox/两空间查询/maxScale 居中）、默认 GameRoot 的 surface 基线与 player/debug 边界（DevDock 仅在 `debug_tools` 下出现，玩家 DOM 零 debug 词汇、探针仅 `data-*`）；Stage placement 换算（D2）、VN 界面锚定（E2）、PoC 玩家 UI 的边界修复（F3）仍待各自任务。本文约束这些任务的实现，不新增独立里程碑。
 
 ## 1. Problem statement
 

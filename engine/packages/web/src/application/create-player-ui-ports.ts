@@ -164,13 +164,12 @@ function downloadV1(
   });
 }
 
-/** Bridges player-safe application ports to explicit, local-only UI file operations. */
-export function createPlayerUiPortsV1(input: {
+/** Bridges the player-safe persistence port to explicit, local-only file operations. */
+export function createPlayerSaveUiPortV1(input: {
   readonly files: HostFilePortV1;
   readonly persistence: PlayerUiPersistenceSourceV1;
-  readonly diagnostics: PlayerUiDiagnosticsSourceV1;
-}): PlayerUiPortsV1 {
-  const save = Object.freeze({
+}): SaveOverlayPortV1 {
+  return Object.freeze({
     getStatus: () => input.persistence.getStatus(),
     listSlots: async () => await input.persistence.listSlots(),
     save: async (slotId: SaveUiWritableSlotIdV1) => await input.persistence.save(slotId),
@@ -195,6 +194,15 @@ export function createPlayerUiPortsV1(input: {
       return exported;
     },
   }) satisfies SaveOverlayPortV1;
+}
+
+/** Bridges player-safe application ports to explicit, local-only UI file operations. */
+export function createPlayerUiPortsV1(input: {
+  readonly files: HostFilePortV1;
+  readonly persistence: PlayerUiPersistenceSourceV1;
+  readonly diagnostics: PlayerUiDiagnosticsSourceV1;
+}): PlayerUiPortsV1 {
+  const save = createPlayerSaveUiPortV1({ files: input.files, persistence: input.persistence });
   let diagnosticGeneration = 0;
   let preparedDiagnostic:
     | {
