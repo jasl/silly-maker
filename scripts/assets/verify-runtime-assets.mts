@@ -14,6 +14,8 @@ import type {
   RuntimeAssetValidationErrorV1,
 } from "./validate-runtime.mjs";
 
+const repositoryRootForLoadingV1 = resolve(fileURLToPath(new URL(".", import.meta.url)), "../..");
+
 async function loadRuntimeAssetModulesV1() {
   const typeStripHooks = registerHooks({
     resolve(specifier, context, nextResolve) {
@@ -32,20 +34,44 @@ async function loadRuntimeAssetModulesV1() {
   });
 
   try {
-    return await Promise.all([
-      import("../../engine/packages/base/src/index.js"),
-      import("../../game/stories/poc/src/story-definition.js"),
-      import("./validate-runtime.mjs"),
-    ]);
+    const [baseModule, toolingModule, loaderModule, configModule, validatorModule] =
+      await Promise.all([
+        import("../../engine/packages/base/src/index.js"),
+        import("../../engine/packages/tooling/src/project/index.js"),
+        import("../../engine/packages/tooling/src/project/loader.js"),
+        import("../../game/project.config.js"),
+        import("./validate-runtime.mjs"),
+      ]);
+    const loader = loaderModule.createImportProjectModuleLoaderV1(repositoryRootForLoadingV1);
+    const project = toolingModule.defineSillymakerProjectV1(configModule.projectTavernConfigV1);
+    const verifiedApplications = project.applications.filter(
+      (application) => application.assetVerification,
+    );
+    const entries = await Promise.all(
+      verifiedApplications.map(async (application) => {
+        const record = await loader.loadModule(application.storyEntry.module);
+        const entry = record[application.storyEntry.exportName];
+        if (entry === undefined) {
+          throw new TypeError(
+            `${application.applicationId}: missing Story entry export ${application.storyEntry.exportName}`,
+          );
+        }
+        return entry as Parameters<(typeof baseModule)["resolveGamePackageV1"]>[0];
+      }),
+    );
+    return { baseModule, validatorModule, entries };
   } finally {
     typeStripHooks.deregister();
   }
 }
 
-const [baseModuleV1, pocStoryModuleV1, validatorModuleV1] = await loadRuntimeAssetModulesV1();
+const {
+  baseModule: baseModuleV1,
+  validatorModule: validatorModuleV1,
+  entries: verifiedStoryEntriesV1,
+} = await loadRuntimeAssetModulesV1();
 
 const { resolveGamePackageV1 } = baseModuleV1;
-const { pocStoryEntryV1 } = pocStoryModuleV1;
 const { validateRuntimeAssetManifestV1 } = validatorModuleV1;
 
 const runtimeAssetVerificationBuildIdentityV1 = Object.freeze({
@@ -72,22 +98,24 @@ function resolutionFailureMessageV1(
   )}`;
 }
 
-export const runtimeAssetStoryChecksV1: readonly RuntimeAssetStoryCheckV1[] = Object.freeze([
-  Object.freeze({
-    storyId: pocStoryEntryV1.identity.id,
-    resolveAssets(): ResolvedAssetManifestV1 {
-      const result = resolveGamePackageV1(
-        pocStoryEntryV1,
-        emptyRuntimeAssetHotfixSetV1,
-        runtimeAssetVerificationBuildIdentityV1,
-      );
-      if (result.kind === "failed") {
-        throw new TypeError(resolutionFailureMessageV1(this.storyId, result));
-      }
-      return result.resolved.assets;
-    },
-  }),
-]);
+export const runtimeAssetStoryChecksV1: readonly RuntimeAssetStoryCheckV1[] = Object.freeze(
+  verifiedStoryEntriesV1.map((entry) =>
+    Object.freeze({
+      storyId: entry.identity.id,
+      resolveAssets(): ResolvedAssetManifestV1 {
+        const result = resolveGamePackageV1(
+          entry,
+          emptyRuntimeAssetHotfixSetV1,
+          runtimeAssetVerificationBuildIdentityV1,
+        );
+        if (result.kind === "failed") {
+          throw new TypeError(resolutionFailureMessageV1(this.storyId, result));
+        }
+        return result.resolved.assets;
+      },
+    }),
+  ),
+);
 
 export type RuntimeAssetManifestValidatorV1 = (
   manifest: DeepReadonly<ResolvedAssetManifestV1>,

@@ -35,16 +35,21 @@ Package manifests define supported cross-package entries. Do not bypass them wit
 
 ## Daily commands
 
-| Command                  | Use                                                       |
-| ------------------------ | --------------------------------------------------------- |
-| `pnpm dev`               | Start the current Project Tavern development server.      |
-| `pnpm check`             | Canonical local code-quality and product-behavior check.  |
-| `pnpm test`              | Run engine and game behavior tests.                       |
-| `pnpm test:coverage`     | Run unit tests with engine line-coverage reporting.       |
-| `pnpm test:e2e`          | Run browser user-flow tests.                              |
-| `pnpm build:poc`         | Build the current static Player.                          |
-| `pnpm release:poc`       | Build and prepare the local Artifact.                     |
-| `pnpm test:e2e:prebuilt` | Exercise the prepared Artifact instead of the dev server. |
+| Command                  | Use                                                                   |
+| ------------------------ | --------------------------------------------------------------------- |
+| `pnpm dev`               | Start the current Project Tavern development server.                  |
+| `pnpm check`             | Canonical local code-quality and product-behavior check.              |
+| `pnpm test`              | Run engine and game behavior tests.                                   |
+| `pnpm test:coverage`     | Run unit tests with engine line-coverage reporting.                   |
+| `pnpm test:e2e`          | Run browser user-flow tests.                                          |
+| `pnpm story <cmd> <app>` | Inspect/check/simulate a declared application (JSON reports).         |
+| `pnpm check:stories`     | Structured Story diagnostics for every application (part of `check`). |
+| `pnpm simulate:e2e`      | Scripted Engine Lab run through the Agent port.                       |
+| `pnpm build:poc`         | Build the current static Player.                                      |
+| `pnpm release:poc`       | Build and prepare the local Artifact.                                 |
+| `pnpm test:e2e:prebuilt` | Exercise the prepared Artifact instead of the dev server.             |
+
+Story applications (story entry, asset verification, simulation target, web dev/build target) are declared in `game/project.config.ts`; see [build-and-release](build-and-release.md).
 
 `pnpm verify` may remain as a compatibility alias for `pnpm check`; new documentation and automation should use `pnpm check`.
 

@@ -13,6 +13,9 @@ importers:
       "@playwright/test":
         specifier: 1.61.1
         version: 1.61.1
+      "@sillymaker/tooling":
+        specifier: workspace:*
+        version: link:engine/packages/tooling
       "@testing-library/dom":
         specifier: 10.4.1
         version: 10.4.1

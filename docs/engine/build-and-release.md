@@ -2,6 +2,20 @@
 
 状态：当前 Project Tavern Web Player 的维护流程。
 
+## Application registry
+
+Story applications are declared once in `game/project.config.ts` and typed by `@sillymaker/tooling/project`. Vite target resolution (`vite --mode <application-id>`), runtime asset verification, and the project commands below all consume that one registry; adding a Story application means adding one declaration, not editing the Vite implementation, the asset verifier, or a build switch.
+
+```sh
+pnpm story inspect <application-id>   # resolved Story identity/content summary as JSON
+pnpm story check <application-id>     # structured JSON diagnostics (also: --all)
+pnpm story simulate <application-id>  # scripted run through the Agent port
+pnpm check:stories                    # check --all; part of pnpm check
+pnpm simulate:e2e                     # Engine Lab conformance simulation
+```
+
+`simulate` drives the application's declared simulation target exclusively through the player-safe Agent port. An application without a target (currently the PoC, until its F3 migration) answers with a structured `project.simulation_unconfigured` diagnostic. A build of the Engine Lab Story is an engine test Artifact, never a Project Tavern release.
+
 ## Development server
 
 ```sh

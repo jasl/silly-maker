@@ -67,7 +67,7 @@ This baseline describes the implementation, not an immutable constitution. Archi
 ## Licensing and source-material boundaries
 
 - Copyright holder: `Jun Jiang (jasl)`.
-- Generic SillyMaker code in `engine/packages/base`, `engine/packages/ui`, and `engine/packages/web` is MIT. Project Tavern software is generally PolyForm Noncommercial 1.0.0. Original narrative, localization, art, audio, design, and repository documentation are generally CC BY-NC-SA 4.0. `LICENSE.md` and file/package-specific notices control.
+- Generic SillyMaker code in `engine/packages/base`, `engine/packages/tooling`, `engine/packages/ui`, and `engine/packages/web` is MIT. Project Tavern software is generally PolyForm Noncommercial 1.0.0. Original narrative, localization, art, audio, design, and repository documentation are generally CC BY-NC-SA 4.0. `LICENSE.md` and file/package-specific notices control.
 - Never describe the whole repository or Project Tavern game as MIT or open source. Composite builds do not relicense restricted game software or content.
 - Intentionally copied third-party material belongs under `vendor/**` and retains its own terms. npm dependencies retain their own terms.
 - `references/` is ignored, untracked research input. Register it in `docs/research/reference-register.md`; production code, tests, generators, and artifacts must not depend on it or copy distinctive third-party material from it.

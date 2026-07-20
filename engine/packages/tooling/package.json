@@ -6,7 +6,10 @@
   "license": "MIT",
   "description": "Node-only SillyMaker tooling: the JSONL agent host protocol, with project/config commands to follow.",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./project": "./src/project/index.ts",
+    "./project/config-types": "./src/project/config-types.ts",
+    "./project/loader": "./src/project/loader.ts"
   },
   "dependencies": {
     "@sillymaker/base": "workspace:*"

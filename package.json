@@ -21,6 +21,9 @@
     "test:node": "node --test scripts/*.test.mjs",
     "test": "pnpm test:unit && pnpm test:node",
     "check:assets": "node --experimental-strip-types scripts/assets/verify-runtime-assets.mts",
+    "story": "node --experimental-strip-types scripts/story/cli.mts",
+    "check:stories": "node --experimental-strip-types scripts/story/cli.mts check --all",
+    "simulate:e2e": "node --experimental-strip-types scripts/story/cli.mts simulate e2e",
     "test:e2e:smoke": "playwright test --config engine/packages/web/playwright.ui.config.ts --project=chromium --grep @smoke",
     "test:e2e": "playwright test --config engine/packages/web/playwright.ui.config.ts --project=chromium --project=webkit",
     "test:e2e:interaction": "playwright test --config engine/packages/web/playwright.interaction.config.ts",
@@ -28,7 +31,7 @@
     "release:poc": "pnpm build:poc && node --experimental-strip-types scripts/prepare-artifact.mjs dist/poc",
     "test:e2e:prebuilt": "playwright test --config engine/packages/web/playwright.prebuilt.config.ts",
     "test:release": "pnpm release:poc && pnpm test:e2e:prebuilt",
-    "check": "pnpm format:check && pnpm lint && pnpm lint:styles && pnpm typecheck && pnpm test && pnpm check:assets && pnpm build:poc",
+    "check": "pnpm format:check && pnpm lint && pnpm lint:styles && pnpm typecheck && pnpm test && pnpm check:assets && pnpm check:stories && pnpm build:poc",
     "verify": "pnpm check"
   },
   "devDependencies": {
@@ -54,6 +57,7 @@
     "vite": "8.1.4",
     "vitest": "4.1.10",
     "yaml": "2.9.0",
-    "zod": "4.4.3"
+    "zod": "4.4.3",
+    "@sillymaker/tooling": "workspace:*"
   }
 }

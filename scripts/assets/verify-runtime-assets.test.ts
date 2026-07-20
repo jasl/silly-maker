@@ -25,8 +25,11 @@ function emptyManifestV1(): ResolvedAssetManifestV1 {
 }
 
 describe("closed runtime asset verification", () => {
-  it("freezes the maintained PoC Story check", () => {
-    expect(runtimeAssetStoryChecksV1.map(({ storyId }) => storyId)).toEqual(["week.poc_001"]);
+  it("builds one check per asset-verified application from the project config", () => {
+    expect(runtimeAssetStoryChecksV1.map(({ storyId }) => storyId)).toEqual([
+      "week.poc_001",
+      "story.e2e.engine-lab",
+    ]);
     expect(Object.isFrozen(runtimeAssetStoryChecksV1)).toBe(true);
     for (const check of runtimeAssetStoryChecksV1) expect(Object.isFrozen(check)).toBe(true);
   });
@@ -85,7 +88,10 @@ describe("closed runtime asset verification", () => {
       },
     });
 
-    await expect(verifyRuntimeAssetsV1(root, { environment })).resolves.toEqual(["week.poc_001"]);
+    await expect(verifyRuntimeAssetsV1(root, { environment })).resolves.toEqual([
+      "week.poc_001",
+      "story.e2e.engine-lab",
+    ]);
     expect(reads).toEqual([]);
     expect(realpaths).toEqual([]);
   }, 30_000);
@@ -131,7 +137,7 @@ describe("closed runtime asset verification", () => {
     expect(resolutionCalls).toEqual(["story.test.first", "story.test.second"]);
   });
 
-  it("imports only the Base resolver, validator, and Node-only PoC Story entry", async () => {
+  it("imports only the Base resolver, project config machinery, and validator", async () => {
     const source = await readFile(new URL("./verify-runtime-assets.mts", import.meta.url), "utf8");
     const dynamicSpecifiers = [...source.matchAll(/\bimport\(\s*["']([^"']+)["']\s*\)/gu)].flatMap(
       (match) => (match[1] === undefined ? [] : [match[1]]),
@@ -139,12 +145,16 @@ describe("closed runtime asset verification", () => {
 
     expect(dynamicSpecifiers).toEqual([
       "../../engine/packages/base/src/index.js",
-      "../../game/stories/poc/src/story-definition.js",
+      "../../engine/packages/tooling/src/project/index.js",
+      "../../engine/packages/tooling/src/project/loader.js",
+      "../../game/project.config.js",
       "./validate-runtime.mjs",
     ]);
     expect(dynamicSpecifiers.every((specifier) => !specifier.includes("/testkit"))).toBe(true);
     expect(
-      dynamicSpecifiers.some((specifier) => /\.tsx$|\/application\/|\/tooling\b/u.test(specifier)),
+      dynamicSpecifiers.some((specifier) =>
+        /\.tsx$|\/application\/|\/stories\/[^/]+\/src\/tooling\b/u.test(specifier),
+      ),
     ).toBe(false);
   });
 });
