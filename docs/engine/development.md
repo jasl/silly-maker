@@ -64,6 +64,8 @@ Commits can be organized for reviewability, but there is no required Phase-to-co
 
 The current browser commands still exercise the PoC application. The accepted [E2E engine validation design](design/e2e-engine-validation.md) will split a neutral Engine Conformance Story from Tavern product flows; do not describe that target split as implemented until the new commands and Story exist.
 
+Headless Story tests should drive gameplay through `createGameHarnessV1` from `@sillymaker/base/testkit` rather than assembling private Session/semantic/persistence fixtures; the generic parts of the PoC's story-private harnesses are scheduled to migrate onto it during the vNext F3 cleanup.
+
 Tests and scripts are maintained when they protect product or reusable-engine value:
 
 - command commit/rejection/fault behavior;

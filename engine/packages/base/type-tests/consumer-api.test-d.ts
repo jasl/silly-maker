@@ -83,6 +83,7 @@ import type {
 } from "@sillymaker/base/runtime";
 import {
   createFixedBootstrapEntropyV1,
+  createGameHarnessV1,
   createMemoryHostRecordStoreV1,
   createSyntheticCounterGamePackageV1,
   resolveStoryForTestV1,
@@ -136,6 +137,7 @@ export type BaseConsumerTypesV1 = {
 
 export type BaseConsumerValuesV1 = {
   createGameSession: typeof createGameSessionV1;
+  createGameHarness: typeof createGameHarnessV1;
   createFixedBootstrapEntropy: typeof createFixedBootstrapEntropyV1;
   createMemoryHostRecordStore: typeof createMemoryHostRecordStoreV1;
   createGameSnapshotEnvelopeSchema: typeof createGameSnapshotEnvelopeSchemaV1;

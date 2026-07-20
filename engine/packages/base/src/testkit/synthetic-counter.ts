@@ -65,7 +65,7 @@ interface SyntheticDebugValidationErrorV1 {
   readonly code: "synthetic.debug_command_unsupported";
 }
 
-interface SyntheticSimulationTypesV1 extends GameSimulationTypeMapV1<
+export interface SyntheticSimulationTypesV1 extends GameSimulationTypeMapV1<
   { readonly rngSeed: ReturnType<BootstrapEntropyV1["nextNonZeroUint32"]> },
   SyntheticGameStateV1,
   RngStateV1

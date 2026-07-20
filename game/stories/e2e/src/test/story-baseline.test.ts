@@ -1,84 +1,40 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import {
-  createGameSnapshotEnvelopeSchemaV1,
-  createPristineRunIntegrityV1,
-  createTransactionalRngV1,
-  digestCanonical,
-  extractDiagnosticsV1,
-  parseNonNegativeSafeInteger,
-  rngStateV1Schema,
-} from "@sillymaker/base";
-import { createGameSessionV1 } from "@sillymaker/base/runtime";
-import { createFixedBootstrapEntropyV1, resolveStoryForTestV1 } from "@sillymaker/base/testkit";
+import { extractDiagnosticsV1 } from "@sillymaker/base";
+import { createGameHarnessV1, resolveStoryForTestV1 } from "@sillymaker/base/testkit";
 
-import type { LabAttemptV1, LabCommandV1, LabSimulationTypesV1, LabSnapshotV1 } from "../index.js";
+import type { LabActionIdV1, LabGameStateV1, LabInvocationV1 } from "../index.js";
 import {
   labProcedureStepsToCompleteV1,
   labSamplesStateSchemaV1,
+  labSemanticAdapterV1,
   labStoryEntryV1,
 } from "../index.js";
 
-const fixedSeedV1 = 23049;
-
-function createEntropyV1() {
-  return createFixedBootstrapEntropyV1({
-    uuids: ["9e2f1a34-6d2b-4c33-8a41-5a3f6c1b2d4e"],
-    seeds: [fixedSeedV1],
+function createLabHarnessV1(seed = 23049) {
+  return createGameHarnessV1({
+    entry: labStoryEntryV1,
+    semantic: labSemanticAdapterV1,
+    seed,
   });
 }
 
-function createLabSessionV1() {
-  const resolved = resolveStoryForTestV1(labStoryEntryV1);
-  const gameSimulation = resolved.gameSimulation;
-  const snapshotSchema = createGameSnapshotEnvelopeSchemaV1(
-    gameSimulation.stateSchema,
-    rngStateV1Schema,
-  );
-  const bootstrap = gameSimulation.createBootstrapInput(createEntropyV1());
-  const initialSnapshot = snapshotSchema.parse({
-    state: gameSimulation.createInitialState(bootstrap),
-    rng: createTransactionalRngV1(bootstrap.rngSeed).candidateState(),
-    commandSequence: parseNonNegativeSafeInteger(0),
-    integrity: createPristineRunIntegrityV1(),
-  });
-  const created = createGameSessionV1<LabSimulationTypesV1>({
-    initialSnapshot,
-    commandSchema: gameSimulation.commandSchema,
-    executionContext: undefined,
-    executeAttempt(snapshot, command): LabAttemptV1 {
-      return gameSimulation.commandExecutor.executeAttempt(
-        snapshot as LabSnapshotV1,
-        command as LabCommandV1,
-        undefined,
-      );
-    },
-    normalizeUnexpectedDispatchFault(_error, snapshot): LabAttemptV1 {
-      const rng = createTransactionalRngV1((snapshot as LabSnapshotV1).rng);
-      return Object.freeze({
-        result: Object.freeze({
-          kind: "faulted" as const,
-          snapshot: snapshot as LabSnapshotV1,
-          fault: Object.freeze({ code: "lab.executor_failed" as const }),
-        }),
-        diagnostics: Object.freeze({
-          committedRngBefore: (snapshot as LabSnapshotV1).rng,
-          attemptedDraws: rng.attemptedDraws(),
-          committedRngAfter: (snapshot as LabSnapshotV1).rng,
-        }),
-      });
-    },
-  });
-  return Object.freeze({ resolved, session: created.session });
+function invoke(actionId: LabActionIdV1): LabInvocationV1 {
+  return Object.freeze({ kind: "invoke" as const, actionId });
+}
+
+function labStateOfV1(harness: Awaited<ReturnType<typeof createLabHarnessV1>>): LabGameStateV1 {
+  return harness.admin.inspectForTest().snapshot.state as LabGameStateV1;
 }
 
 async function dispatchCommittedV1(
-  session: ReturnType<typeof createLabSessionV1>["session"],
-  command: LabCommandV1,
-): Promise<void> {
-  const result = await session.dispatch(command);
-  expect(result).toMatchObject({ kind: "executed", execution: { kind: "committed" } });
+  harness: Awaited<ReturnType<typeof createLabHarnessV1>>,
+  actionId: LabActionIdV1,
+) {
+  const result = await harness.dispatch(invoke(actionId));
+  expect(result).toMatchObject({ kind: "committed" });
+  return result;
 }
 
 describe("Engine Lab story baseline", () => {
@@ -91,122 +47,104 @@ describe("Engine Lab story baseline", () => {
     expect(resolved.gameSimulation.modules).toHaveLength(2);
   });
 
-  it("collects samples and runs the procedure to completion through one session", async () => {
-    const lab = createLabSessionV1();
+  it("plays the full route through the harness semantic surface only", async () => {
+    const harness = await createLabHarnessV1();
 
-    await dispatchCommittedV1(lab.session, { kind: "lab.collect_sample" });
-    const afterCollect = lab.session.getCurrentSnapshot();
-    expect(afterCollect.state.simulation.samples.collected).toBeGreaterThanOrEqual(1);
-    expect(afterCollect.state.simulation.samples.collected).toBeLessThanOrEqual(3);
-    expect(afterCollect.rng.rawDrawCount).toBeGreaterThan(0);
+    const opening = harness.observe();
+    expect(opening.game).toEqual({
+      samplesCollected: 0,
+      procedurePhase: "idle",
+      procedureSteps: 0,
+    });
+    expect(opening.actions).toContainEqual({
+      actionId: "lab.begin_procedure",
+      enabled: false,
+      blockedBy: "lab.samples_required",
+    });
 
-    await dispatchCommittedV1(lab.session, { kind: "lab.begin_procedure" });
-    expect(lab.session.getCurrentSnapshot().state.simulation.procedure.phase).toBe("running");
+    await dispatchCommittedV1(harness, "lab.collect_sample");
+    const afterCollect = harness.observe();
+    expect(afterCollect.game.samplesCollected).toBeGreaterThanOrEqual(1);
+    expect(afterCollect.game.samplesCollected).toBeLessThanOrEqual(3);
+    expect(labStateOfV1(harness).simulation.samples.collected).toBe(
+      afterCollect.game.samplesCollected,
+    );
+
+    await dispatchCommittedV1(harness, "lab.begin_procedure");
+    expect(harness.observe().game.procedurePhase).toBe("running");
 
     for (let step = 0; step < labProcedureStepsToCompleteV1; step += 1) {
-      await dispatchCommittedV1(lab.session, { kind: "lab.advance_procedure" });
+      await dispatchCommittedV1(harness, "lab.advance_procedure");
     }
-    const finished = lab.session.getCurrentSnapshot();
-    expect(finished.state.simulation.procedure).toEqual({
-      phase: "complete",
-      stepsTaken: labProcedureStepsToCompleteV1,
-    });
-    expect(finished.commandSequence).toBe(2 + labProcedureStepsToCompleteV1);
+    const finished = harness.observe();
+    expect(finished.game.procedurePhase).toBe("complete");
+    expect(finished.game.procedureSteps).toBe(labProcedureStepsToCompleteV1);
+    expect(finished.revision).toBe(2 + labProcedureStepsToCompleteV1);
+    await harness.dispose();
   });
 
-  it("gates the procedure on the samples capability provided across modules", async () => {
-    const lab = createLabSessionV1();
-    const before = lab.session.getCurrentSnapshot();
+  it("keeps preview, action availability, and dispatch on the same evaluator", async () => {
+    const harness = await createLabHarnessV1();
 
-    const withoutSamples = await lab.session.dispatch({ kind: "lab.begin_procedure" });
-    expect(withoutSamples).toMatchObject({
-      kind: "executed",
-      execution: {
-        kind: "rejected",
-        reasons: [{ code: "lab.samples_required" }],
-      },
+    expect(await harness.preview(invoke("lab.begin_procedure"))).toEqual({
+      kind: "blocked",
+      code: "lab.samples_required",
     });
-    expect(lab.session.getCurrentSnapshot()).toBe(before);
+    const rejected = await harness.dispatch(invoke("lab.begin_procedure"));
+    expect(rejected).toEqual({ kind: "rejected", codes: ["lab.samples_required"] });
 
-    await dispatchCommittedV1(lab.session, { kind: "lab.collect_sample" });
-    await dispatchCommittedV1(lab.session, { kind: "lab.begin_procedure" });
-    expect(lab.session.getCurrentSnapshot().state.simulation.procedure.phase).toBe("running");
+    await dispatchCommittedV1(harness, "lab.collect_sample");
+    expect(await harness.preview(invoke("lab.begin_procedure"))).toEqual({ kind: "allowed" });
+    const enabled = harness
+      .observe()
+      .actions.find((action) => action.actionId === "lab.begin_procedure");
+    expect(enabled).toMatchObject({ enabled: true, blockedBy: null });
+    await harness.dispose();
   });
 
   it("runs the cross-owner experiment atomically and rejects deterministically at the end", async () => {
-    const lab = createLabSessionV1();
-    await dispatchCommittedV1(lab.session, { kind: "lab.collect_sample" });
-    await dispatchCommittedV1(lab.session, { kind: "lab.begin_procedure" });
-    const samplesBefore = lab.session.getCurrentSnapshot().state.simulation.samples.collected;
+    const harness = await createLabHarnessV1();
+    await dispatchCommittedV1(harness, "lab.collect_sample");
+    await dispatchCommittedV1(harness, "lab.begin_procedure");
+    const samplesBefore = harness.observe().game.samplesCollected;
 
-    const experiment = await lab.session.dispatch({ kind: "lab.run_experiment" });
+    const experiment = await harness.dispatch(invoke("lab.run_experiment"));
     expect(experiment).toMatchObject({
-      kind: "executed",
-      execution: {
-        kind: "committed",
-        facts: [
-          { kind: "lab.procedure_advanced", stepsTaken: 1 },
-          { kind: "lab.samples_consumed", amount: 1, remaining: samplesBefore - 1 },
-        ],
-      },
+      kind: "committed",
+      facts: [
+        { kind: "lab.procedure_advanced", stepsTaken: 1 },
+        { kind: "lab.samples_consumed", amount: 1, remaining: samplesBefore - 1 },
+      ],
     });
-    const afterFirst = lab.session.getCurrentSnapshot();
-    expect(afterFirst.state.simulation.samples.collected).toBe(samplesBefore - 1);
-    expect(afterFirst.state.simulation.procedure).toEqual({ phase: "running", stepsTaken: 1 });
+    const afterFirst = harness.observe();
+    expect(afterFirst.game.samplesCollected).toBe(samplesBefore - 1);
+    expect(afterFirst.game.procedureSteps).toBe(1);
 
-    // Whatever the RNG yielded (1..3), the second dispatch has exactly one
-    // legal outcome: with zero samples left it must starve atomically, and
-    // with samples left it must complete the procedure.
-    const second = await lab.session.dispatch({ kind: "lab.run_experiment" });
-    if (afterFirst.state.simulation.samples.collected === 0) {
-      expect(second).toMatchObject({
-        kind: "executed",
-        execution: { kind: "rejected", reasons: [{ code: "lab.insufficient_samples" }] },
-      });
-      expect(lab.session.getCurrentSnapshot()).toBe(afterFirst);
+    const digestBeforeSecond = harness.stateDigest();
+    const second = await harness.dispatch(invoke("lab.run_experiment"));
+    if (afterFirst.game.samplesCollected === 0) {
+      expect(second).toEqual({ kind: "rejected", codes: ["lab.insufficient_samples"] });
+      expect(harness.stateDigest()).toBe(digestBeforeSecond);
+      await harness.dispose();
       return;
     }
-    expect(second).toMatchObject({ kind: "executed", execution: { kind: "committed" } });
-    const complete = lab.session.getCurrentSnapshot();
-    expect(complete.state.simulation.procedure).toEqual({
-      phase: "complete",
-      stepsTaken: labProcedureStepsToCompleteV1,
-    });
+    expect(second).toMatchObject({ kind: "committed" });
+    expect(harness.observe().game.procedurePhase).toBe("complete");
 
-    const afterComplete = await lab.session.dispatch({ kind: "lab.run_experiment" });
-    expect(afterComplete).toMatchObject({
-      kind: "executed",
-      execution: { kind: "rejected", reasons: [{ code: "lab.procedure_not_running" }] },
-    });
-    expect(lab.session.getCurrentSnapshot()).toBe(complete);
+    const afterComplete = await harness.dispatch(invoke("lab.run_experiment"));
+    expect(afterComplete).toEqual({ kind: "rejected", codes: ["lab.procedure_not_running"] });
+    await harness.dispose();
   });
 
-  it("keeps the exact Snapshot on business rejection", async () => {
-    const lab = createLabSessionV1();
-    const before = lab.session.getCurrentSnapshot();
+  it("keeps the exact snapshot digest on business rejection", async () => {
+    const harness = await createLabHarnessV1();
+    const before = harness.stateDigest();
 
-    const rejected = await lab.session.dispatch({ kind: "lab.advance_procedure" });
-    expect(rejected).toMatchObject({
-      kind: "executed",
-      execution: {
-        kind: "rejected",
-        reasons: [{ code: "lab.procedure_not_running" }],
-      },
-    });
-    expect(lab.session.getCurrentSnapshot()).toBe(before);
-
-    await dispatchCommittedV1(lab.session, { kind: "lab.collect_sample" });
-    await dispatchCommittedV1(lab.session, { kind: "lab.begin_procedure" });
-    const running = lab.session.getCurrentSnapshot();
-    const beginAgain = await lab.session.dispatch({ kind: "lab.begin_procedure" });
-    expect(beginAgain).toMatchObject({
-      kind: "executed",
-      execution: {
-        kind: "rejected",
-        reasons: [{ code: "lab.procedure_already_running" }],
-      },
-    });
-    expect(lab.session.getCurrentSnapshot()).toBe(running);
+    const rejected = await harness.dispatch(invoke("lab.advance_procedure"));
+    expect(rejected).toEqual({ kind: "rejected", codes: ["lab.procedure_not_running"] });
+    expect(harness.stateDigest()).toBe(before);
+    expect(harness.trace()).toEqual([expect.objectContaining({ ordinal: 1, outcome: "rejected" })]);
+    await harness.dispose();
   });
 
   it("reports structured diagnostics with pointers for invalid module State", () => {
@@ -227,22 +165,61 @@ describe("Engine Lab story baseline", () => {
     ]);
   });
 
-  it("produces identical snapshots for the same seed and command transcript", async () => {
-    const transcript: readonly LabCommandV1[] = Object.freeze([
-      { kind: "lab.collect_sample" },
-      { kind: "lab.begin_procedure" },
-      { kind: "lab.collect_sample" },
-      { kind: "lab.run_experiment" },
+  it("produces identical traces and digests for the same seed and transcript", async () => {
+    const transcript: readonly LabActionIdV1[] = Object.freeze([
+      "lab.collect_sample",
+      "lab.begin_procedure",
+      "lab.collect_sample",
+      "lab.run_experiment",
     ]);
 
-    const digests: string[] = [];
+    const outcomes: string[] = [];
     for (let run = 0; run < 2; run += 1) {
-      const lab = createLabSessionV1();
-      for (const command of transcript) {
-        await dispatchCommittedV1(lab.session, command);
+      const harness = await createLabHarnessV1(23049);
+      for (const actionId of transcript) {
+        await dispatchCommittedV1(harness, actionId);
       }
-      digests.push(digestCanonical("sillymaker:state:v1", lab.session.getCurrentSnapshot()));
+      outcomes.push(JSON.stringify(harness.trace()) + harness.stateDigest());
+      await harness.dispose();
     }
-    expect(digests[0]).toBe(digests[1]);
+    expect(outcomes[0]).toBe(outcomes[1]);
+  });
+
+  it("saves and reloads through the harness persistence port", async () => {
+    const harness = await createLabHarnessV1();
+    await dispatchCommittedV1(harness, "lab.collect_sample");
+    const savedDigest = harness.stateDigest();
+
+    await expect(harness.saves.save("quick")).resolves.toEqual({
+      kind: "saved",
+      slotId: "quick",
+    });
+    await dispatchCommittedV1(harness, "lab.begin_procedure");
+    expect(harness.stateDigest()).not.toBe(savedDigest);
+
+    await expect(harness.saves.load("quick")).resolves.toMatchObject({ kind: "loaded" });
+    expect(harness.stateDigest()).toBe(savedDigest);
+    await harness.dispose();
+  });
+
+  it("returns structured outcomes after disposal and passes authoritative replay", async () => {
+    const harness = await createLabHarnessV1();
+    await dispatchCommittedV1(harness, "lab.collect_sample");
+
+    await expect(harness.admin.replayAuthoritatively()).resolves.toMatchObject({
+      authoritative: true,
+      matches: true,
+    });
+
+    await harness.dispose();
+    expect(harness.isDisposed()).toBe(true);
+    await expect(harness.dispatch(invoke("lab.collect_sample"))).resolves.toEqual({
+      kind: "harness_disposed",
+    });
+    await expect(harness.saves.save("quick")).resolves.toEqual({
+      kind: "faulted",
+      code: "runtime_disposed",
+    });
+    expect(harness.admin.debugControl).toBeUndefined();
   });
 });

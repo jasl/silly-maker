@@ -16,6 +16,8 @@
 - Story-local schemas, deterministic rule providers, command executors, queries, ViewModel projectors, scene graphs, catalogs, and renderer contributions.
 - Optional lazily loaded Story tooling and tooling UI.
 
+- `@sillymaker/base/testkit` ships `createGameHarnessV1`: a generic headless Game harness that resolves a package, bootstraps with deterministic entropy, and wires the session, semantic port, in-memory persistence, failure buffer, and disposal. Stories supply only their semantic adapter (queries, projections, action catalog, previews, invocation mapping); the harness provides observe/preview/dispatch/waitForIdle, a deterministic trace, state digests, the persistence port, an admin surface (command log, authoritative replay, capability-gated debug control, explicit `inspectForTest`), and structured outcomes after disposal. The normal surface exposes no raw Snapshot or State setter.
+
 ## Runtime
 
 - One authoritative `GameSession` queue for gameplay dispatch and State replacement.

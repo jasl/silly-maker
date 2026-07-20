@@ -39,6 +39,14 @@ export {
   labTextCatalogsV1,
   materializeLabPresentationV1,
 } from "./presentation.js";
+export type {
+  LabActionDescriptorV1,
+  LabActionIdV1,
+  LabActionResultV1,
+  LabInvocationV1,
+  LabPreviewV1,
+} from "./application/semantic.js";
+export { labSemanticAdapterV1, parseLabInvocationV1 } from "./application/semantic.js";
 export type { LabSimulationProgramV1 } from "./story.js";
 export {
   labSimulationPatchSurfaceV1,
