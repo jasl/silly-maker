@@ -199,9 +199,13 @@ export type {
   StageViewportV1,
   TopCardHudPropsV1,
 } from "./shell/index.js";
-export { CodeFallbackStageSceneV1, StageSceneHostV1 } from "./stage/index.js";
+export { CodeFallbackStageSceneV1, SemanticStageHostV2, StageSceneHostV1 } from "./stage/index.js";
 export type {
   RuntimeStageSceneV1,
+  SemanticStageEntryRendererInputV2,
+  SemanticStageEntryRendererV2,
+  SemanticStageHostDiagnosticV2,
+  SemanticStageHostPropsV2,
   StageBackgroundPresentationV1,
   StageSceneHostPropsV1,
 } from "./stage/index.js";

@@ -397,8 +397,18 @@ describe("PoC investigation Narrative", () => {
     expect(pocInvestigationNarrativeV1).toEqual([
       {
         sceneId: "scene.old_trade_road.departure",
-        entryNodeId: "node.old_trade_road.departure.line",
+        entryNodeId: "node.old_trade_road.departure.stage",
         nodes: [
+          {
+            kind: "stageCue",
+            nodeId: "node.old_trade_road.departure.stage",
+            cue: {
+              kind: "background.set",
+              assetId: "asset.poc.background.world_map.standard",
+              transition: "fade",
+            },
+            nextNodeId: "node.old_trade_road.departure.line",
+          },
           {
             kind: "narration",
             nodeId: "node.old_trade_road.departure.line",

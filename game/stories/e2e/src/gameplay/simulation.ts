@@ -11,7 +11,7 @@ import type {
   RngStateV1,
   RuntimeSchemaV1,
 } from "@sillymaker/base";
-import type { StageMutationV2 } from "@sillymaker/base";
+import type { SemanticStageStateV2, StageMutationV2 } from "@sillymaker/base";
 import {
   createGameAuthoringKitV1,
   createTransactionalRngV1,
@@ -73,12 +73,15 @@ export interface LabQueriesV1 {
   readonly samplesCollected: number;
   readonly procedurePhase: LabProcedureStateV1["phase"];
   readonly procedureSteps: number;
+  readonly stage: SemanticStageStateV2;
 }
 
 export interface LabGameViewV1 {
   readonly samplesCollected: number;
   readonly procedurePhase: LabProcedureStateV1["phase"];
   readonly procedureSteps: number;
+  /** The semantic stage target: plain saveable data, observable headless. */
+  readonly stage: SemanticStageStateV2;
 }
 
 export interface LabBootstrapInputV1 {
@@ -520,6 +523,7 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
         samplesCollected: state.simulation.samples.collected,
         procedurePhase: state.simulation.procedure.phase,
         procedureSteps: state.simulation.procedure.stepsTaken,
+        stage: state.simulation.stage,
       });
     },
     projectGameView(queries: LabQueriesV1) {
@@ -527,6 +531,7 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
         samplesCollected: queries.samplesCollected,
         procedurePhase: queries.procedurePhase,
         procedureSteps: queries.procedureSteps,
+        stage: queries.stage,
       });
     },
   });

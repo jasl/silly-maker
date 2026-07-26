@@ -1,6 +1,6 @@
 # VN presentation runtime design
 
-状态：2026-07-19 接受的目标设计。§3 的 Semantic Stage V2 合同、纯 mutation reducer 和 StageRenderTarget 投影已在 Base 实现并由 Engine Conformance Story 使用（integer 逻辑坐标/permille 缩放，保持 canonical JSON 约束）；其余章节尚未实现。现有 Stage/Narrative V1 可以破坏式重塑，但每次公开合同替换都必须显式迁移并删除旧权威路径。
+状态：2026-07-19 接受的目标设计。§3 的 Semantic Stage V2 合同、纯 mutation reducer 和 StageRenderTarget 投影已在 Base 实现并由 Engine Conformance Story 使用（integer 逻辑坐标/permille 缩放，保持 canonical JSON 约束）；stage 已进入 semantic publication，`SemanticStageHostV2` 以稳定 `layerId:tag` 身份渲染投影目标，settled asset demand 精确跟随当前 target，PoC projector 在 Narrative 活跃时消费 `semantic.narrative.stage` 的背景并降级 route/variant 背景权威。Transition Player、PendingInteraction、audio 与之后章节尚未实现。现有 Stage/Narrative V1 可以破坏式重塑，但每次公开合同替换都必须显式迁移并删除旧权威路径。
 
 ## 1. Problem statement
 

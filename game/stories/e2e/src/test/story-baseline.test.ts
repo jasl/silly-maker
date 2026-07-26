@@ -51,11 +51,19 @@ describe("Engine Lab story baseline", () => {
     const harness = await createLabHarnessV1();
 
     const opening = harness.observe();
-    expect(opening.game).toEqual({
+    expect(opening.game).toMatchObject({
       samplesCollected: 0,
       procedurePhase: "idle",
       procedureSteps: 0,
     });
+    // The semantic publication carries the plain semantic stage target, so
+    // headless observers see it without any renderer surface.
+    expect(opening.game.stage.stageId).toBe("stage.e2e.lab");
+    expect(opening.game.stage.layers.map((layer) => layer.layerId)).toEqual([
+      "layer.e2e.background",
+      "layer.e2e.characters",
+      "layer.e2e.props",
+    ]);
     expect(opening.actions).toContainEqual({
       actionId: "lab.begin_procedure",
       enabled: false,

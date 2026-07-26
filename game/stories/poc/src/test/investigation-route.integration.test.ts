@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 
+import { initialInteractionSessionStateV1 } from "@sillymaker/ui";
 import { describe, expect, it } from "vitest";
 
+import { pocContentMaturityPolicyV1 } from "../presentation/content-maturity-policy.js";
+import { pocResolvedPresentationCatalogV1 } from "../presentation/assets.js";
+import { projectPocRuntimePresentationV1 } from "../presentation/runtime/project-poc-runtime-presentation.js";
 import type { PocSemanticActionDescriptorV1, PocSemanticInvocationV1 } from "../index.js";
 import {
   createPocStoryHarnessV1,
@@ -102,6 +106,23 @@ function outcomeV1(harness: PocStoryHarnessV1, outcomeId: string): string | null
   return entry?.value.kind === "token" ? entry.value.value : null;
 }
 
+/** Projects the live semantic publication exactly as the PoC UI runtime does. */
+function projectVisibleStageV1(harness: PocStoryHarnessV1) {
+  return projectPocRuntimePresentationV1({
+    semantic: harness.semantic.observe(),
+    resolvedCatalog: pocResolvedPresentationCatalogV1,
+    contentPreference: Object.freeze({
+      allowedFlags: pocContentMaturityPolicyV1.defaultAllowedFlags,
+    }),
+    uiState: Object.freeze({
+      route: "play" as const,
+      primaryOverlayId: null,
+      interaction: initialInteractionSessionStateV1,
+      activeCueId: null,
+    }),
+  });
+}
+
 describe("PoC investigation route through SemanticGamePort", () => {
   it("occupies the D5 opportunity, resolves prepared 2D6 once, and reaches arrears terminal", async () => {
     const harness = createPocStoryHarnessV1({ bootstrap: fixedPocBootstrapV1() });
@@ -145,7 +166,25 @@ describe("PoC investigation route through SemanticGamePort", () => {
     expect(outcomeV1(harness, "outcome.relationship_opportunity")).toBe("relationship.abandoned");
     expect(harness.snapshotForTest().state.simulation.inventory.cash).toBe(66);
     expect(harness.snapshotForTest().state.simulation.actors.player.stamina.current).toBe(7);
+
+    // The departure scene's stageCue drives the VISIBLE stage: the Narrative
+    // stage target overrides the day-phase variant background, and settled
+    // asset demand swaps to the world-map background exactly.
+    const narrativeStage = harness.semantic.observe().narrative?.stage;
+    expect(narrativeStage?.backgroundAssetId).toBe("asset.poc.background.world_map.standard");
+    expect(narrativeStage?.transition).toBe("fade");
+    const duringCue = projectVisibleStageV1(harness);
+    expect(duringCue.view.stage.background.assetId).toBe("asset.poc.background.world_map.standard");
+    expect(duringCue.requiredAssetIds).toContain("asset.poc.background.world_map.standard");
+    expect(duringCue.requiredAssetIds).not.toContain("asset.poc.background.tavern.day.standard");
+
     await drainV1(harness);
+
+    // Once the Narrative completes, the variant background is authoritative
+    // again and the superseded world-map demand is released.
+    const afterCue = projectVisibleStageV1(harness);
+    expect(afterCue.view.stage.background.assetId).toBe("asset.poc.background.tavern.day.standard");
+    expect(afterCue.requiredAssetIds).not.toContain("asset.poc.background.world_map.standard");
     expect(harness.snapshotForTest().state.simulation.activeWorkflow).toMatchObject({
       kind: "world_action",
       progress: "awaiting_completion_phase",

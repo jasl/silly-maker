@@ -1785,6 +1785,7 @@ describe("closed gameplay content ID catalog", () => {
       "node.old_trade_road.departure.end",
       "node.old_trade_road.investigation.line",
       "node.old_trade_road.investigation.end",
+      "node.old_trade_road.departure.stage",
     ]);
     expect(factIdsV1).toEqual([
       "fact.war_clue",

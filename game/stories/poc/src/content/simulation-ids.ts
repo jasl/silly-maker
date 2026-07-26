@@ -156,6 +156,7 @@ export const nodeIdsV1 = Object.freeze([
   parseNodeId("node.old_trade_road.departure.end"),
   parseNodeId("node.old_trade_road.investigation.line"),
   parseNodeId("node.old_trade_road.investigation.end"),
+  parseNodeId("node.old_trade_road.departure.stage"),
 ] as const);
 
 export const factIdsV1 = Object.freeze([

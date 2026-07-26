@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 import { readFile } from "node:fs/promises";
 
-import { parseAppearanceLayerId } from "@sillymaker/base";
+import { parseAppearanceLayerId, parseAssetId } from "@sillymaker/base";
 import type { DeepReadonly } from "@sillymaker/base";
 import {
   initialInteractionSessionStateV1,
@@ -231,6 +231,38 @@ describe("projectPocRuntimePresentationV1", () => {
     ["play", "overlay.poc.run_summary", "morning"],
   ] as const)("returns the exact frozen asset demand for %s/%s/%s", (route, overlay, phase) => {
     const { projection } = projectFixtureV1({ route, primaryOverlayId: overlay, phase });
+    expect(projection.requiredAssetIds).toBe(
+      pocResolvedPresentationCatalogV1.requiredAssetIdsByVariant[projection.view.stage.variantId],
+    );
+  });
+
+  it("lets an active Narrative stage own the background and the exact demand swap", () => {
+    const worldMap = parseAssetId("asset.poc.background.world_map.standard");
+    const narrative: DeepReadonly<NarrativeProjectionV1> = Object.freeze({
+      ...narrativeWithStatusV1("active"),
+      stage: Object.freeze({
+        backgroundAssetId: worldMap,
+        characters: Object.freeze([]),
+        transition: "fade" as const,
+      }),
+    });
+
+    const { projection } = projectFixtureV1({ narrative });
+    expect(projection.view.stage.variantId).toBe("stage_variant.poc.tavern.day");
+    expect(projection.view.stage.background.assetId).toBe(worldMap);
+    expect(projection.requiredAssetIds).toContain(worldMap);
+    expect(projection.requiredAssetIds).not.toContain("asset.poc.background.tavern.day.standard");
+  });
+
+  it.each([
+    ["idle", narrativeWithStatusV1("idle")],
+    ["completed", narrativeWithStatusV1("completed")],
+    ["active without background", narrativeWithStatusV1("active")],
+  ] as const)("keeps the variant background for a %s Narrative stage", (_name, narrative) => {
+    const { projection } = projectFixtureV1({ narrative });
+    expect(projection.view.stage.background.assetId).toBe(
+      "asset.poc.background.tavern.day.standard",
+    );
     expect(projection.requiredAssetIds).toBe(
       pocResolvedPresentationCatalogV1.requiredAssetIdsByVariant[projection.view.stage.variantId],
     );

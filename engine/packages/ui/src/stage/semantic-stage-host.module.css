@@ -1,0 +1,34 @@
+/* SPDX-License-Identifier: MIT */
+
+.root {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.camera {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 50%;
+}
+
+.layer {
+  position: absolute;
+  inset: 0;
+  transform-origin: 0 0;
+}
+
+.entry {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  transform-origin: 0 0;
+}
+
+.fallback {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border: 1px dashed currentcolor;
+  font-size: 0.75rem;
+  opacity: 0.8;
+}

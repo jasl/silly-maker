@@ -35,7 +35,8 @@
 - Semantic preview/dispatch and immutable subscription publications for UI and automation.
 - Lifecycle restart/rebootstrap and replay-base replacement.
 - Semantic Stage V2 contracts: versioned `SemanticStageStateV2` (ordered layers, stable `<layerId, tag>` entries, integer logical placement/appearance/camera targets) as plain canonical Save data, plus a pure atomic `reduceStageMutationsV2` batch reducer (`show`/`replace`/`hide`/`clearLayer`/`clearStage`/`setPlacement`/`setAppearance`/`setLayerTransform`/`setCamera`) that either commits a complete valid successor or rejects without touching the input state.
-- Non-authoritative `StageRenderTargetV2` projection: a Story `StageContentCatalogV2` deterministically resolves semantic content into renderer IDs, asset IDs, accessible names, and Strict JSON props; unresolved content binds a code-native fallback renderer with structured diagnostics. The render target is rebuilt from State plus catalog and never enters a Save. (Projection into semantic publications and the Transition Player are the next roadmap steps.)
+- Non-authoritative `StageRenderTargetV2` projection: a Story `StageContentCatalogV2` deterministically resolves semantic content into renderer IDs, asset IDs, accessible names, and Strict JSON props; unresolved content binds a code-native fallback renderer with structured diagnostics. The render target is rebuilt from State plus catalog and never enters a Save.
+- Stage-driven projection wiring: Story game views may carry `SemanticStageStateV2` through the semantic publication (headless agents observe the semantic stage target), the Story UI projector rebuilds the render target every projection, and settled `requiredAssetIds` track the current target exactly — superseded assets leave the demand when the stage retargets. (The Transition Player and retained-exit demand during active transitions are the next roadmap steps.)
 
 ## Persistence and compatibility
 
@@ -62,6 +63,7 @@
 - React game shell with a central layered stage and runtime error recovery.
 - HUD, narrative, workspace overlays, system dialogs, Save UI, and diagnostic export UI.
 - Static and paper-doll character renderers with Story-contributed renderer IDs.
+- `SemanticStageHostV2`: renders a projected Semantic Stage V2 target with stable `layerId:tag` DOM identities, layer/camera/placement composition from integer logical units, Story-registered entry renderers, and a code-native fallback plus diagnostic for unregistered renderer IDs.
 - Scene backgrounds, interaction surfaces, normalized hit maps, pointer adaptation, and semantic controls.
 - Input routing, focusable code-native controls, settings, symbols, reduced-motion support, and content preferences.
 - Asset registry with requested-asset loading, fault diagnostics, and code-native fallback.

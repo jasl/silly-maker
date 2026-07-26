@@ -34,6 +34,7 @@ import type {
   PocRuntimePresentationProjectionInputV1,
   PocRuntimePresentationViewV1,
 } from "./contracts.js";
+import { isPocNarrativeOpenV1 } from "./contracts.js";
 import { createPocInteractionBehaviorResolverV1 } from "./interaction-behaviors.js";
 
 type PocVariantV1 = PocResolvedPresentationCatalogV1["sceneGraph"]["variants"][number];
@@ -111,9 +112,24 @@ function selectVariantIdV1(
   );
 }
 
+/**
+ * The Narrative's saveable stage target owns the visible background while a
+ * Narrative is active. The static route/variant background is demoted to the
+ * out-of-narrative default; slot characters keep their variant projection
+ * until the PoC moves onto the Semantic Stage V2 pipeline.
+ */
+function narrativeBackgroundOverrideV1(
+  input: DeepReadonly<PocRuntimePresentationProjectionInputV1>,
+): AssetId | null {
+  const narrative = input.semantic.narrative;
+  if (!isPocNarrativeOpenV1(narrative)) return null;
+  return narrative.stage.backgroundAssetId;
+}
+
 function selectStageV1(input: DeepReadonly<PocRuntimePresentationProjectionInputV1>): {
   readonly stage: DeepReadonly<RuntimeStageSceneV1>;
   readonly variant: PocVariantV1;
+  readonly narrativeBackgroundAssetId: AssetId | null;
 } {
   const variantId = selectVariantIdV1(input);
   const graph = input.resolvedCatalog.sceneGraph;
@@ -138,18 +154,20 @@ function selectStageV1(input: DeepReadonly<PocRuntimePresentationProjectionInput
   ) {
     throw new TypeError(`filtered required PoC Stage variant ${variant.variantId}`);
   }
+  const narrativeBackgroundAssetId = narrativeBackgroundOverrideV1(input);
   return Object.freeze({
     stage: Object.freeze({
       stageSceneId: variant.stageSceneId,
       variantId: variant.variantId,
       rendererId: variant.rendererId,
       background: Object.freeze({
-        assetId: variant.backgroundAssetId,
+        assetId: narrativeBackgroundAssetId ?? variant.backgroundAssetId,
         accessibleNameTextId: variant.accessibleNameTextId,
       }),
       layout: variant.layout,
     }),
     variant,
+    narrativeBackgroundAssetId,
   });
 }
 
@@ -401,13 +419,23 @@ function projectInteractionSurfacesV1(
 export function projectPocRuntimePresentationV1(
   input: DeepReadonly<PocRuntimePresentationProjectionInputV1>,
 ): PocProjectionV1 {
-  const { stage, variant } = selectStageV1(input);
+  const { stage, variant, narrativeBackgroundAssetId } = selectStageV1(input);
   const characters = projectCharactersV1(input.resolvedCatalog, variant);
   const interactionSurfaces = projectInteractionSurfacesV1(input, variant, characters);
-  const requiredAssetIds = input.resolvedCatalog.requiredAssetIdsByVariant[variant.variantId];
-  if (requiredAssetIds === undefined) {
+  const variantAssetIds = input.resolvedCatalog.requiredAssetIdsByVariant[variant.variantId];
+  if (variantAssetIds === undefined) {
     throw new TypeError(`missing PoC asset demand ${variant.variantId}`);
   }
+  // Settled asset demand tracks the projected target exactly: when the
+  // Narrative stage overrides the background, the superseded variant
+  // background leaves the demand and the Narrative background joins it.
+  const requiredAssetIds =
+    narrativeBackgroundAssetId === null || narrativeBackgroundAssetId === variant.backgroundAssetId
+      ? variantAssetIds
+      : Object.freeze([
+          ...variantAssetIds.filter((assetId) => assetId !== variant.backgroundAssetId),
+          narrativeBackgroundAssetId,
+        ]);
   return Object.freeze({
     view: Object.freeze({
       game: input.semantic.game,

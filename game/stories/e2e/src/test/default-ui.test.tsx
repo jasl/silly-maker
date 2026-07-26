@@ -57,16 +57,45 @@ describe("Engine Lab default UI", () => {
     expect(screen.getByTestId("stage-background")).toBeInTheDocument();
     expect(screen.getByTestId("stage-system")).toBeInTheDocument();
 
-    // The Story stage and HUD contributions render through slots.
-    expect(screen.getByRole("heading", { name: "引擎实验室" })).toBeInTheDocument();
+    // The Story stage contribution renders the semantic stage host with the
+    // opening lab background under its stable presentation identity.
+    expect(screen.getByRole("group", { name: "引擎实验室" })).toBeInTheDocument();
+    const background = document.querySelector('[data-stage-key="layer.e2e.background:tag.e2e.bg"]');
+    expect(background).not.toBeNull();
+    expect(background).toHaveAttribute("data-stage-content", "content.e2e.bg.lab");
     const collect = screen.getByRole("button", { name: "采集样本" });
     expect(collect).toBeEnabled();
 
-    // Dispatch flows through the semantic port and updates the projection.
+    // Settled asset demand is exactly the current stage target: the opening
+    // lab background declares the only runtime asset.
+    expect(composition.presentation.getSnapshot().requiredAssetIds).toEqual([
+      "asset.e2e.lab.background",
+    ]);
+
+    // Dispatch flows through the semantic port and updates the projection —
+    // including the visible stage, where the crate prop appears.
     await userEvent.setup().click(collect);
     await waitFor(() => {
       expect(screen.getByText(/样本[1-9]/u)).toBeInTheDocument();
     });
+    expect(
+      document.querySelector('[data-stage-key="layer.e2e.props:tag.e2e.crate"]'),
+    ).toBeInTheDocument();
+
+    // Replacing the background retargets demand exactly: the storeroom has
+    // no runtime asset, so the superseded background asset is released.
+    await userEvent.setup().click(screen.getByRole("button", { name: "开始流程" }));
+    await waitFor(() => {
+      expect(
+        document
+          .querySelector('[data-stage-key="layer.e2e.background:tag.e2e.bg"]')
+          ?.getAttribute("data-stage-content"),
+      ).toBe("content.e2e.bg.storeroom");
+    });
+    expect(composition.presentation.getSnapshot().requiredAssetIds).toEqual([]);
+    expect(
+      document.querySelectorAll('[data-stage-key="layer.e2e.characters:tag.e2e.alpha"]'),
+    ).toHaveLength(1);
 
     composition.dispose();
     await instance.dispose();

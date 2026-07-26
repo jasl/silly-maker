@@ -1,15 +1,17 @@
 // SPDX-License-Identifier: MIT
 import type { ReactElement } from "react";
 
-import type { DeepReadonly } from "@sillymaker/base";
+import type { AssetId, DeepReadonly, StageRenderTargetV2 } from "@sillymaker/base";
+import { projectStageRenderTargetV2 } from "@sillymaker/base";
 import type {
   DefaultGameRootLabelsV1,
   DefaultGameRootSlotsV1,
   GameUiProjectorV1,
   RuntimePresentationPublicationV1,
   SaveOverlayLabelsV1,
+  SemanticStageEntryRendererV2,
 } from "@sillymaker/ui";
-import { Button } from "@sillymaker/ui";
+import { Button, SemanticStageHostV2 } from "@sillymaker/ui";
 import type { WebGameApplicationV1 } from "@sillymaker/web";
 
 import type {
@@ -22,7 +24,7 @@ import type {
 import type { LabApplicationInstanceV1 } from "./core-definition.js";
 import { labCoreApplicationDefinitionV1 } from "./core-definition.js";
 import type { LabGameViewV1, LabQueriesV1, LabSimulationTypesV1 } from "../gameplay/simulation.js";
-import { labTextCatalogsV1 } from "../presentation.js";
+import { labStageContentCatalogV1, labTextCatalogsV1 } from "../presentation.js";
 
 /** The Engine Lab logical canvas: a 16:10 design resolution. */
 export const labViewportCanvasV1 = Object.freeze({ width: 1600, height: 1000 });
@@ -35,12 +37,15 @@ export interface LabPresentationViewV1 {
   readonly procedurePhase: LabGameViewV1["procedurePhase"];
   readonly procedureSteps: number;
   readonly anchorEpoch: number;
+  /** Rebuilt every projection from semantic stage state plus the catalog. */
+  readonly stageTarget: StageRenderTargetV2;
+  readonly stageDiagnosticCodes: readonly string[];
 }
 
 export type LabUiPublicationV1 = RuntimePresentationPublicationV1<
   LabSemanticPublicationV1,
   LabPresentationViewV1,
-  never
+  AssetId
 >;
 
 export type LabUiOverlayIdV1 = "overlay.lab.journal";
@@ -69,24 +74,88 @@ const labUiProjectorDefinitionV1: GameUiProjectorV1<
   null,
   Record<never, never>,
   LabPresentationViewV1,
-  never
+  AssetId
 > = {
   resolvedCatalog: null,
   initialUiState: Object.freeze({}),
-  project: (input) =>
-    Object.freeze({
+  project: (input) => {
+    // The render target is derived data: same semantic stage plus the same
+    // catalog always rebuild the same target and the same exact asset demand.
+    const projection = projectStageRenderTargetV2(
+      input.semantic.game.stage,
+      labStageContentCatalogV1,
+    );
+    return Object.freeze({
       view: Object.freeze({
         stageName: labUiTextV1("text.e2e.lab.stage.name"),
         samplesCollected: input.semantic.game.samplesCollected,
         procedurePhase: input.semantic.game.procedurePhase,
         procedureSteps: input.semantic.game.procedureSteps,
         anchorEpoch: input.uiState.anchor.epoch,
+        stageTarget: projection.target,
+        stageDiagnosticCodes: Object.freeze(
+          projection.diagnostics.map((diagnostic) => diagnostic.code),
+        ),
       }),
-      requiredAssetIds: Object.freeze([]),
-    }),
+      requiredAssetIds: projection.target.requiredAssetIds,
+    });
+  },
 };
 
 export const labUiProjectorV1 = Object.freeze(labUiProjectorDefinitionV1);
+
+/**
+ * Code-native stage entry renderers keyed by the catalog's renderer IDs.
+ * They draw from Strict JSON props only; missing registrations fall back to
+ * the host's code-native placeholder with a diagnostic.
+ */
+export const labStageRenderersV1: Readonly<Record<string, SemanticStageEntryRendererV2>> =
+  Object.freeze({
+    "renderer.e2e.lab.stage-background": ({ entry }) => (
+      <div
+        data-lab-surface={String(entry.props.surface)}
+        style={{
+          width: "1600px",
+          height: "1000px",
+          background:
+            entry.props.surface === "storeroom"
+              ? "linear-gradient(180deg, #3a3630, #17140f)"
+              : "linear-gradient(180deg, #2b3a4a, #101820)",
+        }}
+      />
+    ),
+    "renderer.e2e.lab.stage-character": ({ entry }) => (
+      <figure
+        data-lab-character={entry.contentId}
+        data-lab-pose={String(entry.props.pose)}
+        data-lab-expression={String(entry.props.expression)}
+        style={{
+          margin: 0,
+          width: "220px",
+          height: "360px",
+          borderRadius: "110px 110px 12px 12px",
+          background: "rgba(214, 205, 189, 0.85)",
+          transform: "translate(-50%, -100%)",
+        }}
+      >
+        <figcaption style={{ paddingBlockStart: "1rem", textAlign: "center", color: "#20242c" }}>
+          {entry.accessibleName} · {String(entry.props.expression)}
+        </figcaption>
+      </figure>
+    ),
+    "renderer.e2e.lab.stage-prop": ({ entry }) => (
+      <div
+        data-lab-prop={entry.contentId}
+        style={{
+          width: "160px",
+          height: "120px",
+          border: "3px solid #9c8a63",
+          background: "#6f6146",
+          transform: "translate(-50%, -100%)",
+        }}
+      />
+    ),
+  });
 
 type LabSemanticPortV1 = LabApplicationInstanceV1["semantic"];
 
@@ -133,7 +202,11 @@ const labUiSlotsDefinitionV1: DefaultGameRootSlotsV1<
 > = {
   background: (context) => (
     <section data-lab-stage="true" aria-label={context.publication.view.stageName}>
-      <h1>{context.publication.view.stageName}</h1>
+      <SemanticStageHostV2
+        target={context.publication.view.stageTarget}
+        renderers={labStageRenderersV1}
+        accessibleName={context.publication.view.stageName}
+      />
     </section>
   ),
   hud: (context) => <LabHudV1 publication={context.publication} semantic={context.semantic} />,
@@ -285,7 +358,7 @@ export const labWebApplicationV1: WebGameApplicationV1<
   null,
   Record<never, never>,
   LabPresentationViewV1,
-  never,
+  AssetId,
   LabUiOverlayIdV1
 > = Object.freeze({
   applicationId: "e2e",

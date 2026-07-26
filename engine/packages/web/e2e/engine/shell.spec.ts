@@ -12,7 +12,7 @@ test.describe("engine default shell", () => {
     await expect(viewport).toBeVisible();
     await expect(page.getByTestId("stage-background")).toBeAttached();
     await expect(page.getByTestId("stage-system")).toBeAttached();
-    await expect(page.getByRole("heading", { name: "引擎实验室" })).toBeVisible();
+    await expect(page.getByRole("group", { name: "引擎实验室" })).toBeAttached();
 
     // Play one action through the Story HUD contribution.
     const collect = page.getByRole("button", { name: "采集样本" });
