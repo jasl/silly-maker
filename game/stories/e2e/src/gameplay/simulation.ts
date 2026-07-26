@@ -11,11 +11,14 @@ import type {
   RngStateV1,
   RuntimeSchemaV1,
 } from "@sillymaker/base";
+import type { StageMutationV2 } from "@sillymaker/base";
 import {
   createGameAuthoringKitV1,
   createTransactionalRngV1,
   defineGameSimulation,
   parseNonNegativeSafeInteger,
+  parseStageMutationV2,
+  reduceStageMutationsV2,
 } from "@sillymaker/base";
 
 import type { LabGameStateV1, LabProcedureStateV1 } from "./state.js";
@@ -24,7 +27,14 @@ import {
   labGameStateSchemaV1,
   labProcedureStateSchemaV1,
   labSamplesStateSchemaV1,
+  labStageStateSchemaV1,
 } from "./state.js";
+import {
+  createInitialLabStageStateV1,
+  labStageMutationsForBeginV1,
+  labStageMutationsForCollectV1,
+  labStageMutationsForProgressV1,
+} from "./stage.js";
 
 export type LabCommandV1 =
   | { readonly kind: "lab.collect_sample" }
@@ -39,14 +49,16 @@ export type LabFactV1 =
       readonly kind: "lab.procedure_advanced";
       readonly phase: LabProcedureStateV1["phase"];
       readonly stepsTaken: number;
-    };
+    }
+  | { readonly kind: "lab.stage_changed"; readonly mutations: number };
 
 export interface LabRejectionV1 {
   readonly code:
     | "lab.procedure_already_running"
     | "lab.procedure_not_running"
     | "lab.samples_required"
-    | "lab.insufficient_samples";
+    | "lab.insufficient_samples"
+    | "lab.stage_rejected";
 }
 
 export interface LabFaultV1 {
@@ -115,6 +127,11 @@ type SamplesOperationV1 =
 
 type ProcedureOperationV1 = { readonly kind: "begin" } | { readonly kind: "advance" };
 
+type StageOperationV1 = {
+  readonly kind: "apply";
+  readonly mutations: readonly StageMutationV2[];
+};
+
 const commandSchemaV1: RuntimeSchemaV1<LabCommandV1> = Object.freeze({
   parse(value: unknown): LabCommandV1 {
     if (
@@ -170,6 +187,31 @@ const procedureOperationSchemaV1: RuntimeSchemaV1<ProcedureOperationV1> = Object
       throw new TypeError("invalid lab procedure operation kind");
     }
     return Object.freeze({ kind });
+  },
+});
+
+const stageOperationSchemaV1: RuntimeSchemaV1<StageOperationV1> = Object.freeze({
+  parse(value: unknown): StageOperationV1 {
+    if (
+      value === null ||
+      typeof value !== "object" ||
+      Array.isArray(value) ||
+      Object.keys(value).sort().join("\0") !== "kind\0mutations"
+    ) {
+      throw new TypeError("invalid lab stage operation");
+    }
+    const record = value as { readonly kind?: unknown; readonly mutations?: unknown };
+    if (record.kind !== "apply" || !Array.isArray(record.mutations)) {
+      throw new TypeError("invalid lab stage operation kind");
+    }
+    return Object.freeze({
+      kind: "apply" as const,
+      mutations: Object.freeze(
+        record.mutations.map((mutation, index) =>
+          parseStageMutationV2(mutation, `/mutations/${String(index)}`),
+        ),
+      ),
+    });
   },
 });
 
@@ -298,7 +340,49 @@ function applyProcedureOperationV1(
   });
 }
 
-const labCompositionV1 = kit.composeModules([samplesModuleV1, procedureModuleV1]);
+const stageModuleV1 = kit.defineStatefulModule({
+  id: "lab.stage",
+  contractRevision: 1,
+  state: {
+    slot: "simulation.stage",
+    schema: labStageStateSchemaV1,
+    initial: () => createInitialLabStageStateV1(),
+  },
+  commandSchema: commandSchemaV1,
+  owner: {
+    operationSchema: stageOperationSchemaV1,
+    propose(state, operation) {
+      const outcome = reduceStageMutationsV2(state, operation.mutations);
+      if (outcome.kind === "rejected") {
+        return Object.freeze({
+          kind: "rejected" as const,
+          rejection: Object.freeze({ code: "lab.stage_rejected" as const }),
+        });
+      }
+      return Object.freeze({
+        kind: "proposed" as const,
+        proposal: Object.freeze({
+          payload: operation,
+          facts: Object.freeze([
+            Object.freeze({
+              kind: "lab.stage_changed" as const,
+              mutations: operation.mutations.length,
+            }),
+          ]),
+        }),
+      });
+    },
+    apply(state, proposal) {
+      const outcome = reduceStageMutationsV2(state, proposal.payload.mutations);
+      if (outcome.kind !== "applied") {
+        throw new TypeError("validated lab stage mutations must apply");
+      }
+      return outcome.state;
+    },
+  },
+});
+
+const labCompositionV1 = kit.composeModules([samplesModuleV1, procedureModuleV1, stageModuleV1]);
 
 type LabModulesV1 = typeof labCompositionV1.modules;
 
@@ -336,11 +420,21 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
       const rng = createTransactionalRngV1(snapshot.rng);
       const state = snapshot.state.simulation;
 
+      const proposeStage = (
+        transaction: { propose(module: typeof stageModuleV1, operation: StageOperationV1): void },
+        mutations: readonly StageMutationV2[],
+      ) => {
+        if (mutations.length > 0) {
+          transaction.propose(stageModuleV1, { kind: "apply", mutations });
+        }
+      };
+
       if (command.kind === "lab.collect_sample") {
         const sampleYield =
           rng.nextInt(Object.freeze({ purpose: "check:lab.sample_yield", exclusiveMax: 3 })) + 1;
         return labTransactionRunnerV1.execute(snapshot, rng, (transaction) => {
           transaction.propose(samplesModuleV1, { kind: "collect", yield: sampleYield });
+          proposeStage(transaction, labStageMutationsForCollectV1(state.stage));
           return transaction.complete();
         });
       }
@@ -355,6 +449,13 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
           }
           transaction.propose(samplesModuleV1, { kind: "consume", amount: 1 });
           transaction.propose(procedureModuleV1, { kind: "advance" });
+          proposeStage(
+            transaction,
+            labStageMutationsForProgressV1(state.stage, {
+              completed: state.procedure.stepsTaken + 1 >= labProcedureStepsToCompleteV1,
+              samplesRemaining: state.samples.collected - 1,
+            }),
+          );
           return transaction.complete();
         });
       }
@@ -369,6 +470,17 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
         transaction.propose(procedureModuleV1, {
           kind: command.kind === "lab.begin_procedure" ? "begin" : "advance",
         });
+        if (command.kind === "lab.begin_procedure") {
+          proposeStage(transaction, labStageMutationsForBeginV1());
+        } else {
+          proposeStage(
+            transaction,
+            labStageMutationsForProgressV1(state.stage, {
+              completed: state.procedure.stepsTaken + 1 >= labProcedureStepsToCompleteV1,
+              samplesRemaining: null,
+            }),
+          );
+        }
         return transaction.complete();
       });
     },

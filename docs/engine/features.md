@@ -34,6 +34,8 @@
 - Static module composition with explicit State ownership and dependency validation.
 - Semantic preview/dispatch and immutable subscription publications for UI and automation.
 - Lifecycle restart/rebootstrap and replay-base replacement.
+- Semantic Stage V2 contracts: versioned `SemanticStageStateV2` (ordered layers, stable `<layerId, tag>` entries, integer logical placement/appearance/camera targets) as plain canonical Save data, plus a pure atomic `reduceStageMutationsV2` batch reducer (`show`/`replace`/`hide`/`clearLayer`/`clearStage`/`setPlacement`/`setAppearance`/`setLayerTransform`/`setCamera`) that either commits a complete valid successor or rejects without touching the input state.
+- Non-authoritative `StageRenderTargetV2` projection: a Story `StageContentCatalogV2` deterministically resolves semantic content into renderer IDs, asset IDs, accessible names, and Strict JSON props; unresolved content binds a code-native fallback renderer with structured diagnostics. The render target is rebuilt from State plus catalog and never enters a Save. (Projection into semantic publications and the Transition Player are the next roadmap steps.)
 
 ## Persistence and compatibility
 
@@ -80,7 +82,7 @@ The engine does not currently provide a backend/account service, networked multi
 
 The script-language decision is durable: Story, Module, Narrative, UI, and official Hotfix code use TypeScript/JavaScript. SillyMaker does not plan Ren'Py DSL/Save compatibility, a custom script interpreter, or an untrusted-code security sandbox. Direct Host-global access remains possible JavaScript but is outside the supported engine API.
 
-Semantic Stage/Transition, PendingInteraction, media/audio, VN player systems, typed Timeline, a bounded Presentation Scene Graph, advanced media/renderer adapters, authoring DevTools/editors, and Player rollback are planned in the [engine roadmap](roadmap.md). They are not implemented features yet.
+Semantic Stage V2 contracts and the pure reducer are implemented (see Runtime above), but Stage projection into semantic publications, Transition execution, PendingInteraction, media/audio, VN player systems, typed Timeline, a bounded Presentation Scene Graph, advanced media/renderer adapters, authoring DevTools/editors, and Player rollback are planned in the [engine roadmap](roadmap.md). They are not implemented features yet.
 
 State access and persistence may be redesigned. The current exploratory direction is recorded in [the typed StateStore proposal](proposals/typed-state-store.md). Any adopted design should replace or simplify existing machinery rather than create two competing authoritative states.
 

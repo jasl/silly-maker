@@ -326,3 +326,50 @@ export type {
   StateSlotId,
   StoryId,
 } from "./values.js";
+export {
+  createSemanticStageStateV2,
+  defaultStageCameraV2,
+  defaultStageLayerTransformV2,
+  defaultStagePlacementV2,
+  digestSemanticStageStateV2,
+  parseSemanticStageStateV2,
+  parseStageAppearanceV2,
+  parseStageCameraV2,
+  parseStageContentIdV2,
+  parseStageIdV2,
+  parseStageLayerIdV2,
+  parseStageLayerTransformV2,
+  parseStagePlacementV2,
+  parseStageTagV2,
+  semanticStageContractRevisionV2,
+} from "./semantic-stage.js";
+export type {
+  CreateSemanticStageStateInputV2,
+  SemanticStageStateV2,
+  StageAppearanceV2,
+  StageCameraV2,
+  StageContentIdV2,
+  StageEntryV2,
+  StageIdV2,
+  StageLayerIdV2,
+  StageLayerTransformV2,
+  StageLayerV2,
+  StagePlacementV2,
+  StageTagV2,
+} from "./semantic-stage.js";
+export { parseStageMutationV2, reduceStageMutationsV2 } from "./semantic-stage-reducer.js";
+export type {
+  StageMutationBatchOutcomeV2,
+  StageMutationRejectionCodeV2,
+  StageMutationRejectionV2,
+  StageMutationV2,
+} from "./semantic-stage-reducer.js";
+export { projectStageRenderTargetV2, stageFallbackRendererIdV2 } from "./stage-render-target.js";
+export type {
+  StageContentCatalogV2,
+  StageContentResolutionV2,
+  StageRenderEntryV2,
+  StageRenderLayerV2,
+  StageRenderProjectionV2,
+  StageRenderTargetV2,
+} from "./stage-render-target.js";

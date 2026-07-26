@@ -1,0 +1,152 @@
+// SPDX-License-Identifier: MIT
+import type { SemanticStageStateV2, StageMutationV2 } from "@sillymaker/base";
+import {
+  createSemanticStageStateV2,
+  parseStageMutationV2,
+  reduceStageMutationsV2,
+} from "@sillymaker/base";
+
+import {
+  labStageContentIdsV1,
+  labStageIdV1,
+  labStageLayerIdsV1,
+  labStageTagsV1,
+} from "../stage-ids.js";
+
+/**
+ * Engine Lab semantic stage: two backgrounds, two characters, and one prop
+ * driven by the Semantic Stage V2 contracts. Gameplay commands derive pure
+ * mutation batches from the current stage; the reducer owns atomicity.
+ */
+
+function stageMutationsV1(batch: readonly unknown[]): readonly StageMutationV2[] {
+  return Object.freeze(
+    batch.map((mutation, index) => parseStageMutationV2(mutation, `/mutations/${String(index)}`)),
+  );
+}
+
+export function createInitialLabStageStateV1(): SemanticStageStateV2 {
+  const empty = createSemanticStageStateV2({
+    stageId: labStageIdV1,
+    layerIds: [...labStageLayerIdsV1],
+  });
+  const outcome = reduceStageMutationsV2(
+    empty,
+    stageMutationsV1([
+      {
+        kind: "show",
+        layerId: "layer.e2e.background",
+        tag: labStageTagsV1.background,
+        contentId: labStageContentIdsV1.backgroundLab,
+      },
+    ]),
+  );
+  if (outcome.kind !== "applied") {
+    throw new TypeError("initial lab stage state must be valid");
+  }
+  return outcome.state;
+}
+
+function stageHasTagV1(stage: SemanticStageStateV2, layerId: string, tag: string): boolean {
+  const layer = stage.layers.find((candidate) => candidate.layerId === layerId);
+  return layer !== undefined && layer.entries.some((entry) => entry.tag === tag);
+}
+
+/** Collecting a sample reveals the crate prop once; later collects add nothing. */
+export function labStageMutationsForCollectV1(
+  stage: SemanticStageStateV2,
+): readonly StageMutationV2[] {
+  if (stageHasTagV1(stage, "layer.e2e.props", labStageTagsV1.crate)) return Object.freeze([]);
+  return stageMutationsV1([
+    {
+      kind: "show",
+      layerId: "layer.e2e.props",
+      tag: labStageTagsV1.crate,
+      contentId: labStageContentIdsV1.propCrate,
+      zOrder: 5,
+      placement: { x: 1240, y: 760, scalePermille: 800, mirrored: false },
+    },
+  ]);
+}
+
+/** Beginning the procedure moves to the storeroom and brings in both characters. */
+export function labStageMutationsForBeginV1(): readonly StageMutationV2[] {
+  return stageMutationsV1([
+    {
+      kind: "replace",
+      layerId: "layer.e2e.background",
+      tag: labStageTagsV1.background,
+      contentId: labStageContentIdsV1.backgroundStoreroom,
+    },
+    {
+      kind: "show",
+      layerId: "layer.e2e.characters",
+      tag: labStageTagsV1.alpha,
+      contentId: labStageContentIdsV1.characterAlpha,
+      zOrder: 10,
+      placement: { x: 480, y: 620, scalePermille: 1000, mirrored: false },
+      appearance: { pose: "standing", expression: "neutral" },
+    },
+    {
+      kind: "show",
+      layerId: "layer.e2e.characters",
+      tag: labStageTagsV1.beta,
+      contentId: labStageContentIdsV1.characterBeta,
+      zOrder: 10,
+      placement: { x: 1120, y: 620, scalePermille: 1000, mirrored: true },
+      appearance: { pose: "standing", expression: "neutral" },
+    },
+  ]);
+}
+
+export interface LabStageProgressInputV1 {
+  readonly completed: boolean;
+  /** Samples remaining after this command commits; null when unchanged. */
+  readonly samplesRemaining: number | null;
+}
+
+/** Advancing work focuses the lead character; completion settles the scene. */
+export function labStageMutationsForProgressV1(
+  stage: SemanticStageStateV2,
+  input: LabStageProgressInputV1,
+): readonly StageMutationV2[] {
+  const batch: unknown[] = [
+    {
+      kind: "setAppearance",
+      layerId: "layer.e2e.characters",
+      tag: labStageTagsV1.alpha,
+      appearance: { pose: "standing", expression: "focused" },
+    },
+  ];
+  if (
+    input.samplesRemaining !== null &&
+    input.samplesRemaining <= 0 &&
+    stageHasTagV1(stage, "layer.e2e.props", labStageTagsV1.crate)
+  ) {
+    batch.push({ kind: "hide", layerId: "layer.e2e.props", tag: labStageTagsV1.crate });
+  }
+  if (input.completed) {
+    batch.push(
+      {
+        kind: "setAppearance",
+        layerId: "layer.e2e.characters",
+        tag: labStageTagsV1.alpha,
+        appearance: { pose: "standing", expression: "pleased" },
+      },
+      {
+        kind: "setAppearance",
+        layerId: "layer.e2e.characters",
+        tag: labStageTagsV1.beta,
+        appearance: { pose: "standing", expression: "pleased" },
+      },
+      {
+        kind: "setPlacement",
+        layerId: "layer.e2e.characters",
+        tag: labStageTagsV1.alpha,
+        placement: { x: 640, y: 620, scalePermille: 1000, mirrored: false },
+      },
+      { kind: "setCamera", camera: { x: 0, y: 0, zoomPermille: 1150 } },
+    );
+  }
+  return stageMutationsV1(batch);
+}

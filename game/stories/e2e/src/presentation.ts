@@ -1,11 +1,19 @@
 // SPDX-License-Identifier: MIT
-import type { StageSceneGraphV1, TextCatalogSetV1 } from "@sillymaker/base";
+import type {
+  AssetId,
+  StageContentCatalogV2,
+  StageContentResolutionV2,
+  StageSceneGraphV1,
+  TextCatalogSetV1,
+} from "@sillymaker/base";
 import {
   definePresentationPatchSurface,
   parsePositiveSafeInteger,
   parseStageSceneGraphV1,
   parseTextCatalogSetV1,
 } from "@sillymaker/base";
+
+import { labStageContentIdsV1 } from "./stage-ids.js";
 
 export function createLabStageSceneGraphV1(): StageSceneGraphV1 {
   return parseStageSceneGraphV1({
@@ -80,6 +88,63 @@ export const labAssetSlotsV1 = Object.freeze([
     pivot: null,
   }),
 ]);
+
+/**
+ * Deterministic Story catalog resolving semantic stage content into renderer
+ * bindings. Only this projection layer knows renderer IDs, asset IDs, and
+ * accessible names; authoritative stage state never carries them.
+ */
+export const labStageContentCatalogV1: StageContentCatalogV2 = {
+  resolveContent(contentId, appearance): StageContentResolutionV2 | null {
+    switch (contentId as string) {
+      case labStageContentIdsV1.backgroundLab:
+        return Object.freeze({
+          rendererId: "renderer.e2e.lab.stage-background",
+          assetIds: Object.freeze(["asset.e2e.lab.background" as AssetId]),
+          accessibleName: "引擎实验室",
+          props: Object.freeze({ surface: "lab" }),
+        });
+      case labStageContentIdsV1.backgroundStoreroom:
+        return Object.freeze({
+          rendererId: "renderer.e2e.lab.stage-background",
+          assetIds: Object.freeze([]),
+          accessibleName: "储藏室",
+          props: Object.freeze({ surface: "storeroom" }),
+        });
+      case labStageContentIdsV1.characterAlpha:
+        return Object.freeze({
+          rendererId: "renderer.e2e.lab.stage-character",
+          assetIds: Object.freeze([]),
+          accessibleName: "研究员甲",
+          props: Object.freeze({
+            pose: typeof appearance.pose === "string" ? appearance.pose : "standing",
+            expression:
+              typeof appearance.expression === "string" ? appearance.expression : "neutral",
+          }),
+        });
+      case labStageContentIdsV1.characterBeta:
+        return Object.freeze({
+          rendererId: "renderer.e2e.lab.stage-character",
+          assetIds: Object.freeze([]),
+          accessibleName: "研究员乙",
+          props: Object.freeze({
+            pose: typeof appearance.pose === "string" ? appearance.pose : "standing",
+            expression:
+              typeof appearance.expression === "string" ? appearance.expression : "neutral",
+          }),
+        });
+      case labStageContentIdsV1.propCrate:
+        return Object.freeze({
+          rendererId: "renderer.e2e.lab.stage-prop",
+          assetIds: Object.freeze([]),
+          accessibleName: "样本箱",
+          props: Object.freeze({}),
+        });
+      default:
+        return null;
+    }
+  },
+};
 
 export const labPresentationPatchSurfaceV1 = definePresentationPatchSurface({});
 

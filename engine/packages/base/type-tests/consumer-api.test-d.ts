@@ -30,6 +30,11 @@ import type {
   RuntimeOperationFaultV1,
   SaveSlotHealthV1,
   SaveSlotSummaryV1,
+  SemanticStageStateV2,
+  StageContentCatalogV2,
+  StageMutationBatchOutcomeV2,
+  StageMutationV2,
+  StageRenderTargetV2,
   StateSlotId,
   StoryToolingEntryV1,
   TextCatalogSetV1,
@@ -49,6 +54,9 @@ import {
   parseRunId,
   parseStateSlotId,
   parseTextCatalogSetV1,
+  parseSemanticStageStateV2,
+  projectStageRenderTargetV2,
+  reduceStageMutationsV2,
   resolveGamePackageV1,
   rngStateV1Schema,
   runIntegrityV1Schema,
@@ -161,6 +169,11 @@ export type BaseConsumerTypesV1 = {
   saveSlotSummary: SaveSlotSummaryV1;
   stateSlotId: StateSlotId;
   tooling: StoryToolingEntryV1<unknown>;
+  semanticStageState: SemanticStageStateV2;
+  stageMutation: StageMutationV2;
+  stageMutationBatchOutcome: StageMutationBatchOutcomeV2;
+  stageContentCatalog: StageContentCatalogV2;
+  stageRenderTarget: StageRenderTargetV2;
 };
 
 export type BaseConsumerValuesV1 = {
@@ -186,6 +199,9 @@ export type BaseConsumerValuesV1 = {
   parseRunId: typeof parseRunId;
   parseStateSlotId: typeof parseStateSlotId;
   parseTextCatalogSet: typeof parseTextCatalogSetV1;
+  parseSemanticStageState: typeof parseSemanticStageStateV2;
+  projectStageRenderTarget: typeof projectStageRenderTargetV2;
+  reduceStageMutations: typeof reduceStageMutationsV2;
   resolveGamePackage: typeof resolveGamePackageV1;
   resolveStoryForTest: typeof resolveStoryForTestV1;
   rngStateSchema: typeof rngStateV1Schema;

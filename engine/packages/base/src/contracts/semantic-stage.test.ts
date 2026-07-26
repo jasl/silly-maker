@@ -1,0 +1,134 @@
+// SPDX-License-Identifier: MIT
+import { describe, expect, it } from "vitest";
+
+import { PresentationDataError } from "./presentation-data.js";
+import {
+  createSemanticStageStateV2,
+  digestSemanticStageStateV2,
+  parseSemanticStageStateV2,
+} from "./semantic-stage.js";
+import { reduceStageMutationsV2 } from "./semantic-stage-reducer.js";
+
+function playableStageV2() {
+  const empty = createSemanticStageStateV2({
+    stageId: "stage.test.lab",
+    layerIds: ["layer.background", "layer.characters", "layer.props"],
+  });
+  const outcome = reduceStageMutationsV2(empty, [
+    { kind: "show", layerId: "layer.background", tag: "tag.bg", contentId: "content.bg.lab" },
+    {
+      kind: "show",
+      layerId: "layer.characters",
+      tag: "tag.alpha",
+      contentId: "content.char.alpha",
+      zOrder: 10,
+      placement: { x: 400, y: 900, scalePermille: 1000, mirrored: false },
+      appearance: { pose: "standing", expression: "neutral" },
+    },
+    {
+      kind: "show",
+      layerId: "layer.props",
+      tag: "tag.crate",
+      contentId: "content.prop.crate",
+      placement: { x: 1200, y: 950, scalePermille: 800, mirrored: true },
+    },
+  ]);
+  if (outcome.kind !== "applied") throw new Error("fixture stage must apply");
+  return outcome.state;
+}
+
+describe("SemanticStageStateV2", () => {
+  it("creates an empty declared-layer stage that is deep-frozen", () => {
+    const state = createSemanticStageStateV2({
+      stageId: "stage.test.lab",
+      layerIds: ["layer.background", "layer.characters"],
+    });
+    expect(state.layers.map((layer) => layer.layerId)).toEqual([
+      "layer.background",
+      "layer.characters",
+    ]);
+    expect(Object.isFrozen(state)).toBe(true);
+    expect(Object.isFrozen(state.layers[0])).toBe(true);
+    expect(Object.isFrozen(state.camera)).toBe(true);
+  });
+
+  it("round-trips canonically through plain JSON with a stable digest", () => {
+    const state = playableStageV2();
+    const roundTripped = parseSemanticStageStateV2(JSON.parse(JSON.stringify(state)));
+    expect(roundTripped).toEqual(state);
+    expect(digestSemanticStageStateV2(roundTripped)).toBe(digestSemanticStageStateV2(state));
+
+    // Appearance key order does not change the canonical digest.
+    const reordered = JSON.parse(JSON.stringify(state)) as {
+      layers: { entries: { appearance: Record<string, string> }[] }[];
+    };
+    const appearance = reordered.layers[1]?.entries[0]?.appearance;
+    if (appearance === undefined) throw new Error("fixture appearance missing");
+    const flipped = Object.fromEntries(Object.entries(appearance).toReversed());
+    reordered.layers[1]!.entries[0]!.appearance = flipped;
+    expect(digestSemanticStageStateV2(parseSemanticStageStateV2(reordered))).toBe(
+      digestSemanticStageStateV2(state),
+    );
+  });
+
+  it("rejects renderer-flavored or non-plain content structurally", () => {
+    const state = playableStageV2();
+
+    // No renderer/asset/accessibility/function-flavored KEYS anywhere in the
+    // authoritative stage data (values like layer IDs may spell anything).
+    const forbiddenKeys = new Set([
+      "rendererId",
+      "assetIds",
+      "assetUrl",
+      "url",
+      "accessibleName",
+      "props",
+    ]);
+    const collectKeys = (value: unknown, keys: string[] = []): string[] => {
+      if (value === null || typeof value !== "object") return keys;
+      for (const [key, child] of Object.entries(value)) {
+        keys.push(key);
+        expect(typeof child, `value at key ${key} must be data`).not.toBe("function");
+        collectKeys(child, keys);
+      }
+      return keys;
+    };
+    for (const key of collectKeys(state)) {
+      expect(forbiddenKeys.has(key), `forbidden key "${key}" in stage state`).toBe(false);
+    }
+
+    const withExtraKey = JSON.parse(JSON.stringify(state)) as Record<string, unknown>;
+    withExtraKey.rendererId = "renderer.sneaky";
+    expect(() => parseSemanticStageStateV2(withExtraKey)).toThrow(PresentationDataError);
+
+    const entryWithExtra = JSON.parse(JSON.stringify(state)) as {
+      layers: { entries: Record<string, unknown>[] }[];
+    };
+    entryWithExtra.layers[0]!.entries[0]!.assetUrl = "https://example.invalid/bg.png";
+    expect(() => parseSemanticStageStateV2(entryWithExtra)).toThrow(PresentationDataError);
+  });
+
+  it("rejects duplicate tags, duplicate layers, and non-canonical z-order", () => {
+    const state = JSON.parse(JSON.stringify(playableStageV2())) as {
+      layers: { layerId: string; entries: { tag: string; zOrder: number }[] }[];
+    };
+
+    const duplicateTag = JSON.parse(JSON.stringify(state)) as typeof state;
+    const background = duplicateTag.layers[0]!;
+    background.entries.push(JSON.parse(JSON.stringify(background.entries[0])));
+    expect(() => parseSemanticStageStateV2(duplicateTag)).toThrow("stage_tag_duplicate");
+
+    const duplicateLayer = JSON.parse(JSON.stringify(state)) as typeof state;
+    duplicateLayer.layers.push(JSON.parse(JSON.stringify(duplicateLayer.layers[0])));
+    expect(() => parseSemanticStageStateV2(duplicateLayer)).toThrow("stage_layer_duplicate");
+
+    const badOrder = JSON.parse(JSON.stringify(state)) as typeof state;
+    const characters = badOrder.layers[1]!;
+    characters.entries.push({
+      ...JSON.parse(JSON.stringify(characters.entries[0])),
+      tag: "tag.beta",
+      zOrder: -5,
+    });
+    expect(() => parseSemanticStageStateV2(badOrder)).toThrow("z_order_not_canonical");
+  });
+});

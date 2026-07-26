@@ -30,12 +30,27 @@ export {
   labGameStateSchemaV1,
   labProcedureStateSchemaV1,
   labSamplesStateSchemaV1,
+  labStageStateSchemaV1,
 } from "./gameplay/state.js";
+export type { LabStageProgressInputV1 } from "./gameplay/stage.js";
+export {
+  createInitialLabStageStateV1,
+  labStageMutationsForBeginV1,
+  labStageMutationsForCollectV1,
+  labStageMutationsForProgressV1,
+} from "./gameplay/stage.js";
+export {
+  labStageContentIdsV1,
+  labStageIdV1,
+  labStageLayerIdsV1,
+  labStageTagsV1,
+} from "./stage-ids.js";
 export type { LabPresentationProgramV1 } from "./presentation.js";
 export {
   createLabStageSceneGraphV1,
   labAssetSlotsV1,
   labPresentationPatchSurfaceV1,
+  labStageContentCatalogV1,
   labTextCatalogsV1,
   materializeLabPresentationV1,
 } from "./presentation.js";
