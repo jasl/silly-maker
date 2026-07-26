@@ -365,6 +365,18 @@ export type {
   StageMutationV2,
 } from "./semantic-stage-reducer.js";
 export { projectStageRenderTargetV2, stageFallbackRendererIdV2 } from "./stage-render-target.js";
+export { parseStageTransitionDefinitionV2 } from "./stage-transition.js";
+export type {
+  StageTargetChangeV2,
+  StageTransitionCatalogV2,
+  StageTransitionDefinitionV2,
+  StageTransitionEasingV2,
+  StageTransitionInputPolicyV2,
+  StageTransitionInterruptionV2,
+  StageTransitionKindV2,
+  StageTransitionReadinessV2,
+  StageTransitionReducedMotionV2,
+} from "./stage-transition.js";
 export type {
   StageContentCatalogV2,
   StageContentResolutionV2,

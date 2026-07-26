@@ -199,16 +199,48 @@ export type {
   StageViewportV1,
   TopCardHudPropsV1,
 } from "./shell/index.js";
-export { CodeFallbackStageSceneV1, SemanticStageHostV2, StageSceneHostV1 } from "./stage/index.js";
+export {
+  CodeFallbackStageSceneV1,
+  createStageReconcilerV2,
+  SemanticStageHostV2,
+  SemanticStageTargetHostV2,
+  SemanticStageV2,
+  settledStageFrameV2,
+  StageSceneHostV1,
+} from "./stage/index.js";
 export type {
+  CreateStageReconcilerOptionsV2,
   RuntimeStageSceneV1,
   SemanticStageEntryRendererInputV2,
   SemanticStageEntryRendererV2,
   SemanticStageHostDiagnosticV2,
   SemanticStageHostPropsV2,
+  SemanticStagePropsV2,
   StageBackgroundPresentationV1,
+  StageFrameEntryV2,
+  StageFrameLayerV2,
+  StageFramePhaseV2,
+  StageInputGateV2,
+  StageReconcilerV2,
+  StageRenderFrameV2,
+  StageRetargetInputV2,
   StageSceneHostPropsV1,
+  StageTransitionAcknowledgmentV2,
 } from "./stage/index.js";
+export {
+  createAnimationFramePresentationClockV1,
+  createManualPresentationClockV1,
+  createPresentationRunV1,
+  easeInOutV1,
+} from "./presentation-run/index.js";
+export type {
+  CreatePresentationRunOptionsV1,
+  ManualPresentationClockV1,
+  PresentationClockV1,
+  PresentationRunOutcomeV1,
+  PresentationRunStatusV1,
+  PresentationRunV1,
+} from "./presentation-run/index.js";
 export {
   SettingsDialogV1,
   SettingsLauncherV1,

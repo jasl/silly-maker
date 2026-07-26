@@ -4,12 +4,16 @@ import type {
   StageContentCatalogV2,
   StageContentResolutionV2,
   StageSceneGraphV1,
+  StageTargetChangeV2,
+  StageTransitionCatalogV2,
+  StageTransitionDefinitionV2,
   TextCatalogSetV1,
 } from "@sillymaker/base";
 import {
   definePresentationPatchSurface,
   parsePositiveSafeInteger,
   parseStageSceneGraphV1,
+  parseStageTransitionDefinitionV2,
   parseTextCatalogSetV1,
 } from "@sillymaker/base";
 
@@ -143,6 +147,93 @@ export const labStageContentCatalogV1: StageContentCatalogV2 = {
       default:
         return null;
     }
+  },
+};
+
+const labTransitionDefinitionsV1: readonly StageTransitionDefinitionV2[] = Object.freeze(
+  [
+    {
+      transitionId: "transition.e2e.bg-crossfade",
+      kind: "crossfade",
+      durationMs: 400,
+      easing: "ease_in_out",
+      inputPolicy: "block",
+      interruption: "settle_and_retarget",
+      reducedMotion: { kind: "settle" },
+      readiness: { kind: "immediate" },
+      acknowledge: true,
+      slide: null,
+    },
+    {
+      transitionId: "transition.e2e.char-enter",
+      kind: "slide",
+      durationMs: 300,
+      easing: "ease_in_out",
+      inputPolicy: "target_active",
+      interruption: "settle_and_retarget",
+      reducedMotion: { kind: "settle" },
+      readiness: { kind: "immediate" },
+      acknowledge: false,
+      slide: { x: 0, y: 120 },
+    },
+    {
+      transitionId: "transition.e2e.entry-fade",
+      kind: "crossfade",
+      durationMs: 200,
+      easing: "linear",
+      inputPolicy: "skip_to_end",
+      interruption: "cancel_to_target",
+      reducedMotion: { kind: "settle" },
+      readiness: { kind: "immediate" },
+      acknowledge: false,
+      slide: null,
+    },
+    {
+      transitionId: "transition.e2e.move",
+      kind: "slide",
+      durationMs: 250,
+      easing: "ease_in_out",
+      inputPolicy: "target_active",
+      interruption: "settle_and_retarget",
+      reducedMotion: { kind: "settle" },
+      readiness: { kind: "immediate" },
+      acknowledge: false,
+      slide: { x: 0, y: 0 },
+    },
+  ].map((definition, index) =>
+    parseStageTransitionDefinitionV2(definition, `/transitions/${String(index)}`),
+  ),
+);
+
+const labTransitionByIdV1: ReadonlyMap<string, StageTransitionDefinitionV2> = new Map(
+  labTransitionDefinitionsV1.map((definition) => [definition.transitionId, definition]),
+);
+
+function requireLabTransitionV1(transitionId: string): StageTransitionDefinitionV2 {
+  const definition = labTransitionByIdV1.get(transitionId);
+  if (definition === undefined) throw new TypeError(`e2e.transition_missing:${transitionId}`);
+  return definition;
+}
+
+/**
+ * The Engine Lab transition catalog: background replaces crossfade (and
+ * acknowledge on completion), characters slide in, exits fade out, moves
+ * interpolate, appearance changes cut.
+ */
+export const labStageTransitionCatalogV1: StageTransitionCatalogV2 = {
+  resolveTransition(change: StageTargetChangeV2): StageTransitionDefinitionV2 | null {
+    if (change.kind === "replace") return requireLabTransitionV1("transition.e2e.bg-crossfade");
+    if (change.kind === "enter") {
+      return change.layerId === "layer.e2e.characters"
+        ? requireLabTransitionV1("transition.e2e.char-enter")
+        : requireLabTransitionV1("transition.e2e.entry-fade");
+    }
+    if (change.kind === "exit") return requireLabTransitionV1("transition.e2e.entry-fade");
+    if (change.kind === "move") return requireLabTransitionV1("transition.e2e.move");
+    return null;
+  },
+  resolveTransitionById(transitionId: string): StageTransitionDefinitionV2 | null {
+    return labTransitionByIdV1.get(transitionId) ?? null;
   },
 };
 

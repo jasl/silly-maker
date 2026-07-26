@@ -434,7 +434,6 @@ export async function createPocPresentationRuntimeV1(
         route: router.observe().route,
         primaryOverlayId: null,
         interaction: initialInteractionSessionStateV1,
-        activeCueId: null,
       }),
     );
     const uiState = readonlyUiStateV1(uiStateSource);
@@ -446,8 +445,7 @@ export async function createPocPresentationRuntimeV1(
       if (
         next.route === current.route &&
         next.primaryOverlayId === current.primaryOverlayId &&
-        next.interaction === current.interaction &&
-        next.activeCueId === current.activeCueId
+        next.interaction === current.interaction
       ) {
         return;
       }
@@ -500,10 +498,11 @@ export async function createPocPresentationRuntimeV1(
         open: (overlayId: string) => overlaySession.openPrimary(overlayId as PocOverlayIdV1),
       }),
       session: interactionSession,
-      cue: Object.freeze({
-        play: (activeCueId: string) =>
-          updateUiStateV1((current) => Object.freeze({ ...current, activeCueId })),
-      }),
+      // The PoC publishes no presentation cues: the dead activeCueId field
+      // is gone, and real transition playback belongs to the Semantic Stage
+      // V2 reconciler/PresentationRun pipeline the PoC adopts with its V2
+      // migration. knownCueIds stays empty, so this writer is unreachable.
+      cue: Object.freeze({ play: () => {} }),
     });
 
     const semanticBridge = createSemanticPublicationBridgeV1(application.semantic);

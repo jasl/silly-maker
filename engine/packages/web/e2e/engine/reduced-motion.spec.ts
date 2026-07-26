@@ -43,4 +43,22 @@ test.describe("engine reduced motion", () => {
     const journal = page.getByRole("dialog", { name: "实验日志" });
     await expectMotionDisabledV1("journal overlay", journal);
   });
+
+  test("@responsive settles stage transitions directly to the target", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await gotoLabV1(page);
+
+    // With reduced motion the catalog settles: the background replace lands
+    // instantly, no exiting ghost appears, and the stage never leaves the
+    // settled state.
+    await page.getByRole("button", { name: "采集样本" }).click();
+    await page.getByRole("button", { name: "开始流程" }).click();
+    const background = page.locator('[data-stage-key="layer.e2e.background:tag.e2e.bg"]');
+    await expect(background).toHaveAttribute("data-stage-content", "content.e2e.bg.storeroom");
+    await expect(page.locator("[data-semantic-stage]")).toHaveAttribute(
+      "data-stage-settled",
+      "true",
+    );
+    await expect(page.locator("[data-stage-exiting]")).toHaveCount(0);
+  });
 });

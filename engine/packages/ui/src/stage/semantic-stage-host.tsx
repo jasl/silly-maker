@@ -2,20 +2,22 @@
 import { useEffect, useMemo } from "react";
 import type { CSSProperties, ReactElement, ReactNode } from "react";
 
-import type {
-  StageLayerIdV2,
-  StageRenderEntryV2,
-  StageRenderLayerV2,
-  StageRenderTargetV2,
-} from "@sillymaker/base";
+import type { StageLayerIdV2, StageRenderEntryV2, StageRenderTargetV2 } from "@sillymaker/base";
 
+import type {
+  StageFrameEntryV2,
+  StageFrameLayerV2,
+  StageRenderFrameV2,
+} from "./stage-reconciler.js";
+import { settledStageFrameV2 } from "./stage-reconciler.js";
 import styles from "./semantic-stage-host.module.css";
 
 /**
- * Renders one projected Semantic Stage V2 target with stable presentation
- * identities. The host owns layer/camera/placement composition; Story
- * renderers own the visual content of each entry. It renders immutable
- * projection data and never becomes a gameplay authority.
+ * Renders one semantic stage render frame with stable presentation
+ * identities. The host owns layer/camera/placement composition and the
+ * visual interpolation of active transitions; Story renderers own the
+ * content of each entry. It renders immutable projection data and never
+ * becomes a gameplay authority.
  */
 
 export interface SemanticStageEntryRendererInputV2 {
@@ -32,16 +34,18 @@ export interface SemanticStageHostDiagnosticV2 {
 }
 
 export interface SemanticStageHostPropsV2 {
-  readonly target: StageRenderTargetV2;
+  readonly frame: StageRenderFrameV2;
   readonly renderers: Readonly<Record<string, SemanticStageEntryRendererV2>>;
   readonly accessibleName: string;
   reportDiagnostic?(diagnostic: SemanticStageHostDiagnosticV2): void;
 }
 
 const permilleV2 = (value: number): number => value / 1000;
+const lerpV2 = (from: number, to: number, progress: number): number =>
+  from + (to - from) * progress;
 
-function cameraStyleV2(target: StageRenderTargetV2): CSSProperties {
-  const { camera } = target;
+function cameraStyleV2(frame: StageRenderFrameV2): CSSProperties {
+  const { camera } = frame;
   return {
     transform: `translate3d(${String(-camera.x)}px, ${String(-camera.y)}px, 0) scale(${String(
       permilleV2(camera.zoomPermille),
@@ -49,7 +53,7 @@ function cameraStyleV2(target: StageRenderTargetV2): CSSProperties {
   };
 }
 
-function layerStyleV2(layer: StageRenderLayerV2): CSSProperties {
+function layerStyleV2(layer: StageFrameLayerV2): CSSProperties {
   const { transform } = layer;
   return {
     transform: `translate3d(${String(transform.x)}px, ${String(transform.y)}px, 0) scale(${String(
@@ -58,31 +62,57 @@ function layerStyleV2(layer: StageRenderLayerV2): CSSProperties {
   };
 }
 
-function entryStyleV2(entry: StageRenderEntryV2): CSSProperties {
-  const { placement } = entry;
-  const mirror = placement.mirrored ? " scaleX(-1)" : "";
+function entryStyleV2(frameEntry: StageFrameEntryV2): CSSProperties {
+  const { entry, phase, transitionKind, progress, slide, fromPlacement } = frameEntry;
+  let x = entry.placement.x;
+  let y = entry.placement.y;
+  let scale = permilleV2(entry.placement.scalePermille);
+  let opacity: number | undefined;
+
+  if (transitionKind === "crossfade") {
+    opacity = phase === "exiting" ? 1 - progress : progress;
+  } else if (transitionKind === "slide") {
+    if (fromPlacement !== null) {
+      x = lerpV2(fromPlacement.x, x, progress);
+      y = lerpV2(fromPlacement.y, y, progress);
+      scale = lerpV2(permilleV2(fromPlacement.scalePermille), scale, progress);
+    } else if (slide !== null) {
+      const displacement = phase === "exiting" ? progress : 1 - progress;
+      x += slide.x * displacement;
+      y += slide.y * displacement;
+      opacity = phase === "exiting" ? 1 - progress : progress;
+    }
+  } else if (phase === "exiting") {
+    opacity = 1 - progress;
+  }
+
+  const mirror = entry.placement.mirrored ? " scaleX(-1)" : "";
   return {
-    transform: `translate3d(${String(placement.x)}px, ${String(placement.y)}px, 0) scale(${String(
-      permilleV2(placement.scalePermille),
-    )})${mirror}`,
+    transform: `translate3d(${String(x)}px, ${String(y)}px, 0) scale(${String(scale)})${mirror}`,
     zIndex: entry.zOrder,
+    ...(opacity === undefined ? {} : { opacity }),
   };
 }
 
 function StageEntryV2(props: {
   readonly layerId: StageLayerIdV2;
-  readonly entry: StageRenderEntryV2;
+  readonly frameEntry: StageFrameEntryV2;
   readonly renderer: SemanticStageEntryRendererV2 | undefined;
 }): ReactElement {
-  const { layerId, entry, renderer } = props;
+  const { layerId, frameEntry, renderer } = props;
+  const { entry, phase } = frameEntry;
+  const exiting = phase === "exiting";
   return (
     <div
       className={styles.entry}
-      style={entryStyleV2(entry)}
-      role="img"
-      aria-label={entry.accessibleName}
-      data-stage-key={entry.key}
-      data-stage-tag={entry.tag}
+      style={entryStyleV2(frameEntry)}
+      role={exiting ? undefined : "img"}
+      aria-label={exiting ? undefined : entry.accessibleName}
+      aria-hidden={exiting ? true : undefined}
+      data-stage-phase={phase}
+      {...(exiting
+        ? { "data-stage-exiting": "true", "data-stage-exiting-key": entry.key }
+        : { "data-stage-key": entry.key, "data-stage-tag": entry.tag })}
       data-stage-content={entry.contentId}
       data-stage-renderer={entry.rendererId}
       data-stage-fallback={renderer === undefined || entry.fallback ? "true" : undefined}
@@ -97,22 +127,26 @@ function StageEntryV2(props: {
 }
 
 export function SemanticStageHostV2(props: SemanticStageHostPropsV2): ReactElement {
-  const { target, renderers, accessibleName, reportDiagnostic } = props;
+  const { frame, renderers, accessibleName, reportDiagnostic } = props;
 
   const missing = useMemo(
     () =>
-      target.layers.flatMap((layer) =>
+      frame.layers.flatMap((layer) =>
         layer.entries
-          .filter((entry) => !Object.hasOwn(renderers, entry.rendererId))
-          .map((entry) =>
+          .filter(
+            (frameEntry) =>
+              frameEntry.phase !== "exiting" &&
+              !Object.hasOwn(renderers, frameEntry.entry.rendererId),
+          )
+          .map((frameEntry) =>
             Object.freeze({
               code: "stage.renderer_unregistered" as const,
-              entryKey: entry.key,
-              rendererId: entry.rendererId,
+              entryKey: frameEntry.entry.key,
+              rendererId: frameEntry.entry.rendererId,
             }),
           ),
       ),
-    [target, renderers],
+    [frame, renderers],
   );
 
   useEffect(() => {
@@ -126,9 +160,12 @@ export function SemanticStageHostV2(props: SemanticStageHostPropsV2): ReactEleme
       role="group"
       aria-label={accessibleName}
       data-semantic-stage="true"
+      data-stage-settled={frame.settled ? "true" : "false"}
+      data-stage-input-blocked={frame.inputGate.blocked ? "true" : undefined}
+      data-stage-skip-on-input={frame.inputGate.skipOnInput ? "true" : undefined}
     >
-      <div className={styles.camera} style={cameraStyleV2(target)} data-stage-camera="true">
-        {target.layers.map((layer) => (
+      <div className={styles.camera} style={cameraStyleV2(frame)} data-stage-camera="true">
+        {frame.layers.map((layer) => (
           <div
             key={layer.layerId}
             className={styles.layer}
@@ -136,14 +173,14 @@ export function SemanticStageHostV2(props: SemanticStageHostPropsV2): ReactEleme
             hidden={!layer.transform.visible}
             data-stage-layer={layer.layerId}
           >
-            {layer.entries.map((entry) => (
+            {layer.entries.map((frameEntry) => (
               <StageEntryV2
-                key={entry.key}
+                key={frameEntry.frameKey}
                 layerId={layer.layerId}
-                entry={entry}
+                frameEntry={frameEntry}
                 renderer={
-                  Object.hasOwn(renderers, entry.rendererId)
-                    ? renderers[entry.rendererId]
+                  Object.hasOwn(renderers, frameEntry.entry.rendererId)
+                    ? renderers[frameEntry.entry.rendererId]
                     : undefined
                 }
               />
@@ -152,5 +189,25 @@ export function SemanticStageHostV2(props: SemanticStageHostPropsV2): ReactEleme
         ))}
       </div>
     </div>
+  );
+}
+
+/** Renders one settled target without transitions (no reconciler needed). */
+export function SemanticStageTargetHostV2(props: {
+  readonly target: StageRenderTargetV2;
+  readonly renderers: Readonly<Record<string, SemanticStageEntryRendererV2>>;
+  readonly accessibleName: string;
+  reportDiagnostic?(diagnostic: SemanticStageHostDiagnosticV2): void;
+}): ReactElement {
+  const frame = useMemo(() => settledStageFrameV2(props.target), [props.target]);
+  return (
+    <SemanticStageHostV2
+      frame={frame}
+      renderers={props.renderers}
+      accessibleName={props.accessibleName}
+      {...(props.reportDiagnostic === undefined
+        ? {}
+        : { reportDiagnostic: props.reportDiagnostic })}
+    />
   );
 }

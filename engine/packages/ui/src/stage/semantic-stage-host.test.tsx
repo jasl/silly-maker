@@ -11,7 +11,7 @@ import {
 } from "@sillymaker/base";
 
 import type { SemanticStageEntryRendererV2 } from "./semantic-stage-host.js";
-import { SemanticStageHostV2 } from "./semantic-stage-host.js";
+import { SemanticStageTargetHostV2 } from "./semantic-stage-host.js";
 
 const catalogV1: StageContentCatalogV2 = {
   resolveContent: (contentId, appearance) =>
@@ -67,7 +67,7 @@ describe("SemanticStageHostV2", () => {
     ]);
 
     const { container } = render(
-      <SemanticStageHostV2
+      <SemanticStageTargetHostV2
         target={target}
         renderers={{ "renderer.test.box": boxRendererV1 }}
         accessibleName="测试舞台"
@@ -114,7 +114,7 @@ describe("SemanticStageHostV2", () => {
       },
     ]);
     const { container } = render(
-      <SemanticStageHostV2
+      <SemanticStageTargetHostV2
         target={target}
         renderers={{ "renderer.test.box": boxRendererV1 }}
         accessibleName="测试舞台"
@@ -136,7 +136,7 @@ describe("SemanticStageHostV2", () => {
     ]);
     const reportDiagnostic = vi.fn();
     const { container } = render(
-      <SemanticStageHostV2
+      <SemanticStageTargetHostV2
         target={target}
         renderers={{ "renderer.test.box": boxRendererV1 }}
         accessibleName="测试舞台"
@@ -172,7 +172,7 @@ describe("SemanticStageHostV2", () => {
     ]);
 
     const { container, rerender } = render(
-      <SemanticStageHostV2
+      <SemanticStageTargetHostV2
         target={first}
         renderers={{ "renderer.test.box": boxRendererV1 }}
         accessibleName="测试舞台"
@@ -180,7 +180,7 @@ describe("SemanticStageHostV2", () => {
     );
     const before = container.querySelector('[data-stage-key="layer.test.front:tag.test.alpha"]');
     rerender(
-      <SemanticStageHostV2
+      <SemanticStageTargetHostV2
         target={second}
         renderers={{ "renderer.test.box": boxRendererV1 }}
         accessibleName="测试舞台"

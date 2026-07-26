@@ -122,7 +122,6 @@ function uiStateV1(input: {
     route: input.route,
     primaryOverlayId: input.primaryOverlayId ?? null,
     interaction: initialInteractionSessionStateV1,
-    activeCueId: null,
   });
 }
 

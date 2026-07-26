@@ -28,9 +28,17 @@ test.describe("engine semantic stage", () => {
     await expect(page.locator(crateKeyV1)).toBeVisible();
 
     // replace + show: beginning the procedure swaps the background content
-    // under the SAME stable key and brings both characters on stage.
+    // under the SAME stable key and brings both characters on stage. The
+    // crossfade retains the superseded background as an exiting ghost, and
+    // the stage reports its transition lifecycle as data — the test observes
+    // the settled signal instead of sleeping.
+    const stageRoot = page.locator("[data-semantic-stage]");
     await page.getByRole("button", { name: "开始流程" }).click();
     await expect(background).toHaveAttribute("data-stage-content", "content.e2e.bg.storeroom");
+    await expect(stageRoot).toHaveAttribute("data-stage-settled", "false");
+    await expect(page.locator("[data-stage-exiting]").first()).toBeAttached();
+    await expect(stageRoot).toHaveAttribute("data-stage-settled", "true");
+    await expect(page.locator("[data-stage-exiting]")).toHaveCount(0);
     await expect(page.locator(alphaKeyV1)).toBeVisible();
     await expect(page.locator(betaKeyV1)).toBeVisible();
     await expect(page.locator(`${alphaKeyV1} [data-lab-expression]`)).toHaveAttribute(

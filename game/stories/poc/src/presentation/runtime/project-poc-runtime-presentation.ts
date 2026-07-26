@@ -444,7 +444,6 @@ export function projectPocRuntimePresentationV1(
       characters,
       interactionSurfaces,
       activeOverlayId: input.uiState.primaryOverlayId,
-      activeCueId: input.uiState.activeCueId,
     }),
     requiredAssetIds,
   });

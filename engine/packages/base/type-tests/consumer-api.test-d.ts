@@ -35,6 +35,9 @@ import type {
   StageMutationBatchOutcomeV2,
   StageMutationV2,
   StageRenderTargetV2,
+  StageTargetChangeV2,
+  StageTransitionCatalogV2,
+  StageTransitionDefinitionV2,
   StateSlotId,
   StoryToolingEntryV1,
   TextCatalogSetV1,
@@ -174,6 +177,9 @@ export type BaseConsumerTypesV1 = {
   stageMutationBatchOutcome: StageMutationBatchOutcomeV2;
   stageContentCatalog: StageContentCatalogV2;
   stageRenderTarget: StageRenderTargetV2;
+  stageTransitionDefinition: StageTransitionDefinitionV2;
+  stageTransitionCatalog: StageTransitionCatalogV2;
+  stageTargetChange: StageTargetChangeV2;
 };
 
 export type BaseConsumerValuesV1 = {

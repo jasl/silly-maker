@@ -11,7 +11,7 @@ import type {
   SaveOverlayLabelsV1,
   SemanticStageEntryRendererV2,
 } from "@sillymaker/ui";
-import { Button, SemanticStageHostV2 } from "@sillymaker/ui";
+import { Button, SemanticStageV2 } from "@sillymaker/ui";
 import type { WebGameApplicationV1 } from "@sillymaker/web";
 
 import type {
@@ -24,7 +24,11 @@ import type {
 import type { LabApplicationInstanceV1 } from "./core-definition.js";
 import { labCoreApplicationDefinitionV1 } from "./core-definition.js";
 import type { LabGameViewV1, LabQueriesV1, LabSimulationTypesV1 } from "../gameplay/simulation.js";
-import { labStageContentCatalogV1, labTextCatalogsV1 } from "../presentation.js";
+import {
+  labStageContentCatalogV1,
+  labStageTransitionCatalogV1,
+  labTextCatalogsV1,
+} from "../presentation.js";
 
 /** The Engine Lab logical canvas: a 16:10 design resolution. */
 export const labViewportCanvasV1 = Object.freeze({ width: 1600, height: 1000 });
@@ -202,8 +206,11 @@ const labUiSlotsDefinitionV1: DefaultGameRootSlotsV1<
 > = {
   background: (context) => (
     <section data-lab-stage="true" aria-label={context.publication.view.stageName}>
-      <SemanticStageHostV2
+      <SemanticStageV2
         target={context.publication.view.stageTarget}
+        revision={context.publication.semantic.revision}
+        epoch={context.publication.view.anchorEpoch}
+        catalog={labStageTransitionCatalogV1}
         renderers={labStageRenderersV1}
         accessibleName={context.publication.view.stageName}
       />

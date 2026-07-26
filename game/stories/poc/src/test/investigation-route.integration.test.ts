@@ -118,7 +118,6 @@ function projectVisibleStageV1(harness: PocStoryHarnessV1) {
       route: "play" as const,
       primaryOverlayId: null,
       interaction: initialInteractionSessionStateV1,
-      activeCueId: null,
     }),
   });
 }

@@ -40,7 +40,6 @@ export interface PocPresentationUiStateV1 {
   readonly route: PocPresentationRouteV1;
   readonly primaryOverlayId: PocOverlayIdV1 | null;
   readonly interaction: InteractionSessionStateV1;
-  readonly activeCueId: string | null;
 }
 
 export type PocSemanticPublicationV1 = SemanticPublicationV1<
@@ -64,7 +63,6 @@ export interface PocRuntimePresentationViewV1 {
     PocSemanticInvocationV1
   >[];
   readonly activeOverlayId: PocOverlayIdV1 | null;
-  readonly activeCueId: string | null;
 }
 
 export type PocRuntimePresentationProjectionInputV1 = RuntimePresentationProjectionInputV1<

@@ -283,7 +283,6 @@ describe("pocUiContributionsV1", () => {
         route: "play" as const,
         primaryOverlayId: null,
         interaction: initialInteractionSessionStateV1,
-        activeCueId: null,
       }) satisfies DeepReadonly<PocPresentationUiStateV1>;
       const projection = projectPocRuntimePresentationV1(
         Object.freeze({

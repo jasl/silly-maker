@@ -97,6 +97,17 @@ describe("Engine Lab default UI", () => {
       document.querySelectorAll('[data-stage-key="layer.e2e.characters:tag.e2e.alpha"]'),
     ).toHaveLength(1);
 
+    // Playing the crossfade is pure presentation: the stage settles without
+    // another committed semantic revision (non-barrier transitions never
+    // modify gameplay State).
+    const revisionDuringPlay = instance.semantic.observe().revision;
+    await waitFor(() => {
+      expect(
+        document.querySelector("[data-semantic-stage]")?.getAttribute("data-stage-settled"),
+      ).toBe("true");
+    });
+    expect(instance.semantic.observe().revision).toBe(revisionDuringPlay);
+
     composition.dispose();
     await instance.dispose();
   });
