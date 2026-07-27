@@ -1,0 +1,146 @@
+// SPDX-License-Identifier: MIT
+import type { AudioChannelIntentV1 } from "@sillymaker/base";
+
+/**
+ * The Host-neutral audio playback surface the audio presenter drives.
+ * Browsers implement it over Web Audio; deterministic tests use the fake
+ * host. Hosts own decode, caching, unlock, volume, and page lifecycle; they
+ * never touch gameplay State, and playback failures degrade to silence with
+ * a diagnostic instead of blocking anything.
+ */
+
+export type AudioHostChannelV1 = "bgm" | "ambient" | "voice";
+
+export interface AudioHostPlayInputV1 {
+  readonly channel: AudioHostChannelV1;
+  readonly assetId: string;
+  readonly loop: boolean;
+  readonly gainPermille: number;
+  readonly fadeMs: number;
+}
+
+export interface AudioHostEffectInputV1 {
+  readonly assetId: string;
+  readonly gainPermille: number;
+}
+
+export interface AudioHostDiagnosticV1 {
+  readonly code:
+    | "audio.autoplay_denied"
+    | "audio.decode_failed"
+    | "audio.asset_missing"
+    | "audio.integrity_mismatch";
+  readonly assetId: string | null;
+  readonly detail: string;
+}
+
+export interface AudioHostV1 {
+  /** Starts (or crossfades to) the asset on a continuous channel. */
+  play(input: AudioHostPlayInputV1): void;
+  /** Stops a continuous channel, fading out over fadeMs. */
+  stop(channel: AudioHostChannelV1, fadeMs: number): void;
+  /** Fire-and-forget one-shot effect; never tracked, never restored. */
+  playEffect(input: AudioHostEffectInputV1): void;
+  setMasterGain(gainPermille: number): void;
+  setMuted(muted: boolean): void;
+  /** Page-visibility suspension; resume continues continuous channels. */
+  suspend(): void;
+  resume(): void;
+  dispose(): void;
+}
+
+export interface FakeAudioChannelStateV1 {
+  readonly assetId: string;
+  readonly loop: boolean;
+  readonly gainPermille: number;
+  readonly fadeMs: number;
+}
+
+export interface FakeAudioHostV1 extends AudioHostV1 {
+  channel(channel: AudioHostChannelV1): FakeAudioChannelStateV1 | null;
+  effects(): readonly AudioHostEffectInputV1[];
+  operations(): readonly string[];
+  isSuspended(): boolean;
+  isMuted(): boolean;
+  masterGainPermille(): number;
+  isDisposed(): boolean;
+}
+
+/** Deterministic in-memory audio host for unit and headless tests. */
+export function createFakeAudioHostV1(): FakeAudioHostV1 {
+  const channels = new Map<AudioHostChannelV1, FakeAudioChannelStateV1>();
+  const effects: AudioHostEffectInputV1[] = [];
+  const operations: string[] = [];
+  let suspended = false;
+  let muted = false;
+  let masterGain = 1000;
+  let disposed = false;
+
+  return Object.freeze({
+    play(input: AudioHostPlayInputV1): void {
+      if (disposed) return;
+      channels.set(input.channel, {
+        assetId: input.assetId,
+        loop: input.loop,
+        gainPermille: input.gainPermille,
+        fadeMs: input.fadeMs,
+      });
+      operations.push(`play:${input.channel}:${input.assetId}:fade=${String(input.fadeMs)}`);
+    },
+    stop(channel: AudioHostChannelV1, fadeMs: number): void {
+      if (disposed) return;
+      if (channels.delete(channel)) {
+        operations.push(`stop:${channel}:fade=${String(fadeMs)}`);
+      }
+    },
+    playEffect(input: AudioHostEffectInputV1): void {
+      if (disposed) return;
+      effects.push(input);
+      operations.push(`effect:${input.assetId}`);
+    },
+    setMasterGain(gainPermille: number): void {
+      masterGain = gainPermille;
+      operations.push(`master:${String(gainPermille)}`);
+    },
+    setMuted(nextMuted: boolean): void {
+      muted = nextMuted;
+      operations.push(`muted:${String(nextMuted)}`);
+    },
+    suspend(): void {
+      if (suspended || disposed) return;
+      suspended = true;
+      operations.push("suspend");
+    },
+    resume(): void {
+      if (!suspended || disposed) return;
+      suspended = false;
+      operations.push("resume");
+    },
+    dispose(): void {
+      if (disposed) return;
+      disposed = true;
+      channels.clear();
+      operations.push("dispose");
+    },
+    channel: (channel: AudioHostChannelV1) => channels.get(channel) ?? null,
+    effects: () => Object.freeze([...effects]),
+    operations: () => Object.freeze([...operations]),
+    isSuspended: () => suspended,
+    isMuted: () => muted,
+    masterGainPermille: () => masterGain,
+    isDisposed: () => disposed,
+  });
+}
+
+/** True when two channel intents describe the same steady-state playback. */
+export function sameChannelPlaybackV1(
+  left: AudioChannelIntentV1 | null,
+  right: AudioChannelIntentV1 | null,
+): boolean {
+  if (left === null || right === null) return left === right;
+  return (
+    left.assetId === right.assetId &&
+    left.loop === right.loop &&
+    left.gainPermille === right.gainPermille
+  );
+}

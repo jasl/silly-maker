@@ -30,10 +30,14 @@ import type {
   RuntimeOperationFaultV1,
   SaveSlotHealthV1,
   SaveSlotSummaryV1,
+  AssetDemandPlanV1,
+  AudioIntentV1,
   InteractionRejectionCodeV2,
   InteractionResolutionOutcomeV2,
   InteractionResolutionV2,
   PendingInteractionV2,
+  ResolvedAudioManifestV1,
+  TransientEffectV1,
   SemanticStageStateV2,
   StageContentCatalogV2,
   StageMutationBatchOutcomeV2,
@@ -190,6 +194,10 @@ export type BaseConsumerTypesV1 = {
   interactionResolution: InteractionResolutionV2;
   interactionResolutionOutcome: InteractionResolutionOutcomeV2;
   interactionRejectionCode: InteractionRejectionCodeV2;
+  audioIntent: AudioIntentV1;
+  audioManifest: ResolvedAudioManifestV1;
+  assetDemandPlan: AssetDemandPlanV1;
+  transientEffect: TransientEffectV1;
 };
 
 export type BaseConsumerValuesV1 = {

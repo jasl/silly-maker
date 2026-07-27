@@ -50,6 +50,11 @@ export {
   labIsCustomPayloadValidV1,
   labNarrativeNodeIdsV1,
 } from "./gameplay/narrative.js";
+export {
+  labAudioAssetIdsV1,
+  projectLabAudioIntentV1,
+  projectLabTransientEffectsV1,
+} from "./gameplay/audio.js";
 export type { LabStageProgressInputV1 } from "./gameplay/stage.js";
 export {
   createInitialLabStageStateV1,
@@ -67,8 +72,10 @@ export type { LabPresentationProgramV1 } from "./presentation.js";
 export {
   createLabStageSceneGraphV1,
   labAssetSlotsV1,
+  labAudioManifestV1,
   labPresentationPatchSurfaceV1,
   labStageContentCatalogV1,
+  labStageTransitionCatalogV1,
   labTextCatalogsV1,
   materializeLabPresentationV1,
 } from "./presentation.js";

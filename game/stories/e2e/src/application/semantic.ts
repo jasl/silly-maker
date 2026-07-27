@@ -16,6 +16,7 @@ import type {
   LabSimulationTypesV1,
 } from "../gameplay/simulation.js";
 import { createLabGameSimulationV1 } from "../gameplay/simulation.js";
+import { projectLabTransientEffectsV1 } from "../gameplay/audio.js";
 import {
   labChoiceBlockedByV1,
   labChoiceOptionsForV1,
@@ -216,4 +217,5 @@ export const labSemanticAdapterV1: CoreSemanticAdapterV1<
   },
   invalidInvocationResult: () =>
     Object.freeze({ kind: "not_executed" as const, code: "validation_failed" as const }),
+  projectTransientEffects: (facts) => projectLabTransientEffectsV1(facts),
 };

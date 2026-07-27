@@ -12,6 +12,7 @@ import type {
   RuntimeSchemaV1,
 } from "@sillymaker/base";
 import type {
+  AudioIntentV1,
   InteractionRejectionCodeV2,
   InteractionResolutionV2,
   PendingInteractionV2,
@@ -39,6 +40,7 @@ import {
   labSamplesStateSchemaV1,
   labStageStateSchemaV1,
 } from "./state.js";
+import { projectLabAudioIntentV1 } from "./audio.js";
 import type { LabNarrativeStateV1 } from "./narrative.js";
 import {
   createInitialLabNarrativeStateV1,
@@ -132,6 +134,8 @@ export interface LabGameViewV1 {
   readonly procedureSteps: number;
   /** The semantic stage target: plain saveable data, observable headless. */
   readonly stage: SemanticStageStateV2;
+  /** The continuous audio intent derived purely from saved State. */
+  readonly audio: AudioIntentV1;
 }
 
 export interface LabBootstrapInputV1 {
@@ -754,6 +758,7 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
         procedurePhase: queries.procedurePhase,
         procedureSteps: queries.procedureSteps,
         stage: queries.stage,
+        audio: projectLabAudioIntentV1(queries),
       });
     },
   });

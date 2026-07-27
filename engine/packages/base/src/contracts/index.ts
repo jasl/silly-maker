@@ -365,6 +365,38 @@ export type {
   StageMutationV2,
 } from "./semantic-stage-reducer.js";
 export { projectStageRenderTargetV2, stageFallbackRendererIdV2 } from "./stage-render-target.js";
+export { createAssetDemandPlanV1 } from "./asset-demand.js";
+export type {
+  AssetDemandEntryV1,
+  AssetDemandPlanV1,
+  AssetDemandPriorityV1,
+  AssetDemandRetentionV1,
+  AssetDemandRetryPolicyV1,
+  CreateAssetDemandPlanInputV1,
+  TransientEffectRequestV1,
+  TransientEffectV1,
+} from "./asset-demand.js";
+export {
+  parseAudioAssetSlotV1,
+  parseAudioChannelIntentV1,
+  parseAudioIntentV1,
+  parseAudioProviderEntryV1,
+  parseVoiceIntentV1,
+  resolveAudioManifestV1,
+  silentAudioIntentV1,
+} from "./media-audio.js";
+export type {
+  AudioAssetSlotV1,
+  AudioChannelIntentV1,
+  AudioIntentV1,
+  AudioMediaKindV1,
+  AudioMediaTypeV1,
+  AudioProviderEntryV1,
+  ResolvedAudioAssetEntryV1,
+  ResolvedAudioManifestV1,
+  VoiceIntentV1,
+  VoiceStopPolicyV1,
+} from "./media-audio.js";
 export {
   evaluateInteractionResolutionV2,
   interactionOccurrenceIdV2,

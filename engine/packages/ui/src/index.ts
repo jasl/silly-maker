@@ -228,6 +228,23 @@ export type {
   StageTransitionAcknowledgmentV2,
 } from "./stage/index.js";
 export {
+  createAudioPresenterV1,
+  createFakeAudioHostV1,
+  sameChannelPlaybackV1,
+} from "./audio/index.js";
+export type {
+  AudioHostChannelV1,
+  AudioHostDiagnosticV1,
+  AudioHostEffectInputV1,
+  AudioHostPlayInputV1,
+  AudioHostV1,
+  AudioPresenterRetargetInputV1,
+  AudioPresenterV1,
+  CreateAudioPresenterOptionsV1,
+  FakeAudioChannelStateV1,
+  FakeAudioHostV1,
+} from "./audio/index.js";
+export {
   createAnimationFramePresentationClockV1,
   createManualPresentationClockV1,
   createPresentationRunV1,

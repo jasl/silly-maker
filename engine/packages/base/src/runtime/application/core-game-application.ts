@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 import type { SessionLeaseOwnerId } from "../../contracts/application.js";
+import type { TransientEffectRequestV1, TransientEffectV1 } from "../../contracts/asset-demand.js";
 import type { SemanticGamePortSourceV1, SemanticGamePortV1 } from "../../contracts/application.js";
 import type { BuildIdentityInputV1 } from "../../authoring/build-identity.js";
 import { resolveGamePackageV1 } from "../../authoring/story-resolver.js";
@@ -68,6 +69,15 @@ export interface CoreSemanticAdapterV1<
   commandForInvocation(invocation: DeepReadonly<TInvocation>): TTypes["command"];
   projectDispatchResult(result: SessionDispatchResultOfV1<TTypes>): TResult;
   invalidInvocationResult(): TResult;
+  /**
+   * Optional commit-only transient effects (for example SFX occurrences)
+   * derived from committed command facts. The instance stamps a monotonic
+   * sequence and the current presentation epoch; effects never enter State,
+   * Saves, publications, or Agent transcripts.
+   */
+  projectTransientEffects?(
+    facts: readonly DeepReadonly<TTypes["fact"]>[],
+  ): readonly TransientEffectRequestV1[];
 }
 
 /**
@@ -420,6 +430,13 @@ export interface CoreGameApplicationInstanceV1<
   };
   presentationAnchor(): CorePresentationAnchorV1;
   subscribePresentationAnchor(listener: (anchor: CorePresentationAnchorV1) => void): () => void;
+  /**
+   * Commit-only transient effect stream. Effects are emitted live as
+   * commands commit — stamped with a monotonic per-instance sequence and
+   * the presentation epoch at commit time. Load and bootstrap publications
+   * carry no history, so new epochs never replay old effects.
+   */
+  subscribeTransientEffects(listener: (effect: TransientEffectV1) => void): () => void;
   bindToCurrentEpoch<TArgs extends readonly unknown[], TValue>(
     callback: (...args: TArgs) => TValue,
   ): (...args: TArgs) => CoreEpochBoundOutcomeV1<TValue>;
@@ -628,6 +645,7 @@ export async function createCoreGameApplicationInstanceV1<
             invocation as DeepReadonly<TInvocation>,
           ) as DeepReadonly<TTypes["command"]>,
         );
+        emitTransientEffectsV1(result);
         return definition.semantic.projectDispatchResult(result);
       },
     });
@@ -682,6 +700,42 @@ export async function createCoreGameApplicationInstanceV1<
       }),
     );
     cleanups.push(() => anchorListeners.clear());
+
+    // Commit-only transient effect stream: effects derive from committed
+    // command facts, stamped with a monotonic sequence and the epoch at
+    // commit time. Nothing is stored, so re-projection and load/bootstrap
+    // publications can never replay history.
+    const effectListeners = new Set<(effect: TransientEffectV1) => void>();
+    let effectSequence = 0;
+    cleanups.push(() => effectListeners.clear());
+    function emitTransientEffectsV1(result: SessionDispatchResultOfV1<TTypes>): void {
+      const project = definition.semantic.projectTransientEffects;
+      if (project === undefined || disposed) return;
+      if (result.kind !== "executed" || result.execution.kind !== "committed") return;
+      let requests: readonly TransientEffectRequestV1[];
+      try {
+        requests = project(result.execution.facts as readonly DeepReadonly<TTypes["fact"]>[]);
+      } catch (error) {
+        reportObserverFailure(error);
+        return;
+      }
+      for (const request of requests) {
+        effectSequence += 1;
+        const effect: TransientEffectV1 = Object.freeze({
+          effectSequence,
+          epoch: epoch as number,
+          effectId: request.effectId,
+          payload: request.payload,
+        });
+        for (const listener of [...effectListeners]) {
+          try {
+            listener(effect);
+          } catch (error) {
+            reportObserverFailure(error);
+          }
+        }
+      }
+    }
 
     // Autosave policy wiring.
     let cancelFlushTimer: (() => void) | undefined;
@@ -828,6 +882,10 @@ export async function createCoreGameApplicationInstanceV1<
       subscribePresentationAnchor: (listener: (anchor: CorePresentationAnchorV1) => void) => {
         anchorListeners.add(listener);
         return () => anchorListeners.delete(listener);
+      },
+      subscribeTransientEffects: (listener: (effect: TransientEffectV1) => void) => {
+        effectListeners.add(listener);
+        return () => effectListeners.delete(listener);
       },
       bindToCurrentEpoch: <TArgs extends readonly unknown[], TValue>(
         callback: (...args: TArgs) => TValue,

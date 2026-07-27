@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 import type {
   AssetId,
+  ResolvedAudioManifestV1,
   StageContentCatalogV2,
   StageContentResolutionV2,
   StageSceneGraphV1,
@@ -15,6 +16,7 @@ import {
   parseStageSceneGraphV1,
   parseStageTransitionDefinitionV2,
   parseTextCatalogSetV1,
+  resolveAudioManifestV1,
 } from "@sillymaker/base";
 
 import { labStageContentIdsV1 } from "./stage-ids.js";
@@ -257,6 +259,50 @@ export const labStageTransitionCatalogV1: StageTransitionCatalogV2 = {
     return labTransitionByIdV1.get(transitionId) ?? null;
   },
 };
+
+/**
+ * The Engine Lab audio manifest: every slot currently resolves to the
+ * silence fallback (no runtime audio files ship with the conformance
+ * story), which exercises the typed contract and the degrade paths without
+ * media bytes.
+ */
+export const labAudioManifestV1: ResolvedAudioManifestV1 = resolveAudioManifestV1(
+  [
+    { assetId: "audio.e2e.bgm.lab", kind: "music", fallback: "silence", loadGroup: "bootstrap" },
+    {
+      assetId: "audio.e2e.bgm.storeroom",
+      kind: "music",
+      fallback: "silence",
+      loadGroup: "scene",
+    },
+    {
+      assetId: "audio.e2e.ambient.hum",
+      kind: "ambient",
+      fallback: "silence",
+      loadGroup: "scene",
+    },
+    {
+      assetId: "audio.e2e.voice.cal-intro",
+      kind: "voice",
+      fallback: "silence",
+      loadGroup: "on_demand",
+    },
+    {
+      assetId: "audio.e2e.voice.cal-done",
+      kind: "voice",
+      fallback: "silence",
+      loadGroup: "on_demand",
+    },
+    { assetId: "audio.e2e.sfx.chime", kind: "sfx", fallback: "silence", loadGroup: "on_demand" },
+    {
+      assetId: "audio.e2e.sfx.fanfare",
+      kind: "sfx",
+      fallback: "silence",
+      loadGroup: "on_demand",
+    },
+  ],
+  [],
+);
 
 export const labPresentationPatchSurfaceV1 = definePresentationPatchSurface({});
 

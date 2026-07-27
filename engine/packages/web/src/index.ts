@@ -25,6 +25,11 @@ export {
   createPlayerSaveUiPortV1,
   createPlayerUiPortsV1,
 } from "./application/create-player-ui-ports.js";
+export { createWebAudioHostV1 } from "./audio/create-web-audio-host.js";
+export type {
+  CreateWebAudioHostOptionsV1,
+  WebAudioContextLikeV1,
+} from "./audio/create-web-audio-host.js";
 export {
   defaultWebAutosavePolicyV1,
   startWebGameApplicationV1,

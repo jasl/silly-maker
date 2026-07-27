@@ -10,6 +10,7 @@ import type {
 } from "@sillymaker/base";
 import { projectStageRenderTargetV2 } from "@sillymaker/base";
 import type {
+  AudioHostV1,
   DefaultGameRootLabelsV1,
   DefaultGameRootSlotsV1,
   GameUiProjectorV1,
@@ -17,8 +18,9 @@ import type {
   SaveOverlayLabelsV1,
   SemanticStageEntryRendererV2,
 } from "@sillymaker/ui";
-import { Button, SemanticStageV2 } from "@sillymaker/ui";
+import { Button, SemanticStageV2, createAudioPresenterV1 } from "@sillymaker/ui";
 import type { WebGameApplicationV1 } from "@sillymaker/web";
+import { createWebAudioHostV1 } from "@sillymaker/web";
 
 import type {
   LabActionDescriptorV1,
@@ -36,6 +38,7 @@ import type {
   LabSimulationTypesV1,
 } from "../gameplay/simulation.js";
 import {
+  labAudioManifestV1,
   labStageContentCatalogV1,
   labStageTransitionCatalogV1,
   labTextCatalogsV1,
@@ -183,6 +186,59 @@ function labResolveV1(
   void semantic.dispatch(
     Object.freeze({ kind: "resolve" as const, expectedOccurrenceId, resolution }),
   );
+}
+
+/**
+ * The audio presentation lifetime: one presenter per mounted component. It
+ * observes semantic publications for the derived continuous intent, the
+ * instance transient-effect stream for one-shot SFX, and the page
+ * visibility for suspension. Unmounting disposes both the presenter and the
+ * host — no playback or listener survives HMR or teardown, and nothing here
+ * writes gameplay State.
+ */
+function LabAudioV1(props: {
+  readonly instance: LabApplicationInstanceV1;
+  readonly createHost: () => AudioHostV1;
+}): null {
+  const { instance, createHost } = props;
+  useEffect(() => {
+    const host = createHost();
+    const presenter = createAudioPresenterV1({
+      host,
+      resolveEffectAsset: (effect) =>
+        effect.effectId === "audio.sfx" && typeof effect.payload.assetId === "string"
+          ? { assetId: effect.payload.assetId }
+          : null,
+    });
+    const apply = (): void => {
+      const publication = instance.semantic.observe();
+      presenter.retarget({
+        intent: publication.game.audio,
+        revision: publication.revision,
+        epoch: instance.presentationAnchor().epoch,
+      });
+    };
+    apply();
+    const unsubscribeSemantic = instance.semantic.subscribe(apply);
+    const unsubscribeAnchor = instance.subscribePresentationAnchor(() => apply());
+    const unsubscribeEffects = instance.subscribeTransientEffects((effect) =>
+      presenter.onTransientEffect(effect),
+    );
+    const onVisibilityChange = (): void => {
+      if (document.visibilityState === "hidden") presenter.suspend();
+      else presenter.resume();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      unsubscribeEffects();
+      unsubscribeAnchor();
+      unsubscribeSemantic();
+      presenter.dispose();
+      host.dispose();
+    };
+  }, [instance, createHost]);
+  return null;
 }
 
 /**
@@ -491,6 +547,32 @@ const labUiSlotsDefinitionV1: DefaultGameRootSlotsV1<
 
 export const labUiSlotsV1 = Object.freeze(labUiSlotsDefinitionV1);
 
+/**
+ * The slots with the audio presentation mounted: the narrative root also
+ * renders the audio component bound to the application instance and an
+ * injectable Audio Host (the browser host in production, the fake host in
+ * deterministic tests).
+ */
+export function createLabUiSlotsV1(input: {
+  readonly instance: LabApplicationInstanceV1;
+  readonly createAudioHost: () => AudioHostV1;
+}): DefaultGameRootSlotsV1<LabUiPublicationV1, LabSemanticPortV1, LabUiOverlayIdV1> {
+  const slots: DefaultGameRootSlotsV1<LabUiPublicationV1, LabSemanticPortV1, LabUiOverlayIdV1> = {
+    ...labUiSlotsDefinitionV1,
+    narrative: (context) => (
+      <div data-lab-narrative-root="true">
+        <LabAudioV1 instance={input.instance} createHost={input.createAudioHost} />
+        {context.publication.view.procedurePhase === "complete" ? (
+          <p data-lab-narrative="complete">{labUiTextV1("text.e2e.lab.narrative.completed")}</p>
+        ) : null}
+        <LabBarrierRecoveryV1 publication={context.publication} semantic={context.semantic} />
+        <LabNarrativeV1 publication={context.publication} semantic={context.semantic} />
+      </div>
+    ),
+  };
+  return Object.freeze(slots);
+}
+
 export const labRootLabelsV1: Partial<DefaultGameRootLabelsV1> = Object.freeze({
   systemMenuLabel: "系统",
   saveLabel: "保存",
@@ -613,11 +695,18 @@ export const labWebApplicationV1: WebGameApplicationV1<
     fallbackSize: Object.freeze({ width: 1600, height: 1000 }),
   }),
   core: labCoreApplicationDefinitionV1,
-  ui: () =>
+  ui: ({ instance }: { readonly instance: LabApplicationInstanceV1 }) =>
     Object.freeze({
       projector: labUiProjectorV1,
       overlayIds: Object.freeze(["overlay.lab.journal" as const]),
-      slots: labUiSlotsV1,
+      slots: createLabUiSlotsV1({
+        instance,
+        createAudioHost: () =>
+          createWebAudioHostV1({
+            manifest: labAudioManifestV1,
+            resolveRuntimeUrl: (runtimePath) => new URL(runtimePath, document.baseURI).href,
+          }),
+      }),
       labels: labRootLabelsV1,
       saveLabels: labSaveOverlayLabelsV1,
     }),
