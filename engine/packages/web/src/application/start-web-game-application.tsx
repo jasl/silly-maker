@@ -43,6 +43,7 @@ import { installBrowserAutomationBridgeV1 } from "../automation/browser-automati
 import type { InstalledBrowserAutomationBridgeV1 } from "../automation/browser-automation-bridge.ts";
 import { parseCapabilityRequestV1 } from "../capabilities/parse-capability-request.ts";
 import { createWebHostV1 } from "../host/create-web-host.ts";
+import { createHttpHostRecordStoreV1 } from "../host/http-record-store.ts";
 import { mountGameApplicationV1 } from "./mount-game-application.tsx";
 import type { MountedGameApplicationV1 } from "./mount-game-application.tsx";
 import { createPlayerSaveUiPortV1 } from "./create-player-ui-ports.ts";
@@ -311,11 +312,21 @@ export async function startWebGameApplicationV1<
   // migration — on their own style composition.
   await import("@sillymaker/ui/styles.css");
 
+  // Desktop channel: a trusted local save server marks pages it serves with
+  // `?records=local`; persistence then goes through the HTTP record store to
+  // a real save directory instead of per-origin IndexedDB.
+  const wantsLocalRecords =
+    typeof location !== "undefined" &&
+    new URLSearchParams(location.search).get("records") === "local";
   const host =
     options.host ??
-    createWebHostV1({
-      databaseName: options.databaseName ?? `sillymaker.${application.applicationId}`,
-    });
+    (wantsLocalRecords
+      ? createWebHostV1({
+          records: createHttpHostRecordStoreV1({ baseUrl: "/sillymaker/records" }),
+        })
+      : createWebHostV1({
+          databaseName: options.databaseName ?? `sillymaker.${application.applicationId}`,
+        }));
   const reportFailure = (code: string, error: unknown): void => {
     host.log.write("warn", code, {
       message: error instanceof Error ? error.message : String(error),

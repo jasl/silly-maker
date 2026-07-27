@@ -28,6 +28,7 @@
     "test:e2e:engine": "deno run -A npm:@playwright/test/playwright test --config engine/packages/web/playwright.engine.config.ts",
     "test:conformance:headless": "deno run -A npm:vitest run game/stories/e2e",
     "test:e2e:engine:prebuilt": "deno task story build e2e && deno run -A npm:@playwright/test/playwright test --config engine/packages/web/playwright.engine-prebuilt.config.ts",
-    "check": "deno task format:check && deno task lint && deno task lint:styles && deno task typecheck && deno task test && deno task check:assets && deno task check:stories && deno task story build e2e"
+    "check": "deno task format:check && deno task lint && deno task lint:styles && deno task typecheck && deno task test && deno task check:assets && deno task check:stories && deno task story build e2e",
+    "desktop:save-server": "deno run -A scripts/desktop/save-server.mts"
   }
 }

@@ -61,6 +61,8 @@
 
 ## Persistence and compatibility
 
+- Desktop-channel persistence: `createHttpHostRecordStoreV1` implements the atomic record store over a trusted local HTTP endpoint; the repository ships a Deno save server (`scripts/desktop/save-server.mts`) that serves a built Player from a fixed port and owns a real save directory (atomic per-file replace, optimistic revisions, one serialized commit queue). `startWebGameApplicationV1` selects it automatically when the page runs with `?records=local`.
+
 - Quick Save, automatic Save, and manual Save slots through a Host persistence facade.
 - Canonical Save envelope encoding/decoding and strict import validation.
 - Story, state-contract, engine, simulation, and patch-lineage compatibility information.
