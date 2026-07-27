@@ -1,4 +1,8 @@
 {
   "files": [],
-  "references": [{ "path": "./stories/e2e" }, { "path": "./stories/template" }]
+  "references": [
+    { "path": "./stories/e2e" },
+    { "path": "./stories/template" },
+    { "path": "./stories/examples/bookshop" }
+  ]
 }

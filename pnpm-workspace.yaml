@@ -2,4 +2,5 @@ packages:
   - "engine/packages/*"
   - "game/packages/*"
   - "game/stories/*"
+  - "game/stories/examples/*"
   - "game/apps/*"

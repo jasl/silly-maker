@@ -2,7 +2,7 @@
 
 Project Tavern 是一款以酒馆经营为核心、关系与文字叙事为重要组成的个人游戏项目；SillyMaker 是本仓库持续维护的 React + TypeScript 游戏引擎。
 
-首个七日 PoC 已完成工程闭环并整体退役（连同 V1 场景系统，备份于 `archive/poc-v1-stage-2026-07` 分支）。当前阶段以引擎为先：维护中的参考应用是 Engine Lab（`game/stories/e2e`）与起点模板（`game/stories/template`）；新的 Tavern 玩法会在引擎足够好之后重新设计。
+首个七日 PoC 已完成工程闭环并整体退役（连同 V1 场景系统，备份于 `archive/poc-v1-stage-2026-07` 分支）。当前阶段以引擎为先：维护中的参考应用是 Engine Lab（`game/stories/e2e`）、起点模板（`game/stories/template`）与收编示例（`game/stories/examples/*`）；新的 Tavern 玩法会在引擎足够好之后重新设计。
 
 ## 快速开始
 

@@ -69,5 +69,32 @@ export const projectTavernConfigV1 = {
       },
       releaseArtifact: false,
     },
+    {
+      applicationId: "example-bookshop",
+      label: "Example Story: the closing-time bookshop vignette",
+      storyEntry: {
+        module: "game/stories/examples/bookshop/src/story.ts",
+        exportName: "bookshopStoryEntryV1",
+      },
+      assetVerification: true,
+      simulate: {
+        module: "game/stories/examples/bookshop/src/tooling/simulation-target.ts",
+        exportName: "createBookshopSimulationTargetV1",
+      },
+      web: {
+        storyRoot: "game/stories/examples/bookshop",
+        applicationHtml: "game/stories/examples/bookshop/index.html",
+        applicationEntry: "game/stories/examples/bookshop/src/application/entry.tsx",
+        outDir: "dist/example-bookshop",
+        base: "./",
+        sourcemap: false,
+        identity: {
+          module: "scripts/build-bookshop-identity.mjs",
+          collectExport: "collectBookshopBuildIdentityV1",
+          createPluginExport: "createBookshopBuildIdentityVirtualPluginV1",
+        },
+      },
+      releaseArtifact: false,
+    },
   ],
 } as const satisfies SillymakerProjectConfigV1;
