@@ -436,6 +436,7 @@ export {
   defineContentTableV1,
 } from "./content-database.ts";
 export type {
+  AnyContentTableDefinitionV1,
   ContentConditionV1,
   ContentDatabaseV1,
   ContentQueryV1,
