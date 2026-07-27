@@ -66,6 +66,10 @@ export const projectTavernConfigV1 = {
           collectExport: "collectTemplateBuildIdentityV1",
           createPluginExport: "createTemplateBuildIdentityVirtualPluginV1",
         },
+        desktop: {
+          name: "SillyMakerStarter",
+          identifier: "dev.sillymaker.template",
+        },
       },
       releaseArtifact: false,
     },
@@ -92,6 +96,10 @@ export const projectTavernConfigV1 = {
           module: "scripts/build-bookshop-identity.mjs",
           collectExport: "collectBookshopBuildIdentityV1",
           createPluginExport: "createBookshopBuildIdentityVirtualPluginV1",
+        },
+        desktop: {
+          name: "Bookshop",
+          identifier: "dev.sillymaker.example.bookshop",
         },
       },
       releaseArtifact: false,

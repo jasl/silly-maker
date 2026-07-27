@@ -46,6 +46,7 @@ Package manifests define supported cross-package entries. Do not bypass them wit
 | `pnpm check:stories`             | Structured Story diagnostics for every application (part of `check`). |
 | `pnpm simulate:e2e`              | Scripted Engine Lab run through the Agent port.                       |
 | `pnpm test:conformance:headless` | Engine Lab headless conformance suite.                                |
+| `pnpm story desktop <app>`       | Package the built web Artifact as a desktop app (experimental).       |
 | `pnpm test:e2e:engine:prebuilt`  | Build the Engine Lab and run the engine suite on the Artifact.        |
 
 The application lifecycle CLI covers six responsibilities for every application declared in `game/project.config.ts`:

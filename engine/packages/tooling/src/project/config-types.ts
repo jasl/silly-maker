@@ -23,6 +23,18 @@ export interface StoryWebIdentityRefV1 {
   readonly createPluginExport: string;
 }
 
+/**
+ * Desktop packaging for a web application: a thin `deno desktop` host that
+ * serves the already built web Artifact. Engine and Story code never depend
+ * on Deno Desktop APIs; this is delivery-layer configuration only.
+ */
+export interface StoryDesktopTargetV1 {
+  /** The human-visible application name (also the bundle file name). */
+  readonly name: string;
+  /** The reverse-DNS bundle identifier. */
+  readonly identifier: string;
+}
+
 /** The dev/build target of a browser-hosted Story application. */
 export interface StoryWebTargetV1 {
   readonly storyRoot: string;
@@ -32,6 +44,8 @@ export interface StoryWebTargetV1 {
   readonly base: string;
   readonly sourcemap: boolean;
   readonly identity: StoryWebIdentityRefV1;
+  /** Optional desktop packaging; null/absent for web-only applications. */
+  readonly desktop?: StoryDesktopTargetV1 | null;
 }
 
 export interface StoryApplicationConfigV1 {

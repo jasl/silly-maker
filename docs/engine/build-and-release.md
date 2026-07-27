@@ -70,6 +70,16 @@ For ordinary browser work against source, use:
 pnpm test:e2e
 ```
 
+## Desktop packaging (experimental)
+
+```sh
+pnpm story desktop <app>
+```
+
+Applications that declare `web.desktop` (name + bundle identifier) can be packaged as a desktop app. The command builds the web target, stages a thin explicit host under `dist/desktop/<app>/staging/` (the exact web Artifact copied to `dist/` plus a Vite SPA marker), and runs `deno desktop` (requires a local Deno >= 2.9; the feature is experimental upstream). Engine and Story code never depend on Deno Desktop APIs — the web Artifact remains the canonical delivery and the stable fallback.
+
+Known limitation, verified 2026-07-28: `deno desktop` binds its local server to a runtime-chosen port on every launch and the port cannot be fixed, so the webview origin changes across launches and browser-storage persistence (IndexedDB saves) does not survive a restart. Desktop distribution therefore requires a Host-side persistence adapter (routing the HostRecordStore through the desktop process to files) before it can be a real release channel. macOS release builds additionally need signing and notarization.
+
 ## Release checklist
 
 Before handing an Artifact to another person or machine:

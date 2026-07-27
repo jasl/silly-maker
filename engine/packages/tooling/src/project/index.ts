@@ -3,6 +3,7 @@ export { runProjectCliV1 } from "./cli.js";
 export type { ProjectCliInputV1 } from "./cli.js";
 export {
   buildStoryApplicationV1,
+  desktopStoryApplicationV1,
   checkStoryApplicationV1,
   devSmokeStoryApplicationV1,
   inspectStoryApplicationV1,
@@ -13,6 +14,7 @@ export type {
   ProjectCommandRunnerV1,
   ProjectModuleLoaderV1,
   StoryBuildReportV1,
+  StoryDesktopReportV1,
   StoryCheckReportV1,
   StoryDevSmokeReportV1,
   StoryInspectReportV1,

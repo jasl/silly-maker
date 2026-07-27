@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { spawn } from "node:child_process";
-import { readFile, stat } from "node:fs/promises";
+import { cp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { dirname } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 
 import { AuthoringDiagnosticErrorV1 } from "@sillymaker/base";
@@ -9,6 +10,7 @@ import type { ProjectCommandRunnerV1, ProjectModuleLoaderV1 } from "./commands.j
 import {
   buildStoryApplicationV1,
   checkStoryApplicationV1,
+  desktopStoryApplicationV1,
   devSmokeStoryApplicationV1,
   inspectStoryApplicationV1,
   prebuiltSmokeStoryApplicationV1,
@@ -30,7 +32,7 @@ export interface ProjectCliInputV1 {
 }
 
 const usageV1 =
-  "usage: story <inspect|check|simulate|dev|build|prebuilt-smoke> <application-id> " +
+  "usage: story <inspect|check|simulate|dev|build|prebuilt-smoke|desktop> <application-id> " +
   "[--scenario <name>] [--seed <uint>] [--smoke] | story check --all";
 
 function printableV1(value: unknown): string {
@@ -109,6 +111,18 @@ function createNodeRunnerV1(): ProjectCommandRunnerV1 {
         return null;
       }
     },
+    writeFile: async (path, contents) => {
+      await mkdir(dirname(path), { recursive: true });
+      await writeFile(path, contents, "utf8");
+    },
+    copyDirectory: async (source, destination) => {
+      await rm(destination, { recursive: true, force: true });
+      await mkdir(dirname(destination), { recursive: true });
+      await cp(source, destination, { recursive: true });
+    },
+    removeDirectory: async (path) => {
+      await rm(path, { recursive: true, force: true });
+    },
   };
   return Object.freeze(runner);
 }
@@ -181,6 +195,13 @@ export async function runProjectCliV1(input: ProjectCliInputV1): Promise<number>
         const deps = processDeps();
         if (deps === null) return 2;
         const report = await prebuiltSmokeStoryApplicationV1(input.project, selector, deps);
+        input.writeOut(printableV1(report));
+        return report.ok ? 0 : 1;
+      }
+      case "desktop": {
+        const deps = processDeps();
+        if (deps === null) return 2;
+        const report = await desktopStoryApplicationV1(input.project, selector, deps);
         input.writeOut(printableV1(report));
         return report.ok ? 0 : 1;
       }

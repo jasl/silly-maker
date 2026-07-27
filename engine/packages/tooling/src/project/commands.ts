@@ -357,6 +357,10 @@ export interface ProjectCommandRunnerV1 {
   sleep(milliseconds: number): Promise<void>;
   readFile(path: string): Promise<string>;
   fileSize(path: string): Promise<number | null>;
+  writeFile(path: string, contents: string): Promise<void>;
+  /** Recursively copies a directory, replacing any existing destination. */
+  copyDirectory(source: string, destination: string): Promise<void>;
+  removeDirectory(path: string): Promise<void>;
 }
 
 function requireWebTargetV1(
@@ -397,6 +401,93 @@ export async function buildStoryApplicationV1(
     applicationId: application.applicationId,
     ok: exitCode === 0,
     outDir: web.outDir,
+    exitCode,
+  });
+}
+
+export interface StoryDesktopReportV1 {
+  readonly applicationId: string;
+  readonly ok: boolean;
+  readonly stagingDir: string;
+  readonly outputPath: string;
+  readonly exitCode: number;
+}
+
+/**
+ * Packages the built web Artifact as a desktop application through
+ * `deno desktop` (Deno >= 2.9, experimental). The staging directory is a
+ * thin explicit host — a Vite SPA layout with the Artifact copied to
+ * `dist/` — so engine and Story code never depend on Deno Desktop APIs,
+ * and the web Artifact stays the canonical delivery.
+ */
+export async function desktopStoryApplicationV1(
+  project: SillymakerProjectConfigV1,
+  applicationId: string,
+  deps: { readonly runner: ProjectCommandRunnerV1; readonly repositoryRoot: string },
+): Promise<StoryDesktopReportV1> {
+  const application = resolveStoryApplicationV1(project, applicationId);
+  const web = requireWebTargetV1(application, applicationId);
+  const desktop = web.desktop ?? null;
+  if (desktop === null) {
+    commandErrorV1(
+      "project.desktop_unconfigured",
+      `application "${applicationId}" declares no web.desktop target`,
+      `/applications/${applicationId}/web/desktop`,
+    );
+  }
+
+  // The desktop bundle wraps the exact bytes a web build produces.
+  const build = await buildStoryApplicationV1(project, applicationId, deps);
+  if (!build.ok) {
+    commandErrorV1(
+      "project.desktop_build_failed",
+      `web build for "${applicationId}" failed with exit code ${String(build.exitCode)}`,
+      `/applications/${applicationId}/web/outDir`,
+    );
+  }
+
+  const stagingDir = `${deps.repositoryRoot}/dist/desktop/${applicationId}/staging`;
+  const outputName = `${desktop.name}.app`;
+  const outputPath = `${deps.repositoryRoot}/dist/desktop/${applicationId}/${outputName}`;
+  await deps.runner.removeDirectory(`${deps.repositoryRoot}/dist/desktop/${applicationId}`);
+  await deps.runner.copyDirectory(`${deps.repositoryRoot}/${web.outDir}`, `${stagingDir}/dist`);
+  await deps.runner.writeFile(
+    `${stagingDir}/deno.json`,
+    `${JSON.stringify(
+      {
+        tasks: { build: "echo 'dist/ prebuilt by pnpm story build'" },
+        desktop: {
+          app: { name: desktop.name, identifier: desktop.identifier },
+          backend: "webview",
+        },
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  await deps.runner.writeFile(
+    `${stagingDir}/vite.config.ts`,
+    "// Marker: `deno desktop` serves the prebuilt Vite SPA in dist/ with an index.html fallback.\nexport default {};\n",
+  );
+
+  let exitCode: number;
+  try {
+    exitCode = await deps.runner.run("deno", ["desktop", "--output", `../${outputName}`, "."], {
+      cwd: stagingDir,
+    });
+  } catch {
+    commandErrorV1(
+      "project.desktop_deno_missing",
+      "`deno` was not found on PATH; desktop packaging requires Deno >= 2.9",
+      `/applications/${applicationId}/web/desktop`,
+    );
+  }
+  const bundleMarker = await deps.runner.fileSize(`${outputPath}/Contents/Info.plist`);
+  return Object.freeze({
+    applicationId: application.applicationId,
+    ok: exitCode === 0 && bundleMarker !== null && bundleMarker > 0,
+    stagingDir,
+    outputPath,
     exitCode,
   });
 }

@@ -28,6 +28,10 @@ const projectV1 = defineSillymakerProjectV1({
           collectExport: "collectV1",
           createPluginExport: "createPluginV1",
         },
+        desktop: {
+          name: "SyntheticApp",
+          identifier: "dev.sillymaker.synthetic",
+        },
       },
       releaseArtifact: false,
     },
@@ -37,6 +41,9 @@ const projectV1 = defineSillymakerProjectV1({
 interface FakeRunnerLogV1 {
   readonly runs: { command: string; args: readonly string[]; cwd: string }[];
   readonly starts: { command: string; args: readonly string[]; killed: boolean }[];
+  readonly writes: { path: string; contents: string }[];
+  readonly copies: { source: string; destination: string }[];
+  readonly removals: string[];
 }
 
 function createFakeRunnerV1(input: {
@@ -44,7 +51,7 @@ function createFakeRunnerV1(input: {
   readonly pages?: Readonly<Record<string, string>>;
   readonly files?: Readonly<Record<string, string>>;
 }): { readonly runner: ProjectCommandRunnerV1; readonly log: FakeRunnerLogV1 } {
-  const log: FakeRunnerLogV1 = { runs: [], starts: [] };
+  const log: FakeRunnerLogV1 = { runs: [], starts: [], writes: [], copies: [], removals: [] };
   const runner: ProjectCommandRunnerV1 = {
     run: (command, args, options) => {
       log.runs.push({ command, args, cwd: options.cwd });
@@ -71,6 +78,18 @@ function createFakeRunnerV1(input: {
       return Promise.resolve(body);
     },
     fileSize: (path) => Promise.resolve(input.files?.[path] === undefined ? null : 1024),
+    writeFile: (path, contents) => {
+      log.writes.push({ path, contents });
+      return Promise.resolve();
+    },
+    copyDirectory: (source, destination) => {
+      log.copies.push({ source, destination });
+      return Promise.resolve();
+    },
+    removeDirectory: (path) => {
+      log.removals.push(path);
+      return Promise.resolve();
+    },
   };
   return { runner: Object.freeze(runner), log };
 }
@@ -239,6 +258,40 @@ describe("runProjectCliV1", () => {
     expect(JSON.parse(failure.out.join("\n"))).toMatchObject({
       ok: false,
       missingFiles: ["./assets/app.js"],
+    });
+  });
+
+  it("desktop stages a thin explicit host and invokes deno desktop", async () => {
+    const fake = createFakeRunnerV1({
+      files: Object.freeze({
+        "/repo/dist/desktop/synthetic/SyntheticApp.app/Contents/Info.plist": "<plist/>",
+      }),
+    });
+    const result = await runV1(["desktop", "synthetic"], fake.runner);
+    expect(result.code).toBe(0);
+    expect(JSON.parse(result.out.join("\n"))).toMatchObject({
+      ok: true,
+      outputPath: "/repo/dist/desktop/synthetic/SyntheticApp.app",
+    });
+    // The web build ran first, then deno desktop from the staging dir.
+    expect(fake.log.runs.map((entry) => entry.command)).toEqual(["pnpm", "deno"]);
+    expect(fake.log.runs[1]).toMatchObject({
+      command: "deno",
+      args: ["desktop", "--output", "../SyntheticApp.app", "."],
+      cwd: "/repo/dist/desktop/synthetic/staging",
+    });
+    expect(fake.log.copies).toEqual([
+      { source: "/repo/dist/synthetic", destination: "/repo/dist/desktop/synthetic/staging/dist" },
+    ]);
+    const written = fake.log.writes.map((entry) => entry.path);
+    expect(written).toContain("/repo/dist/desktop/synthetic/staging/deno.json");
+    expect(written).toContain("/repo/dist/desktop/synthetic/staging/vite.config.ts");
+    const denoJson = fake.log.writes.find((entry) => entry.path.endsWith("deno.json"));
+    expect(JSON.parse(denoJson?.contents ?? "{}")).toMatchObject({
+      desktop: {
+        app: { name: "SyntheticApp", identifier: "dev.sillymaker.synthetic" },
+        backend: "webview",
+      },
     });
   });
 

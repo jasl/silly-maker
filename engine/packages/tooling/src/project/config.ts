@@ -67,6 +67,13 @@ function requireExportNameV1(value: string, pointer: string): string {
   return value;
 }
 
+function requireNonEmptyStringV1(value: string, pointer: string): string {
+  if (typeof value !== "string" || value.trim() === "" || value.includes("\0")) {
+    configErrorV1("project.config_invalid", "value must be a non-empty string", pointer);
+  }
+  return value;
+}
+
 function freezeModuleRefV1(ref: ProjectModuleRefV1, pointer: string): ProjectModuleRefV1 {
   return Object.freeze({
     module: requireRepositoryPathV1(ref.module, `${pointer}/module`),
@@ -93,6 +100,16 @@ function freezeWebTargetV1(web: StoryWebTargetV1, pointer: string): StoryWebTarg
         `${pointer}/identity/createPluginExport`,
       ),
     }),
+    desktop:
+      web.desktop === undefined || web.desktop === null
+        ? null
+        : Object.freeze({
+            name: requireNonEmptyStringV1(web.desktop.name, `${pointer}/desktop/name`),
+            identifier: requireNonEmptyStringV1(
+              web.desktop.identifier,
+              `${pointer}/desktop/identifier`,
+            ),
+          }),
   });
 }
 
