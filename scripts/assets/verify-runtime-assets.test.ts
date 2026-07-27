@@ -28,6 +28,7 @@ describe("closed runtime asset verification", () => {
   it("builds one check per asset-verified application from the project config", () => {
     expect(runtimeAssetStoryChecksV1.map(({ storyId }) => storyId)).toEqual([
       "story.e2e.engine-lab",
+      "story.template.starter",
     ]);
     expect(Object.isFrozen(runtimeAssetStoryChecksV1)).toBe(true);
     for (const check of runtimeAssetStoryChecksV1) expect(Object.isFrozen(check)).toBe(true);
@@ -89,6 +90,7 @@ describe("closed runtime asset verification", () => {
 
     await expect(verifyRuntimeAssetsV1(root, { environment })).resolves.toEqual([
       "story.e2e.engine-lab",
+      "story.template.starter",
     ]);
     expect(reads).toEqual([]);
     expect(realpaths).toEqual([]);

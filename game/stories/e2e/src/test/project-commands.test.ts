@@ -20,7 +20,7 @@ const validatedProjectV1 = defineSillymakerProjectV1(projectTavernConfigV1);
 
 describe("project commands against the real repository config", () => {
   it("resolves every registered application through one config mechanism", async () => {
-    expect(listStoryApplicationIdsV1(validatedProjectV1)).toEqual(["e2e"]);
+    expect(listStoryApplicationIdsV1(validatedProjectV1)).toEqual(["e2e", "template"]);
 
     for (const applicationId of listStoryApplicationIdsV1(validatedProjectV1)) {
       const report = await checkStoryApplicationV1(validatedProjectV1, applicationId, loaderV1);

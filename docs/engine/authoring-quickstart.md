@@ -10,7 +10,7 @@ Story 代码只 import `@sillymaker/*` 的包出口（`@sillymaker/base`、`@sil
 
 ## A 层：改剧本、文本与选择（推荐弱模型从这里开始）
 
-以 Engine Lab（`game/stories/e2e`）为可运行示例。剧本是普通 TypeScript 数据，不是 DSL：
+以起点模板（`game/stories/template`，最小可玩）或 Engine Lab（`game/stories/e2e`，全功能）为可运行示例。剧本是普通 TypeScript 数据，不是 DSL：
 
 | 想改什么                 | 改哪个文件                                                        |
 | ------------------------ | ----------------------------------------------------------------- |
@@ -52,7 +52,7 @@ pnpm test:conformance:headless                # 全部 headless 一致性测试
 
 ## C 层：新应用/新 Story（建议强模型执行）
 
-一个应用 = 一个 `WebGameApplicationV1` 声明 + 一次 `startWebGameApplicationV1` 调用；参照 `game/stories/e2e/src/application/`。在 `game/project.config.ts` 注册后，六个生命周期动词即可用：
+一个应用 = 一个 `WebGameApplicationV1` 声明 + 一次 `startWebGameApplicationV1` 调用；起点用 `game/stories/template`（复制目录 + 全局改名 + 注册一条应用即可）；完整参考看 `game/stories/e2e/src/application/`。在 `game/project.config.ts` 注册后，六个生命周期动词即可用：
 
 ```sh
 pnpm story inspect <app>    # 解析身份与程序报告

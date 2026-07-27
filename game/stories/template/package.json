@@ -1,0 +1,27 @@
+{
+  "name": "@sillymaker/story-template",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "description": "The maintained starter Story: copy this package to begin a new SillyMaker game.",
+  "exports": {
+    ".": "./src/story.ts"
+  },
+  "scripts": {
+    "test": "pnpm --workspace-root exec vitest run game/stories/template/src"
+  },
+  "dependencies": {
+    "@sillymaker/base": "workspace:*",
+    "@sillymaker/ui": "workspace:*",
+    "@sillymaker/web": "workspace:*",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@sillymaker/tooling": "workspace:*",
+    "@types/node": "24.13.3",
+    "@types/react": "19.2.17"
+  }
+}

@@ -42,5 +42,32 @@ export const projectTavernConfigV1 = {
       },
       releaseArtifact: false,
     },
+    {
+      applicationId: "template",
+      label: "Starter template Story (copy me to begin a new game)",
+      storyEntry: {
+        module: "game/stories/template/src/story.ts",
+        exportName: "templateStoryEntryV1",
+      },
+      assetVerification: true,
+      simulate: {
+        module: "game/stories/template/src/tooling/simulation-target.ts",
+        exportName: "createTemplateSimulationTargetV1",
+      },
+      web: {
+        storyRoot: "game/stories/template",
+        applicationHtml: "game/stories/template/index.html",
+        applicationEntry: "game/stories/template/src/application/entry.tsx",
+        outDir: "dist/template",
+        base: "./",
+        sourcemap: false,
+        identity: {
+          module: "scripts/build-template-identity.mjs",
+          collectExport: "collectTemplateBuildIdentityV1",
+          createPluginExport: "createTemplateBuildIdentityVirtualPluginV1",
+        },
+      },
+      releaseArtifact: false,
+    },
   ],
 } as const satisfies SillymakerProjectConfigV1;

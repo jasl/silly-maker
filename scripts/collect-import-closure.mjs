@@ -8,6 +8,7 @@ const packageTargets = Object.freeze({
   "@sillymaker/base": "engine/packages/base/src/index.ts",
   "@sillymaker/base/authoring": "engine/packages/base/src/authoring/index.ts",
   "@sillymaker/base/runtime": "engine/packages/base/src/runtime/index.ts",
+  "@sillymaker/base/story": "engine/packages/base/src/story/index.ts",
   "@sillymaker/base/testkit": "engine/packages/base/src/testkit/index.ts",
   "@sillymaker/tooling": "engine/packages/tooling/src/index.ts",
   "@sillymaker/tooling/project": "engine/packages/tooling/src/project/index.ts",
