@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
-import type { SemanticStageStateV2, StageMutationV2 } from "@sillymaker/base";
+import type { SemanticStageStateV1, StageMutationV1 } from "@sillymaker/base";
 import {
-  createSemanticStageStateV2,
-  parseStageMutationV2,
-  reduceStageMutationsV2,
+  createSemanticStageStateV1,
+  parseStageMutationV1,
+  reduceStageMutationsV1,
 } from "@sillymaker/base";
 
 import {
@@ -15,22 +15,22 @@ import {
 
 /**
  * Engine Lab semantic stage: two backgrounds, two characters, and one prop
- * driven by the Semantic Stage V2 contracts. Gameplay commands derive pure
+ * driven by the Semantic Stage V1 contracts. Gameplay commands derive pure
  * mutation batches from the current stage; the reducer owns atomicity.
  */
 
-function stageMutationsV1(batch: readonly unknown[]): readonly StageMutationV2[] {
+function stageMutationsV1(batch: readonly unknown[]): readonly StageMutationV1[] {
   return Object.freeze(
-    batch.map((mutation, index) => parseStageMutationV2(mutation, `/mutations/${String(index)}`)),
+    batch.map((mutation, index) => parseStageMutationV1(mutation, `/mutations/${String(index)}`)),
   );
 }
 
-export function createInitialLabStageStateV1(): SemanticStageStateV2 {
-  const empty = createSemanticStageStateV2({
+export function createInitialLabStageStateV1(): SemanticStageStateV1 {
+  const empty = createSemanticStageStateV1({
     stageId: labStageIdV1,
     layerIds: [...labStageLayerIdsV1],
   });
-  const outcome = reduceStageMutationsV2(
+  const outcome = reduceStageMutationsV1(
     empty,
     stageMutationsV1([
       {
@@ -47,15 +47,15 @@ export function createInitialLabStageStateV1(): SemanticStageStateV2 {
   return outcome.state;
 }
 
-function stageHasTagV1(stage: SemanticStageStateV2, layerId: string, tag: string): boolean {
+function stageHasTagV1(stage: SemanticStageStateV1, layerId: string, tag: string): boolean {
   const layer = stage.layers.find((candidate) => candidate.layerId === layerId);
   return layer !== undefined && layer.entries.some((entry) => entry.tag === tag);
 }
 
 /** Collecting a sample reveals the crate prop once; later collects add nothing. */
 export function labStageMutationsForCollectV1(
-  stage: SemanticStageStateV2,
-): readonly StageMutationV2[] {
+  stage: SemanticStageStateV1,
+): readonly StageMutationV1[] {
   if (stageHasTagV1(stage, "layer.e2e.props", labStageTagsV1.crate)) return Object.freeze([]);
   return stageMutationsV1([
     {
@@ -70,7 +70,7 @@ export function labStageMutationsForCollectV1(
 }
 
 /** Beginning the procedure moves to the storeroom and brings in both characters. */
-export function labStageMutationsForBeginV1(): readonly StageMutationV2[] {
+export function labStageMutationsForBeginV1(): readonly StageMutationV1[] {
   return stageMutationsV1([
     {
       kind: "replace",
@@ -100,12 +100,12 @@ export function labStageMutationsForBeginV1(): readonly StageMutationV2[] {
 }
 
 /** The shop's stage effect: whether the purchased banner already hangs. */
-export function labStageHasBannerV1(stage: SemanticStageStateV2): boolean {
+export function labStageHasBannerV1(stage: SemanticStageStateV1): boolean {
   return stageHasTagV1(stage, "layer.e2e.props", labStageTagsV1.banner);
 }
 
 /** Buying the banner hangs it above the stage; owning it twice is rejected. */
-export function labStageMutationsForBannerV1(): readonly StageMutationV2[] {
+export function labStageMutationsForBannerV1(): readonly StageMutationV1[] {
   return stageMutationsV1([
     {
       kind: "show",
@@ -126,9 +126,9 @@ export interface LabStageProgressInputV1 {
 
 /** Advancing work focuses the lead character; completion settles the scene. */
 export function labStageMutationsForProgressV1(
-  stage: SemanticStageStateV2,
+  stage: SemanticStageStateV1,
   input: LabStageProgressInputV1,
-): readonly StageMutationV2[] {
+): readonly StageMutationV1[] {
   const batch: unknown[] = [
     {
       kind: "setAppearance",

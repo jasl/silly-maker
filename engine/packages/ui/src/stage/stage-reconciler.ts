@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 import type {
   AssetId,
-  StageCameraV2,
-  StageLayerIdV2,
-  StageLayerTransformV2,
-  StageRenderEntryV2,
-  StageRenderTargetV2,
-  StageTargetChangeV2,
-  StageTransitionCatalogV2,
-  StageTransitionDefinitionV2,
-  StagePlacementV2,
+  StageCameraV1,
+  StageLayerIdV1,
+  StageLayerTransformV1,
+  StageRenderEntryV1,
+  StageRenderTargetV1,
+  StageTargetChangeV1,
+  StageTransitionCatalogV1,
+  StageTransitionDefinitionV1,
+  StagePlacementV1,
 } from "@sillymaker/base";
 
 import type { PresentationClockV1 } from "../presentation-run/presentation-clock.js";
@@ -27,71 +27,71 @@ import type {
  * catalog and never writes gameplay State.
  */
 
-export type StageFramePhaseV2 = "entering" | "settled" | "exiting";
+export type StageFramePhaseV1 = "entering" | "settled" | "exiting";
 
-export interface StageFrameEntryV2 {
+export interface StageFrameEntryV1 {
   /** Unique per frame: target entries use entry.key; ghosts add the occurrence. */
   readonly frameKey: string;
-  readonly entry: StageRenderEntryV2;
-  readonly phase: StageFramePhaseV2;
-  readonly transitionKind: StageTransitionDefinitionV2["kind"] | null;
+  readonly entry: StageRenderEntryV1;
+  readonly phase: StageFramePhaseV1;
+  readonly transitionKind: StageTransitionDefinitionV1["kind"] | null;
   /** Eased progress toward the target state, 1 when settled. */
   readonly progress: number;
   readonly slide: { readonly x: number; readonly y: number } | null;
   /** Move transitions interpolate from this placement toward entry.placement. */
-  readonly fromPlacement: StagePlacementV2 | null;
+  readonly fromPlacement: StagePlacementV1 | null;
 }
 
-export interface StageFrameLayerV2 {
-  readonly layerId: StageLayerIdV2;
-  readonly transform: StageLayerTransformV2;
-  readonly entries: readonly StageFrameEntryV2[];
+export interface StageFrameLayerV1 {
+  readonly layerId: StageLayerIdV1;
+  readonly transform: StageLayerTransformV1;
+  readonly entries: readonly StageFrameEntryV1[];
 }
 
-export interface StageInputGateV2 {
+export interface StageInputGateV1 {
   /** An active transition declared input policy `block`. */
   readonly blocked: boolean;
   /** An active transition wants the next input to skip it to the end. */
   readonly skipOnInput: boolean;
 }
 
-export interface StageRenderFrameV2 {
-  readonly stageId: StageRenderTargetV2["stageId"];
-  readonly layers: readonly StageFrameLayerV2[];
-  readonly camera: StageCameraV2;
+export interface StageRenderFrameV1 {
+  readonly stageId: StageRenderTargetV1["stageId"];
+  readonly layers: readonly StageFrameLayerV1[];
+  readonly camera: StageCameraV1;
   /** Union of the current target and retained exiting entries. */
   readonly requiredAssetIds: readonly AssetId[];
   readonly settled: boolean;
-  readonly inputGate: StageInputGateV2;
+  readonly inputGate: StageInputGateV1;
 }
 
-export interface StageTransitionAcknowledgmentV2 {
+export interface StageTransitionAcknowledgmentV1 {
   readonly occurrenceId: string;
   readonly transitionId: string;
   readonly epoch: number;
   readonly outcome: PresentationRunOutcomeV1;
 }
 
-export interface StageRetargetInputV2 {
-  readonly target: StageRenderTargetV2;
+export interface StageRetargetInputV1 {
+  readonly target: StageRenderTargetV1;
   readonly revision: number;
   readonly epoch: number;
 }
 
-export interface CreateStageReconcilerOptionsV2 {
+export interface CreateStageReconcilerOptionsV1 {
   readonly clock: PresentationClockV1;
-  readonly catalog: StageTransitionCatalogV2;
+  readonly catalog: StageTransitionCatalogV1;
   /** Live reduced-motion query; checked when each run is derived. */
   readonly prefersReducedMotion?: () => boolean;
   /** Readiness probe for wait_for_assets transitions; defaults to ready. */
   readonly assetsReady?: (assetIds: readonly AssetId[]) => boolean;
-  onAcknowledgment?(acknowledgment: StageTransitionAcknowledgmentV2): void;
+  onAcknowledgment?(acknowledgment: StageTransitionAcknowledgmentV1): void;
   reportFailure?(code: string, detail: string): void;
 }
 
-export interface StageReconcilerV2 {
-  retarget(input: StageRetargetInputV2): void;
-  frame(): StageRenderFrameV2;
+export interface StageReconcilerV1 {
+  retarget(input: StageRetargetInputV1): void;
+  frame(): StageRenderFrameV1;
   subscribe(listener: () => void): () => void;
   /** Skip every active run; used by skip-to-end input policy consumers. */
   skipAll(): void;
@@ -101,30 +101,30 @@ export interface StageReconcilerV2 {
   dispose(): void;
 }
 
-interface ActiveTransitionV2 {
+interface ActiveTransitionV1 {
   readonly occurrenceId: string;
-  readonly definition: StageTransitionDefinitionV2;
-  readonly layerId: StageLayerIdV2;
+  readonly definition: StageTransitionDefinitionV1;
+  readonly layerId: StageLayerIdV1;
   readonly entryKey: string;
-  readonly changeKind: StageTargetChangeV2["kind"];
+  readonly changeKind: StageTargetChangeV1["kind"];
   /** Ghost content for exit/replace; interpolation source for move. */
-  readonly previousEntry: StageRenderEntryV2 | null;
+  readonly previousEntry: StageRenderEntryV1 | null;
   readonly run: PresentationRunV1;
   /** Readiness hold: the run starts when ready or the deadline passes. */
   readiness: { readonly deadline: number; readonly assetIds: readonly AssetId[] } | null;
 }
 
-function entriesByKeyV2(
-  target: StageRenderTargetV2,
-): ReadonlyMap<string, { readonly layerId: StageLayerIdV2; readonly entry: StageRenderEntryV2 }> {
-  const map = new Map<string, { layerId: StageLayerIdV2; entry: StageRenderEntryV2 }>();
+function entriesByKeyV1(
+  target: StageRenderTargetV1,
+): ReadonlyMap<string, { readonly layerId: StageLayerIdV1; readonly entry: StageRenderEntryV1 }> {
+  const map = new Map<string, { layerId: StageLayerIdV1; entry: StageRenderEntryV1 }>();
   for (const layer of target.layers) {
     for (const entry of layer.entries) map.set(entry.key, { layerId: layer.layerId, entry });
   }
   return map;
 }
 
-function placementsEqualV2(left: StagePlacementV2, right: StagePlacementV2): boolean {
+function placementsEqualV1(left: StagePlacementV1, right: StagePlacementV1): boolean {
   return (
     left.x === right.x &&
     left.y === right.y &&
@@ -133,22 +133,22 @@ function placementsEqualV2(left: StagePlacementV2, right: StagePlacementV2): boo
   );
 }
 
-function appearancesEqualV2(
-  left: StageRenderEntryV2["appearance"],
-  right: StageRenderEntryV2["appearance"],
+function appearancesEqualV1(
+  left: StageRenderEntryV1["appearance"],
+  right: StageRenderEntryV1["appearance"],
 ): boolean {
   const leftKeys = Object.keys(left);
   const rightKeys = Object.keys(right);
   return leftKeys.length === rightKeys.length && leftKeys.every((key) => left[key] === right[key]);
 }
 
-function deriveChangesV2(
-  previous: StageRenderTargetV2 | null,
-  next: StageRenderTargetV2,
-): readonly StageTargetChangeV2[] {
-  const changes: StageTargetChangeV2[] = [];
-  const previousEntries = previous === null ? new Map() : entriesByKeyV2(previous);
-  const nextEntries = entriesByKeyV2(next);
+function deriveChangesV1(
+  previous: StageRenderTargetV1 | null,
+  next: StageRenderTargetV1,
+): readonly StageTargetChangeV1[] {
+  const changes: StageTargetChangeV1[] = [];
+  const previousEntries = previous === null ? new Map() : entriesByKeyV1(previous);
+  const nextEntries = entriesByKeyV1(next);
 
   for (const [key, { layerId, entry }] of nextEntries) {
     const before = previousEntries.get(key);
@@ -165,7 +165,7 @@ function deriveChangesV2(
         previous: previousEntry,
         next: entry,
       });
-    } else if (!appearancesEqualV2(previousEntry.appearance, entry.appearance)) {
+    } else if (!appearancesEqualV1(previousEntry.appearance, entry.appearance)) {
       changes.push({
         kind: "appearance",
         layerId,
@@ -173,7 +173,7 @@ function deriveChangesV2(
         previous: previousEntry,
         next: entry,
       });
-    } else if (!placementsEqualV2(previousEntry.placement, entry.placement)) {
+    } else if (!placementsEqualV1(previousEntry.placement, entry.placement)) {
       changes.push({ kind: "move", layerId, entryKey: key, previous: previousEntry, next: entry });
     }
   }
@@ -185,17 +185,17 @@ function deriveChangesV2(
   return changes;
 }
 
-export function createStageReconcilerV2(
-  options: CreateStageReconcilerOptionsV2,
-): StageReconcilerV2 {
+export function createStageReconcilerV1(
+  options: CreateStageReconcilerOptionsV1,
+): StageReconcilerV1 {
   const prefersReducedMotion = options.prefersReducedMotion ?? (() => false);
   const assetsReady = options.assetsReady ?? (() => true);
   const listeners = new Set<() => void>();
 
-  let currentTarget: StageRenderTargetV2 | null = null;
+  let currentTarget: StageRenderTargetV1 | null = null;
   let currentRevision: number | null = null;
   let currentEpoch: number | null = null;
-  let active: ActiveTransitionV2[] = [];
+  let active: ActiveTransitionV1[] = [];
   let occurrenceCounter = 0;
   let suspended = false;
   let disposed = false;
@@ -205,7 +205,7 @@ export function createStageReconcilerV2(
     for (const listener of [...listeners]) listener();
   };
 
-  const acknowledge = (transition: ActiveTransitionV2, outcome: PresentationRunOutcomeV1): void => {
+  const acknowledge = (transition: ActiveTransitionV1, outcome: PresentationRunOutcomeV1): void => {
     if (disposed || !transition.definition.acknowledge) return;
     if (transition.run.epoch !== currentEpoch) return;
     options.onAcknowledgment?.(
@@ -218,13 +218,13 @@ export function createStageReconcilerV2(
     );
   };
 
-  const removeTransition = (transition: ActiveTransitionV2): void => {
+  const removeTransition = (transition: ActiveTransitionV1): void => {
     active = active.filter((candidate) => candidate !== transition);
   };
 
-  const resolveReducedMotionV2 = (
-    definition: StageTransitionDefinitionV2,
-  ): StageTransitionDefinitionV2 | null => {
+  const resolveReducedMotionV1 = (
+    definition: StageTransitionDefinitionV1,
+  ): StageTransitionDefinitionV1 | null => {
     if (!prefersReducedMotion()) return definition;
     if (definition.reducedMotion.kind === "settle") return null;
     const fallback = options.catalog.resolveTransitionById?.(definition.reducedMotion.transitionId);
@@ -274,13 +274,13 @@ export function createStageReconcilerV2(
   };
 
   const startTransition = (
-    change: StageTargetChangeV2,
-    definition: StageTransitionDefinitionV2,
+    change: StageTargetChangeV1,
+    definition: StageTransitionDefinitionV1,
     epoch: number,
   ): void => {
     occurrenceCounter += 1;
     const occurrenceId = `stage-transition.${String(epoch)}.${String(occurrenceCounter)}`;
-    const transition: ActiveTransitionV2 = {
+    const transition: ActiveTransitionV1 = {
       occurrenceId,
       definition,
       layerId: change.layerId,
@@ -322,10 +322,10 @@ export function createStageReconcilerV2(
   };
 
   const frameEntriesForLayer = (
-    layerId: StageLayerIdV2,
-    entries: readonly StageRenderEntryV2[],
-  ): StageFrameEntryV2[] => {
-    const frameEntries: StageFrameEntryV2[] = entries.map((entry) => {
+    layerId: StageLayerIdV1,
+    entries: readonly StageRenderEntryV1[],
+  ): StageFrameEntryV1[] => {
+    const frameEntries: StageFrameEntryV1[] = entries.map((entry) => {
       const transition = active.find(
         (candidate) => candidate.entryKey === entry.key && candidate.changeKind !== "exit",
       );
@@ -368,7 +368,7 @@ export function createStageReconcilerV2(
   };
 
   return Object.freeze({
-    retarget(input: StageRetargetInputV2): void {
+    retarget(input: StageRetargetInputV1): void {
       if (disposed) return;
 
       // Epoch changes (load, rollback, rebootstrap) restore a stable target:
@@ -403,7 +403,7 @@ export function createStageReconcilerV2(
         return;
       }
 
-      const changes = deriveChangesV2(previousTarget, input.target);
+      const changes = deriveChangesV1(previousTarget, input.target);
       const suppressedKeys = new Set<string>();
 
       // Interrupt in-flight runs whose entries change again.
@@ -422,7 +422,7 @@ export function createStageReconcilerV2(
         if (suppressedKeys.has(change.entryKey)) continue;
         const resolved = options.catalog.resolveTransition(change);
         if (resolved === null) continue;
-        const definition = resolveReducedMotionV2(resolved);
+        const definition = resolveReducedMotionV1(resolved);
         if (definition === null || definition.kind === "cut" || definition.durationMs <= 0) {
           // Instant settles (cut, zero duration, reduced-motion settle) still
           // owe their completion acknowledgment: a presentation barrier must
@@ -445,7 +445,7 @@ export function createStageReconcilerV2(
       notify();
     },
 
-    frame(): StageRenderFrameV2 {
+    frame(): StageRenderFrameV1 {
       if (currentTarget === null) {
         throw new TypeError("stage reconciler has no target; retarget before reading frames");
       }
@@ -511,7 +511,7 @@ export function createStageReconcilerV2(
 }
 
 /** A settled frame for rendering a target without any reconciler. */
-export function settledStageFrameV2(target: StageRenderTargetV2): StageRenderFrameV2 {
+export function settledStageFrameV1(target: StageRenderTargetV1): StageRenderFrameV1 {
   return Object.freeze({
     stageId: target.stageId,
     layers: target.layers.map((layer) =>

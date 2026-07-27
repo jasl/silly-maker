@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import type { InteractionResolutionV2, SemanticStageStateV2 } from "@sillymaker/base";
-import { lintNarrativeGraphV1, reduceStageMutationsV2 } from "@sillymaker/base";
+import type { InteractionResolutionV1, SemanticStageStateV1 } from "@sillymaker/base";
+import { lintNarrativeGraphV1, reduceStageMutationsV1 } from "@sillymaker/base";
 import { createGameHarnessV1 } from "@sillymaker/base/testkit";
 
 import type { LabInvocationV1 } from "../index.js";
@@ -28,7 +28,7 @@ type LabHarnessV1 = Awaited<ReturnType<typeof createLabHarnessV1>>;
 
 function resolveV1(
   expectedOccurrenceId: string,
-  resolution: InteractionResolutionV2,
+  resolution: InteractionResolutionV1,
 ): LabInvocationV1 {
   return Object.freeze({ kind: "resolve" as const, expectedOccurrenceId, resolution });
 }
@@ -81,10 +81,10 @@ describe("Lab narrative graph", () => {
     // Run every stage node's real mutation function against representative
     // stages (initial, and after each preceding stage node applied) and
     // prove every shown/replaced content is declared in mayShow.
-    const stages: SemanticStageStateV2[] = [createInitialLabStageStateV1()];
+    const stages: SemanticStageStateV1[] = [createInitialLabStageStateV1()];
     for (const node of labNarrativeScriptV1) {
       if (node.kind !== "stage") continue;
-      const nextStages: SemanticStageStateV2[] = [];
+      const nextStages: SemanticStageStateV1[] = [];
       for (const stage of stages) {
         const mutations = node.mutations(stage);
         for (const mutation of mutations) {
@@ -92,7 +92,7 @@ describe("Lab narrative graph", () => {
             expect(node.mayShow).toContain(mutation.contentId);
           }
         }
-        const outcome = reduceStageMutationsV2(stage, mutations);
+        const outcome = reduceStageMutationsV1(stage, mutations);
         nextStages.push(outcome.kind === "applied" ? outcome.state : stage);
       }
       stages.push(...nextStages);

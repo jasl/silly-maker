@@ -1,89 +1,89 @@
 // SPDX-License-Identifier: MIT
 import type {
-  SemanticStageStateV2,
-  StageAppearanceV2,
-  StageCameraV2,
-  StageContentIdV2,
-  StageEntryV2,
-  StageLayerIdV2,
-  StageLayerTransformV2,
-  StagePlacementV2,
-  StageTagV2,
+  SemanticStageStateV1,
+  StageAppearanceV1,
+  StageCameraV1,
+  StageContentIdV1,
+  StageEntryV1,
+  StageLayerIdV1,
+  StageLayerTransformV1,
+  StagePlacementV1,
+  StageTagV1,
 } from "./semantic-stage.js";
 import {
-  defaultStagePlacementV2,
-  parseSemanticStageStateV2,
-  parseStageAppearanceV2,
-  parseStageCameraV2,
-  parseStageContentIdV2,
-  parseStageLayerIdV2,
-  parseStageLayerTransformV2,
-  parseStagePlacementV2,
-  parseStageTagV2,
+  defaultStagePlacementV1,
+  parseSemanticStageStateV1,
+  parseStageAppearanceV1,
+  parseStageCameraV1,
+  parseStageContentIdV1,
+  parseStageLayerIdV1,
+  parseStageLayerTransformV1,
+  parseStagePlacementV1,
+  parseStageTagV1,
 } from "./semantic-stage.js";
 import { PresentationDataError, readExactRecord } from "./presentation-data.js";
 
 /**
  * The pure stage mutation vocabulary. A batch either produces one complete,
- * valid successor SemanticStageStateV2 or rejects with structured reasons
+ * valid successor SemanticStageStateV1 or rejects with structured reasons
  * and leaves the input state untouched. Mutations carry no renderer
  * callbacks and cannot start animations or asset loads.
  */
-export type StageMutationV2 =
+export type StageMutationV1 =
   | {
       readonly kind: "show";
-      readonly layerId: StageLayerIdV2;
-      readonly tag: StageTagV2;
-      readonly contentId: StageContentIdV2;
+      readonly layerId: StageLayerIdV1;
+      readonly tag: StageTagV1;
+      readonly contentId: StageContentIdV1;
       readonly zOrder?: number;
-      readonly placement?: StagePlacementV2;
-      readonly appearance?: StageAppearanceV2;
+      readonly placement?: StagePlacementV1;
+      readonly appearance?: StageAppearanceV1;
     }
   | {
       readonly kind: "replace";
-      readonly layerId: StageLayerIdV2;
-      readonly tag: StageTagV2;
-      readonly contentId: StageContentIdV2;
-      readonly placement?: StagePlacementV2;
-      readonly appearance?: StageAppearanceV2;
+      readonly layerId: StageLayerIdV1;
+      readonly tag: StageTagV1;
+      readonly contentId: StageContentIdV1;
+      readonly placement?: StagePlacementV1;
+      readonly appearance?: StageAppearanceV1;
     }
-  | { readonly kind: "hide"; readonly layerId: StageLayerIdV2; readonly tag: StageTagV2 }
-  | { readonly kind: "clearLayer"; readonly layerId: StageLayerIdV2 }
+  | { readonly kind: "hide"; readonly layerId: StageLayerIdV1; readonly tag: StageTagV1 }
+  | { readonly kind: "clearLayer"; readonly layerId: StageLayerIdV1 }
   | { readonly kind: "clearStage" }
   | {
       readonly kind: "setPlacement";
-      readonly layerId: StageLayerIdV2;
-      readonly tag: StageTagV2;
-      readonly placement: StagePlacementV2;
+      readonly layerId: StageLayerIdV1;
+      readonly tag: StageTagV1;
+      readonly placement: StagePlacementV1;
     }
   | {
       readonly kind: "setAppearance";
-      readonly layerId: StageLayerIdV2;
-      readonly tag: StageTagV2;
-      readonly appearance: StageAppearanceV2;
+      readonly layerId: StageLayerIdV1;
+      readonly tag: StageTagV1;
+      readonly appearance: StageAppearanceV1;
     }
   | {
       readonly kind: "setLayerTransform";
-      readonly layerId: StageLayerIdV2;
-      readonly transform: StageLayerTransformV2;
+      readonly layerId: StageLayerIdV1;
+      readonly transform: StageLayerTransformV1;
     }
-  | { readonly kind: "setCamera"; readonly camera: StageCameraV2 };
+  | { readonly kind: "setCamera"; readonly camera: StageCameraV1 };
 
-export type StageMutationRejectionCodeV2 =
+export type StageMutationRejectionCodeV1 =
   "stage.mutation_invalid" | "stage.layer_unknown" | "stage.tag_exists" | "stage.tag_unknown";
 
-export interface StageMutationRejectionV2 {
-  readonly code: StageMutationRejectionCodeV2;
+export interface StageMutationRejectionV1 {
+  readonly code: StageMutationRejectionCodeV1;
   readonly mutationIndex: number;
   readonly pointer: string;
   readonly reason: string;
 }
 
-export type StageMutationBatchOutcomeV2 =
-  | { readonly kind: "applied"; readonly state: SemanticStageStateV2 }
-  | { readonly kind: "rejected"; readonly rejection: StageMutationRejectionV2 };
+export type StageMutationBatchOutcomeV1 =
+  | { readonly kind: "applied"; readonly state: SemanticStageStateV1 }
+  | { readonly kind: "rejected"; readonly rejection: StageMutationRejectionV1 };
 
-const mutationKeysV2: Readonly<Record<StageMutationV2["kind"], readonly string[]>> = Object.freeze({
+const mutationKeysV1: Readonly<Record<StageMutationV1["kind"], readonly string[]>> = Object.freeze({
   show: ["kind", "layerId", "tag", "contentId", "zOrder", "placement", "appearance"],
   replace: ["kind", "layerId", "tag", "contentId", "placement", "appearance"],
   hide: ["kind", "layerId", "tag"],
@@ -95,12 +95,12 @@ const mutationKeysV2: Readonly<Record<StageMutationV2["kind"], readonly string[]
   setCamera: ["kind", "camera"],
 });
 
-function readMutationRecordV2(value: unknown, path: string): Record<string, unknown> {
+function readMutationRecordV1(value: unknown, path: string): Record<string, unknown> {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     throw new PresentationDataError(path, "object_expected");
   }
-  const kind = Reflect.get(value, "kind") as StageMutationV2["kind"];
-  const expected = Object.hasOwn(mutationKeysV2, kind) ? mutationKeysV2[kind] : undefined;
+  const kind = Reflect.get(value, "kind") as StageMutationV1["kind"];
+  const expected = Object.hasOwn(mutationKeysV1, kind) ? mutationKeysV1[kind] : undefined;
   if (expected === undefined) {
     throw new PresentationDataError(`${path}/kind`, "stage_mutation_kind_unknown");
   }
@@ -116,7 +116,7 @@ function readMutationRecordV2(value: unknown, path: string): Record<string, unkn
   return readExactRecord(value, presentKeys, path);
 }
 
-function parseOptionalZOrderV2(value: unknown, path: string): number | undefined {
+function parseOptionalZOrderV1(value: unknown, path: string): number | undefined {
   if (value === undefined) return undefined;
   if (typeof value !== "number" || !Number.isSafeInteger(value) || Math.abs(value) > 1_000_000) {
     throw new PresentationDataError(path, "z_order_invalid");
@@ -125,76 +125,76 @@ function parseOptionalZOrderV2(value: unknown, path: string): number | undefined
 }
 
 /** Parses one plain-data stage mutation; throws PresentationDataError. */
-export function parseStageMutationV2(value: unknown, path = "/mutation"): StageMutationV2 {
-  const record = readMutationRecordV2(value, path);
-  const kind = record.kind as StageMutationV2["kind"];
+export function parseStageMutationV1(value: unknown, path = "/mutation"): StageMutationV1 {
+  const record = readMutationRecordV1(value, path);
+  const kind = record.kind as StageMutationV1["kind"];
   switch (kind) {
     case "show": {
-      const zOrder = parseOptionalZOrderV2(record.zOrder, `${path}/zOrder`);
+      const zOrder = parseOptionalZOrderV1(record.zOrder, `${path}/zOrder`);
       return Object.freeze({
         kind,
-        layerId: parseStageLayerIdV2(record.layerId, `${path}/layerId`),
-        tag: parseStageTagV2(record.tag, `${path}/tag`),
-        contentId: parseStageContentIdV2(record.contentId, `${path}/contentId`),
+        layerId: parseStageLayerIdV1(record.layerId, `${path}/layerId`),
+        tag: parseStageTagV1(record.tag, `${path}/tag`),
+        contentId: parseStageContentIdV1(record.contentId, `${path}/contentId`),
         ...(zOrder === undefined ? {} : { zOrder }),
         ...(record.placement === undefined
           ? {}
-          : { placement: parseStagePlacementV2(record.placement, `${path}/placement`) }),
+          : { placement: parseStagePlacementV1(record.placement, `${path}/placement`) }),
         ...(record.appearance === undefined
           ? {}
-          : { appearance: parseStageAppearanceV2(record.appearance, `${path}/appearance`) }),
+          : { appearance: parseStageAppearanceV1(record.appearance, `${path}/appearance`) }),
       });
     }
     case "replace":
       return Object.freeze({
         kind,
-        layerId: parseStageLayerIdV2(record.layerId, `${path}/layerId`),
-        tag: parseStageTagV2(record.tag, `${path}/tag`),
-        contentId: parseStageContentIdV2(record.contentId, `${path}/contentId`),
+        layerId: parseStageLayerIdV1(record.layerId, `${path}/layerId`),
+        tag: parseStageTagV1(record.tag, `${path}/tag`),
+        contentId: parseStageContentIdV1(record.contentId, `${path}/contentId`),
         ...(record.placement === undefined
           ? {}
-          : { placement: parseStagePlacementV2(record.placement, `${path}/placement`) }),
+          : { placement: parseStagePlacementV1(record.placement, `${path}/placement`) }),
         ...(record.appearance === undefined
           ? {}
-          : { appearance: parseStageAppearanceV2(record.appearance, `${path}/appearance`) }),
+          : { appearance: parseStageAppearanceV1(record.appearance, `${path}/appearance`) }),
       });
     case "hide":
       return Object.freeze({
         kind,
-        layerId: parseStageLayerIdV2(record.layerId, `${path}/layerId`),
-        tag: parseStageTagV2(record.tag, `${path}/tag`),
+        layerId: parseStageLayerIdV1(record.layerId, `${path}/layerId`),
+        tag: parseStageTagV1(record.tag, `${path}/tag`),
       });
     case "clearLayer":
       return Object.freeze({
         kind,
-        layerId: parseStageLayerIdV2(record.layerId, `${path}/layerId`),
+        layerId: parseStageLayerIdV1(record.layerId, `${path}/layerId`),
       });
     case "clearStage":
       return Object.freeze({ kind });
     case "setPlacement":
       return Object.freeze({
         kind,
-        layerId: parseStageLayerIdV2(record.layerId, `${path}/layerId`),
-        tag: parseStageTagV2(record.tag, `${path}/tag`),
-        placement: parseStagePlacementV2(record.placement, `${path}/placement`),
+        layerId: parseStageLayerIdV1(record.layerId, `${path}/layerId`),
+        tag: parseStageTagV1(record.tag, `${path}/tag`),
+        placement: parseStagePlacementV1(record.placement, `${path}/placement`),
       });
     case "setAppearance":
       return Object.freeze({
         kind,
-        layerId: parseStageLayerIdV2(record.layerId, `${path}/layerId`),
-        tag: parseStageTagV2(record.tag, `${path}/tag`),
-        appearance: parseStageAppearanceV2(record.appearance, `${path}/appearance`),
+        layerId: parseStageLayerIdV1(record.layerId, `${path}/layerId`),
+        tag: parseStageTagV1(record.tag, `${path}/tag`),
+        appearance: parseStageAppearanceV1(record.appearance, `${path}/appearance`),
       });
     case "setLayerTransform":
       return Object.freeze({
         kind,
-        layerId: parseStageLayerIdV2(record.layerId, `${path}/layerId`),
-        transform: parseStageLayerTransformV2(record.transform, `${path}/transform`),
+        layerId: parseStageLayerIdV1(record.layerId, `${path}/layerId`),
+        transform: parseStageLayerTransformV1(record.transform, `${path}/transform`),
       });
     case "setCamera":
       return Object.freeze({
         kind,
-        camera: parseStageCameraV2(record.camera, `${path}/camera`),
+        camera: parseStageCameraV1(record.camera, `${path}/camera`),
       });
     default: {
       const exhaustive: never = kind;
@@ -203,38 +203,38 @@ export function parseStageMutationV2(value: unknown, path = "/mutation"): StageM
   }
 }
 
-interface MutableLayerV2 {
-  readonly layerId: StageLayerIdV2;
-  transform: StageLayerTransformV2;
-  entries: StageEntryV2[];
+interface MutableLayerV1 {
+  readonly layerId: StageLayerIdV1;
+  transform: StageLayerTransformV1;
+  entries: StageEntryV1[];
 }
 
-interface MutableStageV2 {
-  layers: Map<string, MutableLayerV2>;
-  layerOrder: readonly StageLayerIdV2[];
-  camera: StageCameraV2;
+interface MutableStageV1 {
+  layers: Map<string, MutableLayerV1>;
+  layerOrder: readonly StageLayerIdV1[];
+  camera: StageCameraV1;
 }
 
-class StageMutationRejectionErrorV2 extends Error {
-  readonly code: StageMutationRejectionCodeV2;
+class StageMutationRejectionErrorV1 extends Error {
+  readonly code: StageMutationRejectionCodeV1;
   readonly pointer: string;
 
-  constructor(code: StageMutationRejectionCodeV2, pointer: string, reason: string) {
+  constructor(code: StageMutationRejectionCodeV1, pointer: string, reason: string) {
     super(reason);
-    this.name = "StageMutationRejectionErrorV2";
+    this.name = "StageMutationRejectionErrorV1";
     this.code = code;
     this.pointer = pointer;
   }
 }
 
-function requireLayerV2(
-  stage: MutableStageV2,
-  layerId: StageLayerIdV2,
+function requireLayerV1(
+  stage: MutableStageV1,
+  layerId: StageLayerIdV1,
   pointer: string,
-): MutableLayerV2 {
+): MutableLayerV1 {
   const layer = stage.layers.get(layerId as string);
   if (layer === undefined) {
-    throw new StageMutationRejectionErrorV2(
+    throw new StageMutationRejectionErrorV1(
       "stage.layer_unknown",
       pointer,
       `layer "${layerId}" is not declared on this stage`,
@@ -243,12 +243,12 @@ function requireLayerV2(
   return layer;
 }
 
-function entryIndexV2(layer: MutableLayerV2, tag: StageTagV2): number {
+function entryIndexV1(layer: MutableLayerV1, tag: StageTagV1): number {
   return layer.entries.findIndex((entry) => entry.tag === tag);
 }
 
 /** Inserts keeping non-decreasing z-order; equal z-orders keep insertion order. */
-function insertEntryV2(layer: MutableLayerV2, entry: StageEntryV2): void {
+function insertEntryV1(layer: MutableLayerV1, entry: StageEntryV1): void {
   let index = layer.entries.length;
   while (index > 0) {
     const previous = layer.entries[index - 1];
@@ -258,35 +258,35 @@ function insertEntryV2(layer: MutableLayerV2, entry: StageEntryV2): void {
   layer.entries.splice(index, 0, entry);
 }
 
-function applyMutationV2(stage: MutableStageV2, mutation: StageMutationV2, pointer: string): void {
+function applyMutationV1(stage: MutableStageV1, mutation: StageMutationV1, pointer: string): void {
   switch (mutation.kind) {
     case "show": {
-      const layer = requireLayerV2(stage, mutation.layerId, pointer);
-      if (entryIndexV2(layer, mutation.tag) >= 0) {
-        throw new StageMutationRejectionErrorV2(
+      const layer = requireLayerV1(stage, mutation.layerId, pointer);
+      if (entryIndexV1(layer, mutation.tag) >= 0) {
+        throw new StageMutationRejectionErrorV1(
           "stage.tag_exists",
           pointer,
           `tag "${mutation.tag}" already exists on layer "${mutation.layerId}"; use replace`,
         );
       }
-      insertEntryV2(
+      insertEntryV1(
         layer,
         Object.freeze({
           tag: mutation.tag,
           contentId: mutation.contentId,
           zOrder: mutation.zOrder ?? 0,
-          placement: mutation.placement ?? defaultStagePlacementV2,
+          placement: mutation.placement ?? defaultStagePlacementV1,
           appearance: mutation.appearance ?? Object.freeze({}),
         }),
       );
       return;
     }
     case "replace": {
-      const layer = requireLayerV2(stage, mutation.layerId, pointer);
-      const index = entryIndexV2(layer, mutation.tag);
+      const layer = requireLayerV1(stage, mutation.layerId, pointer);
+      const index = entryIndexV1(layer, mutation.tag);
       const current = index >= 0 ? layer.entries[index] : undefined;
       if (current === undefined) {
-        throw new StageMutationRejectionErrorV2(
+        throw new StageMutationRejectionErrorV1(
           "stage.tag_unknown",
           pointer,
           `tag "${mutation.tag}" does not exist on layer "${mutation.layerId}"; use show`,
@@ -304,10 +304,10 @@ function applyMutationV2(stage: MutableStageV2, mutation: StageMutationV2, point
       return;
     }
     case "hide": {
-      const layer = requireLayerV2(stage, mutation.layerId, pointer);
-      const index = entryIndexV2(layer, mutation.tag);
+      const layer = requireLayerV1(stage, mutation.layerId, pointer);
+      const index = entryIndexV1(layer, mutation.tag);
       if (index < 0) {
-        throw new StageMutationRejectionErrorV2(
+        throw new StageMutationRejectionErrorV1(
           "stage.tag_unknown",
           pointer,
           `tag "${mutation.tag}" does not exist on layer "${mutation.layerId}"`,
@@ -317,7 +317,7 @@ function applyMutationV2(stage: MutableStageV2, mutation: StageMutationV2, point
       return;
     }
     case "clearLayer": {
-      const layer = requireLayerV2(stage, mutation.layerId, pointer);
+      const layer = requireLayerV1(stage, mutation.layerId, pointer);
       layer.entries = [];
       return;
     }
@@ -326,11 +326,11 @@ function applyMutationV2(stage: MutableStageV2, mutation: StageMutationV2, point
       return;
     }
     case "setPlacement": {
-      const layer = requireLayerV2(stage, mutation.layerId, pointer);
-      const index = entryIndexV2(layer, mutation.tag);
+      const layer = requireLayerV1(stage, mutation.layerId, pointer);
+      const index = entryIndexV1(layer, mutation.tag);
       const current = index >= 0 ? layer.entries[index] : undefined;
       if (current === undefined) {
-        throw new StageMutationRejectionErrorV2(
+        throw new StageMutationRejectionErrorV1(
           "stage.tag_unknown",
           pointer,
           `tag "${mutation.tag}" does not exist on layer "${mutation.layerId}"`,
@@ -340,11 +340,11 @@ function applyMutationV2(stage: MutableStageV2, mutation: StageMutationV2, point
       return;
     }
     case "setAppearance": {
-      const layer = requireLayerV2(stage, mutation.layerId, pointer);
-      const index = entryIndexV2(layer, mutation.tag);
+      const layer = requireLayerV1(stage, mutation.layerId, pointer);
+      const index = entryIndexV1(layer, mutation.tag);
       const current = index >= 0 ? layer.entries[index] : undefined;
       if (current === undefined) {
-        throw new StageMutationRejectionErrorV2(
+        throw new StageMutationRejectionErrorV1(
           "stage.tag_unknown",
           pointer,
           `tag "${mutation.tag}" does not exist on layer "${mutation.layerId}"`,
@@ -354,7 +354,7 @@ function applyMutationV2(stage: MutableStageV2, mutation: StageMutationV2, point
       return;
     }
     case "setLayerTransform": {
-      const layer = requireLayerV2(stage, mutation.layerId, pointer);
+      const layer = requireLayerV1(stage, mutation.layerId, pointer);
       layer.transform = mutation.transform;
       return;
     }
@@ -364,7 +364,7 @@ function applyMutationV2(stage: MutableStageV2, mutation: StageMutationV2, point
     }
     default: {
       const exhaustive: never = mutation;
-      throw new StageMutationRejectionErrorV2(
+      throw new StageMutationRejectionErrorV1(
         "stage.mutation_invalid",
         pointer,
         String(exhaustive),
@@ -379,13 +379,13 @@ function applyMutationV2(stage: MutableStageV2, mutation: StageMutationV2, point
  * rejects the whole batch with the failing index. The successor state is
  * re-validated through the canonical parser before it is published.
  */
-export function reduceStageMutationsV2(
-  state: SemanticStageStateV2,
+export function reduceStageMutationsV1(
+  state: SemanticStageStateV1,
   mutations: readonly unknown[],
-): StageMutationBatchOutcomeV2 {
+): StageMutationBatchOutcomeV1 {
   if (mutations.length === 0) return Object.freeze({ kind: "applied" as const, state });
 
-  const stage: MutableStageV2 = {
+  const stage: MutableStageV1 = {
     layers: new Map(
       state.layers.map((layer) => [
         layer.layerId as string,
@@ -398,9 +398,9 @@ export function reduceStageMutationsV2(
 
   for (const [index, mutationValue] of mutations.entries()) {
     const pointer = `/mutations/${String(index)}`;
-    let mutation: StageMutationV2;
+    let mutation: StageMutationV1;
     try {
-      mutation = parseStageMutationV2(mutationValue, pointer);
+      mutation = parseStageMutationV1(mutationValue, pointer);
     } catch (error) {
       return Object.freeze({
         kind: "rejected" as const,
@@ -413,9 +413,9 @@ export function reduceStageMutationsV2(
       });
     }
     try {
-      applyMutationV2(stage, mutation, pointer);
+      applyMutationV1(stage, mutation, pointer);
     } catch (error) {
-      if (error instanceof StageMutationRejectionErrorV2) {
+      if (error instanceof StageMutationRejectionErrorV1) {
         return Object.freeze({
           kind: "rejected" as const,
           rejection: Object.freeze({
@@ -430,7 +430,7 @@ export function reduceStageMutationsV2(
     }
   }
 
-  const successor = parseSemanticStageStateV2({
+  const successor = parseSemanticStageStateV1({
     contractRevision: state.contractRevision,
     stageId: state.stageId,
     layers: stage.layerOrder.map((layerId) => {

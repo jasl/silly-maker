@@ -3,23 +3,23 @@ import { describe, expect, it, vi } from "vitest";
 
 import type {
   AssetId,
-  SemanticStageStateV2,
-  StageContentCatalogV2,
-  StageTransitionCatalogV2,
-  StageTransitionDefinitionV2,
+  SemanticStageStateV1,
+  StageContentCatalogV1,
+  StageTransitionCatalogV1,
+  StageTransitionDefinitionV1,
 } from "@sillymaker/base";
 import {
-  createSemanticStageStateV2,
-  parseStageTransitionDefinitionV2,
-  projectStageRenderTargetV2,
-  reduceStageMutationsV2,
+  createSemanticStageStateV1,
+  parseStageTransitionDefinitionV1,
+  projectStageRenderTargetV1,
+  reduceStageMutationsV1,
 } from "@sillymaker/base";
 
 import { createManualPresentationClockV1 } from "../presentation-run/presentation-clock.js";
-import { createStageReconcilerV2 } from "./stage-reconciler.js";
-import type { StageRenderFrameV2 } from "./stage-reconciler.js";
+import { createStageReconcilerV1 } from "./stage-reconciler.js";
+import type { StageRenderFrameV1 } from "./stage-reconciler.js";
 
-const contentCatalogV1: StageContentCatalogV2 = {
+const contentCatalogV1: StageContentCatalogV1 = {
   resolveContent: (contentId) =>
     Object.freeze({
       rendererId: "renderer.test.box",
@@ -29,24 +29,24 @@ const contentCatalogV1: StageContentCatalogV2 = {
     }),
 };
 
-function stateWithV1(mutations: readonly unknown[]): SemanticStageStateV2 {
-  const empty = createSemanticStageStateV2({
+function stateWithV1(mutations: readonly unknown[]): SemanticStageStateV1 {
+  const empty = createSemanticStageStateV1({
     stageId: "stage.test.reconciler",
     layerIds: ["layer.test.back", "layer.test.front"],
   });
-  const outcome = reduceStageMutationsV2(empty, mutations);
+  const outcome = reduceStageMutationsV1(empty, mutations);
   if (outcome.kind !== "applied") throw new Error("reconciler fixture stage must apply");
   return outcome.state;
 }
 
 function targetOfV1(mutations: readonly unknown[]) {
-  return projectStageRenderTargetV2(stateWithV1(mutations), contentCatalogV1).target;
+  return projectStageRenderTargetV1(stateWithV1(mutations), contentCatalogV1).target;
 }
 
 function definitionV1(
-  overrides: Partial<StageTransitionDefinitionV2> & { readonly transitionId: string },
-): StageTransitionDefinitionV2 {
-  return parseStageTransitionDefinitionV2({
+  overrides: Partial<StageTransitionDefinitionV1> & { readonly transitionId: string },
+): StageTransitionDefinitionV1 {
+  return parseStageTransitionDefinitionV1({
     kind: "crossfade",
     durationMs: 100,
     easing: "linear",
@@ -61,9 +61,9 @@ function definitionV1(
 }
 
 function catalogV1(
-  resolve: (kind: string) => StageTransitionDefinitionV2 | null,
-  byId: Readonly<Record<string, StageTransitionDefinitionV2>> = {},
-): StageTransitionCatalogV2 {
+  resolve: (kind: string) => StageTransitionDefinitionV1 | null,
+  byId: Readonly<Record<string, StageTransitionDefinitionV1>> = {},
+): StageTransitionCatalogV1 {
   return {
     resolveTransition: (change) => resolve(change.kind),
     resolveTransitionById: (transitionId) => byId[transitionId] ?? null,
@@ -77,13 +77,13 @@ const showBackV1 = {
   contentId: "content.test.a",
 } as const;
 
-const entryKeysV1 = (frame: StageRenderFrameV2): readonly string[] =>
+const entryKeysV1 = (frame: StageRenderFrameV1): readonly string[] =>
   frame.layers.flatMap((layer) => layer.entries.map((entry) => entry.frameKey));
 
-describe("createStageReconcilerV2", () => {
+describe("createStageReconcilerV1", () => {
   it("bootstraps a settled frame and derives commit-only edges afterwards", () => {
     const clock = createManualPresentationClockV1();
-    const reconciler = createStageReconcilerV2({
+    const reconciler = createStageReconcilerV1({
       clock,
       catalog: catalogV1(() => definitionV1({ transitionId: "transition.test.fade" })),
     });
@@ -127,7 +127,7 @@ describe("createStageReconcilerV2", () => {
   it("acknowledges exactly once for acknowledge transitions, never for others", () => {
     const clock = createManualPresentationClockV1();
     const onAcknowledgment = vi.fn();
-    const reconciler = createStageReconcilerV2({
+    const reconciler = createStageReconcilerV1({
       clock,
       catalog: catalogV1((kind) =>
         kind === "replace"
@@ -166,7 +166,7 @@ describe("createStageReconcilerV2", () => {
   it("settle_and_retarget interrupts instantly and never flashes the old target", () => {
     const clock = createManualPresentationClockV1();
     const onAcknowledgment = vi.fn();
-    const reconciler = createStageReconcilerV2({
+    const reconciler = createStageReconcilerV1({
       clock,
       catalog: catalogV1(() =>
         definitionV1({
@@ -211,7 +211,7 @@ describe("createStageReconcilerV2", () => {
   it("cancel_to_target drops the run and jumps the entry straight to the target", () => {
     const clock = createManualPresentationClockV1();
     const onAcknowledgment = vi.fn();
-    const reconciler = createStageReconcilerV2({
+    const reconciler = createStageReconcilerV1({
       clock,
       catalog: catalogV1(() =>
         definitionV1({
@@ -249,7 +249,7 @@ describe("createStageReconcilerV2", () => {
   it("epoch changes restore a stable target with no edges and no late acks", () => {
     const clock = createManualPresentationClockV1();
     const onAcknowledgment = vi.fn();
-    const reconciler = createStageReconcilerV2({
+    const reconciler = createStageReconcilerV1({
       clock,
       catalog: catalogV1(() =>
         definitionV1({ transitionId: "transition.test.epoch", acknowledge: true }),
@@ -279,7 +279,7 @@ describe("createStageReconcilerV2", () => {
   it("reflects input policies and skips all runs on demand", () => {
     const clock = createManualPresentationClockV1();
     const onAcknowledgment = vi.fn();
-    const reconciler = createStageReconcilerV2({
+    const reconciler = createStageReconcilerV1({
       clock,
       catalog: catalogV1((kind) =>
         kind === "replace"
@@ -322,7 +322,7 @@ describe("createStageReconcilerV2", () => {
   it("instant settles still emit the completion acknowledgment", () => {
     const clock = createManualPresentationClockV1();
     const onAcknowledgment = vi.fn();
-    const reconciler = createStageReconcilerV2({
+    const reconciler = createStageReconcilerV1({
       clock,
       catalog: catalogV1(() =>
         definitionV1({
@@ -359,7 +359,7 @@ describe("createStageReconcilerV2", () => {
     const fallback = definitionV1({ transitionId: "transition.test.short", durationMs: 10 });
     const reportFailure = vi.fn();
     let reduced = true;
-    const reconciler = createStageReconcilerV2({
+    const reconciler = createStageReconcilerV1({
       clock,
       catalog: catalogV1(
         (kind) =>
@@ -439,7 +439,7 @@ describe("createStageReconcilerV2", () => {
     const clock = createManualPresentationClockV1();
     const reportFailure = vi.fn();
     let ready = false;
-    const reconciler = createStageReconcilerV2({
+    const reconciler = createStageReconcilerV1({
       clock,
       catalog: catalogV1(() =>
         definitionV1({
@@ -489,7 +489,7 @@ describe("createStageReconcilerV2", () => {
 
   it("suspends and resumes runs for page visibility", () => {
     const clock = createManualPresentationClockV1();
-    const reconciler = createStageReconcilerV2({
+    const reconciler = createStageReconcilerV1({
       clock,
       catalog: catalogV1(() => definitionV1({ transitionId: "transition.test.visible" })),
     });
@@ -516,7 +516,7 @@ describe("createStageReconcilerV2", () => {
   it("dispose leaves no ticks and drops late acknowledgments", () => {
     const clock = createManualPresentationClockV1();
     const onAcknowledgment = vi.fn();
-    const reconciler = createStageReconcilerV2({
+    const reconciler = createStageReconcilerV1({
       clock,
       catalog: catalogV1(() =>
         definitionV1({ transitionId: "transition.test.dispose", acknowledge: true }),

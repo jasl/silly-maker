@@ -8,19 +8,19 @@
 import type {
   AssetDemandPlanV1,
   AudioIntentV1,
-  InteractionResolutionV2,
+  InteractionResolutionV1,
   NarrativeGraphV1,
   NarrativeHistoryV1,
-  PendingInteractionV2,
-  SemanticStageStateV2,
-  StageMutationV2,
-  StageRenderTargetV2,
-  StageTransitionDefinitionV2,
+  PendingInteractionV1,
+  SemanticStageStateV1,
+  StageMutationV1,
+  StageRenderTargetV1,
+  StageTransitionDefinitionV1,
 } from "@sillymaker/base";
 import {
-  evaluateInteractionResolutionV2,
+  evaluateInteractionResolutionV1,
   lintNarrativeGraphV1,
-  reduceStageMutationsV2,
+  reduceStageMutationsV1,
 } from "@sillymaker/base";
 import type {
   AssetDemandPlan,
@@ -45,15 +45,15 @@ type EqualV1<TLeft, TRight> =
   (<T>() => T extends TLeft ? 1 : 2) extends <T>() => T extends TRight ? 1 : 2 ? true : false;
 type ExpectV1<TValue extends true> = TValue;
 
-export type StageStateAliased = ExpectV1<EqualV1<SemanticStageState, SemanticStageStateV2>>;
-export type StageMutationAliased = ExpectV1<EqualV1<StageMutation, StageMutationV2>>;
-export type StageRenderTargetAliased = ExpectV1<EqualV1<StageRenderTarget, StageRenderTargetV2>>;
+export type StageStateAliased = ExpectV1<EqualV1<SemanticStageState, SemanticStageStateV1>>;
+export type StageMutationAliased = ExpectV1<EqualV1<StageMutation, StageMutationV1>>;
+export type StageRenderTargetAliased = ExpectV1<EqualV1<StageRenderTarget, StageRenderTargetV1>>;
 export type StageTransitionAliased = ExpectV1<
-  EqualV1<StageTransitionDefinition, StageTransitionDefinitionV2>
+  EqualV1<StageTransitionDefinition, StageTransitionDefinitionV1>
 >;
-export type PendingInteractionAliased = ExpectV1<EqualV1<PendingInteraction, PendingInteractionV2>>;
+export type PendingInteractionAliased = ExpectV1<EqualV1<PendingInteraction, PendingInteractionV1>>;
 export type InteractionResolutionAliased = ExpectV1<
-  EqualV1<InteractionResolution, InteractionResolutionV2>
+  EqualV1<InteractionResolution, InteractionResolutionV1>
 >;
 export type NarrativeGraphAliased = ExpectV1<EqualV1<NarrativeGraph, NarrativeGraphV1>>;
 export type NarrativeHistoryAliased = ExpectV1<EqualV1<NarrativeHistory, NarrativeHistoryV1>>;
@@ -62,10 +62,10 @@ export type AssetDemandPlanAliased = ExpectV1<EqualV1<AssetDemandPlan, AssetDema
 
 // Value aliases are the same functions, not wrappers.
 export type ReduceAliased = ExpectV1<
-  EqualV1<typeof reduceStageMutations, typeof reduceStageMutationsV2>
+  EqualV1<typeof reduceStageMutations, typeof reduceStageMutationsV1>
 >;
 export type EvaluateAliased = ExpectV1<
-  EqualV1<typeof evaluateInteractionResolution, typeof evaluateInteractionResolutionV2>
+  EqualV1<typeof evaluateInteractionResolution, typeof evaluateInteractionResolutionV1>
 >;
 export type LintAliased = ExpectV1<EqualV1<typeof lintNarrativeGraph, typeof lintNarrativeGraphV1>>;
 

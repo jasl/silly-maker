@@ -5,7 +5,7 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 
-import type { InteractionResolutionV2 } from "@sillymaker/base";
+import type { InteractionResolutionV1 } from "@sillymaker/base";
 import { lintNarrativeGraphV1, predictNarrativeDependenciesV1 } from "@sillymaker/base";
 import { createPlayerProfileStoreV1 } from "@sillymaker/base/runtime";
 import { createGameHarnessV1, createMemoryHostRecordStoreV1 } from "@sillymaker/base/testkit";
@@ -50,7 +50,7 @@ const invokeV1 = (
 
 function resolveV1(
   expectedOccurrenceId: string,
-  resolution: InteractionResolutionV2,
+  resolution: InteractionResolutionV1,
 ): LabInvocationV1 {
   return Object.freeze({ kind: "resolve" as const, expectedOccurrenceId, resolution });
 }
@@ -68,7 +68,7 @@ async function playNarrativeToEndV1(harness: LabHarnessV1): Promise<readonly str
     const pending = harness.observe().narrative.pending;
     if (pending === null) break;
     definitions.push(pending.definitionId);
-    const resolution: InteractionResolutionV2 =
+    const resolution: InteractionResolutionV1 =
       pending.kind === "choice"
         ? { kind: "choose", choiceId: "choice.e2e.cal.basic" }
         : pending.kind === "presentation_barrier"

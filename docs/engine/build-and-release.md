@@ -14,11 +14,11 @@ pnpm check:stories                    # check --all; part of pnpm check
 pnpm simulate:e2e                     # Engine Lab conformance simulation
 ```
 
-`simulate` drives the application's declared simulation target exclusively through the player-safe Agent port. An application without a target (currently the PoC, until its F3 migration) answers with a structured `project.simulation_unconfigured` diagnostic.
+`simulate` drives the application's declared simulation target exclusively through the player-safe Agent port. An application without a target answers with a structured `project.simulation_unconfigured` diagnostic.
 
-The Engine Lab Story also declares a browser target: `vite --mode e2e` serves it and `vite build --mode e2e` produces `dist/e2e`. That build is an engine test Artifact, never a Project Tavern release; `pnpm release:poc` remains the only product Artifact flow.
+The Engine Lab Story also declares a browser target: `vite --mode e2e` serves it and `vite build --mode e2e` produces `dist/e2e`. That build is an engine test Artifact; a future product application will own its own release flow through the same `pnpm story build`/`prepare-artifact` machinery.
 
-Browser test suites are split by ownership: `pnpm test:e2e:engine` runs the engine suite against the Engine Lab (no Tavern text, IDs, or imports; declared projects cover desktop pointer, WebKit, touch, and a 16:10 tablet, with a pageerror/console diagnostic policy), `pnpm test:e2e:poc` runs the Project Tavern product suite, and `pnpm test:e2e` aggregates both.
+`pnpm test:e2e:engine` runs the engine browser suite against the Engine Lab (declared projects cover desktop pointer, WebKit, touch, and a 16:10 tablet, with a pageerror/console diagnostic policy); `pnpm test:e2e` is its alias.
 
 ## Development server
 
@@ -28,23 +28,23 @@ pnpm dev
 
 The development server uses the current Story application root and supports normal Vite development behavior. Development capability switches and HMR are not separate production build flavors; capability checks remain runtime behavior.
 
-## Build the Player
+## Build a Player
 
 ```sh
-pnpm build:poc
+pnpm story build <app>
 ```
 
-This creates the current static Project Tavern Player under `dist/poc`. A build is useful for local inspection, but it is not by itself a release handoff and does not publish anything.
+This creates a static Player for the selected application under its declared `dist/` target (`pnpm story build e2e` today). A build is useful for local inspection, but it is not by itself a release handoff and does not publish anything.
 
 Build identity is generated from the application and resolved Story inputs used by the build. Runtime digests and manifests are technical identity for compatibility, caching, diagnostics, and inspection; they are not proof of copyright ownership or asset approval.
 
 ## Prepare a local Artifact
 
 ```sh
-pnpm release:poc
+node --experimental-strip-types scripts/prepare-artifact.mjs <dist-dir>
 ```
 
-The release command builds the Player and prepares the local Artifact. A maintainable Artifact includes:
+Artifact preparation takes an already built Player directory and adds the release wrapping. A maintainable Artifact includes:
 
 - the static Player files needed to start the game;
 - a technical manifest describing the built files and identities;
@@ -54,13 +54,7 @@ The legal files are a product packaging requirement for the composite bundle, no
 
 ## Test the built Artifact
 
-```sh
-pnpm test:e2e:prebuilt
-```
-
-This serves and exercises the prepared PoC Artifact rather than a source dev server. Use it after changes to routing, base paths, generated identity, asset loading, persistence bootstrap, bundle composition, or Artifact preparation.
-
-The Engine Lab has the same two prebuilt layers:
+The Engine Lab has two prebuilt layers; use them after changes to routing, base paths, generated identity, asset loading, persistence bootstrap, bundle composition, or Artifact preparation:
 
 ```sh
 pnpm story build e2e            # build dist/e2e through the project CLI
@@ -82,12 +76,12 @@ Before handing an Artifact to another person or machine:
 
 1. run `pnpm check`;
 2. run browser tests relevant to the change;
-3. run `pnpm release:poc`;
-4. run `pnpm test:e2e:prebuilt`;
+3. run `pnpm story build <app>` and prepare the Artifact;
+4. run the prebuilt browser suite for the application;
 5. inspect the generated manifest and legal-file presence;
 6. record the source revision and any known gameplay/content limitations in the handoff note.
 
-The current seven-day gameplay and its balance are provisional. Artifact preparation proves that the software can be packaged and started; it does not certify final game design, player experience, content approval, or commercial readiness.
+Artifact preparation proves that the software can be packaged and started; it does not certify final game design, player experience, content approval, or commercial readiness.
 
 ## Remote distribution
 

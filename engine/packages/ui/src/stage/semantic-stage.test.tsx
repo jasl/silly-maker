@@ -3,19 +3,19 @@
 import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { AssetId, StageContentCatalogV2, StageTransitionCatalogV2 } from "@sillymaker/base";
+import type { AssetId, StageContentCatalogV1, StageTransitionCatalogV1 } from "@sillymaker/base";
 import {
-  createSemanticStageStateV2,
-  parseStageTransitionDefinitionV2,
-  projectStageRenderTargetV2,
-  reduceStageMutationsV2,
+  createSemanticStageStateV1,
+  parseStageTransitionDefinitionV1,
+  projectStageRenderTargetV1,
+  reduceStageMutationsV1,
 } from "@sillymaker/base";
 
 import { createManualPresentationClockV1 } from "../presentation-run/presentation-clock.js";
-import type { SemanticStageEntryRendererV2 } from "./semantic-stage-host.js";
-import { SemanticStageV2 } from "./semantic-stage.js";
+import type { SemanticStageEntryRendererV1 } from "./semantic-stage-host.js";
+import { SemanticStageV1 } from "./semantic-stage.js";
 
-const contentCatalogV1: StageContentCatalogV2 = {
+const contentCatalogV1: StageContentCatalogV1 = {
   resolveContent: (contentId) =>
     Object.freeze({
       rendererId: "renderer.test.box",
@@ -25,7 +25,7 @@ const contentCatalogV1: StageContentCatalogV2 = {
     }),
 };
 
-const crossfadeV1 = parseStageTransitionDefinitionV2({
+const crossfadeV1 = parseStageTransitionDefinitionV1({
   transitionId: "transition.test.fade",
   kind: "crossfade",
   durationMs: 100,
@@ -38,29 +38,29 @@ const crossfadeV1 = parseStageTransitionDefinitionV2({
   slide: null,
 });
 
-const transitionCatalogV1: StageTransitionCatalogV2 = {
+const transitionCatalogV1: StageTransitionCatalogV1 = {
   resolveTransition: (change) => (change.kind === "replace" ? crossfadeV1 : null),
 };
 
 function targetWithContentV1(contentId: string) {
-  const empty = createSemanticStageStateV2({
+  const empty = createSemanticStageStateV1({
     stageId: "stage.test.component",
     layerIds: ["layer.test.back"],
   });
-  const outcome = reduceStageMutationsV2(empty, [
+  const outcome = reduceStageMutationsV1(empty, [
     { kind: "show", layerId: "layer.test.back", tag: "tag.test.bg", contentId },
   ]);
   if (outcome.kind !== "applied") throw new Error("component fixture stage must apply");
-  return projectStageRenderTargetV2(outcome.state, contentCatalogV1).target;
+  return projectStageRenderTargetV1(outcome.state, contentCatalogV1).target;
 }
 
-const rendererV1: SemanticStageEntryRendererV2 = ({ entry }) => (
+const rendererV1: SemanticStageEntryRendererV1 = ({ entry }) => (
   <span data-test-content={entry.contentId} />
 );
 
 afterEach(cleanup);
 
-describe("SemanticStageV2", () => {
+describe("SemanticStageV1", () => {
   it("plays committed edges, acknowledges, and disposes cleanly on unmount", async () => {
     const clock = createManualPresentationClockV1();
     const onAcknowledgment = vi.fn();
@@ -73,7 +73,7 @@ describe("SemanticStageV2", () => {
     };
 
     const { container, rerender, unmount } = render(
-      <SemanticStageV2
+      <SemanticStageV1
         {...stageProps}
         target={targetWithContentV1("content.test.a")}
         revision={1}
@@ -86,7 +86,7 @@ describe("SemanticStageV2", () => {
 
     // A committed replace starts a crossfade: ghost retained, gate blocked.
     rerender(
-      <SemanticStageV2
+      <SemanticStageV1
         {...stageProps}
         target={targetWithContentV1("content.test.b")}
         revision={2}
@@ -114,7 +114,7 @@ describe("SemanticStageV2", () => {
 
     // Re-render with the same revision: commit-only, nothing replays.
     rerender(
-      <SemanticStageV2
+      <SemanticStageV1
         {...stageProps}
         target={targetWithContentV1("content.test.b")}
         revision={2}
@@ -137,7 +137,7 @@ describe("SemanticStageV2", () => {
       clock,
     };
     const { container, rerender } = render(
-      <SemanticStageV2
+      <SemanticStageV1
         {...stageProps}
         target={targetWithContentV1("content.test.a")}
         revision={5}
@@ -147,7 +147,7 @@ describe("SemanticStageV2", () => {
     await act(async () => {});
 
     rerender(
-      <SemanticStageV2
+      <SemanticStageV1
         {...stageProps}
         target={targetWithContentV1("content.test.b")}
         revision={6}

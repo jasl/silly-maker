@@ -3,12 +3,12 @@ import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
 import {
-  createSemanticStageStateV2,
-  digestSemanticStageStateV2,
-  parseSemanticStageStateV2,
+  createSemanticStageStateV1,
+  digestSemanticStageStateV1,
+  parseSemanticStageStateV1,
 } from "./semantic-stage.js";
-import type { SemanticStageStateV2 } from "./semantic-stage.js";
-import { reduceStageMutationsV2 } from "./semantic-stage-reducer.js";
+import type { SemanticStageStateV1 } from "./semantic-stage.js";
+import { reduceStageMutationsV1 } from "./semantic-stage-reducer.js";
 
 const layerIdsV1 = ["layer.background", "layer.characters", "layer.props"] as const;
 const tagsV1 = ["tag.alpha", "tag.beta", "tag.crate", "tag.extra"] as const;
@@ -20,8 +20,8 @@ const contentIdsV1 = [
   "content.prop.crate",
 ] as const;
 
-function emptyStageV1(): SemanticStageStateV2 {
-  return createSemanticStageStateV2({ stageId: "stage.test.lab", layerIds: [...layerIdsV1] });
+function emptyStageV1(): SemanticStageStateV1 {
+  return createSemanticStageStateV1({ stageId: "stage.test.lab", layerIds: [...layerIdsV1] });
 }
 
 const placementArbitraryV1 = fc.record({
@@ -92,22 +92,22 @@ function plainV1<TValue>(value: TValue): TValue {
 }
 
 function applyOrKeepV1(
-  state: SemanticStageStateV2,
+  state: SemanticStageStateV1,
   mutations: readonly unknown[],
-): SemanticStageStateV2 {
-  const outcome = reduceStageMutationsV2(state, plainV1(mutations));
+): SemanticStageStateV1 {
+  const outcome = reduceStageMutationsV1(state, plainV1(mutations));
   return outcome.kind === "applied" ? outcome.state : state;
 }
 
-describe("reduceStageMutationsV2 properties", () => {
+describe("reduceStageMutationsV1 properties", () => {
   it("returns the identical state for an empty batch", () => {
     fc.assert(
       fc.property(fc.array(mutationArbitraryV1, { maxLength: 12 }), (mutations) => {
-        const state = mutations.reduce<SemanticStageStateV2>(
+        const state = mutations.reduce<SemanticStageStateV1>(
           (current, mutation) => applyOrKeepV1(current, [mutation]),
           emptyStageV1(),
         );
-        const outcome = reduceStageMutationsV2(state, []);
+        const outcome = reduceStageMutationsV1(state, []);
         expect(outcome.kind).toBe("applied");
         if (outcome.kind === "applied") expect(outcome.state).toBe(state);
       }),
@@ -117,7 +117,7 @@ describe("reduceStageMutationsV2 properties", () => {
   it("keeps layer entries ordered by non-decreasing z-order", () => {
     fc.assert(
       fc.property(fc.array(mutationArbitraryV1, { maxLength: 24 }), (mutations) => {
-        const state = mutations.reduce<SemanticStageStateV2>(
+        const state = mutations.reduce<SemanticStageStateV1>(
           (current, mutation) => applyOrKeepV1(current, [mutation]),
           emptyStageV1(),
         );
@@ -137,7 +137,7 @@ describe("reduceStageMutationsV2 properties", () => {
       fc.property(
         fc.uniqueArray(fc.constantFrom(...tagsV1), { minLength: 2, maxLength: 4 }),
         (tags) => {
-          const outcome = reduceStageMutationsV2(
+          const outcome = reduceStageMutationsV1(
             emptyStageV1(),
             plainV1(
               tags.map((tag) => ({
@@ -167,7 +167,7 @@ describe("reduceStageMutationsV2 properties", () => {
         appearanceArbitraryV1,
         fc.constantFrom(...contentIdsV1),
         (placement, appearance, nextContent) => {
-          const shown = reduceStageMutationsV2(
+          const shown = reduceStageMutationsV1(
             emptyStageV1(),
             plainV1([
               {
@@ -198,7 +198,7 @@ describe("reduceStageMutationsV2 properties", () => {
           expect(shown.kind).toBe("applied");
           if (shown.kind !== "applied") return;
 
-          const replaced = reduceStageMutationsV2(shown.state, [
+          const replaced = reduceStageMutationsV1(shown.state, [
             {
               kind: "replace",
               layerId: "layer.characters",
@@ -255,14 +255,14 @@ describe("reduceStageMutationsV2 properties", () => {
         fc.array(showArbitraryV1, { maxLength: 4 }),
         invalidArbitraryV1,
         (validPrefix, invalid) => {
-          const base = validPrefix.reduce<SemanticStageStateV2>(
+          const base = validPrefix.reduce<SemanticStageStateV1>(
             (current, mutation) => applyOrKeepV1(current, [mutation]),
             emptyStageV1(),
           );
           const before = JSON.parse(JSON.stringify(base)) as unknown;
-          const beforeDigest = digestSemanticStageStateV2(base);
+          const beforeDigest = digestSemanticStageStateV1(base);
 
-          const outcome = reduceStageMutationsV2(base, [
+          const outcome = reduceStageMutationsV1(base, [
             { kind: "setCamera", camera: { x: 1, y: 2, zoomPermille: 2000 } },
             plainV1(invalid),
           ]);
@@ -274,7 +274,7 @@ describe("reduceStageMutationsV2 properties", () => {
           // The input state is untouched: same content, same digest, and the
           // partial camera write never leaked.
           expect(JSON.parse(JSON.stringify(base))).toEqual(before);
-          expect(digestSemanticStageStateV2(base)).toBe(beforeDigest);
+          expect(digestSemanticStageStateV1(base)).toBe(beforeDigest);
           expect(base.camera.zoomPermille).not.toBe(2000);
         },
       ),
@@ -284,13 +284,13 @@ describe("reduceStageMutationsV2 properties", () => {
   it("applied states always survive a canonical parse round-trip", () => {
     fc.assert(
       fc.property(fc.array(mutationArbitraryV1, { maxLength: 20 }), (mutations) => {
-        const state = mutations.reduce<SemanticStageStateV2>(
+        const state = mutations.reduce<SemanticStageStateV1>(
           (current, mutation) => applyOrKeepV1(current, [mutation]),
           emptyStageV1(),
         );
-        const reparsed = parseSemanticStageStateV2(JSON.parse(JSON.stringify(state)));
+        const reparsed = parseSemanticStageStateV1(JSON.parse(JSON.stringify(state)));
         expect(reparsed).toEqual(state);
-        expect(digestSemanticStageStateV2(reparsed)).toBe(digestSemanticStageStateV2(state));
+        expect(digestSemanticStageStateV1(reparsed)).toBe(digestSemanticStageStateV1(state));
       }),
     );
   });

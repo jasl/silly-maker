@@ -59,7 +59,7 @@ This baseline describes the implementation, not an immutable constitution. Archi
 
 ## Product and Story work
 
-- Treat the current Tavern PoC modules, formulas, thresholds, reference strategies, and golden outputs as replaceable examples.
+- The first Tavern PoC application is retired (branch `archive/poc-v1-stage-2026-07`); the Engine Lab conformance Story is an engine rig, not gameplay guidance.
 - New gameplay design belongs in active documents under `docs/game/`; do not reactivate archived PoC specifications by editing them in place.
 - Story state should remain plain, versioned, validated data. Commands must either commit a complete valid result or leave authoritative state unchanged.
 - Presentation code renders immutable projections and sends semantic intents. It does not become a second gameplay-state authority.

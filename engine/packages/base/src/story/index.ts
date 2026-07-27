@@ -3,7 +3,7 @@
  * The Story authoring prelude: the current generation of every commonly
  * authored contract under unversioned names, so Story code (and the agents
  * writing it) can say `SemanticStageState` instead of tracking which
- * family is on V1 and which is on V2.
+ * family is on V1 and which is on V1.
  *
  * Rules of this module:
  * - It only aliases; every symbol remains exported under its versioned
@@ -31,49 +31,49 @@ export type {
 } from "../index.js";
 
 // ---------------------------------------------------------------------------
-// Semantic stage (current generation: V2).
+// Semantic stage (current generation: V1).
 // ---------------------------------------------------------------------------
 export {
-  createSemanticStageStateV2 as createSemanticStageState,
-  parseSemanticStageStateV2 as parseSemanticStageState,
-  parseStageMutationV2 as parseStageMutation,
-  reduceStageMutationsV2 as reduceStageMutations,
-  projectStageRenderTargetV2 as projectStageRenderTarget,
-  parseStageTransitionDefinitionV2 as parseStageTransitionDefinition,
+  createSemanticStageStateV1 as createSemanticStageState,
+  parseSemanticStageStateV1 as parseSemanticStageState,
+  parseStageMutationV1 as parseStageMutation,
+  reduceStageMutationsV1 as reduceStageMutations,
+  projectStageRenderTargetV1 as projectStageRenderTarget,
+  parseStageTransitionDefinitionV1 as parseStageTransitionDefinition,
 } from "../index.js";
 export type {
-  SemanticStageStateV2 as SemanticStageState,
-  StageLayerV2 as StageLayer,
-  StageEntryV2 as StageEntry,
-  StagePlacementV2 as StagePlacement,
-  StageAppearanceV2 as StageAppearance,
-  StageCameraV2 as StageCamera,
-  StageMutationV2 as StageMutation,
-  StageMutationBatchOutcomeV2 as StageMutationBatchOutcome,
-  StageContentCatalogV2 as StageContentCatalog,
-  StageContentResolutionV2 as StageContentResolution,
-  StageRenderTargetV2 as StageRenderTarget,
-  StageTransitionDefinitionV2 as StageTransitionDefinition,
-  StageTransitionCatalogV2 as StageTransitionCatalog,
-  StageTargetChangeV2 as StageTargetChange,
+  SemanticStageStateV1 as SemanticStageState,
+  StageLayerV1 as StageLayer,
+  StageEntryV1 as StageEntry,
+  StagePlacementV1 as StagePlacement,
+  StageAppearanceV1 as StageAppearance,
+  StageCameraV1 as StageCamera,
+  StageMutationV1 as StageMutation,
+  StageMutationBatchOutcomeV1 as StageMutationBatchOutcome,
+  StageContentCatalogV1 as StageContentCatalog,
+  StageContentResolutionV1 as StageContentResolution,
+  StageRenderTargetV1 as StageRenderTarget,
+  StageTransitionDefinitionV1 as StageTransitionDefinition,
+  StageTransitionCatalogV1 as StageTransitionCatalog,
+  StageTargetChangeV1 as StageTargetChange,
 } from "../index.js";
 
 // ---------------------------------------------------------------------------
-// Pending interactions (current generation: V2).
+// Pending interactions (current generation: V1).
 // ---------------------------------------------------------------------------
 export {
-  evaluateInteractionResolutionV2 as evaluateInteractionResolution,
-  interactionOccurrenceIdV2 as interactionOccurrenceId,
-  parseInteractionOccurrenceIdV2 as parseInteractionOccurrenceId,
-  parseInteractionResolutionV2 as parseInteractionResolution,
-  parsePendingInteractionV2 as parsePendingInteraction,
+  evaluateInteractionResolutionV1 as evaluateInteractionResolution,
+  interactionOccurrenceIdV1 as interactionOccurrenceId,
+  parseInteractionOccurrenceIdV1 as parseInteractionOccurrenceId,
+  parseInteractionResolutionV1 as parseInteractionResolution,
+  parsePendingInteractionV1 as parsePendingInteraction,
 } from "../index.js";
 export type {
-  PendingInteractionV2 as PendingInteraction,
-  InteractionResolutionV2 as InteractionResolution,
-  InteractionResolutionContextV2 as InteractionResolutionContext,
-  InteractionResolutionOutcomeV2 as InteractionResolutionOutcome,
-  InteractionRejectionCodeV2 as InteractionRejectionCode,
+  PendingInteractionV1 as PendingInteraction,
+  InteractionResolutionV1 as InteractionResolution,
+  InteractionResolutionContextV1 as InteractionResolutionContext,
+  InteractionResolutionOutcomeV1 as InteractionResolutionOutcome,
+  InteractionRejectionCodeV1 as InteractionRejectionCode,
 } from "../index.js";
 
 // ---------------------------------------------------------------------------

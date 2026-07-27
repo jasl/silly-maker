@@ -5,10 +5,10 @@ import type { ReactElement } from "react";
 import type {
   AssetId,
   DeepReadonly,
-  InteractionResolutionV2,
-  StageRenderTargetV2,
+  InteractionResolutionV1,
+  StageRenderTargetV1,
 } from "@sillymaker/base";
-import { projectStageRenderTargetV2 } from "@sillymaker/base";
+import { projectStageRenderTargetV1 } from "@sillymaker/base";
 import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
 import type {
   AudioHostV1,
@@ -20,11 +20,11 @@ import type {
   PresentationClockV1,
   RuntimePresentationPublicationV1,
   SaveOverlayLabelsV1,
-  SemanticStageEntryRendererV2,
+  SemanticStageEntryRendererV1,
 } from "@sillymaker/ui";
 import {
   Button,
-  SemanticStageV2,
+  SemanticStageV1,
   createAudioPresenterV1,
   playerInputActionIdsV1,
   systemInputActionIdsV1,
@@ -66,7 +66,7 @@ export interface LabPresentationViewV1 {
   readonly procedureSteps: number;
   readonly anchorEpoch: number;
   /** Rebuilt every projection from semantic stage state plus the catalog. */
-  readonly stageTarget: StageRenderTargetV2;
+  readonly stageTarget: StageRenderTargetV1;
   readonly stageDiagnosticCodes: readonly string[];
 }
 
@@ -105,7 +105,7 @@ const labUiProjectorDefinitionV1: GameUiProjectorV1<
   project: (input) => {
     // The render target is derived data: same semantic stage plus the same
     // catalog always rebuild the same target and the same exact asset demand.
-    const projection = projectStageRenderTargetV2(
+    const projection = projectStageRenderTargetV1(
       input.semantic.game.stage,
       labStageContentCatalogV1,
     );
@@ -134,7 +134,7 @@ export const labUiProjectorV1 = Object.freeze(labUiProjectorDefinitionV1);
  * They draw from Strict JSON props only; missing registrations fall back to
  * the host's code-native placeholder with a diagnostic.
  */
-export const labStageRenderersV1: Readonly<Record<string, SemanticStageEntryRendererV2>> =
+export const labStageRenderersV1: Readonly<Record<string, SemanticStageEntryRendererV1>> =
   Object.freeze({
     "renderer.e2e.lab.stage-background": ({ entry }) => (
       <div
@@ -197,7 +197,7 @@ type LabSemanticPortV1 = LabApplicationInstanceV1["semantic"];
 function labResolveV1(
   semantic: LabSemanticPortV1,
   expectedOccurrenceId: string,
-  resolution: InteractionResolutionV2,
+  resolution: InteractionResolutionV1,
 ): void {
   void semantic.dispatch(
     Object.freeze({ kind: "resolve" as const, expectedOccurrenceId, resolution }),
@@ -345,7 +345,7 @@ const labUiSlotsDefinitionV1: DefaultGameRootSlotsV1<
     const pending = context.publication.semantic.narrative.pending;
     return (
       <section data-lab-stage="true" aria-label={context.publication.view.stageName}>
-        <SemanticStageV2
+        <SemanticStageV1
           target={context.publication.view.stageTarget}
           revision={context.publication.semantic.revision}
           epoch={context.publication.view.anchorEpoch}

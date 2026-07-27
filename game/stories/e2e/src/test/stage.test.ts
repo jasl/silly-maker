@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import type { SemanticStageStateV2 } from "@sillymaker/base";
+import type { SemanticStageStateV1 } from "@sillymaker/base";
 import {
-  digestSemanticStageStateV2,
-  parseSemanticStageStateV2,
-  projectStageRenderTargetV2,
-  stageFallbackRendererIdV2,
+  digestSemanticStageStateV1,
+  parseSemanticStageStateV1,
+  projectStageRenderTargetV1,
+  stageFallbackRendererIdV1,
 } from "@sillymaker/base";
 import { createGameHarnessV1 } from "@sillymaker/base/testkit";
 
@@ -33,12 +33,12 @@ function invoke(actionId: LabActionIdV1): LabInvocationV1 {
 
 type LabHarnessV1 = Awaited<ReturnType<typeof createLabHarnessV1>>;
 
-function stageOfV1(harness: LabHarnessV1): SemanticStageStateV2 {
+function stageOfV1(harness: LabHarnessV1): SemanticStageStateV1 {
   const state = harness.admin.inspectForTest().snapshot.state as LabGameStateV1;
   return state.simulation.stage;
 }
 
-function entriesOfV1(stage: SemanticStageStateV2, layerId: string) {
+function entriesOfV1(stage: SemanticStageStateV1, layerId: string) {
   const layer = stage.layers.find((candidate) => candidate.layerId === layerId);
   if (layer === undefined) throw new Error(`layer ${layerId} missing`);
   return layer.entries;
@@ -141,19 +141,19 @@ describe("Engine Lab semantic stage", () => {
     await dispatchCommittedV1(harness, "lab.begin_procedure");
 
     const beforeSave = stageOfV1(harness);
-    const digest = digestSemanticStageStateV2(beforeSave);
+    const digest = digestSemanticStageStateV1(beforeSave);
     await expect(harness.saves.save("manual")).resolves.toMatchObject({ kind: "saved" });
     await dispatchCommittedV1(harness, "lab.advance_procedure");
-    expect(digestSemanticStageStateV2(stageOfV1(harness))).not.toBe(digest);
+    expect(digestSemanticStageStateV1(stageOfV1(harness))).not.toBe(digest);
 
     await expect(harness.saves.load("manual")).resolves.toMatchObject({ kind: "loaded" });
     const restored = stageOfV1(harness);
     expect(restored).toEqual(beforeSave);
-    expect(digestSemanticStageStateV2(restored)).toBe(digest);
+    expect(digestSemanticStageStateV1(restored)).toBe(digest);
 
     // The persisted stage remains plain canonical data.
-    const reparsed = parseSemanticStageStateV2(JSON.parse(JSON.stringify(restored)));
-    expect(digestSemanticStageStateV2(reparsed)).toBe(digest);
+    const reparsed = parseSemanticStageStateV1(JSON.parse(JSON.stringify(restored)));
+    expect(digestSemanticStageStateV1(reparsed)).toBe(digest);
     await harness.dispose();
   });
 
@@ -163,8 +163,8 @@ describe("Engine Lab semantic stage", () => {
     await dispatchCommittedV1(harness, "lab.begin_procedure");
     const stage = stageOfV1(harness);
 
-    const first = projectStageRenderTargetV2(stage, labStageContentCatalogV1);
-    const second = projectStageRenderTargetV2(stage, labStageContentCatalogV1);
+    const first = projectStageRenderTargetV1(stage, labStageContentCatalogV1);
+    const second = projectStageRenderTargetV1(stage, labStageContentCatalogV1);
     expect(JSON.parse(JSON.stringify(second.target))).toEqual(
       JSON.parse(JSON.stringify(first.target)),
     );
@@ -186,7 +186,7 @@ describe("Engine Lab semantic stage", () => {
     expect(first.target.requiredAssetIds).toEqual([]);
 
     // The lab background carries the runtime asset; the storeroom does not.
-    const openingProjection = projectStageRenderTargetV2(
+    const openingProjection = projectStageRenderTargetV1(
       await (async () => {
         const fresh = await createLabHarnessV1();
         const opening = stageOfV1(fresh);
@@ -204,8 +204,8 @@ describe("Engine Lab semantic stage", () => {
     const harness = await createLabHarnessV1();
     const stage = stageOfV1(harness);
     const emptyCatalog = { resolveContent: () => null };
-    const projection = projectStageRenderTargetV2(stage, emptyCatalog);
-    expect(projection.target.layers[0]?.entries[0]?.rendererId).toBe(stageFallbackRendererIdV2);
+    const projection = projectStageRenderTargetV1(stage, emptyCatalog);
+    expect(projection.target.layers[0]?.entries[0]?.rendererId).toBe(stageFallbackRendererIdV1);
     expect(projection.diagnostics).toMatchObject([{ code: "stage.content_unresolved" }]);
     await harness.dispose();
   });

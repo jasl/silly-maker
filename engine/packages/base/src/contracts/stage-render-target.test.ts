@@ -2,14 +2,14 @@
 import { describe, expect, it } from "vitest";
 
 import type { AssetId } from "./presentation-ids.js";
-import { createSemanticStageStateV2 } from "./semantic-stage.js";
-import { reduceStageMutationsV2 } from "./semantic-stage-reducer.js";
-import type { StageContentCatalogV2 } from "./stage-render-target.js";
-import { projectStageRenderTargetV2, stageFallbackRendererIdV2 } from "./stage-render-target.js";
+import { createSemanticStageStateV1 } from "./semantic-stage.js";
+import { reduceStageMutationsV1 } from "./semantic-stage-reducer.js";
+import type { StageContentCatalogV1 } from "./stage-render-target.js";
+import { projectStageRenderTargetV1, stageFallbackRendererIdV1 } from "./stage-render-target.js";
 
 function stageWithContentV1() {
-  const outcome = reduceStageMutationsV2(
-    createSemanticStageStateV2({
+  const outcome = reduceStageMutationsV1(
+    createSemanticStageStateV1({
       stageId: "stage.test.lab",
       layerIds: ["layer.background", "layer.characters"],
     }),
@@ -35,7 +35,7 @@ function stageWithContentV1() {
   return outcome.state;
 }
 
-const catalogV1: StageContentCatalogV2 = {
+const catalogV1: StageContentCatalogV1 = {
   resolveContent(contentId, appearance) {
     if (contentId === "content.bg.lab") {
       return Object.freeze({
@@ -60,11 +60,11 @@ const catalogV1: StageContentCatalogV2 = {
   },
 };
 
-describe("projectStageRenderTargetV2", () => {
+describe("projectStageRenderTargetV1", () => {
   it("rebuilds the same render target deterministically from state and catalog", () => {
     const state = stageWithContentV1();
-    const first = projectStageRenderTargetV2(state, catalogV1);
-    const second = projectStageRenderTargetV2(state, catalogV1);
+    const first = projectStageRenderTargetV1(state, catalogV1);
+    const second = projectStageRenderTargetV1(state, catalogV1);
 
     expect(JSON.parse(JSON.stringify(second.target))).toEqual(
       JSON.parse(JSON.stringify(first.target)),
@@ -84,12 +84,12 @@ describe("projectStageRenderTargetV2", () => {
   });
 
   it("binds unresolved content to the fallback renderer with a structured diagnostic", () => {
-    const projection = projectStageRenderTargetV2(stageWithContentV1(), catalogV1);
+    const projection = projectStageRenderTargetV1(stageWithContentV1(), catalogV1);
     const ghost = projection.target.layers[1]?.entries.find(
       (candidate) => candidate.tag === "tag.ghost",
     );
     expect(ghost?.fallback).toBe(true);
-    expect(ghost?.rendererId).toBe(stageFallbackRendererIdV2);
+    expect(ghost?.rendererId).toBe(stageFallbackRendererIdV1);
     expect(ghost?.assetIds).toEqual([]);
     expect(projection.diagnostics).toMatchObject([
       { code: "stage.content_unresolved", phase: "presentation" },
@@ -97,7 +97,7 @@ describe("projectStageRenderTargetV2", () => {
   });
 
   it("reports resolutions that omit renderers or accessible names", () => {
-    const sparseCatalog: StageContentCatalogV2 = Object.freeze({
+    const sparseCatalog: StageContentCatalogV1 = Object.freeze({
       resolveContent: () =>
         Object.freeze({
           rendererId: "",
@@ -106,12 +106,12 @@ describe("projectStageRenderTargetV2", () => {
           props: Object.freeze({}),
         }),
     });
-    const projection = projectStageRenderTargetV2(stageWithContentV1(), sparseCatalog);
+    const projection = projectStageRenderTargetV1(stageWithContentV1(), sparseCatalog);
     const codes = projection.diagnostics.map((diagnostic) => diagnostic.code);
     expect(codes).toContain("stage.renderer_missing");
     expect(codes).toContain("stage.accessibility_missing");
     const entry = projection.target.layers[0]?.entries[0];
-    expect(entry?.rendererId).toBe(stageFallbackRendererIdV2);
+    expect(entry?.rendererId).toBe(stageFallbackRendererIdV1);
     expect(entry?.accessibleName).toBe("content.bg.lab");
   });
 });

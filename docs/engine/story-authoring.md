@@ -2,7 +2,7 @@
 
 操作层面的分层指南（含 LLM 代理执行建议与诊断速查）见 [authoring-quickstart](authoring-quickstart.md)。`@sillymaker/base/story` 是作者 prelude：当前代契约的无版本后缀别名。
 
-状态：当前 Story 组合模型。Project Tavern PoC 是实例，不是模板合同。
+状态：当前 Story 组合模型。Engine Lab（`game/stories/e2e`）是唯一维护的参考实例。
 
 ## 1. What a Story owns
 
@@ -79,19 +79,19 @@ Story React contributions resolve stable renderer IDs inside the application clo
 
 Combine simulation and presentation facets with `defineGamePackage`. Define separate simulation and presentation patch surfaces only for reviewed bootstrap-time replacement points. Resolve the package before creating the Session so provenance describes the actual program in use.
 
-The current PoC demonstrates this in:
+The Engine Lab demonstrates this in:
 
-- `game/stories/poc/src/story-definition.ts`
-- `game/stories/poc/src/gameplay/game-simulation.ts`
-- `game/stories/poc/src/application/semantic-adapter.ts`
-- `game/stories/poc/src/application/web-application.tsx`
-- `game/stories/poc/src/application/entry.tsx`
+- `game/stories/e2e/src/story.ts`
+- `game/stories/e2e/src/gameplay/simulation.ts`
+- `game/stories/e2e/src/application/semantic.ts`
+- `game/stories/e2e/src/application/web-application.tsx`
+- `game/stories/e2e/src/application/entry.tsx`
 
 Reuse the engine pattern, not the Tavern-specific ten-module partition, names, numbers, or content structure.
 
 ### Compose a Host application
 
-A Story ships one `WebGameApplicationV1` declaration (core definition with the semantic adapter, validators, and optional Story extensions; projector; UI slots; overlays; labels; input maps) and boots it with `startWebGameApplicationV1`. The composers own the Session, persistence, capability session, diagnostics construction, input adapters, automation, and the dev HMR boundary — an entry never assembles engine services by hand. Both maintained applications (the Engine Lab and the Project Tavern PoC) follow this path.
+A Story ships one `WebGameApplicationV1` declaration (core definition with the semantic adapter, validators, and optional Story extensions; projector; UI slots; overlays; labels; input maps) and boots it with `startWebGameApplicationV1`. The composers own the Session, persistence, capability session, diagnostics construction, input adapters, automation, and the dev HMR boundary — an entry never assembles engine services by hand. The Engine Lab follows this path.
 
 `startWebGameApplicationV1` then:
 

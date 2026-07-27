@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
-import type { InteractionResolutionV2 } from "@sillymaker/base";
+import type { InteractionResolutionV1 } from "@sillymaker/base";
 import {
-  evaluateInteractionResolutionV2,
-  parseInteractionOccurrenceIdV2,
-  parseInteractionResolutionV2,
+  evaluateInteractionResolutionV1,
+  parseInteractionOccurrenceIdV1,
+  parseInteractionResolutionV1,
 } from "@sillymaker/base";
 import type { CoreSemanticAdapterV1 } from "@sillymaker/base/runtime";
 
@@ -36,7 +36,7 @@ export type LabInvocationV1 =
   | {
       readonly kind: "resolve";
       readonly expectedOccurrenceId: string;
-      readonly resolution: InteractionResolutionV2;
+      readonly resolution: InteractionResolutionV1;
     };
 
 export type LabPreviewV1 =
@@ -106,7 +106,7 @@ function resolutionBlockedByV1(
   queries: LabQueriesV1,
   invocation: Extract<LabInvocationV1, { readonly kind: "resolve" }>,
 ): LabRejectionV1["code"] | null {
-  const outcome = evaluateInteractionResolutionV2(
+  const outcome = evaluateInteractionResolutionV1(
     queries.narrative.pending,
     invocation.expectedOccurrenceId,
     invocation.resolution,
@@ -154,8 +154,8 @@ export function parseLabInvocationV1(value: unknown): LabInvocationV1 {
     };
     return Object.freeze({
       kind: "resolve",
-      expectedOccurrenceId: parseInteractionOccurrenceIdV2(record.expectedOccurrenceId),
-      resolution: parseInteractionResolutionV2(record.resolution),
+      expectedOccurrenceId: parseInteractionOccurrenceIdV1(record.expectedOccurrenceId),
+      resolution: parseInteractionResolutionV1(record.resolution),
     });
   }
   if (kind !== "invoke" || Object.keys(value).toSorted().join("\0") !== "actionId\0kind") {

@@ -1,53 +1,53 @@
 // SPDX-License-Identifier: MIT
 import { dataFailure, readExactRecord } from "./presentation-data.js";
-import type { StageLayerIdV2 } from "./semantic-stage.js";
-import type { StageRenderEntryV2 } from "./stage-render-target.js";
+import type { StageLayerIdV1 } from "./semantic-stage.js";
+import type { StageRenderEntryV1 } from "./stage-render-target.js";
 
 /**
- * Semantic Stage V2 transition vocabulary. A transition definition is plain,
+ * Semantic Stage V1 transition vocabulary. A transition definition is plain,
  * versioned, validated data authored by the Story; it describes how one
  * old-target-to-new-target edge is presented. Definitions never enter the
  * saveable SemanticStageState, and playing them never changes gameplay
  * State: execution belongs to the UI Stage Reconciler and PresentationRun.
  */
 
-export type StageTransitionKindV2 = "cut" | "crossfade" | "slide";
+export type StageTransitionKindV1 = "cut" | "crossfade" | "slide";
 
 /** How player input is treated while the transition is active. */
-export type StageTransitionInputPolicyV2 = "block" | "target_active" | "skip_to_end";
+export type StageTransitionInputPolicyV1 = "block" | "target_active" | "skip_to_end";
 
 /** What happens to an active run when the stage retargets mid-flight. */
-export type StageTransitionInterruptionV2 = "settle_and_retarget" | "cancel_to_target";
+export type StageTransitionInterruptionV1 = "settle_and_retarget" | "cancel_to_target";
 
-export type StageTransitionEasingV2 = "linear" | "ease_in_out";
+export type StageTransitionEasingV1 = "linear" | "ease_in_out";
 
-export type StageTransitionReducedMotionV2 =
+export type StageTransitionReducedMotionV1 =
   { readonly kind: "settle" } | { readonly kind: "fallback"; readonly transitionId: string };
 
-export type StageTransitionReadinessV2 =
+export type StageTransitionReadinessV1 =
   { readonly kind: "immediate" } | { readonly kind: "wait_for_assets"; readonly timeoutMs: number };
 
-export interface StageTransitionDefinitionV2 {
+export interface StageTransitionDefinitionV1 {
   readonly transitionId: string;
-  readonly kind: StageTransitionKindV2;
+  readonly kind: StageTransitionKindV1;
   readonly durationMs: number;
-  readonly easing: StageTransitionEasingV2;
-  readonly inputPolicy: StageTransitionInputPolicyV2;
-  readonly interruption: StageTransitionInterruptionV2;
-  readonly reducedMotion: StageTransitionReducedMotionV2;
-  readonly readiness: StageTransitionReadinessV2;
+  readonly easing: StageTransitionEasingV1;
+  readonly inputPolicy: StageTransitionInputPolicyV1;
+  readonly interruption: StageTransitionInterruptionV1;
+  readonly reducedMotion: StageTransitionReducedMotionV1;
+  readonly readiness: StageTransitionReadinessV1;
   /** Emit a presentation completion acknowledgment when the run finishes. */
   readonly acknowledge: boolean;
   /** Slide-only: the logical-canvas offset entries travel from/to. */
   readonly slide: { readonly x: number; readonly y: number } | null;
 }
 
-const transitionIdPatternV2 = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)+$/u;
+const transitionIdPatternV1 = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)+$/u;
 
-function parseTransitionIdV2(value: unknown, path: string): string {
+function parseTransitionIdV1(value: unknown, path: string): string {
   if (
     typeof value !== "string" ||
-    !transitionIdPatternV2.test(value) ||
+    !transitionIdPatternV1.test(value) ||
     value.length < 3 ||
     value.length > 96
   ) {
@@ -56,14 +56,14 @@ function parseTransitionIdV2(value: unknown, path: string): string {
   return value;
 }
 
-function parseDurationMsV2(value: unknown, path: string): number {
+function parseDurationMsV1(value: unknown, path: string): number {
   if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0 || value > 60_000) {
     return dataFailure(path, "transition_duration_invalid");
   }
   return value;
 }
 
-function parseEnumV2<TValue extends string>(
+function parseEnumV1<TValue extends string>(
   value: unknown,
   allowed: readonly TValue[],
   path: string,
@@ -75,7 +75,7 @@ function parseEnumV2<TValue extends string>(
   return value as TValue;
 }
 
-function parseReducedMotionV2(value: unknown, path: string): StageTransitionReducedMotionV2 {
+function parseReducedMotionV1(value: unknown, path: string): StageTransitionReducedMotionV1 {
   if (value === null || typeof value !== "object") return dataFailure(path, "object_expected");
   const kind = (value as { readonly kind?: unknown }).kind;
   if (kind === "settle") {
@@ -86,13 +86,13 @@ function parseReducedMotionV2(value: unknown, path: string): StageTransitionRedu
     const record = readExactRecord(value, ["kind", "transitionId"], path);
     return Object.freeze({
       kind,
-      transitionId: parseTransitionIdV2(record.transitionId, `${path}/transitionId`),
+      transitionId: parseTransitionIdV1(record.transitionId, `${path}/transitionId`),
     });
   }
   return dataFailure(`${path}/kind`, "reduced_motion_kind_invalid");
 }
 
-function parseReadinessV2(value: unknown, path: string): StageTransitionReadinessV2 {
+function parseReadinessV1(value: unknown, path: string): StageTransitionReadinessV1 {
   if (value === null || typeof value !== "object") return dataFailure(path, "object_expected");
   const kind = (value as { readonly kind?: unknown }).kind;
   if (kind === "immediate") {
@@ -103,13 +103,13 @@ function parseReadinessV2(value: unknown, path: string): StageTransitionReadines
     const record = readExactRecord(value, ["kind", "timeoutMs"], path);
     return Object.freeze({
       kind,
-      timeoutMs: parseDurationMsV2(record.timeoutMs, `${path}/timeoutMs`),
+      timeoutMs: parseDurationMsV1(record.timeoutMs, `${path}/timeoutMs`),
     });
   }
   return dataFailure(`${path}/kind`, "readiness_kind_invalid");
 }
 
-function parseSlideOffsetV2(
+function parseSlideOffsetV1(
   value: unknown,
   path: string,
 ): { readonly x: number; readonly y: number } | null {
@@ -131,10 +131,10 @@ function parseSlideOffsetV2(
   });
 }
 
-export function parseStageTransitionDefinitionV2(
+export function parseStageTransitionDefinitionV1(
   value: unknown,
   path = "/transition",
-): StageTransitionDefinitionV2 {
+): StageTransitionDefinitionV1 {
   const record = readExactRecord(
     value,
     [
@@ -151,13 +151,13 @@ export function parseStageTransitionDefinitionV2(
     ],
     path,
   );
-  const kind = parseEnumV2(
+  const kind = parseEnumV1(
     record.kind,
     ["cut", "crossfade", "slide"],
     `${path}/kind`,
     "transition_kind_invalid",
   );
-  const slide = parseSlideOffsetV2(record.slide, `${path}/slide`);
+  const slide = parseSlideOffsetV1(record.slide, `${path}/slide`);
   if (kind === "slide" && slide === null) {
     return dataFailure(`${path}/slide`, "slide_offset_required");
   }
@@ -165,29 +165,29 @@ export function parseStageTransitionDefinitionV2(
     return dataFailure(`${path}/acknowledge`, "boolean_expected");
   }
   return Object.freeze({
-    transitionId: parseTransitionIdV2(record.transitionId, `${path}/transitionId`),
+    transitionId: parseTransitionIdV1(record.transitionId, `${path}/transitionId`),
     kind,
-    durationMs: parseDurationMsV2(record.durationMs, `${path}/durationMs`),
-    easing: parseEnumV2(
+    durationMs: parseDurationMsV1(record.durationMs, `${path}/durationMs`),
+    easing: parseEnumV1(
       record.easing,
       ["linear", "ease_in_out"],
       `${path}/easing`,
       "transition_easing_invalid",
     ),
-    inputPolicy: parseEnumV2(
+    inputPolicy: parseEnumV1(
       record.inputPolicy,
       ["block", "target_active", "skip_to_end"],
       `${path}/inputPolicy`,
       "input_policy_invalid",
     ),
-    interruption: parseEnumV2(
+    interruption: parseEnumV1(
       record.interruption,
       ["settle_and_retarget", "cancel_to_target"],
       `${path}/interruption`,
       "interruption_invalid",
     ),
-    reducedMotion: parseReducedMotionV2(record.reducedMotion, `${path}/reducedMotion`),
-    readiness: parseReadinessV2(record.readiness, `${path}/readiness`),
+    reducedMotion: parseReducedMotionV1(record.reducedMotion, `${path}/reducedMotion`),
+    readiness: parseReadinessV1(record.readiness, `${path}/readiness`),
     acknowledge: record.acknowledge,
     slide,
   });
@@ -198,12 +198,12 @@ export function parseStageTransitionDefinitionV2(
  * priority order: content replace wins over appearance, appearance over
  * placement. The catalog decides which transition (if any) presents it.
  */
-export interface StageTargetChangeV2 {
+export interface StageTargetChangeV1 {
   readonly kind: "enter" | "exit" | "replace" | "appearance" | "move";
-  readonly layerId: StageLayerIdV2;
+  readonly layerId: StageLayerIdV1;
   readonly entryKey: string;
-  readonly previous: StageRenderEntryV2 | null;
-  readonly next: StageRenderEntryV2 | null;
+  readonly previous: StageRenderEntryV1 | null;
+  readonly next: StageRenderEntryV1 | null;
 }
 
 /**
@@ -211,8 +211,8 @@ export interface StageTargetChangeV2 {
  * a transition definition, or null for an instant cut. Resolution must be
  * deterministic for the same change so reconciliation stays reproducible.
  */
-export interface StageTransitionCatalogV2 {
-  resolveTransition(change: StageTargetChangeV2): StageTransitionDefinitionV2 | null;
+export interface StageTransitionCatalogV1 {
+  resolveTransition(change: StageTargetChangeV1): StageTransitionDefinitionV1 | null;
   /** Resolves reduced-motion fallback references; omit to always settle. */
-  resolveTransitionById?(transitionId: string): StageTransitionDefinitionV2 | null;
+  resolveTransitionById?(transitionId: string): StageTransitionDefinitionV1 | null;
 }

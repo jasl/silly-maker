@@ -2,17 +2,17 @@
 import type {
   AssetId,
   ResolvedAudioManifestV1,
-  StageContentCatalogV2,
-  StageContentResolutionV2,
-  StageTargetChangeV2,
-  StageTransitionCatalogV2,
-  StageTransitionDefinitionV2,
+  StageContentCatalogV1,
+  StageContentResolutionV1,
+  StageTargetChangeV1,
+  StageTransitionCatalogV1,
+  StageTransitionDefinitionV1,
   TextCatalogSetV1,
 } from "@sillymaker/base";
 import {
   definePresentationPatchSurface,
   parsePositiveSafeInteger,
-  parseStageTransitionDefinitionV2,
+  parseStageTransitionDefinitionV1,
   parseTextCatalogSetV1,
   resolveAudioManifestV1,
 } from "@sillymaker/base";
@@ -88,8 +88,8 @@ export const labAssetSlotsV1 = Object.freeze([
  * bindings. Only this projection layer knows renderer IDs, asset IDs, and
  * accessible names; authoritative stage state never carries them.
  */
-export const labStageContentCatalogV1: StageContentCatalogV2 = {
-  resolveContent(contentId, appearance): StageContentResolutionV2 | null {
+export const labStageContentCatalogV1: StageContentCatalogV1 = {
+  resolveContent(contentId, appearance): StageContentResolutionV1 | null {
     switch (contentId as string) {
       case labStageContentIdsV1.backgroundLab:
         return Object.freeze({
@@ -156,7 +156,7 @@ export const labStageContentCatalogV1: StageContentCatalogV2 = {
   },
 };
 
-const labTransitionDefinitionsV1: readonly StageTransitionDefinitionV2[] = Object.freeze(
+const labTransitionDefinitionsV1: readonly StageTransitionDefinitionV1[] = Object.freeze(
   [
     {
       transitionId: "transition.e2e.bg-crossfade",
@@ -207,15 +207,15 @@ const labTransitionDefinitionsV1: readonly StageTransitionDefinitionV2[] = Objec
       slide: { x: 0, y: 0 },
     },
   ].map((definition, index) =>
-    parseStageTransitionDefinitionV2(definition, `/transitions/${String(index)}`),
+    parseStageTransitionDefinitionV1(definition, `/transitions/${String(index)}`),
   ),
 );
 
-const labTransitionByIdV1: ReadonlyMap<string, StageTransitionDefinitionV2> = new Map(
+const labTransitionByIdV1: ReadonlyMap<string, StageTransitionDefinitionV1> = new Map(
   labTransitionDefinitionsV1.map((definition) => [definition.transitionId, definition]),
 );
 
-function requireLabTransitionV1(transitionId: string): StageTransitionDefinitionV2 {
+function requireLabTransitionV1(transitionId: string): StageTransitionDefinitionV1 {
   const definition = labTransitionByIdV1.get(transitionId);
   if (definition === undefined) throw new TypeError(`e2e.transition_missing:${transitionId}`);
   return definition;
@@ -226,8 +226,8 @@ function requireLabTransitionV1(transitionId: string): StageTransitionDefinition
  * acknowledge on completion), characters slide in, exits fade out, moves
  * interpolate, appearance changes cut.
  */
-export const labStageTransitionCatalogV1: StageTransitionCatalogV2 = {
-  resolveTransition(change: StageTargetChangeV2): StageTransitionDefinitionV2 | null {
+export const labStageTransitionCatalogV1: StageTransitionCatalogV1 = {
+  resolveTransition(change: StageTargetChangeV1): StageTransitionDefinitionV1 | null {
     if (change.kind === "replace") return requireLabTransitionV1("transition.e2e.bg-crossfade");
     if (change.kind === "enter") {
       return change.layerId === "layer.e2e.characters"
@@ -238,7 +238,7 @@ export const labStageTransitionCatalogV1: StageTransitionCatalogV2 = {
     if (change.kind === "move") return requireLabTransitionV1("transition.e2e.move");
     return null;
   },
-  resolveTransitionById(transitionId: string): StageTransitionDefinitionV2 | null {
+  resolveTransitionById(transitionId: string): StageTransitionDefinitionV1 | null {
     return labTransitionByIdV1.get(transitionId) ?? null;
   },
 };

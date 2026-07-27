@@ -52,7 +52,7 @@ pnpm test:conformance:headless                # 全部 headless 一致性测试
 
 ## C 层：新应用/新 Story（建议强模型执行）
 
-一个应用 = 一个 `WebGameApplicationV1` 声明 + 一次 `startWebGameApplicationV1` 调用；参照 `game/stories/e2e/src/application/`（最小）与 `game/stories/poc/src/application/`（完整产品）。在 `game/project.config.ts` 注册后，六个生命周期动词即可用：
+一个应用 = 一个 `WebGameApplicationV1` 声明 + 一次 `startWebGameApplicationV1` 调用；参照 `game/stories/e2e/src/application/`。在 `game/project.config.ts` 注册后，六个生命周期动词即可用：
 
 ```sh
 pnpm story inspect <app>    # 解析身份与程序报告

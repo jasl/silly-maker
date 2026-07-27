@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 import { dataFailure, readArray, readExactRecord } from "./presentation-data.js";
-import { parseInteractionOccurrenceIdV2 } from "./pending-interaction.js";
+import { parseInteractionOccurrenceIdV1 } from "./pending-interaction.js";
 
 /**
  * NarrativeHistory: the player-readable record of resolved narrative
@@ -80,7 +80,7 @@ export function parseNarrativeHistoryEntryV1(
   }
   return Object.freeze({
     kind: record.kind,
-    occurrenceId: parseInteractionOccurrenceIdV2(record.occurrenceId, `${path}/occurrenceId`),
+    occurrenceId: parseInteractionOccurrenceIdV1(record.occurrenceId, `${path}/occurrenceId`),
     definitionId: parseHistoryIdV1(
       record.definitionId,
       `${path}/definitionId`,

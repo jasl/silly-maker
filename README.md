@@ -2,7 +2,7 @@
 
 Project Tavern 是一款以酒馆经营为核心、关系与文字叙事为重要组成的个人游戏项目；SillyMaker 是本仓库持续维护的 React + TypeScript 游戏引擎。
 
-仓库已经完成首个七日 PoC 的工程闭环。接下来会重新设计玩法并改善引擎：现有 PoC 代码可以作为运行时、Story 组合、存档、诊断和浏览器交付的实例，但其模块划分、公式、平衡和内容都不是最终设计。
+首个七日 PoC 已完成工程闭环并整体退役（连同 V1 场景系统，备份于 `archive/poc-v1-stage-2026-07` 分支）。当前阶段以引擎为先：Engine Lab（`game/stories/e2e`）是唯一维护的参考应用，新的 Tavern 玩法会在引擎足够好之后重新设计。
 
 ## 快速开始
 
@@ -19,9 +19,6 @@ pnpm dev
 - `pnpm test`：引擎与游戏行为测试；
 - `pnpm test:e2e`：浏览器端用户流程；
 - `pnpm story <verb> <app>`：应用生命周期 CLI（inspect/check/simulate/dev --smoke/build/prebuilt-smoke，JSON 报告）；
-- `pnpm build:poc`：构建当前 Project Tavern Web Player；
-- `pnpm release:poc`：准备带法律文件和技术清单的本地 Artifact；
-- `pnpm test:e2e:prebuilt`：验证已经构建的 PoC Artifact；
 - `pnpm test:e2e:engine:prebuilt`：构建 Engine Lab 并在产物上运行引擎套件。
 
 这些命令不要求特定机器、精确 Node/pnpm patch 版本或 Goal materialization attestation。发布到远端仍是独立的人工作业。
@@ -40,7 +37,7 @@ pnpm dev
 - [素材与参考资料政策](docs/policies/assets-and-references.md)
 - [vNext foundations 实施计划](docs/engine/plans/2026-07-19-sillymaker-vnext-foundations.md)
 
-首个 PoC Goal 的计划、规格、证据和旧 runbook 已整体移入[历史归档](docs/archive/2026-07-first-poc-goal/README.md)。归档用于追溯，不再约束当前开发。
+首个 PoC Goal 的计划、规格、证据和旧 runbook 已整体移入[历史归档](docs/archive/2026-07-first-poc-goal/README.md)；PoC 应用代码保留在 `archive/poc-v1-stage-2026-07` 分支。归档用于追溯，不再约束当前开发。
 
 ## 仓库结构
 

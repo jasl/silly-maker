@@ -3,17 +3,17 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { StageContentCatalogV2 } from "@sillymaker/base";
+import type { StageContentCatalogV1 } from "@sillymaker/base";
 import {
-  createSemanticStageStateV2,
-  projectStageRenderTargetV2,
-  reduceStageMutationsV2,
+  createSemanticStageStateV1,
+  projectStageRenderTargetV1,
+  reduceStageMutationsV1,
 } from "@sillymaker/base";
 
-import type { SemanticStageEntryRendererV2 } from "./semantic-stage-host.js";
-import { SemanticStageTargetHostV2 } from "./semantic-stage-host.js";
+import type { SemanticStageEntryRendererV1 } from "./semantic-stage-host.js";
+import { SemanticStageTargetHostV1 } from "./semantic-stage-host.js";
 
-const catalogV1: StageContentCatalogV2 = {
+const catalogV1: StageContentCatalogV1 = {
   resolveContent: (contentId, appearance) =>
     Object.freeze({
       rendererId:
@@ -25,22 +25,22 @@ const catalogV1: StageContentCatalogV2 = {
 };
 
 function targetForMutationsV1(mutations: readonly unknown[]) {
-  const empty = createSemanticStageStateV2({
+  const empty = createSemanticStageStateV1({
     stageId: "stage.test.host",
     layerIds: ["layer.test.back", "layer.test.front"],
   });
-  const outcome = reduceStageMutationsV2(empty, mutations);
+  const outcome = reduceStageMutationsV1(empty, mutations);
   if (outcome.kind !== "applied") throw new Error("host fixture stage must apply");
-  return projectStageRenderTargetV2(outcome.state, catalogV1).target;
+  return projectStageRenderTargetV1(outcome.state, catalogV1).target;
 }
 
-const boxRendererV1: SemanticStageEntryRendererV2 = ({ entry }) => (
+const boxRendererV1: SemanticStageEntryRendererV1 = ({ entry }) => (
   <span data-test-box={entry.contentId} data-test-expression={String(entry.props.expression)} />
 );
 
 afterEach(cleanup);
 
-describe("SemanticStageHostV2", () => {
+describe("SemanticStageHostV1", () => {
   it("renders layers and entries with stable identities, placement, and camera", () => {
     const target = targetForMutationsV1([
       {
@@ -67,7 +67,7 @@ describe("SemanticStageHostV2", () => {
     ]);
 
     const { container } = render(
-      <SemanticStageTargetHostV2
+      <SemanticStageTargetHostV1
         target={target}
         renderers={{ "renderer.test.box": boxRendererV1 }}
         accessibleName="测试舞台"
@@ -114,7 +114,7 @@ describe("SemanticStageHostV2", () => {
       },
     ]);
     const { container } = render(
-      <SemanticStageTargetHostV2
+      <SemanticStageTargetHostV1
         target={target}
         renderers={{ "renderer.test.box": boxRendererV1 }}
         accessibleName="测试舞台"
@@ -136,7 +136,7 @@ describe("SemanticStageHostV2", () => {
     ]);
     const reportDiagnostic = vi.fn();
     const { container } = render(
-      <SemanticStageTargetHostV2
+      <SemanticStageTargetHostV1
         target={target}
         renderers={{ "renderer.test.box": boxRendererV1 }}
         accessibleName="测试舞台"
@@ -172,7 +172,7 @@ describe("SemanticStageHostV2", () => {
     ]);
 
     const { container, rerender } = render(
-      <SemanticStageTargetHostV2
+      <SemanticStageTargetHostV1
         target={first}
         renderers={{ "renderer.test.box": boxRendererV1 }}
         accessibleName="测试舞台"
@@ -180,7 +180,7 @@ describe("SemanticStageHostV2", () => {
     );
     const before = container.querySelector('[data-stage-key="layer.test.front:tag.test.alpha"]');
     rerender(
-      <SemanticStageTargetHostV2
+      <SemanticStageTargetHostV1
         target={second}
         renderers={{ "renderer.test.box": boxRendererV1 }}
         accessibleName="测试舞台"

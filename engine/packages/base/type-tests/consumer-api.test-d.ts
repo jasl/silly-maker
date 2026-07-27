@@ -32,22 +32,22 @@ import type {
   SaveSlotSummaryV1,
   AssetDemandPlanV1,
   AudioIntentV1,
-  InteractionRejectionCodeV2,
-  InteractionResolutionOutcomeV2,
-  InteractionResolutionV2,
+  InteractionRejectionCodeV1,
+  InteractionResolutionOutcomeV1,
+  InteractionResolutionV1,
   NarrativeGraphV1,
   NarrativePredictionV1,
-  PendingInteractionV2,
+  PendingInteractionV1,
   ResolvedAudioManifestV1,
   TransientEffectV1,
-  SemanticStageStateV2,
-  StageContentCatalogV2,
-  StageMutationBatchOutcomeV2,
-  StageMutationV2,
-  StageRenderTargetV2,
-  StageTargetChangeV2,
-  StageTransitionCatalogV2,
-  StageTransitionDefinitionV2,
+  SemanticStageStateV1,
+  StageContentCatalogV1,
+  StageMutationBatchOutcomeV1,
+  StageMutationV1,
+  StageRenderTargetV1,
+  StageTargetChangeV1,
+  StageTransitionCatalogV1,
+  StageTransitionDefinitionV1,
   StateSlotId,
   StoryToolingEntryV1,
   TextCatalogSetV1,
@@ -67,14 +67,14 @@ import {
   parseRunId,
   parseStateSlotId,
   parseTextCatalogSetV1,
-  evaluateInteractionResolutionV2,
+  evaluateInteractionResolutionV1,
   parseNarrativeGraphV1,
-  parsePendingInteractionV2,
+  parsePendingInteractionV1,
   predictNarrativeDependenciesV1,
   lintNarrativeGraphV1,
-  parseSemanticStageStateV2,
-  projectStageRenderTargetV2,
-  reduceStageMutationsV2,
+  parseSemanticStageStateV1,
+  projectStageRenderTargetV1,
+  reduceStageMutationsV1,
   resolveGamePackageV1,
   rngStateV1Schema,
   runIntegrityV1Schema,
@@ -187,20 +187,20 @@ export type BaseConsumerTypesV1 = {
   saveSlotSummary: SaveSlotSummaryV1;
   stateSlotId: StateSlotId;
   tooling: StoryToolingEntryV1<unknown>;
-  semanticStageState: SemanticStageStateV2;
-  stageMutation: StageMutationV2;
-  stageMutationBatchOutcome: StageMutationBatchOutcomeV2;
-  stageContentCatalog: StageContentCatalogV2;
-  stageRenderTarget: StageRenderTargetV2;
-  stageTransitionDefinition: StageTransitionDefinitionV2;
-  stageTransitionCatalog: StageTransitionCatalogV2;
-  stageTargetChange: StageTargetChangeV2;
-  pendingInteraction: PendingInteractionV2;
+  semanticStageState: SemanticStageStateV1;
+  stageMutation: StageMutationV1;
+  stageMutationBatchOutcome: StageMutationBatchOutcomeV1;
+  stageContentCatalog: StageContentCatalogV1;
+  stageRenderTarget: StageRenderTargetV1;
+  stageTransitionDefinition: StageTransitionDefinitionV1;
+  stageTransitionCatalog: StageTransitionCatalogV1;
+  stageTargetChange: StageTargetChangeV1;
+  pendingInteraction: PendingInteractionV1;
   narrativeGraph: NarrativeGraphV1;
   narrativePrediction: NarrativePredictionV1;
-  interactionResolution: InteractionResolutionV2;
-  interactionResolutionOutcome: InteractionResolutionOutcomeV2;
-  interactionRejectionCode: InteractionRejectionCodeV2;
+  interactionResolution: InteractionResolutionV1;
+  interactionResolutionOutcome: InteractionResolutionOutcomeV1;
+  interactionRejectionCode: InteractionRejectionCodeV1;
   audioIntent: AudioIntentV1;
   audioManifest: ResolvedAudioManifestV1;
   assetDemandPlan: AssetDemandPlanV1;
@@ -230,11 +230,11 @@ export type BaseConsumerValuesV1 = {
   parseRunId: typeof parseRunId;
   parseStateSlotId: typeof parseStateSlotId;
   parseTextCatalogSet: typeof parseTextCatalogSetV1;
-  parseSemanticStageState: typeof parseSemanticStageStateV2;
-  projectStageRenderTarget: typeof projectStageRenderTargetV2;
-  reduceStageMutations: typeof reduceStageMutationsV2;
-  evaluateInteractionResolution: typeof evaluateInteractionResolutionV2;
-  parsePendingInteraction: typeof parsePendingInteractionV2;
+  parseSemanticStageState: typeof parseSemanticStageStateV1;
+  projectStageRenderTarget: typeof projectStageRenderTargetV1;
+  reduceStageMutations: typeof reduceStageMutationsV1;
+  evaluateInteractionResolution: typeof evaluateInteractionResolutionV1;
+  parsePendingInteraction: typeof parsePendingInteractionV1;
   parseNarrativeGraph: typeof parseNarrativeGraphV1;
   lintNarrativeGraph: typeof lintNarrativeGraphV1;
   predictNarrativeDependencies: typeof predictNarrativeDependenciesV1;

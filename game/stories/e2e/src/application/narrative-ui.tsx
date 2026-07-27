@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 
-import type { DeepReadonly, InteractionResolutionV2 } from "@sillymaker/base";
+import type { DeepReadonly, InteractionResolutionV1 } from "@sillymaker/base";
 import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
 import type {
   InputRouterV1,
@@ -30,7 +30,7 @@ type LabSemanticPortV1 = LabApplicationInstanceV1["semantic"];
 function labResolveV1(
   semantic: LabSemanticPortV1,
   expectedOccurrenceId: string,
-  resolution: InteractionResolutionV2,
+  resolution: InteractionResolutionV1,
 ): void {
   void semantic.dispatch(
     Object.freeze({ kind: "resolve" as const, expectedOccurrenceId, resolution }),

@@ -2,17 +2,17 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 
-import type { StageRenderTargetV2, StageTransitionCatalogV2 } from "@sillymaker/base";
+import type { StageRenderTargetV1, StageTransitionCatalogV1 } from "@sillymaker/base";
 
 import type { PresentationClockV1 } from "../presentation-run/presentation-clock.js";
 import { createAnimationFramePresentationClockV1 } from "../presentation-run/presentation-clock.js";
 import type {
-  SemanticStageEntryRendererV2,
-  SemanticStageHostDiagnosticV2,
+  SemanticStageEntryRendererV1,
+  SemanticStageHostDiagnosticV1,
 } from "./semantic-stage-host.js";
-import { SemanticStageHostV2 } from "./semantic-stage-host.js";
-import type { StageReconcilerV2, StageTransitionAcknowledgmentV2 } from "./stage-reconciler.js";
-import { createStageReconcilerV2, settledStageFrameV2 } from "./stage-reconciler.js";
+import { SemanticStageHostV1 } from "./semantic-stage-host.js";
+import type { StageReconcilerV1, StageTransitionAcknowledgmentV1 } from "./stage-reconciler.js";
+import { createStageReconcilerV1, settledStageFrameV1 } from "./stage-reconciler.js";
 
 /**
  * The animated semantic stage: owns one Stage Reconciler for the lifetime of
@@ -22,41 +22,41 @@ import { createStageReconcilerV2, settledStageFrameV2 } from "./stage-reconciler
  * reconciler, so no ticks or listeners survive HMR or page teardown.
  */
 
-const reducedMotionQueryV2 = "(prefers-reduced-motion: reduce)";
+const reducedMotionQueryV1 = "(prefers-reduced-motion: reduce)";
 
-function readReducedMotionV2(): boolean {
+function readReducedMotionV1(): boolean {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
-  return window.matchMedia(reducedMotionQueryV2).matches;
+  return window.matchMedia(reducedMotionQueryV1).matches;
 }
 
-export interface SemanticStagePropsV2 {
-  readonly target: StageRenderTargetV2;
+export interface SemanticStagePropsV1 {
+  readonly target: StageRenderTargetV1;
   /** The committed semantic publication revision this target came from. */
   readonly revision: number;
   /** The presentation epoch; load/rollback/rebootstrap suppress edges. */
   readonly epoch: number;
-  readonly catalog: StageTransitionCatalogV2;
-  readonly renderers: Readonly<Record<string, SemanticStageEntryRendererV2>>;
+  readonly catalog: StageTransitionCatalogV1;
+  readonly renderers: Readonly<Record<string, SemanticStageEntryRendererV1>>;
   readonly accessibleName: string;
   /** Injectable for tests; defaults to the animation-frame clock. */
   readonly clock?: PresentationClockV1;
-  onAcknowledgment?(acknowledgment: StageTransitionAcknowledgmentV2): void;
-  reportDiagnostic?(diagnostic: SemanticStageHostDiagnosticV2): void;
+  onAcknowledgment?(acknowledgment: StageTransitionAcknowledgmentV1): void;
+  reportDiagnostic?(diagnostic: SemanticStageHostDiagnosticV1): void;
   reportFailure?(code: string, detail: string): void;
 }
 
-export function SemanticStageV2(props: SemanticStagePropsV2): ReactElement {
+export function SemanticStageV1(props: SemanticStagePropsV1): ReactElement {
   const { target, revision, epoch } = props;
   const [version, setVersion] = useState(0);
-  const reducedMotionRef = useRef(readReducedMotionV2());
+  const reducedMotionRef = useRef(readReducedMotionV1());
   const acknowledgmentRef = useRef(props.onAcknowledgment);
   const failureRef = useRef(props.reportFailure);
   acknowledgmentRef.current = props.onAcknowledgment;
   failureRef.current = props.reportFailure;
 
   // One reconciler per mounted stage; catalog and clock are mount-stable.
-  const [reconciler] = useState<StageReconcilerV2>(() =>
-    createStageReconcilerV2({
+  const [reconciler] = useState<StageReconcilerV1>(() =>
+    createStageReconcilerV1({
       clock: props.clock ?? createAnimationFramePresentationClockV1(),
       catalog: props.catalog,
       prefersReducedMotion: () => reducedMotionRef.current,
@@ -94,7 +94,7 @@ export function SemanticStageV2(props: SemanticStagePropsV2): ReactElement {
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
       return () => {};
     }
-    const query = window.matchMedia(reducedMotionQueryV2);
+    const query = window.matchMedia(reducedMotionQueryV1);
     const onChange = (): void => {
       reducedMotionRef.current = query.matches;
     };
@@ -106,10 +106,10 @@ export function SemanticStageV2(props: SemanticStagePropsV2): ReactElement {
   // Frames are rebuilt per render; `version` bumps re-render the component
   // whenever the reconciler notifies (ticks, settles, retargets).
   void version;
-  const frame = retargetedRef.current ? reconciler.frame() : settledStageFrameV2(target);
+  const frame = retargetedRef.current ? reconciler.frame() : settledStageFrameV1(target);
 
   return (
-    <SemanticStageHostV2
+    <SemanticStageHostV1
       frame={frame}
       renderers={props.renderers}
       accessibleName={props.accessibleName}

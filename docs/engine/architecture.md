@@ -23,14 +23,14 @@ Project Tavern Story and application
 
 ## 2. Package responsibilities
 
-| Package                     | Workspace public entries                      | Responsibility                                                                                                                                                                                     |
-| --------------------------- | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@sillymaker/base`          | `.`, `./authoring`, `./runtime`, `./testkit`  | Contracts, authoring definitions and kit, deterministic resolution, authoritative sessions, persistence orchestration, replay, diagnostics, the agent port, and reusable behavior-test helpers.    |
-| `@sillymaker/tooling`       | `.`, `./project`, config-types/loader entries | Node-only tooling: the JSONL agent host protocol/client plus the project/application config with inspect/check/simulate commands and web target data. Never imported by Base/UI browser bundles.   |
-| `@sillymaker/ui`            | `.`, `./assets`, `./debug`, `./diagnostics`   | React shell, GameViewport, UI composition and default GameRoot, stage, characters, assets, interaction/input, overlays, narrative, settings, semantic/presentation bridges, and recovery UI.       |
-| `@sillymaker/web`           | `.`                                           | Browser Host, IndexedDB record storage, files/images, `startWebGameApplicationV1`, mounting, routing, pointer input, capabilities, automation, Loader, and HMR rebootstrap.                        |
-| `@sillymaker/story-e2e`     | `.`                                           | The neutral Engine Conformance Story (Engine Lab): the engine's second consumer and maintained test application.                                                                                   |
-| `@project-tavern/story-poc` | `.`, plus optional tooling entries            | Current Project Tavern Story definition, gameplay, presentation catalogs, semantic actions, application composition, and Story-specific tools. It is an example under redesign, not an engine API. |
+| Package                     | Workspace public entries                      | Responsibility                                                                                                                                                                                   |
+| --------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `@sillymaker/base`          | `.`, `./authoring`, `./runtime`, `./testkit`  | Contracts, authoring definitions and kit, deterministic resolution, authoritative sessions, persistence orchestration, replay, diagnostics, the agent port, and reusable behavior-test helpers.  |
+| `@sillymaker/tooling`       | `.`, `./project`, config-types/loader entries | Node-only tooling: the JSONL agent host protocol/client plus the project/application config with inspect/check/simulate commands and web target data. Never imported by Base/UI browser bundles. |
+| `@sillymaker/ui`            | `.`, `./assets`, `./debug`, `./diagnostics`   | React shell, GameViewport, UI composition and default GameRoot, stage, characters, assets, interaction/input, overlays, narrative, settings, semantic/presentation bridges, and recovery UI.     |
+| `@sillymaker/web`           | `.`                                           | Browser Host, IndexedDB record storage, files/images, `startWebGameApplicationV1`, mounting, routing, pointer input, capabilities, automation, Loader, and HMR rebootstrap.                      |
+| `@sillymaker/story-e2e`     | `.`                                           | The neutral Engine Conformance Story (Engine Lab): the engine's second consumer and maintained test application.                                                                                 |
+| `@project-tavern/story-e2e` | `.`, plus tooling entries                     | The Engine Lab conformance Story: gameplay modules, narrative script, presentation catalogs, semantic actions, and application composition used to validate engine contracts.                    |
 
 Cross-package imports use package exports and declared `workspace:*` dependencies. Application-only composition may stay internal to a Story package when no other package should consume it.
 
@@ -40,7 +40,7 @@ Implementation anchors:
 - Base runtime exports: `engine/packages/base/src/runtime/index.ts`
 - UI exports: `engine/packages/ui/src/index.ts`
 - Web exports: `engine/packages/web/src/index.ts`
-- current Story root: `game/stories/poc/src/index.ts`
+- current Story root: `game/stories/e2e/src/story.ts`
 
 ## 3. Story resolution
 
@@ -95,7 +95,7 @@ The semantic port previews and dispatches Story-specific semantic invocations at
 
 The Base application composer (`defineCoreGameApplicationV1` / `resolveCoreGameApplicationV1` / `createCoreGameApplicationInstanceV1`) distinguishes the author definition, the immutable resolved definition, and the disposable application instance that owns the live Session, persistence lease, listeners, autosave policy, and an instance-local presentation anchor/epoch. Definitions may declare Story extensions (`createExtensions`) — diagnostics services, DebugBundle codecs, debug tooling — that the composer constructs with a controlled context and disposes with the instance. The testkit harness and headless applications compose on it; direct low-level construction remains available as an escape hatch.
 
-Both maintained applications boot exclusively through `startWebGameApplicationV1`: the Engine Lab and the Project Tavern PoC each supply one `WebGameApplicationV1` declaration (core definition, projector, UI slots, overlays, labels, input maps, DevDock loaders), and their entries contain no Session, Persistence, Diagnostics, Input, Automation, or HMR construction. The web composer owns the persisted capability session, the pointer/keyboard/gamepad adapters, the capability-gated automation bridge, the DebugBundle UI-context binding, and the dev HMR boundary (`installWebGameApplicationHmrV1`), whose rebootstrap hands the persistence lease from the disposed predecessor to the successor instance.
+Maintained applications boot exclusively through `startWebGameApplicationV1`: each supplies one `WebGameApplicationV1` declaration (core definition, projector, UI slots, overlays, labels, input maps, DevDock loaders), and their entries contain no Session, Persistence, Diagnostics, Input, Automation, or HMR construction. The web composer owns the persisted capability session, the pointer/keyboard/gamepad adapters, the capability-gated automation bridge, the DebugBundle UI-context binding, and the dev HMR boundary (`installWebGameApplicationHmrV1`), whose rebootstrap hands the persistence lease from the disposed predecessor to the successor instance.
 
 Renderer-local hover, animation, focus, overlay, and asset-loading state is non-authoritative. It may produce semantic or presentation intents, but it cannot independently decide gameplay availability or mutate Gameplay State.
 

@@ -13,23 +13,23 @@ import type {
 } from "@sillymaker/base";
 import type {
   AudioIntentV1,
-  InteractionRejectionCodeV2,
+  InteractionRejectionCodeV1,
   NarrativeHistoryV1,
-  InteractionResolutionV2,
-  PendingInteractionV2,
-  SemanticStageStateV2,
-  StageMutationV2,
+  InteractionResolutionV1,
+  PendingInteractionV1,
+  SemanticStageStateV1,
+  StageMutationV1,
 } from "@sillymaker/base";
 import {
   createGameAuthoringKitV1,
   createTransactionalRngV1,
   defineGameSimulation,
-  evaluateInteractionResolutionV2,
-  parseInteractionOccurrenceIdV2,
-  parseInteractionResolutionV2,
+  evaluateInteractionResolutionV1,
+  parseInteractionOccurrenceIdV1,
+  parseInteractionResolutionV1,
   parseNonNegativeSafeInteger,
-  parseStageMutationV2,
-  reduceStageMutationsV2,
+  parseStageMutationV1,
+  reduceStageMutationsV1,
 } from "@sillymaker/base";
 
 import type { LabGameStateV1, LabProcedureStateV1 } from "./state.js";
@@ -72,7 +72,7 @@ export type LabCommandV1 =
   | {
       readonly kind: "lab.narrative_resolve";
       readonly expectedOccurrenceId: string;
-      readonly resolution: InteractionResolutionV2;
+      readonly resolution: InteractionResolutionV1;
     };
 
 export type LabFactV1 =
@@ -100,7 +100,7 @@ export type LabRejectionCodeV1 =
   | "lab.banner_already_owned"
   | "lab.stage_rejected"
   | "lab.narrative_busy"
-  | InteractionRejectionCodeV2;
+  | InteractionRejectionCodeV1;
 
 export interface LabRejectionV1 {
   readonly code: LabRejectionCodeV1;
@@ -120,7 +120,7 @@ export interface LabQueriesV1 {
   readonly bannerOwned: boolean;
   readonly procedurePhase: LabProcedureStateV1["phase"];
   readonly procedureSteps: number;
-  readonly stage: SemanticStageStateV2;
+  readonly stage: SemanticStageStateV1;
   readonly narrative: LabNarrativeStateV1;
 }
 
@@ -135,7 +135,7 @@ export interface LabNarrativeChoiceOptionViewV1 {
 export interface LabNarrativeViewV1 {
   readonly phase: LabNarrativeStateV1["phase"];
   readonly calibration: number | null;
-  readonly pending: PendingInteractionV2 | null;
+  readonly pending: PendingInteractionV1 | null;
   /** Availability decorated with the same rule preview/dispatch re-check. */
   readonly choiceOptions: readonly LabNarrativeChoiceOptionViewV1[] | null;
   /** The player-readable backlog from authoritative State. */
@@ -149,7 +149,7 @@ export interface LabGameViewV1 {
   readonly procedurePhase: LabProcedureStateV1["phase"];
   readonly procedureSteps: number;
   /** The semantic stage target: plain saveable data, observable headless. */
-  readonly stage: SemanticStageStateV2;
+  readonly stage: SemanticStageStateV1;
   /** The continuous audio intent derived purely from saved State. */
   readonly audio: AudioIntentV1;
 }
@@ -202,7 +202,7 @@ type ProcedureOperationV1 = { readonly kind: "begin" } | { readonly kind: "advan
 
 type StageOperationV1 = {
   readonly kind: "apply";
-  readonly mutations: readonly StageMutationV2[];
+  readonly mutations: readonly StageMutationV1[];
 };
 
 type NarrativeOperationV1 =
@@ -210,7 +210,7 @@ type NarrativeOperationV1 =
   | {
       readonly kind: "resolve";
       readonly expectedOccurrenceId: string;
-      readonly resolution: InteractionResolutionV2;
+      readonly resolution: InteractionResolutionV1;
       readonly next: LabNarrativeStateV1;
     };
 
@@ -230,8 +230,8 @@ const commandSchemaV1: RuntimeSchemaV1<LabCommandV1> = Object.freeze({
       };
       return Object.freeze({
         kind,
-        expectedOccurrenceId: parseInteractionOccurrenceIdV2(record.expectedOccurrenceId),
-        resolution: parseInteractionResolutionV2(record.resolution),
+        expectedOccurrenceId: parseInteractionOccurrenceIdV1(record.expectedOccurrenceId),
+        resolution: parseInteractionResolutionV1(record.resolution),
       });
     }
     if (Object.keys(value).join("\0") !== "kind") {
@@ -315,8 +315,8 @@ const narrativeOperationSchemaV1: RuntimeSchemaV1<NarrativeOperationV1> = Object
       };
       return Object.freeze({
         kind,
-        expectedOccurrenceId: parseInteractionOccurrenceIdV2(record.expectedOccurrenceId),
-        resolution: parseInteractionResolutionV2(record.resolution),
+        expectedOccurrenceId: parseInteractionOccurrenceIdV1(record.expectedOccurrenceId),
+        resolution: parseInteractionResolutionV1(record.resolution),
         next: labNarrativeStateSchemaV1.parse(record.next),
       });
     }
@@ -342,7 +342,7 @@ const stageOperationSchemaV1: RuntimeSchemaV1<StageOperationV1> = Object.freeze(
       kind: "apply" as const,
       mutations: Object.freeze(
         record.mutations.map((mutation, index) =>
-          parseStageMutationV2(mutation, `/mutations/${String(index)}`),
+          parseStageMutationV1(mutation, `/mutations/${String(index)}`),
         ),
       ),
     });
@@ -486,7 +486,7 @@ const stageModuleV1 = kit.defineStatefulModule({
   owner: {
     operationSchema: stageOperationSchemaV1,
     propose(state, operation) {
-      const outcome = reduceStageMutationsV2(state, operation.mutations);
+      const outcome = reduceStageMutationsV1(state, operation.mutations);
       if (outcome.kind === "rejected") {
         return Object.freeze({
           kind: "rejected" as const,
@@ -507,7 +507,7 @@ const stageModuleV1 = kit.defineStatefulModule({
       });
     },
     apply(state, proposal) {
-      const outcome = reduceStageMutationsV2(state, proposal.payload.mutations);
+      const outcome = reduceStageMutationsV1(state, proposal.payload.mutations);
       if (outcome.kind !== "applied") {
         throw new TypeError("validated lab stage mutations must apply");
       }
@@ -545,7 +545,7 @@ const narrativeModuleV1 = kit.defineStatefulModule({
       // The queue-front authority: the same shared evaluator that served the
       // action catalog and preview re-checks the expected occurrence, choice
       // availability, and custom payload schema at dispatch time.
-      const outcome = evaluateInteractionResolutionV2(
+      const outcome = evaluateInteractionResolutionV1(
         state.pending,
         operation.expectedOccurrenceId,
         operation.resolution,
@@ -701,7 +701,7 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
 
       const proposeStage = (
         transaction: { propose(module: typeof stageModuleV1, operation: StageOperationV1): void },
-        mutations: readonly StageMutationV2[],
+        mutations: readonly StageMutationV1[],
       ) => {
         if (mutations.length > 0) {
           transaction.propose(stageModuleV1, { kind: "apply", mutations });
@@ -738,7 +738,7 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
           // Pre-check with the exact same evaluator the narrative owner uses
           // at propose time, so an invalid resolution rejects before any
           // continuation work happens.
-          const outcome = evaluateInteractionResolutionV2(
+          const outcome = evaluateInteractionResolutionV1(
             state.narrative.pending,
             command.expectedOccurrenceId,
             command.resolution,

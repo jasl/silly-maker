@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import type { InteractionResolutionV2 } from "@sillymaker/base";
+import type { InteractionResolutionV1 } from "@sillymaker/base";
 import { createGameHarnessV1 } from "@sillymaker/base/testkit";
 
 import type { LabInvocationV1 } from "../index.js";
@@ -31,7 +31,7 @@ const invokeV1 = (
 
 function resolveV1(
   expectedOccurrenceId: string,
-  resolution: InteractionResolutionV2,
+  resolution: InteractionResolutionV1,
 ): LabInvocationV1 {
   return Object.freeze({ kind: "resolve" as const, expectedOccurrenceId, resolution });
 }
@@ -198,7 +198,7 @@ describe("Engine Conformance route", () => {
     for (let step = 0; step < 16; step += 1) {
       const pending = interrupted.observe().narrative.pending;
       if (pending === null) break;
-      const resolution: InteractionResolutionV2 =
+      const resolution: InteractionResolutionV1 =
         pending.kind === "presentation_barrier"
           ? { kind: "barrier_completed", transitionId: pending.expectedTransitionId }
           : pending.kind === "pause"

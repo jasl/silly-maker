@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 import { z } from "zod";
 
-import type { RuntimeSchemaV1, SemanticStageStateV2 } from "@sillymaker/base";
+import type { RuntimeSchemaV1, SemanticStageStateV1 } from "@sillymaker/base";
 import {
   parseNarrativeHistoryV1,
-  parsePendingInteractionV2,
-  parseSemanticStageStateV2,
+  parsePendingInteractionV1,
+  parseSemanticStageStateV1,
 } from "@sillymaker/base";
 import { createRuntimeSchemaV1, fromStandardSchemaV1 } from "@sillymaker/base/authoring";
 
@@ -32,7 +32,7 @@ export interface LabGameStateV1 {
   readonly simulation: {
     readonly samples: LabSamplesStateV1;
     readonly procedure: LabProcedureStateV1;
-    readonly stage: SemanticStageStateV2;
+    readonly stage: SemanticStageStateV1;
     readonly narrative: LabNarrativeStateV1;
     readonly wallet: LabWalletStateV1;
   };
@@ -73,8 +73,8 @@ export const labProcedureStateSchemaV1: RuntimeSchemaV1<LabProcedureStateV1> = f
   },
 );
 
-export const labStageStateSchemaV1: RuntimeSchemaV1<SemanticStageStateV2> = createRuntimeSchemaV1(
-  { parse: (value) => parseSemanticStageStateV2(value) },
+export const labStageStateSchemaV1: RuntimeSchemaV1<SemanticStageStateV1> = createRuntimeSchemaV1(
+  { parse: (value) => parseSemanticStageStateV1(value) },
   { subject: { kind: "module", id: "lab.stage" } },
 );
 
@@ -104,7 +104,7 @@ export const labNarrativeStateSchemaV1: RuntimeSchemaV1<LabNarrativeStateV1> =
         const pending =
           record.pending === null || record.pending === undefined
             ? null
-            : parsePendingInteractionV2(record.pending);
+            : parsePendingInteractionV1(record.pending);
         if ((record.phase === "active") !== (record.cursor !== null)) {
           throw new TypeError("lab narrative cursor must match active phase");
         }

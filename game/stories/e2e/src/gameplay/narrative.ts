@@ -1,20 +1,20 @@
 // SPDX-License-Identifier: MIT
 import type {
-  InteractionResolutionContextV2,
-  InteractionResolutionV2,
+  InteractionResolutionContextV1,
+  InteractionResolutionV1,
   NarrativeHistoryV1,
-  PendingInteractionV2,
-  SemanticStageStateV2,
-  StageMutationV2,
+  PendingInteractionV1,
+  SemanticStageStateV1,
+  StageMutationV1,
   StrictJsonObjectV1,
 } from "@sillymaker/base";
 import {
   appendNarrativeHistoryV1,
   emptyNarrativeHistoryV1,
-  interactionOccurrenceIdV2,
-  parsePendingInteractionV2,
-  parseStageMutationV2,
-  reduceStageMutationsV2,
+  interactionOccurrenceIdV1,
+  parsePendingInteractionV1,
+  parseStageMutationV1,
+  reduceStageMutationsV1,
 } from "@sillymaker/base";
 
 import { labVoiceForSayV1 } from "./audio.js";
@@ -33,7 +33,7 @@ export interface LabNarrativeStateV1 {
   readonly phase: "idle" | "active" | "completed";
   /** The node the runner will execute next; null when idle/completed. */
   readonly cursor: string | null;
-  readonly pending: PendingInteractionV2 | null;
+  readonly pending: PendingInteractionV1 | null;
   /** Monotonic occurrence sequence; never resets, so re-entry re-fences. */
   readonly sequence: number;
   /** Evidence of the custom calibration resolution. */
@@ -96,7 +96,7 @@ export type LabNarrativeNodeV1 =
   | {
       readonly kind: "stage";
       readonly nodeId: string;
-      readonly mutations: (stage: SemanticStageStateV2) => readonly StageMutationV2[];
+      readonly mutations: (stage: SemanticStageStateV1) => readonly StageMutationV1[];
       /**
        * Static annotation of every content this node may show or replace,
        * for the lint/prediction graph. A conformance test runs the actual
@@ -146,9 +146,9 @@ const propsLayerV1 = "layer.e2e.props";
 const charactersLayerV1 = "layer.e2e.characters";
 const backgroundLayerV1 = "layer.e2e.background";
 
-function stageBatchV1(batch: readonly unknown[]): readonly StageMutationV2[] {
+function stageBatchV1(batch: readonly unknown[]): readonly StageMutationV1[] {
   return Object.freeze(
-    batch.map((mutation, index) => parseStageMutationV2(mutation, `/mutations/${String(index)}`)),
+    batch.map((mutation, index) => parseStageMutationV1(mutation, `/mutations/${String(index)}`)),
   );
 }
 
@@ -406,7 +406,7 @@ export const labNarrativeNodeIdsV1: readonly string[] = Object.freeze(
   labNarrativeScriptV1.map((node) => node.nodeId),
 );
 
-function stageHasTagV1(stage: SemanticStageStateV2, layerId: string, tag: string): boolean {
+function stageHasTagV1(stage: SemanticStageStateV1, layerId: string, tag: string): boolean {
   const layer = stage.layers.find((candidate) => candidate.layerId === layerId);
   return layer !== undefined && layer.entries.some((entry) => entry.tag === tag);
 }
@@ -457,9 +457,9 @@ export function labIsCustomPayloadValidV1(
  * requiresSamples rule, custom payloads from the same registered schema.
  */
 export function labInteractionContextV1(
-  pending: PendingInteractionV2 | null,
+  pending: PendingInteractionV1 | null,
   samplesCollected: number,
-): InteractionResolutionContextV2 {
+): InteractionResolutionContextV1 {
   return {
     isChoiceEnabled(choiceId: string): boolean {
       if (pending === null || pending.kind !== "choice") return false;
@@ -477,14 +477,14 @@ export function labInteractionContextV1(
 
 export interface LabNarrativeRunResultV1 {
   readonly narrative: LabNarrativeStateV1;
-  readonly stageMutations: readonly StageMutationV2[];
+  readonly stageMutations: readonly StageMutationV1[];
 }
 
-function pendingForNodeV1(node: LabNarrativeNodeV1, sequence: number): PendingInteractionV2 {
-  const occurrenceId = interactionOccurrenceIdV2(sequence);
+function pendingForNodeV1(node: LabNarrativeNodeV1, sequence: number): PendingInteractionV1 {
+  const occurrenceId = interactionOccurrenceIdV1(sequence);
   switch (node.kind) {
     case "say":
-      return parsePendingInteractionV2({
+      return parsePendingInteractionV1({
         kind: "say",
         definitionId: node.definitionId,
         seenRevision: node.seenRevision,
@@ -494,7 +494,7 @@ function pendingForNodeV1(node: LabNarrativeNodeV1, sequence: number): PendingIn
         advancePolicy: "confirm",
       });
     case "choice":
-      return parsePendingInteractionV2({
+      return parsePendingInteractionV1({
         kind: "choice",
         definitionId: node.definitionId,
         seenRevision: node.seenRevision,
@@ -503,7 +503,7 @@ function pendingForNodeV1(node: LabNarrativeNodeV1, sequence: number): PendingIn
         options: node.options.map(({ choiceId, textId }) => ({ choiceId, textId })),
       });
     case "pause":
-      return parsePendingInteractionV2({
+      return parsePendingInteractionV1({
         kind: "pause",
         definitionId: node.definitionId,
         seenRevision: node.seenRevision,
@@ -512,7 +512,7 @@ function pendingForNodeV1(node: LabNarrativeNodeV1, sequence: number): PendingIn
         skippable: node.skippable,
       });
     case "barrier":
-      return parsePendingInteractionV2({
+      return parsePendingInteractionV1({
         kind: "presentation_barrier",
         definitionId: node.definitionId,
         seenRevision: node.seenRevision,
@@ -521,7 +521,7 @@ function pendingForNodeV1(node: LabNarrativeNodeV1, sequence: number): PendingIn
         loadRecovery: node.loadRecovery,
       });
     case "custom":
-      return parsePendingInteractionV2({
+      return parsePendingInteractionV1({
         kind: "custom",
         definitionId: node.definitionId,
         seenRevision: node.seenRevision,
@@ -542,7 +542,7 @@ function pendingForNodeV1(node: LabNarrativeNodeV1, sequence: number): PendingIn
  */
 export function runLabNarrativeUntilInteractionV1(
   narrative: LabNarrativeStateV1,
-  stage: SemanticStageStateV2,
+  stage: SemanticStageStateV1,
 ): LabNarrativeRunResultV1 {
   if (narrative.cursor === null) {
     throw new TypeError("e2e.narrative_cursor_missing");
@@ -550,7 +550,7 @@ export function runLabNarrativeUntilInteractionV1(
   let cursor: string | null = narrative.cursor;
   let sequence = narrative.sequence;
   let localStage = stage;
-  const collected: StageMutationV2[] = [];
+  const collected: StageMutationV1[] = [];
 
   for (let steps = 0; steps < 64; steps += 1) {
     if (cursor === null) break;
@@ -566,7 +566,7 @@ export function runLabNarrativeUntilInteractionV1(
     if (node.kind === "stage") {
       const mutations = node.mutations(localStage);
       if (mutations.length > 0) {
-        const outcome = reduceStageMutationsV2(localStage, mutations);
+        const outcome = reduceStageMutationsV1(localStage, mutations);
         if (outcome.kind !== "applied") {
           throw new TypeError(`e2e.narrative_stage_invalid:${node.nodeId}`);
         }
@@ -617,7 +617,7 @@ export function runLabNarrativeUntilInteractionV1(
  */
 export function labNarrativeAfterResolutionV1(
   narrative: LabNarrativeStateV1,
-  resolution: InteractionResolutionV2,
+  resolution: InteractionResolutionV1,
 ): LabNarrativeStateV1 {
   const pending = narrative.pending;
   if (pending === null || narrative.cursor === null) {

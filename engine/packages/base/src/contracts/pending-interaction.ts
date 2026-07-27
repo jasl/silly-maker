@@ -3,7 +3,7 @@ import { dataFailure, readArray, readExactRecord } from "./presentation-data.js"
 import type { StrictJsonObjectV1 } from "./strict-json.js";
 
 /**
- * PendingInteraction V2: the explicit, saveable interaction boundary a
+ * PendingInteraction V1: the explicit, saveable interaction boundary a
  * Narrative runner stops at after executing pure control nodes. The contract
  * lives in Base; instances belong to Story authoritative State and decide
  * the currently allowed gameplay input and the Save recovery point.
@@ -18,12 +18,12 @@ import type { StrictJsonObjectV1 } from "./strict-json.js";
  * interaction. Renderer promises and callbacks never enter State or Saves.
  */
 
-const interactionIdPatternV2 = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)+$/u;
+const interactionIdPatternV1 = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)+$/u;
 
-function parseInteractionIdV2(value: unknown, path: string, reason: string): string {
+function parseInteractionIdV1(value: unknown, path: string, reason: string): string {
   if (
     typeof value !== "string" ||
-    !interactionIdPatternV2.test(value) ||
+    !interactionIdPatternV1.test(value) ||
     value.length < 3 ||
     value.length > 96
   ) {
@@ -33,37 +33,37 @@ function parseInteractionIdV2(value: unknown, path: string, reason: string): str
 }
 
 /** Deterministic occurrence identity derived from a Story-owned sequence. */
-export function interactionOccurrenceIdV2(sequence: number): string {
+export function interactionOccurrenceIdV1(sequence: number): string {
   if (!Number.isSafeInteger(sequence) || sequence < 1) {
     throw new TypeError("interaction occurrence sequence must be a positive integer");
   }
   return `interaction-occurrence.${String(sequence)}`;
 }
 
-const occurrenceIdPatternV2 = /^interaction-occurrence\.[1-9][0-9]*$/u;
+const occurrenceIdPatternV1 = /^interaction-occurrence\.[1-9][0-9]*$/u;
 
-export function parseInteractionOccurrenceIdV2(value: unknown, path = "/occurrenceId"): string {
-  if (typeof value !== "string" || !occurrenceIdPatternV2.test(value) || value.length > 96) {
+export function parseInteractionOccurrenceIdV1(value: unknown, path = "/occurrenceId"): string {
+  if (typeof value !== "string" || !occurrenceIdPatternV1.test(value) || value.length > 96) {
     return dataFailure(path, "interaction_occurrence_invalid");
   }
   return value;
 }
 
-function parseSeenRevisionV2(value: unknown, path: string): number {
+function parseSeenRevisionV1(value: unknown, path: string): number {
   if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1) {
     return dataFailure(path, "seen_revision_invalid");
   }
   return value;
 }
 
-function parsePositiveDurationMsV2(value: unknown, path: string): number {
+function parsePositiveDurationMsV1(value: unknown, path: string): number {
   if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1 || value > 600_000) {
     return dataFailure(path, "duration_invalid");
   }
   return value;
 }
 
-function parseBooleanV2(value: unknown, path: string): boolean {
+function parseBooleanV1(value: unknown, path: string): boolean {
   if (typeof value !== "boolean") return dataFailure(path, "boolean_expected");
   return value;
 }
@@ -73,7 +73,7 @@ function parseBooleanV2(value: unknown, path: string): boolean {
  * Values stay canonical-JSON safe: plain objects/arrays, strings, booleans,
  * null, and safe integers only.
  */
-export function parseInteractionJsonObjectV2(value: unknown, path = "/params"): StrictJsonObjectV1 {
+export function parseInteractionJsonObjectV1(value: unknown, path = "/params"): StrictJsonObjectV1 {
   const parseValue = (candidate: unknown, valuePath: string, depth: number): unknown => {
     if (depth > 8) return dataFailure(valuePath, "interaction_json_too_deep");
     if (candidate === null || typeof candidate === "boolean") return candidate;
@@ -123,70 +123,70 @@ export function parseInteractionJsonObjectV2(value: unknown, path = "/params"): 
   return parseValue(value, path, 0) as StrictJsonObjectV1;
 }
 
-export interface PendingInteractionBaseV2 {
+export interface PendingInteractionBaseV1 {
   readonly definitionId: string;
   readonly seenRevision: number;
   readonly occurrenceId: string;
 }
 
-export interface InteractionChoiceOptionV2 {
+export interface InteractionChoiceOptionV1 {
   readonly choiceId: string;
   readonly textId: string;
 }
 
-export type PendingInteractionV2 =
-  | (PendingInteractionBaseV2 & {
+export type PendingInteractionV1 =
+  | (PendingInteractionBaseV1 & {
       readonly kind: "say";
       readonly speakerTextId: string | null;
       readonly textId: string;
       readonly advancePolicy: "confirm" | "auto";
     })
-  | (PendingInteractionBaseV2 & {
+  | (PendingInteractionBaseV1 & {
       readonly kind: "choice";
       readonly promptTextId: string;
-      readonly options: readonly InteractionChoiceOptionV2[];
+      readonly options: readonly InteractionChoiceOptionV1[];
     })
-  | (PendingInteractionBaseV2 & {
+  | (PendingInteractionBaseV1 & {
       readonly kind: "pause";
       readonly durationMs: number;
       readonly skippable: boolean;
     })
-  | (PendingInteractionBaseV2 & {
+  | (PendingInteractionBaseV1 & {
       readonly kind: "presentation_barrier";
       readonly expectedTransitionId: string;
       readonly loadRecovery: "replay" | "settle";
     })
-  | (PendingInteractionBaseV2 & {
+  | (PendingInteractionBaseV1 & {
       readonly kind: "custom";
       readonly surfaceId: string;
       readonly params: StrictJsonObjectV1;
     });
 
-export type InteractionResolutionV2 =
+export type InteractionResolutionV1 =
   | { readonly kind: "advance" }
   | { readonly kind: "choose"; readonly choiceId: string }
   | { readonly kind: "resume" }
   | { readonly kind: "barrier_completed"; readonly transitionId: string }
   | { readonly kind: "custom"; readonly payload: StrictJsonObjectV1 };
 
-const interactionBaseKeysV2 = ["kind", "definitionId", "seenRevision", "occurrenceId"] as const;
+const interactionBaseKeysV1 = ["kind", "definitionId", "seenRevision", "occurrenceId"] as const;
 
-function parseInteractionBaseV2(
+function parseInteractionBaseV1(
   record: Record<string, unknown>,
   path: string,
-): PendingInteractionBaseV2 {
+): PendingInteractionBaseV1 {
   return {
-    definitionId: parseInteractionIdV2(
+    definitionId: parseInteractionIdV1(
       record.definitionId,
       `${path}/definitionId`,
       "interaction_definition_invalid",
     ),
-    seenRevision: parseSeenRevisionV2(record.seenRevision, `${path}/seenRevision`),
-    occurrenceId: parseInteractionOccurrenceIdV2(record.occurrenceId, `${path}/occurrenceId`),
+    seenRevision: parseSeenRevisionV1(record.seenRevision, `${path}/seenRevision`),
+    occurrenceId: parseInteractionOccurrenceIdV1(record.occurrenceId, `${path}/occurrenceId`),
   };
 }
 
-export function parsePendingInteractionV2(value: unknown, path = "/pending"): PendingInteractionV2 {
+export function parsePendingInteractionV1(value: unknown, path = "/pending"): PendingInteractionV1 {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     return dataFailure(path, "object_expected");
   }
@@ -195,7 +195,7 @@ export function parsePendingInteractionV2(value: unknown, path = "/pending"): Pe
     case "say": {
       const record = readExactRecord(
         value,
-        [...interactionBaseKeysV2, "speakerTextId", "textId", "advancePolicy"],
+        [...interactionBaseKeysV1, "speakerTextId", "textId", "advancePolicy"],
         path,
       );
       if (record.advancePolicy !== "confirm" && record.advancePolicy !== "auto") {
@@ -203,23 +203,23 @@ export function parsePendingInteractionV2(value: unknown, path = "/pending"): Pe
       }
       return Object.freeze({
         kind,
-        ...parseInteractionBaseV2(record, path),
+        ...parseInteractionBaseV1(record, path),
         speakerTextId:
           record.speakerTextId === null
             ? null
-            : parseInteractionIdV2(
+            : parseInteractionIdV1(
                 record.speakerTextId,
                 `${path}/speakerTextId`,
                 "text_id_invalid",
               ),
-        textId: parseInteractionIdV2(record.textId, `${path}/textId`, "text_id_invalid"),
+        textId: parseInteractionIdV1(record.textId, `${path}/textId`, "text_id_invalid"),
         advancePolicy: record.advancePolicy,
       });
     }
     case "choice": {
       const record = readExactRecord(
         value,
-        [...interactionBaseKeysV2, "promptTextId", "options"],
+        [...interactionBaseKeysV1, "promptTextId", "options"],
         path,
       );
       const optionsValue = readArray(record.options, `${path}/options`);
@@ -230,7 +230,7 @@ export function parsePendingInteractionV2(value: unknown, path = "/pending"): Pe
       const options = optionsValue.map((option, index) => {
         const optionPath = `${path}/options/${String(index)}`;
         const optionRecord = readExactRecord(option, ["choiceId", "textId"], optionPath);
-        const choiceId = parseInteractionIdV2(
+        const choiceId = parseInteractionIdV1(
           optionRecord.choiceId,
           `${optionPath}/choiceId`,
           "choice_id_invalid",
@@ -239,7 +239,7 @@ export function parsePendingInteractionV2(value: unknown, path = "/pending"): Pe
         seen.add(choiceId);
         return Object.freeze({
           choiceId,
-          textId: parseInteractionIdV2(
+          textId: parseInteractionIdV1(
             optionRecord.textId,
             `${optionPath}/textId`,
             "text_id_invalid",
@@ -248,8 +248,8 @@ export function parsePendingInteractionV2(value: unknown, path = "/pending"): Pe
       });
       return Object.freeze({
         kind,
-        ...parseInteractionBaseV2(record, path),
-        promptTextId: parseInteractionIdV2(
+        ...parseInteractionBaseV1(record, path),
+        promptTextId: parseInteractionIdV1(
           record.promptTextId,
           `${path}/promptTextId`,
           "text_id_invalid",
@@ -260,20 +260,20 @@ export function parsePendingInteractionV2(value: unknown, path = "/pending"): Pe
     case "pause": {
       const record = readExactRecord(
         value,
-        [...interactionBaseKeysV2, "durationMs", "skippable"],
+        [...interactionBaseKeysV1, "durationMs", "skippable"],
         path,
       );
       return Object.freeze({
         kind,
-        ...parseInteractionBaseV2(record, path),
-        durationMs: parsePositiveDurationMsV2(record.durationMs, `${path}/durationMs`),
-        skippable: parseBooleanV2(record.skippable, `${path}/skippable`),
+        ...parseInteractionBaseV1(record, path),
+        durationMs: parsePositiveDurationMsV1(record.durationMs, `${path}/durationMs`),
+        skippable: parseBooleanV1(record.skippable, `${path}/skippable`),
       });
     }
     case "presentation_barrier": {
       const record = readExactRecord(
         value,
-        [...interactionBaseKeysV2, "expectedTransitionId", "loadRecovery"],
+        [...interactionBaseKeysV1, "expectedTransitionId", "loadRecovery"],
         path,
       );
       if (record.loadRecovery !== "replay" && record.loadRecovery !== "settle") {
@@ -281,8 +281,8 @@ export function parsePendingInteractionV2(value: unknown, path = "/pending"): Pe
       }
       return Object.freeze({
         kind,
-        ...parseInteractionBaseV2(record, path),
-        expectedTransitionId: parseInteractionIdV2(
+        ...parseInteractionBaseV1(record, path),
+        expectedTransitionId: parseInteractionIdV1(
           record.expectedTransitionId,
           `${path}/expectedTransitionId`,
           "transition_id_invalid",
@@ -293,18 +293,18 @@ export function parsePendingInteractionV2(value: unknown, path = "/pending"): Pe
     case "custom": {
       const record = readExactRecord(
         value,
-        [...interactionBaseKeysV2, "surfaceId", "params"],
+        [...interactionBaseKeysV1, "surfaceId", "params"],
         path,
       );
       return Object.freeze({
         kind,
-        ...parseInteractionBaseV2(record, path),
-        surfaceId: parseInteractionIdV2(
+        ...parseInteractionBaseV1(record, path),
+        surfaceId: parseInteractionIdV1(
           record.surfaceId,
           `${path}/surfaceId`,
           "surface_id_invalid",
         ),
-        params: parseInteractionJsonObjectV2(record.params, `${path}/params`),
+        params: parseInteractionJsonObjectV1(record.params, `${path}/params`),
       });
     }
     default:
@@ -312,10 +312,10 @@ export function parsePendingInteractionV2(value: unknown, path = "/pending"): Pe
   }
 }
 
-export function parseInteractionResolutionV2(
+export function parseInteractionResolutionV1(
   value: unknown,
   path = "/resolution",
-): InteractionResolutionV2 {
+): InteractionResolutionV1 {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     return dataFailure(path, "object_expected");
   }
@@ -330,14 +330,14 @@ export function parseInteractionResolutionV2(
       const record = readExactRecord(value, ["kind", "choiceId"], path);
       return Object.freeze({
         kind,
-        choiceId: parseInteractionIdV2(record.choiceId, `${path}/choiceId`, "choice_id_invalid"),
+        choiceId: parseInteractionIdV1(record.choiceId, `${path}/choiceId`, "choice_id_invalid"),
       });
     }
     case "barrier_completed": {
       const record = readExactRecord(value, ["kind", "transitionId"], path);
       return Object.freeze({
         kind,
-        transitionId: parseInteractionIdV2(
+        transitionId: parseInteractionIdV1(
           record.transitionId,
           `${path}/transitionId`,
           "transition_id_invalid",
@@ -348,7 +348,7 @@ export function parseInteractionResolutionV2(
       const record = readExactRecord(value, ["kind", "payload"], path);
       return Object.freeze({
         kind,
-        payload: parseInteractionJsonObjectV2(record.payload, `${path}/payload`),
+        payload: parseInteractionJsonObjectV1(record.payload, `${path}/payload`),
       });
     }
     default:
@@ -356,7 +356,7 @@ export function parseInteractionResolutionV2(
   }
 }
 
-export type InteractionRejectionCodeV2 =
+export type InteractionRejectionCodeV1 =
   | "interaction.none_pending"
   | "interaction.occurrence_mismatch"
   | "interaction.kind_mismatch"
@@ -365,22 +365,22 @@ export type InteractionRejectionCodeV2 =
   | "interaction.barrier_mismatch"
   | "interaction.payload_invalid";
 
-export type InteractionResolutionOutcomeV2 =
+export type InteractionResolutionOutcomeV1 =
   | { readonly kind: "accepted" }
-  | { readonly kind: "rejected"; readonly code: InteractionRejectionCodeV2 };
+  | { readonly kind: "rejected"; readonly code: InteractionRejectionCodeV1 };
 
 /**
  * Story-provided context so the exact same evaluator serves the action
  * catalog, preview, and queue-front dispatch: choice availability and
  * custom payload validation are re-checked at every use.
  */
-export interface InteractionResolutionContextV2 {
+export interface InteractionResolutionContextV1 {
   isChoiceEnabled?(choiceId: string): boolean;
   isCustomPayloadValid?(surfaceId: string, payload: StrictJsonObjectV1): boolean;
 }
 
-const resolutionKindForInteractionV2: Readonly<
-  Record<PendingInteractionV2["kind"], InteractionResolutionV2["kind"]>
+const resolutionKindForInteractionV1: Readonly<
+  Record<PendingInteractionV1["kind"], InteractionResolutionV1["kind"]>
 > = Object.freeze({
   say: "advance",
   choice: "choose",
@@ -393,20 +393,20 @@ const resolutionKindForInteractionV2: Readonly<
  * The single resolution evaluator. It never mutates anything: callers use
  * the outcome to reject a command or to let the Narrative runner continue.
  */
-export function evaluateInteractionResolutionV2(
-  pending: PendingInteractionV2 | null,
+export function evaluateInteractionResolutionV1(
+  pending: PendingInteractionV1 | null,
   expectedOccurrenceId: string,
-  resolution: InteractionResolutionV2,
-  context: InteractionResolutionContextV2 = {},
-): InteractionResolutionOutcomeV2 {
-  const rejected = (code: InteractionRejectionCodeV2): InteractionResolutionOutcomeV2 =>
+  resolution: InteractionResolutionV1,
+  context: InteractionResolutionContextV1 = {},
+): InteractionResolutionOutcomeV1 {
+  const rejected = (code: InteractionRejectionCodeV1): InteractionResolutionOutcomeV1 =>
     Object.freeze({ kind: "rejected", code });
 
   if (pending === null) return rejected("interaction.none_pending");
   if (pending.occurrenceId !== expectedOccurrenceId) {
     return rejected("interaction.occurrence_mismatch");
   }
-  if (resolutionKindForInteractionV2[pending.kind] !== resolution.kind) {
+  if (resolutionKindForInteractionV1[pending.kind] !== resolution.kind) {
     return rejected("interaction.kind_mismatch");
   }
 

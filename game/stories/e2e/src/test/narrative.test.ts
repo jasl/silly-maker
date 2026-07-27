@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import type { InteractionResolutionV2, PendingInteractionV2 } from "@sillymaker/base";
+import type { InteractionResolutionV1, PendingInteractionV1 } from "@sillymaker/base";
 import { createGameHarnessV1 } from "@sillymaker/base/testkit";
 
 import type { LabInvocationV1 } from "../index.js";
@@ -24,12 +24,12 @@ const beginV1: LabInvocationV1 = Object.freeze({
 
 function resolveV1(
   expectedOccurrenceId: string,
-  resolution: InteractionResolutionV2,
+  resolution: InteractionResolutionV1,
 ): LabInvocationV1 {
   return Object.freeze({ kind: "resolve" as const, expectedOccurrenceId, resolution });
 }
 
-function pendingV1(harness: LabHarnessV1): PendingInteractionV2 {
+function pendingV1(harness: LabHarnessV1): PendingInteractionV1 {
   const pending = harness.observe().narrative.pending;
   if (pending === null) throw new Error("expected a pending interaction");
   return pending;
