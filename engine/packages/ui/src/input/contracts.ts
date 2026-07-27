@@ -22,6 +22,20 @@ export const systemInputActionIdsV1 = Object.freeze({
   narrativeAdvance: parseInputActionIdV1("narrative.advance"),
 });
 
+/**
+ * Player/presentation control actions. These route to the VN player and
+ * the Host profile — they never masquerade as GameCommands and never
+ * change the gameplay revision unless a handler ultimately resolves a
+ * PendingInteraction through the semantic contract.
+ */
+export const playerInputActionIdsV1 = Object.freeze({
+  toggleAuto: parseInputActionIdV1("player.toggle_auto"),
+  toggleSkip: parseInputActionIdV1("player.toggle_skip"),
+  toggleHistory: parseInputActionIdV1("player.toggle_history"),
+  toggleUi: parseInputActionIdV1("player.toggle_ui"),
+  replayVoice: parseInputActionIdV1("player.replay_voice"),
+});
+
 export interface ViewportPointV1 {
   readonly x: number;
   readonly y: number;

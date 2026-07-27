@@ -4,12 +4,21 @@ import type { ReactElement } from "react";
 
 import type { DeepReadonly, InteractionResolutionV2 } from "@sillymaker/base";
 import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
-import type { PlaybackModeV1, PresentationClockV1, TextRevealV1 } from "@sillymaker/ui";
+import type {
+  InputRouterV1,
+  PlaybackModeV1,
+  PresentationClockV1,
+  TextRevealV1,
+} from "@sillymaker/ui";
 import {
   Button,
   createAnimationFramePresentationClockV1,
   createPlaybackControllerV1,
   createTextRevealV1,
+  inputHandledV1,
+  inputIgnoredV1,
+  playerInputActionIdsV1,
+  systemInputActionIdsV1,
 } from "@sillymaker/ui";
 
 import type { LabUiPublicationV1 } from "./web-application.js";
@@ -32,6 +41,8 @@ export interface LabNarrativePlayerInputV1 {
   readonly publication: DeepReadonly<LabUiPublicationV1>;
   readonly semantic: LabSemanticPortV1;
   readonly profile: PlayerProfileStoreV1;
+  /** The composition input router for keyboard/gamepad action handling. */
+  readonly input?: InputRouterV1;
   /** Injectable for deterministic tests; defaults to the rAF clock. */
   readonly clock?: PresentationClockV1;
   /** Player-controlled voice replay wired from the audio presenter. */
@@ -166,6 +177,80 @@ export function LabNarrativePlayerV1(props: LabNarrativePlayerInputV1): ReactEle
   const setMode = (next: PlaybackModeV1): void => {
     controller.setMode(controller.mode() === next ? "normal" : next);
   };
+
+  // Keyboard/gamepad actions arrive through the Input Router's narrative
+  // context. The handler reads the LATEST state through this ref, consumes
+  // only what the current pending interaction supports (advance resolves a
+  // say through the exact same semantic contract as a click), treats the
+  // player controls as pure presentation, and returns ignored for anything
+  // else so unrelated actions keep routing.
+  const inputStateRef = useRef<{
+    sayOccurrenceId: string | null;
+    reveal: TextRevealV1 | null;
+    toggleMode: (next: PlaybackModeV1) => void;
+    toggleHistory: () => void;
+    toggleHidden: () => void;
+    replayVoice: (() => boolean) | undefined;
+  }>({
+    sayOccurrenceId: null,
+    reveal: null,
+    toggleMode: () => {},
+    toggleHistory: () => {},
+    toggleHidden: () => {},
+    replayVoice: undefined,
+  });
+  inputStateRef.current = {
+    sayOccurrenceId,
+    reveal,
+    toggleMode: setMode,
+    toggleHistory: () => setShowHistory((current) => !current),
+    toggleHidden: () => setHidden((current) => !current),
+    replayVoice: props.replayVoice,
+  };
+  const input = props.input;
+  useEffect(() => {
+    if (input === undefined) return () => {};
+    return input.register({
+      context: "narrative",
+      handle: (event) => {
+        if (event.kind !== "action") return inputIgnoredV1;
+        const state = inputStateRef.current;
+        if (event.actionId === systemInputActionIdsV1.narrativeAdvance) {
+          if (state.sayOccurrenceId === null) return inputIgnoredV1;
+          if (state.reveal !== null && !state.reveal.isComplete()) {
+            state.reveal.revealAll();
+            return inputHandledV1;
+          }
+          labResolveV1(
+            semantic,
+            state.sayOccurrenceId,
+            Object.freeze({ kind: "advance" as const }),
+          );
+          return inputHandledV1;
+        }
+        if (event.actionId === playerInputActionIdsV1.toggleAuto) {
+          state.toggleMode("auto");
+          return inputHandledV1;
+        }
+        if (event.actionId === playerInputActionIdsV1.toggleSkip) {
+          state.toggleMode("skip");
+          return inputHandledV1;
+        }
+        if (event.actionId === playerInputActionIdsV1.toggleHistory) {
+          state.toggleHistory();
+          return inputHandledV1;
+        }
+        if (event.actionId === playerInputActionIdsV1.toggleUi) {
+          state.toggleHidden();
+          return inputHandledV1;
+        }
+        if (event.actionId === playerInputActionIdsV1.replayVoice) {
+          return state.replayVoice?.() === true ? inputHandledV1 : inputIgnoredV1;
+        }
+        return inputIgnoredV1;
+      },
+    });
+  }, [input, semantic]);
 
   if (hidden) {
     // Hide UI is pure presentation: authoritative State is untouched and

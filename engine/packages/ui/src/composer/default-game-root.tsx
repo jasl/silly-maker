@@ -1,11 +1,16 @@
 // SPDX-License-Identifier: MIT
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import type { ReactElement, ReactNode } from "react";
 
 import type { DeepReadonly, RuntimeCapabilityPortV1 } from "@sillymaker/base";
 
 import { DevDockV1, createDevDockContributionSetV1 } from "../debug/DevDock.js";
 import type { DevDockContributionSetV1, DevDockOpenStateV1 } from "../debug/DevDock.js";
+import type { InputRouterV1 } from "../input/contracts.js";
+import type { GamepadActionMapV1 } from "../input/gamepad-adapter.js";
+import { installGamepadAdapterV1 } from "../input/gamepad-adapter.js";
+import type { KeyboardActionMapV1 } from "../input/keyboard-adapter.js";
+import { installKeyboardAdapterV1 } from "../input/keyboard-adapter.js";
 import type { PresentationIntentRouterV1 } from "../interaction/presentation-intent-router.js";
 import { OverlayHostV1 } from "../overlays/overlay-host.js";
 import type { OverlayRendererResolverV1 } from "../overlays/overlay-host.js";
@@ -44,6 +49,8 @@ export interface DefaultGameRootSlotContextV1<TPublication, TSemantic> {
   readonly publication: DeepReadonly<TPublication>;
   readonly semantic: TSemantic;
   readonly intents: PresentationIntentRouterV1;
+  /** The composition input router: Story surfaces register action handlers. */
+  readonly input: InputRouterV1;
 }
 
 /**
@@ -94,6 +101,11 @@ export interface DefaultGameRootPropsV1<
     TOverlayId
   >;
   readonly devDockContributions?: DevDockContributionSetV1;
+  /** Optional keyboard/gamepad adapters routed through the composition. */
+  readonly inputMaps?: {
+    readonly keyboard?: KeyboardActionMapV1;
+    readonly gamepad?: GamepadActionMapV1;
+  };
 }
 
 const closedDevDockStateV1 = Object.freeze({
@@ -190,7 +202,28 @@ export function DefaultGameRootV1<
     publication,
     semantic: props.semantic,
     intents: props.composition.intents,
+    input: props.composition.input,
   });
+
+  // Optional keyboard/gamepad adapters: installed for the root's lifetime,
+  // removed on unmount so disposal and page teardown leave no listener or
+  // poll loop behind.
+  const inputMaps = props.inputMaps;
+  useEffect(() => {
+    if (inputMaps?.keyboard === undefined) return () => {};
+    return installKeyboardAdapterV1({
+      router: props.composition.input,
+      map: inputMaps.keyboard,
+    });
+  }, [props.composition.input, inputMaps]);
+  useEffect(() => {
+    if (inputMaps?.gamepad === undefined) return () => {};
+    const adapter = installGamepadAdapterV1({
+      router: props.composition.input,
+      map: inputMaps.gamepad,
+    });
+    return () => adapter.dispose();
+  }, [props.composition.input, inputMaps]);
   const slots = props.slots ?? {};
   const overlayResolver = createDefaultOverlayResolverV1<TOverlayId>({
     storyResolver: slots.overlayResolver?.(slotContext) ?? null,

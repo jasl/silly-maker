@@ -66,11 +66,18 @@ export type { MutableViewSourceV1 } from "./runtime/create-view-bridge.js";
 export {
   InputContextProviderV1,
   createInputRouterV1,
+  inputHandledV1,
+  inputIgnoredV1,
+  installGamepadAdapterV1,
+  installKeyboardAdapterV1,
   parseInputActionIdV1,
+  playerInputActionIdsV1,
   systemInputActionIdsV1,
   useInputRouterV1,
 } from "./input/index.js";
 export type {
+  GamepadActionMapV1,
+  GamepadLikeV1,
   InputActionIdV1,
   InputContextIdV1,
   InputContextProviderPropsV1,
@@ -78,6 +85,10 @@ export type {
   InputHandlerResultV1,
   InputRouteResultV1,
   InputRouterV1,
+  InstallGamepadAdapterOptionsV1,
+  InstalledGamepadAdapterV1,
+  InstallKeyboardAdapterOptionsV1,
+  KeyboardActionMapV1,
   ViewportPointV1,
 } from "./input/index.js";
 export {

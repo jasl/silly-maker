@@ -15,12 +15,20 @@ import type {
   DefaultGameRootLabelsV1,
   DefaultGameRootSlotsV1,
   GameUiProjectorV1,
+  GamepadActionMapV1,
+  KeyboardActionMapV1,
   PresentationClockV1,
   RuntimePresentationPublicationV1,
   SaveOverlayLabelsV1,
   SemanticStageEntryRendererV2,
 } from "@sillymaker/ui";
-import { Button, SemanticStageV2, createAudioPresenterV1 } from "@sillymaker/ui";
+import {
+  Button,
+  SemanticStageV2,
+  createAudioPresenterV1,
+  playerInputActionIdsV1,
+  systemInputActionIdsV1,
+} from "@sillymaker/ui";
 import type { WebGameApplicationV1 } from "@sillymaker/web";
 import { createWebAudioHostV1 } from "@sillymaker/web";
 
@@ -430,6 +438,7 @@ export function createLabUiSlotsV1(input: {
           publication={context.publication}
           semantic={context.semantic}
           profile={input.playerProfile}
+          input={context.input}
           {...(input.playerClock === undefined ? {} : { clock: input.playerClock })}
           replayVoice={replayVoice}
         />
@@ -438,6 +447,24 @@ export function createLabUiSlotsV1(input: {
   };
   return Object.freeze(slots);
 }
+
+/** The Engine Lab keyboard map: stage-level shortcuts, never form keys. */
+export const labKeyboardMapV1: KeyboardActionMapV1 = Object.freeze({
+  Enter: systemInputActionIdsV1.narrativeAdvance,
+  Space: systemInputActionIdsV1.narrativeAdvance,
+  KeyA: playerInputActionIdsV1.toggleAuto,
+  KeyS: playerInputActionIdsV1.toggleSkip,
+  KeyH: playerInputActionIdsV1.toggleHistory,
+  KeyU: playerInputActionIdsV1.toggleUi,
+  KeyV: playerInputActionIdsV1.replayVoice,
+});
+
+/** The Engine Lab gamepad map: A advances, X/Y toggle auto/skip. */
+export const labGamepadMapV1: GamepadActionMapV1 = Object.freeze({
+  0: systemInputActionIdsV1.narrativeAdvance,
+  2: playerInputActionIdsV1.toggleAuto,
+  3: playerInputActionIdsV1.toggleSkip,
+});
 
 export const labRootLabelsV1: Partial<DefaultGameRootLabelsV1> = Object.freeze({
   systemMenuLabel: "系统",
@@ -582,5 +609,6 @@ export const labWebApplicationV1: WebGameApplicationV1<
       }),
       labels: labRootLabelsV1,
       saveLabels: labSaveOverlayLabelsV1,
+      inputMaps: Object.freeze({ keyboard: labKeyboardMapV1, gamepad: labGamepadMapV1 }),
     }),
 });

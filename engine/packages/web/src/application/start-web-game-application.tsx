@@ -18,8 +18,10 @@ import {
 import type {
   DefaultGameRootSlotsV1,
   DefaultGameRootLabelsV1,
+  GamepadActionMapV1,
   GameShellViewportOptionsV1,
   GameUiProjectorV1,
+  KeyboardActionMapV1,
   RuntimePresentationPublicationV1,
   RuntimeAssetLoaderV1,
   SaveOverlayLabelsV1,
@@ -76,6 +78,11 @@ export interface WebGameUiDefinitionV1<
   readonly labels?: Partial<DefaultGameRootLabelsV1>;
   readonly saveLabels?: SaveOverlayLabelsV1;
   readonly devDockContributions?: DevDockContributionSetV1;
+  /** Optional keyboard/gamepad action maps installed by the root. */
+  readonly inputMaps?: {
+    readonly keyboard?: KeyboardActionMapV1;
+    readonly gamepad?: GamepadActionMapV1;
+  };
 }
 
 export interface WebGameApplicationV1<
@@ -378,6 +385,7 @@ export async function startWebGameApplicationV1<
         {...(uiDefinition.devDockContributions === undefined
           ? {}
           : { devDockContributions: uiDefinition.devDockContributions })}
+        {...(uiDefinition.inputMaps === undefined ? {} : { inputMaps: uiDefinition.inputMaps })}
       />
     );
     mounted = mountGameApplicationV1(rootElement, rootNode);
