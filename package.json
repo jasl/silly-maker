@@ -34,7 +34,9 @@
     "check": "pnpm format:check && pnpm lint && pnpm lint:styles && pnpm typecheck && pnpm test && pnpm check:assets && pnpm check:stories && pnpm build:poc",
     "verify": "pnpm check",
     "test:e2e:engine": "playwright test --config engine/packages/web/playwright.engine.config.ts",
-    "test:e2e:poc": "playwright test --config engine/packages/web/playwright.poc.config.ts"
+    "test:e2e:poc": "playwright test --config engine/packages/web/playwright.poc.config.ts",
+    "test:conformance:headless": "vitest run game/stories/e2e",
+    "test:e2e:engine:prebuilt": "pnpm story build e2e && playwright test --config engine/packages/web/playwright.engine-prebuilt.config.ts"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.12.1",

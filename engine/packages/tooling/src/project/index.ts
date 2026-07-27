@@ -2,18 +2,26 @@
 export { runProjectCliV1 } from "./cli.js";
 export type { ProjectCliInputV1 } from "./cli.js";
 export {
+  buildStoryApplicationV1,
   checkStoryApplicationV1,
+  devSmokeStoryApplicationV1,
   inspectStoryApplicationV1,
+  prebuiltSmokeStoryApplicationV1,
   simulateStoryApplicationV1,
 } from "./commands.js";
 export type {
+  ProjectCommandRunnerV1,
   ProjectModuleLoaderV1,
+  StoryBuildReportV1,
   StoryCheckReportV1,
+  StoryDevSmokeReportV1,
   StoryInspectReportV1,
   StoryInspectResultV1,
+  StoryPrebuiltSmokeReportV1,
   StorySimulateOptionsV1,
   StorySimulateReportV1,
   StorySimulateStepV1,
+  StorySimulationTargetFactoryOptionsV1,
   StorySimulationTargetFactoryV1,
   StorySimulationTargetV1,
 } from "./commands.js";

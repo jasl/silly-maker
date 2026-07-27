@@ -35,23 +35,36 @@ Package manifests define supported cross-package entries. Do not bypass them wit
 
 ## Daily commands
 
-| Command                  | Use                                                                   |
-| ------------------------ | --------------------------------------------------------------------- |
-| `pnpm dev`               | Start the current Project Tavern development server.                  |
-| `pnpm check`             | Canonical local code-quality and product-behavior check.              |
-| `pnpm test`              | Run engine and game behavior tests.                                   |
-| `pnpm test:coverage`     | Run unit tests with engine line-coverage reporting.                   |
-| `pnpm test:e2e:engine`   | Engine browser suite against the Engine Lab Story.                    |
-| `pnpm test:e2e:poc`      | Project Tavern product browser suite.                                 |
-| `pnpm test:e2e`          | Both browser suites (engine, then PoC).                               |
-| `pnpm story <cmd> <app>` | Inspect/check/simulate a declared application (JSON reports).         |
-| `pnpm check:stories`     | Structured Story diagnostics for every application (part of `check`). |
-| `pnpm simulate:e2e`      | Scripted Engine Lab run through the Agent port.                       |
-| `pnpm build:poc`         | Build the current static Player.                                      |
-| `pnpm release:poc`       | Build and prepare the local Artifact.                                 |
-| `pnpm test:e2e:prebuilt` | Exercise the prepared Artifact instead of the dev server.             |
+| Command                          | Use                                                                   |
+| -------------------------------- | --------------------------------------------------------------------- |
+| `pnpm dev`                       | Start the current Project Tavern development server.                  |
+| `pnpm check`                     | Canonical local code-quality and product-behavior check.              |
+| `pnpm test`                      | Run engine and game behavior tests.                                   |
+| `pnpm test:coverage`             | Run unit tests with engine line-coverage reporting.                   |
+| `pnpm test:e2e:engine`           | Engine browser suite against the Engine Lab Story.                    |
+| `pnpm test:e2e:poc`              | Project Tavern product browser suite.                                 |
+| `pnpm test:e2e`                  | Both browser suites (engine, then PoC).                               |
+| `pnpm story <verb> <app>`        | Application lifecycle CLI (JSON reports); verbs below.                |
+| `pnpm check:stories`             | Structured Story diagnostics for every application (part of `check`). |
+| `pnpm simulate:e2e`              | Scripted Engine Lab run through the Agent port.                       |
+| `pnpm test:conformance:headless` | Engine Lab headless conformance suite.                                |
+| `pnpm build:poc`                 | Build the current static Player.                                      |
+| `pnpm release:poc`               | Build and prepare the local Artifact.                                 |
+| `pnpm test:e2e:prebuilt`         | Exercise the prepared PoC Artifact instead of the dev server.         |
+| `pnpm test:e2e:engine:prebuilt`  | Build the Engine Lab and run the engine suite on the Artifact.        |
 
-Story applications (story entry, asset verification, simulation target, web dev/build target) are declared in `game/project.config.ts`; see [build-and-release](build-and-release.md).
+The application lifecycle CLI covers six responsibilities for every application declared in `game/project.config.ts`:
+
+```text
+pnpm story inspect <app>                          # resolved identity/program report (JSON)
+pnpm story check <app> | --all                    # structured Story diagnostics (JSON)
+pnpm story simulate <app> [--scenario s] [--seed n]  # scripted Agent-port run
+pnpm story dev <app> --smoke                      # boot the dev server and prove the page
+pnpm story build <app>                            # build the application's web target
+pnpm story prebuilt-smoke <app>                   # verify the built Artifact's files
+```
+
+`simulate` plays a named scenario from the application's simulation target (for example `pnpm story simulate e2e --scenario opening --seed 23049`) through the same player-safe Agent port real agents use. Story applications (story entry, asset verification, simulation target, web dev/build target) are declared in `game/project.config.ts`; see [build-and-release](build-and-release.md).
 
 `pnpm verify` may remain as a compatibility alias for `pnpm check`; new documentation and automation should use `pnpm check`.
 

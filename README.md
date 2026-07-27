@@ -18,9 +18,11 @@ pnpm dev
 - `pnpm check`：格式、静态检查、类型检查和产品级自动化测试的本地主入口；
 - `pnpm test`：引擎与游戏行为测试；
 - `pnpm test:e2e`：浏览器端用户流程；
+- `pnpm story <verb> <app>`：应用生命周期 CLI（inspect/check/simulate/dev --smoke/build/prebuilt-smoke，JSON 报告）；
 - `pnpm build:poc`：构建当前 Project Tavern Web Player；
 - `pnpm release:poc`：准备带法律文件和技术清单的本地 Artifact；
-- `pnpm test:e2e:prebuilt`：验证已经构建的 Artifact。
+- `pnpm test:e2e:prebuilt`：验证已经构建的 PoC Artifact；
+- `pnpm test:e2e:engine:prebuilt`：构建 Engine Lab 并在产物上运行引擎套件。
 
 这些命令不要求特定机器、精确 Node/pnpm patch 版本或 Goal materialization attestation。发布到远端仍是独立的人工作业。
 

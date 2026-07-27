@@ -222,9 +222,17 @@ export interface StorySimulationTargetV1 {
   stateDigest?(): string;
   dispose(): Promise<unknown>;
   readonly defaultScript?: readonly unknown[];
+  /** Named invocation scripts selectable with `simulate --scenario`. */
+  readonly scenarios?: Readonly<Record<string, readonly unknown[]>>;
 }
 
-export type StorySimulationTargetFactoryV1 = () => Promise<StorySimulationTargetV1>;
+export interface StorySimulationTargetFactoryOptionsV1 {
+  readonly seed?: number;
+}
+
+export type StorySimulationTargetFactoryV1 = (
+  options?: StorySimulationTargetFactoryOptionsV1,
+) => Promise<StorySimulationTargetV1>;
 
 function requireSimulationTargetV1(value: unknown, pointer: string): StorySimulationTargetV1 {
   const target = value as Partial<StorySimulationTargetV1> | null;
@@ -260,10 +268,16 @@ export interface StorySimulateReportV1 {
   readonly steps: readonly StorySimulateStepV1[];
   readonly finalPublication: unknown;
   readonly finalStateDigest: string | null;
+  readonly scenario: string | null;
+  readonly seed: number | null;
 }
 
 export interface StorySimulateOptionsV1 {
   readonly script?: readonly unknown[];
+  /** A named scenario from the target's `scenarios` registry. */
+  readonly scenario?: string;
+  /** Deterministic bootstrap seed forwarded to the target factory. */
+  readonly seed?: number;
 }
 
 /** Plays a scripted invocation sequence through the application's Agent port. */
@@ -291,11 +305,25 @@ export async function simulateStoryApplicationV1(
     );
   }
   const target = requireSimulationTargetV1(
-    await (factory as StorySimulationTargetFactoryV1)(),
+    await (factory as StorySimulationTargetFactoryV1)(
+      options.seed === undefined ? {} : { seed: options.seed },
+    ),
     pointer,
   );
   try {
-    const script = options.script ?? target.defaultScript ?? [];
+    let script = options.script ?? null;
+    if (script === null && options.scenario !== undefined) {
+      const scenario = target.scenarios?.[options.scenario];
+      if (scenario === undefined) {
+        commandErrorV1(
+          "project.simulation_scenario_unknown",
+          `simulation target does not declare scenario "${options.scenario}"`,
+          pointer,
+        );
+      }
+      script = scenario;
+    }
+    script ??= target.defaultScript ?? [];
     const initialPublication = target.agent.observe();
     const steps: StorySimulateStepV1[] = [];
     for (const [index, invocation] of script.entries()) {
@@ -309,8 +337,196 @@ export async function simulateStoryApplicationV1(
       steps: Object.freeze(steps),
       finalPublication: target.agent.observe(),
       finalStateDigest: target.stateDigest === undefined ? null : target.stateDigest(),
+      scenario: options.scenario ?? null,
+      seed: options.seed ?? null,
     });
   } finally {
     await target.dispose();
   }
+}
+
+/**
+ * Process/filesystem seams for the application lifecycle commands. The CLI
+ * injects real implementations; contract tests inject fakes, so the verb
+ * surface stays covered without spawning Vite in unit runs.
+ */
+export interface ProjectCommandRunnerV1 {
+  /** Runs a command to completion and resolves with its exit code. */
+  run(command: string, args: readonly string[], options: { readonly cwd: string }): Promise<number>;
+  /** Starts a long-running server process; kill() must terminate it. */
+  start(
+    command: string,
+    args: readonly string[],
+    options: { readonly cwd: string },
+  ): { kill(): void };
+  fetchText(url: string): Promise<{ readonly status: number; readonly body: string }>;
+  sleep(milliseconds: number): Promise<void>;
+  readFile(path: string): Promise<string>;
+  fileSize(path: string): Promise<number | null>;
+}
+
+function requireWebTargetV1(
+  application: ReturnType<typeof resolveStoryApplicationV1>,
+  applicationId: string,
+): NonNullable<ReturnType<typeof resolveStoryApplicationV1>["web"]> {
+  if (application.web === null) {
+    commandErrorV1(
+      "project.web_target_unconfigured",
+      `application "${applicationId}" does not declare a web target`,
+      `/applications/${applicationId}/web`,
+    );
+  }
+  return application.web;
+}
+
+export interface StoryBuildReportV1 {
+  readonly applicationId: string;
+  readonly ok: boolean;
+  readonly outDir: string;
+  readonly exitCode: number;
+}
+
+/** Builds the application's web target through the repository Vite config. */
+export async function buildStoryApplicationV1(
+  project: SillymakerProjectConfigV1,
+  applicationId: string,
+  deps: { readonly runner: ProjectCommandRunnerV1; readonly repositoryRoot: string },
+): Promise<StoryBuildReportV1> {
+  const application = resolveStoryApplicationV1(project, applicationId);
+  const web = requireWebTargetV1(application, applicationId);
+  const exitCode = await deps.runner.run(
+    "pnpm",
+    ["exec", "vite", "build", "--mode", applicationId],
+    { cwd: deps.repositoryRoot },
+  );
+  return Object.freeze({
+    applicationId: application.applicationId,
+    ok: exitCode === 0,
+    outDir: web.outDir,
+    exitCode,
+  });
+}
+
+export interface StoryDevSmokeReportV1 {
+  readonly applicationId: string;
+  readonly ok: boolean;
+  readonly url: string;
+  readonly markersFound: readonly string[];
+}
+
+const devSmokePortV1 = 41739;
+const devSmokeAttemptsV1 = 60;
+const devSmokeIntervalMsV1 = 500;
+
+/**
+ * Boots the dev server for the application and proves the page it serves
+ * carries the application root and entry module before shutting down.
+ */
+export async function devSmokeStoryApplicationV1(
+  project: SillymakerProjectConfigV1,
+  applicationId: string,
+  deps: { readonly runner: ProjectCommandRunnerV1; readonly repositoryRoot: string },
+): Promise<StoryDevSmokeReportV1> {
+  const application = resolveStoryApplicationV1(project, applicationId);
+  const web = requireWebTargetV1(application, applicationId);
+  const url = `http://127.0.0.1:${String(devSmokePortV1)}/`;
+  const server = deps.runner.start(
+    "pnpm",
+    [
+      "exec",
+      "vite",
+      "--mode",
+      applicationId,
+      "--host",
+      "127.0.0.1",
+      "--port",
+      String(devSmokePortV1),
+      "--strictPort",
+    ],
+    { cwd: deps.repositoryRoot },
+  );
+  try {
+    let body: string | null = null;
+    for (let attempt = 0; attempt < devSmokeAttemptsV1; attempt += 1) {
+      try {
+        const response = await deps.runner.fetchText(url);
+        if (response.status === 200) {
+          body = response.body;
+          break;
+        }
+      } catch {
+        // The server is still starting; keep polling within the budget.
+      }
+      await deps.runner.sleep(devSmokeIntervalMsV1);
+    }
+    if (body === null) {
+      commandErrorV1(
+        "project.dev_smoke_unreachable",
+        `dev server for "${applicationId}" did not answer at ${url}`,
+        `/applications/${applicationId}/web`,
+      );
+    }
+    const markers = ['id="root"', web.applicationEntry.split("/").at(-1) ?? ""];
+    const markersFound = markers.filter((marker) => marker !== "" && body.includes(marker));
+    return Object.freeze({
+      applicationId: application.applicationId,
+      ok: markersFound.length === markers.filter((marker) => marker !== "").length,
+      url,
+      markersFound: Object.freeze(markersFound),
+    });
+  } finally {
+    server.kill();
+  }
+}
+
+export interface StoryPrebuiltSmokeReportV1 {
+  readonly applicationId: string;
+  readonly ok: boolean;
+  readonly outDir: string;
+  readonly checkedFiles: readonly string[];
+  readonly missingFiles: readonly string[];
+}
+
+const prebuiltReferencePatternV1 = /(?:src|href)="(\.\/[^"]+)"/gu;
+
+/**
+ * Verifies the built Artifact without a browser: the entry HTML exists and
+ * every relative script/stylesheet it references is present and non-empty.
+ * Browser-level prebuilt behavior stays with the Playwright suites.
+ */
+export async function prebuiltSmokeStoryApplicationV1(
+  project: SillymakerProjectConfigV1,
+  applicationId: string,
+  deps: { readonly runner: ProjectCommandRunnerV1; readonly repositoryRoot: string },
+): Promise<StoryPrebuiltSmokeReportV1> {
+  const application = resolveStoryApplicationV1(project, applicationId);
+  const web = requireWebTargetV1(application, applicationId);
+  const indexPath = `${deps.repositoryRoot}/${web.outDir}/index.html`;
+  let html: string;
+  try {
+    html = await deps.runner.readFile(indexPath);
+  } catch {
+    commandErrorV1(
+      "project.prebuilt_missing",
+      `built Artifact for "${applicationId}" has no ${web.outDir}/index.html — run build first`,
+      `/applications/${applicationId}/web/outDir`,
+    );
+  }
+  const checkedFiles: string[] = [];
+  const missingFiles: string[] = [];
+  for (const match of html.matchAll(prebuiltReferencePatternV1)) {
+    const reference = match[1];
+    if (reference === undefined) continue;
+    const filePath = `${deps.repositoryRoot}/${web.outDir}/${reference.slice(2)}`;
+    checkedFiles.push(reference);
+    const size = await deps.runner.fileSize(filePath);
+    if (size === null || size === 0) missingFiles.push(reference);
+  }
+  return Object.freeze({
+    applicationId: application.applicationId,
+    ok: missingFiles.length === 0 && checkedFiles.length > 0,
+    outDir: web.outDir,
+    checkedFiles: Object.freeze(checkedFiles),
+    missingFiles: Object.freeze(missingFiles),
+  });
 }

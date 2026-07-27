@@ -3,7 +3,6 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { AuthoringDiagnosticErrorV1 } from "@sillymaker/base";
 import {
   checkStoryApplicationV1,
   createImportProjectModuleLoaderV1,
@@ -54,13 +53,14 @@ describe("project commands against the real repository config", () => {
     expect(JSON.stringify(second.steps)).toBe(JSON.stringify(first.steps));
   });
 
-  it("answers simulate for the PoC with a structured diagnostic until F3 migrates it", async () => {
-    await expect(
-      simulateStoryApplicationV1(validatedProjectV1, "poc-web", loaderV1),
-    ).rejects.toSatisfy(
-      (error: unknown) =>
-        error instanceof AuthoringDiagnosticErrorV1 &&
-        error.diagnostics[0]?.code === "project.simulation_unconfigured",
-    );
+  it("simulates the PoC through its composer-backed Agent-port target", async () => {
+    const report = await simulateStoryApplicationV1(validatedProjectV1, "poc-web", loaderV1, {
+      seed: 23049,
+    });
+    expect(report.applicationId).toBe("poc-web");
+    expect(report.seed).toBe(23049);
+    expect(report.steps.length).toBeGreaterThan(0);
+    expect(JSON.stringify(report.steps)).toContain("committed");
+    expect(report.finalStateDigest).toMatch(/^sha256:/u);
   });
 });

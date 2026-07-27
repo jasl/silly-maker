@@ -21,9 +21,10 @@ export const projectTavernConfigV1 = {
         exportName: "pocStoryEntryV1",
       },
       assetVerification: true,
-      // The PoC application still boots through Story-private composition;
-      // it gains an Agent-port simulation target with the F3 migration.
-      simulate: null,
+      simulate: {
+        module: "game/stories/poc/src/tooling/simulation-target.ts",
+        exportName: "createPocSimulationTargetV1",
+      },
       web: {
         storyRoot: "game/stories/poc",
         applicationHtml: "game/stories/poc/index.html",

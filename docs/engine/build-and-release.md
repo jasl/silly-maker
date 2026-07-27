@@ -58,7 +58,17 @@ The legal files are a product packaging requirement for the composite bundle, no
 pnpm test:e2e:prebuilt
 ```
 
-This serves and exercises the prepared Artifact rather than a source dev server. Use it after changes to routing, base paths, generated identity, asset loading, persistence bootstrap, bundle composition, or Artifact preparation.
+This serves and exercises the prepared PoC Artifact rather than a source dev server. Use it after changes to routing, base paths, generated identity, asset loading, persistence bootstrap, bundle composition, or Artifact preparation.
+
+The Engine Lab has the same two prebuilt layers:
+
+```sh
+pnpm story build e2e            # build dist/e2e through the project CLI
+pnpm story prebuilt-smoke e2e   # file-level Artifact verification (no browser)
+pnpm test:e2e:engine:prebuilt   # the full engine browser suite on the Artifact
+```
+
+`pnpm story dev <app> --smoke` proves the dev server still boots and serves the application page after configuration or dependency changes.
 
 For ordinary browser work against source, use:
 

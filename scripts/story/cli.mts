@@ -15,7 +15,11 @@ registerHooks({
         return nextResolve(`${specifier.slice(0, -4)}.mts`, context);
       }
       if (specifier.endsWith(".js")) {
-        return nextResolve(`${specifier.slice(0, -3)}.ts`, context);
+        try {
+          return nextResolve(`${specifier.slice(0, -3)}.ts`, context);
+        } catch {
+          return nextResolve(`${specifier.slice(0, -3)}.tsx`, context);
+        }
       }
       throw error;
     }
@@ -38,6 +42,7 @@ process.exitCode = await runProjectCliV1({
   project: defineSillymakerProjectV1(projectTavernConfigV1),
   argv: process.argv.slice(2),
   loader: createImportProjectModuleLoaderV1(repositoryRootV1),
+  repositoryRoot: repositoryRootV1,
   writeOut: (line) => console.log(line),
   writeErr: (line) => console.error(line),
 });
