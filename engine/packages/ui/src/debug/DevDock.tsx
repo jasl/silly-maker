@@ -224,7 +224,13 @@ function DevDockRailV1(props: {
               需要启用作弊功能
             </p>
           ) : null}
-          <section className={styles["dev-dock__panel"]} aria-live="polite">
+          {/* Scrollable panel content stays keyboard-reachable (WCAG). */}
+          <section
+            className={styles["dev-dock__panel"]}
+            aria-live="polite"
+            aria-label={selected.title}
+            tabIndex={0}
+          >
             {selectedAuthorized ? selected.render() : <p>需要启用作弊功能</p>}
           </section>
         </>

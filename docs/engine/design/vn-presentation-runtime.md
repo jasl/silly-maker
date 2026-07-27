@@ -229,6 +229,8 @@ onLifecycle("show" | "hide" | "replace" | "replaced", ...)
 
 ## 10. DevTools and editor path
 
+状态更新（2026-07-28）：第 1–2 步的数据面已实现——通用只读检查器（live JSON inspector、叙事图视图含 lint 标注与当前交互高亮）进入 `@sillymaker/ui/debug`，Engine Lab 以 debug_tools 门控的 lazy DevDock 面板消费（语义舞台/交互与历史/音频意图/叙事图）。第 3–5 步（scene preview、Timeline scrubber、可视化 editor）按 [R5–R7 计划](../plans/2026-07-28-sillymaker-r5-r7.md) defer。
+
 开发工具按可复用数据面逐步增强：
 
 1. DevDock Stage tree、PendingInteraction、Transition、Audio intent、Asset demand、History/Seen inspector；

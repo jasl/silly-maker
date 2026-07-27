@@ -31,3 +31,5 @@ export type {
 } from "./DiagnosticInspector.tsx";
 export { FixtureBrowserV1 } from "./FixtureBrowser.tsx";
 export type { FixtureBrowserAnchorResultV1, FixtureBrowserPropsV1 } from "./FixtureBrowser.tsx";
+export { DebugNarrativeGraphViewV1, DebugValueInspectorV1 } from "./inspector-panels.tsx";
+export type { DebugValueSourceV1, NarrativeGraphDiagnosticViewV1 } from "./inspector-panels.tsx";

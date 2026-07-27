@@ -727,5 +727,9 @@ export const labWebApplicationV1: WebGameApplicationV1<
       labels: labRootLabelsV1,
       saveLabels: labSaveOverlayLabelsV1,
       inputMaps: Object.freeze({ keyboard: labKeyboardMapV1, gamepad: labGamepadMapV1 }),
+      loadDevDockContributions: () =>
+        import("./dev-dock.tsx").then((module) =>
+          module.createLabDevDockContributionsV1({ instance }),
+        ),
     }),
 });

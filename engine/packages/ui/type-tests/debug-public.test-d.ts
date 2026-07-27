@@ -23,6 +23,8 @@ type DebugRuntimeKeysV1 = ExpectV1<
     | "CapabilityPanelV1"
     | "DebugCommandPanelV1"
     | "DebugLaunchersV1"
+    | "DebugNarrativeGraphViewV1"
+    | "DebugValueInspectorV1"
     | "DevDockPortalCoordinatorV1"
     | "DevDockV1"
     | "DiagnosticInspectorV1"

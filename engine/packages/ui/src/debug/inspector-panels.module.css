@@ -1,0 +1,45 @@
+/* SPDX-License-Identifier: MIT */
+
+.value {
+  margin: 0;
+  max-height: 40vh;
+  overflow: auto;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.graph-list {
+  margin: 0;
+  padding-inline-start: 1.25rem;
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.graph-node[data-graph-active="true"] {
+  font-weight: 700;
+}
+
+.graph-node[data-graph-flagged="true"] {
+  text-decoration: underline wavy;
+}
+
+.graph-kind {
+  display: inline-block;
+  min-inline-size: 5.5em;
+  opacity: 0.75;
+}
+
+.graph-id {
+  margin-inline-end: 0.5em;
+}
+
+.graph-interaction {
+  margin-inline-end: 0.5em;
+  opacity: 0.75;
+}
+
+.graph-successors {
+  opacity: 0.6;
+}
