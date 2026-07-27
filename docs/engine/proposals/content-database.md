@@ -1,6 +1,6 @@
 # Content database proposal (typed static tables + queries)
 
-状态：**方向已认可，进入设计；尚未排期实现**。2026-07-28 由 RPG Maker MV 中型 SLG 的[能力缺口分析](../../research/2026-07-28-mv-slg-gap-analysis.md)确立需求证据。
+状态：已实现第一刀（2026-07-28）：`engine/packages/base/src/contracts/content-database.ts`，首个消费者 `game/stories/examples/cat-cafe`。本文档保留为设计依据；后续演进（分页、索引、多值外键）按真实需求提案。
 
 与 [typed-state-store 提案](typed-state-store.md)的关系：**互补且严格分层**。本提案只管**静态内容数据**（authoring 时定义、运行时只读、参与 Story 身份）；可变游戏状态仍归 GameplayModule/StateStore 世界。参考游戏把两者混进同一个无类型变量池，是其不可维护性的根源——这条边界是本提案最重要的设计决定。
 

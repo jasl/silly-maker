@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { lintNarrativeGraph } from "@sillymaker/base/story";
 import { createGameHarnessV1, resolveStoryForTestV1 } from "@sillymaker/base/testkit";
 
+import { catcafeEndingForV1 } from "../simulation.ts";
 import { createCatcafeApplicationInstanceV1 } from "../application/core-application.ts";
 import type { CatcafeApplicationInstanceV1 } from "../application/core-application.ts";
 import { catcafeSemanticAdapterV1 } from "../application/semantic.ts";
@@ -231,5 +232,58 @@ describe("catcafe determinism", () => {
     const replay = await harness.admin.replayAuthoritatively();
     expect(replay).toMatchObject({ authoritative: true, identityMatch: true, matches: true });
     await harness.dispose();
+  });
+});
+
+describe("catcafe endings", () => {
+  const finalNight = Object.freeze({ week: 7, day: 6, slot: 3, stamina: 0 });
+  const base = Object.freeze({
+    calendar: finalNight,
+    cat: Object.freeze({ trust: 60, vigor: 50, skill: 40, fishBuff: 0, pettingLeft: 3 }),
+    shop: Object.freeze({ reputation: 50, tidiness: 50, money: 100, trophies: 1 }),
+    contest: null,
+  });
+
+  it("settles the four endings by priority after the final contest night", () => {
+    const simulation = base as never;
+    expect(catcafeEndingForV1(simulation)).toBe("ordinary");
+    expect(catcafeEndingForV1({ ...base, shop: { ...base.shop, trophies: 3 } } as never)).toBe(
+      "champion",
+    );
+    expect(
+      catcafeEndingForV1({
+        ...base,
+        cat: { ...base.cat, trust: 85 },
+        shop: { ...base.shop, reputation: 70 },
+      } as never),
+    ).toBe("signboard");
+    expect(
+      catcafeEndingForV1({
+        ...base,
+        cat: { ...base.cat, trust: 30 },
+        shop: { ...base.shop, reputation: 70 },
+      } as never),
+    ).toBe("adopted");
+  });
+
+  it("stays null before the final night and during a running contest", () => {
+    expect(
+      catcafeEndingForV1({ ...base, calendar: { ...finalNight, week: 6 } } as never),
+    ).toBeNull();
+    expect(
+      catcafeEndingForV1({ ...base, calendar: { ...finalNight, slot: 2 } } as never),
+    ).toBeNull();
+    expect(
+      catcafeEndingForV1({
+        ...base,
+        contest: {
+          rivalId: "rival.general",
+          round: 1,
+          morale: 30,
+          rivalMorale: 60,
+          feintActive: false,
+        },
+      } as never),
+    ).toBeNull();
   });
 });

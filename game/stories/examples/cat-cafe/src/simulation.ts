@@ -168,6 +168,7 @@ export interface CatcafeGameViewV1 {
   readonly shop: CatcafeGameStateV1["simulation"]["shop"];
   readonly contest: CatcafeContestStateV1 | null;
   readonly catStage: number;
+  readonly ending: string | null;
   readonly stage: SemanticStageState;
 }
 
@@ -615,6 +616,25 @@ const transactionRunnerV1 = compositionV1.createTransactionRunner({
   createFault: () => Object.freeze({ code: "cc.executor_failed" as const }),
 });
 
+/**
+ * 结局判定：第 7 周运动会结束（周日夜时段）后结算。
+ * 冠军线（三奖杯）> 招牌线（信任+声誉）> 领养线（低信任高声誉）> 默认线。
+ */
+export type CatcafeEndingV1 = "champion" | "signboard" | "adopted" | "ordinary";
+
+export function catcafeEndingForV1(
+  state: CatcafeGameStateV1["simulation"],
+): CatcafeEndingV1 | null {
+  const calendar = state.calendar;
+  const afterFinal =
+    calendar.week === 7 && calendar.day === 6 && catcafeSlotsV1[calendar.slot] === "night";
+  if (!afterFinal || state.contest !== null) return null;
+  if (state.shop.trophies >= 3) return "champion";
+  if (state.cat.trust >= 80 && state.shop.reputation >= 60) return "signboard";
+  if (state.cat.trust < 50 && state.shop.reputation >= 60) return "adopted";
+  return "ordinary";
+}
+
 /** 今天是否运动会日：3/5/7 周的周日暮时段。 */
 export function catcafeContestTodayV1(
   calendar: CatcafeGameStateV1["simulation"]["calendar"],
@@ -992,6 +1012,7 @@ export function createCatcafeGameSimulationV1(): CatcafeGameSimulationV1 {
         shop: queries.shop,
         contest: queries.contest,
         catStage: catcafeStageForWeekV1(queries.calendar.week),
+        ending: catcafeEndingForV1(queries),
         stage: queries.stage,
       });
     },

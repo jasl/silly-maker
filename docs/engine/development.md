@@ -25,6 +25,8 @@ engine/packages/tooling  Node-only tooling (JSONL agent host protocol)
 engine/packages/ui       generic React presentation and input
 engine/packages/web      browser Host and application adapters
 game/stories/e2e         neutral Engine Conformance Story (MIT test consumer)
+game/stories/template    minimal starter Story (new-project skeleton)
+game/stories/examples    curated example Stories (bookshop; cat-cafe, the engine-gap delivery vehicle)
 scripts                  maintained build, asset, and product tooling
 docs/engine            active engine documentation
 docs/game              active gameplay design
