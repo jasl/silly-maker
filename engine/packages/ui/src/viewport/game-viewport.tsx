@@ -49,6 +49,11 @@ export function useGameViewportV1(): GameViewportGeometryV1 {
   return geometry;
 }
 
+/** Reads the viewport geometry without requiring a managed viewport. */
+export function useOptionalGameViewportV1(): GameViewportGeometryV1 | null {
+  return useContext(GameViewportContextV1);
+}
+
 function computeGeometryV1(
   canvas: GameViewportCanvasV1,
   available: GameViewportSizeV1,

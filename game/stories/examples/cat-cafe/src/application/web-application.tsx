@@ -248,13 +248,15 @@ function CatcafeNarrativePanelV1(props: {
   const pending = narrative.pending;
   const panelStyle = {
     position: "absolute" as const,
-    insetInline: "160px",
-    insetBlockEnd: "48px",
-    padding: "24px 32px",
+    insetInline: "min(160px, 6%)",
+    insetBlockEnd: "min(48px, 4%)",
+    maxBlockSize: "70%",
+    overflowY: "auto" as const,
+    padding: "clamp(8px, 3%, 32px)",
     borderRadius: "16px",
     background: "rgba(16, 20, 26, 0.82)",
     color: "#f2efe8",
-    fontSize: "22px",
+    fontSize: "clamp(14px, 2.5vw, 22px)",
     lineHeight: 1.6,
   };
   if (pending === null) return null;
