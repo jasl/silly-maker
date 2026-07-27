@@ -104,18 +104,29 @@ export function SemanticStageV1(props: SemanticStagePropsV1): ReactElement {
         const definition = timelinesRef.current?.resolveTimeline(cueId) ?? null;
         if (definition === null) return false;
         activeCueRef.current?.cancel();
+        // Zero-duration runs (reduced motion, pure-event cues) finish
+        // synchronously inside play(), before `cueRun` initializes — the
+        // flag routes that case past the closure without touching it.
+        let finishedSynchronously = false;
+        let started = false;
         const cueRun = timelinePlayer.play({
           definition,
           epoch,
           onSample: (sample) => setOverlay(sample),
           onEvent: (eventId) => timelineEventRef.current?.(eventId),
           onFinished: () => {
+            if (!started) {
+              finishedSynchronously = true;
+              return;
+            }
             if (activeCueRef.current === cueRun) {
               activeCueRef.current = null;
               setActiveCueId(null);
             }
           },
         });
+        started = true;
+        if (finishedSynchronously) return true;
         activeCueRef.current = cueRun;
         setActiveCueId(definition.timelineId);
         return true;
