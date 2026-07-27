@@ -28,7 +28,7 @@ export interface CreateTemplateApplicationInstanceOptionsV1 {
 
 /**
  * Creates a disposable headless application instance for tests and the
- * `pnpm story simulate template` target. Deterministic by default.
+ * `deno task story simulate template` target. Deterministic by default.
  */
 export async function createTemplateApplicationInstanceV1(
   options: CreateTemplateApplicationInstanceOptionsV1 = {},

@@ -28,7 +28,7 @@ export interface CreateBookshopApplicationInstanceOptionsV1 {
 
 /**
  * Creates a disposable headless application instance for tests and the
- * `pnpm story simulate bookshop` target. Deterministic by default.
+ * `deno task story simulate bookshop` target. Deterministic by default.
  */
 export async function createBookshopApplicationInstanceV1(
   options: CreateBookshopApplicationInstanceOptionsV1 = {},

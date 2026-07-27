@@ -3,7 +3,7 @@ import type { SillymakerProjectConfigV1 } from "@sillymaker/tooling/project/conf
 
 /**
  * The SillyMaker application registry. Vite target resolution, runtime
- * asset verification, and the `pnpm story` commands all consume this one
+ * asset verification, and the `deno task story` commands all consume this one
  * declaration set; adding a Story application means adding one entry here.
  *
  * This file stays runtime-dependency-free (type-only imports) because Vite

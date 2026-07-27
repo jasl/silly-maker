@@ -41,7 +41,7 @@ Build identity is generated from the application and resolved Story inputs used 
 ## Prepare a local Artifact
 
 ```sh
-node --experimental-strip-types scripts/prepare-artifact.mjs <dist-dir>
+deno run -A scripts/prepare-artifact.mjs <dist-dir>
 ```
 
 Artifact preparation takes an already built Player directory and adds the release wrapping. A maintainable Artifact includes:

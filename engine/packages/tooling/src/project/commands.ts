@@ -455,7 +455,7 @@ export async function desktopStoryApplicationV1(
     `${stagingDir}/deno.json`,
     `${JSON.stringify(
       {
-        tasks: { build: "echo 'dist/ prebuilt by pnpm story build'" },
+        tasks: { build: "echo 'dist/ prebuilt by deno task story build'" },
         desktop: {
           app: { name: desktop.name, identifier: desktop.identifier },
           backend: "webview",

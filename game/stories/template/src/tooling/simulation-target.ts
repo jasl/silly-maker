@@ -12,7 +12,7 @@ function resolveStepV1(occurrence: number, resolution: unknown) {
 }
 
 /**
- * Named scenarios for `pnpm story simulate template --scenario <name>`.
+ * Named scenarios for `deno task story simulate template --scenario <name>`.
  * Occurrence numbers count interaction boundaries from the start of the
  * session; inserting a boundary shifts every later number.
  */
@@ -36,7 +36,7 @@ const scenariosV1 = Object.freeze({
 });
 
 /**
- * The simulation target for `pnpm story simulate template`: a fresh
+ * The simulation target for `deno task story simulate template`: a fresh
  * fixed-seed application instance whose player-safe Agent port drives the
  * run — the same surface real agents and the browser UI use.
  */
