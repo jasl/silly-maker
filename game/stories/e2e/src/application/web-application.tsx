@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 
 import type {
@@ -49,8 +49,10 @@ import type {
 } from "../gameplay/simulation.ts";
 import {
   labAudioManifestV1,
+  labBeaconPulseCueIdV1,
   labStageContentCatalogV1,
   labStageTransitionCatalogV1,
+  labTimelineCatalogV1,
 } from "../presentation.ts";
 
 /** The Engine Lab logical canvas: a 16:10 design resolution. */
@@ -336,47 +338,84 @@ function LabHudV1(props: {
  * panel, a HUD with the action catalog, a completion narrative line, and a
  * journal overlay — all added without modifying the composer.
  */
+/**
+ * The Lab stage slot: the semantic stage plus the R5 timeline wiring. A
+ * committed calibration result triggers the beacon-pulse cue through the
+ * ordinary presentation intent, and the last timeline event is exposed as
+ * a data probe for tests. Pure presentation: no gameplay dispatch here.
+ */
+function LabStageV1(props: {
+  readonly context: Parameters<
+    NonNullable<
+      DefaultGameRootSlotsV1<LabUiPublicationV1, LabSemanticPortV1, LabUiOverlayIdV1>["background"]
+    >
+  >[0];
+}): ReactElement {
+  const { context } = props;
+  const pending = context.publication.semantic.narrative.pending;
+  const calibration = context.publication.semantic.narrative.calibration;
+  const [lastCueEvent, setLastCueEvent] = useState<string | null>(null);
+  const previousCalibrationRef = useRef(calibration);
+  const intents = context.intents;
+
+  useEffect(() => {
+    const previous = previousCalibrationRef.current;
+    previousCalibrationRef.current = calibration;
+    if (previous === null && calibration !== null) {
+      intents.execute(
+        Object.freeze({ kind: "presentation.play_cue" as const, cueId: labBeaconPulseCueIdV1 }),
+      );
+    }
+  }, [calibration, intents]);
+
+  return (
+    <section
+      data-lab-stage="true"
+      data-lab-cue-event={lastCueEvent ?? undefined}
+      aria-label={context.publication.view.stageName}
+    >
+      <SemanticStageV1
+        target={context.publication.view.stageTarget}
+        revision={context.publication.semantic.revision}
+        epoch={context.publication.view.anchorEpoch}
+        catalog={labStageTransitionCatalogV1}
+        renderers={labStageRenderersV1}
+        accessibleName={context.publication.view.stageName}
+        timelines={labTimelineCatalogV1}
+        cues={context.cues}
+        onTimelineEvent={(eventId) => setLastCueEvent(eventId)}
+        onAcknowledgment={(acknowledgment) => {
+          // A completed acknowledged transition confirms a pending
+          // presentation barrier through an ordinary semantic command.
+          // Mismatched or late acknowledgments dispatch nothing here, and
+          // anything stale that still slips through is rejected at the
+          // queue front by the occurrence fence.
+          if (
+            pending?.kind === "presentation_barrier" &&
+            acknowledgment.outcome !== "cancelled" &&
+            acknowledgment.transitionId === pending.expectedTransitionId
+          ) {
+            labResolveV1(
+              context.semantic,
+              pending.occurrenceId,
+              Object.freeze({
+                kind: "barrier_completed" as const,
+                transitionId: acknowledgment.transitionId,
+              }),
+            );
+          }
+        }}
+      />
+    </section>
+  );
+}
+
 const labUiSlotsDefinitionV1: DefaultGameRootSlotsV1<
   LabUiPublicationV1,
   LabSemanticPortV1,
   LabUiOverlayIdV1
 > = {
-  background: (context) => {
-    const pending = context.publication.semantic.narrative.pending;
-    return (
-      <section data-lab-stage="true" aria-label={context.publication.view.stageName}>
-        <SemanticStageV1
-          target={context.publication.view.stageTarget}
-          revision={context.publication.semantic.revision}
-          epoch={context.publication.view.anchorEpoch}
-          catalog={labStageTransitionCatalogV1}
-          renderers={labStageRenderersV1}
-          accessibleName={context.publication.view.stageName}
-          onAcknowledgment={(acknowledgment) => {
-            // A completed acknowledged transition confirms a pending
-            // presentation barrier through an ordinary semantic command.
-            // Mismatched or late acknowledgments dispatch nothing here, and
-            // anything stale that still slips through is rejected at the
-            // queue front by the occurrence fence.
-            if (
-              pending?.kind === "presentation_barrier" &&
-              acknowledgment.outcome !== "cancelled" &&
-              acknowledgment.transitionId === pending.expectedTransitionId
-            ) {
-              labResolveV1(
-                context.semantic,
-                pending.occurrenceId,
-                Object.freeze({
-                  kind: "barrier_completed" as const,
-                  transitionId: acknowledgment.transitionId,
-                }),
-              );
-            }
-          }}
-        />
-      </section>
-    );
-  },
+  background: (context) => <LabStageV1 context={context} />,
   hud: (context) => <LabHudV1 publication={context.publication} semantic={context.semantic} />,
   narrative: (context) => (
     <div data-lab-narrative-root="true">
@@ -675,6 +714,7 @@ export const labWebApplicationV1: WebGameApplicationV1<
     Object.freeze({
       projector: labUiProjectorV1,
       overlayIds: Object.freeze(["overlay.lab.journal", "overlay.lab.shop"] as const),
+      cueIds: Object.freeze([labBeaconPulseCueIdV1]),
       slots: createLabUiSlotsV1({
         instance,
         playerProfile,

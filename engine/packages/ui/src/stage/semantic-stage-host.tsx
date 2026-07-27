@@ -2,7 +2,14 @@
 import { useEffect, useMemo } from "react";
 import type { CSSProperties, ReactElement, ReactNode } from "react";
 
-import type { StageLayerIdV1, StageRenderEntryV1, StageRenderTargetV1 } from "@sillymaker/base";
+import type {
+  StageLayerIdV1,
+  StageRenderEntryV1,
+  StageRenderTargetV1,
+  TimelineChannelValueV1,
+  TimelinePropertyV1,
+} from "@sillymaker/base";
+import { timelineChannelBaselineV1 } from "@sillymaker/base";
 
 import type {
   StageFrameEntryV1,
@@ -37,19 +44,67 @@ export interface SemanticStageHostPropsV1 {
   readonly frame: StageRenderFrameV1;
   readonly renderers: Readonly<Record<string, SemanticStageEntryRendererV1>>;
   readonly accessibleName: string;
+  /** Active timeline overlay channels; null when no cue is playing. */
+  readonly overlay?: readonly TimelineChannelValueV1[] | null;
+  /** The playing cue's ID, exposed as `data-stage-cue` for observation. */
+  readonly activeCueId?: string | null;
   reportDiagnostic?(diagnostic: SemanticStageHostDiagnosticV1): void;
+}
+
+/** Overlay channel lookup: entry channels by layer/tag, camera channels flat. */
+interface OverlayIndexV1 {
+  readonly entry: ReadonlyMap<string, ReadonlyMap<TimelinePropertyV1, number>>;
+  readonly camera: ReadonlyMap<TimelinePropertyV1, number>;
+}
+
+const emptyOverlayIndexV1: OverlayIndexV1 = Object.freeze({
+  entry: new Map<string, ReadonlyMap<TimelinePropertyV1, number>>(),
+  camera: new Map<TimelinePropertyV1, number>(),
+});
+
+function indexOverlayV1(
+  values: readonly TimelineChannelValueV1[] | null | undefined,
+): OverlayIndexV1 {
+  if (values === null || values === undefined || values.length === 0) return emptyOverlayIndexV1;
+  const entry = new Map<string, Map<TimelinePropertyV1, number>>();
+  const camera = new Map<TimelinePropertyV1, number>();
+  for (const channel of values) {
+    if (channel.target.kind === "camera") {
+      camera.set(channel.property, channel.value);
+      continue;
+    }
+    const key = `${channel.target.layerId}\u0000${channel.target.tag}`;
+    const bucket = entry.get(key) ?? new Map<TimelinePropertyV1, number>();
+    bucket.set(channel.property, channel.value);
+    entry.set(key, bucket);
+  }
+  return Object.freeze({ entry, camera });
+}
+
+function overlayChannelV1(
+  channels: ReadonlyMap<TimelinePropertyV1, number> | undefined,
+  property: TimelinePropertyV1,
+): number {
+  return channels?.get(property) ?? timelineChannelBaselineV1(property);
 }
 
 const permilleV1 = (value: number): number => value / 1000;
 const lerpV1 = (from: number, to: number, progress: number): number =>
   from + (to - from) * progress;
 
-function cameraStyleV1(frame: StageRenderFrameV1): CSSProperties {
+function cameraStyleV1(
+  frame: StageRenderFrameV1,
+  channels: ReadonlyMap<TimelinePropertyV1, number>,
+): CSSProperties {
   const { camera } = frame;
+  const x = camera.x - overlayChannelV1(channels, "offsetX");
+  const y = camera.y - overlayChannelV1(channels, "offsetY");
+  const zoom =
+    permilleV1(camera.zoomPermille) * permilleV1(overlayChannelV1(channels, "scalePermille"));
+  const opacity = permilleV1(overlayChannelV1(channels, "opacityPermille"));
   return {
-    transform: `translate3d(${String(-camera.x)}px, ${String(-camera.y)}px, 0) scale(${String(
-      permilleV1(camera.zoomPermille),
-    )})`,
+    transform: `translate3d(${String(-x)}px, ${String(-y)}px, 0) scale(${String(zoom)})`,
+    ...(opacity === 1 ? {} : { opacity }),
   };
 }
 
@@ -62,7 +117,10 @@ function layerStyleV1(layer: StageFrameLayerV1): CSSProperties {
   };
 }
 
-function entryStyleV1(frameEntry: StageFrameEntryV1): CSSProperties {
+function entryStyleV1(
+  frameEntry: StageFrameEntryV1,
+  channels: ReadonlyMap<TimelinePropertyV1, number> | undefined,
+): CSSProperties {
   const { entry, phase, transitionKind, progress, slide, fromPlacement } = frameEntry;
   let x = entry.placement.x;
   let y = entry.placement.y;
@@ -86,6 +144,16 @@ function entryStyleV1(frameEntry: StageFrameEntryV1): CSSProperties {
     opacity = 1 - progress;
   }
 
+  // Timeline overlay: decorative offsets and multipliers on top of the
+  // settled composition; they clear when the cue finishes.
+  if (channels !== undefined) {
+    x += overlayChannelV1(channels, "offsetX");
+    y += overlayChannelV1(channels, "offsetY");
+    scale *= permilleV1(overlayChannelV1(channels, "scalePermille"));
+    const opacityFactor = permilleV1(overlayChannelV1(channels, "opacityPermille"));
+    if (opacityFactor !== 1) opacity = (opacity ?? 1) * opacityFactor;
+  }
+
   const mirror = entry.placement.mirrored ? " scaleX(-1)" : "";
   return {
     transform: `translate3d(${String(x)}px, ${String(y)}px, 0) scale(${String(scale)})${mirror}`,
@@ -98,6 +166,7 @@ function StageEntryV1(props: {
   readonly layerId: StageLayerIdV1;
   readonly frameEntry: StageFrameEntryV1;
   readonly renderer: SemanticStageEntryRendererV1 | undefined;
+  readonly overlayChannels: ReadonlyMap<TimelinePropertyV1, number> | undefined;
 }): ReactElement {
   const { layerId, frameEntry, renderer } = props;
   const { entry, phase } = frameEntry;
@@ -105,7 +174,7 @@ function StageEntryV1(props: {
   return (
     <div
       className={styles.entry}
-      style={entryStyleV1(frameEntry)}
+      style={entryStyleV1(frameEntry, props.overlayChannels)}
       role={exiting ? undefined : "img"}
       aria-label={exiting ? undefined : entry.accessibleName}
       aria-hidden={exiting ? true : undefined}
@@ -128,6 +197,7 @@ function StageEntryV1(props: {
 
 export function SemanticStageHostV1(props: SemanticStageHostPropsV1): ReactElement {
   const { frame, renderers, accessibleName, reportDiagnostic } = props;
+  const overlayIndex = indexOverlayV1(props.overlay);
 
   const missing = useMemo(
     () =>
@@ -161,10 +231,15 @@ export function SemanticStageHostV1(props: SemanticStageHostPropsV1): ReactEleme
       aria-label={accessibleName}
       data-semantic-stage="true"
       data-stage-settled={frame.settled ? "true" : "false"}
+      data-stage-cue={props.activeCueId ?? undefined}
       data-stage-input-blocked={frame.inputGate.blocked ? "true" : undefined}
       data-stage-skip-on-input={frame.inputGate.skipOnInput ? "true" : undefined}
     >
-      <div className={styles.camera} style={cameraStyleV1(frame)} data-stage-camera="true">
+      <div
+        className={styles.camera}
+        style={cameraStyleV1(frame, overlayIndex.camera)}
+        data-stage-camera="true"
+      >
         {frame.layers.map((layer) => (
           <div
             key={layer.layerId}
@@ -178,6 +253,9 @@ export function SemanticStageHostV1(props: SemanticStageHostPropsV1): ReactEleme
                 key={frameEntry.frameKey}
                 layerId={layer.layerId}
                 frameEntry={frameEntry}
+                overlayChannels={overlayIndex.entry.get(
+                  `${layer.layerId}\u0000${frameEntry.entry.tag}`,
+                )}
                 renderer={
                   Object.hasOwn(renderers, frameEntry.entry.rendererId)
                     ? renderers[frameEntry.entry.rendererId]

@@ -170,6 +170,7 @@ export type {
 } from "./shell/index.ts";
 export {
   createStageReconcilerV1,
+  createTimelinePlayerV1,
   SemanticStageHostV1,
   SemanticStageTargetHostV1,
   SemanticStageV1,
@@ -177,6 +178,8 @@ export {
 } from "./stage/index.ts";
 export type {
   CreateStageReconcilerOptionsV1,
+  TimelineCueRunV1,
+  TimelinePlayerV1,
   SemanticStageEntryRendererInputV1,
   SemanticStageEntryRendererV1,
   SemanticStageHostDiagnosticV1,

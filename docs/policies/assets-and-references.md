@@ -64,6 +64,15 @@ References may inform broad ideas such as time ownership, persistence metadata, 
 
 Production code, tests, fixtures, generators, Image Gen inputs, screenshots, builds, and Artifacts must not import, scan, read, or depend on `references/`. This is independent-reimplementation and contamination control, not a claim that every reference has the same license.
 
+### Unpublished validation replicas
+
+Engine-validation replicas of existing games (including material with unclear provenance collected for research) are permitted under these boundaries:
+
+1. They exist to prove engine capability with complete playable games and are never published, distributed, or included in any Artifact or release channel.
+2. Source material lives in `references/` (registered as above); replica working trees live in `tmp/` or another gitignored location. Neither enters Git history.
+3. Task briefs given to authoring models describe mechanics, structure, and pacing (which are not copyrightable expression) — they do not paste protected narrative text, art, audio, or distinctive names for reproduction.
+4. A replica may be promoted into `game/stories/examples/**` only after an originalization pass: mechanics may stay, all expression (text, names, art direction, audio) must be original, and the result passes the ordinary licensing review for tracked files.
+
 ## 5. Artifact boundary
 
 A Player Artifact may contain only the runtime assets and notices intentionally selected for that Player. It excludes:

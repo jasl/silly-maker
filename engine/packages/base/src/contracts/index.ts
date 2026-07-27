@@ -431,6 +431,25 @@ export type {
   PendingInteractionV1,
 } from "./pending-interaction.ts";
 export { parseStageTransitionDefinitionV1 } from "./stage-transition.ts";
+export {
+  TimelineDefinitionErrorV1,
+  evaluateTimelineAtV1,
+  parseTimelineDefinitionV1,
+  timelineChannelBaselineV1,
+  timelineDurationV1,
+  timelineStepDurationV1,
+} from "./timeline.ts";
+export type {
+  TimelineCatalogV1,
+  TimelineChannelValueV1,
+  TimelineDefinitionV1,
+  TimelineEasingV1,
+  TimelinePropertyV1,
+  TimelineSampleV1,
+  TimelineStepV1,
+  TimelineTargetV1,
+} from "./timeline.ts";
+export { timelineV1 } from "./timeline-builder.ts";
 export type {
   StageTargetChangeV1,
   StageTransitionCatalogV1,

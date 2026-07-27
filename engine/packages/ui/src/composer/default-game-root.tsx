@@ -24,7 +24,11 @@ import { SettingsLauncherV1 } from "../system/settings-launcher.tsx";
 import { SystemDialogHostV1 } from "../system/system-dialog-host.tsx";
 import { Button } from "../primitives/Button.tsx";
 import type { InteractionSessionStoreV1 } from "../interaction/interaction-session-store.ts";
-import type { GameUiCompositionV1, GameUiOverlayIdV1 } from "./create-game-ui-composition.ts";
+import type {
+  GameUiCompositionV1,
+  GameUiCueRegistryV1,
+  GameUiOverlayIdV1,
+} from "./create-game-ui-composition.ts";
 import styles from "./default-game-root.module.css";
 
 /** Player-facing labels of the default surfaces; Stories override per locale. */
@@ -66,6 +70,8 @@ export interface DefaultGameRootSlotContextV1<TPublication, TSemantic> {
   };
   /** The composition-owned spatial interaction session. */
   readonly interactionSession: InteractionSessionStoreV1;
+  /** The cue registry a mounted semantic stage binds its timelines to. */
+  readonly cues: GameUiCueRegistryV1;
 }
 
 /**
@@ -267,6 +273,7 @@ export function DefaultGameRootV1<
     overlays: props.composition.overlaySession as never,
     presentation: props.composition.presentation as never,
     interactionSession: props.composition.interactionSession,
+    cues: props.composition.cues,
   });
 
   // Optional keyboard/gamepad adapters: installed for the root's lifetime,

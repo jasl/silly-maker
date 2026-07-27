@@ -76,6 +76,8 @@ export interface WebGameUiDefinitionV1<
     TAssetId
   >;
   readonly overlayIds?: readonly TOverlayId[];
+  /** Cue IDs the presentation intent router accepts for play_cue. */
+  readonly cueIds?: readonly string[];
   readonly contentPreference?: ContentPreferencePortV1;
   readonly slots?: DefaultGameRootSlotsV1<
     RuntimePresentationPublicationV1<TSemanticPublication, TView, TAssetId>,
@@ -438,6 +440,7 @@ export async function startWebGameApplicationV1<
         ? {}
         : { contentPreference: uiDefinition.contentPreference }),
       ...(uiDefinition.overlayIds === undefined ? {} : { overlayIds: uiDefinition.overlayIds }),
+      ...(uiDefinition.cueIds === undefined ? {} : { cueIds: uiDefinition.cueIds }),
       ...(uiDefinition.interactionSurfaceIds === undefined
         ? {}
         : { interactionSurfaceIds: uiDefinition.interactionSurfaceIds }),

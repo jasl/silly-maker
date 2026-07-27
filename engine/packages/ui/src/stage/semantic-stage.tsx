@@ -2,7 +2,12 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 
-import type { StageRenderTargetV1, StageTransitionCatalogV1 } from "@sillymaker/base";
+import type {
+  StageRenderTargetV1,
+  StageTransitionCatalogV1,
+  TimelineCatalogV1,
+  TimelineSampleV1,
+} from "@sillymaker/base";
 
 import type { PresentationClockV1 } from "../presentation-run/presentation-clock.ts";
 import { createAnimationFramePresentationClockV1 } from "../presentation-run/presentation-clock.ts";
@@ -13,6 +18,8 @@ import type {
 import { SemanticStageHostV1 } from "./semantic-stage-host.tsx";
 import type { StageReconcilerV1, StageTransitionAcknowledgmentV1 } from "./stage-reconciler.ts";
 import { createStageReconcilerV1, settledStageFrameV1 } from "./stage-reconciler.ts";
+import type { TimelineCueRunV1, TimelinePlayerV1 } from "./timeline-player.ts";
+import { createTimelinePlayerV1 } from "./timeline-player.ts";
 
 /**
  * The animated semantic stage: owns one Stage Reconciler for the lifetime of
@@ -40,6 +47,12 @@ export interface SemanticStagePropsV1 {
   readonly accessibleName: string;
   /** Injectable for tests; defaults to the animation-frame clock. */
   readonly clock?: PresentationClockV1;
+  /** Story timelines; cues resolve here when the registry plays them. */
+  readonly timelines?: TimelineCatalogV1;
+  /** The composition cue registry this mounted stage binds to. */
+  readonly cues?: { register(controller: { play(cueId: string): boolean } | null): void };
+  /** Timeline events in order, exactly once per occurrence. */
+  onTimelineEvent?(eventId: string): void;
   onAcknowledgment?(acknowledgment: StageTransitionAcknowledgmentV1): void;
   reportDiagnostic?(diagnostic: SemanticStageHostDiagnosticV1): void;
   reportFailure?(code: string, detail: string): void;
@@ -51,13 +64,18 @@ export function SemanticStageV1(props: SemanticStagePropsV1): ReactElement {
   const reducedMotionRef = useRef(readReducedMotionV1());
   const acknowledgmentRef = useRef(props.onAcknowledgment);
   const failureRef = useRef(props.reportFailure);
+  const timelineEventRef = useRef(props.onTimelineEvent);
   acknowledgmentRef.current = props.onAcknowledgment;
   failureRef.current = props.reportFailure;
+  timelineEventRef.current = props.onTimelineEvent;
 
-  // One reconciler per mounted stage; catalog and clock are mount-stable.
+  // One clock, one reconciler, one timeline player per mounted stage.
+  const [clock] = useState<PresentationClockV1>(
+    () => props.clock ?? createAnimationFramePresentationClockV1(),
+  );
   const [reconciler] = useState<StageReconcilerV1>(() =>
     createStageReconcilerV1({
-      clock: props.clock ?? createAnimationFramePresentationClockV1(),
+      clock,
       catalog: props.catalog,
       prefersReducedMotion: () => reducedMotionRef.current,
       onAcknowledgment: (acknowledgment) => acknowledgmentRef.current?.(acknowledgment),
@@ -66,13 +84,55 @@ export function SemanticStageV1(props: SemanticStagePropsV1): ReactElement {
   );
   const retargetedRef = useRef(false);
 
+  // Timelines are decorative overlays: one active cue at a time (a new cue
+  // cancels the previous one), samples never touch the reconciler frames,
+  // and every ending clears back to the settled rendering.
+  const [timelinePlayer] = useState<TimelinePlayerV1>(() =>
+    createTimelinePlayerV1({ clock, reducedMotion: () => reducedMotionRef.current }),
+  );
+  const [overlay, setOverlay] = useState<TimelineSampleV1 | null>(null);
+  const [activeCueId, setActiveCueId] = useState<string | null>(null);
+  const activeCueRef = useRef<TimelineCueRunV1 | null>(null);
+  const timelinesRef = useRef(props.timelines);
+  timelinesRef.current = props.timelines;
+
+  useEffect(() => {
+    const registry = props.cues;
+    if (registry === undefined) return () => {};
+    const controller = {
+      play(cueId: string): boolean {
+        const definition = timelinesRef.current?.resolveTimeline(cueId) ?? null;
+        if (definition === null) return false;
+        activeCueRef.current?.cancel();
+        const cueRun = timelinePlayer.play({
+          definition,
+          epoch,
+          onSample: (sample) => setOverlay(sample),
+          onEvent: (eventId) => timelineEventRef.current?.(eventId),
+          onFinished: () => {
+            if (activeCueRef.current === cueRun) {
+              activeCueRef.current = null;
+              setActiveCueId(null);
+            }
+          },
+        });
+        activeCueRef.current = cueRun;
+        setActiveCueId(definition.timelineId);
+        return true;
+      },
+    };
+    registry.register(controller);
+    return () => registry.register(null);
+  }, [props.cues, timelinePlayer, epoch]);
+
   useEffect(() => {
     const unsubscribe = reconciler.subscribe(() => setVersion((current) => current + 1));
     return () => {
       unsubscribe();
       reconciler.dispose();
+      timelinePlayer.dispose();
     };
-  }, [reconciler]);
+  }, [reconciler, timelinePlayer]);
 
   useEffect(() => {
     reconciler.retarget({ target, revision, epoch });
@@ -113,6 +173,8 @@ export function SemanticStageV1(props: SemanticStagePropsV1): ReactElement {
       frame={frame}
       renderers={props.renderers}
       accessibleName={props.accessibleName}
+      overlay={overlay?.values ?? null}
+      activeCueId={activeCueId}
       {...(props.reportDiagnostic === undefined
         ? {}
         : { reportDiagnostic: props.reportDiagnostic })}

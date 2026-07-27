@@ -207,6 +207,8 @@ Renderer、只读 PresentationObservation 和 Host tests 能观察 asset demand/
 
 ## 9. Timeline and bounded scene graph
 
+状态更新（2026-07-28）：类型化 Timeline 已实现——JSON-safe descriptor + `timelineV1` builder（与 literal 同契约）、验证器（unknown target/非法 duration/easing/并行写冲突/有界 repeat）、纯采样函数、复用 PresentationRun/Clock 的播放器（pause/cancel/skip/快进/reduced-motion 即时 settle/事件一次性水位线）、语义舞台 overlay 集成与 `play_cue` 接线，Engine Lab 的信标脉冲 cue 作垂直证明。`keyframes` 语法糖与 `onLifecycle` 绑定按 [R5–R7 计划](../plans/2026-07-28-sillymaker-r5-r7.md) defer；受约束 scene graph 仍待真实 Story 证据。
+
 ATL 类表达能力进入后续路线图，但使用类型化 TypeScript builder 产生 validated、JSON-safe descriptor：
 
 ```text

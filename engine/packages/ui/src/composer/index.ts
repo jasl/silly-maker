@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 export { createGameUiCompositionV1 } from "./create-game-ui-composition.ts";
 export type {
+  GameUiCueControllerV1,
+  GameUiCueRegistryV1,
   CreateGameUiCompositionInputV1,
   GameUiAnchorSourceV1,
   GameUiCompositionV1,

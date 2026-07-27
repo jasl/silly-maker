@@ -20,3 +20,12 @@ export type {
   StageRetargetInputV1,
   StageTransitionAcknowledgmentV1,
 } from "./stage-reconciler.ts";
+export { createTimelinePlayerV1 } from "./timeline-player.ts";
+export type {
+  CreateTimelinePlayerOptionsV1,
+  PlayTimelineOptionsV1,
+  TimelineCueObservationV1,
+  TimelineCueRunV1,
+  TimelineCueStatusV1,
+  TimelinePlayerV1,
+} from "./timeline-player.ts";

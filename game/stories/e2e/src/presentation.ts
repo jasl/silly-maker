@@ -17,6 +17,9 @@ import {
   resolveAudioManifestV1,
 } from "@sillymaker/base";
 
+import type { TimelineCatalogV1, TimelineDefinitionV1 } from "@sillymaker/base";
+import { timelineV1 } from "@sillymaker/base";
+
 import { labStageContentIdsV1 } from "./stage-ids.ts";
 
 export const labTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
@@ -286,6 +289,49 @@ export const labAudioManifestV1: ResolvedAudioManifestV1 = resolveAudioManifestV
   ],
   [],
 );
+
+/**
+ * The Engine Lab timeline catalog: one decorative cue proving the R5
+ * Timeline vertically — the calibrated beacon pulses twice and rings a
+ * chime event. Overlay-only: no gameplay State, nothing saved.
+ */
+export const labBeaconPulseCueIdV1 = "cue.e2e.beacon-pulse";
+export const labBeaconChimeEventIdV1 = "event.e2e.beacon-chime";
+
+const labBeaconTargetV1 = timelineV1.entry("layer.e2e.props", "tag.e2e.beacon");
+
+const labBeaconPulseTimelineV1: TimelineDefinitionV1 = timelineV1.define(
+  labBeaconPulseCueIdV1,
+  timelineV1.sequence(
+    timelineV1.event(labBeaconChimeEventIdV1),
+    timelineV1.repeat(
+      2,
+      timelineV1.sequence(
+        timelineV1.tween({
+          target: labBeaconTargetV1,
+          property: "scalePermille",
+          to: 1250,
+          durationMs: 160,
+          easing: "ease_in_out",
+        }),
+        timelineV1.tween({
+          target: labBeaconTargetV1,
+          property: "scalePermille",
+          from: 1250,
+          to: 1000,
+          durationMs: 160,
+          easing: "ease_in_out",
+        }),
+      ),
+    ),
+  ),
+);
+
+export const labTimelineCatalogV1: TimelineCatalogV1 = {
+  resolveTimeline(cueId: string): TimelineDefinitionV1 | null {
+    return cueId === labBeaconPulseCueIdV1 ? labBeaconPulseTimelineV1 : null;
+  },
+};
 
 export const labPresentationPatchSurfaceV1 = definePresentationPatchSurface({});
 

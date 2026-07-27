@@ -82,3 +82,28 @@ test.describe("engine reduced motion", () => {
     await expect(page.locator("[data-lab-narrative='calibrated']")).toBeVisible();
   });
 });
+
+test("reduced motion settles timeline cues instantly with the same event trail", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await gotoLabV1(page);
+
+  await page.getByRole("button", { name: "开始校准" }).click();
+  await page.getByRole("button", { name: "继续" }).click();
+  await expect(page.getByText("样本读数稳定，可以开始校准。")).toBeVisible();
+  await page.getByRole("button", { name: "继续" }).click();
+  await expect(page.locator("[data-lab-interaction='choice']")).toBeVisible();
+  await page.getByRole("button", { name: "直接校准" }).click();
+  await expect(page.locator("[data-lab-interaction='custom']")).toBeVisible({ timeout: 10_000 });
+
+  // The cue settles in the same frame: the chime event still fires exactly
+  // once and no active-cue marker lingers.
+  await page.locator("[data-lab-dial-value='2']").click();
+  await expect(page.locator("[data-lab-stage]")).toHaveAttribute(
+    "data-lab-cue-event",
+    "event.e2e.beacon-chime",
+    { timeout: 10_000 },
+  );
+  await expect(page.locator("[data-semantic-stage]")).not.toHaveAttribute("data-stage-cue", /.+/u);
+});

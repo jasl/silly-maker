@@ -97,6 +97,8 @@ export interface CreateGameUiCompositionInputV1<
   readonly contentPreference?: ContentPreferencePortV1;
   /** Story overlay IDs the intent router accepts (system overlays are added). */
   readonly overlayIds?: readonly TOverlayId[];
+  /** Cue IDs the intent router accepts for `presentation.play_cue`. */
+  readonly cueIds?: readonly string[];
   /** Spatial interaction surface IDs the intent router accepts. */
   readonly interactionSurfaceIds?: readonly string[];
   reportFailure?(failure: DeepReadonly<PresentationRuntimeFailureV1>): void;
@@ -104,6 +106,16 @@ export interface CreateGameUiCompositionInputV1<
 
 /** The overlay ID space of a composed UI: Story overlays plus system surfaces. */
 export type GameUiOverlayIdV1<TOverlayId extends string> = TOverlayId | "system.save";
+
+/** A mounted stage's timeline controller; play returns handled-or-not. */
+export interface GameUiCueControllerV1 {
+  play(cueId: string): boolean;
+}
+
+export interface GameUiCueRegistryV1 {
+  register(controller: GameUiCueControllerV1 | null): void;
+  play(cueId: string): boolean;
+}
 
 export interface GameUiCompositionV1<
   TSemanticPublication,
@@ -118,6 +130,8 @@ export interface GameUiCompositionV1<
   readonly anchor: ReadonlyViewSourceV1<GameUiPresentationAnchorV1>;
   readonly input: InputRouterV1;
   readonly intents: PresentationIntentRouterV1;
+  /** The cue registry: the mounted stage registers its timeline controller. */
+  readonly cues: GameUiCueRegistryV1;
   readonly overlaySession: OverlaySessionStoreV1<GameUiOverlayIdV1<TOverlayId>>;
   readonly systemDialogSession: SystemDialogSessionStoreV1;
   /** The composition-owned spatial interaction session (UI transient). */
@@ -228,15 +242,30 @@ export function createGameUiCompositionV1<
     },
   });
 
+  // The cue registry: presentation-only. The mounted semantic stage
+  // registers a controller; `presentation.play_cue` intents route to it and
+  // are ignored (never queued) while no stage is mounted.
+  let cueController: GameUiCueControllerV1 | null = null;
+  const cues: GameUiCueRegistryV1 = Object.freeze({
+    register(controller: GameUiCueControllerV1 | null): void {
+      cueController = controller;
+    },
+    play: (cueId: string) => cueController?.play(cueId) ?? false,
+  });
+
   const intents = createPresentationIntentRouterV1({
     knownOverlayIds: [...(input.overlayIds ?? []), "system.save"],
     knownSurfaceIds: [...(input.interactionSurfaceIds ?? [])] as never,
-    knownCueIds: [],
+    knownCueIds: [...(input.cueIds ?? [])],
     overlay: Object.freeze({
       open: (overlayId: string) => overlaySession.openPrimary(overlayId as OverlayIdV1),
     }),
     session: interactionSession,
-    cue: Object.freeze({ play: () => undefined }),
+    cue: Object.freeze({
+      play: (cueId: string) => {
+        cues.play(cueId);
+      },
+    }),
   });
 
   const anchorView: ReadonlyViewSourceV1<GameUiPresentationAnchorV1> = Object.freeze({
@@ -250,6 +279,7 @@ export function createGameUiCompositionV1<
     anchor: anchorView,
     input: inputRouter,
     intents,
+    cues,
     overlaySession,
     systemDialogSession,
     interactionSession,
