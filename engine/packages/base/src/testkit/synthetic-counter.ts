@@ -23,8 +23,7 @@ import type {
 import { createTransactionalRngV1, rngStateV1Schema } from "../contracts/rng.js";
 import type { RngDrawTraceV1, RngStateV1 } from "../contracts/rng.js";
 import type { GameSnapshotEnvelopeV1 } from "../contracts/snapshot.js";
-import { parseStageSceneGraphV1, parseTextCatalogSetV1 } from "../contracts/presentation.js";
-import type { StageSceneGraphV1 } from "../contracts/presentation.js";
+import { parseTextCatalogSetV1 } from "../contracts/presentation.js";
 import type { RuntimeSchemaV1 } from "../contracts/values.js";
 import {
   parseModuleId,
@@ -390,68 +389,6 @@ interface SyntheticSimulationProgramV1 {
   readonly kind: "synthetic-counter";
 }
 
-export function createSyntheticStageSceneGraphV1(): StageSceneGraphV1 {
-  return parseStageSceneGraphV1({
-    stageScenes: [
-      {
-        stageSceneId: "stage_scene.synthetic.counter",
-        variantIds: ["stage_scene_variant.synthetic.counter.default"],
-        defaultVariantId: "stage_scene_variant.synthetic.counter.default",
-      },
-    ],
-    variants: [
-      {
-        stageSceneId: "stage_scene.synthetic.counter",
-        variantId: "stage_scene_variant.synthetic.counter.default",
-        rendererId: "renderer.synthetic.stage",
-        accessibleNameTextId: "text.synthetic.stage.name",
-        backgroundAssetId: "asset.synthetic.stage.background",
-        layout: { kind: "synthetic_stage" },
-        actors: [
-          {
-            characterId: "character.synthetic.figure",
-            anchor: { x: 0.5, y: 0.75 },
-            scale: 1,
-          },
-        ],
-        interactionSurfaces: [],
-        content: { requiredFlags: 0 },
-      },
-    ],
-    characters: [
-      {
-        characterId: "character.synthetic.figure",
-        accessibleNameTextId: "text.synthetic.character.name",
-        defaultRigId: "character_rig.synthetic.figure",
-      },
-    ],
-    characterRigs: [
-      {
-        rigId: "character_rig.synthetic.figure",
-        rendererId: "renderer.synthetic.character",
-        poseIds: ["character_pose.synthetic.idle"],
-        expressionIds: ["character_expression.synthetic.neutral"],
-        activityIds: [],
-        appearanceLayerOrder: [],
-        defaultHitMapId: null,
-        poseHitMapOverrides: [],
-        staticFallbackAssetId: "asset.synthetic.character.fallback",
-        fallbackHitMapCompatibility: "incompatible",
-      },
-    ],
-    hitMaps: [],
-    interactionSurfaces: [],
-    interactionTargets: [],
-    interactionBehaviors: [],
-    contentMaturityPolicy: {
-      policyRevision: 1,
-      flags: [],
-      presets: [],
-      defaultAllowedFlags: 0,
-    },
-  });
-}
-
 const syntheticTextCatalogsV1 = parseTextCatalogSetV1({
   defaultLocale: "zh-CN",
   catalogs: [
@@ -526,7 +463,6 @@ type SyntheticDefinitionV1 = StoryDefinitionV1<
     createGameSimulation(program: SyntheticSimulationProgramV1): SyntheticGameSimulationV1;
   },
   {
-    readonly uiSceneGraph: StageSceneGraphV1;
     readonly textCatalogs: typeof syntheticTextCatalogsV1;
     readonly assetSlots: typeof syntheticAssetSlotsV1;
     readonly assetPacks: readonly [];
@@ -554,7 +490,6 @@ export function createSyntheticCounterGamePackageV1(): GamePackageV1<
       createGameSimulation: () => createGameSimulation(),
     }),
     presentation: Object.freeze({
-      uiSceneGraph: createSyntheticStageSceneGraphV1(),
       textCatalogs: syntheticTextCatalogsV1,
       assetSlots: syntheticAssetSlotsV1,
       assetPacks: Object.freeze([]) as readonly [],

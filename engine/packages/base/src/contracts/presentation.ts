@@ -6,7 +6,6 @@ export * from "./presentation-canonical-json.js";
 export * from "./presentation-ids.js";
 export * from "./presentation-ports.js";
 export * from "./session-status.js";
-export * from "./stage-scene-graph.js";
 export * from "./text-catalog.js";
 export type {
   PresentationCatalogValidationCodeV1,

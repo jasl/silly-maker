@@ -9,7 +9,7 @@
     "pnpm": ">=11.0.0"
   },
   "scripts": {
-    "dev": "vite --mode poc-web",
+    "dev": "vite --mode e2e",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "oxlint --type-aware --deny-warnings --react-plugin --import-plugin engine game scripts vite.config.ts vitest.config.ts",
@@ -25,16 +25,10 @@
     "check:stories": "node --experimental-strip-types scripts/story/cli.mts check --all",
     "simulate:e2e": "node --experimental-strip-types scripts/story/cli.mts simulate e2e",
     "test:e2e:smoke": "playwright test --config engine/packages/web/playwright.engine.config.ts --project=chromium --grep @smoke",
-    "test:e2e": "pnpm test:e2e:engine && pnpm test:e2e:poc",
-    "test:e2e:interaction": "playwright test --config engine/packages/web/playwright.interaction.config.ts",
-    "build:poc": "vite build --mode poc-web",
-    "release:poc": "pnpm build:poc && node --experimental-strip-types scripts/prepare-artifact.mjs dist/poc",
-    "test:e2e:prebuilt": "playwright test --config engine/packages/web/playwright.prebuilt.config.ts",
-    "test:release": "pnpm release:poc && pnpm test:e2e:prebuilt",
-    "check": "pnpm format:check && pnpm lint && pnpm lint:styles && pnpm typecheck && pnpm test && pnpm check:assets && pnpm check:stories && pnpm build:poc",
+    "test:e2e": "pnpm test:e2e:engine",
+    "check": "pnpm format:check && pnpm lint && pnpm lint:styles && pnpm typecheck && pnpm test && pnpm check:assets && pnpm check:stories && pnpm story build e2e",
     "verify": "pnpm check",
     "test:e2e:engine": "playwright test --config engine/packages/web/playwright.engine.config.ts",
-    "test:e2e:poc": "playwright test --config engine/packages/web/playwright.poc.config.ts",
     "test:conformance:headless": "vitest run game/stories/e2e",
     "test:e2e:engine:prebuilt": "pnpm story build e2e && playwright test --config engine/packages/web/playwright.engine-prebuilt.config.ts"
   },

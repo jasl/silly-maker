@@ -2,7 +2,7 @@
 import type { SillymakerProjectConfigV1 } from "@sillymaker/tooling/project/config-types";
 
 /**
- * The Project Tavern application registry. Vite target resolution, runtime
+ * The SillyMaker application registry. Vite target resolution, runtime
  * asset verification, and the `pnpm story` commands all consume this one
  * declaration set; adding a Story application means adding one entry here.
  *
@@ -13,33 +13,6 @@ import type { SillymakerProjectConfigV1 } from "@sillymaker/tooling/project/conf
 export const projectTavernConfigV1 = {
   projectId: "project-tavern",
   applications: [
-    {
-      applicationId: "poc-web",
-      label: "Project Tavern PoC (browser player)",
-      storyEntry: {
-        module: "game/stories/poc/src/story-definition.ts",
-        exportName: "pocStoryEntryV1",
-      },
-      assetVerification: true,
-      simulate: {
-        module: "game/stories/poc/src/tooling/simulation-target.ts",
-        exportName: "createPocSimulationTargetV1",
-      },
-      web: {
-        storyRoot: "game/stories/poc",
-        applicationHtml: "game/stories/poc/index.html",
-        applicationEntry: "game/stories/poc/src/application/entry.tsx",
-        outDir: "dist/poc",
-        base: "./",
-        sourcemap: false,
-        identity: {
-          module: "scripts/build-poc-identity.mjs",
-          collectExport: "collectPocBuildIdentityV1",
-          createPluginExport: "createPocBuildIdentityVirtualPluginV1",
-        },
-      },
-      releaseArtifact: true,
-    },
     {
       applicationId: "e2e",
       label: "Engine Lab conformance Story (headless)",

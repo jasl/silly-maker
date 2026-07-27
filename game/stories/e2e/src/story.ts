@@ -11,7 +11,6 @@ import {
 import type { LabGameSimulationV1 } from "./gameplay/simulation.js";
 import { createLabGameSimulationV1 } from "./gameplay/simulation.js";
 import {
-  createLabStageSceneGraphV1,
   labAssetSlotsV1,
   labPresentationPatchSurfaceV1,
   labTextCatalogsV1,
@@ -103,7 +102,6 @@ const labStoryDefinitionV1 = Object.freeze({
     createGameSimulation: createLabGameSimulationFromProgramV1,
   }),
   presentation: Object.freeze({
-    uiSceneGraph: createLabStageSceneGraphV1(),
     textCatalogs: labTextCatalogsV1,
     assetSlots: labAssetSlotsV1,
     assetPacks: Object.freeze([]) as readonly [],
@@ -116,7 +114,7 @@ export const labStoryEntryV1 = defineGamePackage({
   contractRevision: 1,
   identity: {
     id: "story.e2e.engine-lab",
-    revision: parsePositiveSafeInteger(6),
+    revision: parsePositiveSafeInteger(7),
   },
   define: () => labStoryDefinitionV1,
 });

@@ -2,12 +2,8 @@
 import { describe, expect, it } from "vitest";
 
 import { digestBytes } from "../contracts/digest.js";
-import { parseStageSceneGraphV1 } from "../contracts/presentation.js";
 import { parseModuleId, parsePositiveSafeInteger, parseStateSlotId } from "../contracts/values.js";
-import {
-  createSyntheticCounterGamePackageV1,
-  createSyntheticStageSceneGraphV1,
-} from "../testkit/synthetic-counter.js";
+import { createSyntheticCounterGamePackageV1 } from "../testkit/synthetic-counter.js";
 import { deterministicBuildIdentityInputV1 } from "../testkit/resolver-fixtures.js";
 import { definePatchSlot, definePresentationPatchSurface } from "./patch-surface.js";
 import { resolveGamePackageV1 } from "./story-resolver.js";
@@ -244,25 +240,6 @@ function executableProvider(providerId: string, sourceByte: number, provider: ()
   });
 }
 
-function createPackageWithPresentationValues(
-  sceneGraph: ReturnType<typeof createSyntheticStageSceneGraphV1>,
-  presentation: Readonly<Record<string, unknown>>,
-) {
-  const source = createSyntheticCounterGamePackageV1();
-  const sourceDefinition = source.define();
-  const materializePresentation = () =>
-    Object.freeze({ textCatalogs: sourceDefinition.presentation.textCatalogs, ...presentation });
-  const definition = Object.freeze({
-    ...sourceDefinition,
-    presentation: Object.freeze({
-      ...sourceDefinition.presentation,
-      uiSceneGraph: sceneGraph,
-      materializePresentation,
-    }),
-  });
-  return Object.freeze({ ...source, define: () => definition });
-}
-
 const textJoinReferencesV1 = Object.freeze([
   "text.synthetic.stage.name",
   "text.synthetic.character.name",
@@ -291,97 +268,6 @@ function createTextJoinCatalogSetV1(excludedTextId?: (typeof textJoinReferencesV
   };
 }
 
-function createTextJoinSceneGraphV1() {
-  const base = createSyntheticStageSceneGraphV1();
-  return parseStageSceneGraphV1({
-    ...base,
-    variants: base.variants.map((variant) => ({
-      ...variant,
-      interactionSurfaces: [
-        {
-          surfaceId: "surface.synthetic.stage",
-          anchor: { x: 0.5, y: 0.5 },
-        },
-      ],
-    })),
-    characterRigs: base.characterRigs.map((rig) => ({
-      ...rig,
-      defaultHitMapId: "hit_map.synthetic.figure",
-      poseHitMapOverrides: [
-        {
-          poseId: "character_pose.synthetic.idle",
-          hitMapId: "hit_map.synthetic.figure",
-        },
-      ],
-    })),
-    hitMaps: [
-      {
-        hitMapId: "hit_map.synthetic.figure",
-        rigId: "character_rig.synthetic.figure",
-        poseId: "character_pose.synthetic.idle",
-        targets: [
-          {
-            areaId: "hit_area.synthetic.figure",
-            targetId: "target.synthetic.figure",
-            shape: { kind: "rect", x: 0.1, y: 0.1, width: 0.8, height: 0.8 },
-            priority: 1,
-          },
-        ],
-      },
-    ],
-    interactionSurfaces: [
-      {
-        surfaceId: "surface.synthetic.stage",
-        accessibleNameTextId: "text.synthetic.surface.name",
-        allowedEntryModes: ["surface_activation"],
-        targetBindings: [
-          {
-            targetId: "target.synthetic.figure",
-            allowedResolutionModes: ["direct"],
-            openSurfaceId: null,
-          },
-        ],
-      },
-    ],
-    interactionTargets: [
-      {
-        targetId: "target.synthetic.figure",
-        accessibleNameTextId: "text.synthetic.target.name",
-        behaviorIds: ["behavior.synthetic.inspect"],
-      },
-    ],
-    interactionBehaviors: [
-      {
-        behaviorId: "behavior.synthetic.inspect",
-        nameTextId: "text.synthetic.behavior.name",
-        descriptionTextId: "text.synthetic.behavior.description",
-        providerId: "provider.synthetic.inspect",
-        content: { requiredFlags: 0 },
-      },
-    ],
-    contentMaturityPolicy: {
-      policyRevision: 1,
-      flags: [
-        {
-          id: "content_flag.synthetic.alpha",
-          flag: 1,
-          nameTextId: "text.synthetic.content_flag.name",
-          descriptionTextId: "text.synthetic.content_flag.description",
-        },
-      ],
-      presets: [
-        {
-          presetId: "content_preset.synthetic.alpha",
-          allowedFlags: 1,
-          nameTextId: "text.synthetic.content_preset.name",
-          descriptionTextId: "text.synthetic.content_preset.description",
-        },
-      ],
-      defaultAllowedFlags: 0,
-    },
-  });
-}
-
 function createPackageWithTextCatalogsV1(
   sourceTextCatalogs: unknown,
   materializedTextCatalogs: unknown,
@@ -392,7 +278,6 @@ function createPackageWithTextCatalogsV1(
     ...sourceDefinition,
     presentation: Object.freeze({
       ...sourceDefinition.presentation,
-      uiSceneGraph: createTextJoinSceneGraphV1(),
       textCatalogs: sourceTextCatalogs,
       materializePresentation: () => ({
         kind: "synthetic-presentation" as const,
@@ -412,19 +297,6 @@ function createPackageWithInvalidGameSimulation() {
     simulation: Object.freeze({
       ...sourceDefinition.simulation,
       createGameSimulation,
-    }),
-  });
-  return Object.freeze({ ...source, define: () => definition });
-}
-
-function createPackageWithoutAssetSlots() {
-  const source = createSyntheticCounterGamePackageV1();
-  const sourceDefinition = source.define();
-  const definition = Object.freeze({
-    ...sourceDefinition,
-    presentation: Object.freeze({
-      ...sourceDefinition.presentation,
-      assetSlots: Object.freeze([]),
     }),
   });
   return Object.freeze({ ...source, define: () => definition });
@@ -530,7 +402,6 @@ describe("Story resolver", () => {
       gameSimulation: expect.any(Object),
       simulationProgram: expect.any(Object),
       presentation: expect.any(Object),
-      sceneGraph: { stageScenes: [{ stageSceneId: "stage_scene.synthetic.counter" }] },
       assets: expect.any(Object),
       frozen: true,
     });
@@ -540,7 +411,6 @@ describe("Story resolver", () => {
     );
     expect(result.resolved.provenance.resolved.simulationDigest).toMatch(/^sha256:[0-9a-f]{64}$/u);
     expect(Object.isFrozen(result.resolved)).toBe(true);
-    expect(Object.isFrozen(result.resolved.sceneGraph)).toBe(true);
   });
 
   it("copies the Application-owned engine display label without changing identity digests", () => {
@@ -888,33 +758,6 @@ describe("Story resolver", () => {
     expect(Object.isFrozen(resolvedCatalogs.catalogs[0]?.entries)).toBe(true);
   });
 
-  it.each(textJoinReferencesV1)(
-    "rejects resolved SceneGraph TextId %s when it is absent from the active catalog",
-    (missingTextId) => {
-      const result = resolveGamePackageV1(
-        createPackageWithTextCatalogsV1(
-          createTextJoinCatalogSetV1(),
-          createTextJoinCatalogSetV1(missingTextId),
-        ),
-        [],
-        deterministicBuildIdentityInputV1,
-      );
-
-      expect(result).toMatchObject({
-        kind: "failed",
-        failure: {
-          code: "story.presentation_invalid",
-          details: { message: expect.stringContaining("presentation.catalog.missing_reference") },
-        },
-      });
-      if (result.kind === "failed") {
-        const message = result.failure.details.message;
-        expect(typeof message).toBe("string");
-        if (typeof message === "string") expect(message.length).toBeLessThanOrEqual(4_096);
-      }
-    },
-  );
-
   it("validates both source and active materialized TextCatalogSet data", () => {
     const malformedSource = {
       defaultLocale: "zh-CN",
@@ -943,70 +786,6 @@ describe("Story resolver", () => {
       kind: "failed",
       failure: { code: "story.presentation_invalid" },
     });
-  });
-
-  it("includes resolved Presentation and decimal SceneGraph values only in presentation identity", () => {
-    const baselineGraph = createSyntheticStageSceneGraphV1();
-    const changedGraph = parseStageSceneGraphV1({
-      ...baselineGraph,
-      variants: baselineGraph.variants.map((variant, variantIndex) => ({
-        ...variant,
-        actors: variant.actors.map((actor, actorIndex) => ({
-          ...actor,
-          anchor: {
-            ...actor.anchor,
-            x: variantIndex === 0 && actorIndex === 0 ? 0.25 : actor.anchor.x,
-          },
-        })),
-      })),
-    });
-
-    const baseline = resolveGamePackageV1(
-      createPackageWithPresentationValues(
-        baselineGraph,
-        Object.freeze({ kind: "synthetic-presentation" }),
-      ),
-      [],
-      deterministicBuildIdentityInputV1,
-    );
-    const graphChanged = resolveGamePackageV1(
-      createPackageWithPresentationValues(
-        changedGraph,
-        Object.freeze({ kind: "synthetic-presentation" }),
-      ),
-      [],
-      deterministicBuildIdentityInputV1,
-    );
-    const programChanged = resolveGamePackageV1(
-      createPackageWithPresentationValues(
-        baselineGraph,
-        Object.freeze({ kind: "synthetic-presentation", revision: 2 }),
-      ),
-      [],
-      deterministicBuildIdentityInputV1,
-    );
-    expect(baseline.kind).toBe("resolved");
-    expect(graphChanged.kind).toBe("resolved");
-    expect(programChanged.kind).toBe("resolved");
-    if (
-      baseline.kind !== "resolved" ||
-      graphChanged.kind !== "resolved" ||
-      programChanged.kind !== "resolved"
-    ) {
-      return;
-    }
-
-    for (const changed of [graphChanged.resolved, programChanged.resolved]) {
-      expect(changed.provenance.resolved.presentationDigest).not.toBe(
-        baseline.resolved.provenance.resolved.presentationDigest,
-      );
-      expect(changed.provenance.resolved.stateContractDigest).toBe(
-        baseline.resolved.provenance.resolved.stateContractDigest,
-      );
-      expect(changed.provenance.resolved.simulationDigest).toBe(
-        baseline.resolved.provenance.resolved.simulationDigest,
-      );
-    }
   });
 
   it("keeps simulation and presentation source facets out of each other's resolved identity", () => {
@@ -1061,21 +840,6 @@ describe("Story resolver", () => {
     expect(result).toMatchObject({
       kind: "failed",
       failure: { code: "story.simulation_invalid" },
-    });
-  });
-
-  it("rejects SceneGraph Asset references missing from the resolved manifest", () => {
-    const result = resolveGamePackageV1(
-      createPackageWithoutAssetSlots(),
-      [],
-      deterministicBuildIdentityInputV1,
-    );
-    expect(result).toMatchObject({
-      kind: "failed",
-      failure: {
-        code: "story.presentation_invalid",
-        details: { message: expect.stringContaining("presentation.catalog.missing_reference") },
-      },
     });
   });
 

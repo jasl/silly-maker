@@ -19,8 +19,8 @@ const loaderV1 = createImportProjectModuleLoaderV1(repositoryRootV1);
 const validatedProjectV1 = defineSillymakerProjectV1(projectTavernConfigV1);
 
 describe("project commands against the real repository config", () => {
-  it("resolves both maintained applications through one config mechanism", async () => {
-    expect(listStoryApplicationIdsV1(validatedProjectV1)).toEqual(["poc-web", "e2e"]);
+  it("resolves every registered application through one config mechanism", async () => {
+    expect(listStoryApplicationIdsV1(validatedProjectV1)).toEqual(["e2e"]);
 
     for (const applicationId of listStoryApplicationIdsV1(validatedProjectV1)) {
       const report = await checkStoryApplicationV1(validatedProjectV1, applicationId, loaderV1);
@@ -28,12 +28,11 @@ describe("project commands against the real repository config", () => {
     }
   });
 
-  it("inspects the PoC application without importing it statically", async () => {
-    const result = await inspectStoryApplicationV1(validatedProjectV1, "poc-web", loaderV1);
+  it("inspects the Engine Lab without importing it statically", async () => {
+    const result = await inspectStoryApplicationV1(validatedProjectV1, "e2e", loaderV1);
     expect(result.kind).toBe("inspected");
     if (result.kind !== "inspected") return;
-    expect(result.report.story.id).toBe("week.poc_001");
-    expect(result.report.assets.assets).toBeGreaterThan(0);
+    expect(result.report.story.id).toBe("story.e2e.engine-lab");
     expect(JSON.parse(JSON.stringify(result.report))).toEqual(result.report);
   });
 
@@ -51,16 +50,5 @@ describe("project commands against the real repository config", () => {
     expect(first.finalStateDigest).toMatch(/^sha256:/u);
     expect(second.finalStateDigest).toBe(first.finalStateDigest);
     expect(JSON.stringify(second.steps)).toBe(JSON.stringify(first.steps));
-  });
-
-  it("simulates the PoC through its composer-backed Agent-port target", async () => {
-    const report = await simulateStoryApplicationV1(validatedProjectV1, "poc-web", loaderV1, {
-      seed: 23049,
-    });
-    expect(report.applicationId).toBe("poc-web");
-    expect(report.seed).toBe(23049);
-    expect(report.steps.length).toBeGreaterThan(0);
-    expect(JSON.stringify(report.steps)).toContain("committed");
-    expect(report.finalStateDigest).toMatch(/^sha256:/u);
   });
 });

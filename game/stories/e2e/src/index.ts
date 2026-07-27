@@ -75,7 +75,6 @@ export {
 } from "./stage-ids.js";
 export type { LabPresentationProgramV1 } from "./presentation.js";
 export {
-  createLabStageSceneGraphV1,
   labAssetSlotsV1,
   labAudioManifestV1,
   labPresentationPatchSurfaceV1,

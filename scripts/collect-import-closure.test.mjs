@@ -31,83 +31,26 @@ async function assertNodeSafeStoryClosure(entry) {
   }
 }
 
-test("collects the PoC production application closure", async () => {
-  const cases = [
-    {
-      entry: "game/stories/poc/src/application/entry.tsx",
-      tooling: "game/stories/poc/src/tooling/index.ts",
-      toolingUi: "game/stories/poc/src/tooling-ui/index.ts",
-      virtualSpecifier: "virtual:project-tavern/poc-build-identity",
-    },
-  ];
+test("collects the production application closure", async () => {
+  const cases = [{ entry: "game/stories/e2e/src/application/entry.tsx" }];
 
-  for (const { entry, tooling, toolingUi, virtualSpecifier } of cases) {
+  for (const { entry } of cases) {
     const closure = await collectImportClosure(root, [entry]);
     assert.deepEqual(closure.errors, [], entry);
     const paths = await collectManagedPaths(root, [entry]);
     assert(paths.includes(entry));
     assert(paths.includes("engine/packages/web/src/index.ts"));
-    assert(paths.includes(tooling), tooling);
-    assert(paths.includes(toolingUi), toolingUi);
-    assert(paths.includes("engine/packages/ui/src/assets/index.ts"));
-    assert(paths.includes("engine/packages/ui/src/debug/index.ts"));
-    assert(paths.includes("engine/packages/ui/src/diagnostics/index.ts"));
     assert(!paths.some((path) => path.includes("developer-entry")));
     assert(!paths.some((path) => path.includes("player-entry")));
     assert(!paths.some((path) => path.includes("/testkit/")));
     assert(!paths.some((path) => path.includes("/testing/")));
-    assert(
-      closure.externalImports.some(
-        ({ owner, specifier }) => owner === entry && specifier === virtualSpecifier,
-      ),
-    );
-    assert(!paths.some((path) => path.includes(virtualSpecifier)));
-    assert(!closure.externalImports.some(({ specifier }) => specifier.endsWith("/tooling")));
-    assert(!closure.externalImports.some(({ specifier }) => specifier.endsWith("/tooling-ui")));
     assert(
       !closure.externalImports.some(({ specifier }) => specifier.startsWith("@sillymaker/ui/")),
     );
   }
 });
 
-test("resolves the PoC runtime's literal tooling import into the managed closure", async () => {
-  const entry = "game/stories/poc/src/application/extensions.ts";
-  const closure = await collectImportClosure(root, [entry]);
-  assert.deepEqual(closure.errors, []);
-  assert(closure.paths.includes("game/stories/poc/src/tooling/index.ts"));
-  assert(closure.paths.includes("game/stories/poc/src/tooling/fixtures.ts"));
-  assert(
-    !closure.externalImports.some(
-      ({ specifier }) => specifier === "@project-tavern/story-poc/tooling",
-    ),
-  );
-  assert(!closure.paths.some((path) => path.includes("/testing/")));
-  assert(!closure.paths.some((path) => path.includes("/testkit/")));
-});
-
-test("maps both public PoC package specifiers to production source", async () => {
-  const fixture = "scripts/collect-import-closure-poc-package-fixture.mjs";
-  const absoluteFixture = join(root, fixture);
-  await writeFile(
-    absoluteFixture,
-    'import "@project-tavern/story-poc";\nawait import("@project-tavern/story-poc/tooling");\n',
-  );
-  try {
-    const closure = await collectImportClosure(root, [fixture]);
-    assert.deepEqual(closure.errors, []);
-    assert(closure.paths.includes("game/stories/poc/src/index.ts"));
-    assert(closure.paths.includes("game/stories/poc/src/tooling/index.ts"));
-    assert(
-      !closure.externalImports.some(({ specifier }) =>
-        specifier.startsWith("@project-tavern/story-poc"),
-      ),
-    );
-  } finally {
-    await rm(absoluteFixture, { force: true });
-  }
-});
-
-test("maps PoC tooling UI and declared UI package subpaths to production source", async () => {
+test("maps declared UI package subpaths to production source", async () => {
   const fixture = "scripts/collect-import-closure-ui-package-fixture.mjs";
   const absoluteFixture = join(root, fixture);
   await writeFile(
@@ -116,7 +59,6 @@ test("maps PoC tooling UI and declared UI package subpaths to production source"
       'import "@sillymaker/ui/assets";',
       'import "@sillymaker/ui/debug";',
       'import "@sillymaker/ui/diagnostics";',
-      'await import("@project-tavern/story-poc/tooling-ui");',
       "",
     ].join("\n"),
   );
@@ -127,7 +69,6 @@ test("maps PoC tooling UI and declared UI package subpaths to production source"
       "engine/packages/ui/src/assets/index.ts",
       "engine/packages/ui/src/debug/index.ts",
       "engine/packages/ui/src/diagnostics/index.ts",
-      "game/stories/poc/src/tooling-ui/index.ts",
     ]) {
       assert(closure.paths.includes(path), path);
     }
@@ -147,12 +88,12 @@ test("rejects unknown internal workspace package subpaths instead of treating th
   const absoluteFixture = join(root, fixture);
   await writeFile(
     absoluteFixture,
-    'import "@project-tavern/story-poc/private";\nimport "@sillymaker/ui/private";\n',
+    'import "@project-tavern/story-e2e/private";\nimport "@sillymaker/ui/private";\n',
   );
   try {
     const closure = await collectImportClosure(root, [fixture]);
     assert.deepEqual(closure.errors, [
-      `${fixture}: unknown workspace import @project-tavern/story-poc/private`,
+      `${fixture}: unknown workspace import @project-tavern/story-e2e/private`,
       `${fixture}: unknown workspace import @sillymaker/ui/private`,
     ]);
     assert(
@@ -166,11 +107,8 @@ test("rejects unknown internal workspace package subpaths instead of treating th
   }
 });
 
-test("keeps the default Story and SceneGraph closures free of tooling and Web renderers", async () => {
-  for (const entry of [
-    "game/stories/poc/src/index.ts",
-    "game/stories/poc/src/presentation/scene-graph.ts",
-  ]) {
+test("keeps the default Story closure free of tooling and Web renderers", async () => {
+  for (const entry of ["game/stories/e2e/src/story.ts"]) {
     const closure = await collectImportClosure(root, [entry]);
     assert.deepEqual(closure.errors, []);
     assert(!closure.paths.some((path) => path.endsWith("e2e-renderers.tsx")));
@@ -186,7 +124,10 @@ test("keeps the default Story and SceneGraph closures free of tooling and Web re
 });
 
 test("keeps the default Story and Node-safe tooling closures free of TSX, React, and DOM", async () => {
-  for (const entry of ["game/stories/poc/src/index.ts", "game/stories/poc/src/tooling/index.ts"]) {
+  for (const entry of [
+    "game/stories/e2e/src/story.ts",
+    "game/stories/e2e/src/tooling/simulation-target.ts",
+  ]) {
     await assertNodeSafeStoryClosure(entry);
   }
 });

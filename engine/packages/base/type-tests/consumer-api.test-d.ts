@@ -311,8 +311,6 @@ export const inferredSyntheticProgramKindV1: "synthetic-counter" =
   inferredResolvedGameV1.simulationProgram.kind;
 export const inferredSyntheticPresentationKindV1: "synthetic-presentation" =
   inferredResolvedGameV1.presentation.kind;
-export const inferredSyntheticStageSceneIdV1: import("@sillymaker/base").StageSceneId =
-  inferredResolvedGameV1.sceneGraph.stageScenes[0]!.stageSceneId;
 export const inferredSyntheticGameProjectionV1 =
   inferredResolvedGameV1.gameSimulation.projectGameView;
 

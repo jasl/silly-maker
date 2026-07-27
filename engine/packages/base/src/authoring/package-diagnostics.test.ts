@@ -56,36 +56,6 @@ describe("collectGamePackageDiagnosticsV1", () => {
     });
   });
 
-  it("keeps scene graph missing references on their own stable code and pointer", () => {
-    const entry = packageWithDefinitionV1((definition) => ({
-      ...definition,
-      presentation: {
-        ...definition.presentation,
-        uiSceneGraph: {
-          ...definition.presentation.uiSceneGraph,
-          characters: definition.presentation.uiSceneGraph.characters.map((character) => ({
-            ...character,
-            defaultRigId: "character_rig.synthetic.missing",
-          })),
-        },
-      },
-    }));
-
-    const result = collectGamePackageDiagnosticsV1(entry);
-    expect(result).toMatchObject({
-      kind: "invalid",
-      diagnostics: [
-        {
-          code: "presentation.catalog.missing_reference",
-          phase: "resolution",
-          location: { jsonPointer: "/characters/0/defaultRigId" },
-          subject: { kind: "reference", id: "character_rig.synthetic.missing" },
-          details: { resolutionFailureCode: "story.presentation_invalid" },
-        },
-      ],
-    });
-  });
-
   it("reports unstructured failures under the resolution failure code", () => {
     const entry = Object.freeze({
       contractRevision: 1 as const,

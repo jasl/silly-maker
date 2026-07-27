@@ -27,7 +27,6 @@ function emptyManifestV1(): ResolvedAssetManifestV1 {
 describe("closed runtime asset verification", () => {
   it("builds one check per asset-verified application from the project config", () => {
     expect(runtimeAssetStoryChecksV1.map(({ storyId }) => storyId)).toEqual([
-      "week.poc_001",
       "story.e2e.engine-lab",
     ]);
     expect(Object.isFrozen(runtimeAssetStoryChecksV1)).toBe(true);
@@ -89,7 +88,6 @@ describe("closed runtime asset verification", () => {
     });
 
     await expect(verifyRuntimeAssetsV1(root, { environment })).resolves.toEqual([
-      "week.poc_001",
       "story.e2e.engine-lab",
     ]);
     expect(reads).toEqual([]);

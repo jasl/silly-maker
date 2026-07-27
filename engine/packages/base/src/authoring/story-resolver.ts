@@ -30,10 +30,9 @@ import type {
 } from "../contracts/hotfix.js";
 import {
   canonicalPresentationJsonBytesV1,
-  parseStageSceneGraphV1,
   parseTextCatalogSetV1,
 } from "../contracts/presentation.js";
-import type { StageSceneGraphV1, TextCatalogSetV1, TextId } from "../contracts/presentation.js";
+import type { TextCatalogSetV1 } from "../contracts/presentation.js";
 import type { StrictJsonObjectV1, StrictJsonValueV1 } from "../contracts/strict-json.js";
 import {
   parseDigest,
@@ -60,7 +59,6 @@ export type ResolvedGameForPackageV1<TSimulationFacet, TPresentationFacet> = Res
   FunctionResultV1<TSimulationFacet, "createGameSimulation">,
   FunctionResultV1<TSimulationFacet, "materializeProgram">,
   FunctionResultV1<TPresentationFacet, "materializePresentation">,
-  PropertyValueV1<TPresentationFacet, "uiSceneGraph">,
   ResolvedAssetManifestV1
 >;
 
@@ -87,7 +85,6 @@ interface SourceSimulationFacetLikeV1 {
 
 interface SourcePresentationFacetLikeV1 {
   readonly record: Record<string, unknown>;
-  readonly uiSceneGraph: unknown;
   readonly textCatalogs: TextCatalogSetV1;
   readonly assetSlots: unknown;
   readonly assetPacks: unknown;
@@ -288,14 +285,7 @@ function validateSourceDefinition(value: unknown): SourceDefinitionLikeV1 {
   );
   requireExactKeys(
     presentation,
-    [
-      "uiSceneGraph",
-      "textCatalogs",
-      "assetSlots",
-      "assetPacks",
-      "patchSurface",
-      "materializePresentation",
-    ],
+    ["textCatalogs", "assetSlots", "assetPacks", "patchSurface", "materializePresentation"],
     "Story presentation facet",
   );
   return {
@@ -324,7 +314,6 @@ function validateSourceDefinition(value: unknown): SourceDefinitionLikeV1 {
     },
     presentation: {
       record: presentation,
-      uiSceneGraph: ownDataValue(presentation, "uiSceneGraph", "Story presentation facet"),
       textCatalogs: parseTextCatalogSetV1(
         ownDataValue(presentation, "textCatalogs", "Story presentation facet"),
       ),
@@ -979,94 +968,6 @@ function digestPresentationProjectionV1(value: unknown): ReturnType<typeof diges
   return digestBytes(framed);
 }
 
-class StoryPresentationCatalogErrorV1 extends TypeError {
-  readonly code = "presentation.catalog.missing_reference";
-
-  constructor(reference: string, path: string) {
-    super(`presentation.catalog.missing_reference at ${path}: ${reference}`);
-  }
-}
-
-function validateSceneGraphTextReferencesV1(
-  sceneGraph: StageSceneGraphV1,
-  textCatalogs: TextCatalogSetV1,
-): void {
-  const defaultCatalog = textCatalogs.catalogs.find(
-    (catalog) => catalog.locale === textCatalogs.defaultLocale,
-  );
-  if (defaultCatalog === undefined) {
-    throw new StoryPresentationCatalogErrorV1(
-      textCatalogs.defaultLocale,
-      "/presentation/textCatalogs/defaultLocale",
-    );
-  }
-  const textIds = new Set(defaultCatalog.entries.map((entry) => entry.textId));
-  const requireTextId = (textId: TextId, path: string): void => {
-    if (!textIds.has(textId)) {
-      throw new StoryPresentationCatalogErrorV1(textId, path);
-    }
-  };
-
-  sceneGraph.variants.forEach((variant, index) =>
-    requireTextId(variant.accessibleNameTextId, `/variants/${index}/accessibleNameTextId`),
-  );
-  sceneGraph.characters.forEach((character, index) =>
-    requireTextId(character.accessibleNameTextId, `/characters/${index}/accessibleNameTextId`),
-  );
-  sceneGraph.interactionSurfaces.forEach((surface, index) =>
-    requireTextId(
-      surface.accessibleNameTextId,
-      `/interactionSurfaces/${index}/accessibleNameTextId`,
-    ),
-  );
-  sceneGraph.interactionTargets.forEach((target, index) =>
-    requireTextId(target.accessibleNameTextId, `/interactionTargets/${index}/accessibleNameTextId`),
-  );
-  sceneGraph.interactionBehaviors.forEach((behavior, index) => {
-    requireTextId(behavior.nameTextId, `/interactionBehaviors/${index}/nameTextId`);
-    if (behavior.descriptionTextId !== null) {
-      requireTextId(behavior.descriptionTextId, `/interactionBehaviors/${index}/descriptionTextId`);
-    }
-  });
-  sceneGraph.contentMaturityPolicy.flags.forEach((flag, index) => {
-    requireTextId(flag.nameTextId, `/contentMaturityPolicy/flags/${index}/nameTextId`);
-    requireTextId(
-      flag.descriptionTextId,
-      `/contentMaturityPolicy/flags/${index}/descriptionTextId`,
-    );
-  });
-  sceneGraph.contentMaturityPolicy.presets.forEach((preset, index) => {
-    requireTextId(preset.nameTextId, `/contentMaturityPolicy/presets/${index}/nameTextId`);
-    requireTextId(
-      preset.descriptionTextId,
-      `/contentMaturityPolicy/presets/${index}/descriptionTextId`,
-    );
-  });
-}
-
-function validateSceneGraphAssetReferencesV1(
-  sceneGraph: StageSceneGraphV1,
-  assets: ResolvedAssetManifestV1,
-): void {
-  const assetIds = new Set(assets.assets.map((asset) => asset.assetId));
-  sceneGraph.variants.forEach((variant, index) => {
-    if (!assetIds.has(variant.backgroundAssetId)) {
-      throw new StoryPresentationCatalogErrorV1(
-        variant.backgroundAssetId,
-        `/variants/${index}/backgroundAssetId`,
-      );
-    }
-  });
-  sceneGraph.characterRigs.forEach((rig, index) => {
-    if (rig.staticFallbackAssetId !== null && !assetIds.has(rig.staticFallbackAssetId)) {
-      throw new StoryPresentationCatalogErrorV1(
-        rig.staticFallbackAssetId,
-        `/characterRigs/${index}/staticFallbackAssetId`,
-      );
-    }
-  });
-}
-
 function validateAssetPatchSymbolsV1(
   slots: readonly AssetSlotDefinitionV1[],
   assetPatchSymbols: readonly string[],
@@ -1287,7 +1188,6 @@ export function resolveGamePackageV1<TSimulationFacet, TPresentationFacet>(
     return failure<TResolved>("story.materialization_threw", hotfixes, errorMessage(error), error);
   }
 
-  let sceneGraph: StageSceneGraphV1;
   let activeTextCatalogs: TextCatalogSetV1;
   let simulationProgramDigest: ReturnType<typeof digestBytes>;
   try {
@@ -1327,8 +1227,6 @@ export function resolveGamePackageV1<TSimulationFacet, TPresentationFacet>(
     return failure<TResolved>("story.presentation_invalid", hotfixes, errorMessage(error), error);
   }
   try {
-    sceneGraph = parseStageSceneGraphV1(first.presentation.uiSceneGraph);
-    validateSceneGraphTextReferencesV1(sceneGraph, activeTextCatalogs);
   } catch (error) {
     return failure<TResolved>("story.presentation_invalid", hotfixes, errorMessage(error), error);
   }
@@ -1387,7 +1285,6 @@ export function resolveGamePackageV1<TSimulationFacet, TPresentationFacet>(
   }
 
   try {
-    validateSceneGraphAssetReferencesV1(sceneGraph, assets);
   } catch (error) {
     return failure<TResolved>("story.presentation_invalid", hotfixes, errorMessage(error), error);
   }
@@ -1418,7 +1315,6 @@ export function resolveGamePackageV1<TSimulationFacet, TPresentationFacet>(
       sourceDigest: build.storyPresentation.digest,
       patchSetDigest: patches.patchSet.presentationDigest,
       presentation,
-      sceneGraph,
       assetPacks: assets.packs,
     });
     const provenance = deepFreezeAuthoringValueV1({
@@ -1441,7 +1337,6 @@ export function resolveGamePackageV1<TSimulationFacet, TPresentationFacet>(
       gameSimulation,
       simulationProgram,
       presentation,
-      sceneGraph,
       assets,
       frozen: true as const,
     }) as TResolved;

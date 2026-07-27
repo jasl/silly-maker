@@ -16,4 +16,3 @@ export type {
   CreatePresentationReadPortInputV1,
   PresentationReadPortV1,
 } from "./presentation-read-port.js";
-export { usePresentationAssetV1 } from "./use-presentation-asset.js";

@@ -43,7 +43,6 @@ describe("Engine Lab story baseline", () => {
     expect(labStoryEntryV1.identity.id).toBe("story.e2e.engine-lab");
     expect(resolved.simulationProgram.kind).toBe("e2e-lab");
     expect(resolved.presentation.kind).toBe("e2e-lab-presentation");
-    expect(resolved.sceneGraph.stageScenes).toHaveLength(1);
     expect(resolved.gameSimulation.modules).toHaveLength(5);
   });
 

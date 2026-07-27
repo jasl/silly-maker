@@ -3,7 +3,6 @@ import type {
   DiagnosticEnvelopeV1,
   GamePackageV1,
   ResolvedAssetManifestV1,
-  StageSceneGraphV1,
 } from "@sillymaker/base";
 import {
   AuthoringDiagnosticErrorV1,
@@ -34,7 +33,6 @@ interface InspectableResolvedV1 {
       readonly presentationDigest: string;
     };
   };
-  readonly sceneGraph: StageSceneGraphV1;
   readonly assets: ResolvedAssetManifestV1;
 }
 
@@ -120,7 +118,6 @@ export interface StoryInspectReportV1 {
   readonly stateContract: { readonly revision: number; readonly digest: string };
   readonly simulationDigest: string;
   readonly presentationDigest: string;
-  readonly stageSceneIds: readonly string[];
   readonly assets: {
     readonly packs: number;
     readonly slots: number;
@@ -172,9 +169,6 @@ export async function inspectStoryApplicationV1(
       }),
       simulationDigest: resolved.provenance.resolved.simulationDigest,
       presentationDigest: resolved.provenance.resolved.presentationDigest,
-      stageSceneIds: Object.freeze(
-        resolved.sceneGraph.stageScenes.map((scene) => scene.stageSceneId as string),
-      ),
       assets: Object.freeze({
         packs: resolved.assets.packs.length,
         slots: resolved.assets.slots.length,

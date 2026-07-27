@@ -12,13 +12,11 @@ import {
   CodeNativeAssetFallbackV1 as RootCodeNativeAssetFallbackV1,
   createAssetRegistryV1 as createRootAssetRegistryV1,
   createPresentationReadPortV1 as createRootPresentationReadPortV1,
-  usePresentationAssetV1 as useRootPresentationAssetV1,
 } from "@sillymaker/ui";
 import {
   CodeNativeAssetFallbackV1,
   createAssetRegistryV1,
   createPresentationReadPortV1,
-  usePresentationAssetV1,
   type AssetRegistryV1,
   type PresentationReadPortV1,
   type RuntimeAssetLoaderV1,
@@ -102,13 +100,11 @@ const rootFactoryV1: typeof createAssetRegistryV1 = createRootAssetRegistryV1;
 const rootPresentationFactoryV1: typeof createPresentationReadPortV1 =
   createRootPresentationReadPortV1;
 const rootFallbackV1: typeof CodeNativeAssetFallbackV1 = RootCodeNativeAssetFallbackV1;
-const rootHookV1: typeof usePresentationAssetV1 = useRootPresentationAssetV1;
 
 localeIdV1;
 rootFactoryV1;
 rootPresentationFactoryV1;
 rootFallbackV1;
-rootHookV1;
 
 // @ts-expect-error Story identity is not part of the neutral asset package
 export type { StoryId as ForbiddenStoryIdV1 } from "@sillymaker/ui/assets";

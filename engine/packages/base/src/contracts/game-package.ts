@@ -62,14 +62,12 @@ export interface StorySimulationFacetV1<
 }
 
 export interface StoryPresentationFacetV1<
-  TUiSceneGraph,
   TTextCatalogs,
   TAssetSlots,
   TAssetPacks,
   TPresentationPatchSurface,
   TPresentationProgram,
 > {
-  readonly uiSceneGraph: TUiSceneGraph;
   readonly textCatalogs: TTextCatalogs;
   readonly assetSlots: TAssetSlots;
   readonly assetPacks: TAssetPacks;
@@ -90,18 +88,11 @@ export interface GamePackageV1<TSimulationFacet, TPresentationFacet> {
   define(): StoryDefinitionV1<TSimulationFacet, TPresentationFacet>;
 }
 
-export interface ResolvedGameV1<
-  TGameSimulation,
-  TSimulationProgram,
-  TPresentation,
-  TSceneGraph,
-  TAssets,
-> {
+export interface ResolvedGameV1<TGameSimulation, TSimulationProgram, TPresentation, TAssets> {
   readonly provenance: BuildProvenanceV1;
   readonly gameSimulation: TGameSimulation;
   readonly simulationProgram: TSimulationProgram;
   readonly presentation: TPresentation;
-  readonly sceneGraph: TSceneGraph;
   readonly assets: TAssets;
   readonly frozen: true;
 }

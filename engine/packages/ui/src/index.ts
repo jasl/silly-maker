@@ -16,20 +16,6 @@ export type {
   CreatePresentationReadPortInputV1,
   PresentationReadPortV1,
 } from "./assets/presentation-read-port.js";
-export { usePresentationAssetV1 } from "./assets/use-presentation-asset.js";
-export {
-  CharacterHostV1,
-  PaperDollCharacterRendererV1,
-  StaticCharacterRendererV1,
-  createCharacterRendererRegistryV1,
-} from "./characters/index.js";
-export type {
-  CharacterHostPropsV1,
-  CharacterRendererContributionV1,
-  CharacterRendererRegistryV1,
-  RuntimeAppearanceLayerV1,
-  RuntimeCharacterPresentationV1,
-} from "./characters/index.js";
 export { Button, IconButton, ProgressMeter } from "./primitives/index.js";
 export type { ButtonPropsV1, IconButtonPropsV1, ProgressMeterPropsV1 } from "./primitives/index.js";
 export { createUiContributionRegistryV1 } from "./contributions/registry.js";
@@ -42,8 +28,6 @@ export type {
 } from "./contributions/types.js";
 export {
   DiagnosticExportButtonV1,
-  classifyDebugUiContextUseV1,
-  createDebugUiContextV1,
   diagnosticExportContentCategoryIdsV1,
 } from "./diagnostics/index.js";
 export type {
@@ -92,37 +76,16 @@ export type {
   ViewportPointV1,
 } from "./input/index.js";
 export {
-  InteractionBehaviorListV1,
-  InteractionSurfaceV1,
-  createInteractionControllerV1,
   createInteractionSessionStoreV1,
   createPresentationIntentRouterV1,
-  hitTestHitMapV1,
   initialInteractionSessionStateV1,
-  interactionTargetControlIdV1,
-  normalizeViewportPointV1,
-  validateRuntimeInteractionSurfaceV1,
 } from "./interaction/index.js";
 export type {
-  CreateInteractionControllerInputV1,
-  InteractionActivationV1,
-  InteractionActivationResultV1,
-  InteractionBehaviorControllerV1,
-  InteractionBehaviorListPropsV1,
-  InteractionControllerV1,
-  InteractionDescriptorPresentationV1,
-  InteractionEntryModeV1,
-  InteractionIntentRouteContextV1,
-  InteractionResolutionModeV1,
-  InteractionSemanticDescriptorV1,
   InteractionSessionCleanupReasonV1,
   InteractionSessionStateLensV1,
   InteractionSessionStateReducerV1,
   InteractionSessionStateV1,
   InteractionSessionStoreV1,
-  InteractionSpatialStateV1,
-  InteractionSurfaceControllerV1,
-  InteractionSurfacePropsV1,
   PresentationFaultV1,
   PresentationCueWriterV1,
   PresentationInteractionSessionWriterV1,
@@ -132,10 +95,6 @@ export type {
   PresentationIntentRouterOptionsV1,
   PresentationIntentRouterV1,
   PresentationOverlayWriterV1,
-  RuntimeInteractionBehaviorRouteV1,
-  RuntimeInteractionBehaviorV1,
-  RuntimeInteractionSurfaceV1,
-  RuntimeInteractionTargetV1,
 } from "./interaction/index.js";
 export { VnLayerV1 } from "./narrative/index.js";
 export type { VnChoiceV1, VnLayerPropsV1 } from "./narrative/index.js";
@@ -210,23 +169,19 @@ export type {
   TopCardHudPropsV1,
 } from "./shell/index.js";
 export {
-  CodeFallbackStageSceneV1,
   createStageReconcilerV2,
   SemanticStageHostV2,
   SemanticStageTargetHostV2,
   SemanticStageV2,
   settledStageFrameV2,
-  StageSceneHostV1,
 } from "./stage/index.js";
 export type {
   CreateStageReconcilerOptionsV2,
-  RuntimeStageSceneV1,
   SemanticStageEntryRendererInputV2,
   SemanticStageEntryRendererV2,
   SemanticStageHostDiagnosticV2,
   SemanticStageHostPropsV2,
   SemanticStagePropsV2,
-  StageBackgroundPresentationV1,
   StageFrameEntryV2,
   StageFrameLayerV2,
   StageFramePhaseV2,
@@ -234,7 +189,6 @@ export type {
   StageReconcilerV2,
   StageRenderFrameV2,
   StageRetargetInputV2,
-  StageSceneHostPropsV1,
   StageTransitionAcknowledgmentV2,
 } from "./stage/index.js";
 export {

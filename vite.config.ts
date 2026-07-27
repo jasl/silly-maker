@@ -95,6 +95,6 @@ export async function createProjectTavernViteConfigV1(input: {
  */
 export default defineConfig(async ({ mode }) =>
   createProjectTavernViteConfigV1({
-    applicationId: mode === "development" || mode === "production" ? "poc-web" : mode,
+    applicationId: mode === "development" || mode === "production" ? "e2e" : mode,
   }),
 );
