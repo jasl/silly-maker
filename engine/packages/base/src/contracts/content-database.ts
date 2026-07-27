@@ -136,6 +136,15 @@ export interface ContentTableViewV1<TRow extends Readonly<Record<string, unknown
   findFirst(query?: ContentQueryV1<TRow>): TRow | null;
 }
 
+/** The variance-free shape `createContentDatabaseV1` accepts. */
+export interface AnyContentTableDefinitionV1 {
+  readonly tableId: string;
+  readonly primaryKey: string;
+  readonly textColumns: readonly string[];
+  readonly references: readonly { readonly column: string; readonly tableId: string }[];
+  readonly rows: readonly Readonly<Record<string, unknown>>[];
+}
+
 export interface ContentDatabaseV1 {
   table<TRow extends Readonly<Record<string, unknown>>>(
     definition: ContentTableDefinitionV1<TRow>,
@@ -199,9 +208,9 @@ function matchesWhereV1<TRow extends Readonly<Record<string, unknown>>>(
  * query views. Query results preserve authoring row order unless ordered.
  */
 export function createContentDatabaseV1(input: {
-  readonly tables: readonly ContentTableDefinitionV1<Readonly<Record<string, unknown>>>[];
+  readonly tables: readonly AnyContentTableDefinitionV1[];
 }): ContentDatabaseV1 {
-  const byId = new Map<string, ContentTableDefinitionV1<Readonly<Record<string, unknown>>>>();
+  const byId = new Map<string, AnyContentTableDefinitionV1>();
   for (const table of input.tables) {
     if (byId.has(table.tableId)) fail("content.table_duplicate", `/${table.tableId}`);
     byId.set(table.tableId, table);
@@ -267,10 +276,10 @@ export function createContentDatabaseV1(input: {
       definition: ContentTableDefinitionV1<TRow>,
     ): ContentTableViewV1<TRow> => {
       const view = views.get(definition.tableId);
-      if (view === undefined || byId.get(definition.tableId) !== definition) {
+      if (view === undefined || byId.get(definition.tableId) !== (definition as unknown)) {
         fail("content.table_unregistered", `/${definition.tableId}`);
       }
-      return view as ContentTableViewV1<TRow>;
+      return view as unknown as ContentTableViewV1<TRow>;
     },
     collectTextIds: () =>
       Object.freeze(

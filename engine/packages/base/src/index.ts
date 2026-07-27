@@ -249,6 +249,7 @@ export type {
   StageTransitionCatalogV1,
   StageTransitionDefinitionV1,
   TimelineCatalogV1,
+  AnyContentTableDefinitionV1,
   ContentConditionV1,
   ContentDatabaseV1,
   ContentQueryV1,
