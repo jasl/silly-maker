@@ -377,6 +377,18 @@ export type {
   TransientEffectV1,
 } from "./asset-demand.js";
 export {
+  appendNarrativeHistoryV1,
+  emptyNarrativeHistoryV1,
+  narrativeHistoryMaxEntriesV1,
+  parseNarrativeHistoryEntryV1,
+  parseNarrativeHistoryV1,
+} from "./narrative-history.js";
+export type {
+  NarrativeHistoryEntryKindV1,
+  NarrativeHistoryEntryV1,
+  NarrativeHistoryV1,
+} from "./narrative-history.js";
+export {
   parseAudioAssetSlotV1,
   parseAudioChannelIntentV1,
   parseAudioIntentV1,

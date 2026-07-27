@@ -47,6 +47,8 @@ test.describe("engine pending interactions", () => {
     await page.locator("[data-lab-dial-value='3']").click();
     await expect(page.locator("[data-lab-interaction='say']")).toBeVisible();
     await page.getByRole("button", { name: "继续" }).click();
+    await expect(page.locator("[data-lab-say-reveal='complete']")).toBeAttached();
+    await page.getByRole("button", { name: "继续" }).click();
 
     // Same authoritative outcome the headless suite asserts.
     await expect(page.locator("[data-lab-narrative='calibrated']")).toBeVisible();
@@ -62,7 +64,10 @@ test.describe("engine pending interactions", () => {
     await gotoLabV1(page);
 
     // Reach the choice — a stable interaction boundary — and save there.
+    // The first activation completes the typewriter, the second resolves.
     await page.getByRole("button", { name: "开始校准" }).click();
+    await page.getByRole("button", { name: "继续" }).click();
+    await expect(page.locator("[data-lab-say-reveal='complete']")).toBeAttached();
     await page.getByRole("button", { name: "继续" }).click();
     const choice = page.locator("[data-lab-interaction='choice']");
     await expect(choice).toBeVisible();
@@ -97,6 +102,8 @@ test.describe("engine pending interactions", () => {
     });
     await page.locator("[data-lab-dial-value='2']").click();
     await page.getByRole("button", { name: "继续" }).click();
+    await expect(page.locator("[data-lab-say-reveal='complete']")).toBeAttached();
+    await page.getByRole("button", { name: "继续" }).click();
     await expect(page.locator("[data-lab-narrative='calibrated']")).toBeVisible();
   });
 
@@ -108,13 +115,17 @@ test.describe("engine pending interactions", () => {
     await expect(say).toBeVisible();
     const firstOccurrence = await say.getAttribute("data-lab-occurrence");
 
-    // Play to completion via the basic branch.
+    // Play to completion via the basic branch (two-step confirms).
+    await page.getByRole("button", { name: "继续" }).click();
+    await expect(page.locator("[data-lab-say-reveal='complete']")).toBeAttached();
     await page.getByRole("button", { name: "继续" }).click();
     await page.getByRole("button", { name: "直接校准" }).click();
     await expect(page.locator("[data-lab-interaction='custom']")).toBeVisible({
       timeout: 10_000,
     });
     await page.locator("[data-lab-dial-value='1']").click();
+    await page.getByRole("button", { name: "继续" }).click();
+    await expect(page.locator("[data-lab-say-reveal='complete']")).toBeAttached();
     await page.getByRole("button", { name: "继续" }).click();
     await expect(page.locator("[data-lab-narrative='calibrated']")).toBeVisible();
 

@@ -59,7 +59,7 @@ describe("Engine Lab agent port", () => {
     const harness = await createLabHarnessV1();
     const agent: LabAgentPortV1 = harness.agent;
 
-    expect(agent.identity()).toEqual({ storyId: "story.e2e.engine-lab", storyRevision: 3 });
+    expect(agent.identity()).toEqual({ storyId: "story.e2e.engine-lab", storyRevision: 4 });
     await playToCompletionV1(agent);
     expect(agent.observe().game.procedurePhase).toBe("complete");
     await harness.dispose();

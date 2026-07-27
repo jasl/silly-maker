@@ -14,6 +14,7 @@ import type {
 import type {
   AudioIntentV1,
   InteractionRejectionCodeV2,
+  NarrativeHistoryV1,
   InteractionResolutionV2,
   PendingInteractionV2,
   SemanticStageStateV2,
@@ -126,6 +127,8 @@ export interface LabNarrativeViewV1 {
   readonly pending: PendingInteractionV2 | null;
   /** Availability decorated with the same rule preview/dispatch re-check. */
   readonly choiceOptions: readonly LabNarrativeChoiceOptionViewV1[] | null;
+  /** The player-readable backlog from authoritative State. */
+  readonly history: NarrativeHistoryV1;
 }
 
 export interface LabGameViewV1 {
@@ -500,7 +503,7 @@ const stageModuleV1 = kit.defineStatefulModule({
 
 const narrativeModuleV1 = kit.defineStatefulModule({
   id: "lab.narrative",
-  contractRevision: 1,
+  contractRevision: 2,
   state: {
     slot: "simulation.narrative",
     schema: labNarrativeStateSchemaV1,

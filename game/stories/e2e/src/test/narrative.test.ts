@@ -400,6 +400,56 @@ describe("Engine Lab pending interactions", () => {
     await harness.dispose();
   });
 
+  it("keeps NarrativeHistory in the Save, restored to the exact occurrence", async () => {
+    const harness = await createLabHarnessV1();
+    await dispatchCommittedV1(harness, beginV1);
+    const intro = pendingV1(harness);
+    await dispatchCommittedV1(harness, resolveV1(intro.occurrenceId, { kind: "advance" }));
+
+    // The resolved say entered the authoritative history with its occurrence.
+    const historyAfterIntro = harness.observe().narrative.history.entries;
+    expect(historyAfterIntro).toMatchObject([
+      {
+        kind: "say",
+        definitionId: "interaction.e2e.cal-intro",
+        occurrenceId: intro.occurrenceId,
+        voiceAssetId: "audio.e2e.voice.cal-intro",
+      },
+    ]);
+    await expect(harness.saves.save("manual")).resolves.toMatchObject({ kind: "saved" });
+
+    // Play forward: the choice adds a history entry too.
+    const choice = pendingV1(harness);
+    await dispatchCommittedV1(
+      harness,
+      resolveV1(choice.occurrenceId, { kind: "choose", choiceId: "choice.e2e.cal.basic" }),
+    );
+    expect(harness.observe().narrative.history.entries).toHaveLength(2);
+    expect(harness.observe().narrative.history.entries.at(-1)).toMatchObject({
+      kind: "choice",
+      textId: "text.e2e.lab.narrative.cal.basic",
+    });
+
+    // History is the player backlog, not the CommandLog: the engine log
+    // records every command while history holds only resolved narrative
+    // boundaries (begin + advance + choose = 3 commands, 2 entries).
+    expect(harness.admin.commandLog().length).toBeGreaterThan(
+      harness.observe().narrative.history.entries.length,
+    );
+
+    // Load restores the history to the saved occurrence — one entry again.
+    await expect(harness.saves.load("manual")).resolves.toMatchObject({ kind: "loaded" });
+    expect(harness.observe().narrative.history.entries).toEqual(historyAfterIntro);
+
+    // No presentation sidecar: the save bytes carry history but never
+    // seen registries, preferences, or playback execution state.
+    const exported = await harness.saves.exportCurrentSave();
+    const text = new TextDecoder().decode(exported.bytes);
+    expect(text).toContain("interaction.e2e.cal-intro");
+    expect(text).not.toMatch(/skipPolicy|autoWaitMs|textReveal|seenRegistry|playbackMode/u);
+    await harness.dispose();
+  });
+
   it("both branches reach the same boundary with the same authoritative shape", async () => {
     const precise = await createLabHarnessV1(777);
     // The precise branch needs a sample; collect first.

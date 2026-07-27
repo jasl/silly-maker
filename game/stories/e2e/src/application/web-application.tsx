@@ -9,11 +9,13 @@ import type {
   StageRenderTargetV2,
 } from "@sillymaker/base";
 import { projectStageRenderTargetV2 } from "@sillymaker/base";
+import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
 import type {
   AudioHostV1,
   DefaultGameRootLabelsV1,
   DefaultGameRootSlotsV1,
   GameUiProjectorV1,
+  PresentationClockV1,
   RuntimePresentationPublicationV1,
   SaveOverlayLabelsV1,
   SemanticStageEntryRendererV2,
@@ -41,7 +43,6 @@ import {
   labAudioManifestV1,
   labStageContentCatalogV1,
   labStageTransitionCatalogV1,
-  labTextCatalogsV1,
 } from "../presentation.js";
 
 /** The Engine Lab logical canvas: a 16:10 design resolution. */
@@ -68,17 +69,10 @@ export type LabUiPublicationV1 = RuntimePresentationPublicationV1<
 
 export type LabUiOverlayIdV1 = "overlay.lab.journal";
 
-const labTextByIdV1: ReadonlyMap<string, string> = new Map(
-  labTextCatalogsV1.catalogs.flatMap((catalog) =>
-    catalog.entries.map((entry) => [entry.textId as string, entry.text] as const),
-  ),
-);
+import { labUiTextV1 } from "./ui-text.js";
+import { LabNarrativePlayerV1 } from "./narrative-ui.js";
 
-export function labUiTextV1(textId: string): string {
-  const text = labTextByIdV1.get(textId);
-  if (text === undefined) throw new TypeError(`e2e.ui_text_missing:${textId}`);
-  return text;
-}
+export { labUiTextV1 } from "./ui-text.js";
 
 const labActionTextIdsV1: Readonly<Record<LabActionIdV1, string>> = Object.freeze({
   "lab.collect_sample": "text.e2e.lab.action.collect_sample",
@@ -199,8 +193,9 @@ function labResolveV1(
 function LabAudioV1(props: {
   readonly instance: LabApplicationInstanceV1;
   readonly createHost: () => AudioHostV1;
+  registerReplay?(replay: (() => boolean) | null): void;
 }): null {
-  const { instance, createHost } = props;
+  const { instance, createHost, registerReplay } = props;
   useEffect(() => {
     const host = createHost();
     const presenter = createAudioPresenterV1({
@@ -229,7 +224,9 @@ function LabAudioV1(props: {
       else presenter.resume();
     };
     document.addEventListener("visibilitychange", onVisibilityChange);
+    registerReplay?.(() => presenter.replayVoice());
     return () => {
+      registerReplay?.(null);
       document.removeEventListener("visibilitychange", onVisibilityChange);
       unsubscribeEffects();
       unsubscribeAnchor();
@@ -237,7 +234,7 @@ function LabAudioV1(props: {
       presenter.dispose();
       host.dispose();
     };
-  }, [instance, createHost]);
+  }, [instance, createHost, registerReplay]);
   return null;
 }
 
@@ -279,153 +276,6 @@ function LabBarrierRecoveryV1(props: {
   }, [semantic, epoch, barrierOccurrenceId, barrierTransitionId, loadRecovery]);
 
   return null;
-}
-
-/**
- * Renders the pending interaction boundary. Every activation dispatches a
- * semantic resolution carrying the expected occurrence; the queue front
- * rejects anything stale, so double clicks and late timers are harmless.
- */
-function LabNarrativeV1(props: {
-  readonly publication: DeepReadonly<LabUiPublicationV1>;
-  readonly semantic: LabSemanticPortV1;
-}): ReactElement | null {
-  const narrative = props.publication.semantic.narrative;
-  const pending = narrative.pending;
-  const { semantic } = props;
-
-  // Pause boundaries auto-resume after their duration. The timer captures
-  // the occurrence it saw; if anything else resolved the interaction first,
-  // the queue front rejects the stale resume.
-  const pauseOccurrenceId = pending?.kind === "pause" ? pending.occurrenceId : null;
-  const pauseDurationMs = pending?.kind === "pause" ? pending.durationMs : null;
-  useEffect(() => {
-    if (pauseOccurrenceId === null || pauseDurationMs === null) return () => {};
-    const timer = setTimeout(() => {
-      labResolveV1(semantic, pauseOccurrenceId, Object.freeze({ kind: "resume" as const }));
-    }, pauseDurationMs);
-    return () => clearTimeout(timer);
-  }, [semantic, pauseOccurrenceId, pauseDurationMs]);
-
-  if (pending === null) {
-    return narrative.phase === "completed" && narrative.calibration !== null ? (
-      <p data-lab-narrative="calibrated">
-        {labUiTextV1("text.e2e.lab.narrative.cal.done")}（{String(narrative.calibration)}）
-      </p>
-    ) : null;
-  }
-
-  if (pending.kind === "say") {
-    return (
-      <div data-lab-interaction="say" data-lab-occurrence={pending.occurrenceId}>
-        {pending.speakerTextId === null ? null : (
-          <strong>{labUiTextV1(pending.speakerTextId)}</strong>
-        )}
-        <p>{labUiTextV1(pending.textId)}</p>
-        <Button
-          onClick={() =>
-            labResolveV1(
-              semantic,
-              pending.occurrenceId,
-              Object.freeze({ kind: "advance" as const }),
-            )
-          }
-        >
-          {labUiTextV1("text.e2e.lab.narrative.cal.advance")}
-        </Button>
-      </div>
-    );
-  }
-
-  if (pending.kind === "choice") {
-    return (
-      <div data-lab-interaction="choice" data-lab-occurrence={pending.occurrenceId}>
-        <p>{labUiTextV1(pending.promptTextId)}</p>
-        <div role="group" aria-label={labUiTextV1(pending.promptTextId)}>
-          {(narrative.choiceOptions ?? []).map((option) => (
-            <Button
-              key={option.choiceId}
-              disabled={!option.enabled}
-              data-lab-choice-id={option.choiceId}
-              title={
-                option.blockedBy === null
-                  ? undefined
-                  : labUiTextV1("text.e2e.lab.narrative.cal.precise.locked")
-              }
-              onClick={() =>
-                labResolveV1(
-                  semantic,
-                  pending.occurrenceId,
-                  Object.freeze({ kind: "choose" as const, choiceId: option.choiceId }),
-                )
-              }
-            >
-              {labUiTextV1(option.textId)}
-            </Button>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (pending.kind === "pause") {
-    return (
-      <div data-lab-interaction="pause" data-lab-occurrence={pending.occurrenceId}>
-        <p>{labUiTextV1("text.e2e.lab.narrative.cal.waiting")}</p>
-        {pending.skippable ? (
-          <Button
-            onClick={() =>
-              labResolveV1(
-                semantic,
-                pending.occurrenceId,
-                Object.freeze({ kind: "resume" as const }),
-              )
-            }
-          >
-            {labUiTextV1("text.e2e.lab.narrative.cal.skip")}
-          </Button>
-        ) : null}
-      </div>
-    );
-  }
-
-  if (pending.kind === "custom") {
-    // The schema-registered calibration surface: the renderer only sends a
-    // semantic resolution whose payload the Story schema validates; no
-    // callback ever enters State or a Save.
-    const min = typeof pending.params.min === "number" ? pending.params.min : 1;
-    const max = typeof pending.params.max === "number" ? pending.params.max : 1;
-    const values = Array.from({ length: Math.max(0, max - min + 1) }, (_, i) => min + i);
-    return (
-      <div data-lab-interaction="custom" data-lab-occurrence={pending.occurrenceId}>
-        <p>{labUiTextV1("text.e2e.lab.narrative.cal.dial")}</p>
-        <div role="group" aria-label={labUiTextV1("text.e2e.lab.narrative.cal.dial")}>
-          {values.map((value) => (
-            <Button
-              key={value}
-              data-lab-dial-value={value}
-              onClick={() =>
-                labResolveV1(
-                  semantic,
-                  pending.occurrenceId,
-                  Object.freeze({ kind: "custom" as const, payload: Object.freeze({ value }) }),
-                )
-              }
-            >
-              {String(value)}
-            </Button>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  // presentation_barrier: resolved by the stage acknowledgment wiring.
-  return (
-    <p data-lab-interaction="barrier" data-lab-occurrence={pending.occurrenceId}>
-      {labUiTextV1("text.e2e.lab.narrative.cal.waiting")}
-    </p>
-  );
 }
 
 function LabHudV1(props: {
@@ -512,7 +362,6 @@ const labUiSlotsDefinitionV1: DefaultGameRootSlotsV1<
         <p data-lab-narrative="complete">{labUiTextV1("text.e2e.lab.narrative.completed")}</p>
       ) : null}
       <LabBarrierRecoveryV1 publication={context.publication} semantic={context.semantic} />
-      <LabNarrativeV1 publication={context.publication} semantic={context.semantic} />
     </div>
   ),
   systemMenuExtras: (context) => (
@@ -548,25 +397,42 @@ const labUiSlotsDefinitionV1: DefaultGameRootSlotsV1<
 export const labUiSlotsV1 = Object.freeze(labUiSlotsDefinitionV1);
 
 /**
- * The slots with the audio presentation mounted: the narrative root also
- * renders the audio component bound to the application instance and an
- * injectable Audio Host (the browser host in production, the fake host in
- * deterministic tests).
+ * The slots with the full player mounted: the narrative root renders the
+ * audio component (bound to the instance and an injectable Audio Host), the
+ * barrier recovery, and the VN player — typewriter, playback modes,
+ * history, seen tracking, hide UI, and voice replay.
  */
 export function createLabUiSlotsV1(input: {
   readonly instance: LabApplicationInstanceV1;
   readonly createAudioHost: () => AudioHostV1;
+  readonly playerProfile: PlayerProfileStoreV1;
+  readonly playerClock?: PresentationClockV1;
 }): DefaultGameRootSlotsV1<LabUiPublicationV1, LabSemanticPortV1, LabUiOverlayIdV1> {
+  const voiceReplayRef: { current: (() => boolean) | null } = { current: null };
+  const registerReplay = (replay: (() => boolean) | null): void => {
+    voiceReplayRef.current = replay;
+  };
+  const replayVoice = (): boolean => voiceReplayRef.current?.() ?? false;
   const slots: DefaultGameRootSlotsV1<LabUiPublicationV1, LabSemanticPortV1, LabUiOverlayIdV1> = {
     ...labUiSlotsDefinitionV1,
     narrative: (context) => (
       <div data-lab-narrative-root="true">
-        <LabAudioV1 instance={input.instance} createHost={input.createAudioHost} />
+        <LabAudioV1
+          instance={input.instance}
+          createHost={input.createAudioHost}
+          registerReplay={registerReplay}
+        />
         {context.publication.view.procedurePhase === "complete" ? (
           <p data-lab-narrative="complete">{labUiTextV1("text.e2e.lab.narrative.completed")}</p>
         ) : null}
         <LabBarrierRecoveryV1 publication={context.publication} semantic={context.semantic} />
-        <LabNarrativeV1 publication={context.publication} semantic={context.semantic} />
+        <LabNarrativePlayerV1
+          publication={context.publication}
+          semantic={context.semantic}
+          profile={input.playerProfile}
+          {...(input.playerClock === undefined ? {} : { clock: input.playerClock })}
+          replayVoice={replayVoice}
+        />
       </div>
     ),
   };
@@ -695,12 +561,19 @@ export const labWebApplicationV1: WebGameApplicationV1<
     fallbackSize: Object.freeze({ width: 1600, height: 1000 }),
   }),
   core: labCoreApplicationDefinitionV1,
-  ui: ({ instance }: { readonly instance: LabApplicationInstanceV1 }) =>
+  ui: ({
+    instance,
+    playerProfile,
+  }: {
+    readonly instance: LabApplicationInstanceV1;
+    readonly playerProfile: PlayerProfileStoreV1;
+  }) =>
     Object.freeze({
       projector: labUiProjectorV1,
       overlayIds: Object.freeze(["overlay.lab.journal" as const]),
       slots: createLabUiSlotsV1({
         instance,
+        playerProfile,
         createAudioHost: () =>
           createWebAudioHostV1({
             manifest: labAudioManifestV1,

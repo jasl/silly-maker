@@ -5,13 +5,19 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { DefaultGameRootV1, createGameUiCompositionV1 } from "@sillymaker/ui";
+import { createPlayerProfileStoreV1 } from "@sillymaker/base/runtime";
+import { createMemoryHostRecordStoreV1 } from "@sillymaker/base/testkit";
+import {
+  DefaultGameRootV1,
+  createFakeAudioHostV1,
+  createGameUiCompositionV1,
+} from "@sillymaker/ui";
 
 import { createLabApplicationInstanceV1 } from "../application/core-application.js";
 import {
+  createLabUiSlotsV1,
   labRootLabelsV1,
   labUiProjectorV1,
-  labUiSlotsV1,
   labViewportCanvasV1,
 } from "../application/web-application.js";
 
@@ -21,6 +27,13 @@ const debugVocabularyV1 = /debug|semantic|revision|replay|fixture|diagnostic/iu;
 
 async function composeLabUiV1() {
   const instance = await createLabApplicationInstanceV1();
+  const playerProfile = await createPlayerProfileStoreV1({
+    records: createMemoryHostRecordStoreV1(),
+    storyId: "story.e2e.engine-lab",
+  });
+  // Instant text keeps the existing single-click flows deterministic; the
+  // dedicated typewriter test drives a manual clock instead.
+  await playerProfile.updatePreferences({ textRevealCharsPerSecond: 0 });
   const composition = createGameUiCompositionV1({
     semantic: instance.semantic,
     projector: labUiProjectorV1,
@@ -30,7 +43,7 @@ async function composeLabUiV1() {
     }),
     overlayIds: ["overlay.lab.journal"],
   });
-  return { instance, composition };
+  return { instance, composition, playerProfile };
 }
 
 function renderLabRootV1(input: Awaited<ReturnType<typeof composeLabUiV1>>) {
@@ -42,15 +55,20 @@ function renderLabRootV1(input: Awaited<ReturnType<typeof composeLabUiV1>>) {
       applicationId="e2e"
       viewport={{ canvas: labViewportCanvasV1, fallbackSize: { width: 1600, height: 1000 } }}
       labels={labRootLabelsV1}
-      slots={labUiSlotsV1}
+      slots={createLabUiSlotsV1({
+        instance: input.instance,
+        createAudioHost: createFakeAudioHostV1,
+        playerProfile: input.playerProfile,
+      })}
     />,
   );
 }
 
 describe("Engine Lab default UI", () => {
   it("boots the default GameRoot with zero Story React Root code", async () => {
-    const { instance, composition } = await composeLabUiV1();
-    renderLabRootV1({ instance, composition });
+    const labUi = await composeLabUiV1();
+    const { instance, composition } = labUi;
+    renderLabRootV1(labUi);
 
     // Viewport and the seven-layer stage are present.
     expect(screen.getByTestId("game-viewport")).toBeInTheDocument();
@@ -113,8 +131,9 @@ describe("Engine Lab default UI", () => {
   });
 
   it("plays the calibration narrative through interaction boundaries in the UI", async () => {
-    const { instance, composition } = await composeLabUiV1();
-    renderLabRootV1({ instance, composition });
+    const labUi = await composeLabUiV1();
+    const { instance, composition } = labUi;
+    renderLabRootV1(labUi);
     const user = userEvent.setup();
 
     // Begin: the say boundary appears with its stable occurrence.
@@ -166,8 +185,9 @@ describe("Engine Lab default UI", () => {
   }, 15_000);
 
   it("settles a load-restored presentation barrier instead of replaying its transition", async () => {
-    const { instance, composition } = await composeLabUiV1();
-    renderLabRootV1({ instance, composition });
+    const labUi = await composeLabUiV1();
+    const { instance, composition } = labUi;
+    renderLabRootV1(labUi);
     const user = userEvent.setup();
 
     // Reach the barrier and save exactly there. The save runs on the queue
@@ -215,8 +235,9 @@ describe("Engine Lab default UI", () => {
   }, 15_000);
 
   it("keeps the resident player DOM free of debug vocabulary", async () => {
-    const { instance, composition } = await composeLabUiV1();
-    const { container } = renderLabRootV1({ instance, composition });
+    const labUi = await composeLabUiV1();
+    const { instance, composition } = labUi;
+    const { container } = renderLabRootV1(labUi);
 
     expect(container.textContent ?? "").not.toMatch(debugVocabularyV1);
 
@@ -230,8 +251,9 @@ describe("Engine Lab default UI", () => {
   });
 
   it("opens the Story journal overlay contribution without composer changes", async () => {
-    const { instance, composition } = await composeLabUiV1();
-    renderLabRootV1({ instance, composition });
+    const labUi = await composeLabUiV1();
+    const { instance, composition } = labUi;
+    renderLabRootV1(labUi);
 
     await userEvent.setup().click(screen.getByRole("button", { name: "实验日志" }));
     await waitFor(() => {
@@ -247,8 +269,9 @@ describe("Engine Lab default UI", () => {
   });
 
   it("advances the presentation epoch probe after a load", async () => {
-    const { instance, composition } = await composeLabUiV1();
-    const { container } = renderLabRootV1({ instance, composition });
+    const labUi = await composeLabUiV1();
+    const { instance, composition } = labUi;
+    const { container } = renderLabRootV1(labUi);
 
     await instance.persistence.save("manual");
     await instance.semantic.dispatch({ kind: "invoke", actionId: "lab.collect_sample" });
@@ -265,7 +288,8 @@ describe("Engine Lab default UI", () => {
   });
 
   it("stops publishing after composition disposal", async () => {
-    const { instance, composition } = await composeLabUiV1();
+    const labUi = await composeLabUiV1();
+    const { instance, composition } = labUi;
     const before = composition.presentation.getSnapshot().revision;
     composition.dispose();
     await instance.semantic.dispatch({ kind: "invoke", actionId: "lab.collect_sample" });

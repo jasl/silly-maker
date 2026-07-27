@@ -2,7 +2,11 @@
 import { z } from "zod";
 
 import type { RuntimeSchemaV1, SemanticStageStateV2 } from "@sillymaker/base";
-import { parsePendingInteractionV2, parseSemanticStageStateV2 } from "@sillymaker/base";
+import {
+  parseNarrativeHistoryV1,
+  parsePendingInteractionV2,
+  parseSemanticStageStateV2,
+} from "@sillymaker/base";
 import { createRuntimeSchemaV1, fromStandardSchemaV1 } from "@sillymaker/base/authoring";
 
 import type { LabNarrativeStateV1 } from "./narrative.js";
@@ -73,6 +77,7 @@ export const labNarrativeStateSchemaV1: RuntimeSchemaV1<LabNarrativeStateV1> =
             pending: z.unknown().nullable(),
             sequence: z.number().int().nonnegative(),
             calibration: z.number().int().nullable(),
+            history: z.unknown(),
           })
           .parse(value);
         if (!labNarrativePhaseValuesV1.has(record.phase)) {
@@ -97,6 +102,7 @@ export const labNarrativeStateSchemaV1: RuntimeSchemaV1<LabNarrativeStateV1> =
           pending,
           sequence: record.sequence,
           calibration: record.calibration,
+          history: parseNarrativeHistoryV1(record.history),
         });
       },
     },

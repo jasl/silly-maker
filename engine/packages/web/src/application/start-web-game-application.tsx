@@ -9,8 +9,10 @@ import type {
 } from "@sillymaker/base/runtime";
 import type { GameSimulationTypeMapV1 } from "@sillymaker/base";
 import { createRuntimeCapabilityPortV1 } from "@sillymaker/base/runtime";
+import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
 import {
   createCoreGameApplicationInstanceV1,
+  createPlayerProfileStoreV1,
   resolveCoreGameApplicationV1,
 } from "@sillymaker/base/runtime";
 import type {
@@ -129,6 +131,9 @@ export interface WebGameApplicationV1<
       TResult
     >;
     readonly assetLoader: RuntimeAssetLoaderV1;
+    /** The player profile (Seen registry, playback preferences): Host data
+     * outside every Game Save. */
+    readonly playerProfile: PlayerProfileStoreV1;
     reportFailure(code: string, error: unknown): void;
   }): WebGameUiDefinitionV1<
     WebSemanticPublicationV1<TGameView, TNarrativeView, TActionDescriptor>,
@@ -314,12 +319,18 @@ export async function startWebGameApplicationV1<
   };
 
   try {
+    const playerProfile = await createPlayerProfileStoreV1({
+      records: host.records,
+      storyId: instance.storyId as string,
+      reportFailure,
+    });
     const uiDefinition = application.ui({
       instance,
       assetLoader: createBrowserImageLoaderV1({
         resolveRuntimeUrl: (runtimePath) => new URL(runtimePath, document.baseURI).href,
         createImage: () => new Image(),
       }),
+      playerProfile,
       reportFailure,
     });
 

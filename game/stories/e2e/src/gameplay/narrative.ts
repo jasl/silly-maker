@@ -2,17 +2,22 @@
 import type {
   InteractionResolutionContextV2,
   InteractionResolutionV2,
+  NarrativeHistoryV1,
   PendingInteractionV2,
   SemanticStageStateV2,
   StageMutationV2,
   StrictJsonObjectV1,
 } from "@sillymaker/base";
 import {
+  appendNarrativeHistoryV1,
+  emptyNarrativeHistoryV1,
   interactionOccurrenceIdV2,
   parsePendingInteractionV2,
   parseStageMutationV2,
   reduceStageMutationsV2,
 } from "@sillymaker/base";
+
+import { labVoiceForSayV1 } from "./audio.js";
 
 import { labStageContentIdsV1, labStageTagsV1 } from "../stage-ids.js";
 
@@ -33,6 +38,13 @@ export interface LabNarrativeStateV1 {
   readonly sequence: number;
   /** Evidence of the custom calibration resolution. */
   readonly calibration: number | null;
+  /**
+   * The player-readable NarrativeHistory: authoritative State that enters
+   * Saves and restores to the exact occurrence. Independent of the
+   * CommandLog, the Seen registry (Host profile), and Debug replay. M3
+   * rollback restores it together with the checkpoint Snapshot.
+   */
+  readonly history: NarrativeHistoryV1;
 }
 
 export function createInitialLabNarrativeStateV1(): LabNarrativeStateV1 {
@@ -42,6 +54,7 @@ export function createInitialLabNarrativeStateV1(): LabNarrativeStateV1 {
     pending: null,
     sequence: 0,
     calibration: null,
+    history: emptyNarrativeHistoryV1,
   });
 }
 
@@ -442,6 +455,7 @@ export function runLabNarrativeUntilInteractionV1(
           pending: null,
           sequence,
           calibration: narrative.calibration,
+          history: narrative.history,
         }),
         stageMutations: Object.freeze(collected),
       });
@@ -454,6 +468,7 @@ export function runLabNarrativeUntilInteractionV1(
         pending: pendingForNodeV1(node, sequence),
         sequence,
         calibration: narrative.calibration,
+        history: narrative.history,
       }),
       stageMutations: Object.freeze(collected),
     });
@@ -471,22 +486,44 @@ export function labNarrativeAfterResolutionV1(
   narrative: LabNarrativeStateV1,
   resolution: InteractionResolutionV2,
 ): LabNarrativeStateV1 {
-  if (narrative.pending === null || narrative.cursor === null) {
+  const pending = narrative.pending;
+  if (pending === null || narrative.cursor === null) {
     throw new TypeError("e2e.narrative_nothing_pending");
   }
   const node = requireNodeV1(narrative.cursor);
   let next: string;
   let calibration = narrative.calibration;
+  let history = narrative.history;
   if (node.kind === "choice" && resolution.kind === "choose") {
     const option = node.options.find((candidate) => candidate.choiceId === resolution.choiceId);
     if (option === undefined) throw new TypeError("e2e.narrative_choice_missing");
     next = option.next;
+    history = appendNarrativeHistoryV1(history, {
+      kind: "choice",
+      occurrenceId: pending.occurrenceId,
+      definitionId: pending.definitionId,
+      seenRevision: pending.seenRevision,
+      speakerTextId: null,
+      textId: option.textId,
+      voiceAssetId: null,
+    });
   } else if (node.kind === "custom" && resolution.kind === "custom") {
     const value = resolution.payload.value;
     if (typeof value !== "number") throw new TypeError("e2e.narrative_payload_missing");
     calibration = value;
     next = node.next;
-  } else if (node.kind === "say" || node.kind === "pause" || node.kind === "barrier") {
+  } else if (node.kind === "say") {
+    next = node.next;
+    history = appendNarrativeHistoryV1(history, {
+      kind: "say",
+      occurrenceId: pending.occurrenceId,
+      definitionId: pending.definitionId,
+      seenRevision: pending.seenRevision,
+      speakerTextId: node.speakerTextId,
+      textId: node.textId,
+      voiceAssetId: labVoiceForSayV1(pending.definitionId)?.assetId ?? null,
+    });
+  } else if (node.kind === "pause" || node.kind === "barrier") {
     next = node.next;
   } else {
     throw new TypeError(`e2e.narrative_resolution_mismatch:${node.nodeId}`);
@@ -497,6 +534,7 @@ export function labNarrativeAfterResolutionV1(
     pending: null,
     sequence: narrative.sequence,
     calibration,
+    history,
   });
 }
 
@@ -507,5 +545,6 @@ export function labNarrativeAtBeginV1(narrative: LabNarrativeStateV1): LabNarrat
     pending: null,
     sequence: narrative.sequence,
     calibration: narrative.calibration,
+    history: narrative.history,
   });
 }

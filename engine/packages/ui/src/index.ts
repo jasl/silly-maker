@@ -244,6 +244,16 @@ export type {
   FakeAudioChannelStateV1,
   FakeAudioHostV1,
 } from "./audio/index.js";
+export { createPlaybackControllerV1, createTextRevealV1 } from "./player/index.js";
+export type {
+  CreatePlaybackControllerOptionsV1,
+  CreateTextRevealOptionsV1,
+  PlaybackBoundaryV1,
+  PlaybackControllerV1,
+  PlaybackModeV1,
+  PlaybackPolicyInputV1,
+  TextRevealV1,
+} from "./player/index.js";
 export {
   createAnimationFramePresentationClockV1,
   createManualPresentationClockV1,

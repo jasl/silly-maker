@@ -104,6 +104,18 @@ export {
   validateSaveImportCandidateV1,
 } from "./persistence/compatibility.js";
 export { decodeSaveRecordV1, encodeSaveRecordV1 } from "./persistence/save-codec.js";
+export {
+  createPlayerProfileStoreV1,
+  defaultPlayerProfileV1,
+  isSeenV1,
+  markSeenV1,
+} from "./persistence/player-profile-store.js";
+export type {
+  CreatePlayerProfileStoreOptionsV1,
+  PlayerPlaybackPreferencesV1,
+  PlayerProfileStoreV1,
+  PlayerProfileV1,
+} from "./persistence/player-profile-store.js";
 export { createAutoSaveQueueV1 } from "./persistence/auto-save-queue.js";
 export { createPersistenceServiceV1 } from "./persistence/persistence-service.js";
 export type {

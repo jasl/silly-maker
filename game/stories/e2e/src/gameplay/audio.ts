@@ -24,6 +24,12 @@ export const labAudioAssetIdsV1 = Object.freeze({
   sfxFanfare: "audio.e2e.sfx.fanfare",
 } as const);
 
+export function labVoiceForSayV1(
+  definitionId: string,
+): { readonly assetId: string; readonly stopPolicy: "stop_on_advance" | "sustain" } | null {
+  return labVoiceBySayDefinitionV1[definitionId] ?? null;
+}
+
 const labVoiceBySayDefinitionV1: Readonly<
   Record<string, { readonly assetId: string; readonly stopPolicy: "stop_on_advance" | "sustain" }>
 > = Object.freeze({

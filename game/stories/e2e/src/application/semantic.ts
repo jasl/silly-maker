@@ -112,6 +112,7 @@ export function projectLabNarrativeViewV1(queries: LabQueriesV1): LabNarrativeVi
   return Object.freeze({
     phase: queries.narrative.phase,
     calibration: queries.narrative.calibration,
+    history: queries.narrative.history,
     pending,
     choiceOptions:
       pending !== null && pending.kind === "choice"

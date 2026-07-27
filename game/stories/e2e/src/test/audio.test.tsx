@@ -6,6 +6,8 @@ import { userEvent } from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { TransientEffectV1 } from "@sillymaker/base";
+import { createPlayerProfileStoreV1 } from "@sillymaker/base/runtime";
+import { createMemoryHostRecordStoreV1 } from "@sillymaker/base/testkit";
 import {
   DefaultGameRootV1,
   createFakeAudioHostV1,
@@ -26,6 +28,11 @@ afterEach(cleanup);
 async function composeAudioLabV1() {
   const instance = await createLabApplicationInstanceV1();
   const host = createFakeAudioHostV1();
+  const playerProfile = await createPlayerProfileStoreV1({
+    records: createMemoryHostRecordStoreV1(),
+    storyId: "story.e2e.engine-lab",
+  });
+  await playerProfile.updatePreferences({ textRevealCharsPerSecond: 0 });
   const composition = createGameUiCompositionV1({
     semantic: instance.semantic,
     projector: labUiProjectorV1,
@@ -43,7 +50,7 @@ async function composeAudioLabV1() {
       applicationId="e2e"
       viewport={{ canvas: labViewportCanvasV1, fallbackSize: { width: 1600, height: 1000 } }}
       labels={labRootLabelsV1}
-      slots={createLabUiSlotsV1({ instance, createAudioHost: () => host })}
+      slots={createLabUiSlotsV1({ instance, createAudioHost: () => host, playerProfile })}
     />,
   );
   const dispose = async () => {
