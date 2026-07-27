@@ -55,6 +55,11 @@ export {
   projectLabAudioIntentV1,
   projectLabTransientEffectsV1,
 } from "./gameplay/audio.js";
+export {
+  labPrefetchPlanV1,
+  predictLabNarrativeV1,
+  projectLabNarrativeGraphV1,
+} from "./gameplay/narrative-graph.js";
 export type { LabStageProgressInputV1 } from "./gameplay/stage.js";
 export {
   createInitialLabStageStateV1,

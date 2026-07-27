@@ -35,6 +35,8 @@ import type {
   InteractionRejectionCodeV2,
   InteractionResolutionOutcomeV2,
   InteractionResolutionV2,
+  NarrativeGraphV1,
+  NarrativePredictionV1,
   PendingInteractionV2,
   ResolvedAudioManifestV1,
   TransientEffectV1,
@@ -66,7 +68,10 @@ import {
   parseStateSlotId,
   parseTextCatalogSetV1,
   evaluateInteractionResolutionV2,
+  parseNarrativeGraphV1,
   parsePendingInteractionV2,
+  predictNarrativeDependenciesV1,
+  lintNarrativeGraphV1,
   parseSemanticStageStateV2,
   projectStageRenderTargetV2,
   reduceStageMutationsV2,
@@ -191,6 +196,8 @@ export type BaseConsumerTypesV1 = {
   stageTransitionCatalog: StageTransitionCatalogV2;
   stageTargetChange: StageTargetChangeV2;
   pendingInteraction: PendingInteractionV2;
+  narrativeGraph: NarrativeGraphV1;
+  narrativePrediction: NarrativePredictionV1;
   interactionResolution: InteractionResolutionV2;
   interactionResolutionOutcome: InteractionResolutionOutcomeV2;
   interactionRejectionCode: InteractionRejectionCodeV2;
@@ -228,6 +235,9 @@ export type BaseConsumerValuesV1 = {
   reduceStageMutations: typeof reduceStageMutationsV2;
   evaluateInteractionResolution: typeof evaluateInteractionResolutionV2;
   parsePendingInteraction: typeof parsePendingInteractionV2;
+  parseNarrativeGraph: typeof parseNarrativeGraphV1;
+  lintNarrativeGraph: typeof lintNarrativeGraphV1;
+  predictNarrativeDependencies: typeof predictNarrativeDependenciesV1;
   resolveGamePackage: typeof resolveGamePackageV1;
   resolveStoryForTest: typeof resolveStoryForTestV1;
   rngStateSchema: typeof rngStateV1Schema;

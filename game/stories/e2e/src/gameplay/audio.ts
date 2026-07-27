@@ -43,14 +43,18 @@ const labVoiceBySayDefinitionV1: Readonly<
   }),
 });
 
+/** The one background-to-BGM rule shared by playback and prediction. */
+export function labBgmForBackgroundV1(contentId: string | undefined): string {
+  return contentId === labStageContentIdsV1.backgroundStoreroom
+    ? labAudioAssetIdsV1.bgmStoreroom
+    : labAudioAssetIdsV1.bgmLab;
+}
+
 export function projectLabAudioIntentV1(queries: LabQueriesV1): AudioIntentV1 {
   const background = queries.stage.layers
     .find((layer) => layer.layerId === "layer.e2e.background")
     ?.entries.find((entry) => entry.tag === labStageTagsV1.background);
-  const bgmAssetId =
-    background?.contentId === labStageContentIdsV1.backgroundStoreroom
-      ? labAudioAssetIdsV1.bgmStoreroom
-      : labAudioAssetIdsV1.bgmLab;
+  const bgmAssetId = labBgmForBackgroundV1(background?.contentId);
 
   const pending = queries.narrative.pending;
   const voice =

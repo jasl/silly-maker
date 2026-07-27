@@ -48,7 +48,7 @@ export const emptyNarrativeHistoryV1: NarrativeHistoryV1 = Object.freeze({
   entries: Object.freeze([]),
 });
 
-/** The default bounded window; older entries fall off the front. */
+/** The default backlog capacity; older entries fall off the front. */
 export const narrativeHistoryMaxEntriesV1 = 100;
 
 export function parseNarrativeHistoryEntryV1(
@@ -120,7 +120,7 @@ export function parseNarrativeHistoryV1(value: unknown, path = "/history"): Narr
   return Object.freeze({ entries: Object.freeze(entries) });
 }
 
-/** Appends within the bounded window, dropping the oldest entries. */
+/** Appends within the bounded capacity, dropping the oldest entries. */
 export function appendNarrativeHistoryV1(
   history: NarrativeHistoryV1,
   entry: NarrativeHistoryEntryV1,

@@ -377,6 +377,31 @@ export type {
   TransientEffectV1,
 } from "./asset-demand.js";
 export {
+  lintNarrativeGraphV1,
+  parseNarrativeGraphNodeV1,
+  parseNarrativeGraphV1,
+} from "./narrative-graph.js";
+export { emptyNarrativeDependenciesV1 } from "./narrative-graph.js";
+export type {
+  NarrativeGraphDependenciesV1,
+  NarrativeGraphNodeKindV1,
+  NarrativeGraphNodeV1,
+  NarrativeGraphV1,
+  NarrativeLintCodeV1,
+} from "./narrative-graph.js";
+export {
+  createNarrativeGraphBuilderV1,
+  defaultNarrativePredictionBudgetV1,
+  narrativePredictionToDemandPlanV1,
+  predictNarrativeDependenciesV1,
+} from "./narrative-prediction.js";
+export type {
+  NarrativeGraphBuilderNodeInputV1,
+  NarrativeGraphBuilderV1,
+  NarrativePredictionBudgetV1,
+  NarrativePredictionV1,
+} from "./narrative-prediction.js";
+export {
   appendNarrativeHistoryV1,
   emptyNarrativeHistoryV1,
   narrativeHistoryMaxEntriesV1,

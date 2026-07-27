@@ -65,7 +65,7 @@ export interface LabChoiceOptionV1 {
   readonly next: string;
 }
 
-type LabNarrativeNodeV1 =
+export type LabNarrativeNodeV1 =
   | {
       readonly kind: "say";
       readonly nodeId: string;
@@ -79,6 +79,12 @@ type LabNarrativeNodeV1 =
       readonly kind: "stage";
       readonly nodeId: string;
       readonly mutations: (stage: SemanticStageStateV2) => readonly StageMutationV2[];
+      /**
+       * Static annotation of every content this node may show or replace,
+       * for the lint/prediction graph. A conformance test runs the actual
+       * mutation functions and proves the annotation stays honest.
+       */
+      readonly mayShow: readonly string[];
       readonly next: string;
     }
   | {
@@ -130,7 +136,7 @@ function stageBatchV1(batch: readonly unknown[]): readonly StageMutationV2[] {
 export const labCalibrationSurfaceIdV1 = "surface.e2e.calibration";
 export const labCalibrationEntryNodeIdV1 = "node.e2e.cal.intro";
 
-const labNarrativeScriptV1: readonly LabNarrativeNodeV1[] = [
+export const labNarrativeScriptV1: readonly LabNarrativeNodeV1[] = [
   {
     kind: "say",
     nodeId: "node.e2e.cal.intro",
@@ -156,6 +162,7 @@ const labNarrativeScriptV1: readonly LabNarrativeNodeV1[] = [
               placement: { x: 360, y: 760, scalePermille: 900, mirrored: false },
             },
           ]),
+    mayShow: [labStageContentIdsV1.propBeacon],
     next: "node.e2e.cal.approach",
   },
   {
@@ -191,6 +198,7 @@ const labNarrativeScriptV1: readonly LabNarrativeNodeV1[] = [
           appearance: { mode: "rough" },
         },
       ]),
+    mayShow: [],
     next: "node.e2e.cal.flip",
   },
   {
@@ -205,6 +213,7 @@ const labNarrativeScriptV1: readonly LabNarrativeNodeV1[] = [
           appearance: { mode: "fine" },
         },
       ]),
+    mayShow: [],
     next: "node.e2e.cal.flip",
   },
   {
@@ -227,6 +236,7 @@ const labNarrativeScriptV1: readonly LabNarrativeNodeV1[] = [
         },
       ]);
     },
+    mayShow: [labStageContentIdsV1.backgroundLab, labStageContentIdsV1.backgroundStoreroom],
     next: "node.e2e.cal.flash",
   },
   {
@@ -272,6 +282,7 @@ const labNarrativeScriptV1: readonly LabNarrativeNodeV1[] = [
       stageHasTagV1(stage, propsLayerV1, labStageTagsV1.beacon)
         ? stageBatchV1([{ kind: "hide", layerId: propsLayerV1, tag: labStageTagsV1.beacon }])
         : [],
+    mayShow: [],
     next: "node.e2e.cal.end",
   },
   { kind: "end", nodeId: "node.e2e.cal.end" },
