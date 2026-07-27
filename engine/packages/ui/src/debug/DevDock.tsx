@@ -10,15 +10,15 @@ import {
 } from "react";
 import type { KeyboardEvent, ReactElement, ReactNode } from "react";
 import type { RuntimeCapabilityPortV1 } from "@sillymaker/base";
-import { inputHandledV1, inputIgnoredV1 } from "../input/contracts.js";
-import type { InputRouterV1 } from "../input/contracts.js";
-import { Button } from "../primitives/Button.js";
-import { DebugLaunchersV1 } from "./DebugLaunchers.js";
-import type { DevDockOpenStateV1, DevDockSideV1 } from "./DebugLaunchers.js";
-import { useDevDockPortalTargetV1 } from "./DevDockPortalCoordinator.js";
+import { inputHandledV1, inputIgnoredV1 } from "../input/contracts.ts";
+import type { InputRouterV1 } from "../input/contracts.ts";
+import { Button } from "../primitives/Button.tsx";
+import { DebugLaunchersV1 } from "./DebugLaunchers.tsx";
+import type { DevDockOpenStateV1, DevDockSideV1 } from "./DebugLaunchers.tsx";
+import { useDevDockPortalTargetV1 } from "./DevDockPortalCoordinator.tsx";
 import styles from "./DevDock.module.css";
 
-export type { DevDockOpenStateV1, DevDockSideV1 } from "./DebugLaunchers.js";
+export type { DevDockOpenStateV1, DevDockSideV1 } from "./DebugLaunchers.tsx";
 export type DevDockPanelAuthorityV1 = "read_only" | "cheat";
 
 export interface DevDockPanelV1 {

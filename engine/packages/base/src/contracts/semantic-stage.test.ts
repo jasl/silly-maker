@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import { PresentationDataError } from "./presentation-data.js";
+import { PresentationDataError } from "./presentation-data.ts";
 import {
   createSemanticStageStateV1,
   digestSemanticStageStateV1,
   parseSemanticStageStateV1,
-} from "./semantic-stage.js";
-import { reduceStageMutationsV1 } from "./semantic-stage-reducer.js";
+} from "./semantic-stage.ts";
+import { reduceStageMutationsV1 } from "./semantic-stage-reducer.ts";
 
 function playableStageV1() {
   const empty = createSemanticStageStateV1({

@@ -14,23 +14,23 @@ import type { ReactElement, ReactNode } from "react";
 import {
   isDevDockEscapeOwnerTargetV1,
   useDevDockPortalTargetRegistrationV1,
-} from "../debug/DevDockPortalCoordinator.js";
+} from "../debug/DevDockPortalCoordinator.tsx";
 import {
   inputHandledV1,
   inputIgnoredV1,
   systemInputActionIdsV1,
   type InputRouterV1,
-} from "../input/contracts.js";
+} from "../input/contracts.ts";
 import styles from "../overlays/overlay-host.module.css";
 import {
   useStageInputIsolationV1,
   useStageSystemFocusScopeRegistrationV1,
   useStageSystemPortalContainerV1,
-} from "../shell/game-stage.js";
-import { SettingsDialogContentV1 } from "./settings-dialog.js";
-import type { SettingsDialogPropsV1 } from "./settings-dialog.js";
-import { createSystemDialogSessionStoreV1 } from "./system-dialog-session-store.js";
-import type { SystemDialogSessionStoreV1 } from "./system-dialog-session-store.js";
+} from "../shell/game-stage.tsx";
+import { SettingsDialogContentV1 } from "./settings-dialog.tsx";
+import type { SettingsDialogPropsV1 } from "./settings-dialog.tsx";
+import { createSystemDialogSessionStoreV1 } from "./system-dialog-session-store.ts";
+import type { SystemDialogSessionStoreV1 } from "./system-dialog-session-store.ts";
 
 export type SystemDialogSettingsV1 = Omit<SettingsDialogPropsV1, "onClose">;
 

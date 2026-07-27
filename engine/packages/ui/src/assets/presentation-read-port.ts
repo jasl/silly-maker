@@ -7,7 +7,7 @@ import type {
   TextCatalogSetV1,
   TextId,
 } from "@sillymaker/base";
-import type { AssetRegistryPublicationV1, AssetRegistryV1 } from "./asset-registry.js";
+import type { AssetRegistryPublicationV1, AssetRegistryV1 } from "./asset-registry.ts";
 
 export interface PresentationReadPortV1<
   TTextId,

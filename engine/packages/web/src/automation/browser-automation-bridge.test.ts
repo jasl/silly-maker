@@ -14,7 +14,7 @@ import {
   installBrowserAutomationBridgeV1,
   type BrowserAutomationBridgeV1,
   type InstalledBrowserAutomationBridgeV1,
-} from "./browser-automation-bridge.js";
+} from "./browser-automation-bridge.ts";
 
 interface TestGameViewV1 {
   readonly value: string;

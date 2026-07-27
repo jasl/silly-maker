@@ -1,21 +1,21 @@
 // SPDX-License-Identifier: MIT
-import type { PlayerDiagnosticsPortV1 } from "../../contracts/application.js";
-import { canonicalJsonBytes } from "../../contracts/canonical-json.js";
+import type { PlayerDiagnosticsPortV1 } from "../../contracts/application.ts";
+import { canonicalJsonBytes } from "../../contracts/canonical-json.ts";
 import {
   DebugBundleEnvelopeSchemaFailureV1,
   debugBundleJsonLimitsV1,
-} from "../../contracts/diagnostics.js";
+} from "../../contracts/diagnostics.ts";
 import type {
   DebugBundleEnvelopeV1,
   ExportedDebugBundleV1,
   RuntimeOperationFaultV1,
-} from "../../contracts/diagnostics.js";
-import { digestBytes, digestCanonical } from "../../contracts/digest.js";
-import type { IsoUtcInstant } from "../../contracts/host.js";
-import { parseStrictJson } from "../../contracts/strict-json.js";
-import type { StrictJsonErrorCodeV1 } from "../../contracts/strict-json.js";
-import type { DeepReadonly, Digest, RuntimeSchemaV1 } from "../../contracts/values.js";
-import { scrubRuntimeOperationFaultV1 } from "./privacy.js";
+} from "../../contracts/diagnostics.ts";
+import { digestBytes, digestCanonical } from "../../contracts/digest.ts";
+import type { IsoUtcInstant } from "../../contracts/host.ts";
+import { parseStrictJson } from "../../contracts/strict-json.ts";
+import type { StrictJsonErrorCodeV1 } from "../../contracts/strict-json.ts";
+import type { DeepReadonly, Digest, RuntimeSchemaV1 } from "../../contracts/values.ts";
+import { scrubRuntimeOperationFaultV1 } from "./privacy.ts";
 
 export interface DebugBundleDigestEnvelopeV1<TSnapshot> {
   readonly replayBase: TSnapshot;

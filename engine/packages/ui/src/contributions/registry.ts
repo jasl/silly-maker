@@ -4,7 +4,7 @@ import type {
   UiContributionRegistryV1,
   UiContributionSetV1,
   UiRendererNamespaceV1,
-} from "./types.js";
+} from "./types.ts";
 
 const rendererNamespacesV1 = Object.freeze([
   "background",

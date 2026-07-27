@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it, vi } from "vitest";
 
-import { createRuntimeInvalidationControllerV1 } from "./runtime-invalidation.js";
+import { createRuntimeInvalidationControllerV1 } from "./runtime-invalidation.ts";
 
 describe("RuntimeInvalidationControllerV1", () => {
   it("transitions synchronously and reports only the first HMR invalidation", () => {

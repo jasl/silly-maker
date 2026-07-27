@@ -2,10 +2,10 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
 
-import { parseInputActionIdV1 } from "./contracts.js";
-import { installGamepadAdapterV1 } from "./gamepad-adapter.js";
-import type { GamepadLikeV1 } from "./gamepad-adapter.js";
-import { installKeyboardAdapterV1 } from "./keyboard-adapter.js";
+import { parseInputActionIdV1 } from "./contracts.ts";
+import { installGamepadAdapterV1 } from "./gamepad-adapter.ts";
+import type { GamepadLikeV1 } from "./gamepad-adapter.ts";
+import { installKeyboardAdapterV1 } from "./keyboard-adapter.ts";
 
 const advanceV1 = parseInputActionIdV1("narrative.advance");
 const autoV1 = parseInputActionIdV1("player.toggle_auto");

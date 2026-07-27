@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
-import { dataFailure, readArray, readExactRecord } from "./presentation-data.js";
-import type { Digest, PositiveSafeInteger } from "./values.js";
-import { parseDigest, parsePositiveSafeInteger } from "./values.js";
+import { dataFailure, readArray, readExactRecord } from "./presentation-data.ts";
+import type { Digest, PositiveSafeInteger } from "./values.ts";
+import { parseDigest, parsePositiveSafeInteger } from "./values.ts";
 
 /**
  * Typed audio media contracts. Audio kinds keep their own contract instead

@@ -8,13 +8,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   DevDockPortalCoordinatorV1,
   useDevDockPortalTargetV1,
-} from "../debug/DevDockPortalCoordinator.js";
-import { inputHandledV1, systemInputActionIdsV1 } from "../input/contracts.js";
-import { createInputRouterV1 } from "../input/input-router.js";
-import { GameStageV1, useStageSystemFocusScopeTargetV1 } from "../shell/game-stage.js";
-import { GameShell } from "../shell/game-shell.js";
-import { RootErrorBoundaryV1 } from "./root-error-boundary.js";
-import { RuntimeFailureDialogV1 } from "./runtime-failure-dialog.js";
+} from "../debug/DevDockPortalCoordinator.tsx";
+import { inputHandledV1, systemInputActionIdsV1 } from "../input/contracts.ts";
+import { createInputRouterV1 } from "../input/input-router.ts";
+import { GameStageV1, useStageSystemFocusScopeTargetV1 } from "../shell/game-stage.tsx";
+import { GameShell } from "../shell/game-shell.tsx";
+import { RootErrorBoundaryV1 } from "./root-error-boundary.tsx";
+import { RuntimeFailureDialogV1 } from "./runtime-failure-dialog.tsx";
 
 afterEach(cleanup);
 

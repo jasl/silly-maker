@@ -6,7 +6,6 @@ import type { Plugin, UserConfig } from "vite";
 
 import type { StoryWebTargetV1 } from "@sillymaker/tooling/project/config-types";
 
-// @ts-expect-error -- the repository runs this Node-safe TypeScript source directly.
 import { projectTavernConfigV1 } from "./game/project.config.ts";
 
 const repositoryRoot = import.meta.dirname;

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import type { PresentationClockV1 } from "../presentation-run/presentation-clock.js";
+import type { PresentationClockV1 } from "../presentation-run/presentation-clock.ts";
 
 /**
  * Clock-driven typewriter reveal for one line occurrence. The reveal cursor

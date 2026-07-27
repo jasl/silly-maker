@@ -29,7 +29,7 @@ import {
   reduceStageMutations,
 } from "@sillymaker/base/story";
 
-import type { BookshopGameStateV1, BookshopInventoryStateV1 } from "./state.js";
+import type { BookshopGameStateV1, BookshopInventoryStateV1 } from "./state.ts";
 import {
   createInitialBookshopGameStateV1,
   createInitialBookshopStageStateV1,
@@ -37,8 +37,8 @@ import {
   bookshopInventoryStateSchemaV1,
   bookshopNarrativeStateSchemaV1,
   bookshopStageStateSchemaV1,
-} from "./state.js";
-import type { BookshopNarrativeStateV1 } from "./narrative.js";
+} from "./state.ts";
+import type { BookshopNarrativeStateV1 } from "./narrative.ts";
 import {
   createInitialBookshopNarrativeStateV1,
   runBookshopNarrativeUntilInteractionV1,
@@ -46,7 +46,7 @@ import {
   bookshopInteractionContextV1,
   bookshopNarrativeAfterResolutionV1,
   bookshopNarrativeAtBeginV1,
-} from "./narrative.js";
+} from "./narrative.ts";
 
 /**
  * The starter simulation: three stateful modules and one command executor.

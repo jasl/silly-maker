@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { HostAtomicRecordStoreV1 } from "@sillymaker/base";
 import { createMemoryHostRecordStoreV1 } from "@sillymaker/base/testkit";
 
-import { createLabApplicationInstanceV1 } from "../application/core-application.js";
+import { createLabApplicationInstanceV1 } from "../application/core-application.ts";
 
 const collectV1 = Object.freeze({
   kind: "invoke" as const,

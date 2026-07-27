@@ -7,6 +7,7 @@ export default defineConfig({
       "engine/packages/**/src/**/*.{test,spec}.{ts,tsx}",
       "game/**/src/**/*.{test,spec}.{ts,tsx}",
       "scripts/**/*.test.ts",
+      "scripts/**/*.test.mjs",
     ],
     exclude: ["**/node_modules/**", "**/dist*/**", "engine/packages/web/e2e/**"],
     coverage: {

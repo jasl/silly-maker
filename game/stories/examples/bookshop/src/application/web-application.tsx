@@ -22,20 +22,20 @@ import type {
   BookshopActionResultV1,
   BookshopInvocationV1,
   BookshopPreviewV1,
-} from "./semantic.js";
-import type { BookshopApplicationInstanceV1 } from "./core-definition.js";
-import { bookshopCoreApplicationDefinitionV1 } from "./core-definition.js";
+} from "./semantic.ts";
+import type { BookshopApplicationInstanceV1 } from "./core-definition.ts";
+import { bookshopCoreApplicationDefinitionV1 } from "./core-definition.ts";
 import type {
   BookshopGameViewV1,
   BookshopNarrativeViewV1,
   BookshopQueriesV1,
   BookshopSimulationTypesV1,
-} from "../simulation.js";
+} from "../simulation.ts";
 import {
   bookshopStageContentCatalogV1,
   bookshopStageTransitionCatalogV1,
   bookshopTextCatalogsV1,
-} from "../presentation.js";
+} from "../presentation.ts";
 
 /** The logical canvas: a 16:9 design resolution the viewport letterboxes. */
 export const bookshopViewportCanvasV1 = Object.freeze({ width: 1600, height: 900 });

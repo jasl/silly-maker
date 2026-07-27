@@ -3,8 +3,8 @@
 import "@testing-library/jest-dom/vitest";
 import { act } from "react";
 import { describe, expect, it } from "vitest";
-import { mountGameApplicationV1 } from "./mount-game-application.js";
-import type { MountedGameApplicationV1 } from "./mount-game-application.js";
+import { mountGameApplicationV1 } from "./mount-game-application.tsx";
+import type { MountedGameApplicationV1 } from "./mount-game-application.tsx";
 
 describe("mountGameApplicationV1", () => {
   it("owns one React root lifecycle", () => {

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import type { InputActionIdV1, InputRouterV1 } from "./contracts.js";
+import type { InputActionIdV1, InputRouterV1 } from "./contracts.ts";
 
 /**
  * The keyboard adapter: a configurable map from `KeyboardEvent.code` to

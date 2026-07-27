@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
-import type { SemanticGamePortV1, SemanticPublicationV1 } from "../../contracts/application.js";
-import type { RuntimeSessionStatusV1 } from "../../contracts/session-status.js";
-import type { DeepReadonly, NonNegativeSafeInteger } from "../../contracts/values.js";
-import { parseNonNegativeSafeInteger } from "../../contracts/values.js";
+import type { SemanticGamePortV1, SemanticPublicationV1 } from "../../contracts/application.ts";
+import type { RuntimeSessionStatusV1 } from "../../contracts/session-status.ts";
+import type { DeepReadonly, NonNegativeSafeInteger } from "../../contracts/values.ts";
+import { parseNonNegativeSafeInteger } from "../../contracts/values.ts";
 
 /**
  * Player-safe identity an agent may know about the game it is driving. It

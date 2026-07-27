@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-export { createAssetRegistryV1 } from "./assets/asset-registry.js";
+export { createAssetRegistryV1 } from "./assets/asset-registry.ts";
 export type {
   AssetLoadFaultCodeV1,
   AssetLoadResultV1,
@@ -8,45 +8,45 @@ export type {
   AssetRegistryV1,
   RuntimeAssetLoaderV1,
   RuntimeAssetLoadRequestV1,
-} from "./assets/asset-registry.js";
-export { CodeNativeAssetFallbackV1 } from "./assets/code-native-asset-fallback.js";
-export type { CodeNativeAssetFallbackPropsV1 } from "./assets/code-native-asset-fallback.js";
-export { createPresentationReadPortV1 } from "./assets/presentation-read-port.js";
+} from "./assets/asset-registry.ts";
+export { CodeNativeAssetFallbackV1 } from "./assets/code-native-asset-fallback.tsx";
+export type { CodeNativeAssetFallbackPropsV1 } from "./assets/code-native-asset-fallback.tsx";
+export { createPresentationReadPortV1 } from "./assets/presentation-read-port.ts";
 export type {
   CreatePresentationReadPortInputV1,
   PresentationReadPortV1,
-} from "./assets/presentation-read-port.js";
-export { Button, IconButton, ProgressMeter } from "./primitives/index.js";
-export type { ButtonPropsV1, IconButtonPropsV1, ProgressMeterPropsV1 } from "./primitives/index.js";
-export { createUiContributionRegistryV1 } from "./contributions/registry.js";
+} from "./assets/presentation-read-port.ts";
+export { Button, IconButton, ProgressMeter } from "./primitives/index.ts";
+export type { ButtonPropsV1, IconButtonPropsV1, ProgressMeterPropsV1 } from "./primitives/index.ts";
+export { createUiContributionRegistryV1 } from "./contributions/registry.ts";
 export type {
   GameRendererContextV1,
   UiContributionSetV1,
   UiContributionRegistryV1,
   UiRendererContributionV1,
   UiRendererNamespaceV1,
-} from "./contributions/types.js";
+} from "./contributions/types.ts";
 export {
   DiagnosticExportButtonV1,
   diagnosticExportContentCategoryIdsV1,
-} from "./diagnostics/index.js";
+} from "./diagnostics/index.ts";
 export type {
   DebugUiSessionProjectionInputV1,
   DiagnosticExportButtonPropsV1,
   DiagnosticExportContentCategoryIdV1,
   DiagnosticExportPortV1,
   DiagnosticExportPreviewV1,
-} from "./diagnostics/index.js";
-export { RootErrorBoundaryV1, RuntimeFailureDialogV1 } from "./errors/index.js";
+} from "./diagnostics/index.ts";
+export { RootErrorBoundaryV1, RuntimeFailureDialogV1 } from "./errors/index.ts";
 export type {
   RootErrorBoundaryFailureDialogV1,
   RootErrorBoundaryPropsV1,
   RootErrorBoundaryRecoveryActionsV1,
   RuntimeFailureDialogActionsV1,
   RuntimeFailureDialogPropsV1,
-} from "./errors/index.js";
-export { createViewSourceV1, useReadonlyViewV1 } from "./runtime/create-view-bridge.js";
-export type { MutableViewSourceV1 } from "./runtime/create-view-bridge.js";
+} from "./errors/index.ts";
+export { createViewSourceV1, useReadonlyViewV1 } from "./runtime/create-view-bridge.ts";
+export type { MutableViewSourceV1 } from "./runtime/create-view-bridge.ts";
 export {
   InputContextProviderV1,
   createInputRouterV1,
@@ -58,7 +58,7 @@ export {
   playerInputActionIdsV1,
   systemInputActionIdsV1,
   useInputRouterV1,
-} from "./input/index.js";
+} from "./input/index.ts";
 export type {
   GamepadActionMapV1,
   GamepadLikeV1,
@@ -74,12 +74,12 @@ export type {
   InstallKeyboardAdapterOptionsV1,
   KeyboardActionMapV1,
   ViewportPointV1,
-} from "./input/index.js";
+} from "./input/index.ts";
 export {
   createInteractionSessionStoreV1,
   createPresentationIntentRouterV1,
   initialInteractionSessionStateV1,
-} from "./interaction/index.js";
+} from "./interaction/index.ts";
 export type {
   InteractionSessionCleanupReasonV1,
   InteractionSessionStateLensV1,
@@ -95,15 +95,15 @@ export type {
   PresentationIntentRouterOptionsV1,
   PresentationIntentRouterV1,
   PresentationOverlayWriterV1,
-} from "./interaction/index.js";
-export { VnLayerV1 } from "./narrative/index.js";
-export type { VnChoiceV1, VnLayerPropsV1 } from "./narrative/index.js";
+} from "./interaction/index.ts";
+export { VnLayerV1 } from "./narrative/index.ts";
+export type { VnChoiceV1, VnLayerPropsV1 } from "./narrative/index.ts";
 export {
   ActionConfirmationDialogV1,
   OverlayHostV1,
   createOverlaySessionStoreV1,
   maximumOverlayDetailDepthV1,
-} from "./overlays/index.js";
+} from "./overlays/index.ts";
 export type {
   ActionConfirmationDialogPropsV1,
   ActionConfirmationDispatchPortV1,
@@ -114,8 +114,8 @@ export type {
   OverlayRendererResolverV1,
   OverlaySessionStateV1,
   OverlaySessionStoreV1,
-} from "./overlays/index.js";
-export { SaveOverlayV1 } from "./persistence/index.js";
+} from "./overlays/index.ts";
+export { SaveOverlayV1 } from "./persistence/index.ts";
 export type {
   SaveOverlayLabelsV1,
   SaveOverlayPortV1,
@@ -124,23 +124,23 @@ export type {
   SaveUiImportResultV1,
   SaveUiReadableSlotIdV1,
   SaveUiWritableSlotIdV1,
-} from "./persistence/index.js";
-export { SemanticActionControlV1 } from "./runtime/semantic-action-control.js";
+} from "./persistence/index.ts";
+export { SemanticActionControlV1 } from "./runtime/semantic-action-control.tsx";
 export type {
   SemanticActionControlDescriptorV1,
   SemanticActionControlPropsV1,
   SemanticActionDispatchPortV1,
-} from "./runtime/semantic-action-control.js";
-export { createSemanticPublicationBridgeV1 } from "./runtime/semantic-publication-bridge.js";
+} from "./runtime/semantic-action-control.tsx";
+export { createSemanticPublicationBridgeV1 } from "./runtime/semantic-publication-bridge.ts";
 export type {
   SemanticPublicationBridgeV1,
   SemanticPublicationSourceV1,
-} from "./runtime/semantic-publication-bridge.js";
-export { useSemanticPublicationV1 } from "./runtime/use-semantic-publication.js";
+} from "./runtime/semantic-publication-bridge.ts";
+export { useSemanticPublicationV1 } from "./runtime/use-semantic-publication.ts";
 export {
   RuntimePresentationConstructionErrorV1,
   createRuntimePresentationStoreV1,
-} from "./runtime/index.js";
+} from "./runtime/index.ts";
 export type {
   CreateRuntimePresentationStoreInputV1,
   PresentationRuntimeFailureV1,
@@ -148,7 +148,7 @@ export type {
   RuntimePresentationProjectionV1,
   RuntimePresentationPublicationV1,
   RuntimePresentationStoreV1,
-} from "./runtime/index.js";
+} from "./runtime/index.ts";
 export {
   GameShell,
   GameStageV1,
@@ -156,7 +156,7 @@ export {
   computeStageFrameV1,
   stageLayerIdsV1,
   stageLayoutConstantsV1,
-} from "./shell/index.js";
+} from "./shell/index.ts";
 export type {
   GameShellPropsV1,
   GameShellViewportOptionsV1,
@@ -167,14 +167,14 @@ export type {
   StageLayerIdV1,
   StageViewportV1,
   TopCardHudPropsV1,
-} from "./shell/index.js";
+} from "./shell/index.ts";
 export {
   createStageReconcilerV1,
   SemanticStageHostV1,
   SemanticStageTargetHostV1,
   SemanticStageV1,
   settledStageFrameV1,
-} from "./stage/index.js";
+} from "./stage/index.ts";
 export type {
   CreateStageReconcilerOptionsV1,
   SemanticStageEntryRendererInputV1,
@@ -190,12 +190,12 @@ export type {
   StageRenderFrameV1,
   StageRetargetInputV1,
   StageTransitionAcknowledgmentV1,
-} from "./stage/index.js";
+} from "./stage/index.ts";
 export {
   createAudioPresenterV1,
   createFakeAudioHostV1,
   sameChannelPlaybackV1,
-} from "./audio/index.js";
+} from "./audio/index.ts";
 export type {
   AudioHostChannelV1,
   AudioHostDiagnosticV1,
@@ -207,8 +207,8 @@ export type {
   CreateAudioPresenterOptionsV1,
   FakeAudioChannelStateV1,
   FakeAudioHostV1,
-} from "./audio/index.js";
-export { createPlaybackControllerV1, createTextRevealV1 } from "./player/index.js";
+} from "./audio/index.ts";
+export { createPlaybackControllerV1, createTextRevealV1 } from "./player/index.ts";
 export type {
   CreatePlaybackControllerOptionsV1,
   CreateTextRevealOptionsV1,
@@ -217,13 +217,13 @@ export type {
   PlaybackModeV1,
   PlaybackPolicyInputV1,
   TextRevealV1,
-} from "./player/index.js";
+} from "./player/index.ts";
 export {
   createAnimationFramePresentationClockV1,
   createManualPresentationClockV1,
   createPresentationRunV1,
   easeInOutV1,
-} from "./presentation-run/index.js";
+} from "./presentation-run/index.ts";
 export type {
   CreatePresentationRunOptionsV1,
   ManualPresentationClockV1,
@@ -231,13 +231,13 @@ export type {
   PresentationRunOutcomeV1,
   PresentationRunStatusV1,
   PresentationRunV1,
-} from "./presentation-run/index.js";
+} from "./presentation-run/index.ts";
 export {
   SettingsDialogV1,
   SettingsLauncherV1,
   SystemDialogHostV1,
   createSystemDialogSessionStoreV1,
-} from "./system/index.js";
+} from "./system/index.ts";
 export type {
   SettingsDialogPropsV1,
   SettingsLauncherPropsV1,
@@ -245,8 +245,8 @@ export type {
   SystemDialogSessionStoreV1,
   SystemDialogHostPropsV1,
   SystemDialogSettingsV1,
-} from "./system/index.js";
-export { GameSymbolV1, createGameSymbolRegistryV1, parseGameSymbolIdV1 } from "./symbols/index.js";
+} from "./system/index.ts";
+export { GameSymbolV1, createGameSymbolRegistryV1, parseGameSymbolIdV1 } from "./symbols/index.ts";
 export type {
   GameSymbolAccessibilityV1,
   GameSymbolIdV1,
@@ -256,19 +256,19 @@ export type {
   GameSymbolRenderPropsV1,
   GameSymbolResolutionV1,
   GameSymbolSizeV1,
-} from "./symbols/index.js";
-export { GameViewportV1, useGameViewportV1 } from "./viewport/index.js";
+} from "./symbols/index.ts";
+export { GameViewportV1, useGameViewportV1 } from "./viewport/index.ts";
 export type {
   GameViewportCanvasV1,
   GameViewportGeometryV1,
   GameViewportPropsV1,
   GameViewportSizeV1,
-} from "./viewport/index.js";
+} from "./viewport/index.ts";
 export {
   DefaultGameRootV1,
   createGameUiCompositionV1,
   defaultGameRootLabelsV1,
-} from "./composer/index.js";
+} from "./composer/index.ts";
 export type {
   CreateGameUiCompositionInputV1,
   DefaultGameRootLabelsV1,
@@ -282,4 +282,4 @@ export type {
   GameUiProjectorV1,
   GameUiSemanticSourceV1,
   GameUiStateV1,
-} from "./composer/index.js";
+} from "./composer/index.ts";

@@ -2,7 +2,7 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-import type { ResolvedAssetManifestV1 } from "../../engine/packages/base/src/index.js";
+import type { ResolvedAssetManifestV1 } from "../../engine/packages/base/src/index.ts";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -10,11 +10,11 @@ import {
   verifyRuntimeAssetStoryChecksV1,
   verifyRuntimeAssetsV1,
   type RuntimeAssetStoryCheckV1,
-} from "./verify-runtime-assets.mjs";
+} from "./verify-runtime-assets.mts";
 import type {
   RuntimeAssetValidationEnvironmentV1,
   RuntimeAssetValidationErrorV1,
-} from "./validate-runtime.mjs";
+} from "./validate-runtime.mts";
 
 function emptyManifestV1(): ResolvedAssetManifestV1 {
   return Object.freeze({
@@ -146,11 +146,11 @@ describe("closed runtime asset verification", () => {
     );
 
     expect(dynamicSpecifiers).toEqual([
-      "../../engine/packages/base/src/index.js",
-      "../../engine/packages/tooling/src/project/index.js",
-      "../../engine/packages/tooling/src/project/loader.js",
-      "../../game/project.config.js",
-      "./validate-runtime.mjs",
+      "../../engine/packages/base/src/index.ts",
+      "../../engine/packages/tooling/src/project/index.ts",
+      "../../engine/packages/tooling/src/project/loader.ts",
+      "../../game/project.config.ts",
+      "./validate-runtime.mts",
     ]);
     expect(dynamicSpecifiers.every((specifier) => !specifier.includes("/testkit"))).toBe(true);
     expect(

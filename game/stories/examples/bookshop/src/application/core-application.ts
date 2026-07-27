@@ -9,11 +9,11 @@ import {
   createMemoryHostRecordStoreV1,
 } from "@sillymaker/base/testkit";
 
-import type { BookshopApplicationInstanceV1 } from "./core-definition.js";
-import { bookshopCoreApplicationDefinitionV1 } from "./core-definition.js";
+import type { BookshopApplicationInstanceV1 } from "./core-definition.ts";
+import { bookshopCoreApplicationDefinitionV1 } from "./core-definition.ts";
 
-export type { BookshopApplicationInstanceV1 } from "./core-definition.js";
-export { bookshopCoreApplicationDefinitionV1 } from "./core-definition.js";
+export type { BookshopApplicationInstanceV1 } from "./core-definition.ts";
+export { bookshopCoreApplicationDefinitionV1 } from "./core-definition.ts";
 
 const ownerIdV1 = "owner.sillymaker.bookshop" as SessionLeaseOwnerId;
 const fixedInstantV1 = "2026-07-27T00:00:00.000Z" as IsoUtcInstant;

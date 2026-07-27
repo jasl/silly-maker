@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { parsePositiveSafeInteger } from "@sillymaker/base";
-import { createBrowserFilePortV1 } from "./browser-file-port.js";
+import { createBrowserFilePortV1 } from "./browser-file-port.ts";
 
 afterEach(() => {
   document.body.replaceChildren();

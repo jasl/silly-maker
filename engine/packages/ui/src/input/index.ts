@@ -5,7 +5,7 @@ export {
   parseInputActionIdV1,
   playerInputActionIdsV1,
   systemInputActionIdsV1,
-} from "./contracts.js";
+} from "./contracts.ts";
 export type {
   InputActionIdV1,
   InputContextIdV1,
@@ -14,16 +14,16 @@ export type {
   InputRouteResultV1,
   InputRouterV1,
   ViewportPointV1,
-} from "./contracts.js";
-export { InputContextProviderV1, useInputRouterV1 } from "./input-context.js";
-export type { InputContextProviderPropsV1 } from "./input-context.js";
-export { createInputRouterV1 } from "./input-router.js";
-export { installKeyboardAdapterV1 } from "./keyboard-adapter.js";
-export type { InstallKeyboardAdapterOptionsV1, KeyboardActionMapV1 } from "./keyboard-adapter.js";
-export { installGamepadAdapterV1 } from "./gamepad-adapter.js";
+} from "./contracts.ts";
+export { InputContextProviderV1, useInputRouterV1 } from "./input-context.tsx";
+export type { InputContextProviderPropsV1 } from "./input-context.tsx";
+export { createInputRouterV1 } from "./input-router.ts";
+export { installKeyboardAdapterV1 } from "./keyboard-adapter.ts";
+export type { InstallKeyboardAdapterOptionsV1, KeyboardActionMapV1 } from "./keyboard-adapter.ts";
+export { installGamepadAdapterV1 } from "./gamepad-adapter.ts";
 export type {
   GamepadActionMapV1,
   GamepadLikeV1,
   InstallGamepadAdapterOptionsV1,
   InstalledGamepadAdapterV1,
-} from "./gamepad-adapter.js";
+} from "./gamepad-adapter.ts";

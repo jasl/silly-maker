@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-import type { NonNegativeSafeInteger, RuntimeSchemaV1 } from "./values.js";
-import { parseNonNegativeSafeInteger } from "./values.js";
+import type { NonNegativeSafeInteger, RuntimeSchemaV1 } from "./values.ts";
+import { parseNonNegativeSafeInteger } from "./values.ts";
 
 export type RunIntegrityReasonV1 =
   | {

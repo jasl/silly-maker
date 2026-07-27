@@ -10,12 +10,12 @@ import type {
 } from "@sillymaker/base";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent, ReactElement } from "react";
-import type { InputRouterV1 } from "../input/contracts.js";
+import type { InputRouterV1 } from "../input/contracts.ts";
 import {
   ActionConfirmationDialogV1,
   type ActionConfirmationDispatchPortV1,
-} from "../overlays/action-confirmation-dialog.js";
-import { Button } from "../primitives/Button.js";
+} from "../overlays/action-confirmation-dialog.tsx";
+import { Button } from "../primitives/Button.tsx";
 import styles from "./save-overlay.module.css";
 
 export type SaveUiWritableSlotIdV1 = "quick" | "manual";

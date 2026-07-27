@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-import { digestBytes } from "../contracts/digest.js";
-import type { BuildIdentityInputV1 } from "../authoring/build-identity.js";
+import { digestBytes } from "../contracts/digest.ts";
+import type { BuildIdentityInputV1 } from "../authoring/build-identity.ts";
 
 const sourceDigest = digestBytes(Uint8Array.of(0x73, 0x72, 0x63));
 

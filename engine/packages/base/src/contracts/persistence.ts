@@ -4,21 +4,21 @@ import type {
   PlayerWritableSaveSlotIdV1,
   SaveSlotIdV1,
   SessionLeaseOwnerId,
-} from "./application.js";
-import { digestBytes } from "./digest.js";
-import type { IsoUtcInstant } from "./host.js";
-import type { PatchSetAdoptionDeclarationV1, PatchSetIdentityV1 } from "./hotfix.js";
-import type { BuildProvenanceV1 } from "./provenance.js";
-import { parseStrictJsonLimitsV1 } from "./strict-json.js";
-import type { StrictJsonErrorCodeV1 } from "./strict-json.js";
+} from "./application.ts";
+import { digestBytes } from "./digest.ts";
+import type { IsoUtcInstant } from "./host.ts";
+import type { PatchSetAdoptionDeclarationV1, PatchSetIdentityV1 } from "./hotfix.ts";
+import type { BuildProvenanceV1 } from "./provenance.ts";
+import { parseStrictJsonLimitsV1 } from "./strict-json.ts";
+import type { StrictJsonErrorCodeV1 } from "./strict-json.ts";
 import type {
   DeepReadonly,
   Digest,
   NonNegativeSafeInteger,
   PositiveSafeInteger,
   RuntimeSchemaV1,
-} from "./values.js";
-import { parseDigest, parsePositiveSafeInteger } from "./values.js";
+} from "./values.ts";
+import { parseDigest, parsePositiveSafeInteger } from "./values.ts";
 
 export type SaveSlotHealthV1 = "empty" | "valid" | "invalid" | "recovery_candidate" | "unavailable";
 

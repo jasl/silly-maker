@@ -14,13 +14,13 @@ import type {
   TemplateQueriesV1,
   TemplateRejectionV1,
   TemplateSimulationTypesV1,
-} from "../simulation.js";
-import { createTemplateGameSimulationV1 } from "../simulation.js";
+} from "../simulation.ts";
+import { createTemplateGameSimulationV1 } from "../simulation.ts";
 import {
   templateChoiceBlockedByV1,
   templateChoiceOptionsForV1,
   templateInteractionContextV1,
-} from "../narrative.js";
+} from "../narrative.ts";
 
 /**
  * The semantic surface: what UI, agents, and automation can see and do.

@@ -2,34 +2,34 @@
 import type {
   CommandExecutionAttemptEnvelopeV1,
   CommandExecutionResultEnvelopeV1,
-} from "../../contracts/execution.js";
-import { digestCanonical } from "../../contracts/digest.js";
+} from "../../contracts/execution.ts";
+import { digestCanonical } from "../../contracts/digest.ts";
 import type {
   GameDebugCommandValidationResultV1,
   GameSimulationTypeMapV1,
-} from "../../contracts/gameplay-module.js";
+} from "../../contracts/gameplay-module.ts";
 import type {
   RuntimeSessionStatusV1,
   SessionDispatchOperationResultV1,
-} from "../../contracts/session-status.js";
+} from "../../contracts/session-status.ts";
 import type {
   DeepReadonly,
   NonNegativeSafeInteger,
   RuntimeSchemaV1,
-} from "../../contracts/values.js";
-import type { RunIntegrityReasonV1 } from "../../contracts/snapshot.js";
-import { runIntegrityV1Schema } from "../../contracts/snapshot.js";
+} from "../../contracts/values.ts";
+import type { RunIntegrityReasonV1 } from "../../contracts/snapshot.ts";
+import { runIntegrityV1Schema } from "../../contracts/snapshot.ts";
 import {
   createCommandLogV1,
   type CommandLogV1,
   type FinalizedCommandAttemptV1,
-} from "../diagnostics/command-log.js";
-import type { IntegrityDirectiveV1 } from "./run-integrity.js";
-import { finalizeSnapshotIntegrityV1, markRunModifiedV1 } from "./run-integrity.js";
+} from "../diagnostics/command-log.ts";
+import type { IntegrityDirectiveV1 } from "./run-integrity.ts";
+import { finalizeSnapshotIntegrityV1, markRunModifiedV1 } from "./run-integrity.ts";
 import {
   createRuntimeInvalidationControllerV1,
   type RuntimeInvalidationControllerV1,
-} from "./runtime-invalidation.js";
+} from "./runtime-invalidation.ts";
 
 export interface GameSessionV1<TTypes extends GameSimulationTypeMapV1> {
   getStatus(): RuntimeSessionStatusV1;

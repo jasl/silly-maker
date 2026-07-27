@@ -16,13 +16,13 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { StrictMode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createInputRouterV1 } from "../input/input-router.js";
+import { createInputRouterV1 } from "../input/input-router.ts";
 import {
   SaveOverlayV1,
   type SaveOverlayLabelsV1,
   type SaveOverlayPortV1,
   type SaveUiImportResultV1,
-} from "./save-overlay.js";
+} from "./save-overlay.tsx";
 
 afterEach(cleanup);
 

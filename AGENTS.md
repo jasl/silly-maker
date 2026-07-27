@@ -48,10 +48,10 @@ This baseline describes the implementation, not an immutable constitution. Archi
 
 ## Development workflow
 
-- The supported environment is the minimum declared by the root `package.json`: Node.js >= 22.12.0 and pnpm >= 11.0.0. Do not require one exact host version, package-manager patch version, browser revision, machine attestation, or shell layout.
-- Install with `pnpm install`. Use `pnpm dev` for local development and `pnpm check` as the canonical local code-quality and product-behavior check. `pnpm verify` may exist as a compatibility alias only.
-- Use `pnpm test` for automated product/engine tests, `pnpm test:e2e` when browser behavior is affected, and the commands documented in `docs/engine/build-and-release.md` for Player builds.
-- Keep ESM, TypeScript project references, exact dependency versions, and the shared lockfile unless an intentional tooling change updates them.
+- The supported environment is Deno >= 2.9.0 (the runtime and package manager; npm dependencies resolve through Deno's Node compatibility). Do not require one exact host version, package-manager patch version, browser revision, machine attestation, or shell layout.
+- Install with `deno install`. Use `deno task dev` for local development and `deno task check` as the canonical local code-quality and product-behavior check.
+- Use `deno task test` for automated product/engine tests, `deno task test:e2e` when browser behavior is affected, and the commands documented in `docs/engine/build-and-release.md` for Player builds.
+- Keep ESM, TypeScript project references, explicit `.ts`/`.tsx` import extensions, exact dependency versions, and the shared `deno.lock` unless an intentional tooling change updates them.
 - Tests should protect observable engine behavior, game rules, public data formats, compatibility promises, or real user flows. Do not add fixtures or scripts whose only purpose is to enforce a plan phase, task commit, exact file inventory, command order, clean Git tree, host attestation, or frozen provisional balance output.
 - Prefer focused tests near the changed behavior, then run the relevant broader command. Regenerate a fixture only when it represents a maintained product format or user-visible compatibility contract.
 - Keep implementation files focused and public interfaces explicit. Use serializable project randomness in deterministic gameplay paths; avoid `Math.random()` there.

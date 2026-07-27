@@ -17,7 +17,7 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   webServer: {
-    command: "pnpm exec vite preview --mode e2e --host 127.0.0.1 --port 41733 --strictPort",
+    command: "deno run -A npm:vite preview --mode e2e --host 127.0.0.1 --port 41733 --strictPort",
     cwd: "../../..",
     url: "http://127.0.0.1:41733/",
     reuseExistingServer: false,

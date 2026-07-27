@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 import type { ReactNode } from "react";
 import { createRoot } from "react-dom/client";
-import { webStylesLoadedV1 } from "../styles-entry.js";
+import { webStylesLoadedV1 } from "../styles-entry.ts";
 
 void webStylesLoadedV1;
 

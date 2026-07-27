@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import { digestCanonical } from "../../contracts/digest.js";
-import { rngStateV1Schema } from "../../contracts/rng.js";
-import type { RngStateV1 } from "../../contracts/rng.js";
-import { createPristineRunIntegrityV1 } from "../../contracts/snapshot.js";
-import type { GameSnapshotEnvelopeV1 } from "../../contracts/snapshot.js";
-import { parseNonNegativeSafeInteger, parsePositiveSafeInteger } from "../../contracts/values.js";
-import type { Digest, PositiveSafeInteger } from "../../contracts/values.js";
-import { createCommandLogV1, type FinalizedCommandAttemptV1 } from "./command-log.js";
+import { digestCanonical } from "../../contracts/digest.ts";
+import { rngStateV1Schema } from "../../contracts/rng.ts";
+import type { RngStateV1 } from "../../contracts/rng.ts";
+import { createPristineRunIntegrityV1 } from "../../contracts/snapshot.ts";
+import type { GameSnapshotEnvelopeV1 } from "../../contracts/snapshot.ts";
+import { parseNonNegativeSafeInteger, parsePositiveSafeInteger } from "../../contracts/values.ts";
+import type { Digest, PositiveSafeInteger } from "../../contracts/values.ts";
+import { createCommandLogV1, type FinalizedCommandAttemptV1 } from "./command-log.ts";
 
 interface FixtureStateV1 {
   readonly value: number;

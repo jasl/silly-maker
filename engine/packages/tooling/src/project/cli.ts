@@ -6,7 +6,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 
 import { AuthoringDiagnosticErrorV1 } from "@sillymaker/base";
 
-import type { ProjectCommandRunnerV1, ProjectModuleLoaderV1 } from "./commands.js";
+import type { ProjectCommandRunnerV1, ProjectModuleLoaderV1 } from "./commands.ts";
 import {
   buildStoryApplicationV1,
   checkStoryApplicationV1,
@@ -15,9 +15,9 @@ import {
   inspectStoryApplicationV1,
   prebuiltSmokeStoryApplicationV1,
   simulateStoryApplicationV1,
-} from "./commands.js";
-import type { SillymakerProjectConfigV1 } from "./config.js";
-import { listStoryApplicationIdsV1 } from "./config.js";
+} from "./commands.ts";
+import type { SillymakerProjectConfigV1 } from "./config.ts";
+import { listStoryApplicationIdsV1 } from "./config.ts";
 
 export interface ProjectCliInputV1 {
   readonly project: SillymakerProjectConfigV1;

@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   createOverlaySessionStoreV1,
   maximumOverlayDetailDepthV1,
-} from "./overlay-session-store.js";
+} from "./overlay-session-store.ts";
 
 describe("createOverlaySessionStoreV1", () => {
   it("keeps one primary Overlay and at most four ordered details", () => {

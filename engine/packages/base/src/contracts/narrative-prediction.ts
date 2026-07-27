@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
-import type { AssetDemandPlanV1 } from "./asset-demand.js";
-import { createAssetDemandPlanV1 } from "./asset-demand.js";
+import type { AssetDemandPlanV1 } from "./asset-demand.ts";
+import { createAssetDemandPlanV1 } from "./asset-demand.ts";
 import type {
   NarrativeGraphDependenciesV1,
   NarrativeGraphNodeKindV1,
   NarrativeGraphNodeV1,
   NarrativeGraphV1,
-} from "./narrative-graph.js";
-import { emptyNarrativeDependenciesV1, parseNarrativeGraphV1 } from "./narrative-graph.js";
+} from "./narrative-graph.ts";
+import { emptyNarrativeDependenciesV1, parseNarrativeGraphV1 } from "./narrative-graph.ts";
 
 /**
  * The typed narrative graph builder. It produces exactly the same runtime

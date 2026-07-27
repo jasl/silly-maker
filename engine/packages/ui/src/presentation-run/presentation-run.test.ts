@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it, vi } from "vitest";
 
-import { createManualPresentationClockV1 } from "./presentation-clock.js";
-import { createPresentationRunV1, easeInOutV1 } from "./presentation-run.js";
+import { createManualPresentationClockV1 } from "./presentation-clock.ts";
+import { createPresentationRunV1, easeInOutV1 } from "./presentation-run.ts";
 
 function runFixtureV1(durationMs = 100) {
   const clock = createManualPresentationClockV1();

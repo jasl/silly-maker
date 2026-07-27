@@ -7,7 +7,7 @@ import {
   parseTextId,
 } from "@sillymaker/base";
 import { describe, expect, it, vi } from "vitest";
-import { createPresentationReadPortV1 } from "./presentation-read-port.js";
+import { createPresentationReadPortV1 } from "./presentation-read-port.ts";
 
 const saveTextId = parseTextId("text.ui.save");
 const cancelTextId = parseTextId("text.ui.cancel");

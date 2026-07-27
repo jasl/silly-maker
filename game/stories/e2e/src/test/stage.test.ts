@@ -10,14 +10,14 @@ import {
 } from "@sillymaker/base";
 import { createGameHarnessV1 } from "@sillymaker/base/testkit";
 
-import type { LabActionIdV1, LabGameStateV1, LabInvocationV1 } from "../index.js";
+import type { LabActionIdV1, LabGameStateV1, LabInvocationV1 } from "../index.ts";
 import {
   labSemanticAdapterV1,
   labStageContentCatalogV1,
   labStageContentIdsV1,
   labStageTagsV1,
   labStoryEntryV1,
-} from "../index.js";
+} from "../index.ts";
 
 function createLabHarnessV1(seed = 61213) {
   return createGameHarnessV1({

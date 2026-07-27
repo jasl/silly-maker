@@ -12,12 +12,12 @@ import type {
   StagePlacementV1,
 } from "@sillymaker/base";
 
-import type { PresentationClockV1 } from "../presentation-run/presentation-clock.js";
-import { createPresentationRunV1, easeInOutV1 } from "../presentation-run/presentation-run.js";
+import type { PresentationClockV1 } from "../presentation-run/presentation-clock.ts";
+import { createPresentationRunV1, easeInOutV1 } from "../presentation-run/presentation-run.ts";
 import type {
   PresentationRunOutcomeV1,
   PresentationRunV1,
-} from "../presentation-run/presentation-run.js";
+} from "../presentation-run/presentation-run.ts";
 
 /**
  * The Stage Reconciler: observes projected StageRenderTargets on each

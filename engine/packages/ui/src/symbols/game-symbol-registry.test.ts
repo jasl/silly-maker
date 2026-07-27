@@ -6,7 +6,7 @@ import {
   type GameSymbolIdV1,
   type GameSymbolProviderV1,
   type GameSymbolRenderPropsV1,
-} from "./game-symbol-registry.js";
+} from "./game-symbol-registry.ts";
 
 function EmptySymbolV1(_props: GameSymbolRenderPropsV1) {
   return null;

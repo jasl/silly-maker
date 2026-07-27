@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-export { SaveOverlayV1 } from "./save-overlay.js";
+export { SaveOverlayV1 } from "./save-overlay.tsx";
 export type {
   SaveOverlayLabelsV1,
   SaveOverlayPortV1,
@@ -8,4 +8,4 @@ export type {
   SaveUiImportResultV1,
   SaveUiReadableSlotIdV1,
   SaveUiWritableSlotIdV1,
-} from "./save-overlay.js";
+} from "./save-overlay.tsx";

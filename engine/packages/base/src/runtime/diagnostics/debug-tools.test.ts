@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it, vi } from "vitest";
 
-import type { RuntimeCapabilitiesV1 } from "../../contracts/application.js";
-import type { RuntimeSchemaV1 } from "../../contracts/values.js";
-import { createDebugToolsPortV1 } from "./debug-tools.js";
+import type { RuntimeCapabilitiesV1 } from "../../contracts/application.ts";
+import type { RuntimeSchemaV1 } from "../../contracts/values.ts";
+import { createDebugToolsPortV1 } from "./debug-tools.ts";
 
 type DebugCommandV1 = { readonly kind: "debug.synthetic.add"; readonly amount: number };
 type DebugResultV1 =

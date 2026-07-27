@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-import type { DiagnosticEnvelopeV1 } from "./diagnostic-envelope.js";
-import { createDiagnosticV1 } from "./diagnostic-envelope.js";
+import type { DiagnosticEnvelopeV1 } from "./diagnostic-envelope.ts";
+import { createDiagnosticV1 } from "./diagnostic-envelope.ts";
 import type {
   SemanticStageStateV1,
   StageAppearanceV1,
@@ -10,10 +10,10 @@ import type {
   StageLayerTransformV1,
   StagePlacementV1,
   StageTagV1,
-} from "./semantic-stage.js";
-import type { StrictJsonObjectV1 } from "./strict-json.js";
-import { deepFreezeData } from "./presentation-data.js";
-import type { AssetId } from "./presentation-ids.js";
+} from "./semantic-stage.ts";
+import type { StrictJsonObjectV1 } from "./strict-json.ts";
+import { deepFreezeData } from "./presentation-data.ts";
+import type { AssetId } from "./presentation-ids.ts";
 
 /**
  * The Story content catalog resolves semantic stage content into renderer

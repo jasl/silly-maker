@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-import type { Brand } from "./values.js";
-import { parseModuleId } from "./values.js";
+import type { Brand } from "./values.ts";
+import { parseModuleId } from "./values.ts";
 
 export type TextId = Brand<string, "TextId">;
 export type LocaleId = Brand<string, "LocaleId">;

@@ -2,7 +2,7 @@
 import { AxeBuilder } from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 
-import { expect, gotoLabV1, test } from "./fixtures.js";
+import { expect, gotoLabV1, test } from "./fixtures.ts";
 
 async function expectNoWcagViolationsV1(page: Page, surface: string): Promise<void> {
   const results = await new AxeBuilder({ page })

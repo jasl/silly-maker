@@ -5,7 +5,7 @@ import type {
 } from "@sillymaker/base";
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { Button } from "../primitives/Button.js";
+import { Button } from "../primitives/Button.tsx";
 
 export interface DiagnosticTextEntryV1 {
   readonly id: string;

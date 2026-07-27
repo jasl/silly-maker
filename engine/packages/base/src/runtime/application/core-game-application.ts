@@ -1,47 +1,47 @@
 // SPDX-License-Identifier: MIT
-import type { SessionLeaseOwnerId } from "../../contracts/application.js";
-import type { TransientEffectRequestV1, TransientEffectV1 } from "../../contracts/asset-demand.js";
-import type { SemanticGamePortSourceV1, SemanticGamePortV1 } from "../../contracts/application.js";
-import type { BuildIdentityInputV1 } from "../../authoring/build-identity.js";
-import { resolveGamePackageV1 } from "../../authoring/story-resolver.js";
-import { digestBytes, digestCanonical } from "../../contracts/digest.js";
-import type { GamePackageV1 } from "../../contracts/game-package.js";
+import type { SessionLeaseOwnerId } from "../../contracts/application.ts";
+import type { TransientEffectRequestV1, TransientEffectV1 } from "../../contracts/asset-demand.ts";
+import type { SemanticGamePortSourceV1, SemanticGamePortV1 } from "../../contracts/application.ts";
+import type { BuildIdentityInputV1 } from "../../authoring/build-identity.ts";
+import { resolveGamePackageV1 } from "../../authoring/story-resolver.ts";
+import { digestBytes, digestCanonical } from "../../contracts/digest.ts";
+import type { GamePackageV1 } from "../../contracts/game-package.ts";
 import type {
   BootstrapEntropyV1,
   GameSimulationTypeMapV1,
   GameSimulationV1,
-} from "../../contracts/gameplay-module.js";
-import type { HostAtomicRecordStoreV1, IsoUtcInstant } from "../../contracts/host.js";
-import { createTransactionalRngV1, rngStateV1Schema } from "../../contracts/rng.js";
+} from "../../contracts/gameplay-module.ts";
+import type { HostAtomicRecordStoreV1, IsoUtcInstant } from "../../contracts/host.ts";
+import { createTransactionalRngV1, rngStateV1Schema } from "../../contracts/rng.ts";
 import type {
   RuntimeSessionStatusV1,
   SessionAnchorResultV1,
-} from "../../contracts/session-status.js";
+} from "../../contracts/session-status.ts";
 import {
   createGameSnapshotEnvelopeSchemaV1,
   createPristineRunIntegrityV1,
-} from "../../contracts/snapshot.js";
-import type { DeepReadonly, Digest, NonNegativeSafeInteger } from "../../contracts/values.js";
-import { parseNonNegativeSafeInteger } from "../../contracts/values.js";
-import type { ReplayComparisonV1 } from "../diagnostics/replay.js";
-import { replayAuthoritativelyV1 } from "../diagnostics/replay.js";
-import type { RuntimeOperationFaultV1 } from "../../contracts/diagnostics.js";
+} from "../../contracts/snapshot.ts";
+import type { DeepReadonly, Digest, NonNegativeSafeInteger } from "../../contracts/values.ts";
+import { parseNonNegativeSafeInteger } from "../../contracts/values.ts";
+import type { ReplayComparisonV1 } from "../diagnostics/replay.ts";
+import { replayAuthoritativelyV1 } from "../diagnostics/replay.ts";
+import type { RuntimeOperationFaultV1 } from "../../contracts/diagnostics.ts";
 import {
   createRuntimeFailureBufferV1,
   createRuntimeFailureReporterV1,
-} from "../diagnostics/runtime-failures.js";
+} from "../diagnostics/runtime-failures.ts";
 import type {
   GameSessionCompositionV1,
   GameSessionDebugInputV1,
   GameSessionV1,
-} from "../session/game-session.js";
-import { createGameSessionV1 } from "../session/game-session.js";
+} from "../session/game-session.ts";
+import { createGameSessionV1 } from "../session/game-session.ts";
 import type {
   PersistenceRebootstrapDisposalV1,
   PersistenceServiceV1,
-} from "../persistence/persistence-service.js";
-import { createPersistenceServiceV1 } from "../persistence/persistence-service.js";
-import { createSemanticGamePortV1 } from "./semantic-game-port.js";
+} from "../persistence/persistence-service.ts";
+import { createPersistenceServiceV1 } from "../persistence/persistence-service.ts";
+import { createSemanticGamePortV1 } from "./semantic-game-port.ts";
 
 type SessionDispatchResultOfV1<TTypes extends GameSimulationTypeMapV1> = Awaited<
   ReturnType<GameSessionV1<TTypes>["dispatch"]>

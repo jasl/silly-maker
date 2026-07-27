@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it, vi } from "vitest";
 
-import { createRuntimeCapabilityPortV1 } from "./runtime-capabilities.js";
+import { createRuntimeCapabilityPortV1 } from "./runtime-capabilities.ts";
 
 const allDisabledV1 = Object.freeze({
   debugTools: false,

@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import type { SemanticGamePortV1 } from "../../contracts/application.js";
+import type { SemanticGamePortV1 } from "../../contracts/application.ts";
 import {
   createAgentDiagnosticsCapabilityV1,
   createAgentPersistenceCapabilityV1,
   createAgentTranscriptRecorderV1,
   createInProcessAgentGamePortV1,
-} from "./agent-game-port.js";
+} from "./agent-game-port.ts";
 
 type FixtureSemanticPortV1 = SemanticGamePortV1<
   { readonly count: number },

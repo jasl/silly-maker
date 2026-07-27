@@ -1,2 +1,2 @@
 // SPDX-License-Identifier: MIT
-export { createWebContentPreferencePortV1 } from "./content-preference-store.js";
+export { createWebContentPreferencePortV1 } from "./content-preference-store.ts";

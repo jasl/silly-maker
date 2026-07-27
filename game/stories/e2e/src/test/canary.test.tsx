@@ -15,15 +15,15 @@ import {
   createGameUiCompositionV1,
 } from "@sillymaker/ui";
 
-import type { LabInvocationV1 } from "../index.js";
-import { labSemanticAdapterV1, labStoryEntryV1, projectLabNarrativeGraphV1 } from "../index.js";
-import { createLabApplicationInstanceV1 } from "../application/core-application.js";
+import type { LabInvocationV1 } from "../index.ts";
+import { labSemanticAdapterV1, labStoryEntryV1, projectLabNarrativeGraphV1 } from "../index.ts";
+import { createLabApplicationInstanceV1 } from "../application/core-application.ts";
 import {
   createLabUiSlotsV1,
   labRootLabelsV1,
   labUiProjectorV1,
   labViewportCanvasV1,
-} from "../application/web-application.js";
+} from "../application/web-application.tsx";
 
 /**
  * The AI-authoring canaries: a currency/shop module, a

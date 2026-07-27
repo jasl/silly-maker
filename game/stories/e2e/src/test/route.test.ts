@@ -4,8 +4,8 @@ import { describe, expect, it } from "vitest";
 import type { InteractionResolutionV1 } from "@sillymaker/base";
 import { createGameHarnessV1 } from "@sillymaker/base/testkit";
 
-import type { LabInvocationV1 } from "../index.js";
-import { labSemanticAdapterV1, labStoryEntryV1 } from "../index.js";
+import type { LabInvocationV1 } from "../index.ts";
+import { labSemanticAdapterV1, labStoryEntryV1 } from "../index.ts";
 
 /**
  * The Engine Conformance route: one short, real application path exercising

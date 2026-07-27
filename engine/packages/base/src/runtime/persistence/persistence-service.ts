@@ -5,16 +5,16 @@ import type {
   PlayerWritableSaveSlotIdV1,
   SaveSlotIdV1,
   SessionLeaseOwnerId,
-} from "../../contracts/application.js";
-import { digestBytes, digestCanonical } from "../../contracts/digest.js";
-import type { HostAtomicRecordStoreV1, IsoUtcInstant } from "../../contracts/host.js";
+} from "../../contracts/application.ts";
+import { digestBytes, digestCanonical } from "../../contracts/digest.ts";
+import type { HostAtomicRecordStoreV1, IsoUtcInstant } from "../../contracts/host.ts";
 import type {
   AppliedHotfixV1,
   PatchReplacementTraceV1,
   PatchSetAdoptionDeclarationV1,
   PatchSetIdentityV1,
-} from "../../contracts/hotfix.js";
-import type { BuildProvenanceV1 } from "../../contracts/provenance.js";
+} from "../../contracts/hotfix.ts";
+import type { BuildProvenanceV1 } from "../../contracts/provenance.ts";
 import type {
   ExportedSaveV1,
   PersistenceOperationResultV1,
@@ -28,31 +28,31 @@ import type {
   SessionLeaseOperationResultV1,
   SessionLeaseStatusV1,
   SimulationAdoptionV1,
-} from "../../contracts/persistence.js";
-import { createSaveRecordEnvelopeSchemaV1 } from "../../contracts/persistence.js";
+} from "../../contracts/persistence.ts";
+import { createSaveRecordEnvelopeSchemaV1 } from "../../contracts/persistence.ts";
 import type {
   DeepReadonly,
   NonNegativeSafeInteger,
   PositiveSafeInteger,
   RuntimeSchemaV1,
-} from "../../contracts/values.js";
+} from "../../contracts/values.ts";
 import {
   parseDigest,
   parseNonNegativeSafeInteger,
   parsePositiveSafeInteger,
-} from "../../contracts/values.js";
-import type { GameSessionRuntimeControlV1 } from "../session/game-session.js";
-import { createAutoSaveQueueV1 } from "./auto-save-queue.js";
-import { classifySaveCompatibilityV1, validateSaveImportCandidateV1 } from "./compatibility.js";
-import { encodeSaveRecordV1 } from "./save-codec.js";
+} from "../../contracts/values.ts";
+import type { GameSessionRuntimeControlV1 } from "../session/game-session.ts";
+import { createAutoSaveQueueV1 } from "./auto-save-queue.ts";
+import { classifySaveCompatibilityV1, validateSaveImportCandidateV1 } from "./compatibility.ts";
+import { encodeSaveRecordV1 } from "./save-codec.ts";
 import type {
   SaveRepositorySlotMetadataV1,
   SaveRepositoryV1,
   SaveRepositoryWriteResultV1,
-} from "./save-repository.js";
-import { createSaveRepositoryV1 } from "./save-repository.js";
-import type { SessionLeaseFenceV1, SessionLeaseV1 } from "./session-lease.js";
-import { createSessionLeaseV1 } from "./session-lease.js";
+} from "./save-repository.ts";
+import { createSaveRepositoryV1 } from "./save-repository.ts";
+import type { SessionLeaseFenceV1, SessionLeaseV1 } from "./session-lease.ts";
+import { createSessionLeaseV1 } from "./session-lease.ts";
 
 type PersistenceSaveRecordV1<TSnapshot> = SaveRecordEnvelopeV1<
   TSnapshot,

@@ -12,7 +12,7 @@ import {
   createAssetRegistryV1,
   type RuntimeAssetLoadRequestV1,
   type RuntimeAssetLoaderV1,
-} from "./asset-registry.js";
+} from "./asset-registry.ts";
 
 type LoaderSettlementV1 = Awaited<ReturnType<RuntimeAssetLoaderV1["load"]>>;
 type ResolvedAssetEntryV1 = ResolvedAssetManifestV1["assets"][number];

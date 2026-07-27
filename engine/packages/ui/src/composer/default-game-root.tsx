@@ -4,27 +4,27 @@ import type { ReactElement, ReactNode } from "react";
 
 import type { DeepReadonly, RuntimeCapabilityPortV1 } from "@sillymaker/base";
 
-import { DevDockV1, createDevDockContributionSetV1 } from "../debug/DevDock.js";
-import type { DevDockContributionSetV1, DevDockOpenStateV1 } from "../debug/DevDock.js";
-import type { InputRouterV1 } from "../input/contracts.js";
-import type { GamepadActionMapV1 } from "../input/gamepad-adapter.js";
-import { installGamepadAdapterV1 } from "../input/gamepad-adapter.js";
-import type { KeyboardActionMapV1 } from "../input/keyboard-adapter.js";
-import { installKeyboardAdapterV1 } from "../input/keyboard-adapter.js";
-import type { PresentationIntentRouterV1 } from "../interaction/presentation-intent-router.js";
-import { OverlayHostV1 } from "../overlays/overlay-host.js";
-import type { OverlayRendererResolverV1 } from "../overlays/overlay-host.js";
-import type { SaveOverlayLabelsV1, SaveOverlayPortV1 } from "../persistence/save-overlay.js";
-import { SaveOverlayV1 } from "../persistence/save-overlay.js";
-import { useReadonlyViewV1 } from "../runtime/create-view-bridge.js";
-import type { RuntimePresentationPublicationV1 } from "../runtime/runtime-presentation-store.js";
-import { GameShell } from "../shell/game-shell.js";
-import type { GameShellViewportOptionsV1 } from "../shell/game-shell.js";
-import { SettingsLauncherV1 } from "../system/settings-launcher.js";
-import { SystemDialogHostV1 } from "../system/system-dialog-host.js";
-import { Button } from "../primitives/Button.js";
-import type { InteractionSessionStoreV1 } from "../interaction/interaction-session-store.js";
-import type { GameUiCompositionV1, GameUiOverlayIdV1 } from "./create-game-ui-composition.js";
+import { DevDockV1, createDevDockContributionSetV1 } from "../debug/DevDock.tsx";
+import type { DevDockContributionSetV1, DevDockOpenStateV1 } from "../debug/DevDock.tsx";
+import type { InputRouterV1 } from "../input/contracts.ts";
+import type { GamepadActionMapV1 } from "../input/gamepad-adapter.ts";
+import { installGamepadAdapterV1 } from "../input/gamepad-adapter.ts";
+import type { KeyboardActionMapV1 } from "../input/keyboard-adapter.ts";
+import { installKeyboardAdapterV1 } from "../input/keyboard-adapter.ts";
+import type { PresentationIntentRouterV1 } from "../interaction/presentation-intent-router.ts";
+import { OverlayHostV1 } from "../overlays/overlay-host.tsx";
+import type { OverlayRendererResolverV1 } from "../overlays/overlay-host.tsx";
+import type { SaveOverlayLabelsV1, SaveOverlayPortV1 } from "../persistence/save-overlay.tsx";
+import { SaveOverlayV1 } from "../persistence/save-overlay.tsx";
+import { useReadonlyViewV1 } from "../runtime/create-view-bridge.ts";
+import type { RuntimePresentationPublicationV1 } from "../runtime/runtime-presentation-store.ts";
+import { GameShell } from "../shell/game-shell.tsx";
+import type { GameShellViewportOptionsV1 } from "../shell/game-shell.tsx";
+import { SettingsLauncherV1 } from "../system/settings-launcher.tsx";
+import { SystemDialogHostV1 } from "../system/system-dialog-host.tsx";
+import { Button } from "../primitives/Button.tsx";
+import type { InteractionSessionStoreV1 } from "../interaction/interaction-session-store.ts";
+import type { GameUiCompositionV1, GameUiOverlayIdV1 } from "./create-game-ui-composition.ts";
 import styles from "./default-game-root.module.css";
 
 /** Player-facing labels of the default surfaces; Stories override per locale. */

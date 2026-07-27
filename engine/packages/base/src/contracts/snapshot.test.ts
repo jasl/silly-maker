@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import type { RuntimeSchemaV1 } from "./values.js";
+import type { RuntimeSchemaV1 } from "./values.ts";
 import {
   createGameSnapshotEnvelopeSchemaV1,
   createPristineRunIntegrityV1,
   runIntegrityV1Schema,
-} from "./snapshot.js";
+} from "./snapshot.ts";
 
 const counterStateSchema: RuntimeSchemaV1<{ readonly count: number }> = {
   parse(value) {

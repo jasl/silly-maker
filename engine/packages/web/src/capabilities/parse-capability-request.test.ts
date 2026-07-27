@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import { parseCapabilityRequestV1 } from "./parse-capability-request.js";
+import { parseCapabilityRequestV1 } from "./parse-capability-request.ts";
 
 describe("Web capability request parser", () => {
   it("accepts only unique members of the closed set in declared order", () => {

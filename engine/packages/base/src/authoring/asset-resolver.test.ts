@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import { digestBytes, digestCanonical } from "../contracts/digest.js";
-import { parsePositiveSafeInteger } from "../contracts/values.js";
-import { resolveAssetManifestV1 } from "./asset-resolver.js";
+import { digestBytes, digestCanonical } from "../contracts/digest.ts";
+import { parsePositiveSafeInteger } from "../contracts/values.ts";
+import { resolveAssetManifestV1 } from "./asset-resolver.ts";
 
 const bytes = new TextEncoder().encode("synthetic-image");
 const provider = Object.freeze({

@@ -1,39 +1,39 @@
 // SPDX-License-Identifier: MIT
-import type { SessionLeaseOwnerId } from "../contracts/application.js";
-import type { SemanticGamePortV1 } from "../contracts/application.js";
-import type { Digest } from "../contracts/values.js";
-import type { GamePackageV1 } from "../contracts/game-package.js";
-import type { GameSimulationTypeMapV1 } from "../contracts/gameplay-module.js";
-import type { HostAtomicRecordStoreV1, IsoUtcInstant } from "../contracts/host.js";
-import { createMemoryHostRecordStoreV1 } from "../contracts/host.js";
-import type { RuntimeSessionStatusV1 } from "../contracts/session-status.js";
-import type { DeepReadonly } from "../contracts/values.js";
-import { parseNonZeroUint32, parseRunId } from "../contracts/values.js";
+import type { SessionLeaseOwnerId } from "../contracts/application.ts";
+import type { SemanticGamePortV1 } from "../contracts/application.ts";
+import type { Digest } from "../contracts/values.ts";
+import type { GamePackageV1 } from "../contracts/game-package.ts";
+import type { GameSimulationTypeMapV1 } from "../contracts/gameplay-module.ts";
+import type { HostAtomicRecordStoreV1, IsoUtcInstant } from "../contracts/host.ts";
+import { createMemoryHostRecordStoreV1 } from "../contracts/host.ts";
+import type { RuntimeSessionStatusV1 } from "../contracts/session-status.ts";
+import type { DeepReadonly } from "../contracts/values.ts";
+import { parseNonZeroUint32, parseRunId } from "../contracts/values.ts";
 import type {
   AgentCapabilityHandleV1,
   AgentDiagnosticsCapabilityV1,
   AgentGamePortV1,
   AgentPersistenceCapabilityV1,
-} from "../runtime/application/agent-game-port.js";
+} from "../runtime/application/agent-game-port.ts";
 import {
   createAgentDiagnosticsCapabilityV1,
   createAgentPersistenceCapabilityV1,
   createInProcessAgentGamePortV1,
-} from "../runtime/application/agent-game-port.js";
+} from "../runtime/application/agent-game-port.ts";
 import type {
   CoreGameApplicationInstanceV1,
   CoreSemanticAdapterV1,
-} from "../runtime/application/core-game-application.js";
+} from "../runtime/application/core-game-application.ts";
 import {
   createCoreGameApplicationInstanceV1,
   defineCoreGameApplicationV1,
   resolveCoreGameApplicationV1,
-} from "../runtime/application/core-game-application.js";
-import type { GameSessionCompositionV1 } from "../runtime/session/game-session.js";
-import type { PersistenceServiceV1 } from "../runtime/persistence/persistence-service.js";
-import type { ReplayComparisonV1 } from "../runtime/diagnostics/replay.js";
-import { createFixedBootstrapEntropyV1 } from "./fixed-bootstrap-entropy.js";
-import { deterministicBuildIdentityInputV1 } from "./resolver-fixtures.js";
+} from "../runtime/application/core-game-application.ts";
+import type { GameSessionCompositionV1 } from "../runtime/session/game-session.ts";
+import type { PersistenceServiceV1 } from "../runtime/persistence/persistence-service.ts";
+import type { ReplayComparisonV1 } from "../runtime/diagnostics/replay.ts";
+import { createFixedBootstrapEntropyV1 } from "./fixed-bootstrap-entropy.ts";
+import { deterministicBuildIdentityInputV1 } from "./resolver-fixtures.ts";
 
 /**
  * The Story-provided semantic adaptation the harness cannot own. This is the

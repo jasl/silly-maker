@@ -1,36 +1,36 @@
 // SPDX-License-Identifier: MIT
-import { defineGamePackage } from "../authoring/define-game-package.js";
-import { defineGameSimulation } from "../authoring/define-game-simulation.js";
-import { defineGameplayModule } from "../authoring/define-gameplay-module.js";
+import { defineGamePackage } from "../authoring/define-game-package.ts";
+import { defineGameSimulation } from "../authoring/define-game-simulation.ts";
+import { defineGameplayModule } from "../authoring/define-gameplay-module.ts";
 import {
   definePresentationPatchSurface,
   defineSimulationPatchSurface,
-} from "../authoring/patch-surface.js";
-import type { AssetSlotDefinitionV1 } from "../contracts/assets.js";
-import { commitAttemptV1, faultAttemptV1, rejectAttemptV1 } from "../contracts/execution.js";
-import type { CommandExecutionAttemptEnvelopeV1 } from "../contracts/execution.js";
+} from "../authoring/patch-surface.ts";
+import type { AssetSlotDefinitionV1 } from "../contracts/assets.ts";
+import { commitAttemptV1, faultAttemptV1, rejectAttemptV1 } from "../contracts/execution.ts";
+import type { CommandExecutionAttemptEnvelopeV1 } from "../contracts/execution.ts";
 import type {
   GamePackageV1,
   StateContractManifestV1,
   StoryDefinitionV1,
-} from "../contracts/game-package.js";
+} from "../contracts/game-package.ts";
 import type {
   BootstrapEntropyV1,
   GameSimulationTypeMapV1,
   GameSimulationV1,
   ModuleOwnerProposalEnvelopeV1,
-} from "../contracts/gameplay-module.js";
-import { createTransactionalRngV1, rngStateV1Schema } from "../contracts/rng.js";
-import type { RngDrawTraceV1, RngStateV1 } from "../contracts/rng.js";
-import type { GameSnapshotEnvelopeV1 } from "../contracts/snapshot.js";
-import { parseTextCatalogSetV1 } from "../contracts/presentation.js";
-import type { RuntimeSchemaV1 } from "../contracts/values.js";
+} from "../contracts/gameplay-module.ts";
+import { createTransactionalRngV1, rngStateV1Schema } from "../contracts/rng.ts";
+import type { RngDrawTraceV1, RngStateV1 } from "../contracts/rng.ts";
+import type { GameSnapshotEnvelopeV1 } from "../contracts/snapshot.ts";
+import { parseTextCatalogSetV1 } from "../contracts/presentation.ts";
+import type { RuntimeSchemaV1 } from "../contracts/values.ts";
 import {
   parseModuleId,
   parseNonNegativeSafeInteger,
   parsePositiveSafeInteger,
   parseStateSlotId,
-} from "../contracts/values.js";
+} from "../contracts/values.ts";
 
 export interface SyntheticCounterStateV1 {
   readonly count: number;

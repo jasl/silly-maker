@@ -5,10 +5,10 @@ import type {
   GameSimulationTypeMapV1,
   GameSimulationV1,
   GameplayModuleTupleForSimulationV1,
-} from "../contracts/gameplay-module.js";
-import { canonicalJsonBytes } from "../contracts/canonical-json.js";
-import { parseModuleId, parsePositiveSafeInteger, parseStateSlotId } from "../contracts/values.js";
-import { deepFreezeAuthoringValueV1, moduleDefinitionErrorV1 } from "./define-gameplay-module.js";
+} from "../contracts/gameplay-module.ts";
+import { canonicalJsonBytes } from "../contracts/canonical-json.ts";
+import { parseModuleId, parsePositiveSafeInteger, parseStateSlotId } from "../contracts/values.ts";
+import { deepFreezeAuthoringValueV1, moduleDefinitionErrorV1 } from "./define-gameplay-module.ts";
 
 interface DefineGameSimulationV1<TTypes extends GameSimulationTypeMapV1> {
   <

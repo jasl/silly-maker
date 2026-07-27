@@ -2,8 +2,8 @@
 import type { AudioIntentV1, TransientEffectRequestV1 } from "@sillymaker/base";
 import { parseAudioIntentV1 } from "@sillymaker/base";
 
-import type { LabFactV1, LabQueriesV1 } from "./simulation.js";
-import { labStageContentIdsV1, labStageTagsV1 } from "../stage-ids.js";
+import type { LabFactV1, LabQueriesV1 } from "./simulation.ts";
+import { labStageContentIdsV1, labStageTagsV1 } from "../stage-ids.ts";
 
 /**
  * The Engine Lab continuous audio intent is a pure projection of saved

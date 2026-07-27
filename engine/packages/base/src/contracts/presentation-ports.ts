@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-import type { RuntimeSessionStatusV1 } from "./session-status.js";
-import type { DeepReadonly, NonNegativeSafeInteger, PositiveSafeInteger } from "./values.js";
+import type { RuntimeSessionStatusV1 } from "./session-status.ts";
+import type { DeepReadonly, NonNegativeSafeInteger, PositiveSafeInteger } from "./values.ts";
 
 export interface ResolvedTextPresentationV1<TTextId, TLocaleId> {
   readonly textId: TTextId;

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { expect, gotoLabV1, test } from "./fixtures.js";
+import { expect, gotoLabV1, test } from "./fixtures.ts";
 
 const backgroundKeyV1 = '[data-stage-key="layer.e2e.background:tag.e2e.bg"]';
 const alphaKeyV1 = '[data-stage-key="layer.e2e.characters:tag.e2e.alpha"]';

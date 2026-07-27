@@ -2,8 +2,8 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { AuthoringDiagnosticErrorV1 } from "../contracts/diagnostic-envelope.js";
-import { createRuntimeSchemaV1, fromStandardSchemaV1 } from "./runtime-schema.js";
+import { AuthoringDiagnosticErrorV1 } from "../contracts/diagnostic-envelope.ts";
+import { createRuntimeSchemaV1, fromStandardSchemaV1 } from "./runtime-schema.ts";
 
 function diagnosticsOfV1(run: () => unknown) {
   try {

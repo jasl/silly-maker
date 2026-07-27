@@ -2,15 +2,15 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { useDevDockPortalTargetRegistrationV1 } from "../debug/DevDockPortalCoordinator.js";
-import { inputHandledV1, inputIgnoredV1, type InputRouterV1 } from "../input/contracts.js";
+import { useDevDockPortalTargetRegistrationV1 } from "../debug/DevDockPortalCoordinator.tsx";
+import { inputHandledV1, inputIgnoredV1, type InputRouterV1 } from "../input/contracts.ts";
 import styles from "../overlays/overlay-host.module.css";
-import { Button } from "../primitives/Button.js";
+import { Button } from "../primitives/Button.tsx";
 import {
   useStageInputIsolationV1,
   useStageSystemFocusScopeRegistrationV1,
   useStageSystemPortalContainerV1,
-} from "../shell/game-stage.js";
+} from "../shell/game-stage.tsx";
 
 export interface RuntimeFailureDialogActionsV1 {
   readonly retry: (() => void) | null;

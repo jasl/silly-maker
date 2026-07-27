@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
-import type { DiagnosticEnvelopeV1 } from "../contracts/diagnostic-envelope.js";
+import type { DiagnosticEnvelopeV1 } from "../contracts/diagnostic-envelope.ts";
 import {
   AuthoringDiagnosticErrorV1,
   createDiagnosticV1,
-} from "../contracts/diagnostic-envelope.js";
-import type { CommandExecutionAttemptEnvelopeV1 } from "../contracts/execution.js";
-import { commitAttemptV1, faultAttemptV1, rejectAttemptV1 } from "../contracts/execution.js";
+} from "../contracts/diagnostic-envelope.ts";
+import type { CommandExecutionAttemptEnvelopeV1 } from "../contracts/execution.ts";
+import { commitAttemptV1, faultAttemptV1, rejectAttemptV1 } from "../contracts/execution.ts";
 import type {
   GameplayModuleBindingV1,
   GameSimulationTypeMapV1,
@@ -14,16 +14,16 @@ import type {
   ModuleProposalResultV1,
   StatefulGameplayModuleBindingV1,
   StatelessGameplayModuleBindingV1,
-} from "../contracts/gameplay-module.js";
-import type { RngDrawTraceV1, RngStateV1, RuleRngV1 } from "../contracts/rng.js";
-import type { DeepReadonly, ModuleId, RuntimeSchemaV1, StateSlotId } from "../contracts/values.js";
+} from "../contracts/gameplay-module.ts";
+import type { RngDrawTraceV1, RngStateV1, RuleRngV1 } from "../contracts/rng.ts";
+import type { DeepReadonly, ModuleId, RuntimeSchemaV1, StateSlotId } from "../contracts/values.ts";
 import {
   parseModuleId,
   parseNonNegativeSafeInteger,
   parsePositiveSafeInteger,
   parseStateSlotId,
-} from "../contracts/values.js";
-import { defineGameplayModule } from "./define-gameplay-module.js";
+} from "../contracts/values.ts";
+import { defineGameplayModule } from "./define-gameplay-module.ts";
 
 declare const capabilityPortBrandV1: unique symbol;
 

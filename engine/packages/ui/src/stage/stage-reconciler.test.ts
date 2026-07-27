@@ -15,9 +15,9 @@ import {
   reduceStageMutationsV1,
 } from "@sillymaker/base";
 
-import { createManualPresentationClockV1 } from "../presentation-run/presentation-clock.js";
-import { createStageReconcilerV1 } from "./stage-reconciler.js";
-import type { StageRenderFrameV1 } from "./stage-reconciler.js";
+import { createManualPresentationClockV1 } from "../presentation-run/presentation-clock.ts";
+import { createStageReconcilerV1 } from "./stage-reconciler.ts";
+import type { StageRenderFrameV1 } from "./stage-reconciler.ts";
 
 const contentCatalogV1: StageContentCatalogV1 = {
   resolveContent: (contentId) =>

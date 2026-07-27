@@ -2,10 +2,10 @@
 import {
   runtimeOperationFaultSchemaV1,
   type RuntimeOperationFaultV1,
-} from "../../contracts/diagnostics.js";
-import type { IsoUtcInstant } from "../../contracts/host.js";
-import { parsePositiveSafeInteger } from "../../contracts/values.js";
-import { scrubRuntimeOperationFaultV1 } from "./privacy.js";
+} from "../../contracts/diagnostics.ts";
+import type { IsoUtcInstant } from "../../contracts/host.ts";
+import { parsePositiveSafeInteger } from "../../contracts/values.ts";
+import { scrubRuntimeOperationFaultV1 } from "./privacy.ts";
 
 type RuntimeFailureIdentityV1 = RuntimeOperationFaultV1 extends infer TFault
   ? TFault extends RuntimeOperationFaultV1

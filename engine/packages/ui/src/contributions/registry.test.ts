@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 import type { ComponentType } from "react";
 import { describe, expect, it } from "vitest";
-import { createUiContributionRegistryV1 } from "./registry.js";
+import { createUiContributionRegistryV1 } from "./registry.ts";
 import type {
   UiContributionSetV1,
   UiRendererContributionV1,
   UiRendererNamespaceV1,
-} from "./types.js";
+} from "./types.ts";
 
 const rendererNamespacesV1 = Object.freeze([
   "background",

@@ -4,14 +4,14 @@ import { describe, expect, it } from "vitest";
 import { AuthoringDiagnosticErrorV1 } from "@sillymaker/base";
 import { createSyntheticCounterGamePackageV1 } from "@sillymaker/base/testkit";
 
-import type { ProjectModuleLoaderV1, StorySimulationTargetV1 } from "./commands.js";
+import type { ProjectModuleLoaderV1, StorySimulationTargetV1 } from "./commands.ts";
 import {
   checkStoryApplicationV1,
   inspectStoryApplicationV1,
   simulateStoryApplicationV1,
-} from "./commands.js";
-import type { SillymakerProjectConfigV1 } from "./config.js";
-import { defineSillymakerProjectV1 } from "./config.js";
+} from "./commands.ts";
+import type { SillymakerProjectConfigV1 } from "./config.ts";
+import { defineSillymakerProjectV1 } from "./config.ts";
 
 function mapLoaderV1(modules: Record<string, Record<string, unknown>>): ProjectModuleLoaderV1 {
   return Object.freeze({

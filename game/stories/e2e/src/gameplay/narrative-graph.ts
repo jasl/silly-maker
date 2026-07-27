@@ -6,11 +6,11 @@ import {
   predictNarrativeDependenciesV1,
 } from "@sillymaker/base";
 
-import { labBgmForBackgroundV1, labVoiceForSayV1 } from "./audio.js";
-import type { LabNarrativeNodeV1 } from "./narrative.js";
-import { labNarrativeScriptV1 } from "./narrative.js";
+import { labBgmForBackgroundV1, labVoiceForSayV1 } from "./audio.ts";
+import type { LabNarrativeNodeV1 } from "./narrative.ts";
+import { labNarrativeScriptV1 } from "./narrative.ts";
 
-import { labStageContentIdsV1 } from "../stage-ids.js";
+import { labStageContentIdsV1 } from "../stage-ids.ts";
 
 /**
  * Projects the typed Lab narrative script (the TS narrative IR) into the

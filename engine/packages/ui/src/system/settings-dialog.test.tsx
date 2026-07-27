@@ -7,11 +7,11 @@ import { userEvent } from "@testing-library/user-event";
 import { useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { DevDockV1, createDevDockContributionSetV1 } from "../debug/DevDock.js";
-import type { DevDockOpenStateV1 } from "../debug/DevDock.js";
-import { createInputRouterV1 } from "../input/input-router.js";
-import { GameShell } from "../shell/game-shell.js";
-import { SettingsDialogV1 } from "./settings-dialog.js";
+import { DevDockV1, createDevDockContributionSetV1 } from "../debug/DevDock.tsx";
+import type { DevDockOpenStateV1 } from "../debug/DevDock.tsx";
+import { createInputRouterV1 } from "../input/input-router.ts";
+import { GameShell } from "../shell/game-shell.tsx";
+import { SettingsDialogV1 } from "./settings-dialog.tsx";
 
 afterEach(cleanup);
 

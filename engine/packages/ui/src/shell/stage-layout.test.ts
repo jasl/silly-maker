@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
-import { computeStageFrameV1, stageLayoutConstantsV1 } from "./stage-layout.js";
+import { computeStageFrameV1, stageLayoutConstantsV1 } from "./stage-layout.ts";
 
 describe("computeStageFrameV1", () => {
   it.each([

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import { canonicalJsonBytes } from "./canonical-json.js";
+import { canonicalJsonBytes } from "./canonical-json.ts";
 
 describe("Canonical JSON", () => {
   it("sorts keys and rejects accessors", () => {

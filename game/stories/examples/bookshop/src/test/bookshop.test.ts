@@ -4,12 +4,12 @@ import { describe, expect, it } from "vitest";
 import { lintNarrativeGraph } from "@sillymaker/base/story";
 import { createGameHarnessV1, resolveStoryForTestV1 } from "@sillymaker/base/testkit";
 
-import { createBookshopApplicationInstanceV1 } from "../application/core-application.js";
-import { projectBookshopNarrativeGraphV1 } from "../narrative-graph.js";
-import { bookshopScriptV1 } from "../narrative.js";
-import { bookshopTextCatalogsV1 } from "../presentation.js";
-import { bookshopSemanticAdapterV1 } from "../application/semantic.js";
-import { bookshopStoryEntryV1 } from "../story.js";
+import { createBookshopApplicationInstanceV1 } from "../application/core-application.ts";
+import { projectBookshopNarrativeGraphV1 } from "../narrative-graph.ts";
+import { bookshopScriptV1 } from "../narrative.ts";
+import { bookshopTextCatalogsV1 } from "../presentation.ts";
+import { bookshopSemanticAdapterV1 } from "../application/semantic.ts";
+import { bookshopStoryEntryV1 } from "../story.ts";
 
 function advanceV1(occurrence: number) {
   return Object.freeze({

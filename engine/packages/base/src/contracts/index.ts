@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
-export { canonicalJsonBytes, CanonicalJsonError } from "./canonical-json.js";
-export type { CanonicalJsonErrorCodeV1 } from "./canonical-json.js";
-export { digestBytes, digestCanonical } from "./digest.js";
-export type { DigestDomainV1 } from "./digest.js";
-export { commitAttemptV1, faultAttemptV1, rejectAttemptV1 } from "./execution.js";
+export { canonicalJsonBytes, CanonicalJsonError } from "./canonical-json.ts";
+export type { CanonicalJsonErrorCodeV1 } from "./canonical-json.ts";
+export { digestBytes, digestCanonical } from "./digest.ts";
+export type { DigestDomainV1 } from "./digest.ts";
+export { commitAttemptV1, faultAttemptV1, rejectAttemptV1 } from "./execution.ts";
 export type {
   AssetPackDigestProjectionV1,
   AssetPackResolvedIdentityV1,
@@ -17,8 +17,8 @@ export type {
   AssetUsageV1,
   ResolvedAssetEntryV1,
   ResolvedAssetManifestV1,
-} from "./assets.js";
-export { createReadonlyViewSourceV1 } from "./application.js";
+} from "./assets.ts";
+export { createReadonlyViewSourceV1 } from "./application.ts";
 export type {
   DebugFixtureListResultV1,
   DebugToolsOperationResultV1,
@@ -42,7 +42,7 @@ export type {
   SessionLeaseOwnerId,
   SessionLeasePortV1,
   SessionLifecyclePortV1,
-} from "./application.js";
+} from "./application.ts";
 export type {
   GamePackageV1,
   PatchSurfaceValueMapWitnessV1,
@@ -58,7 +58,7 @@ export type {
   StorySourceIdentityV1,
   StoryToolingEntryV1,
   StoryToolingSupportV1,
-} from "./game-package.js";
+} from "./game-package.ts";
 export type {
   BootstrapEntropyV1,
   GameBootstrapInputV1,
@@ -80,7 +80,7 @@ export type {
   ModuleQueryCapabilityV1,
   StatefulGameplayModuleBindingV1,
   StatelessGameplayModuleBindingV1,
-} from "./gameplay-module.js";
+} from "./gameplay-module.ts";
 export type {
   AppliedHotfixV1,
   GamePackageResolutionFailureCodeV1,
@@ -98,8 +98,8 @@ export type {
   PatchSlotDescriptorV1,
   PatchSurfaceKindV1,
   PatchSymbolKindV1,
-} from "./hotfix.js";
-export type { BuildProvenanceV1 } from "./provenance.js";
+} from "./hotfix.ts";
+export type { BuildProvenanceV1 } from "./provenance.ts";
 export type {
   GameHostV1,
   HostAtomicCommitResultV1,
@@ -112,7 +112,7 @@ export type {
   HostRecordRevisionV1,
   HostStoredRecordV1,
   IsoUtcInstant,
-} from "./host.js";
+} from "./host.ts";
 export {
   canonicalPresentationJsonBytesV1,
   combineContentMaturityFlagsV1,
@@ -148,7 +148,7 @@ export {
   parseTextId,
   requireContentPreferencePresetV1,
   setContentMaturityFlagV1,
-} from "./presentation.js";
+} from "./presentation.ts";
 export type {
   AppearanceLayerId,
   AssetId,
@@ -191,13 +191,13 @@ export type {
   StageSceneVariantId,
   TextCatalogSetV1,
   TextId,
-} from "./presentation.js";
+} from "./presentation.ts";
 export {
   createSaveRecordEnvelopeSchemaV1,
   exportedSaveSchemaV1,
   saveJsonLimitsV1,
   sessionLeaseStatusSchemaV1,
-} from "./persistence.js";
+} from "./persistence.ts";
 export type {
   ExportedSaveV1,
   ImportCompatibilityOutcomeV1,
@@ -224,7 +224,7 @@ export type {
   SessionLeaseOperationResultV1,
   SessionLeaseStatusV1,
   SimulationAdoptionV1,
-} from "./persistence.js";
+} from "./persistence.ts";
 export {
   createDebugBundleEnvelopeSchemaV1,
   createDebugUiContextSchemaV1,
@@ -233,7 +233,7 @@ export {
   debugPresentationLimitsV1,
   exportedDebugBundleSchemaV1,
   runtimeOperationFaultSchemaV1,
-} from "./diagnostics.js";
+} from "./diagnostics.ts";
 export type {
   AssetLoadFaultCodeV1,
   CommandLogEntryBaseV1,
@@ -256,21 +256,21 @@ export type {
   RuntimeFaultCodeV1,
   RuntimeOperationFaultV1,
   UiFaultCodeV1,
-} from "./diagnostics.js";
+} from "./diagnostics.ts";
 export type {
   CommandExecutionAttemptEnvelopeV1,
   CommandExecutionDiagnosticsEnvelopeV1,
   CommandExecutionResultEnvelopeV1,
-} from "./execution.js";
-export { createTransactionalRngV1, rngStateV1Schema } from "./rng.js";
-export type { RngDrawTraceV1, RngStateV1, RuleDrawRequestV1, RuleRngV1 } from "./rng.js";
+} from "./execution.ts";
+export { createTransactionalRngV1, rngStateV1Schema } from "./rng.ts";
+export type { RngDrawTraceV1, RngStateV1, RuleDrawRequestV1, RuleRngV1 } from "./rng.ts";
 export {
   createGameSnapshotEnvelopeSchemaV1,
   createPristineRunIntegrityV1,
   runIntegrityV1Schema,
-} from "./snapshot.js";
-export type { GameSnapshotEnvelopeV1, RunIntegrityReasonV1, RunIntegrityV1 } from "./snapshot.js";
-export { parseStrictJson, parseStrictJsonLimitsV1 } from "./strict-json.js";
+} from "./snapshot.ts";
+export type { GameSnapshotEnvelopeV1, RunIntegrityReasonV1, RunIntegrityV1 } from "./snapshot.ts";
+export { parseStrictJson, parseStrictJsonLimitsV1 } from "./strict-json.ts";
 export type {
   StrictJsonErrorCodeV1,
   StrictJsonErrorV1,
@@ -280,7 +280,7 @@ export type {
   StrictJsonPrimitiveV1,
   StrictJsonResultV1,
   StrictJsonValueV1,
-} from "./strict-json.js";
+} from "./strict-json.ts";
 export {
   parseDigest,
   parseModuleId,
@@ -290,7 +290,7 @@ export {
   parseRunId,
   parseStateSlotId,
   parseStoryId,
-} from "./values.js";
+} from "./values.ts";
 export type {
   Brand,
   DeepReadonly,
@@ -304,7 +304,7 @@ export type {
   SafeInteger,
   StateSlotId,
   StoryId,
-} from "./values.js";
+} from "./values.ts";
 export {
   createSemanticStageStateV1,
   defaultStageCameraV1,
@@ -321,7 +321,7 @@ export {
   parseStagePlacementV1,
   parseStageTagV1,
   semanticStageContractRevisionV1,
-} from "./semantic-stage.js";
+} from "./semantic-stage.ts";
 export type {
   CreateSemanticStageStateInputV1,
   SemanticStageStateV1,
@@ -335,16 +335,16 @@ export type {
   StageLayerV1,
   StagePlacementV1,
   StageTagV1,
-} from "./semantic-stage.js";
-export { parseStageMutationV1, reduceStageMutationsV1 } from "./semantic-stage-reducer.js";
+} from "./semantic-stage.ts";
+export { parseStageMutationV1, reduceStageMutationsV1 } from "./semantic-stage-reducer.ts";
 export type {
   StageMutationBatchOutcomeV1,
   StageMutationRejectionCodeV1,
   StageMutationRejectionV1,
   StageMutationV1,
-} from "./semantic-stage-reducer.js";
-export { projectStageRenderTargetV1, stageFallbackRendererIdV1 } from "./stage-render-target.js";
-export { createAssetDemandPlanV1 } from "./asset-demand.js";
+} from "./semantic-stage-reducer.ts";
+export { projectStageRenderTargetV1, stageFallbackRendererIdV1 } from "./stage-render-target.ts";
+export { createAssetDemandPlanV1 } from "./asset-demand.ts";
 export type {
   AssetDemandEntryV1,
   AssetDemandPlanV1,
@@ -354,44 +354,44 @@ export type {
   CreateAssetDemandPlanInputV1,
   TransientEffectRequestV1,
   TransientEffectV1,
-} from "./asset-demand.js";
+} from "./asset-demand.ts";
 export {
   lintNarrativeGraphV1,
   parseNarrativeGraphNodeV1,
   parseNarrativeGraphV1,
-} from "./narrative-graph.js";
-export { emptyNarrativeDependenciesV1 } from "./narrative-graph.js";
+} from "./narrative-graph.ts";
+export { emptyNarrativeDependenciesV1 } from "./narrative-graph.ts";
 export type {
   NarrativeGraphDependenciesV1,
   NarrativeGraphNodeKindV1,
   NarrativeGraphNodeV1,
   NarrativeGraphV1,
   NarrativeLintCodeV1,
-} from "./narrative-graph.js";
+} from "./narrative-graph.ts";
 export {
   createNarrativeGraphBuilderV1,
   defaultNarrativePredictionBudgetV1,
   narrativePredictionToDemandPlanV1,
   predictNarrativeDependenciesV1,
-} from "./narrative-prediction.js";
+} from "./narrative-prediction.ts";
 export type {
   NarrativeGraphBuilderNodeInputV1,
   NarrativeGraphBuilderV1,
   NarrativePredictionBudgetV1,
   NarrativePredictionV1,
-} from "./narrative-prediction.js";
+} from "./narrative-prediction.ts";
 export {
   appendNarrativeHistoryV1,
   emptyNarrativeHistoryV1,
   narrativeHistoryMaxEntriesV1,
   parseNarrativeHistoryEntryV1,
   parseNarrativeHistoryV1,
-} from "./narrative-history.js";
+} from "./narrative-history.ts";
 export type {
   NarrativeHistoryEntryKindV1,
   NarrativeHistoryEntryV1,
   NarrativeHistoryV1,
-} from "./narrative-history.js";
+} from "./narrative-history.ts";
 export {
   parseAudioAssetSlotV1,
   parseAudioChannelIntentV1,
@@ -400,7 +400,7 @@ export {
   parseVoiceIntentV1,
   resolveAudioManifestV1,
   silentAudioIntentV1,
-} from "./media-audio.js";
+} from "./media-audio.ts";
 export type {
   AudioAssetSlotV1,
   AudioChannelIntentV1,
@@ -412,7 +412,7 @@ export type {
   ResolvedAudioManifestV1,
   VoiceIntentV1,
   VoiceStopPolicyV1,
-} from "./media-audio.js";
+} from "./media-audio.ts";
 export {
   evaluateInteractionResolutionV1,
   interactionOccurrenceIdV1,
@@ -420,7 +420,7 @@ export {
   parseInteractionOccurrenceIdV1,
   parseInteractionResolutionV1,
   parsePendingInteractionV1,
-} from "./pending-interaction.js";
+} from "./pending-interaction.ts";
 export type {
   InteractionChoiceOptionV1,
   InteractionRejectionCodeV1,
@@ -429,8 +429,8 @@ export type {
   InteractionResolutionV1,
   PendingInteractionBaseV1,
   PendingInteractionV1,
-} from "./pending-interaction.js";
-export { parseStageTransitionDefinitionV1 } from "./stage-transition.js";
+} from "./pending-interaction.ts";
+export { parseStageTransitionDefinitionV1 } from "./stage-transition.ts";
 export type {
   StageTargetChangeV1,
   StageTransitionCatalogV1,
@@ -441,7 +441,7 @@ export type {
   StageTransitionKindV1,
   StageTransitionReadinessV1,
   StageTransitionReducedMotionV1,
-} from "./stage-transition.js";
+} from "./stage-transition.ts";
 export type {
   StageContentCatalogV1,
   StageContentResolutionV1,
@@ -449,4 +449,4 @@ export type {
   StageRenderLayerV1,
   StageRenderProjectionV1,
   StageRenderTargetV1,
-} from "./stage-render-target.js";
+} from "./stage-render-target.ts";

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { labTextCatalogsV1 } from "../presentation.js";
+import { labTextCatalogsV1 } from "../presentation.ts";
 
 const labTextByIdV1: ReadonlyMap<string, string> = new Map(
   labTextCatalogsV1.catalogs.flatMap((catalog) =>

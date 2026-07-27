@@ -11,12 +11,12 @@ import {
 } from "@sillymaker/base/story";
 import { createRuntimeSchemaV1, fromStandardSchemaV1 } from "@sillymaker/base/authoring";
 
-import type { TemplateNarrativeStateV1 } from "./narrative.js";
+import type { TemplateNarrativeStateV1 } from "./narrative.ts";
 import {
   createInitialTemplateNarrativeStateV1,
   templateLayersV1,
   templateNodeIdsV1,
-} from "./narrative.js";
+} from "./narrative.ts";
 
 /**
  * Authoritative Story state: three modules, all plain versioned data.

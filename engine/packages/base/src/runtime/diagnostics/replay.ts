@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: MIT
-import { canonicalJsonBytes } from "../../contracts/canonical-json.js";
-import { digestCanonical } from "../../contracts/digest.js";
-import type { CommandExecutionResultEnvelopeV1 } from "../../contracts/execution.js";
-import type { BuildProvenanceV1 } from "../../contracts/provenance.js";
-import type { RunIntegrityV1 } from "../../contracts/snapshot.js";
+import { canonicalJsonBytes } from "../../contracts/canonical-json.ts";
+import { digestCanonical } from "../../contracts/digest.ts";
+import type { CommandExecutionResultEnvelopeV1 } from "../../contracts/execution.ts";
+import type { BuildProvenanceV1 } from "../../contracts/provenance.ts";
+import type { RunIntegrityV1 } from "../../contracts/snapshot.ts";
 import type {
   DeepReadonly,
   Digest,
   NonNegativeSafeInteger,
   PositiveSafeInteger,
-} from "../../contracts/values.js";
-import { parseNonNegativeSafeInteger } from "../../contracts/values.js";
-import type { CommandLogCommandSourceV1, FinalizedCommandAttemptV1 } from "./command-log.js";
+} from "../../contracts/values.ts";
+import { parseNonNegativeSafeInteger } from "../../contracts/values.ts";
+import type { CommandLogCommandSourceV1, FinalizedCommandAttemptV1 } from "./command-log.ts";
 
 interface ReplaySnapshotV1 {
   readonly rng: unknown;

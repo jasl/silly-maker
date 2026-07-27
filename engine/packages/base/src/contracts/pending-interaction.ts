@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-import { dataFailure, readArray, readExactRecord } from "./presentation-data.js";
-import type { StrictJsonObjectV1 } from "./strict-json.js";
+import { dataFailure, readArray, readExactRecord } from "./presentation-data.ts";
+import type { StrictJsonObjectV1 } from "./strict-json.ts";
 
 /**
  * PendingInteraction V1: the explicit, saveable interaction boundary a

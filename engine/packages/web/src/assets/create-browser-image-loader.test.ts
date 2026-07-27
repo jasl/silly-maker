@@ -2,7 +2,7 @@
 import { parseDigest, parsePositiveSafeInteger } from "@sillymaker/base";
 import { describe, expect, it, vi } from "vitest";
 
-import { createBrowserImageLoaderV1 } from "./create-browser-image-loader.js";
+import { createBrowserImageLoaderV1 } from "./create-browser-image-loader.ts";
 
 const runtimePathV1 = "game/stories/poc/assets/scene.png";
 const runtimeUrlV1 = `https://game.example.test/runtime/${runtimePathV1}`;

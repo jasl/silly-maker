@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
-import type { PatchSurfaceValueMapWitnessV1 } from "../contracts/game-package.js";
+import type { PatchSurfaceValueMapWitnessV1 } from "../contracts/game-package.ts";
 import type {
   PatchSlotDescriptorV1,
   PatchSurfaceKindV1,
   PatchSymbolKindV1,
-} from "../contracts/hotfix.js";
-import { parseDigest, parsePositiveSafeInteger } from "../contracts/values.js";
-import { deepFreezeAuthoringValueV1 } from "./define-gameplay-module.js";
+} from "../contracts/hotfix.ts";
+import { parseDigest, parsePositiveSafeInteger } from "../contracts/values.ts";
+import { deepFreezeAuthoringValueV1 } from "./define-gameplay-module.ts";
 
 type SlotRecordV1 = Readonly<Record<string, PatchSlotDescriptorV1<PatchSymbolKindV1, unknown>>>;
 type ValuesForSlotsV1<TSlots extends SlotRecordV1> = {

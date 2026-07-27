@@ -8,11 +8,11 @@ import type {
   AssetSlotDefinitionV1,
   ResolvedAssetEntryV1,
   ResolvedAssetManifestV1,
-} from "../contracts/assets.js";
-import type { AssetHotfixReplacementV1 } from "./hotfix-resolver.js";
-import { digestCanonical } from "../contracts/digest.js";
-import { parseDigest, parsePositiveSafeInteger } from "../contracts/values.js";
-import { deepFreezeAuthoringValueV1 } from "./define-gameplay-module.js";
+} from "../contracts/assets.ts";
+import type { AssetHotfixReplacementV1 } from "./hotfix-resolver.ts";
+import { digestCanonical } from "../contracts/digest.ts";
+import { parseDigest, parsePositiveSafeInteger } from "../contracts/values.ts";
+import { deepFreezeAuthoringValueV1 } from "./define-gameplay-module.ts";
 
 function validateRuntimePath(path: string): void {
   const segments = path.split("/");

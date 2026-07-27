@@ -13,12 +13,12 @@ import type { DeepReadonly } from "@sillymaker/base";
 import {
   isDevDockEscapeOwnerTargetV1,
   useDevDockPortalTargetRegistrationV1,
-} from "../debug/DevDockPortalCoordinator.js";
-import { inputHandledV1, inputIgnoredV1, systemInputActionIdsV1 } from "../input/contracts.js";
-import type { InputEventV1, InputRouterV1 } from "../input/contracts.js";
-import { Button } from "../primitives/Button.js";
-import { useStageInputIsolationV1 } from "../shell/game-stage.js";
-import type { OverlaySessionStoreV1 } from "./overlay-session-store.js";
+} from "../debug/DevDockPortalCoordinator.tsx";
+import { inputHandledV1, inputIgnoredV1, systemInputActionIdsV1 } from "../input/contracts.ts";
+import type { InputEventV1, InputRouterV1 } from "../input/contracts.ts";
+import { Button } from "../primitives/Button.tsx";
+import { useStageInputIsolationV1 } from "../shell/game-stage.tsx";
+import type { OverlaySessionStoreV1 } from "./overlay-session-store.ts";
 import styles from "./overlay-host.module.css";
 
 export interface OverlayRendererResolutionV1 {

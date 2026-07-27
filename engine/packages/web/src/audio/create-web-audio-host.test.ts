@@ -5,8 +5,8 @@ import { describe, expect, it, vi } from "vitest";
 import { resolveAudioManifestV1 } from "@sillymaker/base";
 import type { AudioHostDiagnosticV1 } from "@sillymaker/ui";
 
-import type { WebAudioContextLikeV1 } from "./create-web-audio-host.js";
-import { createWebAudioHostV1 } from "./create-web-audio-host.js";
+import type { WebAudioContextLikeV1 } from "./create-web-audio-host.ts";
+import { createWebAudioHostV1 } from "./create-web-audio-host.ts";
 
 const themeDigestV1 = `sha256:${"a".repeat(64)}`;
 

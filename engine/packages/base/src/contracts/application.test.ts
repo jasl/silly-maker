@@ -8,7 +8,7 @@ import type {
   RuntimeCapabilitiesV1,
   RuntimeCapabilityOperationResultV1,
   RuntimeCapabilityPortV1,
-} from "./application.js";
+} from "./application.ts";
 
 it("defines one generic six-port Game Application surface", () => {
   type Application = GameApplicationPortV1<

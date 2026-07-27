@@ -4,9 +4,9 @@ import { describe, expect, it, vi } from "vitest";
 import type {
   SemanticGamePortInputV1,
   SemanticGamePortSourceV1,
-} from "../../contracts/application.js";
-import type { DeepReadonly } from "../../contracts/values.js";
-import { createSemanticGamePortV1 } from "./semantic-game-port.js";
+} from "../../contracts/application.ts";
+import type { DeepReadonly } from "../../contracts/values.ts";
+import { createSemanticGamePortV1 } from "./semantic-game-port.ts";
 
 interface State {
   readonly value: number;

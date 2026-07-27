@@ -8,29 +8,29 @@ import type {
 } from "@sillymaker/base";
 import { parseContentMaturityFlagsV1 } from "@sillymaker/base";
 
-import type { InputRouterV1 } from "../input/contracts.js";
-import { createInputRouterV1 } from "../input/input-router.js";
-import type { InteractionSessionStoreV1 } from "../interaction/interaction-session-store.js";
+import type { InputRouterV1 } from "../input/contracts.ts";
+import { createInputRouterV1 } from "../input/input-router.ts";
+import type { InteractionSessionStoreV1 } from "../interaction/interaction-session-store.ts";
 import {
   createInteractionSessionStoreV1,
   initialInteractionSessionStateV1,
-} from "../interaction/interaction-session-store.js";
-import type { PresentationIntentRouterV1 } from "../interaction/presentation-intent-router.js";
-import { createPresentationIntentRouterV1 } from "../interaction/presentation-intent-router.js";
-import type { OverlaySessionStoreV1 } from "../overlays/overlay-session-store.js";
-import { createOverlaySessionStoreV1 } from "../overlays/overlay-session-store.js";
-import { createViewSourceV1 } from "../runtime/create-view-bridge.js";
+} from "../interaction/interaction-session-store.ts";
+import type { PresentationIntentRouterV1 } from "../interaction/presentation-intent-router.ts";
+import { createPresentationIntentRouterV1 } from "../interaction/presentation-intent-router.ts";
+import type { OverlaySessionStoreV1 } from "../overlays/overlay-session-store.ts";
+import { createOverlaySessionStoreV1 } from "../overlays/overlay-session-store.ts";
+import { createViewSourceV1 } from "../runtime/create-view-bridge.ts";
 import type {
   PresentationRuntimeFailureV1,
   RuntimePresentationProjectionInputV1,
   RuntimePresentationProjectionV1,
   RuntimePresentationPublicationV1,
   RuntimePresentationStoreV1,
-} from "../runtime/runtime-presentation-store.js";
-import { createRuntimePresentationStoreV1 } from "../runtime/runtime-presentation-store.js";
-import { createSemanticPublicationBridgeV1 } from "../runtime/semantic-publication-bridge.js";
-import type { SystemDialogSessionStoreV1 } from "../system/system-dialog-session-store.js";
-import { createSystemDialogSessionStoreV1 } from "../system/system-dialog-session-store.js";
+} from "../runtime/runtime-presentation-store.ts";
+import { createRuntimePresentationStoreV1 } from "../runtime/runtime-presentation-store.ts";
+import { createSemanticPublicationBridgeV1 } from "../runtime/semantic-publication-bridge.ts";
+import type { SystemDialogSessionStoreV1 } from "../system/system-dialog-session-store.ts";
+import { createSystemDialogSessionStoreV1 } from "../system/system-dialog-session-store.ts";
 
 /**
  * The instance-local presentation anchor as the UI consumes it. It mirrors

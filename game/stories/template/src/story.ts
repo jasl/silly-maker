@@ -8,13 +8,13 @@ import {
 } from "@sillymaker/base";
 import { defineGamePackage } from "@sillymaker/base/story";
 
-import type { TemplateGameSimulationV1 } from "./simulation.js";
-import { createTemplateGameSimulationV1 } from "./simulation.js";
+import type { TemplateGameSimulationV1 } from "./simulation.ts";
+import { createTemplateGameSimulationV1 } from "./simulation.ts";
 import {
   templatePresentationPatchSurfaceV1,
   templateTextCatalogsV1,
   materializeTemplatePresentationV1,
-} from "./presentation.js";
+} from "./presentation.ts";
 
 /**
  * The Story package: identity, the state contract manifest, and the two

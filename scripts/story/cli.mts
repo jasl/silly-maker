@@ -1,30 +1,10 @@
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
-import { registerHooks } from "node:module";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-// Node runs this repository's TypeScript sources directly; these hooks remap
-// compiled-style specifiers onto live sources for every module the commands
-// load, so they stay registered for the whole process.
-registerHooks({
-  resolve(specifier, context, nextResolve) {
-    try {
-      return nextResolve(specifier, context);
-    } catch (error) {
-      if (specifier.endsWith(".mjs")) {
-        return nextResolve(`${specifier.slice(0, -4)}.mts`, context);
-      }
-      if (specifier.endsWith(".js")) {
-        try {
-          return nextResolve(`${specifier.slice(0, -3)}.ts`, context);
-        } catch {
-          return nextResolve(`${specifier.slice(0, -3)}.tsx`, context);
-        }
-      }
-      throw error;
-    }
-  },
-});
+// The repository imports TypeScript sources with explicit .ts/.tsx
+// extensions, so both Deno (natively) and Node (--experimental-strip-types)
+// run this CLI without loader hooks.
 
 const repositoryRootV1 = resolve(fileURLToPath(new URL(".", import.meta.url)), "../..");
 
@@ -33,9 +13,9 @@ const [
   { createImportProjectModuleLoaderV1 },
   { projectTavernConfigV1 },
 ] = await Promise.all([
-  import("../../engine/packages/tooling/src/project/index.js"),
-  import("../../engine/packages/tooling/src/project/loader.js"),
-  import("../../game/project.config.js"),
+  import("../../engine/packages/tooling/src/project/index.ts"),
+  import("../../engine/packages/tooling/src/project/loader.ts"),
+  import("../../game/project.config.ts"),
 ]);
 
 process.exitCode = await runProjectCliV1({

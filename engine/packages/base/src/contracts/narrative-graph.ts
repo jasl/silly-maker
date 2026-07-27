@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
-import type { DiagnosticEnvelopeV1 } from "./diagnostic-envelope.js";
-import { createDiagnosticV1 } from "./diagnostic-envelope.js";
-import { dataFailure, readArray, readExactRecord } from "./presentation-data.js";
+import type { DiagnosticEnvelopeV1 } from "./diagnostic-envelope.ts";
+import { createDiagnosticV1 } from "./diagnostic-envelope.ts";
+import { dataFailure, readArray, readExactRecord } from "./presentation-data.ts";
 
 /**
  * The generic, JSON-safe narrative graph: the shape Stories project their

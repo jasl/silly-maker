@@ -8,8 +8,8 @@ import type {
   StageFrameEntryV1,
   StageFrameLayerV1,
   StageRenderFrameV1,
-} from "./stage-reconciler.js";
-import { settledStageFrameV1 } from "./stage-reconciler.js";
+} from "./stage-reconciler.ts";
+import { settledStageFrameV1 } from "./stage-reconciler.ts";
 import styles from "./semantic-stage-host.module.css";
 
 /**

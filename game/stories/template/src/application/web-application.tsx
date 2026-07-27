@@ -22,20 +22,20 @@ import type {
   TemplateActionResultV1,
   TemplateInvocationV1,
   TemplatePreviewV1,
-} from "./semantic.js";
-import type { TemplateApplicationInstanceV1 } from "./core-definition.js";
-import { templateCoreApplicationDefinitionV1 } from "./core-definition.js";
+} from "./semantic.ts";
+import type { TemplateApplicationInstanceV1 } from "./core-definition.ts";
+import { templateCoreApplicationDefinitionV1 } from "./core-definition.ts";
 import type {
   TemplateGameViewV1,
   TemplateNarrativeViewV1,
   TemplateQueriesV1,
   TemplateSimulationTypesV1,
-} from "../simulation.js";
+} from "../simulation.ts";
 import {
   templateStageContentCatalogV1,
   templateStageTransitionCatalogV1,
   templateTextCatalogsV1,
-} from "../presentation.js";
+} from "../presentation.ts";
 
 /** The logical canvas: a 16:9 design resolution the viewport letterboxes. */
 export const templateViewportCanvasV1 = Object.freeze({ width: 1600, height: 900 });

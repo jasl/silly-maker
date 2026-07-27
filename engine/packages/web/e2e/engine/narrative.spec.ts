@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { expect, gotoLabV1, test } from "./fixtures.js";
+import { expect, gotoLabV1, test } from "./fixtures.ts";
 
 test.describe("engine pending interactions", () => {
   test("@smoke plays the calibration narrative through every boundary", async ({ page }) => {

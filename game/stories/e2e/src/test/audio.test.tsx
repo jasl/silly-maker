@@ -14,14 +14,14 @@ import {
   createGameUiCompositionV1,
 } from "@sillymaker/ui";
 
-import { createLabApplicationInstanceV1 } from "../application/core-application.js";
+import { createLabApplicationInstanceV1 } from "../application/core-application.ts";
 import {
   createLabUiSlotsV1,
   labRootLabelsV1,
   labUiProjectorV1,
   labViewportCanvasV1,
-} from "../application/web-application.js";
-import { labAudioAssetIdsV1 } from "../gameplay/audio.js";
+} from "../application/web-application.tsx";
+import { labAudioAssetIdsV1 } from "../gameplay/audio.ts";
 
 afterEach(cleanup);
 

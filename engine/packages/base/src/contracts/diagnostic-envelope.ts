@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
-import { canonicalJsonBytes } from "./canonical-json.js";
-import { parseStrictJsonObject } from "./presentation-data.js";
-import type { StrictJsonObjectV1 } from "./strict-json.js";
-import type { RuntimeSchemaV1 } from "./values.js";
+import { canonicalJsonBytes } from "./canonical-json.ts";
+import { parseStrictJsonObject } from "./presentation-data.ts";
+import type { StrictJsonObjectV1 } from "./strict-json.ts";
+import type { RuntimeSchemaV1 } from "./values.ts";
 
 export type DiagnosticSeverityV1 = "error" | "warning" | "info";
 

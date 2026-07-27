@@ -3,9 +3,9 @@ import { describe, expect, it } from "vitest";
 
 import { createSyntheticCounterGamePackageV1 } from "@sillymaker/base/testkit";
 
-import { runProjectCliV1 } from "./cli.js";
-import type { ProjectCommandRunnerV1, ProjectModuleLoaderV1 } from "./commands.js";
-import { defineSillymakerProjectV1 } from "./config.js";
+import { runProjectCliV1 } from "./cli.ts";
+import type { ProjectCommandRunnerV1, ProjectModuleLoaderV1 } from "./commands.ts";
+import { defineSillymakerProjectV1 } from "./config.ts";
 
 const projectV1 = defineSillymakerProjectV1({
   projectId: "project-test",
@@ -208,8 +208,8 @@ describe("runProjectCliV1", () => {
     });
     expect(fake.log.runs).toEqual([
       {
-        command: "pnpm",
-        args: ["exec", "vite", "build", "--mode", "synthetic"],
+        command: "deno",
+        args: ["run", "-A", "npm:vite", "build", "--mode", "synthetic"],
         cwd: "/repo",
       },
     ]);
@@ -274,7 +274,7 @@ describe("runProjectCliV1", () => {
       outputPath: "/repo/dist/desktop/synthetic/SyntheticApp.app",
     });
     // The web build ran first, then deno desktop from the staging dir.
-    expect(fake.log.runs.map((entry) => entry.command)).toEqual(["pnpm", "deno"]);
+    expect(fake.log.runs.map((entry) => entry.command)).toEqual(["deno", "deno"]);
     expect(fake.log.runs[1]).toMatchObject({
       command: "deno",
       args: ["desktop", "--output", "../SyntheticApp.app", "."],

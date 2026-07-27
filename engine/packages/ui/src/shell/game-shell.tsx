@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 import type { ReactElement, ReactNode } from "react";
-import { DevDockPortalCoordinatorV1 } from "../debug/DevDockPortalCoordinator.js";
-import { RootErrorBoundaryV1 } from "../errors/root-error-boundary.js";
-import type { RootErrorBoundaryPropsV1 } from "../errors/root-error-boundary.js";
-import type { InputRouterV1 } from "../input/contracts.js";
-import { InputContextProviderV1 } from "../input/input-context.js";
-import { GameViewportV1 } from "../viewport/game-viewport.js";
-import type { GameViewportPropsV1 } from "../viewport/game-viewport.js";
-import { GameStageV1 } from "./game-stage.js";
-import type { GameStageLayersV1 } from "./game-stage.js";
+import { DevDockPortalCoordinatorV1 } from "../debug/DevDockPortalCoordinator.tsx";
+import { RootErrorBoundaryV1 } from "../errors/root-error-boundary.tsx";
+import type { RootErrorBoundaryPropsV1 } from "../errors/root-error-boundary.tsx";
+import type { InputRouterV1 } from "../input/contracts.ts";
+import { InputContextProviderV1 } from "../input/input-context.tsx";
+import { GameViewportV1 } from "../viewport/game-viewport.tsx";
+import type { GameViewportPropsV1 } from "../viewport/game-viewport.tsx";
+import { GameStageV1 } from "./game-stage.tsx";
+import type { GameStageLayersV1 } from "./game-stage.tsx";
 import styles from "./game-shell.module.css";
 
 export type GameShellViewportOptionsV1 = Omit<GameViewportPropsV1, "children">;

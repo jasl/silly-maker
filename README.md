@@ -6,22 +6,22 @@ Project Tavern 是一款以酒馆经营为核心、关系与文字叙事为重�
 
 ## 快速开始
 
-要求：Node.js >= 22.12.0、pnpm >= 11.0.0。
+要求：Deno >= 2.9.0（运行时与包管理器一体；npm 依赖经 Deno 的 Node 兼容层解析）。
 
 ```sh
-pnpm install
-pnpm dev
+deno install
+deno task dev
 ```
 
 常用命令：
 
-- `pnpm check`：格式、静态检查、类型检查和产品级自动化测试的本地主入口；
-- `pnpm test`：引擎与游戏行为测试；
-- `pnpm test:e2e`：浏览器端用户流程；
-- `pnpm story <verb> <app>`：应用生命周期 CLI（inspect/check/simulate/dev --smoke/build/prebuilt-smoke，JSON 报告）；
-- `pnpm test:e2e:engine:prebuilt`：构建 Engine Lab 并在产物上运行引擎套件。
+- `deno task check`：格式、静态检查、类型检查和产品级自动化测试的本地主入口；
+- `deno task test`：引擎与游戏行为测试；
+- `deno task test:e2e`：浏览器端用户流程；
+- `deno task story <verb> <app>`：应用生命周期 CLI（inspect/check/simulate/dev --smoke/build/prebuilt-smoke，JSON 报告）；
+- `deno task test:e2e:engine:prebuilt`：构建 Engine Lab 并在产物上运行引擎套件。
 
-这些命令不要求特定机器、精确 Node/pnpm patch 版本或 Goal materialization attestation。发布到远端仍是独立的人工作业。
+这些命令不要求特定机器或精确 patch 版本。发布到远端仍是独立的人工作业。
 
 ## 文档
 

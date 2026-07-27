@@ -2,7 +2,7 @@
 import type { Digest, NonNegativeSafeInteger, RuntimeSessionStatusV1 } from "@sillymaker/base";
 import { useEffect, useId, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { Button } from "../primitives/Button.js";
+import { Button } from "../primitives/Button.tsx";
 
 export const diagnosticExportContentCategoryIdsV1 = Object.freeze([
   "provenance",

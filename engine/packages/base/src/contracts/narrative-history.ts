@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-import { dataFailure, readArray, readExactRecord } from "./presentation-data.js";
-import { parseInteractionOccurrenceIdV1 } from "./pending-interaction.js";
+import { dataFailure, readArray, readExactRecord } from "./presentation-data.ts";
+import { parseInteractionOccurrenceIdV1 } from "./pending-interaction.ts";
 
 /**
  * NarrativeHistory: the player-readable record of resolved narrative

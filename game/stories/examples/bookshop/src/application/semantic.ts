@@ -14,13 +14,13 @@ import type {
   BookshopQueriesV1,
   BookshopRejectionV1,
   BookshopSimulationTypesV1,
-} from "../simulation.js";
-import { createBookshopGameSimulationV1 } from "../simulation.js";
+} from "../simulation.ts";
+import { createBookshopGameSimulationV1 } from "../simulation.ts";
 import {
   bookshopChoiceBlockedByV1,
   bookshopChoiceOptionsForV1,
   bookshopInteractionContextV1,
-} from "../narrative.js";
+} from "../narrative.ts";
 
 /**
  * The semantic surface: what UI, agents, and automation can see and do.

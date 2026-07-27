@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it, vi } from "vitest";
 
-import { createManualPresentationClockV1 } from "../presentation-run/presentation-clock.js";
-import { createPlaybackControllerV1 } from "./playback-controller.js";
-import type { PlaybackBoundaryV1 } from "./playback-controller.js";
-import { createTextRevealV1 } from "./text-reveal.js";
+import { createManualPresentationClockV1 } from "../presentation-run/presentation-clock.ts";
+import { createPlaybackControllerV1 } from "./playback-controller.ts";
+import type { PlaybackBoundaryV1 } from "./playback-controller.ts";
+import { createTextRevealV1 } from "./text-reveal.ts";
 
 function sayBoundaryV1(input: {
   readonly occurrence: number;

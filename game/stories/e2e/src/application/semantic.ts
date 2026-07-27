@@ -14,14 +14,14 @@ import type {
   LabQueriesV1,
   LabRejectionV1,
   LabSimulationTypesV1,
-} from "../gameplay/simulation.js";
-import { createLabGameSimulationV1, labBannerCostV1 } from "../gameplay/simulation.js";
-import { projectLabTransientEffectsV1 } from "../gameplay/audio.js";
+} from "../gameplay/simulation.ts";
+import { createLabGameSimulationV1, labBannerCostV1 } from "../gameplay/simulation.ts";
+import { projectLabTransientEffectsV1 } from "../gameplay/audio.ts";
 import {
   labChoiceBlockedByV1,
   labChoiceOptionsForV1,
   labInteractionContextV1,
-} from "../gameplay/narrative.js";
+} from "../gameplay/narrative.ts";
 
 export type LabActionIdV1 = Exclude<LabCommandV1["kind"], "lab.narrative_resolve">;
 

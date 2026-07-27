@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   readRuntimeImageMetadataV1,
   type RuntimeImageMetadataResultV1,
-} from "./runtime-image-metadata.mjs";
+} from "./runtime-image-metadata.mts";
 
 const textEncoder = new TextEncoder();
 

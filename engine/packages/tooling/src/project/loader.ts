@@ -2,7 +2,7 @@
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import type { ProjectModuleLoaderV1 } from "./commands.js";
+import type { ProjectModuleLoaderV1 } from "./commands.ts";
 
 /**
  * Loads repository modules through dynamic import. Callers running under

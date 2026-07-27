@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 import type { Locator } from "@playwright/test";
 
-import { expect, gotoLabV1, test } from "./fixtures.js";
+import { expect, gotoLabV1, test } from "./fixtures.ts";
 
 interface ViewportSizeV1 {
   readonly width: number;

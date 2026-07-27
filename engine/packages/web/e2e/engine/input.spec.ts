@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { expect, gotoLabV1, test } from "./fixtures.js";
+import { expect, gotoLabV1, test } from "./fixtures.ts";
 
 test.describe("engine input actions", () => {
   test("@smoke keyboard drives the same narrative intents as pointer input", async ({ page }) => {

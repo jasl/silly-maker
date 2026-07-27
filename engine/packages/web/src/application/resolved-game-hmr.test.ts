@@ -8,7 +8,7 @@ import {
   installResolvedGameHmrV1,
   type ResolvedGameHmrHotAdapterV1,
   type ResolvedGameHmrRebootstrapInputV1,
-} from "./resolved-game-hmr.js";
+} from "./resolved-game-hmr.ts";
 
 function digest(label: string): Digest {
   return digestBytes(new TextEncoder().encode(label));

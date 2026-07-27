@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import { PresentationDataError } from "./presentation-data.js";
+import { PresentationDataError } from "./presentation-data.ts";
 import {
   evaluateInteractionResolutionV1,
   interactionOccurrenceIdV1,
   parseInteractionResolutionV1,
   parsePendingInteractionV1,
-} from "./pending-interaction.js";
-import type { PendingInteractionV1 } from "./pending-interaction.js";
+} from "./pending-interaction.ts";
+import type { PendingInteractionV1 } from "./pending-interaction.ts";
 
 function choiceFixtureV1(): PendingInteractionV1 {
   return parsePendingInteractionV1({

@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: MIT
-import { canonicalJsonBytes } from "../../contracts/canonical-json.js";
-import { digestCanonical } from "../../contracts/digest.js";
+import { canonicalJsonBytes } from "../../contracts/canonical-json.ts";
+import { digestCanonical } from "../../contracts/digest.ts";
 import {
   SaveRecordEnvelopeSchemaFailureV1,
   saveJsonLimitsV1,
-} from "../../contracts/persistence.js";
+} from "../../contracts/persistence.ts";
 import type {
   SaveCodecContextV1,
   SaveRecordDecodeResultV1,
   SaveRecordEnvelopeV1,
-} from "../../contracts/persistence.js";
-import { parseStrictJson } from "../../contracts/strict-json.js";
-import type { DeepReadonly } from "../../contracts/values.js";
+} from "../../contracts/persistence.ts";
+import { parseStrictJson } from "../../contracts/strict-json.ts";
+import type { DeepReadonly } from "../../contracts/values.ts";
 
 function parseRecordV1<
   TSnapshot,

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import { createAssetDemandPlanV1 } from "./asset-demand.js";
-import { parseAudioIntentV1, parseVoiceIntentV1, resolveAudioManifestV1 } from "./media-audio.js";
-import { PresentationDataError } from "./presentation-data.js";
+import { createAssetDemandPlanV1 } from "./asset-demand.ts";
+import { parseAudioIntentV1, parseVoiceIntentV1, resolveAudioManifestV1 } from "./media-audio.ts";
+import { PresentationDataError } from "./presentation-data.ts";
 
 const digestV1 = `sha256:${"b".repeat(64)}`;
 

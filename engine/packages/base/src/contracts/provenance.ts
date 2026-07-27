@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-import type { PatchSetIdentityV1 } from "./hotfix.js";
-import type { Digest, PositiveSafeInteger } from "./values.js";
+import type { PatchSetIdentityV1 } from "./hotfix.ts";
+import type { Digest, PositiveSafeInteger } from "./values.ts";
 
 export interface BuildProvenanceV1 {
   readonly story: {

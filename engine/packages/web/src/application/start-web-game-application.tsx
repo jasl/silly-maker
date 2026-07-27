@@ -34,18 +34,18 @@ import { DefaultGameRootV1, createGameUiCompositionV1 } from "@sillymaker/ui";
 import type { ContentPreferencePortV1, SemanticPublicationV1 } from "@sillymaker/base";
 import type { RuntimeSessionStatusV1 } from "@sillymaker/base";
 
-import { createBrowserImageLoaderV1 } from "../assets/create-browser-image-loader.js";
-import { createRuntimeCapabilitySessionOverlayV1 } from "../capabilities/runtime-capability-session-overlay.js";
-import type { RuntimeCapabilitySessionOverlayV1 } from "../capabilities/runtime-capability-session-overlay.js";
-import { createWebCapabilityPreferencesV1 } from "../capabilities/web-capability-preferences.js";
-import { installPointerAdapterV1 } from "../input/install-pointer-adapter.js";
-import { installBrowserAutomationBridgeV1 } from "../automation/browser-automation-bridge.js";
-import type { InstalledBrowserAutomationBridgeV1 } from "../automation/browser-automation-bridge.js";
-import { parseCapabilityRequestV1 } from "../capabilities/parse-capability-request.js";
-import { createWebHostV1 } from "../host/create-web-host.js";
-import { mountGameApplicationV1 } from "./mount-game-application.js";
-import type { MountedGameApplicationV1 } from "./mount-game-application.js";
-import { createPlayerSaveUiPortV1 } from "./create-player-ui-ports.js";
+import { createBrowserImageLoaderV1 } from "../assets/create-browser-image-loader.ts";
+import { createRuntimeCapabilitySessionOverlayV1 } from "../capabilities/runtime-capability-session-overlay.ts";
+import type { RuntimeCapabilitySessionOverlayV1 } from "../capabilities/runtime-capability-session-overlay.ts";
+import { createWebCapabilityPreferencesV1 } from "../capabilities/web-capability-preferences.ts";
+import { installPointerAdapterV1 } from "../input/install-pointer-adapter.ts";
+import { installBrowserAutomationBridgeV1 } from "../automation/browser-automation-bridge.ts";
+import type { InstalledBrowserAutomationBridgeV1 } from "../automation/browser-automation-bridge.ts";
+import { parseCapabilityRequestV1 } from "../capabilities/parse-capability-request.ts";
+import { createWebHostV1 } from "../host/create-web-host.ts";
+import { mountGameApplicationV1 } from "./mount-game-application.tsx";
+import type { MountedGameApplicationV1 } from "./mount-game-application.tsx";
+import { createPlayerSaveUiPortV1 } from "./create-player-ui-ports.ts";
 
 type WebSemanticPublicationV1<TGameView, TNarrativeView, TActionDescriptor> = SemanticPublicationV1<
   TGameView,

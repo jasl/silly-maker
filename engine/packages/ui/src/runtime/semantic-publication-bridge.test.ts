@@ -2,8 +2,8 @@
 import { parseNonNegativeSafeInteger } from "@sillymaker/base";
 import type { DeepReadonly, SemanticPublicationV1 } from "@sillymaker/base";
 import { describe, expect, it, vi } from "vitest";
-import { createSemanticPublicationBridgeV1 } from "./semantic-publication-bridge.js";
-import type { SemanticPublicationSourceV1 } from "./semantic-publication-bridge.js";
+import { createSemanticPublicationBridgeV1 } from "./semantic-publication-bridge.ts";
+import type { SemanticPublicationSourceV1 } from "./semantic-publication-bridge.ts";
 
 interface TestGameViewV1 {
   readonly count: number;

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 import type { DeepReadonly, InteractionSurfaceId } from "@sillymaker/base";
 
-import type { PresentationIntentV1 } from "./contracts.js";
+import type { PresentationIntentV1 } from "./contracts.ts";
 
 export interface PresentationIntentRouteContextV1 {
   readonly returnFocusId: string | null;

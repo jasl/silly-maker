@@ -2,11 +2,11 @@
 import type { DeepReadonly, SemanticGamePortV1 } from "@sillymaker/base";
 import { useCallback, useId, useLayoutEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { useDevDockPortalTargetRegistrationV1 } from "../debug/DevDockPortalCoordinator.js";
-import { inputHandledV1, inputIgnoredV1, systemInputActionIdsV1 } from "../input/contracts.js";
-import type { InputRouterV1 } from "../input/contracts.js";
-import { Button } from "../primitives/Button.js";
-import { useStageInputIsolationV1 } from "../shell/game-stage.js";
+import { useDevDockPortalTargetRegistrationV1 } from "../debug/DevDockPortalCoordinator.tsx";
+import { inputHandledV1, inputIgnoredV1, systemInputActionIdsV1 } from "../input/contracts.ts";
+import type { InputRouterV1 } from "../input/contracts.ts";
+import { Button } from "../primitives/Button.tsx";
+import { useStageInputIsolationV1 } from "../shell/game-stage.tsx";
 import styles from "./vn-layer.module.css";
 
 export type VnChoiceV1<TInvocation> =

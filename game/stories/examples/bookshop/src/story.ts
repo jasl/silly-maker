@@ -8,13 +8,13 @@ import {
 } from "@sillymaker/base";
 import { defineGamePackage } from "@sillymaker/base/story";
 
-import type { BookshopGameSimulationV1 } from "./simulation.js";
-import { createBookshopGameSimulationV1 } from "./simulation.js";
+import type { BookshopGameSimulationV1 } from "./simulation.ts";
+import { createBookshopGameSimulationV1 } from "./simulation.ts";
 import {
   bookshopPresentationPatchSurfaceV1,
   bookshopTextCatalogsV1,
   materializeBookshopPresentationV1,
-} from "./presentation.js";
+} from "./presentation.ts";
 
 /**
  * The Story package: identity, the state contract manifest, and the two

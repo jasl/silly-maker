@@ -9,7 +9,7 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "test": "pnpm --workspace-root exec vitest run game/stories/e2e/src"
+    "test": "deno run -A npm:vitest run game/stories/e2e/src"
   },
   "dependencies": {
     "@sillymaker/base": "workspace:*",

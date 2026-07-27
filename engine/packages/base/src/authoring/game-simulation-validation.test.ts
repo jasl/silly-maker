@@ -7,17 +7,17 @@ import type {
   GameSnapshotEnvelopeV1,
   GameplayModuleBindingV1,
   RuntimeSchemaV1,
-} from "../contracts/index.js";
-import { createPristineRunIntegrityV1 } from "../contracts/snapshot.js";
+} from "../contracts/index.ts";
+import { createPristineRunIntegrityV1 } from "../contracts/snapshot.ts";
 import {
   parseModuleId,
   parseNonNegativeSafeInteger,
   parseNonZeroUint32,
   parsePositiveSafeInteger,
   parseStateSlotId,
-} from "../contracts/values.js";
-import { defineGameplayModule } from "./define-gameplay-module.js";
-import { defineGameSimulation } from "./define-game-simulation.js";
+} from "../contracts/values.ts";
+import { defineGameplayModule } from "./define-gameplay-module.ts";
+import { defineGameSimulation } from "./define-game-simulation.ts";
 
 interface SyntheticStateV1 {
   readonly simulation: {

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import type { NonNegativeSafeInteger } from "./values.js";
+import type { NonNegativeSafeInteger } from "./values.ts";
 
 export type RuntimeSessionStatusV1 = "ready" | "busy" | "fault_paused" | "hmr_invalidated";
 

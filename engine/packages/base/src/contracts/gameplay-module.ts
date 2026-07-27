@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-import type { GameSnapshotEnvelopeV1 } from "./snapshot.js";
-import type { StrictJsonObjectV1 } from "./strict-json.js";
+import type { GameSnapshotEnvelopeV1 } from "./snapshot.ts";
+import type { StrictJsonObjectV1 } from "./strict-json.ts";
 import type {
   DeepReadonly,
   ModuleId,
@@ -8,7 +8,7 @@ import type {
   PositiveSafeInteger,
   RuntimeSchemaV1,
   StateSlotId,
-} from "./values.js";
+} from "./values.ts";
 
 export interface GameBootstrapInputV1 {
   readonly rngSeed: NonZeroUint32;

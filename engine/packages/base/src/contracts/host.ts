@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
-import type { BootstrapEntropyV1 } from "./gameplay-module.js";
-import type { Brand, NonNegativeSafeInteger, PositiveSafeInteger } from "./values.js";
-import type { StrictJsonObjectV1 } from "./strict-json.js";
-import { parseNonNegativeSafeInteger } from "./values.js";
+import type { BootstrapEntropyV1 } from "./gameplay-module.ts";
+import type { Brand, NonNegativeSafeInteger, PositiveSafeInteger } from "./values.ts";
+import type { StrictJsonObjectV1 } from "./strict-json.ts";
+import { parseNonNegativeSafeInteger } from "./values.ts";
 
 export type IsoUtcInstant = Brand<string, "IsoUtcInstant">;
 export type HostRecordNamespaceV1 = "save" | "lease" | "settings";

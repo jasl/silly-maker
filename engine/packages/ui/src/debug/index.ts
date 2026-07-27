@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
-export { CapabilityPanelV1 } from "./CapabilityPanel.js";
-export type { CapabilityPanelPropsV1 } from "./CapabilityPanel.js";
-export { DebugCommandPanelV1 } from "./DebugCommandPanel.js";
+export { CapabilityPanelV1 } from "./CapabilityPanel.tsx";
+export type { CapabilityPanelPropsV1 } from "./CapabilityPanel.tsx";
+export { DebugCommandPanelV1 } from "./DebugCommandPanel.tsx";
 export type {
   DebugCommandOperationResultV1,
   DebugCommandPanelPropsV1,
-} from "./DebugCommandPanel.js";
-export { DebugLaunchersV1 } from "./DebugLaunchers.js";
-export type { DebugLaunchersPropsV1 } from "./DebugLaunchers.js";
-export { DevDockV1, createDevDockContributionSetV1 } from "./DevDock.js";
+} from "./DebugCommandPanel.tsx";
+export { DebugLaunchersV1 } from "./DebugLaunchers.tsx";
+export type { DebugLaunchersPropsV1 } from "./DebugLaunchers.tsx";
+export { DevDockV1, createDevDockContributionSetV1 } from "./DevDock.tsx";
 export type {
   DevDockContributionSetV1,
   DevDockOpenStateV1,
@@ -16,18 +16,18 @@ export type {
   DevDockPanelV1,
   DevDockPropsV1,
   DevDockSideV1,
-} from "./DevDock.js";
-export { DevDockPortalCoordinatorV1 } from "./DevDockPortalCoordinator.js";
+} from "./DevDock.tsx";
+export { DevDockPortalCoordinatorV1 } from "./DevDockPortalCoordinator.tsx";
 export type {
   DevDockPortalCoordinatorPropsV1,
   DevDockPortalSurfaceV1,
-} from "./DevDockPortalCoordinator.js";
-export { DiagnosticInspectorV1 } from "./DiagnosticInspector.js";
+} from "./DevDockPortalCoordinator.tsx";
+export { DiagnosticInspectorV1 } from "./DiagnosticInspector.tsx";
 export type {
   DiagnosticInspectorEntriesV1,
   DiagnosticInspectorPropsV1,
   DiagnosticInspectorQueryResultV1,
   DiagnosticTextEntryV1,
-} from "./DiagnosticInspector.js";
-export { FixtureBrowserV1 } from "./FixtureBrowser.js";
-export type { FixtureBrowserAnchorResultV1, FixtureBrowserPropsV1 } from "./FixtureBrowser.js";
+} from "./DiagnosticInspector.tsx";
+export { FixtureBrowserV1 } from "./FixtureBrowser.tsx";
+export type { FixtureBrowserAnchorResultV1, FixtureBrowserPropsV1 } from "./FixtureBrowser.tsx";

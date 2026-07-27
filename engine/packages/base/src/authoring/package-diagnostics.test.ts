@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import { canonicalJsonBytes } from "../contracts/canonical-json.js";
-import type { GamePackageV1, StoryDefinitionV1 } from "../contracts/game-package.js";
-import { createSyntheticCounterGamePackageV1 } from "../testkit/synthetic-counter.js";
-import { collectGamePackageDiagnosticsV1 } from "./package-diagnostics.js";
+import { canonicalJsonBytes } from "../contracts/canonical-json.ts";
+import type { GamePackageV1, StoryDefinitionV1 } from "../contracts/game-package.ts";
+import { createSyntheticCounterGamePackageV1 } from "../testkit/synthetic-counter.ts";
+import { collectGamePackageDiagnosticsV1 } from "./package-diagnostics.ts";
 
 type SyntheticPackageV1 = ReturnType<typeof createSyntheticCounterGamePackageV1>;
 type SyntheticDefinitionV1 = ReturnType<SyntheticPackageV1["define"]>;

@@ -5,9 +5,9 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { createRef } from "react";
 import { afterEach, describe, expect, it } from "vitest";
-import { createInputRouterV1 } from "../input/input-router.js";
-import { SystemDialogHostV1 } from "./system-dialog-host.js";
-import { SettingsLauncherV1 } from "./settings-launcher.js";
+import { createInputRouterV1 } from "../input/input-router.ts";
+import { SystemDialogHostV1 } from "./system-dialog-host.tsx";
+import { SettingsLauncherV1 } from "./settings-launcher.tsx";
 
 afterEach(cleanup);
 

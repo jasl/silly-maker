@@ -7,15 +7,15 @@ import type {
   TemplateActionResultV1,
   TemplateInvocationV1,
   TemplatePreviewV1,
-} from "./semantic.js";
-import { templateSemanticAdapterV1 } from "./semantic.js";
+} from "./semantic.ts";
+import { templateSemanticAdapterV1 } from "./semantic.ts";
 import type {
   TemplateGameViewV1,
   TemplateNarrativeViewV1,
   TemplateQueriesV1,
   TemplateSimulationTypesV1,
-} from "../simulation.js";
-import { templateStoryEntryV1 } from "../story.js";
+} from "../simulation.ts";
+import { templateStoryEntryV1 } from "../story.ts";
 
 /**
  * The Host-neutral core application: the GamePackage entry plus the

@@ -11,8 +11,8 @@ import {
   resolveGamePackageV1,
 } from "@sillymaker/base";
 
-import type { SillymakerProjectConfigV1 } from "./config.js";
-import { resolveStoryApplicationV1 } from "./config.js";
+import type { SillymakerProjectConfigV1 } from "./config.ts";
+import { resolveStoryApplicationV1 } from "./config.ts";
 
 /** Loads a repository module for command execution; injectable for tests. */
 export interface ProjectModuleLoaderV1 {
@@ -393,8 +393,8 @@ export async function buildStoryApplicationV1(
   const application = resolveStoryApplicationV1(project, applicationId);
   const web = requireWebTargetV1(application, applicationId);
   const exitCode = await deps.runner.run(
-    "pnpm",
-    ["exec", "vite", "build", "--mode", applicationId],
+    "deno",
+    ["run", "-A", "npm:vite", "build", "--mode", applicationId],
     { cwd: deps.repositoryRoot },
   );
   return Object.freeze({
@@ -516,10 +516,11 @@ export async function devSmokeStoryApplicationV1(
   const web = requireWebTargetV1(application, applicationId);
   const url = `http://127.0.0.1:${String(devSmokePortV1)}/`;
   const server = deps.runner.start(
-    "pnpm",
+    "deno",
     [
-      "exec",
-      "vite",
+      "run",
+      "-A",
+      "npm:vite",
       "--mode",
       applicationId,
       "--host",

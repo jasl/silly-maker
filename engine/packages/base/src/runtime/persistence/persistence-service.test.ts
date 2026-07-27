@@ -1,53 +1,53 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import type { SessionLeaseOwnerId } from "../../contracts/application.js";
-import { digestBytes, digestCanonical } from "../../contracts/digest.js";
-import type { CommandExecutionAttemptEnvelopeV1 } from "../../contracts/execution.js";
+import type { SessionLeaseOwnerId } from "../../contracts/application.ts";
+import { digestBytes, digestCanonical } from "../../contracts/digest.ts";
+import type { CommandExecutionAttemptEnvelopeV1 } from "../../contracts/execution.ts";
 import type {
   GameBootstrapInputV1,
   GameSimulationTypeMapV1,
-} from "../../contracts/gameplay-module.js";
-import type { HostAtomicRecordStoreV1, IsoUtcInstant } from "../../contracts/host.js";
-import { createMemoryHostRecordStoreV1 } from "../../contracts/host.js";
-import type { PatchSetAdoptionDeclarationV1, PatchSetIdentityV1 } from "../../contracts/hotfix.js";
-import type { BuildProvenanceV1 } from "../../contracts/provenance.js";
+} from "../../contracts/gameplay-module.ts";
+import type { HostAtomicRecordStoreV1, IsoUtcInstant } from "../../contracts/host.ts";
+import { createMemoryHostRecordStoreV1 } from "../../contracts/host.ts";
+import type { PatchSetAdoptionDeclarationV1, PatchSetIdentityV1 } from "../../contracts/hotfix.ts";
+import type { BuildProvenanceV1 } from "../../contracts/provenance.ts";
 import {
   createSaveRecordEnvelopeSchemaV1,
   parseIsoUtcInstantV1,
-} from "../../contracts/persistence.js";
+} from "../../contracts/persistence.ts";
 import type {
   SaveCodecContextV1,
   SaveImportValidationContextV1,
   SaveRecordEnvelopeV1,
   SimulationAdoptionV1,
-} from "../../contracts/persistence.js";
-import type { GameSnapshotEnvelopeV1, RunIntegrityV1 } from "../../contracts/snapshot.js";
+} from "../../contracts/persistence.ts";
+import type { GameSnapshotEnvelopeV1, RunIntegrityV1 } from "../../contracts/snapshot.ts";
 import {
   createGameSnapshotEnvelopeSchemaV1,
   createPristineRunIntegrityV1,
   runIntegrityV1Schema,
-} from "../../contracts/snapshot.js";
+} from "../../contracts/snapshot.ts";
 import type {
   DeepReadonly,
   Digest,
   NonNegativeSafeInteger,
   RuntimeSchemaV1,
-} from "../../contracts/values.js";
-import { parseNonNegativeSafeInteger, parsePositiveSafeInteger } from "../../contracts/values.js";
+} from "../../contracts/values.ts";
+import { parseNonNegativeSafeInteger, parsePositiveSafeInteger } from "../../contracts/values.ts";
 import type {
   AuthoritativeOutcomeV1,
   GameSessionRuntimeControlV1,
-} from "../session/game-session.js";
-import { createGameSessionV1 } from "../session/game-session.js";
-import { classifySaveCompatibilityV1 } from "./compatibility.js";
-import { decodeSaveRecordV1, encodeSaveRecordV1 } from "./save-codec.js";
-import { createPersistenceServiceV1 } from "./persistence-service.js";
-import { createSaveRepositoryV1 } from "./save-repository.js";
-import type { SaveRepositorySlotMetadataV1, SaveRepositoryV1 } from "./save-repository.js";
-import { createSessionLeaseV1 } from "./session-lease.js";
-import type { SessionLeaseV1 } from "./session-lease.js";
-import { createSaveSlotRecordKeyV1 } from "./slot-keys.js";
+} from "../session/game-session.ts";
+import { createGameSessionV1 } from "../session/game-session.ts";
+import { classifySaveCompatibilityV1 } from "./compatibility.ts";
+import { decodeSaveRecordV1, encodeSaveRecordV1 } from "./save-codec.ts";
+import { createPersistenceServiceV1 } from "./persistence-service.ts";
+import { createSaveRepositoryV1 } from "./save-repository.ts";
+import type { SaveRepositorySlotMetadataV1, SaveRepositoryV1 } from "./save-repository.ts";
+import { createSessionLeaseV1 } from "./session-lease.ts";
+import type { SessionLeaseV1 } from "./session-lease.ts";
+import { createSaveSlotRecordKeyV1 } from "./slot-keys.ts";
 
 interface SyntheticStateV1 {
   readonly count: NonNegativeSafeInteger;

@@ -5,7 +5,7 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 
-import { canonicalJsonBytes } from "../../engine/packages/base/src/index.js";
+import { canonicalJsonBytes } from "../../engine/packages/base/src/index.ts";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
@@ -13,7 +13,7 @@ import {
   canonicalArtifactJsonBytesV1,
   createArtifactManifestV1,
   writeArtifactManifestV1,
-} from "./create-artifact-manifest.mjs";
+} from "./create-artifact-manifest.mts";
 
 const temporaryRootsV1: string[] = [];
 

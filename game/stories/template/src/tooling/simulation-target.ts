@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { createInProcessAgentGamePortV1 } from "@sillymaker/base/runtime";
 
-import { createTemplateApplicationInstanceV1 } from "../application/core-application.js";
+import { createTemplateApplicationInstanceV1 } from "../application/core-application.ts";
 
 function resolveStepV1(occurrence: number, resolution: unknown) {
   return Object.freeze({

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { defineConfig, devices } from "@playwright/test";
 
-import { engineTargetUrlV1, engineTargetV1 } from "./e2e/engine/fixtures.js";
+import { engineTargetUrlV1, engineTargetV1 } from "./e2e/engine/fixtures.ts";
 
 /**
  * The engine browser suite runs against the Engine Lab conformance Story:
@@ -19,7 +19,7 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   webServer: {
-    command: `pnpm exec vite --mode e2e --host ${engineTargetV1.host} --port ${String(engineTargetV1.port)} --strictPort`,
+    command: `deno run -A npm:vite --mode e2e --host ${engineTargetV1.host} --port ${String(engineTargetV1.port)} --strictPort`,
     cwd: "../../..",
     reuseExistingServer: false,
     timeout: 120_000,

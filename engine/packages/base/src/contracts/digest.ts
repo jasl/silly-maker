@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-import { canonicalJsonBytes } from "./canonical-json.js";
-import type { Digest } from "./values.js";
+import { canonicalJsonBytes } from "./canonical-json.ts";
+import type { Digest } from "./values.ts";
 
 export type DigestDomainV1 =
   | "sillymaker:story:v1"

@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 // SPDX-License-Identifier: MIT
 import "@testing-library/jest-dom/vitest";
-import { parseInputActionIdV1 } from "../input/contracts.js";
-import { createInputRouterV1 } from "../input/input-router.js";
-import { GameShell } from "../shell/game-shell.js";
+import { parseInputActionIdV1 } from "../input/contracts.ts";
+import { createInputRouterV1 } from "../input/input-router.ts";
+import { GameShell } from "../shell/game-shell.tsx";
 import { readFile } from "node:fs/promises";
 import { resolve, sep } from "node:path";
 import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
@@ -11,20 +11,20 @@ import { userEvent } from "@testing-library/user-event";
 import { useLayoutEffect, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { CapabilityPanelV1 } from "./CapabilityPanel.js";
-import { DebugCommandPanelV1 } from "./DebugCommandPanel.js";
-import { DevDockV1, createDevDockContributionSetV1 } from "./DevDock.js";
-import type { DevDockOpenStateV1, DevDockPanelV1 } from "./DevDock.js";
-import { DiagnosticInspectorV1 } from "./DiagnosticInspector.js";
-import { FixtureBrowserV1 } from "./FixtureBrowser.js";
+import { CapabilityPanelV1 } from "./CapabilityPanel.tsx";
+import { DebugCommandPanelV1 } from "./DebugCommandPanel.tsx";
+import { DevDockV1, createDevDockContributionSetV1 } from "./DevDock.tsx";
+import type { DevDockOpenStateV1, DevDockPanelV1 } from "./DevDock.tsx";
+import { DiagnosticInspectorV1 } from "./DiagnosticInspector.tsx";
+import { FixtureBrowserV1 } from "./FixtureBrowser.tsx";
 import {
   useDevDockPortalTargetRegistrationV1,
   type DevDockPortalSurfaceV1,
-} from "./DevDockPortalCoordinator.js";
-import { OverlayHostV1 } from "../overlays/overlay-host.js";
-import { createOverlaySessionStoreV1 } from "../overlays/overlay-session-store.js";
-import { SettingsLauncherV1 } from "../system/settings-launcher.js";
-import { SystemDialogHostV1 } from "../system/system-dialog-host.js";
+} from "./DevDockPortalCoordinator.tsx";
+import { OverlayHostV1 } from "../overlays/overlay-host.tsx";
+import { createOverlaySessionStoreV1 } from "../overlays/overlay-session-store.ts";
+import { SettingsLauncherV1 } from "../system/settings-launcher.tsx";
+import { SystemDialogHostV1 } from "../system/system-dialog-host.tsx";
 
 afterEach(cleanup);
 

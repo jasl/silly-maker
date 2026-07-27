@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import { digestBytes } from "../contracts/digest.js";
-import { parseModuleId, parsePositiveSafeInteger, parseStateSlotId } from "../contracts/values.js";
-import { createSyntheticCounterGamePackageV1 } from "../testkit/synthetic-counter.js";
-import { deterministicBuildIdentityInputV1 } from "../testkit/resolver-fixtures.js";
-import { definePatchSlot, definePresentationPatchSurface } from "./patch-surface.js";
-import { resolveGamePackageV1 } from "./story-resolver.js";
+import { digestBytes } from "../contracts/digest.ts";
+import { parseModuleId, parsePositiveSafeInteger, parseStateSlotId } from "../contracts/values.ts";
+import { createSyntheticCounterGamePackageV1 } from "../testkit/synthetic-counter.ts";
+import { deterministicBuildIdentityInputV1 } from "../testkit/resolver-fixtures.ts";
+import { definePatchSlot, definePresentationPatchSurface } from "./patch-surface.ts";
+import { resolveGamePackageV1 } from "./story-resolver.ts";
 
 function createCountingGamePackage() {
   const source = createSyntheticCounterGamePackageV1();

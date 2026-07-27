@@ -4,15 +4,15 @@ import type { ReactElement } from "react";
 
 import type { StageRenderTargetV1, StageTransitionCatalogV1 } from "@sillymaker/base";
 
-import type { PresentationClockV1 } from "../presentation-run/presentation-clock.js";
-import { createAnimationFramePresentationClockV1 } from "../presentation-run/presentation-clock.js";
+import type { PresentationClockV1 } from "../presentation-run/presentation-clock.ts";
+import { createAnimationFramePresentationClockV1 } from "../presentation-run/presentation-clock.ts";
 import type {
   SemanticStageEntryRendererV1,
   SemanticStageHostDiagnosticV1,
-} from "./semantic-stage-host.js";
-import { SemanticStageHostV1 } from "./semantic-stage-host.js";
-import type { StageReconcilerV1, StageTransitionAcknowledgmentV1 } from "./stage-reconciler.js";
-import { createStageReconcilerV1, settledStageFrameV1 } from "./stage-reconciler.js";
+} from "./semantic-stage-host.tsx";
+import { SemanticStageHostV1 } from "./semantic-stage-host.tsx";
+import type { StageReconcilerV1, StageTransitionAcknowledgmentV1 } from "./stage-reconciler.ts";
+import { createStageReconcilerV1, settledStageFrameV1 } from "./stage-reconciler.ts";
 
 /**
  * The animated semantic stage: owns one Stage Reconciler for the lifetime of

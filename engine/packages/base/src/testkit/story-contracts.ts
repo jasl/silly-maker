@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
-import type { GamePackageV1 } from "../contracts/game-package.js";
-import { resolveGamePackageV1 } from "../authoring/story-resolver.js";
-import { deterministicBuildIdentityInputV1 } from "./resolver-fixtures.js";
+import type { GamePackageV1 } from "../contracts/game-package.ts";
+import { resolveGamePackageV1 } from "../authoring/story-resolver.ts";
+import { deterministicBuildIdentityInputV1 } from "./resolver-fixtures.ts";
 
 export function resolveStoryForTestV1<TSimulationFacet, TPresentationFacet>(
   entry: GamePackageV1<TSimulationFacet, TPresentationFacet>,

@@ -6,7 +6,7 @@ import {
   createHashRouterV1,
   type HashRouterEventTargetV1,
   type HashRouterLocationV1,
-} from "./hash-router.js";
+} from "./hash-router.ts";
 
 function createHashEnvironmentV1(initialHash: string) {
   let hash = initialHash;

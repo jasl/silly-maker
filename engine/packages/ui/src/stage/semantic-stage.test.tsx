@@ -11,9 +11,9 @@ import {
   reduceStageMutationsV1,
 } from "@sillymaker/base";
 
-import { createManualPresentationClockV1 } from "../presentation-run/presentation-clock.js";
-import type { SemanticStageEntryRendererV1 } from "./semantic-stage-host.js";
-import { SemanticStageV1 } from "./semantic-stage.js";
+import { createManualPresentationClockV1 } from "../presentation-run/presentation-clock.ts";
+import type { SemanticStageEntryRendererV1 } from "./semantic-stage-host.tsx";
+import { SemanticStageV1 } from "./semantic-stage.tsx";
 
 const contentCatalogV1: StageContentCatalogV1 = {
   resolveContent: (contentId) =>

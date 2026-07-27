@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 import { Component, Fragment } from "react";
 import type { ReactElement, ReactNode } from "react";
-import type { InputRouterV1 } from "../input/contracts.js";
-import { RuntimeFailureDialogV1 } from "./runtime-failure-dialog.js";
+import type { InputRouterV1 } from "../input/contracts.ts";
+import { RuntimeFailureDialogV1 } from "./runtime-failure-dialog.tsx";
 import type {
   RuntimeFailureDialogActionsV1,
   RuntimeFailureDialogPropsV1,
-} from "./runtime-failure-dialog.js";
+} from "./runtime-failure-dialog.tsx";
 
 export type RootErrorBoundaryFailureDialogV1 = Omit<
   RuntimeFailureDialogPropsV1,

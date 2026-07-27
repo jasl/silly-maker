@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-import type { StrictJsonObjectV1 } from "./strict-json.js";
-import type { Digest, PositiveSafeInteger } from "./values.js";
+import type { StrictJsonObjectV1 } from "./strict-json.ts";
+import type { Digest, PositiveSafeInteger } from "./values.ts";
 
 export type PatchSurfaceKindV1 = "simulation" | "presentation";
 export type PatchSymbolKindV1 = "rule" | "value" | "text" | "asset";

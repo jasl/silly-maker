@@ -2,14 +2,14 @@
 import {
   AuthoringDiagnosticErrorV1,
   createDiagnosticV1,
-} from "../contracts/diagnostic-envelope.js";
+} from "../contracts/diagnostic-envelope.ts";
 import type {
   GameSimulationTypeMapV1,
   ModuleOwnerProposalEnvelopeV1,
   StatefulGameplayModuleBindingV1,
   StatelessGameplayModuleBindingV1,
-} from "../contracts/gameplay-module.js";
-import { parseModuleId, parsePositiveSafeInteger, parseStateSlotId } from "../contracts/values.js";
+} from "../contracts/gameplay-module.ts";
+import { parseModuleId, parsePositiveSafeInteger, parseStateSlotId } from "../contracts/values.ts";
 
 export function moduleDefinitionErrorV1(
   code: string,

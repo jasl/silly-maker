@@ -4,17 +4,16 @@
 
 ## Requirements and installation
 
-- Node.js >= 22.12.0
-- pnpm >= 11.0.0
+- Deno >= 2.9.0
 
-Only these compatibility floors are authoritative. An exact Node/pnpm patch version, Homebrew service, PostgreSQL server, machine attestation, or pre-materialized browser cache is not required.
+Only this compatibility floor is authoritative. An exact patch version, Homebrew service, PostgreSQL server, machine attestation, or pre-materialized browser cache is not required.
 
 ```sh
-pnpm install
-pnpm dev
+deno install
+deno task dev
 ```
 
-The workspace is ESM and uses one shared pnpm lockfile with exact dependency versions. Normal installation may use the network. If a browser test reports a missing Playwright browser, install the requested browser with the Playwright CLI for the current lockfile.
+The workspace is ESM, imports TypeScript sources with explicit `.ts`/`.tsx` extensions, and uses one shared `deno.lock` with exact dependency versions (npm packages resolve through Deno's Node compatibility). Normal installation may use the network. If a browser test reports a missing Playwright browser, install the requested browser with the Playwright CLI for the current lockfile.
 
 ## Repository layout
 
@@ -34,37 +33,37 @@ Package manifests define supported cross-package entries. Do not bypass them wit
 
 ## Daily commands
 
-| Command                          | Use                                                                   |
-| -------------------------------- | --------------------------------------------------------------------- |
-| `pnpm dev`                       | Start the current Project Tavern development server.                  |
-| `pnpm check`                     | Canonical local code-quality and product-behavior check.              |
-| `pnpm test`                      | Run engine and game behavior tests.                                   |
-| `pnpm test:coverage`             | Run unit tests with engine line-coverage reporting.                   |
-| `pnpm test:e2e:engine`           | Engine browser suite against the Engine Lab Story.                    |
-| `pnpm test:e2e`                  | Alias of the engine browser suite.                                    |
-| `pnpm story <verb> <app>`        | Application lifecycle CLI (JSON reports); verbs below.                |
-| `pnpm check:stories`             | Structured Story diagnostics for every application (part of `check`). |
-| `pnpm simulate:e2e`              | Scripted Engine Lab run through the Agent port.                       |
-| `pnpm test:conformance:headless` | Engine Lab headless conformance suite.                                |
-| `pnpm story desktop <app>`       | Package the built web Artifact as a desktop app (experimental).       |
-| `pnpm test:e2e:engine:prebuilt`  | Build the Engine Lab and run the engine suite on the Artifact.        |
+| Command                               | Use                                                                   |
+| ------------------------------------- | --------------------------------------------------------------------- |
+| `deno task dev`                       | Start the current Project Tavern development server.                  |
+| `deno task check`                     | Canonical local code-quality and product-behavior check.              |
+| `deno task test`                      | Run engine and game behavior tests.                                   |
+| `deno task test:coverage`             | Run unit tests with engine line-coverage reporting.                   |
+| `deno task test:e2e:engine`           | Engine browser suite against the Engine Lab Story.                    |
+| `deno task test:e2e`                  | Alias of the engine browser suite.                                    |
+| `deno task story <verb> <app>`        | Application lifecycle CLI (JSON reports); verbs below.                |
+| `deno task check:stories`             | Structured Story diagnostics for every application (part of `check`). |
+| `deno task simulate:e2e`              | Scripted Engine Lab run through the Agent port.                       |
+| `deno task test:conformance:headless` | Engine Lab headless conformance suite.                                |
+| `deno task story desktop <app>`       | Package the built web Artifact as a desktop app (experimental).       |
+| `deno task test:e2e:engine:prebuilt`  | Build the Engine Lab and run the engine suite on the Artifact.        |
 
 The application lifecycle CLI covers six responsibilities for every application declared in `game/project.config.ts`:
 
 ```text
-pnpm story inspect <app>                          # resolved identity/program report (JSON)
-pnpm story check <app> | --all                    # structured Story diagnostics (JSON)
-pnpm story simulate <app> [--scenario s] [--seed n]  # scripted Agent-port run
-pnpm story dev <app> --smoke                      # boot the dev server and prove the page
-pnpm story build <app>                            # build the application's web target
-pnpm story prebuilt-smoke <app>                   # verify the built Artifact's files
+deno task story inspect <app>                          # resolved identity/program report (JSON)
+deno task story check <app> | --all                    # structured Story diagnostics (JSON)
+deno task story simulate <app> [--scenario s] [--seed n]  # scripted Agent-port run
+deno task story dev <app> --smoke                      # boot the dev server and prove the page
+deno task story build <app>                            # build the application's web target
+deno task story prebuilt-smoke <app>                   # verify the built Artifact's files
 ```
 
-`simulate` plays a named scenario from the application's simulation target (for example `pnpm story simulate e2e --scenario opening --seed 23049`) through the same player-safe Agent port real agents use. Story applications (story entry, asset verification, simulation target, web dev/build target) are declared in `game/project.config.ts`; see [build-and-release](build-and-release.md).
+`simulate` plays a named scenario from the application's simulation target (for example `deno task story simulate e2e --scenario opening --seed 23049`) through the same player-safe Agent port real agents use. Story applications (story entry, asset verification, simulation target, web dev/build target) are declared in `game/project.config.ts`; see [build-and-release](build-and-release.md).
 
-`pnpm verify` may remain as a compatibility alias for `pnpm check`; new documentation and automation should use `pnpm check`.
+`deno task check` may remain as a compatibility alias for `deno task check`; new documentation and automation should use `deno task check`.
 
-Use a focused package or test-file command while iterating when that is faster. Run `pnpm check` before handing off a change, and add `pnpm test:e2e` or prebuilt testing when the affected behavior crosses the browser/build boundary.
+Use a focused package or test-file command while iterating when that is faster. Run `deno task check` before handing off a change, and add `deno task test:e2e` or prebuilt testing when the affected behavior crosses the browser/build boundary.
 
 ## Change workflow
 

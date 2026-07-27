@@ -12,7 +12,7 @@
     "./testkit": "./src/testkit/index.ts"
   },
   "scripts": {
-    "test:runtime": "pnpm --dir ../../.. exec vitest run engine/packages/base/src/runtime"
+    "test:runtime": "deno task --dir ../../.. exec vitest run engine/packages/base/src/runtime"
   },
   "devDependencies": {
     "zod": "4.4.3"

@@ -6,23 +6,23 @@ import {
   parseAt,
   readArray,
   readExactRecord,
-} from "./presentation-data.js";
+} from "./presentation-data.ts";
 import type {
   ContentMaturityFlagBitV1,
   ContentMaturityFlagId,
   ContentMaturityFlagsV1,
   ContentPreferencePresetId,
   TextId,
-} from "./presentation-ids.js";
+} from "./presentation-ids.ts";
 import {
   parseContentMaturityFlagBitV1,
   parseContentMaturityFlagId,
   parseContentMaturityFlagsV1,
   parseContentPreferencePresetId,
   parseTextId,
-} from "./presentation-ids.js";
-import type { DeepReadonly, PositiveSafeInteger } from "./values.js";
-import { parsePositiveSafeInteger } from "./values.js";
+} from "./presentation-ids.ts";
+import type { DeepReadonly, PositiveSafeInteger } from "./values.ts";
+import { parsePositiveSafeInteger } from "./values.ts";
 
 export interface ContentMaturityFlagDescriptorV1 {
   readonly id: ContentMaturityFlagId;

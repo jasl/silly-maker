@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import type { PresentationClockV1 } from "../presentation-run/presentation-clock.js";
+import type { PresentationClockV1 } from "../presentation-run/presentation-clock.ts";
 
 /**
  * The explicit playback policy machine: normal, auto, and skip. The

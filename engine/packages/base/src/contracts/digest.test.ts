@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import { digestBytes, digestCanonical } from "./digest.js";
+import { digestBytes, digestCanonical } from "./digest.ts";
 
 describe("SHA-256 identities", () => {
   it("uses closed domains and exact bytes", () => {

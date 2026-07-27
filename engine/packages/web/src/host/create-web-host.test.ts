@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { HostFilePortV1, HostRecordMutationV1 } from "@sillymaker/base";
 import { createMemoryHostRecordStoreV1 } from "@sillymaker/base/testkit";
 import { IDBFactory as FakeIDBFactory } from "fake-indexeddb";
-import { createWebHostV1 } from "./create-web-host.js";
+import { createWebHostV1 } from "./create-web-host.ts";
 
 describe("Web Host", () => {
   afterEach(() => {

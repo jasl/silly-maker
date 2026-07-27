@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import type { RuntimeOperationFaultV1 } from "../../contracts/diagnostics.js";
-import type { IsoUtcInstant } from "../../contracts/host.js";
+import type { RuntimeOperationFaultV1 } from "../../contracts/diagnostics.ts";
+import type { IsoUtcInstant } from "../../contracts/host.ts";
 import {
   runtimeDiagnosticTextLimitsV1,
   scrubDiagnosticTextV1,
   scrubRuntimeOperationFaultV1,
-} from "./privacy.js";
+} from "./privacy.ts";
 
 const occurredAt = "2026-07-14T01:02:03.000Z" as IsoUtcInstant;
 

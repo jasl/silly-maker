@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
-export { runProjectCliV1 } from "./project/cli.js";
-export type { ProjectCliInputV1 } from "./project/cli.js";
+export { runProjectCliV1 } from "./project/cli.ts";
+export type { ProjectCliInputV1 } from "./project/cli.ts";
 export {
   checkStoryApplicationV1,
   inspectStoryApplicationV1,
   simulateStoryApplicationV1,
-} from "./project/commands.js";
+} from "./project/commands.ts";
 export type {
   ProjectModuleLoaderV1,
   StoryCheckReportV1,
@@ -16,25 +16,25 @@ export type {
   StorySimulateStepV1,
   StorySimulationTargetFactoryV1,
   StorySimulationTargetV1,
-} from "./project/commands.js";
+} from "./project/commands.ts";
 export {
   defineSillymakerProjectV1,
   listStoryApplicationIdsV1,
   resolveStoryApplicationV1,
   resolveWebBuildTargetV1,
-} from "./project/config.js";
+} from "./project/config.ts";
 export type {
   ProjectModuleRefV1,
   SillymakerProjectConfigV1,
   StoryApplicationConfigV1,
   StoryWebIdentityRefV1,
   StoryWebTargetV1,
-} from "./project/config.js";
-export { createImportProjectModuleLoaderV1 } from "./project/loader.js";
-export { createJsonlAgentClientV1 } from "./jsonl/client.js";
-export type { JsonlAgentClientV1, JsonlClientResponseV1 } from "./jsonl/client.js";
-export { createJsonlAgentHostV1 } from "./jsonl/host.js";
-export type { JsonlAgentHostInputV1, JsonlAgentHostV1 } from "./jsonl/host.js";
+} from "./project/config.ts";
+export { createImportProjectModuleLoaderV1 } from "./project/loader.ts";
+export { createJsonlAgentClientV1 } from "./jsonl/client.ts";
+export type { JsonlAgentClientV1, JsonlClientResponseV1 } from "./jsonl/client.ts";
+export { createJsonlAgentHostV1 } from "./jsonl/host.ts";
+export type { JsonlAgentHostInputV1, JsonlAgentHostV1 } from "./jsonl/host.ts";
 export {
   boundProtocolMessageV1,
   defaultJsonlHostLimitsV1,
@@ -42,7 +42,7 @@ export {
   jsonlAgentMethodsV1,
   jsonlProtocolVersionV1,
   parseJsonlRequestLineV1,
-} from "./jsonl/protocol.js";
+} from "./jsonl/protocol.ts";
 export type {
   JsonlAgentMethodV1,
   JsonlEventV1,
@@ -53,4 +53,4 @@ export type {
   JsonlRequestV1,
   JsonlResponseErrorV1,
   JsonlResponseOkV1,
-} from "./jsonl/protocol.js";
+} from "./jsonl/protocol.ts";

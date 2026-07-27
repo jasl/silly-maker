@@ -11,7 +11,7 @@ import {
   labStageIdV1,
   labStageLayerIdsV1,
   labStageTagsV1,
-} from "../stage-ids.js";
+} from "../stage-ids.ts";
 
 /**
  * Engine Lab semantic stage: two backgrounds, two characters, and one prop

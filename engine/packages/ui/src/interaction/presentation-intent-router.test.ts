@@ -2,8 +2,8 @@
 import { parseInteractionSurfaceId, type InteractionSurfaceId } from "@sillymaker/base";
 import { describe, expect, it } from "vitest";
 
-import type { PresentationIntentV1 } from "./contracts.js";
-import { createPresentationIntentRouterV1 } from "./presentation-intent-router.js";
+import type { PresentationIntentV1 } from "./contracts.ts";
+import { createPresentationIntentRouterV1 } from "./presentation-intent-router.ts";
 
 const profileOverlayIdV1 = "overlay.e2e.profile";
 const profileSurfaceIdV1 = parseInteractionSurfaceId("surface.e2e.profile");

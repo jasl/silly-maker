@@ -2,8 +2,8 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
-import { createTransactionalRngV1 } from "./rng.js";
-import { parseNonZeroUint32 } from "./values.js";
+import { createTransactionalRngV1 } from "./rng.ts";
+import { parseNonZeroUint32 } from "./values.ts";
 
 function runDrawVector(seed: number, exclusiveMax: number) {
   const rng = createTransactionalRngV1(parseNonZeroUint32(seed));

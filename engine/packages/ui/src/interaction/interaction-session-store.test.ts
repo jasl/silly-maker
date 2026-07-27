@@ -10,7 +10,7 @@ import {
   createInteractionSessionStoreV1,
   initialInteractionSessionStateV1,
   type InteractionSessionStateV1,
-} from "./interaction-session-store.js";
+} from "./interaction-session-store.ts";
 
 interface TestPresentationUiStateV1 {
   readonly route: "main_menu" | "play";

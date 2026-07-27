@@ -5,8 +5,8 @@ import type {
   RuntimeCapabilityIdV1,
   RuntimeCapabilityOperationResultV1,
   RuntimeCapabilityPortV1,
-} from "../../contracts/application.js";
-import type { DeepReadonly } from "../../contracts/values.js";
+} from "../../contracts/application.ts";
+import type { DeepReadonly } from "../../contracts/values.ts";
 
 type CapabilityPersistenceResultV1 =
   | { readonly kind: "committed" }

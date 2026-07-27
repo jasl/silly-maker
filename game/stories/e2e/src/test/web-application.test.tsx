@@ -13,7 +13,7 @@ import type {
   StartWebGameApplicationOptionsV1,
 } from "@sillymaker/web";
 
-import { labWebApplicationV1 } from "../application/web-application.js";
+import { labWebApplicationV1 } from "../application/web-application.tsx";
 
 const automationGlobalKeyV1 = "__SILLYMAKER_AUTOMATION_V1__";
 

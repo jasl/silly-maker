@@ -6,7 +6,7 @@ import {
   type GameSymbolRegistryV1,
   type GameSymbolRenderPropsV1,
   type GameSymbolSizeV1,
-} from "./game-symbol-registry.js";
+} from "./game-symbol-registry.ts";
 
 export type GameSymbolPropsV1 = {
   readonly registry: GameSymbolRegistryV1;

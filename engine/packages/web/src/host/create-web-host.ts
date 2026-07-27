@@ -6,8 +6,8 @@ import type {
   NonZeroUint32,
 } from "@sillymaker/base";
 import { parseNonZeroUint32 } from "@sillymaker/base";
-import { createBrowserFilePortV1 } from "./browser-file-port.js";
-import { createIndexedDbRecordStoreV1 } from "./indexeddb-record-store.js";
+import { createBrowserFilePortV1 } from "./browser-file-port.ts";
+import { createIndexedDbRecordStoreV1 } from "./indexeddb-record-store.ts";
 
 interface CreateWebHostCommonOptionsV1 {
   readonly seeds?: readonly number[];

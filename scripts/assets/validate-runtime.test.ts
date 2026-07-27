@@ -3,13 +3,13 @@ import {
   digestBytes,
   parsePositiveSafeInteger,
   type ResolvedAssetManifestV1,
-} from "../../engine/packages/base/src/index.js";
+} from "../../engine/packages/base/src/index.ts";
 import { describe, expect, it } from "vitest";
 
 import {
   validateRuntimeAssetManifestV1,
   type RuntimeAssetValidationEnvironmentV1,
-} from "./validate-runtime.mjs";
+} from "./validate-runtime.mts";
 
 const validPngV1 = Uint8Array.of(
   0x89,

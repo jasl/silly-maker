@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import type { Digest, PositiveSafeInteger } from "./values.js";
+import type { Digest, PositiveSafeInteger } from "./values.ts";
 
 export type AssetUsageV1 = "scene_background" | "character_pose" | "story_prop" | "ui_decoration";
 

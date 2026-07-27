@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: MIT
-import { resolveAssetManifestV1 } from "./asset-resolver.js";
-import type { BuildIdentityInputV1 } from "./build-identity.js";
-import { resolveBuildIdentityV1 } from "./build-identity.js";
-import { deepFreezeAuthoringValueV1 } from "./define-gameplay-module.js";
-import { defineGameSimulation } from "./define-game-simulation.js";
-import { resolveHotfixesV1 } from "./hotfix-resolver.js";
+import { resolveAssetManifestV1 } from "./asset-resolver.ts";
+import type { BuildIdentityInputV1 } from "./build-identity.ts";
+import { resolveBuildIdentityV1 } from "./build-identity.ts";
+import { deepFreezeAuthoringValueV1 } from "./define-gameplay-module.ts";
+import { defineGameSimulation } from "./define-game-simulation.ts";
+import { resolveHotfixesV1 } from "./hotfix-resolver.ts";
 
 import type {
   AssetPackV1,
   AssetSlotDefinitionV1,
   ResolvedAssetManifestV1,
-} from "../contracts/assets.js";
-import { canonicalJsonBytes } from "../contracts/canonical-json.js";
-import { extractDiagnosticsV1 } from "../contracts/diagnostic-envelope.js";
-import { digestBytes, digestCanonical } from "../contracts/digest.js";
+} from "../contracts/assets.ts";
+import { canonicalJsonBytes } from "../contracts/canonical-json.ts";
+import { extractDiagnosticsV1 } from "../contracts/diagnostic-envelope.ts";
+import { digestBytes, digestCanonical } from "../contracts/digest.ts";
 import type {
   GamePackageV1,
   ResolvedGameV1,
@@ -21,25 +21,25 @@ import type {
   StateContractModuleManifestV1,
   StateContractSchemaManifestV1,
   StateContractStableReferenceSetV1,
-} from "../contracts/game-package.js";
-import type { GameSimulationTypeMapV1 } from "../contracts/gameplay-module.js";
+} from "../contracts/game-package.ts";
+import type { GameSimulationTypeMapV1 } from "../contracts/gameplay-module.ts";
 import type {
   GamePackageResolutionFailureCodeV1,
   GamePackageResolutionResultV1,
   HotfixEntryV1,
-} from "../contracts/hotfix.js";
+} from "../contracts/hotfix.ts";
 import {
   canonicalPresentationJsonBytesV1,
   parseTextCatalogSetV1,
-} from "../contracts/presentation.js";
-import type { TextCatalogSetV1 } from "../contracts/presentation.js";
-import type { StrictJsonObjectV1, StrictJsonValueV1 } from "../contracts/strict-json.js";
+} from "../contracts/presentation.ts";
+import type { TextCatalogSetV1 } from "../contracts/presentation.ts";
+import type { StrictJsonObjectV1, StrictJsonValueV1 } from "../contracts/strict-json.ts";
 import {
   parseDigest,
   parseModuleId,
   parsePositiveSafeInteger,
   parseStateSlotId,
-} from "../contracts/values.js";
+} from "../contracts/values.ts";
 
 type FunctionResultV1<TValue, TKey extends PropertyKey> = TValue extends {
   readonly [TCurrent in TKey]: infer TFunction;

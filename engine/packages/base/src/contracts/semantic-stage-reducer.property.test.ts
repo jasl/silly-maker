@@ -6,9 +6,9 @@ import {
   createSemanticStageStateV1,
   digestSemanticStageStateV1,
   parseSemanticStageStateV1,
-} from "./semantic-stage.js";
-import type { SemanticStageStateV1 } from "./semantic-stage.js";
-import { reduceStageMutationsV1 } from "./semantic-stage-reducer.js";
+} from "./semantic-stage.ts";
+import type { SemanticStageStateV1 } from "./semantic-stage.ts";
+import { reduceStageMutationsV1 } from "./semantic-stage-reducer.ts";
 
 const layerIdsV1 = ["layer.background", "layer.characters", "layer.props"] as const;
 const tagsV1 = ["tag.alpha", "tag.beta", "tag.crate", "tag.extra"] as const;

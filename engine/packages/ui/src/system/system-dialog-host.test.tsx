@@ -8,13 +8,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   DevDockPortalCoordinatorV1,
   useDevDockPortalTargetV1,
-} from "../debug/DevDockPortalCoordinator.js";
-import { inputHandledV1, systemInputActionIdsV1, type InputEventV1 } from "../input/contracts.js";
-import { createInputRouterV1 } from "../input/input-router.js";
-import { GameStageV1 } from "../shell/game-stage.js";
-import { SettingsLauncherV1 } from "./settings-launcher.js";
-import { SystemDialogHostV1 } from "./system-dialog-host.js";
-import { createSystemDialogSessionStoreV1 } from "./system-dialog-session-store.js";
+} from "../debug/DevDockPortalCoordinator.tsx";
+import { inputHandledV1, systemInputActionIdsV1, type InputEventV1 } from "../input/contracts.ts";
+import { createInputRouterV1 } from "../input/input-router.ts";
+import { GameStageV1 } from "../shell/game-stage.tsx";
+import { SettingsLauncherV1 } from "./settings-launcher.tsx";
+import { SystemDialogHostV1 } from "./system-dialog-host.tsx";
+import { createSystemDialogSessionStoreV1 } from "./system-dialog-session-store.ts";
 
 afterEach(cleanup);
 

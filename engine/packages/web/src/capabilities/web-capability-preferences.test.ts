@@ -4,8 +4,8 @@ import type { GameHostV1, HostAtomicRecordStoreV1, RuntimeCapabilitiesV1 } from 
 import { createMemoryHostRecordStoreV1 } from "@sillymaker/base/testkit";
 import { describe, expect, it, vi } from "vitest";
 
-import { createWebHostV1 } from "../host/create-web-host.js";
-import { createWebCapabilityPreferencesV1 } from "./web-capability-preferences.js";
+import { createWebHostV1 } from "../host/create-web-host.ts";
+import { createWebCapabilityPreferencesV1 } from "./web-capability-preferences.ts";
 
 const capabilityKeyV1 = "runtime-capabilities.v1" as Parameters<HostAtomicRecordStoreV1["read"]>[1];
 const allDisabledV1 = Object.freeze({

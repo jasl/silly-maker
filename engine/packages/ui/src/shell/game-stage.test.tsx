@@ -5,8 +5,8 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import type { GameStageLayersV1, StageLayerIdV1 } from "./game-stage.js";
-import { GameStageV1, stageLayerIdsV1, useStageInputIsolationV1 } from "./game-stage.js";
+import type { GameStageLayersV1, StageLayerIdV1 } from "./game-stage.tsx";
+import { GameStageV1, stageLayerIdsV1, useStageInputIsolationV1 } from "./game-stage.tsx";
 
 afterEach(cleanup);
 

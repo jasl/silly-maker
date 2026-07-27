@@ -3,7 +3,7 @@
 import "@testing-library/jest-dom/vitest";
 import { renderHook, act } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { createViewSourceV1, useReadonlyViewV1 } from "./create-view-bridge.js";
+import { createViewSourceV1, useReadonlyViewV1 } from "./create-view-bridge.ts";
 
 describe("view bridge", () => {
   it("subscribes to immutable view references", () => {

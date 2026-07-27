@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
-import { canonicalJsonBytes } from "../contracts/canonical-json.js";
-import type { StoryToolingEntryV1 } from "../contracts/game-package.js";
-import { parseStrictJson, parseStrictJsonLimitsV1 } from "../contracts/strict-json.js";
-import type { DeepReadonly, RuntimeSchemaV1 } from "../contracts/values.js";
-import { parseNonZeroUint32 } from "../contracts/values.js";
+import { canonicalJsonBytes } from "../contracts/canonical-json.ts";
+import type { StoryToolingEntryV1 } from "../contracts/game-package.ts";
+import { parseStrictJson, parseStrictJsonLimitsV1 } from "../contracts/strict-json.ts";
+import type { DeepReadonly, RuntimeSchemaV1 } from "../contracts/values.ts";
+import { parseNonZeroUint32 } from "../contracts/values.ts";
 
 const testkitJsonLimitsV1 = parseStrictJsonLimitsV1({
   maxBytes: 1_048_576,

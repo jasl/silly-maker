@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
-export { GameSymbolV1 } from "./game-symbol.js";
-export type { GameSymbolPropsV1 } from "./game-symbol.js";
-export { createGameSymbolRegistryV1, parseGameSymbolIdV1 } from "./game-symbol-registry.js";
+export { GameSymbolV1 } from "./game-symbol.tsx";
+export type { GameSymbolPropsV1 } from "./game-symbol.tsx";
+export { createGameSymbolRegistryV1, parseGameSymbolIdV1 } from "./game-symbol-registry.ts";
 export type {
   GameSymbolAccessibilityV1,
   GameSymbolIdV1,
@@ -10,4 +10,4 @@ export type {
   GameSymbolRenderPropsV1,
   GameSymbolResolutionV1,
   GameSymbolSizeV1,
-} from "./game-symbol-registry.js";
+} from "./game-symbol-registry.ts";

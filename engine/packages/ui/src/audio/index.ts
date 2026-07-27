@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-export { createFakeAudioHostV1, sameChannelPlaybackV1 } from "./audio-host.js";
+export { createFakeAudioHostV1, sameChannelPlaybackV1 } from "./audio-host.ts";
 export type {
   AudioHostChannelV1,
   AudioHostDiagnosticV1,
@@ -8,10 +8,10 @@ export type {
   AudioHostV1,
   FakeAudioChannelStateV1,
   FakeAudioHostV1,
-} from "./audio-host.js";
-export { createAudioPresenterV1 } from "./audio-presenter.js";
+} from "./audio-host.ts";
+export { createAudioPresenterV1 } from "./audio-presenter.ts";
 export type {
   AudioPresenterRetargetInputV1,
   AudioPresenterV1,
   CreateAudioPresenterOptionsV1,
-} from "./audio-presenter.js";
+} from "./audio-presenter.ts";

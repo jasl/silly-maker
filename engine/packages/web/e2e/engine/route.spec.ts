@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 
 import type { Page } from "@playwright/test";
 
-import { expect, gotoLabV1, test } from "./fixtures.js";
+import { expect, gotoLabV1, test } from "./fixtures.ts";
 
 /**
  * The Engine Conformance route, mode-parity edition. The same narrative

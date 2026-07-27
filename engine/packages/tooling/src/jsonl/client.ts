@@ -2,8 +2,8 @@
 import type { Readable, Writable } from "node:stream";
 import { createInterface } from "node:readline";
 
-import type { JsonlAgentMethodV1, JsonlResponseErrorV1 } from "./protocol.js";
-import { jsonlProtocolVersionV1 } from "./protocol.js";
+import type { JsonlAgentMethodV1, JsonlResponseErrorV1 } from "./protocol.ts";
+import { jsonlProtocolVersionV1 } from "./protocol.ts";
 
 export type JsonlClientResponseV1 =
   | { readonly ok: true; readonly result: unknown }

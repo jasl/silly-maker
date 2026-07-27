@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
-export { GameShell } from "./game-shell.js";
-export type { GameShellPropsV1, GameShellViewportOptionsV1 } from "./game-shell.js";
-export { GameStageV1, stageLayerIdsV1 } from "./game-stage.js";
-export type { GameStageLayersV1, GameStagePropsV1, StageLayerIdV1 } from "./game-stage.js";
-export { computeStageFrameV1, stageLayoutConstantsV1 } from "./stage-layout.js";
-export type { StageFrameV1, StageViewportV1 } from "./stage-layout.js";
-export { TopCardHudV1 } from "./top-card-hud.js";
-export type { StageHudSlotsV1, TopCardHudPropsV1 } from "./top-card-hud.js";
+export { GameShell } from "./game-shell.tsx";
+export type { GameShellPropsV1, GameShellViewportOptionsV1 } from "./game-shell.tsx";
+export { GameStageV1, stageLayerIdsV1 } from "./game-stage.tsx";
+export type { GameStageLayersV1, GameStagePropsV1, StageLayerIdV1 } from "./game-stage.tsx";
+export { computeStageFrameV1, stageLayoutConstantsV1 } from "./stage-layout.ts";
+export type { StageFrameV1, StageViewportV1 } from "./stage-layout.ts";
+export { TopCardHudV1 } from "./top-card-hud.tsx";
+export type { StageHudSlotsV1, TopCardHudPropsV1 } from "./top-card-hud.tsx";

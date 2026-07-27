@@ -3,7 +3,7 @@
 import type { InputEventV1 } from "@sillymaker/ui";
 import { describe, expect, it, vi } from "vitest";
 
-import { installPointerAdapterV1 } from "./install-pointer-adapter.js";
+import { installPointerAdapterV1 } from "./install-pointer-adapter.ts";
 
 type PointerEventTypeV1 = "pointerdown" | "pointerup" | "pointercancel" | "lostpointercapture";
 

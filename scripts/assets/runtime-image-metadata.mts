@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import type { PositiveSafeInteger } from "../../engine/packages/base/src/index.js";
+import type { PositiveSafeInteger } from "../../engine/packages/base/src/index.ts";
 
 export type RuntimeImageMetadataV1 = {
   readonly mediaType: "image/webp" | "image/png" | "image/svg+xml";

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { expect, gotoLabV1, test } from "./fixtures.js";
+import { expect, gotoLabV1, test } from "./fixtures.ts";
 
 test.describe("engine default shell", () => {
   test("@smoke boots the default UI and plays through the Story HUD", async ({

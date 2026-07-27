@@ -9,7 +9,7 @@ import type {
   StageLayerTransformV1,
   StagePlacementV1,
   StageTagV1,
-} from "./semantic-stage.js";
+} from "./semantic-stage.ts";
 import {
   defaultStagePlacementV1,
   parseSemanticStageStateV1,
@@ -20,8 +20,8 @@ import {
   parseStageLayerTransformV1,
   parseStagePlacementV1,
   parseStageTagV1,
-} from "./semantic-stage.js";
-import { PresentationDataError, readExactRecord } from "./presentation-data.js";
+} from "./semantic-stage.ts";
+import { PresentationDataError, readExactRecord } from "./presentation-data.ts";
 
 /**
  * The pure stage mutation vocabulary. A batch either produces one complete,

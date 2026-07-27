@@ -24,10 +24,10 @@ Story 代码只 import `@sillymaker/*` 的包出口（`@sillymaker/base`、`@sil
 每次修改后的验证环（快到可以每改一次就跑）：
 
 ```sh
-pnpm typecheck                                # 类型与契约
-pnpm exec vitest run game/stories/e2e/src/test/narrative-graph.test.ts   # 图 lint 干净 + 标注诚实
-pnpm story simulate e2e --scenario calibration   # 无浏览器跑完整叙事，JSON 输出
-pnpm test:conformance:headless                # 全部 headless 一致性测试
+deno task typecheck                                # 类型与契约
+deno run -A npm:vitest run game/stories/e2e/src/test/narrative-graph.test.ts   # 图 lint 干净 + 标注诚实
+deno task story simulate e2e --scenario calibration   # 无浏览器跑完整叙事，JSON 输出
+deno task test:conformance:headless                # 全部 headless 一致性测试
 ```
 
 改动会移动 occurrence 编号（每个交互边界按顺序编号）：`simulate` 的 `calibration` 场景脚本和若干测试按编号步进，剧本插入新边界后要同步它们——失败信息会直接给出期望/实际编号。
@@ -55,12 +55,12 @@ pnpm test:conformance:headless                # 全部 headless 一致性测试
 一个应用 = 一个 `WebGameApplicationV1` 声明 + 一次 `startWebGameApplicationV1` 调用；起点用 `game/stories/template`（复制目录 + 全局改名 + 注册一条应用即可）；完整参考看 `game/stories/e2e/src/application/`。在 `game/project.config.ts` 注册后，六个生命周期动词即可用：
 
 ```sh
-pnpm story inspect <app>    # 解析身份与程序报告
-pnpm story check <app>      # 结构化 Story 诊断
-pnpm story simulate <app> [--scenario s] [--seed n]
-pnpm story dev <app> --smoke
-pnpm story build <app>
-pnpm story prebuilt-smoke <app>
+deno task story inspect <app>    # 解析身份与程序报告
+deno task story check <app>      # 结构化 Story 诊断
+deno task story simulate <app> [--scenario s] [--seed n]
+deno task story dev <app> --smoke
+deno task story build <app>
+deno task story prebuilt-smoke <app>
 ```
 
 ## 常见诊断速查（全部来自真实踩坑）

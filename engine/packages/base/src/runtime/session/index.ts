@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
-export { createGameSessionV1 } from "./game-session.js";
+export { createGameSessionV1 } from "./game-session.ts";
 export type {
   AuthoritativeOutcomeV1,
   GameSessionCompositionV1,
   GameSessionInputV1,
   GameSessionRuntimeControlV1,
   GameSessionV1,
-} from "./game-session.js";
-export type { RuntimeInvalidationControllerV1 } from "./runtime-invalidation.js";
+} from "./game-session.ts";
+export type { RuntimeInvalidationControllerV1 } from "./runtime-invalidation.ts";

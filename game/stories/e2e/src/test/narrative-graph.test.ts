@@ -5,16 +5,16 @@ import type { InteractionResolutionV1, SemanticStageStateV1 } from "@sillymaker/
 import { lintNarrativeGraphV1, reduceStageMutationsV1 } from "@sillymaker/base";
 import { createGameHarnessV1 } from "@sillymaker/base/testkit";
 
-import type { LabInvocationV1 } from "../index.js";
+import type { LabInvocationV1 } from "../index.ts";
 import {
   labPrefetchPlanV1,
   labSemanticAdapterV1,
   labStoryEntryV1,
   predictLabNarrativeV1,
   projectLabNarrativeGraphV1,
-} from "../index.js";
-import { labNarrativeScriptV1 } from "../gameplay/narrative.js";
-import { createInitialLabStageStateV1 } from "../gameplay/stage.js";
+} from "../index.ts";
+import { labNarrativeScriptV1 } from "../gameplay/narrative.ts";
+import { createInitialLabStageStateV1 } from "../gameplay/stage.ts";
 
 function createLabHarnessV1(seed = 424_242) {
   return createGameHarnessV1({

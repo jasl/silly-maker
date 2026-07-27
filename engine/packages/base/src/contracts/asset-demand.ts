@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import type { StrictJsonObjectV1 } from "./strict-json.js";
+import type { StrictJsonObjectV1 } from "./strict-json.ts";
 
 /**
  * The explicit asset demand plan. Loaders consume plans instead of

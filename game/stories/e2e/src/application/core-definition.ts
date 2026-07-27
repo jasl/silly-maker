@@ -7,15 +7,15 @@ import type {
   LabActionResultV1,
   LabInvocationV1,
   LabPreviewV1,
-} from "./semantic.js";
-import { labSemanticAdapterV1 } from "./semantic.js";
+} from "./semantic.ts";
+import { labSemanticAdapterV1 } from "./semantic.ts";
 import type {
   LabGameViewV1,
   LabNarrativeViewV1,
   LabQueriesV1,
   LabSimulationTypesV1,
-} from "../gameplay/simulation.js";
-import { labStoryEntryV1 } from "../story.js";
+} from "../gameplay/simulation.ts";
+import { labStoryEntryV1 } from "../story.ts";
 
 /**
  * The Engine Lab core application definition: the whole application is the

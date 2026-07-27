@@ -1,21 +1,21 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it, vi } from "vitest";
 
-import type { CommandExecutionAttemptEnvelopeV1 } from "../../contracts/execution.js";
-import { commitAttemptV1, faultAttemptV1, rejectAttemptV1 } from "../../contracts/execution.js";
-import type { PatchSetIdentityV1 } from "../../contracts/hotfix.js";
-import type { BuildProvenanceV1 } from "../../contracts/provenance.js";
-import type { RngDrawTraceV1, RngStateV1 } from "../../contracts/rng.js";
-import { createTransactionalRngV1, rngStateV1Schema } from "../../contracts/rng.js";
-import type { GameSnapshotEnvelopeV1, RunIntegrityV1 } from "../../contracts/snapshot.js";
-import { createPristineRunIntegrityV1 } from "../../contracts/snapshot.js";
-import type { Digest, NonNegativeSafeInteger } from "../../contracts/values.js";
-import { digestCanonical } from "../../contracts/digest.js";
-import { digestBytes } from "../../contracts/digest.js";
-import { parseNonNegativeSafeInteger, parsePositiveSafeInteger } from "../../contracts/values.js";
-import type { FinalizedCommandAttemptV1 } from "./command-log.js";
-import { markRunModifiedV1 } from "../session/run-integrity.js";
-import { inspectReplayBestEffortV1, replayAuthoritativelyV1 } from "./replay.js";
+import type { CommandExecutionAttemptEnvelopeV1 } from "../../contracts/execution.ts";
+import { commitAttemptV1, faultAttemptV1, rejectAttemptV1 } from "../../contracts/execution.ts";
+import type { PatchSetIdentityV1 } from "../../contracts/hotfix.ts";
+import type { BuildProvenanceV1 } from "../../contracts/provenance.ts";
+import type { RngDrawTraceV1, RngStateV1 } from "../../contracts/rng.ts";
+import { createTransactionalRngV1, rngStateV1Schema } from "../../contracts/rng.ts";
+import type { GameSnapshotEnvelopeV1, RunIntegrityV1 } from "../../contracts/snapshot.ts";
+import { createPristineRunIntegrityV1 } from "../../contracts/snapshot.ts";
+import type { Digest, NonNegativeSafeInteger } from "../../contracts/values.ts";
+import { digestCanonical } from "../../contracts/digest.ts";
+import { digestBytes } from "../../contracts/digest.ts";
+import { parseNonNegativeSafeInteger, parsePositiveSafeInteger } from "../../contracts/values.ts";
+import type { FinalizedCommandAttemptV1 } from "./command-log.ts";
+import { markRunModifiedV1 } from "../session/run-integrity.ts";
+import { inspectReplayBestEffortV1, replayAuthoritativelyV1 } from "./replay.ts";
 import type {
   ReplayCommandLogEntryV1,
   ReplayDriverV1,
@@ -23,7 +23,7 @@ import type {
   ReplayInputV1,
   ReplayLoggedCommandV1,
   ReplayRecordedOutcomeV1,
-} from "./replay.js";
+} from "./replay.ts";
 
 interface SyntheticStateV1 {
   readonly value: NonNegativeSafeInteger;

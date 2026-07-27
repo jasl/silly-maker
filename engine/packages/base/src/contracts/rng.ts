@@ -6,8 +6,8 @@ import type {
   NonZeroUint32,
   PositiveSafeInteger,
   RuntimeSchemaV1,
-} from "./values.js";
-import { parseNonNegativeSafeInteger, parsePositiveSafeInteger } from "./values.js";
+} from "./values.ts";
+import { parseNonNegativeSafeInteger, parsePositiveSafeInteger } from "./values.ts";
 
 type Uint32 = Brand<number, "Uint32">;
 

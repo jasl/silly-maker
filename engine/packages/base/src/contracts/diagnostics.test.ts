@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import { digestBytes } from "./digest.js";
-import type { DebugBundleEnvelopeV1 } from "./diagnostics.js";
+import { digestBytes } from "./digest.ts";
+import type { DebugBundleEnvelopeV1 } from "./diagnostics.ts";
 import {
   createDebugUiContextSchemaV1,
   debugBundleJsonLimitsV1,
   debugPresentationLimitsV1,
   exportedDebugBundleSchemaV1,
   runtimeOperationFaultSchemaV1,
-} from "./diagnostics.js";
-import { parseIsoUtcInstantV1 } from "./persistence.js";
+} from "./diagnostics.ts";
+import { parseIsoUtcInstantV1 } from "./persistence.ts";
 
 function createDebugPresentationRendererSummaryV1(index = 0) {
   return {

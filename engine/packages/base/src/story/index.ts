@@ -21,14 +21,14 @@ export {
   defineGamePackage,
   defineGameSimulation,
   resolveGamePackageV1 as resolveGamePackage,
-} from "../index.js";
-export { createGameAuthoringKitV1 as createGameAuthoringKit } from "../index.js";
+} from "../index.ts";
+export { createGameAuthoringKitV1 as createGameAuthoringKit } from "../index.ts";
 export type {
   GamePackageV1 as GamePackage,
   GameSimulationV1 as GameSimulation,
   GameSimulationTypeMapV1 as GameSimulationTypeMap,
   StateContractManifestV1 as StateContractManifest,
-} from "../index.js";
+} from "../index.ts";
 
 // ---------------------------------------------------------------------------
 // Semantic stage (current generation: V1).
@@ -40,7 +40,7 @@ export {
   reduceStageMutationsV1 as reduceStageMutations,
   projectStageRenderTargetV1 as projectStageRenderTarget,
   parseStageTransitionDefinitionV1 as parseStageTransitionDefinition,
-} from "../index.js";
+} from "../index.ts";
 export type {
   SemanticStageStateV1 as SemanticStageState,
   StageLayerV1 as StageLayer,
@@ -56,7 +56,7 @@ export type {
   StageTransitionDefinitionV1 as StageTransitionDefinition,
   StageTransitionCatalogV1 as StageTransitionCatalog,
   StageTargetChangeV1 as StageTargetChange,
-} from "../index.js";
+} from "../index.ts";
 
 // ---------------------------------------------------------------------------
 // Pending interactions (current generation: V1).
@@ -67,14 +67,14 @@ export {
   parseInteractionOccurrenceIdV1 as parseInteractionOccurrenceId,
   parseInteractionResolutionV1 as parseInteractionResolution,
   parsePendingInteractionV1 as parsePendingInteraction,
-} from "../index.js";
+} from "../index.ts";
 export type {
   PendingInteractionV1 as PendingInteraction,
   InteractionResolutionV1 as InteractionResolution,
   InteractionResolutionContextV1 as InteractionResolutionContext,
   InteractionResolutionOutcomeV1 as InteractionResolutionOutcome,
   InteractionRejectionCodeV1 as InteractionRejectionCode,
-} from "../index.js";
+} from "../index.ts";
 
 // ---------------------------------------------------------------------------
 // Narrative history, graph lint, and bounded prediction (current: V1).
@@ -88,7 +88,7 @@ export {
   parseNarrativeGraphV1 as parseNarrativeGraph,
   predictNarrativeDependenciesV1 as predictNarrativeDependencies,
   narrativePredictionToDemandPlanV1 as narrativePredictionToDemandPlan,
-} from "../index.js";
+} from "../index.ts";
 export type {
   NarrativeHistoryV1 as NarrativeHistory,
   NarrativeHistoryEntryV1 as NarrativeHistoryEntry,
@@ -97,7 +97,7 @@ export type {
   NarrativeGraphBuilderV1 as NarrativeGraphBuilder,
   NarrativePredictionV1 as NarrativePrediction,
   NarrativePredictionBudgetV1 as NarrativePredictionBudget,
-} from "../index.js";
+} from "../index.ts";
 
 // ---------------------------------------------------------------------------
 // Audio intent and asset demand (current: V1).
@@ -106,21 +106,21 @@ export {
   parseAudioIntentV1 as parseAudioIntent,
   resolveAudioManifestV1 as resolveAudioManifest,
   createAssetDemandPlanV1 as createAssetDemandPlan,
-} from "../index.js";
+} from "../index.ts";
 export type {
   AudioIntentV1 as AudioIntent,
   ResolvedAudioManifestV1 as ResolvedAudioManifest,
   AssetDemandPlanV1 as AssetDemandPlan,
   TransientEffectV1 as TransientEffect,
   TransientEffectRequestV1 as TransientEffectRequest,
-} from "../index.js";
+} from "../index.ts";
 
 // ---------------------------------------------------------------------------
 // Application composition (current: V1).
 // ---------------------------------------------------------------------------
-export { defineCoreGameApplicationV1 as defineCoreGameApplication } from "../runtime/index.js";
+export { defineCoreGameApplicationV1 as defineCoreGameApplication } from "../runtime/index.ts";
 export type {
   CoreSemanticAdapterV1 as CoreSemanticAdapter,
   CoreGameApplicationDefinitionV1 as CoreGameApplicationDefinition,
   CoreGameApplicationInstanceV1 as CoreGameApplicationInstance,
-} from "../runtime/index.js";
+} from "../runtime/index.ts";

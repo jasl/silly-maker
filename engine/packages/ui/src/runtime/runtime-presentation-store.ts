@@ -9,7 +9,7 @@ import type {
   StrictJsonObjectV1,
 } from "@sillymaker/base";
 
-import type { SemanticPublicationBridgeV1 } from "./semantic-publication-bridge.js";
+import type { SemanticPublicationBridgeV1 } from "./semantic-publication-bridge.ts";
 
 export interface RuntimePresentationProjectionInputV1<
   TSemanticPublication,

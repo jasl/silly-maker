@@ -2,8 +2,8 @@
 import type { NarrativeGraph } from "@sillymaker/base/story";
 import { parseNarrativeGraph } from "@sillymaker/base/story";
 
-import type { TemplateNarrativeNodeV1 } from "./narrative.js";
-import { templateScriptV1 } from "./narrative.js";
+import type { TemplateNarrativeNodeV1 } from "./narrative.ts";
+import { templateScriptV1 } from "./narrative.ts";
 
 /**
  * Projects the typed script into the generic narrative graph so

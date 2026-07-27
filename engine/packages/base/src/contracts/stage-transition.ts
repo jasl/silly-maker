@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
-import { dataFailure, readExactRecord } from "./presentation-data.js";
-import type { StageLayerIdV1 } from "./semantic-stage.js";
-import type { StageRenderEntryV1 } from "./stage-render-target.js";
+import { dataFailure, readExactRecord } from "./presentation-data.ts";
+import type { StageLayerIdV1 } from "./semantic-stage.ts";
+import type { StageRenderEntryV1 } from "./stage-render-target.ts";
 
 /**
  * Semantic Stage V1 transition vocabulary. A transition definition is plain,

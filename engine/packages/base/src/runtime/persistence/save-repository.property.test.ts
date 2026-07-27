@@ -2,32 +2,32 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
-import type { SaveSlotIdV1, SessionLeaseOwnerId } from "../../contracts/application.js";
-import { digestCanonical } from "../../contracts/digest.js";
+import type { SaveSlotIdV1, SessionLeaseOwnerId } from "../../contracts/application.ts";
+import { digestCanonical } from "../../contracts/digest.ts";
 import type {
   HostAtomicCommitResultV1,
   HostAtomicRecordStoreV1,
   HostRecordKeyV1,
   HostRecordMutationV1,
   HostRecordNamespaceV1,
-} from "../../contracts/host.js";
-import { createMemoryHostRecordStoreV1 } from "../../contracts/host.js";
+} from "../../contracts/host.ts";
+import { createMemoryHostRecordStoreV1 } from "../../contracts/host.ts";
 import {
   createSaveRecordEnvelopeSchemaV1,
   parseIsoUtcInstantV1,
-} from "../../contracts/persistence.js";
+} from "../../contracts/persistence.ts";
 import type {
   SaveCodecContextV1,
   SaveRecordEnvelopeV1,
   SaveWriteReasonV1,
-} from "../../contracts/persistence.js";
-import type { NonNegativeSafeInteger, RuntimeSchemaV1 } from "../../contracts/values.js";
-import { parseNonNegativeSafeInteger, parsePositiveSafeInteger } from "../../contracts/values.js";
-import { createSaveRepositoryV1 } from "./save-repository.js";
-import type { SaveRepositorySlotMetadataV1 } from "./save-repository.js";
-import { createSessionLeaseV1 } from "./session-lease.js";
-import type { SessionLeaseFenceV1 } from "./session-lease.js";
-import { createSaveSlotRecordKeyV1 } from "./slot-keys.js";
+} from "../../contracts/persistence.ts";
+import type { NonNegativeSafeInteger, RuntimeSchemaV1 } from "../../contracts/values.ts";
+import { parseNonNegativeSafeInteger, parsePositiveSafeInteger } from "../../contracts/values.ts";
+import { createSaveRepositoryV1 } from "./save-repository.ts";
+import type { SaveRepositorySlotMetadataV1 } from "./save-repository.ts";
+import { createSessionLeaseV1 } from "./session-lease.ts";
+import type { SessionLeaseFenceV1 } from "./session-lease.ts";
+import { createSaveSlotRecordKeyV1 } from "./slot-keys.ts";
 
 const storyIdV1 = "story.save-repository-property";
 

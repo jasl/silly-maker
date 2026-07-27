@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 import type { NonNegativeSafeInteger } from "@sillymaker/base";
 
-import type { BrowserAutomationBridgeV1 } from "./browser-automation-bridge.js";
+import type { BrowserAutomationBridgeV1 } from "./browser-automation-bridge.ts";
 
 interface BrowserAutomationGlobalPublicationV1 {
   readonly revision: NonNegativeSafeInteger;

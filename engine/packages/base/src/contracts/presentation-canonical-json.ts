@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-import { CanonicalJsonError, canonicalJsonBytes } from "./canonical-json.js";
-import { compareCodePoints, pointerSegment } from "./presentation-data.js";
+import { CanonicalJsonError, canonicalJsonBytes } from "./canonical-json.ts";
+import { compareCodePoints, pointerSegment } from "./presentation-data.ts";
 
 type PresentationCanonicalNodeV1 =
   | readonly ["null"]

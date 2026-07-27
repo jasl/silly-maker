@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import { rejectAttemptV1 } from "./execution.js";
-import { createTransactionalRngV1, rngStateV1Schema } from "./rng.js";
-import { parseNonNegativeSafeInteger, parseNonZeroUint32 } from "./values.js";
+import { rejectAttemptV1 } from "./execution.ts";
+import { createTransactionalRngV1, rngStateV1Schema } from "./rng.ts";
+import { parseNonNegativeSafeInteger, parseNonZeroUint32 } from "./values.ts";
 
 describe("execution attempts", () => {
   it("keeps rejected attempts on the committed Snapshot", () => {

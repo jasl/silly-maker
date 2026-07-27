@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import { AuthoringDiagnosticErrorV1 } from "../contracts/diagnostic-envelope.js";
+import { AuthoringDiagnosticErrorV1 } from "../contracts/diagnostic-envelope.ts";
 import type {
   GameBootstrapInputV1,
   GameSimulationTypeMapV1,
-} from "../contracts/gameplay-module.js";
-import type { RuntimeSchemaV1 } from "../contracts/values.js";
-import { parseNonNegativeSafeInteger } from "../contracts/values.js";
-import { createGameAuthoringKitV1 } from "./game-authoring-kit.js";
+} from "../contracts/gameplay-module.ts";
+import type { RuntimeSchemaV1 } from "../contracts/values.ts";
+import { parseNonNegativeSafeInteger } from "../contracts/values.ts";
+import { createGameAuthoringKitV1 } from "./game-authoring-kit.ts";
 
 interface KitTestStateV1 {
   readonly simulation: {

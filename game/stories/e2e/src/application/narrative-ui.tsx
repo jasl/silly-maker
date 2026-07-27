@@ -21,9 +21,9 @@ import {
   systemInputActionIdsV1,
 } from "@sillymaker/ui";
 
-import type { LabUiPublicationV1 } from "./web-application.js";
-import type { LabApplicationInstanceV1 } from "./core-definition.js";
-import { labUiTextV1 } from "./web-application.js";
+import type { LabUiPublicationV1 } from "./web-application.tsx";
+import type { LabApplicationInstanceV1 } from "./core-definition.ts";
+import { labUiTextV1 } from "./web-application.tsx";
 
 type LabSemanticPortV1 = LabApplicationInstanceV1["semantic"];
 

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import { createPristineRunIntegrityV1 } from "../../contracts/snapshot.js";
-import { parseNonNegativeSafeInteger } from "../../contracts/values.js";
-import { markRunModifiedV1 } from "./run-integrity.js";
+import { createPristineRunIntegrityV1 } from "../../contracts/snapshot.ts";
+import { parseNonNegativeSafeInteger } from "../../contracts/values.ts";
+import { markRunModifiedV1 } from "./run-integrity.ts";
 
 describe("RunIntegrity finalization", () => {
   it("marks successful mutations atomically and deduplicates reason kinds", () => {

@@ -12,7 +12,7 @@ import {
   simulateStoryApplicationV1,
 } from "@sillymaker/tooling";
 
-import { projectTavernConfigV1 } from "../../../../project.config.js";
+import { projectTavernConfigV1 } from "../../../../project.config.ts";
 
 const repositoryRootV1 = fileURLToPath(new URL("../../../../..", import.meta.url));
 const loaderV1 = createImportProjectModuleLoaderV1(repositoryRootV1);

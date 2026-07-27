@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import type { RngDrawTraceV1, RngStateV1, RuleRngV1 } from "./rng.js";
+import type { RngDrawTraceV1, RngStateV1, RuleRngV1 } from "./rng.ts";
 
 export type CommandExecutionResultEnvelopeV1<TSnapshot, TFact, TRejection, TFault> =
   | {

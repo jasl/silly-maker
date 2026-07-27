@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
-export { strictJsonRoundTripV1, validateToolingFixturesV1 } from "./contract-suite.js";
-export { createFixedBootstrapEntropyV1 } from "./fixed-bootstrap-entropy.js";
-export { createMemoryHostRecordStoreV1 } from "../contracts/host.js";
-export { createSyntheticCounterGamePackageV1 } from "./synthetic-counter.js";
-export { resolveStoryForTestV1, validateStoryV1 } from "./story-contracts.js";
-export { createGameHarnessV1 } from "./game-harness.js";
+export { strictJsonRoundTripV1, validateToolingFixturesV1 } from "./contract-suite.ts";
+export { createFixedBootstrapEntropyV1 } from "./fixed-bootstrap-entropy.ts";
+export { createMemoryHostRecordStoreV1 } from "../contracts/host.ts";
+export { createSyntheticCounterGamePackageV1 } from "./synthetic-counter.ts";
+export { resolveStoryForTestV1, validateStoryV1 } from "./story-contracts.ts";
+export { createGameHarnessV1 } from "./game-harness.ts";
 export type {
   CreateGameHarnessInputV1,
   GameHarnessAdminV1,
@@ -13,5 +13,5 @@ export type {
   GameHarnessSemanticAdapterV1,
   GameHarnessTraceEntryV1,
   GameHarnessV1,
-} from "./game-harness.js";
-export type { SyntheticSimulationTypesV1 } from "./synthetic-counter.js";
+} from "./game-harness.ts";
+export type { SyntheticSimulationTypesV1 } from "./synthetic-counter.ts";

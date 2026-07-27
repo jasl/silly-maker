@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { createInProcessAgentGamePortV1 } from "@sillymaker/base/runtime";
 
-import { createLabApplicationInstanceV1 } from "../application/core-application.js";
+import { createLabApplicationInstanceV1 } from "../application/core-application.ts";
 
 const defaultScriptV1 = Object.freeze([
   Object.freeze({ kind: "invoke" as const, actionId: "lab.collect_sample" as const }),

@@ -12,8 +12,8 @@ import type {
   LabInvocationV1,
   LabNarrativeViewV1,
   LabPreviewV1,
-} from "../index.js";
-import { labSemanticAdapterV1, labStoryEntryV1 } from "../index.js";
+} from "../index.ts";
+import { labSemanticAdapterV1, labStoryEntryV1 } from "../index.ts";
 
 type LabAgentPortV1 = AgentGamePortV1<
   LabGameViewV1,

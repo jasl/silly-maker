@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { digestCanonical } from "../contracts/digest.js";
+import { digestCanonical } from "../contracts/digest.ts";
 import type {
   AppliedHotfixV1,
   GamePackageResolutionFailureCodeV1,
@@ -12,10 +12,10 @@ import type {
   PatchSlotDescriptorV1,
   PatchSurfaceKindV1,
   PatchSymbolKindV1,
-} from "../contracts/hotfix.js";
-import type { StorySourceIdentityV1 } from "../contracts/game-package.js";
-import { parseDigest, parseModuleId, parsePositiveSafeInteger } from "../contracts/values.js";
-import { deepFreezeAuthoringValueV1 } from "./define-gameplay-module.js";
+} from "../contracts/hotfix.ts";
+import type { StorySourceIdentityV1 } from "../contracts/game-package.ts";
+import { parseDigest, parseModuleId, parsePositiveSafeInteger } from "../contracts/values.ts";
+import { deepFreezeAuthoringValueV1 } from "./define-gameplay-module.ts";
 
 type Slot = PatchSlotDescriptorV1<PatchSymbolKindV1, unknown>;
 interface NormalizedSurface {

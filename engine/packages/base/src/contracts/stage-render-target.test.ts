@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import type { AssetId } from "./presentation-ids.js";
-import { createSemanticStageStateV1 } from "./semantic-stage.js";
-import { reduceStageMutationsV1 } from "./semantic-stage-reducer.js";
-import type { StageContentCatalogV1 } from "./stage-render-target.js";
-import { projectStageRenderTargetV1, stageFallbackRendererIdV1 } from "./stage-render-target.js";
+import type { AssetId } from "./presentation-ids.ts";
+import { createSemanticStageStateV1 } from "./semantic-stage.ts";
+import { reduceStageMutationsV1 } from "./semantic-stage-reducer.ts";
+import type { StageContentCatalogV1 } from "./stage-render-target.ts";
+import { projectStageRenderTargetV1, stageFallbackRendererIdV1 } from "./stage-render-target.ts";
 
 function stageWithContentV1() {
   const outcome = reduceStageMutationsV1(

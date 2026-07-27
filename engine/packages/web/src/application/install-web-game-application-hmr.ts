@@ -5,9 +5,9 @@ import type { PersistenceRebootstrapDisposalV1 } from "@sillymaker/base/runtime"
 import type {
   InstalledResolvedGameHmrV1,
   ResolvedGameHmrHotAdapterV1,
-} from "./resolved-game-hmr.js";
-import { installResolvedGameHmrV1 } from "./resolved-game-hmr.js";
-import type { StartedWebGameApplicationV1 } from "./start-web-game-application.js";
+} from "./resolved-game-hmr.ts";
+import { installResolvedGameHmrV1 } from "./resolved-game-hmr.ts";
+import type { StartedWebGameApplicationV1 } from "./start-web-game-application.tsx";
 
 /**
  * Composer-owned dev HMR for `startWebGameApplicationV1` applications. A

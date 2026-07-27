@@ -3,7 +3,7 @@
 import "@testing-library/jest-dom/vitest";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { CodeNativeAssetFallbackV1 } from "./code-native-asset-fallback.js";
+import { CodeNativeAssetFallbackV1 } from "./code-native-asset-fallback.tsx";
 
 const interactiveSelector = [
   "button",

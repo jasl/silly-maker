@@ -7,12 +7,12 @@ import { fileURLToPath } from "node:url";
 import type {
   DeepReadonly,
   ResolvedAssetManifestV1,
-} from "../../engine/packages/base/src/index.js";
+} from "../../engine/packages/base/src/index.ts";
 
 import type {
   RuntimeAssetValidationEnvironmentV1,
   RuntimeAssetValidationErrorV1,
-} from "./validate-runtime.mjs";
+} from "./validate-runtime.mts";
 
 const repositoryRootForLoadingV1 = resolve(fileURLToPath(new URL(".", import.meta.url)), "../..");
 
@@ -36,11 +36,11 @@ async function loadRuntimeAssetModulesV1() {
   try {
     const [baseModule, toolingModule, loaderModule, configModule, validatorModule] =
       await Promise.all([
-        import("../../engine/packages/base/src/index.js"),
-        import("../../engine/packages/tooling/src/project/index.js"),
-        import("../../engine/packages/tooling/src/project/loader.js"),
-        import("../../game/project.config.js"),
-        import("./validate-runtime.mjs"),
+        import("../../engine/packages/base/src/index.ts"),
+        import("../../engine/packages/tooling/src/project/index.ts"),
+        import("../../engine/packages/tooling/src/project/loader.ts"),
+        import("../../game/project.config.ts"),
+        import("./validate-runtime.mts"),
       ]);
     const loader = loaderModule.createImportProjectModuleLoaderV1(repositoryRootForLoadingV1);
     const project = toolingModule.defineSillymakerProjectV1(configModule.projectTavernConfigV1);

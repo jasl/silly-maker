@@ -5,9 +5,9 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { createInputRouterV1 } from "../input/input-router.js";
-import { useInputRouterV1 } from "../input/input-context.js";
-import { GameShell } from "./game-shell.js";
+import { createInputRouterV1 } from "../input/input-router.ts";
+import { useInputRouterV1 } from "../input/input-context.tsx";
+import { GameShell } from "./game-shell.tsx";
 
 afterEach(cleanup);
 

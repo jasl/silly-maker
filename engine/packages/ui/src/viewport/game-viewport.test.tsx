@@ -5,8 +5,8 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import type { ReactElement } from "react";
 
-import type { GameViewportGeometryV1 } from "./game-viewport.js";
-import { GameViewportV1, useGameViewportV1 } from "./game-viewport.js";
+import type { GameViewportGeometryV1 } from "./game-viewport.tsx";
+import { GameViewportV1, useGameViewportV1 } from "./game-viewport.tsx";
 
 afterEach(cleanup);
 

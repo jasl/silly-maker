@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
-import type { DiagnosticEnvelopeV1 } from "../contracts/diagnostic-envelope.js";
-import { createDiagnosticV1, parseDiagnosticEnvelopeV1 } from "../contracts/diagnostic-envelope.js";
-import { digestBytes } from "../contracts/digest.js";
-import type { GamePackageV1 } from "../contracts/game-package.js";
-import type { StrictJsonObjectV1 } from "../contracts/strict-json.js";
-import type { BuildIdentityInputV1 } from "./build-identity.js";
-import { resolveGamePackageV1 } from "./story-resolver.js";
+import type { DiagnosticEnvelopeV1 } from "../contracts/diagnostic-envelope.ts";
+import { createDiagnosticV1, parseDiagnosticEnvelopeV1 } from "../contracts/diagnostic-envelope.ts";
+import { digestBytes } from "../contracts/digest.ts";
+import type { GamePackageV1 } from "../contracts/game-package.ts";
+import type { StrictJsonObjectV1 } from "../contracts/strict-json.ts";
+import type { BuildIdentityInputV1 } from "./build-identity.ts";
+import { resolveGamePackageV1 } from "./story-resolver.ts";
 
 export type GamePackageDiagnosticsResultV1 =
   | { readonly kind: "valid" }

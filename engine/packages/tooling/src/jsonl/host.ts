@@ -13,13 +13,13 @@ import type {
   JsonlOutputLineV1,
   JsonlProtocolErrorCodeV1,
   JsonlRequestV1,
-} from "./protocol.js";
+} from "./protocol.ts";
 import {
   boundProtocolMessageV1,
   defaultJsonlHostLimitsV1,
   jsonlProtocolVersionV1,
   parseJsonlRequestLineV1,
-} from "./protocol.js";
+} from "./protocol.ts";
 
 export interface JsonlAgentHostInputV1 {
   readonly agent: AgentGamePortV1<unknown, unknown, unknown, unknown, unknown, unknown>;

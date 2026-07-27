@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
-import type { BootstrapEntropyV1 } from "../contracts/gameplay-module.js";
-import type { NonZeroUint32, RunId } from "../contracts/values.js";
-import { parseNonZeroUint32, parseRunId } from "../contracts/values.js";
+import type { BootstrapEntropyV1 } from "../contracts/gameplay-module.ts";
+import type { NonZeroUint32, RunId } from "../contracts/values.ts";
+import { parseNonZeroUint32, parseRunId } from "../contracts/values.ts";
 
 export interface FixedBootstrapEntropyInputV1 {
   readonly uuids: readonly string[];

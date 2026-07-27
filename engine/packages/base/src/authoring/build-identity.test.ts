@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it, vi } from "vitest";
 
-import { digestBytes } from "../contracts/digest.js";
-import type { BuildIdentityInputV1 } from "./build-identity.js";
-import { resolveBuildIdentityV1 } from "./build-identity.js";
+import { digestBytes } from "../contracts/digest.ts";
+import type { BuildIdentityInputV1 } from "./build-identity.ts";
+import { resolveBuildIdentityV1 } from "./build-identity.ts";
 
 const digest = digestBytes(new TextEncoder().encode("source"));
 

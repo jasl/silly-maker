@@ -18,7 +18,7 @@ import {
   SILLYMAKER_NAMESPACE_INDEX_NAME_V1,
   SILLYMAKER_RECORD_STORE_NAME_V1,
   createIndexedDbRecordStoreV1,
-} from "./indexeddb-record-store.js";
+} from "./indexeddb-record-store.ts";
 
 const databaseNameV1 = "project-tavern.test.runtime";
 type HostRecordKeyV1 = HostStoredRecordV1["key"];

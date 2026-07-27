@@ -11,16 +11,16 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   DevDockPortalCoordinatorV1,
   useDevDockPortalTargetV1,
-} from "../debug/DevDockPortalCoordinator.js";
+} from "../debug/DevDockPortalCoordinator.tsx";
 import {
   inputHandledV1,
   systemInputActionIdsV1,
   type InputEventV1,
   type InputRouteResultV1,
-} from "../input/contracts.js";
-import { createInputRouterV1 } from "../input/input-router.js";
-import { GameStageV1 } from "../shell/game-stage.js";
-import { VnLayerV1, type VnChoiceV1 } from "./vn-layer.js";
+} from "../input/contracts.ts";
+import { createInputRouterV1 } from "../input/input-router.ts";
+import { GameStageV1 } from "../shell/game-stage.tsx";
+import { VnLayerV1, type VnChoiceV1 } from "./vn-layer.tsx";
 
 afterEach(() => {
   cleanup();

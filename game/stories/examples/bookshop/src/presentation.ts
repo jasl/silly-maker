@@ -10,7 +10,7 @@ import type {
 } from "@sillymaker/base/story";
 import { parseStageTransitionDefinition } from "@sillymaker/base/story";
 
-import { bookshopContentIdsV1 } from "./narrative.js";
+import { bookshopContentIdsV1 } from "./narrative.ts";
 
 /**
  * Every player-visible string lives here, keyed by textId. The script

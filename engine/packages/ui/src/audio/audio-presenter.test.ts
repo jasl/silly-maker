@@ -4,8 +4,8 @@ import { describe, expect, it } from "vitest";
 import type { AudioIntentV1, TransientEffectV1 } from "@sillymaker/base";
 import { parseAudioIntentV1 } from "@sillymaker/base";
 
-import { createFakeAudioHostV1 } from "./audio-host.js";
-import { createAudioPresenterV1 } from "./audio-presenter.js";
+import { createFakeAudioHostV1 } from "./audio-host.ts";
+import { createAudioPresenterV1 } from "./audio-presenter.ts";
 
 function intentV1(input: {
   readonly bgm?: string | null;

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
-import { digestCanonical } from "./digest.js";
-import type { Brand, Digest } from "./values.js";
-import { dataFailure, deepFreezeData, readArray, readExactRecord } from "./presentation-data.js";
+import { digestCanonical } from "./digest.ts";
+import type { Brand, Digest } from "./values.ts";
+import { dataFailure, deepFreezeData, readArray, readExactRecord } from "./presentation-data.ts";
 
 /**
  * Semantic Stage V1: the plain, versioned, validated stage target that lives

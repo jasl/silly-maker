@@ -3,13 +3,13 @@ import { describe, expect, it } from "vitest";
 
 import { AuthoringDiagnosticErrorV1 } from "@sillymaker/base";
 
-import type { StoryApplicationConfigV1 } from "./config.js";
+import type { StoryApplicationConfigV1 } from "./config.ts";
 import {
   defineSillymakerProjectV1,
   listStoryApplicationIdsV1,
   resolveStoryApplicationV1,
   resolveWebBuildTargetV1,
-} from "./config.js";
+} from "./config.ts";
 
 function webApplicationV1(applicationId: string): StoryApplicationConfigV1 {
   return {

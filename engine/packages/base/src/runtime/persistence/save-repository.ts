@@ -1,26 +1,26 @@
 // SPDX-License-Identifier: MIT
-import type { SaveSlotIdV1 } from "../../contracts/application.js";
+import type { SaveSlotIdV1 } from "../../contracts/application.ts";
 import type {
   HostAtomicRecordStoreV1,
   HostRecordMutationV1,
   HostRecordRevisionV1,
   HostStoredRecordV1,
-} from "../../contracts/host.js";
+} from "../../contracts/host.ts";
 import type {
   SaveCodecContextV1,
   SaveRecordEnvelopeV1,
   SaveWriteReasonV1,
-} from "../../contracts/persistence.js";
+} from "../../contracts/persistence.ts";
 import type {
   DeepReadonly,
   NonNegativeSafeInteger,
   PositiveSafeInteger,
-} from "../../contracts/values.js";
-import { parsePositiveSafeInteger } from "../../contracts/values.js";
-import { decodeSaveRecordV1, encodeSaveRecordV1 } from "./save-codec.js";
-import { decodeSessionLeaseRecordV1 } from "./session-lease.js";
-import type { SessionLeaseFenceV1 } from "./session-lease.js";
-import { createSaveSlotRecordKeyV1, createSessionLeaseRecordKeyV1 } from "./slot-keys.js";
+} from "../../contracts/values.ts";
+import { parsePositiveSafeInteger } from "../../contracts/values.ts";
+import { decodeSaveRecordV1, encodeSaveRecordV1 } from "./save-codec.ts";
+import { decodeSessionLeaseRecordV1 } from "./session-lease.ts";
+import type { SessionLeaseFenceV1 } from "./session-lease.ts";
+import { createSaveSlotRecordKeyV1, createSessionLeaseRecordKeyV1 } from "./slot-keys.ts";
 
 export interface SaveRepositorySlotMetadataV1 {
   readonly storyId: string;

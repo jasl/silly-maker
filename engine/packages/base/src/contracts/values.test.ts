@@ -6,7 +6,7 @@ import {
   parseNonNegativeSafeInteger,
   parseStateSlotId,
   parseStoryId,
-} from "./values.js";
+} from "./values.ts";
 
 describe("closed values", () => {
   it("rejects hostile integers and identifiers", () => {

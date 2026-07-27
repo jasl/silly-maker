@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-import type { DeepReadonly, NonNegativeSafeInteger, PositiveSafeInteger } from "./values.js";
-import { parsePositiveSafeInteger } from "./values.js";
+import type { DeepReadonly, NonNegativeSafeInteger, PositiveSafeInteger } from "./values.ts";
+import { parsePositiveSafeInteger } from "./values.ts";
 
 export interface StrictJsonLimitsV1 {
   readonly maxBytes: PositiveSafeInteger;

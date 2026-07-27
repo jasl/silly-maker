@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { expect, gotoLabV1, test } from "./fixtures.js";
+import { expect, gotoLabV1, test } from "./fixtures.ts";
 
 const debugVocabularyV1 = /debug|semantic|revision|replay|fixture|diagnostic/iu;
 

@@ -110,7 +110,7 @@ export {
   runIntegrityV1Schema,
   saveJsonLimitsV1,
   setContentMaturityFlagV1,
-} from "./contracts/index.js";
+} from "./contracts/index.ts";
 export {
   collectGamePackageDiagnosticsV1,
   createGameAuthoringKitV1,
@@ -124,7 +124,7 @@ export {
   defineStoryToolingEntry,
   fromStandardSchemaV1,
   resolveGamePackageV1,
-} from "./authoring/index.js";
+} from "./authoring/index.ts";
 export type {
   AuthoringKitCompositionV1,
   CapabilityProviderContextV1,
@@ -145,7 +145,7 @@ export type {
   RuntimeSchemaOptionsV1,
   StandardSchemaLikeV1,
   StandardSchemaOutputV1,
-} from "./authoring/index.js";
+} from "./authoring/index.ts";
 export {
   AuthoringDiagnosticErrorV1,
   createDiagnosticV1,
@@ -154,7 +154,7 @@ export {
   formatDiagnosticHumanV1,
   formatDiagnosticsHumanV1,
   parseDiagnosticEnvelopeV1,
-} from "./contracts/diagnostic-envelope.js";
+} from "./contracts/diagnostic-envelope.ts";
 export type {
   CreateDiagnosticInputV1,
   DiagnosticEnvelopeV1,
@@ -163,8 +163,8 @@ export type {
   DiagnosticRelatedLocationV1,
   DiagnosticSeverityV1,
   DiagnosticSubjectV1,
-} from "./contracts/diagnostic-envelope.js";
-export type { RuntimeInvalidationControllerV1 } from "./runtime/index.js";
+} from "./contracts/diagnostic-envelope.ts";
+export type { RuntimeInvalidationControllerV1 } from "./runtime/index.ts";
 export type {
   AppearanceLayerId,
   AssetPackDigestProjectionV1,
@@ -409,4 +409,4 @@ export type {
   StatelessGameplayModuleBindingV1,
   TextCatalogSetV1,
   TextId,
-} from "./contracts/index.js";
+} from "./contracts/index.ts";

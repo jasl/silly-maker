@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import { parseStrictJson, parseStrictJsonLimitsV1 } from "./strict-json.js";
+import { parseStrictJson, parseStrictJsonLimitsV1 } from "./strict-json.ts";
 
 const limits = parseStrictJsonLimitsV1({
   maxBytes: 1024,

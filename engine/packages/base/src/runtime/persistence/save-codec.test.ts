@@ -1,30 +1,30 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import { canonicalJsonBytes } from "../../contracts/canonical-json.js";
-import { digestBytes, digestCanonical } from "../../contracts/digest.js";
+import { canonicalJsonBytes } from "../../contracts/canonical-json.ts";
+import { digestBytes, digestCanonical } from "../../contracts/digest.ts";
 import {
   createSaveRecordEnvelopeSchemaV1,
   parseIsoUtcInstantV1,
   saveJsonLimitsV1,
-} from "../../contracts/persistence.js";
+} from "../../contracts/persistence.ts";
 import type {
   SaveCodecContextV1,
   SaveRecordEnvelopeV1,
   SimulationAdoptionV1,
-} from "../../contracts/persistence.js";
+} from "../../contracts/persistence.ts";
 import {
   createGameSnapshotEnvelopeSchemaV1,
   createPristineRunIntegrityV1,
-} from "../../contracts/snapshot.js";
-import type { GameSnapshotEnvelopeV1, RunIntegrityV1 } from "../../contracts/snapshot.js";
-import type { Digest, NonNegativeSafeInteger, RuntimeSchemaV1 } from "../../contracts/values.js";
+} from "../../contracts/snapshot.ts";
+import type { GameSnapshotEnvelopeV1, RunIntegrityV1 } from "../../contracts/snapshot.ts";
+import type { Digest, NonNegativeSafeInteger, RuntimeSchemaV1 } from "../../contracts/values.ts";
 import {
   parseDigest,
   parseNonNegativeSafeInteger,
   parsePositiveSafeInteger,
-} from "../../contracts/values.js";
-import { decodeSaveRecordV1, encodeSaveRecordV1 } from "./save-codec.js";
+} from "../../contracts/values.ts";
+import { decodeSaveRecordV1, encodeSaveRecordV1 } from "./save-codec.ts";
 
 interface SyntheticStateV1 {
   readonly referenceId: string;

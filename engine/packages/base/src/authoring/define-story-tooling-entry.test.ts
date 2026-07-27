@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import { parsePositiveSafeInteger } from "../contracts/values.js";
-import { validateToolingFixturesV1 } from "../testkit/contract-suite.js";
-import { defineStoryToolingEntry } from "./define-story-tooling-entry.js";
+import { parsePositiveSafeInteger } from "../contracts/values.ts";
+import { validateToolingFixturesV1 } from "../testkit/contract-suite.ts";
+import { defineStoryToolingEntry } from "./define-story-tooling-entry.ts";
 
 const fixtureIdSchema = {
   parse(value: unknown) {

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import type { HostRecordKeyV1 } from "./host.js";
-import { createMemoryHostRecordStoreV1 } from "./host.js";
+import type { HostRecordKeyV1 } from "./host.ts";
+import { createMemoryHostRecordStoreV1 } from "./host.ts";
 
 const key = (value: string) => value as HostRecordKeyV1;
 

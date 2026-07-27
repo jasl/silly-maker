@@ -2,7 +2,7 @@
 import type { DebugFixtureListResultV1, DebugToolsOperationResultV1 } from "@sillymaker/base";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { Button } from "../primitives/Button.js";
+import { Button } from "../primitives/Button.tsx";
 
 export type FixtureBrowserAnchorResultV1 =
   { readonly kind: "anchored" } | { readonly kind: "rejected"; readonly message: string };

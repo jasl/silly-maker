@@ -17,9 +17,9 @@ import {
   reduceStageMutationsV1,
 } from "@sillymaker/base";
 
-import { labVoiceForSayV1 } from "./audio.js";
+import { labVoiceForSayV1 } from "./audio.ts";
 
-import { labStageContentIdsV1, labStageTagsV1 } from "../stage-ids.js";
+import { labStageContentIdsV1, labStageTagsV1 } from "../stage-ids.ts";
 
 /**
  * The Engine Lab calibration narrative: a small typed script whose runner

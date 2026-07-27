@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import { createReadonlyViewSourceV1 } from "./application.js";
-import { canonicalJsonBytes } from "./canonical-json.js";
-import * as presentationContracts from "./presentation.js";
+import { createReadonlyViewSourceV1 } from "./application.ts";
+import { canonicalJsonBytes } from "./canonical-json.ts";
+import * as presentationContracts from "./presentation.ts";
 import {
   canonicalPresentationJsonBytesV1,
   combineContentMaturityFlagsV1,
@@ -13,8 +13,8 @@ import {
   parseContentMaturityFlagBitV1,
   parseContentMaturityPolicyV1,
   setContentMaturityFlagV1,
-} from "./presentation.js";
-import type { ContentMaturityFlagBitV1, ContentMaturityFlagsV1 } from "./presentation.js";
+} from "./presentation.ts";
+import type { ContentMaturityFlagBitV1, ContentMaturityFlagsV1 } from "./presentation.ts";
 
 type PendingLocaleParserV1 = (value: unknown) => string;
 type PendingTextCatalogParserV1 = (value: unknown) => Readonly<Record<string, unknown>>;

@@ -4,8 +4,8 @@ import type {
   DebugToolsPortV1,
   ReadonlyViewSourceV1,
   RuntimeCapabilitiesV1,
-} from "../../contracts/application.js";
-import type { DeepReadonly, RuntimeSchemaV1 } from "../../contracts/values.js";
+} from "../../contracts/application.ts";
+import type { DeepReadonly, RuntimeSchemaV1 } from "../../contracts/values.ts";
 
 type AwaitableV1<T> = T | PromiseLike<T>;
 

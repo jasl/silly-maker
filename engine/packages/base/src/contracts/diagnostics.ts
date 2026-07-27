@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import type { IsoUtcInstant } from "./host.js";
+import type { IsoUtcInstant } from "./host.ts";
 import type {
   AppearanceLayerId,
   CharacterExpressionId,
@@ -10,7 +10,7 @@ import type {
   InteractionSurfaceId,
   StageSceneId,
   StageSceneVariantId,
-} from "./presentation.js";
+} from "./presentation.ts";
 import {
   parseAppearanceLayerId,
   parseCharacterExpressionId,
@@ -21,23 +21,23 @@ import {
   parseInteractionSurfaceId,
   parseStageSceneId,
   parseStageSceneVariantId,
-} from "./presentation.js";
-import type { BuildProvenanceV1 } from "./provenance.js";
-import type { RngDrawTraceV1, RngStateV1 } from "./rng.js";
-import { parseStrictJsonLimitsV1 } from "./strict-json.js";
+} from "./presentation.ts";
+import type { BuildProvenanceV1 } from "./provenance.ts";
+import type { RngDrawTraceV1, RngStateV1 } from "./rng.ts";
+import { parseStrictJsonLimitsV1 } from "./strict-json.ts";
 import type {
   Digest,
   NonNegativeSafeInteger,
   PositiveSafeInteger,
   RuntimeSchemaV1,
-} from "./values.js";
-import { parseDigest, parseNonNegativeSafeInteger, parsePositiveSafeInteger } from "./values.js";
+} from "./values.ts";
+import { parseDigest, parseNonNegativeSafeInteger, parsePositiveSafeInteger } from "./values.ts";
 import {
   exactEnvelopeDescriptorsV1,
   parseByteExportV1,
   parseIsoUtcInstantV1,
   saveJsonLimitsV1,
-} from "./persistence.js";
+} from "./persistence.ts";
 
 export interface CommandLogEntryBaseV1 {
   readonly logOrdinal: PositiveSafeInteger;

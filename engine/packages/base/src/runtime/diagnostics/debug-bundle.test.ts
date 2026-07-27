@@ -1,32 +1,32 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it, vi } from "vitest";
 
-import type { RuntimeCapabilitiesV1 } from "../../contracts/application.js";
-import { canonicalJsonBytes } from "../../contracts/canonical-json.js";
+import type { RuntimeCapabilitiesV1 } from "../../contracts/application.ts";
+import { canonicalJsonBytes } from "../../contracts/canonical-json.ts";
 import {
   createDebugBundleEnvelopeSchemaV1,
   debugBundleJsonLimitsV1,
   runtimeOperationFaultSchemaV1,
-} from "../../contracts/diagnostics.js";
+} from "../../contracts/diagnostics.ts";
 import type {
   DebugBundleEnvelopeV1,
   RuntimeOperationFaultV1,
-} from "../../contracts/diagnostics.js";
-import { digestBytes, digestCanonical } from "../../contracts/digest.js";
-import { parseIsoUtcInstantV1 } from "../../contracts/persistence.js";
+} from "../../contracts/diagnostics.ts";
+import { digestBytes, digestCanonical } from "../../contracts/digest.ts";
+import { parseIsoUtcInstantV1 } from "../../contracts/persistence.ts";
 import {
   createGameSnapshotEnvelopeSchemaV1,
   createPristineRunIntegrityV1,
-} from "../../contracts/snapshot.js";
-import type { GameSnapshotEnvelopeV1 } from "../../contracts/snapshot.js";
-import type { Digest, NonNegativeSafeInteger, RuntimeSchemaV1 } from "../../contracts/values.js";
-import { parseNonNegativeSafeInteger } from "../../contracts/values.js";
+} from "../../contracts/snapshot.ts";
+import type { GameSnapshotEnvelopeV1 } from "../../contracts/snapshot.ts";
+import type { Digest, NonNegativeSafeInteger, RuntimeSchemaV1 } from "../../contracts/values.ts";
+import { parseNonNegativeSafeInteger } from "../../contracts/values.ts";
 import {
   createGameDiagnosticsServiceV1,
   decodeDebugBundleV1,
   encodeDebugBundleV1,
-} from "./debug-bundle.js";
-import type { DebugBundleCodecContextV1 } from "./debug-bundle.js";
+} from "./debug-bundle.ts";
+import type { DebugBundleCodecContextV1 } from "./debug-bundle.ts";
 
 interface SyntheticStateV1 {
   readonly count: NonNegativeSafeInteger;

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 import type { MouseEvent, PointerEvent, ReactElement, Ref } from "react";
-import { Button } from "../primitives/Button.js";
+import { Button } from "../primitives/Button.tsx";
 import styles from "./DevDock.module.css";
 
 export type DevDockSideV1 = "left" | "right";

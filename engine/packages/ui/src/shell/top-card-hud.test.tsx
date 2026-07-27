@@ -4,7 +4,7 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import styles from "./game-shell.module.css";
-import { TopCardHudV1, type StageHudSlotsV1 } from "./top-card-hud.js";
+import { TopCardHudV1, type StageHudSlotsV1 } from "./top-card-hud.tsx";
 
 afterEach(cleanup);
 

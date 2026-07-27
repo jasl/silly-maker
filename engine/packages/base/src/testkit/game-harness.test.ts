@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import type { GameHarnessSemanticAdapterV1 } from "./game-harness.js";
-import { createGameHarnessV1 } from "./game-harness.js";
-import type { SyntheticCounterCommandV1, SyntheticSimulationTypesV1 } from "./synthetic-counter.js";
-import { createSyntheticCounterGamePackageV1 } from "./synthetic-counter.js";
+import type { GameHarnessSemanticAdapterV1 } from "./game-harness.ts";
+import { createGameHarnessV1 } from "./game-harness.ts";
+import type { SyntheticCounterCommandV1, SyntheticSimulationTypesV1 } from "./synthetic-counter.ts";
+import { createSyntheticCounterGamePackageV1 } from "./synthetic-counter.ts";
 
 interface SyntheticQueriesV1 {
   readonly count: number;

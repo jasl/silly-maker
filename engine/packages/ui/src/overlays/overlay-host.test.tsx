@@ -10,17 +10,17 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   DevDockPortalCoordinatorV1,
   useDevDockPortalTargetV1,
-} from "../debug/DevDockPortalCoordinator.js";
+} from "../debug/DevDockPortalCoordinator.tsx";
 import {
   inputHandledV1,
   parseInputActionIdV1,
   systemInputActionIdsV1,
-} from "../input/contracts.js";
-import { createInputRouterV1 } from "../input/input-router.js";
-import { GameStageV1 } from "../shell/game-stage.js";
-import type { OverlayRendererResolverV1, OverlayRendererResolutionV1 } from "./overlay-host.js";
-import { OverlayHostV1 } from "./overlay-host.js";
-import { createOverlaySessionStoreV1 } from "./overlay-session-store.js";
+} from "../input/contracts.ts";
+import { createInputRouterV1 } from "../input/input-router.ts";
+import { GameStageV1 } from "../shell/game-stage.tsx";
+import type { OverlayRendererResolverV1, OverlayRendererResolutionV1 } from "./overlay-host.tsx";
+import { OverlayHostV1 } from "./overlay-host.tsx";
+import { createOverlaySessionStoreV1 } from "./overlay-session-store.ts";
 
 afterEach(cleanup);
 

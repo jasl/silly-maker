@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import { digestBytes } from "./digest.js";
+import { digestBytes } from "./digest.ts";
 import {
   createSaveRecordEnvelopeSchemaV1,
   exportedSaveSchemaV1,
   SaveRecordEnvelopeSchemaFailureV1,
   saveJsonLimitsV1,
   sessionLeaseStatusSchemaV1,
-} from "./persistence.js";
-import type { RuntimeSchemaV1 } from "./values.js";
+} from "./persistence.ts";
+import type { RuntimeSchemaV1 } from "./values.ts";
 
 const exactValueSchema = <T>(key: string): RuntimeSchemaV1<T> => ({
   parse(value) {

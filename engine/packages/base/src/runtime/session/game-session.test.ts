@@ -1,22 +1,22 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import { digestCanonical } from "../../contracts/digest.js";
-import type { CommandExecutionAttemptEnvelopeV1 } from "../../contracts/execution.js";
+import { digestCanonical } from "../../contracts/digest.ts";
+import type { CommandExecutionAttemptEnvelopeV1 } from "../../contracts/execution.ts";
 import type {
   GameBootstrapInputV1,
   GameSimulationTypeMapV1,
-} from "../../contracts/gameplay-module.js";
-import type { IsoUtcInstant } from "../../contracts/host.js";
-import type { GameSnapshotEnvelopeV1 } from "../../contracts/snapshot.js";
-import { createPristineRunIntegrityV1, runIntegrityV1Schema } from "../../contracts/snapshot.js";
-import type { RuntimeSchemaV1 } from "../../contracts/values.js";
-import { parseNonNegativeSafeInteger } from "../../contracts/values.js";
+} from "../../contracts/gameplay-module.ts";
+import type { IsoUtcInstant } from "../../contracts/host.ts";
+import type { GameSnapshotEnvelopeV1 } from "../../contracts/snapshot.ts";
+import { createPristineRunIntegrityV1, runIntegrityV1Schema } from "../../contracts/snapshot.ts";
+import type { RuntimeSchemaV1 } from "../../contracts/values.ts";
+import { parseNonNegativeSafeInteger } from "../../contracts/values.ts";
 import {
   createRuntimeFailureBufferV1,
   createRuntimeFailureReporterV1,
-} from "../diagnostics/runtime-failures.js";
-import { createGameSessionV1, type GameSessionDebugInputV1 } from "./game-session.js";
+} from "../diagnostics/runtime-failures.ts";
+import { createGameSessionV1, type GameSessionDebugInputV1 } from "./game-session.ts";
 
 interface State {
   readonly count: number;

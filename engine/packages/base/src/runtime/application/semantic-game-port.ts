@@ -3,9 +3,9 @@ import type {
   SemanticGamePortInputV1,
   SemanticGamePortV1,
   SemanticPublicationV1,
-} from "../../contracts/application.js";
-import type { DeepReadonly, NonNegativeSafeInteger } from "../../contracts/values.js";
-import { parseNonNegativeSafeInteger } from "../../contracts/values.js";
+} from "../../contracts/application.ts";
+import type { DeepReadonly, NonNegativeSafeInteger } from "../../contracts/values.ts";
+import { parseNonNegativeSafeInteger } from "../../contracts/values.ts";
 
 type PublicationFor<TGameView, TNarrativeView, TActionDescriptor, TStatus> = DeepReadonly<
   SemanticPublicationV1<TGameView, TNarrativeView, TActionDescriptor, TStatus>

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
-import { canonicalJsonBytes } from "../../contracts/canonical-json.js";
+import { canonicalJsonBytes } from "../../contracts/canonical-json.ts";
 import type {
   AppliedHotfixV1,
   PatchReplacementTraceV1,
   PatchSetAdoptionDeclarationV1,
   PatchSetIdentityV1,
-} from "../../contracts/hotfix.js";
-import { exactEnvelopeDescriptorsV1 } from "../../contracts/persistence.js";
+} from "../../contracts/hotfix.ts";
+import { exactEnvelopeDescriptorsV1 } from "../../contracts/persistence.ts";
 import type {
   ImportCompatibilityWarningV1,
   ImportRejectionCodeV1,
@@ -17,14 +17,14 @@ import type {
   SaveImportValidationResultV1,
   SaveRecordEnvelopeV1,
   SimulationAdoptionV1,
-} from "../../contracts/persistence.js";
-import type { DeepReadonly, NonNegativeSafeInteger } from "../../contracts/values.js";
+} from "../../contracts/persistence.ts";
+import type { DeepReadonly, NonNegativeSafeInteger } from "../../contracts/values.ts";
 import {
   parseDigest,
   parseNonNegativeSafeInteger,
   parsePositiveSafeInteger,
-} from "../../contracts/values.js";
-import { decodeSaveRecordV1 } from "./save-codec.js";
+} from "../../contracts/values.ts";
+import { decodeSaveRecordV1 } from "./save-codec.ts";
 
 const emptyTupleV1 = (): readonly [] => Object.freeze([]) as readonly [];
 

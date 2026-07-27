@@ -32,7 +32,7 @@ import {
   reduceStageMutationsV1,
 } from "@sillymaker/base";
 
-import type { LabGameStateV1, LabProcedureStateV1 } from "./state.js";
+import type { LabGameStateV1, LabProcedureStateV1 } from "./state.ts";
 import {
   createInitialLabGameStateV1,
   labGameStateSchemaV1,
@@ -41,9 +41,9 @@ import {
   labSamplesStateSchemaV1,
   labStageStateSchemaV1,
   labWalletStateSchemaV1,
-} from "./state.js";
-import { projectLabAudioIntentV1 } from "./audio.js";
-import type { LabNarrativeStateV1 } from "./narrative.js";
+} from "./state.ts";
+import { projectLabAudioIntentV1 } from "./audio.ts";
+import type { LabNarrativeStateV1 } from "./narrative.ts";
 import {
   createInitialLabNarrativeStateV1,
   labChoiceOptionsForV1,
@@ -51,7 +51,7 @@ import {
   labNarrativeAfterResolutionV1,
   labNarrativeAtBeginV1,
   runLabNarrativeUntilInteractionV1,
-} from "./narrative.js";
+} from "./narrative.ts";
 import {
   createInitialLabStageStateV1,
   labStageHasBannerV1,
@@ -59,7 +59,7 @@ import {
   labStageMutationsForBeginV1,
   labStageMutationsForCollectV1,
   labStageMutationsForProgressV1,
-} from "./stage.js";
+} from "./stage.ts";
 
 export type LabCommandV1 =
   | { readonly kind: "lab.collect_sample" }

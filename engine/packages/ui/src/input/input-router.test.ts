@@ -9,8 +9,8 @@ import {
   type InputContextIdV1,
   type InputEventV1,
   type InputHandlerResultV1,
-} from "./contracts.js";
-import { createInputRouterV1 } from "./input-router.js";
+} from "./contracts.ts";
+import { createInputRouterV1 } from "./input-router.ts";
 
 const precedenceV1 = Object.freeze([
   "debug",

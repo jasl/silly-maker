@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-import type { SaveSlotIdV1 } from "../../contracts/application.js";
-import type { HostRecordKeyV1 } from "../../contracts/host.js";
+import type { SaveSlotIdV1 } from "../../contracts/application.ts";
+import type { HostRecordKeyV1 } from "../../contracts/host.ts";
 
 const saveSlotIdsV1 = new Set<SaveSlotIdV1>(["auto.current", "auto.previous", "quick", "manual"]);
 

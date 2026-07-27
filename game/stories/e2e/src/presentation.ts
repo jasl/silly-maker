@@ -17,7 +17,7 @@ import {
   resolveAudioManifestV1,
 } from "@sillymaker/base";
 
-import { labStageContentIdsV1 } from "./stage-ids.js";
+import { labStageContentIdsV1 } from "./stage-ids.ts";
 
 export const labTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
   defaultLocale: "zh-CN",

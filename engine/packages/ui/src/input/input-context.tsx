@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { createContext, useContext } from "react";
 import type { ReactElement, ReactNode } from "react";
-import type { InputRouterV1 } from "./contracts.js";
+import type { InputRouterV1 } from "./contracts.ts";
 
 const InputRouterContextV1 = createContext<InputRouterV1 | null>(null);
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it, vi } from "vitest";
 
-import { createAutoSaveQueueV1 } from "./auto-save-queue.js";
+import { createAutoSaveQueueV1 } from "./auto-save-queue.ts";
 
 interface DeferredV1<T> {
   readonly promise: Promise<T>;

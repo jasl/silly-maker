@@ -8,7 +8,7 @@ import type {
 } from "@sillymaker/base";
 import { describe, expect, it, vi } from "vitest";
 
-import { createRuntimeCapabilitySessionOverlayV1 } from "./runtime-capability-session-overlay.js";
+import { createRuntimeCapabilitySessionOverlayV1 } from "./runtime-capability-session-overlay.ts";
 
 const capabilityFieldsV1 = Object.freeze({
   debug_tools: "debugTools",

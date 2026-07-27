@@ -29,15 +29,15 @@ import {
   createAssetRegistryV1,
   type AssetRegistryV1,
   type RuntimeAssetLoaderV1,
-} from "../assets/asset-registry.js";
-import { createSemanticPublicationBridgeV1 } from "./semantic-publication-bridge.js";
+} from "../assets/asset-registry.ts";
+import { createSemanticPublicationBridgeV1 } from "./semantic-publication-bridge.ts";
 import {
   RuntimePresentationConstructionErrorV1,
   createRuntimePresentationStoreV1,
   type PresentationRuntimeFailureV1,
   type RuntimePresentationProjectionInputV1,
   type RuntimePresentationProjectionV1,
-} from "./runtime-presentation-store.js";
+} from "./runtime-presentation-store.ts";
 import { useSyncExternalStore } from "react";
 
 function useRuntimePresentationForTestV1<TPublication>(store: {

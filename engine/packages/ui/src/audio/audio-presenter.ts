@@ -2,8 +2,8 @@
 import type { AudioIntentV1, TransientEffectV1 } from "@sillymaker/base";
 import { silentAudioIntentV1 } from "@sillymaker/base";
 
-import type { AudioHostV1 } from "./audio-host.js";
-import { sameChannelPlaybackV1 } from "./audio-host.js";
+import type { AudioHostV1 } from "./audio-host.ts";
+import { sameChannelPlaybackV1 } from "./audio-host.ts";
 
 /**
  * The audio presenter reconciles the Story's saveable continuous audio

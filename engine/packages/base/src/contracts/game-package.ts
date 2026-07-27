@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-import type { BuildProvenanceV1 } from "./provenance.js";
-import type { DeepReadonly, ModuleId, PositiveSafeInteger, StateSlotId } from "./values.js";
+import type { BuildProvenanceV1 } from "./provenance.ts";
+import type { DeepReadonly, ModuleId, PositiveSafeInteger, StateSlotId } from "./values.ts";
 
 export interface StorySourceIdentityV1 {
   readonly id: string;

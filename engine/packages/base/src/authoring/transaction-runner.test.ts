@@ -1,20 +1,20 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import { canonicalJsonBytes } from "../contracts/canonical-json.js";
-import { AuthoringDiagnosticErrorV1 } from "../contracts/diagnostic-envelope.js";
-import { digestCanonical } from "../contracts/digest.js";
+import { canonicalJsonBytes } from "../contracts/canonical-json.ts";
+import { AuthoringDiagnosticErrorV1 } from "../contracts/diagnostic-envelope.ts";
+import { digestCanonical } from "../contracts/digest.ts";
 import type {
   GameBootstrapInputV1,
   GameSimulationTypeMapV1,
-} from "../contracts/gameplay-module.js";
-import { createTransactionalRngV1 } from "../contracts/rng.js";
-import type { RngStateV1 } from "../contracts/rng.js";
-import type { GameSnapshotEnvelopeV1 } from "../contracts/snapshot.js";
-import { createPristineRunIntegrityV1 } from "../contracts/snapshot.js";
-import type { RuntimeSchemaV1 } from "../contracts/values.js";
-import { parseNonNegativeSafeInteger, parseNonZeroUint32 } from "../contracts/values.js";
-import { createGameAuthoringKitV1 } from "./game-authoring-kit.js";
+} from "../contracts/gameplay-module.ts";
+import { createTransactionalRngV1 } from "../contracts/rng.ts";
+import type { RngStateV1 } from "../contracts/rng.ts";
+import type { GameSnapshotEnvelopeV1 } from "../contracts/snapshot.ts";
+import { createPristineRunIntegrityV1 } from "../contracts/snapshot.ts";
+import type { RuntimeSchemaV1 } from "../contracts/values.ts";
+import { parseNonNegativeSafeInteger, parseNonZeroUint32 } from "../contracts/values.ts";
+import { createGameAuthoringKitV1 } from "./game-authoring-kit.ts";
 
 interface VaultStateV1 {
   readonly coins: number;

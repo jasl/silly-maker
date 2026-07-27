@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it, vi } from "vitest";
-import { createSystemDialogSessionStoreV1 } from "./system-dialog-session-store.js";
+import { createSystemDialogSessionStoreV1 } from "./system-dialog-session-store.ts";
 
 describe("createSystemDialogSessionStoreV1", () => {
   it("publishes frozen external-store snapshots with stable identity", () => {

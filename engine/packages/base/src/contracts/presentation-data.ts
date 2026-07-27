@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-import { canonicalJsonBytes } from "./canonical-json.js";
-import type { StrictJsonObjectV1, StrictJsonValueV1 } from "./strict-json.js";
+import { canonicalJsonBytes } from "./canonical-json.ts";
+import type { StrictJsonObjectV1, StrictJsonValueV1 } from "./strict-json.ts";
 
 export type PresentationCatalogValidationCodeV1 =
   | "presentation.catalog.duplicate_id"

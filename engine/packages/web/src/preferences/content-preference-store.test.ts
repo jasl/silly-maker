@@ -24,7 +24,7 @@ import type {
 import { createMemoryHostRecordStoreV1 } from "@sillymaker/base/testkit";
 import { describe, expect, it, vi } from "vitest";
 
-import { createWebContentPreferencePortV1 } from "./content-preference-store.js";
+import { createWebContentPreferencePortV1 } from "./content-preference-store.ts";
 
 type HostRecordKeyV1 = Parameters<HostAtomicRecordStoreV1["read"]>[1];
 type HostRecordRevisionV1 = HostStoredRecordV1["revision"];

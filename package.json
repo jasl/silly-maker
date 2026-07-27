@@ -5,32 +5,7 @@
   "type": "module",
   "license": "SEE LICENSE IN LICENSE.md",
   "engines": {
-    "node": ">=22.12.0",
-    "pnpm": ">=11.0.0"
-  },
-  "scripts": {
-    "dev": "vite --mode e2e",
-    "format": "prettier --write .",
-    "format:check": "prettier --check .",
-    "lint": "oxlint --type-aware --deny-warnings --react-plugin --import-plugin engine game scripts vite.config.ts vitest.config.ts",
-    "lint:styles": "stylelint \"engine/packages/**/*.css\" \"game/packages/**/*.css\" \"game/stories/**/*.css\"",
-    "build": "tsc -b --pretty false",
-    "typecheck": "tsc -p tsconfig.check.json --noEmit --pretty false",
-    "test:unit": "vitest run",
-    "test:coverage": "vitest run --coverage",
-    "test:node": "node --test scripts/*.test.mjs",
-    "test": "pnpm test:unit && pnpm test:node",
-    "check:assets": "node --experimental-strip-types scripts/assets/verify-runtime-assets.mts",
-    "story": "node --experimental-strip-types scripts/story/cli.mts",
-    "check:stories": "node --experimental-strip-types scripts/story/cli.mts check --all",
-    "simulate:e2e": "node --experimental-strip-types scripts/story/cli.mts simulate e2e",
-    "test:e2e:smoke": "playwright test --config engine/packages/web/playwright.engine.config.ts --project=chromium --grep @smoke",
-    "test:e2e": "pnpm test:e2e:engine",
-    "check": "pnpm format:check && pnpm lint && pnpm lint:styles && pnpm typecheck && pnpm test && pnpm check:assets && pnpm check:stories && pnpm story build e2e",
-    "verify": "pnpm check",
-    "test:e2e:engine": "playwright test --config engine/packages/web/playwright.engine.config.ts",
-    "test:conformance:headless": "vitest run game/stories/e2e",
-    "test:e2e:engine:prebuilt": "pnpm story build e2e && playwright test --config engine/packages/web/playwright.engine-prebuilt.config.ts"
+    "deno": ">=2.9.0"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.12.1",

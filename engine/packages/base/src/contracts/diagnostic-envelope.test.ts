@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import { canonicalJsonBytes } from "./canonical-json.js";
+import { canonicalJsonBytes } from "./canonical-json.ts";
 import {
   AuthoringDiagnosticErrorV1,
   createDiagnosticV1,
@@ -10,7 +10,7 @@ import {
   formatDiagnosticHumanV1,
   formatDiagnosticsHumanV1,
   parseDiagnosticEnvelopeV1,
-} from "./diagnostic-envelope.js";
+} from "./diagnostic-envelope.ts";
 
 const fullEnvelopeV1 = Object.freeze({
   code: "authoring.schema.invalid_value",

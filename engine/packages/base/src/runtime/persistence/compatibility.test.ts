@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it, vi } from "vitest";
 
-import { canonicalJsonBytes } from "../../contracts/canonical-json.js";
-import { digestBytes, digestCanonical } from "../../contracts/digest.js";
-import type { PatchSetAdoptionDeclarationV1, PatchSetIdentityV1 } from "../../contracts/hotfix.js";
-import type { BuildProvenanceV1 } from "../../contracts/provenance.js";
+import { canonicalJsonBytes } from "../../contracts/canonical-json.ts";
+import { digestBytes, digestCanonical } from "../../contracts/digest.ts";
+import type { PatchSetAdoptionDeclarationV1, PatchSetIdentityV1 } from "../../contracts/hotfix.ts";
+import type { BuildProvenanceV1 } from "../../contracts/provenance.ts";
 import type {
   SaveCodecContextV1,
   SaveCompatibilityClassificationV1,
@@ -12,10 +12,10 @@ import type {
   SaveImportValidationContextV1,
   SaveRecordEnvelopeV1,
   SimulationAdoptionV1,
-} from "../../contracts/persistence.js";
-import type { Digest, NonNegativeSafeInteger, RuntimeSchemaV1 } from "../../contracts/values.js";
-import { parseNonNegativeSafeInteger, parsePositiveSafeInteger } from "../../contracts/values.js";
-import { classifySaveCompatibilityV1, validateSaveImportCandidateV1 } from "./compatibility.js";
+} from "../../contracts/persistence.ts";
+import type { Digest, NonNegativeSafeInteger, RuntimeSchemaV1 } from "../../contracts/values.ts";
+import { parseNonNegativeSafeInteger, parsePositiveSafeInteger } from "../../contracts/values.ts";
+import { classifySaveCompatibilityV1, validateSaveImportCandidateV1 } from "./compatibility.ts";
 
 const digestV1 = (label: string): Digest =>
   digestBytes(new TextEncoder().encode(`compatibility:${label}`));

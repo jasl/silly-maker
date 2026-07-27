@@ -9,11 +9,11 @@ import type { HostAtomicRecordStoreV1, IsoUtcInstant } from "@sillymaker/base";
 import { createMemoryHostRecordStoreV1 } from "@sillymaker/base/testkit";
 import { createFixedBootstrapEntropyV1 } from "@sillymaker/base/testkit";
 
-import type { LabApplicationInstanceV1 } from "./core-definition.js";
-import { labCoreApplicationDefinitionV1 } from "./core-definition.js";
+import type { LabApplicationInstanceV1 } from "./core-definition.ts";
+import { labCoreApplicationDefinitionV1 } from "./core-definition.ts";
 
-export type { LabApplicationInstanceV1 } from "./core-definition.js";
-export { labCoreApplicationDefinitionV1 } from "./core-definition.js";
+export type { LabApplicationInstanceV1 } from "./core-definition.ts";
+export { labCoreApplicationDefinitionV1 } from "./core-definition.ts";
 
 const labOwnerIdV1 = "owner.sillymaker.e2e.lab" as SessionLeaseOwnerId;
 const labFixedInstantV1 = "2026-07-20T00:00:00.000Z" as IsoUtcInstant;

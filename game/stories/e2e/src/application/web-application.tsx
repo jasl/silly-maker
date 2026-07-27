@@ -38,20 +38,20 @@ import type {
   LabActionResultV1,
   LabInvocationV1,
   LabPreviewV1,
-} from "./semantic.js";
-import type { LabApplicationInstanceV1 } from "./core-definition.js";
-import { labCoreApplicationDefinitionV1 } from "./core-definition.js";
+} from "./semantic.ts";
+import type { LabApplicationInstanceV1 } from "./core-definition.ts";
+import { labCoreApplicationDefinitionV1 } from "./core-definition.ts";
 import type {
   LabGameViewV1,
   LabNarrativeViewV1,
   LabQueriesV1,
   LabSimulationTypesV1,
-} from "../gameplay/simulation.js";
+} from "../gameplay/simulation.ts";
 import {
   labAudioManifestV1,
   labStageContentCatalogV1,
   labStageTransitionCatalogV1,
-} from "../presentation.js";
+} from "../presentation.ts";
 
 /** The Engine Lab logical canvas: a 16:10 design resolution. */
 export const labViewportCanvasV1 = Object.freeze({ width: 1600, height: 1000 });
@@ -78,10 +78,10 @@ export type LabUiPublicationV1 = RuntimePresentationPublicationV1<
 
 export type LabUiOverlayIdV1 = "overlay.lab.journal" | "overlay.lab.shop";
 
-import { labUiTextV1 } from "./ui-text.js";
-import { LabNarrativePlayerV1 } from "./narrative-ui.js";
+import { labUiTextV1 } from "./ui-text.ts";
+import { LabNarrativePlayerV1 } from "./narrative-ui.tsx";
 
-export { labUiTextV1 } from "./ui-text.js";
+export { labUiTextV1 } from "./ui-text.ts";
 
 const labActionTextIdsV1: Readonly<Record<LabActionIdV1, string>> = Object.freeze({
   "lab.collect_sample": "text.e2e.lab.action.collect_sample",

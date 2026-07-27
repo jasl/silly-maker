@@ -7,23 +7,23 @@
 Story applications are declared once in `game/project.config.ts` and typed by `@sillymaker/tooling/project`. Vite target resolution (`vite --mode <application-id>`), runtime asset verification, and the project commands below all consume that one registry; adding a Story application means adding one declaration, not editing the Vite implementation, the asset verifier, or a build switch.
 
 ```sh
-pnpm story inspect <application-id>   # resolved Story identity/content summary as JSON
-pnpm story check <application-id>     # structured JSON diagnostics (also: --all)
-pnpm story simulate <application-id>  # scripted run through the Agent port
-pnpm check:stories                    # check --all; part of pnpm check
-pnpm simulate:e2e                     # Engine Lab conformance simulation
+deno task story inspect <application-id>   # resolved Story identity/content summary as JSON
+deno task story check <application-id>     # structured JSON diagnostics (also: --all)
+deno task story simulate <application-id>  # scripted run through the Agent port
+deno task check:stories                    # check --all; part of deno task check
+deno task simulate:e2e                     # Engine Lab conformance simulation
 ```
 
 `simulate` drives the application's declared simulation target exclusively through the player-safe Agent port. An application without a target answers with a structured `project.simulation_unconfigured` diagnostic.
 
-The Engine Lab Story also declares a browser target: `vite --mode e2e` serves it and `vite build --mode e2e` produces `dist/e2e`. That build is an engine test Artifact; a future product application will own its own release flow through the same `pnpm story build`/`prepare-artifact` machinery.
+The Engine Lab Story also declares a browser target: `vite --mode e2e` serves it and `vite build --mode e2e` produces `dist/e2e`. That build is an engine test Artifact; a future product application will own its own release flow through the same `deno task story build`/`prepare-artifact` machinery.
 
-`pnpm test:e2e:engine` runs the engine browser suite against the Engine Lab (declared projects cover desktop pointer, WebKit, touch, and a 16:10 tablet, with a pageerror/console diagnostic policy); `pnpm test:e2e` is its alias.
+`deno task test:e2e:engine` runs the engine browser suite against the Engine Lab (declared projects cover desktop pointer, WebKit, touch, and a 16:10 tablet, with a pageerror/console diagnostic policy); `deno task test:e2e` is its alias.
 
 ## Development server
 
 ```sh
-pnpm dev
+deno task dev
 ```
 
 The development server uses the current Story application root and supports normal Vite development behavior. Development capability switches and HMR are not separate production build flavors; capability checks remain runtime behavior.
@@ -31,10 +31,10 @@ The development server uses the current Story application root and supports norm
 ## Build a Player
 
 ```sh
-pnpm story build <app>
+deno task story build <app>
 ```
 
-This creates a static Player for the selected application under its declared `dist/` target (`pnpm story build e2e` today). A build is useful for local inspection, but it is not by itself a release handoff and does not publish anything.
+This creates a static Player for the selected application under its declared `dist/` target (`deno task story build e2e` today). A build is useful for local inspection, but it is not by itself a release handoff and does not publish anything.
 
 Build identity is generated from the application and resolved Story inputs used by the build. Runtime digests and manifests are technical identity for compatibility, caching, diagnostics, and inspection; they are not proof of copyright ownership or asset approval.
 
@@ -57,23 +57,23 @@ The legal files are a product packaging requirement for the composite bundle, no
 The Engine Lab has two prebuilt layers; use them after changes to routing, base paths, generated identity, asset loading, persistence bootstrap, bundle composition, or Artifact preparation:
 
 ```sh
-pnpm story build e2e            # build dist/e2e through the project CLI
-pnpm story prebuilt-smoke e2e   # file-level Artifact verification (no browser)
-pnpm test:e2e:engine:prebuilt   # the full engine browser suite on the Artifact
+deno task story build e2e            # build dist/e2e through the project CLI
+deno task story prebuilt-smoke e2e   # file-level Artifact verification (no browser)
+deno task test:e2e:engine:prebuilt   # the full engine browser suite on the Artifact
 ```
 
-`pnpm story dev <app> --smoke` proves the dev server still boots and serves the application page after configuration or dependency changes.
+`deno task story dev <app> --smoke` proves the dev server still boots and serves the application page after configuration or dependency changes.
 
 For ordinary browser work against source, use:
 
 ```sh
-pnpm test:e2e
+deno task test:e2e
 ```
 
 ## Desktop packaging (experimental)
 
 ```sh
-pnpm story desktop <app>
+deno task story desktop <app>
 ```
 
 Applications that declare `web.desktop` (name + bundle identifier) can be packaged as a desktop app. The command builds the web target, stages a thin explicit host under `dist/desktop/<app>/staging/` (the exact web Artifact copied to `dist/` plus a Vite SPA marker), and runs `deno desktop` (requires a local Deno >= 2.9; the feature is experimental upstream). Engine and Story code never depend on Deno Desktop APIs — the web Artifact remains the canonical delivery and the stable fallback.
@@ -84,9 +84,9 @@ Known limitation, verified 2026-07-28: `deno desktop` binds its local server to 
 
 Before handing an Artifact to another person or machine:
 
-1. run `pnpm check`;
+1. run `deno task check`;
 2. run browser tests relevant to the change;
-3. run `pnpm story build <app>` and prepare the Artifact;
+3. run `deno task story build <app>` and prepare the Artifact;
 4. run the prebuilt browser suite for the application;
 5. inspect the generated manifest and legal-file presence;
 6. record the source revision and any known gameplay/content limitations in the handoff note.

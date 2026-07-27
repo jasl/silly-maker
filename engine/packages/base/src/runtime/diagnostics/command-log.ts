@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
-import { digestCanonical } from "../../contracts/digest.js";
-import type { CommandExecutionAttemptEnvelopeV1 } from "../../contracts/execution.js";
+import { digestCanonical } from "../../contracts/digest.ts";
+import type { CommandExecutionAttemptEnvelopeV1 } from "../../contracts/execution.ts";
 import type {
   DeepReadonly,
   Digest,
   NonNegativeSafeInteger,
   PositiveSafeInteger,
-} from "../../contracts/values.js";
-import { parsePositiveSafeInteger } from "../../contracts/values.js";
+} from "../../contracts/values.ts";
+import { parsePositiveSafeInteger } from "../../contracts/values.ts";
 
 interface CommandLogSnapshotV1 {
   readonly rng: unknown;

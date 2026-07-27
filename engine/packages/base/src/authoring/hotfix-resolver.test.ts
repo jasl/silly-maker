@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import { digestBytes } from "../contracts/digest.js";
-import { parseTextCatalogSetV1 } from "../contracts/presentation.js";
-import { parsePositiveSafeInteger } from "../contracts/values.js";
+import { digestBytes } from "../contracts/digest.ts";
+import { parseTextCatalogSetV1 } from "../contracts/presentation.ts";
+import { parsePositiveSafeInteger } from "../contracts/values.ts";
 import {
   definePatchSlot,
   definePresentationPatchSurface,
   defineSimulationPatchSurface,
-} from "./patch-surface.js";
-import { resolveHotfixesV1 } from "./hotfix-resolver.js";
+} from "./patch-surface.ts";
+import { resolveHotfixesV1 } from "./hotfix-resolver.ts";
 
 const emptySimulationSurface = defineSimulationPatchSurface({});
 const emptyPresentationSurface = definePresentationPatchSurface({});

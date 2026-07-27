@@ -7,11 +7,11 @@
 ## 现在就能跑
 
 ```sh
-pnpm story check template                       # 结构化 Story 诊断
-pnpm story simulate template --scenario opening # 无浏览器跑完整叙事
-pnpm exec vitest run game/stories/template      # 基线 + 图 lint + 全剧本走通
-pnpm exec vite --mode template                  # 浏览器游玩
-pnpm story build template                       # 静态构建到 dist/template
+deno task story check template                       # 结构化 Story 诊断
+deno task story simulate template --scenario opening # 无浏览器跑完整叙事
+deno run -A npm:vitest run game/stories/template      # 基线 + 图 lint + 全剧本走通
+deno run -A npm:vite --mode template                  # 浏览器游玩
+deno task story build template                       # 静态构建到 dist/template
 ```
 
 ## 文件地图（按"你想改什么"排列）
@@ -33,8 +33,8 @@ pnpm story build template                       # 静态构建到 dist/template
 改完剧本的验证环（几秒钟）：
 
 ```sh
-pnpm typecheck && pnpm exec vitest run game/stories/template
-pnpm story simulate template --scenario opening
+deno task typecheck && deno run -A npm:vitest run game/stories/template
+deno task story simulate template --scenario opening
 ```
 
 注意：新增/删除交互边界会移动 occurrence 编号；`src/tooling/simulation-target.ts` 的场景脚本和测试里按编号步进的断言要同步（失败信息会给出期望编号）。

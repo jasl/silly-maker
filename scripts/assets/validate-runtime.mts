@@ -5,9 +5,9 @@ import {
   digestBytes,
   type DeepReadonly,
   type ResolvedAssetManifestV1,
-} from "../../engine/packages/base/src/index.js";
+} from "../../engine/packages/base/src/index.ts";
 
-import { readRuntimeImageMetadataV1 } from "./runtime-image-metadata.mjs";
+import { readRuntimeImageMetadataV1 } from "./runtime-image-metadata.mts";
 
 type AllowedRuntimeRootV1 = `game/stories/${string}/assets/`;
 

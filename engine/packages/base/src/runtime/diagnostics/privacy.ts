@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import type { RuntimeOperationFaultV1 } from "../../contracts/diagnostics.js";
+import type { RuntimeOperationFaultV1 } from "../../contracts/diagnostics.ts";
 
 export const runtimeDiagnosticTextLimitsV1 = Object.freeze({
   operation: 4_096,

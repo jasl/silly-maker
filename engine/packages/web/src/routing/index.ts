@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-export { createHashRouterV1 } from "./hash-router.js";
+export { createHashRouterV1 } from "./hash-router.ts";
 export type {
   CanonicalHashV1,
   CreateHashRouterOptionsV1,
@@ -8,4 +8,4 @@ export type {
   HashRouterLocationV1,
   HashRouterPublicationV1,
   HashRouterV1,
-} from "./hash-router.js";
+} from "./hash-router.ts";

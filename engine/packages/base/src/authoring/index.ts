@@ -1,22 +1,22 @@
 // SPDX-License-Identifier: MIT
-export { defineGamePackage } from "./define-game-package.js";
-export { defineGameSimulation } from "./define-game-simulation.js";
-export { defineGameplayModule } from "./define-gameplay-module.js";
-export { defineStoryToolingEntry } from "./define-story-tooling-entry.js";
+export { defineGamePackage } from "./define-game-package.ts";
+export { defineGameSimulation } from "./define-game-simulation.ts";
+export { defineGameplayModule } from "./define-gameplay-module.ts";
+export { defineStoryToolingEntry } from "./define-story-tooling-entry.ts";
 export {
   definePatchSlot,
   definePresentationPatchSurface,
   defineSimulationPatchSurface,
-} from "./patch-surface.js";
-export type { PatchSurfaceV1 } from "./patch-surface.js";
-export { resolveGamePackageV1 } from "./story-resolver.js";
-export { createRuntimeSchemaV1, fromStandardSchemaV1 } from "./runtime-schema.js";
+} from "./patch-surface.ts";
+export type { PatchSurfaceV1 } from "./patch-surface.ts";
+export { resolveGamePackageV1 } from "./story-resolver.ts";
+export { createRuntimeSchemaV1, fromStandardSchemaV1 } from "./runtime-schema.ts";
 export type {
   RuntimeSchemaOptionsV1,
   StandardSchemaLikeV1,
   StandardSchemaOutputV1,
-} from "./runtime-schema.js";
-export { createGameAuthoringKitV1 } from "./game-authoring-kit.js";
+} from "./runtime-schema.ts";
+export { createGameAuthoringKitV1 } from "./game-authoring-kit.ts";
 export type {
   AuthoringKitAnyModuleV1,
   AuthoringKitAnyStatefulModuleV1,
@@ -43,9 +43,9 @@ export type {
   KitTransactionRunnerV1,
   KitTransactionV1,
   ProvideCapabilityV1,
-} from "./game-authoring-kit.js";
-export { collectGamePackageDiagnosticsV1 } from "./package-diagnostics.js";
+} from "./game-authoring-kit.ts";
+export { collectGamePackageDiagnosticsV1 } from "./package-diagnostics.ts";
 export type {
   CollectGamePackageDiagnosticsOptionsV1,
   GamePackageDiagnosticsResultV1,
-} from "./package-diagnostics.js";
+} from "./package-diagnostics.ts";

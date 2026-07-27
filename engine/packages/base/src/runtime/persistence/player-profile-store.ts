@@ -5,7 +5,7 @@ import type {
   HostRecordMutationV1,
   HostRecordNamespaceV1,
   HostRecordRevisionV1,
-} from "../../contracts/host.js";
+} from "../../contracts/host.ts";
 
 /**
  * The player profile: the Seen registry and playback preferences. It lives

@@ -4,7 +4,7 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, render, renderHook, screen } from "@testing-library/react";
 import type { PropsWithChildren, ReactElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { InputContextProviderV1, useInputRouterV1 } from "./input-context.js";
+import { InputContextProviderV1, useInputRouterV1 } from "./input-context.tsx";
 
 afterEach(cleanup);
 

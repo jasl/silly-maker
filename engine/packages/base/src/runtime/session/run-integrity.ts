@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
-import type { RunIntegrityReasonV1, RunIntegrityV1 } from "../../contracts/snapshot.js";
-import { parseRunIntegrityReasonV1, runIntegrityV1Schema } from "../../contracts/snapshot.js";
-import type { DeepReadonly } from "../../contracts/values.js";
-import { parseNonNegativeSafeInteger } from "../../contracts/values.js";
+import type { RunIntegrityReasonV1, RunIntegrityV1 } from "../../contracts/snapshot.ts";
+import { parseRunIntegrityReasonV1, runIntegrityV1Schema } from "../../contracts/snapshot.ts";
+import type { DeepReadonly } from "../../contracts/values.ts";
+import { parseNonNegativeSafeInteger } from "../../contracts/values.ts";
 
 export type IntegrityDirectiveV1 =
   | { readonly kind: "preserve_current" }

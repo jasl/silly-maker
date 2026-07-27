@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
-import type { Digest } from "../contracts/values.js";
-import { digestCanonical } from "../contracts/digest.js";
-import { parseDigest } from "../contracts/values.js";
-import { deepFreezeAuthoringValueV1 } from "./define-gameplay-module.js";
+import type { Digest } from "../contracts/values.ts";
+import { digestCanonical } from "../contracts/digest.ts";
+import { parseDigest } from "../contracts/values.ts";
+import { deepFreezeAuthoringValueV1 } from "./define-gameplay-module.ts";
 
 export type BuildIdentityFacetV1 =
   "engine" | "story_simulation" | "story_presentation" | "application";

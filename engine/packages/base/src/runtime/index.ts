@@ -6,7 +6,7 @@ export {
   createAgentPersistenceCapabilityV1,
   createAgentTranscriptRecorderV1,
   createInProcessAgentGamePortV1,
-} from "./application/agent-game-port.js";
+} from "./application/agent-game-port.ts";
 export type {
   AgentCapabilityHandleV1,
   AgentTranscriptComparisonV1,
@@ -21,12 +21,12 @@ export type {
   AgentWaitResultV1,
   CreateAgentPersistenceCapabilityInputV1,
   CreateInProcessAgentGamePortInputV1,
-} from "./application/agent-game-port.js";
+} from "./application/agent-game-port.ts";
 export {
   createCoreGameApplicationInstanceV1,
   defineCoreGameApplicationV1,
   resolveCoreGameApplicationV1,
-} from "./application/core-game-application.js";
+} from "./application/core-game-application.ts";
 export type {
   CoreApplicationAdminV1,
   CoreApplicationExtensionContextV1,
@@ -44,21 +44,21 @@ export type {
   ResolveCoreGameApplicationOptionsV1,
   ResolveCoreGameApplicationResultV1,
   ResolvedCoreGameApplicationV1,
-} from "./application/core-game-application.js";
-export { createRuntimeCapabilityPortV1 } from "./capabilities/runtime-capabilities.js";
-export { createCommandLogV1 } from "./diagnostics/command-log.js";
+} from "./application/core-game-application.ts";
+export { createRuntimeCapabilityPortV1 } from "./capabilities/runtime-capabilities.ts";
+export { createCommandLogV1 } from "./diagnostics/command-log.ts";
 export type {
   CommandLogCommandSourceV1,
   CommandLogV1,
   FinalizedCommandAttemptV1,
-} from "./diagnostics/command-log.js";
-export { createDebugToolsPortV1 } from "./diagnostics/debug-tools.js";
-export type { CreateDebugToolsPortInputV1 } from "./diagnostics/debug-tools.js";
+} from "./diagnostics/command-log.ts";
+export { createDebugToolsPortV1 } from "./diagnostics/debug-tools.ts";
+export type { CreateDebugToolsPortInputV1 } from "./diagnostics/debug-tools.ts";
 export {
   createGameDiagnosticsServiceV1,
   decodeDebugBundleV1,
   encodeDebugBundleV1,
-} from "./diagnostics/debug-bundle.js";
+} from "./diagnostics/debug-bundle.ts";
 export type {
   CreateGameDiagnosticsServiceInputV1,
   DebugBundleCodecContextV1,
@@ -66,23 +66,23 @@ export type {
   DebugBundleDecodeResultV1,
   DebugBundleDigestEnvelopeV1,
   DebugBundleReplayEvidenceV1,
-} from "./diagnostics/debug-bundle.js";
+} from "./diagnostics/debug-bundle.ts";
 export {
   runtimeDiagnosticTextLimitsV1,
   scrubDiagnosticTextV1,
   scrubRuntimeOperationFaultV1,
-} from "./diagnostics/privacy.js";
+} from "./diagnostics/privacy.ts";
 export {
   createRuntimeFailureBufferV1,
   createRuntimeFailureReporterV1,
   createRuntimeHmrInvalidationReporterV1,
   normalizeRuntimeFailureV1,
-} from "./diagnostics/runtime-failures.js";
+} from "./diagnostics/runtime-failures.ts";
 export type {
   RuntimeFailureAppendPortV1,
   RuntimeFailureBufferV1,
-} from "./diagnostics/runtime-failures.js";
-export { inspectReplayBestEffortV1, replayAuthoritativelyV1 } from "./diagnostics/replay.js";
+} from "./diagnostics/runtime-failures.ts";
+export { inspectReplayBestEffortV1, replayAuthoritativelyV1 } from "./diagnostics/replay.ts";
 export type {
   ReplayBlockingIdentityFieldV1,
   ReplayCommandLogEntryV1,
@@ -96,35 +96,35 @@ export type {
   ReplayLoggedCommandV1,
   ReplayMismatchV1,
   ReplayRecordedOutcomeV1,
-} from "./diagnostics/replay.js";
+} from "./diagnostics/replay.ts";
 export {
   classifySaveCompatibilityV1,
   validateSaveImportCandidateV1,
-} from "./persistence/compatibility.js";
-export { decodeSaveRecordV1, encodeSaveRecordV1 } from "./persistence/save-codec.js";
+} from "./persistence/compatibility.ts";
+export { decodeSaveRecordV1, encodeSaveRecordV1 } from "./persistence/save-codec.ts";
 export {
   createPlayerProfileStoreV1,
   defaultPlayerProfileV1,
   isSeenV1,
   markSeenV1,
-} from "./persistence/player-profile-store.js";
+} from "./persistence/player-profile-store.ts";
 export type {
   CreatePlayerProfileStoreOptionsV1,
   PlayerPlaybackPreferencesV1,
   PlayerProfileStoreV1,
   PlayerProfileV1,
-} from "./persistence/player-profile-store.js";
-export { createAutoSaveQueueV1 } from "./persistence/auto-save-queue.js";
-export { createPersistenceServiceV1 } from "./persistence/persistence-service.js";
+} from "./persistence/player-profile-store.ts";
+export { createAutoSaveQueueV1 } from "./persistence/auto-save-queue.ts";
+export { createPersistenceServiceV1 } from "./persistence/persistence-service.ts";
 export type {
   PersistenceAutoSaveCaptureV1,
   PersistenceLeaseAcquisitionV1,
   PersistenceRebootstrapDisposalV1,
   PersistenceRebootstrapTakeoverV1,
   PersistenceServiceV1,
-} from "./persistence/persistence-service.js";
-export { createSemanticGamePortV1 } from "./application/semantic-game-port.js";
-export { createGameSessionV1 } from "./session/index.js";
+} from "./persistence/persistence-service.ts";
+export { createSemanticGamePortV1 } from "./application/semantic-game-port.ts";
+export { createGameSessionV1 } from "./session/index.ts";
 export type {
   AuthoritativeOutcomeV1,
   GameSessionCompositionV1,
@@ -132,10 +132,10 @@ export type {
   GameSessionRuntimeControlV1,
   GameSessionV1,
   RuntimeInvalidationControllerV1,
-} from "./session/index.js";
+} from "./session/index.ts";
 export type {
   GameSessionDebugAnchorV1,
   GameSessionDebugCommandResultV1,
   GameSessionDebugControlV1,
   GameSessionDebugInputV1,
-} from "./session/game-session.js";
+} from "./session/game-session.ts";

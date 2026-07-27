@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-import type { DeepReadonly, NonNegativeSafeInteger } from "../../contracts/values.js";
-import { parseNonNegativeSafeInteger } from "../../contracts/values.js";
+import type { DeepReadonly, NonNegativeSafeInteger } from "../../contracts/values.ts";
+import { parseNonNegativeSafeInteger } from "../../contracts/values.ts";
 
 export interface AutoSaveQueueV1<TCandidate> {
   enqueue(candidate: DeepReadonly<TCandidate>): void;

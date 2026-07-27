@@ -4,12 +4,12 @@ import { describe, expect, it } from "vitest";
 import { lintNarrativeGraph } from "@sillymaker/base/story";
 import { createGameHarnessV1, resolveStoryForTestV1 } from "@sillymaker/base/testkit";
 
-import { createTemplateApplicationInstanceV1 } from "../application/core-application.js";
-import { projectTemplateNarrativeGraphV1 } from "../narrative-graph.js";
-import { templateScriptV1 } from "../narrative.js";
-import { templateTextCatalogsV1 } from "../presentation.js";
-import { templateSemanticAdapterV1 } from "../application/semantic.js";
-import { templateStoryEntryV1 } from "../story.js";
+import { createTemplateApplicationInstanceV1 } from "../application/core-application.ts";
+import { projectTemplateNarrativeGraphV1 } from "../narrative-graph.ts";
+import { templateScriptV1 } from "../narrative.ts";
+import { templateTextCatalogsV1 } from "../presentation.ts";
+import { templateSemanticAdapterV1 } from "../application/semantic.ts";
+import { templateStoryEntryV1 } from "../story.ts";
 
 function advanceV1(occurrence: number) {
   return Object.freeze({

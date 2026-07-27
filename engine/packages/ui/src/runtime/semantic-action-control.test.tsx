@@ -4,7 +4,7 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { SemanticActionControlV1 } from "./semantic-action-control.js";
+import { SemanticActionControlV1 } from "./semantic-action-control.tsx";
 
 afterEach(cleanup);
 

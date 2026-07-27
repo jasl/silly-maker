@@ -9,7 +9,7 @@ import {
   type InputHandlerResultV1,
   type InputRouteResultV1,
   type InputRouterV1,
-} from "./contracts.js";
+} from "./contracts.ts";
 
 const inputContextPrecedenceV1 = Object.freeze([
   "debug",

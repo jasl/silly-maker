@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import type { InputActionIdV1, InputRouterV1 } from "./contracts.js";
+import type { InputActionIdV1, InputRouterV1 } from "./contracts.ts";
 
 /**
  * The minimal Gamepad adapter: a poll loop with per-button edge detection

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import { createFixedBootstrapEntropyV1 } from "./fixed-bootstrap-entropy.js";
+import { createFixedBootstrapEntropyV1 } from "./fixed-bootstrap-entropy.ts";
 import {
   createSyntheticCounterGamePackageV1,
   syntheticCounterStateSchemaV1,
-} from "./synthetic-counter.js";
-import { strictJsonRoundTripV1 } from "./contract-suite.js";
+} from "./synthetic-counter.ts";
+import { strictJsonRoundTripV1 } from "./contract-suite.ts";
 
 describe("neutral synthetic counter", () => {
   it("creates a static package and strict-round-trips state", () => {

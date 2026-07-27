@@ -1,27 +1,27 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import type { HostAtomicRecordStoreV1, IsoUtcInstant } from "../../contracts/host.js";
-import { createMemoryHostRecordStoreV1 } from "../../contracts/host.js";
-import type { SessionLeaseOwnerId } from "../../contracts/application.js";
-import { createFixedBootstrapEntropyV1 } from "../../testkit/fixed-bootstrap-entropy.js";
-import { deterministicBuildIdentityInputV1 } from "../../testkit/resolver-fixtures.js";
+import type { HostAtomicRecordStoreV1, IsoUtcInstant } from "../../contracts/host.ts";
+import { createMemoryHostRecordStoreV1 } from "../../contracts/host.ts";
+import type { SessionLeaseOwnerId } from "../../contracts/application.ts";
+import { createFixedBootstrapEntropyV1 } from "../../testkit/fixed-bootstrap-entropy.ts";
+import { deterministicBuildIdentityInputV1 } from "../../testkit/resolver-fixtures.ts";
 import type {
   SyntheticCounterCommandV1,
   SyntheticSimulationTypesV1,
-} from "../../testkit/synthetic-counter.js";
-import { createSyntheticCounterGamePackageV1 } from "../../testkit/synthetic-counter.js";
+} from "../../testkit/synthetic-counter.ts";
+import { createSyntheticCounterGamePackageV1 } from "../../testkit/synthetic-counter.ts";
 import type {
   CoreApplicationHostServicesV1,
   CoreAutosavePolicyV1,
   CoreSchedulerV1,
   CoreSemanticAdapterV1,
-} from "./core-game-application.js";
+} from "./core-game-application.ts";
 import {
   createCoreGameApplicationInstanceV1,
   defineCoreGameApplicationV1,
   resolveCoreGameApplicationV1,
-} from "./core-game-application.js";
+} from "./core-game-application.ts";
 
 interface SyntheticQueriesV1 {
   readonly count: number;

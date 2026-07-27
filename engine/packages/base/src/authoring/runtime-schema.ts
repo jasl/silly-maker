@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
-import { CanonicalJsonError, canonicalJsonBytes } from "../contracts/canonical-json.js";
+import { CanonicalJsonError, canonicalJsonBytes } from "../contracts/canonical-json.ts";
 import type {
   DiagnosticEnvelopeV1,
   DiagnosticSubjectV1,
-} from "../contracts/diagnostic-envelope.js";
+} from "../contracts/diagnostic-envelope.ts";
 import {
   AuthoringDiagnosticErrorV1,
   extractDiagnosticsV1,
-} from "../contracts/diagnostic-envelope.js";
-import type { RuntimeSchemaV1 } from "../contracts/values.js";
-import { deepFreezeAuthoringValueV1 } from "./define-gameplay-module.js";
+} from "../contracts/diagnostic-envelope.ts";
+import type { RuntimeSchemaV1 } from "../contracts/values.ts";
+import { deepFreezeAuthoringValueV1 } from "./define-gameplay-module.ts";
 
 export interface RuntimeSchemaOptionsV1 {
   /** Attached to every diagnostic this schema produces. */

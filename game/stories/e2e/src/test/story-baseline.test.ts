@@ -4,13 +4,13 @@ import { describe, expect, it } from "vitest";
 import { extractDiagnosticsV1 } from "@sillymaker/base";
 import { createGameHarnessV1, resolveStoryForTestV1 } from "@sillymaker/base/testkit";
 
-import type { LabActionIdV1, LabGameStateV1, LabInvocationV1 } from "../index.js";
+import type { LabActionIdV1, LabGameStateV1, LabInvocationV1 } from "../index.ts";
 import {
   labProcedureStepsToCompleteV1,
   labSamplesStateSchemaV1,
   labSemanticAdapterV1,
   labStoryEntryV1,
-} from "../index.js";
+} from "../index.ts";
 
 function createLabHarnessV1(seed = 23049) {
   return createGameHarnessV1({

@@ -17,9 +17,9 @@
 每次修改后的验证环（秒级）：
 
 ```sh
-pnpm typecheck
-pnpm exec vitest run game/stories/<pkg>
-pnpm story simulate <appId> --scenario <name>
+deno task typecheck
+deno run -A npm:vitest run game/stories/<pkg>
+deno task story simulate <appId> --scenario <name>
 ```
 
 规则速记：

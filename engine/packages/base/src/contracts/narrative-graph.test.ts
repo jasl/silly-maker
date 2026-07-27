@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import { lintNarrativeGraphV1, parseNarrativeGraphV1 } from "./narrative-graph.js";
+import { lintNarrativeGraphV1, parseNarrativeGraphV1 } from "./narrative-graph.ts";
 import {
   createNarrativeGraphBuilderV1,
   narrativePredictionToDemandPlanV1,
   predictNarrativeDependenciesV1,
-} from "./narrative-prediction.js";
+} from "./narrative-prediction.ts";
 
 function nodeV1(input: {
   readonly nodeId: string;

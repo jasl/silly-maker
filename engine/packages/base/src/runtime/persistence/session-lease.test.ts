@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it, vi } from "vitest";
 
-import type { LeaseHandoffRequestId, SessionLeaseOwnerId } from "../../contracts/application.js";
-import { canonicalJsonBytes } from "../../contracts/canonical-json.js";
-import type { HostAtomicRecordStoreV1, HostStoredRecordV1 } from "../../contracts/host.js";
-import { createMemoryHostRecordStoreV1 } from "../../contracts/host.js";
-import { parsePositiveSafeInteger } from "../../contracts/values.js";
-import { createSessionLeaseV1 } from "./session-lease.js";
-import type { SessionLeaseFenceV1 } from "./session-lease.js";
+import type { LeaseHandoffRequestId, SessionLeaseOwnerId } from "../../contracts/application.ts";
+import { canonicalJsonBytes } from "../../contracts/canonical-json.ts";
+import type { HostAtomicRecordStoreV1, HostStoredRecordV1 } from "../../contracts/host.ts";
+import { createMemoryHostRecordStoreV1 } from "../../contracts/host.ts";
+import { parsePositiveSafeInteger } from "../../contracts/values.ts";
+import { createSessionLeaseV1 } from "./session-lease.ts";
+import type { SessionLeaseFenceV1 } from "./session-lease.ts";
 
 const storyIdV1 = "story.session-lease-test";
 const ownerV1 = (value: string) => value as SessionLeaseOwnerId;

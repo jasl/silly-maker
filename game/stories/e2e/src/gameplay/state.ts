@@ -9,9 +9,9 @@ import {
 } from "@sillymaker/base";
 import { createRuntimeSchemaV1, fromStandardSchemaV1 } from "@sillymaker/base/authoring";
 
-import type { LabNarrativeStateV1 } from "./narrative.js";
-import { createInitialLabNarrativeStateV1, labNarrativeNodeIdsV1 } from "./narrative.js";
-import { createInitialLabStageStateV1 } from "./stage.js";
+import type { LabNarrativeStateV1 } from "./narrative.ts";
+import { createInitialLabNarrativeStateV1, labNarrativeNodeIdsV1 } from "./narrative.ts";
+import { createInitialLabStageStateV1 } from "./stage.ts";
 
 export interface LabSamplesStateV1 {
   readonly collected: number;

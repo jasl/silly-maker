@@ -29,7 +29,7 @@ import {
   reduceStageMutations,
 } from "@sillymaker/base/story";
 
-import type { TemplateGameStateV1, TemplateInventoryStateV1 } from "./state.js";
+import type { TemplateGameStateV1, TemplateInventoryStateV1 } from "./state.ts";
 import {
   createInitialTemplateGameStateV1,
   createInitialTemplateStageStateV1,
@@ -37,8 +37,8 @@ import {
   templateInventoryStateSchemaV1,
   templateNarrativeStateSchemaV1,
   templateStageStateSchemaV1,
-} from "./state.js";
-import type { TemplateNarrativeStateV1 } from "./narrative.js";
+} from "./state.ts";
+import type { TemplateNarrativeStateV1 } from "./narrative.ts";
 import {
   createInitialTemplateNarrativeStateV1,
   runTemplateNarrativeUntilInteractionV1,
@@ -46,7 +46,7 @@ import {
   templateInteractionContextV1,
   templateNarrativeAfterResolutionV1,
   templateNarrativeAtBeginV1,
-} from "./narrative.js";
+} from "./narrative.ts";
 
 /**
  * The starter simulation: three stateful modules and one command executor.

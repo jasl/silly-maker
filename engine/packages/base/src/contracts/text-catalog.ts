@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { canonicalJsonBytes } from "./canonical-json.js";
+import { canonicalJsonBytes } from "./canonical-json.ts";
 import {
   PresentationCatalogValidationError,
   PresentationDataError,
@@ -11,9 +11,9 @@ import {
   parseNullableAt,
   readArray,
   readExactRecord,
-} from "./presentation-data.js";
-import type { LocaleId, TextId } from "./presentation-ids.js";
-import { parseLocaleId, parseTextId } from "./presentation-ids.js";
+} from "./presentation-data.ts";
+import type { LocaleId, TextId } from "./presentation-ids.ts";
+import { parseLocaleId, parseTextId } from "./presentation-ids.ts";
 
 export interface LocalizedTextCatalogV1 {
   readonly locale: LocaleId;

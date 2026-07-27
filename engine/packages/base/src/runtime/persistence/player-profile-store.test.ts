@@ -5,14 +5,14 @@ import {
   appendNarrativeHistoryV1,
   emptyNarrativeHistoryV1,
   parseNarrativeHistoryV1,
-} from "../../contracts/narrative-history.js";
-import type { NarrativeHistoryEntryV1 } from "../../contracts/narrative-history.js";
-import { createMemoryHostRecordStoreV1 } from "../../contracts/host.js";
+} from "../../contracts/narrative-history.ts";
+import type { NarrativeHistoryEntryV1 } from "../../contracts/narrative-history.ts";
+import { createMemoryHostRecordStoreV1 } from "../../contracts/host.ts";
 import {
   createPlayerProfileStoreV1,
   defaultPlayerProfileV1,
   isSeenV1,
-} from "./player-profile-store.js";
+} from "./player-profile-store.ts";
 
 function entryV1(sequence: number): NarrativeHistoryEntryV1 {
   return Object.freeze({

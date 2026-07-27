@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 import type { Page } from "@playwright/test";
 
-import { expect, gotoLabV1, test } from "./fixtures.js";
+import { expect, gotoLabV1, test } from "./fixtures.ts";
 
 interface AutomationOperationV1<T> {
   readonly kind: "ok" | "capability_disabled";

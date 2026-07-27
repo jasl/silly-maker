@@ -5,10 +5,10 @@ import { describe, expect, it } from "vitest";
 import type { AgentGamePortV1, AgentWaitOptionsV1 } from "@sillymaker/base/runtime";
 import { createAgentDiagnosticsCapabilityV1 } from "@sillymaker/base/runtime";
 
-import { createJsonlAgentClientV1 } from "./client.js";
-import { createJsonlAgentHostV1 } from "./host.js";
-import type { JsonlAgentHostInputV1 } from "./host.js";
-import { jsonlProtocolVersionV1 } from "./protocol.js";
+import { createJsonlAgentClientV1 } from "./client.ts";
+import { createJsonlAgentHostV1 } from "./host.ts";
+import type { JsonlAgentHostInputV1 } from "./host.ts";
+import { jsonlProtocolVersionV1 } from "./protocol.ts";
 
 function createFixtureAgentV1() {
   let revision = 0;

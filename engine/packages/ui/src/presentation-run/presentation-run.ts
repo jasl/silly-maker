@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import type { PresentationClockV1 } from "./presentation-clock.js";
+import type { PresentationClockV1 } from "./presentation-clock.ts";
 
 /**
  * The minimal reusable presentation-run lifecycle. The Transition Player is

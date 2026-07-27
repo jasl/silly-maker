@@ -10,8 +10,8 @@ import {
   reduceStageMutationsV1,
 } from "@sillymaker/base";
 
-import type { SemanticStageEntryRendererV1 } from "./semantic-stage-host.js";
-import { SemanticStageTargetHostV1 } from "./semantic-stage-host.js";
+import type { SemanticStageEntryRendererV1 } from "./semantic-stage-host.tsx";
+import { SemanticStageTargetHostV1 } from "./semantic-stage-host.tsx";
 
 const catalogV1: StageContentCatalogV1 = {
   resolveContent: (contentId, appearance) =>

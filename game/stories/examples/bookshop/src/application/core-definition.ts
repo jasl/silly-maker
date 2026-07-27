@@ -7,15 +7,15 @@ import type {
   BookshopActionResultV1,
   BookshopInvocationV1,
   BookshopPreviewV1,
-} from "./semantic.js";
-import { bookshopSemanticAdapterV1 } from "./semantic.js";
+} from "./semantic.ts";
+import { bookshopSemanticAdapterV1 } from "./semantic.ts";
 import type {
   BookshopGameViewV1,
   BookshopNarrativeViewV1,
   BookshopQueriesV1,
   BookshopSimulationTypesV1,
-} from "../simulation.js";
-import { bookshopStoryEntryV1 } from "../story.js";
+} from "../simulation.ts";
+import { bookshopStoryEntryV1 } from "../story.ts";
 
 /**
  * The Host-neutral core application: the GamePackage entry plus the

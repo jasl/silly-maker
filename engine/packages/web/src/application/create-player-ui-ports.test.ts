@@ -11,7 +11,7 @@ import {
   type SaveExportOperationResultV1,
 } from "@sillymaker/base";
 import { describe, expect, it, vi } from "vitest";
-import { createPlayerUiPortsV1 } from "./create-player-ui-ports.js";
+import { createPlayerUiPortsV1 } from "./create-player-ui-ports.ts";
 
 const readyStatusV1 = Object.freeze({
   available: true,

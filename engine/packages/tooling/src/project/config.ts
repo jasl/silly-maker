@@ -6,7 +6,7 @@ import type {
   SillymakerProjectConfigV1,
   StoryApplicationConfigV1,
   StoryWebTargetV1,
-} from "./config-types.js";
+} from "./config-types.ts";
 
 export type {
   ProjectModuleRefV1,
@@ -14,7 +14,7 @@ export type {
   StoryApplicationConfigV1,
   StoryWebIdentityRefV1,
   StoryWebTargetV1,
-} from "./config-types.js";
+} from "./config-types.ts";
 
 const identifierPatternV1 = /^[a-z0-9][a-z0-9-]*$/u;
 const exportNamePatternV1 = /^[A-Za-z_$][A-Za-z0-9_$]*$/u;

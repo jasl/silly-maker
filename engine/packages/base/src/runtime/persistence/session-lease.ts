@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: MIT
-import type { LeaseHandoffRequestId, SessionLeaseOwnerId } from "../../contracts/application.js";
-import { canonicalJsonBytes } from "../../contracts/canonical-json.js";
+import type { LeaseHandoffRequestId, SessionLeaseOwnerId } from "../../contracts/application.ts";
+import { canonicalJsonBytes } from "../../contracts/canonical-json.ts";
 import type {
   HostAtomicRecordStoreV1,
   HostRecordRevisionV1,
   HostStoredRecordV1,
-} from "../../contracts/host.js";
+} from "../../contracts/host.ts";
 import type {
   SessionLeaseOperationResultV1,
   SessionLeaseStatusV1,
-} from "../../contracts/persistence.js";
-import { parseStrictJson, parseStrictJsonLimitsV1 } from "../../contracts/strict-json.js";
-import type { PositiveSafeInteger } from "../../contracts/values.js";
-import { parsePositiveSafeInteger } from "../../contracts/values.js";
-import { createSessionLeaseRecordKeyV1 } from "./slot-keys.js";
+} from "../../contracts/persistence.ts";
+import { parseStrictJson, parseStrictJsonLimitsV1 } from "../../contracts/strict-json.ts";
+import type { PositiveSafeInteger } from "../../contracts/values.ts";
+import { parsePositiveSafeInteger } from "../../contracts/values.ts";
+import { createSessionLeaseRecordKeyV1 } from "./slot-keys.ts";
 
 export interface SessionLeaseFenceV1 {
   readonly ownerId: SessionLeaseOwnerId;

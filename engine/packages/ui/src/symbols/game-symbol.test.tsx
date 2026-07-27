@@ -4,13 +4,13 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { GameSymbolV1 } from "./game-symbol.js";
+import { GameSymbolV1 } from "./game-symbol.tsx";
 import {
   createGameSymbolRegistryV1,
   parseGameSymbolIdV1,
   type GameSymbolProviderV1,
   type GameSymbolRenderPropsV1,
-} from "./game-symbol-registry.js";
+} from "./game-symbol-registry.ts";
 
 const symbolId = parseGameSymbolIdV1("symbol.e2e.stamina");
 const interactiveSelector = [

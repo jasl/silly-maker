@@ -13,16 +13,16 @@ import {
   inputHandledV1,
   systemInputActionIdsV1,
   type InputRouteResultV1,
-} from "../input/contracts.js";
-import { createInputRouterV1 } from "../input/input-router.js";
-import { Button } from "../primitives/Button.js";
-import { DevDockV1, createDevDockContributionSetV1 } from "../debug/DevDock.js";
-import type { DevDockOpenStateV1 } from "../debug/DevDock.js";
-import { GameStageV1, useStageSystemFocusScopeTargetV1 } from "../shell/game-stage.js";
-import { GameShell } from "../shell/game-shell.js";
-import { SettingsLauncherV1 } from "../system/settings-launcher.js";
-import { SystemDialogHostV1 } from "../system/system-dialog-host.js";
-import { ActionConfirmationDialogV1 } from "./action-confirmation-dialog.js";
+} from "../input/contracts.ts";
+import { createInputRouterV1 } from "../input/input-router.ts";
+import { Button } from "../primitives/Button.tsx";
+import { DevDockV1, createDevDockContributionSetV1 } from "../debug/DevDock.tsx";
+import type { DevDockOpenStateV1 } from "../debug/DevDock.tsx";
+import { GameStageV1, useStageSystemFocusScopeTargetV1 } from "../shell/game-stage.tsx";
+import { GameShell } from "../shell/game-shell.tsx";
+import { SettingsLauncherV1 } from "../system/settings-launcher.tsx";
+import { SystemDialogHostV1 } from "../system/system-dialog-host.tsx";
+import { ActionConfirmationDialogV1 } from "./action-confirmation-dialog.tsx";
 
 afterEach(cleanup);
 

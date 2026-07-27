@@ -8,14 +8,14 @@ import {
   parseStateSlotId,
 } from "@sillymaker/base";
 
-import type { LabGameSimulationV1 } from "./gameplay/simulation.js";
-import { createLabGameSimulationV1 } from "./gameplay/simulation.js";
+import type { LabGameSimulationV1 } from "./gameplay/simulation.ts";
+import { createLabGameSimulationV1 } from "./gameplay/simulation.ts";
 import {
   labAssetSlotsV1,
   labPresentationPatchSurfaceV1,
   labTextCatalogsV1,
   materializeLabPresentationV1,
-} from "./presentation.js";
+} from "./presentation.ts";
 
 export const labStateContractManifestV1 = Object.freeze({
   contractRevision: 1 as const,

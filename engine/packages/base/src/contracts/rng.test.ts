@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import { parseNonZeroUint32 } from "./values.js";
-import { createTransactionalRngV1, rngStateV1Schema } from "./rng.js";
+import { parseNonZeroUint32 } from "./values.ts";
+import { createTransactionalRngV1, rngStateV1Schema } from "./rng.ts";
 
 describe("xorshift32-v1", () => {
   it("matches the frozen vector and resumes exactly", () => {

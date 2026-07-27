@@ -13,7 +13,7 @@ import {
   DiagnosticExportButtonV1,
   diagnosticExportContentCategoryIdsV1,
   type DiagnosticExportPreviewV1,
-} from "./diagnostic-export-button.js";
+} from "./diagnostic-export-button.tsx";
 
 afterEach(cleanup);
 

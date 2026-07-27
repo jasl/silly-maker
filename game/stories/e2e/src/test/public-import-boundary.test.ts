@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import {
   collectImportSpecifiersV1,
   findForbiddenImportSpecifiersV1,
-} from "../testing/import-guard.js";
+} from "../testing/import-guard.ts";
 
 const packageSourceRootV1 = fileURLToPath(new URL("../", import.meta.url));
 
@@ -27,38 +27,38 @@ describe("public import boundary", () => {
     const source = [
       'import { a } from "@sillymaker/base";',
       'import type { B } from "@sillymaker/base/runtime";',
-      'export { c } from "./local.js";',
-      'import "./side-effect.js";',
-      'const lazy = await import("./lazy.js");',
+      'export { c } from "./local.ts";',
+      'import "./side-effect.ts";',
+      'const lazy = await import("./lazy.ts");',
     ].join("\n");
 
     expect(collectImportSpecifiersV1(source)).toEqual([
       "@sillymaker/base",
       "@sillymaker/base/runtime",
-      "./local.js",
-      "./side-effect.js",
-      "./lazy.js",
+      "./local.ts",
+      "./side-effect.ts",
+      "./lazy.ts",
     ]);
   });
 
   it("fails on deliberate deep imports, PoC imports, and archive reaches", () => {
     const violations = findForbiddenImportSpecifiersV1(
       [
-        'import { internal } from "@sillymaker/base/src/runtime/session/game-session.js";',
+        'import { internal } from "@sillymaker/base/src/runtime/session/game-session.ts";',
         'import { glue } from "@project-tavern/story-poc";',
-        'import { old } from "../../../engine/packages/base/src/index.js";',
-        'import { poc } from "../../../game/stories/poc/src/index.js";',
-        'import { archived } from "../../../docs/archive/2026-07-first-poc-goal/file.js";',
+        'import { old } from "../../../engine/packages/base/src/index.ts";',
+        'import { poc } from "../../../game/stories/poc/src/index.ts";',
+        'import { archived } from "../../../docs/archive/2026-07-first-poc-goal/file.ts";',
         'import { allowed } from "@sillymaker/base";',
       ].join("\n"),
     );
 
     expect(violations).toEqual([
-      "@sillymaker/base/src/runtime/session/game-session.js",
+      "@sillymaker/base/src/runtime/session/game-session.ts",
       "@project-tavern/story-poc",
-      "../../../engine/packages/base/src/index.js",
-      "../../../game/stories/poc/src/index.js",
-      "../../../docs/archive/2026-07-first-poc-goal/file.js",
+      "../../../engine/packages/base/src/index.ts",
+      "../../../game/stories/poc/src/index.ts",
+      "../../../docs/archive/2026-07-first-poc-goal/file.ts",
     ]);
   });
 
