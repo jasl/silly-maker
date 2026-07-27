@@ -70,6 +70,10 @@ For ordinary browser work against source, use:
 deno task test:e2e
 ```
 
+## Desktop save server (local persistence channel)
+
+`deno task desktop:save-server --dist dist/<app> --saves <dir> --port 41800` serves a built Player bundle from one fixed local port and owns a save directory behind `/sillymaker/records`. Pages started with `?records=local` persist through `createHttpHostRecordStoreV1` (atomic per-file writes, optimistic revisions) instead of per-origin IndexedDB, so saves live in real files and survive process restarts and origin changes. This is the working desktop-persistence answer; wrapping the fixed-port server in a webview shell is the remaining packaging step.
+
 ## Desktop packaging (experimental)
 
 ```sh

@@ -26,7 +26,6 @@ import type {
   CatcafeInvocationV1,
   CatcafePreviewV1,
 } from "./semantic.ts";
-import { catcafeActivityBlockedByV1 } from "./semantic.ts";
 import type { CatcafeApplicationInstanceV1 } from "./core-definition.ts";
 import { catcafeCoreApplicationDefinitionV1 } from "./core-definition.ts";
 import type {
@@ -42,13 +41,7 @@ import {
   catcafeTextCatalogsV1,
   catcafeTextForLocaleV1,
 } from "../presentation.ts";
-import {
-  catcafeActivitiesV1,
-  catcafeAlbumV1,
-  catcafeMovesV1,
-  catcafePettingV1,
-  catcafeSlotsV1,
-} from "../content.ts";
+import { catcafeAlbumV1, catcafeMovesV1, catcafePettingV1, catcafeSlotsV1 } from "../content.ts";
 
 export const catcafeViewportCanvasV1 = Object.freeze({ width: 1280, height: 720 });
 
@@ -347,14 +340,10 @@ function CatcafeHudV1(props: {
   const game = props.publication.semantic.game;
   const contest = game.contest;
   const slotName = catcafeSlotsV1[game.calendar.slot] ?? "morning";
-  const queriesLike = {
-    calendar: game.calendar,
-    cat: game.cat,
-    shop: game.shop,
-    contest: game.contest,
-    stage: game.stage,
-    narrative: { pending: null, phase: props.publication.semantic.narrative.phase },
-  } as unknown as CatcafeQueriesV1;
+  // 目录即真相：固定动作与内容表展开的参数化活动来自同一份语义发布。
+  const actions = props.publication.semantic.actions;
+  const systemActions = actions.filter((action) => action.kind === "system");
+  const activityActions = actions.filter((action) => action.kind === "activity");
 
   return (
     <div data-cc-hud="true" style={{ display: "grid", gap: "8px" }}>
@@ -386,7 +375,7 @@ function CatcafeHudV1(props: {
         {String(game.shop.tidiness)}
       </p>
       <div role="group" aria-label="日程">
-        {props.publication.semantic.actions.map((action) => (
+        {systemActions.map((action) => (
           <Button
             key={action.actionId}
             disabled={!action.enabled}
@@ -404,22 +393,19 @@ function CatcafeHudV1(props: {
       </div>
       {contest === null ? (
         <div role="group" aria-label="活动">
-          {catcafeActivitiesV1.rows().map((activity) => {
-            const blockedBy = catcafeActivityBlockedByV1(queriesLike, activity.id);
-            return (
-              <Button
-                key={activity.id}
-                disabled={blockedBy !== null}
-                data-cc-activity={activity.id}
-                data-cc-blocked={blockedBy ?? undefined}
-                onClick={() =>
-                  dispatchV1(props.semantic, { kind: "activity", activityId: activity.id })
-                }
-              >
-                {uiText(activity.nameTextId)}
-              </Button>
-            );
-          })}
+          {activityActions.map((action) => (
+            <Button
+              key={action.activityId}
+              disabled={!action.enabled}
+              data-cc-activity={action.activityId}
+              data-cc-blocked={action.blockedBy ?? undefined}
+              onClick={() =>
+                dispatchV1(props.semantic, { kind: "activity", activityId: action.activityId })
+              }
+            >
+              {uiText(action.nameTextId)}
+            </Button>
+          ))}
         </div>
       ) : (
         <div role="group" aria-label="运动会" data-cc-contest={String(contest.round)}>

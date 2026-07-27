@@ -28,11 +28,22 @@ import { catcafeActivitiesV1, catcafeSlotsV1, catcafeStageForWeekV1 } from "../c
 
 export type CatcafeActionIdV1 = "cc.begin_story" | "cc.advance_slot" | "cc.enter_contest";
 
-export interface CatcafeActionDescriptorV1 {
-  readonly actionId: CatcafeActionIdV1;
-  readonly enabled: boolean;
-  readonly blockedBy: CatcafeRejectionV1["code"] | null;
-}
+export type CatcafeActionDescriptorV1 =
+  | {
+      readonly kind: "system";
+      readonly actionId: CatcafeActionIdV1;
+      readonly enabled: boolean;
+      readonly blockedBy: CatcafeRejectionV1["code"] | null;
+    }
+  | {
+      /** 参数化动作：内容表行展开为目录条目，可用性走同一条查表规则。 */
+      readonly kind: "activity";
+      readonly activityId: string;
+      readonly nameTextId: string;
+      readonly stamina: number;
+      readonly enabled: boolean;
+      readonly blockedBy: CatcafeRejectionV1["code"] | null;
+    };
 
 export type CatcafeInvocationV1 =
   | { readonly kind: "invoke"; readonly actionId: CatcafeActionIdV1 }
@@ -294,12 +305,31 @@ export const catcafeSemanticAdapterV1: CoreSemanticAdapterV1<
   projectGameView: (queries) => simulationForSemanticV1.projectGameView(queries),
   projectNarrativeView: (queries) => projectCatcafeNarrativeViewV1(queries),
   actions: (queries) =>
-    Object.freeze(
-      actionIdsV1.map((actionId) => {
+    Object.freeze([
+      ...actionIdsV1.map((actionId) => {
         const blockedBy = blockedByV1(queries, actionId);
-        return Object.freeze({ actionId, enabled: blockedBy === null, blockedBy });
+        return Object.freeze({
+          kind: "system" as const,
+          actionId,
+          enabled: blockedBy === null,
+          blockedBy,
+        });
       }),
-    ),
+      ...catcafeActivitiesV1.rows().map((activity) => {
+        const blockedBy =
+          queries.narrative.phase !== "completed"
+            ? ("cc.narrative_busy" as const)
+            : catcafeActivityBlockedByV1(queries, activity.id);
+        return Object.freeze({
+          kind: "activity" as const,
+          activityId: activity.id,
+          nameTextId: activity.nameTextId,
+          stamina: activity.stamina,
+          enabled: blockedBy === null,
+          blockedBy,
+        });
+      }),
+    ]),
   preview: (queries, invocation) => {
     const blockedBy = invocationBlockedByV1(queries, invocation);
     return blockedBy === null

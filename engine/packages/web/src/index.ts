@@ -55,6 +55,8 @@ export type {
   WebRuntimeRebootstrapLifecycleV1,
 } from "./application/resolved-game-hmr.ts";
 export { createWebHostV1 } from "./host/create-web-host.ts";
+export { createHttpHostRecordStoreV1 } from "./host/http-record-store.ts";
+export type { CreateHttpHostRecordStoreOptionsV1 } from "./host/http-record-store.ts";
 export type { CreateWebHostOptionsV1 } from "./host/create-web-host.ts";
 export { createBrowserFilePortV1 } from "./host/browser-file-port.ts";
 export type { BrowserFilePortEnvironmentV1 } from "./host/browser-file-port.ts";
