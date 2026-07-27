@@ -124,6 +124,8 @@ export interface CoreGameApplicationDefinitionV1<
     resolved: unknown,
   ): readonly string[];
   readonly exportFilename?: string;
+  /** Opt-in player rollback policy; absent means the port reports unconfigured. */
+  readonly rollback?: CoreRollbackPolicyV1<TTypes["command"]>;
   normalizeUnexpectedDispatchFault?(
     error: unknown,
     snapshot: DeepReadonly<TTypes["snapshot"]>,
@@ -435,7 +437,7 @@ const defaultSchedulerV1: CoreSchedulerV1 = Object.freeze({
 });
 
 export type CorePresentationAnchorOriginV1 =
-  "bootstrap" | "load" | "import" | "restart" | "replay_anchor" | "replacement";
+  "bootstrap" | "load" | "import" | "restart" | "replay_anchor" | "rollback" | "replacement";
 
 /**
  * Instance-local presentation continuity marker. The epoch advances whenever
@@ -473,6 +475,36 @@ export interface CreateCoreGameApplicationInstanceOptionsV1 {
    * handoff instead of acquiring a fresh initial lease.
    */
   readonly rebootstrapDisposition?: DeepReadonly<PersistenceRebootstrapDisposalV1>;
+}
+
+/**
+ * The player-rollback policy (R7): an opt-in, bounded checkpoint ring over
+ * committed Snapshots. `classify` marks commands whose commit is a hard
+ * barrier — settlements, day changes, irreversible story beats — that
+ * rollback can never cross. RNG state travels inside every Snapshot, so a
+ * rolled-back retry of the same command reproduces the same outcome
+ * (pinned by default; no save-scum rerolls).
+ */
+export interface CoreRollbackPolicyV1<TCommand> {
+  /** Ring capacity (checkpoints kept beyond the current state), 1..256. */
+  readonly capacity: number;
+  classify(command: DeepReadonly<TCommand>): "checkpoint" | "barrier";
+}
+
+export type CoreRollbackResultV1 =
+  | { readonly kind: "rolled_back"; readonly commandSequence: NonNegativeSafeInteger }
+  | {
+      readonly kind: "rejected";
+      readonly code: "rollback_unavailable" | "rollback_unconfigured" | "hmr_invalidated";
+    };
+
+export interface CoreRollbackPortV1 {
+  /** Checkpoints currently reachable behind the live state. */
+  available(): { readonly steps: NonNegativeSafeInteger };
+  /** Restores the checkpoint `steps` behind the live state (default 1). */
+  toPrevious(steps?: number): Promise<CoreRollbackResultV1>;
+  /** Notifies after every ring change (commit, rollback, reseed). */
+  subscribe(listener: () => void): () => void;
 }
 
 export interface CoreApplicationAdminV1<TTypes extends GameSimulationTypeMapV1> {
@@ -517,6 +549,8 @@ export interface CoreGameApplicationInstanceV1<
   readonly lifecycle: {
     restart(): Promise<SessionAnchorResultV1>;
   };
+  /** Player rollback over the bounded checkpoint ring (R7). */
+  readonly rollback: CoreRollbackPortV1;
   readonly diagnostics: {
     runtimeFailures(): readonly RuntimeOperationFaultV1[];
   };
@@ -765,11 +799,11 @@ export async function createCoreGameApplicationInstanceV1<
         } catch {
           return definition.semantic.invalidInvocationResult();
         }
-        const result = await created.session.dispatch(
-          definition.semantic.commandForInvocation(
-            invocation as DeepReadonly<TInvocation>,
-          ) as DeepReadonly<TTypes["command"]>,
-        );
+        const command = definition.semantic.commandForInvocation(
+          invocation as DeepReadonly<TInvocation>,
+        ) as DeepReadonly<TTypes["command"]>;
+        const result = await created.session.dispatch(command);
+        recordRollbackCheckpointV1(command, result);
         emitTransientEffectsV1(result);
         return definition.semantic.projectDispatchResult(result);
       },
@@ -823,6 +857,12 @@ export async function createCoreGameApplicationInstanceV1<
         epoch = parseNonNegativeSafeInteger(epoch + 1);
         origin = pendingOrigin ?? "replacement";
         pendingOrigin = undefined;
+        // A replaced replay base invalidates the rollback lineage — except
+        // for rollback itself, which already trimmed the surviving prefix.
+        if (!rollingBack && rollbackCapacity > 0) {
+          rollbackRing = [currentCheckpointV1()];
+          notifyRollbackV1();
+        }
         const anchor = currentAnchorV1();
         for (const listener of [...anchorListeners]) {
           try {
@@ -946,6 +986,148 @@ export async function createCoreGameApplicationInstanceV1<
         ),
       );
 
+    // Player rollback (R7): a bounded ring of committed Snapshots. The ring
+    // is instance-local presentation-adjacent state — it never enters Saves
+    // — and it reseeds from the live Snapshot whenever the replay base is
+    // replaced (load, import, restart, debug anchor), so rollback can never
+    // cross into a different lineage. A barrier commit clears everything
+    // behind it. Snapshots are immutable, so keeping references is cheap.
+    interface RollbackCheckpointV1 {
+      readonly snapshot: DeepReadonly<TTypes["snapshot"]>;
+      readonly commandSequence: NonNegativeSafeInteger;
+    }
+    const rollbackPolicy = definition.rollback ?? null;
+    const rollbackCapacity =
+      rollbackPolicy === null ? 0 : Math.max(1, Math.min(256, Math.trunc(rollbackPolicy.capacity)));
+    let rollbackRing: RollbackCheckpointV1[] = [];
+    let rollingBack = false;
+    const rollbackListeners = new Set<() => void>();
+    cleanups.push(() => rollbackListeners.clear());
+    const notifyRollbackV1 = (): void => {
+      for (const listener of [...rollbackListeners]) {
+        try {
+          listener();
+        } catch (error) {
+          reportObserverFailure(error);
+        }
+      }
+    };
+
+    const currentCheckpointV1 = (): RollbackCheckpointV1 => {
+      const snapshot = created.session.getCurrentSnapshot();
+      const sequence = (snapshot as { readonly commandSequence?: unknown }).commandSequence;
+      return Object.freeze({
+        snapshot,
+        commandSequence: parseNonNegativeSafeInteger(typeof sequence === "number" ? sequence : 0),
+      });
+    };
+
+    function recordRollbackCheckpointV1(
+      command: DeepReadonly<TTypes["command"]>,
+      result: SessionDispatchResultOfV1<TTypes>,
+    ): void {
+      if (rollbackPolicy === null || disposed) return;
+      if (result.kind !== "executed" || result.execution.kind !== "committed") return;
+      // The pre-commit state is already in the ring (seeded at bootstrap and
+      // after every commit). A barrier commit invalidates everything behind
+      // itself: the post-barrier state becomes the new earliest checkpoint.
+      if (rollbackPolicy.classify(command) === "barrier") {
+        rollbackRing = [currentCheckpointV1()];
+        notifyRollbackV1();
+        return;
+      }
+      rollbackRing.push(currentCheckpointV1());
+      if (rollbackRing.length > rollbackCapacity) {
+        rollbackRing = rollbackRing.slice(rollbackRing.length - rollbackCapacity);
+      }
+      notifyRollbackV1();
+    }
+
+    const rollbackPortV1: CoreRollbackPortV1 = Object.freeze({
+      subscribe(listener: () => void): () => void {
+        rollbackListeners.add(listener);
+        return () => rollbackListeners.delete(listener);
+      },
+      available: () =>
+        Object.freeze({
+          // The newest ring entry mirrors the live state; reachable
+          // checkpoints are the ones strictly behind it.
+          steps: parseNonNegativeSafeInteger(Math.max(0, rollbackRing.length - 1)),
+        }),
+      toPrevious: async (steps = 1): Promise<CoreRollbackResultV1> => {
+        if (rollbackPolicy === null) {
+          return Object.freeze({
+            kind: "rejected" as const,
+            code: "rollback_unconfigured" as const,
+          });
+        }
+        if (
+          !Number.isSafeInteger(steps) ||
+          steps < 1 ||
+          steps > Math.max(0, rollbackRing.length - 1) ||
+          rollingBack
+        ) {
+          return Object.freeze({
+            kind: "rejected" as const,
+            code: "rollback_unavailable" as const,
+          });
+        }
+        const targetIndex = rollbackRing.length - 1 - steps;
+        const target = rollbackRing[targetIndex];
+        if (target === undefined) {
+          return Object.freeze({
+            kind: "rejected" as const,
+            code: "rollback_unavailable" as const,
+          });
+        }
+        rollingBack = true;
+        try {
+          const anchored = await withOriginV1("rollback", () =>
+            created.runtimeControl.enqueueAuthoritative<SessionAnchorResultV1>(
+              async () =>
+                Object.freeze({
+                  kind: "replace" as const,
+                  snapshot: target.snapshot as TTypes["snapshot"],
+                  result: Object.freeze({
+                    kind: "anchored" as const,
+                    commandSequence: target.commandSequence,
+                  }),
+                  anchor: "replace_replay_base" as const,
+                }),
+              () =>
+                Object.freeze({ kind: "faulted" as const, code: "runtime.anchor_failed" as const }),
+              (snapshot) => persistence.establishAnchor(snapshot, []),
+              () => Object.freeze({ kind: "rejected" as const, code: "hmr_invalidated" as const }),
+            ),
+          );
+          if (anchored.kind !== "anchored") {
+            return anchored.kind === "rejected" && anchored.code === "hmr_invalidated"
+              ? Object.freeze({ kind: "rejected" as const, code: "hmr_invalidated" as const })
+              : Object.freeze({
+                  kind: "rejected" as const,
+                  code: "rollback_unavailable" as const,
+                });
+          }
+          // Keep the target and everything before it: the player may step
+          // further back. (The anchor listener reseeds the ring on replay
+          // base replacement; trim to the target here so the reseed appends
+          // onto the surviving prefix.)
+          rollbackRing = rollbackRing.slice(0, targetIndex + 1);
+          notifyRollbackV1();
+          return Object.freeze({
+            kind: "rolled_back" as const,
+            commandSequence: target.commandSequence,
+          });
+        } finally {
+          rollingBack = false;
+        }
+      },
+    });
+
+    // Seed the rollback ring with the bootstrap state so the first commit
+    // already has a checkpoint behind it.
+    if (rollbackCapacity > 0) rollbackRing = [currentCheckpointV1()];
+
     // Story extensions: composer-constructed, composer-disposed. The UI
     // context reader binds late (after the UI composition mounts).
     let uiContextReader: (() => unknown) | undefined;
@@ -1061,6 +1243,7 @@ export async function createCoreGameApplicationInstanceV1<
       },
       autoSaveIdle: () => persistence.autoSaveIdle(),
       lifecycle: Object.freeze({ restart: restartV1 }),
+      rollback: rollbackPortV1,
       diagnostics: Object.freeze({
         runtimeFailures: () => runtimeFailures.entries(),
       }),

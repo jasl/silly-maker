@@ -1,6 +1,6 @@
 # SillyMaker engine roadmap
 
-状态：2026-07-19 接受的连续演进方向。R1–R4 已随 [vNext foundations plan](plans/2026-07-19-sillymaker-vnext-foundations.md) 实现并进入 [feature list](features.md)（含 Engine Conformance 垂直切片、AI authoring canaries 与 PoC 的 Composer 迁移）；R5 及之后仍是路线图方向，尚未落地的能力不属于当前 feature list。
+状态：2026-07-19 接受的连续演进方向。R1–R4 已随 [vNext foundations plan](plans/2026-07-19-sillymaker-vnext-foundations.md) 实现并进入 [feature list](features.md)（含 Engine Conformance 垂直切片、AI authoring canaries 与 PoC 的 Composer 迁移）；R5 的 Timeline、R6 的 1–2 步（DevTools 数据面）与 R7 玩家回滚已按 [R5–R7 执行计划](plans/2026-07-28-sillymaker-r5-r7.md) 实现并进入 feature list；该计划的 defer 表（keyframes、onLifecycle、受约束场景图、R6.3–6.5 编辑器、R8 媒体 adapter 等）记录了未做部分及其激活条件。
 
 ## 1. North star
 

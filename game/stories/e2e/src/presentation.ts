@@ -55,6 +55,7 @@ export const labTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
         { textId: "text.e2e.lab.narrative.cal.advance", text: "继续" },
         { textId: "text.e2e.lab.narrative.cal.dial", text: "选择校准档位" },
         { textId: "text.e2e.lab.player.controls", text: "播放控制" },
+        { textId: "text.e2e.lab.player.rollback", text: "回退一步" },
         { textId: "text.e2e.lab.player.auto", text: "自动" },
         { textId: "text.e2e.lab.player.skip", text: "跳过模式" },
         { textId: "text.e2e.lab.player.history", text: "回顾记录" },

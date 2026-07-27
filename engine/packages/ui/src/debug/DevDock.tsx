@@ -228,7 +228,7 @@ function DevDockRailV1(props: {
           <section
             className={styles["dev-dock__panel"]}
             aria-live="polite"
-            aria-label={selected.title}
+            aria-label={selected?.title ?? "面板"}
             tabIndex={0}
           >
             {selectedAuthorized ? selected.render() : <p>需要启用作弊功能</p>}

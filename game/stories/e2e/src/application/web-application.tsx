@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 
 import type {
@@ -203,6 +203,33 @@ function labResolveV1(
 ): void {
   void semantic.dispatch(
     Object.freeze({ kind: "resolve" as const, expectedOccurrenceId, resolution }),
+  );
+}
+
+/**
+ * The player rollback control (R7): availability comes from the instance
+ * ring on every publication render, and the action is the instance port —
+ * pure player surface, no debug capability involved.
+ */
+function LabRollbackControlV1(props: {
+  readonly instance: LabApplicationInstanceV1;
+  readonly publication: DeepReadonly<LabUiPublicationV1>;
+}): ReactElement {
+  const rollback = props.instance.rollback;
+  const steps = useSyncExternalStore(
+    rollback.subscribe,
+    () => rollback.available().steps,
+    () => rollback.available().steps,
+  );
+  return (
+    <Button
+      data-lab-rollback="true"
+      data-lab-rollback-steps={String(steps)}
+      disabled={steps < 1}
+      onClick={() => void props.instance.rollback.toPrevious()}
+    >
+      {labUiTextV1("text.e2e.lab.player.rollback")}
+    </Button>
   );
 }
 
@@ -539,6 +566,12 @@ export function createLabUiSlotsV1(input: {
   const replayVoice = (): boolean => voiceReplayRef.current?.() ?? false;
   const slots: DefaultGameRootSlotsV1<LabUiPublicationV1, LabSemanticPortV1, LabUiOverlayIdV1> = {
     ...labUiSlotsDefinitionV1,
+    hud: (context) => (
+      <>
+        <LabHudV1 publication={context.publication} semantic={context.semantic} />
+        <LabRollbackControlV1 instance={input.instance} publication={context.publication} />
+      </>
+    ),
     narrative: (context) => (
       <div data-lab-narrative-root="true">
         <LabAudioV1

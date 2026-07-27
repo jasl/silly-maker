@@ -38,6 +38,12 @@ export const labCoreApplicationDefinitionV1 = defineCoreGameApplicationV1<
   entry: labStoryEntryV1,
   semantic: labSemanticAdapterV1,
   exportFilename: "engine-lab-save.json",
+  // Player rollback (R7): experiments settle results — a hard barrier the
+  // player cannot roll back across; everything else is checkpointed.
+  rollback: {
+    capacity: 32,
+    classify: (command) => (command.kind === "lab.run_experiment" ? "barrier" : "checkpoint"),
+  },
 });
 
 export type LabApplicationInstanceV1 = CoreGameApplicationInstanceV1<

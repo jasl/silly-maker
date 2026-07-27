@@ -1,6 +1,6 @@
 # SillyMaker R5–R7 execution plan
 
-状态：2026-07-28 接受执行。承接 [roadmap](../roadmap.md) R5–R7 与 [vn-presentation-runtime](../design/vn-presentation-runtime.md) §9–§10 的已接受合同。R8 与下列 defer 项不在本计划内。
+状态：2026-07-28 接受执行；同日 T1（Timeline）、T2（DevTools 数据面）、T3（玩家回滚）全部完成并进入 feature list，defer 表保持有效。承接 [roadmap](../roadmap.md) R5–R7 与 [vn-presentation-runtime](../design/vn-presentation-runtime.md) §9–§10 的已接受合同。R8 与下列 defer 项不在本计划内。
 
 ## 顺序与理由
 
