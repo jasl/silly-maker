@@ -115,6 +115,8 @@ export const catcafeTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
         { textId: "text.cc.day.6", text: "周日" },
         { textId: "text.cc.contest.round", text: "回合" },
         { textId: "text.cc.contest.morale", text: "士气" },
+        { textId: "text.cc.album.open", text: "成长相册" },
+        { textId: "text.cc.album.title", text: "成长相册" },
         { textId: "text.cc.contest.won", text: "小雨赢下了这一场！" },
         { textId: "text.cc.contest.lost", text: "这次没能赢，回去多练练吧。" },
       ],
@@ -150,16 +152,36 @@ export const catcafeStageContentCatalogV1: StageContentCatalog = {
           accessibleName: "后院",
           props: Object.freeze({ surface: "backyard" }),
         });
-      case catcafeContentIdsV1.characterXiaoyu:
+      case catcafeContentIdsV1.characterXiaoyu: {
+        const stage = typeof appearance.stage === "string" ? appearance.stage : "kitten";
+        // 命中区域随成长阶段缩放；坐标相对条目锚点（底部中心）。
+        const size = stage === "adolescent" ? 260 : stage === "junior" ? 210 : 160;
+        const height = Math.round(size * 0.85);
+        const half = Math.round(size / 2);
+        const third = Math.round(height / 3);
+        const zone = (
+          regionId: string,
+          accessibleNameText: string,
+          x: number,
+          y: number,
+          width: number,
+        ) => Object.freeze({ regionId, accessibleNameText, x, y, width, height: third });
         return Object.freeze({
           rendererId: "renderer.catcafe.cat",
           assetIds: Object.freeze([]),
           accessibleName: "小雨",
           props: Object.freeze({
-            stage: typeof appearance.stage === "string" ? appearance.stage : "kitten",
+            stage,
             expression: typeof appearance.expression === "string" ? appearance.expression : "calm",
           }),
+          hitRegions: Object.freeze([
+            zone("zone.head", "摸头", -half, -height, half),
+            zone("zone.chin", "挠下巴", 0, -height, half),
+            zone("zone.back", "顺背", -half, -height + third, size),
+            zone("zone.tail", "碰尾巴", -half, -third, size),
+          ]),
         });
+      }
       default:
         return null;
     }

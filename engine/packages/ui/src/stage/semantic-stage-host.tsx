@@ -48,6 +48,17 @@ export interface SemanticStageHostPropsV1 {
   readonly overlay?: readonly TimelineChannelValueV1[] | null;
   /** The playing cue's ID, exposed as `data-stage-cue` for observation. */
   readonly activeCueId?: string | null;
+  /**
+   * Activates a content hit region (pointer click or keyboard). Story code
+   * turns activations into semantic invocations; the host renders regions
+   * as focusable buttons only when this callback is present.
+   */
+  onHitRegionActivate?(input: {
+    readonly layerId: StageLayerIdV1;
+    readonly tag: string;
+    readonly contentId: string;
+    readonly regionId: string;
+  }): void;
   reportDiagnostic?(diagnostic: SemanticStageHostDiagnosticV1): void;
 }
 
@@ -167,8 +178,9 @@ function StageEntryV1(props: {
   readonly frameEntry: StageFrameEntryV1;
   readonly renderer: SemanticStageEntryRendererV1 | undefined;
   readonly overlayChannels: ReadonlyMap<TimelinePropertyV1, number> | undefined;
+  readonly onHitRegionActivate: SemanticStageHostPropsV1["onHitRegionActivate"];
 }): ReactElement {
-  const { layerId, frameEntry, renderer } = props;
+  const { layerId, frameEntry, renderer, onHitRegionActivate } = props;
   const { entry, phase } = frameEntry;
   const exiting = phase === "exiting";
   return (
@@ -191,6 +203,31 @@ function StageEntryV1(props: {
       ) : (
         renderer({ layerId, entry })
       )}
+      {onHitRegionActivate === undefined || exiting || entry.hitRegions.length === 0
+        ? null
+        : entry.hitRegions.map((region) => (
+            <button
+              key={region.regionId}
+              type="button"
+              className={styles["hit-region"]}
+              data-stage-hit-region={region.regionId}
+              aria-label={region.accessibleNameText}
+              style={{
+                left: `${String(region.x)}px`,
+                top: `${String(region.y)}px`,
+                width: `${String(region.width)}px`,
+                height: `${String(region.height)}px`,
+              }}
+              onClick={() =>
+                onHitRegionActivate({
+                  layerId,
+                  tag: entry.tag as string,
+                  contentId: entry.contentId as string,
+                  regionId: region.regionId,
+                })
+              }
+            />
+          ))}
     </div>
   );
 }
@@ -253,6 +290,7 @@ export function SemanticStageHostV1(props: SemanticStageHostPropsV1): ReactEleme
                 key={frameEntry.frameKey}
                 layerId={layer.layerId}
                 frameEntry={frameEntry}
+                onHitRegionActivate={props.onHitRegionActivate}
                 overlayChannels={overlayIndex.entry.get(
                   `${layer.layerId}\u0000${frameEntry.entry.tag}`,
                 )}

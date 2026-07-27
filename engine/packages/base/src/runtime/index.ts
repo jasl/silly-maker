@@ -109,6 +109,7 @@ export {
   createPlayerProfileStoreV1,
   defaultPlayerProfileV1,
   isSeenV1,
+  markMetaV1,
   markSeenV1,
 } from "./persistence/player-profile-store.ts";
 export type {

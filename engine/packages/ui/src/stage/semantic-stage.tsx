@@ -53,6 +53,8 @@ export interface SemanticStagePropsV1 {
   readonly cues?: { register(controller: { play(cueId: string): boolean } | null): void };
   /** Timeline events in order, exactly once per occurrence. */
   onTimelineEvent?(eventId: string): void;
+  /** Content hit-region activations (pointer or keyboard). */
+  onHitRegionActivate?: Parameters<typeof SemanticStageHostV1>[0]["onHitRegionActivate"];
   onAcknowledgment?(acknowledgment: StageTransitionAcknowledgmentV1): void;
   reportDiagnostic?(diagnostic: SemanticStageHostDiagnosticV1): void;
   reportFailure?(code: string, detail: string): void;
@@ -186,6 +188,9 @@ export function SemanticStageV1(props: SemanticStagePropsV1): ReactElement {
       accessibleName={props.accessibleName}
       overlay={overlay?.values ?? null}
       activeCueId={activeCueId}
+      {...(props.onHitRegionActivate === undefined
+        ? {}
+        : { onHitRegionActivate: props.onHitRegionActivate })}
       {...(props.reportDiagnostic === undefined
         ? {}
         : { reportDiagnostic: props.reportDiagnostic })}

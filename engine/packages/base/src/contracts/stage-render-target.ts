@@ -21,11 +21,30 @@ import type { AssetId } from "./presentation-ids.ts";
  * so the render target can always be rebuilt deterministically from the same
  * authoritative State and catalog.
  */
+/**
+ * A pointer/keyboard-activatable region on stage content (R-gap C: touch
+ * gameplay). Regions are presentation data the content catalog resolves
+ * per contentId + appearance — a character's zones can move as it grows.
+ * Activation forms a semantic invocation in Story code; regions never
+ * carry gameplay authority themselves. Coordinates are integer logical
+ * pixels relative to the entry's anchor (the same space renderers use).
+ */
+export interface StageHitRegionV1 {
+  readonly regionId: string;
+  readonly accessibleNameText: string;
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+
 export interface StageContentResolutionV1 {
   readonly rendererId: string;
   readonly assetIds: readonly AssetId[];
   readonly accessibleName: string;
   readonly props: StrictJsonObjectV1;
+  /** Optional activatable regions; omitted content is inert. */
+  readonly hitRegions?: readonly StageHitRegionV1[];
 }
 
 export interface StageContentCatalogV1 {
@@ -51,6 +70,7 @@ export interface StageRenderEntryV1 {
   readonly accessibleName: string;
   readonly props: StrictJsonObjectV1;
   readonly fallback: boolean;
+  readonly hitRegions: readonly StageHitRegionV1[];
 }
 
 export interface StageRenderLayerV1 {
@@ -92,6 +112,52 @@ function contentDiagnosticV1(code: string, message: string, pointer: string): Di
  * reports a structured diagnostic; projection failures never change
  * gameplay State.
  */
+const maxHitRegionsV1 = 16;
+
+function validateHitRegionsV1(
+  regions: readonly StageHitRegionV1[] | undefined,
+  pointer: string,
+  diagnostics: DiagnosticEnvelopeV1[],
+): readonly StageHitRegionV1[] {
+  if (regions === undefined || regions.length === 0) return Object.freeze([]);
+  const seen = new Set<string>();
+  const valid: StageHitRegionV1[] = [];
+  regions.forEach((region, index) => {
+    const path = `${pointer}/hitRegions/${String(index)}`;
+    const ok =
+      typeof region.regionId === "string" &&
+      region.regionId !== "" &&
+      typeof region.accessibleNameText === "string" &&
+      region.accessibleNameText !== "" &&
+      Number.isSafeInteger(region.x) &&
+      Number.isSafeInteger(region.y) &&
+      Number.isSafeInteger(region.width) &&
+      region.width > 0 &&
+      Number.isSafeInteger(region.height) &&
+      region.height > 0 &&
+      !seen.has(region.regionId) &&
+      valid.length < maxHitRegionsV1;
+    if (!ok) {
+      diagnostics.push(
+        contentDiagnosticV1("stage.hit_region_invalid", `invalid stage hit region`, path),
+      );
+      return;
+    }
+    seen.add(region.regionId);
+    valid.push(
+      Object.freeze({
+        regionId: region.regionId,
+        accessibleNameText: region.accessibleNameText,
+        x: region.x,
+        y: region.y,
+        width: region.width,
+        height: region.height,
+      }),
+    );
+  });
+  return Object.freeze(valid);
+}
+
 export function projectStageRenderTargetV1(
   state: SemanticStageStateV1,
   catalog: StageContentCatalogV1,
@@ -123,6 +189,7 @@ export function projectStageRenderTargetV1(
           accessibleName: entry.contentId as string,
           props: {},
           fallback: true,
+          hitRegions: [] as readonly StageHitRegionV1[],
         };
       }
       if (resolution.rendererId.length === 0) {
@@ -160,6 +227,7 @@ export function projectStageRenderTargetV1(
             : resolution.accessibleName,
         props: resolution.props,
         fallback: resolution.rendererId.length === 0,
+        hitRegions: validateHitRegionsV1(resolution.hitRegions, pointer, diagnostics),
       };
     });
     return { layerId: layer.layerId, transform: layer.transform, entries };
