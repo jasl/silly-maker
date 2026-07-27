@@ -143,7 +143,12 @@ describe("Engine Lab default UI", () => {
     });
     expect(screen.getByText("需要校准信标，请跟我来。")).toBeInTheDocument();
 
-    // Advance to the choice; the beacon stage node ran on the way.
+    // Advance through the beta researcher's line to the choice; the beacon
+    // and both character stage nodes ran on the way.
+    await user.click(screen.getByRole("button", { name: "继续" }));
+    await waitFor(() => {
+      expect(screen.getByText("样本读数稳定，可以开始校准。")).toBeInTheDocument();
+    });
     await user.click(screen.getByRole("button", { name: "继续" }));
     await waitFor(() => {
       expect(document.querySelector("[data-lab-interaction='choice']")).toBeInTheDocument();
@@ -193,6 +198,7 @@ describe("Engine Lab default UI", () => {
     // Reach the barrier and save exactly there. The save runs on the queue
     // long before the ~400ms crossfade acknowledgment can resolve it.
     await user.click(screen.getByRole("button", { name: "开始校准" }));
+    await user.click(await screen.findByRole("button", { name: "继续" }));
     await user.click(await screen.findByRole("button", { name: "继续" }));
     await user.click(await screen.findByRole("button", { name: "直接校准" }));
     await waitFor(() => {

@@ -62,6 +62,8 @@ export interface LabChoiceOptionV1 {
   readonly choiceId: string;
   readonly textId: string;
   readonly requiresSamples: number;
+  /** Samples atomically consumed by the cross-module resolve command. */
+  readonly consumesSamples: number;
   readonly next: string;
 }
 
@@ -125,6 +127,7 @@ export type LabNarrativeNodeV1 =
   | { readonly kind: "end"; readonly nodeId: string };
 
 const propsLayerV1 = "layer.e2e.props";
+const charactersLayerV1 = "layer.e2e.characters";
 const backgroundLayerV1 = "layer.e2e.background";
 
 function stageBatchV1(batch: readonly unknown[]): readonly StageMutationV2[] {
@@ -134,9 +137,29 @@ function stageBatchV1(batch: readonly unknown[]): readonly StageMutationV2[] {
 }
 
 export const labCalibrationSurfaceIdV1 = "surface.e2e.calibration";
-export const labCalibrationEntryNodeIdV1 = "node.e2e.cal.intro";
+export const labCalibrationEntryNodeIdV1 = "node.e2e.cal.enter-alpha";
 
 export const labNarrativeScriptV1: readonly LabNarrativeNodeV1[] = [
+  {
+    kind: "stage",
+    nodeId: "node.e2e.cal.enter-alpha",
+    mutations: (stage) =>
+      stageHasTagV1(stage, charactersLayerV1, labStageTagsV1.alpha)
+        ? []
+        : stageBatchV1([
+            {
+              kind: "show",
+              layerId: charactersLayerV1,
+              tag: labStageTagsV1.alpha,
+              contentId: labStageContentIdsV1.characterAlpha,
+              zOrder: 10,
+              placement: { x: 480, y: 860, scalePermille: 1000, mirrored: false },
+              appearance: { pose: "standing", expression: "neutral" },
+            },
+          ]),
+    mayShow: [labStageContentIdsV1.characterAlpha],
+    next: "node.e2e.cal.intro",
+  },
   {
     kind: "say",
     nodeId: "node.e2e.cal.intro",
@@ -163,6 +186,50 @@ export const labNarrativeScriptV1: readonly LabNarrativeNodeV1[] = [
             },
           ]),
     mayShow: [labStageContentIdsV1.propBeacon],
+    next: "node.e2e.cal.enter-beta",
+  },
+  {
+    kind: "stage",
+    nodeId: "node.e2e.cal.enter-beta",
+    mutations: (stage) =>
+      stageHasTagV1(stage, charactersLayerV1, labStageTagsV1.beta)
+        ? []
+        : stageBatchV1([
+            {
+              kind: "show",
+              layerId: charactersLayerV1,
+              tag: labStageTagsV1.beta,
+              contentId: labStageContentIdsV1.characterBeta,
+              zOrder: 11,
+              placement: { x: 1120, y: 860, scalePermille: 1000, mirrored: true },
+              appearance: { pose: "standing", expression: "neutral" },
+            },
+          ]),
+    mayShow: [labStageContentIdsV1.characterBeta],
+    next: "node.e2e.cal.beta-note",
+  },
+  {
+    kind: "say",
+    nodeId: "node.e2e.cal.beta-note",
+    definitionId: "interaction.e2e.cal-beta-note",
+    seenRevision: 1,
+    speakerTextId: "text.e2e.lab.narrative.speaker.beta",
+    textId: "text.e2e.lab.narrative.cal.beta",
+    next: "node.e2e.cal.beta-react",
+  },
+  {
+    kind: "stage",
+    nodeId: "node.e2e.cal.beta-react",
+    mutations: () =>
+      stageBatchV1([
+        {
+          kind: "setAppearance",
+          layerId: charactersLayerV1,
+          tag: labStageTagsV1.beta,
+          appearance: { pose: "standing", expression: "focused" },
+        },
+      ]),
+    mayShow: [],
     next: "node.e2e.cal.approach",
   },
   {
@@ -176,12 +243,14 @@ export const labNarrativeScriptV1: readonly LabNarrativeNodeV1[] = [
         choiceId: "choice.e2e.cal.basic",
         textId: "text.e2e.lab.narrative.cal.basic",
         requiresSamples: 0,
+        consumesSamples: 0,
         next: "node.e2e.cal.basic-mark",
       },
       {
         choiceId: "choice.e2e.cal.precise",
         textId: "text.e2e.lab.narrative.cal.precise",
         requiresSamples: 1,
+        consumesSamples: 1,
         next: "node.e2e.cal.precise-mark",
       },
     ],
@@ -278,10 +347,19 @@ export const labNarrativeScriptV1: readonly LabNarrativeNodeV1[] = [
   {
     kind: "stage",
     nodeId: "node.e2e.cal.clear",
-    mutations: (stage) =>
-      stageHasTagV1(stage, propsLayerV1, labStageTagsV1.beacon)
-        ? stageBatchV1([{ kind: "hide", layerId: propsLayerV1, tag: labStageTagsV1.beacon }])
-        : [],
+    mutations: (stage) => {
+      const hides: { kind: "hide"; layerId: string; tag: string }[] = [];
+      if (stageHasTagV1(stage, propsLayerV1, labStageTagsV1.beacon)) {
+        hides.push({ kind: "hide", layerId: propsLayerV1, tag: labStageTagsV1.beacon });
+      }
+      if (stageHasTagV1(stage, charactersLayerV1, labStageTagsV1.alpha)) {
+        hides.push({ kind: "hide", layerId: charactersLayerV1, tag: labStageTagsV1.alpha });
+      }
+      if (stageHasTagV1(stage, charactersLayerV1, labStageTagsV1.beta)) {
+        hides.push({ kind: "hide", layerId: charactersLayerV1, tag: labStageTagsV1.beta });
+      }
+      return hides.length > 0 ? stageBatchV1(hides) : [];
+    },
     mayShow: [],
     next: "node.e2e.cal.end",
   },

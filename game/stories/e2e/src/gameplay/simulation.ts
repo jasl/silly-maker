@@ -45,6 +45,7 @@ import { projectLabAudioIntentV1 } from "./audio.js";
 import type { LabNarrativeStateV1 } from "./narrative.js";
 import {
   createInitialLabNarrativeStateV1,
+  labChoiceOptionsForV1,
   labInteractionContextV1,
   labNarrativeAfterResolutionV1,
   labNarrativeAtBeginV1,
@@ -503,7 +504,7 @@ const stageModuleV1 = kit.defineStatefulModule({
 
 const narrativeModuleV1 = kit.defineStatefulModule({
   id: "lab.narrative",
-  contractRevision: 2,
+  contractRevision: 3,
   state: {
     slot: "simulation.narrative",
     schema: labNarrativeStateSchemaV1,
@@ -665,6 +666,21 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
             resolution: command.resolution,
             next: run.narrative,
           });
+          // A choice may carry a declared cross-module cost: the narrative
+          // continuation and the sample consumption commit in one atomic
+          // command or not at all.
+          const resolution = command.resolution;
+          if (resolution.kind === "choose" && state.narrative.pending !== null) {
+            const option = labChoiceOptionsForV1(state.narrative.pending.definitionId).find(
+              (candidate) => candidate.choiceId === resolution.choiceId,
+            );
+            if (option !== undefined && option.consumesSamples > 0) {
+              transaction.propose(samplesModuleV1, {
+                kind: "consume",
+                amount: option.consumesSamples,
+              });
+            }
+          }
           proposeStage(transaction, run.stageMutations);
           return transaction.complete();
         });

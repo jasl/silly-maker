@@ -49,6 +49,8 @@ async function playCalibrationV1(
   await dispatch(Object.freeze({ kind: "invoke" as const, actionId: "lab.begin_calibration" }));
   onCursor?.("node.e2e.cal.intro");
   await dispatch(resolveV1(pending().occurrenceId, { kind: "advance" }));
+  onCursor?.("node.e2e.cal.beta-note");
+  await dispatch(resolveV1(pending().occurrenceId, { kind: "advance" }));
   onCursor?.("node.e2e.cal.approach");
   await dispatch(
     resolveV1(pending().occurrenceId, { kind: "choose", choiceId: "choice.e2e.cal.basic" }),

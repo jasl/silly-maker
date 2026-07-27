@@ -72,6 +72,8 @@ export const labTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
         { textId: "text.e2e.lab.action.run_experiment", text: "进行实验" },
         { textId: "text.e2e.lab.action.begin_calibration", text: "开始校准" },
         { textId: "text.e2e.lab.narrative.speaker.alpha", text: "研究员甲" },
+        { textId: "text.e2e.lab.narrative.speaker.beta", text: "研究员乙" },
+        { textId: "text.e2e.lab.narrative.cal.beta", text: "样本读数稳定，可以开始校准。" },
         { textId: "text.e2e.lab.narrative.cal.intro", text: "需要校准信标，请跟我来。" },
         { textId: "text.e2e.lab.narrative.cal.approach", text: "选择校准方式" },
         { textId: "text.e2e.lab.narrative.cal.basic", text: "直接校准" },

@@ -28,9 +28,12 @@ test.describe("engine input actions", () => {
     await page.keyboard.press("KeyH");
     await expect(page.locator("[data-lab-player='history-panel']")).toHaveCount(0);
 
-    // Two-step via keyboard: the first Enter completes the reveal, the
-    // second resolves the say — identical semantics to clicking 继续.
+    // Keyboard advance: wait for the natural reveal, then Enter resolves
+    // the say — identical semantics to clicking 继续. The beta line follows
+    // before the choice.
+    await expect(page.locator("[data-lab-say-reveal='complete']")).toBeAttached();
     await page.keyboard.press("Enter");
+    await expect(page.getByText("样本读数稳定，可以开始校准。")).toBeVisible();
     await expect(page.locator("[data-lab-say-reveal='complete']")).toBeAttached();
     await page.keyboard.press("Enter");
     await expect(page.locator("[data-lab-interaction='choice']")).toBeVisible();
@@ -93,6 +96,9 @@ test.describe("engine input actions", () => {
     // and player-control toggles are covered deterministically by the
     // keyboard and jsdom suites; the router is device-agnostic, so the
     // unique gamepad claim is the poll loop's rising edge itself.)
+    await expect(page.locator("[data-lab-say-reveal='complete']")).toBeAttached();
+    await pressPad(0);
+    await expect(page.getByText("样本读数稳定，可以开始校准。")).toBeVisible();
     await expect(page.locator("[data-lab-say-reveal='complete']")).toBeAttached();
     await pressPad(0);
     await expect(page.locator("[data-lab-interaction='choice']")).toBeVisible();

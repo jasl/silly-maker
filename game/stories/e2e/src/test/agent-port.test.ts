@@ -37,12 +37,61 @@ type LabInvokeActionIdV1 = Extract<LabInvocationV1, { readonly kind: "invoke" }>
 const invoke = (actionId: LabInvokeActionIdV1): LabInvocationV1 =>
   Object.freeze({ kind: "invoke" as const, actionId });
 
-/** Plays the route purely from observed action availability, like an AI player. */
+/**
+ * Plays the whole conformance route purely from observed publications, like
+ * an AI player: it resolves every narrative boundary through the pending
+ * interaction (choosing the first enabled option, completing barriers with
+ * their expected transition), begins calibration when the catalog offers
+ * it, and finishes the SLG procedure afterwards. No raw state, no DOM.
+ */
 async function playToCompletionV1(agent: LabAgentPortV1): Promise<number> {
-  for (let step = 0; step < 32; step += 1) {
+  let calibrated = false;
+  for (let step = 0; step < 64; step += 1) {
     const publication = agent.observe();
-    if (publication.game.procedurePhase === "complete") return step;
-    const preferred = (["lab.run_experiment", "lab.begin_procedure", "lab.collect_sample"] as const)
+    const pending = publication.narrative.pending;
+    if (pending !== null) {
+      const resolve = (resolution: unknown): LabInvocationV1 =>
+        Object.freeze({
+          kind: "resolve" as const,
+          expectedOccurrenceId: pending.occurrenceId,
+          resolution,
+        }) as LabInvocationV1;
+      let invocation: LabInvocationV1;
+      switch (pending.kind) {
+        case "say":
+          invocation = resolve({ kind: "advance" });
+          break;
+        case "choice": {
+          const enabled = publication.narrative.choiceOptions?.find((option) => option.enabled);
+          if (enabled === undefined) throw new Error("agent found no enabled choice");
+          invocation = resolve({ kind: "choose", choiceId: enabled.choiceId });
+          break;
+        }
+        case "pause":
+          invocation = resolve({ kind: "resume" });
+          break;
+        case "presentation_barrier":
+          invocation = resolve({
+            kind: "barrier_completed",
+            transitionId: pending.expectedTransitionId,
+          });
+          break;
+        default:
+          invocation = resolve({ kind: "custom", payload: { value: 2 } });
+          break;
+      }
+      const result = await agent.dispatch(invocation);
+      expect(result).toMatchObject({ kind: "committed" });
+      const idle = await agent.waitForIdle({ timeoutMs: 1_000 });
+      expect(idle.kind).toBe("idle");
+      continue;
+    }
+    if (publication.narrative.phase === "completed") calibrated = true;
+    if (calibrated && publication.game.procedurePhase === "complete") return step;
+    const wanted: readonly (typeof publication.actions)[number]["actionId"][] = calibrated
+      ? ["lab.run_experiment", "lab.begin_procedure", "lab.collect_sample"]
+      : ["lab.begin_calibration"];
+    const preferred = wanted
       .map((actionId) => publication.actions.find((action) => action.actionId === actionId))
       .find((action) => action?.enabled === true);
     if (preferred === undefined) throw new Error("agent found no enabled action");
@@ -59,8 +108,11 @@ describe("Engine Lab agent port", () => {
     const harness = await createLabHarnessV1();
     const agent: LabAgentPortV1 = harness.agent;
 
-    expect(agent.identity()).toEqual({ storyId: "story.e2e.engine-lab", storyRevision: 4 });
+    expect(agent.identity()).toEqual({ storyId: "story.e2e.engine-lab", storyRevision: 5 });
     await playToCompletionV1(agent);
+    // The whole route: calibration narrative completed AND the ordinary
+    // SLG procedure finished after returning from the narrative.
+    expect(agent.observe().narrative.phase).toBe("completed");
     expect(agent.observe().game.procedurePhase).toBe("complete");
     await harness.dispose();
   });

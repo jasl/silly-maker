@@ -16,11 +16,27 @@ test.describe("engine pending interactions", () => {
     // Rapid double activation: two synchronous clicks fire before React
     // re-renders, so both dispatch the SAME occurrence. The first commits,
     // the queue front rejects the stale duplicate, and exactly one boundary
-    // advances — the choice, not anything past it.
+    // advances — the beta researcher's line, not anything past it.
     await page.getByRole("button", { name: "继续" }).evaluate((element) => {
       (element as HTMLButtonElement).click();
       (element as HTMLButtonElement).click();
     });
+    await expect(page.getByText("样本读数稳定，可以开始校准。")).toBeVisible();
+    await expect(say).toHaveAttribute("data-lab-occurrence", "interaction-occurrence.2");
+
+    // Both researchers entered the stage as semantic character entries.
+    await expect(
+      page.locator('[data-stage-key="layer.e2e.characters:tag.e2e.alpha"]'),
+    ).toBeVisible();
+    await expect(
+      page.locator('[data-stage-key="layer.e2e.characters:tag.e2e.beta"]'),
+    ).toBeVisible();
+
+    // Wait for the natural reveal, then one activation advances the beta
+    // line (the two-step confirm itself is covered where the reveal is
+    // still in flight deterministically — the jsdom player suite).
+    await expect(page.locator("[data-lab-say-reveal='complete']")).toBeAttached();
+    await page.getByRole("button", { name: "继续" }).click();
     const choice = page.locator("[data-lab-interaction='choice']");
     await expect(choice).toBeVisible();
     await expect(page.locator("[data-lab-interaction='say']")).toHaveCount(0);
@@ -66,7 +82,9 @@ test.describe("engine pending interactions", () => {
     // Reach the choice — a stable interaction boundary — and save there.
     // The first activation completes the typewriter, the second resolves.
     await page.getByRole("button", { name: "开始校准" }).click();
+    await expect(page.locator("[data-lab-say-reveal='complete']")).toBeAttached();
     await page.getByRole("button", { name: "继续" }).click();
+    await expect(page.getByText("样本读数稳定，可以开始校准。")).toBeVisible();
     await expect(page.locator("[data-lab-say-reveal='complete']")).toBeAttached();
     await page.getByRole("button", { name: "继续" }).click();
     const choice = page.locator("[data-lab-interaction='choice']");
@@ -101,7 +119,7 @@ test.describe("engine pending interactions", () => {
       timeout: 10_000,
     });
     await page.locator("[data-lab-dial-value='2']").click();
-    await page.getByRole("button", { name: "继续" }).click();
+    await expect(page.locator("[data-lab-interaction='say']")).toBeVisible();
     await expect(page.locator("[data-lab-say-reveal='complete']")).toBeAttached();
     await page.getByRole("button", { name: "继续" }).click();
     await expect(page.locator("[data-lab-narrative='calibrated']")).toBeVisible();
@@ -115,8 +133,11 @@ test.describe("engine pending interactions", () => {
     await expect(say).toBeVisible();
     const firstOccurrence = await say.getAttribute("data-lab-occurrence");
 
-    // Play to completion via the basic branch (two-step confirms).
+    // Play to completion via the basic branch: wait for each natural
+    // reveal, then a single activation advances.
+    await expect(page.locator("[data-lab-say-reveal='complete']")).toBeAttached();
     await page.getByRole("button", { name: "继续" }).click();
+    await expect(page.getByText("样本读数稳定，可以开始校准。")).toBeVisible();
     await expect(page.locator("[data-lab-say-reveal='complete']")).toBeAttached();
     await page.getByRole("button", { name: "继续" }).click();
     await page.getByRole("button", { name: "直接校准" }).click();
@@ -124,7 +145,7 @@ test.describe("engine pending interactions", () => {
       timeout: 10_000,
     });
     await page.locator("[data-lab-dial-value='1']").click();
-    await page.getByRole("button", { name: "继续" }).click();
+    await expect(page.locator("[data-lab-interaction='say']")).toBeVisible();
     await expect(page.locator("[data-lab-say-reveal='complete']")).toBeAttached();
     await page.getByRole("button", { name: "继续" }).click();
     await expect(page.locator("[data-lab-narrative='calibrated']")).toBeVisible();

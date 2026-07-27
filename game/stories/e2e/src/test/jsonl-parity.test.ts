@@ -13,9 +13,33 @@ import { createJsonlAgentClientV1, createJsonlAgentHostV1 } from "@sillymaker/to
 import type { LabInvocationV1 } from "../index.js";
 import { labSemanticAdapterV1, labStoryEntryV1 } from "../index.js";
 
+const resolveV1 = (expectedOccurrenceId: string, resolution: unknown): LabInvocationV1 =>
+  Object.freeze({ kind: "resolve", expectedOccurrenceId, resolution }) as LabInvocationV1;
+
+/**
+ * The whole conformance route as one deterministic invocation list: with a
+ * fixed seed the occurrence sequence is stable, so the in-process agent and
+ * the JSONL host replay the exact same wire-shaped steps — three samples,
+ * the calibration narrative through the cross-module precise branch, then
+ * the ordinary SLG procedure to completion.
+ */
 const transcriptInvocationsV1: readonly LabInvocationV1[] = Object.freeze([
   Object.freeze({ kind: "invoke" as const, actionId: "lab.collect_sample" as const }),
+  Object.freeze({ kind: "invoke" as const, actionId: "lab.collect_sample" as const }),
+  Object.freeze({ kind: "invoke" as const, actionId: "lab.collect_sample" as const }),
+  Object.freeze({ kind: "invoke" as const, actionId: "lab.begin_calibration" as const }),
+  resolveV1("interaction-occurrence.1", { kind: "advance" }),
+  resolveV1("interaction-occurrence.2", { kind: "advance" }),
+  resolveV1("interaction-occurrence.3", { kind: "choose", choiceId: "choice.e2e.cal.precise" }),
+  resolveV1("interaction-occurrence.4", {
+    kind: "barrier_completed",
+    transitionId: "transition.e2e.bg-crossfade",
+  }),
+  resolveV1("interaction-occurrence.5", { kind: "resume" }),
+  resolveV1("interaction-occurrence.6", { kind: "custom", payload: { value: 2 } }),
+  resolveV1("interaction-occurrence.7", { kind: "advance" }),
   Object.freeze({ kind: "invoke" as const, actionId: "lab.begin_procedure" as const }),
+  Object.freeze({ kind: "invoke" as const, actionId: "lab.run_experiment" as const }),
   Object.freeze({ kind: "invoke" as const, actionId: "lab.run_experiment" as const }),
 ]);
 
@@ -89,5 +113,15 @@ describe("Node in-process versus JSONL host parity", () => {
       entries: nodeTranscript.length,
     });
     expect(jsonlDigest).toBe(nodeDigest);
+
+    // Both channels finished the whole route, not just a prefix.
+    const final = observedAfter.ok
+      ? (observedAfter.result as {
+          narrative: { phase: string; calibration: number | null };
+          game: { procedurePhase: string };
+        })
+      : null;
+    expect(final?.narrative).toMatchObject({ phase: "completed", calibration: 2 });
+    expect(final?.game.procedurePhase).toBe("complete");
   });
 });

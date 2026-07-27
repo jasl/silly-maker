@@ -71,6 +71,8 @@ test.describe("engine reduced motion", () => {
     // narrative never deadlocks.
     await page.getByRole("button", { name: "开始校准" }).click();
     await page.getByRole("button", { name: "继续" }).click();
+    await expect(page.getByText("样本读数稳定，可以开始校准。")).toBeVisible();
+    await page.getByRole("button", { name: "继续" }).click();
     await page.getByRole("button", { name: "直接校准" }).click();
     await expect(page.locator("[data-lab-interaction='custom']")).toBeVisible({
       timeout: 10_000,

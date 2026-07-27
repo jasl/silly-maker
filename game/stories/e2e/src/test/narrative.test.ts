@@ -53,6 +53,10 @@ async function playCalibrationV1(
   );
   await dispatchCommittedV1(
     harness,
+    resolveV1(pendingV1(harness).occurrenceId, { kind: "advance" }),
+  );
+  await dispatchCommittedV1(
+    harness,
     resolveV1(pendingV1(harness).occurrenceId, { kind: "choose", choiceId }),
   );
   await dispatchCommittedV1(
@@ -89,6 +93,15 @@ describe("Engine Lab pending interactions", () => {
     expect(harness.observe().narrative.phase).toBe("active");
 
     await dispatchCommittedV1(harness, resolveV1(say.occurrenceId, { kind: "advance" }));
+
+    // The second researcher entered (a pure stage node) and speaks next.
+    const betaSay = pendingV1(harness);
+    expect(betaSay).toMatchObject({
+      kind: "say",
+      definitionId: "interaction.e2e.cal-beta-note",
+      occurrenceId: "interaction-occurrence.2",
+    });
+    await dispatchCommittedV1(harness, resolveV1(betaSay.occurrenceId, { kind: "advance" }));
     const choice = pendingV1(harness);
     expect(choice.kind).toBe("choice");
 
@@ -176,6 +189,10 @@ describe("Engine Lab pending interactions", () => {
       kind: "rejected",
       codes: ["interaction.occurrence_mismatch"],
     });
+    await dispatchCommittedV1(
+      harness,
+      resolveV1(pendingV1(harness).occurrenceId, { kind: "advance" }),
+    );
 
     // Wrong-kind resolution against the live occurrence.
     const choice = pendingV1(harness);
@@ -235,7 +252,7 @@ describe("Engine Lab pending interactions", () => {
     await dispatchCommittedV1(harness, beginV1);
     const reentered = pendingV1(harness);
     expect(reentered.definitionId).toBe("interaction.e2e.cal-intro");
-    expect(reentered.occurrenceId).toBe("interaction-occurrence.7");
+    expect(reentered.occurrenceId).toBe("interaction-occurrence.8");
 
     // The first run's intro occurrence is dead forever.
     expect(
@@ -253,6 +270,10 @@ describe("Engine Lab pending interactions", () => {
   it("save/load restores the same interaction, occurrence, and stage target", async () => {
     const harness = await createLabHarnessV1();
     await dispatchCommittedV1(harness, beginV1);
+    await dispatchCommittedV1(
+      harness,
+      resolveV1(pendingV1(harness).occurrenceId, { kind: "advance" }),
+    );
     await dispatchCommittedV1(
       harness,
       resolveV1(pendingV1(harness).occurrenceId, { kind: "advance" }),
@@ -293,6 +314,10 @@ describe("Engine Lab pending interactions", () => {
 
     // Stable point 2: the presentation barrier, with the flipped stage.
     await dispatchCommittedV1(harness, resolveV1(say.occurrenceId, { kind: "advance" }));
+    await dispatchCommittedV1(
+      harness,
+      resolveV1(pendingV1(harness).occurrenceId, { kind: "advance" }),
+    );
     await dispatchCommittedV1(
       harness,
       resolveV1(pendingV1(harness).occurrenceId, {
@@ -338,6 +363,10 @@ describe("Engine Lab pending interactions", () => {
   it("rejects corrupt saves before touching the live session state", async () => {
     const harness = await createLabHarnessV1();
     await dispatchCommittedV1(harness, beginV1);
+    await dispatchCommittedV1(
+      harness,
+      resolveV1(pendingV1(harness).occurrenceId, { kind: "advance" }),
+    );
     await dispatchCommittedV1(
       harness,
       resolveV1(pendingV1(harness).occurrenceId, { kind: "advance" }),
@@ -418,13 +447,16 @@ describe("Engine Lab pending interactions", () => {
     ]);
     await expect(harness.saves.save("manual")).resolves.toMatchObject({ kind: "saved" });
 
-    // Play forward: the choice adds a history entry too.
+    // Play forward: the beta say and the choice add history entries too.
+    const betaSay = pendingV1(harness);
+    expect(betaSay.definitionId).toBe("interaction.e2e.cal-beta-note");
+    await dispatchCommittedV1(harness, resolveV1(betaSay.occurrenceId, { kind: "advance" }));
     const choice = pendingV1(harness);
     await dispatchCommittedV1(
       harness,
       resolveV1(choice.occurrenceId, { kind: "choose", choiceId: "choice.e2e.cal.basic" }),
     );
-    expect(harness.observe().narrative.history.entries).toHaveLength(2);
+    expect(harness.observe().narrative.history.entries).toHaveLength(3);
     expect(harness.observe().narrative.history.entries.at(-1)).toMatchObject({
       kind: "choice",
       textId: "text.e2e.lab.narrative.cal.basic",
@@ -432,7 +464,7 @@ describe("Engine Lab pending interactions", () => {
 
     // History is the player backlog, not the CommandLog: the engine log
     // records every command while history holds only resolved narrative
-    // boundaries (begin + advance + choose = 3 commands, 2 entries).
+    // boundaries (begin + advances + choose = 4 commands, 3 entries).
     expect(harness.admin.commandLog().length).toBeGreaterThan(
       harness.observe().narrative.history.entries.length,
     );

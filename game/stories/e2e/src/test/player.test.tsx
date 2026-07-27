@@ -105,10 +105,13 @@ describe("Engine Lab VN player", () => {
     expect(say()).toHaveAttribute("data-lab-occurrence", occurrence ?? "");
     expect(instance.semantic.observe().narrative.pending?.kind).toBe("say");
 
-    // Second confirm resolves the say through the shared contract.
+    // Second confirm resolves the say through the shared contract; the
+    // script continues to the beta researcher's line (a fresh occurrence).
     await user.click(screen.getByRole("button", { name: "继续" }));
     await waitFor(() => {
-      expect(document.querySelector("[data-lab-interaction='choice']")).toBeInTheDocument();
+      const next = document.querySelector("[data-lab-interaction='say']");
+      expect(next).toBeInTheDocument();
+      expect(next?.getAttribute("data-lab-occurrence")).not.toBe(occurrence);
     });
     await dispose();
   });
@@ -126,8 +129,23 @@ describe("Engine Lab VN player", () => {
     await user.click(auto);
     expect(auto).toHaveAttribute("aria-pressed", "true");
 
-    // Reveal the whole line (12 chars at 40cps = 300ms), then the auto wait
-    // (600ms) elapses and the machine advances through the same dispatch.
+    // Reveal the whole intro (12 chars at 40cps = 300ms), wait the auto
+    // beat (600ms), advance; then the beta line reveals and auto-advances
+    // the same way, stopping only at the choice.
+    clock.advance(1000);
+    await waitFor(() => {
+      expect(document.querySelector("[data-lab-say-reveal]")).toHaveAttribute(
+        "data-lab-say-reveal",
+        "complete",
+      );
+    });
+    clock.advance(600);
+    clock.advance(0);
+    await waitFor(() => {
+      expect(
+        document.querySelector("[data-lab-interaction='say']")?.getAttribute("data-lab-occurrence"),
+      ).toBe("interaction-occurrence.2");
+    });
     clock.advance(1000);
     await waitFor(() => {
       expect(document.querySelector("[data-lab-say-reveal]")).toHaveAttribute(
@@ -165,15 +183,20 @@ describe("Engine Lab VN player", () => {
     await user.click(screen.getByRole("button", { name: "跳过模式" }));
     clock.advance(40);
     clock.advance(0);
-    // The seen intro was skipped straight to the choice…
+    // The seen intro was skipped; the UNREAD beta line stops skip_read.
     await waitFor(() => {
-      expect(document.querySelector("[data-lab-interaction='choice']")).toBeInTheDocument();
+      expect(
+        document.querySelector("[data-lab-interaction='say']")?.getAttribute("data-lab-occurrence"),
+      ).toBe("interaction-occurrence.2");
     });
-    // …where skip stops (choices always stop playback).
-    expect(screen.getByRole("button", { name: "跳过模式" })).toHaveAttribute(
-      "aria-pressed",
-      "false",
-    );
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "跳过模式" })).toHaveAttribute(
+        "aria-pressed",
+        "false",
+      );
+    });
+    clock.advance(60_000);
+    expect(document.querySelector("[data-lab-interaction='say']")).toBeInTheDocument();
     await dispose();
   });
 
@@ -185,19 +208,26 @@ describe("Engine Lab VN player", () => {
     await waitFor(() => {
       expect(document.querySelector("[data-lab-interaction='say']")).toBeInTheDocument();
     });
-    // Advance once with instant reveal? Default speed: first click reveals,
-    // second advances.
+    // Two-step confirm through the intro, then through the beta line.
+    await user.click(screen.getByRole("button", { name: "继续" }));
+    await user.click(screen.getByRole("button", { name: "继续" }));
+    await waitFor(() => {
+      expect(
+        document.querySelector("[data-lab-interaction='say']")?.getAttribute("data-lab-occurrence"),
+      ).toBe("interaction-occurrence.2");
+    });
     await user.click(screen.getByRole("button", { name: "继续" }));
     await user.click(screen.getByRole("button", { name: "继续" }));
     await waitFor(() => {
       expect(document.querySelector("[data-lab-interaction='choice']")).toBeInTheDocument();
     });
 
-    // The backlog lists the resolved say from authoritative history.
+    // The backlog lists both resolved says from authoritative history.
     await user.click(screen.getByRole("button", { name: "回顾记录" }));
     const panel = document.querySelector("[data-lab-player='history-panel']");
     expect(panel?.textContent).toContain(introTextV1);
     expect(panel?.textContent).toContain("研究员甲");
+    expect(panel?.textContent).toContain("研究员乙");
 
     // Hide UI: the narrative surface disappears, State does not move.
     const digestBefore = instance.admin.inspectForTest().snapshot;

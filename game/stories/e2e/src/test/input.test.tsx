@@ -86,14 +86,26 @@ describe("Engine Lab input actions", () => {
     // Enter advances the say — the exact same resolution a click dispatches.
     pressV1("Enter");
     await waitFor(() => {
+      expect(
+        document.querySelector("[data-lab-interaction='say']")?.getAttribute("data-lab-occurrence"),
+      ).toBe("interaction-occurrence.2");
+    });
+    await waitFor(() => {
+      expect(document.querySelector("[data-lab-say-reveal]")).toHaveAttribute(
+        "data-lab-say-reveal",
+        "complete",
+      );
+    });
+    pressV1("Enter");
+    await waitFor(() => {
       expect(document.querySelector("[data-lab-interaction='choice']")).toBeInTheDocument();
     });
 
-    // Exactly ONE gameplay command entered the log: the semantic resolve.
-    // No physical key event ever becomes a log entry.
+    // Exactly TWO gameplay commands entered the log: the two semantic
+    // resolves. No physical key event ever becomes a log entry.
     const log = instance.admin.commandLog();
-    expect(log.length).toBe(commandsBefore + 1);
-    expect(instance.semantic.observe().revision).toBe(revisionBefore + 1);
+    expect(log.length).toBe(commandsBefore + 2);
+    expect(instance.semantic.observe().revision).toBe(revisionBefore + 2);
 
     // Choices are not advanced by the stage shortcut: the VN layer returns
     // unhandled for actions its pending interaction does not support.
@@ -101,7 +113,7 @@ describe("Engine Lab input actions", () => {
     pressV1("Enter");
     pressV1("Space");
     expect(instance.semantic.observe().revision).toBe(choiceRevision);
-    expect(instance.admin.commandLog().length).toBe(commandsBefore + 1);
+    expect(instance.admin.commandLog().length).toBe(commandsBefore + 2);
 
     await dispose();
   });
