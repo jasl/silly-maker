@@ -365,6 +365,23 @@ export type {
   StageMutationV2,
 } from "./semantic-stage-reducer.js";
 export { projectStageRenderTargetV2, stageFallbackRendererIdV2 } from "./stage-render-target.js";
+export {
+  evaluateInteractionResolutionV2,
+  interactionOccurrenceIdV2,
+  parseInteractionJsonObjectV2,
+  parseInteractionOccurrenceIdV2,
+  parseInteractionResolutionV2,
+  parsePendingInteractionV2,
+} from "./pending-interaction.js";
+export type {
+  InteractionChoiceOptionV2,
+  InteractionRejectionCodeV2,
+  InteractionResolutionContextV2,
+  InteractionResolutionOutcomeV2,
+  InteractionResolutionV2,
+  PendingInteractionBaseV2,
+  PendingInteractionV2,
+} from "./pending-interaction.js";
 export { parseStageTransitionDefinitionV2 } from "./stage-transition.js";
 export type {
   StageTargetChangeV2,

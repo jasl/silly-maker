@@ -11,11 +11,20 @@ import type {
   RngStateV1,
   RuntimeSchemaV1,
 } from "@sillymaker/base";
-import type { SemanticStageStateV2, StageMutationV2 } from "@sillymaker/base";
+import type {
+  InteractionRejectionCodeV2,
+  InteractionResolutionV2,
+  PendingInteractionV2,
+  SemanticStageStateV2,
+  StageMutationV2,
+} from "@sillymaker/base";
 import {
   createGameAuthoringKitV1,
   createTransactionalRngV1,
   defineGameSimulation,
+  evaluateInteractionResolutionV2,
+  parseInteractionOccurrenceIdV2,
+  parseInteractionResolutionV2,
   parseNonNegativeSafeInteger,
   parseStageMutationV2,
   reduceStageMutationsV2,
@@ -25,10 +34,19 @@ import type { LabGameStateV1, LabProcedureStateV1 } from "./state.js";
 import {
   createInitialLabGameStateV1,
   labGameStateSchemaV1,
+  labNarrativeStateSchemaV1,
   labProcedureStateSchemaV1,
   labSamplesStateSchemaV1,
   labStageStateSchemaV1,
 } from "./state.js";
+import type { LabNarrativeStateV1 } from "./narrative.js";
+import {
+  createInitialLabNarrativeStateV1,
+  labInteractionContextV1,
+  labNarrativeAfterResolutionV1,
+  labNarrativeAtBeginV1,
+  runLabNarrativeUntilInteractionV1,
+} from "./narrative.js";
 import {
   createInitialLabStageStateV1,
   labStageMutationsForBeginV1,
@@ -40,7 +58,13 @@ export type LabCommandV1 =
   | { readonly kind: "lab.collect_sample" }
   | { readonly kind: "lab.begin_procedure" }
   | { readonly kind: "lab.advance_procedure" }
-  | { readonly kind: "lab.run_experiment" };
+  | { readonly kind: "lab.run_experiment" }
+  | { readonly kind: "lab.begin_calibration" }
+  | {
+      readonly kind: "lab.narrative_resolve";
+      readonly expectedOccurrenceId: string;
+      readonly resolution: InteractionResolutionV2;
+    };
 
 export type LabFactV1 =
   | { readonly kind: "lab.sample_collected"; readonly yield: number; readonly total: number }
@@ -50,15 +74,24 @@ export type LabFactV1 =
       readonly phase: LabProcedureStateV1["phase"];
       readonly stepsTaken: number;
     }
-  | { readonly kind: "lab.stage_changed"; readonly mutations: number };
+  | { readonly kind: "lab.stage_changed"; readonly mutations: number }
+  | {
+      readonly kind: "lab.interaction_resolved";
+      readonly definitionId: string;
+      readonly occurrenceId: string;
+    };
+
+export type LabRejectionCodeV1 =
+  | "lab.procedure_already_running"
+  | "lab.procedure_not_running"
+  | "lab.samples_required"
+  | "lab.insufficient_samples"
+  | "lab.stage_rejected"
+  | "lab.narrative_busy"
+  | InteractionRejectionCodeV2;
 
 export interface LabRejectionV1 {
-  readonly code:
-    | "lab.procedure_already_running"
-    | "lab.procedure_not_running"
-    | "lab.samples_required"
-    | "lab.insufficient_samples"
-    | "lab.stage_rejected";
+  readonly code: LabRejectionCodeV1;
 }
 
 export interface LabFaultV1 {
@@ -74,6 +107,23 @@ export interface LabQueriesV1 {
   readonly procedurePhase: LabProcedureStateV1["phase"];
   readonly procedureSteps: number;
   readonly stage: SemanticStageStateV2;
+  readonly narrative: LabNarrativeStateV1;
+}
+
+export interface LabNarrativeChoiceOptionViewV1 {
+  readonly choiceId: string;
+  readonly textId: string;
+  readonly enabled: boolean;
+  readonly blockedBy: "lab.narrative_choice_locked" | null;
+}
+
+/** The player-safe narrative channel published to UI and agents. */
+export interface LabNarrativeViewV1 {
+  readonly phase: LabNarrativeStateV1["phase"];
+  readonly calibration: number | null;
+  readonly pending: PendingInteractionV2 | null;
+  /** Availability decorated with the same rule preview/dispatch re-check. */
+  readonly choiceOptions: readonly LabNarrativeChoiceOptionViewV1[] | null;
 }
 
 export interface LabGameViewV1 {
@@ -135,22 +185,44 @@ type StageOperationV1 = {
   readonly mutations: readonly StageMutationV2[];
 };
 
+type NarrativeOperationV1 =
+  | { readonly kind: "begin"; readonly next: LabNarrativeStateV1 }
+  | {
+      readonly kind: "resolve";
+      readonly expectedOccurrenceId: string;
+      readonly resolution: InteractionResolutionV2;
+      readonly next: LabNarrativeStateV1;
+    };
+
 const commandSchemaV1: RuntimeSchemaV1<LabCommandV1> = Object.freeze({
   parse(value: unknown): LabCommandV1 {
-    if (
-      value === null ||
-      typeof value !== "object" ||
-      Array.isArray(value) ||
-      Object.keys(value).join("\0") !== "kind"
-    ) {
+    if (value === null || typeof value !== "object" || Array.isArray(value)) {
       throw new TypeError("invalid lab command");
     }
     const kind = (value as { readonly kind?: unknown }).kind;
+    if (kind === "lab.narrative_resolve") {
+      if (Object.keys(value).toSorted().join("\0") !== "expectedOccurrenceId\0kind\0resolution") {
+        throw new TypeError("invalid lab narrative resolve command");
+      }
+      const record = value as {
+        readonly expectedOccurrenceId?: unknown;
+        readonly resolution?: unknown;
+      };
+      return Object.freeze({
+        kind,
+        expectedOccurrenceId: parseInteractionOccurrenceIdV2(record.expectedOccurrenceId),
+        resolution: parseInteractionResolutionV2(record.resolution),
+      });
+    }
+    if (Object.keys(value).join("\0") !== "kind") {
+      throw new TypeError("invalid lab command");
+    }
     if (
       kind !== "lab.collect_sample" &&
       kind !== "lab.begin_procedure" &&
       kind !== "lab.advance_procedure" &&
-      kind !== "lab.run_experiment"
+      kind !== "lab.run_experiment" &&
+      kind !== "lab.begin_calibration"
     ) {
       throw new TypeError("invalid lab command kind");
     }
@@ -190,6 +262,43 @@ const procedureOperationSchemaV1: RuntimeSchemaV1<ProcedureOperationV1> = Object
       throw new TypeError("invalid lab procedure operation kind");
     }
     return Object.freeze({ kind });
+  },
+});
+
+const narrativeOperationSchemaV1: RuntimeSchemaV1<NarrativeOperationV1> = Object.freeze({
+  parse(value: unknown): NarrativeOperationV1 {
+    if (value === null || typeof value !== "object" || Array.isArray(value)) {
+      throw new TypeError("invalid lab narrative operation");
+    }
+    const kind = (value as { readonly kind?: unknown }).kind;
+    if (kind === "begin") {
+      if (Object.keys(value).toSorted().join("\0") !== "kind\0next") {
+        throw new TypeError("invalid lab narrative begin operation");
+      }
+      return Object.freeze({
+        kind,
+        next: labNarrativeStateSchemaV1.parse((value as { readonly next?: unknown }).next),
+      });
+    }
+    if (kind === "resolve") {
+      if (
+        Object.keys(value).toSorted().join("\0") !== "expectedOccurrenceId\0kind\0next\0resolution"
+      ) {
+        throw new TypeError("invalid lab narrative resolve operation");
+      }
+      const record = value as {
+        readonly expectedOccurrenceId?: unknown;
+        readonly resolution?: unknown;
+        readonly next?: unknown;
+      };
+      return Object.freeze({
+        kind,
+        expectedOccurrenceId: parseInteractionOccurrenceIdV2(record.expectedOccurrenceId),
+        resolution: parseInteractionResolutionV2(record.resolution),
+        next: labNarrativeStateSchemaV1.parse(record.next),
+      });
+    }
+    throw new TypeError("invalid lab narrative operation kind");
   },
 });
 
@@ -385,7 +494,75 @@ const stageModuleV1 = kit.defineStatefulModule({
   },
 });
 
-const labCompositionV1 = kit.composeModules([samplesModuleV1, procedureModuleV1, stageModuleV1]);
+const narrativeModuleV1 = kit.defineStatefulModule({
+  id: "lab.narrative",
+  contractRevision: 1,
+  state: {
+    slot: "simulation.narrative",
+    schema: labNarrativeStateSchemaV1,
+    initial: () => createInitialLabNarrativeStateV1(),
+  },
+  commandSchema: commandSchemaV1,
+  requires: { samples: labSamplesReadCapabilityV1 },
+  initializesAfter: ["lab.samples"],
+  owner: {
+    operationSchema: narrativeOperationSchemaV1,
+    propose(state, operation, dependencies) {
+      if (operation.kind === "begin") {
+        if (state.pending !== null) {
+          return Object.freeze({
+            kind: "rejected" as const,
+            rejection: Object.freeze({ code: "lab.narrative_busy" as const }),
+          });
+        }
+        return Object.freeze({
+          kind: "proposed" as const,
+          proposal: Object.freeze({ payload: operation, facts: Object.freeze([]) }),
+        });
+      }
+      // The queue-front authority: the same shared evaluator that served the
+      // action catalog and preview re-checks the expected occurrence, choice
+      // availability, and custom payload schema at dispatch time.
+      const outcome = evaluateInteractionResolutionV2(
+        state.pending,
+        operation.expectedOccurrenceId,
+        operation.resolution,
+        labInteractionContextV1(state.pending, dependencies.samples.collectedCount()),
+      );
+      if (outcome.kind === "rejected") {
+        return Object.freeze({
+          kind: "rejected" as const,
+          rejection: Object.freeze({ code: outcome.code }),
+        });
+      }
+      const pending = state.pending;
+      if (pending === null) throw new TypeError("accepted resolution without pending");
+      return Object.freeze({
+        kind: "proposed" as const,
+        proposal: Object.freeze({
+          payload: operation,
+          facts: Object.freeze([
+            Object.freeze({
+              kind: "lab.interaction_resolved" as const,
+              definitionId: pending.definitionId,
+              occurrenceId: pending.occurrenceId,
+            }),
+          ]),
+        }),
+      });
+    },
+    apply(_state, proposal) {
+      return proposal.payload.next;
+    },
+  },
+});
+
+const labCompositionV1 = kit.composeModules([
+  samplesModuleV1,
+  procedureModuleV1,
+  stageModuleV1,
+  narrativeModuleV1,
+]);
 
 type LabModulesV1 = typeof labCompositionV1.modules;
 
@@ -438,6 +615,50 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
         return labTransactionRunnerV1.execute(snapshot, rng, (transaction) => {
           transaction.propose(samplesModuleV1, { kind: "collect", yield: sampleYield });
           proposeStage(transaction, labStageMutationsForCollectV1(state.stage));
+          return transaction.complete();
+        });
+      }
+
+      if (command.kind === "lab.begin_calibration") {
+        return labTransactionRunnerV1.execute(snapshot, rng, (transaction) => {
+          if (state.narrative.pending !== null) {
+            return transaction.reject({ code: "lab.narrative_busy" });
+          }
+          const run = runLabNarrativeUntilInteractionV1(
+            labNarrativeAtBeginV1(state.narrative),
+            state.stage,
+          );
+          transaction.propose(narrativeModuleV1, { kind: "begin", next: run.narrative });
+          proposeStage(transaction, run.stageMutations);
+          return transaction.complete();
+        });
+      }
+
+      if (command.kind === "lab.narrative_resolve") {
+        return labTransactionRunnerV1.execute(snapshot, rng, (transaction) => {
+          // Pre-check with the exact same evaluator the narrative owner uses
+          // at propose time, so an invalid resolution rejects before any
+          // continuation work happens.
+          const outcome = evaluateInteractionResolutionV2(
+            state.narrative.pending,
+            command.expectedOccurrenceId,
+            command.resolution,
+            labInteractionContextV1(state.narrative.pending, state.samples.collected),
+          );
+          if (outcome.kind === "rejected") {
+            return transaction.reject({ code: outcome.code });
+          }
+          const run = runLabNarrativeUntilInteractionV1(
+            labNarrativeAfterResolutionV1(state.narrative, command.resolution),
+            state.stage,
+          );
+          transaction.propose(narrativeModuleV1, {
+            kind: "resolve",
+            expectedOccurrenceId: command.expectedOccurrenceId,
+            resolution: command.resolution,
+            next: run.narrative,
+          });
+          proposeStage(transaction, run.stageMutations);
           return transaction.complete();
         });
       }
@@ -524,6 +745,7 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
         procedurePhase: state.simulation.procedure.phase,
         procedureSteps: state.simulation.procedure.stepsTaken,
         stage: state.simulation.stage,
+        narrative: state.simulation.narrative,
       });
     },
     projectGameView(queries: LabQueriesV1) {

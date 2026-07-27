@@ -10,13 +10,14 @@ import type {
   LabActionResultV1,
   LabGameViewV1,
   LabInvocationV1,
+  LabNarrativeViewV1,
   LabPreviewV1,
 } from "../index.js";
 import { labSemanticAdapterV1, labStoryEntryV1 } from "../index.js";
 
 type LabAgentPortV1 = AgentGamePortV1<
   LabGameViewV1,
-  null,
+  LabNarrativeViewV1,
   LabActionDescriptorV1,
   LabInvocationV1,
   LabPreviewV1,
@@ -31,7 +32,9 @@ function createLabHarnessV1(seed = 23049) {
   });
 }
 
-const invoke = (actionId: LabInvocationV1["actionId"]): LabInvocationV1 =>
+type LabInvokeActionIdV1 = Extract<LabInvocationV1, { readonly kind: "invoke" }>["actionId"];
+
+const invoke = (actionId: LabInvokeActionIdV1): LabInvocationV1 =>
   Object.freeze({ kind: "invoke" as const, actionId });
 
 /** Plays the route purely from observed action availability, like an AI player. */
@@ -56,7 +59,7 @@ describe("Engine Lab agent port", () => {
     const harness = await createLabHarnessV1();
     const agent: LabAgentPortV1 = harness.agent;
 
-    expect(agent.identity()).toEqual({ storyId: "story.e2e.engine-lab", storyRevision: 2 });
+    expect(agent.identity()).toEqual({ storyId: "story.e2e.engine-lab", storyRevision: 3 });
     await playToCompletionV1(agent);
     expect(agent.observe().game.procedurePhase).toBe("complete");
     await harness.dispose();

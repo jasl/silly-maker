@@ -9,7 +9,12 @@ import type {
   LabPreviewV1,
 } from "./semantic.js";
 import { labSemanticAdapterV1 } from "./semantic.js";
-import type { LabGameViewV1, LabQueriesV1, LabSimulationTypesV1 } from "../gameplay/simulation.js";
+import type {
+  LabGameViewV1,
+  LabNarrativeViewV1,
+  LabQueriesV1,
+  LabSimulationTypesV1,
+} from "../gameplay/simulation.js";
 import { labStoryEntryV1 } from "../story.js";
 
 /**
@@ -24,7 +29,7 @@ export const labCoreApplicationDefinitionV1 = defineCoreGameApplicationV1<
   LabSimulationTypesV1,
   LabQueriesV1,
   LabGameViewV1,
-  null,
+  LabNarrativeViewV1,
   LabActionDescriptorV1,
   LabInvocationV1,
   LabPreviewV1,
@@ -38,7 +43,7 @@ export const labCoreApplicationDefinitionV1 = defineCoreGameApplicationV1<
 export type LabApplicationInstanceV1 = CoreGameApplicationInstanceV1<
   LabSimulationTypesV1,
   LabGameViewV1,
-  null,
+  LabNarrativeViewV1,
   LabActionDescriptorV1,
   LabInvocationV1,
   LabPreviewV1,

@@ -1,16 +1,28 @@
 // SPDX-License-Identifier: MIT
+import type { InteractionResolutionV2 } from "@sillymaker/base";
+import {
+  evaluateInteractionResolutionV2,
+  parseInteractionOccurrenceIdV2,
+  parseInteractionResolutionV2,
+} from "@sillymaker/base";
 import type { CoreSemanticAdapterV1 } from "@sillymaker/base/runtime";
 
 import type {
   LabCommandV1,
   LabGameViewV1,
+  LabNarrativeViewV1,
   LabQueriesV1,
   LabRejectionV1,
   LabSimulationTypesV1,
 } from "../gameplay/simulation.js";
 import { createLabGameSimulationV1 } from "../gameplay/simulation.js";
+import {
+  labChoiceBlockedByV1,
+  labChoiceOptionsForV1,
+  labInteractionContextV1,
+} from "../gameplay/narrative.js";
 
-export type LabActionIdV1 = LabCommandV1["kind"];
+export type LabActionIdV1 = Exclude<LabCommandV1["kind"], "lab.narrative_resolve">;
 
 export interface LabActionDescriptorV1 {
   readonly actionId: LabActionIdV1;
@@ -18,10 +30,13 @@ export interface LabActionDescriptorV1 {
   readonly blockedBy: LabRejectionV1["code"] | null;
 }
 
-export interface LabInvocationV1 {
-  readonly kind: "invoke";
-  readonly actionId: LabActionIdV1;
-}
+export type LabInvocationV1 =
+  | { readonly kind: "invoke"; readonly actionId: LabActionIdV1 }
+  | {
+      readonly kind: "resolve";
+      readonly expectedOccurrenceId: string;
+      readonly resolution: InteractionResolutionV2;
+    };
 
 export type LabPreviewV1 =
   | { readonly kind: "allowed" }
@@ -42,6 +57,7 @@ const labActionIdsV1: readonly LabActionIdV1[] = Object.freeze([
   "lab.begin_procedure",
   "lab.advance_procedure",
   "lab.run_experiment",
+  "lab.begin_calibration",
 ]);
 
 const labSimulationForSemanticV1 = createLabGameSimulationV1();
@@ -67,6 +83,8 @@ function blockedByV1(
       if (queries.procedurePhase !== "running") return "lab.procedure_not_running";
       if (queries.samplesCollected < 1) return "lab.insufficient_samples";
       return null;
+    case "lab.begin_calibration":
+      return queries.narrative.pending === null ? null : "lab.narrative_busy";
     default: {
       const exhaustive: never = actionId;
       throw new TypeError(`unknown lab action ${String(exhaustive)}`);
@@ -74,14 +92,63 @@ function blockedByV1(
   }
 }
 
+/** The same base evaluator used at queue-front dispatch, fed by queries. */
+function resolutionBlockedByV1(
+  queries: LabQueriesV1,
+  invocation: Extract<LabInvocationV1, { readonly kind: "resolve" }>,
+): LabRejectionV1["code"] | null {
+  const outcome = evaluateInteractionResolutionV2(
+    queries.narrative.pending,
+    invocation.expectedOccurrenceId,
+    invocation.resolution,
+    labInteractionContextV1(queries.narrative.pending, queries.samplesCollected),
+  );
+  return outcome.kind === "accepted" ? null : outcome.code;
+}
+
+export function projectLabNarrativeViewV1(queries: LabQueriesV1): LabNarrativeViewV1 {
+  const pending = queries.narrative.pending;
+  return Object.freeze({
+    phase: queries.narrative.phase,
+    calibration: queries.narrative.calibration,
+    pending,
+    choiceOptions:
+      pending !== null && pending.kind === "choice"
+        ? Object.freeze(
+            labChoiceOptionsForV1(pending.definitionId).map((option) => {
+              const blockedBy = labChoiceBlockedByV1(option, queries.samplesCollected);
+              return Object.freeze({
+                choiceId: option.choiceId,
+                textId: option.textId,
+                enabled: blockedBy === null,
+                blockedBy,
+              });
+            }),
+          )
+        : null,
+  });
+}
+
 export function parseLabInvocationV1(value: unknown): LabInvocationV1 {
-  if (
-    value === null ||
-    typeof value !== "object" ||
-    Array.isArray(value) ||
-    Object.keys(value).toSorted().join("\0") !== "actionId\0kind" ||
-    (value as { readonly kind?: unknown }).kind !== "invoke"
-  ) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new TypeError("invalid lab invocation");
+  }
+  const kind = (value as { readonly kind?: unknown }).kind;
+  if (kind === "resolve") {
+    if (Object.keys(value).toSorted().join("\0") !== "expectedOccurrenceId\0kind\0resolution") {
+      throw new TypeError("invalid lab resolve invocation");
+    }
+    const record = value as {
+      readonly expectedOccurrenceId?: unknown;
+      readonly resolution?: unknown;
+    };
+    return Object.freeze({
+      kind: "resolve",
+      expectedOccurrenceId: parseInteractionOccurrenceIdV2(record.expectedOccurrenceId),
+      resolution: parseInteractionResolutionV2(record.resolution),
+    });
+  }
+  if (kind !== "invoke" || Object.keys(value).toSorted().join("\0") !== "actionId\0kind") {
     throw new TypeError("invalid lab invocation");
   }
   const actionId = (value as { readonly actionId?: unknown }).actionId;
@@ -95,7 +162,7 @@ export const labSemanticAdapterV1: CoreSemanticAdapterV1<
   LabSimulationTypesV1,
   LabQueriesV1,
   LabGameViewV1,
-  null,
+  LabNarrativeViewV1,
   LabActionDescriptorV1,
   LabInvocationV1,
   LabPreviewV1,
@@ -103,7 +170,7 @@ export const labSemanticAdapterV1: CoreSemanticAdapterV1<
 > = {
   createQueries: (state) => labSimulationForSemanticV1.createQueries(state as never),
   projectGameView: (queries) => labSimulationForSemanticV1.projectGameView(queries),
-  projectNarrativeView: () => null,
+  projectNarrativeView: (queries) => projectLabNarrativeViewV1(queries),
   actions: (queries) =>
     Object.freeze(
       labActionIdsV1.map((actionId) => {
@@ -112,13 +179,23 @@ export const labSemanticAdapterV1: CoreSemanticAdapterV1<
       }),
     ),
   preview: (queries, invocation) => {
-    const blockedBy = blockedByV1(queries, invocation.actionId);
+    const blockedBy =
+      invocation.kind === "resolve"
+        ? resolutionBlockedByV1(queries, invocation)
+        : blockedByV1(queries, invocation.actionId);
     return blockedBy === null
       ? Object.freeze({ kind: "allowed" as const })
       : Object.freeze({ kind: "blocked" as const, code: blockedBy });
   },
   parseInvocation: parseLabInvocationV1,
-  commandForInvocation: (invocation) => Object.freeze({ kind: invocation.actionId }),
+  commandForInvocation: (invocation) =>
+    invocation.kind === "resolve"
+      ? Object.freeze({
+          kind: "lab.narrative_resolve" as const,
+          expectedOccurrenceId: invocation.expectedOccurrenceId,
+          resolution: invocation.resolution,
+        })
+      : Object.freeze({ kind: invocation.actionId }),
   projectDispatchResult: (result) => {
     if (result.kind === "not_executed") {
       return Object.freeze({ kind: "not_executed" as const, code: result.code });

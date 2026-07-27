@@ -68,6 +68,18 @@ export const labTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
         { textId: "text.e2e.lab.action.begin_procedure", text: "开始流程" },
         { textId: "text.e2e.lab.action.advance_procedure", text: "推进流程" },
         { textId: "text.e2e.lab.action.run_experiment", text: "进行实验" },
+        { textId: "text.e2e.lab.action.begin_calibration", text: "开始校准" },
+        { textId: "text.e2e.lab.narrative.speaker.alpha", text: "研究员甲" },
+        { textId: "text.e2e.lab.narrative.cal.intro", text: "需要校准信标，请跟我来。" },
+        { textId: "text.e2e.lab.narrative.cal.approach", text: "选择校准方式" },
+        { textId: "text.e2e.lab.narrative.cal.basic", text: "直接校准" },
+        { textId: "text.e2e.lab.narrative.cal.precise", text: "精密校准" },
+        { textId: "text.e2e.lab.narrative.cal.precise.locked", text: "需要至少一份样本" },
+        { textId: "text.e2e.lab.narrative.cal.done", text: "校准完成，信标已就绪。" },
+        { textId: "text.e2e.lab.narrative.cal.waiting", text: "等待设备稳定…" },
+        { textId: "text.e2e.lab.narrative.cal.skip", text: "跳过等待" },
+        { textId: "text.e2e.lab.narrative.cal.advance", text: "继续" },
+        { textId: "text.e2e.lab.narrative.cal.dial", text: "选择校准档位" },
         { textId: "text.e2e.lab.hud.samples", text: "样本" },
         { textId: "text.e2e.lab.hud.steps", text: "流程进度" },
         { textId: "text.e2e.lab.overlay.journal.title", text: "实验日志" },
@@ -143,6 +155,15 @@ export const labStageContentCatalogV1: StageContentCatalogV2 = {
           assetIds: Object.freeze([]),
           accessibleName: "样本箱",
           props: Object.freeze({}),
+        });
+      case labStageContentIdsV1.propBeacon:
+        return Object.freeze({
+          rendererId: "renderer.e2e.lab.stage-prop",
+          assetIds: Object.freeze([]),
+          accessibleName: "校准信标",
+          props: Object.freeze({
+            mode: typeof appearance.mode === "string" ? appearance.mode : "idle",
+          }),
         });
       default:
         return null;

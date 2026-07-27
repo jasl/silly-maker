@@ -112,6 +112,59 @@ describe("Engine Lab default UI", () => {
     await instance.dispose();
   });
 
+  it("plays the calibration narrative through interaction boundaries in the UI", async () => {
+    const { instance, composition } = await composeLabUiV1();
+    renderLabRootV1({ instance, composition });
+    const user = userEvent.setup();
+
+    // Begin: the say boundary appears with its stable occurrence.
+    await user.click(screen.getByRole("button", { name: "开始校准" }));
+    await waitFor(() => {
+      expect(document.querySelector("[data-lab-interaction='say']")).toBeInTheDocument();
+    });
+    expect(screen.getByText("需要校准信标，请跟我来。")).toBeInTheDocument();
+
+    // Advance to the choice; the beacon stage node ran on the way.
+    await user.click(screen.getByRole("button", { name: "继续" }));
+    await waitFor(() => {
+      expect(document.querySelector("[data-lab-interaction='choice']")).toBeInTheDocument();
+    });
+    expect(
+      document.querySelector('[data-stage-key="layer.e2e.props:tag.e2e.beacon"]'),
+    ).toBeInTheDocument();
+
+    // The sample-gated option renders disabled by the shared evaluator.
+    expect(screen.getByRole("button", { name: "精密校准" })).toBeDisabled();
+
+    // Choosing flips the background; the acknowledged crossfade confirms
+    // the presentation barrier, then the pause auto-resumes, reaching the
+    // custom surface without any bespoke callback plumbing.
+    await user.click(screen.getByRole("button", { name: "直接校准" }));
+    await waitFor(
+      () => {
+        expect(document.querySelector("[data-lab-interaction='custom']")).toBeInTheDocument();
+      },
+      { timeout: 4000 },
+    );
+
+    // Resolve the schema-registered surface and finish the script.
+    await user.click(screen.getByRole("button", { name: "2" }));
+    await waitFor(() => {
+      expect(document.querySelector("[data-lab-interaction='say']")).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole("button", { name: "继续" }));
+    await waitFor(() => {
+      expect(document.querySelector("[data-lab-narrative='calibrated']")).toBeInTheDocument();
+    });
+    expect(instance.semantic.observe().narrative).toMatchObject({
+      phase: "completed",
+      calibration: 2,
+    });
+
+    composition.dispose();
+    await instance.dispose();
+  }, 15_000);
+
   it("keeps the resident player DOM free of debug vocabulary", async () => {
     const { instance, composition } = await composeLabUiV1();
     const { container } = renderLabRootV1({ instance, composition });

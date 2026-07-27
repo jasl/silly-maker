@@ -30,6 +30,10 @@ import type {
   RuntimeOperationFaultV1,
   SaveSlotHealthV1,
   SaveSlotSummaryV1,
+  InteractionRejectionCodeV2,
+  InteractionResolutionOutcomeV2,
+  InteractionResolutionV2,
+  PendingInteractionV2,
   SemanticStageStateV2,
   StageContentCatalogV2,
   StageMutationBatchOutcomeV2,
@@ -57,6 +61,8 @@ import {
   parseRunId,
   parseStateSlotId,
   parseTextCatalogSetV1,
+  evaluateInteractionResolutionV2,
+  parsePendingInteractionV2,
   parseSemanticStageStateV2,
   projectStageRenderTargetV2,
   reduceStageMutationsV2,
@@ -180,6 +186,10 @@ export type BaseConsumerTypesV1 = {
   stageTransitionDefinition: StageTransitionDefinitionV2;
   stageTransitionCatalog: StageTransitionCatalogV2;
   stageTargetChange: StageTargetChangeV2;
+  pendingInteraction: PendingInteractionV2;
+  interactionResolution: InteractionResolutionV2;
+  interactionResolutionOutcome: InteractionResolutionOutcomeV2;
+  interactionRejectionCode: InteractionRejectionCodeV2;
 };
 
 export type BaseConsumerValuesV1 = {
@@ -208,6 +218,8 @@ export type BaseConsumerValuesV1 = {
   parseSemanticStageState: typeof parseSemanticStageStateV2;
   projectStageRenderTarget: typeof projectStageRenderTargetV2;
   reduceStageMutations: typeof reduceStageMutationsV2;
+  evaluateInteractionResolution: typeof evaluateInteractionResolutionV2;
+  parsePendingInteraction: typeof parsePendingInteractionV2;
   resolveGamePackage: typeof resolveGamePackageV1;
   resolveStoryForTest: typeof resolveStoryForTestV1;
   rngStateSchema: typeof rngStateV1Schema;

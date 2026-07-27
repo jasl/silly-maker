@@ -1,7 +1,13 @@
 // SPDX-License-Identifier: MIT
+import { useEffect } from "react";
 import type { ReactElement } from "react";
 
-import type { AssetId, DeepReadonly, StageRenderTargetV2 } from "@sillymaker/base";
+import type {
+  AssetId,
+  DeepReadonly,
+  InteractionResolutionV2,
+  StageRenderTargetV2,
+} from "@sillymaker/base";
 import { projectStageRenderTargetV2 } from "@sillymaker/base";
 import type {
   DefaultGameRootLabelsV1,
@@ -23,7 +29,12 @@ import type {
 } from "./semantic.js";
 import type { LabApplicationInstanceV1 } from "./core-definition.js";
 import { labCoreApplicationDefinitionV1 } from "./core-definition.js";
-import type { LabGameViewV1, LabQueriesV1, LabSimulationTypesV1 } from "../gameplay/simulation.js";
+import type {
+  LabGameViewV1,
+  LabNarrativeViewV1,
+  LabQueriesV1,
+  LabSimulationTypesV1,
+} from "../gameplay/simulation.js";
 import {
   labStageContentCatalogV1,
   labStageTransitionCatalogV1,
@@ -71,6 +82,7 @@ const labActionTextIdsV1: Readonly<Record<LabActionIdV1, string>> = Object.freez
   "lab.begin_procedure": "text.e2e.lab.action.begin_procedure",
   "lab.advance_procedure": "text.e2e.lab.action.advance_procedure",
   "lab.run_experiment": "text.e2e.lab.action.run_experiment",
+  "lab.begin_calibration": "text.e2e.lab.action.begin_calibration",
 });
 
 const labUiProjectorDefinitionV1: GameUiProjectorV1<
@@ -163,6 +175,163 @@ export const labStageRenderersV1: Readonly<Record<string, SemanticStageEntryRend
 
 type LabSemanticPortV1 = LabApplicationInstanceV1["semantic"];
 
+function labResolveV1(
+  semantic: LabSemanticPortV1,
+  expectedOccurrenceId: string,
+  resolution: InteractionResolutionV2,
+): void {
+  void semantic.dispatch(
+    Object.freeze({ kind: "resolve" as const, expectedOccurrenceId, resolution }),
+  );
+}
+
+/**
+ * Renders the pending interaction boundary. Every activation dispatches a
+ * semantic resolution carrying the expected occurrence; the queue front
+ * rejects anything stale, so double clicks and late timers are harmless.
+ */
+function LabNarrativeV1(props: {
+  readonly publication: DeepReadonly<LabUiPublicationV1>;
+  readonly semantic: LabSemanticPortV1;
+}): ReactElement | null {
+  const narrative = props.publication.semantic.narrative;
+  const pending = narrative.pending;
+  const { semantic } = props;
+
+  // Pause boundaries auto-resume after their duration. The timer captures
+  // the occurrence it saw; if anything else resolved the interaction first,
+  // the queue front rejects the stale resume.
+  const pauseOccurrenceId = pending?.kind === "pause" ? pending.occurrenceId : null;
+  const pauseDurationMs = pending?.kind === "pause" ? pending.durationMs : null;
+  useEffect(() => {
+    if (pauseOccurrenceId === null || pauseDurationMs === null) return () => {};
+    const timer = setTimeout(() => {
+      labResolveV1(semantic, pauseOccurrenceId, Object.freeze({ kind: "resume" as const }));
+    }, pauseDurationMs);
+    return () => clearTimeout(timer);
+  }, [semantic, pauseOccurrenceId, pauseDurationMs]);
+
+  if (pending === null) {
+    return narrative.phase === "completed" && narrative.calibration !== null ? (
+      <p data-lab-narrative="calibrated">
+        {labUiTextV1("text.e2e.lab.narrative.cal.done")}（{String(narrative.calibration)}）
+      </p>
+    ) : null;
+  }
+
+  if (pending.kind === "say") {
+    return (
+      <div data-lab-interaction="say" data-lab-occurrence={pending.occurrenceId}>
+        {pending.speakerTextId === null ? null : (
+          <strong>{labUiTextV1(pending.speakerTextId)}</strong>
+        )}
+        <p>{labUiTextV1(pending.textId)}</p>
+        <Button
+          onClick={() =>
+            labResolveV1(
+              semantic,
+              pending.occurrenceId,
+              Object.freeze({ kind: "advance" as const }),
+            )
+          }
+        >
+          {labUiTextV1("text.e2e.lab.narrative.cal.advance")}
+        </Button>
+      </div>
+    );
+  }
+
+  if (pending.kind === "choice") {
+    return (
+      <div data-lab-interaction="choice" data-lab-occurrence={pending.occurrenceId}>
+        <p>{labUiTextV1(pending.promptTextId)}</p>
+        <div role="group" aria-label={labUiTextV1(pending.promptTextId)}>
+          {(narrative.choiceOptions ?? []).map((option) => (
+            <Button
+              key={option.choiceId}
+              disabled={!option.enabled}
+              data-lab-choice-id={option.choiceId}
+              title={
+                option.blockedBy === null
+                  ? undefined
+                  : labUiTextV1("text.e2e.lab.narrative.cal.precise.locked")
+              }
+              onClick={() =>
+                labResolveV1(
+                  semantic,
+                  pending.occurrenceId,
+                  Object.freeze({ kind: "choose" as const, choiceId: option.choiceId }),
+                )
+              }
+            >
+              {labUiTextV1(option.textId)}
+            </Button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (pending.kind === "pause") {
+    return (
+      <div data-lab-interaction="pause" data-lab-occurrence={pending.occurrenceId}>
+        <p>{labUiTextV1("text.e2e.lab.narrative.cal.waiting")}</p>
+        {pending.skippable ? (
+          <Button
+            onClick={() =>
+              labResolveV1(
+                semantic,
+                pending.occurrenceId,
+                Object.freeze({ kind: "resume" as const }),
+              )
+            }
+          >
+            {labUiTextV1("text.e2e.lab.narrative.cal.skip")}
+          </Button>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (pending.kind === "custom") {
+    // The schema-registered calibration surface: the renderer only sends a
+    // semantic resolution whose payload the Story schema validates; no
+    // callback ever enters State or a Save.
+    const min = typeof pending.params.min === "number" ? pending.params.min : 1;
+    const max = typeof pending.params.max === "number" ? pending.params.max : 1;
+    const values = Array.from({ length: Math.max(0, max - min + 1) }, (_, i) => min + i);
+    return (
+      <div data-lab-interaction="custom" data-lab-occurrence={pending.occurrenceId}>
+        <p>{labUiTextV1("text.e2e.lab.narrative.cal.dial")}</p>
+        <div role="group" aria-label={labUiTextV1("text.e2e.lab.narrative.cal.dial")}>
+          {values.map((value) => (
+            <Button
+              key={value}
+              data-lab-dial-value={value}
+              onClick={() =>
+                labResolveV1(
+                  semantic,
+                  pending.occurrenceId,
+                  Object.freeze({ kind: "custom" as const, payload: Object.freeze({ value }) }),
+                )
+              }
+            >
+              {String(value)}
+            </Button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // presentation_barrier: resolved by the stage acknowledgment wiring.
+  return (
+    <p data-lab-interaction="barrier" data-lab-occurrence={pending.occurrenceId}>
+      {labUiTextV1("text.e2e.lab.narrative.cal.waiting")}
+    </p>
+  );
+}
+
 function LabHudV1(props: {
   readonly publication: DeepReadonly<LabUiPublicationV1>;
   readonly semantic: LabSemanticPortV1;
@@ -204,23 +373,51 @@ const labUiSlotsDefinitionV1: DefaultGameRootSlotsV1<
   LabSemanticPortV1,
   LabUiOverlayIdV1
 > = {
-  background: (context) => (
-    <section data-lab-stage="true" aria-label={context.publication.view.stageName}>
-      <SemanticStageV2
-        target={context.publication.view.stageTarget}
-        revision={context.publication.semantic.revision}
-        epoch={context.publication.view.anchorEpoch}
-        catalog={labStageTransitionCatalogV1}
-        renderers={labStageRenderersV1}
-        accessibleName={context.publication.view.stageName}
-      />
-    </section>
-  ),
+  background: (context) => {
+    const pending = context.publication.semantic.narrative.pending;
+    return (
+      <section data-lab-stage="true" aria-label={context.publication.view.stageName}>
+        <SemanticStageV2
+          target={context.publication.view.stageTarget}
+          revision={context.publication.semantic.revision}
+          epoch={context.publication.view.anchorEpoch}
+          catalog={labStageTransitionCatalogV1}
+          renderers={labStageRenderersV1}
+          accessibleName={context.publication.view.stageName}
+          onAcknowledgment={(acknowledgment) => {
+            // A completed acknowledged transition confirms a pending
+            // presentation barrier through an ordinary semantic command.
+            // Mismatched or late acknowledgments dispatch nothing here, and
+            // anything stale that still slips through is rejected at the
+            // queue front by the occurrence fence.
+            if (
+              pending?.kind === "presentation_barrier" &&
+              acknowledgment.outcome !== "cancelled" &&
+              acknowledgment.transitionId === pending.expectedTransitionId
+            ) {
+              labResolveV1(
+                context.semantic,
+                pending.occurrenceId,
+                Object.freeze({
+                  kind: "barrier_completed" as const,
+                  transitionId: acknowledgment.transitionId,
+                }),
+              );
+            }
+          }}
+        />
+      </section>
+    );
+  },
   hud: (context) => <LabHudV1 publication={context.publication} semantic={context.semantic} />,
-  narrative: (context) =>
-    context.publication.view.procedurePhase === "complete" ? (
-      <p data-lab-narrative="complete">{labUiTextV1("text.e2e.lab.narrative.completed")}</p>
-    ) : null,
+  narrative: (context) => (
+    <div data-lab-narrative-root="true">
+      {context.publication.view.procedurePhase === "complete" ? (
+        <p data-lab-narrative="complete">{labUiTextV1("text.e2e.lab.narrative.completed")}</p>
+      ) : null}
+      <LabNarrativeV1 publication={context.publication} semantic={context.semantic} />
+    </div>
+  ),
   systemMenuExtras: (context) => (
     <Button
       onClick={() =>
@@ -357,7 +554,7 @@ export const labWebApplicationV1: WebGameApplicationV1<
   LabSimulationTypesV1,
   LabQueriesV1,
   LabGameViewV1,
-  null,
+  LabNarrativeViewV1,
   LabActionDescriptorV1,
   LabInvocationV1,
   LabPreviewV1,

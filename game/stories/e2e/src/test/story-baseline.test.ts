@@ -44,7 +44,7 @@ describe("Engine Lab story baseline", () => {
     expect(resolved.simulationProgram.kind).toBe("e2e-lab");
     expect(resolved.presentation.kind).toBe("e2e-lab-presentation");
     expect(resolved.sceneGraph.stageScenes).toHaveLength(1);
-    expect(resolved.gameSimulation.modules).toHaveLength(3);
+    expect(resolved.gameSimulation.modules).toHaveLength(4);
   });
 
   it("plays the full route through the harness semantic surface only", async () => {

@@ -2,9 +2,11 @@
 import { z } from "zod";
 
 import type { RuntimeSchemaV1, SemanticStageStateV2 } from "@sillymaker/base";
-import { parseSemanticStageStateV2 } from "@sillymaker/base";
+import { parsePendingInteractionV2, parseSemanticStageStateV2 } from "@sillymaker/base";
 import { createRuntimeSchemaV1, fromStandardSchemaV1 } from "@sillymaker/base/authoring";
 
+import type { LabNarrativeStateV1 } from "./narrative.js";
+import { createInitialLabNarrativeStateV1, labNarrativeNodeIdsV1 } from "./narrative.js";
 import { createInitialLabStageStateV1 } from "./stage.js";
 
 export interface LabSamplesStateV1 {
@@ -23,6 +25,7 @@ export interface LabGameStateV1 {
     readonly samples: LabSamplesStateV1;
     readonly procedure: LabProcedureStateV1;
     readonly stage: SemanticStageStateV2;
+    readonly narrative: LabNarrativeStateV1;
   };
 }
 
@@ -57,6 +60,49 @@ export const labStageStateSchemaV1: RuntimeSchemaV1<SemanticStageStateV2> = crea
   { subject: { kind: "module", id: "lab.stage" } },
 );
 
+const labNarrativePhaseValuesV1 = new Set(["idle", "active", "completed"]);
+
+export const labNarrativeStateSchemaV1: RuntimeSchemaV1<LabNarrativeStateV1> =
+  createRuntimeSchemaV1(
+    {
+      parse(value: unknown): LabNarrativeStateV1 {
+        const record = z
+          .strictObject({
+            phase: z.string(),
+            cursor: z.string().nullable(),
+            pending: z.unknown().nullable(),
+            sequence: z.number().int().nonnegative(),
+            calibration: z.number().int().nullable(),
+          })
+          .parse(value);
+        if (!labNarrativePhaseValuesV1.has(record.phase)) {
+          throw new TypeError("invalid lab narrative phase");
+        }
+        if (record.cursor !== null && !labNarrativeNodeIdsV1.includes(record.cursor)) {
+          throw new TypeError("unknown lab narrative cursor");
+        }
+        const pending =
+          record.pending === null || record.pending === undefined
+            ? null
+            : parsePendingInteractionV2(record.pending);
+        if ((record.phase === "active") !== (record.cursor !== null)) {
+          throw new TypeError("lab narrative cursor must match active phase");
+        }
+        if (pending !== null && record.phase !== "active") {
+          throw new TypeError("lab narrative pending requires active phase");
+        }
+        return Object.freeze({
+          phase: record.phase as LabNarrativeStateV1["phase"],
+          cursor: record.cursor,
+          pending,
+          sequence: record.sequence,
+          calibration: record.calibration,
+        });
+      },
+    },
+    { subject: { kind: "module", id: "lab.narrative" } },
+  );
+
 export const labGameStateSchemaV1: RuntimeSchemaV1<LabGameStateV1> = createRuntimeSchemaV1(
   {
     parse(value: unknown): LabGameStateV1 {
@@ -66,6 +112,7 @@ export const labGameStateSchemaV1: RuntimeSchemaV1<LabGameStateV1> = createRunti
           samples: z.unknown(),
           procedure: z.unknown(),
           stage: z.unknown(),
+          narrative: z.unknown(),
         })
         .parse(root.simulation);
       return Object.freeze({
@@ -73,6 +120,7 @@ export const labGameStateSchemaV1: RuntimeSchemaV1<LabGameStateV1> = createRunti
           samples: labSamplesStateSchemaV1.parse(simulation.samples),
           procedure: labProcedureStateSchemaV1.parse(simulation.procedure),
           stage: labStageStateSchemaV1.parse(simulation.stage),
+          narrative: labNarrativeStateSchemaV1.parse(simulation.narrative),
         }),
       });
     },
@@ -86,6 +134,7 @@ export function createInitialLabGameStateV1(): LabGameStateV1 {
       samples: Object.freeze({ collected: 0 }),
       procedure: Object.freeze({ phase: "idle" as const, stepsTaken: 0 }),
       stage: createInitialLabStageStateV1(),
+      narrative: createInitialLabNarrativeStateV1(),
     }),
   });
 }

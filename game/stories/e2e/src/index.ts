@@ -8,7 +8,10 @@ export type {
   LabFaultV1,
   LabGameSimulationV1,
   LabGameViewV1,
+  LabNarrativeChoiceOptionViewV1,
+  LabNarrativeViewV1,
   LabQueriesV1,
+  LabRejectionCodeV1,
   LabRejectionV1,
   LabSamplesReadPortV1,
   LabSimulationTypesV1,
@@ -32,6 +35,21 @@ export {
   labSamplesStateSchemaV1,
   labStageStateSchemaV1,
 } from "./gameplay/state.js";
+export type {
+  LabChoiceOptionV1,
+  LabNarrativeRunResultV1,
+  LabNarrativeStateV1,
+} from "./gameplay/narrative.js";
+export {
+  createInitialLabNarrativeStateV1,
+  labCalibrationEntryNodeIdV1,
+  labCalibrationSurfaceIdV1,
+  labChoiceBlockedByV1,
+  labChoiceOptionsForV1,
+  labInteractionContextV1,
+  labIsCustomPayloadValidV1,
+  labNarrativeNodeIdsV1,
+} from "./gameplay/narrative.js";
 export type { LabStageProgressInputV1 } from "./gameplay/stage.js";
 export {
   createInitialLabStageStateV1,
@@ -61,7 +79,11 @@ export type {
   LabInvocationV1,
   LabPreviewV1,
 } from "./application/semantic.js";
-export { labSemanticAdapterV1, parseLabInvocationV1 } from "./application/semantic.js";
+export {
+  labSemanticAdapterV1,
+  parseLabInvocationV1,
+  projectLabNarrativeViewV1,
+} from "./application/semantic.js";
 export type {
   CreateLabApplicationInstanceOptionsV1,
   LabApplicationInstanceV1,

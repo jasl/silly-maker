@@ -22,9 +22,18 @@ export const labStateContractManifestV1 = Object.freeze({
   contractRevision: 1 as const,
   aggregateStateSchema: Object.freeze({
     schemaId: "schema.e2e.lab.game-state",
-    revision: parsePositiveSafeInteger(2),
+    revision: parsePositiveSafeInteger(3),
   }),
   moduleStateSchemas: Object.freeze([
+    Object.freeze({
+      moduleId: parseModuleId("lab.narrative"),
+      moduleContractRevision: parsePositiveSafeInteger(1),
+      stateSlots: Object.freeze([parseStateSlotId("simulation.narrative")]),
+      stateSchema: Object.freeze({
+        schemaId: "schema.e2e.lab.narrative-state",
+        revision: parsePositiveSafeInteger(1),
+      }),
+    }),
     Object.freeze({
       moduleId: parseModuleId("lab.procedure"),
       moduleContractRevision: parsePositiveSafeInteger(1),
@@ -75,7 +84,7 @@ function createLabGameSimulationFromProgramV1(
 
 const labStoryDefinitionV1 = Object.freeze({
   simulation: Object.freeze({
-    stateContractRevision: parsePositiveSafeInteger(2),
+    stateContractRevision: parsePositiveSafeInteger(3),
     stateContractManifest: labStateContractManifestV1,
     data: Object.freeze({}),
     rules: Object.freeze({}),
@@ -98,7 +107,7 @@ export const labStoryEntryV1 = defineGamePackage({
   contractRevision: 1,
   identity: {
     id: "story.e2e.engine-lab",
-    revision: parsePositiveSafeInteger(2),
+    revision: parsePositiveSafeInteger(3),
   },
   define: () => labStoryDefinitionV1,
 });
