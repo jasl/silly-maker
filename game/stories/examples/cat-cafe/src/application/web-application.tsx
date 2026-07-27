@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+import { useEffect, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 
 import type { AssetId, DeepReadonly } from "@sillymaker/base";
@@ -14,6 +15,7 @@ import type {
   SemanticStageEntryRendererV1,
 } from "@sillymaker/ui";
 import { Button, SemanticStageV1, systemInputActionIdsV1 } from "@sillymaker/ui";
+import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
 import type { WebGameApplicationV1 } from "@sillymaker/web";
 
 import type {
@@ -37,7 +39,13 @@ import {
   catcafeStageTransitionCatalogV1,
   catcafeTextCatalogsV1,
 } from "../presentation.ts";
-import { catcafeActivitiesV1, catcafeMovesV1, catcafeSlotsV1 } from "../content.ts";
+import {
+  catcafeActivitiesV1,
+  catcafeAlbumV1,
+  catcafeMovesV1,
+  catcafePettingV1,
+  catcafeSlotsV1,
+} from "../content.ts";
 
 export const catcafeViewportCanvasV1 = Object.freeze({ width: 1600, height: 900 });
 
@@ -64,7 +72,7 @@ export type CatcafeUiPublicationV1 = RuntimePresentationPublicationV1<
   AssetId
 >;
 
-export type CatcafeUiOverlayIdV1 = never;
+export type CatcafeUiOverlayIdV1 = "overlay.catcafe.album";
 
 const actionTextIdsV1: Readonly<Record<CatcafeActionIdV1, string>> = Object.freeze({
   "cc.begin_story": "text.cc.action.begin",
@@ -156,6 +164,82 @@ function dispatchV1(semantic: CatcafeSemanticPortV1, invocation: CatcafeInvocati
   void semantic.dispatch(invocation as never);
 }
 
+/** 图鉴解锁谓词：观察语义发布，满足即写入 Host 元进度（跨存档）。 */
+const albumPredicatesV1: readonly {
+  readonly albumId: string;
+  readonly unlocked: (publication: DeepReadonly<CatcafeUiPublicationV1>) => boolean;
+}[] = Object.freeze([
+  {
+    albumId: "album.growth.rescue",
+    unlocked: (publication) => publication.semantic.narrative.phase === "completed",
+  },
+  {
+    albumId: "album.growth.purr",
+    unlocked: (publication) => publication.semantic.game.cat.trust >= 30,
+  },
+  {
+    albumId: "album.growth.leap",
+    unlocked: (publication) => publication.semantic.game.cat.skill >= 20,
+  },
+  {
+    albumId: "album.trophy.week3",
+    unlocked: (publication) => publication.semantic.game.shop.trophies >= 1,
+  },
+  {
+    albumId: "album.trophy.week5",
+    unlocked: (publication) => publication.semantic.game.shop.trophies >= 2,
+  },
+  {
+    albumId: "album.trophy.week7",
+    unlocked: (publication) => publication.semantic.game.shop.trophies >= 3,
+  },
+  {
+    albumId: "album.memory.regular",
+    unlocked: (publication) => publication.semantic.game.shop.reputation >= 40,
+  },
+]);
+
+function useCatcafeAlbumWatcherV1(
+  publication: DeepReadonly<CatcafeUiPublicationV1>,
+  playerProfile: PlayerProfileStoreV1,
+): void {
+  useEffect(() => {
+    const meta = playerProfile.current().meta;
+    for (const predicate of albumPredicatesV1) {
+      if (meta[predicate.albumId] === undefined && predicate.unlocked(publication)) {
+        void playerProfile.markMeta(predicate.albumId);
+      }
+    }
+  }, [publication, playerProfile]);
+}
+
+function CatcafeAlbumViewV1(props: { readonly playerProfile: PlayerProfileStoreV1 }): ReactElement {
+  const profile = useSyncExternalStore(
+    (listener) => props.playerProfile.subscribe(listener),
+    () => props.playerProfile.current(),
+  );
+  return (
+    <ol data-cc-album="true" style={{ display: "grid", gap: "8px", margin: 0, padding: 0 }}>
+      {catcafeAlbumV1.rows().map((entry) => {
+        const unlocked = profile.meta[entry.id] !== undefined;
+        return (
+          <li
+            key={entry.id}
+            data-cc-album-entry={entry.id}
+            data-cc-album-unlocked={String(unlocked)}
+            style={{ listStyle: "none" }}
+          >
+            <strong>{unlocked ? catcafeUiTextV1(entry.nameTextId) : "？？？"}</strong>
+            {unlocked ? (
+              <p style={{ margin: "4px 0 0" }}>{catcafeUiTextV1(entry.captionTextId)}</p>
+            ) : null}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
 function CatcafeNarrativePanelV1(props: {
   readonly publication: DeepReadonly<CatcafeUiPublicationV1>;
   readonly semantic: CatcafeSemanticPortV1;
@@ -228,7 +312,10 @@ function CatcafeNarrativePanelV1(props: {
 function CatcafeHudV1(props: {
   readonly publication: DeepReadonly<CatcafeUiPublicationV1>;
   readonly semantic: CatcafeSemanticPortV1;
+  readonly playerProfile: PlayerProfileStoreV1;
+  readonly openAlbum: () => void;
 }): ReactElement {
+  useCatcafeAlbumWatcherV1(props.publication, props.playerProfile);
   const game = props.publication.semantic.game;
   const contest = game.contest;
   const slotName = catcafeSlotsV1[game.calendar.slot] ?? "morning";
@@ -274,6 +361,9 @@ function CatcafeHudV1(props: {
             {catcafeUiTextV1(actionTextIdsV1[action.actionId])}
           </Button>
         ))}
+        <Button data-cc-album-open="true" onClick={props.openAlbum}>
+          {catcafeUiTextV1("text.cc.album.open")}
+        </Button>
       </div>
       {contest === null ? (
         <div role="group" aria-label="活动">
@@ -316,13 +406,34 @@ function CatcafeHudV1(props: {
   );
 }
 
-const slotsDefinitionV1: DefaultGameRootSlotsV1<
-  CatcafeUiPublicationV1,
-  CatcafeSemanticPortV1,
-  CatcafeUiOverlayIdV1
-> = {
-  background: (context) => (
-    <section data-cc-stage="true" aria-label={catcafeUiTextV1("text.cc.stage.name")}>
+/**
+ * 舞台槽：语义舞台 + 命中区域抚摸。点击/键盘激活部位 → 语义 pet
+ * invocation；反应文案是 UI 瞬态（按点击时的信任查反应表），权威效果
+ * （信任增减、表情变化、每日余量）全部由模块规则决定。
+ */
+function CatcafeStageV1(props: {
+  readonly context: Parameters<
+    NonNullable<
+      DefaultGameRootSlotsV1<
+        CatcafeUiPublicationV1,
+        CatcafeSemanticPortV1,
+        CatcafeUiOverlayIdV1
+      >["background"]
+    >
+  >[0];
+}): ReactElement {
+  const { context } = props;
+  const [reactionTextId, setReactionTextId] = useState<string | null>(null);
+  const game = context.publication.semantic.game;
+  const pettingReady =
+    context.publication.semantic.narrative.phase === "completed" && game.cat.pettingLeft > 0;
+
+  return (
+    <section
+      data-cc-stage="true"
+      data-cc-petting-left={String(game.cat.pettingLeft)}
+      aria-label={catcafeUiTextV1("text.cc.stage.name")}
+    >
       <SemanticStageV1
         target={context.publication.view.stageTarget}
         revision={context.publication.semantic.revision}
@@ -330,16 +441,78 @@ const slotsDefinitionV1: DefaultGameRootSlotsV1<
         catalog={catcafeStageTransitionCatalogV1}
         renderers={catcafeStageRenderersV1}
         accessibleName={catcafeUiTextV1("text.cc.stage.name")}
+        onHitRegionActivate={(activation) => {
+          if (!pettingReady) return;
+          const zone = activation.regionId.replace("zone.", "");
+          const reaction = catcafePettingV1.findFirst({
+            where: {
+              zone,
+              minTrust: { lte: game.cat.trust },
+              maxTrust: { gte: game.cat.trust },
+            },
+          });
+          setReactionTextId(reaction?.reactionTextId ?? null);
+          dispatchV1(context.semantic, { kind: "pet", zone });
+        }}
       />
+      {reactionTextId === null ? null : (
+        <p
+          data-cc-pet-reaction={reactionTextId}
+          style={{
+            position: "absolute",
+            insetInlineEnd: "48px",
+            insetBlockStart: "48px",
+            maxInlineSize: "20em",
+            padding: "12px 16px",
+            borderRadius: "12px",
+            background: "rgba(16, 20, 26, 0.75)",
+            color: "#f2efe8",
+          }}
+        >
+          {catcafeUiTextV1(reactionTextId)}
+        </p>
+      )}
     </section>
-  ),
-  hud: (context) => <CatcafeHudV1 publication={context.publication} semantic={context.semantic} />,
-  narrative: (context) => (
-    <CatcafeNarrativePanelV1 publication={context.publication} semantic={context.semantic} />
-  ),
-};
+  );
+}
 
-export const catcafeUiSlotsV1 = Object.freeze(slotsDefinitionV1);
+export function createCatcafeUiSlotsV1(input: {
+  readonly playerProfile: PlayerProfileStoreV1;
+}): DefaultGameRootSlotsV1<CatcafeUiPublicationV1, CatcafeSemanticPortV1, CatcafeUiOverlayIdV1> {
+  const slots: DefaultGameRootSlotsV1<
+    CatcafeUiPublicationV1,
+    CatcafeSemanticPortV1,
+    CatcafeUiOverlayIdV1
+  > = {
+    background: (context) => <CatcafeStageV1 context={context} />,
+    hud: (context) => (
+      <CatcafeHudV1
+        publication={context.publication}
+        semantic={context.semantic}
+        playerProfile={input.playerProfile}
+        openAlbum={() =>
+          context.intents.execute(
+            Object.freeze({ kind: "overlay.open" as const, overlayId: "overlay.catcafe.album" }),
+          )
+        }
+      />
+    ),
+    narrative: (context) => (
+      <CatcafeNarrativePanelV1 publication={context.publication} semantic={context.semantic} />
+    ),
+    overlayResolver: () =>
+      Object.freeze({
+        resolve: (overlayId: DeepReadonly<CatcafeUiOverlayIdV1>) =>
+          overlayId === "overlay.catcafe.album"
+            ? Object.freeze({
+                accessibleName: catcafeUiTextV1("text.cc.album.title"),
+                content: <CatcafeAlbumViewV1 playerProfile={input.playerProfile} />,
+              })
+            : null,
+      }),
+  };
+  return Object.freeze(slots);
+}
 
 export const catcafeKeyboardMapV1: KeyboardActionMapV1 = Object.freeze({
   Enter: systemInputActionIdsV1.narrativeAdvance,
@@ -462,11 +635,11 @@ export const catcafeWebApplicationV1: WebGameApplicationV1<
     fallbackSize: Object.freeze({ width: 1600, height: 900 }),
   }),
   core: catcafeCoreApplicationDefinitionV1,
-  ui: () =>
+  ui: ({ playerProfile }: { readonly playerProfile: PlayerProfileStoreV1 }) =>
     Object.freeze({
       projector: catcafeUiProjectorV1,
-      overlayIds: Object.freeze([] as const),
-      slots: catcafeUiSlotsV1,
+      overlayIds: Object.freeze(["overlay.catcafe.album"] as const),
+      slots: createCatcafeUiSlotsV1({ playerProfile }),
       labels: catcafeRootLabelsV1,
       saveLabels: catcafeSaveOverlayLabelsV1,
       inputMaps: Object.freeze({ keyboard: catcafeKeyboardMapV1 }),

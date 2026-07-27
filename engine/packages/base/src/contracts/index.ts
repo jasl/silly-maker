@@ -478,6 +478,7 @@ export type {
 export type {
   StageContentCatalogV1,
   StageContentResolutionV1,
+  StageHitRegionV1,
   StageRenderEntryV1,
   StageRenderLayerV1,
   StageRenderProjectionV1,

@@ -30,12 +30,19 @@ export interface PlayerProfileV1 {
   readonly profileRevision: 1;
   /** definitionId -> highest seenRevision the player has read. */
   readonly seen: Readonly<Record<string, number>>;
+  /**
+   * Story meta progress (album/gallery unlocks, endings reached):
+   * a monotone entryId -> value map that outlives every Game Save,
+   * generalizing the Seen registry. Story code owns the key vocabulary.
+   */
+  readonly meta: Readonly<Record<string, number>>;
   readonly preferences: PlayerPlaybackPreferencesV1;
 }
 
 export const defaultPlayerProfileV1: PlayerProfileV1 = Object.freeze({
   profileRevision: 1,
   seen: Object.freeze({}),
+  meta: Object.freeze({}),
   preferences: Object.freeze({
     textRevealCharsPerSecond: 40,
     autoWaitMs: 600,
@@ -52,6 +59,15 @@ export function isSeenV1(
 ): boolean {
   const recorded = profile.seen[definitionId];
   return recorded !== undefined && recorded >= seenRevision;
+}
+
+export function markMetaV1(profile: PlayerProfileV1, entryId: string, value = 1): PlayerProfileV1 {
+  const recorded = profile.meta[entryId];
+  if (recorded !== undefined && recorded >= value) return profile;
+  return Object.freeze({
+    ...profile,
+    meta: Object.freeze({ ...profile.meta, [entryId]: value }),
+  });
 }
 
 export function markSeenV1(
@@ -72,6 +88,7 @@ function parsePlayerProfileV1(value: unknown): PlayerProfileV1 | null {
   const record = value as {
     readonly profileRevision?: unknown;
     readonly seen?: unknown;
+    readonly meta?: unknown;
     readonly preferences?: unknown;
   };
   if (record.profileRevision !== 1) return null;
@@ -84,6 +101,18 @@ function parsePlayerProfileV1(value: unknown): PlayerProfileV1 | null {
       return null;
     }
     seen[key] = revision;
+  }
+  // Legacy profiles predate meta progress; treat absence as empty.
+  const metaSource = record.meta ?? {};
+  if (metaSource === null || typeof metaSource !== "object" || Array.isArray(metaSource)) {
+    return null;
+  }
+  const meta: Record<string, number> = {};
+  for (const [key, entryValue] of Object.entries(metaSource)) {
+    if (typeof entryValue !== "number" || !Number.isSafeInteger(entryValue) || entryValue < 1) {
+      return null;
+    }
+    meta[key] = entryValue;
   }
   const preferences = record.preferences as Partial<PlayerPlaybackPreferencesV1> | null | undefined;
   if (preferences === null || typeof preferences !== "object") return null;
@@ -110,6 +139,7 @@ function parsePlayerProfileV1(value: unknown): PlayerProfileV1 | null {
   return Object.freeze({
     profileRevision: 1,
     seen: Object.freeze(seen),
+    meta: Object.freeze(meta),
     preferences: Object.freeze({
       textRevealCharsPerSecond: charsPerSecond ?? defaults.textRevealCharsPerSecond,
       autoWaitMs: autoWaitMs ?? defaults.autoWaitMs,
@@ -125,6 +155,8 @@ export interface PlayerProfileStoreV1 {
   current(): PlayerProfileV1;
   subscribe(listener: () => void): () => void;
   markSeen(definitionId: string, seenRevision: number): Promise<void>;
+  /** Monotonically records Story meta progress (album unlocks, endings). */
+  markMeta(entryId: string, value?: number): Promise<void>;
   updatePreferences(update: Partial<PlayerPlaybackPreferencesV1>): Promise<void>;
 }
 
@@ -205,10 +237,19 @@ export async function createPlayerProfileStoreV1(
       persist();
       await writeTail;
     },
+    async markMeta(entryId: string, value = 1): Promise<void> {
+      const next = markMetaV1(profile, entryId, value);
+      if (next === profile) return;
+      profile = next;
+      notify();
+      persist();
+      await writeTail;
+    },
     async updatePreferences(update: Partial<PlayerPlaybackPreferencesV1>): Promise<void> {
       const merged = parsePlayerProfileV1({
         profileRevision: 1,
         seen: profile.seen,
+        meta: profile.meta,
         preferences: { ...profile.preferences, ...update },
       });
       if (merged === null) throw new TypeError("invalid player preference update");

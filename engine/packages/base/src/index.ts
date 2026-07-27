@@ -240,6 +240,7 @@ export type {
   StageMutationRejectionV1,
   StageMutationV1,
   StagePlacementV1,
+  StageHitRegionV1,
   StageRenderEntryV1,
   StageRenderLayerV1,
   StageRenderProjectionV1,

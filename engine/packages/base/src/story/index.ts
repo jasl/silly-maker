@@ -52,6 +52,7 @@ export type {
   StageMutationBatchOutcomeV1 as StageMutationBatchOutcome,
   StageContentCatalogV1 as StageContentCatalog,
   StageContentResolutionV1 as StageContentResolution,
+  StageHitRegionV1 as StageHitRegion,
   StageRenderTargetV1 as StageRenderTarget,
   StageTransitionDefinitionV1 as StageTransitionDefinition,
   StageTransitionCatalogV1 as StageTransitionCatalog,
