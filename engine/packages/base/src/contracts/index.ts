@@ -430,6 +430,19 @@ export type {
   PendingInteractionBaseV1,
   PendingInteractionV1,
 } from "./pending-interaction.ts";
+export {
+  ContentDatabaseErrorV1,
+  createContentDatabaseV1,
+  defineContentTableV1,
+} from "./content-database.ts";
+export type {
+  ContentConditionV1,
+  ContentDatabaseV1,
+  ContentQueryV1,
+  ContentTableDefinitionV1,
+  ContentTableViewV1,
+  ContentWhereV1,
+} from "./content-database.ts";
 export { parseStageTransitionDefinitionV1 } from "./stage-transition.ts";
 export {
   TimelineDefinitionErrorV1,

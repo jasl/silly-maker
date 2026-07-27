@@ -116,6 +116,21 @@ export type {
 } from "../index.ts";
 
 // ---------------------------------------------------------------------------
+// Content database (current: V1).
+// ---------------------------------------------------------------------------
+export {
+  createContentDatabaseV1 as createContentDatabase,
+  defineContentTableV1 as defineContentTable,
+} from "../index.ts";
+export type {
+  ContentDatabaseV1 as ContentDatabase,
+  ContentQueryV1 as ContentQuery,
+  ContentTableDefinitionV1 as ContentTableDefinition,
+  ContentTableViewV1 as ContentTableView,
+  ContentWhereV1 as ContentWhere,
+} from "../index.ts";
+
+// ---------------------------------------------------------------------------
 // Application composition (current: V1).
 // ---------------------------------------------------------------------------
 export { defineCoreGameApplicationV1 as defineCoreGameApplication } from "../runtime/index.ts";
