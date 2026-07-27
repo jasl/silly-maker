@@ -117,6 +117,16 @@ export const catcafeTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
         { textId: "text.cc.contest.morale", text: "士气" },
         { textId: "text.cc.album.open", text: "成长相册" },
         { textId: "text.cc.album.title", text: "成长相册" },
+        { textId: "text.cc.ending.champion", text: "结局·巷口传奇：三座奖杯在窗台上排成一排。" },
+        {
+          textId: "text.cc.ending.signboard",
+          text: "结局·猫舍的女儿：她趴在招牌上，比招牌还醒目。",
+        },
+        {
+          textId: "text.cc.ending.adopted",
+          text: "结局·更好的家：富家小姐抱走她时，你们都没有回头。",
+        },
+        { textId: "text.cc.ending.ordinary", text: "结局·平凡的幸福：雨还会下，猫舍的灯总亮着。" },
         { textId: "text.cc.contest.won", text: "小雨赢下了这一场！" },
         { textId: "text.cc.contest.lost", text: "这次没能赢，回去多练练吧。" },
       ],

@@ -45,6 +45,16 @@
 - Engine Lab：叙事中段回滚（跨 say/choice/barrier）、SLG 命令后回滚、pinned RNG 结果的防重掷证明、rollback 与 autosave/手动存档的互不污染。
 - 验收：headless 确定性测试 + 浏览器 spec；History/Seen/profile 的 R7 所有权按设计合同落地；docs 更新。
 
+## 缺口交付记录（2026-07-28，随《雨巷猫舍》）
+
+[RPG Maker 复刻缺口分析](../../research/2026-07-28-imouto-rpgmv-gap-analysis.md)识别的三项缺口不再 defer，已随 `game/stories/examples/cat-cafe`（设计规格 `DESIGN.md`）交付：
+
+- 内容数据库（缺口 A/B）：`defineContentTableV1`/`createContentDatabaseV1`，五张真实表消费（活动/部位反应/技能/对手/图鉴），adoption gate 由设计规格满足。
+- 语义舞台命中区域（缺口 C）：内容目录按 contentId+appearance 解析 `hitRegions`，host 渲染可聚焦命中层，指针/触摸/键盘同路径；抚摸玩法浏览器 spec 验收（`hit-regions.spec.ts`）。
+- Host 元进度命名空间（缺口 E）：`PlayerProfileV1.meta` 单调映射 + `markMeta`，图鉴相册跨存档验证。
+
+i18n 工作流（缺口 F）保持 defer：架构已支持多 locale 目录，工具在真实翻译需求出现时再立项。
+
 ## Promotion 纪律
 
 沿 roadmap §5：每个 T 完成时 focused tests + Engine Lab 覆盖 + docs 更新 + 被替代路径删除，缺一不算完成。
