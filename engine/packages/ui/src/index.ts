@@ -73,6 +73,7 @@ export type {
   InstalledGamepadAdapterV1,
   InstallKeyboardAdapterOptionsV1,
   KeyboardActionMapV1,
+  PointerActionMapV1,
   ViewportPointV1,
 } from "./input/index.ts";
 export {

@@ -15,6 +15,7 @@ import type {
   SemanticStageEntryRendererV1,
 } from "@sillymaker/ui";
 import { Button, SemanticStageV1, systemInputActionIdsV1 } from "@sillymaker/ui";
+import type { PointerActionMapV1 } from "@sillymaker/ui";
 import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
 import type { WebGameApplicationV1 } from "@sillymaker/web";
 
@@ -521,6 +522,11 @@ export const catcafeKeyboardMapV1: KeyboardActionMapV1 = Object.freeze({
   Space: systemInputActionIdsV1.narrativeAdvance,
 });
 
+/** VN 惯例：右键=返回/关闭（overlay、系统面板），舞台上抑制系统菜单。 */
+export const catcafePointerMapV1: PointerActionMapV1 = Object.freeze({
+  secondary: systemInputActionIdsV1.cancel,
+});
+
 export const catcafeRootLabelsV1: Partial<DefaultGameRootLabelsV1> = Object.freeze({
   systemMenuLabel: "系统",
   saveLabel: "保存",
@@ -644,6 +650,6 @@ export const catcafeWebApplicationV1: WebGameApplicationV1<
       slots: createCatcafeUiSlotsV1({ playerProfile }),
       labels: catcafeRootLabelsV1,
       saveLabels: catcafeSaveOverlayLabelsV1,
-      inputMaps: Object.freeze({ keyboard: catcafeKeyboardMapV1 }),
+      inputMaps: Object.freeze({ keyboard: catcafeKeyboardMapV1, pointer: catcafePointerMapV1 }),
     }),
 });

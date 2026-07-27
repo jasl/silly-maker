@@ -11,6 +11,8 @@ import type { GamepadActionMapV1 } from "../input/gamepad-adapter.ts";
 import { installGamepadAdapterV1 } from "../input/gamepad-adapter.ts";
 import type { KeyboardActionMapV1 } from "../input/keyboard-adapter.ts";
 import { installKeyboardAdapterV1 } from "../input/keyboard-adapter.ts";
+import { installPointerButtonAdapterV1 } from "../input/pointer-button-adapter.ts";
+import type { PointerActionMapV1 } from "../input/pointer-button-adapter.ts";
 import type { PresentationIntentRouterV1 } from "../interaction/presentation-intent-router.ts";
 import { OverlayHostV1 } from "../overlays/overlay-host.tsx";
 import type { OverlayRendererResolverV1 } from "../overlays/overlay-host.tsx";
@@ -140,6 +142,7 @@ export interface DefaultGameRootPropsV1<
   /** Optional keyboard/gamepad adapters routed through the composition. */
   readonly inputMaps?: {
     readonly keyboard?: KeyboardActionMapV1;
+    readonly pointer?: PointerActionMapV1;
     readonly gamepad?: GamepadActionMapV1;
   };
 }
@@ -285,6 +288,13 @@ export function DefaultGameRootV1<
     return installKeyboardAdapterV1({
       router: props.composition.input,
       map: inputMaps.keyboard,
+    });
+  }, [props.composition.input, inputMaps]);
+  useEffect(() => {
+    if (inputMaps?.pointer === undefined) return () => {};
+    return installPointerButtonAdapterV1({
+      router: props.composition.input,
+      map: inputMaps.pointer,
     });
   }, [props.composition.input, inputMaps]);
   useEffect(() => {
