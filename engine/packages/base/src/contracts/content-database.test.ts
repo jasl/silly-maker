@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
+import type { RuntimeSchemaV1 } from "./values.ts";
 import { fromStandardSchemaV1 } from "../authoring/runtime-schema.ts";
 import { createContentDatabaseV1, defineContentTableV1 } from "./content-database.ts";
 
@@ -13,14 +14,14 @@ interface ActivityRowV1 extends Readonly<Record<string, unknown>> {
   readonly unlockStage: number | null;
 }
 
-const activitySchemaV1 = fromStandardSchemaV1<ActivityRowV1>(
+const activitySchemaV1: RuntimeSchemaV1<ActivityRowV1> = fromStandardSchemaV1(
   z.strictObject({
     id: z.string(),
     nameTextId: z.string(),
     slots: z.array(z.string()),
     stamina: z.number().int(),
     unlockStage: z.number().int().nullable(),
-  }) as never,
+  }),
   { subject: { kind: "module", id: "test.activities" } },
 );
 
@@ -61,8 +62,8 @@ interface RewardRowV1 extends Readonly<Record<string, unknown>> {
   readonly activityId: string;
 }
 
-const rewardSchemaV1 = fromStandardSchemaV1<RewardRowV1>(
-  z.strictObject({ id: z.string(), activityId: z.string() }) as never,
+const rewardSchemaV1: RuntimeSchemaV1<RewardRowV1> = fromStandardSchemaV1(
+  z.strictObject({ id: z.string(), activityId: z.string() }),
   { subject: { kind: "module", id: "test.rewards" } },
 );
 
