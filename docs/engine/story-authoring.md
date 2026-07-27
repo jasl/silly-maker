@@ -81,26 +81,26 @@ The current PoC demonstrates this in:
 
 - `game/stories/poc/src/story-definition.ts`
 - `game/stories/poc/src/gameplay/game-simulation.ts`
-- `game/stories/poc/src/application/create-poc-game-runtime.ts`
-- `game/stories/poc/src/application/create-poc-presentation-runtime.ts`
+- `game/stories/poc/src/application/semantic-adapter.ts`
+- `game/stories/poc/src/application/web-application.tsx`
 - `game/stories/poc/src/application/entry.tsx`
 
 Reuse the engine pattern, not the Tavern-specific ten-module partition, names, numbers, or content structure.
 
 ### Compose a Host application
 
-The steps below describe the current implementation. The accepted [AI authoring design](design/ai-authoring.md) will move generic construction into Base/UI/Web composers so a Story supplies configuration, simulation, semantic adaptation, projection, and contributions rather than rebuilding these services. Until that work lands, the current explicit composition remains authoritative.
+A Story ships one `WebGameApplicationV1` declaration (core definition with the semantic adapter, validators, and optional Story extensions; projector; UI slots; overlays; labels; input maps) and boots it with `startWebGameApplicationV1`. The composers own the Session, persistence, capability session, diagnostics construction, input adapters, automation, and the dev HMR boundary — an entry never assembles engine services by hand. Both maintained applications (the Engine Lab and the Project Tavern PoC) follow this path.
 
-The Web application normally:
+`startWebGameApplicationV1` then:
 
 1. creates a `GameHostV1` (IndexedDB, files, clock, navigation, logging, entropy);
-2. resolves the Story and optional authorized Hotfixes;
-3. creates Session, semantic, persistence, diagnostics, capability, and debug ports;
-4. creates presentation stores, input/interaction controllers, assets, and renderer contributions;
-5. mounts one React application root;
-6. owns disposal and HMR rebootstrap.
+2. builds the persisted capability session (Host records overlaid by the page query);
+3. resolves the Story and creates the core application instance (Session, semantic port, persistence lease, autosave, Story extensions);
+4. composes the UI (presentation store, input router, intent router, overlay/system/interaction sessions) and mounts the default GameRoot with the Story's slots;
+5. installs the automation bridge and optional pointer adapter, binds the DebugBundle UI context, and registers page-lifecycle teardown;
+6. owns disposal and — through `installWebGameApplicationHmrV1` — the dev HMR rebootstrap with persistence handoff.
 
-The application is the composition root. Base, UI, and Web must not import a concrete Story to make this happen.
+The composer is the composition root. Base, UI, and Web must not import a concrete Story to make this happen.
 
 ## 3. Persistence considerations
 
