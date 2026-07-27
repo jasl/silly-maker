@@ -95,6 +95,24 @@ test("right-click routes the VN back action: the album overlay closes", async ({
   await expect(page.locator("[data-cc-album]")).toHaveCount(0);
 });
 
+test("language switches live in Settings and persists across reload", async ({ page }) => {
+  await page.goto(catcafeTargetUrlV1());
+  await playOpeningV1(page);
+
+  // Open the default Settings dialog and switch to English.
+  await page.getByRole("button", { name: "设置" }).click();
+  await page.locator("[data-cc-settings-locale]").selectOption("en");
+  // In-game text switches immediately (the HUD action button).
+  await expect(page.locator("[data-cc-album-open]")).toHaveText("Album");
+  await page.getByRole("button", { name: "关闭" }).click();
+  await expect(page.getByRole("button", { name: "Play with Drizzle" })).toBeVisible();
+
+  // The preference is Host data: a reload keeps English, including chrome.
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Begin the story" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Settings" })).toBeVisible();
+});
+
 test("the album overlay masks locked entries and shows unlocked meta progress", async ({
   page,
 }) => {
