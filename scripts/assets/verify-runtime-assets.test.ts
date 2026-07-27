@@ -30,6 +30,7 @@ describe("closed runtime asset verification", () => {
       "story.e2e.engine-lab",
       "story.template.starter",
       "story.example.bookshop",
+      "story.example.cat-cafe",
     ]);
     expect(Object.isFrozen(runtimeAssetStoryChecksV1)).toBe(true);
     for (const check of runtimeAssetStoryChecksV1) expect(Object.isFrozen(check)).toBe(true);
@@ -93,6 +94,7 @@ describe("closed runtime asset verification", () => {
       "story.e2e.engine-lab",
       "story.template.starter",
       "story.example.bookshop",
+      "story.example.cat-cafe",
     ]);
     expect(reads).toEqual([]);
     expect(realpaths).toEqual([]);

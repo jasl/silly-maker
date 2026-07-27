@@ -104,5 +104,32 @@ export const projectTavernConfigV1 = {
       },
       releaseArtifact: false,
     },
+    {
+      applicationId: "example-cat-cafe",
+      label: "Example Story: the rainy-alley cat cafe sim",
+      storyEntry: {
+        module: "game/stories/examples/cat-cafe/src/story.ts",
+        exportName: "catcafeStoryEntryV1",
+      },
+      assetVerification: true,
+      simulate: {
+        module: "game/stories/examples/cat-cafe/src/tooling/simulation-target.ts",
+        exportName: "createCatcafeSimulationTargetV1",
+      },
+      web: {
+        storyRoot: "game/stories/examples/cat-cafe",
+        applicationHtml: "game/stories/examples/cat-cafe/index.html",
+        applicationEntry: "game/stories/examples/cat-cafe/src/application/entry.tsx",
+        outDir: "dist/example-cat-cafe",
+        base: "./",
+        sourcemap: false,
+        identity: {
+          module: "scripts/build-catcafe-identity.mjs",
+          collectExport: "collectCatcafeBuildIdentityV1",
+          createPluginExport: "createCatcafeBuildIdentityVirtualPluginV1",
+        },
+      },
+      releaseArtifact: false,
+    },
   ],
 } as const satisfies SillymakerProjectConfigV1;
