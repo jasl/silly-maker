@@ -5,6 +5,7 @@ import { lintNarrativeGraph } from "@sillymaker/base/story";
 import { createGameHarnessV1, resolveStoryForTestV1 } from "@sillymaker/base/testkit";
 
 import { catcafeEndingForV1 } from "../simulation.ts";
+import { projectCatcafeTransientEffectsV1 } from "../application/semantic.ts";
 import { createCatcafeApplicationInstanceV1 } from "../application/core-application.ts";
 import type { CatcafeApplicationInstanceV1 } from "../application/core-application.ts";
 import { catcafeSemanticAdapterV1 } from "../application/semantic.ts";
@@ -285,5 +286,25 @@ describe("catcafe endings", () => {
         },
       } as never),
     ).toBeNull();
+  });
+});
+
+describe("catcafe transient effects", () => {
+  it("projects petting and contest facts into commit-only effects", () => {
+    expect(
+      projectCatcafeTransientEffectsV1([
+        { kind: "cc.petted", zone: "tail", reactionId: "pet.tail.low", trustDelta: -3 },
+        { kind: "cc.slot_advanced", week: 1, day: 0, slot: 1 },
+        { kind: "cc.contest_won", rivalId: "rival.mochi", albumId: "album.trophy.week3" },
+        { kind: "cc.contest_lost", rivalId: "rival.smoke" },
+      ]),
+    ).toEqual([
+      {
+        effectId: "effect.catcafe.reaction",
+        payload: { reactionId: "pet.tail.low", zone: "tail", trustDelta: -3 },
+      },
+      { effectId: "effect.catcafe.contest", payload: { outcome: "won", rivalId: "rival.mochi" } },
+      { effectId: "effect.catcafe.contest", payload: { outcome: "lost", rivalId: "rival.smoke" } },
+    ]);
   });
 });

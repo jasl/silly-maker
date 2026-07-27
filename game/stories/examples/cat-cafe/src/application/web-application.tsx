@@ -317,8 +317,19 @@ function CatcafeHudV1(props: {
   readonly semantic: CatcafeSemanticPortV1;
   readonly playerProfile: PlayerProfileStoreV1;
   readonly openAlbum: () => void;
+  readonly instance: CatcafeApplicationInstanceV1;
 }): ReactElement {
   useCatcafeAlbumWatcherV1(props.publication, props.playerProfile);
+  const [contestToast, setContestToast] = useState<"won" | "lost" | null>(null);
+  useEffect(
+    () =>
+      props.instance.subscribeTransientEffects((effect) => {
+        if (effect.effectId !== "effect.catcafe.contest") return;
+        const outcome = (effect.payload as { readonly outcome?: string }).outcome;
+        setContestToast(outcome === "won" ? "won" : "lost");
+      }),
+    [props.instance],
+  );
   const game = props.publication.semantic.game;
   const contest = game.contest;
   const slotName = catcafeSlotsV1[game.calendar.slot] ?? "morning";
@@ -424,12 +435,26 @@ function CatcafeStageV1(props: {
       >["background"]
     >
   >[0];
+  readonly instance: CatcafeApplicationInstanceV1;
 }): ReactElement {
-  const { context } = props;
+  const { context, instance } = props;
   const [reactionTextId, setReactionTextId] = useState<string | null>(null);
   const game = context.publication.semantic.game;
   const pettingReady =
     context.publication.semantic.narrative.phase === "completed" && game.cat.pettingLeft > 0;
+
+  // 反应文案来自 commit-only 瞬态效果流（权威 facts 的投影），
+  // 不再在点击时按 UI 状态预查反应表。
+  useEffect(
+    () =>
+      instance.subscribeTransientEffects((effect) => {
+        if (effect.effectId !== "effect.catcafe.reaction") return;
+        const reactionId = (effect.payload as { readonly reactionId?: string }).reactionId;
+        const reaction = reactionId === undefined ? null : catcafePettingV1.byId(reactionId);
+        setReactionTextId(reaction?.reactionTextId ?? null);
+      }),
+    [instance],
+  );
 
   return (
     <section
@@ -446,16 +471,10 @@ function CatcafeStageV1(props: {
         accessibleName={catcafeUiTextV1("text.cc.stage.name")}
         onHitRegionActivate={(activation) => {
           if (!pettingReady) return;
-          const zone = activation.regionId.replace("zone.", "");
-          const reaction = catcafePettingV1.findFirst({
-            where: {
-              zone,
-              minTrust: { lte: game.cat.trust },
-              maxTrust: { gte: game.cat.trust },
-            },
+          dispatchV1(context.semantic, {
+            kind: "pet",
+            zone: activation.regionId.replace("zone.", ""),
           });
-          setReactionTextId(reaction?.reactionTextId ?? null);
-          dispatchV1(context.semantic, { kind: "pet", zone });
         }}
       />
       {reactionTextId === null ? null : (
@@ -480,6 +499,7 @@ function CatcafeStageV1(props: {
 }
 
 export function createCatcafeUiSlotsV1(input: {
+  readonly instance: CatcafeApplicationInstanceV1;
   readonly playerProfile: PlayerProfileStoreV1;
 }): DefaultGameRootSlotsV1<CatcafeUiPublicationV1, CatcafeSemanticPortV1, CatcafeUiOverlayIdV1> {
   const slots: DefaultGameRootSlotsV1<
@@ -487,12 +507,13 @@ export function createCatcafeUiSlotsV1(input: {
     CatcafeSemanticPortV1,
     CatcafeUiOverlayIdV1
   > = {
-    background: (context) => <CatcafeStageV1 context={context} />,
+    background: (context) => <CatcafeStageV1 context={context} instance={input.instance} />,
     hud: (context) => (
       <CatcafeHudV1
         publication={context.publication}
         semantic={context.semantic}
         playerProfile={input.playerProfile}
+        instance={input.instance}
         openAlbum={() =>
           context.intents.execute(
             Object.freeze({ kind: "overlay.open" as const, overlayId: "overlay.catcafe.album" }),
@@ -643,11 +664,17 @@ export const catcafeWebApplicationV1: WebGameApplicationV1<
     fallbackSize: Object.freeze({ width: 1280, height: 720 }),
   }),
   core: catcafeCoreApplicationDefinitionV1,
-  ui: ({ playerProfile }: { readonly playerProfile: PlayerProfileStoreV1 }) =>
+  ui: ({
+    instance,
+    playerProfile,
+  }: {
+    readonly instance: CatcafeApplicationInstanceV1;
+    readonly playerProfile: PlayerProfileStoreV1;
+  }) =>
     Object.freeze({
       projector: catcafeUiProjectorV1,
       overlayIds: Object.freeze(["overlay.catcafe.album"] as const),
-      slots: createCatcafeUiSlotsV1({ playerProfile }),
+      slots: createCatcafeUiSlotsV1({ instance, playerProfile }),
       labels: catcafeRootLabelsV1,
       saveLabels: catcafeSaveOverlayLabelsV1,
       inputMaps: Object.freeze({ keyboard: catcafeKeyboardMapV1, pointer: catcafePointerMapV1 }),

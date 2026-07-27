@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 import type { CoreSemanticAdapterV1 } from "@sillymaker/base/runtime";
+import type { TransientEffectRequestV1 } from "@sillymaker/base";
 import type { InteractionResolution } from "@sillymaker/base/story";
 import {
   evaluateInteractionResolution,
@@ -9,6 +10,7 @@ import {
 
 import type {
   CatcafeCommandV1,
+  CatcafeFactV1,
   CatcafeGameViewV1,
   CatcafeNarrativeViewV1,
   CatcafeQueriesV1,
@@ -238,6 +240,46 @@ function commandForInvocationV1(invocation: CatcafeInvocationV1): CatcafeCommand
   }
 }
 
+/**
+ * Commit-only瞬态效果：从已提交 facts 投影（引擎既有机制，同 Lab 音频）。
+ * UI 订阅后做反应气泡/战果提示；不进 State、Save、发布或转写。
+ */
+export function projectCatcafeTransientEffectsV1(
+  facts: readonly CatcafeFactV1[],
+): readonly TransientEffectRequestV1[] {
+  return facts.flatMap((fact): readonly TransientEffectRequestV1[] => {
+    switch (fact.kind) {
+      case "cc.petted":
+        return [
+          Object.freeze({
+            effectId: "effect.catcafe.reaction",
+            payload: Object.freeze({
+              reactionId: fact.reactionId,
+              zone: fact.zone,
+              trustDelta: fact.trustDelta,
+            }),
+          }),
+        ];
+      case "cc.contest_won":
+        return [
+          Object.freeze({
+            effectId: "effect.catcafe.contest",
+            payload: Object.freeze({ outcome: "won", rivalId: fact.rivalId }),
+          }),
+        ];
+      case "cc.contest_lost":
+        return [
+          Object.freeze({
+            effectId: "effect.catcafe.contest",
+            payload: Object.freeze({ outcome: "lost", rivalId: fact.rivalId }),
+          }),
+        ];
+      default:
+        return [];
+    }
+  });
+}
+
 export const catcafeSemanticAdapterV1: CoreSemanticAdapterV1<
   CatcafeSimulationTypesV1,
   CatcafeQueriesV1,
@@ -282,4 +324,6 @@ export const catcafeSemanticAdapterV1: CoreSemanticAdapterV1<
   },
   invalidInvocationResult: () =>
     Object.freeze({ kind: "not_executed" as const, code: "validation_failed" as const }),
+  projectTransientEffects: (facts) =>
+    projectCatcafeTransientEffectsV1(facts as readonly CatcafeFactV1[]),
 };
