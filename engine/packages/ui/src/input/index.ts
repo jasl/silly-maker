@@ -19,7 +19,12 @@ export { InputContextProviderV1, useInputRouterV1 } from "./input-context.tsx";
 export type { InputContextProviderPropsV1 } from "./input-context.tsx";
 export { createInputRouterV1 } from "./input-router.ts";
 export { installKeyboardAdapterV1 } from "./keyboard-adapter.ts";
+export { installPointerButtonAdapterV1 } from "./pointer-button-adapter.ts";
 export type { InstallKeyboardAdapterOptionsV1, KeyboardActionMapV1 } from "./keyboard-adapter.ts";
+export type {
+  InstallPointerButtonAdapterOptionsV1,
+  PointerActionMapV1,
+} from "./pointer-button-adapter.ts";
 export { installGamepadAdapterV1 } from "./gamepad-adapter.ts";
 export type {
   GamepadActionMapV1,

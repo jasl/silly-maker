@@ -84,6 +84,17 @@ test("the stage scales uniformly on small viewports and hit regions still work",
   expect((box?.width ?? 0) / 80).toBeCloseTo(scale, 1);
 });
 
+test("right-click routes the VN back action: the album overlay closes", async ({ page }) => {
+  await page.goto(catcafeTargetUrlV1());
+  await playOpeningV1(page);
+  await page.locator("[data-cc-album-open]").click();
+  await expect(page.locator("[data-cc-album]")).toBeVisible();
+  // Secondary button on the stage area: cancel closes the overlay and the
+  // native context menu stays suppressed on the claimed surface.
+  await page.mouse.click(640, 600, { button: "right" });
+  await expect(page.locator("[data-cc-album]")).toHaveCount(0);
+});
+
 test("the album overlay masks locked entries and shows unlocked meta progress", async ({
   page,
 }) => {
