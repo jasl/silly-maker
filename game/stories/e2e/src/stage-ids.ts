@@ -20,6 +20,7 @@ export const labStageTagsV1 = Object.freeze({
   beta: "tag.e2e.beta",
   crate: "tag.e2e.crate",
   beacon: "tag.e2e.beacon",
+  banner: "tag.e2e.banner",
 } as const);
 
 export const labStageContentIdsV1 = Object.freeze({
@@ -29,4 +30,5 @@ export const labStageContentIdsV1 = Object.freeze({
   characterBeta: "content.e2e.char.beta",
   propCrate: "content.e2e.prop.crate",
   propBeacon: "content.e2e.prop.beacon",
+  propBanner: "content.e2e.prop.banner",
 } as const);

@@ -99,6 +99,19 @@ describe("Lab narrative graph", () => {
     }
   });
 
+  it("keeps branch routing honest against the static successor annotations", () => {
+    // Every branch node's choose() must land inside its declared
+    // successors for representative relationship values, so the
+    // lint/prediction graph mirrors what the runner can actually do.
+    for (const node of labNarrativeScriptV1) {
+      if (node.kind !== "branch") continue;
+      for (const rapport of [0, 1, 2, 3]) {
+        expect(node.successors).toContain(node.choose({ rapport }));
+      }
+    }
+    expect(labNarrativeScriptV1.some((node) => node.kind === "branch")).toBe(true);
+  });
+
   it("predicts both choice branches from the live cursor without deciding them", async () => {
     const harness = await createLabHarnessV1();
     await harness.dispatch(

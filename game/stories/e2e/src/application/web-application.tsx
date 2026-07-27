@@ -61,6 +61,7 @@ type LabSemanticPublicationV1 = ReturnType<LabApplicationInstanceV1["semantic"][
 export interface LabPresentationViewV1 {
   readonly stageName: string;
   readonly samplesCollected: number;
+  readonly credits: number;
   readonly procedurePhase: LabGameViewV1["procedurePhase"];
   readonly procedureSteps: number;
   readonly anchorEpoch: number;
@@ -75,7 +76,7 @@ export type LabUiPublicationV1 = RuntimePresentationPublicationV1<
   AssetId
 >;
 
-export type LabUiOverlayIdV1 = "overlay.lab.journal";
+export type LabUiOverlayIdV1 = "overlay.lab.journal" | "overlay.lab.shop";
 
 import { labUiTextV1 } from "./ui-text.js";
 import { LabNarrativePlayerV1 } from "./narrative-ui.js";
@@ -88,6 +89,8 @@ const labActionTextIdsV1: Readonly<Record<LabActionIdV1, string>> = Object.freez
   "lab.advance_procedure": "text.e2e.lab.action.advance_procedure",
   "lab.run_experiment": "text.e2e.lab.action.run_experiment",
   "lab.begin_calibration": "text.e2e.lab.action.begin_calibration",
+  "lab.sell_sample": "text.e2e.lab.action.sell_sample",
+  "lab.buy_banner": "text.e2e.lab.action.buy_banner",
 });
 
 const labUiProjectorDefinitionV1: GameUiProjectorV1<
@@ -110,6 +113,7 @@ const labUiProjectorDefinitionV1: GameUiProjectorV1<
       view: Object.freeze({
         stageName: labUiTextV1("text.e2e.lab.stage.name"),
         samplesCollected: input.semantic.game.samplesCollected,
+        credits: input.semantic.game.credits,
         procedurePhase: input.semantic.game.procedurePhase,
         procedureSteps: input.semantic.game.procedureSteps,
         anchorEpoch: input.uiState.anchor.epoch,
@@ -167,13 +171,23 @@ export const labStageRenderersV1: Readonly<Record<string, SemanticStageEntryRend
     "renderer.e2e.lab.stage-prop": ({ entry }) => (
       <div
         data-lab-prop={entry.contentId}
-        style={{
-          width: "160px",
-          height: "120px",
-          border: "3px solid #9c8a63",
-          background: "#6f6146",
-          transform: "translate(-50%, -100%)",
-        }}
+        style={
+          entry.props.variant === "banner"
+            ? {
+                width: "420px",
+                height: "72px",
+                border: "3px solid #8a5a2b",
+                background: "#b3452e",
+                transform: "translate(-50%, -100%)",
+              }
+            : {
+                width: "160px",
+                height: "120px",
+                border: "3px solid #9c8a63",
+                background: "#6f6146",
+                transform: "translate(-50%, -100%)",
+              }
+        }
       />
     ),
   });
@@ -373,34 +387,97 @@ const labUiSlotsDefinitionV1: DefaultGameRootSlotsV1<
     </div>
   ),
   systemMenuExtras: (context) => (
-    <Button
-      onClick={() =>
-        context.intents.execute(
-          Object.freeze({ kind: "overlay.open" as const, overlayId: "overlay.lab.journal" }),
-        )
-      }
-    >
-      {labUiTextV1("text.e2e.lab.overlay.journal.open")}
-    </Button>
+    <>
+      <Button
+        onClick={() =>
+          context.intents.execute(
+            Object.freeze({ kind: "overlay.open" as const, overlayId: "overlay.lab.journal" }),
+          )
+        }
+      >
+        {labUiTextV1("text.e2e.lab.overlay.journal.open")}
+      </Button>
+      <Button
+        onClick={() =>
+          context.intents.execute(
+            Object.freeze({ kind: "overlay.open" as const, overlayId: "overlay.lab.shop" }),
+          )
+        }
+      >
+        {labUiTextV1("text.e2e.lab.overlay.shop.open")}
+      </Button>
+    </>
   ),
   overlayResolver: (context) =>
     Object.freeze({
-      resolve: (overlayId: DeepReadonly<LabUiOverlayIdV1>) =>
-        overlayId === "overlay.lab.journal"
-          ? Object.freeze({
-              accessibleName: labUiTextV1("text.e2e.lab.overlay.journal.title"),
-              content: (
-                <dl data-lab-journal="true">
-                  <dt>{labUiTextV1("text.e2e.lab.hud.samples")}</dt>
-                  <dd>{String(context.publication.view.samplesCollected)}</dd>
-                  <dt>{labUiTextV1("text.e2e.lab.hud.steps")}</dt>
-                  <dd>{String(context.publication.view.procedureSteps)}</dd>
-                </dl>
-              ),
-            })
-          : null,
+      resolve: (overlayId: DeepReadonly<LabUiOverlayIdV1>) => {
+        if (overlayId === "overlay.lab.journal") {
+          return Object.freeze({
+            accessibleName: labUiTextV1("text.e2e.lab.overlay.journal.title"),
+            content: (
+              <dl data-lab-journal="true">
+                <dt>{labUiTextV1("text.e2e.lab.hud.samples")}</dt>
+                <dd>{String(context.publication.view.samplesCollected)}</dd>
+                <dt>{labUiTextV1("text.e2e.lab.hud.steps")}</dt>
+                <dd>{String(context.publication.view.procedureSteps)}</dd>
+              </dl>
+            ),
+          });
+        }
+        if (overlayId === "overlay.lab.shop") {
+          return Object.freeze({
+            accessibleName: labUiTextV1("text.e2e.lab.overlay.shop.title"),
+            content: (
+              <LabShopOverlayV1 publication={context.publication} semantic={context.semantic} />
+            ),
+          });
+        }
+        return null;
+      },
     }),
 };
+
+/**
+ * The semantic shop overlay — the AI-authoring canary for Story overlays.
+ * It renders exclusively from the published projection (balance, action
+ * availability with blocked reasons) and dispatches ordinary semantic
+ * invocations; it never reads raw State and never mutates anything itself.
+ */
+function LabShopOverlayV1(props: {
+  readonly publication: DeepReadonly<LabUiPublicationV1>;
+  readonly semantic: LabSemanticPortV1;
+}): ReactElement {
+  const shopActionIds = ["lab.sell_sample", "lab.buy_banner"] as const;
+  return (
+    <div data-lab-shop="true">
+      <p data-lab-shop-balance={String(props.publication.view.credits)}>
+        {labUiTextV1("text.e2e.lab.overlay.shop.balance")}
+        {String(props.publication.view.credits)}
+      </p>
+      <div role="group" aria-label={labUiTextV1("text.e2e.lab.overlay.shop.title")}>
+        {shopActionIds.map((actionId) => {
+          const action = props.publication.semantic.actions.find(
+            (candidate) => candidate.actionId === actionId,
+          );
+          if (action === undefined) return null;
+          return (
+            <Button
+              key={actionId}
+              disabled={!action.enabled}
+              data-lab-shop-action={actionId}
+              data-lab-shop-blocked={action.blockedBy ?? undefined}
+              onClick={() =>
+                void props.semantic.dispatch(Object.freeze({ kind: "invoke" as const, actionId }))
+              }
+            >
+              {labUiTextV1(labActionTextIdsV1[actionId])}
+            </Button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 export const labUiSlotsV1 = Object.freeze(labUiSlotsDefinitionV1);
 
@@ -597,7 +674,7 @@ export const labWebApplicationV1: WebGameApplicationV1<
   }) =>
     Object.freeze({
       projector: labUiProjectorV1,
-      overlayIds: Object.freeze(["overlay.lab.journal" as const]),
+      overlayIds: Object.freeze(["overlay.lab.journal", "overlay.lab.shop"] as const),
       slots: createLabUiSlotsV1({
         instance,
         playerProfile,

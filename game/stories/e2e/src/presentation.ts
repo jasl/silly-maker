@@ -74,6 +74,12 @@ export const labTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
         { textId: "text.e2e.lab.narrative.speaker.alpha", text: "研究员甲" },
         { textId: "text.e2e.lab.narrative.speaker.beta", text: "研究员乙" },
         { textId: "text.e2e.lab.narrative.cal.beta", text: "样本读数稳定，可以开始校准。" },
+        { textId: "text.e2e.lab.narrative.cal.beta.warm", text: "又见面了，这次一定更顺利。" },
+        { textId: "text.e2e.lab.action.sell_sample", text: "出售样本" },
+        { textId: "text.e2e.lab.action.buy_banner", text: "购买横幅" },
+        { textId: "text.e2e.lab.overlay.shop.title", text: "补给站" },
+        { textId: "text.e2e.lab.overlay.shop.open", text: "补给站" },
+        { textId: "text.e2e.lab.overlay.shop.balance", text: "信用点" },
         { textId: "text.e2e.lab.narrative.cal.intro", text: "需要校准信标，请跟我来。" },
         { textId: "text.e2e.lab.narrative.cal.approach", text: "选择校准方式" },
         { textId: "text.e2e.lab.narrative.cal.basic", text: "直接校准" },
@@ -166,6 +172,13 @@ export const labStageContentCatalogV1: StageContentCatalogV2 = {
           assetIds: Object.freeze([]),
           accessibleName: "样本箱",
           props: Object.freeze({}),
+        });
+      case labStageContentIdsV1.propBanner:
+        return Object.freeze({
+          rendererId: "renderer.e2e.lab.stage-prop",
+          assetIds: Object.freeze([]),
+          accessibleName: "纪念横幅",
+          props: Object.freeze({ variant: "banner" }),
         });
       case labStageContentIdsV1.propBeacon:
         return Object.freeze({

@@ -108,7 +108,7 @@ describe("Engine Lab agent port", () => {
     const harness = await createLabHarnessV1();
     const agent: LabAgentPortV1 = harness.agent;
 
-    expect(agent.identity()).toEqual({ storyId: "story.e2e.engine-lab", storyRevision: 5 });
+    expect(agent.identity()).toEqual({ storyId: "story.e2e.engine-lab", storyRevision: 6 });
     await playToCompletionV1(agent);
     // The whole route: calibration narrative completed AND the ordinary
     // SLG procedure finished after returning from the narrative.

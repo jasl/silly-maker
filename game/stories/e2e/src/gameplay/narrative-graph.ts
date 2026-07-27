@@ -47,6 +47,16 @@ function graphNodeForV1(node: LabNarrativeNodeV1): unknown {
         },
       };
     }
+    case "branch":
+      // Prediction walks every conditional successor; it never decides
+      // which relationship branch a live run will take.
+      return {
+        ...base,
+        kind: "pure",
+        successors: node.successors,
+        interaction: null,
+        dependencies: { textIds: [], assetIds: [], stageContentIds: [] },
+      };
     case "stage":
       return {
         ...base,

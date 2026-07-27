@@ -22,16 +22,16 @@ export const labStateContractManifestV1 = Object.freeze({
   contractRevision: 1 as const,
   aggregateStateSchema: Object.freeze({
     schemaId: "schema.e2e.lab.game-state",
-    revision: parsePositiveSafeInteger(4),
+    revision: parsePositiveSafeInteger(5),
   }),
   moduleStateSchemas: Object.freeze([
     Object.freeze({
       moduleId: parseModuleId("lab.narrative"),
-      moduleContractRevision: parsePositiveSafeInteger(3),
+      moduleContractRevision: parsePositiveSafeInteger(4),
       stateSlots: Object.freeze([parseStateSlotId("simulation.narrative")]),
       stateSchema: Object.freeze({
         schemaId: "schema.e2e.lab.narrative-state",
-        revision: parsePositiveSafeInteger(2),
+        revision: parsePositiveSafeInteger(3),
       }),
     }),
     Object.freeze({
@@ -61,6 +61,15 @@ export const labStateContractManifestV1 = Object.freeze({
         revision: parsePositiveSafeInteger(1),
       }),
     }),
+    Object.freeze({
+      moduleId: parseModuleId("lab.wallet"),
+      moduleContractRevision: parsePositiveSafeInteger(1),
+      stateSlots: Object.freeze([parseStateSlotId("simulation.wallet")]),
+      stateSchema: Object.freeze({
+        schemaId: "schema.e2e.lab.wallet-state",
+        revision: parsePositiveSafeInteger(1),
+      }),
+    }),
   ]),
   persistentIrSchemas: Object.freeze([]),
   stableReferenceSets: Object.freeze([]),
@@ -84,7 +93,7 @@ function createLabGameSimulationFromProgramV1(
 
 const labStoryDefinitionV1 = Object.freeze({
   simulation: Object.freeze({
-    stateContractRevision: parsePositiveSafeInteger(4),
+    stateContractRevision: parsePositiveSafeInteger(5),
     stateContractManifest: labStateContractManifestV1,
     data: Object.freeze({}),
     rules: Object.freeze({}),
@@ -107,7 +116,7 @@ export const labStoryEntryV1 = defineGamePackage({
   contractRevision: 1,
   identity: {
     id: "story.e2e.engine-lab",
-    revision: parsePositiveSafeInteger(5),
+    revision: parsePositiveSafeInteger(6),
   },
   define: () => labStoryDefinitionV1,
 });

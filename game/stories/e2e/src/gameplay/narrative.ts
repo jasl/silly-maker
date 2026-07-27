@@ -39,6 +39,13 @@ export interface LabNarrativeStateV1 {
   /** Evidence of the custom calibration resolution. */
   readonly calibration: number | null;
   /**
+   * The relationship value with the beta researcher: narrative-owned
+   * authoritative data raised by completing a calibration run. Branch
+   * nodes route on it — the AI-authoring canary for
+   * relationship-conditioned narrative.
+   */
+  readonly rapport: number;
+  /**
    * The player-readable NarrativeHistory: authoritative State that enters
    * Saves and restores to the exact occurrence. Independent of the
    * CommandLog, the Seen registry (Host profile), and Debug replay. M3
@@ -54,6 +61,7 @@ export function createInitialLabNarrativeStateV1(): LabNarrativeStateV1 {
     pending: null,
     sequence: 0,
     calibration: null,
+    rapport: 0,
     history: emptyNarrativeHistoryV1,
   });
 }
@@ -76,6 +84,14 @@ export type LabNarrativeNodeV1 =
       readonly speakerTextId: string | null;
       readonly textId: string;
       readonly next: string;
+    }
+  | {
+      readonly kind: "branch";
+      readonly nodeId: string;
+      /** Static successor annotation for the lint/prediction graph. */
+      readonly successors: readonly string[];
+      /** Pure relationship-conditioned routing; must pick a successor. */
+      readonly choose: (context: { readonly rapport: number }) => string;
     }
   | {
       readonly kind: "stage";
@@ -206,7 +222,23 @@ export const labNarrativeScriptV1: readonly LabNarrativeNodeV1[] = [
             },
           ]),
     mayShow: [labStageContentIdsV1.characterBeta],
-    next: "node.e2e.cal.beta-note",
+    next: "node.e2e.cal.beta-gate",
+  },
+  {
+    kind: "branch",
+    nodeId: "node.e2e.cal.beta-gate",
+    successors: ["node.e2e.cal.beta-note", "node.e2e.cal.beta-note-warm"],
+    choose: ({ rapport }) =>
+      rapport >= 1 ? "node.e2e.cal.beta-note-warm" : "node.e2e.cal.beta-note",
+  },
+  {
+    kind: "say",
+    nodeId: "node.e2e.cal.beta-note-warm",
+    definitionId: "interaction.e2e.cal-beta-warm",
+    seenRevision: 1,
+    speakerTextId: "text.e2e.lab.narrative.speaker.beta",
+    textId: "text.e2e.lab.narrative.cal.beta.warm",
+    next: "node.e2e.cal.beta-react",
   },
   {
     kind: "say",
@@ -523,6 +555,14 @@ export function runLabNarrativeUntilInteractionV1(
   for (let steps = 0; steps < 64; steps += 1) {
     if (cursor === null) break;
     const node = requireNodeV1(cursor);
+    if (node.kind === "branch") {
+      const next = node.choose({ rapport: narrative.rapport });
+      if (!node.successors.includes(next)) {
+        throw new TypeError(`e2e.narrative_branch_invalid:${node.nodeId}`);
+      }
+      cursor = next;
+      continue;
+    }
     if (node.kind === "stage") {
       const mutations = node.mutations(localStage);
       if (mutations.length > 0) {
@@ -544,6 +584,9 @@ export function runLabNarrativeUntilInteractionV1(
           pending: null,
           sequence,
           calibration: narrative.calibration,
+          // Completing a calibration run deepens the relationship; branch
+          // nodes route on this the next time the script runs.
+          rapport: narrative.rapport + 1,
           history: narrative.history,
         }),
         stageMutations: Object.freeze(collected),
@@ -557,6 +600,7 @@ export function runLabNarrativeUntilInteractionV1(
         pending: pendingForNodeV1(node, sequence),
         sequence,
         calibration: narrative.calibration,
+        rapport: narrative.rapport,
         history: narrative.history,
       }),
       stageMutations: Object.freeze(collected),
@@ -623,6 +667,7 @@ export function labNarrativeAfterResolutionV1(
     pending: null,
     sequence: narrative.sequence,
     calibration,
+    rapport: narrative.rapport,
     history,
   });
 }
@@ -634,6 +679,7 @@ export function labNarrativeAtBeginV1(narrative: LabNarrativeStateV1): LabNarrat
     pending: null,
     sequence: narrative.sequence,
     calibration: narrative.calibration,
+    rapport: narrative.rapport,
     history: narrative.history,
   });
 }

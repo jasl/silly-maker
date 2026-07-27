@@ -15,7 +15,9 @@ const packageSourceRootV1 = fileURLToPath(new URL("../", import.meta.url));
 async function listSourceFilesV1(root: string): Promise<readonly string[]> {
   const entries = await readdir(root, { withFileTypes: true, recursive: true });
   return entries
-    .filter((entry) => entry.isFile() && entry.name.endsWith(".ts"))
+    .filter(
+      (entry) => entry.isFile() && (entry.name.endsWith(".ts") || entry.name.endsWith(".tsx")),
+    )
     .map((entry) => join(entry.parentPath, entry.name))
     .toSorted();
 }

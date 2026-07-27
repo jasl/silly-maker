@@ -17,6 +17,10 @@ export interface LabSamplesStateV1 {
   readonly collected: number;
 }
 
+export interface LabWalletStateV1 {
+  readonly credits: number;
+}
+
 export type LabProcedurePhaseV1 = "idle" | "running" | "complete";
 
 export interface LabProcedureStateV1 {
@@ -30,11 +34,16 @@ export interface LabGameStateV1 {
     readonly procedure: LabProcedureStateV1;
     readonly stage: SemanticStageStateV2;
     readonly narrative: LabNarrativeStateV1;
+    readonly wallet: LabWalletStateV1;
   };
 }
 
 const labSamplesZodV1 = z.strictObject({
   collected: z.number().int().nonnegative(),
+});
+
+const labWalletZodV1 = z.strictObject({
+  credits: z.number().int().nonnegative(),
 });
 
 const labProcedureZodV1 = z
@@ -50,6 +59,11 @@ const labProcedureZodV1 = z
 export const labSamplesStateSchemaV1: RuntimeSchemaV1<LabSamplesStateV1> = fromStandardSchemaV1(
   labSamplesZodV1,
   { subject: { kind: "module", id: "lab.samples" } },
+);
+
+export const labWalletStateSchemaV1: RuntimeSchemaV1<LabWalletStateV1> = fromStandardSchemaV1(
+  labWalletZodV1,
+  { subject: { kind: "module", id: "lab.wallet" } },
 );
 
 export const labProcedureStateSchemaV1: RuntimeSchemaV1<LabProcedureStateV1> = fromStandardSchemaV1(
@@ -77,6 +91,7 @@ export const labNarrativeStateSchemaV1: RuntimeSchemaV1<LabNarrativeStateV1> =
             pending: z.unknown().nullable(),
             sequence: z.number().int().nonnegative(),
             calibration: z.number().int().nullable(),
+            rapport: z.number().int().nonnegative(),
             history: z.unknown(),
           })
           .parse(value);
@@ -102,6 +117,7 @@ export const labNarrativeStateSchemaV1: RuntimeSchemaV1<LabNarrativeStateV1> =
           pending,
           sequence: record.sequence,
           calibration: record.calibration,
+          rapport: record.rapport,
           history: parseNarrativeHistoryV1(record.history),
         });
       },
@@ -119,6 +135,7 @@ export const labGameStateSchemaV1: RuntimeSchemaV1<LabGameStateV1> = createRunti
           procedure: z.unknown(),
           stage: z.unknown(),
           narrative: z.unknown(),
+          wallet: z.unknown(),
         })
         .parse(root.simulation);
       return Object.freeze({
@@ -127,6 +144,7 @@ export const labGameStateSchemaV1: RuntimeSchemaV1<LabGameStateV1> = createRunti
           procedure: labProcedureStateSchemaV1.parse(simulation.procedure),
           stage: labStageStateSchemaV1.parse(simulation.stage),
           narrative: labNarrativeStateSchemaV1.parse(simulation.narrative),
+          wallet: labWalletStateSchemaV1.parse(simulation.wallet),
         }),
       });
     },
@@ -141,6 +159,7 @@ export function createInitialLabGameStateV1(): LabGameStateV1 {
       procedure: Object.freeze({ phase: "idle" as const, stepsTaken: 0 }),
       stage: createInitialLabStageStateV1(),
       narrative: createInitialLabNarrativeStateV1(),
+      wallet: Object.freeze({ credits: 0 }),
     }),
   });
 }

@@ -15,7 +15,7 @@ import type {
   LabRejectionV1,
   LabSimulationTypesV1,
 } from "../gameplay/simulation.js";
-import { createLabGameSimulationV1 } from "../gameplay/simulation.js";
+import { createLabGameSimulationV1, labBannerCostV1 } from "../gameplay/simulation.js";
 import { projectLabTransientEffectsV1 } from "../gameplay/audio.js";
 import {
   labChoiceBlockedByV1,
@@ -59,6 +59,8 @@ const labActionIdsV1: readonly LabActionIdV1[] = Object.freeze([
   "lab.advance_procedure",
   "lab.run_experiment",
   "lab.begin_calibration",
+  "lab.sell_sample",
+  "lab.buy_banner",
 ]);
 
 const labSimulationForSemanticV1 = createLabGameSimulationV1();
@@ -86,6 +88,12 @@ function blockedByV1(
       return null;
     case "lab.begin_calibration":
       return queries.narrative.pending === null ? null : "lab.narrative_busy";
+    case "lab.sell_sample":
+      return queries.samplesCollected >= 1 ? null : "lab.insufficient_samples";
+    case "lab.buy_banner":
+      if (queries.bannerOwned) return "lab.banner_already_owned";
+      if (queries.credits < labBannerCostV1) return "lab.insufficient_credits";
+      return null;
     default: {
       const exhaustive: never = actionId;
       throw new TypeError(`unknown lab action ${String(exhaustive)}`);

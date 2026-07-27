@@ -99,6 +99,25 @@ export function labStageMutationsForBeginV1(): readonly StageMutationV2[] {
   ]);
 }
 
+/** The shop's stage effect: whether the purchased banner already hangs. */
+export function labStageHasBannerV1(stage: SemanticStageStateV2): boolean {
+  return stageHasTagV1(stage, "layer.e2e.props", labStageTagsV1.banner);
+}
+
+/** Buying the banner hangs it above the stage; owning it twice is rejected. */
+export function labStageMutationsForBannerV1(): readonly StageMutationV2[] {
+  return stageMutationsV1([
+    {
+      kind: "show",
+      layerId: "layer.e2e.props",
+      tag: labStageTagsV1.banner,
+      contentId: labStageContentIdsV1.propBanner,
+      zOrder: 20,
+      placement: { x: 800, y: 160, scalePermille: 1000, mirrored: false },
+    },
+  ]);
+}
+
 export interface LabStageProgressInputV1 {
   readonly completed: boolean;
   /** Samples remaining after this command commits; null when unchanged. */

@@ -40,6 +40,7 @@ import {
   labProcedureStateSchemaV1,
   labSamplesStateSchemaV1,
   labStageStateSchemaV1,
+  labWalletStateSchemaV1,
 } from "./state.js";
 import { projectLabAudioIntentV1 } from "./audio.js";
 import type { LabNarrativeStateV1 } from "./narrative.js";
@@ -53,6 +54,8 @@ import {
 } from "./narrative.js";
 import {
   createInitialLabStageStateV1,
+  labStageHasBannerV1,
+  labStageMutationsForBannerV1,
   labStageMutationsForBeginV1,
   labStageMutationsForCollectV1,
   labStageMutationsForProgressV1,
@@ -64,6 +67,8 @@ export type LabCommandV1 =
   | { readonly kind: "lab.advance_procedure" }
   | { readonly kind: "lab.run_experiment" }
   | { readonly kind: "lab.begin_calibration" }
+  | { readonly kind: "lab.sell_sample" }
+  | { readonly kind: "lab.buy_banner" }
   | {
       readonly kind: "lab.narrative_resolve";
       readonly expectedOccurrenceId: string;
@@ -79,6 +84,7 @@ export type LabFactV1 =
       readonly stepsTaken: number;
     }
   | { readonly kind: "lab.stage_changed"; readonly mutations: number }
+  | { readonly kind: "lab.credits_changed"; readonly delta: number; readonly balance: number }
   | {
       readonly kind: "lab.interaction_resolved";
       readonly definitionId: string;
@@ -90,6 +96,8 @@ export type LabRejectionCodeV1 =
   | "lab.procedure_not_running"
   | "lab.samples_required"
   | "lab.insufficient_samples"
+  | "lab.insufficient_credits"
+  | "lab.banner_already_owned"
   | "lab.stage_rejected"
   | "lab.narrative_busy"
   | InteractionRejectionCodeV2;
@@ -108,6 +116,8 @@ export interface LabDebugValidationErrorV1 {
 
 export interface LabQueriesV1 {
   readonly samplesCollected: number;
+  readonly credits: number;
+  readonly bannerOwned: boolean;
   readonly procedurePhase: LabProcedureStateV1["phase"];
   readonly procedureSteps: number;
   readonly stage: SemanticStageStateV2;
@@ -134,6 +144,8 @@ export interface LabNarrativeViewV1 {
 
 export interface LabGameViewV1 {
   readonly samplesCollected: number;
+  readonly credits: number;
+  readonly bannerOwned: boolean;
   readonly procedurePhase: LabProcedureStateV1["phase"];
   readonly procedureSteps: number;
   /** The semantic stage target: plain saveable data, observable headless. */
@@ -230,7 +242,9 @@ const commandSchemaV1: RuntimeSchemaV1<LabCommandV1> = Object.freeze({
       kind !== "lab.begin_procedure" &&
       kind !== "lab.advance_procedure" &&
       kind !== "lab.run_experiment" &&
-      kind !== "lab.begin_calibration"
+      kind !== "lab.begin_calibration" &&
+      kind !== "lab.sell_sample" &&
+      kind !== "lab.buy_banner"
     ) {
       throw new TypeError("invalid lab command kind");
     }
@@ -504,7 +518,7 @@ const stageModuleV1 = kit.defineStatefulModule({
 
 const narrativeModuleV1 = kit.defineStatefulModule({
   id: "lab.narrative",
-  contractRevision: 3,
+  contractRevision: 4,
   state: {
     slot: "simulation.narrative",
     schema: labNarrativeStateSchemaV1,
@@ -565,11 +579,88 @@ const narrativeModuleV1 = kit.defineStatefulModule({
   },
 });
 
+/** Shop economics: selling a sample earns credits, the banner costs them. */
+export const labSampleSalePriceV1 = 2;
+export const labBannerCostV1 = 3;
+
+type WalletOperationV1 =
+  | { readonly kind: "earn"; readonly amount: number }
+  | { readonly kind: "spend"; readonly amount: number };
+
+const walletOperationSchemaV1: RuntimeSchemaV1<WalletOperationV1> = Object.freeze({
+  parse(value: unknown): WalletOperationV1 {
+    if (
+      value === null ||
+      typeof value !== "object" ||
+      Array.isArray(value) ||
+      Object.keys(value).toSorted().join("\0") !== "amount\0kind"
+    ) {
+      throw new TypeError("invalid lab wallet operation");
+    }
+    const record = value as { readonly kind?: unknown; readonly amount?: unknown };
+    if (record.kind !== "earn" && record.kind !== "spend") {
+      throw new TypeError("invalid lab wallet operation kind");
+    }
+    const amount = parseNonNegativeSafeInteger(record.amount);
+    if (amount < 1) throw new TypeError("lab wallet amount must be positive");
+    return Object.freeze({ kind: record.kind, amount });
+  },
+});
+
+const walletModuleV1 = kit.defineStatefulModule({
+  id: "lab.wallet",
+  contractRevision: 1,
+  state: {
+    slot: "simulation.wallet",
+    schema: labWalletStateSchemaV1,
+    initial: () => Object.freeze({ credits: 0 }),
+  },
+  commandSchema: commandSchemaV1,
+  owner: {
+    operationSchema: walletOperationSchemaV1,
+    propose(state, operation) {
+      if (operation.kind === "spend" && state.credits < operation.amount) {
+        return Object.freeze({
+          kind: "rejected" as const,
+          rejection: Object.freeze({ code: "lab.insufficient_credits" as const }),
+        });
+      }
+      const balance =
+        operation.kind === "earn"
+          ? state.credits + operation.amount
+          : state.credits - operation.amount;
+      return Object.freeze({
+        kind: "proposed" as const,
+        proposal: Object.freeze({
+          payload: operation,
+          facts: Object.freeze([
+            Object.freeze({
+              kind: "lab.credits_changed" as const,
+              delta: operation.kind === "earn" ? operation.amount : -operation.amount,
+              balance,
+            }),
+          ]),
+        }),
+      });
+    },
+    apply(state, proposal) {
+      const operation = proposal.payload;
+      return Object.freeze({
+        credits:
+          operation.kind === "earn"
+            ? state.credits + operation.amount
+            : state.credits - operation.amount,
+      });
+    },
+  },
+});
+
 const labCompositionV1 = kit.composeModules([
   samplesModuleV1,
   procedureModuleV1,
   stageModuleV1,
   narrativeModuleV1,
+  walletModuleV1,
 ]);
 
 type LabModulesV1 = typeof labCompositionV1.modules;
@@ -686,6 +777,34 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
         });
       }
 
+      if (command.kind === "lab.sell_sample") {
+        return labTransactionRunnerV1.execute(snapshot, rng, (transaction) => {
+          if (transaction.read(labSamplesReadCapabilityV1).collectedCount() < 1) {
+            return transaction.reject({ code: "lab.insufficient_samples" });
+          }
+          // One committed command, two owners: the sample leaves the
+          // samples module and the credits land in the wallet, atomically.
+          transaction.propose(samplesModuleV1, { kind: "consume", amount: 1 });
+          transaction.propose(walletModuleV1, { kind: "earn", amount: labSampleSalePriceV1 });
+          return transaction.complete();
+        });
+      }
+
+      if (command.kind === "lab.buy_banner") {
+        return labTransactionRunnerV1.execute(snapshot, rng, (transaction) => {
+          if (labStageHasBannerV1(state.stage)) {
+            return transaction.reject({ code: "lab.banner_already_owned" });
+          }
+          if (state.wallet.credits < labBannerCostV1) {
+            return transaction.reject({ code: "lab.insufficient_credits" });
+          }
+          // Spending and the stage effect commit together or not at all.
+          transaction.propose(walletModuleV1, { kind: "spend", amount: labBannerCostV1 });
+          proposeStage(transaction, labStageMutationsForBannerV1());
+          return transaction.complete();
+        });
+      }
+
       if (command.kind === "lab.run_experiment") {
         return labTransactionRunnerV1.execute(snapshot, rng, (transaction) => {
           if (state.procedure.phase !== "running") {
@@ -765,6 +884,8 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
     createQueries(state: LabGameStateV1) {
       return Object.freeze({
         samplesCollected: state.simulation.samples.collected,
+        credits: state.simulation.wallet.credits,
+        bannerOwned: labStageHasBannerV1(state.simulation.stage),
         procedurePhase: state.simulation.procedure.phase,
         procedureSteps: state.simulation.procedure.stepsTaken,
         stage: state.simulation.stage,
@@ -774,6 +895,8 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
     projectGameView(queries: LabQueriesV1) {
       return Object.freeze({
         samplesCollected: queries.samplesCollected,
+        credits: queries.credits,
+        bannerOwned: queries.bannerOwned,
         procedurePhase: queries.procedurePhase,
         procedureSteps: queries.procedureSteps,
         stage: queries.stage,

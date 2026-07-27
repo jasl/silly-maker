@@ -27,12 +27,19 @@ async function advanceSayV1(page: Page): Promise<void> {
   await page.getByRole("button", { name: "继续" }).click();
 }
 
-/** One scripted pass: intro say, beta say, choice, barrier, pause, dial, done say. */
-async function playNarrativePassV1(page: Page): Promise<void> {
+const coldBetaLineV1 = "样本读数稳定，可以开始校准。";
+const warmBetaLineV1 = "又见面了，这次一定更顺利。";
+
+/**
+ * One scripted pass: intro say, the relationship-conditioned beta say
+ * (cold on the first run, warm once rapport is earned), choice, barrier,
+ * pause, dial, done say.
+ */
+async function playNarrativePassV1(page: Page, betaLine = coldBetaLineV1): Promise<void> {
   await page.getByRole("button", { name: "开始校准" }).click();
   await expect(page.locator("[data-lab-interaction='say']")).toBeVisible();
   await advanceSayV1(page);
-  await expect(page.getByText("样本读数稳定，可以开始校准。")).toBeVisible();
+  await expect(page.getByText(betaLine)).toBeVisible();
   await advanceSayV1(page);
   await page.getByRole("button", { name: "直接校准" }).click();
   // The acknowledged crossfade confirms the barrier and the pause
@@ -74,7 +81,7 @@ test.describe("engine conformance route parity", () => {
       const page = await context.newPage();
       await gotoLabV1(page);
       await playNarrativePassV1(page);
-      await playNarrativePassV1(page);
+      await playNarrativePassV1(page, warmBetaLineV1);
       simulations.normal = await exportSimulationStateV1(page);
       await context.close();
     }
@@ -86,7 +93,7 @@ test.describe("engine conformance route parity", () => {
       const page = await context.newPage();
       await gotoLabV1(page);
       await playNarrativePassV1(page);
-      await playNarrativePassV1(page);
+      await playNarrativePassV1(page, warmBetaLineV1);
       simulations.reduced = await exportSimulationStateV1(page);
       await context.close();
     }
@@ -109,15 +116,16 @@ test.describe("engine conformance route parity", () => {
         "aria-pressed",
         "true",
       );
-      // Skip advances the two seen says without any 继续 activation…
-      await expect(page.locator("[data-lab-interaction='choice']")).toBeVisible({
-        timeout: 10_000,
-      });
-      // …and always stops at the choice, dropping back to normal.
+      // Skip burns the SEEN intro with zero clicks, then stops dead at the
+      // relationship branch's warm line — unread lines always stop
+      // skip_read — and drops back to normal.
+      await expect(page.getByText(warmBetaLineV1)).toBeVisible({ timeout: 10_000 });
       await expect(page.getByRole("button", { name: "跳过模式" })).toHaveAttribute(
         "aria-pressed",
         "false",
       );
+      await advanceSayV1(page);
+      await expect(page.locator("[data-lab-interaction='choice']")).toBeVisible();
       await page.getByRole("button", { name: "直接校准" }).click();
       await expect(page.locator("[data-lab-interaction='custom']")).toBeVisible({
         timeout: 10_000,
@@ -227,8 +235,12 @@ test.describe("engine conformance route parity", () => {
 
     // The ordinary SLG HUD is alive after the narrative: collecting samples
     // and running the whole procedure work with the same buttons as before.
+    // (Two collects guarantee enough samples for both experiment steps
+    // regardless of the 1–2 random yield.)
     await page.getByRole("button", { name: "采集样本" }).click();
     await expect(page.getByText(/样本[1-9]/u)).toBeVisible();
+    await page.getByRole("button", { name: "采集样本" }).click();
+    await expect(page.getByText(/样本[2-9]/u)).toBeVisible();
     await page.getByRole("button", { name: "开始流程" }).click();
     await page.getByRole("button", { name: "进行实验" }).click();
     await page.getByRole("button", { name: "进行实验" }).click();
