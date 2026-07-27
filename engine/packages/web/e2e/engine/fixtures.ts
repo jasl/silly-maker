@@ -12,6 +12,16 @@ export function engineTargetUrlV1(query = ""): string {
   return `http://${engineTargetV1.host}:${String(engineTargetV1.port)}/${query}`;
 }
 
+/** The cat-cafe example proves stage hit regions in a real browser. */
+export const catcafeTargetV1 = Object.freeze({
+  host: engineTargetV1.host,
+  port: 41737,
+});
+
+export function catcafeTargetUrlV1(query = ""): string {
+  return `http://${catcafeTargetV1.host}:${String(catcafeTargetV1.port)}/${query}`;
+}
+
 export const labApplicationNameV1 = "引擎实验室";
 
 interface PageDiagnosticsV1 {

@@ -344,7 +344,8 @@ describe("RootErrorBoundaryV1", () => {
     expect(screen.queryByText("原背景层")).not.toBeInTheDocument();
     expect(screen.queryByText("原系统层")).not.toBeInTheDocument();
     expect(screen.getByTestId("stage-background")).toBeEmptyDOMElement();
-    expect(screen.getAllByTestId(/^stage-/u)).toHaveLength(7);
+    // The recovery stage renders no interaction content, so six layers mount.
+    expect(screen.getAllByTestId(/^stage-/u)).toHaveLength(6);
     expect(dialog.closest('[data-stage-layer="system"]')).toBe(screen.getByTestId("stage-system"));
     act(() => {
       expect(

@@ -57,7 +57,7 @@ describe("GameStageV1", () => {
     expect(screen.getByTestId("stage-system")).toHaveAttribute("data-stage-layer", "system");
   });
 
-  it("keeps empty layer hosts mounted without changing their order", () => {
+  it("keeps empty layer hosts mounted, except the pointer-eating interaction layer", () => {
     const layers = Object.freeze({
       background: null,
       character: null,
@@ -70,9 +70,13 @@ describe("GameStageV1", () => {
 
     render(<GameStageV1 accessibleName="空舞台" layers={layers} />);
 
+    // The interaction layer container is pointer-events: auto by design;
+    // when the Story provides no interaction content it must not mount,
+    // or it would swallow stage pointer input (hit regions, renderers).
     expect(screen.getAllByTestId(/^stage-/u).map((node) => node.dataset.stageLayer)).toEqual(
-      stageLayerIdsV1,
+      stageLayerIdsV1.filter((layerId) => layerId !== "scene_interaction"),
     );
+    expect(screen.queryByTestId("stage-scene-interaction")).toBeNull();
   });
 
   it("marks only scene interaction as the Pointer Adapter surface", () => {
