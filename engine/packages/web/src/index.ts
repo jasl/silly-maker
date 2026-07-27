@@ -3,11 +3,6 @@ export { installWebGameApplicationHmrV1 } from "./application/install-web-game-a
 export type { InstallWebGameApplicationHmrInputV1 } from "./application/install-web-game-application-hmr.js";
 export { mountGameApplicationV1 } from "./application/mount-game-application.js";
 export type { MountedGameApplicationV1 } from "./application/mount-game-application.js";
-export { createGameRuntimeV1 } from "./application/create-game-runtime.js";
-export type {
-  WebGameRuntimeCompositionV1,
-  WebPersistenceIdentityV1,
-} from "./application/create-game-runtime.js";
 export {
   createRuntimeCapabilitySessionOverlayV1,
   parseCapabilityRequestV1,
@@ -65,8 +60,6 @@ export { createBrowserFilePortV1 } from "./host/browser-file-port.js";
 export type { BrowserFilePortEnvironmentV1 } from "./host/browser-file-port.js";
 export { installPointerAdapterV1 } from "./input/index.js";
 export type { InstalledPointerAdapterV1, PointerAdapterInputV1 } from "./input/index.js";
-export { createGameBootstrapControllerV1, Loader } from "./loader/loader.js";
-export type { GameBootstrapResolutionResultV1 } from "./loader/loader.js";
 export { createBrowserImageLoaderV1 } from "./assets/index.js";
 export type { BrowserImageLoaderEnvironmentV1 } from "./assets/index.js";
 export { createWebContentPreferencePortV1 } from "./preferences/index.js";

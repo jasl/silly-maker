@@ -29,6 +29,8 @@
 
 ## Runtime
 
+- `@sillymaker/base/story` is the Story authoring prelude: the current generation of every commonly authored contract re-exported under unversioned names (`SemanticStageState`, `StageMutation`, `PendingInteraction`, `NarrativeGraph`, `reduceStageMutations`, `evaluateInteractionResolution`, `defineCoreGameApplication`, …). It is a pure alias layer — a type-test matrix proves each alias identical to its versioned original — and it moves to a new generation together with the family it aliases. Versioned names remain the source of truth inside the engine; the superseded hand-assembly surfaces (`createGameRuntimeV1`, `createGameBootstrapControllerV1`/`Loader`, `createGameApplicationV1`, `useRuntimePresentationV1`) were removed once the composer path replaced their last consumer.
+
 - One authoritative `GameSession` queue for gameplay dispatch and State replacement.
 - Immutable, schema-validated `GameSnapshot` values; the session deep-freezes every installed Snapshot so live mutation attempts throw.
 - Serializable purpose-labelled PRNG with rollback-safe command attempts.

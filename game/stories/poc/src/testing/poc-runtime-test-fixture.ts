@@ -38,7 +38,6 @@ import type {
   ReplayComparisonV1,
 } from "@sillymaker/base/runtime";
 import { createMemoryHostRecordStoreV1, resolveStoryForTestV1 } from "@sillymaker/base/testkit";
-import { createGameApplicationV1 } from "@sillymaker/base/runtime";
 import type {
   ExportedDebugBundleV1,
   ExportedSaveV1,
@@ -770,7 +769,7 @@ export function createPocRuntimeTestFixtureV1(input: {
     },
   });
 
-  const application = createGameApplicationV1({
+  const application: PocGameApplicationPortV1 = Object.freeze({
     semantic,
     lifecycle: Object.freeze({
       createNewSession: lifecycleOperation,

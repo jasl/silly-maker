@@ -1,5 +1,7 @@
 # Story authoring with SillyMaker
 
+操作层面的分层指南（含 LLM 代理执行建议与诊断速查）见 [authoring-quickstart](authoring-quickstart.md)。`@sillymaker/base/story` 是作者 prelude：当前代契约的无版本后缀别名。
+
 状态：当前 Story 组合模型。Project Tavern PoC 是实例，不是模板合同。
 
 ## 1. What a Story owns

@@ -17,6 +17,7 @@ Read only the documents relevant to the change:
 - `docs/engine/features.md` — implemented engine capabilities and boundaries.
 - `docs/engine/development.md` — setup, tests, and maintenance workflow.
 - `docs/engine/story-authoring.md` — current Story composition model.
+- `docs/engine/authoring-quickstart.md` — layered authoring playbook (content edits, module wiring, application declarations) with the diagnostics quick-reference.
 - `docs/engine/build-and-release.md` — local Player build and Artifact workflow.
 - `docs/game/README.md` — current Project Tavern design status.
 - `docs/policies/licensing.md` and `docs/policies/assets-and-references.md` — durable legal and source-material policy.

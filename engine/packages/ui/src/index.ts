@@ -181,7 +181,6 @@ export { useSemanticPublicationV1 } from "./runtime/use-semantic-publication.js"
 export {
   RuntimePresentationConstructionErrorV1,
   createRuntimePresentationStoreV1,
-  useRuntimePresentationV1,
 } from "./runtime/index.js";
 export type {
   CreateRuntimePresentationStoreInputV1,

@@ -11,4 +11,3 @@ export type {
   RuntimePresentationPublicationV1,
   RuntimePresentationStoreV1,
 } from "./runtime-presentation-store.js";
-export { useRuntimePresentationV1 } from "./use-runtime-presentation.js";

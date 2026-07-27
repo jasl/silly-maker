@@ -10,11 +10,7 @@ import type {
   RuntimeCapabilitiesV1,
   RuntimeCapabilityPortV1,
 } from "@sillymaker/base";
-import {
-  createCapabilityDisabledDebugToolsPortV1,
-  createGameApplicationV1,
-  createRuntimeCapabilityPortV1,
-} from "@sillymaker/base/runtime";
+import { createRuntimeCapabilityPortV1 } from "@sillymaker/base/runtime";
 
 declare const persistence: PlayerPersistencePortV1<
   { id: string },
@@ -64,7 +60,7 @@ export type FixtureList = DebugFixtureListResultV1<"fixture.one">;
 declare const fixtureList: FixtureList;
 if (fixtureList.kind === "listed") fixtureList.fixtureIds;
 
-export const typedDebugTools: DebugToolsPortV1<
+declare const typedDebugTools: DebugToolsPortV1<
   string,
   never,
   string,
@@ -74,29 +70,20 @@ export const typedDebugTools: DebugToolsPortV1<
   never,
   never,
   never
-> = createCapabilityDisabledDebugToolsPortV1<
-  string,
-  never,
-  string,
-  never,
-  never,
-  never,
-  never,
-  never,
-  never
->();
+>;
+export { typedDebugTools };
 
 const syntheticCapabilityPort = createRuntimeCapabilityPortV1({
   initialState: { debugTools: false, cheats: false, automationBridge: false },
   persist: async () => ({ kind: "committed" as const }),
 });
-export const composedApplication = createGameApplicationV1({
+export const composedApplication: Application = Object.freeze({
   semantic: application.semantic,
   lifecycle: application.lifecycle,
   persistence: application.persistence,
   diagnostics: application.diagnostics,
-  capabilities: syntheticCapabilityPort,
-  debugTools: typedDebugTools,
+  capabilities: syntheticCapabilityPort as unknown as Application["capabilities"],
+  debugTools: typedDebugTools as never,
 });
 
 // @ts-expect-error the unified application has no nested Player application

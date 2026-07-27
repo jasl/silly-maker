@@ -38,7 +38,14 @@ import {
   type RuntimePresentationProjectionInputV1,
   type RuntimePresentationProjectionV1,
 } from "./runtime-presentation-store.js";
-import { useRuntimePresentationV1 } from "./use-runtime-presentation.js";
+import { useSyncExternalStore } from "react";
+
+function useRuntimePresentationForTestV1<TPublication>(store: {
+  subscribe(listener: () => void): () => void;
+  getSnapshot(): TPublication;
+}): TPublication {
+  return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
+}
 
 interface TestGameViewV1 {
   readonly token: "game.0" | "game.1" | "game.extra";
@@ -781,7 +788,7 @@ describe("RuntimePresentationStoreV1", () => {
   it("exposes the cached store snapshot through the React external-store hook", () => {
     const fixture = createRuntimePresentationStoreFixtureV1();
     const beforeProjects = fixture.projectCount();
-    const hook = renderHook(() => useRuntimePresentationV1(fixture.store));
+    const hook = renderHook(() => useRuntimePresentationForTestV1(fixture.store));
 
     expect(hook.result.current).toBe(fixture.store.getSnapshot());
     hook.rerender();

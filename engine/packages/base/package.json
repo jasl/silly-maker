@@ -8,6 +8,7 @@
     ".": "./src/index.ts",
     "./authoring": "./src/authoring/index.ts",
     "./runtime": "./src/runtime/index.ts",
+    "./story": "./src/story/index.ts",
     "./testkit": "./src/testkit/index.ts"
   },
   "scripts": {

@@ -8,12 +8,9 @@ import type {
 } from "@sillymaker/base";
 import { createMemoryHostRecordStoreV1 } from "@sillymaker/base/testkit";
 import {
-  createGameBootstrapControllerV1,
-  createGameRuntimeV1,
   createRuntimeCapabilitySessionOverlayV1,
   createWebContentPreferencePortV1,
   createWebHostV1,
-  Loader,
   mountGameApplicationV1,
   parseCapabilityRequestV1,
 } from "@sillymaker/web";
@@ -73,12 +70,9 @@ capabilitySessionV1.dispose();
 createRuntimeCapabilitySessionOverlayV1(persistedCapabilityPortV1, ["unknown"]);
 
 export {
-  createGameBootstrapControllerV1,
-  createGameRuntimeV1,
   createRuntimeCapabilitySessionOverlayV1,
   createWebContentPreferencePortV1,
   createWebHostV1,
-  Loader,
   mountGameApplicationV1,
   parseCapabilityRequestV1,
 };

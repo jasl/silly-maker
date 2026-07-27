@@ -45,10 +45,6 @@ export type {
   ResolveCoreGameApplicationResultV1,
   ResolvedCoreGameApplicationV1,
 } from "./application/core-game-application.js";
-export {
-  createCapabilityDisabledDebugToolsPortV1,
-  createGameApplicationV1,
-} from "./application/game-application.js";
 export { createRuntimeCapabilityPortV1 } from "./capabilities/runtime-capabilities.js";
 export { createCommandLogV1 } from "./diagnostics/command-log.js";
 export type {

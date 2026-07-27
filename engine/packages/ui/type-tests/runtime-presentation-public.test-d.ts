@@ -3,7 +3,6 @@ import type { ContentPreferencePortV1, DeepReadonly, ReadonlyViewSourceV1 } from
 import {
   RuntimePresentationConstructionErrorV1,
   createRuntimePresentationStoreV1,
-  useRuntimePresentationV1,
   type CreateRuntimePresentationStoreInputV1,
   type PresentationRuntimeFailureV1,
   type RuntimePresentationProjectionInputV1,
@@ -107,8 +106,6 @@ const storeV1 = createRuntimePresentationStoreV1({
   reportFailure() {},
 });
 storeV1 satisfies StoreV1;
-const useStoreV1: (store: StoreV1) => DeepReadonly<PublicationV1> = useRuntimePresentationV1;
-void useStoreV1;
 
 declare const inputV1: ProjectionInputV1;
 // @ts-expect-error projector input has no Gameplay query factory
