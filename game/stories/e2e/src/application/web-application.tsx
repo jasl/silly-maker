@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import type { ReactElement } from "react";
 
 import type {
@@ -183,6 +183,46 @@ function labResolveV1(
   void semantic.dispatch(
     Object.freeze({ kind: "resolve" as const, expectedOccurrenceId, resolution }),
   );
+}
+
+/**
+ * Presentation-barrier load recovery. A barrier restored by a load, refresh,
+ * or rebootstrap arrives on a fresh presentation epoch (or a fresh mount);
+ * its transition will never replay, so the `settle` policy acknowledges it
+ * immediately through the ordinary semantic command. Barriers created
+ * in-session keep waiting for the real transition acknowledgment, and any
+ * late pre-load callback was already dropped by the reconciler's epoch
+ * fence.
+ */
+function LabBarrierRecoveryV1(props: {
+  readonly publication: DeepReadonly<LabUiPublicationV1>;
+  readonly semantic: LabSemanticPortV1;
+}): null {
+  const pending = props.publication.semantic.narrative.pending;
+  const epoch = props.publication.view.anchorEpoch;
+  const { semantic } = props;
+  const barrier = pending?.kind === "presentation_barrier" ? pending : null;
+  const barrierOccurrenceId = barrier?.occurrenceId ?? null;
+  const barrierTransitionId = barrier?.expectedTransitionId ?? null;
+  const loadRecovery = barrier?.loadRecovery ?? null;
+  const seenEpochRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const freshEpoch = seenEpochRef.current !== epoch;
+    seenEpochRef.current = epoch;
+    if (!freshEpoch || barrierOccurrenceId === null || barrierTransitionId === null) return;
+    // The Engine Lab ships the `settle` policy; a future `replay` policy
+    // would re-run the transition before acknowledging.
+    if (loadRecovery === "settle") {
+      labResolveV1(
+        semantic,
+        barrierOccurrenceId,
+        Object.freeze({ kind: "barrier_completed" as const, transitionId: barrierTransitionId }),
+      );
+    }
+  }, [semantic, epoch, barrierOccurrenceId, barrierTransitionId, loadRecovery]);
+
+  return null;
 }
 
 /**
@@ -415,6 +455,7 @@ const labUiSlotsDefinitionV1: DefaultGameRootSlotsV1<
       {context.publication.view.procedurePhase === "complete" ? (
         <p data-lab-narrative="complete">{labUiTextV1("text.e2e.lab.narrative.completed")}</p>
       ) : null}
+      <LabBarrierRecoveryV1 publication={context.publication} semantic={context.semantic} />
       <LabNarrativeV1 publication={context.publication} semantic={context.semantic} />
     </div>
   ),

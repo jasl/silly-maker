@@ -5,9 +5,13 @@ import { screen, waitFor } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 
+import type { HostAtomicRecordStoreV1 } from "@sillymaker/base";
 import { createMemoryHostRecordStoreV1 } from "@sillymaker/base/testkit";
 import { createWebHostV1, startWebGameApplicationV1 } from "@sillymaker/web";
-import type { StartedWebGameApplicationV1 } from "@sillymaker/web";
+import type {
+  StartedWebGameApplicationV1,
+  StartWebGameApplicationOptionsV1,
+} from "@sillymaker/web";
 
 import { labWebApplicationV1 } from "../application/web-application.js";
 
@@ -20,7 +24,29 @@ function createTestRootV1(): HTMLElement {
   return root;
 }
 
-function startLabV1(capabilitySearch: string): Promise<StartedWebGameApplicationV1> {
+/** Counts committed record mutations touching the autosave slot. */
+function withAutosaveCounterV1(records: HostAtomicRecordStoreV1): {
+  readonly records: HostAtomicRecordStoreV1;
+  autosaveWrites(): number;
+} {
+  let autosaveWrites = 0;
+  const counted: HostAtomicRecordStoreV1 = Object.freeze({
+    read: (namespace, key) => records.read(namespace, key),
+    list: (namespace) => records.list(namespace),
+    commit: (mutations) => {
+      if (mutations.some((mutation) => String(mutation.key).includes("auto.current"))) {
+        autosaveWrites += 1;
+      }
+      return records.commit(mutations);
+    },
+  } satisfies HostAtomicRecordStoreV1);
+  return { records: counted, autosaveWrites: () => autosaveWrites };
+}
+
+function startLabV1(
+  capabilitySearch: string,
+  overrides: Partial<StartWebGameApplicationOptionsV1> = {},
+): Promise<StartedWebGameApplicationV1> {
   return startWebGameApplicationV1(labWebApplicationV1, {
     rootElement: createTestRootV1(),
     host: createWebHostV1({
@@ -30,6 +56,7 @@ function startLabV1(capabilitySearch: string): Promise<StartedWebGameApplication
     }),
     capabilitySearch,
     registerPageLifecycle: false,
+    ...overrides,
   });
 }
 
@@ -97,6 +124,48 @@ describe("startWebGameApplicationV1 with the Engine Lab declaration", () => {
         expect(screen.getByRole("application", { name: "引擎实验室" })).toBeInTheDocument();
       });
       expect(screen.getByRole("button", { name: "打开左侧开发工具" })).toBeInTheDocument();
+    } finally {
+      await started.dispose();
+    }
+  });
+
+  it("debounces autosave writes and flushes them on pagehide", async () => {
+    const counter = withAutosaveCounterV1(createMemoryHostRecordStoreV1());
+    const started = await startLabV1("", {
+      host: createWebHostV1({
+        records: counter.records,
+        seeds: [20260721],
+        uuids: ["4a6b2d33-ae58-4c8f-9b21-7d3f5e0c2a41"],
+      }),
+      registerPageLifecycle: true,
+      // A long quiet period: committed Snapshots stay saveable, but nothing
+      // hits the record store while the player keeps clicking.
+      autosave: { mode: "debounced", delayMs: 60_000 },
+    });
+    try {
+      await waitFor(() => {
+        expect(screen.getByRole("application", { name: "引擎实验室" })).toBeInTheDocument();
+      });
+      const collect = screen.getByRole("button", { name: "采集样本" });
+      const user = userEvent.setup();
+      await user.click(collect);
+      await user.click(collect);
+      await user.click(collect);
+      await waitFor(() => {
+        expect(screen.getByText(/样本[1-9]/u)).toBeInTheDocument();
+      });
+
+      // Three commits, zero autosave writes: no per-line IndexedDB churn.
+      expect(counter.autosaveWrites()).toBe(0);
+
+      // The page lifecycle teardown flushes the pending capture.
+      globalThis.dispatchEvent(new Event("pagehide"));
+      await waitFor(() => {
+        expect(counter.autosaveWrites()).toBe(1);
+      });
+      await waitFor(() => {
+        expect(started.isDisposed()).toBe(true);
+      });
     } finally {
       await started.dispose();
     }

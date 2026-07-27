@@ -424,6 +424,20 @@ export function createStageReconcilerV2(
         if (resolved === null) continue;
         const definition = resolveReducedMotionV2(resolved);
         if (definition === null || definition.kind === "cut" || definition.durationMs <= 0) {
+          // Instant settles (cut, zero duration, reduced-motion settle) still
+          // owe their completion acknowledgment: a presentation barrier must
+          // resolve whether or not any animation played.
+          if (resolved.acknowledge && !disposed) {
+            occurrenceCounter += 1;
+            options.onAcknowledgment?.(
+              Object.freeze({
+                occurrenceId: `stage-transition.${String(input.epoch)}.${String(occurrenceCounter)}`,
+                transitionId: resolved.transitionId,
+                epoch: input.epoch,
+                outcome: "completed" as const,
+              }),
+            );
+          }
           continue;
         }
         startTransition(change, definition, input.epoch);

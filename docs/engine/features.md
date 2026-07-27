@@ -76,6 +76,7 @@
 ## Web Host and application delivery
 
 - Explicit Story-to-application composition and React mounting.
+- Injectable autosave/checkpoint policy with a debounced browser default (`defaultWebAutosavePolicyV1`: quiet-period flush plus an every-N-commands checkpoint backstop), so committed Snapshots stay saveable at any time but long dialogues never write IndexedDB per line; the pagehide teardown flushes any pending capture before releasing the lease.
 - Browser entropy, clock, logging, navigation, files, image loading, and IndexedDB adapters.
 - Hash routing and query-driven development capabilities.
 - Loader recovery when a Hotfix cannot be admitted.

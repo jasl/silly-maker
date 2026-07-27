@@ -56,6 +56,50 @@ test.describe("engine pending interactions", () => {
     await expect(page.locator('[data-stage-key="layer.e2e.props:tag.e2e.beacon"]')).toHaveCount(0);
   });
 
+  test("save, refresh, and load restore the same interaction and stage target", async ({
+    page,
+  }) => {
+    await gotoLabV1(page);
+
+    // Reach the choice — a stable interaction boundary — and save there.
+    await page.getByRole("button", { name: "开始校准" }).click();
+    await page.getByRole("button", { name: "继续" }).click();
+    const choice = page.locator("[data-lab-interaction='choice']");
+    await expect(choice).toBeVisible();
+    const savedOccurrence = await choice.getAttribute("data-lab-occurrence");
+
+    await page.getByRole("button", { name: "保存", exact: true }).click();
+    const saveDialog = page.getByRole("dialog", { name: "保存" });
+    await saveDialog.getByRole("button", { name: "手动保存" }).click();
+    await expect(saveDialog.getByTestId("save-operation-result")).toHaveText("已保存到手动存档");
+    await saveDialog.getByRole("button", { name: "关闭", exact: true }).click();
+
+    // Refresh: the page boots fresh, then an explicit load restores the
+    // exact interaction occurrence and the stage target (beacon included).
+    await page.reload();
+    await expect(page.getByRole("button", { name: "开始校准" })).toBeVisible();
+    await page.getByRole("button", { name: "保存", exact: true }).click();
+    const reloadDialog = page.getByRole("dialog", { name: "保存" });
+    await reloadDialog.getByRole("button", { name: "载入手动存档" }).click();
+    const confirmation = page.getByRole("dialog", { name: "载入手动存档" });
+    await confirmation.getByRole("button", { name: "确认", exact: true }).click();
+    await expect(reloadDialog.getByTestId("save-operation-result")).toHaveText("已载入存档");
+    await reloadDialog.getByRole("button", { name: "关闭", exact: true }).click();
+
+    await expect(choice).toBeVisible();
+    await expect(choice).toHaveAttribute("data-lab-occurrence", savedOccurrence ?? "");
+    await expect(page.locator('[data-stage-key="layer.e2e.props:tag.e2e.beacon"]')).toBeVisible();
+
+    // The restored interaction resolves normally and the run completes.
+    await page.getByRole("button", { name: "直接校准" }).click();
+    await expect(page.locator("[data-lab-interaction='custom']")).toBeVisible({
+      timeout: 10_000,
+    });
+    await page.locator("[data-lab-dial-value='2']").click();
+    await page.getByRole("button", { name: "继续" }).click();
+    await expect(page.locator("[data-lab-narrative='calibrated']")).toBeVisible();
+  });
+
   test("restarting the script issues fresh occurrences", async ({ page }) => {
     await gotoLabV1(page);
 

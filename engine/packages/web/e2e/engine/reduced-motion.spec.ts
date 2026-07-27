@@ -61,4 +61,22 @@ test.describe("engine reduced motion", () => {
     );
     await expect(page.locator("[data-stage-exiting]")).toHaveCount(0);
   });
+
+  test("@responsive completes the presentation barrier without any animation", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await gotoLabV1(page);
+
+    // Even though the crossfade settles instantly under reduced motion, the
+    // acknowledged edge still confirms the barrier, so the calibration
+    // narrative never deadlocks.
+    await page.getByRole("button", { name: "开始校准" }).click();
+    await page.getByRole("button", { name: "继续" }).click();
+    await page.getByRole("button", { name: "直接校准" }).click();
+    await expect(page.locator("[data-lab-interaction='custom']")).toBeVisible({
+      timeout: 10_000,
+    });
+    await page.locator("[data-lab-dial-value='1']").click();
+    await page.getByRole("button", { name: "继续" }).click();
+    await expect(page.locator("[data-lab-narrative='calibrated']")).toBeVisible();
+  });
 });

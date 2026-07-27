@@ -25,7 +25,10 @@ export {
   createPlayerSaveUiPortV1,
   createPlayerUiPortsV1,
 } from "./application/create-player-ui-ports.js";
-export { startWebGameApplicationV1 } from "./application/start-web-game-application.js";
+export {
+  defaultWebAutosavePolicyV1,
+  startWebGameApplicationV1,
+} from "./application/start-web-game-application.js";
 export type {
   StartWebGameApplicationOptionsV1,
   StartedWebGameApplicationV1,

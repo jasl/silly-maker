@@ -319,6 +319,41 @@ describe("createStageReconcilerV2", () => {
     reconciler.dispose();
   });
 
+  it("instant settles still emit the completion acknowledgment", () => {
+    const clock = createManualPresentationClockV1();
+    const onAcknowledgment = vi.fn();
+    const reconciler = createStageReconcilerV2({
+      clock,
+      catalog: catalogV1(() =>
+        definitionV1({
+          transitionId: "transition.test.ack-reduced",
+          acknowledge: true,
+          reducedMotion: { kind: "settle" },
+        }),
+      ),
+      prefersReducedMotion: () => true,
+      onAcknowledgment,
+    });
+
+    reconciler.retarget({ target: targetOfV1([showBackV1]), revision: 1, epoch: 0 });
+    reconciler.retarget({
+      target: targetOfV1([{ ...showBackV1, contentId: "content.test.b" }]),
+      revision: 2,
+      epoch: 0,
+    });
+
+    // No run played, but the acknowledged edge completed instantly: the
+    // frame is settled and the acknowledgment fired exactly once.
+    expect(reconciler.frame().settled).toBe(true);
+    expect(onAcknowledgment).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        transitionId: "transition.test.ack-reduced",
+        outcome: "completed",
+      }),
+    );
+    reconciler.dispose();
+  });
+
   it("reduced motion settles directly or plays the resolvable fallback", () => {
     const clock = createManualPresentationClockV1();
     const fallback = definitionV1({ transitionId: "transition.test.short", durationMs: 10 });

@@ -3,6 +3,7 @@ import type { ReactElement } from "react";
 
 import type { GameHostV1, RuntimeCapabilitiesV1, RuntimeCapabilityPortV1 } from "@sillymaker/base";
 import type {
+  CoreAutosavePolicyV1,
   CoreGameApplicationDefinitionV1,
   CoreGameApplicationInstanceV1,
 } from "@sillymaker/base/runtime";
@@ -111,6 +112,12 @@ export interface WebGameApplicationV1<
     { readonly buildIdentityInput?: infer TIdentity } | undefined
     ? TIdentity
     : never;
+  /**
+   * The application's autosave/checkpoint policy. Defaults to a debounced
+   * policy so long dialogues never write IndexedDB on every line; explicit
+   * slot saves are always allowed regardless.
+   */
+  readonly autosave?: CoreAutosavePolicyV1;
   ui(input: {
     readonly instance: CoreGameApplicationInstanceV1<
       TTypes,
@@ -149,7 +156,20 @@ export interface StartWebGameApplicationOptionsV1 {
   readonly capabilitySearch?: string;
   /** Register the pagehide teardown listener; disable in tests. */
   readonly registerPageLifecycle?: boolean;
+  /** Host-level autosave override; wins over the application's policy. */
+  readonly autosave?: CoreAutosavePolicyV1;
 }
+
+/**
+ * The browser default: committed Snapshots stay saveable at any time, but
+ * persistence flushes after a short quiet period (or every N commands as a
+ * backstop), and the pagehide teardown flushes whatever is still pending.
+ */
+export const defaultWebAutosavePolicyV1: CoreAutosavePolicyV1 = Object.freeze({
+  mode: "debounced",
+  delayMs: 800,
+  checkpointEveryCommands: 20,
+});
 
 export interface StartedWebGameApplicationV1 {
   readonly applicationId: string;
@@ -260,6 +280,7 @@ export async function startWebGameApplicationV1<
         `handoff.${application.applicationId}.${host.bootstrapEntropy.nextUuidV4()}`,
     }),
     capabilities: { debugTools: capabilities.state.getCurrent().debugTools },
+    autosave: options.autosave ?? application.autosave ?? defaultWebAutosavePolicyV1,
   });
 
   let automation: InstalledBrowserAutomationBridgeV1 | undefined;
@@ -355,7 +376,14 @@ export async function startWebGameApplicationV1<
       typeof globalThis.addEventListener === "function"
     ) {
       const onPageHide = (): void => {
-        void dispose();
+        // Best-effort: capture any pending debounced autosave synchronously
+        // and queue the write before the teardown releases the lease.
+        void instance
+          .flushAutoSave()
+          .catch(() => undefined)
+          .finally(() => {
+            void dispose();
+          });
       };
       globalThis.addEventListener("pagehide", onPageHide, { once: true });
       removePageLifecycle = () => globalThis.removeEventListener("pagehide", onPageHide);

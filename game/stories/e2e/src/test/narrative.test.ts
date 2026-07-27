@@ -281,6 +281,125 @@ describe("Engine Lab pending interactions", () => {
     await harness.dispose();
   });
 
+  it("round-trips at the say and barrier boundaries with identical digests", async () => {
+    const harness = await createLabHarnessV1();
+
+    // Stable point 1: the say boundary.
+    await dispatchCommittedV1(harness, beginV1);
+    const say = pendingV1(harness);
+    expect(say.kind).toBe("say");
+    const sayDigest = harness.stateDigest();
+    await expect(harness.saves.save("quick")).resolves.toMatchObject({ kind: "saved" });
+
+    // Stable point 2: the presentation barrier, with the flipped stage.
+    await dispatchCommittedV1(harness, resolveV1(say.occurrenceId, { kind: "advance" }));
+    await dispatchCommittedV1(
+      harness,
+      resolveV1(pendingV1(harness).occurrenceId, {
+        kind: "choose",
+        choiceId: "choice.e2e.cal.basic",
+      }),
+    );
+    const barrier = pendingV1(harness);
+    expect(barrier.kind).toBe("presentation_barrier");
+    const barrierDigest = harness.stateDigest();
+    await expect(harness.saves.save("manual")).resolves.toMatchObject({ kind: "saved" });
+
+    // Load back to the say: same interaction, same digest, and the barrier
+    // occurrence recorded above is stale against the restored state.
+    await expect(harness.saves.load("quick")).resolves.toMatchObject({ kind: "loaded" });
+    expect(harness.stateDigest()).toBe(sayDigest);
+    expect(pendingV1(harness)).toEqual(say);
+    expect(
+      await harness.dispatch(
+        resolveV1(barrier.occurrenceId, {
+          kind: "barrier_completed",
+          transitionId: "transition.e2e.bg-crossfade",
+        }),
+      ),
+    ).toEqual({ kind: "rejected", codes: ["interaction.occurrence_mismatch"] });
+
+    // Load forward to the barrier: the stage target and interaction return,
+    // and the barrier resolves normally — headless confirms immediately.
+    await expect(harness.saves.load("manual")).resolves.toMatchObject({ kind: "loaded" });
+    expect(harness.stateDigest()).toBe(barrierDigest);
+    expect(pendingV1(harness)).toEqual(barrier);
+    await dispatchCommittedV1(
+      harness,
+      resolveV1(barrier.occurrenceId, {
+        kind: "barrier_completed",
+        transitionId: "transition.e2e.bg-crossfade",
+      }),
+    );
+    expect(pendingV1(harness).kind).toBe("pause");
+    await harness.dispose();
+  });
+
+  it("rejects corrupt saves before touching the live session state", async () => {
+    const harness = await createLabHarnessV1();
+    await dispatchCommittedV1(harness, beginV1);
+    await dispatchCommittedV1(
+      harness,
+      resolveV1(pendingV1(harness).occurrenceId, { kind: "advance" }),
+    );
+    const atChoice = pendingV1(harness);
+    const digest = harness.stateDigest();
+
+    const exported = await harness.saves.exportCurrentSave();
+
+    // Corrupt the narrative payload inside the exported bytes.
+    const text = new TextDecoder().decode(exported.bytes);
+    const tampered = new TextEncoder().encode(
+      text.replace("interaction.e2e.cal-approach", "interaction.e2e.cal-tampered"),
+    );
+    const rejected = await harness.saves.importSave(tampered);
+    expect(rejected.kind).toBe("rejected");
+
+    // The live session, stage, and pending interaction are untouched.
+    expect(harness.stateDigest()).toBe(digest);
+    expect(pendingV1(harness)).toEqual(atChoice);
+    await dispatchCommittedV1(
+      harness,
+      resolveV1(atChoice.occurrenceId, { kind: "choose", choiceId: "choice.e2e.cal.basic" }),
+    );
+    await harness.dispose();
+  });
+
+  it("keeps stage and interaction identity observable to diagnostics, not to agents", async () => {
+    const harness = await createLabHarnessV1();
+    await dispatchCommittedV1(harness, beginV1);
+    const say = pendingV1(harness);
+
+    // Diagnostics surfaces (inspection, DebugBundle snapshots) see the
+    // authoritative stage and interaction identity.
+    const snapshot = harness.admin.inspectForTest().snapshot as {
+      readonly state: {
+        readonly simulation: {
+          readonly stage: { readonly stageId: string };
+          readonly narrative: {
+            readonly pending: {
+              readonly definitionId: string;
+              readonly occurrenceId: string;
+            } | null;
+          };
+        };
+      };
+    };
+    expect(snapshot.state.simulation.stage.stageId).toBe("stage.e2e.lab");
+    expect(snapshot.state.simulation.narrative.pending).toMatchObject({
+      definitionId: say.definitionId,
+      occurrenceId: say.occurrenceId,
+    });
+
+    // The player-safe agent diagnostics capability keeps the privacy
+    // boundary: story identity and failures, never raw snapshots.
+    const diagnostics = harness.grantDiagnosticsCapability();
+    const exported = await diagnostics.capability.exportDiagnostics();
+    expect(Object.keys(exported).toSorted()).toEqual(["runtimeFailures", "storyId", "trace"]);
+    diagnostics.revoke();
+    await harness.dispose();
+  });
+
   it("both branches reach the same boundary with the same authoritative shape", async () => {
     const precise = await createLabHarnessV1(777);
     // The precise branch needs a sample; collect first.
