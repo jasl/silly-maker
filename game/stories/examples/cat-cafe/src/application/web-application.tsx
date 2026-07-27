@@ -361,7 +361,8 @@ function CatcafeHudV1(props: {
         data-cc-calendar={`${String(game.calendar.week)}.${String(game.calendar.day)}.${String(game.calendar.slot)}`}
       >
         {uiText("text.cc.hud.week")}
-        {String(game.calendar.week)}周 · {uiText(`text.cc.day.${String(game.calendar.day)}`)} ·{" "}
+        {String(game.calendar.week)}
+        {uiText("text.cc.hud.week.suffix")} · {uiText(`text.cc.day.${String(game.calendar.day)}`)} ·{" "}
         {uiText(`text.cc.slot.${slotName}`)} · {uiText("text.cc.hud.stamina")}
         {String(game.calendar.stamina)}
       </p>

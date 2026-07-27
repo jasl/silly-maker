@@ -90,6 +90,7 @@ export const catcafeTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
         { textId: "text.cc.album.regular.caption", text: "总坐窗边的女孩，画了一整本小雨的速写。" },
         // —— HUD 与界面 ——
         { textId: "text.cc.hud.week", text: "第" },
+        { textId: "text.cc.hud.week.suffix", text: "周" },
         { textId: "text.cc.hud.stamina", text: "行动力" },
         { textId: "text.cc.hud.money", text: "金钱" },
         { textId: "text.cc.hud.reputation", text: "声誉" },
@@ -227,6 +228,7 @@ export const catcafeTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
           text: "The girl by the window filled a whole sketchbook with Drizzle.",
         },
         { textId: "text.cc.hud.week", text: "Week " },
+        { textId: "text.cc.hud.week.suffix", text: " " },
         { textId: "text.cc.hud.stamina", text: "Stamina " },
         { textId: "text.cc.hud.money", text: "Money " },
         { textId: "text.cc.hud.reputation", text: "Reputation " },
