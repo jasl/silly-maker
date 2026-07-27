@@ -47,7 +47,7 @@ import {
   catcafeSlotsV1,
 } from "../content.ts";
 
-export const catcafeViewportCanvasV1 = Object.freeze({ width: 1600, height: 900 });
+export const catcafeViewportCanvasV1 = Object.freeze({ width: 1280, height: 720 });
 
 export function catcafeUiTextV1(textId: string): string {
   const catalog = catcafeTextCatalogsV1.catalogs.find(
@@ -113,8 +113,8 @@ export const catcafeStageRenderersV1: Readonly<Record<string, SemanticStageEntry
       <div
         data-cc-surface={String(entry.props.surface)}
         style={{
-          width: "1600px",
-          height: "900px",
+          width: "1280px",
+          height: "720px",
           background:
             entry.props.surface === "backyard"
               ? "linear-gradient(180deg, #56705a, #22301f)"
@@ -632,7 +632,7 @@ export const catcafeWebApplicationV1: WebGameApplicationV1<
   accessibleName: "雨巷猫舍",
   viewport: Object.freeze({
     canvas: catcafeViewportCanvasV1,
-    fallbackSize: Object.freeze({ width: 1600, height: 900 }),
+    fallbackSize: Object.freeze({ width: 1280, height: 720 }),
   }),
   core: catcafeCoreApplicationDefinitionV1,
   ui: ({ playerProfile }: { readonly playerProfile: PlayerProfileStoreV1 }) =>

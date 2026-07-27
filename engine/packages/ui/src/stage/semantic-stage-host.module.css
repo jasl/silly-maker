@@ -39,6 +39,10 @@
   border: none;
   background: transparent;
   cursor: pointer;
+
+  /* Stage layers default to pointer-events: none; hit regions are the
+     deliberate interaction surface, so they opt back in explicitly. */
+  pointer-events: auto;
 }
 
 .hit-region:focus-visible {

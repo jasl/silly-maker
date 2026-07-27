@@ -162,15 +162,20 @@ export function GameStageV1(props: GameStagePropsV1): ReactElement {
         >
           {props.layers.character}
         </div>
-        <div
-          className={styles["game-stage__layer"]}
-          data-stage-layer="scene_interaction"
-          data-stage-pointer-surface="true"
-          data-testid="stage-scene-interaction"
-          inert={gameplayInert}
-        >
-          {props.layers.sceneInteraction}
-        </div>
+        {/* An empty interaction layer must not eat stage pointer input
+            (its container is pointer-events: auto by design). */}
+        {props.layers.sceneInteraction === null ||
+        props.layers.sceneInteraction === undefined ? null : (
+          <div
+            className={styles["game-stage__layer"]}
+            data-stage-layer="scene_interaction"
+            data-stage-pointer-surface="true"
+            data-testid="stage-scene-interaction"
+            inert={gameplayInert}
+          >
+            {props.layers.sceneInteraction}
+          </div>
+        )}
         <div
           className={styles["game-stage__layer"]}
           data-stage-layer="hud"

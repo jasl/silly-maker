@@ -191,7 +191,7 @@ export const catcafeScriptV1: readonly CatcafeNarrativeNodeV1[] = [
               tag: catcafeTagsV1.xiaoyu,
               contentId: catcafeContentIdsV1.characterXiaoyu,
               zOrder: 10,
-              placement: { x: 1150, y: 860, scalePermille: 1000, mirrored: false },
+              placement: { x: 920, y: 600, scalePermille: 1000, mirrored: false },
               appearance: { stage: "kitten", expression: "calm" },
             },
           ]),

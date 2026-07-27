@@ -31,7 +31,7 @@ function InputRouterWitnessV1() {
 }
 
 describe("GameShell", () => {
-  it("provides the exact Input router and passes the seven resolved layers to the Stage", () => {
+  it("provides the exact Input router and passes the resolved layers to the Stage", () => {
     const inputRouter = createInputRouterV1();
 
     render(
@@ -47,7 +47,8 @@ describe("GameShell", () => {
     expect(screen.getByText("叙事")).toBeVisible();
     expect(screen.getByText("输入路由已连接")).toBeVisible();
     expect(witnessedRouterV1).toBe(inputRouter);
-    expect(screen.getAllByTestId(/^stage-/u)).toHaveLength(7);
+    // The null interaction layer stays unmounted so it cannot eat pointer input.
+    expect(screen.getAllByTestId(/^stage-/u)).toHaveLength(6);
   });
 
   it("renders optional ultrawide fill outside the capped Stage as noninteractive content", () => {
