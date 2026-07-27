@@ -52,6 +52,19 @@ describe("catcafe baseline", () => {
     expect(lintNarrativeGraph(projectCatcafeNarrativeGraphV1())).toEqual([]);
   });
 
+  it("keeps the en catalog in key parity with zh-CN (no missing translations)", () => {
+    const ids = (locale: string) =>
+      new Set(
+        catcafeTextCatalogsV1.catalogs
+          .find((candidate) => candidate.locale === locale)
+          ?.entries.map((entry) => entry.textId as string),
+      );
+    const zh = ids("zh-CN");
+    const en = ids("en");
+    expect([...zh].filter((id) => !en.has(id))).toEqual([]);
+    expect([...en].filter((id) => !zh.has(id))).toEqual([]);
+  });
+
   it("registers every content-table textId in the default catalog", () => {
     const catalog = catcafeTextCatalogsV1.catalogs.find(
       (candidate) => candidate.locale === catcafeTextCatalogsV1.defaultLocale,

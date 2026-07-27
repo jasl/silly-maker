@@ -36,9 +36,11 @@ import type {
   CatcafeSimulationTypesV1,
 } from "../simulation.ts";
 import {
+  catcafeLocalesV1,
   catcafeStageContentCatalogV1,
   catcafeStageTransitionCatalogV1,
   catcafeTextCatalogsV1,
+  catcafeTextForLocaleV1,
 } from "../presentation.ts";
 import {
   catcafeActivitiesV1,
@@ -49,6 +51,16 @@ import {
 } from "../content.ts";
 
 export const catcafeViewportCanvasV1 = Object.freeze({ width: 1280, height: 720 });
+
+/** Locale 感知的 UI 文本：订阅 Host 偏好，语言切换即时生效。 */
+function useCatcafeTextV1(playerProfile: PlayerProfileStoreV1): (textId: string) => string {
+  const profile = useSyncExternalStore(
+    (listener) => playerProfile.subscribe(listener),
+    () => playerProfile.current(),
+  );
+  const locale = profile.preferences.locale;
+  return (textId: string) => catcafeTextForLocaleV1(locale, textId);
+}
 
 export function catcafeUiTextV1(textId: string): string {
   const catalog = catcafeTextCatalogsV1.catalogs.find(
@@ -215,6 +227,7 @@ function useCatcafeAlbumWatcherV1(
 }
 
 function CatcafeAlbumViewV1(props: { readonly playerProfile: PlayerProfileStoreV1 }): ReactElement {
+  const uiText = useCatcafeTextV1(props.playerProfile);
   const profile = useSyncExternalStore(
     (listener) => props.playerProfile.subscribe(listener),
     () => props.playerProfile.current(),
@@ -230,10 +243,8 @@ function CatcafeAlbumViewV1(props: { readonly playerProfile: PlayerProfileStoreV
             data-cc-album-unlocked={String(unlocked)}
             style={{ listStyle: "none" }}
           >
-            <strong>{unlocked ? catcafeUiTextV1(entry.nameTextId) : "？？？"}</strong>
-            {unlocked ? (
-              <p style={{ margin: "4px 0 0" }}>{catcafeUiTextV1(entry.captionTextId)}</p>
-            ) : null}
+            <strong>{unlocked ? uiText(entry.nameTextId) : "？？？"}</strong>
+            {unlocked ? <p style={{ margin: "4px 0 0" }}>{uiText(entry.captionTextId)}</p> : null}
           </li>
         );
       })}
@@ -244,7 +255,9 @@ function CatcafeAlbumViewV1(props: { readonly playerProfile: PlayerProfileStoreV
 function CatcafeNarrativePanelV1(props: {
   readonly publication: DeepReadonly<CatcafeUiPublicationV1>;
   readonly semantic: CatcafeSemanticPortV1;
+  readonly playerProfile: PlayerProfileStoreV1;
 }): ReactElement | null {
+  const uiText = useCatcafeTextV1(props.playerProfile);
   const narrative = props.publication.semantic.narrative;
   const pending = narrative.pending;
   const panelStyle = {
@@ -266,10 +279,10 @@ function CatcafeNarrativePanelV1(props: {
       <div data-cc-narrative="say" data-cc-occurrence={pending.occurrenceId} style={panelStyle}>
         {pending.speakerTextId === null ? null : (
           <strong style={{ display: "block", color: "#ffd9a0" }}>
-            {catcafeUiTextV1(pending.speakerTextId)}
+            {uiText(pending.speakerTextId)}
           </strong>
         )}
-        <p style={{ margin: "8px 0 16px" }}>{catcafeUiTextV1(pending.textId)}</p>
+        <p style={{ margin: "8px 0 16px" }}>{uiText(pending.textId)}</p>
         <Button
           data-cc-advance="true"
           onClick={() =>
@@ -280,7 +293,7 @@ function CatcafeNarrativePanelV1(props: {
             } as never)
           }
         >
-          {catcafeUiTextV1("text.cc.narrative.advance")}
+          {uiText("text.cc.narrative.advance")}
         </Button>
       </div>
     );
@@ -288,7 +301,7 @@ function CatcafeNarrativePanelV1(props: {
   if (pending.kind === "choice") {
     return (
       <div data-cc-narrative="choice" data-cc-occurrence={pending.occurrenceId} style={panelStyle}>
-        <p style={{ margin: "0 0 16px" }}>{catcafeUiTextV1(pending.promptTextId)}</p>
+        <p style={{ margin: "0 0 16px" }}>{uiText(pending.promptTextId)}</p>
         <div role="group" style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
           {(narrative.choiceOptions ?? []).map((option) => (
             <Button
@@ -302,7 +315,7 @@ function CatcafeNarrativePanelV1(props: {
                 } as never)
               }
             >
-              {catcafeUiTextV1(option.textId)}
+              {uiText(option.textId)}
             </Button>
           ))}
         </div>
@@ -319,6 +332,7 @@ function CatcafeHudV1(props: {
   readonly openAlbum: () => void;
   readonly instance: CatcafeApplicationInstanceV1;
 }): ReactElement {
+  const uiText = useCatcafeTextV1(props.playerProfile);
   useCatcafeAlbumWatcherV1(props.publication, props.playerProfile);
   const [contestToast, setContestToast] = useState<"won" | "lost" | null>(null);
   useEffect(
@@ -344,22 +358,31 @@ function CatcafeHudV1(props: {
 
   return (
     <div data-cc-hud="true" style={{ display: "grid", gap: "8px" }}>
+      {game.ending === null ? null : (
+        <p data-cc-ending={game.ending} style={{ fontWeight: 700 }}>
+          {uiText(`text.cc.ending.${game.ending}`)}
+        </p>
+      )}
+      {contestToast === null ? null : (
+        <p data-cc-contest-toast={contestToast} style={{ fontWeight: 700 }}>
+          {uiText(contestToast === "won" ? "text.cc.contest.won" : "text.cc.contest.lost")}
+        </p>
+      )}
       <p
         data-cc-calendar={`${String(game.calendar.week)}.${String(game.calendar.day)}.${String(game.calendar.slot)}`}
       >
-        {catcafeUiTextV1("text.cc.hud.week")}
-        {String(game.calendar.week)}周 ·{" "}
-        {catcafeUiTextV1(`text.cc.day.${String(game.calendar.day)}`)} ·{" "}
-        {catcafeUiTextV1(`text.cc.slot.${slotName}`)} · {catcafeUiTextV1("text.cc.hud.stamina")}
+        {uiText("text.cc.hud.week")}
+        {String(game.calendar.week)}周 · {uiText(`text.cc.day.${String(game.calendar.day)}`)} ·{" "}
+        {uiText(`text.cc.slot.${slotName}`)} · {uiText("text.cc.hud.stamina")}
         {String(game.calendar.stamina)}
       </p>
       <p data-cc-stats="true">
-        {catcafeUiTextV1("text.cc.hud.trust")}
-        {String(game.cat.trust)} · {catcafeUiTextV1("text.cc.hud.vigor")}
-        {String(game.cat.vigor)} · {catcafeUiTextV1("text.cc.hud.skill")}
-        {String(game.cat.skill)} · {catcafeUiTextV1("text.cc.hud.money")}
-        {String(game.shop.money)} · {catcafeUiTextV1("text.cc.hud.reputation")}
-        {String(game.shop.reputation)} · {catcafeUiTextV1("text.cc.hud.tidiness")}
+        {uiText("text.cc.hud.trust")}
+        {String(game.cat.trust)} · {uiText("text.cc.hud.vigor")}
+        {String(game.cat.vigor)} · {uiText("text.cc.hud.skill")}
+        {String(game.cat.skill)} · {uiText("text.cc.hud.money")}
+        {String(game.shop.money)} · {uiText("text.cc.hud.reputation")}
+        {String(game.shop.reputation)} · {uiText("text.cc.hud.tidiness")}
         {String(game.shop.tidiness)}
       </p>
       <div role="group" aria-label="日程">
@@ -372,11 +395,11 @@ function CatcafeHudV1(props: {
               dispatchV1(props.semantic, { kind: "invoke", actionId: action.actionId })
             }
           >
-            {catcafeUiTextV1(actionTextIdsV1[action.actionId])}
+            {uiText(actionTextIdsV1[action.actionId])}
           </Button>
         ))}
         <Button data-cc-album-open="true" onClick={props.openAlbum}>
-          {catcafeUiTextV1("text.cc.album.open")}
+          {uiText("text.cc.album.open")}
         </Button>
       </div>
       {contest === null ? (
@@ -393,7 +416,7 @@ function CatcafeHudV1(props: {
                   dispatchV1(props.semantic, { kind: "activity", activityId: activity.id })
                 }
               >
-                {catcafeUiTextV1(activity.nameTextId)}
+                {uiText(activity.nameTextId)}
               </Button>
             );
           })}
@@ -401,8 +424,8 @@ function CatcafeHudV1(props: {
       ) : (
         <div role="group" aria-label="运动会" data-cc-contest={String(contest.round)}>
           <p data-cc-contest-morale={`${String(contest.morale)}:${String(contest.rivalMorale)}`}>
-            {catcafeUiTextV1("text.cc.contest.round")}
-            {String(contest.round)} · {catcafeUiTextV1("text.cc.contest.morale")}
+            {uiText("text.cc.contest.round")}
+            {String(contest.round)} · {uiText("text.cc.contest.morale")}
             {String(contest.morale)} vs {String(contest.rivalMorale)}
           </p>
           {catcafeMovesV1.rows().map((move) => (
@@ -411,7 +434,7 @@ function CatcafeHudV1(props: {
               data-cc-move={move.id}
               onClick={() => dispatchV1(props.semantic, { kind: "contest_move", moveId: move.id })}
             >
-              {catcafeUiTextV1(move.nameTextId)}
+              {uiText(move.nameTextId)}
             </Button>
           ))}
         </div>
@@ -436,8 +459,10 @@ function CatcafeStageV1(props: {
     >
   >[0];
   readonly instance: CatcafeApplicationInstanceV1;
+  readonly playerProfile: PlayerProfileStoreV1;
 }): ReactElement {
   const { context, instance } = props;
+  const uiText = useCatcafeTextV1(props.playerProfile);
   const [reactionTextId, setReactionTextId] = useState<string | null>(null);
   const game = context.publication.semantic.game;
   const pettingReady =
@@ -460,7 +485,7 @@ function CatcafeStageV1(props: {
     <section
       data-cc-stage="true"
       data-cc-petting-left={String(game.cat.pettingLeft)}
-      aria-label={catcafeUiTextV1("text.cc.stage.name")}
+      aria-label={uiText("text.cc.stage.name")}
     >
       <SemanticStageV1
         target={context.publication.view.stageTarget}
@@ -468,7 +493,7 @@ function CatcafeStageV1(props: {
         epoch={context.publication.view.anchorEpoch}
         catalog={catcafeStageTransitionCatalogV1}
         renderers={catcafeStageRenderersV1}
-        accessibleName={catcafeUiTextV1("text.cc.stage.name")}
+        accessibleName={uiText("text.cc.stage.name")}
         onHitRegionActivate={(activation) => {
           if (!pettingReady) return;
           dispatchV1(context.semantic, {
@@ -491,10 +516,87 @@ function CatcafeStageV1(props: {
             color: "#f2efe8",
           }}
         >
-          {catcafeUiTextV1(reactionTextId)}
+          {uiText(reactionTextId)}
         </p>
       )}
     </section>
+  );
+}
+
+/**
+ * 设置面板：语言（即时切换游戏内文本）、音量/静音（Host 偏好，跨存档）、
+ * 全屏切换（浏览器与 webview 同 API）。分辨率一行说明——舞台随窗口
+ * 等比缩放，桌面渠道的窗口尺寸设置属后续工作。
+ */
+function CatcafeSettingsV1(props: { readonly playerProfile: PlayerProfileStoreV1 }): ReactElement {
+  const uiText = useCatcafeTextV1(props.playerProfile);
+  const profile = useSyncExternalStore(
+    (listener) => props.playerProfile.subscribe(listener),
+    () => props.playerProfile.current(),
+  );
+  const preferences = profile.preferences;
+  return (
+    <div data-cc-settings="true" style={{ display: "grid", gap: "12px" }}>
+      <label style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+        {uiText("text.cc.settings.language")}
+        <select
+          data-cc-settings-locale="true"
+          value={preferences.locale ?? "zh-CN"}
+          onChange={(event) => {
+            void props.playerProfile.updatePreferences({ locale: event.target.value });
+          }}
+        >
+          {catcafeLocalesV1.map((locale) => (
+            <option key={locale} value={locale}>
+              {locale === "zh-CN" ? "中文" : "English"}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+        {uiText("text.cc.settings.volume")}
+        <input
+          type="range"
+          min={0}
+          max={1000}
+          step={50}
+          data-cc-settings-volume="true"
+          value={preferences.masterGainPermille}
+          onChange={(event) => {
+            void props.playerProfile.updatePreferences({
+              masterGainPermille: Number(event.target.value),
+            });
+          }}
+        />
+        <span>{String(Math.round(preferences.masterGainPermille / 10))}%</span>
+      </label>
+      <label style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+        <input
+          type="checkbox"
+          data-cc-settings-muted="true"
+          checked={preferences.muted}
+          onChange={(event) => {
+            void props.playerProfile.updatePreferences({ muted: event.target.checked });
+          }}
+        />
+        {uiText("text.cc.settings.muted")}
+      </label>
+      <Button
+        data-cc-settings-fullscreen="true"
+        onClick={() => {
+          if (document.fullscreenElement === null) {
+            void document.documentElement.requestFullscreen?.();
+          } else {
+            void document.exitFullscreen?.();
+          }
+        }}
+      >
+        {uiText("text.cc.settings.fullscreen")}
+      </Button>
+      <p style={{ margin: 0, opacity: 0.75, maxInlineSize: "36em" }}>
+        {uiText("text.cc.settings.resolution")}
+      </p>
+    </div>
   );
 }
 
@@ -507,7 +609,13 @@ export function createCatcafeUiSlotsV1(input: {
     CatcafeSemanticPortV1,
     CatcafeUiOverlayIdV1
   > = {
-    background: (context) => <CatcafeStageV1 context={context} instance={input.instance} />,
+    background: (context) => (
+      <CatcafeStageV1
+        context={context}
+        instance={input.instance}
+        playerProfile={input.playerProfile}
+      />
+    ),
     hud: (context) => (
       <CatcafeHudV1
         publication={context.publication}
@@ -522,14 +630,24 @@ export function createCatcafeUiSlotsV1(input: {
       />
     ),
     narrative: (context) => (
-      <CatcafeNarrativePanelV1 publication={context.publication} semantic={context.semantic} />
+      <CatcafeNarrativePanelV1
+        publication={context.publication}
+        semantic={context.semantic}
+        playerProfile={input.playerProfile}
+      />
     ),
+    settingsSections: () => [
+      <CatcafeSettingsV1 key="catcafe-settings" playerProfile={input.playerProfile} />,
+    ],
     overlayResolver: () =>
       Object.freeze({
         resolve: (overlayId: DeepReadonly<CatcafeUiOverlayIdV1>) =>
           overlayId === "overlay.catcafe.album"
             ? Object.freeze({
-                accessibleName: catcafeUiTextV1("text.cc.album.title"),
+                accessibleName: catcafeTextForLocaleV1(
+                  input.playerProfile.current().preferences.locale,
+                  "text.cc.album.title",
+                ),
                 content: <CatcafeAlbumViewV1 playerProfile={input.playerProfile} />,
               })
             : null,
@@ -556,6 +674,25 @@ export const catcafeRootLabelsV1: Partial<DefaultGameRootLabelsV1> = Object.free
   settingsEmptyText: "暂无可配置项。",
   closeLabel: "关闭",
 });
+
+const catcafeRootLabelsEnV1: Partial<DefaultGameRootLabelsV1> = Object.freeze({
+  systemMenuLabel: "System",
+  saveLabel: "Save",
+  settingsLabel: "Settings",
+  settingsTitle: "Settings",
+  settingsEmptyText: "No settings available yet.",
+  closeLabel: "Close",
+});
+
+/** 系统 chrome（保存/设置对话框）按启动时的语言偏好选择；重载后生效。 */
+export function catcafeChromeForLocaleV1(locale: string | null): {
+  readonly labels: Partial<DefaultGameRootLabelsV1>;
+  readonly saveLabels: SaveOverlayLabelsV1;
+} {
+  return locale === "en"
+    ? Object.freeze({ labels: catcafeRootLabelsEnV1, saveLabels: catcafeSaveOverlayLabelsEnV1 })
+    : Object.freeze({ labels: catcafeRootLabelsV1, saveLabels: catcafeSaveOverlayLabelsV1 });
+}
 
 export const catcafeSaveOverlayLabelsV1: SaveOverlayLabelsV1 = Object.freeze({
   accessibleName: "保存",
@@ -640,6 +777,90 @@ export const catcafeSaveOverlayLabelsV1: SaveOverlayLabelsV1 = Object.freeze({
   }),
 });
 
+const catcafeSaveOverlayLabelsEnV1: SaveOverlayLabelsV1 = Object.freeze({
+  accessibleName: "Save",
+  title: "Save",
+  storageLoading: "Reading local saves…",
+  storageReady: "Local saves available",
+  storageBusy: "Save operation in progress",
+  storageUnavailable: "Local storage unavailable",
+  slotsUnavailable: "Cannot read save slots",
+  safelySaved: (commandSequence: number) =>
+    `Safely saved through command ${String(commandSequence)}`,
+  lastFailure: (code: string) => `Last save failed: ${code}`,
+  slotNames: Object.freeze({
+    "auto.current": "Current autosave",
+    "auto.previous": "Previous autosave",
+    quick: "Quicksave",
+    manual: "Manual save",
+  }),
+  slotHealth: Object.freeze({
+    empty: "Empty",
+    valid: "Available",
+    invalid: "Corrupted",
+    recovery_candidate: "Recoverable",
+    unavailable: "Unavailable",
+  }),
+  quickSave: "Quicksave",
+  manualSave: "Manual save",
+  importSave: "Import save",
+  exportCurrentSave: "Export current progress",
+  loadSlot: (slotName: string) => `Load ${slotName}`,
+  clearSlot: (slotName: string) => `Clear ${slotName}`,
+  exportSlot: (slotName: string) => `Export ${slotName}`,
+  confirmation: Object.freeze({
+    loadTitle: (slotName: string) => `Load ${slotName}`,
+    loadDescription: (slotName: string) => `Current progress will be replaced by ${slotName}.`,
+    clearTitle: (slotName: string) => `Clear ${slotName}`,
+    clearDescription: (slotName: string) => `${slotName} will be cleared permanently.`,
+    importTitle: "Import save",
+    importDescription: "Current progress will be replaced by the selected save.",
+    confirmLabel: "Confirm",
+    cancelLabel: "Cancel",
+    pendingText: "Working…",
+    completedText: "Done",
+    failedText: "Operation failed",
+  }),
+  operation: Object.freeze({
+    saving: (slotName: string) => `Saving to ${slotName}…`,
+    loading: (slotName: string) => `Loading ${slotName}…`,
+    clearing: (slotName: string) => `Clearing ${slotName}…`,
+    importing: "Importing save…",
+    exporting: (slotName: string) => `Exporting ${slotName}…`,
+    exportingCurrent: "Exporting current progress…",
+    saved: (slotName: string) => `Saved to ${slotName}`,
+    cleared: (slotName: string) => `Cleared ${slotName}`,
+    loadedExact: "Save loaded",
+    loadedAdopted: "Save loaded with adaptation",
+    importedExact: "Save imported",
+    importedAdopted: "Save imported with adaptation",
+    importCancelled: "Import cancelled",
+    importFileRejected: Object.freeze({
+      too_large: "The selected save file is too large",
+      unsupported_type: "The selected file type is unsupported",
+    }),
+    exported: (slotName: string) => `Exported ${slotName}`,
+    exportedCurrent: "Exported current progress",
+    rejected: Object.freeze({
+      busy: "The session is busy",
+      unavailable: "Storage unavailable",
+      empty_slot: "The save slot is empty",
+      conflict: "The save conflicted",
+      invalid_record: "The save is invalid",
+      lineage_limit: "The save compatibility chain is too long",
+      incompatible: "The save is incompatible",
+    }),
+    exportRejected: Object.freeze({
+      unavailable: "Storage unavailable",
+      empty_slot: "The save slot is empty",
+      conflict: "The save conflicted",
+      invalid_record: "The save is invalid",
+    }),
+    faulted: (code: string) => `Save fault: ${code}`,
+    unexpectedFailure: "The save operation failed unexpectedly",
+  }),
+});
+
 export const catcafeWebApplicationV1: WebGameApplicationV1<
   unknown,
   unknown,
@@ -675,8 +896,10 @@ export const catcafeWebApplicationV1: WebGameApplicationV1<
       projector: catcafeUiProjectorV1,
       overlayIds: Object.freeze(["overlay.catcafe.album"] as const),
       slots: createCatcafeUiSlotsV1({ instance, playerProfile }),
-      labels: catcafeRootLabelsV1,
-      saveLabels: catcafeSaveOverlayLabelsV1,
+      ...(() => {
+        const chrome = catcafeChromeForLocaleV1(playerProfile.current().preferences.locale);
+        return { labels: chrome.labels, saveLabels: chrome.saveLabels };
+      })(),
       inputMaps: Object.freeze({ keyboard: catcafeKeyboardMapV1, pointer: catcafePointerMapV1 }),
     }),
 });

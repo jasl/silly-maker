@@ -88,6 +88,10 @@ export interface DefaultGameRootSlotsV1<TPublication, TSemantic, TOverlayId exte
   hud?(context: DefaultGameRootSlotContextV1<TPublication, TSemantic>): ReactNode;
   narrative?(context: DefaultGameRootSlotContextV1<TPublication, TSemantic>): ReactNode;
   systemMenuExtras?(context: DefaultGameRootSlotContextV1<TPublication, TSemantic>): ReactNode;
+  /** Story sections for the default Settings dialog (language, volume…). */
+  settingsSections?(
+    context: DefaultGameRootSlotContextV1<TPublication, TSemantic>,
+  ): readonly ReactNode[];
   overlayResolver?(
     context: DefaultGameRootSlotContextV1<TPublication, TSemantic>,
   ): OverlayRendererResolverV1<TOverlayId>;
@@ -344,7 +348,7 @@ export function DefaultGameRootV1<
         settings={Object.freeze({
           title: labels.settingsTitle,
           closeLabel: labels.closeLabel,
-          sections: Object.freeze([]),
+          sections: Object.freeze(slots.settingsSections?.(slotContext) ?? []),
           emptyText: labels.settingsEmptyText,
         })}
       >

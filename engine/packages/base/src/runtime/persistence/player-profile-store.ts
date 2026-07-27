@@ -24,6 +24,8 @@ export interface PlayerPlaybackPreferencesV1 {
   readonly skipPolicy: "skip_read" | "skip_all";
   readonly masterGainPermille: number;
   readonly muted: boolean;
+  /** Preferred text locale; null follows the Story's default catalog. */
+  readonly locale: string | null;
 }
 
 export interface PlayerProfileV1 {
@@ -49,6 +51,7 @@ export const defaultPlayerProfileV1: PlayerProfileV1 = Object.freeze({
     skipPolicy: "skip_read" as const,
     masterGainPermille: 1000,
     muted: false,
+    locale: null,
   }),
 });
 
@@ -122,6 +125,7 @@ function parsePlayerProfileV1(value: unknown): PlayerProfileV1 | null {
   const skipPolicy = preferences.skipPolicy;
   const masterGain = preferences.masterGainPermille;
   const muted = preferences.muted;
+  const locale = preferences.locale;
   if (
     (charsPerSecond !== undefined &&
       (!Number.isSafeInteger(charsPerSecond) || (charsPerSecond as number) < 0)) ||
@@ -132,7 +136,8 @@ function parsePlayerProfileV1(value: unknown): PlayerProfileV1 | null {
       (!Number.isSafeInteger(masterGain) ||
         (masterGain as number) < 0 ||
         (masterGain as number) > 1000)) ||
-    (muted !== undefined && typeof muted !== "boolean")
+    (muted !== undefined && typeof muted !== "boolean") ||
+    (locale !== undefined && locale !== null && (typeof locale !== "string" || locale === ""))
   ) {
     return null;
   }
@@ -146,6 +151,7 @@ function parsePlayerProfileV1(value: unknown): PlayerProfileV1 | null {
       skipPolicy: skipPolicy ?? defaults.skipPolicy,
       masterGainPermille: masterGain ?? defaults.masterGainPermille,
       muted: muted ?? defaults.muted,
+      locale: locale ?? defaults.locale,
     }),
   });
 }
