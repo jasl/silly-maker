@@ -3,6 +3,7 @@
   "references": [
     { "path": "./stories/e2e" },
     { "path": "./stories/template" },
-    { "path": "./stories/examples/bookshop" }
+    { "path": "./stories/examples/bookshop" },
+    { "path": "./stories/examples/cat-cafe" }
   ]
 }
