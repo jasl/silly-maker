@@ -4,7 +4,7 @@ import { Button } from "@sillymaker/ui";
 import { useState } from "react";
 import type { ReactElement } from "react";
 
-import type { PocSemanticGamePortV1 } from "../../application/create-poc-semantic-port.js";
+import type { PocSemanticGamePortV1 } from "../../application/semantic-adapter.js";
 import { pocRejectionReasonTextIdsByCodeV1, pocTextIdsV1 } from "../../content/ids.js";
 import type { PocRejectionReasonV1 } from "../../gameplay/index.js";
 import type {

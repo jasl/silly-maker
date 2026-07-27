@@ -38,16 +38,27 @@ import type {
   ReplayComparisonV1,
 } from "@sillymaker/base/runtime";
 import { createMemoryHostRecordStoreV1, resolveStoryForTestV1 } from "@sillymaker/base/testkit";
+import { createGameApplicationV1 } from "@sillymaker/base/runtime";
+import type {
+  ExportedDebugBundleV1,
+  ExportedSaveV1,
+  GameApplicationPortV1,
+  PersistenceOperationResultV1,
+  PersistenceStatusV1,
+  PlayerDiagnosticsPortV1,
+  PlayerPersistencePortV1,
+  RuntimeCapabilityPortV1,
+  SaveExportOperationResultV1,
+  SaveSlotSummaryV1,
+  SessionLeaseOperationResultV1,
+  SessionLeaseStatusV1,
+  SessionLifecyclePortV1,
+} from "@sillymaker/base";
 
-import {
-  createPocGameApplicationV1,
-  type PocGameApplicationPortV1,
-  type PocPersistencePortV1,
-} from "../application/create-poc-game-application.js";
 import {
   createPocSemanticGamePortV1,
   type PocSemanticGamePortV1,
-} from "../application/create-poc-semantic-port.js";
+} from "../application/semantic-adapter.js";
 import { pocStoryIdentityV1 } from "../content/identity.js";
 import {
   createPocGameDebugCommandExecutorV1,
@@ -75,6 +86,7 @@ import {
   type PocDebugCommandResultV1,
   type PocDebugFailureV1,
   type PocDebugReplayResultV1,
+  type PocDebugToolsPortV1,
   type PocDiagnosticQueryResultV1,
   type PocDiagnosticQueryV1,
   type PocReplayDriverV1,
@@ -106,8 +118,30 @@ const pocRuntimeTestAppBuildIdV1 = digestCanonical("sillymaker:application:v1", 
   "poc-runtime-test",
 ]);
 
+export type PocPersistencePortV1 = PlayerPersistencePortV1<
+  SaveSlotSummaryV1,
+  PersistenceStatusV1,
+  PersistenceOperationResultV1,
+  ExportedSaveV1,
+  SaveExportOperationResultV1,
+  SessionLeaseStatusV1,
+  SessionLeaseOperationResultV1
+>;
+
+type PocApplicationAggregateV1 = GameApplicationPortV1<
+  PocSemanticGamePortV1,
+  SessionLifecyclePortV1<SessionAnchorResultV1>,
+  PocPersistencePortV1,
+  PlayerDiagnosticsPortV1<ExportedDebugBundleV1>,
+  RuntimeCapabilityPortV1,
+  PocDebugToolsPortV1
+>;
+
+export type PocGameApplicationPortV1 = PocApplicationAggregateV1;
+
 export interface PocRuntimeTestFixtureV1 {
   readonly application: PocGameApplicationPortV1;
+
   toolingLoads(): number;
   loadedSpecifier(): typeof pocToolingSpecifierV1 | undefined;
   snapshotForTest(): DeepReadonly<PocGameSnapshotV1>;
@@ -736,7 +770,7 @@ export function createPocRuntimeTestFixtureV1(input: {
     },
   });
 
-  const application = createPocGameApplicationV1({
+  const application = createGameApplicationV1({
     semantic,
     lifecycle: Object.freeze({
       createNewSession: lifecycleOperation,

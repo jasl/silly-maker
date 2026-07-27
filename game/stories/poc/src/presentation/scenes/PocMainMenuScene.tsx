@@ -9,7 +9,7 @@ import {
 } from "@sillymaker/ui";
 import type { ReactElement } from "react";
 
-import type { PocSemanticGamePortV1 } from "../../application/create-poc-semantic-port.js";
+import type { PocSemanticGamePortV1 } from "../../application/semantic-adapter.js";
 import styles from "./PocScenes.module.css";
 
 type PocAssetUsageV1 = ResolvedAssetManifestV1["assets"][number]["usage"];

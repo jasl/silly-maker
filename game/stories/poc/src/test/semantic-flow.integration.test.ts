@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 import { describe, expect, expectTypeOf, it } from "vitest";
 
-import type { PocSemanticGamePortV1 } from "../application/create-poc-semantic-port.js";
+import type { PocSemanticGamePortV1 } from "../application/semantic-adapter.js";
 import { ingredientIdsV1, policyIdsV1, recipeIdsV1 } from "../content/ids.js";
 import { parseQuantity } from "../gameplay/index.js";
 import {

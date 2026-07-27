@@ -186,7 +186,16 @@ async function loadSlotV1(page: Page, dialog: Locator, slotName: string): Promis
 }
 
 async function exportDebugBundleV1(page: Page): Promise<PocDebugBundleWitnessV1> {
-  const exportButton = page.getByRole("button", { name: "导出调试包" });
+  // Diagnostics export lives in the DevDock behind debug_tools: the
+  // resident player DOM carries no debug vocabulary.
+  const dock = page.getByRole("complementary", { name: "右侧开发工具" });
+  if ((await dock.count()) === 0) {
+    await page.getByRole("button", { name: "打开右侧开发工具" }).click();
+    await expect(dock).toBeVisible();
+  }
+  const panelTab = dock.getByRole("button", { name: "诊断导出" });
+  if ((await panelTab.count()) > 0) await panelTab.click();
+  const exportButton = dock.getByRole("button", { name: "导出调试包" });
   await expect(exportButton).toBeEnabled();
   await exportButton.click();
   const review = page.getByRole("region", { name: "检查调试包内容" });
@@ -200,6 +209,9 @@ async function exportDebugBundleV1(page: Page): Promise<PocDebugBundleWitnessV1>
   const chunks: Buffer[] = [];
   for await (const chunk of stream) chunks.push(Buffer.from(chunk));
   await expect(page.getByText("调试包已保存")).toBeVisible();
+  // Close the dock so the player surface is unobstructed again.
+  await page.getByRole("button", { name: "关闭右侧开发工具" }).click();
+  await expect(page.getByRole("complementary", { name: "右侧开发工具" })).toHaveCount(0);
   return JSON.parse(Buffer.concat(chunks).toString("utf8")) as PocDebugBundleWitnessV1;
 }
 

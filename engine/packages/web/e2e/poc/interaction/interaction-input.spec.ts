@@ -6,7 +6,7 @@ import { uiTargetsV1, uiTargetUrlV1 } from "../ui-targets.js";
 const pocWebUrlV1 = uiTargetUrlV1(uiTargetsV1.poc);
 
 function semanticPublicationV1(page: Page): Locator {
-  return page.locator("[data-semantic-publication]");
+  return page.locator("[data-semantic-revision]");
 }
 
 async function visibleSemanticRevisionV1(page: Page): Promise<number> {

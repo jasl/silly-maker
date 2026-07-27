@@ -11,7 +11,7 @@ import {
 } from "@sillymaker/ui";
 import type { ReactElement } from "react";
 
-import type { PocSemanticGamePortV1 } from "../../application/create-poc-semantic-port.js";
+import type { PocSemanticGamePortV1 } from "../../application/semantic-adapter.js";
 import { pocTextIdsV1 } from "../../content/ids.js";
 import type { PocHudProjectionV1 } from "../../gameplay/contracts/types.js";
 import { pocGameSymbolIdsByRoleV1 } from "../symbols/poc-game-symbols.js";

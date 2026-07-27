@@ -115,11 +115,14 @@ export interface CoreGameApplicationDefinitionV1<
     TPreview,
     TResult
   >;
-  validateReferences?(state: DeepReadonly<TTypes["state"]>): readonly string[];
-  validateInvariants?(view: {
-    readonly state: DeepReadonly<TTypes["state"]>;
-    readonly commandSequence: NonNegativeSafeInteger;
-  }): readonly string[];
+  validateReferences?(state: DeepReadonly<TTypes["state"]>, resolved: unknown): readonly string[];
+  validateInvariants?(
+    view: {
+      readonly state: DeepReadonly<TTypes["state"]>;
+      readonly commandSequence: NonNegativeSafeInteger;
+    },
+    resolved: unknown,
+  ): readonly string[];
   readonly exportFilename?: string;
   normalizeUnexpectedDispatchFault?(
     error: unknown,
@@ -151,6 +154,8 @@ export interface CoreGameApplicationDefinitionV1<
 export interface CoreApplicationExtensionContextV1<TTypes extends GameSimulationTypeMapV1> {
   readonly provenance: Record<string, unknown>;
   readonly appBuildId: Digest | null;
+  /** The resolved game (reference sets, tooling, catalogs) for validators. */
+  readonly resolved: unknown;
   readonly session: {
     getCurrentSnapshot(): DeepReadonly<TTypes["snapshot"]>;
     getStatus(): RuntimeSessionStatusV1;
@@ -162,7 +167,15 @@ export interface CoreApplicationExtensionContextV1<TTypes extends GameSimulation
   readonly invalidationController: GameSessionCompositionV1<TTypes>["invalidationController"];
   readonly persistence: PersistenceServiceV1<TTypes["snapshot"]>;
   runtimeFailures(): readonly RuntimeOperationFaultV1[];
-  getCapabilities(): { readonly debugTools: boolean; readonly cheats: boolean };
+  /** The live capability view source (getCurrent + subscribe). */
+  readonly capabilityState: {
+    getCurrent(): {
+      readonly debugTools: boolean;
+      readonly cheats: boolean;
+      readonly automationBridge: boolean;
+    };
+    subscribe(listener: () => void): () => void;
+  };
   readonly metadataClock: { now(): IsoUtcInstant };
   reportFailure(error: unknown): void;
   createInitialSnapshot(): TTypes["snapshot"];
@@ -441,8 +454,15 @@ export type CoreEpochBoundOutcomeV1<TValue> =
 export interface CreateCoreGameApplicationInstanceOptionsV1 {
   readonly host: CoreApplicationHostServicesV1;
   readonly capabilities?: { readonly debugTools?: boolean };
-  /** Live capability reader for extensions; falls back to the static flags. */
-  readonly getCapabilities?: () => { readonly debugTools: boolean; readonly cheats: boolean };
+  /** Live capability view source for extensions; falls back to static flags. */
+  readonly capabilityState?: {
+    getCurrent(): {
+      readonly debugTools: boolean;
+      readonly cheats: boolean;
+      readonly automationBridge: boolean;
+    };
+    subscribe(listener: () => void): () => void;
+  };
   readonly autosave?: CoreAutosavePolicyV1;
   readonly scheduler?: CoreSchedulerV1;
   /** Application build identity digest for diagnostics provenance. */
@@ -763,13 +783,15 @@ export async function createCoreGameApplicationInstanceV1<
       adoptionDeclaration: null,
       ownerId: options.host.ownerId,
       nextHandoffRequestId: () => options.host.nextHandoffRequestId() as never,
-      validateReferences: (state) => definition.validateReferences?.(state as never) ?? [],
+      validateReferences: (state) =>
+        definition.validateReferences?.(state as never, application.resolved) ?? [],
       validateInvariants: (view) =>
         definition.validateInvariants?.(
           view as {
             readonly state: DeepReadonly<TTypes["state"]>;
             readonly commandSequence: NonNegativeSafeInteger;
           },
+          application.resolved,
         ) ?? [],
       initialSimulationLineage: [],
       metadataClock: Object.freeze({ now: () => options.host.now() }),
@@ -927,18 +949,21 @@ export async function createCoreGameApplicationInstanceV1<
     // Story extensions: composer-constructed, composer-disposed. The UI
     // context reader binds late (after the UI composition mounts).
     let uiContextReader: (() => unknown) | undefined;
-    const getCapabilitiesV1 =
-      options.getCapabilities ??
-      (() =>
+    const capabilityStateV1 = options.capabilityState ?? {
+      getCurrent: () =>
         Object.freeze({
           debugTools: options.capabilities?.debugTools === true,
           cheats: false,
-        }));
+          automationBridge: false,
+        }),
+      subscribe: () => () => {},
+    };
     const extensionOwner =
       definition.createExtensions?.(
         Object.freeze({
           provenance: application.provenance as Record<string, unknown>,
           appBuildId: options.appBuildId ?? null,
+          resolved: application.resolved,
           session: Object.freeze({
             getCurrentSnapshot: () => created.session.getCurrentSnapshot(),
             getStatus: () => created.session.getStatus(),
@@ -950,7 +975,7 @@ export async function createCoreGameApplicationInstanceV1<
           invalidationController: created.invalidationController,
           persistence,
           runtimeFailures: () => runtimeFailures.entries(),
-          getCapabilities: getCapabilitiesV1,
+          capabilityState: capabilityStateV1,
           metadataClock: Object.freeze({ now: () => options.host.now() }),
           reportFailure: reportObserverFailure,
           createInitialSnapshot: createInitialSnapshotV1,

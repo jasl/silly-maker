@@ -39,7 +39,7 @@ import { pocStoryEntryV1 } from "../story-definition.js";
 import {
   createPocSemanticGamePortV1,
   type PocSemanticGamePortV1,
-} from "../application/create-poc-semantic-port.js";
+} from "../application/semantic-adapter.js";
 
 export type PocHarnessAttemptV1 = ReturnType<
   GameSessionCompositionV1<PocGameSimulationTypesV1>["commandLog"]["entries"]

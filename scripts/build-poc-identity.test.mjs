@@ -333,7 +333,7 @@ void test("partitions PoC source mutations into only their owning identity facet
       expected: ["storyPresentation", "application"],
     },
     {
-      path: "game/stories/poc/src/application/poc-application-root.tsx",
+      path: "game/stories/poc/src/application/ui-slots.tsx",
       expected: ["application"],
     },
     {

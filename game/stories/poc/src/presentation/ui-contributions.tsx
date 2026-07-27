@@ -32,7 +32,7 @@ import {
 } from "@sillymaker/ui";
 import type { ReactElement } from "react";
 
-import type { PocSemanticGamePortV1 } from "../application/create-poc-semantic-port.js";
+import type { PocSemanticGamePortV1 } from "../application/semantic-adapter.js";
 import { characterIdsV1 } from "../content/simulation-ids.js";
 import { pocTextIdsV1 } from "../content/text-ids.js";
 import type {

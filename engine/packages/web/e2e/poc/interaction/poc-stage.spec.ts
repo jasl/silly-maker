@@ -16,7 +16,7 @@ function purchaseLauncherV1(page: Page): Locator {
 }
 
 function semanticPublicationV1(page: Page): Locator {
-  return page.locator("[data-semantic-publication]");
+  return page.locator("[data-semantic-revision]");
 }
 
 async function visibleSemanticRevisionV1(page: Page): Promise<number> {

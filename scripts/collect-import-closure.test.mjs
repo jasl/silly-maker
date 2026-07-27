@@ -71,7 +71,7 @@ test("collects the PoC production application closure", async () => {
 });
 
 test("resolves the PoC runtime's literal tooling import into the managed closure", async () => {
-  const entry = "game/stories/poc/src/application/create-poc-game-runtime.ts";
+  const entry = "game/stories/poc/src/application/extensions.ts";
   const closure = await collectImportClosure(root, [entry]);
   assert.deepEqual(closure.errors, []);
   assert(closure.paths.includes("game/stories/poc/src/tooling/index.ts"));

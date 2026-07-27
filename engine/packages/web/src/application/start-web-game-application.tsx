@@ -97,6 +97,10 @@ export interface WebGameUiDefinitionV1<
   };
   /** Install the pointer adapter on the application root element. */
   readonly pointer?: boolean;
+  /** Spatial interaction surface IDs the intent router accepts. */
+  readonly interactionSurfaceIds?: readonly string[];
+  /** Optional live stage label (current scene name) for the shell main region. */
+  resolveStageAccessibleName?(publication: unknown): string;
   /**
    * Optional DebugBundle UI-context reader factory. The composer binds the
    * returned reader to the instance after the UI composition exists,
@@ -110,6 +114,8 @@ export interface WebGameUiDefinitionV1<
     };
     readonly systemDialogSession: { getSnapshot(): { readonly settingsOpen: boolean } };
   }) => () => unknown;
+  /** Releases Story-owned UI resources (asset registries, caches). */
+  dispose?(): void;
 }
 
 export interface WebGameApplicationV1<
@@ -346,10 +352,7 @@ export async function startWebGameApplicationV1<
         `handoff.${application.applicationId}.${host.bootstrapEntropy.nextUuidV4()}`,
     }),
     capabilities: { debugTools: capabilities.state.getCurrent().debugTools },
-    getCapabilities: () => {
-      const current = capabilities.state.getCurrent();
-      return Object.freeze({ debugTools: current.debugTools, cheats: current.cheats });
-    },
+    capabilityState: capabilities.state,
     autosave: options.autosave ?? application.autosave ?? defaultWebAutosavePolicyV1,
     ...(applicationBuildId === null ? {} : { appBuildId: applicationBuildId }),
     ...(options.rebootstrapDisposition === undefined
@@ -361,6 +364,7 @@ export async function startWebGameApplicationV1<
   let mounted: MountedGameApplicationV1 | undefined;
   let pointer: { dispose(): void } | undefined;
   let unbindUiContext: (() => void) | undefined;
+  let uiDisposer: (() => void) | undefined;
   let composition:
     | ReturnType<
         typeof createGameUiCompositionV1<
@@ -389,6 +393,11 @@ export async function startWebGameApplicationV1<
         pointer?.dispose();
         composition?.dispose();
         automation?.dispose();
+        try {
+          uiDisposer?.();
+        } catch {
+          // Story UI disposal failures never block the persistence release.
+        }
         capabilities.dispose();
       }
       return await instance.disposeForRebootstrap();
@@ -417,6 +426,7 @@ export async function startWebGameApplicationV1<
       reportFailure,
     });
 
+    uiDisposer = uiDefinition.dispose?.bind(uiDefinition);
     composition = createGameUiCompositionV1({
       semantic: instance.semantic,
       projector: uiDefinition.projector,
@@ -428,6 +438,9 @@ export async function startWebGameApplicationV1<
         ? {}
         : { contentPreference: uiDefinition.contentPreference }),
       ...(uiDefinition.overlayIds === undefined ? {} : { overlayIds: uiDefinition.overlayIds }),
+      ...(uiDefinition.interactionSurfaceIds === undefined
+        ? {}
+        : { interactionSurfaceIds: uiDefinition.interactionSurfaceIds }),
       reportFailure: (failure) => reportFailure(failure.code, new Error(failure.summary)),
     });
 
@@ -461,6 +474,13 @@ export async function startWebGameApplicationV1<
         applicationId={application.applicationId}
         viewport={application.viewport}
         capabilities={capabilities}
+        {...(uiDefinition.resolveStageAccessibleName === undefined
+          ? {}
+          : {
+              resolveStageAccessibleName: uiDefinition.resolveStageAccessibleName as (
+                publication: never,
+              ) => string,
+            })}
         {...(saveUi === undefined ? {} : { saveUi })}
         {...(uiDefinition.labels === undefined ? {} : { labels: uiDefinition.labels })}
         {...(uiDefinition.slots === undefined ? {} : { slots: uiDefinition.slots })}

@@ -7,7 +7,7 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { PocSemanticGamePortV1 } from "../../application/create-poc-semantic-port.js";
+import type { PocSemanticGamePortV1 } from "../../application/semantic-adapter.js";
 import {
   choiceIdsV1,
   endingIdsV1,

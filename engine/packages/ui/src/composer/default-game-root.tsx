@@ -23,6 +23,7 @@ import type { GameShellViewportOptionsV1 } from "../shell/game-shell.js";
 import { SettingsLauncherV1 } from "../system/settings-launcher.js";
 import { SystemDialogHostV1 } from "../system/system-dialog-host.js";
 import { Button } from "../primitives/Button.js";
+import type { InteractionSessionStoreV1 } from "../interaction/interaction-session-store.js";
 import type { GameUiCompositionV1, GameUiOverlayIdV1 } from "./create-game-ui-composition.js";
 import styles from "./default-game-root.module.css";
 
@@ -58,6 +59,13 @@ export interface DefaultGameRootSlotContextV1<TPublication, TSemantic> {
     getSnapshot(): { readonly primaryId: string | null; readonly detailIds: readonly string[] };
     subscribe(listener: () => void): () => void;
   };
+  /** The live presentation store (snapshot + subscribe) for Story controllers. */
+  readonly presentation: {
+    getSnapshot(): DeepReadonly<TPublication>;
+    subscribe(listener: () => void): () => void;
+  };
+  /** The composition-owned spatial interaction session. */
+  readonly interactionSession: InteractionSessionStoreV1;
 }
 
 /**
@@ -94,6 +102,12 @@ export interface DefaultGameRootPropsV1<
   >;
   readonly semantic: TSemantic;
   readonly accessibleName: string;
+  /** Optional live stage label (current scene name) for the shell main region. */
+  resolveStageAccessibleName?(
+    publication: DeepReadonly<
+      RuntimePresentationPublicationV1<TSemanticPublication, TView, TAssetId>
+    >,
+  ): string;
   readonly applicationId: string;
   readonly viewport: GameShellViewportOptionsV1;
   readonly capabilities?: RuntimeCapabilityPortV1;
@@ -239,15 +253,20 @@ export function DefaultGameRootV1<
   ) as DeepReadonly<PublicationV1>;
   const anchor = useReadonlyViewV1(props.composition.anchor);
 
+  // Composition-backed members stay referentially stable across renders so
+  // Story lifecycle effects can depend on them without re-subscribing.
+  const updateStoryUiState = props.composition.updateUiState as (
+    updater: (current: unknown) => unknown,
+  ) => void;
   const slotContext: DefaultGameRootSlotContextV1<PublicationV1, TSemantic> = Object.freeze({
     publication,
     semantic: props.semantic,
     intents: props.composition.intents,
     input: props.composition.input,
-    updateStoryUiState: props.composition.updateUiState as (
-      updater: (current: unknown) => unknown,
-    ) => void,
+    updateStoryUiState,
     overlays: props.composition.overlaySession as never,
+    presentation: props.composition.presentation as never,
+    interactionSession: props.composition.interactionSession,
   });
 
   // Optional keyboard/gamepad adapters: installed for the root's lifetime,
@@ -336,6 +355,13 @@ export function DefaultGameRootV1<
     ),
   });
 
+  const semanticWitness = (
+    publication as {
+      readonly semantic?: { readonly revision?: number; readonly status?: string };
+    }
+  ).semantic;
+  const semanticRevision = semanticWitness?.revision;
+  const semanticStatus = semanticWitness?.status;
   return (
     <div
       role="application"
@@ -344,10 +370,12 @@ export function DefaultGameRootV1<
       data-presentation-epoch={anchor.epoch}
       data-presentation-origin={anchor.origin}
       data-presentation-revision={publication.revision}
+      {...(semanticRevision === undefined ? {} : { "data-semantic-revision": semanticRevision })}
+      {...(semanticStatus === undefined ? {} : { "data-semantic-status": semanticStatus })}
       className={styles["default-root"]}
     >
       <GameShell
-        accessibleName={props.accessibleName}
+        accessibleName={props.resolveStageAccessibleName?.(publication) ?? props.accessibleName}
         layers={layers}
         inputRouter={props.composition.input}
         viewport={props.viewport}

@@ -16,7 +16,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import type { ComponentType } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { PocSemanticGamePortV1 } from "../../application/create-poc-semantic-port.js";
+import type { PocSemanticGamePortV1 } from "../../application/semantic-adapter.js";
 import { createPocStoryHarnessV1, fixedPocBootstrapV1 } from "../../testing/poc-story-harness.js";
 import { pocAssetSlotsV1 } from "../assets.js";
 import { pocSceneGraphV1 } from "../scene-graph.js";

@@ -161,7 +161,16 @@ function requireFirstPlayerInvocationV1(publication: SemanticPublicationV1): unk
 }
 
 async function exportDiagnosticBundleV1(page: Page): Promise<Record<string, unknown>> {
-  await page.getByRole("button", { name: "导出调试包" }).click();
+  // Diagnostics export lives in the DevDock behind debug_tools; the
+  // resident player DOM carries no debug vocabulary.
+  const dock = page.getByRole("complementary", { name: "右侧开发工具" });
+  if ((await dock.count()) === 0) {
+    await page.getByRole("button", { name: "打开右侧开发工具" }).click();
+    await expect(dock).toBeVisible();
+  }
+  const panelTab = dock.getByRole("button", { name: "诊断导出" });
+  if ((await panelTab.count()) > 0) await panelTab.click();
+  await dock.getByRole("button", { name: "导出调试包" }).click();
   const review = page.getByRole("region", { name: "检查调试包内容" });
   await expect(review).toBeVisible();
   const downloadPromise = page.waitForEvent("download");

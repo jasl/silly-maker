@@ -10,6 +10,11 @@ import { parseContentMaturityFlagsV1 } from "@sillymaker/base";
 
 import type { InputRouterV1 } from "../input/contracts.js";
 import { createInputRouterV1 } from "../input/input-router.js";
+import type { InteractionSessionStoreV1 } from "../interaction/interaction-session-store.js";
+import {
+  createInteractionSessionStoreV1,
+  initialInteractionSessionStateV1,
+} from "../interaction/interaction-session-store.js";
 import type { PresentationIntentRouterV1 } from "../interaction/presentation-intent-router.js";
 import { createPresentationIntentRouterV1 } from "../interaction/presentation-intent-router.js";
 import type { OverlaySessionStoreV1 } from "../overlays/overlay-session-store.js";
@@ -92,6 +97,8 @@ export interface CreateGameUiCompositionInputV1<
   readonly contentPreference?: ContentPreferencePortV1;
   /** Story overlay IDs the intent router accepts (system overlays are added). */
   readonly overlayIds?: readonly TOverlayId[];
+  /** Spatial interaction surface IDs the intent router accepts. */
+  readonly interactionSurfaceIds?: readonly string[];
   reportFailure?(failure: DeepReadonly<PresentationRuntimeFailureV1>): void;
 }
 
@@ -113,6 +120,8 @@ export interface GameUiCompositionV1<
   readonly intents: PresentationIntentRouterV1;
   readonly overlaySession: OverlaySessionStoreV1<GameUiOverlayIdV1<TOverlayId>>;
   readonly systemDialogSession: SystemDialogSessionStoreV1;
+  /** The composition-owned spatial interaction session (UI transient). */
+  readonly interactionSession: InteractionSessionStoreV1;
   updateUiState(
     updater: (current: DeepReadonly<TStoryUiState>) => DeepReadonly<TStoryUiState>,
   ): void;
@@ -207,17 +216,26 @@ export function createGameUiCompositionV1<
   const overlaySession = createOverlaySessionStoreV1<OverlayIdV1>();
   const systemDialogSession = createSystemDialogSessionStoreV1();
   const inputRouter = createInputRouterV1();
+
+  // Composition-owned spatial interaction session: UI transient state that
+  // never enters the Story UI state, publications, or Saves.
+  const interactionState = createViewSourceV1(initialInteractionSessionStateV1);
+  const interactionSession = createInteractionSessionStoreV1({
+    getSnapshot: () => interactionState.getCurrent(),
+    subscribe: interactionState.subscribe,
+    update(reducer) {
+      interactionState.publish(reducer(interactionState.getCurrent()));
+    },
+  });
+
   const intents = createPresentationIntentRouterV1({
     knownOverlayIds: [...(input.overlayIds ?? []), "system.save"],
-    knownSurfaceIds: [],
+    knownSurfaceIds: [...(input.interactionSurfaceIds ?? [])] as never,
     knownCueIds: [],
     overlay: Object.freeze({
       open: (overlayId: string) => overlaySession.openPrimary(overlayId as OverlayIdV1),
     }),
-    session: Object.freeze({
-      open: () => undefined,
-      leave: () => undefined,
-    }),
+    session: interactionSession,
     cue: Object.freeze({ play: () => undefined }),
   });
 
@@ -234,15 +252,21 @@ export function createGameUiCompositionV1<
     intents,
     overlaySession,
     systemDialogSession,
+    interactionSession,
     updateUiState: (
       updater: (current: DeepReadonly<TStoryUiState>) => DeepReadonly<TStoryUiState>,
     ) => {
       if (disposed) return;
       const current = uiState.getCurrent();
+      const nextStory = updater(current.story as DeepReadonly<TStoryUiState>);
+      // Identity-stable story state never republishes: mirroring effects
+      // (route/overlay observers) can run safely on every render without
+      // feeding a projection loop.
+      if (Object.is(nextStory, current.story)) return;
       uiState.publish(
         Object.freeze({
           anchor: current.anchor,
-          story: updater(current.story as DeepReadonly<TStoryUiState>),
+          story: nextStory,
         }) as DeepReadonly<GameUiStateV1<TStoryUiState>>,
       );
     },

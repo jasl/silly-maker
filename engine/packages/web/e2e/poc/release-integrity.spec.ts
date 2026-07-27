@@ -47,7 +47,15 @@ async function expectApplicationV1(page: Page): Promise<void> {
 }
 
 async function exportDebugBundleV1(page: Page): Promise<DebugBundleWitnessV1> {
-  const exportButton = page.getByRole("button", { name: "导出调试包" });
+  // Diagnostics export lives in the DevDock behind debug_tools.
+  const dock = page.getByRole("complementary", { name: "右侧开发工具" });
+  if ((await dock.count()) === 0) {
+    await page.getByRole("button", { name: "打开右侧开发工具" }).click();
+    await expect(dock).toBeVisible();
+  }
+  const panelTab = dock.getByRole("button", { name: "诊断导出" });
+  if ((await panelTab.count()) > 0) await panelTab.click();
+  const exportButton = dock.getByRole("button", { name: "导出调试包" });
   await expect(exportButton).toBeEnabled();
   await exportButton.click();
   const review = page.getByRole("region", { name: "检查调试包内容" });
@@ -61,6 +69,10 @@ async function exportDebugBundleV1(page: Page): Promise<DebugBundleWitnessV1> {
   const chunks: Buffer[] = [];
   for await (const chunk of stream) chunks.push(Buffer.from(chunk));
   await expect(page.getByText("调试包已保存")).toBeVisible();
+  // Escape closes the dock from the keyboard; the pointer path stays
+  // covered by the capability suite.
+  await page.getByRole("complementary", { name: "右侧开发工具" }).press("Escape");
+  await expect(page.getByRole("complementary", { name: "右侧开发工具" })).toHaveCount(0);
   return JSON.parse(Buffer.concat(chunks).toString("utf8")) as DebugBundleWitnessV1;
 }
 
