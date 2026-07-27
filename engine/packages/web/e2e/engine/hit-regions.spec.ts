@@ -58,6 +58,32 @@ test("touch taps activate hit regions @responsive", async ({ page }, testInfo) =
   await expect(page.locator("[data-cc-stage]")).toHaveAttribute("data-cc-petting-left", "2");
 });
 
+test("the stage scales uniformly on small viewports and hit regions still work", async ({
+  page,
+}) => {
+  // Play the opening at desktop size, then shrink to a phone-landscape
+  // window (the genre's standard handheld posture): the 1280x720 logical
+  // canvas letterboxes down live. Narrow-portrait HUD stacking is a Story
+  // layout concern, not an engine scaling one.
+  await page.goto(catcafeTargetUrlV1());
+  await playOpeningV1(page);
+  await page.setViewportSize({ width: 844, height: 390 });
+
+  const stageRoot = page.locator("[data-semantic-stage]");
+  await expect
+    .poll(async () => Number(await stageRoot.getAttribute("data-stage-scale")))
+    .toBeLessThan(0.6); // ~0.49 for a 624x351 stage box
+  const scale = Number(await stageRoot.getAttribute("data-stage-scale"));
+  expect(scale).toBeGreaterThan(0.4);
+  // The scaled tail region still receives real pointer clicks.
+  await page.getByRole("button", { name: "碰尾巴" }).click();
+  await expect(page.locator("[data-cc-stats]")).toContainText("信任7");
+  const box = await page.getByRole("button", { name: "摸头" }).boundingBox();
+  expect(box).not.toBeNull();
+  // Logical 80x45 zone shrinks with the canvas transform.
+  expect((box?.width ?? 0) / 80).toBeCloseTo(scale, 1);
+});
+
 test("the album overlay masks locked entries and shows unlocked meta progress", async ({
   page,
 }) => {

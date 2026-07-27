@@ -260,7 +260,7 @@ export type {
   GameSymbolResolutionV1,
   GameSymbolSizeV1,
 } from "./symbols/index.ts";
-export { GameViewportV1, useGameViewportV1 } from "./viewport/index.ts";
+export { GameViewportV1, useGameViewportV1, useOptionalGameViewportV1 } from "./viewport/index.ts";
 export type {
   GameViewportCanvasV1,
   GameViewportGeometryV1,

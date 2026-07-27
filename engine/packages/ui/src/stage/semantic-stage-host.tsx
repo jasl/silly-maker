@@ -18,6 +18,7 @@ import type {
 } from "./stage-reconciler.ts";
 import { settledStageFrameV1 } from "./stage-reconciler.ts";
 import styles from "./semantic-stage-host.module.css";
+import { useOptionalGameViewportV1 } from "../viewport/game-viewport.tsx";
 
 /**
  * Renders one semantic stage render frame with stable presentation
@@ -261,12 +262,31 @@ export function SemanticStageHostV1(props: SemanticStageHostPropsV1): ReactEleme
     for (const diagnostic of missing) reportDiagnostic(diagnostic);
   }, [missing, reportDiagnostic]);
 
+  // Stage space lives on the logical canvas: placements, hit regions, and
+  // renderer coordinates are logical pixels, and a managed GameViewport
+  // scales the whole stage uniformly (Ren'Py-style letterboxed canvas).
+  // Without a viewport the stage renders 1:1 for tests and bare hosts.
+  const geometry = useOptionalGameViewportV1();
+  const scaledRootStyle =
+    geometry === null
+      ? undefined
+      : ({
+          insetBlockEnd: "auto",
+          insetInlineEnd: "auto",
+          inlineSize: `${String(geometry.canvas.width)}px`,
+          blockSize: `${String(geometry.canvas.height)}px`,
+          transform: `scale(${String(geometry.scale)})`,
+          transformOrigin: "0 0",
+        } as const);
+
   return (
     <div
       className={styles.root}
+      style={scaledRootStyle}
       role="group"
       aria-label={accessibleName}
       data-semantic-stage="true"
+      data-stage-scale={geometry === null ? undefined : geometry.scale.toFixed(4)}
       data-stage-settled={frame.settled ? "true" : "false"}
       data-stage-cue={props.activeCueId ?? undefined}
       data-stage-input-blocked={frame.inputGate.blocked ? "true" : undefined}

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-export { GameViewportV1, useGameViewportV1 } from "./game-viewport.tsx";
+export { GameViewportV1, useGameViewportV1, useOptionalGameViewportV1 } from "./game-viewport.tsx";
 export type {
   GameViewportCanvasV1,
   GameViewportGeometryV1,
