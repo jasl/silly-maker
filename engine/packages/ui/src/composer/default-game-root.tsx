@@ -51,6 +51,13 @@ export interface DefaultGameRootSlotContextV1<TPublication, TSemantic> {
   readonly intents: PresentationIntentRouterV1;
   /** The composition input router: Story surfaces register action handlers. */
   readonly input: InputRouterV1;
+  /** Updates the composition's Story UI state (routes, spatial sessions…). */
+  updateStoryUiState(updater: (current: unknown) => unknown): void;
+  /** Read access to the composition overlay session for Story projections. */
+  readonly overlays: {
+    getSnapshot(): { readonly primaryId: string | null; readonly detailIds: readonly string[] };
+    subscribe(listener: () => void): () => void;
+  };
 }
 
 /**
@@ -101,6 +108,15 @@ export interface DefaultGameRootPropsV1<
     TOverlayId
   >;
   readonly devDockContributions?: DevDockContributionSetV1;
+  /**
+   * Optional DevDock extensions: a capability-gated lazy contribution
+   * loader (tooling UI stays out of the player bundle) and an open-state
+   * observer feeding diagnostics UI context.
+   */
+  readonly devDock?: {
+    load?(): Promise<DevDockContributionSetV1>;
+    observeOpenState?(state: DevDockOpenStateV1): void;
+  };
   /** Optional keyboard/gamepad adapters routed through the composition. */
   readonly inputMaps?: {
     readonly keyboard?: KeyboardActionMapV1;
@@ -143,6 +159,8 @@ function createDefaultOverlayResolverV1<TOverlayId extends string>(input: {
 function DefaultDevDockV1(props: {
   readonly capabilities: RuntimeCapabilityPortV1;
   readonly contributions: DevDockContributionSetV1;
+  readonly load?: () => Promise<DevDockContributionSetV1>;
+  readonly observeOpenState?: (state: DevDockOpenStateV1) => void;
   readonly composition: {
     readonly input: GameUiCompositionV1<never, never, never, never, never>["input"];
   };
@@ -152,12 +170,35 @@ function DefaultDevDockV1(props: {
     props.capabilities.state.getCurrent,
     props.capabilities.state.getCurrent,
   );
-  const [openState, setOpenState] = useState<DevDockOpenStateV1>(closedDevDockStateV1);
-  if (!capabilities.debugTools) return null;
+  const [openState, setOpenStateRaw] = useState<DevDockOpenStateV1>(closedDevDockStateV1);
+  const { observeOpenState, load } = props;
+  const setOpenState = (next: DevDockOpenStateV1): void => {
+    setOpenStateRaw(next);
+    observeOpenState?.(next);
+  };
+  // Lazy tooling contributions: loaded only once the capability is live, so
+  // debug tooling never enters the player bundle or the resident DOM.
+  const [loaded, setLoaded] = useState<DevDockContributionSetV1 | null>(null);
+  const debugTools = capabilities.debugTools;
+  useEffect(() => {
+    if (!debugTools || load === undefined) return () => {};
+    let active = true;
+    void load()
+      .then((contributions) => {
+        if (active) setLoaded(contributions);
+      })
+      .catch(() => {
+        if (active) setLoaded(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [debugTools, load]);
+  if (!debugTools) return null;
   return (
     <DevDockV1
       capabilities={props.capabilities}
-      contributions={props.contributions}
+      contributions={loaded ?? props.contributions}
       inputRouter={props.composition.input}
       openState={openState}
       onOpenStateChange={setOpenState}
@@ -203,6 +244,10 @@ export function DefaultGameRootV1<
     semantic: props.semantic,
     intents: props.composition.intents,
     input: props.composition.input,
+    updateStoryUiState: props.composition.updateUiState as (
+      updater: (current: unknown) => unknown,
+    ) => void,
+    overlays: props.composition.overlaySession as never,
   });
 
   // Optional keyboard/gamepad adapters: installed for the root's lifetime,
@@ -311,6 +356,10 @@ export function DefaultGameRootV1<
             <DefaultDevDockV1
               capabilities={props.capabilities}
               contributions={props.devDockContributions ?? emptyDevDockContributionsV1}
+              {...(props.devDock?.load === undefined ? {} : { load: props.devDock.load })}
+              {...(props.devDock?.observeOpenState === undefined
+                ? {}
+                : { observeOpenState: props.devDock.observeOpenState })}
               composition={props.composition}
             />
           )

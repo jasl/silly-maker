@@ -1,15 +1,18 @@
 // SPDX-License-Identifier: MIT
 import type { ReactElement } from "react";
 
-import type { GameHostV1, RuntimeCapabilitiesV1, RuntimeCapabilityPortV1 } from "@sillymaker/base";
+import type { BuildProvenanceV1, DeepReadonly, GameHostV1 } from "@sillymaker/base";
+import { digestCanonical } from "@sillymaker/base";
 import type {
   CoreAutosavePolicyV1,
   CoreGameApplicationDefinitionV1,
   CoreGameApplicationInstanceV1,
 } from "@sillymaker/base/runtime";
 import type { GameSimulationTypeMapV1 } from "@sillymaker/base";
-import { createRuntimeCapabilityPortV1 } from "@sillymaker/base/runtime";
-import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
+import type {
+  PersistenceRebootstrapDisposalV1,
+  PlayerProfileStoreV1,
+} from "@sillymaker/base/runtime";
 import {
   createCoreGameApplicationInstanceV1,
   createPlayerProfileStoreV1,
@@ -26,12 +29,16 @@ import type {
   RuntimeAssetLoaderV1,
   SaveOverlayLabelsV1,
 } from "@sillymaker/ui";
-import type { DevDockContributionSetV1 } from "@sillymaker/ui/debug";
+import type { DevDockContributionSetV1, DevDockOpenStateV1 } from "@sillymaker/ui/debug";
 import { DefaultGameRootV1, createGameUiCompositionV1 } from "@sillymaker/ui";
 import type { ContentPreferencePortV1, SemanticPublicationV1 } from "@sillymaker/base";
 import type { RuntimeSessionStatusV1 } from "@sillymaker/base";
 
 import { createBrowserImageLoaderV1 } from "../assets/create-browser-image-loader.js";
+import { createRuntimeCapabilitySessionOverlayV1 } from "../capabilities/runtime-capability-session-overlay.js";
+import type { RuntimeCapabilitySessionOverlayV1 } from "../capabilities/runtime-capability-session-overlay.js";
+import { createWebCapabilityPreferencesV1 } from "../capabilities/web-capability-preferences.js";
+import { installPointerAdapterV1 } from "../input/install-pointer-adapter.js";
 import { installBrowserAutomationBridgeV1 } from "../automation/browser-automation-bridge.js";
 import type { InstalledBrowserAutomationBridgeV1 } from "../automation/browser-automation-bridge.js";
 import { parseCapabilityRequestV1 } from "../capabilities/parse-capability-request.js";
@@ -78,11 +85,31 @@ export interface WebGameUiDefinitionV1<
   readonly labels?: Partial<DefaultGameRootLabelsV1>;
   readonly saveLabels?: SaveOverlayLabelsV1;
   readonly devDockContributions?: DevDockContributionSetV1;
+  /**
+   * Capability-gated lazy DevDock contributions: tooling UI loads on
+   * demand and never enters the player bundle.
+   */
+  readonly loadDevDockContributions?: () => Promise<DevDockContributionSetV1>;
   /** Optional keyboard/gamepad action maps installed by the root. */
   readonly inputMaps?: {
     readonly keyboard?: KeyboardActionMapV1;
     readonly gamepad?: GamepadActionMapV1;
   };
+  /** Install the pointer adapter on the application root element. */
+  readonly pointer?: boolean;
+  /**
+   * Optional DebugBundle UI-context reader factory. The composer binds the
+   * returned reader to the instance after the UI composition exists,
+   * handing over the live composition read surfaces and DevDock state.
+   */
+  readonly debugUiContext?: (input: {
+    readonly devDockOpenState: () => DevDockOpenStateV1;
+    readonly presentation: { getSnapshot(): unknown };
+    readonly overlaySession: {
+      getSnapshot(): { readonly primaryId: string | null; readonly detailIds: readonly string[] };
+    };
+    readonly systemDialogSession: { getSnapshot(): { readonly settingsOpen: boolean } };
+  }) => () => unknown;
 }
 
 export interface WebGameApplicationV1<
@@ -141,6 +168,10 @@ export interface WebGameApplicationV1<
     /** The player profile (Seen registry, playback preferences): Host data
      * outside every Game Save. */
     readonly playerProfile: PlayerProfileStoreV1;
+    /** Host file/download port for Story-facing export surfaces. */
+    readonly files: GameHostV1["files"];
+    /** The live capability session (persisted overlay + page request). */
+    readonly capabilities: RuntimeCapabilitySessionOverlayV1;
     reportFailure(code: string, error: unknown): void;
   }): WebGameUiDefinitionV1<
     WebSemanticPublicationV1<TGameView, TNarrativeView, TActionDescriptor>,
@@ -170,6 +201,8 @@ export interface StartWebGameApplicationOptionsV1 {
   readonly registerPageLifecycle?: boolean;
   /** Host-level autosave override; wins over the application's policy. */
   readonly autosave?: CoreAutosavePolicyV1;
+  /** Dev rebootstrap: adopt a predecessor's persistence handoff. */
+  readonly rebootstrapDisposition?: DeepReadonly<PersistenceRebootstrapDisposalV1>;
 }
 
 /**
@@ -185,18 +218,34 @@ export const defaultWebAutosavePolicyV1: CoreAutosavePolicyV1 = Object.freeze({
 
 export interface StartedWebGameApplicationV1 {
   readonly applicationId: string;
+  /** The Host this application runs on; HMR successors reuse it. */
+  readonly host: GameHostV1;
+  /** Full build provenance for HMR identity comparison. */
+  readonly provenance: DeepReadonly<BuildProvenanceV1>;
+  readonly capabilitySearch: string;
   isDisposed(): boolean;
   dispose(): Promise<void>;
+  /** Fences the session for a dev rebootstrap without releasing anything. */
+  invalidateForHmr(): void;
+  /**
+   * Tears the application down for a dev rebootstrap and returns the
+   * persistence handoff disposition for the successor.
+   */
+  disposeForRebootstrap(): Promise<DeepReadonly<PersistenceRebootstrapDisposalV1>>;
 }
 
-function sessionCapabilityStateV1(search: string): RuntimeCapabilitiesV1 {
-  const parsed = parseCapabilityRequestV1(search);
-  const requested = new Set(parsed.kind === "accepted" ? parsed.requested : []);
-  return Object.freeze({
-    debugTools: requested.has("debug_tools"),
-    cheats: requested.has("cheats"),
-    automationBridge: requested.has("automation_bridge"),
-  });
+function appBuildIdV1(buildIdentityInput: unknown): ReturnType<typeof digestCanonical> | null {
+  if (
+    buildIdentityInput === null ||
+    typeof buildIdentityInput !== "object" ||
+    !Object.hasOwn(buildIdentityInput, "application")
+  ) {
+    return null;
+  }
+  return digestCanonical(
+    "sillymaker:application:v1",
+    (buildIdentityInput as { readonly application: unknown }).application,
+  );
 }
 
 /**
@@ -267,10 +316,14 @@ export async function startWebGameApplicationV1<
 
   const capabilitySearch =
     options.capabilitySearch ?? (typeof location === "undefined" ? "" : location.search);
-  const capabilities: RuntimeCapabilityPortV1 = createRuntimeCapabilityPortV1({
-    initialState: sessionCapabilityStateV1(capabilitySearch),
-    persist: async () => Object.freeze({ kind: "committed" as const }),
-  });
+  const capabilityRequest = parseCapabilityRequestV1(capabilitySearch);
+  const persistedCapabilities = await createWebCapabilityPreferencesV1(host);
+  // The live capability session: page-local requests overlay the persisted
+  // preferences (DevDock persists changes through the Host records).
+  const capabilities = createRuntimeCapabilitySessionOverlayV1(
+    persistedCapabilities,
+    capabilityRequest.kind === "accepted" ? capabilityRequest.requested : Object.freeze([]),
+  );
 
   const resolved = resolveCoreGameApplicationV1(
     application.core,
@@ -282,6 +335,7 @@ export async function startWebGameApplicationV1<
     throw new TypeError(`web.application_resolution_failed:${resolved.failure.code}`);
   }
 
+  const applicationBuildId = appBuildIdV1(application.buildIdentityInput);
   const instance = await createCoreGameApplicationInstanceV1(resolved.application, {
     host: Object.freeze({
       entropy: host.bootstrapEntropy,
@@ -292,11 +346,21 @@ export async function startWebGameApplicationV1<
         `handoff.${application.applicationId}.${host.bootstrapEntropy.nextUuidV4()}`,
     }),
     capabilities: { debugTools: capabilities.state.getCurrent().debugTools },
+    getCapabilities: () => {
+      const current = capabilities.state.getCurrent();
+      return Object.freeze({ debugTools: current.debugTools, cheats: current.cheats });
+    },
     autosave: options.autosave ?? application.autosave ?? defaultWebAutosavePolicyV1,
+    ...(applicationBuildId === null ? {} : { appBuildId: applicationBuildId }),
+    ...(options.rebootstrapDisposition === undefined
+      ? {}
+      : { rebootstrapDisposition: options.rebootstrapDisposition }),
   });
 
   let automation: InstalledBrowserAutomationBridgeV1 | undefined;
   let mounted: MountedGameApplicationV1 | undefined;
+  let pointer: { dispose(): void } | undefined;
+  let unbindUiContext: (() => void) | undefined;
   let composition:
     | ReturnType<
         typeof createGameUiCompositionV1<
@@ -312,17 +376,27 @@ export async function startWebGameApplicationV1<
   let disposed = false;
   let removePageLifecycle: (() => void) | undefined;
 
-  const dispose = async (): Promise<void> => {
-    if (disposed) return;
+  let disposalPromise: Promise<DeepReadonly<PersistenceRebootstrapDisposalV1>> | undefined;
+  const disposeForRebootstrap = (): Promise<DeepReadonly<PersistenceRebootstrapDisposalV1>> => {
+    if (disposalPromise !== undefined) return disposalPromise;
     disposed = true;
     removePageLifecycle?.();
-    try {
-      mounted?.unmount();
-    } finally {
-      composition?.dispose();
-      automation?.dispose();
-      await instance.dispose();
-    }
+    disposalPromise = (async () => {
+      try {
+        mounted?.unmount();
+      } finally {
+        unbindUiContext?.();
+        pointer?.dispose();
+        composition?.dispose();
+        automation?.dispose();
+        capabilities.dispose();
+      }
+      return await instance.disposeForRebootstrap();
+    })();
+    return disposalPromise;
+  };
+  const dispose = async (): Promise<void> => {
+    await disposeForRebootstrap();
   };
 
   try {
@@ -338,6 +412,8 @@ export async function startWebGameApplicationV1<
         createImage: () => new Image(),
       }),
       playerProfile,
+      files: host.files,
+      capabilities,
       reportFailure,
     });
 
@@ -371,6 +447,12 @@ export async function startWebGameApplicationV1<
             labels: uiDefinition.saveLabels,
           });
 
+    // DevDock open state feeds the diagnostics UI context without giving
+    // the resident player DOM any debug vocabulary.
+    let devDockOpenState: DevDockOpenStateV1 = Object.freeze({
+      leftOpen: false,
+      rightOpen: false,
+    });
     const rootNode: ReactElement = (
       <DefaultGameRootV1
         composition={composition}
@@ -385,10 +467,37 @@ export async function startWebGameApplicationV1<
         {...(uiDefinition.devDockContributions === undefined
           ? {}
           : { devDockContributions: uiDefinition.devDockContributions })}
+        devDock={Object.freeze({
+          ...(uiDefinition.loadDevDockContributions === undefined
+            ? {}
+            : { load: uiDefinition.loadDevDockContributions }),
+          observeOpenState: (state: DevDockOpenStateV1) => {
+            devDockOpenState = state;
+          },
+        })}
         {...(uiDefinition.inputMaps === undefined ? {} : { inputMaps: uiDefinition.inputMaps })}
       />
     );
     mounted = mountGameApplicationV1(rootElement, rootNode);
+
+    if (uiDefinition.pointer === true) {
+      pointer = installPointerAdapterV1({
+        target: rootElement,
+        route: composition.input.route,
+        window: globalThis.window,
+        document,
+      });
+    }
+    if (uiDefinition.debugUiContext !== undefined) {
+      unbindUiContext = instance.bindDebugUiContext(
+        uiDefinition.debugUiContext({
+          devDockOpenState: () => devDockOpenState,
+          presentation: composition.presentation,
+          overlaySession: composition.overlaySession as never,
+          systemDialogSession: composition.systemDialogSession,
+        }),
+      );
+    }
 
     if (
       options.registerPageLifecycle !== false &&
@@ -414,7 +523,12 @@ export async function startWebGameApplicationV1<
 
   return Object.freeze({
     applicationId: application.applicationId,
+    host,
+    provenance: resolved.application.provenance as DeepReadonly<BuildProvenanceV1>,
+    capabilitySearch,
     isDisposed: () => disposed,
     dispose,
+    invalidateForHmr: () => instance.invalidateForHmr(),
+    disposeForRebootstrap,
   });
 }

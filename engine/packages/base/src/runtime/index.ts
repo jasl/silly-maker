@@ -29,7 +29,9 @@ export {
 } from "./application/core-game-application.js";
 export type {
   CoreApplicationAdminV1,
+  CoreApplicationExtensionContextV1,
   CoreApplicationHostServicesV1,
+  CoreAttemptForV1,
   CoreAutosavePolicyV1,
   CoreEpochBoundOutcomeV1,
   CoreGameApplicationDefinitionV1,

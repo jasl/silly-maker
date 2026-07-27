@@ -36,12 +36,19 @@ import type {
   GameSessionV1,
 } from "../session/game-session.js";
 import { createGameSessionV1 } from "../session/game-session.js";
-import type { PersistenceServiceV1 } from "../persistence/persistence-service.js";
+import type {
+  PersistenceRebootstrapDisposalV1,
+  PersistenceServiceV1,
+} from "../persistence/persistence-service.js";
 import { createPersistenceServiceV1 } from "../persistence/persistence-service.js";
 import { createSemanticGamePortV1 } from "./semantic-game-port.js";
 
 type SessionDispatchResultOfV1<TTypes extends GameSimulationTypeMapV1> = Awaited<
   ReturnType<GameSessionV1<TTypes>["dispatch"]>
+>;
+
+export type CoreAttemptForV1<TTypes extends GameSimulationTypeMapV1> = ReturnType<
+  GameSessionDebugInputV1<TTypes>["normalizeUnexpectedFault"]
 >;
 
 /**
@@ -117,7 +124,62 @@ export interface CoreGameApplicationDefinitionV1<
   normalizeUnexpectedDispatchFault?(
     error: unknown,
     snapshot: DeepReadonly<TTypes["snapshot"]>,
-  ): never;
+  ): CoreAttemptForV1<TTypes>;
+  /** Debug-command counterpart of the dispatch fault normalizer. */
+  normalizeUnexpectedDebugFault?(
+    error: unknown,
+    snapshot: DeepReadonly<TTypes["snapshot"]>,
+  ): CoreAttemptForV1<TTypes>;
+  /**
+   * Optional Story-owned application extensions (diagnostics services,
+   * DebugBundle codecs, debug tooling facades). The composer constructs
+   * them with a controlled context after the session and persistence
+   * exist, owns their lifecycle, and disposes them with the instance —
+   * Story entries never assemble engine services by hand.
+   */
+  createExtensions?(context: CoreApplicationExtensionContextV1<TTypes>): {
+    readonly extensions: unknown;
+    dispose?(): void;
+  };
+}
+
+/**
+ * The controlled internals handed to `createExtensions`: read surfaces and
+ * queue-front evidence, never raw setters. Extensions observe; the session
+ * and persistence remain the only authorities.
+ */
+export interface CoreApplicationExtensionContextV1<TTypes extends GameSimulationTypeMapV1> {
+  readonly provenance: Record<string, unknown>;
+  readonly appBuildId: Digest | null;
+  readonly session: {
+    getCurrentSnapshot(): DeepReadonly<TTypes["snapshot"]>;
+    getStatus(): RuntimeSessionStatusV1;
+    subscribe(listener: () => void): () => void;
+  };
+  readonly runtimeControl: GameSessionCompositionV1<TTypes>["runtimeControl"];
+  readonly commandLog: GameSessionCompositionV1<TTypes>["commandLog"];
+  readonly debugControl: GameSessionCompositionV1<TTypes>["debugControl"];
+  readonly invalidationController: GameSessionCompositionV1<TTypes>["invalidationController"];
+  readonly persistence: PersistenceServiceV1<TTypes["snapshot"]>;
+  runtimeFailures(): readonly RuntimeOperationFaultV1[];
+  getCapabilities(): { readonly debugTools: boolean; readonly cheats: boolean };
+  readonly metadataClock: { now(): IsoUtcInstant };
+  reportFailure(error: unknown): void;
+  createInitialSnapshot(): TTypes["snapshot"];
+  /**
+   * The latest faulted attempt with its triggering command, kept as
+   * instance-local debug evidence. Story diagnostics scrub it before any
+   * export; it never enters publications or Saves.
+   */
+  latestAttemptFailure():
+    | {
+        readonly source: "game" | "debug";
+        readonly command: unknown;
+        readonly attempt: unknown;
+      }
+    | undefined;
+  /** Late-bound presentation context reader for DebugBundle exports. */
+  readUiContext(): unknown;
 }
 
 export function defineCoreGameApplicationV1<
@@ -379,8 +441,18 @@ export type CoreEpochBoundOutcomeV1<TValue> =
 export interface CreateCoreGameApplicationInstanceOptionsV1 {
   readonly host: CoreApplicationHostServicesV1;
   readonly capabilities?: { readonly debugTools?: boolean };
+  /** Live capability reader for extensions; falls back to the static flags. */
+  readonly getCapabilities?: () => { readonly debugTools: boolean; readonly cheats: boolean };
   readonly autosave?: CoreAutosavePolicyV1;
   readonly scheduler?: CoreSchedulerV1;
+  /** Application build identity digest for diagnostics provenance. */
+  readonly appBuildId?: Digest;
+  /**
+   * A persistence disposition handed over from a disposed predecessor
+   * (dev rebootstrap): the successor defers lease acquisition to the
+   * handoff instead of acquiring a fresh initial lease.
+   */
+  readonly rebootstrapDisposition?: DeepReadonly<PersistenceRebootstrapDisposalV1>;
 }
 
 export interface CoreApplicationAdminV1<TTypes extends GameSimulationTypeMapV1> {
@@ -428,6 +500,10 @@ export interface CoreGameApplicationInstanceV1<
   readonly diagnostics: {
     runtimeFailures(): readonly RuntimeOperationFaultV1[];
   };
+  /** Story extensions built by the definition's `createExtensions`. */
+  readonly extensions: unknown;
+  /** Binds the late presentation context reader for DebugBundle exports. */
+  bindDebugUiContext(reader: () => unknown): () => void;
   presentationAnchor(): CorePresentationAnchorV1;
   subscribePresentationAnchor(listener: (anchor: CorePresentationAnchorV1) => void): () => void;
   /**
@@ -443,6 +519,13 @@ export interface CoreGameApplicationInstanceV1<
   readonly admin: CoreApplicationAdminV1<TTypes>;
   isDisposed(): boolean;
   dispose(): Promise<{ readonly kind: "disposed" }>;
+  /** Fences the session for a dev rebootstrap without releasing anything. */
+  invalidateForHmr(): void;
+  /**
+   * Disposes the instance and returns the persistence handoff disposition a
+   * successor passes back through `rebootstrapDisposition`.
+   */
+  disposeForRebootstrap(): Promise<DeepReadonly<PersistenceRebootstrapDisposalV1>>;
 }
 
 function readBootstrapRngSeedV1(
@@ -552,18 +635,28 @@ export async function createCoreGameApplicationInstanceV1<
     code: "runtime.async_operation_failed",
   });
 
+  // Instance-local debug evidence: the latest faulted attempt with its
+  // triggering command. Story diagnostics scrub it before any export.
+  let latestAttemptFailure:
+    | { readonly source: "game" | "debug"; readonly command: unknown; readonly attempt: unknown }
+    | undefined;
+  let pendingAttemptCommand:
+    { readonly source: "game" | "debug"; readonly command: unknown } | undefined;
+
   // Steps below acquire live resources; anything after session creation is
   // failure-guarded so a failed construction leaves no owner or listener.
   const created = createGameSessionV1<TTypes>({
     initialSnapshot: createInitialSnapshotV1(),
     commandSchema: gameSimulation.commandSchema,
     executionContext: undefined as TTypes["executionContext"],
-    executeAttempt: (snapshot, command) =>
-      gameSimulation.commandExecutor.executeAttempt(
+    executeAttempt: (snapshot, command) => {
+      pendingAttemptCommand = Object.freeze({ source: "game" as const, command });
+      return gameSimulation.commandExecutor.executeAttempt(
         snapshot,
         command,
         undefined as TTypes["executionContext"],
-      ),
+      );
+    },
     normalizeUnexpectedDispatchFault(error, snapshot) {
       if (definition.normalizeUnexpectedDispatchFault !== undefined) {
         return definition.normalizeUnexpectedDispatchFault(error, snapshot);
@@ -577,16 +670,28 @@ export async function createCoreGameApplicationInstanceV1<
           command,
           undefined as TTypes["executionContext"],
         ),
-      executeAttempt: (snapshot, command) =>
-        gameSimulation.debugCommandExecutor.executeAttempt(
+      executeAttempt: (snapshot, command) => {
+        pendingAttemptCommand = Object.freeze({ source: "debug" as const, command });
+        return gameSimulation.debugCommandExecutor.executeAttempt(
           snapshot,
           command,
           undefined as TTypes["executionContext"],
-        ),
-      normalizeUnexpectedFault(error: unknown): never {
+        );
+      },
+      normalizeUnexpectedFault(error, snapshot) {
+        if (definition.normalizeUnexpectedDebugFault !== undefined) {
+          return definition.normalizeUnexpectedDebugFault(error, snapshot);
+        }
         throw error;
       },
     } satisfies GameSessionDebugInputV1<TTypes>),
+    onAttempt(attempt) {
+      const pending = pendingAttemptCommand;
+      pendingAttemptCommand = undefined;
+      const result = (attempt as { readonly result?: { readonly kind?: unknown } }).result;
+      if (pending === undefined || result?.kind !== "faulted") return;
+      latestAttemptFailure = Object.freeze({ ...pending, attempt });
+    },
     onObserverFailure: reportObserverFailure,
   });
 
@@ -670,8 +775,15 @@ export async function createCoreGameApplicationInstanceV1<
       metadataClock: Object.freeze({ now: () => options.host.now() }),
       exportFilename: definition.exportFilename ?? "sillymaker-application-save.json",
       autoSaveCapture: autosave.mode === "every_commit" ? "committed_snapshots" : "external",
+      leaseAcquisition:
+        options.rebootstrapDisposition === undefined ? "acquire_initial" : "deferred_rebootstrap",
     });
     const persistence = persistenceService;
+    if (options.rebootstrapDisposition !== undefined) {
+      // Dev rebootstrap: take over the predecessor's released lease through
+      // its explicit handoff disposition instead of a fresh acquisition.
+      await persistence.takeOverForRebootstrap(options.rebootstrapDisposition);
+    }
 
     // Presentation anchor/epoch: advance whenever the authoritative replay
     // base is replaced. Instance-local only.
@@ -812,6 +924,55 @@ export async function createCoreGameApplicationInstanceV1<
         ),
       );
 
+    // Story extensions: composer-constructed, composer-disposed. The UI
+    // context reader binds late (after the UI composition mounts).
+    let uiContextReader: (() => unknown) | undefined;
+    const getCapabilitiesV1 =
+      options.getCapabilities ??
+      (() =>
+        Object.freeze({
+          debugTools: options.capabilities?.debugTools === true,
+          cheats: false,
+        }));
+    const extensionOwner =
+      definition.createExtensions?.(
+        Object.freeze({
+          provenance: application.provenance as Record<string, unknown>,
+          appBuildId: options.appBuildId ?? null,
+          session: Object.freeze({
+            getCurrentSnapshot: () => created.session.getCurrentSnapshot(),
+            getStatus: () => created.session.getStatus(),
+            subscribe: (listener: () => void) => created.session.subscribe(listener),
+          }),
+          runtimeControl: created.runtimeControl,
+          commandLog: created.commandLog,
+          debugControl: created.debugControl,
+          invalidationController: created.invalidationController,
+          persistence,
+          runtimeFailures: () => runtimeFailures.entries(),
+          getCapabilities: getCapabilitiesV1,
+          metadataClock: Object.freeze({ now: () => options.host.now() }),
+          reportFailure: reportObserverFailure,
+          createInitialSnapshot: createInitialSnapshotV1,
+          latestAttemptFailure: () => latestAttemptFailure,
+          readUiContext: () => uiContextReader?.(),
+        }),
+      ) ?? undefined;
+    if (extensionOwner?.dispose !== undefined) {
+      const disposeExtensions = extensionOwner.dispose.bind(extensionOwner);
+      cleanups.push(() => disposeExtensions());
+    }
+
+    let disposalPromise: Promise<DeepReadonly<PersistenceRebootstrapDisposalV1>> | undefined;
+    const disposeForRebootstrapV1 = (): Promise<DeepReadonly<PersistenceRebootstrapDisposalV1>> => {
+      if (disposalPromise !== undefined) return disposalPromise;
+      disposed = true;
+      for (const cleanup of cleanups.splice(0)) cleanup();
+      created.invalidationController.invalidateForHmr();
+      disposalPromise = Promise.resolve(persistence.disposeForRebootstrap());
+      return disposalPromise;
+    };
+
     const admin: CoreApplicationAdminV1<TTypes> = Object.freeze({
       commandLog: () => created.commandLog.entries(),
       replayAuthoritatively: async () => {
@@ -878,6 +1039,16 @@ export async function createCoreGameApplicationInstanceV1<
       diagnostics: Object.freeze({
         runtimeFailures: () => runtimeFailures.entries(),
       }),
+      extensions: extensionOwner?.extensions,
+      bindDebugUiContext: (reader: () => unknown) => {
+        if (uiContextReader !== undefined) {
+          throw new TypeError("core application UI context reader is already bound");
+        }
+        uiContextReader = reader;
+        return () => {
+          if (uiContextReader === reader) uiContextReader = undefined;
+        };
+      },
       presentationAnchor: currentAnchorV1,
       subscribePresentationAnchor: (listener: (anchor: CorePresentationAnchorV1) => void) => {
         anchorListeners.add(listener);
@@ -901,14 +1072,11 @@ export async function createCoreGameApplicationInstanceV1<
       admin,
       isDisposed: () => disposed,
       dispose: async () => {
-        if (!disposed) {
-          disposed = true;
-          for (const cleanup of cleanups.splice(0)) cleanup();
-          created.invalidationController.invalidateForHmr();
-          await persistence.disposeForRebootstrap();
-        }
+        await disposeForRebootstrapV1();
         return Object.freeze({ kind: "disposed" as const });
       },
+      invalidateForHmr: () => created.invalidationController.invalidateForHmr(),
+      disposeForRebootstrap: () => disposeForRebootstrapV1(),
     });
   } catch (error) {
     disposed = true;

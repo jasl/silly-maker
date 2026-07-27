@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: MIT
+export { installWebGameApplicationHmrV1 } from "./application/install-web-game-application-hmr.js";
+export type { InstallWebGameApplicationHmrInputV1 } from "./application/install-web-game-application-hmr.js";
 export { mountGameApplicationV1 } from "./application/mount-game-application.js";
 export type { MountedGameApplicationV1 } from "./application/mount-game-application.js";
 export { createGameRuntimeV1 } from "./application/create-game-runtime.js";
