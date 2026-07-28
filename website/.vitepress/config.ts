@@ -29,12 +29,22 @@ export default defineConfig({
         ],
         sidebar: [
           {
-            text: "Guide",
+            text: "Quick start",
+            items: [{ text: "Getting started with AI", link: "/guide/getting-started" }],
+          },
+          {
+            text: "Introduction",
             items: [
-              { text: "Getting started", link: "/guide/getting-started" },
+              { text: "What the engine provides", link: "/guide/features" },
+              { text: "Architecture", link: "/guide/architecture" },
               { text: "Core concepts", link: "/guide/concepts" },
+            ],
+          },
+          {
+            text: "Hands-on",
+            items: [
+              { text: "Manual setup", link: "/guide/manual-setup" },
               { text: "Your first Story", link: "/guide/first-story" },
-              { text: "Build with a coding agent", link: "/guide/agent-games" },
               { text: "Tuning and debugging", link: "/guide/tuning" },
             ],
           },
@@ -60,12 +70,22 @@ export default defineConfig({
         ],
         sidebar: [
           {
-            text: "指南",
+            text: "快速开始",
+            items: [{ text: "用 AI 快速开始", link: "/zh/guide/getting-started" }],
+          },
+          {
+            text: "介绍",
             items: [
-              { text: "快速开始", link: "/zh/guide/getting-started" },
+              { text: "引擎提供什么", link: "/zh/guide/features" },
+              { text: "架构", link: "/zh/guide/architecture" },
               { text: "核心概念", link: "/zh/guide/concepts" },
+            ],
+          },
+          {
+            text: "动手指南",
+            items: [
+              { text: "手动路径", link: "/zh/guide/manual-setup" },
               { text: "第一个 Story", link: "/zh/guide/first-story" },
-              { text: "用 Coding Agent 生成游戏", link: "/zh/guide/agent-games" },
               { text: "调参与调试", link: "/zh/guide/tuning" },
             ],
           },

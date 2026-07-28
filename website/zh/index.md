@@ -7,7 +7,7 @@ hero:
   tagline: TypeScript + React。确定性模拟、语义舞台、原子存档——人类与 AI 代理都能创作。
   actions:
     - theme: brand
-      text: 快速开始
+      text: 用 AI 快速开始
       link: /zh/guide/getting-started
     - theme: alt
       text: 核心概念
