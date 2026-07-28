@@ -432,6 +432,8 @@ export const templateWebApplicationV1: WebGameApplicationV1<
   viewport: Object.freeze({
     canvas: templateViewportCanvasV1,
     fallbackSize: Object.freeze({ width: 1600, height: 900 }),
+    // 等比放大撑满窗口（fit 缩放天然保比例、必要时留黑边）。
+    maxScale: 4,
   }),
   core: templateCoreApplicationDefinitionV1,
   ui: () =>

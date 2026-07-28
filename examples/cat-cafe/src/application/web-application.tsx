@@ -1705,6 +1705,8 @@ export const catcafeWebApplicationV1: WebGameApplicationV1<
   viewport: Object.freeze({
     canvas: catcafeViewportCanvasV1,
     fallbackSize: Object.freeze({ width: 1280, height: 720 }),
+    // 等比放大撑满窗口（fit 缩放天然保比例、必要时留黑边）。
+    maxScale: 4,
   }),
   core: catcafeCoreApplicationDefinitionV1,
   ui: ({

@@ -125,6 +125,40 @@ test("the DevDock tuning panel commits debug commands through the session", asyn
   await expect(page.locator("[data-cc-stats]")).toContainText("金钱55");
 });
 
+test("Settings and Load game open above the title screen and stay interactive", async ({
+  page,
+}) => {
+  await page.goto(catcafeTargetUrlV1());
+  await dismissSplashV1(page);
+
+  // Settings from the front door: the dialog must paint above the title
+  // screen (regression: it used to open underneath, looking frozen) and
+  // its controls must be really clickable, not just present.
+  await page.locator("[data-title-settings]").click();
+  const settings = page.getByRole("dialog", { name: "设置" });
+  await expect(settings).toBeVisible();
+  await settings.getByRole("button", { name: "关闭", exact: true }).click();
+  await expect(settings).toBeHidden();
+
+  // Load game: same story for the save dialog.
+  await page.locator("[data-title-load-game]").click();
+  const saves = page.getByRole("dialog", { name: "保存" });
+  await expect(saves).toBeVisible();
+  await saves.getByRole("button", { name: "关闭", exact: true }).click();
+  await expect(saves).toBeHidden();
+
+  // The title screen is alive again after both round-trips.
+  await expect(page.getByRole("button", { name: "新游戏" })).toBeEnabled();
+
+  // On a large window the stage scales up proportionally to fill it.
+  await page.setViewportSize({ width: 2400, height: 1400 });
+  await expect
+    .poll(async () =>
+      Number(await page.locator("[data-stage-scale]").getAttribute("data-stage-scale")),
+    )
+    .toBeGreaterThan(1.5);
+});
+
 test("the HUD rollback steps one committed action back without rerolling", async ({ page }) => {
   await page.goto(catcafeTargetUrlV1());
   await playOpeningV1(page);
