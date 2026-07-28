@@ -54,7 +54,7 @@ deno task test:conformance:headless                # 全部 headless 一致性�
 
 ## C 层：新应用/新 Story（建议强模型执行）
 
-一个应用 = 一个 `WebGameApplicationV1` 声明 + 一次 `startWebGameApplicationV1` 调用；起点用 `template`（复制目录 + 全局改名 + 注册一条应用即可）；完整参考看 `e2e/src/application/`。在 `project.config.ts` 注册后，六个生命周期动词即可用：
+一个应用 = 一个 `WebGameApplicationV1` 声明 + 一次 `startWebGameApplicationV1` 调用；起点用 `template`（复制目录 + 全局改名 + 注册一条应用即可）；完整参考看 `e2e/src/application/`。应用目录约定：`composition.tsx`（投影/槽位/`*GameApplicationV1`）、`ui.tsx` 或 `shell-ui.tsx`（PascalCase 组件，与应用声明分文件以便 Vite Fast Refresh）、`core-application.ts`（headless 实例工厂）、`entry.tsx`（从 composition 启动）。在 `project.config.ts` 注册后，六个生命周期动词即可用：
 
 ```sh
 deno task story inspect <app>    # 解析身份与程序报告

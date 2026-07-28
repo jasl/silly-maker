@@ -10,7 +10,8 @@
 
 游戏侧必须自己注意（引擎无法代劳）：
 
-- **模拟层保持 DOM 洁净**：`simulation.ts`/`state.ts`/内容表不得引用 `window`/`document`/`matchMedia`（headless 与重放会碎）；浏览器 API 只出现在 `application/composition.tsx`。
+- **模拟层保持 DOM 洁净**：`simulation.ts`/`state.ts`/内容表不得引用 `window`/`document`/`matchMedia`（headless 与重放会碎）；浏览器 API 只出现在 `application/`（`composition.tsx` / `ui.tsx`）。
+- **应用层文件分工**：`composition.tsx` = 投影、槽位、标签、`*GameApplicationV1`；PascalCase React 组件放 `ui.tsx`（Vite Fast Refresh 要求不与非组件常量同文件导出）；`core-application.ts` = headless 实例工厂；`entry.tsx` 从 `composition.tsx` 启动。
 - **确定性路径禁 `Math.random()` 与 `Date.now()`**：随机走事务 RNG，时间走引擎时钟。
 - **双语文本溢出**：长字符串在两种语言下都要目检（英文常比中文长 30%+）；HUD/按钮布局用弹性排布。
 - **触控目标 ≥ 32px**：紧凑按钮已是下限，不要再缩。
@@ -34,7 +35,7 @@
 
 ## 剧本/文本任务（最常见）
 
-改哪个文件：台词与界面文案 → `src/presentation.ts`（textId 目录）；剧情节点/分支/舞台指令 → `src/narrative.ts`；舞台渲染器 → `src/application/composition.tsx` 的 `*StageRenderersV1`。
+改哪个文件：台词与界面文案 → `src/presentation.ts`（textId 目录）；剧情节点/分支/舞台指令 → `src/narrative.ts`；舞台渲染器 → `src/application/composition.tsx` 的 `*StageRenderersV1`；HUD/对话面板组件 → `src/application/ui.tsx`。
 
 动手前先列节点序列表（每个 say/choice 边界一个 occurrence 编号，从 1 起），场景脚本（`src/tooling/simulation-target.ts`）与测试一次写对。
 
