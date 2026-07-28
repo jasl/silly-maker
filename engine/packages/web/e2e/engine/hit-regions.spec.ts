@@ -10,16 +10,23 @@ import { catcafeTargetUrlV1, expect, test } from "./fixtures.ts";
  * rules (trust bands, daily budget) stay authoritative.
  */
 
+async function advanceRevealedSayV1(page: Page): Promise<void> {
+  // The typewriter turns the first click into reveal-all; waiting for the
+  // completed reveal keeps one click = one advance.
+  await expect(page.locator("[data-cc-narrative]")).toHaveAttribute("data-cc-reveal", "complete");
+  await page.locator("[data-cc-advance]").click();
+}
+
 async function playOpeningV1(page: Page): Promise<void> {
   // The title screen is the game's front door; New game starts the
   // opening scene automatically (no separate begin-story action).
   await page.getByRole("button", { name: "新游戏" }).click();
   for (let index = 0; index < 3; index += 1) {
-    await page.locator("[data-cc-advance]").click();
+    await advanceRevealedSayV1(page);
   }
   await page.getByRole("button", { name: "就叫「小雨」" }).click();
-  await page.locator("[data-cc-advance]").click();
-  await page.locator("[data-cc-advance]").click();
+  await advanceRevealedSayV1(page);
+  await advanceRevealedSayV1(page);
   await expect(page.locator("[data-cc-narrative]")).toHaveCount(0);
 }
 
@@ -112,6 +119,37 @@ test("the DevDock tuning panel commits debug commands through the session", asyn
   await expect(page.locator("[data-cc-stats]")).toContainText("金钱55");
 });
 
+test("auto mode advances revealed lines and the history panel replays the backlog", async ({
+  page,
+}) => {
+  await page.goto(catcafeTargetUrlV1());
+  await page.getByRole("button", { name: "新游戏" }).click();
+
+  // Auto: with no further input the say advances by itself once revealed
+  // (auto pauses at the name choice, which playback never decides).
+  const firstOccurrence = await page
+    .locator("[data-cc-narrative]")
+    .getAttribute("data-cc-occurrence");
+  await page.locator("[data-cc-playback='auto']").click();
+  await expect(page.locator("[data-cc-playback='auto']")).toHaveAttribute("aria-pressed", "true");
+  await expect
+    .poll(async () => page.locator("[data-cc-narrative]").getAttribute("data-cc-occurrence"), {
+      timeout: 15_000,
+    })
+    .not.toBe(firstOccurrence);
+  await expect(page.locator("[data-cc-narrative='choice']")).toBeVisible({ timeout: 20_000 });
+
+  // The history panel renders the authoritative backlog of what auto read.
+  await page.getByRole("button", { name: "就叫「小雨」" }).click();
+  await expect(page.locator("[data-cc-narrative]")).toHaveAttribute("data-cc-reveal", "complete");
+  await page.locator("[data-cc-history-open]").click();
+  const history = page.locator("[data-cc-history]");
+  await expect(history).toBeVisible();
+  expect(await history.locator("[data-cc-history-entry]").count()).toBeGreaterThanOrEqual(3);
+  await page.locator("[data-cc-history-close]").click();
+  await expect(history).toHaveCount(0);
+});
+
 test("audio follows play: shop BGM and rain load on start, petting fires a one-shot", async ({
   page,
 }) => {
@@ -166,11 +204,11 @@ test("the system menu is one modal at a time and saves honor the safepoint", asy
   await page.keyboard.press("Escape");
   await expect(saves).toBeHidden();
   for (let index = 0; index < 3; index += 1) {
-    await page.locator("[data-cc-advance]").click();
+    await advanceRevealedSayV1(page);
   }
   await page.getByRole("button", { name: "就叫「小雨」" }).click();
-  await page.locator("[data-cc-advance]").click();
-  await page.locator("[data-cc-advance]").click();
+  await advanceRevealedSayV1(page);
+  await advanceRevealedSayV1(page);
   await expect(page.locator("[data-cc-narrative]")).toHaveCount(0);
 
   // Daily play is a safepoint: manual save commits and shows the slot's
