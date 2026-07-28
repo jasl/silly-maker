@@ -38,9 +38,11 @@ async function clearCatCafeRecordsV1(page: Page): Promise<void> {
     const name = "sillymaker.example-cat-cafe";
     await new Promise<void>((resolve, reject) => {
       const request = indexedDB.deleteDatabase(name);
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error ?? new Error("indexedDB.deleteDatabase failed"));
-      request.onblocked = () => resolve();
+      request.addEventListener("success", () => resolve());
+      request.addEventListener("error", () =>
+        reject(request.error ?? new Error("indexedDB.deleteDatabase failed")),
+      );
+      request.addEventListener("blocked", () => resolve());
     });
   });
 }
