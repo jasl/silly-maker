@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-// 文件系统切片·模块：记事本文档。写入/删除原子提交，revision 计数是
-// 确定性的"修改时间"替身；引擎存档就是这块硬盘的持久化。
+// Filesystem slice · module: notepad documents. Writes/deletes commit atomically; the
+// revision counter is a deterministic stand-in for "modified time"; the engine save IS this disk's persistence.
 import type { OsFilesystemStateV1 } from "../../state.ts";
 import { osFilesystemStateSchemaV1, osMaxFilesV1 } from "../../state.ts";
 import type { OsFactV1 } from "../../kernel.ts";
@@ -71,7 +71,7 @@ export const filesystemModuleV1 = kit.defineStatefulModule({
         revision,
       });
       const others = state.files.filter((file) => file.name !== operation.name);
-      // 文件按名字典序保持稳定顺序（canonical JSON 与 UI 列表一致）。
+      // Files keep a stable lexicographic-by-name order (canonical JSON matches the UI list).
       const files = Object.freeze(
         [...others, next].toSorted((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0)),
       );

@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: MIT
-// 示例套件的浏览器夹具：每个示例一个 dev server 目标；诊断策略与引擎
-// 套件一致（页面错误/控制台错误即失败，证据附卷）。
+// Browser fixtures for the examples suite: one dev-server target per example;
+// diagnostics policy matches the engine suite (a page or console error fails the test, evidence attached).
 import { expect, test as base } from "@playwright/test";
 
 const hostV1 = "127.0.0.1";
 
-/** 雨巷猫舍：舞台命中区域、对话播放、存档安全点、回退。 */
+/** Cat cafe: stage hit regions, dialogue playback, save safepoints, rollback. */
 export const catcafeTargetV1 = Object.freeze({ host: hostV1, port: 41737 });
 
 export function catcafeTargetUrlV1(query = ""): string {
   return `http://${catcafeTargetV1.host}:${String(catcafeTargetV1.port)}/${query}`;
 }
 
-/** SillyOS 98：全定制桌面 shell（窗口/任务栏/应用；持久化对玩家不透明）。 */
+/** SillyOS 98: fully custom desktop shell (windows/taskbar/apps; persistence opaque to the player). */
 export const sillyOsTargetV1 = Object.freeze({ host: hostV1, port: 41739 });
 
 export function sillyOsTargetUrlV1(query = ""): string {

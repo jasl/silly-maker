@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-// 桌面切片·控制面板：系统自己的设置窗口（语言/区域 + 系统信息）。
-// 引擎默认设置对话框在本作不暴露——设置就是一个普通桌面窗口。
+// Desktop slice · control panel: the system's own settings window (language/locale +
+// system info). The engine's default settings dialog stays unexposed — settings is just an ordinary desktop window.
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 

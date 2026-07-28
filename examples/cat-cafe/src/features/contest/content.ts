@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// 竞赛切片·内容表：技能与对手（外键指向图鉴奖杯条目）。
+// Contest slice · content tables: moves and opponents (foreign keys point at album trophy entries).
 import { z } from "zod";
 
 import type { RuntimeSchemaV1 } from "@sillymaker/base";
@@ -10,10 +10,10 @@ import { defineContentTable } from "@sillymaker/base/story";
 export interface CatcafeMoveRowV1 extends Readonly<Record<string, unknown>> {
   readonly id: string;
   readonly nameTextId: string;
-  /** 基础威力（对手士气伤害）。 */
+  /** Base power (morale damage to the opponent). */
   readonly power: number;
   readonly vigorCost: number;
-  /** feint = 下回合闪避；charm = 回复自身士气并取悦观众。 */
+  /** feint = dodge next turn; charm = restore own morale and please the crowd. */
   readonly kind: string;
 }
 
@@ -49,13 +49,13 @@ export const catcafeMovesTableV1: ContentTableDefinition<CatcafeMoveRowV1> = def
 export interface CatcafeRivalRowV1 extends Readonly<Record<string, unknown>> {
   readonly id: string;
   readonly nameTextId: string;
-  /** 参赛周（3/5/7）。 */
+  /** Contest week (3/5/7). */
   readonly week: number;
   readonly morale: number;
   readonly power: number;
-  /** aggressive = 总是强攻；steady = 交替；showy = 表演优先。 */
+  /** aggressive = always heavy attack; steady = alternates; showy = performance first. */
   readonly pattern: string;
-  /** 击败后解锁的图鉴条目。 */
+  /** Album entry unlocked on defeat. */
   readonly trophyAlbumId: string;
 }
 

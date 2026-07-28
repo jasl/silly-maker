@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
-// 日历切片·自动推进：体力耗尽（无法再做活动）时，时间在短暂停留后
-// 自动流向下一时段——玩家不必反复点"推进"。保护条款：开场未完、
-// 比赛进行中、今天的运动会还没打、结局已结算时都不自动。
+// Calendar slice · auto-advance: when stamina is exhausted (no more activities),
+// time flows to the next slot after a short dwell — the player need not click
+// "advance" repeatedly. Guards: never during the opening, mid-contest, before today's unplayed contest, or after the ending settles.
 import { useEffect, useState } from "react";
 
 import type { DeepReadonly } from "@sillymaker/base";
@@ -12,7 +12,7 @@ import { catcafeContestTodayV1 } from "../contest/rules.ts";
 
 export const catcafeAutoAdvanceDelayMsV1 = 5000;
 
-/** 返回是否正在倒计时（HUD 显示"时光流逝…"提示）。 */
+/** Returns whether the countdown is running (HUD shows the "time passes…" notice). */
 export function useCatcafeAutoAdvanceV1(
   publication: DeepReadonly<CatcafeUiPublicationV1>,
   semantic: CatcafeSemanticPortV1,
@@ -24,7 +24,7 @@ export function useCatcafeAutoAdvanceV1(
     game.ending === null &&
     game.contest === null &&
     game.calendar.stamina === 0 &&
-    // 今天的运动会还没打：把时间留给玩家（打完或手动跳过）。
+    // Today's contest is still unplayed: leave the time to the player (play it or skip manually).
     catcafeContestTodayV1(game.calendar) === null;
   const [pending, setPending] = useState(false);
   useEffect(() => {
@@ -37,7 +37,7 @@ export function useCatcafeAutoAdvanceV1(
       dispatchV1(semantic, { kind: "invoke", actionId: "cc.advance_slot" });
     }, catcafeAutoAdvanceDelayMsV1);
     return () => clearTimeout(timer);
-    // calendar 的 slot/day/week 变化（推进落地）会重建计时器或退出。
+    // Changes to calendar slot/day/week (an advance landing) rebuild the timer or exit.
   }, [eligible, semantic, game.calendar.slot, game.calendar.day, game.calendar.week]);
   return pending;
 }

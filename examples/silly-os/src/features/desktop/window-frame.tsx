@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
-// 桌面切片·窗体框架：标题栏（图标/标题/最小化/最大化/关闭）、双色
-// bevel、标题栏拖拽。拖拽用 Pointer Capture——捕获期间事件全部归标题
-// 栏，掠过 iframe 也不丢（老 mousemove 方案的经典坑在这里不存在）。
+// Desktop slice · window frame: title bar (icon/title/minimize/maximize/close), two-tone
+// bevels, title-bar dragging. Dragging uses Pointer Capture — while captured, every event
+// goes to the title bar, so sweeping across an iframe loses nothing (the classic mousemove pitfall does not exist here).
 import { useRef } from "react";
 import type { CSSProperties, ReactElement, ReactNode } from "react";
 
@@ -50,7 +50,7 @@ export function OsWindowFrameV1(props: {
   readonly title: string;
   readonly icon: ReactNode;
   readonly wm: OsWindowManagerV1;
-  /** 最大化边界（桌面区，扣除任务栏）。 */
+  /** Maximize bounds (the desktop area minus the taskbar). */
   readonly bounds: OsWindowRectV1;
   readonly labels: {
     readonly minimize: string;
@@ -127,10 +127,10 @@ export function OsWindowFrameV1(props: {
         onPointerMove={(event) => {
           const state = drag.current;
           if (state === null || state.pointerId !== event.pointerId) return;
-          // client px → stage 逻辑单位：viewport 提供连续缩放因子。
+          // client px → stage logical units: the viewport provides the continuous scale factor.
           const dx = (event.clientX - state.startX) / viewport.scale;
           const dy = (event.clientY - state.startY) / viewport.scale;
-          // 标题栏至少留 18px 可抓，防止拖出桌面找不回来。
+          // Keep at least 18px of the title bar grabbable so a window cannot be dragged beyond recovery.
           const x = Math.min(
             props.bounds.x + props.bounds.width - 48,
             Math.max(props.bounds.x - win.rect.width + 48, Math.round(state.rectX + dx)),

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// 图鉴切片·内容表：元进度（跨存档）条目定义；聚合入库见 src/content.ts。
+// Album slice · content tables: meta-progression (cross-save) entry definitions; aggregation in src/content.ts.
 import { z } from "zod";
 
 import type { RuntimeSchemaV1 } from "@sillymaker/base";

@@ -25,7 +25,7 @@ import { OsBootScreenV1 } from "../features/desktop/boot-screen.tsx";
 import { OsVolumeTrayV1 } from "../features/desktop/volume-tray.tsx";
 import type { OsWindowManagerV1 } from "../features/desktop/window-manager.ts";
 
-/** 桌面 shell：图标、窗口层、任务栏、开始菜单、关机幕——全部 UI 瞬态。 */
+/** The desktop shell: icons, window layer, taskbar, Start menu, shutdown screen — all UI-transient. */
 export function OsShellV1(props: {
   readonly publication: DeepReadonly<OsUiPublicationV1>;
   readonly semantic: OsSemanticPortV1;
@@ -48,12 +48,12 @@ export function OsShellV1(props: {
     () => Object.freeze({ x: 0, y: 0, width: boundsWidth, height: boundsHeight }),
     [boundsWidth, boundsHeight],
   );
-  // 视口变化（旋转、缩放窗口）时把窗口拉回桌面。
+  // Viewport changes (rotation, window resize) pull windows back onto the desktop.
   useEffect(() => {
     wm.clampToBounds(bounds);
   }, [wm, bounds]);
 
-  // 踩雷演出：瞬态效果通道→桌面短促震动（纯装饰）。
+  // Mine-hit performance: transient-effect channel → a brief desktop shake (pure decoration).
   useEffect(
     () =>
       props.instance.subscribeTransientEffects((effect) => {
@@ -130,7 +130,7 @@ export function OsShellV1(props: {
     <div
       data-os-shell="true"
       style={{
-        // fluid 视口：桌面即浏览器区域，窗口矩形直接用 CSS px。
+        // fluid viewport: the desktop is the browser area; window rects use CSS px directly.
         position: "absolute",
         inset: 0,
         pointerEvents: "auto",
@@ -139,7 +139,7 @@ export function OsShellV1(props: {
         animation: exploded ? "os-shake 0.4s linear" : undefined,
       }}
       onPointerDown={(event) => {
-        // 点击桌面空白处关闭开始菜单（点菜单/任务栏本身不关）。
+        // Clicking empty desktop closes the Start menu (clicks on the menu/taskbar do not).
         const target = event.target as HTMLElement;
         if (target.closest("[data-os-start-menu], [data-os-start-button]") === null) {
           setStartOpen(false);

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-// 图鉴切片：解锁谓词（写 Host 元进度）、卡面映射与图鉴网格视图。
-// 内容表见 ./content.ts；组合层只负责把 overlay 槽接到这里。
+// Album slice: unlock predicates (write Host meta progression), card-art mapping, and the album grid view.
+// Content tables in ./content.ts; the composition layer only wires the overlay slot here.
 import { useEffect, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 
@@ -13,7 +13,7 @@ import { catcafeThemeV1, useCatcafeTextV1 } from "../../application/ui-kit.ts";
 import { catcafeAlbumV1 } from "../../content.ts";
 import { catcafeAssetIdsV1 } from "../../presentation.ts";
 
-/** 图鉴解锁谓词：观察语义发布，满足即写入 Host 元进度（跨存档）。 */
+/** Album unlock predicate: observes semantic publications and writes Host meta progression (cross-save) when satisfied. */
 export const catcafeAlbumPredicatesV1: readonly {
   readonly albumId: string;
   readonly unlocked: (publication: DeepReadonly<CatcafeUiPublicationV1>) => boolean;
@@ -93,7 +93,7 @@ export const catcafeAlbumAssetForV1 = (albumId: string): string | undefined => {
       `album_trophy${albumId.slice("album.trophy.week".length)}` as keyof typeof catcafeAssetIdsV1
     ];
   }
-  // 结局收藏卡重用场景美术：冠军=金杯、招牌=店面、领养=后院、平凡=雨巷。
+  // Ending collection cards reuse scene art: champion=trophy, signboard=storefront, adoption=backyard, ordinary=rainy alley.
   if (albumId.startsWith("album.ending.")) {
     const byEnding: Readonly<Record<string, string>> = Object.freeze({
       champion: catcafeAssetIdsV1.album_trophy7,

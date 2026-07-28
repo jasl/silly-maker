@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// 店铺切片·内容表：日程活动定义（时段/体力/效果/收入/解锁）。
+// Shop slice · content tables: schedule-activity definitions (slots/stamina/effects/income/unlocks).
 import { z } from "zod";
 
 import type { RuntimeSchemaV1 } from "@sillymaker/base";
@@ -11,14 +11,14 @@ import { catcafeSlotsV1 } from "../calendar/content.ts";
 export interface CatcafeActivityRowV1 extends Readonly<Record<string, unknown>> {
   readonly id: string;
   readonly nameTextId: string;
-  /** 允许的时段；空数组 = 任意时段。 */
+  /** Allowed slots; empty array = any slot. */
   readonly slots: readonly string[];
   readonly stamina: number;
-  /** 数值效果：目标数值 id -> 增减。 */
+  /** Stat effects: target stat id -> delta. */
   readonly effects: readonly { readonly stat: string; readonly delta: number }[];
-  /** 金钱收入公式挂钩：null 或 "business"（营业收入按声誉/整洁折算）。 */
+  /** Income formula hook: null or "business" (business income scales with reputation/tidiness). */
   readonly income: string | null;
-  /** 解锁所需成长阶段；null = 始终可用。 */
+  /** Growth stage required to unlock; null = always available. */
   readonly unlockStage: number | null;
 }
 

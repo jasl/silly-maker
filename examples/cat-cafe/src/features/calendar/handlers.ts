@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// 日历切片·命令：时段推进；跨日联动整洁衰减、抚摸重置与立绘成长。
+// Calendar slice · commands: slot advancement; day rollover chains tidiness decay, petting reset, and character-art growth.
 import type { CatcafeCommandHandlerMapV1 } from "../../runtime.ts";
 import { transactionRunnerV1 } from "../../runtime.ts";
 import { catcafeDailyPettingV1 } from "../../state.ts";
@@ -14,13 +14,13 @@ export const calendarCommandHandlersV1: Pick<CatcafeCommandHandlerMapV1, "cc.adv
   Object.freeze({
     "cc.advance_slot": ({ snapshot, rng, state }) =>
       transactionRunnerV1.execute(snapshot, rng, (transaction) => {
-        // 日常玩法在开场叙事完成后解锁。
+        // Daily gameplay unlocks after the opening narrative completes.
         if (state.narrative.phase !== "completed") {
           return transaction.reject({ code: "cc.narrative_busy" });
         }
         transaction.propose(calendarModuleV1, { kind: "advance" });
         const next = applyCalendarV1(state.calendar, { kind: "advance" });
-        // 跨日：整洁自然下降、抚摸余量重置、立绘按周龄同步成长。
+        // Day rollover: tidiness decays naturally, petting allowance resets, character art grows by week age.
         if (next.slot === 0) {
           transaction.propose(shopModuleV1, {
             kind: "apply",

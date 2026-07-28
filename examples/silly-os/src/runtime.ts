@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// 模拟运行时：模块合成、事务运行器与特性命令处理器的公共形状。
+// Simulation runtime: module composition, the transaction runner, and the shared shape of feature command handlers.
 import type { createTransactionalRngV1 } from "@sillymaker/base";
 
 import { osGameStateSchemaV1 } from "./state.ts";
@@ -34,7 +34,7 @@ export interface OsHandlerInputV1<C extends OsCommandV1> {
 
 export type OsCommandHandlerV1<C extends OsCommandV1> = (input: OsHandlerInputV1<C>) => OsAttemptV1;
 
-/** kind→handler 的完整映射：漏一个命令种类无法通过类型检查。 */
+/** The exhaustive kind→handler map: a missed command kind fails the type check. */
 export type OsCommandHandlerMapV1 = {
   readonly [K in OsCommandV1["kind"]]: OsCommandHandlerV1<Extract<OsCommandV1, { kind: K }>>;
 };

@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
-// 舞台切片·渲染器：背景与猫立绘（真图优先，code-native 形状降级）。
-// 猫的待机/反馈动画是纯装饰 CSS（语义演出走 Timeline）；尊重 reduced-motion。
+// Stage slice · renderers: background and cat art (real images first, code-native shapes as fallback).
+// The cat's idle/feedback animation is decorative CSS (semantic performances use the Timeline); respects reduced-motion.
 import type { SemanticStageEntryRendererV1 } from "@sillymaker/ui";
 import { resolveAssetUrlV1 } from "@sillymaker/ui";
 
 import type { CatcafeAssetRegistryV1 } from "../../application/ui-kit.ts";
 
 /**
- * 渲染器：真图优先（registry 解析 URL），code-native 形状保留为降级。
- * 猫立绘按成长阶段放大；表情三挡由内容目录映射到三张立绘。
+ * Renderers: real images first (the registry resolves URLs), code-native shapes kept as fallback.
+ * Cat art scales by growth stage; the three expression tiers map to three images via the content catalog.
  */
 export const catcafeCatFrameSizeV1 = (stage: string): { width: number; height: number } => {
   const height = stage === "adolescent" ? 440 : stage === "junior" ? 380 : 320;
@@ -51,8 +51,8 @@ export function createCatcafeStageRenderersV1(
       const frame = catcafeCatFrameSizeV1(stage);
       const url = resolveAssetUrlV1(registry, entry.props.assetId, "character_pose");
       if (url !== null) {
-        // 透明立绘直接坐进场景：呼吸待机常驻，表情切换触发一次
-        // 反馈动作（开心=弹跳、炸毛=抖动）。reduced-motion 下全部静止。
+        // Transparent character art sits straight in the scene: breathing idle runs constantly,
+        // an expression switch triggers one feedback motion (happy=bounce, hissing=shake). All still under reduced-motion.
         const reaction =
           expression === "hissing" ? "cc-cat-shake" : expression === "calm" ? "" : "cc-cat-pop";
         return (

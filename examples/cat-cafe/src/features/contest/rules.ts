@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
-// 竞赛切片·规则：运动会日程（主线 3/5/7 周；后日谈每周日暮友谊赛）。
+// Contest slice · rules: the contest schedule (mainline weeks 3/5/7; postgame friendly every Sunday dusk).
 import type { CatcafeGameStateV1 } from "../../state.ts";
 import { catcafeRivalsV1, catcafeSlotsV1 } from "../../content.ts";
 
 /**
- * 今天是否运动会日：主线 3/5/7 周的周日暮；后日谈（第 8 周起）每个
- * 周日暮都有友谊赛，对手按周轮换。
+ * Is today a contest day: Sunday dusk of mainline weeks 3/5/7; in postgame (week 8+)
+ * every Sunday dusk holds a friendly, with opponents rotating by week.
  */
 export function catcafeContestTodayV1(
   calendar: CatcafeGameStateV1["simulation"]["calendar"],

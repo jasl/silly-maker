@@ -363,7 +363,7 @@ describe("createCoreGameApplicationInstanceV1", () => {
 
   it("resumes the previous session's autosave at boot when opted in", async () => {
     const records = createMemoryHostRecordStoreV1();
-    // 第一次会话：推进两步，防抖自动存档随提交落盘（every_commit 默认）。
+    // First session: advance two steps; the debounced autosave lands with each commit (every_commit default).
     const first = await createCoreGameApplicationInstanceV1(resolvedResumingApplicationV1(), {
       host: hostServicesV1(records),
     });
@@ -374,18 +374,18 @@ describe("createCoreGameApplicationInstanceV1", () => {
     expect(countBefore).toBe(2);
     await first.dispose();
 
-    // 第二次会话（同一 records）：opt-in 定义在启动时收养 auto.current。
+    // Second session (same records): an opted-in definition adopts auto.current at boot.
     const second = await createCoreGameApplicationInstanceV1(resolvedResumingApplicationV1(), {
       host: hostServicesV1(records),
     });
     expect((second.semantic.observe().game as { readonly count: number }).count).toBe(2);
-    // 有意的语义：boot-resume 完成在 anchor 订阅建立之前——对表现层
-    // 这就是引导态（origin bootstrap），不算读档，也就不会触发
-    // "load 起源关闭标题屏"的行为；标题屏的 Continue 因而成为真话。
+    // Intentional semantics: boot-resume completes before the anchor subscription
+    // exists — to presentation this is the bootstrap origin, not a load, so the
+    // "load origin dismisses the title screen" behavior never fires; that is what makes the title screen's Continue truthful.
     expect(second.presentationAnchor().origin).toBe("bootstrap");
     await second.dispose();
 
-    // 未 opt-in 的定义保持原语义：同一 records 也从零开始。
+    // Definitions that do not opt in keep the old semantics: same records still start fresh.
     const fresh = await createCoreGameApplicationInstanceV1(resolvedApplicationV1(), {
       host: hostServicesV1(records),
     });

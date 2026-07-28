@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-// 扫雷切片·规则：纯函数——布雷（RNG 注入）、洪泛翻格、胜负判定。
-// 全部输入输出 JSON-safe；同一 RNG 状态重放得到同一雷区。
+// Minesweeper slice · rules: pure functions — mine placement (RNG injected), flood reveal,
+// win/loss determination. All inputs/outputs JSON-safe; the same RNG state replays the same minefield.
 import type { OsBoardV1, OsCellV1 } from "../../state.ts";
 import { osCellFlaggedV1, osCellMineV1, osCellRevealedV1 } from "../../state.ts";
 
@@ -18,7 +18,7 @@ export const osMinePresetsV1: Readonly<Record<string, OsMinePresetV1>> = Object.
 
 export function osBoardConfigValidV1(width: number, height: number, mines: number): boolean {
   if (width < 5 || width > 40 || height < 5 || height > 30) return false;
-  // 首点安全布雷需要至少一个非雷格。
+  // First-click-safe placement needs at least one non-mine cell.
   return mines >= 1 && mines <= width * height - 1;
 }
 
@@ -34,9 +34,9 @@ export function osCreateBoardV1(width: number, height: number, mines: number): O
 }
 
 /**
- * 首次翻格时布雷：在排除首点的位置里等概率抽 mineCount 个（部分
- * Fisher-Yates；每次抽取消耗一次 RNG，重放一致）。经典 Win98 语义：
- * 首点本格永不是雷（不排除邻域）。
+ * Mines are placed on the first reveal: draw mineCount cells uniformly from the positions
+ * excluding the first click (partial Fisher-Yates; each draw consumes one RNG step, replay-
+ * consistent). Classic Win98 semantics: the first-clicked cell itself is never a mine (neighbors not excluded).
  */
 export function osPlaceMinesV1(
   board: OsBoardV1,
@@ -82,7 +82,7 @@ export function osAdjacentMinesV1(board: OsBoardV1, index: number): number {
   return count;
 }
 
-/** 迭代洪泛：翻开 index；零邻雷时扩散到邻域（旗标格不自动翻开）。 */
+/** Iterative flood: reveal index; zero-adjacent cells spread to neighbors (flagged cells never auto-reveal). */
 export function osRevealFloodV1(board: OsBoardV1, index: number): OsBoardV1 {
   const cells = [...board.cells];
   const stack = [index];

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-// 共享数值条：自绘轨道+填充（原生 <progress> 轨道配色跨浏览器不可控，
-// 6px 细条下退化严重——评估记录见 docs/engine/design/window-model.md）。
+// Shared stat bar: self-drawn track + fill (native <progress> track colors are
+// uncontrollable across browsers and degrade badly at a 6px height — evaluation notes in docs/engine/design/window-model.md).
 import type { ReactElement } from "react";
 
 export function CatcafeStatBarV1(props: {

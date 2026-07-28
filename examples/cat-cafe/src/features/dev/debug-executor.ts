@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-// 调参切片：debug 命令的 schema、校验与执行。与正常命令同一原子提交
-// 路径，日志按 source:"debug" 标记；重放时走 debug 执行器还原。
+// Tuning slice: schema, validation, and execution of debug commands. Same atomic
+// commit path as normal commands, log entries marked source:"debug"; replay routes through the debug executor.
 import type { RuntimeSchemaV1 } from "@sillymaker/base";
 import { createTransactionalRngV1, drawFromEventPoolV1 } from "@sillymaker/base";
 
@@ -138,8 +138,8 @@ export const catcafeDebugCommandExecutorV1: CatcafeDebugCommandExecutorV1 = Obje
     }
     if (command.kind === "cc.debug.advance_days") {
       return transactionRunnerV1.execute(snapshot, rng, (transaction) => {
-        // 快进 N 天：日历直接落到 N 天后的清晨（调参语义：近似，不重放
-        // 每个时段），整洁按天衰减，体力与抚摸余量重置。
+        // Fast-forward N days: the calendar lands directly on the morning N days out
+        // (tuning semantics: approximate, no per-slot replay); tidiness decays per day, stamina and petting allowance reset.
         const total = state.calendar.day + command.days;
         const week = clampV1(state.calendar.week + Math.floor(total / 7), 1, 9999);
         const day = total % 7;
@@ -173,7 +173,7 @@ export const catcafeDebugCommandExecutorV1: CatcafeDebugCommandExecutorV1 = Obje
           candidates: catcafeEncountersV1.rows().map((row) => ({
             eventId: row.id,
             weight: row.weight,
-            condition: null, // 调参预览：跳过资格（force 语义在此处是"点名预览"）
+            condition: null, // Tuning preview: skip eligibility (force here means "named preview").
           })),
           context: { numbers: {}, flags: [], labels: {} },
           rng,

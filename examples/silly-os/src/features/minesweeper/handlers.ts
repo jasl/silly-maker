@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-// 扫雷切片·命令：开局/翻格/插旗。首次翻格布雷走事务 RNG（首点安全，
-// 重放一致）；踩雷与胜利以事实广播（UI 演出用，权威已在状态里）。
+// Minesweeper slice · commands: new game / reveal / flag. First reveal places mines via the
+// transaction RNG (first click safe, replay-consistent); mine hits and wins broadcast as facts (for UI performance; authority is already in state).
 import type { OsCommandHandlerMapV1 } from "../../runtime.ts";
 import { transactionRunnerV1 } from "../../runtime.ts";
 import type { OsFactV1 } from "../../kernel.ts";
@@ -50,7 +50,7 @@ export const minesweeperCommandHandlersV1: Pick<
       if ((cell & osCellRevealedV1) !== 0) {
         return transaction.reject({ code: "os.mine.cell_revealed" });
       }
-      // 旗标格不响应左键翻开（Win98 语义：先取旗再翻）。
+      // Flagged cells ignore left-click reveals (Win98 semantics: unflag first, then reveal).
       if ((cell & osCellFlaggedV1) !== 0) {
         return transaction.reject({ code: "os.mine.cell_revealed" });
       }
@@ -64,7 +64,7 @@ export const minesweeperCommandHandlersV1: Pick<
 
       const facts: OsFactV1[] = [];
       if (((working.cells[index] as number) & osCellMineV1) !== 0) {
-        // 踩雷：盘面终局，翻开该格（全雷揭示由发布投影在终局后放行）。
+        // Mine hit: the board is terminal; reveal this cell (full mine reveal is released by the publication projection after the game ends).
         const cells = [...working.cells];
         cells[index] = (cells[index] as number) | osCellRevealedV1;
         working = Object.freeze({

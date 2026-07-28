@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-// 桌面切片·桌面与任务栏：壁纸、图标（双击/回车打开）、开始菜单、
-// 窗口按钮、时钟（UI 时钟，非权威）与关机幕。
+// Desktop slice · desktop and taskbar: wallpaper, icons (double-click/Enter opens),
+// Start menu, window buttons, clock (UI clock, not authoritative), and the shutdown screen.
 import { useEffect, useState } from "react";
 import type { CSSProperties, ReactElement, ReactNode } from "react";
 
@@ -8,7 +8,7 @@ import { os98, osBevelInV1, osBevelOutV1 } from "../../application/ui-kit.ts";
 import { OsStartLogoV1 } from "./icons.tsx";
 import type { OsWindowManagerSnapshotV1, OsWindowManagerV1 } from "./window-manager.ts";
 
-/** 仅作测量兜底（fluid 视口下桌面尺寸跟随浏览器区域）。 */
+/** Measurement fallback only (under the fluid viewport the desktop tracks the browser area). */
 export const osDesktopCanvasV1 = Object.freeze({ width: 1024, height: 768 });
 export const osTaskbarHeightV1 = 34;
 
@@ -75,7 +75,7 @@ export function OsDesktopIconV1(props: {
 }
 
 function OsClockV1(): ReactElement {
-  // 任务栏时钟是纯 UI 装饰：读墙钟但绝不写入权威状态。
+  // The taskbar clock is pure UI decoration: reads the wall clock, never writes authoritative state.
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 30_000);
@@ -104,7 +104,7 @@ export function OsTaskbarV1(props: {
   readonly taskbarLabel: string;
   readonly startOpen: boolean;
   readonly windowTitle: (appId: string) => string;
-  /** 托盘区（音量等），时钟左侧。 */
+  /** Tray area (volume etc.), left of the clock. */
   readonly tray?: ReactNode;
   onToggleStart(): void;
 }): ReactElement {

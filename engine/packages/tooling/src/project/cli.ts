@@ -49,9 +49,9 @@ interface ParsedArgsV1 {
   readonly trace?: readonly string[];
   readonly diffAfterPath?: string;
   readonly smoke: boolean;
-  /** build/desktop：产出 sourcemap（调试用）。 */
+  /** build/desktop: emit sourcemaps (for debugging). */
   readonly sourcemap: boolean;
-  /** build/desktop：关闭压缩混淆（调试用；默认开启）。 */
+  /** build/desktop: disable minify/mangle (for debugging; on by default). */
   readonly noMinify: boolean;
 }
 

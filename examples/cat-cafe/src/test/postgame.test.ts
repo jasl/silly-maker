@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
-// 后日谈（无限日常）：主线第 7 周结算出结局后，「继续经营」把结局写进
-// 权威状态并跨入第 8 周；日历不再封顶，之后每个周日傍晚都有友谊赛，
-// 对手按周轮换；结局只结算一次。
+// Postgame (endless daily play): after the week-7 mainline settles an ending,
+// "keep running the shop" writes the ending into authoritative state and crosses into
+// week 8; the calendar is uncapped, every later Sunday dusk holds a friendly with opponents rotating by week; the ending settles exactly once.
 import { describe, expect, it } from "vitest";
 
 import { createGameHarnessV1 } from "@sillymaker/base/testkit";
@@ -38,7 +38,7 @@ async function harnessAtFinalNightV1() {
   for (const step of opening) {
     expect(await harness.dispatch(step as never)).toMatchObject({ kind: "committed" });
   }
-  // 调试通道快进到第 7 周周日清晨，再推三个时段到夜里（结算点）。
+  // Fast-forward via the debug channel to week 7 Sunday morning, then advance three slots to night (the settlement point).
   const control = harness.admin.debugControl;
   if (control === undefined) throw new Error("debug control must exist");
   expect(
@@ -60,13 +60,13 @@ describe("catcafe postgame (endless daily mode)", () => {
   it("confirming the ending enters the epilogue and week 8 begins", async () => {
     const harness = await harnessAtFinalNightV1();
     try {
-      // 结局已结算（默认数值走向 ordinary），但尚未确认。
+      // The ending has settled (default stat trajectory yields "ordinary") but is unconfirmed.
       const settled = gameV1(harness);
       expect(settled.calendar).toMatchObject({ week: 7, day: 6, slot: 3 });
       expect(settled.ending).toBe("ordinary");
       expect(settled.shop.epilogue).toBeNull();
 
-      // 结算夜之前不可用的动作现在可用了。
+      // Actions unavailable before settlement night are available now.
       const postgameAction = harness.semantic
         .observe()
         .actions.find(
@@ -74,7 +74,7 @@ describe("catcafe postgame (endless daily mode)", () => {
         );
       expect(postgameAction).toMatchObject({ enabled: true });
 
-      // 确认：结局写入权威状态，日历跨入第 8 周周一清晨。
+      // Confirm: the ending lands in authoritative state; the calendar crosses into week 8 Monday morning.
       expect(
         await harness.dispatch({ kind: "invoke", actionId: "cc.enter_postgame" } as never),
       ).toMatchObject({ kind: "committed" });
@@ -83,7 +83,7 @@ describe("catcafe postgame (endless daily mode)", () => {
       expect(postgame.ending).toBeNull();
       expect(postgame.calendar).toMatchObject({ week: 8, day: 0, slot: 0 });
 
-      // 只能确认一次。
+      // Confirmation happens only once.
       const again = await harness.dispatch({
         kind: "invoke",
         actionId: "cc.enter_postgame",
@@ -95,14 +95,14 @@ describe("catcafe postgame (endless daily mode)", () => {
   });
 
   it("postgame Sundays hold friendly contests with rotating rivals", () => {
-    // 第 8/9/10 周周日暮：对手按 糯米 → 烟灰 → 将军 轮换；平日没有。
+    // Weeks 8/9/10 Sunday dusk: opponents rotate 糯米 → 烟灰 → 将军; weekdays have none.
     const dusk = (week: number, day = 6, slot = 2) => ({ week, day, slot, stamina: 6 });
     expect(catcafeContestTodayV1(dusk(8))).toBe("rival.mochi");
     expect(catcafeContestTodayV1(dusk(9))).toBe("rival.smoke");
     expect(catcafeContestTodayV1(dusk(10))).toBe("rival.general");
     expect(catcafeContestTodayV1(dusk(11))).toBe("rival.mochi");
     expect(catcafeContestTodayV1(dusk(8, 5))).toBeNull();
-    // 主线周不受影响：第 4 周周日没有比赛，第 5 周周日是烟灰。
+    // Mainline weeks unaffected: week 4 Sunday has no contest, week 5 Sunday is 烟灰.
     expect(catcafeContestTodayV1(dusk(4))).toBeNull();
     expect(catcafeContestTodayV1(dusk(5))).toBe("rival.smoke");
   });
@@ -114,12 +114,12 @@ describe("catcafe postgame (endless daily mode)", () => {
         await harness.dispatch({ kind: "invoke", actionId: "cc.enter_postgame" } as never),
       ).toMatchObject({ kind: "committed" });
 
-      // 第 8 周周一清晨：日常活动照常提交。
+      // Week 8 Monday morning: daily activities commit as usual.
       expect(
         await harness.dispatch({ kind: "activity", activityId: "activity.clean" } as never),
       ).toMatchObject({ kind: "committed" });
 
-      // 推进到第 8 周周日暮，参加友谊赛并打完。
+      // Advance to week 8 Sunday dusk, enter the friendly, and play it out.
       const control = harness.admin.debugControl;
       if (control === undefined) throw new Error("debug control must exist");
       expect(
@@ -143,14 +143,14 @@ describe("catcafe postgame (endless daily mode)", () => {
       }
       expect(gameV1(harness).contest).toBeNull();
 
-      // 后日谈的夜里没有第二次结局。
+      // No second ending during postgame nights.
       expect(
         await harness.dispatch({ kind: "invoke", actionId: "cc.advance_slot" } as never),
       ).toMatchObject({ kind: "committed" });
       expect(gameV1(harness).ending).toBeNull();
       expect(gameV1(harness).shop.epilogue).toBe("ordinary");
 
-      // 权威回放对后日谈路径成立。
+      // Authoritative replay holds for the postgame path.
       const replay = await harness.admin.replayAuthoritatively();
       expect(replay).toMatchObject({ authoritative: true, identityMatch: true, matches: true });
     } finally {

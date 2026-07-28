@@ -1,37 +1,37 @@
-# e2e/ 代理手册
+# e2e/ agent handbook
 
-本包是 **Engine Lab**：中立的引擎一致性 Story（MIT），是引擎行为的验收面——浏览器 E2E（`engine/packages/web/e2e/engine/**`）和 headless 一致性测试都跑在它上面。
+This package is the **Engine Lab**: the neutral engine-conformance Story (MIT) and the acceptance surface for engine behavior — the browser E2E suites (`engine/packages/web/e2e/engine/**`) and the headless conformance tests both run on it.
 
-改动纪律：**只应引擎工作而动**。它不是游戏，不接受玩法设计；引擎新能力在这里做垂直证明（每个能力一条最小真实路径）。改状态契约必须按版本同步表 bump revision 并同步测试断言。
+Change discipline: **change only in service of engine work**. It is not a game and accepts no gameplay design; new engine capabilities get a vertical proof here (one minimal real path per capability). Any state-contract change must bump revisions per the sync table and update the test assertions with it.
 
-## 剧本/文本任务（最常见）
+## Script/text tasks (most common)
 
-改哪个文件：台词与界面文案 → `src/presentation.ts`（textId 目录）；剧情节点/分支/舞台指令 → `src/narrative.ts`；舞台渲染器与 shell 组件 → `src/application/shell-ui.tsx`；VN 播放器 → `narrative-ui.tsx`；应用声明/槽位编排 → `composition.tsx`（勿把 PascalCase 组件与 `labGameApplicationV1` 同文件导出，否则 Vite Fast Refresh 失效）。`core-application.ts` 是 headless 实例工厂。
+Which file to edit: dialogue and UI copy → the textId catalog in `src/presentation.ts`; story nodes/branches/stage directives → `src/narrative.ts`; stage renderers and shell widgets → `src/application/shell-ui.tsx`; the VN player → `narrative-ui.tsx`; the application declaration and slot orchestration → `composition.tsx` (do not export PascalCase components from the same file as `labGameApplicationV1`, or Vite Fast Refresh breaks). `core-application.ts` is the headless instance factory.
 
-动手前先列节点序列表（每个 say/choice 边界一个 occurrence 编号，从 1 起），场景脚本（`src/tooling/simulation-target.ts`）与测试一次写对。
+Before editing, list the full node sequence (one occurrence number per say/choice boundary, starting at 1) so the scenario script (`src/tooling/simulation-target.ts`) and tests are written correctly on the first pass.
 
-每次修改后的验证环（秒级）：
+Verification loop after every edit (seconds):
 
 ```sh
 deno task typecheck
-deno run -A npm:vitest run <本包目录>
+deno run -A npm:vitest run <this package directory>
 deno task story simulate <appId> --scenario <name>
 ```
 
-规则速记：
+Rules in brief:
 
-- 新 say/choice 必须用全新 `definitionId`（`interaction.<story>.<name>`），不复用。
-- `stage` 节点的 `mayShow` 如实列出可能展示的 contentId；`branch` 的 `choose` 必须落在 `successors` 内（有测试盯守）。
-- 新增舞台内容三处接线：narrative 的 contentId 常量、presentation 的内容目录、composition 的渲染器。
-- 可保存状态只放整数（`scalePermille` 这类逻辑单位），浮点会被 canonical JSON 拒绝。
-- 空舞台上首次放内容用 `show`；`replace` 只用于已在台上的内容。
+- Every new say/choice needs a brand-new `definitionId` (`interaction.<story>.<name>`); never reuse one.
+- A `stage` node's `mayShow` honestly lists every contentId it might show; a `branch`'s `choose` must land inside `successors` (tests enforce both).
+- New stage content is wired in three places: the contentId constant in narrative, the content catalog in presentation, the renderer in composition.
+- Saveable state holds integers only (logical units like `scalePermille`); floats are rejected by canonical JSON.
+- Use `show` for content entering an empty stage; `replace` only for content already on stage.
 
-## 模块/状态任务
+## Module/state tasks
 
-四个接线点：`state.ts`（接口 + schema + 初始值）→ `simulation.ts`（模块 owner + 命令）→ `application/semantic.ts`（动作目录 + blockedBy）→ `story.ts`（manifest 条目，模块 id 按字典序）。版本同步表与常见诊断速查见 `docs/engine/authoring-quickstart.md`，不要凭记忆改 revision。
+Four wiring points: `state.ts` (interface + schema + initial value) → `simulation.ts` (module owner + commands) → `application/semantic.ts` (action catalog + blockedBy) → `story.ts` (manifest entry; module ids in lexicographic order). The revision-sync table and the diagnostics quick-reference are in `docs/engine/authoring-quickstart.md`; do not bump revisions from memory.
 
-## 禁区
+## Forbidden
 
-- 只 import `@sillymaker/*` 包出口；绝不 import 引擎 `src/**` 路径、绝不 import 另一个 Story。
-- 引擎行为疑问读 `docs/engine/features.md`，不要读引擎源码猜。
-- 不要为通过测试而放宽断言语义；occurrence 断言失配时按失败信息更新编号。
+- Import only `@sillymaker/*` package exports; never import engine `src/**` paths, never import another Story.
+- For engine-behavior questions read `docs/engine/features.md`; do not guess from engine source.
+- Do not loosen assertion semantics to make tests pass; when occurrence assertions mismatch, renumber per the failure message.

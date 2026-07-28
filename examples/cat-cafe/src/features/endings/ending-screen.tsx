@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// 结局切片·UI：全屏结局幕（标题美术打底），提供进入后日谈与重开。
+// Endings slice · UI: the fullscreen ending screen (title art backdrop) with enter-postgame and restart.
 import type { ReactElement } from "react";
 
 import { Button, useAssetUrlV1 } from "@sillymaker/ui";

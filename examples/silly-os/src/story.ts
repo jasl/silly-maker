@@ -16,7 +16,7 @@ import {
   osTextCatalogsV1,
 } from "./presentation.ts";
 
-/** Story 门面：无叙事（narrativeProgram: null）、无资产的桌面模拟。 */
+/** The Story facade: a desktop simulation with no narrative (narrativeProgram: null) and no assets. */
 export const osStateContractManifestV1 = Object.freeze({
   contractRevision: 1 as const,
   aggregateStateSchema: Object.freeze({

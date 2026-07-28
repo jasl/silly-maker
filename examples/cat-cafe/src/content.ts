@@ -9,9 +9,9 @@ import { catcafeMovesTableV1, catcafeRivalsTableV1 } from "./features/contest/co
 import { catcafePettingTableV1 } from "./features/petting/content.ts";
 
 /**
- * 《雨巷猫舍》的静态内容聚合：表定义在各特性切片（features/<名>/
- * content.ts），这里组装内容数据库（解析期做主键/外键/文本列校验）
- * 并导出查询句柄。运行时只读；动态状态在 `state.ts` 的模块里。
+ * Static content aggregation for the cat cafe: tables are defined in their feature
+ * slices (features/<name>/content.ts); this file assembles the content database
+ * (primary/foreign key and text-column validation at resolve time) and exports query handles. Read-only at runtime; dynamic state lives in the modules of `state.ts`.
  */
 
 export { catcafeSlotsV1 } from "./features/calendar/content.ts";

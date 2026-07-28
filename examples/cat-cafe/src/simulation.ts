@@ -39,12 +39,12 @@ import { catcafeStageForWeekV1 } from "./content.ts";
 import { catcafeEndingForV1 } from "./features/endings/rules.ts";
 
 /**
- * 《雨巷猫舍》的模拟聚合：类型与 schema 在 kernel，模块与规则在各
- * 特性切片（features/<名>/module|rules|handlers），这里只把 kind→
- * handler 的完整映射装配成命令执行器（漏一个命令种类无法编译）。
+ * The cat cafe's simulation aggregate: types and schemas in kernel, modules and rules
+ * in the feature slices (features/<name>/module|rules|handlers); this file only
+ * assembles the exhaustive kind→handler map into the command executor (a missed command kind fails to compile).
  */
 
-// ---- 公共契约再导出：外部（semantic/composition/测试/CLI）只面向本门面。
+// ---- Public contract re-exports: outsiders (semantic/composition/tests/CLI) face this facade only.
 export type {
   CatcafeAttemptV1,
   CatcafeBootstrapInputV1,
@@ -82,7 +82,7 @@ export type CatcafeGameSimulationV1 = GameSimulation<
   CatcafeDebugCommandExecutorV1
 >;
 
-/** 特性 handlers 的完整装配：类型上覆盖每一个命令 kind。 */
+/** Full assembly of feature handlers: covers every command kind at the type level. */
 const commandHandlersV1: CatcafeCommandHandlerMapV1 = Object.freeze({
   ...dialogueCommandHandlersV1,
   ...calendarCommandHandlersV1,

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-// 语义面：SillyOS 的动作目录为空（桌面交互全部是参数化 invocation），
-// 每个 invocation 一一映射到命令；瞬态效果投影踩雷/胜利供 UI 演出。
+// The semantic surface: SillyOS has an empty action catalog (desktop interaction is all
+// parameterized invocations), each invocation maps 1:1 to a command; transient effects project mine hits/wins for UI performance.
 import type { CoreSemanticAdapterV1 } from "@sillymaker/base/runtime";
 import type { TransientEffectRequestV1 } from "@sillymaker/base";
 

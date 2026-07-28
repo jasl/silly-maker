@@ -30,7 +30,7 @@ import { CatcafeStatBarV1 } from "./stat-bar.tsx";
 import { catcafeLocalesV1 } from "../presentation.ts";
 import { catcafeSlotsV1 } from "../content.ts";
 
-/* 游戏内按钮紧凑化：HUD 与对话快捷条采用小号按钮（触控 32px 达标）。 */
+/* Compact in-game buttons: HUD and dialogue shortcut bar use the small size (32px touch targets preserved). */
 const catcafeChromeCssV1 = `
 [data-cc-hud] .silly-button,
 [data-dialogue] .silly-button,
@@ -51,9 +51,9 @@ const actionTextIdsV1: Readonly<Record<CatcafeActionIdV1, string>> = Object.free
 });
 
 /**
- * 对话面板：引擎 DialoguePanelV1 的薄适配——打字机、自动/快进、已读
- * 标记、历史回看、点击面、快捷条全部来自引擎；这里只接语义端口、
- * 文本目录与回退按钮。
+ * Dialogue panel: a thin adapter over the engine's DialoguePanelV1 — typewriter,
+ * auto/skip, seen markers, history, click surface, and the shortcut bar all come
+ * from the engine; this wires only the semantic port, text catalog, and the rollback button.
  */
 export function CatcafeNarrativePanelV1(props: {
   readonly publication: DeepReadonly<CatcafeUiPublicationV1>;
@@ -92,7 +92,7 @@ export function CatcafeNarrativePanelV1(props: {
   );
 }
 
-/** 玩家回退：有界检查点环；比赛开赛/结局确认是硬边界（策略见 core-definition）。 */
+/** Player rollback: a bounded checkpoint ring; contest start / ending confirmation are hard barriers (policy in core-definition). */
 export function CatcafeRollbackControlV1(props: {
   readonly instance: CatcafeApplicationInstanceV1;
   readonly label: string;
@@ -254,7 +254,7 @@ export function CatcafeHudV1(props: {
           {uiText("text.cc.hud.reputation")} {String(game.shop.reputation)} ·{" "}
           {uiText("text.cc.hud.tidiness")} {String(game.shop.tidiness)}
         </span>
-        {/* 隐蔽的机器可读镜像，测试与自动化断言用。 */}
+        {/* Hidden machine-readable mirror for tests and automation assertions. */}
         <span data-cc-stats-text="true" style={{ display: "none" }}>
           {`${uiText("text.cc.hud.trust")}${String(game.cat.trust)} · ${uiText("text.cc.hud.vigor")}${String(game.cat.vigor)} · ${uiText("text.cc.hud.skill")}${String(game.cat.skill)} · ${uiText("text.cc.hud.money")}${String(game.shop.money)} · ${uiText("text.cc.hud.reputation")}${String(game.shop.reputation)} · ${uiText("text.cc.hud.tidiness")}${String(game.shop.tidiness)}`}
         </span>
@@ -267,7 +267,7 @@ export function CatcafeHudV1(props: {
           display: "grid",
           gap: "8px",
           justifyItems: "center",
-          // 对话进行中让出舞台：动作栏隐藏，等叙事面板退场再回来。
+          // Yield the stage while dialogue runs: hide the action bar until the narrative panel exits.
           ...(props.publication.semantic.narrative.pending === null
             ? {}
             : { visibility: "hidden" as const }),
@@ -360,9 +360,9 @@ export function CatcafeHudV1(props: {
 }
 
 /**
- * 设置面板：语言（即时切换游戏内文本）、音量/静音（Host 偏好，跨存档）、
- * 全屏切换（浏览器与 webview 同 API）。分辨率一行说明——舞台随窗口
- * 等比缩放，桌面渠道的窗口尺寸设置属后续工作。
+ * Settings panel: language (switches in-game text immediately), volume/mute (Host
+ * preferences, cross-save), fullscreen toggle (same API in browser and webview).
+ * Resolution gets one line of copy — the stage scales with the window; desktop-channel window sizing is future work.
  */
 export function CatcafeSettingsV1(props: {
   readonly playerProfile: PlayerProfileStoreV1;

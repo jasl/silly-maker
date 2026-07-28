@@ -8,7 +8,7 @@ import {
   sillyOsTargetV1,
 } from "./fixtures.ts";
 
-/** 示例浏览器套件：每个示例应用一个 dev server，桌面双内核验收。 */
+/** Examples browser suite: one dev server per example application; desktop dual-engine acceptance. */
 export default defineConfig({
   testDir: ".",
   fullyParallel: false,
@@ -35,7 +35,7 @@ export default defineConfig({
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },
     { name: "webkit", use: { ...devices["Desktop Safari"] } },
     {
-      // 手机竖屏：SillyOS fluid 平铺与触控可用性的最小盯守。
+      // Mobile portrait: a minimal watch on SillyOS fluid tiling and touch usability.
       name: "mobile-portrait",
       grep: /@mobile/,
       use: {

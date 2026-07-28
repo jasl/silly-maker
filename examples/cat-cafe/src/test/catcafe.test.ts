@@ -107,7 +107,7 @@ describe("catcafe schedule and stats", () => {
       await playOpeningV1(instance);
       const digest = instance.admin.stateDigest();
 
-      // 午睡只在傍晚；敏捷训练要幼猫期（第 3 周起）。
+      // Napping is dusk-only; agility training needs the junior stage (week 3+).
       const nap = await instance.semantic.dispatch({
         kind: "activity",
         activityId: "activity.nap",
@@ -174,7 +174,7 @@ describe("catcafe petting (reaction table)", () => {
 describe("catcafe contest (turn-based, table-driven)", () => {
   async function reachContestV1(instance: CatcafeApplicationInstanceV1): Promise<void> {
     await playOpeningV1(instance);
-    // 第 1 周周一晨 → 第 3 周周日暮 = 前进到 week 3, day 6, slot 2。
+    // Week 1 Monday morning → week 3 Sunday dusk = advance to week 3, day 6, slot 2.
     while (true) {
       const calendar = instance.semantic.observe().game.calendar;
       if (calendar.week === 3 && calendar.day === 6 && calendar.slot === 2) break;
@@ -186,7 +186,7 @@ describe("catcafe contest (turn-based, table-driven)", () => {
     const instance = await createCatcafeApplicationInstanceV1();
     try {
       await reachContestV1(instance);
-      // 赛前不许进：非比赛时段的守卫由目录/预览共享规则覆盖（此处已是比赛时段）。
+      // No entry before the contest: the non-contest-slot guard is covered by the shared catalog/preview rule (this is already the contest slot).
       await dispatchCommittedV1(instance, { kind: "invoke", actionId: "cc.enter_contest" });
       const started = instance.semantic.observe().game.contest;
       expect(started?.rivalId).toBe("rival.mochi");

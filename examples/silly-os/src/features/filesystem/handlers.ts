@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// 文件系统切片·命令：写入/删除（校验在模块 owner；这里只开事务）。
+// Filesystem slice · commands: write/delete (validation in the module owner; this only opens the transaction).
 import type { OsCommandHandlerMapV1 } from "../../runtime.ts";
 import { transactionRunnerV1 } from "../../runtime.ts";
 import { filesystemModuleV1 } from "./module.ts";

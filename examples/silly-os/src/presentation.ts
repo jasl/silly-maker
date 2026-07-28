@@ -4,9 +4,9 @@ import { definePresentationPatchSurface, parseTextCatalogSetV1 } from "@sillymak
 import { resolvePreferredLocaleV1 } from "@sillymaker/base";
 
 /**
- * 全部玩家可见文本按 textId 建目录，中英双语。默认语言由浏览器上报的
- * 偏好自动决定（中文→中文，其余→英文；resolvePreferredLocaleV1），
- * 设置页可手动覆盖并持久到 Host profile。
+ * Every player-visible text is cataloged by textId, bilingual. The default language
+ * follows the browser-reported preference (Chinese→Chinese, everything else→English;
+ * resolvePreferredLocaleV1); the settings page can override, persisted to the Host profile.
  */
 
 const zhEntries = [
@@ -168,8 +168,8 @@ export const osTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
 });
 
 /**
- * Locale 解析：显式偏好（设置页）优先；null（跟随浏览器）时按
- * navigator 上报的语言列表匹配——中文命中 zh-CN，其余落到 en。
+ * Locale resolution: an explicit preference (settings page) wins; with null (follow
+ * the browser) match the navigator-reported language list — Chinese hits zh-CN, everything else lands on en.
  */
 export function osResolveLocaleV1(preference: string | null, requested: readonly string[]): string {
   if (preference !== null && (osLocalesV1 as readonly string[]).includes(preference)) {

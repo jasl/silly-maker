@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-// 相遇切片·规则：常客事件池抽取。条件对照当前状态，抽取走快照 RNG
-// （重放一致），效果叠加到调用方的草稿上，解释数据随 fact 落日志。
+// Encounters slice · rules: drawing from the regulars event pool. Conditions check current
+// state, the draw uses the snapshot RNG (replay-consistent), effects merge into the caller's draft, and explanation data lands in the log with the fact.
 import { drawFromEventPoolV1 } from "@sillymaker/base";
 
 import type { CatcafeGameStateV1 } from "../../state.ts";
@@ -13,7 +13,7 @@ import type { CatcafeFactV1 } from "../../kernel.ts";
 import { applyStatEffectsV1 } from "../../kernel.ts";
 import type { CatcafeTransactionalRngV1 } from "../../runtime.ts";
 
-/** 抽一次常客相遇；命中时把效果并入草稿并返回 encounter facts。 */
+/** Draw one regular encounter; on a hit, merge effects into the draft and return encounter facts. */
 export function drawCatcafeEncounterV1(input: {
   readonly state: CatcafeGameStateV1["simulation"];
   readonly rng: CatcafeTransactionalRngV1;

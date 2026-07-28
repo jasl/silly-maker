@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// 桌面切片·命令：壁纸切换。
+// Desktop slice · commands: wallpaper switching.
 import type { OsCommandHandlerMapV1 } from "../../runtime.ts";
 import { transactionRunnerV1 } from "../../runtime.ts";
 import { desktopModuleV1 } from "./module.ts";

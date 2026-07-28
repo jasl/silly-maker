@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// 店铺切片·模块：声誉/整洁/资金/奖杯/已确认结局。
+// Shop slice · module: reputation/tidiness/money/trophies/confirmed ending.
 import { catcafeShopStateSchemaV1 } from "../../state.ts";
 import type { CatcafeFactV1 } from "../../kernel.ts";
 import { clampV1, commandSchemaV1, kit, operationSchemaV1 } from "../../kernel.ts";
@@ -10,7 +10,7 @@ export type ShopOperationV1 = {
   readonly tidiness: number;
   readonly money: number;
   readonly trophies: number;
-  /** 缺省保持不变；enter_postgame 用它写入已确认的结局。 */
+  /** Unchanged by default; enter_postgame uses it to write the confirmed ending. */
   readonly epilogue?: string | null;
   readonly facts?: readonly CatcafeFactV1[];
 };

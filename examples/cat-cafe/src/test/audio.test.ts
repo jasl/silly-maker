@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-// 声音层：BGM 规则是视图的纯投影（读档即还原），SFX 映射既有瞬态效果，
-// manifest 的 digest/byteLength 与仓库内的真实音频文件一致。
+// Audio layer: BGM rules are a pure view projection (a load restores them), SFX map
+// existing transient effects, and manifest digests/byteLengths match the real audio files in the repository.
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -45,7 +45,7 @@ describe("catcafe audio", () => {
     expect(projectCatcafeAudioIntentV1({ contest: null, ending: "ordinary" }).bgm?.assetId).toBe(
       catcafeAudioIdsV1.bgmEnding,
     );
-    // 雨声是常驻底色；语音通道未使用。
+    // Rain is the constant base tone; the voice channel is unused.
     const intent = projectCatcafeAudioIntentV1({ contest: null, ending: null });
     expect(intent.ambient?.assetId).toBe(catcafeAudioIdsV1.ambientRain);
     expect(intent.ambient?.loop).toBe(true);

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// 店铺切片·命令：日常活动。规则读内容表；营业收入触发常客相遇抽取。
+// Shop slice · commands: daily activities. Rules read content tables; business income triggers a regulars-encounter draw.
 import type { CatcafeCommandHandlerMapV1 } from "../../runtime.ts";
 import { transactionRunnerV1 } from "../../runtime.ts";
 import { catcafeActivitiesV1, catcafeSlotsV1, catcafeStageForWeekV1 } from "../../content.ts";
@@ -14,11 +14,11 @@ export const shopCommandHandlersV1: Pick<CatcafeCommandHandlerMapV1, "cc.do_acti
   Object.freeze({
     "cc.do_activity": ({ snapshot, rng, state, command }) =>
       transactionRunnerV1.execute(snapshot, rng, (transaction) => {
-        // 日常玩法在开场叙事完成后解锁。
+        // Daily gameplay unlocks after the opening narrative completes.
         if (state.narrative.phase !== "completed") {
           return transaction.reject({ code: "cc.narrative_busy" });
         }
-        // 规则读内容表；效果写模块状态。
+        // Rules read the content tables; effects write module state.
         const activity = catcafeActivitiesV1.byId(command.activityId);
         if (activity === null) return transaction.reject({ code: "cc.activity_unknown" });
         const slotName = catcafeSlotsV1[state.calendar.slot];
@@ -35,7 +35,7 @@ export const shopCommandHandlersV1: Pick<CatcafeCommandHandlerMapV1, "cc.do_acti
 
         const cat = { ...state.cat };
         const shop = { ...state.shop };
-        // 鲜鱼加成：下一次信任增益翻倍并消耗（仅活动路径）。
+        // Fresh-fish bonus: the next trust gain doubles and is consumed (activity path only).
         applyStatEffectsV1(cat, shop, activity.effects, { fishBuffDoublesTrust: true });
         let encounterFacts: readonly CatcafeFactV1[] = Object.freeze([]);
         if (activity.income === "business") {

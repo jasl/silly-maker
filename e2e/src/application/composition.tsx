@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-// 组合层（composition）：把 Engine Lab 的规则、剧本与 UI 组装成可启动的
-// 一致性应用；只编排，不拥有玩法。
+// Composition layer: assembles the Engine Lab's rules, script, and UI into a
+// bootable conformance application; orchestration only, owns no gameplay.
 import type {
   AssetId,
   AudioIntentV1,

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// 竞赛切片·模块：进行中的运动会回合状态（null = 未开赛）。
+// Contest slice · module: the in-progress contest turn state (null = not started).
 import type { CatcafeContestStateV1 } from "../../state.ts";
 import { catcafeContestStateSchemaV1 } from "../../state.ts";
 import type { CatcafeFactV1 } from "../../kernel.ts";

@@ -1,93 +1,93 @@
 # Story authoring quickstart
 
-状态：当前实现的操作指南。面向人类作者与 LLM 代理；按任务难度分层，弱模型应从 A 层开始。概念背景见 [story-authoring](story-authoring.md)，完整能力见 [features](features.md)。
+Status: operating guide for the current implementation. For human authors and LLM agents; layered by task difficulty — weaker models should start at tier A. Conceptual background in [story-authoring](story-authoring.md); full capabilities in [features](features.md).
 
-## 0. 一条铁律
+## 0. One iron rule
 
-Story 代码只 import `@sillymaker/*` 的包出口（`@sillymaker/base`、`@sillymaker/base/story`、`@sillymaker/base/runtime`、`@sillymaker/ui`、`@sillymaker/web`、`@sillymaker/tooling/project`），绝不 import 引擎 `src/**` 路径、绝不 import 另一个 Story。`public-import-boundary` 测试会拒绝违规。
+Story code imports only `@sillymaker/*` package exports (`@sillymaker/base`, `@sillymaker/base/story`, `@sillymaker/base/runtime`, `@sillymaker/ui`, `@sillymaker/web`, `@sillymaker/tooling/project`). Never import engine `src/**` paths, never import another Story. The `public-import-boundary` test rejects violations.
 
-优先从 `@sillymaker/base/story` import：它以无版本后缀的名字导出当前代作者契约（`SemanticStageState`、`StageMutation`、`PendingInteraction`、`NarrativeGraph`、`reduceStageMutations`、`evaluateInteractionResolution`…），与带后缀的原名完全等价。
+Prefer importing from `@sillymaker/base/story`: it exports the current author-facing contract under version-suffix-free names (`SemanticStageState`, `StageMutation`, `PendingInteraction`, `NarrativeGraph`, `reduceStageMutations`, `evaluateInteractionResolution`…), fully equivalent to the suffixed originals.
 
-## A 层：改剧本、文本与选择（推荐弱模型从这里开始）
+## Tier A: script, text, and choices (weak models start here)
 
-以起点模板（`template`，最小可玩）或 Engine Lab（`e2e`，全功能）为可运行示例。剧本是普通 TypeScript 数据，不是 DSL：
+Use the starter template (`template`, minimally playable) or the Engine Lab (`e2e`, full capability) as the runnable example. Scripts are ordinary TypeScript data, not a DSL:
 
-| 想改什么                 | 改哪个文件                                                        |
-| ------------------------ | ----------------------------------------------------------------- |
-| 对白、旁白、选项文字     | `src/presentation.ts` 的 `labTextCatalogsV1`（textId → 文本）     |
-| 剧情节点、分支、舞台指令 | `src/gameplay/narrative.ts` 的 `labNarrativeScriptV1`（节点数组） |
-| 语音/BGM 映射            | `src/gameplay/audio.ts`                                           |
-| 图 lint 的静态标注       | stage 节点的 `mayShow`、branch 节点的 `successors`                |
+| What to change                        | Which file                                                         |
+| ------------------------------------- | ------------------------------------------------------------------ |
+| Dialogue, narration, option text      | `labTextCatalogsV1` in `src/presentation.ts` (textId → text)       |
+| Story nodes, branches, stage commands | `labNarrativeScriptV1` in `src/gameplay/narrative.ts` (node array) |
+| Voice/BGM mapping                     | `src/gameplay/audio.ts`                                            |
+| Static annotations for the graph lint | `mayShow` on stage nodes, `successors` on branch nodes             |
 
-节点种类：`say`（speakerTextId/textId/next）、`choice`（options：choiceId/textId/requiresSamples/consumesSamples/next）、`stage`（`mutations(stage)` 返回 StageMutation 数组，`mayShow` 静态声明可能展示的 contentId）、`branch`（`choose(context)` 纯函数选 next，必须落在 `successors` 内）、`pause`、`barrier`、`custom`、`end`。新增 say/choice 必须给全新的 `definitionId`（`interaction.<story>.<name>`），不要复用。
+Node kinds: `say` (speakerTextId/textId/next), `choice` (options: choiceId/textId/requiresSamples/consumesSamples/next), `stage` (`mutations(stage)` returns a StageMutation array; `mayShow` statically declares the contentIds it might show), `branch` (`choose(context)` is a pure function picking next, which must land inside `successors`), `pause`, `barrier`, `custom`, `end`. Every new say/choice needs a brand-new `definitionId` (`interaction.<story>.<name>`); never reuse one.
 
-每次修改后的验证环（快到可以每改一次就跑）：
+Verification loop after every edit (fast enough to run per change):
 
 ```sh
-deno task typecheck                                # 类型与契约
-deno run -A npm:vitest run e2e/src/test/narrative-graph.test.ts   # 图 lint 干净 + 标注诚实
-deno task story simulate e2e --scenario calibration   # 无浏览器跑完整叙事，JSON 输出
-deno task test:conformance:headless                # 全部 headless 一致性测试
+deno task typecheck                                # types and contracts
+deno run -A npm:vitest run e2e/src/test/narrative-graph.test.ts   # graph lint clean + honest annotations
+deno task story simulate e2e --scenario calibration   # play the full narrative without a browser, JSON output
+deno task test:conformance:headless                # all headless conformance tests
 ```
 
-改动会移动 occurrence 编号（每个交互边界按顺序编号）：`simulate` 的 `calibration` 场景脚本和若干测试按编号步进，剧本插入新边界后要同步它们——失败信息会直接给出期望/实际编号。
+Edits move occurrence numbers (each interaction boundary is numbered in order): the `calibration` scenario script for `simulate` and several tests step by number, so after inserting a boundary sync them — failure messages state the expected/actual numbers directly.
 
-## B 层：新增玩法模块（中等；F2 canary 验证过的路径）
+## Tier B: a new gameplay module (medium; the F2-canary-verified path)
 
-**代码组织**：template 与 cat-cafe 按特性切片布局——一个玩法特性一个 `src/features/<名>/` 目录（module/content/rules/handlers/UI 各就其位），`src/kernel.ts` 放共享契约，`src/simulation.ts` 与 `src/content.ts` 只做聚合与再导出（外部只面向这两个门面；命令 kind→handler 是完整映射类型，漏接无法编译）。Engine Lab（e2e/）仍是单文件布局的低层试验台。新特性优先"新目录 + 聚合点各加一行"。
+**Code organization**: template and cat-cafe use the feature-slice layout — one gameplay feature per `src/features/<name>/` directory (module/content/rules/handlers/UI in their places), shared contracts in `src/kernel.ts`, and `src/simulation.ts` + `src/content.ts` doing aggregation and re-export only (outsiders face just these two facades; the command kind→handler map is an exhaustive mapped type, so a missed wire fails to compile). The Engine Lab (e2e/) intentionally stays a single-file low-level rig. Prefer "new directory + one line per aggregation point" for new features.
 
-新模块 = 四个接线点，全部在 Story 包内：
+A new module = four wiring points, all inside the Story package:
 
-1. `src/gameplay/state.ts`：状态接口 + zod schema + 初始值，挂进聚合状态。
-2. `src/gameplay/simulation.ts`：`kit.defineStatefulModule`（owner 的 propose/apply）、命令进 `LabCommandV1`、事实进 `LabFactV1`、拒绝码进 `LabRejectionCodeV1`、执行器里开事务（跨模块写用 `transaction.propose(otherModule, …)`，同命令原子提交）。
-3. `src/application/semantic.ts`：动作 id 进目录 + `blockedBy` 可用性规则（目录/预览/派发共用这一个函数）。
-4. `src/story.ts`：state-contract manifest 加模块条目（**模块 id 必须按字典序**），并按下表同步版本号。
+1. `src/gameplay/state.ts`: state interface + zod schema + initial value, mounted into the aggregate state.
+2. `src/gameplay/simulation.ts`: `kit.defineStatefulModule` (the owner's propose/apply); commands into `LabCommandV1`, facts into `LabFactV1`, rejection codes into `LabRejectionCodeV1`; open a transaction in the executor (cross-module writes via `transaction.propose(otherModule, …)`, atomically committed with the same command).
+3. `src/application/semantic.ts`: action id into the catalog + the `blockedBy` availability rule (catalog/preview/dispatch share this one function).
+4. `src/story.ts`: add the module entry to the state-contract manifest (**module ids in lexicographic order**) and sync revisions per the table below.
 
-版本同步规则（错了会在启动时被结构化诊断拒绝，照着改即可）：
+Revision-sync rules (mistakes are rejected at startup by structured diagnostics; just follow them):
 
-| 改了什么             | 必须动什么                                                                |
-| -------------------- | ------------------------------------------------------------------------- |
-| 模块状态 schema 形状 | 该模块 `stateSchema.revision` + `moduleContractRevision`                  |
-| 模块规则/命令语义    | `moduleContractRevision`                                                  |
-| 新增/删除模块        | manifest 条目 + `aggregateStateSchema.revision` + `stateContractRevision` |
-| 以上任意             | story `identity.revision` +1，并更新测试里的 `storyRevision` 断言         |
+| What changed                     | What must move                                                               |
+| -------------------------------- | ---------------------------------------------------------------------------- |
+| A module's state schema          | that module's `stateSchema.revision` + `moduleContractRevision`              |
+| Module rules / command semantics | `moduleContractRevision`                                                     |
+| Module added/removed             | manifest entry + `aggregateStateSchema.revision` + `stateContractRevision`   |
+| Any of the above                 | story `identity.revision` +1, and update the `storyRevision` test assertions |
 
-## C 层：新应用/新 Story（建议强模型执行）
+## Tier C: a new application / new Story (recommended for strong models)
 
-一个应用 = 一个 `WebGameApplicationV1` 声明 + 一次 `startWebGameApplicationV1` 调用；起点用 `template`（复制目录 + 全局改名 + 注册一条应用即可）；完整参考看 `e2e/src/application/`。应用目录约定：`composition.tsx`（投影/槽位/`*GameApplicationV1`）、`ui.tsx` 或 `shell-ui.tsx`（PascalCase 组件，与应用声明分文件以便 Vite Fast Refresh）、`core-application.ts`（headless 实例工厂）、`entry.tsx`（从 composition 启动）。在 `project.config.ts` 注册后，六个生命周期动词即可用：
+One application = one `WebGameApplicationV1` declaration + one `startWebGameApplicationV1` call. Start from `template` (copy the directory + global rename + register one application); the full reference is `e2e/src/application/`. Application-directory conventions: `composition.tsx` (projector/slots/the `*GameApplicationV1` declaration), `ui.tsx` or `shell-ui.tsx` (PascalCase components, in a separate file from the application declaration for Vite Fast Refresh), `core-application.ts` (headless instance factory), `entry.tsx` (boots from composition). Once registered in `project.config.ts`, six lifecycle verbs are available:
 
 ```sh
-deno task story inspect <app>    # 解析身份与程序报告
-deno task story check <app>      # 结构化 Story 诊断
+deno task story inspect <app>    # resolved identity and program report
+deno task story check <app>      # structured Story diagnostics
 deno task story simulate <app> [--scenario s] [--seed n]
 deno task story dev <app> --smoke
 deno task story build <app>
 deno task story prebuilt-smoke <app>
 ```
 
-## 常见诊断速查（全部来自真实踩坑）
+## Diagnostics quick-reference (all from real pitfalls)
 
-| 症状                                                                                               | 原因与修复                                                                                |
-| -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `story.contract_invalid: State-contract module IDs must be strictly increasing`                    | manifest 模块条目没按 id 字典序排列；重排即可                                             |
-| `story.simulation_invalid: State-contract manifest does not match GameSimulation stateful modules` | manifest 与 `composeModules` 的模块/版本不一致；按上面的版本表同步                        |
-| `story.nondeterministic: Story definitions differ`                                                 | `define()` 每次返回了新对象；把定义提为模块级常量                                         |
-| `interaction.occurrence_mismatch`                                                                  | 拿旧的 occurrenceId 去 resolve；从最新 publication 的 `narrative.pending.occurrenceId` 取 |
-| `CanonicalJsonError: number.not_integer`                                                           | 可保存状态里出现了浮点数；用整数逻辑单位（如 `scalePermille`）                            |
-| `e2e.ui_text_missing:<textId>`                                                                     | 剧本引用了未登记的 textId；在文本目录补条目                                               |
-| `narrative.successor_missing` / `narrative.pure_loop`（图 lint）                                   | 节点 `next` 指向不存在的节点 / 纯节点成环且无交互边界；诊断带指回定义的位置               |
-| 测试断言 occurrence 编号失配                                                                       | 新增边界使编号后移；按失败信息更新编号                                                    |
+| Symptom                                                                                            | Cause and fix                                                                                                                              |
+| -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `story.contract_invalid: State-contract module IDs must be strictly increasing`                    | manifest module entries not in lexicographic id order; reorder                                                                             |
+| `story.simulation_invalid: State-contract manifest does not match GameSimulation stateful modules` | manifest and `composeModules` disagree on modules/revisions; sync per the table above                                                      |
+| `story.nondeterministic: Story definitions differ`                                                 | `define()` returned a fresh object each call; hoist the definition to a module constant                                                    |
+| `interaction.occurrence_mismatch`                                                                  | resolving with a stale occurrenceId; take `narrative.pending.occurrenceId` from the latest publication                                     |
+| `CanonicalJsonError: number.not_integer`                                                           | a float reached saveable state; use integer logical units (e.g. `scalePermille`)                                                           |
+| `e2e.ui_text_missing:<textId>`                                                                     | the script references an unregistered textId; add the catalog entry                                                                        |
+| `narrative.successor_missing` / `narrative.pure_loop` (graph lint)                                 | a node's `next` targets a missing node / pure nodes form a loop with no interaction boundary; the diagnostic points back to the definition |
+| Test assertions mismatch occurrence numbers                                                        | a new boundary shifted the numbering; renumber per the failure message                                                                     |
 
-## 给 LLM 代理的执行建议
+## Execution advice for LLM agents
 
-- 一次只做一层的事：A 层任务不要顺手改 B/C 层文件。
-- 改剧本前先把完整节点序列（含每个交互边界的 occurrence 编号）列成表再动手，场景脚本与测试一次写对，避免反复对编号。
-- 每一次编辑后立即跑 A 层验证环，用诊断驱动下一步，而不是批量修改后猜错误。
-- 泛型实例化（`WebGameApplicationV1` 有 15 个类型参数）永远抄现有应用声明整体修改，不要从零手写。
-- 引擎行为疑问先读 `docs/engine/features.md` 对应小节，不要读引擎源码猜。
+- Do one tier's work at a time: an A-tier task must not casually touch B/C-tier files.
+- Before editing a script, table the full node sequence (with the occurrence number of every interaction boundary), then write the scenario script and tests correctly in one pass instead of iterating on numbers.
+- Run the tier-A verification loop after every edit and let diagnostics drive the next step, rather than batching edits and guessing at failures.
+- For generic instantiations (`WebGameApplicationV1` has 15 type parameters), always copy an existing application declaration and modify it wholesale; never write one from scratch.
+- For engine-behavior questions read the matching section of `docs/engine/features.md` first; do not guess from engine source.
 
-## UI 样式速查
+## UI style quick-reference
 
-- 皮肤与布局只用发布令牌：颜色/间距/圆角/触控尺寸是 `--silly-color-*`、`--silly-space-*`、`--silly-radius-*`、`--silly-target-min-size`（定义在 `@sillymaker/ui` 的 `theme/tokens.css`）。
-- **禁写裸 z-index**：舞台七层用 `--silly-stage-z-*`（与 `stageLayerIdsV1` 一致），层内表面用 `--silly-surface-z-*` 刻度（base < raised < front-door < splash < dialog-backdrop < dialog < confirm-backdrop < confirm），契约有测试盯守。
-- 玩法窗体（商店/道具箱/图鉴/历史）不要手搓外壳：挂 overlay session 自动获得 `PanelV1` 窗体 chrome；独立面板直接用 `PanelV1`（标题栏 + 关闭 + 可聚焦滚动区）。背景点击与右键默认关闭最顶窗体；窗体声明 `dismissible: false` 即锁定（只认显式关闭）。右键在控件上默认无行为（控件可用 `data-secondary-action` 声明），场景背景的右键动作由 Story pointer map 配置（默认 `cancel`，可映射为玩家回退）。资产 URL 用 `useAssetUrlV1`/`resolveAssetUrlV1`，动效门控用 `useReducedMotionV1`。互斥窗口靠槽位（`openPrimary` 替换/`pushDetail` 叠详情）；拖拽等复杂窗口需求见 `docs/engine/design/window-model.md`。
+- Skin and layout use only the published tokens: colors/spacing/radii/touch sizes are `--silly-color-*`, `--silly-space-*`, `--silly-radius-*`, `--silly-target-min-size` (defined in `theme/tokens.css` of `@sillymaker/ui`).
+- **No raw z-index**: the seven stage layers use `--silly-stage-z-*` (matching `stageLayerIdsV1`), within-layer surfaces use the `--silly-surface-z-*` scale (base < raised < front-door < splash < dialog-backdrop < dialog < confirm-backdrop < confirm); the contract is test-guarded.
+- Do not hand-roll chrome for gameplay windows (shop/inventory/album/history): mount them on the overlay session to get the `PanelV1` chrome automatically; standalone panels use `PanelV1` directly (title bar + close + focusable scroll body). Backdrop click and right-click close the topmost window by default; a window declaring `dismissible: false` is locked (only explicit close works). Right-click on controls has no default behavior (controls may declare `data-secondary-action`); the scene background's right-click action comes from the Story pointer map (default `cancel`, remappable to e.g. player rollback). Asset URLs via `useAssetUrlV1`/`resolveAssetUrlV1`, motion gating via `useReducedMotionV1`. Window exclusivity is slot-structural (`openPrimary` replaces / `pushDetail` stacks details); for dragging and other complex window needs see `docs/engine/design/window-model.md`.

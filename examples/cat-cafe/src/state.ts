@@ -19,12 +19,12 @@ import {
 } from "./features/dialogue/script.ts";
 
 /**
- * 动态状态：游戏运行中产生的一切可变数据，全部在模块里（原子提交、
- * 存档、回滚）。静态定义（活动/反应/技能/对手/图鉴）在 `content.ts`
- * 的内容数据库中，运行时只读——这条边界是本示例的第一设计原则。
+ * Dynamic state: everything mutable produced while the game runs, all inside modules
+ * (atomic commits, saves, rollback). Static definitions (activities/reactions/moves/
+ * opponents/album) live in the content database of `content.ts`, read-only at runtime — this boundary is the example's first design principle.
  */
 
-/** 日历：周（1–7）、星期（0–6，0=周一）、时段索引、今日行动力。 */
+/** Calendar: week (1–7), weekday (0–6, 0=Monday), slot index, today's stamina. */
 export interface CatcafeCalendarStateV1 {
   readonly week: number;
   readonly day: number;
@@ -32,7 +32,7 @@ export interface CatcafeCalendarStateV1 {
   readonly stamina: number;
 }
 
-/** 小雨：信任/活力/技艺 0–100，鲜鱼加成层数，今日抚摸余量。 */
+/** 小雨: trust/vigor/skill 0–100, fresh-fish bonus stacks, today's petting allowance. */
 export interface CatcafeCatStateV1 {
   readonly trust: number;
   readonly vigor: number;
@@ -41,17 +41,17 @@ export interface CatcafeCatStateV1 {
   readonly pettingLeft: number;
 }
 
-/** 店铺：声誉/整洁 0–100、金钱、已获奖杯计数、已确认的主线结局。 */
+/** Shop: reputation/tidiness 0–100, money, trophy count, confirmed mainline ending. */
 export interface CatcafeShopStateV1 {
   readonly reputation: number;
   readonly tidiness: number;
   readonly money: number;
   readonly trophies: number;
-  /** 主线结局确认后进入后日谈；null = 主线进行中。 */
+  /** Postgame begins once the mainline ending is confirmed; null = mainline in progress. */
   readonly epilogue: string | null;
 }
 
-/** 运动会回合状态：null = 不在比赛中；瞬态但可存档（比赛中可存）。 */
+/** Contest turn state: null = not in a contest; transient but saveable (mid-contest saves allowed). */
 export interface CatcafeContestStateV1 {
   readonly rivalId: string;
   readonly round: number;

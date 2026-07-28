@@ -23,7 +23,7 @@ const openingV1 = Object.freeze([
 
 /**
  * `deno task story simulate example-cat-cafe --scenario <name>`：
- * opening = 开场叙事；first-day = 开场 + 第一天完整日程（活动/抚摸/时段推进）。
+ * opening = the opening narrative; first-day = opening + one full first-day schedule (activities/petting/slot advancement).
  */
 const scenariosV1 = Object.freeze({
   opening: openingV1,

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-// 桌面切片·显示属性：壁纸选择——写入权威状态（随存档持久），示范
-// "桌面偏好也是游戏状态"。
+// Desktop slice · display properties: wallpaper selection — writes authoritative state
+// (persists with saves), demonstrating that desktop preferences are game state too.
 import { useState } from "react";
 import type { ReactElement } from "react";
 

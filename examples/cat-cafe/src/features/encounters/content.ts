@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// 相遇切片·内容表：营业事件池候选（受限可序列化条件 + 权重）。
+// Encounters slice · content tables: business-event pool candidates (restricted serializable conditions + weights).
 import { z } from "zod";
 
 import type { RuntimeSchemaV1 } from "@sillymaker/base";
@@ -9,10 +9,10 @@ import { defineContentTable, parseEventCondition } from "@sillymaker/base/story"
 
 export interface CatcafeEncounterRowV1 extends Readonly<Record<string, unknown>> {
   readonly id: string;
-  /** null = 无事发生（不显示、不发 fact）。 */
+  /** null = nothing happens (no display, no fact). */
   readonly textId: string | null;
   readonly weight: number;
-  /** JSON 条件；null = 恒可用。运行时经 parseEventCondition 解析。 */
+  /** JSON condition; null = always eligible. Parsed at runtime by parseEventCondition. */
   readonly condition: Readonly<Record<string, unknown>> | null;
   readonly effects: readonly { readonly stat: string; readonly delta: number }[];
 }
@@ -86,7 +86,7 @@ export const catcafeEncountersTableV1: ContentTableDefinition<CatcafeEncounterRo
     ],
   });
 
-/** 解析期把条件列固化为受校验的条件树（authoring 错误立即失败）。 */
+/** Resolve-time freezing of the condition column into a validated condition tree (authoring errors fail immediately). */
 export const catcafeEncounterConditionsV1: ReadonlyMap<string, EventCondition | null> = new Map(
   catcafeEncountersTableV1.rows.map((row) => [
     row.id,

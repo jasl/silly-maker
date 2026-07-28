@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-// 组合层（composition）：把剧本、规则、UI 组装成可启动的游戏应用
-// （浏览器与桌面 webview 共用同一份声明）；只编排，不拥有玩法。
+// Composition layer: assembles the script, rules, and UI into a bootable game
+// application (browser and desktop webview share one declaration); orchestration only, owns no gameplay.
 import type { AssetId } from "@sillymaker/base";
 import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
 import type { StageRenderTarget } from "@sillymaker/base/story";
@@ -303,7 +303,7 @@ export const bookshopGameApplicationV1: WebGameApplicationV1<
   viewport: Object.freeze({
     canvas: bookshopViewportCanvasV1,
     fallbackSize: Object.freeze({ width: 1600, height: 900 }),
-    // 等比放大撑满窗口（fit 缩放天然保比例、必要时留黑边）。
+    // Scale up proportionally to fill the window (fit scaling keeps the aspect ratio, letterboxing as needed).
     maxScale: 4,
   }),
   core: bookshopCoreApplicationDefinitionV1,
@@ -311,7 +311,7 @@ export const bookshopGameApplicationV1: WebGameApplicationV1<
     Object.freeze({
       titleScreen: Object.freeze({
         title: "打烊前的旧书店",
-        // 片头：本作剧本由 AI 模型创作实验产出，代码与文本均为 AI 生成。
+        // Splash: this script came out of an AI model authoring experiment; code and text are AI-generated.
         splash: Object.freeze({
           lines: Object.freeze([
             "本游戏内容完全由 AI 生成",

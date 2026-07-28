@@ -177,9 +177,9 @@ export async function createSillyMakerViteConfigV1(input: {
       rollupOptions: {
         input: resolve(repositoryRoot, web.applicationHtml),
         output: {
-          // 依赖单独成 chunk：React 一组、其余 node_modules 一组，
-          // 应用与引擎代码留在入口 chunk——三者都远离 500 kB 警告线，
-          // 且依赖 chunk 跨版本稳定（利于缓存）。
+          // Dependencies get their own chunks: one for React, one for the rest of node_modules;
+          // application and engine code stay in the entry chunk — all three stay clear of the 500 kB warning line,
+          // and the dependency chunks stay stable across releases (good for caching).
           advancedChunks: {
             groups: [
               { name: "vendor-react", test: /node_modules[/\\](react|react-dom|scheduler)[/\\]/ },

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// 抚摸切片·内容表：(部位, 信任段位) → 反应/效果/表情。
+// Petting slice · content tables: (body part, trust band) → reaction/effects/expression.
 import { z } from "zod";
 
 import type { RuntimeSchemaV1 } from "@sillymaker/base";
@@ -10,7 +10,7 @@ import { defineContentTable } from "@sillymaker/base/story";
 export interface CatcafePettingRowV1 extends Readonly<Record<string, unknown>> {
   readonly id: string;
   readonly zone: string;
-  /** 信任段位（含端点）。 */
+  /** Trust band (inclusive endpoints). */
   readonly minTrust: number;
   readonly maxTrust: number;
   readonly reactionTextId: string;

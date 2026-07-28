@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// 猫切片·模块：信任/活力/技艺/鲜鱼加成/抚摸余量（0-100 夹紧）。
+// Cat slice · module: trust/vigor/skill/fresh-fish bonus/petting allowance (clamped 0-100).
 import { catcafeCatStateSchemaV1, catcafeDailyPettingV1 } from "../../state.ts";
 import type { CatcafeFactV1 } from "../../kernel.ts";
 import { clampV1, commandSchemaV1, kit, operationSchemaV1 } from "../../kernel.ts";

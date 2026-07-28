@@ -26,8 +26,8 @@ import { catcafeInteractionContextV1 } from "../features/dialogue/script.ts";
 import { catcafeActivitiesV1, catcafeSlotsV1, catcafeStageForWeekV1 } from "../content.ts";
 
 /**
- * 语义面：动作目录（含按内容表展开的活动可用性）、参数化 invocation
- * （活动/抚摸/出招携带内容表主键）、以及与派发共用的可用性规则。
+ * The semantic surface: the action catalog (with activity availability expanded
+ * from content tables), parameterized invocations (activity/pet/contest moves carry content-table primary keys), and the availability rule shared with dispatch.
  */
 
 export type CatcafeActionIdV1 =
@@ -41,7 +41,7 @@ export type CatcafeActionDescriptorV1 =
       readonly blockedBy: CatcafeRejectionV1["code"] | null;
     }
   | {
-      /** 参数化动作：内容表行展开为目录条目，可用性走同一条查表规则。 */
+      /** Parameterized actions: content-table rows expand into catalog entries; availability uses the same table-lookup rule. */
       readonly kind: "activity";
       readonly activityId: string;
       readonly nameTextId: string;
@@ -101,7 +101,7 @@ function blockedByV1(
       if (queries.contest !== null) return "cc.contest_already_running";
       return catcafeContestTodayV1(queries.calendar) === null ? "cc.contest_not_today" : null;
     case "cc.enter_postgame":
-      // 结局屏的"继续经营"：只有主线结局刚结算、尚未确认时可用。
+      // The ending screen's "keep running the shop": available only while the mainline ending has just settled and is unconfirmed.
       return catcafeEndingForV1(queries) === null ? "cc.no_ending_pending" : null;
     default: {
       const exhaustive: never = actionId;
@@ -110,7 +110,7 @@ function blockedByV1(
   }
 }
 
-/** 活动可用性：目录/预览/派发共用同一条查表规则。 */
+/** Activity availability: catalog/preview/dispatch share this one table-lookup rule. */
 export function catcafeActivityBlockedByV1(
   queries: CatcafeQueriesV1,
   activityId: string,
@@ -263,8 +263,8 @@ function commandForInvocationV1(invocation: CatcafeInvocationV1): CatcafeCommand
 }
 
 /**
- * Commit-only瞬态效果：从已提交 facts 投影（引擎既有机制，同 Lab 音频）。
- * UI 订阅后做反应气泡/战果提示；不进 State、Save、发布或转写。
+ * Commit-only transient effects: projected from committed facts (the engine's
+ * existing mechanism, same as the Lab audio). The UI subscribes for reaction bubbles / contest toasts; never enters State, saves, publications, or transcripts.
  */
 export function projectCatcafeTransientEffectsV1(
   facts: readonly CatcafeFactV1[],

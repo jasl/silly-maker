@@ -45,12 +45,12 @@ describe("window manager", () => {
     const wm = createOsWindowManagerV1();
     const a = wm.open("app.a", { rect, singleton: false });
     const b = wm.open("app.b", { rect, singleton: false });
-    wm.taskbarActivate(a); // 未聚焦 → 聚焦
+    wm.taskbarActivate(a); // unfocused → focus
     expect(wm.snapshot().focusedWindowId).toBe(a);
-    wm.taskbarActivate(a); // 聚焦中 → 最小化
+    wm.taskbarActivate(a); // focused → minimize
     expect(wm.snapshot().windows.find((w) => w.windowId === a)?.mode).toBe("minimized");
     expect(wm.snapshot().focusedWindowId).toBe(b);
-    wm.taskbarActivate(a); // 最小化 → 还原聚焦
+    wm.taskbarActivate(a); // minimized → restore + focus
     expect(wm.snapshot().windows.find((w) => w.windowId === a)?.mode).toBe("normal");
     expect(wm.snapshot().focusedWindowId).toBe(a);
   });

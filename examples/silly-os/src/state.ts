@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-// SillyOS 的权威状态：桌面偏好（壁纸）、文件系统（记事本文档）、扫雷
-// 盘面。窗口布局/焦点/z 序是 UI 瞬态，不进这里也不进存档。
+// SillyOS's authoritative state: desktop preferences (wallpaper), filesystem (notepad
+// documents), the minesweeper board. Window layout/focus/z-order is UI-transient — not here, not in saves.
 import { z } from "zod";
 
 import type { RuntimeSchemaV1 } from "@sillymaker/base";
@@ -21,7 +21,7 @@ export const osDesktopStateSchemaV1: RuntimeSchemaV1<OsDesktopStateV1> = fromSta
 export interface OsFileV1 extends Readonly<Record<string, unknown>> {
   readonly name: string;
   readonly content: string;
-  /** 第几次写入（确定性的"修改时间"替身：墙钟不进权威状态）。 */
+  /** Write count (a deterministic stand-in for "modified time": no wall clock in authoritative state). */
   readonly revision: number;
 }
 
@@ -49,7 +49,7 @@ export const osFilesystemStateSchemaV1: RuntimeSchemaV1<OsFilesystemStateV1> = f
   { subject: { kind: "module", id: "os.filesystem" } },
 );
 
-/** 每格打包成一个小整数：bit0 雷 / bit1 已翻开 / bit2 旗标。 */
+/** Each cell packs into one small integer: bit0 mine / bit1 revealed / bit2 flag. */
 export type OsCellV1 = number;
 export const osCellMineV1 = 1;
 export const osCellRevealedV1 = 2;
@@ -59,7 +59,7 @@ export interface OsBoardV1 {
   readonly width: number;
   readonly height: number;
   readonly mineCount: number;
-  /** 首次翻格才布雷（首点永不踩雷）；布雷前 false。 */
+  /** Mines are placed on the first reveal (first click never hits); false before placement. */
   readonly minesPlaced: boolean;
   readonly status: "playing" | "won" | "lost";
   readonly cells: readonly OsCellV1[];

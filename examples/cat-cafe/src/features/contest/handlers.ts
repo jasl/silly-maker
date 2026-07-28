@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// 竞赛切片·命令：开赛与回合出招（威力/佯动/魅力 对 对手行为模式）。
+// Contest slice · commands: contest start and per-turn moves (power/feint/charm vs. opponent behavior patterns).
 import type { CatcafeCommandHandlerMapV1 } from "../../runtime.ts";
 import { transactionRunnerV1 } from "../../runtime.ts";
 import { catcafeMovesV1, catcafeRivalsV1 } from "../../content.ts";
@@ -14,7 +14,7 @@ export const contestCommandHandlersV1: Pick<
 > = Object.freeze({
   "cc.enter_contest": ({ snapshot, rng, state }) =>
     transactionRunnerV1.execute(snapshot, rng, (transaction) => {
-      // 日常玩法在开场叙事完成后解锁。
+      // Daily gameplay unlocks after the opening narrative completes.
       if (state.narrative.phase !== "completed") {
         return transaction.reject({ code: "cc.narrative_busy" });
       }
@@ -48,7 +48,7 @@ export const contestCommandHandlersV1: Pick<
       const rival = catcafeRivalsV1.byId(contest.rivalId);
       if (rival === null) return transaction.reject({ code: "cc.contest_not_running" });
 
-      // 我方出招：威力 + 技艺加成 + 少量随机。
+      // Our move: power + skill bonus + a little randomness.
       const variance = rng.nextInt(
         Object.freeze({ purpose: "check:cc.contest_variance", exclusiveMax: 5 }),
       );
@@ -58,7 +58,7 @@ export const contestCommandHandlersV1: Pick<
       let rivalMorale = Math.max(0, contest.rivalMorale - damage);
       let morale = contest.morale + selfHeal;
 
-      // 对手回击（按行为模式），佯动可闪避。
+      // The opponent strikes back (per behavior pattern); a feint can dodge it.
       if (rivalMorale > 0) {
         const rivalHit =
           rival.pattern === "aggressive"
