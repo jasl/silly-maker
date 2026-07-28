@@ -128,6 +128,10 @@ export const projectTavernConfigV1 = {
           collectExport: "collectCatcafeBuildIdentityV1",
           createPluginExport: "createCatcafeBuildIdentityVirtualPluginV1",
         },
+        desktop: {
+          name: "RainyAlleyCatHouse",
+          identifier: "dev.sillymaker.example.cat-cafe",
+        },
       },
       releaseArtifact: false,
     },
