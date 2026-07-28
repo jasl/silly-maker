@@ -41,7 +41,7 @@ Package manifests define supported cross-package entries. Do not bypass them wit
 
 | Command                                          | Use                                                                   |
 | ------------------------------------------------ | --------------------------------------------------------------------- |
-| `deno task dev`                                  | Start the current Project Tavern development server.                  |
+| `deno task dev`                                  | Start the Vite development server (pick an app with `--mode`).        |
 | `deno task check`                                | Canonical local code-quality and product-behavior check.              |
 | `deno task test`                                 | Run engine and game behavior tests.                                   |
 | `deno task test:coverage`                        | Run unit tests with engine line-coverage reporting.                   |

@@ -13,7 +13,7 @@ SillyMaker 要从“支撑首个 Tavern PoC 的运行时”演进为适合 Visua
 1. **AI-authorable engine**：稳定的作者接口、结构化诊断、通用应用组合、Headless/Agent harness 和 Story-independent tooling。
 2. **Production-capable VN presentation**：可保存的语义舞台、可中断转场、交互边界、音频意图和基础玩家播放系统。
 
-Project Tavern 继续是第一个真实游戏消费者，但不再是引擎的隐含模板。
+真实游戏（当前为《雨巷猫舍》旗舰示例）持续充当引擎的第一消费者，但任何一个游戏都不是引擎的隐含模板。
 
 ## 2. Durable architecture principles
 
@@ -134,7 +134,7 @@ Editor 应写入普通 TS 或被 TS 引用的稳定 Story data，不形成另一
 - 区分玩家 history、player rollback、Debug replay 和 CommandLog；
 - 默认随 Snapshot 恢复 RNG；对防重掷结果、营业结算、跨日、外部副作用和不可逆剧情定义 pinned-outcome/hard-barrier policy；
 - rollback 恢复 authoritative Snapshot，并重新投影 settled Stage target、Audio intent 和 PendingInteraction；不恢复 renderer transient state；
-- 先用 E2E Story 验证，再决定 Project Tavern 的产品策略。
+- 先用 E2E Story 验证，再在真实游戏中落产品策略（已随《雨巷猫舍》落地：开赛/结局确认为 barrier + HUD 回退）。
 
 ### R8 — Advanced media and renderer adapters
 
@@ -146,17 +146,17 @@ Editor 应写入普通 TS 或被 TS 引用的稳定 Story data，不形成另一
 - Save 只保存稳定 semantic target，不保存 renderer instance、decoded media 或播放进度；
 - 平板/16:10、资源预算和降级路径在 conformance tests 中证明。
 
-### Continuous track — Project Tavern gameplay feedback
+### Continuous track — real-game gameplay feedback
 
 **Outcome:** 用真实玩法持续检验引擎，而不是让引擎预设 Tavern 模块。
 
-经营、人物养成、关系、任务、商店、仓库、设施、文字冒险和网状叙事会分批重做。每个实验先判断需求属于：
+经营、人物养成、关系、任务、商店、仓库、设施、文字冒险和网状叙事等玩法会经由真实游戏（旗舰示例或未来项目）分批检验。每个实验先判断需求属于：
 
 - Story-local rule/content/projection；
 - 可复用 module/capability；
 - 通用 SillyMaker runtime/presentation/tooling 能力。
 
-只有反复出现且与 Tavern 题材无关的需求进入引擎。玩法重构可以与 R3–R7 交错，但不改变引擎测试对中性 E2E Story 的依赖。
+只有反复出现且与具体题材无关的需求进入引擎。玩法重构可以与路线图阶段交错，但不改变引擎测试对中性 E2E Story 的依赖。
 
 ## 5. Evidence and promotion rules
 

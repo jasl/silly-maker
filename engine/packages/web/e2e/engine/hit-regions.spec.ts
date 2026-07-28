@@ -10,6 +10,11 @@ import { catcafeTargetUrlV1, expect, test } from "./fixtures.ts";
  * rules (trust bands, daily budget) stay authoritative.
  */
 
+/** The boot splash fronts the title screen; click it away deterministically. */
+async function dismissSplashV1(page: Page): Promise<void> {
+  await page.locator("[data-boot-splash]").click();
+}
+
 async function advanceRevealedSayV1(page: Page): Promise<void> {
   // The typewriter turns the first click into reveal-all; waiting for the
   // completed reveal keeps one click = one advance.
@@ -18,8 +23,9 @@ async function advanceRevealedSayV1(page: Page): Promise<void> {
 }
 
 async function playOpeningV1(page: Page): Promise<void> {
-  // The title screen is the game's front door; New game starts the
-  // opening scene automatically (no separate begin-story action).
+  // The boot splash (AI-generation notice) fronts the title screen; New
+  // game then starts the opening scene automatically.
+  await dismissSplashV1(page);
   await page.getByRole("button", { name: "新游戏" }).click();
   for (let index = 0; index < 3; index += 1) {
     await advanceRevealedSayV1(page);
@@ -144,6 +150,7 @@ test("auto mode advances revealed lines and the history panel replays the backlo
   page,
 }) => {
   await page.goto(catcafeTargetUrlV1());
+  await dismissSplashV1(page);
   await page.getByRole("button", { name: "新游戏" }).click();
 
   // Auto: with no further input the say advances by itself once revealed
@@ -197,6 +204,7 @@ test("the system menu is one modal at a time and saves honor the safepoint", asy
   await page.goto(catcafeTargetUrlV1());
 
   // Title screen: Load game opens the system Save dialog even before play.
+  await dismissSplashV1(page);
   await expect(page.locator("[data-title-load-game]")).toBeVisible();
   await page.getByRole("button", { name: "新游戏" }).click();
 
@@ -243,6 +251,7 @@ test("the system menu is one modal at a time and saves honor the safepoint", asy
   // Title screen → Load game → confirm: entering gameplay dismisses both
   // the dialog and the title screen (the anchored load origin).
   await page.reload();
+  await dismissSplashV1(page);
   await page.locator("[data-title-load-game]").click();
   await expect(saves).toBeVisible();
   await saves.getByRole("button", { name: "载入手动存档" }).click();
@@ -311,6 +320,7 @@ test("language switches live in Settings and persists across reload", async ({ p
   // The preference is Host data: a reload keeps English, including chrome
   // and the title screen labels.
   await page.reload();
+  await dismissSplashV1(page);
   await expect(page.getByRole("button", { name: "New game" })).toBeEnabled();
   // The narrative advance button is also labeled "Continue" in English,
   // so address the title screen's own control directly.

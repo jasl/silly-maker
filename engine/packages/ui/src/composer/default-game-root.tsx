@@ -25,6 +25,8 @@ import { useReadonlyViewV1 } from "../runtime/create-view-bridge.ts";
 import type { RuntimePresentationPublicationV1 } from "../runtime/runtime-presentation-store.ts";
 import { GameShell } from "../shell/game-shell.tsx";
 import type { GameShellViewportOptionsV1 } from "../shell/game-shell.tsx";
+import { BootSplashV1 } from "../system/boot-splash.tsx";
+import type { BootSplashDefinitionV1 } from "../system/boot-splash.tsx";
 import { SavesLauncherV1 } from "../system/saves-launcher.tsx";
 import { SettingsLauncherV1 } from "../system/settings-launcher.tsx";
 import { DefaultSettingsSectionsV1 } from "../system/default-settings-sections.tsx";
@@ -154,7 +156,12 @@ export interface DefaultGameRootPropsV1<
   /** Enables the engine-baseline Settings sections (volume, fullscreen…). */
   readonly playerProfile?: PlayerProfileStoreV1;
   /** Shows the default title screen before gameplay; New game restarts. */
-  readonly titleScreen?: { readonly title: string; readonly backgroundUrl?: string };
+  readonly titleScreen?: {
+    readonly title: string;
+    readonly backgroundUrl?: string;
+    /** Front card before the title (studio marks, AI-generation notice…). */
+    readonly splash?: BootSplashDefinitionV1;
+  };
   readonly lifecycle?: { restart(): Promise<unknown> };
   readonly saveUi?: {
     readonly port: SaveOverlayPortV1;
@@ -282,6 +289,7 @@ export function DefaultGameRootV1<
   type PublicationV1 = RuntimePresentationPublicationV1<TSemanticPublication, TView, TAssetId>;
   const labels = Object.freeze({ ...defaultGameRootLabelsV1, ...props.labels });
   const [titleDismissed, setTitleDismissed] = useState(props.titleScreen === undefined);
+  const [splashDismissed, setSplashDismissed] = useState(props.titleScreen?.splash === undefined);
   const publication = useSyncExternalStore(
     props.composition.presentation.subscribe,
     props.composition.presentation.getSnapshot,
@@ -411,7 +419,13 @@ export function DefaultGameRootV1<
           emptyText: labels.settingsEmptyText,
         })}
       >
-        {props.titleScreen === undefined || titleDismissed ? null : (
+        {props.titleScreen?.splash === undefined || splashDismissed || titleDismissed ? null : (
+          <BootSplashV1
+            splash={props.titleScreen.splash}
+            onDismiss={() => setSplashDismissed(true)}
+          />
+        )}
+        {props.titleScreen === undefined || titleDismissed || !splashDismissed ? null : (
           <TitleScreenV1
             title={props.titleScreen.title}
             {...(props.titleScreen.backgroundUrl === undefined
