@@ -25,6 +25,7 @@ deno task story build template                       # 静态构建到 dist/temp
 | 玩家可见的动作目录       | `src/application/semantic.ts`                                                                                                  |
 | UI 布局与对话框样式      | `src/application/web-application.tsx`                                                                                          |
 | 模块清单与版本           | `src/story.ts`（版本纪律写在文件头注释里）                                                                                     |
+| 网页标题与分享卡片       | `metadata.json`（标题/描述/语言/主题色/分享图/favicon，构建时注入 `<head>`）                                                   |
 
 ## 剧本模型（不是 DSL，就是 TypeScript 数据）
 

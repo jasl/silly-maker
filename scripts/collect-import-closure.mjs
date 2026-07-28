@@ -13,6 +13,8 @@ const packageTargets = Object.freeze({
   "@sillymaker/tooling": "engine/packages/tooling/src/index.ts",
   "@sillymaker/tooling/project": "engine/packages/tooling/src/project/index.ts",
   "@sillymaker/tooling/project/config-types": "engine/packages/tooling/src/project/config-types.ts",
+  "@sillymaker/tooling/project/story-metadata":
+    "engine/packages/tooling/src/project/story-metadata.ts",
   "@sillymaker/ui": "engine/packages/ui/src/index.ts",
   "@sillymaker/ui/assets": "engine/packages/ui/src/assets/index.ts",
   "@sillymaker/ui/debug": "engine/packages/ui/src/debug/index.ts",

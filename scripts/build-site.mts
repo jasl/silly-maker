@@ -8,7 +8,7 @@
 // Workers, custom domains) omit it; GitHub Pages project sites set
 // SITE_BASE=/<repo>/. The Player bundles are built with base "./" so they
 // are location-independent and need no base plumbing of their own.
-import { cp, mkdir, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import process from "node:process";
 
@@ -63,5 +63,27 @@ await cp(join(repoRoot, "dist", "example-cat-cafe"), join(siteDir, "play", "cat-
 // files (VitePress emits assets/…, fine — but .nojekyll is the standard
 // belt-and-braces switch and is inert elsewhere).
 await writeFile(join(siteDir, ".nojekyll"), "");
+
+// 4. Share metadata absolutization: crawlers require absolute URLs for
+// og:image/twitter:image. When the deployment origin is known (the GitHub
+// Pages workflow sets SITE_ORIGIN), rewrite the game page's share image
+// URLs and pin og:url to the page location.
+const siteOrigin = process.env.SITE_ORIGIN;
+if (siteOrigin !== undefined && siteOrigin !== "") {
+  const pageBase = new URL(siteBase.endsWith("/") ? siteBase : `${siteBase}/`, siteOrigin).href;
+  const gamePage = join(siteDir, "play", "cat-cafe", "index.html");
+  const gameUrl = `${pageBase}play/cat-cafe/`;
+  let html = await readFile(gamePage, "utf8");
+  html = html.replace(
+    /(property="og:image" content="|name="twitter:image" content=")(?!https?:)/gu,
+    `$1${gameUrl}`,
+  );
+  html = html.replace(
+    /<meta property="og:type"/u,
+    `<meta property="og:url" content="${gameUrl}" />\n    <meta property="og:type"`,
+  );
+  await writeFile(gamePage, html);
+  console.log(`[site] share URLs absolutized against ${gameUrl}`);
+}
 
 console.log(`[site] composed at ${siteDir}`);

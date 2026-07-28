@@ -91,6 +91,8 @@ File-backed saves make the webview origin irrelevant: `deno desktop` still picks
 - **GitHub Pages** — `.github/workflows/deploy-pages.yml` builds with `SITE_BASE=/<repo>/` and deploys through `actions/deploy-pages`. One-time setup: repository Settings → Pages → Source: "GitHub Actions", then run the workflow from the Actions tab (uncomment the `push` trigger for continuous deployment). The site lands at `https://<owner>.github.io/<repo>/`.
 - **Cloudflare Workers** — `wrangler.jsonc` declares an assets-only Worker serving `dist/site`. Deploy from a local machine with `deno task site:build && deno task site:deploy:cf` (authenticate once with `deno run -A npm:wrangler login`). Root-based hosting, so the default `SITE_BASE=/` is correct; the site lands at `https://project-tavern.<account>.workers.dev/` or a custom domain.
 
+Each Story's `<storyRoot>/metadata.json` configures the deployed page's share presentation — document title, description, html lang, theme color, Open Graph / Twitter card, share image, and favicon (`parseStoryMetadataV1` validates the shape; the Vite config injects the tags at build time; Stories without the file keep their hand-written head). Share-image paths are story-relative; the site composer absolutizes `og:image`/`twitter:image` and pins `og:url` when `SITE_ORIGIN` is set (the GitHub Pages workflow provides it automatically).
+
 Both targets were validated against a sub-path static server and the local `wrangler dev` runtime (docs, game, runtime assets, and the `/zh/` locale all resolve).
 
 ## Release checklist

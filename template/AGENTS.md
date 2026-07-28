@@ -1,6 +1,6 @@
 # template/ 代理手册
 
-本包是**新游戏的起点骨架**（MIT）。开新故事的流程：复制本目录到 `examples/<新名字>`（或独立目录）→ 全局改名（`template`/`Template` → 新名）→ 在根 `project.config.ts` 注册应用与 simulate 目标 → 按需改剧本与模块。
+本包是**新游戏的起点骨架**（MIT）。开新故事的流程：复制本目录到 `examples/<新名字>`（或独立目录）→ 全局改名（`template`/`Template` → 新名）→ 在根 `project.config.ts` 注册应用与 simulate 目标 → 改 `metadata.json`（网页标题/分享卡片）→ 按需改剧本与模块。
 
 改动纪律：保持最小可玩。占位剧本可整体替换；不要往骨架上加新玩法结构（那属于示例或真实游戏）。
 
