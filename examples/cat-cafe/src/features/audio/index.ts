@@ -2,7 +2,7 @@
 import type { AudioIntentV1, ResolvedAudioManifestV1, TransientEffectV1 } from "@sillymaker/base";
 import { parseAudioIntentV1, resolveAudioManifestV1 } from "@sillymaker/base";
 
-import type { CatcafeGameViewV1 } from "./simulation.ts";
+import type { CatcafeGameViewV1 } from "../../simulation.ts";
 
 /**
  * 《雨巷猫舍》的声音层：连续通道（BGM/环境雨声）是游戏视图的纯投影——

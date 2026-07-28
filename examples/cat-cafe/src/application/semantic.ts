@@ -22,7 +22,7 @@ import {
   catcafeEndingForV1,
   createCatcafeGameSimulationV1,
 } from "../simulation.ts";
-import { catcafeInteractionContextV1 } from "../narrative.ts";
+import { catcafeInteractionContextV1 } from "../features/dialogue/script.ts";
 import { catcafeActivitiesV1, catcafeSlotsV1, catcafeStageForWeekV1 } from "../content.ts";
 
 /**

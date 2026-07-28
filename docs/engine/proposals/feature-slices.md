@@ -1,6 +1,6 @@
 # 特性切片：把 Module 的内聚性扩展到整个玩法纵切
 
-状态：提案（2026-07-28）。方向已认可，等待在旗舰示例上执行验证；引擎侧助手待两个真实消费者后再定型。
+状态：已执行（2026-07-28）。cat-cafe 与 template 均已按特性切片重排并全量验证（vitest 1378 / E2E 116 全绿，`story check` 通过）；引擎侧助手仍按"两个真实消费者后定型"保留观察。
 
 ## 问题
 
@@ -48,15 +48,46 @@ src/
 
 因此迁移是**机械搬运**：公共形状（story entry、semantic adapter、应用定义）不变，测试与 E2E 无须改动。
 
-## 执行计划（待开工指令）
+## 落地形态（2026-07-28）
 
-1. 雨巷猫舍按上述目录重排（一次一个特性搬运，每步跑 `deno task typecheck` + 包内 vitest）。
-2. `template/` 增加一个最小特性目录示范（inventory 即现成候选），模板手册更新"新特性 = 新目录"的指引。
-3. 迁移中记录摩擦点，作为引擎助手的证据输入。
+雨巷猫舍现结构：
+
+```text
+src/
+  kernel.ts      共享契约：命令/事实/裁决类型、命令 schema、schema 助手、kit、效果行规则
+  runtime.ts     模块合成、事务运行器、handler 输入形状与 kind→handler 完整映射类型
+  simulation.ts  聚合门面：装配特性 handlers（漏一个命令 kind 无法编译）+ 公共契约再导出
+  content.ts     聚合门面：组装内容数据库（解析期校验）+ 查询句柄与类型再导出
+  features/
+    audio/       声音层（资产 ID、manifest、意图投影、SFX 映射）
+    album/       图鉴（content 表、解锁谓词→元进度 watcher、卡面映射、图鉴视图）
+    calendar/    时段常量、日历模块、advance_slot 命令
+    cat/         猫模块、成长阶段常量与立绘成长规则
+    contest/     竞赛模块、moves/rivals 表、赛程规则、开赛/出招命令
+    dialogue/    剧本（script.ts，原 narrative.ts）、叙事模块、begin/resolve 命令
+    encounters/  事件池表、条件树、常客抽取规则
+    endings/     结局判定规则、enter_postgame 命令
+    petting/     反应表、pet 命令
+    shop/        店铺模块、活动表、do_activity 命令
+    stage/       舞台模块
+  application/
+    ui-kit.ts    共享 UI 基座：主题令牌、locale 文本、发布/端口类型、派发助手
+    composition.tsx  纯组合：投影、渲染器、HUD、槽位、应用声明
+```
+
+template 以 `kernel.ts` + `features/inventory/`（模块+能力）做最小示范；两个手册（`template/AGENTS.md`、`examples/AGENTS.md`）已写入"新特性 = 新目录"的指引。
+
+外部消费面不变：`simulation.ts`/`content.ts` 仍是唯一门面（类型与句柄全部再导出），semantic/composition/测试/CLI 无需感知内部布局。
+
+## 后续批次（未做，按需推进）
+
+- `composition.tsx`（约 1330 行）内的巨型 `CatcafeHudV1`（含竞赛面板、活动行、结局屏、toast）继续拆到 contest/shop/endings 切片的 UI 文件——UI 面的搬运，机制同 album。
+- `presentation.ts`（文本+舞台内容+资产）按特性归属拆分——收益最低，等真实摩擦再动。
+- 迁移摩擦记录：见下"引擎侧候选"，本轮未出现新增摩擦（机械搬运 + 每步 typecheck/vitest 即可）。
 
 ## 引擎侧候选（证据后定型，不预做）
 
-- `composeCommandExecutorV1(handlers)`：kind→handler 组合器（消灭每个 Story 手写的 switch）。
+- `composeCommandExecutorV1(handlers)`：kind→handler 组合器。cat-cafe 落地用 `CatcafeCommandHandlerMapV1` 映射类型 + 一次查表已消灭 switch（约 15 行）；通用化收益待 template 之外的第三个消费者出现再评估。
 - 特性包类型 `GameplayFeatureV1`：`{ modules, tables, commands, actions, texts, ui }` 的声明形状——等雨巷猫舍与 template 两个消费者的真实形状收敛后再定。
 - 文本目录/overlay map 的 concat 助手（可能太小不值得，迁移后判断）。
 

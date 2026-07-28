@@ -1,26 +1,8 @@
 // SPDX-License-Identifier: MIT
-import type {
-  BootstrapEntropyV1,
-  CommandExecutionAttemptEnvelopeV1,
-  GameSimulationTypeMapV1,
-  GameSnapshotEnvelopeV1,
-  NonZeroUint32,
-  RngDrawTraceV1,
-  RngStateV1,
-  RuntimeSchemaV1,
-} from "@sillymaker/base";
-import { createTransactionalRngV1, parseNonNegativeSafeInteger } from "@sillymaker/base";
-import type {
-  GameSimulation,
-  InteractionRejectionCode,
-  InteractionResolution,
-  NarrativeHistory,
-  PendingInteraction,
-  SemanticStageState,
-  StageMutation,
-} from "@sillymaker/base/story";
+import type { BootstrapEntropyV1, RuntimeSchemaV1 } from "@sillymaker/base";
+import { createTransactionalRngV1 } from "@sillymaker/base";
+import type { GameSimulation, InteractionResolution, StageMutation } from "@sillymaker/base/story";
 import {
-  createGameAuthoringKit,
   defineGameSimulation,
   evaluateInteractionResolution,
   parseInteractionOccurrenceId,
@@ -29,15 +11,29 @@ import {
   reduceStageMutations,
 } from "@sillymaker/base/story";
 
-import type { TemplateGameStateV1, TemplateInventoryStateV1 } from "./state.ts";
+import type { TemplateGameStateV1 } from "./state.ts";
 import {
   createInitialTemplateGameStateV1,
   createInitialTemplateStageStateV1,
   templateGameStateSchemaV1,
-  templateInventoryStateSchemaV1,
   templateNarrativeStateSchemaV1,
   templateStageStateSchemaV1,
 } from "./state.ts";
+import type {
+  TemplateAttemptV1,
+  TemplateCommandV1,
+  TemplateDebugValidationErrorV1,
+  TemplateFactV1,
+  TemplateQueriesV1,
+  TemplateRejectionV1,
+  TemplateSimulationTypesV1,
+  TemplateSnapshotV1,
+} from "./kernel.ts";
+import { commandSchemaV1, kit } from "./kernel.ts";
+import {
+  inventoryModuleV1,
+  templateInventoryReadCapabilityV1,
+} from "./features/inventory/module.ts";
 import type { TemplateNarrativeStateV1 } from "./narrative.ts";
 import {
   createInitialTemplateNarrativeStateV1,
@@ -59,105 +55,28 @@ import {
  * module or leaves authoritative state unchanged.
  */
 
-export type TemplateCommandV1 =
-  | { readonly kind: "template.begin_story" }
-  | { readonly kind: "template.earn_coin" }
-  | {
-      readonly kind: "template.narrative_resolve";
-      readonly expectedOccurrenceId: string;
-      readonly resolution: InteractionResolution;
-    };
-
-export type TemplateFactV1 =
-  | { readonly kind: "template.coins_changed"; readonly delta: number; readonly balance: number }
-  | { readonly kind: "template.stage_changed"; readonly mutations: number }
-  | {
-      readonly kind: "template.interaction_resolved";
-      readonly definitionId: string;
-      readonly occurrenceId: string;
-    };
-
-export type TemplateRejectionCodeV1 =
-  | "template.narrative_busy"
-  | "template.insufficient_coins"
-  | "template.stage_rejected"
-  | InteractionRejectionCode;
-
-export interface TemplateRejectionV1 {
-  readonly code: TemplateRejectionCodeV1;
-}
-
-export interface TemplateFaultV1 {
-  readonly code: "template.executor_failed";
-}
-
-export interface TemplateDebugValidationErrorV1 {
-  readonly code: "template.debug_command_unsupported";
-}
-
-export interface TemplateQueriesV1 {
-  readonly coins: number;
-  readonly stage: SemanticStageState;
-  readonly narrative: TemplateNarrativeStateV1;
-}
-
-export interface TemplateChoiceOptionViewV1 {
-  readonly choiceId: string;
-  readonly textId: string;
-  readonly enabled: boolean;
-  readonly blockedBy: "template.insufficient_coins" | null;
-}
-
-/** The player-safe narrative channel published to UI and agents. */
-export interface TemplateNarrativeViewV1 {
-  readonly phase: TemplateNarrativeStateV1["phase"];
-  readonly pending: PendingInteraction | null;
-  readonly choiceOptions: readonly TemplateChoiceOptionViewV1[] | null;
-  readonly flags: readonly string[];
-  readonly history: NarrativeHistory;
-}
-
-export interface TemplateGameViewV1 {
-  readonly coins: number;
-  /** The semantic stage target: plain saveable data, observable headless. */
-  readonly stage: SemanticStageState;
-}
-
-export interface TemplateBootstrapInputV1 {
-  readonly rngSeed: NonZeroUint32;
-}
-
-export interface TemplateSimulationTypesV1 extends GameSimulationTypeMapV1<
+// ---- Public contract re-exports: consumers face this facade only.
+export type {
+  TemplateAttemptV1,
   TemplateBootstrapInputV1,
-  TemplateGameStateV1,
-  RngStateV1
-> {
-  readonly snapshot: GameSnapshotEnvelopeV1<TemplateGameStateV1, RngStateV1>;
-  readonly rngDrawTrace: RngDrawTraceV1;
-  readonly command: TemplateCommandV1;
-  readonly fact: TemplateFactV1;
-  readonly rejection: TemplateRejectionV1;
-  readonly fault: TemplateFaultV1;
-  readonly debugCommand: never;
-  readonly debugValidationError: TemplateDebugValidationErrorV1;
-  readonly executionContext: undefined;
-  readonly queries: TemplateQueriesV1;
-  readonly viewModel: TemplateGameViewV1;
-}
-
-export type TemplateSnapshotV1 = TemplateSimulationTypesV1["snapshot"];
-export type TemplateAttemptV1 = CommandExecutionAttemptEnvelopeV1<
-  TemplateSnapshotV1,
+  TemplateChoiceOptionViewV1,
+  TemplateCommandV1,
+  TemplateDebugValidationErrorV1,
   TemplateFactV1,
-  TemplateRejectionV1,
   TemplateFaultV1,
-  RngStateV1,
-  RngDrawTraceV1
->;
-
-type InventoryOperationV1 =
-  | { readonly kind: "earn"; readonly amount: number }
-  | { readonly kind: "spend"; readonly amount: number };
+  TemplateGameViewV1,
+  TemplateNarrativeViewV1,
+  TemplateQueriesV1,
+  TemplateRejectionCodeV1,
+  TemplateRejectionV1,
+  TemplateSimulationTypesV1,
+  TemplateSnapshotV1,
+} from "./kernel.ts";
+export type {
+  TemplateInventoryReadPortV1,
+  InventoryOperationV1,
+} from "./features/inventory/module.ts";
+export { templateInventoryReadCapabilityV1 } from "./features/inventory/module.ts";
 
 type StageOperationV1 = {
   readonly kind: "apply";
@@ -172,56 +91,6 @@ type NarrativeOperationV1 =
       readonly resolution: InteractionResolution;
       readonly next: TemplateNarrativeStateV1;
     };
-
-const commandSchemaV1: RuntimeSchemaV1<TemplateCommandV1> = Object.freeze({
-  parse(value: unknown): TemplateCommandV1 {
-    if (value === null || typeof value !== "object" || Array.isArray(value)) {
-      throw new TypeError("invalid template command");
-    }
-    const kind = (value as { readonly kind?: unknown }).kind;
-    if (kind === "template.narrative_resolve") {
-      if (Object.keys(value).toSorted().join("\0") !== "expectedOccurrenceId\0kind\0resolution") {
-        throw new TypeError("invalid template narrative resolve command");
-      }
-      const record = value as {
-        readonly expectedOccurrenceId?: unknown;
-        readonly resolution?: unknown;
-      };
-      return Object.freeze({
-        kind,
-        expectedOccurrenceId: parseInteractionOccurrenceId(record.expectedOccurrenceId),
-        resolution: parseInteractionResolution(record.resolution),
-      });
-    }
-    if (Object.keys(value).join("\0") !== "kind") {
-      throw new TypeError("invalid template command");
-    }
-    if (kind !== "template.begin_story" && kind !== "template.earn_coin") {
-      throw new TypeError("invalid template command kind");
-    }
-    return Object.freeze({ kind });
-  },
-});
-
-const inventoryOperationSchemaV1: RuntimeSchemaV1<InventoryOperationV1> = Object.freeze({
-  parse(value: unknown): InventoryOperationV1 {
-    if (
-      value === null ||
-      typeof value !== "object" ||
-      Array.isArray(value) ||
-      Object.keys(value).toSorted().join("\0") !== "amount\0kind"
-    ) {
-      throw new TypeError("invalid template inventory operation");
-    }
-    const record = value as { readonly kind?: unknown; readonly amount?: unknown };
-    if (record.kind !== "earn" && record.kind !== "spend") {
-      throw new TypeError("invalid template inventory operation kind");
-    }
-    const amount = parseNonNegativeSafeInteger(record.amount);
-    if (amount < 1) throw new TypeError("template inventory amount must be positive");
-    return Object.freeze({ kind: record.kind, amount });
-  },
-});
 
 const stageOperationSchemaV1: RuntimeSchemaV1<StageOperationV1> = Object.freeze({
   parse(value: unknown): StageOperationV1 {
@@ -292,74 +161,6 @@ function passthroughSchemaV1<T>(): RuntimeSchemaV1<T> {
 const debugCommandSchemaV1: RuntimeSchemaV1<never> = Object.freeze({
   parse(): never {
     throw new TypeError("template debug commands are unsupported");
-  },
-});
-
-const kit = createGameAuthoringKit<TemplateSimulationTypesV1>();
-
-/** The read-only capability the narrative module uses to price choices. */
-export interface TemplateInventoryReadPortV1 {
-  coinBalance(): number;
-}
-
-export const templateInventoryReadCapabilityV1 = kit.defineCapability<TemplateInventoryReadPortV1>(
-  "capability.template.inventory.read",
-);
-
-/**
- * The empty-shell gameplay module. Its owner enforces the one inventory
- * rule (no overdraft); cross-module commands consume it through the
- * transaction so a choice's coin cost and the narrative continuation
- * commit atomically.
- */
-const inventoryModuleV1 = kit.defineStatefulModule({
-  id: "template.inventory",
-  contractRevision: 1,
-  state: {
-    slot: "simulation.inventory",
-    schema: templateInventoryStateSchemaV1,
-    initial: () => Object.freeze({ coins: 0 }),
-  },
-  commandSchema: commandSchemaV1,
-  provides: (provide) => [
-    provide(templateInventoryReadCapabilityV1, ({ readOwnState }) => ({
-      coinBalance: () => readOwnState().coins,
-    })),
-  ],
-  owner: {
-    operationSchema: inventoryOperationSchemaV1,
-    propose(state, operation) {
-      if (operation.kind === "spend" && state.coins < operation.amount) {
-        return Object.freeze({
-          kind: "rejected" as const,
-          rejection: Object.freeze({ code: "template.insufficient_coins" as const }),
-        });
-      }
-      const balance =
-        operation.kind === "earn" ? state.coins + operation.amount : state.coins - operation.amount;
-      return Object.freeze({
-        kind: "proposed" as const,
-        proposal: Object.freeze({
-          payload: operation,
-          facts: Object.freeze([
-            Object.freeze({
-              kind: "template.coins_changed" as const,
-              delta: operation.kind === "earn" ? operation.amount : -operation.amount,
-              balance,
-            }),
-          ]),
-        }),
-      });
-    },
-    apply(state: TemplateInventoryStateV1, proposal) {
-      const operation = proposal.payload;
-      return Object.freeze({
-        coins:
-          operation.kind === "earn"
-            ? state.coins + operation.amount
-            : state.coins - operation.amount,
-      });
-    },
   },
 });
 

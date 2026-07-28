@@ -3,7 +3,13 @@
 // （浏览器与桌面 webview 共用同一份声明）；只编排，不拥有玩法。
 import type { ReactElement } from "react";
 
-import type { AssetId, DeepReadonly } from "@sillymaker/base";
+import type {
+  AssetId,
+  DeepReadonly,
+  NarrativeHistoryV1,
+  PendingInteractionV1,
+} from "@sillymaker/base";
+import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
 import type { StageRenderTarget } from "@sillymaker/base/story";
 import { projectStageRenderTarget } from "@sillymaker/base/story";
 import type {
@@ -15,7 +21,8 @@ import type {
   SaveOverlayLabelsV1,
   SemanticStageEntryRendererV1,
 } from "@sillymaker/ui";
-import { AdvanceSurfaceV1, Button, SemanticStageV1, systemInputActionIdsV1 } from "@sillymaker/ui";
+import type { DialogueResolutionV1 } from "@sillymaker/ui";
+import { Button, DialoguePanelV1, SemanticStageV1, systemInputActionIdsV1 } from "@sillymaker/ui";
 import type { WebGameApplicationV1 } from "@sillymaker/web";
 
 import type {
@@ -172,6 +179,7 @@ function resolveV1(
 function BookshopNarrativePanelV1(props: {
   readonly publication: DeepReadonly<BookshopUiPublicationV1>;
   readonly semantic: BookshopSemanticPortV1;
+  readonly playerProfile: PlayerProfileStoreV1;
 }): ReactElement | null {
   const narrative = props.publication.semantic.narrative;
   const pending = narrative.pending;
@@ -196,63 +204,27 @@ function BookshopNarrativePanelV1(props: {
     );
   }
 
-  if (pending.kind === "say") {
-    const advance = (): void =>
-      resolveV1(props.semantic, pending.occurrenceId, Object.freeze({ kind: "advance" }));
-    return (
-      <>
-        {/* VN 惯例：点击舞台任意空白推进对话；选择菜单保持显式。 */}
-        <AdvanceSurfaceV1 onAdvance={advance} />
-        <div
-          data-bookshop-narrative="say"
-          data-bookshop-occurrence={pending.occurrenceId}
-          style={panelStyle}
-        >
-          {pending.speakerTextId === null ? null : (
-            <strong style={{ display: "block", color: "#ffd9a0" }}>
-              {bookshopUiTextV1(pending.speakerTextId)}
-            </strong>
-          )}
-          <p style={{ margin: "8px 0 16px" }}>{bookshopUiTextV1(pending.textId)}</p>
-          <Button data-bookshop-advance="true" onClick={advance}>
-            {bookshopUiTextV1("text.bookshop.narrative.advance")}
-          </Button>
-        </div>
-      </>
-    );
-  }
-
-  if (pending.kind === "choice") {
-    return (
-      <div
-        data-bookshop-narrative="choice"
-        data-bookshop-occurrence={pending.occurrenceId}
-        style={panelStyle}
-      >
-        <p style={{ margin: "0 0 16px" }}>{bookshopUiTextV1(pending.promptTextId)}</p>
-        <div role="group" style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-          {(narrative.choiceOptions ?? []).map((option) => (
-            <Button
-              key={option.choiceId}
-              disabled={!option.enabled}
-              data-bookshop-choice={option.choiceId}
-              onClick={() =>
-                resolveV1(
-                  props.semantic,
-                  pending.occurrenceId,
-                  Object.freeze({ kind: "choose", choiceId: option.choiceId }),
-                )
-              }
-            >
-              {bookshopUiTextV1(option.textId)}
-            </Button>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  return null;
+  return (
+    <DialoguePanelV1
+      pending={pending as PendingInteractionV1}
+      history={narrative.history as NarrativeHistoryV1}
+      playerProfile={props.playerProfile}
+      uiText={bookshopUiTextV1}
+      onResolve={(occurrenceId: string, resolution: DialogueResolutionV1) =>
+        resolveV1(props.semantic, occurrenceId, resolution as never)
+      }
+      labels={{
+        advanceLabel: bookshopUiTextV1("text.bookshop.narrative.advance"),
+        autoLabel: bookshopUiTextV1("text.bookshop.playback.auto"),
+        skipLabel: bookshopUiTextV1("text.bookshop.playback.skip"),
+        historyLabel: bookshopUiTextV1("text.bookshop.playback.history"),
+        historyTitle: bookshopUiTextV1("text.bookshop.playback.history.title"),
+        historyEmptyText: bookshopUiTextV1("text.bookshop.playback.history.empty"),
+        historyCloseLabel: bookshopUiTextV1("text.bookshop.playback.history.close"),
+      }}
+      panelStyle={panelStyle}
+    />
+  );
 }
 
 function BookshopHudV1(props: {
@@ -283,30 +255,34 @@ function BookshopHudV1(props: {
   );
 }
 
-const slotsDefinitionV1: DefaultGameRootSlotsV1<
-  BookshopUiPublicationV1,
-  BookshopSemanticPortV1,
-  BookshopUiOverlayIdV1
-> = {
-  background: (context) => (
-    <section data-bookshop-stage="true" aria-label={bookshopUiTextV1("text.bookshop.stage.name")}>
-      <SemanticStageV1
-        target={context.publication.view.stageTarget}
-        revision={context.publication.semantic.revision}
-        epoch={context.publication.view.anchorEpoch}
-        catalog={bookshopStageTransitionCatalogV1}
-        renderers={bookshopStageRenderersV1}
-        accessibleName={bookshopUiTextV1("text.bookshop.stage.name")}
+function createBookshopUiSlotsV1(
+  playerProfile: PlayerProfileStoreV1,
+): DefaultGameRootSlotsV1<BookshopUiPublicationV1, BookshopSemanticPortV1, BookshopUiOverlayIdV1> {
+  return {
+    background: (context) => (
+      <section data-bookshop-stage="true" aria-label={bookshopUiTextV1("text.bookshop.stage.name")}>
+        <SemanticStageV1
+          target={context.publication.view.stageTarget}
+          revision={context.publication.semantic.revision}
+          epoch={context.publication.view.anchorEpoch}
+          catalog={bookshopStageTransitionCatalogV1}
+          renderers={bookshopStageRenderersV1}
+          accessibleName={bookshopUiTextV1("text.bookshop.stage.name")}
+        />
+      </section>
+    ),
+    hud: (context) => (
+      <BookshopHudV1 publication={context.publication} semantic={context.semantic} />
+    ),
+    narrative: (context) => (
+      <BookshopNarrativePanelV1
+        publication={context.publication}
+        semantic={context.semantic}
+        playerProfile={playerProfile}
       />
-    </section>
-  ),
-  hud: (context) => <BookshopHudV1 publication={context.publication} semantic={context.semantic} />,
-  narrative: (context) => (
-    <BookshopNarrativePanelV1 publication={context.publication} semantic={context.semantic} />
-  ),
-};
-
-export const bookshopUiSlotsV1 = Object.freeze(slotsDefinitionV1);
+    ),
+  };
+}
 
 export const bookshopKeyboardMapV1: KeyboardActionMapV1 = Object.freeze({
   Enter: systemInputActionIdsV1.narrativeAdvance,
@@ -442,7 +418,7 @@ export const bookshopGameApplicationV1: WebGameApplicationV1<
     maxScale: 4,
   }),
   core: bookshopCoreApplicationDefinitionV1,
-  ui: () =>
+  ui: ({ playerProfile }: { readonly playerProfile: PlayerProfileStoreV1 }) =>
     Object.freeze({
       titleScreen: Object.freeze({
         title: "打烊前的旧书店",
@@ -456,7 +432,7 @@ export const bookshopGameApplicationV1: WebGameApplicationV1<
       }),
       projector: bookshopUiProjectorV1,
       overlayIds: Object.freeze([] as const),
-      slots: bookshopUiSlotsV1,
+      slots: createBookshopUiSlotsV1(playerProfile),
       labels: bookshopRootLabelsV1,
       saveLabels: bookshopSaveOverlayLabelsV1,
       inputMaps: Object.freeze({ keyboard: bookshopKeyboardMapV1 }),

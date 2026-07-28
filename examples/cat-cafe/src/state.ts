@@ -11,12 +11,12 @@ import {
 } from "@sillymaker/base/story";
 import { createRuntimeSchemaV1, fromStandardSchemaV1 } from "@sillymaker/base/authoring";
 
-import type { CatcafeNarrativeStateV1 } from "./narrative.ts";
+import type { CatcafeNarrativeStateV1 } from "./features/dialogue/script.ts";
 import {
   createInitialCatcafeNarrativeStateV1,
   catcafeLayersV1,
   catcafeNodeIdsV1,
-} from "./narrative.ts";
+} from "./features/dialogue/script.ts";
 
 /**
  * 动态状态：游戏运行中产生的一切可变数据，全部在模块里（原子提交、

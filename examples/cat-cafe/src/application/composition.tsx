@@ -3,42 +3,37 @@
 // 职责明确的模块**组装**成一个可启动的游戏应用（浏览器与桌面 webview 共用
 // 同一份声明）。它不应拥有玩法规则或权威状态；随特性切片推进
 // （docs/engine/proposals/feature-slices.md），这里最终只剩纯编排。
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 
-import type { AssetId, DeepReadonly } from "@sillymaker/base";
-import type { StageRenderTarget } from "@sillymaker/base/story";
+import type {
+  AssetId,
+  DeepReadonly,
+  NarrativeHistoryV1,
+  PendingInteractionV1,
+} from "@sillymaker/base";
 import { projectStageRenderTarget } from "@sillymaker/base/story";
 import type {
-  AssetRegistryV1,
   DefaultGameRootLabelsV1,
   DefaultGameRootSlotsV1,
   GameUiProjectorV1,
   KeyboardActionMapV1,
   AudioHostV1,
-  PresentationClockV1,
   RuntimeAssetLoaderV1,
-  RuntimePresentationPublicationV1,
   SaveOverlayLabelsV1,
   SemanticStageEntryRendererV1,
 } from "@sillymaker/ui";
 import {
-  AdvanceSurfaceV1,
   Button,
+  DialoguePanelV1,
   resolveAssetUrlV1,
   useAssetUrlV1,
-  useLocaleTextV1,
-  useReducedMotionV1,
-  createAnimationFramePresentationClockV1,
-  PanelV1,
   createAssetRegistryV1,
-  createPlaybackControllerV1,
-  createTextRevealV1,
   GameAudioV1,
   SemanticStageV1,
   systemInputActionIdsV1,
 } from "@sillymaker/ui";
-import type { PointerActionMapV1 } from "@sillymaker/ui";
+import type { DialogueResolutionV1, PointerActionMapV1 } from "@sillymaker/ui";
 import type { AudioIntentV1 } from "@sillymaker/base";
 import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
 import type { WebGameApplicationV1 } from "@sillymaker/web";
@@ -54,73 +49,39 @@ import type {
 import type { CatcafeApplicationInstanceV1, CatcafeExtensionsV1 } from "./core-definition.ts";
 import { catcafeCoreApplicationDefinitionV1 } from "./core-definition.ts";
 import type {
+  CatcafeAssetRegistryV1,
+  CatcafeSemanticPortV1,
+  CatcafeSemanticPublicationV1,
+} from "./ui-kit.ts";
+import { catcafeThemeV1, dispatchV1, useCatcafeTextV1 } from "./ui-kit.ts";
+export type {
+  CatcafePresentationViewV1,
+  CatcafeUiOverlayIdV1,
+  CatcafeUiPublicationV1,
+} from "./ui-kit.ts";
+import type {
+  CatcafePresentationViewV1,
+  CatcafeUiOverlayIdV1,
+  CatcafeUiPublicationV1,
+} from "./ui-kit.ts";
+import { CatcafeAlbumViewV1, useCatcafeAlbumWatcherV1 } from "../features/album/index.tsx";
+import type {
   CatcafeGameViewV1,
   CatcafeNarrativeViewV1,
   CatcafeQueriesV1,
   CatcafeSimulationTypesV1,
 } from "../simulation.ts";
-import { catcafeAudioManifestV1, resolveCatcafeEffectAssetV1 } from "../audio.ts";
+import { catcafeAudioManifestV1, resolveCatcafeEffectAssetV1 } from "../features/audio/index.ts";
 import {
   catcafeAssetIdsV1,
   catcafeLocalesV1,
   catcafeStageContentCatalogV1,
   catcafeStageTransitionCatalogV1,
-  catcafeTextCatalogsV1,
   catcafeTextForLocaleV1,
 } from "../presentation.ts";
-import {
-  catcafeAlbumV1,
-  catcafeMovesV1,
-  catcafePettingV1,
-  catcafeRivalsV1,
-  catcafeSlotsV1,
-} from "../content.ts";
+import { catcafeMovesV1, catcafePettingV1, catcafeRivalsV1, catcafeSlotsV1 } from "../content.ts";
 
 export const catcafeViewportCanvasV1 = Object.freeze({ width: 1280, height: 720 });
-
-/** Locale 感知的 UI 文本：订阅 Host 偏好，语言切换即时生效。 */
-function useCatcafeTextV1(playerProfile: PlayerProfileStoreV1): (textId: string) => string {
-  return useLocaleTextV1(playerProfile, catcafeTextForLocaleV1);
-}
-
-export function catcafeUiTextV1(textId: string): string {
-  const catalog = catcafeTextCatalogsV1.catalogs.find(
-    (candidate) => candidate.locale === catcafeTextCatalogsV1.defaultLocale,
-  );
-  const entry = catalog?.entries.find((candidate) => candidate.textId === textId);
-  if (entry === undefined) throw new TypeError(`catcafe.ui_text_missing:${textId}`);
-  return entry.text;
-}
-
-/** 主题令牌：暖木色面板 + 琥珀高亮，与美术风格一致。 */
-export const catcafeThemeV1 = Object.freeze({
-  panel: "rgba(24, 18, 12, 0.82)",
-  panelSoft: "rgba(24, 18, 12, 0.62)",
-  panelBorder: "1px solid rgba(214, 168, 96, 0.35)",
-  ink: "#f2e8d8",
-  inkSoft: "#cdbb99",
-  amber: "#e8b465",
-  radius: "14px",
-});
-
-type CatcafeAssetRegistryV1 = AssetRegistryV1<string, never, string>;
-
-/** 订阅 registry 并解析资产 URL；未加载/失败时返回 null（渲染器降级）。 */
-type CatcafeSemanticPublicationV1 = ReturnType<CatcafeApplicationInstanceV1["semantic"]["observe"]>;
-type CatcafeSemanticPortV1 = CatcafeApplicationInstanceV1["semantic"];
-
-export interface CatcafePresentationViewV1 {
-  readonly anchorEpoch: number;
-  readonly stageTarget: StageRenderTarget;
-}
-
-export type CatcafeUiPublicationV1 = RuntimePresentationPublicationV1<
-  CatcafeSemanticPublicationV1,
-  CatcafePresentationViewV1,
-  AssetId
->;
-
-export type CatcafeUiOverlayIdV1 = "overlay.catcafe.album";
 
 const actionTextIdsV1: Readonly<Record<CatcafeActionIdV1, string>> = Object.freeze({
   "cc.begin_story": "text.cc.action.begin",
@@ -269,228 +230,45 @@ function createCatcafeStageRenderersV1(
   });
 }
 
-function dispatchV1(semantic: CatcafeSemanticPortV1, invocation: CatcafeInvocationV1): void {
-  void semantic.dispatch(invocation as never);
-}
-
-/** 图鉴解锁谓词：观察语义发布，满足即写入 Host 元进度（跨存档）。 */
-const albumPredicatesV1: readonly {
-  readonly albumId: string;
-  readonly unlocked: (publication: DeepReadonly<CatcafeUiPublicationV1>) => boolean;
-}[] = Object.freeze([
-  {
-    albumId: "album.growth.rescue",
-    unlocked: (publication) => publication.semantic.narrative.phase === "completed",
-  },
-  {
-    albumId: "album.growth.purr",
-    unlocked: (publication) => publication.semantic.game.cat.trust >= 30,
-  },
-  {
-    albumId: "album.growth.leap",
-    unlocked: (publication) => publication.semantic.game.cat.skill >= 20,
-  },
-  {
-    albumId: "album.ending.champion",
-    unlocked: (publication) =>
-      publication.semantic.game.ending === "champion" ||
-      publication.semantic.game.shop.epilogue === "champion",
-  },
-  {
-    albumId: "album.ending.signboard",
-    unlocked: (publication) =>
-      publication.semantic.game.ending === "signboard" ||
-      publication.semantic.game.shop.epilogue === "signboard",
-  },
-  {
-    albumId: "album.ending.adopted",
-    unlocked: (publication) =>
-      publication.semantic.game.ending === "adopted" ||
-      publication.semantic.game.shop.epilogue === "adopted",
-  },
-  {
-    albumId: "album.ending.ordinary",
-    unlocked: (publication) =>
-      publication.semantic.game.ending === "ordinary" ||
-      publication.semantic.game.shop.epilogue === "ordinary",
-  },
-  {
-    albumId: "album.trophy.week3",
-    unlocked: (publication) => publication.semantic.game.shop.trophies >= 1,
-  },
-  {
-    albumId: "album.trophy.week5",
-    unlocked: (publication) => publication.semantic.game.shop.trophies >= 2,
-  },
-  {
-    albumId: "album.trophy.week7",
-    unlocked: (publication) => publication.semantic.game.shop.trophies >= 3,
-  },
-  {
-    albumId: "album.memory.regular",
-    unlocked: (publication) => publication.semantic.game.shop.reputation >= 40,
-  },
-]);
-
-function useCatcafeAlbumWatcherV1(
-  publication: DeepReadonly<CatcafeUiPublicationV1>,
-  playerProfile: PlayerProfileStoreV1,
-): void {
-  useEffect(() => {
-    const meta = playerProfile.current().meta;
-    for (const predicate of albumPredicatesV1) {
-      if (meta[predicate.albumId] === undefined && predicate.unlocked(publication)) {
-        void playerProfile.markMeta(predicate.albumId);
-      }
-    }
-  }, [publication, playerProfile]);
-}
-
-const catcafeAlbumAssetForV1 = (albumId: string): string | undefined => {
-  const key = albumId.replace("album.growth.", "album_").replace("album.memory.", "album_");
-  if (albumId.startsWith("album.trophy.week")) {
-    return catcafeAssetIdsV1[
-      `album_trophy${albumId.slice("album.trophy.week".length)}` as keyof typeof catcafeAssetIdsV1
-    ];
-  }
-  // 结局收藏卡重用场景美术：冠军=金杯、招牌=店面、领养=后院、平凡=雨巷。
-  if (albumId.startsWith("album.ending.")) {
-    const byEnding: Readonly<Record<string, string>> = Object.freeze({
-      champion: catcafeAssetIdsV1.album_trophy7,
-      signboard: catcafeAssetIdsV1.bg_shopfront,
-      adopted: catcafeAssetIdsV1.bg_backyard,
-      ordinary: catcafeAssetIdsV1.bg_title,
-    });
-    return byEnding[albumId.slice("album.ending.".length)];
-  }
-  return catcafeAssetIdsV1[key as keyof typeof catcafeAssetIdsV1];
-};
-
-function CatcafeAlbumViewV1(props: {
+/**
+ * 对话面板：引擎 DialoguePanelV1 的薄适配——打字机、自动/快进、已读
+ * 标记、历史回看、点击面、快捷条全部来自引擎；这里只接语义端口、
+ * 文本目录与回退按钮。
+ */
+function CatcafeNarrativePanelV1(props: {
+  readonly publication: DeepReadonly<CatcafeUiPublicationV1>;
+  readonly semantic: CatcafeSemanticPortV1;
   readonly playerProfile: PlayerProfileStoreV1;
-  readonly registry: CatcafeAssetRegistryV1 | null;
-}): ReactElement {
+}): ReactElement | null {
   const uiText = useCatcafeTextV1(props.playerProfile);
-  const profile = useSyncExternalStore(
-    (listener) => props.playerProfile.subscribe(listener),
-    () => props.playerProfile.current(),
+  const narrative = props.publication.semantic.narrative;
+  const semantic = props.semantic;
+  const onResolve = useCallback(
+    (occurrenceId: string, resolution: DialogueResolutionV1) =>
+      dispatchV1(semantic, {
+        kind: "resolve",
+        expectedOccurrenceId: occurrenceId,
+        resolution,
+      } as never),
+    [semantic],
   );
-  const revision = useSyncExternalStore(
-    (listener) => (props.registry === null ? () => {} : props.registry.subscribe(listener)),
-    () => (props.registry === null ? 0 : props.registry.observe().revision),
-    () => 0,
-  );
-  void revision;
   return (
-    <ol
-      data-cc-album="true"
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
-        gap: "12px",
-        margin: 0,
-        padding: 0,
-        maxInlineSize: "640px",
+    <DialoguePanelV1
+      pending={narrative.pending as PendingInteractionV1 | null}
+      history={narrative.history as NarrativeHistoryV1}
+      playerProfile={props.playerProfile}
+      uiText={uiText}
+      onResolve={onResolve}
+      labels={{
+        advanceLabel: uiText("text.cc.narrative.advance"),
+        autoLabel: uiText("text.cc.playback.auto"),
+        skipLabel: uiText("text.cc.playback.skip"),
+        historyLabel: uiText("text.cc.playback.history"),
+        historyTitle: uiText("text.cc.playback.history.title"),
+        historyEmptyText: uiText("text.cc.playback.history.empty"),
+        historyCloseLabel: uiText("text.cc.playback.history.close"),
       }}
-    >
-      {catcafeAlbumV1.rows().map((entry) => {
-        const unlocked = profile.meta[entry.id] !== undefined;
-        const url = unlocked
-          ? resolveAssetUrlV1(props.registry, catcafeAlbumAssetForV1(entry.id), "ui_decoration")
-          : null;
-        return (
-          <li
-            key={entry.id}
-            data-cc-album-entry={entry.id}
-            data-cc-album-unlocked={String(unlocked)}
-            style={{
-              listStyle: "none",
-              borderRadius: "12px",
-              overflow: "hidden",
-              border: catcafeThemeV1.panelBorder,
-              background: unlocked ? catcafeThemeV1.panelSoft : "rgba(255, 255, 255, 0.04)",
-              opacity: unlocked ? 1 : 0.55,
-            }}
-          >
-            <div
-              style={{
-                aspectRatio: "3 / 2",
-                background: "rgba(0, 0, 0, 0.35)",
-                display: "grid",
-                placeContent: "center",
-              }}
-            >
-              {url !== null ? (
-                <img
-                  src={url}
-                  alt={uiText(entry.nameTextId)}
-                  style={{ inlineSize: "100%", blockSize: "100%", objectFit: "cover" }}
-                />
-              ) : (
-                <span style={{ fontSize: "22px", opacity: 0.6 }}>{unlocked ? "♪" : "？"}</span>
-              )}
-            </div>
-            <div style={{ padding: "8px 10px", display: "grid", gap: "2px" }}>
-              <strong style={{ fontSize: "13px" }}>
-                {unlocked ? uiText(entry.nameTextId) : "？？？"}
-              </strong>
-              {unlocked ? (
-                <p style={{ margin: 0, fontSize: "12px", opacity: 0.85 }}>
-                  {uiText(entry.captionTextId)}
-                </p>
-              ) : null}
-            </div>
-          </li>
-        );
-      })}
-    </ol>
-  );
-}
-
-/** 历史面板：权威 NarrativeHistory 的只读渲染（随存档还原）。 */
-function CatcafeHistoryPanelV1(props: {
-  readonly entries: DeepReadonly<CatcafeUiPublicationV1>["semantic"]["narrative"]["history"]["entries"];
-  readonly uiText: (textId: string) => string;
-  onClose(): void;
-}): ReactElement {
-  return (
-    <div
-      style={{
-        position: "absolute",
-        insetInline: "min(200px, 10%)",
-        insetBlock: "min(60px, 8%)",
-        display: "grid",
-        padding: "clamp(12px, 3%, 32px)",
-        borderRadius: "16px",
-        background: "rgba(12, 15, 20, 0.94)",
-        pointerEvents: "auto",
-      }}
-    >
-      <PanelV1
-        title={props.uiText("text.cc.playback.history.title")}
-        titleId="cc-history-title"
-        onClose={props.onClose}
-        closeLabel={props.uiText("text.cc.playback.history.close")}
-        rootAttributes={{ "data-cc-history": "true" }}
-      >
-        {props.entries.length === 0 ? (
-          <p>{props.uiText("text.cc.playback.history.empty")}</p>
-        ) : (
-          <ul style={{ listStyle: "none", padding: 0, display: "grid", gap: "10px" }}>
-            {props.entries.map((entry) => (
-              <li key={entry.occurrenceId} data-cc-history-entry={entry.kind}>
-                {entry.speakerTextId === null ? null : (
-                  <strong style={{ color: "#ffd9a0", marginInlineEnd: "8px" }}>
-                    {props.uiText(entry.speakerTextId)}
-                  </strong>
-                )}
-                <span>{props.uiText(entry.textId)}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </PanelV1>
-    </div>
+    />
   );
 }
 
@@ -515,209 +293,6 @@ function CatcafeRollbackControlV1(props: {
       {props.label}
     </Button>
   );
-}
-
-function CatcafeNarrativePanelV1(props: {
-  readonly publication: DeepReadonly<CatcafeUiPublicationV1>;
-  readonly semantic: CatcafeSemanticPortV1;
-  readonly playerProfile: PlayerProfileStoreV1;
-}): ReactElement | null {
-  const uiText = useCatcafeTextV1(props.playerProfile);
-  const narrative = props.publication.semantic.narrative;
-  const pending = narrative.pending;
-  const preferences = useSyncExternalStore(
-    (listener) => props.playerProfile.subscribe(listener),
-    () => props.playerProfile.current(),
-  ).preferences;
-  const reducedMotion = useReducedMotionV1();
-  const [clock] = useState<PresentationClockV1>(() => createAnimationFramePresentationClockV1());
-  const [, setPlaybackVersion] = useState(0);
-  const [revealVersion, setRevealVersion] = useState(0);
-  const [showHistory, setShowHistory] = useState(false);
-
-  // 已读标记：进入权威历史的 say 写入 Host profile（读旧档不回退）。
-  const markedRef = useRef(new Set<string>());
-  useEffect(() => {
-    for (const entry of narrative.history.entries) {
-      if (entry.kind !== "say" || markedRef.current.has(entry.occurrenceId)) continue;
-      markedRef.current.add(entry.occurrenceId);
-      void props.playerProfile.markSeen(entry.definitionId, entry.seenRevision);
-    }
-  }, [props.playerProfile, narrative.history]);
-
-  // 打字机：每个 say occurrence 一个 reveal；纯瞬态，读档后重建。
-  const sayText = pending?.kind === "say" ? uiText(pending.textId) : null;
-  const sayOccurrenceId = pending?.kind === "say" ? pending.occurrenceId : null;
-  const reveal = useMemo(() => {
-    if (sayOccurrenceId === null || sayText === null) return null;
-    return createTextRevealV1({
-      textLength: sayText.length,
-      charactersPerSecond: preferences.textRevealCharsPerSecond,
-      clock,
-      reducedMotion,
-    });
-  }, [sayOccurrenceId, sayText, preferences.textRevealCharsPerSecond, clock, reducedMotion]);
-  useEffect(() => {
-    if (reveal === null) return () => {};
-    const unsubscribe = reveal.subscribe(() => setRevealVersion((current) => current + 1));
-    return () => {
-      unsubscribe();
-      reveal.dispose();
-    };
-  }, [reveal]);
-
-  // 播放策略机：auto/skip 经同一 resolve 语义派发，队列前沿拒绝过期。
-  const semantic = props.semantic;
-  const controller = useMemo(
-    () =>
-      createPlaybackControllerV1({
-        clock,
-        policy: Object.freeze({
-          autoWaitMs: preferences.autoWaitMs,
-          skipStepMs: 40,
-          skipPolicy: preferences.skipPolicy,
-        }),
-        isSeen: (definitionId, seenRevision) => {
-          const recorded = props.playerProfile.current().seen[definitionId];
-          return recorded !== undefined && recorded >= seenRevision;
-        },
-        advance: (occurrenceId) =>
-          dispatchV1(semantic, {
-            kind: "resolve",
-            expectedOccurrenceId: occurrenceId,
-            resolution: { kind: "advance" },
-          } as never),
-      }),
-    [clock, preferences.autoWaitMs, preferences.skipPolicy, props.playerProfile, semantic],
-  );
-  useEffect(() => {
-    const unsubscribe = controller.subscribe(() => setPlaybackVersion((current) => current + 1));
-    return () => {
-      unsubscribe();
-      controller.dispose();
-    };
-  }, [controller]);
-  const revealComplete = reveal?.isComplete() ?? true;
-  useEffect(() => {
-    controller.observeBoundary(
-      Object.freeze({
-        kind: pending?.kind ?? null,
-        occurrenceId: pending?.occurrenceId ?? null,
-        definitionId: pending?.definitionId ?? null,
-        seenRevision: pending?.kind === "say" ? pending.seenRevision : 1,
-        textRevealComplete: revealComplete,
-      }) as never,
-    );
-  }, [controller, pending, revealComplete, revealVersion]);
-  const mode = controller.mode();
-  const toggleMode = (next: "auto" | "skip"): void => {
-    controller.setMode(mode === next ? "normal" : next);
-  };
-
-  const panelStyle = {
-    position: "absolute" as const,
-    insetInline: "min(160px, 6%)",
-    insetBlockEnd: "min(48px, 4%)",
-    maxBlockSize: "70%",
-    overflowY: "auto" as const,
-    padding: "clamp(8px, 3%, 32px)",
-    borderRadius: "16px",
-    background: "rgba(16, 20, 26, 0.82)",
-    color: "#f2efe8",
-    fontSize: "clamp(14px, 2.5vw, 22px)",
-    lineHeight: 1.6,
-  };
-  if (pending === null) return null;
-  if (pending.kind === "say" && sayText !== null) {
-    const revealed = reveal === null ? sayText : sayText.slice(0, reveal.revealedCharacters());
-    const advance = (): void => {
-      if (reveal !== null && !reveal.isComplete()) {
-        reveal.revealAll();
-        return;
-      }
-      dispatchV1(props.semantic, {
-        kind: "resolve",
-        expectedOccurrenceId: pending.occurrenceId,
-        resolution: { kind: "advance" },
-      } as never);
-    };
-    return (
-      <>
-        {showHistory ? null : <AdvanceSurfaceV1 onAdvance={advance} />}
-        <div
-          data-cc-narrative="say"
-          data-cc-occurrence={pending.occurrenceId}
-          data-cc-reveal={revealComplete ? "complete" : "revealing"}
-          style={panelStyle}
-        >
-          {showHistory ? (
-            <CatcafeHistoryPanelV1
-              entries={narrative.history.entries}
-              uiText={uiText}
-              onClose={() => setShowHistory(false)}
-            />
-          ) : null}
-          {pending.speakerTextId === null ? null : (
-            <strong style={{ display: "block", color: "#ffd9a0" }}>
-              {uiText(pending.speakerTextId)}
-            </strong>
-          )}
-          <p style={{ margin: "8px 0 16px", minBlockSize: "1.6em" }} onClick={advance}>
-            {revealed}
-          </p>
-          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-            <Button data-cc-advance="true" onClick={advance}>
-              {uiText("text.cc.narrative.advance")}
-            </Button>
-            <Button
-              data-cc-playback="auto"
-              aria-pressed={mode === "auto"}
-              onClick={() => toggleMode("auto")}
-            >
-              {uiText("text.cc.playback.auto")}
-              {mode === "auto" ? " ●" : ""}
-            </Button>
-            <Button
-              data-cc-playback="skip"
-              aria-pressed={mode === "skip"}
-              onClick={() => toggleMode("skip")}
-            >
-              {uiText("text.cc.playback.skip")}
-              {mode === "skip" ? " ●" : ""}
-            </Button>
-            <Button data-cc-history-open="true" onClick={() => setShowHistory(true)}>
-              {uiText("text.cc.playback.history")}
-            </Button>
-          </div>
-        </div>
-      </>
-    );
-  }
-  if (pending.kind === "choice") {
-    return (
-      <div data-cc-narrative="choice" data-cc-occurrence={pending.occurrenceId} style={panelStyle}>
-        <p style={{ margin: "0 0 16px" }}>{uiText(pending.promptTextId)}</p>
-        <div role="group" style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-          {(narrative.choiceOptions ?? []).map((option) => (
-            <Button
-              key={option.choiceId}
-              data-cc-choice={option.choiceId}
-              onClick={() =>
-                dispatchV1(props.semantic, {
-                  kind: "resolve",
-                  expectedOccurrenceId: pending.occurrenceId,
-                  resolution: { kind: "choose", choiceId: option.choiceId },
-                } as never)
-              }
-            >
-              {uiText(option.textId)}
-            </Button>
-          ))}
-        </div>
-      </div>
-    );
-  }
-  return null;
 }
 
 function CatcafeStatBarV1(props: {
