@@ -13,7 +13,7 @@ template/                 minimal starter Story — copy me (MIT)
 examples/bookshop         narrative-writing example (MIT)
 examples/cat-cafe         the systems showcase: content DB, hit regions,
                           event pool, contest, meta progress, i18n
-                          (PolyForm-NC code, CC BY-NC-SA content)
+                          (MIT code, CC0 media assets)
 
 project.config.ts         every application registered in one place
 scripts/                  build identity, asset verification, save server

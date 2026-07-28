@@ -171,7 +171,7 @@ function createEnvironmentV1(
   const files = input.files ?? new Map<string, Uint8Array>();
   const realpaths = input.realpaths ?? new Map<string, string>();
   return {
-    repositoryRoot: "/repo/project-tavern",
+    repositoryRoot: "/repo/silly-maker",
     async readFile(path) {
       input.reads?.push(path);
       const bytes = files.get(path);
@@ -285,8 +285,8 @@ describe("runtime asset manifest validation", () => {
 
   it("accepts a contained runtime file when the checkout root is reached through a symlink", async () => {
     const runtimePath = "examples/poc/assets/scene.png";
-    const checkoutRoot = "/repo/project-tavern-link";
-    const realRepositoryRoot = "/repo/project-tavern";
+    const checkoutRoot = "/repo/silly-maker-link";
+    const realRepositoryRoot = "/repo/silly-maker";
     const realAllowedRoot = `${realRepositoryRoot}/examples/poc/assets`;
     const realpathReads: string[] = [];
     const reads: string[] = [];
@@ -345,10 +345,10 @@ describe("runtime asset manifest validation", () => {
     const result = await validateRuntimeAssetManifestV1(
       createManifestV1([{ assetId: "scene.root-escape", runtimePath }]),
       {
-        repositoryRoot: "/repo/project-tavern",
+        repositoryRoot: "/repo/silly-maker",
         async realpath(path) {
           realpathReads.push(path);
-          if (path === ".") return "/repo/project-tavern";
+          if (path === ".") return "/repo/silly-maker";
           if (path === "examples/poc/assets") return "/outside/assets";
           throw new Error(`must not resolve file after root escape: ${path}`);
         },
@@ -373,7 +373,7 @@ describe("runtime asset manifest validation", () => {
       createManifestV1([{ assetId: "scene.escape", runtimePath }]),
       createEnvironmentV1({
         files: new Map([[runtimePath, validPngV1]]),
-        realpaths: new Map([[runtimePath, "/repo/project-tavern/examples/poc/assets-escape/x"]]),
+        realpaths: new Map([[runtimePath, "/repo/silly-maker/examples/poc/assets-escape/x"]]),
         reads,
       }),
     );
@@ -387,7 +387,7 @@ describe("runtime asset manifest validation", () => {
     const manifest = createManifestV1([{ assetId: "scene.missing", runtimePath }]);
 
     const realpathFailure = await validateRuntimeAssetManifestV1(manifest, {
-      repositoryRoot: "/repo/project-tavern",
+      repositoryRoot: "/repo/silly-maker",
       async realpath() {
         throw new Error("ENOENT");
       },

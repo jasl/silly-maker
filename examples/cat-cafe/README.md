@@ -1,4 +1,4 @@
-<!-- SPDX-License-Identifier: CC-BY-NC-SA-4.0 -->
+<!-- SPDX-License-Identifier: MIT -->
 
 # 《雨巷猫舍》（example-cat-cafe）
 
@@ -71,4 +71,4 @@ examples/cat-cafe/
 
 ## 授权
 
-软件 PolyForm Noncommercial 1.0.0；文本、设计与美术 CC BY-NC-SA 4.0（见仓库根 `LICENSE.md`）。工程背景：设计规格 [DESIGN.md](DESIGN.md)，引擎缺口分析 [研究笔记](../../docs/research/2026-07-28-mv-slg-gap-analysis.md)。
+代码、文案与设计 MIT；AIGC 生成的美术与合成音频为 CC0 1.0 公共领域贡献（可商用、可演绎、无需署名）。见仓库根 `LICENSE.md`。工程背景：设计规格 [DESIGN.md](DESIGN.md)，引擎缺口分析 [研究笔记](../../docs/research/2026-07-28-mv-slg-gap-analysis.md)。

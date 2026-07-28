@@ -10,7 +10,7 @@ By submitting such a contribution, you represent that you have the right to lice
 
 ## Restricted game and content areas
 
-The project does not currently accept external contributions to PolyForm-covered game software or CC BY-NC-SA-covered original content. This includes `e2e/**, examples/**, and template/**`, project narrative, localization, art, audio, game-design documents, Story Hotfixes, and game-specific tests.
+The whole repository is MIT (AI-generated and synthesized media assets are CC0); contributions are accepted inbound=outbound under the same terms.
 
 Restricted-area contributions may be accepted only after Jun Jiang has approved a written Contributor License Agreement or copyright assignment that permits copying, modification, distribution, sublicensing, and commercial use while preserving reasonable contributor attribution. No general CLA is currently offered.
 
@@ -18,7 +18,7 @@ Opening a pull request, issue, or discussion does not create that agreement. Do 
 
 ## Third-party and AI-assisted material
 
-Place intentionally copied third-party code, text, data, images, fonts, models, audio, translations, purchased assets, and similar material under `vendor/**`. It retains its own license, contract, notice, or public-domain status and is not covered by the repository's MIT, PolyForm, or CC grants. You must have the right to submit it and preserve required notices; the absence of an automated scanner is not approval.
+Place intentionally copied third-party code, text, data, images, fonts, models, audio, translations, purchased assets, and similar material under `vendor/**`. It retains its own license, contract, notice, or public-domain status and is not covered by the repository's MIT or CC0 grants. You must have the right to submit it and preserve required notices; the absence of an automated scanner is not approval.
 
 For an external AI-assisted contribution, disclose the service and model, generation date, prompt and inputs, output hash, and the terms relied on. Commercial material and local `references/` content may not be used as generation inputs. This contribution disclosure is separate from the maintainer's internal AIGC source-archive layout, which is described in `docs/policies/assets-and-references.md`.
 

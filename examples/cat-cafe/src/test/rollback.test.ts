@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+// SPDX-License-Identifier: MIT
 // 玩家回滚（R7）在真实游戏里的语义：日常动作可回退且结果不重掷（RNG 随
 // 快照），运动会开赛与结局确认是硬边界（清空之前的检查点）。
 import { describe, expect, it } from "vitest";

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+// SPDX-License-Identifier: MIT
 // 语义级图鉴 meta 持久化测试。完整浏览器链（开场 → 图鉴解锁 → 刷新后仍在）
 // 由浏览器 spec 验证；jsdom 挂载完整 web UI 会触发 Deno×jsdom×React 跨
 // realm 事件派发崩溃。这里验证 Host 侧契约本身：meta 单调、跨会话存续。

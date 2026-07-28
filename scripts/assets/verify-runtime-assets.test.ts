@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+// SPDX-License-Identifier: MIT
 import { readFile, realpath } from "node:fs/promises";
 import { resolve, sep } from "node:path";
 
@@ -50,7 +50,7 @@ describe("closed runtime asset verification", () => {
       }),
     );
     const environment: RuntimeAssetValidationEnvironmentV1 = Object.freeze({
-      repositoryRoot: "/repo/project-tavern",
+      repositoryRoot: "/repo/silly-maker",
       async readFile(path: string) {
         throw new Error(`unexpected read: ${path}`);
       },
@@ -125,7 +125,7 @@ describe("closed runtime asset verification", () => {
       verifyRuntimeAssetStoryChecksV1(
         stories,
         Object.freeze({
-          repositoryRoot: "/repo/project-tavern",
+          repositoryRoot: "/repo/silly-maker",
           async readFile() {
             return new Uint8Array();
           },

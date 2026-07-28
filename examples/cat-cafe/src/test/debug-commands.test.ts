@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+// SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
 import { createGameHarnessV1 } from "@sillymaker/base/testkit";

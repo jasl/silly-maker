@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+// SPDX-License-Identifier: MIT
 // 声音层：BGM 规则是视图的纯投影（读档即还原），SFX 映射既有瞬态效果，
 // manifest 的 digest/byteLength 与仓库内的真实音频文件一致。
 import { createHash } from "node:crypto";

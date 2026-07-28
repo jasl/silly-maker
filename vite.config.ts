@@ -12,7 +12,7 @@ import {
   parseStoryMetadataV1,
 } from "@sillymaker/tooling/project/story-metadata";
 
-import { projectTavernConfigV1 } from "./project.config.ts";
+import { sillyMakerConfigV1 } from "./project.config.ts";
 
 const repositoryRoot = import.meta.dirname;
 const requireFromConfigV1 = createRequire(import.meta.url);
@@ -23,12 +23,12 @@ const requireFromConfigV1 = createRequire(import.meta.url);
  * changes this implementation.
  */
 function resolveWebTargetV1(applicationId: string): StoryWebTargetV1 {
-  const application = projectTavernConfigV1.applications.find(
+  const application = sillyMakerConfigV1.applications.find(
     (candidate) => candidate.applicationId === applicationId,
   );
   const web = application?.web ?? null;
   if (web === null) {
-    const webApplicationIds = projectTavernConfigV1.applications
+    const webApplicationIds = sillyMakerConfigV1.applications
       .filter((candidate) => candidate.web !== null)
       .map((candidate) => candidate.applicationId);
     throw new TypeError(
@@ -60,7 +60,7 @@ function loadBuildIdentityModuleV1(web: StoryWebTargetV1): BuildIdentityModuleV1
   });
 }
 
-export async function collectProjectTavernBuildIdentityV1(applicationId: string): Promise<unknown> {
+export async function collectSillyMakerBuildIdentityV1(applicationId: string): Promise<unknown> {
   const web = resolveWebTargetV1(applicationId);
   return await loadBuildIdentityModuleV1(web).collect(repositoryRoot);
 }
@@ -128,7 +128,7 @@ function storyMetadataPluginV1(web: StoryWebTargetV1): Plugin {
   };
 }
 
-export async function createProjectTavernViteConfigV1(input: {
+export async function createSillyMakerViteConfigV1(input: {
   readonly applicationId: string;
   readonly initialBuildIdentity?: unknown;
 }): Promise<UserConfig> {
@@ -164,7 +164,7 @@ export async function createProjectTavernViteConfigV1(input: {
  * PoC player so bare `vite` invocations stay compatible.
  */
 export default defineConfig(async ({ mode }) =>
-  createProjectTavernViteConfigV1({
+  createSillyMakerViteConfigV1({
     applicationId: mode === "development" || mode === "production" ? "e2e" : mode,
   }),
 );

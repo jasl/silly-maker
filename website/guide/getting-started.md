@@ -6,7 +6,7 @@ SillyMaker is a TypeScript + React engine for visual novels, life sims, and ligh
 
 ```sh
 git clone <repository>
-cd tavern_game
+cd silly-maker
 deno install
 ```
 

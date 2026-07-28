@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+// SPDX-License-Identifier: MIT
 import type { CoreSemanticAdapterV1 } from "@sillymaker/base/runtime";
 import type { TransientEffectRequestV1 } from "@sillymaker/base";
 import type { InteractionResolution } from "@sillymaker/base/story";

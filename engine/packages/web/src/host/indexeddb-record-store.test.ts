@@ -20,7 +20,7 @@ import {
   createIndexedDbRecordStoreV1,
 } from "./indexeddb-record-store.ts";
 
-const databaseNameV1 = "project-tavern.test.runtime";
+const databaseNameV1 = "silly-maker.test.runtime";
 type HostRecordKeyV1 = HostStoredRecordV1["key"];
 type HostRecordNamespaceV1 = HostStoredRecordV1["namespace"];
 const keyV1 = (value: string) => value as HostRecordKeyV1;

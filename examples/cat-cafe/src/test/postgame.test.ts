@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+// SPDX-License-Identifier: MIT
 // 后日谈（无限日常）：主线第 7 周结算出结局后，「继续经营」把结局写进
 // 权威状态并跨入第 8 周；日历不再封顶，之后每个周日傍晚都有友谊赛，
 // 对手按周轮换；结局只结算一次。

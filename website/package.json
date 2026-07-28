@@ -1,8 +1,8 @@
 {
-  "name": "@project-tavern/website",
+  "name": "@sillymaker/website",
   "version": "0.0.0",
   "private": true,
-  "license": "CC-BY-NC-SA-4.0",
+  "license": "MIT",
   "type": "module",
   "devDependencies": {
     "vitepress": "1.6.4",

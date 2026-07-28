@@ -45,7 +45,7 @@ describe("public import boundary", () => {
     const violations = findForbiddenImportSpecifiersV1(
       [
         'import { internal } from "@sillymaker/base/src/runtime/session/game-session.ts";',
-        'import { glue } from "@project-tavern/story-poc";',
+        'import { glue } from "@silly-maker/story-poc";',
         'import { old } from "../../../engine/packages/base/src/index.ts";',
         'import { crossStory } from "../../../examples/bookshop/src/index.ts";',
         'import { archived } from "../../../docs/archive/2026-07-first-poc-goal/file.ts";',
@@ -55,7 +55,7 @@ describe("public import boundary", () => {
 
     expect(violations).toEqual([
       "@sillymaker/base/src/runtime/session/game-session.ts",
-      "@project-tavern/story-poc",
+      "@silly-maker/story-poc",
       "../../../engine/packages/base/src/index.ts",
       "../../../examples/bookshop/src/index.ts",
       "../../../docs/archive/2026-07-first-poc-goal/file.ts",

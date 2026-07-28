@@ -10,7 +10,7 @@ import {
 
 function createHashEnvironmentV1(initialHash: string) {
   let hash = initialHash;
-  const pathname = "/project-tavern/preview/";
+  const pathname = "/silly-maker/preview/";
   const listeners = new Set<() => void>();
   const replace = vi.fn((nextHash: string) => {
     hash = nextHash;

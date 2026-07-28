@@ -1,9 +1,9 @@
 {
-  "name": "project-tavern-workspace",
+  "name": "silly-maker-workspace",
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "license": "SEE LICENSE IN LICENSE.md",
+  "license": "MIT",
   "engines": {
     "deno": ">=2.9.0"
   },

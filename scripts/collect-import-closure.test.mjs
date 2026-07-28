@@ -88,18 +88,18 @@ test("rejects unknown internal workspace package subpaths instead of treating th
   const absoluteFixture = join(root, fixture);
   await writeFile(
     absoluteFixture,
-    'import "@project-tavern/story-e2e/private";\nimport "@sillymaker/ui/private";\n',
+    'import "@silly-maker/story-e2e/private";\nimport "@sillymaker/ui/private";\n',
   );
   try {
     const closure = await collectImportClosure(root, [fixture]);
     assert.deepEqual(closure.errors, [
-      `${fixture}: unknown workspace import @project-tavern/story-e2e/private`,
+      `${fixture}: unknown workspace import @silly-maker/story-e2e/private`,
       `${fixture}: unknown workspace import @sillymaker/ui/private`,
     ]);
     assert(
       !closure.externalImports.some(
         ({ specifier }) =>
-          specifier.startsWith("@sillymaker/") || specifier.startsWith("@project-tavern/"),
+          specifier.startsWith("@sillymaker/") || specifier.startsWith("@silly-maker/"),
       ),
     );
   } finally {
