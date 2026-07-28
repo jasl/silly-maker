@@ -26,6 +26,7 @@ import type { RuntimePresentationPublicationV1 } from "../runtime/runtime-presen
 import { GameShell } from "../shell/game-shell.tsx";
 import type { GameShellViewportOptionsV1 } from "../shell/game-shell.tsx";
 import { BootSplashV1 } from "../system/boot-splash.tsx";
+import { MuteToggleV1 } from "../system/mute-toggle.tsx";
 import type { BootSplashDefinitionV1 } from "../system/boot-splash.tsx";
 import { SavesLauncherV1 } from "../system/saves-launcher.tsx";
 import { SettingsLauncherV1 } from "../system/settings-launcher.tsx";
@@ -453,6 +454,9 @@ export function DefaultGameRootV1<
         >
           {props.saveUi === undefined ? null : <SavesLauncherV1 label={labels.saveLabel} />}
           <SettingsLauncherV1 label={labels.settingsLabel} />
+          {props.playerProfile === undefined ? null : (
+            <MuteToggleV1 playerProfile={props.playerProfile} label={labels.settingsMutedLabel} />
+          )}
           {slots.systemMenuExtras?.(slotContext) ?? null}
         </div>
       </SystemDialogHostV1>

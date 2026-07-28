@@ -36,6 +36,7 @@ Start a new game by copying [`template/`](template/) and following its README; e
 - [Documentation map](docs/README.md) — the index of everything below
 - [Architecture](docs/engine/architecture.md) · [Features](docs/engine/features.md) · [Roadmap](docs/engine/roadmap.md)
 - [Development and testing](docs/engine/development.md) · [Story authoring](docs/engine/story-authoring.md) · [Authoring quickstart](docs/engine/authoring-quickstart.md)
+- [Agent game guide](docs/engine/agent-game-guide.md) — point a coding agent at this repo and get a game back
 - [Build and release](docs/engine/build-and-release.md) (web, static hosting, desktop packaging)
 - Public site (VitePress, en/zh) lives in [`website/`](website/)
 
