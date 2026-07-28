@@ -2,7 +2,7 @@
 
 操作层面的分层指南（含 LLM 代理执行建议与诊断速查）见 [authoring-quickstart](authoring-quickstart.md)。`@sillymaker/base/story` 是作者 prelude：当前代契约的无版本后缀别名。
 
-状态：当前 Story 组合模型。Engine Lab（`game/stories/e2e`）是唯一维护的参考实例。
+状态：当前 Story 组合模型。Engine Lab（`e2e`）是唯一维护的参考实例。
 
 ## 1. What a Story owns
 
@@ -81,11 +81,11 @@ Combine simulation and presentation facets with `defineGamePackage`. Define sepa
 
 The Engine Lab demonstrates this in:
 
-- `game/stories/e2e/src/story.ts`
-- `game/stories/e2e/src/gameplay/simulation.ts`
-- `game/stories/e2e/src/application/semantic.ts`
-- `game/stories/e2e/src/application/web-application.tsx`
-- `game/stories/e2e/src/application/entry.tsx`
+- `e2e/src/story.ts`
+- `e2e/src/gameplay/simulation.ts`
+- `e2e/src/application/semantic.ts`
+- `e2e/src/application/web-application.tsx`
+- `e2e/src/application/entry.tsx`
 
 Reuse the engine pattern, not the Tavern-specific ten-module partition, names, numbers, or content structure.
 

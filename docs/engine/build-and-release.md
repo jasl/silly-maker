@@ -4,7 +4,7 @@
 
 ## Application registry
 
-Story applications are declared once in `game/project.config.ts` and typed by `@sillymaker/tooling/project`. Vite target resolution (`vite --mode <application-id>`), runtime asset verification, and the project commands below all consume that one registry; adding a Story application means adding one declaration, not editing the Vite implementation, the asset verifier, or a build switch.
+Story applications are declared once in `project.config.ts` and typed by `@sillymaker/tooling/project`. Vite target resolution (`vite --mode <application-id>`), runtime asset verification, and the project commands below all consume that one registry; adding a Story application means adding one declaration, not editing the Vite implementation, the asset verifier, or a build switch.
 
 ```sh
 deno task story inspect <application-id>   # resolved Story identity/content summary as JSON

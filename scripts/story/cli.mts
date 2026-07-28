@@ -15,7 +15,7 @@ const [
 ] = await Promise.all([
   import("../../engine/packages/tooling/src/project/index.ts"),
   import("../../engine/packages/tooling/src/project/loader.ts"),
-  import("../../game/project.config.ts"),
+  import("../../project.config.ts"),
 ]);
 
 process.exitCode = await runProjectCliV1({

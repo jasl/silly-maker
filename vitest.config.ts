@@ -5,7 +5,9 @@ export default defineConfig({
   test: {
     include: [
       "engine/packages/**/src/**/*.{test,spec}.{ts,tsx}",
-      "game/**/src/**/*.{test,spec}.{ts,tsx}",
+      "e2e/src/**/*.{test,spec}.{ts,tsx}",
+      "examples/*/src/**/*.{test,spec}.{ts,tsx}",
+      "template/src/**/*.{test,spec}.{ts,tsx}",
       "scripts/**/*.test.ts",
       "scripts/**/*.test.mjs",
     ],

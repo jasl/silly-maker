@@ -1,0 +1,27 @@
+{
+  "name": "@sillymaker/story-example-bookshop",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "description": "Example Story: a rainy-night bookshop vignette authored in a real model experiment.",
+  "exports": {
+    ".": "./src/story.ts"
+  },
+  "scripts": {
+    "test": "deno run -A npm:vitest run examples/bookshop/src"
+  },
+  "dependencies": {
+    "@sillymaker/base": "workspace:*",
+    "@sillymaker/ui": "workspace:*",
+    "@sillymaker/web": "workspace:*",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@sillymaker/tooling": "workspace:*",
+    "@types/node": "24.13.3",
+    "@types/react": "19.2.17"
+  }
+}

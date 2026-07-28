@@ -9,7 +9,7 @@ import {
 
 import { readRuntimeImageMetadataV1 } from "./runtime-image-metadata.mts";
 
-type AllowedRuntimeRootV1 = `game/stories/${string}/assets/`;
+type AllowedRuntimeRootV1 = `${string}/assets/`;
 
 type CanonicalRootResultV1 =
   | { readonly kind: "valid"; readonly path: string }
@@ -34,20 +34,29 @@ export interface RuntimeAssetValidationErrorV1 {
     | "asset.runtime_dimensions_mismatch";
 }
 
+const storyNamePatternV1 = /^[a-z0-9][a-z0-9-]*$/u;
+
+/**
+ * Runtime assets live under a Story package's `assets/` directory. Story
+ * packages sit at `e2e/`, `template/`, or `examples/<story>/`.
+ */
 function declaredRuntimeRootV1(runtimePath: string): AllowedRuntimeRootV1 | undefined {
   const segments = runtimePath.split("/");
-  const [game, stories, story, assets] = segments;
-  if (
-    segments.length < 5 ||
-    game !== "game" ||
-    stories !== "stories" ||
-    assets !== "assets" ||
-    story === undefined ||
-    !/^[a-z0-9][a-z0-9-]*$/u.test(story)
-  ) {
-    return undefined;
+  const [first, second, third] = segments;
+  if (first === undefined) return undefined;
+  if ((first === "e2e" || first === "template") && second === "assets" && segments.length >= 3) {
+    return `${first}/assets/`;
   }
-  return `game/stories/${story}/assets/`;
+  if (
+    first === "examples" &&
+    second !== undefined &&
+    storyNamePatternV1.test(second) &&
+    third === "assets" &&
+    segments.length >= 4
+  ) {
+    return `examples/${second}/assets/`;
+  }
+  return undefined;
 }
 
 function safeRuntimePathV1(runtimePath: string): AllowedRuntimeRootV1 | undefined {

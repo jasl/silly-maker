@@ -32,7 +32,7 @@ async function assertNodeSafeStoryClosure(entry) {
 }
 
 test("collects the production application closure", async () => {
-  const cases = [{ entry: "game/stories/e2e/src/application/entry.tsx" }];
+  const cases = [{ entry: "e2e/src/application/entry.tsx" }];
 
   for (const { entry } of cases) {
     const closure = await collectImportClosure(root, [entry]);
@@ -108,7 +108,7 @@ test("rejects unknown internal workspace package subpaths instead of treating th
 });
 
 test("keeps the default Story closure free of tooling and Web renderers", async () => {
-  for (const entry of ["game/stories/e2e/src/story.ts"]) {
+  for (const entry of ["e2e/src/story.ts"]) {
     const closure = await collectImportClosure(root, [entry]);
     assert.deepEqual(closure.errors, []);
     assert(!closure.paths.some((path) => path.endsWith("e2e-renderers.tsx")));
@@ -124,10 +124,7 @@ test("keeps the default Story closure free of tooling and Web renderers", async 
 });
 
 test("keeps the default Story and Node-safe tooling closures free of TSX, React, and DOM", async () => {
-  for (const entry of [
-    "game/stories/e2e/src/story.ts",
-    "game/stories/e2e/src/tooling/simulation-target.ts",
-  ]) {
+  for (const entry of ["e2e/src/story.ts", "e2e/src/tooling/simulation-target.ts"]) {
     await assertNodeSafeStoryClosure(entry);
   }
 });

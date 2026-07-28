@@ -17,7 +17,7 @@ Read only the documents relevant to the change:
 - `docs/engine/features.md` — implemented engine capabilities and boundaries.
 - `docs/engine/development.md` — setup, tests, and maintenance workflow.
 - `docs/engine/story-authoring.md` — current Story composition model.
-- `docs/engine/authoring-quickstart.md` — layered authoring playbook (content edits, module wiring, application declarations) with the diagnostics quick-reference. Story-directory agents also read `game/stories/AGENTS.md`.
+- `docs/engine/authoring-quickstart.md` — layered authoring playbook (content edits, module wiring, application declarations) with the diagnostics quick-reference. Story-directory agents also read the per-directory handbooks: `e2e/AGENTS.md`, `examples/AGENTS.md`, `template/AGENTS.md`.
 - `docs/engine/build-and-release.md` — local Player build and Artifact workflow.
 - `docs/game/README.md` — current Project Tavern design status.
 - `docs/policies/licensing.md` and `docs/policies/assets-and-references.md` — durable legal and source-material policy.
@@ -32,7 +32,7 @@ The roadmap and design documents describe accepted direction; they do not make a
 - `@sillymaker/base` owns generic contracts, Story authoring primitives, deterministic runtime state, sessions, persistence orchestration, replay, and diagnostics. It has no React, DOM, browser-storage, or Project Tavern dependency.
 - `@sillymaker/ui` owns reusable React presentation, input, interaction, overlays, diagnostics UI, assets, characters, stages, and semantic-publication bridges.
 - `@sillymaker/web` owns browser hosting, IndexedDB persistence adapters, mounting, routing, capabilities, automation, pointer input, and development rebootstrap.
-- `game/stories/**` owns game-specific state, rules, content, projections, application composition, and Story tooling.
+- `e2e/**, examples/**, and template/**` owns game-specific state, rules, content, projections, application composition, and Story tooling.
 - Workspace packages consume one another through declared package exports and `workspace:*` dependencies, not another package's `src/**` path.
 
 The current authoritative flow is:

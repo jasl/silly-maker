@@ -40,7 +40,7 @@ Implementation anchors:
 - Base runtime exports: `engine/packages/base/src/runtime/index.ts`
 - UI exports: `engine/packages/ui/src/index.ts`
 - Web exports: `engine/packages/web/src/index.ts`
-- current Story root: `game/stories/e2e/src/story.ts`
+- current Story root: `e2e/src/story.ts`
 
 ## 3. Story resolution
 

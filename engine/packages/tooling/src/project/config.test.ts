@@ -15,13 +15,13 @@ function webApplicationV1(applicationId: string): StoryApplicationConfigV1 {
   return {
     applicationId,
     label: `${applicationId} application`,
-    storyEntry: { module: `game/stories/${applicationId}/src/story.ts`, exportName: "entryV1" },
+    storyEntry: { module: `examples/${applicationId}/src/story.ts`, exportName: "entryV1" },
     assetVerification: true,
     simulate: null,
     web: {
-      storyRoot: `game/stories/${applicationId}`,
-      applicationHtml: `game/stories/${applicationId}/index.html`,
-      applicationEntry: `game/stories/${applicationId}/src/application/entry.tsx`,
+      storyRoot: `examples/${applicationId}`,
+      applicationHtml: `examples/${applicationId}/index.html`,
+      applicationEntry: `examples/${applicationId}/src/application/entry.tsx`,
       outDir: `dist/${applicationId}`,
       base: "./",
       sourcemap: false,
@@ -39,9 +39,9 @@ function headlessApplicationV1(applicationId: string): StoryApplicationConfigV1 
   return {
     applicationId,
     label: `${applicationId} headless`,
-    storyEntry: { module: `game/stories/${applicationId}/src/story.ts`, exportName: "entryV1" },
+    storyEntry: { module: `examples/${applicationId}/src/story.ts`, exportName: "entryV1" },
     assetVerification: false,
-    simulate: { module: `game/stories/${applicationId}/src/target.ts`, exportName: "createV1" },
+    simulate: { module: `examples/${applicationId}/src/target.ts`, exportName: "createV1" },
     web: null,
     releaseArtifact: false,
   };
@@ -68,7 +68,7 @@ describe("defineSillymakerProjectV1", () => {
     expect(Object.isFrozen(project.applications[0])).toBe(true);
     expect(listStoryApplicationIdsV1(project)).toEqual(["alpha-web", "beta"]);
     expect(resolveStoryApplicationV1(project, "beta").simulate).toEqual({
-      module: "game/stories/beta/src/target.ts",
+      module: "examples/beta/src/target.ts",
       exportName: "createV1",
     });
     expect(resolveWebBuildTargetV1(project, "alpha-web").outDir).toBe("dist/alpha-web");
@@ -82,7 +82,7 @@ describe("defineSillymakerProjectV1", () => {
     });
 
     expect(resolveWebBuildTargetV1(project, "temporary-web").storyRoot).toBe(
-      "game/stories/temporary-web",
+      "examples/temporary-web",
     );
     expect(resolveStoryApplicationV1(project, "temporary-web").storyEntry.exportName).toBe(
       "entryV1",

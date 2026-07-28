@@ -39,7 +39,7 @@ async function loadRuntimeAssetModulesV1() {
         import("../../engine/packages/base/src/index.ts"),
         import("../../engine/packages/tooling/src/project/index.ts"),
         import("../../engine/packages/tooling/src/project/loader.ts"),
-        import("../../game/project.config.ts"),
+        import("../../project.config.ts"),
         import("./validate-runtime.mts"),
       ]);
     const loader = loaderModule.createImportProjectModuleLoaderV1(repositoryRootForLoadingV1);

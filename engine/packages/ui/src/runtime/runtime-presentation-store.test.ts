@@ -817,7 +817,7 @@ describe("RuntimePresentationStoreV1", () => {
     expect(runtimeImports).toContain("@sillymaker/base");
     expect(runtimeImports).not.toMatch(/stories\/|apps\/web|@project-tavern\//u);
 
-    expect(await collectNodeImportClosureV1("game/stories/e2e/src/story.ts")).not.toMatch(
+    expect(await collectNodeImportClosureV1("e2e/src/story.ts")).not.toMatch(
       /runtime-presentation|\.tsx|react/u,
     );
   });

@@ -47,7 +47,7 @@
 
 ## 缺口交付记录（2026-07-28，随《雨巷猫舍》）
 
-[RPG Maker 复刻缺口分析](../../research/2026-07-28-imouto-rpgmv-gap-analysis.md)识别的三项缺口不再 defer，已随 `game/stories/examples/cat-cafe`（设计规格 `DESIGN.md`）交付：
+[RPG Maker 复刻缺口分析](../../research/2026-07-28-imouto-rpgmv-gap-analysis.md)识别的三项缺口不再 defer，已随 `examples/cat-cafe`（设计规格 `DESIGN.md`）交付：
 
 - 内容数据库（缺口 A/B）：`defineContentTableV1`/`createContentDatabaseV1`，五张真实表消费（活动/部位反应/技能/对手/图鉴），adoption gate 由设计规格满足。
 - 语义舞台命中区域（缺口 C）：内容目录按 contentId+appearance 解析 `hitRegions`，host 渲染可聚焦命中层，指针/触摸/键盘同路径；抚摸玩法浏览器 spec 验收（`hit-regions.spec.ts`）。

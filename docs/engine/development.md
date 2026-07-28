@@ -24,9 +24,9 @@ engine/packages/base     framework-neutral authoring, contracts, and runtime
 engine/packages/tooling  Node-only tooling (JSONL agent host protocol)
 engine/packages/ui       generic React presentation and input
 engine/packages/web      browser Host and application adapters
-game/stories/e2e         neutral Engine Conformance Story (MIT test consumer)
-game/stories/template    minimal starter Story (new-project skeleton)
-game/stories/examples    curated example Stories (bookshop; cat-cafe, the engine-gap delivery vehicle)
+e2e         neutral Engine Conformance Story (MIT test consumer)
+template    minimal starter Story (new-project skeleton)
+examples/                curated example Stories (bookshop; cat-cafe, the engine-gap delivery vehicle)
 scripts                  maintained build, asset, and product tooling
 docs/engine            active engine documentation
 docs/game              active gameplay design
@@ -54,7 +54,7 @@ Package manifests define supported cross-package entries. Do not bypass them wit
 | `deno task story desktop <app>`                  | Package the built web Artifact as a desktop app (experimental).       |
 | `deno task test:e2e:engine:prebuilt`             | Build the Engine Lab and run the engine suite on the Artifact.        |
 
-The application lifecycle CLI covers six responsibilities for every application declared in `game/project.config.ts`:
+The application lifecycle CLI covers six responsibilities for every application declared in `project.config.ts`:
 
 ```text
 deno task story inspect <app>                          # resolved identity/program report (JSON)
@@ -65,7 +65,7 @@ deno task story build <app>                            # build the application's
 deno task story prebuilt-smoke <app>                   # verify the built Artifact's files
 ```
 
-`simulate` plays a named scenario from the application's simulation target (for example `deno task story simulate e2e --scenario opening --seed 23049`) through the same player-safe Agent port real agents use. Story applications (story entry, asset verification, simulation target, web dev/build target) are declared in `game/project.config.ts`; see [build-and-release](build-and-release.md).
+`simulate` plays a named scenario from the application's simulation target (for example `deno task story simulate e2e --scenario opening --seed 23049`) through the same player-safe Agent port real agents use. Story applications (story entry, asset verification, simulation target, web dev/build target) are declared in `project.config.ts`; see [build-and-release](build-and-release.md).
 
 `deno task check` may remain as a compatibility alias for `deno task check`; new documentation and automation should use `deno task check`.
 

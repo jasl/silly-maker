@@ -9,17 +9,17 @@ export const catcafeBuildIdentityVirtualSpecifierV1 = "virtual:sillymaker/catcaf
 const repositoryRootV1 = dirname(dirname(fileURLToPath(import.meta.url)));
 const ownerV1 = createStoryBuildIdentityOwnerV1({
   label: "ExampleCatcafe",
-  storySourceRoot: "game/stories/examples/cat-cafe/src/",
+  storySourceRoot: "examples/cat-cafe/src/",
   simulation: {
-    entry: "game/stories/examples/cat-cafe/src/simulation.ts",
-    forbiddenPrefixes: ["game/stories/examples/cat-cafe/src/presentation"],
+    entry: "examples/cat-cafe/src/simulation.ts",
+    forbiddenPrefixes: ["examples/cat-cafe/src/presentation"],
   },
   presentation: {
-    entry: "game/stories/examples/cat-cafe/src/presentation.ts",
+    entry: "examples/cat-cafe/src/presentation.ts",
     forbiddenPrefixes: [],
   },
   applicationEntries: [
-    "game/stories/examples/cat-cafe/src/application/entry.tsx",
+    "examples/cat-cafe/src/application/entry.tsx",
     "scripts/build-story-identity.mjs",
     "scripts/collect-import-closure.mjs",
     "scripts/build-template-identity.mjs",
