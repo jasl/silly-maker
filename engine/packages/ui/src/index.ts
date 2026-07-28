@@ -305,3 +305,5 @@ export type {
   GameUiSemanticSourceV1,
   GameUiStateV1,
 } from "./composer/index.ts";
+export { useSystemDialogControllerV1 } from "./system/system-dialog-host.tsx";
+export type { SystemDialogControllerV1 } from "./system/system-dialog-host.tsx";

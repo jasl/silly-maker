@@ -87,6 +87,8 @@ export interface WebGameUiDefinitionV1<
   >;
   readonly labels?: Partial<DefaultGameRootLabelsV1>;
   readonly saveLabels?: SaveOverlayLabelsV1;
+  /** Hides the default floating system menu (custom shells own the entries). */
+  readonly hideSystemMenu?: boolean;
   /** Story safepoint over the live publication (see SaveOverlayGuardV1). */
   readonly saveGuard?: (publication: unknown) => { allowed: boolean; reasonText?: string };
   readonly devDockContributions?: DevDockContributionSetV1;
@@ -517,6 +519,9 @@ export async function startWebGameApplicationV1<
               ) => string,
             })}
         {...(saveUi === undefined ? {} : { saveUi })}
+        {...(uiDefinition.hideSystemMenu === undefined
+          ? {}
+          : { hideSystemMenu: uiDefinition.hideSystemMenu })}
         {...(uiDefinition.labels === undefined ? {} : { labels: uiDefinition.labels })}
         {...(uiDefinition.slots === undefined ? {} : { slots: uiDefinition.slots })}
         {...(uiDefinition.devDockContributions === undefined

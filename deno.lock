@@ -4317,6 +4317,17 @@
           ]
         }
       },
+      "examples/silly-os": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@types/node@24.13.3",
+            "npm:@types/react@19.2.17",
+            "npm:react-dom@19.2.7",
+            "npm:react@19.2.7",
+            "npm:zod@4.4.3"
+          ]
+        }
+      },
       "template": {
         "packageJson": {
           "dependencies": [

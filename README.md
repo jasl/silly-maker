@@ -6,6 +6,8 @@ An LLM-friendly TypeScript + React game engine for visual novels, management sim
 
 **Play the flagship example**: the [Cat Cafe](examples/cat-cafe/) (《雨巷猫舍》) is a complete, publishable game built to drive the engine — title screen, scheduling gameplay, petting hit-regions, a turn-based contest, an album, multiple endings with a postgame, dialogue playback QoL (typewriter / auto / skip / history / rollback), scene-driven audio, save slots with safepoints, bilingual text, and one-step desktop packaging.
 
+**Then break the genre**: [SillyOS 98](examples/silly-os/) is a retro desktop shell — overlapping draggable windows, a taskbar, a Start menu, deterministic Minesweeper (mines drawn from the transactional RNG, never leaked to the UI), a Notepad whose files persist through engine saves, and a period browser. Same engine, zero visual-novel assumptions.
+
 ## Why SillyMaker
 
 - **Deterministic by construction** — one session owns authoritative state; commands commit atomically or not at all; RNG travels inside snapshots, so replay and player rollback reproduce the same run bit for bit.
@@ -49,7 +51,7 @@ engine/packages/ui       Generic React game UI and presentation runtime
 engine/packages/web      Browser host, IndexedDB/HTTP persistence, mounting, automation
 e2e/                     The neutral engine-conformance Story (Engine Lab)
 template/                The starter skeleton for new games
-examples/                Example Stories (bookshop, cat-cafe)
+examples/                Example Stories (bookshop, cat-cafe, silly-os)
 project.config.ts        Where every application registers
 scripts/                 Build identity, asset checks, desktop save server, site composer
 docs/                    Internal engineering docs (plans, research, proposals, policies)

@@ -6,6 +6,8 @@ import {
   catcafeTargetV1,
   engineTargetUrlV1,
   engineTargetV1,
+  sillyOsTargetUrlV1,
+  sillyOsTargetV1,
 } from "./e2e/engine/fixtures.ts";
 
 /**
@@ -37,6 +39,13 @@ export default defineConfig({
       reuseExistingServer: false,
       timeout: 120_000,
       url: catcafeTargetUrlV1(),
+    },
+    {
+      command: `deno run -A npm:vite --mode example-silly-os --host ${sillyOsTargetV1.host} --port ${String(sillyOsTargetV1.port)} --strictPort`,
+      cwd: "../../..",
+      reuseExistingServer: false,
+      timeout: 120_000,
+      url: sillyOsTargetUrlV1(),
     },
   ],
   projects: [

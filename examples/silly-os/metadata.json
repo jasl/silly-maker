@@ -1,0 +1,7 @@
+{
+  "name": "SillyOS 98",
+  "description": "A retro desktop inside a game engine: overlapping windows, a taskbar, Minesweeper as a deterministic simulation, Notepad files that persist with saves, and a period-correct browser.",
+  "lang": "en",
+  "author": "SillyMaker",
+  "themeColor": "#008080"
+}

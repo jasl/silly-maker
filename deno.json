@@ -9,6 +9,7 @@
     "./template",
     "./examples/bookshop",
     "./examples/cat-cafe",
+    "./examples/silly-os",
     "./website"
   ],
   "tasks": {

@@ -449,3 +449,4 @@ export type {
   TextCatalogSetV1,
   TextId,
 } from "./contracts/index.ts";
+export { resolvePreferredLocaleV1 } from "./contracts/preferred-locale.ts";
