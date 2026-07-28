@@ -5,6 +5,9 @@
 # Local scratch work, diagnostics, generated exports, and disposable data.
 /tmp/
 /.tmp/
+# Local application overlay: registers private/local Story applications into
+# the project registry without touching the committed config.
+/project.config.local.ts
 /work/
 /scratch/
 /artifacts/

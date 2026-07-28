@@ -69,6 +69,10 @@ deno task story prebuilt-smoke <app>                   # verify the built Artifa
 
 `simulate` plays a named scenario from the application's simulation target (for example `deno task story simulate e2e --scenario opening --seed 23049`) through the same player-safe Agent port real agents use. Story applications (story entry, asset verification, simulation target, web dev/build target) are declared in `project.config.ts`; see [build-and-release](build-and-release.md).
 
+### Local application overlay
+
+A gitignored `project.config.local.ts` at the repository root may register extra applications into the same registry without touching the committed config — private studies, `tmp/`-only verification games, and personal experiments get the full supported lifecycle (`dev`, `check`, `simulate`, `build`, plus Vite `--mode <app>`), instead of a bespoke boot path that aliases engine `src/**`. The overlay file exports `sillyMakerLocalApplicationsV1: readonly StoryApplicationConfigV1[]`; a local application must use a new application ID (shadowing a committed ID fails with `project.local_application_conflict`). Every registry consumer (Vite target resolution, the story CLI, asset verification) merges the overlay through `@sillymaker/tooling/project/local-overlay`; the overlay loads through a runtime-resolved channel, so committed build identities never depend on its presence.
+
 `deno task check` may remain as a compatibility alias for `deno task check`; new documentation and automation should use `deno task check`.
 
 Use a focused package or test-file command while iterating when that is faster. Run `deno task check` before handing off a change, and add `deno task test:e2e` or prebuilt testing when the affected behavior crosses the browser/build boundary.

@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
+import { existsSync } from "node:fs";
 import { readFile, realpath as resolveRealpath } from "node:fs/promises";
 import { registerHooks } from "node:module";
 import { join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import type {
   DeepReadonly,
@@ -34,16 +35,31 @@ async function loadRuntimeAssetModulesV1() {
   });
 
   try {
-    const [baseModule, toolingModule, loaderModule, configModule, validatorModule] =
+    const [baseModule, toolingModule, loaderModule, overlayModule, configModule, validatorModule] =
       await Promise.all([
         import("../../engine/packages/base/src/index.ts"),
         import("../../engine/packages/tooling/src/project/index.ts"),
         import("../../engine/packages/tooling/src/project/loader.ts"),
+        import("../../engine/packages/tooling/src/project/local-overlay.ts"),
         import("../../project.config.ts"),
         import("./validate-runtime.mts"),
       ]);
     const loader = loaderModule.createImportProjectModuleLoaderV1(repositoryRootForLoadingV1);
-    const project = toolingModule.defineSillymakerProjectV1(configModule.sillyMakerConfigV1);
+    const localConfigPath = join(
+      repositoryRootForLoadingV1,
+      overlayModule.sillymakerLocalConfigFileNameV1,
+    );
+    const config = existsSync(localConfigPath)
+      ? overlayModule.mergeLocalStoryApplicationsV1(
+          configModule.sillyMakerConfigV1,
+          overlayModule.readLocalStoryApplicationsV1(
+            (await import(pathToFileURL(localConfigPath).href)) as Readonly<
+              Record<string, unknown>
+            >,
+          ),
+        )
+      : configModule.sillyMakerConfigV1;
+    const project = toolingModule.defineSillymakerProjectV1(config);
     const verifiedApplications = project.applications.filter(
       (application) => application.assetVerification,
     );
