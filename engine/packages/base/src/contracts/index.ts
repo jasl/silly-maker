@@ -431,6 +431,20 @@ export type {
   PendingInteractionV1,
 } from "./pending-interaction.ts";
 export {
+  drawFromEventPoolV1,
+  EventPoolErrorV1,
+  evaluateEventConditionV1,
+  parseEventConditionV1,
+} from "./event-pool.ts";
+export type {
+  EventConditionV1,
+  EventPoolCandidateV1,
+  EventPoolContextV1,
+  EventPoolDrawExplanationV1,
+  EventPoolDrawInputV1,
+  EventPoolDrawResultV1,
+} from "./event-pool.ts";
+export {
   ContentDatabaseErrorV1,
   createContentDatabaseV1,
   defineContentTableV1,

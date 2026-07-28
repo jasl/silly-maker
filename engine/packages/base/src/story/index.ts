@@ -122,8 +122,15 @@ export type {
 export {
   createContentDatabaseV1 as createContentDatabase,
   defineContentTableV1 as defineContentTable,
+  drawFromEventPoolV1 as drawFromEventPool,
+  evaluateEventConditionV1 as evaluateEventCondition,
+  parseEventConditionV1 as parseEventCondition,
 } from "../index.ts";
 export type {
+  EventConditionV1 as EventCondition,
+  EventPoolCandidateV1 as EventPoolCandidate,
+  EventPoolContextV1 as EventPoolContext,
+  EventPoolDrawResultV1 as EventPoolDrawResult,
   ContentDatabaseV1 as ContentDatabase,
   ContentQueryV1 as ContentQuery,
   ContentTableDefinitionV1 as ContentTableDefinition,
