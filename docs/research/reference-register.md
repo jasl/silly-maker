@@ -18,7 +18,7 @@
 | 当前用途 | 只读研究时间、事件、存档、构建和调试工具需求                                             |
 | 禁止用途 | 不复制代码、文本、资源、schema、常量或独特数据结构；不进入构建、测试、fixture 或代码生成 |
 
-研究记录：`degrees-of-lewdity-notes.md`。
+研究记录：`degrees-of-lewdity-notes.md`；2026-07-28 对照复查：`2026-07-28-dol-engine-gap-review.md`。
 
 ## `references/DoL-0.5.10.12-Lyra-1.0.8a-besc-hikari-0628`
 
