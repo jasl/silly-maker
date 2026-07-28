@@ -76,6 +76,9 @@ export function GameAudioV1(props: GameAudioPropsV1): null {
       if (playerProfile === undefined) return;
       const preferences = playerProfile.current().preferences;
       host.setMasterGain(preferences.masterGainPermille);
+      host.setBusGain("bgm", preferences.bgmGainPermille);
+      host.setBusGain("voice", preferences.voiceGainPermille);
+      host.setBusGain("sfx", preferences.sfxGainPermille);
       host.setMuted(preferences.muted);
     };
     applyProfile();

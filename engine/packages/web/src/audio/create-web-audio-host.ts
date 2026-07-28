@@ -6,7 +6,9 @@ import type {
   AudioHostEffectInputV1,
   AudioHostPlayInputV1,
   AudioHostV1,
+  AudioBusV1,
 } from "@sillymaker/ui";
+import { audioBusForChannelV1 } from "@sillymaker/ui";
 
 /**
  * The browser Audio Host: decodes and caches verified audio bytes, applies
@@ -101,6 +103,12 @@ export function createWebAudioHostV1(options: CreateWebAudioHostOptionsV1): Audi
 
   let context: WebAudioContextLikeV1 | null = null;
   let masterGain: WebGainNodeLikeV1 | null = null;
+  const busNodes = new Map<AudioBusV1, WebGainNodeLikeV1>();
+  const busPermille = new Map<AudioBusV1, number>([
+    ["bgm", 1000],
+    ["voice", 1000],
+    ["sfx", 1000],
+  ]);
   let unlocked = false;
   let muted = false;
   let masterPermille = 1000;
@@ -130,6 +138,12 @@ export function createWebAudioHostV1(options: CreateWebAudioHostOptionsV1): Audi
     masterGain = context.createGain();
     applyMasterGainV1();
     masterGain.connect(context.destination);
+    for (const bus of ["bgm", "voice", "sfx"] as const) {
+      const node = context.createGain();
+      node.gain.value = (busPermille.get(bus) ?? 1000) / 1000;
+      node.connect(masterGain);
+      busNodes.set(bus, node);
+    }
     if (context.state === "running") {
       unlocked = true;
     } else {
@@ -283,7 +297,9 @@ export function createWebAudioHostV1(options: CreateWebAudioHostOptionsV1): Audi
       source.buffer = buffer;
       source.loop = input.loop;
       source.connect(gain);
-      gain.connect(masterGain as WebGainNodeLikeV1);
+      gain.connect(
+        busNodes.get(audioBusForChannelV1(input.channel)) ?? (masterGain as WebGainNodeLikeV1),
+      );
       const target = input.gainPermille / 1000;
       if (input.fadeMs > 0) {
         const now = activeContext.currentTime;
@@ -335,7 +351,7 @@ export function createWebAudioHostV1(options: CreateWebAudioHostOptionsV1): Audi
         const source = activeContext.createBufferSource();
         source.buffer = buffer;
         source.connect(gain);
-        gain.connect(masterGain as WebGainNodeLikeV1);
+        gain.connect(busNodes.get("sfx") ?? (masterGain as WebGainNodeLikeV1));
         source.addEventListener(
           "ended",
           () => {
@@ -350,6 +366,12 @@ export function createWebAudioHostV1(options: CreateWebAudioHostOptionsV1): Audi
     setMasterGain(gainPermille: number): void {
       masterPermille = Math.min(1000, Math.max(0, gainPermille));
       applyMasterGainV1();
+    },
+    setBusGain(bus: AudioBusV1, gainPermille: number): void {
+      const clamped = Math.min(1000, Math.max(0, gainPermille));
+      busPermille.set(bus, clamped);
+      const node = busNodes.get(bus);
+      if (node !== undefined) node.gain.value = clamped / 1000;
     },
     setMuted(nextMuted: boolean): void {
       muted = nextMuted;
@@ -373,6 +395,7 @@ export function createWebAudioHostV1(options: CreateWebAudioHostOptionsV1): Audi
       if (context !== null) void context.close().catch(() => undefined);
       context = null;
       masterGain = null;
+      busNodes.clear();
     },
   });
 }

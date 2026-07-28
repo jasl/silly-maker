@@ -23,6 +23,10 @@ export interface PlayerPlaybackPreferencesV1 {
   /** skip_read stops at unread lines; skip_all skips everything skippable. */
   readonly skipPolicy: "skip_read" | "skip_all";
   readonly masterGainPermille: number;
+  /** Per-bus player volumes multiplied under the master gain. */
+  readonly bgmGainPermille: number;
+  readonly voiceGainPermille: number;
+  readonly sfxGainPermille: number;
   readonly muted: boolean;
   /** Preferred text locale; null follows the Story's default catalog. */
   readonly locale: string | null;
@@ -50,6 +54,9 @@ export const defaultPlayerProfileV1: PlayerProfileV1 = Object.freeze({
     autoWaitMs: 600,
     skipPolicy: "skip_read" as const,
     masterGainPermille: 1000,
+    bgmGainPermille: 1000,
+    voiceGainPermille: 1000,
+    sfxGainPermille: 1000,
     muted: false,
     locale: null,
   }),
@@ -124,6 +131,9 @@ function parsePlayerProfileV1(value: unknown): PlayerProfileV1 | null {
   const autoWaitMs = preferences.autoWaitMs;
   const skipPolicy = preferences.skipPolicy;
   const masterGain = preferences.masterGainPermille;
+  const bgmGain = preferences.bgmGainPermille;
+  const voiceGain = preferences.voiceGainPermille;
+  const sfxGain = preferences.sfxGainPermille;
   const muted = preferences.muted;
   const locale = preferences.locale;
   if (
@@ -136,6 +146,11 @@ function parsePlayerProfileV1(value: unknown): PlayerProfileV1 | null {
       (!Number.isSafeInteger(masterGain) ||
         (masterGain as number) < 0 ||
         (masterGain as number) > 1000)) ||
+    [bgmGain, voiceGain, sfxGain].some(
+      (gain) =>
+        gain !== undefined &&
+        (!Number.isSafeInteger(gain) || (gain as number) < 0 || (gain as number) > 1000),
+    ) ||
     (muted !== undefined && typeof muted !== "boolean") ||
     (locale !== undefined && locale !== null && (typeof locale !== "string" || locale === ""))
   ) {
@@ -150,6 +165,9 @@ function parsePlayerProfileV1(value: unknown): PlayerProfileV1 | null {
       autoWaitMs: autoWaitMs ?? defaults.autoWaitMs,
       skipPolicy: skipPolicy ?? defaults.skipPolicy,
       masterGainPermille: masterGain ?? defaults.masterGainPermille,
+      bgmGainPermille: bgmGain ?? defaults.bgmGainPermille,
+      voiceGainPermille: voiceGain ?? defaults.voiceGainPermille,
+      sfxGainPermille: sfxGain ?? defaults.sfxGainPermille,
       muted: muted ?? defaults.muted,
       locale: locale ?? defaults.locale,
     }),

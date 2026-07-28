@@ -46,8 +46,12 @@ export interface DefaultGameRootLabelsV1 {
   readonly settingsLabel: string;
   readonly settingsTitle: string;
   readonly settingsEmptyText: string;
-  readonly settingsVolumeLabel: string;
+  readonly settingsBgmVolumeLabel: string;
+  readonly settingsVoiceVolumeLabel: string;
+  readonly settingsSfxVolumeLabel: string;
   readonly settingsMutedLabel: string;
+  readonly settingsTextSpeedLabel: string;
+  readonly settingsAutoWaitLabel: string;
   readonly settingsFullscreenLabel: string;
   readonly settingsDeveloperToolsLabel: string;
   readonly titleNewGameLabel: string;
@@ -62,8 +66,12 @@ export const defaultGameRootLabelsV1: DefaultGameRootLabelsV1 = Object.freeze({
   settingsLabel: "Settings",
   settingsTitle: "Settings",
   settingsEmptyText: "No settings available yet.",
-  settingsVolumeLabel: "Volume",
+  settingsBgmVolumeLabel: "Music volume",
+  settingsVoiceVolumeLabel: "Voice volume",
+  settingsSfxVolumeLabel: "Effects volume",
   settingsMutedLabel: "Mute",
+  settingsTextSpeedLabel: "Text speed",
+  settingsAutoWaitLabel: "Auto-forward wait",
   settingsFullscreenLabel: "Toggle fullscreen",
   settingsDeveloperToolsLabel: "Developer tools",
   titleNewGameLabel: "New game",
@@ -387,8 +395,12 @@ export function DefaultGameRootV1<
                     playerProfile={props.playerProfile}
                     capabilities={props.capabilities}
                     labels={Object.freeze({
-                      volumeLabel: labels.settingsVolumeLabel,
+                      bgmVolumeLabel: labels.settingsBgmVolumeLabel,
+                      voiceVolumeLabel: labels.settingsVoiceVolumeLabel,
+                      sfxVolumeLabel: labels.settingsSfxVolumeLabel,
                       mutedLabel: labels.settingsMutedLabel,
+                      textSpeedLabel: labels.settingsTextSpeedLabel,
+                      autoWaitLabel: labels.settingsAutoWaitLabel,
                       fullscreenLabel: labels.settingsFullscreenLabel,
                       developerToolsLabel: labels.settingsDeveloperToolsLabel,
                     })}

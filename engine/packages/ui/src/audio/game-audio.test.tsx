@@ -114,11 +114,20 @@ describe("GameAudioV1", () => {
     act(() => instance.emit(effect));
     expect(host.effects()).toHaveLength(1);
 
-    // Volume/mute preferences reach the host live.
+    // Volume/mute preferences reach the host live — including the buses.
     await act(async () => {
-      await playerProfile.updatePreferences({ masterGainPermille: 250, muted: true });
+      await playerProfile.updatePreferences({
+        masterGainPermille: 250,
+        bgmGainPermille: 600,
+        voiceGainPermille: 400,
+        sfxGainPermille: 300,
+        muted: true,
+      });
     });
     expect(host.masterGainPermille()).toBe(250);
+    expect(host.busGainPermille("bgm")).toBe(600);
+    expect(host.busGainPermille("voice")).toBe(400);
+    expect(host.busGainPermille("sfx")).toBe(300);
     expect(host.isMuted()).toBe(true);
   });
 
