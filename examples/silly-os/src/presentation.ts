@@ -52,7 +52,7 @@ const zhEntries = [
   { textId: "text.os.notepad.open", text: "打开" },
   { textId: "text.os.notepad.delete", text: "删除" },
   { textId: "text.os.notepad.new", text: "新建" },
-  { textId: "text.os.notepad.empty", text: "（硬盘上还没有文件——保存的文件会随游戏存档持久。）" },
+  { textId: "text.os.notepad.empty", text: "（硬盘上还没有文件。）" },
   { textId: "text.os.notepad.placeholder", text: "在这里输入文本……" },
   { textId: "text.os.notepad.saved", text: "已保存" },
 
@@ -62,7 +62,7 @@ const zhEntries = [
   { textId: "text.os.browser.home.title", text: "欢迎使用 Silly Explorer" },
   {
     textId: "text.os.browser.home.body",
-    text: "这是一台运行在 SillyMaker 引擎里的复古电脑。桌面、窗口与任务栏都是游戏 UI；扫雷是一个真正的确定性模拟（雷区来自事务 RNG，可存档可重放）；记事本的文件保存在权威游戏状态里，随存档持久。",
+    text: "这是一台运行在 SillyMaker 引擎里的复古电脑——一次不务正业的尝试。桌面、窗口与任务栏都是游戏 UI；扫雷是真正的确定性模拟（雷区来自事务 RNG，同种子可重放）；记事本的文件写在硬盘上，关机后再开机还在。",
   },
   { textId: "text.os.browser.home.docs", text: "打开引擎文档（站点允许内嵌）" },
   {
@@ -128,7 +128,7 @@ const enEntries = [
   { textId: "text.os.notepad.new", text: "New" },
   {
     textId: "text.os.notepad.empty",
-    text: "(No files on disk yet — saved files persist with the game save.)",
+    text: "(No files on disk yet.)",
   },
   { textId: "text.os.notepad.placeholder", text: "Type here…" },
   { textId: "text.os.notepad.saved", text: "Saved" },
@@ -139,7 +139,7 @@ const enEntries = [
   { textId: "text.os.browser.home.title", text: "Welcome to Silly Explorer" },
   {
     textId: "text.os.browser.home.body",
-    text: "This is a retro computer running inside the SillyMaker engine. The desktop, windows and taskbar are game UI; Minesweeper is a real deterministic simulation (mines come from the transactional RNG — saveable and replayable); Notepad files live in authoritative game state and persist with saves.",
+    text: "This is a retro computer running inside the SillyMaker engine — an off-label experiment. The desktop, windows and taskbar are game UI; Minesweeper is a real deterministic simulation (mines from the transactional RNG, replayable with the same seed); Notepad files live on the hard disk and survive reboot.",
   },
   { textId: "text.os.browser.home.docs", text: "Open the engine docs (embeds allowed)" },
   {

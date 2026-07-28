@@ -21,14 +21,14 @@ What it exercises in the engine:
 
 <p><a href="/play/silly-os/" target="_self">▶ Boot in the browser</a></p>
 
-A retro desktop — not a game. It boots straight to a desktop with overlapping draggable windows, a taskbar, a Start menu, and apps: deterministic Minesweeper (mines drawn from the transactional RNG, never leaked to the UI), a Notepad whose files live in authoritative state, a period browser, Display Properties, and a Control Panel.
+A retro desktop — not a game. An off-label use of the engine: boot straight to overlapping windows, a taskbar, a Start menu, and apps (deterministic Minesweeper, Notepad, a period browser, Display Properties, Control Panel).
 
 Why it exists: to prove the engine outside visual novels.
 
 - **Fluid viewport** — the desktop fills any browser area 1:1, portrait phones included; no letterbox.
 - **Window management as UI transients** — a ~180-line Story-side store handles z-order, focus, minimize/maximize, drag, and bounds clamping.
-- **Saves as the hard disk** — no save UI at all: the engine autosaves continuously and SillyOS restores `auto.current` during the boot screen. Close the tab, reboot, your files are back.
-- **Custom shell chrome** — the engine's default system menu, title screen, and settings dialog are all hidden (`hideSystemMenu`, no `titleScreen`); Win98-style pressed-button and inset-field styling is plain CSS.
+- **Hard disk, not save UI** — persistence is entirely internal; players never see slots or save dialogs. Close the tab, reboot, your files are back.
+- **Custom shell chrome** — the engine's default system menu, title screen, and settings dialog are all hidden; Win98-style pressed-button and inset-field styling is plain CSS.
 
 ## Bookshop 《打烊前的旧书店》
 

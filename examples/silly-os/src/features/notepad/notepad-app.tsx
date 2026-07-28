@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // 记事本切片·UI：文本编辑 + 文件列表。文件保存在权威游戏状态里
-// （fs_write/fs_remove 命令原子提交），引擎存档就是硬盘——读档即还原。
+// （fs_write/fs_remove 命令原子提交）；对这台电脑来说权威状态就是硬盘。
 // 编辑中的草稿是 UI 瞬态；点保存才落盘。
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";

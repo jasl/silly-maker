@@ -127,6 +127,15 @@ export interface CoreGameApplicationDefinitionV1<
     resolved: unknown,
   ): readonly string[];
   readonly exportFilename?: string;
+  /**
+   * Opt-in boot-time resume: after persistence is ready the instance
+   * loads `auto.current` when it holds a runnable autosave, so a fresh
+   * page (or headless host) continues the previous session instead of
+   * bootstrapping a new one. An empty or incompatible slot silently
+   * keeps the fresh bootstrap. This is what makes a title-screen
+   * "Continue" button truthful.
+   */
+  readonly resumeFromAutosave?: boolean;
   /** Opt-in player rollback policy; absent means the port reports unconfigured. */
   readonly rollback?: CoreRollbackPolicyV1<TTypes["command"]>;
   normalizeUnexpectedDispatchFault?(
@@ -842,6 +851,11 @@ export async function createCoreGameApplicationInstanceV1<
       // Dev rebootstrap: take over the predecessor's released lease through
       // its explicit handoff disposition instead of a fresh acquisition.
       await persistence.takeOverForRebootstrap(options.rebootstrapDisposition);
+    } else if (definition.resumeFromAutosave === true) {
+      // Boot-time resume: adopt the previous session's autosave when one
+      // is runnable; rejections (empty slot, incompatible record) keep
+      // the fresh bootstrap without surfacing an error.
+      await persistence.port.load("auto.current").catch(() => undefined);
     }
 
     // Presentation anchor/epoch: advance whenever the authoritative replay

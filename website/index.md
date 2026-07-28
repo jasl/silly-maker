@@ -26,5 +26,5 @@ features:
   - title: Static data as content tables
     details: Items, activities, events, and reactions live in validated content-database tables with typed queries. Mutable game state stays in modules. Tuning is editing a table row.
   - title: Not just visual novels
-    details: SillyOS 98 rebuilds a retro desktop on the same engine — overlapping draggable windows, a taskbar, deterministic Minesweeper, and a Notepad whose files persist through saves.
+    details: SillyOS 98 is an off-label retro desktop on the same engine — overlapping windows, a taskbar, deterministic Minesweeper, and a Notepad whose files survive reboot.
 ---

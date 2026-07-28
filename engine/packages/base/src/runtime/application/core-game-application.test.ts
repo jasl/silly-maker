@@ -117,6 +117,19 @@ function resolvedApplicationV1() {
   return result.application;
 }
 
+const resumingDefinitionV1 = defineCoreGameApplicationV1({
+  ...definitionV1,
+  resumeFromAutosave: true,
+});
+
+function resolvedResumingApplicationV1() {
+  const result = resolveCoreGameApplicationV1(resumingDefinitionV1, {
+    buildIdentityInput: deterministicBuildIdentityInputV1,
+  });
+  if (result.kind !== "resolved") throw new Error("synthetic story must resolve");
+  return result.application;
+}
+
 const ownerIdV1 = "owner.sillymaker.test.core-application" as SessionLeaseOwnerId;
 const instantV1 = "2026-07-20T00:00:00.000Z" as IsoUtcInstant;
 
@@ -346,6 +359,47 @@ describe("createCoreGameApplicationInstanceV1", () => {
     await immediate.autoSaveIdle();
     expect(everyCommit.autoWrites()).toHaveLength(1);
     await immediate.dispose();
+  });
+
+  it("resumes the previous session's autosave at boot when opted in", async () => {
+    const records = createMemoryHostRecordStoreV1();
+    // 第一次会话：推进两步，防抖自动存档随提交落盘（every_commit 默认）。
+    const first = await createCoreGameApplicationInstanceV1(resolvedResumingApplicationV1(), {
+      host: hostServicesV1(records),
+    });
+    await first.semantic.dispatch(incrementV1);
+    await first.semantic.dispatch(incrementV1);
+    await first.autoSaveIdle();
+    const countBefore = (first.semantic.observe().game as { readonly count: number }).count;
+    expect(countBefore).toBe(2);
+    await first.dispose();
+
+    // 第二次会话（同一 records）：opt-in 定义在启动时收养 auto.current。
+    const second = await createCoreGameApplicationInstanceV1(resolvedResumingApplicationV1(), {
+      host: hostServicesV1(records),
+    });
+    expect((second.semantic.observe().game as { readonly count: number }).count).toBe(2);
+    // 有意的语义：boot-resume 完成在 anchor 订阅建立之前——对表现层
+    // 这就是引导态（origin bootstrap），不算读档，也就不会触发
+    // "load 起源关闭标题屏"的行为；标题屏的 Continue 因而成为真话。
+    expect(second.presentationAnchor().origin).toBe("bootstrap");
+    await second.dispose();
+
+    // 未 opt-in 的定义保持原语义：同一 records 也从零开始。
+    const fresh = await createCoreGameApplicationInstanceV1(resolvedApplicationV1(), {
+      host: hostServicesV1(records),
+    });
+    expect((fresh.semantic.observe().game as { readonly count: number }).count).toBe(0);
+    await fresh.dispose();
+  });
+
+  it("keeps the fresh bootstrap when the autosave slot is empty", async () => {
+    const instance = await createCoreGameApplicationInstanceV1(resolvedResumingApplicationV1(), {
+      host: hostServicesV1(createMemoryHostRecordStoreV1()),
+    });
+    expect((instance.semantic.observe().game as { readonly count: number }).count).toBe(0);
+    expect(instance.presentationAnchor().origin).toBe("bootstrap");
+    await instance.dispose();
   });
 
   it("releases the lease and answers structurally after disposal", async () => {

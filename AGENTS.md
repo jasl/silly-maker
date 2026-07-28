@@ -26,7 +26,6 @@ Read only the documents relevant to the change:
 
 The roadmap and design documents describe accepted direction; they do not make a feature implemented. `architecture.md`, `features.md`, `story-authoring.md`, `development.md`, and `build-and-release.md` describe the live implementation and must be updated as each planned capability lands. Design owns the intended contract, while the active plan owns task order and acceptance; a task must not silently override a design decision.
 
-
 ## Architecture baseline
 
 - `@sillymaker/base` owns generic contracts, Story authoring primitives, deterministic runtime state, sessions, persistence orchestration, replay, and diagnostics. It has no React, DOM, browser-storage, or game-specific dependency.

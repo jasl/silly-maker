@@ -39,6 +39,9 @@ export const catcafeCoreApplicationDefinitionV1 = defineCoreGameApplication<
   entry: catcafeStoryEntryV1,
   semantic: catcafeSemanticAdapterV1,
   exportFilename: "catcafe-save.json",
+  // 开机续档：标题屏"继续上次会话"由此成为真话——刷新后自动恢复
+  // 自动存档，玩家不必手动"载入存档"。
+  resumeFromAutosave: true,
   // 玩家回滚（R7）：运动会开赛与结局确认是硬边界——比赛不能"回到开赛
   // 之前"重排（防重掷：RNG 随快照，回退重试同一结果），确认过的结局
   // 不可撤销。其余提交都是普通检查点。

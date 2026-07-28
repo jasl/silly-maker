@@ -58,7 +58,7 @@ export const os98 = Object.freeze({
   titleActive: "linear-gradient(90deg, #000080, #1084d0)",
   titleInactive: "linear-gradient(90deg, #808080, #b5b5b5)",
   titleText: "#ffffff",
-  font: '11px "MS Sans Serif", Tahoma, "Noto Sans SC", system-ui, sans-serif',
+  font: '11px "MS Sans Serif", Tahoma, "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", "Hiragino Sans", "Yu Gothic UI", Meiryo, ui-sans-serif, system-ui, sans-serif',
 });
 
 /** 外凸 bevel（窗体、按钮常态）。 */

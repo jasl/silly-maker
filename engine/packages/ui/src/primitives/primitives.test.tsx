@@ -205,10 +205,15 @@ describe("theme tokens", () => {
     expect(globalCssV1).toMatch(/transition:\s*none\s*!important;/u);
   });
 
-  it("loads only the materialized Simplified Chinese font faces", async () => {
+  it("uses a host CJK-friendly system stack and ships no webfont payload", async () => {
     const globalCssV1 = await readFile(resolve(import.meta.dirname, "../theme/global.css"), "utf8");
-    expect(globalCssV1).toContain("@fontsource/noto-sans-sc/chinese-simplified-400.css");
-    expect(globalCssV1).toContain("@fontsource/noto-sans-sc/chinese-simplified-700.css");
-    expect(globalCssV1).not.toMatch(/noto-sans-sc\/(?:index|[1-9]00)\.css/u);
+    const tokensCssV1 = await readFile(resolve(import.meta.dirname, "../theme/tokens.css"), "utf8");
+    expect(globalCssV1).not.toContain("@fontsource");
+    expect(globalCssV1).not.toContain("@font-face");
+    expect(tokensCssV1).toContain("PingFang SC");
+    expect(tokensCssV1).toContain("Microsoft YaHei");
+    expect(tokensCssV1).toContain("Hiragino Sans");
+    expect(tokensCssV1).toContain("Yu Gothic UI");
+    expect(tokensCssV1).not.toContain("@font-face");
   });
 });
