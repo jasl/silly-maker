@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-// 系统外壳文案（中英双语）：根标签。游戏内文本走
-// presentation.ts 的 textId 目录；这里是引擎默认表面的标签数据。
+// System chrome copy (bilingual): root labels. In-game text goes through the
+// textId catalog in presentation.ts; this is label data for the engine's default surfaces.
 import type { DefaultGameRootLabelsV1 } from "@sillymaker/ui";
 
 export const osRootLabelsZhV1: Partial<DefaultGameRootLabelsV1> = Object.freeze({

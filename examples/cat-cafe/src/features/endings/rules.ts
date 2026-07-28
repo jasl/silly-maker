@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
-// 结局切片·规则：主线结局判定（第 7 周运动会结束后结算）。
+// Endings slice · rules: mainline ending determination (settled after the week-7 contest).
 import type { CatcafeGameStateV1 } from "../../state.ts";
 import { catcafeSlotsV1 } from "../../content.ts";
 
 /**
- * 结局判定：第 7 周运动会结束（周日夜时段）后结算。
- * 冠军线（三奖杯）> 招牌线（信任+声誉）> 领养线（低信任高声誉）> 默认线。
+ * Ending determination: settles after the week-7 contest (Sunday night slot).
+ * Champion route (three trophies) > signboard route (trust+reputation) > adoption route (low trust, high reputation) > default route.
  */
 export type CatcafeEndingV1 = "champion" | "signboard" | "adopted" | "ordinary";
 

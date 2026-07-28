@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
-// 桌面切片·开机画面：模拟经典 Windows boot——黑屏、居中 logo、底部
-// 滚动进度条；数秒后自动进桌面，点击立即跳过。AI 生成声明在此展示
-// （本作不使用引擎的片头/标题屏）。
+// Desktop slice · boot screen: mimics a classic Windows boot — black screen, centered
+// logo, scrolling progress bar at the bottom; auto-enters the desktop after a few seconds,
+// a click skips immediately. The AI-generation notice shows here (this game uses no engine splash/title screen).
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 

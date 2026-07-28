@@ -4,15 +4,15 @@ import type { Page } from "@playwright/test";
 import { expect, sillyOsTargetUrlV1, test } from "./fixtures.ts";
 
 /**
- * SillyOS 98：全定制桌面 shell 的浏览器验收。没有引擎标题屏/系统菜单/
- * 存档对话框——开机画面（Story 自绘）后直达桌面；持久化是"电脑"语义：
- * 引擎自动存档 + 开机自动恢复 auto.current。窗口重叠/焦点/最小化/最大化/
- * 拖拽是 Story 侧窗口管理器；扫雷是确定性模拟（雷区不上发布面）。
+ * SillyOS 98: browser acceptance for the fully custom desktop shell. No engine
+ * title screen / system menu / save dialog — the Story-drawn boot screen goes straight to the desktop; persistence has "computer" semantics:
+ * engine autosave + boot-time restore of auto.current. Window overlap/focus/minimize/maximize/
+ * drag is the Story-side window manager; minesweeper is a deterministic simulation (mines never reach the publication).
  */
 
 async function bootDesktopV1(page: Page): Promise<void> {
   await page.goto(sillyOsTargetUrlV1());
-  // 开机画面点击即跳过；等桌面就绪。
+  // A click skips the boot screen; wait for the desktop.
   await page.locator("[data-os-boot]").click();
   await expect(page.locator("[data-os-taskbar]")).toBeVisible();
 }
@@ -21,7 +21,7 @@ test("boots straight to the desktop with no engine chrome", async ({ page }) => 
   await bootDesktopV1(page);
   await expect(page.locator("[data-default-system-menu]")).toHaveCount(0);
   await expect(page.locator("[data-title-screen]")).toHaveCount(0);
-  // 开始菜单只有 设置/关机 两个系统项（无存档项）。
+  // The Start menu has only two system items, Settings and Shut down (no saves item).
   await page.locator("[data-os-start-button]").click();
   await expect(page.locator("[data-os-start-item='system.save']")).toHaveCount(0);
   await expect(page.locator("[data-os-start-item='system.settings']")).toBeVisible();
@@ -80,7 +80,7 @@ test("the disk survives a reboot: files auto-save and auto-restore", async ({ pa
   await page.locator("[data-os-notepad-name]").fill("readme.txt");
   await page.locator("[data-os-notepad-save]").click();
   await expect(page.locator("[data-os-notepad-file='readme.txt']")).toBeVisible();
-  // 等自动存档落盘（防抖），然后"重启电脑"。
+  // Wait for the debounced autosave to land, then "reboot the computer".
   await page.waitForTimeout(1500);
   await page.reload();
   await page.locator("[data-os-boot]").click();

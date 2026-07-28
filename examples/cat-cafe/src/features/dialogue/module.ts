@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// 对话切片·模块：叙事状态推进（begin/resolve，占位栅栏化陈旧输入）。
+// Dialogue slice · module: narrative-state advancement (begin/resolve; the occurrence fence rejects stale input).
 import type { InteractionResolution } from "@sillymaker/base/story";
 import { evaluateInteractionResolution } from "@sillymaker/base/story";
 

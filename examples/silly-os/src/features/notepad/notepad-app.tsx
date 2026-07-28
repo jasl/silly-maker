@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
-// 记事本切片·UI：文本编辑 + 文件列表。文件保存在权威游戏状态里
-// （fs_write/fs_remove 命令原子提交）；对这台电脑来说权威状态就是硬盘。
-// 编辑中的草稿是 UI 瞬态；点保存才落盘。
+// Notepad slice · UI: text editing + file list. Files live in authoritative game state
+// (fs_write/fs_remove commands commit atomically); for this computer, authoritative state
+// IS the hard disk. The in-progress draft is UI-transient; Save is what lands it.
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 
@@ -23,7 +23,7 @@ export function OsNotepadAppV1(props: {
   const [draft, setDraft] = useState("");
   const [savedFlash, setSavedFlash] = useState(false);
 
-  // 保存回执：权威状态里出现同名同内容文件时闪一次"已保存"。
+  // Save receipt: flash "saved" once the same name+content appears in authoritative state.
   const savedMatch = files.some((file) => file.name === name && file.content === draft);
   useEffect(() => {
     if (!savedMatch) return undefined;

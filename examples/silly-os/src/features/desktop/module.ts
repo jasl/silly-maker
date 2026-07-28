@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// 桌面切片·模块：壁纸等桌面偏好（可存档；窗口布局是 UI 瞬态，不在此）。
+// Desktop slice · module: wallpaper and other desktop preferences (saveable; window layout is UI-transient and not here).
 import type { OsDesktopStateV1 } from "../../state.ts";
 import { osDesktopStateSchemaV1, osWallpaperIdsV1 } from "../../state.ts";
 import type { OsFactV1 } from "../../kernel.ts";

@@ -136,8 +136,8 @@ function hasTagV1(stage: SemanticStageState, layerId: string, tag: string): bool
 }
 
 /**
- * 《打烊前的旧书店》：雨夜打烊前，店主老周与常客阿澄的短篇。
- * 两条 flag 路线在后院汇合，再经一次金币选择后分支结局。
+ * 《打烊前的旧书店》 ("The Old Bookshop Before Closing"): a short piece about owner 老周 and regular 阿澄 before closing on a rainy night.
+ * Two flag routes converge in the backyard, then one coin choice branches the endings.
  */
 export const bookshopScriptV1: readonly BookshopNarrativeNodeV1[] = [
   {

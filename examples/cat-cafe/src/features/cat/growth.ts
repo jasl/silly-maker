@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// 猫切片·成长规则：小雨立绘按周龄同步（跨日/快进/进入后日谈时刷新）。
+// Cat slice · growth rule: 小雨's character art tracks week age (refreshed on rollover/fast-forward/entering postgame).
 import { parseStageMutation } from "@sillymaker/base/story";
 
 import { catcafeStageForWeekV1 } from "../../content.ts";

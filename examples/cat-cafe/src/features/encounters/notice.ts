@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// 相遇切片·UI：常客相遇通知（订阅瞬态效果通道；权威效果已入模块状态）。
+// Encounters slice · UI: the regular-encounter notice (subscribes to transient effects; authoritative effects already landed in module state).
 import { useEffect, useState } from "react";
 
 import type { CatcafeApplicationInstanceV1 } from "../../application/core-definition.ts";

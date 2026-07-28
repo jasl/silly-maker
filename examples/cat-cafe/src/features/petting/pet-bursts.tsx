@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
-// 抚摸切片·就地反馈：反应粒子（emoji 迸出上飘）+ 猫头顶反应气泡。
-// 触发源是 commit-only 瞬态效果流（权威 facts 的投影）；粒子位置按
-// 被摸部位的命中区域元素就地计算（相对舞台容器的百分比坐标）。
+// Petting slice · in-place feedback: reaction particles (emoji burst floating up) +
+// a reaction bubble above the cat's head. The trigger is the commit-only transient-
+// effect stream (a projection of authoritative facts); particle positions compute in place from the touched part's hit-region element (percent coordinates relative to the stage container).
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 
@@ -10,7 +10,7 @@ import { catcafePettingV1 } from "../../content.ts";
 
 export interface CatcafePetBurstV1 {
   readonly burstId: number;
-  /** 相对舞台容器的百分比坐标（0-100）。 */
+  /** Percent coordinates relative to the stage container (0-100). */
   readonly xPercent: number;
   readonly yPercent: number;
   readonly emojis: readonly string[];
@@ -26,7 +26,7 @@ const emojisForExpressionV1: Readonly<Record<string, readonly string[]>> = Objec
   hissing: Object.freeze(["💢", "⚡"]),
 });
 
-/** 找被摸部位的命中区域按钮，换算成舞台容器内的百分比锚点。 */
+/** Find the touched part's hit-region button and convert it to a percent anchor inside the stage container. */
 function locateZoneV1(zone: string): { readonly x: number; readonly y: number } {
   const fallback = Object.freeze({ x: 52, y: 42 });
   if (typeof document === "undefined") return fallback;
@@ -96,7 +96,7 @@ const burstCssV1 = `
 }
 `;
 
-/** 渲染层：绝对定位在舞台容器内（pointer-events 无）。 */
+/** Render layer: absolutely positioned inside the stage container (pointer-events: none). */
 export function CatcafePetBurstsV1(props: {
   readonly bursts: readonly CatcafePetBurstV1[];
   readonly uiText: (textId: string) => string;

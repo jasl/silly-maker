@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// 竞赛切片·UI：运动会面板（对手立绘、士气条、出招行）与胜负 toast。
+// Contest slice · UI: the contest panel (opponent art, morale bars, move row) and the win/loss toast.
 import { useEffect, useState } from "react";
 import type { CSSProperties, ReactElement } from "react";
 
@@ -26,7 +26,7 @@ export const catcafeRivalAssetForV1 = (rivalId: string): string | undefined =>
         ? catcafeAssetIdsV1.rival_general
         : undefined;
 
-/** 胜负 toast：订阅瞬态效果通道（UI 提示，不是权威状态）。 */
+/** Win/loss toast: subscribes to the transient-effect channel (a UI notice, not authoritative state). */
 export function useCatcafeContestToastV1(
   instance: CatcafeApplicationInstanceV1,
 ): "won" | "lost" | null {

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-// 桌面切片·图标：自绘像素风 SVG（本仓库原创，CC0）。原版 Windows 98
-// 图标是 Microsoft 版权物，不使用；这些是致意年代风格的独立绘制。
+// Desktop slice · icons: self-drawn pixel-style SVGs (original to this repository, CC0).
+// The original Windows 98 icons are Microsoft's copyrighted material and are not used; these are independent drawings honoring the era's style.
 import type { ReactElement } from "react";
 
 function px(x: number, y: number, fill: string, w = 1, h = 1): ReactElement {
@@ -22,7 +22,7 @@ const iconFrame = (size: number, children: readonly ReactElement[]): ReactElemen
   </svg>
 );
 
-/** 扫雷：黑色地雷 + 高光。 */
+/** Minesweeper: black mine + highlight. */
 export function OsMineIconV1({ size = 32 }: { readonly size?: number }): ReactElement {
   return iconFrame(size, [
     px(7, 1, "#000", 2, 2),
@@ -40,7 +40,7 @@ export function OsMineIconV1({ size = 32 }: { readonly size?: number }): ReactEl
   ]);
 }
 
-/** 记事本：白纸蓝头 + 横线。 */
+/** Notepad: white page, blue header, ruled lines. */
 export function OsNotepadIconV1({ size = 32 }: { readonly size?: number }): ReactElement {
   return iconFrame(size, [
     px(3, 1, "#808080", 10, 14),
@@ -53,7 +53,7 @@ export function OsNotepadIconV1({ size = 32 }: { readonly size?: number }): Reac
   ]);
 }
 
-/** 浏览器：地球。 */
+/** Browser: a globe. */
 export function OsBrowserIconV1({ size = 32 }: { readonly size?: number }): ReactElement {
   return iconFrame(size, [
     px(4, 1, "#000080", 8, 14),
@@ -70,7 +70,7 @@ export function OsBrowserIconV1({ size = 32 }: { readonly size?: number }): Reac
   ]);
 }
 
-/** 显示属性：显示器。 */
+/** Display properties: a monitor. */
 export function OsDisplayIconV1({ size = 32 }: { readonly size?: number }): ReactElement {
   return iconFrame(size, [
     px(1, 2, "#808080", 14, 10),
@@ -83,7 +83,7 @@ export function OsDisplayIconV1({ size = 32 }: { readonly size?: number }): Reac
   ]);
 }
 
-/** 开始按钮方块 logo（四色格）。 */
+/** The Start button's square logo (four-color grid). */
 export function OsStartLogoV1({ size = 16 }: { readonly size?: number }): ReactElement {
   return iconFrame(size, [
     px(2, 2, "#e05038", 5, 5),
@@ -93,7 +93,7 @@ export function OsStartLogoV1({ size = 16 }: { readonly size?: number }): ReactE
   ]);
 }
 
-/** 我的电脑（关于/引导用）。 */
+/** My Computer (for About/boot). */
 export function OsComputerIconV1({ size = 32 }: { readonly size?: number }): ReactElement {
   return iconFrame(size, [
     px(2, 1, "#c0c0c0", 12, 9),

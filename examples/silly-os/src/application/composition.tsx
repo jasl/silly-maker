@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-// 组合层：把桌面 shell、应用注册表、设置与外壳文案组装成可启动应用。
-// 只编排，不拥有玩法——窗口管理器在 desktop 切片，应用在各自切片。
+// Composition layer: assembles the desktop shell, app registry, settings, and chrome
+// copy into a bootable application. Orchestration only, owns no gameplay — the window manager lives in the desktop slice, apps in their own slices.
 import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
 import type { DefaultGameRootSlotsV1, GameUiProjectorV1 } from "@sillymaker/ui";
 import type { WebGameApplicationV1 } from "@sillymaker/web";
@@ -98,7 +98,7 @@ export const osGameApplicationV1: WebGameApplicationV1<
 > = Object.freeze({
   applicationId: "example-silly-os",
   accessibleName: "SillyOS 98",
-  // fluid：桌面平铺整个浏览器区域（手机竖屏亦然），无固定画布无黑边。
+  // fluid: the desktop tiles the whole browser area (mobile portrait too); no fixed canvas, no letterboxing.
   viewport: Object.freeze({
     canvas: osDesktopCanvasV1,
     mode: "fluid" as const,
@@ -120,8 +120,8 @@ export const osGameApplicationV1: WebGameApplicationV1<
       projector: osUiProjectorV1,
       overlayIds: Object.freeze([] as const),
       slots: createOsUiSlotsV1({ instance, playerProfile }),
-      // 无 titleScreen：开机直达桌面。持久化完全由引擎内部处理，不暴露
-      // 存档 UI / 槽位规则（电脑语义：硬盘随关机保存、开机恢复）。
+      // No titleScreen: boot goes straight to the desktop. Persistence is fully engine-
+      // internal with no save UI / slot rules exposed (computer semantics: the disk saves on shutdown and restores on boot).
       labels: zh ? osRootLabelsZhV1 : osRootLabelsEnV1,
       hideSystemMenu: true,
     });

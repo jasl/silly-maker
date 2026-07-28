@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
-// 舞台切片·UI：舞台槽组件。语义舞台 + 命中区域抚摸接线：点击/键盘激活
-// 部位 → 语义 pet invocation；反应气泡与动画来自各自切片；权威效果
-// （信任增减、表情变化、每日余量）全部由模块规则决定。
+// Stage slice · UI: the stage slot component. Semantic stage + hit-region petting wiring:
+// click/keyboard activation of a part → a semantic pet invocation; reaction bubbles and
+// animation come from their own slices; authoritative effects (trust deltas, expression changes, daily allowance) are decided entirely by module rules.
 import { useEffect } from "react";
 import type { ReactElement } from "react";
 
@@ -43,9 +43,9 @@ export function CatcafeStageV1(props: {
   const pettingReady =
     context.publication.semantic.narrative.phase === "completed" && game.cat.pettingLeft > 0;
 
-  // 场景资产预载：进入即拉全组（4MB webp 全集），失败自动降级 code-native。
-  // 卸载时不显式 abort：registry.dispose 负责终止在途加载，而 jsdom 测试
-  // 环境下 Deno 的 AbortController 与 jsdom EventTarget 跨 realm 派发会崩。
+  // Scene-asset preload: pull the whole group on entry (the full 4MB webp set); failures degrade to code-native.
+  // No explicit abort on unmount: registry.dispose stops in-flight loads, and under the jsdom
+  // test environment Deno's AbortController dispatching across realms into jsdom EventTarget crashes.
   useEffect(() => {
     if (props.registry === null) return;
     const controller = new AbortController();

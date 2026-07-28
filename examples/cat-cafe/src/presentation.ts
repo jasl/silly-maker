@@ -24,8 +24,8 @@ import { catcafeContentIdsV1 } from "./features/dialogue/script.ts";
 import { catcafeContentV1 } from "./content.ts";
 
 /**
- * 文本目录：界面/叙事文案 + 内容表引用的全部 textId。测试会把
- * `catcafeContentV1.collectTextIds()` 与本目录做 join 校验。
+ * Text catalog: UI/narrative copy + every textId referenced by content tables.
+ * Tests join `catcafeContentV1.collectTextIds()` against this catalog.
  */
 export const catcafeTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
   defaultLocale: "zh-CN",
@@ -36,7 +36,7 @@ export const catcafeTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
       entries: [
         { textId: "text.cc.app.name", text: "雨巷猫舍" },
         { textId: "text.cc.stage.name", text: "猫舍" },
-        // —— 叙事开场 ——
+        // —— Narrative opening ——
         {
           textId: "text.cc.line.rain",
           text: "雨下了整整一周。盘下这间巷尾小店的第一晚，屋檐还在滴水。",
@@ -58,14 +58,14 @@ export const catcafeTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
           textId: "text.cc.line.tutorial",
           text: "七周后是街区的猫咪运动会。先把店开起来，再把这只小家伙养大——白天营业、打扫、陪她玩，周日傍晚记得去赛场看看。",
         },
-        // —— 活动（内容表引用） ——
+        // —— Activities (referenced by content tables) ——
         { textId: "text.cc.activity.business", text: "开门营业" },
         { textId: "text.cc.activity.clean", text: "打扫店面" },
         { textId: "text.cc.activity.play", text: "陪小雨玩" },
         { textId: "text.cc.activity.agility", text: "敏捷训练" },
         { textId: "text.cc.activity.fish", text: "采购鲜鱼" },
         { textId: "text.cc.activity.nap", text: "陪她午睡" },
-        // —— 抚摸反应（内容表引用） ——
+        // —— Petting reactions (referenced by content tables) ——
         { textId: "text.cc.pet.head.low", text: "她警惕地缩了缩，但没有躲开。" },
         { textId: "text.cc.pet.head.high", text: "她主动把头顶进你的掌心。" },
         { textId: "text.cc.pet.chin.low", text: "下巴被碰到时她愣了一下，尾巴尖轻轻摆动。" },
@@ -73,14 +73,14 @@ export const catcafeTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
         { textId: "text.cc.pet.back.any", text: "她顺着你的手拱起背，很舒服的样子。" },
         { textId: "text.cc.pet.tail.low", text: "炸毛了！她跳开两步，尾巴甩得像鞭子。" },
         { textId: "text.cc.pet.tail.high", text: "只有你可以碰这里——她慷慨地允许了。" },
-        // —— 运动会（内容表引用） ——
+        // —— Contest (referenced by content tables) ——
         { textId: "text.cc.move.pounce", text: "扑跃" },
         { textId: "text.cc.move.feint", text: "佯动" },
         { textId: "text.cc.move.charm", text: "卖萌" },
         { textId: "text.cc.rival.mochi", text: "糯米（隔壁面包店的白猫）" },
         { textId: "text.cc.rival.smoke", text: "烟灰（修车行的灰猫）" },
         { textId: "text.cc.rival.general", text: "将军（巷口的橘色老大）" },
-        // —— 图鉴（内容表引用） ——
+        // —— Album (referenced by content tables) ——
         { textId: "text.cc.album.rescue", text: "雨夜相遇" },
         { textId: "text.cc.album.rescue.caption", text: "纸箱、雨声，和一只不肯放弃的奶猫。" },
         { textId: "text.cc.album.purr", text: "第一次呼噜" },
@@ -112,7 +112,7 @@ export const catcafeTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
         },
         { textId: "text.cc.album.ending.ordinary", text: "结局·平凡的幸福" },
         { textId: "text.cc.album.ending.ordinary.caption", text: "雨还会下，猫舍的灯总亮着。" },
-        // —— HUD 与界面 ——
+        // —— HUD and interface ——
         { textId: "text.cc.hud.week", text: "第" },
         { textId: "text.cc.hud.week.suffix", text: "周" },
         { textId: "text.cc.hud.auto-advance", text: "体力耗尽——时光缓缓流逝…" },
@@ -402,7 +402,7 @@ export const catcafeTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
   ],
 });
 
-/** 支持的语言与 locale 感知查找：目录内逐级 fallback，最后落默认目录。 */
+/** Supported locales and locale-aware lookup: per-catalog fallback chain, ending at the default catalog. */
 export const catcafeLocalesV1 = ["zh-CN", "en"] as const;
 export type CatcafeLocaleV1 = (typeof catcafeLocalesV1)[number];
 
@@ -424,7 +424,7 @@ export function catcafeTextForLocaleV1(locale: string | null, textId: string): s
   return entry.text;
 }
 
-/** 内容表引用的 textId 必须全部登记；启动时校验。 */
+/** Every content-table-referenced textId must be registered; validated at startup. */
 {
   const catalog = catcafeTextCatalogsV1.catalogs.find(
     (candidate) => candidate.locale === catcafeTextCatalogsV1.defaultLocale,
@@ -436,8 +436,8 @@ export function catcafeTextForLocaleV1(locale: string | null, textId: string): s
 }
 
 // ---------------------------------------------------------------------------
-// 运行时美术：AIGC 生成的统一风格资产。槽位 sealed；code-native 渲染器
-// 保留为 fallback；digest 建立技术身份（政策见 assets-and-references）。
+// Runtime art: AIGC-generated assets in a consistent style. Slots are sealed; code-native
+// renderers remain as fallback; digests establish technical identity (policy in assets-and-references).
 // ---------------------------------------------------------------------------
 
 export const catcafeAssetIdsV1 = Object.freeze({
@@ -985,7 +985,7 @@ export const catcafeStageContentCatalogV1: StageContentCatalog = {
         });
       case catcafeContentIdsV1.characterXiaoyu: {
         const stage = typeof appearance.stage === "string" ? appearance.stage : "kitten";
-        // 命中区域随成长阶段缩放；坐标相对条目锚点（底部中心）。
+        // Hit regions scale with growth stage; coordinates are relative to the entry anchor (bottom center).
         const size = stage === "adolescent" ? 260 : stage === "junior" ? 210 : 160;
         const height = Math.round(size * 0.85);
         const half = Math.round(size / 2);
@@ -999,7 +999,7 @@ export const catcafeStageContentCatalogV1: StageContentCatalog = {
         ) => Object.freeze({ regionId, accessibleNameText, x, y, width, height: third });
         const expressionName =
           typeof appearance.expression === "string" ? appearance.expression : "calm";
-        // 表情三挡映射到三张立绘：happy/purring→happy、grumpy/hissing→hissing。
+        // Three expression tiers map to three images: happy/purring→happy, grumpy/hissing→hissing.
         const spriteExpression =
           expressionName === "happy" || expressionName === "purring"
             ? "happy"

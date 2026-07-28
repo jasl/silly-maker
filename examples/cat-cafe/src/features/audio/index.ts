@@ -5,10 +5,10 @@ import { parseAudioIntentV1, resolveAudioManifestV1 } from "@sillymaker/base";
 import type { CatcafeGameViewV1 } from "../../simulation.ts";
 
 /**
- * 《雨巷猫舍》的声音层：连续通道（BGM/环境雨声）是游戏视图的纯投影——
- * 读档后凭权威状态即可还原；一次性音效走 commit-only 瞬态效果流（映射
- * 在 UI 侧，见 resolveCatcafeEffectAssetV1）。素材为脚本合成的占位音频
- * （源档 `art-source/audio-synth/generate.py`），后续可只换文件与 digest。
+ * The cat cafe's audio layer: continuous channels (BGM/ambient rain) are a pure
+ * projection of the game view — restorable from authoritative state after a load;
+ * one-shot SFX ride the commit-only transient-effect stream (mapped on the UI side,
+ * see resolveCatcafeEffectAssetV1). Assets are script-synthesized placeholders (source in `art-source/audio-synth/generate.py`); swapping files + digests suffices later.
  */
 
 export const catcafeAudioIdsV1 = Object.freeze({
@@ -149,9 +149,9 @@ export const catcafeAudioManifestV1: ResolvedAudioManifestV1 = resolveAudioManif
 );
 
 /**
- * BGM 规则：运动会回合中放竞技场曲；结局屏（已结算未确认）放结局主题；
- * 其余时间（含后日谈与标题屏）放店内曲。环境雨声常驻低音量——雨巷的
- * 底色。全部输入来自游戏视图，读档即还原。
+ * BGM rules: arena theme during contest turns; ending theme on the ending screen
+ * (settled, unconfirmed); shop theme the rest of the time (postgame and title
+ * included). Ambient rain stays at low volume — the rainy alley's base tone. All inputs come from the game view; a load restores everything.
  */
 export function projectCatcafeAudioIntentV1(
   view: Pick<CatcafeGameViewV1, "contest" | "ending">,
@@ -169,7 +169,7 @@ export function projectCatcafeAudioIntentV1(
   });
 }
 
-/** 一次性音效：既有瞬态效果直接映射，模拟层零改动。 */
+/** One-shot SFX: map existing transient effects directly; zero simulation-layer changes. */
 export function resolveCatcafeEffectAssetV1(
   effect: TransientEffectV1,
 ): { readonly assetId: string } | null {

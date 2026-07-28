@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-// 组合层（composition）：把剧本、规则、UI 组装成可启动的游戏应用
-// （浏览器与桌面 webview 共用同一份声明）；只编排，不拥有玩法。
+// Composition layer: assembles the script, rules, and UI into a bootable game
+// application (browser and desktop webview share one declaration); orchestration only, owns no gameplay.
 import type { AssetId } from "@sillymaker/base";
 import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
 import type { StageRenderTarget } from "@sillymaker/base/story";
@@ -300,7 +300,7 @@ export const templateGameApplicationV1: WebGameApplicationV1<
   viewport: Object.freeze({
     canvas: templateViewportCanvasV1,
     fallbackSize: Object.freeze({ width: 1600, height: 900 }),
-    // 等比放大撑满窗口（fit 缩放天然保比例、必要时留黑边）。
+    // Scale up proportionally to fill the window (fit scaling keeps the aspect ratio, letterboxing as needed).
     maxScale: 4,
   }),
   core: templateCoreApplicationDefinitionV1,

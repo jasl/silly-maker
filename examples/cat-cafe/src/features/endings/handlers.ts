@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// 结局切片·命令：确认结局并跨入后日谈（无限日常）。
+// Endings slice · commands: confirm the ending and cross into postgame (endless daily play).
 import type { CatcafeCommandHandlerMapV1 } from "../../runtime.ts";
 import { transactionRunnerV1 } from "../../runtime.ts";
 import { catcafeDailyPettingV1 } from "../../state.ts";
@@ -14,7 +14,7 @@ export const endingsCommandHandlersV1: Pick<CatcafeCommandHandlerMapV1, "cc.ente
   Object.freeze({
     "cc.enter_postgame": ({ snapshot, rng, state }) =>
       transactionRunnerV1.execute(snapshot, rng, (transaction) => {
-        // 只有主线结局刚刚结算（第 7 周周日夜、未确认过）才能进入后日谈。
+        // Postgame opens only while the mainline ending has just settled (week 7 Sunday night, unconfirmed).
         const ending = catcafeEndingForV1(state);
         if (ending === null) {
           return transaction.reject({ code: "cc.no_ending_pending" });
@@ -28,7 +28,7 @@ export const endingsCommandHandlersV1: Pick<CatcafeCommandHandlerMapV1, "cc.ente
           epilogue: ending,
           facts: [Object.freeze({ kind: "cc.postgame_entered" as const, ending })],
         });
-        // 直接跨入第 8 周周一清晨：确认结局的同时新的一天开始。
+        // Step directly into week 8 Monday morning: confirming the ending starts the new day.
         transaction.propose(calendarModuleV1, { kind: "advance" });
         transaction.propose(catModuleV1, {
           kind: "apply",

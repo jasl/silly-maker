@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
-// 应用注册表：一个"软件"= 一条声明（id、名字、图标、初始窗口、单例、
-// 渲染）。桌面图标、开始菜单、窗口内容全部从这张表派生——加新应用
-// 只需要在各自切片写组件 + 这里加一行。
+// App registry: one "program" = one declaration (id, name, icon, initial window,
+// singleton, render). Desktop icons, the Start menu, and window contents all derive
+// from this table — adding an app means writing components in its slice + one row here.
 import type { ReactElement, ReactNode } from "react";
 
 import type { DeepReadonly } from "@sillymaker/base";
@@ -36,7 +36,7 @@ export interface OsDesktopAppV1 {
   readonly icon: (size: number) => ReactNode;
   readonly defaultRect: OsWindowRectV1;
   readonly singleton: boolean;
-  /** 桌面图标是否展示（工具类应用可只进开始菜单）。 */
+  /** Whether to show a desktop icon (utility apps may live only in the Start menu). */
   readonly desktopIcon: boolean;
   render(context: OsAppContextV1): ReactElement;
 }

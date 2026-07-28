@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// 扫雷切片·模块：盘面状态整体替换（规则在 handlers 里算好经此提交）。
+// Minesweeper slice · module: the board state replaced wholesale (handlers compute the rules, this commits).
 import type { OsBoardV1, OsMinesweeperStateV1 } from "../../state.ts";
 import { osMinesweeperStateSchemaV1 } from "../../state.ts";
 import type { OsFactV1 } from "../../kernel.ts";

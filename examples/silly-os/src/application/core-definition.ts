@@ -17,7 +17,7 @@ import type {
 } from "../simulation.ts";
 import { osStoryEntryV1 } from "../story.ts";
 
-/** Host 中立核心应用：桌面模拟无回退需求（扫雷回退=作弊），不配 rollback。 */
+/** Host-neutral core application: a desktop simulation needs no rollback (minesweeper undo = cheating), so none is configured. */
 export const osCoreApplicationDefinitionV1 = defineCoreGameApplication<
   unknown,
   unknown,
@@ -33,7 +33,7 @@ export const osCoreApplicationDefinitionV1 = defineCoreGameApplication<
   entry: osStoryEntryV1,
   semantic: osSemanticAdapterV1,
   exportFilename: "silly-os-save.json",
-  // 开机恢复上次关机状态（电脑语义；对玩家不暴露存档规则）。
+  // Boot restores the last shutdown state (computer semantics; save rules stay invisible to the player).
   resumeFromAutosave: true,
 });
 

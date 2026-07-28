@@ -100,8 +100,8 @@ export function SystemDialogHostV1(props: SystemDialogHostPropsV1): ReactElement
   const focusScopeRef = useRef<HTMLDivElement | null>(null);
   const openerRef = useRef<HTMLButtonElement | null>(null);
   const portalContainer = useStageSystemPortalContainerV1();
-  // saves 未配置时 open("saves") 不渲染对话框——隔离判据必须跟随实际
-  // 渲染的 surface，否则程序化打开会把输入锁死在一个不存在的对话框上。
+  // With saves unconfigured, open("saves") renders no dialog — the isolation
+  // predicate must follow the actually rendered surface, or a programmatic open would lock input on a dialog that does not exist.
   const surface = active === "saves" && props.saves === undefined ? null : active;
   const dialogOpen = surface !== null;
   useStageInputIsolationV1("system", dialogOpen);

@@ -421,9 +421,9 @@ export interface StoryBuildReportV1 {
 }
 
 export interface StoryBuildOptionsV1 {
-  /** 产出 sourcemap（调试用；config 的 web.sourcemap 为基线，此处覆盖）。 */
+  /** Emit sourcemaps (debugging; config web.sourcemap is the baseline, this overrides). */
   readonly sourcemap?: boolean;
-  /** 压缩混淆（minify+mangle，即旧称 uglify 的现代替代；默认开启）。 */
+  /** Minify + mangle (the modern replacement for what was once called uglify; on by default). */
   readonly minify?: boolean;
 }
 

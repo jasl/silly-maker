@@ -84,7 +84,7 @@ const projectorDefinitionV1: GameUiProjectorV1<
 
 export const catcafeUiProjectorV1 = Object.freeze(projectorDefinitionV1);
 
-/** 连续声音意图来自游戏视图；host 惰性创建（首个用户手势解锁播放）。 */
+/** The continuous audio intent comes from the game view; the host is created lazily (first user gesture unlocks playback). */
 const selectCatcafeAudioIntentV1 = (publication: unknown): AudioIntentV1 =>
   (publication as { readonly game: { readonly audio: AudioIntentV1 } }).game.audio;
 
@@ -174,7 +174,7 @@ export const catcafeKeyboardMapV1: KeyboardActionMapV1 = Object.freeze({
   Space: systemInputActionIdsV1.narrativeAdvance,
 });
 
-/** VN 惯例：右键=返回/关闭（overlay、系统面板），舞台上抑制系统菜单。 */
+/** VN convention: right-click = back/close (overlays, system panels); suppress the system menu on the stage. */
 export const catcafePointerMapV1: PointerActionMapV1 = Object.freeze({
   secondary: systemInputActionIdsV1.cancel,
 });
@@ -201,7 +201,7 @@ export const catcafeGameApplicationV1: WebGameApplicationV1<
   viewport: Object.freeze({
     canvas: catcafeViewportCanvasV1,
     fallbackSize: Object.freeze({ width: 1280, height: 720 }),
-    // 等比放大撑满窗口（fit 缩放天然保比例、必要时留黑边）。
+    // Scale up proportionally to fill the window (fit scaling keeps the aspect ratio, letterboxing as needed).
     maxScale: 4,
   }),
   core: catcafeCoreApplicationDefinitionV1,
@@ -216,7 +216,7 @@ export const catcafeGameApplicationV1: WebGameApplicationV1<
     readonly assetLoader?: RuntimeAssetLoaderV1;
     reportFailure?(code: string, error: unknown): void;
   }) => {
-    // 资产 registry：resolved manifest 经 extensions 面到达（观察，不夺权）。
+    // Asset registry: the resolved manifest arrives through the extensions facet (observe, never take over).
     const manifest = (instance.extensions as CatcafeExtensionsV1 | undefined)?.assets;
     const registry: CatcafeAssetRegistryV1 | null =
       manifest !== undefined && assetLoader !== undefined
@@ -232,7 +232,7 @@ export const catcafeGameApplicationV1: WebGameApplicationV1<
           "text.cc.app.name",
         ),
         backgroundUrl: "examples/cat-cafe/assets/cc-bg-title.webp",
-        // 片头：本作完全由 AI 生成（代码、文本、美术、音频）。
+        // Splash: this game is entirely AI-generated (code, text, art, audio).
         splash: Object.freeze({
           lines:
             playerProfile.current().preferences.locale === "en"

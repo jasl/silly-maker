@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
-// 浏览器切片·UI：内置主页 + 真 iframe。现实约束如实呈现：多数站点用
-// X-Frame-Options / CSP frame-ancestors 拒绝内嵌（跨源阻断无可靠错误
-// 事件，只能提示而非检测）；默认主页是本地内容，另附一个允许内嵌的
-// 引擎文档站链接。iframe 加 sandbox 限权。
+// Browser slice · UI: a built-in homepage + a real iframe. Reality is presented as-is:
+// most sites refuse embedding via X-Frame-Options / CSP frame-ancestors (cross-origin
+// blocking has no reliable error event, so we can only note it, not detect it); the
+// default homepage is local content, plus one embed-friendly engine-docs link. The iframe is sandboxed.
 import { useState } from "react";
 import type { ReactElement } from "react";
 

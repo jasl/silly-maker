@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-// 共享 UI 基座：98 风格主题令牌（bevel 双色边）、locale 文本 hook、
-// 发布/端口类型与派发助手。特性切片只依赖这里与引擎。
+// Shared UI base: 98-style theme tokens (two-tone bevels), the locale text hook,
+// publication/port types, and the dispatch helper. Feature slices depend only on this file and the engine.
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 
@@ -25,14 +25,14 @@ export type OsUiPublicationV1 = RuntimePresentationPublicationV1<
 
 export type OsUiOverlayIdV1 = never;
 
-/** 语义派发助手：桌面交互统一走这里（会话队列前沿栅栏化陈旧输入）。 */
+/** Semantic dispatch helper: all desktop interaction goes through here (the session queue front fences stale input). */
 export function dispatchV1(semantic: OsSemanticPortV1, invocation: unknown): void {
   void semantic.dispatch(invocation as never);
 }
 
 /**
- * Locale 感知的 UI 文本：显式偏好（设置页，存 Host profile）优先；
- * 未设置时跟随浏览器上报语言（中文→中文，其余→英文）。
+ * Locale-aware UI text: an explicit preference (settings page, stored in the Host
+ * profile) wins; otherwise follow the browser-reported languages (Chinese→Chinese, everything else→English).
  */
 export function useOsTextV1(playerProfile: PlayerProfileStoreV1): (textId: string) => string {
   const [, setVersion] = useState(0);
@@ -48,7 +48,7 @@ export function useOsTextV1(playerProfile: PlayerProfileStoreV1): (textId: strin
 }
 
 // ---------------------------------------------------------------------------
-// 98 视觉语言：双色 bevel。全部窗体/按钮/输入框共享这几组常量。
+// The 98 visual language: two-tone bevels. All windows/buttons/inputs share these constant sets.
 // ---------------------------------------------------------------------------
 
 export const os98 = Object.freeze({
@@ -61,7 +61,7 @@ export const os98 = Object.freeze({
   font: '11px "MS Sans Serif", Tahoma, "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", "Hiragino Sans", "Yu Gothic UI", Meiryo, ui-sans-serif, system-ui, sans-serif',
 });
 
-/** 外凸 bevel（窗体、按钮常态）。 */
+/** Raised bevel (windows, buttons at rest). */
 export const osBevelOutV1: CSSProperties = Object.freeze({
   borderStyle: "solid",
   borderWidth: "2px",
@@ -69,7 +69,7 @@ export const osBevelOutV1: CSSProperties = Object.freeze({
   background: os98.face,
 });
 
-/** 内凹 bevel（输入框、显示井、按下的按钮）。 */
+/** Sunken bevel (inputs, display wells, pressed buttons). */
 export const osBevelInV1: CSSProperties = Object.freeze({
   borderStyle: "solid",
   borderWidth: "2px",
@@ -77,7 +77,7 @@ export const osBevelInV1: CSSProperties = Object.freeze({
   background: "#ffffff",
 });
 
-/** LCD 井（扫雷计数器）。 */
+/** LCD well (minesweeper counters). */
 export const osLcdV1: CSSProperties = Object.freeze({
   borderStyle: "solid",
   borderWidth: "1px",
@@ -89,10 +89,10 @@ export const osLcdV1: CSSProperties = Object.freeze({
 });
 
 /**
- * 桌面全局 chrome：按钮按下的 bevel 翻转与 1px 内容位移、输入框的
- * 方角内凹白底与系统插入符——经典交互反馈是 :active/:focus 伪类，
- * inline style 做不到，统一由 shell 注入这份样式表，组件挂 class。
- * 同时压过引擎 global.css 的主题化表单外观（圆角/主题 focus 环）。
+ * Global desktop chrome: the pressed-button bevel flip with the 1px content shift,
+ * the square sunken white input with the system caret — classic interaction feedback
+ * is :active/:focus pseudo-classes, which inline styles cannot express, so the shell
+ * injects this stylesheet once and components attach classes. It also overrides the engine global.css themed form look (rounded corners/theme focus ring).
  */
 export const osChromeCssV1 = `
 [data-os-shell] .os-button,
@@ -123,7 +123,7 @@ export const osChromeCssV1 = `
 }
 [data-os-shell] .os-button:active:not(:disabled) > * ,
 [data-os-shell] .os-button:active:not(:disabled) {
-  /* 经典按下手感：内容向右下偏移 1px。 */
+  /* Classic pressed feel: content shifts 1px toward bottom-right. */
   text-indent: 1px;
 }
 [data-os-shell] .os-button:active:not(:disabled) {

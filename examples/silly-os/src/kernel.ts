@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-// 模拟内核：命令/事实/裁决契约、命令 schema、kit 与共享助手。
-// 特性切片（features/*）从这里取共享形状；聚合见 simulation.ts。
+// Simulation kernel: command/fact/verdict contracts, command schemas, the kit, and shared helpers.
+// Feature slices (features/*) take shared shapes from here; aggregation in simulation.ts.
 import type {
   CommandExecutionAttemptEnvelopeV1,
   GameSimulationTypeMapV1,
@@ -66,12 +66,12 @@ export interface OsQueriesV1 {
   readonly minesweeper: OsGameStateV1["simulation"]["minesweeper"];
 }
 
-/** 发布投影的扫雷格：进行中不暴露雷位（发布面即语义面，无法作弊）。 */
+/** The published minesweeper cell: mine positions stay hidden while in progress (the publication IS the semantic surface; no cheating possible). */
 export interface OsCellViewV1 {
   readonly state: "hidden" | "flagged" | "revealed";
-  /** 仅 revealed 非 null。 */
+  /** Non-null only when revealed. */
   readonly adjacent: number | null;
-  /** 仅盘面结束（won/lost）后非 null。 */
+  /** Non-null only after the board ends (won/lost). */
   readonly mine: boolean | null;
 }
 
@@ -90,7 +90,7 @@ export interface OsGameViewV1 {
   readonly minesweeper: OsMinesweeperViewV1 | null;
 }
 
-/** 无叙事：哑形状占位（引擎泛型要求一个叙事视图类型）。 */
+/** No narrative: a dummy shape (the engine generics require a narrative view type). */
 export interface OsNarrativeViewV1 {
   readonly pending: null;
 }

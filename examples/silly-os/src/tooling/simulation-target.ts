@@ -4,8 +4,8 @@ import { createInProcessAgentGamePortV1 } from "@sillymaker/base/runtime";
 import { createOsApplicationInstanceV1 } from "../application/core-application.ts";
 
 /**
- * `deno task story simulate example-silly-os` 的场景：文件写删、扫雷
- * 开局并翻角格（固定种子下路径确定）、换壁纸。
+ * Scenarios for `deno task story simulate example-silly-os`: write/delete files, start
+ * minesweeper and reveal a corner (a fixed seed makes the path deterministic), switch wallpaper.
  */
 const scenariosV1 = Object.freeze({
   daily: Object.freeze([

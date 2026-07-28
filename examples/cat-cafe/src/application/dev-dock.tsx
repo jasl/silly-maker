@@ -12,10 +12,10 @@ import { catcafeDebugStatsV1 } from "../simulation.ts";
 import { catcafeEncountersV1 } from "../content.ts";
 
 /**
- * 猫舍的 DevDock：只读状态检查器 + 三个调参表单（设数值/快进/强制常客
- * 事件）。调参走会话 debugControl——与玩法同一原子提交路径、日志标记
- * source:"debug"、capability 门控由 DevDock 承担。这是"人类调参"通道的
- * 参考实现。
+ * The cat cafe's DevDock: a read-only state inspector + three tuning forms (set
+ * values / fast-forward / force a regular encounter). Tuning goes through the
+ * session debugControl — the same atomic commit path as gameplay, log entries
+ * marked source:"debug", capability gating owned by the DevDock. This is the reference implementation of the "human tuning" channel.
  */
 
 async function executeV1(

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// 抚摸切片·命令：(部位, 信任段位) 查反应表，效果与立绘表情原子提交。
+// Petting slice · commands: look up the reaction table by (part, trust band); effects and art expression commit atomically.
 import { parseStageMutation } from "@sillymaker/base/story";
 
 import type { CatcafeCommandHandlerMapV1 } from "../../runtime.ts";
@@ -11,12 +11,12 @@ import { stageModuleV1 } from "../stage/module.ts";
 export const pettingCommandHandlersV1: Pick<CatcafeCommandHandlerMapV1, "cc.pet"> = Object.freeze({
   "cc.pet": ({ snapshot, rng, state, command }) =>
     transactionRunnerV1.execute(snapshot, rng, (transaction) => {
-      // 日常玩法在开场叙事完成后解锁。
+      // Daily gameplay unlocks after the opening narrative completes.
       if (state.narrative.phase !== "completed") {
         return transaction.reject({ code: "cc.narrative_busy" });
       }
       if (state.cat.pettingLeft < 1) return transaction.reject({ code: "cc.petting_exhausted" });
-      // 反应查表：(部位, 信任段位) 决定反应与效果。
+      // Reaction lookup: (part, trust band) decides the reaction and effects.
       const reaction = catcafePettingV1.findFirst({
         where: {
           zone: command.zone,

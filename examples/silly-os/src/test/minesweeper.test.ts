@@ -31,7 +31,7 @@ describe("minesweeper rules", () => {
   });
 
   it("flood-reveals zero regions and stops at numbered borders", () => {
-    // 5x5，单雷放角上：翻开对角零区应展开一大片。
+    // 5x5 with a single corner mine: revealing the opposite zero region should flood a large area.
     const base = osCreateBoardV1(5, 5, 1);
     const cells = [...base.cells];
     cells[0] = osCellMineV1;

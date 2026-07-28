@@ -29,12 +29,12 @@ import type { OsGameStateV1 } from "./state.ts";
 import { createInitialOsGameStateV1, osGameStateSchemaV1 } from "./state.ts";
 
 /**
- * SillyOS 的模拟聚合：桌面（壁纸）、文件系统（记事本文档）、扫雷。
- * 发布投影只暴露玩家可见信息——进行中的雷区不出现在语义面上，UI 与
- * 自动化都无法作弊。窗口布局是 UI 瞬态，不进入权威状态。
+ * SillyOS's simulation aggregate: desktop (wallpaper), filesystem (notepad documents),
+ * minesweeper. The publication projection exposes only player-visible information — an
+ * in-progress minefield never reaches the semantic surface, so neither UI nor automation can cheat. Window layout is UI-transient and never enters authoritative state.
  */
 
-// ---- 公共契约再导出：外部（semantic/composition/测试/CLI）只面向本门面。
+// ---- Public contract re-exports: outsiders (semantic/composition/tests/CLI) face this facade only.
 export type {
   OsAttemptV1,
   OsBootstrapInputV1,
@@ -81,7 +81,7 @@ const debugCommandSchemaV1: RuntimeSchemaV1<never> = Object.freeze({
   },
 });
 
-/** 特性 handlers 的完整装配：类型上覆盖每一个命令 kind。 */
+/** Full assembly of feature handlers: covers every command kind at the type level. */
 const commandHandlersV1: OsCommandHandlerMapV1 = Object.freeze({
   ...desktopCommandHandlersV1,
   ...filesystemCommandHandlersV1,

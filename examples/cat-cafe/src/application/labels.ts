@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
-// 系统外壳文案（中英双语）：根标签、存档对话框文案、存档安全点提示与
-// locale 选择器。游戏内文本走 presentation.ts 的 textId 目录；这里是
-// 引擎默认表面（系统菜单/存档/设置）的标签数据。
+// System chrome copy (bilingual): root labels, save-dialog copy, save-safepoint
+// notices, and the locale selector. In-game text goes through the textId catalog
+// in presentation.ts; this file is label data for the engine's default surfaces (system menu/saves/settings).
 import type { DeepReadonly } from "@sillymaker/base";
 import type { DefaultGameRootLabelsV1, SaveOverlayLabelsV1 } from "@sillymaker/ui";
 
@@ -48,9 +48,9 @@ const catcafeRootLabelsEnV1: Partial<DefaultGameRootLabelsV1> = Object.freeze({
 });
 
 /**
- * 存档安全点：权威快照始终原子一致（技术上任何提交点都能存），这里表达
- * 的是游戏设计边界——对话推进中与运动会回合中不做手动存档，避免读回
- * 断在演出中间的档。自动/快速存档机制不受影响。
+ * Save safepoints: authoritative snapshots are always atomically consistent (any
+ * commit point is technically saveable); this expresses a game-design boundary —
+ * no manual saves mid-dialogue or mid-contest, to avoid loading back into the middle of a performance. Auto/quick saves are unaffected.
  */
 export function catcafeSaveGuardForLocaleV1(
   locale: string | null,
@@ -78,7 +78,7 @@ export function catcafeSaveGuardForLocaleV1(
   };
 }
 
-/** 系统 chrome（保存/设置对话框）按启动时的语言偏好选择；重载后生效。 */
+/** System chrome (save/settings dialogs) picks the boot-time locale preference; takes effect after reload. */
 export function catcafeChromeForLocaleV1(locale: string | null): {
   readonly labels: Partial<DefaultGameRootLabelsV1>;
   readonly saveLabels: SaveOverlayLabelsV1;

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-// 模拟运行时：模块合成、事务运行器与特性命令处理器的公共形状。
-// 特性 handlers（features/*/handlers.ts）从这里取运行器；聚合见 simulation.ts。
+// Simulation runtime: module composition, the transaction runner, and the shared shape of feature command handlers.
+// Feature handlers (features/*/handlers.ts) take the runner from here; aggregation in simulation.ts.
 import type { createTransactionalRngV1 } from "@sillymaker/base";
 
 import { catcafeGameStateSchemaV1 } from "./state.ts";
@@ -32,7 +32,7 @@ export const transactionRunnerV1 = catcafeModuleCompositionV1.createTransactionR
 
 export type CatcafeTransactionalRngV1 = ReturnType<typeof createTransactionalRngV1>;
 
-/** 特性命令处理器输入：快照、事务 RNG、便捷的 simulation 状态与已收窄的命令。 */
+/** Feature command-handler input: snapshot, transaction RNG, convenient simulation state, and the narrowed command. */
 export interface CatcafeHandlerInputV1<C extends CatcafeCommandV1> {
   readonly snapshot: CatcafeSnapshotV1;
   readonly rng: CatcafeTransactionalRngV1;
@@ -44,7 +44,7 @@ export type CatcafeCommandHandlerV1<C extends CatcafeCommandV1> = (
   input: CatcafeHandlerInputV1<C>,
 ) => CatcafeAttemptV1;
 
-/** kind→handler 的完整映射：漏一个命令种类无法通过类型检查。 */
+/** The exhaustive kind→handler map: a missed command kind fails the type check. */
 export type CatcafeCommandHandlerMapV1 = {
   readonly [K in CatcafeCommandV1["kind"]]: CatcafeCommandHandlerV1<
     Extract<CatcafeCommandV1, { kind: K }>

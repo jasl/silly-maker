@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-// 玩家回滚（R7）在真实游戏里的语义：日常动作可回退且结果不重掷（RNG 随
-// 快照），运动会开赛与结局确认是硬边界（清空之前的检查点）。
+// Player rollback (R7) semantics in a real game: daily actions can be undone without
+// re-rolls (RNG rides the snapshot); contest start and ending confirmation are hard barriers (they clear earlier checkpoints).
 import { describe, expect, it } from "vitest";
 
 import type { CatcafeApplicationInstanceV1 } from "../application/core-application.ts";

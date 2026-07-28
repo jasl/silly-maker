@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// 对话切片·命令：开场叙事的启动与占位判定推进（剧本见 ./script.ts）。
+// Dialogue slice · commands: opening-narrative start and placeholder-verdict advancement (script in ./script.ts).
 import { evaluateInteractionResolution } from "@sillymaker/base/story";
 
 import type { CatcafeCommandHandlerMapV1 } from "../../runtime.ts";

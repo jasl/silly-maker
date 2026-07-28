@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
-// 扫雷切片·UI：经典三段式（计数器/笑脸/计时）+ 网格。左键翻格右键
-// 插旗都发语义 invocation；雷区从不出现在发布面上（进行中 mine=null），
-// UI 想作弊也读不到。计时器是纯 UI 装饰（权威状态无墙钟）。
+// Minesweeper slice · UI: the classic three-part header (counter/smiley/timer) + grid.
+// Left-click reveal and right-click flag both send semantic invocations; the minefield
+// never appears on the publication (mine=null while in progress), so the UI could not cheat if it tried. The timer is pure UI decoration (authoritative state has no wall clock).
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 
@@ -118,7 +118,7 @@ export function OsMinesweeperAppV1(props: {
   const runningRef = useRef(false);
 
   const status = minesweeper?.status ?? null;
-  // Win98 语义：首次翻格才开始计时（开局静止在 000）。
+  // Win98 semantics: the timer starts on the first reveal (a fresh board sits at 000).
   const anyRevealed =
     minesweeper !== null && minesweeper.cells.some((cell) => cell.state === "revealed");
   const playing = status === "playing" && anyRevealed;
@@ -145,7 +145,7 @@ export function OsMinesweeperAppV1(props: {
     });
   };
 
-  // 开窗即开局（无盘面时）。
+  // Opening the window starts a game (when no board exists).
   useEffect(() => {
     if (minesweeper === null) newGame("beginner");
     // eslint-disable-next-line react-hooks/exhaustive-deps

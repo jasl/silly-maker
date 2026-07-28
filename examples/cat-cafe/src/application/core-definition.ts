@@ -39,12 +39,12 @@ export const catcafeCoreApplicationDefinitionV1 = defineCoreGameApplication<
   entry: catcafeStoryEntryV1,
   semantic: catcafeSemanticAdapterV1,
   exportFilename: "catcafe-save.json",
-  // 开机续档：标题屏"继续上次会话"由此成为真话——刷新后自动恢复
-  // 自动存档，玩家不必手动"载入存档"。
+  // Boot resume: this is what makes the title screen's "Continue" truthful —
+  // the autosave restores automatically after a refresh, no manual "load" needed.
   resumeFromAutosave: true,
-  // 玩家回滚（R7）：运动会开赛与结局确认是硬边界——比赛不能"回到开赛
-  // 之前"重排（防重掷：RNG 随快照，回退重试同一结果），确认过的结局
-  // 不可撤销。其余提交都是普通检查点。
+  // Player rollback (R7): contest start and ending confirmation are hard barriers —
+  // a contest cannot be re-rolled by stepping back before it started (RNG rides the
+  // snapshot, so retrying replays the same result), and a confirmed ending is final. Every other commit is an ordinary checkpoint.
   rollback: {
     capacity: 24,
     classify: (command) =>

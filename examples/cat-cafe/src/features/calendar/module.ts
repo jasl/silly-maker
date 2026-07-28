@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// 日历切片·模块：周/日/时段/体力推进与跨日规则。
+// Calendar slice · module: week/day/slot/stamina advancement and day-rollover rules.
 
 import type { CatcafeCalendarStateV1, CatcafeGameStateV1 } from "../../state.ts";
 import { catcafeCalendarStateSchemaV1, catcafeDailyStaminaV1 } from "../../state.ts";

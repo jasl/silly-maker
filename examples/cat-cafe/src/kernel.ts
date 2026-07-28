@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-// 模拟内核：公共命令/事实/裁决类型、schema 助手与效果行规则。
-// 特性切片（features/*）从这里取共享形状；聚合见 simulation.ts。
+// Simulation kernel: shared command/fact/verdict types, schema helpers, and effect-row rules.
+// Feature slices (features/*) take shared shapes from here; aggregation in simulation.ts.
 import type {
   CommandExecutionAttemptEnvelopeV1,
   GameSimulationTypeMapV1,
@@ -105,7 +105,7 @@ export interface CatcafeFaultV1 {
   readonly code: "cc.executor_failed";
 }
 
-/** 调参命令：与正常命令同一原子提交路径，日志按 source:"debug" 标记。 */
+/** Tuning commands: the same atomic commit path as normal commands; log entries marked source:"debug". */
 export type CatcafeDebugCommandV1 =
   | { readonly kind: "cc.debug.set_stat"; readonly stat: string; readonly value: number }
   | { readonly kind: "cc.debug.advance_days"; readonly days: number }
@@ -157,7 +157,7 @@ export interface CatcafeGameViewV1 {
   readonly catStage: number;
   readonly ending: string | null;
   readonly stage: SemanticStageState;
-  /** 连续声音意图（BGM/环境雨声）：视图的纯投影，读档即还原。 */
+  /** Continuous audio intent (BGM/ambient rain): a pure view projection; a load restores it. */
   readonly audio: AudioIntentV1;
 }
 
@@ -213,7 +213,7 @@ export function passthroughSchemaV1<T>(): RuntimeSchemaV1<T> {
   return Object.freeze({ parse: (value: unknown) => value as T });
 }
 
-/** 把内容表效果行叠加到猫/店铺草稿上；活动路径启用鲜鱼加成特例。 */
+/** Apply content-table effect rows onto the cat/shop drafts; the activity path enables the fresh-fish special case. */
 export function applyStatEffectsV1(
   cat: { trust: number; vigor: number; skill: number; fishBuff: number; pettingLeft: number },
   shop: { reputation: number; tidiness: number; money: number; trophies: number },

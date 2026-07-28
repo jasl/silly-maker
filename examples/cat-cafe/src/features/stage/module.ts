@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// 舞台切片·模块：语义舞台状态；mutation 解析/归约后原子应用。
+// Stage slice · module: semantic stage state; mutations parse/reduce then apply atomically.
 import type { StageMutation } from "@sillymaker/base/story";
 import { parseStageMutation, reduceStageMutations } from "@sillymaker/base/story";
 

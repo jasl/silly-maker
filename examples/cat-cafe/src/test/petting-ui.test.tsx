@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
-// 语义级抚摸链路测试。完整浏览器 UI 链（标题屏 → 开场 → 命中区域点击 →
-// 反应气泡 → 余量耗尽）由 hit-regions 浏览器 spec 验证；jsdom 下挂载完整
-// web UI 会触发 Deno×jsdom×React 跨 realm 事件派发崩溃，故这里驱动语义
-// 端口断言权威行为本身。
+// Semantic-level petting-chain test. The full browser UI chain (title → opening →
+// hit-region click → reaction bubble → allowance exhausted) is covered by the
+// hit-regions browser spec; mounting the full web UI under jsdom crashes on
+// Deno×jsdom×React cross-realm event dispatch, so this drives the semantic port and asserts the authoritative behavior itself.
 import { describe, expect, it } from "vitest";
 
 import type { CatcafeApplicationInstanceV1 } from "../application/core-application.ts";
@@ -51,7 +51,7 @@ describe("catcafe petting (semantic chain)", () => {
       const before = gameViewV1(instance);
       expect(before.cat.pettingLeft).toBe(3);
 
-      // 反应流是 commit-only 瞬态效果：订阅并收集。
+      // The reaction stream is commit-only transient effects: subscribe and collect.
       const reactions: string[] = [];
       const unsubscribe = instance.subscribeTransientEffects((effect) => {
         if (effect.effectId !== "effect.catcafe.reaction") return;
@@ -64,14 +64,14 @@ describe("catcafe petting (semantic chain)", () => {
       expect(afterOne.cat.pettingLeft).toBe(2);
       expect(afterOne.cat.trust).not.toBe(before.cat.trust);
       expect(reactions).toHaveLength(1);
-      // 反应必须来自内容表（权威侧查表，而不是 UI 猜测）。
+      // Reactions must come from the content table (authoritative lookup, not UI guesses).
       expect(catcafePettingV1.byId(reactions[0] ?? "")).not.toBeNull();
 
       await dispatchCommittedV1(instance, { kind: "pet", zone: "back" });
       await dispatchCommittedV1(instance, { kind: "pet", zone: "tail" });
       expect(gameViewV1(instance).cat.pettingLeft).toBe(0);
 
-      // 余量耗尽后拒绝，权威状态不动。
+      // After the allowance runs out: rejected, authoritative state unchanged.
       const rejected = await instance.semantic.dispatch({ kind: "pet", zone: "head" } as never);
       expect(rejected.kind).not.toBe("committed");
       expect(gameViewV1(instance).cat.pettingLeft).toBe(0);

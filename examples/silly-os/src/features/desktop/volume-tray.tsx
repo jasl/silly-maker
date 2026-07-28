@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-// 桌面切片·任务栏音量：喇叭常驻托盘，点击弹出经典音量小窗（滑块 +
-// 静音）。写 Host profile 播放偏好（三条音频总线同值），跨会话持久。
+// Desktop slice · taskbar volume: a speaker lives in the tray; clicking opens the classic
+// volume popup (slider + mute). Writes Host-profile playback preferences (all three audio buses share the value), persistent across sessions.
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 
