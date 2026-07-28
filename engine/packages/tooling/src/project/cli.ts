@@ -137,6 +137,10 @@ function createNodeRunnerV1(): ProjectCommandRunnerV1 {
       await mkdir(dirname(destination), { recursive: true });
       await cp(source, destination, { recursive: true });
     },
+    copyFile: async (source, destination) => {
+      await mkdir(dirname(destination), { recursive: true });
+      await cp(source, destination);
+    },
     removeDirectory: async (path) => {
       await rm(path, { recursive: true, force: true });
     },
