@@ -20,7 +20,10 @@ import type {
 import {
   createGameSnapshotEnvelopeSchemaV1,
   createPristineRunIntegrityV1,
+  parseRunIntegrityReasonV1,
 } from "../../contracts/snapshot.ts";
+import type { RunIntegrityV1 } from "../../contracts/snapshot.ts";
+import { finalizeSnapshotIntegrityV1 } from "../session/run-integrity.ts";
 import type { DeepReadonly, Digest, NonNegativeSafeInteger } from "../../contracts/values.ts";
 import { parseNonNegativeSafeInteger } from "../../contracts/values.ts";
 import type { ReplayComparisonV1 } from "../diagnostics/replay.ts";
@@ -882,13 +885,12 @@ export async function createCoreGameApplicationInstanceV1<
     const effectListeners = new Set<(effect: TransientEffectV1) => void>();
     let effectSequence = 0;
     cleanups.push(() => effectListeners.clear());
-    function emitTransientEffectsV1(result: SessionDispatchResultOfV1<TTypes>): void {
+    function emitTransientEffectsFromFactsV1(facts: readonly DeepReadonly<TTypes["fact"]>[]): void {
       const project = definition.semantic.projectTransientEffects;
       if (project === undefined || disposed) return;
-      if (result.kind !== "executed" || result.execution.kind !== "committed") return;
       let requests: readonly TransientEffectRequestV1[];
       try {
-        requests = project(result.execution.facts as readonly DeepReadonly<TTypes["fact"]>[]);
+        requests = project(facts);
       } catch (error) {
         reportObserverFailure(error);
         return;
@@ -909,6 +911,13 @@ export async function createCoreGameApplicationInstanceV1<
           }
         }
       }
+    }
+
+    function emitTransientEffectsV1(result: SessionDispatchResultOfV1<TTypes>): void {
+      if (result.kind !== "executed" || result.execution.kind !== "committed") return;
+      emitTransientEffectsFromFactsV1(
+        result.execution.facts as readonly DeepReadonly<TTypes["fact"]>[],
+      );
     }
 
     // Autosave policy wiring.
@@ -1199,15 +1208,64 @@ export async function createCoreGameApplicationInstanceV1<
             let replaySnapshot = replayBase;
             return Object.freeze({
               getCurrentSnapshot: () => replaySnapshot,
-              submit(logged: { readonly command: DeepReadonly<TTypes["command"]> }) {
+              submit(logged: {
+                readonly source?: "game" | "debug";
+                readonly command: DeepReadonly<TTypes["command"]>;
+              }) {
                 const preSnapshot = replaySnapshot;
-                const attempt = gameSimulation.commandExecutor.executeAttempt(
-                  preSnapshot as never,
-                  logged.command,
-                  undefined as TTypes["executionContext"],
-                ) as {
+                // Debug-sourced log entries replay through the debug
+                // executor with the same mark_modified integrity stamp the
+                // live session applies, so digests line up entry for entry
+                // and the log stays one linear history across both sources.
+                let attempt: {
                   readonly result: { readonly kind: string; readonly snapshot: never };
                 };
+                if (logged.source === "debug") {
+                  const raw = gameSimulation.debugCommandExecutor.executeAttempt(
+                    preSnapshot as never,
+                    logged.command as never,
+                    undefined as TTypes["executionContext"],
+                  ) as {
+                    readonly result: {
+                      readonly kind: string;
+                      readonly snapshot: {
+                        readonly integrity: RunIntegrityV1;
+                        readonly commandSequence: number;
+                      };
+                    };
+                  };
+                  attempt =
+                    raw.result.kind === "committed"
+                      ? ({
+                          ...raw,
+                          result: {
+                            ...raw.result,
+                            snapshot: finalizeSnapshotIntegrityV1(
+                              preSnapshot as never,
+                              raw.result.snapshot as never,
+                              {
+                                kind: "mark_modified",
+                                reason: parseRunIntegrityReasonV1({
+                                  kind: "debug_command",
+                                  commandKind: String(
+                                    (logged.command as { readonly kind?: unknown }).kind ?? "",
+                                  ),
+                                  sequence: raw.result.snapshot.commandSequence,
+                                }),
+                              },
+                            ),
+                          },
+                        } as never)
+                      : (raw as never);
+                } else {
+                  attempt = gameSimulation.commandExecutor.executeAttempt(
+                    preSnapshot as never,
+                    logged.command,
+                    undefined as TTypes["executionContext"],
+                  ) as {
+                    readonly result: { readonly kind: string; readonly snapshot: never };
+                  };
+                }
                 if (attempt.result.kind === "committed") {
                   replaySnapshot = attempt.result.snapshot;
                 }
@@ -1229,7 +1287,28 @@ export async function createCoreGameApplicationInstanceV1<
         }),
       stateDigest: () =>
         digestCanonical("sillymaker:state:v1", created.session.getCurrentSnapshot()),
-      ...(options.capabilities?.debugTools === true ? { debugControl: created.debugControl } : {}),
+      ...(options.capabilities?.debugTools === true
+        ? {
+            debugControl: Object.freeze({
+              ...created.debugControl,
+              // Committed debug commands raise the same commit-only
+              // transient effects as gameplay: tuning previews (forced
+              // encounters, SFX) render through one path.
+              execute: async (
+                command: DeepReadonly<TTypes["debugCommand"]>,
+                isCapabilityEnabled: () => boolean,
+              ) => {
+                const result = await created.debugControl.execute(command, isCapabilityEnabled);
+                if (result.kind === "executed" && result.attempt.result.kind === "committed") {
+                  emitTransientEffectsFromFactsV1(
+                    result.attempt.result.facts as readonly DeepReadonly<TTypes["fact"]>[],
+                  );
+                }
+                return result;
+              },
+            }),
+          }
+        : {}),
     });
 
     return Object.freeze({

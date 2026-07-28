@@ -84,6 +84,32 @@ test("the stage scales uniformly on small viewports and hit regions still work",
   expect((box?.width ?? 0) / 80).toBeCloseTo(scale, 1);
 });
 
+test("the DevDock tuning panel commits debug commands through the session", async ({ page }) => {
+  await page.goto(catcafeTargetUrlV1("?capability=debug_tools&capability=cheats"));
+  await playOpeningV1(page);
+
+  await page.getByRole("button", { name: "打开右侧开发工具" }).click();
+  const dock = page.getByRole("complementary", { name: "右侧开发工具" });
+  await dock.getByRole("button", { name: "调参" }).click();
+  const tuning = dock.locator("[data-cc-debug-tuning]");
+
+  // Set trust to 77 through the debug channel: the same atomic commit
+  // path as gameplay, so the HUD (still mounted under the dock) updates
+  // from the authoritative state.
+  await tuning.locator("[data-cc-debug-stat]").selectOption("cat.trust");
+  await tuning.locator("[data-cc-debug-value]").fill("77");
+  await tuning.locator("form").first().getByRole("button", { name: "执行调试命令" }).click();
+  await expect(tuning.locator("form").first().getByText("committed")).toBeVisible();
+  await expect(page.locator("[data-cc-stats]")).toContainText("信任77");
+
+  // Force a regular encounter in the same dock session: its effect and
+  // HUD line come from the same fact/effect path as a natural draw.
+  await tuning.locator("[data-cc-debug-encounter]").selectOption("encounter.baker");
+  await tuning.locator("form").nth(2).getByRole("button", { name: "执行调试命令" }).click();
+  await expect(page.locator("[data-cc-encounter='text.cc.encounter.baker']")).toBeVisible();
+  await expect(page.locator("[data-cc-stats]")).toContainText("金钱55");
+});
+
 test("right-click routes the VN back action: the album overlay closes", async ({ page }) => {
   await page.goto(catcafeTargetUrlV1());
   await playOpeningV1(page);
