@@ -7,7 +7,7 @@ hero:
   tagline: TypeScript + React. Deterministic simulation, semantic stages, atomic saves — authorable by humans and AI agents alike.
   actions:
     - theme: brand
-      text: Get started
+      text: Get started with AI
       link: /guide/getting-started
     - theme: alt
       text: Core concepts

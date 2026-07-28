@@ -1,6 +1,6 @@
 # Your first Story
 
-> Prefer to delegate? [Build with a coding agent](/guide/agent-games) covers the same flow driven by an AI agent.
+> Prefer to delegate? [Getting started with AI](/guide/getting-started) covers the same flow driven by an AI agent.
 
 The `template/` package is a minimal playable game kept working by CI. New games start as a copy of it.
 

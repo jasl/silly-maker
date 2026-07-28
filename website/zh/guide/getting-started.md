@@ -1,46 +1,82 @@
-# 快速开始
+# 用 AI 快速开始
 
-SillyMaker 是面向视觉小说、养成模拟和轻 RPG 的 TypeScript + React 引擎。引擎、工具和你的游戏都运行在 [Deno](https://deno.com)（>= 2.9）上。
+用 SillyMaker 最快的方式是完全不碰它：你指挥 coding agent，agent 指挥引擎。装环境、做游戏、调试——下面每一步都是可以直接粘贴给 agent 的 prompt，全程不用离开你的 agent 软件。
 
-## 环境准备
+**你需要的**：任何能读写文件、执行终端命令的 coding agent 软件（IDE 代理、CLI 代理或云端代理都行；更强的模型只是轮次更少、剧情更连贯）。
 
-```sh
-git clone <repository>
-cd silly-maker
-deno install
+## Prompt 1——搭环境
+
+粘给你的 agent：
+
+```text
+在这台机器上装好 SillyMaker 引擎：
+
+1. 检查 Deno >= 2.9 是否已安装（`deno --version`）；没有就安装
+   （macOS/Linux：`curl -fsSL https://deno.land/install.sh | sh`，
+   Windows PowerShell：`irm https://deno.land/install.ps1 | iex`），并确认在 PATH 上。
+2. 克隆 https://github.com/jasl/silly-maker 并进入目录。
+3. 运行 `deno install` 解析依赖。
+4. 运行 `deno task check` 并汇报结果。必须全绿——这是基线，之后你造成的
+   任何失败都归你修。
 ```
 
-## 跑一个示例
+Agent 汇报 `deno task check` 全绿时，你就有了一个可工作的引擎，外加整套测试当安全网。
 
-仓库自带可玩示例。`example-cat-cafe`（雨巷猫舍）覆盖了大部分引擎系统（日程、数值、触摸互动、回合制比赛、事件池、元进度、i18n）：
+## Prompt 2——做游戏
 
-```sh
-deno task story dev example-cat-cafe
+替换 ⟨括号⟩ 后粘贴。这就是产出 `examples/bookshop` 的同款任务书（一个模型一次交付）：
+
+```text
+在这个仓库里创作一个新游戏：⟨一句话题材——例如"夜班出租车司机，
+三段乘客故事，两个结局"⟩。
+
+流程要求：
+1. 先读 template/AGENTS.md 与 docs/engine/authoring-quickstart.md。
+2. 复制 template/ 到 examples/⟨新名字⟩，全局改名（template/Template → ⟨新名字⟩），
+   在根 project.config.ts 注册应用，改 metadata.json。
+3. 剧本写在 src/narrative.ts + src/presentation.ts 的文本目录；玩法状态走
+   src/state.ts → src/simulation.ts → src/application/semantic.ts → src/story.ts。
+4. 动剧本前先列节点序列表（每个 say/choice 边界一个 occurrence 编号），
+   场景脚本与测试一次写对。
+
+验收（全部通过才算完成）：
+- deno task typecheck
+- deno run -A npm:vitest run examples/⟨新名字⟩
+- deno task story check ⟨应用 id⟩
+- deno task story simulate ⟨应用 id⟩ --scenario ⟨每条主要路线一个场景⟩
+- deno task check
+
+边界：只 import @sillymaker/* 包出口；不改引擎与其他 Story；不引入新依赖。
 ```
 
-打开输出的 URL。右键是"返回"，`Enter`/`Space` 推进对话，设置对话框可以即时切换语言。
+## Prompt 3——玩与调试
 
-## 用项目的方式验证
+依然不离开 agent：
 
-```sh
-deno task check        # 格式、lint、类型、全部单测、story 检查
-deno task test:e2e     # 浏览器一致性套件（Chromium + WebKit）
+```text
+为 ⟨应用 id⟩ 启动开发服务器（deno task story dev ⟨应用 id⟩），把 URL 给我
+在浏览器里打开。然后：
+1. 跑一遍所有 simulate 场景，汇总每条路线的终局状态。
+2. 运行 `git diff --stat`，确认改动只落在新 Story 目录与 project.config.ts。
+3. 如果我报 bug，先在 simulate 场景里复现，修复后重跑全部验收命令。
 ```
 
-## Headless 游玩
-
-每个应用都声明了无浏览器可跑的场景脚本——与 AI 自动化使用同一个 Agent 端口：
+打开它给你的 URL 开玩。想自己动手的话，底下的命令也很朴素：
 
 ```sh
-deno task story simulate example-cat-cafe --scenario first-day
-deno task story simulate example-cat-cafe --scenario first-day \
-  --trace game.cat.trust,game.shop.money
+deno task story dev <应用id>                            # 浏览器游玩
+deno task story simulate <应用id> --scenario <场景名>    # headless 游玩
+deno task story simulate <应用id> --scenario <场景名> \
+  --trace game.<点路径>                                  # 数值轨迹
 ```
 
-`--trace` 输出每步数值轨迹——这是平衡调参的反馈回路。
+## 让结果更好的几条建议
 
-## 下一步
+- **给具体的题材**——有名字的角色、一个地点、你想要的结局。"做个好玩的"只会得到糊状物；"灯塔看守人，暴风雨夜，陌生人敲门，三种收场"能得到一个游戏。
+- **验收清单里要求每条路线一个 simulate 场景**，逼着 agent 把自己写的每条路都真的玩一遍。
+- **第一版做小**：一场开场、两三个选择、两个结局。之后按 template 手册的可选接线清单（分享元数据、音频、播放体验、回退、存档安全点）一次加一项。
+- **失败信息原样贴回去。** 引擎诊断带节点路径与期望的 occurrence 编号，给原始输出 agent 就能可靠修复。
 
-- [核心概念](/zh/guide/concepts) —— 支撑一切的五个想法。
-- [第一个 Story](/zh/guide/first-story) —— 复制起点模板，改成你的游戏。
-- [调参与调试](/zh/guide/tuning) —— DevDock、调试命令、轨迹与对比。
+## 想知道底下发生了什么？
+
+好奇 agent 替你做了什么，或者想亲手来一遍——[手动路径](/zh/guide/manual-setup)用普通命令走同样的步骤；"介绍"一节（[引擎提供什么](/zh/guide/features)、[架构](/zh/guide/architecture)、[核心概念](/zh/guide/concepts)）解释引擎为什么长这样。

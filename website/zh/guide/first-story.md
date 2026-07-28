@@ -1,6 +1,6 @@
 # 第一个 Story
 
-> 想交给 AI 做？[用 Coding Agent 生成游戏](/zh/guide/agent-games)介绍同一流程的代理驱动版。
+> 想交给 AI 做？[用 AI 快速开始](/zh/guide/getting-started)介绍同一流程的代理驱动版。
 
 `template/` 包是一个由 CI 保活的最小可玩游戏。新游戏从复制它开始。
 
