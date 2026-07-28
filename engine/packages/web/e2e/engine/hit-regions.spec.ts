@@ -18,8 +18,8 @@ async function dismissSplashV1(page: Page): Promise<void> {
 async function advanceRevealedSayV1(page: Page): Promise<void> {
   // The typewriter turns the first click into reveal-all; waiting for the
   // completed reveal keeps one click = one advance.
-  await expect(page.locator("[data-cc-narrative]")).toHaveAttribute("data-cc-reveal", "complete");
-  await page.locator("[data-cc-advance]").click();
+  await expect(page.locator("[data-dialogue]")).toHaveAttribute("data-dialogue-reveal", "complete");
+  await page.locator("[data-dialogue-advance]").click();
 }
 
 async function playOpeningV1(page: Page): Promise<void> {
@@ -33,7 +33,7 @@ async function playOpeningV1(page: Page): Promise<void> {
   await page.getByRole("button", { name: "就叫「小雨」" }).click();
   await advanceRevealedSayV1(page);
   await advanceRevealedSayV1(page);
-  await expect(page.locator("[data-cc-narrative]")).toHaveCount(0);
+  await expect(page.locator("[data-dialogue]")).toHaveCount(0);
 }
 
 test("pointer petting routes through hit regions with table-driven reactions", async ({ page }) => {
@@ -228,24 +228,27 @@ test("auto mode advances revealed lines and the history panel replays the backlo
   // Auto: with no further input the say advances by itself once revealed
   // (auto pauses at the name choice, which playback never decides).
   const firstOccurrence = await page
-    .locator("[data-cc-narrative]")
-    .getAttribute("data-cc-occurrence");
-  await page.locator("[data-cc-playback='auto']").click();
-  await expect(page.locator("[data-cc-playback='auto']")).toHaveAttribute("aria-pressed", "true");
+    .locator("[data-dialogue]")
+    .getAttribute("data-dialogue-occurrence");
+  await page.locator("[data-dialogue-playback='auto']").click();
+  await expect(page.locator("[data-dialogue-playback='auto']")).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
   await expect
-    .poll(async () => page.locator("[data-cc-narrative]").getAttribute("data-cc-occurrence"), {
+    .poll(async () => page.locator("[data-dialogue]").getAttribute("data-dialogue-occurrence"), {
       timeout: 15_000,
     })
     .not.toBe(firstOccurrence);
-  await expect(page.locator("[data-cc-narrative='choice']")).toBeVisible({ timeout: 20_000 });
+  await expect(page.locator("[data-dialogue='choice']")).toBeVisible({ timeout: 20_000 });
 
   // The history panel renders the authoritative backlog of what auto read.
   await page.getByRole("button", { name: "就叫「小雨」" }).click();
-  await expect(page.locator("[data-cc-narrative]")).toHaveAttribute("data-cc-reveal", "complete");
-  await page.locator("[data-cc-history-open]").click();
-  const history = page.locator("[data-cc-history]");
+  await expect(page.locator("[data-dialogue]")).toHaveAttribute("data-dialogue-reveal", "complete");
+  await page.locator("[data-dialogue-history-open]").click();
+  const history = page.locator("[data-dialogue-history]");
   await expect(history).toBeVisible();
-  expect(await history.locator("[data-cc-history-entry]").count()).toBeGreaterThanOrEqual(3);
+  expect(await history.locator("[data-dialogue-history-entry]").count()).toBeGreaterThanOrEqual(3);
   await history.locator("[data-panel-close]").click();
   await expect(history).toHaveCount(0);
 });
@@ -310,7 +313,7 @@ test("the system menu is one modal at a time and saves honor the safepoint", asy
   await page.getByRole("button", { name: "就叫「小雨」" }).click();
   await advanceRevealedSayV1(page);
   await advanceRevealedSayV1(page);
-  await expect(page.locator("[data-cc-narrative]")).toHaveCount(0);
+  await expect(page.locator("[data-dialogue]")).toHaveCount(0);
 
   // Daily play is a safepoint: manual save commits and shows the slot's
   // timestamp in the list.

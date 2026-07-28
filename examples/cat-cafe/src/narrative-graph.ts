@@ -2,8 +2,8 @@
 import type { NarrativeGraph } from "@sillymaker/base/story";
 import { parseNarrativeGraph } from "@sillymaker/base/story";
 
-import type { CatcafeNarrativeNodeV1 } from "./narrative.ts";
-import { catcafeScriptV1 } from "./narrative.ts";
+import type { CatcafeNarrativeNodeV1 } from "./features/dialogue/script.ts";
+import { catcafeScriptV1 } from "./features/dialogue/script.ts";
 
 /**
  * Projects the typed script into the generic narrative graph so

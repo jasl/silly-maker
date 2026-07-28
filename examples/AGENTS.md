@@ -11,7 +11,7 @@
 
 ## 剧本/文本任务（最常见）
 
-改哪个文件：台词与界面文案 → `src/presentation.ts`（textId 目录）；剧情节点/分支/舞台指令 → `src/narrative.ts`；舞台渲染器 → `src/application/composition.tsx` 的 `*StageRenderersV1`。
+改哪个文件：台词与界面文案 → `src/presentation.ts`（textId 目录）；剧情节点/分支/舞台指令 → `src/narrative.ts`（cat-cafe 为 `src/features/dialogue/script.ts`）；舞台渲染器 → `src/application/composition.tsx` 的 `*StageRenderersV1`。
 
 动手前先列节点序列表（每个 say/choice 边界一个 occurrence 编号，从 1 起），场景脚本（`src/tooling/simulation-target.ts`）与测试一次写对。
 
@@ -33,7 +33,9 @@ deno task story simulate <appId> --scenario <name>
 
 ## 模块/状态任务
 
-四个接线点：`state.ts`（接口 + schema + 初始值）→ `simulation.ts`（模块 owner + 命令）→ `application/semantic.ts`（动作目录 + blockedBy）→ `story.ts`（manifest 条目，模块 id 按字典序）。版本同步表与常见诊断速查见 `docs/engine/authoring-quickstart.md`，不要凭记忆改 revision。
+cat-cafe 按**特性切片**组织：一个玩法特性一个 `src/features/<名>/` 目录（`module.ts` 模块、`content.ts` 内容表、`rules.ts` 纯规则、`handlers.ts` 命令处理器、`index.tsx` UI），`src/kernel.ts` 放共享契约，`src/simulation.ts`/`src/content.ts` 只做聚合与再导出（外部仍只面向这两个门面）。新特性 = 新目录 + 聚合点各加一行；漏接命令 kind 无法编译。
+
+四个接线点：`state.ts`（接口 + schema + 初始值）→ `features/<名>/module.ts` 与 `handlers.ts`（或简单包的 `simulation.ts`）→ `application/semantic.ts`（动作目录 + blockedBy）→ `story.ts`（manifest 条目，模块 id 按字典序）。版本同步表与常见诊断速查见 `docs/engine/authoring-quickstart.md`，不要凭记忆改 revision。
 
 ## 禁区
 

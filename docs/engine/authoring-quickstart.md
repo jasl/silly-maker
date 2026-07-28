@@ -34,6 +34,8 @@ deno task test:conformance:headless                # 全部 headless 一致性�
 
 ## B 层：新增玩法模块（中等；F2 canary 验证过的路径）
 
+**代码组织**：template 与 cat-cafe 按特性切片布局——一个玩法特性一个 `src/features/<名>/` 目录（module/content/rules/handlers/UI 各就其位），`src/kernel.ts` 放共享契约，`src/simulation.ts` 与 `src/content.ts` 只做聚合与再导出（外部只面向这两个门面；命令 kind→handler 是完整映射类型，漏接无法编译）。Engine Lab（e2e/）仍是单文件布局的低层试验台。新特性优先"新目录 + 聚合点各加一行"。
+
 新模块 = 四个接线点，全部在 Story 包内：
 
 1. `src/gameplay/state.ts`：状态接口 + zod schema + 初始值，挂进聚合状态。

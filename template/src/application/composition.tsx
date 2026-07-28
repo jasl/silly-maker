@@ -3,7 +3,13 @@
 // （浏览器与桌面 webview 共用同一份声明）；只编排，不拥有玩法。
 import type { ReactElement } from "react";
 
-import type { AssetId, DeepReadonly } from "@sillymaker/base";
+import type {
+  AssetId,
+  DeepReadonly,
+  NarrativeHistoryV1,
+  PendingInteractionV1,
+} from "@sillymaker/base";
+import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
 import type { StageRenderTarget } from "@sillymaker/base/story";
 import { projectStageRenderTarget } from "@sillymaker/base/story";
 import type {
@@ -15,7 +21,8 @@ import type {
   SaveOverlayLabelsV1,
   SemanticStageEntryRendererV1,
 } from "@sillymaker/ui";
-import { AdvanceSurfaceV1, Button, SemanticStageV1, systemInputActionIdsV1 } from "@sillymaker/ui";
+import type { DialogueResolutionV1 } from "@sillymaker/ui";
+import { Button, DialoguePanelV1, SemanticStageV1, systemInputActionIdsV1 } from "@sillymaker/ui";
 import type { WebGameApplicationV1 } from "@sillymaker/web";
 
 import type {
@@ -169,6 +176,7 @@ function resolveV1(
 function TemplateNarrativePanelV1(props: {
   readonly publication: DeepReadonly<TemplateUiPublicationV1>;
   readonly semantic: TemplateSemanticPortV1;
+  readonly playerProfile: PlayerProfileStoreV1;
 }): ReactElement | null {
   const narrative = props.publication.semantic.narrative;
   const pending = narrative.pending;
@@ -193,63 +201,27 @@ function TemplateNarrativePanelV1(props: {
     );
   }
 
-  if (pending.kind === "say") {
-    const advance = (): void =>
-      resolveV1(props.semantic, pending.occurrenceId, Object.freeze({ kind: "advance" }));
-    return (
-      <>
-        {/* VN 惯例：点击舞台任意空白推进对话；选择菜单保持显式。 */}
-        <AdvanceSurfaceV1 onAdvance={advance} />
-        <div
-          data-template-narrative="say"
-          data-template-occurrence={pending.occurrenceId}
-          style={panelStyle}
-        >
-          {pending.speakerTextId === null ? null : (
-            <strong style={{ display: "block", color: "#ffd9a0" }}>
-              {templateUiTextV1(pending.speakerTextId)}
-            </strong>
-          )}
-          <p style={{ margin: "8px 0 16px" }}>{templateUiTextV1(pending.textId)}</p>
-          <Button data-template-advance="true" onClick={advance}>
-            {templateUiTextV1("text.template.narrative.advance")}
-          </Button>
-        </div>
-      </>
-    );
-  }
-
-  if (pending.kind === "choice") {
-    return (
-      <div
-        data-template-narrative="choice"
-        data-template-occurrence={pending.occurrenceId}
-        style={panelStyle}
-      >
-        <p style={{ margin: "0 0 16px" }}>{templateUiTextV1(pending.promptTextId)}</p>
-        <div role="group" style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-          {(narrative.choiceOptions ?? []).map((option) => (
-            <Button
-              key={option.choiceId}
-              disabled={!option.enabled}
-              data-template-choice={option.choiceId}
-              onClick={() =>
-                resolveV1(
-                  props.semantic,
-                  pending.occurrenceId,
-                  Object.freeze({ kind: "choose", choiceId: option.choiceId }),
-                )
-              }
-            >
-              {templateUiTextV1(option.textId)}
-            </Button>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  return null;
+  return (
+    <DialoguePanelV1
+      pending={pending as PendingInteractionV1}
+      history={narrative.history as NarrativeHistoryV1}
+      playerProfile={props.playerProfile}
+      uiText={templateUiTextV1}
+      onResolve={(occurrenceId: string, resolution: DialogueResolutionV1) =>
+        resolveV1(props.semantic, occurrenceId, resolution as never)
+      }
+      labels={{
+        advanceLabel: templateUiTextV1("text.template.narrative.advance"),
+        autoLabel: templateUiTextV1("text.template.playback.auto"),
+        skipLabel: templateUiTextV1("text.template.playback.skip"),
+        historyLabel: templateUiTextV1("text.template.playback.history"),
+        historyTitle: templateUiTextV1("text.template.playback.history.title"),
+        historyEmptyText: templateUiTextV1("text.template.playback.history.empty"),
+        historyCloseLabel: templateUiTextV1("text.template.playback.history.close"),
+      }}
+      panelStyle={panelStyle}
+    />
+  );
 }
 
 function TemplateHudV1(props: {
@@ -280,30 +252,34 @@ function TemplateHudV1(props: {
   );
 }
 
-const slotsDefinitionV1: DefaultGameRootSlotsV1<
-  TemplateUiPublicationV1,
-  TemplateSemanticPortV1,
-  TemplateUiOverlayIdV1
-> = {
-  background: (context) => (
-    <section data-template-stage="true" aria-label={templateUiTextV1("text.template.stage.name")}>
-      <SemanticStageV1
-        target={context.publication.view.stageTarget}
-        revision={context.publication.semantic.revision}
-        epoch={context.publication.view.anchorEpoch}
-        catalog={templateStageTransitionCatalogV1}
-        renderers={templateStageRenderersV1}
-        accessibleName={templateUiTextV1("text.template.stage.name")}
+function createTemplateUiSlotsV1(
+  playerProfile: PlayerProfileStoreV1,
+): DefaultGameRootSlotsV1<TemplateUiPublicationV1, TemplateSemanticPortV1, TemplateUiOverlayIdV1> {
+  return {
+    background: (context) => (
+      <section data-template-stage="true" aria-label={templateUiTextV1("text.template.stage.name")}>
+        <SemanticStageV1
+          target={context.publication.view.stageTarget}
+          revision={context.publication.semantic.revision}
+          epoch={context.publication.view.anchorEpoch}
+          catalog={templateStageTransitionCatalogV1}
+          renderers={templateStageRenderersV1}
+          accessibleName={templateUiTextV1("text.template.stage.name")}
+        />
+      </section>
+    ),
+    hud: (context) => (
+      <TemplateHudV1 publication={context.publication} semantic={context.semantic} />
+    ),
+    narrative: (context) => (
+      <TemplateNarrativePanelV1
+        publication={context.publication}
+        semantic={context.semantic}
+        playerProfile={playerProfile}
       />
-    </section>
-  ),
-  hud: (context) => <TemplateHudV1 publication={context.publication} semantic={context.semantic} />,
-  narrative: (context) => (
-    <TemplateNarrativePanelV1 publication={context.publication} semantic={context.semantic} />
-  ),
-};
-
-export const templateUiSlotsV1 = Object.freeze(slotsDefinitionV1);
+    ),
+  };
+}
 
 export const templateKeyboardMapV1: KeyboardActionMapV1 = Object.freeze({
   Enter: systemInputActionIdsV1.narrativeAdvance,
@@ -439,12 +415,12 @@ export const templateGameApplicationV1: WebGameApplicationV1<
     maxScale: 4,
   }),
   core: templateCoreApplicationDefinitionV1,
-  ui: () =>
+  ui: ({ playerProfile }: { readonly playerProfile: PlayerProfileStoreV1 }) =>
     Object.freeze({
       titleScreen: Object.freeze({ title: "SillyMaker Starter" }),
       projector: templateUiProjectorV1,
       overlayIds: Object.freeze([] as const),
-      slots: templateUiSlotsV1,
+      slots: createTemplateUiSlotsV1(playerProfile),
       labels: templateRootLabelsV1,
       saveLabels: templateSaveOverlayLabelsV1,
       inputMaps: Object.freeze({ keyboard: templateKeyboardMapV1 }),

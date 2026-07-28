@@ -20,7 +20,7 @@ import type {
 } from "@sillymaker/base/story";
 import { parseStageTransitionDefinition } from "@sillymaker/base/story";
 
-import { catcafeContentIdsV1 } from "./narrative.ts";
+import { catcafeContentIdsV1 } from "./features/dialogue/script.ts";
 import { catcafeContentV1 } from "./content.ts";
 
 /**

@@ -47,35 +47,36 @@
 | L0 令牌       | 主题（色/距/圆角/触控尺寸）、层叠双刻度（stage-z / surface-z，测试盯守）、表单元素主题化                                | ✅ 已交付             |
 | L1 原语       | `Button` / `IconButton` / `ProgressMeter` / `PanelV1`（窗体外壳）/ `AdvanceSurfaceV1` / `BootSplashV1` / `MuteToggleV1` | ✅ 已交付             |
 | L2 窗体与槽位 | 系统对话框单槽、工作区主窗+详情栈、嵌套确认层、标题屏前门、关闭惯例与锁定（`dismissible`）                              | ✅ 已交付（本文上半） |
-| L3 组装件     | 把"原语+播放系统+权威投影"拼成可声明的成品面板                                                                          | ⬜ 上提清单（见下）   |
+| L3 组装件     | `DialoguePanelV1`（打字机/自动/快进/已读/历史/点击面/快捷条一体的对话播放器）                                           | ✅ 已交付（本轮）     |
 | 横切 hooks    | `useAssetUrlV1` / `resolveAssetUrlV1` / `useReducedMotionV1` / `useLocaleTextV1`                                        | ✅ 已交付             |
 
 上提规则不变：**两个以上真实 Story 重复且形状稳定**才进引擎，带契约测试。
 
 ## L3 上提清单
 
-### DialoguePanelV1（头条，规格已定）
+### DialoguePanelV1（✅ 已交付）
 
-三个 Story 的对话面板是同一台机器的三份手抄（cat-cafe 约 200 行胶水；template/bookshop 是它的简化版）：打字机（`createTextRevealV1`）+ 播放策略机（`createPlaybackControllerV1`，自动/快进）+ 已读标记（history → `markSeen`）+ 历史面板（`PanelV1` 渲染权威 backlog）+ 点击面（`AdvanceSurfaceV1`）+ 快捷条（继续/自动/快进/历史）。全部输入都是引擎标准形状，可以提炼：
+三个 Story 的对话面板曾是同一台机器的三份手抄（cat-cafe 约 270 行胶水；template/bookshop 是它的简化版）。现已提炼为引擎组件 `@sillymaker/ui` 的 `DialoguePanelV1`：打字机（profile 文字速度、reduced-motion 立即显示）+ 播放策略机（自动/快进，经共享决议契约派发）+ 已读标记（权威 history → `markSeen`）+ 历史面板（`PanelV1`）+ 点击面（`AdvanceSurfaceV1`）+ 快捷条。测试选择器统一为 `data-dialogue-*`。最终形状：
 
 ```ts
 DialoguePanelV1(props: {
-  pending: PendingInteraction | null;        // 引擎标准投影（say/choice）
-  history: NarrativeHistoryV1;               // 权威 backlog
-  choiceOptions?: readonly ChoiceOptionV1[]; // choice 时的选项投影
+  pending: PendingInteractionV1 | null;      // 引擎标准投影（say/choice；其余 kind 不渲染）
+  history: NarrativeHistoryV1;               // 权威 backlog（choice 选项就在 pending.options 上）
   playerProfile: PlayerProfileStoreV1;       // 文字速度/自动停留/已读
   uiText(textId: string): string;            // Story 文本目录（useLocaleTextV1 产物）
   onResolve(occurrenceId, resolution): void; // 共享交互决议契约
-  labels: DialoguePanelLabelsV1;             // 快捷条文案
+  labels: DialoguePanelLabelsV1;             // 快捷条与历史文案
   quickMenuExtras?: ReactNode;               // Story 追加按钮（回退等）
   panelStyle?: CSSProperties;                // 面板皮肤归 Story
+  clock?: PresentationClockV1;               // 测试注入
 })
 ```
 
-验收路径：先落引擎组件与组件测试 → cat-cafe 迁移（删胶水，E2E 原样通过）→ template/bookshop 迁移（第二、三消费者）→ features.md 入册。这是下一轮 UI 批次的头条。代码组织维度的配套方案见 [特性切片提案](../proposals/feature-slices.md)——dialogue 特性目录正是本组件的消费方。
+验收（已完成）：cat-cafe 迁移删除全部本地播放机（薄适配 ~40 行）；template/bookshop 作为第二、三消费者，简版面板换成完整播放器（打字机/自动/快进/历史随迁移免费获得，各补 6 条文案）；E2E 116 全绿。代码组织维度的配套执行见 [特性切片提案](../proposals/feature-slices.md)。
 
 ### 已评估项记录
 
-- `useLocaleTextV1`：✅ 已上提（本轮），cat-cafe 消费。
+- `useLocaleTextV1`：✅ 已上提，cat-cafe 消费。
+- `DialoguePanelV1`：✅ 已上提，三个 Story 消费（见上）。
 - 数值条：❌ 评估后保留 Story 侧——原生 `<progress>` 的轨道颜色跨浏览器不可控，6px 细条下视觉严重退化；Story 需要自定轨道+填充配色。手搓版补了 `role=progressbar` 语义。`ProgressMeter` 继续服务默认表面（如设置）。
 - HUD 布局脚手架：❌ 不上提——HUD 是每个游戏的美术主张，共性只有令牌与原语。

@@ -24,7 +24,7 @@
 
 - **网页元数据**：`metadata.json`（标题/描述/分享卡/favicon），构建时注入 `<head>`。
 - **声音**：`resolveAudioManifestV1` 声明音频资产（digest 必填）→ 视图投影 `AudioIntentV1`（bgm/ambient/voice，读档即还原）→ UI 挂 `GameAudioV1`（one-shot SFX 用 `resolveEffectAsset` 映射瞬态效果）。
-- **对话播放 QoL**：`createTextRevealV1`（打字机）+ `createPlaybackControllerV1`（自动/快进）+ 权威 `NarrativeHistory` 渲染历史面板；已读进度经 `profile.markSeen` 持久。
+- **对话面板**：直接挂 `DialoguePanelV1`（打字机、自动/快进、已读标记、历史回看、点击面、快捷条一体）；只需接 pending/history/profile/文本目录与 `onResolve`，测试选择器用 `data-dialogue-*`。低层件（`createTextRevealV1`/`createPlaybackControllerV1`）仅在自定义播放器时用。
 - **玩家回退**：core 定义加 `rollback: { capacity, classify }`（结算/不可逆命令标 `"barrier"`），UI 用 `instance.rollback`（available/toPrevious/subscribe）。
 - **存档安全点**：web 定义加 `saveGuard(publication)`，对话或战斗中禁手动存档并给出原因文本。
 - **舞台命中区域**：内容目录声明 `hitRegions`，`SemanticStageV1` 传 `onHitRegionActivate`。
@@ -56,7 +56,9 @@ deno task story simulate <appId> --scenario <name>
 
 ## 模块/状态任务
 
-四个接线点：`state.ts`（接口 + schema + 初始值）→ `simulation.ts`（模块 owner + 命令）→ `application/semantic.ts`（动作目录 + blockedBy）→ `story.ts`（manifest 条目，模块 id 按字典序）。版本同步表与常见诊断速查见 `docs/engine/authoring-quickstart.md`，不要凭记忆改 revision。
+**新玩法特性 = 新切片目录**：在 `src/features/<名>/` 放该特性的全部贡献（`module.ts` 模块 owner、`content.ts` 内容表、`rules.ts` 纯规则、`handlers.ts` 命令处理器、UI 组件），聚合点只加一行（`simulation.ts` 的 handler 映射与 `content.ts` 的表列表；漏接命令 kind 无法编译）。共享形状（命令/事实/裁决类型、schema 助手、kit）在 `src/kernel.ts`；本包 `features/inventory/` 是最小样例，规模化形态见 `examples/cat-cafe/src/features/`。
+
+四个接线点：`state.ts`（接口 + schema + 初始值）→ `features/<名>/module.ts`（模块 owner）与 `features/<名>/handlers.ts`（命令）→ `application/semantic.ts`（动作目录 + blockedBy）→ `story.ts`（manifest 条目，模块 id 按字典序）。版本同步表与常见诊断速查见 `docs/engine/authoring-quickstart.md`，不要凭记忆改 revision。
 
 ## 禁区
 

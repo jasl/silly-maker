@@ -103,7 +103,12 @@ export type {
   PresentationIntentRouterV1,
   PresentationOverlayWriterV1,
 } from "./interaction/index.ts";
-export { AdvanceSurfaceV1, VnLayerV1 } from "./narrative/index.ts";
+export { AdvanceSurfaceV1, DialoguePanelV1, VnLayerV1 } from "./narrative/index.ts";
+export type {
+  DialoguePanelLabelsV1,
+  DialoguePanelPropsV1,
+  DialogueResolutionV1,
+} from "./narrative/index.ts";
 export { useLocaleTextV1 } from "./system/use-locale-text.ts";
 export { useReducedMotionV1 } from "./system/use-reduced-motion.ts";
 export type { VnChoiceV1, VnLayerPropsV1 } from "./narrative/index.ts";
