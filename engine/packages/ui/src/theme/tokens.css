@@ -30,7 +30,20 @@
   --silly-stage-z-character: 10;
   --silly-stage-z-scene-interaction: 20;
   --silly-stage-z-hud: 30;
-  --silly-stage-z-workspace-overlay: 40;
-  --silly-stage-z-narrative: 50;
+  --silly-stage-z-narrative: 40;
+  --silly-stage-z-workspace-overlay: 50;
   --silly-stage-z-system: 60;
+
+  /* Within-layer surface strata. Every surface that stacks inside one
+     stage layer takes its z-index from this scale; raw z-index numbers
+     are forbidden in engine and Story code (the ordering is a published
+     contract guarded by tests). */
+  --silly-surface-z-base: 0;
+  --silly-surface-z-raised: 1;
+  --silly-surface-z-front-door: 10;
+  --silly-surface-z-splash: 11;
+  --silly-surface-z-dialog-backdrop: 20;
+  --silly-surface-z-dialog: 21;
+  --silly-surface-z-confirm-backdrop: 30;
+  --silly-surface-z-confirm: 31;
 }

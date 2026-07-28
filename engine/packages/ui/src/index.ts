@@ -16,8 +16,13 @@ export type {
   CreatePresentationReadPortInputV1,
   PresentationReadPortV1,
 } from "./assets/presentation-read-port.ts";
-export { Button, IconButton, ProgressMeter } from "./primitives/index.ts";
-export type { ButtonPropsV1, IconButtonPropsV1, ProgressMeterPropsV1 } from "./primitives/index.ts";
+export { Button, IconButton, PanelV1, ProgressMeter } from "./primitives/index.ts";
+export type {
+  ButtonPropsV1,
+  IconButtonPropsV1,
+  PanelPropsV1,
+  ProgressMeterPropsV1,
+} from "./primitives/index.ts";
 export { createUiContributionRegistryV1 } from "./contributions/registry.ts";
 export type {
   GameRendererContextV1,

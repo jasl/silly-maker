@@ -44,11 +44,16 @@
 
 .overlay-host__content {
   position: relative;
-  z-index: 1;
+  z-index: var(--silly-surface-z-raised);
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
   inline-size: min(42rem, calc(100% - 2 * var(--silly-space-3)));
   max-block-size: calc(100% - 2 * var(--silly-space-3));
   padding: calc(2 * var(--silly-space-3));
-  overflow: auto;
+
+  /* The Panel chrome owns scrolling: its header stays pinned and only the
+     panel body scrolls. */
+  overflow: hidden;
   border: 1px solid var(--silly-color-border);
   border-radius: var(--silly-radius-card);
   color: var(--silly-color-text);
@@ -67,22 +72,18 @@
   white-space: nowrap;
 }
 
-.blocking-dialog__backdrop,
-.blocking-dialog__content {
-  /* System dialogs paint above every system-layer resident (title screen
-     z 10, boot splash z 11): Settings/Save opened from the front door must
-     cover it, not hide under it. */
-}
-
 .blocking-dialog__backdrop {
   inset: 0;
-  z-index: 20;
+
+  /* Dialogs paint above every system-layer resident (front door, splash)
+     by scale, not by accident: see --silly-surface-z-* in tokens.css. */
+  z-index: var(--silly-surface-z-dialog-backdrop);
   background: rgb(12 8 6 / 72%);
   pointer-events: auto;
 }
 
 .blocking-dialog__content {
-  z-index: 21;
+  z-index: var(--silly-surface-z-dialog);
   inset-block-start: 50%;
   inset-inline-start: 50%;
   inline-size: min(42rem, calc(100% - 2 * var(--silly-space-3)));
@@ -97,6 +98,16 @@
   pointer-events: auto;
   transform: translate(-50%, -50%);
   overscroll-behavior: contain;
+}
+
+/* Nested confirmations (load/clear/import inside the Save dialog) sit one
+   stratum above the dialog that opened them. */
+.blocking-dialog__backdrop--confirm {
+  z-index: var(--silly-surface-z-confirm-backdrop);
+}
+
+.blocking-dialog__content--confirm {
+  z-index: var(--silly-surface-z-confirm);
 }
 
 .blocking-dialog__actions {

@@ -21,6 +21,7 @@ import type {
 import {
   Button,
   createAnimationFramePresentationClockV1,
+  PanelV1,
   createAssetRegistryV1,
   createPlaybackControllerV1,
   createTextRevealV1,
@@ -492,47 +493,43 @@ function CatcafeHistoryPanelV1(props: {
   onClose(): void;
 }): ReactElement {
   return (
-    <section
-      data-cc-history="true"
-      aria-label={props.uiText("text.cc.playback.history.title")}
+    <div
       style={{
         position: "absolute",
         insetInline: "min(200px, 10%)",
         insetBlock: "min(60px, 8%)",
-        overflowY: "auto",
+        display: "grid",
         padding: "clamp(12px, 3%, 32px)",
         borderRadius: "16px",
         background: "rgba(12, 15, 20, 0.94)",
-        color: "#f2efe8",
         pointerEvents: "auto",
       }}
-      tabIndex={0}
     >
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h2 style={{ margin: 0, fontSize: "18px", color: catcafeThemeV1.amber }}>
-          {props.uiText("text.cc.playback.history.title")}
-        </h2>
-        <Button data-cc-history-close="true" onClick={props.onClose}>
-          {props.uiText("text.cc.playback.history.close")}
-        </Button>
-      </header>
-      {props.entries.length === 0 ? (
-        <p>{props.uiText("text.cc.playback.history.empty")}</p>
-      ) : (
-        <ul style={{ listStyle: "none", padding: 0, display: "grid", gap: "10px" }}>
-          {props.entries.map((entry) => (
-            <li key={entry.occurrenceId} data-cc-history-entry={entry.kind}>
-              {entry.speakerTextId === null ? null : (
-                <strong style={{ color: "#ffd9a0", marginInlineEnd: "8px" }}>
-                  {props.uiText(entry.speakerTextId)}
-                </strong>
-              )}
-              <span>{props.uiText(entry.textId)}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
+      <PanelV1
+        title={props.uiText("text.cc.playback.history.title")}
+        titleId="cc-history-title"
+        onClose={props.onClose}
+        closeLabel={props.uiText("text.cc.playback.history.close")}
+        rootAttributes={{ "data-cc-history": "true" }}
+      >
+        {props.entries.length === 0 ? (
+          <p>{props.uiText("text.cc.playback.history.empty")}</p>
+        ) : (
+          <ul style={{ listStyle: "none", padding: 0, display: "grid", gap: "10px" }}>
+            {props.entries.map((entry) => (
+              <li key={entry.occurrenceId} data-cc-history-entry={entry.kind}>
+                {entry.speakerTextId === null ? null : (
+                  <strong style={{ color: "#ffd9a0", marginInlineEnd: "8px" }}>
+                    {props.uiText(entry.speakerTextId)}
+                  </strong>
+                )}
+                <span>{props.uiText(entry.textId)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </PanelV1>
+    </div>
   );
 }
 

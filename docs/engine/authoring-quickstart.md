@@ -83,3 +83,9 @@ deno task story prebuilt-smoke <app>
 - 每一次编辑后立即跑 A 层验证环，用诊断驱动下一步，而不是批量修改后猜错误。
 - 泛型实例化（`WebGameApplicationV1` 有 15 个类型参数）永远抄现有应用声明整体修改，不要从零手写。
 - 引擎行为疑问先读 `docs/engine/features.md` 对应小节，不要读引擎源码猜。
+
+## UI 样式速查
+
+- 皮肤与布局只用发布令牌：颜色/间距/圆角/触控尺寸是 `--silly-color-*`、`--silly-space-*`、`--silly-radius-*`、`--silly-target-min-size`（定义在 `@sillymaker/ui` 的 `theme/tokens.css`）。
+- **禁写裸 z-index**：舞台七层用 `--silly-stage-z-*`（与 `stageLayerIdsV1` 一致），层内表面用 `--silly-surface-z-*` 刻度（base < raised < front-door < splash < dialog-backdrop < dialog < confirm-backdrop < confirm），契约有测试盯守。
+- 玩法窗体（商店/道具箱/图鉴/历史）不要手搓外壳：挂 overlay session 自动获得 `PanelV1` 窗体 chrome；独立面板直接用 `PanelV1`（标题栏 + 关闭 + 可聚焦滚动区）。

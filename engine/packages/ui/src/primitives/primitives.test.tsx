@@ -182,13 +182,15 @@ describe("theme tokens", () => {
       (match) => [match[1], Number(match[2])],
     );
 
+    // Order matches stageLayerIdsV1: overlays paint above the narrative
+    // panel (album/save surfaces must never sit under dialogue text).
     expect(zTokens).toEqual([
       ["background", 0],
       ["character", 10],
       ["scene-interaction", 20],
       ["hud", 30],
-      ["workspace-overlay", 40],
-      ["narrative", 50],
+      ["narrative", 40],
+      ["workspace-overlay", 50],
       ["system", 60],
     ]);
   });

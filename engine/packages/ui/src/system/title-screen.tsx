@@ -53,7 +53,7 @@ export function TitleScreenV1(props: {
               backgroundPosition: "center",
             }),
         color: "#f2efe8",
-        zIndex: 10,
+        zIndex: "var(--silly-surface-z-front-door)",
         pointerEvents: "auto",
       }}
     >

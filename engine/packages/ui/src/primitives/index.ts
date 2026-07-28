@@ -5,3 +5,5 @@ export { IconButton } from "./IconButton.tsx";
 export type { IconButtonPropsV1 } from "./IconButton.tsx";
 export { ProgressMeter } from "./ProgressMeter.tsx";
 export type { ProgressMeterPropsV1 } from "./ProgressMeter.tsx";
+export { PanelV1 } from "./Panel.tsx";
+export type { PanelPropsV1 } from "./Panel.tsx";

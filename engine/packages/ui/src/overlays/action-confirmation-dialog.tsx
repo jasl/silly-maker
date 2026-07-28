@@ -115,13 +115,13 @@ export function ActionConfirmationDialogV1<TInvocation, TResult>(
     <DialogPrimitive.Root open onOpenChange={(open) => !open && close()}>
       <DialogPrimitive.Portal container={portalContainer ?? undefined}>
         <DialogPrimitive.Overlay
-          className={styles["blocking-dialog__backdrop"]}
+          className={`${styles["blocking-dialog__backdrop"]} ${styles["blocking-dialog__backdrop--confirm"]}`}
           data-system-dialog-backdrop="action_confirmation"
           style={{ position }}
         />
         <DialogPrimitive.Content
           ref={setFocusScopeElement}
-          className={styles["blocking-dialog__content"]}
+          className={`${styles["blocking-dialog__content"]} ${styles["blocking-dialog__content--confirm"]}`}
           data-blocking-focus-scope="system"
           data-system-surface="action_confirmation"
           style={{ position }}
