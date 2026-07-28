@@ -72,7 +72,7 @@ DialoguePanelV1(props: {
 })
 ```
 
-验收路径：先落引擎组件与组件测试 → cat-cafe 迁移（删胶水，E2E 原样通过）→ template/bookshop 迁移（第二、三消费者）→ features.md 入册。这是下一轮 UI 批次的头条。
+验收路径：先落引擎组件与组件测试 → cat-cafe 迁移（删胶水，E2E 原样通过）→ template/bookshop 迁移（第二、三消费者）→ features.md 入册。这是下一轮 UI 批次的头条。代码组织维度的配套方案见 [特性切片提案](../proposals/feature-slices.md)——dialogue 特性目录正是本组件的消费方。
 
 ### 已评估项记录
 
