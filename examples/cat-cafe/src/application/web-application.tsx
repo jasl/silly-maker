@@ -23,6 +23,7 @@ import {
   Button,
   resolveAssetUrlV1,
   useAssetUrlV1,
+  useLocaleTextV1,
   useReducedMotionV1,
   createAnimationFramePresentationClockV1,
   PanelV1,
@@ -75,12 +76,7 @@ export const catcafeViewportCanvasV1 = Object.freeze({ width: 1280, height: 720 
 
 /** Locale 感知的 UI 文本：订阅 Host 偏好，语言切换即时生效。 */
 function useCatcafeTextV1(playerProfile: PlayerProfileStoreV1): (textId: string) => string {
-  const profile = useSyncExternalStore(
-    (listener) => playerProfile.subscribe(listener),
-    () => playerProfile.current(),
-  );
-  const locale = profile.preferences.locale;
-  return (textId: string) => catcafeTextForLocaleV1(locale, textId);
+  return useLocaleTextV1(playerProfile, catcafeTextForLocaleV1);
 }
 
 export function catcafeUiTextV1(textId: string): string {
@@ -733,6 +729,11 @@ function CatcafeStatBarV1(props: {
         <span>{String(props.value)}</span>
       </span>
       <span
+        role="progressbar"
+        aria-label={props.label}
+        aria-valuenow={props.value}
+        aria-valuemin={0}
+        aria-valuemax={100}
         style={{
           display: "block",
           blockSize: "6px",
