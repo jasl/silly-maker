@@ -34,6 +34,8 @@
     "desktop:save-server": "deno run -A scripts/desktop/save-server.mts",
     "docs:dev": "deno run -A npm:vitepress dev website",
     "docs:build": "deno run -A npm:vitepress build website",
-    "docs:preview": "deno run -A npm:vitepress preview website"
+    "docs:preview": "deno run -A npm:vitepress preview website",
+    "site:build": "deno run -A scripts/build-site.mts",
+    "site:deploy:cf": "deno run -A npm:wrangler@4.114.0 deploy"
   }
 }

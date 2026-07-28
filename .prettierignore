@@ -8,3 +8,4 @@ art-source/aigc/**/*.png
 art-source/aigc/**/*.webp
 references/
 *.tsbuildinfo
+.wrangler/
