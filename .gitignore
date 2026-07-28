@@ -24,6 +24,8 @@ node_modules/
 
 # Frontend build, test, and tooling output.
 dist/
+website/.vitepress/cache/
+website/.vitepress/.temp/
 build/
 coverage/
 .vite/

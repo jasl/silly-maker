@@ -8,7 +8,8 @@
     "./e2e",
     "./template",
     "./examples/bookshop",
-    "./examples/cat-cafe"
+    "./examples/cat-cafe",
+    "./website"
   ],
   "tasks": {
     "dev": "deno run -A npm:vite --mode e2e",
@@ -30,6 +31,9 @@
     "test:conformance:headless": "deno run -A npm:vitest run e2e",
     "test:e2e:engine:prebuilt": "deno task story build e2e && deno run -A npm:@playwright/test/playwright test --config engine/packages/web/playwright.engine-prebuilt.config.ts",
     "check": "deno task format:check && deno task lint && deno task lint:styles && deno task typecheck && deno task test && deno task check:assets && deno task check:stories && deno task story build e2e",
-    "desktop:save-server": "deno run -A scripts/desktop/save-server.mts"
+    "desktop:save-server": "deno run -A scripts/desktop/save-server.mts",
+    "docs:dev": "deno run -A npm:vitepress dev website",
+    "docs:build": "deno run -A npm:vitepress build website",
+    "docs:preview": "deno run -A npm:vitepress preview website"
   }
 }
