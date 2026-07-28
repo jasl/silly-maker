@@ -2,7 +2,6 @@
   "version": "5",
   "specifiers": {
     "npm:@axe-core/playwright@4.12.1": "4.12.1",
-    "npm:@fontsource/noto-sans-sc@5.2.9": "5.2.9",
     "npm:@playwright/test@*": "1.61.1",
     "npm:@playwright/test@1.61.1": "1.61.1",
     "npm:@radix-ui/react-dialog@1.1.19": "1.1.19_@types+react@19.2.17_@types+react-dom@19.2.3__@types+react@19.2.17_react@19.2.7_react-dom@19.2.7__react@19.2.7",
@@ -841,9 +840,6 @@
     },
     "@exodus/bytes@1.15.1": {
       "integrity": "sha512-S6mL0yNB/Abt9Ei4tq8gDhcczc4S3+vQ4ra7vxnAf+YHC02srtqxKKZghx2Dq6p0e66THKwR6r8N6P95wEty7Q=="
-    },
-    "@fontsource/noto-sans-sc@5.2.9": {
-      "integrity": "sha512-bTUIWGBgJDpwi5qAr+x0/lcgv80IHTB9vl6s2f6EymZEa7qYV99yNRBZuKFT+SYDKVunZrjCEhWtpxqmbXWl5Q=="
     },
     "@iconify-json/simple-icons@1.2.92": {
       "integrity": "sha512-hR0ozxR97t1dzWw+esoxFijZ15gagt7EIgF3CNifu2yICXhS7gnun4Y+j+odJQtNSl7wvqMdoLbViIShwe/fdw==",
@@ -4273,7 +4269,6 @@
       "engine/packages/ui": {
         "packageJson": {
           "dependencies": [
-            "npm:@fontsource/noto-sans-sc@5.2.9",
             "npm:@radix-ui/react-dialog@1.1.19",
             "npm:lucide-react@1.24.0",
             "npm:react-dom@19.2.7",

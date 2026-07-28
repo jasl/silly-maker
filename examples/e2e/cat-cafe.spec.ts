@@ -12,7 +12,37 @@ import { catcafeTargetUrlV1, expect, test } from "./fixtures.ts";
 
 /** The boot splash fronts the title screen; click it away deterministically. */
 async function dismissSplashV1(page: Page): Promise<void> {
-  await page.locator("[data-boot-splash]").click();
+  const splash = page.locator("[data-boot-splash]");
+  const title = page.locator("[data-title-screen]");
+  // Auto-dismiss may already have cleared the splash after a slow reload.
+  await expect(splash.or(title)).toBeVisible();
+  if (await splash.isVisible()) await splash.click();
+  await expect(title).toBeVisible();
+}
+
+/** Wait until the title Continue control reflects autosave availability. */
+async function expectContinueAvailabilityV1(page: Page, available: boolean): Promise<void> {
+  const continueButton = page.locator("[data-title-continue]");
+  await expect(continueButton).toHaveAttribute(
+    "data-title-continue-available",
+    available ? "true" : "false",
+  );
+  if (available) await expect(continueButton).toBeEnabled();
+  else await expect(continueButton).toBeDisabled();
+}
+
+/** Wipe the example's IndexedDB so Continue/resume tests start from a blank disk. */
+async function clearCatCafeRecordsV1(page: Page): Promise<void> {
+  await page.goto(catcafeTargetUrlV1());
+  await page.evaluate(async () => {
+    const name = "sillymaker.example-cat-cafe";
+    await new Promise<void>((resolve, reject) => {
+      const request = indexedDB.deleteDatabase(name);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error ?? new Error("indexedDB.deleteDatabase failed"));
+      request.onblocked = () => resolve();
+    });
+  });
 }
 
 async function advanceRevealedSayV1(page: Page): Promise<void> {
@@ -397,6 +427,8 @@ test("language switches live in Settings and persists across reload", async ({ p
   await page.reload();
   await dismissSplashV1(page);
   await expect(page.getByRole("button", { name: "New game" })).toBeEnabled();
+  // Autosave from the earlier session makes Continue available.
+  await expectContinueAvailabilityV1(page, true);
   // The narrative advance button is also labeled "Continue" in English,
   // so address the title screen's own control directly.
   await page.locator("[data-title-continue]").click();
@@ -418,4 +450,32 @@ test("the album overlay masks locked entries and shows unlocked meta progress", 
   await expect(
     page.locator("[data-cc-album-entry='album.trophy.week3'][data-cc-album-unlocked='false']"),
   ).toBeVisible();
+});
+
+test("Continue stays unavailable until an autosave exists", async ({ page }) => {
+  await clearCatCafeRecordsV1(page);
+  await page.reload();
+  await dismissSplashV1(page);
+  await expectContinueAvailabilityV1(page, false);
+});
+
+test("a page refresh resumes the autosaved session behind the title screen", async ({ page }) => {
+  // Opening typewriter + reload naturally exceeds the default 30s budget.
+  test.slow();
+  await clearCatCafeRecordsV1(page);
+  await page.reload();
+  await playOpeningV1(page);
+  // Mutate state and wait for the debounced autosave to land.
+  await page.locator("[data-cc-activity='activity.play']").click();
+  await expect
+    .poll(async () => page.locator("[data-cc-stats-text]").textContent())
+    .toContain("信任13");
+  await page.waitForTimeout(1500);
+  // Reload = new page session; resumeFromAutosave makes Continue truthful.
+  await page.reload();
+  await dismissSplashV1(page);
+  await expectContinueAvailabilityV1(page, true);
+  await page.locator("[data-title-continue]").click();
+  await expect(page.locator("[data-cc-stats-text]")).toContainText("信任13");
+  await expect(page.locator("[data-cc-stats-text]")).toContainText("技艺1");
 });

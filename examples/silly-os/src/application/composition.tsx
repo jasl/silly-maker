@@ -87,11 +87,6 @@ function OsShellV1(props: {
   const [booting, setBooting] = useState(true);
   const [exploded, setExploded] = useState(false);
 
-  // 开机自动恢复：boot 动画期间加载自动存档（上次关机状态）。首次
-  // 开机（空槽）静默走全新状态；引擎的自动存档策略负责"自动保存"。
-  useEffect(() => {
-    void props.instance.persistence.load("auto.current" as never).catch(() => {});
-  }, [props.instance]);
   const boundsWidth = osDesktopBoundsForV1(viewport).width;
   const boundsHeight = osDesktopBoundsForV1(viewport).height;
   const bounds = useMemo(
@@ -382,8 +377,8 @@ export const osGameApplicationV1: WebGameApplicationV1<
       projector: osUiProjectorV1,
       overlayIds: Object.freeze([] as const),
       slots: createOsUiSlotsV1({ instance, playerProfile }),
-      // 无 titleScreen：开机直接进桌面（引擎自动恢复自动存档 = 自动加载，
-      // 自动存档策略 = 自动保存）；无 saveLabels：不启用存档对话框。
+      // 无 titleScreen：开机直达桌面。持久化完全由引擎内部处理，不暴露
+      // 存档 UI / 槽位规则（电脑语义：硬盘随关机保存、开机恢复）。
       labels: zh ? osRootLabelsZhV1 : osRootLabelsEnV1,
       hideSystemMenu: true,
     });

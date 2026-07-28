@@ -12,7 +12,7 @@ export function catcafeTargetUrlV1(query = ""): string {
   return `http://${catcafeTargetV1.host}:${String(catcafeTargetV1.port)}/${query}`;
 }
 
-/** SillyOS 98：全定制桌面 shell（窗口/任务栏/应用/存档持久）。 */
+/** SillyOS 98：全定制桌面 shell（窗口/任务栏/应用；持久化对玩家不透明）。 */
 export const sillyOsTargetV1 = Object.freeze({ host: hostV1, port: 41739 });
 
 export function sillyOsTargetUrlV1(query = ""): string {

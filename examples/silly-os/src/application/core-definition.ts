@@ -33,6 +33,8 @@ export const osCoreApplicationDefinitionV1 = defineCoreGameApplication<
   entry: osStoryEntryV1,
   semantic: osSemanticAdapterV1,
   exportFilename: "silly-os-save.json",
+  // 开机恢复上次关机状态（电脑语义；对玩家不暴露存档规则）。
+  resumeFromAutosave: true,
 });
 
 export type OsApplicationInstanceV1 = CoreGameApplicationInstanceV1<

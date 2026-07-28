@@ -27,6 +27,8 @@ export function TitleScreenV1(props: {
   readonly labels: TitleScreenLabelsV1;
   /** Optional key-art URL painted behind the menu. */
   readonly backgroundUrl?: string;
+  /** False when no runnable autosave exists — Continue must stay unavailable. */
+  readonly continueAvailable: boolean;
   onNewGame(): void;
   onContinue(): void;
   /** Shows the Load-game entry (opens the system Save dialog). */
@@ -70,7 +72,12 @@ export function TitleScreenV1(props: {
         <Button data-title-new-game="true" onClick={() => props.onNewGame()}>
           {props.labels.newGameLabel}
         </Button>
-        <Button data-title-continue="true" onClick={() => props.onContinue()}>
+        <Button
+          data-title-continue="true"
+          data-title-continue-available={props.continueAvailable ? "true" : "false"}
+          disabled={!props.continueAvailable}
+          onClick={() => props.onContinue()}
+        >
           {props.labels.continueLabel}
         </Button>
         {props.showLoadGame === true ? (

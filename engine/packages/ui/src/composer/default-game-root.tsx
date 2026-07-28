@@ -211,6 +211,17 @@ const closedDevDockStateV1 = Object.freeze({
 }) satisfies DevDockOpenStateV1;
 const emptyDevDockContributionsV1 = createDevDockContributionSetV1({ panels: [] });
 
+/** Continue is only available when the autosave slot can be loaded. */
+function continueAvailableFromSlotsV1(
+  slots: readonly { readonly slotId: string; readonly health: string }[],
+): boolean {
+  const autosave = slots.find((slot) => slot.slotId === "auto.current");
+  return (
+    autosave !== undefined &&
+    (autosave.health === "valid" || autosave.health === "recovery_candidate")
+  );
+}
+
 function createDefaultOverlayResolverV1<TOverlayId extends string>(input: {
   readonly storyResolver: OverlayRendererResolverV1<TOverlayId> | null;
 }): OverlayRendererResolverV1<GameUiOverlayIdV1<TOverlayId>> {
@@ -299,6 +310,7 @@ export function DefaultGameRootV1<
   const labels = Object.freeze({ ...defaultGameRootLabelsV1, ...props.labels });
   const [titleDismissed, setTitleDismissed] = useState(props.titleScreen === undefined);
   const [splashDismissed, setSplashDismissed] = useState(props.titleScreen?.splash === undefined);
+  const [continueAvailable, setContinueAvailable] = useState(false);
   const publication = useSyncExternalStore(
     props.composition.presentation.subscribe,
     props.composition.presentation.getSnapshot,
@@ -313,6 +325,28 @@ export function DefaultGameRootV1<
   useEffect(() => {
     if (anchorOrigin === "load" || anchorOrigin === "import") setTitleDismissed(true);
   }, [anchorOrigin]);
+
+  // Continue must stay disabled until a runnable autosave is confirmed.
+  // Without a save UI port there is no slot inventory to consult.
+  const savePort = props.saveUi?.port;
+  useEffect(() => {
+    let cancelled = false;
+    if (savePort === undefined || titleDismissed) {
+      setContinueAvailable(false);
+    } else {
+      void savePort
+        .listSlots()
+        .then((slots) => {
+          if (!cancelled) setContinueAvailable(continueAvailableFromSlotsV1(slots));
+        })
+        .catch(() => {
+          if (!cancelled) setContinueAvailable(false);
+        });
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [savePort, titleDismissed, splashDismissed]);
 
   // Composition-backed members stay referentially stable across renders so
   // Story lifecycle effects can depend on them without re-subscribing.
@@ -450,6 +484,7 @@ export function DefaultGameRootV1<
               loadGameLabel: labels.titleLoadGameLabel,
               settingsLabel: labels.settingsLabel,
             })}
+            continueAvailable={continueAvailable}
             onNewGame={() => {
               const restart = props.lifecycle?.restart();
               void (restart ?? Promise.resolve()).finally(() => setTitleDismissed(true));
