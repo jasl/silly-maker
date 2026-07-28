@@ -88,6 +88,8 @@ export interface WebGameUiDefinitionV1<
   readonly labels?: Partial<DefaultGameRootLabelsV1>;
   readonly saveLabels?: SaveOverlayLabelsV1;
   readonly devDockContributions?: DevDockContributionSetV1;
+  /** Shows the engine title screen (New game / Continue / Settings). */
+  readonly titleScreen?: { readonly title: string };
   /**
    * Capability-gated lazy DevDock contributions: tooling UI loads on
    * demand and never enters the player bundle.
@@ -489,6 +491,11 @@ export async function startWebGameApplicationV1<
         applicationId={application.applicationId}
         viewport={application.viewport}
         capabilities={capabilities}
+        playerProfile={playerProfile}
+        lifecycle={Object.freeze({ restart: () => instance.lifecycle.restart() })}
+        {...(uiDefinition.titleScreen === undefined
+          ? {}
+          : { titleScreen: uiDefinition.titleScreen })}
         {...(uiDefinition.resolveStageAccessibleName === undefined
           ? {}
           : {

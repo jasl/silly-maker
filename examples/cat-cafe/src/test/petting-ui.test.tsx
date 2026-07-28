@@ -52,6 +52,11 @@ it("pets the cat through stage hit regions: reaction, trust, budget", async () =
   });
   const user = userEvent.setup();
   try {
+    // Pass the title screen first: the game front door renders before HUD.
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "新游戏" })).toBeEnabled();
+    });
+    await user.click(screen.getByRole("button", { name: "新游戏" }));
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "开始故事" })).toBeEnabled();
     });

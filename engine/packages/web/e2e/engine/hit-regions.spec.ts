@@ -11,6 +11,8 @@ import { catcafeTargetUrlV1, expect, test } from "./fixtures.ts";
  */
 
 async function playOpeningV1(page: Page): Promise<void> {
+  // The title screen is the game's front door; enter through New game.
+  await page.getByRole("button", { name: "新游戏" }).click();
   await page.getByRole("button", { name: "开始故事" }).click();
   for (let index = 0; index < 3; index += 1) {
     await page.locator("[data-cc-advance]").click();
@@ -133,8 +135,11 @@ test("language switches live in Settings and persists across reload", async ({ p
   await page.getByRole("button", { name: "关闭" }).click();
   await expect(page.getByRole("button", { name: "Play with Drizzle" })).toBeVisible();
 
-  // The preference is Host data: a reload keeps English, including chrome.
+  // The preference is Host data: a reload keeps English, including chrome
+  // and the title screen labels.
   await page.reload();
+  await expect(page.getByRole("button", { name: "New game" })).toBeEnabled();
+  await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByRole("button", { name: "Begin the story" })).toBeEnabled();
   await expect(page.getByRole("button", { name: "Settings" })).toBeVisible();
 });

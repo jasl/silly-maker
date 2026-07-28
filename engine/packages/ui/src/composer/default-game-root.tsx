@@ -23,6 +23,9 @@ import type { RuntimePresentationPublicationV1 } from "../runtime/runtime-presen
 import { GameShell } from "../shell/game-shell.tsx";
 import type { GameShellViewportOptionsV1 } from "../shell/game-shell.tsx";
 import { SettingsLauncherV1 } from "../system/settings-launcher.tsx";
+import { DefaultSettingsSectionsV1 } from "../system/default-settings-sections.tsx";
+import { TitleScreenV1 } from "../system/title-screen.tsx";
+import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
 import { SystemDialogHostV1 } from "../system/system-dialog-host.tsx";
 import { Button } from "../primitives/Button.tsx";
 import type { InteractionSessionStoreV1 } from "../interaction/interaction-session-store.ts";
@@ -40,6 +43,12 @@ export interface DefaultGameRootLabelsV1 {
   readonly settingsLabel: string;
   readonly settingsTitle: string;
   readonly settingsEmptyText: string;
+  readonly settingsVolumeLabel: string;
+  readonly settingsMutedLabel: string;
+  readonly settingsFullscreenLabel: string;
+  readonly settingsDeveloperToolsLabel: string;
+  readonly titleNewGameLabel: string;
+  readonly titleContinueLabel: string;
   readonly closeLabel: string;
 }
 
@@ -49,6 +58,12 @@ export const defaultGameRootLabelsV1: DefaultGameRootLabelsV1 = Object.freeze({
   settingsLabel: "Settings",
   settingsTitle: "Settings",
   settingsEmptyText: "No settings available yet.",
+  settingsVolumeLabel: "Volume",
+  settingsMutedLabel: "Mute",
+  settingsFullscreenLabel: "Toggle fullscreen",
+  settingsDeveloperToolsLabel: "Developer tools",
+  titleNewGameLabel: "New game",
+  titleContinueLabel: "Continue",
   closeLabel: "Close",
 });
 
@@ -123,6 +138,11 @@ export interface DefaultGameRootPropsV1<
   readonly applicationId: string;
   readonly viewport: GameShellViewportOptionsV1;
   readonly capabilities?: RuntimeCapabilityPortV1;
+  /** Enables the engine-baseline Settings sections (volume, fullscreen…). */
+  readonly playerProfile?: PlayerProfileStoreV1;
+  /** Shows the default title screen before gameplay; New game restarts. */
+  readonly titleScreen?: { readonly title: string };
+  readonly lifecycle?: { restart(): Promise<unknown> };
   readonly saveUi?: {
     readonly port: SaveOverlayPortV1;
     readonly labels: SaveOverlayLabelsV1;
@@ -259,6 +279,7 @@ export function DefaultGameRootV1<
 ): ReactElement {
   type PublicationV1 = RuntimePresentationPublicationV1<TSemanticPublication, TView, TAssetId>;
   const labels = Object.freeze({ ...defaultGameRootLabelsV1, ...props.labels });
+  const [titleDismissed, setTitleDismissed] = useState(props.titleScreen === undefined);
   const publication = useSyncExternalStore(
     props.composition.presentation.subscribe,
     props.composition.presentation.getSnapshot,
@@ -348,10 +369,42 @@ export function DefaultGameRootV1<
         settings={Object.freeze({
           title: labels.settingsTitle,
           closeLabel: labels.closeLabel,
-          sections: Object.freeze(slots.settingsSections?.(slotContext) ?? []),
+          sections: Object.freeze([
+            ...(props.playerProfile === undefined || props.capabilities === undefined
+              ? []
+              : [
+                  <DefaultSettingsSectionsV1
+                    key="sillymaker-default-settings"
+                    playerProfile={props.playerProfile}
+                    capabilities={props.capabilities}
+                    labels={Object.freeze({
+                      volumeLabel: labels.settingsVolumeLabel,
+                      mutedLabel: labels.settingsMutedLabel,
+                      fullscreenLabel: labels.settingsFullscreenLabel,
+                      developerToolsLabel: labels.settingsDeveloperToolsLabel,
+                    })}
+                  />,
+                ]),
+            ...(slots.settingsSections?.(slotContext) ?? []),
+          ]),
           emptyText: labels.settingsEmptyText,
         })}
       >
+        {props.titleScreen === undefined || titleDismissed ? null : (
+          <TitleScreenV1
+            title={props.titleScreen.title}
+            labels={Object.freeze({
+              newGameLabel: labels.titleNewGameLabel,
+              continueLabel: labels.titleContinueLabel,
+              settingsLabel: labels.settingsLabel,
+            })}
+            onNewGame={() => {
+              const restart = props.lifecycle?.restart();
+              void (restart ?? Promise.resolve()).finally(() => setTitleDismissed(true));
+            }}
+            onContinue={() => setTitleDismissed(true)}
+          />
+        )}
         <div
           role="group"
           aria-label={labels.systemMenuLabel}

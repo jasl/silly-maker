@@ -552,46 +552,6 @@ function CatcafeSettingsV1(props: { readonly playerProfile: PlayerProfileStoreV1
           ))}
         </select>
       </label>
-      <label style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-        {uiText("text.cc.settings.volume")}
-        <input
-          type="range"
-          min={0}
-          max={1000}
-          step={50}
-          data-cc-settings-volume="true"
-          value={preferences.masterGainPermille}
-          onChange={(event) => {
-            void props.playerProfile.updatePreferences({
-              masterGainPermille: Number(event.target.value),
-            });
-          }}
-        />
-        <span>{String(Math.round(preferences.masterGainPermille / 10))}%</span>
-      </label>
-      <label style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-        <input
-          type="checkbox"
-          data-cc-settings-muted="true"
-          checked={preferences.muted}
-          onChange={(event) => {
-            void props.playerProfile.updatePreferences({ muted: event.target.checked });
-          }}
-        />
-        {uiText("text.cc.settings.muted")}
-      </label>
-      <Button
-        data-cc-settings-fullscreen="true"
-        onClick={() => {
-          if (document.fullscreenElement === null) {
-            void document.documentElement.requestFullscreen?.();
-          } else {
-            void document.exitFullscreen?.();
-          }
-        }}
-      >
-        {uiText("text.cc.settings.fullscreen")}
-      </Button>
       <p style={{ margin: 0, opacity: 0.75, maxInlineSize: "36em" }}>
         {uiText("text.cc.settings.resolution")}
       </p>
@@ -671,6 +631,12 @@ export const catcafeRootLabelsV1: Partial<DefaultGameRootLabelsV1> = Object.free
   settingsLabel: "设置",
   settingsTitle: "设置",
   settingsEmptyText: "暂无可配置项。",
+  settingsVolumeLabel: "音量",
+  settingsMutedLabel: "静音",
+  settingsFullscreenLabel: "切换全屏",
+  settingsDeveloperToolsLabel: "开发者工具",
+  titleNewGameLabel: "新游戏",
+  titleContinueLabel: "继续",
   closeLabel: "关闭",
 });
 
@@ -680,6 +646,12 @@ const catcafeRootLabelsEnV1: Partial<DefaultGameRootLabelsV1> = Object.freeze({
   settingsLabel: "Settings",
   settingsTitle: "Settings",
   settingsEmptyText: "No settings available yet.",
+  settingsVolumeLabel: "Volume",
+  settingsMutedLabel: "Mute",
+  settingsFullscreenLabel: "Toggle fullscreen",
+  settingsDeveloperToolsLabel: "Developer tools",
+  titleNewGameLabel: "New game",
+  titleContinueLabel: "Continue",
   closeLabel: "Close",
 });
 
@@ -892,6 +864,12 @@ export const catcafeWebApplicationV1: WebGameApplicationV1<
     readonly playerProfile: PlayerProfileStoreV1;
   }) =>
     Object.freeze({
+      titleScreen: Object.freeze({
+        title: catcafeTextForLocaleV1(
+          playerProfile.current().preferences.locale,
+          "text.cc.app.name",
+        ),
+      }),
       projector: catcafeUiProjectorV1,
       overlayIds: Object.freeze(["overlay.catcafe.album"] as const),
       slots: createCatcafeUiSlotsV1({ instance, playerProfile }),
