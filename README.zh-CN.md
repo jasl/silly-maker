@@ -36,6 +36,7 @@ deno task dev            # Vite 开发服务器（用 --mode <applicationId> 选
 - [文档地图](docs/README.md)——下述一切的索引
 - [架构](docs/engine/architecture.md) · [特性](docs/engine/features.md) · [路线图](docs/engine/roadmap.md)
 - [开发与测试](docs/engine/development.md) · [Story 编写](docs/engine/story-authoring.md) · [创作快速上手](docs/engine/authoring-quickstart.md)
+- [Agent 游戏生成指南](docs/engine/agent-game-guide.md)——把仓库交给 coding agent，收获一个游戏
 - [构建与发布](docs/engine/build-and-release.md)（网页、静态托管、桌面打包）
 - 对外文档站（VitePress，中英双语）在 [`website/`](website/)
 

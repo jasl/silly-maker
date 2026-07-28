@@ -8,6 +8,7 @@ Active documentation describes the code and decisions maintained after the first
 - [Features](engine/features.md) — implemented authoring, runtime, UI, Web, diagnostics, and tooling capabilities.
 - [Development](engine/development.md) — setup, repository layout, testing policy, and maintenance workflow.
 - [Story authoring](engine/story-authoring.md) — composing a Story from gameplay and presentation facets.
+- [Agent game guide](engine/agent-game-guide.md) — how to have a coding agent generate a game here.
 - [Build and release](engine/build-and-release.md) — development server, Player build, local Artifact, desktop save server, and smoke verification.
 - [Authoring quickstart](engine/authoring-quickstart.md) — the layered playbook agents and humans follow for Story edits.
 
