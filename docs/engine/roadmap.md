@@ -1,6 +1,6 @@
 # SillyMaker engine roadmap
 
-状态：2026-07-19 接受的连续演进方向。R1–R4 已随 [vNext foundations plan](plans/2026-07-19-sillymaker-vnext-foundations.md) 实现并进入 [feature list](features.md)（含 Engine Conformance 垂直切片、AI authoring canaries 与 PoC 的 Composer 迁移）；R5 的 Timeline、R6 的 1–2 步（DevTools 数据面）与 R7 玩家回滚已按 [R5–R7 执行计划](plans/2026-07-28-sillymaker-r5-r7.md) 实现并进入 feature list；该计划的 defer 表（keyframes、onLifecycle、受约束场景图、R6.3–6.5 编辑器、R8 媒体 adapter 等）记录了未做部分及其激活条件。复刻缺口分析驱动的内容数据库、语义舞台命中区域与 Host 元进度命名空间已随《雨巷猫舍》示例交付（`examples/cat-cafe`，见计划的缺口交付记录）。《雨巷猫舍》此后升格为旗舰示例：完整可玩游戏（标题屏、设置基线、AIGC 全套美术、运行时资产管线、竞赛/图鉴/结局演出、双语），并交付了一步桌面打包（`story desktop`，含图标与文件存档）。
+状态：2026-07-19 接受的连续演进方向。R1–R4 已随 [vNext foundations plan](plans/2026-07-19-sillymaker-vnext-foundations.md) 实现并进入 [feature list](features.md)（含 Engine Conformance 垂直切片、AI authoring canaries 与 PoC 的 Composer 迁移）；R5 的 Timeline、R6 的 1–2 步（DevTools 数据面）与 R7 玩家回滚已按 [R5–R7 执行计划](plans/2026-07-28-sillymaker-r5-r7.md) 实现并进入 feature list；该计划的 defer 表（keyframes、onLifecycle、受约束场景图、R6.3–6.5 编辑器、R8 媒体 adapter 等）记录了未做部分及其激活条件。复刻缺口分析驱动的内容数据库、语义舞台命中区域与 Host 元进度命名空间已随《雨巷猫舍》示例交付（`examples/cat-cafe`，见计划的缺口交付记录）。《雨巷猫舍》此后升格为旗舰示例：完整可玩游戏（标题屏、设置基线、AIGC 全套美术、运行时资产管线、竞赛/图鉴/结局演出、后日谈、双语），并交付了一步桌面打包（`story desktop`，含图标与文件存档）。2026-07-28 晚间批次以《雨巷猫舍》为第二真实消费者落地：R8 音频第一刀（`GameAudioV1` 组件、真实 MP3 场景 BGM/环境声/一次性音效、设置音量联动）、VN 播放 QoL（打字机/自动/快进/历史回看，偏好持久化）、R7 rollback 产品策略（开赛与结局确认为硬边界、HUD 一步回退、防重掷证明）；系统菜单收敛为单模态路由（保存/设置互斥、存档安全点、标题屏载入存档）。
 
 ## 1. North star
 
