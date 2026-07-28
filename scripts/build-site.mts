@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 // Composes the publishable static site under dist/site:
-//   /               VitePress documentation (website/)
-//   /play/cat-cafe/ the Cat Cafe Player bundle (relative-base, static saves
-//                   live in the visitor's browser via IndexedDB)
+//   /                VitePress documentation (website/)
+//   /play/cat-cafe/  the Cat Cafe Player bundle (relative-base, static saves
+//                    live in the visitor's browser via IndexedDB)
+//   /play/silly-os/  the SillyOS 98 retro-desktop example
 //
 // SITE_BASE selects the deployment base path. Root deployments (Cloudflare
 // Workers, custom domains) omit it; GitHub Pages project sites set
@@ -46,8 +47,9 @@ async function runV1(command: string[], env?: Record<string, string>): Promise<v
 
 console.log(`[site] base: ${siteBase}`);
 
-// 1. Player bundle (story build already runs vite with the target's config).
+// 1. Player bundles (story build already runs vite with the target's config).
 await runV1(["deno", "task", "story", "build", "example-cat-cafe"]);
+await runV1(["deno", "task", "story", "build", "example-silly-os"]);
 
 // 2. Documentation site with the deployment base.
 await runV1(["deno", "task", "docs:build"], { SITE_BASE: siteBase });
@@ -57,6 +59,9 @@ await rm(siteDir, { recursive: true, force: true });
 await mkdir(join(siteDir, "play"), { recursive: true });
 await cp(join(repoRoot, "website", ".vitepress", "dist"), siteDir, { recursive: true });
 await cp(join(repoRoot, "dist", "example-cat-cafe"), join(siteDir, "play", "cat-cafe"), {
+  recursive: true,
+});
+await cp(join(repoRoot, "dist", "example-silly-os"), join(siteDir, "play", "silly-os"), {
   recursive: true,
 });
 // GitHub Pages runs Jekyll by default which drops underscore-prefixed

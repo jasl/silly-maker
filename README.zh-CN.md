@@ -6,6 +6,8 @@
 
 **试玩旗舰示例**：[《雨巷猫舍》](examples/cat-cafe/)是一款为驱动引擎而生的完整可发布游戏——标题屏、日程经营、抚摸命中区域、回合制运动会、成长图鉴、多结局与后日谈、对话播放体验（打字机/自动/快进/历史/回退）、场景驱动的声音层、带安全点的存档槽位、双语文本，以及一步桌面打包。
 
+**再看它跳出类型**：[SillyOS 98](examples/silly-os/) 是一个复古桌面 shell——重叠可拖拽窗口、任务栏、开始菜单、确定性扫雷（雷区来自事务 RNG、绝不泄漏给 UI）、文件随引擎存档持久的记事本，以及一台年代感浏览器。同一台引擎，零视觉小说预设。
+
 ## 为什么是 SillyMaker
 
 - **构造上的确定性**——一个会话拥有权威状态；命令要么原子提交、要么不留痕迹；RNG 随快照存储，重放与玩家回滚逐位一致。
@@ -49,7 +51,7 @@ engine/packages/ui       通用 React 游戏 UI 与 presentation 运行时
 engine/packages/web      浏览器 Host、IndexedDB/HTTP 持久化、挂载与自动化
 e2e/                     中立引擎一致性 Story（Engine Lab）
 template/                新游戏起点骨架
-examples/                示例 Story（bookshop、cat-cafe）
+examples/                示例 Story（bookshop、cat-cafe、silly-os）
 project.config.ts        所有应用的注册处
 scripts/                 构建身份、资产校验、桌面存档服务器、发布站组装
 docs/                    内部工程文档（计划、研究、提案、政策）

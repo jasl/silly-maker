@@ -91,6 +91,8 @@ export interface DefaultGameRootSlotContextV1<TPublication, TSemantic> {
   readonly input: InputRouterV1;
   /** Updates the composition's Story UI state (routes, spatial sessions…). */
   updateStoryUiState(updater: (current: unknown) => unknown): void;
+  /** Opens the engine system dialogs (custom shells: Start menu, pause menu…). */
+  readonly systemDialogs: { openSettings(): void; openSaves(): void };
   /** Read access to the composition overlay session for Story projections. */
   readonly overlays: {
     getSnapshot(): { readonly primaryId: string | null; readonly detailIds: readonly string[] };
@@ -145,6 +147,12 @@ export interface DefaultGameRootPropsV1<
   >;
   readonly semantic: TSemantic;
   readonly accessibleName: string;
+  /**
+   * Hides the default floating system menu (Save/Settings/Mute). Fully
+   * custom shells (e.g. a desktop metaphor) surface those entries in
+   * their own UI via useSystemDialogControllerV1 instead.
+   */
+  readonly hideSystemMenu?: boolean;
   /** Optional live stage label (current scene name) for the shell main region. */
   resolveStageAccessibleName?(
     publication: DeepReadonly<
@@ -317,6 +325,10 @@ export function DefaultGameRootV1<
     intents: props.composition.intents,
     input: props.composition.input,
     updateStoryUiState,
+    systemDialogs: Object.freeze({
+      openSettings: () => props.composition.systemDialogSession.open("settings"),
+      openSaves: () => props.composition.systemDialogSession.open("saves"),
+    }),
     overlays: props.composition.overlaySession as never,
     presentation: props.composition.presentation as never,
     interactionSession: props.composition.interactionSession,
@@ -446,19 +458,21 @@ export function DefaultGameRootV1<
             showLoadGame={props.saveUi !== undefined}
           />
         )}
-        <div
-          role="group"
-          aria-label={labels.systemMenuLabel}
-          className={styles["default-root__system-menu"]}
-          data-default-system-menu="true"
-        >
-          {props.saveUi === undefined ? null : <SavesLauncherV1 label={labels.saveLabel} />}
-          <SettingsLauncherV1 label={labels.settingsLabel} />
-          {props.playerProfile === undefined ? null : (
-            <MuteToggleV1 playerProfile={props.playerProfile} label={labels.settingsMutedLabel} />
-          )}
-          {slots.systemMenuExtras?.(slotContext) ?? null}
-        </div>
+        {props.hideSystemMenu === true ? null : (
+          <div
+            role="group"
+            aria-label={labels.systemMenuLabel}
+            className={styles["default-root__system-menu"]}
+            data-default-system-menu="true"
+          >
+            {props.saveUi === undefined ? null : <SavesLauncherV1 label={labels.saveLabel} />}
+            <SettingsLauncherV1 label={labels.settingsLabel} />
+            {props.playerProfile === undefined ? null : (
+              <MuteToggleV1 playerProfile={props.playerProfile} label={labels.settingsMutedLabel} />
+            )}
+            {slots.systemMenuExtras?.(slotContext) ?? null}
+          </div>
+        )}
       </SystemDialogHostV1>
     ),
   });

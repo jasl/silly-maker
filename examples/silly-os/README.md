@@ -1,0 +1,32 @@
+# SillyOS 98
+
+一个跑在 SillyMaker 引擎里的复古桌面：重叠窗口、任务栏、开始菜单、扫雷、记事本、浏览器。它回答一个问题——**这台引擎的窗体与状态机制，离开视觉小说的舒适区还站得住吗？**
+
+英文界面/中文界面由浏览器上报语言自动决定（中文 → 中文，其余 → English），设置页可手动覆盖并持久。
+
+## 玩法与机制映射
+
+| 应用           | 引擎机制                                                                                                                                                                      |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 扫雷           | 真正的确定性模拟：雷区在首次翻格时由**事务 RNG** 布下（首点永不踩雷），翻格/插旗是命令，重放同种子必得同一雷区。进行中的雷位**不出现在语义发布面**上——UI 与自动化都无法作弊。 |
+| 记事本         | 文件保存在权威游戏状态里（`os.filesystem` 模块）：**引擎存档就是硬盘**。手动存档→继续玩→读档，文件精确还原。                                                                  |
+| Silly Explorer | 内置主页 + 真 `iframe`（带 sandbox）。多数现代网站以 `X-Frame-Options` / CSP `frame-ancestors` 拒绝内嵌——这是对方的安全策略，主页里如实说明。                                 |
+| 显示属性       | 壁纸选择写入权威状态，随存档持久。                                                                                                                                            |
+| 桌面 shell     | **窗口管理器是纯 UI 瞬态**（Story 侧 store）：打开/关闭/聚焦（z 前置）/最小化/最大化/标题栏拖拽/任务栏/开始菜单。桌面按 1024×768 逻辑画布布局，整体随视口连续缩放。           |
+| 开始菜单       | 承载引擎系统对话框入口（保存/设置，经槽位上下文 `systemDialogs`），`hideSystemMenu` 隐藏默认浮动菜单；关机 = "现在您可以安全地关闭计算机了"。                                 |
+
+## 加一个新应用
+
+一个"软件"= 各自切片里的组件 + `src/application/apps.tsx` 注册表里的一条声明（id、名字 textId、图标、初始窗口、单例与否、渲染函数）。桌面图标、开始菜单、窗口内容全部从注册表派生。
+
+```sh
+deno task story check example-silly-os        # Story 诊断
+deno run -A npm:vitest run examples/silly-os  # 规则/确定性/窗口管理器单测
+deno task story simulate example-silly-os --scenario daily
+deno task story build example-silly-os        # 静态产物 → dist/example-silly-os
+deno task story desktop example-silly-os      # 桌面 webview 打包
+```
+
+## 版权
+
+代码与文案 MIT。像素图标为本仓库原创手绘（CC0）——原版 Windows 98 图标是 Microsoft 版权物，未使用；"SillyOS 98" 为独立命名，机制致意年代交互，不使用 Microsoft 商标。

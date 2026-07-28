@@ -36,6 +36,25 @@
 - **窗口尺寸档位（"最大化"）**：给 Panel 外层容器切换两档 CSS 尺寸（常规/占满舞台），一个 Story UI state 枚举即可，不需要窗口管理器。
 - **表单**：直接写原生 `<input>/<select>/<textarea>`，引擎主题自动生效；不要为样式引第三方表单库。
 
+## SillyOS 实证（2026-07-28）
+
+`examples/silly-os`（复古桌面 shell：重叠窗口/焦点 z 序/最小化/最大化/标题栏拖拽/任务栏/开始菜单 + 确定性扫雷 + 存档持久的记事本 + iframe 浏览器）把上面的"游戏侧配方"推到了极限。结论与产出：
+
+**游戏侧配方成立**：完整窗口管理器是一个约 180 行的 Story 侧 store（open/close/focus/minimize/toggleMaximize/taskbarActivate/move，不可变快照 + subscribe），外加一个 WindowFrame 组件。不需要引擎 WindowManager 原语——单消费者，继续观察。
+
+实证出的关键配方（新增到手册）：
+
+- **逻辑坐标层**：hud/system 槽是 CSS 尺寸层（不随舞台逻辑坐标缩放）。需要逻辑像素布局的全屏 shell 给根容器定尺寸为逻辑画布并 `transform: scale(viewport.scale)`（origin 0 0）——窗口矩形、拖拽换算（client 位移 ÷ scale）、任务栏一次对齐。
+- **拖拽**：标题栏 `setPointerCapture` 后事件全归捕获元素——掠过 iframe 也不丢（老 mousemove 方案的经典坑在 Pointer Capture 下不存在，无需透明护罩）。
+- **iframe 内嵌**：多数站点以 `X-Frame-Options`/CSP `frame-ancestors` 拒绝内嵌且跨源阻断**没有可靠错误事件**——内置页兜底 + 如实提示，不做超时探测。
+
+顺带修正/增强的引擎面（各自独立成立）：
+
+- `hideSystemMenu`（DefaultGameRoot/web 透传）：全定制 shell 收编系统入口。
+- `slotContext.systemDialogs`（openSettings/openSaves）：Story 槽位程序化打开系统对话框（开始菜单、暂停菜单）。对话框 DOM 走 Portal，与调用方树位置无关。
+- 修死锁：saves 未配置时 `open("saves")` 曾开启输入隔离却不渲染对话框（隔离判据改跟实际渲染的 surface）。
+- `resolvePreferredLocaleV1` 落在 `@sillymaker/base`（纯数据，headless 闭包禁碰 `@sillymaker/ui`——ui barrel 会拉进 CSS module，Deno 原生加载 Story 时失败）。
+
 ## 何时上提引擎
 
 同一配方在两个以上真实 Story 里重复出现、且形状稳定时（例如"可拖拽调参浮窗"成为通用工具需求），把它提炼为引擎组件并带契约测试——流程与 `PanelV1`（图鉴/历史两处消费后上提）相同。

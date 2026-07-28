@@ -59,9 +59,10 @@ export interface SystemDialogHostPropsV1 {
   readonly children: ReactNode;
 }
 
-interface SystemDialogControllerV1 {
-  openSettings(opener: HTMLButtonElement): void;
-  openSaves(opener: HTMLButtonElement): void;
+export interface SystemDialogControllerV1 {
+  /** `opener` restores focus on close; pass null for programmatic entry points. */
+  openSettings(opener: HTMLButtonElement | null): void;
+  openSaves(opener: HTMLButtonElement | null): void;
 }
 
 const SystemDialogContextV1 = createContext<SystemDialogControllerV1 | null>(null);
@@ -99,7 +100,10 @@ export function SystemDialogHostV1(props: SystemDialogHostPropsV1): ReactElement
   const focusScopeRef = useRef<HTMLDivElement | null>(null);
   const openerRef = useRef<HTMLButtonElement | null>(null);
   const portalContainer = useStageSystemPortalContainerV1();
-  const dialogOpen = active !== null;
+  // saves 未配置时 open("saves") 不渲染对话框——隔离判据必须跟随实际
+  // 渲染的 surface，否则程序化打开会把输入锁死在一个不存在的对话框上。
+  const surface = active === "saves" && props.saves === undefined ? null : active;
+  const dialogOpen = surface !== null;
   useStageInputIsolationV1("system", dialogOpen);
   useStageSystemFocusScopeRegistrationV1(focusScopeElement);
   useDevDockPortalTargetRegistrationV1("system", dialogOpen ? focusScopeElement : null);
@@ -117,9 +121,9 @@ export function SystemDialogHostV1(props: SystemDialogHostPropsV1): ReactElement
   }, [store]);
 
   const openSurface = useCallback(
-    (surface: SystemDialogSurfaceV1, opener: HTMLButtonElement): void => {
+    (nextSurface: SystemDialogSurfaceV1, opener: HTMLButtonElement | null): void => {
       openerRef.current = opener;
-      store.open(surface);
+      store.open(nextSurface);
     },
     [store],
   );
@@ -152,14 +156,13 @@ export function SystemDialogHostV1(props: SystemDialogHostPropsV1): ReactElement
   const controller = useMemo(
     () =>
       Object.freeze({
-        openSettings: (opener: HTMLButtonElement) => openSurface("settings", opener),
-        openSaves: (opener: HTMLButtonElement) => openSurface("saves", opener),
+        openSettings: (opener: HTMLButtonElement | null) => openSurface("settings", opener),
+        openSaves: (opener: HTMLButtonElement | null) => openSurface("saves", opener),
       }) satisfies SystemDialogControllerV1,
     [openSurface],
   );
   const position = portalContainer === null ? "fixed" : "absolute";
   const saves = props.saves;
-  const surface = active === "saves" && saves === undefined ? null : active;
 
   return (
     <SystemDialogContextV1.Provider value={controller}>

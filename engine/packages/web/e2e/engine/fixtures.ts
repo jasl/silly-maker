@@ -22,6 +22,16 @@ export function catcafeTargetUrlV1(query = ""): string {
   return `http://${catcafeTargetV1.host}:${String(catcafeTargetV1.port)}/${query}`;
 }
 
+/** SillyOS proves the fully-custom desktop shell (windows, taskbar, apps). */
+export const sillyOsTargetV1 = Object.freeze({
+  host: engineTargetV1.host,
+  port: 41739,
+});
+
+export function sillyOsTargetUrlV1(query = ""): string {
+  return `http://${sillyOsTargetV1.host}:${String(sillyOsTargetV1.port)}/${query}`;
+}
+
 export const labApplicationNameV1 = "引擎实验室";
 
 interface PageDiagnosticsV1 {

@@ -14,6 +14,10 @@ hero:
       link: /play/cat-cafe/
       target: _self
     - theme: alt
+      text: 试玩 SillyOS 98（复古桌面）
+      link: /play/silly-os/
+      target: _self
+    - theme: alt
       text: GitHub
       link: https://github.com/jasl/silly-maker
 
@@ -26,4 +30,6 @@ features:
     details: Story 发布纯数据的舞台目标——内容 ID、位置、外观、命中区域。渲染器是可替换的 React 组件；存档永不包含渲染器状态。
   - title: 静态数据即内容表
     details: 物品、活动、事件、反应都定义在带类型查询的内容数据库表里并在解析期校验。可变状态归模块。调参就是改一行表数据。
+  - title: 不止视觉小说
+    details: SillyOS 98 用同一台引擎复刻复古桌面——重叠可拖拽窗口、任务栏、确定性扫雷，以及文件随存档持久的记事本。
 ---

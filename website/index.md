@@ -14,6 +14,10 @@ hero:
       link: /play/cat-cafe/
       target: _self
     - theme: alt
+      text: Try SillyOS 98 (retro desktop)
+      link: /play/silly-os/
+      target: _self
+    - theme: alt
       text: GitHub
       link: https://github.com/jasl/silly-maker
 
@@ -26,4 +30,6 @@ features:
     details: Stories publish plain-data stage targets — content IDs, placements, appearances, hit regions. Renderers are swappable React components; saves never contain renderer state.
   - title: Static data as content tables
     details: Items, activities, events, and reactions live in validated content-database tables with typed queries. Mutable game state stays in modules. Tuning is editing a table row.
+  - title: Not just visual novels
+    details: SillyOS 98 rebuilds a retro desktop on the same engine — overlapping draggable windows, a taskbar, deterministic Minesweeper, and a Notepad whose files persist through saves.
 ---

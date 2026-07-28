@@ -105,6 +105,37 @@ export const sillyMakerConfigV1 = {
       releaseArtifact: false,
     },
     {
+      applicationId: "example-silly-os",
+      label: "Example Story: SillyOS 98 retro desktop shell",
+      storyEntry: {
+        module: "examples/silly-os/src/story.ts",
+        exportName: "osStoryEntryV1",
+      },
+      assetVerification: false,
+      simulate: {
+        module: "examples/silly-os/src/tooling/simulation-target.ts",
+        exportName: "createOsSimulationTargetV1",
+      },
+      web: {
+        storyRoot: "examples/silly-os",
+        applicationHtml: "examples/silly-os/index.html",
+        applicationEntry: "examples/silly-os/src/application/entry.tsx",
+        outDir: "dist/example-silly-os",
+        base: "./",
+        sourcemap: false,
+        identity: {
+          module: "scripts/build-silly-os-identity.mjs",
+          collectExport: "collectSillyOsBuildIdentityV1",
+          createPluginExport: "createSillyOsBuildIdentityVirtualPluginV1",
+        },
+        desktop: {
+          name: "SillyOS98",
+          identifier: "dev.sillymaker.example.silly-os",
+        },
+      },
+      releaseArtifact: false,
+    },
+    {
       applicationId: "example-cat-cafe",
       label: "Example Story: the rainy-alley cat cafe sim",
       storyEntry: {
