@@ -260,7 +260,7 @@ describe("catcafe endings", () => {
   const base = Object.freeze({
     calendar: finalNight,
     cat: Object.freeze({ trust: 60, vigor: 50, skill: 40, fishBuff: 0, pettingLeft: 3 }),
-    shop: Object.freeze({ reputation: 50, tidiness: 50, money: 100, trophies: 1 }),
+    shop: Object.freeze({ reputation: 50, tidiness: 50, money: 100, trophies: 1, epilogue: null }),
     contest: null,
   });
 

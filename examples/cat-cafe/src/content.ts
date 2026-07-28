@@ -455,7 +455,7 @@ const albumSchemaV1: RuntimeSchemaV1<CatcafeAlbumRowV1> = fromStandardSchemaV1(
     id: z.string(),
     nameTextId: z.string(),
     captionTextId: z.string(),
-    kind: z.enum(["growth", "trophy", "memory"]),
+    kind: z.enum(["growth", "trophy", "memory", "ending"]),
   }),
   { subject: { kind: "module", id: "catcafe.content.album" } },
 );
@@ -507,6 +507,30 @@ export const catcafeAlbumTableV1: ContentTableDefinition<CatcafeAlbumRowV1> = de
       nameTextId: "text.cc.album.regular",
       captionTextId: "text.cc.album.regular.caption",
       kind: "memory",
+    },
+    {
+      id: "album.ending.champion",
+      nameTextId: "text.cc.album.ending.champion",
+      captionTextId: "text.cc.album.ending.champion.caption",
+      kind: "ending",
+    },
+    {
+      id: "album.ending.signboard",
+      nameTextId: "text.cc.album.ending.signboard",
+      captionTextId: "text.cc.album.ending.signboard.caption",
+      kind: "ending",
+    },
+    {
+      id: "album.ending.adopted",
+      nameTextId: "text.cc.album.ending.adopted",
+      captionTextId: "text.cc.album.ending.adopted.caption",
+      kind: "ending",
+    },
+    {
+      id: "album.ending.ordinary",
+      nameTextId: "text.cc.album.ending.ordinary",
+      captionTextId: "text.cc.album.ending.ordinary.caption",
+      kind: "ending",
     },
   ],
 });

@@ -112,6 +112,39 @@ test("the DevDock tuning panel commits debug commands through the session", asyn
   await expect(page.locator("[data-cc-stats]")).toContainText("金钱55");
 });
 
+test("the ending settles once and Keep-the-shop-open enters the endless epilogue", async ({
+  page,
+}) => {
+  await page.goto(catcafeTargetUrlV1("?capability=debug_tools&capability=cheats"));
+  await playOpeningV1(page);
+
+  // Fast-forward to week 7 Sunday morning through the tuning panel, then
+  // walk the three slots to the settlement night.
+  await page.getByRole("button", { name: "打开右侧开发工具" }).click();
+  const dock = page.getByRole("complementary", { name: "右侧开发工具" });
+  await dock.getByRole("button", { name: "调参" }).click();
+  const tuning = dock.locator("[data-cc-debug-tuning]");
+  await tuning.locator("[data-cc-debug-days]").fill("48");
+  await tuning.locator("form").nth(1).getByRole("button", { name: "执行调试命令" }).click();
+  await expect(tuning.locator("form").nth(1).getByText("committed")).toBeVisible();
+  await page.getByRole("button", { name: "关闭右侧开发工具" }).click();
+  for (let step = 0; step < 3; step += 1) {
+    await page.locator("[data-cc-action-id='cc.advance_slot']").click();
+  }
+
+  // The ending scene appears with both doors: restart, or keep going.
+  const ending = page.locator("[data-cc-ending]");
+  await expect(ending).toBeVisible();
+  await page.locator("[data-cc-ending-continue]").click();
+
+  // The epilogue is authoritative state: the badge shows, week 8 begins,
+  // and daily play is alive again.
+  await expect(page.locator("[data-cc-epilogue]")).toBeVisible();
+  await expect(page.locator("[data-cc-calendar='8.0.0']")).toBeVisible();
+  await expect(page.locator("[data-cc-ending]")).toHaveCount(0);
+  await expect(page.locator("[data-cc-activity='activity.clean']")).toBeEnabled();
+});
+
 test("right-click routes the VN back action: the album overlay closes", async ({ page }) => {
   await page.goto(catcafeTargetUrlV1());
   await playOpeningV1(page);
