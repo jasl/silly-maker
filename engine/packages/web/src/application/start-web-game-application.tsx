@@ -308,8 +308,7 @@ export async function startWebGameApplicationV1<
   }
 
   // The default composer owns the engine theme baseline. Loading it here
-  // (not at module scope) keeps legacy custom Roots — the PoC until its F3
-  // migration — on their own style composition.
+  // (not at module scope) keeps custom Roots on their own style composition.
   await import("@sillymaker/ui/styles.css");
 
   // Desktop channel: a trusted local save server marks pages it serves with

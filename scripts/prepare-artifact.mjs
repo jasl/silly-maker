@@ -333,7 +333,7 @@ if (isMainV1) {
     }
     const artifactRoot = resolve(args[0] ?? resolve(repositoryRoot, "dist/poc"));
     const manifest = await prepareArtifactDirectoryV1(repositoryRoot, artifactRoot);
-    console.log(`prepared PoC Game Artifact with ${String(manifest.files.length)} files`);
+    console.log(`prepared Game Artifact with ${String(manifest.files.length)} files`);
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 1;

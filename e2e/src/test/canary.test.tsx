@@ -30,7 +30,7 @@ import {
  * relationship-conditioned narrative branch, and a semantic React overlay —
  * all implemented purely on the Story side of the boundary. The
  * public-import-boundary suite proves the whole package (canaries included)
- * never deep-imports engine internals or reaches into the PoC, and module
+ * never deep-imports engine internals or reaches across Story packages, and module
  * ownership keeps every cross-module write inside one atomic command.
  */
 

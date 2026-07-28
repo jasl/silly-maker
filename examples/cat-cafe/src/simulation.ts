@@ -701,6 +701,45 @@ export function catcafeEndingForV1(
   return "ordinary";
 }
 
+/** 把内容表效果行叠加到猫/店铺草稿上；活动路径启用鲜鱼加成特例。 */
+function applyStatEffectsV1(
+  cat: { trust: number; vigor: number; skill: number; fishBuff: number; pettingLeft: number },
+  shop: { reputation: number; tidiness: number; money: number; trophies: number },
+  effects: readonly { readonly stat: string; readonly delta: number }[],
+  options: { readonly fishBuffDoublesTrust: boolean },
+): void {
+  for (const effect of effects) {
+    switch (effect.stat) {
+      case "cat.trust": {
+        const doubled = options.fishBuffDoublesTrust && effect.delta > 0 && cat.fishBuff > 0;
+        cat.trust += doubled ? effect.delta * 2 : effect.delta;
+        if (doubled) cat.fishBuff -= 1;
+        break;
+      }
+      case "cat.vigor":
+        cat.vigor += effect.delta;
+        break;
+      case "cat.skill":
+        cat.skill += effect.delta;
+        break;
+      case "cat.fishBuff":
+        cat.fishBuff += effect.delta;
+        break;
+      case "shop.reputation":
+        shop.reputation += effect.delta;
+        break;
+      case "shop.tidiness":
+        shop.tidiness += effect.delta;
+        break;
+      case "shop.money":
+        shop.money += effect.delta;
+        break;
+      default:
+        break;
+    }
+  }
+}
+
 /** 今天是否运动会日：3/5/7 周的周日暮时段。 */
 export function catcafeContestTodayV1(
   calendar: CatcafeGameStateV1["simulation"]["calendar"],
@@ -807,39 +846,10 @@ export function createCatcafeGameSimulationV1(): CatcafeGameSimulationV1 {
             return transaction.reject({ code: "cc.stamina_exhausted" });
           }
 
-          let cat = { ...state.cat };
-          let shop = { ...state.shop };
-          for (const effect of activity.effects) {
-            switch (effect.stat) {
-              case "cat.trust": {
-                // 鲜鱼加成：下一次信任增益翻倍并消耗。
-                const doubled = effect.delta > 0 && cat.fishBuff > 0;
-                cat.trust += doubled ? effect.delta * 2 : effect.delta;
-                if (doubled) cat.fishBuff -= 1;
-                break;
-              }
-              case "cat.vigor":
-                cat.vigor += effect.delta;
-                break;
-              case "cat.skill":
-                cat.skill += effect.delta;
-                break;
-              case "cat.fishBuff":
-                cat.fishBuff += effect.delta;
-                break;
-              case "shop.reputation":
-                shop.reputation += effect.delta;
-                break;
-              case "shop.tidiness":
-                shop.tidiness += effect.delta;
-                break;
-              case "shop.money":
-                shop.money += effect.delta;
-                break;
-              default:
-                break;
-            }
-          }
+          const cat = { ...state.cat };
+          const shop = { ...state.shop };
+          // 鲜鱼加成：下一次信任增益翻倍并消耗（仅活动路径）。
+          applyStatEffectsV1(cat, shop, activity.effects, { fishBuffDoublesTrust: true });
           let encounterFacts: readonly CatcafeFactV1[] = Object.freeze([]);
           if (activity.income === "business") {
             shop.money +=
@@ -870,24 +880,7 @@ export function createCatcafeGameSimulationV1(): CatcafeGameSimulationV1 {
             if (draw.kind === "drawn") {
               const row = catcafeEncountersV1.byId(draw.eventId);
               if (row !== null && row.textId !== null) {
-                for (const effect of row.effects) {
-                  switch (effect.stat) {
-                    case "cat.trust":
-                      cat.trust += effect.delta;
-                      break;
-                    case "shop.reputation":
-                      shop.reputation += effect.delta;
-                      break;
-                    case "shop.tidiness":
-                      shop.tidiness += effect.delta;
-                      break;
-                    case "shop.money":
-                      shop.money += effect.delta;
-                      break;
-                    default:
-                      break;
-                  }
-                }
+                applyStatEffectsV1(cat, shop, row.effects, { fishBuffDoublesTrust: false });
                 encounterFacts = Object.freeze([
                   Object.freeze({
                     kind: "cc.encounter" as const,
@@ -1188,26 +1181,9 @@ export function createCatcafeGameSimulationV1(): CatcafeGameSimulationV1 {
           if (draw.kind !== "drawn") throw new TypeError("forced draw must resolve");
           const row = catcafeEncountersV1.byId(draw.eventId);
           if (row === null) throw new TypeError("validated encounter must exist");
-          let cat = { ...state.cat };
-          let shop = { ...state.shop };
-          for (const effect of row.effects) {
-            switch (effect.stat) {
-              case "cat.trust":
-                cat.trust += effect.delta;
-                break;
-              case "shop.reputation":
-                shop.reputation += effect.delta;
-                break;
-              case "shop.tidiness":
-                shop.tidiness += effect.delta;
-                break;
-              case "shop.money":
-                shop.money += effect.delta;
-                break;
-              default:
-                break;
-            }
-          }
+          const cat = { ...state.cat };
+          const shop = { ...state.shop };
+          applyStatEffectsV1(cat, shop, row.effects, { fishBuffDoublesTrust: false });
           transaction.propose(catModuleV1, {
             kind: "apply",
             ...cat,

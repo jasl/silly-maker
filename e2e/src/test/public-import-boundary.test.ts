@@ -41,7 +41,7 @@ describe("public import boundary", () => {
     ]);
   });
 
-  it("fails on deliberate deep imports, PoC imports, and archive reaches", () => {
+  it("fails on deliberate deep imports, cross-Story reaches, and archive reaches", () => {
     const violations = findForbiddenImportSpecifiersV1(
       [
         'import { internal } from "@sillymaker/base/src/runtime/session/game-session.ts";',
