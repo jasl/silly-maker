@@ -34,6 +34,7 @@ export interface ProjectCliInputV1 {
 const usageV1 =
   "usage: story <inspect|check|simulate|dev|build|prebuilt-smoke|desktop> <application-id> " +
   "[--scenario <name>] [--seed <uint>] [--trace <dot.paths,comma-separated>] [--smoke] " +
+  "[--sourcemap] [--no-minify] " +
   "| story check --all | story diff <before.json> <after.json>";
 
 function printableV1(value: unknown): string {
@@ -48,6 +49,10 @@ interface ParsedArgsV1 {
   readonly trace?: readonly string[];
   readonly diffAfterPath?: string;
   readonly smoke: boolean;
+  /** build/desktop：产出 sourcemap（调试用）。 */
+  readonly sourcemap: boolean;
+  /** build/desktop：关闭压缩混淆（调试用；默认开启）。 */
+  readonly noMinify: boolean;
 }
 
 function parseArgsV1(argv: readonly string[]): ParsedArgsV1 | null {
@@ -56,16 +61,33 @@ function parseArgsV1(argv: readonly string[]): ParsedArgsV1 | null {
   if (command === "diff") {
     const [afterPath, ...extra] = rest;
     if (afterPath === undefined || extra.length > 0) return null;
-    return { command, selector, diffAfterPath: afterPath, smoke: false };
+    return {
+      command,
+      selector,
+      diffAfterPath: afterPath,
+      smoke: false,
+      sourcemap: false,
+      noMinify: false,
+    };
   }
   let scenario: string | undefined;
   let seed: number | undefined;
   let trace: readonly string[] | undefined;
   let smoke = false;
+  let sourcemap = false;
+  let noMinify = false;
   for (let index = 0; index < rest.length; index += 1) {
     const flag = rest[index];
     if (flag === "--smoke") {
       smoke = true;
+      continue;
+    }
+    if (flag === "--sourcemap") {
+      sourcemap = true;
+      continue;
+    }
+    if (flag === "--no-minify") {
+      noMinify = true;
       continue;
     }
     if (flag === "--scenario" || flag === "--seed" || flag === "--trace") {
@@ -96,6 +118,8 @@ function parseArgsV1(argv: readonly string[]): ParsedArgsV1 | null {
     ...(seed === undefined ? {} : { seed }),
     ...(trace === undefined ? {} : { trace }),
     smoke,
+    sourcemap,
+    noMinify,
   };
 }
 
@@ -241,7 +265,10 @@ export async function runProjectCliV1(input: ProjectCliInputV1): Promise<number>
       case "build": {
         const deps = processDeps();
         if (deps === null) return 2;
-        const report = await buildStoryApplicationV1(input.project, selector, deps);
+        const report = await buildStoryApplicationV1(input.project, selector, deps, {
+          sourcemap: parsed.sourcemap,
+          minify: !parsed.noMinify,
+        });
         input.writeOut(printableV1(report));
         return report.ok ? 0 : 1;
       }

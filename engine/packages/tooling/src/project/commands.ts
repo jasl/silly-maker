@@ -420,19 +420,26 @@ export interface StoryBuildReportV1 {
   readonly exitCode: number;
 }
 
+export interface StoryBuildOptionsV1 {
+  /** 产出 sourcemap（调试用；config 的 web.sourcemap 为基线，此处覆盖）。 */
+  readonly sourcemap?: boolean;
+  /** 压缩混淆（minify+mangle，即旧称 uglify 的现代替代；默认开启）。 */
+  readonly minify?: boolean;
+}
+
 /** Builds the application's web target through the repository Vite config. */
 export async function buildStoryApplicationV1(
   project: SillymakerProjectConfigV1,
   applicationId: string,
   deps: { readonly runner: ProjectCommandRunnerV1; readonly repositoryRoot: string },
+  options: StoryBuildOptionsV1 = {},
 ): Promise<StoryBuildReportV1> {
   const application = resolveStoryApplicationV1(project, applicationId);
   const web = requireWebTargetV1(application, applicationId);
-  const exitCode = await deps.runner.run(
-    "deno",
-    ["run", "-A", "npm:vite", "build", "--mode", applicationId],
-    { cwd: deps.repositoryRoot },
-  );
+  const args = ["run", "-A", "npm:vite", "build", "--mode", applicationId];
+  if (options.sourcemap === true) args.push("--sourcemap");
+  if (options.minify === false) args.push("--minify", "false");
+  const exitCode = await deps.runner.run("deno", args, { cwd: deps.repositoryRoot });
   return Object.freeze({
     applicationId: application.applicationId,
     ok: exitCode === 0,

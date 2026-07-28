@@ -36,6 +36,15 @@ deno task story build <app>
 
 This creates a static Player for the selected application under its declared `dist/` target (`deno task story build e2e` today). A build is useful for local inspection, but it is not by itself a release handoff and does not publish anything.
 
+Build output policy: dependencies split into stable `vendor`/`vendor-react` chunks (application and engine code stay in the entry chunk; all three sit well under the 500 kB warning line and the vendor chunks hash identically across applications for caching). Production output is minified and mangled by default (Vite's built-in minifier — the modern successor to the old "uglify" step); that is baseline code protection, not real obfuscation. Two debug switches:
+
+```sh
+deno task story build <app> --sourcemap    # emit .map files next to the chunks
+deno task story build <app> --no-minify    # readable output for debugging
+```
+
+The per-application `web.sourcemap` field in `project.config.ts` remains the configured default; the CLI flag overrides it for one build.
+
 Build identity is generated from the application and resolved Story inputs used by the build. Runtime digests and manifests are technical identity for compatibility, caching, diagnostics, and inspection; they are not proof of copyright ownership or asset approval.
 
 ## Prepare a local Artifact
