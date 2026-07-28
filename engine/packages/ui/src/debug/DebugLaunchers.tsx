@@ -41,10 +41,11 @@ export function DebugLaunchersV1(props: DebugLaunchersPropsV1): ReactElement {
         data-side="left"
         aria-expanded={props.openState.leftOpen}
         aria-controls="sillymaker-dev-dock-left"
+        aria-label="打开左侧开发工具"
         onPointerDown={stopPointerThroughV1}
         onClick={(event) => requestOpenV1(event, "left", props.onOpen)}
       >
-        打开左侧开发工具
+        开发
       </Button>
       <Button
         ref={props.rightRef}
@@ -53,10 +54,11 @@ export function DebugLaunchersV1(props: DebugLaunchersPropsV1): ReactElement {
         data-side="right"
         aria-expanded={props.openState.rightOpen}
         aria-controls="sillymaker-dev-dock-right"
+        aria-label="打开右侧开发工具"
         onPointerDown={stopPointerThroughV1}
         onClick={(event) => requestOpenV1(event, "right", props.onOpen)}
       >
-        打开右侧开发工具
+        开发
       </Button>
     </div>
   );

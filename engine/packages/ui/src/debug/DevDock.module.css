@@ -27,10 +27,12 @@
 .dev-dock__launcher {
   position: absolute;
   top: 50%;
-  min-inline-size: var(--silly-target-min-size);
-  min-block-size: var(--silly-target-min-size);
-  block-size: var(--silly-target-min-size);
-  padding: var(--silly-space-2);
+
+  /* A quiet 26px vertical tab: reachable but never covering dialogue. */
+  min-inline-size: 26px;
+  min-block-size: 64px;
+  padding: var(--silly-space-1, 4px);
+  font-size: 12px;
   overflow-wrap: normal;
   white-space: nowrap;
   writing-mode: vertical-rl;
