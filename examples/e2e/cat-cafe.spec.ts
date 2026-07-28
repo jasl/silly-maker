@@ -47,7 +47,7 @@ test("pointer petting routes through hit regions with table-driven reactions", a
   // Low trust + tail: the hissing row (-3 trust) and its reaction line.
   await page.getByRole("button", { name: "碰尾巴" }).click();
   await expect(page.locator("[data-cc-stats]")).toContainText("信任7");
-  await expect(page.locator("[data-cc-pet-reaction='text.cc.pet.tail.low']")).toBeVisible();
+  await expect(page.locator("[data-cc-pet-burst='text.cc.pet.tail.low'] p")).toBeVisible();
   await expect(page.locator("[data-cc-cat]")).toHaveAttribute("data-cc-expression", "hissing");
 
   // Keyboard reaches the same semantic path.

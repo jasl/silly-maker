@@ -115,3 +115,21 @@ test("start menu shutdown shows the classic screen and returns", async ({ page }
   await page.locator("[data-os-shutdown-back]").click();
   await expect(page.locator("[data-os-taskbar]")).toBeVisible();
 });
+
+test("@mobile portrait phones get a fluid full-viewport desktop", async ({ page }) => {
+  await bootDesktopV1(page);
+  const stage = await page.locator('[data-stage-layer="hud"]').boundingBox();
+  const viewport = page.viewportSize();
+  // fluid：无黑边，桌面平铺整个浏览器区域。
+  expect(Math.round(stage!.width)).toBe(viewport!.width);
+  expect(Math.round(stage!.height)).toBe(viewport!.height);
+  // 开窗完整落在屏内。
+  await page.locator("[data-os-desktop-icon='app.minesweeper']").dblclick();
+  const win = await page.locator("[data-os-window='app.minesweeper']").boundingBox();
+  expect(win!.x).toBeGreaterThanOrEqual(0);
+  expect(win!.x + win!.width).toBeLessThanOrEqual(viewport!.width);
+  // 开始菜单结构完好：菜单项横排（宽度远大于高度）。
+  await page.locator("[data-os-start-button]").click();
+  const item = await page.locator("[data-os-start-item='app.notepad']").boundingBox();
+  expect(item!.width).toBeGreaterThan(item!.height * 2);
+});

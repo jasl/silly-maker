@@ -8,14 +8,21 @@ import { os98, osBevelInV1, osBevelOutV1 } from "../../application/ui-kit.ts";
 import { OsStartLogoV1 } from "./icons.tsx";
 import type { OsWindowManagerSnapshotV1, OsWindowManagerV1 } from "./window-manager.ts";
 
+/** 仅作测量兜底（fluid 视口下桌面尺寸跟随浏览器区域）。 */
 export const osDesktopCanvasV1 = Object.freeze({ width: 1024, height: 768 });
 export const osTaskbarHeightV1 = 34;
-export const osDesktopBoundsV1 = Object.freeze({
-  x: 0,
-  y: 0,
-  width: osDesktopCanvasV1.width,
-  height: osDesktopCanvasV1.height - osTaskbarHeightV1,
-});
+
+export function osDesktopBoundsForV1(viewport: {
+  readonly cssWidth: number;
+  readonly cssHeight: number;
+}): { readonly x: number; readonly y: number; readonly width: number; readonly height: number } {
+  return Object.freeze({
+    x: 0,
+    y: 0,
+    width: Math.max(200, Math.round(viewport.cssWidth)),
+    height: Math.max(160, Math.round(viewport.cssHeight) - osTaskbarHeightV1),
+  });
+}
 
 export const osWallpaperStylesV1: Readonly<Record<string, CSSProperties>> = Object.freeze({
   teal: Object.freeze({ background: os98.desktop }),
@@ -156,7 +163,8 @@ export function OsTaskbarV1(props: {
               style={{
                 ...(active ? osBevelInV1 : osBevelOutV1),
                 background: active ? "#e0e0e0" : os98.face,
-                minInlineSize: "120px",
+                flex: "0 1 148px",
+                minInlineSize: "56px",
                 maxInlineSize: "180px",
                 padding: "2px 8px",
                 font: os98.font,
@@ -208,6 +216,7 @@ export function OsStartMenuV1(props: {
         background: "transparent",
         font: os98.font,
         textAlign: "start",
+        whiteSpace: "nowrap",
         cursor: "default",
       }}
       onMouseEnter={(event) => {
@@ -231,17 +240,23 @@ export function OsStartMenuV1(props: {
         position: "absolute",
         insetInlineStart: "4px",
         insetBlockEnd: `${String(osTaskbarHeightV1 + 2)}px`,
-        inlineSize: "220px",
+        inlineSize: "min(220px, calc(100% - 8px))",
+        maxBlockSize: "calc(100% - 44px)",
         zIndex: 100_001,
         pointerEvents: "auto",
         display: "flex",
+        flexDirection: "row",
+        alignItems: "stretch",
+        overflow: "hidden",
         ...osBevelOutV1,
       }}
     >
       <span
         aria-hidden="true"
         style={{
+          flex: "0 0 24px",
           inlineSize: "24px",
+          overflow: "hidden",
           background: "linear-gradient(180deg, #1084d0, #000080)",
           color: "#ffffff",
           writingMode: "vertical-rl",
@@ -255,7 +270,16 @@ export function OsStartMenuV1(props: {
       >
         SillyOS 98
       </span>
-      <div style={{ flex: 1, display: "grid", alignContent: "start", padding: "2px" }}>
+      <div
+        style={{
+          flex: "1 1 auto",
+          minInlineSize: 0,
+          display: "grid",
+          alignContent: "start",
+          padding: "2px",
+          overflowY: "auto",
+        }}
+      >
         {props.appItems.map(renderItem)}
         <hr
           style={{

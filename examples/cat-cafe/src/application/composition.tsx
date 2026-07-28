@@ -63,6 +63,7 @@ import {
   CatcafeContestPanelV1,
   useCatcafeContestToastV1,
 } from "../features/contest/ContestPanel.tsx";
+import { useCatcafeAutoAdvanceV1 } from "../features/calendar/use-auto-advance.ts";
 import { useCatcafeAutoBeginV1 } from "../features/dialogue/use-auto-begin.ts";
 import { useCatcafeEncounterNoticeV1 } from "../features/encounters/notice.ts";
 import { CatcafeEndingScreenV1 } from "../features/endings/EndingScreen.tsx";
@@ -214,6 +215,7 @@ function CatcafeHudV1(props: {
   const uiText = useCatcafeTextV1(props.playerProfile);
   useCatcafeAlbumWatcherV1(props.publication, props.playerProfile);
   useCatcafeAutoBeginV1(props.publication, props.semantic);
+  const autoAdvancePending = useCatcafeAutoAdvanceV1(props.publication, props.semantic);
   const contestToast = useCatcafeContestToastV1(props.instance);
   const encounterTextId = useCatcafeEncounterNoticeV1(props.instance);
   const game = props.publication.semantic.game;
@@ -296,6 +298,14 @@ function CatcafeHudV1(props: {
           {uiText("text.cc.hud.stamina")} {String(game.calendar.stamina)} ·{" "}
           {uiText("text.cc.hud.money")} {String(game.shop.money)}
         </p>
+        {autoAdvancePending ? (
+          <p
+            data-cc-auto-advance="true"
+            style={{ ...panel, margin: 0, fontSize: "13px", color: catcafeThemeV1.inkSoft }}
+          >
+            {uiText("text.cc.hud.auto-advance")}
+          </p>
+        ) : null}
       </header>
 
       <aside

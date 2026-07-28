@@ -25,7 +25,13 @@ export default defineConfig({
         nav: [
           { text: "Guide", link: "/guide/getting-started" },
           { text: "Reference", link: "/reference/cli" },
-          { text: "Play Cat Cafe", link: "/play/cat-cafe/", target: "_self" },
+          {
+            text: "Play",
+            items: [
+              { text: "Cat Cafe (sim)", link: "/play/cat-cafe/", target: "_self" },
+              { text: "SillyOS 98 (retro desktop)", link: "/play/silly-os/", target: "_self" },
+            ],
+          },
         ],
         sidebar: [
           {
@@ -66,7 +72,13 @@ export default defineConfig({
         nav: [
           { text: "指南", link: "/zh/guide/getting-started" },
           { text: "参考", link: "/zh/reference/cli" },
-          { text: "试玩《雨巷猫舍》", link: "/play/cat-cafe/", target: "_self" },
+          {
+            text: "试玩",
+            items: [
+              { text: "《雨巷猫舍》（养成经营）", link: "/play/cat-cafe/", target: "_self" },
+              { text: "SillyOS 98（复古桌面）", link: "/play/silly-os/", target: "_self" },
+            ],
+          },
         ],
         sidebar: [
           {

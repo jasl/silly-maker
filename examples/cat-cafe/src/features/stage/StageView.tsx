@@ -18,7 +18,7 @@ import type {
 } from "../../application/ui-kit.ts";
 import { dispatchV1, useCatcafeTextV1 } from "../../application/ui-kit.ts";
 import { catcafeAssetIdsV1, catcafeStageTransitionCatalogV1 } from "../../presentation.ts";
-import { useCatcafePetReactionV1 } from "../petting/use-pet-reaction.ts";
+import { CatcafePetBurstsV1, useCatcafePetBurstsV1 } from "../petting/PetBursts.tsx";
 import { catcafeCatMotionCssV1 } from "./renderers.tsx";
 
 export function CatcafeStageV1(props: {
@@ -38,7 +38,7 @@ export function CatcafeStageV1(props: {
 }): ReactElement {
   const { context, instance } = props;
   const uiText = useCatcafeTextV1(props.playerProfile);
-  const reactionTextId = useCatcafePetReactionV1(instance);
+  const petBursts = useCatcafePetBurstsV1(instance);
   const game = context.publication.semantic.game;
   const pettingReady =
     context.publication.semantic.narrative.phase === "completed" && game.cat.pettingLeft > 0;
@@ -76,23 +76,7 @@ export function CatcafeStageV1(props: {
           });
         }}
       />
-      {reactionTextId === null ? null : (
-        <p
-          data-cc-pet-reaction={reactionTextId}
-          style={{
-            position: "absolute",
-            insetInlineEnd: "48px",
-            insetBlockStart: "48px",
-            maxInlineSize: "20em",
-            padding: "12px 16px",
-            borderRadius: "12px",
-            background: "rgba(16, 20, 26, 0.75)",
-            color: "#f2efe8",
-          }}
-        >
-          {uiText(reactionTextId)}
-        </p>
-      )}
+      <CatcafePetBurstsV1 bursts={petBursts} uiText={uiText} />
     </section>
   );
 }

@@ -34,6 +34,15 @@ export interface GameViewportSizeV1 {
 
 export interface GameViewportPropsV1 {
   readonly canvas: GameViewportCanvasV1;
+  /**
+   * "fit" (default) maps the fixed logical canvas onto the window with
+   * fit scaling and letterbox. "fluid" fills the available area 1:1 —
+   * geometry reports the live size as the canvas, scale stays 1, and no
+   * letterbox exists. Fluid suits shells that lay out like documents or
+   * desktops (text games, window managers) rather than a fixed picture;
+   * the declared canvas then only serves as the measurement fallback.
+   */
+  readonly mode?: "fit" | "fluid";
   /** Upper scale bound; the canvas centers instead of growing past it. */
   readonly maxScale?: number;
   /** Size used when live measurement is unavailable (tests, headless DOM). */
@@ -58,7 +67,20 @@ function computeGeometryV1(
   canvas: GameViewportCanvasV1,
   available: GameViewportSizeV1,
   maxScale: number,
+  mode: "fit" | "fluid",
 ): GameViewportGeometryV1 {
+  if (mode === "fluid") {
+    const fluidCanvas = Object.freeze({ width: available.width, height: available.height });
+    return Object.freeze({
+      canvas: fluidCanvas,
+      scale: 1,
+      cssWidth: available.width,
+      cssHeight: available.height,
+      letterboxInline: 0,
+      letterboxBlock: 0,
+      toCssPx: (logical: number) => logical,
+    });
+  }
   const fitScale = Math.min(available.width / canvas.width, available.height / canvas.height);
   const scale = Math.min(Math.max(fitScale, 0), maxScale);
   const cssWidth = canvas.width * scale;
@@ -91,6 +113,7 @@ export function GameViewportV1(props: GameViewportPropsV1): ReactElement {
     throw new TypeError("ui.game_viewport_invalid_canvas");
   }
   const maxScale = props.maxScale ?? 1;
+  const mode = props.mode ?? "fit";
   const [outerElement, setOuterElement] = useState<HTMLElement | null>(null);
   const [measured, setMeasured] = useState<GameViewportSizeV1 | null>(null);
 
@@ -120,17 +143,22 @@ export function GameViewportV1(props: GameViewportPropsV1): ReactElement {
         Object.freeze({ width: canvasWidth, height: canvasHeight }),
         Object.freeze({ width: availableWidth, height: availableHeight }),
         maxScale,
+        mode,
       ),
-    [availableHeight, availableWidth, canvasHeight, canvasWidth, maxScale],
+    [availableHeight, availableWidth, canvasHeight, canvasWidth, maxScale, mode],
   );
 
   const canvasStyle = {
-    inlineSize: `${String(geometry.cssWidth)}px`,
-    blockSize: `${String(geometry.cssHeight)}px`,
+    inlineSize: mode === "fluid" ? "100%" : `${String(geometry.cssWidth)}px`,
+    blockSize: mode === "fluid" ? "100%" : `${String(geometry.cssHeight)}px`,
     "--gv-scale": String(geometry.scale),
     "--gv-canvas-width": String(props.canvas.width),
     "--gv-canvas-height": String(props.canvas.height),
-    "--silly-stage-aspect-ratio": `${String(props.canvas.width)} / ${String(props.canvas.height)}`,
+    ...(mode === "fluid"
+      ? {}
+      : {
+          "--silly-stage-aspect-ratio": `${String(props.canvas.width)} / ${String(props.canvas.height)}`,
+        }),
   } as CSSProperties;
 
   return (
