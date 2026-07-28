@@ -8,6 +8,11 @@ import type { Plugin, UserConfig } from "vite";
 
 import type { StoryWebTargetV1 } from "@sillymaker/tooling/project/config-types";
 import {
+  mergeLocalStoryApplicationsV1,
+  readLocalStoryApplicationsV1,
+  sillymakerLocalConfigFileNameV1,
+} from "@sillymaker/tooling/project/local-overlay";
+import {
   applyStoryMetadataToHtmlV1,
   parseStoryMetadataV1,
 } from "@sillymaker/tooling/project/story-metadata";
@@ -18,17 +23,35 @@ const repositoryRoot = import.meta.dirname;
 const requireFromConfigV1 = createRequire(import.meta.url);
 
 /**
+ * The committed registry plus the optional gitignored local overlay
+ * (`project.config.local.ts`). The overlay loads through the same
+ * runtime-resolved `require` channel as identity collector modules, so
+ * committed build-identity closures stay statically analyzable and never
+ * depend on the overlay's presence.
+ */
+function loadProjectConfigV1() {
+  const localPath = resolve(repositoryRoot, sillymakerLocalConfigFileNameV1);
+  if (!existsSync(localPath)) return sillyMakerConfigV1;
+  const moduleRecord = requireFromConfigV1(localPath) as Readonly<Record<string, unknown>>;
+  return mergeLocalStoryApplicationsV1(
+    sillyMakerConfigV1,
+    readLocalStoryApplicationsV1(moduleRecord),
+  );
+}
+
+/**
  * Applications come from the shared project config; this file only turns the
  * selected web target into a Vite config. Adding a Story application never
  * changes this implementation.
  */
 function resolveWebTargetV1(applicationId: string): StoryWebTargetV1 {
-  const application = sillyMakerConfigV1.applications.find(
+  const config = loadProjectConfigV1();
+  const application = config.applications.find(
     (candidate) => candidate.applicationId === applicationId,
   );
   const web = application?.web ?? null;
   if (web === null) {
-    const webApplicationIds = sillyMakerConfigV1.applications
+    const webApplicationIds = config.applications
       .filter((candidate) => candidate.web !== null)
       .map((candidate) => candidate.applicationId);
     throw new TypeError(

@@ -15,6 +15,8 @@ const packageTargets = Object.freeze({
   "@sillymaker/tooling/project/config-types": "engine/packages/tooling/src/project/config-types.ts",
   "@sillymaker/tooling/project/story-metadata":
     "engine/packages/tooling/src/project/story-metadata.ts",
+  "@sillymaker/tooling/project/local-overlay":
+    "engine/packages/tooling/src/project/local-overlay.ts",
   "@sillymaker/ui": "engine/packages/ui/src/index.ts",
   "@sillymaker/ui/assets": "engine/packages/ui/src/assets/index.ts",
   "@sillymaker/ui/debug": "engine/packages/ui/src/debug/index.ts",

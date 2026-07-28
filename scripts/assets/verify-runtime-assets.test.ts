@@ -154,6 +154,7 @@ describe("closed runtime asset verification", () => {
       "../../engine/packages/base/src/index.ts",
       "../../engine/packages/tooling/src/project/index.ts",
       "../../engine/packages/tooling/src/project/loader.ts",
+      "../../engine/packages/tooling/src/project/local-overlay.ts",
       "../../project.config.ts",
       "./validate-runtime.mts",
     ]);
