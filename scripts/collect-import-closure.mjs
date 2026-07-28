@@ -19,9 +19,9 @@ const packageTargets = Object.freeze({
   "@sillymaker/ui/diagnostics": "engine/packages/ui/src/diagnostics/index.ts",
   "@sillymaker/ui/styles.css": "engine/packages/ui/src/theme/global.css",
   "@sillymaker/web": "engine/packages/web/src/index.ts",
-  "@project-tavern/story-poc": "game/stories/poc/src/index.ts",
-  "@project-tavern/story-poc/tooling": "game/stories/poc/src/tooling/index.ts",
-  "@project-tavern/story-poc/tooling-ui": "game/stories/poc/src/tooling-ui/index.ts",
+  "@project-tavern/story-poc": "examples/poc/src/index.ts",
+  "@project-tavern/story-poc/tooling": "examples/poc/src/tooling/index.ts",
+  "@project-tavern/story-poc/tooling-ui": "examples/poc/src/tooling-ui/index.ts",
 });
 
 const posix = (root, path) => relative(root, path).split(sep).join("/");

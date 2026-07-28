@@ -4,7 +4,7 @@
 
 ## 1. Decision
 
-重新建立 `game/stories/e2e`，把它作为 SillyMaker 的 **Engine Conformance Story**：一个短小、确定、可真正游玩的第二消费者，用来证明公开引擎 API、Headless runtime、React/Web Host、自动化和独立构建可以共同工作。
+重新建立 `e2e`，把它作为 SillyMaker 的 **Engine Conformance Story**：一个短小、确定、可真正游玩的第二消费者，用来证明公开引擎 API、Headless runtime、React/Web Host、自动化和独立构建可以共同工作。
 
 这不是恢复已经撤除的旧 E2E Story。新实现不继承旧 Goal 的 Save/Debug fixture 集、golden bytes、writer、provenance manifest、视觉基线、固定种子语料、Phase gate、提交编排或机器证明。
 
@@ -15,7 +15,7 @@
 | 层级                        | 验证对象                                                              | 主要位置                               |
 | --------------------------- | --------------------------------------------------------------------- | -------------------------------------- |
 | Package unit/type/property  | Base、UI、Web 的局部合同、恶意输入和边界                              | `engine/packages/*/src`、`type-tests`  |
-| Story authoring conformance | 公开 API 是否足够定义独立 Story、Module、Narrative、UI 和 diagnostics | `game/stories/e2e/src`                 |
+| Story authoring conformance | 公开 API 是否足够定义独立 Story、Module、Narrative、UI 和 diagnostics | `e2e/src`                              |
 | Headless integration        | Session、Module、Semantic、Save、Replay 和 Agent port                 | E2E Story + `@sillymaker/base/testkit` |
 | Browser conformance         | React/Web Host、输入、演出、可访问性和 Browser Agent adapter          | `engine/packages/web/e2e/conformance`  |
 | Prebuilt conformance        | Story-independent build、base path、manifest 和刷新恢复               | E2E Story 的测试 Artifact              |

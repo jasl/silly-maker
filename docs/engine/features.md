@@ -2,7 +2,7 @@
 
 状态：当前实现能力清单；随公开导出和实际用户流程维护。
 
-本页回答“引擎现在能做什么”。首个 Project Tavern PoC 应用已随 V1 场景系统一起移除（备份分支 `archive/poc-v1-stage-2026-07`）；维护中的参考应用：Engine Lab（`game/stories/e2e`，引擎一致性验证）、起点模板（`game/stories/template`，新游戏的最小可玩起点）与收编示例（`game/stories/examples/*`，如 `example-bookshop`）。
+本页回答“引擎现在能做什么”。首个 Project Tavern PoC 应用已随 V1 场景系统一起移除（备份分支 `archive/poc-v1-stage-2026-07`）；维护中的参考应用：Engine Lab（`e2e`，引擎一致性验证）、起点模板（`template`，新游戏的最小可玩起点）与收编示例（`examples/*`，如 `example-bookshop`）。
 
 ## Story authoring and resolution
 

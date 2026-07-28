@@ -5,16 +5,17 @@
     "./engine/packages/tooling",
     "./engine/packages/ui",
     "./engine/packages/web",
-    "./game/stories/e2e",
-    "./game/stories/template",
-    "./game/stories/examples/bookshop"
+    "./e2e",
+    "./template",
+    "./examples/bookshop",
+    "./examples/cat-cafe"
   ],
   "tasks": {
     "dev": "deno run -A npm:vite --mode e2e",
     "format": "deno run -A npm:prettier --write .",
     "format:check": "deno run -A npm:prettier --check .",
-    "lint": "deno run -A npm:oxlint --type-aware --deny-warnings --react-plugin --import-plugin engine game scripts vite.config.ts vitest.config.ts",
-    "lint:styles": "deno run -A npm:stylelint \"engine/packages/**/*.css\" \"game/packages/**/*.css\" \"game/stories/**/*.css\"",
+    "lint": "deno run -A npm:oxlint --type-aware --deny-warnings --react-plugin --import-plugin engine e2e examples template scripts vite.config.ts vitest.config.ts",
+    "lint:styles": "deno run -A npm:stylelint \"engine/packages/**/*.css\" \"e2e/**/*.css\" \"examples/**/*.css\" \"template/**/*.css\"",
     "typecheck": "deno run -A npm:typescript/tsc -p tsconfig.check.json --noEmit --pretty false",
     "test:unit": "deno run -A npm:vitest run",
     "test:coverage": "deno run -A npm:vitest run --coverage",
@@ -26,7 +27,7 @@
     "test:e2e:smoke": "deno run -A npm:@playwright/test/playwright test --config engine/packages/web/playwright.engine.config.ts --project=chromium --grep @smoke",
     "test:e2e": "deno task test:e2e:engine",
     "test:e2e:engine": "deno run -A npm:@playwright/test/playwright test --config engine/packages/web/playwright.engine.config.ts",
-    "test:conformance:headless": "deno run -A npm:vitest run game/stories/e2e",
+    "test:conformance:headless": "deno run -A npm:vitest run e2e",
     "test:e2e:engine:prebuilt": "deno task story build e2e && deno run -A npm:@playwright/test/playwright test --config engine/packages/web/playwright.engine-prebuilt.config.ts",
     "check": "deno task format:check && deno task lint && deno task lint:styles && deno task typecheck && deno task test && deno task check:assets && deno task check:stories && deno task story build e2e",
     "desktop:save-server": "deno run -A scripts/desktop/save-server.mts"

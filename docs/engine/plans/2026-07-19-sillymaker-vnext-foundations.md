@@ -57,7 +57,7 @@ R0 设计基线已经由本轮文档完成。当前 Goal 以它为输入，实�
 
 ### Task A1 — Add the new E2E Story package boundary
 
-**Objective:** 建立 `game/stories/e2e` 作为中性 Engine Conformance Story，先让第二消费者暴露真实公共 API 缺口。
+**Objective:** 建立 `e2e` 作为中性 Engine Conformance Story，先让第二消费者暴露真实公共 API 缺口。
 
 **Work:**
 

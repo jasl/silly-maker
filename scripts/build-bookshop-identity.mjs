@@ -9,17 +9,17 @@ export const bookshopBuildIdentityVirtualSpecifierV1 = "virtual:sillymaker/books
 const repositoryRootV1 = dirname(dirname(fileURLToPath(import.meta.url)));
 const ownerV1 = createStoryBuildIdentityOwnerV1({
   label: "ExampleBookshop",
-  storySourceRoot: "game/stories/examples/bookshop/src/",
+  storySourceRoot: "examples/bookshop/src/",
   simulation: {
-    entry: "game/stories/examples/bookshop/src/simulation.ts",
-    forbiddenPrefixes: ["game/stories/examples/bookshop/src/presentation"],
+    entry: "examples/bookshop/src/simulation.ts",
+    forbiddenPrefixes: ["examples/bookshop/src/presentation"],
   },
   presentation: {
-    entry: "game/stories/examples/bookshop/src/presentation.ts",
+    entry: "examples/bookshop/src/presentation.ts",
     forbiddenPrefixes: [],
   },
   applicationEntries: [
-    "game/stories/examples/bookshop/src/application/entry.tsx",
+    "examples/bookshop/src/application/entry.tsx",
     "scripts/build-story-identity.mjs",
     "scripts/collect-import-closure.mjs",
     "scripts/build-template-identity.mjs",

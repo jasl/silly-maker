@@ -9,17 +9,17 @@ export const templateBuildIdentityVirtualSpecifierV1 = "virtual:sillymaker/templ
 const repositoryRootV1 = dirname(dirname(fileURLToPath(import.meta.url)));
 const ownerV1 = createStoryBuildIdentityOwnerV1({
   label: "Template",
-  storySourceRoot: "game/stories/template/src/",
+  storySourceRoot: "template/src/",
   simulation: {
-    entry: "game/stories/template/src/simulation.ts",
-    forbiddenPrefixes: ["game/stories/template/src/presentation"],
+    entry: "template/src/simulation.ts",
+    forbiddenPrefixes: ["template/src/presentation"],
   },
   presentation: {
-    entry: "game/stories/template/src/presentation.ts",
+    entry: "template/src/presentation.ts",
     forbiddenPrefixes: [],
   },
   applicationEntries: [
-    "game/stories/template/src/application/entry.tsx",
+    "template/src/application/entry.tsx",
     "scripts/build-story-identity.mjs",
     "scripts/collect-import-closure.mjs",
     "scripts/build-template-identity.mjs",

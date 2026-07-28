@@ -6,7 +6,7 @@ This policy separates source archives, selected product assets, third-party mate
 
 ## 1. Project-owned runtime assets
 
-A product asset becomes part of the game only when a maintainer intentionally copies or creates it in a Story-owned `game/stories/<story>/assets/**` directory, then references it from the Story's validated asset catalog. A future shared runtime asset package must document its ownership and admission boundary before use.
+A product asset becomes part of the game only when a maintainer intentionally copies or creates it in a Story-owned assets directory (`e2e/assets/**`, `template/assets/**`, or `examples/<story>/assets/**`), then references it from the Story's validated asset catalog. A future shared runtime asset package must document its ownership and admission boundary before use.
 
 Before promotion, review:
 
@@ -71,7 +71,7 @@ Engine-validation replicas of existing games (including material with unclear pr
 1. They exist to prove engine capability with complete playable games and are never published, distributed, or included in any Artifact or release channel.
 2. Source material lives in `references/` (registered as above); replica working trees live in `tmp/` or another gitignored location. Neither enters Git history.
 3. Task briefs given to authoring models describe mechanics, structure, and pacing (which are not copyrightable expression) — they do not paste protected narrative text, art, audio, or distinctive names for reproduction.
-4. A replica may be promoted into `game/stories/examples/**` only after an originalization pass: mechanics may stay, all expression (text, names, art direction, audio) must be original, and the result passes the ordinary licensing review for tracked files.
+4. A replica may be promoted into `examples/**` only after an originalization pass: mechanics may stay, all expression (text, names, art direction, audio) must be original, and the result passes the ordinary licensing review for tracked files.
 
 ## 5. Artifact boundary
 

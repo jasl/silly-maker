@@ -6,7 +6,7 @@ import type { Plugin, UserConfig } from "vite";
 
 import type { StoryWebTargetV1 } from "@sillymaker/tooling/project/config-types";
 
-import { projectTavernConfigV1 } from "./game/project.config.ts";
+import { projectTavernConfigV1 } from "./project.config.ts";
 
 const repositoryRoot = import.meta.dirname;
 const requireFromConfigV1 = createRequire(import.meta.url);

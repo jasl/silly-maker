@@ -1,4 +1,20 @@
 {
   "files": [],
-  "references": [{ "path": "./engine" }, { "path": "./game" }]
+  "references": [
+    {
+      "path": "./engine"
+    },
+    {
+      "path": "./e2e"
+    },
+    {
+      "path": "./template"
+    },
+    {
+      "path": "./examples/bookshop"
+    },
+    {
+      "path": "./examples/cat-cafe"
+    }
+  ]
 }

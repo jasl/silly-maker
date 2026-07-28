@@ -14,7 +14,7 @@ The repository must be described accurately: **SillyMaker engine components are 
 | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | `engine/packages/base/**`, `engine/packages/ui/**`, and `engine/packages/web/**` | MIT                                                                                                                     |
 | Generic engine tooling explicitly marked MIT                                     | MIT                                                                                                                     |
-| `game/stories/**` software                                                       | PolyForm Noncommercial 1.0.0                                                                                            |
+| `e2e/**, examples/**, and template/**` software                                  | PolyForm Noncommercial 1.0.0                                                                                            |
 | Other project-specific software not expressly marked MIT                         | PolyForm Noncommercial 1.0.0                                                                                            |
 | Project-owned narrative, localization, art, audio, and game-design content       | CC BY-NC-SA 4.0                                                                                                         |
 | Repository-level `docs/**`                                                       | CC BY-NC-SA 4.0, except separately identified third-party material or substantial code governed by its software license |

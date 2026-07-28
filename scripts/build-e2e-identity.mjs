@@ -9,17 +9,17 @@ export const e2eBuildIdentityVirtualSpecifierV1 = "virtual:sillymaker/e2e-build-
 const repositoryRootV1 = dirname(dirname(fileURLToPath(import.meta.url)));
 const ownerV1 = createStoryBuildIdentityOwnerV1({
   label: "E2E",
-  storySourceRoot: "game/stories/e2e/src/",
+  storySourceRoot: "e2e/src/",
   simulation: {
-    entry: "game/stories/e2e/src/gameplay/simulation.ts",
-    forbiddenPrefixes: ["game/stories/e2e/src/presentation"],
+    entry: "e2e/src/gameplay/simulation.ts",
+    forbiddenPrefixes: ["e2e/src/presentation"],
   },
   presentation: {
-    entry: "game/stories/e2e/src/presentation.ts",
-    forbiddenPrefixes: ["game/stories/e2e/src/gameplay/"],
+    entry: "e2e/src/presentation.ts",
+    forbiddenPrefixes: ["e2e/src/gameplay/"],
   },
   applicationEntries: [
-    "game/stories/e2e/src/application/entry.tsx",
+    "e2e/src/application/entry.tsx",
     "scripts/build-story-identity.mjs",
     "scripts/collect-import-closure.mjs",
     "scripts/build-e2e-identity.mjs",
