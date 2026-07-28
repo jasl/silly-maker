@@ -4,7 +4,7 @@ import { cp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 
-import { AuthoringDiagnosticErrorV1 } from "@sillymaker/base";
+import { AuthoringDiagnosticErrorV1, diffPlainDataV1 } from "@sillymaker/base";
 
 import type { ProjectCommandRunnerV1, ProjectModuleLoaderV1 } from "./commands.ts";
 import {
@@ -33,7 +33,8 @@ export interface ProjectCliInputV1 {
 
 const usageV1 =
   "usage: story <inspect|check|simulate|dev|build|prebuilt-smoke|desktop> <application-id> " +
-  "[--scenario <name>] [--seed <uint>] [--smoke] | story check --all";
+  "[--scenario <name>] [--seed <uint>] [--trace <dot.paths,comma-separated>] [--smoke] " +
+  "| story check --all | story diff <before.json> <after.json>";
 
 function printableV1(value: unknown): string {
   return JSON.stringify(value, null, 2);
@@ -44,14 +45,22 @@ interface ParsedArgsV1 {
   readonly selector: string;
   readonly scenario?: string;
   readonly seed?: number;
+  readonly trace?: readonly string[];
+  readonly diffAfterPath?: string;
   readonly smoke: boolean;
 }
 
 function parseArgsV1(argv: readonly string[]): ParsedArgsV1 | null {
   const [command, selector, ...rest] = argv;
   if (command === undefined || selector === undefined) return null;
+  if (command === "diff") {
+    const [afterPath, ...extra] = rest;
+    if (afterPath === undefined || extra.length > 0) return null;
+    return { command, selector, diffAfterPath: afterPath, smoke: false };
+  }
   let scenario: string | undefined;
   let seed: number | undefined;
+  let trace: readonly string[] | undefined;
   let smoke = false;
   for (let index = 0; index < rest.length; index += 1) {
     const flag = rest[index];
@@ -59,12 +68,19 @@ function parseArgsV1(argv: readonly string[]): ParsedArgsV1 | null {
       smoke = true;
       continue;
     }
-    if (flag === "--scenario" || flag === "--seed") {
+    if (flag === "--scenario" || flag === "--seed" || flag === "--trace") {
       const value = rest[index + 1];
       if (value === undefined) return null;
       index += 1;
       if (flag === "--scenario") scenario = value;
-      else {
+      else if (flag === "--trace") {
+        const paths = value
+          .split(",")
+          .map((path) => path.trim())
+          .filter((path) => path.length > 0);
+        if (paths.length === 0) return null;
+        trace = Object.freeze(paths);
+      } else {
         const parsed = Number(value);
         if (!Number.isSafeInteger(parsed) || parsed < 0) return null;
         seed = parsed;
@@ -78,6 +94,7 @@ function parseArgsV1(argv: readonly string[]): ParsedArgsV1 | null {
     selector,
     ...(scenario === undefined ? {} : { scenario }),
     ...(seed === undefined ? {} : { seed }),
+    ...(trace === undefined ? {} : { trace }),
     smoke,
   };
 }
@@ -155,6 +172,38 @@ export async function runProjectCliV1(input: ProjectCliInputV1): Promise<number>
         input.writeOut(printableV1(result));
         return result.kind === "inspected" ? 0 : 1;
       }
+      case "diff": {
+        // Structured diff over two JSON files (exported saves, simulate
+        // reports): where exactly do they differ, path by path.
+        const deps = processDeps();
+        if (deps === null) return 2;
+        const afterPath = parsed.diffAfterPath;
+        if (afterPath === undefined) {
+          input.writeErr(usageV1);
+          return 2;
+        }
+        let before: unknown;
+        let after: unknown;
+        try {
+          before = JSON.parse(await deps.runner.readFile(selector)) as unknown;
+          after = JSON.parse(await deps.runner.readFile(afterPath)) as unknown;
+        } catch (error) {
+          input.writeErr(
+            `story diff could not read inputs: ${error instanceof Error ? error.message : String(error)}`,
+          );
+          return 1;
+        }
+        const entries = diffPlainDataV1(before, after);
+        input.writeOut(
+          printableV1({
+            before: selector,
+            after: afterPath,
+            identical: entries.length === 0,
+            differences: entries,
+          }),
+        );
+        return 0;
+      }
       case "check": {
         const applicationIds =
           selector === "--all" ? listStoryApplicationIdsV1(input.project) : [selector];
@@ -169,6 +218,7 @@ export async function runProjectCliV1(input: ProjectCliInputV1): Promise<number>
         const report = await simulateStoryApplicationV1(input.project, selector, input.loader, {
           ...(parsed.scenario === undefined ? {} : { scenario: parsed.scenario }),
           ...(parsed.seed === undefined ? {} : { seed: parsed.seed }),
+          ...(parsed.trace === undefined ? {} : { trace: parsed.trace }),
         });
         input.writeOut(printableV1(report));
         return 0;

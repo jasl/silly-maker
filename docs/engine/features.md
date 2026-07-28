@@ -59,6 +59,10 @@
 
 - Story-defined static data tables: `defineContentTableV1` validates a table at definition (table-id pattern, per-row RuntimeSchema parsing — typically zod via `fromStandardSchemaV1` — unique non-empty string primary keys, row limits); `createContentDatabaseV1` validates cross-table references at construction and exposes typed read-only views: `byId` (KV), `findMany`/`findFirst` with `where` conditions (eq/ne/in, numeric comparisons, array membership) and ordering, plus `collectTextIds` for text-catalog joins. Content is authoring-time data: no runtime mutation, JSON-safe, deterministic, and part of Story identity through the ordinary source-digest path. Mutable game state stays in module state (atomic commits, Saves, rollback) — the static/dynamic boundary is the design's first principle. First real consumer: the cat-cafe example (activities, petting reactions, contest moves, rivals, album entries).
 
+## Gameplay primitives
+
+- Event pool: `parseEventConditionV1` validates restricted serializable condition trees (number/flag/label leaves, all/any/not composition, depth and branch bounds); `drawFromEventPoolV1` filters eligible candidates and draws through one purpose-tagged transactional-RNG roll with JSON-safe explanation data (considered, eligible weights, roll, winner) and an eligibility-preserving debug force. First consumer: the cat-cafe weekly regulars (conditions in content-table rows, draws inside the business transaction, explanations in facts).
+
 ## Persistence and compatibility
 
 - Desktop-channel persistence: `createHttpHostRecordStoreV1` implements the atomic record store over a trusted local HTTP endpoint; the repository ships a Deno save server (`scripts/desktop/save-server.mts`) that serves a built Player from a fixed port and owns a real save directory (atomic per-file replace, optimistic revisions, one serialized commit queue). `startWebGameApplicationV1` selects it automatically when the page runs with `?records=local`.
@@ -72,6 +76,9 @@
 - File import/export through Host ports.
 
 ## Diagnostics and developer capabilities
+
+- The human tuning channel: Stories implement the debugCommand contract (validated, atomically committed, logged with source `debug`); authoritative replay routes debug entries through the debug executor with the live session's integrity stamp; committed debug commands raise the same commit-only transient effects as gameplay. The DevDock hosts cheat-authority panels built on `DebugCommandPanelV1` behind the `debug_tools` + `cheats` capabilities (reference implementation: the cat-cafe 调参 panel — set stats, fast-forward days, force encounters).
+- `story simulate --trace <dot.paths>` samples the Agent publication after every step into per-step trajectories (the balance loop: edit a content table, re-simulate, compare); `story diff <a.json> <b.json>` reports structured path-level differences via `diffPlainDataV1`.
 
 - Bounded command log and runtime-failure buffer.
 - Privacy-aware DebugBundle export with current identity, replay evidence, and Story diagnostics.

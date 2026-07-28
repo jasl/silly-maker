@@ -430,6 +430,8 @@ export type {
   PendingInteractionBaseV1,
   PendingInteractionV1,
 } from "./pending-interaction.ts";
+export { diffPlainDataV1 } from "./plain-data-diff.ts";
+export type { PlainDataDiffEntryV1 } from "./plain-data-diff.ts";
 export {
   drawFromEventPoolV1,
   EventPoolErrorV1,

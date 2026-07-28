@@ -164,6 +164,40 @@ describe("project commands", () => {
     expect(explicit.steps.map((step) => step.ordinal)).toEqual([1, 2]);
   });
 
+  it("samples trace paths after every step, missing paths as null", async () => {
+    let counter = 0;
+    const target: StorySimulationTargetV1 = {
+      agent: {
+        identity: () => ({ storyId: "story.synthetic", storyRevision: 1 }),
+        observe: () => ({ game: { counter, nested: { value: counter * 2 } } }),
+        describeActions: () => [],
+        preview: async () => ({ kind: "allowed" }),
+        dispatch: async () => {
+          counter += 1;
+          return { kind: "committed" };
+        },
+        waitForIdle: async () => ({ kind: "idle" }),
+      },
+      dispose: async () => ({ kind: "disposed" }),
+      defaultScript: [{ actionId: "a" }, { actionId: "b" }],
+    };
+    const loader = mapLoaderV1({
+      "test/synthetic-target.ts": { createTargetV1: async () => target },
+    });
+
+    const report = await simulateStoryApplicationV1(projectV1(), "synthetic", loader, {
+      trace: ["game.counter", "game.nested.value", "game.missing.path"],
+    });
+    expect(report.trace).toEqual([
+      { step: 0, "game.counter": 0, "game.nested.value": 0, "game.missing.path": null },
+      { step: 1, "game.counter": 1, "game.nested.value": 2, "game.missing.path": null },
+      { step: 2, "game.counter": 2, "game.nested.value": 4, "game.missing.path": null },
+    ]);
+
+    const untraced = await simulateStoryApplicationV1(projectV1(), "synthetic", loader);
+    expect(untraced.trace).toBeNull();
+  });
+
   it("rejects applications without a simulation target", async () => {
     const project = defineSillymakerProjectV1({
       projectId: "project-test",

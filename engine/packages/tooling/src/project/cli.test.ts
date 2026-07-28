@@ -188,6 +188,31 @@ describe("runProjectCliV1", () => {
     expect(report.finalStateDigest).toBe("digest:2");
   });
 
+  it("diff prints a structured comparison of two JSON files", async () => {
+    const runner = createFakeRunnerV1({
+      files: {
+        "/a.json": JSON.stringify({ cat: { trust: 10 }, flags: ["a"] }),
+        "/b.json": JSON.stringify({ cat: { trust: 13 }, flags: ["a", "b"] }),
+      },
+    });
+    const result = await runV1(["diff", "/a.json", "/b.json"], runner.runner);
+    expect(result.code).toBe(0);
+    const report = JSON.parse(result.out.join("\n")) as {
+      identical: boolean;
+      differences: readonly { kind: string; path: string }[];
+    };
+    expect(report.identical).toBe(false);
+    expect(report.differences).toEqual([
+      { kind: "changed", path: "/cat/trust", before: 10, after: 13 },
+      { kind: "added", path: "/flags/1", after: "b" },
+    ]);
+
+    const missing = await runV1(["diff", "/a.json", "/missing.json"], runner.runner);
+    expect(missing.code).toBe(1);
+    const malformed = await runV1(["diff", "/a.json"], runner.runner);
+    expect(malformed.code).toBe(2);
+  });
+
   it("simulate rejects unknown scenarios with a structured diagnostic", async () => {
     const result = await runV1(["simulate", "synthetic", "--scenario", "ghost"]);
     expect(result.code).toBe(1);

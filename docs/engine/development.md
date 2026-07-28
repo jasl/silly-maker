@@ -37,20 +37,22 @@ Package manifests define supported cross-package entries. Do not bypass them wit
 
 ## Daily commands
 
-| Command                               | Use                                                                   |
-| ------------------------------------- | --------------------------------------------------------------------- |
-| `deno task dev`                       | Start the current Project Tavern development server.                  |
-| `deno task check`                     | Canonical local code-quality and product-behavior check.              |
-| `deno task test`                      | Run engine and game behavior tests.                                   |
-| `deno task test:coverage`             | Run unit tests with engine line-coverage reporting.                   |
-| `deno task test:e2e:engine`           | Engine browser suite against the Engine Lab Story.                    |
-| `deno task test:e2e`                  | Alias of the engine browser suite.                                    |
-| `deno task story <verb> <app>`        | Application lifecycle CLI (JSON reports); verbs below.                |
-| `deno task check:stories`             | Structured Story diagnostics for every application (part of `check`). |
-| `deno task simulate:e2e`              | Scripted Engine Lab run through the Agent port.                       |
-| `deno task test:conformance:headless` | Engine Lab headless conformance suite.                                |
-| `deno task story desktop <app>`       | Package the built web Artifact as a desktop app (experimental).       |
-| `deno task test:e2e:engine:prebuilt`  | Build the Engine Lab and run the engine suite on the Artifact.        |
+| Command                                          | Use                                                                   |
+| ------------------------------------------------ | --------------------------------------------------------------------- |
+| `deno task dev`                                  | Start the current Project Tavern development server.                  |
+| `deno task check`                                | Canonical local code-quality and product-behavior check.              |
+| `deno task test`                                 | Run engine and game behavior tests.                                   |
+| `deno task test:coverage`                        | Run unit tests with engine line-coverage reporting.                   |
+| `deno task test:e2e:engine`                      | Engine browser suite against the Engine Lab Story.                    |
+| `deno task test:e2e`                             | Alias of the engine browser suite.                                    |
+| `deno task story <verb> <app>`                   | Application lifecycle CLI (JSON reports); verbs below.                |
+| `deno task check:stories`                        | Structured Story diagnostics for every application (part of `check`). |
+| `deno task story simulate <app> --trace <paths>` | Headless play with per-step numeric trajectories (balance tuning).    |
+| `deno task story diff <a.json> <b.json>`         | Structured diff of two JSON files (exported saves, simulate reports). |
+| `deno task simulate:e2e`                         | Scripted Engine Lab run through the Agent port.                       |
+| `deno task test:conformance:headless`            | Engine Lab headless conformance suite.                                |
+| `deno task story desktop <app>`                  | Package the built web Artifact as a desktop app (experimental).       |
+| `deno task test:e2e:engine:prebuilt`             | Build the Engine Lab and run the engine suite on the Artifact.        |
 
 The application lifecycle CLI covers six responsibilities for every application declared in `game/project.config.ts`:
 

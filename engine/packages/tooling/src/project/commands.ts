@@ -264,6 +264,8 @@ export interface StorySimulateReportV1 {
   readonly finalStateDigest: string | null;
   readonly scenario: string | null;
   readonly seed: number | null;
+  /** Per-step numeric trajectories, present when `trace` paths were given. */
+  readonly trace: readonly Readonly<Record<string, unknown>>[] | null;
 }
 
 export interface StorySimulateOptionsV1 {
@@ -272,6 +274,22 @@ export interface StorySimulateOptionsV1 {
   readonly scenario?: string;
   /** Deterministic bootstrap seed forwarded to the target factory. */
   readonly seed?: number;
+  /**
+   * Dot paths sampled from the Agent publication after every step (for
+   * example `game.cat.trust`) — the balance-tuning feedback loop: edit a
+   * content table, re-simulate, compare trajectories.
+   */
+  readonly trace?: readonly string[];
+}
+
+/** Reads one dot path from plain data; missing segments resolve to null. */
+function readDotPathV1(value: unknown, path: string): unknown {
+  let cursor: unknown = value;
+  for (const segment of path.split(".")) {
+    if (cursor === null || typeof cursor !== "object" || Array.isArray(cursor)) return null;
+    cursor = (cursor as Record<string, unknown>)[segment];
+  }
+  return cursor === undefined ? null : cursor;
 }
 
 /** Plays a scripted invocation sequence through the application's Agent port. */
@@ -318,11 +336,26 @@ export async function simulateStoryApplicationV1(
       script = scenario;
     }
     script ??= target.defaultScript ?? [];
+    const tracePaths = options.trace ?? null;
+    const sampleTrace = (step: number): Readonly<Record<string, unknown>> | null => {
+      if (tracePaths === null || tracePaths.length === 0) return null;
+      const publication = target.agent.observe() as Record<string, unknown>;
+      const row: Record<string, unknown> = { step };
+      for (const path of tracePaths) {
+        row[path] = readDotPathV1(publication, path);
+      }
+      return Object.freeze(row);
+    };
     const initialPublication = target.agent.observe();
     const steps: StorySimulateStepV1[] = [];
+    const trace: Readonly<Record<string, unknown>>[] = [];
+    const initialRow = sampleTrace(0);
+    if (initialRow !== null) trace.push(initialRow);
     for (const [index, invocation] of script.entries()) {
       const result = await target.agent.dispatch(invocation);
       steps.push(Object.freeze({ ordinal: index + 1, invocation, result }));
+      const row = sampleTrace(index + 1);
+      if (row !== null) trace.push(row);
     }
     return Object.freeze({
       applicationId: application.applicationId,
@@ -333,6 +366,7 @@ export async function simulateStoryApplicationV1(
       finalStateDigest: target.stateDigest === undefined ? null : target.stateDigest(),
       scenario: options.scenario ?? null,
       seed: options.seed ?? null,
+      trace: tracePaths === null || tracePaths.length === 0 ? null : Object.freeze(trace),
     });
   } finally {
     await target.dispose();
