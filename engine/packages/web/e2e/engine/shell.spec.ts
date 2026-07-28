@@ -73,8 +73,8 @@ test.describe("engine default shell", () => {
     await reopened.getByRole("button", { name: "载入手动存档" }).click();
     const confirmation = page.getByRole("dialog", { name: "载入手动存档" });
     await confirmation.getByRole("button", { name: "确认" }).click();
-    await expect(reopened.getByText("已载入存档")).toBeVisible();
-    await reopened.getByRole("button", { name: "关闭", exact: true }).click();
+    // Convention: a successful load closes the dialog and enters gameplay.
+    await expect(reopened).toBeHidden();
     await expect(hud).toHaveText(before ?? "");
   });
 });

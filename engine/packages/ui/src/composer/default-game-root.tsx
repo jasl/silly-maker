@@ -16,18 +16,21 @@ import type { PointerActionMapV1 } from "../input/pointer-button-adapter.ts";
 import type { PresentationIntentRouterV1 } from "../interaction/presentation-intent-router.ts";
 import { OverlayHostV1 } from "../overlays/overlay-host.tsx";
 import type { OverlayRendererResolverV1 } from "../overlays/overlay-host.tsx";
-import type { SaveOverlayLabelsV1, SaveOverlayPortV1 } from "../persistence/save-overlay.tsx";
-import { SaveOverlayV1 } from "../persistence/save-overlay.tsx";
+import type {
+  SaveOverlayGuardV1,
+  SaveOverlayLabelsV1,
+  SaveOverlayPortV1,
+} from "../persistence/save-overlay.tsx";
 import { useReadonlyViewV1 } from "../runtime/create-view-bridge.ts";
 import type { RuntimePresentationPublicationV1 } from "../runtime/runtime-presentation-store.ts";
 import { GameShell } from "../shell/game-shell.tsx";
 import type { GameShellViewportOptionsV1 } from "../shell/game-shell.tsx";
+import { SavesLauncherV1 } from "../system/saves-launcher.tsx";
 import { SettingsLauncherV1 } from "../system/settings-launcher.tsx";
 import { DefaultSettingsSectionsV1 } from "../system/default-settings-sections.tsx";
 import { TitleScreenV1 } from "../system/title-screen.tsx";
 import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
 import { SystemDialogHostV1 } from "../system/system-dialog-host.tsx";
-import { Button } from "../primitives/Button.tsx";
 import type { InteractionSessionStoreV1 } from "../interaction/interaction-session-store.ts";
 import type {
   GameUiCompositionV1,
@@ -49,6 +52,7 @@ export interface DefaultGameRootLabelsV1 {
   readonly settingsDeveloperToolsLabel: string;
   readonly titleNewGameLabel: string;
   readonly titleContinueLabel: string;
+  readonly titleLoadGameLabel: string;
   readonly closeLabel: string;
 }
 
@@ -64,6 +68,7 @@ export const defaultGameRootLabelsV1: DefaultGameRootLabelsV1 = Object.freeze({
   settingsDeveloperToolsLabel: "Developer tools",
   titleNewGameLabel: "New game",
   titleContinueLabel: "Continue",
+  titleLoadGameLabel: "Load game",
   closeLabel: "Close",
 });
 
@@ -146,6 +151,11 @@ export interface DefaultGameRootPropsV1<
   readonly saveUi?: {
     readonly port: SaveOverlayPortV1;
     readonly labels: SaveOverlayLabelsV1;
+    /**
+     * Story safepoint over the live publication: manual saves are disabled
+     * (with the reason shown) when it returns allowed: false.
+     */
+    evaluateGuard?(publication: unknown): SaveOverlayGuardV1;
   };
   readonly labels?: Partial<DefaultGameRootLabelsV1>;
   readonly slots?: DefaultGameRootSlotsV1<
@@ -179,25 +189,9 @@ const emptyDevDockContributionsV1 = createDevDockContributionSetV1({ panels: [] 
 
 function createDefaultOverlayResolverV1<TOverlayId extends string>(input: {
   readonly storyResolver: OverlayRendererResolverV1<TOverlayId> | null;
-  readonly saveUi:
-    { readonly port: SaveOverlayPortV1; readonly labels: SaveOverlayLabelsV1 } | undefined;
-  readonly inputRouter: Parameters<typeof SaveOverlayV1>[0]["inputRouter"];
 }): OverlayRendererResolverV1<GameUiOverlayIdV1<TOverlayId>> {
   return Object.freeze({
     resolve(overlayId: DeepReadonly<GameUiOverlayIdV1<TOverlayId>>) {
-      if (overlayId === "system.save") {
-        if (input.saveUi === undefined) return null;
-        return Object.freeze({
-          accessibleName: input.saveUi.labels.accessibleName,
-          content: (
-            <SaveOverlayV1
-              port={input.saveUi.port}
-              labels={input.saveUi.labels}
-              inputRouter={input.inputRouter}
-            />
-          ),
-        });
-      }
       return input.storyResolver?.resolve(overlayId as DeepReadonly<TOverlayId>) ?? null;
     },
   });
@@ -286,6 +280,14 @@ export function DefaultGameRootV1<
     props.composition.presentation.getSnapshot,
   ) as DeepReadonly<PublicationV1>;
   const anchor = useReadonlyViewV1(props.composition.anchor);
+  const saveGuard = props.saveUi?.evaluateGuard?.(publication);
+
+  // Loading (or importing) a save from the title screen's Load-game dialog
+  // enters gameplay: the anchored epoch origin is the authoritative signal.
+  const anchorOrigin = anchor.origin;
+  useEffect(() => {
+    if (anchorOrigin === "load" || anchorOrigin === "import") setTitleDismissed(true);
+  }, [anchorOrigin]);
 
   // Composition-backed members stay referentially stable across renders so
   // Story lifecycle effects can depend on them without re-subscribing.
@@ -333,8 +335,6 @@ export function DefaultGameRootV1<
   const slots = props.slots ?? {};
   const overlayResolver = createDefaultOverlayResolverV1<TOverlayId>({
     storyResolver: slots.overlayResolver?.(slotContext) ?? null,
-    saveUi: props.saveUi,
-    inputRouter: props.composition.input,
   });
 
   const layers = Object.freeze({
@@ -366,6 +366,15 @@ export function DefaultGameRootV1<
       <SystemDialogHostV1
         inputRouter={props.composition.input}
         store={props.composition.systemDialogSession}
+        {...(props.saveUi === undefined
+          ? {}
+          : {
+              saves: Object.freeze({
+                port: props.saveUi.port,
+                labels: props.saveUi.labels,
+                ...(saveGuard === undefined ? {} : { guard: saveGuard }),
+              }),
+            })}
         settings={Object.freeze({
           title: labels.settingsTitle,
           closeLabel: labels.closeLabel,
@@ -399,6 +408,7 @@ export function DefaultGameRootV1<
             labels={Object.freeze({
               newGameLabel: labels.titleNewGameLabel,
               continueLabel: labels.titleContinueLabel,
+              loadGameLabel: labels.titleLoadGameLabel,
               settingsLabel: labels.settingsLabel,
             })}
             onNewGame={() => {
@@ -406,6 +416,7 @@ export function DefaultGameRootV1<
               void (restart ?? Promise.resolve()).finally(() => setTitleDismissed(true));
             }}
             onContinue={() => setTitleDismissed(true)}
+            showLoadGame={props.saveUi !== undefined}
           />
         )}
         <div
@@ -414,17 +425,7 @@ export function DefaultGameRootV1<
           className={styles["default-root__system-menu"]}
           data-default-system-menu="true"
         >
-          {props.saveUi === undefined ? null : (
-            <Button
-              onClick={() =>
-                props.composition.intents.execute(
-                  Object.freeze({ kind: "overlay.open" as const, overlayId: "system.save" }),
-                )
-              }
-            >
-              {labels.saveLabel}
-            </Button>
-          )}
+          {props.saveUi === undefined ? null : <SavesLauncherV1 label={labels.saveLabel} />}
           <SettingsLauncherV1 label={labels.settingsLabel} />
           {slots.systemMenuExtras?.(slotContext) ?? null}
         </div>

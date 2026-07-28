@@ -124,8 +124,8 @@ describe("GameStageV1", () => {
       "character",
       "scene_interaction",
       "hud",
-      "workspace_overlay",
       "narrative",
+      "workspace_overlay",
       "system",
     ] satisfies readonly StageLayerIdV1[]);
   });

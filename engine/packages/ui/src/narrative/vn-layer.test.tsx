@@ -766,6 +766,10 @@ describe("VnLayerV1 motion and Stage isolation", () => {
     expect(screen.getByRole("button", { name: "谨慎询问" })).toHaveFocus();
     await user.tab();
     expect(screen.getByRole("button", { name: "继续" })).toHaveFocus();
+    // The workspace overlay now paints (and tabs) after the narrative
+    // panel: modal overlays must never sit under dialogue text.
+    await user.tab();
+    expect(screen.getByRole("button", { name: "工作区操作" })).toHaveFocus();
     await user.tab();
     expect(screen.getByRole("button", { name: "设置" })).toHaveFocus();
   });

@@ -105,7 +105,8 @@ describe("SystemDialogHostV1", () => {
 
   it("uses one supplied session store for rendering, diagnostics, and unmount cleanup", async () => {
     const store = createSystemDialogSessionStoreV1();
-    const readSystemDialogOpenForDiagnosticsV1 = (): boolean => store.getSnapshot().settingsOpen;
+    const readSystemDialogOpenForDiagnosticsV1 = (): boolean =>
+      store.getSnapshot().active === "settings";
     const rendered = render(
       <SystemDialogHostV1 store={store} inputRouter={createInputRouterV1()} settings={settingsV1}>
         <SettingsLauncherV1 label="设置" />
@@ -116,7 +117,7 @@ describe("SystemDialogHostV1", () => {
     expect(readSystemDialogOpenForDiagnosticsV1()).toBe(false);
     expect(screen.queryByRole("dialog", { name: "设置" })).not.toBeInTheDocument();
 
-    act(() => store.openSettings());
+    act(() => store.open("settings"));
 
     expect(readSystemDialogOpenForDiagnosticsV1()).toBe(true);
     expect(screen.getByRole("dialog", { name: "设置" })).toBeVisible();

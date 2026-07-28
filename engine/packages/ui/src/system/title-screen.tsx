@@ -2,6 +2,7 @@
 import type { ReactElement } from "react";
 
 import { Button } from "../primitives/Button.tsx";
+import { SavesLauncherV1 } from "./saves-launcher.tsx";
 import { SettingsLauncherV1 } from "./settings-launcher.tsx";
 
 /**
@@ -17,6 +18,7 @@ import { SettingsLauncherV1 } from "./settings-launcher.tsx";
 export interface TitleScreenLabelsV1 {
   readonly newGameLabel: string;
   readonly continueLabel: string;
+  readonly loadGameLabel: string;
   readonly settingsLabel: string;
 }
 
@@ -27,6 +29,8 @@ export function TitleScreenV1(props: {
   readonly backgroundUrl?: string;
   onNewGame(): void;
   onContinue(): void;
+  /** Shows the Load-game entry (opens the system Save dialog). */
+  readonly showLoadGame?: boolean;
 }): ReactElement {
   return (
     <section
@@ -69,6 +73,9 @@ export function TitleScreenV1(props: {
         <Button data-title-continue="true" onClick={() => props.onContinue()}>
           {props.labels.continueLabel}
         </Button>
+        {props.showLoadGame === true ? (
+          <SavesLauncherV1 data-title-load-game="true" label={props.labels.loadGameLabel} />
+        ) : null}
         <SettingsLauncherV1 data-title-settings="true" label={props.labels.settingsLabel} />
       </div>
     </section>
