@@ -7,6 +7,10 @@ import { defineConfig } from "vite";
 import type { Plugin, UserConfig } from "vite";
 
 import type { StoryWebTargetV1 } from "@sillymaker/tooling/project/config-types";
+import {
+  applyStoryMetadataToHtmlV1,
+  parseStoryMetadataV1,
+} from "@sillymaker/tooling/project/story-metadata";
 
 import { projectTavernConfigV1 } from "./project.config.ts";
 
@@ -104,6 +108,26 @@ function runtimeAssetsPluginV1(web: StoryWebTargetV1): Plugin {
   };
 }
 
+/**
+ * Injects share metadata (title/description/Open Graph/Twitter/favicon)
+ * from `<storyRoot>/metadata.json` into the page at dev and build time.
+ * Stories without the file keep their hand-written head untouched.
+ */
+function storyMetadataPluginV1(web: StoryWebTargetV1): Plugin {
+  const metadataPath = resolve(repositoryRoot, web.storyRoot, "metadata.json");
+  return {
+    name: "sillymaker:story-metadata",
+    transformIndexHtml(html) {
+      if (!existsSync(metadataPath)) return html;
+      const metadata = parseStoryMetadataV1(
+        JSON.parse(readFileSync(metadataPath, "utf8")),
+        join(web.storyRoot, "metadata.json"),
+      );
+      return applyStoryMetadataToHtmlV1(html, metadata, { storyRoot: web.storyRoot });
+    },
+  };
+}
+
 export async function createProjectTavernViteConfigV1(input: {
   readonly applicationId: string;
   readonly initialBuildIdentity?: unknown;
@@ -121,6 +145,7 @@ export async function createProjectTavernViteConfigV1(input: {
       identity.createPlugin({ root: repositoryRoot, initialIdentity: initialBuildIdentity }),
       react(),
       runtimeAssetsPluginV1(web),
+      storyMetadataPluginV1(web),
     ],
     build: {
       outDir: resolve(repositoryRoot, web.outDir),

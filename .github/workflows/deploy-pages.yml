@@ -35,6 +35,8 @@ jobs:
         env:
           # Project sites live under https://<owner>.github.io/<repo>/.
           SITE_BASE: /${{ github.event.repository.name }}/
+          # Absolutizes og:image/og:url in the game page for crawlers.
+          SITE_ORIGIN: https://${{ github.repository_owner }}.github.io
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist/site
