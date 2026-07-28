@@ -42,13 +42,17 @@ deno task dev
 ## 仓库结构
 
 ```text
-engine/packages/base   通用合同、Story authoring、运行时、存档与诊断
-engine/packages/ui     通用 React 游戏 UI 与 presentation runtime
-engine/packages/web    浏览器 Host、IndexedDB、挂载、路由与自动化
+engine/packages/base     通用合同、Story authoring、运行时、存档与诊断
+engine/packages/tooling  项目配置与 story CLI 命令
+engine/packages/ui       通用 React 游戏 UI 与 presentation runtime
+engine/packages/web      浏览器 Host、IndexedDB/HTTP 持久化、挂载与自动化
 e2e/                     中立引擎一致性 Story（Engine Lab）
 template/                新游戏起点骨架
 examples/                示例 Story（bookshop、cat-cafe）
-docs                   活动技术、游戏和政策文档
+project.config.ts        所有应用的注册处
+scripts/                 构建身份、资产校验、桌面存档服务器
+docs/                    内部工程文档（计划、研究、提案、政策）
+website/                 对外文档站（VitePress，en + zh）
 ```
 
 各 workspace package 当前均为私有包；“public export”表示仓库内受支持的包入口，不表示已发布到 npm。
