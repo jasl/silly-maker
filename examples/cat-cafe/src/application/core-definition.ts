@@ -39,6 +39,16 @@ export const catcafeCoreApplicationDefinitionV1 = defineCoreGameApplication<
   entry: catcafeStoryEntryV1,
   semantic: catcafeSemanticAdapterV1,
   exportFilename: "catcafe-save.json",
+  // 玩家回滚（R7）：运动会开赛与结局确认是硬边界——比赛不能"回到开赛
+  // 之前"重排（防重掷：RNG 随快照，回退重试同一结果），确认过的结局
+  // 不可撤销。其余提交都是普通检查点。
+  rollback: {
+    capacity: 24,
+    classify: (command) =>
+      command.kind === "cc.enter_contest" || command.kind === "cc.enter_postgame"
+        ? "barrier"
+        : "checkpoint",
+  },
   // The resolved asset manifest rides the extensions surface so the web UI
   // can build its asset registry; extensions observe, never own.
   createExtensions: (context) => ({

@@ -119,6 +119,27 @@ test("the DevDock tuning panel commits debug commands through the session", asyn
   await expect(page.locator("[data-cc-stats]")).toContainText("金钱55");
 });
 
+test("the HUD rollback steps one committed action back without rerolling", async ({ page }) => {
+  await page.goto(catcafeTargetUrlV1());
+  await playOpeningV1(page);
+
+  // Pet once: trust moves and a checkpoint records.
+  const stats = page.locator("[data-cc-stats]");
+  await expect(stats).toContainText("信任10");
+  await page.getByRole("button", { name: "顺背" }).click();
+  await expect(stats).toContainText("信任11");
+  const statsAfter = await stats.textContent();
+  const rollback = page.locator("[data-cc-rollback]");
+  await expect(rollback).toBeEnabled();
+
+  // Roll back: authoritative state returns; the retry reproduces the same
+  // outcome (RNG rides inside the snapshot).
+  await rollback.click();
+  await expect(stats).toContainText("信任10");
+  await page.getByRole("button", { name: "顺背" }).click();
+  await expect(stats).toHaveText(statsAfter ?? "");
+});
+
 test("auto mode advances revealed lines and the history panel replays the backlog", async ({
   page,
 }) => {

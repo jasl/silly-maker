@@ -527,6 +527,29 @@ function CatcafeHistoryPanelV1(props: {
   );
 }
 
+/** 玩家回退：有界检查点环；比赛开赛/结局确认是硬边界（策略见 core-definition）。 */
+function CatcafeRollbackControlV1(props: {
+  readonly instance: CatcafeApplicationInstanceV1;
+  readonly label: string;
+}): ReactElement {
+  const rollback = props.instance.rollback;
+  const steps = useSyncExternalStore(
+    rollback.subscribe,
+    () => rollback.available().steps,
+    () => rollback.available().steps,
+  );
+  return (
+    <Button
+      data-cc-rollback="true"
+      data-cc-rollback-steps={String(steps)}
+      disabled={steps < 1}
+      onClick={() => void rollback.toPrevious()}
+    >
+      {props.label}
+    </Button>
+  );
+}
+
 function CatcafeNarrativePanelV1(props: {
   readonly publication: DeepReadonly<CatcafeUiPublicationV1>;
   readonly semantic: CatcafeSemanticPortV1;
@@ -1032,6 +1055,10 @@ function CatcafeHudV1(props: {
               <Button data-cc-album-open="true" onClick={props.openAlbum}>
                 {uiText("text.cc.album.open")}
               </Button>
+              <CatcafeRollbackControlV1
+                instance={props.instance}
+                label={uiText("text.cc.playback.rollback")}
+              />
             </span>
             {inOpening ? null : (
               <span
