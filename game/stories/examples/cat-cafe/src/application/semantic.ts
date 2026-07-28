@@ -285,6 +285,15 @@ export function projectCatcafeTransientEffectsV1(
             payload: Object.freeze({ outcome: "lost", rivalId: fact.rivalId }),
           }),
         ];
+      case "cc.encounter":
+        return fact.textId === null
+          ? []
+          : [
+              Object.freeze({
+                effectId: "effect.catcafe.encounter",
+                payload: Object.freeze({ encounterId: fact.encounterId, textId: fact.textId }),
+              }),
+            ];
       default:
         return [];
     }

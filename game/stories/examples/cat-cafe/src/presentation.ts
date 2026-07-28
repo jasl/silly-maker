@@ -130,6 +130,26 @@ export const catcafeTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
         { textId: "text.cc.ending.ordinary", text: "结局·平凡的幸福：雨还会下，猫舍的灯总亮着。" },
         { textId: "text.cc.contest.won", text: "小雨赢下了这一场！" },
         { textId: "text.cc.contest.lost", text: "这次没能赢，回去多练练吧。" },
+        {
+          textId: "text.cc.encounter.stray",
+          text: "一只野猫溜进店里蹭了圈食盆，小雨全程严密监视。",
+        },
+        {
+          textId: "text.cc.encounter.baker",
+          text: "面包店老板娘送来今天的边角料：「给小雨补补。」",
+        },
+        {
+          textId: "text.cc.encounter.sketch",
+          text: "窗边的女孩又画了一页速写，临走前把画给你看——是打哈欠的小雨。",
+        },
+        {
+          textId: "text.cc.encounter.mechanic",
+          text: "修车行小哥下班顺路来撸猫，小雨居然让他摸了尾巴。",
+        },
+        {
+          textId: "text.cc.encounter.critic",
+          text: "有位客人认真拍了店里每个角落——第二天你们上了本地美食号。",
+        },
         { textId: "text.cc.settings.language", text: "语言" },
         { textId: "text.cc.settings.volume", text: "音量" },
         { textId: "text.cc.settings.muted", text: "静音" },
@@ -277,6 +297,26 @@ export const catcafeTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
         },
         { textId: "text.cc.contest.won", text: "Drizzle takes the match!" },
         { textId: "text.cc.contest.lost", text: "Not this time. Back to training." },
+        {
+          textId: "text.cc.encounter.stray",
+          text: "A stray slipped in and raided the food bowl. Drizzle supervised sternly throughout.",
+        },
+        {
+          textId: "text.cc.encounter.baker",
+          text: 'The baker dropped off today\'s offcuts: "For the little one."',
+        },
+        {
+          textId: "text.cc.encounter.sketch",
+          text: "The girl by the window filled another page — a yawning Drizzle, shown to you on her way out.",
+        },
+        {
+          textId: "text.cc.encounter.mechanic",
+          text: "The garage boy came by after work; Drizzle actually let him touch her tail.",
+        },
+        {
+          textId: "text.cc.encounter.critic",
+          text: "A customer photographed every corner of the shop — next day you were on the local food blog.",
+        },
         { textId: "text.cc.settings.language", text: "Language" },
         { textId: "text.cc.settings.volume", text: "Volume" },
         { textId: "text.cc.settings.muted", text: "Mute" },

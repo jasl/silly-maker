@@ -328,12 +328,19 @@ function CatcafeHudV1(props: {
   const uiText = useCatcafeTextV1(props.playerProfile);
   useCatcafeAlbumWatcherV1(props.publication, props.playerProfile);
   const [contestToast, setContestToast] = useState<"won" | "lost" | null>(null);
+  const [encounterTextId, setEncounterTextId] = useState<string | null>(null);
   useEffect(
     () =>
       props.instance.subscribeTransientEffects((effect) => {
-        if (effect.effectId !== "effect.catcafe.contest") return;
-        const outcome = (effect.payload as { readonly outcome?: string }).outcome;
-        setContestToast(outcome === "won" ? "won" : "lost");
+        if (effect.effectId === "effect.catcafe.contest") {
+          const outcome = (effect.payload as { readonly outcome?: string }).outcome;
+          setContestToast(outcome === "won" ? "won" : "lost");
+          return;
+        }
+        if (effect.effectId === "effect.catcafe.encounter") {
+          const textId = (effect.payload as { readonly textId?: string }).textId;
+          setEncounterTextId(textId ?? null);
+        }
       }),
     [props.instance],
   );
@@ -355,6 +362,11 @@ function CatcafeHudV1(props: {
       {contestToast === null ? null : (
         <p data-cc-contest-toast={contestToast} style={{ fontWeight: 700 }}>
           {uiText(contestToast === "won" ? "text.cc.contest.won" : "text.cc.contest.lost")}
+        </p>
+      )}
+      {encounterTextId === null ? null : (
+        <p data-cc-encounter={encounterTextId} style={{ fontStyle: "italic" }}>
+          {uiText(encounterTextId)}
         </p>
       )}
       <p
