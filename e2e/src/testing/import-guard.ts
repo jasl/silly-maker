@@ -13,7 +13,6 @@ const forbiddenSpecifierPatternsV1: readonly RegExp[] = Object.freeze([
   /^@sillymaker\/(?:base|ui|web)\/src(?:\/|$)/u,
   /(?:^|\/)engine\/packages\/[^/]+\/src(?:\/|$)/u,
   /(?:^|\/)(?:e2e|examples|template)\/(?:[^/]+\/)*src(?:\/|$)/u,
-  /(?:^|\/)docs\/archive(?:\/|$)/u,
 ]);
 
 const importSpecifierPatternV1 =

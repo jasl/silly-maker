@@ -6,7 +6,7 @@
 
 ## 1. Relationship to the first visual track
 
-首个 PoC 期间已经形成过一版视觉方向（归档于 [first web visual pack](../archive/2026-07-first-poc-goal/art/first-web-visual-pack.md)），包含视觉语言、逻辑画布、遮挡分区、女主锚点与七张整屏概念稿计划，并实际生成过四张候选稿。该轨道设计了"人工批准后晋升为运行时素材"的闸门，但晋升从未执行，工程 Goal 全程运行在 code-native fallback 上——这是当前界面没有任何视觉的直接原因。
+首个 PoC 期间已经形成过一版视觉方向（其归档文档已随首个 PoC 归档一并删除），包含视觉语言、逻辑画布、遮挡分区、女主锚点与七张整屏概念稿计划，并实际生成过四张候选稿。该轨道设计了"人工批准后晋升为运行时素材"的闸门，但晋升从未执行，工程 Goal 全程运行在 code-native fallback 上——这是当前界面没有任何视觉的直接原因。
 
 本文把其中仍然有效的决定显式搬进活动文档（画布、分区、色板、角色锚点、素材边界），归档文件此后只是历史证据。已找回的四张候选稿位于本地忽略目录 `art-source/aigc/candidates/recovered-first-web-pack/`，作为风格锚点参考；是否直接采用由所有者在素材晋升时决定。
 

@@ -57,5 +57,3 @@ New game-design documents should be added under `docs/game/` and linked from tha
 Root legal files remain controlling when a summary conflicts with them.
 
 ## Historical material
-
-The [first PoC Goal archive](archive/2026-07-first-poc-goal/README.md) contains the former Goal, plans, specifications, runbooks, PoC rules, balance documents, and design baselines. It is intentionally non-authoritative and is not part of normal development navigation.
