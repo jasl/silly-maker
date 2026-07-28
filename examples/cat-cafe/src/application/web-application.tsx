@@ -1146,6 +1146,7 @@ export const catcafeRootLabelsV1: Partial<DefaultGameRootLabelsV1> = Object.free
   settingsDeveloperToolsLabel: "开发者工具",
   titleNewGameLabel: "新游戏",
   titleContinueLabel: "继续",
+  titleLoadGameLabel: "载入存档",
   closeLabel: "关闭",
 });
 
@@ -1161,8 +1162,40 @@ const catcafeRootLabelsEnV1: Partial<DefaultGameRootLabelsV1> = Object.freeze({
   settingsDeveloperToolsLabel: "Developer tools",
   titleNewGameLabel: "New game",
   titleContinueLabel: "Continue",
+  titleLoadGameLabel: "Load game",
   closeLabel: "Close",
 });
+
+/**
+ * 存档安全点：权威快照始终原子一致（技术上任何提交点都能存），这里表达
+ * 的是游戏设计边界——对话推进中与运动会回合中不做手动存档，避免读回
+ * 断在演出中间的档。自动/快速存档机制不受影响。
+ */
+export function catcafeSaveGuardForLocaleV1(
+  locale: string | null,
+): (publication: unknown) => { allowed: boolean; reasonText?: string } {
+  const zh = locale !== "en";
+  return (publication) => {
+    const semantic = (publication as DeepReadonly<CatcafeUiPublicationV1>).semantic;
+    if (semantic.narrative.pending !== null) {
+      return Object.freeze({
+        allowed: false,
+        reasonText: zh
+          ? "对话进行中——推进到日常画面后即可存档。"
+          : "Dialogue in progress — advance to daily play to save.",
+      });
+    }
+    if (semantic.game.contest !== null) {
+      return Object.freeze({
+        allowed: false,
+        reasonText: zh
+          ? "运动会回合中——比赛结束后即可存档。"
+          : "Contest round in progress — finish the match to save.",
+      });
+    }
+    return Object.freeze({ allowed: true });
+  };
+}
 
 /** 系统 chrome（保存/设置对话框）按启动时的语言偏好选择；重载后生效。 */
 export function catcafeChromeForLocaleV1(locale: string | null): {
@@ -1177,6 +1210,7 @@ export function catcafeChromeForLocaleV1(locale: string | null): {
 export const catcafeSaveOverlayLabelsV1: SaveOverlayLabelsV1 = Object.freeze({
   accessibleName: "保存",
   title: "保存",
+  savedAtText: (isoInstant: string) => new Date(isoInstant).toLocaleString("zh-CN"),
   storageLoading: "正在读取本地存档…",
   storageReady: "本地存档可用",
   storageBusy: "存档操作进行中",
@@ -1260,6 +1294,7 @@ export const catcafeSaveOverlayLabelsV1: SaveOverlayLabelsV1 = Object.freeze({
 const catcafeSaveOverlayLabelsEnV1: SaveOverlayLabelsV1 = Object.freeze({
   accessibleName: "Save",
   title: "Save",
+  savedAtText: (isoInstant: string) => new Date(isoInstant).toLocaleString("en-US"),
   storageLoading: "Reading local saves…",
   storageReady: "Local saves available",
   storageBusy: "Save operation in progress",
@@ -1397,8 +1432,13 @@ export const catcafeWebApplicationV1: WebGameApplicationV1<
       overlayIds: Object.freeze(["overlay.catcafe.album"] as const),
       slots: createCatcafeUiSlotsV1({ instance, playerProfile, registry }),
       ...(() => {
-        const chrome = catcafeChromeForLocaleV1(playerProfile.current().preferences.locale);
-        return { labels: chrome.labels, saveLabels: chrome.saveLabels };
+        const locale = playerProfile.current().preferences.locale;
+        const chrome = catcafeChromeForLocaleV1(locale);
+        return {
+          labels: chrome.labels,
+          saveLabels: chrome.saveLabels,
+          saveGuard: catcafeSaveGuardForLocaleV1(locale),
+        };
       })(),
       inputMaps: Object.freeze({ keyboard: catcafeKeyboardMapV1, pointer: catcafePointerMapV1 }),
       loadDevDockContributions: () =>

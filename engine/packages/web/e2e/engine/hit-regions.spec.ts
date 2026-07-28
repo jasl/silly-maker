@@ -112,6 +112,65 @@ test("the DevDock tuning panel commits debug commands through the session", asyn
   await expect(page.locator("[data-cc-stats]")).toContainText("金钱55");
 });
 
+test("the system menu is one modal at a time and saves honor the safepoint", async ({ page }) => {
+  await page.goto(catcafeTargetUrlV1());
+
+  // Title screen: Load game opens the system Save dialog even before play.
+  await expect(page.locator("[data-title-load-game]")).toBeVisible();
+  await page.getByRole("button", { name: "新游戏" }).click();
+
+  // Mid-dialogue: the Save dialog paints above the narrative panel and the
+  // panel is inert — the safepoint guard disables manual writes.
+  await page.getByRole("button", { name: "保存", exact: true }).click();
+  const saves = page.getByRole("dialog", { name: "保存" });
+  await expect(saves).toBeVisible();
+  await expect(page.locator("[data-save-guard='blocked']")).toContainText("对话进行中");
+  await expect(saves.getByRole("button", { name: "手动保存" })).toBeDisabled();
+  // The whole gameplay tree (narrative panel included) turns inert, so the
+  // dialogue can neither cover the dialog nor swallow pointer input.
+  await expect(page.getByTestId("stage-narrative")).toHaveAttribute("inert", "");
+  await expect(page.locator("[data-system-dialog-host-content]")).toHaveAttribute("inert", "");
+
+  // Settings cannot stack on top: the launcher sits under inert content
+  // while the dialog is open (real pointers are blocked).
+  await expect(async () => {
+    await page
+      .getByRole("button", { name: "设置", exact: true })
+      .first()
+      .click({ timeout: 500, trial: true });
+  }).rejects.toThrow();
+
+  // Escape closes the dialog; finishing the opening reaches a safepoint.
+  await page.keyboard.press("Escape");
+  await expect(saves).toBeHidden();
+  for (let index = 0; index < 3; index += 1) {
+    await page.locator("[data-cc-advance]").click();
+  }
+  await page.getByRole("button", { name: "就叫「小雨」" }).click();
+  await page.locator("[data-cc-advance]").click();
+  await page.locator("[data-cc-advance]").click();
+  await expect(page.locator("[data-cc-narrative]")).toHaveCount(0);
+
+  // Daily play is a safepoint: manual save commits and shows the slot's
+  // timestamp in the list.
+  await page.getByRole("button", { name: "保存", exact: true }).click();
+  await expect(page.locator("[data-save-guard='blocked']")).toHaveCount(0);
+  await saves.getByRole("button", { name: "手动保存" }).click();
+  await expect(page.getByTestId("save-operation-result")).toContainText("已保存到手动存档");
+  await expect(saves.locator("[data-slot-id='manual'] [data-slot-saved-at]")).toBeVisible();
+
+  // Title screen → Load game → confirm: entering gameplay dismisses both
+  // the dialog and the title screen (the anchored load origin).
+  await page.reload();
+  await page.locator("[data-title-load-game]").click();
+  await expect(saves).toBeVisible();
+  await saves.getByRole("button", { name: "载入手动存档" }).click();
+  await page.getByRole("button", { name: "确认" }).click();
+  await expect(saves).toBeHidden();
+  await expect(page.locator("[data-title-screen]")).toHaveCount(0);
+  await expect(page.locator("[data-cc-calendar='1.0.0']")).toBeVisible();
+});
+
 test("the ending settles once and Keep-the-shop-open enters the endless epilogue", async ({
   page,
 }) => {

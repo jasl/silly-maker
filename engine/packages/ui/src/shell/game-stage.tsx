@@ -60,8 +60,8 @@ export const stageLayerIdsV1 = Object.freeze([
   "character",
   "scene_interaction",
   "hud",
-  "workspace_overlay",
   "narrative",
+  "workspace_overlay",
   "system",
 ] as const satisfies readonly StageLayerIdV1[]);
 
@@ -186,19 +186,21 @@ export function GameStageV1(props: GameStagePropsV1): ReactElement {
         </div>
         <div
           className={styles["game-stage__layer"]}
-          data-stage-layer="workspace_overlay"
-          data-testid="stage-workspace-overlay"
-          inert={systemActive}
-        >
-          {props.layers.workspaceOverlay}
-        </div>
-        <div
-          className={styles["game-stage__layer"]}
           data-stage-layer="narrative"
           data-testid="stage-narrative"
           inert={narrativeInert}
         >
           {props.layers.narrative}
+        </div>
+        {/* Overlays paint above the narrative panel: a modal workspace
+            surface (album, save…) must never sit under dialogue text. */}
+        <div
+          className={styles["game-stage__layer"]}
+          data-stage-layer="workspace_overlay"
+          data-testid="stage-workspace-overlay"
+          inert={systemActive}
+        >
+          {props.layers.workspaceOverlay}
         </div>
         <div
           ref={setSystemPortalContainer}

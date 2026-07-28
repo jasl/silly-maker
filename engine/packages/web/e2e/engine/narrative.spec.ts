@@ -106,8 +106,8 @@ test.describe("engine pending interactions", () => {
     await reloadDialog.getByRole("button", { name: "载入手动存档" }).click();
     const confirmation = page.getByRole("dialog", { name: "载入手动存档" });
     await confirmation.getByRole("button", { name: "确认", exact: true }).click();
-    await expect(reloadDialog.getByTestId("save-operation-result")).toHaveText("已载入存档");
-    await reloadDialog.getByRole("button", { name: "关闭", exact: true }).click();
+    // Convention: a successful load closes the dialog and enters gameplay.
+    await expect(reloadDialog).toBeHidden();
 
     await expect(choice).toBeVisible();
     await expect(choice).toHaveAttribute("data-lab-occurrence", savedOccurrence ?? "");

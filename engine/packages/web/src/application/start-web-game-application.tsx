@@ -87,6 +87,8 @@ export interface WebGameUiDefinitionV1<
   >;
   readonly labels?: Partial<DefaultGameRootLabelsV1>;
   readonly saveLabels?: SaveOverlayLabelsV1;
+  /** Story safepoint over the live publication (see SaveOverlayGuardV1). */
+  readonly saveGuard?: (publication: unknown) => { allowed: boolean; reasonText?: string };
   readonly devDockContributions?: DevDockContributionSetV1;
   /** Shows the engine title screen (New game / Continue / Settings). */
   readonly titleScreen?: { readonly title: string; readonly backgroundUrl?: string };
@@ -117,7 +119,7 @@ export interface WebGameUiDefinitionV1<
     readonly overlaySession: {
       getSnapshot(): { readonly primaryId: string | null; readonly detailIds: readonly string[] };
     };
-    readonly systemDialogSession: { getSnapshot(): { readonly settingsOpen: boolean } };
+    readonly systemDialogSession: { getSnapshot(): { readonly active: string | null } };
   }) => () => unknown;
   /** Releases Story-owned UI resources (asset registries, caches). */
   dispose?(): void;
@@ -479,6 +481,9 @@ export async function startWebGameApplicationV1<
               persistence: instance.persistence,
             }),
             labels: uiDefinition.saveLabels,
+            ...(uiDefinition.saveGuard === undefined
+              ? {}
+              : { evaluateGuard: uiDefinition.saveGuard }),
           });
 
     // DevDock open state feeds the diagnostics UI context without giving

@@ -65,6 +65,8 @@ export interface SaveOverlayLabelsV1 {
   readonly slotHealth: Readonly<Record<SaveSlotHealthV1, string>>;
   readonly quickSave: string;
   readonly manualSave: string;
+  /** Formats a slot's savedAt instant; defaults to the locale string. */
+  readonly savedAtText?: (isoInstant: string) => string;
   readonly importSave: string;
   readonly exportCurrentSave: string;
   readonly loadSlot: (slotName: string) => string;
@@ -107,10 +109,25 @@ export interface SaveOverlayLabelsV1 {
   };
 }
 
+/**
+ * Story-declared safepoint. Authoritative snapshots are always committed
+ * atomically, so persistence itself never tears — the guard expresses the
+ * game-design boundary (no manual saves mid-dialogue, mid-battle…). Manual
+ * writes are disabled with the stated reason; loads and exports stay open.
+ */
+export interface SaveOverlayGuardV1 {
+  readonly allowed: boolean;
+  readonly reasonText?: string;
+}
+
 export interface SaveOverlayPropsV1 {
   readonly port: SaveOverlayPortV1;
   readonly labels: SaveOverlayLabelsV1;
   readonly inputRouter: InputRouterV1;
+  readonly guard?: SaveOverlayGuardV1;
+  /** Renders a dialog close button when hosted as a system dialog. */
+  readonly onClose?: () => void;
+  readonly closeLabel?: string;
 }
 
 const saveSlotIdsV1 = Object.freeze([
@@ -447,6 +464,11 @@ function storageStatusTextV1(readState: SlotReadStateV1, labels: SaveOverlayLabe
   }
 }
 
+function defaultSavedAtTextV1(isoInstant: string): string {
+  const parsed = new Date(isoInstant);
+  return Number.isNaN(parsed.getTime()) ? isoInstant : parsed.toLocaleString();
+}
+
 function canLoadSlotV1(health: SaveSlotHealthV1 | null): boolean {
   return health === "valid" || health === "recovery_candidate";
 }
@@ -602,20 +624,28 @@ export function SaveOverlayV1(props: SaveOverlayPropsV1): ReactElement {
     }
   }, [finishOperationV1, props.port]);
 
+  const onClose = props.onClose;
   const executeConfirmedOperationV1 = useCallback(
     async (invocation: DeepReadonly<ConfirmedSaveOperationV1>): Promise<unknown> => {
       try {
         switch (invocation.kind) {
-          case "load":
-            return await runPersistenceOperationV1(invocation, () =>
+          case "load": {
+            const result = await runPersistenceOperationV1(invocation, () =>
               props.port.load(invocation.slotId),
             );
+            // Convention: a successful load enters gameplay right away.
+            if (result?.kind === "loaded") onClose?.();
+            return result;
+          }
           case "clear":
             return await runPersistenceOperationV1(invocation, () =>
               props.port.clear(invocation.slotId),
             );
-          case "import":
-            return await runImportOperationV1();
+          case "import": {
+            const result = await runImportOperationV1();
+            if (result?.kind === "imported") onClose?.();
+            return result;
+          }
           default:
             return unreachableV1(invocation);
         }
@@ -623,7 +653,7 @@ export function SaveOverlayV1(props: SaveOverlayPropsV1): ReactElement {
         if (mountedRef.current) setConfirmation(null);
       }
     },
-    [props.port, runImportOperationV1, runPersistenceOperationV1],
+    [onClose, props.port, runImportOperationV1, runPersistenceOperationV1],
   );
 
   const confirmationSemantic = useMemo(
@@ -648,6 +678,8 @@ export function SaveOverlayV1(props: SaveOverlayPropsV1): ReactElement {
   const status = readState.kind === "ready" ? readState.status : null;
   const operationPending = operationState.kind === "pending";
   const storageOperationsEnabled = status?.available === true && !status.busy && !operationPending;
+  const saveAllowed = props.guard?.allowed !== false;
+  const writeOperationsEnabled = storageOperationsEnabled && saveAllowed;
 
   const openConfirmationV1 = (
     event: MouseEvent<HTMLButtonElement>,
@@ -686,6 +718,16 @@ export function SaveOverlayV1(props: SaveOverlayPropsV1): ReactElement {
     >
       <header className={styles["save-overlay__header"]}>
         <h2>{props.labels.title}</h2>
+        {props.onClose === undefined ? null : (
+          <Button data-save-overlay-close="true" onClick={props.onClose}>
+            {props.closeLabel ?? "Close"}
+          </Button>
+        )}
+        {saveAllowed || props.guard?.reasonText === undefined ? null : (
+          <p role="status" data-save-guard="blocked">
+            {props.guard.reasonText}
+          </p>
+        )}
         <p role="status" aria-live="polite">
           {storageStatusTextV1(readState, props.labels)}
         </p>
@@ -716,10 +758,15 @@ export function SaveOverlayV1(props: SaveOverlayPropsV1): ReactElement {
                     : props.labels.slotsUnavailable
                   : slotHealthTextV1(health, props.labels)}
               </p>
+              {summary?.savedAt === null || summary?.savedAt === undefined ? null : (
+                <p data-slot-saved-at={summary.savedAt}>
+                  {(props.labels.savedAtText ?? defaultSavedAtTextV1)(summary.savedAt)}
+                </p>
+              )}
               <div className={styles["save-overlay__slot-actions"]}>
                 {slotId === "quick" || slotId === "manual" ? (
                   <Button
-                    disabled={!storageOperationsEnabled}
+                    disabled={!writeOperationsEnabled}
                     onClick={() =>
                       void runPersistenceOperationV1(Object.freeze({ kind: "save", slotId }), () =>
                         props.port.save(slotId),

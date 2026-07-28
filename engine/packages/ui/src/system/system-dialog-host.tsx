@@ -22,6 +22,12 @@ import {
   type InputRouterV1,
 } from "../input/contracts.ts";
 import styles from "../overlays/overlay-host.module.css";
+import type {
+  SaveOverlayGuardV1,
+  SaveOverlayLabelsV1,
+  SaveOverlayPortV1,
+} from "../persistence/save-overlay.tsx";
+import { SaveOverlayV1 } from "../persistence/save-overlay.tsx";
 import {
   useStageInputIsolationV1,
   useStageSystemFocusScopeRegistrationV1,
@@ -30,19 +36,32 @@ import {
 import { SettingsDialogContentV1 } from "./settings-dialog.tsx";
 import type { SettingsDialogPropsV1 } from "./settings-dialog.tsx";
 import { createSystemDialogSessionStoreV1 } from "./system-dialog-session-store.ts";
-import type { SystemDialogSessionStoreV1 } from "./system-dialog-session-store.ts";
+import type {
+  SystemDialogSessionStoreV1,
+  SystemDialogSurfaceV1,
+} from "./system-dialog-session-store.ts";
 
 export type SystemDialogSettingsV1 = Omit<SettingsDialogPropsV1, "onClose">;
+
+export interface SystemDialogSavesV1 {
+  readonly port: SaveOverlayPortV1;
+  readonly labels: SaveOverlayLabelsV1;
+  /** Story-declared safepoint: manual writes are disabled when not allowed. */
+  readonly guard?: SaveOverlayGuardV1;
+}
 
 export interface SystemDialogHostPropsV1 {
   readonly store?: SystemDialogSessionStoreV1;
   readonly inputRouter: InputRouterV1;
   readonly settings: SystemDialogSettingsV1;
+  /** Enables the system Save dialog; absent when the Host has no persistence. */
+  readonly saves?: SystemDialogSavesV1;
   readonly children: ReactNode;
 }
 
 interface SystemDialogControllerV1 {
   openSettings(opener: HTMLButtonElement): void;
+  openSaves(opener: HTMLButtonElement): void;
 }
 
 const SystemDialogContextV1 = createContext<SystemDialogControllerV1 | null>(null);
@@ -75,42 +94,39 @@ function focusConnectedElementV1(
 export function SystemDialogHostV1(props: SystemDialogHostPropsV1): ReactElement {
   const fallbackStoreRef = useRef<SystemDialogSessionStoreV1 | null>(null);
   const store = props.store ?? (fallbackStoreRef.current ??= createSystemDialogSessionStoreV1());
-  const { settingsOpen } = useSyncExternalStore(
-    store.subscribe,
-    store.getSnapshot,
-    store.getSnapshot,
-  );
+  const { active } = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
   const [focusScopeElement, setFocusScopeElement] = useState<HTMLDivElement | null>(null);
   const focusScopeRef = useRef<HTMLDivElement | null>(null);
   const openerRef = useRef<HTMLButtonElement | null>(null);
   const portalContainer = useStageSystemPortalContainerV1();
-  useStageInputIsolationV1("system", settingsOpen);
+  const dialogOpen = active !== null;
+  useStageInputIsolationV1("system", dialogOpen);
   useStageSystemFocusScopeRegistrationV1(focusScopeElement);
-  useDevDockPortalTargetRegistrationV1("system", settingsOpen ? focusScopeElement : null);
+  useDevDockPortalTargetRegistrationV1("system", dialogOpen ? focusScopeElement : null);
 
   const setFocusScope = useCallback((element: HTMLDivElement | null): void => {
     focusScopeRef.current = element;
     setFocusScopeElement(element);
   }, []);
 
-  const closeSettings = useCallback((): void => {
-    store.closeSettings();
+  const closeDialog = useCallback((): void => {
+    store.close();
     const opener = openerRef.current;
     openerRef.current = null;
     focusConnectedElementV1(opener, focusScopeRef.current);
   }, [store]);
 
-  const openSettings = useCallback(
-    (opener: HTMLButtonElement): void => {
+  const openSurface = useCallback(
+    (surface: SystemDialogSurfaceV1, opener: HTMLButtonElement): void => {
       openerRef.current = opener;
-      store.openSettings();
+      store.open(surface);
     },
     [store],
   );
 
   useLayoutEffect(
     () => () => {
-      store.closeSettings();
+      store.close();
       focusConnectedElementV1(openerRef.current, focusScopeRef.current);
       openerRef.current = null;
     },
@@ -118,7 +134,7 @@ export function SystemDialogHostV1(props: SystemDialogHostPropsV1): ReactElement
   );
 
   useLayoutEffect(() => {
-    if (!settingsOpen) return undefined;
+    if (!dialogOpen) return undefined;
     return props.inputRouter.register({
       context: "system",
       handle(event) {
@@ -126,37 +142,46 @@ export function SystemDialogHostV1(props: SystemDialogHostPropsV1): ReactElement
           return inputIgnoredV1;
         }
         if (event.kind === "action" && event.actionId === systemInputActionIdsV1.cancel) {
-          closeSettings();
+          closeDialog();
         }
         return inputHandledV1;
       },
     });
-  }, [closeSettings, props.inputRouter, settingsOpen]);
+  }, [closeDialog, props.inputRouter, dialogOpen]);
 
   const controller = useMemo(
-    () => Object.freeze({ openSettings }) satisfies SystemDialogControllerV1,
-    [openSettings],
+    () =>
+      Object.freeze({
+        openSettings: (opener: HTMLButtonElement) => openSurface("settings", opener),
+        openSaves: (opener: HTMLButtonElement) => openSurface("saves", opener),
+      }) satisfies SystemDialogControllerV1,
+    [openSurface],
   );
   const position = portalContainer === null ? "fixed" : "absolute";
+  const saves = props.saves;
+  const surface = active === "saves" && saves === undefined ? null : active;
 
   return (
     <SystemDialogContextV1.Provider value={controller}>
-      <div data-system-dialog-host-content="true" inert={settingsOpen}>
+      <div data-system-dialog-host-content="true" inert={dialogOpen}>
         {props.children}
       </div>
-      {settingsOpen ? (
-        <DialogPrimitive.Root open onOpenChange={(open) => !open && closeSettings()}>
+      {surface === null ? null : (
+        <DialogPrimitive.Root open onOpenChange={(open) => !open && closeDialog()}>
           <DialogPrimitive.Portal container={portalContainer ?? undefined}>
             <DialogPrimitive.Overlay
               className={styles["blocking-dialog__backdrop"]}
-              data-system-dialog-backdrop="settings"
+              data-system-dialog-backdrop={surface}
               style={{ position }}
             />
             <DialogPrimitive.Content
               ref={setFocusScope}
               className={styles["blocking-dialog__content"]}
               data-blocking-focus-scope="system"
-              data-system-surface="settings"
+              data-system-surface={surface}
+              {...(surface === "saves" && saves !== undefined
+                ? { "aria-label": saves.labels.accessibleName }
+                : {})}
               aria-describedby={undefined}
               style={{ position }}
               onEscapeKeyDown={(event) => {
@@ -164,11 +189,22 @@ export function SystemDialogHostV1(props: SystemDialogHostPropsV1): ReactElement
               }}
               onPointerDownOutside={(event) => event.preventDefault()}
             >
-              <SettingsDialogContentV1 {...props.settings} />
+              {surface === "settings" ? (
+                <SettingsDialogContentV1 {...props.settings} />
+              ) : saves === undefined ? null : (
+                <SaveOverlayV1
+                  port={saves.port}
+                  labels={saves.labels}
+                  inputRouter={props.inputRouter}
+                  {...(saves.guard === undefined ? {} : { guard: saves.guard })}
+                  onClose={closeDialog}
+                  closeLabel={props.settings.closeLabel}
+                />
+              )}
             </DialogPrimitive.Content>
           </DialogPrimitive.Portal>
         </DialogPrimitive.Root>
-      ) : null}
+      )}
     </SystemDialogContextV1.Provider>
   );
 }
