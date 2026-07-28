@@ -16,15 +16,15 @@ cd examples/my-game
 
 ## 关键文件
 
-| 文件                                  | 角色                                              |
-| ------------------------------------- | ------------------------------------------------- |
-| `src/narrative.ts`                    | 剧本：say/choice/stage/branch/end 节点与剧情 flag |
-| `src/presentation.ts`                 | 文本目录（全部显示文本走 textId）、舞台内容、转场 |
-| `src/state.ts`                        | 模块状态形状、schema、初始值                      |
-| `src/simulation.ts`                   | 模块、命令与规则                                  |
-| `src/application/semantic.ts`         | 动作目录与可用性规则                              |
-| `src/application/web-application.tsx` | React UI：HUD、对话面板、舞台渲染器               |
-| `src/tooling/simulation-target.ts`    | `story simulate` 的命名 headless 场景             |
+| 文件                               | 角色                                              |
+| ---------------------------------- | ------------------------------------------------- |
+| `src/narrative.ts`                 | 剧本：say/choice/stage/branch/end 节点与剧情 flag |
+| `src/presentation.ts`              | 文本目录（全部显示文本走 textId）、舞台内容、转场 |
+| `src/state.ts`                     | 模块状态形状、schema、初始值                      |
+| `src/simulation.ts`                | 模块、命令与规则                                  |
+| `src/application/semantic.ts`      | 动作目录与可用性规则                              |
+| `src/application/composition.tsx`  | React UI：HUD、对话面板、舞台渲染器               |
+| `src/tooling/simulation-target.ts` | `story simulate` 的命名 headless 场景             |
 
 ## 开发循环
 

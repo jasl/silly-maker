@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: MIT
+// 组合层（composition）：把剧本、规则、UI 组装成可启动的游戏应用
+// （浏览器与桌面 webview 共用同一份声明）；只编排，不拥有玩法。
 import type { ReactElement } from "react";
 
 import type { AssetId, DeepReadonly } from "@sillymaker/base";
@@ -411,7 +413,7 @@ export const templateSaveOverlayLabelsV1: SaveOverlayLabelsV1 = Object.freeze({
  * `startWebGameApplicationV1` in `entry.tsx`. The composers own Session,
  * persistence, capability session, input adapters, automation, and HMR.
  */
-export const templateWebApplicationV1: WebGameApplicationV1<
+export const templateGameApplicationV1: WebGameApplicationV1<
   unknown,
   unknown,
   TemplateSimulationTypesV1,

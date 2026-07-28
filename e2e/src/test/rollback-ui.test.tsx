@@ -7,7 +7,7 @@ import { afterEach, expect, it } from "vitest";
 import { createMemoryHostRecordStoreV1 } from "@sillymaker/base/testkit";
 import { createWebHostV1, startWebGameApplicationV1 } from "@sillymaker/web";
 
-import { labWebApplicationV1 } from "../application/web-application.tsx";
+import { labGameApplicationV1 } from "../application/composition.tsx";
 
 afterEach(() => {
   document.body.innerHTML = "";
@@ -21,7 +21,7 @@ function stepsV1(): string | undefined {
 it("the HUD rollback control follows ring changes through the real web start path", async () => {
   const root = document.createElement("div");
   document.body.append(root);
-  const started = await startWebGameApplicationV1(labWebApplicationV1, {
+  const started = await startWebGameApplicationV1(labGameApplicationV1, {
     rootElement: root,
     host: createWebHostV1({
       records: createMemoryHostRecordStoreV1(),

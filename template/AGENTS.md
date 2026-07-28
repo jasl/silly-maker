@@ -10,7 +10,7 @@
 
 游戏侧必须自己注意（引擎无法代劳）：
 
-- **模拟层保持 DOM 洁净**：`simulation.ts`/`state.ts`/内容表不得引用 `window`/`document`/`matchMedia`（headless 与重放会碎）；浏览器 API 只出现在 `application/web-application.tsx`。
+- **模拟层保持 DOM 洁净**：`simulation.ts`/`state.ts`/内容表不得引用 `window`/`document`/`matchMedia`（headless 与重放会碎）；浏览器 API 只出现在 `application/composition.tsx`。
 - **确定性路径禁 `Math.random()` 与 `Date.now()`**：随机走事务 RNG，时间走引擎时钟。
 - **双语文本溢出**：长字符串在两种语言下都要目检（英文常比中文长 30%+）；HUD/按钮布局用弹性排布。
 - **触控目标 ≥ 32px**：紧凑按钮已是下限，不要再缩。
@@ -34,7 +34,7 @@
 
 ## 剧本/文本任务（最常见）
 
-改哪个文件：台词与界面文案 → `src/presentation.ts`（textId 目录）；剧情节点/分支/舞台指令 → `src/narrative.ts`；舞台渲染器 → `src/application/web-application.tsx` 的 `*StageRenderersV1`。
+改哪个文件：台词与界面文案 → `src/presentation.ts`（textId 目录）；剧情节点/分支/舞台指令 → `src/narrative.ts`；舞台渲染器 → `src/application/composition.tsx` 的 `*StageRenderersV1`。
 
 动手前先列节点序列表（每个 say/choice 边界一个 occurrence 编号，从 1 起），场景脚本（`src/tooling/simulation-target.ts`）与测试一次写对。
 
@@ -50,7 +50,7 @@ deno task story simulate <appId> --scenario <name>
 
 - 新 say/choice 必须用全新 `definitionId`（`interaction.<story>.<name>`），不复用。
 - `stage` 节点的 `mayShow` 如实列出可能展示的 contentId；`branch` 的 `choose` 必须落在 `successors` 内（有测试盯守）。
-- 新增舞台内容三处接线：narrative 的 contentId 常量、presentation 的内容目录、web-application 的渲染器。
+- 新增舞台内容三处接线：narrative 的 contentId 常量、presentation 的内容目录、composition 的渲染器。
 - 可保存状态只放整数（`scalePermille` 这类逻辑单位），浮点会被 canonical JSON 拒绝。
 - 空舞台上首次放内容用 `show`；`replace` 只用于已在台上的内容。
 

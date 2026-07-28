@@ -22,9 +22,9 @@ import {
   useReducedMotionV1,
 } from "@sillymaker/ui";
 
-import type { LabUiPublicationV1 } from "./web-application.tsx";
+import type { LabUiPublicationV1 } from "./composition.tsx";
 import type { LabApplicationInstanceV1 } from "./core-definition.ts";
-import { labUiTextV1 } from "./web-application.tsx";
+import { labUiTextV1 } from "./composition.tsx";
 
 type LabSemanticPortV1 = LabApplicationInstanceV1["semantic"];
 

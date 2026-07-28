@@ -19,7 +19,7 @@ import {
   labRootLabelsV1,
   labUiProjectorV1,
   labViewportCanvasV1,
-} from "../application/web-application.tsx";
+} from "../application/composition.tsx";
 
 afterEach(cleanup);
 

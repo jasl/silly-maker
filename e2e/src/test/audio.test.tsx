@@ -20,7 +20,7 @@ import {
   labRootLabelsV1,
   labUiProjectorV1,
   labViewportCanvasV1,
-} from "../application/web-application.tsx";
+} from "../application/composition.tsx";
 import { labAudioAssetIdsV1 } from "../gameplay/audio.ts";
 
 afterEach(cleanup);
