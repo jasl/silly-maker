@@ -173,6 +173,7 @@ export function SystemDialogHostV1(props: SystemDialogHostPropsV1): ReactElement
               className={styles["blocking-dialog__backdrop"]}
               data-system-dialog-backdrop={surface}
               style={{ position }}
+              onClick={closeDialog}
             />
             <DialogPrimitive.Content
               ref={setFocusScope}

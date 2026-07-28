@@ -117,6 +117,7 @@ export function ActionConfirmationDialogV1<TInvocation, TResult>(
         <DialogPrimitive.Overlay
           className={`${styles["blocking-dialog__backdrop"]} ${styles["blocking-dialog__backdrop--confirm"]}`}
           data-system-dialog-backdrop="action_confirmation"
+          onClick={close}
           style={{ position }}
         />
         <DialogPrimitive.Content

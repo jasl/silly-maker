@@ -159,6 +159,44 @@ test("Settings and Load game open above the title screen and stay interactive", 
     .toBeGreaterThan(1.5);
 });
 
+test("backdrop clicks and right-clicks always dismiss the topmost window", async ({ page }) => {
+  await page.goto(catcafeTargetUrlV1());
+  await playOpeningV1(page);
+
+  // Album (workspace overlay) under the Save dialog (system layer): the
+  // system backdrop click closes only the Save dialog; the album stays.
+  await page.locator("[data-cc-album-open]").click();
+  await expect(page.locator("[data-cc-album]")).toBeVisible();
+  await page.getByRole("button", { name: "保存", exact: true }).click();
+  const saves = page.getByRole("dialog", { name: "保存" });
+  await expect(saves).toBeVisible();
+  await page.locator("[data-system-dialog-backdrop='saves']").click({ position: { x: 8, y: 8 } });
+  await expect(saves).toBeHidden();
+  await expect(page.locator("[data-cc-album]")).toBeVisible();
+
+  // A nested confirmation stacks above the Save dialog: its backdrop click
+  // cancels the confirmation only, the Save dialog stays.
+  await page.getByRole("button", { name: "保存", exact: true }).click();
+  await saves.getByRole("button", { name: "手动保存" }).click();
+  await expect(page.getByTestId("save-operation-result")).toContainText("已保存到手动存档");
+  await saves.getByRole("button", { name: "载入手动存档" }).click();
+  const confirm = page.getByRole("dialog", { name: "载入手动存档" });
+  await expect(confirm).toBeVisible();
+  await page
+    .locator("[data-system-dialog-backdrop='action_confirmation']")
+    .click({ position: { x: 8, y: 8 } });
+  await expect(confirm).toBeHidden();
+  await expect(saves).toBeVisible();
+
+  // Right-click is the configurable VN back action: it closes the Save
+  // dialog, then the album — always the topmost surface.
+  await page.mouse.click(640, 620, { button: "right" });
+  await expect(saves).toBeHidden();
+  await expect(page.locator("[data-cc-album]")).toBeVisible();
+  await page.mouse.click(640, 620, { button: "right" });
+  await expect(page.locator("[data-cc-album]")).toHaveCount(0);
+});
+
 test("the HUD rollback steps one committed action back without rerolling", async ({ page }) => {
   await page.goto(catcafeTargetUrlV1());
   await playOpeningV1(page);

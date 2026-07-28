@@ -24,6 +24,13 @@ import styles from "./overlay-host.module.css";
 export interface OverlayRendererResolutionV1 {
   readonly accessibleName: string;
   readonly content: ReactNode;
+  /**
+   * Clicking the backdrop dismisses the window (default). Windows that
+   * must stay explicit (forced tutorials…) opt out with false. Stacked
+   * windows are safe by construction: lower layers are inert, so a
+   * backdrop click always reaches only the topmost surface.
+   */
+  readonly backdropDismiss?: boolean;
 }
 
 export interface OverlayRendererResolverV1<TOverlayId> {
@@ -83,6 +90,9 @@ function resolveEntryV1<TOverlayId>(
     resolution: Object.freeze({
       accessibleName: resolution.accessibleName,
       content: resolution.content,
+      ...(resolution.backdropDismiss === undefined
+        ? {}
+        : { backdropDismiss: resolution.backdropDismiss }),
     }),
   });
 }
@@ -133,7 +143,16 @@ function OverlayDialogEntryV1(props: {
           data-overlay-depth={props.entry.depth}
           inert={!isTop}
         >
-          <div className={styles["overlay-host__backdrop"]} aria-hidden="true" />
+          <div
+            className={styles["overlay-host__backdrop"]}
+            data-overlay-backdrop={props.entry.depth}
+            aria-hidden="true"
+            onClick={
+              isTop && props.entry.resolution.backdropDismiss !== false
+                ? requestTopCloseV1
+                : undefined
+            }
+          />
           <Dialog.Content
             ref={setContentElement}
             className={styles["overlay-host__content"]}
