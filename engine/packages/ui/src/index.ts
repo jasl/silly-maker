@@ -102,7 +102,7 @@ export type {
   PresentationIntentRouterV1,
   PresentationOverlayWriterV1,
 } from "./interaction/index.ts";
-export { VnLayerV1 } from "./narrative/index.ts";
+export { AdvanceSurfaceV1, VnLayerV1 } from "./narrative/index.ts";
 export type { VnChoiceV1, VnLayerPropsV1 } from "./narrative/index.ts";
 export {
   ActionConfirmationDialogV1,

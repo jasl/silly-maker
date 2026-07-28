@@ -208,7 +208,7 @@ test("auto mode advances revealed lines and the history panel replays the backlo
   const history = page.locator("[data-cc-history]");
   await expect(history).toBeVisible();
   expect(await history.locator("[data-cc-history-entry]").count()).toBeGreaterThanOrEqual(3);
-  await page.locator("[data-cc-history-close]").click();
+  await history.locator("[data-panel-close]").click();
   await expect(history).toHaveCount(0);
 });
 

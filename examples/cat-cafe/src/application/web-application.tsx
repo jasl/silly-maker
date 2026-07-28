@@ -19,6 +19,7 @@ import type {
   SemanticStageEntryRendererV1,
 } from "@sillymaker/ui";
 import {
+  AdvanceSurfaceV1,
   Button,
   createAnimationFramePresentationClockV1,
   PanelV1,
@@ -681,52 +682,55 @@ function CatcafeNarrativePanelV1(props: {
       } as never);
     };
     return (
-      <div
-        data-cc-narrative="say"
-        data-cc-occurrence={pending.occurrenceId}
-        data-cc-reveal={revealComplete ? "complete" : "revealing"}
-        style={panelStyle}
-      >
-        {showHistory ? (
-          <CatcafeHistoryPanelV1
-            entries={narrative.history.entries}
-            uiText={uiText}
-            onClose={() => setShowHistory(false)}
-          />
-        ) : null}
-        {pending.speakerTextId === null ? null : (
-          <strong style={{ display: "block", color: "#ffd9a0" }}>
-            {uiText(pending.speakerTextId)}
-          </strong>
-        )}
-        <p style={{ margin: "8px 0 16px", minBlockSize: "1.6em" }} onClick={advance}>
-          {revealed}
-        </p>
-        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-          <Button data-cc-advance="true" onClick={advance}>
-            {uiText("text.cc.narrative.advance")}
-          </Button>
-          <Button
-            data-cc-playback="auto"
-            aria-pressed={mode === "auto"}
-            onClick={() => toggleMode("auto")}
-          >
-            {uiText("text.cc.playback.auto")}
-            {mode === "auto" ? " ●" : ""}
-          </Button>
-          <Button
-            data-cc-playback="skip"
-            aria-pressed={mode === "skip"}
-            onClick={() => toggleMode("skip")}
-          >
-            {uiText("text.cc.playback.skip")}
-            {mode === "skip" ? " ●" : ""}
-          </Button>
-          <Button data-cc-history-open="true" onClick={() => setShowHistory(true)}>
-            {uiText("text.cc.playback.history")}
-          </Button>
+      <>
+        {showHistory ? null : <AdvanceSurfaceV1 onAdvance={advance} />}
+        <div
+          data-cc-narrative="say"
+          data-cc-occurrence={pending.occurrenceId}
+          data-cc-reveal={revealComplete ? "complete" : "revealing"}
+          style={panelStyle}
+        >
+          {showHistory ? (
+            <CatcafeHistoryPanelV1
+              entries={narrative.history.entries}
+              uiText={uiText}
+              onClose={() => setShowHistory(false)}
+            />
+          ) : null}
+          {pending.speakerTextId === null ? null : (
+            <strong style={{ display: "block", color: "#ffd9a0" }}>
+              {uiText(pending.speakerTextId)}
+            </strong>
+          )}
+          <p style={{ margin: "8px 0 16px", minBlockSize: "1.6em" }} onClick={advance}>
+            {revealed}
+          </p>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <Button data-cc-advance="true" onClick={advance}>
+              {uiText("text.cc.narrative.advance")}
+            </Button>
+            <Button
+              data-cc-playback="auto"
+              aria-pressed={mode === "auto"}
+              onClick={() => toggleMode("auto")}
+            >
+              {uiText("text.cc.playback.auto")}
+              {mode === "auto" ? " ●" : ""}
+            </Button>
+            <Button
+              data-cc-playback="skip"
+              aria-pressed={mode === "skip"}
+              onClick={() => toggleMode("skip")}
+            >
+              {uiText("text.cc.playback.skip")}
+              {mode === "skip" ? " ●" : ""}
+            </Button>
+            <Button data-cc-history-open="true" onClick={() => setShowHistory(true)}>
+              {uiText("text.cc.playback.history")}
+            </Button>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
   if (pending.kind === "choice") {
