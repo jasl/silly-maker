@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // 组合层：把桌面 shell、应用注册表、设置与外壳文案组装成可启动应用。
 // 只编排，不拥有玩法——窗口管理器在 desktop 切片，应用在各自切片。
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 
 import type { DeepReadonly } from "@sillymaker/base";
@@ -44,7 +44,7 @@ import {
   OsDesktopIconV1,
   OsStartMenuV1,
   OsTaskbarV1,
-  osDesktopBoundsV1,
+  osDesktopBoundsForV1,
   osDesktopCanvasV1,
   osWallpaperStylesV1,
 } from "../features/desktop/Desktop.tsx";
@@ -90,6 +90,16 @@ function OsShellV1(props: {
   const [startOpen, setStartOpen] = useState(false);
   const [shutdown, setShutdown] = useState(false);
   const [exploded, setExploded] = useState(false);
+  const boundsWidth = osDesktopBoundsForV1(viewport).width;
+  const boundsHeight = osDesktopBoundsForV1(viewport).height;
+  const bounds = useMemo(
+    () => Object.freeze({ x: 0, y: 0, width: boundsWidth, height: boundsHeight }),
+    [boundsWidth, boundsHeight],
+  );
+  // 视口变化（旋转、缩放窗口）时把窗口拉回桌面。
+  useEffect(() => {
+    wm.clampToBounds(bounds);
+  }, [wm, bounds]);
 
   // 踩雷演出：瞬态效果通道→桌面短促震动（纯装饰）。
   useEffect(
@@ -107,7 +117,7 @@ function OsShellV1(props: {
   const openApp = (appId: string): void => {
     const app = osAppByIdV1(appId);
     if (app === null) return;
-    wm.open(appId, { rect: app.defaultRect, singleton: app.singleton });
+    wm.open(appId, { rect: app.defaultRect, singleton: app.singleton, bounds });
   };
 
   if (shutdown) {
@@ -155,15 +165,9 @@ function OsShellV1(props: {
     <div
       data-os-shell="true"
       style={{
-        // 桌面按逻辑画布（1024×768）布局，整体随 viewport 连续缩放：
-        // 窗口矩形/任务栏/图标全部用逻辑 px，一次 transform 对齐。
+        // fluid 视口：桌面即浏览器区域，窗口矩形直接用 CSS px。
         position: "absolute",
-        insetInlineStart: 0,
-        insetBlockStart: 0,
-        inlineSize: `${String(osDesktopCanvasV1.width)}px`,
-        blockSize: `${String(osDesktopCanvasV1.height)}px`,
-        transform: `scale(${String(viewport.scale)})`,
-        transformOrigin: "0 0",
+        inset: 0,
         pointerEvents: "auto",
         font: os98.font,
         color: os98.faceText,
@@ -192,9 +196,12 @@ function OsShellV1(props: {
           position: "absolute",
           insetInlineStart: "8px",
           insetBlockStart: "8px",
-          display: "grid",
+          maxBlockSize: `${String(Math.max(120, bounds.height - 16))}px`,
+          display: "flex",
+          flexDirection: "column",
+          flexWrap: "wrap",
+          alignContent: "start",
           gap: "10px",
-          justifyItems: "start",
         }}
       >
         {osAppsV1
@@ -228,7 +235,7 @@ function OsShellV1(props: {
             title={uiText(app.nameTextId)}
             icon={app.icon(16)}
             wm={wm}
-            bounds={osDesktopBoundsV1}
+            bounds={bounds}
             labels={{
               minimize: uiText("text.os.window.minimize"),
               maximize: uiText("text.os.window.maximize"),
@@ -377,10 +384,11 @@ export const osGameApplicationV1: WebGameApplicationV1<
 > = Object.freeze({
   applicationId: "example-silly-os",
   accessibleName: "SillyOS 98",
+  // fluid：桌面平铺整个浏览器区域（手机竖屏亦然），无固定画布无黑边。
   viewport: Object.freeze({
     canvas: osDesktopCanvasV1,
+    mode: "fluid" as const,
     fallbackSize: Object.freeze({ width: 1280, height: 960 }),
-    maxScale: 3,
   }),
   core: osCoreApplicationDefinitionV1,
   ui: ({

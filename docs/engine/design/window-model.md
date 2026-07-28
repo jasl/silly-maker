@@ -44,7 +44,7 @@
 
 实证出的关键配方（新增到手册）：
 
-- **逻辑坐标层**：hud/system 槽是 CSS 尺寸层（不随舞台逻辑坐标缩放）。需要逻辑像素布局的全屏 shell 给根容器定尺寸为逻辑画布并 `transform: scale(viewport.scale)`（origin 0 0）——窗口矩形、拖拽换算（client 位移 ÷ scale）、任务栏一次对齐。
+- **逻辑坐标层**：hud/system 槽是 CSS 尺寸层（不随舞台逻辑坐标缩放）。固定画布 shell 可给根容器定尺寸为逻辑画布并 `transform: scale(viewport.scale)`；而桌面/文档式 shell 应直接用 `viewport: { mode: "fluid" }`（引擎侧增强）——舞台平铺浏览器区域、scale=1、无黑边，窗口矩形即 CSS px，手机竖屏自然可用（视口变化时用 store 的 clampToBounds 把窗口拉回桌面）。
 - **拖拽**：标题栏 `setPointerCapture` 后事件全归捕获元素——掠过 iframe 也不丢（老 mousemove 方案的经典坑在 Pointer Capture 下不存在，无需透明护罩）。
 - **iframe 内嵌**：多数站点以 `X-Frame-Options`/CSP `frame-ancestors` 拒绝内嵌且跨源阻断**没有可靠错误事件**——内置页兜底 + 如实提示，不做超时探测。
 

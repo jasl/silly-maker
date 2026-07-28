@@ -10,14 +10,6 @@ hero:
       text: Get started with AI
       link: /guide/getting-started
     - theme: alt
-      text: Play the Cat Cafe demo
-      link: /play/cat-cafe/
-      target: _self
-    - theme: alt
-      text: Try SillyOS 98 (retro desktop)
-      link: /play/silly-os/
-      target: _self
-    - theme: alt
       text: GitHub
       link: https://github.com/jasl/silly-maker
 

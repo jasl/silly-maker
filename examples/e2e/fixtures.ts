@@ -1,29 +1,29 @@
 // SPDX-License-Identifier: MIT
+// 示例套件的浏览器夹具：每个示例一个 dev server 目标；诊断策略与引擎
+// 套件一致（页面错误/控制台错误即失败，证据附卷）。
 import { expect, test as base } from "@playwright/test";
-import type { Page } from "@playwright/test";
 
-export const engineTargetV1 = Object.freeze({
-  applicationId: "e2e",
-  host: "127.0.0.1",
-  port: 41733,
-});
+const hostV1 = "127.0.0.1";
 
-export function engineTargetUrlV1(query = ""): string {
-  return `http://${engineTargetV1.host}:${String(engineTargetV1.port)}/${query}`;
+/** 雨巷猫舍：舞台命中区域、对话播放、存档安全点、回退。 */
+export const catcafeTargetV1 = Object.freeze({ host: hostV1, port: 41737 });
+
+export function catcafeTargetUrlV1(query = ""): string {
+  return `http://${catcafeTargetV1.host}:${String(catcafeTargetV1.port)}/${query}`;
 }
 
-export const labApplicationNameV1 = "引擎实验室";
+/** SillyOS 98：全定制桌面 shell（窗口/任务栏/应用/存档持久）。 */
+export const sillyOsTargetV1 = Object.freeze({ host: hostV1, port: 41739 });
+
+export function sillyOsTargetUrlV1(query = ""): string {
+  return `http://${sillyOsTargetV1.host}:${String(sillyOsTargetV1.port)}/${query}`;
+}
 
 interface PageDiagnosticsV1 {
   readonly pageErrors: readonly string[];
   readonly consoleErrors: readonly string[];
 }
 
-/**
- * Engine suite diagnostic policy: every test records page errors and console
- * errors; an unexpected page error or console error fails the test with the
- * collected evidence attached (traces stay retained on failure).
- */
 export const test = base.extend<{ pageDiagnostics: PageDiagnosticsV1 }>({
   pageDiagnostics: [
     async ({ page }, use, testInfo) => {
@@ -52,11 +52,3 @@ export const test = base.extend<{ pageDiagnostics: PageDiagnosticsV1 }>({
 });
 
 export { expect } from "@playwright/test";
-
-export async function gotoLabV1(page: Page, query = ""): Promise<void> {
-  await page.goto(engineTargetUrlV1(query));
-  await expect(page.getByRole("application", { name: labApplicationNameV1 })).toHaveAttribute(
-    "data-application-id",
-    engineTargetV1.applicationId,
-  );
-}

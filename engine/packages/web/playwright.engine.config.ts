@@ -1,14 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { defineConfig, devices } from "@playwright/test";
 
-import {
-  catcafeTargetUrlV1,
-  catcafeTargetV1,
-  engineTargetUrlV1,
-  engineTargetV1,
-  sillyOsTargetUrlV1,
-  sillyOsTargetV1,
-} from "./e2e/engine/fixtures.ts";
+import { engineTargetUrlV1, engineTargetV1 } from "./e2e/engine/fixtures.ts";
 
 /**
  * The engine browser suite runs against the Engine Lab conformance Story:
@@ -32,20 +25,6 @@ export default defineConfig({
       reuseExistingServer: false,
       timeout: 120_000,
       url: engineTargetUrlV1(),
-    },
-    {
-      command: `deno run -A npm:vite --mode example-cat-cafe --host ${catcafeTargetV1.host} --port ${String(catcafeTargetV1.port)} --strictPort`,
-      cwd: "../../..",
-      reuseExistingServer: false,
-      timeout: 120_000,
-      url: catcafeTargetUrlV1(),
-    },
-    {
-      command: `deno run -A npm:vite --mode example-silly-os --host ${sillyOsTargetV1.host} --port ${String(sillyOsTargetV1.port)} --strictPort`,
-      cwd: "../../..",
-      reuseExistingServer: false,
-      timeout: 120_000,
-      url: sillyOsTargetUrlV1(),
     },
   ],
   projects: [

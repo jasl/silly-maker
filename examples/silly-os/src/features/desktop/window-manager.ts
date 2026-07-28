@@ -36,7 +36,11 @@ export interface OsWindowManagerV1 {
   /** singleton app 已开时改为聚焦还原；返回窗口 id。 */
   open(
     appId: string,
-    options: { readonly rect: OsWindowRectV1; readonly singleton: boolean },
+    options: {
+      readonly rect: OsWindowRectV1;
+      readonly singleton: boolean;
+      readonly bounds?: OsWindowRectV1;
+    },
   ): string;
   close(windowId: string): void;
   focus(windowId: string): void;
@@ -46,6 +50,17 @@ export interface OsWindowManagerV1 {
   /** 任务栏按钮语义：最小化的还原聚焦；聚焦中的最小化；其余聚焦。 */
   taskbarActivate(windowId: string): void;
   move(windowId: string, x: number, y: number): void;
+  /** 视口变化时把所有窗口拉回桌面（尺寸收缩、位置回界）。 */
+  clampToBounds(bounds: OsWindowRectV1): void;
+}
+
+/** 把矩形约束进桌面：尺寸收缩到桌面内，位置整体回界（开窗与视口变化用）。 */
+export function clampOsWindowRectV1(rect: OsWindowRectV1, bounds: OsWindowRectV1): OsWindowRectV1 {
+  const width = Math.min(rect.width, bounds.width);
+  const height = Math.min(rect.height, bounds.height);
+  const x = Math.min(Math.max(rect.x, bounds.x), bounds.x + bounds.width - width);
+  const y = Math.min(Math.max(rect.y, bounds.y), bounds.y + bounds.height - height);
+  return Object.freeze({ x, y, width, height });
 }
 
 export function createOsWindowManagerV1(): OsWindowManagerV1 {
@@ -103,18 +118,20 @@ export function createOsWindowManagerV1(): OsWindowManagerV1 {
         }
       }
       const windowId = `window.${String(nextWindow++)}`;
-      // 级联偏移新窗口，避免完全重叠。
+      // 级联偏移新窗口，避免完全重叠；出界由调用方传入的桌面矩形拉回。
       const offset = ((nextOrder - 1) % 5) * 24;
+      const cascaded = Object.freeze({
+        ...options.rect,
+        x: options.rect.x + offset,
+        y: options.rect.y + offset,
+      });
       commit([
         ...windows,
         Object.freeze({
           windowId,
           appId,
-          rect: Object.freeze({
-            ...options.rect,
-            x: options.rect.x + offset,
-            y: options.rect.y + offset,
-          }),
+          rect:
+            options.bounds === undefined ? cascaded : clampOsWindowRectV1(cascaded, options.bounds),
           mode: "normal" as const,
           restoreRect: null,
           z: nextZ++,
@@ -173,6 +190,15 @@ export function createOsWindowManagerV1(): OsWindowManagerV1 {
         window.mode === "maximized"
           ? window
           : { ...window, rect: Object.freeze({ ...window.rect, x, y }) },
+      );
+    },
+    clampToBounds(bounds) {
+      commit(
+        windows.map((window) =>
+          window.mode === "maximized"
+            ? { ...window, rect: bounds }
+            : { ...window, rect: clampOsWindowRectV1(window.rect, bounds) },
+        ),
       );
     },
   };

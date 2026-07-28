@@ -10,14 +10,6 @@ hero:
       text: 用 AI 快速开始
       link: /zh/guide/getting-started
     - theme: alt
-      text: 试玩《雨巷猫舍》
-      link: /play/cat-cafe/
-      target: _self
-    - theme: alt
-      text: 试玩 SillyOS 98（复古桌面）
-      link: /play/silly-os/
-      target: _self
-    - theme: alt
       text: GitHub
       link: https://github.com/jasl/silly-maker
 
