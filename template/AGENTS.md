@@ -4,6 +4,20 @@
 
 改动纪律：保持最小可玩。占位剧本可整体替换；不要往骨架上加新玩法结构（那属于示例或真实游戏）。
 
+## 引擎基线（免费获得，不用自己写）
+
+声明 `titleScreen`（标题/背景图/可选 `splash` 片头行）即得完整前门：片头 → 标题屏（新游戏/继续/载入存档/设置）。系统菜单是单模态（保存与设置互斥，Esc 关闭）；存档对话框自带槽位列表、时间戳、导入导出与"载入即进游戏"。设置页出厂含三条音量（BGM/语音/音效）、静音、文字速度、自动播放停留、全屏与开发者工具开关——偏好都存 Host profile，跨存档持久。
+
+## 可选接线（一项一个入口，示例见 cat-cafe）
+
+- **网页元数据**：`metadata.json`（标题/描述/分享卡/favicon），构建时注入 `<head>`。
+- **声音**：`resolveAudioManifestV1` 声明音频资产（digest 必填）→ 视图投影 `AudioIntentV1`（bgm/ambient/voice，读档即还原）→ UI 挂 `GameAudioV1`（one-shot SFX 用 `resolveEffectAsset` 映射瞬态效果）。
+- **对话播放 QoL**：`createTextRevealV1`（打字机）+ `createPlaybackControllerV1`（自动/快进）+ 权威 `NarrativeHistory` 渲染历史面板；已读进度经 `profile.markSeen` 持久。
+- **玩家回退**：core 定义加 `rollback: { capacity, classify }`（结算/不可逆命令标 `"barrier"`），UI 用 `instance.rollback`（available/toPrevious/subscribe）。
+- **存档安全点**：web 定义加 `saveGuard(publication)`，对话或战斗中禁手动存档并给出原因文本。
+- **舞台命中区域**：内容目录声明 `hitRegions`，`SemanticStageV1` 传 `onHitRegionActivate`。
+- **内容表**：`defineContentTable` + `createContentDatabase`——静态定义进表（解析期校验），可变状态进模块。
+
 ## 剧本/文本任务（最常见）
 
 改哪个文件：台词与界面文案 → `src/presentation.ts`（textId 目录）；剧情节点/分支/舞台指令 → `src/narrative.ts`；舞台渲染器 → `src/application/web-application.tsx` 的 `*StageRenderersV1`。

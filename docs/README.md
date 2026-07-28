@@ -36,7 +36,7 @@ These documents describe accepted targets and planned work. A capability remains
 - [Reference register](research/reference-register.md) — every ignored local reference and its usage boundary.
 - [RPG Maker MV gap analysis](research/2026-07-28-imouto-rpgmv-gap-analysis.md) and [DoL engine gap review](research/2026-07-28-dol-engine-gap-review.md) — the capability-gap evidence behind the content database, hit regions, meta progress, event pool, and tuning channel.
 
-## Project Tavern
+## Game design
 
 - [Gameplay redesign status](game/README.md) — current product intent and what is deliberately open for redesign.
 - [Presentation and UI redesign](game/presentation-and-ui.md) — screen framework, visual language, asset plan, and the playable acceptance bar.

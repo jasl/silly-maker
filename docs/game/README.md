@@ -1,10 +1,10 @@
 # Project Tavern gameplay redesign
 
-状态：重设计准备期；尚未冻结新的玩法规格。
+状态：历史设计意图存档 + 未来可选方向。当前旗舰游戏是《雨巷猫舍》（`examples/cat-cafe`，设计规格在其 `DESIGN.md`）；Tavern 题材是引擎成熟后可能重启的方向之一，不约束当前开发。
 
 ## Product intent that remains useful
 
-Project Tavern 仍以“经营一家酒馆，并通过经营选择推动人物关系与文字叙事”为核心方向。它是单机 Story 游戏，也是 SillyMaker 引擎的首个真实使用者。
+Project Tavern 仍以“经营一家酒馆，并通过经营选择推动人物关系与文字叙事”为核心方向。它曾是 SillyMaker 引擎的首个真实使用者（PoC 已退役）。
 
 当前只保留这些高层意图，避免在验证玩法之前过早冻结周期、数值、内容量和系统边界。
 

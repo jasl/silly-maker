@@ -6,12 +6,12 @@
 
 ## 1. System context
 
-SillyMaker 是浏览器优先、可 headless 运行的 Story 游戏引擎。Project Tavern 是使用它开发的具体游戏。引擎提供可组合的规则运行时、权威 Session、存档/诊断、React presentation 和 Web Host；Story 提供具体 State、Command、规则、查询、内容、Scene 和应用组合。
+SillyMaker 是浏览器优先、可 headless 运行的 Story 游戏引擎；仓库内的 Story 包（旗舰示例《雨巷猫舍》等）是使用它开发的具体游戏。引擎提供可组合的规则运行时、权威 Session、存档/诊断、React presentation 和 Web Host；Story 提供具体 State、Command、规则、查询、内容、Scene 和应用组合。
 
 当前所有 workspace package 都是 `private`。本文所说的“公开 API”指 package `exports` 暴露的仓库内受支持入口，不表示 npm 发布承诺。
 
 ```text
-Project Tavern Story and application
+Story packages and applications
           |            |            |
           v            v            v
  @sillymaker/base  @sillymaker/ui  @sillymaker/web

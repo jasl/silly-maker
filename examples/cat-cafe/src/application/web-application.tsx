@@ -1734,6 +1734,19 @@ export const catcafeWebApplicationV1: WebGameApplicationV1<
           "text.cc.app.name",
         ),
         backgroundUrl: "examples/cat-cafe/assets/cc-bg-title.webp",
+        // 片头：本作完全由 AI 生成（代码、文本、美术、音频）。
+        splash: Object.freeze({
+          lines:
+            playerProfile.current().preferences.locale === "en"
+              ? Object.freeze([
+                  "This game is entirely AI-generated",
+                  "Code, story, art, and audio · SillyMaker Engine",
+                ])
+              : Object.freeze([
+                  "本游戏内容完全由 AI 生成",
+                  "代码 · 剧本 · 美术 · 音频 — SillyMaker 引擎",
+                ]),
+        }),
       }),
       projector: catcafeUiProjectorV1,
       overlayIds: Object.freeze(["overlay.catcafe.album"] as const),

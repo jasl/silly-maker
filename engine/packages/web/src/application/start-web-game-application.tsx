@@ -91,7 +91,11 @@ export interface WebGameUiDefinitionV1<
   readonly saveGuard?: (publication: unknown) => { allowed: boolean; reasonText?: string };
   readonly devDockContributions?: DevDockContributionSetV1;
   /** Shows the engine title screen (New game / Continue / Settings). */
-  readonly titleScreen?: { readonly title: string; readonly backgroundUrl?: string };
+  readonly titleScreen?: {
+    readonly title: string;
+    readonly backgroundUrl?: string;
+    readonly splash?: { readonly lines: readonly string[]; readonly durationMs?: number };
+  };
   /**
    * Capability-gated lazy DevDock contributions: tooling UI loads on
    * demand and never enters the player bundle.

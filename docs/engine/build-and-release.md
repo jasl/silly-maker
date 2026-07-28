@@ -1,6 +1,6 @@
 # Build and local release
 
-状态：当前 Project Tavern Web Player 的维护流程。
+状态：当前 Web Player 与发布渠道的维护流程。
 
 ## Application registry
 

@@ -439,7 +439,16 @@ export const bookshopWebApplicationV1: WebGameApplicationV1<
   core: bookshopCoreApplicationDefinitionV1,
   ui: () =>
     Object.freeze({
-      titleScreen: Object.freeze({ title: "打烊前的旧书店" }),
+      titleScreen: Object.freeze({
+        title: "打烊前的旧书店",
+        // 片头：本作剧本由 AI 模型创作实验产出，代码与文本均为 AI 生成。
+        splash: Object.freeze({
+          lines: Object.freeze([
+            "本游戏内容完全由 AI 生成",
+            "剧本出自模型创作实验 · SillyMaker 引擎",
+          ]),
+        }),
+      }),
       projector: bookshopUiProjectorV1,
       overlayIds: Object.freeze([] as const),
       slots: bookshopUiSlotsV1,
