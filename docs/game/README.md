@@ -63,5 +63,3 @@ Project Tavern 仍以“经营一家酒馆，并通过经营选择推动人物�
 当前引擎架构见 [SillyMaker architecture](../engine/architecture.md)。状态访问的候选演进见 [typed StateStore proposal](../engine/proposals/typed-state-store.md)。两者都应接受真实玩法原型的反馈。
 
 ## Historical reference
-
-旧玩法、平衡和设计材料位于 [first PoC Goal archive](../archive/2026-07-first-poc-goal/README.md)。它们可以解释旧代码为何如此，但不能作为新设计的验收条件。

@@ -41,14 +41,13 @@ describe("public import boundary", () => {
     ]);
   });
 
-  it("fails on deliberate deep imports, cross-Story reaches, and archive reaches", () => {
+  it("fails on deliberate deep imports and cross-Story reaches", () => {
     const violations = findForbiddenImportSpecifiersV1(
       [
         'import { internal } from "@sillymaker/base/src/runtime/session/game-session.ts";',
         'import { glue } from "@silly-maker/story-poc";',
         'import { old } from "../../../engine/packages/base/src/index.ts";',
         'import { crossStory } from "../../../examples/bookshop/src/index.ts";',
-        'import { archived } from "../../../docs/archive/2026-07-first-poc-goal/file.ts";',
         'import { allowed } from "@sillymaker/base";',
       ].join("\n"),
     );
@@ -58,7 +57,6 @@ describe("public import boundary", () => {
       "@silly-maker/story-poc",
       "../../../engine/packages/base/src/index.ts",
       "../../../examples/bookshop/src/index.ts",
-      "../../../docs/archive/2026-07-first-poc-goal/file.ts",
     ]);
   });
 

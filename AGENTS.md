@@ -26,7 +26,6 @@ Read only the documents relevant to the change:
 
 The roadmap and design documents describe accepted direction; they do not make a feature implemented. `architecture.md`, `features.md`, `story-authoring.md`, `development.md`, and `build-and-release.md` describe the live implementation and must be updated as each planned capability lands. Design owns the intended contract, while the active plan owns task order and acceptance; a task must not silently override a design decision.
 
-`docs/archive/2026-07-first-poc-goal/**` is a historical snapshot. It is not an implementation plan, acceptance contract, required reading set, or source of current constraints. Do not restore its Phase order, checkpoint, materialization, exact-host, balance-freeze, or commit choreography unless a new active design explicitly needs a particular idea.
 
 ## Architecture baseline
 
