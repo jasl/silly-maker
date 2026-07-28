@@ -86,6 +86,10 @@ function createFakeRunnerV1(input: {
       log.copies.push({ source, destination });
       return Promise.resolve();
     },
+    copyFile: (source, destination) => {
+      log.copies.push({ source, destination });
+      return Promise.resolve();
+    },
     removeDirectory: (path) => {
       log.removals.push(path);
       return Promise.resolve();

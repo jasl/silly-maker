@@ -33,6 +33,8 @@ export interface StoryDesktopTargetV1 {
   readonly name: string;
   /** The reverse-DNS bundle identifier. */
   readonly identifier: string;
+  /** Optional repository-relative app icon (.png/.icns on macOS, .ico on Windows). */
+  readonly icon?: string;
 }
 
 /** The dev/build target of a browser-hosted Story application. */

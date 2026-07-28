@@ -74,15 +74,15 @@ deno task test:e2e
 
 `deno task desktop:save-server --dist dist/<app> --saves <dir> --port 41800` serves a built Player bundle from one fixed local port and owns a save directory behind `/sillymaker/records`. Pages started with `?records=local` persist through `createHttpHostRecordStoreV1` (atomic per-file writes, optimistic revisions) instead of per-origin IndexedDB, so saves live in real files and survive process restarts and origin changes. This is the working desktop-persistence answer; wrapping the fixed-port server in a webview shell is the remaining packaging step.
 
-## Desktop packaging (experimental)
+## Desktop packaging (one step)
 
 ```sh
 deno task story desktop <app>
 ```
 
-Applications that declare `web.desktop` (name + bundle identifier) can be packaged as a desktop app. The command builds the web target, stages a thin explicit host under `dist/desktop/<app>/staging/` (the exact web Artifact copied to `dist/` plus a Vite SPA marker), and runs `deno desktop` (requires a local Deno >= 2.9; the feature is experimental upstream). Engine and Story code never depend on Deno Desktop APIs — the web Artifact remains the canonical delivery and the stable fallback.
+Applications that declare `web.desktop` (name + bundle identifier + optional repository-relative `icon`) package into a double-clickable desktop app in one step. The command builds the web target, stages the shell under `dist/desktop/<app>/staging/` — `scripts/desktop/shell-main.ts` serves the embedded `dist/` (including runtime assets) over an in-process HTTP listener, injects the `__SILLYMAKER_RECORDS__ = "local"` signal into the page, and owns the records API over a real save directory in the platform user-data location (`~/Library/Application Support/<identifier>/saves` on macOS) — then runs `deno desktop` (requires a local Deno >= 2.9; the feature is experimental upstream) with the icon installed into the bundle.
 
-Known limitation, verified 2026-07-28: `deno desktop` binds its local server to a runtime-chosen port on every launch and the port cannot be fixed, so the webview origin changes across launches and browser-storage persistence (IndexedDB saves) does not survive a restart. Desktop distribution therefore requires a Host-side persistence adapter (routing the HostRecordStore through the desktop process to files) before it can be a real release channel. macOS release builds additionally need signing and notarization.
+File-backed saves make the webview origin irrelevant: `deno desktop` still picks a random port per launch, but persistence flows through the shell's records endpoint (atomic per-file replace, optimistic revisions) rather than per-origin IndexedDB, so saves survive restarts. Engine and Story code never depend on Deno Desktop APIs — the web Artifact remains the canonical delivery and the stable fallback. macOS release builds additionally need signing and notarization.
 
 ## Release checklist
 

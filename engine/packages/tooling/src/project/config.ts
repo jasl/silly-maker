@@ -109,6 +109,11 @@ function freezeWebTargetV1(web: StoryWebTargetV1, pointer: string): StoryWebTarg
               web.desktop.identifier,
               `${pointer}/desktop/identifier`,
             ),
+            ...(web.desktop.icon === undefined
+              ? {}
+              : {
+                  icon: requireNonEmptyStringV1(web.desktop.icon, `${pointer}/desktop/icon`),
+                }),
           }),
   });
 }

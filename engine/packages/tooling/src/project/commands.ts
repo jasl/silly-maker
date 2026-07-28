@@ -394,6 +394,8 @@ export interface ProjectCommandRunnerV1 {
   writeFile(path: string, contents: string): Promise<void>;
   /** Recursively copies a directory, replacing any existing destination. */
   copyDirectory(source: string, destination: string): Promise<void>;
+  /** Copies one file byte-for-byte (used for binary assets like icons). */
+  copyFile(source: string, destination: string): Promise<void>;
   removeDirectory(path: string): Promise<void>;
 }
 
@@ -505,6 +507,15 @@ export async function desktopStoryApplicationV1(
     `${stagingDir}/record-file-store.mts`,
     await deps.runner.readFile(`${deps.repositoryRoot}/scripts/desktop/record-file-store.mts`),
   );
+  const iconArgs: string[] = [];
+  if (desktop.icon !== undefined) {
+    const iconName = `icon.${desktop.icon.split(".").pop() ?? "png"}`;
+    await deps.runner.copyFile(
+      `${deps.repositoryRoot}/${desktop.icon}`,
+      `${stagingDir}/${iconName}`,
+    );
+    iconArgs.push("--icon", iconName);
+  }
   await deps.runner.writeFile(
     `${stagingDir}/deno.json`,
     `${JSON.stringify(
@@ -531,6 +542,7 @@ export async function desktopStoryApplicationV1(
         "--allow-net",
         "--include",
         "dist",
+        ...iconArgs,
         "--output",
         `../${outputName}`,
         "main.ts",

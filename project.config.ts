@@ -131,6 +131,7 @@ export const projectTavernConfigV1 = {
         desktop: {
           name: "RainyAlleyCatHouse",
           identifier: "dev.sillymaker.example.cat-cafe",
+          icon: "examples/cat-cafe/icon.png",
         },
       },
       releaseArtifact: false,
