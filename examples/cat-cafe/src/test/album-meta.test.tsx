@@ -26,6 +26,11 @@ function startV1(records: ReturnType<typeof createMemoryHostRecordStoreV1>, uuid
 }
 
 async function playOpeningV1(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+  // Pass the title screen first: the game front door renders before HUD.
+  await waitFor(() => {
+    expect(screen.getByRole("button", { name: "新游戏" })).toBeEnabled();
+  });
+  await user.click(screen.getByRole("button", { name: "新游戏" }));
   await waitFor(() => {
     expect(screen.getByRole("button", { name: "开始故事" })).toBeEnabled();
   });

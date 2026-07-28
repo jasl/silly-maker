@@ -316,6 +316,12 @@ export const bookshopRootLabelsV1: Partial<DefaultGameRootLabelsV1> = Object.fre
   settingsLabel: "设置",
   settingsTitle: "设置",
   settingsEmptyText: "暂无可配置项。",
+  settingsVolumeLabel: "音量",
+  settingsMutedLabel: "静音",
+  settingsFullscreenLabel: "切换全屏",
+  settingsDeveloperToolsLabel: "开发者工具",
+  titleNewGameLabel: "新游戏",
+  titleContinueLabel: "继续",
   closeLabel: "关闭",
 });
 
@@ -433,6 +439,7 @@ export const bookshopWebApplicationV1: WebGameApplicationV1<
   core: bookshopCoreApplicationDefinitionV1,
   ui: () =>
     Object.freeze({
+      titleScreen: Object.freeze({ title: "打烊前的旧书店" }),
       projector: bookshopUiProjectorV1,
       overlayIds: Object.freeze([] as const),
       slots: bookshopUiSlotsV1,
