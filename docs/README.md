@@ -10,6 +10,7 @@ Active documentation describes the code and decisions maintained after the first
 - [Story authoring](engine/story-authoring.md) — composing a Story from gameplay and presentation facets.
 - [Agent game guide](engine/agent-game-guide.md) — how to have a coding agent generate a game here.
 - [Windowing and the UI component system](engine/design/window-model.md) — the layered UI contract, windowing recipes, and the component promotion backlog (DialoguePanelV1 next).
+- [Feature slices proposal](engine/proposals/feature-slices.md) — extending Module cohesion to whole gameplay verticals; the code-organization answer to layer-file bloat.
 - [Build and release](engine/build-and-release.md) — development server, Player build, local Artifact, desktop save server, and smoke verification.
 - [Authoring quickstart](engine/authoring-quickstart.md) — the layered playbook agents and humans follow for Story edits.
 
