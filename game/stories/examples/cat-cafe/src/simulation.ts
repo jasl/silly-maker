@@ -9,7 +9,8 @@ import type {
   RngStateV1,
   RuntimeSchemaV1,
 } from "@sillymaker/base";
-import { createTransactionalRngV1 } from "@sillymaker/base";
+import { createTransactionalRngV1, drawFromEventPoolV1 } from "@sillymaker/base";
+import type { EventPoolDrawExplanationV1 } from "@sillymaker/base";
 import type {
   GameSimulation,
   InteractionRejectionCode,
@@ -53,6 +54,8 @@ import {
 } from "./narrative.ts";
 import {
   catcafeActivitiesV1,
+  catcafeEncounterConditionsV1,
+  catcafeEncountersV1,
   catcafeMovesV1,
   catcafePettingV1,
   catcafeRivalsV1,
@@ -103,6 +106,12 @@ export type CatcafeFactV1 =
   | { readonly kind: "cc.contest_won"; readonly rivalId: string; readonly albumId: string }
   | { readonly kind: "cc.contest_lost"; readonly rivalId: string }
   | { readonly kind: "cc.album_unlocked"; readonly albumId: string }
+  | {
+      readonly kind: "cc.encounter";
+      readonly encounterId: string;
+      readonly textId: string | null;
+      readonly explanation: EventPoolDrawExplanationV1;
+    }
   | { readonly kind: "cc.stage_changed"; readonly mutations: number }
   | {
       readonly kind: "cc.interaction_resolved";
@@ -774,14 +783,69 @@ export function createCatcafeGameSimulationV1(): CatcafeGameSimulationV1 {
                 break;
             }
           }
+          let encounterFacts: readonly CatcafeFactV1[] = Object.freeze([]);
           if (activity.income === "business") {
             shop.money +=
               10 + Math.floor(state.shop.reputation / 10) + Math.floor(state.shop.tidiness / 20);
+
+            // 常客事件池：条件对照当前状态，抽取走快照 RNG（重放一致），
+            // 效果并入同一事务，解释数据随 fact 落进日志与瞬态效果。
+            const draw = drawFromEventPoolV1({
+              candidates: catcafeEncountersV1.rows().map((row) => ({
+                eventId: row.id,
+                weight: row.weight,
+                condition: catcafeEncounterConditionsV1.get(row.id) ?? null,
+              })),
+              context: {
+                numbers: {
+                  "cat.trust": state.cat.trust,
+                  "cat.skill": state.cat.skill,
+                  "shop.reputation": state.shop.reputation,
+                  "shop.tidiness": state.shop.tidiness,
+                  "calendar.week": state.calendar.week,
+                },
+                flags: state.narrative.flags,
+                labels: { slot: catcafeSlotsV1[state.calendar.slot] ?? "morning" },
+              },
+              rng,
+              purpose: "check:cc.encounter",
+            });
+            if (draw.kind === "drawn") {
+              const row = catcafeEncountersV1.byId(draw.eventId);
+              if (row !== null && row.textId !== null) {
+                for (const effect of row.effects) {
+                  switch (effect.stat) {
+                    case "cat.trust":
+                      cat.trust += effect.delta;
+                      break;
+                    case "shop.reputation":
+                      shop.reputation += effect.delta;
+                      break;
+                    case "shop.tidiness":
+                      shop.tidiness += effect.delta;
+                      break;
+                    case "shop.money":
+                      shop.money += effect.delta;
+                      break;
+                    default:
+                      break;
+                  }
+                }
+                encounterFacts = Object.freeze([
+                  Object.freeze({
+                    kind: "cc.encounter" as const,
+                    encounterId: draw.eventId,
+                    textId: row.textId,
+                    explanation: draw.explanation,
+                  }),
+                ]);
+              }
+            }
           }
           if (shop.money < 0) return transaction.reject({ code: "cc.money_short" });
 
           transaction.propose(calendarModuleV1, { kind: "spend", stamina: activity.stamina });
-          transaction.propose(catModuleV1, { kind: "apply", ...cat });
+          transaction.propose(catModuleV1, { kind: "apply", ...cat, facts: encounterFacts });
           transaction.propose(shopModuleV1, { kind: "apply", ...shop });
           return transaction.complete();
         });

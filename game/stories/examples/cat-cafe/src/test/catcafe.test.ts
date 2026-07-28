@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 import { describe, expect, it } from "vitest";
 
-import { lintNarrativeGraph } from "@sillymaker/base/story";
+import { drawFromEventPool, lintNarrativeGraph } from "@sillymaker/base/story";
+import { createTransactionalRngV1, parseNonZeroUint32 } from "@sillymaker/base";
 import { createGameHarnessV1, resolveStoryForTestV1 } from "@sillymaker/base/testkit";
 
 import { catcafeEndingForV1 } from "../simulation.ts";
@@ -10,7 +11,12 @@ import { createCatcafeApplicationInstanceV1 } from "../application/core-applicat
 import type { CatcafeApplicationInstanceV1 } from "../application/core-application.ts";
 import { catcafeSemanticAdapterV1 } from "../application/semantic.ts";
 import { projectCatcafeNarrativeGraphV1 } from "../narrative-graph.ts";
-import { catcafeContentV1, catcafePettingV1 } from "../content.ts";
+import {
+  catcafeContentV1,
+  catcafeEncounterConditionsV1,
+  catcafeEncountersV1,
+  catcafePettingV1,
+} from "../content.ts";
 import { catcafeTextCatalogsV1 } from "../presentation.ts";
 import { catcafeStoryEntryV1 } from "../story.ts";
 
@@ -319,5 +325,73 @@ describe("catcafe transient effects", () => {
       { effectId: "effect.catcafe.contest", payload: { outcome: "won", rivalId: "rival.mochi" } },
       { effectId: "effect.catcafe.contest", payload: { outcome: "lost", rivalId: "rival.smoke" } },
     ]);
+  });
+});
+
+describe("catcafe encounters (event pool)", () => {
+  it("validates every encounter condition at parse time", () => {
+    for (const row of catcafeEncountersV1.rows()) {
+      expect(catcafeEncounterConditionsV1.has(row.id), row.id).toBe(true);
+    }
+  });
+
+  it("draws deterministically during business and applies effects atomically", async () => {
+    // Same seed -> same encounter trail; facts carry the explanation.
+    async function trailV1(): Promise<readonly string[]> {
+      const instance = await createCatcafeApplicationInstanceV1({ seeds: [424242] });
+      const trail: string[] = [];
+      const unsubscribe = instance.subscribeTransientEffects((effect) => {
+        if (effect.effectId === "effect.catcafe.encounter") {
+          trail.push((effect.payload as { readonly encounterId: string }).encounterId);
+        }
+      });
+      try {
+        await playOpeningV1(instance);
+        // Morning -> noon, then run the shop three noons in a row.
+        for (let day = 0; day < 3; day += 1) {
+          await dispatchCommittedV1(instance, { kind: "invoke", actionId: "cc.advance_slot" });
+          await dispatchCommittedV1(instance, {
+            kind: "activity",
+            activityId: "activity.business",
+          });
+          for (let slot = 0; slot < 3; slot += 1) {
+            await dispatchCommittedV1(instance, { kind: "invoke", actionId: "cc.advance_slot" });
+          }
+        }
+        return trail;
+      } finally {
+        unsubscribe();
+        await instance.dispose();
+      }
+    }
+    const first = await trailV1();
+    const second = await trailV1();
+    expect(second).toEqual(first);
+  });
+
+  it("keeps gated encounters out of the eligible list at low stats", () => {
+    const draw = drawFromEventPool({
+      candidates: catcafeEncountersV1.rows().map((row) => ({
+        eventId: row.id,
+        weight: row.weight,
+        condition: catcafeEncounterConditionsV1.get(row.id) ?? null,
+      })),
+      context: {
+        numbers: {
+          "cat.trust": 10,
+          "cat.skill": 0,
+          "shop.reputation": 11,
+          "shop.tidiness": 60,
+          "calendar.week": 1,
+        },
+        flags: [],
+        labels: { slot: "noon" },
+      },
+      rng: createTransactionalRngV1(parseNonZeroUint32(7)),
+      purpose: "check:cc.encounter",
+    });
+    const eligible = draw.explanation.eligible.map((entry) => entry.eventId);
+    // Week 1, low reputation, low trust, noon: only the unconditional rows.
+    expect(eligible).toEqual(["encounter.quiet", "encounter.stray"]);
   });
 });
