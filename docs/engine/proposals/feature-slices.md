@@ -63,27 +63,29 @@ src/
     album/       图鉴（content 表、解锁谓词→元进度 watcher、卡面映射、图鉴视图）
     calendar/    时段常量、日历模块、advance_slot 命令
     cat/         猫模块、成长阶段常量与立绘成长规则
-    contest/     竞赛模块、moves/rivals 表、赛程规则、开赛/出招命令
-    dialogue/    剧本（script.ts，原 narrative.ts）、叙事模块、begin/resolve 命令
-    encounters/  事件池表、条件树、常客抽取规则
-    endings/     结局判定规则、enter_postgame 命令
-    petting/     反应表、pet 命令
+    contest/     竞赛模块、moves/rivals 表、赛程规则、开赛/出招命令、竞赛面板+胜负 toast
+    dialogue/    剧本（script.ts，原 narrative.ts）、叙事模块、begin/resolve 命令、自动开场 hook
+    encounters/  事件池表、条件树、常客抽取规则、相遇通知 hook
+    endings/     结局判定规则、enter_postgame 命令、全屏结局幕
+    petting/     反应表、pet 命令、反应气泡 hook
     shop/        店铺模块、活动表、do_activity 命令
-    stage/       舞台模块
+    stage/       舞台模块、渲染器（背景/猫立绘+待机动画 CSS）、舞台槽组件（命中区域抚摸接线）
   application/
     ui-kit.ts    共享 UI 基座：主题令牌、locale 文本、发布/端口类型、派发助手
-    composition.tsx  纯组合：投影、渲染器、HUD、槽位、应用声明
+    stat-bar.tsx 共享数值条（自绘轨道；评估记录见 window-model）
+    labels.ts    系统外壳文案（中英双语根标签、存档对话框、安全点提示）
+    composition.tsx  纯组合（~670 行）：投影、HUD 编排、槽位、设置节、应用声明
 ```
 
 template 以 `kernel.ts` + `features/inventory/`（模块+能力）做最小示范；两个手册（`template/AGENTS.md`、`examples/AGENTS.md`）已写入"新特性 = 新目录"的指引。
 
 外部消费面不变：`simulation.ts`/`content.ts` 仍是唯一门面（类型与句柄全部再导出），semantic/composition/测试/CLI 无需感知内部布局。
 
-## 后续批次（未做，按需推进）
+## 后续批次
 
-- `composition.tsx`（约 1330 行）内的巨型 `CatcafeHudV1`（含竞赛面板、活动行、结局屏、toast）继续拆到 contest/shop/endings 切片的 UI 文件——UI 面的搬运，机制同 album。
+- ✅ HUD 内部拆分（第二批，2026-07-28）：竞赛面板+胜负 toast → contest、结局幕 → endings、相遇通知 → encounters、自动开场 → dialogue、舞台组件+渲染器+抚摸接线 → stage/petting、双语外壳文案 → application/labels.ts、数值条 → application/stat-bar.tsx。`composition.tsx` 从 1734 行降到约 670 行（纯编排：投影、HUD 骨架、槽位、设置节、应用声明）。顺带修正一处上批遗漏：对话快捷条按钮紧凑化选择器仍指向已废弃的 `data-cc-narrative`，现改 `data-dialogue`。
 - `presentation.ts`（文本+舞台内容+资产）按特性归属拆分——收益最低，等真实摩擦再动。
-- 迁移摩擦记录：见下"引擎侧候选"，本轮未出现新增摩擦（机械搬运 + 每步 typecheck/vitest 即可）。
+- 迁移摩擦记录：见下"引擎侧候选"，两批均未出现新增摩擦（机械搬运 + 每步 typecheck/vitest 即可）。
 
 ## 引擎侧候选（证据后定型，不预做）
 
