@@ -17,6 +17,7 @@
 - **存档安全点**：web 定义加 `saveGuard(publication)`，对话或战斗中禁手动存档并给出原因文本。
 - **舞台命中区域**：内容目录声明 `hitRegions`，`SemanticStageV1` 传 `onHitRegionActivate`。
 - **内容表**：`defineContentTable` + `createContentDatabase`——静态定义进表（解析期校验），可变状态进模块。
+- **UI 样式**：只用 `--silly-*` 令牌（禁写裸 z-index，层级刻度见 `docs/engine/authoring-quickstart.md` 的样式速查）；玩法窗体挂 overlay session 自动获得 `PanelV1` 窗体外壳。
 
 ## 剧本/文本任务（最常见）
 

@@ -45,7 +45,7 @@ export function BootSplashV1(props: {
         textAlign: "center",
         backgroundColor: "#0a0c10",
         color: "#f2efe8",
-        zIndex: 11,
+        zIndex: "var(--silly-surface-z-splash)",
         pointerEvents: "auto",
         cursor: "pointer",
       }}

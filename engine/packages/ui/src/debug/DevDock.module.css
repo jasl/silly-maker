@@ -12,7 +12,7 @@
 
 .dev-dock__launchers {
   position: absolute;
-  z-index: 2;
+  z-index: var(--silly-surface-z-raised);
   inset: var(--silly-space-2);
   pointer-events: none;
 }
@@ -57,7 +57,7 @@
 
 .dev-dock__rail {
   position: absolute;
-  z-index: 1;
+  z-index: var(--silly-surface-z-raised);
   inset-block: var(--silly-space-2);
   display: grid;
   inline-size: min(24rem, calc(100% - 4rem));

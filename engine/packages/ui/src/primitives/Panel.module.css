@@ -1,0 +1,29 @@
+.panel {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: var(--silly-space-2);
+  min-block-size: 0;
+  max-block-size: 100%;
+  color: var(--silly-color-text);
+}
+
+.panel__header {
+  display: flex;
+  gap: var(--silly-space-2);
+  align-items: center;
+  justify-content: space-between;
+  padding-block-end: var(--silly-space-2);
+  border-block-end: 1px solid var(--silly-color-border);
+}
+
+.panel__title {
+  margin: 0;
+  font-size: 1.1em;
+  color: var(--silly-color-accent);
+}
+
+.panel__content {
+  min-block-size: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}

@@ -1,6 +1,6 @@
 .game-stage {
   position: relative;
-  z-index: 1;
+  z-index: var(--silly-surface-z-raised);
   container: game-stage / inline-size;
   box-sizing: border-box;
   inline-size: min(100%, var(--silly-stage-max-width), calc(100dvh * 8 / 5));

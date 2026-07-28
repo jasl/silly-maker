@@ -16,7 +16,7 @@ import {
 } from "../debug/DevDockPortalCoordinator.tsx";
 import { inputHandledV1, inputIgnoredV1, systemInputActionIdsV1 } from "../input/contracts.ts";
 import type { InputEventV1, InputRouterV1 } from "../input/contracts.ts";
-import { Button } from "../primitives/Button.tsx";
+import { PanelV1 } from "../primitives/Panel.tsx";
 import { useStageInputIsolationV1 } from "../shell/game-stage.tsx";
 import type { OverlaySessionStoreV1 } from "./overlay-session-store.ts";
 import styles from "./overlay-host.module.css";
@@ -141,6 +141,21 @@ function OverlayDialogEntryV1(props: {
             data-blocking-focus-scope={isTop ? "overlay" : undefined}
             data-overlay-kind={props.entry.kind}
             data-overlay-depth={props.entry.depth}
+            onOpenAutoFocus={(event) => {
+              // Content-first focus: the first actionable element inside the
+              // panel body (not the header close button) receives focus, per
+              // the dialog convention that close is the last resort.
+              event.preventDefault();
+              const root = event.currentTarget as HTMLElement | null;
+              const body = root?.querySelector("[data-panel-content]") ?? null;
+              const target =
+                body?.querySelector<HTMLElement>(
+                  'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+                ) ??
+                (body as HTMLElement | null) ??
+                root;
+              target?.focus({ preventScroll: true });
+            }}
             onEscapeKeyDown={(event) => {
               event.preventDefault();
               if (!isDevDockEscapeOwnerTargetV1(event.target)) requestTopCloseV1();
@@ -148,11 +163,19 @@ function OverlayDialogEntryV1(props: {
             onInteractOutside={(event) => event.preventDefault()}
             onCloseAutoFocus={(event) => event.preventDefault()}
           >
-            <Dialog.Title className={styles["overlay-host__title"]}>
-              {props.entry.resolution.accessibleName}
-            </Dialog.Title>
-            {props.entry.resolution.content}
-            {isTop ? <Button onClick={requestTopCloseV1}>{props.closeLabel}</Button> : null}
+            {/* Every gameplay window shares the Panel chrome: a visible
+                title bar with the close control, and a focusable scrollable
+                content region. */}
+            <PanelV1
+              title={
+                <Dialog.Title asChild>
+                  <span>{props.entry.resolution.accessibleName}</span>
+                </Dialog.Title>
+              }
+              {...(isTop ? { onClose: requestTopCloseV1, closeLabel: props.closeLabel } : {})}
+            >
+              {props.entry.resolution.content}
+            </PanelV1>
           </Dialog.Content>
         </div>
       </Dialog.Portal>
