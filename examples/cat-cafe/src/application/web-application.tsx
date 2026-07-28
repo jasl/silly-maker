@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+// SPDX-License-Identifier: MIT
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 
@@ -1020,6 +1020,10 @@ function CatcafeHudV1(props: {
           display: "grid",
           gap: "8px",
           justifyItems: "center",
+          // 对话进行中让出舞台：动作栏隐藏，等叙事面板退场再回来。
+          ...(props.publication.semantic.narrative.pending === null
+            ? {}
+            : { visibility: "hidden" as const }),
         }}
       >
         {encounterTextId === null ? null : (
