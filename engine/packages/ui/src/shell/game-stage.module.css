@@ -4,8 +4,15 @@
 
   /* Game-engine convention: gameplay surfaces are not documents. Text is
      never selectable and images never drag — clicks belong to the game.
-     Debug tooling (DevDock) lives outside the stage and keeps selection. */
+     Debug tooling (DevDock) lives outside the stage and keeps selection.
+     touch-action kills the 300ms double-tap-zoom delay, touch-callout the
+     iOS long-press sheet, and overscroll-behavior scroll chaining and
+     pull-to-refresh under game gestures. */
   user-select: none;
+  touch-action: manipulation;
+  overscroll-behavior: none;
+  /* stylelint-disable-next-line property-no-vendor-prefix -- no standard property exists */
+  -webkit-touch-callout: none;
   container: game-stage / inline-size;
   box-sizing: border-box;
   inline-size: min(100%, var(--silly-stage-max-width), calc(100dvh * 8 / 5));

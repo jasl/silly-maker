@@ -31,14 +31,23 @@ export interface InstallPointerButtonAdapterOptionsV1 {
   now?(): number;
 }
 
-const interactiveTagsV1 = new Set(["INPUT", "TEXTAREA", "SELECT", "BUTTON", "A", "OPTION"]);
+const interactiveSelectorV1 =
+  'input, textarea, select, button, a, option, [contenteditable="true"], ' +
+  '[role="button"], [role="textbox"], [role="combobox"]';
+
+/**
+ * Controls own their pointer buttons: the default secondary-button behavior
+ * on any interactive element (including its icon/text descendants) is
+ * "none" — the mapped stage action only fires on scene surfaces. A control
+ * can opt into a specific action with `data-secondary-action="<actionId>"`.
+ */
+function interactiveAncestorV1(target: unknown): Element | null {
+  if (typeof Element === "undefined" || !(target instanceof Element)) return null;
+  return target.closest(interactiveSelectorV1);
+}
 
 function isInteractiveTargetV1(target: unknown): boolean {
-  if (typeof Element === "undefined" || !(target instanceof Element)) return false;
-  if (interactiveTagsV1.has(target.tagName)) return true;
-  if (target instanceof HTMLElement && target.isContentEditable) return true;
-  const role = target.getAttribute("role");
-  return role === "button" || role === "textbox" || role === "combobox";
+  return interactiveAncestorV1(target) !== null;
 }
 
 function insideScrollableV1(target: unknown): boolean {
@@ -64,9 +73,20 @@ export function installPointerButtonAdapterV1(
   let lastWheelAt = Number.NEGATIVE_INFINITY;
 
   const onContextMenu = (event: Event): void => {
+    if (event.defaultPrevented) return;
+    const control = interactiveAncestorV1(event.target);
+    if (control !== null) {
+      // Controls default to no secondary behavior; an explicit
+      // data-secondary-action opts one in.
+      const controlAction = control.getAttribute("data-secondary-action");
+      if (controlAction !== null && controlAction !== "") {
+        event.preventDefault();
+        options.router.route({ kind: "action", actionId: controlAction as InputActionIdV1 });
+      }
+      return;
+    }
     const actionId = options.map.secondary;
-    if (actionId === undefined || event.defaultPrevented) return;
-    if (isInteractiveTargetV1(event.target)) return;
+    if (actionId === undefined) return;
     // The Story claimed the secondary button: the native menu stays
     // suppressed on stage surfaces whether or not a context handles it.
     event.preventDefault();

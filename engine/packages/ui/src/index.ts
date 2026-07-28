@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 export { createAssetRegistryV1 } from "./assets/asset-registry.ts";
+export { resolveAssetUrlV1, useAssetUrlV1 } from "./assets/use-asset-url.ts";
 export type {
   AssetLoadFaultCodeV1,
   AssetLoadResultV1,
@@ -103,6 +104,7 @@ export type {
   PresentationOverlayWriterV1,
 } from "./interaction/index.ts";
 export { AdvanceSurfaceV1, VnLayerV1 } from "./narrative/index.ts";
+export { useReducedMotionV1 } from "./system/use-reduced-motion.ts";
 export type { VnChoiceV1, VnLayerPropsV1 } from "./narrative/index.ts";
 export {
   ActionConfirmationDialogV1,
