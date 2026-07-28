@@ -72,7 +72,7 @@ export type { GameSnapshotEnvelopeV1 as ForbiddenSnapshotV1 } from "@sillymaker/
 export type { GameSessionV1 as ForbiddenGameSessionV1 } from "@sillymaker/ui/debug";
 // @ts-expect-error owner capabilities are not part of the neutral debug UI subpath
 export type { ModuleOwnerCapabilityV1 as ForbiddenOwnerV1 } from "@sillymaker/ui/debug";
-// @ts-expect-error concrete PoC commands never enter the neutral debug UI subpath
+// @ts-expect-error concrete Story commands never enter the neutral debug UI subpath
 export type { PocDebugCommandV1 as ForbiddenPocCommandV1 } from "@sillymaker/ui/debug";
 // @ts-expect-error concrete E2E state never enters the neutral debug UI subpath
 export type { E2eGameStateV1 as ForbiddenE2eStateV1 } from "@sillymaker/ui/debug";
