@@ -18,12 +18,12 @@ import {
   materializeCatcafePresentationV1,
 } from "./presentation.ts";
 
-function moduleEntryV1(id: string, slot: string, schemaId: string) {
+function moduleEntryV1(id: string, slot: string, schemaId: string, revision = 1) {
   return Object.freeze({
     moduleId: parseModuleId(id),
-    moduleContractRevision: parsePositiveSafeInteger(1),
+    moduleContractRevision: parsePositiveSafeInteger(revision),
     stateSlots: Object.freeze([parseStateSlotId(slot)]),
-    stateSchema: Object.freeze({ schemaId, revision: parsePositiveSafeInteger(1) }),
+    stateSchema: Object.freeze({ schemaId, revision: parsePositiveSafeInteger(revision) }),
   });
 }
 
@@ -39,7 +39,9 @@ export const catcafeStateContractManifestV1 = Object.freeze({
     moduleEntryV1("catcafe.contest", "simulation.contest", "schema.catcafe.contest-state"),
     moduleEntryV1("catcafe.narrative", "simulation.narrative", "schema.catcafe.narrative-state"),
     moduleEntryV1("catcafe.shop", "simulation.shop", "schema.catcafe.shop-state"),
-    moduleEntryV1("catcafe.stage", "simulation.stage", "schema.catcafe.stage-state"),
+    // Stage state revision 2: placement gained the required opacityPermille
+    // (semantic stage contract revision 3).
+    moduleEntryV1("catcafe.stage", "simulation.stage", "schema.catcafe.stage-state", 2),
   ]),
   persistentIrSchemas: Object.freeze([]),
   stableReferenceSets: Object.freeze([]),
@@ -85,7 +87,7 @@ export const catcafeStoryEntryV1 = defineGamePackage({
   contractRevision: 1,
   identity: {
     id: "story.example.cat-cafe",
-    revision: parsePositiveSafeInteger(1),
+    revision: parsePositiveSafeInteger(2),
   },
   define: () => catcafeStoryDefinitionV1,
 });

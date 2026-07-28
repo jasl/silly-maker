@@ -22,7 +22,13 @@ function playableStageV1() {
       tag: "tag.alpha",
       contentId: "content.char.alpha",
       zOrder: 10,
-      placement: { x: 400, y: 900, scalePermille: 1000, mirrored: false },
+      placement: {
+        x: 400,
+        y: 900,
+        scalePermille: 1000,
+        opacityPermille: 1000,
+        mirrored: false,
+      },
       appearance: { pose: "standing", expression: "neutral" },
     },
     {
@@ -30,7 +36,13 @@ function playableStageV1() {
       layerId: "layer.props",
       tag: "tag.crate",
       contentId: "content.prop.crate",
-      placement: { x: 1200, y: 950, scalePermille: 800, mirrored: true },
+      placement: {
+        x: 1200,
+        y: 950,
+        scalePermille: 800,
+        opacityPermille: 750,
+        mirrored: true,
+      },
     },
   ]);
   if (outcome.kind !== "applied") throw new Error("fixture stage must apply");
@@ -106,6 +118,32 @@ describe("SemanticStageStateV1", () => {
     };
     entryWithExtra.layers[0]!.entries[0]!.assetUrl = "https://example.invalid/bg.png";
     expect(() => parseSemanticStageStateV1(entryWithExtra)).toThrow(PresentationDataError);
+  });
+
+  it("requires the full five-key placement including opacityPermille", () => {
+    const state = JSON.parse(JSON.stringify(playableStageV1())) as {
+      layers: { entries: { placement: Record<string, unknown> }[] }[];
+    };
+    const placement = state.layers[1]!.entries[0]!.placement;
+
+    // A four-key placement (pre-opacity shape) is not valid data.
+    const missingOpacity = JSON.parse(JSON.stringify(state)) as typeof state;
+    delete missingOpacity.layers[1]!.entries[0]!.placement.opacityPermille;
+    expect(() => parseSemanticStageStateV1(missingOpacity)).toThrow(PresentationDataError);
+
+    // Opacity is an integer permille inside [0, 1000].
+    for (const invalid of [-1, 1001, 500.5, "800"]) {
+      const outOfRange = JSON.parse(JSON.stringify(state)) as typeof state;
+      outOfRange.layers[1]!.entries[0]!.placement.opacityPermille = invalid;
+      expect(() => parseSemanticStageStateV1(outOfRange)).toThrow("stage_opacity_permille_invalid");
+    }
+
+    // Zero (fully transparent) is a legal settled target.
+    const transparent = JSON.parse(JSON.stringify(state)) as typeof state;
+    transparent.layers[1]!.entries[0]!.placement.opacityPermille = 0;
+    const parsed = parseSemanticStageStateV1(transparent);
+    expect(parsed.layers[1]!.entries[0]!.placement.opacityPermille).toBe(0);
+    expect(placement.opacityPermille).toBe(1000);
   });
 
   it("rejects duplicate tags, duplicate layers, and non-canonical z-order", () => {

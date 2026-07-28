@@ -42,7 +42,7 @@ function targetV1() {
         tag: "tag.hero",
         contentId: "content.test.hero",
         zOrder: 0,
-        placement: { x: 640, y: 360, scalePermille: 1000, mirrored: false },
+        placement: { x: 640, y: 360, scalePermille: 1000, opacityPermille: 1000, mirrored: false },
       },
       "/test",
     ),

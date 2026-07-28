@@ -55,7 +55,7 @@ describe("SemanticStageHostV1", () => {
         tag: "tag.test.alpha",
         contentId: "content.test.alpha",
         zOrder: 7,
-        placement: { x: 480, y: 620, scalePermille: 1250, mirrored: true },
+        placement: { x: 480, y: 620, scalePermille: 1250, opacityPermille: 800, mirrored: true },
         appearance: { expression: "smile" },
       },
       { kind: "setCamera", camera: { x: 40, y: -20, zoomPermille: 1500 } },
@@ -85,6 +85,14 @@ describe("SemanticStageHostV1", () => {
       "translate3d(480px, 620px, 0) scale(1.25) scaleX(-1)",
     );
     expect((alpha as HTMLElement).style.zIndex).toBe("7");
+    // Placement opacity is authoritative settled data and reaches the DOM.
+    expect((alpha as HTMLElement).style.opacity).toBe("0.8");
+
+    // A fully opaque entry does not emit an opacity style at all.
+    const bg = container.querySelector(
+      '[data-stage-key="layer.test.back:tag.test.bg"]',
+    ) as HTMLElement;
+    expect(bg.style.opacity).toBe("");
     expect(
       alpha?.querySelector("[data-test-expression]")?.getAttribute("data-test-expression"),
     ).toBe("smile");

@@ -112,7 +112,8 @@ function contentDiagnosticV1(code: string, message: string, pointer: string): Di
  * reports a structured diagnostic; projection failures never change
  * gameplay State.
  */
-const maxHitRegionsV1 = 16;
+/** Per-entry hit-region budget. Picture-dense SLGs need headroom beyond early VN pets. */
+const maxHitRegionsV1 = 64;
 
 function validateHitRegionsV1(
   regions: readonly StageHitRegionV1[] | undefined,

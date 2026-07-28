@@ -129,6 +129,7 @@ function placementsEqualV1(left: StagePlacementV1, right: StagePlacementV1): boo
     left.x === right.x &&
     left.y === right.y &&
     left.scalePermille === right.scalePermille &&
+    left.opacityPermille === right.opacityPermille &&
     left.mirrored === right.mirrored
   );
 }

@@ -56,11 +56,13 @@ export const templateStateContractManifestV1 = Object.freeze({
     }),
     Object.freeze({
       moduleId: parseModuleId("template.stage"),
-      moduleContractRevision: parsePositiveSafeInteger(1),
+      // Revision 2: placement gained the required opacityPermille (semantic
+      // stage contract revision 3).
+      moduleContractRevision: parsePositiveSafeInteger(2),
       stateSlots: Object.freeze([parseStateSlotId("simulation.stage")]),
       stateSchema: Object.freeze({
         schemaId: "schema.template.stage-state",
-        revision: parsePositiveSafeInteger(1),
+        revision: parsePositiveSafeInteger(2),
       }),
     }),
   ]),
@@ -108,7 +110,7 @@ export const templateStoryEntryV1 = defineGamePackage({
   contractRevision: 1,
   identity: {
     id: "story.template.starter",
-    revision: parsePositiveSafeInteger(1),
+    revision: parsePositiveSafeInteger(2),
   },
   define: () => templateStoryDefinitionV1,
 });

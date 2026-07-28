@@ -476,7 +476,7 @@ function applyProcedureOperationV1(
 
 const stageModuleV1 = kit.defineStatefulModule({
   id: "lab.stage",
-  contractRevision: 1,
+  contractRevision: 2,
   state: {
     slot: "simulation.stage",
     schema: labStageStateSchemaV1,

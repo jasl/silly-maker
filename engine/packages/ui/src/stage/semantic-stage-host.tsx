@@ -137,23 +137,26 @@ function entryStyleV1(
   let x = entry.placement.x;
   let y = entry.placement.y;
   let scale = permilleV1(entry.placement.scalePermille);
-  let opacity: number | undefined;
+  // The settled placement opacity is the authoritative base; transition
+  // fades and timeline overlays compose multiplicatively on top of it.
+  let opacity = permilleV1(entry.placement.opacityPermille);
 
   if (transitionKind === "crossfade") {
-    opacity = phase === "exiting" ? 1 - progress : progress;
+    opacity *= phase === "exiting" ? 1 - progress : progress;
   } else if (transitionKind === "slide") {
     if (fromPlacement !== null) {
       x = lerpV1(fromPlacement.x, x, progress);
       y = lerpV1(fromPlacement.y, y, progress);
       scale = lerpV1(permilleV1(fromPlacement.scalePermille), scale, progress);
+      opacity = lerpV1(permilleV1(fromPlacement.opacityPermille), opacity, progress);
     } else if (slide !== null) {
       const displacement = phase === "exiting" ? progress : 1 - progress;
       x += slide.x * displacement;
       y += slide.y * displacement;
-      opacity = phase === "exiting" ? 1 - progress : progress;
+      opacity *= phase === "exiting" ? 1 - progress : progress;
     }
   } else if (phase === "exiting") {
-    opacity = 1 - progress;
+    opacity *= 1 - progress;
   }
 
   // Timeline overlay: decorative offsets and multipliers on top of the
@@ -162,15 +165,14 @@ function entryStyleV1(
     x += overlayChannelV1(channels, "offsetX");
     y += overlayChannelV1(channels, "offsetY");
     scale *= permilleV1(overlayChannelV1(channels, "scalePermille"));
-    const opacityFactor = permilleV1(overlayChannelV1(channels, "opacityPermille"));
-    if (opacityFactor !== 1) opacity = (opacity ?? 1) * opacityFactor;
+    opacity *= permilleV1(overlayChannelV1(channels, "opacityPermille"));
   }
 
   const mirror = entry.placement.mirrored ? " scaleX(-1)" : "";
   return {
     transform: `translate3d(${String(x)}px, ${String(y)}px, 0) scale(${String(scale)})${mirror}`,
     zIndex: entry.zOrder,
-    ...(opacity === undefined ? {} : { opacity }),
+    ...(opacity === 1 ? {} : { opacity }),
   };
 }
 
