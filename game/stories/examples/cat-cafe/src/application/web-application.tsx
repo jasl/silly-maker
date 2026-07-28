@@ -900,5 +900,9 @@ export const catcafeWebApplicationV1: WebGameApplicationV1<
         return { labels: chrome.labels, saveLabels: chrome.saveLabels };
       })(),
       inputMaps: Object.freeze({ keyboard: catcafeKeyboardMapV1, pointer: catcafePointerMapV1 }),
+      loadDevDockContributions: () =>
+        import("./dev-dock.tsx").then((module) =>
+          module.createCatcafeDevDockContributionsV1({ instance }),
+        ),
     }),
 });

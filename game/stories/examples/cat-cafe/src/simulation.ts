@@ -30,7 +30,7 @@ import {
   reduceStageMutations,
 } from "@sillymaker/base/story";
 
-import type { CatcafeGameStateV1, CatcafeContestStateV1 } from "./state.ts";
+import type { CatcafeCalendarStateV1, CatcafeContestStateV1, CatcafeGameStateV1 } from "./state.ts";
 import {
   catcafeCalendarStateSchemaV1,
   catcafeCatStateSchemaV1,
@@ -143,9 +143,25 @@ export interface CatcafeFaultV1 {
   readonly code: "cc.executor_failed";
 }
 
+/** 调参命令：与正常命令同一原子提交路径，日志按 source:"debug" 标记。 */
+export type CatcafeDebugCommandV1 =
+  | { readonly kind: "cc.debug.set_stat"; readonly stat: string; readonly value: number }
+  | { readonly kind: "cc.debug.advance_days"; readonly days: number }
+  | { readonly kind: "cc.debug.force_encounter"; readonly encounterId: string };
+
 export interface CatcafeDebugValidationErrorV1 {
-  readonly code: "cc.debug_command_unsupported";
+  readonly code: string;
+  readonly detail?: string;
 }
+
+export const catcafeDebugStatsV1 = [
+  "cat.trust",
+  "cat.vigor",
+  "cat.skill",
+  "shop.reputation",
+  "shop.tidiness",
+  "shop.money",
+] as const;
 
 export interface CatcafeQueriesV1 {
   readonly calendar: CatcafeGameStateV1["simulation"]["calendar"];
@@ -196,7 +212,7 @@ export interface CatcafeSimulationTypesV1 extends GameSimulationTypeMapV1<
   readonly fact: CatcafeFactV1;
   readonly rejection: CatcafeRejectionV1;
   readonly fault: CatcafeFaultV1;
-  readonly debugCommand: never;
+  readonly debugCommand: CatcafeDebugCommandV1;
   readonly debugValidationError: CatcafeDebugValidationErrorV1;
   readonly executionContext: undefined;
   readonly queries: CatcafeQueriesV1;
@@ -218,7 +234,9 @@ export type CatcafeAttemptV1 = CommandExecutionAttemptEnvelopeV1<
 // ---------------------------------------------------------------------------
 
 type CalendarOperationV1 =
-  { readonly kind: "advance" } | { readonly kind: "spend"; readonly stamina: number };
+  | { readonly kind: "advance" }
+  | { readonly kind: "spend"; readonly stamina: number }
+  | { readonly kind: "set"; readonly next: CatcafeCalendarStateV1 };
 
 type CatOperationV1 = {
   readonly kind: "apply";
@@ -315,9 +333,41 @@ function passthroughSchemaV1<T>(): RuntimeSchemaV1<T> {
   return Object.freeze({ parse: (value: unknown) => value as T });
 }
 
-const debugCommandSchemaV1: RuntimeSchemaV1<never> = Object.freeze({
-  parse(): never {
-    throw new TypeError("catcafe debug commands are unsupported");
+const debugCommandSchemaV1: RuntimeSchemaV1<CatcafeDebugCommandV1> = Object.freeze({
+  parse(value: unknown): CatcafeDebugCommandV1 {
+    if (value === null || typeof value !== "object" || Array.isArray(value)) {
+      throw new TypeError("invalid catcafe debug command");
+    }
+    const record = value as Record<string, unknown>;
+    const keys = Object.keys(record).toSorted().join("\u0000");
+    switch (record.kind) {
+      case "cc.debug.set_stat":
+        if (
+          keys !== "kind\u0000stat\u0000value" ||
+          typeof record.stat !== "string" ||
+          typeof record.value !== "number" ||
+          !Number.isSafeInteger(record.value)
+        ) {
+          throw new TypeError("invalid catcafe debug set_stat");
+        }
+        return Object.freeze({ kind: "cc.debug.set_stat", stat: record.stat, value: record.value });
+      case "cc.debug.advance_days":
+        if (
+          keys !== "days\u0000kind" ||
+          typeof record.days !== "number" ||
+          !Number.isSafeInteger(record.days)
+        ) {
+          throw new TypeError("invalid catcafe debug advance_days");
+        }
+        return Object.freeze({ kind: "cc.debug.advance_days", days: record.days });
+      case "cc.debug.force_encounter":
+        if (keys !== "encounterId\u0000kind" || typeof record.encounterId !== "string") {
+          throw new TypeError("invalid catcafe debug force_encounter");
+        }
+        return Object.freeze({ kind: "cc.debug.force_encounter", encounterId: record.encounterId });
+      default:
+        throw new TypeError("invalid catcafe debug command kind");
+    }
   },
 });
 
@@ -371,6 +421,7 @@ function applyCalendarV1(
   state: CatcafeGameStateV1["simulation"]["calendar"],
   operation: CalendarOperationV1,
 ): CatcafeGameStateV1["simulation"]["calendar"] {
+  if (operation.kind === "set") return operation.next;
   if (operation.kind === "spend") {
     return Object.freeze({ ...state, stamina: state.stamina - operation.stamina });
   }
@@ -604,13 +655,19 @@ type CatcafeCommandExecutorV1 = {
 type CatcafeDebugCommandExecutorV1 = {
   validate(
     snapshot: CatcafeSnapshotV1,
-    command: never,
+    command: CatcafeDebugCommandV1,
     context: undefined,
-  ): {
-    readonly kind: "validation_failed";
-    readonly errors: readonly CatcafeDebugValidationErrorV1[];
-  };
-  executeAttempt(snapshot: CatcafeSnapshotV1, command: never, context: undefined): never;
+  ):
+    | { readonly kind: "allowed" }
+    | {
+        readonly kind: "validation_failed";
+        readonly errors: readonly CatcafeDebugValidationErrorV1[];
+      };
+  executeAttempt(
+    snapshot: CatcafeSnapshotV1,
+    command: CatcafeDebugCommandV1,
+    context: undefined,
+  ): CatcafeAttemptV1;
 };
 
 export type CatcafeGameSimulationV1 = GameSimulation<
@@ -1031,14 +1088,144 @@ export function createCatcafeGameSimulationV1(): CatcafeGameSimulationV1 {
   });
 
   const debugCommandExecutor: CatcafeDebugCommandExecutorV1 = Object.freeze({
-    validate() {
-      return Object.freeze({
-        kind: "validation_failed" as const,
-        errors: Object.freeze([Object.freeze({ code: "cc.debug_command_unsupported" as const })]),
-      });
+    validate(snapshot, command) {
+      const errors: CatcafeDebugValidationErrorV1[] = [];
+      switch (command.kind) {
+        case "cc.debug.set_stat": {
+          if (!catcafeDebugStatsV1.includes(command.stat as never)) {
+            errors.push({ code: "cc.debug.unknown_stat", detail: command.stat });
+          }
+          const max = command.stat === "shop.money" ? Number.MAX_SAFE_INTEGER : 100;
+          if (command.value < 0 || command.value > max) {
+            errors.push({ code: "cc.debug.value_out_of_range", detail: String(command.value) });
+          }
+          break;
+        }
+        case "cc.debug.advance_days":
+          if (command.days < 1 || command.days > 48) {
+            errors.push({ code: "cc.debug.days_out_of_range", detail: String(command.days) });
+          }
+          break;
+        case "cc.debug.force_encounter": {
+          const row = catcafeEncountersV1.byId(command.encounterId);
+          if (row === null || row.textId === null) {
+            errors.push({ code: "cc.debug.unknown_encounter", detail: command.encounterId });
+          }
+          break;
+        }
+        default: {
+          const exhaustive: never = command;
+          errors.push({ code: "cc.debug.unknown_command", detail: String(exhaustive) });
+        }
+      }
+      if (snapshot.state.simulation.narrative.phase !== "completed") {
+        errors.push({ code: "cc.debug.opening_incomplete" });
+      }
+      return errors.length === 0
+        ? Object.freeze({ kind: "allowed" as const })
+        : Object.freeze({ kind: "validation_failed" as const, errors: Object.freeze(errors) });
     },
-    executeAttempt() {
-      throw new TypeError("catcafe debug commands are unsupported");
+    executeAttempt(snapshot, command) {
+      const rng = createTransactionalRngV1(snapshot.rng);
+      const state = snapshot.state.simulation;
+      if (command.kind === "cc.debug.set_stat") {
+        return transactionRunnerV1.execute(snapshot, rng, (transaction) => {
+          const [scope, field] = command.stat.split(".") as [string, string];
+          if (scope === "cat") {
+            transaction.propose(catModuleV1, {
+              kind: "apply",
+              ...state.cat,
+              [field]: command.value,
+            });
+          } else {
+            transaction.propose(shopModuleV1, {
+              kind: "apply",
+              ...state.shop,
+              [field]: command.value,
+            });
+          }
+          return transaction.complete();
+        });
+      }
+      if (command.kind === "cc.debug.advance_days") {
+        return transactionRunnerV1.execute(snapshot, rng, (transaction) => {
+          // 快进 N 天：日历直接落到 N 天后的清晨（调参语义：近似，不重放
+          // 每个时段），整洁按天衰减，体力与抚摸余量重置。
+          const total = state.calendar.day + command.days;
+          const week = clampV1(state.calendar.week + Math.floor(total / 7), 1, 7);
+          const day = total % 7;
+          transaction.propose(calendarModuleV1, {
+            kind: "set",
+            next: Object.freeze({ week, day, slot: 0, stamina: catcafeDailyStaminaV1 }),
+          });
+          transaction.propose(shopModuleV1, {
+            kind: "apply",
+            ...state.shop,
+            tidiness: clampV1(state.shop.tidiness - 10 * command.days, 0, 100),
+          });
+          transaction.propose(catModuleV1, {
+            kind: "apply",
+            ...state.cat,
+            pettingLeft: catcafeDailyPettingV1,
+            facts: [Object.freeze({ kind: "cc.slot_advanced" as const, week, day, slot: 0 })],
+          });
+          return transaction.complete();
+        });
+      }
+      if (command.kind === "cc.debug.force_encounter") {
+        return transactionRunnerV1.execute(snapshot, rng, (transaction) => {
+          const draw = drawFromEventPoolV1({
+            candidates: catcafeEncountersV1.rows().map((row) => ({
+              eventId: row.id,
+              weight: row.weight,
+              condition: null, // 调参预览：跳过资格（force 语义在此处是"点名预览"）
+            })),
+            context: { numbers: {}, flags: [], labels: {} },
+            rng,
+            purpose: "check:cc.debug_encounter",
+            force: command.encounterId,
+          });
+          if (draw.kind !== "drawn") throw new TypeError("forced draw must resolve");
+          const row = catcafeEncountersV1.byId(draw.eventId);
+          if (row === null) throw new TypeError("validated encounter must exist");
+          let cat = { ...state.cat };
+          let shop = { ...state.shop };
+          for (const effect of row.effects) {
+            switch (effect.stat) {
+              case "cat.trust":
+                cat.trust += effect.delta;
+                break;
+              case "shop.reputation":
+                shop.reputation += effect.delta;
+                break;
+              case "shop.tidiness":
+                shop.tidiness += effect.delta;
+                break;
+              case "shop.money":
+                shop.money += effect.delta;
+                break;
+              default:
+                break;
+            }
+          }
+          transaction.propose(catModuleV1, {
+            kind: "apply",
+            ...cat,
+            facts: [
+              Object.freeze({
+                kind: "cc.encounter" as const,
+                encounterId: draw.eventId,
+                textId: row.textId,
+                explanation: draw.explanation,
+              }),
+            ],
+          });
+          transaction.propose(shopModuleV1, { kind: "apply", ...shop });
+          return transaction.complete();
+        });
+      }
+      const exhaustive: never = command;
+      throw new TypeError(`unknown catcafe debug command ${String(exhaustive)}`);
     },
   });
 
