@@ -67,15 +67,22 @@
   white-space: nowrap;
 }
 
+.blocking-dialog__backdrop,
+.blocking-dialog__content {
+  /* System dialogs paint above every system-layer resident (title screen
+     z 10, boot splash z 11): Settings/Save opened from the front door must
+     cover it, not hide under it. */
+}
+
 .blocking-dialog__backdrop {
   inset: 0;
-  z-index: 0;
+  z-index: 20;
   background: rgb(12 8 6 / 72%);
   pointer-events: auto;
 }
 
 .blocking-dialog__content {
-  z-index: 1;
+  z-index: 21;
   inset-block-start: 50%;
   inset-inline-start: 50%;
   inline-size: min(42rem, calc(100% - 2 * var(--silly-space-3)));
