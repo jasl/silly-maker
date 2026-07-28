@@ -2,10 +2,10 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { useDevDockPortalTargetRegistrationV1 } from "../debug/DevDockPortalCoordinator.tsx";
+import { useDevDockPortalTargetRegistrationV1 } from "../debug/dev-dock-portal-coordinator.tsx";
 import { inputHandledV1, inputIgnoredV1, type InputRouterV1 } from "../input/contracts.ts";
 import styles from "../overlays/overlay-host.module.css";
-import { Button } from "../primitives/Button.tsx";
+import { Button } from "../primitives/button.tsx";
 import {
   useStageInputIsolationV1,
   useStageSystemFocusScopeRegistrationV1,

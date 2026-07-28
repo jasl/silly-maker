@@ -14,7 +14,7 @@ import type { ReactElement, ReactNode } from "react";
 import {
   isDevDockEscapeOwnerTargetV1,
   useDevDockPortalTargetRegistrationV1,
-} from "../debug/DevDockPortalCoordinator.tsx";
+} from "../debug/dev-dock-portal-coordinator.tsx";
 import {
   inputHandledV1,
   inputIgnoredV1,

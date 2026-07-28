@@ -36,7 +36,10 @@ export default defineConfig({
         sidebar: [
           {
             text: "Quick start",
-            items: [{ text: "Getting started with AI", link: "/guide/getting-started" }],
+            items: [
+              { text: "Getting started with AI", link: "/guide/getting-started" },
+              { text: "Examples", link: "/guide/examples" },
+            ],
           },
           {
             text: "Introduction",
@@ -83,7 +86,10 @@ export default defineConfig({
         sidebar: [
           {
             text: "快速开始",
-            items: [{ text: "用 AI 快速开始", link: "/zh/guide/getting-started" }],
+            items: [
+              { text: "用 AI 快速开始", link: "/zh/guide/getting-started" },
+              { text: "示例", link: "/zh/guide/examples" },
+            ],
           },
           {
             text: "介绍",

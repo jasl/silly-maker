@@ -2,10 +2,10 @@
 import type { DeepReadonly, SemanticGamePortV1 } from "@sillymaker/base";
 import { useCallback, useId, useLayoutEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { useDevDockPortalTargetRegistrationV1 } from "../debug/DevDockPortalCoordinator.tsx";
+import { useDevDockPortalTargetRegistrationV1 } from "../debug/dev-dock-portal-coordinator.tsx";
 import { inputHandledV1, inputIgnoredV1, systemInputActionIdsV1 } from "../input/contracts.ts";
 import type { InputRouterV1 } from "../input/contracts.ts";
-import { Button } from "../primitives/Button.tsx";
+import { Button } from "../primitives/button.tsx";
 import { useStageInputIsolationV1 } from "../shell/game-stage.tsx";
 import styles from "./vn-layer.module.css";
 

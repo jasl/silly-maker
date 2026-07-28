@@ -9,14 +9,9 @@ import type { DeepReadonly } from "@sillymaker/base";
 
 import type { OsGameViewV1 } from "../../simulation.ts";
 import type { OsSemanticPortV1 } from "../../application/ui-kit.ts";
-import { dispatchV1, os98, osBevelInV1, osBevelOutV1 } from "../../application/ui-kit.ts";
+import { dispatchV1, os98, osBevelInV1 } from "../../application/ui-kit.ts";
 
-const toolButton = {
-  ...osBevelOutV1,
-  background: os98.face,
-  padding: "2px 10px",
-  font: os98.font,
-} as const;
+const toolButton = { padding: "2px 10px" } as const;
 
 export function OsNotepadAppV1(props: {
   readonly files: DeepReadonly<OsGameViewV1>["files"];
@@ -125,29 +120,31 @@ export function OsNotepadAppV1(props: {
             {uiText("text.os.notepad.file")}
             <input
               type="text"
+              className="os-input"
               data-os-notepad-name="true"
               value={name}
               placeholder={uiText("text.os.notepad.untitled")}
               onChange={(event) => setName(event.target.value)}
-              style={{ ...osBevelInV1, flex: 1, font: os98.font, padding: "2px 4px" }}
+              style={{ flex: 1, padding: "2px 4px" }}
             />
           </label>
-          <button type="button" data-os-notepad-save="true" style={toolButton} onClick={save}>
+          <button
+            type="button"
+            className="os-button"
+            data-os-notepad-save="true"
+            style={toolButton}
+            onClick={save}
+          >
             {savedFlash ? uiText("text.os.notepad.saved") : uiText("text.os.notepad.save")}
           </button>
         </div>
         <textarea
+          className="os-input"
           data-os-notepad-text="true"
           value={draft}
           placeholder={uiText("text.os.notepad.placeholder")}
           onChange={(event) => setDraft(event.target.value)}
-          style={{
-            ...osBevelInV1,
-            resize: "none",
-            font: '13px "Courier New", monospace',
-            padding: "4px",
-            minBlockSize: 0,
-          }}
+          style={{ resize: "none", padding: "4px", minBlockSize: 0 }}
         />
       </div>
     </div>

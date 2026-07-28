@@ -55,7 +55,7 @@ This baseline describes the implementation, not an immutable constitution. Archi
 - Keep ESM, TypeScript project references, explicit `.ts`/`.tsx` import extensions, exact dependency versions, and the shared `deno.lock` unless an intentional tooling change updates them.
 - Tests should protect observable engine behavior, game rules, public data formats, compatibility promises, or real user flows. Do not add fixtures or scripts whose only purpose is to enforce a plan phase, task commit, exact file inventory, command order, clean Git tree, host attestation, or frozen provisional balance output.
 - Prefer focused tests near the changed behavior, then run the relevant broader command. Regenerate a fixture only when it represents a maintained product format or user-visible compatibility contract.
-- Keep implementation files focused and public interfaces explicit. Use serializable project randomness in deterministic gameplay paths; avoid `Math.random()` there.
+- Keep implementation files focused and public interfaces explicit. Source file names are kebab-case only (no PascalCase/camelCase files: macOS and Windows default to case-insensitive filesystems and mixed-case renames corrupt Git state). Use serializable project randomness in deterministic gameplay paths; avoid `Math.random()` there.
 - Update the active technical documentation when package roles, public exports, state ownership, persistence, Story authoring, build output, or supported workflows change.
 
 ## Product and Story work

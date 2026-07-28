@@ -10,8 +10,8 @@ import { createAnimationFramePresentationClockV1 } from "../presentation-run/pre
 import { createPlaybackControllerV1 } from "../player/playback-controller.ts";
 import type { PlaybackModeV1 } from "../player/playback-controller.ts";
 import { createTextRevealV1 } from "../player/text-reveal.ts";
-import { Button } from "../primitives/Button.tsx";
-import { PanelV1 } from "../primitives/Panel.tsx";
+import { Button } from "../primitives/button.tsx";
+import { PanelV1 } from "../primitives/panel.tsx";
 import { useReducedMotionV1 } from "../system/use-reduced-motion.ts";
 import { AdvanceSurfaceV1 } from "./advance-surface.tsx";
 

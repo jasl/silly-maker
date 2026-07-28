@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-import type { ButtonPropsV1 } from "../primitives/Button.tsx";
-import { Button } from "../primitives/Button.tsx";
+import type { ButtonPropsV1 } from "../primitives/button.tsx";
+import { Button } from "../primitives/button.tsx";
 import type { ReactElement } from "react";
 import { useSystemDialogControllerV1 } from "./system-dialog-host.tsx";
 

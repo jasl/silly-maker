@@ -2,7 +2,7 @@
 import type { DebugToolsOperationResultV1, DeepReadonly } from "@sillymaker/base";
 import { useEffect, useId, useRef, useState } from "react";
 import type { FormEvent, ReactElement, ReactNode } from "react";
-import { Button } from "../primitives/Button.tsx";
+import { Button } from "../primitives/button.tsx";
 
 export type DebugCommandOperationResultV1 =
   | { readonly kind: "handled"; readonly message: string }

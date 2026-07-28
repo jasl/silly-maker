@@ -10,7 +10,7 @@ import type { DeepReadonly } from "@sillymaker/base";
 import type { OsMinesweeperViewV1 } from "../../simulation.ts";
 import { osMinePresetsV1 } from "../../simulation.ts";
 import type { OsSemanticPortV1 } from "../../application/ui-kit.ts";
-import { dispatchV1, os98, osBevelInV1, osBevelOutV1, osLcdV1 } from "../../application/ui-kit.ts";
+import { dispatchV1, os98, osBevelInV1, osLcdV1 } from "../../application/ui-kit.ts";
 
 const adjacentColors = [
   "",
@@ -53,6 +53,7 @@ function CellButtonV1(props: {
   return (
     <button
       type="button"
+      className={revealed ? undefined : "os-button"}
       data-os-mine-cell={`${String(props.x)}.${String(props.y)}`}
       data-os-mine-state={view.state}
       disabled={props.finished && !revealed && view.state !== "flagged" && view.mine !== true}
@@ -82,7 +83,7 @@ function CellButtonV1(props: {
               borderWidth: "1px 0 0 1px",
               background: view.mine === true ? "#ff4040" : "#c0c0c0",
             }
-          : { ...osBevelOutV1 }),
+          : {}),
       }}
     >
       {glyph}
@@ -167,15 +168,11 @@ export function OsMinesweeperAppV1(props: {
           <button
             key={id}
             type="button"
+            className="os-button"
             data-os-mine-preset={id}
             aria-pressed={preset === id}
             onClick={() => newGame(id)}
-            style={{
-              ...(preset === id ? osBevelInV1 : osBevelOutV1),
-              background: os98.face,
-              padding: "2px 8px",
-              font: os98.font,
-            }}
+            style={{ padding: "2px 8px" }}
           >
             {uiText(`text.os.mine.${id}`)}
           </button>
@@ -195,10 +192,11 @@ export function OsMinesweeperAppV1(props: {
             <LcdV1 value={minesweeper.flagsLeft} testId="flags" />
             <button
               type="button"
+              className="os-button"
               data-os-mine-face={status ?? "idle"}
               aria-label={uiText("text.os.mine.new")}
               onClick={() => newGame(preset)}
-              style={{ ...osBevelOutV1, padding: "1px 4px", fontSize: "15px", lineHeight: 1 }}
+              style={{ padding: "1px 4px", fontSize: "15px", lineHeight: 1 }}
             >
               {face}
             </button>

@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   DevDockPortalCoordinatorV1,
   useDevDockPortalTargetV1,
-} from "../debug/DevDockPortalCoordinator.tsx";
+} from "../debug/dev-dock-portal-coordinator.tsx";
 import { inputHandledV1, systemInputActionIdsV1 } from "../input/contracts.ts";
 import { createInputRouterV1 } from "../input/input-router.ts";
 import { GameStageV1, useStageSystemFocusScopeTargetV1 } from "../shell/game-stage.tsx";

@@ -11,16 +11,16 @@ import { userEvent } from "@testing-library/user-event";
 import { useLayoutEffect, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { CapabilityPanelV1 } from "./CapabilityPanel.tsx";
-import { DebugCommandPanelV1 } from "./DebugCommandPanel.tsx";
-import { DevDockV1, createDevDockContributionSetV1 } from "./DevDock.tsx";
-import type { DevDockOpenStateV1, DevDockPanelV1 } from "./DevDock.tsx";
-import { DiagnosticInspectorV1 } from "./DiagnosticInspector.tsx";
-import { FixtureBrowserV1 } from "./FixtureBrowser.tsx";
+import { CapabilityPanelV1 } from "./capability-panel.tsx";
+import { DebugCommandPanelV1 } from "./debug-command-panel.tsx";
+import { DevDockV1, createDevDockContributionSetV1 } from "./dev-dock.tsx";
+import type { DevDockOpenStateV1, DevDockPanelV1 } from "./dev-dock.tsx";
+import { DiagnosticInspectorV1 } from "./diagnostic-inspector.tsx";
+import { FixtureBrowserV1 } from "./fixture-browser.tsx";
 import {
   useDevDockPortalTargetRegistrationV1,
   type DevDockPortalSurfaceV1,
-} from "./DevDockPortalCoordinator.tsx";
+} from "./dev-dock-portal-coordinator.tsx";
 import { OverlayHostV1 } from "../overlays/overlay-host.tsx";
 import { createOverlaySessionStoreV1 } from "../overlays/overlay-session-store.ts";
 import { SettingsLauncherV1 } from "../system/settings-launcher.tsx";
@@ -638,8 +638,8 @@ describe("DevDockV1", () => {
       resolve(
         process.cwd(),
         packageRelativePath
-          ? "src/debug/DevDock.module.css"
-          : "engine/packages/ui/src/debug/DevDock.module.css",
+          ? "src/debug/dev-dock.module.css"
+          : "engine/packages/ui/src/debug/dev-dock.module.css",
       ),
       "utf8",
     );

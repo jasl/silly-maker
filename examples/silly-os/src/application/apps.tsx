@@ -11,14 +11,16 @@ import type { OsSemanticPortV1, OsUiPublicationV1 } from "./ui-kit.ts";
 import type { OsWindowRectV1 } from "../features/desktop/window-manager.ts";
 import {
   OsBrowserIconV1,
+  OsComputerIconV1,
   OsDisplayIconV1,
   OsMineIconV1,
   OsNotepadIconV1,
 } from "../features/desktop/icons.tsx";
-import { OsBrowserAppV1 } from "../features/browser/BrowserApp.tsx";
-import { OsMinesweeperAppV1 } from "../features/minesweeper/MinesweeperApp.tsx";
-import { OsNotepadAppV1 } from "../features/notepad/NotepadApp.tsx";
-import { OsWallpaperAppV1 } from "../features/desktop/WallpaperApp.tsx";
+import { OsBrowserAppV1 } from "../features/browser/browser-app.tsx";
+import { OsMinesweeperAppV1 } from "../features/minesweeper/minesweeper-app.tsx";
+import { OsNotepadAppV1 } from "../features/notepad/notepad-app.tsx";
+import { OsControlPanelAppV1 } from "../features/desktop/control-panel-app.tsx";
+import { OsWallpaperAppV1 } from "../features/desktop/wallpaper-app.tsx";
 
 export interface OsAppContextV1 {
   readonly publication: DeepReadonly<OsUiPublicationV1>;
@@ -78,6 +80,17 @@ export const osAppsV1: readonly OsDesktopAppV1[] = Object.freeze([
     singleton: false,
     desktopIcon: true,
     render: (context: OsAppContextV1) => <OsBrowserAppV1 uiText={context.uiText} />,
+  }),
+  Object.freeze({
+    appId: "app.control-panel",
+    nameTextId: "text.os.app.control-panel",
+    icon: (size: number) => <OsComputerIconV1 size={size} />,
+    defaultRect: Object.freeze({ x: 340, y: 150, width: 340, height: 280 }),
+    singleton: true,
+    desktopIcon: false,
+    render: (context: OsAppContextV1) => (
+      <OsControlPanelAppV1 playerProfile={context.playerProfile} uiText={context.uiText} />
+    ),
   }),
   Object.freeze({
     appId: "app.wallpaper",
