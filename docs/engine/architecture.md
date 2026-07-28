@@ -23,14 +23,14 @@ Project Tavern Story and application
 
 ## 2. Package responsibilities
 
-| Package                     | Workspace public entries                      | Responsibility                                                                                                                                                                                   |
-| --------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `@sillymaker/base`          | `.`, `./authoring`, `./runtime`, `./testkit`  | Contracts, authoring definitions and kit, deterministic resolution, authoritative sessions, persistence orchestration, replay, diagnostics, the agent port, and reusable behavior-test helpers.  |
-| `@sillymaker/tooling`       | `.`, `./project`, config-types/loader entries | Node-only tooling: the JSONL agent host protocol/client plus the project/application config with inspect/check/simulate commands and web target data. Never imported by Base/UI browser bundles. |
-| `@sillymaker/ui`            | `.`, `./assets`, `./debug`, `./diagnostics`   | React shell, GameViewport, UI composition and default GameRoot, stage, characters, assets, interaction/input, overlays, narrative, settings, semantic/presentation bridges, and recovery UI.     |
-| `@sillymaker/web`           | `.`                                           | Browser Host, IndexedDB record storage, files/images, `startWebGameApplicationV1`, mounting, routing, pointer input, capabilities, automation, Loader, and HMR rebootstrap.                      |
-| `@sillymaker/story-e2e`     | `.`                                           | The neutral Engine Conformance Story (Engine Lab): the engine's second consumer and maintained test application.                                                                                 |
-| `@project-tavern/story-e2e` | `.`, plus tooling entries                     | The Engine Lab conformance Story: gameplay modules, narrative script, presentation catalogs, semantic actions, and application composition used to validate engine contracts.                    |
+| Package                 | Workspace public entries                      | Responsibility                                                                                                                                                                                         |
+| ----------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `@sillymaker/base`      | `.`, `./authoring`, `./runtime`, `./testkit`  | Contracts, authoring definitions and kit, deterministic resolution, authoritative sessions, persistence orchestration, replay, diagnostics, the agent port, and reusable behavior-test helpers.        |
+| `@sillymaker/tooling`   | `.`, `./project`, config-types/loader entries | Node-only tooling: the JSONL agent host protocol/client plus the project/application config with inspect/check/simulate commands and web target data. Never imported by Base/UI browser bundles.       |
+| `@sillymaker/ui`        | `.`, `./assets`, `./debug`, `./diagnostics`   | React shell, GameViewport, UI composition and default GameRoot, stage, characters, assets, interaction/input, overlays, narrative, settings, semantic/presentation bridges, and recovery UI.           |
+| `@sillymaker/web`       | `.`                                           | Browser Host, IndexedDB record storage, files/images, `startWebGameApplicationV1`, mounting, routing, pointer input, capabilities, automation, Loader, and HMR rebootstrap.                            |
+| `@sillymaker/story-e2e` | `.`                                           | The neutral Engine Conformance Story (Engine Lab, `e2e/`): gameplay modules, narrative script, presentation catalogs, semantic actions, and application composition used to validate engine contracts. |
+| Story packages          | `.` per package                               | `template/` (the minimal starter, MIT) and `examples/*` (bookshop, cat-cafe) each compose one application; `project.config.ts` at the repository root registers them all.                              |
 
 Cross-package imports use package exports and declared `workspace:*` dependencies. Application-only composition may stay internal to a Story package when no other package should consume it.
 
@@ -38,6 +38,7 @@ Implementation anchors:
 
 - Base root exports: `engine/packages/base/src/index.ts`
 - Base runtime exports: `engine/packages/base/src/runtime/index.ts`
+- HTTP record store (desktop channel): `engine/packages/web/src/host/http-record-store.ts`
 - UI exports: `engine/packages/ui/src/index.ts`
 - Web exports: `engine/packages/web/src/index.ts`
 - current Story root: `e2e/src/story.ts`

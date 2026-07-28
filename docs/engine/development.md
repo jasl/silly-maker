@@ -24,9 +24,11 @@ engine/packages/base     framework-neutral authoring, contracts, and runtime
 engine/packages/tooling  Node-only tooling (JSONL agent host protocol)
 engine/packages/ui       generic React presentation and input
 engine/packages/web      browser Host and application adapters
-e2e         neutral Engine Conformance Story (MIT test consumer)
+e2e/                     neutral Engine Conformance Story (MIT test consumer)
 template    minimal starter Story (new-project skeleton)
 examples/                curated example Stories (bookshop; cat-cafe, the engine-gap delivery vehicle)
+project.config.ts        the single application registry
+website/                 the public documentation site (VitePress, en + zh; deno task docs:dev)
 scripts                  maintained build, asset, and product tooling
 docs/engine            active engine documentation
 docs/game              active gameplay design

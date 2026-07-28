@@ -20,6 +20,7 @@ Read only the documents relevant to the change:
 - `docs/engine/authoring-quickstart.md` — layered authoring playbook (content edits, module wiring, application declarations) with the diagnostics quick-reference. Story-directory agents also read the per-directory handbooks: `e2e/AGENTS.md`, `examples/AGENTS.md`, `template/AGENTS.md`.
 - `docs/engine/build-and-release.md` — local Player build and Artifact workflow.
 - `docs/game/README.md` — current Project Tavern design status.
+- `website/**` — the public documentation site (VitePress, en + zh); internal plans/research/proposals stay under `docs/` and are not published.
 - `docs/policies/licensing.md` and `docs/policies/assets-and-references.md` — durable legal and source-material policy.
 - Root legal files (`LICENSE.md`, `NOTICE`, `THIRD_PARTY_NOTICES.md`, `TRADEMARKS.md`) — controlling legal scope.
 
@@ -32,7 +33,7 @@ The roadmap and design documents describe accepted direction; they do not make a
 - `@sillymaker/base` owns generic contracts, Story authoring primitives, deterministic runtime state, sessions, persistence orchestration, replay, and diagnostics. It has no React, DOM, browser-storage, or Project Tavern dependency.
 - `@sillymaker/ui` owns reusable React presentation, input, interaction, overlays, diagnostics UI, assets, characters, stages, and semantic-publication bridges.
 - `@sillymaker/web` owns browser hosting, IndexedDB persistence adapters, mounting, routing, capabilities, automation, pointer input, and development rebootstrap.
-- `e2e/**, examples/**, and template/**` owns game-specific state, rules, content, projections, application composition, and Story tooling.
+- Story packages at the repository top level own game-specific state, rules, content, projections, application composition, and Story tooling: `e2e/` (the neutral Engine Lab conformance Story), `template/` (the minimal starter), and `examples/*` (curated showcases). `project.config.ts` at the root registers every application.
 - Workspace packages consume one another through declared package exports and `workspace:*` dependencies, not another package's `src/**` path.
 
 The current authoritative flow is:
@@ -68,7 +69,7 @@ This baseline describes the implementation, not an immutable constitution. Archi
 ## Licensing and source-material boundaries
 
 - Copyright holder: `Jun Jiang (jasl)`.
-- Generic SillyMaker code in `engine/packages/base`, `engine/packages/tooling`, `engine/packages/ui`, and `engine/packages/web` is MIT. Project Tavern software is generally PolyForm Noncommercial 1.0.0. Original narrative, localization, art, audio, design, and repository documentation are generally CC BY-NC-SA 4.0. `LICENSE.md` and file/package-specific notices control.
+- Generic SillyMaker code in `engine/packages/base`, `engine/packages/tooling`, `engine/packages/ui`, and `engine/packages/web` is MIT, as are the neutral Story packages `e2e/`, `template/`, and `examples/bookshop` (explicitly marked). Project Tavern software and `examples/cat-cafe` code are PolyForm Noncommercial 1.0.0. Original narrative, localization, art, audio, design, and repository documentation are generally CC BY-NC-SA 4.0. `LICENSE.md` and file/package-specific notices control.
 - Never describe the whole repository or Project Tavern game as MIT or open source. Composite builds do not relicense restricted game software or content.
 - Intentionally copied third-party material belongs under `vendor/**` and retains its own terms. npm dependencies retain their own terms.
 - `references/` is ignored, untracked research input. Register it in `docs/research/reference-register.md`; production code, tests, generators, and artifacts must not depend on it or copy distinctive third-party material from it.

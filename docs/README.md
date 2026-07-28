@@ -8,7 +8,10 @@ Active documentation describes the code and decisions maintained after the first
 - [Features](engine/features.md) — implemented authoring, runtime, UI, Web, diagnostics, and tooling capabilities.
 - [Development](engine/development.md) — setup, repository layout, testing policy, and maintenance workflow.
 - [Story authoring](engine/story-authoring.md) — composing a Story from gameplay and presentation facets.
-- [Build and release](engine/build-and-release.md) — development server, Player build, local Artifact, and smoke verification.
+- [Build and release](engine/build-and-release.md) — development server, Player build, local Artifact, desktop save server, and smoke verification.
+- [Authoring quickstart](engine/authoring-quickstart.md) — the layered playbook agents and humans follow for Story edits.
+
+The public documentation site lives in `website/` (VitePress, English and Chinese) and is the audience-facing portal; this `docs/` tree holds internal engineering documents and is not published.
 
 ## Accepted direction and active plan
 
@@ -17,13 +20,21 @@ Active documentation describes the code and decisions maintained after the first
 - [E2E engine validation](engine/design/e2e-engine-validation.md) — the new Engine Conformance Story and test ownership.
 - [VN presentation runtime](engine/design/vn-presentation-runtime.md) — semantic Stage, Transition, PendingInteraction, Audio, and player systems.
 - [Game viewport and UI shell](engine/design/game-viewport-and-ui-shell.md) — logical canvas, scaling, theme tokens, default surface baseline, and the player/debug boundary.
-- [vNext foundations implementation plan](engine/plans/2026-07-19-sillymaker-vnext-foundations.md) — current task order, acceptance, and stop conditions.
+- [vNext foundations implementation plan](engine/plans/2026-07-19-sillymaker-vnext-foundations.md) — the R1–R4 execution record.
+- [R5–R7 execution plan](engine/plans/2026-07-28-sillymaker-r5-r7.md) — Timeline, DevTools data plane, rollback, and the evidence-driven defer/delivery ledger.
+- [Event pool design](engine/design/event-pool.md) — conditional weighted draws with explanations.
 
 These documents describe accepted targets and planned work. A capability remains unimplemented until the current implementation documents and behavior tests say otherwise.
 
 ## Exploratory proposals
 
 - [Typed StateStore proposal](engine/proposals/typed-state-store.md) — an independent, non-binding State-management option to evaluate only against concrete authoring/gameplay friction.
+- [Content database proposal](engine/proposals/content-database.md) — delivered 2026-07-28; kept as the design rationale for the shipped tables.
+
+## Research
+
+- [Reference register](research/reference-register.md) — every ignored local reference and its usage boundary.
+- [RPG Maker MV gap analysis](research/2026-07-28-imouto-rpgmv-gap-analysis.md) and [DoL engine gap review](research/2026-07-28-dol-engine-gap-review.md) — the capability-gap evidence behind the content database, hit regions, meta progress, event pool, and tuning channel.
 
 ## Project Tavern
 
