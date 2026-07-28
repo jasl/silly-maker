@@ -102,3 +102,4 @@ Desktop.ini
 *.unitypackage
 sysinfo.txt
 .wrangler/
+examples/*/art-source/*/out/

@@ -198,6 +198,7 @@ export type {
 export {
   createAudioPresenterV1,
   createFakeAudioHostV1,
+  GameAudioV1,
   sameChannelPlaybackV1,
 } from "./audio/index.ts";
 export type {
@@ -211,6 +212,8 @@ export type {
   CreateAudioPresenterOptionsV1,
   FakeAudioChannelStateV1,
   FakeAudioHostV1,
+  GameAudioPortsV1,
+  GameAudioPropsV1,
 } from "./audio/index.ts";
 export { createPlaybackControllerV1, createTextRevealV1 } from "./player/index.ts";
 export type {

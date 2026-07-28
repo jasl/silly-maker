@@ -112,6 +112,28 @@ test("the DevDock tuning panel commits debug commands through the session", asyn
   await expect(page.locator("[data-cc-stats]")).toContainText("金钱55");
 });
 
+test("audio follows play: shop BGM and rain load on start, petting fires a one-shot", async ({
+  page,
+}) => {
+  const fetched = new Set<string>();
+  page.on("request", (request) => {
+    const name = request.url().split("/").pop() ?? "";
+    if (name.endsWith(".mp3")) fetched.add(name);
+  });
+  await page.goto(catcafeTargetUrlV1());
+  await playOpeningV1(page);
+
+  // The continuous intent (shop BGM + resident rain) loads with gameplay.
+  await expect.poll(() => fetched.has("cc-bgm-shop.mp3")).toBe(true);
+  await expect.poll(() => fetched.has("cc-ambient-rain.mp3")).toBe(true);
+
+  // A petting reaction plays its one-shot through the effect stream.
+  await page.getByRole("button", { name: "挠下巴" }).click();
+  await expect
+    .poll(() => fetched.has("cc-sfx-purr.mp3") || fetched.has("cc-sfx-hiss.mp3"))
+    .toBe(true);
+});
+
 test("the system menu is one modal at a time and saves honor the safepoint", async ({ page }) => {
   await page.goto(catcafeTargetUrlV1());
 
