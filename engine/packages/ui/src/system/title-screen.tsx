@@ -8,11 +8,12 @@ import { SettingsLauncherV1 } from "./settings-launcher.tsx";
 /**
  * The default title screen: the front door a finished game presents
  * before any gameplay UI. New game restarts the session to its initial
- * state; continue reveals the session the Host already restored (the
- * autosave); settings opens the ordinary system Settings dialog. The
- * screen renders inside the system layer above every gameplay surface
- * and unmounts once dismissed — debug tooling stays behind capabilities
- * and is never part of this surface.
+ * state (DefaultGameRoot may then run `titleScreen.beginNewGame`);
+ * continue reveals the session the Host already restored (the autosave);
+ * settings opens the ordinary system Settings dialog. The screen renders
+ * inside the system layer above every gameplay surface and unmounts once
+ * dismissed — debug tooling stays behind capabilities and is never part
+ * of this surface.
  */
 
 export interface TitleScreenLabelsV1 {

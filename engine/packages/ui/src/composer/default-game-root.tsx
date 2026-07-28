@@ -170,6 +170,12 @@ export interface DefaultGameRootPropsV1<
     readonly backgroundUrl?: string;
     /** Front card before the title (studio marks, AI-generation notice…). */
     readonly splash?: BootSplashDefinitionV1;
+    /**
+     * After `lifecycle.restart()` on New game: Stories whose opening is an
+     * explicit semantic command (not implied by the initial Snapshot) boot
+     * here. Called before the title dismisses so the first frame is ready.
+     */
+    beginNewGame?(semantic: TSemantic): void | Promise<unknown>;
   };
   readonly lifecycle?: { restart(): Promise<unknown> };
   readonly saveUi?: {
@@ -487,7 +493,10 @@ export function DefaultGameRootV1<
             continueAvailable={continueAvailable}
             onNewGame={() => {
               const restart = props.lifecycle?.restart();
-              void (restart ?? Promise.resolve()).finally(() => setTitleDismissed(true));
+              const begin = props.titleScreen?.beginNewGame;
+              void (restart ?? Promise.resolve())
+                .then(() => (begin === undefined ? undefined : begin(props.semantic)))
+                .finally(() => setTitleDismissed(true));
             }}
             onContinue={() => setTitleDismissed(true)}
             showLoadGame={props.saveUi !== undefined}

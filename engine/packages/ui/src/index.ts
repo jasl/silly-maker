@@ -170,6 +170,10 @@ export {
   computeStageFrameV1,
   stageLayerIdsV1,
   stageLayoutConstantsV1,
+  useStageInputIsolationV1,
+  useStageSystemFocusScopeRegistrationV1,
+  useStageSystemFocusScopeTargetV1,
+  useStageSystemPortalContainerV1,
 } from "./shell/index.ts";
 export type {
   GameShellPropsV1,

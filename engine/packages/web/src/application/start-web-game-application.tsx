@@ -97,6 +97,8 @@ export interface WebGameUiDefinitionV1<
     readonly title: string;
     readonly backgroundUrl?: string;
     readonly splash?: { readonly lines: readonly string[]; readonly durationMs?: number };
+    /** After restart on New game — Story-specific boot (see DefaultGameRoot). */
+    beginNewGame?(semantic: unknown): void | Promise<unknown>;
   };
   /**
    * Capability-gated lazy DevDock contributions: tooling UI loads on

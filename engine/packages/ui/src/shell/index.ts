@@ -1,7 +1,14 @@
 // SPDX-License-Identifier: MIT
 export { GameShell } from "./game-shell.tsx";
 export type { GameShellPropsV1, GameShellViewportOptionsV1 } from "./game-shell.tsx";
-export { GameStageV1, stageLayerIdsV1 } from "./game-stage.tsx";
+export {
+  GameStageV1,
+  stageLayerIdsV1,
+  useStageInputIsolationV1,
+  useStageSystemFocusScopeRegistrationV1,
+  useStageSystemFocusScopeTargetV1,
+  useStageSystemPortalContainerV1,
+} from "./game-stage.tsx";
 export type { GameStageLayersV1, GameStagePropsV1, StageLayerIdV1 } from "./game-stage.tsx";
 export { computeStageFrameV1, stageLayoutConstantsV1 } from "./stage-layout.ts";
 export type { StageFrameV1, StageViewportV1 } from "./stage-layout.ts";
