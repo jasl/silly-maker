@@ -428,7 +428,7 @@ const narrativeModuleV1 = kit.defineStatefulModule({
 
 const stageModuleV1 = kit.defineStatefulModule({
   id: "bookshop.stage",
-  contractRevision: 1,
+  contractRevision: 2,
   state: {
     slot: "simulation.stage",
     schema: bookshopStageStateSchemaV1,

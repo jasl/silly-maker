@@ -56,11 +56,13 @@ export const bookshopStateContractManifestV1 = Object.freeze({
     }),
     Object.freeze({
       moduleId: parseModuleId("bookshop.stage"),
-      moduleContractRevision: parsePositiveSafeInteger(1),
+      // Revision 2: placement gained the required opacityPermille (semantic
+      // stage contract revision 3).
+      moduleContractRevision: parsePositiveSafeInteger(2),
       stateSlots: Object.freeze([parseStateSlotId("simulation.stage")]),
       stateSchema: Object.freeze({
         schemaId: "schema.example-bookshop.stage-state",
-        revision: parsePositiveSafeInteger(1),
+        revision: parsePositiveSafeInteger(2),
       }),
     }),
   ]),
@@ -108,7 +110,7 @@ export const bookshopStoryEntryV1 = defineGamePackage({
   contractRevision: 1,
   identity: {
     id: "story.example.bookshop",
-    revision: parsePositiveSafeInteger(1),
+    revision: parsePositiveSafeInteger(2),
   },
   define: () => bookshopStoryDefinitionV1,
 });

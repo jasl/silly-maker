@@ -64,7 +64,7 @@ export function labStageMutationsForCollectV1(
       tag: labStageTagsV1.crate,
       contentId: labStageContentIdsV1.propCrate,
       zOrder: 5,
-      placement: { x: 1240, y: 760, scalePermille: 800, mirrored: false },
+      placement: { x: 1240, y: 760, scalePermille: 800, opacityPermille: 1000, mirrored: false },
     },
   ]);
 }
@@ -84,7 +84,7 @@ export function labStageMutationsForBeginV1(): readonly StageMutationV1[] {
       tag: labStageTagsV1.alpha,
       contentId: labStageContentIdsV1.characterAlpha,
       zOrder: 10,
-      placement: { x: 480, y: 620, scalePermille: 1000, mirrored: false },
+      placement: { x: 480, y: 620, scalePermille: 1000, opacityPermille: 1000, mirrored: false },
       appearance: { pose: "standing", expression: "neutral" },
     },
     {
@@ -93,7 +93,7 @@ export function labStageMutationsForBeginV1(): readonly StageMutationV1[] {
       tag: labStageTagsV1.beta,
       contentId: labStageContentIdsV1.characterBeta,
       zOrder: 10,
-      placement: { x: 1120, y: 620, scalePermille: 1000, mirrored: true },
+      placement: { x: 1120, y: 620, scalePermille: 1000, opacityPermille: 1000, mirrored: true },
       appearance: { pose: "standing", expression: "neutral" },
     },
   ]);
@@ -113,7 +113,7 @@ export function labStageMutationsForBannerV1(): readonly StageMutationV1[] {
       tag: labStageTagsV1.banner,
       contentId: labStageContentIdsV1.propBanner,
       zOrder: 20,
-      placement: { x: 800, y: 160, scalePermille: 1000, mirrored: false },
+      placement: { x: 800, y: 160, scalePermille: 1000, opacityPermille: 1000, mirrored: false },
     },
   ]);
 }
@@ -162,7 +162,7 @@ export function labStageMutationsForProgressV1(
         kind: "setPlacement",
         layerId: "layer.e2e.characters",
         tag: labStageTagsV1.alpha,
-        placement: { x: 640, y: 620, scalePermille: 1000, mirrored: false },
+        placement: { x: 640, y: 620, scalePermille: 1000, opacityPermille: 1000, mirrored: false },
       },
       { kind: "setCamera", camera: { x: 0, y: 0, zoomPermille: 1150 } },
     );

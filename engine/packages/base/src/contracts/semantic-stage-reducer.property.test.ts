@@ -28,6 +28,7 @@ const placementArbitraryV1 = fc.record({
   x: fc.integer({ min: -2000, max: 2000 }),
   y: fc.integer({ min: -2000, max: 2000 }),
   scalePermille: fc.integer({ min: 250, max: 2000 }),
+  opacityPermille: fc.integer({ min: 0, max: 1000 }),
   mirrored: fc.boolean(),
 });
 

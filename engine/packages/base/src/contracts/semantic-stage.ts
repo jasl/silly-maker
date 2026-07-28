@@ -17,7 +17,7 @@ export type StageLayerIdV1 = Brand<string, "StageLayerIdV1">;
 export type StageTagV1 = Brand<string, "StageTagV1">;
 export type StageContentIdV1 = Brand<string, "StageContentIdV1">;
 
-export const semanticStageContractRevisionV1 = 2;
+export const semanticStageContractRevisionV1 = 3;
 
 const stageStableIdPatternV1 = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)+$/u;
 const appearanceKeyPatternV1 = /^[a-z][a-z0-9_]*$/u;
@@ -60,6 +60,12 @@ export interface StagePlacementV1 {
   readonly x: number;
   readonly y: number;
   readonly scalePermille: number;
+  /**
+   * Settled opacity in permille (0 = invisible, 1000 = opaque). This is the
+   * authoritative target — transitions and timeline overlays multiply on top
+   * as presentation and never enter Saves.
+   */
+  readonly opacityPermille: number;
   readonly mirrored: boolean;
 }
 
@@ -104,6 +110,7 @@ export const defaultStagePlacementV1: StagePlacementV1 = Object.freeze({
   x: 0,
   y: 0,
   scalePermille: 1000,
+  opacityPermille: 1000,
   mirrored: false,
 });
 
@@ -122,6 +129,7 @@ export const defaultStageCameraV1: StageCameraV1 = Object.freeze({
 
 const stageCoordinateLimitV1 = 1_000_000;
 const stagePermilleLimitV1 = 100_000;
+const stageOpacityPermilleLimitV1 = 1000;
 
 function parseStageCoordinateV1(value: unknown, path: string): number {
   if (
@@ -146,6 +154,18 @@ function parseStagePermilleV1(value: unknown, path: string): number {
   return value;
 }
 
+function parseStageOpacityPermilleV1(value: unknown, path: string): number {
+  if (
+    typeof value !== "number" ||
+    !Number.isSafeInteger(value) ||
+    value < 0 ||
+    value > stageOpacityPermilleLimitV1
+  ) {
+    return dataFailure(path, "stage_opacity_permille_invalid");
+  }
+  return value;
+}
+
 function parseBooleanV1(value: unknown, path: string): boolean {
   if (typeof value !== "boolean") return dataFailure(path, "boolean_expected");
   return value;
@@ -159,11 +179,16 @@ function parseZOrderV1(value: unknown, path: string): number {
 }
 
 export function parseStagePlacementV1(value: unknown, path = "/placement"): StagePlacementV1 {
-  const record = readExactRecord(value, ["x", "y", "scalePermille", "mirrored"], path);
+  const record = readExactRecord(
+    value,
+    ["x", "y", "scalePermille", "opacityPermille", "mirrored"],
+    path,
+  );
   return Object.freeze({
     x: parseStageCoordinateV1(record.x, `${path}/x`),
     y: parseStageCoordinateV1(record.y, `${path}/y`),
     scalePermille: parseStagePermilleV1(record.scalePermille, `${path}/scalePermille`),
+    opacityPermille: parseStageOpacityPermilleV1(record.opacityPermille, `${path}/opacityPermille`),
     mirrored: parseBooleanV1(record.mirrored, `${path}/mirrored`),
   });
 }
