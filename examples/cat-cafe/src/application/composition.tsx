@@ -1,4 +1,8 @@
 // SPDX-License-Identifier: MIT
+// 组合层（composition）：本文件的唯一职责是把玩法、剧情、数据、UI 各自
+// 职责明确的模块**组装**成一个可启动的游戏应用（浏览器与桌面 webview 共用
+// 同一份声明）。它不应拥有玩法规则或权威状态；随特性切片推进
+// （docs/engine/proposals/feature-slices.md），这里最终只剩纯编排。
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 
@@ -1645,7 +1649,7 @@ const catcafeSaveOverlayLabelsEnV1: SaveOverlayLabelsV1 = Object.freeze({
   }),
 });
 
-export const catcafeWebApplicationV1: WebGameApplicationV1<
+export const catcafeGameApplicationV1: WebGameApplicationV1<
   unknown,
   unknown,
   CatcafeSimulationTypesV1,

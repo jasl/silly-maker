@@ -16,15 +16,15 @@ Then register the application in the root `project.config.ts` (copy the template
 
 ## The files that matter
 
-| File                                  | Role                                                                        |
-| ------------------------------------- | --------------------------------------------------------------------------- |
-| `src/narrative.ts`                    | The script: say/choice/stage/branch/end nodes and story flags               |
-| `src/presentation.ts`                 | Text catalogs (all display text behind textIds), stage content, transitions |
-| `src/state.ts`                        | Module state shapes, schemas, and initial values                            |
-| `src/simulation.ts`                   | Modules, commands, and rules                                                |
-| `src/application/semantic.ts`         | The action catalog and availability rules                                   |
-| `src/application/web-application.tsx` | React UI: HUD, dialog panel, stage renderers                                |
-| `src/tooling/simulation-target.ts`    | Named headless scenarios for `story simulate`                               |
+| File                               | Role                                                                        |
+| ---------------------------------- | --------------------------------------------------------------------------- |
+| `src/narrative.ts`                 | The script: say/choice/stage/branch/end nodes and story flags               |
+| `src/presentation.ts`              | Text catalogs (all display text behind textIds), stage content, transitions |
+| `src/state.ts`                     | Module state shapes, schemas, and initial values                            |
+| `src/simulation.ts`                | Modules, commands, and rules                                                |
+| `src/application/semantic.ts`      | The action catalog and availability rules                                   |
+| `src/application/composition.tsx`  | React UI: HUD, dialog panel, stage renderers                                |
+| `src/tooling/simulation-target.ts` | Named headless scenarios for `story simulate`                               |
 
 ## The loop
 

@@ -16,16 +16,16 @@ deno task story build template                       # 静态构建到 dist/temp
 
 ## 文件地图（按"你想改什么"排列）
 
-| 想改什么                 | 文件                                                                                                                           |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
-| 台词、选项文字、界面文案 | `src/presentation.ts`（textId → 文本，全部字符串都在这里）                                                                     |
-| 剧情节点、分支、舞台指令 | `src/narrative.ts` 的 `templateScriptV1`                                                                                       |
-| 舞台内容与渲染器绑定     | `src/presentation.ts` 的 `templateStageContentCatalogV1` + `src/application/web-application.tsx` 的 `templateStageRenderersV1` |
-| 玩法规则与命令           | `src/simulation.ts`（`template.inventory` 是可替换的空壳模块）                                                                 |
-| 玩家可见的动作目录       | `src/application/semantic.ts`                                                                                                  |
-| UI 布局与对话框样式      | `src/application/web-application.tsx`                                                                                          |
-| 模块清单与版本           | `src/story.ts`（版本纪律写在文件头注释里）                                                                                     |
-| 网页标题与分享卡片       | `metadata.json`（标题/描述/语言/主题色/分享图/favicon，构建时注入 `<head>`）                                                   |
+| 想改什么                 | 文件                                                                                                                       |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| 台词、选项文字、界面文案 | `src/presentation.ts`（textId → 文本，全部字符串都在这里）                                                                 |
+| 剧情节点、分支、舞台指令 | `src/narrative.ts` 的 `templateScriptV1`                                                                                   |
+| 舞台内容与渲染器绑定     | `src/presentation.ts` 的 `templateStageContentCatalogV1` + `src/application/composition.tsx` 的 `templateStageRenderersV1` |
+| 玩法规则与命令           | `src/simulation.ts`（`template.inventory` 是可替换的空壳模块）                                                             |
+| 玩家可见的动作目录       | `src/application/semantic.ts`                                                                                              |
+| UI 布局与对话框样式      | `src/application/composition.tsx`                                                                                          |
+| 模块清单与版本           | `src/story.ts`（版本纪律写在文件头注释里）                                                                                 |
+| 网页标题与分享卡片       | `metadata.json`（标题/描述/语言/主题色/分享图/favicon，构建时注入 `<head>`）                                               |
 
 ## 剧本模型（不是 DSL，就是 TypeScript 数据）
 

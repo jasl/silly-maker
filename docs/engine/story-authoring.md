@@ -84,7 +84,7 @@ The Engine Lab demonstrates this in:
 - `e2e/src/story.ts`
 - `e2e/src/gameplay/simulation.ts`
 - `e2e/src/application/semantic.ts`
-- `e2e/src/application/web-application.tsx`
+- `e2e/src/application/composition.tsx`
 - `e2e/src/application/entry.tsx`
 
 Reuse the engine pattern, not the Tavern-specific ten-module partition, names, numbers, or content structure.

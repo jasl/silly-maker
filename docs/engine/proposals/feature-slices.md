@@ -12,10 +12,10 @@ simulation.ts      1329   所有 owner + 一个巨型命令执行器
 content.ts          558   所有内容表
 presentation.ts    1089   所有文本 + 舞台内容 + 资产
 application/semantic.ts     379   所有动作
-application/web-application.tsx  1734   所有 UI
+application/composition.tsx  1734   所有 UI
 ```
 
-一个玩法特性（比如"抚摸"）的代码横切六个文件：反应表在 content、命中区域在 presentation、pet 命令在 simulation、动作在 semantic、反应气泡与音效映射在 web-application。改一个特性要开六个文件；文件本身随特性数线性膨胀——`web-application.tsx` 1700 行就是这么来的。
+一个玩法特性（比如"抚摸"）的代码横切六个文件：反应表在 content、命中区域在 presentation、pet 命令在 simulation、动作在 semantic、反应气泡与音效映射在 composition。改一个特性要开六个文件；文件本身随特性数线性膨胀——`composition.tsx`（原 web-application.tsx，已随组合层定位改名）1700 行就是这么来的。
 
 ## 方向：特性切片（feature slice）
 
@@ -62,5 +62,5 @@ src/
 
 ## 与既有设计的关系
 
-- [窗体与 UI 组件体系](../design/window-model.md)：L3 组装件（DialoguePanelV1）是特性切片的**消费方**——dialogue 特性变薄正依赖它。两条线合并后，`web-application.tsx` 预期从 1700 行缩到 300 行以内的纯组合。
+- [窗体与 UI 组件体系](../design/window-model.md)：L3 组装件（DialoguePanelV1）是特性切片的**消费方**——dialogue 特性变薄正依赖它。两条线合并后，`composition.tsx` 预期从 1700 行缩到 300 行以内的纯组合。
 - [typed-state-store 提案](typed-state-store.md)：正交——那是状态存取的类型学，本提案是代码组织学。

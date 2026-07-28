@@ -23,7 +23,7 @@ import {
   labRootLabelsV1,
   labUiProjectorV1,
   labViewportCanvasV1,
-} from "../application/web-application.tsx";
+} from "../application/composition.tsx";
 
 /**
  * The AI-authoring canaries: a currency/shop module, a

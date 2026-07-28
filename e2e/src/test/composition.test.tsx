@@ -13,7 +13,7 @@ import type {
   StartWebGameApplicationOptionsV1,
 } from "@sillymaker/web";
 
-import { labWebApplicationV1 } from "../application/web-application.tsx";
+import { labGameApplicationV1 } from "../application/composition.tsx";
 
 const automationGlobalKeyV1 = "__SILLYMAKER_AUTOMATION_V1__";
 
@@ -47,7 +47,7 @@ function startLabV1(
   capabilitySearch: string,
   overrides: Partial<StartWebGameApplicationOptionsV1> = {},
 ): Promise<StartedWebGameApplicationV1> {
-  return startWebGameApplicationV1(labWebApplicationV1, {
+  return startWebGameApplicationV1(labGameApplicationV1, {
     rootElement: createTestRootV1(),
     host: createWebHostV1({
       records: createMemoryHostRecordStoreV1(),

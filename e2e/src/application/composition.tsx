@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: MIT
+// 组合层（composition）：把 Engine Lab 的规则、剧本与 UI 组装成可启动的
+// 一致性应用；只编排，不拥有玩法。
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 
@@ -678,7 +680,7 @@ export const labSaveOverlayLabelsV1: SaveOverlayLabelsV1 = Object.freeze({
  * projector, catalogs, and optional contributions — no custom React Root and
  * no Session/Persistence/Diagnostics/Input/Automation/HMR wiring.
  */
-export const labWebApplicationV1: WebGameApplicationV1<
+export const labGameApplicationV1: WebGameApplicationV1<
   unknown,
   unknown,
   LabSimulationTypesV1,
