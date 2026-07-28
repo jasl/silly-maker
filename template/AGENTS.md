@@ -29,7 +29,8 @@
 - **存档安全点**：web 定义加 `saveGuard(publication)`，对话或战斗中禁手动存档并给出原因文本。
 - **舞台命中区域**：内容目录声明 `hitRegions`，`SemanticStageV1` 传 `onHitRegionActivate`。
 - **内容表**：`defineContentTable` + `createContentDatabase`——静态定义进表（解析期校验），可变状态进模块。
-- **UI 样式**：只用 `--silly-*` 令牌（禁写裸 z-index，层级刻度见 `docs/engine/authoring-quickstart.md` 的样式速查）；玩法窗体挂 overlay session 自动获得 `PanelV1` 窗体外壳。
+- **UI 样式**：只用 `--silly-*` 令牌（禁写裸 z-index，层级刻度见 `docs/engine/authoring-quickstart.md` 的样式速查）；玩法窗体挂 overlay session 自动获得 `PanelV1` 窗体外壳；表单控件写原生元素即得主题样式。
+- **窗体模型**：互斥靠槽位结构（`openPrimary` 替换主窗、`pushDetail` 叠详情、系统对话框单槽），不要自己协调"开 A 关 B"。拖拽/最大最小化等复杂窗口需求先按 `docs/engine/design/window-model.md` 的游戏侧配方做（坐标过 viewport 换算、位置存 Story UI state），反复出现再谈上提。
 
 ## 剧本/文本任务（最常见）
 
