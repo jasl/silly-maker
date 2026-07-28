@@ -89,7 +89,7 @@ export interface WebGameUiDefinitionV1<
   readonly saveLabels?: SaveOverlayLabelsV1;
   readonly devDockContributions?: DevDockContributionSetV1;
   /** Shows the engine title screen (New game / Continue / Settings). */
-  readonly titleScreen?: { readonly title: string };
+  readonly titleScreen?: { readonly title: string; readonly backgroundUrl?: string };
   /**
    * Capability-gated lazy DevDock contributions: tooling UI loads on
    * demand and never enters the player bundle.
@@ -206,6 +206,8 @@ export interface WebGameApplicationV1<
 export interface StartWebGameApplicationOptionsV1 {
   readonly rootElement?: HTMLElement;
   readonly host?: GameHostV1;
+  /** Injectable for tests; defaults to the browser image loader. */
+  readonly assetLoader?: RuntimeAssetLoaderV1;
   readonly databaseName?: string;
   readonly capabilitySearch?: string;
   /** Register the pagehide teardown listener; disable in tests. */
@@ -432,10 +434,12 @@ export async function startWebGameApplicationV1<
     });
     const uiDefinition = application.ui({
       instance,
-      assetLoader: createBrowserImageLoaderV1({
-        resolveRuntimeUrl: (runtimePath) => new URL(runtimePath, document.baseURI).href,
-        createImage: () => new Image(),
-      }),
+      assetLoader:
+        options.assetLoader ??
+        createBrowserImageLoaderV1({
+          resolveRuntimeUrl: (runtimePath) => new URL(runtimePath, document.baseURI).href,
+          createImage: () => new Image(),
+        }),
       playerProfile,
       files: host.files,
       capabilities,

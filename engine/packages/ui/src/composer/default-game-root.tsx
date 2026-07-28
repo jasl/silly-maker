@@ -141,7 +141,7 @@ export interface DefaultGameRootPropsV1<
   /** Enables the engine-baseline Settings sections (volume, fullscreen…). */
   readonly playerProfile?: PlayerProfileStoreV1;
   /** Shows the default title screen before gameplay; New game restarts. */
-  readonly titleScreen?: { readonly title: string };
+  readonly titleScreen?: { readonly title: string; readonly backgroundUrl?: string };
   readonly lifecycle?: { restart(): Promise<unknown> };
   readonly saveUi?: {
     readonly port: SaveOverlayPortV1;
@@ -393,6 +393,9 @@ export function DefaultGameRootV1<
         {props.titleScreen === undefined || titleDismissed ? null : (
           <TitleScreenV1
             title={props.titleScreen.title}
+            {...(props.titleScreen.backgroundUrl === undefined
+              ? {}
+              : { backgroundUrl: props.titleScreen.backgroundUrl })}
             labels={Object.freeze({
               newGameLabel: labels.titleNewGameLabel,
               continueLabel: labels.titleContinueLabel,

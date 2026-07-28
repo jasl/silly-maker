@@ -11,9 +11,9 @@ import { catcafeTargetUrlV1, expect, test } from "./fixtures.ts";
  */
 
 async function playOpeningV1(page: Page): Promise<void> {
-  // The title screen is the game's front door; enter through New game.
+  // The title screen is the game's front door; New game starts the
+  // opening scene automatically (no separate begin-story action).
   await page.getByRole("button", { name: "新游戏" }).click();
-  await page.getByRole("button", { name: "开始故事" }).click();
   for (let index = 0; index < 3; index += 1) {
     await page.locator("[data-cc-advance]").click();
   }
@@ -139,8 +139,12 @@ test("language switches live in Settings and persists across reload", async ({ p
   // and the title screen labels.
   await page.reload();
   await expect(page.getByRole("button", { name: "New game" })).toBeEnabled();
-  await page.getByRole("button", { name: "Continue" }).click();
-  await expect(page.getByRole("button", { name: "Begin the story" })).toBeEnabled();
+  // The narrative advance button is also labeled "Continue" in English,
+  // so address the title screen's own control directly.
+  await page.locator("[data-title-continue]").click();
+  // The opening starts automatically after the front door; English text
+  // reaches the in-game HUD as well.
+  await expect(page.locator("[data-cc-album-open]")).toHaveText("Album");
   await expect(page.getByRole("button", { name: "Settings" })).toBeVisible();
 });
 

@@ -1,5 +1,7 @@
+import { existsSync, readFileSync } from "node:fs";
+import { cp } from "node:fs/promises";
 import { createRequire } from "node:module";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import type { Plugin, UserConfig } from "vite";
@@ -59,6 +61,49 @@ export async function collectProjectTavernBuildIdentityV1(applicationId: string)
   return await loadBuildIdentityModuleV1(web).collect(repositoryRoot);
 }
 
+/**
+ * Runtime Story assets live at `<storyRoot>/assets/**` and are addressed by
+ * repository-relative runtimePaths (for example
+ * `examples/cat-cafe/assets/x.webp`). This plugin keeps that one path true
+ * in every channel: the dev server serves it from disk, and production
+ * builds copy the directory into dist under the same relative path (the
+ * desktop shell then serves dist verbatim).
+ */
+function runtimeAssetsPluginV1(web: StoryWebTargetV1): Plugin {
+  const assetsDir = resolve(repositoryRoot, web.storyRoot, "assets");
+  const urlPrefix = `/${web.storyRoot}/assets/`;
+  return {
+    name: "sillymaker-runtime-assets",
+    configureServer(server) {
+      server.middlewares.use((request, response, next) => {
+        const url = request.url?.split("?")[0] ?? "";
+        if (!url.startsWith(urlPrefix)) {
+          next();
+          return;
+        }
+        const relative = decodeURIComponent(url.slice(urlPrefix.length));
+        const filePath = resolve(assetsDir, relative);
+        if (!filePath.startsWith(assetsDir) || !existsSync(filePath)) {
+          response.statusCode = 404;
+          response.end("not found");
+          return;
+        }
+        const media = filePath.endsWith(".webp")
+          ? "image/webp"
+          : filePath.endsWith(".png")
+            ? "image/png"
+            : "application/octet-stream";
+        response.setHeader("content-type", media);
+        response.end(readFileSync(filePath));
+      });
+    },
+    async writeBundle(options) {
+      if (!existsSync(assetsDir) || options.dir === undefined) return;
+      await cp(assetsDir, join(options.dir, web.storyRoot, "assets"), { recursive: true });
+    },
+  };
+}
+
 export async function createProjectTavernViteConfigV1(input: {
   readonly applicationId: string;
   readonly initialBuildIdentity?: unknown;
@@ -75,6 +120,7 @@ export async function createProjectTavernViteConfigV1(input: {
     plugins: [
       identity.createPlugin({ root: repositoryRoot, initialIdentity: initialBuildIdentity }),
       react(),
+      runtimeAssetsPluginV1(web),
     ],
     build: {
       outDir: resolve(repositoryRoot, web.outDir),

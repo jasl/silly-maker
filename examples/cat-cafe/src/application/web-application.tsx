@@ -1,20 +1,27 @@
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore, useRef } from "react";
 import type { ReactElement } from "react";
 
 import type { AssetId, DeepReadonly } from "@sillymaker/base";
 import type { StageRenderTarget } from "@sillymaker/base/story";
 import { projectStageRenderTarget } from "@sillymaker/base/story";
 import type {
+  AssetRegistryV1,
   DefaultGameRootLabelsV1,
   DefaultGameRootSlotsV1,
   GameUiProjectorV1,
   KeyboardActionMapV1,
+  RuntimeAssetLoaderV1,
   RuntimePresentationPublicationV1,
   SaveOverlayLabelsV1,
   SemanticStageEntryRendererV1,
 } from "@sillymaker/ui";
-import { Button, SemanticStageV1, systemInputActionIdsV1 } from "@sillymaker/ui";
+import {
+  Button,
+  createAssetRegistryV1,
+  SemanticStageV1,
+  systemInputActionIdsV1,
+} from "@sillymaker/ui";
 import type { PointerActionMapV1 } from "@sillymaker/ui";
 import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
 import type { WebGameApplicationV1 } from "@sillymaker/web";
@@ -26,7 +33,7 @@ import type {
   CatcafeInvocationV1,
   CatcafePreviewV1,
 } from "./semantic.ts";
-import type { CatcafeApplicationInstanceV1 } from "./core-definition.ts";
+import type { CatcafeApplicationInstanceV1, CatcafeExtensionsV1 } from "./core-definition.ts";
 import { catcafeCoreApplicationDefinitionV1 } from "./core-definition.ts";
 import type {
   CatcafeGameViewV1,
@@ -35,13 +42,20 @@ import type {
   CatcafeSimulationTypesV1,
 } from "../simulation.ts";
 import {
+  catcafeAssetIdsV1,
   catcafeLocalesV1,
   catcafeStageContentCatalogV1,
   catcafeStageTransitionCatalogV1,
   catcafeTextCatalogsV1,
   catcafeTextForLocaleV1,
 } from "../presentation.ts";
-import { catcafeAlbumV1, catcafeMovesV1, catcafePettingV1, catcafeSlotsV1 } from "../content.ts";
+import {
+  catcafeAlbumV1,
+  catcafeMovesV1,
+  catcafePettingV1,
+  catcafeRivalsV1,
+  catcafeSlotsV1,
+} from "../content.ts";
 
 export const catcafeViewportCanvasV1 = Object.freeze({ width: 1280, height: 720 });
 
@@ -62,6 +76,47 @@ export function catcafeUiTextV1(textId: string): string {
   const entry = catalog?.entries.find((candidate) => candidate.textId === textId);
   if (entry === undefined) throw new TypeError(`catcafe.ui_text_missing:${textId}`);
   return entry.text;
+}
+
+/** 主题令牌：暖木色面板 + 琥珀高亮，与美术风格一致。 */
+export const catcafeThemeV1 = Object.freeze({
+  panel: "rgba(24, 18, 12, 0.82)",
+  panelSoft: "rgba(24, 18, 12, 0.62)",
+  panelBorder: "1px solid rgba(214, 168, 96, 0.35)",
+  ink: "#f2e8d8",
+  inkSoft: "#cdbb99",
+  amber: "#e8b465",
+  radius: "14px",
+});
+
+type CatcafeAssetRegistryV1 = AssetRegistryV1<string, never, string>;
+
+/** 订阅 registry 并解析资产 URL；未加载/失败时返回 null（渲染器降级）。 */
+function useAssetUrlV1(
+  registry: CatcafeAssetRegistryV1 | null,
+  assetId: string | undefined,
+  usage: "scene_background" | "character_pose" | "ui_decoration",
+): string | null {
+  const revision = useSyncExternalStore(
+    (listener) => (registry === null ? () => {} : registry.subscribe(listener)),
+    () => (registry === null ? 0 : registry.observe().revision),
+    () => 0,
+  );
+  void revision;
+  if (registry === null || assetId === undefined) return null;
+  const resolved = registry.resolve(assetId as never, usage as never);
+  return resolved.delivery === "runtime_image" ? resolved.url : null;
+}
+
+/** 非 hook 版：渲染器闭包内使用（registry 变更由舞台重渲染驱动）。 */
+function assetUrlV1(
+  registry: CatcafeAssetRegistryV1 | null,
+  assetId: unknown,
+  usage: "scene_background" | "character_pose" | "ui_decoration",
+): string | null {
+  if (registry === null || typeof assetId !== "string") return null;
+  const resolved = registry.resolve(assetId as never, usage as never);
+  return resolved.delivery === "runtime_image" ? resolved.url : null;
 }
 
 type CatcafeSemanticPublicationV1 = ReturnType<CatcafeApplicationInstanceV1["semantic"]["observe"]>;
@@ -112,26 +167,76 @@ const projectorDefinitionV1: GameUiProjectorV1<
 
 export const catcafeUiProjectorV1 = Object.freeze(projectorDefinitionV1);
 
-/** 代码原生渲染器：背景渐变与"猫"的占位形象（按阶段变大小/表情上色）。 */
-export const catcafeStageRenderersV1: Readonly<Record<string, SemanticStageEntryRendererV1>> =
-  Object.freeze({
-    "renderer.catcafe.background": ({ entry }) => (
-      <div
-        data-cc-surface={String(entry.props.surface)}
-        style={{
-          width: "1280px",
-          height: "720px",
-          background:
-            entry.props.surface === "backyard"
-              ? "linear-gradient(180deg, #56705a, #22301f)"
-              : "linear-gradient(180deg, #6b5b4a, #2c241c)",
-        }}
-      />
-    ),
+/**
+ * 渲染器：真图优先（registry 解析 URL），code-native 形状保留为降级。
+ * 猫立绘按成长阶段放大；表情三挡由内容目录映射到三张立绘。
+ */
+export const catcafeCatFrameSizeV1 = (stage: string): { width: number; height: number } => {
+  const height = stage === "adolescent" ? 440 : stage === "junior" ? 380 : 320;
+  return { width: Math.round(height * 0.75), height };
+};
+
+function createCatcafeStageRenderersV1(
+  registry: CatcafeAssetRegistryV1 | null,
+): Readonly<Record<string, SemanticStageEntryRendererV1>> {
+  return Object.freeze({
+    "renderer.catcafe.background": ({ entry }) => {
+      const url = assetUrlV1(registry, entry.props.assetId, "scene_background");
+      if (url !== null) {
+        return (
+          <img
+            src={url}
+            alt=""
+            data-cc-surface={String(entry.props.surface)}
+            style={{ width: "1280px", height: "720px", objectFit: "cover", display: "block" }}
+          />
+        );
+      }
+      return (
+        <div
+          data-cc-surface={String(entry.props.surface)}
+          style={{
+            width: "1280px",
+            height: "720px",
+            background:
+              entry.props.surface === "backyard"
+                ? "linear-gradient(180deg, #56705a, #22301f)"
+                : "linear-gradient(180deg, #6b5b4a, #2c241c)",
+          }}
+        />
+      );
+    },
     "renderer.catcafe.cat": ({ entry }) => {
       const stage = String(entry.props.stage);
       const expression = String(entry.props.expression);
-      const size = stage === "adolescent" ? 260 : stage === "junior" ? 210 : 160;
+      const frame = catcafeCatFrameSizeV1(stage);
+      const url = assetUrlV1(registry, entry.props.assetId, "character_pose");
+      if (url !== null) {
+        return (
+          <figure
+            data-cc-cat={stage}
+            data-cc-expression={expression}
+            style={{
+              margin: 0,
+              width: `${String(frame.width)}px`,
+              height: `${String(frame.height)}px`,
+              transform: "translate(-50%, -100%)",
+              borderRadius: "46% 46% 18px 18px",
+              overflow: "hidden",
+              border: "3px solid rgba(122, 87, 49, 0.9)",
+              boxShadow:
+                "0 12px 34px rgba(0, 0, 0, 0.5), inset 0 0 0 2px rgba(240, 224, 190, 0.35)",
+            }}
+          >
+            <img
+              src={url}
+              alt={`${entry.accessibleName} · ${expression}`}
+              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+            />
+          </figure>
+        );
+      }
+      const size = frame.width;
       const tone =
         expression === "hissing"
           ? "#c96a5a"
@@ -165,6 +270,7 @@ export const catcafeStageRenderersV1: Readonly<Record<string, SemanticStageEntry
       );
     },
   });
+}
 
 function dispatchV1(semantic: CatcafeSemanticPortV1, invocation: CatcafeInvocationV1): void {
   void semantic.dispatch(invocation as never);
@@ -219,25 +325,90 @@ function useCatcafeAlbumWatcherV1(
   }, [publication, playerProfile]);
 }
 
-function CatcafeAlbumViewV1(props: { readonly playerProfile: PlayerProfileStoreV1 }): ReactElement {
+const catcafeAlbumAssetForV1 = (albumId: string): string | undefined => {
+  const key = albumId.replace("album.growth.", "album_").replace("album.memory.", "album_");
+  if (albumId.startsWith("album.trophy.week")) {
+    return catcafeAssetIdsV1[
+      `album_trophy${albumId.slice("album.trophy.week".length)}` as keyof typeof catcafeAssetIdsV1
+    ];
+  }
+  return catcafeAssetIdsV1[key as keyof typeof catcafeAssetIdsV1];
+};
+
+function CatcafeAlbumViewV1(props: {
+  readonly playerProfile: PlayerProfileStoreV1;
+  readonly registry: CatcafeAssetRegistryV1 | null;
+}): ReactElement {
   const uiText = useCatcafeTextV1(props.playerProfile);
   const profile = useSyncExternalStore(
     (listener) => props.playerProfile.subscribe(listener),
     () => props.playerProfile.current(),
   );
+  const revision = useSyncExternalStore(
+    (listener) => (props.registry === null ? () => {} : props.registry.subscribe(listener)),
+    () => (props.registry === null ? 0 : props.registry.observe().revision),
+    () => 0,
+  );
+  void revision;
   return (
-    <ol data-cc-album="true" style={{ display: "grid", gap: "8px", margin: 0, padding: 0 }}>
+    <ol
+      data-cc-album="true"
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+        gap: "12px",
+        margin: 0,
+        padding: 0,
+        maxInlineSize: "640px",
+      }}
+    >
       {catcafeAlbumV1.rows().map((entry) => {
         const unlocked = profile.meta[entry.id] !== undefined;
+        const url = unlocked
+          ? assetUrlV1(props.registry, catcafeAlbumAssetForV1(entry.id), "ui_decoration")
+          : null;
         return (
           <li
             key={entry.id}
             data-cc-album-entry={entry.id}
             data-cc-album-unlocked={String(unlocked)}
-            style={{ listStyle: "none" }}
+            style={{
+              listStyle: "none",
+              borderRadius: "12px",
+              overflow: "hidden",
+              border: catcafeThemeV1.panelBorder,
+              background: unlocked ? catcafeThemeV1.panelSoft : "rgba(255, 255, 255, 0.04)",
+              opacity: unlocked ? 1 : 0.55,
+            }}
           >
-            <strong>{unlocked ? uiText(entry.nameTextId) : "？？？"}</strong>
-            {unlocked ? <p style={{ margin: "4px 0 0" }}>{uiText(entry.captionTextId)}</p> : null}
+            <div
+              style={{
+                aspectRatio: "3 / 2",
+                background: "rgba(0, 0, 0, 0.35)",
+                display: "grid",
+                placeContent: "center",
+              }}
+            >
+              {url !== null ? (
+                <img
+                  src={url}
+                  alt={uiText(entry.nameTextId)}
+                  style={{ inlineSize: "100%", blockSize: "100%", objectFit: "cover" }}
+                />
+              ) : (
+                <span style={{ fontSize: "22px", opacity: 0.6 }}>{unlocked ? "♪" : "？"}</span>
+              )}
+            </div>
+            <div style={{ padding: "8px 10px", display: "grid", gap: "2px" }}>
+              <strong style={{ fontSize: "13px" }}>
+                {unlocked ? uiText(entry.nameTextId) : "？？？"}
+              </strong>
+              {unlocked ? (
+                <p style={{ margin: 0, fontSize: "12px", opacity: 0.85 }}>
+                  {uiText(entry.captionTextId)}
+                </p>
+              ) : null}
+            </div>
           </li>
         );
       })}
@@ -318,12 +489,57 @@ function CatcafeNarrativePanelV1(props: {
   return null;
 }
 
+function CatcafeStatBarV1(props: {
+  readonly label: string;
+  readonly value: number;
+  readonly accent: string;
+  readonly testId: string;
+}): ReactElement {
+  return (
+    <div data-cc-stat={props.testId} style={{ display: "grid", gap: "2px" }}>
+      <span style={{ display: "flex", justifyContent: "space-between", fontSize: "12px" }}>
+        <span>{props.label}</span>
+        <span>{String(props.value)}</span>
+      </span>
+      <span
+        style={{
+          display: "block",
+          blockSize: "6px",
+          borderRadius: "3px",
+          background: "rgba(255, 255, 255, 0.12)",
+          overflow: "hidden",
+        }}
+      >
+        <span
+          style={{
+            display: "block",
+            blockSize: "100%",
+            inlineSize: `${String(Math.max(0, Math.min(100, props.value)))}%`,
+            background: props.accent,
+            transition: "inline-size 300ms ease",
+          }}
+        />
+      </span>
+    </div>
+  );
+}
+
+const catcafeRivalAssetForV1 = (rivalId: string): string | undefined =>
+  rivalId === "rival.mochi"
+    ? catcafeAssetIdsV1.rival_mochi
+    : rivalId === "rival.smoke"
+      ? catcafeAssetIdsV1.rival_smoke
+      : rivalId === "rival.general"
+        ? catcafeAssetIdsV1.rival_general
+        : undefined;
+
 function CatcafeHudV1(props: {
   readonly publication: DeepReadonly<CatcafeUiPublicationV1>;
   readonly semantic: CatcafeSemanticPortV1;
   readonly playerProfile: PlayerProfileStoreV1;
-  readonly openAlbum: () => void;
   readonly instance: CatcafeApplicationInstanceV1;
+  readonly registry: CatcafeAssetRegistryV1 | null;
+  readonly openAlbum: () => void;
 }): ReactElement {
   const uiText = useCatcafeTextV1(props.playerProfile);
   useCatcafeAlbumWatcherV1(props.publication, props.playerProfile);
@@ -347,97 +563,305 @@ function CatcafeHudV1(props: {
   const game = props.publication.semantic.game;
   const contest = game.contest;
   const slotName = catcafeSlotsV1[game.calendar.slot] ?? "morning";
-  // 目录即真相：固定动作与内容表展开的参数化活动来自同一份语义发布。
   const actions = props.publication.semantic.actions;
-  const systemActions = actions.filter((action) => action.kind === "system");
-  const activityActions = actions.filter((action) => action.kind === "activity");
+  // 新档/重开进入后自动开场：标题屏就是"开始"，不再要求手点一次
+  // begin_story。已完结/进行中的存档（Continue）不受影响。
+  const narrativePhase = props.publication.semantic.narrative.phase;
+  // 在途守卫按 phase 复位：重新开始（restart）后 phase 回到 idle，
+  // 自动开场再次生效；boolean ref 会在同一 React 树下残留而卡死。
+  const beginInFlightRef = useRef(false);
+  useEffect(() => {
+    if (narrativePhase !== "idle") {
+      beginInFlightRef.current = false;
+      return;
+    }
+    if (beginInFlightRef.current) return;
+    const beginAction = actions.find(
+      (action) => action.kind === "system" && action.actionId === "cc.begin_story",
+    );
+    if (beginAction === undefined || !beginAction.enabled) return;
+    beginInFlightRef.current = true;
+    dispatchV1(props.semantic, { kind: "invoke", actionId: "cc.begin_story" });
+  }, [narrativePhase, actions, props.semantic]);
+  const systemActions = actions.filter(
+    (action): action is Extract<(typeof actions)[number], { kind: "system" }> =>
+      action.kind === "system" && action.actionId !== "cc.begin_story",
+  );
+  const activityActions = actions.filter(
+    (action): action is Extract<(typeof actions)[number], { kind: "activity" }> =>
+      action.kind === "activity",
+  );
+  const inOpening = props.publication.semantic.narrative.phase !== "completed";
+  const rivalUrl = useAssetUrlV1(
+    contest === null ? null : props.registry,
+    contest === null ? undefined : catcafeRivalAssetForV1(contest.rivalId),
+    "character_pose",
+  );
+  const endingUrl = useAssetUrlV1(props.registry, catcafeAssetIdsV1.bg_title, "scene_background");
+
+  const panel = {
+    background: catcafeThemeV1.panel,
+    border: catcafeThemeV1.panelBorder,
+    borderRadius: catcafeThemeV1.radius,
+    color: catcafeThemeV1.ink,
+    padding: "10px 14px",
+    backdropFilter: "blur(4px)",
+  } as const;
+
+  if (game.ending !== null) {
+    return (
+      <section
+        data-cc-ending={game.ending}
+        role="dialog"
+        aria-label={uiText(`text.cc.ending.${game.ending}`)}
+        style={{
+          position: "absolute",
+          inset: 0,
+          display: "grid",
+          placeContent: "center",
+          gap: "18px",
+          textAlign: "center",
+          color: catcafeThemeV1.ink,
+          background:
+            endingUrl === null
+              ? "rgba(10, 12, 16, 0.92)"
+              : `linear-gradient(rgba(10, 12, 16, 0.55), rgba(10, 12, 16, 0.75)), url(${JSON.stringify(endingUrl)}) center / cover no-repeat`,
+          zIndex: 6,
+          pointerEvents: "auto",
+        }}
+      >
+        <p style={{ margin: 0, fontSize: "15px", letterSpacing: "0.3em", opacity: 0.8 }}>
+          {uiText("text.cc.ending.header")}
+        </p>
+        <h2 style={{ margin: 0, maxInlineSize: "22em", fontSize: "26px", lineHeight: 1.6 }}>
+          {uiText(`text.cc.ending.${game.ending}`)}
+        </h2>
+        <Button
+          data-cc-ending-restart="true"
+          onClick={() => void props.instance.lifecycle.restart()}
+        >
+          {uiText("text.cc.ending.restart")}
+        </Button>
+      </section>
+    );
+  }
 
   return (
-    <div data-cc-hud="true" style={{ display: "grid", gap: "8px" }}>
-      {game.ending === null ? null : (
-        <p data-cc-ending={game.ending} style={{ fontWeight: 700 }}>
-          {uiText(`text.cc.ending.${game.ending}`)}
+    <div
+      data-cc-hud="true"
+      style={{
+        position: "absolute",
+        inset: 0,
+        display: "grid",
+        gridTemplateRows: "auto 1fr auto",
+        padding: "12px",
+        gap: "8px",
+        fontFamily: "'Avenir Next', 'PingFang SC', system-ui, sans-serif",
+      }}
+    >
+      <header style={{ gridRow: 1, display: "flex", gap: "8px", alignItems: "start" }}>
+        <p
+          data-cc-calendar={`${String(game.calendar.week)}.${String(game.calendar.day)}.${String(game.calendar.slot)}`}
+          style={{ ...panel, margin: 0, fontSize: "14px" }}
+        >
+          {uiText("text.cc.hud.week")}
+          {String(game.calendar.week)}
+          {uiText("text.cc.hud.week.suffix")} · {uiText(`text.cc.day.${String(game.calendar.day)}`)}{" "}
+          · {uiText(`text.cc.slot.${slotName}`)}
         </p>
-      )}
-      {contestToast === null ? null : (
-        <p data-cc-contest-toast={contestToast} style={{ fontWeight: 700 }}>
-          {uiText(contestToast === "won" ? "text.cc.contest.won" : "text.cc.contest.lost")}
+        <p data-cc-wallet="true" style={{ ...panel, margin: 0, fontSize: "14px" }}>
+          {uiText("text.cc.hud.stamina")} {String(game.calendar.stamina)} ·{" "}
+          {uiText("text.cc.hud.money")} {String(game.shop.money)}
         </p>
-      )}
-      {encounterTextId === null ? null : (
-        <p data-cc-encounter={encounterTextId} style={{ fontStyle: "italic" }}>
-          {uiText(encounterTextId)}
-        </p>
-      )}
-      <p
-        data-cc-calendar={`${String(game.calendar.week)}.${String(game.calendar.day)}.${String(game.calendar.slot)}`}
+      </header>
+
+      <aside
+        data-cc-stats="true"
+        style={{
+          ...panel,
+          gridRow: 2,
+          justifySelf: "start",
+          alignSelf: "start",
+          inlineSize: "190px",
+          display: inOpening ? "none" : "grid",
+          gap: "8px",
+        }}
       >
-        {uiText("text.cc.hud.week")}
-        {String(game.calendar.week)}
-        {uiText("text.cc.hud.week.suffix")} · {uiText(`text.cc.day.${String(game.calendar.day)}`)} ·{" "}
-        {uiText(`text.cc.slot.${slotName}`)} · {uiText("text.cc.hud.stamina")}
-        {String(game.calendar.stamina)}
-      </p>
-      <p data-cc-stats="true">
-        {uiText("text.cc.hud.trust")}
-        {String(game.cat.trust)} · {uiText("text.cc.hud.vigor")}
-        {String(game.cat.vigor)} · {uiText("text.cc.hud.skill")}
-        {String(game.cat.skill)} · {uiText("text.cc.hud.money")}
-        {String(game.shop.money)} · {uiText("text.cc.hud.reputation")}
-        {String(game.shop.reputation)} · {uiText("text.cc.hud.tidiness")}
-        {String(game.shop.tidiness)}
-      </p>
-      <div role="group" aria-label="日程">
-        {systemActions.map((action) => (
-          <Button
-            key={action.actionId}
-            disabled={!action.enabled}
-            data-cc-action-id={action.actionId}
-            onClick={() =>
-              dispatchV1(props.semantic, { kind: "invoke", actionId: action.actionId })
-            }
+        <strong style={{ fontSize: "13px", color: catcafeThemeV1.amber }}>小雨</strong>
+        <CatcafeStatBarV1
+          label={uiText("text.cc.hud.trust")}
+          value={game.cat.trust}
+          accent="#e8b465"
+          testId="trust"
+        />
+        <CatcafeStatBarV1
+          label={uiText("text.cc.hud.vigor")}
+          value={game.cat.vigor}
+          accent="#8fbf7f"
+          testId="vigor"
+        />
+        <CatcafeStatBarV1
+          label={uiText("text.cc.hud.skill")}
+          value={game.cat.skill}
+          accent="#7fa8d9"
+          testId="skill"
+        />
+        <span style={{ fontSize: "12px", opacity: 0.85 }} data-cc-shop-stats="true">
+          {uiText("text.cc.hud.reputation")} {String(game.shop.reputation)} ·{" "}
+          {uiText("text.cc.hud.tidiness")} {String(game.shop.tidiness)}
+        </span>
+        {/* 隐蔽的机器可读镜像，测试与自动化断言用。 */}
+        <span data-cc-stats-text="true" style={{ display: "none" }}>
+          {`${uiText("text.cc.hud.trust")}${String(game.cat.trust)} · ${uiText("text.cc.hud.vigor")}${String(game.cat.vigor)} · ${uiText("text.cc.hud.skill")}${String(game.cat.skill)} · ${uiText("text.cc.hud.money")}${String(game.shop.money)} · ${uiText("text.cc.hud.reputation")}${String(game.shop.reputation)} · ${uiText("text.cc.hud.tidiness")}${String(game.shop.tidiness)}`}
+        </span>
+      </aside>
+
+      <footer
+        style={{
+          gridRow: 3,
+          alignSelf: "end",
+          display: "grid",
+          gap: "8px",
+          justifyItems: "center",
+        }}
+      >
+        {encounterTextId === null ? null : (
+          <p
+            data-cc-encounter={encounterTextId}
+            style={{ ...panel, margin: 0, fontStyle: "italic", fontSize: "14px" }}
           >
-            {uiText(actionTextIdsV1[action.actionId])}
-          </Button>
-        ))}
-        <Button data-cc-album-open="true" onClick={props.openAlbum}>
-          {uiText("text.cc.album.open")}
-        </Button>
-      </div>
-      {contest === null ? (
-        <div role="group" aria-label="活动">
-          {activityActions.map((action) => (
-            <Button
-              key={action.activityId}
-              disabled={!action.enabled}
-              data-cc-activity={action.activityId}
-              data-cc-blocked={action.blockedBy ?? undefined}
-              onClick={() =>
-                dispatchV1(props.semantic, { kind: "activity", activityId: action.activityId })
-              }
-            >
-              {uiText(action.nameTextId)}
-            </Button>
-          ))}
-        </div>
-      ) : (
-        <div role="group" aria-label="运动会" data-cc-contest={String(contest.round)}>
-          <p data-cc-contest-morale={`${String(contest.morale)}:${String(contest.rivalMorale)}`}>
-            {uiText("text.cc.contest.round")}
-            {String(contest.round)} · {uiText("text.cc.contest.morale")}
-            {String(contest.morale)} vs {String(contest.rivalMorale)}
+            {uiText(encounterTextId)}
           </p>
-          {catcafeMovesV1.rows().map((move) => (
-            <Button
-              key={move.id}
-              data-cc-move={move.id}
-              onClick={() => dispatchV1(props.semantic, { kind: "contest_move", moveId: move.id })}
-            >
-              {uiText(move.nameTextId)}
-            </Button>
-          ))}
-        </div>
-      )}
+        )}
+        {contestToast === null ? null : (
+          <p
+            data-cc-contest-toast={contestToast}
+            style={{ ...panel, margin: 0, fontWeight: 700, color: catcafeThemeV1.amber }}
+          >
+            {uiText(contestToast === "won" ? "text.cc.contest.won" : "text.cc.contest.lost")}
+          </p>
+        )}
+        {contest === null ? (
+          <div
+            style={{
+              ...panel,
+              display: "flex",
+              gap: "8px",
+              flexWrap: "wrap",
+              justifyContent: "center",
+            }}
+          >
+            <span role="group" aria-label="日程" style={{ display: "flex", gap: "8px" }}>
+              {systemActions.map((action) => (
+                <Button
+                  key={action.actionId}
+                  disabled={!action.enabled}
+                  data-cc-action-id={action.actionId}
+                  onClick={() =>
+                    dispatchV1(props.semantic, { kind: "invoke", actionId: action.actionId })
+                  }
+                >
+                  {uiText(actionTextIdsV1[action.actionId])}
+                </Button>
+              ))}
+              <Button data-cc-album-open="true" onClick={props.openAlbum}>
+                {uiText("text.cc.album.open")}
+              </Button>
+            </span>
+            {inOpening ? null : (
+              <span
+                role="group"
+                aria-label="活动"
+                style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}
+              >
+                {activityActions.map((action) => (
+                  <Button
+                    key={action.activityId}
+                    disabled={!action.enabled}
+                    data-cc-activity={action.activityId}
+                    data-cc-blocked={action.blockedBy ?? undefined}
+                    onClick={() =>
+                      dispatchV1(props.semantic, {
+                        kind: "activity",
+                        activityId: action.activityId,
+                      })
+                    }
+                  >
+                    {uiText(action.nameTextId)}
+                  </Button>
+                ))}
+              </span>
+            )}
+          </div>
+        ) : (
+          <div
+            role="group"
+            aria-label="运动会"
+            data-cc-contest={String(contest.round)}
+            style={{
+              ...panel,
+              display: "grid",
+              gap: "10px",
+              inlineSize: "min(560px, 90%)",
+              justifyItems: "center",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+              {rivalUrl === null ? null : (
+                <img
+                  src={rivalUrl}
+                  alt=""
+                  data-cc-rival={contest.rivalId}
+                  style={{
+                    inlineSize: "84px",
+                    blockSize: "112px",
+                    objectFit: "cover",
+                    borderRadius: "10px",
+                    border: catcafeThemeV1.panelBorder,
+                  }}
+                />
+              )}
+              <div style={{ display: "grid", gap: "6px", minInlineSize: "260px" }}>
+                <p
+                  data-cc-contest-morale={`${String(contest.morale)}:${String(contest.rivalMorale)}`}
+                  style={{ margin: 0, fontSize: "14px" }}
+                >
+                  {uiText("text.cc.contest.round")}
+                  {String(contest.round)} · {uiText("text.cc.contest.morale")}
+                  {String(contest.morale)} vs {String(contest.rivalMorale)}
+                </p>
+                <CatcafeStatBarV1
+                  label="小雨"
+                  value={Math.min(100, contest.morale)}
+                  accent="#e8b465"
+                  testId="contest-self"
+                />
+                <CatcafeStatBarV1
+                  label={uiText(
+                    catcafeRivalsV1.byId(contest.rivalId)?.nameTextId ?? "text.cc.stage.name",
+                  )}
+                  value={Math.min(100, contest.rivalMorale)}
+                  accent="#c96a5a"
+                  testId="contest-rival"
+                />
+              </div>
+            </div>
+            <span style={{ display: "flex", gap: "8px" }}>
+              {catcafeMovesV1.rows().map((move) => (
+                <Button
+                  key={move.id}
+                  data-cc-move={move.id}
+                  onClick={() =>
+                    dispatchV1(props.semantic, { kind: "contest_move", moveId: move.id })
+                  }
+                >
+                  {uiText(move.nameTextId)}
+                </Button>
+              ))}
+            </span>
+          </div>
+        )}
+      </footer>
     </div>
   );
 }
@@ -459,6 +883,8 @@ function CatcafeStageV1(props: {
   >[0];
   readonly instance: CatcafeApplicationInstanceV1;
   readonly playerProfile: PlayerProfileStoreV1;
+  readonly registry: CatcafeAssetRegistryV1 | null;
+  readonly renderers: Readonly<Record<string, SemanticStageEntryRendererV1>>;
 }): ReactElement {
   const { context, instance } = props;
   const uiText = useCatcafeTextV1(props.playerProfile);
@@ -466,6 +892,17 @@ function CatcafeStageV1(props: {
   const game = context.publication.semantic.game;
   const pettingReady =
     context.publication.semantic.narrative.phase === "completed" && game.cat.pettingLeft > 0;
+
+  // 场景资产预载：进入即拉全组（4MB webp 全集），失败自动降级 code-native。
+  // 卸载时不显式 abort：registry.dispose 负责终止在途加载，而 jsdom 测试
+  // 环境下 Deno 的 AbortController 与 jsdom EventTarget 跨 realm 派发会崩。
+  useEffect(() => {
+    if (props.registry === null) return;
+    const controller = new AbortController();
+    void props.registry
+      .preload(Object.values(catcafeAssetIdsV1) as never[], controller.signal)
+      .catch(() => {});
+  }, [props.registry]);
 
   // 反应文案来自 commit-only 瞬态效果流（权威 facts 的投影），
   // 不再在点击时按 UI 状态预查反应表。
@@ -491,7 +928,7 @@ function CatcafeStageV1(props: {
         revision={context.publication.semantic.revision}
         epoch={context.publication.view.anchorEpoch}
         catalog={catcafeStageTransitionCatalogV1}
-        renderers={catcafeStageRenderersV1}
+        renderers={props.renderers}
         accessibleName={uiText("text.cc.stage.name")}
         onHitRegionActivate={(activation) => {
           if (!pettingReady) return;
@@ -562,7 +999,9 @@ function CatcafeSettingsV1(props: { readonly playerProfile: PlayerProfileStoreV1
 export function createCatcafeUiSlotsV1(input: {
   readonly instance: CatcafeApplicationInstanceV1;
   readonly playerProfile: PlayerProfileStoreV1;
+  readonly registry: CatcafeAssetRegistryV1 | null;
 }): DefaultGameRootSlotsV1<CatcafeUiPublicationV1, CatcafeSemanticPortV1, CatcafeUiOverlayIdV1> {
+  const renderers = createCatcafeStageRenderersV1(input.registry);
   const slots: DefaultGameRootSlotsV1<
     CatcafeUiPublicationV1,
     CatcafeSemanticPortV1,
@@ -573,6 +1012,8 @@ export function createCatcafeUiSlotsV1(input: {
         context={context}
         instance={input.instance}
         playerProfile={input.playerProfile}
+        registry={input.registry}
+        renderers={renderers}
       />
     ),
     hud: (context) => (
@@ -581,6 +1022,7 @@ export function createCatcafeUiSlotsV1(input: {
         semantic={context.semantic}
         playerProfile={input.playerProfile}
         instance={input.instance}
+        registry={input.registry}
         openAlbum={() =>
           context.intents.execute(
             Object.freeze({ kind: "overlay.open" as const, overlayId: "overlay.catcafe.album" }),
@@ -607,7 +1049,12 @@ export function createCatcafeUiSlotsV1(input: {
                   input.playerProfile.current().preferences.locale,
                   "text.cc.album.title",
                 ),
-                content: <CatcafeAlbumViewV1 playerProfile={input.playerProfile} />,
+                content: (
+                  <CatcafeAlbumViewV1
+                    playerProfile={input.playerProfile}
+                    registry={input.registry}
+                  />
+                ),
               })
             : null,
       }),
@@ -859,20 +1306,34 @@ export const catcafeWebApplicationV1: WebGameApplicationV1<
   ui: ({
     instance,
     playerProfile,
+    assetLoader,
+    reportFailure,
   }: {
     readonly instance: CatcafeApplicationInstanceV1;
     readonly playerProfile: PlayerProfileStoreV1;
-  }) =>
-    Object.freeze({
+    readonly assetLoader?: RuntimeAssetLoaderV1;
+    reportFailure?(code: string, error: unknown): void;
+  }) => {
+    // 资产 registry：resolved manifest 经 extensions 面到达（观察，不夺权）。
+    const manifest = (instance.extensions as CatcafeExtensionsV1 | undefined)?.assets;
+    const registry: CatcafeAssetRegistryV1 | null =
+      manifest !== undefined && assetLoader !== undefined
+        ? (createAssetRegistryV1(manifest, assetLoader, (diagnostic) => {
+            reportFailure?.("catcafe.asset_fault", diagnostic);
+          }) as CatcafeAssetRegistryV1)
+        : null;
+    return Object.freeze({
+      dispose: () => registry?.dispose(),
       titleScreen: Object.freeze({
         title: catcafeTextForLocaleV1(
           playerProfile.current().preferences.locale,
           "text.cc.app.name",
         ),
+        backgroundUrl: "examples/cat-cafe/assets/cc-bg-title.webp",
       }),
       projector: catcafeUiProjectorV1,
       overlayIds: Object.freeze(["overlay.catcafe.album"] as const),
-      slots: createCatcafeUiSlotsV1({ instance, playerProfile }),
+      slots: createCatcafeUiSlotsV1({ instance, playerProfile, registry }),
       ...(() => {
         const chrome = catcafeChromeForLocaleV1(playerProfile.current().preferences.locale);
         return { labels: chrome.labels, saveLabels: chrome.saveLabels };
@@ -882,5 +1343,6 @@ export const catcafeWebApplicationV1: WebGameApplicationV1<
         import("./dev-dock.tsx").then((module) =>
           module.createCatcafeDevDockContributionsV1({ instance }),
         ),
-    }),
+    });
+  },
 });

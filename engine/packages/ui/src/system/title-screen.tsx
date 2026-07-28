@@ -23,6 +23,8 @@ export interface TitleScreenLabelsV1 {
 export function TitleScreenV1(props: {
   readonly title: string;
   readonly labels: TitleScreenLabelsV1;
+  /** Optional key-art URL painted behind the menu. */
+  readonly backgroundUrl?: string;
   onNewGame(): void;
   onContinue(): void;
 }): ReactElement {
@@ -38,13 +40,28 @@ export function TitleScreenV1(props: {
         placeContent: "center",
         gap: "16px",
         textAlign: "center",
-        background: "rgba(10, 12, 16, 0.86)",
+        backgroundColor: "rgba(10, 12, 16, 0.86)",
+        ...(props.backgroundUrl === undefined
+          ? {}
+          : {
+              backgroundImage: `linear-gradient(rgba(10, 12, 16, 0.4), rgba(10, 12, 16, 0.62)), url(${JSON.stringify(props.backgroundUrl)})`,
+              backgroundSize: "cover",
+              backgroundPosition: "center",
+            }),
         color: "#f2efe8",
         zIndex: 10,
         pointerEvents: "auto",
       }}
     >
-      <h1 style={{ margin: 0, fontSize: "clamp(28px, 6vw, 56px)" }}>{props.title}</h1>
+      <h1
+        style={{
+          margin: 0,
+          fontSize: "clamp(28px, 6vw, 56px)",
+          textShadow: "0 2px 12px rgba(0, 0, 0, 0.8)",
+        }}
+      >
+        {props.title}
+      </h1>
       <div style={{ display: "grid", gap: "10px", minInlineSize: "min(70vw, 280px)" }}>
         <Button data-title-new-game="true" onClick={() => props.onNewGame()}>
           {props.labels.newGameLabel}
