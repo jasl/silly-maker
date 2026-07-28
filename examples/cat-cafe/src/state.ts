@@ -41,12 +41,14 @@ export interface CatcafeCatStateV1 {
   readonly pettingLeft: number;
 }
 
-/** 店铺：声誉/整洁 0–100、金钱、已获奖杯计数。 */
+/** 店铺：声誉/整洁 0–100、金钱、已获奖杯计数、已确认的主线结局。 */
 export interface CatcafeShopStateV1 {
   readonly reputation: number;
   readonly tidiness: number;
   readonly money: number;
   readonly trophies: number;
+  /** 主线结局确认后进入后日谈；null = 主线进行中。 */
+  readonly epilogue: string | null;
 }
 
 /** 运动会回合状态：null = 不在比赛中；瞬态但可存档（比赛中可存）。 */
@@ -73,7 +75,7 @@ export const catcafeDailyStaminaV1 = 6;
 export const catcafeDailyPettingV1 = 3;
 
 const calendarZodV1 = z.strictObject({
-  week: z.number().int().min(1).max(7),
+  week: z.number().int().min(1).max(9999),
   day: z.number().int().min(0).max(6),
   slot: z.number().int().min(0).max(3),
   stamina: z.number().int().min(0).max(catcafeDailyStaminaV1),
@@ -91,7 +93,8 @@ const shopZodV1 = z.strictObject({
   reputation: z.number().int().min(0).max(100),
   tidiness: z.number().int().min(0).max(100),
   money: z.number().int().min(0),
-  trophies: z.number().int().min(0).max(3),
+  trophies: z.number().int().min(0),
+  epilogue: z.string().nullable().default(null),
 });
 
 const contestZodV1 = z
@@ -223,7 +226,13 @@ export function createInitialCatcafeGameStateV1(): CatcafeGameStateV1 {
       }),
       contest: null,
       narrative: createInitialCatcafeNarrativeStateV1(),
-      shop: Object.freeze({ reputation: 10, tidiness: 60, money: 50, trophies: 0 }),
+      shop: Object.freeze({
+        reputation: 10,
+        tidiness: 60,
+        money: 50,
+        trophies: 0,
+        epilogue: null,
+      }),
       stage: createInitialCatcafeStageStateV1(),
     }),
   });

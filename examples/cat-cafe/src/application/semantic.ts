@@ -17,7 +17,11 @@ import type {
   CatcafeRejectionV1,
   CatcafeSimulationTypesV1,
 } from "../simulation.ts";
-import { catcafeContestTodayV1, createCatcafeGameSimulationV1 } from "../simulation.ts";
+import {
+  catcafeContestTodayV1,
+  catcafeEndingForV1,
+  createCatcafeGameSimulationV1,
+} from "../simulation.ts";
 import { catcafeInteractionContextV1 } from "../narrative.ts";
 import { catcafeActivitiesV1, catcafeSlotsV1, catcafeStageForWeekV1 } from "../content.ts";
 
@@ -26,7 +30,8 @@ import { catcafeActivitiesV1, catcafeSlotsV1, catcafeStageForWeekV1 } from "../c
  * （活动/抚摸/出招携带内容表主键）、以及与派发共用的可用性规则。
  */
 
-export type CatcafeActionIdV1 = "cc.begin_story" | "cc.advance_slot" | "cc.enter_contest";
+export type CatcafeActionIdV1 =
+  "cc.begin_story" | "cc.advance_slot" | "cc.enter_contest" | "cc.enter_postgame";
 
 export type CatcafeActionDescriptorV1 =
   | {
@@ -74,6 +79,7 @@ const actionIdsV1: readonly CatcafeActionIdV1[] = Object.freeze([
   "cc.begin_story",
   "cc.advance_slot",
   "cc.enter_contest",
+  "cc.enter_postgame",
 ]);
 
 const simulationForSemanticV1 = createCatcafeGameSimulationV1();
@@ -94,6 +100,9 @@ function blockedByV1(
       if (queries.narrative.phase !== "completed") return "cc.narrative_busy";
       if (queries.contest !== null) return "cc.contest_already_running";
       return catcafeContestTodayV1(queries.calendar) === null ? "cc.contest_not_today" : null;
+    case "cc.enter_postgame":
+      // 结局屏的"继续经营"：只有主线结局刚结算、尚未确认时可用。
+      return catcafeEndingForV1(queries) === null ? "cc.no_ending_pending" : null;
     default: {
       const exhaustive: never = actionId;
       throw new TypeError(`unknown catcafe action ${String(exhaustive)}`);
@@ -230,7 +239,9 @@ function commandForInvocationV1(invocation: CatcafeInvocationV1): CatcafeCommand
             ? ("cc.begin_story" as const)
             : invocation.actionId === "cc.advance_slot"
               ? ("cc.advance_slot" as const)
-              : ("cc.enter_contest" as const),
+              : invocation.actionId === "cc.enter_postgame"
+                ? ("cc.enter_postgame" as const)
+                : ("cc.enter_contest" as const),
       });
     case "activity":
       return Object.freeze({ kind: "cc.do_activity", activityId: invocation.activityId });

@@ -98,6 +98,20 @@ export const catcafeTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
         },
         { textId: "text.cc.album.regular", text: "常客的秘密" },
         { textId: "text.cc.album.regular.caption", text: "总坐窗边的女孩，画了一整本小雨的速写。" },
+        { textId: "text.cc.album.ending.champion", text: "结局·巷口传奇" },
+        { textId: "text.cc.album.ending.champion.caption", text: "三座奖杯在窗台上排成一排。" },
+        { textId: "text.cc.album.ending.signboard", text: "结局·招牌猫" },
+        {
+          textId: "text.cc.album.ending.signboard.caption",
+          text: "她卧在吧台上，客人是为她来的。",
+        },
+        { textId: "text.cc.album.ending.adopted", text: "结局·更好的人家" },
+        {
+          textId: "text.cc.album.ending.adopted.caption",
+          text: "她值得一个更安稳的家。你目送她离开。",
+        },
+        { textId: "text.cc.album.ending.ordinary", text: "结局·平凡的幸福" },
+        { textId: "text.cc.album.ending.ordinary.caption", text: "雨还会下，猫舍的灯总亮着。" },
         // —— HUD 与界面 ——
         { textId: "text.cc.hud.week", text: "第" },
         { textId: "text.cc.hud.week.suffix", text: "周" },
@@ -130,6 +144,8 @@ export const catcafeTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
         { textId: "text.cc.album.title", text: "成长相册" },
         { textId: "text.cc.ending.header", text: "七周之后" },
         { textId: "text.cc.ending.restart", text: "重新开始" },
+        { textId: "text.cc.ending.continue", text: "继续经营" },
+        { textId: "text.cc.hud.epilogue", text: "后日谈" },
         { textId: "text.cc.ending.champion", text: "结局·巷口传奇：三座奖杯在窗台上排成一排。" },
         {
           textId: "text.cc.ending.signboard",
@@ -259,6 +275,26 @@ export const catcafeTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
           textId: "text.cc.album.regular.caption",
           text: "The girl by the window filled a whole sketchbook with Drizzle.",
         },
+        { textId: "text.cc.album.ending.champion", text: "Ending · Legend of the Alley" },
+        {
+          textId: "text.cc.album.ending.champion.caption",
+          text: "Three trophies in a row on the windowsill.",
+        },
+        { textId: "text.cc.album.ending.signboard", text: "Ending · The Signboard Cat" },
+        {
+          textId: "text.cc.album.ending.signboard.caption",
+          text: "She lounges on the counter; the regulars come for her.",
+        },
+        { textId: "text.cc.album.ending.adopted", text: "Ending · A Better Home" },
+        {
+          textId: "text.cc.album.ending.adopted.caption",
+          text: "She deserved somewhere steadier. You watched her go.",
+        },
+        { textId: "text.cc.album.ending.ordinary", text: "Ending · A Quiet Happiness" },
+        {
+          textId: "text.cc.album.ending.ordinary.caption",
+          text: "The rain keeps falling; the cafe lights stay on.",
+        },
         { textId: "text.cc.hud.week", text: "Week " },
         { textId: "text.cc.hud.week.suffix", text: " " },
         { textId: "text.cc.hud.stamina", text: "Stamina " },
@@ -293,6 +329,8 @@ export const catcafeTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
         { textId: "text.cc.album.title", text: "Growth album" },
         { textId: "text.cc.ending.header", text: "SEVEN WEEKS LATER" },
         { textId: "text.cc.ending.restart", text: "Start over" },
+        { textId: "text.cc.ending.continue", text: "Keep the shop open" },
+        { textId: "text.cc.hud.epilogue", text: "Epilogue" },
         {
           textId: "text.cc.ending.champion",
           text: "Ending · Legend of the Alley: three trophies in a row on the windowsill.",

@@ -139,6 +139,7 @@ const actionTextIdsV1: Readonly<Record<CatcafeActionIdV1, string>> = Object.free
   "cc.begin_story": "text.cc.action.begin",
   "cc.advance_slot": "text.cc.action.advance",
   "cc.enter_contest": "text.cc.action.contest",
+  "cc.enter_postgame": "text.cc.ending.continue",
 });
 
 const projectorDefinitionV1: GameUiProjectorV1<
@@ -294,6 +295,30 @@ const albumPredicatesV1: readonly {
     unlocked: (publication) => publication.semantic.game.cat.skill >= 20,
   },
   {
+    albumId: "album.ending.champion",
+    unlocked: (publication) =>
+      publication.semantic.game.ending === "champion" ||
+      publication.semantic.game.shop.epilogue === "champion",
+  },
+  {
+    albumId: "album.ending.signboard",
+    unlocked: (publication) =>
+      publication.semantic.game.ending === "signboard" ||
+      publication.semantic.game.shop.epilogue === "signboard",
+  },
+  {
+    albumId: "album.ending.adopted",
+    unlocked: (publication) =>
+      publication.semantic.game.ending === "adopted" ||
+      publication.semantic.game.shop.epilogue === "adopted",
+  },
+  {
+    albumId: "album.ending.ordinary",
+    unlocked: (publication) =>
+      publication.semantic.game.ending === "ordinary" ||
+      publication.semantic.game.shop.epilogue === "ordinary",
+  },
+  {
     albumId: "album.trophy.week3",
     unlocked: (publication) => publication.semantic.game.shop.trophies >= 1,
   },
@@ -331,6 +356,16 @@ const catcafeAlbumAssetForV1 = (albumId: string): string | undefined => {
     return catcafeAssetIdsV1[
       `album_trophy${albumId.slice("album.trophy.week".length)}` as keyof typeof catcafeAssetIdsV1
     ];
+  }
+  // 结局收藏卡重用场景美术：冠军=金杯、招牌=店面、领养=后院、平凡=雨巷。
+  if (albumId.startsWith("album.ending.")) {
+    const byEnding: Readonly<Record<string, string>> = Object.freeze({
+      champion: catcafeAssetIdsV1.album_trophy7,
+      signboard: catcafeAssetIdsV1.bg_shopfront,
+      adopted: catcafeAssetIdsV1.bg_backyard,
+      ordinary: catcafeAssetIdsV1.bg_title,
+    });
+    return byEnding[albumId.slice("album.ending.".length)];
   }
   return catcafeAssetIdsV1[key as keyof typeof catcafeAssetIdsV1];
 };
@@ -585,7 +620,9 @@ function CatcafeHudV1(props: {
   }, [narrativePhase, actions, props.semantic]);
   const systemActions = actions.filter(
     (action): action is Extract<(typeof actions)[number], { kind: "system" }> =>
-      action.kind === "system" && action.actionId !== "cc.begin_story",
+      action.kind === "system" &&
+      action.actionId !== "cc.begin_story" &&
+      action.actionId !== "cc.enter_postgame",
   );
   const activityActions = actions.filter(
     (action): action is Extract<(typeof actions)[number], { kind: "activity" }> =>
@@ -636,12 +673,22 @@ function CatcafeHudV1(props: {
         <h2 style={{ margin: 0, maxInlineSize: "22em", fontSize: "26px", lineHeight: 1.6 }}>
           {uiText(`text.cc.ending.${game.ending}`)}
         </h2>
-        <Button
-          data-cc-ending-restart="true"
-          onClick={() => void props.instance.lifecycle.restart()}
-        >
-          {uiText("text.cc.ending.restart")}
-        </Button>
+        <span style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
+          <Button
+            data-cc-ending-continue="true"
+            onClick={() =>
+              dispatchV1(props.semantic, { kind: "invoke", actionId: "cc.enter_postgame" })
+            }
+          >
+            {uiText("text.cc.ending.continue")}
+          </Button>
+          <Button
+            data-cc-ending-restart="true"
+            onClick={() => void props.instance.lifecycle.restart()}
+          >
+            {uiText("text.cc.ending.restart")}
+          </Button>
+        </span>
       </section>
     );
   }
@@ -664,6 +711,21 @@ function CatcafeHudV1(props: {
           data-cc-calendar={`${String(game.calendar.week)}.${String(game.calendar.day)}.${String(game.calendar.slot)}`}
           style={{ ...panel, margin: 0, fontSize: "14px" }}
         >
+          {game.shop.epilogue === null ? null : (
+            <span
+              data-cc-epilogue={game.shop.epilogue}
+              style={{
+                marginInlineEnd: "8px",
+                padding: "1px 8px",
+                borderRadius: "999px",
+                border: `1px solid ${catcafeThemeV1.amber}`,
+                color: catcafeThemeV1.amber,
+                fontSize: "12px",
+              }}
+            >
+              {uiText("text.cc.hud.epilogue")}
+            </span>
+          )}
           {uiText("text.cc.hud.week")}
           {String(game.calendar.week)}
           {uiText("text.cc.hud.week.suffix")} · {uiText(`text.cc.day.${String(game.calendar.day)}`)}{" "}

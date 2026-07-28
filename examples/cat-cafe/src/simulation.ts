@@ -72,6 +72,7 @@ import {
 export type CatcafeCommandV1 =
   | { readonly kind: "cc.begin_story" }
   | { readonly kind: "cc.advance_slot" }
+  | { readonly kind: "cc.enter_postgame" }
   | { readonly kind: "cc.do_activity"; readonly activityId: string }
   | { readonly kind: "cc.pet"; readonly zone: string }
   | { readonly kind: "cc.enter_contest" }
@@ -106,6 +107,7 @@ export type CatcafeFactV1 =
   | { readonly kind: "cc.contest_won"; readonly rivalId: string; readonly albumId: string }
   | { readonly kind: "cc.contest_lost"; readonly rivalId: string }
   | { readonly kind: "cc.album_unlocked"; readonly albumId: string }
+  | { readonly kind: "cc.postgame_entered"; readonly ending: string }
   | {
       readonly kind: "cc.encounter";
       readonly encounterId: string;
@@ -130,6 +132,7 @@ export type CatcafeRejectionCodeV1 =
   | "cc.petting_exhausted"
   | "cc.petting_zone_unknown"
   | "cc.contest_not_today"
+  | "cc.no_ending_pending"
   | "cc.contest_already_running"
   | "cc.contest_not_running"
   | "cc.contest_move_unknown"
@@ -254,6 +257,8 @@ type ShopOperationV1 = {
   readonly tidiness: number;
   readonly money: number;
   readonly trophies: number;
+  /** 缺省保持不变；enter_postgame 用它写入已确认的结局。 */
+  readonly epilogue?: string | null;
   readonly facts?: readonly CatcafeFactV1[];
 };
 
@@ -311,7 +316,12 @@ const commandSchemaV1: RuntimeSchemaV1<CatcafeCommandV1> = Object.freeze({
       return Object.freeze({ kind, moveId: record.moveId });
     }
     if (keys !== "kind") throw new TypeError("invalid catcafe command");
-    if (kind !== "cc.begin_story" && kind !== "cc.advance_slot" && kind !== "cc.enter_contest") {
+    if (
+      kind !== "cc.begin_story" &&
+      kind !== "cc.advance_slot" &&
+      kind !== "cc.enter_contest" &&
+      kind !== "cc.enter_postgame"
+    ) {
       throw new TypeError("invalid catcafe command kind");
     }
     return Object.freeze({ kind });
@@ -430,7 +440,7 @@ function applyCalendarV1(
   const nextDay = state.day + 1;
   const rollWeek = nextDay > 6;
   return Object.freeze({
-    week: clampV1(rollWeek ? state.week + 1 : state.week, 1, 7),
+    week: clampV1(rollWeek ? state.week + 1 : state.week, 1, 9999),
     day: rollWeek ? 0 : nextDay,
     slot: 0,
     stamina: catcafeDailyStaminaV1,
@@ -482,7 +492,8 @@ const shopModuleV1 = kit.defineStatefulModule({
   state: {
     slot: "simulation.shop",
     schema: catcafeShopStateSchemaV1,
-    initial: () => Object.freeze({ reputation: 10, tidiness: 60, money: 50, trophies: 0 }),
+    initial: () =>
+      Object.freeze({ reputation: 10, tidiness: 60, money: 50, trophies: 0, epilogue: null }),
   },
   commandSchema: commandSchemaV1,
   owner: {
@@ -502,13 +513,14 @@ const shopModuleV1 = kit.defineStatefulModule({
         }),
       });
     },
-    apply: (_state, proposal) => {
+    apply: (state, proposal) => {
       const next = proposal.payload;
       return Object.freeze({
         reputation: clampV1(next.reputation, 0, 100),
         tidiness: clampV1(next.tidiness, 0, 100),
         money: next.money,
-        trophies: clampV1(next.trophies, 0, 3),
+        trophies: Math.max(0, next.trophies),
+        epilogue: next.epilogue === undefined ? state.epilogue : next.epilogue,
       });
     },
   },
@@ -694,7 +706,7 @@ export function catcafeEndingForV1(
   const calendar = state.calendar;
   const afterFinal =
     calendar.week === 7 && calendar.day === 6 && catcafeSlotsV1[calendar.slot] === "night";
-  if (!afterFinal || state.contest !== null) return null;
+  if (!afterFinal || state.contest !== null || state.shop.epilogue !== null) return null;
   if (state.shop.trophies >= 3) return "champion";
   if (state.cat.trust >= 80 && state.shop.reputation >= 60) return "signboard";
   if (state.cat.trust < 50 && state.shop.reputation >= 60) return "adopted";
@@ -740,11 +752,34 @@ function applyStatEffectsV1(
   }
 }
 
-/** 今天是否运动会日：3/5/7 周的周日暮时段。 */
+/** 小雨立绘的成长同步 mutation：跨日/快进/进入后日谈时按周龄刷新。 */
+function catcafeGrowthMutationV1(week: number, path: string) {
+  return parseStageMutation(
+    {
+      kind: "setAppearance",
+      layerId: "layer.catcafe.characters",
+      tag: "tag.xiaoyu",
+      appearance: {
+        stage: ["kitten", "junior", "adolescent"][catcafeStageForWeekV1(week)] as string,
+        expression: "calm",
+      },
+    },
+    path,
+  );
+}
+
+/**
+ * 今天是否运动会日：主线 3/5/7 周的周日暮；后日谈（第 8 周起）每个
+ * 周日暮都有友谊赛，对手按周轮换。
+ */
 export function catcafeContestTodayV1(
   calendar: CatcafeGameStateV1["simulation"]["calendar"],
 ): string | null {
   if (calendar.day !== 6 || catcafeSlotsV1[calendar.slot] !== "dusk") return null;
+  if (calendar.week > 7) {
+    const rivals = catcafeRivalsV1.rows();
+    return rivals[(calendar.week - 8) % rivals.length]?.id ?? null;
+  }
   const rival = catcafeRivalsV1.findFirst({ where: { week: calendar.week } });
   return rival?.id ?? null;
 }
@@ -806,7 +841,7 @@ export function createCatcafeGameSimulationV1(): CatcafeGameSimulationV1 {
           }
           transaction.propose(calendarModuleV1, { kind: "advance" });
           const next = applyCalendarV1(state.calendar, { kind: "advance" });
-          // 跨日：整洁自然下降、抚摸余量重置。
+          // 跨日：整洁自然下降、抚摸余量重置、立绘按周龄同步成长。
           if (next.slot === 0) {
             transaction.propose(shopModuleV1, {
               kind: "apply",
@@ -820,7 +855,43 @@ export function createCatcafeGameSimulationV1(): CatcafeGameSimulationV1 {
               ...state.cat,
               pettingLeft: catcafeDailyPettingV1,
             });
+            transaction.propose(stageModuleV1, {
+              kind: "apply",
+              mutations: [catcafeGrowthMutationV1(next.week, "/advance/appearance")],
+            });
           }
+          return transaction.complete();
+        });
+      }
+
+      if (command.kind === "cc.enter_postgame") {
+        return transactionRunnerV1.execute(snapshot, rng, (transaction) => {
+          // 只有主线结局刚刚结算（第 7 周周日夜、未确认过）才能进入后日谈。
+          const ending = catcafeEndingForV1(state);
+          if (ending === null) {
+            return transaction.reject({ code: "cc.no_ending_pending" });
+          }
+          transaction.propose(shopModuleV1, {
+            kind: "apply",
+            reputation: state.shop.reputation,
+            tidiness: state.shop.tidiness,
+            money: state.shop.money,
+            trophies: state.shop.trophies,
+            epilogue: ending,
+            facts: [Object.freeze({ kind: "cc.postgame_entered" as const, ending })],
+          });
+          // 直接跨入第 8 周周一清晨：确认结局的同时新的一天开始。
+          transaction.propose(calendarModuleV1, { kind: "advance" });
+          transaction.propose(catModuleV1, {
+            kind: "apply",
+            ...state.cat,
+            pettingLeft: catcafeDailyPettingV1,
+          });
+          const next = applyCalendarV1(state.calendar, { kind: "advance" });
+          transaction.propose(stageModuleV1, {
+            kind: "apply",
+            mutations: [catcafeGrowthMutationV1(next.week, "/postgame/appearance")],
+          });
           return transaction.complete();
         });
       }
@@ -1145,7 +1216,7 @@ export function createCatcafeGameSimulationV1(): CatcafeGameSimulationV1 {
           // 快进 N 天：日历直接落到 N 天后的清晨（调参语义：近似，不重放
           // 每个时段），整洁按天衰减，体力与抚摸余量重置。
           const total = state.calendar.day + command.days;
-          const week = clampV1(state.calendar.week + Math.floor(total / 7), 1, 7);
+          const week = clampV1(state.calendar.week + Math.floor(total / 7), 1, 9999);
           const day = total % 7;
           transaction.propose(calendarModuleV1, {
             kind: "set",
@@ -1162,6 +1233,12 @@ export function createCatcafeGameSimulationV1(): CatcafeGameSimulationV1 {
             pettingLeft: catcafeDailyPettingV1,
             facts: [Object.freeze({ kind: "cc.slot_advanced" as const, week, day, slot: 0 })],
           });
+          if (state.narrative.phase === "completed") {
+            transaction.propose(stageModuleV1, {
+              kind: "apply",
+              mutations: [catcafeGrowthMutationV1(week, "/debug/appearance")],
+            });
+          }
           return transaction.complete();
         });
       }
