@@ -23,21 +23,16 @@ import type {
   OsQueriesV1,
   OsSimulationTypesV1,
 } from "../simulation.ts";
-import { osResolveLocaleV1, osTextForLocaleV1 } from "../presentation.ts";
+import { osResolveLocaleV1 } from "../presentation.ts";
 import type {
   OsPresentationViewV1,
   OsSemanticPortV1,
   OsSemanticPublicationV1,
   OsUiPublicationV1,
 } from "./ui-kit.ts";
-import { os98, osBevelOutV1, useOsTextV1 } from "./ui-kit.ts";
+import { os98, osChromeCssV1, useOsTextV1 } from "./ui-kit.ts";
 import { useGameViewportV1 } from "@sillymaker/ui";
-import {
-  osRootLabelsEnV1,
-  osRootLabelsZhV1,
-  osSaveOverlayLabelsEnV1,
-  osSaveOverlayLabelsZhV1,
-} from "./labels.ts";
+import { osRootLabelsEnV1, osRootLabelsZhV1 } from "./labels.ts";
 import type { OsAppContextV1 } from "./apps.tsx";
 import { osAppByIdV1, osAppsV1 } from "./apps.tsx";
 import {
@@ -47,9 +42,11 @@ import {
   osDesktopBoundsForV1,
   osDesktopCanvasV1,
   osWallpaperStylesV1,
-} from "../features/desktop/Desktop.tsx";
-import { OsComputerIconV1, OsDisplayIconV1, OsNotepadIconV1 } from "../features/desktop/icons.tsx";
-import { OsWindowFrameV1 } from "../features/desktop/WindowFrame.tsx";
+} from "../features/desktop/desktop.tsx";
+import { OsComputerIconV1, OsDisplayIconV1 } from "../features/desktop/icons.tsx";
+import { OsWindowFrameV1 } from "../features/desktop/window-frame.tsx";
+import { OsBootScreenV1 } from "../features/desktop/boot-screen.tsx";
+import { OsVolumeTrayV1 } from "../features/desktop/volume-tray.tsx";
 import { createOsWindowManagerV1 } from "../features/desktop/window-manager.ts";
 import type { OsWindowManagerV1 } from "../features/desktop/window-manager.ts";
 
@@ -80,16 +77,21 @@ function OsShellV1(props: {
   readonly playerProfile: PlayerProfileStoreV1;
   readonly instance: OsApplicationInstanceV1;
   readonly wm: OsWindowManagerV1;
-  readonly systemDialogs: { openSettings(): void; openSaves(): void };
 }): ReactElement {
   const uiText = useOsTextV1(props.playerProfile);
   const viewport = useGameViewportV1();
-  const systemDialogs = props.systemDialogs;
   const { wm } = props;
   const snapshot = useSyncExternalStore(wm.subscribe, wm.snapshot, wm.snapshot);
   const [startOpen, setStartOpen] = useState(false);
   const [shutdown, setShutdown] = useState(false);
+  const [booting, setBooting] = useState(true);
   const [exploded, setExploded] = useState(false);
+
+  // 开机自动恢复：boot 动画期间加载自动存档（上次关机状态）。首次
+  // 开机（空槽）静默走全新状态；引擎的自动存档策略负责"自动保存"。
+  useEffect(() => {
+    void props.instance.persistence.load("auto.current" as never).catch(() => {});
+  }, [props.instance]);
   const boundsWidth = osDesktopBoundsForV1(viewport).width;
   const boundsHeight = osDesktopBoundsForV1(viewport).height;
   const bounds = useMemo(
@@ -120,6 +122,16 @@ function OsShellV1(props: {
     wm.open(appId, { rect: app.defaultRect, singleton: app.singleton, bounds });
   };
 
+  if (booting) {
+    return (
+      <OsBootScreenV1
+        title="SillyOS 98"
+        aiNotice={uiText("text.os.boot.ai-notice")}
+        onDone={() => setBooting(false)}
+      />
+    );
+  }
+
   if (shutdown) {
     return (
       <div
@@ -138,20 +150,23 @@ function OsShellV1(props: {
           zIndex: 200_000,
         }}
       >
+        <style>{osChromeCssV1}</style>
         <p style={{ margin: 0, maxInlineSize: "26em" }}>{uiText("text.os.shutdown.message")}</p>
         <span style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
           <button
             type="button"
+            className="os-button"
             data-os-shutdown-restart="true"
-            style={{ ...osBevelOutV1, font: os98.font, padding: "4px 14px" }}
+            style={{ padding: "4px 14px" }}
             onClick={() => void props.instance.lifecycle.restart()}
           >
             {uiText("text.os.shutdown.restart")}
           </button>
           <button
             type="button"
+            className="os-button"
             data-os-shutdown-back="true"
-            style={{ ...osBevelOutV1, font: os98.font, padding: "4px 14px" }}
+            style={{ padding: "4px 14px" }}
             onClick={() => setShutdown(false)}
           >
             {uiText("text.os.shutdown.back")}
@@ -181,6 +196,7 @@ function OsShellV1(props: {
         }
       }}
     >
+      <style>{osChromeCssV1}</style>
       <style>{`@keyframes os-shake {
         0%, 100% { translate: 0 0; }
         20% { translate: -6px 2px; }
@@ -258,16 +274,10 @@ function OsShellV1(props: {
           }))}
           systemItems={[
             {
-              id: "system.save",
-              label: uiText("text.os.start.save"),
-              icon: <OsNotepadIconV1 size={20} />,
-              onActivate: () => systemDialogs.openSaves(),
-            },
-            {
               id: "system.settings",
               label: uiText("text.os.start.settings"),
               icon: <OsDisplayIconV1 size={20} />,
-              onActivate: () => systemDialogs.openSettings(),
+              onActivate: () => openApp("app.control-panel"),
             },
             {
               id: "system.shutdown",
@@ -291,45 +301,15 @@ function OsShellV1(props: {
           return app === null ? appId : uiText(app.nameTextId);
         }}
         onToggleStart={() => setStartOpen((current) => !current)}
+        tray={
+          <OsVolumeTrayV1
+            playerProfile={props.playerProfile}
+            volumeLabel={uiText("text.os.volume")}
+            muteLabel={uiText("text.os.volume.mute")}
+          />
+        }
       />
     </div>
-  );
-}
-
-/** 设置节：语言（跟随浏览器 / 中文 / English），存 Host profile。 */
-function OsSettingsV1(props: { readonly playerProfile: PlayerProfileStoreV1 }): ReactElement {
-  const uiText = useOsTextV1(props.playerProfile);
-  const [, setVersion] = useState(0);
-  useEffect(
-    () => props.playerProfile.subscribe(() => setVersion((current) => current + 1)),
-    [props.playerProfile],
-  );
-  const current = props.playerProfile.current().preferences.locale ?? "auto";
-  const options = [
-    { id: "auto", label: uiText("text.os.settings.language.auto") },
-    { id: "zh-CN", label: "中文" },
-    { id: "en", label: "English" },
-  ] as const;
-  return (
-    <label style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-      {uiText("text.os.settings.language")}
-      <select
-        data-os-settings-language="true"
-        value={current}
-        onChange={(event) => {
-          const value = event.target.value;
-          void props.playerProfile.updatePreferences({
-            locale: value === "auto" ? null : value,
-          });
-        }}
-      >
-        {options.map((option) => (
-          <option key={option.id} value={option.id}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </label>
   );
 }
 
@@ -356,12 +336,8 @@ function createOsUiSlotsV1(input: {
         playerProfile={input.playerProfile}
         instance={input.instance}
         wm={wm}
-        systemDialogs={context.systemDialogs}
       />
     ),
-    settingsSections: () => [
-      <OsSettingsV1 key="os-settings" playerProfile={input.playerProfile} />,
-    ],
   };
 }
 
@@ -403,22 +379,12 @@ export const osGameApplicationV1: WebGameApplicationV1<
     const locale = osResolveLocaleV1(playerProfile.current().preferences.locale, requested);
     const zh = locale === "zh-CN";
     return Object.freeze({
-      titleScreen: Object.freeze({
-        title: osTextForLocaleV1(locale, "text.os.boot.title"),
-        splash: Object.freeze({
-          lines: zh
-            ? Object.freeze(["本游戏内容完全由 AI 生成", "代码 · 文案 · 图标 — SillyMaker 引擎"])
-            : Object.freeze([
-                "This game is entirely AI-generated",
-                "Code, copy, and icons · SillyMaker Engine",
-              ]),
-        }),
-      }),
       projector: osUiProjectorV1,
       overlayIds: Object.freeze([] as const),
       slots: createOsUiSlotsV1({ instance, playerProfile }),
+      // 无 titleScreen：开机直接进桌面（引擎自动恢复自动存档 = 自动加载，
+      // 自动存档策略 = 自动保存）；无 saveLabels：不启用存档对话框。
       labels: zh ? osRootLabelsZhV1 : osRootLabelsEnV1,
-      saveLabels: zh ? osSaveOverlayLabelsZhV1 : osSaveOverlayLabelsEnV1,
       hideSystemMenu: true,
     });
   },

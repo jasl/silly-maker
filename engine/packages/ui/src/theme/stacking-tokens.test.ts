@@ -65,7 +65,7 @@ describe("stacking token contract", () => {
       "../system/title-screen.tsx",
       "../system/boot-splash.tsx",
       "../overlays/overlay-host.module.css",
-      "../debug/DevDock.module.css",
+      "../debug/dev-dock.module.css",
       "../shell/game-stage.module.css",
     ];
     for (const file of files) {

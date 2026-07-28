@@ -4,8 +4,8 @@ import type { ReactElement, ReactNode } from "react";
 
 import type { DeepReadonly, RuntimeCapabilityPortV1 } from "@sillymaker/base";
 
-import { DevDockV1, createDevDockContributionSetV1 } from "../debug/DevDock.tsx";
-import type { DevDockContributionSetV1, DevDockOpenStateV1 } from "../debug/DevDock.tsx";
+import { DevDockV1, createDevDockContributionSetV1 } from "../debug/dev-dock.tsx";
+import type { DevDockContributionSetV1, DevDockOpenStateV1 } from "../debug/dev-dock.tsx";
 import type { InputRouterV1 } from "../input/contracts.ts";
 import type { GamepadActionMapV1 } from "../input/gamepad-adapter.ts";
 import { installGamepadAdapterV1 } from "../input/gamepad-adapter.ts";

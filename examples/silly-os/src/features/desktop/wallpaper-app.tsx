@@ -5,9 +5,9 @@ import { useState } from "react";
 import type { ReactElement } from "react";
 
 import type { OsSemanticPortV1 } from "../../application/ui-kit.ts";
-import { dispatchV1, os98, osBevelInV1, osBevelOutV1 } from "../../application/ui-kit.ts";
+import { dispatchV1, os98, osBevelInV1 } from "../../application/ui-kit.ts";
 import { osWallpaperIdsV1 } from "../../state.ts";
-import { osWallpaperStylesV1 } from "./Desktop.tsx";
+import { osWallpaperStylesV1 } from "./desktop.tsx";
 
 export function OsWallpaperAppV1(props: {
   readonly current: string;
@@ -52,15 +52,10 @@ export function OsWallpaperAppV1(props: {
       </div>
       <button
         type="button"
+        className="os-button"
         data-os-wallpaper-apply="true"
         onClick={() => dispatchV1(props.semantic, { kind: "set_wallpaper", wallpaperId: selected })}
-        style={{
-          ...osBevelOutV1,
-          background: os98.face,
-          padding: "3px 14px",
-          font: os98.font,
-          justifySelf: "start",
-        }}
+        style={{ padding: "3px 14px", justifySelf: "start" }}
       >
         {uiText("text.os.wallpaper.apply")}
       </button>

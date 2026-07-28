@@ -15,7 +15,7 @@ import {
   ActionConfirmationDialogV1,
   type ActionConfirmationDispatchPortV1,
 } from "../overlays/action-confirmation-dialog.tsx";
-import { Button } from "../primitives/Button.tsx";
+import { Button } from "../primitives/button.tsx";
 import styles from "./save-overlay.module.css";
 
 export type SaveUiWritableSlotIdV1 = "quick" | "manual";

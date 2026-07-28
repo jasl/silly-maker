@@ -104,6 +104,8 @@ export function OsTaskbarV1(props: {
   readonly taskbarLabel: string;
   readonly startOpen: boolean;
   readonly windowTitle: (appId: string) => string;
+  /** 托盘区（音量等），时钟左侧。 */
+  readonly tray?: ReactNode;
   onToggleStart(): void;
 }): ReactElement {
   const ordered = [...props.snapshot.windows].toSorted((a, b) => a.order - b.order);
@@ -131,17 +133,15 @@ export function OsTaskbarV1(props: {
     >
       <button
         type="button"
+        className="os-button"
         data-os-start-button="true"
         aria-expanded={props.startOpen}
         onClick={props.onToggleStart}
         style={{
-          ...(props.startOpen ? osBevelInV1 : osBevelOutV1),
-          background: os98.face,
           display: "inline-flex",
           alignItems: "center",
           gap: "4px",
           padding: "2px 8px",
-          font: os98.font,
           fontWeight: 700,
         }}
       >
@@ -157,17 +157,15 @@ export function OsTaskbarV1(props: {
             <button
               key={window.windowId}
               type="button"
+              className="os-button"
               data-os-task-button={window.appId}
               aria-pressed={active}
               onClick={() => props.wm.taskbarActivate(window.windowId)}
               style={{
-                ...(active ? osBevelInV1 : osBevelOutV1),
-                background: active ? "#e0e0e0" : os98.face,
                 flex: "0 1 148px",
                 minInlineSize: "56px",
                 maxInlineSize: "180px",
                 padding: "2px 8px",
-                font: os98.font,
                 fontWeight: active ? 700 : 400,
                 textAlign: "start",
                 whiteSpace: "nowrap",
@@ -180,6 +178,7 @@ export function OsTaskbarV1(props: {
           );
         })}
       </div>
+      {props.tray ?? null}
       <OsClockV1 />
     </footer>
   );

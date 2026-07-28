@@ -6,7 +6,7 @@
 import { useState } from "react";
 import type { ReactElement } from "react";
 
-import { os98, osBevelInV1, osBevelOutV1 } from "../../application/ui-kit.ts";
+import { os98, osBevelInV1 } from "../../application/ui-kit.ts";
 
 const docsUrl = "https://silly-maker.pages.dev/";
 
@@ -90,15 +90,17 @@ export function OsBrowserAppV1(props: {
         <span>{uiText("text.os.browser.address")}</span>
         <input
           type="text"
+          className="os-input"
           data-os-browser-address="true"
           value={address}
           onChange={(event) => setAddress(event.target.value)}
-          style={{ ...osBevelInV1, flex: 1, font: os98.font, padding: "2px 4px" }}
+          style={{ flex: 1, padding: "2px 4px" }}
         />
         <button
           type="submit"
+          className="os-button"
           data-os-browser-go="true"
-          style={{ ...osBevelOutV1, background: os98.face, padding: "2px 10px", font: os98.font }}
+          style={{ padding: "2px 10px" }}
         >
           {uiText("text.os.browser.go")}
         </button>

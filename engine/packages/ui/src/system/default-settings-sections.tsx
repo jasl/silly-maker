@@ -4,7 +4,7 @@ import type { ReactElement } from "react";
 
 import type { RuntimeCapabilityPortV1 } from "@sillymaker/base";
 import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
-import { Button } from "../primitives/Button.tsx";
+import { Button } from "../primitives/button.tsx";
 
 /**
  * The engine-baseline Settings sections every game gets for free: per-bus

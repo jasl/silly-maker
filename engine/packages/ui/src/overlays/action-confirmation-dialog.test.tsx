@@ -15,9 +15,9 @@ import {
   type InputRouteResultV1,
 } from "../input/contracts.ts";
 import { createInputRouterV1 } from "../input/input-router.ts";
-import { Button } from "../primitives/Button.tsx";
-import { DevDockV1, createDevDockContributionSetV1 } from "../debug/DevDock.tsx";
-import type { DevDockOpenStateV1 } from "../debug/DevDock.tsx";
+import { Button } from "../primitives/button.tsx";
+import { DevDockV1, createDevDockContributionSetV1 } from "../debug/dev-dock.tsx";
+import type { DevDockOpenStateV1 } from "../debug/dev-dock.tsx";
 import { GameStageV1, useStageSystemFocusScopeTargetV1 } from "../shell/game-stage.tsx";
 import { GameShell } from "../shell/game-shell.tsx";
 import { SettingsLauncherV1 } from "../system/settings-launcher.tsx";

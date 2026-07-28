@@ -19,6 +19,7 @@ function TitleButtonV1(props: {
   return (
     <button
       type="button"
+      className="os-button"
       aria-label={props.label}
       title={props.label}
       data-os-window-button={props.testId}
@@ -28,17 +29,14 @@ function TitleButtonV1(props: {
         props.onActivate();
       }}
       style={{
-        ...osBevelOutV1,
         inlineSize: "18px",
         blockSize: "16px",
         padding: 0,
         display: "grid",
         placeContent: "center",
-        font: os98.font,
         fontWeight: 700,
         fontSize: "10px",
         lineHeight: 1,
-        color: "#000",
       }}
     >
       {props.glyph}

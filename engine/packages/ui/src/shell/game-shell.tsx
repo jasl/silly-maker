@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 import type { ReactElement, ReactNode } from "react";
-import { DevDockPortalCoordinatorV1 } from "../debug/DevDockPortalCoordinator.tsx";
+import { DevDockPortalCoordinatorV1 } from "../debug/dev-dock-portal-coordinator.tsx";
 import { RootErrorBoundaryV1 } from "../errors/root-error-boundary.tsx";
 import type { RootErrorBoundaryPropsV1 } from "../errors/root-error-boundary.tsx";
 import type { InputRouterV1 } from "../input/contracts.ts";

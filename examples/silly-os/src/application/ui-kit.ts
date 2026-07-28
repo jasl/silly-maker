@@ -87,3 +87,87 @@ export const osLcdV1: CSSProperties = Object.freeze({
   fontFamily: '"Courier New", monospace',
   fontWeight: 700,
 });
+
+/**
+ * 桌面全局 chrome：按钮按下的 bevel 翻转与 1px 内容位移、输入框的
+ * 方角内凹白底与系统插入符——经典交互反馈是 :active/:focus 伪类，
+ * inline style 做不到，统一由 shell 注入这份样式表，组件挂 class。
+ * 同时压过引擎 global.css 的主题化表单外观（圆角/主题 focus 环）。
+ */
+export const osChromeCssV1 = `
+[data-os-shell] .os-button,
+[data-os-boot] .os-button,
+[data-os-shutdown] .os-button {
+  border-style: solid;
+  border-width: 2px;
+  border-color: #ffffff #404040 #404040 #ffffff;
+  border-radius: 0;
+  background: ${os98.face};
+  color: #000000;
+  font: ${os98.font};
+  cursor: default;
+}
+[data-os-shell] .os-button:hover,
+[data-os-boot] .os-button:hover,
+[data-os-shutdown] .os-button:hover {
+  background: ${os98.face};
+  color: #000000;
+}
+[data-os-shell] .os-button:active:not(:disabled),
+[data-os-shell] .os-button[aria-pressed="true"],
+[data-os-shell] .os-button[aria-expanded="true"],
+[data-os-boot] .os-button:active:not(:disabled),
+[data-os-shutdown] .os-button:active:not(:disabled) {
+  border-color: #404040 #ffffff #ffffff #404040;
+  background: #b8b8b8;
+}
+[data-os-shell] .os-button:active:not(:disabled) > * ,
+[data-os-shell] .os-button:active:not(:disabled) {
+  /* 经典按下手感：内容向右下偏移 1px。 */
+  text-indent: 1px;
+}
+[data-os-shell] .os-button:active:not(:disabled) {
+  padding-block-start: 1px;
+}
+[data-os-shell] .os-button:focus-visible,
+[data-os-shell] .os-input:focus-visible {
+  outline: 1px dotted #000000;
+  outline-offset: -4px;
+}
+[data-os-shell] .os-input {
+  border-style: solid;
+  border-width: 2px;
+  border-color: #808080 #ffffff #ffffff #808080;
+  border-radius: 0;
+  background: #ffffff;
+  color: #000000;
+  font: ${os98.font};
+  caret-color: #000000;
+  box-shadow: none;
+}
+[data-os-shell] .os-input:focus {
+  outline: none;
+  border-color: #808080 #ffffff #ffffff #808080;
+  box-shadow: none;
+}
+[data-os-shell] textarea.os-input {
+  font: 13px "Courier New", monospace;
+}
+[data-os-shell] input[type="range"] {
+  accent-color: #000080;
+}
+[data-os-shell] input[type="checkbox"],
+[data-os-shell] input[type="radio"] {
+  accent-color: #000080;
+}
+[data-os-shell] select.os-select {
+  border-style: solid;
+  border-width: 2px;
+  border-color: #808080 #ffffff #ffffff #808080;
+  border-radius: 0;
+  background: #ffffff;
+  color: #000000;
+  font: ${os98.font};
+  padding: 2px 4px;
+}
+`;

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 import type { ReactElement } from "react";
 
-import { Button } from "../primitives/Button.tsx";
+import { Button } from "../primitives/button.tsx";
 import { SavesLauncherV1 } from "./saves-launcher.tsx";
 import { SettingsLauncherV1 } from "./settings-launcher.tsx";
 

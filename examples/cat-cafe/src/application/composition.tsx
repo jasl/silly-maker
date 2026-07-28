@@ -62,13 +62,13 @@ import { CatcafeAlbumViewV1, useCatcafeAlbumWatcherV1 } from "../features/album/
 import {
   CatcafeContestPanelV1,
   useCatcafeContestToastV1,
-} from "../features/contest/ContestPanel.tsx";
+} from "../features/contest/contest-panel.tsx";
 import { useCatcafeAutoAdvanceV1 } from "../features/calendar/use-auto-advance.ts";
 import { useCatcafeAutoBeginV1 } from "../features/dialogue/use-auto-begin.ts";
 import { useCatcafeEncounterNoticeV1 } from "../features/encounters/notice.ts";
-import { CatcafeEndingScreenV1 } from "../features/endings/EndingScreen.tsx";
+import { CatcafeEndingScreenV1 } from "../features/endings/ending-screen.tsx";
 import { createCatcafeStageRenderersV1 } from "../features/stage/renderers.tsx";
-import { CatcafeStageV1 } from "../features/stage/StageView.tsx";
+import { CatcafeStageV1 } from "../features/stage/stage-view.tsx";
 import { catcafeChromeForLocaleV1, catcafeSaveGuardForLocaleV1 } from "./labels.ts";
 export {
   catcafeChromeForLocaleV1,

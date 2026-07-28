@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 import type { ReactElement, ReactNode } from "react";
 
-import { Button } from "./Button.tsx";
-import styles from "./Panel.module.css";
+import { Button } from "./button.tsx";
+import styles from "./panel.module.css";
 
 /**
  * The window chrome every in-game panel shares (the Window_Base of this

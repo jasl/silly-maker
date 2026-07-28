@@ -1,0 +1,35 @@
+# Examples
+
+Every example is a complete, independently runnable project under `examples/` in the repository — copy any of them as a starting point, or play the deployed builds right here.
+
+## Cat Cafe 《雨巷猫舍》
+
+<p><a href="/play/cat-cafe/" target="_self">▶ Play in the browser</a></p>
+
+The flagship: a complete, publishable raising-sim. You take over a rainy-alley shop, raise a soaked kitten across seven weeks, and run the business toward one of four endings (plus an endless postgame).
+
+What it exercises in the engine:
+
+- **Content database** — activities, petting reactions, contest moves, rivals, and album entries are typed, validated tables; tuning is editing a row.
+- **Stage hit regions** — petting routes through content-declared zones that scale with the cat's growth stage; feedback bursts in place (emoji + speech bubble).
+- **Dialogue player** — typewriter, auto/skip, history, and Seen tracking via the engine's `DialoguePanelV1`.
+- **Deterministic simulation** — event-pool encounters, a turn-based contest, player rollback with hard barriers, save safepoints.
+- **Scene-driven audio** — BGM/ambient/SFX follow the published game view; three volume buses persist in the player profile.
+- **Bilingual text + auto locale**, AIGC art with a consistent storybook style, and one-step desktop packaging.
+
+## SillyOS 98
+
+<p><a href="/play/silly-os/" target="_self">▶ Boot in the browser</a></p>
+
+A retro desktop — not a game. It boots straight to a desktop with overlapping draggable windows, a taskbar, a Start menu, and apps: deterministic Minesweeper (mines drawn from the transactional RNG, never leaked to the UI), a Notepad whose files live in authoritative state, a period browser, Display Properties, and a Control Panel.
+
+Why it exists: to prove the engine outside visual novels.
+
+- **Fluid viewport** — the desktop fills any browser area 1:1, portrait phones included; no letterbox.
+- **Window management as UI transients** — a ~180-line Story-side store handles z-order, focus, minimize/maximize, drag, and bounds clamping.
+- **Saves as the hard disk** — no save UI at all: the engine autosaves continuously and SillyOS restores `auto.current` during the boot screen. Close the tab, reboot, your files are back.
+- **Custom shell chrome** — the engine's default system menu, title screen, and settings dialog are all hidden (`hideSystemMenu`, no `titleScreen`); Win98-style pressed-button and inset-field styling is plain CSS.
+
+## Bookshop 《打烊前的旧书店》
+
+A short narrative vignette — the first Story ever authored for the engine by an external model in a single pass. It stays in the repository as the minimal script-writing reference: say/choice nodes, flags, a coin, and two endings.

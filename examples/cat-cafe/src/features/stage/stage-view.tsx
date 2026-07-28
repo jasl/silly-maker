@@ -18,7 +18,7 @@ import type {
 } from "../../application/ui-kit.ts";
 import { dispatchV1, useCatcafeTextV1 } from "../../application/ui-kit.ts";
 import { catcafeAssetIdsV1, catcafeStageTransitionCatalogV1 } from "../../presentation.ts";
-import { CatcafePetBurstsV1, useCatcafePetBurstsV1 } from "../petting/PetBursts.tsx";
+import { CatcafePetBurstsV1, useCatcafePetBurstsV1 } from "../petting/pet-bursts.tsx";
 import { catcafeCatMotionCssV1 } from "./renderers.tsx";
 
 export function CatcafeStageV1(props: {

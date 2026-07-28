@@ -7,9 +7,9 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { createRef } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { Button } from "./Button.tsx";
-import { IconButton } from "./IconButton.tsx";
-import { ProgressMeter } from "./ProgressMeter.tsx";
+import { Button } from "./button.tsx";
+import { IconButton } from "./icon-button.tsx";
+import { ProgressMeter } from "./progress-meter.tsx";
 
 afterEach(cleanup);
 

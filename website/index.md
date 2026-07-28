@@ -10,6 +10,9 @@ hero:
       text: Get started with AI
       link: /guide/getting-started
     - theme: alt
+      text: Browse the examples
+      link: /guide/examples
+    - theme: alt
       text: GitHub
       link: https://github.com/jasl/silly-maker
 

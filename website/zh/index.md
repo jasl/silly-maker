@@ -10,6 +10,9 @@ hero:
       text: 用 AI 快速开始
       link: /zh/guide/getting-started
     - theme: alt
+      text: 浏览示例
+      link: /zh/guide/examples
+    - theme: alt
       text: GitHub
       link: https://github.com/jasl/silly-maker
 
