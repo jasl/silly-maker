@@ -184,6 +184,7 @@ export type {
   AppearanceLayerId,
   AssetPackDigestProjectionV1,
   AssetPackV1,
+  AssetSlotDefinitionV1,
   AssetId,
   BootstrapEntropyV1,
   Brand,

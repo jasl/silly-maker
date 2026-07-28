@@ -11,6 +11,8 @@ import { defineGamePackage } from "@sillymaker/base/story";
 import type { CatcafeGameSimulationV1 } from "./simulation.ts";
 import { createCatcafeGameSimulationV1 } from "./simulation.ts";
 import {
+  catcafeAssetPacksV1,
+  catcafeAssetSlotsV1,
   catcafePresentationPatchSurfaceV1,
   catcafeTextCatalogsV1,
   materializeCatcafePresentationV1,
@@ -72,8 +74,8 @@ const catcafeStoryDefinitionV1 = Object.freeze({
   }),
   presentation: Object.freeze({
     textCatalogs: catcafeTextCatalogsV1,
-    assetSlots: Object.freeze([]) as readonly [],
-    assetPacks: Object.freeze([]) as readonly [],
+    assetSlots: catcafeAssetSlotsV1,
+    assetPacks: catcafeAssetPacksV1,
     patchSurface: catcafePresentationPatchSurfaceV1,
     materializePresentation: materializeCatcafePresentationV1,
   }),

@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: MIT
+import type { ResolvedAssetManifestV1 } from "@sillymaker/base";
 import type { CoreGameApplicationInstanceV1 } from "@sillymaker/base/runtime";
 import { defineCoreGameApplication } from "@sillymaker/base/story";
 
@@ -38,7 +39,18 @@ export const catcafeCoreApplicationDefinitionV1 = defineCoreGameApplication<
   entry: catcafeStoryEntryV1,
   semantic: catcafeSemanticAdapterV1,
   exportFilename: "catcafe-save.json",
+  // The resolved asset manifest rides the extensions surface so the web UI
+  // can build its asset registry; extensions observe, never own.
+  createExtensions: (context) => ({
+    extensions: Object.freeze({
+      assets: (context.resolved as { readonly assets: ResolvedAssetManifestV1 }).assets,
+    }),
+  }),
 });
+
+export interface CatcafeExtensionsV1 {
+  readonly assets: ResolvedAssetManifestV1;
+}
 
 export type CatcafeApplicationInstanceV1 = CoreGameApplicationInstanceV1<
   CatcafeSimulationTypesV1,

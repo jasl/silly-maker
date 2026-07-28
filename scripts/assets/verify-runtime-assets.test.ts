@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
-import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { readFile, realpath } from "node:fs/promises";
+import { resolve, sep } from "node:path";
 
 import type { ResolvedAssetManifestV1 } from "../../engine/packages/base/src/index.ts";
 import { describe, expect, it } from "vitest";
@@ -74,30 +74,33 @@ describe("closed runtime asset verification", () => {
     expect(Object.isFrozen(verified)).toBe(true);
   });
 
-  it("resolves the live fallback-only manifest without any runtime file access", async () => {
+  it("verifies the live manifests: only cat-cafe declares runtime art", async () => {
+    // e2e/template/bookshop stay code-native (no runtime file access);
+    // the cat-cafe ships a real webp art pack that must exist and match
+    // its declared bytes/digests, so its files are read for real.
     const reads: string[] = [];
-    const realpaths: string[] = [];
     const root = resolve(import.meta.dirname, "../..");
-    const environment: RuntimeAssetValidationEnvironmentV1 = Object.freeze({
-      repositoryRoot: root,
-      async readFile(path: string) {
-        reads.push(path);
-        throw new Error(`fallback-only verification read ${path}`);
-      },
-      async realpath(path: string) {
-        realpaths.push(path);
-        throw new Error(`fallback-only verification resolved ${path}`);
-      },
-    });
-
-    await expect(verifyRuntimeAssetsV1(root, { environment })).resolves.toEqual([
+    await expect(
+      verifyRuntimeAssetsV1(root, {
+        environment: Object.freeze({
+          repositoryRoot: root,
+          async readFile(path: string) {
+            reads.push(path);
+            return await readFile(path);
+          },
+          async realpath(path: string) {
+            return await realpath(path);
+          },
+        }),
+      }),
+    ).resolves.toEqual([
       "story.e2e.engine-lab",
       "story.template.starter",
       "story.example.bookshop",
       "story.example.cat-cafe",
     ]);
-    expect(reads).toEqual([]);
-    expect(realpaths).toEqual([]);
+    expect(reads.length).toBeGreaterThan(0);
+    expect(reads.every((path) => path.includes(`examples${sep}cat-cafe${sep}assets`))).toBe(true);
   }, 30_000);
 
   it("reports bounded Story and asset identities after checking the closed set", async () => {

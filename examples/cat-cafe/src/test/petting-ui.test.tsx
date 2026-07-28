@@ -1,93 +1,93 @@
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
-// @vitest-environment jsdom
-import "@testing-library/jest-dom/vitest";
-import { screen, waitFor } from "@testing-library/react";
-import { userEvent } from "@testing-library/user-event";
-import { afterEach, expect, it } from "vitest";
+// 语义级抚摸链路测试。完整浏览器 UI 链（标题屏 → 开场 → 命中区域点击 →
+// 反应气泡 → 余量耗尽）由 hit-regions 浏览器 spec 验证；jsdom 下挂载完整
+// web UI 会触发 Deno×jsdom×React 跨 realm 事件派发崩溃，故这里驱动语义
+// 端口断言权威行为本身。
+import { describe, expect, it } from "vitest";
 
-import { createMemoryHostRecordStoreV1 } from "@sillymaker/base/testkit";
-import { createWebHostV1, startWebGameApplicationV1 } from "@sillymaker/web";
+import type { CatcafeApplicationInstanceV1 } from "../application/core-application.ts";
+import { createCatcafeApplicationInstanceV1 } from "../application/core-application.ts";
+import { catcafePettingV1 } from "../content.ts";
 
-import { catcafeWebApplicationV1 } from "../application/web-application.tsx";
-
-afterEach(() => {
-  document.body.innerHTML = "";
-});
-
-async function playOpeningV1(user: ReturnType<typeof userEvent.setup>): Promise<void> {
-  await user.click(screen.getByRole("button", { name: "开始故事" }));
-  for (let index = 0; index < 3; index += 1) {
-    await waitFor(() => {
-      expect(document.querySelector("[data-cc-advance]")).not.toBeNull();
-    });
-    await user.click(screen.getByRole("button", { name: "继续" }));
-  }
-  await waitFor(() => {
-    expect(document.querySelector("[data-cc-narrative='choice']")).not.toBeNull();
-  });
-  await user.click(screen.getByRole("button", { name: "就叫「小雨」" }));
-  for (let index = 0; index < 2; index += 1) {
-    await waitFor(() => {
-      expect(document.querySelector("[data-cc-advance]")).not.toBeNull();
-    });
-    await user.click(screen.getByRole("button", { name: "继续" }));
-  }
-  await waitFor(() => {
-    expect(document.querySelector("[data-cc-narrative]")).toBeNull();
-  });
+async function dispatchCommittedV1(
+  instance: CatcafeApplicationInstanceV1,
+  invocation: unknown,
+): Promise<void> {
+  const result = await instance.semantic.dispatch(invocation as never);
+  expect(result).toMatchObject({ kind: "committed" });
 }
 
-it("pets the cat through stage hit regions: reaction, trust, budget", async () => {
-  const root = document.createElement("div");
-  document.body.append(root);
-  const started = await startWebGameApplicationV1(catcafeWebApplicationV1, {
-    rootElement: root,
-    host: createWebHostV1({
-      records: createMemoryHostRecordStoreV1(),
-      seeds: [20260728],
-      uuids: ["7c1d3e58-2b96-4f41-9d05-8a37c60f21b4"],
-    }),
-    capabilitySearch: "",
-    registerPageLifecycle: false,
+function advanceV1(occurrence: number) {
+  return {
+    kind: "resolve",
+    expectedOccurrenceId: `interaction-occurrence.${String(occurrence)}`,
+    resolution: { kind: "advance" },
+  };
+}
+
+async function playOpeningV1(instance: CatcafeApplicationInstanceV1): Promise<void> {
+  await dispatchCommittedV1(instance, { kind: "invoke", actionId: "cc.begin_story" });
+  await dispatchCommittedV1(instance, advanceV1(1));
+  await dispatchCommittedV1(instance, advanceV1(2));
+  await dispatchCommittedV1(instance, advanceV1(3));
+  await dispatchCommittedV1(instance, {
+    kind: "resolve",
+    expectedOccurrenceId: "interaction-occurrence.4",
+    resolution: { kind: "choose", choiceId: "choice.catcafe.name-xiaoyu" },
   });
-  const user = userEvent.setup();
-  try {
-    // Pass the title screen first: the game front door renders before HUD.
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: "新游戏" })).toBeEnabled();
-    });
-    await user.click(screen.getByRole("button", { name: "新游戏" }));
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: "开始故事" })).toBeEnabled();
-    });
-    await playOpeningV1(user);
+  await dispatchCommittedV1(instance, advanceV1(5));
+  await dispatchCommittedV1(instance, advanceV1(6));
+}
 
-    // The cat entry exposes four keyboard-reachable zones.
-    await waitFor(() => {
-      expect(document.querySelectorAll("[data-stage-hit-region]")).toHaveLength(4);
-    });
-    const statsBefore = document.querySelector("[data-cc-stats]")?.textContent ?? "";
-    expect(statsBefore).toContain("信任10");
+function gameViewV1(instance: CatcafeApplicationInstanceV1) {
+  return instance.semantic.observe().game;
+}
 
-    // Low trust + tail = hiss (-3), reaction text from the petting table.
-    await user.click(screen.getByRole("button", { name: "碰尾巴" }));
-    await waitFor(() => {
-      expect(document.querySelector("[data-cc-stats]")?.textContent).toContain("信任7");
-    });
-    expect(document.querySelector("[data-cc-pet-reaction='text.cc.pet.tail.low']")).not.toBeNull();
+describe("catcafe petting (semantic chain)", () => {
+  it("pet commits authoritative effects and burns the daily allowance", async () => {
+    const instance = await createCatcafeApplicationInstanceV1();
+    try {
+      await playOpeningV1(instance);
+      const before = gameViewV1(instance);
+      expect(before.cat.pettingLeft).toBe(3);
 
-    // The daily budget counts down and the guard blocks the fourth pet.
-    await user.click(screen.getByRole("button", { name: "摸头" }));
-    await user.click(screen.getByRole("button", { name: "顺背" }));
-    await waitFor(() => {
-      expect(document.querySelector("[data-cc-stage]")?.getAttribute("data-cc-petting-left")).toBe(
-        "0",
-      );
-    });
-    const digestStats = document.querySelector("[data-cc-stats]")?.textContent ?? "";
-    await user.click(screen.getByRole("button", { name: "挠下巴" }));
-    expect(document.querySelector("[data-cc-stats]")?.textContent).toBe(digestStats);
-  } finally {
-    await started.dispose();
-  }
+      // 反应流是 commit-only 瞬态效果：订阅并收集。
+      const reactions: string[] = [];
+      const unsubscribe = instance.subscribeTransientEffects((effect) => {
+        if (effect.effectId !== "effect.catcafe.reaction") return;
+        const reactionId = (effect.payload as { readonly reactionId?: string }).reactionId;
+        if (reactionId !== undefined) reactions.push(reactionId);
+      });
+
+      await dispatchCommittedV1(instance, { kind: "pet", zone: "head" });
+      const afterOne = gameViewV1(instance);
+      expect(afterOne.cat.pettingLeft).toBe(2);
+      expect(afterOne.cat.trust).not.toBe(before.cat.trust);
+      expect(reactions).toHaveLength(1);
+      // 反应必须来自内容表（权威侧查表，而不是 UI 猜测）。
+      expect(catcafePettingV1.byId(reactions[0] ?? "")).not.toBeNull();
+
+      await dispatchCommittedV1(instance, { kind: "pet", zone: "back" });
+      await dispatchCommittedV1(instance, { kind: "pet", zone: "tail" });
+      expect(gameViewV1(instance).cat.pettingLeft).toBe(0);
+
+      // 余量耗尽后拒绝，权威状态不动。
+      const rejected = await instance.semantic.dispatch({ kind: "pet", zone: "head" } as never);
+      expect(rejected.kind).not.toBe("committed");
+      expect(gameViewV1(instance).cat.pettingLeft).toBe(0);
+      unsubscribe();
+    } finally {
+      await instance.dispose();
+    }
+  });
+
+  it("petting is fenced before the opening completes", async () => {
+    const instance = await createCatcafeApplicationInstanceV1();
+    try {
+      const rejected = await instance.semantic.dispatch({ kind: "pet", zone: "head" } as never);
+      expect(rejected.kind).not.toBe("committed");
+    } finally {
+      await instance.dispose();
+    }
+  });
 });

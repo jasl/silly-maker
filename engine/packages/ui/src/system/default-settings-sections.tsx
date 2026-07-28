@@ -88,7 +88,11 @@ export function DefaultSettingsSectionsV1(props: {
           data-default-settings-devtools="true"
           checked={capabilities.debugTools}
           onChange={(event) => {
+            // The switch grants the whole developer surface: the DevDock and
+            // its Story tuning (cheat) panels. A single-player game keeps
+            // that freedom local; the default remains off.
             void props.capabilities.setEnabled("debug_tools", event.target.checked);
+            void props.capabilities.setEnabled("cheats", event.target.checked);
           }}
         />
         {props.labels.developerToolsLabel}
