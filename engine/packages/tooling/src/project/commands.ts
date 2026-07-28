@@ -470,7 +470,11 @@ export async function desktopStoryApplicationV1(
     );
   }
 
-  // The desktop bundle wraps the exact bytes a web build produces.
+  // The desktop bundle wraps the exact bytes a web build produces around
+  // the webview shell: the shell serves dist/ itself through Deno.serve
+  // (the runtime points the window at whatever it binds) and owns a
+  // records API over the platform user-data directory. Ports may vary per
+  // launch; persistence lives in files, so origin drift is harmless.
   const build = await buildStoryApplicationV1(project, applicationId, deps);
   if (!build.ok) {
     commandErrorV1(
@@ -485,11 +489,26 @@ export async function desktopStoryApplicationV1(
   const outputPath = `${deps.repositoryRoot}/dist/desktop/${applicationId}/${outputName}`;
   await deps.runner.removeDirectory(`${deps.repositoryRoot}/dist/desktop/${applicationId}`);
   await deps.runner.copyDirectory(`${deps.repositoryRoot}/${web.outDir}`, `${stagingDir}/dist`);
+
+  // Stage the shell: the template's placeholders become the application's
+  // identity, and the record store rides along as a sibling module.
+  const shellTemplate = await deps.runner.readFile(
+    `${deps.repositoryRoot}/scripts/desktop/shell-main.ts`,
+  );
+  await deps.runner.writeFile(
+    `${stagingDir}/main.ts`,
+    shellTemplate
+      .replace('"__SILLYMAKER_APP_IDENTIFIER__"', JSON.stringify(desktop.identifier))
+      .replace('"__SILLYMAKER_DIST_DIR__"', JSON.stringify("dist")),
+  );
+  await deps.runner.writeFile(
+    `${stagingDir}/record-file-store.mts`,
+    await deps.runner.readFile(`${deps.repositoryRoot}/scripts/desktop/record-file-store.mts`),
+  );
   await deps.runner.writeFile(
     `${stagingDir}/deno.json`,
     `${JSON.stringify(
       {
-        tasks: { build: "echo 'dist/ prebuilt by deno task story build'" },
         desktop: {
           app: { name: desktop.name, identifier: desktop.identifier },
           backend: "webview",
@@ -499,16 +518,25 @@ export async function desktopStoryApplicationV1(
       2,
     )}\n`,
   );
-  await deps.runner.writeFile(
-    `${stagingDir}/vite.config.ts`,
-    "// Marker: `deno desktop` serves the prebuilt Vite SPA in dist/ with an index.html fallback.\nexport default {};\n",
-  );
 
   let exitCode: number;
   try {
-    exitCode = await deps.runner.run("deno", ["desktop", "--output", `../${outputName}`, "."], {
-      cwd: stagingDir,
-    });
+    exitCode = await deps.runner.run(
+      "deno",
+      [
+        "desktop",
+        "--allow-env",
+        "--allow-read",
+        "--allow-write",
+        "--allow-net",
+        "--include",
+        "dist",
+        "--output",
+        `../${outputName}`,
+        "main.ts",
+      ],
+      { cwd: stagingDir },
+    );
   } catch {
     commandErrorV1(
       "project.desktop_deno_missing",

@@ -312,11 +312,13 @@ export async function startWebGameApplicationV1<
   await import("@sillymaker/ui/styles.css");
 
   // Desktop channel: a trusted local save server marks pages it serves with
-  // `?records=local`; persistence then goes through the HTTP record store to
+  // `?records=local` (browser flows) or an injected global (the desktop
+  // webview shell); persistence then goes through the HTTP record store to
   // a real save directory instead of per-origin IndexedDB.
   const wantsLocalRecords =
-    typeof location !== "undefined" &&
-    new URLSearchParams(location.search).get("records") === "local";
+    (typeof location !== "undefined" &&
+      new URLSearchParams(location.search).get("records") === "local") ||
+    Reflect.get(globalThis, "__SILLYMAKER_RECORDS__") === "local";
   const host =
     options.host ??
     (wantsLocalRecords

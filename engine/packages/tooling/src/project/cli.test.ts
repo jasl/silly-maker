@@ -286,10 +286,13 @@ describe("runProjectCliV1", () => {
     });
   });
 
-  it("desktop stages a thin explicit host and invokes deno desktop", async () => {
+  it("desktop stages the webview shell and invokes deno desktop", async () => {
     const fake = createFakeRunnerV1({
       files: Object.freeze({
         "/repo/dist/desktop/synthetic/SyntheticApp.app/Contents/Info.plist": "<plist/>",
+        "/repo/scripts/desktop/shell-main.ts":
+          'const appIdentifierV1 = "__SILLYMAKER_APP_IDENTIFIER__";\nconst distDirNameV1 = "__SILLYMAKER_DIST_DIR__";\n',
+        "/repo/scripts/desktop/record-file-store.mts": "export const storeV1 = 1;\n",
       }),
     });
     const result = await runV1(["desktop", "synthetic"], fake.runner);
@@ -298,11 +301,23 @@ describe("runProjectCliV1", () => {
       ok: true,
       outputPath: "/repo/dist/desktop/synthetic/SyntheticApp.app",
     });
-    // The web build ran first, then deno desktop from the staging dir.
+    // The web build ran first, then deno desktop from the staging dir with
+    // compile-time permissions and the static dist included in the VFS.
     expect(fake.log.runs.map((entry) => entry.command)).toEqual(["deno", "deno"]);
     expect(fake.log.runs[1]).toMatchObject({
       command: "deno",
-      args: ["desktop", "--output", "../SyntheticApp.app", "."],
+      args: [
+        "desktop",
+        "--allow-env",
+        "--allow-read",
+        "--allow-write",
+        "--allow-net",
+        "--include",
+        "dist",
+        "--output",
+        "../SyntheticApp.app",
+        "main.ts",
+      ],
       cwd: "/repo/dist/desktop/synthetic/staging",
     });
     expect(fake.log.copies).toEqual([
@@ -310,7 +325,12 @@ describe("runProjectCliV1", () => {
     ]);
     const written = fake.log.writes.map((entry) => entry.path);
     expect(written).toContain("/repo/dist/desktop/synthetic/staging/deno.json");
-    expect(written).toContain("/repo/dist/desktop/synthetic/staging/vite.config.ts");
+    expect(written).toContain("/repo/dist/desktop/synthetic/staging/main.ts");
+    expect(written).toContain("/repo/dist/desktop/synthetic/staging/record-file-store.mts");
+    // The staged shell carries the application identity, not placeholders.
+    const stagedMain = fake.log.writes.find((entry) => entry.path.endsWith("main.ts"));
+    expect(stagedMain?.contents).toContain('"dev.sillymaker.synthetic"');
+    expect(stagedMain?.contents).not.toContain("__SILLYMAKER_APP_IDENTIFIER__");
     const denoJson = fake.log.writes.find((entry) => entry.path.endsWith("deno.json"));
     expect(JSON.parse(denoJson?.contents ?? "{}")).toMatchObject({
       desktop: {
