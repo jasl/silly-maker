@@ -30,6 +30,8 @@ import {
   reduceStageMutations,
 } from "@sillymaker/base/story";
 
+import type { AudioIntentV1 } from "@sillymaker/base";
+import { projectCatcafeAudioIntentV1 } from "./audio.ts";
 import type { CatcafeCalendarStateV1, CatcafeContestStateV1, CatcafeGameStateV1 } from "./state.ts";
 import {
   catcafeCalendarStateSchemaV1,
@@ -198,6 +200,8 @@ export interface CatcafeGameViewV1 {
   readonly catStage: number;
   readonly ending: string | null;
   readonly stage: SemanticStageState;
+  /** 连续声音意图（BGM/环境雨声）：视图的纯投影，读档即还原。 */
+  readonly audio: AudioIntentV1;
 }
 
 export interface CatcafeBootstrapInputV1 {
@@ -1310,7 +1314,7 @@ export function createCatcafeGameSimulationV1(): CatcafeGameSimulationV1 {
       });
     },
     projectGameView(queries: CatcafeQueriesV1) {
-      return Object.freeze({
+      const base = {
         calendar: queries.calendar,
         cat: queries.cat,
         shop: queries.shop,
@@ -1318,7 +1322,8 @@ export function createCatcafeGameSimulationV1(): CatcafeGameSimulationV1 {
         catStage: catcafeStageForWeekV1(queries.calendar.week),
         ending: catcafeEndingForV1(queries),
         stage: queries.stage,
-      });
+      };
+      return Object.freeze({ ...base, audio: projectCatcafeAudioIntentV1(base) });
     },
   });
 }

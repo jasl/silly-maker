@@ -4,9 +4,11 @@ import type { ReactElement } from "react";
 
 import type {
   AssetId,
+  AudioIntentV1,
   DeepReadonly,
   InteractionResolutionV1,
   StageRenderTargetV1,
+  TransientEffectV1,
 } from "@sillymaker/base";
 import { projectStageRenderTargetV1 } from "@sillymaker/base";
 import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
@@ -25,7 +27,7 @@ import type {
 import {
   Button,
   SemanticStageV1,
-  createAudioPresenterV1,
+  GameAudioV1,
   playerInputActionIdsV1,
   systemInputActionIdsV1,
 } from "@sillymaker/ui";
@@ -241,53 +243,14 @@ function LabRollbackControlV1(props: {
  * host — no playback or listener survives HMR or teardown, and nothing here
  * writes gameplay State.
  */
-function LabAudioV1(props: {
-  readonly instance: LabApplicationInstanceV1;
-  readonly createHost: () => AudioHostV1;
-  registerReplay?(replay: (() => boolean) | null): void;
-}): null {
-  const { instance, createHost, registerReplay } = props;
-  useEffect(() => {
-    const host = createHost();
-    const presenter = createAudioPresenterV1({
-      host,
-      resolveEffectAsset: (effect) =>
-        effect.effectId === "audio.sfx" && typeof effect.payload.assetId === "string"
-          ? { assetId: effect.payload.assetId }
-          : null,
-    });
-    const apply = (): void => {
-      const publication = instance.semantic.observe();
-      presenter.retarget({
-        intent: publication.game.audio,
-        revision: publication.revision,
-        epoch: instance.presentationAnchor().epoch,
-      });
-    };
-    apply();
-    const unsubscribeSemantic = instance.semantic.subscribe(apply);
-    const unsubscribeAnchor = instance.subscribePresentationAnchor(() => apply());
-    const unsubscribeEffects = instance.subscribeTransientEffects((effect) =>
-      presenter.onTransientEffect(effect),
-    );
-    const onVisibilityChange = (): void => {
-      if (document.visibilityState === "hidden") presenter.suspend();
-      else presenter.resume();
-    };
-    document.addEventListener("visibilitychange", onVisibilityChange);
-    registerReplay?.(() => presenter.replayVoice());
-    return () => {
-      registerReplay?.(null);
-      document.removeEventListener("visibilitychange", onVisibilityChange);
-      unsubscribeEffects();
-      unsubscribeAnchor();
-      unsubscribeSemantic();
-      presenter.dispose();
-      host.dispose();
-    };
-  }, [instance, createHost, registerReplay]);
-  return null;
-}
+/** The saveable continuous intent lives on the Lab's game view. */
+const selectLabAudioIntentV1 = (publication: unknown): AudioIntentV1 =>
+  (publication as { readonly game: { readonly audio: AudioIntentV1 } }).game.audio;
+
+const resolveLabEffectAssetV1 = (effect: TransientEffectV1): { readonly assetId: string } | null =>
+  effect.effectId === "audio.sfx" && typeof effect.payload.assetId === "string"
+    ? { assetId: effect.payload.assetId }
+    : null;
 
 /**
  * Presentation-barrier load recovery. A barrier restored by a load, refresh,
@@ -574,10 +537,12 @@ export function createLabUiSlotsV1(input: {
     ),
     narrative: (context) => (
       <div data-lab-narrative-root="true">
-        <LabAudioV1
-          instance={input.instance}
+        <GameAudioV1
+          ports={input.instance}
           createHost={input.createAudioHost}
-          registerReplay={registerReplay}
+          selectIntent={selectLabAudioIntentV1}
+          resolveEffectAsset={resolveLabEffectAssetV1}
+          registerReplayVoice={registerReplay}
         />
         {context.publication.view.procedurePhase === "complete" ? (
           <p data-lab-narrative="complete">{labUiTextV1("text.e2e.lab.narrative.completed")}</p>

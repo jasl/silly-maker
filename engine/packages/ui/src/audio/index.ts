@@ -10,6 +10,8 @@ export type {
   FakeAudioHostV1,
 } from "./audio-host.ts";
 export { createAudioPresenterV1 } from "./audio-presenter.ts";
+export { GameAudioV1 } from "./game-audio.tsx";
+export type { GameAudioPortsV1, GameAudioPropsV1 } from "./game-audio.tsx";
 export type {
   AudioPresenterRetargetInputV1,
   AudioPresenterV1,

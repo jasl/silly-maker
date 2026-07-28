@@ -11,6 +11,7 @@ import type {
   DefaultGameRootSlotsV1,
   GameUiProjectorV1,
   KeyboardActionMapV1,
+  AudioHostV1,
   RuntimeAssetLoaderV1,
   RuntimePresentationPublicationV1,
   SaveOverlayLabelsV1,
@@ -19,12 +20,15 @@ import type {
 import {
   Button,
   createAssetRegistryV1,
+  GameAudioV1,
   SemanticStageV1,
   systemInputActionIdsV1,
 } from "@sillymaker/ui";
 import type { PointerActionMapV1 } from "@sillymaker/ui";
+import type { AudioIntentV1 } from "@sillymaker/base";
 import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
 import type { WebGameApplicationV1 } from "@sillymaker/web";
+import { createWebAudioHostV1 } from "@sillymaker/web";
 
 import type {
   CatcafeActionDescriptorV1,
@@ -41,6 +45,7 @@ import type {
   CatcafeQueriesV1,
   CatcafeSimulationTypesV1,
 } from "../simulation.ts";
+import { catcafeAudioManifestV1, resolveCatcafeEffectAssetV1 } from "../audio.ts";
 import {
   catcafeAssetIdsV1,
   catcafeLocalesV1,
@@ -1058,6 +1063,16 @@ function CatcafeSettingsV1(props: { readonly playerProfile: PlayerProfileStoreV1
   );
 }
 
+/** 连续声音意图来自游戏视图；host 惰性创建（首个用户手势解锁播放）。 */
+const selectCatcafeAudioIntentV1 = (publication: unknown): AudioIntentV1 =>
+  (publication as { readonly game: { readonly audio: AudioIntentV1 } }).game.audio;
+
+const createCatcafeAudioHostV1 = (): AudioHostV1 =>
+  createWebAudioHostV1({
+    manifest: catcafeAudioManifestV1,
+    resolveRuntimeUrl: (runtimePath) => new URL(runtimePath, document.baseURI).href,
+  });
+
 export function createCatcafeUiSlotsV1(input: {
   readonly instance: CatcafeApplicationInstanceV1;
   readonly playerProfile: PlayerProfileStoreV1;
@@ -1079,18 +1094,27 @@ export function createCatcafeUiSlotsV1(input: {
       />
     ),
     hud: (context) => (
-      <CatcafeHudV1
-        publication={context.publication}
-        semantic={context.semantic}
-        playerProfile={input.playerProfile}
-        instance={input.instance}
-        registry={input.registry}
-        openAlbum={() =>
-          context.intents.execute(
-            Object.freeze({ kind: "overlay.open" as const, overlayId: "overlay.catcafe.album" }),
-          )
-        }
-      />
+      <>
+        <GameAudioV1
+          ports={input.instance}
+          createHost={createCatcafeAudioHostV1}
+          selectIntent={selectCatcafeAudioIntentV1}
+          resolveEffectAsset={resolveCatcafeEffectAssetV1}
+          playerProfile={input.playerProfile}
+        />
+        <CatcafeHudV1
+          publication={context.publication}
+          semantic={context.semantic}
+          playerProfile={input.playerProfile}
+          instance={input.instance}
+          registry={input.registry}
+          openAlbum={() =>
+            context.intents.execute(
+              Object.freeze({ kind: "overlay.open" as const, overlayId: "overlay.catcafe.album" }),
+            )
+          }
+        />
+      </>
     ),
     narrative: (context) => (
       <CatcafeNarrativePanelV1
