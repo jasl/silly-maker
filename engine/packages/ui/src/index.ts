@@ -196,12 +196,14 @@ export type {
   StageTransitionAcknowledgmentV1,
 } from "./stage/index.ts";
 export {
+  audioBusForChannelV1,
   createAudioPresenterV1,
   createFakeAudioHostV1,
   GameAudioV1,
   sameChannelPlaybackV1,
 } from "./audio/index.ts";
 export type {
+  AudioBusV1,
   AudioHostChannelV1,
   AudioHostDiagnosticV1,
   AudioHostEffectInputV1,

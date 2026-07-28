@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: MIT
-export { createFakeAudioHostV1, sameChannelPlaybackV1 } from "./audio-host.ts";
+export {
+  audioBusForChannelV1,
+  createFakeAudioHostV1,
+  sameChannelPlaybackV1,
+} from "./audio-host.ts";
 export type {
+  AudioBusV1,
   AudioHostChannelV1,
   AudioHostDiagnosticV1,
   AudioHostEffectInputV1,

@@ -222,6 +222,10 @@ function createCatcafeStageRenderersV1(
       const frame = catcafeCatFrameSizeV1(stage);
       const url = assetUrlV1(registry, entry.props.assetId, "character_pose");
       if (url !== null) {
+        // 透明立绘直接坐进场景：呼吸待机常驻，表情切换触发一次
+        // 反馈动作（开心=弹跳、炸毛=抖动）。reduced-motion 下全部静止。
+        const reaction =
+          expression === "hissing" ? "cc-cat-shake" : expression === "calm" ? "" : "cc-cat-pop";
         return (
           <figure
             data-cc-cat={stage}
@@ -231,17 +235,22 @@ function createCatcafeStageRenderersV1(
               width: `${String(frame.width)}px`,
               height: `${String(frame.height)}px`,
               transform: "translate(-50%, -100%)",
-              borderRadius: "46% 46% 18px 18px",
-              overflow: "hidden",
-              border: "3px solid rgba(122, 87, 49, 0.9)",
-              boxShadow:
-                "0 12px 34px rgba(0, 0, 0, 0.5), inset 0 0 0 2px rgba(240, 224, 190, 0.35)",
+              filter: "drop-shadow(0 10px 18px rgba(0, 0, 0, 0.45))",
             }}
           >
             <img
+              key={expression}
               src={url}
               alt={`${entry.accessibleName} · ${expression}`}
-              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+              className={`cc-cat-idle ${reaction}`.trim()}
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "contain",
+                objectPosition: "bottom",
+                display: "block",
+                transformOrigin: "50% 100%",
+              }}
             />
           </figure>
         );
@@ -1163,6 +1172,42 @@ function CatcafeHudV1(props: {
  * invocation；反应文案是 UI 瞬态（按点击时的信任查反应表），权威效果
  * （信任增减、表情变化、每日余量）全部由模块规则决定。
  */
+/** 猫的待机与反馈动画：纯装饰 CSS（语义演出走 Timeline）；尊重 reduced-motion。 */
+const catcafeCatMotionCssV1 = `
+@keyframes cc-cat-breathe {
+  0%, 100% { transform: scale(1, 1); }
+  50% { transform: scale(1.006, 0.988) translateY(1px); }
+}
+@keyframes cc-cat-pop {
+  0% { transform: scale(1.04, 0.92); }
+  45% { transform: scale(0.97, 1.05) translateY(-6px); }
+  100% { transform: scale(1, 1); }
+}
+@keyframes cc-cat-shake {
+  0%, 100% { translate: 0 0; }
+  20% { translate: -7px 0; }
+  40% { translate: 6px 0; }
+  60% { translate: -4px 0; }
+  80% { translate: 3px 0; }
+}
+.cc-cat-idle { animation: cc-cat-breathe 3.6s ease-in-out infinite; }
+/* 游戏内按钮紧凑化：HUD 与对话快捷条采用小号按钮（触控 32px 达标）。 */
+[data-cc-hud] .silly-button,
+[data-cc-narrative] .silly-button,
+[data-default-system-menu] .silly-button {
+  min-block-size: 32px;
+  min-inline-size: 32px;
+  padding-block: 2px;
+  padding-inline: 10px;
+  font-size: 13px;
+}
+.cc-cat-pop { animation: cc-cat-pop 0.5s ease-out, cc-cat-breathe 3.6s ease-in-out 0.5s infinite; }
+.cc-cat-shake { animation: cc-cat-shake 0.45s ease-in-out, cc-cat-breathe 3.6s ease-in-out 0.45s infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .cc-cat-idle, .cc-cat-pop, .cc-cat-shake { animation: none; }
+}
+`;
+
 function CatcafeStageV1(props: {
   readonly context: Parameters<
     NonNullable<
@@ -1215,6 +1260,7 @@ function CatcafeStageV1(props: {
       data-cc-petting-left={String(game.cat.pettingLeft)}
       aria-label={uiText("text.cc.stage.name")}
     >
+      <style>{catcafeCatMotionCssV1}</style>
       <SemanticStageV1
         target={context.publication.view.stageTarget}
         revision={context.publication.semantic.revision}
@@ -1280,38 +1326,6 @@ function CatcafeSettingsV1(props: { readonly playerProfile: PlayerProfileStoreV1
             </option>
           ))}
         </select>
-      </label>
-      <label style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-        {uiText("text.cc.settings.text-speed")}
-        <input
-          data-cc-settings-text-speed="true"
-          type="range"
-          min={10}
-          max={160}
-          step={10}
-          value={preferences.textRevealCharsPerSecond}
-          onChange={(event) => {
-            void props.playerProfile.updatePreferences({
-              textRevealCharsPerSecond: Number(event.target.value),
-            });
-          }}
-        />
-        <span>{String(preferences.textRevealCharsPerSecond)}</span>
-      </label>
-      <label style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-        {uiText("text.cc.settings.auto-wait")}
-        <input
-          data-cc-settings-auto-wait="true"
-          type="range"
-          min={200}
-          max={4000}
-          step={200}
-          value={preferences.autoWaitMs}
-          onChange={(event) => {
-            void props.playerProfile.updatePreferences({ autoWaitMs: Number(event.target.value) });
-          }}
-        />
-        <span>{`${String(preferences.autoWaitMs)}ms`}</span>
       </label>
       <p style={{ margin: 0, opacity: 0.75, maxInlineSize: "36em" }}>
         {uiText("text.cc.settings.resolution")}
@@ -1421,8 +1435,12 @@ export const catcafeRootLabelsV1: Partial<DefaultGameRootLabelsV1> = Object.free
   settingsLabel: "设置",
   settingsTitle: "设置",
   settingsEmptyText: "暂无可配置项。",
-  settingsVolumeLabel: "音量",
+  settingsBgmVolumeLabel: "音乐音量",
+  settingsVoiceVolumeLabel: "语音音量",
+  settingsSfxVolumeLabel: "音效音量",
   settingsMutedLabel: "静音",
+  settingsTextSpeedLabel: "文字速度",
+  settingsAutoWaitLabel: "自动播放停留",
   settingsFullscreenLabel: "切换全屏",
   settingsDeveloperToolsLabel: "开发者工具",
   titleNewGameLabel: "新游戏",
@@ -1437,8 +1455,12 @@ const catcafeRootLabelsEnV1: Partial<DefaultGameRootLabelsV1> = Object.freeze({
   settingsLabel: "Settings",
   settingsTitle: "Settings",
   settingsEmptyText: "No settings available yet.",
-  settingsVolumeLabel: "Volume",
+  settingsBgmVolumeLabel: "Music volume",
+  settingsVoiceVolumeLabel: "Voice volume",
+  settingsSfxVolumeLabel: "Effects volume",
   settingsMutedLabel: "Mute",
+  settingsTextSpeedLabel: "Text speed",
+  settingsAutoWaitLabel: "Auto-forward wait",
   settingsFullscreenLabel: "Toggle fullscreen",
   settingsDeveloperToolsLabel: "Developer tools",
   titleNewGameLabel: "New game",

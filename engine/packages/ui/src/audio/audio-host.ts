@@ -11,6 +11,15 @@ import type { AudioChannelIntentV1 } from "@sillymaker/base";
 
 export type AudioHostChannelV1 = "bgm" | "ambient" | "voice";
 
+/**
+ * Player-facing volume buses: `bgm` groups the continuous music/ambient
+ * channels, `voice` the voice channel, and `sfx` the one-shot effects.
+ */
+export type AudioBusV1 = "bgm" | "voice" | "sfx";
+
+export const audioBusForChannelV1 = (channel: AudioHostChannelV1): AudioBusV1 =>
+  channel === "voice" ? "voice" : "bgm";
+
 export interface AudioHostPlayInputV1 {
   readonly channel: AudioHostChannelV1;
   readonly assetId: string;
@@ -42,6 +51,8 @@ export interface AudioHostV1 {
   /** Fire-and-forget one-shot effect; never tracked, never restored. */
   playEffect(input: AudioHostEffectInputV1): void;
   setMasterGain(gainPermille: number): void;
+  /** Per-bus player volume multiplied under the master gain. */
+  setBusGain(bus: AudioBusV1, gainPermille: number): void;
   setMuted(muted: boolean): void;
   /** Page-visibility suspension; resume continues continuous channels. */
   suspend(): void;
@@ -63,6 +74,7 @@ export interface FakeAudioHostV1 extends AudioHostV1 {
   isSuspended(): boolean;
   isMuted(): boolean;
   masterGainPermille(): number;
+  busGainPermille(bus: AudioBusV1): number;
   isDisposed(): boolean;
 }
 
@@ -74,6 +86,11 @@ export function createFakeAudioHostV1(): FakeAudioHostV1 {
   let suspended = false;
   let muted = false;
   let masterGain = 1000;
+  const busGains = new Map<AudioBusV1, number>([
+    ["bgm", 1000],
+    ["voice", 1000],
+    ["sfx", 1000],
+  ]);
   let disposed = false;
 
   return Object.freeze({
@@ -102,6 +119,10 @@ export function createFakeAudioHostV1(): FakeAudioHostV1 {
       masterGain = gainPermille;
       operations.push(`master:${String(gainPermille)}`);
     },
+    setBusGain(bus: AudioBusV1, gainPermille: number): void {
+      busGains.set(bus, gainPermille);
+      operations.push(`bus:${bus}:${String(gainPermille)}`);
+    },
     setMuted(nextMuted: boolean): void {
       muted = nextMuted;
       operations.push(`muted:${String(nextMuted)}`);
@@ -128,6 +149,7 @@ export function createFakeAudioHostV1(): FakeAudioHostV1 {
     isSuspended: () => suspended,
     isMuted: () => muted,
     masterGainPermille: () => masterGain,
+    busGainPermille: (bus: AudioBusV1) => busGains.get(bus) ?? 1000,
     isDisposed: () => disposed,
   });
 }
