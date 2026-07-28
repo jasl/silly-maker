@@ -145,7 +145,7 @@ function parseConditionAtV1(value: unknown, path: string, depth: number): EventC
       });
     }
     default:
-      fail("event_pool.condition_invalid", path);
+      return fail("event_pool.condition_invalid", path);
   }
 }
 
@@ -302,5 +302,5 @@ export function drawFromEventPoolV1(input: EventPoolDrawInputV1): EventPoolDrawR
     }
   }
   // Unreachable: the roll is bounded by the total weight.
-  fail("event_pool.draw_overflow", "/draw");
+  return fail("event_pool.draw_overflow", "/draw");
 }
