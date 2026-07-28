@@ -6,7 +6,7 @@
 
 ## 剧本/文本任务（最常见）
 
-改哪个文件：台词与界面文案 → `src/presentation.ts`（textId 目录）；剧情节点/分支/舞台指令 → `src/narrative.ts`；舞台渲染器 → `src/application/composition.tsx` 的 `*StageRenderersV1`。
+改哪个文件：台词与界面文案 → `src/presentation.ts`（textId 目录）；剧情节点/分支/舞台指令 → `src/narrative.ts`；舞台渲染器与 shell 组件 → `src/application/shell-ui.tsx`；VN 播放器 → `narrative-ui.tsx`；应用声明/槽位编排 → `composition.tsx`（勿把 PascalCase 组件与 `labGameApplicationV1` 同文件导出，否则 Vite Fast Refresh 失效）。`core-application.ts` 是 headless 实例工厂。
 
 动手前先列节点序列表（每个 say/choice 边界一个 occurrence 编号，从 1 起），场景脚本（`src/tooling/simulation-target.ts`）与测试一次写对。
 

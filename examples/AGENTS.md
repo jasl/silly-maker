@@ -13,7 +13,7 @@
 
 ## 剧本/文本任务（最常见）
 
-改哪个文件：台词与界面文案 → `src/presentation.ts`（textId 目录）；剧情节点/分支/舞台指令 → `src/narrative.ts`（cat-cafe 为 `src/features/dialogue/script.ts`）；舞台渲染器 → `src/application/composition.tsx` 的 `*StageRenderersV1`。
+改哪个文件：台词与界面文案 → `src/presentation.ts`（textId 目录）；剧情节点/分支/舞台指令 → `src/narrative.ts`（cat-cafe 为 `src/features/dialogue/script.ts`）；舞台渲染器 → `src/application/composition.tsx` 的 `*StageRenderersV1`（或特性切片内的 renderers）；HUD/面板等 PascalCase 组件 → `src/application/ui.tsx`（与 `composition.tsx` 的应用声明分开，便于 Vite Fast Refresh）。`core-application.ts` 是 headless 实例工厂，不是浏览器绑定。
 
 动手前先列节点序列表（每个 say/choice 边界一个 occurrence 编号，从 1 起），场景脚本（`src/tooling/simulation-target.ts`）与测试一次写对。
 
