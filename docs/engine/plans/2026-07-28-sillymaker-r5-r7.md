@@ -12,15 +12,15 @@
 
 ## 明确 defer（本计划不做，激活需真实 Story 证据）
 
-| Defer 项                                             | 来源       | 激活条件                                         |
-| ---------------------------------------------------- | ---------- | ------------------------------------------------ |
-| `keyframes(...)` 语法糖                              | R5/设计 §9 | tween 组合被真实剧本证明太啰嗦                   |
-| `onLifecycle("show"/"hide"/...)` 自动绑定            | 设计 §9    | 显式 `play_cue` 被证明不够（如入场动画普遍需要） |
-| 受约束 Presentation Scene Graph（group/mask/effect） | R5         | 扁平 Stage 被真实 Story 证明不足                 |
-| layer transform 作为 timeline target                 | R5         | 真实剧本需要整层动画                             |
-| Stage 预览、Timeline scrubber UI、可视化 editor      | R6.3–6.5   | 依据实际创作成本决定                             |
-| video/Live2D/骨骼/Rive/WebGL adapter                 | R8         | 真实 Story 需求逐项决定                          |
-| Project Tavern 的 rollback 产品策略                  | R7         | Engine Lab 验证完成后单独决策                    |
+| Defer 项                                                                                 | 来源       | 激活条件                                         |
+| ---------------------------------------------------------------------------------------- | ---------- | ------------------------------------------------ |
+| `keyframes(...)` 语法糖                                                                  | R5/设计 §9 | tween 组合被真实剧本证明太啰嗦                   |
+| `onLifecycle("show"/"hide"/...)` 自动绑定                                                | 设计 §9    | 显式 `play_cue` 被证明不够（如入场动画普遍需要） |
+| 受约束 Presentation Scene Graph（group/mask/effect）                                     | R5         | 扁平 Stage 被真实 Story 证明不足                 |
+| layer transform 作为 timeline target                                                     | R5         | 真实剧本需要整层动画                             |
+| Stage 预览、Timeline scrubber UI、可视化 editor                                          | R6.3–6.5   | 依据实际创作成本决定                             |
+| video/Live2D/骨骼/Rive/WebGL adapter                                                     | R8         | 真实 Story 需求逐项决定                          |
+| ~~旗舰示例的 rollback 产品策略~~（已落地：雨巷猫舍以开赛/结局确认为 barrier + HUD 回退） | R7         | 已交付（2026-07-28）                             |
 
 ## T1 — Typed Timeline（R5）
 
