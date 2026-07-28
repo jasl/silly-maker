@@ -37,12 +37,15 @@ function createResolverV1(
     resolve(id: OverlayIdV1) {
       switch (id) {
         case "inventory":
-          return resolutionV1(
-            "背包",
-            <button type="button" onClick={() => store.pushDetail("ingredient")}>
-              食材详情
-            </button>,
-          );
+          return Object.freeze({
+            ...resolutionV1(
+              "背包",
+              <button type="button" onClick={() => store.pushDetail("ingredient")}>
+                食材详情
+              </button>,
+            ),
+            backdropDismiss: false,
+          });
         case "ingredient":
           return resolutionV1(
             "食材详情",
@@ -495,5 +498,42 @@ describe("OverlayHostV1", () => {
       /\.overlay-host__content\s*\{[^}]*max-block-size:\s*calc\(100% - 2 \* var\(--silly-space-3\)\);/su,
     );
     expect(css).not.toMatch(/\.overlay-host__content\s*\{[^}]*max-block-size:\s*calc\(100dvh/su);
+  });
+
+  it("backdrop clicks dismiss only the topmost stacked window; opt-out respected", async () => {
+    const store = createOverlaySessionStoreV1<OverlayIdV1>();
+    render(
+      <DevDockPortalCoordinatorV1>
+        <OverlayHostV1
+          store={store}
+          rendererResolver={createResolverV1(store)}
+          inputRouter={createInputRouterV1()}
+          closeLabel="关闭"
+        />
+      </DevDockPortalCoordinatorV1>,
+    );
+    act(() => {
+      store.openPrimary("inventory");
+      store.pushDetail("ingredient");
+    });
+    const user = userEvent.setup();
+    await screen.findByRole("dialog", { name: "食材详情" });
+
+    // Two backdrops exist; only the top layer's is clickable (the lower
+    // layer is inert). Clicking it closes the detail, not the primary.
+    const topBackdrop = document.querySelector("[data-overlay-backdrop='1']");
+    expect(topBackdrop).not.toBeNull();
+    await user.click(topBackdrop as HTMLElement);
+    // Only the top closed: the detail is gone, the primary window remains.
+    expect(store.getSnapshot()).toEqual({ primaryId: "inventory", detailIds: [] });
+    await waitFor(() => expect(document.querySelector("[data-overlay-kind='detail']")).toBeNull());
+    expect(document.querySelector("[data-overlay-kind='primary']")).not.toBeNull();
+
+    // The primary opted out (backdropDismiss: false): its backdrop ignores
+    // clicks and the window stays.
+    const primaryBackdrop = document.querySelector("[data-overlay-backdrop='0']");
+    await user.click(primaryBackdrop as HTMLElement);
+    expect(store.getSnapshot()).toEqual({ primaryId: "inventory", detailIds: [] });
+    expect(document.querySelector("[data-overlay-kind='primary']")).not.toBeNull();
   });
 });
