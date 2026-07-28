@@ -12,11 +12,11 @@ import {
   simulateStoryApplicationV1,
 } from "@sillymaker/tooling";
 
-import { projectTavernConfigV1 } from "../../../project.config.ts";
+import { sillyMakerConfigV1 } from "../../../project.config.ts";
 
 const repositoryRootV1 = fileURLToPath(new URL("../../..", import.meta.url));
 const loaderV1 = createImportProjectModuleLoaderV1(repositoryRootV1);
-const validatedProjectV1 = defineSillymakerProjectV1(projectTavernConfigV1);
+const validatedProjectV1 = defineSillymakerProjectV1(sillyMakerConfigV1);
 
 describe("project commands against the real repository config", () => {
   it("resolves every registered application through one config mechanism", async () => {

@@ -1,67 +1,64 @@
-# Project Tavern / SillyMaker
+# SillyMaker
 
-Project Tavern 是一款以酒馆经营为核心、关系与文字叙事为重要组成的个人游戏项目；SillyMaker 是本仓库持续维护的 React + TypeScript 游戏引擎。
+English | [简体中文](README.zh-CN.md)
 
-首个七日 PoC 已完成工程闭环并整体退役（连同 V1 场景系统，备份于 `archive/poc-v1-stage-2026-07` 分支）。当前阶段以引擎为先：维护中的参考应用是 Engine Lab（`e2e`）、起点模板（`template`）与收编示例（`examples/*`）；新的 Tavern 玩法会在引擎足够好之后重新设计。
+An LLM-friendly TypeScript + React game engine for visual novels, management sims, and RPG-flavored story games. Deterministic simulation, a semantic stage, atomic saves — authorable by humans and AI agents alike, running on [Deno](https://deno.com/).
 
-## 快速开始
+**Play the flagship example**: the [Cat Cafe](examples/cat-cafe/) (《雨巷猫舍》) is a complete, publishable game built to drive the engine — title screen, scheduling gameplay, petting hit-regions, a turn-based contest, an album, multiple endings with a postgame, dialogue playback QoL (typewriter / auto / skip / history / rollback), scene-driven audio, save slots with safepoints, bilingual text, and one-step desktop packaging.
 
-要求：Deno >= 2.9.0（运行时与包管理器一体；npm 依赖经 Deno 的 Node 兼容层解析）。
+## Why SillyMaker
+
+- **Deterministic by construction** — one session owns authoritative state; commands commit atomically or not at all; RNG travels inside snapshots, so replay and player rollback reproduce the same run bit for bit.
+- **Semantic stage, not a canvas** — Stories publish plain-data stage targets (content IDs, placements, appearances, hit regions); renderers are swappable React components; saves never contain renderer state.
+- **Static data as content tables** — items, activities, events, and reactions live in validated content-database tables with typed queries; mutable state stays in modules; tuning is editing a table row.
+- **Built for both audiences** — AI agents get structured diagnostics, headless simulation, and authoring canaries; humans get a DevDock with live inspectors, a writable tuning panel, trajectory traces, and save diffs.
+
+## Quick start
+
+Requires Deno >= 2.9.0 (runtime and package manager in one; npm dependencies resolve through Deno's Node compatibility).
 
 ```sh
 deno install
-deno task dev
+deno task dev            # Vite dev server (pick an app with --mode <applicationId>)
 ```
 
-常用命令：
+Common commands:
 
-- `deno task check`：格式、静态检查、类型检查和产品级自动化测试的本地主入口；
-- `deno task test`：引擎与游戏行为测试；
-- `deno task test:e2e`：浏览器端用户流程；
-- `deno task story <verb> <app>`：应用生命周期 CLI（inspect/check/simulate/dev --smoke/build/prebuilt-smoke，JSON 报告）；
-- `deno task test:e2e:engine:prebuilt`：构建 Engine Lab 并在产物上运行引擎套件；
-- `deno task site:build`：组装可发布静态站（文档 + 《雨巷猫舍》试玩）到 `dist/site`，经 GitHub Pages workflow 或 `deno task site:deploy:cf`（Cloudflare Workers）发布，见 [build-and-release](docs/engine/build-and-release.md)。
+- `deno task check` — the canonical local gate: format, lint, typecheck, and the product-level test suite;
+- `deno task test` / `deno task test:e2e` — engine/game behavior tests and browser user flows;
+- `deno task story <verb> <app>` — the application lifecycle CLI (inspect / check / simulate / dev --smoke / build / desktop, JSON reports);
+- `deno task site:build` — compose the publishable static site (docs + the playable Cat Cafe) into `dist/site`, then deploy via the GitHub Pages workflow or `deno task site:deploy:cf` (Cloudflare Workers); see [build-and-release](docs/engine/build-and-release.md).
 
-这些命令不要求特定机器或精确 patch 版本。发布到远端仍是独立的人工作业。
+Start a new game by copying [`template/`](template/) and following its README; every application registers in [`project.config.ts`](project.config.ts).
 
-## 文档
+## Documentation
 
-- [文档地图](docs/README.md)
-- [SillyMaker 架构](docs/engine/architecture.md)
-- [SillyMaker 路线图](docs/engine/roadmap.md)
-- [引擎特性](docs/engine/features.md)
-- [开发与测试](docs/engine/development.md)
-- [Story 编写](docs/engine/story-authoring.md)
-- [构建与发布](docs/engine/build-and-release.md)
-- [Project Tavern 玩法重设计状态](docs/game/README.md)
-- [许可政策](docs/policies/licensing.md)
-- [素材与参考资料政策](docs/policies/assets-and-references.md)
-- [vNext foundations 实施计划](docs/engine/plans/2026-07-19-sillymaker-vnext-foundations.md)
+- [Documentation map](docs/README.md) — the index of everything below
+- [Architecture](docs/engine/architecture.md) · [Features](docs/engine/features.md) · [Roadmap](docs/engine/roadmap.md)
+- [Development and testing](docs/engine/development.md) · [Story authoring](docs/engine/story-authoring.md) · [Authoring quickstart](docs/engine/authoring-quickstart.md)
+- [Build and release](docs/engine/build-and-release.md) (web, static hosting, desktop packaging)
+- Public site (VitePress, en/zh) lives in [`website/`](website/)
 
-首个 PoC Goal 的计划、规格、证据和旧 runbook 已整体移入[历史归档](docs/archive/2026-07-first-poc-goal/README.md)；PoC 应用代码保留在 `archive/poc-v1-stage-2026-07` 分支。归档用于追溯，不再约束当前开发。
-
-## 仓库结构
+## Repository map
 
 ```text
-engine/packages/base     通用合同、Story authoring、运行时、存档与诊断
-engine/packages/tooling  项目配置与 story CLI 命令
-engine/packages/ui       通用 React 游戏 UI 与 presentation runtime
-engine/packages/web      浏览器 Host、IndexedDB/HTTP 持久化、挂载与自动化
-e2e/                     中立引擎一致性 Story（Engine Lab）
-template/                新游戏起点骨架
-examples/                示例 Story（bookshop、cat-cafe）
-project.config.ts        所有应用的注册处
-scripts/                 构建身份、资产校验、桌面存档服务器
-docs/                    内部工程文档（计划、研究、提案、政策）
-website/                 对外文档站（VitePress，en + zh）
+engine/packages/base     Generic contracts, Story authoring, runtime, saves, diagnostics
+engine/packages/tooling  Project config and story CLI commands
+engine/packages/ui       Generic React game UI and presentation runtime
+engine/packages/web      Browser host, IndexedDB/HTTP persistence, mounting, automation
+e2e/                     The neutral engine-conformance Story (Engine Lab)
+template/                The starter skeleton for new games
+examples/                Example Stories (bookshop, cat-cafe)
+project.config.ts        Where every application registers
+scripts/                 Build identity, asset checks, desktop save server, site composer
+docs/                    Internal engineering docs (plans, research, proposals, policies)
+website/                 The public documentation site (VitePress, en + zh)
 ```
 
-各 workspace package 当前均为私有包；“public export”表示仓库内受支持的包入口，不表示已发布到 npm。
+Workspace packages are private; “public export” means a supported in-repo package entry, not an npm release.
 
-## 许可证
+## License
 
 Copyright © 2026 Jun Jiang (jasl).
 
-这是多许可证仓库：通用 SillyMaker 引擎代码采用 MIT；Project Tavern 游戏专用软件采用 PolyForm Noncommercial 1.0.0；原创内容与项目文档通常采用 CC BY-NC-SA 4.0。第三方材料保留原始条款。完整范围以 [LICENSE.md](LICENSE.md)、文件头和包元数据为准。
-
-Project Tavern 不能被描述为 MIT 游戏或整体开源项目。贡献边界见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+The whole repository — engine, examples, scripts, and documentation — is [MIT](LICENSE.md). AI-generated and synthesized media assets (images and audio under `examples/*/assets/**` and `art-source/**`) are dedicated to the public domain under CC0 1.0: commercial use, derivatives, and redistribution without restriction. Third-party materials keep their own terms. Contribution guidelines: [CONTRIBUTING.md](CONTRIBUTING.md).

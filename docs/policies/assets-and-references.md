@@ -43,7 +43,7 @@ Material intentionally copied from a third party into Git belongs under:
 vendor/**
 ```
 
-That includes code, fonts, icons, images, models, audio, data, translations, purchased assets, plugins, and other copied files. Each item keeps its original license, contract, notice, or public-domain status and is outside the repository's MIT, PolyForm, and CC grants.
+That includes code, fonts, icons, images, models, audio, data, translations, purchased assets, plugins, and other copied files. Each item keeps its original license, contract, notice, or public-domain status and is outside the repository's MIT and CC0 grants.
 
 Preserve notices and enough source/terms context for a human to understand the permitted use. The repository does not mandate an exhaustive license scanner or one universal sidecar schema. Absence of an automated rejection does not establish permission.
 

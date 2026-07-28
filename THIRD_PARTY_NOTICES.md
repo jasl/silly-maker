@@ -1,6 +1,6 @@
 # Third-Party Material
 
-Project Tavern's MIT, PolyForm Noncommercial, and Creative Commons grants apply only to the project-owned scopes identified in `LICENSE.md`. They do not relicense npm packages, browser or operating-system components, build tools, services, or other third-party material.
+SillyMaker's MIT and CC0 grants apply only to the project-owned scopes identified in `LICENSE.md`. They do not relicense npm packages, browser or operating-system components, build tools, services, or other third-party material.
 
 ## Package-manager dependencies
 

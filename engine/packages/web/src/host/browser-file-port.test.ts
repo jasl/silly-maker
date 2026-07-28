@@ -90,7 +90,7 @@ describe("createBrowserFilePortV1", () => {
   });
 
   it("downloads through a temporary browser anchor and always revokes its URL", async () => {
-    const objectUrl = "blob:project-tavern-test";
+    const objectUrl = "blob:silly-maker-test";
     const createObjectURL = vi.fn((_blob: Blob) => objectUrl);
     const revokeObjectURL = vi.fn();
     const click = vi

@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+# SPDX-License-Identifier: MIT
 # Synthesizes the Cat Cafe placeholder audio set from first principles
 # (pure Python stdlib -> WAV, then ffmpeg -> MP3). Every byte is generated
 # by this script: no third-party recordings, no copyright exposure, stable

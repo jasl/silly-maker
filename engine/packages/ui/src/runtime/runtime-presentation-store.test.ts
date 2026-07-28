@@ -815,7 +815,7 @@ describe("RuntimePresentationStoreV1", () => {
   it("keeps generic runtime and Story Web projection closures separated", async () => {
     const runtimeImports = await collectProductionImportsV1("engine/packages/ui/src/runtime");
     expect(runtimeImports).toContain("@sillymaker/base");
-    expect(runtimeImports).not.toMatch(/stories\/|apps\/web|@project-tavern\//u);
+    expect(runtimeImports).not.toMatch(/stories\/|apps\/web|@silly-maker\//u);
 
     expect(await collectNodeImportClosureV1("e2e/src/story.ts")).not.toMatch(
       /runtime-presentation|\.tsx|react/u,

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+// SPDX-License-Identifier: MIT
 import { readFile, realpath as resolveRealpath } from "node:fs/promises";
 import { registerHooks } from "node:module";
 import { join, resolve } from "node:path";
@@ -43,7 +43,7 @@ async function loadRuntimeAssetModulesV1() {
         import("./validate-runtime.mts"),
       ]);
     const loader = loaderModule.createImportProjectModuleLoaderV1(repositoryRootForLoadingV1);
-    const project = toolingModule.defineSillymakerProjectV1(configModule.projectTavernConfigV1);
+    const project = toolingModule.defineSillymakerProjectV1(configModule.sillyMakerConfigV1);
     const verifiedApplications = project.applications.filter(
       (application) => application.assetVerification,
     );

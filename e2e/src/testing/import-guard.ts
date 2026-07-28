@@ -9,7 +9,7 @@
  * helper, not a runtime security mechanism.
  */
 const forbiddenSpecifierPatternsV1: readonly RegExp[] = Object.freeze([
-  /^@project-tavern\//u,
+  /^@silly-maker\//u,
   /^@sillymaker\/(?:base|ui|web)\/src(?:\/|$)/u,
   /(?:^|\/)engine\/packages\/[^/]+\/src(?:\/|$)/u,
   /(?:^|\/)(?:e2e|examples|template)\/(?:[^/]+\/)*src(?:\/|$)/u,

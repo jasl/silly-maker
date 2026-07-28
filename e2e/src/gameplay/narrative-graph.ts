@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+// SPDX-License-Identifier: MIT
 import type { AssetDemandPlanV1, NarrativeGraphV1, NarrativePredictionV1 } from "@sillymaker/base";
 import {
   narrativePredictionToDemandPlanV1,

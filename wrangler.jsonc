@@ -5,7 +5,7 @@
 //   deno task site:build          # SITE_BASE defaults to "/"
 //   deno task site:deploy:cf      # needs `wrangler login` once
 {
-  "name": "project-tavern",
+  "name": "silly-maker",
   "compatibility_date": "2026-07-01",
   "assets": {
     "directory": "./dist/site",

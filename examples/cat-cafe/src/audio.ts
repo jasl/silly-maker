@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+// SPDX-License-Identifier: MIT
 import type { AudioIntentV1, ResolvedAudioManifestV1, TransientEffectV1 } from "@sillymaker/base";
 import { parseAudioIntentV1, resolveAudioManifestV1 } from "@sillymaker/base";
 

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+// SPDX-License-Identifier: MIT
 import { createHash, randomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import { open, lstat, readdir, realpath, rename, rm } from "node:fs/promises";

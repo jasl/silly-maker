@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+// SPDX-License-Identifier: MIT
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -11,7 +11,7 @@ const repositoryRootV1 = resolve(fileURLToPath(new URL(".", import.meta.url)), "
 const [
   { defineSillymakerProjectV1, runProjectCliV1 },
   { createImportProjectModuleLoaderV1 },
-  { projectTavernConfigV1 },
+  { sillyMakerConfigV1 },
 ] = await Promise.all([
   import("../../engine/packages/tooling/src/project/index.ts"),
   import("../../engine/packages/tooling/src/project/loader.ts"),
@@ -19,7 +19,7 @@ const [
 ]);
 
 process.exitCode = await runProjectCliV1({
-  project: defineSillymakerProjectV1(projectTavernConfigV1),
+  project: defineSillymakerProjectV1(sillyMakerConfigV1),
   argv: process.argv.slice(2),
   loader: createImportProjectModuleLoaderV1(repositoryRootV1),
   repositoryRoot: repositoryRootV1,

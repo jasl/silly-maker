@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+// SPDX-License-Identifier: MIT
 import { createInProcessAgentGamePortV1 } from "@sillymaker/base/runtime";
 
 import { createCatcafeApplicationInstanceV1 } from "../application/core-application.ts";

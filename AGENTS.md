@@ -2,7 +2,7 @@
 
 ## Mission
 
-This repository contains **SillyMaker**, a reusable React and TypeScript game engine, and **Project Tavern**, the game used to develop it. The first seven-day Tavern implementation is an engineering reference, not a frozen product design. The active work may redesign gameplay, engine APIs, state management, presentation, and authoring workflows.
+This repository is **SillyMaker** (https://github.com/jasl/silly-maker), a reusable React and TypeScript game engine developed by building real games. The current flagship is the Cat Cafe example (`examples/cat-cafe`); the retired Project Tavern PoC lives only in history. The active work may redesign gameplay, engine APIs, state management, presentation, and authoring workflows.
 
 Prefer a coherent maintainable system over compatibility with the completed first-PoC implementation. When a durable public contract changes, update its documentation and tests with the code.
 
@@ -19,7 +19,7 @@ Read only the documents relevant to the change:
 - `docs/engine/story-authoring.md` — current Story composition model.
 - `docs/engine/authoring-quickstart.md` — layered authoring playbook (content edits, module wiring, application declarations) with the diagnostics quick-reference. Story-directory agents also read the per-directory handbooks: `e2e/AGENTS.md`, `examples/AGENTS.md`, `template/AGENTS.md`.
 - `docs/engine/build-and-release.md` — local Player build and Artifact workflow.
-- `docs/game/README.md` — current Project Tavern design status.
+- `docs/game/README.md` — game design notes (historical Project Tavern status; new gameplay design also lands here).
 - `website/**` — the public documentation site (VitePress, en + zh); internal plans/research/proposals stay under `docs/` and are not published.
 - `docs/policies/licensing.md` and `docs/policies/assets-and-references.md` — durable legal and source-material policy.
 - Root legal files (`LICENSE.md`, `NOTICE`, `THIRD_PARTY_NOTICES.md`, `TRADEMARKS.md`) — controlling legal scope.
@@ -30,7 +30,7 @@ The roadmap and design documents describe accepted direction; they do not make a
 
 ## Architecture baseline
 
-- `@sillymaker/base` owns generic contracts, Story authoring primitives, deterministic runtime state, sessions, persistence orchestration, replay, and diagnostics. It has no React, DOM, browser-storage, or Project Tavern dependency.
+- `@sillymaker/base` owns generic contracts, Story authoring primitives, deterministic runtime state, sessions, persistence orchestration, replay, and diagnostics. It has no React, DOM, browser-storage, or game-specific dependency.
 - `@sillymaker/ui` owns reusable React presentation, input, interaction, overlays, diagnostics UI, assets, characters, stages, and semantic-publication bridges.
 - `@sillymaker/web` owns browser hosting, IndexedDB persistence adapters, mounting, routing, capabilities, automation, pointer input, and development rebootstrap.
 - Story packages at the repository top level own game-specific state, rules, content, projections, application composition, and Story tooling: `e2e/` (the neutral Engine Lab conformance Story), `template/` (the minimal starter), and `examples/*` (curated showcases). `project.config.ts` at the root registers every application.
@@ -69,12 +69,11 @@ This baseline describes the implementation, not an immutable constitution. Archi
 ## Licensing and source-material boundaries
 
 - Copyright holder: `Jun Jiang (jasl)`.
-- Generic SillyMaker code in `engine/packages/base`, `engine/packages/tooling`, `engine/packages/ui`, and `engine/packages/web` is MIT, as are the neutral Story packages `e2e/`, `template/`, and `examples/bookshop` (explicitly marked). Project Tavern software and `examples/cat-cafe` code are PolyForm Noncommercial 1.0.0. Original narrative, localization, art, audio, design, and repository documentation are generally CC BY-NC-SA 4.0. `LICENSE.md` and file/package-specific notices control.
-- Never describe the whole repository or Project Tavern game as MIT or open source. Composite builds do not relicense restricted game software or content.
+- The whole repository — engine packages, Story packages (e2e, template, examples including the cat-cafe), scripts, configuration, and documentation — is MIT. AI-generated and synthesized media assets (`examples/*/assets/**`, `art-source/**`) are dedicated to the public domain under CC0 1.0 (commercial use, derivatives, and redistribution unrestricted). `LICENSE.md` controls.
 - Intentionally copied third-party material belongs under `vendor/**` and retains its own terms. npm dependencies retain their own terms.
 - `references/` is ignored, untracked research input. Register it in `docs/research/reference-register.md`; production code, tests, generators, and artifacts must not depend on it or copy distinctive third-party material from it.
 - AIGC source archives and promoted runtime assets follow `docs/policies/assets-and-references.md`. Runtime digests establish technical identity, not copyright provenance or approval.
-- Restricted game/content areas do not accept external contributions without an owner-approved written CLA or copyright assignment. MIT engine contributions are inbound=outbound MIT.
+- Contributions are accepted inbound=outbound MIT (media assets CC0).
 
 ## Generated and local files
 

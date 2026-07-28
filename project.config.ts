@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+// SPDX-License-Identifier: MIT
 import type { SillymakerProjectConfigV1 } from "@sillymaker/tooling/project/config-types";
 
 /**
@@ -10,8 +10,8 @@ import type { SillymakerProjectConfigV1 } from "@sillymaker/tooling/project/conf
  * loads it through plain Node without the repository's TypeScript resolution
  * hooks. Command entrypoints validate it with `defineSillymakerProjectV1`.
  */
-export const projectTavernConfigV1 = {
-  projectId: "project-tavern",
+export const sillyMakerConfigV1 = {
+  projectId: "silly-maker",
   applications: [
     {
       applicationId: "e2e",

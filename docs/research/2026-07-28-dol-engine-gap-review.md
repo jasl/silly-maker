@@ -1,4 +1,4 @@
-<!-- SPDX-License-Identifier: CC-BY-NC-SA-4.0 -->
+<!-- SPDX-License-Identifier: MIT -->
 
 # Degrees of Lewdity 对照复查：今日引擎的真缺口
 

@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "license": "SEE LICENSE IN LICENSE.md",
+  "license": "MIT",
   "description": "Example Story: an all-ages schedule/stats/touch/contest cat-cafe sim driving the content database.",
   "exports": {
     ".": "./src/story.ts"

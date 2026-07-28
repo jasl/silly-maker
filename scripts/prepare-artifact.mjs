@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+// SPDX-License-Identifier: MIT
 import { randomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import { lstat, mkdir, open, realpath, rename, rm } from "node:fs/promises";
@@ -7,9 +7,8 @@ import { fileURLToPath } from "node:url";
 
 export const projectLegalFilesV1 = Object.freeze([
   "LICENSE.md",
-  "LICENSES/CC-BY-NC-SA-4.0.txt",
+  "LICENSES/CC0-1.0.txt",
   "LICENSES/MIT.txt",
-  "LICENSES/PolyForm-Noncommercial-1.0.0.txt",
   "NOTICE",
   "THIRD_PARTY_NOTICES.md",
   "TRADEMARKS.md",

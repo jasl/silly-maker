@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+// SPDX-License-Identifier: MIT
 import { once } from "node:events";
 import { mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
@@ -18,7 +18,7 @@ import {
 const temporaryRootsV1: string[] = [];
 
 async function createTemporaryRootV1(): Promise<string> {
-  const root = await mkdtemp(join(tmpdir(), "project-tavern-artifact-manifest-"));
+  const root = await mkdtemp(join(tmpdir(), "silly-maker-artifact-manifest-"));
   temporaryRootsV1.push(root);
   return root;
 }

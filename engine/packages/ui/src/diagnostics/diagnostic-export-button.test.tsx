@@ -18,7 +18,7 @@ import {
 afterEach(cleanup);
 
 const previewV1 = Object.freeze({
-  filename: "project-tavern.debug-bundle.json",
+  filename: "silly-maker.debug-bundle.json",
   mediaType: "application/json" as const,
   digest: digestBytes(Uint8Array.of(1, 2, 3)),
   encodedByteLength: parseNonNegativeSafeInteger(4096),

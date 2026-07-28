@@ -6,7 +6,7 @@ SillyMaker 是面向视觉小说、养成模拟和轻 RPG 的 TypeScript + React
 
 ```sh
 git clone <repository>
-cd tavern_game
+cd silly-maker
 deno install
 ```
 

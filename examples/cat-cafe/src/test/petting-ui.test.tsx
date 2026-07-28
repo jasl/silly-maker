@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+// SPDX-License-Identifier: MIT
 // 语义级抚摸链路测试。完整浏览器 UI 链（标题屏 → 开场 → 命中区域点击 →
 // 反应气泡 → 余量耗尽）由 hit-regions 浏览器 spec 验证；jsdom 下挂载完整
 // web UI 会触发 Deno×jsdom×React 跨 realm 事件派发崩溃，故这里驱动语义
