@@ -21,6 +21,9 @@ import type {
 import {
   AdvanceSurfaceV1,
   Button,
+  resolveAssetUrlV1,
+  useAssetUrlV1,
+  useReducedMotionV1,
   createAnimationFramePresentationClockV1,
   PanelV1,
   createAssetRegistryV1,
@@ -103,33 +106,6 @@ export const catcafeThemeV1 = Object.freeze({
 type CatcafeAssetRegistryV1 = AssetRegistryV1<string, never, string>;
 
 /** 订阅 registry 并解析资产 URL；未加载/失败时返回 null（渲染器降级）。 */
-function useAssetUrlV1(
-  registry: CatcafeAssetRegistryV1 | null,
-  assetId: string | undefined,
-  usage: "scene_background" | "character_pose" | "ui_decoration",
-): string | null {
-  const revision = useSyncExternalStore(
-    (listener) => (registry === null ? () => {} : registry.subscribe(listener)),
-    () => (registry === null ? 0 : registry.observe().revision),
-    () => 0,
-  );
-  void revision;
-  if (registry === null || assetId === undefined) return null;
-  const resolved = registry.resolve(assetId as never, usage as never);
-  return resolved.delivery === "runtime_image" ? resolved.url : null;
-}
-
-/** 非 hook 版：渲染器闭包内使用（registry 变更由舞台重渲染驱动）。 */
-function assetUrlV1(
-  registry: CatcafeAssetRegistryV1 | null,
-  assetId: unknown,
-  usage: "scene_background" | "character_pose" | "ui_decoration",
-): string | null {
-  if (registry === null || typeof assetId !== "string") return null;
-  const resolved = registry.resolve(assetId as never, usage as never);
-  return resolved.delivery === "runtime_image" ? resolved.url : null;
-}
-
 type CatcafeSemanticPublicationV1 = ReturnType<CatcafeApplicationInstanceV1["semantic"]["observe"]>;
 type CatcafeSemanticPortV1 = CatcafeApplicationInstanceV1["semantic"];
 
@@ -193,7 +169,7 @@ function createCatcafeStageRenderersV1(
 ): Readonly<Record<string, SemanticStageEntryRendererV1>> {
   return Object.freeze({
     "renderer.catcafe.background": ({ entry }) => {
-      const url = assetUrlV1(registry, entry.props.assetId, "scene_background");
+      const url = resolveAssetUrlV1(registry, entry.props.assetId, "scene_background");
       if (url !== null) {
         return (
           <img
@@ -222,7 +198,7 @@ function createCatcafeStageRenderersV1(
       const stage = String(entry.props.stage);
       const expression = String(entry.props.expression);
       const frame = catcafeCatFrameSizeV1(stage);
-      const url = assetUrlV1(registry, entry.props.assetId, "character_pose");
+      const url = resolveAssetUrlV1(registry, entry.props.assetId, "character_pose");
       if (url !== null) {
         // 透明立绘直接坐进场景：呼吸待机常驻，表情切换触发一次
         // 反馈动作（开心=弹跳、炸毛=抖动）。reduced-motion 下全部静止。
@@ -420,7 +396,7 @@ function CatcafeAlbumViewV1(props: {
       {catcafeAlbumV1.rows().map((entry) => {
         const unlocked = profile.meta[entry.id] !== undefined;
         const url = unlocked
-          ? assetUrlV1(props.registry, catcafeAlbumAssetForV1(entry.id), "ui_decoration")
+          ? resolveAssetUrlV1(props.registry, catcafeAlbumAssetForV1(entry.id), "ui_decoration")
           : null;
         return (
           <li
@@ -468,22 +444,6 @@ function CatcafeAlbumViewV1(props: {
         );
       })}
     </ol>
-  );
-}
-
-function useCatcafeReducedMotionV1(): boolean {
-  return useSyncExternalStore(
-    (listener) => {
-      if (typeof matchMedia !== "function") return () => {};
-      const query = matchMedia("(prefers-reduced-motion: reduce)");
-      query.addEventListener("change", listener);
-      return () => query.removeEventListener("change", listener);
-    },
-    () =>
-      typeof matchMedia === "function"
-        ? matchMedia("(prefers-reduced-motion: reduce)").matches
-        : false,
-    () => false,
   );
 }
 
@@ -569,7 +529,7 @@ function CatcafeNarrativePanelV1(props: {
     (listener) => props.playerProfile.subscribe(listener),
     () => props.playerProfile.current(),
   ).preferences;
-  const reducedMotion = useCatcafeReducedMotionV1();
+  const reducedMotion = useReducedMotionV1();
   const [clock] = useState<PresentationClockV1>(() => createAnimationFramePresentationClockV1());
   const [, setPlaybackVersion] = useState(0);
   const [revealVersion, setRevealVersion] = useState(0);

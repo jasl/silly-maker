@@ -19,6 +19,7 @@ import {
   inputIgnoredV1,
   playerInputActionIdsV1,
   systemInputActionIdsV1,
+  useReducedMotionV1,
 } from "@sillymaker/ui";
 
 import type { LabUiPublicationV1 } from "./web-application.tsx";
@@ -47,25 +48,6 @@ export interface LabNarrativePlayerInputV1 {
   readonly clock?: PresentationClockV1;
   /** Player-controlled voice replay wired from the audio presenter. */
   replayVoice?(): boolean;
-}
-
-const reducedMotionQueryV1 = "(prefers-reduced-motion: reduce)";
-
-function useReducedMotionV1(): boolean {
-  const [reduced, setReduced] = useState(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
-    return window.matchMedia(reducedMotionQueryV1).matches;
-  });
-  useEffect(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
-      return () => {};
-    }
-    const query = window.matchMedia(reducedMotionQueryV1);
-    const onChange = (): void => setReduced(query.matches);
-    query.addEventListener("change", onChange);
-    return () => query.removeEventListener("change", onChange);
-  }, []);
-  return reduced;
 }
 
 function useProfileVersionV1(profile: PlayerProfileStoreV1): number {

@@ -25,12 +25,15 @@ export interface OverlayRendererResolutionV1 {
   readonly accessibleName: string;
   readonly content: ReactNode;
   /**
-   * Clicking the backdrop dismisses the window (default). Windows that
-   * must stay explicit (forced tutorials…) opt out with false. Stacked
-   * windows are safe by construction: lower layers are inert, so a
-   * backdrop click always reaches only the topmost surface.
+   * Dismissal convention (default true): the backdrop click and the
+   * cancel action (right-click / Escape) close the window. A locked
+   * window (forced tutorial…) opts out with false — while it is on top,
+   * neither backdrop clicks nor cancel dismiss it; only its explicit
+   * close control does. Stacked windows are safe by construction: lower
+   * layers are inert, so dismissal always reaches only the topmost
+   * surface.
    */
-  readonly backdropDismiss?: boolean;
+  readonly dismissible?: boolean;
 }
 
 export interface OverlayRendererResolverV1<TOverlayId> {
@@ -90,9 +93,7 @@ function resolveEntryV1<TOverlayId>(
     resolution: Object.freeze({
       accessibleName: resolution.accessibleName,
       content: resolution.content,
-      ...(resolution.backdropDismiss === undefined
-        ? {}
-        : { backdropDismiss: resolution.backdropDismiss }),
+      ...(resolution.dismissible === undefined ? {} : { dismissible: resolution.dismissible }),
     }),
   });
 }
@@ -100,10 +101,13 @@ function resolveEntryV1<TOverlayId>(
 function handleOverlayInputV1<TOverlayId>(
   event: DeepReadonly<InputEventV1>,
   store: OverlaySessionStoreV1<TOverlayId>,
+  topDismissible: () => boolean,
 ) {
   switch (event.kind) {
     case "action":
-      if (event.actionId === systemInputActionIdsV1.cancel) store.closeTop();
+      // A locked top window consumes cancel without closing: letting the
+      // action fall through would dismiss the window underneath instead.
+      if (event.actionId === systemInputActionIdsV1.cancel && topDismissible()) store.closeTop();
       return inputHandledV1;
     case "viewport_point":
       return inputHandledV1;
@@ -148,9 +152,7 @@ function OverlayDialogEntryV1(props: {
             data-overlay-backdrop={props.entry.depth}
             aria-hidden="true"
             onClick={
-              isTop && props.entry.resolution.backdropDismiss !== false
-                ? requestTopCloseV1
-                : undefined
+              isTop && props.entry.resolution.dismissible !== false ? requestTopCloseV1 : undefined
             }
           />
           <Dialog.Content
@@ -258,11 +260,12 @@ export function OverlayHostV1<TOverlayId>(props: OverlayHostPropsV1<TOverlayId>)
 
   useStageInputIsolationV1("overlay", active);
 
+  const topDismissibleRef = useRef(true);
   useLayoutEffect(() => {
     if (!active) return undefined;
     return props.inputRouter.register({
       context: "overlay",
-      handle: (event) => handleOverlayInputV1(event, props.store),
+      handle: (event) => handleOverlayInputV1(event, props.store, () => topDismissibleRef.current),
     });
   }, [active, props.inputRouter, props.store]);
 
@@ -305,6 +308,9 @@ export function OverlayHostV1<TOverlayId>(props: OverlayHostPropsV1<TOverlayId>)
       ),
     ]);
   }, [props.rendererResolver, snapshot]);
+  topDismissibleRef.current =
+    entries.length === 0 ||
+    (entries[entries.length - 1] as ResolvedOverlayEntryV1).resolution.dismissible !== false;
 
   return (
     <div

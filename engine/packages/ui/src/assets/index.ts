@@ -16,3 +16,4 @@ export type {
   CreatePresentationReadPortInputV1,
   PresentationReadPortV1,
 } from "./presentation-read-port.ts";
+export { resolveAssetUrlV1, useAssetUrlV1 } from "./use-asset-url.ts";

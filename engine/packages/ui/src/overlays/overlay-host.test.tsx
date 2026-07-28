@@ -24,7 +24,7 @@ import { createOverlaySessionStoreV1 } from "./overlay-session-store.ts";
 
 afterEach(cleanup);
 
-type OverlayIdV1 = "inventory" | "ingredient" | "supplier" | "unknown";
+type OverlayIdV1 = "inventory" | "ingredient" | "supplier" | "unknown" | "locked";
 
 function resolutionV1(accessibleName: string, content: OverlayRendererResolutionV1["content"]) {
   return Object.freeze({ accessibleName, content });
@@ -37,14 +37,21 @@ function createResolverV1(
     resolve(id: OverlayIdV1) {
       switch (id) {
         case "inventory":
+          return resolutionV1(
+            "背包",
+            <button type="button" onClick={() => store.pushDetail("ingredient")}>
+              食材详情
+            </button>,
+          );
+        case "locked":
           return Object.freeze({
             ...resolutionV1(
-              "背包",
+              "锁定教程",
               <button type="button" onClick={() => store.pushDetail("ingredient")}>
-                食材详情
+                下一步
               </button>,
             ),
-            backdropDismiss: false,
+            dismissible: false,
           });
         case "ingredient":
           return resolutionV1(
@@ -502,18 +509,19 @@ describe("OverlayHostV1", () => {
 
   it("backdrop clicks dismiss only the topmost stacked window; opt-out respected", async () => {
     const store = createOverlaySessionStoreV1<OverlayIdV1>();
+    const inputRouter = createInputRouterV1();
     render(
       <DevDockPortalCoordinatorV1>
         <OverlayHostV1
           store={store}
           rendererResolver={createResolverV1(store)}
-          inputRouter={createInputRouterV1()}
+          inputRouter={inputRouter}
           closeLabel="关闭"
         />
       </DevDockPortalCoordinatorV1>,
     );
     act(() => {
-      store.openPrimary("inventory");
+      store.openPrimary("locked");
       store.pushDetail("ingredient");
     });
     const user = userEvent.setup();
@@ -525,15 +533,24 @@ describe("OverlayHostV1", () => {
     expect(topBackdrop).not.toBeNull();
     await user.click(topBackdrop as HTMLElement);
     // Only the top closed: the detail is gone, the primary window remains.
-    expect(store.getSnapshot()).toEqual({ primaryId: "inventory", detailIds: [] });
+    expect(store.getSnapshot()).toEqual({ primaryId: "locked", detailIds: [] });
     await waitFor(() => expect(document.querySelector("[data-overlay-kind='detail']")).toBeNull());
     expect(document.querySelector("[data-overlay-kind='primary']")).not.toBeNull();
 
-    // The primary opted out (backdropDismiss: false): its backdrop ignores
+    // The primary is locked (dismissible: false): its backdrop ignores
     // clicks and the window stays.
     const primaryBackdrop = document.querySelector("[data-overlay-backdrop='0']");
     await user.click(primaryBackdrop as HTMLElement);
-    expect(store.getSnapshot()).toEqual({ primaryId: "inventory", detailIds: [] });
+    expect(store.getSnapshot()).toEqual({ primaryId: "locked", detailIds: [] });
     expect(document.querySelector("[data-overlay-kind='primary']")).not.toBeNull();
+
+    // The cancel action (right-click / Escape) is consumed without closing
+    // the locked window — and never falls through to anything beneath.
+    const routed = inputRouter.route({
+      kind: "action",
+      actionId: systemInputActionIdsV1.cancel,
+    });
+    expect(routed.kind).toBe("handled");
+    expect(store.getSnapshot()).toEqual({ primaryId: "locked", detailIds: [] });
   });
 });
