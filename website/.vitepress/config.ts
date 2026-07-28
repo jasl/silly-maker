@@ -10,9 +10,12 @@ import { defineConfig } from "vitepress";
 export default defineConfig({
   title: "SillyMaker",
   description: "An LLM-friendly TypeScript + React game engine for VN / SLG / RPG stories.",
+  // Static hosts under a sub-path (for example GitHub Pages project sites)
+  // set SITE_BASE=/repo-name/ at build time; root deployments omit it.
+  base: process.env.SITE_BASE ?? "/",
   lastUpdated: false,
   themeConfig: {
-    socialLinks: [{ icon: "github", link: "https://github.com/jasl/tavern_game" }],
+    socialLinks: [{ icon: "github", link: "https://github.com/jasl/project-tavern" }],
   },
   locales: {
     root: {
@@ -22,6 +25,7 @@ export default defineConfig({
         nav: [
           { text: "Guide", link: "/guide/getting-started" },
           { text: "Reference", link: "/reference/cli" },
+          { text: "Play Cat Cafe", link: "/play/cat-cafe/", target: "_self" },
         ],
         sidebar: [
           {
@@ -51,6 +55,7 @@ export default defineConfig({
         nav: [
           { text: "指南", link: "/zh/guide/getting-started" },
           { text: "参考", link: "/zh/reference/cli" },
+          { text: "试玩《雨巷猫舍》", link: "/play/cat-cafe/", target: "_self" },
         ],
         sidebar: [
           {

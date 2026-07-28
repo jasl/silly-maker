@@ -12,6 +12,10 @@ hero:
     - theme: alt
       text: 核心概念
       link: /zh/guide/concepts
+    - theme: alt
+      text: 试玩《雨巷猫舍》
+      link: /play/cat-cafe/
+      target: _self
 
 features:
   - title: 构造上的确定性

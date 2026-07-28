@@ -19,7 +19,8 @@ deno task dev
 - `deno task test`：引擎与游戏行为测试；
 - `deno task test:e2e`：浏览器端用户流程；
 - `deno task story <verb> <app>`：应用生命周期 CLI（inspect/check/simulate/dev --smoke/build/prebuilt-smoke，JSON 报告）；
-- `deno task test:e2e:engine:prebuilt`：构建 Engine Lab 并在产物上运行引擎套件。
+- `deno task test:e2e:engine:prebuilt`：构建 Engine Lab 并在产物上运行引擎套件；
+- `deno task site:build`：组装可发布静态站（文档 + 《雨巷猫舍》试玩）到 `dist/site`，经 GitHub Pages workflow 或 `deno task site:deploy:cf`（Cloudflare Workers）发布，见 [build-and-release](docs/engine/build-and-release.md)。
 
 这些命令不要求特定机器或精确 patch 版本。发布到远端仍是独立的人工作业。
 

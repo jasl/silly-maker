@@ -12,6 +12,10 @@ hero:
     - theme: alt
       text: Core concepts
       link: /guide/concepts
+    - theme: alt
+      text: Play the Cat Cafe demo
+      link: /play/cat-cafe/
+      target: _self
 
 features:
   - title: Deterministic by construction

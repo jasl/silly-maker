@@ -101,3 +101,4 @@ Desktop.ini
 *.aab
 *.unitypackage
 sysinfo.txt
+.wrangler/

@@ -84,6 +84,15 @@ Applications that declare `web.desktop` (name + bundle identifier + optional rep
 
 File-backed saves make the webview origin irrelevant: `deno desktop` still picks a random port per launch, but persistence flows through the shell's records endpoint (atomic per-file replace, optimistic revisions) rather than per-origin IndexedDB, so saves survive restarts. Engine and Story code never depend on Deno Desktop APIs — the web Artifact remains the canonical delivery and the stable fallback. macOS release builds additionally need signing and notarization.
 
+## Publish to static hosting (GitHub Pages / Cloudflare Workers)
+
+`deno task site:build` composes a publishable static site at `dist/site`: the VitePress documentation at the root and the Cat Cafe Player at `/play/cat-cafe/`. Player bundles build with `base: "./"` and resolve runtime assets against `document.baseURI`, so they are location-independent; only the docs site needs the deployment base, supplied through `SITE_BASE` (defaults to `/`). Saves stay in the visitor's browser (IndexedDB) — no server component is required.
+
+- **GitHub Pages** — `.github/workflows/deploy-pages.yml` builds with `SITE_BASE=/<repo>/` and deploys through `actions/deploy-pages`. One-time setup: repository Settings → Pages → Source: "GitHub Actions", then run the workflow from the Actions tab (uncomment the `push` trigger for continuous deployment). The site lands at `https://<owner>.github.io/<repo>/`.
+- **Cloudflare Workers** — `wrangler.jsonc` declares an assets-only Worker serving `dist/site`. Deploy from a local machine with `deno task site:build && deno task site:deploy:cf` (authenticate once with `deno run -A npm:wrangler login`). Root-based hosting, so the default `SITE_BASE=/` is correct; the site lands at `https://project-tavern.<account>.workers.dev/` or a custom domain.
+
+Both targets were validated against a sub-path static server and the local `wrangler dev` runtime (docs, game, runtime assets, and the `/zh/` locale all resolve).
+
 ## Release checklist
 
 Before handing an Artifact to another person or machine:
