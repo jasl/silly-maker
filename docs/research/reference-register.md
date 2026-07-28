@@ -65,6 +65,22 @@ find . -type f -print0 | LC_ALL=C sort -z | xargs -0 shasum -a 256 | shasum -a 2
 
 研究记录：`renpy-engine-study.md`。
 
+## `references/openui`
+
+| 字段            | 值                                                                                                                                               |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 类型            | Git 源码 checkout（monorepo：语言规范文档、解析器/渲染器包、示例）                                                                               |
+| 上游            | `https://github.com/thesysdev/openui.git`                                                                                                        |
+| 取得日期        | 2026-07-29 登记；本地 clone HEAD 提交于 2026-07-28                                                                                               |
+| revision        | `5266f735ced4bad825a83eb5d32e3a43f72dc513`                                                                                                       |
+| 根许可证        | MIT（Thesys Inc.），见本地 `LICENSE`                                                                                                             |
+| LICENSE SHA-256 | `b6bdd2d3d161722fb3f3afc039114cfa9f3236f036e1c98e0853bc3a85f6cd9e`                                                                               |
+| README SHA-256  | `0bc4bcb1c623f82d200a5a6f7002800ae6b29542728f31d0c55a50d2995cd73c`                                                                               |
+| 当前用途        | 只读研究 Generative UI 开放标准（OpenUI Lang 语言、流式解析/渲染、组件库合同、Action/工具事件模型），评估与 SillyMaker 语义表现层的兼容性        |
+| 禁止用途        | 不从 checkout 复制代码、schema 或文档进入本仓库；不进入构建、测试、fixture 或生成器。若未来集成，作为普通 npm 依赖消费其发布包（保留其自身条款） |
+
+研究记录：`2026-07-29-openui-genui-support.md`。
+
 ## 新增资料流程
 
 把新资料放入 `references/` 后，在使用前补充：
