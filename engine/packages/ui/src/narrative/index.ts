@@ -1,3 +1,4 @@
 // SPDX-License-Identifier: MIT
 export { VnLayerV1 } from "./vn-layer.tsx";
 export type { VnChoiceV1, VnLayerPropsV1 } from "./vn-layer.tsx";
+export { AdvanceSurfaceV1 } from "./advance-surface.tsx";

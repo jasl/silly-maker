@@ -13,7 +13,7 @@ import type {
   SaveOverlayLabelsV1,
   SemanticStageEntryRendererV1,
 } from "@sillymaker/ui";
-import { Button, SemanticStageV1, systemInputActionIdsV1 } from "@sillymaker/ui";
+import { AdvanceSurfaceV1, Button, SemanticStageV1, systemInputActionIdsV1 } from "@sillymaker/ui";
 import type { WebGameApplicationV1 } from "@sillymaker/web";
 
 import type {
@@ -195,27 +195,28 @@ function BookshopNarrativePanelV1(props: {
   }
 
   if (pending.kind === "say") {
+    const advance = (): void =>
+      resolveV1(props.semantic, pending.occurrenceId, Object.freeze({ kind: "advance" }));
     return (
-      <div
-        data-bookshop-narrative="say"
-        data-bookshop-occurrence={pending.occurrenceId}
-        style={panelStyle}
-      >
-        {pending.speakerTextId === null ? null : (
-          <strong style={{ display: "block", color: "#ffd9a0" }}>
-            {bookshopUiTextV1(pending.speakerTextId)}
-          </strong>
-        )}
-        <p style={{ margin: "8px 0 16px" }}>{bookshopUiTextV1(pending.textId)}</p>
-        <Button
-          data-bookshop-advance="true"
-          onClick={() =>
-            resolveV1(props.semantic, pending.occurrenceId, Object.freeze({ kind: "advance" }))
-          }
+      <>
+        {/* VN 惯例：点击舞台任意空白推进对话；选择菜单保持显式。 */}
+        <AdvanceSurfaceV1 onAdvance={advance} />
+        <div
+          data-bookshop-narrative="say"
+          data-bookshop-occurrence={pending.occurrenceId}
+          style={panelStyle}
         >
-          {bookshopUiTextV1("text.bookshop.narrative.advance")}
-        </Button>
-      </div>
+          {pending.speakerTextId === null ? null : (
+            <strong style={{ display: "block", color: "#ffd9a0" }}>
+              {bookshopUiTextV1(pending.speakerTextId)}
+            </strong>
+          )}
+          <p style={{ margin: "8px 0 16px" }}>{bookshopUiTextV1(pending.textId)}</p>
+          <Button data-bookshop-advance="true" onClick={advance}>
+            {bookshopUiTextV1("text.bookshop.narrative.advance")}
+          </Button>
+        </div>
+      </>
     );
   }
 

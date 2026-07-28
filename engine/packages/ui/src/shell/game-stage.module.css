@@ -1,6 +1,11 @@
 .game-stage {
   position: relative;
   z-index: var(--silly-surface-z-raised);
+
+  /* Game-engine convention: gameplay surfaces are not documents. Text is
+     never selectable and images never drag — clicks belong to the game.
+     Debug tooling (DevDock) lives outside the stage and keeps selection. */
+  user-select: none;
   container: game-stage / inline-size;
   box-sizing: border-box;
   inline-size: min(100%, var(--silly-stage-max-width), calc(100dvh * 8 / 5));
@@ -9,6 +14,11 @@
   aspect-ratio: var(--silly-stage-aspect-ratio);
   overflow: hidden;
   isolation: isolate;
+}
+
+.game-stage img {
+  /* stylelint-disable-next-line property-no-vendor-prefix -- no standard property exists */
+  -webkit-user-drag: none;
 }
 
 .game-stage__layer {
@@ -118,6 +128,10 @@
 
 @media (prefers-reduced-motion: reduce) {
   .game-stage,
+  .game-stage img {
+    -webkit-user-drag: none;
+  }
+
   .game-stage__layer {
     scroll-behavior: auto;
     transition: none;
