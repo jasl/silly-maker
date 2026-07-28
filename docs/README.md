@@ -9,7 +9,7 @@ Active documentation describes the code and decisions maintained after the first
 - [Development](engine/development.md) — setup, repository layout, testing policy, and maintenance workflow.
 - [Story authoring](engine/story-authoring.md) — composing a Story from gameplay and presentation facets.
 - [Agent game guide](engine/agent-game-guide.md) — how to have a coding agent generate a game here.
-- [Window model](engine/design/window-model.md) — the windowing contract and game-side recipes for complex window needs.
+- [Windowing and the UI component system](engine/design/window-model.md) — the layered UI contract, windowing recipes, and the component promotion backlog (DialoguePanelV1 next).
 - [Build and release](engine/build-and-release.md) — development server, Player build, local Artifact, desktop save server, and smoke verification.
 - [Authoring quickstart](engine/authoring-quickstart.md) — the layered playbook agents and humans follow for Story edits.
 
