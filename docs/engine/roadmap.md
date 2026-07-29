@@ -27,6 +27,25 @@ surface 生命周期统一（单一 modality/focus/input 真相），以及
 [Save migration design](design/save-migration.md)（一等迁移 registry
 与解码顺序改造）。三者是 Mod track 的事实前置，依赖关系见各 continuous track。
 
+2026-07-30 持久化槽位模型从固定 `quick`/`manual` 扩展为 Story 可配置的编号手动槽
+`manual.1..N`（核心应用声明 `manualSaveSlotCount`，引擎默认 8、上限
+99），`quick` 与双自动档语义不变；Save overlay 按 port 枚举顺序渲染槽位，槽名经
+`slotNames.manualSlot(index)`。多标签页继续由单写者 Session lease
+管辖，不引入按槽锁。该能力已实现并进入 feature list。
+
+2026-07-30 接受并落地「应用即项目」契约修订（改写 R2 的 project config 交付形态）：
+每个应用（template、examples、e2e 与外部项目）是自包含项目——自己的
+`sillymaker.config.ts`（应用根相对路径）、自己的 `vite.config.ts`（调用
+`@sillymaker/tooling/vite` 的共享装配）、通过 package exports 依赖引擎（仓库内
+`workspace:*`；未发布 npm 期间外部项目用相对 `file:` 路径 +
+`"nodeModulesDir": "manual"`）。根 `project.config.ts` 退化为目录清单（CI
+聚合与根 `--mode` 便捷分发）；gitignored `project.config.local.ts` overlay
+机制退役——本地/外部游戏不再注册进主仓，而是作为普通外部消费者存在。运行时资产
+runtimePath 从仓库相对改为应用根相对（`assets/…`）；Web 构建产物固定
+`<app>/dist-web`（`dist/` 归 TypeScript 项目引用输出）。「复制 `template/`
+开新项目」是受支持的起点；AI-agent 文档（authoring-quickstart、各目录
+AGENTS 手册）随之修订。npm 发布、版本化与脚手架 CLI 仍未排期。
+
 2026-07-30 在 Unity、Unreal、Godot 与 Bevy 的官方机制对照、Web
 平台原生原语（`<dialog>`/top layer、`inert`、CloseWatcher、Navigation
 API）评估和本地整画布验证实验之后，Surface track 收紧为
@@ -143,7 +162,9 @@ E2E Story 是维护中的测试应用和最小参考实现，不是旧 fixture/g
   Assets/Automation/HMR/lifecycle；
 - 保留低层 composition 和 renderer contribution 作为 escape hatch；
 - 建立 Story/application project config 和 Node-only tooling，使
-  inspect、check、simulate、dev、build 与 prebuilt smoke 不依赖 PoC switch；
+  inspect、check、simulate、dev、build 与 prebuilt smoke 不依赖 PoC
+  switch（2026-07-30 修订为「应用即项目」：应用本地 `sillymaker.config.ts` +
+  共享 Vite 装配，根注册表仅是目录清单）；
 - 增加 TS Narrative builder/lint，但不增加 parser 或自定义 DSL。
 - 在 Web Composer 可用后加入 Browser Agent adapter，并与 Node/JSONL 执行同一
   semantic transcript；
