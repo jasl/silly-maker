@@ -479,11 +479,7 @@ Hard gate 应是确定性的合同测试。真实模型生成测试可作为 API
   },
   "outcome": "consumed",
   "docsId": "surface-topology-fence",
-  "trace": [
-    "pointerDown(storage.close)",
-    "replace(status)",
-    "pointerUp(pointer:44)"
-  ]
+  "trace": ["pointerDown(storage.close)", "replace(status)", "pointerUp(pointer:44)"]
 }
 ```
 
