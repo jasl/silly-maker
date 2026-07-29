@@ -1,21 +1,33 @@
 # Save migration and load compatibility
 
-状态：2026-07-29 接受的目标设计；尚未实现。本文把 Save 兼容从“分类与拒绝”升级为“一等迁移能力”：固定 migration registry 合同、load 阶段顺序与发布验收。它独立于 Mod 系统并先于其落地；[Mod design](mod-system.md) 第 8 节的 per-namespace migration 建立在本文的引擎级合同之上。当前实现状态见 [features](../features.md)；本文不把现状描述成已有 migration。
+状态：2026-07-29 接受的目标设计；尚未实现。本文把 Save
+兼容从“分类与拒绝”升级为“一等迁移能力”：固定 migration registry 合同、load
+阶段顺序与发布验收。它独立于 Mod 系统并先于其落地；[Mod design](mod-system.md)
+第 8 节的 per-namespace migration 建立在本文的引擎级合同之上。当前实现状态见
+[features](../features.md)；本文不把现状描述成已有 migration。
 
 ## 1. Current state and gap
 
 现有基础已经可靠：
 
-- Save 是 plain、versioned、validated data：`SaveRecordEnvelopeV1` 携带 `formatRevision`、`recordRevision`、provenance、`stateDigest`、`snapshot` 与 `simulationLineage`；
+- Save 是 plain、versioned、validated data：`SaveRecordEnvelopeV1` 携带
+  `formatRevision`、`recordRevision`、provenance、`stateDigest`、`snapshot` 与
+  `simulationLineage`；
 - 解码入口有 Strict JSON 字节/深度/节点限额（`saveJsonLimitsV1`）；
-- `classifySaveCompatibilityV1` 以 story identity、state contract revision/digest、engine digest 与 simulation digest 分类为 exact / adoption / inspect_only / rejected；adoption 有显式声明与 lineage 上限；
+- `classifySaveCompatibilityV1` 以 story identity、state contract
+  revision/digest、engine digest 与 simulation digest 分类为 exact / adoption /
+  inspect_only / rejected；adoption 有显式声明与 lineage 上限；
 - load 后仍执行 reference 与 invariant 验证。
 
 缺口是没有迁移路径，而且当前顺序阻止未来补上：
 
-1. `decodeSaveRecordV1` 在解码时就用 current `snapshotSchema` 解析整个 envelope。旧 schema 的 Snapshot 在任何 compatibility/migration 逻辑运行之前，即以 `envelope.schema_invalid` 被拒绝；
-2. state contract revision 变化被分类为 inspect_only，没有“迁移后正常加载”这条腿；
-3. 没有 migration registry、历史 fixture corpus，也没有“任意受支持旧 Save 可迁移、可加载”的发布验收。
+1. `decodeSaveRecordV1` 在解码时就用 current `snapshotSchema` 解析整个
+   envelope。旧 schema 的 Snapshot 在任何 compatibility/migration
+   逻辑运行之前，即以 `envelope.schema_invalid` 被拒绝；
+2. state contract revision 变化被分类为
+   inspect_only，没有“迁移后正常加载”这条腿；
+3. 没有 migration registry、历史 fixture corpus，也没有“任意受支持旧 Save
+   可迁移、可加载”的发布验收。
 
 对长期维护的产品，这意味着每次 State schema 演进都默默放弃旧存档。
 
@@ -35,14 +47,22 @@ bounded strict JSON decode        （现有 saveJsonLimitsV1 限额保持不变�
   -> atomically install one new replay anchor
 ```
 
-与现状的差异是：current snapshot schema 验证从解码期移到迁移之后；解码期只解析 envelope 外壳字段，snapshot 保持为受限 raw 数据。
+与现状的差异是：current snapshot schema 验证从解码期移到迁移之后；解码期只解析
+envelope 外壳字段，snapshot 保持为受限 raw 数据。
 
 要点：
 
-- raw snapshot 在迁移前只是受限结构数据，不被信任；既有字节/深度/节点/字段限额继续适用，不为迁移放开输入；
-- envelope format（`formatRevision`）与 State schema（state contract revision）是两条独立迁移轴：前者由 engine-owned migration 处理，后者由应用（未来由 Mod namespace）声明；二者不共享一个模糊 registry；
-- `stateDigest` 校验对象是存档原文的 snapshot；迁移产生新 Snapshot 与新 digest，二者都进入 lineage 记录；
-- 任何一步失败留下原 Save 数据不变，结果是结构化 rejection 或 inspect_only，不存在半迁移状态。
+- raw snapshot
+  在迁移前只是受限结构数据，不被信任；既有字节/深度/节点/字段限额继续适用，不为迁移放开输入；
+- envelope format（`formatRevision`）与 State schema（state contract
+  revision）是两条独立迁移轴：前者由 engine-owned migration
+  处理，后者由应用（未来由 Mod namespace）声明；二者不共享一个模糊 registry；
+- `stateDigest` 校验对象是存档原文的 snapshot，并在 envelope shell parse
+  之后、第一步 State
+  迁移执行之前完成；迁移不在完整性未证实的数据上运行。迁移产生新 Snapshot 与新
+  digest，二者都进入 lineage 记录；
+- 任何一步失败留下原 Save 数据不变，结果是结构化 rejection 或
+  inspect_only，不存在半迁移状态。
 
 ## 3. Migration registry contract
 
@@ -59,21 +79,45 @@ interface SaveStateMigrationV1 {
 要求：
 
 - 每步迁移是纯函数、确定性、禁网络、禁时钟、禁随机；
-- 只允许相邻 revision `N -> N+1`；跨版本由 runtime 组合迁移链完成，不承诺跳版本直迁；
+- 只允许相邻 revision `N -> N+1`；跨版本由 runtime
+  组合迁移链完成，不承诺跳版本直迁；
+- registry 以 State namespace 为组织维度：engine-owned envelope format
+  迁移之外，每条 State 迁移链隶属一个 namespace；单应用（无 Mod）是单 namespace
+  特例，Mod 的 per-namespace migration（[Mod design](mod-system.md) 第 8
+  节）复用同一 registry 而不是另建；跨 namespace 的执行顺序由 resolved
+  provenance 的 namespace 集合确定性派生；
 - content/reference ID rename 或 delete 必须有显式映射表，不依赖偶然 fallback；
-- migration 与 adoption 是不同物：migration 转换 State；adoption 声明“旧 State 无需转换即可被新 Simulation 接管”。二者都不能用宽泛 semver 猜测（与 [Mod design](mod-system.md) 第 8 节一致）；
+- migration 与 adoption 是不同物：migration 转换 State；adoption 声明“旧 State
+  无需转换即可被新 Simulation 接管”。二者都不能用宽泛 semver 猜测（与
+  [Mod design](mod-system.md) 第 8 节一致）；
 - CommandLog 兼容轴独立管理：迁移安装新 replay anchor，旧命令日志不跨迁移重放。
 
 ## 4. Product surface
 
-- **dry-run / forward inspection**：只检查、不写入；输出结构化 diagnostics（哪些槽位可直迁、哪些需要 adoption、哪些会被拒绝及原因）；
-- **写入前备份**：迁移写入前保留原记录（复用现有 lineage/slot 机制），玩家路径失败可回退到迁移前状态；
+- **dry-run / forward inspection**：只检查、不写入；输出结构化
+  diagnostics（哪些槽位可直迁、哪些需要 adoption、哪些会被拒绝及原因）；
+- **写入前备份**：迁移写入前保留原记录（复用现有 lineage/slot
+  机制），玩家路径失败可回退到迁移前状态；
+- **adoption 声明集合与发布工具**：兼容分类必须接受一组 adoption
+  declaration（覆盖多个受支持历史构建），而不是单条；发布/build 流程从历史
+  resolved provenance 自动生成候选声明，人工只做确认与裁剪，不逐字段手工枚举
+  digest。现实现的单声明入口（且应用侧恒传空）是本 track 要替换的缺口；
+- **lineage 边界策略**：adoption lineage 当前只增不减且上限 16；本 track 须明确
+  re-anchor 语义（何时把已 adopt/已迁移的存档重新锚定为新基线以修剪
+  lineage）、上限取值与触限时的产品路径（提示玩家
+  re-anchor/导出/回滚），不把触限留成静默拒绝；
+- **玩家可读结果**：rejected / inspect_only
+  必须映射为用户可读文案与可行动选项（回滚版本、导出存档、放弃迁移），诊断码不是最终用户界面；
 - 迁移过程与结果进入现有结构化 diagnostics 与 debug bundle。
 
 ## 5. Release acceptance
 
-- 每个发布版本为维护中的产品格式保存真实 Save fixture（旗舰示例与 e2e conformance Story）；
-- CI 对支持范围内全部历史 fixture 执行 migrate + load + reference + invariant + digest 验证；
+- 每个发布版本为维护中的产品格式保存真实 Save fixture（旗舰示例与 e2e
+  conformance Story）；
+- CI 对支持范围内全部历史 fixture 执行 migrate + load + reference + invariant +
+  digest 验证；
+- fixture corpus 至少包含一条跨多个发布版本的 migration/adoption 链样本（含逼近
+  lineage 上限的边界样本）；
 - fixture 代表用户可见的兼容承诺，符合项目测试原则；它不是计划执行凭据；
 - 支持范围与放弃策略是显式、文档化的产品决定，不是缺省的无限承诺。
 
@@ -86,6 +130,9 @@ interface SaveStateMigrationV1 {
 
 ## 7. Relationship to existing documents
 
-- [roadmap](../roadmap.md)：Save migration 属于 production floor 方向；Mod track 的 M3 以本文为前置；
-- [Mod design](mod-system.md)：其 per-namespace migration 复用本文的解码顺序与 registry；单应用（无 Mod）Save 是单 namespace 的特例；
-- [build and release](../build-and-release.md)：fixture corpus 进入发布流程后更新该文档；实现前不修改其现状声明。
+- [roadmap](../roadmap.md)：Save migration 属于 production floor 方向；Mod track
+  的 M3 以本文为前置；
+- [Mod design](mod-system.md)：其 per-namespace migration 复用本文的解码顺序与
+  registry；单应用（无 Mod）Save 是单 namespace 的特例；
+- [build and release](../build-and-release.md)：fixture corpus
+  进入发布流程后更新该文档；实现前不修改其现状声明。
