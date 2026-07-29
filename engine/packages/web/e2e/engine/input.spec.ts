@@ -107,4 +107,12 @@ test.describe("engine input actions", () => {
     await pressPad(0);
     await expect(page.locator("[data-lab-interaction='choice']")).toBeVisible();
   });
+
+  test("game stage exposes a persistent root for the pointer gesture fence", async ({ page }) => {
+    await gotoLabV1(page);
+    // Fence listeners attach to this root (not window) so dismiss click-through
+    // cannot retarget outside the stage. Swallow behavior is covered by
+    // @sillymaker/ui vitest (pointerup → leftover click).
+    await expect(page.locator('[data-stage-root="true"]')).toHaveCount(1);
+  });
 });
