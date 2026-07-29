@@ -49,6 +49,7 @@ export const labTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
         { textId: "text.e2e.lab.narrative.cal.basic", text: "直接校准" },
         { textId: "text.e2e.lab.narrative.cal.precise", text: "精密校准" },
         { textId: "text.e2e.lab.narrative.cal.precise.locked", text: "需要至少一份样本" },
+        { textId: "text.e2e.lab.narrative.cal.cancel", text: "先返回" },
         { textId: "text.e2e.lab.narrative.cal.done", text: "校准完成，信标已就绪。" },
         { textId: "text.e2e.lab.narrative.cal.waiting", text: "等待设备稳定…" },
         { textId: "text.e2e.lab.narrative.cal.skip", text: "跳过等待" },
