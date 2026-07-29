@@ -90,10 +90,11 @@ template 以 `kernel.ts` + `features/inventory/`（模块+能力）做最小示�
 ## 引擎侧候选（证据后定型，不预做）
 
 - `composeCommandExecutorV1(handlers)`：kind→handler 组合器。cat-cafe 落地用 `CatcafeCommandHandlerMapV1` 映射类型 + 一次查表已消灭 switch（约 15 行）；通用化收益待 template 之外的第三个消费者出现再评估。
-- 特性包类型 `GameplayFeatureV1`：`{ modules, tables, commands, actions, texts, ui }` 的声明形状——等雨巷猫舍与 template 两个消费者的真实形状收敛后再定。
+- 原候选特性包类型 `GameplayFeatureV1`（`{ modules, tables, commands, actions, texts, ui }`）不再单独预冻结。它可以成为 [Mod design](../design/mod-system.md) 内部的 contribution/facet factory 形状，但 Story-local feature slice 仍无需身份、版本、依赖或发布合同；只有出现独立选择/分发需求和第二个非复制消费者后才提升为 Mod。
 - 文本目录/overlay map 的 concat 助手（可能太小不值得，迁移后判断）。
 
 ## 与既有设计的关系
 
 - [窗体与 UI 组件体系](../design/window-model.md)：L3 组装件（DialoguePanelV1）是特性切片的**消费方**——dialogue 特性变薄正依赖它。两条线合并后，`composition.tsx` 预期从 1700 行缩到 300 行以内的纯组合。
+- [Mod composition and distribution](../design/mod-system.md)：Feature slice 是 Story/Mod 内部的代码组织；Mod 是跨 facet 的 activation、identity、compatibility 与 distribution 单元。一个 Mod 可包含多个 slices/GameplayModules，二者不能互换命名。
 - [typed-state-store 提案](typed-state-store.md)：正交——那是状态存取的类型学，本提案是代码组织学。

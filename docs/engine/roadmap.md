@@ -1,6 +1,8 @@
 # SillyMaker engine roadmap
 
-状态：2026-07-19 接受的连续演进方向。R1–R4 已随 [vNext foundations plan](plans/2026-07-19-sillymaker-vnext-foundations.md) 实现并进入 [feature list](features.md)（含 Engine Conformance 垂直切片、AI authoring canaries 与 PoC 的 Composer 迁移）；R5 的 Timeline、R6 的 1–2 步（DevTools 数据面）与 R7 玩家回滚已按 [R5–R7 执行计划](plans/2026-07-28-sillymaker-r5-r7.md) 实现并进入 feature list；该计划的 defer 表（keyframes、onLifecycle、受约束场景图、R6.3–6.5 编辑器、R8 媒体 adapter 等）记录了未做部分及其激活条件。复刻缺口分析驱动的内容数据库、语义舞台命中区域与 Host 元进度命名空间已随《雨巷猫舍》示例交付（`examples/cat-cafe`，见计划的缺口交付记录）。《雨巷猫舍》此后升格为旗舰示例：完整可玩游戏（标题屏、设置基线、AIGC 全套美术、运行时资产管线、竞赛/图鉴/结局演出、后日谈、双语），并交付了一步桌面打包（`story desktop`，含图标与文件存档）。2026-07-28 晚间批次以《雨巷猫舍》为第二真实消费者落地：R8 音频第一刀（`GameAudioV1` 组件、真实 MP3 场景 BGM/环境声/一次性音效、设置音量联动）、VN 播放 QoL（打字机/自动/快进/历史回看，偏好持久化）、R7 rollback 产品策略（开赛与结局确认为硬边界、HUD 一步回退、防重掷证明）；系统菜单收敛为单模态路由（保存/设置互斥、存档安全点、标题屏载入存档）。
+状态：2026-07-19 接受的连续演进方向。R1–R4 已随 [vNext foundations plan](plans/2026-07-19-sillymaker-vnext-foundations.md) 实现并进入 [feature list](features.md)（含 Engine Conformance 垂直切片、AI authoring canaries 与 PoC 的 Composer 迁移）；R5 的 Timeline、R6 的 1–2 步（DevTools 数据面）与 R7 玩家回滚已按 [R5–R7 执行计划](plans/2026-07-28-sillymaker-r5-r7.md) 实现并进入 feature list；该计划的 defer 表（keyframes、onLifecycle、受约束场景图、R6.3–6.5 编辑器、R8 媒体 adapter 等）记录了未做部分及其激活条件。复刻缺口分析驱动的内容数据库、语义舞台命中区域与 Host 元进度命名空间已随《雨巷猫舍》示例交付（`examples/cat-cafe`，见计划的缺口交付记录）。《雨巷猫舍》此后升格为旗舰示例：完整可玩游戏（标题屏、设置基线、AIGC 全套美术、运行时资产管线、竞赛/图鉴/结局演出、后日谈、双语），并交付了一步桌面打包（`story desktop`，含图标与文件存档）。2026-07-28 晚间批次以《雨巷猫舍》为第二真实消费者落地：R8 音频第一刀（`GameAudioV1` 组件、真实 MP3 场景 BGM/环境声/一次性音效、设置音量联动）、VN 播放 QoL（打字机/自动/快进/历史回看，偏好持久化）、R7 rollback 产品策略（开赛/结局确认为硬边界、HUD 一步回退、防重掷证明）；系统菜单收敛为单模态路由（保存/设置互斥、存档安全点、标题屏载入存档）。
+
+2026-07-29 接受 [Mod composition and distribution](design/mod-system.md) 作为尚未实现的 continuous track：先做显式、构建期、可信的 first-party capability Mod，再做发布后 declarative Mod；不把 npm 安装、运行时可安装代码和不可信沙箱混成一个里程碑。同批接受三条 production-floor 方向：Snapshot 提交完整性分层（增量 freeze/digest/validation 与性能契约）、UI surface 生命周期统一（单一 modality/focus/input 真相），以及 [Save migration design](design/save-migration.md)（一等迁移 registry 与解码顺序改造）。三者是 Mod track 的事实前置，依赖关系见各 continuous track。
 
 ## 1. North star
 
@@ -27,6 +29,7 @@ SillyMaker 要从“支撑首个 Tavern PoC 的运行时”演进为适合 Visua
 - 输入先映射为语义 action，再由当前输入上下文处理；鼠标、触摸、键盘、手柄和自动化不直接改 State。
 - 公共契约由真实第二消费者和行为测试证明；不以 PoC 私有 helper、计划夹具或 frozen golden 代替。
 - 新作者层应减少无意义的泛型、验证和组合样板，但保留普通 TypeScript 的完整表达能力。
+- 一个逻辑 Mod 可以纵跨 Base/UI/Web/Tooling，但每个 facet 仍遵守现有 package dependency direction；headless/Base 不因 Mod 组合而导入 React、DOM、browser 或 Node-only tooling。
 
 ## 3. Script and extension model
 
@@ -40,6 +43,8 @@ SillyMaker 不提供：
 第三方 JavaScript 可以执行宿主本来允许的操作。引擎只承诺公开 API 的行为和兼容性；直接访问 `window`、DOM、IndexedDB、内部模块或其他未公开能力不受支持，风险由调用方承担。
 
 这不排除以后提供强类型 Timeline、scene graph、editor 或 Hotfix 工具；它们仍然生成或消费 SillyMaker 自己的 TypeScript/稳定数据合同。
+
+Mod 第一阶段同样是构建期的可信 TypeScript/JavaScript，并在 Story resolve 与 Session 创建前冻结。发布后的 declarative Artifact、同 realm 可信代码 Artifact 与未来可能的隔离扩展是不同信任模型；当前“不提供不可信代码沙箱”的决定不因 Mod 命名而改变。
 
 ## 4. Milestones and continuous tracks
 
@@ -145,6 +150,51 @@ Editor 应写入普通 TS 或被 TS 引用的稳定 Story data，不形成另一
 - adapter 使用稳定 manifest ID、加载/就绪诊断和 code-native fallback，遵循既有 asset demand/readiness 边界；
 - Save 只保存稳定 semantic target，不保存 renderer instance、decoded media 或播放进度；
 - 平板/16:10、资源预算和降级路径在 conformance tests 中证明。
+
+### Continuous track — Snapshot integrity and commit performance
+
+**Outcome:** 命令提交成本主要与 changed set 相关，而不是快照总大小；经营/战棋/ATB 级别的大状态 workload 不再被完整性策略阻塞。
+
+现状阻塞点：`GameSession` 每次命令对 before/after 快照各做一次全量 canonical digest，提交后再对整个 Snapshot 递归深冻结。即使只改一个字段，提交成本仍与 Snapshot 总大小近似线性相关；短篇 VN 无感，大状态品类会最先撞墙。
+
+- 引入显式完整性分层（概念 `IntegrityPolicy`）：freeze（`deep`/`changed-subtrees`/`none`）、digest（`every-command`/`checkpoint`/`module-root`/`off`）、validation（`full`/`changed-modules`/`boundary-only`），按 debug（开发与 Agent 验证）、audit（CI/replay/存档认证）、release（玩家运行时）运行模式组合；
+- 数据结构演进优先模块级 revision、changed-set 与结构共享；根摘要由模块摘要组成；全量 canonical digest 保留给存档、显式 checkpoint、replay verification 与调试导出；
+- 命令保持原子提交；确定性、rejection/fault 语义与 replay 合同不变；release 模式不默认递归深冻结整个对象图；
+- 建立性能契约并纳入 CI 或 nightly：100/1k/10k/100k entity snapshot、单模块小改动、跨模块事务、长命令序列回放与长时内存增长；按命令类型分预算等级，不用单一全局阈值；
+- 经营/时间经济切片（Mod track 的验证对象）作为 reference workload；本 track 落地前，大状态品类的验证结论不视为引擎结论；
+- 明确不采取的修复：仅替换 SHA 实现（昂贵的是 canonical 遍历、双份全量扫描与整树冻结，不是哈希本身）；未经 profiling 证明前不改写为 ECS。
+
+### Continuous track — Surface lifecycle unification
+
+**Outcome:** 所有影响输入与焦点的 UI surface（overlay、系统对话框、narrative 对话与历史、workspace 窗口）只有一套 modality/focus/input/dismiss/z-order 生命周期真相。
+
+现状是多套真相而非单点 bug：input isolation、inert、focus restore 与关闭策略分散在 InputRouter、GameStage isolation、Overlay 与 SystemDialog 的 session store/host、VnLayer 与 DialoguePanel 中，单体测试各自通过但组合语义靠约定。已证实的裂缝：Overlay 的 Escape 关闭不检查 `dismissible`（backdrop 检查）；overlay entry key 为 `kind:depth`，同 kind 替换会复用 React 局部状态；system dialog 在 saves 未配置时 store 保持 active 而渲染消隐（store/render 真相分叉）；stage layer 顺序在类型 union 与 `stageLayerIdsV1` 数组中双重表达；DialoguePanelV1 未接入 narrative input context 与 stage isolation，与 VnLayerV1 形成两套并行 narrative 生命周期。
+
+- 把“打开一个影响输入/焦点的 surface”统一为由单一协调者原子管理的会话：稳定 instance ID、owner、layer、modality、dismiss policy（Escape/backdrop/routed-cancel 一致）、focus policy（initial/trap/restore）、input context 与 lifecycle；协调者决定“它是什么、谁拥有它、谁阻塞谁”，不决定外观，视觉组件保持可插拔；
+- 合并 VnLayer 与 DialoguePanel 的职责模型（player controller / view / narrative surface host 分层）；历史回看成为统一 surface 会话，不再是面板内的绝对定位视觉层；淘汰两套并行 narrative lifecycle；
+- 修复已列裂缝：dismiss policy 单点化、稳定 instance ID、system dialog 在 open 时拒绝不可用 surface（或 capability 不暴露该操作）、单一有序 layer descriptor（类型从它派生）；
+- InputRouter 增加 registration/owner ID、action 消费 trace，以及 focus-loss、pointer-cancel、visibility-change 的统一状态复位；
+- [window model](design/window-model.md) 的槽位互斥契约保留为产品语义层，坐落在统一生命周期之上；
+- 验收：Escape/backdrop/cancel 策略一致性测试与 randomized surface open/close/input sequence 测试；[Mod design](design/mod-system.md) 的 route/window/overlay/input context 合并规则以本 track 的统一 registry 为前置。
+
+### Continuous track — Save migration as a release capability
+
+**Outcome:** 任意受支持的历史 Save 在 CI 中可迁移、可加载；State schema 演进不再默默放弃旧存档。
+
+合同见 [Save migration design](design/save-migration.md)：一等 migration registry（相邻 revision 纯函数迁移链）、解码顺序改造（current snapshot schema 验证移到迁移之后，Strict JSON 限额不放开）、dry-run 与写入前备份、每发布版本的 Save fixture corpus 与 CI 迁移验收。migration 与 adoption 保持不同语义；CommandLog 兼容轴独立管理。本 track 独立于 Mod 系统排期并先于其 M3 落地。
+
+### Continuous track — Mod composition and distribution
+
+**Outcome:** Engine 保持通用机制，VN 等一等能力与经营/养成等经验证能力可以作为显式、可诊断、可版本化的纵向 Mod 被 Application 组合。
+
+- `package.json`/lockfile 负责物理安装，Mod metadata 负责 activation、requires/optional/conflicts、facets、State ownership 与 compatibility；Application 是唯一 activation root；Module lifecycle 归 Authoring Kit，同 facet instance resource lifecycle 归对应 Composer，不设模糊的 Mod-wide load order；
+- 一个 Mod 身份按 `./base`、`./ui`、`./web`、`./tooling` 分面，复用 Mod 通过应用 type family 与 typed adapter factory 实例化，不引入万能 `install(context)`；
+- Mod graph 位于唯一 GameplayModule capability graph 之上；重复 State、command、reference、renderer、route 或 Host singleton 默认 hard fail，不使用 load-order override；
+- resolved Mod manifest 进入 build identity 与 Save provenance；same-schema Simulation drift 默认拒绝，只有 exact adoption 才放行；State migration 在 current Snapshot schema 解析前、bounded raw envelope decode 后执行；
+- VN 作为 Tier-1 first-party Mod/preset 验证第一阶段；“SLG”先拆为真实经营、时间经济、人物成长、互动与元进度切片，不预造大而全 genre API；
+- 构建期可信 npm Mod → 发布后 declarative data/content/assets/受约束 UI template Mod → 有真实需求后才考虑同 realm trusted code Artifact；Conversation 中的 UI Artifact 仍是产品数据，不是 Mod；不可信代码需另立隔离与权限设计。
+
+本 track 的合同与分阶段 gate 见 [Mod design](design/mod-system.md)。前置关系：M2 的 UI surface 类合并规则（route/window/overlay/input context duplicate hard fail）以 Surface lifecycle unification track 的统一 surface registry 为前提；M3 的 per-namespace migration 以 [Save migration design](design/save-migration.md) 的解码顺序与 registry 为前提；经营/时间经济切片的规模验证以 Snapshot integrity track 的性能契约为前提。在 resolver、manifest、Save migration 和外部 package smoke 落地前，`architecture.md`、`features.md` 与 `build-and-release.md` 不宣称已经支持 Mod。
 
 ### Continuous track — real-game gameplay feedback
 
