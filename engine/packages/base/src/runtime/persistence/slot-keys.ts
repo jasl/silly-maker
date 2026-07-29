@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
 import type { SaveSlotIdV1 } from "../../contracts/application.ts";
+import { isSaveSlotIdShapeV1 } from "../../contracts/application.ts";
 import type { HostRecordKeyV1 } from "../../contracts/host.ts";
-
-const saveSlotIdsV1 = new Set<SaveSlotIdV1>(["auto.current", "auto.previous", "quick", "manual"]);
 
 function encodeStoryScopeV1(storyId: string): string {
   if (typeof storyId !== "string" || storyId.length === 0) {
@@ -12,7 +11,7 @@ function encodeStoryScopeV1(storyId: string): string {
 }
 
 export function createSaveSlotRecordKeyV1(storyId: string, slotId: SaveSlotIdV1): HostRecordKeyV1 {
-  if (!saveSlotIdsV1.has(slotId)) throw new TypeError("invalid Save slot ID");
+  if (!isSaveSlotIdShapeV1(slotId)) throw new TypeError("invalid Save slot ID");
   return `save-record.v1:${encodeStoryScopeV1(storyId)}:${slotId}` as HostRecordKeyV1;
 }
 

@@ -204,7 +204,7 @@ export const templateSaveOverlayLabelsV1: SaveOverlayLabelsV1 = Object.freeze({
     "auto.current": "当前自动存档",
     "auto.previous": "上一自动存档",
     quick: "快速存档",
-    manual: "手动存档",
+    manualSlot: (index: number) => `手动存档 ${index}`,
   }),
   slotHealth: Object.freeze({
     empty: "空",

@@ -88,13 +88,13 @@ function fixtureV1(input?: {
   const persistence = Object.freeze({
     getStatus: vi.fn(async () => readyStatusV1),
     listSlots: vi.fn(async () => Object.freeze([])),
-    save: vi.fn(async (slotId: "quick" | "manual") =>
+    save: vi.fn(async (slotId: "quick" | `manual.${number}`) =>
       Object.freeze({ kind: "saved" as const, slotId }),
     ),
     load: vi.fn(async () =>
       Object.freeze({ kind: "rejected" as const, code: "empty_slot" as const }),
     ),
-    clear: vi.fn(async (slotId: "auto.current" | "auto.previous" | "quick" | "manual") =>
+    clear: vi.fn(async (slotId: "auto.current" | "auto.previous" | "quick" | `manual.${number}`) =>
       Object.freeze({ kind: "cleared" as const, slotId }),
     ),
     importSave: vi.fn(async (_bytes: Uint8Array) => importResult),
@@ -118,9 +118,9 @@ describe("createPlayerUiPortsV1", () => {
 
     await expect(fixture.ports.save.getStatus()).resolves.toBe(readyStatusV1);
     await expect(fixture.ports.save.listSlots()).resolves.toEqual([]);
-    await expect(fixture.ports.save.save("manual")).resolves.toEqual({
+    await expect(fixture.ports.save.save("manual.1")).resolves.toEqual({
       kind: "saved",
-      slotId: "manual",
+      slotId: "manual.1",
     });
     await expect(fixture.ports.save.load("auto.current")).resolves.toEqual({
       kind: "rejected",

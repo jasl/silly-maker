@@ -30,7 +30,7 @@ Declaring a title screen gives a complete front door: boot splash (e.g. an AI-ge
 
 ## Persistence
 
-Saves are plain, versioned, validated data — quick/manual slots plus current/previous autosaves, atomic writes, optimistic revisions. The Host profile keeps preferences and **meta progress** (album unlocks, endings reached) outside saves, so cross-playthrough collections survive restarts and rollbacks. Browser builds persist to IndexedDB; the desktop channel uses file-backed saves.
+Saves are plain, versioned, validated data — a quick slot plus numbered manual slots (count declared per game, default 8) plus current/previous autosaves, atomic writes, optimistic revisions. The Host profile keeps preferences and **meta progress** (album unlocks, endings reached) outside saves, so cross-playthrough collections survive restarts and rollbacks. Browser builds persist to IndexedDB; the desktop channel uses file-backed saves.
 
 ## Tooling for humans and agents
 

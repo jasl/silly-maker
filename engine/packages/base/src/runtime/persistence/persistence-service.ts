@@ -6,6 +6,15 @@ import type {
   SaveSlotIdV1,
   SessionLeaseOwnerId,
 } from "../../contracts/application.ts";
+import {
+  createSaveSlotIdsV1,
+  defaultManualSaveSlotCountV1,
+  isPlayerWritableSaveSlotIdV1,
+  isSaveSlotIdShapeV1,
+  manualSaveSlotIdV1,
+  manualSaveSlotIndexV1,
+  parseManualSaveSlotCountV1,
+} from "../../contracts/application.ts";
 import { digestBytes, digestCanonical } from "../../contracts/digest.ts";
 import type { HostAtomicRecordStoreV1, IsoUtcInstant } from "../../contracts/host.ts";
 import type {
@@ -143,6 +152,8 @@ export interface CreatePersistenceServiceOptionsV1<
   readonly initialSimulationLineage: readonly DeepReadonly<SimulationAdoptionV1>[];
   readonly metadataClock: { now(): IsoUtcInstant };
   readonly exportFilename: string;
+  /** Numbered manual slots exposed by this application (default 8, max 99). */
+  readonly manualSaveSlotCount?: number;
   readonly leaseAcquisition?: PersistenceLeaseAcquisitionV1;
   readonly autoSaveCapture?: PersistenceAutoSaveCaptureV1;
 }
@@ -166,6 +177,8 @@ export interface CreateStandardPersistenceServiceOptionsV1<
   readonly initialSimulationLineage: readonly DeepReadonly<SimulationAdoptionV1>[];
   readonly metadataClock: { now(): IsoUtcInstant };
   readonly exportFilename: string;
+  /** Numbered manual slots exposed by this application (default 8, max 99). */
+  readonly manualSaveSlotCount?: number;
   readonly leaseAcquisition?: PersistenceLeaseAcquisitionV1;
   readonly autoSaveCapture?: PersistenceAutoSaveCaptureV1;
 }
@@ -181,8 +194,6 @@ interface AutoCandidateV1<TSnapshot> {
   readonly simulationLineage: readonly SimulationAdoptionV1[];
   readonly fence: SessionLeaseFenceV1 | null;
 }
-
-const slotIdsV1 = Object.freeze(["auto.current", "auto.previous", "quick", "manual"] as const);
 
 function copyLineageV1(
   lineage: readonly DeepReadonly<SimulationAdoptionV1>[],
@@ -234,6 +245,16 @@ async function createPersistenceServiceWithDependenciesV1<
   if (leaseAcquisition !== "acquire_initial" && leaseAcquisition !== "deferred_rebootstrap") {
     throw new TypeError("invalid persistence lease acquisition");
   }
+  const manualSlotCount = parseManualSaveSlotCountV1(
+    options.manualSaveSlotCount ?? defaultManualSaveSlotCountV1,
+  );
+  const slotIds = createSaveSlotIdsV1(manualSlotCount);
+  const slotWithinCountV1 = (slot: SaveSlotIdV1): boolean => {
+    if (!isSaveSlotIdShapeV1(slot)) return false;
+    if (slot === "auto.current" || slot === "auto.previous" || slot === "quick") return true;
+    const index = manualSaveSlotIndexV1(slot);
+    return index !== null && index <= manualSlotCount;
+  };
 
   let currentLineage = copyLineageV1(options.initialSimulationLineage);
   let safelySavedCommandSequence: NonNegativeSafeInteger | null = null;
@@ -367,15 +388,11 @@ async function createPersistenceServiceWithDependenciesV1<
               record as DeepReadonly<PersistenceSaveRecordV1<TSnapshot>>,
               fence,
             )
-          : slotId === "quick"
-            ? await options.repository.writeQuick(
-                record as DeepReadonly<PersistenceSaveRecordV1<TSnapshot>>,
-                fence,
-              )
-            : await options.repository.writeManual(
-                record as DeepReadonly<PersistenceSaveRecordV1<TSnapshot>>,
-                fence,
-              );
+          : await options.repository.writePlayer(
+              slotId,
+              record as DeepReadonly<PersistenceSaveRecordV1<TSnapshot>>,
+              fence,
+            );
       if (written.kind === "rejected") {
         if (written.code === "unavailable") {
           await refreshLeaseStatusV1();
@@ -658,7 +675,7 @@ async function createPersistenceServiceWithDependenciesV1<
 
     async listSlots() {
       try {
-        const reads = await Promise.all(slotIdsV1.map((slotId) => options.repository.read(slotId)));
+        const reads = await Promise.all(slotIds.map((slotId) => options.repository.read(slotId)));
         const dispositions: Array<{
           readonly runnable: boolean;
           readonly summary: SaveSlotSummaryV1;
@@ -725,7 +742,7 @@ async function createPersistenceServiceWithDependenciesV1<
       } catch {
         rememberFailureV1("persistence.unexpected");
         return Object.freeze(
-          slotIdsV1.map((slotId) =>
+          slotIds.map((slotId) =>
             Object.freeze({
               slotId,
               health: "unavailable" as const,
@@ -764,6 +781,9 @@ async function createPersistenceServiceWithDependenciesV1<
 
     save(slot: PlayerWritableSaveSlotIdV1) {
       if (lifecycle !== "active") return Promise.resolve(faultedV1("runtime_disposed"));
+      if (!isPlayerWritableSaveSlotIdV1(slot) || !slotWithinCountV1(slot)) {
+        return Promise.resolve(faultedV1("persistence.invalid_slot"));
+      }
       const runtime = options.runtimeControl.inspectForRuntime();
       if (runtime.status !== "ready" || foregroundWrites > 0) {
         return Promise.resolve(rejectedV1("busy"));
@@ -802,6 +822,9 @@ async function createPersistenceServiceWithDependenciesV1<
     },
 
     load(slot: SaveSlotIdV1) {
+      if (!slotWithinCountV1(slot)) {
+        return Promise.resolve(faultedV1("persistence.invalid_slot"));
+      }
       return enqueueReplacementV1(async () => {
         const read = await options.repository.read(slot);
         if (read.health === "empty") {
@@ -820,6 +843,9 @@ async function createPersistenceServiceWithDependenciesV1<
 
     clear(slot: SaveSlotIdV1) {
       if (lifecycle !== "active") return Promise.resolve(faultedV1("runtime_disposed"));
+      if (!slotWithinCountV1(slot)) {
+        return Promise.resolve(faultedV1("persistence.invalid_slot"));
+      }
       if (foregroundWrites > 0) return Promise.resolve(rejectedV1("busy"));
       const acceptedFence = options.lease.captureFence();
       if (acceptedFence === null) {
@@ -854,6 +880,9 @@ async function createPersistenceServiceWithDependenciesV1<
     },
 
     async exportSave(slot: SaveSlotIdV1) {
+      if (!slotWithinCountV1(slot)) {
+        return Object.freeze({ kind: "faulted" as const, code: "persistence.invalid_slot" });
+      }
       try {
         const first = await options.repository.read(slot);
         if (first.health === "empty") return exportRejectedV1("empty_slot");
@@ -889,7 +918,8 @@ async function createPersistenceServiceWithDependenciesV1<
     exportCurrentSave() {
       try {
         const snapshot = options.runtimeControl.inspectForRuntime().snapshot;
-        const record = makeRecordV1(captureV1(snapshot), "manual", "manual");
+        const firstManualSlotId = manualSaveSlotIdV1(1);
+        const record = makeRecordV1(captureV1(snapshot), firstManualSlotId, firstManualSlotId);
         return Promise.resolve(
           makeExportV1(record as DeepReadonly<PersistenceSaveRecordV1<TSnapshot>>),
         );
@@ -1224,8 +1254,10 @@ const buildProvenanceSchemaV1: RuntimeSchemaV1<BuildProvenanceV1> = Object.freez
 });
 
 function parseSaveSlotIdV1(value: unknown): SaveSlotIdV1 {
-  if (!slotIdsV1.some((slotId) => slotId === value)) throw new TypeError("invalid Save slot ID");
-  return value as SaveSlotIdV1;
+  // Shape-only: a record written by a build with a larger manual slot count
+  // still parses; the port enforces this application's count.
+  if (!isSaveSlotIdShapeV1(value)) throw new TypeError("invalid Save slot ID");
+  return value;
 }
 
 const saveSlotMetadataSchemaV1: RuntimeSchemaV1<SaveRepositorySlotMetadataV1> = Object.freeze({
@@ -1236,13 +1268,17 @@ const saveSlotMetadataSchemaV1: RuntimeSchemaV1<SaveRepositorySlotMetadataV1> = 
       "Save slot metadata",
     );
     const writeReason = fields.writeReason;
-    if (writeReason !== "auto" && writeReason !== "quick" && writeReason !== "manual") {
+    if (
+      writeReason !== "auto" &&
+      writeReason !== "quick" &&
+      (typeof writeReason !== "string" || manualSaveSlotIndexV1(writeReason) === null)
+    ) {
       throw new TypeError("invalid Save write reason");
     }
     return Object.freeze({
       storyId: nonemptyStringV1(fields.storyId, "Save Story ID"),
       slotId: parseSaveSlotIdV1(fields.slotId),
-      writeReason,
+      writeReason: writeReason as SaveRepositorySlotMetadataV1["writeReason"],
       capturedCommandSequence: parseNonNegativeSafeInteger(fields.capturedCommandSequence),
     });
   },
@@ -1308,11 +1344,9 @@ function createStandardPersistenceDependenciesV1<
     recordSchema,
     validateEnvelope(record: DeepReadonly<PersistenceSaveRecordV1<TSnapshot>>) {
       const expectedReason =
-        record.slot.slotId === "quick"
-          ? "quick"
-          : record.slot.slotId === "manual"
-            ? "manual"
-            : "auto";
+        record.slot.slotId === "auto.current" || record.slot.slotId === "auto.previous"
+          ? "auto"
+          : record.slot.slotId;
       if (
         record.slot.storyId !== record.provenance.story.id ||
         record.slot.writeReason !== expectedReason ||
@@ -1409,6 +1443,9 @@ export function createPersistenceServiceV1<
     initialSimulationLineage: options.initialSimulationLineage,
     metadataClock: options.metadataClock,
     exportFilename: options.exportFilename,
+    ...(options.manualSaveSlotCount === undefined
+      ? {}
+      : { manualSaveSlotCount: options.manualSaveSlotCount }),
     ...(options.leaseAcquisition === undefined
       ? {}
       : { leaseAcquisition: options.leaseAcquisition }),

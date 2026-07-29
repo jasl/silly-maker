@@ -25,7 +25,9 @@ test.describe("engine default shell", () => {
     await page.getByRole("button", { name: "保存", exact: true }).click();
     const save = page.getByRole("dialog", { name: "保存" });
     await expect(save).toBeVisible();
-    await expect(save.getByRole("button", { name: "手动保存" })).toBeVisible();
+    // One save button per numbered manual slot (engine default count).
+    await expect(save.getByRole("button", { name: "手动保存" })).toHaveCount(8);
+    await expect(save.getByRole("button", { name: "手动保存" }).first()).toBeVisible();
     await save.getByRole("button", { name: "关闭", exact: true }).click();
     await expect(save).toBeHidden();
 
@@ -62,16 +64,16 @@ test.describe("engine default shell", () => {
 
     await page.getByRole("button", { name: "保存", exact: true }).click();
     const save = page.getByRole("dialog", { name: "保存" });
-    await save.getByRole("button", { name: "手动保存" }).click();
-    await expect(save.getByText("已保存到手动存档")).toBeVisible();
+    await save.getByRole("button", { name: "手动保存" }).first().click();
+    await expect(save.getByText("已保存到手动存档 1")).toBeVisible();
     await save.getByRole("button", { name: "关闭", exact: true }).click();
 
     await page.reload();
     await gotoLabV1(page);
     await page.getByRole("button", { name: "保存", exact: true }).click();
     const reopened = page.getByRole("dialog", { name: "保存" });
-    await reopened.getByRole("button", { name: "载入手动存档" }).click();
-    const confirmation = page.getByRole("dialog", { name: "载入手动存档" });
+    await reopened.getByRole("button", { name: "载入手动存档 1" }).click();
+    const confirmation = page.getByRole("dialog", { name: "载入手动存档 1" });
     await confirmation.getByRole("button", { name: "确认" }).click();
     // Convention: a successful load closes the dialog and enters gameplay.
     await expect(reopened).toBeHidden();

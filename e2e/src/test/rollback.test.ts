@@ -105,7 +105,7 @@ describe("player rollback (R7)", () => {
     try {
       await dispatchCommittedV1(instance, { kind: "invoke", actionId: "lab.begin_calibration" });
       const savedDigest = instance.admin.stateDigest();
-      const saved = await instance.persistence.save("manual");
+      const saved = await instance.persistence.save("manual.1");
       expect(saved).toMatchObject({ kind: "saved" });
 
       await dispatchCommittedV1(instance, advanceV1(1));
@@ -115,7 +115,7 @@ describe("player rollback (R7)", () => {
       // Loading replaces the replay base: the ring reseeds and old
       // checkpoints from the previous lineage are unreachable.
       await dispatchCommittedV1(instance, advanceV1(1));
-      const loaded = await instance.persistence.load("manual");
+      const loaded = await instance.persistence.load("manual.1");
       expect(loaded).toMatchObject({ kind: "loaded" });
       expect(instance.admin.stateDigest()).toBe(savedDigest);
       expect(instance.rollback.available().steps).toBe(0);

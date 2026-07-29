@@ -185,12 +185,12 @@ describe("createGameHarnessV1", () => {
     const harness = await createSyntheticHarnessV1();
     await harness.dispatch(incrementV1);
     const saved = harness.stateDigest();
-    await expect(harness.saves.save("manual")).resolves.toEqual({
+    await expect(harness.saves.save("manual.1")).resolves.toEqual({
       kind: "saved",
-      slotId: "manual",
+      slotId: "manual.1",
     });
     await harness.dispatch(incrementV1);
-    await expect(harness.saves.load("manual")).resolves.toMatchObject({ kind: "loaded" });
+    await expect(harness.saves.load("manual.1")).resolves.toMatchObject({ kind: "loaded" });
     expect(harness.stateDigest()).toBe(saved);
     await harness.dispose();
   });

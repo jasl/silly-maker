@@ -209,10 +209,10 @@ test("backdrop clicks and right-clicks always dismiss the topmost window", async
   // A nested confirmation stacks above the Save dialog: its backdrop click
   // cancels the confirmation only, the Save dialog stays.
   await page.getByRole("button", { name: "保存", exact: true }).click();
-  await saves.getByRole("button", { name: "手动保存" }).click();
-  await expect(page.getByTestId("save-operation-result")).toContainText("已保存到手动存档");
-  await saves.getByRole("button", { name: "载入手动存档" }).click();
-  const confirm = page.getByRole("dialog", { name: "载入手动存档" });
+  await saves.getByRole("button", { name: "手动保存" }).first().click();
+  await expect(page.getByTestId("save-operation-result")).toContainText("已保存到手动存档 1");
+  await saves.getByRole("button", { name: "载入手动存档 1" }).click();
+  const confirm = page.getByRole("dialog", { name: "载入手动存档 1" });
   await expect(confirm).toBeVisible();
   await page
     .locator("[data-system-dialog-backdrop='action_confirmation']")
@@ -321,7 +321,9 @@ test("the system menu is one modal at a time and saves honor the safepoint", asy
   const saves = page.getByRole("dialog", { name: "保存" });
   await expect(saves).toBeVisible();
   await expect(page.locator("[data-save-guard='blocked']")).toContainText("对话进行中");
-  await expect(saves.getByRole("button", { name: "手动保存" })).toBeDisabled();
+  for (const button of await saves.getByRole("button", { name: "手动保存" }).all()) {
+    await expect(button).toBeDisabled();
+  }
   // The whole gameplay tree (narrative panel included) turns inert, so the
   // dialogue can neither cover the dialog nor swallow pointer input.
   await expect(page.getByTestId("stage-narrative")).toHaveAttribute("inert", "");
@@ -351,9 +353,9 @@ test("the system menu is one modal at a time and saves honor the safepoint", asy
   // timestamp in the list.
   await page.getByRole("button", { name: "保存", exact: true }).click();
   await expect(page.locator("[data-save-guard='blocked']")).toHaveCount(0);
-  await saves.getByRole("button", { name: "手动保存" }).click();
-  await expect(page.getByTestId("save-operation-result")).toContainText("已保存到手动存档");
-  await expect(saves.locator("[data-slot-id='manual'] [data-slot-saved-at]")).toBeVisible();
+  await saves.getByRole("button", { name: "手动保存" }).first().click();
+  await expect(page.getByTestId("save-operation-result")).toContainText("已保存到手动存档 1");
+  await expect(saves.locator("[data-slot-id='manual.1'] [data-slot-saved-at]")).toBeVisible();
 
   // Title screen → Load game → confirm: entering gameplay dismisses both
   // the dialog and the title screen (the anchored load origin).
@@ -361,7 +363,7 @@ test("the system menu is one modal at a time and saves honor the safepoint", asy
   await dismissSplashV1(page);
   await page.locator("[data-title-load-game]").click();
   await expect(saves).toBeVisible();
-  await saves.getByRole("button", { name: "载入手动存档" }).click();
+  await saves.getByRole("button", { name: "载入手动存档 1" }).click();
   await page.getByRole("button", { name: "确认" }).click();
   await expect(saves).toBeHidden();
   await expect(page.locator("[data-title-screen]")).toHaveCount(0);

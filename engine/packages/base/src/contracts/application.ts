@@ -114,8 +114,64 @@ export interface SessionLifecyclePortV1<TAnchorResult> {
   restartSession(): Promise<TAnchorResult>;
 }
 
-export type SaveSlotIdV1 = "auto.current" | "auto.previous" | "quick" | "manual";
-export type PlayerWritableSaveSlotIdV1 = "quick" | "manual";
+/** Numbered player-writable manual slot; the count is Story-configurable. */
+export type ManualSaveSlotIdV1 = `manual.${number}`;
+export type SaveSlotIdV1 = "auto.current" | "auto.previous" | "quick" | ManualSaveSlotIdV1;
+export type PlayerWritableSaveSlotIdV1 = "quick" | ManualSaveSlotIdV1;
+
+/** Engine default when an application does not declare `manualSaveSlotCount`. */
+export const defaultManualSaveSlotCountV1 = 8;
+/** Hard cap so slot enumeration and the Save UI stay bounded. */
+export const maxManualSaveSlotCountV1 = 99;
+
+const manualSaveSlotIdPatternV1 = /^manual\.(?:[1-9][0-9]?)$/u;
+
+/** 1-based index of a `manual.<n>` slot ID; null when not a manual slot shape. */
+export function manualSaveSlotIndexV1(value: string): number | null {
+  if (!manualSaveSlotIdPatternV1.test(value)) return null;
+  return Number(value.slice("manual.".length));
+}
+
+export function manualSaveSlotIdV1(index: number): ManualSaveSlotIdV1 {
+  if (!Number.isSafeInteger(index) || index < 1 || index > maxManualSaveSlotCountV1) {
+    throw new TypeError("invalid manual Save slot index");
+  }
+  return `manual.${index}`;
+}
+
+/** Structural slot-ID check (count-independent; count is enforced per application). */
+export function isSaveSlotIdShapeV1(value: unknown): value is SaveSlotIdV1 {
+  return (
+    value === "auto.current" ||
+    value === "auto.previous" ||
+    value === "quick" ||
+    (typeof value === "string" && manualSaveSlotIndexV1(value) !== null)
+  );
+}
+
+export function isPlayerWritableSaveSlotIdV1(value: unknown): value is PlayerWritableSaveSlotIdV1 {
+  return value === "quick" || (typeof value === "string" && manualSaveSlotIndexV1(value) !== null);
+}
+
+export function parseManualSaveSlotCountV1(value: unknown): number {
+  if (
+    typeof value !== "number" ||
+    !Number.isSafeInteger(value) ||
+    value < 1 ||
+    value > maxManualSaveSlotCountV1
+  ) {
+    throw new TypeError("invalid manual Save slot count");
+  }
+  return value;
+}
+
+/** Full slot enumeration for one application: autos, quick, manual.1..count. */
+export function createSaveSlotIdsV1(manualSlotCount: number): readonly SaveSlotIdV1[] {
+  const count = parseManualSaveSlotCountV1(manualSlotCount);
+  const slotIds: SaveSlotIdV1[] = ["auto.current", "auto.previous", "quick"];
+  for (let index = 1; index <= count; index += 1) slotIds.push(manualSaveSlotIdV1(index));
+  return Object.freeze(slotIds);
+}
 export type SessionLeaseOwnerId = Brand<string, "SessionLeaseOwnerId">;
 export type LeaseHandoffRequestId = Brand<string, "LeaseHandoffRequestId">;
 

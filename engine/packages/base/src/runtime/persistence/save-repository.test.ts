@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { SaveSlotIdV1, SessionLeaseOwnerId } from "../../contracts/application.ts";
+import { isPlayerWritableSaveSlotIdV1 } from "../../contracts/application.ts";
 import { canonicalJsonBytes } from "../../contracts/canonical-json.ts";
 import { digestCanonical } from "../../contracts/digest.ts";
 import type {
@@ -30,7 +31,7 @@ import { createSaveSlotRecordKeyV1, createSessionLeaseRecordKeyV1 } from "./slot
 
 const storyIdV1 = "story.save-repository-test";
 const ownerIdV1 = "owner.primary" as SessionLeaseOwnerId;
-const slotIdsV1 = ["auto.current", "auto.previous", "quick", "manual"] as const;
+const slotIdsV1 = ["auto.current", "auto.previous", "quick", "manual.1", "manual.2"] as const;
 
 interface SyntheticSnapshotV1 {
   readonly commandSequence: NonNegativeSafeInteger;
@@ -85,7 +86,7 @@ function parseSlotIdV1(value: unknown): SaveSlotIdV1 {
 }
 
 function parseWriteReasonV1(value: unknown): SaveWriteReasonV1 {
-  if (value !== "auto" && value !== "quick" && value !== "manual") {
+  if (value !== "auto" && !isPlayerWritableSaveSlotIdV1(value)) {
     throw new TypeError("invalid write reason");
   }
   return value;
@@ -168,8 +169,8 @@ function makeRecordV1(sequence: number, label = `sequence-${sequence}`): Synthet
     provenance: { storyId: storyIdV1, marker: `provenance.${label}` },
     slot: {
       storyId: storyIdV1,
-      slotId: "manual",
-      writeReason: "manual",
+      slotId: "manual.1",
+      writeReason: "manual.1",
       capturedCommandSequence: commandSequence,
     },
     savedAt: parseIsoUtcInstantV1(
@@ -278,7 +279,7 @@ describe("Save repository", () => {
       createSaveSlotRecordKeyV1("story.second", slotId),
     );
 
-    expect(new Set([...firstStory, ...secondStory])).toHaveLength(8);
+    expect(new Set([...firstStory, ...secondStory])).toHaveLength(slotIdsV1.length * 2);
     expect(createSessionLeaseRecordKeyV1("story.first")).not.toBe(
       createSessionLeaseRecordKeyV1("story.second"),
     );
@@ -294,7 +295,7 @@ describe("Save repository", () => {
       record: null,
       code: null,
     });
-    await fixture.repository.writeQuick(makeRecordV1(1), fixture.fence);
+    await fixture.repository.writePlayer("quick", makeRecordV1(1), fixture.fence);
     expectValidSequenceV1(await fixture.repository.read("quick"), 1);
 
     const quick = await physicalRecordV1(fixture.records, "quick");
@@ -311,8 +312,8 @@ describe("Save repository", () => {
       code: "persistence.record_revision_mismatch",
     });
 
-    await fixture.repository.writeManual(makeRecordV1(2), fixture.fence);
-    const manual = await physicalRecordV1(fixture.records, "manual");
+    await fixture.repository.writePlayer("manual.1", makeRecordV1(2), fixture.fence);
+    const manual = await physicalRecordV1(fixture.records, "manual.1");
     const mismatchedQuick = await physicalRecordV1(fixture.records, "quick");
     if (manual === null || mismatchedQuick === null) throw new TypeError("missing physical record");
     const manualRecord = JSON.parse(new TextDecoder().decode(manual.bytes)) as Record<
@@ -333,25 +334,31 @@ describe("Save repository", () => {
 
   it("writes Quick and Manual with matching Host/Save revisions and one CAS winner", async () => {
     const fixture = await createFixtureV1();
-    await expect(fixture.repository.writeQuick(makeRecordV1(1), fixture.fence)).resolves.toEqual({
+    await expect(
+      fixture.repository.writePlayer("quick", makeRecordV1(1), fixture.fence),
+    ).resolves.toEqual({
       kind: "saved",
       slotId: "quick",
       recordRevision: 1,
     });
-    await expect(fixture.repository.writeQuick(makeRecordV1(2), fixture.fence)).resolves.toEqual({
+    await expect(
+      fixture.repository.writePlayer("quick", makeRecordV1(2), fixture.fence),
+    ).resolves.toEqual({
       kind: "saved",
       slotId: "quick",
       recordRevision: 2,
     });
-    await expect(fixture.repository.writeManual(makeRecordV1(3), fixture.fence)).resolves.toEqual({
+    await expect(
+      fixture.repository.writePlayer("manual.1", makeRecordV1(3), fixture.fence),
+    ).resolves.toEqual({
       kind: "saved",
-      slotId: "manual",
+      slotId: "manual.1",
       recordRevision: 1,
     });
 
     const outcomes = await Promise.all([
-      fixture.repository.writeQuick(makeRecordV1(4), fixture.fence),
-      fixture.repository.writeQuick(makeRecordV1(5), fixture.fence),
+      fixture.repository.writePlayer("quick", makeRecordV1(4), fixture.fence),
+      fixture.repository.writePlayer("quick", makeRecordV1(5), fixture.fence),
     ]);
     expect(outcomes.map(({ kind }) => kind).toSorted()).toEqual(["rejected", "saved"]);
     expect(outcomes.find(({ kind }) => kind === "rejected")).toEqual({
@@ -369,7 +376,7 @@ describe("Save repository", () => {
 
   it("returns the original stored bytes as a fresh defensive copy for every valid read", async () => {
     const fixture = await createFixtureV1();
-    await fixture.repository.writeQuick(makeRecordV1(7), fixture.fence);
+    await fixture.repository.writePlayer("quick", makeRecordV1(7), fixture.fence);
     const exposedSaveReadBytes: Uint8Array[] = [];
     const exposingRecords: HostAtomicRecordStoreV1 = Object.freeze({
       async read(namespace: HostRecordNamespaceV1, key: HostRecordKeyV1) {
@@ -410,7 +417,7 @@ describe("Save repository", () => {
 
   it("keeps lease operations usable after a Save CAS-touches only its Host revision", async () => {
     const fixture = await createFixtureV1();
-    await fixture.repository.writeQuick(makeRecordV1(1), fixture.fence);
+    await fixture.repository.writePlayer("quick", makeRecordV1(1), fixture.fence);
 
     await expect(fixture.lease.release()).resolves.toEqual({
       kind: "updated",
@@ -503,7 +510,7 @@ describe("Save repository", () => {
 
   it("clears a corrupt slot with one CAS delete and lease touch", async () => {
     const fixture = await createFixtureV1();
-    await fixture.repository.writeQuick(makeRecordV1(1), fixture.fence);
+    await fixture.repository.writePlayer("quick", makeRecordV1(1), fixture.fence);
     const quick = await physicalRecordV1(fixture.records, "quick");
     if (quick === null) throw new TypeError("missing quick record");
     await overwritePhysicalV1(fixture.records, quick, new TextEncoder().encode("not-json"));
@@ -532,7 +539,9 @@ describe("Save repository", () => {
     await replacement.getStatus();
     await replacement.takeOver();
 
-    await expect(fixture.repository.writeQuick(makeRecordV1(1), fixture.fence)).resolves.toEqual({
+    await expect(
+      fixture.repository.writePlayer("quick", makeRecordV1(1), fixture.fence),
+    ).resolves.toEqual({
       kind: "rejected",
       code: "conflict",
     });
@@ -550,7 +559,7 @@ describe("Save repository", () => {
     await replacement.getStatus();
 
     const [saved, takeover] = await Promise.all([
-      fixture.repository.writeQuick(makeRecordV1(1), fixture.fence),
+      fixture.repository.writePlayer("quick", makeRecordV1(1), fixture.fence),
       replacement.takeOver(),
     ]);
     expect(takeover).toMatchObject({
@@ -583,7 +592,7 @@ describe("Save repository", () => {
       health: "unavailable",
       code: "indexeddb.unavailable",
     });
-    await expect(unavailable.writeQuick(makeRecordV1(1), fence)).resolves.toEqual({
+    await expect(unavailable.writePlayer("quick", makeRecordV1(1), fence)).resolves.toEqual({
       kind: "rejected",
       code: "unavailable",
     });
@@ -595,7 +604,7 @@ describe("Save repository", () => {
       codec: codecV1,
     });
     await expect(broken.read("quick")).rejects.toBe(unexpected);
-    await expect(broken.writeQuick(makeRecordV1(1), fence)).rejects.toBe(unexpected);
+    await expect(broken.writePlayer("quick", makeRecordV1(1), fence)).rejects.toBe(unexpected);
 
     const codedUnexpected = Object.assign(new Error("unexpected coded Host bug"), {
       code: "indexeddb.unavailable",
@@ -607,7 +616,9 @@ describe("Save repository", () => {
       codec: codecV1,
     });
     await expect(codedBroken.read("quick")).rejects.toBe(codedUnexpected);
-    await expect(codedBroken.writeQuick(makeRecordV1(1), fence)).rejects.toBe(codedUnexpected);
+    await expect(codedBroken.writePlayer("quick", makeRecordV1(1), fence)).rejects.toBe(
+      codedUnexpected,
+    );
   });
 
   it("does not misclassify a coded Save encoding bug as Host unavailability", async () => {
@@ -618,7 +629,9 @@ describe("Save repository", () => {
       provenance: Object.freeze({ ...valid.provenance, marker: "\ud800" }),
     }) as SyntheticSaveRecordV1;
 
-    await expect(fixture.repository.writeQuick(invalid, fixture.fence)).rejects.toMatchObject({
+    await expect(
+      fixture.repository.writePlayer("quick", invalid, fixture.fence),
+    ).rejects.toMatchObject({
       code: "string.lone_surrogate",
     });
     expect(await physicalRecordV1(fixture.records, "quick")).toBeNull();

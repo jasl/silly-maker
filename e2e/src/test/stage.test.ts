@@ -142,11 +142,11 @@ describe("Engine Lab semantic stage", () => {
 
     const beforeSave = stageOfV1(harness);
     const digest = digestSemanticStageStateV1(beforeSave);
-    await expect(harness.saves.save("manual")).resolves.toMatchObject({ kind: "saved" });
+    await expect(harness.saves.save("manual.1")).resolves.toMatchObject({ kind: "saved" });
     await dispatchCommittedV1(harness, "lab.advance_procedure");
     expect(digestSemanticStageStateV1(stageOfV1(harness))).not.toBe(digest);
 
-    await expect(harness.saves.load("manual")).resolves.toMatchObject({ kind: "loaded" });
+    await expect(harness.saves.load("manual.1")).resolves.toMatchObject({ kind: "loaded" });
     const restored = stageOfV1(harness);
     expect(restored).toEqual(beforeSave);
     expect(digestSemanticStageStateV1(restored)).toBe(digest);
