@@ -1,13 +1,33 @@
 // SPDX-License-Identifier: MIT
-import { createContext, useCallback, useContext, useLayoutEffect, useMemo, useState } from "react";
-import type { ReactElement, ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import type { PointerEvent as ReactPointerEvent, ReactElement, ReactNode } from "react";
 import styles from "./game-stage.module.css";
+import {
+  armStagePointerGestureFenceV1,
+  type StagePointerGestureFenceHandleV1,
+} from "./pointer-gesture-fence.ts";
 
-type StageInputIsolationContextIdV1 = "interaction" | "narrative" | "overlay" | "system";
+export type StageInputIsolationContextIdV1 = "interaction" | "narrative" | "overlay" | "system";
 
 interface StageInputIsolationPortV1 {
   register(context: StageInputIsolationContextIdV1): () => void;
   registerSystemFocusScope(target: HTMLElement): () => void;
+  /**
+   * Arm a host-local gesture fence on the stage root. Survives caller unmount;
+   * cleared on GameStage unmount, swallowed click, next pointerdown, or timeout.
+   */
+  armPointerGestureFence(
+    context: StageInputIsolationContextIdV1,
+    pointerUpEvent: PointerEvent,
+  ): void;
   readonly currentSystemFocusScopeTarget: HTMLElement | null;
   readonly systemPortalContainer: HTMLDivElement | null;
 }
@@ -44,6 +64,25 @@ export function useStageSystemFocusScopeRegistrationV1(target: HTMLElement | nul
 
 export function useStageSystemFocusScopeTargetV1(): HTMLElement | null {
   return useContext(StageInputIsolationContextV1)?.currentSystemFocusScopeTarget ?? null;
+}
+
+/**
+ * Returns `arm(pointerUpEvent)` for dismiss paths that sync-unmount a surface.
+ * Call from primary `onPointerUp` *before* dispatch. Keyboard/Escape must not arm.
+ *
+ * Fence ownership lives on GameStage — this hook does not clear the fence when
+ * the calling component unmounts.
+ */
+export function useStagePointerGestureFenceV1(
+  context: StageInputIsolationContextIdV1,
+): (event: ReactPointerEvent<Element>) => void {
+  const port = useContext(StageInputIsolationContextV1);
+  return useCallback(
+    (event: ReactPointerEvent<Element>) => {
+      port?.armPointerGestureFence(context, event.nativeEvent);
+    },
+    [context, port],
+  );
 }
 
 export type StageLayerIdV1 =
@@ -94,6 +133,8 @@ const noStageInputIsolationV1 = Object.freeze({
 }) satisfies StageInputIsolationCountsV1;
 
 export function GameStageV1(props: GameStagePropsV1): ReactElement {
+  const stageRootRef = useRef<HTMLElement | null>(null);
+  const gestureFenceRef = useRef<StagePointerGestureFenceHandleV1 | null>(null);
   const [isolationCounts, setIsolationCounts] =
     useState<StageInputIsolationCountsV1>(noStageInputIsolationV1);
   const [systemPortalContainer, setSystemPortalContainer] = useState<HTMLDivElement | null>(null);
@@ -123,6 +164,26 @@ export function GameStageV1(props: GameStagePropsV1): ReactElement {
       );
     };
   }, []);
+  const armPointerGestureFence = useCallback(
+    (context: StageInputIsolationContextIdV1, pointerUpEvent: PointerEvent) => {
+      gestureFenceRef.current?.release();
+      const root = stageRootRef.current;
+      if (root === null) return;
+      gestureFenceRef.current = armStagePointerGestureFenceV1({
+        root,
+        pointerUpEvent,
+        onArm: () => register(context),
+      });
+    },
+    [register],
+  );
+  useLayoutEffect(
+    () => () => {
+      gestureFenceRef.current?.release();
+      gestureFenceRef.current = null;
+    },
+    [],
+  );
   const currentSystemFocusScopeTarget =
     systemFocusScopeRegistrations[systemFocusScopeRegistrations.length - 1]?.target ?? null;
   const isolationPort = useMemo(
@@ -130,10 +191,17 @@ export function GameStageV1(props: GameStagePropsV1): ReactElement {
       Object.freeze({
         register,
         registerSystemFocusScope,
+        armPointerGestureFence,
         currentSystemFocusScopeTarget,
         systemPortalContainer,
       }) satisfies StageInputIsolationPortV1,
-    [currentSystemFocusScopeTarget, register, registerSystemFocusScope, systemPortalContainer],
+    [
+      armPointerGestureFence,
+      currentSystemFocusScopeTarget,
+      register,
+      registerSystemFocusScope,
+      systemPortalContainer,
+    ],
   );
   const systemActive = isolationCounts.system > 0;
   const overlayActive = isolationCounts.overlay > 0;
@@ -145,7 +213,12 @@ export function GameStageV1(props: GameStagePropsV1): ReactElement {
 
   return (
     <StageInputIsolationContextV1.Provider value={isolationPort}>
-      <main className={styles["game-stage"]} aria-label={props.accessibleName}>
+      <main
+        ref={stageRootRef}
+        className={styles["game-stage"]}
+        aria-label={props.accessibleName}
+        data-stage-root="true"
+      >
         <div
           className={styles["game-stage__layer"]}
           data-stage-layer="background"

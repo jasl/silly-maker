@@ -3,10 +3,15 @@
 import "@testing-library/jest-dom/vitest";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { cleanup, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { GameStageLayersV1, StageLayerIdV1 } from "./game-stage.tsx";
-import { GameStageV1, stageLayerIdsV1, useStageInputIsolationV1 } from "./game-stage.tsx";
+import {
+  GameStageV1,
+  stageLayerIdsV1,
+  useStageInputIsolationV1,
+  useStagePointerGestureFenceV1,
+} from "./game-stage.tsx";
 
 afterEach(cleanup);
 
@@ -25,6 +30,21 @@ function completeSevenLayerFixtureV1(): GameStageLayersV1 {
 function ActiveInteractionRegionV1() {
   useStageInputIsolationV1("interaction", true);
   return <button type="button">互动区域操作</button>;
+}
+
+function GestureFenceDismissButtonV1() {
+  const armFence = useStagePointerGestureFenceV1("narrative");
+  return (
+    <button
+      type="button"
+      data-testid="fence-dismiss"
+      onPointerUp={(event) => {
+        armFence(event);
+      }}
+    >
+      关闭并装围栏
+    </button>
+  );
 }
 
 describe("GameStageV1", () => {
@@ -115,6 +135,41 @@ describe("GameStageV1", () => {
     expect(screen.getByTestId("stage-workspace-overlay")).not.toHaveAttribute("inert");
     expect(screen.getByTestId("stage-narrative")).not.toHaveAttribute("inert");
     expect(screen.getByTestId("stage-system")).not.toHaveAttribute("inert");
+  });
+
+  it("arms a stage-root gesture fence that swallows the leftover click after pointerup", async () => {
+    render(
+      <GameStageV1
+        accessibleName="手势围栏舞台"
+        layers={Object.freeze({
+          ...completeSevenLayerFixtureV1(),
+          narrative: <GestureFenceDismissButtonV1 />,
+        })}
+      />,
+    );
+
+    const stage = screen.getByRole("main", { name: "手势围栏舞台" });
+    expect(stage).toHaveAttribute("data-stage-root", "true");
+    const dismiss = screen.getByTestId("fence-dismiss");
+    fireEvent.pointerUp(dismiss, { button: 0, pointerId: 1 });
+
+    // Isolation register is React state — flush before asserting inert.
+    await act(async () => {});
+    expect(screen.getByTestId("stage-scene-interaction")).toHaveAttribute("inert");
+
+    const leaked = vi.fn();
+    stage.addEventListener("click", leaked);
+    const click = new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 });
+    stage.dispatchEvent(click);
+    expect(click.defaultPrevented).toBe(true);
+    expect(leaked).not.toHaveBeenCalled();
+
+    // Next pointerdown clears the fence so intentional hits work again.
+    stage.dispatchEvent(
+      new PointerEvent("pointerdown", { bubbles: true, cancelable: true, button: 0, pointerId: 2 }),
+    );
+    await act(async () => {});
+    expect(screen.getByTestId("stage-scene-interaction")).not.toHaveAttribute("inert");
   });
 
   it("exports the exact frozen layer ID sequence", () => {
