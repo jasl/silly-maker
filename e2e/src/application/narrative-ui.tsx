@@ -20,7 +20,10 @@ import {
   playerInputActionIdsV1,
   systemInputActionIdsV1,
   useReducedMotionV1,
+  useStagePointerGestureFenceV1,
 } from "@sillymaker/ui";
+
+import { labCancelChoiceIdV1 } from "../gameplay/narrative.ts";
 
 import type { LabUiPublicationV1 } from "./composition.tsx";
 import type { LabApplicationInstanceV1 } from "./core-definition.ts";
@@ -316,6 +319,10 @@ function LabPendingInteractionV1(props: {
   const { publication, semantic, reveal, sayText } = props;
   const narrative = publication.semantic.narrative;
   const pending = narrative.pending;
+  // Pointer-dismiss surfaces arm the stage gesture fence so the click the
+  // browser synthesizes after our sync unmount cannot retarget below.
+  // Keyboard activation must never arm it (nothing renders under a key).
+  const armDismissFence = useStagePointerGestureFenceV1("narrative");
 
   // Pause boundaries auto-resume after their duration; stale timers are
   // rejected at the queue front.
@@ -375,27 +382,61 @@ function LabPendingInteractionV1(props: {
       <div data-lab-interaction="choice" data-lab-occurrence={pending.occurrenceId}>
         <p>{labUiTextV1(pending.promptTextId)}</p>
         <div role="group" aria-label={labUiTextV1(pending.promptTextId)}>
-          {(narrative.choiceOptions ?? []).map((option) => (
-            <Button
-              key={option.choiceId}
-              disabled={!option.enabled}
-              data-lab-choice-id={option.choiceId}
-              title={
-                option.blockedBy === null
-                  ? undefined
-                  : labUiTextV1("text.e2e.lab.narrative.cal.precise.locked")
-              }
-              onClick={() =>
+          {(narrative.choiceOptions ?? []).map((option) => {
+            if (option.choiceId === labCancelChoiceIdV1) {
+              const resolveCancel = () =>
                 labResolveV1(
                   semantic,
                   pending.occurrenceId,
                   Object.freeze({ kind: "choose" as const, choiceId: option.choiceId }),
-                )
-              }
-            >
-              {labUiTextV1(option.textId)}
-            </Button>
-          ))}
+                );
+              return (
+                <Button
+                  key={option.choiceId}
+                  disabled={!option.enabled}
+                  data-lab-choice-id={option.choiceId}
+                  data-lab-choice-cancel="true"
+                  onPointerUp={(event) => {
+                    if (event.button !== 0) return;
+                    // Resolve on pointerup (the dismiss idiom): the menu
+                    // unmounts before the browser synthesizes `click`, so
+                    // the fence must swallow that leftover click.
+                    armDismissFence(event);
+                    resolveCancel();
+                  }}
+                  onClick={(event) => {
+                    // Keyboard activation only (detail 0); pointer clicks
+                    // were either handled on pointerup or fenced.
+                    if (event.detail !== 0) return;
+                    resolveCancel();
+                  }}
+                >
+                  {labUiTextV1(option.textId)}
+                </Button>
+              );
+            }
+            return (
+              <Button
+                key={option.choiceId}
+                disabled={!option.enabled}
+                data-lab-choice-id={option.choiceId}
+                title={
+                  option.blockedBy === null
+                    ? undefined
+                    : labUiTextV1("text.e2e.lab.narrative.cal.precise.locked")
+                }
+                onClick={() =>
+                  labResolveV1(
+                    semantic,
+                    pending.occurrenceId,
+                    Object.freeze({ kind: "choose" as const, choiceId: option.choiceId }),
+                  )
+                }
+              >
+                {labUiTextV1(option.textId)}
+              </Button>
+            );
+          })}
         </div>
       </div>
     );

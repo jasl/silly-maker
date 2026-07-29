@@ -108,11 +108,63 @@ test.describe("engine input actions", () => {
     await expect(page.locator("[data-lab-interaction='choice']")).toBeVisible();
   });
 
-  test("game stage exposes a persistent root for the pointer gesture fence", async ({ page }) => {
+  test("choice cancel on pointerup fences the leftover synthesized click", async ({ page }) => {
     await gotoLabV1(page);
-    // Fence listeners attach to this root (not window) so dismiss click-through
-    // cannot retarget outside the stage. Swallow behavior is covered by
-    // @sillymaker/ui vitest (pointerup → leftover click).
+    // Fence listeners attach to this persistent root (not window).
     await expect(page.locator('[data-stage-root="true"]')).toHaveCount(1);
+
+    await page.getByRole("button", { name: "开始校准" }).click();
+    await expect(page.locator("[data-lab-interaction='say']")).toBeVisible();
+    await page.locator("body").click();
+    await expect(page.locator("[data-lab-say-reveal='complete']")).toBeAttached();
+    await page.keyboard.press("Enter");
+    await expect(page.locator("[data-lab-say-reveal='complete']")).toBeAttached();
+    await page.keyboard.press("Enter");
+    const choice = page.locator("[data-lab-interaction='choice']");
+    await expect(choice).toBeVisible();
+
+    const occurrenceBefore = await choice.getAttribute("data-lab-occurrence");
+    const sequenceBefore = Number(occurrenceBefore?.split(".").pop());
+    expect(Number.isInteger(sequenceBefore)).toBe(true);
+
+    // Count clicks that actually propagate to the document. The fence's
+    // capture-phase swallow on the stage root must keep this at zero for
+    // the click the browser synthesizes after the cancel unmounts the menu.
+    await page.evaluate(() => {
+      const probe = window as unknown as { labClickProbe: number };
+      probe.labClickProbe = 0;
+      document.addEventListener("click", () => {
+        probe.labClickProbe += 1;
+      });
+    });
+
+    // Real pointer gesture on 先返回: the Lab resolves the cancel on
+    // pointerup (the dismiss idiom), the menu unmounts, and the browser
+    // still synthesizes a click at the same coordinates.
+    const cancel = page.locator("[data-lab-choice-cancel]");
+    const box = await cancel.boundingBox();
+    expect(box).not.toBeNull();
+    await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+    await page.mouse.down();
+    await page.mouse.up();
+
+    // When Cancel re-presents the same choice at exactly the next
+    // occurrence — a leaked click would have activated the re-rendered
+    // control underneath and advanced it twice.
+    await expect(choice).toHaveAttribute(
+      "data-lab-occurrence",
+      `interaction-occurrence.${String(sequenceBefore + 1)}`,
+    );
+    expect(
+      await page.evaluate(() => (window as unknown as { labClickProbe: number }).labClickProbe),
+    ).toBe(0);
+
+    // The next deliberate gesture releases the fence on its pointerdown and
+    // lands normally: the choice resolves and the click reaches the document.
+    await page.getByRole("button", { name: "直接校准" }).click();
+    await expect(page.locator("[data-lab-interaction='choice']")).toHaveCount(0);
+    expect(
+      await page.evaluate(() => (window as unknown as { labClickProbe: number }).labClickProbe),
+    ).toBe(1);
   });
 });

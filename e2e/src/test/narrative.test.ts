@@ -126,6 +126,7 @@ describe("Engine Lab pending interactions", () => {
         enabled: false,
         blockedBy: "lab.narrative_choice_locked",
       },
+      { choiceId: "choice.e2e.cal.cancel", enabled: true, blockedBy: null },
     ]);
     const lockedResolve = resolveV1(choice.occurrenceId, {
       kind: "choose",
@@ -174,6 +175,61 @@ describe("Engine Lab pending interactions", () => {
     expect(finished.phase).toBe("completed");
     expect(finished.pending).toBeNull();
     expect(finished.calibration).toBe(2);
+    await harness.dispose();
+  });
+
+  it("When Cancel loops the choice back under a fresh occurrence", async () => {
+    const harness = await createLabHarnessV1();
+    await dispatchCommittedV1(harness, beginV1);
+    await dispatchCommittedV1(
+      harness,
+      resolveV1(pendingV1(harness).occurrenceId, { kind: "advance" }),
+    );
+    await dispatchCommittedV1(
+      harness,
+      resolveV1(pendingV1(harness).occurrenceId, { kind: "advance" }),
+    );
+
+    const first = pendingV1(harness);
+    expect(first).toMatchObject({
+      kind: "choice",
+      definitionId: "interaction.e2e.cal-approach",
+      occurrenceId: "interaction-occurrence.3",
+    });
+
+    // Cancel re-presents the same choice definition at the next occurrence;
+    // the stale first occurrence is fenced at the queue front (a leaked
+    // synthesized click could not double-resolve even without the UI fence).
+    await dispatchCommittedV1(
+      harness,
+      resolveV1(first.occurrenceId, { kind: "choose", choiceId: "choice.e2e.cal.cancel" }),
+    );
+    const second = pendingV1(harness);
+    expect(second).toMatchObject({
+      kind: "choice",
+      definitionId: "interaction.e2e.cal-approach",
+      occurrenceId: "interaction-occurrence.4",
+    });
+    expect(
+      await harness.dispatch(
+        resolveV1(first.occurrenceId, { kind: "choose", choiceId: "choice.e2e.cal.basic" }),
+      ),
+    ).toEqual({ kind: "rejected", codes: ["interaction.occurrence_mismatch"] });
+
+    // The re-presented menu still proceeds normally.
+    await dispatchCommittedV1(
+      harness,
+      resolveV1(second.occurrenceId, { kind: "choose", choiceId: "choice.e2e.cal.basic" }),
+    );
+    expect(pendingV1(harness).kind).toBe("presentation_barrier");
+
+    // The backlog recorded the cancel like any chosen option.
+    const entries = harness.observe().narrative.history.entries;
+    expect(
+      entries.some(
+        (entry) => entry.kind === "choice" && entry.textId === "text.e2e.lab.narrative.cal.cancel",
+      ),
+    ).toBe(true);
     await harness.dispose();
   });
 

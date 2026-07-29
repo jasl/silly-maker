@@ -155,6 +155,16 @@ function stageBatchV1(batch: readonly unknown[]): readonly StageMutationV1[] {
 export const labCalibrationSurfaceIdV1 = "surface.e2e.calibration";
 export const labCalibrationEntryNodeIdV1 = "node.e2e.cal.enter-alpha";
 
+/**
+ * The approach choice's "When Cancel" option: it loops back to the same
+ * choice node, so the runner re-presents the menu under a fresh occurrence
+ * (the MV cancel semantic). The Lab UI resolves it on primary `pointerup`
+ * and arms the stage pointer gesture fence — the vertical proof that a
+ * dismiss which sync-unmounts its surface cannot leak the browser's
+ * synthesized `click` into whatever renders underneath.
+ */
+export const labCancelChoiceIdV1 = "choice.e2e.cal.cancel";
+
 export const labNarrativeScriptV1: readonly LabNarrativeNodeV1[] = [
   {
     kind: "stage",
@@ -302,6 +312,15 @@ export const labNarrativeScriptV1: readonly LabNarrativeNodeV1[] = [
         requiresSamples: 1,
         consumesSamples: 1,
         next: "node.e2e.cal.precise-mark",
+      },
+      {
+        // When Cancel: re-present this choice with the next occurrence.
+        // The interaction boundary breaks the cycle for the graph lint.
+        choiceId: labCancelChoiceIdV1,
+        textId: "text.e2e.lab.narrative.cal.cancel",
+        requiresSamples: 0,
+        consumesSamples: 0,
+        next: "node.e2e.cal.approach",
       },
     ],
   },
