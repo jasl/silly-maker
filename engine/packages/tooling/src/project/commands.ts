@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: MIT
+import { fileURLToPath } from "node:url";
+
 import type {
   DiagnosticEnvelopeV1,
   GamePackageV1,
@@ -12,7 +14,7 @@ import {
 } from "@sillymaker/base";
 
 import type { SillymakerProjectConfigV1 } from "./config.ts";
-import { resolveStoryApplicationV1 } from "./config.ts";
+import { joinAppPathV1, resolveStoryApplicationV1 } from "./config.ts";
 
 /** Loads a repository module for command execution; injectable for tests. */
 export interface ProjectModuleLoaderV1 {
@@ -427,7 +429,15 @@ export interface StoryBuildOptionsV1 {
   readonly minify?: boolean;
 }
 
-/** Builds the application's web target through the repository Vite config. */
+/** The application directory, absolute: every process verb runs inside it. */
+function applicationRootV1(repositoryRoot: string, storyRoot: string): string {
+  return storyRoot === "." ? repositoryRoot : `${repositoryRoot}/${storyRoot}`;
+}
+
+/**
+ * Builds the application's web target through the application's own Vite
+ * config (`<appRoot>/vite.config.ts`); the CLI never selects a build switch.
+ */
 export async function buildStoryApplicationV1(
   project: SillymakerProjectConfigV1,
   applicationId: string,
@@ -436,10 +446,12 @@ export async function buildStoryApplicationV1(
 ): Promise<StoryBuildReportV1> {
   const application = resolveStoryApplicationV1(project, applicationId);
   const web = requireWebTargetV1(application, applicationId);
-  const args = ["run", "-A", "npm:vite", "build", "--mode", applicationId];
+  const args = ["run", "-A", "npm:vite", "build"];
   if (options.sourcemap === true) args.push("--sourcemap");
   if (options.minify === false) args.push("--minify", "false");
-  const exitCode = await deps.runner.run("deno", args, { cwd: deps.repositoryRoot });
+  const exitCode = await deps.runner.run("deno", args, {
+    cwd: applicationRootV1(deps.repositoryRoot, web.storyRoot),
+  });
   return Object.freeze({
     applicationId: application.applicationId,
     ok: exitCode === 0,
@@ -493,16 +505,21 @@ export async function desktopStoryApplicationV1(
     );
   }
 
-  const stagingDir = `${deps.repositoryRoot}/dist/desktop/${applicationId}/staging`;
+  // Desktop output lives beside (not inside) the web outDir so a later
+  // `vite build` with emptyOutDir cannot delete a packaged bundle.
+  const desktopRoot = `${deps.repositoryRoot}/${joinAppPathV1(web.storyRoot, "dist-desktop")}`;
+  const stagingDir = `${desktopRoot}/staging`;
   const outputName = `${desktop.name}.app`;
-  const outputPath = `${deps.repositoryRoot}/dist/desktop/${applicationId}/${outputName}`;
-  await deps.runner.removeDirectory(`${deps.repositoryRoot}/dist/desktop/${applicationId}`);
+  const outputPath = `${desktopRoot}/${outputName}`;
+  await deps.runner.removeDirectory(desktopRoot);
   await deps.runner.copyDirectory(`${deps.repositoryRoot}/${web.outDir}`, `${stagingDir}/dist`);
 
   // Stage the shell: the template's placeholders become the application's
-  // identity, and the record store rides along as a sibling module.
+  // identity, and the record store rides along as a sibling module. Both
+  // sources ship inside @sillymaker/tooling, so packaging works from any
+  // application root without a repository-level scripts directory.
   const shellTemplate = await deps.runner.readFile(
-    `${deps.repositoryRoot}/scripts/desktop/shell-main.ts`,
+    fileURLToPath(new URL("../desktop/shell-main.ts", import.meta.url)),
   );
   await deps.runner.writeFile(
     `${stagingDir}/main.ts`,
@@ -512,7 +529,9 @@ export async function desktopStoryApplicationV1(
   );
   await deps.runner.writeFile(
     `${stagingDir}/record-file-store.mts`,
-    await deps.runner.readFile(`${deps.repositoryRoot}/scripts/desktop/record-file-store.mts`),
+    await deps.runner.readFile(
+      fileURLToPath(new URL("../desktop/record-file-store.mts", import.meta.url)),
+    ),
   );
   const iconArgs: string[] = [];
   if (desktop.icon !== undefined) {
@@ -602,15 +621,13 @@ export async function devSmokeStoryApplicationV1(
       "run",
       "-A",
       "npm:vite",
-      "--mode",
-      applicationId,
       "--host",
       "127.0.0.1",
       "--port",
       String(devSmokePortV1),
       "--strictPort",
     ],
-    { cwd: deps.repositoryRoot },
+    { cwd: applicationRootV1(deps.repositoryRoot, web.storyRoot) },
   );
   try {
     let body: string | null = null;

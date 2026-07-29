@@ -77,8 +77,7 @@ describe("catcafe audio", () => {
     );
     expect(providers.length).toBe(9);
     for (const provider of providers) {
-      const relative = provider.runtimePath.replace("examples/cat-cafe/", "");
-      const bytes = await readFile(resolve(storyRootV1, relative));
+      const bytes = await readFile(resolve(storyRootV1, provider.runtimePath));
       expect(bytes.byteLength).toBe(provider.byteLength);
       expect(`sha256:${createHash("sha256").update(bytes).digest("hex")}`).toBe(provider.sha256);
     }

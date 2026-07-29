@@ -3,7 +3,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 /**
  * The engine conformance suite against the prebuilt Engine Lab Artifact:
- * `deno task test:e2e:engine:prebuilt` builds `dist/e2e` first, then this config
+ * `deno task test:e2e:engine:prebuilt` builds `e2e/dist-web` first, then this config
  * serves the exact bytes with `vite preview` on the same host/port the dev
  * suite uses, so every engine spec runs unchanged against the Artifact.
  */

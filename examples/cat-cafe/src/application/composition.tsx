@@ -231,7 +231,7 @@ export const catcafeGameApplicationV1: WebGameApplicationV1<
           playerProfile.current().preferences.locale,
           "text.cc.app.name",
         ),
-        backgroundUrl: "examples/cat-cafe/assets/cc-bg-title.webp",
+        backgroundUrl: "assets/cc-bg-title.webp",
         // Splash: this game is entirely AI-generated (code, text, art, audio).
         splash: Object.freeze({
           lines:

@@ -43,30 +43,37 @@ describe("closed runtime asset verification", () => {
     const stories = manifests.map((manifest, index): RuntimeAssetStoryCheckV1 =>
       Object.freeze({
         storyId: `story.test.${String(index + 1)}`,
+        appDirectory: `stories/${String(index + 1)}`,
         resolveAssets() {
           resolutionCalls.push(this.storyId);
           return manifest;
         },
       }),
     );
-    const environment: RuntimeAssetValidationEnvironmentV1 = Object.freeze({
-      repositoryRoot: "/repo/silly-maker",
-      async readFile(path: string) {
-        throw new Error(`unexpected read: ${path}`);
-      },
-      async realpath(path: string) {
-        throw new Error(`unexpected realpath: ${path}`);
-      },
-    });
+    const environmentRoots: string[] = [];
+    const environmentFor = (appRoot: string): RuntimeAssetValidationEnvironmentV1 => {
+      environmentRoots.push(appRoot);
+      return Object.freeze({
+        repositoryRoot: appRoot,
+        async readFile(path: string) {
+          throw new Error(`unexpected read: ${path}`);
+        },
+        async realpath(path: string) {
+          throw new Error(`unexpected realpath: ${path}`);
+        },
+      });
+    };
 
     const verified = await verifyRuntimeAssetStoryChecksV1(
       stories,
-      environment,
+      environmentFor,
       async (manifest) => {
         validationCalls.push(manifest);
         return Object.freeze({ errors: Object.freeze([]) });
       },
     );
+
+    expect(environmentRoots).toEqual(["stories/1", "stories/2"]);
 
     expect(resolutionCalls).toEqual(["story.test.1", "story.test.2"]);
     expect(validationCalls).toEqual(manifests);
@@ -82,16 +89,18 @@ describe("closed runtime asset verification", () => {
     const root = resolve(import.meta.dirname, "../..");
     await expect(
       verifyRuntimeAssetsV1(root, {
-        environment: Object.freeze({
-          repositoryRoot: root,
-          async readFile(path: string) {
-            reads.push(path);
-            return await readFile(path);
-          },
-          async realpath(path: string) {
-            return await realpath(path);
-          },
-        }),
+        environmentFor: (appDirectory: string) =>
+          Object.freeze({
+            repositoryRoot: resolve(root, appDirectory),
+            async readFile(path: string) {
+              const absolute = resolve(root, appDirectory, path);
+              reads.push(absolute);
+              return await readFile(absolute);
+            },
+            async realpath(path: string) {
+              return await realpath(resolve(root, appDirectory, path));
+            },
+          }),
       }),
     ).resolves.toEqual([
       "story.e2e.engine-lab",
@@ -110,6 +119,7 @@ describe("closed runtime asset verification", () => {
       (storyId): RuntimeAssetStoryCheckV1 =>
         Object.freeze({
           storyId,
+          appDirectory: "stories/test",
           resolveAssets() {
             resolutionCalls.push(storyId);
             return manifest;
@@ -124,15 +134,16 @@ describe("closed runtime asset verification", () => {
     await expect(
       verifyRuntimeAssetStoryChecksV1(
         stories,
-        Object.freeze({
-          repositoryRoot: "/repo/silly-maker",
-          async readFile() {
-            return new Uint8Array();
-          },
-          async realpath(path: string) {
-            return path;
-          },
-        }),
+        () =>
+          Object.freeze({
+            repositoryRoot: "/repo/silly-maker",
+            async readFile() {
+              return new Uint8Array();
+            },
+            async realpath(path: string) {
+              return path;
+            },
+          }),
         async () => {
           return Object.freeze({ errors: Object.freeze([error]) });
         },
@@ -152,10 +163,9 @@ describe("closed runtime asset verification", () => {
 
     expect(dynamicSpecifiers).toEqual([
       "../../engine/packages/base/src/index.ts",
-      "../../engine/packages/tooling/src/project/index.ts",
-      "../../engine/packages/tooling/src/project/loader.ts",
-      "../../engine/packages/tooling/src/project/local-overlay.ts",
+      "../../engine/packages/tooling/src/project/workspace.ts",
       "../../project.config.ts",
+      "../../engine/packages/tooling/src/project/loader.ts",
       "./validate-runtime.mts",
     ]);
     expect(dynamicSpecifiers.every((specifier) => !specifier.includes("/testkit"))).toBe(true);

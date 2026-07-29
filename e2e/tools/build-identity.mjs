@@ -2,11 +2,11 @@
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { createStoryBuildIdentityOwnerV1 } from "./build-story-identity.mjs";
+import { createStoryBuildIdentityOwnerV1 } from "@sillymaker/tooling/identity/story-build-identity";
 
 export const e2eBuildIdentityVirtualSpecifierV1 = "virtual:sillymaker/e2e-build-identity";
 
-const repositoryRootV1 = dirname(dirname(fileURLToPath(import.meta.url)));
+const repositoryRootV1 = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const ownerV1 = createStoryBuildIdentityOwnerV1({
   label: "E2E",
   storySourceRoot: "e2e/src/",
@@ -20,10 +20,11 @@ const ownerV1 = createStoryBuildIdentityOwnerV1({
   },
   applicationEntries: [
     "e2e/src/application/entry.tsx",
-    "scripts/build-story-identity.mjs",
-    "scripts/collect-import-closure.mjs",
-    "scripts/build-e2e-identity.mjs",
-    "vite.config.ts",
+    "engine/packages/tooling/src/identity/story-build-identity.mjs",
+    "engine/packages/tooling/src/identity/collect-import-closure.mjs",
+    "e2e/tools/build-identity.mjs",
+    "e2e/vite.config.ts",
+    "e2e/sillymaker.config.ts",
   ],
   virtual: {
     specifier: e2eBuildIdentityVirtualSpecifierV1,
@@ -44,7 +45,10 @@ export function renderE2eBuildIdentityVirtualModuleV1(identity) {
 
 /** Creates the Engine Lab Vite plugin without making the collector depend on Vite. */
 export function createE2eBuildIdentityVirtualPluginV1(input) {
-  return ownerV1.createVirtualPluginV1(input);
+  return ownerV1.createVirtualPluginV1({
+    root: repositoryRootV1,
+    initialIdentity: input.initialIdentity,
+  });
 }
 
 const isMain = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);

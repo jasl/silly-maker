@@ -3,6 +3,7 @@ import { AuthoringDiagnosticErrorV1, createDiagnosticV1 } from "@sillymaker/base
 
 import type {
   ProjectModuleRefV1,
+  SillymakerAppConfigV1,
   SillymakerProjectConfigV1,
   StoryApplicationConfigV1,
   StoryWebTargetV1,
@@ -10,7 +11,10 @@ import type {
 
 export type {
   ProjectModuleRefV1,
+  SillymakerAppConfigV1,
+  SillymakerAppWebTargetV1,
   SillymakerProjectConfigV1,
+  SillymakerWorkspaceConfigV1,
   StoryApplicationConfigV1,
   StoryWebIdentityRefV1,
   StoryWebTargetV1,
@@ -81,25 +85,34 @@ function freezeModuleRefV1(ref: ProjectModuleRefV1, pointer: string): ProjectMod
   });
 }
 
+/** Application roots may be `.` when a project is its own repository root. */
+function requireStoryRootV1(value: string, pointer: string): string {
+  if (value === ".") return value;
+  return requireRepositoryPathV1(value, pointer);
+}
+
 function freezeWebTargetV1(web: StoryWebTargetV1, pointer: string): StoryWebTargetV1 {
   return Object.freeze({
-    storyRoot: requireRepositoryPathV1(web.storyRoot, `${pointer}/storyRoot`),
+    storyRoot: requireStoryRootV1(web.storyRoot, `${pointer}/storyRoot`),
     applicationHtml: requireRepositoryPathV1(web.applicationHtml, `${pointer}/applicationHtml`),
     applicationEntry: requireRepositoryPathV1(web.applicationEntry, `${pointer}/applicationEntry`),
     outDir: requireRepositoryPathV1(web.outDir, `${pointer}/outDir`),
     base: web.base,
     sourcemap: web.sourcemap,
-    identity: Object.freeze({
-      module: requireRepositoryPathV1(web.identity.module, `${pointer}/identity/module`),
-      collectExport: requireExportNameV1(
-        web.identity.collectExport,
-        `${pointer}/identity/collectExport`,
-      ),
-      createPluginExport: requireExportNameV1(
-        web.identity.createPluginExport,
-        `${pointer}/identity/createPluginExport`,
-      ),
-    }),
+    identity:
+      web.identity === null
+        ? null
+        : Object.freeze({
+            module: requireRepositoryPathV1(web.identity.module, `${pointer}/identity/module`),
+            collectExport: requireExportNameV1(
+              web.identity.collectExport,
+              `${pointer}/identity/collectExport`,
+            ),
+            createPluginExport: requireExportNameV1(
+              web.identity.createPluginExport,
+              `${pointer}/identity/createPluginExport`,
+            ),
+          }),
     desktop:
       web.desktop === undefined || web.desktop === null
         ? null
@@ -201,4 +214,145 @@ export function resolveWebBuildTargetV1(
     );
   }
   return application.web;
+}
+
+/** Joins an application-relative path under its directory (`.` = in place). */
+export function joinAppPathV1(appDirectory: string, appRelativePath: string): string {
+  return appDirectory === "." ? appRelativePath : `${appDirectory}/${appRelativePath}`;
+}
+
+/**
+ * Validates one application project declaration (`sillymaker.config.ts`) and
+ * freezes it. Paths stay app-root-relative here; `deriveStoryApplicationV1`
+ * anchors them under a directory for workspace-level commands.
+ */
+export function defineSillymakerAppV1(config: SillymakerAppConfigV1): SillymakerAppConfigV1 {
+  const pointer = "/app";
+  requireIdentifierV1(config.applicationId, "application ID", `${pointer}/applicationId`);
+  if (config.label.length === 0) {
+    configErrorV1("project.config_invalid", "application label must not be empty", pointer);
+  }
+  const web = config.web ?? null;
+  return Object.freeze({
+    applicationId: config.applicationId,
+    label: config.label,
+    storyEntry: freezeModuleRefV1(config.storyEntry, `${pointer}/storyEntry`),
+    assetVerification: config.assetVerification,
+    simulate:
+      config.simulate === undefined || config.simulate === null
+        ? null
+        : freezeModuleRefV1(config.simulate, `${pointer}/simulate`),
+    web:
+      web === null
+        ? null
+        : Object.freeze({
+            applicationHtml: requireRepositoryPathV1(
+              web.applicationHtml,
+              `${pointer}/web/applicationHtml`,
+            ),
+            applicationEntry: requireRepositoryPathV1(
+              web.applicationEntry,
+              `${pointer}/web/applicationEntry`,
+            ),
+            outDir: requireRepositoryPathV1(web.outDir ?? "dist-web", `${pointer}/web/outDir`),
+            base: web.base,
+            sourcemap: web.sourcemap,
+            identity:
+              web.identity === undefined || web.identity === null
+                ? null
+                : Object.freeze({
+                    module: requireRepositoryPathV1(
+                      web.identity.module,
+                      `${pointer}/web/identity/module`,
+                    ),
+                    collectExport: requireExportNameV1(
+                      web.identity.collectExport,
+                      `${pointer}/web/identity/collectExport`,
+                    ),
+                    createPluginExport: requireExportNameV1(
+                      web.identity.createPluginExport,
+                      `${pointer}/web/identity/createPluginExport`,
+                    ),
+                  }),
+            desktop:
+              web.desktop === undefined || web.desktop === null
+                ? null
+                : Object.freeze({
+                    name: requireNonEmptyStringV1(web.desktop.name, `${pointer}/web/desktop/name`),
+                    identifier: requireNonEmptyStringV1(
+                      web.desktop.identifier,
+                      `${pointer}/web/desktop/identifier`,
+                    ),
+                    ...(web.desktop.icon === undefined
+                      ? {}
+                      : {
+                          icon: requireNonEmptyStringV1(
+                            web.desktop.icon,
+                            `${pointer}/web/desktop/icon`,
+                          ),
+                        }),
+                  }),
+          }),
+    releaseArtifact: config.releaseArtifact,
+  });
+}
+
+/**
+ * Anchors one validated application project under a directory, producing the
+ * repository-relative application record the workspace commands consume.
+ * `appDirectory` is `.` when the application root is the working root itself
+ * (the standalone/app-local CLI).
+ */
+export function deriveStoryApplicationV1(
+  appDirectory: string,
+  config: SillymakerAppConfigV1,
+): StoryApplicationConfigV1 {
+  const app = defineSillymakerAppV1(config);
+  const web = app.web ?? null;
+  const webIdentity = web?.identity ?? null;
+  return Object.freeze({
+    applicationId: app.applicationId,
+    label: app.label,
+    storyEntry: Object.freeze({
+      module: joinAppPathV1(appDirectory, app.storyEntry.module),
+      exportName: app.storyEntry.exportName,
+    }),
+    assetVerification: app.assetVerification,
+    simulate:
+      app.simulate === null || app.simulate === undefined
+        ? null
+        : Object.freeze({
+            module: joinAppPathV1(appDirectory, app.simulate.module),
+            exportName: app.simulate.exportName,
+          }),
+    web:
+      web === null
+        ? null
+        : Object.freeze({
+            storyRoot: appDirectory,
+            applicationHtml: joinAppPathV1(appDirectory, web.applicationHtml),
+            applicationEntry: joinAppPathV1(appDirectory, web.applicationEntry),
+            outDir: joinAppPathV1(appDirectory, web.outDir ?? "dist-web"),
+            base: web.base,
+            sourcemap: web.sourcemap,
+            identity:
+              webIdentity === null
+                ? null
+                : Object.freeze({
+                    module: joinAppPathV1(appDirectory, webIdentity.module),
+                    collectExport: webIdentity.collectExport,
+                    createPluginExport: webIdentity.createPluginExport,
+                  }),
+            desktop:
+              web.desktop === null || web.desktop === undefined
+                ? null
+                : Object.freeze({
+                    ...web.desktop,
+                    ...(web.desktop.icon === undefined
+                      ? {}
+                      : { icon: joinAppPathV1(appDirectory, web.desktop.icon) }),
+                  }),
+          }),
+    releaseArtifact: app.releaseArtifact,
+  });
 }

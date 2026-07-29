@@ -9,17 +9,23 @@ import {
 
 import { readRuntimeImageMetadataV1 } from "./runtime-image-metadata.mts";
 
-type AllowedRuntimeRootV1 = `${string}/assets/`;
+type AllowedRuntimeRootV1 = "assets/";
 
 type CanonicalRootResultV1 =
   | { readonly kind: "valid"; readonly path: string }
   | { readonly kind: "missing" }
   | { readonly kind: "escape" };
 
+/**
+ * Validation environment rooted at one application project directory:
+ * runtimePaths are app-root-relative (`assets/…`), so the same declaration
+ * verifies in-repository and in an external checkout.
+ */
 export interface RuntimeAssetValidationEnvironmentV1 {
+  /** The application root the manifest's runtimePaths resolve against. */
   readonly repositoryRoot: string;
-  readFile(repositoryRelativePath: string): Promise<Uint8Array>;
-  realpath(repositoryRelativePath: string): Promise<string>;
+  readFile(appRelativePath: string): Promise<Uint8Array>;
+  realpath(appRelativePath: string): Promise<string>;
 }
 
 export interface RuntimeAssetValidationErrorV1 {
@@ -34,29 +40,13 @@ export interface RuntimeAssetValidationErrorV1 {
     | "asset.runtime_dimensions_mismatch";
 }
 
-const storyNamePatternV1 = /^[a-z0-9][a-z0-9-]*$/u;
-
 /**
- * Runtime assets live under a Story package's `assets/` directory. Story
- * packages sit at `e2e/`, `template/`, or `examples/<story>/`.
+ * Runtime assets live under the application project's own `assets/`
+ * directory and are addressed app-root-relative.
  */
 function declaredRuntimeRootV1(runtimePath: string): AllowedRuntimeRootV1 | undefined {
   const segments = runtimePath.split("/");
-  const [first, second, third] = segments;
-  if (first === undefined) return undefined;
-  if ((first === "e2e" || first === "template") && second === "assets" && segments.length >= 3) {
-    return `${first}/assets/`;
-  }
-  if (
-    first === "examples" &&
-    second !== undefined &&
-    storyNamePatternV1.test(second) &&
-    third === "assets" &&
-    segments.length >= 4
-  ) {
-    return `examples/${second}/assets/`;
-  }
-  return undefined;
+  return segments[0] === "assets" && segments.length >= 2 ? "assets/" : undefined;
 }
 
 function safeRuntimePathV1(runtimePath: string): AllowedRuntimeRootV1 | undefined {

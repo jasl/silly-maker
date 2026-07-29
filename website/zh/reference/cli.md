@@ -16,11 +16,11 @@
 
 ## 仓库级
 
-| 命令                                                            | 作用                                                     |
-| --------------------------------------------------------------- | -------------------------------------------------------- |
-| `deno task check`                                               | 格式检查、lint、类型、全部单测、资产与 Story 检查        |
-| `deno task test:e2e`                                            | 浏览器一致性套件（Chromium、WebKit、触摸 project）       |
-| `deno task desktop:save-server --dist dist/<app> --saves <dir>` | 固定端口服务构建产物，存档落本地文件（`?records=local`） |
-| `deno task docs:dev` / `docs:build`                             | 本文档站                                                 |
+| 命令                                                                | 作用                                                     |
+| ------------------------------------------------------------------- | -------------------------------------------------------- |
+| `deno task check`                                                   | 格式检查、lint、类型、全部单测、资产与 Story 检查        |
+| `deno task test:e2e`                                                | 浏览器一致性套件（Chromium、WebKit、触摸 project）       |
+| `deno task desktop:save-server --dist <app>/dist-web --saves <dir>` | 固定端口服务构建产物，存档落本地文件（`?records=local`） |
+| `deno task docs:dev` / `docs:build`                                 | 本文档站                                                 |
 
 种子让模拟可复现：`--seed <uint>` 转发给应用的引导熵。

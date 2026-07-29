@@ -2,7 +2,7 @@
 
 # Starter template Story
 
-这是一个可以直接游玩的最小 Story，也是开新游戏的起点。复制本目录、全局替换 `template`/`Template` 为你的故事名、在 `project.config.ts` 注册一条应用，即可开始创作。
+这是一个可以直接游玩的最小 Story，也是开新游戏的起点。复制本目录、全局替换 `template`/`Template` 为你的故事名、改好 `sillymaker.config.ts`，即可开始创作——副本本身就是完整项目（自带 `vite.config.ts` 与本地 story CLI）。在本仓库内开发时，把目录加进根 `project.config.ts` 清单；在仓库外开发时，把 `package.json` 里的引擎依赖改为相对 `file:` 路径并在 `deno.json` 设 `"nodeModulesDir": "manual"`。
 
 ## 现在就能跑
 
@@ -10,8 +10,8 @@
 deno task story check template                       # 结构化 Story 诊断
 deno task story simulate template --scenario opening # 无浏览器跑完整叙事
 deno run -A npm:vitest run template      # 基线 + 图 lint + 全剧本走通
-deno run -A npm:vite --mode template                  # 浏览器游玩
-deno task story build template                       # 静态构建到 dist/template
+deno task dev                                         # 在本目录启动开发服务器
+deno task build                                       # 静态构建到 dist-web/
 ```
 
 ## 文件地图（按"你想改什么"排列）

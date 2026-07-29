@@ -32,8 +32,10 @@ Agent 汇报 `deno task check` 全绿时，你就有了一个可工作的引擎�
 
 流程要求：
 1. 先读 template/AGENTS.md 与 docs/engine/authoring-quickstart.md。
-2. 复制 template/ 到 examples/⟨新名字⟩，全局改名（template/Template → ⟨新名字⟩），
-   在根 project.config.ts 注册应用，改 metadata.json。
+2. 复制 template/ 到 examples/⟨新名字⟩（或仓库外任意目录），全局改名
+   （template/Template → ⟨新名字⟩），改 sillymaker.config.ts 与 metadata.json。
+   在本仓库内再把目录加进根 project.config.ts 清单；在仓库外则把 package.json
+   的引擎依赖改成相对 file: 路径。
 3. 剧本写在 src/narrative.ts + src/presentation.ts 的文本目录；玩法状态走
    src/state.ts → src/simulation.ts → src/application/semantic.ts → src/story.ts。
 4. 动剧本前先列节点序列表（每个 say/choice 边界一个 occurrence 编号），
@@ -57,7 +59,7 @@ Agent 汇报 `deno task check` 全绿时，你就有了一个可工作的引擎�
 为 ⟨应用 id⟩ 启动开发服务器（deno task story dev ⟨应用 id⟩），把 URL 给我
 在浏览器里打开。然后：
 1. 跑一遍所有 simulate 场景，汇总每条路线的终局状态。
-2. 运行 `git diff --stat`，确认改动只落在新 Story 目录与 project.config.ts。
+2. 运行 `git diff --stat`，确认改动只落在新 Story 目录（加上仓库内的一行 project.config.ts 清单条目）。
 3. 如果我报 bug，先在 simulate 场景里复现，修复后重跑全部验收命令。
 ```
 

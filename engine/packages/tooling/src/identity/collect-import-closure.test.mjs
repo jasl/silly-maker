@@ -11,7 +11,9 @@ import {
   collectManagedPaths,
 } from "./collect-import-closure.mjs";
 
-const root = dirname(dirname(fileURLToPath(import.meta.url)));
+// This module lives at engine/packages/tooling/src/identity/, five levels
+// below the repository root the closure walker resolves against.
+const root = join(dirname(fileURLToPath(import.meta.url)), "../../../../..");
 const reactSpecifierPattern = /^(?:react(?:\/|$)|react-dom(?:\/|$))/u;
 
 async function assertNodeSafeStoryClosure(entry) {
@@ -130,7 +132,10 @@ test("keeps the default Story and Node-safe tooling closures free of TSX, React,
 });
 
 test("builds sorted live records from an explicit managed path set", async () => {
-  const paths = ["vite.config.ts", "scripts/collect-import-closure.mjs"];
+  const paths = [
+    "vite.config.ts",
+    "engine/packages/tooling/src/identity/collect-import-closure.mjs",
+  ];
   const records = await buildImportClosureRecordsV1(root, paths, "application");
   assert(Object.isFrozen(records));
   assert.deepEqual(

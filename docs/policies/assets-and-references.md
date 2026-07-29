@@ -6,7 +6,7 @@ This policy separates source archives, selected product assets, third-party mate
 
 ## 1. Project-owned runtime assets
 
-A product asset becomes part of the game only when a maintainer intentionally copies or creates it in a Story-owned assets directory (`e2e/assets/**`, `template/assets/**`, or `examples/<story>/assets/**`), then references it from the Story's validated asset catalog. A future shared runtime asset package must document its ownership and admission boundary before use.
+A product asset becomes part of the game only when a maintainer intentionally copies or creates it in the application project's own `assets/` directory (`<appRoot>/assets/**` — e.g. `e2e/assets/**`, `template/assets/**`, `examples/<story>/assets/**`; runtimePaths are app-root-relative `assets/…`), then references it from the Story's validated asset catalog. A future shared runtime asset package must document its ownership and admission boundary before use.
 
 Before promotion, review:
 

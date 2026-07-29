@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: MIT
-import { existsSync } from "node:fs";
 import { readFile, realpath as resolveRealpath } from "node:fs/promises";
 import { registerHooks } from "node:module";
 import { join, resolve } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 
 import type {
   DeepReadonly,
@@ -35,44 +34,34 @@ async function loadRuntimeAssetModulesV1() {
   });
 
   try {
-    const [baseModule, toolingModule, loaderModule, overlayModule, configModule, validatorModule] =
+    const [baseModule, workspaceModule, configModule, loaderModule, validatorModule] =
       await Promise.all([
         import("../../engine/packages/base/src/index.ts"),
-        import("../../engine/packages/tooling/src/project/index.ts"),
-        import("../../engine/packages/tooling/src/project/loader.ts"),
-        import("../../engine/packages/tooling/src/project/local-overlay.ts"),
+        import("../../engine/packages/tooling/src/project/workspace.ts"),
         import("../../project.config.ts"),
+        import("../../engine/packages/tooling/src/project/loader.ts"),
         import("./validate-runtime.mts"),
       ]);
     const loader = loaderModule.createImportProjectModuleLoaderV1(repositoryRootForLoadingV1);
-    const localConfigPath = join(
-      repositoryRootForLoadingV1,
-      overlayModule.sillymakerLocalConfigFileNameV1,
-    );
-    const config = existsSync(localConfigPath)
-      ? overlayModule.mergeLocalStoryApplicationsV1(
-          configModule.sillyMakerConfigV1,
-          overlayModule.readLocalStoryApplicationsV1(
-            (await import(pathToFileURL(localConfigPath).href)) as Readonly<
-              Record<string, unknown>
-            >,
-          ),
-        )
-      : configModule.sillyMakerConfigV1;
-    const project = toolingModule.defineSillymakerProjectV1(config);
-    const verifiedApplications = project.applications.filter(
-      (application) => application.assetVerification,
-    );
+    const apps = await workspaceModule.loadWorkspaceAppsV1({
+      repositoryRoot: repositoryRootForLoadingV1,
+      workspace: configModule.sillyMakerConfigV1,
+    });
+    const verifiedApps = apps.filter((app) => app.config.assetVerification);
     const entries = await Promise.all(
-      verifiedApplications.map(async (application) => {
-        const record = await loader.loadModule(application.storyEntry.module);
-        const entry = record[application.storyEntry.exportName];
+      verifiedApps.map(async (app) => {
+        const modulePath = `${app.directory}/${app.config.storyEntry.module}`;
+        const record = await loader.loadModule(modulePath);
+        const entry = record[app.config.storyEntry.exportName];
         if (entry === undefined) {
           throw new TypeError(
-            `${application.applicationId}: missing Story entry export ${application.storyEntry.exportName}`,
+            `${app.config.applicationId}: missing Story entry export ${app.config.storyEntry.exportName}`,
           );
         }
-        return entry as Parameters<(typeof baseModule)["resolveGamePackageV1"]>[0];
+        return Object.freeze({
+          appDirectory: app.directory,
+          entry: entry as Parameters<(typeof baseModule)["resolveGamePackageV1"]>[0],
+        });
       }),
     );
     return { baseModule, validatorModule, entries };
@@ -102,6 +91,8 @@ const emptyRuntimeAssetHotfixSetV1 = Object.freeze([]);
 
 export interface RuntimeAssetStoryCheckV1 {
   readonly storyId: string;
+  /** The application directory whose root the manifest's runtimePaths resolve against. */
+  readonly appDirectory: string;
   resolveAssets(): ResolvedAssetManifestV1;
 }
 
@@ -115,9 +106,10 @@ function resolutionFailureMessageV1(
 }
 
 export const runtimeAssetStoryChecksV1: readonly RuntimeAssetStoryCheckV1[] = Object.freeze(
-  verifiedStoryEntriesV1.map((entry) =>
+  verifiedStoryEntriesV1.map(({ appDirectory, entry }) =>
     Object.freeze({
       storyId: entry.identity.id,
+      appDirectory,
       resolveAssets(): ResolvedAssetManifestV1 {
         const result = resolveGamePackageV1(
           entry,
@@ -138,27 +130,33 @@ export type RuntimeAssetManifestValidatorV1 = (
   environment: RuntimeAssetValidationEnvironmentV1,
 ) => Promise<{ readonly errors: readonly RuntimeAssetValidationErrorV1[] }>;
 
+export type RuntimeAssetEnvironmentFactoryV1 = (
+  appRoot: string,
+) => RuntimeAssetValidationEnvironmentV1;
+
 export interface RuntimeAssetVerificationOptionsV1 {
-  readonly environment?: RuntimeAssetValidationEnvironmentV1;
+  readonly environmentFor?: RuntimeAssetEnvironmentFactoryV1;
   readonly validate?: RuntimeAssetManifestValidatorV1;
 }
 
-function createNodeRuntimeAssetEnvironmentV1(root: string): RuntimeAssetValidationEnvironmentV1 {
-  const repositoryRoot = resolve(root);
+export function createNodeRuntimeAssetEnvironmentV1(
+  root: string,
+): RuntimeAssetValidationEnvironmentV1 {
+  const appRoot = resolve(root);
   return Object.freeze({
-    repositoryRoot,
-    async readFile(repositoryRelativePath: string): Promise<Uint8Array> {
-      return new Uint8Array(await readFile(join(repositoryRoot, repositoryRelativePath)));
+    repositoryRoot: appRoot,
+    async readFile(appRelativePath: string): Promise<Uint8Array> {
+      return new Uint8Array(await readFile(join(appRoot, appRelativePath)));
     },
-    async realpath(repositoryRelativePath: string): Promise<string> {
-      return resolveRealpath(join(repositoryRoot, repositoryRelativePath));
+    async realpath(appRelativePath: string): Promise<string> {
+      return resolveRealpath(join(appRoot, appRelativePath));
     },
   });
 }
 
 export async function verifyRuntimeAssetStoryChecksV1(
   stories: readonly RuntimeAssetStoryCheckV1[],
-  environment: RuntimeAssetValidationEnvironmentV1,
+  environmentFor: RuntimeAssetEnvironmentFactoryV1,
   validate: RuntimeAssetManifestValidatorV1 = validateRuntimeAssetManifestV1,
 ): Promise<readonly string[]> {
   const failures: string[] = [];
@@ -166,7 +164,7 @@ export async function verifyRuntimeAssetStoryChecksV1(
 
   for (const story of stories) {
     const manifest = story.resolveAssets();
-    const result = await validate(manifest, environment);
+    const result = await validate(manifest, environmentFor(story.appDirectory));
     verifiedStoryIds.push(story.storyId);
     for (const error of result.errors) {
       failures.push(`${story.storyId}:${error.assetId}:${error.code}`);
@@ -177,14 +175,17 @@ export async function verifyRuntimeAssetStoryChecksV1(
   return Object.freeze(verifiedStoryIds);
 }
 
-/** Resolves each maintained Story and validates its manifest without discovering asset files. */
+/** Resolves each maintained Story and validates its manifest against its own application root. */
 export async function verifyRuntimeAssetsV1(
   root: string,
   options: RuntimeAssetVerificationOptionsV1 = {},
 ): Promise<readonly string[]> {
+  const environmentFor =
+    options.environmentFor ??
+    ((appDirectory: string) => createNodeRuntimeAssetEnvironmentV1(join(root, appDirectory)));
   return verifyRuntimeAssetStoryChecksV1(
     runtimeAssetStoryChecksV1,
-    options.environment ?? createNodeRuntimeAssetEnvironmentV1(root),
+    environmentFor,
     options.validate ?? validateRuntimeAssetManifestV1,
   );
 }

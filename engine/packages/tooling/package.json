@@ -4,19 +4,24 @@
   "private": true,
   "type": "module",
   "license": "MIT",
-  "description": "Node-only SillyMaker tooling: the JSONL agent host protocol, with project/config commands to follow.",
+  "description": "Node-only SillyMaker tooling: the story CLI and Vite assembly for application projects, plus the JSONL agent host protocol.",
   "exports": {
     ".": "./src/index.ts",
     "./project": "./src/project/index.ts",
     "./project/config-types": "./src/project/config-types.ts",
     "./project/story-metadata": "./src/project/story-metadata.ts",
-    "./project/local-overlay": "./src/project/local-overlay.ts",
-    "./project/loader": "./src/project/loader.ts"
+    "./project/workspace": "./src/project/workspace.ts",
+    "./project/loader": "./src/project/loader.ts",
+    "./vite": "./src/vite/app-vite-config.ts",
+    "./identity/story-build-identity": "./src/identity/story-build-identity.mjs",
+    "./identity/collect-import-closure": "./src/identity/collect-import-closure.mjs"
   },
   "dependencies": {
-    "@sillymaker/base": "workspace:*"
+    "@sillymaker/base": "workspace:*",
+    "@vitejs/plugin-react": "6.0.3"
   },
   "devDependencies": {
-    "@types/node": "24.13.3"
+    "@types/node": "24.13.3",
+    "vite": "8.1.4"
   }
 }

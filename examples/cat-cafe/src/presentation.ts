@@ -751,7 +751,7 @@ export const catcafeAssetPacksV1 = Object.freeze([
     providers: Object.freeze([
       {
         assetId: "asset.catcafe.album-leap",
-        runtimePath: "examples/cat-cafe/assets/cc-album-leap.webp",
+        runtimePath: "assets/cc-album-leap.webp",
         mediaType: "image/webp",
         byteLength: parsePositiveSafeInteger(236850),
         width: parsePositiveSafeInteger(1536),
@@ -760,7 +760,7 @@ export const catcafeAssetPacksV1 = Object.freeze([
       },
       {
         assetId: "asset.catcafe.album-purr",
-        runtimePath: "examples/cat-cafe/assets/cc-album-purr.webp",
+        runtimePath: "assets/cc-album-purr.webp",
         mediaType: "image/webp",
         byteLength: parsePositiveSafeInteger(249906),
         width: parsePositiveSafeInteger(1536),
@@ -769,7 +769,7 @@ export const catcafeAssetPacksV1 = Object.freeze([
       },
       {
         assetId: "asset.catcafe.album-regular",
-        runtimePath: "examples/cat-cafe/assets/cc-album-regular.webp",
+        runtimePath: "assets/cc-album-regular.webp",
         mediaType: "image/webp",
         byteLength: parsePositiveSafeInteger(272368),
         width: parsePositiveSafeInteger(1536),
@@ -778,7 +778,7 @@ export const catcafeAssetPacksV1 = Object.freeze([
       },
       {
         assetId: "asset.catcafe.album-rescue",
-        runtimePath: "examples/cat-cafe/assets/cc-album-rescue.webp",
+        runtimePath: "assets/cc-album-rescue.webp",
         mediaType: "image/webp",
         byteLength: parsePositiveSafeInteger(245052),
         width: parsePositiveSafeInteger(1536),
@@ -787,7 +787,7 @@ export const catcafeAssetPacksV1 = Object.freeze([
       },
       {
         assetId: "asset.catcafe.album-trophy3",
-        runtimePath: "examples/cat-cafe/assets/cc-album-trophy3.webp",
+        runtimePath: "assets/cc-album-trophy3.webp",
         mediaType: "image/webp",
         byteLength: parsePositiveSafeInteger(146816),
         width: parsePositiveSafeInteger(1536),
@@ -796,7 +796,7 @@ export const catcafeAssetPacksV1 = Object.freeze([
       },
       {
         assetId: "asset.catcafe.album-trophy5",
-        runtimePath: "examples/cat-cafe/assets/cc-album-trophy5.webp",
+        runtimePath: "assets/cc-album-trophy5.webp",
         mediaType: "image/webp",
         byteLength: parsePositiveSafeInteger(180596),
         width: parsePositiveSafeInteger(1536),
@@ -805,7 +805,7 @@ export const catcafeAssetPacksV1 = Object.freeze([
       },
       {
         assetId: "asset.catcafe.album-trophy7",
-        runtimePath: "examples/cat-cafe/assets/cc-album-trophy7.webp",
+        runtimePath: "assets/cc-album-trophy7.webp",
         mediaType: "image/webp",
         byteLength: parsePositiveSafeInteger(194504),
         width: parsePositiveSafeInteger(1536),
@@ -814,7 +814,7 @@ export const catcafeAssetPacksV1 = Object.freeze([
       },
       {
         assetId: "asset.catcafe.bg-arena",
-        runtimePath: "examples/cat-cafe/assets/cc-bg-arena.webp",
+        runtimePath: "assets/cc-bg-arena.webp",
         mediaType: "image/webp",
         byteLength: parsePositiveSafeInteger(283272),
         width: parsePositiveSafeInteger(1536),
@@ -823,7 +823,7 @@ export const catcafeAssetPacksV1 = Object.freeze([
       },
       {
         assetId: "asset.catcafe.bg-backyard",
-        runtimePath: "examples/cat-cafe/assets/cc-bg-backyard.webp",
+        runtimePath: "assets/cc-bg-backyard.webp",
         mediaType: "image/webp",
         byteLength: parsePositiveSafeInteger(239822),
         width: parsePositiveSafeInteger(1536),
@@ -832,7 +832,7 @@ export const catcafeAssetPacksV1 = Object.freeze([
       },
       {
         assetId: "asset.catcafe.bg-shopfront",
-        runtimePath: "examples/cat-cafe/assets/cc-bg-shopfront.webp",
+        runtimePath: "assets/cc-bg-shopfront.webp",
         mediaType: "image/webp",
         byteLength: parsePositiveSafeInteger(309582),
         width: parsePositiveSafeInteger(1536),
@@ -841,7 +841,7 @@ export const catcafeAssetPacksV1 = Object.freeze([
       },
       {
         assetId: "asset.catcafe.bg-title",
-        runtimePath: "examples/cat-cafe/assets/cc-bg-title.webp",
+        runtimePath: "assets/cc-bg-title.webp",
         mediaType: "image/webp",
         byteLength: parsePositiveSafeInteger(209496),
         width: parsePositiveSafeInteger(1536),
@@ -850,7 +850,7 @@ export const catcafeAssetPacksV1 = Object.freeze([
       },
       {
         assetId: "asset.catcafe.cat-adolescent-calm",
-        runtimePath: "examples/cat-cafe/assets/cc-cat-adolescent-calm.webp",
+        runtimePath: "assets/cc-cat-adolescent-calm.webp",
         mediaType: "image/webp",
         byteLength: parsePositiveSafeInteger(145848),
         width: parsePositiveSafeInteger(1024),
@@ -859,7 +859,7 @@ export const catcafeAssetPacksV1 = Object.freeze([
       },
       {
         assetId: "asset.catcafe.cat-adolescent-happy",
-        runtimePath: "examples/cat-cafe/assets/cc-cat-adolescent-happy.webp",
+        runtimePath: "assets/cc-cat-adolescent-happy.webp",
         mediaType: "image/webp",
         byteLength: parsePositiveSafeInteger(127510),
         width: parsePositiveSafeInteger(1024),
@@ -868,7 +868,7 @@ export const catcafeAssetPacksV1 = Object.freeze([
       },
       {
         assetId: "asset.catcafe.cat-adolescent-hissing",
-        runtimePath: "examples/cat-cafe/assets/cc-cat-adolescent-hissing.webp",
+        runtimePath: "assets/cc-cat-adolescent-hissing.webp",
         mediaType: "image/webp",
         byteLength: parsePositiveSafeInteger(154528),
         width: parsePositiveSafeInteger(1024),
@@ -877,7 +877,7 @@ export const catcafeAssetPacksV1 = Object.freeze([
       },
       {
         assetId: "asset.catcafe.cat-junior-calm",
-        runtimePath: "examples/cat-cafe/assets/cc-cat-junior-calm.webp",
+        runtimePath: "assets/cc-cat-junior-calm.webp",
         mediaType: "image/webp",
         byteLength: parsePositiveSafeInteger(143834),
         width: parsePositiveSafeInteger(1024),
@@ -886,7 +886,7 @@ export const catcafeAssetPacksV1 = Object.freeze([
       },
       {
         assetId: "asset.catcafe.cat-junior-happy",
-        runtimePath: "examples/cat-cafe/assets/cc-cat-junior-happy.webp",
+        runtimePath: "assets/cc-cat-junior-happy.webp",
         mediaType: "image/webp",
         byteLength: parsePositiveSafeInteger(137908),
         width: parsePositiveSafeInteger(1024),
@@ -895,7 +895,7 @@ export const catcafeAssetPacksV1 = Object.freeze([
       },
       {
         assetId: "asset.catcafe.cat-junior-hissing",
-        runtimePath: "examples/cat-cafe/assets/cc-cat-junior-hissing.webp",
+        runtimePath: "assets/cc-cat-junior-hissing.webp",
         mediaType: "image/webp",
         byteLength: parsePositiveSafeInteger(150320),
         width: parsePositiveSafeInteger(1024),
@@ -904,7 +904,7 @@ export const catcafeAssetPacksV1 = Object.freeze([
       },
       {
         assetId: "asset.catcafe.cat-kitten-calm",
-        runtimePath: "examples/cat-cafe/assets/cc-cat-kitten-calm.webp",
+        runtimePath: "assets/cc-cat-kitten-calm.webp",
         mediaType: "image/webp",
         byteLength: parsePositiveSafeInteger(172062),
         width: parsePositiveSafeInteger(1024),
@@ -913,7 +913,7 @@ export const catcafeAssetPacksV1 = Object.freeze([
       },
       {
         assetId: "asset.catcafe.cat-kitten-happy",
-        runtimePath: "examples/cat-cafe/assets/cc-cat-kitten-happy.webp",
+        runtimePath: "assets/cc-cat-kitten-happy.webp",
         mediaType: "image/webp",
         byteLength: parsePositiveSafeInteger(131916),
         width: parsePositiveSafeInteger(1024),
@@ -922,7 +922,7 @@ export const catcafeAssetPacksV1 = Object.freeze([
       },
       {
         assetId: "asset.catcafe.cat-kitten-hissing",
-        runtimePath: "examples/cat-cafe/assets/cc-cat-kitten-hissing.webp",
+        runtimePath: "assets/cc-cat-kitten-hissing.webp",
         mediaType: "image/webp",
         byteLength: parsePositiveSafeInteger(141598),
         width: parsePositiveSafeInteger(1024),
@@ -931,7 +931,7 @@ export const catcafeAssetPacksV1 = Object.freeze([
       },
       {
         assetId: "asset.catcafe.rival-general",
-        runtimePath: "examples/cat-cafe/assets/cc-rival-general.webp",
+        runtimePath: "assets/cc-rival-general.webp",
         mediaType: "image/webp",
         byteLength: parsePositiveSafeInteger(170228),
         width: parsePositiveSafeInteger(1024),
@@ -940,7 +940,7 @@ export const catcafeAssetPacksV1 = Object.freeze([
       },
       {
         assetId: "asset.catcafe.rival-mochi",
-        runtimePath: "examples/cat-cafe/assets/cc-rival-mochi.webp",
+        runtimePath: "assets/cc-rival-mochi.webp",
         mediaType: "image/webp",
         byteLength: parsePositiveSafeInteger(81126),
         width: parsePositiveSafeInteger(1024),
@@ -949,7 +949,7 @@ export const catcafeAssetPacksV1 = Object.freeze([
       },
       {
         assetId: "asset.catcafe.rival-smoke",
-        runtimePath: "examples/cat-cafe/assets/cc-rival-smoke.webp",
+        runtimePath: "assets/cc-rival-smoke.webp",
         mediaType: "image/webp",
         byteLength: parsePositiveSafeInteger(106878),
         width: parsePositiveSafeInteger(1024),

@@ -58,10 +58,10 @@ await runV1(["deno", "task", "docs:build"], { SITE_BASE: siteBase });
 await rm(siteDir, { recursive: true, force: true });
 await mkdir(join(siteDir, "play"), { recursive: true });
 await cp(join(repoRoot, "website", ".vitepress", "dist"), siteDir, { recursive: true });
-await cp(join(repoRoot, "dist", "example-cat-cafe"), join(siteDir, "play", "cat-cafe"), {
+await cp(join(repoRoot, "examples", "cat-cafe", "dist-web"), join(siteDir, "play", "cat-cafe"), {
   recursive: true,
 });
-await cp(join(repoRoot, "dist", "example-silly-os"), join(siteDir, "play", "silly-os"), {
+await cp(join(repoRoot, "examples", "silly-os", "dist-web"), join(siteDir, "play", "silly-os"), {
   recursive: true,
 });
 // GitHub Pages runs Jekyll by default which drops underscore-prefixed

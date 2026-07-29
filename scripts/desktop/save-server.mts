@@ -3,8 +3,8 @@ import { readFile, stat } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
 import process from "node:process";
 
-import { createRecordFileStoreV1 } from "./record-file-store.mts";
-import type { WireMutationV1 } from "./record-file-store.mts";
+import { createRecordFileStoreV1 } from "../../engine/packages/tooling/src/desktop/record-file-store.mts";
+import type { WireMutationV1 } from "../../engine/packages/tooling/src/desktop/record-file-store.mts";
 
 // The script runs under Deno; tsc checks it without Deno lib types.
 declare const Deno: {
@@ -23,7 +23,7 @@ declare const Deno: {
  *
  * Usage:
  *   deno run -A scripts/desktop/save-server.mts \
- *     --dist dist/example-cat-cafe --saves ./saves --port 41800
+ *     --dist examples/cat-cafe/dist-web --saves ./saves --port 41800
  */
 
 function argValueV1(name: string, fallback: string): string {
@@ -32,7 +32,7 @@ function argValueV1(name: string, fallback: string): string {
   return value === undefined ? fallback : value;
 }
 
-const distDir = normalize(argValueV1("dist", "dist/example-cat-cafe"));
+const distDir = normalize(argValueV1("dist", "examples/cat-cafe/dist-web"));
 const savesDir = normalize(argValueV1("saves", "./saves"));
 const port = Number(argValueV1("port", "41800"));
 const store = createRecordFileStoreV1(savesDir);

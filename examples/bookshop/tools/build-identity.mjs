@@ -2,11 +2,11 @@
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { createStoryBuildIdentityOwnerV1 } from "./build-story-identity.mjs";
+import { createStoryBuildIdentityOwnerV1 } from "@sillymaker/tooling/identity/story-build-identity";
 
 export const bookshopBuildIdentityVirtualSpecifierV1 = "virtual:sillymaker/bookshop-build-identity";
 
-const repositoryRootV1 = dirname(dirname(fileURLToPath(import.meta.url)));
+const repositoryRootV1 = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const ownerV1 = createStoryBuildIdentityOwnerV1({
   label: "ExampleBookshop",
   storySourceRoot: "examples/bookshop/src/",
@@ -20,10 +20,11 @@ const ownerV1 = createStoryBuildIdentityOwnerV1({
   },
   applicationEntries: [
     "examples/bookshop/src/application/entry.tsx",
-    "scripts/build-story-identity.mjs",
-    "scripts/collect-import-closure.mjs",
-    "scripts/build-template-identity.mjs",
-    "vite.config.ts",
+    "engine/packages/tooling/src/identity/story-build-identity.mjs",
+    "engine/packages/tooling/src/identity/collect-import-closure.mjs",
+    "examples/bookshop/tools/build-identity.mjs",
+    "examples/bookshop/vite.config.ts",
+    "examples/bookshop/sillymaker.config.ts",
   ],
   virtual: {
     specifier: bookshopBuildIdentityVirtualSpecifierV1,
@@ -39,7 +40,10 @@ export async function collectBookshopBuildIdentityV1(root = repositoryRootV1) {
 
 /** Creates the Vite plugin without making the collector depend on Vite. */
 export function createBookshopBuildIdentityVirtualPluginV1(input) {
-  return ownerV1.createVirtualPluginV1(input);
+  return ownerV1.createVirtualPluginV1({
+    root: repositoryRootV1,
+    initialIdentity: input.initialIdentity,
+  });
 }
 
 const isMain = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);

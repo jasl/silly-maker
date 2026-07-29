@@ -45,7 +45,8 @@ export interface StoryWebTargetV1 {
   readonly outDir: string;
   readonly base: string;
   readonly sourcemap: boolean;
-  readonly identity: StoryWebIdentityRefV1;
+  /** Optional structural build-identity collector; null for default identity. */
+  readonly identity: StoryWebIdentityRefV1 | null;
   /** Optional desktop packaging; null/absent for web-only applications. */
   readonly desktop?: StoryDesktopTargetV1 | null;
 }
@@ -68,4 +69,49 @@ export interface StoryApplicationConfigV1 {
 export interface SillymakerProjectConfigV1 {
   readonly projectId: string;
   readonly applications: readonly StoryApplicationConfigV1[];
+}
+
+/**
+ * The web target as an application project declares it: every path is
+ * relative to the application root (the directory holding
+ * `sillymaker.config.ts`), and `outDir` defaults to `dist-web` (`dist` stays the TypeScript project-references emit directory).
+ */
+export interface SillymakerAppWebTargetV1 {
+  readonly applicationHtml: string;
+  readonly applicationEntry: string;
+  readonly outDir?: string;
+  readonly base: string;
+  readonly sourcemap: boolean;
+  /** Optional build-identity collector module (app-relative); omit for default identity. */
+  readonly identity?: StoryWebIdentityRefV1 | null;
+  readonly desktop?: StoryDesktopTargetV1 | null;
+}
+
+/**
+ * One application project's own declaration (`sillymaker.config.ts` at the
+ * application root, named export `sillymakerAppConfigV1`). All module and
+ * asset paths are app-root-relative, so the same project builds inside this
+ * repository, as a copied starter, or as an external checkout that depends
+ * on the engine packages by path.
+ */
+export interface SillymakerAppConfigV1 {
+  readonly applicationId: string;
+  readonly label: string;
+  readonly storyEntry: ProjectModuleRefV1;
+  readonly assetVerification: boolean;
+  readonly simulate?: ProjectModuleRefV1 | null;
+  readonly web?: SillymakerAppWebTargetV1 | null;
+  readonly releaseArtifact: boolean;
+}
+
+/**
+ * The repository-level workspace registry: the project ID plus the list of
+ * application directories (each holding its own `sillymaker.config.ts`).
+ * CI aggregation (`story --all`, asset verification, the root Vite `--mode`
+ * dispatch) is its only consumer; applications build through their own
+ * project files.
+ */
+export interface SillymakerWorkspaceConfigV1 {
+  readonly projectId: string;
+  readonly appDirectories: readonly string[];
 }

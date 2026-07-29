@@ -46,7 +46,7 @@ describe("story metadata", () => {
     ).toThrow(/story-relative/u);
   });
 
-  it("renders share tags with story-relative asset URLs and escaping", () => {
+  it("renders share tags with app-relative asset URLs and escaping", () => {
     const tags = renderStoryHeadTagsV1(
       parseStoryMetadataV1(
         {
@@ -56,17 +56,14 @@ describe("story metadata", () => {
         },
         "s",
       ),
-      { storyRoot: "examples/cat-cafe" },
     );
     expect(tags).toContain("<title>A &quot;quoted&quot; &lt;name&gt;</title>");
-    expect(tags).toContain('property="og:image" content="examples/cat-cafe/assets/share.webp"');
+    expect(tags).toContain('property="og:image" content="assets/share.webp"');
     expect(tags).toContain('name="twitter:card" content="summary_large_image"');
   });
 
   it("falls back to a plain summary card without a share image", () => {
-    const tags = renderStoryHeadTagsV1(parseStoryMetadataV1({ name: "n", description: "d" }, "s"), {
-      storyRoot: "template",
-    });
+    const tags = renderStoryHeadTagsV1(parseStoryMetadataV1({ name: "n", description: "d" }, "s"));
     expect(tags).toContain('name="twitter:card" content="summary"');
     expect(tags).not.toContain("og:image");
   });
@@ -75,7 +72,6 @@ describe("story metadata", () => {
     const html = applyStoryMetadataToHtmlV1(
       pageV1,
       parseStoryMetadataV1({ name: "雨巷猫舍", description: "d", lang: "zh-Hans" }, "s"),
-      { storyRoot: "examples/cat-cafe" },
     );
     expect(html).toContain('<html lang="zh-Hans"');
     expect(html).toContain("<title>雨巷猫舍</title>");

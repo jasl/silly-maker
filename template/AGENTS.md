@@ -1,6 +1,6 @@
 # template/ agent handbook
 
-This package is the **starter skeleton for a new game** (MIT). To start a new story: copy this directory to `examples/<new-name>` (or a standalone directory) → global rename (`template`/`Template` → the new name) → register the application and simulate target in the root `project.config.ts` → update `metadata.json` (page title / share card) → replace the script and modules as needed.
+This package is the **starter skeleton for a new game** (MIT). To start a new story: copy this directory to `examples/<new-name>` (or anywhere outside the repository) → global rename (`template`/`Template` → the new name) → update `sillymaker.config.ts` (applicationId/label) and `metadata.json` (page title / share card) → replace the script and modules as needed. Inside this repository, also add the directory to the root `project.config.ts` list; outside it, point the `package.json` dependencies at the engine packages by relative `file:` path and set `"nodeModulesDir": "manual"` in the project's `deno.json`. The copy is a complete project: `deno task dev`, `deno task build`, and `deno run -A tools/story.mts check .` run from the directory itself.
 
 Change discipline: keep it minimally playable. The placeholder script may be replaced wholesale; do not grow new gameplay structure on the skeleton (that belongs in examples or real games).
 

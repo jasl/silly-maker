@@ -23,7 +23,7 @@
 deno task story check example-silly-os        # Story 诊断
 deno run -A npm:vitest run examples/silly-os  # 规则/确定性/窗口管理器单测
 deno task story simulate example-silly-os --scenario daily
-deno task story build example-silly-os        # 静态产物 → dist/example-silly-os
+deno task story build example-silly-os        # 静态产物 → 本目录 dist-web/
 deno task story desktop example-silly-os      # 桌面 webview 打包
 ```
 
