@@ -187,11 +187,11 @@ describe("Engine Conformance route", () => {
     await playCanonicalRouteV1(interrupted, async (boundary) => {
       if (boundary.kind === "presentation_barrier" && !saved) {
         saved = true;
-        await expect(interrupted.saves.save("manual")).resolves.toMatchObject({ kind: "saved" });
+        await expect(interrupted.saves.save("manual.1")).resolves.toMatchObject({ kind: "saved" });
       }
     });
     expect(saved).toBe(true);
-    await expect(interrupted.saves.load("manual")).resolves.toMatchObject({ kind: "loaded" });
+    await expect(interrupted.saves.load("manual.1")).resolves.toMatchObject({ kind: "loaded" });
     expect(interrupted.observe().narrative.pending?.kind).toBe("presentation_barrier");
 
     // Finish from the restored barrier through the rest of the route.

@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: MIT
-import type { SemanticGamePortV1, SemanticPublicationV1 } from "../../contracts/application.ts";
+import type {
+  PlayerWritableSaveSlotIdV1,
+  SemanticGamePortV1,
+  SemanticPublicationV1,
+} from "../../contracts/application.ts";
 import type { RuntimeSessionStatusV1 } from "../../contracts/session-status.ts";
 import type { DeepReadonly, NonNegativeSafeInteger } from "../../contracts/values.ts";
 import { parseNonNegativeSafeInteger } from "../../contracts/values.ts";
@@ -182,14 +186,14 @@ export interface AgentCapabilityHandleV1<TCapability> {
  * throwing or silently proceeding.
  */
 export interface AgentPersistenceCapabilityV1<TPersistenceResult, TExportedSave> {
-  save(slot: "quick" | "manual"): Promise<TPersistenceResult | AgentCapabilityRevokedV1>;
+  save(slot: PlayerWritableSaveSlotIdV1): Promise<TPersistenceResult | AgentCapabilityRevokedV1>;
   load(slot: string): Promise<TPersistenceResult | AgentCapabilityRevokedV1>;
   exportCurrentSave(): Promise<TExportedSave | AgentCapabilityRevokedV1>;
   importSave(bytes: Uint8Array): Promise<TPersistenceResult | AgentCapabilityRevokedV1>;
 }
 
 export interface CreateAgentPersistenceCapabilityInputV1<TPersistenceResult, TExportedSave> {
-  save(slot: "quick" | "manual"): Promise<TPersistenceResult>;
+  save(slot: PlayerWritableSaveSlotIdV1): Promise<TPersistenceResult>;
   load(slot: string): Promise<TPersistenceResult>;
   exportCurrentSave(): Promise<TExportedSave>;
   importSave(bytes: Uint8Array): Promise<TPersistenceResult>;
@@ -205,7 +209,7 @@ export function createAgentPersistenceCapabilityV1<TPersistenceResult, TExported
     revoked ? agentCapabilityRevokedV1 : operation();
   return Object.freeze({
     capability: Object.freeze({
-      save: (slot: "quick" | "manual") => guard(() => input.save(slot)),
+      save: (slot: PlayerWritableSaveSlotIdV1) => guard(() => input.save(slot)),
       load: (slot: string) => guard(() => input.load(slot)),
       exportCurrentSave: () => guard(() => input.exportCurrentSave()),
       importSave: (bytes: Uint8Array) => guard(() => input.importSave(bytes)),

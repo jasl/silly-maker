@@ -2,12 +2,14 @@
 import type {
   DeepReadonly,
   ExportedSaveV1,
+  ManualSaveSlotIdV1,
   PersistenceOperationResultV1,
   PersistenceStatusV1,
   SaveExportOperationResultV1,
   SaveSlotHealthV1,
   SaveSlotSummaryV1,
 } from "@sillymaker/base";
+import { manualSaveSlotIndexV1 } from "@sillymaker/base";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent, ReactElement } from "react";
 import type { InputRouterV1 } from "../input/contracts.ts";
@@ -18,7 +20,7 @@ import {
 import { Button } from "../primitives/button.tsx";
 import styles from "./save-overlay.module.css";
 
-export type SaveUiWritableSlotIdV1 = "quick" | "manual";
+export type SaveUiWritableSlotIdV1 = "quick" | ManualSaveSlotIdV1;
 export type SaveUiReadableSlotIdV1 = "auto.current" | "auto.previous" | SaveUiWritableSlotIdV1;
 export type SaveUiImportFileRejectionCodeV1 = "too_large" | "unsupported_type";
 export type SaveUiImportResultV1 =
@@ -51,6 +53,14 @@ type ExportRejectedCodeV1 = Extract<
   { readonly kind: "rejected" }
 >["code"];
 
+/** Fixed names for the system slots plus a formatter for numbered manual slots. */
+export interface SaveOverlaySlotNamesV1 {
+  readonly "auto.current": string;
+  readonly "auto.previous": string;
+  readonly quick: string;
+  readonly manualSlot: (index: number) => string;
+}
+
 export interface SaveOverlayLabelsV1 {
   readonly accessibleName: string;
   readonly title: string;
@@ -61,7 +71,7 @@ export interface SaveOverlayLabelsV1 {
   readonly slotsUnavailable: string;
   readonly safelySaved: (commandSequence: number) => string;
   readonly lastFailure: (code: string) => string;
-  readonly slotNames: Readonly<Record<SaveUiReadableSlotIdV1, string>>;
+  readonly slotNames: SaveOverlaySlotNamesV1;
   readonly slotHealth: Readonly<Record<SaveSlotHealthV1, string>>;
   readonly quickSave: string;
   readonly manualSave: string;
@@ -130,15 +140,26 @@ export interface SaveOverlayPropsV1 {
   readonly closeLabel?: string;
 }
 
-const saveSlotIdsV1 = Object.freeze([
-  "auto.current",
-  "auto.previous",
-  "quick",
-  "manual",
-] as const satisfies readonly SaveUiReadableSlotIdV1[]);
+function slotNameV1(labels: SaveOverlayLabelsV1, slotId: SaveUiReadableSlotIdV1): string {
+  if (slotId === "auto.current" || slotId === "auto.previous" || slotId === "quick") {
+    return labels.slotNames[slotId];
+  }
+  const index = manualSaveSlotIndexV1(slotId);
+  if (index === null) throw new TypeError(`ui.save_overlay_unknown_slot:${slotId}`);
+  return labels.slotNames.manualSlot(index);
+}
+
+function writableSlotIdV1(slotId: SaveUiReadableSlotIdV1): SaveUiWritableSlotIdV1 | null {
+  if (slotId === "quick") return slotId;
+  return manualSaveSlotIndexV1(slotId) === null ? null : (slotId as SaveUiWritableSlotIdV1);
+}
 
 type SlotReadStateV1 =
-  | { readonly kind: "loading" }
+  | {
+      readonly kind: "loading";
+      /** Last known slot list so rows survive a refresh (kept disabled). */
+      readonly slots: readonly DeepReadonly<SaveSlotSummaryV1>[] | null;
+    }
   | {
       readonly kind: "ready";
       readonly status: DeepReadonly<PersistenceStatusV1>;
@@ -266,9 +287,9 @@ function persistenceResultTextV1(
 ): string {
   switch (result.kind) {
     case "saved":
-      return labels.operation.saved(labels.slotNames[result.slotId]);
+      return labels.operation.saved(slotNameV1(labels, result.slotId));
     case "cleared":
-      return labels.operation.cleared(labels.slotNames[result.slotId]);
+      return labels.operation.cleared(slotNameV1(labels, result.slotId));
     case "loaded":
       switch (result.compatibility) {
         case "exact":
@@ -302,7 +323,7 @@ function exportResultTextV1(
 ): string {
   switch (result.kind) {
     case "exported":
-      return labels.operation.exported(labels.slotNames[result.slotId]);
+      return labels.operation.exported(slotNameV1(labels, result.slotId));
     case "rejected":
       return exportRejectedTextV1(result.code, labels);
     case "faulted":
@@ -384,15 +405,15 @@ function projectImportResultV1(
 function pendingTextV1(context: SaveOperationContextV1, labels: SaveOverlayLabelsV1): string {
   switch (context.kind) {
     case "save":
-      return labels.operation.saving(labels.slotNames[context.slotId]);
+      return labels.operation.saving(slotNameV1(labels, context.slotId));
     case "load":
-      return labels.operation.loading(labels.slotNames[context.slotId]);
+      return labels.operation.loading(slotNameV1(labels, context.slotId));
     case "clear":
-      return labels.operation.clearing(labels.slotNames[context.slotId]);
+      return labels.operation.clearing(slotNameV1(labels, context.slotId));
     case "import":
       return labels.operation.importing;
     case "export":
-      return labels.operation.exporting(labels.slotNames[context.slotId]);
+      return labels.operation.exporting(slotNameV1(labels, context.slotId));
     case "export_current":
       return labels.operation.exportingCurrent;
     default:
@@ -483,7 +504,7 @@ function canExportSlotV1(health: SaveSlotHealthV1 | null): boolean {
 
 export function SaveOverlayV1(props: SaveOverlayPropsV1): ReactElement {
   const [readState, setReadState] = useState<SlotReadStateV1>(() =>
-    Object.freeze({ kind: "loading" }),
+    Object.freeze({ kind: "loading", slots: null }),
   );
   const [operationState, setOperationState] = useState<SaveOperationViewV1>(() =>
     Object.freeze({ kind: "idle" }),
@@ -505,7 +526,14 @@ export function SaveOverlayV1(props: SaveOverlayPropsV1): ReactElement {
   const refresh = useCallback(async (): Promise<void> => {
     const generation = readGenerationRef.current + 1;
     readGenerationRef.current = generation;
-    if (mountedRef.current) setReadState(Object.freeze({ kind: "loading" }));
+    if (mountedRef.current) {
+      setReadState((previous) =>
+        Object.freeze({
+          kind: "loading",
+          slots: previous.kind === "failed" ? null : previous.slots,
+        }),
+      );
+    }
     try {
       const [status, slots] = await Promise.all([props.port.getStatus(), props.port.listSlots()]);
       if (!mountedRef.current || readGenerationRef.current !== generation) return;
@@ -695,7 +723,7 @@ export function SaveOverlayV1(props: SaveOverlayPropsV1): ReactElement {
 
   const confirmationSlotName =
     confirmation?.invocation.kind === "load" || confirmation?.invocation.kind === "clear"
-      ? props.labels.slotNames[confirmation.invocation.slotId]
+      ? slotNameV1(props.labels, confirmation.invocation.slotId)
       : null;
   const confirmationTitle =
     confirmation?.invocation.kind === "load" && confirmationSlotName !== null
@@ -741,41 +769,38 @@ export function SaveOverlayV1(props: SaveOverlayPropsV1): ReactElement {
       </header>
 
       <ul className={styles["save-overlay__slots"]}>
-        {saveSlotIdsV1.map((slotId) => {
-          const summary =
-            readState.kind === "ready"
-              ? (readState.slots.find((candidate) => candidate.slotId === slotId) ?? null)
-              : null;
-          const health = summary?.health ?? null;
-          const slotName = props.labels.slotNames[slotId];
+        {(readState.kind === "failed" ? [] : (readState.slots ?? [])).map((summary) => {
+          const slotId = summary.slotId as SaveUiReadableSlotIdV1;
+          const health = readState.kind === "ready" ? summary.health : null;
+          const slotName = slotNameV1(props.labels, slotId);
+          const writableSlotId = writableSlotIdV1(slotId);
           return (
             <li key={slotId} className={styles["save-overlay__slot"]} data-slot-id={slotId}>
               <h3>{slotName}</h3>
               <p data-slot-health={health ?? "unreadable"}>
                 {health === null
-                  ? readState.kind === "loading"
-                    ? props.labels.storageLoading
-                    : props.labels.slotsUnavailable
+                  ? props.labels.storageLoading
                   : slotHealthTextV1(health, props.labels)}
               </p>
-              {summary?.savedAt === null || summary?.savedAt === undefined ? null : (
+              {summary.savedAt === null ? null : (
                 <p data-slot-saved-at={summary.savedAt}>
                   {(props.labels.savedAtText ?? defaultSavedAtTextV1)(summary.savedAt)}
                 </p>
               )}
               <div className={styles["save-overlay__slot-actions"]}>
-                {slotId === "quick" || slotId === "manual" ? (
+                {writableSlotId === null ? null : (
                   <Button
                     disabled={!writeOperationsEnabled}
                     onClick={() =>
-                      void runPersistenceOperationV1(Object.freeze({ kind: "save", slotId }), () =>
-                        props.port.save(slotId),
+                      void runPersistenceOperationV1(
+                        Object.freeze({ kind: "save", slotId: writableSlotId }),
+                        () => props.port.save(writableSlotId),
                       ).catch(() => undefined)
                     }
                   >
-                    {slotId === "quick" ? props.labels.quickSave : props.labels.manualSave}
+                    {writableSlotId === "quick" ? props.labels.quickSave : props.labels.manualSave}
                   </Button>
-                ) : null}
+                )}
                 <Button
                   disabled={!storageOperationsEnabled || !canLoadSlotV1(health)}
                   onClick={(event) =>

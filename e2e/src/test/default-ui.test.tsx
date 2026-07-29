@@ -207,7 +207,7 @@ describe("Engine Lab default UI", () => {
     const barrierOccurrence = document
       .querySelector("[data-lab-interaction='barrier']")
       ?.getAttribute("data-lab-occurrence");
-    await expect(instance.persistence.save("manual")).resolves.toMatchObject({ kind: "saved" });
+    await expect(instance.persistence.save("manual.1")).resolves.toMatchObject({ kind: "saved" });
 
     // Let the live run finish normally all the way to completion.
     await waitFor(
@@ -226,7 +226,7 @@ describe("Engine Lab default UI", () => {
     // and the settle recovery policy acknowledges the restored occurrence
     // through the ordinary semantic command. Play continues to the custom
     // surface without re-choosing anything.
-    await expect(instance.persistence.load("manual")).resolves.toMatchObject({ kind: "loaded" });
+    await expect(instance.persistence.load("manual.1")).resolves.toMatchObject({ kind: "loaded" });
     await waitFor(
       () => {
         expect(document.querySelector("[data-lab-interaction='custom']")).toBeInTheDocument();
@@ -279,9 +279,9 @@ describe("Engine Lab default UI", () => {
     const { instance, composition } = labUi;
     const { container } = renderLabRootV1(labUi);
 
-    await instance.persistence.save("manual");
+    await instance.persistence.save("manual.1");
     await instance.semantic.dispatch({ kind: "invoke", actionId: "lab.collect_sample" });
-    await instance.persistence.load("manual");
+    await instance.persistence.load("manual.1");
 
     await waitFor(() => {
       const root = container.querySelector("[data-application-id='e2e']");

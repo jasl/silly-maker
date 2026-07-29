@@ -181,7 +181,7 @@ describe("canary: relationship-conditioned narrative branch", () => {
     expect(harness.observe().narrative.phase).toBe("completed");
 
     // Completing the run raised rapport; save exactly here.
-    await expect(harness.saves.save("manual")).resolves.toMatchObject({ kind: "saved" });
+    await expect(harness.saves.save("manual.1")).resolves.toMatchObject({ kind: "saved" });
 
     // Second run: the branch picks the warm line.
     const secondRun = await playNarrativeToEndV1(harness);
@@ -189,7 +189,7 @@ describe("canary: relationship-conditioned narrative branch", () => {
     expect(secondRun).not.toContain("interaction.e2e.cal-beta-note");
 
     // Loading the save restores rapport = 1: a fresh run still warms up.
-    await expect(harness.saves.load("manual")).resolves.toMatchObject({ kind: "loaded" });
+    await expect(harness.saves.load("manual.1")).resolves.toMatchObject({ kind: "loaded" });
     const reloadedRun = await playNarrativeToEndV1(harness);
     expect(reloadedRun).toContain("interaction.e2e.cal-beta-warm");
     await harness.dispose();

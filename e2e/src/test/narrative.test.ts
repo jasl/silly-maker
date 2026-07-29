@@ -337,14 +337,14 @@ describe("Engine Lab pending interactions", () => {
     const atChoice = pendingV1(harness);
     const digest = harness.stateDigest();
 
-    await expect(harness.saves.save("manual")).resolves.toMatchObject({ kind: "saved" });
+    await expect(harness.saves.save("manual.1")).resolves.toMatchObject({ kind: "saved" });
     await dispatchCommittedV1(
       harness,
       resolveV1(atChoice.occurrenceId, { kind: "choose", choiceId: "choice.e2e.cal.basic" }),
     );
     expect(pendingV1(harness).kind).toBe("presentation_barrier");
 
-    await expect(harness.saves.load("manual")).resolves.toMatchObject({ kind: "loaded" });
+    await expect(harness.saves.load("manual.1")).resolves.toMatchObject({ kind: "loaded" });
     expect(harness.stateDigest()).toBe(digest);
     const restored = pendingV1(harness);
     expect(restored).toEqual(atChoice);
@@ -384,7 +384,7 @@ describe("Engine Lab pending interactions", () => {
     const barrier = pendingV1(harness);
     expect(barrier.kind).toBe("presentation_barrier");
     const barrierDigest = harness.stateDigest();
-    await expect(harness.saves.save("manual")).resolves.toMatchObject({ kind: "saved" });
+    await expect(harness.saves.save("manual.1")).resolves.toMatchObject({ kind: "saved" });
 
     // Load back to the say: same interaction, same digest, and the barrier
     // occurrence recorded above is stale against the restored state.
@@ -402,7 +402,7 @@ describe("Engine Lab pending interactions", () => {
 
     // Load forward to the barrier: the stage target and interaction return,
     // and the barrier resolves normally — headless confirms immediately.
-    await expect(harness.saves.load("manual")).resolves.toMatchObject({ kind: "loaded" });
+    await expect(harness.saves.load("manual.1")).resolves.toMatchObject({ kind: "loaded" });
     expect(harness.stateDigest()).toBe(barrierDigest);
     expect(pendingV1(harness)).toEqual(barrier);
     await dispatchCommittedV1(
@@ -501,7 +501,7 @@ describe("Engine Lab pending interactions", () => {
         voiceAssetId: "audio.e2e.voice.cal-intro",
       },
     ]);
-    await expect(harness.saves.save("manual")).resolves.toMatchObject({ kind: "saved" });
+    await expect(harness.saves.save("manual.1")).resolves.toMatchObject({ kind: "saved" });
 
     // Play forward: the beta say and the choice add history entries too.
     const betaSay = pendingV1(harness);
@@ -526,7 +526,7 @@ describe("Engine Lab pending interactions", () => {
     );
 
     // Load restores the history to the saved occurrence — one entry again.
-    await expect(harness.saves.load("manual")).resolves.toMatchObject({ kind: "loaded" });
+    await expect(harness.saves.load("manual.1")).resolves.toMatchObject({ kind: "loaded" });
     expect(harness.observe().narrative.history.entries).toEqual(historyAfterIntro);
 
     // No presentation sidecar: the save bytes carry history but never

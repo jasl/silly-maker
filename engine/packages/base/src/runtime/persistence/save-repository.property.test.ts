@@ -3,6 +3,7 @@ import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
 import type { SaveSlotIdV1, SessionLeaseOwnerId } from "../../contracts/application.ts";
+import { isPlayerWritableSaveSlotIdV1, isSaveSlotIdShapeV1 } from "../../contracts/application.ts";
 import { digestCanonical } from "../../contracts/digest.ts";
 import type {
   HostAtomicCommitResultV1,
@@ -74,19 +75,12 @@ function stringV1(value: unknown): string {
 }
 
 function slotIdV1(value: unknown): SaveSlotIdV1 {
-  if (
-    value !== "auto.current" &&
-    value !== "auto.previous" &&
-    value !== "quick" &&
-    value !== "manual"
-  ) {
-    throw new TypeError("invalid slot");
-  }
+  if (!isSaveSlotIdShapeV1(value)) throw new TypeError("invalid slot");
   return value;
 }
 
 function reasonV1(value: unknown): SaveWriteReasonV1 {
-  if (value !== "auto" && value !== "quick" && value !== "manual") {
+  if (value !== "auto" && !isPlayerWritableSaveSlotIdV1(value)) {
     throw new TypeError("invalid reason");
   }
   return value;
@@ -163,8 +157,8 @@ function recordV1(sequence: number): PropertySaveRecordV1 {
     provenance: { storyId: storyIdV1 },
     slot: {
       storyId: storyIdV1,
-      slotId: "manual",
-      writeReason: "manual",
+      slotId: "manual.1",
+      writeReason: "manual.1",
       capturedCommandSequence: commandSequence,
     },
     savedAt: parseIsoUtcInstantV1(
@@ -203,7 +197,7 @@ async function physicalV1(records: HostAtomicRecordStoreV1, slotId: SaveSlotIdV1
 }
 
 function callWriteV1(
-  kind: "auto" | "quick" | "manual",
+  kind: "auto" | "quick" | "manual.1",
   repository: ReturnType<typeof createSaveRepositoryV1>,
   record: PropertySaveRecordV1,
   fence: SessionLeaseFenceV1,
@@ -211,8 +205,8 @@ function callWriteV1(
   return kind === "auto"
     ? repository.writeAuto(record, fence)
     : kind === "quick"
-      ? repository.writeQuick(record, fence)
-      : repository.writeManual(record, fence);
+      ? repository.writePlayer("quick", record, fence)
+      : repository.writePlayer("manual.1", record, fence);
 }
 
 type CommitOrderV1 = "save_first" | "takeover_first";
@@ -281,7 +275,7 @@ describe("Save repository interleaving properties", () => {
   it("returns fresh defensive raw-byte copies for every randomized valid read", async () => {
     await fc.assert(
       fc.asyncProperty(
-        fc.constantFrom("auto", "quick", "manual"),
+        fc.constantFrom("auto", "quick", "manual.1"),
         fc.integer({ min: 1, max: 10_000 }),
         async (kind, sequence) => {
           const delegate = createMemoryHostRecordStoreV1();
@@ -333,7 +327,7 @@ describe("Save repository interleaving properties", () => {
       fc.asyncProperty(
         fc.array(
           fc.record({
-            kind: fc.constantFrom("auto", "quick", "manual"),
+            kind: fc.constantFrom("auto", "quick", "manual.1"),
             sequence: fc.integer({ min: 1, max: 10_000 }),
             order: fc.constantFrom<CommitOrderV1>("save_first", "takeover_first"),
           }),

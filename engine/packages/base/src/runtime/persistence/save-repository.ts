@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import type { SaveSlotIdV1 } from "../../contracts/application.ts";
+import type { PlayerWritableSaveSlotIdV1, SaveSlotIdV1 } from "../../contracts/application.ts";
 import type {
   HostAtomicRecordStoreV1,
   HostRecordMutationV1,
@@ -81,11 +81,9 @@ export interface SaveRepositoryV1<TSaveRecord> {
     record: DeepReadonly<TSaveRecord>,
     fence: DeepReadonly<SessionLeaseFenceV1>,
   ): Promise<SaveRepositoryWriteResultV1>;
-  writeQuick(
-    record: DeepReadonly<TSaveRecord>,
-    fence: DeepReadonly<SessionLeaseFenceV1>,
-  ): Promise<SaveRepositoryWriteResultV1>;
-  writeManual(
+  /** One quick or numbered manual slot; the service enforces the slot count. */
+  writePlayer(
+    slotId: PlayerWritableSaveSlotIdV1,
     record: DeepReadonly<TSaveRecord>,
     fence: DeepReadonly<SessionLeaseFenceV1>,
   ): Promise<SaveRepositoryWriteResultV1>;
@@ -118,7 +116,7 @@ type LeaseTouchResultV1 =
   | { readonly kind: "rejected"; readonly code: "conflict" | "invalid_record" };
 
 const expectedWriteReasonV1 = (slotId: SaveSlotIdV1): SaveWriteReasonV1 =>
-  slotId === "quick" ? "quick" : slotId === "manual" ? "manual" : "auto";
+  slotId === "auto.current" || slotId === "auto.previous" ? "auto" : slotId;
 
 const indexedDbFailureCodesV1 = Object.freeze([
   "indexeddb.unavailable",
@@ -277,7 +275,7 @@ export function createSaveRepositoryV1<
   };
 
   const writeSingleV1 = (
-    slotId: "quick" | "manual",
+    slotId: PlayerWritableSaveSlotIdV1,
     candidate: DeepReadonly<TSaveRecord>,
     fence: DeepReadonly<SessionLeaseFenceV1>,
   ): Promise<SaveRepositoryWriteResultV1> =>
@@ -407,12 +405,8 @@ export function createSaveRepositoryV1<
       });
     },
 
-    writeQuick(candidate, fence) {
-      return writeSingleV1("quick", candidate, fence);
-    },
-
-    writeManual(candidate, fence) {
-      return writeSingleV1("manual", candidate, fence);
+    writePlayer(slotId, candidate, fence) {
+      return writeSingleV1(slotId, candidate, fence);
     },
 
     clear(slotId, fence) {

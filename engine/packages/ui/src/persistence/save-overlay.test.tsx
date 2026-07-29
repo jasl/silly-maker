@@ -22,6 +22,7 @@ import {
   type SaveOverlayLabelsV1,
   type SaveOverlayPortV1,
   type SaveUiImportResultV1,
+  type SaveUiWritableSlotIdV1,
 } from "./save-overlay.tsx";
 
 afterEach(cleanup);
@@ -30,7 +31,8 @@ const slotIdsV1 = Object.freeze([
   "auto.current",
   "auto.previous",
   "quick",
-  "manual",
+  "manual.1",
+  "manual.2",
 ] as const satisfies readonly SaveSlotIdV1[]);
 
 const exportedSaveV1 = Object.freeze({
@@ -54,7 +56,7 @@ const labelsV1 = Object.freeze({
     "auto.current": "当前自动存档",
     "auto.previous": "上一自动存档",
     quick: "快速存档",
-    manual: "手动存档",
+    manualSlot: (index: number) => `手动存档 ${index}`,
   }),
   slotHealth: Object.freeze({
     empty: "空槽位",
@@ -160,7 +162,7 @@ function fixtureV1(options: FixtureOptionsV1 = {}) {
     slotIdsV1.map((slotId) => slotV1(slotId, slotId === "quick" ? "valid" : "empty"));
   const getStatus = vi.fn(() => options.status ?? statusV1());
   const listSlots = vi.fn(async () => slots);
-  const save = vi.fn(async (slotId: "quick" | "manual") =>
+  const save = vi.fn(async (slotId: SaveUiWritableSlotIdV1) =>
     Promise.resolve(options.saveResult ?? Object.freeze({ kind: "saved" as const, slotId })),
   );
   const load = vi.fn(async (_slotId: SaveSlotIdV1) =>
@@ -223,7 +225,7 @@ function renderFixtureV1(fixture = fixtureV1()) {
 }
 
 describe("SaveOverlayV1", () => {
-  it("shows all four slots in physical order but writes only Quick and Manual", async () => {
+  it("shows every port slot in port order but writes only Quick and numbered Manual", async () => {
     renderFixtureV1();
 
     expect((await screen.findAllByRole("listitem")).map((entry) => entry.dataset.slotId)).toEqual(
@@ -231,7 +233,10 @@ describe("SaveOverlayV1", () => {
     );
     expect(screen.queryByRole("button", { name: "写入当前自动存档" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "快速保存" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "手动保存" })).toBeEnabled();
+    const manualSaves = screen.getAllByRole("button", { name: "手动保存" });
+    expect(manualSaves).toHaveLength(2);
+    for (const button of manualSaves) expect(button).toBeEnabled();
+    expect(screen.getByText("手动存档 2")).toBeVisible();
   });
 
   it("accepts the asynchronous status port without creating another authority", async () => {
@@ -255,20 +260,25 @@ describe("SaveOverlayV1", () => {
     expect(screen.getByRole("button", { name: "快速保存" })).toBeEnabled();
   });
 
-  it("maps empty, valid, invalid, and recovery-candidate slot health without reordering", async () => {
+  it("maps slot health and preserves the port's slot order verbatim", async () => {
     renderFixtureV1(
       fixtureV1({
         slots: Object.freeze([
-          slotV1("manual", "recovery_candidate"),
-          slotV1("quick", "invalid"),
-          slotV1("auto.previous", "valid"),
           slotV1("auto.current", "empty"),
+          slotV1("auto.previous", "valid"),
+          slotV1("quick", "invalid"),
+          slotV1("manual.1", "recovery_candidate"),
         ]),
       }),
     );
 
     const entries = await screen.findAllByRole("listitem");
-    expect(entries.map((entry) => entry.dataset.slotId)).toEqual(slotIdsV1);
+    expect(entries.map((entry) => entry.dataset.slotId)).toEqual([
+      "auto.current",
+      "auto.previous",
+      "quick",
+      "manual.1",
+    ]);
     expect(entries.map((entry) => entry.querySelector("[data-slot-health]")?.textContent)).toEqual([
       "空槽位",
       "存档有效",
@@ -315,7 +325,7 @@ describe("SaveOverlayV1", () => {
         slotV1("auto.current", "valid"),
         slotV1("auto.previous", "empty"),
         slotV1("quick", "invalid"),
-        slotV1("manual", "valid"),
+        slotV1("manual.1", "valid"),
       ]),
     });
     renderFixtureV1(fixture);

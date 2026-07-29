@@ -86,14 +86,14 @@ describe("Engine Lab audio presentation", () => {
     expect(host.channel("ambient")).toMatchObject({ assetId: labAudioAssetIdsV1.ambientHum });
 
     // Save here; play forward; load restores the exact saved intent.
-    await expect(instance.persistence.save("manual")).resolves.toMatchObject({ kind: "saved" });
+    await expect(instance.persistence.save("manual.1")).resolves.toMatchObject({ kind: "saved" });
     await user.click(screen.getByRole("button", { name: "推进流程" }));
     await user.click(screen.getByRole("button", { name: "推进流程" }));
     await waitFor(() => {
       expect(host.channel("ambient")).toBeNull();
     });
 
-    await expect(instance.persistence.load("manual")).resolves.toMatchObject({ kind: "loaded" });
+    await expect(instance.persistence.load("manual.1")).resolves.toMatchObject({ kind: "loaded" });
     await waitFor(() => {
       expect(host.channel("ambient")).toMatchObject({ assetId: labAudioAssetIdsV1.ambientHum });
     });

@@ -128,6 +128,12 @@ export interface CoreGameApplicationDefinitionV1<
   ): readonly string[];
   readonly exportFilename?: string;
   /**
+   * Numbered player-writable manual slots (`manual.1`..`manual.N`) this
+   * application exposes beside `quick` and the two autosave slots.
+   * Defaults to the engine's `defaultManualSaveSlotCountV1` (8); max 99.
+   */
+  readonly manualSaveSlotCount?: number;
+  /**
    * Opt-in boot-time resume: after persistence is ready the instance
    * loads `auto.current` when it holds a runnable autosave, so a fresh
    * page (or headless host) continues the previous session instead of
@@ -842,6 +848,9 @@ export async function createCoreGameApplicationInstanceV1<
       initialSimulationLineage: [],
       metadataClock: Object.freeze({ now: () => options.host.now() }),
       exportFilename: definition.exportFilename ?? "sillymaker-application-save.json",
+      ...(definition.manualSaveSlotCount === undefined
+        ? {}
+        : { manualSaveSlotCount: definition.manualSaveSlotCount }),
       autoSaveCapture: autosave.mode === "every_commit" ? "committed_snapshots" : "external",
       leaseAcquisition:
         options.rebootstrapDisposition === undefined ? "acquire_initial" : "deferred_rebootstrap",

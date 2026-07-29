@@ -18,13 +18,24 @@ export type {
   ResolvedAssetEntryV1,
   ResolvedAssetManifestV1,
 } from "./assets.ts";
-export { createReadonlyViewSourceV1 } from "./application.ts";
+export {
+  createReadonlyViewSourceV1,
+  createSaveSlotIdsV1,
+  defaultManualSaveSlotCountV1,
+  isPlayerWritableSaveSlotIdV1,
+  isSaveSlotIdShapeV1,
+  manualSaveSlotIdV1,
+  manualSaveSlotIndexV1,
+  maxManualSaveSlotCountV1,
+  parseManualSaveSlotCountV1,
+} from "./application.ts";
 export type {
   DebugFixtureListResultV1,
   DebugToolsOperationResultV1,
   DebugToolsPortV1,
   GameApplicationPortV1,
   LeaseHandoffRequestId,
+  ManualSaveSlotIdV1,
   MutableViewPublisherV1,
   PlayerDiagnosticsPortV1,
   PlayerPersistencePortV1,

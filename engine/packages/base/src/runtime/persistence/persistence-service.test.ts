@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import type { SessionLeaseOwnerId } from "../../contracts/application.ts";
+import type { SaveSlotIdV1, SessionLeaseOwnerId } from "../../contracts/application.ts";
+import { isPlayerWritableSaveSlotIdV1, isSaveSlotIdShapeV1 } from "../../contracts/application.ts";
 import { digestBytes, digestCanonical } from "../../contracts/digest.ts";
 import type { CommandExecutionAttemptEnvelopeV1 } from "../../contracts/execution.ts";
 import type {
@@ -217,13 +218,8 @@ const slotSchemaV1: RuntimeSchemaV1<SaveRepositorySlotMetadataV1> = Object.freez
     ]);
     if (
       typeof fields.storyId !== "string" ||
-      (fields.slotId !== "auto.current" &&
-        fields.slotId !== "auto.previous" &&
-        fields.slotId !== "quick" &&
-        fields.slotId !== "manual") ||
-      (fields.writeReason !== "auto" &&
-        fields.writeReason !== "quick" &&
-        fields.writeReason !== "manual")
+      !isSaveSlotIdShapeV1(fields.slotId) ||
+      (fields.writeReason !== "auto" && !isPlayerWritableSaveSlotIdV1(fields.writeReason))
     ) {
       throw new TypeError("invalid slot metadata");
     }
@@ -251,11 +247,9 @@ const codecV1: SaveCodecContextV1<SyntheticSnapshotV1, SyntheticSaveRecordV1> = 
   recordSchema: recordSchemaV1,
   validateEnvelope(record: DeepReadonly<SyntheticSaveRecordV1>) {
     const expectedReason =
-      record.slot.slotId === "quick"
-        ? "quick"
-        : record.slot.slotId === "manual"
-          ? "manual"
-          : "auto";
+      record.slot.slotId === "auto.current" || record.slot.slotId === "auto.previous"
+        ? "auto"
+        : record.slot.slotId;
     if (
       record.slot.storyId !== record.provenance.story.id ||
       record.slot.writeReason !== expectedReason ||
@@ -307,11 +301,11 @@ function recordV1(input: {
   readonly snapshot: SyntheticSnapshotV1;
   readonly provenance?: BuildProvenanceV1;
   readonly lineage?: readonly SimulationAdoptionV1[];
-  readonly slotId?: "auto.current" | "auto.previous" | "quick" | "manual";
+  readonly slotId?: SaveSlotIdV1;
   readonly recordRevision?: number;
 }): SyntheticSaveRecordV1 {
   const provenance = input.provenance ?? provenanceV1();
-  const slotId = input.slotId ?? "manual";
+  const slotId = input.slotId ?? "manual.1";
   return recordSchemaV1.parse({
     formatRevision: 1,
     recordRevision: parsePositiveSafeInteger(input.recordRevision ?? 1),
@@ -319,7 +313,7 @@ function recordV1(input: {
     slot: {
       storyId: storyIdV1,
       slotId,
-      writeReason: slotId === "quick" ? "quick" : slotId === "manual" ? "manual" : "auto",
+      writeReason: slotId === "auto.current" || slotId === "auto.previous" ? "auto" : slotId,
       capturedCommandSequence: input.snapshot.commandSequence,
     },
     savedAt: parseIsoUtcInstantV1("2026-07-14T12:00:00.000Z"),
@@ -409,6 +403,7 @@ function failReplacementCommitV1(
 interface FixtureOptionsV1 {
   readonly records?: HostAtomicRecordStoreV1;
   readonly ownerId?: SessionLeaseOwnerId;
+  readonly manualSaveSlotCount?: number;
   readonly leaseAcquisition?: "acquire_initial" | "deferred_rebootstrap";
   readonly initial?: SyntheticSnapshotV1;
   readonly provenance?: BuildProvenanceV1;
@@ -473,6 +468,9 @@ async function fixtureV1(options: FixtureOptionsV1 = {}) {
     initialSimulationLineage: options.initialLineage ?? Object.freeze([]),
     metadataClock,
     exportFilename: "synthetic-save.json",
+    ...(options.manualSaveSlotCount === undefined
+      ? {}
+      : { manualSaveSlotCount: options.manualSaveSlotCount }),
     ...(options.leaseAcquisition === undefined
       ? {}
       : { leaseAcquisition: options.leaseAcquisition }),
@@ -1157,11 +1155,12 @@ describe("PersistenceServiceV1", () => {
         });
         return Object.freeze({
           ...repository,
-          async writeQuick(
-            record: Parameters<SaveRepositoryV1<SyntheticSaveRecordV1>["writeQuick"]>[0],
-            fence: Parameters<SaveRepositoryV1<SyntheticSaveRecordV1>["writeQuick"]>[1],
+          async writePlayer(
+            slotId: Parameters<SaveRepositoryV1<SyntheticSaveRecordV1>["writePlayer"]>[0],
+            record: Parameters<SaveRepositoryV1<SyntheticSaveRecordV1>["writePlayer"]>[1],
+            fence: Parameters<SaveRepositoryV1<SyntheticSaveRecordV1>["writePlayer"]>[2],
           ) {
-            const result = await repository.writeQuick(record, fence);
+            const result = await repository.writePlayer(slotId, record, fence);
             if (result.kind === "saved") await contender?.takeOver();
             return result;
           },
@@ -1196,11 +1195,12 @@ describe("PersistenceServiceV1", () => {
             }
             return repository.read(slotId);
           },
-          async writeQuick(
-            record: Parameters<typeof repository.writeQuick>[0],
-            fence: Parameters<typeof repository.writeQuick>[1],
+          async writePlayer(
+            slotId: Parameters<typeof repository.writePlayer>[0],
+            record: Parameters<typeof repository.writePlayer>[1],
+            fence: Parameters<typeof repository.writePlayer>[2],
           ) {
-            const result = await repository.writeQuick(record, fence);
+            const result = await repository.writePlayer(slotId, record, fence);
             unavailable = true;
             return result;
           },
@@ -1251,7 +1251,14 @@ describe("PersistenceServiceV1", () => {
       "auto.current",
       "auto.previous",
       "quick",
-      "manual",
+      "manual.1",
+      "manual.2",
+      "manual.3",
+      "manual.4",
+      "manual.5",
+      "manual.6",
+      "manual.7",
+      "manual.8",
     ]);
     expect(summaries).toEqual(
       expect.arrayContaining([
@@ -1260,6 +1267,40 @@ describe("PersistenceServiceV1", () => {
       ]),
     );
     expect(fixture.session.getCurrentSnapshot().commandSequence).toBe(0);
+  });
+
+  it("honors a configured manual slot count and rejects out-of-range slots", async () => {
+    const fixture = await fixtureV1({ manualSaveSlotCount: 2 });
+    await expect(fixture.service.port.listSlots()).resolves.toMatchObject([
+      { slotId: "auto.current" },
+      { slotId: "auto.previous" },
+      { slotId: "quick" },
+      { slotId: "manual.1" },
+      { slotId: "manual.2" },
+    ]);
+    await expect(fixture.service.port.save("manual.2")).resolves.toEqual({
+      kind: "saved",
+      slotId: "manual.2",
+    });
+    const invalidSlot = Object.freeze({
+      kind: "faulted",
+      code: "persistence.invalid_slot",
+    });
+    await expect(fixture.service.port.save("manual.3")).resolves.toEqual(invalidSlot);
+    await expect(fixture.service.port.load("manual.3")).resolves.toEqual(invalidSlot);
+    await expect(fixture.service.port.clear("manual.3")).resolves.toEqual(invalidSlot);
+    await expect(fixture.service.port.exportSave("manual.3")).resolves.toEqual(invalidSlot);
+    // Writes never target autosave slots even through untyped callers.
+    await expect(fixture.service.port.save("auto.current" as unknown as "quick")).resolves.toEqual(
+      invalidSlot,
+    );
+
+    await expect(fixtureV1({ manualSaveSlotCount: 0 })).rejects.toThrow(
+      "invalid manual Save slot count",
+    );
+    await expect(fixtureV1({ manualSaveSlotCount: 100 })).rejects.toThrow(
+      "invalid manual Save slot count",
+    );
   });
 
   it("offers Auto recovery only from a fully runnable previous Save", async () => {
@@ -1470,7 +1511,7 @@ describe("PersistenceServiceV1", () => {
     });
     const lineage = lineageV1(1, provenanceV1().resolved.simulationDigest);
     const saved = recordV1({ snapshot: snapshotV1(7, loadedIntegrity), lineage });
-    await fixture.repository.writeQuick(saved, await ownedFenceV1(fixture));
+    await fixture.repository.writePlayer("quick", saved, await ownedFenceV1(fixture));
     const before = await saveRecordsV1(fixture.records);
 
     await expect(fixture.service.port.load("quick")).resolves.toEqual({
@@ -1548,7 +1589,7 @@ describe("PersistenceServiceV1", () => {
       kind: "decoded",
       record: {
         provenance: current,
-        slot: { slotId: "manual", capturedCommandSequence: 5 },
+        slot: { slotId: "manual.1", capturedCommandSequence: 5 },
         simulationLineage: [
           {
             fromSimulationDigest: stored.resolved.simulationDigest,
@@ -1687,24 +1728,24 @@ describe("PersistenceServiceV1", () => {
       provenance: stored,
       lineage: lineageV1(16, stored.resolved.simulationDigest),
     });
-    await fixture.repository.writeManual(limited, await ownedFenceV1(fixture));
+    await fixture.repository.writePlayer("manual.1", limited, await ownedFenceV1(fixture));
 
-    await expect(fixture.service.port.load("manual")).resolves.toEqual({
+    await expect(fixture.service.port.load("manual.1")).resolves.toEqual({
       kind: "rejected",
       code: "lineage_limit",
     });
     await expect(fixture.service.port.listSlots()).resolves.toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          slotId: "manual",
+          slotId: "manual.1",
           health: "valid",
           warningCodes: ["compatibility.lineage_limit"],
         }),
       ]),
     );
-    await expect(fixture.service.port.exportSave("manual")).resolves.toMatchObject({
+    await expect(fixture.service.port.exportSave("manual.1")).resolves.toMatchObject({
       kind: "exported",
-      slotId: "manual",
+      slotId: "manual.1",
       file: { mediaType: "application/json" },
     });
   });
@@ -1716,7 +1757,7 @@ describe("PersistenceServiceV1", () => {
     });
     const fixture = await fixtureV1({ records: unavailableStoreV1(), initial: snapshotV1(6) });
 
-    await expect(fixture.service.port.save("manual")).resolves.toEqual({
+    await expect(fixture.service.port.save("manual.1")).resolves.toEqual({
       kind: "rejected",
       code: "unavailable",
     });
@@ -1725,7 +1766,7 @@ describe("PersistenceServiceV1", () => {
     expect(new TextDecoder().decode(exported.bytes)).not.toContain(capabilitySentinel.marker);
     expect(decodeSaveRecordV1(exported.bytes, codecV1)).toMatchObject({
       kind: "decoded",
-      record: { snapshot: { commandSequence: 6 }, slot: { slotId: "manual" } },
+      record: { snapshot: { commandSequence: 6 }, slot: { slotId: "manual.1" } },
     });
   });
 
@@ -1823,7 +1864,11 @@ describe("PersistenceServiceV1", () => {
       const dispatchFirst = await fixtureV1();
       const candidate = recordV1({ snapshot: snapshotV1(9) });
       if (operation === "load") {
-        await dispatchFirst.repository.writeQuick(candidate, await ownedFenceV1(dispatchFirst));
+        await dispatchFirst.repository.writePlayer(
+          "quick",
+          candidate,
+          await ownedFenceV1(dispatchFirst),
+        );
       }
       const firstDispatch = dispatchFirst.session.dispatch({ kind: "increment" });
       const firstReplacement =
@@ -1836,7 +1881,8 @@ describe("PersistenceServiceV1", () => {
 
       const replacementFirst = await fixtureV1();
       if (operation === "load") {
-        await replacementFirst.repository.writeQuick(
+        await replacementFirst.repository.writePlayer(
+          "quick",
           candidate,
           await ownedFenceV1(replacementFirst),
         );

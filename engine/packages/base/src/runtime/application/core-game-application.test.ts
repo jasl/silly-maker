@@ -228,12 +228,12 @@ describe("createCoreGameApplicationInstanceV1", () => {
       count: 1,
     });
     const digest = instance.admin.stateDigest();
-    await expect(instance.persistence.save("manual")).resolves.toEqual({
+    await expect(instance.persistence.save("manual.1")).resolves.toEqual({
       kind: "saved",
-      slotId: "manual",
+      slotId: "manual.1",
     });
     await instance.semantic.dispatch(incrementV1);
-    await expect(instance.persistence.load("manual")).resolves.toMatchObject({ kind: "loaded" });
+    await expect(instance.persistence.load("manual.1")).resolves.toMatchObject({ kind: "loaded" });
     expect(instance.admin.stateDigest()).toBe(digest);
     await instance.dispose();
   });
@@ -258,9 +258,9 @@ describe("createCoreGameApplicationInstanceV1", () => {
 
     // The same records store afterwards supports a fully writable instance.
     const healthy = await createInstanceV1({ records: counting });
-    await expect(healthy.persistence.save("manual")).resolves.toEqual({
+    await expect(healthy.persistence.save("manual.1")).resolves.toEqual({
       kind: "saved",
-      slotId: "manual",
+      slotId: "manual.1",
     });
     await healthy.dispose();
   });
@@ -278,9 +278,9 @@ describe("createCoreGameApplicationInstanceV1", () => {
     const staleGuard = instance.bindToCurrentEpoch((value: number) => value * 2);
     expect(staleGuard(21)).toEqual({ kind: "current", value: 42 });
 
-    await instance.persistence.save("manual");
+    await instance.persistence.save("manual.1");
     await instance.semantic.dispatch(incrementV1);
-    await expect(instance.persistence.load("manual")).resolves.toMatchObject({ kind: "loaded" });
+    await expect(instance.persistence.load("manual.1")).resolves.toMatchObject({ kind: "loaded" });
     expect(instance.presentationAnchor()).toEqual({ epoch: 1, origin: "load" });
     expect(staleGuard(21)).toEqual({ kind: "stale_epoch" });
     expect(anchors).toEqual([{ epoch: 1, origin: "load" }]);
@@ -414,7 +414,7 @@ describe("createCoreGameApplicationInstanceV1", () => {
       kind: "not_executed",
       code: "hmr_invalidated",
     });
-    await expect(instance.persistence.save("manual")).resolves.toMatchObject({
+    await expect(instance.persistence.save("manual.1")).resolves.toMatchObject({
       kind: "faulted",
       code: "runtime_disposed",
     });
@@ -429,9 +429,9 @@ describe("createCoreGameApplicationInstanceV1", () => {
       kind: "updated",
       status: { kind: "owned" },
     });
-    await expect(successor.persistence.save("manual")).resolves.toEqual({
+    await expect(successor.persistence.save("manual.1")).resolves.toEqual({
       kind: "saved",
-      slotId: "manual",
+      slotId: "manual.1",
     });
     await successor.dispose();
   });

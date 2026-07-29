@@ -26,12 +26,12 @@ describe("Engine Lab core application", () => {
     expect(application.semantic.observe().game.samplesCollected).toBeGreaterThan(0);
 
     const digest = application.admin.stateDigest();
-    await expect(application.persistence.save("manual")).resolves.toEqual({
+    await expect(application.persistence.save("manual.1")).resolves.toEqual({
       kind: "saved",
-      slotId: "manual",
+      slotId: "manual.1",
     });
     await application.semantic.dispatch(collectV1);
-    await expect(application.persistence.load("manual")).resolves.toMatchObject({
+    await expect(application.persistence.load("manual.1")).resolves.toMatchObject({
       kind: "loaded",
     });
     expect(application.admin.stateDigest()).toBe(digest);
@@ -48,9 +48,9 @@ describe("Engine Lab core application", () => {
       return "interaction-resolved";
     });
 
-    await application.persistence.save("manual");
+    await application.persistence.save("manual.1");
     await application.semantic.dispatch(collectV1);
-    await application.persistence.load("manual");
+    await application.persistence.load("manual.1");
 
     expect(bound()).toEqual({ kind: "stale_epoch" });
     expect(observedByOldEpoch).toBe(0);

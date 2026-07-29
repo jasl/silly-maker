@@ -93,8 +93,8 @@ test.describe("engine pending interactions", () => {
 
     await page.getByRole("button", { name: "保存", exact: true }).click();
     const saveDialog = page.getByRole("dialog", { name: "保存" });
-    await saveDialog.getByRole("button", { name: "手动保存" }).click();
-    await expect(saveDialog.getByTestId("save-operation-result")).toHaveText("已保存到手动存档");
+    await saveDialog.getByRole("button", { name: "手动保存" }).first().click();
+    await expect(saveDialog.getByTestId("save-operation-result")).toHaveText("已保存到手动存档 1");
     await saveDialog.getByRole("button", { name: "关闭", exact: true }).click();
 
     // Refresh: the page boots fresh, then an explicit load restores the
@@ -103,8 +103,8 @@ test.describe("engine pending interactions", () => {
     await expect(page.getByRole("button", { name: "开始校准" })).toBeVisible();
     await page.getByRole("button", { name: "保存", exact: true }).click();
     const reloadDialog = page.getByRole("dialog", { name: "保存" });
-    await reloadDialog.getByRole("button", { name: "载入手动存档" }).click();
-    const confirmation = page.getByRole("dialog", { name: "载入手动存档" });
+    await reloadDialog.getByRole("button", { name: "载入手动存档 1" }).click();
+    const confirmation = page.getByRole("dialog", { name: "载入手动存档 1" });
     await confirmation.getByRole("button", { name: "确认", exact: true }).click();
     // Convention: a successful load closes the dialog and enters gameplay.
     await expect(reloadDialog).toBeHidden();
