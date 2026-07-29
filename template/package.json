@@ -9,6 +9,9 @@
     ".": "./src/story.ts"
   },
   "scripts": {
+    "dev": "deno run -A npm:vite",
+    "build": "deno run -A npm:vite build",
+    "story": "deno run -A ./tools/story.mts",
     "test": "deno run -A npm:vitest run template/src"
   },
   "dependencies": {
@@ -22,6 +25,7 @@
   "devDependencies": {
     "@sillymaker/tooling": "workspace:*",
     "@types/node": "24.13.3",
-    "@types/react": "19.2.17"
+    "@types/react": "19.2.17",
+    "vite": "8.1.4"
   }
 }

@@ -65,7 +65,7 @@ silently override a design decision.
 - Story packages at the repository top level own game-specific state, rules,
   content, projections, application composition, and Story tooling: `e2e/` (the
   neutral Engine Lab conformance Story), `template/` (the minimal starter), and
-  `examples/*` (curated showcases). `project.config.ts` at the root registers
+  `examples/*` (curated showcases). `project.config.ts` at the root only lists the application directories; each application is a self-contained project (`sillymaker.config.ts` + `vite.config.ts`) and registers
   every application.
 - Workspace packages consume one another through declared package exports and
   `workspace:*` dependencies, not another package's `src/**` path.

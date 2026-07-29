@@ -6,9 +6,9 @@ import { describe, expect, it } from "vitest";
 import {
   checkStoryApplicationV1,
   createImportProjectModuleLoaderV1,
-  defineSillymakerProjectV1,
   inspectStoryApplicationV1,
   listStoryApplicationIdsV1,
+  loadWorkspaceProjectV1,
   simulateStoryApplicationV1,
 } from "@sillymaker/tooling";
 
@@ -16,7 +16,10 @@ import { sillyMakerConfigV1 } from "../../../project.config.ts";
 
 const repositoryRootV1 = fileURLToPath(new URL("../../..", import.meta.url));
 const loaderV1 = createImportProjectModuleLoaderV1(repositoryRootV1);
-const validatedProjectV1 = defineSillymakerProjectV1(sillyMakerConfigV1);
+const validatedProjectV1 = await loadWorkspaceProjectV1({
+  repositoryRoot: repositoryRootV1,
+  workspace: sillyMakerConfigV1,
+});
 
 describe("project commands against the real repository config", () => {
   it("resolves every registered application through one config mechanism", async () => {

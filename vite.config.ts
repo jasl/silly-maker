@@ -1,204 +1,35 @@
-import { existsSync, readFileSync } from "node:fs";
-import { cp } from "node:fs/promises";
-import { createRequire } from "node:module";
-import { join, resolve } from "node:path";
-import react from "@vitejs/plugin-react";
+import { resolve } from "node:path";
 import { defineConfig } from "vite";
-import type { Plugin, UserConfig } from "vite";
 
-import type { StoryWebTargetV1 } from "@sillymaker/tooling/project/config-types";
-import {
-  mergeLocalStoryApplicationsV1,
-  readLocalStoryApplicationsV1,
-  sillymakerLocalConfigFileNameV1,
-} from "@sillymaker/tooling/project/local-overlay";
-import {
-  applyStoryMetadataToHtmlV1,
-  parseStoryMetadataV1,
-} from "@sillymaker/tooling/project/story-metadata";
+import { createSillymakerAppViteConfigV1 } from "@sillymaker/tooling/vite";
+import { loadWorkspaceAppsV1 } from "@sillymaker/tooling/project/workspace";
 
 import { sillyMakerConfigV1 } from "./project.config.ts";
 
 const repositoryRoot = import.meta.dirname;
-const requireFromConfigV1 = createRequire(import.meta.url);
 
 /**
- * The committed registry plus the optional gitignored local overlay
- * (`project.config.local.ts`). The overlay loads through the same
- * runtime-resolved `require` channel as identity collector modules, so
- * committed build-identity closures stay statically analyzable and never
- * depend on the overlay's presence.
+ * Root convenience dispatch: `vite --mode <application-id>` selects a
+ * registered application directory and delegates to the same Vite assembly
+ * that application's own `vite.config.ts` uses. Application projects are
+ * the source of truth; this file only maps an ID to a directory (Playwright
+ * suites and muscle-memory `deno task dev` keep working from the root).
  */
-function loadProjectConfigV1() {
-  const localPath = resolve(repositoryRoot, sillymakerLocalConfigFileNameV1);
-  if (!existsSync(localPath)) return sillyMakerConfigV1;
-  const moduleRecord = requireFromConfigV1(localPath) as Readonly<Record<string, unknown>>;
-  return mergeLocalStoryApplicationsV1(
-    sillyMakerConfigV1,
-    readLocalStoryApplicationsV1(moduleRecord),
-  );
-}
-
-/**
- * Applications come from the shared project config; this file only turns the
- * selected web target into a Vite config. Adding a Story application never
- * changes this implementation.
- */
-function resolveWebTargetV1(applicationId: string): StoryWebTargetV1 {
-  const config = loadProjectConfigV1();
-  const application = config.applications.find(
-    (candidate) => candidate.applicationId === applicationId,
-  );
-  const web = application?.web ?? null;
-  if (web === null) {
-    const webApplicationIds = config.applications
-      .filter((candidate) => candidate.web !== null)
-      .map((candidate) => candidate.applicationId);
+export default defineConfig(async ({ mode }) => {
+  const applicationId = mode === "development" || mode === "production" ? "e2e" : mode;
+  const apps = await loadWorkspaceAppsV1({
+    repositoryRoot,
+    workspace: sillyMakerConfigV1,
+  });
+  const app = apps.find((candidate) => candidate.config.applicationId === applicationId);
+  if (app === undefined) {
+    const knownIds = apps.map((candidate) => candidate.config.applicationId);
     throw new TypeError(
-      `unknown web application "${applicationId}"; web applications: ${webApplicationIds.join(", ")}`,
+      `unknown web application "${applicationId}"; applications: ${knownIds.join(", ")}`,
     );
   }
-  return web;
-}
-
-interface BuildIdentityModuleV1 {
-  collect(root: string): Promise<unknown>;
-  createPlugin(input: { readonly root: string; readonly initialIdentity: unknown }): Plugin;
-}
-
-function loadBuildIdentityModuleV1(web: StoryWebTargetV1): BuildIdentityModuleV1 {
-  const loaded: unknown = requireFromConfigV1(resolve(repositoryRoot, web.identity.module));
-  if (typeof loaded !== "object" || loaded === null) {
-    throw new TypeError("Story BuildIdentity collector module is invalid");
-  }
-  const collect = Reflect.get(loaded, web.identity.collectExport);
-  const createPlugin = Reflect.get(loaded, web.identity.createPluginExport);
-  if (typeof collect !== "function" || typeof createPlugin !== "function") {
-    throw new TypeError("Story BuildIdentity collector module is invalid");
-  }
-  return Object.freeze({
-    collect: (root: string) => collect(root) as Promise<unknown>,
-    createPlugin: (input: { readonly root: string; readonly initialIdentity: unknown }) =>
-      createPlugin(input) as Plugin,
+  return createSillymakerAppViteConfigV1({
+    appRoot: resolve(repositoryRoot, app.directory),
+    config: app.config,
   });
-}
-
-export async function collectSillyMakerBuildIdentityV1(applicationId: string): Promise<unknown> {
-  const web = resolveWebTargetV1(applicationId);
-  return await loadBuildIdentityModuleV1(web).collect(repositoryRoot);
-}
-
-/**
- * Runtime Story assets live at `<storyRoot>/assets/**` and are addressed by
- * repository-relative runtimePaths (for example
- * `examples/cat-cafe/assets/x.webp`). This plugin keeps that one path true
- * in every channel: the dev server serves it from disk, and production
- * builds copy the directory into dist under the same relative path (the
- * desktop shell then serves dist verbatim).
- */
-function runtimeAssetsPluginV1(web: StoryWebTargetV1): Plugin {
-  const assetsDir = resolve(repositoryRoot, web.storyRoot, "assets");
-  const urlPrefix = `/${web.storyRoot}/assets/`;
-  return {
-    name: "sillymaker-runtime-assets",
-    configureServer(server) {
-      server.middlewares.use((request, response, next) => {
-        const url = request.url?.split("?")[0] ?? "";
-        if (!url.startsWith(urlPrefix)) {
-          next();
-          return;
-        }
-        const relative = decodeURIComponent(url.slice(urlPrefix.length));
-        const filePath = resolve(assetsDir, relative);
-        if (!filePath.startsWith(assetsDir) || !existsSync(filePath)) {
-          response.statusCode = 404;
-          response.end("not found");
-          return;
-        }
-        const media = filePath.endsWith(".webp")
-          ? "image/webp"
-          : filePath.endsWith(".png")
-            ? "image/png"
-            : "application/octet-stream";
-        response.setHeader("content-type", media);
-        response.end(readFileSync(filePath));
-      });
-    },
-    async writeBundle(options) {
-      if (!existsSync(assetsDir) || options.dir === undefined) return;
-      await cp(assetsDir, join(options.dir, web.storyRoot, "assets"), { recursive: true });
-    },
-  };
-}
-
-/**
- * Injects share metadata (title/description/Open Graph/Twitter/favicon)
- * from `<storyRoot>/metadata.json` into the page at dev and build time.
- * Stories without the file keep their hand-written head untouched.
- */
-function storyMetadataPluginV1(web: StoryWebTargetV1): Plugin {
-  const metadataPath = resolve(repositoryRoot, web.storyRoot, "metadata.json");
-  return {
-    name: "sillymaker:story-metadata",
-    transformIndexHtml(html) {
-      if (!existsSync(metadataPath)) return html;
-      const metadata = parseStoryMetadataV1(
-        JSON.parse(readFileSync(metadataPath, "utf8")),
-        join(web.storyRoot, "metadata.json"),
-      );
-      return applyStoryMetadataToHtmlV1(html, metadata, { storyRoot: web.storyRoot });
-    },
-  };
-}
-
-export async function createSillyMakerViteConfigV1(input: {
-  readonly applicationId: string;
-  readonly initialBuildIdentity?: unknown;
-}): Promise<UserConfig> {
-  const web = resolveWebTargetV1(input.applicationId);
-  const identity = loadBuildIdentityModuleV1(web);
-  const initialBuildIdentity =
-    input.initialBuildIdentity ?? (await identity.collect(repositoryRoot));
-
-  return {
-    root: resolve(repositoryRoot, web.storyRoot),
-    base: web.base,
-    publicDir: false,
-    plugins: [
-      identity.createPlugin({ root: repositoryRoot, initialIdentity: initialBuildIdentity }),
-      react(),
-      runtimeAssetsPluginV1(web),
-      storyMetadataPluginV1(web),
-    ],
-    build: {
-      outDir: resolve(repositoryRoot, web.outDir),
-      emptyOutDir: true,
-      sourcemap: web.sourcemap,
-      rollupOptions: {
-        input: resolve(repositoryRoot, web.applicationHtml),
-        output: {
-          // Dependencies get their own chunks: one for React, one for the rest of node_modules;
-          // application and engine code stay in the entry chunk — all three stay clear of the 500 kB warning line,
-          // and the dependency chunks stay stable across releases (good for caching).
-          advancedChunks: {
-            groups: [
-              { name: "vendor-react", test: /node_modules[/\\](react|react-dom|scheduler)[/\\]/ },
-              { name: "vendor", test: /node_modules/ },
-            ],
-          },
-        },
-      },
-    },
-  } satisfies UserConfig;
-}
-
-/**
- * The Vite mode selects the application from the project config. Vite's
- * implicit `development`/`production` modes keep resolving the maintained
- * PoC player so bare `vite` invocations stay compatible.
- */
-export default defineConfig(async ({ mode }) =>
-  createSillyMakerViteConfigV1({
-    applicationId: mode === "development" || mode === "production" ? "e2e" : mode,
-  }),
-);
+});

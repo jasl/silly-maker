@@ -257,7 +257,8 @@ E2E Story 可以被独立 build 并由静态服务器启动，但它不是发行
 
 1. E2E Story 不导入任何 Product Story，也不 deep-import `engine/**/src`；
 2. Story 的正常内容开发不需要修改 `engine/**` 或根 Vite/build/asset switch
-   logic；允许在统一 project config 中声明应用；
+   logic；应用在自己的 `sillymaker.config.ts` 里声明（根 `project.config.ts`
+   仅为目录清单）；
 3. typed capability graph 含真实非空 dependency，lifecycle ordering 通过独立 DAG
    验证；
 4. commit/reject/fault、RNG、Save 和 replay behavior tests 通过；

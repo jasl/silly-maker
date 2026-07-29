@@ -23,7 +23,7 @@ export const catcafeAudioIdsV1 = Object.freeze({
   sfxLose: "audio.catcafe.sfx.lose",
 } as const);
 
-const audioPathV1 = (file: string): string => `examples/cat-cafe/assets/${file}`;
+const audioPathV1 = (file: string): string => `assets/${file}`;
 
 export const catcafeAudioManifestV1: ResolvedAudioManifestV1 = resolveAudioManifestV1(
   [

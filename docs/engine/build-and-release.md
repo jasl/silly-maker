@@ -2,9 +2,24 @@
 
 状态：当前 Web Player 与发布渠道的维护流程。
 
-## Application registry
+## Application projects
 
-Story applications are declared once in `project.config.ts` and typed by `@sillymaker/tooling/project`. Vite target resolution (`vite --mode <application-id>`), runtime asset verification, and the project commands below all consume that one registry; adding a Story application means adding one declaration, not editing the Vite implementation, the asset verifier, or a build switch.
+Every application is a self-contained project: its own directory declares itself in `sillymaker.config.ts` (named export `sillymakerAppConfigV1`, all paths app-root-relative), owns a five-line `vite.config.ts` that calls `createSillymakerAppViteConfigV1` from `@sillymaker/tooling/vite`, and depends on the engine through package exports (`workspace:*` inside this repository; relative `file:` paths for an external checkout until the packages are published). Copying `template/` is the supported way to start a new game — the copy builds anywhere.
+
+Inside an application directory the whole lifecycle is local:
+
+```sh
+deno task dev                              # vite dev server for this application
+deno task build                            # static Player under <app>/dist-web
+deno run -A ./tools/story.mts check .      # structured JSON diagnostics
+deno run -A ./tools/story.mts simulate .   # scripted run through the Agent port
+```
+
+(`.` selects "this application"; the template's `package.json` scripts wrap these.)
+
+## Workspace registry (repository-level aggregation)
+
+The root `project.config.ts` is only the list of registered application directories. Repository-level commands aggregate the per-app declarations:
 
 ```sh
 deno task story inspect <application-id>   # resolved Story identity/content summary as JSON
@@ -16,17 +31,18 @@ deno task simulate:e2e                     # Engine Lab conformance simulation
 
 `simulate` drives the application's declared simulation target exclusively through the player-safe Agent port. An application without a target answers with a structured `project.simulation_unconfigured` diagnostic.
 
-The Engine Lab Story also declares a browser target: `vite --mode e2e` serves it and `vite build --mode e2e` produces `dist/e2e`. That build is an engine test Artifact; a future product application will own its own release flow through the same `deno task story build`/`prepare-artifact` machinery.
+The root Vite config keeps `vite --mode <application-id>` as a convenience dispatch (Playwright suites and `deno task dev` use it); it resolves the directory and delegates to the same `@sillymaker/tooling/vite` assembly the application's own config uses. `vite build --mode e2e` therefore produces `e2e/dist-web`, identical to building inside `e2e/`.
 
 `deno task test:e2e:engine` runs the engine browser suite against the Engine Lab (declared projects cover desktop pointer, WebKit, touch, and a 16:10 tablet, with a pageerror/console diagnostic policy); `deno task test:e2e` is its alias.
 
 ## Development server
 
 ```sh
-deno task dev
+deno task dev          # repository root: Engine Lab via --mode dispatch
+deno task dev          # inside an application directory: that application
 ```
 
-The development server uses the current Story application root and supports normal Vite development behavior. Development capability switches and HMR are not separate production build flavors; capability checks remain runtime behavior.
+The development server uses the application root and supports normal Vite development behavior. Development capability switches and HMR are not separate production build flavors; capability checks remain runtime behavior. Runtime Story assets live at `<appRoot>/assets/**` and are addressed app-root-relative (`assets/x.webp`): the dev server serves them at `/assets/**`, builds copy them into `dist-web/assets/**`.
 
 ## Build a Player
 
@@ -34,7 +50,7 @@ The development server uses the current Story application root and supports norm
 deno task story build <app>
 ```
 
-This creates a static Player for the selected application under its declared `dist/` target (`deno task story build e2e` today). A build is useful for local inspection, but it is not by itself a release handoff and does not publish anything.
+This creates a static Player under the application's own `dist-web/` (the plain `dist/` stays the TypeScript project-references emit directory). The build runs the application's own `vite.config.ts` from its directory — the CLI never selects a build switch. A build is useful for local inspection, but it is not by itself a release handoff and does not publish anything.
 
 Build output policy: dependencies split into stable `vendor`/`vendor-react` chunks (application and engine code stay in the entry chunk; all three sit well under the 500 kB warning line and the vendor chunks hash identically across applications for caching). Production output is minified and mangled by default (Vite's built-in minifier — the modern successor to the old "uglify" step); that is baseline code protection, not real obfuscation. Two debug switches:
 
@@ -43,9 +59,9 @@ deno task story build <app> --sourcemap    # emit .map files next to the chunks
 deno task story build <app> --no-minify    # readable output for debugging
 ```
 
-The per-application `web.sourcemap` field in `project.config.ts` remains the configured default; the CLI flag overrides it for one build.
+The per-application `web.sourcemap` field in the app's `sillymaker.config.ts` remains the configured default; the CLI flag overrides it for one build.
 
-Build identity is generated from the application and resolved Story inputs used by the build. Runtime digests and manifests are technical identity for compatibility, caching, diagnostics, and inspection; they are not proof of copyright ownership or asset approval.
+Build identity is generated from the application and resolved Story inputs used by the build. The collector is an optional per-application declaration (`web.identity` pointing at `<app>/tools/build-identity.mjs` over `@sillymaker/tooling/identity/*`); it doubles as a structural facet gate (no React/DOM in simulation closures, no cross-facet imports). It resolves engine sources against the repository root, so it is an in-repo gate — external application projects (and the copy-me starter) omit it and run on the default composer identity. Runtime digests and manifests are technical identity for compatibility, caching, diagnostics, and inspection; they are not proof of copyright ownership or asset approval.
 
 ## Prepare a local Artifact
 
@@ -66,7 +82,7 @@ The legal files are a product packaging requirement for the composite bundle, no
 The Engine Lab has two prebuilt layers; use them after changes to routing, base paths, generated identity, asset loading, persistence bootstrap, bundle composition, or Artifact preparation:
 
 ```sh
-deno task story build e2e            # build dist/e2e through the project CLI
+deno task story build e2e            # build e2e/dist-web through the project CLI
 deno task story prebuilt-smoke e2e   # file-level Artifact verification (no browser)
 deno task test:e2e:engine:prebuilt   # the full engine browser suite on the Artifact
 ```
@@ -81,7 +97,7 @@ deno task test:e2e
 
 ## Desktop save server (local persistence channel)
 
-`deno task desktop:save-server --dist dist/<app> --saves <dir> --port 41800` serves a built Player bundle from one fixed local port and owns a save directory behind `/sillymaker/records`. Pages started with `?records=local` persist through `createHttpHostRecordStoreV1` (atomic per-file writes, optimistic revisions) instead of per-origin IndexedDB, so saves live in real files and survive process restarts and origin changes. This is the working desktop-persistence answer; wrapping the fixed-port server in a webview shell is the remaining packaging step.
+`deno task desktop:save-server --dist <app>/dist-web --saves <dir> --port 41800` serves a built Player bundle from one fixed local port and owns a save directory behind `/sillymaker/records`. Pages started with `?records=local` persist through `createHttpHostRecordStoreV1` (atomic per-file writes, optimistic revisions) instead of per-origin IndexedDB, so saves live in real files and survive process restarts and origin changes. This is the working desktop-persistence answer; wrapping the fixed-port server in a webview shell is the remaining packaging step.
 
 ## Desktop packaging (one step)
 
@@ -89,7 +105,7 @@ deno task test:e2e
 deno task story desktop <app>
 ```
 
-Applications that declare `web.desktop` (name + bundle identifier + optional repository-relative `icon`) package into a double-clickable desktop app in one step. The command builds the web target, stages the shell under `dist/desktop/<app>/staging/` — `scripts/desktop/shell-main.ts` serves the embedded `dist/` (including runtime assets) over an in-process HTTP listener, injects the `__SILLYMAKER_RECORDS__ = "local"` signal into the page, and owns the records API over a real save directory in the platform user-data location (`~/Library/Application Support/<identifier>/saves` on macOS) — then runs `deno desktop` (requires a local Deno >= 2.9; the feature is experimental upstream) with the icon installed into the bundle.
+Applications that declare `web.desktop` (name + bundle identifier + optional app-relative `icon`) package into a double-clickable desktop app in one step. The command builds the web target, stages the shell under `<app>/dist-desktop/staging/` — the shell sources ship inside `@sillymaker/tooling` (`src/desktop/shell-main.ts` serves the embedded `dist/`, including runtime assets, over an in-process HTTP listener, injects the `__SILLYMAKER_RECORDS__ = "local"` signal into the page, and owns the records API over a real save directory in the platform user-data location, `~/Library/Application Support/<identifier>/saves` on macOS) — then runs `deno desktop` (requires a local Deno >= 2.9; the feature is experimental upstream) with the icon installed into the bundle.
 
 File-backed saves make the webview origin irrelevant: `deno desktop` still picks a random port per launch, but persistence flows through the shell's records endpoint (atomic per-file replace, optimistic revisions) rather than per-origin IndexedDB, so saves survive restarts. Engine and Story code never depend on Deno Desktop APIs — the web Artifact remains the canonical delivery and the stable fallback. macOS release builds additionally need signing and notarization.
 
@@ -100,7 +116,7 @@ File-backed saves make the webview origin irrelevant: `deno desktop` still picks
 - **GitHub Pages** — `.github/workflows/deploy-pages.yml` builds with `SITE_BASE=/<repo>/` and deploys through `actions/deploy-pages`. One-time setup: repository Settings → Pages → Source: "GitHub Actions", then run the workflow from the Actions tab (uncomment the `push` trigger for continuous deployment). The site lands at `https://<owner>.github.io/<repo>/`.
 - **Cloudflare Workers** — `wrangler.jsonc` declares an assets-only Worker serving `dist/site`. Deploy from a local machine with `deno task site:build && deno task site:deploy:cf` (authenticate once with `deno run -A npm:wrangler login`). Root-based hosting, so the default `SITE_BASE=/` is correct; the site lands at `https://silly-maker.<account>.workers.dev/` or a custom domain.
 
-Each Story's `<storyRoot>/metadata.json` configures the deployed page's share presentation — document title, description, html lang, theme color, Open Graph / Twitter card, share image, and favicon (`parseStoryMetadataV1` validates the shape; the Vite config injects the tags at build time; Stories without the file keep their hand-written head). Share-image paths are story-relative; the site composer absolutizes `og:image`/`twitter:image` and pins `og:url` when `SITE_ORIGIN` is set (the GitHub Pages workflow provides it automatically).
+Each application's `<appRoot>/metadata.json` configures the deployed page's share presentation — document title, description, html lang, theme color, Open Graph / Twitter card, share image, and favicon (`parseStoryMetadataV1` validates the shape; the Vite config injects the tags at build time; Stories without the file keep their hand-written head). Share-image paths are story-relative; the site composer absolutizes `og:image`/`twitter:image` and pins `og:url` when `SITE_ORIGIN` is set (the GitHub Pages workflow provides it automatically).
 
 Both targets were validated against a sub-path static server and the local `wrangler dev` runtime (docs, game, runtime assets, and the `/zh/` locale all resolve).
 

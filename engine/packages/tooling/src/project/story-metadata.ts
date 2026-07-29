@@ -82,16 +82,14 @@ function escapeHtmlV1(text: string): string {
 
 /**
  * Renders the head block for a Story page. Asset URLs stay page-relative
- * under the same `<storyRoot>/...` convention as runtime assets, so they
- * resolve in dev, in standalone builds, and in the composed site.
+ * under the same application-root `assets/...` convention as runtime
+ * assets, so they resolve in dev, in standalone builds, and in the
+ * composed site.
  */
-export function renderStoryHeadTagsV1(
-  metadata: StoryMetadataV1,
-  options: { readonly storyRoot: string },
-): string {
+export function renderStoryHeadTagsV1(metadata: StoryMetadataV1): string {
   const title = escapeHtmlV1(metadata.name);
   const description = escapeHtmlV1(metadata.description);
-  const assetUrl = (path: string): string => `${options.storyRoot}/${path}`;
+  const assetUrl = (path: string): string => path;
   const lines: string[] = [
     `<title>${title}</title>`,
     `<meta name="description" content="${description}" />`,
@@ -134,13 +132,9 @@ export function renderStoryHeadTagsV1(
  * `<title>` (the block carries its own) and the html lang attribute when
  * the metadata declares one.
  */
-export function applyStoryMetadataToHtmlV1(
-  html: string,
-  metadata: StoryMetadataV1,
-  options: { readonly storyRoot: string },
-): string {
+export function applyStoryMetadataToHtmlV1(html: string, metadata: StoryMetadataV1): string {
   const withoutTitle = html.replace(/[ \t]*<title>[\s\S]*?<\/title>\n?/u, "");
-  const block = renderStoryHeadTagsV1(metadata, options);
+  const block = renderStoryHeadTagsV1(metadata);
   const injected = withoutTitle.replace("</head>", `  ${block}\n  </head>`);
   if (metadata.lang === undefined) return injected;
   return injected.replace(/<html lang="[^"]*"/u, `<html lang="${escapeHtmlV1(metadata.lang)}"`);

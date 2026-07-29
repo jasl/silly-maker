@@ -27,7 +27,7 @@ engine/packages/web      browser Host and application adapters
 e2e/                     neutral Engine Conformance Story (MIT test consumer)
 template    minimal starter Story (new-project skeleton)
 examples/                curated example Stories (bookshop; cat-cafe, the engine-gap delivery vehicle)
-project.config.ts        the single application registry
+project.config.ts        the workspace registry (application directory list)
 website/                 the public documentation site (VitePress, en + zh; deno task docs:dev)
 scripts                  maintained build, asset, and product tooling
 docs/engine            active engine documentation
@@ -56,7 +56,7 @@ Package manifests define supported cross-package entries. Do not bypass them wit
 | `deno task story desktop <app>`                  | Package the built web Artifact as a desktop app (experimental).       |
 | `deno task test:e2e:engine:prebuilt`             | Build the Engine Lab and run the engine suite on the Artifact.        |
 
-The application lifecycle CLI covers six responsibilities for every application declared in `project.config.ts`:
+Every application is a self-contained project: `<app>/sillymaker.config.ts` declares it (paths app-root-relative), `<app>/vite.config.ts` calls the shared `@sillymaker/tooling/vite` assembly, and the root `project.config.ts` only lists the registered directories for repository-level aggregation. The application lifecycle CLI covers six responsibilities for every registered application (and runs app-locally through `<app>/tools/story.mts`):
 
 ```text
 deno task story inspect <app>                          # resolved identity/program report (JSON)
@@ -67,11 +67,11 @@ deno task story build <app>                            # build the application's
 deno task story prebuilt-smoke <app>                   # verify the built Artifact's files
 ```
 
-`simulate` plays a named scenario from the application's simulation target (for example `deno task story simulate e2e --scenario opening --seed 23049`) through the same player-safe Agent port real agents use. Story applications (story entry, asset verification, simulation target, web dev/build target) are declared in `project.config.ts`; see [build-and-release](build-and-release.md).
+`simulate` plays a named scenario from the application's simulation target (for example `deno task story simulate e2e --scenario opening --seed 23049`) through the same player-safe Agent port real agents use. Story applications (story entry, asset verification, simulation target, web dev/build target) are declared in each application's own `sillymaker.config.ts`; see [build-and-release](build-and-release.md).
 
-### Local application overlay
+### Local and external application projects
 
-A gitignored `project.config.local.ts` at the repository root may register extra applications into the same registry without touching the committed config — private studies, `tmp/`-only verification games, and personal experiments get the full supported lifecycle (`dev`, `check`, `simulate`, `build`, plus Vite `--mode <app>`), instead of a bespoke boot path that aliases engine `src/**`. The overlay file exports `sillyMakerLocalApplicationsV1: readonly StoryApplicationConfigV1[]`; a local application must use a new application ID (shadowing a committed ID fails with `project.local_application_conflict`). Every registry consumer (Vite target resolution, the story CLI, asset verification) merges the overlay through `@sillymaker/tooling/project/local-overlay`; the overlay loads through a runtime-resolved channel, so committed build identities never depend on its presence.
+Private studies, `tmp/`-only verification games, and external checkouts do not register into the repository at all: they are ordinary application projects. Copy `template/`, keep `sillymaker.config.ts` + `vite.config.ts` + `tools/story.mts`, and point `package.json` dependencies at the engine packages by relative `file:` path (with `"nodeModulesDir": "manual"` in the project's `deno.json`, required for `file:` npm dependencies). `deno install` inside the project directory materializes the engine link; `deno task dev/build/test` and the app-local story CLI then run without any root-registry edit or engine `src/**` alias.
 
 `deno task check` may remain as a compatibility alias for `deno task check`; new documentation and automation should use `deno task check`.
 

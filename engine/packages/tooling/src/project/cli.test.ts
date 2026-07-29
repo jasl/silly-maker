@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: MIT
+import { fileURLToPath } from "node:url";
+
 import { describe, expect, it } from "vitest";
 
 import { createSyntheticCounterGamePackageV1 } from "@sillymaker/base/testkit";
@@ -235,11 +237,12 @@ describe("runProjectCliV1", () => {
       ok: true,
       outDir: "dist/synthetic",
     });
+    // The build runs the application's own Vite config from its directory.
     expect(fake.log.runs).toEqual([
       {
         command: "deno",
-        args: ["run", "-A", "npm:vite", "build", "--mode", "synthetic"],
-        cwd: "/repo",
+        args: ["run", "-A", "npm:vite", "build"],
+        cwd: "/repo/test",
       },
     ]);
   });
@@ -253,7 +256,8 @@ describe("runProjectCliV1", () => {
     const result = await runV1(["dev", "synthetic", "--smoke"], fake.runner);
     expect(result.code).toBe(0);
     expect(JSON.parse(result.out.join("\n"))).toMatchObject({ ok: true });
-    expect(fake.log.starts[0]?.args).toContain("--mode");
+    expect(fake.log.starts[0]?.args).toContain("npm:vite");
+    expect(fake.log.starts[0]?.args).not.toContain("--mode");
     expect(fake.log.starts[0]?.killed).toBe(true);
 
     const plainDev = await runV1(["dev", "synthetic"], fake.runner);
@@ -291,19 +295,25 @@ describe("runProjectCliV1", () => {
   });
 
   it("desktop stages the webview shell and invokes deno desktop", async () => {
+    // The shell sources ship inside @sillymaker/tooling and are read from
+    // the package itself, so packaging works from any application root.
+    const shellMainPathV1 = fileURLToPath(new URL("../desktop/shell-main.ts", import.meta.url));
+    const recordStorePathV1 = fileURLToPath(
+      new URL("../desktop/record-file-store.mts", import.meta.url),
+    );
     const fake = createFakeRunnerV1({
       files: Object.freeze({
-        "/repo/dist/desktop/synthetic/SyntheticApp.app/Contents/Info.plist": "<plist/>",
-        "/repo/scripts/desktop/shell-main.ts":
+        "/repo/test/dist-desktop/SyntheticApp.app/Contents/Info.plist": "<plist/>",
+        [shellMainPathV1]:
           'const appIdentifierV1 = "__SILLYMAKER_APP_IDENTIFIER__";\nconst distDirNameV1 = "__SILLYMAKER_DIST_DIR__";\n',
-        "/repo/scripts/desktop/record-file-store.mts": "export const storeV1 = 1;\n",
+        [recordStorePathV1]: "export const storeV1 = 1;\n",
       }),
     });
     const result = await runV1(["desktop", "synthetic"], fake.runner);
     expect(result.code).toBe(0);
     expect(JSON.parse(result.out.join("\n"))).toMatchObject({
       ok: true,
-      outputPath: "/repo/dist/desktop/synthetic/SyntheticApp.app",
+      outputPath: "/repo/test/dist-desktop/SyntheticApp.app",
     });
     // The web build ran first, then deno desktop from the staging dir with
     // compile-time permissions and the static dist included in the VFS.
@@ -322,15 +332,15 @@ describe("runProjectCliV1", () => {
         "../SyntheticApp.app",
         "main.ts",
       ],
-      cwd: "/repo/dist/desktop/synthetic/staging",
+      cwd: "/repo/test/dist-desktop/staging",
     });
     expect(fake.log.copies).toEqual([
-      { source: "/repo/dist/synthetic", destination: "/repo/dist/desktop/synthetic/staging/dist" },
+      { source: "/repo/dist/synthetic", destination: "/repo/test/dist-desktop/staging/dist" },
     ]);
     const written = fake.log.writes.map((entry) => entry.path);
-    expect(written).toContain("/repo/dist/desktop/synthetic/staging/deno.json");
-    expect(written).toContain("/repo/dist/desktop/synthetic/staging/main.ts");
-    expect(written).toContain("/repo/dist/desktop/synthetic/staging/record-file-store.mts");
+    expect(written).toContain("/repo/test/dist-desktop/staging/deno.json");
+    expect(written).toContain("/repo/test/dist-desktop/staging/main.ts");
+    expect(written).toContain("/repo/test/dist-desktop/staging/record-file-store.mts");
     // The staged shell carries the application identity, not placeholders.
     const stagedMain = fake.log.writes.find((entry) => entry.path.endsWith("main.ts"));
     expect(stagedMain?.contents).toContain('"dev.sillymaker.synthetic"');

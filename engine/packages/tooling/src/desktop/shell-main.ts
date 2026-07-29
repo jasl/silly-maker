@@ -15,7 +15,7 @@ import type { WireMutationV1 } from "./record-file-store.mts";
  *
  * Staged copies replace the two placeholders below; running the file
  * directly from scripts/ also works for local verification:
- *   deno run -A scripts/desktop/shell-main.ts --dist dist/<app> --id dev.local.app
+ *   deno run -A engine/packages/tooling/src/desktop/shell-main.ts --dist <app>/dist-web --id dev.local.app
  */
 
 declare const Deno: {

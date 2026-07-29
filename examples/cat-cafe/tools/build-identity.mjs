@@ -2,11 +2,11 @@
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { createStoryBuildIdentityOwnerV1 } from "./build-story-identity.mjs";
+import { createStoryBuildIdentityOwnerV1 } from "@sillymaker/tooling/identity/story-build-identity";
 
 export const catcafeBuildIdentityVirtualSpecifierV1 = "virtual:sillymaker/catcafe-build-identity";
 
-const repositoryRootV1 = dirname(dirname(fileURLToPath(import.meta.url)));
+const repositoryRootV1 = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const ownerV1 = createStoryBuildIdentityOwnerV1({
   label: "ExampleCatcafe",
   storySourceRoot: "examples/cat-cafe/src/",
@@ -20,10 +20,11 @@ const ownerV1 = createStoryBuildIdentityOwnerV1({
   },
   applicationEntries: [
     "examples/cat-cafe/src/application/entry.tsx",
-    "scripts/build-story-identity.mjs",
-    "scripts/collect-import-closure.mjs",
-    "scripts/build-template-identity.mjs",
-    "vite.config.ts",
+    "engine/packages/tooling/src/identity/story-build-identity.mjs",
+    "engine/packages/tooling/src/identity/collect-import-closure.mjs",
+    "examples/cat-cafe/tools/build-identity.mjs",
+    "examples/cat-cafe/vite.config.ts",
+    "examples/cat-cafe/sillymaker.config.ts",
   ],
   virtual: {
     specifier: catcafeBuildIdentityVirtualSpecifierV1,
@@ -39,7 +40,10 @@ export async function collectCatcafeBuildIdentityV1(root = repositoryRootV1) {
 
 /** Creates the Vite plugin without making the collector depend on Vite. */
 export function createCatcafeBuildIdentityVirtualPluginV1(input) {
-  return ownerV1.createVirtualPluginV1(input);
+  return ownerV1.createVirtualPluginV1({
+    root: repositoryRootV1,
+    initialIdentity: input.initialIdentity,
+  });
 }
 
 const isMain = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);

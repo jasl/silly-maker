@@ -33,8 +33,11 @@ taxi driver, three passenger stories, two endings"⟩.
 
 Process:
 1. Read template/AGENTS.md and docs/engine/authoring-quickstart.md first.
-2. Copy template/ to examples/⟨name⟩, rename globally (template/Template → ⟨name⟩),
-   register the app in the root project.config.ts, update metadata.json.
+2. Copy template/ to examples/⟨name⟩ (or anywhere outside the repository), rename
+   globally (template/Template → ⟨name⟩), update sillymaker.config.ts and
+   metadata.json. Inside this repository also add the directory to the root
+   project.config.ts list; outside it, point package.json dependencies at the
+   engine packages by relative file: path.
 3. Write the script in src/narrative.ts + text catalogs in src/presentation.ts;
    gameplay state goes through src/state.ts → src/simulation.ts →
    src/application/semantic.ts → src/story.ts.
@@ -61,7 +64,7 @@ Start the dev server for ⟨app-id⟩ (deno task story dev ⟨app-id⟩) and giv
 the URL to open in my browser. Then:
 1. Run every simulate scenario and summarize the end state of each route.
 2. Run `git diff --stat` and confirm the changes touch only the new Story
-   directory and project.config.ts.
+   directory (plus the one-line project.config.ts list entry, if in-repo).
 3. If I report a bug, reproduce it in a simulate scenario first, fix it, and
    rerun the acceptance commands.
 ```

@@ -15,17 +15,18 @@ const packageTargets = Object.freeze({
   "@sillymaker/tooling/project/config-types": "engine/packages/tooling/src/project/config-types.ts",
   "@sillymaker/tooling/project/story-metadata":
     "engine/packages/tooling/src/project/story-metadata.ts",
-  "@sillymaker/tooling/project/local-overlay":
-    "engine/packages/tooling/src/project/local-overlay.ts",
+  "@sillymaker/tooling/project/workspace": "engine/packages/tooling/src/project/workspace.ts",
+  "@sillymaker/tooling/vite": "engine/packages/tooling/src/vite/app-vite-config.ts",
+  "@sillymaker/tooling/identity/story-build-identity":
+    "engine/packages/tooling/src/identity/story-build-identity.mjs",
+  "@sillymaker/tooling/identity/collect-import-closure":
+    "engine/packages/tooling/src/identity/collect-import-closure.mjs",
   "@sillymaker/ui": "engine/packages/ui/src/index.ts",
   "@sillymaker/ui/assets": "engine/packages/ui/src/assets/index.ts",
   "@sillymaker/ui/debug": "engine/packages/ui/src/debug/index.ts",
   "@sillymaker/ui/diagnostics": "engine/packages/ui/src/diagnostics/index.ts",
   "@sillymaker/ui/styles.css": "engine/packages/ui/src/theme/global.css",
   "@sillymaker/web": "engine/packages/web/src/index.ts",
-  "@silly-maker/story-poc": "examples/poc/src/index.ts",
-  "@silly-maker/story-poc/tooling": "examples/poc/src/tooling/index.ts",
-  "@silly-maker/story-poc/tooling-ui": "examples/poc/src/tooling-ui/index.ts",
 });
 
 const posix = (root, path) => relative(root, path).split(sep).join("/");
