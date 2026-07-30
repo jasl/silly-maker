@@ -13,6 +13,7 @@
     "build": "deno task build:web",
     "build:web": "deno run -A npm:vite build",
     "build:desktop": "deno run -A ./tools/story.mts desktop .",
+    "deploy:cf": "deno task build && deno run -A npm:wrangler@4.114.0 deploy",
     "preview": "deno run -A npm:vite preview",
     "clean": "rm -rf dist-web dist-desktop",
     "story": "deno run -A ./tools/story.mts",
