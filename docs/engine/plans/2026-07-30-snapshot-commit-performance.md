@@ -270,3 +270,24 @@ TDD red 先得到 S1 后的旧计数 `8/6`、`11/8`、aggregate `19/14`；green 
 | two autosaves aggregate       |                         19 |                        15 |                  14 |                 10 |
 
 deep-freeze、CommandLog continuity、Save serialization 与 Strict JSON parse/preflight 计数不变。中性 workload 另用 opaque runtime-control wrapper 强制 fallback，确认它恢复旧计数，同时 optimized/fallback 两轮 `auto.current` / `auto.previous` Host revision 与原始 bytes 完全相等。S2 仍未完成：同一 normalized Save envelope 的 expected re-encoding、canonical/Strict-limits shared traversal、rotation 的唯一必要 encodes，以及完整 equivalence corpus 属于后续切片。
+
+### 2026-07-30 — S2b Attempt-local Save write receipt
+
+本切片只消除一次成功物理写后、为比较 expected bytes 而执行的同一 current envelope 二次编码；canonical encoding 与 Strict JSON limits 仍是两次独立遍历：
+
+- 只有 standard Persistence composition 为 built-in `SaveRepository` 启用 package-internal receipt evidence。Repository 在 Host CAS commit 前保留一份 encoded current bytes 的防御性副本，并且只在 commit 返回 committed 后，把 exact repository identity + exact frozen saved-result identity 绑定到这次 attempt；
+- Persistence 仍执行 physical read/decode、normalized Snapshot digest、lease fence、Host/Save revision、captured command sequence 与 raw-byte 验证。exact one-shot receipt 命中时在内部直接比较并消费；receipt mismatch 仍是 conflict，miss 才执行原来的 `makeRecord + encode`；
+- custom/decorated Repository、result clone、另一 Repository、standalone public Repository 与 rejected/CAS-loser attempt 都没有 receipt。receipt 不进入 `SaveRepositoryV1`、write result、runtime barrel 或 Snapshot/Save 数据，也不成为跨 attempt 的 latest-bytes cache；
+- `auto.previous` 的 slot ID / record revision 与旧 `auto.current` 不同，rotation 仍必须 decode current，并分别编码 previous 与新 current。receipt 只对应本次新 current，不能 raw-copy 给 previous。
+
+TDD red 先把 standard workload 目标改为下表，在 S2a HEAD 上得到 3/3 失败与旧计数 `6/4`、`9/6`、aggregate `15/10`。green 只删除每轮一次 expected `makeRecord + encode`：
+
+| phase                         | canonical traversal before | canonical traversal after | state digest before | state digest after | Save serialization before | Save serialization after | Strict preflight before | Strict preflight after |
+| ----------------------------- | -------------------------: | ------------------------: | ------------------: | -----------------: | ------------------------: | -----------------------: | ----------------------: | ---------------------: |
+| first commit + autosave idle  |                          6 |                         4 |                   4 |                  3 |                         2 |                        1 |                       2 |                      1 |
+| second commit + rotation idle |                          9 |                         7 |                   6 |                  5 |                         3 |                        2 |                       3 |                      2 |
+| two autosaves aggregate       |                         15 |                        11 |                  10 |                  8 |                         5 |                        3 |                       5 |                      3 |
+
+Strict readback parse 保持 `1 / 2 / aggregate 3`，deep-freeze 与 CommandLog continuity 保持每轮各 1。只遮蔽 receipt 的 opaque Repository wrapper 恢复 S2a 的 `6/4`、`9/6` 与 `2/3` 次 serialization/preflight；只遮蔽 Session digest evidence、仍命中 receipt 的 runtime-control wrapper 则为 `5/4`、`8/6`。两类 fallback 与 optimized 两轮 `auto.current` / `auto.previous` Host revision 和原始 bytes 完全相等；既有 semantic-equivalent physical-byte tamper 测试仍返回 conflict。
+
+receipt 路径保留一次 commit 前的 encoded-byte 防御性复制，以及由 matcher 执行的既有 raw-byte comparison；这两个线性 byte pass 不伪装成 canonical traversal，留到 S2d 统一 benchmark/成本归因。S2 仍未完成：S2c 将在不改变 schema/digest/canonical/Strict 错误顺序的前提下共享 canonical encoding 与 Strict limits traversal；S2d 仍需完整 equivalence corpus、browser/prebuilt 验证、before/after benchmark 与 PF1 promotion decision。

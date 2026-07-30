@@ -459,5 +459,7 @@ export { createCommandLogInternalV1 } from "@sillymaker/base/runtime";
 export { replayAuthoritativelyFromAttemptsInternalV1 } from "@sillymaker/base/runtime";
 // @ts-expect-error instrumented persistence factories stay package-internal
 export { createInstrumentedPersistenceServiceV1 } from "@sillymaker/base/runtime";
+// @ts-expect-error Save write receipt matcher stays package-internal
+export { matchesCommittedSaveWriteReceiptInternalV1 } from "@sillymaker/base/runtime";
 // @ts-expect-error instrumented Save codec helpers stay package-internal
 export { encodeSaveRecordInternalV1 } from "@sillymaker/base/runtime";

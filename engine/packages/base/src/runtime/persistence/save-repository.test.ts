@@ -24,7 +24,11 @@ import type {
 } from "../../contracts/persistence.ts";
 import type { NonNegativeSafeInteger, RuntimeSchemaV1 } from "../../contracts/values.ts";
 import { parseNonNegativeSafeInteger, parsePositiveSafeInteger } from "../../contracts/values.ts";
-import { createSaveRepositoryV1 } from "./save-repository.ts";
+import {
+  createSaveRepositoryInternalV1,
+  createSaveRepositoryV1,
+  matchesCommittedSaveWriteReceiptInternalV1,
+} from "./save-repository.ts";
 import type { SaveRepositorySlotMetadataV1 } from "./save-repository.ts";
 import { createSessionLeaseV1 } from "./session-lease.ts";
 import { createSaveSlotRecordKeyV1, createSessionLeaseRecordKeyV1 } from "./slot-keys.ts";
@@ -216,7 +220,7 @@ function throwingStoreV1(error: Error): HostAtomicRecordStoreV1 {
   });
 }
 
-async function createFixtureV1() {
+async function createFixtureV1(input?: { readonly writeReceiptEvidence?: boolean }) {
   const instrumented = createInstrumentedStoreV1();
   const lease = createSessionLeaseV1({
     records: instrumented.records,
@@ -227,11 +231,22 @@ async function createFixtureV1() {
   await lease.acquireInitial();
   const fence = lease.captureFence();
   if (fence === null) throw new TypeError("expected owned lease fence");
-  const repository = createSaveRepositoryV1({
-    records: instrumented.records,
-    storyId: storyIdV1,
-    codec: codecV1,
-  });
+  const repository =
+    input?.writeReceiptEvidence === true
+      ? createSaveRepositoryInternalV1(
+          {
+            records: instrumented.records,
+            storyId: storyIdV1,
+            codec: codecV1,
+          },
+          undefined,
+          { writeReceiptEvidence: true },
+        )
+      : createSaveRepositoryV1({
+          records: instrumented.records,
+          storyId: storyIdV1,
+          codec: codecV1,
+        });
   return Object.freeze({ ...instrumented, lease, fence, repository });
 }
 
@@ -372,6 +387,97 @@ describe("Save repository", () => {
       record: { recordRevision: 3 },
     });
     expect([4, 5]).toContain(final.health === "valid" ? final.record.snapshot.commandSequence : -1);
+  });
+
+  it("binds committed bytes to the exact repository and saved attempt only", async () => {
+    const fixture = await createFixtureV1({ writeReceiptEvidence: true });
+    const other = await createFixtureV1({ writeReceiptEvidence: true });
+    const outcomes = await Promise.all([
+      fixture.repository.writePlayer("quick", makeRecordV1(1), fixture.fence),
+      fixture.repository.writePlayer("quick", makeRecordV1(2), fixture.fence),
+    ]);
+    const saved = outcomes.find(({ kind }) => kind === "saved");
+    const rejected = outcomes.find(({ kind }) => kind === "rejected");
+    if (saved?.kind !== "saved" || rejected?.kind !== "rejected") {
+      throw new TypeError("expected one saved and one rejected attempt");
+    }
+    expect(saved).not.toHaveProperty("bytes");
+    expect(fixture.repository).not.toHaveProperty("writeReceipt");
+    const physical = await physicalRecordV1(fixture.records, "quick");
+    if (physical === null) throw new TypeError("missing committed Save record");
+
+    const observed = Object.freeze({
+      slotId: "quick" as const,
+      recordRevision: saved.recordRevision,
+      bytes: physical.bytes,
+    });
+    expect(
+      matchesCommittedSaveWriteReceiptInternalV1(fixture.repository, rejected, observed),
+    ).toBeUndefined();
+    expect(
+      matchesCommittedSaveWriteReceiptInternalV1(other.repository, saved, observed),
+    ).toBeUndefined();
+    expect(
+      matchesCommittedSaveWriteReceiptInternalV1(
+        fixture.repository,
+        Object.freeze({ ...saved }),
+        observed,
+      ),
+    ).toBeUndefined();
+    expect(
+      matchesCommittedSaveWriteReceiptInternalV1(
+        Object.freeze({ ...fixture.repository }),
+        saved,
+        observed,
+      ),
+    ).toBeUndefined();
+    expect(matchesCommittedSaveWriteReceiptInternalV1(fixture.repository, saved, observed)).toBe(
+      true,
+    );
+    expect(
+      matchesCommittedSaveWriteReceiptInternalV1(fixture.repository, saved, observed),
+    ).toBeUndefined();
+
+    const second = await fixture.repository.writePlayer("manual.1", makeRecordV1(3), fixture.fence);
+    if (second.kind !== "saved") throw new TypeError("expected a second saved attempt");
+    const secondPhysical = await physicalRecordV1(fixture.records, "manual.1");
+    if (secondPhysical === null) throw new TypeError("missing second committed Save record");
+    const changedBytes = Uint8Array.from(secondPhysical.bytes);
+    const finalIndex = changedBytes.byteLength - 1;
+    changedBytes[finalIndex] = (changedBytes[finalIndex] ?? 0) ^ 1;
+    expect(
+      matchesCommittedSaveWriteReceiptInternalV1(
+        fixture.repository,
+        second,
+        Object.freeze({
+          slotId: "manual.1",
+          recordRevision: second.recordRevision,
+          bytes: changedBytes,
+        }),
+      ),
+    ).toBe(false);
+
+    const standalone = await createFixtureV1();
+    const standaloneResult = await standalone.repository.writePlayer(
+      "quick",
+      makeRecordV1(4),
+      standalone.fence,
+    );
+    const standalonePhysical = await physicalRecordV1(standalone.records, "quick");
+    if (standaloneResult.kind !== "saved" || standalonePhysical === null) {
+      throw new TypeError("expected a standalone saved attempt");
+    }
+    expect(
+      matchesCommittedSaveWriteReceiptInternalV1(
+        standalone.repository,
+        standaloneResult,
+        Object.freeze({
+          slotId: "quick",
+          recordRevision: standaloneResult.recordRevision,
+          bytes: standalonePhysical.bytes,
+        }),
+      ),
+    ).toBeUndefined();
   });
 
   it("returns the original stored bytes as a fresh defensive copy for every valid read", async () => {

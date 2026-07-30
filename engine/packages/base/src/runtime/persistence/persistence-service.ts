@@ -61,7 +61,10 @@ import type {
   SaveRepositoryV1,
   SaveRepositoryWriteResultV1,
 } from "./save-repository.ts";
-import { createSaveRepositoryInternalV1 } from "./save-repository.ts";
+import {
+  createSaveRepositoryInternalV1,
+  matchesCommittedSaveWriteReceiptInternalV1,
+} from "./save-repository.ts";
 import type { SessionLeaseFenceV1, SessionLeaseV1 } from "./session-lease.ts";
 import { createSessionLeaseV1 } from "./session-lease.ts";
 
@@ -423,12 +426,27 @@ async function createPersistenceServiceWithDependenciesV1<
       ) {
         return rejectedV1("conflict");
       }
-      const expected = makeRecordV1(candidate, slotId, reason, written.recordRevision);
-      const expectedBytes = encodeRecordV1(
-        expected as DeepReadonly<PersistenceSaveRecordV1<TSnapshot>>,
+      const receiptMatch = matchesCommittedSaveWriteReceiptInternalV1(
+        options.repository,
+        written,
+        Object.freeze({
+          slotId,
+          recordRevision: written.recordRevision,
+          bytes: observed.bytes,
+        }),
       );
-      if (!bytesEqualV1(observed.bytes, expectedBytes)) {
+      if (receiptMatch === false) {
         return rejectedV1("conflict");
+      }
+      if (receiptMatch === undefined) {
+        const expectedBytes = encodeRecordV1(
+          makeRecordV1(candidate, slotId, reason, written.recordRevision) as DeepReadonly<
+            PersistenceSaveRecordV1<TSnapshot>
+          >,
+        );
+        if (!bytesEqualV1(observed.bytes, expectedBytes)) {
+          return rejectedV1("conflict");
+        }
       }
       return Object.freeze({ kind: "saved" as const, slotId });
     } catch {
@@ -1391,6 +1409,7 @@ function createStandardPersistenceDependenciesV1<
       codec,
     },
     instrumentation,
+    { writeReceiptEvidence: true },
   );
   const validation: SaveImportValidationContextV1<
     TState,
@@ -1422,12 +1441,20 @@ function createStandardPersistenceServiceInternalV1<
 >(
   options: CreateStandardPersistenceServiceOptionsV1<TState, TSnapshot>,
   instrumentation?: SnapshotWorkInstrumentationV1,
+  testOptions?: {
+    readonly wrapRepositoryForWriteReceiptFallback?: boolean;
+  },
 ): Promise<PersistenceServiceV1<TSnapshot>> {
   const dependencies = createStandardPersistenceDependenciesV1(options, instrumentation);
+  const repository =
+    testOptions?.wrapRepositoryForWriteReceiptFallback === true
+      ? Object.freeze({ ...dependencies.repository })
+      : dependencies.repository;
   return createPersistenceServiceWithDependenciesV1(
     {
       runtimeControl: options.runtimeControl,
       ...dependencies,
+      repository,
       provenance: options.provenance,
       initialSimulationLineage: options.initialSimulationLineage,
       metadataClock: options.metadataClock,
@@ -1494,6 +1521,9 @@ export function createInstrumentedPersistenceServiceV1<
 >(
   options: CreateStandardPersistenceServiceOptionsV1<TState, TSnapshot>,
   instrumentation: SnapshotWorkInstrumentationV1,
+  testOptions?: {
+    readonly wrapRepositoryForWriteReceiptFallback?: boolean;
+  },
 ): Promise<PersistenceServiceV1<TSnapshot>> {
-  return createStandardPersistenceServiceInternalV1(options, instrumentation);
+  return createStandardPersistenceServiceInternalV1(options, instrumentation, testOptions);
 }

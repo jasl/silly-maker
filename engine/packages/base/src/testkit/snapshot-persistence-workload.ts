@@ -105,6 +105,7 @@ export async function createSnapshotPersistenceWorkloadV1(input: {
   readonly entityCount: 100;
   readonly instrumentation?: SnapshotWorkInstrumentationV1;
   readonly wrapRuntimeControlForFallback?: boolean;
+  readonly wrapRepositoryForWriteReceiptFallback?: boolean;
 }) {
   const session = createSnapshotTransactionWorkloadV1({
     entityCount: input.entityCount,
@@ -133,7 +134,10 @@ export async function createSnapshotPersistenceWorkloadV1(input: {
   const persistence =
     input.instrumentation === undefined
       ? await createPersistenceServiceV1(persistenceOptions)
-      : await createInstrumentedPersistenceServiceV1(persistenceOptions, input.instrumentation);
+      : await createInstrumentedPersistenceServiceV1(persistenceOptions, input.instrumentation, {
+          wrapRepositoryForWriteReceiptFallback:
+            input.wrapRepositoryForWriteReceiptFallback === true,
+        });
 
   return Object.freeze({
     snapshot: session.snapshot,

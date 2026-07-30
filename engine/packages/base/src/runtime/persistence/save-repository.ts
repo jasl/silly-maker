@@ -72,6 +72,46 @@ export type SaveRepositoryWriteResultV1 =
       readonly code: "conflict" | "unavailable" | "invalid_record" | "empty_slot";
     };
 
+interface CommittedSaveWriteReceiptV1 {
+  readonly slotId: SaveSlotIdV1;
+  readonly recordRevision: PositiveSafeInteger;
+  readonly bytes: Uint8Array;
+}
+
+const committedSaveWriteReceiptsV1 = new WeakMap<
+  object,
+  WeakMap<object, CommittedSaveWriteReceiptV1>
+>();
+
+function rememberCommittedSaveWriteReceiptV1(
+  repository: object,
+  result: object,
+  receipt: CommittedSaveWriteReceiptV1,
+): void {
+  let receipts = committedSaveWriteReceiptsV1.get(repository);
+  if (receipts === undefined) {
+    receipts = new WeakMap<object, CommittedSaveWriteReceiptV1>();
+    committedSaveWriteReceiptsV1.set(repository, receipts);
+  }
+  receipts.set(result, receipt);
+}
+
+/** @internal Exact-attempt matcher; intentionally absent from runtime barrels. */
+export function matchesCommittedSaveWriteReceiptInternalV1(
+  repository: object,
+  result: object,
+  observed: CommittedSaveWriteReceiptV1,
+): boolean | undefined {
+  const receipts = committedSaveWriteReceiptsV1.get(repository);
+  const receipt = receipts?.get(result);
+  if (receipt !== undefined) receipts?.delete(result);
+  return receipt === undefined
+    ? undefined
+    : receipt.slotId === observed.slotId &&
+        receipt.recordRevision === observed.recordRevision &&
+        bytesEqualV1(receipt.bytes, observed.bytes);
+}
+
 export type SaveRepositoryClearResultV1 =
   | { readonly kind: "cleared"; readonly slotId: SaveSlotIdV1 }
   | Extract<SaveRepositoryWriteResultV1, { readonly kind: "rejected" }>;
@@ -178,6 +218,14 @@ function nextRecordRevisionV1(revision: HostRecordRevisionV1 | null): PositiveSa
   }
 }
 
+function bytesEqualV1(left: Uint8Array, right: Uint8Array): boolean {
+  if (left.byteLength !== right.byteLength) return false;
+  for (let index = 0; index < left.byteLength; index += 1) {
+    if (left[index] !== right[index]) return false;
+  }
+  return true;
+}
+
 export function createSaveRepositoryV1<
   TSnapshot,
   TSaveRecord extends SaveRecordEnvelopeV1<
@@ -202,6 +250,9 @@ export function createSaveRepositoryInternalV1<
 >(
   options: CreateSaveRepositoryOptionsV1<TSnapshot, TSaveRecord>,
   instrumentation?: SnapshotWorkInstrumentationV1,
+  internalOptions?: {
+    readonly writeReceiptEvidence?: boolean;
+  },
 ): SaveRepositoryV1<TSaveRecord> {
   if (typeof options.storyId !== "string" || options.storyId.length === 0) {
     throw new TypeError("invalid Save repository Story ID");
@@ -280,6 +331,27 @@ export function createSaveRepositoryInternalV1<
   const rejectedV1 = (code: "conflict" | "unavailable" | "invalid_record" | "empty_slot") =>
     Object.freeze({ kind: "rejected" as const, code });
 
+  let repository: SaveRepositoryV1<TSaveRecord>;
+
+  const savedWithReceiptV1 = (
+    slotId: SaveSlotIdV1,
+    recordRevision: PositiveSafeInteger,
+    bytes: Uint8Array | null,
+  ): Extract<SaveRepositoryWriteResultV1, { readonly kind: "saved" }> => {
+    const saved = Object.freeze({
+      kind: "saved" as const,
+      slotId,
+      recordRevision,
+    });
+    if (bytes === null) return saved;
+    rememberCommittedSaveWriteReceiptV1(
+      repository,
+      saved,
+      Object.freeze({ slotId, recordRevision, bytes }),
+    );
+    return saved;
+  };
+
   const runWriteV1 = async <TResult>(operation: () => Promise<TResult>): Promise<TResult> => {
     try {
       return await operation();
@@ -310,12 +382,15 @@ export function createSaveRepositoryInternalV1<
       const recordRevision = nextRecordRevisionV1(current?.revision ?? null);
       if (recordRevision === null) return rejectedV1("invalid_record");
       const bytes = encodeForSlotV1(candidate, slotId, recordRevision);
+      const receiptBytes =
+        internalOptions?.writeReceiptEvidence === true ? Uint8Array.from(bytes) : null;
+      const key = createSaveSlotRecordKeyV1(options.storyId, slotId);
       const result = await callHostRecordStoreV1(() =>
         options.records.commit([
           Object.freeze({
             kind: "put",
             namespace: "save",
-            key: createSaveSlotRecordKeyV1(options.storyId, slotId),
+            key,
             expectedRevision: current?.revision ?? null,
             bytes,
           }),
@@ -324,10 +399,10 @@ export function createSaveRepositoryInternalV1<
       );
       return result.kind === "conflict"
         ? rejectedV1("conflict")
-        : Object.freeze({ kind: "saved" as const, slotId, recordRevision });
+        : savedWithReceiptV1(slotId, recordRevision, receiptBytes);
     });
 
-  const repository: SaveRepositoryV1<TSaveRecord> = {
+  repository = {
     async read(slotId) {
       try {
         const stored = await callHostRecordStoreV1(() =>
@@ -399,13 +474,16 @@ export function createSaveRepositoryInternalV1<
             }),
           );
         }
+        const currentBytes = encodeForSlotV1(candidate, "auto.current", currentRevision);
+        const currentReceiptBytes =
+          internalOptions?.writeReceiptEvidence === true ? Uint8Array.from(currentBytes) : null;
         mutations.push(
           Object.freeze({
             kind: "put",
             namespace: "save",
             key: currentKey,
             expectedRevision: current?.revision ?? null,
-            bytes: encodeForSlotV1(candidate, "auto.current", currentRevision),
+            bytes: currentBytes,
           }),
           lease.mutation,
         );
@@ -414,11 +492,7 @@ export function createSaveRepositoryInternalV1<
         );
         return result.kind === "conflict"
           ? rejectedV1("conflict")
-          : Object.freeze({
-              kind: "saved" as const,
-              slotId: "auto.current" as const,
-              recordRevision: currentRevision,
-            });
+          : savedWithReceiptV1("auto.current", currentRevision, currentReceiptBytes);
       });
     },
 

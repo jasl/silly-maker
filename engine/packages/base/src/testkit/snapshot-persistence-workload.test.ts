@@ -9,35 +9,51 @@ import {
 } from "./snapshot-persistence-workload.ts";
 
 const firstAutoSaveCountsV1 = Object.freeze({
-  canonicalTraversals: 6,
-  canonicalDigests: 4,
+  canonicalTraversals: 4,
+  canonicalDigests: 3,
   deepFreezeTraversals: 1,
   commandLogContinuityVerifications: 1,
-  saveCanonicalSerializations: 2,
+  saveCanonicalSerializations: 1,
   strictJsonParses: 1,
-  strictJsonPreflights: 2,
+  strictJsonPreflights: 1,
 });
 
 const rotationCountsV1 = Object.freeze({
-  canonicalTraversals: 9,
-  canonicalDigests: 6,
+  canonicalTraversals: 7,
+  canonicalDigests: 5,
   deepFreezeTraversals: 1,
   commandLogContinuityVerifications: 1,
-  saveCanonicalSerializations: 3,
+  saveCanonicalSerializations: 2,
   strictJsonParses: 2,
-  strictJsonPreflights: 3,
+  strictJsonPreflights: 2,
 });
 
-const fallbackFirstAutoSaveCountsV1 = Object.freeze({
+const digestFallbackFirstAutoSaveCountsV1 = Object.freeze({
   ...firstAutoSaveCountsV1,
+  canonicalTraversals: 5,
+  canonicalDigests: 4,
+});
+
+const digestFallbackRotationCountsV1 = Object.freeze({
+  ...rotationCountsV1,
   canonicalTraversals: 8,
   canonicalDigests: 6,
 });
 
-const fallbackRotationCountsV1 = Object.freeze({
+const writeReceiptFallbackFirstAutoSaveCountsV1 = Object.freeze({
+  ...firstAutoSaveCountsV1,
+  canonicalTraversals: 6,
+  canonicalDigests: 4,
+  saveCanonicalSerializations: 2,
+  strictJsonPreflights: 2,
+});
+
+const writeReceiptFallbackRotationCountsV1 = Object.freeze({
   ...rotationCountsV1,
-  canonicalTraversals: 11,
-  canonicalDigests: 8,
+  canonicalTraversals: 9,
+  canonicalDigests: 6,
+  saveCanonicalSerializations: 3,
+  strictJsonPreflights: 3,
 });
 
 describe("Snapshot persistence workload", () => {
@@ -75,13 +91,13 @@ describe("Snapshot persistence workload", () => {
         previousRecordRevision: 1,
       },
       aggregateCounts: {
-        canonicalTraversals: 15,
-        canonicalDigests: 10,
+        canonicalTraversals: 11,
+        canonicalDigests: 8,
         deepFreezeTraversals: 2,
         commandLogContinuityVerifications: 2,
-        saveCanonicalSerializations: 5,
+        saveCanonicalSerializations: 3,
         strictJsonParses: 3,
-        strictJsonPreflights: 5,
+        strictJsonPreflights: 3,
       },
     });
     await expect(prepared.runOnce()).rejects.toThrow(
@@ -157,7 +173,7 @@ describe("Snapshot persistence workload", () => {
       await optimized.commitAndDrain();
       await fallback.commitAndDrain();
       expect(optimizedCounter.snapshot()).toEqual(firstAutoSaveCountsV1);
-      expect(fallbackCounter.snapshot()).toEqual(fallbackFirstAutoSaveCountsV1);
+      expect(fallbackCounter.snapshot()).toEqual(digestFallbackFirstAutoSaveCountsV1);
       expect(await optimized.slotRecord("auto.current")).toEqual(
         await fallback.slotRecord("auto.current"),
       );
@@ -167,7 +183,49 @@ describe("Snapshot persistence workload", () => {
       await optimized.commitAndDrain();
       await fallback.commitAndDrain();
       expect(optimizedCounter.snapshot()).toEqual(rotationCountsV1);
-      expect(fallbackCounter.snapshot()).toEqual(fallbackRotationCountsV1);
+      expect(fallbackCounter.snapshot()).toEqual(digestFallbackRotationCountsV1);
+      expect(await optimized.slotRecord("auto.current")).toEqual(
+        await fallback.slotRecord("auto.current"),
+      );
+      expect(await optimized.slotRecord("auto.previous")).toEqual(
+        await fallback.slotRecord("auto.previous"),
+      );
+    } finally {
+      await optimized.dispose();
+      await fallback.dispose();
+    }
+  });
+
+  it("falls back to expected re-encoding for an opaque Save repository wrapper", async () => {
+    const optimizedCounter = createSnapshotWorkCounterV1();
+    const fallbackCounter = createSnapshotWorkCounterV1();
+    const optimized = await createSnapshotPersistenceWorkloadV1({
+      entityCount: 100,
+      instrumentation: optimizedCounter.instrumentation,
+    });
+    const fallback = await createSnapshotPersistenceWorkloadV1({
+      entityCount: 100,
+      instrumentation: fallbackCounter.instrumentation,
+      wrapRepositoryForWriteReceiptFallback: true,
+    });
+    optimizedCounter.reset();
+    fallbackCounter.reset();
+
+    try {
+      await optimized.commitAndDrain();
+      await fallback.commitAndDrain();
+      expect(optimizedCounter.snapshot()).toEqual(firstAutoSaveCountsV1);
+      expect(fallbackCounter.snapshot()).toEqual(writeReceiptFallbackFirstAutoSaveCountsV1);
+      expect(await optimized.slotRecord("auto.current")).toEqual(
+        await fallback.slotRecord("auto.current"),
+      );
+
+      optimizedCounter.reset();
+      fallbackCounter.reset();
+      await optimized.commitAndDrain();
+      await fallback.commitAndDrain();
+      expect(optimizedCounter.snapshot()).toEqual(rotationCountsV1);
+      expect(fallbackCounter.snapshot()).toEqual(writeReceiptFallbackRotationCountsV1);
       expect(await optimized.slotRecord("auto.current")).toEqual(
         await fallback.slotRecord("auto.current"),
       );
