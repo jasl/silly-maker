@@ -1,0 +1,14 @@
+// SPDX-License-Identifier: MIT
+// Standalone Cloudflare Workers deployment for this Player only. Build first,
+// then deploy from this directory:
+//
+//   deno task deploy:cf      # builds dist-web/ and deploys it
+//                            # (authenticate once: deno run -A npm:wrangler login)
+{
+  "name": "silly-maker-bookshop",
+  "compatibility_date": "2026-07-01",
+  "assets": {
+    "directory": "./dist-web",
+    "not_found_handling": "single-page-application",
+  },
+}

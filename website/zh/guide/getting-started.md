@@ -72,6 +72,23 @@ deno task story simulate <应用id> --scenario <场景名> \
   --trace game.<点路径>                                  # 数值轨迹
 ```
 
+## Prompt 4——发布
+
+Player 构建产物是自包含的静态包（相对路径、存档在每位访客自己的浏览器里——不需要服务器），发布就是静态托管。每个项目都自带 Cloudflare Workers 的 `deploy:cf` 任务：
+
+```text
+把 ⟨应用目录⟩ 发布到 Cloudflare Workers：
+
+1. 如果 wrangler 还没登录，先运行 `deno run -A npm:wrangler login`，
+   浏览器授权交给我来点。
+2. 检查应用目录里的 wrangler.jsonc：`name` 字段是 Worker 名，也是公开的
+   `<name>.<账号>.workers.dev` 地址——如果还是模板名就改成游戏的名字。
+3. 在应用目录里运行 `deno task deploy:cf`（自动构建 dist-web/ 并部署），
+   然后把部署好的 URL 给我打开。
+```
+
+想用 GitHub Pages 的话：一个仓库只有一个 Pages 站点，所以给游戏单开一个仓库——把构建好的 `dist-web/` 内容推上去，开启 Settings → Pages → Deploy from branch 即可。相对路径的产物在任何路径下都直接可用。两种目标的细节见 [Build and release](https://github.com/jasl/silly-maker/blob/main/docs/engine/build-and-release.md)。
+
 ## 让结果更好的几条建议
 
 - **给具体的题材**——有名字的角色、一个地点、你想要的结局。"做个好玩的"只会得到糊状物；"灯塔看守人，暴风雨夜，陌生人敲门，三种收场"能得到一个游戏。
