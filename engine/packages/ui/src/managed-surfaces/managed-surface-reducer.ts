@@ -649,6 +649,50 @@ export function reduceManagedSurfaceV1(
       return closeInstanceV1(state, target.surfaceInstanceId, "surface.dismissed");
     }
 
+    case "route_action": {
+      const failure = evidenceFailureV1(state, operation.evidence);
+      if (failure !== null) return failure;
+      const target = state.publication.orderedInstances.find(
+        (instance) => instance.surfaceInstanceId === operation.evidence.surfaceInstanceId,
+      );
+      if (
+        target === undefined ||
+        state.publication.inputOwner?.surfaceInstanceId !== target.surfaceInstanceId
+      ) {
+        return unchangedResultV1(
+          state,
+          "rejected",
+          "surface.not_input_owner",
+          operation.evidence.surfaceInstanceId,
+        );
+      }
+      if (
+        operation.routingLeaseId !== target.routingLeaseId ||
+        operation.routingLeaseId !== state.publication.inputOwner.routingLeaseId
+      ) {
+        return unchangedResultV1(
+          state,
+          "stale",
+          "surface.stale_routing_lease",
+          target.surfaceInstanceId,
+        );
+      }
+      if (!target.definition.actionIds.includes(operation.actionId)) {
+        return unchangedResultV1(
+          state,
+          "rejected",
+          "surface.action_unpublished",
+          target.surfaceInstanceId,
+        );
+      }
+      return unchangedResultV1(
+        state,
+        "unchanged",
+        "surface.action_routed",
+        target.surfaceInstanceId,
+      );
+    }
+
     case "dispose_owner": {
       if (operation.applicationEpoch !== state.publication.applicationEpoch) {
         return unchangedResultV1(state, "stale", "surface.stale_application_epoch");

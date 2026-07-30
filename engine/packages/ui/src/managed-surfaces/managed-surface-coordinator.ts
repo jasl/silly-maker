@@ -14,6 +14,7 @@ import {
   type ManagedSurfaceOwnerTransitionEvidenceV1,
   type ManagedSurfacePublicationV1,
   type ManagedSurfaceResolvedDefinitionV1,
+  type ManagedSurfaceRouteActionInputV1,
   type ManagedSurfaceTransitionEvidenceV1,
   type ManagedSurfaceTransitionReceiptV1,
   parseManagedSurfaceInstanceIdV1,
@@ -77,6 +78,7 @@ export interface ManagedSurfaceCoordinatorV1 {
     handle: ManagedSurfaceHandleV1,
     dismissKind: ManagedSurfaceDismissKindV1,
   ): ManagedSurfaceTransitionReceiptV1;
+  routeAction(input: ManagedSurfaceRouteActionInputV1): ManagedSurfaceTransitionReceiptV1;
   disposeOwner(ownerId: ManagedSurfaceOwnerIdV1): ManagedSurfaceTransitionReceiptV1;
   dispose(): ManagedSurfaceTransitionReceiptV1;
 }
@@ -262,6 +264,15 @@ export function createManagedSurfaceCoordinatorV1(
         kind: "route_dismiss",
         evidence: handle,
         dismissKind,
+      });
+    },
+
+    routeAction(request) {
+      return transition({
+        kind: "route_action",
+        evidence: request.evidence,
+        actionId: request.actionId,
+        routingLeaseId: request.routingLeaseId,
       });
     },
 

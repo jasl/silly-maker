@@ -1,5 +1,10 @@
 // SPDX-License-Identifier: MIT
-import { type Brand, type NonNegativeSafeInteger, parseModuleId } from "@sillymaker/base";
+import {
+  type Brand,
+  type NonNegativeSafeInteger,
+  parseModuleId,
+  parseNonNegativeSafeInteger,
+} from "@sillymaker/base";
 
 import type { InputContextIdV1 } from "../input/contracts.ts";
 
@@ -15,6 +20,11 @@ export type ManagedSurfaceInstanceIdV1 = Brand<string, "ManagedSurfaceInstanceId
 export type ManagedSurfaceRoutingLeaseIdV1 = Brand<string, "ManagedSurfaceRoutingLeaseIdV1">;
 export type ManagedSurfaceFocusTargetIdV1 = Brand<string, "ManagedSurfaceFocusTargetIdV1">;
 export type ManagedSurfaceActionIdV1 = Brand<string, "ManagedSurfaceActionIdV1">;
+export type ManagedSurfaceGestureIdV1 = Brand<string, "ManagedSurfaceGestureIdV1">;
+export type ManagedSurfaceInputPublicationRevisionV1 = Brand<
+  number,
+  "ManagedSurfaceInputPublicationRevisionV1"
+>;
 
 function parseManagedSurfaceIdV1<TId extends string>(value: unknown): TId {
   return parseModuleId(value) as unknown as TId;
@@ -58,6 +68,16 @@ export function parseManagedSurfaceFocusTargetIdV1(value: unknown): ManagedSurfa
 
 export function parseManagedSurfaceActionIdV1(value: unknown): ManagedSurfaceActionIdV1 {
   return parseManagedSurfaceIdV1(value);
+}
+
+export function parseManagedSurfaceGestureIdV1(value: unknown): ManagedSurfaceGestureIdV1 {
+  return parseManagedSurfaceIdV1(value);
+}
+
+export function parseManagedSurfaceInputPublicationRevisionV1(
+  value: unknown,
+): ManagedSurfaceInputPublicationRevisionV1 {
+  return parseNonNegativeSafeInteger(value) as unknown as ManagedSurfaceInputPublicationRevisionV1;
 }
 
 export type ManagedSurfacePlacementV1 = "root" | "child";
@@ -162,6 +182,21 @@ export interface ManagedSurfaceTransitionEvidenceV1 {
   readonly surfaceInstanceId: ManagedSurfaceInstanceIdV1;
 }
 
+export interface ManagedSurfaceActionEnvelopeV1 {
+  readonly applicationEpoch: NonNegativeSafeInteger;
+  readonly surfaceInstanceId: ManagedSurfaceInstanceIdV1;
+  readonly surfaceTopologyRevision: NonNegativeSafeInteger;
+  readonly actionId: ManagedSurfaceActionIdV1;
+  readonly gestureId: ManagedSurfaceGestureIdV1;
+  readonly inputPublicationRevision: ManagedSurfaceInputPublicationRevisionV1;
+}
+
+export interface ManagedSurfaceRouteActionInputV1 {
+  readonly evidence: ManagedSurfaceTransitionEvidenceV1;
+  readonly actionId: ManagedSurfaceActionIdV1;
+  readonly routingLeaseId: ManagedSurfaceRoutingLeaseIdV1;
+}
+
 export interface ManagedSurfaceOwnerTransitionEvidenceV1 {
   readonly applicationEpoch: NonNegativeSafeInteger;
   readonly topologyRevision: NonNegativeSafeInteger;
@@ -203,6 +238,9 @@ export type ManagedSurfaceOperationV1 =
       readonly dismissKind: ManagedSurfaceDismissKindV1;
       readonly evidence: ManagedSurfaceTransitionEvidenceV1;
     }
+  | ({
+      readonly kind: "route_action";
+    } & ManagedSurfaceRouteActionInputV1)
   | {
       readonly kind: "dispose_owner";
       readonly applicationEpoch: NonNegativeSafeInteger;
@@ -222,6 +260,7 @@ export type ManagedSurfaceTransitionCodeV1 =
   | "surface.closed"
   | "surface.owner_closed"
   | "surface.dismissed"
+  | "surface.action_routed"
   | "surface.owner_disposed"
   | "surface.coordinator_disposed"
   | "surface.owner_already_disposed"
@@ -237,6 +276,9 @@ export type ManagedSurfaceTransitionCodeV1 =
   | "surface.invalid_parent"
   | "surface.invalid_transition"
   | "surface.dismiss_locked"
+  | "surface.stale_routing_lease"
+  | "surface.not_input_owner"
+  | "surface.action_unpublished"
   | "surface.stale_application_epoch"
   | "surface.stale_topology_revision"
   | "surface.stale_instance"

@@ -27,6 +27,18 @@ type PublicInputContextsV1 = ExpectV1<
 type PublicRouterKeysV1 = ExpectV1<
   EqualV1<keyof InputRouterV1, "clearTransientInput" | "register" | "route">
 >;
+type PublicActionEventKeysV1 = ExpectV1<
+  EqualV1<keyof Extract<InputEventV1, { kind: "action" }>, "actionId" | "kind">
+>;
+type PublicRegistrationKeysV1 = ExpectV1<
+  EqualV1<keyof Parameters<InputRouterV1["register"]>[0], "context" | "handle">
+>;
+type PublicHandlerOutcomeKindsV1 = ExpectV1<
+  EqualV1<InputHandlerResultV1["kind"], "handled" | "ignored">
+>;
+type PublicRouteOutcomeKindsV1 = ExpectV1<
+  EqualV1<InputRouteResultV1["kind"], "handled" | "ignored">
+>;
 type PublicSystemActionKeysV1 = ExpectV1<
   EqualV1<
     keyof typeof systemInputActionIdsV1,
@@ -73,8 +85,15 @@ routerV1.snapshot;
 
 rawActionIdV1;
 
+// @ts-expect-error Managed Surface action routing remains package-internal
+export { createManagedSurfaceActionBindingV1 as ForbiddenManagedSurfaceActionBindingV1 } from "@sillymaker/ui";
+
 export type {
+  PublicActionEventKeysV1,
+  PublicHandlerOutcomeKindsV1,
   PublicInputContextsV1,
+  PublicRegistrationKeysV1,
+  PublicRouteOutcomeKindsV1,
   PublicRouterKeysV1,
   PublicSystemActionKeysV1,
   PublicViewportEventForbiddenKeysV1,

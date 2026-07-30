@@ -261,9 +261,61 @@ transient Coordinator store；S1 仍未完成。
 - focused reducer/Coordinator `21/21`、`@sillymaker/ui`
   `52 files / 434 tests` 与 aggregate typecheck 通过。
 
-剩余 S1 工作包括 route-action/InputRouter canonical envelope、异步 readiness
-transition、application epoch 的 composition/HMR 轮换证明，以及在参数等价规则
-明确后实现 external owner reconcile。
+### S1d delivery record（2026-07-30）
+
+本切片补齐 dormant、package-internal 的 Managed Surface route-action admission 与
+InputRouter binding seam；S1 仍未完成。
+
+**目标：**
+
+- 固定且只接受
+  `applicationEpoch/surfaceInstanceId/surfaceTopologyRevision/actionId/gestureId/inputPublicationRevision`
+  六字段 canonical envelope；
+- 由 registration closure 捕获 routing lease 与 frozen action catalog，不把 lease、
+  target occurrence 或 semantic occurrence 塞入 caller envelope；
+- declared dispatch 前把同一 managed gate 重新登记到 current input context 的
+  LIFO 顶端；稍后注册的 ordinary handler 不能抢在 stale admission 前执行；
+- Coordinator 依序校验 epoch、topology、live instance、current input owner、
+  captured routing lease 与 current action catalog，valid route 保持 publication
+  identity 与 topology revision 不变；
+- 以 event-identity bridge 复用现有 InputRouter precedence/snapshot/LIFO 行为，并将
+  stale targeted action 消费在旧 registration，禁止穿透 successor 或 lower owner。
+
+**非目标：**
+
+- 不改变 public `InputEventV1`、`InputRouterV1` 或 handled/ignored 结果；binding
+  不加入 UI root barrel/package exports；
+- 不发送 semantic/workspace action，不组合 universal application receipt，也不改变
+  Save/replay 或 Base；
+- 不接入 Overlay/System/Narrative、React/DOM/Web gesture lifecycle，不实现
+  readiness、application epoch rotation 或 external owner reconcile。
+
+**验收证据：**
+
+- valid declared action 返回独立的 `surface.action_routed/unchanged` admission；
+  input 仍按 ordinary handler 的 consumed/unhandled 结果决定，不发布、不通知
+  subscriber；undeclared action 保留普通 InputRouter fallthrough 且没有 Surface
+  receipt；
+- stale epoch/topology/instance、非 input owner、stale captured lease 与 unpublished
+  action 有确定性 receipt；stale input publication/gesture 在 ordinary handler 前
+  consumed；
+- InputRouter 在 dispatch 开始时 snapshot registrations；高优先级 handler 同轮
+  replace + rebind 后，旧 gate 仍以旧 evidence 返回 stale 并 fence lower，successor
+  只处理下一次 route；
+- 同 context 在 binding 后注册的 ordinary handler 仍位于 managed gate 之后；
+  stale route 不触达它，valid route 则按普通 LIFO 顺序继续；
+- gesture-currentness injection 前后都复查 binding publication；回调同步 rebind
+  时旧 route 返回 stale，且不会复活已注销 gate 或下穿 ordinary handler；
+- public action event 与 router own keys 有 exact runtime guards；
+  registration、action event、handler/route outcome 与 router methods 有 exact
+  type guards；internal binding 不从 `@sillymaker/ui` 导出；
+- focused route-action `15/15`、相邻 reducer/Coordinator/InputRouter
+  `4 files / 77 tests`、`@sillymaker/ui` `53 files / 449 tests` 与 aggregate
+  typecheck 通过。
+
+剩余 S1 工作包括异步 readiness transition、application epoch 的
+composition/HMR 轮换证明，以及在参数等价规则明确后实现 external owner
+reconcile。
 
 **S1 acceptance：** kernel 可在无 DOM 环境运行；没有 public Story API promotion；没有旧 store 双写。
 
