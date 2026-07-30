@@ -29,6 +29,7 @@ export interface PlayerUiPersistenceSourceV1 {
   save(slotId: SaveUiWritableSlotIdV1): Promise<PersistenceOperationResultV1>;
   load(slotId: SaveUiReadableSlotIdV1): Promise<PersistenceOperationResultV1>;
   clear(slotId: SaveUiReadableSlotIdV1): Promise<PersistenceOperationResultV1>;
+  annotateSave(slotId: SaveUiWritableSlotIdV1, note: string): Promise<PersistenceOperationResultV1>;
   importSave(bytes: Uint8Array): Promise<PersistenceOperationResultV1>;
   exportSave(slotId: SaveUiReadableSlotIdV1): Promise<SaveExportOperationResultV1>;
   exportCurrentSave(): Promise<ExportedSaveV1>;
@@ -175,6 +176,8 @@ export function createPlayerSaveUiPortV1(input: {
     save: async (slotId: SaveUiWritableSlotIdV1) => await input.persistence.save(slotId),
     load: async (slotId: SaveUiReadableSlotIdV1) => await input.persistence.load(slotId),
     clear: async (slotId: SaveUiReadableSlotIdV1) => await input.persistence.clear(slotId),
+    annotateSave: async (slotId: SaveUiWritableSlotIdV1, note: string) =>
+      await input.persistence.annotateSave(slotId, note),
     async importSave() {
       const selection = await input.files.selectOne({
         acceptedMediaTypes: Object.freeze(["application/json"]),

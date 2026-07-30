@@ -135,6 +135,12 @@ export interface CoreGameApplicationDefinitionV1<
    */
   readonly manualSaveSlotCount?: number;
   /**
+   * Optional Save summary projector: display lines captured into every
+   * written record's annotation (slot pickers render them; see
+   * `SaveAnnotationV1`). Must be deterministic for a given state.
+   */
+  summarizeSave?(state: DeepReadonly<TTypes["state"]>): readonly string[] | null;
+  /**
    * Opt-in boot-time resume: after persistence is ready the instance
    * loads `auto.current` when it holds a runnable autosave, so a fresh
    * page (or headless host) continues the previous session instead of
@@ -852,6 +858,12 @@ export async function createCoreGameApplicationInstanceV1<
       ...(definition.manualSaveSlotCount === undefined
         ? {}
         : { manualSaveSlotCount: definition.manualSaveSlotCount }),
+      ...(definition.summarizeSave === undefined
+        ? {}
+        : {
+            summarizeSave: (state: DeepReadonly<TTypes["state"]>) =>
+              definition.summarizeSave?.(state) ?? null,
+          }),
       autoSaveCapture: autosave.mode === "every_commit" ? "committed_snapshots" : "external",
       leaseAcquisition:
         options.rebootstrapDisposition === undefined ? "acquire_initial" : "deferred_rebootstrap",

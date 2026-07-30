@@ -202,6 +202,11 @@ export interface PlayerPersistencePortV1<
   save(slot: PlayerWritableSaveSlotIdV1): Promise<TPersistenceResult>;
   load(slot: SaveSlotIdV1): Promise<TPersistenceResult>;
   clear(slot: SaveSlotIdV1): Promise<TPersistenceResult>;
+  /**
+   * Rewrites the stored record's player note (empty string clears it); the
+   * snapshot, capture time, and application summary stay untouched.
+   */
+  annotateSave(slot: PlayerWritableSaveSlotIdV1, note: string): Promise<TPersistenceResult>;
   exportSave(slot: SaveSlotIdV1): Promise<TSaveExportResult>;
   exportCurrentSave(): Promise<TExportedSave>;
   importSave(bytes: Uint8Array): Promise<TPersistenceResult>;

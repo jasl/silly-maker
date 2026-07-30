@@ -22,12 +22,89 @@ import { parseDigest, parsePositiveSafeInteger } from "./values.ts";
 
 export type SaveSlotHealthV1 = "empty" | "valid" | "invalid" | "recovery_candidate" | "unavailable";
 
+/**
+ * Optional per-record annotation: an application-projected summary captured
+ * at save time (display lines for slot pickers) plus a player-edited note.
+ * Stored inside the Save record, so it survives exactly as long as the save.
+ */
+export interface SaveAnnotationV1 {
+  /** Application summary lines captured at save time (null = none). */
+  readonly summary: readonly string[] | null;
+  /** Player-edited note (null = none). */
+  readonly note: string | null;
+}
+
+export const saveAnnotationLimitsV1 = Object.freeze({
+  maxSummaryLines: 8,
+  maxSummaryLineLength: 120,
+  maxNoteLength: 64,
+});
+
+function parseAnnotationLineV1(value: unknown, maxLength: number, label: string): string {
+  if (typeof value !== "string" || value.length === 0) throw new TypeError(`invalid ${label}`);
+  // Iterate code points (not UTF-16 units) so astral characters count once.
+  let length = 0;
+  for (const character of value) {
+    const code = character.codePointAt(0) ?? 0;
+    if (code < 0x20 || code === 0x7f) {
+      throw new TypeError(`${label} contains control characters`);
+    }
+    length += 1;
+    if (length > maxLength) throw new TypeError(`${label} too long`);
+  }
+  return value;
+}
+
+/** Normalizes a player note edit: empty/whitespace clears; bounds enforced. */
+export function parseSaveNoteV1(value: string): string | null {
+  const trimmed = value.trim();
+  if (trimmed.length === 0) return null;
+  return parseAnnotationLineV1(trimmed, saveAnnotationLimitsV1.maxNoteLength, "Save note");
+}
+
+export function parseSaveAnnotationV1(value: unknown): SaveAnnotationV1 {
+  const fields = exactDescriptors(value, ["summary", "note"], "SaveAnnotationV1");
+  const summaryValue = fields.summary?.value;
+  let summary: readonly string[] | null = null;
+  if (summaryValue !== null) {
+    if (!Array.isArray(summaryValue) || summaryValue.length === 0) {
+      throw new TypeError("invalid SaveAnnotationV1 summary");
+    }
+    if (summaryValue.length > saveAnnotationLimitsV1.maxSummaryLines) {
+      throw new TypeError("SaveAnnotationV1 summary has too many lines");
+    }
+    summary = Object.freeze(
+      summaryValue.map((line) =>
+        parseAnnotationLineV1(
+          line,
+          saveAnnotationLimitsV1.maxSummaryLineLength,
+          "SaveAnnotationV1 summary line",
+        ),
+      ),
+    );
+  }
+  const noteValue = fields.note?.value;
+  const note =
+    noteValue === null
+      ? null
+      : parseAnnotationLineV1(
+          noteValue,
+          saveAnnotationLimitsV1.maxNoteLength,
+          "SaveAnnotationV1 note",
+        );
+  if (summary === null && note === null) {
+    throw new TypeError("SaveAnnotationV1 must carry a summary or a note");
+  }
+  return Object.freeze({ summary, note });
+}
+
 export interface SaveSlotSummaryV1 {
   readonly slotId: SaveSlotIdV1;
   readonly health: SaveSlotHealthV1;
   readonly recordRevision: PositiveSafeInteger | null;
   readonly capturedCommandSequence: NonNegativeSafeInteger | null;
   readonly savedAt: IsoUtcInstant | null;
+  readonly annotation: SaveAnnotationV1 | null;
   readonly warningCodes: readonly string[];
 }
 
@@ -53,6 +130,7 @@ export type PersistenceOperationResultV1 =
         | "empty_slot"
         | "conflict"
         | "invalid_record"
+        | "invalid_note"
         | "lineage_limit"
         | "incompatible";
     }
@@ -125,6 +203,11 @@ export interface SaveRecordEnvelopeV1<TSnapshot, TProvenance, TSlotMetadata, TSi
   readonly stateDigest: Digest;
   readonly snapshot: TSnapshot;
   readonly simulationLineage: TSimulationLineage;
+  /**
+   * Optional annotation (summary lines + player note). Absent on records
+   * written before this capability existed — decoding stays additive.
+   */
+  readonly annotation?: SaveAnnotationV1;
 }
 
 export interface SaveCompatibilityKeyV1 {
@@ -471,6 +554,12 @@ export function createSaveRecordEnvelopeSchemaV1<
 > {
   return Object.freeze({
     parse(value: unknown) {
+      // `annotation` is additive-optional: records written before the field
+      // existed must keep parsing, so the exact-field list admits both shapes.
+      const hasAnnotation =
+        value !== null &&
+        typeof value === "object" &&
+        Object.prototype.hasOwnProperty.call(value, "annotation");
       const fields = exactDescriptors(
         value,
         [
@@ -482,6 +571,7 @@ export function createSaveRecordEnvelopeSchemaV1<
           "stateDigest",
           "snapshot",
           "simulationLineage",
+          ...(hasAnnotation ? (["annotation"] as const) : []),
         ],
         "SaveRecordEnvelopeV1",
       );
@@ -516,6 +606,7 @@ export function createSaveRecordEnvelopeSchemaV1<
         stateDigest,
         snapshot: snapshotSchema.parse(fields.snapshot?.value),
         simulationLineage: simulationLineageSchema.parse(fields.simulationLineage?.value),
+        ...(hasAnnotation ? { annotation: parseSaveAnnotationV1(fields.annotation?.value) } : {}),
       });
     },
   });

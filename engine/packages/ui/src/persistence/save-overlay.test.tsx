@@ -111,6 +111,7 @@ const labelsV1 = Object.freeze({
       empty_slot: "该槽位没有存档",
       conflict: "存档已被其他页面更新",
       invalid_record: "存档记录无效",
+      invalid_note: "备注不合法",
       lineage_limit: "存档兼容链超过限制",
       incompatible: "存档与当前游戏不兼容",
     }),
@@ -142,6 +143,7 @@ function slotV1(slotId: SaveSlotIdV1, health: SaveSlotHealthV1): SaveSlotSummary
     recordRevision: null,
     capturedCommandSequence: null,
     savedAt: null,
+    annotation: null,
     warningCodes: Object.freeze([]),
   });
 }
@@ -195,12 +197,16 @@ function fixtureV1(options: FixtureOptionsV1 = {}) {
     ),
   );
   const exportCurrentSave = vi.fn(async () => exportedSaveV1);
+  const annotateSave = vi.fn(async (slotId: SaveUiWritableSlotIdV1, _note: string) =>
+    Promise.resolve(Object.freeze({ kind: "saved" as const, slotId })),
+  );
   const port = Object.freeze({
     getStatus,
     listSlots,
     save,
     load,
     clear,
+    annotateSave,
     importSave,
     exportSave,
     exportCurrentSave,
@@ -212,6 +218,7 @@ function fixtureV1(options: FixtureOptionsV1 = {}) {
     save,
     load,
     clear,
+    annotateSave,
     importSave,
     exportSave,
     exportCurrentSave,
