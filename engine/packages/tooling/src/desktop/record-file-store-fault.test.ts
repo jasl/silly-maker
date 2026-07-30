@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
@@ -113,6 +114,146 @@ async function requirePrecheckArrivalV1(
     },
   );
   await Promise.race([arrived, earlySettlement]);
+}
+
+interface ProcessCasChildV1 {
+  readonly processId: number;
+  readonly ready: Promise<void>;
+  readonly completion: Promise<unknown>;
+  readonly exited: Promise<void>;
+  readonly release: () => Promise<void>;
+  readonly terminate: () => void;
+}
+
+function spawnProcessCasChildV1(root: string, bytesBase64: string): ProcessCasChildV1 {
+  const args = [
+    "run",
+    "--quiet",
+    "--allow-read",
+    "--allow-write",
+    fileURLToPath(new URL("./record-file-store-cas-child.fixture.mts", import.meta.url)),
+    root,
+    bytesBase64,
+  ];
+  const child = spawn(process.execPath, args, {
+    stdio: ["pipe", "pipe", "pipe"],
+    timeout: 20_000,
+    killSignal: "SIGKILL",
+  });
+
+  let resolveReadyV1: (() => void) | undefined;
+  let rejectReadyV1: ((error: unknown) => void) | undefined;
+  const ready = new Promise<void>((resolve, reject) => {
+    resolveReadyV1 = resolve;
+    rejectReadyV1 = reject;
+  });
+  let resolveCompletionV1: ((result: unknown) => void) | undefined;
+  let rejectCompletionV1: ((error: unknown) => void) | undefined;
+  const completion = new Promise<unknown>((resolve, reject) => {
+    resolveCompletionV1 = resolve;
+    rejectCompletionV1 = reject;
+  });
+  let resolveExitedV1: (() => void) | undefined;
+  const exited = new Promise<void>((resolve) => {
+    resolveExitedV1 = resolve;
+  });
+  void ready.catch(() => undefined);
+  void completion.catch(() => undefined);
+
+  let readySeenV1 = false;
+  let resultSeenV1 = false;
+  let resultV1: unknown;
+  let stderrV1 = "";
+  let closedV1 = false;
+  child.stderr.setEncoding("utf8");
+  child.stderr.on("data", (chunk: string) => {
+    stderrV1 += chunk;
+  });
+  const lines = createInterface({ input: child.stdout });
+  lines.on("line", (line) => {
+    if (line === "ready") {
+      readySeenV1 = true;
+      resolveReadyV1?.();
+      return;
+    }
+    if (resultSeenV1) {
+      rejectCompletionV1?.(
+        new TypeError(`desktop record CAS child emitted an extra line: ${line}`),
+      );
+      return;
+    }
+    try {
+      resultV1 = JSON.parse(line) as unknown;
+      resultSeenV1 = true;
+    } catch (error) {
+      rejectCompletionV1?.(
+        new TypeError(`desktop record CAS child emitted invalid JSON: ${line}`, {
+          cause: error,
+        }),
+      );
+    }
+  });
+  child.on("error", (error) => {
+    rejectReadyV1?.(error);
+    rejectCompletionV1?.(error);
+  });
+  child.on("close", (code, signal) => {
+    closedV1 = true;
+    resolveExitedV1?.();
+    if (!readySeenV1) {
+      rejectReadyV1?.(
+        new TypeError(
+          `desktop record CAS child exited before its precheck gate: code=${code} signal=${signal}`,
+        ),
+      );
+    }
+    if (code !== 0 || !resultSeenV1) {
+      rejectCompletionV1?.(
+        new TypeError(
+          `desktop record CAS child failed: code=${code} signal=${signal} stderr=${stderrV1.trim()}`,
+        ),
+      );
+      return;
+    }
+    resolveCompletionV1?.(resultV1);
+  });
+
+  return Object.freeze({
+    get processId() {
+      if (child.pid === undefined) {
+        throw new TypeError("desktop record CAS child has no process id after ready");
+      }
+      return child.pid;
+    },
+    ready,
+    completion,
+    exited,
+    release: () =>
+      new Promise<void>((resolve, reject) => {
+        const onErrorV1 = (error: Error) => reject(error);
+        child.stdin.once("error", onErrorV1);
+        child.stdin.end("release\n", () => {
+          child.stdin.off("error", onErrorV1);
+          resolve();
+        });
+      }),
+    terminate: () => {
+      if (!child.stdin.destroyed) child.stdin.destroy();
+      if (!closedV1) child.kill("SIGKILL");
+    },
+  });
+}
+
+async function requireProcessPrecheckArrivalV1(child: ProcessCasChildV1): Promise<void> {
+  const earlySettlement = child.completion.then(
+    () => {
+      throw new TypeError("desktop record CAS child settled before its precheck gate");
+    },
+    (error: unknown) => {
+      throw error;
+    },
+  );
+  await Promise.race([child.ready, earlySettlement]);
 }
 
 describe("desktop file-preview deterministic fault characterization", () => {
@@ -238,4 +379,68 @@ describe("desktop file-preview deterministic fault characterization", () => {
       bytesBase64: "b2xkLXJpZ2h0",
     });
   }, 30_000);
+
+  it("exposes independent OS-process CAS without relying on scheduler timing", async () => {
+    const root = await fixtureV1();
+    let left: ProcessCasChildV1 | undefined;
+    let right: ProcessCasChildV1 | undefined;
+
+    try {
+      left = spawnProcessCasChildV1(root, "bGVmdA==");
+      right = spawnProcessCasChildV1(root, "cmlnaHQ=");
+      await Promise.all([
+        requireProcessPrecheckArrivalV1(left),
+        requireProcessPrecheckArrivalV1(right),
+      ]);
+      expect(new Set([process.pid, left.processId, right.processId]).size).toBe(3);
+
+      await left.release();
+      const leftResult = await left.completion;
+      expect(await createRecordFileStoreV1(root).read("lease", "fault.process-concurrent")).toEqual(
+        {
+          namespace: "lease",
+          key: "fault.process-concurrent",
+          revision: 1,
+          bytesBase64: "bGVmdA==",
+        },
+      );
+      await right.release();
+      const rightResult = await right.completion;
+
+      expect(leftResult).toEqual({
+        kind: "committed",
+        records: [
+          {
+            namespace: "lease",
+            key: "fault.process-concurrent",
+            revision: 1,
+            bytesBase64: "bGVmdA==",
+          },
+        ],
+      });
+      expect(rightResult).toEqual({
+        kind: "committed",
+        records: [
+          {
+            namespace: "lease",
+            key: "fault.process-concurrent",
+            revision: 1,
+            bytesBase64: "cmlnaHQ=",
+          },
+        ],
+      });
+      expect(await createRecordFileStoreV1(root).read("lease", "fault.process-concurrent")).toEqual(
+        {
+          namespace: "lease",
+          key: "fault.process-concurrent",
+          revision: 1,
+          bytesBase64: "cmlnaHQ=",
+        },
+      );
+    } finally {
+      left?.terminate();
+      right?.terminate();
+      await Promise.all([left?.exited ?? Promise.resolve(), right?.exited ?? Promise.resolve()]);
+    }
+  }, 40_000);
 });

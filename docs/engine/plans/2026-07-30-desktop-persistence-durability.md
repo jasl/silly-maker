@@ -374,6 +374,58 @@ future-schema policy、repair/quarantine/recovery。key corpus、其余 fault
 边界、真实 signal/power-loss、独立 OS process CAS 和 transaction candidate
 也仍未完成。
 
+### D0g delivery record（2026-07-31）
+
+本切片只把 file preview 缺少独立 OS-process CAS authority 的事实变成确定性
+characterization；D0 仍未完成，失败结果不进入共享 conformance expected。
+
+**目标：**
+
+- 启动两个 PID 不同、同时存活的真实 Deno child，共享同一临时 file backing，
+  对同一个 missing lease key 以 `expectedRevision: null` 提交不同 bytes；
+- 每个 child 通过 direct-file-only phase observer 在全部 precheck 完成、任何
+  write 之前发送 `ready`，然后等待 parent 的精确 `release` token；
+- parent 必须先等两个 child 都 ready，再释放 left 并等待其正常完成，最后释放
+  right 并等待其正常完成；
+- 两个 child 都必须精确返回 committed revision `1` 与各自 bytes，fresh、
+  无 instrumentation 的 store 最终精确读到 revision `1`/right bytes；
+- IPC 只使用 stdin/stdout 协议，不用 sleep、轮询或 scheduler winner；所有成功/
+  失败路径都关闭 pipe、终止必要 child 并等待真实 process close。
+
+**非目标：**
+
+- 不修 cross-process CAS、不加锁、不选择 SQLite/journal/KV，不把 file adapter
+  promotion 为 production/durable Host store；
+- 不覆盖 existing-revision update/delete、multi-key batch、其他 interleaving、
+  stress、crash、signal、power loss、fsync、recovery、migration 或
+  disk-full/read-only；
+- 不改变 production store、HTTP wire、SaveRepository、Save envelope、
+  Base/Story API、package exports、desktop packaging 或平台支持声明；
+- 不从当前机器的 child-process 结果推导 Windows/Linux 已验证；timeout 只作为
+  挂死保护，不作为协调或通过条件。
+
+**验收规格与证据：**
+
+- TDD red 为 child fixture 尚不存在时 `1 failed / 3 passed`；加入
+  test-only child handshake 后 focused green 为 `1 file / 4 tests`，同一 focused
+  测试连续 `30/30` 通过；
+- parent/left/right 三个 PID 互不相同且双方 child 都 ready；结果固定为
+  `2 committed / 0 conflict`、revision `[1, 1]`，left 完成后 fresh read 为
+  left bytes，right 完成后 fresh read 为 right bytes；
+- child stdout 只含 `ready` 与一行 JSON result，stdin 精确校验 `release\n`，
+  stderr 只作诊断；协议 result 与只由 process close 结算的 `exited` 分离；
+- 变更只含 direct test 与未进入 package exports 的 child fixture，没有
+  production source 改动；
+- Tooling Desktop 为 `7 files / 41 tests`；全仓 `deno task test` 为
+  `185 files / 1614 tests`；`deno task check` 全部通过（format、lint、styles、
+  typecheck、unit、assets、Story checks 与 Engine Lab production build）。
+
+该证据只证明当前 preview adapter 在确定性门控下可让两个独立进程都提交同一
+missing revision；它不证明 crash atomicity 或 durability。剩余 D0 工作包括
+key corpus、其余 fault 边界、真实 signal/power-loss/recovery，以及 transaction
+candidate 接入共享 conformance；cross-process CAS 的修复属于后续 durable
+backend 实现。
+
 ## 3. D1 — Backend decision record
 
 在不改变上层合同的前提下做一个短期 spike，并留下 decision record。至少比较：
