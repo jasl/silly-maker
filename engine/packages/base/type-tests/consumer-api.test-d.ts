@@ -260,6 +260,14 @@ export type BaseConsumerTypesV1 = {
   snapshotTransactionWorkloadDescriptor: SnapshotTransactionWorkloadDescriptorV1;
 };
 
+declare const publicSessionCompositionV1: GameSessionCompositionV1<GameSimulationTypeMapV1>;
+// @ts-expect-error the private current digest is not exposed on the composition
+publicSessionCompositionV1.currentStateDigest;
+// @ts-expect-error Story consumers cannot read or write the private current digest
+publicSessionCompositionV1.session.currentStateDigest;
+// @ts-expect-error runtime control cannot inject a replacement digest
+publicSessionCompositionV1.runtimeControl.setCurrentStateDigest;
+
 export type BaseConsumerValuesV1 = {
   createCoreGameApplicationInstance: typeof createCoreGameApplicationInstanceV1;
   createGameSession: typeof createGameSessionV1;
@@ -439,6 +447,10 @@ export { prepareSnapshotMemoryGrowthWorkloadV1 } from "@sillymaker/base/testkit"
 export { snapshotMemoryGrowthBenchmarkConfigV1 } from "@sillymaker/base/testkit";
 // @ts-expect-error instrumentation types stay package-internal
 export type { SnapshotWorkInstrumentationV1 } from "@sillymaker/base/testkit";
+// @ts-expect-error Session digest-cache injection stays package-internal
+export { createInstrumentedGameSessionV1 } from "@sillymaker/base/runtime";
+// @ts-expect-error CommandLog audit policy stays package-internal
+export { createCommandLogInternalV1 } from "@sillymaker/base/runtime";
 // @ts-expect-error instrumented replay helpers stay package-internal
 export { replayAuthoritativelyFromAttemptsInternalV1 } from "@sillymaker/base/runtime";
 // @ts-expect-error instrumented persistence factories stay package-internal

@@ -14,6 +14,7 @@ import type {
 } from "../../contracts/session-status.ts";
 import type {
   DeepReadonly,
+  Digest,
   NonNegativeSafeInteger,
   RuntimeSchemaV1,
 } from "../../contracts/values.ts";
@@ -236,6 +237,7 @@ function isThenable(value: unknown): boolean {
 
 function finalizeCommandAttemptV1<TTypes extends GameSimulationTypeMapV1>(
   before: DeepReadonly<TTypes["snapshot"]>,
+  beforeStateDigest: Digest,
   candidate: AttemptFor<TTypes>,
   instrumentation?: SnapshotWorkInstrumentationV1,
   integrityDirective: IntegrityDirectiveV1 = { kind: "preserve_current" },
@@ -248,12 +250,16 @@ function finalizeCommandAttemptV1<TTypes extends GameSimulationTypeMapV1>(
   if (candidate.result.kind !== "committed" && finalizedSnapshot !== before) {
     throw new TypeError("Non-committed command attempt changed the Snapshot");
   }
+  const postSnapshot =
+    candidate.result.kind === "committed"
+      ? deepFreezeSnapshotV1(finalizedSnapshot, instrumentation)
+      : finalizedSnapshot;
 
   const result: AttemptFor<TTypes>["result"] =
     candidate.result.kind === "committed"
       ? Object.freeze({
           kind: "committed" as const,
-          snapshot: finalizedSnapshot,
+          snapshot: postSnapshot,
           facts: candidate.result.facts,
         })
       : candidate.result.kind === "rejected"
@@ -272,12 +278,11 @@ function finalizeCommandAttemptV1<TTypes extends GameSimulationTypeMapV1>(
     result,
     diagnostics: candidate.diagnostics,
     preSnapshot: before,
-    preStateDigest: digestCanonicalInternalV1("sillymaker:state:v1", before, instrumentation),
-    postStateDigest: digestCanonicalInternalV1(
-      "sillymaker:state:v1",
-      finalizedSnapshot,
-      instrumentation,
-    ),
+    preStateDigest: beforeStateDigest,
+    postStateDigest:
+      candidate.result.kind === "committed"
+        ? digestCanonicalInternalV1("sillymaker:state:v1", postSnapshot, instrumentation)
+        : beforeStateDigest,
   }) as FinalizedAttemptFor<TTypes>;
 }
 
@@ -370,6 +375,11 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
 
   runIntegrityV1Schema.parse(input.initialSnapshot.integrity);
   let snapshot = deepFreezeSnapshotV1(input.initialSnapshot, instrumentation);
+  let currentStateDigest = digestCanonicalInternalV1(
+    "sillymaker:state:v1",
+    snapshot,
+    instrumentation,
+  );
   let stableStatus: Exclude<RuntimeSessionStatusV1, "busy"> = "ready";
   let pending = 0;
   let tail: Promise<void> = Promise.resolve();
@@ -383,8 +393,10 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
     TTypes["rngDrawTrace"]
   >(
     {
-      replayBase: input.initialSnapshot as DeepReadonly<TTypes["snapshot"]>,
+      replayBase: snapshot as DeepReadonly<TTypes["snapshot"]>,
+      replayBaseStateDigest: currentStateDigest,
       limit: 200,
+      auditStateDigests: false,
     },
     instrumentation,
   );
@@ -493,6 +505,7 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
             );
             if (preparedCommandLogAnchor !== null) {
               commandLog.establishPreparedAnchor(preparedCommandLogAnchor);
+              currentStateDigest = preparedCommandLogAnchor.stateDigest;
             }
             snapshot = finalized;
             if (outcome.anchor === "replace_replay_base") stableStatus = "ready";
@@ -594,13 +607,19 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
               : { kind: "preserve_current" };
           finalizedAttempt = finalizeCommandAttemptV1<TTypes>(
             before,
+            currentStateDigest,
             candidate,
             instrumentation,
             integrityDirective,
           );
         } catch (error) {
           candidate = normalizeFault(error);
-          finalizedAttempt = finalizeCommandAttemptV1<TTypes>(before, candidate, instrumentation);
+          finalizedAttempt = finalizeCommandAttemptV1<TTypes>(
+            before,
+            currentStateDigest,
+            candidate,
+            instrumentation,
+          );
         }
 
         commandLog.append(
@@ -616,7 +635,8 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
           reportObserverFailure(error);
         }
         if (finalizedAttempt.result.kind === "committed") {
-          snapshot = deepFreezeSnapshotV1(finalizedAttempt.result.snapshot, instrumentation);
+          snapshot = finalizedAttempt.result.snapshot;
+          currentStateDigest = finalizedAttempt.postStateDigest;
           publish();
           publishCommittedSnapshot();
         } else {
@@ -679,6 +699,7 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
           prepareReplacementCommit?.(finalized as DeepReadonly<TTypes["snapshot"]>);
           commandLog.establishPreparedAnchor(preparedCommandLogAnchor);
           snapshot = finalized;
+          currentStateDigest = preparedCommandLogAnchor.stateDigest;
           stableStatus = "ready";
           publish();
           return outcome.result;
@@ -735,10 +756,20 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
         if (isHmrInvalidated()) return hmrInvalidatedV1;
         let finalizedAttempt: FinalizedAttemptFor<TTypes>;
         try {
-          finalizedAttempt = finalizeCommandAttemptV1<TTypes>(before, candidate, instrumentation);
+          finalizedAttempt = finalizeCommandAttemptV1<TTypes>(
+            before,
+            currentStateDigest,
+            candidate,
+            instrumentation,
+          );
         } catch (error) {
           candidate = input.normalizeUnexpectedDispatchFault(error, before);
-          finalizedAttempt = finalizeCommandAttemptV1<TTypes>(before, candidate, instrumentation);
+          finalizedAttempt = finalizeCommandAttemptV1<TTypes>(
+            before,
+            currentStateDigest,
+            candidate,
+            instrumentation,
+          );
         }
         commandLog.append(
           Object.freeze({
@@ -753,7 +784,8 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
           reportObserverFailure(error);
         }
         if (finalizedAttempt.result.kind === "committed") {
-          snapshot = deepFreezeSnapshotV1(finalizedAttempt.result.snapshot, instrumentation);
+          snapshot = finalizedAttempt.result.snapshot;
+          currentStateDigest = finalizedAttempt.postStateDigest;
           publish();
           publishCommittedSnapshot();
         } else if (finalizedAttempt.result.kind === "faulted") {

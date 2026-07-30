@@ -8,7 +8,12 @@ import { createPristineRunIntegrityV1 } from "../../contracts/snapshot.ts";
 import type { GameSnapshotEnvelopeV1 } from "../../contracts/snapshot.ts";
 import { parseNonNegativeSafeInteger, parsePositiveSafeInteger } from "../../contracts/values.ts";
 import type { Digest, PositiveSafeInteger } from "../../contracts/values.ts";
-import { createCommandLogV1, type FinalizedCommandAttemptV1 } from "./command-log.ts";
+import { createSnapshotWorkCounterV1 } from "../../internal/snapshot-work-instrumentation.ts";
+import {
+  createCommandLogInternalV1,
+  createCommandLogV1,
+  type FinalizedCommandAttemptV1,
+} from "./command-log.ts";
 
 interface FixtureStateV1 {
   readonly value: number;
@@ -178,6 +183,108 @@ function createFixtureLog(replayBase = snapshotAtSequence(0)) {
 }
 
 describe("CommandLog", () => {
+  it("keeps digest recomputation behind an explicit internal audit mode", () => {
+    const replayBase = snapshotAtSequence(0);
+    const counter = createSnapshotWorkCounterV1();
+    const log = createCommandLogInternalV1<
+      FixtureSnapshotV1,
+      FixtureLoggedCommandV1,
+      FixtureFactV1,
+      FixtureRejectionV1,
+      FixtureFaultV1
+    >(
+      {
+        replayBase,
+        replayBaseStateDigest: stateDigest(replayBase),
+        limit: 200,
+        auditStateDigests: true,
+      },
+      counter.instrumentation,
+    );
+    counter.reset();
+
+    log.append(parsedCommand(1), finalizedAttempt(replayBase, 1));
+
+    expect(counter.snapshot()).toEqual({
+      canonicalTraversals: 2,
+      canonicalDigests: 2,
+      deepFreezeTraversals: 0,
+      commandLogContinuityVerifications: 1,
+      saveCanonicalSerializations: 0,
+      strictJsonParses: 0,
+      strictJsonPreflights: 0,
+    });
+  });
+
+  it("keeps cheap identity and digest-chain checks when internal recomputation is off", () => {
+    const replayBase = snapshotAtSequence(0);
+    const createReleaseLog = () =>
+      createCommandLogInternalV1<
+        FixtureSnapshotV1,
+        FixtureLoggedCommandV1,
+        FixtureFactV1,
+        FixtureRejectionV1,
+        FixtureFaultV1
+      >({
+        replayBase,
+        replayBaseStateDigest: stateDigest(replayBase),
+        limit: 200,
+        auditStateDigests: false,
+      });
+    const unrelatedDigest = stateDigest(snapshotAtSequence(99));
+
+    const brokenPre = createReleaseLog();
+    expect(() =>
+      brokenPre.append(
+        parsedCommand(1),
+        Object.freeze({
+          ...finalizedAttempt(replayBase, 1),
+          preStateDigest: unrelatedDigest,
+        }),
+      ),
+    ).toThrow("Finalized command attempt breaks digest continuity");
+    expect(brokenPre.entries()).toEqual([]);
+
+    const brokenNonCommittedPost = createReleaseLog();
+    expect(() =>
+      brokenNonCommittedPost.append(
+        parsedCommand(2),
+        Object.freeze({
+          ...finalizedAttempt(replayBase, 2),
+          postStateDigest: unrelatedDigest,
+        }),
+      ),
+    ).toThrow("Non-committed finalized attempt changed the state digest");
+    expect(brokenNonCommittedPost.entries()).toEqual([]);
+
+    const brokenIdentity = createReleaseLog();
+    const sameBytesDifferentReference = snapshotAtSequence(0);
+    expect(sameBytesDifferentReference).not.toBe(replayBase);
+    expect(() =>
+      brokenIdentity.append(parsedCommand(1), finalizedAttempt(sameBytesDifferentReference, 1)),
+    ).toThrow("Finalized command attempt breaks snapshot continuity");
+    expect(brokenIdentity.entries()).toEqual([]);
+  });
+
+  it("ignores package-internal digest hints at the public constructor boundary", () => {
+    const replayBase = snapshotAtSequence(0);
+    const inputWithInternalField = {
+      replayBase,
+      limit: 200,
+      replayBaseStateDigest: stateDigest(snapshotAtSequence(99)),
+    };
+    const log = createCommandLogV1<
+      FixtureSnapshotV1,
+      FixtureLoggedCommandV1,
+      FixtureFactV1,
+      FixtureRejectionV1,
+      FixtureFaultV1
+    >(inputWithInternalField);
+
+    expect(log.replayBaseStateDigest()).toBe(stateDigest(replayBase));
+    expect(() => log.append(parsedCommand(1), finalizedAttempt(replayBase, 1))).not.toThrow();
+  });
+
   it("moves the replay base before evicting the 201st mixed entry", () => {
     const attempts = mixedAttempts(201);
     const log = createFixtureLog(attempts[0]!.finalizedAttempt.preSnapshot);

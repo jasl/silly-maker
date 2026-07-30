@@ -224,3 +224,31 @@ S0 尚未完成的下一切片是长时内存/GC 增长采样（S0d）。DebugBu
 趋势解释只到这里：CommandLog 填满后，post-GC retained heap 保持同一数量级并接近平台；RSS 与 V8 `heapTotal` 不等同于 live-object 数量，以上结果也不是启动结构共享或 `IntegrityPolicy` 的结论。是否激活更深的 proportional-commit 设计仍须等待 S1/S2 去重后的 promotion decision。
 
 S0 至此完成。S1 Session/CommandLog digest reuse 与 S2 persistence-path reuse 尚未开始；DebugBundle/Save 的完整 byte-equivalence corpus属于对应后续切片。
+
+### 2026-07-30 — S1 Session digest authority and CommandLog audit policy
+
+本切片完成 S1，不进入 persistence digest/serialization reuse：
+
+- `GameSession` 以词法私有状态持有与当前 authoritative Snapshot 同步的 digest；它不进入 Snapshot、Save、rollback checkpoint、Story state、public port 或 package export，不构成第二份 authoritative state；
+- initial Snapshot 在 deep-freeze 后计算一次 digest，并把同一值用于 CommandLog replay base。committed candidate 先完成 integrity finalization 和整树 freeze，再计算唯一 post digest；`onAttempt`、CommandLog 与 subscriber 因而不会看到 digest 后仍可变的 Snapshot。rejected/faulted 在 Snapshot 对象恒等成立后直接令 post digest 等于 cached pre digest；
+- Session 的 package-internal CommandLog 路径关闭每条 entry 的全量 digest 重算，但继续无遍历地验证 pre Snapshot 对象恒等、`pre digest == previous post / replay-base digest`、non-committed `post == pre` 与 non-committed Snapshot 对象恒等。显式 internal audit 会重算 pre/post；公共 `createCommandLogV1` 仍默认开启完整 audit，并忽略 JS 调用夹带的 internal-only digest hint，原有坏 digest 拒绝语义不变；
+- runtime replay-base replacement 在 callback 成功后一起安装 prepared CommandLog anchor、prepared digest 与 Snapshot；load、exact/adopted import、boot autosave resume、restart 和 rollback 均走该路径。fixture/DebugBundle anchor 则对加入 integrity mutation reason 后的最终 Snapshot 计算并安装 digest。callback failure、rejected import 与 HMR skip 不安装候选 cache；
+- queued command、throwing subscriber、committed/faulted DebugCommand、201-entry eviction、authoritative replay、actual application anchors 与 observer mutation 均有 focused coverage。instrumented/no-probe workload 继续逐字节比较 dispatch result、Snapshot、retained CommandLog 和 replay base；public replay 仍独立审计，不读取 Session cache。
+
+确定性计数变化如下；deep-freeze、CommandLog continuity、Save serialization 与 Strict JSON 计数均保持不变：
+
+| workload / phase                    | canonical traversal before | canonical traversal after | state digest before | state digest after |
+| ----------------------------------- | -------------------------: | ------------------------: | ------------------: | -----------------: |
+| Session setup                       |                          1 |                         1 |                   1 |                  1 |
+| committed command                   |                          4 |                         1 |                   4 |                  1 |
+| rejected / faulted command          |                          4 |                         0 |                   4 |                  0 |
+| mixed 256 commands (170 committed)  |                      1,024 |                       170 |               1,024 |                170 |
+| 201 committed commands              |                        804 |                       201 |                 804 |                201 |
+| 1,200 committed commands            |                      4,800 |                     1,200 |               4,800 |              1,200 |
+| first autosave including Session    |                         11 |                         8 |                   9 |                  6 |
+| rotating autosave including Session |                         14 |                        11 |                  11 |                  8 |
+| two autosaves aggregate             |                         25 |                        19 |                  20 |                 14 |
+
+同一 Deno 2.9.4 / V8 15.0 环境、`warmup = 0`、单样本复测只作为方向性趋势，不作为 CI gate：100k `single_field_committed` 从 `650.5 ms` 降至 `185.1 ms`，10k `cross_owner_atomic_committed` 从 `69.6 ms` 降至 `35.7 ms`。1k-entity / 1,200-command memory workload 的两次复测总 dispatch 时间从 S0d 的约 `5.7 s` 降至约 `1.91 s`，确定性 run digest 计数从 `4,800` 降至 `1,200`；post-GC `heapUsed` 终值和 steady delta 仍与 S0d 同数量级，因此本切片只记录 CPU 趋势，不声称 retained-memory 改善。所有原始 JSON 仍只位于 OS 临时目录。
+
+Autosave 仍对同一 Snapshot 执行 persistence-owned digest、Save canonical serialization、Strict JSON preflight/readback 与 rotation encoding；这些已计数的剩余重复只属于 S2。PF1 尚未完成，`IntegrityPolicy`、changed-set、结构共享与 StateStore 仍未激活。

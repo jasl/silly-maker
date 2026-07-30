@@ -9,8 +9,8 @@ import {
 } from "./snapshot-persistence-workload.ts";
 
 const firstAutoSaveCountsV1 = Object.freeze({
-  canonicalTraversals: 11,
-  canonicalDigests: 9,
+  canonicalTraversals: 8,
+  canonicalDigests: 6,
   deepFreezeTraversals: 1,
   commandLogContinuityVerifications: 1,
   saveCanonicalSerializations: 2,
@@ -19,8 +19,8 @@ const firstAutoSaveCountsV1 = Object.freeze({
 });
 
 const rotationCountsV1 = Object.freeze({
-  canonicalTraversals: 14,
-  canonicalDigests: 11,
+  canonicalTraversals: 11,
+  canonicalDigests: 8,
   deepFreezeTraversals: 1,
   commandLogContinuityVerifications: 1,
   saveCanonicalSerializations: 3,
@@ -63,8 +63,8 @@ describe("Snapshot persistence workload", () => {
         previousRecordRevision: 1,
       },
       aggregateCounts: {
-        canonicalTraversals: 25,
-        canonicalDigests: 20,
+        canonicalTraversals: 19,
+        canonicalDigests: 14,
         deepFreezeTraversals: 2,
         commandLogContinuityVerifications: 2,
         saveCanonicalSerializations: 5,

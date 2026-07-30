@@ -46,9 +46,12 @@ describe("player rollback (R7)", () => {
       const anchor = instance.presentationAnchor();
       expect(anchor.origin).toBe("rollback");
       expect(anchor.epoch).toBe(epochBefore + 1);
+      const rolledDigest = instance.admin.stateDigest();
+      expect(instance.admin.commandLog()).toEqual([]);
 
       // The timeline continues normally from the restored boundary.
       await dispatchCommittedV1(instance, advanceV1(1));
+      expect(instance.admin.commandLog()[0]?.preStateDigest).toBe(rolledDigest);
       expect(instance.semantic.observe().narrative.pending?.occurrenceId).toBe(
         "interaction-occurrence.2",
       );

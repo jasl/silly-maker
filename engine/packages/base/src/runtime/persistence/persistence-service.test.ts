@@ -1612,6 +1612,9 @@ describe("PersistenceServiceV1", () => {
         ],
       },
     });
+    const adoptedDigest = digestCanonical("sillymaker:state:v1", adopted);
+    await fixture.session.dispatch({ kind: "increment" });
+    expect(fixture.commandLog.entries()[0]?.preStateDigest).toBe(adoptedDigest);
   });
 
   it("keeps Session and storage unchanged for inspect-only, invalid, and lineage-limit imports", async () => {

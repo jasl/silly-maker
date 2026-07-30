@@ -16,7 +16,12 @@ import {
   createRuntimeFailureBufferV1,
   createRuntimeFailureReporterV1,
 } from "../diagnostics/runtime-failures.ts";
-import { createGameSessionV1, type GameSessionDebugInputV1 } from "./game-session.ts";
+import {
+  createGameSessionV1,
+  createInstrumentedGameSessionV1,
+  type GameSessionDebugInputV1,
+} from "./game-session.ts";
+import { createSnapshotWorkCounterV1 } from "../../internal/snapshot-work-instrumentation.ts";
 
 interface State {
   readonly count: number;
@@ -301,6 +306,65 @@ describe("GameSession FIFO", () => {
     expect(result.attempt.postStateDigest).toBe(
       digestCanonical("sillymaker:state:v1", created.session.getCurrentSnapshot()),
     );
+  });
+
+  it("uses one digest for a committed DebugCommand and none for a faulted one", async () => {
+    const counter = createSnapshotWorkCounterV1();
+    const created = createInstrumentedGameSessionV1<Types>(
+      {
+        initialSnapshot: createSnapshot(0),
+        commandSchema,
+        executionContext: undefined,
+        executeAttempt(snapshot, command) {
+          return attempt(snapshot as Snapshot, command as Command);
+        },
+        normalizeUnexpectedDispatchFault(_error, snapshot) {
+          return attempt(snapshot as Snapshot, { kind: "fault" });
+        },
+        debug: defineDebugInputV1({
+          validate: () => Object.freeze({ kind: "allowed" as const }),
+          executeAttempt(snapshot, command) {
+            return attempt(snapshot as Snapshot, {
+              kind: command.kind === "debug.synthetic.fault" ? "fault" : "increment",
+            });
+          },
+          normalizeUnexpectedFault(_error, snapshot) {
+            return attempt(snapshot as Snapshot, { kind: "fault" });
+          },
+        }),
+      },
+      counter.instrumentation,
+    );
+    counter.reset();
+
+    await created.debugControl.execute(
+      Object.freeze({ kind: "debug.synthetic.add", amount: 1 }),
+      () => true,
+    );
+    expect(counter.snapshot()).toEqual({
+      canonicalTraversals: 1,
+      canonicalDigests: 1,
+      deepFreezeTraversals: 1,
+      commandLogContinuityVerifications: 1,
+      saveCanonicalSerializations: 0,
+      strictJsonParses: 0,
+      strictJsonPreflights: 0,
+    });
+
+    counter.reset();
+    await created.debugControl.execute(
+      Object.freeze({ kind: "debug.synthetic.fault" }),
+      () => true,
+    );
+    expect(counter.snapshot()).toEqual({
+      canonicalTraversals: 0,
+      canonicalDigests: 0,
+      deepFreezeTraversals: 0,
+      commandLogContinuityVerifications: 1,
+      saveCanonicalSerializations: 0,
+      strictJsonParses: 0,
+      strictJsonPreflights: 0,
+    });
   });
 
   it("validates DebugCommand at queue front without opening an attempt or log", async () => {
@@ -646,6 +710,68 @@ describe("GameSession FIFO", () => {
     });
   });
 
+  it("refreshes the private digest from the integrity-stamped Debug anchor", async () => {
+    const counter = createSnapshotWorkCounterV1();
+    const created = createInstrumentedGameSessionV1<Types>(
+      {
+        initialSnapshot: createSnapshot(0),
+        commandSchema,
+        executionContext: undefined,
+        executeAttempt(snapshot, command) {
+          return attempt(snapshot as Snapshot, command as Command);
+        },
+        normalizeUnexpectedDispatchFault(_error, snapshot) {
+          return attempt(snapshot as Snapshot, { kind: "fault" });
+        },
+      },
+      counter.instrumentation,
+    );
+    const replacement = createSnapshot(20);
+    counter.reset();
+
+    await created.debugControl.anchorReplacement<DebugAnchorTestResult>(
+      Object.freeze({ kind: "debug_bundle" as const }),
+      async () =>
+        Object.freeze({
+          kind: "replace" as const,
+          snapshot: replacement,
+          result: Object.freeze({ kind: "anchored" as const }),
+        }),
+      () => true,
+      () => Object.freeze({ kind: "faulted" as const }),
+    );
+    const anchored = created.session.getCurrentSnapshot();
+    expect(anchored).not.toBe(replacement);
+    expect(anchored.integrity).toMatchObject({
+      mode: "modified",
+      reasons: [{ kind: "debug_bundle_anchor", sequence: 20 }],
+    });
+    expect(counter.snapshot()).toEqual({
+      canonicalTraversals: 1,
+      canonicalDigests: 1,
+      deepFreezeTraversals: 1,
+      commandLogContinuityVerifications: 0,
+      saveCanonicalSerializations: 0,
+      strictJsonParses: 0,
+      strictJsonPreflights: 0,
+    });
+
+    counter.reset();
+    await created.session.dispatch({ kind: "increment" });
+    expect(created.commandLog.entries()[0]?.preStateDigest).toBe(
+      digestCanonical("sillymaker:state:v1", anchored),
+    );
+    expect(counter.snapshot()).toEqual({
+      canonicalTraversals: 1,
+      canonicalDigests: 1,
+      deepFreezeTraversals: 1,
+      commandLogContinuityVerifications: 1,
+      saveCanonicalSerializations: 0,
+      strictJsonParses: 0,
+      strictJsonPreflights: 0,
+    });
+  });
+
   it("logs rejected and faulted attempts but not invalid admission or a queued skip", async () => {
     const { session, commandLog, calls } = fixture();
 
@@ -693,6 +819,75 @@ describe("GameSession FIFO", () => {
     expect(session.getStatus()).toBe("ready");
     expect(calls()).toBe(2);
     expect(session.getCurrentSnapshot().integrity).toEqual(createPristineRunIntegrityV1());
+  });
+
+  it("keeps one private digest chain across queued commits and subscriber faults", async () => {
+    const counter = createSnapshotWorkCounterV1();
+    const observerFailures: unknown[] = [];
+    const created = createInstrumentedGameSessionV1<Types>(
+      {
+        initialSnapshot: createSnapshot(0),
+        commandSchema,
+        executionContext: undefined,
+        executeAttempt(snapshot, command) {
+          return attempt(snapshot as Snapshot, command as Command);
+        },
+        normalizeUnexpectedDispatchFault(_error, snapshot) {
+          return attempt(snapshot as Snapshot, { kind: "fault" });
+        },
+        onObserverFailure(error) {
+          observerFailures.push(error);
+        },
+      },
+      counter.instrumentation,
+    );
+    const subscriberError = new Error("digest-chain subscriber failed");
+    let throwOnce = true;
+    created.session.subscribe(() => {
+      if (created.session.getStatus() !== "ready" || !throwOnce) return;
+      throwOnce = false;
+      throw subscriberError;
+    });
+    counter.reset();
+
+    const first = created.session.dispatch({ kind: "increment" });
+    const second = created.session.dispatch({ kind: "increment" });
+    await expect(first).resolves.toMatchObject({
+      kind: "executed",
+      execution: { kind: "committed" },
+    });
+    await expect(second).resolves.toMatchObject({
+      kind: "executed",
+      execution: { kind: "committed" },
+    });
+    await expect(created.session.dispatch({ kind: "increment" })).resolves.toMatchObject({
+      kind: "executed",
+      execution: { kind: "committed" },
+    });
+
+    const entries = created.commandLog.entries();
+    expect(entries).toHaveLength(3);
+    expect(entries[0]?.postStateDigest).toBe(entries[1]?.preStateDigest);
+    expect(entries[1]?.postStateDigest).toBe(entries[2]?.preStateDigest);
+    expect(entries[0]?.preStateDigest).toBe(
+      digestCanonical("sillymaker:state:v1", created.commandLog.replayBase()),
+    );
+    expect(entries[2]?.postStateDigest).toBe(
+      digestCanonical("sillymaker:state:v1", created.session.getCurrentSnapshot()),
+    );
+    expect(counter.snapshot()).toEqual({
+      canonicalTraversals: 3,
+      canonicalDigests: 3,
+      deepFreezeTraversals: 3,
+      commandLogContinuityVerifications: 3,
+      saveCanonicalSerializations: 0,
+      strictJsonParses: 0,
+      strictJsonPreflights: 0,
+    });
+    expect(observerFailures).toEqual([subscriberError]);
+    expect(created.session).not.toHaveProperty("currentStateDigest");
+    expect(created.runtimeControl).not.toHaveProperty("currentStateDigest");
+    expect(created.commandLog).not.toHaveProperty("currentStateDigest");
   });
 
   it.each(["committed", "rejected", "faulted"] as const)(
@@ -1224,6 +1419,65 @@ describe("GameSession FIFO", () => {
     expect(commandLog.replayBase()).toBe(replacement);
   });
 
+  it("refreshes the private digest after a runtime replay-base replacement", async () => {
+    const counter = createSnapshotWorkCounterV1();
+    const created = createInstrumentedGameSessionV1<Types>(
+      {
+        initialSnapshot: createSnapshot(0),
+        commandSchema,
+        executionContext: undefined,
+        executeAttempt(snapshot, command) {
+          return attempt(snapshot as Snapshot, command as Command);
+        },
+        normalizeUnexpectedDispatchFault(_error, snapshot) {
+          return attempt(snapshot as Snapshot, { kind: "fault" });
+        },
+      },
+      counter.instrumentation,
+    );
+    const replacement = createSnapshot(10);
+    counter.reset();
+
+    await expect(
+      created.runtimeControl.enqueueAuthoritative(
+        async () =>
+          Object.freeze({
+            kind: "replace" as const,
+            snapshot: replacement,
+            result: "anchored" as const,
+            anchor: "replace_replay_base" as const,
+          }),
+        () => "faulted" as const,
+      ),
+    ).resolves.toBe("anchored");
+    expect(counter.snapshot()).toEqual({
+      canonicalTraversals: 1,
+      canonicalDigests: 1,
+      deepFreezeTraversals: 1,
+      commandLogContinuityVerifications: 0,
+      saveCanonicalSerializations: 0,
+      strictJsonParses: 0,
+      strictJsonPreflights: 0,
+    });
+
+    counter.reset();
+    await created.session.dispatch({ kind: "increment" });
+    const entry = created.commandLog.entries()[0];
+    expect(entry?.preStateDigest).toBe(digestCanonical("sillymaker:state:v1", replacement));
+    expect(entry?.postStateDigest).toBe(
+      digestCanonical("sillymaker:state:v1", created.session.getCurrentSnapshot()),
+    );
+    expect(counter.snapshot()).toEqual({
+      canonicalTraversals: 1,
+      canonicalDigests: 1,
+      deepFreezeTraversals: 1,
+      commandLogContinuityVerifications: 1,
+      saveCanonicalSerializations: 0,
+      strictJsonParses: 0,
+      strictJsonPreflights: 0,
+    });
+  });
+
   it("preserves the command log and live Snapshot when a replacement callback fails", async () => {
     const { session, runtimeControl, commandLog } = fixture();
     await session.dispatch({ kind: "increment" });
@@ -1641,6 +1895,56 @@ describe("GameSession snapshot immutability", () => {
       (current.state as { count: number }).count = 99;
     }).toThrowError(TypeError);
     expect(created.session.getCurrentSnapshot().state.count).toBe(1);
+  });
+
+  it("freezes a committed Snapshot before observers and keeps the next digest chain valid", async () => {
+    const observerFailures: unknown[] = [];
+    let mutationAttempts = 0;
+    const created = createGameSessionV1<Types>({
+      initialSnapshot: createMutableSnapshot(0),
+      commandSchema,
+      executionContext: undefined,
+      executeAttempt(snapshot, command) {
+        if (command.kind !== "increment") return attempt(snapshot as Snapshot, command);
+        const current = snapshot as Snapshot;
+        const next = createMutableSnapshot(current.state.count + 1, current.integrity);
+        return {
+          result: { kind: "committed", snapshot: next, facts: [{ count: next.state.count }] },
+          diagnostics: {
+            committedRngBefore: current.rng,
+            attemptedDraws: [] as readonly never[],
+            committedRngAfter: next.rng,
+          },
+        };
+      },
+      normalizeUnexpectedDispatchFault(_error, snapshot) {
+        return attempt(snapshot as Snapshot, { kind: "fault" });
+      },
+      onAttempt(finalized) {
+        if (mutationAttempts > 0) return;
+        mutationAttempts += 1;
+        (finalized.result.snapshot.state as { count: number }).count = 99;
+      },
+      onObserverFailure(error) {
+        observerFailures.push(error);
+      },
+    });
+
+    await created.session.dispatch({ kind: "increment" });
+    await created.session.dispatch({ kind: "increment" });
+
+    const entries = created.commandLog.entries();
+    expect(observerFailures).toHaveLength(1);
+    expect(observerFailures[0]).toBeInstanceOf(TypeError);
+    expect(created.session.getCurrentSnapshot().state.count).toBe(2);
+    expect(entries).toHaveLength(2);
+    expect(entries[0]?.postStateDigest).toBe(
+      digestCanonical("sillymaker:state:v1", createSnapshot(1)),
+    );
+    expect(entries[1]?.preStateDigest).toBe(entries[0]?.postStateDigest);
+    expect(entries[1]?.postStateDigest).toBe(
+      digestCanonical("sillymaker:state:v1", created.session.getCurrentSnapshot()),
+    );
   });
 
   it("recurses into mutable children below an already-frozen envelope", () => {

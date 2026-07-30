@@ -157,6 +157,7 @@ function validateFinalizedAttemptV1<
   TRngDrawTrace,
 >(
   expectedPreSnapshot: DeepReadonly<TSnapshot>,
+  expectedPreStateDigest: Digest,
   attempt: FinalizedCommandAttemptV1<
     TSnapshot,
     TFact,
@@ -165,23 +166,32 @@ function validateFinalizedAttemptV1<
     TRngState,
     TRngDrawTrace
   >,
+  auditStateDigests: boolean,
   instrumentation?: SnapshotWorkInstrumentationV1,
 ): void {
   recordSnapshotWorkV1(instrumentation, "command_log_continuity_verification");
   if (attempt.preSnapshot !== expectedPreSnapshot) {
     throw new TypeError("Finalized command attempt breaks snapshot continuity");
   }
-  if (
-    attempt.preStateDigest !==
-    digestCanonicalInternalV1("sillymaker:state:v1", attempt.preSnapshot, instrumentation)
-  ) {
-    throw new TypeError("Finalized command attempt pre-state digest mismatch");
+  if (auditStateDigests) {
+    if (
+      attempt.preStateDigest !==
+      digestCanonicalInternalV1("sillymaker:state:v1", attempt.preSnapshot, instrumentation)
+    ) {
+      throw new TypeError("Finalized command attempt pre-state digest mismatch");
+    }
+    if (
+      attempt.postStateDigest !==
+      digestCanonicalInternalV1("sillymaker:state:v1", attempt.result.snapshot, instrumentation)
+    ) {
+      throw new TypeError("Finalized command attempt post-state digest mismatch");
+    }
   }
-  if (
-    attempt.postStateDigest !==
-    digestCanonicalInternalV1("sillymaker:state:v1", attempt.result.snapshot, instrumentation)
-  ) {
-    throw new TypeError("Finalized command attempt post-state digest mismatch");
+  if (attempt.preStateDigest !== expectedPreStateDigest) {
+    throw new TypeError("Finalized command attempt breaks digest continuity");
+  }
+  if (attempt.result.kind !== "committed" && attempt.postStateDigest !== attempt.preStateDigest) {
+    throw new TypeError("Non-committed finalized attempt changed the state digest");
   }
   if (attempt.result.kind !== "committed" && attempt.result.snapshot !== attempt.preSnapshot) {
     throw new TypeError("Non-committed finalized attempt changed the Snapshot");
@@ -200,7 +210,9 @@ export function createCommandLogInternalV1<
 >(
   input: {
     readonly replayBase: DeepReadonly<TSnapshot>;
+    readonly replayBaseStateDigest?: Digest;
     readonly limit: number;
+    readonly auditStateDigests: boolean;
   },
   instrumentation?: SnapshotWorkInstrumentationV1,
 ): CommandLogV1<TSnapshot, TLoggedCommand, TFact, TRejection, TFault, TRngState, TRngDrawTrace> {
@@ -220,11 +232,9 @@ export function createCommandLogInternalV1<
   }
 
   let replayBase = input.replayBase;
-  let replayBaseDigest = digestCanonicalInternalV1(
-    "sillymaker:state:v1",
-    replayBase,
-    instrumentation,
-  );
+  let replayBaseDigest =
+    input.replayBaseStateDigest ??
+    digestCanonicalInternalV1("sillymaker:state:v1", replayBase, instrumentation);
   let nextOrdinal = parsePositiveSafeInteger(1);
   const internalEntries: InternalEntry[] = [];
   let publicEntries: readonly PublicEntry[] = Object.freeze([]);
@@ -250,7 +260,15 @@ export function createCommandLogInternalV1<
         throw new TypeError("Debug CommandLog entries cannot be rejected");
       }
       const preAttemptSnapshot = internalEntries.at(-1)?.postAttemptSnapshot ?? replayBase;
-      validateFinalizedAttemptV1(preAttemptSnapshot, finalizedAttempt, instrumentation);
+      const preAttemptStateDigest =
+        internalEntries.at(-1)?.entry.postStateDigest ?? replayBaseDigest;
+      validateFinalizedAttemptV1(
+        preAttemptSnapshot,
+        preAttemptStateDigest,
+        finalizedAttempt,
+        input.auditStateDigests,
+        instrumentation,
+      );
 
       const postAttemptSnapshot = finalizedAttempt.result.snapshot;
       const diagnostics = finalizedAttempt.diagnostics;
@@ -327,5 +345,9 @@ export function createCommandLogV1<
   readonly replayBase: DeepReadonly<TSnapshot>;
   readonly limit: number;
 }): CommandLogV1<TSnapshot, TLoggedCommand, TFact, TRejection, TFault, TRngState, TRngDrawTrace> {
-  return createCommandLogInternalV1(input);
+  return createCommandLogInternalV1({
+    replayBase: input.replayBase,
+    limit: input.limit,
+    auditStateDigests: true,
+  });
 }

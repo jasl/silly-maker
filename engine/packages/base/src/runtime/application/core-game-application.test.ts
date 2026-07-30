@@ -431,6 +431,9 @@ describe("createCoreGameApplicationInstanceV1", () => {
     expect(instance.admin.stateDigest()).toBe(digestBefore);
     expect(canonicalJsonBytes(instance.admin.commandLog())).toEqual(commandLogBytesBefore);
     expect(instance.semantic.observe().status).toBe(statusBefore);
+    const debugPostStateDigest = instance.admin.commandLog()[0]?.postStateDigest;
+    await instance.semantic.dispatch(incrementV1);
+    expect(instance.admin.commandLog()[1]?.preStateDigest).toBe(debugPostStateDigest);
     await instance.dispose();
   });
 
@@ -478,6 +481,10 @@ describe("createCoreGameApplicationInstanceV1", () => {
     await instance.semantic.dispatch(incrementV1);
     await expect(instance.persistence.load("manual.1")).resolves.toMatchObject({ kind: "loaded" });
     expect(instance.presentationAnchor()).toEqual({ epoch: 1, origin: "load" });
+    const loadedDigest = instance.admin.stateDigest();
+    expect(instance.admin.commandLog()).toEqual([]);
+    await instance.semantic.dispatch(incrementV1);
+    expect(instance.admin.commandLog()[0]?.preStateDigest).toBe(loadedDigest);
     expect(staleGuard(21)).toEqual({ kind: "stale_epoch" });
     expect(anchors).toEqual([{ epoch: 1, origin: "load" }]);
 
@@ -491,6 +498,10 @@ describe("createCoreGameApplicationInstanceV1", () => {
       kind: "imported",
     });
     expect(instance.presentationAnchor()).toEqual({ epoch: 2, origin: "import" });
+    const importedDigest = instance.admin.stateDigest();
+    expect(instance.admin.commandLog()).toEqual([]);
+    await instance.semantic.dispatch(incrementV1);
+    expect(instance.admin.commandLog()[0]?.preStateDigest).toBe(importedDigest);
 
     await expect(instance.lifecycle.restart()).resolves.toEqual({
       kind: "anchored",
@@ -498,6 +509,10 @@ describe("createCoreGameApplicationInstanceV1", () => {
     });
     expect(instance.presentationAnchor()).toEqual({ epoch: 3, origin: "restart" });
     expect(instance.semantic.observe().game).toEqual({ count: 0 });
+    const restartedDigest = instance.admin.stateDigest();
+    expect(instance.admin.commandLog()).toEqual([]);
+    await instance.semantic.dispatch(incrementV1);
+    expect(instance.admin.commandLog()[0]?.preStateDigest).toBe(restartedDigest);
 
     unsubscribe();
     await instance.dispose();
@@ -579,6 +594,10 @@ describe("createCoreGameApplicationInstanceV1", () => {
     // exists — to presentation this is the bootstrap origin, not a load, so the
     // "load origin dismisses the title screen" behavior never fires; that is what makes the title screen's Continue truthful.
     expect(second.presentationAnchor().origin).toBe("bootstrap");
+    const resumedDigest = second.admin.stateDigest();
+    expect(second.admin.commandLog()).toEqual([]);
+    await second.semantic.dispatch(incrementV1);
+    expect(second.admin.commandLog()[0]?.preStateDigest).toBe(resumedDigest);
     await second.dispose();
 
     // Definitions that do not opt in keep the old semantics: same records still start fresh.
