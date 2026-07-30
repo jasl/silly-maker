@@ -13,6 +13,7 @@ deno task dev                              # vite dev server for this applicatio
 deno task build:web                        # static Player under <app>/dist-web (`build` is its alias)
 deno task build:desktop                    # desktop package(s) under <app>/dist-desktop (needs web.desktop)
 deno task preview                          # serve dist-web/ over HTTP
+deno task clean                            # remove dist-web/ and dist-desktop/
 deno task story check .                    # structured JSON diagnostics
 deno task story simulate .                 # scripted run through the Agent port
 ```

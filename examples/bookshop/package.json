@@ -14,6 +14,7 @@
     "build:web": "deno run -A npm:vite build",
     "build:desktop": "deno run -A ./tools/story.mts desktop .",
     "preview": "deno run -A npm:vite preview",
+    "clean": "rm -rf dist-web dist-desktop",
     "story": "deno run -A ./tools/story.mts",
     "test": "deno run -A npm:vitest run examples/bookshop/src"
   },
