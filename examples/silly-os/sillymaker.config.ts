@@ -26,6 +26,9 @@ export const sillymakerAppConfigV1 = {
     desktop: {
       name: "SillyOS98",
       identifier: "dev.sillymaker.example.silly-os",
+      // Optional darwin app icon (app-root-relative `.png`/`.icns`; see
+      // docs/engine/build-and-release.md).
+      // icon: "icon.png",
     },
   },
   releaseArtifact: false,
