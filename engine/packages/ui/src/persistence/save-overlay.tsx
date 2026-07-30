@@ -39,6 +39,8 @@ export interface SaveOverlayPortV1 {
   save(slotId: SaveUiWritableSlotIdV1): Promise<PersistenceOperationResultV1>;
   load(slotId: SaveUiReadableSlotIdV1): Promise<PersistenceOperationResultV1>;
   clear(slotId: SaveUiReadableSlotIdV1): Promise<PersistenceOperationResultV1>;
+  /** Rewrites the stored record's player note (empty string clears it). */
+  annotateSave(slotId: SaveUiWritableSlotIdV1, note: string): Promise<PersistenceOperationResultV1>;
   importSave(): Promise<SaveUiImportResultV1>;
   exportSave(slotId: SaveUiReadableSlotIdV1): Promise<SaveExportOperationResultV1>;
   exportCurrentSave(): Promise<ExportedSaveV1>;
@@ -257,6 +259,8 @@ function persistenceRejectedTextV1(
       return labels.operation.rejected.conflict;
     case "invalid_record":
       return labels.operation.rejected.invalid_record;
+    case "invalid_note":
+      return labels.operation.rejected.invalid_note;
     case "lineage_limit":
       return labels.operation.rejected.lineage_limit;
     case "incompatible":

@@ -410,6 +410,7 @@ interface FixtureOptionsV1 {
   readonly adoptionDeclaration?: PatchSetAdoptionDeclarationV1 | null;
   readonly initialLineage?: readonly SimulationAdoptionV1[];
   readonly failReplacementCommit?: boolean;
+  summarizeSave?(state: DeepReadonly<SyntheticStateV1>): readonly string[] | null;
   decorateRepository?(
     repository: SaveRepositoryV1<SyntheticSaveRecordV1>,
     lease: SessionLeaseV1,
@@ -474,6 +475,7 @@ async function fixtureV1(options: FixtureOptionsV1 = {}) {
     ...(options.leaseAcquisition === undefined
       ? {}
       : { leaseAcquisition: options.leaseAcquisition }),
+    ...(options.summarizeSave === undefined ? {} : { summarizeSave: options.summarizeSave }),
   });
   return Object.freeze({
     ...created,
@@ -2085,6 +2087,105 @@ describe("PersistenceService standard composition", () => {
       code: "invalid_record",
     });
     expect(fixture.session.getCurrentSnapshot().commandSequence).toBe(1);
+    await fixture.service.autoSaveIdle();
+  });
+
+  it("captures the application summary into saves and lists it as annotation", async () => {
+    const fixture = await fixtureV1({
+      summarizeSave: (state) => Object.freeze([`count ${String(state.count)}`, "line 2"]),
+    });
+    await fixture.session.dispatch({ kind: "increment" });
+    await expect(fixture.service.port.save("quick")).resolves.toEqual({
+      kind: "saved",
+      slotId: "quick",
+    });
+
+    const slots = await fixture.service.port.listSlots();
+    const quick = slots.find((slot) => slot.slotId === "quick");
+    expect(quick?.annotation).toEqual({ summary: ["count 1", "line 2"], note: null });
+
+    // Saves without a projector keep records annotation-free.
+    const bare = await fixtureV1();
+    await expect(bare.service.port.save("quick")).resolves.toMatchObject({ kind: "saved" });
+    const bareSlots = await bare.service.port.listSlots();
+    expect(bareSlots.find((slot) => slot.slotId === "quick")?.annotation).toBeNull();
+    await fixture.service.autoSaveIdle();
+    await bare.service.autoSaveIdle();
+  });
+
+  it("annotateSave edits only the note and the record stays loadable", async () => {
+    const fixture = await fixtureV1({
+      summarizeSave: (state) => Object.freeze([`count ${String(state.count)}`]),
+    });
+    await fixture.session.dispatch({ kind: "increment" });
+    await expect(fixture.service.port.save("manual.1")).resolves.toEqual({
+      kind: "saved",
+      slotId: "manual.1",
+    });
+    const before = await fixture.repository.read("manual.1");
+    expect(before.health).toBe("valid");
+
+    await expect(fixture.service.port.annotateSave("manual.1", " 存主线前 ")).resolves.toEqual({
+      kind: "saved",
+      slotId: "manual.1",
+    });
+    const slots = await fixture.service.port.listSlots();
+    const manual = slots.find((slot) => slot.slotId === "manual.1");
+    expect(manual?.annotation).toEqual({ summary: ["count 1"], note: "存主线前" });
+    if (before.health === "valid") {
+      // Snapshot and capture time are untouched by the note edit.
+      const after = await fixture.repository.read("manual.1");
+      expect(after.health).toBe("valid");
+      if (after.health === "valid") {
+        expect(after.record.savedAt).toBe(before.record.savedAt);
+        expect(after.record.stateDigest).toBe(before.record.stateDigest);
+      }
+    }
+    await expect(fixture.service.port.load("manual.1")).resolves.toMatchObject({ kind: "loaded" });
+
+    // Empty string clears the note but keeps the summary.
+    await expect(fixture.service.port.annotateSave("manual.1", "")).resolves.toEqual({
+      kind: "saved",
+      slotId: "manual.1",
+    });
+    const cleared = await fixture.service.port.listSlots();
+    expect(cleared.find((slot) => slot.slotId === "manual.1")?.annotation).toEqual({
+      summary: ["count 1"],
+      note: null,
+    });
+    await fixture.service.autoSaveIdle();
+  });
+
+  it("annotateSave rejects invalid notes and empty slots", async () => {
+    const fixture = await fixtureV1();
+    await expect(fixture.service.port.annotateSave("manual.1", "x".repeat(65))).resolves.toEqual({
+      kind: "rejected",
+      code: "invalid_note",
+    });
+    await expect(fixture.service.port.annotateSave("manual.1", "note")).resolves.toEqual({
+      kind: "rejected",
+      code: "empty_slot",
+    });
+
+    // A note on a summary-less record round-trips, and clearing it removes
+    // the annotation field entirely (byte shape matches a fresh save).
+    await fixture.session.dispatch({ kind: "increment" });
+    await expect(fixture.service.port.save("quick")).resolves.toMatchObject({ kind: "saved" });
+    await expect(fixture.service.port.annotateSave("quick", "note")).resolves.toEqual({
+      kind: "saved",
+      slotId: "quick",
+    });
+    const slots = await fixture.service.port.listSlots();
+    expect(slots.find((slot) => slot.slotId === "quick")?.annotation).toEqual({
+      summary: null,
+      note: "note",
+    });
+    await expect(fixture.service.port.annotateSave("quick", " ")).resolves.toEqual({
+      kind: "saved",
+      slotId: "quick",
+    });
+    const cleared = await fixture.service.port.listSlots();
+    expect(cleared.find((slot) => slot.slotId === "quick")?.annotation).toBeNull();
     await fixture.service.autoSaveIdle();
   });
 });
