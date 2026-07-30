@@ -6,10 +6,16 @@ import { setTimeout as sleep } from "node:timers/promises";
 
 import { AuthoringDiagnosticErrorV1, diffPlainDataV1 } from "@sillymaker/base";
 
-import type { ProjectCommandRunnerV1, ProjectModuleLoaderV1 } from "./commands.ts";
+import type {
+  DesktopCompressionV1,
+  DesktopTargetTripleV1,
+  ProjectCommandRunnerV1,
+  ProjectModuleLoaderV1,
+} from "./commands.ts";
 import {
   buildStoryApplicationV1,
   checkStoryApplicationV1,
+  DESKTOP_TARGET_TRIPLES_V1,
   desktopStoryApplicationV1,
   devSmokeStoryApplicationV1,
   inspectStoryApplicationV1,
@@ -34,7 +40,8 @@ export interface ProjectCliInputV1 {
 const usageV1 =
   "usage: story <inspect|check|simulate|dev|build|prebuilt-smoke|desktop> <application-id> " +
   "[--scenario <name>] [--seed <uint>] [--trace <dot.paths,comma-separated>] [--smoke] " +
-  "[--sourcemap] [--no-minify] " +
+  "[--profile <release|debug>] [--sourcemap] [--no-minify] " +
+  "[--target <os-arch-triple>]... [--compress[=xz|lzma|zstd]] " +
   "| story check --all | story diff <before.json> <after.json>";
 
 function printableV1(value: unknown): string {
@@ -49,10 +56,20 @@ interface ParsedArgsV1 {
   readonly trace?: readonly string[];
   readonly diffAfterPath?: string;
   readonly smoke: boolean;
+  /** build/desktop: named preset — `debug` = sourcemap + no minify. */
+  readonly profile?: "release" | "debug";
   /** build/desktop: emit sourcemaps (for debugging). */
   readonly sourcemap: boolean;
   /** build/desktop: disable minify/mangle (for debugging; on by default). */
   readonly noMinify: boolean;
+  /** desktop: explicit cross-compile triples (repeatable; empty = host). */
+  readonly targets: readonly DesktopTargetTripleV1[];
+  /** desktop: self-extracting payload compression. */
+  readonly compress?: DesktopCompressionV1 | true;
+}
+
+function isDesktopTargetTripleV1(value: string): value is DesktopTargetTripleV1 {
+  return (DESKTOP_TARGET_TRIPLES_V1 as readonly string[]).includes(value);
 }
 
 function parseArgsV1(argv: readonly string[]): ParsedArgsV1 | null {
@@ -68,14 +85,18 @@ function parseArgsV1(argv: readonly string[]): ParsedArgsV1 | null {
       smoke: false,
       sourcemap: false,
       noMinify: false,
+      targets: Object.freeze([]),
     };
   }
   let scenario: string | undefined;
   let seed: number | undefined;
   let trace: readonly string[] | undefined;
   let smoke = false;
+  let profile: "release" | "debug" | undefined;
   let sourcemap = false;
   let noMinify = false;
+  const targets: DesktopTargetTripleV1[] = [];
+  let compress: DesktopCompressionV1 | true | undefined;
   for (let index = 0; index < rest.length; index += 1) {
     const flag = rest[index];
     if (flag === "--smoke") {
@@ -90,7 +111,23 @@ function parseArgsV1(argv: readonly string[]): ParsedArgsV1 | null {
       noMinify = true;
       continue;
     }
-    if (flag === "--scenario" || flag === "--seed" || flag === "--trace") {
+    if (flag === "--compress") {
+      compress = true;
+      continue;
+    }
+    if (flag !== undefined && flag.startsWith("--compress=")) {
+      const algo = flag.slice("--compress=".length);
+      if (algo !== "xz" && algo !== "lzma" && algo !== "zstd") return null;
+      compress = algo;
+      continue;
+    }
+    if (
+      flag === "--scenario" ||
+      flag === "--seed" ||
+      flag === "--trace" ||
+      flag === "--profile" ||
+      flag === "--target"
+    ) {
       const value = rest[index + 1];
       if (value === undefined) return null;
       index += 1;
@@ -102,6 +139,12 @@ function parseArgsV1(argv: readonly string[]): ParsedArgsV1 | null {
           .filter((path) => path.length > 0);
         if (paths.length === 0) return null;
         trace = Object.freeze(paths);
+      } else if (flag === "--profile") {
+        if (value !== "release" && value !== "debug") return null;
+        profile = value;
+      } else if (flag === "--target") {
+        if (!isDesktopTargetTripleV1(value)) return null;
+        targets.push(value);
       } else {
         const parsed = Number(value);
         if (!Number.isSafeInteger(parsed) || parsed < 0) return null;
@@ -118,8 +161,11 @@ function parseArgsV1(argv: readonly string[]): ParsedArgsV1 | null {
     ...(seed === undefined ? {} : { seed }),
     ...(trace === undefined ? {} : { trace }),
     smoke,
+    ...(profile === undefined ? {} : { profile }),
     sourcemap,
     noMinify,
+    targets: Object.freeze(targets),
+    ...(compress === undefined ? {} : { compress }),
   };
 }
 
@@ -265,9 +311,10 @@ export async function runProjectCliV1(input: ProjectCliInputV1): Promise<number>
       case "build": {
         const deps = processDeps();
         if (deps === null) return 2;
+        const debug = parsed.profile === "debug";
         const report = await buildStoryApplicationV1(input.project, selector, deps, {
-          sourcemap: parsed.sourcemap,
-          minify: !parsed.noMinify,
+          sourcemap: parsed.sourcemap || debug,
+          minify: !(parsed.noMinify || debug),
         });
         input.writeOut(printableV1(report));
         return report.ok ? 0 : 1;
@@ -282,7 +329,13 @@ export async function runProjectCliV1(input: ProjectCliInputV1): Promise<number>
       case "desktop": {
         const deps = processDeps();
         if (deps === null) return 2;
-        const report = await desktopStoryApplicationV1(input.project, selector, deps);
+        const debug = parsed.profile === "debug";
+        const report = await desktopStoryApplicationV1(input.project, selector, deps, {
+          sourcemap: parsed.sourcemap || debug,
+          minify: !(parsed.noMinify || debug),
+          targets: parsed.targets,
+          ...(parsed.compress === undefined ? {} : { compress: parsed.compress }),
+        });
         input.writeOut(printableV1(report));
         return report.ok ? 0 : 1;
       }

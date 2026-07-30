@@ -139,11 +139,15 @@ const loaderV1: ProjectModuleLoaderV1 = Object.freeze({
   },
 });
 
-async function runV1(argv: readonly string[], runner?: ProjectCommandRunnerV1) {
+async function runV1(
+  argv: readonly string[],
+  runner?: ProjectCommandRunnerV1,
+  project = projectV1,
+) {
   const out: string[] = [];
   const err: string[] = [];
   const code = await runProjectCliV1({
-    project: projectV1,
+    project,
     argv,
     loader: loaderV1,
     repositoryRoot: "/repo",
@@ -152,6 +156,22 @@ async function runV1(argv: readonly string[], runner?: ProjectCommandRunnerV1) {
     writeErr: (line) => err.push(line),
   });
   return { code, out, err };
+}
+
+/** Shell templates the desktop verb stages from @sillymaker/tooling itself. */
+function desktopShellFilesV1(): Record<string, string> {
+  return {
+    [fileURLToPath(new URL("../desktop/shell-main.ts", import.meta.url))]:
+      'const appIdentifierV1 = "__SILLYMAKER_APP_IDENTIFIER__";\nconst distDirNameV1 = "__SILLYMAKER_DIST_DIR__";\n',
+    [fileURLToPath(new URL("../desktop/desktop-html.mts", import.meta.url))]:
+      "export const desktopHtmlV1 = 1;\n",
+    [fileURLToPath(new URL("../desktop/record-file-store.mts", import.meta.url))]:
+      "export const storeV1 = 1;\n",
+    [fileURLToPath(new URL("../desktop/record-http-handler.mts", import.meta.url))]:
+      "export const recordHttpHandlerV1 = 1;\n",
+    [fileURLToPath(new URL("../desktop/static-file-path.mts", import.meta.url))]:
+      "export const staticFilePathV1 = 1;\n",
+  };
 }
 
 describe("runProjectCliV1", () => {
@@ -247,6 +267,24 @@ describe("runProjectCliV1", () => {
     ]);
   });
 
+  it("build --profile debug expands to sourcemap + no minify", async () => {
+    const fake = createFakeRunnerV1({ exitCode: 0 });
+    const result = await runV1(["build", "synthetic", "--profile", "debug"], fake.runner);
+    expect(result.code).toBe(0);
+    expect(fake.log.runs[0]?.args).toEqual([
+      "run",
+      "-A",
+      "npm:vite",
+      "build",
+      "--sourcemap",
+      "--minify",
+      "false",
+    ]);
+
+    const invalid = await runV1(["build", "synthetic", "--profile", "fast"], fake.runner);
+    expect(invalid.code).toBe(2);
+  });
+
   it("dev --smoke boots the dev server, proves the page, and kills it", async () => {
     const fake = createFakeRunnerV1({
       pages: Object.freeze({
@@ -297,28 +335,10 @@ describe("runProjectCliV1", () => {
   it("desktop stages the webview shell and invokes deno desktop", async () => {
     // The shell sources ship inside @sillymaker/tooling and are read from
     // the package itself, so packaging works from any application root.
-    const shellMainPathV1 = fileURLToPath(new URL("../desktop/shell-main.ts", import.meta.url));
-    const desktopHtmlPathV1 = fileURLToPath(
-      new URL("../desktop/desktop-html.mts", import.meta.url),
-    );
-    const recordStorePathV1 = fileURLToPath(
-      new URL("../desktop/record-file-store.mts", import.meta.url),
-    );
-    const recordHttpHandlerPathV1 = fileURLToPath(
-      new URL("../desktop/record-http-handler.mts", import.meta.url),
-    );
-    const staticFilePathV1 = fileURLToPath(
-      new URL("../desktop/static-file-path.mts", import.meta.url),
-    );
     const fake = createFakeRunnerV1({
       files: Object.freeze({
         "/repo/test/dist-desktop/SyntheticApp.app/Contents/Info.plist": "<plist/>",
-        [shellMainPathV1]:
-          'const appIdentifierV1 = "__SILLYMAKER_APP_IDENTIFIER__";\nconst distDirNameV1 = "__SILLYMAKER_DIST_DIR__";\n',
-        [desktopHtmlPathV1]: "export const desktopHtmlV1 = 1;\n",
-        [recordStorePathV1]: "export const storeV1 = 1;\n",
-        [recordHttpHandlerPathV1]: "export const recordHttpHandlerV1 = 1;\n",
-        [staticFilePathV1]: "export const staticFilePathV1 = 1;\n",
+        ...desktopShellFilesV1(),
       }),
     });
     const result = await runV1(["desktop", "synthetic"], fake.runner);
@@ -367,6 +387,138 @@ describe("runProjectCliV1", () => {
         backend: "webview",
       },
     });
+  });
+
+  it("desktop --target packages one output per triple with per-OS formats", async () => {
+    const fake = createFakeRunnerV1({
+      files: Object.freeze({
+        "/repo/test/dist-desktop/SyntheticApp-x86_64-pc-windows-msvc.msi": "msi",
+        "/repo/test/dist-desktop/SyntheticApp-aarch64-unknown-linux-gnu.AppImage": "appimage",
+        ...desktopShellFilesV1(),
+      }),
+    });
+    const result = await runV1(
+      [
+        "desktop",
+        "synthetic",
+        "--target",
+        "x86_64-pc-windows-msvc",
+        "--target",
+        "aarch64-unknown-linux-gnu",
+        "--compress=zstd",
+        "--profile",
+        "debug",
+      ],
+      fake.runner,
+    );
+    expect(result.code).toBe(0);
+    expect(JSON.parse(result.out.join("\n"))).toMatchObject({
+      ok: true,
+      outputPath: "/repo/test/dist-desktop/SyntheticApp-x86_64-pc-windows-msvc.msi",
+      outputs: [
+        {
+          target: "x86_64-pc-windows-msvc",
+          outputPath: "/repo/test/dist-desktop/SyntheticApp-x86_64-pc-windows-msvc.msi",
+          ok: true,
+        },
+        {
+          target: "aarch64-unknown-linux-gnu",
+          outputPath: "/repo/test/dist-desktop/SyntheticApp-aarch64-unknown-linux-gnu.AppImage",
+          ok: true,
+        },
+      ],
+    });
+    // Profile debug reaches the inner web build; each triple gets its own
+    // deno desktop invocation with the target and compression forwarded.
+    expect(fake.log.runs[0]?.args).toEqual([
+      "run",
+      "-A",
+      "npm:vite",
+      "build",
+      "--sourcemap",
+      "--minify",
+      "false",
+    ]);
+    expect(fake.log.runs[1]?.args).toEqual([
+      "desktop",
+      "--allow-env",
+      "--allow-read",
+      "--allow-write",
+      "--allow-net",
+      "--include",
+      "dist",
+      "--compress=zstd",
+      "--target",
+      "x86_64-pc-windows-msvc",
+      "--output",
+      "../SyntheticApp-x86_64-pc-windows-msvc.msi",
+      "main.ts",
+    ]);
+    expect(fake.log.runs[2]?.args).toEqual([
+      "desktop",
+      "--allow-env",
+      "--allow-read",
+      "--allow-write",
+      "--allow-net",
+      "--include",
+      "dist",
+      "--compress=zstd",
+      "--target",
+      "aarch64-unknown-linux-gnu",
+      "--output",
+      "../SyntheticApp-aarch64-unknown-linux-gnu.AppImage",
+      "main.ts",
+    ]);
+
+    const unknownTriple = await runV1(
+      ["desktop", "synthetic", "--target", "riscv64-unknown-linux-gnu"],
+      fake.runner,
+    );
+    expect(unknownTriple.code).toBe(2);
+  });
+
+  it("desktop forwards the .png/.icns icon only to darwin targets", async () => {
+    const projectWithIconV1 = defineSillymakerProjectV1({
+      projectId: "project-icon-test",
+      applications: [
+        {
+          ...projectV1.applications[0]!,
+          web: {
+            ...projectV1.applications[0]!.web!,
+            desktop: {
+              name: "SyntheticApp",
+              identifier: "dev.sillymaker.synthetic",
+              icon: "test/icon.png",
+            },
+          },
+        },
+      ],
+    });
+    const fake = createFakeRunnerV1({
+      files: Object.freeze({
+        "/repo/test/dist-desktop/SyntheticApp-aarch64-apple-darwin.app/Contents/Info.plist":
+          "<plist/>",
+        "/repo/test/dist-desktop/SyntheticApp-x86_64-pc-windows-msvc.msi": "msi",
+        ...desktopShellFilesV1(),
+      }),
+    });
+    const result = await runV1(
+      [
+        "desktop",
+        "synthetic",
+        "--target",
+        "aarch64-apple-darwin",
+        "--target",
+        "x86_64-pc-windows-msvc",
+      ],
+      fake.runner,
+      projectWithIconV1,
+    );
+    expect(result.code).toBe(0);
+    const darwinRun = fake.log.runs[1];
+    const windowsRun = fake.log.runs[2];
+    expect(darwinRun?.args).toContain("--icon");
+    expect(windowsRun?.args).not.toContain("--icon");
   });
 
   it("answers usage errors on stderr with exit code 2", async () => {
