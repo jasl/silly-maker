@@ -82,6 +82,10 @@ export function installNativeBehaviorResetV1(
   let removeContextMenu: (() => void) | null = null;
   if (suppressContextMenu) {
     const onContextMenu = (event: MouseEvent): void => {
+      // The reset is the floor, not the owner: an earlier claimant (for
+      // example the pointer-button adapter routing right-click to a semantic
+      // action) already handled this event — do not double-handle it.
+      if (event.defaultPrevented) return;
       if (allowsNativeMenuV1(event.target)) return;
       event.preventDefault();
       config.onContextMenu?.(event);

@@ -35,6 +35,20 @@ describe("installNativeBehaviorResetV1", () => {
     handle.dispose();
   });
 
+  it("yields to an earlier context-menu claimant (pointer adapter)", () => {
+    const onContextMenu = vi.fn();
+    const claimant = (event: Event): void => event.preventDefault();
+    document.addEventListener("contextmenu", claimant);
+    const handle = installNativeBehaviorResetV1({ onContextMenu });
+    const plain = document.createElement("div");
+    document.body.append(plain);
+
+    expect(fireContextMenuV1(plain).defaultPrevented).toBe(true);
+    expect(onContextMenu).not.toHaveBeenCalled();
+    document.removeEventListener("contextmenu", claimant);
+    handle.dispose();
+  });
+
   it("keeps native menus on editable controls and opted-out subtrees", () => {
     const onContextMenu = vi.fn();
     const handle = installNativeBehaviorResetV1({ onContextMenu });
