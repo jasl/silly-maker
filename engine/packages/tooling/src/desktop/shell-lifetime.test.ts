@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import { createShellLifetimeWatchdogV1 } from "./shell-lifetime.mts";
+import {
+  adoptShellWindowV1,
+  createShellLifetimeWatchdogV1,
+  type ShellWindowLikeV1,
+} from "./shell-lifetime.mts";
 
 function fixtureV1(options?: { staleMs?: number; goodbyeGraceMs?: number; tickMs?: number }) {
   let at = 0;
@@ -100,5 +104,57 @@ describe("shell lifetime watchdog", () => {
     fixture.watchdog.markRequest();
     fixture.advance(60_000);
     expect(fixture.exits()).toBe(0);
+  });
+});
+
+describe("shell window adoption", () => {
+  it("adopts the startup window and exits on the native close request", () => {
+    let exits = 0;
+    const listeners: Record<string, () => void> = {};
+    let constructed = 0;
+    class FakeWindow implements ShellWindowLikeV1 {
+      constructor() {
+        constructed += 1;
+      }
+      addEventListener(type: "close", listener: () => void): void {
+        listeners[type] = listener;
+      }
+    }
+    const adopted = adoptShellWindowV1({
+      browserWindow: FakeWindow,
+      exit: () => {
+        exits += 1;
+      },
+    });
+    expect(adopted).toBe(true);
+    expect(constructed).toBe(1);
+    expect(exits).toBe(0);
+    listeners["close"]?.();
+    expect(exits).toBe(1);
+  });
+
+  it("returns false outside the desktop runtime (no BrowserWindow global)", () => {
+    expect(adoptShellWindowV1({ browserWindow: undefined, exit: () => {} })).toBe(false);
+  });
+
+  it("falls back to an options-object construction before giving up", () => {
+    let optionCalls = 0;
+    class NeedsOptions implements ShellWindowLikeV1 {
+      constructor(options?: Record<never, never>) {
+        if (options === undefined) throw new Error("options required");
+        optionCalls += 1;
+      }
+      addEventListener(): void {}
+    }
+    expect(adoptShellWindowV1({ browserWindow: NeedsOptions, exit: () => {} })).toBe(true);
+    expect(optionCalls).toBe(1);
+
+    class AlwaysThrows implements ShellWindowLikeV1 {
+      constructor() {
+        throw new Error("no window backend");
+      }
+      addEventListener(): void {}
+    }
+    expect(adoptShellWindowV1({ browserWindow: AlwaysThrows, exit: () => {} })).toBe(false);
   });
 });
