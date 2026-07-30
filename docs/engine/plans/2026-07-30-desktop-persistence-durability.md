@@ -539,6 +539,52 @@ preview 失败不进入共享成功 expected。
 backend deterministic ordering、公开长度/字节上限与真实 Windows/Linux
 evidence；这些必须先由设计/平台 evidence 决定，不能由本机文件系统偶然定义。
 
+### D0j delivery record（2026-07-31）
+
+本切片只把既有 backend-independent malformed 与 matched-MAX workload 接到
+test-only SQLite candidate；D0/D1 仍未完成，candidate 身份与 production 默认均
+未改变。
+
+**目标：**
+
+- 在 fresh SQLite candidate 上运行既有 29-case malformed mutation corpus，
+  每个 case 都必须以 `TypeError` 拒绝且三个 namespace 的逻辑 state 不变；
+- 关闭 handle 后 fresh reopen，证明 malformed workload 唯一的合法 seed 仍以
+  exact identity/revision/bytes 存在，没有晚发现的写入；
+- 用 schema-1 fixture 预置 revision `Number.MAX_SAFE_INTEGER`，升级到 schema 2
+  后运行两项 matched-MAX batch；overflow 必须在任何 mutation 可见前拒绝；
+- 再次 fresh reopen，证明 earlier key 仍 missing，maximum record 完全不变。
+
+**非目标：**
+
+- 不改 SQLite adapter 实现、schema、PRAGMA 或 public Host validation/error
+  contract，不把 candidate 接到 shell/staging；
+- 不选择 backend，不定义 stale-MAX conflict/overflow precedence、revision
+  扩展、key grammar、record/batch 上限或 production threshold；
+- 不在本切片定义 SQLite corrupt-row/database model，也不加入 transaction fault
+  hook、crash/recovery、backup/restore 或旧 JSON migration。
+
+**验收规格与证据：**
+
+- 这是现状通过的 test-first baseline，没有诚实的 production behavior red；
+  不为满足形式流程制造实现改动；
+- malformed report 的 29 个 case 全部逐字段等于 frozen expected；fresh reopen
+  后 `settings/conformance.malformed.victim` 仍为 revision `1`、bytes
+  `[7, 8, 9, 255]`；
+- overflow report 的 `seedMatched`、`overflowRejectedWithTypeError`、
+  `earlierMutationPreserved` 与 `maximumRecordPreserved` 全为 `true`；fresh
+  reopen 后 earlier key 仍 missing，MAX record exact；
+- focused combined SQLite spike 为 `1 file / 6 tests`，受影响 Tooling Desktop
+  为 `8 files / 51 tests`，全仓 `deno task test` 为
+  `186 files / 1630 tests`；`deno task check` 全部通过（format、lint、styles、
+  typecheck、unit、assets、Story checks 与 Engine Lab production build）。
+
+剩余 D0 candidate 工作包括 deterministic transaction phases、真实
+SIGKILL/reopen、post-commit response-loss、corrupt schema/database recovery 与
+完整 D1/D2 candidate fault matrix。SQLite `STRICT`/`NOT NULL`/`CHECK` 会在正常
+SQL 写入时阻止现有 per-record corrupt-value fixture；不得用偶然
+`writable_schema` 或二进制破坏手法替未来 corruption/recovery 合同做决定。
+
 ## 3. D1 — Backend decision record
 
 在不改变上层合同的前提下做一个短期 spike，并留下 decision record。至少比较：

@@ -9,12 +9,18 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import type { HostStoredRecordV1 } from "@sillymaker/base";
 import {
+  createHostRecordStoreRevisionOverflowSeedV1,
   hostRecordStoreConformanceExpectedV1,
   hostRecordStoreKeyCorpusExpectedV1,
+  hostRecordStoreMalformedConformanceExpectedV1,
   hostRecordStoreReopenExpectedV1,
+  hostRecordStoreRevisionOverflowConformanceExpectedV1,
+  hostRecordStoreRevisionOverflowEarlierKeyV1,
   runHostRecordStoreConformanceV1,
   runHostRecordStoreKeyCorpusV1,
+  runHostRecordStoreMalformedConformanceV1,
   runHostRecordStoreReopenConformanceV1,
+  runHostRecordStoreRevisionOverflowConformanceV1,
 } from "../../../../test-support/host-atomic-record-store-conformance.ts";
 import {
   createSqliteHostRecordStoreSpikeV1,
@@ -239,6 +245,43 @@ describe("node:sqlite Host record store feasibility spike", () => {
         return current.store;
       }),
     ).toEqual(hostRecordStoreReopenExpectedV1);
+  });
+
+  it("matches the shared malformed mutation baseline across a fresh reopen", async () => {
+    const databasePath = await databasePathV1();
+    const current = openV1(databasePath);
+
+    expect(await runHostRecordStoreMalformedConformanceV1(current.store)).toEqual(
+      hostRecordStoreMalformedConformanceExpectedV1,
+    );
+    current.close();
+
+    expect(await openV1(databasePath).store.list("settings")).toEqual([
+      {
+        namespace: "settings",
+        key: "conformance.malformed.victim",
+        revision: 1,
+        bytes: Uint8Array.of(7, 8, 9, 255),
+      },
+    ]);
+  });
+
+  it("rejects a matched maximum-revision batch without changing either key", async () => {
+    const databasePath = await databasePathV1();
+    const seed = createHostRecordStoreRevisionOverflowSeedV1();
+    seedSqliteHostRecordStoreSchema1SpikeV1(databasePath, [seed]);
+    const current = openV1(databasePath);
+
+    expect(await runHostRecordStoreRevisionOverflowConformanceV1(current.store)).toEqual(
+      hostRecordStoreRevisionOverflowConformanceExpectedV1,
+    );
+    current.close();
+
+    const reopened = openV1(databasePath);
+    expect(
+      await reopened.store.read("settings", hostRecordStoreRevisionOverflowEarlierKeyV1),
+    ).toBeNull();
+    expect(await reopened.store.read(seed.namespace, seed.key)).toEqual(seed);
   });
 
   it("upgrades a schema-1 database to schema 2 without changing record identity or bytes", async () => {
