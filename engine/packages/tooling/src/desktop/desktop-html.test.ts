@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import { injectDesktopRecordsMarkerV1 } from "./desktop-html.mts";
+import { injectDesktopLifetimeScriptV1, injectDesktopRecordsMarkerV1 } from "./desktop-html.mts";
 
 const markerNeedleV1 = "__SILLYMAKER_RECORDS__";
 const markerSourceV1 = '<script>globalThis.__SILLYMAKER_RECORDS__ = "local";</script>';
@@ -72,5 +72,35 @@ describe("desktop HTML marker injection", () => {
     expect(injectDesktopRecordsMarkerV1(html)).toBe(
       `<html><head>${markerSourceV1}${script}</head></html>`,
     );
+  });
+});
+
+describe("desktop lifetime client injection", () => {
+  const lifetimeNeedleV1 = "__SILLYMAKER_LIFETIME__";
+
+  it("injects the heartbeat client right after head", () => {
+    const html = "<!doctype html><html><head><title>Game</title></head><body></body></html>";
+    const marked = injectDesktopLifetimeScriptV1(html);
+
+    expect(marked.indexOf(lifetimeNeedleV1)).toBeGreaterThan(marked.indexOf("<head>"));
+    expect(marked.indexOf(lifetimeNeedleV1)).toBeLessThan(marked.indexOf("<title>"));
+    expect(marked).toContain("/sillymaker/lifetime");
+    expect(marked).toContain("pagehide");
+  });
+
+  it("is idempotent once the lifetime client is present", () => {
+    const marked = injectDesktopLifetimeScriptV1("<html><head></head></html>");
+
+    expect(injectDesktopLifetimeScriptV1(marked)).toBe(marked);
+  });
+
+  it("stacks with the records marker without disturbing it", () => {
+    const html = "<html><head><title>Game</title></head></html>";
+    const both = injectDesktopLifetimeScriptV1(injectDesktopRecordsMarkerV1(html));
+
+    expect(both).toContain(markerNeedleV1);
+    expect(both).toContain(lifetimeNeedleV1);
+    expect(injectDesktopRecordsMarkerV1(both)).toBe(both);
+    expect(injectDesktopLifetimeScriptV1(both)).toBe(both);
   });
 });
