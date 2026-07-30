@@ -1,9 +1,10 @@
 # Managed Surface lifecycle and contract harness
 
-状态：2026-07-30 接受的目标设计；尚未实现。本文固定影响输入与焦点的 UI Surface
-的权威边界、生命周期、输入代际与验证分层，并把“弱模型能够写出正确代码”提升为作者
-API 的验收条件。当前实现仍以 [architecture](../architecture.md) 与
-[features](../features.md) 为准；执行顺序见
+状态：2026-07-30 接受的目标设计，2026-07-31 根据 PF2 pilot 决策修订
+readiness、application epoch、stable-target reconcile 与 admission 合同。本文固定
+影响输入与焦点的 UI Surface 的权威边界、生命周期、输入代际与验证分层，并把“弱模型
+能够写出正确代码”提升为作者 API 的验收条件。上述新增合同尚未实现；当前实现仍以
+[architecture](../architecture.md) 与 [features](../features.md) 为准；执行顺序见
 [Surface Contract Harness plan](../plans/2026-07-30-surface-contract-harness.md)。
 
 本文的 **Managed Surface** 专指会改变导航、输入所有权、焦点、模态或 Back
@@ -76,18 +77,20 @@ active、谁拥有输入和焦点、谁阻塞谁、Back 作用于谁”。游戏
 
 `ManagedSurfaceDefinition` 是构建期、可验证的静态声明，至少表达：
 
-- stable definition ID、owner 与 source location；
+- stable definition ID、definition contract revision、owner 与 source location；
 - layer/slot、cardinality 和 activation policy；
 - modality、遮挡和 input context；
 - dismiss policy：Back、Escape、backdrop、routed cancel 分别是否合法；
 - initial focus、focus trap/restore policy；
-- readiness policy 与 code-native fallback；
+- 按 transition kind 声明的 readiness policy 与 code-native fallback；
 - 可执行 semantic action IDs；
-- stable target 参数 schema；
+- target/request 参数 schema（validation、defaulting 与 normalization）；
+- renderer resolver identity 与 required ports；
 - 可选的 parent/child 约束。
 
 定义不包含 React element、DOM node、Pixi object、listener、Promise、clock handle
-或可变 store。
+或可变 store。Readiness 不是整个 definition 上的单一枚举；initial open、primary
+replacement 与 child/detail open 可以选择不同 preparation policy。
 
 ### 3.2 Stable target
 
@@ -119,7 +122,49 @@ target 只有一种写入权威：
 publication；对于纯 UI 流程，Application 的 workspace store 可以是 stable target
 owner。Coordinator 不从 DOM、图片槽或 handler registration 反推任何 target。
 
-Reconcile 不以“任意 source revision 变化”或“参数深相等”猜 occurrence：
+Stable-target 参数等价性固定使用以下 pipeline，而不是 renderer callback 或任意
+对象深比较：
+
+```text
+definition schema validation/normalization
+  -> Strict Canonical Data
+  -> canonical bytes comparison
+```
+
+一个 target 的 identity comparison 同时包含 owner、target occurrence、
+definition ID、definition contract revision 与 normalized parameter bytes。
+`undefined`、missing、default 与 `null` 是否等价，只由 definition schema
+normalization 决定。Canonical hash 可以进入 diagnostics 或作为比较优化，但不能
+成为唯一等价依据；最终判断必须能回到 canonical bytes。
+
+Externally published stable target 以 owner/publisher lease 为 revision
+authority。每个 owner 的 `sourcePublicationRevision` 是可跳号的 monotonic safe
+integer；lease 由 stable owner/application publisher 持有，不能由 React component
+local state 管理。Revision 按整个 publication vector 原子验证和应用：
+
+- lower revision：stale；
+- equal revision + same canonical vector：idempotent unchanged；
+- equal revision + different vector：invalid；
+- greater revision：接受 reconcile；
+- greater revision + same canonical vector：推进已接受的 source revision，但不
+  重建 runtime instance；
+- invalid publication：不推进已接受 revision，也不部分应用 vector。
+
+一个更新且有效的 source revision 到达时，取消该 owner 较旧 revision 的 pending
+preparation；stable-target readiness receipt 还必须绑定对应 source revision。
+Coordinator-owned transient target 不携带伪造的 source revision、stable parameter
+vector 或 reconcile 字段。
+
+这里的 same canonical vector 是同一有序 target vector，且每项的
+owner/occurrence/definition ID/definition contract revision/normalized parameter
+bytes 全部相同；fresh occurrence 即使参数相同也不是 same vector。`greater + same
+canonical vector` 对当前 active instance 只推进 accepted source revision，不重建
+instance；若该 owner 仍有 older pending preparation，则先取消旧 candidate。目标仍
+需 preparation 时，必须分配 fresh instance，旧 receipt 保持 stale。Greater
+revision 若 vector validation 失败，不推进 cursor、也不取消既有 pending
+preparation；只有 valid/accepted newer revision 触发取消。
+
+Reconcile 不以“任意 source revision 变化”或未规范化参数猜 occurrence：
 
 - 同一 target occurrence ID 且定义/参数未变：保持当前 runtime instance；
 - 同一 occurrence ID 却改变定义或参数：target publication 非法；
@@ -136,7 +181,7 @@ Reconcile 不以“任意 source revision 变化”或“参数深相等”猜 o
   提供，transient target 由 Coordinator 生成；
 - 可选的 semantic occurrence ID：例如 Base
   `PendingInteraction.occurrenceId`，不能被 target 或 UI instance 身份取代；
-- stable `ManagedSurfaceInstanceId`：一次打开 occurrence 的 runtime 身份；
+- stable `ManagedSurfaceInstanceId`：一次具体 preparation/runtime attempt 的身份；
 - monotonically changing `SurfaceTopologyRevision`：当前可交互拓扑版本；
 - `applicationEpoch`：load/import/restart/HMR successor 的 presentation fence；
 - parent、layer、slot 与 stack position；
@@ -149,15 +194,36 @@ Reconcile 不以“任意 source revision 变化”或“参数深相等”猜 o
 DOM key 或同图片槽都不能代替 instance identity。definition ID、target
 occurrence、可选 semantic occurrence、runtime instance、topology revision 与
 application epoch 是六个不同概念，不复用一个含糊的 `generation`
-字段，但它们的暴露面严格分层：occurrence 只出现在 owner↔Coordinator reconcile 与
-publication 中；同一 application epoch 内 occurrence 与 instance 按上节
-reconcile 规则一一对应（Coordinator 从 `(epoch, occurrence)` 确定性派生
-instance），因此 dispatch envelope、transition receipt 与常规诊断以
-`surfaceInstanceId` 为唯一 Surface 实例身份，不要求作者、renderer 或测试同时
-携带 occurrence；semantic occurrence 属于 Base semantic dispatch
-的既有身份，不是 Surface identity 字段。`exiting` Surface
+字段，但它们的暴露面严格分层：occurrence 标识 owner 的 stable/transient target
+occurrence，instance 标识一次 preparation/runtime attempt。同一 occurrence 在没有
+candidate replacement 时可以保留当前 active instance；每次新 preparation 都必须
+分配 fresh instance ID，失败、取消或退出的 instance 永不复用。Publication 记录
+occurrence 到当前 pending/active instance 的映射；dispatch envelope、transition
+receipt 与常规诊断仍以 `surfaceInstanceId` 为唯一 Surface 实例身份，不要求作者、
+renderer 或测试同时携带 occurrence。semantic occurrence 属于 Base semantic
+dispatch 的既有身份，不是 Surface identity 字段。`exiting` Surface
 可为了动画继续绘制，但已失去输入所有权；`suspended` Surface 可保留 mounted
 状态，但不能接收被上层阻塞的 action。
+
+`applicationEpoch` 由 application composition root 的 monotonic allocator
+分配，不由 Story、renderer、React component、Coordinator 或 Game Save
+拥有。它遵守：
+
+- full page reload 可以从新的计数域重新开始；同一 page/realm 内的
+  load/import rebootstrap、HMR successor 与 Coordinator successor 必须领取新
+  epoch；
+- allocator 位于 HMR successor 生命周期之外，或使用 hot-data/realm-stable cell
+  保持单调；测试通过 injection 使用 deterministic allocator；
+- Story 作者不手写 epoch；Surface handle、action router 与 readiness adapter 自动
+  捕获当前值；
+- epoch 作为 package-internal Surface field 进入 runtime publication、
+  action/readiness envelope 与 diagnostics，不扩张到普通非 Surface semantic
+  action，也不进入 Save；
+- successor 开放任何 ingress 前，旧 Coordinator 必须 dispose，并撤销 pending
+  readiness、input/focus ownership 与 gesture lease。
+
+Coordinator 接收一个已经分配的 epoch，并在自身生命周期内保持不变；epoch rotation
+通过 successor replacement 完成，而不是原地改写 live Coordinator。
 
 ### 3.4 Atomic publication
 
@@ -170,7 +236,8 @@ surface topology and lifecycle
   + input and focus owner
   + published action catalog
   + readiness
-  + application epoch / target occurrence / topology revision / source publication revision
+  + application epoch / target occurrence / topology revision
+  + source publication revision (external stable targets only)
 ```
 
 renderer、InputRouter、Presentation Observation、DevTools 和 browser automation
@@ -217,16 +284,57 @@ target owner 原子解析为明确 transition。Back 也不是浏览器 `window.
   同一事务；
 - transition 失败时旧 session state 保持完整权威，不发布半开/半关状态。
 
-异步准备采用显式 readiness，而不是 `setTimeout(50)`：
+### 4.1 Readiness policy and preparation
 
-1. validate request and preconditions；
-2. 生成候选拓扑与 topology revision；
-3. 原子进入 `preparing`，按声明选择“旧 Surface 继续 active”或“阻塞式 loading
-   fallback”；
-4. Host 以绑定 instance/topology revision 的 receipt 报告 ready/failure；
-5. Coordinator 原子 activate，或回退并发布结构化 failure。
+异步准备采用显式 readiness，而不是 `setTimeout(50)`。Definition 按 transition
+kind 分别声明 policy；首个 Workspace Overlay pilot 固定：
 
-过期 receipt 只能返回 stale rejection，不能激活已被替换的 Surface。
+- initial open：code-native blocking fallback；
+- primary replacement：retain current active Surface；
+- child/detail open：code-native blocking fallback。
+
+一次异步 transition 遵循：
+
+1. 完成 4.2 的 request/admission preflight；
+2. 为本次 preparation 分配全新 candidate instance ID，生成候选拓扑与 topology
+   revision；preflight rejection 尚未进入 preparation；
+3. 原子进入 `preparing`；candidate 不拥有普通 input、focus 或 semantic action；
+4. initial/child policy 发布 code-native blocking fallback projection；replacement
+   policy 保留 current instance active；
+5. Host 以绑定 application epoch、candidate instance 与 expected topology
+   revision 的 receipt 报告 ready/failure；stable-target receipt 还绑定 source
+   publication revision；
+6. candidate ready 后，topology/input/focus 在一次 Coordinator commit 中原子
+   activate；replacement 同一 commit 退休旧实例，replacement failure 保留旧实例；
+7. initial failure 撤销 fallback，并恢复 preparation 前的 focus owner；
+   child/detail candidate 从未取得 focus，因此 failure 撤销 fallback 后保持既有
+   parent/focus；replacement failure 保留旧 focus owner。
+
+close、second replace、owner dispose、Coordinator dispose 与 epoch rotation
+都会取消相关 pending candidate。失败或取消的 candidate instance 立即退休，永不
+复用；late ready/failure receipt 只能返回 stale rejection，不能产生任何
+topology/input/focus mutation。
+
+Fallback 是 preparation phase 的 code-native projection，不是另一个普通 Managed
+Surface，也不依赖 Story renderer resolver 或 required port。它不能成为第二个
+lifecycle authority、普通 action owner 或 stable target。
+
+### 4.2 Renderer and port admission
+
+Managed Surface 的 topology mutation 或 preparation 开始前，Coordinator 必须完成
+整组 preflight：
+
+- definition 存在且 schema/contract revision 合法；
+- target parameters 已通过 schema validation/normalization；
+- renderer resolver 可解析；
+- required ports 可用；
+- parent、slot 与 cardinality 合法。
+
+任一条件缺失或非法都直接返回 structured rejection；当前
+state/publication identity、topology、input 与 focus 保持不变，不创建 pending/live
+instance。Overlay pilot 不允许 `active-but-invisible`，也不建设通用 fault
+surface。Code-native preparation fallback 不经过 Story renderer resolver，也不依赖
+candidate required port。
 
 ## 5. Input, gesture and action outcomes
 
@@ -250,15 +358,22 @@ gestureId
 inputPublicationRevision
 ```
 
-target occurrence 不进入 dispatch envelope：epoch 内它与 instance 一一对应（见
-3.3），诊断可从对应 publication 反查。semantic occurrence（如
-`PendingInteraction.occurrenceId`）由 semantic dispatch payload 携带并由 Base
-既有 fence 校验，不作为 Surface envelope 字段重复出现。
+Application composition、Surface handle 与 router binding 自动捕获 epoch 和
+revision；Story 作者不构造这些 envelope。Readiness receipt 同样是
+package-internal evidence，至少绑定 `applicationEpoch`、candidate
+`surfaceInstanceId` 与 expected `surfaceTopologyRevision`；externally published
+stable target 还绑定 `sourcePublicationRevision`。
+
+target occurrence 不进入 dispatch envelope：publication 可从 instance 反查当前
+occurrence，receipt 用 candidate instance fence 对应 preparation attempt。semantic
+occurrence（如 `PendingInteraction.occurrenceId`）由 semantic dispatch payload
+携带并由 Base 既有 fence 校验，不作为 Surface envelope 字段重复出现。
 
 不属于 Managed Surface 的 HUD/Stage envelope 至少携带 `inputOwnerId` 与
 `sourcePublicationRevision`，并在适用时携带 `semanticOccurrenceId`；它不伪造
-surface instance/topology revision。两种 envelope 都保留 application epoch、
-action/gesture identity，并由同一个 InputRouter 完成优先级与消费判定。
+surface instance/topology revision。两种 input envelope 都保留 application
+epoch、action/gesture identity，并由同一个 InputRouter
+完成优先级与消费判定；这不改变普通非 Surface semantic action payload。
 
 pointer down、move、up、click 和 cancel 属于同一个 gesture。若其间 application
 epoch、surface instance、topology revision 或适用的 semantic occurrence 改变，旧
@@ -303,8 +418,9 @@ revision、稳定 reason code 和 postcondition evidence。
 path 要求：
 
 - `RuntimePresentationPublication`、Surface topology、hit/action publication 和
-  input owner 绑定同一 application epoch、target occurrence、topology revision
-  与 source publication revision；
+  input owner 绑定同一 application epoch、target occurrence 与 topology
+  revision；externally published stable-target frame 还绑定 source publication
+  revision，transient frame 不伪造该字段；
 - Stage/Surface renderer 只消费传入的不可变 frame，不旁读 live Session
   或另外一个 store；
 - hit callback 在创建时捕获 instance/topology revision，不能只携带 picture
@@ -353,11 +469,16 @@ AI-friendly 是作者 API 的设计约束，不只是“多写文档”。标准
 ```ts
 defineManagedSurfaceV1({
   id: "surface.inventory",
+  contractRevision: 1,
   owner: "surface-owner.inventory",
   archetype: "workspace_primary",
   input: { context: "inventory", actions: inventoryActionIds },
   focus: { initial: "inventory.first_item", restore: "opener" },
-  readiness: "synchronous",
+  readiness: {
+    initialOpen: "blocking_fallback",
+    primaryReplacement: "retain_current",
+    childOpen: "blocking_fallback",
+  },
 });
 ```
 
@@ -408,13 +529,17 @@ seed, shrink path and replay command when generated
 
 - duplicate definition/slot owner/action ID；
 - 同一 slot 出现非法 cardinality；
+- definition/schema/renderer resolver/required port/parent/slot preflight 缺失；
+- equal source revision 携带不同 canonical vector，或 invalid vector 推进了 accepted
+  revision/取消了 pending preparation；
 - action 指向不存在或非 active owner；
 - modal 无合法业务出口；
 - Back 可能穿透不可 dismiss Surface；
 - focus target 不存在或 restore owner 已失效；
 - managed code 直接注册第二 input owner；
 - render publication 与 action publication topology/source revision 不一致；
-- stale gesture/ready receipt 被应用；
+- epoch/candidate instance/topology revision/source revision 任一不匹配的 stale
+  gesture/ready/failure receipt 被应用；
 - action 声明 postcondition 却返回假成功；
 - modal 下仍武装底层 chrome / 不可见图 hit（dense picture SLG 的典型“偷点击”
   类；验收分类见执行计划 P0.3）。
@@ -441,6 +566,7 @@ lifecycle/readiness
 application epoch and topology revision
 input/focus owner
 active gesture
+accepted source revision (stable-target model only)
 ```
 
 它不得复制生产实现后“自己测试自己”。生成命令至少覆盖：
@@ -450,8 +576,16 @@ OpenPrimary / ReplacePrimary / PushDetail / OpenModal
 Back / Close / Dismiss
 PointerDown / PointerMove / PointerUp / PointerCancel
 LoseFocus / ChangeVisibility / AdvanceFrame
-Ready / FailReady / Restart / SaveReloadTarget
+Ready / FailReady / CancelPreparation / SecondReplace
+DisposeOwner / DisposeCoordinator / RotateApplicationEpoch
+PublishStableTargets / Restart / SaveReloadTarget
 ```
+
+Readiness transition table 必须分别覆盖 initial open、primary replacement 与
+child/detail open；stable-target model 还覆盖 lower/equal/greater revision、
+invalid vector 不推进 cursor/不取消 pending、greater accepted revision 取消 older
+preparation，以及 source-bound receipt。Transient model 不为复用同一 command
+shape 伪造 source revision。
 
 随机执行必须固定 seed、可
 shrink、可直接重放；报告第一处分歧和最短命令序列，不向模型倾倒数百步 chaos
@@ -499,15 +633,17 @@ API、增强默认值或生成更好的 diagnostic，而不是继续给 prompt �
 
 ## 12. Package ownership
 
-| Package                                                     | Target responsibility                                                                                                                                                                                                                                              |
-| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `@sillymaker/base`                                          | 继续拥有 gameplay State、PendingInteraction/occurrence、Session semantic outcome、application presentation epoch 与共享 `DiagnosticEnvelope`；不拥有 managed topology、focus、modal stack 或 workspace layout                                                      |
-| DOM-free `@sillymaker/ui` contracts/authoring/testkit entry | Managed Surface definitions/archetypes、resolved registry、纯 Coordinator/reducer、instance identity、topology publication、transition receipt、invariants 与 model helpers；不得经 UI root barrel 意外加载 CSS/React Host                                         |
-| `@sillymaker/ui` React/runtime entry                        | application-instance-local Coordinator host、React renderers/Portal、InputRouter integration、inert/focus/dismiss adapter、publication store，以及只消费 immutable evidence 的 application-receipt composition helper；不拥有 gameplay State 或 durable repository |
-| `@sillymaker/web`                                           | DOM focus/inert/pointer-capture/visibility adapter、physical input normalization、独立 Presentation Observation/automation adapter、real-browser conformance                                                                                                       |
-| `@sillymaker/tooling`                                       | project inspection、structural checks、model exploration/replay command、human/JSON diagnostics；不得进入 browser bundle                                                                                                                                           |
-| UI testkit + existing Base testkit                          | UI testkit 提供 pure model、virtual clock/input、seeded sequences、shrink/replay；Base testkit 继续提供 GameSession/semantic harness，两者通过 public contracts 组合                                                                                               |
-| Story/Mod/Application composition                           | domain state/rules、stable Surface target owner 与 typed intent wiring、definitions、renderers、semantic actions、只为声明 presentation postcondition 的 action 组合 scoped application receipt，以及产品级 recovery policy                                        |
+| Owner / package                                             | Target responsibility                                                                                                                                                                                                                                                                                   |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@sillymaker/base`                                          | 继续拥有 gameplay State、PendingInteraction/occurrence、Session semantic outcome 与共享 `DiagnosticEnvelope`；不分配 Managed Surface application epoch，也不拥有 managed topology、focus、modal stack 或 workspace layout                                                                               |
+| DOM-free `@sillymaker/ui` contracts/authoring/testkit entry | Managed Surface definitions/archetypes、opaque epoch/identity types、resolved registry、纯 Coordinator/reducer、instance identity、topology publication、transition receipt、invariants 与 model helpers；Coordinator 接收 fixed epoch，不拥有 allocator；不得经 UI root barrel 意外加载 CSS/React Host |
+| `@sillymaker/ui` React/runtime entry                        | application-instance-local Coordinator host、React renderers/Portal、InputRouter integration、inert/focus/dismiss adapter、publication store，以及只消费 immutable evidence 的 application-receipt composition helper；消费 composition root 捕获的 epoch，不拥有 gameplay State 或 durable repository  |
+| `@sillymaker/web`                                           | DOM focus/inert/pointer-capture/visibility adapter、physical input normalization、realm/hot-data stable cell 的 Host 机制、独立 Presentation Observation/automation adapter、real-browser conformance；不把 allocator ownership藏进 React component 或 Coordinator                                      |
+| Application composition root                                | monotonic application-epoch allocator、Coordinator successor 的 dispose-before-ingress 顺序，以及 Surface handle/router/readiness adapter wiring；load/import rebootstrap、HMR 与 Coordinator successor 在这里领取新 epoch                                                                              |
+| Stable owner/application publisher                          | gameplay/conversation/workspace target、typed intent wiring与 publisher lease；按 owner 管理 source revision，不由 React component local state 或 renderer 管理                                                                                                                                         |
+| `@sillymaker/tooling`                                       | project inspection、structural checks、model exploration/replay command、human/JSON diagnostics；不得进入 browser bundle                                                                                                                                                                                |
+| UI testkit + existing Base testkit                          | UI testkit 提供 deterministic epoch allocator/publisher lease injection、pure model、virtual clock/input、seeded sequences、shrink/replay；Base testkit 继续提供 GameSession/semantic harness，两者通过 public contracts 组合                                                                           |
+| Story/Mod                                                   | domain state/rules、definitions、renderers、semantic actions、声明 stable target 与 presentation postcondition，以及产品级 recovery policy；普通作者不手写 epoch/source revision，不拥有 Coordinator lifecycle                                                                                          |
 
 `SurfaceContributionOwnerId` 是 UI contribution owner，不等于 GameplayModule
 State owner。Coordinator 不获得 `GameSession`、Snapshot setter、generic State
@@ -522,18 +658,30 @@ tooling 需要读取 UI definition，应增加无 CSS/React side effect 的 UI
 1. 先用现有公开合同证明 source-publication tearing、semantic occurrence
    重造、physical gesture 穿越 unmount 和不可见 input lock；此步不预造 Surface
    instance/topology/receipt；
-2. 引入纯 definitions、state model 与 Coordinator，不改变外观；
-3. 依次迁移 Overlay、SystemDialog、Narrative/history、whole-canvas
-   primary/detail 与 stage interaction；whole-canvas 是独立 family，必须在
-   structural tooling/harness 前完成；迁移一项就删除它的平行 lifecycle
-   authority；
-4. Window model 的“系统单槽、workspace 主窗 + 详情栈、确认层”保留为产品拓扑
+2. 先交付 S1-T：纯 definitions、transient state model/Coordinator、
+   transition-kind readiness 与 composition-root epoch，不加入 external
+   source revision/reconcile 占位字段；
+3. S2 只以 Coordinator-owned transient target 迁移 Overlay；同一 cutover slice
+   删除或只读化旧 Overlay store 的 open/detail/back/close 写权；
+4. S3 单独迁移 SystemDialog；在第一个真正 externally published stable-target
+   family 前完成 S1-R canonical equivalence/source-revision reconcile。按当前 target
+   ownership，S1-R 位于 S3 与 Narrative/history 之间；
+5. 随后迁移 Narrative/history、whole-canvas primary/detail 与 stage
+   interaction；whole-canvas 是独立 family，必须在 structural tooling/harness
+   前完成；迁移一项就删除它的平行 lifecycle authority；
+6. Window model 的“系统单槽、workspace 主窗 + 详情栈、确认层”保留为产品拓扑
    recipe，坐落在统一 lifecycle 上；
-5. SillyOS 的自由 MDI store 继续是 Story
+7. SillyOS 的自由 MDI store 继续是 Story
    侧产品状态；它只把会影响全局输入/模态的边界登记到
    Coordinator，不把几何、最小化、任务栏和文档内容上提为通用 WindowManager；
-6. 完成 Engine Lab whole-canvas 与浏览器验证后，才把 managed path 宣称为 live
+8. 完成 Engine Lab whole-canvas 与浏览器验证后，才把 managed path 宣称为 live
    feature。
+
+Overlay legacy adapter 只有两种合法形状：把旧 controller call 翻译成 Coordinator
+intent，或从 immutable Coordinator publication 派生 read-only compatibility
+view。禁止同时写旧 store 与 Coordinator，禁止 effect/subscription 驱动的异步
+writable mirror，也禁止从 compatibility view 反向同步 authority。若同一 cutover
+slice 无法消除双 writable authority，立即停止并修订设计。
 
 Surface session state 的格式不是 Game Save format。若未来允许 workspace
 recovery，只持久化上层 stable target/layout schema，并在启动时重新解析
@@ -557,6 +705,10 @@ definitions、创建新 instance/topology revision；不得反序列化旧 live 
 - renderer/React state、input registration 或 DOM existence 可反向改变 Surface
   authority；
 - 同一 managed Surface 仍可从 Coordinator 之外改变 focus/input/z-order/back；
+- compatibility adapter 需要双写、异步 writable mirror 或反向同步才能维持旧
+  Overlay API；
+- transient pilot 为复用 future reconcile shape 而预埋 source revision、stable
+  parameter vector 或 reconcile 字段；
 - Headless 与 Browser 需要不同业务 availability 或 transition rules；
 - 为了支持 renderer 必须把 DOM/Pixi handle 放进 Base、Snapshot、Save 或 semantic
   publication；
@@ -575,24 +727,36 @@ definitions、创建新 instance/topology revision；不得反序列化旧 live 
    Back，页面互斥和真实激活顺序由 Coordinator 唯一决定；
 2. publication 原子包含 render/action/input/focus/lifecycle，renderer
    不旁读第二状态；
-3. pointer-down → replace → pointer-up、focus loss、visibility change、async
-   readiness、restart/HMR 的 stale 回调全部被 instance/topology-revision/epoch
-   fence 拒绝（physical gesture 另有 InputRouter token fence）；
-4. input、Surface transition、semantic/workspace dispatch 保持分层
+3. Overlay 的 initial open、primary replacement、child/detail open 分别遵守固定
+   readiness policy；每次 preparation 使用 fresh instance，ready 后原子切换，
+   failure 与所有 cancellation path 都保持 failure-atomic；
+4. definition/schema/renderer resolver/required port/parent/slot admission
+   在 topology mutation 前完成；rejection 不创建 instance、不改变
+   topology/input/focus，且不产生 active-but-invisible/fault surface；
+5. pointer-down → replace → pointer-up、focus loss、visibility change、async
+   readiness、restart/HMR 的 stale 回调全部被
+   instance/topology-revision/epoch fence 拒绝且零
+   topology/input/focus mutation；successor ingress 前旧 Coordinator、pending
+   readiness、routing/focus 与 gesture lease 已全部撤销；
+6. S1-R 证明 schema normalization → Strict Canonical Data → canonical bytes
+   equivalence、完整 identity tuple、per-owner revision 状态表、atomic vector 与
+   source-bound readiness；transient contract 不携带占位 source 字段；
+7. input、Surface transition、semantic/workspace dispatch 保持分层
    receipt；普通 action 不要求 application-wide envelope。声明 presentation
    postcondition 的 action 必须组合 scoped application receipt，且只有在对应
    postcondition 成立时才返回 `applied`；若 domain 已 commit 而 presentation
    postcondition 失败，返回 `postcondition_failed` 并保留 committed evidence；
-5. structural check、pure model、seeded shrink、frame-aware runtime、browser 和
+8. structural check、pure model、seeded shrink、frame-aware runtime、browser 和
    prebuilt 各有清晰职责及至少一条故障证明；
-6. invalid Story 返回稳定
+9. invalid Story 返回稳定
    code、location、current/attempted/expected/actual、suggestion、minimal trace
    和 replay command；
-7. 至少完成一次固定 fresh-baseline 的 capability-floor 战役（协议见 11
-   节）并产出归因报告，run 中不修改 engine、不 deep import、不使用 unmanaged
-   escape hatch；作者 API 的 stable/AI-friendly
-   声明以战役证据为准，后续增量扩大只重跑受影响任务面；
-8. 已迁移 subsystem 的旧 lifecycle store/listener/boolean truth
-   被删除或有短期、明确的兼容边界；
-9. [architecture](../architecture.md)、[features](../features.md)、[story authoring](../story-authoring.md)
-   与 public exports 在实现落地时同步更新。
+10. 至少完成一次固定 fresh-baseline 的 capability-floor 战役（协议见 11
+    节）并产出归因报告，run 中不修改 engine、不 deep import、不使用 unmanaged
+    escape hatch；作者 API 的 stable/AI-friendly
+    声明以战役证据为准，后续增量扩大只重跑受影响任务面；
+11. 已迁移 subsystem 的旧 lifecycle store/listener/boolean truth
+    被删除或只读化；compatibility adapter 只允许 intent translation 或 immutable
+    read-only projection；
+12. [architecture](../architecture.md)、[features](../features.md)、[story authoring](../story-authoring.md)
+    与 public exports 在实现落地时同步更新。

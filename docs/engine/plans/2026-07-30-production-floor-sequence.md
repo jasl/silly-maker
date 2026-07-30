@@ -1,6 +1,8 @@
 # Production-floor execution sequence
 
-状态：2026-07-30 接受执行，2026-07-30 审查后收紧。本文是当前唯一的跨计划排序入口；具体合同仍由各 design 文档拥有，具体任务由四个独立计划拥有：
+状态：2026-07-30 接受执行，2026-07-31 根据 PF2 pilot 决策修订 Surface
+子阶段依赖。本文是当前唯一的跨计划排序入口；具体合同仍由各 design 文档拥有，具体
+任务由四个独立计划拥有：
 
 - [Desktop persistence durability](2026-07-30-desktop-persistence-durability.md)
 - [Snapshot commit performance](2026-07-30-snapshot-commit-performance.md)
@@ -88,14 +90,31 @@ digest/serialization dedup；四项 evidence gate 均未达到充分标准，
 
 ### PF2 — Surface lifecycle kernel and one pilot family
 
-执行 [Surface plan](2026-07-30-surface-contract-harness.md) 的 S0–S2，只迁移 **Workspace Overlay**：
+执行 [Surface plan](2026-07-30-surface-contract-harness.md) 的
+**S0 → S1-T → S2**，只迁移 **Workspace Overlay**：
 
 1. 用现有 bug/trace 建立红测试；
-2. 建立 package-internal Coordinator、immutable topology publication、稳定 instance ID、单点 dismiss/focus/input ownership；
-3. 迁移 Overlay，删除它的 parallel writable lifecycle authority；
-4. 真实浏览器覆盖 Escape/backdrop/pointer/keyboard、replace、focus restore 与 stale gesture。
+2. S1-T 建立 package-internal transient Coordinator、immutable topology
+   publication、稳定 instance ID、单点 dismiss/focus/input ownership、按 transition
+   kind 表达的 readiness，以及 composition-root-owned monotonic application epoch；
+3. S2 在 topology mutation 前完成 definition、definition contract
+   revision、schema、renderer resolver、required port、parent 与 slot
+   preflight；缺失直接结构化拒绝，不创建
+   active-but-invisible instance，也不为 pilot 建通用 fault surface；
+4. 同一 S2 cutover slice 把 Overlay 的 open/detail/back/close 写权迁入
+   Coordinator，并删除或只读化旧 lifecycle authority；legacy adapter 只能把旧调用
+   翻译为 Coordinator intent，或从 immutable publication 派生只读 view，禁止双写
+   和异步 writable mirror；
+5. 真实浏览器覆盖 Escape/backdrop/pointer/keyboard、initial/replace/detail
+   readiness、failure/focus restore、candidate cancellation、epoch rotation 与 stale
+   gesture/readiness receipt。
 
-本切片明确不实现 application-level end-to-end receipt、弱模型战役、全 surface fuzz explorer，也不迁移 System/Narrative。pilot 失败时可以删除 Coordinator 而不留下双写。
+S2 只依赖 S1-T，全部 Overlay target 都是 Coordinator-owned transient target；它不
+等待 S1-R，也不得为了统一形状预埋 source publication revision、stable-target
+reconcile 或参数等价字段。本切片明确不实现 application-level end-to-end
+receipt、弱模型战役、全 surface fuzz explorer，也不迁移 System/Narrative。若同一
+cutover slice 无法消除 Overlay 双重 writable authority，停止并修订设计；pilot
+失败时必须可以删除 Coordinator 而不留下双写。
 
 ### PF3 — Save envelope and migration registry
 
@@ -113,12 +132,26 @@ PF3 完成后，State schema 才允许进入第一个需要跨版本迁移的正
 
 Surface pilot 通过后按 family 分开合并：
 
-1. System dialogs；
-2. Narrative dialogue/history；
-3. whole-canvas primary/detail 独立 family（Surface plan 的 S4b）；
-4. input/gesture reset（pointercancel、focus loss、visibility change）与 Browser Agent observation。
+1. S3：System dialogs；
+2. S1-R：external stable-target reconcile gate；
+3. S4：Narrative dialogue/history；
+4. S4b：whole-canvas primary/detail 独立 family；
+5. input/gesture reset（pointercancel、focus loss、visibility change）与 Browser
+   Agent observation。
 
-每个 family 的迁移提交必须删除旧 owner；禁止长期 adapter 双写。`DialoguePanelV1` / `VnLayerV1` 的 controller/view/host 拆分在 Narrative family 中完成，不与 Overlay pilot 混合。
+S1-R 在第一个真实 externally published stable-target family 前完成。按 accepted
+target ownership，S4 Narrative 计划从 semantic publication 派生 stable target，
+因此顺序是 **S3 → S1-R → S4 → S4b**；若更早的 family 后续选择 external stable
+target，S1-R 必须随 gate 前移，不能让该 family 自行发明 source revision
+或参数等价规则。
+S1-R 统一冻结 definition schema normalization → Strict Canonical Data →
+canonical bytes comparison、完整 target identity、per-owner monotonic source
+publication revision、atomic vector reconcile 与 stable readiness fence；hash 不作
+唯一等价依据。
+
+每个 family 的迁移提交必须删除旧 owner；禁止长期 adapter 双写。
+`DialoguePanelV1` / `VnLayerV1` 的 controller/view/host 拆分在 Narrative family
+中完成，不与 Overlay pilot 混合。
 
 ### PF5 — Migration product surface and maintained fixtures
 
