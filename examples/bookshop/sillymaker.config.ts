@@ -26,6 +26,9 @@ export const sillymakerAppConfigV1 = {
     desktop: {
       name: "Bookshop",
       identifier: "dev.sillymaker.example.bookshop",
+      // Optional darwin app icon (app-root-relative `.png`/`.icns`; see
+      // docs/engine/build-and-release.md).
+      // icon: "icon.png",
     },
   },
   releaseArtifact: false,
