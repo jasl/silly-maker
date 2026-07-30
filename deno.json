@@ -23,6 +23,7 @@
     "test:coverage": "deno run -A npm:vitest run --coverage",
     "test": "deno task test:unit",
     "bench:snapshot": "deno run --allow-write engine/packages/base/bench/snapshot-commit.ts",
+    "bench:snapshot:memory": "deno run --v8-flags=--expose-gc --allow-write engine/packages/base/bench/snapshot-memory-growth.ts",
     "check:assets": "deno run -A scripts/assets/verify-runtime-assets.mts",
     "story": "deno run -A scripts/story/cli.mts",
     "check:stories": "deno run -A scripts/story/cli.mts check --all",

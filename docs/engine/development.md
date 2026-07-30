@@ -46,6 +46,7 @@ Package manifests define supported cross-package entries. Do not bypass them wit
 | `deno task test`                                 | Run engine and game behavior tests.                                     |
 | `deno task test:coverage`                        | Run unit tests with engine line-coverage reporting.                     |
 | `deno task bench:snapshot`                       | Write a neutral Snapshot hot-path baseline JSON to a temporary path.    |
+| `deno task bench:snapshot:memory`                | Sample retained memory for one long-lived neutral Snapshot Session.     |
 | `deno task test:e2e:engine`                      | Engine browser suite against the Engine Lab Story.                      |
 | `deno task test:e2e`                             | Alias of the engine browser suite.                                      |
 | `deno task story <verb> <app>`                   | Application lifecycle CLI (JSON reports); verbs below.                  |
@@ -78,7 +79,11 @@ Private studies, `tmp/`-only verification games, and external checkouts do not r
 
 Use a focused package or test-file command while iterating when that is faster. Run `deno task check` before handing off a change, and add `deno task test:e2e` or prebuilt testing when the affected behavior crosses the browser/build boundary.
 
-`deno task bench:snapshot` runs generated 100/1k/10k/100k-entity Session workloads for single-field commits, multi-slice committed controls, real cross-owner atomic commits, rejection, and fault. Its full matrix also includes a neutral 256-command mixed sequence at 100 entities, authoritative replay of the retained 200-entry CommandLog, and a fixed 100-entity `every_commit` persistence workload that drains each of two committed commands and records the resulting `auto.previous` rotation. By default it writes machine-readable p50/p95 and deterministic traversal, digest, freeze, continuity, Save serialization, and Strict JSON counts under an operating-system temporary directory; pass `--output <path>` for a CI artifact. Wall-clock values are trend evidence, not ordinary CI gates, and raw local baseline files are not committed.
+`deno task bench:snapshot` runs generated 100/1k/10k/100k-entity Session workloads for single-field commits, multi-slice committed controls, real cross-owner atomic commits, rejection, and fault. Its full matrix also includes a neutral 256-command mixed sequence at 100 entities, authoritative replay of the retained 200-entry CommandLog, and a fixed 100-entity `every_commit` persistence workload that drains each of two committed commands and records the resulting `auto.previous` rotation. By default its schema-v3 report writes machine-readable p50/p95 and deterministic traversal, digest, freeze, continuity, Save serialization, and Strict JSON counts under an operating-system temporary directory; pass `--output <path>` for a CI artifact.
+
+`deno task bench:snapshot:memory` is a separate schema-v1 process-isolated memory baseline; it does not change the `bench:snapshot` report. It holds one neutral 1k-entity Session for 1,200 real cross-owner atomic commits, samples `Deno.memoryUsage()` before and after an explicit `gc -> macrotask -> gc` cycle at command sequences 0/200/400/800/1,200, and treats sequence 400 onward as steady state after the 200-entry CommandLog has filled. Dispatch timing excludes collection and sampling; its interval percentiles use each batch's average per-command duration so differently sized checkpoint intervals remain comparable. It likewise writes to an operating-system temporary directory by default and accepts `--output <path>` for a CI artifact. Run it as its own process through the task so the exposed collector and retained-heap measurements are isolated.
+
+Wall-clock, memory, and GC values from either benchmark are trend evidence, not ordinary CI gates. Normal tests assert deterministic schedules, internal work counts, report schemas, and byte-equivalent Snapshot/CommandLog behavior; they do not assert one machine's timing, heap, RSS, or collector result. Raw local baseline JSON is not committed.
 
 ## Change workflow
 

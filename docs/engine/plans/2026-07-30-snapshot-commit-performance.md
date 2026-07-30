@@ -197,3 +197,30 @@ S0a 结束时仍属于 S0、尚未完成：基于真实 `TransactionRunner` 的�
 该中性 100k-entity Snapshot 的 Save 会超过现有 Strict JSON `maxNodes: 100_000` 保护上限；S0c 因而固定 100 entities，不改变 Save 格式或公开限额。S0a/S0b 的 command / transaction matrix 仍覆盖 100 / 1k / 10k / 100k 四档，mixed sequence 与 retained replay 则保持固定 100-entity workload。
 
 S0 尚未完成的下一切片是长时内存/GC 增长采样（S0d）。DebugBundle/Save byte-equivalence corpus、S1 digest cache 与 S2 persistence reuse 均未实现。
+
+### 2026-07-30 — S0d Long-lived memory/GC baseline
+
+本切片完成 S0 的最后一项基线，只测量一个长寿命 Session 的 retained-memory 趋势，不实施结构共享、S1 digest cache 或 S2 persistence reuse：
+
+- 新增独立的 `deno task bench:snapshot:memory`；它写入 schema-v1 `snapshot_memory_growth_baseline_v1`，不改变既有 `deno task bench:snapshot` schema v3。默认输出仍位于 OS 临时目录，也可用 `--output <path>` 写 CI artifact；本地原始 JSON 不提交；
+- 固定中性 profile 为 1k entities、同一 Session 连续 1,200 次真实 `cross_owner_atomic_committed`，CommandLog 上限保持 200。采样 checkpoints 为 command sequence `0 / 200 / 400 / 800 / 1,200`，steady-state 从 `400` 起算；
+- 每个 checkpoint 先读取一次 `Deno.memoryUsage()`，再执行显式 `gc -> macrotask -> gc`，然后读取 after-GC 值。runner 作为独立进程运行并在 JSON 中记录 Deno/V8/target 与 GC 测量方式；
+- 常规测试固定 schedule、计数、schema 和 byte-equivalence，不对 memory、wall-clock 或 GC 结果设置 CI 硬门。setup 与 1,200-command run 的当前确定性计数分别为：
+
+| phase | canonical traversal | state digest | deep-freeze | CommandLog continuity | Save serialization | Strict JSON parse | Strict JSON preflight |
+| ----- | ------------------: | -----------: | ----------: | --------------------: | -----------------: | ----------------: | --------------------: |
+| setup |                   1 |            1 |           1 |                     0 |                  0 |                 0 |                     0 |
+| run   |               4,800 |        4,800 |       1,200 |                 1,200 |                  0 |                 0 |                     0 |
+
+- final invariant 为 current command sequence / audit count `1,200/1,200`，target entity `500` 的 value 为 `1,215`，retained CommandLog 为 200 entries，replay base sequence 为 `1,000`，保留 ordinal `1,001–1,200`；recomputed replay-base/current digest 分别等于保存的 replay-base/last-post digest。201-command focused control 还把 instrumented 与 production no-probe 的最终 Snapshot、retained CommandLog 和 eviction 后 replay base 的 canonical bytes 逐字节比较为相等。
+
+当前环境的两次重复运行均为 Deno 2.9.4 / V8 15.0；这些 patch/engine 版本只随测量记录，不成为支持版本固定条件：
+
+| sample | dispatch total | post-GC steady heapUsed delta (`400 -> 1,200`) | post-GC steady heapUsed end | post-GC steady RSS delta |
+| ------ | -------------: | ---------------------------------------------: | --------------------------: | -----------------------: |
+| A      |     5,664.5 ms |                                       60,224 B |                 7,337,552 B |              2,719,744 B |
+| B      |     5,743.4 ms |                                      570,648 B |                 7,848,040 B |              2,326,528 B |
+
+趋势解释只到这里：CommandLog 填满后，post-GC retained heap 保持同一数量级并接近平台；RSS 与 V8 `heapTotal` 不等同于 live-object 数量，以上结果也不是启动结构共享或 `IntegrityPolicy` 的结论。是否激活更深的 proportional-commit 设计仍须等待 S1/S2 去重后的 promotion decision。
+
+S0 至此完成。S1 Session/CommandLog digest reuse 与 S2 persistence-path reuse 尚未开始；DebugBundle/Save 的完整 byte-equivalence corpus属于对应后续切片。

@@ -431,6 +431,12 @@ export { createSnapshotTransactionWorkloadV1 } from "@sillymaker/base/testkit";
 export { createSnapshotPersistenceWorkloadV1 } from "@sillymaker/base/testkit";
 // @ts-expect-error timed persistence workload helpers stay package-internal
 export { prepareTimedSnapshotPersistenceWorkloadV1 } from "@sillymaker/base/testkit";
+// @ts-expect-error memory-growth report helpers stay package-internal
+export { createSnapshotMemoryGrowthReportV1 } from "@sillymaker/base/testkit";
+// @ts-expect-error memory-growth workload helpers stay package-internal
+export { prepareSnapshotMemoryGrowthWorkloadV1 } from "@sillymaker/base/testkit";
+// @ts-expect-error memory-growth benchmark config stays package-internal
+export { snapshotMemoryGrowthBenchmarkConfigV1 } from "@sillymaker/base/testkit";
 // @ts-expect-error instrumentation types stay package-internal
 export type { SnapshotWorkInstrumentationV1 } from "@sillymaker/base/testkit";
 // @ts-expect-error instrumented replay helpers stay package-internal
