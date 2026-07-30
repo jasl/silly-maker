@@ -25,12 +25,17 @@ import type {
   GameShellViewportOptionsV1,
   GameUiProjectorV1,
   KeyboardActionMapV1,
+  NativeBehaviorResetConfigV1,
   RuntimePresentationPublicationV1,
   RuntimeAssetLoaderV1,
   SaveOverlayLabelsV1,
 } from "@sillymaker/ui";
 import type { DevDockContributionSetV1, DevDockOpenStateV1 } from "@sillymaker/ui/debug";
-import { DefaultGameRootV1, createGameUiCompositionV1 } from "@sillymaker/ui";
+import {
+  DefaultGameRootV1,
+  createGameUiCompositionV1,
+  installNativeBehaviorResetV1,
+} from "@sillymaker/ui";
 import type { ContentPreferencePortV1, SemanticPublicationV1 } from "@sillymaker/base";
 import type { RuntimeSessionStatusV1 } from "@sillymaker/base";
 
@@ -112,6 +117,13 @@ export interface WebGameUiDefinitionV1<
   };
   /** Install the pointer adapter on the application root element. */
   readonly pointer?: boolean;
+  /**
+   * Game-shell native-behavior reset: suppress the browser context menu and
+   * text selection document-wide (editable controls and `data-native-menu` /
+   * `data-native-text` subtrees keep native behavior). `onContextMenu` runs
+   * after a suppressed event — the application's own right-click UX.
+   */
+  readonly nativeBehaviorReset?: NativeBehaviorResetConfigV1;
   /** Spatial interaction surface IDs the intent router accepts. */
   readonly interactionSurfaceIds?: readonly string[];
   /** Optional live stage label (current scene name) for the shell main region. */
@@ -391,6 +403,7 @@ export async function startWebGameApplicationV1<
   let automation: InstalledBrowserAutomationBridgeV1 | undefined;
   let mounted: MountedGameApplicationV1 | undefined;
   let pointer: { dispose(): void } | undefined;
+  let nativeBehaviorReset: { dispose(): void } | undefined;
   let unbindUiContext: (() => void) | undefined;
   let uiDisposer: (() => void) | undefined;
   let composition:
@@ -419,6 +432,7 @@ export async function startWebGameApplicationV1<
       } finally {
         unbindUiContext?.();
         pointer?.dispose();
+        nativeBehaviorReset?.dispose();
         composition?.dispose();
         automation?.dispose();
         try {
@@ -549,6 +563,9 @@ export async function startWebGameApplicationV1<
         window: globalThis.window,
         document,
       });
+    }
+    if (uiDefinition.nativeBehaviorReset !== undefined) {
+      nativeBehaviorReset = installNativeBehaviorResetV1(uiDefinition.nativeBehaviorReset);
     }
     if (uiDefinition.debugUiContext !== undefined) {
       unbindUiContext = instance.bindDebugUiContext(
