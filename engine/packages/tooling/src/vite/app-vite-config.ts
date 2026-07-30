@@ -149,6 +149,14 @@ export async function createSillymakerAppViteConfigV1(
     root: appRoot,
     base: web.base,
     publicDir: false,
+    resolve: {
+      // External application projects consume engine packages through `file:`
+      // links, so engine sources resolve React from the engine workspace's
+      // node_modules while application code resolves the app-local copy. Two
+      // physical React instances break the hooks dispatcher at runtime;
+      // dedupe pins every import to the application's single copy.
+      dedupe: ["react", "react-dom"],
+    },
     plugins,
     build: {
       outDir: resolve(appRoot, web.outDir ?? "dist-web"),
