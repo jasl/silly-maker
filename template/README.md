@@ -14,6 +14,7 @@ deno task dev                                         # 在本目录启动开发
 deno task build:web                                   # 静态构建到 dist-web/（`build` 是它的别名）
 deno task build:desktop                               # 桌面包到 dist-desktop/（可加 --target <triple>）
 deno task preview                                     # 用 HTTP 预览 dist-web/
+deno task clean                                       # 清理 dist-web/ 与 dist-desktop/
 ```
 
 ## 文件地图（按"你想改什么"排列）

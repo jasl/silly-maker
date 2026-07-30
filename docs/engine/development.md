@@ -65,6 +65,7 @@ deno task dev                                          # Vite dev server for thi
 deno task build:web                                    # web Player → dist-web/ (`build` is its alias)
 deno task build:desktop [--target <triple>]...         # desktop package(s) → dist-desktop/
 deno task preview                                      # serve dist-web/ over HTTP
+deno task clean                                        # remove dist-web/ and dist-desktop/
 
 # Story diagnostics (app-local `deno task story <verb> .`, or root `deno task story <verb> <app>`):
 deno task story inspect <app>                          # resolved identity/program report (JSON)
