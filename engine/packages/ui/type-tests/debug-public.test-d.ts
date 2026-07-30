@@ -22,6 +22,7 @@ type DebugRuntimeKeysV1 = ExpectV1<
     keyof typeof import("@sillymaker/ui/debug"),
     | "CapabilityPanelV1"
     | "DebugCommandPanelV1"
+    | "DebugDockV1"
     | "DebugLaunchersV1"
     | "DebugNarrativeGraphViewV1"
     | "DebugValueInspectorV1"
@@ -30,6 +31,7 @@ type DebugRuntimeKeysV1 = ExpectV1<
     | "DiagnosticInspectorV1"
     | "FixtureBrowserV1"
     | "createDevDockContributionSetV1"
+    | "defaultDebugDockLabelsV1"
   >
 >;
 type PanelKeysV1 = ExpectV1<

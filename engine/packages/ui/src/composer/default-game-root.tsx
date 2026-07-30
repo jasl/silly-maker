@@ -4,6 +4,8 @@ import type { ReactElement, ReactNode } from "react";
 
 import type { DeepReadonly, RuntimeCapabilityPortV1 } from "@sillymaker/base";
 
+import { DebugDockV1 } from "../debug/debug-dock.tsx";
+import type { DebugDockLabelsV1 } from "../debug/debug-dock.tsx";
 import { DevDockV1, createDevDockContributionSetV1 } from "../debug/dev-dock.tsx";
 import type { DevDockContributionSetV1, DevDockOpenStateV1 } from "../debug/dev-dock.tsx";
 import type { InputRouterV1 } from "../input/contracts.ts";
@@ -130,6 +132,10 @@ export interface DefaultGameRootSlotsV1<TPublication, TSemantic, TOverlayId exte
   hud?(context: DefaultGameRootSlotContextV1<TPublication, TSemantic>): ReactNode;
   narrative?(context: DefaultGameRootSlotContextV1<TPublication, TSemantic>): ReactNode;
   systemMenuExtras?(context: DefaultGameRootSlotContextV1<TPublication, TSemantic>): ReactNode;
+  /** Status lines for the session debug dock (right-aligned, above actions). */
+  debugDockInfo?(context: DefaultGameRootSlotContextV1<TPublication, TSemantic>): ReactNode;
+  /** Extra buttons for the session debug dock (prepended to the defaults). */
+  debugDockActions?(context: DefaultGameRootSlotContextV1<TPublication, TSemantic>): ReactNode;
   /** Story sections for the default Settings dialog (language, volume…). */
   settingsSections?(
     context: DefaultGameRootSlotContextV1<TPublication, TSemantic>,
@@ -209,15 +215,32 @@ export interface DefaultGameRootPropsV1<
     TSemantic,
     TOverlayId
   >;
+  /**
+   * @deprecated The panel DevDock is superseded by the session debug dock
+   * (`DebugDockV1`); it renders only when contributions are explicitly
+   * provided and will be removed once the remaining tooling panels migrate.
+   */
   readonly devDockContributions?: DevDockContributionSetV1;
   /**
    * Optional DevDock extensions: a capability-gated lazy contribution
    * loader (tooling UI stays out of the player bundle) and an open-state
    * observer feeding diagnostics UI context.
+   *
+   * @deprecated See `devDockContributions`.
    */
   readonly devDock?: {
     load?(): Promise<DevDockContributionSetV1>;
     observeOpenState?(state: DevDockOpenStateV1): void;
+  };
+  /**
+   * The default session debug dock (top-right chip behind the `debug_tools`
+   * capability): Export/Import state, wipe local data, Reinitialize, plus
+   * the Story's `debugDockInfo`/`debugDockActions` slot contributions.
+   * `hidden` is for Stories that render their own `DebugDockV1` instance.
+   */
+  readonly debugDock?: {
+    readonly hidden?: boolean;
+    readonly labels?: Partial<DebugDockLabelsV1>;
   };
   /** Optional keyboard/gamepad adapters routed through the composition. */
   readonly inputMaps?: {
@@ -254,6 +277,33 @@ function createDefaultOverlayResolverV1<TOverlayId extends string>(input: {
   });
 }
 
+/** Session debug dock behind `debug_tools` — the default debug surface. */
+function DefaultSessionDebugDockV1(props: {
+  readonly capabilities: RuntimeCapabilityPortV1;
+  readonly savePort?: SaveOverlayPortV1;
+  readonly onReinitialize: () => void;
+  readonly info?: ReactNode;
+  readonly actions?: ReactNode;
+  readonly labels?: Partial<DebugDockLabelsV1>;
+}): ReactElement | null {
+  const capabilities = useSyncExternalStore(
+    props.capabilities.state.subscribe,
+    props.capabilities.state.getCurrent,
+    props.capabilities.state.getCurrent,
+  );
+  if (!capabilities.debugTools) return null;
+  return (
+    <DebugDockV1
+      {...(props.savePort === undefined ? {} : { savePort: props.savePort })}
+      onReinitialize={props.onReinitialize}
+      {...(props.info === undefined ? {} : { info: props.info })}
+      {...(props.actions === undefined ? {} : { actions: props.actions })}
+      {...(props.labels === undefined ? {} : { labels: props.labels })}
+    />
+  );
+}
+
+/** @deprecated Legacy panel host; renders only for explicit contributions. */
 function DefaultDevDockV1(props: {
   readonly capabilities: RuntimeCapabilityPortV1;
   readonly contributions: DevDockContributionSetV1;
@@ -574,7 +624,11 @@ export function DefaultGameRootV1<
         inputRouter={props.composition.input}
         viewport={props.viewport}
         devDock={
-          props.capabilities === undefined ? null : (
+          // Deprecated panel host: only Stories still shipping DevDock
+          // contributions (tooling panels) get it; everyone else gets the
+          // session debug dock below.
+          props.capabilities === undefined ||
+          (props.devDockContributions === undefined && props.devDock?.load === undefined) ? null : (
             <DefaultDevDockV1
               capabilities={props.capabilities}
               contributions={props.devDockContributions ?? emptyDevDockContributionsV1}
@@ -587,6 +641,18 @@ export function DefaultGameRootV1<
           )
         }
       />
+      {props.capabilities === undefined || props.debugDock?.hidden === true ? null : (
+        <DefaultSessionDebugDockV1
+          capabilities={props.capabilities}
+          {...(props.saveUi?.port === undefined ? {} : { savePort: props.saveUi.port })}
+          onReinitialize={slotContext.systemDialogs.returnToTitle}
+          {...(slots.debugDockInfo === undefined ? {} : { info: slots.debugDockInfo(slotContext) })}
+          {...(slots.debugDockActions === undefined
+            ? {}
+            : { actions: slots.debugDockActions(slotContext) })}
+          {...(props.debugDock?.labels === undefined ? {} : { labels: props.debugDock.labels })}
+        />
+      )}
     </div>
   );
 }

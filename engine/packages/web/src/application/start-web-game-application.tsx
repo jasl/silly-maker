@@ -30,7 +30,11 @@ import type {
   RuntimeAssetLoaderV1,
   SaveOverlayLabelsV1,
 } from "@sillymaker/ui";
-import type { DevDockContributionSetV1, DevDockOpenStateV1 } from "@sillymaker/ui/debug";
+import type {
+  DebugDockLabelsV1,
+  DevDockContributionSetV1,
+  DevDockOpenStateV1,
+} from "@sillymaker/ui/debug";
 import {
   DefaultGameRootV1,
   createGameUiCompositionV1,
@@ -96,6 +100,15 @@ export interface WebGameUiDefinitionV1<
   readonly hideSystemMenu?: boolean;
   /** Story safepoint over the live publication (see SaveOverlayGuardV1). */
   readonly saveGuard?: (publication: unknown) => { allowed: boolean; reasonText?: string };
+  /**
+   * Session debug dock configuration (see DefaultGameRoot.debugDock):
+   * `hidden` for Stories rendering their own `DebugDockV1` instance.
+   */
+  readonly debugDock?: {
+    readonly hidden?: boolean;
+    readonly labels?: Partial<DebugDockLabelsV1>;
+  };
+  /** @deprecated Legacy DevDock panels; superseded by the session debug dock. */
   readonly devDockContributions?: DevDockContributionSetV1;
   /** Shows the engine title screen (New game / Continue|Load / Settings). */
   readonly titleScreen?: {
@@ -540,6 +553,7 @@ export async function startWebGameApplicationV1<
         {...(uiDefinition.hideSystemMenu === undefined
           ? {}
           : { hideSystemMenu: uiDefinition.hideSystemMenu })}
+        {...(uiDefinition.debugDock === undefined ? {} : { debugDock: uiDefinition.debugDock })}
         {...(uiDefinition.labels === undefined ? {} : { labels: uiDefinition.labels })}
         {...(uiDefinition.slots === undefined ? {} : { slots: uiDefinition.slots })}
         {...(uiDefinition.devDockContributions === undefined
