@@ -20,11 +20,14 @@ Read only the documents relevant to the change:
   milestones.
 - `docs/engine/design/**` — accepted target contracts that are not necessarily
   implemented yet.
-- `docs/engine/plans/2026-07-30-surface-contract-harness.md` — current
-  engine-strengthening execution order and acceptance.
+- `docs/engine/plans/2026-07-30-surface-contract-harness.md` and
+  `docs/engine/plans/2026-07-30-snapshot-integrity-and-save-migration.md` —
+  current engine-strengthening execution order and acceptance.
 - `docs/engine/plans/2026-07-19-sillymaker-vnext-foundations.md` and
   `docs/engine/plans/2026-07-28-sillymaker-r5-r7.md` — completed execution
-  records whose defer/acceptance notes remain useful historical evidence.
+  records whose defer/acceptance notes remain useful historical evidence;
+  `docs/engine/roadmap-archive.md` — archived delivery history and completed
+  milestone text.
 - `docs/engine/architecture.md` — current package and runtime architecture.
 - `docs/engine/features.md` — implemented engine capabilities and boundaries.
 - `docs/engine/development.md` — setup, tests, and maintenance workflow.
