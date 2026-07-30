@@ -41,6 +41,10 @@ export interface DebugDockLabelsV1 {
   readonly busySuffix: string;
   readonly exportDoneText: string;
   readonly importDoneText: string;
+  /** Pre-checked rejection: the save belongs to another game or version. */
+  readonly importIncompatibleText: string;
+  /** Pre-checked rejection: not a valid engine save (corrupt or edited). */
+  readonly importInvalidText: string;
   readonly wipeArmedText: string;
   readonly wipeDoneText: string;
 }
@@ -56,6 +60,9 @@ export const defaultDebugDockLabelsV1: DebugDockLabelsV1 = Object.freeze({
   busySuffix: "…",
   exportDoneText: "State exported as JSON.",
   importDoneText: "State imported.",
+  importIncompatibleText:
+    "This save belongs to a different game or version; import rejected — the session is unchanged.",
+  importInvalidText: "Not a valid engine save (corrupt or edited); import rejected.",
   wipeArmedText: "Destructive: click the confirm button to wipe, any other button to cancel.",
   wipeDoneText: "Local data wiped.",
 });
@@ -234,10 +241,20 @@ export function DebugDockV1(props: DebugDockPropsV1): ReactElement | null {
                 void savePort
                   .importSave()
                   .then((result) => {
+                    // Imports are pre-checked by the persistence service
+                    // (envelope integrity, story/version compatibility,
+                    // reference and invariant validation) and rejected
+                    // atomically — a bad file can never corrupt the session.
                     if (result.kind === "imported") setNote(labels.importDoneText);
                     else if (result.kind !== "cancelled") {
-                      const code = "code" in result ? ` (${result.code})` : "";
-                      setNote(`${result.kind}${code}`);
+                      const code = "code" in result ? result.code : null;
+                      setNote(
+                        code === "incompatible"
+                          ? labels.importIncompatibleText
+                          : code === "invalid_record"
+                            ? labels.importInvalidText
+                            : `${result.kind}${code === null ? "" : ` (${code})`}`,
+                      );
                     }
                   })
                   .catch((error: unknown) => setNote(failureNote(error)))

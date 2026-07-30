@@ -51,6 +51,32 @@ describe("DebugDockV1", () => {
     expect(document.querySelector("[data-debug-dock-note]")).toBeNull();
   });
 
+  it("explains a pre-checked incompatible import without touching the session", async () => {
+    const port = fakeSavePortV1({
+      importSave: vi.fn(async () => ({ kind: "rejected", code: "incompatible" })) as never,
+    });
+    render(<DebugDockV1 savePort={port} defaultOpen />);
+    fireEvent.click(screen.getByText("Import state"));
+    await waitFor(() => {
+      expect(document.querySelector("[data-debug-dock-note]")?.textContent).toContain(
+        "different game or version",
+      );
+    });
+  });
+
+  it("explains a corrupt import file", async () => {
+    const port = fakeSavePortV1({
+      importSave: vi.fn(async () => ({ kind: "rejected", code: "invalid_record" })) as never,
+    });
+    render(<DebugDockV1 savePort={port} defaultOpen />);
+    fireEvent.click(screen.getByText("Import state"));
+    await waitFor(() => {
+      expect(document.querySelector("[data-debug-dock-note]")?.textContent).toContain(
+        "Not a valid engine save",
+      );
+    });
+  });
+
   it("arms the wipe on first click and clears every slot on confirm", async () => {
     const port = fakeSavePortV1();
     render(<DebugDockV1 savePort={port} defaultOpen />);

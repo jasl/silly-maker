@@ -59,6 +59,7 @@ export { createHttpHostRecordStoreV1 } from "./host/http-record-store.ts";
 export type { CreateHttpHostRecordStoreOptionsV1 } from "./host/http-record-store.ts";
 export type { CreateWebHostOptionsV1 } from "./host/create-web-host.ts";
 export { createBrowserFilePortV1 } from "./host/browser-file-port.ts";
+export { createShellFilePortV1 } from "./host/shell-file-port.ts";
 export type { BrowserFilePortEnvironmentV1 } from "./host/browser-file-port.ts";
 export { installPointerAdapterV1 } from "./input/index.ts";
 export type { InstalledPointerAdapterV1, PointerAdapterInputV1 } from "./input/index.ts";
