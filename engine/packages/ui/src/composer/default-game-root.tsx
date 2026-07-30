@@ -185,6 +185,13 @@ export interface DefaultGameRootPropsV1<
      * here. Called before the title dismisses so the first frame is ready.
      */
     beginNewGame?(semantic: TSemantic): void | Promise<unknown>;
+    /**
+     * Replace the middle title button (Continue) with Load. Stories that own
+     * a custom save overlay (no engine `saveUi` Continue) open their load UI
+     * here; a successful load still dismisses the title via the presentation
+     * anchor `origin === "load" | "import"` effect.
+     */
+    openLoadGame?(): void;
   };
   readonly lifecycle?: { restart(): Promise<unknown> };
   readonly saveUi?: {
@@ -514,7 +521,13 @@ export function DefaultGameRootV1<
                 .finally(() => setTitleDismissed(true));
             }}
             onContinue={() => setTitleDismissed(true)}
-            showLoadGame={props.saveUi !== undefined}
+            replaceContinueWithLoad={props.titleScreen?.openLoadGame !== undefined}
+            {...(props.titleScreen?.openLoadGame === undefined
+              ? {}
+              : { onLoadGame: props.titleScreen.openLoadGame })}
+            showLoadGame={
+              props.saveUi !== undefined && props.titleScreen?.openLoadGame === undefined
+            }
           />
         )}
         {props.hideSystemMenu === true ? null : (
