@@ -116,6 +116,37 @@ describe("DebugDockV1", () => {
     expect(port.clear).not.toHaveBeenCalled();
   });
 
+  it("shows the version stamp footer and hides it when nothing is known", () => {
+    const { unmount } = render(
+      <DebugDockV1
+        versionStamp={{
+          applicationVersion: "1.2.0",
+          applicationCommit: "abc1234",
+          engineVersion: "0.4.2",
+          engineCommit: "def5678",
+        }}
+        defaultOpen
+      />,
+    );
+    expect(document.querySelector("[data-debug-dock-versions]")?.textContent).toBe(
+      "app 1.2.0 (abc1234) · engine 0.4.2 (def5678)",
+    );
+    unmount();
+
+    render(
+      <DebugDockV1
+        versionStamp={{
+          applicationVersion: null,
+          applicationCommit: null,
+          engineVersion: null,
+          engineCommit: null,
+        }}
+        defaultOpen
+      />,
+    );
+    expect(document.querySelector("[data-debug-dock-versions]")).toBeNull();
+  });
+
   it("renders reinitialize, story info and actions; hides port actions without a port", () => {
     const onReinitialize = vi.fn();
     render(

@@ -3,6 +3,9 @@ import type { ReactElement, ReactNode } from "react";
 import { useState } from "react";
 import { createPortal } from "react-dom";
 
+import { formatVersionStampV1, readVersionStampV1 } from "@sillymaker/base";
+import type { VersionStampV1 } from "@sillymaker/base";
+
 import { Button } from "../primitives/button.tsx";
 import type { SaveOverlayPortV1 } from "../persistence/save-overlay.tsx";
 
@@ -85,6 +88,12 @@ export interface DebugDockPropsV1 {
   readonly actions?: ReactNode;
   readonly labels?: Partial<DebugDockLabelsV1>;
   readonly defaultOpen?: boolean;
+  /**
+   * Version stamp shown as the panel footer. Defaults to the build-injected
+   * `globalThis.__SILLYMAKER_VERSIONS__` (readVersionStampV1); the row hides
+   * itself when nothing is known.
+   */
+  readonly versionStamp?: VersionStampV1;
 }
 
 const dockFontV1 = "var(--silly-font-family)";
@@ -105,6 +114,7 @@ export function DebugDockV1(props: DebugDockPropsV1): ReactElement | null {
   const [wipeArmed, setWipeArmed] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   if (typeof document === "undefined") return null;
+  const versionLine = formatVersionStampV1(props.versionStamp ?? readVersionStampV1());
 
   const disarm = (): void => {
     if (wipeArmed) {
@@ -307,6 +317,14 @@ export function DebugDockV1(props: DebugDockPropsV1): ReactElement | null {
             style={{ textAlign: "end", opacity: 0.9, overflowWrap: "anywhere" }}
           >
             {note}
+          </div>
+        )}
+        {versionLine === null ? null : (
+          <div
+            data-debug-dock-versions="true"
+            style={{ textAlign: "end", opacity: 0.65, fontSize: 11, overflowWrap: "anywhere" }}
+          >
+            {versionLine}
           </div>
         )}
       </div>
