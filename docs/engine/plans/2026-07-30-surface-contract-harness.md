@@ -153,6 +153,35 @@ legacy Overlay/System/Narrative 状态。
 - legacy store 没有新增平行 revision counter、Surface identity 或临时 receipt；
 - 现有 semantic action、stage transition、pointer gesture 与全仓检查保持绿色。
 
+### P0.3 Field counterexamples (dense picture / overlay SLG)
+
+一次本地的高密度图片/overlay SLG 移植验证（仓外临时项目，验证结束即销毁，
+不进主仓，也不得成为任何验收依赖）已经复现并分类了一批「打地鼠」失败。
+它们是 P1–P3 acceptance 应能机械拒绝的裂缝类别，必须在主仓 clean-room
+重建，而不是引用该项目：
+
+| 失败类                            | 现象                                                          | Harness 应对                                                            |
+| --------------------------------- | ------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| stale publication / 旧 hit        | 热区闭包带着过期 revision，首次成功后全 UI `reject`           | topology/source revision fencing；gesture 不得携带过期 surface identity |
+| armed inert chrome                | modal 下底层 base chrome 仍可 dispatch，偷走 dismiss/空白点击 | modality + published hit set；非 owner 默认 consume，不得旁路           |
+| published invisible / parked peek | 离屏或 opacity=0 元素仍挂 hit，抢走底层入口                   | publication 与可见/可命中证据同 revision；不可见元素不得武装            |
+| full-sheet dismiss thief          | 全屏 sheet 绑 dismiss action，抢走内容格/缩略图点击           | dismiss 必须声明；全屏 backdrop ≠ 内容热区                              |
+| missing dismiss / busy trap       | overlay 打开后无合法出口，或误触 narrative 后全部 `busy`      | modal 必须有业务出口；Back/Esc 单点 dismiss policy                      |
+| multi-overlay stack tear          | 多个 open 信号并存时 hit/ownership 撕裂                       | cardinality + topology；非法组合进 conflicts / reject                   |
+
+Clean-room 重建路径（在各阶段落地，不新增独立阶段）：
+
+- Engine Lab（`e2e/`）为每个类别提供中性 fixture：一个 base scene chrome +
+  若干互斥 modal surface + 停泊/半透明诱饵元素，P1–P3 的合同测试与
+  browser scenario 直接以它们为验收对象；
+- cat-cafe 作为 curated showcase 刻意加入同类场景（重叠 hit 的底部
+  chrome、全屏详情页、可停泊的侧栏），证明声明式路径在真实 Story
+  中不需要逐场景补丁；showcase 玩法本身是否按更完整的 SLG 剧本重设计，
+  是独立的产品决策，不属于本计划的 gate。
+
+外部 Story 可以用同词汇的声明表做迁移前前置，但不得自建第二套
+input/focus/modality authority。
+
 ## 5. P1 — Surface definitions and the single Coordinator
 
 **目标：** 在 `@sillymaker/ui` 建立 Host-neutral 的纯生命周期核心，再接
