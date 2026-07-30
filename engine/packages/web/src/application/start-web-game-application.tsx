@@ -97,13 +97,15 @@ export interface WebGameUiDefinitionV1<
   /** Story safepoint over the live publication (see SaveOverlayGuardV1). */
   readonly saveGuard?: (publication: unknown) => { allowed: boolean; reasonText?: string };
   readonly devDockContributions?: DevDockContributionSetV1;
-  /** Shows the engine title screen (New game / Continue / Settings). */
+  /** Shows the engine title screen (New game / Continue|Load / Settings). */
   readonly titleScreen?: {
     readonly title: string;
     readonly backgroundUrl?: string;
     readonly splash?: { readonly lines: readonly string[]; readonly durationMs?: number };
     /** After restart on New game — Story-specific boot (see DefaultGameRoot). */
     beginNewGame?(semantic: unknown): void | Promise<unknown>;
+    /** Replace Continue with Load (custom save UI Stories — see DefaultGameRoot). */
+    openLoadGame?(): void;
   };
   /**
    * Capability-gated lazy DevDock contributions: tooling UI loads on

@@ -32,9 +32,17 @@ export function TitleScreenV1(props: {
   readonly continueAvailable: boolean;
   onNewGame(): void;
   onContinue(): void;
-  /** Shows the Load-game entry (opens the system Save dialog). */
+  /**
+   * When true, the middle button is Load (always enabled) instead of
+   * Continue — for Stories that own a custom save UI and have no autosave
+   * Continue path. Mutually exclusive with the separate Load row below.
+   */
+  readonly replaceContinueWithLoad?: boolean;
+  onLoadGame?(): void;
+  /** Shows a separate Load-game entry (opens the system Save dialog). */
   readonly showLoadGame?: boolean;
 }): ReactElement {
+  const loadInsteadOfContinue = props.replaceContinueWithLoad === true;
   return (
     <section
       data-title-screen="true"
@@ -73,15 +81,21 @@ export function TitleScreenV1(props: {
         <Button data-title-new-game="true" onClick={() => props.onNewGame()}>
           {props.labels.newGameLabel}
         </Button>
-        <Button
-          data-title-continue="true"
-          data-title-continue-available={props.continueAvailable ? "true" : "false"}
-          disabled={!props.continueAvailable}
-          onClick={() => props.onContinue()}
-        >
-          {props.labels.continueLabel}
-        </Button>
-        {props.showLoadGame === true ? (
+        {loadInsteadOfContinue ? (
+          <Button data-title-load-game="true" onClick={() => props.onLoadGame?.()}>
+            {props.labels.loadGameLabel}
+          </Button>
+        ) : (
+          <Button
+            data-title-continue="true"
+            data-title-continue-available={props.continueAvailable ? "true" : "false"}
+            disabled={!props.continueAvailable}
+            onClick={() => props.onContinue()}
+          >
+            {props.labels.continueLabel}
+          </Button>
+        )}
+        {props.showLoadGame === true && !loadInsteadOfContinue ? (
           <SavesLauncherV1 data-title-load-game="true" label={props.labels.loadGameLabel} />
         ) : null}
         <SettingsLauncherV1 data-title-settings="true" label={props.labels.settingsLabel} />
