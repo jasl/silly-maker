@@ -36,4 +36,4 @@
 
 - `story check` / `story simulate` 输出结构化 JSON：agent（或 CI）可以校验叙事图、headless 玩通每条路线。`--trace` 打印逐步数值轨迹；`story diff` 结构化对比两份存档或报告。
 - **DevDock**（能力门控，绝不混进玩家 UI）承载实时状态检查器、叙事图视图和 Story 调参面板——调参走与玩法相同的事务提交路径。
-- 交付：`story build` 出网页版，`site:build` 出静态托管站（GitHub Pages / Cloudflare Workers）；`story desktop` 当前产出带图标与文件存档的 macOS `.app` preview，durable store 与其他平台仍有明确发布门槛。
+- 交付：`deno task build:web` 出网页版，`site:build` 出静态托管站（GitHub Pages / Cloudflare Workers）；`deno task build:desktop` 产出带图标与文件存档的桌面 preview——默认本机 `.app`，`--target` 可交叉编译 `.app`/`.msi`/`.AppImage`；签名/公证与 durable store 仍有明确发布门槛。

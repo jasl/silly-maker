@@ -9,6 +9,11 @@
     ".": "./src/index.ts"
   },
   "scripts": {
+    "dev": "deno run -A npm:vite",
+    "build": "deno task build:web",
+    "build:web": "deno run -A npm:vite build",
+    "preview": "deno run -A npm:vite preview",
+    "story": "deno run -A ./tools/story.mts",
     "test": "deno run -A npm:vitest run e2e/src"
   },
   "dependencies": {

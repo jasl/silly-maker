@@ -10,12 +10,14 @@ Inside an application directory the whole lifecycle is local:
 
 ```sh
 deno task dev                              # vite dev server for this application
-deno task build                            # static Player under <app>/dist-web
-deno run -A ./tools/story.mts check .      # structured JSON diagnostics
-deno run -A ./tools/story.mts simulate .   # scripted run through the Agent port
+deno task build:web                        # static Player under <app>/dist-web (`build` is its alias)
+deno task build:desktop                    # desktop package(s) under <app>/dist-desktop (needs web.desktop)
+deno task preview                          # serve dist-web/ over HTTP
+deno task story check .                    # structured JSON diagnostics
+deno task story simulate .                 # scripted run through the Agent port
 ```
 
-(`.` selects "this application"; the template's `package.json` scripts wrap these.)
+(`.` selects "this application"; every application's `package.json` scripts declare this task set, and `story` wraps the app-local `tools/story.mts`.)
 
 ## Workspace registry (repository-level aggregation)
 
@@ -47,10 +49,11 @@ The development server uses the application root and supports normal Vite develo
 ## Build a Player
 
 ```sh
-deno task story build <app>
+deno task build:web              # inside the application directory (canonical)
+deno task story build <app>      # repository root: workspace aggregation (CI)
 ```
 
-This creates a static Player under the application's own `dist-web/` (the plain `dist/` stays the TypeScript project-references emit directory). The build runs the application's own `vite.config.ts` from its directory — the CLI never selects a build switch. A build is useful for local inspection, but it is not by itself a release handoff and does not publish anything.
+This creates a static Player under the application's own `dist-web/` (the plain `dist/` stays the TypeScript project-references emit directory). Both forms run the application's own `vite.config.ts` from its directory — nothing selects a build switch. A build is useful for local inspection, but it is not by itself a release handoff and does not publish anything.
 
 Build output policy: dependencies split into stable `vendor`/`vendor-react` chunks (application and engine code stay in the entry chunk; all three sit well under the 500 kB warning line and the vendor chunks hash identically across applications for caching). Production output is minified and mangled by default (Vite's built-in minifier — the modern successor to the old "uglify" step); that is baseline code protection, not real obfuscation. Debug switches:
 
@@ -60,7 +63,7 @@ deno task story build <app> --sourcemap       # emit .map files next to the chun
 deno task story build <app> --no-minify       # readable output for debugging
 ```
 
-`--profile release` names the default (minified, no sourcemaps); `--profile debug` expands to `--sourcemap --no-minify`. The per-application `web.sourcemap` field in the app's `sillymaker.config.ts` remains the configured default; the CLI flags override it for one build.
+`--profile release` names the default (minified, no sourcemaps); `--profile debug` expands to `--sourcemap --no-minify`. The per-application `web.sourcemap` field in the app's `sillymaker.config.ts` remains the configured default; the CLI flags override it for one build (`deno task build:web` passes appended Vite flags straight through, e.g. `deno task build:web --sourcemap`).
 
 Build identity is generated from the application and resolved Story inputs used by the build. The collector is an optional per-application declaration (`web.identity` pointing at `<app>/tools/build-identity.mjs` over `@sillymaker/tooling/identity/*`); it doubles as a structural facet gate (no React/DOM in simulation closures, no cross-facet imports). It resolves engine sources against the repository root, so it is an in-repo gate — external application projects (and the copy-me starter) omit it and run on the default composer identity. Runtime digests and manifests are technical identity for compatibility, caching, diagnostics, and inspection; they are not proof of copyright ownership or asset approval.
 
@@ -105,10 +108,11 @@ The current JSON-file backend is a **preview/reference implementation**. It surv
 ## Desktop packaging preview
 
 ```sh
-deno task story desktop <app>                                  # host preview: <Name>.app
-deno task story desktop <app> --target x86_64-pc-windows-msvc  # cross-compiled package
-deno task story desktop <app> --target aarch64-apple-darwin --target x86_64-unknown-linux-gnu
-deno task story desktop <app> --compress=zstd --profile debug
+deno task build:desktop                                  # in the app directory: host preview <Name>.app
+deno task build:desktop --target x86_64-pc-windows-msvc  # cross-compiled package
+deno task build:desktop --target aarch64-apple-darwin --target x86_64-unknown-linux-gnu
+deno task build:desktop --compress=zstd --profile debug
+deno task story desktop <app>                            # repository root: same verb via aggregation
 ```
 
 Applications that declare `web.desktop` (safe name + lowercase reverse-DNS identifier + optional app-relative `icon`) package under `<app>/dist-desktop/`. The command builds the canonical web Artifact (honoring `--profile`/`--sourcemap`/`--no-minify`), stages a shell under `<app>/dist-desktop/staging/`, embeds `dist/`, injects `__SILLYMAKER_RECORDS__ = "local"`, and points the records endpoint at the platform user-data directory (`~/Library/Application Support/<identifier>/saves` on macOS, `%APPDATA%` on Windows, `$XDG_DATA_HOME` on Linux). It then invokes the experimental `deno desktop` command from Deno >= 2.9.
@@ -134,7 +138,7 @@ Before handing an Artifact to another person or machine:
 
 1. run `deno task check`;
 2. run browser tests relevant to the change;
-3. run `deno task story build <app>` and prepare the Artifact;
+3. run `deno task build:web` (or `deno task story build <app>` from the root) and prepare the Artifact;
 4. run the prebuilt browser suite for the application;
 5. inspect the generated manifest and legal-file presence;
 6. for desktop preview output, launch it and verify write → exit → reopen on the target platform;

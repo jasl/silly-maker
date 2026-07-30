@@ -1,19 +1,31 @@
 # Story CLI
 
-All commands run through Deno tasks from the repository root; every verb also runs app-locally inside an application directory via `deno run -A tools/story.mts <verb> .` (applications are self-contained projects with their own `sillymaker.config.ts` and `vite.config.ts`).
+Applications are self-contained projects (their own `sillymaker.config.ts` and `vite.config.ts`). Builds are application tasks run inside the application directory; the story CLI carries diagnostics and repository-level aggregation (inside an application, `deno task story <verb> .` selects that application).
 
-## Everyday
+## Inside an application directory
 
-| Command                                            | What it does                                                                                                                                           |
-| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `deno task story dev <app>`                        | Vite dev server for one application (`--smoke` boots, probes, and exits)                                                                               |
-| `deno task story check <app>` \| `--all`           | Structured Story diagnostics                                                                                                                           |
-| `deno task story simulate <app> --scenario <name>` | Headless scripted playthrough via the Agent port                                                                                                       |
-| `deno task story simulate … --trace <dot.paths>`   | Adds per-step numeric trajectories to the report                                                                                                       |
-| `deno task story build <app>`                      | Production Player bundle into `<app>/dist-web`                                                                                                         |
-| `deno task story desktop <app>`                    | Desktop packaging preview (host `.app`; `--target <triple>` cross-compiles `.app`/`.msi`/`.AppImage`); local file-store durability is not yet promoted |
-| `deno task story diff <a.json> <b.json>`           | Structured diff of two JSON files (saves, reports)                                                                                                     |
-| `deno task story inspect <app>`                    | Resolved Story identity and composition report                                                                                                         |
+| Command                                   | What it does                                                                                                      |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `deno task dev`                           | Vite dev server for this application                                                                              |
+| `deno task build:web`                     | Production Player bundle into `dist-web/` (`build` is its alias)                                                  |
+| `deno task build:desktop [--target <t>]…` | Desktop package(s) into `dist-desktop/` (host `.app` by default; triples cross-compile `.app`/`.msi`/`.AppImage`) |
+| `deno task preview`                       | Serve `dist-web/` over HTTP (`file://` cannot load ES modules)                                                    |
+| `deno task story <verb> .`                | App-local diagnostics: `inspect`, `check`, `simulate`, `dev --smoke`, `prebuilt-smoke`, `diff`                    |
+
+`build:desktop` forwards appended flags to the packaging verb: `--target <os-arch-triple>` (repeatable), `--compress[=xz|lzma|zstd]`, `--profile <release|debug>`. Local file-store durability is not yet promoted.
+
+## Repository root (workspace aggregation)
+
+| Command                                            | What it does                                                     |
+| -------------------------------------------------- | ---------------------------------------------------------------- |
+| `deno task story check <app>` \| `--all`           | Structured Story diagnostics                                     |
+| `deno task story simulate <app> --scenario <name>` | Headless scripted playthrough via the Agent port                 |
+| `deno task story simulate … --trace <dot.paths>`   | Adds per-step numeric trajectories to the report                 |
+| `deno task story inspect <app>`                    | Resolved Story identity and composition report                   |
+| `deno task story diff <a.json> <b.json>`           | Structured diff of two JSON files (saves, reports)               |
+| `deno task story build <app>`                      | Build a registered application from the root (CI aggregation)    |
+| `deno task story desktop <app>`                    | Desktop packaging for a registered application from the root     |
+| `deno task story dev <app>`                        | Vite dev server for one application (`--smoke` boots and probes) |
 
 ## Repository-wide
 
