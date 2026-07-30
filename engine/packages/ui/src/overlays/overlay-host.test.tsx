@@ -507,9 +507,11 @@ describe("OverlayHostV1", () => {
     expect(css).not.toMatch(/\.overlay-host__content\s*\{[^}]*max-block-size:\s*calc\(100dvh/su);
   });
 
-  it("backdrop clicks dismiss only the topmost stacked window; opt-out respected", async () => {
+  it("keeps every cancel path consistent for a non-dismissible Overlay", async () => {
     const store = createOverlaySessionStoreV1<OverlayIdV1>();
     const inputRouter = createInputRouterV1();
+    const gameplay = vi.fn(() => inputHandledV1);
+    inputRouter.register({ context: "gameplay", handle: gameplay });
     render(
       <DevDockPortalCoordinatorV1>
         <OverlayHostV1
@@ -535,14 +537,15 @@ describe("OverlayHostV1", () => {
     // Only the top closed: the detail is gone, the primary window remains.
     expect(store.getSnapshot()).toEqual({ primaryId: "locked", detailIds: [] });
     await waitFor(() => expect(document.querySelector("[data-overlay-kind='detail']")).toBeNull());
-    expect(document.querySelector("[data-overlay-kind='primary']")).not.toBeNull();
+    const lockedSnapshot = store.getSnapshot();
+    const lockedDialog = screen.getByRole("dialog", { name: "锁定教程" });
 
     // The primary is locked (dismissible: false): its backdrop ignores
     // clicks and the window stays.
     const primaryBackdrop = document.querySelector("[data-overlay-backdrop='0']");
     await user.click(primaryBackdrop as HTMLElement);
-    expect(store.getSnapshot()).toEqual({ primaryId: "locked", detailIds: [] });
-    expect(document.querySelector("[data-overlay-kind='primary']")).not.toBeNull();
+    expect(store.getSnapshot()).toBe(lockedSnapshot);
+    expect(screen.getByRole("dialog", { name: "锁定教程" })).toBe(lockedDialog);
 
     // The cancel action (right-click / Escape) is consumed without closing
     // the locked window — and never falls through to anything beneath.
@@ -550,7 +553,18 @@ describe("OverlayHostV1", () => {
       kind: "action",
       actionId: systemInputActionIdsV1.cancel,
     });
-    expect(routed.kind).toBe("handled");
-    expect(store.getSnapshot()).toEqual({ primaryId: "locked", detailIds: [] });
+    expect(routed).toEqual({ kind: "handled", context: "overlay" });
+    expect(gameplay).not.toHaveBeenCalled();
+    expect(store.getSnapshot()).toBe(lockedSnapshot);
+
+    // Radix receives a native Escape independently from InputRouter. It must
+    // apply the same dismiss policy instead of closing the locked window.
+    await user.keyboard("{Escape}");
+    expect(store.getSnapshot()).toBe(lockedSnapshot);
+    expect(screen.getByRole("dialog", { name: "锁定教程" })).toBe(lockedDialog);
+
+    // A locked window still has its declared business exit.
+    await user.click(screen.getByRole("button", { name: "关闭" }));
+    expect(store.getSnapshot()).toEqual({ primaryId: null, detailIds: [] });
   });
 });

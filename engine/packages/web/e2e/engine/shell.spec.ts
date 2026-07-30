@@ -35,6 +35,12 @@ test.describe("engine default shell", () => {
     await page.getByRole("button", { name: "实验日志" }).click();
     const journal = page.getByRole("dialog", { name: "实验日志" });
     await expect(journal).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(journal).toBeHidden();
+
+    // The explicit business exit remains available independently of Escape.
+    await page.getByRole("button", { name: "实验日志" }).click();
+    await expect(journal).toBeVisible();
     await journal.getByRole("button", { name: "关闭", exact: true }).click();
     await expect(journal).toBeHidden();
   });

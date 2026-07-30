@@ -179,7 +179,12 @@ function OverlayDialogEntryV1(props: {
             }}
             onEscapeKeyDown={(event) => {
               event.preventDefault();
-              if (!isDevDockEscapeOwnerTargetV1(event.target)) requestTopCloseV1();
+              if (
+                props.entry.resolution.dismissible !== false &&
+                !isDevDockEscapeOwnerTargetV1(event.target)
+              ) {
+                requestTopCloseV1();
+              }
             }}
             onInteractOutside={(event) => event.preventDefault()}
             onCloseAutoFocus={(event) => event.preventDefault()}
