@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT
-import { canonicalJsonBytes } from "./canonical-json.ts";
+import { canonicalJsonBytesInternalV1 } from "./canonical-json.ts";
+import type { SnapshotWorkInstrumentationV1 } from "../internal/snapshot-work-instrumentation.ts";
+import { recordSnapshotWorkV1 } from "../internal/snapshot-work-instrumentation.ts";
 import type { Digest } from "./values.ts";
 
 export type DigestDomainV1 =
@@ -104,8 +106,18 @@ function ascii(value: string): Uint8Array {
 }
 
 export function digestCanonical(domain: DigestDomainV1, value: unknown): Digest {
+  return digestCanonicalInternalV1(domain, value);
+}
+
+/** @internal Instrumented test/bench path; digest framing and algorithm are unchanged. */
+export function digestCanonicalInternalV1(
+  domain: DigestDomainV1,
+  value: unknown,
+  instrumentation?: SnapshotWorkInstrumentationV1,
+): Digest {
+  recordSnapshotWorkV1(instrumentation, "canonical_digest");
   const domainBytes = ascii(domain);
-  const valueBytes = canonicalJsonBytes(value);
+  const valueBytes = canonicalJsonBytesInternalV1(value, instrumentation);
   const framed = new Uint8Array(domainBytes.length + 1 + valueBytes.length);
   framed.set(domainBytes);
   framed[domainBytes.length] = 0;

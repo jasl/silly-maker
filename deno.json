@@ -22,6 +22,7 @@
     "test:unit": "deno run -A npm:vitest run",
     "test:coverage": "deno run -A npm:vitest run --coverage",
     "test": "deno task test:unit",
+    "bench:snapshot": "deno run --allow-write engine/packages/base/bench/snapshot-commit.ts",
     "check:assets": "deno run -A scripts/assets/verify-runtime-assets.mts",
     "story": "deno run -A scripts/story/cli.mts",
     "check:stories": "deno run -A scripts/story/cli.mts check --all",

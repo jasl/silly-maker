@@ -143,3 +143,23 @@ S2 结束时记录：
 ## 8. Promotion record
 
 每个切片记录：red/baseline、内部合同变化、focused/aggregate 命令、before/after 计数、等价性证据、仍未满足的激活条件。S0–S2 全部通过后，roadmap 只能标记“digest/serialization dedup 已完成”，不能提前宣称 changed-set proportional commit。
+
+### 2026-07-30 — S0a Session/CommandLog baseline
+
+本切片只建立 Session/CommandLog 热路径的测量基础，不完成全部 S0，也不实施 S1/S2：
+
+- `@sillymaker/base/testkit` 提供中性、生成式的 100 / 1k / 10k / 100k entity workload，覆盖单字段提交、多 State slice 提交候选、rejected 与 faulted；本切片不把手工候选误称为真实的跨 owner 事务；
+- package-internal 显式注入记录 canonical traversal/digest、Session deep-freeze traversal 与 CommandLog continuity verification；现有 public Session、CommandLog、digest 和 canonical JSON 签名不变；
+- 常规测试把 Session setup 固定为 digest/canonical `1`、deep-freeze `1`，并把每个 executed command 的当前基线固定为：
+
+| command class          | canonical traversal | state digest | deep-freeze | CommandLog continuity |
+| ---------------------- | ------------------: | -----------: | ----------: | --------------------: |
+| single-field committed |                   4 |            4 |           1 |                     1 |
+| multi-slice committed  |                   4 |            4 |           1 |                     1 |
+| rejected               |                   4 |            4 |           0 |                     1 |
+| faulted                |                   4 |            4 |           0 |                     1 |
+
+- instrumented 与 production no-op 路径逐 command 比较 dispatch result、最终 Snapshot 与 CommandLog canonical bytes，保持相等；
+- `deno task bench:snapshot` 只把 p50/p95、确定性计数和环境摘要写到 OS 临时目录或显式 CI artifact；墙钟结果不进入普通 CI gate，也不提交本地原始 JSON。
+
+仍属于 S0、尚未完成：基于真实 `TransactionRunner` 的跨 owner 原子事务、混合长序列（fault 必须置末或经 anchor 恢复）、`every_commit`/`auto.previous` 的 Save serialization 与 Strict JSON 计数、authoritative replay，以及长时内存增长。DebugBundle 只属于后续 byte-equivalence corpus；真实经营 Story 的预算判断属于 S2 后的 promotion decision，二者都不归入 S0 workload。静态扫描已经定位 persistence/replay 路径，但在对应 instrumentation 进入测试前，其预测次数不作为 promotion baseline。S1 digest cache 与 S2 persistence reuse 均未开始。

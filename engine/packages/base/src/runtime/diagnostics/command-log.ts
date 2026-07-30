@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { digestCanonical } from "../../contracts/digest.ts";
+import { digestCanonicalInternalV1 } from "../../contracts/digest.ts";
 import type { CommandExecutionAttemptEnvelopeV1 } from "../../contracts/execution.ts";
 import type {
   DeepReadonly,
@@ -8,6 +8,8 @@ import type {
   PositiveSafeInteger,
 } from "../../contracts/values.ts";
 import { parsePositiveSafeInteger } from "../../contracts/values.ts";
+import type { SnapshotWorkInstrumentationV1 } from "../../internal/snapshot-work-instrumentation.ts";
+import { recordSnapshotWorkV1 } from "../../internal/snapshot-work-instrumentation.ts";
 
 interface CommandLogSnapshotV1 {
   readonly rng: unknown;
@@ -163,14 +165,22 @@ function validateFinalizedAttemptV1<
     TRngState,
     TRngDrawTrace
   >,
+  instrumentation?: SnapshotWorkInstrumentationV1,
 ): void {
+  recordSnapshotWorkV1(instrumentation, "command_log_continuity_verification");
   if (attempt.preSnapshot !== expectedPreSnapshot) {
     throw new TypeError("Finalized command attempt breaks snapshot continuity");
   }
-  if (attempt.preStateDigest !== digestCanonical("sillymaker:state:v1", attempt.preSnapshot)) {
+  if (
+    attempt.preStateDigest !==
+    digestCanonicalInternalV1("sillymaker:state:v1", attempt.preSnapshot, instrumentation)
+  ) {
     throw new TypeError("Finalized command attempt pre-state digest mismatch");
   }
-  if (attempt.postStateDigest !== digestCanonical("sillymaker:state:v1", attempt.result.snapshot)) {
+  if (
+    attempt.postStateDigest !==
+    digestCanonicalInternalV1("sillymaker:state:v1", attempt.result.snapshot, instrumentation)
+  ) {
     throw new TypeError("Finalized command attempt post-state digest mismatch");
   }
   if (attempt.result.kind !== "committed" && attempt.result.snapshot !== attempt.preSnapshot) {
@@ -178,7 +188,8 @@ function validateFinalizedAttemptV1<
   }
 }
 
-export function createCommandLogV1<
+/** @internal Instrumented Session path; intentionally absent from package barrels. */
+export function createCommandLogInternalV1<
   TSnapshot extends CommandLogSnapshotV1,
   TLoggedCommand extends LoggedCommandShapeV1 = LoggedCommandShapeV1,
   TFact = unknown,
@@ -186,10 +197,13 @@ export function createCommandLogV1<
   TFault = unknown,
   TRngState = TSnapshot["rng"],
   TRngDrawTrace = unknown,
->(input: {
-  readonly replayBase: DeepReadonly<TSnapshot>;
-  readonly limit: number;
-}): CommandLogV1<TSnapshot, TLoggedCommand, TFact, TRejection, TFault, TRngState, TRngDrawTrace> {
+>(
+  input: {
+    readonly replayBase: DeepReadonly<TSnapshot>;
+    readonly limit: number;
+  },
+  instrumentation?: SnapshotWorkInstrumentationV1,
+): CommandLogV1<TSnapshot, TLoggedCommand, TFact, TRejection, TFault, TRngState, TRngDrawTrace> {
   type PublicEntry = CommandLogEntryForV1<
     TLoggedCommand,
     TFact,
@@ -206,7 +220,11 @@ export function createCommandLogV1<
   }
 
   let replayBase = input.replayBase;
-  let replayBaseDigest = digestCanonical("sillymaker:state:v1", replayBase);
+  let replayBaseDigest = digestCanonicalInternalV1(
+    "sillymaker:state:v1",
+    replayBase,
+    instrumentation,
+  );
   let nextOrdinal = parsePositiveSafeInteger(1);
   const internalEntries: InternalEntry[] = [];
   let publicEntries: readonly PublicEntry[] = Object.freeze([]);
@@ -232,7 +250,7 @@ export function createCommandLogV1<
         throw new TypeError("Debug CommandLog entries cannot be rejected");
       }
       const preAttemptSnapshot = internalEntries.at(-1)?.postAttemptSnapshot ?? replayBase;
-      validateFinalizedAttemptV1(preAttemptSnapshot, finalizedAttempt);
+      validateFinalizedAttemptV1(preAttemptSnapshot, finalizedAttempt, instrumentation);
 
       const postAttemptSnapshot = finalizedAttempt.result.snapshot;
       const diagnostics = finalizedAttempt.diagnostics;
@@ -277,7 +295,7 @@ export function createCommandLogV1<
     prepareAnchor(snapshot) {
       return Object.freeze({
         snapshot,
-        stateDigest: digestCanonical("sillymaker:state:v1", snapshot),
+        stateDigest: digestCanonicalInternalV1("sillymaker:state:v1", snapshot, instrumentation),
         nextOrdinal: parsePositiveSafeInteger(1),
         emptyEntries: Object.freeze([]),
       });
@@ -295,4 +313,19 @@ export function createCommandLogV1<
   };
 
   return Object.freeze(log);
+}
+
+export function createCommandLogV1<
+  TSnapshot extends CommandLogSnapshotV1,
+  TLoggedCommand extends LoggedCommandShapeV1 = LoggedCommandShapeV1,
+  TFact = unknown,
+  TRejection = unknown,
+  TFault = unknown,
+  TRngState = TSnapshot["rng"],
+  TRngDrawTrace = unknown,
+>(input: {
+  readonly replayBase: DeepReadonly<TSnapshot>;
+  readonly limit: number;
+}): CommandLogV1<TSnapshot, TLoggedCommand, TFact, TRejection, TFault, TRngState, TRngDrawTrace> {
+  return createCommandLogInternalV1(input);
 }

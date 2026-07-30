@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: MIT
+import type { SnapshotWorkInstrumentationV1 } from "../internal/snapshot-work-instrumentation.ts";
+import { recordSnapshotWorkV1 } from "../internal/snapshot-work-instrumentation.ts";
 
 export type CanonicalJsonErrorCodeV1 =
   | "value.undefined"
@@ -87,6 +89,15 @@ function utf8(value: string): Uint8Array {
 }
 
 export function canonicalJsonBytes(value: unknown): Uint8Array {
+  return canonicalJsonBytesInternalV1(value);
+}
+
+/** @internal Instrumented test/bench path; public canonical bytes remain unchanged. */
+export function canonicalJsonBytesInternalV1(
+  value: unknown,
+  instrumentation?: SnapshotWorkInstrumentationV1,
+): Uint8Array {
+  recordSnapshotWorkV1(instrumentation, "canonical_traversal");
   const active = new Set<object>();
 
   function encode(current: unknown, path: string): string {

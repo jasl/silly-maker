@@ -3,7 +3,7 @@ import type {
   CommandExecutionAttemptEnvelopeV1,
   CommandExecutionResultEnvelopeV1,
 } from "../../contracts/execution.ts";
-import { digestCanonical } from "../../contracts/digest.ts";
+import { digestCanonicalInternalV1 } from "../../contracts/digest.ts";
 import type {
   GameDebugCommandValidationResultV1,
   GameSimulationTypeMapV1,
@@ -19,9 +19,11 @@ import type {
 } from "../../contracts/values.ts";
 import type { RunIntegrityReasonV1 } from "../../contracts/snapshot.ts";
 import { runIntegrityV1Schema } from "../../contracts/snapshot.ts";
+import type { SnapshotWorkInstrumentationV1 } from "../../internal/snapshot-work-instrumentation.ts";
+import { recordSnapshotWorkV1 } from "../../internal/snapshot-work-instrumentation.ts";
 import {
-  createCommandLogV1,
   type CommandLogV1,
+  createCommandLogInternalV1,
   type FinalizedCommandAttemptV1,
 } from "../diagnostics/command-log.ts";
 import type { IntegrityDirectiveV1 } from "./run-integrity.ts";
@@ -235,6 +237,7 @@ function isThenable(value: unknown): boolean {
 function finalizeCommandAttemptV1<TTypes extends GameSimulationTypeMapV1>(
   before: DeepReadonly<TTypes["snapshot"]>,
   candidate: AttemptFor<TTypes>,
+  instrumentation?: SnapshotWorkInstrumentationV1,
   integrityDirective: IntegrityDirectiveV1 = { kind: "preserve_current" },
 ): FinalizedAttemptFor<TTypes> {
   const finalizedSnapshot = finalizeSnapshotIntegrityV1<TTypes["snapshot"]>(
@@ -269,8 +272,12 @@ function finalizeCommandAttemptV1<TTypes extends GameSimulationTypeMapV1>(
     result,
     diagnostics: candidate.diagnostics,
     preSnapshot: before,
-    preStateDigest: digestCanonical("sillymaker:state:v1", before),
-    postStateDigest: digestCanonical("sillymaker:state:v1", finalizedSnapshot),
+    preStateDigest: digestCanonicalInternalV1("sillymaker:state:v1", before, instrumentation),
+    postStateDigest: digestCanonicalInternalV1(
+      "sillymaker:state:v1",
+      finalizedSnapshot,
+      instrumentation,
+    ),
   }) as FinalizedAttemptFor<TTypes>;
 }
 
@@ -335,7 +342,11 @@ function debugAnchorReasonV1<
  * visited set guards traversal because already-frozen envelopes can still
  * carry mutable children.
  */
-function deepFreezeSnapshotV1<TSnapshot>(value: TSnapshot): TSnapshot {
+function deepFreezeSnapshotV1<TSnapshot>(
+  value: TSnapshot,
+  instrumentation?: SnapshotWorkInstrumentationV1,
+): TSnapshot {
+  recordSnapshotWorkV1(instrumentation, "deep_freeze_traversal");
   const visited = new Set<object>();
   const freeze = (current: unknown): void => {
     if (current === null || typeof current !== "object" || visited.has(current)) return;
@@ -353,15 +364,16 @@ function deepFreezeSnapshotV1<TSnapshot>(value: TSnapshot): TSnapshot {
 
 function createInternal<TTypes extends GameSimulationTypeMapV1>(
   input: GameSessionInputV1<TTypes>,
+  instrumentation?: SnapshotWorkInstrumentationV1,
 ): GameSessionCompositionV1<TTypes> {
   type DispatchResult = Awaited<ReturnType<GameSessionV1<TTypes>["dispatch"]>>;
 
   runIntegrityV1Schema.parse(input.initialSnapshot.integrity);
-  let snapshot = deepFreezeSnapshotV1(input.initialSnapshot);
+  let snapshot = deepFreezeSnapshotV1(input.initialSnapshot, instrumentation);
   let stableStatus: Exclude<RuntimeSessionStatusV1, "busy"> = "ready";
   let pending = 0;
   let tail: Promise<void> = Promise.resolve();
-  const commandLog = createCommandLogV1<
+  const commandLog = createCommandLogInternalV1<
     TTypes["snapshot"],
     LoggedCommandFor<TTypes>,
     TTypes["fact"],
@@ -369,10 +381,13 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
     TTypes["fault"],
     TTypes["rngState"],
     TTypes["rngDrawTrace"]
-  >({
-    replayBase: input.initialSnapshot as DeepReadonly<TTypes["snapshot"]>,
-    limit: 200,
-  });
+  >(
+    {
+      replayBase: input.initialSnapshot as DeepReadonly<TTypes["snapshot"]>,
+      limit: 200,
+    },
+    instrumentation,
+  );
   const commandLogView: CommandLogViewFor<TTypes> = Object.freeze({
     entries: () => commandLog.entries(),
     replayBase: () => commandLog.replayBase(),
@@ -463,6 +478,7 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
                 outcome.snapshot,
                 { kind: "accept_replacement" },
               ),
+              instrumentation,
             );
             if (outcome.anchor === "preserve_log" && finalized !== snapshot) {
               throw new TypeError("preserve_log replacement changed the Snapshot");
@@ -579,11 +595,12 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
           finalizedAttempt = finalizeCommandAttemptV1<TTypes>(
             before,
             candidate,
+            instrumentation,
             integrityDirective,
           );
         } catch (error) {
           candidate = normalizeFault(error);
-          finalizedAttempt = finalizeCommandAttemptV1<TTypes>(before, candidate);
+          finalizedAttempt = finalizeCommandAttemptV1<TTypes>(before, candidate, instrumentation);
         }
 
         commandLog.append(
@@ -599,7 +616,7 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
           reportObserverFailure(error);
         }
         if (finalizedAttempt.result.kind === "committed") {
-          snapshot = deepFreezeSnapshotV1(finalizedAttempt.result.snapshot);
+          snapshot = deepFreezeSnapshotV1(finalizedAttempt.result.snapshot, instrumentation);
           publish();
           publishCommittedSnapshot();
         } else {
@@ -645,10 +662,16 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
             outcome.snapshot,
             { kind: "accept_replacement" },
           );
-          const finalized = deepFreezeSnapshotV1({
-            ...accepted,
-            integrity: markRunModifiedV1(accepted.integrity, debugAnchorReasonV1(anchor, accepted)),
-          }) as TTypes["snapshot"];
+          const finalized = deepFreezeSnapshotV1(
+            {
+              ...accepted,
+              integrity: markRunModifiedV1(
+                accepted.integrity,
+                debugAnchorReasonV1(anchor, accepted),
+              ),
+            },
+            instrumentation,
+          ) as TTypes["snapshot"];
           runIntegrityV1Schema.parse(finalized.integrity);
           const preparedCommandLogAnchor = commandLog.prepareAnchor(
             finalized as DeepReadonly<TTypes["snapshot"]>,
@@ -712,10 +735,10 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
         if (isHmrInvalidated()) return hmrInvalidatedV1;
         let finalizedAttempt: FinalizedAttemptFor<TTypes>;
         try {
-          finalizedAttempt = finalizeCommandAttemptV1<TTypes>(before, candidate);
+          finalizedAttempt = finalizeCommandAttemptV1<TTypes>(before, candidate, instrumentation);
         } catch (error) {
           candidate = input.normalizeUnexpectedDispatchFault(error, before);
-          finalizedAttempt = finalizeCommandAttemptV1<TTypes>(before, candidate);
+          finalizedAttempt = finalizeCommandAttemptV1<TTypes>(before, candidate, instrumentation);
         }
         commandLog.append(
           Object.freeze({
@@ -730,7 +753,7 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
           reportObserverFailure(error);
         }
         if (finalizedAttempt.result.kind === "committed") {
-          snapshot = deepFreezeSnapshotV1(finalizedAttempt.result.snapshot);
+          snapshot = deepFreezeSnapshotV1(finalizedAttempt.result.snapshot, instrumentation);
           publish();
           publishCommittedSnapshot();
         } else if (finalizedAttempt.result.kind === "faulted") {
@@ -758,4 +781,12 @@ export function createGameSessionV1<TTypes extends GameSimulationTypeMapV1>(
   input: GameSessionInputV1<TTypes>,
 ): GameSessionCompositionV1<TTypes> {
   return createInternal(input);
+}
+
+/** @internal Test/bench injection; intentionally absent from package barrels. */
+export function createInstrumentedGameSessionV1<TTypes extends GameSimulationTypeMapV1>(
+  input: GameSessionInputV1<TTypes>,
+  instrumentation: SnapshotWorkInstrumentationV1,
+): GameSessionCompositionV1<TTypes> {
+  return createInternal(input, instrumentation);
 }

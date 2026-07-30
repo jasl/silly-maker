@@ -120,10 +120,21 @@ import {
   createGameHarnessV1,
   createMemoryHostRecordStoreV1,
   createSyntheticCounterGamePackageV1,
+  prepareSnapshotCommitWorkloadV1,
   resolveStoryForTestV1,
+  snapshotCommitCommandClassesV1,
+  snapshotCommitEntityCountsV1,
   strictJsonRoundTripV1,
   validateToolingFixturesV1,
   validateStoryV1,
+} from "@sillymaker/base/testkit";
+import type {
+  PreparedSnapshotCommitWorkloadV1,
+  SnapshotCommitCommandClassV1,
+  SnapshotCommitEntityCountV1,
+  SnapshotCommitWorkloadDescriptorV1,
+  SnapshotCommitWorkloadRunV1,
+  SnapshotSessionWorkCountsV1,
 } from "@sillymaker/base/testkit";
 
 export type BaseConsumerTypesV1 = {
@@ -205,6 +216,12 @@ export type BaseConsumerTypesV1 = {
   audioManifest: ResolvedAudioManifestV1;
   assetDemandPlan: AssetDemandPlanV1;
   transientEffect: TransientEffectV1;
+  preparedSnapshotCommitWorkload: PreparedSnapshotCommitWorkloadV1;
+  snapshotCommitCommandClass: SnapshotCommitCommandClassV1;
+  snapshotCommitEntityCount: SnapshotCommitEntityCountV1;
+  snapshotCommitWorkloadDescriptor: SnapshotCommitWorkloadDescriptorV1;
+  snapshotCommitWorkloadRun: SnapshotCommitWorkloadRunV1;
+  snapshotSessionWorkCounts: SnapshotSessionWorkCountsV1;
 };
 
 export type BaseConsumerValuesV1 = {
@@ -215,6 +232,7 @@ export type BaseConsumerValuesV1 = {
   resolveCoreGameApplication: typeof resolveCoreGameApplicationV1;
   createFixedBootstrapEntropy: typeof createFixedBootstrapEntropyV1;
   createMemoryHostRecordStore: typeof createMemoryHostRecordStoreV1;
+  prepareSnapshotCommitWorkload: typeof prepareSnapshotCommitWorkloadV1;
   createGameSnapshotEnvelopeSchema: typeof createGameSnapshotEnvelopeSchemaV1;
   createPristineRunIntegrity: typeof createPristineRunIntegrityV1;
   createSaveRecordEnvelopeSchema: typeof createSaveRecordEnvelopeSchemaV1;
@@ -242,6 +260,8 @@ export type BaseConsumerValuesV1 = {
   resolveStoryForTest: typeof resolveStoryForTestV1;
   rngStateSchema: typeof rngStateV1Schema;
   runIntegritySchema: typeof runIntegrityV1Schema;
+  snapshotCommitCommandClasses: typeof snapshotCommitCommandClassesV1;
+  snapshotCommitEntityCounts: typeof snapshotCommitEntityCountsV1;
   strictJsonRoundTrip: typeof strictJsonRoundTripV1;
   validateToolingFixtures: typeof validateToolingFixturesV1;
   validateStory: typeof validateStoryV1;

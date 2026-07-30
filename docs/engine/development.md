@@ -45,6 +45,7 @@ Package manifests define supported cross-package entries. Do not bypass them wit
 | `deno task check`                                | Canonical local code-quality and product-behavior check.                |
 | `deno task test`                                 | Run engine and game behavior tests.                                     |
 | `deno task test:coverage`                        | Run unit tests with engine line-coverage reporting.                     |
+| `deno task bench:snapshot`                       | Write a neutral Snapshot Session baseline JSON to a temporary path.     |
 | `deno task test:e2e:engine`                      | Engine browser suite against the Engine Lab Story.                      |
 | `deno task test:e2e`                             | Alias of the engine browser suite.                                      |
 | `deno task story <verb> <app>`                   | Application lifecycle CLI (JSON reports); verbs below.                  |
@@ -76,6 +77,8 @@ Private studies, `tmp/`-only verification games, and external checkouts do not r
 `deno task check` may remain as a compatibility alias for `deno task check`; new documentation and automation should use `deno task check`.
 
 Use a focused package or test-file command while iterating when that is faster. Run `deno task check` before handing off a change, and add `deno task test:e2e` or prebuilt testing when the affected behavior crosses the browser/build boundary.
+
+`deno task bench:snapshot` runs generated 100/1k/10k/100k-entity Session workloads for single-field commits, multi-slice committed candidates, rejection, and fault. By default it writes machine-readable p50/p95 and deterministic work counts under an operating-system temporary directory; pass `--output <path>` for a CI artifact. Wall-clock values are trend evidence, not ordinary CI gates, and raw local baseline files are not committed.
 
 ## Change workflow
 
