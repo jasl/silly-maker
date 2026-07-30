@@ -4,7 +4,9 @@
 Composer、GameHarness、Agent adapters、project tooling 与首轮 canary
 已实现并进入 [features](../features.md)。本文其余条目仍是目标合同；2026-07-30
 接受的 Managed Surface 作者路径与弱模型 capability floor 尚未实现，见
-[Surface Contract Harness](surface-contract-harness.md)。
+[Surface Contract Harness](surface-contract-harness.md)。authoritative numeric /
+entropy 作者边界与待实现 guardrail 见
+[Deterministic simulation boundary](deterministic-simulation-boundary.md)。
 
 ## 1. Goal
 
@@ -61,7 +63,20 @@ Back 栈。标准路径必须提供受管的 Surface 声明与 transition；普�
 
 普通 JavaScript
 仍可访问宿主允许的全局对象，引擎不拦截；这类访问只是超出兼容合同，并非受支持的扩展
-API。
+API。SillyMaker 的目标是从 root application registry fail-closed 建立真实
+authoritative closure：现有 BuildIdentity managed simulation record 只是
+dependency seed，还必须补入拥有 materialize/create simulation callback 的 source
+与显式 authority entry。该 closure 获得 static diagnostic、test-only isolated
+tripwire、runtime canonical admission 与跨引擎证据，而不是把 trusted Story
+描述成 sandbox。Network、LLM、wall clock 或系统 entropy 若要影响玩法，必须先在
+Host/application 边界变成 validated canonical command 或不可变资源 identity；
+replay 不重新调用外部 oracle。
+
+New-game bootstrap 是一个窄例外：Story-owned `createBootstrapInput` 在生命周期上是
+composition-root ingress adapter，只能消费 Core 注入的 `BootstrapEntropyV1`；
+Core 对它的整个 output 做 canonical admission + deep-freeze 后，才把同一个值交给
+authoritative `createInitialState`。这个边界不允许作者自行读取 `Math.random()` /
+`crypto`，也不引入 public bootstrap envelope 或第二份 State。
 
 ## 3. Public authoring surface
 
@@ -362,6 +377,8 @@ Base。它负责：
 
 - project/application config；
 - inspect、check、lint 和 diagnostic formatting；
+- fail-closed authoritative closure collection，以及待 PF-DET 落地的
+  ambient entropy/numeric diagnostics；
 - headless simulate/scenario；
 - dev/build/prebuilt smoke 的 target resolution；
 - asset/reference closure validation；
@@ -380,7 +397,9 @@ sillymaker build --app e2e-web
 ```
 
 后两个命令是 Surface track 的目标命令面，精确命名由实施原型决定；在
-`features.md` 宣布实现前，文档和 Agent 不得假定它们已经可用。
+`features.md` 宣布实现前，文档和 Agent 不得假定它们已经可用。determinism guard
+同样由 focused plan 决定专用 task 名称；本设计不把尚未实现的 lint/tripwire
+命令写成 live CLI。
 
 `sillymaker.config.ts` 或同等普通 TS config 取代 `poc-web` 的硬编码 switch。新增
 Story 可以增加自己的 package 和一个声明式 application entry；它不修改 Vite

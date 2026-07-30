@@ -1,26 +1,34 @@
 # Production-floor execution sequence
 
-状态：2026-07-30 接受执行，2026-07-31 根据 PF2 pilot 决策修订 Surface
-子阶段依赖。本文是当前唯一的跨计划排序入口；具体合同仍由各 design 文档拥有，具体
-任务由四个独立计划拥有：
+状态：2026-07-30 接受执行，2026-07-31 根据 PF2 pilot 决策与 authoritative
+determinism 审计修订。本文是当前唯一的跨计划排序入口；具体合同仍由各 design
+文档拥有，具体任务由五个独立计划拥有：
 
 - [Desktop persistence durability](2026-07-30-desktop-persistence-durability.md)
 - [Snapshot commit performance](2026-07-30-snapshot-commit-performance.md)
 - [Save migration](2026-07-30-save-migration.md)
 - [Managed Surface lifecycle](2026-07-30-surface-contract-harness.md)
+- [Authoritative determinism guardrails](2026-07-31-authoritative-determinism-guardrails.md)
 
 本文不把尚未实现的目标写成 live capability。`architecture.md`、`features.md` 与公开网站只描述已经通过验收的行为。
 
 ## 1. Why one sequence
 
-四个方向都属于 production floor，但风险形态不同：
+五个方向都属于 production floor，但风险形态不同：
 
 - Desktop persistence 是 Host transaction/durability 缺口；当前 file adapter 只有单文件 replace 与同进程串行，不能冒充多记录 crash-atomic store；
 - Snapshot 优化是低语义风险、可通过等价性证明的热路径改造；
 - Save migration 是跨版本产品承诺，必须在第一次正式存档格式演进前建立；
-- Surface lifecycle 是高组合风险架构迁移，必须以一个真实 surface family 为 pilot，不能一次重写 Overlay、System、Narrative、Browser input 和 Agent receipt。
+- Surface lifecycle 是高组合风险架构迁移，必须以一个真实 surface family 为
+  pilot，不能一次重写 Overlay、System、Narrative、Browser input 和 Agent
+  receipt。
+- Authoritative determinism guardrail 是 trusted Story/low-level schema 的入场与
+  认证缺口：不能用现有 Snapshot canonical digest 冒充对 command、evidence、
+  ambient entropy 或跨 JavaScript 引擎的完整保证。
 
-因此不接受“把四个大设计并行交给多个 Agent，最后一次合并”的执行方式。每个切片必须可独立合并、可独立回滚、可独立更新现状文档；下一切片只依赖已通过 promotion record 的合同。
+因此不接受“把五个大设计并行交给多个
+Agent，最后一次合并”的执行方式。每个切片必须可独立合并、可独立回滚、可独立更新现状文档；下一切片只依赖已通过
+promotion record 的合同。
 
 ## 2. Core sequence and independent promotion lane
 
@@ -61,16 +69,17 @@ write/reopen smoke 只证明 packaging integration，不证明 durability。
 
 当前 file adapter 在 PF-D promotion 前保持 `preview/reference` 身份。它的普通错误 rollback 和单文件 rename 不能作为 `HostAtomicRecordStoreV1` crash-atomic 的发布证据。
 
-PF-D 可在 PF0 后独立启动，但**不是 PF1–PF6 的默认串行 blocker**：只要 desktop
-仍明确标为 preview，核心 production-floor 顺序从 PF1 开始。若某次发布要把某个
-平台的 desktop durability 或 packaging 晋级为 production，则对应 PF-D
-子轨的 evidence 必须在该发布的 PF7 前完成。Durability、packaging 与 auto-update
-各自独立记录；packager/updater 缺口不阻塞 backend durability
-promotion。若产品声称“packaged app 使用 atomic persistence”，则 promotion
-record 同时引用已通过的 durability 与 packaging evidence。PF-D 可以与纯
-benchmark/fixture 准备并行；D0–D3 与 D4 也可在目标/报告合同定稿后并行，但 D4
-不得同时改变共享 Host/Save/records wire contract。PF-D 不得与 PF3 同时改变
-`HostAtomicRecordStoreV1`、SaveRepository 或 records wire contract。
+PF-D 可在 PF0 后独立启动，但**不是 PF1–PF6 / PF-DET 的默认串行 blocker**：只要
+desktop 仍明确标为 preview，核心 production-floor 顺序从 PF1
+开始。若某次发布要把某个平台的 desktop durability 或 packaging 晋级为
+production，则对应 PF-D 子轨的 evidence 必须在该发布的 PF7
+前完成。Durability、packaging 与 auto-update 各自独立记录；packager/updater
+缺口不阻塞 backend durability promotion。若产品声称“packaged app 使用 atomic
+persistence”，则 promotion record 同时引用已通过的 durability 与 packaging
+evidence。PF-D 可以与纯 benchmark/fixture 准备并行；D0–D3 与 D4
+也可在目标/报告合同定稿后并行，但 D4 不得同时改变共享 Host/Save/records wire
+contract。PF-D 不得与 PF3 同时改变 `HostAtomicRecordStoreV1`、SaveRepository 或
+records wire contract。
 
 ### PF1 — Snapshot baseline and digest dedup（已完成）
 
@@ -115,6 +124,59 @@ reconcile 或参数等价字段。本切片明确不实现 application-level end
 receipt、弱模型战役、全 surface fuzz explorer，也不迁移 System/Narrative。若同一
 cutover slice 无法消除 Overlay 双重 writable authority，停止并修订设计；pilot
 失败时必须可以删除 Coordinator 而不留下双写。
+
+### PF-DET — Authoritative determinism guardrails
+
+PF2 pilot 通过后、PF3 M0 冻结当前 Save/load 行为前，执行
+[Determinism plan](2026-07-31-authoritative-determinism-guardrails.md) 的 **DET0
+→ DET1 → DET2a → DET2b → DET2c → DET2d → DET3a → DET3b → DET4**：
+
+1. 用中性 fixture 固定 raw/mutable bootstrap handoff、permissive
+   command/evidence 的 late admission、replay command 漏口与 xorshift32 zero
+   absorbing state；
+2. runtime 拒绝 zero seed/restored cursor；若发现被承诺维护的 zero-state Save，
+   因无法恢复原 non-zero lineage 而停止并请求明确兼容性决定；
+3. normalized game/debug command 在 executor 前 canonical admission，完整
+   facts/rejections/fault/RNG evidence 在 Snapshot/RNG install 和 CommandLog
+   append 前、candidate Snapshot freeze/post-digest 前 finalization；合法
+   bytes/digest/Save/replay 与 PF1 Snapshot digest/freeze count 不回退，新增
+   admission canonical traversal 另行 purpose-tagged 计数；
+4. Strict JSON 在 binary64 转换前按 token 精确数学值拒绝“舍入成整数”的小数，同时
+   保留 `1.0` / `1e0` 等数学整数写法，不改变 canonical output/digest；
+5. 把 Story-owned `createBootstrapInput` 定义为只消费 injected
+   `BootstrapEntropyV1` 的 composition-root ingress adapter；Core 在
+   `createInitialState` 前对整个 output 做 package-internal canonical admission +
+   deep-freeze，所有 initial-Snapshot 路径共用同一个 admitted value，不新增 public
+   bootstrap schema/envelope；新增 bootstrap canonical/freeze traversal 单独
+   purpose-tagged 计数；
+6. 从 root registry fail-closed 枚举应用，以 BuildIdentity managed simulation
+   records 为 seed，并补齐实际 simulation callback owner 与显式 authority
+   entries；同时用有界显式 entries 覆盖 Base Session/executor/RNG/replay
+   closure。增加独立 determinism lint，保留 Oxlint，不固定 Deno patch，不全仓库
+   禁止合法 Host/Presentation；
+7. isolated test-only realm 捕获 direct entropy/clock/network/environment/
+   locale-default/DOM ambient access，不能污染 Player realm 或冒充 sandbox；
+8. 同一中性 test-only authoritative transcript 在 Deno、Chromium、Firefox、
+   WebKit 逐 command 比较 outcome、facts/reasons/fault、RNG、sequence、pre/post
+   digest 与 log/replay evidence，并报告第一处分歧；fixture 必须含显式
+   deterministic fault 和必然触发 rejection sampling 的受控 vector，production
+   check CI 显式安装 lock 对应的三种 browser。
+
+PF-DET 不引入 `decimal.js`、通用 numeric package、named/keyed RNG、trace V2、
+production Simulation Worker、untrusted Mod 隔离或 universal application
+receipt。当前没有 `faultSchema`；若 DET2b 不能通过 package-internal finalizer 与
+现有 stable fault policy 闭合，或需要改变 public
+Session/Simulation/CommandLog/fault contract，停止并修订 design，不借机扩张
+Surface receipt。若 DET2d 需要新增 public `GameSimulation` revision、bootstrap
+schema/envelope，或改变合法 initial Snapshot/Save bytes，也同样停止并提交
+contract decision。
+
+PF3 必须等待完整 PF-DET promotion。PF2 不依赖 PF-DET；插在 pilot
+后是为了保持已经冻结的 Overlay 单 authority 切片不混入 Base/tooling/browser
+determinism 改造。PF-DET 用 synthetic callback 冻结可追加 authority entry 与
+pure-vector runner；PF3 M1/M2 每次注册真实 format/State migration 时必须加入同一
+static/tripwire scope 并扩展四 runtime matrix，不能把 PF-DET 当作一次性已完成
+认证。
 
 ### PF3 — Save envelope and migration registry
 
@@ -188,10 +250,11 @@ presentation postcondition，application-composition bridge 就必须组合这�
 
 ### PF7 — Release stabilization
 
-- `deno task check`、受影响的 browser/prebuilt matrix、Save fixture corpus
-  和性能计数 gate 全绿；若本次发布包含 desktop durability promotion，只要求对应
-  D0–D3 evidence；若包含 packaging promotion，只要求对应 D4 evidence；只有
-  “packaged app 使用 atomic persistence”的组合声明才同时要求两轨全绿；
+- `deno task check`、受影响的 browser/prebuilt matrix、Save fixture corpus、
+  PF-DET 四 runtime 逐 command matrix 和性能计数 gate 全绿；若本次发布包含
+  desktop durability promotion，只要求对应 D0–D3 evidence；若包含 packaging
+  promotion，只要求对应 D4 evidence；只有 “packaged app 使用 atomic
+  persistence”的组合声明才同时要求两轨全绿；
 - public exports 经过第二消费者证明；
 - superseded owner/API 被删除或明确 deprecated；
 - architecture/features/development/story-authoring/build-and-release 与实现同步；
@@ -216,8 +279,12 @@ PF7 只完成 production floor，不自动激活 Mod。Mod M0–M2 仍必须满�
 
 禁止：
 
-- 在一个 PR 同时做 Snapshot 数据结构重写、Save migration 和 Surface Coordinator；
-- 把 desktop file adapter 的进程内 mutex/rollback 描述为 crash-atomic transaction；
+- 在一个 PR 同时做 Snapshot 数据结构重写、Save migration 和 Surface
+  Coordinator；
+- 把 determinism lint、zero RNG、command/evidence admission 与 Surface/Save
+  migration 合成一个提交；
+- 把 desktop file adapter 的进程内 mutex/rollback 描述为 crash-atomic
+  transaction；
 - 以“后续会统一”为理由保留双写；
 - 为 plan phase 建一次性测试命令或 frozen 文件清单；
 - 将 design 中的建议字段一次性全部冻结成公共 API；
@@ -227,7 +294,7 @@ PF7 只完成 production floor，不自动激活 Mod。Mod M0–M2 仍必须满�
 
 在一个切片正在实现时，可并行进行但不得改变其目标合同的工作：
 
-- PF-D 的 backend spike、fault fixture 与 packaged smoke，可与 PF1/PF2
+- PF-D 的 backend spike、fault fixture 与 packaged smoke，可与 PF1/PF2/PF-DET
   的纯准备工作并行；D4 在 target/output/report contract 定稿后也可与 D0–D3
   并行；一旦触及共享 Host/Save/records wire contract 即停止并串行；
 - 文档校对、测试夹具准备、benchmark 运行和结果分析；
@@ -235,7 +302,8 @@ PF7 只完成 production floor，不自动激活 Mod。Mod M0–M2 仍必须满�
 - 真实 Story 的 Story-local 内容/玩法；
 - 已有公共 API 上的示例改进。
 
-共享 `GameSession`、Save decode、Surface/input ownership 或 public export 的工作不得并行落地。
+共享 `GameSession`、Save decode、Surface/input ownership、Story import-closure
+tooling、browser parity config 或 public export 的工作不得并行落地。
 
 ## 5. Deferred tracks
 
@@ -247,7 +315,8 @@ PF7 只完成 production floor，不自动激活 Mod。Mod M0–M2 仍必须满�
 - Pixi/WebGL/Live2D 等高级 renderer adapter；
 - OpenUI/GenUI workspace；
 - 可视化 editor shell；
-- RNG wall-clock lineage。
+- RNG reseed wall-clock lineage、named/keyed streams、RNG/trace V2；
+- Decimal runtime 与通用 FixedPoint/Ratio package。
 
 它们分别由 performance evidence、第二消费者或产品项目激活，不以“设计文档已存在”为激活条件。
 
@@ -262,5 +331,10 @@ PF7 只完成 production floor，不自动激活 Mod。Mod M0–M2 仍必须满�
 - 旧/新 owner 双写无法在同一切片删除；
 - 只能通过 sleep、像素截图或偶然坐标稳定 browser test；
 - 性能优化改变 canonical digest/Save/replay 语义；
+- authoritative command/evidence gate 需要 universal application receipt
+  或无法在 candidate install 前原子失败；
+- zero RNG 兼容性只能靠静默重种；
+- determinism lint 只能全仓库禁止合法 Host/Presentation，或跨 runtime parity
+  必须跳过 Firefox/只比较最终 Snapshot；
 - 实现必须依赖 `tmp/**`、`references/**` 或私有复刻工程；
 - packaged desktop 只能检查目标平台产物存在，不能真实启动、写入并重开。

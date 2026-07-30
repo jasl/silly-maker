@@ -6,7 +6,7 @@ A tour of the capabilities a Story gets by declaring, not building. Everything h
 
 - **One authoritative session** owns gameplay state; UI and automation send semantic intents, never mutations. Commands commit atomically or leave state untouched.
 - **RNG travels inside snapshots** — replaying a save or rolling back and retrying reproduces the identical outcome. No save-scumming, no reroll exploits.
-- **Authoritative replay**: the command log can rebuild any session bit-for-bit; the engine verifies digests match. Headless runs and browser runs produce identical states from identical inputs.
+- **Authoritative replay**: for the supported, validated simulation path, the command log rebuilds state and the engine verifies digests and recorded evidence. The maintained Engine Lab transcript produces identical authoritative state in headless and browser runs; arbitrary Story globals and Presentation/Host timing are outside that guarantee.
 - **Player rollback**: an opt-in bounded checkpoint ring with Story-classified hard barriers (a contest entry, a confirmed ending) that history cannot cross.
 
 ## Authoring surfaces

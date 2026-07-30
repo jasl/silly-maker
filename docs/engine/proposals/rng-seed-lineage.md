@@ -1,10 +1,16 @@
 # RNG reseed audit lineage
 
-状态：**deferred diagnostic proposal**（2026-07-29；2026-07-30 收紧）。当前 RNG/Save/replay 合同已满足正常产品需求；没有真实第二消费者前，不新增 Host profile lineage、Save 字段或 public API。
+状态：**deferred diagnostic proposal**（2026-07-29；2026-07-31 收紧）。当前
+reseed audit lineage 没有真实第二消费者；不新增 Host profile lineage、Save
+字段或 public API。xorshift32 zero-state 与 ambient entropy guard 属于独立的
+[authoritative determinism design](../design/deterministic-simulation-boundary.md)，
+不激活本文 proposal。
 
 ## Current contract to preserve
 
-- authoritative rules 禁止 `Math.random()` 和墙钟；
+- 受支持 authoritative rule 合同不使用 `Math.random()` 和环境墙钟；静态
+  diagnostic/runtime boundary/test probe 提供纵深证据，但不把任意 trusted
+  JavaScript 描述成可被 engine sandbox 阻止；
 - `createTransactionalRngV1` 使用 purpose + Snapshot 内 `RngState`；
 - same seed + same command sequence 产生相同结果/digest/replay；
 - rollback/load 恢复 Snapshot 中 RNG；

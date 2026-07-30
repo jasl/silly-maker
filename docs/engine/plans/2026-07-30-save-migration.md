@@ -1,6 +1,10 @@
 # Save migration execution plan
 
-状态：2026-07-30 接受执行，审查后从 Snapshot 性能计划拆分。目标合同见 [Save migration design](../design/save-migration.md)；在 [production-floor sequence](2026-07-30-production-floor-sequence.md) 中分为 PF3 与 PF5。
+状态：2026-07-30 接受执行，审查后从 Snapshot 性能计划拆分；2026-07-31 继承
+PF-DET 的 authority-closure 与 cross-runtime guard。目标合同见
+[Save migration design](../design/save-migration.md)；在
+[production-floor sequence](2026-07-30-production-floor-sequence.md) 中分为 PF3
+与 PF5，PF3 在完整 PF-DET promotion 后开始。
 
 ## 1. Outcome
 
@@ -13,7 +17,9 @@
 
 ## 2. M0 — Current behavior and fixture floor
 
-在改 load order 前固定现有行为：
+在改 load order 前固定 PF-DET promotion 后的现有行为；不得把 PF-DET 已拒绝的
+zero RNG state 或经 binary64 舍入入场的 fractional number token 重新冻结成 Save
+兼容基线：
 
 - current valid Save；
 - unsupported format/record revision；
@@ -45,7 +51,13 @@ fixture 只为已经发布或明确承诺维护的格式建立；临时测试对
 
 不注册 migration 时，现行受支持 Save 的结果与 M0 等价；旧 schema 从“current schema parse 失败”变成稳定的 `migration_unavailable` 类结果，不写入。
 
-**M1 acceptance：** Strict JSON 限额不放宽；tampered raw snapshot 在任何会改写它的 migration 前被拒绝；现格式回归逐字段等价。
+M1 默认只建立 callback-free envelope shell 与调用顺序，不凭空发布 format
+migration。若同一切片确实注册 executable engine-owned format migrator，其 source
+必须作为 explicit authority entry 进入 PF-DET static/tripwire scope，并把 pure
+input/output/diagnostic/digest vector 接入已经建立的 Deno/Chromium/Firefox/WebKit
+matrix；否则停止并拆出独立 migration slice。
+
+**M1 acceptance：** Strict JSON 限额不放宽；tampered raw snapshot 在任何会改写它的 migration 前被拒绝；现格式回归逐字段等价；callback-free shell 不冒充已实现 migration，任何真实 format migrator 都有 authority entry 与四 runtime vector。
 
 ## 4. M2 — Migration registry and new replay anchor
 
@@ -56,7 +68,9 @@ fixture 只为已经发布或明确承诺维护的格式建立；临时测试对
 - 输入/输出是 plain bounded data；
 - 禁网络、Host clock、随机、live Session 与 renderer；
 - migration ID、from/to revision 和 content/reference rename map 可诊断；
-- duplicate、gap、cycle、反向或歧义链在 authoring/build 阶段失败。
+- duplicate、gap、cycle、反向或歧义链在 authoring/build 阶段失败；
+- registered migration source entry 进入 PF-DET 已建立的 authoritative
+  import-closure lint 与 isolated tripwire，不靠文件名猜测或作者自觉；
 
 ### Execution
 
@@ -77,9 +91,13 @@ Engine Lab 提供：
 - migration throw；
 - illegal output；
 - reference/invariant failure；
-- migration success + adoption deny/allow。
+- migration success + adoption deny/allow；
+- 同一一步/两步 migration vector 在 Deno、Chromium、Firefox、WebKit 使用 PF-DET
+  test-only driver 得到相同 normalized output、diagnostic 与 digest。
 
-**M2 acceptance：** 所有失败原子；同输入重复迁移得到同 bytes/digest；新 anchor replay 自洽。
+**M2 acceptance：** 所有失败原子；同输入重复迁移得到同 bytes/digest；新 anchor
+replay 自洽；migration registry/source 已进入 determinism static/tripwire
+guard，四 runtime vector 全绿且缺 browser 不得 silently skip。
 
 ## 5. M3 — Product surface and release corpus
 

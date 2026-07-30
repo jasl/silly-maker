@@ -3,7 +3,9 @@
 状态：2026-07-19 接受；Engine Lab、Headless/Browser/Prebuilt conformance 和
 Agent parity 基线已实现并进入 [features](../features.md)。2026-07-30 接受的
 whole-canvas Managed Surface 与 Contract Harness 扩展尚未实现，见
-[Surface design](surface-contract-harness.md)。
+[Surface design](surface-contract-harness.md)。2026-07-31 接受的多 JavaScript
+引擎逐 command determinism matrix 尚未实现，见
+[Deterministic simulation boundary](deterministic-simulation-boundary.md)。
 
 ## 1. Decision
 
@@ -130,6 +132,20 @@ Node 与 Browser 执行同一份语义 transcript，运行时比较：
 
 比较结果在测试进程中生成，不提交 transcript golden。
 
+PF-DET 将增加一条**独立的 test-only admin parity driver**。它不扩张上图的
+player-safe Agent port，而是让同一中性 transcript 在 Deno、Chromium、Firefox 与
+WebKit 逐 command 比较：
+
+- normalized command 与 outcome kind；
+- facts/reasons/fault；
+- RNG before/after、attempted draws 与 command sequence；
+- pre/post Snapshot digest；
+- finalized CommandLog/replay evidence。
+
+报告必须定位第一处分歧的 command identity、sequence 与字段 path；只比较最终
+Snapshot 或只比较 Deno/Chromium 两个 V8 Host 不足以证明目标。该矩阵是 pending
+target，不是当前 Node/Browser semantic transcript parity 的既有能力。
+
 ## 5. Scenario matrix
 
 ### 5.1 Live baseline matrix
@@ -229,7 +245,13 @@ deno task test:e2e:engine:prebuilt
 - Product Story release tests 与 E2E Story prebuilt conformance 保持分离。
 
 浏览器 project 至少覆盖 Chromium 与 WebKit；pointer/touch/keyboard 和 responsive
-cases 使用明确可达的 project/tag，不保留配置中永远不会执行的分支。
+cases 使用明确可达的 project/tag，不保留配置中永远不会执行的分支。PF-DET 的专用
+determinism config 另覆盖 Chromium/Firefox/WebKit，但不把 Firefox 强塞进所有 UI
+cases。普通 `deno task check` 继续不隐式下载完整 browser matrix；DET3b 必须先创建
+shared config/task 与 production-check CI job，按 lock 中的 Playwright 版本显式
+安装并运行三种 browser 的 tripwire；DET4 再扩展同一 substrate 运行 parity。仓库
+当前只有 Pages deployment workflow，不能把 general check job 当作已存在前提。缺
+browser 不得 silently skip。
 
 ## 8. Fixture and artifact policy
 
@@ -292,6 +314,21 @@ Surface extension 只有在以下目标全部实现后才可标为 live：
    action、publication vector 与 DOM/hit/focus evidence；
 6. whole-canvas route 的 prebuilt refresh/recovery 从 stable target 创建新的
    runtime instance，不反序列化旧 Surface session。
+
+### 9.3 Pending cross-runtime determinism acceptance
+
+PF-DET 只有在以下目标全部实现后才可标为 live：
+
+1. Deno、Chromium、Firefox、WebKit 使用同一个中性 test-only authoritative driver
+   与 compact expected vector，不扩张 production automation bridge；
+2. transcript 至少覆盖 no-draw commit、RNG commit、rejection、fault 与 replay；
+3. driver 提供显式 deterministic fault，以及受控 seed/raw draw 与 `exclusiveMax`
+   组成、必然进入 rejection-sampling region 的 vector；不得依赖普通 Engine Lab
+   route 或低概率 draw 碰巧覆盖；
+4. 每个 runtime 重复执行，逐 command evidence 全等；
+5. 第一处差异报告 project、command identity/ordinal、sequence 与 JSON pointer；
+6. production Browser Agent 不获得 raw Snapshot、RNG 或 CommandLog；
+7. 本地 raw report、browser cache 与一次性 transcript JSON 不进入仓库。
 
 ## 10. Stop rules
 

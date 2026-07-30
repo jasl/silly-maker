@@ -4,7 +4,9 @@
 兼容从“分类与拒绝”升级为“一等迁移能力”：固定 migration registry 合同、load
 阶段顺序与发布验收。它独立于 Mod 系统并先于其落地；[Mod design](mod-system.md)
 第 8 节的 per-namespace migration 建立在本文的引擎级合同之上。当前实现状态见
-[features](../features.md)；本文不把现状描述成已有 migration。
+[features](../features.md)；本文不把现状描述成已有 migration。迁移函数属于
+[authoritative simulation determinism boundary](deterministic-simulation-boundary.md)
+定义的 Authoritative Simulation。
 
 ## 1. Current state and gap
 
@@ -81,6 +83,11 @@ interface SaveStateMigrationV1 {
 要求：
 
 - 每步迁移是纯函数、确定性、禁网络、禁时钟、禁随机；
+- migration registration 的 source entry 必须进入已经落地的 authoritative
+  import-closure static guard 与 isolated test tripwire；“文档写着 pure”不能替代
+  可执行 evidence；
+- engine-owned envelope-format migrator 与 State migrator 受同一要求约束；
+  callback-free shell/order 可以先落地，但不能因此宣称已有 format migration；
 - 只允许相邻 revision `N -> N+1`；跨版本由 runtime
   组合迁移链完成，不承诺跳版本直迁；
 - registry 以 State namespace 为组织维度：engine-owned envelope format
@@ -118,6 +125,9 @@ interface SaveStateMigrationV1 {
   conformance Story）；
 - CI 对支持范围内全部历史 fixture 执行 migrate + load + reference + invariant +
   digest 验证；
+- 每个 registered migration vector 使用 PF-DET 建立的 test-only driver 在
+  Deno、Chromium、Firefox、WebKit 比较 normalized output、diagnostic 与 digest；
+  缺 browser 不得 silently skip；
 - fixture corpus 至少包含一条跨多个发布版本的 migration/adoption 链样本（含逼近
   lineage 上限的边界样本）；
 - fixture 代表用户可见的兼容承诺，符合项目测试原则；它不是计划执行凭据；

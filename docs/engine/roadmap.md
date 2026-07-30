@@ -1,6 +1,10 @@
 # SillyMaker engine roadmap
 
-状态：2026-07-19 接受，最近审查修订 2026-07-30。已实现能力以 [features](features.md) 为准；历史交付见 [roadmap archive](roadmap-archive.md)。当前执行入口只有 [Production-floor execution sequence](plans/2026-07-30-production-floor-sequence.md)，它再引用四个独立计划；design/roadmap 条目本身不等于 live capability。
+状态：2026-07-19 接受，最近审查修订 2026-07-31。已实现能力以
+[features](features.md) 为准；历史交付见
+[roadmap archive](roadmap-archive.md)。当前执行入口只有
+[Production-floor execution sequence](plans/2026-07-30-production-floor-sequence.md)，它再引用五个独立计划；design/roadmap
+条目本身不等于 live capability。
 
 ## 1. North star
 
@@ -58,12 +62,13 @@ workload 证据：
 1. repository/tooling guardrails；
 2. Snapshot 热路径 baseline 与 digest/serialization 去重（PF1/A1 已完成）；
 3. Managed Surface kernel + Workspace Overlay pilot；
-4. Save envelope/load order + migration registry；
-5. System/Narrative/History/whole-canvas primary-detail 的逐 family
-   migration；
-6. Save dry-run/backup/fixture corpus；
-7. Surface structural/model/browser harness 与作者 API promotion；
-8. release stabilization。
+4. authoritative determinism guardrails：zero RNG、canonical command/evidence
+   admission、simulation-closure lint/tripwire 与四 runtime 逐 command parity；
+5. Save envelope/load order + migration registry；
+6. System/Narrative/History/whole-canvas primary-detail 的逐 family migration；
+7. Save dry-run/backup/fixture corpus；
+8. Surface structural/model/browser harness 与作者 API promotion；
+9. release stabilization。
 
 Desktop Host persistence 是独立、条件性的 promotion lane：目标平台是
 macOS、Windows 与 Linux，当前 live wrapper/file adapter 仍只有 macOS
@@ -75,14 +80,16 @@ auto-update 分轴记录；packager/updater 缺口不阻塞 backend durability�
 宣称 packaged app 使用 atomic persistence 时才同时要求前两条 evidence。它不阻塞
 默认核心顺序从 Snapshot S0 开始。
 
-四个独立计划：
+五个独立计划：
 
 - [Desktop persistence durability](plans/2026-07-30-desktop-persistence-durability.md)
 - [Snapshot commit performance](plans/2026-07-30-snapshot-commit-performance.md)
 - [Save migration](plans/2026-07-30-save-migration.md)
 - [Managed Surface lifecycle](plans/2026-07-30-surface-contract-harness.md)
+- [Authoritative determinism guardrails](plans/2026-07-31-authoritative-determinism-guardrails.md)
 
-原则是**一次只迁移一个可独立验收的 authority**。不接受把 Surface、Save、Snapshot 数据结构和 Mod resolver 作为一个大改动交给 Agent。
+原则是**一次只迁移一个可独立验收的 authority**。不接受把 Surface、Save、
+Snapshot 数据结构、determinism guard 或 Mod resolver 作为一个大改动交给 Agent。
 
 ## 5. Strategic track A — deterministic runtime at scale
 
@@ -100,6 +107,31 @@ commit。
 当前没有已接受的真实经营 Story 性能预算，100k 中性 profile 与 memory/GC 也不足以
 激活 A2。该 evidence limitation 不阻塞 production-floor 核心顺序进入 Managed
 Surface pilot。
+
+### A1b — accepted target: authoritative determinism guardrails
+
+[Deterministic simulation boundary](design/deterministic-simulation-boundary.md)
+把保证收窄到受支持的 authoritative transition，而不是任意 JavaScript：
+
+- authoritative wire 继续只允许 safe integer numeric values；Presentation/Host
+  可以使用有限 binary64，但不能暗中回写玩法；
+- network、LLM、wall clock 与系统 entropy 只有先变成 validated canonical
+  command/resource identity 才能影响规则，replay 不重新调用 oracle；
+- 修复 xorshift32 zero absorbing state，并在 executor/log 前封住 normalized
+  command、facts、rejections、stable fault/RNG evidence；
+- 修复 Strict JSON 先转 binary64 导致数学小数可能舍入为 safe integer 的 token
+  admission gap，同时保持 canonical output/digest 不变；
+- 将 Story-owned `createBootstrapInput` 限定为显式 entropy ingress adapter，并在
+  authoritative `createInitialState` 前由 Core 对整个 output 做 canonical
+  admission + deep-freeze，不新增 public bootstrap schema/envelope；
+- 从 root application registry fail-closed 建立真实 authority closure，以现有
+  BuildIdentity managed simulation records 为 dependency seed，并补齐 simulation
+  callback owner 与显式 authority entry；再用 path-aware static guard、isolated
+  test tripwire 与 Deno/Chromium/Firefox/WebKit 逐 command matrix 提供纵深证据。
+
+PF-DET 排在 Workspace Overlay pilot 后、Save migration M0 前。它不引入
+`decimal.js`、通用 FixedPoint package、named/keyed RNG、production Worker 或 Mod
+sandbox；这些仍须真实需求、版本化 wire 与 migration 证据后另行激活。
 
 ### A2 — evidence-gated integrity policy
 

@@ -20,7 +20,7 @@ features:
   - title: Built for both audiences
     details: AI agents get structured diagnostics, headless simulation, and authoring canaries. Humans get a DevDock with live inspectors, a writable tuning panel, trajectory traces, and save diffs.
   - title: Deterministic by construction
-    details: One session owns authoritative state. Commands commit atomically or not at all; RNG travels inside snapshots, so replay and player rollback reproduce the same run bit for bit.
+    details: One session owns authoritative state. Validated commands commit atomically or not at all; transactional RNG travels inside snapshots, so supported replay and rollback paths reproduce recorded outcomes.
   - title: Semantic stage, not a canvas
     details: Stories publish plain-data stage targets — content IDs, placements, appearances, hit regions. Renderers are swappable React components; saves never contain renderer state.
   - title: Static data as content tables

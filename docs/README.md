@@ -24,7 +24,9 @@ The public documentation site lives in `website/` (VitePress, English and Chines
 - [Snapshot commit performance plan](engine/plans/2026-07-30-snapshot-commit-performance.md) — baseline, digest/serialization reuse, and byte-equivalence gates.
 - [Save migration plan](engine/plans/2026-07-30-save-migration.md) — bounded envelope load order, migration registry, product path, and maintained fixtures.
 - [Managed Surface lifecycle plan](engine/plans/2026-07-30-surface-contract-harness.md) — pilot-first Coordinator migration, then System/Narrative and the verification harness.
+- [Authoritative determinism guardrails plan](engine/plans/2026-07-31-authoritative-determinism-guardrails.md) — zero-state RNG repair, exact numeric import plus canonical bootstrap/command/evidence admission, simulation-closure diagnostics, isolated probes, and four-runtime parity.
 - [Managed Surface lifecycle and contract harness](engine/design/surface-contract-harness.md) — the accepted Surface contract behind the plan above.
+- [Authoritative simulation determinism boundary](engine/design/deterministic-simulation-boundary.md) — the accepted numeric, entropy, external-oracle, runtime-admission, and non-sandbox contract.
 - [Save migration design](engine/design/save-migration.md) — first-class migration registry and the reworked load order.
 - [Mod composition and distribution](engine/design/mod-system.md) — accepted incubation design; activation is gated behind the production floor and proven reusable capability slices.
 - [AI-friendly Story authoring](engine/design/ai-authoring.md) — Authoring Kit, diagnostics, composers, tooling, harness, and Agent contract.

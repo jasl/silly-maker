@@ -27,10 +27,11 @@ Read only the documents relevant to the change:
   combine those authorities into one refactor.
 - `docs/engine/plans/2026-07-30-desktop-persistence-durability.md`,
   `docs/engine/plans/2026-07-30-snapshot-commit-performance.md`,
-  `docs/engine/plans/2026-07-30-save-migration.md`, and
-  `docs/engine/plans/2026-07-30-surface-contract-harness.md` — current focused
-  production-floor task order and acceptance; do not infer that list order makes
-  the conditional Desktop lane a blocker for the core sequence.
+  `docs/engine/plans/2026-07-30-save-migration.md`,
+  `docs/engine/plans/2026-07-30-surface-contract-harness.md`, and
+  `docs/engine/plans/2026-07-31-authoritative-determinism-guardrails.md` —
+  current focused production-floor task order and acceptance; do not infer that
+  list order makes the conditional Desktop lane a blocker for the core sequence.
 - `docs/engine/plans/2026-07-19-sillymaker-vnext-foundations.md` and
   `docs/engine/plans/2026-07-28-sillymaker-r5-r7.md` — completed execution
   records whose defer/acceptance notes remain useful historical evidence;
