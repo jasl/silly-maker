@@ -410,7 +410,9 @@ seed, shrink path and replay command when generated
 - managed code 直接注册第二 input owner；
 - render publication 与 action publication topology/source revision 不一致；
 - stale gesture/ready receipt 被应用；
-- action 声明 postcondition 却返回假成功。
+- action 声明 postcondition 却返回假成功；
+- modal 下仍武装底层 chrome / 不可见图 hit（dense picture SLG 的典型“偷点击”
+  类；验收分类见执行计划 P0.3）。
 
 ## 10. Contract Harness
 
