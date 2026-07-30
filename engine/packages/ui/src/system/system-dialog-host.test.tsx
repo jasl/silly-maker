@@ -278,15 +278,51 @@ describe("SystemDialogHostV1", () => {
     await waitFor(() => expect(screen.getByTestId("stage-hud")).not.toHaveAttribute("inert"));
   });
 
-  it("unregisters the system handler when the host unmounts", async () => {
+  it("clears active state, focus registration, and input handler when the host unmounts", async () => {
+    const store = createSystemDialogSessionStoreV1();
     const inputRouter = createInputRouterV1();
     const gameplay = vi.fn((_event: InputEventV1) => inputHandledV1);
     inputRouter.register({ context: "gameplay", handle: gameplay });
-    const rendered = render(<SystemHarnessV1 inputRouter={inputRouter} />);
+    const systemHost = (
+      <SystemDialogHostV1 store={store} inputRouter={inputRouter} settings={settingsV1}>
+        <SettingsLauncherV1 label="设置" />
+      </SystemDialogHostV1>
+    );
+    const rendered = render(
+      <DevDockPortalCoordinatorV1>
+        <DevDockPortalSelectionProbeV1 />
+        {systemHost}
+      </DevDockPortalCoordinatorV1>,
+    );
     await userEvent.setup().click(screen.getByRole("button", { name: "设置" }));
 
-    rendered.unmount();
+    expect(store.getSnapshot().active).toBe("settings");
+    expect(screen.getByRole("dialog", { name: "设置" })).toBeVisible();
+    await waitFor(() =>
+      expect(screen.getByTestId("devdock-portal-selection")).toHaveAttribute(
+        "data-target-scope",
+        "system",
+      ),
+    );
+    expect(inputRouter.route({ kind: "action", actionId: systemInputActionIdsV1.confirm })).toEqual(
+      { kind: "handled", context: "system" },
+    );
+    expect(gameplay).not.toHaveBeenCalled();
 
+    rendered.rerender(
+      <DevDockPortalCoordinatorV1>
+        <DevDockPortalSelectionProbeV1 />
+      </DevDockPortalCoordinatorV1>,
+    );
+
+    expect(store.getSnapshot().active).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "设置" })).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByTestId("devdock-portal-selection")).toHaveAttribute(
+        "data-surface",
+        "base",
+      ),
+    );
     expect(inputRouter.route({ kind: "action", actionId: systemInputActionIdsV1.cancel })).toEqual({
       kind: "handled",
       context: "gameplay",

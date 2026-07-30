@@ -3,6 +3,7 @@
 import "@testing-library/jest-dom/vitest";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { useState } from "react";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { GameStageLayersV1, StageLayerIdV1 } from "./game-stage.tsx";
@@ -32,7 +33,7 @@ function ActiveInteractionRegionV1() {
   return <button type="button">互动区域操作</button>;
 }
 
-function GestureFenceDismissButtonV1() {
+function GestureFenceDismissButtonV1(props: { readonly onDismiss: () => void }) {
   const armFence = useStagePointerGestureFenceV1("narrative");
   return (
     <button
@@ -40,10 +41,31 @@ function GestureFenceDismissButtonV1() {
       data-testid="fence-dismiss"
       onPointerUp={(event) => {
         armFence(event);
+        props.onDismiss();
       }}
     >
       关闭并装围栏
     </button>
+  );
+}
+
+function GestureFenceLifecycleHarnessV1(props: { readonly onLowerAction: () => void }) {
+  const [dismissVisible, setDismissVisible] = useState(true);
+  return (
+    <GameStageV1
+      accessibleName="手势围栏舞台"
+      layers={Object.freeze({
+        ...completeSevenLayerFixtureV1(),
+        sceneInteraction: (
+          <button type="button" onClick={props.onLowerAction}>
+            下层业务操作
+          </button>
+        ),
+        narrative: dismissVisible ? (
+          <GestureFenceDismissButtonV1 onDismiss={() => setDismissVisible(false)} />
+        ) : null,
+      })}
+    />
   );
 }
 
@@ -150,42 +172,41 @@ describe("GameStageV1", () => {
     expect(screen.getByTestId("stage-system")).not.toHaveAttribute("inert");
   });
 
-  it("arms a stage-root gesture fence that swallows the leftover click after pointerup", async () => {
-    render(
-      <GameStageV1
-        accessibleName="手势围栏舞台"
-        layers={Object.freeze({
-          ...completeSevenLayerFixtureV1(),
-          narrative: <GestureFenceDismissButtonV1 />,
-        })}
-      />,
-    );
+  it("keeps the stage-owned fence after caller unmount and distinguishes keyboard from stale pointer clicks", async () => {
+    const lowerAction = vi.fn();
+    render(<GestureFenceLifecycleHarnessV1 onLowerAction={lowerAction} />);
 
     const stage = screen.getByRole("main", { name: "手势围栏舞台" });
     expect(stage).toHaveAttribute("data-stage-root", "true");
     const dismiss = screen.getByTestId("fence-dismiss");
     fireEvent.pointerUp(dismiss, { button: 0, pointerId: 1 });
+    expect(screen.queryByTestId("fence-dismiss")).toBeNull();
 
-    // Isolation register is React state — flush before asserting inert.
+    // Fence ownership survives the hook caller's synchronous unmount.
     await act(async () => {});
     expect(screen.getByTestId("stage-scene-interaction")).toHaveAttribute("inert");
 
-    const leaked = vi.fn();
-    stage.addEventListener("click", leaked);
-    const click = new MouseEvent("click", {
+    const lowerControl = screen.getByRole("button", { name: "下层业务操作" });
+    const keyboardClick = new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+      detail: 0,
+    });
+    lowerControl.dispatchEvent(keyboardClick);
+    expect(keyboardClick.defaultPrevented).toBe(false);
+    expect(lowerAction).toHaveBeenCalledOnce();
+    expect(screen.getByTestId("stage-scene-interaction")).toHaveAttribute("inert");
+
+    const stalePointerClick = new MouseEvent("click", {
       bubbles: true,
       cancelable: true,
       button: 0,
       detail: 1,
     });
-    stage.dispatchEvent(click);
-    expect(click.defaultPrevented).toBe(true);
-    expect(leaked).not.toHaveBeenCalled();
-
-    // Next pointerdown clears the fence so intentional hits work again.
-    stage.dispatchEvent(
-      new PointerEvent("pointerdown", { bubbles: true, cancelable: true, button: 0, pointerId: 2 }),
-    );
+    lowerControl.dispatchEvent(stalePointerClick);
+    expect(stalePointerClick.defaultPrevented).toBe(true);
+    expect(lowerAction).toHaveBeenCalledOnce();
     await act(async () => {});
     expect(screen.getByTestId("stage-scene-interaction")).not.toHaveAttribute("inert");
   });

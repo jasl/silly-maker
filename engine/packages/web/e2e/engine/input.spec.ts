@@ -127,14 +127,22 @@ test.describe("engine input actions", () => {
     const sequenceBefore = Number(occurrenceBefore?.split(".").pop());
     expect(Number.isInteger(sequenceBefore)).toBe(true);
 
-    // Count clicks that actually propagate to the document. The fence's
-    // capture-phase swallow on the stage root must keep this at zero for
-    // the click the browser synthesizes after the cancel unmounts the menu.
+    // Observe the persistent Stage capture boundary and document bubbling.
+    // The stale pointer click must reach Stage capture but stop there.
     await page.evaluate(() => {
-      const probe = window as unknown as { labClickProbe: number };
-      probe.labClickProbe = 0;
-      document.addEventListener("click", () => {
-        probe.labClickProbe += 1;
+      const probe = window as unknown as {
+        labClickProbe: { rootDetails: number[]; documentDetails: number[] };
+      };
+      probe.labClickProbe = { rootDetails: [], documentDetails: [] };
+      document.querySelector('[data-stage-root="true"]')?.addEventListener(
+        "click",
+        (event) => {
+          probe.labClickProbe.rootDetails.push((event as MouseEvent).detail);
+        },
+        true,
+      );
+      document.addEventListener("click", (event) => {
+        probe.labClickProbe.documentDetails.push((event as MouseEvent).detail);
       });
     });
 
@@ -156,15 +164,49 @@ test.describe("engine input actions", () => {
       `interaction-occurrence.${String(sequenceBefore + 1)}`,
     );
     expect(
-      await page.evaluate(() => (window as unknown as { labClickProbe: number }).labClickProbe),
-    ).toBe(0);
+      await page.evaluate(
+        () =>
+          (
+            window as unknown as {
+              labClickProbe: { rootDetails: number[]; documentDetails: number[] };
+            }
+          ).labClickProbe,
+      ),
+    ).toEqual({ rootDetails: [1], documentDetails: [] });
 
-    // The next deliberate gesture releases the fence on its pointerdown and
-    // lands normally: the choice resolves and the click reaches the document.
+    // Native focused-button activation emits detail=0 and remains usable.
+    // The keyboard adapter ignores the interactive target, so this resolves
+    // exactly once through the button's semantic path.
+    await cancel.focus();
+    await page.keyboard.press("Enter");
+    await expect(choice).toHaveAttribute(
+      "data-lab-occurrence",
+      `interaction-occurrence.${String(sequenceBefore + 2)}`,
+    );
+    expect(
+      await page.evaluate(
+        () =>
+          (
+            window as unknown as {
+              labClickProbe: { rootDetails: number[]; documentDetails: number[] };
+            }
+          ).labClickProbe,
+      ),
+    ).toEqual({ rootDetails: [1, 0], documentDetails: [0] });
+
+    // A later deliberate pointer gesture lands normally: the choice resolves
+    // and the click reaches the document.
     await page.getByRole("button", { name: "直接校准" }).click();
     await expect(page.locator("[data-lab-interaction='choice']")).toHaveCount(0);
     expect(
-      await page.evaluate(() => (window as unknown as { labClickProbe: number }).labClickProbe),
-    ).toBe(1);
+      await page.evaluate(
+        () =>
+          (
+            window as unknown as {
+              labClickProbe: { rootDetails: number[]; documentDetails: number[] };
+            }
+          ).labClickProbe,
+      ),
+    ).toEqual({ rootDetails: [1, 0, 1], documentDetails: [0, 1] });
   });
 });
