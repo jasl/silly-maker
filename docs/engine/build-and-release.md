@@ -67,6 +67,12 @@ deno task story build <app> --no-minify       # readable output for debugging
 
 Build identity is generated from the application and resolved Story inputs used by the build. The collector is an optional per-application declaration (`web.identity` pointing at `<app>/tools/build-identity.mjs` over `@sillymaker/tooling/identity/*`); it doubles as a structural facet gate (no React/DOM in simulation closures, no cross-facet imports). It resolves engine sources against the repository root, so it is an in-repo gate — external application projects (and the copy-me starter) omit it and run on the default composer identity. Runtime digests and manifests are technical identity for compatibility, caching, diagnostics, and inspection; they are not proof of copyright ownership or asset approval.
 
+### Selective payload materialization (ported applications)
+
+Applications ported from another engine often sit on a large legacy asset export where only a fraction is reachable (the rest is stock runtime residue). `@sillymaker/tooling/vite/asset-selection` exposes `materializeAssetSelectionV1({ sourceRoot, outputDirectory, plan })` for that shape: the application owns a scanner that computes an `AssetSelectionPlanV1` (`files` reachable from its data plus scanner `warnings`), and the materializer copies exactly those files into the build output from a Story build hook (for example `closeBundle`).
+
+The materializer's contract is tuned for ported payloads: the source root may be a symbolic link (research payloads often are), every copied file is dereferenced so the output contains only regular files (the desktop shell's static server fails closed on symlinks), plan paths are contained to the source root (traversal, absolute paths, backslashes, and NUL throw), and a planned file missing from the payload fails the build instead of shipping a hole. The scanner itself is domain knowledge (which opcodes or tables reference which files) and stays in the application; pair it with an application-side test asserting the plan covers every runtime-reachable reference and excludes known residue. The engine's own `/assets/**` runtime-asset pipeline is unchanged and remains the default for first-party assets.
+
 ## Prepare a local Artifact
 
 ```sh
