@@ -7,11 +7,13 @@
 ## 现在就能跑
 
 ```sh
-deno task story check template                       # 结构化 Story 诊断
-deno task story simulate template --scenario opening # 无浏览器跑完整叙事
+deno task story check .                              # 结构化 Story 诊断
+deno task story simulate . --scenario opening        # 无浏览器跑完整叙事
 deno run -A npm:vitest run template      # 基线 + 图 lint + 全剧本走通
 deno task dev                                         # 在本目录启动开发服务器
-deno task build                                       # 静态构建到 dist-web/
+deno task build:web                                   # 静态构建到 dist-web/（`build` 是它的别名）
+deno task build:desktop                               # 桌面包到 dist-desktop/（可加 --target <triple>）
+deno task preview                                     # 用 HTTP 预览 dist-web/
 ```
 
 ## 文件地图（按"你想改什么"排列）
@@ -35,7 +37,7 @@ deno task build                                       # 静态构建到 dist-web
 
 ```sh
 deno task typecheck && deno run -A npm:vitest run template
-deno task story simulate template --scenario opening
+deno task story simulate . --scenario opening
 ```
 
 注意：新增/删除交互边界会移动 occurrence 编号；`src/tooling/simulation-target.ts` 的场景脚本和测试里按编号步进的断言要同步（失败信息会给出期望编号）。

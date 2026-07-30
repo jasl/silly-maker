@@ -39,39 +39,46 @@ Package manifests define supported cross-package entries. Do not bypass them wit
 
 ## Daily commands
 
-| Command                                          | Use                                                                                                                                                |
-| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `deno task dev`                                  | Start the Vite development server (pick an app with `--mode`).                                                                                     |
-| `deno task check`                                | Canonical local code-quality and product-behavior check.                                                                                           |
-| `deno task test`                                 | Run engine and game behavior tests.                                                                                                                |
-| `deno task test:coverage`                        | Run unit tests with engine line-coverage reporting.                                                                                                |
-| `deno task test:e2e:engine`                      | Engine browser suite against the Engine Lab Story.                                                                                                 |
-| `deno task test:e2e`                             | Alias of the engine browser suite.                                                                                                                 |
-| `deno task story <verb> <app>`                   | Application lifecycle CLI (JSON reports); verbs below.                                                                                             |
-| `deno task check:stories`                        | Structured Story diagnostics for every application (part of `check`).                                                                              |
-| `deno task story simulate <app> --trace <paths>` | Headless play with per-step numeric trajectories (balance tuning).                                                                                 |
-| `deno task story diff <a.json> <b.json>`         | Structured diff of two JSON files (exported saves, simulate reports).                                                                              |
-| `deno task simulate:e2e`                         | Scripted Engine Lab run through the Agent port.                                                                                                    |
-| `deno task test:conformance:headless`            | Engine Lab headless conformance suite.                                                                                                             |
-| `deno task story desktop <app>`                  | Package a desktop preview (host `.app`; `--target <triple>` for cross-compiled `.app`/`.msi`/`.AppImage`); persistence is not durability-promoted. |
-| `deno task test:e2e:engine:prebuilt`             | Build the Engine Lab and run the engine suite on the Artifact.                                                                                     |
+| Command                                          | Use                                                                                                                                                            |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `deno task dev`                                  | Start the Vite development server (pick an app with `--mode`; inside an app directory it serves that app).                                                     |
+| `deno task check`                                | Canonical local code-quality and product-behavior check.                                                                                                       |
+| `deno task test`                                 | Run engine and game behavior tests.                                                                                                                            |
+| `deno task test:coverage`                        | Run unit tests with engine line-coverage reporting.                                                                                                            |
+| `deno task test:e2e:engine`                      | Engine browser suite against the Engine Lab Story.                                                                                                             |
+| `deno task test:e2e`                             | Alias of the engine browser suite.                                                                                                                             |
+| `deno task build:web` (in an app directory)      | Canonical web build → `<app>/dist-web` (`build` is its alias; `preview` serves it over HTTP).                                                                  |
+| `deno task build:desktop` (in an app directory)  | Desktop package(s) → `<app>/dist-desktop` (host `.app`; `--target <triple>` cross-compiles `.app`/`.msi`/`.AppImage`); persistence is not durability-promoted. |
+| `deno task story <verb> <app>`                   | Story diagnostics and workspace aggregation CLI (JSON reports); verbs below.                                                                                   |
+| `deno task check:stories`                        | Structured Story diagnostics for every application (part of `check`).                                                                                          |
+| `deno task story simulate <app> --trace <paths>` | Headless play with per-step numeric trajectories (balance tuning).                                                                                             |
+| `deno task story diff <a.json> <b.json>`         | Structured diff of two JSON files (exported saves, simulate reports).                                                                                          |
+| `deno task simulate:e2e`                         | Scripted Engine Lab run through the Agent port.                                                                                                                |
+| `deno task test:conformance:headless`            | Engine Lab headless conformance suite.                                                                                                                         |
+| `deno task test:e2e:engine:prebuilt`             | Build the Engine Lab and run the engine suite on the Artifact.                                                                                                 |
 
-Every application is a self-contained project: `<app>/sillymaker.config.ts` declares it (paths app-root-relative), `<app>/vite.config.ts` calls the shared `@sillymaker/tooling/vite` assembly, and the root `project.config.ts` only lists the registered directories for repository-level aggregation. The application lifecycle CLI covers the core inspect/check/simulate/dev/build/smoke loop for every registered application (and runs app-locally through `<app>/tools/story.mts`):
+Every application is a self-contained project: `<app>/sillymaker.config.ts` declares it (paths app-root-relative), `<app>/vite.config.ts` calls the shared `@sillymaker/tooling/vite` assembly, and the root `project.config.ts` only lists the registered directories for repository-level aggregation. Builds are application tasks; the story CLI is the diagnostics and aggregation surface (it also runs app-locally through `<app>/tools/story.mts`, where `.` selects the app):
 
 ```text
+# Inside an application directory — canonical build entries:
+deno task dev                                          # Vite dev server for this application
+deno task build:web                                    # web Player → dist-web/ (`build` is its alias)
+deno task build:desktop [--target <triple>]...         # desktop package(s) → dist-desktop/
+deno task preview                                      # serve dist-web/ over HTTP
+
+# Story diagnostics (app-local `deno task story <verb> .`, or root `deno task story <verb> <app>`):
 deno task story inspect <app>                          # resolved identity/program report (JSON)
 deno task story check <app> | --all                    # structured Story diagnostics (JSON)
 deno task story simulate <app> [--scenario s] [--seed n]  # scripted Agent-port run
 deno task story dev <app> --smoke                      # boot the dev server and prove the page
-deno task story build <app>                            # build the application's web target
 deno task story prebuilt-smoke <app>                   # verify the built Artifact's files
 ```
 
-`simulate` plays a named scenario from the application's simulation target (for example `deno task story simulate e2e --scenario opening --seed 23049`) through the same player-safe Agent port real agents use. Story applications (story entry, asset verification, simulation target, web dev/build target) are declared in each application's own `sillymaker.config.ts`; see [build-and-release](build-and-release.md).
+The `story build`/`story desktop` verbs remain as the plumbing behind the build tasks and for repository-level aggregation (CI builds a registered app from the root); new documentation and automation should use the application's `build:*` tasks. `simulate` plays a named scenario from the application's simulation target (for example `deno task story simulate e2e --scenario opening --seed 23049`) through the same player-safe Agent port real agents use. Story applications (story entry, asset verification, simulation target, web dev/build target) are declared in each application's own `sillymaker.config.ts`; see [build-and-release](build-and-release.md).
 
 ### Local and external application projects
 
-Private studies, `tmp/`-only verification games, and external checkouts do not register into the repository at all: they are ordinary application projects. Copy `template/`, keep `sillymaker.config.ts` + `vite.config.ts` + `tools/story.mts`, and point `package.json` dependencies at the engine packages by relative `file:` path (with `"nodeModulesDir": "manual"` in the project's `deno.json`, required for `file:` npm dependencies). `deno install` inside the project directory materializes the engine link; `deno task dev/build/test` and the app-local story CLI then run without any root-registry edit or engine `src/**` alias.
+Private studies, `tmp/`-only verification games, and external checkouts do not register into the repository at all: they are ordinary application projects. Copy `template/`, keep `sillymaker.config.ts` + `vite.config.ts` + `tools/story.mts`, and point `package.json` dependencies at the engine packages by relative `file:` path (with `"nodeModulesDir": "manual"` in the project's `deno.json`, required for `file:` npm dependencies). `deno install` inside the project directory materializes the engine link; `deno task dev`, the `build:*` tasks, `deno task test`, and the app-local story CLI then run without any root-registry edit or engine `src/**` alias.
 
 `deno task check` may remain as a compatibility alias for `deno task check`; new documentation and automation should use `deno task check`.
 

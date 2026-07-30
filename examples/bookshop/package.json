@@ -9,6 +9,12 @@
     ".": "./src/story.ts"
   },
   "scripts": {
+    "dev": "deno run -A npm:vite",
+    "build": "deno task build:web",
+    "build:web": "deno run -A npm:vite build",
+    "build:desktop": "deno run -A ./tools/story.mts desktop .",
+    "preview": "deno run -A npm:vite preview",
+    "story": "deno run -A ./tools/story.mts",
     "test": "deno run -A npm:vitest run examples/bookshop/src"
   },
   "dependencies": {

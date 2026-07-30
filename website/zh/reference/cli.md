@@ -1,19 +1,31 @@
 # Story CLI
 
-所有命令都在仓库根目录经 Deno task 运行。
+应用是自包含项目（各自的 `sillymaker.config.ts` 与 `vite.config.ts`）。构建是应用任务、在应用目录内运行；story CLI 承担诊断与仓库级聚合（在应用目录内 `deno task story <verb> .` 即选中该应用）。
 
-## 日常
+## 应用目录内
 
-| 命令                                               | 作用                                                                                                                                  |
-| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `deno task story dev <app>`                        | 单应用 Vite 开发服务器（`--smoke` 启动、探活、退出）                                                                                  |
-| `deno task story check <app>` \| `--all`           | 结构化 Story 诊断                                                                                                                     |
-| `deno task story simulate <app> --scenario <name>` | 经 Agent 端口的 headless 脚本通关                                                                                                     |
-| `deno task story simulate … --trace <dot.paths>`   | 报告附加每步数值轨迹                                                                                                                  |
-| `deno task story build <app>`                      | 生产 Player 构建到 `<app>/dist-web`                                                                                                   |
-| `deno task story desktop <app>`                    | 桌面打包 preview（本机 `.app`；`--target <triple>` 交叉编译 `.app`/`.msi`/`.AppImage`）；本地文件 store 尚未通过 durability promotion |
-| `deno task story diff <a.json> <b.json>`           | 两个 JSON 文件的结构化对比（存档、报告）                                                                                              |
-| `deno task story inspect <app>`                    | 解析后的 Story 身份与组合报告                                                                                                         |
+| 命令                                      | 作用                                                                                   |
+| ----------------------------------------- | -------------------------------------------------------------------------------------- |
+| `deno task dev`                           | 本应用的 Vite 开发服务器                                                               |
+| `deno task build:web`                     | 生产 Player 构建到 `dist-web/`（`build` 是它的别名）                                   |
+| `deno task build:desktop [--target <t>]…` | 桌面包到 `dist-desktop/`（默认本机 `.app`；triple 交叉编译 `.app`/`.msi`/`.AppImage`） |
+| `deno task preview`                       | 用 HTTP 预览 `dist-web/`（`file://` 无法加载 ES module）                               |
+| `deno task story <verb> .`                | 应用内诊断：`inspect`、`check`、`simulate`、`dev --smoke`、`prebuilt-smoke`、`diff`    |
+
+`build:desktop` 把追加参数透传给打包动词：`--target <os-arch-triple>`（可重复）、`--compress[=xz|lzma|zstd]`、`--profile <release|debug>`。本地文件 store 尚未通过 durability promotion。
+
+## 仓库根（工作区聚合）
+
+| 命令                                               | 作用                                                 |
+| -------------------------------------------------- | ---------------------------------------------------- |
+| `deno task story check <app>` \| `--all`           | 结构化 Story 诊断                                    |
+| `deno task story simulate <app> --scenario <name>` | 经 Agent 端口的 headless 脚本通关                    |
+| `deno task story simulate … --trace <dot.paths>`   | 报告附加每步数值轨迹                                 |
+| `deno task story inspect <app>`                    | 解析后的 Story 身份与组合报告                        |
+| `deno task story diff <a.json> <b.json>`           | 两个 JSON 文件的结构化对比（存档、报告）             |
+| `deno task story build <app>`                      | 从根构建一个已注册应用（CI 聚合）                    |
+| `deno task story desktop <app>`                    | 从根为已注册应用做桌面打包                           |
+| `deno task story dev <app>`                        | 单应用 Vite 开发服务器（`--smoke` 启动、探活、退出） |
 
 ## 仓库级
 
