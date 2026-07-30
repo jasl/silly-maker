@@ -12,7 +12,9 @@ import { createSeededMemoryHostRecordStoreInternalV1 } from "../contracts/host.t
 import { parseNonNegativeSafeInteger } from "../contracts/values.ts";
 import {
   hostRecordStoreConformanceExpectedV1,
+  hostRecordStoreMalformedConformanceExpectedV1,
   runHostRecordStoreConformanceV1,
+  runHostRecordStoreMalformedConformanceV1,
 } from "../../../../test-support/host-atomic-record-store-conformance.ts";
 
 const keyV1 = (value: string) => value as HostRecordKeyV1;
@@ -31,6 +33,54 @@ describe("Host record store conformance workload", () => {
     expect(await runHostRecordStoreConformanceV1(store)).toEqual(
       hostRecordStoreConformanceExpectedV1,
     );
+  });
+
+  it("rejects the shared malformed mutation corpus without changing state", async () => {
+    const store = createSeededMemoryHostRecordStoreInternalV1([]);
+
+    expect(await runHostRecordStoreMalformedConformanceV1(store)).toEqual(
+      hostRecordStoreMalformedConformanceExpectedV1,
+    );
+  });
+
+  it("attributes malformed state drift only to the case that caused it", async () => {
+    const delegate = createSeededMemoryHostRecordStoreInternalV1([]);
+    const driftingStore = Object.freeze({
+      read: delegate.read,
+      list: delegate.list,
+      async commit(mutations: readonly [HostRecordMutationV1, ...HostRecordMutationV1[]]) {
+        const first = (mutations as readonly unknown[])[0];
+        if (
+          typeof first === "object" &&
+          first !== null &&
+          Reflect.get(first, "kind") === "replace"
+        ) {
+          await delegate.commit([
+            {
+              kind: "delete",
+              namespace: "settings",
+              key: keyV1("conformance.malformed.victim"),
+              expectedRevision: parseNonNegativeSafeInteger(1),
+            },
+          ]);
+          throw new TypeError("injected post-write failure");
+        }
+        return await delegate.commit(mutations);
+      },
+    }) satisfies HostAtomicRecordStoreV1;
+
+    const report = await runHostRecordStoreMalformedConformanceV1(driftingStore);
+    const unknownKind = report.cases.find((testCase) => testCase.id === "unknown_kind");
+    const followingCase = report.cases.find((testCase) => testCase.id === "unknown_namespace");
+
+    expect(unknownKind).toMatchObject({
+      rejectedWithTypeError: true,
+      statePreserved: false,
+    });
+    expect(followingCase).toMatchObject({
+      rejectedWithTypeError: true,
+      statePreserved: true,
+    });
   });
 
   it("exposes byte drift instead of normalizing arbitrary records as text", async () => {

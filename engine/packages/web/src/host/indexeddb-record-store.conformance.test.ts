@@ -4,8 +4,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   hostRecordStoreConformanceExpectedV1,
+  hostRecordStoreMalformedConformanceExpectedV1,
   hostRecordStoreReopenExpectedV1,
   runHostRecordStoreConformanceV1,
+  runHostRecordStoreMalformedConformanceV1,
   runHostRecordStoreReopenConformanceV1,
 } from "../../../../test-support/host-atomic-record-store-conformance.ts";
 
@@ -30,6 +32,15 @@ describe("IndexedDB Host record store conformance", () => {
 
     expect(await runHostRecordStoreReopenConformanceV1(createStore(), createStore)).toEqual(
       hostRecordStoreReopenExpectedV1,
+    );
+  });
+
+  it("rejects the shared malformed mutation corpus without changing state", async () => {
+    const indexedDB = new FakeIDBFactory();
+    const store = createIndexedDbRecordStoreV1({ indexedDB, databaseName: databaseNameV1 });
+
+    expect(await runHostRecordStoreMalformedConformanceV1(store)).toEqual(
+      hostRecordStoreMalformedConformanceExpectedV1,
     );
   });
 });

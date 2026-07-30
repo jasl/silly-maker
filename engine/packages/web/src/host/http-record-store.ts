@@ -48,6 +48,12 @@ function requireKeyV1(value: unknown): HostRecordKeyV1 {
   return value as HostRecordKeyV1;
 }
 
+function isUint8ArrayV1(value: unknown): value is Uint8Array {
+  return (
+    ArrayBuffer.isView(value) && Object.prototype.toString.call(value) === "[object Uint8Array]"
+  );
+}
+
 function fromBase64V1(value: unknown): Uint8Array {
   if (typeof value !== "string" || !base64PatternV1.test(value)) {
     throw new TypeError("host.http_records_invalid_bytes");
@@ -88,6 +94,59 @@ function recordIdentityV1(namespace: HostRecordNamespaceV1, key: HostRecordKeyV1
 
 function bytesEqualV1(left: Uint8Array, right: Uint8Array): boolean {
   return left.length === right.length && left.every((byte, index) => byte === right[index]);
+}
+
+function normalizeMutationsV1(
+  value: unknown,
+): readonly [HostRecordMutationV1, ...HostRecordMutationV1[]] {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new TypeError("Host record commit requires mutations");
+  }
+  const normalized = Array.from(value, (candidate): HostRecordMutationV1 => {
+    if (typeof candidate !== "object" || candidate === null) {
+      throw new TypeError("invalid Host record mutation");
+    }
+    const namespace = requireNamespaceV1(Reflect.get(candidate, "namespace"));
+    const keyValue = Reflect.get(candidate, "key");
+    if (typeof keyValue !== "string") {
+      throw new TypeError("host.http_records_invalid_key");
+    }
+    const key = keyValue as HostRecordKeyV1;
+    const kind = Reflect.get(candidate, "kind");
+    const expectedRevisionValue = Reflect.get(candidate, "expectedRevision");
+    if (kind === "put") {
+      const bytes = Reflect.get(candidate, "bytes");
+      if (!isUint8ArrayV1(bytes)) {
+        throw new TypeError("host.http_records_invalid_bytes");
+      }
+      return Object.freeze({
+        kind,
+        namespace,
+        key,
+        expectedRevision:
+          expectedRevisionValue === null
+            ? null
+            : parseNonNegativeSafeInteger(expectedRevisionValue),
+        bytes: Uint8Array.from(bytes),
+      });
+    }
+    if (kind !== "delete") {
+      throw new TypeError("invalid Host record mutation kind");
+    }
+    return Object.freeze({
+      kind,
+      namespace,
+      key,
+      expectedRevision: parseNonNegativeSafeInteger(expectedRevisionValue),
+    });
+  });
+  const identities = normalized.map((mutation) =>
+    recordIdentityV1(mutation.namespace, mutation.key),
+  );
+  if (new Set(identities).size !== identities.length) {
+    throw new TypeError("duplicate Host record mutation");
+  }
+  return Object.freeze(normalized) as readonly [HostRecordMutationV1, ...HostRecordMutationV1[]];
 }
 
 function parseWireRecordListV1(
@@ -209,19 +268,7 @@ export function createHttpHostRecordStoreV1(
     async commit(
       mutations: readonly [HostRecordMutationV1, ...HostRecordMutationV1[]],
     ): Promise<HostAtomicCommitResultV1> {
-      const identities = mutations.map((mutation) =>
-        recordIdentityV1(mutation.namespace, mutation.key),
-      );
-      if (new Set(identities).size !== identities.length) {
-        throw new TypeError("duplicate Host record mutation");
-      }
-      const requestedMutations = mutations.map((mutation) =>
-        Object.freeze(
-          mutation.kind === "put"
-            ? { ...mutation, bytes: Uint8Array.from(mutation.bytes) }
-            : { ...mutation },
-        ),
-      );
+      const requestedMutations = normalizeMutationsV1(mutations);
       const wireMutations = requestedMutations.map((mutation) =>
         mutation.kind === "put"
           ? {

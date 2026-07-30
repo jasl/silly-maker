@@ -2,10 +2,10 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createRecordFileStoreV1 } from "./record-file-store.mts";
-import { handleRecordHttpRequestV1 } from "./record-http-handler.mts";
+import { handleRecordHttpRequestV1, type RecordHttpStoreV1 } from "./record-http-handler.mts";
 
 let cleanupDir: string | null = null;
 
@@ -113,6 +113,82 @@ describe("the desktop record HTTP handler", () => {
     );
     expect(malformed.status).toBe(400);
     expect(await store.list("settings")).toEqual([]);
+  });
+
+  it("rejects malformed wire mutations before calling store.commit", async () => {
+    const commit = vi.fn<RecordHttpStoreV1["commit"]>(async () =>
+      Object.freeze({ kind: "committed", records: Object.freeze([]) }),
+    );
+    const store = Object.freeze({
+      async read() {
+        return null;
+      },
+      async list() {
+        return Object.freeze([]);
+      },
+      commit,
+    }) satisfies RecordHttpStoreV1;
+    const validPut = {
+      kind: "put",
+      namespace: "settings",
+      key: "valid",
+      expectedRevision: null,
+      bytesBase64: "AQ==",
+    };
+    const bodies = [
+      JSON.stringify({ mutations: [] }),
+      JSON.stringify({ mutations: [null] }),
+      JSON.stringify({ mutations: [7] }),
+      JSON.stringify({ mutations: [{ ...validPut, kind: "unknown" }] }),
+      JSON.stringify({ mutations: [{ ...validPut, namespace: "unknown" }] }),
+      JSON.stringify({ mutations: [{ ...validPut, key: 7 }] }),
+      JSON.stringify({ mutations: [{ ...validPut, bytesBase64: [1] }] }),
+      JSON.stringify({ mutations: [{ ...validPut, expectedRevision: "1" }] }),
+      JSON.stringify({ mutations: [{ ...validPut, expectedRevision: 1.5 }] }),
+      JSON.stringify({ mutations: [{ ...validPut, expectedRevision: -1 }] }),
+      JSON.stringify({
+        mutations: [{ ...validPut, expectedRevision: Number.MAX_SAFE_INTEGER + 1 }],
+      }),
+      JSON.stringify({
+        mutations: [
+          {
+            kind: "delete",
+            namespace: "settings",
+            key: "valid",
+            expectedRevision: null,
+          },
+        ],
+      }),
+      JSON.stringify({
+        mutations: [validPut, { ...validPut, key: "late-invalid", bytesBase64: [1] }],
+      }),
+      JSON.stringify({
+        mutations: [
+          validPut,
+          {
+            kind: "delete",
+            namespace: "settings",
+            key: "valid",
+            expectedRevision: 1,
+          },
+        ],
+      }),
+      '{"mutations":[{"kind":"put","namespace":"settings","key":"negative-zero","expectedRevision":-0,"bytesBase64":"AQ=="}]}',
+    ];
+
+    for (const body of bodies) {
+      const response = await handleRecordHttpRequestV1(
+        requestV1("/commit", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body,
+        }),
+        "/commit",
+        store,
+      );
+      expect(response.status).toBe(400);
+    }
+    expect(commit).not.toHaveBeenCalled();
   });
 
   it("fails malformed paths and unknown namespaces before storage access", async () => {

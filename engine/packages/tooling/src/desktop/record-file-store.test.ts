@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createRecordFileStoreV1 } from "./record-file-store.mts";
+import { createRecordFileStoreV1, parseWireMutationsV1 } from "./record-file-store.mts";
 
 let cleanupDir: string | null = null;
 
@@ -122,6 +122,45 @@ describe("the desktop record file store", () => {
       ]),
     ).rejects.toThrow("invalid Host record bytes");
     expect(await store.list("save")).toEqual([]);
+  });
+
+  it("rejects negative-zero wire revisions", () => {
+    expect(() =>
+      parseWireMutationsV1([
+        {
+          kind: "put",
+          namespace: "settings",
+          key: "negative-zero-put",
+          expectedRevision: -0,
+          bytesBase64: "AQ==",
+        },
+      ]),
+    ).toThrow(TypeError);
+    expect(() =>
+      parseWireMutationsV1([
+        {
+          kind: "delete",
+          namespace: "settings",
+          key: "negative-zero-delete",
+          expectedRevision: -0,
+        },
+      ]),
+    ).toThrow(TypeError);
+  });
+
+  it("rejects sparse wire batches during full-batch parsing", () => {
+    const sparseBatch: unknown[] = [
+      {
+        kind: "put",
+        namespace: "settings",
+        key: "valid-first",
+        expectedRevision: null,
+        bytesBase64: "AQ==",
+      },
+    ];
+    sparseBatch.length = 2;
+
+    expect(() => parseWireMutationsV1(sparseBatch)).toThrow(TypeError);
   });
 
   it("fails closed for corrupt records instead of treating them as missing", async () => {

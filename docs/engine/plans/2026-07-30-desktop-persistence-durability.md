@@ -165,6 +165,62 @@ characterization、真实子进程 crash/reopen，以及 D1 选出的 transactio
 candidate 接入同一 shared conformance。file adapter 继续保持
 preview/reference。
 
+### D0c delivery record（2026-07-31）
+
+本切片把已由 `HostRecordMutationV1` 决定的 malformed-input floor 接到真实
+Desktop HTTP 路径；D0 仍未完成，file adapter 仍是 preview/reference。
+
+**目标：**
+
+- 用同一中性 workload 让 memory、fake IndexedDB 与真实
+  HTTP client → handler → file 组合验证 29 个 malformed Host batch/member、
+  discriminator、identity、bytes、revision、late-invalid 与 duplicate case；
+- 每个 case 只断言 `TypeError` 类型和三个 namespace 的 key/revision/bytes
+  前后完全相同，不冻结精确错误 message；
+- HTTP client 在任何 malformed commit 发出 fetch 前完整验证、复制整批
+  mutation；额外覆盖 non-array outer value 与 sparse batch；
+- raw handler 对 15 个 JSON wire case 在调用 `store.commit` 前返回 `400`，
+  file wire parser 在完整 batch parse 时拒绝 sparse member，并与 Base integer
+  parser 一致拒绝 `-0`；
+- 保留跨 realm `Uint8Array` 作为 HTTP valid-input 正例。
+
+**非目标：**
+
+- 不把额外字段、prototype/accessor、embedded NUL key 或 Unicode collation
+  定义成新合同，不决定 stale `MAX_SAFE_INTEGER` 的 conflict/overflow
+  优先级；
+- 不改变有效 put/delete 的 JSON fields、status/result、records wire、
+  `HostAtomicRecordStoreV1`、SaveRepository、Save envelope 或 package exports；
+- 不改变 browser IndexedDB adapter；其 shared malformed corpus 只增加测试；
+- 不处理 crash/recovery、cross-process CAS、durable backend 选择、packaging
+  或 migration。
+
+**验收规格与证据：**
+
+- red baseline 中 malformed workload 发出 `27` 次 commit HTTP request，而正确
+  上限只有合法 seed 的 `1` 次；unknown kind 可变成 delete、普通 array bytes
+  可被写入、`NaN` revision 可先提交再由 client 报错；
+- raw `expectedRevision: -0` 的 handler baseline 返回 `200` 并调用 backing，
+  direct file parser 也不抛错；
+- green 后 29 个 shared case 全部为
+  `rejectedWithTypeError: true / statePreserved: true`，non-array 与 sparse batch
+  的 `/commit` endpoint request count 为 `0`，完整 workload 只有 seed 的 `1`
+  次 request；
+- literal `-0` 与其余 raw malformed batch 全部返回 `400`，handler
+  `store.commit` 调用数为 `0`；跨 realm bytes round-trip 保持
+  `[0, 255, 16]`；
+- focused red/green 为 `5 files / 26 tests`；Base contracts/testkit 为
+  `34 files / 234 tests`，Web Host 为 `5 files / 39 tests`，Tooling Desktop 为
+  `7 files / 33 tests`；
+- 全仓 `deno task test` 为 `185 files / 1599 tests`；`deno task check`
+  全部通过（format、lint、styles、typecheck、unit、assets、Story checks 与
+  Engine Lab production build）。
+
+剩余 D0 工作包括 overflow/corrupt/key corpus、其余 fault 边界、真实
+signal/power-loss recovery、独立 OS process CAS，以及 transaction candidate
+接入同一 shared conformance。cross-realm IndexedDB valid-input parity 是独立 Web
+Host 问题，不由本 Desktop malformed 切片改动。
+
 ## 3. D1 — Backend decision record
 
 在不改变上层合同的前提下做一个短期 spike，并留下 decision record。至少比较：

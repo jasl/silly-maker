@@ -70,6 +70,45 @@ export interface HostRecordStoreReopenConformanceReportV1 {
   readonly secondValue: readonly number[] | null;
 }
 
+export type HostRecordStoreMalformedCaseIdV1 =
+  | "non_array_batch"
+  | "empty_batch"
+  | "sparse_batch"
+  | "null_mutation"
+  | "non_object_mutation"
+  | "unknown_kind"
+  | "unknown_namespace"
+  | "non_string_key"
+  | "array_bytes"
+  | "data_view_bytes"
+  | "put_undefined_revision"
+  | "put_string_revision"
+  | "put_nan_revision"
+  | "put_infinite_revision"
+  | "put_negative_zero_revision"
+  | "put_fractional_revision"
+  | "put_negative_revision"
+  | "put_unsafe_revision"
+  | "delete_null_revision"
+  | "delete_undefined_revision"
+  | "delete_string_revision"
+  | "delete_nan_revision"
+  | "delete_infinite_revision"
+  | "delete_negative_zero_revision"
+  | "delete_fractional_revision"
+  | "delete_negative_revision"
+  | "delete_unsafe_revision"
+  | "late_invalid_bytes"
+  | "duplicate_identity";
+
+export interface HostRecordStoreMalformedConformanceReportV1 {
+  readonly cases: readonly {
+    readonly id: HostRecordStoreMalformedCaseIdV1;
+    readonly rejectedWithTypeError: boolean;
+    readonly statePreserved: boolean;
+  }[];
+}
+
 export const hostRecordStoreConformanceExpectedV1 = Object.freeze({
   validation: Object.freeze({
     emptyRejected: true,
@@ -133,6 +172,50 @@ export const hostRecordStoreReopenExpectedV1 = Object.freeze({
   secondRevision: 2,
   secondValue: Object.freeze([255, 32, 0, 129]),
 }) satisfies DeepReadonly<HostRecordStoreReopenConformanceReportV1>;
+
+const hostRecordStoreMalformedCaseIdsV1 = Object.freeze([
+  "non_array_batch",
+  "empty_batch",
+  "sparse_batch",
+  "null_mutation",
+  "non_object_mutation",
+  "unknown_kind",
+  "unknown_namespace",
+  "non_string_key",
+  "array_bytes",
+  "data_view_bytes",
+  "put_undefined_revision",
+  "put_string_revision",
+  "put_nan_revision",
+  "put_infinite_revision",
+  "put_negative_zero_revision",
+  "put_fractional_revision",
+  "put_negative_revision",
+  "put_unsafe_revision",
+  "delete_null_revision",
+  "delete_undefined_revision",
+  "delete_string_revision",
+  "delete_nan_revision",
+  "delete_infinite_revision",
+  "delete_negative_zero_revision",
+  "delete_fractional_revision",
+  "delete_negative_revision",
+  "delete_unsafe_revision",
+  "late_invalid_bytes",
+  "duplicate_identity",
+] as const satisfies readonly HostRecordStoreMalformedCaseIdV1[]);
+
+export const hostRecordStoreMalformedConformanceExpectedV1 = Object.freeze({
+  cases: Object.freeze(
+    hostRecordStoreMalformedCaseIdsV1.map((id) =>
+      Object.freeze({
+        id,
+        rejectedWithTypeError: true,
+        statePreserved: true,
+      }),
+    ),
+  ),
+}) satisfies DeepReadonly<HostRecordStoreMalformedConformanceReportV1>;
 
 function putV1(
   namespace: HostRecordMutationV1["namespace"],
@@ -210,6 +293,210 @@ async function readRequiredV1(
     throw new TypeError("testkit.host_record_conformance_missing_record");
   }
   return record;
+}
+
+type UnsafeMutationV1 = Readonly<Record<PropertyKey, unknown>>;
+
+interface HostRecordStoreMalformedCaseV1 {
+  readonly id: HostRecordStoreMalformedCaseIdV1;
+  readonly mutations: unknown;
+}
+
+function malformedPutV1(
+  id: string,
+  overrides: Readonly<Record<PropertyKey, unknown>>,
+): UnsafeMutationV1 {
+  return Object.freeze({
+    kind: "put",
+    namespace: "settings",
+    key: `conformance.malformed.${id}`,
+    expectedRevision: null,
+    bytes: bytesV1(1, 2, 3),
+    ...overrides,
+  });
+}
+
+function malformedDeleteV1(id: string, expectedRevision: unknown): UnsafeMutationV1 {
+  return Object.freeze({
+    kind: "delete",
+    namespace: "settings",
+    key: `conformance.malformed.${id}`,
+    expectedRevision,
+  });
+}
+
+function malformedCasesV1(victimKey: HostRecordKeyV1): readonly HostRecordStoreMalformedCaseV1[] {
+  const sparseBatch: unknown[] = [malformedPutV1("sparse-valid-first", {})];
+  sparseBatch.length = 2;
+  const cases = [
+    { id: "non_array_batch", mutations: {} },
+    { id: "empty_batch", mutations: [] },
+    { id: "sparse_batch", mutations: Object.freeze(sparseBatch) },
+    { id: "null_mutation", mutations: [null] },
+    { id: "non_object_mutation", mutations: [7] },
+    {
+      id: "unknown_kind",
+      mutations: [
+        Object.freeze({
+          kind: "replace",
+          namespace: "settings",
+          key: victimKey,
+          expectedRevision: 1,
+        }),
+      ],
+    },
+    {
+      id: "unknown_namespace",
+      mutations: [malformedPutV1("unknown-namespace", { namespace: "unknown" })],
+    },
+    {
+      id: "non_string_key",
+      mutations: [malformedPutV1("non-string-key", { key: 7 })],
+    },
+    {
+      id: "array_bytes",
+      mutations: [malformedPutV1("array-bytes", { bytes: [1, 2, 3] })],
+    },
+    {
+      id: "data_view_bytes",
+      mutations: [
+        malformedPutV1("data-view-bytes", {
+          bytes: new DataView(Uint8Array.of(1, 2, 3).buffer),
+        }),
+      ],
+    },
+    {
+      id: "put_undefined_revision",
+      mutations: [malformedPutV1("put-undefined-revision", { expectedRevision: undefined })],
+    },
+    {
+      id: "put_string_revision",
+      mutations: [malformedPutV1("put-string-revision", { expectedRevision: "1" })],
+    },
+    {
+      id: "put_nan_revision",
+      mutations: [malformedPutV1("put-nan-revision", { expectedRevision: Number.NaN })],
+    },
+    {
+      id: "put_infinite_revision",
+      mutations: [
+        malformedPutV1("put-infinite-revision", { expectedRevision: Number.POSITIVE_INFINITY }),
+      ],
+    },
+    {
+      id: "put_negative_zero_revision",
+      mutations: [malformedPutV1("put-negative-zero-revision", { expectedRevision: -0 })],
+    },
+    {
+      id: "put_fractional_revision",
+      mutations: [malformedPutV1("put-fractional-revision", { expectedRevision: 1.5 })],
+    },
+    {
+      id: "put_negative_revision",
+      mutations: [malformedPutV1("put-negative-revision", { expectedRevision: -1 })],
+    },
+    {
+      id: "put_unsafe_revision",
+      mutations: [
+        malformedPutV1("put-unsafe-revision", {
+          expectedRevision: Number.MAX_SAFE_INTEGER + 1,
+        }),
+      ],
+    },
+    {
+      id: "delete_null_revision",
+      mutations: [malformedDeleteV1("delete-null-revision", null)],
+    },
+    {
+      id: "delete_undefined_revision",
+      mutations: [malformedDeleteV1("delete-undefined-revision", undefined)],
+    },
+    {
+      id: "delete_string_revision",
+      mutations: [malformedDeleteV1("delete-string-revision", "1")],
+    },
+    {
+      id: "delete_nan_revision",
+      mutations: [malformedDeleteV1("delete-nan-revision", Number.NaN)],
+    },
+    {
+      id: "delete_infinite_revision",
+      mutations: [malformedDeleteV1("delete-infinite-revision", Number.POSITIVE_INFINITY)],
+    },
+    {
+      id: "delete_negative_zero_revision",
+      mutations: [malformedDeleteV1("delete-negative-zero-revision", -0)],
+    },
+    {
+      id: "delete_fractional_revision",
+      mutations: [malformedDeleteV1("delete-fractional-revision", 1.5)],
+    },
+    {
+      id: "delete_negative_revision",
+      mutations: [malformedDeleteV1("delete-negative-revision", -1)],
+    },
+    {
+      id: "delete_unsafe_revision",
+      mutations: [malformedDeleteV1("delete-unsafe-revision", Number.MAX_SAFE_INTEGER + 1)],
+    },
+    {
+      id: "late_invalid_bytes",
+      mutations: [
+        malformedPutV1("late-valid", {}),
+        malformedPutV1("late-invalid", { bytes: [4, 5, 6] }),
+      ],
+    },
+    {
+      id: "duplicate_identity",
+      mutations: [malformedPutV1("duplicate", {}), malformedDeleteV1("duplicate", 1)],
+    },
+  ] as const satisfies readonly HostRecordStoreMalformedCaseV1[];
+  return Object.freeze(cases);
+}
+
+async function recordStoreStateV1(store: HostAtomicRecordStoreV1): Promise<readonly string[]> {
+  const namespaces = ["save", "lease", "settings"] as const;
+  const records = (
+    await Promise.all(
+      namespaces.map(async (namespace) =>
+        (await store.list(namespace)).map(
+          (record) =>
+            `${record.namespace}\0${record.key as string}\0${String(record.revision)}\0${Array.from(
+              record.bytes,
+            ).join(",")}`,
+        ),
+      ),
+    )
+  ).flat();
+  return Object.freeze(records.toSorted());
+}
+
+/**
+ * Runs malformed Host-mutation probes against one otherwise empty store.
+ */
+export async function runHostRecordStoreMalformedConformanceV1(
+  store: HostAtomicRecordStoreV1,
+): Promise<DeepReadonly<HostRecordStoreMalformedConformanceReportV1>> {
+  const victimKey = keyV1("conformance.malformed.victim");
+  committedV1(await store.commit([putV1("settings", victimKey, null, bytesV1(7, 8, 9, 255))]));
+  const cases = [];
+  for (const testCase of malformedCasesV1(victimKey)) {
+    const beforeState = await recordStoreStateV1(store);
+    const rejectedWithTypeError = await rejectsTypeErrorV1(() =>
+      store.commit(testCase.mutations as never),
+    );
+    cases.push(
+      Object.freeze({
+        id: testCase.id,
+        rejectedWithTypeError,
+        statePreserved:
+          JSON.stringify(await recordStoreStateV1(store)) === JSON.stringify(beforeState),
+      }),
+    );
+  }
+  return Object.freeze({
+    cases: Object.freeze(cases),
+  });
 }
 
 /**

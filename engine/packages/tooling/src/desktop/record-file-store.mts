@@ -87,7 +87,12 @@ function requireKeyV1(value: unknown): string {
 
 function requireRevisionV1(value: unknown, allowNull: boolean): number | null {
   if (allowNull && value === null) return null;
-  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) {
+  if (
+    Object.is(value, -0) ||
+    typeof value !== "number" ||
+    !Number.isSafeInteger(value) ||
+    value < 0
+  ) {
     throw new TypeError("invalid Host record revision");
   }
   return value;
@@ -109,7 +114,7 @@ export function parseWireMutationsV1(value: unknown): readonly WireMutationV1[] 
   if (!Array.isArray(value) || value.length === 0) {
     throw new TypeError("Host record commit requires mutations");
   }
-  const normalized = value.map((mutation): WireMutationV1 => {
+  const normalized = Array.from(value, (mutation): WireMutationV1 => {
     if (typeof mutation !== "object" || mutation === null) {
       throw new TypeError("invalid Host record mutation");
     }
