@@ -5,7 +5,12 @@ import { extname, join, normalize } from "node:path";
 import { injectDesktopLifetimeScriptV1, injectDesktopRecordsMarkerV1 } from "./desktop-html.mts";
 import { createRecordFileStoreV1 } from "./record-file-store.mts";
 import { handleRecordHttpRequestV1 } from "./record-http-handler.mts";
-import { desktopLifetimePathPrefixV1, createShellLifetimeWatchdogV1 } from "./shell-lifetime.mts";
+import {
+  adoptShellWindowV1,
+  createShellLifetimeWatchdogV1,
+  desktopLifetimePathPrefixV1,
+  type ShellWindowLikeV1,
+} from "./shell-lifetime.mts";
 import { resolveStaticFilePathV1 } from "./static-file-path.mts";
 
 /**
@@ -27,6 +32,8 @@ declare const Deno: {
   build: { os: string };
   args: string[];
   exit(code?: number): never;
+  /** Desktop runtime only (`deno desktop`); absent under plain `deno run`. */
+  BrowserWindow?: new (options?: Record<never, never>) => ShellWindowLikeV1;
 };
 
 const appIdentifierV1 = "__SILLYMAKER_APP_IDENTIFIER__";
@@ -132,6 +139,11 @@ async function handleStaticV1(request: Request, pathname: string): Promise<Respo
 // would keep the process (and dock icon) alive after the window closes.
 const watchdog = createShellLifetimeWatchdogV1({ exit: () => Deno.exit(0) });
 setInterval(() => watchdog.tick(), 5_000);
+
+// Adopt the startup window so the OS close button actually works — the
+// runtime forwards the click as a `close` event on the adopting
+// BrowserWindow; without adoption the request has no target and is dropped.
+adoptShellWindowV1({ browserWindow: Deno.BrowserWindow, exit: () => Deno.exit(0) });
 
 Deno.serve((request: Request) => {
   watchdog.markRequest();

@@ -31,6 +31,43 @@ export interface CreateShellLifetimeWatchdogOptionsV1 {
   readonly tickMs?: number;
 }
 
+/** Minimal surface of `Deno.BrowserWindow` the shell relies on. */
+export interface ShellWindowLikeV1 {
+  addEventListener(type: "close", listener: () => void): void;
+}
+
+/**
+ * Adopt the runtime's startup window and end the process on the native
+ * close request. `deno desktop` forwards the OS close button as a `close`
+ * event on the Deno-side `BrowserWindow` instance — and the FIRST
+ * construction adopts the implicit startup window. A shell that never
+ * constructs one leaves the close request untargeted, so clicking the
+ * macOS red button does nothing at all (the window never closes and the
+ * heartbeat watchdog never fires). Returns false outside the desktop
+ * runtime (plain `deno run` verification has no `Deno.BrowserWindow`).
+ */
+export function adoptShellWindowV1(input: {
+  readonly browserWindow: (new (options?: Record<never, never>) => ShellWindowLikeV1) | undefined;
+  readonly exit: () => void;
+}): boolean {
+  const BrowserWindow = input.browserWindow;
+  if (typeof BrowserWindow !== "function") return false;
+  let adopted: ShellWindowLikeV1;
+  try {
+    adopted = new BrowserWindow();
+  } catch {
+    try {
+      adopted = new BrowserWindow({});
+    } catch {
+      return false;
+    }
+  }
+  // Process exit tears the native window down with it — calling
+  // `window.close()` here would re-fire this very event.
+  adopted.addEventListener("close", () => input.exit());
+  return true;
+}
+
 export function createShellLifetimeWatchdogV1(
   options: CreateShellLifetimeWatchdogOptionsV1,
 ): ShellLifetimeWatchdogV1 {
