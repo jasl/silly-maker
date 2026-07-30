@@ -5,6 +5,7 @@ import type { AudioIntentV1, TransientEffectV1 } from "@sillymaker/base";
 import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
 
 import type { AudioHostV1 } from "./audio-host.ts";
+import type { ResolvedEffectAssetV1 } from "./audio-presenter.ts";
 import { createAudioPresenterV1 } from "./audio-presenter.ts";
 
 /**
@@ -28,7 +29,7 @@ export interface GameAudioPropsV1 {
   /** Reads the Story's saveable continuous intent from a publication. */
   selectIntent(publication: unknown): AudioIntentV1;
   /** Maps a commit-only transient effect to a one-shot SFX; null ignores. */
-  resolveEffectAsset?(effect: TransientEffectV1): { readonly assetId: string } | null;
+  resolveEffectAsset?(effect: TransientEffectV1): ResolvedEffectAssetV1 | null;
   readonly sfxGainPermille?: number;
   /**
    * Live master volume/mute: the component subscribes to the profile and

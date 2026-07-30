@@ -108,6 +108,41 @@ describe("createAudioPresenterV1", () => {
     expect(host.effects()).toHaveLength(1);
   });
 
+  it("honors a per-effect gain from resolveEffectAsset, defaulting to sfxGainPermille", () => {
+    const host = createFakeAudioHostV1();
+    const presenter = createAudioPresenterV1({
+      host,
+      sfxGainPermille: 700,
+      resolveEffectAsset: (effect) =>
+        typeof effect.payload.assetId === "string"
+          ? {
+              assetId: effect.payload.assetId,
+              ...(typeof effect.payload.gainPermille === "number"
+                ? { gainPermille: effect.payload.gainPermille }
+                : {}),
+            }
+          : null,
+    });
+    presenter.retarget({ intent: intentV1({}), revision: 1, epoch: 0 });
+
+    presenter.onTransientEffect({
+      effectSequence: 1,
+      epoch: 0,
+      effectId: "audio.sfx",
+      payload: Object.freeze({ assetId: "audio.test.quiet", gainPermille: 350 }),
+    });
+    presenter.onTransientEffect({
+      effectSequence: 2,
+      epoch: 0,
+      effectId: "audio.sfx",
+      payload: Object.freeze({ assetId: "audio.test.plain" }),
+    });
+    expect(host.effects()).toEqual([
+      { assetId: "audio.test.quiet", gainPermille: 350 },
+      { assetId: "audio.test.plain", gainPermille: 700 },
+    ]);
+  });
+
   it("plays each SFX occurrence at most once per epoch via the watermark", () => {
     const { host, presenter } = presenterV1();
     presenter.retarget({ intent: intentV1({}), revision: 1, epoch: 0 });

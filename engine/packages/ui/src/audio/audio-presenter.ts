@@ -33,10 +33,16 @@ export interface AudioPresenterV1 {
   dispose(): void;
 }
 
+export interface ResolvedEffectAssetV1 {
+  readonly assetId: string;
+  /** Per-effect gain (authored SFX volume); defaults to `sfxGainPermille`. */
+  readonly gainPermille?: number;
+}
+
 export interface CreateAudioPresenterOptionsV1 {
   readonly host: AudioHostV1;
   /** Maps a transient effect to a playable SFX asset; null ignores it. */
-  resolveEffectAsset?(effect: TransientEffectV1): { readonly assetId: string } | null;
+  resolveEffectAsset?(effect: TransientEffectV1): ResolvedEffectAssetV1 | null;
   readonly sfxGainPermille?: number;
 }
 
@@ -131,7 +137,10 @@ export function createAudioPresenterV1(options: CreateAudioPresenterOptionsV1): 
       consumedWatermark = effect.effectSequence;
       const resolved = options.resolveEffectAsset?.(effect) ?? null;
       if (resolved === null) return;
-      options.host.playEffect({ assetId: resolved.assetId, gainPermille: sfxGain });
+      options.host.playEffect({
+        assetId: resolved.assetId,
+        gainPermille: resolved.gainPermille ?? sfxGain,
+      });
     },
 
     replayVoice(): boolean {
