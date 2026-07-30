@@ -78,7 +78,7 @@ Private studies, `tmp/`-only verification games, and external checkouts do not r
 
 Use a focused package or test-file command while iterating when that is faster. Run `deno task check` before handing off a change, and add `deno task test:e2e` or prebuilt testing when the affected behavior crosses the browser/build boundary.
 
-`deno task bench:snapshot` runs generated 100/1k/10k/100k-entity Session workloads for single-field commits, multi-slice committed candidates, rejection, and fault. By default it writes machine-readable p50/p95 and deterministic work counts under an operating-system temporary directory; pass `--output <path>` for a CI artifact. Wall-clock values are trend evidence, not ordinary CI gates, and raw local baseline files are not committed.
+`deno task bench:snapshot` runs generated 100/1k/10k/100k-entity Session workloads for single-field commits, multi-slice committed controls, real cross-owner atomic commits, rejection, and fault. Its full matrix also includes a neutral 256-command mixed sequence at 100 entities and authoritative replay of the retained 200-entry CommandLog. By default it writes machine-readable p50/p95 and deterministic work counts under an operating-system temporary directory; pass `--output <path>` for a CI artifact. Wall-clock values are trend evidence, not ordinary CI gates, and raw local baseline files are not committed.
 
 ## Change workflow
 

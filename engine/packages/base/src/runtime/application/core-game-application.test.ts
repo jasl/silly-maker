@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
+import { canonicalJsonBytes } from "../../contracts/canonical-json.ts";
+import { commitAttemptV1 } from "../../contracts/execution.ts";
 import type { HostAtomicRecordStoreV1, IsoUtcInstant } from "../../contracts/host.ts";
 import { createMemoryHostRecordStoreV1 } from "../../contracts/host.ts";
 import type { SessionLeaseOwnerId } from "../../contracts/application.ts";
+import { createTransactionalRngV1 } from "../../contracts/rng.ts";
+import { parseNonNegativeSafeInteger } from "../../contracts/values.ts";
 import { createFixedBootstrapEntropyV1 } from "../../testkit/fixed-bootstrap-entropy.ts";
 import { deterministicBuildIdentityInputV1 } from "../../testkit/resolver-fixtures.ts";
 import type {
@@ -37,6 +41,15 @@ type SyntheticResultV1 =
   | { readonly kind: "rejected" }
   | { readonly kind: "faulted" }
   | { readonly kind: "not_executed"; readonly code: string };
+
+interface DebugCounterCommandV1 {
+  readonly kind: "debug.synthetic.add";
+  readonly amount: number;
+}
+
+type DebugSyntheticSimulationTypesV1 = Omit<SyntheticSimulationTypesV1, "debugCommand"> & {
+  readonly debugCommand: DebugCounterCommandV1;
+};
 
 const syntheticActionIdsV1 = Object.freeze([
   "synthetic.increment",
@@ -108,6 +121,95 @@ const definitionV1 = defineCoreGameApplicationV1({
     SyntheticResultV1
   >,
 });
+
+function debugDefinitionFixtureV1() {
+  const baseEntry = createSyntheticCounterGamePackageV1();
+  let debugExecuteCalls = 0;
+  const debugCommandSchemaV1 = Object.freeze({
+    parse(value: unknown): DebugCounterCommandV1 {
+      if (
+        value === null ||
+        typeof value !== "object" ||
+        Array.isArray(value) ||
+        Object.keys(value).sort().join("\0") !== "amount\0kind" ||
+        Reflect.get(value, "kind") !== "debug.synthetic.add"
+      ) {
+        throw new TypeError("invalid synthetic debug command");
+      }
+      return Object.freeze({
+        kind: "debug.synthetic.add" as const,
+        amount: parseNonNegativeSafeInteger(Reflect.get(value, "amount")),
+      });
+    },
+  });
+  const story = baseEntry.define();
+  const simulation = story.simulation;
+  const debugStory = Object.freeze({
+    ...story,
+    simulation: Object.freeze({
+      ...simulation,
+      createGameSimulation(program: Parameters<typeof simulation.createGameSimulation>[0]) {
+        const gameSimulation = simulation.createGameSimulation(program);
+        return Object.freeze({
+          ...gameSimulation,
+          debugCommandSchema: debugCommandSchemaV1,
+          debugCommandExecutor: Object.freeze({
+            validate() {
+              return Object.freeze({ kind: "allowed" as const });
+            },
+            executeAttempt(
+              snapshot: SyntheticSimulationTypesV1["snapshot"],
+              command: DebugCounterCommandV1,
+            ) {
+              debugExecuteCalls += 1;
+              const rng = createTransactionalRngV1(snapshot.rng);
+              const count = parseNonNegativeSafeInteger(
+                snapshot.state.simulation.counter.count + command.amount,
+              );
+              const next = Object.freeze({
+                state: Object.freeze({
+                  simulation: Object.freeze({
+                    counter: Object.freeze({ count }),
+                  }),
+                }),
+                rng: rng.candidateState(),
+                commandSequence: parseNonNegativeSafeInteger(snapshot.commandSequence + 1),
+                integrity: snapshot.integrity,
+              });
+              return commitAttemptV1(snapshot, next, rng, [
+                Object.freeze({
+                  kind: "synthetic.incremented" as const,
+                  count,
+                }),
+              ]);
+            },
+          }),
+        });
+      },
+    }),
+  });
+  const entry = Object.freeze({
+    ...baseEntry,
+    define: () => debugStory,
+  });
+  const definition = defineCoreGameApplicationV1({
+    entry,
+    semantic: adapterV1 as unknown as CoreSemanticAdapterV1<
+      DebugSyntheticSimulationTypesV1,
+      SyntheticQueriesV1,
+      SyntheticQueriesV1,
+      null,
+      { readonly actionId: string; readonly count: number },
+      SyntheticInvocationV1,
+      { readonly countBefore: number },
+      SyntheticResultV1
+    >,
+  });
+  return Object.freeze({
+    definition,
+    debugExecuteCalls: () => debugExecuteCalls,
+  });
+}
 
 function resolvedApplicationV1() {
   const result = resolveCoreGameApplicationV1(definitionV1, {
@@ -235,6 +337,100 @@ describe("createCoreGameApplicationInstanceV1", () => {
     await instance.semantic.dispatch(incrementV1);
     await expect(instance.persistence.load("manual.1")).resolves.toMatchObject({ kind: "loaded" });
     expect(instance.admin.stateDigest()).toBe(digest);
+    await instance.dispose();
+  });
+
+  it("replays the Core command log authoritatively through isolated attempts", async () => {
+    const instance = await createInstanceV1();
+    await instance.semantic.dispatch(incrementV1);
+    await instance.semantic.dispatch(
+      Object.freeze({ kind: "invoke" as const, actionId: "synthetic.reject" as const }),
+    );
+    await instance.semantic.dispatch(incrementV1);
+
+    const snapshotBefore = instance.admin.inspectForTest().snapshot;
+    const digestBefore = instance.admin.stateDigest();
+    const commandLogBytesBefore = canonicalJsonBytes(instance.admin.commandLog());
+    const statusBefore = instance.semantic.observe().status;
+    await expect(instance.admin.replayAuthoritatively()).resolves.toEqual({
+      authoritative: true,
+      identityMatch: true,
+      visualMatch: false,
+      matches: true,
+      executedEntries: 3,
+      mismatches: [],
+    });
+    expect(instance.admin.inspectForTest().snapshot).toBe(snapshotBefore);
+    expect(instance.admin.stateDigest()).toBe(digestBefore);
+    expect(canonicalJsonBytes(instance.admin.commandLog())).toEqual(commandLogBytesBefore);
+    expect(instance.semantic.observe().status).toBe(statusBefore);
+    expect(instance.semantic.observe().game).toEqual({ count: 2 });
+    await instance.dispose();
+  });
+
+  it("replays a debug-sourced Core entry with identical modified integrity in isolation", async () => {
+    const fixture = debugDefinitionFixtureV1();
+    const resolved = resolveCoreGameApplicationV1(fixture.definition, {
+      buildIdentityInput: deterministicBuildIdentityInputV1,
+    });
+    if (resolved.kind !== "resolved") {
+      throw new TypeError(
+        `debug synthetic story must resolve: ${JSON.stringify(resolved.failure)}`,
+      );
+    }
+    const instance = await createCoreGameApplicationInstanceV1(resolved.application, {
+      host: hostServicesV1(createMemoryHostRecordStoreV1()),
+      capabilities: { debugTools: true },
+    });
+    const debugControl = instance.admin.debugControl;
+    if (debugControl === undefined) throw new TypeError("debug control must be enabled");
+
+    await expect(
+      debugControl.execute(Object.freeze({ kind: "debug.synthetic.add", amount: 5 }), () => true),
+    ).resolves.toMatchObject({
+      kind: "executed",
+      attempt: { result: { kind: "committed" } },
+    });
+    expect(fixture.debugExecuteCalls()).toBe(1);
+    expect(instance.admin.commandLog()).toMatchObject([
+      {
+        source: "debug",
+        command: { kind: "debug.synthetic.add", amount: 5 },
+        outcome: { kind: "committed" },
+      },
+    ]);
+
+    const snapshotBefore = instance.admin.inspectForTest().snapshot;
+    expect(snapshotBefore.state.simulation.counter.count).toBe(5);
+    expect(snapshotBefore.integrity).toEqual({
+      mode: "modified",
+      mutationCount: 1,
+      firstMutationSequence: 1,
+      reasons: [
+        {
+          kind: "debug_command",
+          commandKind: "debug.synthetic.add",
+          sequence: 1,
+        },
+      ],
+    });
+    const digestBefore = instance.admin.stateDigest();
+    const commandLogBytesBefore = canonicalJsonBytes(instance.admin.commandLog());
+    const statusBefore = instance.semantic.observe().status;
+
+    await expect(instance.admin.replayAuthoritatively()).resolves.toEqual({
+      authoritative: true,
+      identityMatch: true,
+      visualMatch: false,
+      matches: true,
+      executedEntries: 1,
+      mismatches: [],
+    });
+    expect(fixture.debugExecuteCalls()).toBe(2);
+    expect(instance.admin.inspectForTest().snapshot).toBe(snapshotBefore);
+    expect(instance.admin.stateDigest()).toBe(digestBefore);
+    expect(canonicalJsonBytes(instance.admin.commandLog())).toEqual(commandLogBytesBefore);
+    expect(instance.semantic.observe().status).toBe(statusBefore);
     await instance.dispose();
   });
 

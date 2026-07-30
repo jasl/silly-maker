@@ -162,4 +162,16 @@ S2 结束时记录：
 - instrumented 与 production no-op 路径逐 command 比较 dispatch result、最终 Snapshot 与 CommandLog canonical bytes，保持相等；
 - `deno task bench:snapshot` 只把 p50/p95、确定性计数和环境摘要写到 OS 临时目录或显式 CI artifact；墙钟结果不进入普通 CI gate，也不提交本地原始 JSON。
 
-仍属于 S0、尚未完成：基于真实 `TransactionRunner` 的跨 owner 原子事务、混合长序列（fault 必须置末或经 anchor 恢复）、`every_commit`/`auto.previous` 的 Save serialization 与 Strict JSON 计数、authoritative replay，以及长时内存增长。DebugBundle 只属于后续 byte-equivalence corpus；真实经营 Story 的预算判断属于 S2 后的 promotion decision，二者都不归入 S0 workload。静态扫描已经定位 persistence/replay 路径，但在对应 instrumentation 进入测试前，其预测次数不作为 promotion baseline。S1 digest cache 与 S2 persistence reuse 均未开始。
+S0a 结束时仍属于 S0、尚未完成：基于真实 `TransactionRunner` 的跨 owner 原子事务、混合长序列（fault 必须置末或经 anchor 恢复）、`every_commit`/`auto.previous` 的 Save serialization 与 Strict JSON 计数、authoritative replay，以及长时内存增长。DebugBundle 只属于后续 byte-equivalence corpus；真实经营 Story 的预算判断属于 S2 后的 promotion decision，二者都不归入 S0 workload。静态扫描已经定位 persistence/replay 路径，但在对应 instrumentation 进入测试前，其预测次数不作为 promotion baseline。S1 digest cache 与 S2 persistence reuse 均未开始。
+
+### 2026-07-30 — S0b Transaction/sequence/replay baseline
+
+本切片扩展 S0 的纯测量面，不实施 S1/S2：
+
+- 保留 S0a 的 `multi_slice_committed` 手写 control 和 workload ID，另加 `cross_owner_atomic_committed`；后者使用标准 transactional RNG，并经两个独立 owner 的真实 `TransactionRunner` proposal/apply/schema 路径一次提交 entity 与 audit slice，当前 Session/CommandLog 计数仍为 canonical traversal/digest `4/4`、deep-freeze `1`、continuity `1`；
+- 中性 `mixed_long` transcript 固定为 `[cross-owner committed, single-field committed, rejected] × 85 + faulted`。256 条 admitted command 产生 170 committed、85 rejected、1 faulted，fault 保持最后一个 Snapshot 对象恒等并让 Session 进入 `fault_paused`；当前计数为 canonical traversal/digest `1024/1024`、deep-freeze `170`、continuity `256`；
+- 200-entry CommandLog 上限真实移动 replay base：保留 ordinal 57–256，replay base/current `commandSequence` 分别为 `38/170`。两个独立运行的 replay base、current Snapshot 与 retained log canonical bytes 相等；
+- Core authoritative replay 与 direct-file test/bench seam 共用同一个 current-digest、isolated driver 和 comparison 实现；公开 replay API 不变。成功 replay retained 200 entries 的当前计数为 canonical traversal `3409`、digest `1405`（分别为 `9 + 17N` 与 `5 + 7N`）、deep-freeze `0`、continuity `0`，结果为 authoritative match，且不修改 live Session；
+- benchmark 的四档 command matrix 增加真实 cross-owner command；100-entity artifact 另记录 mixed-256 与 retained-200 replay。常规测试只锁定上述计数和等价性，p50/p95 仍只作临时/CI artifact 趋势。
+
+仍属于 S0、尚未完成：`every_commit`/`auto.previous` 的 Save canonical serialization 与 Strict JSON parse/preflight 计数，以及长时内存/GC 增长采样。DebugBundle/Save byte-equivalence corpus、S1 digest cache 与 S2 persistence reuse 均未开始。

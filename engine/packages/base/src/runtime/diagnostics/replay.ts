@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: MIT
-import { canonicalJsonBytes } from "../../contracts/canonical-json.ts";
-import { digestCanonical } from "../../contracts/digest.ts";
-import type { CommandExecutionResultEnvelopeV1 } from "../../contracts/execution.ts";
+import { canonicalJsonBytesInternalV1 } from "../../contracts/canonical-json.ts";
+import { digestCanonicalInternalV1 } from "../../contracts/digest.ts";
+import type {
+  CommandExecutionAttemptEnvelopeV1,
+  CommandExecutionResultEnvelopeV1,
+} from "../../contracts/execution.ts";
 import type { BuildProvenanceV1 } from "../../contracts/provenance.ts";
 import type { RunIntegrityV1 } from "../../contracts/snapshot.ts";
+import type { SnapshotWorkInstrumentationV1 } from "../../internal/snapshot-work-instrumentation.ts";
 import type {
   DeepReadonly,
   Digest,
@@ -160,17 +164,24 @@ function bytesEqualV1(left: Uint8Array, right: Uint8Array): boolean {
   return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
-function dataEqualV1(left: unknown, right: unknown): boolean {
+function dataEqualV1(
+  left: unknown,
+  right: unknown,
+  instrumentation?: SnapshotWorkInstrumentationV1,
+): boolean {
   if (left === undefined || right === undefined) return left === right;
   try {
-    return bytesEqualV1(canonicalJsonBytes(left), canonicalJsonBytes(right));
+    return bytesEqualV1(
+      canonicalJsonBytesInternalV1(left, instrumentation),
+      canonicalJsonBytesInternalV1(right, instrumentation),
+    );
   } catch {
     return false;
   }
 }
 
-function stateDigestV1(snapshot: unknown): Digest {
-  return digestCanonical("sillymaker:state:v1", snapshot);
+function stateDigestV1(snapshot: unknown, instrumentation?: SnapshotWorkInstrumentationV1): Digest {
+  return digestCanonicalInternalV1("sillymaker:state:v1", snapshot, instrumentation);
 }
 
 function identityMismatchesV1(
@@ -248,23 +259,30 @@ function compareOutcomeV1<TFact, TRejection, TFault>(
   mismatches: ReplayMismatchV1[],
   projectStableRejection: (rejection: DeepReadonly<TRejection>) => unknown,
   projectStableFault: (fault: DeepReadonly<TFault>) => unknown,
+  instrumentation?: SnapshotWorkInstrumentationV1,
 ): void {
   if (recorded.kind !== actual.kind) {
     addMismatchV1(mismatches, { scope: "entry", logOrdinal, field: "outcome" });
     return;
   }
   if (recorded.kind === "committed" && actual.kind === "committed") {
-    if (!dataEqualV1(recorded.facts, actual.facts)) {
+    if (!dataEqualV1(recorded.facts, actual.facts, instrumentation)) {
       addMismatchV1(mismatches, { scope: "entry", logOrdinal, field: "facts" });
     }
   } else if (recorded.kind === "rejected" && actual.kind === "rejected") {
     const recordedReasons = recorded.reasons.map(projectStableRejection);
     const actualReasons = actual.reasons.map(projectStableRejection);
-    if (!dataEqualV1(recordedReasons, actualReasons)) {
+    if (!dataEqualV1(recordedReasons, actualReasons, instrumentation)) {
       addMismatchV1(mismatches, { scope: "entry", logOrdinal, field: "reasons" });
     }
   } else if (recorded.kind === "faulted" && actual.kind === "faulted") {
-    if (!dataEqualV1(projectStableFault(recorded.fault), projectStableFault(actual.fault))) {
+    if (
+      !dataEqualV1(
+        projectStableFault(recorded.fault),
+        projectStableFault(actual.fault),
+        instrumentation,
+      )
+    ) {
       addMismatchV1(mismatches, { scope: "entry", logOrdinal, field: "fault" });
     }
   }
@@ -299,6 +317,7 @@ async function compareReplayV1<
     TRngDrawTrace
   >,
   mode: "authoritative" | "best_effort",
+  instrumentation?: SnapshotWorkInstrumentationV1,
 ): Promise<ReplayComparisonV1> {
   const mismatches = identityMismatchesV1(input.recordedIdentity, input.runtimeIdentity);
   const identityMatch = mismatches.length === 0;
@@ -308,26 +327,26 @@ async function compareReplayV1<
     return comparisonV1(false, false, false, 0, mismatches);
   }
 
-  if (stateDigestV1(input.replayBase) !== input.replayBaseStateDigest) {
+  if (stateDigestV1(input.replayBase, instrumentation) !== input.replayBaseStateDigest) {
     addMismatchV1(mismatches, { scope: "replay_base", field: "state_digest" });
   }
-  if (stateDigestV1(input.currentSnapshot) !== input.currentStateDigest) {
+  if (stateDigestV1(input.currentSnapshot, instrumentation) !== input.currentStateDigest) {
     addMismatchV1(mismatches, { scope: "final", field: "declared_current_state_digest" });
   }
 
   const driver = input.createDriver(input.replayBase);
   const driverBase = driver.getCurrentSnapshot();
-  if (!dataEqualV1(driverBase.integrity, input.replayBase.integrity)) {
+  if (!dataEqualV1(driverBase.integrity, input.replayBase.integrity, instrumentation)) {
     addMismatchV1(mismatches, { scope: "replay_base", field: "integrity" });
   }
-  if (stateDigestV1(driverBase) !== input.replayBaseStateDigest) {
+  if (stateDigestV1(driverBase, instrumentation) !== input.replayBaseStateDigest) {
     addMismatchV1(mismatches, { scope: "replay_base", field: "state_digest" });
   }
 
   let executedEntries = 0;
   for (const entry of input.commandLog) {
     const before = driver.getCurrentSnapshot();
-    if (stateDigestV1(before) !== entry.preStateDigest) {
+    if (stateDigestV1(before, instrumentation) !== entry.preStateDigest) {
       addMismatchV1(mismatches, {
         scope: "entry",
         logOrdinal: entry.logOrdinal,
@@ -349,10 +368,11 @@ async function compareReplayV1<
       mismatches,
       input.projectStableRejection,
       input.projectStableFault,
+      instrumentation,
     );
     if (
       attempt.preStateDigest !== entry.preStateDigest ||
-      stateDigestV1(attempt.preSnapshot) !== entry.preStateDigest
+      stateDigestV1(attempt.preSnapshot, instrumentation) !== entry.preStateDigest
     ) {
       addMismatchV1(mismatches, {
         scope: "entry",
@@ -362,7 +382,7 @@ async function compareReplayV1<
     }
     if (
       attempt.postStateDigest !== entry.postStateDigest ||
-      stateDigestV1(after) !== entry.postStateDigest
+      stateDigestV1(after, instrumentation) !== entry.postStateDigest
     ) {
       addMismatchV1(mismatches, {
         scope: "entry",
@@ -380,35 +400,48 @@ async function compareReplayV1<
         field: "command_sequence",
       });
     }
-    if (!dataEqualV1(attempt.diagnostics.committedRngBefore, entry.committedRngBefore)) {
+    if (
+      !dataEqualV1(
+        attempt.diagnostics.committedRngBefore,
+        entry.committedRngBefore,
+        instrumentation,
+      )
+    ) {
       addMismatchV1(mismatches, {
         scope: "entry",
         logOrdinal: entry.logOrdinal,
         field: "committed_rng_before",
       });
     }
-    if (!dataEqualV1(attempt.diagnostics.attemptedDraws, entry.attemptedDraws)) {
+    if (!dataEqualV1(attempt.diagnostics.attemptedDraws, entry.attemptedDraws, instrumentation)) {
       addMismatchV1(mismatches, {
         scope: "entry",
         logOrdinal: entry.logOrdinal,
         field: "attempted_draws",
       });
     }
-    if (!dataEqualV1(attempt.diagnostics.candidateRngAfter, entry.candidateRngAfter)) {
+    if (
+      !dataEqualV1(attempt.diagnostics.candidateRngAfter, entry.candidateRngAfter, instrumentation)
+    ) {
       addMismatchV1(mismatches, {
         scope: "entry",
         logOrdinal: entry.logOrdinal,
         field: "candidate_rng_after",
       });
     }
-    if (!dataEqualV1(attempt.diagnostics.committedRngAfter, entry.committedRngAfter)) {
+    if (
+      !dataEqualV1(attempt.diagnostics.committedRngAfter, entry.committedRngAfter, instrumentation)
+    ) {
       addMismatchV1(mismatches, {
         scope: "entry",
         logOrdinal: entry.logOrdinal,
         field: "committed_rng_after",
       });
     }
-    if (stateDigestV1(driver.getCurrentSnapshot()) !== stateDigestV1(after)) {
+    if (
+      stateDigestV1(driver.getCurrentSnapshot(), instrumentation) !==
+      stateDigestV1(after, instrumentation)
+    ) {
       addMismatchV1(mismatches, {
         scope: "entry",
         logOrdinal: entry.logOrdinal,
@@ -418,10 +451,10 @@ async function compareReplayV1<
   }
 
   const finalSnapshot = driver.getCurrentSnapshot();
-  if (!dataEqualV1(finalSnapshot.integrity, input.currentSnapshot.integrity)) {
+  if (!dataEqualV1(finalSnapshot.integrity, input.currentSnapshot.integrity, instrumentation)) {
     addMismatchV1(mismatches, { scope: "final", field: "integrity" });
   }
-  if (stateDigestV1(finalSnapshot) !== input.currentStateDigest) {
+  if (stateDigestV1(finalSnapshot, instrumentation) !== input.currentStateDigest) {
     addMismatchV1(mismatches, { scope: "final", field: "current_state_digest" });
   }
   return comparisonV1(
@@ -431,6 +464,115 @@ async function compareReplayV1<
     executedEntries,
     mismatches,
   );
+}
+
+export interface ReplayFromAttemptsInputV1<
+  TSnapshot extends ReplaySnapshotV1,
+  TLoggedCommand extends ReplayLoggedCommandShapeV1,
+  TFact,
+  TRejection,
+  TFault,
+  TRngState,
+  TRngDrawTrace,
+> {
+  readonly identity: ReplayIdentityV1;
+  readonly replayBase: DeepReadonly<TSnapshot>;
+  readonly replayBaseStateDigest: Digest;
+  readonly commandLog: readonly DeepReadonly<
+    ReplayCommandLogEntryV1<TLoggedCommand, TFact, TRejection, TFault, TRngState, TRngDrawTrace>
+  >[];
+  readonly currentSnapshot: DeepReadonly<TSnapshot>;
+  projectStableRejection(rejection: DeepReadonly<TRejection>): unknown;
+  projectStableFault(fault: DeepReadonly<TFault>): unknown;
+  executeAttempt(
+    snapshot: DeepReadonly<TSnapshot>,
+    command: DeepReadonly<TLoggedCommand>,
+  ): CommandExecutionAttemptEnvelopeV1<
+    TSnapshot,
+    TFact,
+    TRejection,
+    TFault,
+    TRngState,
+    TRngDrawTrace
+  >;
+}
+
+/**
+ * Runs the Core application's synchronous command executors through the same
+ * isolated authoritative replay path as production while exposing an optional
+ * direct-file-only work counter to tests and benchmarks.
+ *
+ * @internal Intentionally absent from package barrels.
+ */
+export function replayAuthoritativelyFromAttemptsInternalV1<
+  TSnapshot extends ReplaySnapshotV1,
+  TLoggedCommand extends ReplayLoggedCommandShapeV1,
+  TFact,
+  TRejection,
+  TFault,
+  TRngState,
+  TRngDrawTrace,
+>(
+  input: ReplayFromAttemptsInputV1<
+    TSnapshot,
+    TLoggedCommand,
+    TFact,
+    TRejection,
+    TFault,
+    TRngState,
+    TRngDrawTrace
+  >,
+  instrumentation?: SnapshotWorkInstrumentationV1,
+): Promise<ReplayComparisonV1> {
+  const replayInput: ReplayInputV1<
+    TSnapshot,
+    TLoggedCommand,
+    TFact,
+    TRejection,
+    TFault,
+    TRngState,
+    TRngDrawTrace
+  > = {
+    recordedIdentity: input.identity,
+    runtimeIdentity: input.identity,
+    replayBase: input.replayBase,
+    replayBaseStateDigest: input.replayBaseStateDigest,
+    commandLog: input.commandLog,
+    currentSnapshot: input.currentSnapshot,
+    currentStateDigest: stateDigestV1(input.currentSnapshot, instrumentation),
+    projectStableRejection: input.projectStableRejection,
+    projectStableFault: input.projectStableFault,
+    createDriver: (
+      replayBase,
+    ): ReplayDriverV1<
+      TSnapshot,
+      TLoggedCommand,
+      TFact,
+      TRejection,
+      TFault,
+      TRngState,
+      TRngDrawTrace
+    > => {
+      let replaySnapshot = replayBase;
+      return Object.freeze({
+        getCurrentSnapshot: () => replaySnapshot,
+        submit(command: DeepReadonly<TLoggedCommand>) {
+          const preSnapshot = replaySnapshot;
+          const attempt = input.executeAttempt(preSnapshot, command);
+          if (attempt.result.kind === "committed") {
+            replaySnapshot = attempt.result.snapshot as DeepReadonly<TSnapshot>;
+          }
+          return Object.freeze({
+            ...attempt,
+            preSnapshot,
+            preStateDigest: stateDigestV1(preSnapshot, instrumentation),
+            postStateDigest: stateDigestV1(attempt.result.snapshot, instrumentation),
+          }) as ReplayAttemptV1<TSnapshot, TFact, TRejection, TFault, TRngState, TRngDrawTrace>;
+        },
+      });
+    },
+  };
+  return compareReplayV1(replayInput, "authoritative", instrumentation);
 }
 
 export function replayAuthoritativelyV1<

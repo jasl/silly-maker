@@ -27,7 +27,7 @@ import { finalizeSnapshotIntegrityV1 } from "../session/run-integrity.ts";
 import type { DeepReadonly, Digest, NonNegativeSafeInteger } from "../../contracts/values.ts";
 import { parseNonNegativeSafeInteger } from "../../contracts/values.ts";
 import type { ReplayComparisonV1 } from "../diagnostics/replay.ts";
-import { replayAuthoritativelyV1 } from "../diagnostics/replay.ts";
+import { replayAuthoritativelyFromAttemptsInternalV1 } from "../diagnostics/replay.ts";
 import type { RuntimeOperationFaultV1 } from "../../contracts/diagnostics.ts";
 import {
   createRuntimeFailureBufferV1,
@@ -1218,89 +1218,66 @@ export async function createCoreGameApplicationInstanceV1<
       replayAuthoritatively: async () => {
         const identity = Object.freeze({ provenance: application.provenance });
         const currentSnapshot = created.session.getCurrentSnapshot();
-        return replayAuthoritativelyV1({
-          recordedIdentity: identity,
-          runtimeIdentity: identity,
+        return replayAuthoritativelyFromAttemptsInternalV1({
+          identity,
           replayBase: created.commandLog.replayBase(),
           replayBaseStateDigest: created.commandLog.replayBaseStateDigest(),
           commandLog: created.commandLog.entries() as never,
           currentSnapshot: currentSnapshot as never,
-          currentStateDigest: digestCanonical("sillymaker:state:v1", currentSnapshot),
           projectStableRejection: (rejection: unknown) => rejection,
           projectStableFault: (fault: unknown) => fault,
-          createDriver: (replayBase: DeepReadonly<TTypes["snapshot"]>) => {
-            let replaySnapshot = replayBase;
-            return Object.freeze({
-              getCurrentSnapshot: () => replaySnapshot,
-              submit(logged: {
-                readonly source?: "game" | "debug";
-                readonly command: DeepReadonly<TTypes["command"]>;
-              }) {
-                const preSnapshot = replaySnapshot;
-                // Debug-sourced log entries replay through the debug
-                // executor with the same mark_modified integrity stamp the
-                // live session applies, so digests line up entry for entry
-                // and the log stays one linear history across both sources.
-                let attempt: {
-                  readonly result: { readonly kind: string; readonly snapshot: never };
+          executeAttempt(
+            preSnapshot: DeepReadonly<TTypes["snapshot"]>,
+            logged: {
+              readonly source?: "game" | "debug";
+              readonly command: DeepReadonly<TTypes["command"]>;
+            },
+          ) {
+            // Debug-sourced log entries replay through the debug executor
+            // with the same mark_modified integrity stamp the live session
+            // applies, so the log stays one linear history across sources.
+            if (logged.source === "debug") {
+              const raw = gameSimulation.debugCommandExecutor.executeAttempt(
+                preSnapshot as never,
+                logged.command as never,
+                undefined as TTypes["executionContext"],
+              ) as {
+                readonly result: {
+                  readonly kind: string;
+                  readonly snapshot: {
+                    readonly integrity: RunIntegrityV1;
+                    readonly commandSequence: number;
+                  };
                 };
-                if (logged.source === "debug") {
-                  const raw = gameSimulation.debugCommandExecutor.executeAttempt(
-                    preSnapshot as never,
-                    logged.command as never,
-                    undefined as TTypes["executionContext"],
-                  ) as {
-                    readonly result: {
-                      readonly kind: string;
-                      readonly snapshot: {
-                        readonly integrity: RunIntegrityV1;
-                        readonly commandSequence: number;
-                      };
-                    };
-                  };
-                  attempt =
-                    raw.result.kind === "committed"
-                      ? ({
-                          ...raw,
-                          result: {
-                            ...raw.result,
-                            snapshot: finalizeSnapshotIntegrityV1(
-                              preSnapshot as never,
-                              raw.result.snapshot as never,
-                              {
-                                kind: "mark_modified",
-                                reason: parseRunIntegrityReasonV1({
-                                  kind: "debug_command",
-                                  commandKind: String(
-                                    (logged.command as { readonly kind?: unknown }).kind ?? "",
-                                  ),
-                                  sequence: raw.result.snapshot.commandSequence,
-                                }),
-                              },
+              };
+              return raw.result.kind === "committed"
+                ? ({
+                    ...raw,
+                    result: {
+                      ...raw.result,
+                      snapshot: finalizeSnapshotIntegrityV1(
+                        preSnapshot as never,
+                        raw.result.snapshot as never,
+                        {
+                          kind: "mark_modified",
+                          reason: parseRunIntegrityReasonV1({
+                            kind: "debug_command",
+                            commandKind: String(
+                              (logged.command as { readonly kind?: unknown }).kind ?? "",
                             ),
-                          },
-                        } as never)
-                      : (raw as never);
-                } else {
-                  attempt = gameSimulation.commandExecutor.executeAttempt(
-                    preSnapshot as never,
-                    logged.command,
-                    undefined as TTypes["executionContext"],
-                  ) as {
-                    readonly result: { readonly kind: string; readonly snapshot: never };
-                  };
-                }
-                if (attempt.result.kind === "committed") {
-                  replaySnapshot = attempt.result.snapshot;
-                }
-                return Object.freeze({
-                  ...attempt,
-                  preSnapshot,
-                  preStateDigest: digestCanonical("sillymaker:state:v1", preSnapshot),
-                  postStateDigest: digestCanonical("sillymaker:state:v1", attempt.result.snapshot),
-                }) as never;
-              },
-            });
+                            sequence: raw.result.snapshot.commandSequence,
+                          }),
+                        },
+                      ),
+                    },
+                  } as never)
+                : (raw as never);
+            }
+            return gameSimulation.commandExecutor.executeAttempt(
+              preSnapshot as never,
+              logged.command,
+              undefined as TTypes["executionContext"],
+            ) as never;
           },
         } as never);
       },

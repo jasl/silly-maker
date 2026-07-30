@@ -120,21 +120,36 @@ import {
   createGameHarnessV1,
   createMemoryHostRecordStoreV1,
   createSyntheticCounterGamePackageV1,
+  prepareSnapshotCommitSequenceWorkloadV1,
   prepareSnapshotCommitWorkloadV1,
+  prepareSnapshotReplayWorkloadV1,
+  prepareSnapshotTransactionWorkloadV1,
   resolveStoryForTestV1,
+  snapshotCommitSequenceClassesV1,
   snapshotCommitCommandClassesV1,
   snapshotCommitEntityCountsV1,
+  snapshotTransactionCommandClassesV1,
   strictJsonRoundTripV1,
   validateToolingFixturesV1,
   validateStoryV1,
 } from "@sillymaker/base/testkit";
 import type {
   PreparedSnapshotCommitWorkloadV1,
+  PreparedSnapshotCommitSequenceWorkloadV1,
+  PreparedSnapshotReplayWorkloadV1,
+  PreparedSnapshotTransactionWorkloadV1,
   SnapshotCommitCommandClassV1,
   SnapshotCommitEntityCountV1,
+  SnapshotCommitSequenceClassV1,
+  SnapshotCommitSequenceWorkloadDescriptorV1,
+  SnapshotCommitSequenceWorkloadRunV1,
   SnapshotCommitWorkloadDescriptorV1,
   SnapshotCommitWorkloadRunV1,
+  SnapshotReplayWorkloadDescriptorV1,
+  SnapshotReplayWorkloadRunV1,
   SnapshotSessionWorkCountsV1,
+  SnapshotTransactionCommandClassV1,
+  SnapshotTransactionWorkloadDescriptorV1,
 } from "@sillymaker/base/testkit";
 
 export type BaseConsumerTypesV1 = {
@@ -217,11 +232,21 @@ export type BaseConsumerTypesV1 = {
   assetDemandPlan: AssetDemandPlanV1;
   transientEffect: TransientEffectV1;
   preparedSnapshotCommitWorkload: PreparedSnapshotCommitWorkloadV1;
+  preparedSnapshotCommitSequenceWorkload: PreparedSnapshotCommitSequenceWorkloadV1;
+  preparedSnapshotReplayWorkload: PreparedSnapshotReplayWorkloadV1;
+  preparedSnapshotTransactionWorkload: PreparedSnapshotTransactionWorkloadV1;
   snapshotCommitCommandClass: SnapshotCommitCommandClassV1;
   snapshotCommitEntityCount: SnapshotCommitEntityCountV1;
+  snapshotCommitSequenceClass: SnapshotCommitSequenceClassV1;
+  snapshotCommitSequenceWorkloadDescriptor: SnapshotCommitSequenceWorkloadDescriptorV1;
+  snapshotCommitSequenceWorkloadRun: SnapshotCommitSequenceWorkloadRunV1;
   snapshotCommitWorkloadDescriptor: SnapshotCommitWorkloadDescriptorV1;
   snapshotCommitWorkloadRun: SnapshotCommitWorkloadRunV1;
+  snapshotReplayWorkloadDescriptor: SnapshotReplayWorkloadDescriptorV1;
+  snapshotReplayWorkloadRun: SnapshotReplayWorkloadRunV1;
   snapshotSessionWorkCounts: SnapshotSessionWorkCountsV1;
+  snapshotTransactionCommandClass: SnapshotTransactionCommandClassV1;
+  snapshotTransactionWorkloadDescriptor: SnapshotTransactionWorkloadDescriptorV1;
 };
 
 export type BaseConsumerValuesV1 = {
@@ -233,6 +258,9 @@ export type BaseConsumerValuesV1 = {
   createFixedBootstrapEntropy: typeof createFixedBootstrapEntropyV1;
   createMemoryHostRecordStore: typeof createMemoryHostRecordStoreV1;
   prepareSnapshotCommitWorkload: typeof prepareSnapshotCommitWorkloadV1;
+  prepareSnapshotCommitSequenceWorkload: typeof prepareSnapshotCommitSequenceWorkloadV1;
+  prepareSnapshotReplayWorkload: typeof prepareSnapshotReplayWorkloadV1;
+  prepareSnapshotTransactionWorkload: typeof prepareSnapshotTransactionWorkloadV1;
   createGameSnapshotEnvelopeSchema: typeof createGameSnapshotEnvelopeSchemaV1;
   createPristineRunIntegrity: typeof createPristineRunIntegrityV1;
   createSaveRecordEnvelopeSchema: typeof createSaveRecordEnvelopeSchemaV1;
@@ -262,6 +290,8 @@ export type BaseConsumerValuesV1 = {
   runIntegritySchema: typeof runIntegrityV1Schema;
   snapshotCommitCommandClasses: typeof snapshotCommitCommandClassesV1;
   snapshotCommitEntityCounts: typeof snapshotCommitEntityCountsV1;
+  snapshotCommitSequenceClasses: typeof snapshotCommitSequenceClassesV1;
+  snapshotTransactionCommandClasses: typeof snapshotTransactionCommandClassesV1;
   strictJsonRoundTrip: typeof strictJsonRoundTripV1;
   validateToolingFixtures: typeof validateToolingFixturesV1;
   validateStory: typeof validateStoryV1;
@@ -381,3 +411,9 @@ export type { IntegrityDirectiveV1 } from "@sillymaker/base/runtime";
 export { buildImportClosureV1 } from "@sillymaker/base/testkit";
 // @ts-expect-error memory record stores are testkit-only, never Base root
 export { createMemoryHostRecordStoreV1 as ForbiddenRootMemoryRecordStoreV1 } from "@sillymaker/base";
+// @ts-expect-error raw Snapshot instrumentation stays package-internal
+export { createSnapshotWorkCounterV1 } from "@sillymaker/base/testkit";
+// @ts-expect-error raw transaction workload factories stay package-internal
+export { createSnapshotTransactionWorkloadV1 } from "@sillymaker/base/testkit";
+// @ts-expect-error instrumented replay helpers stay package-internal
+export { replayAuthoritativelyFromAttemptsInternalV1 } from "@sillymaker/base/runtime";

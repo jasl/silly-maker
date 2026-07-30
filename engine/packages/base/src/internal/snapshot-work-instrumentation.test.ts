@@ -4,8 +4,21 @@ import { describe, expect, it, vi } from "vitest";
 import { recordSnapshotWorkV1 } from "./snapshot-work-instrumentation.ts";
 
 describe("Snapshot work instrumentation", () => {
-  it("attaches rejection handling to asynchronous probe results", () => {
-    const asynchronousResult = Promise.resolve();
+  it("isolates synchronous probe failures", () => {
+    expect(() =>
+      recordSnapshotWorkV1(
+        {
+          record() {
+            throw new Error("broken synchronous probe");
+          },
+        },
+        "canonical_digest",
+      ),
+    ).not.toThrow();
+  });
+
+  it("consumes asynchronous probe rejections", async () => {
+    const asynchronousResult = Promise.reject(new Error("broken asynchronous probe"));
     const catchSpy = vi.spyOn(asynchronousResult, "catch");
 
     recordSnapshotWorkV1(
@@ -18,5 +31,6 @@ describe("Snapshot work instrumentation", () => {
     );
 
     expect(catchSpy).toHaveBeenCalledOnce();
+    await Promise.resolve();
   });
 });

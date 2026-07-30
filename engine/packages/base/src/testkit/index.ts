@@ -7,6 +7,13 @@ export {
   snapshotCommitCommandClassesV1,
   snapshotCommitEntityCountsV1,
 } from "./snapshot-commit-workload.ts";
+export {
+  prepareSnapshotCommitSequenceWorkloadV1,
+  prepareSnapshotReplayWorkloadV1,
+  prepareSnapshotTransactionWorkloadV1,
+  snapshotCommitSequenceClassesV1,
+  snapshotTransactionCommandClassesV1,
+} from "./snapshot-transaction-workload.ts";
 export { createSyntheticCounterGamePackageV1 } from "./synthetic-counter.ts";
 export { resolveStoryForTestV1, validateStoryV1 } from "./story-contracts.ts";
 export { createGameHarnessV1 } from "./game-harness.ts";
@@ -27,4 +34,16 @@ export type {
   SnapshotCommitWorkloadRunV1,
   SnapshotSessionWorkCountsV1,
 } from "./snapshot-commit-workload.ts";
+export type {
+  PreparedSnapshotCommitSequenceWorkloadV1,
+  PreparedSnapshotReplayWorkloadV1,
+  PreparedSnapshotTransactionWorkloadV1,
+  SnapshotCommitSequenceClassV1,
+  SnapshotCommitSequenceWorkloadDescriptorV1,
+  SnapshotCommitSequenceWorkloadRunV1,
+  SnapshotReplayWorkloadDescriptorV1,
+  SnapshotReplayWorkloadRunV1,
+  SnapshotTransactionCommandClassV1,
+  SnapshotTransactionWorkloadDescriptorV1,
+} from "./snapshot-transaction-workload.ts";
 export type { SyntheticSimulationTypesV1 } from "./synthetic-counter.ts";

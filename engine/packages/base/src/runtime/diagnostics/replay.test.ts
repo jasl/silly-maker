@@ -14,8 +14,13 @@ import { digestCanonical } from "../../contracts/digest.ts";
 import { digestBytes } from "../../contracts/digest.ts";
 import { parseNonNegativeSafeInteger, parsePositiveSafeInteger } from "../../contracts/values.ts";
 import type { FinalizedCommandAttemptV1 } from "./command-log.ts";
+import { createSnapshotWorkCounterV1 } from "../../internal/snapshot-work-instrumentation.ts";
 import { markRunModifiedV1 } from "../session/run-integrity.ts";
-import { inspectReplayBestEffortV1, replayAuthoritativelyV1 } from "./replay.ts";
+import {
+  inspectReplayBestEffortV1,
+  replayAuthoritativelyFromAttemptsInternalV1,
+  replayAuthoritativelyV1,
+} from "./replay.ts";
 import type {
   ReplayCommandLogEntryV1,
   ReplayDriverV1,
@@ -394,6 +399,40 @@ function replaceEntryV1(
 }
 
 describe("authoritative replay", () => {
+  it("counts current, driver, and comparison work on the real from-attempts path", async () => {
+    const fixture = fixtureV1();
+    const counter = createSnapshotWorkCounterV1();
+
+    await expect(
+      replayAuthoritativelyFromAttemptsInternalV1(
+        {
+          identity: fixture.input.recordedIdentity,
+          replayBase: fixture.input.replayBase,
+          replayBaseStateDigest: fixture.input.replayBaseStateDigest,
+          commandLog: fixture.input.commandLog,
+          currentSnapshot: fixture.input.currentSnapshot,
+          projectStableRejection: fixture.input.projectStableRejection,
+          projectStableFault: fixture.input.projectStableFault,
+          executeAttempt: executeAttemptV1,
+        },
+        counter.instrumentation,
+      ),
+    ).resolves.toEqual({
+      authoritative: true,
+      identityMatch: true,
+      visualMatch: true,
+      matches: true,
+      executedEntries: 3,
+      mismatches: [],
+    });
+    expect(counter.snapshot()).toEqual({
+      canonicalTraversals: 60,
+      canonicalDigests: 26,
+      deepFreezeTraversals: 0,
+      commandLogContinuityVerifications: 0,
+    });
+  });
+
   it.each([
     ["engine_digest", { engineDigest: digestV1("engine.other") }],
     ["state_contract_revision", { stateContractRevision: 2 }],
