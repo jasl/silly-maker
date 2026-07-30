@@ -2,35 +2,12 @@
 import { createHash } from "node:crypto";
 import { lstat, readFile, realpath } from "node:fs/promises";
 import { dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
-import { fileURLToPath } from "node:url";
-
-const packageTargets = Object.freeze({
-  "@sillymaker/base": "engine/packages/base/src/index.ts",
-  "@sillymaker/base/authoring": "engine/packages/base/src/authoring/index.ts",
-  "@sillymaker/base/runtime": "engine/packages/base/src/runtime/index.ts",
-  "@sillymaker/base/story": "engine/packages/base/src/story/index.ts",
-  "@sillymaker/base/testkit": "engine/packages/base/src/testkit/index.ts",
-  "@sillymaker/tooling": "engine/packages/tooling/src/index.ts",
-  "@sillymaker/tooling/project": "engine/packages/tooling/src/project/index.ts",
-  "@sillymaker/tooling/project/config-types": "engine/packages/tooling/src/project/config-types.ts",
-  "@sillymaker/tooling/project/story-metadata":
-    "engine/packages/tooling/src/project/story-metadata.ts",
-  "@sillymaker/tooling/project/workspace": "engine/packages/tooling/src/project/workspace.ts",
-  "@sillymaker/tooling/vite": "engine/packages/tooling/src/vite/app-vite-config.ts",
-  "@sillymaker/tooling/identity/story-build-identity":
-    "engine/packages/tooling/src/identity/story-build-identity.mjs",
-  "@sillymaker/tooling/identity/collect-import-closure":
-    "engine/packages/tooling/src/identity/collect-import-closure.mjs",
-  "@sillymaker/ui": "engine/packages/ui/src/index.ts",
-  "@sillymaker/ui/assets": "engine/packages/ui/src/assets/index.ts",
-  "@sillymaker/ui/debug": "engine/packages/ui/src/debug/index.ts",
-  "@sillymaker/ui/diagnostics": "engine/packages/ui/src/diagnostics/index.ts",
-  "@sillymaker/ui/styles.css": "engine/packages/ui/src/theme/global.css",
-  "@sillymaker/web": "engine/packages/web/src/index.ts",
-});
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { moduleResolve } from "import-meta-resolve";
 
 const posix = (root, path) => relative(root, path).split(sep).join("/");
 const internalWorkspaceSpecifierPattern = /^@(?:silly-maker|sillymaker)\//u;
+const esmImportConditions = new Set(["deno", "node", "import", "module-sync"]);
 const buildIdentityFacetsV1 = new Set([
   "engine",
   "story_simulation",
@@ -70,10 +47,15 @@ async function existing(candidates) {
   return null;
 }
 
-async function resolveSpecifier(root, owner, specifier) {
-  const packageTarget = packageTargets[specifier];
-  if (packageTarget !== undefined) return join(root, packageTarget);
-  if (!specifier.startsWith(".")) return null;
+function isWithin(root, path) {
+  const pathFromRoot = relative(root, path);
+  return (
+    pathFromRoot === "" ||
+    (!isAbsolute(pathFromRoot) && pathFromRoot !== ".." && !pathFromRoot.startsWith(`..${sep}`))
+  );
+}
+
+async function resolveRelativeSpecifier(owner, specifier) {
   const raw = resolve(dirname(owner), specifier);
   const extension = extname(raw);
   const candidates =
@@ -85,9 +67,39 @@ async function resolveSpecifier(root, owner, specifier) {
   return existing(candidates);
 }
 
+async function resolveWorkspaceSpecifier(repository, owner, specifier) {
+  let resolved;
+  try {
+    resolved = moduleResolve(specifier, pathToFileURL(owner), esmImportConditions, false);
+  } catch {
+    return Object.freeze({ kind: "unknown" });
+  }
+  let actual;
+  try {
+    actual = await realpath(fileURLToPath(resolved));
+  } catch {
+    return Object.freeze({ kind: "unknown" });
+  }
+  const managedPath = isWithin(repository, actual) ? posix(repository, actual) : null;
+  return managedPath !== null && !managedPath.split("/").includes("node_modules")
+    ? Object.freeze({ kind: "managed", path: actual })
+    : Object.freeze({ kind: "external" });
+}
+
+function addExternalImport(externalImports, relativePath, specifier) {
+  const key = `${relativePath}\0${specifier}`;
+  externalImports.set(
+    key,
+    Object.freeze({
+      owner: relativePath,
+      specifier,
+    }),
+  );
+}
+
 export async function collectImportClosure(root, entries) {
   const repository = await realpath(root);
-  const queue = entries.map((entry) => resolve(root, entry));
+  const queue = entries.map((entry) => resolve(repository, entry));
   const paths = new Set();
   const errors = [];
   const externalImports = new Map();
@@ -98,14 +110,14 @@ export async function collectImportClosure(root, entries) {
     try {
       actual = await realpath(path);
     } catch {
-      errors.push(`missing import: ${posix(root, path)}`);
+      errors.push(`missing import: ${posix(repository, path)}`);
       continue;
     }
-    if (!actual.startsWith(`${repository}${sep}`) && actual !== repository) {
+    if (!isWithin(repository, actual)) {
       errors.push(`workspace-external import: ${path}`);
       continue;
     }
-    const relativePath = posix(root, actual);
+    const relativePath = posix(repository, actual);
     if (relativePath === "references" || relativePath.startsWith("references/")) {
       errors.push(`references import is forbidden: ${relativePath}`);
       continue;
@@ -124,23 +136,27 @@ export async function collectImportClosure(root, entries) {
     for (const match of source.matchAll(staticPattern)) if (match[1]) specifiers.push(match[1]);
     for (const match of source.matchAll(dynamicPattern)) if (match[1]) specifiers.push(match[1]);
     for (const specifier of specifiers) {
-      const dependency = await resolveSpecifier(root, actual, specifier);
-      if (dependency !== null) {
-        queue.push(dependency);
-      } else if (specifier.startsWith(".")) {
-        errors.push(`${relativePath}: missing import: ${specifier}`);
-      } else if (internalWorkspaceSpecifierPattern.test(specifier)) {
-        errors.push(`${relativePath}: unknown workspace import ${specifier}`);
-      } else {
-        const key = `${relativePath}\0${specifier}`;
-        externalImports.set(
-          key,
-          Object.freeze({
-            owner: relativePath,
-            specifier,
-          }),
-        );
+      if (specifier.startsWith(".")) {
+        const dependency = await resolveRelativeSpecifier(actual, specifier);
+        if (dependency === null) {
+          errors.push(`${relativePath}: missing import: ${specifier}`);
+        } else {
+          queue.push(dependency);
+        }
+        continue;
       }
+      if (internalWorkspaceSpecifierPattern.test(specifier)) {
+        const resolution = await resolveWorkspaceSpecifier(repository, actual, specifier);
+        if (resolution.kind === "managed") {
+          queue.push(resolution.path);
+        } else if (resolution.kind === "external") {
+          addExternalImport(externalImports, relativePath, specifier);
+        } else {
+          errors.push(`${relativePath}: unknown workspace import ${specifier}`);
+        }
+        continue;
+      }
+      addExternalImport(externalImports, relativePath, specifier);
     }
   }
   return Object.freeze({
@@ -205,19 +221,67 @@ export async function buildImportClosureV1(root, entries, facet) {
   return buildImportClosureRecordsV1(root, paths, facet);
 }
 
+async function readWorkspaceMembers(directory) {
+  for (const configName of ["deno.json", "package.json"]) {
+    let config;
+    try {
+      config = JSON.parse(await readFile(join(directory, configName), "utf8"));
+    } catch {
+      continue;
+    }
+    const workspace = config.workspace ?? config.workspaces;
+    if (Array.isArray(workspace)) return workspace;
+    if (Array.isArray(workspace?.members)) return workspace.members;
+    if (Array.isArray(workspace?.packages)) return workspace.packages;
+  }
+  return null;
+}
+
+function workspaceMemberContains(workspaceRoot, member, target) {
+  if (typeof member !== "string" || member.length === 0) return false;
+  const wildcardIndex = member.search(/[*?[{\]]/u);
+  const stablePrefix = wildcardIndex === -1 ? member : member.slice(0, wildcardIndex);
+  return isWithin(resolve(workspaceRoot, stablePrefix), target);
+}
+
+async function findContainingWorkspaceRoot(start) {
+  const invocationRoot = await realpath(start);
+  let candidate = invocationRoot;
+  while (true) {
+    const members = await readWorkspaceMembers(candidate);
+    if (
+      members !== null &&
+      (candidate === invocationRoot ||
+        members.some((member) => workspaceMemberContains(candidate, member, invocationRoot)))
+    ) {
+      return candidate;
+    }
+    const parent = dirname(candidate);
+    if (parent === candidate) return invocationRoot;
+    candidate = parent;
+  }
+}
+
 const isMain = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
-  const root = dirname(dirname(fileURLToPath(import.meta.url)));
-  void collectImportClosure(root, process.argv.slice(2)).then(
-    (result) => {
-      if (result.errors.length > 0) {
-        console.error(result.errors.join("\n"));
+  const invocationRoot = process.cwd();
+  void findContainingWorkspaceRoot(invocationRoot)
+    .then(async (root) => {
+      const entries = process.argv
+        .slice(2)
+        .map((entry) => relative(root, resolve(invocationRoot, entry)));
+      return collectImportClosure(root, entries);
+    })
+    .then(
+      (result) => {
+        if (result.errors.length > 0) {
+          console.error(result.errors.join("\n"));
+          process.exitCode = 1;
+        } else console.log(JSON.stringify(result.paths, null, 2));
+      },
+      (error) => {
+        console.error(error);
         process.exitCode = 1;
-      } else console.log(JSON.stringify(result.paths, null, 2));
-    },
-    (error) => {
-      console.error(error);
-      process.exitCode = 1;
-    },
-  );
+      },
+    );
 }

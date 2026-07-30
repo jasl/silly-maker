@@ -6,6 +6,8 @@
  * (and keep lower stage layers isolated) until the gesture is settled.
  *
  * Not Story/snapshot state. Scoped to a persistent stage root EventTarget.
+ * This controller is package-internal; Story code uses
+ * `useStagePointerGestureFenceV1` instead of owning fence handles.
  */
 
 export const STAGE_POINTER_GESTURE_FENCE_TIMEOUT_MS_V1 = 500;
@@ -28,7 +30,8 @@ export interface ArmStagePointerGestureFenceOptionsV1 {
 }
 
 /**
- * Arm a fence on `root`. Rearm by calling again — previous fence is released.
+ * Arm one fence on `root`. The owner must release an existing handle before
+ * arming another fence for the same stage root (GameStage does this).
  * Release on: swallowed primary click, next pointerdown, timeout, or explicit release.
  */
 export function armStagePointerGestureFenceV1(
@@ -38,10 +41,15 @@ export function armStagePointerGestureFenceV1(
   const root = options.root;
   const pointerUp = options.pointerUpEvent;
 
-  if (pointerUp.button === 0) {
-    pointerUp.preventDefault();
-    pointerUp.stopPropagation();
+  if (pointerUp.button !== 0) {
+    return Object.freeze({
+      release: () => {},
+      active: () => false,
+    });
   }
+
+  pointerUp.preventDefault();
+  pointerUp.stopPropagation();
 
   let active = true;
   const disarmIsolation = options.onArm?.() ?? (() => {});
@@ -67,6 +75,9 @@ export function armStagePointerGestureFenceV1(
     if (!active) return;
     const mouse = event as MouseEvent;
     if (typeof mouse.button === "number" && mouse.button !== 0) return;
+    // Keyboard/programmatic activation emits click.detail === 0 and must not
+    // be consumed by a pointer-gesture fence.
+    if (typeof mouse.detail === "number" && mouse.detail === 0) return;
     swallow(event);
     release();
   };

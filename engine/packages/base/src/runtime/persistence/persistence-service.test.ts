@@ -1295,9 +1295,21 @@ describe("PersistenceServiceV1", () => {
       invalidSlot,
     );
 
-    await expect(fixtureV1({ manualSaveSlotCount: 0 })).rejects.toThrow(
-      "invalid manual Save slot count",
+    const noManualSlots = await fixtureV1({ manualSaveSlotCount: 0 });
+    await expect(noManualSlots.service.port.listSlots()).resolves.toMatchObject([
+      { slotId: "auto.current" },
+      { slotId: "auto.previous" },
+      { slotId: "quick" },
+    ]);
+    await expect(noManualSlots.service.port.save("manual.1")).resolves.toEqual(invalidSlot);
+    const noManualExport = decodeSaveRecordV1(
+      (await noManualSlots.service.port.exportCurrentSave()).bytes,
+      codecV1,
     );
+    expect(noManualExport).toMatchObject({
+      kind: "decoded",
+      record: { slot: { slotId: "quick", writeReason: "quick" } },
+    });
     await expect(fixtureV1({ manualSaveSlotCount: 100 })).rejects.toThrow(
       "invalid manual Save slot count",
     );

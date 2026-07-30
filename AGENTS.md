@@ -20,9 +20,17 @@ Read only the documents relevant to the change:
   milestones.
 - `docs/engine/design/**` — accepted target contracts that are not necessarily
   implemented yet.
-- `docs/engine/plans/2026-07-30-surface-contract-harness.md` and
-  `docs/engine/plans/2026-07-30-snapshot-integrity-and-save-migration.md` —
-  current engine-strengthening execution order and acceptance.
+- `docs/engine/plans/2026-07-30-production-floor-sequence.md` — the only
+  cross-plan execution order. The default core sequence starts with Snapshot
+  performance; Desktop persistence is an independent promotion gate while the
+  adapter remains preview. Agents take one mergeable slice at a time; do not
+  combine those authorities into one refactor.
+- `docs/engine/plans/2026-07-30-desktop-persistence-durability.md`,
+  `docs/engine/plans/2026-07-30-snapshot-commit-performance.md`,
+  `docs/engine/plans/2026-07-30-save-migration.md`, and
+  `docs/engine/plans/2026-07-30-surface-contract-harness.md` — current focused
+  production-floor task order and acceptance; do not infer that list order makes
+  the conditional Desktop lane a blocker for the core sequence.
 - `docs/engine/plans/2026-07-19-sillymaker-vnext-foundations.md` and
   `docs/engine/plans/2026-07-28-sillymaker-r5-r7.md` — completed execution
   records whose defer/acceptance notes remain useful historical evidence;
@@ -53,6 +61,11 @@ and must be updated as each planned capability lands. Design owns the intended
 contract, while the active plan owns task order and acceptance; a task must not
 silently override a design decision.
 
+The Mod design is incubation, not an active implementation plan. Do not start a
+resolver, public Mod ABI, external SDK, or distribution system until the
+roadmap's activation gates are explicitly satisfied and a new active plan is
+accepted.
+
 ## Architecture baseline
 
 - `@sillymaker/base` owns generic contracts, Story authoring primitives,
@@ -68,8 +81,9 @@ silently override a design decision.
 - Story packages at the repository top level own game-specific state, rules,
   content, projections, application composition, and Story tooling: `e2e/` (the
   neutral Engine Lab conformance Story), `template/` (the minimal starter), and
-  `examples/*` (curated showcases). `project.config.ts` at the root only lists the application directories; each application is a self-contained project (`sillymaker.config.ts` + `vite.config.ts`) and registers
-  every application.
+  `examples/*` (curated showcases). `project.config.ts` at the root only lists
+  application directories; each self-contained application
+  (`sillymaker.config.ts` + `vite.config.ts`) registers only itself.
 - Workspace packages consume one another through declared package exports and
   `workspace:*` dependencies, not another package's `src/**` path.
 

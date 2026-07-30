@@ -32,6 +32,7 @@ export type {
 export {
   defineSillymakerAppV1,
   defineSillymakerProjectV1,
+  defineSillymakerWorkspaceV1,
   deriveStoryApplicationV1,
   joinAppPathV1,
   listStoryApplicationIdsV1,

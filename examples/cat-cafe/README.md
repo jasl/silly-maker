@@ -24,7 +24,7 @@
 ```bash
 deno task story dev example-cat-cafe          # 浏览器开发（Vite）
 deno task story build example-cat-cafe        # 生产构建 → 本目录 dist-web/
-deno task story desktop example-cat-cafe      # 桌面版（Deno Desktop webview，含图标与本地存档）
+deno task story desktop example-cat-cafe      # macOS .app preview（含图标与本地文件存档）
 deno task story simulate example-cat-cafe --scenario first-day   # 无头模拟
 deno run -A npm:vitest run examples/cat-cafe  # 单元/语义测试
 ```

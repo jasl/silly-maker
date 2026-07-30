@@ -171,7 +171,10 @@ authoritative in-memory Snapshot
 leases, and settings. `createWebHostV1` supplies its IndexedDB implementation
 plus browser entropy, file, clock, navigation, and logging ports. Tests or other
 Hosts can inject a different record store without moving browser concerns into
-Base.
+Base. The current desktop channel exercises that seam through a loopback HTTP
+adapter backed by local files, but it remains a preview: it has not yet earned
+the crash-atomic multi-record commit, cross-process revision, migration, and
+packaged-restart guarantees required for promotion to a production Host.
 
 A Save carries its Snapshot, state digest, provenance, and simulation lineage.
 Import/load validates bytes, schema, identity, references, and invariants before

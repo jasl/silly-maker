@@ -152,7 +152,7 @@ export interface CreatePersistenceServiceOptionsV1<
   readonly initialSimulationLineage: readonly DeepReadonly<SimulationAdoptionV1>[];
   readonly metadataClock: { now(): IsoUtcInstant };
   readonly exportFilename: string;
-  /** Numbered manual slots exposed by this application (default 8, max 99). */
+  /** Numbered manual slots exposed by this application (default 8, range 0..99). */
   readonly manualSaveSlotCount?: number;
   readonly leaseAcquisition?: PersistenceLeaseAcquisitionV1;
   readonly autoSaveCapture?: PersistenceAutoSaveCaptureV1;
@@ -177,7 +177,7 @@ export interface CreateStandardPersistenceServiceOptionsV1<
   readonly initialSimulationLineage: readonly DeepReadonly<SimulationAdoptionV1>[];
   readonly metadataClock: { now(): IsoUtcInstant };
   readonly exportFilename: string;
-  /** Numbered manual slots exposed by this application (default 8, max 99). */
+  /** Numbered manual slots exposed by this application (default 8, range 0..99). */
   readonly manualSaveSlotCount?: number;
   readonly leaseAcquisition?: PersistenceLeaseAcquisitionV1;
   readonly autoSaveCapture?: PersistenceAutoSaveCaptureV1;
@@ -918,8 +918,8 @@ async function createPersistenceServiceWithDependenciesV1<
     exportCurrentSave() {
       try {
         const snapshot = options.runtimeControl.inspectForRuntime().snapshot;
-        const firstManualSlotId = manualSaveSlotIdV1(1);
-        const record = makeRecordV1(captureV1(snapshot), firstManualSlotId, firstManualSlotId);
+        const exportSlotId = manualSlotCount === 0 ? "quick" : manualSaveSlotIdV1(1);
+        const record = makeRecordV1(captureV1(snapshot), exportSlotId, exportSlotId);
         return Promise.resolve(
           makeExportV1(record as DeepReadonly<PersistenceSaveRecordV1<TSnapshot>>),
         );

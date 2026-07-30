@@ -168,8 +168,6 @@ export {
   GameShell,
   GameStageV1,
   TopCardHudV1,
-  STAGE_POINTER_GESTURE_FENCE_TIMEOUT_MS_V1,
-  armStagePointerGestureFenceV1,
   computeStageFrameV1,
   stageLayerIdsV1,
   stageLayoutConstantsV1,
@@ -180,7 +178,6 @@ export {
   useStageSystemPortalContainerV1,
 } from "./shell/index.ts";
 export type {
-  ArmStagePointerGestureFenceOptionsV1,
   GameShellPropsV1,
   GameShellViewportOptionsV1,
   GameStageLayersV1,
@@ -189,7 +186,6 @@ export type {
   StageHudSlotsV1,
   StageInputIsolationContextIdV1,
   StageLayerIdV1,
-  StagePointerGestureFenceHandleV1,
   StageViewportV1,
   TopCardHudPropsV1,
 } from "./shell/index.ts";

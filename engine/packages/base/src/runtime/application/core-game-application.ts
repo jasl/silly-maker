@@ -130,7 +130,8 @@ export interface CoreGameApplicationDefinitionV1<
   /**
    * Numbered player-writable manual slots (`manual.1`..`manual.N`) this
    * application exposes beside `quick` and the two autosave slots.
-   * Defaults to the engine's `defaultManualSaveSlotCountV1` (8); max 99.
+   * Defaults to the engine's `defaultManualSaveSlotCountV1` (8); range 0..99.
+   * Zero keeps only quick save and the two automatic slots.
    */
   readonly manualSaveSlotCount?: number;
   /**

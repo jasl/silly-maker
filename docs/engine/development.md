@@ -39,24 +39,24 @@ Package manifests define supported cross-package entries. Do not bypass them wit
 
 ## Daily commands
 
-| Command                                          | Use                                                                   |
-| ------------------------------------------------ | --------------------------------------------------------------------- |
-| `deno task dev`                                  | Start the Vite development server (pick an app with `--mode`).        |
-| `deno task check`                                | Canonical local code-quality and product-behavior check.              |
-| `deno task test`                                 | Run engine and game behavior tests.                                   |
-| `deno task test:coverage`                        | Run unit tests with engine line-coverage reporting.                   |
-| `deno task test:e2e:engine`                      | Engine browser suite against the Engine Lab Story.                    |
-| `deno task test:e2e`                             | Alias of the engine browser suite.                                    |
-| `deno task story <verb> <app>`                   | Application lifecycle CLI (JSON reports); verbs below.                |
-| `deno task check:stories`                        | Structured Story diagnostics for every application (part of `check`). |
-| `deno task story simulate <app> --trace <paths>` | Headless play with per-step numeric trajectories (balance tuning).    |
-| `deno task story diff <a.json> <b.json>`         | Structured diff of two JSON files (exported saves, simulate reports). |
-| `deno task simulate:e2e`                         | Scripted Engine Lab run through the Agent port.                       |
-| `deno task test:conformance:headless`            | Engine Lab headless conformance suite.                                |
-| `deno task story desktop <app>`                  | Package the built web Artifact as a desktop app (experimental).       |
-| `deno task test:e2e:engine:prebuilt`             | Build the Engine Lab and run the engine suite on the Artifact.        |
+| Command                                          | Use                                                                     |
+| ------------------------------------------------ | ----------------------------------------------------------------------- |
+| `deno task dev`                                  | Start the Vite development server (pick an app with `--mode`).          |
+| `deno task check`                                | Canonical local code-quality and product-behavior check.                |
+| `deno task test`                                 | Run engine and game behavior tests.                                     |
+| `deno task test:coverage`                        | Run unit tests with engine line-coverage reporting.                     |
+| `deno task test:e2e:engine`                      | Engine browser suite against the Engine Lab Story.                      |
+| `deno task test:e2e`                             | Alias of the engine browser suite.                                      |
+| `deno task story <verb> <app>`                   | Application lifecycle CLI (JSON reports); verbs below.                  |
+| `deno task check:stories`                        | Structured Story diagnostics for every application (part of `check`).   |
+| `deno task story simulate <app> --trace <paths>` | Headless play with per-step numeric trajectories (balance tuning).      |
+| `deno task story diff <a.json> <b.json>`         | Structured diff of two JSON files (exported saves, simulate reports).   |
+| `deno task simulate:e2e`                         | Scripted Engine Lab run through the Agent port.                         |
+| `deno task test:conformance:headless`            | Engine Lab headless conformance suite.                                  |
+| `deno task story desktop <app>`                  | Package a macOS `.app` preview; persistence is not durability-promoted. |
+| `deno task test:e2e:engine:prebuilt`             | Build the Engine Lab and run the engine suite on the Artifact.          |
 
-Every application is a self-contained project: `<app>/sillymaker.config.ts` declares it (paths app-root-relative), `<app>/vite.config.ts` calls the shared `@sillymaker/tooling/vite` assembly, and the root `project.config.ts` only lists the registered directories for repository-level aggregation. The application lifecycle CLI covers six responsibilities for every registered application (and runs app-locally through `<app>/tools/story.mts`):
+Every application is a self-contained project: `<app>/sillymaker.config.ts` declares it (paths app-root-relative), `<app>/vite.config.ts` calls the shared `@sillymaker/tooling/vite` assembly, and the root `project.config.ts` only lists the registered directories for repository-level aggregation. The application lifecycle CLI covers the core inspect/check/simulate/dev/build/smoke loop for every registered application (and runs app-locally through `<app>/tools/story.mts`):
 
 ```text
 deno task story inspect <app>                          # resolved identity/program report (JSON)

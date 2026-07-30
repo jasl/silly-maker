@@ -39,7 +39,12 @@ describe("armStagePointerGestureFenceV1", () => {
     expect(onArm).toHaveBeenCalledOnce();
     expect(handle.active()).toBe(true);
 
-    const click = new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 });
+    const click = new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+      detail: 1,
+    });
     const clickHandler = vi.fn();
     root.addEventListener("click", clickHandler);
     root.dispatchEvent(click);
@@ -47,6 +52,47 @@ describe("armStagePointerGestureFenceV1", () => {
     expect(clickHandler).not.toHaveBeenCalled();
     expect(handle.active()).toBe(false);
     root.remove();
+  });
+
+  it("does not arm for a non-primary pointer button", () => {
+    const root = document.createElement("div");
+    const onArm = vi.fn(() => vi.fn());
+    const pointerUp = new PointerEvent("pointerup", {
+      bubbles: true,
+      cancelable: true,
+      button: 2,
+      pointerId: 1,
+    });
+    const handle = armStagePointerGestureFenceV1({ root, pointerUpEvent: pointerUp, onArm });
+
+    expect(pointerUp.defaultPrevented).toBe(false);
+    expect(onArm).not.toHaveBeenCalled();
+    expect(handle.active()).toBe(false);
+  });
+
+  it("does not swallow keyboard-generated clicks", () => {
+    const root = document.createElement("div");
+    const pointerUp = new PointerEvent("pointerup", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+      pointerId: 1,
+    });
+    const handle = armStagePointerGestureFenceV1({ root, pointerUpEvent: pointerUp });
+    const click = new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+      detail: 0,
+    });
+    const listener = vi.fn();
+    root.addEventListener("click", listener);
+    root.dispatchEvent(click);
+
+    expect(click.defaultPrevented).toBe(false);
+    expect(listener).toHaveBeenCalledOnce();
+    expect(handle.active()).toBe(true);
+    handle.release();
   });
 
   it("releases on the next pointerdown without consuming it", () => {
@@ -103,7 +149,7 @@ describe("armStagePointerGestureFenceV1", () => {
     expect(disarm).toHaveBeenCalledOnce();
   });
 
-  it("rearming releases the previous fence", () => {
+  it("keeps handles independent so the stage owner can release before rearm", () => {
     const root = document.createElement("div");
     const disarmA = vi.fn();
     const disarmB = vi.fn();

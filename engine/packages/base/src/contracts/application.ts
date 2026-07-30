@@ -157,7 +157,7 @@ export function parseManualSaveSlotCountV1(value: unknown): number {
   if (
     typeof value !== "number" ||
     !Number.isSafeInteger(value) ||
-    value < 1 ||
+    value < 0 ||
     value > maxManualSaveSlotCountV1
   ) {
     throw new TypeError("invalid manual Save slot count");
@@ -165,7 +165,11 @@ export function parseManualSaveSlotCountV1(value: unknown): number {
   return value;
 }
 
-/** Full slot enumeration for one application: autos, quick, manual.1..count. */
+/**
+ * Full slot enumeration for one application: autos, quick, manual.1..count.
+ * A count of zero intentionally exposes no numbered manual slots (for
+ * autosave/quick-save-only or ironman-style products).
+ */
 export function createSaveSlotIdsV1(manualSlotCount: number): readonly SaveSlotIdV1[] {
   const count = parseManualSaveSlotCountV1(manualSlotCount);
   const slotIds: SaveSlotIdV1[] = ["auto.current", "auto.previous", "quick"];

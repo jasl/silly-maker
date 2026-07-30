@@ -30,10 +30,10 @@
 
 ## 持久化
 
-存档是纯数据、带版本、经校验——快速槽加编号手动槽（数量由游戏声明，默认 8）再加当前/上一自动档，原子写入、乐观修订。Host profile 在存档之外保存偏好与**元进度**（图鉴解锁、结局达成），跨周目收藏在重开与回退后依然保留。浏览器走 IndexedDB；桌面渠道用文件存档。
+存档是纯数据、带版本、经校验——快速槽加编号手动槽（数量由游戏声明，默认 8，也可设为 0）再加当前/上一自动档。Host profile 在存档之外保存偏好与**元进度**（图鉴解锁、结局达成），跨周目收藏在重开与回退后依然保留。浏览器使用具备批量原子提交与乐观修订的生产级 IndexedDB store；当前桌面文件渠道仍是 preview：本地协议和单记录替换已加固，但多记录崩溃原子性与跨进程 CAS 尚在 production-floor 计划中。
 
 ## 给人与给 AI 的工具
 
 - `story check` / `story simulate` 输出结构化 JSON：agent（或 CI）可以校验叙事图、headless 玩通每条路线。`--trace` 打印逐步数值轨迹；`story diff` 结构化对比两份存档或报告。
 - **DevDock**（能力门控，绝不混进玩家 UI）承载实时状态检查器、叙事图视图和 Story 调参面板——调参走与玩法相同的事务提交路径。
-- 一步交付：`story build` 出网页版，`site:build` 出静态托管站（GitHub Pages / Cloudflare Workers），`story desktop` 出带图标与文件存档的桌面应用。
+- 交付：`story build` 出网页版，`site:build` 出静态托管站（GitHub Pages / Cloudflare Workers）；`story desktop` 当前产出带图标与文件存档的 macOS `.app` preview，durable store 与其他平台仍有明确发布门槛。

@@ -65,12 +65,12 @@ test("minesweeper plays: reveal floods, flags count down, mines stay hidden", as
     "data-os-mine-board",
     "playing",
   );
-  await page.locator("[data-os-mine-cell='4.4']").click();
-  const revealed = page.locator("[data-os-mine-state='revealed']");
-  expect(await revealed.count()).toBeGreaterThan(0);
   await page.locator("[data-os-mine-cell='0.0']").click({ button: "right" });
   await expect(page.locator("[data-os-mine-lcd='flags']")).toHaveText("009");
   await expect(page.locator("[data-os-mine-state='flagged']")).toHaveCount(1);
+  await page.locator("[data-os-mine-cell='4.4']").click();
+  const revealed = page.locator("[data-os-mine-state='revealed']");
+  expect(await revealed.count()).toBeGreaterThan(0);
 });
 
 test("the disk survives a reboot: files auto-save and auto-restore", async ({ page }) => {

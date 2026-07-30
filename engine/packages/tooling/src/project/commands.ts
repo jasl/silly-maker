@@ -469,7 +469,7 @@ export interface StoryDesktopReportV1 {
 }
 
 /**
- * Packages the built web Artifact as a desktop application through
+ * Packages the built web Artifact as a macOS `.app` preview through
  * `deno desktop` (Deno >= 2.9, experimental). The staging directory is a
  * thin explicit host — a Vite SPA layout with the Artifact copied to
  * `dist/` — so engine and Story code never depend on Deno Desktop APIs,
@@ -515,9 +515,9 @@ export async function desktopStoryApplicationV1(
   await deps.runner.copyDirectory(`${deps.repositoryRoot}/${web.outDir}`, `${stagingDir}/dist`);
 
   // Stage the shell: the template's placeholders become the application's
-  // identity, and the record store rides along as a sibling module. Both
-  // sources ship inside @sillymaker/tooling, so packaging works from any
-  // application root without a repository-level scripts directory.
+  // identity, and the record/static-path helpers ride along as sibling
+  // modules. All sources ship inside @sillymaker/tooling, so packaging works
+  // from any application root without a repository-level scripts directory.
   const shellTemplate = await deps.runner.readFile(
     fileURLToPath(new URL("../desktop/shell-main.ts", import.meta.url)),
   );
@@ -528,9 +528,27 @@ export async function desktopStoryApplicationV1(
       .replace('"__SILLYMAKER_DIST_DIR__"', JSON.stringify("dist")),
   );
   await deps.runner.writeFile(
+    `${stagingDir}/desktop-html.mts`,
+    await deps.runner.readFile(
+      fileURLToPath(new URL("../desktop/desktop-html.mts", import.meta.url)),
+    ),
+  );
+  await deps.runner.writeFile(
     `${stagingDir}/record-file-store.mts`,
     await deps.runner.readFile(
       fileURLToPath(new URL("../desktop/record-file-store.mts", import.meta.url)),
+    ),
+  );
+  await deps.runner.writeFile(
+    `${stagingDir}/record-http-handler.mts`,
+    await deps.runner.readFile(
+      fileURLToPath(new URL("../desktop/record-http-handler.mts", import.meta.url)),
+    ),
+  );
+  await deps.runner.writeFile(
+    `${stagingDir}/static-file-path.mts`,
+    await deps.runner.readFile(
+      fileURLToPath(new URL("../desktop/static-file-path.mts", import.meta.url)),
     ),
   );
   const iconArgs: string[] = [];
@@ -578,7 +596,7 @@ export async function desktopStoryApplicationV1(
   } catch {
     commandErrorV1(
       "project.desktop_deno_missing",
-      "`deno` was not found on PATH; desktop packaging requires Deno >= 2.9",
+      "`deno` was not found on PATH; the macOS desktop preview requires Deno >= 2.9",
       `/applications/${applicationId}/web/desktop`,
     );
   }

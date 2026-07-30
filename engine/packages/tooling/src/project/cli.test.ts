@@ -298,15 +298,27 @@ describe("runProjectCliV1", () => {
     // The shell sources ship inside @sillymaker/tooling and are read from
     // the package itself, so packaging works from any application root.
     const shellMainPathV1 = fileURLToPath(new URL("../desktop/shell-main.ts", import.meta.url));
+    const desktopHtmlPathV1 = fileURLToPath(
+      new URL("../desktop/desktop-html.mts", import.meta.url),
+    );
     const recordStorePathV1 = fileURLToPath(
       new URL("../desktop/record-file-store.mts", import.meta.url),
+    );
+    const recordHttpHandlerPathV1 = fileURLToPath(
+      new URL("../desktop/record-http-handler.mts", import.meta.url),
+    );
+    const staticFilePathV1 = fileURLToPath(
+      new URL("../desktop/static-file-path.mts", import.meta.url),
     );
     const fake = createFakeRunnerV1({
       files: Object.freeze({
         "/repo/test/dist-desktop/SyntheticApp.app/Contents/Info.plist": "<plist/>",
         [shellMainPathV1]:
           'const appIdentifierV1 = "__SILLYMAKER_APP_IDENTIFIER__";\nconst distDirNameV1 = "__SILLYMAKER_DIST_DIR__";\n',
+        [desktopHtmlPathV1]: "export const desktopHtmlV1 = 1;\n",
         [recordStorePathV1]: "export const storeV1 = 1;\n",
+        [recordHttpHandlerPathV1]: "export const recordHttpHandlerV1 = 1;\n",
+        [staticFilePathV1]: "export const staticFilePathV1 = 1;\n",
       }),
     });
     const result = await runV1(["desktop", "synthetic"], fake.runner);
@@ -340,7 +352,10 @@ describe("runProjectCliV1", () => {
     const written = fake.log.writes.map((entry) => entry.path);
     expect(written).toContain("/repo/test/dist-desktop/staging/deno.json");
     expect(written).toContain("/repo/test/dist-desktop/staging/main.ts");
+    expect(written).toContain("/repo/test/dist-desktop/staging/desktop-html.mts");
     expect(written).toContain("/repo/test/dist-desktop/staging/record-file-store.mts");
+    expect(written).toContain("/repo/test/dist-desktop/staging/record-http-handler.mts");
+    expect(written).toContain("/repo/test/dist-desktop/staging/static-file-path.mts");
     // The staged shell carries the application identity, not placeholders.
     const stagedMain = fake.log.writes.find((entry) => entry.path.endsWith("main.ts"));
     expect(stagedMain?.contents).toContain('"dev.sillymaker.synthetic"');

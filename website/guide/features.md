@@ -30,10 +30,10 @@ Declaring a title screen gives a complete front door: boot splash (e.g. an AI-ge
 
 ## Persistence
 
-Saves are plain, versioned, validated data — a quick slot plus numbered manual slots (count declared per game, default 8) plus current/previous autosaves, atomic writes, optimistic revisions. The Host profile keeps preferences and **meta progress** (album unlocks, endings reached) outside saves, so cross-playthrough collections survive restarts and rollbacks. Browser builds persist to IndexedDB; the desktop channel uses file-backed saves.
+Saves are plain, versioned, validated data — a quick slot plus numbered manual slots (count declared per game, default 8, with zero allowed) plus current/previous autosaves. The Host profile keeps preferences and **meta progress** (album unlocks, endings reached) outside saves, so cross-playthrough collections survive restarts and rollbacks. Browser builds use the production IndexedDB store with atomic batches and optimistic revisions. The current desktop file channel is a preview: it validates the local protocol and atomically replaces each record, but crash-atomic multi-record commits and cross-process CAS are still on the production-floor plan.
 
 ## Tooling for humans and agents
 
 - `story check` / `story simulate` emit structured JSON: an agent (or CI) can validate a story graph and play every route headlessly. `--trace` prints per-step numeric trajectories; `story diff` compares two saves or reports structurally.
 - The **DevDock** (capability-gated, never part of the player UI) hosts live state inspectors, the narrative graph view, and Story tuning panels driven by validated debug commands that go through the same transactional commit path as gameplay.
-- One-step delivery: `story build` for the web, `site:build` for static hosting (GitHub Pages / Cloudflare Workers), `story desktop` for a native desktop app with icon and file-backed saves.
+- Delivery: `story build` for the web and `site:build` for static hosting (GitHub Pages / Cloudflare Workers). `story desktop` currently produces a macOS `.app` preview with an icon and file-backed saves; durable-store and additional-platform promotion remain explicit release gates.

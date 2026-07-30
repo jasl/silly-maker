@@ -25,14 +25,39 @@ export interface CreateHttpHostRecordStoreOptionsV1 {
   fetchImpl?(input: string, init?: RequestInit): Promise<Response>;
 }
 
+const namespacesV1 = new Set<HostRecordNamespaceV1>(["save", "lease", "settings"]);
+const base64PatternV1 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u;
+
 function toBase64V1(bytes: Uint8Array): string {
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
   return btoa(binary);
 }
 
-function fromBase64V1(encoded: string): Uint8Array {
-  const binary = atob(encoded);
+function requireNamespaceV1(value: unknown): HostRecordNamespaceV1 {
+  if (typeof value !== "string" || !namespacesV1.has(value as HostRecordNamespaceV1)) {
+    throw new TypeError("host.http_records_invalid_namespace");
+  }
+  return value as HostRecordNamespaceV1;
+}
+
+function requireKeyV1(value: unknown): HostRecordKeyV1 {
+  if (typeof value !== "string" || value.includes("\0")) {
+    throw new TypeError("host.http_records_invalid_key");
+  }
+  return value as HostRecordKeyV1;
+}
+
+function fromBase64V1(value: unknown): Uint8Array {
+  if (typeof value !== "string" || !base64PatternV1.test(value)) {
+    throw new TypeError("host.http_records_invalid_bytes");
+  }
+  let binary: string;
+  try {
+    binary = atob(value);
+  } catch {
+    throw new TypeError("host.http_records_invalid_bytes");
+  }
   const bytes = new Uint8Array(binary.length);
   for (let index = 0; index < binary.length; index += 1) {
     bytes[index] = binary.charCodeAt(index);
@@ -40,30 +65,112 @@ function fromBase64V1(encoded: string): Uint8Array {
   return bytes;
 }
 
-interface WireRecordV1 {
-  readonly namespace: string;
-  readonly key: string;
-  readonly revision: number;
-  readonly bytesBase64: string;
+function requireObjectV1(value: unknown, code: string): Record<PropertyKey, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new TypeError(code);
+  }
+  return value as Record<PropertyKey, unknown>;
 }
 
 function parseWireRecordV1(value: unknown): HostStoredRecordV1 {
-  const record = value as WireRecordV1;
-  if (
-    record === null ||
-    typeof record !== "object" ||
-    typeof record.namespace !== "string" ||
-    typeof record.key !== "string" ||
-    typeof record.bytesBase64 !== "string"
-  ) {
-    throw new TypeError("host.http_records_invalid_record");
-  }
+  const record = requireObjectV1(value, "host.http_records_invalid_record");
   return Object.freeze({
-    namespace: record.namespace as HostRecordNamespaceV1,
-    key: record.key as HostRecordKeyV1,
-    revision: parseNonNegativeSafeInteger(record.revision),
-    bytes: fromBase64V1(record.bytesBase64),
+    namespace: requireNamespaceV1(Reflect.get(record, "namespace")),
+    key: requireKeyV1(Reflect.get(record, "key")),
+    revision: parseNonNegativeSafeInteger(Reflect.get(record, "revision")),
+    bytes: fromBase64V1(Reflect.get(record, "bytesBase64")),
   });
+}
+
+function recordIdentityV1(namespace: HostRecordNamespaceV1, key: HostRecordKeyV1): string {
+  return `${namespace}\0${key as string}`;
+}
+
+function bytesEqualV1(left: Uint8Array, right: Uint8Array): boolean {
+  return left.length === right.length && left.every((byte, index) => byte === right[index]);
+}
+
+function parseWireRecordListV1(
+  value: unknown,
+  requestedNamespace: HostRecordNamespaceV1,
+): readonly HostStoredRecordV1[] {
+  const payload = requireObjectV1(value, "host.http_records_invalid_list");
+  const records = Reflect.get(payload, "records");
+  if (!Array.isArray(records)) {
+    throw new TypeError("host.http_records_invalid_list");
+  }
+  const parsed = records.map(parseWireRecordV1);
+  const keys = new Set<HostRecordKeyV1>();
+  for (const record of parsed) {
+    if (record.namespace !== requestedNamespace || keys.has(record.key)) {
+      throw new TypeError("host.http_records_invalid_list");
+    }
+    keys.add(record.key);
+  }
+  return Object.freeze(parsed);
+}
+
+function parseCommitResultV1(
+  value: unknown,
+  requestedMutations: readonly HostRecordMutationV1[],
+): HostAtomicCommitResultV1 {
+  const payload = requireObjectV1(value, "host.http_records_invalid_result");
+  const kind = Reflect.get(payload, "kind");
+  if (kind === "committed") {
+    const records = Reflect.get(payload, "records");
+    if (!Array.isArray(records)) {
+      throw new TypeError("host.http_records_invalid_result");
+    }
+    const parsed = records.map(parseWireRecordV1);
+    const puts = requestedMutations.filter((mutation) => mutation.kind === "put");
+    const seen = new Set<string>();
+    if (parsed.length !== puts.length) {
+      throw new TypeError("host.http_records_invalid_result");
+    }
+    for (const record of parsed) {
+      const identity = recordIdentityV1(record.namespace, record.key);
+      const matchingPut = puts.find(
+        (mutation) => mutation.namespace === record.namespace && mutation.key === record.key,
+      );
+      const expectedRevision = (matchingPut?.expectedRevision ?? 0) + 1;
+      if (
+        matchingPut === undefined ||
+        seen.has(identity) ||
+        !Number.isSafeInteger(expectedRevision) ||
+        record.revision !== expectedRevision ||
+        !bytesEqualV1(record.bytes, matchingPut.bytes)
+      ) {
+        throw new TypeError("host.http_records_invalid_result");
+      }
+      seen.add(identity);
+    }
+    return Object.freeze({
+      kind: "committed" as const,
+      records: Object.freeze(parsed),
+    });
+  }
+  if (kind === "conflict") {
+    const actualRevision = Reflect.get(payload, "actualRevision");
+    const result = Object.freeze({
+      kind: "conflict" as const,
+      namespace: requireNamespaceV1(Reflect.get(payload, "namespace")),
+      key: requireKeyV1(Reflect.get(payload, "key")),
+      actualRevision: actualRevision === null ? null : parseNonNegativeSafeInteger(actualRevision),
+    });
+    const matchingMutations = requestedMutations.filter(
+      (mutation) => mutation.namespace === result.namespace && mutation.key === result.key,
+    );
+    const matchingMutation = matchingMutations[0];
+    if (
+      matchingMutations.length !== 1 ||
+      matchingMutation === undefined ||
+      result.actualRevision === matchingMutation.expectedRevision
+    ) {
+      throw new TypeError("host.http_records_invalid_result");
+    }
+    return result;
+  }
+  throw new TypeError("host.http_records_invalid_result");
 }
 
 export function createHttpHostRecordStoreV1(
@@ -87,19 +194,35 @@ export function createHttpHostRecordStoreV1(
       const payload = await requestJsonV1(
         `/${encodeURIComponent(namespace)}/${encodeURIComponent(key as string)}`,
       );
-      return payload === null ? null : parseWireRecordV1(payload);
+      if (payload === null) return null;
+      const record = parseWireRecordV1(payload);
+      if (record.namespace !== namespace || record.key !== key) {
+        throw new TypeError("host.http_records_invalid_record");
+      }
+      return record;
     },
     async list(namespace: HostRecordNamespaceV1) {
-      const payload = (await requestJsonV1(`/${encodeURIComponent(namespace)}`)) as {
-        readonly records?: readonly unknown[];
-      } | null;
-      if (payload === null || !Array.isArray(payload.records)) return Object.freeze([]);
-      return Object.freeze(payload.records.map(parseWireRecordV1));
+      const payload = await requestJsonV1(`/${encodeURIComponent(namespace)}`);
+      if (payload === null) throw new TypeError("host.http_records_failed:404");
+      return parseWireRecordListV1(payload, namespace);
     },
     async commit(
       mutations: readonly [HostRecordMutationV1, ...HostRecordMutationV1[]],
     ): Promise<HostAtomicCommitResultV1> {
-      const wireMutations = mutations.map((mutation) =>
+      const identities = mutations.map((mutation) =>
+        recordIdentityV1(mutation.namespace, mutation.key),
+      );
+      if (new Set(identities).size !== identities.length) {
+        throw new TypeError("duplicate Host record mutation");
+      }
+      const requestedMutations = mutations.map((mutation) =>
+        Object.freeze(
+          mutation.kind === "put"
+            ? { ...mutation, bytes: Uint8Array.from(mutation.bytes) }
+            : { ...mutation },
+        ),
+      );
+      const wireMutations = requestedMutations.map((mutation) =>
         mutation.kind === "put"
           ? {
               kind: "put",
@@ -115,38 +238,13 @@ export function createHttpHostRecordStoreV1(
               expectedRevision: mutation.expectedRevision,
             },
       );
-      const payload = (await requestJsonV1("/commit", {
+      const payload = await requestJsonV1("/commit", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ mutations: wireMutations }),
-      })) as
-        | { readonly kind: "committed"; readonly records: readonly unknown[] }
-        | {
-            readonly kind: "conflict";
-            readonly namespace: string;
-            readonly key: string;
-            readonly actualRevision: number | null;
-          }
-        | null;
+      });
       if (payload === null) throw new TypeError("host.http_records_failed:404");
-      if (payload.kind === "committed") {
-        return Object.freeze({
-          kind: "committed" as const,
-          records: Object.freeze(payload.records.map(parseWireRecordV1)),
-        });
-      }
-      if (payload.kind === "conflict") {
-        return Object.freeze({
-          kind: "conflict" as const,
-          namespace: payload.namespace as HostRecordNamespaceV1,
-          key: payload.key as HostRecordKeyV1,
-          actualRevision:
-            payload.actualRevision === null
-              ? null
-              : parseNonNegativeSafeInteger(payload.actualRevision),
-        });
-      }
-      throw new TypeError("host.http_records_invalid_result");
+      return parseCommitResultV1(payload, requestedMutations);
     },
   });
 }

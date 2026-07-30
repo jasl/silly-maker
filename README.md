@@ -4,7 +4,7 @@ English | [简体中文](README.zh-CN.md)
 
 An LLM-friendly TypeScript + React game engine for visual novels, management sims, and RPG-flavored story games. Deterministic simulation, a semantic stage, atomic saves — authorable by humans and AI agents alike, running on [Deno](https://deno.com/).
 
-**Play the flagship example**: the [Cat Cafe](examples/cat-cafe/) (《雨巷猫舍》) is a complete, publishable game built to drive the engine — title screen, scheduling gameplay, petting hit-regions, a turn-based contest, an album, multiple endings with a postgame, dialogue playback QoL (typewriter / auto / skip / history / rollback), scene-driven audio, save slots with safepoints, bilingual text, and one-step desktop packaging.
+**Play the flagship example**: the [Cat Cafe](examples/cat-cafe/) (《雨巷猫舍》) is a complete, publishable game built to drive the engine — title screen, scheduling gameplay, petting hit-regions, a turn-based contest, an album, multiple endings with a postgame, dialogue playback QoL (typewriter / auto / skip / history / rollback), scene-driven audio, save slots with safepoints, bilingual text, and a macOS desktop-packaging preview.
 
 **Then break the genre**: [SillyOS 98](examples/silly-os/) is a retro desktop shell — overlapping draggable windows, a taskbar, a Start menu, deterministic Minesweeper (mines drawn from the transactional RNG, never leaked to the UI), a Notepad whose files persist through engine saves, and a period browser. Same engine, zero visual-novel assumptions.
 
@@ -31,7 +31,7 @@ Common commands:
 - `deno task story <verb> <app>` — the application lifecycle CLI (inspect / check / simulate / dev --smoke / build / desktop, JSON reports);
 - `deno task site:build` — compose the publishable static site (docs + the playable Cat Cafe) into `dist/site`, then deploy via the GitHub Pages workflow or `deno task site:deploy:cf` (Cloudflare Workers); see [build-and-release](docs/engine/build-and-release.md).
 
-Start a new game by copying [`template/`](template/) and following its README; every application registers in [`project.config.ts`](project.config.ts).
+Start a new game by copying [`template/`](template/) and following its README. Each application is a self-contained project with its own `sillymaker.config.ts`; the root [`project.config.ts`](project.config.ts) only lists application directories for repository-wide commands.
 
 ## Documentation
 
@@ -52,7 +52,7 @@ engine/packages/web      Browser host, IndexedDB/HTTP persistence, mounting, aut
 e2e/                     The neutral engine-conformance Story (Engine Lab)
 template/                The starter skeleton for new games
 examples/                Example Stories (bookshop, cat-cafe, silly-os)
-project.config.ts        Where every application registers
+project.config.ts        Repository directory list for aggregate commands
 scripts/                 Build identity, asset checks, desktop save server, site composer
 docs/                    Internal engineering docs (plans, research, proposals, policies)
 website/                 The public documentation site (VitePress, en + zh)
