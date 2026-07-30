@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -13,15 +13,15 @@ afterEach(async () => {
   cleanupDir = null;
 });
 
-async function storeV1() {
-  const dir = await mkdtemp(join(tmpdir(), "sillymaker-records-"));
-  cleanupDir = dir;
-  return createRecordFileStoreV1(dir);
+async function fixtureV1() {
+  const root = await mkdtemp(join(tmpdir(), "sillymaker-records-"));
+  cleanupDir = root;
+  return Object.freeze({ root, store: createRecordFileStoreV1(root) });
 }
 
 describe("the desktop record file store", () => {
   it("commits with optimistic revisions and survives keys with slashes", async () => {
-    const store = await storeV1();
+    const { store } = await fixtureV1();
     const key = "player-profile/story.example.cat-cafe";
 
     const first = await store.commit([
@@ -46,7 +46,7 @@ describe("the desktop record file store", () => {
   });
 
   it("lists a namespace sorted and deletes with revision checks", async () => {
-    const store = await storeV1();
+    const { store } = await fixtureV1();
     await store.commit([
       {
         kind: "put",
@@ -78,7 +78,7 @@ describe("the desktop record file store", () => {
   });
 
   it("prechecks multi-key commits so one stale key rejects the whole batch", async () => {
-    const store = await storeV1();
+    const { store } = await fixtureV1();
     await store.commit([
       { kind: "put", namespace: "save", key: "a", expectedRevision: null, bytesBase64: "YQ==" },
     ]);
@@ -88,5 +88,113 @@ describe("the desktop record file store", () => {
     ]);
     expect(batch.kind).toBe("conflict");
     expect(await store.read("save", "b")).toBeNull();
+  });
+
+  it("rejects duplicate keys and malformed wire values before touching storage", async () => {
+    const { store } = await fixtureV1();
+
+    await expect(
+      store.commit([
+        { kind: "put", namespace: "save", key: "one", expectedRevision: null, bytesBase64: "YQ==" },
+        { kind: "delete", namespace: "save", key: "one", expectedRevision: 1 },
+      ]),
+    ).rejects.toThrow("duplicate Host record mutation");
+    await expect(
+      store.commit([
+        {
+          kind: "put",
+          namespace: "unknown",
+          key: "one",
+          expectedRevision: null,
+          bytesBase64: "YQ==",
+        },
+      ] as never),
+    ).rejects.toThrow("invalid Host record namespace");
+    await expect(
+      store.commit([
+        {
+          kind: "put",
+          namespace: "save",
+          key: "one",
+          expectedRevision: null,
+          bytesBase64: "not-base64",
+        },
+      ]),
+    ).rejects.toThrow("invalid Host record bytes");
+    expect(await store.list("save")).toEqual([]);
+  });
+
+  it("fails closed for corrupt records instead of treating them as missing", async () => {
+    const { root, store } = await fixtureV1();
+    await mkdir(join(root, "save"), { recursive: true });
+    await writeFile(join(root, "save", "broken.json"), "{not-json", "utf8");
+
+    await expect(store.read("save", "broken")).rejects.toThrow("not valid JSON");
+    await expect(store.list("save")).rejects.toThrow("not valid JSON");
+  });
+
+  it("fails closed for non-canonical record filenames", async () => {
+    const { root, store } = await fixtureV1();
+    await mkdir(join(root, "save"), { recursive: true });
+    await writeFile(
+      join(root, "save", "%61.json"),
+      JSON.stringify({ revision: 1, bytesBase64: "YQ==" }),
+      "utf8",
+    );
+
+    await expect(store.list("save")).rejects.toThrow(
+      "desktop Host record filename is not canonical: %61.json",
+    );
+  });
+
+  it("fails closed when two filenames alias the same logical key", async () => {
+    const { root, store } = await fixtureV1();
+    await mkdir(join(root, "save"), { recursive: true });
+    const record = JSON.stringify({ revision: 1, bytesBase64: "YQ==" });
+    await writeFile(join(root, "save", "a.json"), record, "utf8");
+    await writeFile(join(root, "save", "%61.json"), record, "utf8");
+
+    await expect(store.list("save")).rejects.toThrow("duplicate desktop Host record key: a");
+  });
+
+  it("rejects revision overflow and preserves the existing record", async () => {
+    const { root, store } = await fixtureV1();
+    await mkdir(join(root, "settings"), { recursive: true });
+    await writeFile(
+      join(root, "settings", "maximum.json"),
+      JSON.stringify({ revision: Number.MAX_SAFE_INTEGER, bytesBase64: "YQ==" }),
+      "utf8",
+    );
+
+    await expect(
+      store.commit([
+        {
+          kind: "put",
+          namespace: "settings",
+          key: "maximum",
+          expectedRevision: Number.MAX_SAFE_INTEGER,
+          bytesBase64: "Yg==",
+        },
+      ]),
+    ).rejects.toThrow("invalid Host record revision");
+    expect(await store.read("settings", "maximum")).toMatchObject({
+      revision: Number.MAX_SAFE_INTEGER,
+      bytesBase64: "YQ==",
+    });
+  });
+
+  it("returns immutable records and commit results", async () => {
+    const { store } = await fixtureV1();
+    const result = await store.commit([
+      { kind: "put", namespace: "save", key: "one", expectedRevision: null, bytesBase64: "" },
+    ]);
+    expect(result.kind).toBe("committed");
+    expect(Object.isFrozen(result)).toBe(true);
+    if (result.kind === "committed") {
+      expect(Object.isFrozen(result.records)).toBe(true);
+      expect(Object.isFrozen(result.records[0])).toBe(true);
+    }
+    expect(Object.isFrozen(await store.read("save", "one"))).toBe(true);
+    expect(Object.isFrozen(await store.list("save"))).toBe(true);
   });
 });

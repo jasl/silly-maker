@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 import { existsSync, readFileSync } from "node:fs";
-import { cp } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -11,6 +10,12 @@ import type { Plugin, PluginOption, UserConfig } from "vite";
 import type { SillymakerAppConfigV1 } from "../project/config-types.ts";
 import { defineSillymakerAppV1 } from "../project/config.ts";
 import { applyStoryMetadataToHtmlV1, parseStoryMetadataV1 } from "../project/story-metadata.ts";
+import {
+  copyRuntimeAssetsV1,
+  parseRuntimeAssetContentTypesV1,
+  resolveRuntimeAssetPathV1,
+  runtimeAssetContentTypeV1,
+} from "./runtime-assets.ts";
 
 interface BuildIdentityModuleV1 {
   collect(): Promise<unknown>;
@@ -50,7 +55,10 @@ function loadBuildIdentityModuleV1(
  * under the same relative path (the desktop shell then serves dist
  * verbatim).
  */
-function runtimeAssetsPluginV1(appRoot: string): Plugin {
+function runtimeAssetsPluginV1(
+  appRoot: string,
+  contentTypes?: Readonly<Record<string, string>>,
+): Plugin {
   const assetsDir = resolve(appRoot, "assets");
   const urlPrefix = "/assets/";
   return {
@@ -63,25 +71,23 @@ function runtimeAssetsPluginV1(appRoot: string): Plugin {
           next();
           return;
         }
-        const relative = decodeURIComponent(url.slice(urlPrefix.length));
-        const filePath = resolve(assetsDir, relative);
-        if (!filePath.startsWith(assetsDir) || !existsSync(filePath)) {
-          response.statusCode = 404;
+        const resolution = resolveRuntimeAssetPathV1(assetsDir, url.slice(urlPrefix.length));
+        if (resolution.kind !== "file") {
+          response.statusCode = resolution.kind === "bad_request" ? 400 : 404;
           response.end("not found");
           return;
         }
-        const media = filePath.endsWith(".webp")
-          ? "image/webp"
-          : filePath.endsWith(".png")
-            ? "image/png"
-            : "application/octet-stream";
-        response.setHeader("content-type", media);
-        response.end(readFileSync(filePath));
+        response.setHeader(
+          "content-type",
+          runtimeAssetContentTypeV1(resolution.filePath, contentTypes),
+        );
+        response.setHeader("x-content-type-options", "nosniff");
+        response.end(readFileSync(resolution.filePath));
       });
     },
     async writeBundle(options) {
       if (!existsSync(assetsDir) || options.dir === undefined) return;
-      await cp(assetsDir, join(options.dir, "assets"), { recursive: true });
+      await copyRuntimeAssetsV1(assetsDir, join(options.dir, "assets"));
     },
   };
 }
@@ -115,6 +121,13 @@ export interface CreateSillymakerAppViteConfigInputV1 {
    * assembly closure statically analyzable.
    */
   readonly config: SillymakerAppConfigV1;
+  /**
+   * Optional dev-server content-type overrides for runtime assets
+   * (`".ext"` → media type). Entries are merged over the engine defaults with
+   * the application winning, so a Story can serve formats the engine does not
+   * list yet. Production hosting assigns its own types; builds are unaffected.
+   */
+  readonly runtimeAssetContentTypes?: Readonly<Record<string, string>>;
 }
 
 /**
@@ -138,12 +151,21 @@ export async function createSillymakerAppViteConfigV1(
     throw new TypeError(`application "${config.applicationId}" declares no web target`);
   }
 
+  const runtimeAssetContentTypes =
+    input.runtimeAssetContentTypes === undefined
+      ? undefined
+      : parseRuntimeAssetContentTypesV1(input.runtimeAssetContentTypes);
+
   const plugins: PluginOption[] = [];
   if (web.identity !== null && web.identity !== undefined) {
     const identity = loadBuildIdentityModuleV1(appRoot, web.identity);
     plugins.push(identity.createPlugin({ initialIdentity: await identity.collect() }));
   }
-  plugins.push(react(), runtimeAssetsPluginV1(appRoot), storyMetadataPluginV1(appRoot));
+  plugins.push(
+    react(),
+    runtimeAssetsPluginV1(appRoot, runtimeAssetContentTypes),
+    storyMetadataPluginV1(appRoot),
+  );
 
   return {
     root: appRoot,

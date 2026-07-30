@@ -1,60 +1,69 @@
-# RNG seed lineage (changeable seeds with audit timestamps)
+# RNG reseed audit lineage
 
-状态：**探索性提案**（2026-07-29）。不改变当前已实现契约；记录如何在「种子可更换」的同时保持确定性模拟与可追溯性。
+状态：**deferred diagnostic proposal**（2026-07-29；2026-07-30 收紧）。当前 RNG/Save/replay 合同已满足正常产品需求；没有真实第二消费者前，不新增 Host profile lineage、Save 字段或 public API。
 
-## Current contract (must keep)
+## Current contract to preserve
 
-- 权威路径禁止 `Math.random()` / 墙钟进规则。
-- 抽取走 `createTransactionalRngV1`：purpose 标签 + Snapshot 内 `RngState`（seed/游标随存档走）。
-- 同 seed + 同命令序列 → 相同 digest / 可权威 replay。
-- rollback 时 RNG 随 Snapshot 回滚（结果钉死在检查点上）。
+- authoritative rules 禁止 `Math.random()` 和墙钟；
+- `createTransactionalRngV1` 使用 purpose + Snapshot 内 `RngState`；
+- same seed + same command sequence 产生相同结果/digest/replay；
+- rollback/load 恢复 Snapshot 中 RNG；
+- new game/bootstrap entropy 在进入 simulation 前固定为 plain state。
 
-今日实现已覆盖「新局取 seed → 写入 Snapshot → Save 恢复同一 RngState」。缺口是：**显式更换种子**时如何审计，而不把 Host 时间喂进 `nextInt`。
+显式 reseed 若出现，必须是普通 authoritative/debug command：它提交新的 `RngState`，进入 CommandLog、Snapshot、Save 与 replay。这个事实本身已经可审计。
 
-## Desired addition
+## Revised direction
 
-允许种子在运行中变化，但每一次变化都是：
-
-1. **已提交的权威命令**（或 capability-gated debug 命令）的结果；
-2. 新 `RngState` 进入下一 Snapshot（与改金钱同级的状态变迁）；
-3. 旁路 **lineage 记录** 带时间戳，只供追溯 / DebugBundle / 平衡工具，**不参与**规则抽取输入。
-
-## Proposed shape
+审计信息优先**派生**，不维护第二份可漂移的 lineage：
 
 ```text
-authoritative Snapshot.rng          ← digest / replay / save 唯一输入
-optional provenance.rngLineage[]    ← 审计旁路（Save 元数据或 Host profile）
+Snapshot.rng + committed command/result + command sequence
+  -> DebugBundle / tooling projection
 ```
 
-单条 lineage 建议字段（普通 JSON）：
+建议工具输出：
 
-| 字段                        | 含义                                          |
-| --------------------------- | --------------------------------------------- |
-| `changedAtMs`               | Host clock 墙钟（仅审计）                     |
-| `reason`                    | `new_game` / `debug_reseed` / `new_cycle` / … |
-| `commandId` 或 occurrence   | 触发变更的权威命令身份                        |
-| `previousSeed` / `nextSeed` | 或短摘要，避免无必要泄露完整熵                |
-| `source`                    | `gameplay` \| `debug` \| `load`               |
+- command/occurrence identity；
+- command sequence；
+- reason/source（gameplay/debug/new cycle）；
+- previous/next seed 的短摘要；
+- authoritative before/after digest；
+- 可选的导出时间（DebugBundle envelope metadata only）。
 
-约束：
+墙钟只描述“这份调试包何时导出”，不描述 reseed 在确定性序列中的位置。序列位置由 command sequence/occurrence 提供。
 
-- **Lineage 不得进入 purpose 字符串或 `nextInt` 参数。**
-- Load 旧档：恢复 Snapshot.rng；lineage 若存在则追加 `reason: load` 或保持原列表（产品二选一，需在采用时写死）。
-- Restart / New game：新 seed + lineage 重置为一条 `new_game`。
-- Debug 重掷：必须走 debugCommand，记入 command log，且 capability 门控。
+## Why Host profile / Save-side wall-clock lineage is deferred
 
-## What this is not
+独立可变数组会带来：
 
-- 不是「用时间当种子」——`changedAtMs` 只描述*何时改过*，不描述*掷出什么*。
-- 不是第二套 RNG。UI / 粒子 / 非权威装饰仍可走 Host 熵，但不得写回 Snapshot.rng。
-- 不要求跨设备对齐墙钟；lineage 冲突时以 Snapshot.rng 为准。
+- 与 Snapshot/CommandLog 冲突的第二真相；
+- 多设备同步/回滚/导入时的合并语义；
+- 无上限增长与隐私暴露；
+- Save digest/provenance 是否包含它的歧义；
+- 为一个低频 debug 功能扩大 migration 负担。
+
+这些成本目前没有产品证据。
 
 ## Adoption gate
 
-1. 在 Engine Lab 或 cat-cafe 加一条 debug「重掷 seed」垂直路径：commit 后 digest 变化，replay 仍自洽。
-2. Save 往返后 lineage 可读；去掉 lineage 字段的旧档仍能 load（可选字段）。
-3. 证明 `changedAtMs` 不出现在 simulation digest 输入（或明确划在 provenance 段且 digest 规范忽略它）。
+只有同时满足才立新设计：
+
+1. 真实产品允许玩家或 live-ops 在一次 run 中 reseed；
+2. CommandLog/DebugBundle 派生不足以回答合规、客服或平衡问题；
+3. 明确 retention、privacy、sync、rollback、import/export 与 migration policy；
+4. 第二消费者需要同一语义；
+5. 证明不影响 `nextInt` 输入、simulation digest 和 replay。
+
+即使激活，也优先使用 append-only diagnostic/audit store keyed by authoritative command identity，而不是 Host profile 中的随意数组。它必须可丢失、非权威、bounded，并明确不参与 gameplay compatibility。
+
+## Non-goals
+
+- 用时间作为 seed；
+- 第二套 RNG；
+- 每次 load 追加 audit 项；
+- 因调试 UI 需要而修改 gameplay Save；
+- 让 renderer/Host 直接 reseed authoritative State。
 
 ## Decision record
 
-未批准 API。采用前写入 `architecture.md` / `features.md` 的 persistence 与 diagnostics 段，并删除任何把 `Date.now()` 传入规则 RNG 的临时做法。
+未批准 API，也不在当前 production-floor queue。任何 `Date.now()` 进入规则 RNG 的临时实现都必须删除；正常 reseed 继续通过 authoritative/debug command 与现有 replay evidence 完成。

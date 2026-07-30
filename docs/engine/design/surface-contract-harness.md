@@ -274,15 +274,20 @@ change、Surface disposal 和 HMR successor 都由 InputRouter/Web 机械释放 
 | Surface transition | `applied / unchanged / rejected / stale / faulted` | runtime topology transition 是否按预期发生    |
 | Semantic dispatch  | 既有 `committed / rejected / faulted`              | GameSession 的领域事务结果，不因 UI 需要改名  |
 
-可选的端到端 `ApplicationActionReceipt` 由 application-composition bridge
-组合，而不是 Coordinator、GameSession 或 renderer 单独声称。该 bridge 只读取
-immutable before/after semantic 或 workspace publication、各层
-receipt，以及可选的 Managed Surface Publication；它没有 raw State、setter 或
-live Coordinator mutation 权限。Core Agent 仍只返回 semantic receipt。UI/Browser
-Agent 可通过独立、可撤销的 presentation capability 读取 application
-receipt，且它不进入 core Agent transcript parity。
+PF2 不引入覆盖所有 action 的端到端 receipt。普通 action 始终保留上述 input、
+Surface 与 semantic/workspace 分层 outcome，不被强制包装进 application-wide
+envelope。
 
-Application outcome 可以规范化为
+到 PF6 的 AI-friendly promotion，action 若明确声明 presentation
+postcondition，则 application-composition bridge 必须组合一个 scoped
+`ApplicationActionReceipt`，而不是由 Coordinator、GameSession 或 renderer
+单独声称成功。该 bridge 只读取 immutable before/after semantic 或 workspace
+publication、各层 receipt，以及适用的 Managed Surface Publication；它没有 raw
+State、setter 或 live Coordinator mutation 权限。Core Agent 仍只返回 semantic
+receipt。UI/Browser Agent 可通过独立、可撤销的 presentation capability 读取该
+scoped application receipt，且它不进入 core Agent transcript parity。
+
+这个声明了 postcondition 的 application outcome 可以规范化为
 `applied / consumed / rejected / faulted / postcondition_failed`，但必须内嵌相应
 input、Surface 与 semantic/workspace evidence，不能抹掉原始层级。Session 的内部
 `committed` 不是 UI/Agent 的 `applied` 证明：一个 action 若被未发布命中区吞掉，
@@ -502,7 +507,7 @@ API、增强默认值或生成更好的 diagnostic，而不是继续给 prompt �
 | `@sillymaker/web`                                           | DOM focus/inert/pointer-capture/visibility adapter、physical input normalization、独立 Presentation Observation/automation adapter、real-browser conformance                                                                                                       |
 | `@sillymaker/tooling`                                       | project inspection、structural checks、model exploration/replay command、human/JSON diagnostics；不得进入 browser bundle                                                                                                                                           |
 | UI testkit + existing Base testkit                          | UI testkit 提供 pure model、virtual clock/input、seeded sequences、shrink/replay；Base testkit 继续提供 GameSession/semantic harness，两者通过 public contracts 组合                                                                                               |
-| Story/Mod/Application composition                           | domain state/rules、stable Surface target owner 与 typed intent wiring、definitions、renderers、semantic actions、application receipt bridge wiring 和产品级 recovery policy                                                                                       |
+| Story/Mod/Application composition                           | domain state/rules、stable Surface target owner 与 typed intent wiring、definitions、renderers、semantic actions、只为声明 presentation postcondition 的 action 组合 scoped application receipt，以及产品级 recovery policy                                        |
 
 `SurfaceContributionOwnerId` 是 UI contribution owner，不等于 GameplayModule
 State owner。Coordinator 不获得 `GameSession`、Snapshot setter、generic State
@@ -518,8 +523,10 @@ tooling 需要读取 UI definition，应增加无 CSS/React side effect 的 UI
    重造、physical gesture 穿越 unmount 和不可见 input lock；此步不预造 Surface
    instance/topology/receipt；
 2. 引入纯 definitions、state model 与 Coordinator，不改变外观；
-3. 依次迁移 Overlay、SystemDialog、Narrative/history 与 stage
-   interaction，迁移一项就删除它的平行 lifecycle authority；
+3. 依次迁移 Overlay、SystemDialog、Narrative/history、whole-canvas
+   primary/detail 与 stage interaction；whole-canvas 是独立 family，必须在
+   structural tooling/harness 前完成；迁移一项就删除它的平行 lifecycle
+   authority；
 4. Window model 的“系统单槽、workspace 主窗 + 详情栈、确认层”保留为产品拓扑
    recipe，坐落在统一 lifecycle 上；
 5. SillyOS 的自由 MDI store 继续是 Story
@@ -555,9 +562,9 @@ definitions、创建新 instance/topology revision；不得反序列化旧 live 
   publication；
 - generated model 与生产 reducer共享同一实现，失去独立 oracle；
 - acceptance 只能靠提高模型等级、延长 prompt 或反复 sleep 才通过；
-- 实现只是在 OverlaySession、SystemDialogSession、Narrative lifecycle、Story UI
-  route state 与 InputRouter 旁新增一个 Coordinator，而没有逐项迁移并删除旧
-  authority。
+- 实现只是在 OverlaySession、SystemDialogSession、Narrative/History
+  lifecycle、whole-canvas Story UI route state 与 InputRouter
+  旁新增一个 Coordinator，而没有逐项迁移并删除旧 authority。
 
 ## 15. Acceptance
 
@@ -572,9 +579,10 @@ definitions、创建新 instance/topology revision；不得反序列化旧 live 
    readiness、restart/HMR 的 stale 回调全部被 instance/topology-revision/epoch
    fence 拒绝（physical gesture 另有 InputRouter token fence）；
 4. input、Surface transition、semantic/workspace dispatch 保持分层
-   receipt；端到端 application action 只有在对应 postcondition 成立时才返回
-   `applied`；若 domain 已 commit 而 presentation postcondition 失败，返回
-   `postcondition_failed` 并保留 committed evidence；
+   receipt；普通 action 不要求 application-wide envelope。声明 presentation
+   postcondition 的 action 必须组合 scoped application receipt，且只有在对应
+   postcondition 成立时才返回 `applied`；若 domain 已 commit 而 presentation
+   postcondition 失败，返回 `postcondition_failed` 并保留 committed evidence；
 5. structural check、pure model、seeded shrink、frame-aware runtime、browser 和
    prebuilt 各有清晰职责及至少一条故障证明；
 6. invalid Story 返回稳定

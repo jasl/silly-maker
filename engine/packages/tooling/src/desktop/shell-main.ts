@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
-import { readFile, stat } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
 
+import { injectDesktopRecordsMarkerV1 } from "./desktop-html.mts";
 import { createRecordFileStoreV1 } from "./record-file-store.mts";
-import type { WireMutationV1 } from "./record-file-store.mts";
+import { handleRecordHttpRequestV1 } from "./record-http-handler.mts";
+import { resolveStaticFilePathV1 } from "./static-file-path.mts";
 
 /**
  * The desktop webview shell. `deno desktop` compiles this entry: the
@@ -14,7 +16,7 @@ import type { WireMutationV1 } from "./record-file-store.mts";
  * per-origin browser storage, so origin drift is harmless by design.
  *
  * Staged copies replace the two placeholders below; running the file
- * directly from scripts/ also works for local verification:
+ * directly from the source tree also works for local verification:
  *   deno run -A engine/packages/tooling/src/desktop/shell-main.ts --dist <app>/dist-web --id dev.local.app
  */
 
@@ -57,6 +59,9 @@ function userDataDirV1(): string {
 const savesDir = join(userDataDirV1(), "saves");
 const store = createRecordFileStoreV1(savesDir);
 
+// Web shell types plus the engine's runtime-asset media set (see
+// `vite/runtime-assets.ts`): the Artifact ships runtime assets verbatim, so
+// the desktop preview must recognize the same browser-supported formats.
 const mediaTypesV1: Readonly<Record<string, string>> = Object.freeze({
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
@@ -64,62 +69,55 @@ const mediaTypesV1: Readonly<Record<string, string>> = Object.freeze({
   ".css": "text/css; charset=utf-8",
   ".json": "application/json",
   ".svg": "image/svg+xml",
+  ".avif": "image/avif",
+  ".gif": "image/gif",
+  ".jpeg": "image/jpeg",
+  ".jpg": "image/jpeg",
   ".png": "image/png",
   ".webp": "image/webp",
   ".woff2": "font/woff2",
   ".wasm": "application/wasm",
-  ".ogg": "audio/ogg",
+  ".aac": "audio/aac",
+  ".flac": "audio/flac",
+  ".m4a": "audio/mp4",
   ".mp3": "audio/mpeg",
+  ".oga": "audio/ogg",
+  ".ogg": "audio/ogg",
+  ".opus": "audio/ogg",
+  ".wav": "audio/wav",
+  ".weba": "audio/webm",
+  ".mp4": "video/mp4",
+  ".webm": "video/webm",
 });
 
-const recordsMarkerV1 = '<script>globalThis.__SILLYMAKER_RECORDS__ = "local";</script>';
-
-function jsonResponseV1(payload: unknown, status = 200): Response {
-  return new Response(JSON.stringify(payload), {
-    status,
-    headers: { "content-type": "application/json" },
-  });
-}
-
-async function handleRecordsV1(request: Request, path: string): Promise<Response> {
-  const segments = path.split("/").filter((segment) => segment !== "");
-  if (request.method === "GET" && segments.length === 0) return jsonResponseV1({ ok: true });
-  if (request.method === "POST" && segments.length === 1 && segments[0] === "commit") {
-    const body = (await request.json()) as { readonly mutations?: readonly WireMutationV1[] };
-    if (!Array.isArray(body.mutations) || body.mutations.length === 0) {
-      return jsonResponseV1({ error: "invalid mutations" }, 400);
-    }
-    return jsonResponseV1(await store.commit(body.mutations));
+async function handleStaticV1(request: Request, pathname: string): Promise<Response> {
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    return new Response("method not allowed", {
+      status: 405,
+      headers: { allow: "GET, HEAD" },
+    });
   }
-  if (request.method === "GET" && segments.length === 1) {
-    return jsonResponseV1({ records: await store.list(decodeURIComponent(segments[0] ?? "")) });
+  const resolution = await resolveStaticFilePathV1(distDir, pathname);
+  if (resolution.kind !== "file") {
+    return new Response("not found", {
+      status: resolution.kind === "bad_request" ? 400 : 404,
+    });
   }
-  if (request.method === "GET" && segments.length === 2) {
-    const record = await store.read(
-      decodeURIComponent(segments[0] ?? ""),
-      decodeURIComponent(segments[1] ?? ""),
-    );
-    return record === null ? jsonResponseV1({ error: "not found" }, 404) : jsonResponseV1(record);
-  }
-  return jsonResponseV1({ error: "unsupported" }, 405);
-}
-
-async function handleStaticV1(pathname: string): Promise<Response> {
-  const relative = pathname === "/" ? "/index.html" : pathname;
-  const path = normalize(join(distDir, `.${relative}`));
-  if (!path.startsWith(normalize(distDir))) return new Response("forbidden", { status: 403 });
   try {
-    const info = await stat(path);
-    const filePath = info.isDirectory() ? join(path, "index.html") : path;
+    const filePath = resolution.filePath;
     const bytes = await readFile(filePath);
-    const mediaType = mediaTypesV1[extname(filePath)] ?? "application/octet-stream";
+    const mediaType = mediaTypesV1[extname(filePath).toLowerCase()] ?? "application/octet-stream";
+    const headers = {
+      "content-type": mediaType,
+      "x-content-type-options": "nosniff",
+    };
     if (mediaType.startsWith("text/html")) {
       // The desktop shell marks its pages so the engine selects the HTTP
       // record store without needing a query parameter on the window URL.
-      const html = new TextDecoder().decode(bytes).replace("<head>", `<head>${recordsMarkerV1}`);
-      return new Response(html, { headers: { "content-type": mediaType } });
+      const html = injectDesktopRecordsMarkerV1(new TextDecoder().decode(bytes));
+      return new Response(request.method === "HEAD" ? null : html, { headers });
     }
-    return new Response(new Uint8Array(bytes), { headers: { "content-type": mediaType } });
+    return new Response(request.method === "HEAD" ? null : new Uint8Array(bytes), { headers });
   } catch {
     return new Response("not found", { status: 404 });
   }
@@ -127,8 +125,12 @@ async function handleStaticV1(pathname: string): Promise<Response> {
 
 Deno.serve((request: Request) => {
   const url = new URL(request.url);
-  if (url.pathname.startsWith("/sillymaker/records")) {
-    return handleRecordsV1(request, url.pathname.slice("/sillymaker/records".length));
+  if (url.pathname === "/sillymaker/records" || url.pathname.startsWith("/sillymaker/records/")) {
+    return handleRecordHttpRequestV1(
+      request,
+      url.pathname.slice("/sillymaker/records".length),
+      store,
+    );
   }
-  return handleStaticV1(url.pathname);
+  return handleStaticV1(request, url.pathname);
 });

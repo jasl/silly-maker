@@ -73,7 +73,9 @@ player、keyboard/gamepad 和 prediction。以上基线已完成。
 - stable target owner、target occurrence 与 Coordinator reconcile；
 - application epoch、instance/topology revision、managed routing lease 与
   readiness fence；
-- application receipt、frame-aware input 和真实浏览器 hit/focus/capture 证明。
+- 对声明 presentation postcondition 的 action 组合分层 receipt、frame-aware
+  input 和真实浏览器 hit/focus/capture 证明；普通 action 不引入 universal
+  envelope。
 
 这些条目是目标验收，不是当前 R4 能力。实施期间每一阶段都必须保持 live baseline
 scenario 绿色，不能用未来 Surface 能力作为当前基线的前置条件。
@@ -163,7 +165,7 @@ VN 能力按 [VN presentation design](vn-presentation-runtime.md)
 | whole-canvas primary/detail/modal/Back topology        | pure model            | DOM + presentation observe | refresh rebuild  |
 | 同 gesture 跨 replace、stale instance/occurrence       | frame-aware harness   | real pointer               |                  |
 | async readiness、focus restore、visibility loss        | virtual clock         | presentation + DOM observe | fallback/recover |
-| input/Surface/semantic 分层 receipt 与 postcondition   | evidence composition  | UI/Browser Agent evidence  |                  |
+| 声明 postcondition 的 action 组合分层 receipt          | evidence composition  | UI/Browser Agent evidence  |                  |
 | CSS/layout/focus/pointer-capture adapter-only failures | not simulated         | browser action + DOM trace | focused smoke    |
 
 R5 以后继续维护同一个 package，但增加 named scenarios，并保留一条 integrated
@@ -277,9 +279,11 @@ Surface extension 只有在以下目标全部实现后才可标为 live：
    证明，包括无关 source revision 不 remount、同参数 reopen 创建新 instance；
 2. stale instance/occurrence、同 gesture 跨 replace、readiness 和 focus restore
    有 frame-aware runtime 证明；
-3. application receipt 能关联 input、Surface、semantic/workspace
-   evidence；semantic 已 commit 但 presentation postcondition 失败时保留
-   committed evidence；
+3. 声明 presentation postcondition 的 action 能以 scoped application receipt
+   关联 input、Surface、semantic/workspace evidence；semantic 已 commit 但
+   presentation postcondition 失败时返回 `postcondition_failed` 并保留
+   committed evidence；普通 action 保持分层 receipt，不要求 universal
+   envelope；
 4. 真实浏览器证明 hit order、遮挡、DOM focus 与 pointer capture；contract
    使用定义的 logical hit point、稳定 element ID/role 或
    `elementFromPoint`，不依赖偶然截图坐标；
@@ -301,5 +305,5 @@ Surface extension 只有在以下目标全部实现后才可标为 live：
 - 任一 Product Story 专属概念进入 `@sillymaker/*` 公共 contract；
 - Headless 试图模拟 CSS/DOM hit-test，或 Browser 另写一套 Surface/gameplay
   availability；
-- 只新增 Surface Coordinator 而不迁移并删除旧 Overlay/System/Narrative/Input
-  lifecycle authority。
+- 只新增 Surface Coordinator 而不迁移并删除旧
+  Overlay/System/Narrative/History/whole-canvas/Input lifecycle authority。

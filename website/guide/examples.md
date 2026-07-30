@@ -15,7 +15,7 @@ What it exercises in the engine:
 - **Dialogue player** — typewriter, auto/skip, history, and Seen tracking via the engine's `DialoguePanelV1`.
 - **Deterministic simulation** — event-pool encounters, a turn-based contest, player rollback with hard barriers, save safepoints.
 - **Scene-driven audio** — BGM/ambient/SFX follow the published game view; three volume buses persist in the player profile.
-- **Bilingual text + auto locale**, AIGC art with a consistent storybook style, and one-step desktop packaging.
+- **Bilingual text + auto locale**, AIGC art with a consistent storybook style, and a macOS `.app` packaging preview whose file-backed persistence still has a durability promotion gate.
 
 ## SillyOS 98
 

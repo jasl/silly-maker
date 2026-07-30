@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
-import { readFile, stat } from "node:fs/promises";
-import { extname, join, normalize } from "node:path";
+import { readFile } from "node:fs/promises";
+import { extname, normalize } from "node:path";
 import process from "node:process";
 
 import { createRecordFileStoreV1 } from "../../engine/packages/tooling/src/desktop/record-file-store.mts";
-import type { WireMutationV1 } from "../../engine/packages/tooling/src/desktop/record-file-store.mts";
+import { handleRecordHttpRequestV1 } from "../../engine/packages/tooling/src/desktop/record-http-handler.mts";
+import { resolveStaticFilePathV1 } from "../../engine/packages/tooling/src/desktop/static-file-path.mts";
 
 // The script runs under Deno; tsc checks it without Deno lib types.
 declare const Deno: {
@@ -52,48 +53,29 @@ const mediaTypesV1: Readonly<Record<string, string>> = Object.freeze({
   ".mp3": "audio/mpeg",
 });
 
-function jsonResponseV1(payload: unknown, status = 200): Response {
-  return new Response(JSON.stringify(payload), {
-    status,
-    headers: { "content-type": "application/json" },
-  });
-}
-
-async function handleRecordsV1(request: Request, path: string): Promise<Response> {
-  const segments = path.split("/").filter((segment) => segment !== "");
-  if (request.method === "GET" && segments.length === 0) {
-    return jsonResponseV1({ ok: true });
+async function handleStaticV1(request: Request, pathname: string): Promise<Response> {
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    return new Response("method not allowed", {
+      status: 405,
+      headers: { allow: "GET, HEAD" },
+    });
   }
-  if (request.method === "POST" && segments.length === 1 && segments[0] === "commit") {
-    const body = (await request.json()) as { readonly mutations?: readonly WireMutationV1[] };
-    if (!Array.isArray(body.mutations) || body.mutations.length === 0) {
-      return jsonResponseV1({ error: "invalid mutations" }, 400);
-    }
-    return jsonResponseV1(await store.commit(body.mutations));
+  const resolution = await resolveStaticFilePathV1(distDir, pathname);
+  if (resolution.kind !== "file") {
+    return new Response("not found", {
+      status: resolution.kind === "bad_request" ? 400 : 404,
+    });
   }
-  if (request.method === "GET" && segments.length === 1) {
-    const namespace = decodeURIComponent(segments[0] ?? "");
-    return jsonResponseV1({ records: await store.list(namespace) });
-  }
-  if (request.method === "GET" && segments.length === 2) {
-    const namespace = decodeURIComponent(segments[0] ?? "");
-    const key = decodeURIComponent(segments[1] ?? "");
-    const record = await store.read(namespace, key);
-    return record === null ? jsonResponseV1({ error: "not found" }, 404) : jsonResponseV1(record);
-  }
-  return jsonResponseV1({ error: "unsupported" }, 405);
-}
-
-async function handleStaticV1(pathname: string): Promise<Response> {
-  const relative = pathname === "/" ? "/index.html" : pathname;
-  const path = normalize(join(distDir, `.${relative}`));
-  if (!path.startsWith(normalize(distDir))) return new Response("forbidden", { status: 403 });
   try {
-    const info = await stat(path);
-    const filePath = info.isDirectory() ? join(path, "index.html") : path;
+    const filePath = resolution.filePath;
     const bytes = await readFile(filePath);
-    const mediaType = mediaTypesV1[extname(filePath)] ?? "application/octet-stream";
-    return new Response(new Uint8Array(bytes), { headers: { "content-type": mediaType } });
+    const mediaType = mediaTypesV1[extname(filePath).toLowerCase()] ?? "application/octet-stream";
+    return new Response(request.method === "HEAD" ? null : new Uint8Array(bytes), {
+      headers: {
+        "content-type": mediaType,
+        "x-content-type-options": "nosniff",
+      },
+    });
   } catch {
     return new Response("not found", { status: 404 });
   }
@@ -101,10 +83,14 @@ async function handleStaticV1(pathname: string): Promise<Response> {
 
 Deno.serve({ hostname: "127.0.0.1", port }, async (request) => {
   const url = new URL(request.url);
-  if (url.pathname.startsWith("/sillymaker/records")) {
-    return handleRecordsV1(request, url.pathname.slice("/sillymaker/records".length));
+  if (url.pathname === "/sillymaker/records" || url.pathname.startsWith("/sillymaker/records/")) {
+    return handleRecordHttpRequestV1(
+      request,
+      url.pathname.slice("/sillymaker/records".length),
+      store,
+    );
   }
-  return handleStaticV1(url.pathname);
+  return handleStaticV1(request, url.pathname);
 });
 
 console.log(

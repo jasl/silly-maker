@@ -18,7 +18,8 @@
   },
   "dependencies": {
     "@sillymaker/base": "workspace:*",
-    "@vitejs/plugin-react": "6.0.3"
+    "@vitejs/plugin-react": "6.0.3",
+    "import-meta-resolve": "4.2.0"
   },
   "devDependencies": {
     "@types/node": "24.13.3",

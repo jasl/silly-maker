@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import type { HostStoredRecordV1 } from "@sillymaker/base";
+import { parseNonNegativeSafeInteger, type HostStoredRecordV1 } from "@sillymaker/base";
 import { createMemoryHostRecordStoreV1 } from "@sillymaker/base/testkit";
 
 type HostRecordKeyV1 = HostStoredRecordV1["key"];
@@ -116,5 +116,480 @@ describe("the HTTP host record store", () => {
       { kind: "put", namespace: "settings", key, expectedRevision: null, bytes },
     ]);
     expect(conflict).toMatchObject({ kind: "conflict", key, actualRevision: 1 });
+  });
+});
+
+function jsonFetchV1(payload: unknown, status = 200) {
+  return async (): Promise<Response> =>
+    new Response(JSON.stringify(payload), {
+      status,
+      headers: { "content-type": "application/json" },
+    });
+}
+
+describe("the HTTP host record store wire boundary", () => {
+  const key = "profile" as HostRecordKeyV1;
+
+  it("fails closed when list/read payloads are malformed or missing", async () => {
+    await expect(
+      createHttpHostRecordStoreV1({
+        baseUrl: "/records",
+        fetchImpl: jsonFetchV1({
+          namespace: "unknown",
+          key: "profile",
+          revision: 1,
+          bytesBase64: "AA==",
+        }),
+      }).read("settings", key),
+    ).rejects.toThrow("host.http_records_invalid_namespace");
+
+    await expect(
+      createHttpHostRecordStoreV1({
+        baseUrl: "/records",
+        fetchImpl: jsonFetchV1({}),
+      }).list("settings"),
+    ).rejects.toThrow("host.http_records_invalid_list");
+
+    await expect(
+      createHttpHostRecordStoreV1({
+        baseUrl: "/records",
+        fetchImpl: jsonFetchV1({}, 404),
+      }).list("settings"),
+    ).rejects.toThrow("host.http_records_failed:404");
+
+    await expect(
+      createHttpHostRecordStoreV1({
+        baseUrl: "/records",
+        fetchImpl: jsonFetchV1({
+          records: [
+            {
+              namespace: "settings",
+              key: "profile",
+              revision: 1,
+              bytesBase64: "not base64",
+            },
+          ],
+        }),
+      }).list("settings"),
+    ).rejects.toThrow("host.http_records_invalid_bytes");
+  });
+
+  it("rejects read records that do not match the requested identity", async () => {
+    const validRecord = {
+      namespace: "settings",
+      key: "other-profile",
+      revision: 1,
+      bytesBase64: "AA==",
+    };
+
+    await expect(
+      createHttpHostRecordStoreV1({
+        baseUrl: "/records",
+        fetchImpl: jsonFetchV1(validRecord),
+      }).read("settings", key),
+    ).rejects.toThrow("host.http_records_invalid_record");
+
+    await expect(
+      createHttpHostRecordStoreV1({
+        baseUrl: "/records",
+        fetchImpl: jsonFetchV1({ ...validRecord, namespace: "save", key: "profile" }),
+      }).read("settings", key),
+    ).rejects.toThrow("host.http_records_invalid_record");
+  });
+
+  it("rejects list records from another namespace or with duplicate keys", async () => {
+    await expect(
+      createHttpHostRecordStoreV1({
+        baseUrl: "/records",
+        fetchImpl: jsonFetchV1({
+          records: [
+            {
+              namespace: "save",
+              key: "profile",
+              revision: 1,
+              bytesBase64: "AA==",
+            },
+          ],
+        }),
+      }).list("settings"),
+    ).rejects.toThrow("host.http_records_invalid_list");
+
+    await expect(
+      createHttpHostRecordStoreV1({
+        baseUrl: "/records",
+        fetchImpl: jsonFetchV1({
+          records: [
+            {
+              namespace: "settings",
+              key: "profile",
+              revision: 1,
+              bytesBase64: "AA==",
+            },
+            {
+              namespace: "settings",
+              key: "profile",
+              revision: 2,
+              bytesBase64: "AQ==",
+            },
+          ],
+        }),
+      }).list("settings"),
+    ).rejects.toThrow("host.http_records_invalid_list");
+  });
+
+  it("validates committed and conflict payloads before returning them", async () => {
+    const mutation = {
+      kind: "put" as const,
+      namespace: "settings" as const,
+      key,
+      expectedRevision: null,
+      bytes: new Uint8Array([1]),
+    };
+
+    await expect(
+      createHttpHostRecordStoreV1({
+        baseUrl: "/records",
+        fetchImpl: jsonFetchV1({ kind: "committed", records: "invalid" }),
+      }).commit([mutation]),
+    ).rejects.toThrow("host.http_records_invalid_result");
+
+    await expect(
+      createHttpHostRecordStoreV1({
+        baseUrl: "/records",
+        fetchImpl: jsonFetchV1({
+          kind: "conflict",
+          namespace: "unknown",
+          key: "profile",
+          actualRevision: 1,
+        }),
+      }).commit([mutation]),
+    ).rejects.toThrow("host.http_records_invalid_namespace");
+
+    await expect(
+      createHttpHostRecordStoreV1({
+        baseUrl: "/records",
+        fetchImpl: jsonFetchV1({
+          kind: "conflict",
+          namespace: "settings",
+          key: "profile",
+          actualRevision: -1,
+        }),
+      }).commit([mutation]),
+    ).rejects.toThrow();
+  });
+
+  it("rejects conflict results unrelated to the requested mutations", async () => {
+    await expect(
+      createHttpHostRecordStoreV1({
+        baseUrl: "/records",
+        fetchImpl: jsonFetchV1({
+          kind: "conflict",
+          namespace: "settings",
+          key: "other-profile",
+          actualRevision: 1,
+        }),
+      }).commit([
+        {
+          kind: "put",
+          namespace: "settings",
+          key,
+          expectedRevision: null,
+          bytes: new Uint8Array([1]),
+        },
+      ]),
+    ).rejects.toThrow("host.http_records_invalid_result");
+  });
+
+  it("rejects conflict results whose actual revision matches expected", async () => {
+    const createMutation = {
+      kind: "put" as const,
+      namespace: "settings" as const,
+      key,
+      expectedRevision: null,
+      bytes: new Uint8Array([1]),
+    };
+    await expect(
+      createHttpHostRecordStoreV1({
+        baseUrl: "/records",
+        fetchImpl: jsonFetchV1({
+          kind: "conflict",
+          namespace: "settings",
+          key: "profile",
+          actualRevision: null,
+        }),
+      }).commit([createMutation]),
+    ).rejects.toThrow("host.http_records_invalid_result");
+
+    const updateRevision = parseNonNegativeSafeInteger(3);
+    await expect(
+      createHttpHostRecordStoreV1({
+        baseUrl: "/records",
+        fetchImpl: jsonFetchV1({
+          kind: "conflict",
+          namespace: "settings",
+          key: "profile",
+          actualRevision: 3,
+        }),
+      }).commit([
+        {
+          ...createMutation,
+          expectedRevision: updateRevision,
+        },
+      ]),
+    ).rejects.toThrow("host.http_records_invalid_result");
+  });
+
+  it("rejects duplicate delete identities before calling fetch", async () => {
+    const fetchImpl = vi.fn(
+      async (): Promise<Response> =>
+        new Response(JSON.stringify({ kind: "committed", records: [] }), { status: 200 }),
+    );
+    const mutation = {
+      kind: "delete" as const,
+      namespace: "settings" as const,
+      key,
+      expectedRevision: parseNonNegativeSafeInteger(1),
+    };
+    const store = createHttpHostRecordStoreV1({ baseUrl: "/records", fetchImpl });
+
+    await expect(store.commit([mutation, mutation])).rejects.toThrow(
+      "duplicate Host record mutation",
+    );
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("rejects delete and put with the same identity before calling fetch", async () => {
+    const fetchImpl = vi.fn(
+      async (): Promise<Response> =>
+        new Response(
+          JSON.stringify({
+            kind: "committed",
+            records: [
+              {
+                namespace: "settings",
+                key: "profile",
+                revision: 1,
+                bytesBase64: "AQ==",
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+    );
+    const store = createHttpHostRecordStoreV1({ baseUrl: "/records", fetchImpl });
+
+    await expect(
+      store.commit([
+        {
+          kind: "delete",
+          namespace: "settings",
+          key,
+          expectedRevision: parseNonNegativeSafeInteger(1),
+        },
+        {
+          kind: "put",
+          namespace: "settings",
+          key,
+          expectedRevision: null,
+          bytes: new Uint8Array([1]),
+        },
+      ]),
+    ).rejects.toThrow("duplicate Host record mutation");
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("validates a delete response against the mutation snapshot sent on the wire", async () => {
+    const deferred = Promise.withResolvers<Response>();
+    let sentExpectedRevision: unknown;
+    const fetchImpl = vi.fn(async (_input: string, init?: RequestInit): Promise<Response> => {
+      const body = JSON.parse(String(init?.body)) as {
+        readonly mutations: readonly { readonly expectedRevision: unknown }[];
+      };
+      sentExpectedRevision = body.mutations[0]?.expectedRevision;
+      return await deferred.promise;
+    });
+    const mutation = {
+      kind: "delete" as const,
+      namespace: "settings" as const,
+      key,
+      expectedRevision: parseNonNegativeSafeInteger(1),
+    };
+    const store = createHttpHostRecordStoreV1({ baseUrl: "/records", fetchImpl });
+
+    const pending = store.commit([mutation]);
+    expect(sentExpectedRevision).toBe(1);
+    mutation.expectedRevision = parseNonNegativeSafeInteger(2);
+    deferred.resolve(
+      new Response(
+        JSON.stringify({
+          kind: "conflict",
+          namespace: "settings",
+          key: "profile",
+          actualRevision: 1,
+        }),
+        { status: 200 },
+      ),
+    );
+
+    await expect(pending).rejects.toThrow("host.http_records_invalid_result");
+  });
+
+  it("rejects a committed result when the next revision would overflow", async () => {
+    await expect(
+      createHttpHostRecordStoreV1({
+        baseUrl: "/records",
+        fetchImpl: jsonFetchV1({
+          kind: "committed",
+          records: [
+            {
+              namespace: "settings",
+              key: "profile",
+              revision: Number.MAX_SAFE_INTEGER,
+              bytesBase64: "AQ==",
+            },
+          ],
+        }),
+      }).commit([
+        {
+          kind: "put",
+          namespace: "settings",
+          key,
+          expectedRevision: parseNonNegativeSafeInteger(Number.MAX_SAFE_INTEGER),
+          bytes: new Uint8Array([1]),
+        },
+      ]),
+    ).rejects.toThrow("host.http_records_invalid_result");
+  });
+
+  it("requires committed records to match every put mutation exactly once", async () => {
+    const secondKey = "preferences" as HostRecordKeyV1;
+    const deletedKey = "retired" as HostRecordKeyV1;
+    const mutations = [
+      {
+        kind: "put" as const,
+        namespace: "settings" as const,
+        key,
+        expectedRevision: null,
+        bytes: new Uint8Array([1]),
+      },
+      {
+        kind: "delete" as const,
+        namespace: "settings" as const,
+        key: deletedKey,
+        expectedRevision: parseNonNegativeSafeInteger(1),
+      },
+      {
+        kind: "put" as const,
+        namespace: "settings" as const,
+        key: secondKey,
+        expectedRevision: parseNonNegativeSafeInteger(4),
+        bytes: new Uint8Array([2]),
+      },
+    ] as const;
+    const profileRecord = {
+      namespace: "settings",
+      key: "profile",
+      revision: 1,
+      bytesBase64: "AQ==",
+    };
+    const preferencesRecord = {
+      namespace: "settings",
+      key: "preferences",
+      revision: 5,
+      bytesBase64: "Ag==",
+    };
+
+    await expect(
+      createHttpHostRecordStoreV1({
+        baseUrl: "/records",
+        fetchImpl: jsonFetchV1({
+          kind: "committed",
+          records: [profileRecord],
+        }),
+      }).commit(mutations),
+    ).rejects.toThrow("host.http_records_invalid_result");
+
+    await expect(
+      createHttpHostRecordStoreV1({
+        baseUrl: "/records",
+        fetchImpl: jsonFetchV1({
+          kind: "committed",
+          records: [{ ...profileRecord, revision: 2 }, preferencesRecord],
+        }),
+      }).commit(mutations),
+    ).rejects.toThrow("host.http_records_invalid_result");
+
+    await expect(
+      createHttpHostRecordStoreV1({
+        baseUrl: "/records",
+        fetchImpl: jsonFetchV1({
+          kind: "committed",
+          records: [{ ...profileRecord, bytesBase64: "AA==" }, preferencesRecord],
+        }),
+      }).commit(mutations),
+    ).rejects.toThrow("host.http_records_invalid_result");
+
+    await expect(
+      createHttpHostRecordStoreV1({
+        baseUrl: "/records",
+        fetchImpl: jsonFetchV1({
+          kind: "committed",
+          records: [profileRecord, profileRecord],
+        }),
+      }).commit(mutations),
+    ).rejects.toThrow("host.http_records_invalid_result");
+
+    await expect(
+      createHttpHostRecordStoreV1({
+        baseUrl: "/records",
+        fetchImpl: jsonFetchV1({
+          kind: "committed",
+          records: [
+            profileRecord,
+            {
+              namespace: "settings",
+              key: "retired",
+              revision: 2,
+              bytesBase64: "Aw==",
+            },
+          ],
+        }),
+      }).commit(mutations),
+    ).rejects.toThrow("host.http_records_invalid_result");
+
+    await expect(
+      createHttpHostRecordStoreV1({
+        baseUrl: "/records",
+        fetchImpl: jsonFetchV1({
+          kind: "committed",
+          records: [
+            profileRecord,
+            preferencesRecord,
+            {
+              namespace: "save",
+              key: "unrelated",
+              revision: 1,
+              bytesBase64: "AA==",
+            },
+          ],
+        }),
+      }).commit(mutations),
+    ).rejects.toThrow("host.http_records_invalid_result");
+
+    await expect(
+      createHttpHostRecordStoreV1({
+        baseUrl: "/records",
+        fetchImpl: jsonFetchV1({
+          kind: "committed",
+          records: [preferencesRecord, profileRecord],
+        }),
+      }).commit(mutations),
+    ).resolves.toMatchObject({
+      kind: "committed",
+      records: [
+        { namespace: "settings", key: "preferences" },
+        { namespace: "settings", key: "profile" },
+      ],
+    });
   });
 });

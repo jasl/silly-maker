@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { expectTypeOf, it } from "vitest";
+import { expect, expectTypeOf, it } from "vitest";
 import type {
   DebugFixtureListResultV1,
   DebugToolsOperationResultV1,
@@ -9,6 +9,7 @@ import type {
   RuntimeCapabilityOperationResultV1,
   RuntimeCapabilityPortV1,
 } from "./application.ts";
+import { createSaveSlotIdsV1, parseManualSaveSlotCountV1 } from "./application.ts";
 
 it("defines one generic six-port Game Application surface", () => {
   type Application = GameApplicationPortV1<
@@ -63,4 +64,10 @@ it("keeps capability denial outside allowed DebugTools results", () => {
   expectTypeOf<Port["listFixtures"]>().returns.toEqualTypeOf<
     Promise<DebugFixtureListResultV1<"fixture.one">>
   >();
+});
+
+it("allows applications to disable numbered manual Save slots", () => {
+  expect(parseManualSaveSlotCountV1(0)).toBe(0);
+  expect(createSaveSlotIdsV1(0)).toEqual(["auto.current", "auto.previous", "quick"]);
+  expect(() => parseManualSaveSlotCountV1(-1)).toThrow("invalid manual Save slot count");
 });

@@ -4,7 +4,7 @@
 
 对 LLM 友好的 TypeScript + React 游戏引擎，面向视觉小说、模拟经营与 RPG 风格的剧情游戏。确定性模拟、语义舞台、原子存档——人类与 AI 代理都能创作，运行在 [Deno](https://deno.com/) 上。
 
-**试玩旗舰示例**：[《雨巷猫舍》](examples/cat-cafe/)是一款为驱动引擎而生的完整可发布游戏——标题屏、日程经营、抚摸命中区域、回合制运动会、成长图鉴、多结局与后日谈、对话播放体验（打字机/自动/快进/历史/回退）、场景驱动的声音层、带安全点的存档槽位、双语文本，以及一步桌面打包。
+**试玩旗舰示例**：[《雨巷猫舍》](examples/cat-cafe/)是一款为驱动引擎而生的完整可发布游戏——标题屏、日程经营、抚摸命中区域、回合制运动会、成长图鉴、多结局与后日谈、对话播放体验（打字机/自动/快进/历史/回退）、场景驱动的声音层、带安全点的存档槽位、双语文本，以及 macOS 桌面打包 preview。
 
 **再看它跳出类型**：[SillyOS 98](examples/silly-os/) 是一个复古桌面 shell——重叠可拖拽窗口、任务栏、开始菜单、确定性扫雷（雷区来自事务 RNG、绝不泄漏给 UI）、文件随引擎存档持久的记事本，以及一台年代感浏览器。同一台引擎，零视觉小说预设。
 
@@ -31,7 +31,7 @@ deno task dev            # Vite 开发服务器（用 --mode <applicationId> 选
 - `deno task story <verb> <app>`——应用生命周期 CLI（inspect / check / simulate / dev --smoke / build / desktop，JSON 报告）；
 - `deno task site:build`——组装可发布静态站（文档 + 《雨巷猫舍》试玩）到 `dist/site`，经 GitHub Pages workflow 或 `deno task site:deploy:cf`（Cloudflare Workers）发布；见[构建与发布](docs/engine/build-and-release.md)。
 
-开新游戏从复制 [`template/`](template/) 开始（见其 README）；所有应用在 [`project.config.ts`](project.config.ts) 注册。
+开新游戏从复制 [`template/`](template/) 开始（见其 README）。每个应用都是带自己 `sillymaker.config.ts` 的独立项目；根 [`project.config.ts`](project.config.ts) 只为仓库级聚合命令列出应用目录。
 
 ## 文档
 
@@ -52,7 +52,7 @@ engine/packages/web      浏览器 Host、IndexedDB/HTTP 持久化、挂载与�
 e2e/                     中立引擎一致性 Story（Engine Lab）
 template/                新游戏起点骨架
 examples/                示例 Story（bookshop、cat-cafe、silly-os）
-project.config.ts        所有应用的注册处
+project.config.ts        仓库级聚合命令使用的应用目录清单
 scripts/                 构建身份、资产校验、桌面存档服务器、发布站组装
 docs/                    内部工程文档（计划、研究、提案、政策）
 website/                 对外文档站（VitePress，中英双语）

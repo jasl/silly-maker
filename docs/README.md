@@ -19,11 +19,14 @@ The public documentation site lives in `website/` (VitePress, English and Chines
 ## Accepted direction and active plans
 
 - [Engine roadmap](engine/roadmap.md) — accepted direction, remaining milestones, and continuous tracks; dated delivery history lives in the [roadmap archive](engine/roadmap-archive.md).
-- [Surface Contract Harness plan](engine/plans/2026-07-30-surface-contract-harness.md) — active plan: Managed Surface lifecycle, host migration, and the verification harness (P0–P5).
-- [Snapshot integrity and Save migration plan](engine/plans/2026-07-30-snapshot-integrity-and-save-migration.md) — active plan: commit hot-path performance contract and digest dedup, then the save-migration release capability.
+- [Production-floor execution sequence](engine/plans/2026-07-30-production-floor-sequence.md) — the only cross-plan ordering entry; the core sequence starts with Snapshot S0, while desktop durability is a conditional promotion lane.
+- [Desktop persistence durability plan](engine/plans/2026-07-30-desktop-persistence-durability.md) — independent Host-record conformance, crash/cross-process transaction backend, recovery, and real packaged-app promotion before desktop leaves preview.
+- [Snapshot commit performance plan](engine/plans/2026-07-30-snapshot-commit-performance.md) — baseline, digest/serialization reuse, and byte-equivalence gates.
+- [Save migration plan](engine/plans/2026-07-30-save-migration.md) — bounded envelope load order, migration registry, product path, and maintained fixtures.
+- [Managed Surface lifecycle plan](engine/plans/2026-07-30-surface-contract-harness.md) — pilot-first Coordinator migration, then System/Narrative and the verification harness.
 - [Managed Surface lifecycle and contract harness](engine/design/surface-contract-harness.md) — the accepted Surface contract behind the plan above.
 - [Save migration design](engine/design/save-migration.md) — first-class migration registry and the reworked load order.
-- [Mod composition and distribution](engine/design/mod-system.md) — facets, activation, merge rules, identity axes, Save provenance, and distribution stages.
+- [Mod composition and distribution](engine/design/mod-system.md) — accepted incubation design; activation is gated behind the production floor and proven reusable capability slices.
 - [AI-friendly Story authoring](engine/design/ai-authoring.md) — Authoring Kit, diagnostics, composers, tooling, harness, and Agent contract.
 - [E2E engine validation](engine/design/e2e-engine-validation.md) — the Engine Conformance Story and test ownership.
 - [VN presentation runtime](engine/design/vn-presentation-runtime.md) — semantic Stage, Transition, PendingInteraction, Audio, and player systems.
@@ -36,9 +39,9 @@ These documents describe accepted targets and planned work. A capability remains
 
 - [Typed StateStore proposal](engine/proposals/typed-state-store.md) — an independent, non-binding State-management option to evaluate only against concrete authoring/gameplay friction.
 - [Content database proposal](engine/proposals/content-database.md) — delivered 2026-07-28; kept as the design rationale for the shipped tables.
-- [Pointer gesture fence proposal](engine/proposals/pointer-gesture-fence.md) — delivered in `@sillymaker/ui`; kept as the rationale for the stage-level dismiss click-through guard.
-- [Content vs runtime Snapshot boundary](engine/proposals/imouto-content-runtime-boundary.md) — where static content ends and mutable gameplay State begins, from the MV-clone experiment.
-- [RNG seed lineage proposal](engine/proposals/rng-seed-lineage.md) — replaceable seeds with audit timestamps outside the draw path.
+- [Pointer gesture fence proposal](engine/proposals/pointer-gesture-fence.md) — delivered tactical bridge; only the stage hook is public, and the Surface web adapter owns its absorption/removal gate.
+- [External content import vs runtime State boundary](engine/proposals/external-content-runtime-boundary.md) — where imported/static content ends and mutable gameplay State begins, without binding the engine contract to a private experiment.
+- [RNG reseed audit lineage proposal](engine/proposals/rng-seed-lineage.md) — deferred; prefer CommandLog/DebugBundle-derived evidence over a second wall-clock lineage store.
 
 ## Research
 

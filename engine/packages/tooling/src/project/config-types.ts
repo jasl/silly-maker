@@ -24,16 +24,17 @@ export interface StoryWebIdentityRefV1 {
 }
 
 /**
- * Desktop packaging for a web application: a thin `deno desktop` host that
- * serves the already built web Artifact. Engine and Story code never depend
- * on Deno Desktop APIs; this is delivery-layer configuration only.
+ * macOS desktop packaging preview for a web application: a thin
+ * `deno desktop` host that serves the already built web Artifact. Engine and
+ * Story code never depend on Deno Desktop APIs; this is delivery-layer
+ * configuration only until other platforms earn an explicit contract.
  */
 export interface StoryDesktopTargetV1 {
   /** The human-visible application name (also the bundle file name). */
   readonly name: string;
   /** The reverse-DNS bundle identifier. */
   readonly identifier: string;
-  /** Optional repository-relative app icon (.png/.icns on macOS, .ico on Windows). */
+  /** Optional repository-relative app icon (`.png` or `.icns` for the current macOS preview). */
   readonly icon?: string;
 }
 
@@ -47,7 +48,7 @@ export interface StoryWebTargetV1 {
   readonly sourcemap: boolean;
   /** Optional structural build-identity collector; null for default identity. */
   readonly identity: StoryWebIdentityRefV1 | null;
-  /** Optional desktop packaging; null/absent for web-only applications. */
+  /** Optional macOS desktop packaging preview; null/absent for web-only applications. */
   readonly desktop?: StoryDesktopTargetV1 | null;
 }
 

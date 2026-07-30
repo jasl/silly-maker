@@ -95,19 +95,21 @@ For ordinary browser work against source, use:
 deno task test:e2e
 ```
 
-## Desktop save server (local persistence channel)
+## Desktop save server (preview local persistence channel)
 
-`deno task desktop:save-server --dist <app>/dist-web --saves <dir> --port 41800` serves a built Player bundle from one fixed local port and owns a save directory behind `/sillymaker/records`. Pages started with `?records=local` persist through `createHttpHostRecordStoreV1` (atomic per-file writes, optimistic revisions) instead of per-origin IndexedDB, so saves live in real files and survive process restarts and origin changes. This is the working desktop-persistence answer; wrapping the fixed-port server in a webview shell is the remaining packaging step.
+`deno task desktop:save-server --dist <app>/dist-web --saves <dir> --port 41800` serves a built Player bundle from one fixed loopback port and owns a save directory behind `/sillymaker/records`. Pages started with `?records=local` use `createHttpHostRecordStoreV1` instead of per-origin IndexedDB. The endpoint accepts only the bounded records protocol: same-origin JSON commits, validated namespaces/keys/revisions/base64, and GET-only record reads; the static side only accepts GET/HEAD and rejects malformed, traversing, or symlinked paths.
 
-## Desktop packaging (one step)
+The current JSON-file backend is a **preview/reference implementation**. It survives ordinary restarts, uses optimistic revisions, serializes one process, and replaces each record through a unique temporary file plus rename. A process/OS crash between records in one batch can still expose a partial commit, and a second process has no shared CAS authority. Do not describe it as a production atomic store until the [desktop persistence durability plan](plans/2026-07-30-desktop-persistence-durability.md) passes.
+
+## Desktop packaging preview (macOS `.app`)
 
 ```sh
 deno task story desktop <app>
 ```
 
-Applications that declare `web.desktop` (name + bundle identifier + optional app-relative `icon`) package into a double-clickable desktop app in one step. The command builds the web target, stages the shell under `<app>/dist-desktop/staging/` — the shell sources ship inside `@sillymaker/tooling` (`src/desktop/shell-main.ts` serves the embedded `dist/`, including runtime assets, over an in-process HTTP listener, injects the `__SILLYMAKER_RECORDS__ = "local"` signal into the page, and owns the records API over a real save directory in the platform user-data location, `~/Library/Application Support/<identifier>/saves` on macOS) — then runs `deno desktop` (requires a local Deno >= 2.9; the feature is experimental upstream) with the icon installed into the bundle.
+Applications that declare `web.desktop` (safe name + lowercase reverse-DNS identifier + optional app-relative `icon`) can currently package a macOS `.app` under `<app>/dist-desktop/`. The command builds the canonical web Artifact, stages a shell under `<app>/dist-desktop/staging/`, embeds `dist/`, injects `__SILLYMAKER_RECORDS__ = "local"`, and points the records endpoint at `~/Library/Application Support/<identifier>/saves`. It then invokes the experimental `deno desktop` command from Deno >= 2.9.
 
-File-backed saves make the webview origin irrelevant: `deno desktop` still picks a random port per launch, but persistence flows through the shell's records endpoint (atomic per-file replace, optimistic revisions) rather than per-origin IndexedDB, so saves survive restarts. Engine and Story code never depend on Deno Desktop APIs — the web Artifact remains the canonical delivery and the stable fallback. macOS release builds additionally need signing and notarization.
+This repository has not yet promoted Windows/Linux output, installers, signing, notarization, auto-update, or crash-atomic desktop persistence. A release claim requires a real build → launch → write → exit → reopen smoke on each named platform, not only an output-directory marker. Engine and Story packages remain independent of Deno Desktop APIs; the web Artifact is the canonical stable fallback.
 
 ## Publish to static hosting (GitHub Pages / Cloudflare Workers)
 
@@ -129,7 +131,8 @@ Before handing an Artifact to another person or machine:
 3. run `deno task story build <app>` and prepare the Artifact;
 4. run the prebuilt browser suite for the application;
 5. inspect the generated manifest and legal-file presence;
-6. record the source revision and any known gameplay/content limitations in the handoff note.
+6. for desktop preview output, launch it and verify write → exit → reopen on the target platform;
+7. record the source revision and any known gameplay/content/platform limitations in the handoff note.
 
 Artifact preparation proves that the software can be packaged and started; it does not certify final game design, player experience, content approval, or commercial readiness.
 

@@ -1,315 +1,320 @@
 # SillyMaker engine roadmap
 
-状态：2026-07-19 接受的连续演进方向，最近修订 2026-07-30。已实现能力的现状描述以 [features](features.md) 为准；带日期的交付/接受历史与已完成里程碑全文归档于 [roadmap archive](roadmap-archive.md)。当前活动执行计划：[Surface Contract Harness plan](plans/2026-07-30-surface-contract-harness.md) 与 [Snapshot integrity and Save migration plan](plans/2026-07-30-snapshot-integrity-and-save-migration.md)。
+状态：2026-07-19 接受，最近审查修订 2026-07-30。已实现能力以 [features](features.md) 为准；历史交付见 [roadmap archive](roadmap-archive.md)。当前执行入口只有 [Production-floor execution sequence](plans/2026-07-30-production-floor-sequence.md)，它再引用四个独立计划；design/roadmap 条目本身不等于 live capability。
 
 ## 1. North star
 
-SillyMaker 要从“支撑首个 Tavern PoC 的运行时”演进为适合 Visual
-Novel、SLG、模拟经营和人物养成 Story 的 React + TypeScript 游戏引擎。
+SillyMaker 是面向 **叙事、数据密集、事件/回合驱动游戏** 的浏览器优先 React + TypeScript 引擎。它优先服务：
 
-目标开发体验是：作者或 AI Agent 可以只通过受支持的 package exports，用普通
-TypeScript 编写 Story、GameplayModule、规则、Narrative 和 React
-UI；同一个游戏可在 Node headless
-与浏览器运行、被语义化自动化操作、独立构建和诊断，而不需要复制 PoC
-的通用胶水或修改引擎核心。
+- Visual Novel 与互动叙事；
+- 经营/人物养成/时间经济 SLG；
+- 卡牌、JRPG 回合/半回合、战棋等确定性战斗；
+- 长期状态的虚拟伴侣；
+- 使用同一语义契约的 Agent/GenUI workspace。
 
-首个 vNext 垂直目标同时包含两条主线：
+目标不是复制 Unity/Godot 的通用编辑器与 scene tree，而是建立一套可生产、可诊断、可回放、可迁移、适合人类与 Coding Agent 协作的专门平台：
 
-1. **AI-authorable
-   engine**：稳定的作者接口、结构化诊断、通用应用组合、Headless/Agent harness 和
-   Story-independent tooling。
-2. **Production-capable VN
-   presentation**：可保存的语义舞台、可中断转场、交互边界、音频意图和基础玩家播放系统。
+```text
+stable deterministic core
+  + content/authoring pipeline
+  + genre capabilities
+  + renderer adapters
+  + creator tooling
+  + optional agent/genui workspace
+```
 
-真实游戏（当前为《雨巷猫舍》旗舰示例）持续充当引擎的第一消费者，但任何一个游戏都不是引擎的隐含模板。
+作者或 Agent 只通过受支持的 package exports，用普通 TypeScript 与稳定数据编写 Story、GameplayModule、Narrative、内容表和 React UI。同一个产品可在 headless 与 browser 运行，被语义自动化操作、独立构建、诊断和长期迁移，不复制示例胶水，不修改 engine core。
 
-## 2. Durable architecture principles
+真实游戏持续充当第一消费者，Engine Lab 是中性 conformance rig；任何一个游戏或复刻实验都不是引擎隐含模板。
 
-以下原则贯穿全部阶段：
+## 2. Non-negotiable architecture
 
-- 一个 Session 只有一个 authoritative gameplay State；renderer、audio
-  element、DOM、React state 和 editor model 不能成为第二权威来源。
-- Simulation 拥有 gameplay rules 与稳定语义意图；Presentation
-  执行动画、转场、排版和即时播放；Host
-  管理浏览器资源、时钟、音频、文件和持久存储。
-- Save 保存 plain、versioned、validated data 和稳定 ID，不保存
-  renderer、DOM、Promise、clock handle、audio node、cache 或动画进度。
-- Headless、DOM、Agent 与 Browser Automation 使用同一个 semantic/application
-  contract，不分别实现游戏规则。
-- 素材通过稳定 manifest ID 使用；加载、预测、失败和降级是引擎的一等边界。
-- 输入先映射为语义
-  action，再由当前输入上下文处理；鼠标、触摸、键盘、手柄和自动化不直接改 State。
-- 公共契约由真实第二消费者和行为测试证明；不以 PoC 私有 helper、计划夹具或
-  frozen golden 代替。
-- 新作者层应减少无意义的泛型、验证和组合样板，但保留普通 TypeScript
-  的完整表达能力。
-- 一个逻辑 Mod 可以纵跨 Base/UI/Web/Tooling，但每个 facet 仍遵守现有 package
-  dependency direction；headless/Base 不因 Mod 组合而导入 React、DOM、browser 或
-  Node-only tooling。
+- 一个 Session 只有一个 authoritative gameplay State；DOM、React state、renderer、editor、SQLite/IndexedDB 和 Agent transcript 都不能成为第二权威。
+- Simulation 拥有规则与可保存语义；Presentation 拥有动画、排版、相机、粒子和瞬时播放；Host 拥有浏览器/桌面资源、I/O、存储和墙钟。
+- Save 是 plain、versioned、validated data 与稳定 ID；不保存 DOM、renderer object、Promise、clock handle、audio node、cache 或动画进度。
+- Headless、玩家 UI、Browser Automation 与 Agent 使用同一 semantic/application contract，不各自重写规则。
+- 输入先成为语义 action，由当前 input owner/context 处理；物理设备不直接改 gameplay State。
+- 素材通过 manifest ID；加载、readiness、失败、fallback、预算和 provenance 是一等构建/Host 边界。
+- 内容数据库只读；mutable gameplay 只能经 Session transaction；Host persistence 不是 runtime ORM。
+- 公共 API 由真实第二消费者、行为测试与迁移路径证明；design 文档或 passing typecheck 不足以冻结接口。
+- 新作者层减少样板，但不引入第二套 DSL、动态 eval 或模糊的万能 context。
+- package dependency direction 保持：Base 不导入 React/DOM/browser/Node-only tooling。
 
 ## 3. Script and extension model
 
-Story、GameplayModule、Narrative authoring、UI contribution 和官方 Hotfix 使用
-TypeScript/JavaScript。TypeScript 在构建时成为
-JavaScript，运行时不引入另一套解释器。
+Story、GameplayModule、Narrative、UI contribution 与可信 Hotfix 使用 TypeScript/JavaScript。运行时不引入 Ren'Py DSL、ATL、Screen Language、自研 VM 或任意表达式解释器。
 
-SillyMaker 不提供：
+第一阶段扩展是构建期可信代码。发布后的 declarative content/assets/template、同 realm trusted code 与未来隔离扩展是不同信任模型；当前不承诺不可信 JavaScript sandbox。
 
-- Ren'Py DSL、ATL、Screen Language 的语法、parser、存档格式或兼容层；
-- 自研脚本 VM、动态表达式语言或面向不可信代码的安全沙箱。
+直接访问 `window`、DOM、IndexedDB、内部 `src/**` 或未公开 store 不受兼容承诺保护。Story 可使用明确的 Host/renderer escape hatch，但它们必须在 package ownership、Save 边界和测试中可见。
 
-第三方 JavaScript 可以执行宿主本来允许的操作。引擎只承诺公开 API
-的行为和兼容性；直接访问
-`window`、DOM、IndexedDB、内部模块或其他未公开能力不受支持，风险由调用方承担。
+## 4. Current execution priority — production floor
 
-这不排除以后提供强类型 Timeline、scene graph、editor 或 Hotfix
-工具；它们仍然生成或消费 SillyMaker 自己的 TypeScript/稳定数据合同。
+在把 Story 成果提升为 engine-level genre pack、Mod、renderer 或 editor
+能力之前，按 [Production-floor sequence](plans/2026-07-30-production-floor-sequence.md)
+完成。Story-local 的 SLG/VN/卡牌等真实玩法实验可以并行，并继续作为需求与
+workload 证据：
 
-Mod 第一阶段同样是构建期的可信 TypeScript/JavaScript，并在 Story resolve 与
-Session 创建前冻结。发布后的 declarative Artifact、同 realm 可信代码 Artifact
-与未来可能的隔离扩展是不同信任模型；当前“不提供不可信代码沙箱”的决定不因 Mod
-命名而改变。
+1. repository/tooling guardrails；
+2. Snapshot 热路径 baseline 与 digest/serialization 去重；
+3. Managed Surface kernel + Workspace Overlay pilot；
+4. Save envelope/load order + migration registry；
+5. System/Narrative/History/whole-canvas primary-detail 的逐 family
+   migration；
+6. Save dry-run/backup/fixture corpus；
+7. Surface structural/model/browser harness 与作者 API promotion；
+8. release stabilization。
 
-## 4. Milestones and continuous tracks
+Desktop Host persistence 是独立、条件性的 promotion lane：目标平台是
+macOS、Windows 与 Linux，当前 live wrapper/file adapter 仍只有 macOS
+preview。只有某次发布要在某个平台宣称 desktop capability 可生产时，才必须在该
+发布 stabilization 前完成对应 evidence。Durability 需要 batch
+crash-atomic、cross-process CAS 与旧记录迁移；packaging 需要该平台真实 package
+build/launch/reopen smoke。平台逐项 promotion，durability、packaging 与
+auto-update 分轴记录；packager/updater 缺口不阻塞 backend durability。只有产品要
+宣称 packaged app 使用 atomic persistence 时才同时要求前两条 evidence。它不阻塞
+默认核心顺序从 Snapshot S0 开始。
 
-### Completed milestones（已归档）
+四个独立计划：
 
-R0 设计基线、R1 Engine conformance Story 与通用 harness、R2 AI authoring 与应用组合（project config 形态经 2026-07-30「应用即项目」修订）、R3 语义 VN 舞台与交互运行时、R4 媒体与玩家播放系统、R5 的 Typed Timeline、R6 的 1–2 步（DevTools 数据面）、R7 玩家回滚（含《雨巷猫舍》产品策略）与 R8 音频第一刀均已完成并进入 [feature list](features.md)。原文与逐日交付记录见 [roadmap archive](roadmap-archive.md)；逐任务执行与 defer 记录见 [vNext foundations plan](plans/2026-07-19-sillymaker-vnext-foundations.md) 和 [R5–R7 plan](plans/2026-07-28-sillymaker-r5-r7.md)。
+- [Desktop persistence durability](plans/2026-07-30-desktop-persistence-durability.md)
+- [Snapshot commit performance](plans/2026-07-30-snapshot-commit-performance.md)
+- [Save migration](plans/2026-07-30-save-migration.md)
+- [Managed Surface lifecycle](plans/2026-07-30-surface-contract-harness.md)
 
-### R5 remainder — bounded Presentation Scene Graph（证据门控）
+原则是**一次只迁移一个可独立验收的 authority**。不接受把 Surface、Save、Snapshot 数据结构和 Mod resolver 作为一个大改动交给 Agent。
 
-**Outcome:** 在不引入 ATL 语法的前提下继续提高演出表达力。
+## 5. Strategic track A — deterministic runtime at scale
 
-- 扁平 Stage 被真实 Story 证明不足后，再从 background/character/prop 扩展为受约束 Presentation Scene Graph；
-- layer/camera transform、enter/exit/move/pose/expression 和 effect contribution 使用稳定 ID；
-- timeline 执行只改变 presentation runtime，不通过动画回调偷偷改 gameplay State。
+**Outcome:** 经营、战棋、ATB 和长期伴侣的大状态小改动不再被整树工作阻塞，同时保持原子提交、确定性、replay 与可诊断失败。
 
-是否支持更一般的 2D/3D renderer node，由真实 Story 需求和性能原型决定；路线图不要求复制 Godot scene tree。激活条件沿 [R5–R7 plan](plans/2026-07-28-sillymaker-r5-r7.md) 的 defer 表。
+### A1 — immediate
 
-### R6 remainder — Stage preview, scrubber, debug commands, and editors
+先完成 digest/serialization 去重，不改变 canonical 语义。建立 100/1k/10k/100k entity、长序列、autosave、replay 与内存 workload。
 
-**Outcome:** 人类与 AI 都能更快理解、预览和修复 Story。
+### A2 — evidence-gated integrity policy
 
-在已交付的 runtime inspector 与 Narrative graph 数据面之上，按序演进：
+只有 A1 后真实 workload 仍超预算，才接受专门 design，比较：
 
-3. Stage preview、Timeline scrubber、transition/audio inspection；
-4. capability-gated debug command、经 Session transaction 的受控 State 修改和 scenario runner；任何修改都更新 RunIntegrity；
-5. 根据真实生产成本决定可视化 Narrative、Stage 或 Timeline editor。
+- deep / changed-subtree / none freeze；
+- every-command / checkpoint / module-root / off digest；
+- full / changed-module / boundary validation；
+- module revision、changed-set、structural sharing；
+- typed StateStore 与现有 module state 的交互。
 
-Editor 应写入普通 TS 或被 TS 引用的稳定 Story data，不形成另一套运行时语言或隐含权威 State。
+全量 canonical digest 保留给 Save、checkpoint、replay verification 与 debug export。未经 profiling 不改写为 ECS，也不只替换 SHA 实现冒充优化。
 
-### R8 remainder — Advanced media and renderer adapters
+### A3 — scheduler and simulation workloads
 
-**Outcome:** 真实 Story 需要的高级媒体与渲染形式成为受约束的 presentation contribution。
+在真实品类出现后建立：
 
-音频意图栈（BGM/环境声/一次性音效、音量联动、逐条增益）已交付；其余形式仍按证据进入：
+- time/economy scheduler；
+- ATB/half-turn clock；
+- battle effect/trigger sequence；
+- grid/path/LOS workload；
+- offline companion progression。
 
-- 在 typed media manifest、Audio Host 和 bounded Presentation Scene Graph 稳定后进入；
-- 按真实 Story 需求从 video、Live2D、2D skeletal、Rive 和 WebGL/3D adapter 中交付子集，不预先实现全部形式；
-- adapter 使用稳定 manifest ID、加载/就绪诊断和 code-native fallback，遵循既有 asset demand/readiness 边界；
-- Save 只保存稳定 semantic target，不保存 renderer instance、decoded media 或播放进度；
-- 平板/16:10、资源预算和降级路径在 conformance tests 中证明。
+它们先是 Story/module workload，再决定是否提升为 engine capability。
 
-### Continuous track — Snapshot integrity and commit performance
+## 6. Strategic track B — Save compatibility and release engineering
 
-**Outcome:** 命令提交成本主要与 changed set
-相关，而不是快照总大小；经营/战棋/ATB 级别的大状态 workload
-不再被完整性策略阻塞。
+**Outcome:** 任意声明支持的历史 Save 都有真实 fixture、可检查、可迁移、可加载；升级不靠“希望 schema 兼容”。
 
-现状阻塞点：`GameSession` 每次命令在 finalize 时对 before/after 快照各做一次全量
-canonical digest，CommandLog append 校验又对同两个快照各重算一次（合计每命令 4
-次全量遍历），被拒绝的命令同样支付；提交后再对整个 Snapshot 递归深冻结；默认
-`every_commit` autosave 在保存路径上每次提交再做多轮全量 digest、序列化与 schema
-解析（实测至少 5 次全量 digest 与 2 次全量序列化，`auto.previous`
-轮转时更多）。即使只改一个字段，提交成本仍与 Snapshot 总大小近似线性相关；短篇
-VN 无感，大状态品类会最先撞墙。
+- bounded envelope shell 与 Strict JSON 限额；
+- adjacent revision pure migration registry；
+- migration/adoption/CommandLog compatibility 分轴；
+- new replay anchor；
+- dry-run、backup、玩家可读结果；
+- Engine Lab + 正式产品 fixture corpus；
+- CI 全量 migrate/validate/load/round-trip。
 
-- 第一步先做不改任何合同语义的 digest 去重：命令 N 的 pre digest 复用命令 N-1 的
-  post digest（CommandLog append 已以对象恒等断言快照连续性）、append
-  内的重算校验按 debug/audit 运行模式启停、rejected/faulted 路径以对象恒等短路
-  post digest。该步把每命令全量 digest 从 4 次降到提交 1 次、拒绝 0
-  次，但不改变单次 digest 的渐近线，后续分层仍然必要；autosave 的
-  digest/序列化成本纳入同一性能契约；执行顺序与验收见
-  [Snapshot integrity and Save migration plan](plans/2026-07-30-snapshot-integrity-and-save-migration.md)；
-- 引入显式完整性分层（概念
-  `IntegrityPolicy`）：freeze（`deep`/`changed-subtrees`/`none`）、digest（`every-command`/`checkpoint`/`module-root`/`off`）、validation（`full`/`changed-modules`/`boundary-only`），按
-  debug（开发与 Agent
-  验证）、audit（CI/replay/存档认证）、release（玩家运行时）运行模式组合；该分层进入实现前需先接受专门
-  design（含与 [typed StateStore proposal](proposals/typed-state-store.md)
-  的交互取舍）；
-- 数据结构演进优先模块级 revision、changed-set
-  与结构共享；根摘要由模块摘要组成；全量 canonical digest 保留给存档、显式
-  checkpoint、replay verification 与调试导出；
-- 命令保持原子提交；确定性、rejection/fault 语义与 replay 合同不变；release
-  模式不默认递归深冻结整个对象图；
-- 建立性能契约并纳入 CI 或 nightly：100/1k/10k/100k entity
-  snapshot、单模块小改动、跨模块事务、长命令序列回放与长时内存增长；按命令类型分预算等级，不用单一全局阈值；
-- 经营/时间经济切片（Mod track 的验证对象）作为 reference workload；本 track
-  落地前，大状态品类的验证结论不视为引擎结论；
-- 明确不采取的修复：仅替换 SHA 实现（昂贵的是 canonical
-  遍历、双份全量扫描与整树冻结，不是哈希本身）；未经 profiling 证明前不改写为
-  ECS。
+Save migration 先于 Mod per-namespace migration；后者只能复用该管线，不另建第二套。
 
-### Continuous track — Surface lifecycle unification and contract harness
+## 7. Strategic track C — Managed Surface and UI correctness
 
-**Outcome:** 所有影响输入与焦点的 Managed
-Surface（overlay、系统对话框、narrative 对话与历史、整画布功能页和 workspace
-窗口）只有一套 lifecycle/modality/input/focus/dismiss/z-order
-真相；同一声明还能机械地产生结构检查、状态模型、运行时 publication
-和可缩减的验证序列。
+**Outcome:** Overlay、System dialog、Dialogue、History、whole-canvas page 与未来 workspace surface 的 lifecycle/input/focus/dismiss/readiness 只有一个 transient authority。
 
-现状是多套真相而非单点 bug：input isolation、inert、focus restore
-与关闭策略分散在 InputRouter、GameStage isolation、Overlay 与 SystemDialog 的
-session store/host、VnLayer 与 DialoguePanel
-中，单体测试各自通过但组合语义靠约定。已证实的裂缝：Overlay 的物理 Escape
-关闭不检查 `dismissible`（backdrop 与 routed cancel 检查，物理 Escape 的 DOM
-路径不检查）；overlay entry key 为 `kind:depth`，同 kind 替换会复用 React
-局部状态；system dialog 在 saves 未配置时 store 保持 active
-而渲染消隐（store/render 真相分叉）；stage layer 顺序在类型 union 与
-`stageLayerIdsV1` 数组中双重表达；DialoguePanelV1 未接入 narrative input context
-与 stage isolation，与 VnLayerV1 形成两套并行 narrative
-生命周期。整画布验证实验还证明：当视觉页、action publication、pending
-occurrence、热点和回退栈各自推进时，会出现“命令 committed
-但没有应用”“旧热点命中新页”和不可关闭的多 overlay 组合。
+- Coordinator 只拥有 runtime topology，不拥有 gameplay/document/workspace 持久状态；
+- stable owner target reconcile 成 instance；
+- immutable publication 原子绑定 topology、input/focus owner、dismiss、readiness；
+- stale instance/topology/semantic occurrence/gesture 明确拒绝；
+- `DialoguePlayerController / DialogueView / NarrativeSurfaceHost` 分层；
+- DOM/browser adapter 处理 focus/inert/top-layer/pointercancel/visibility；
+- structural check、pure model、seeded shrink 与真实浏览器共同验证。
 
-- 合同与 package ownership 见
-  [Surface Contract Harness design](design/surface-contract-harness.md)，执行顺序见
-  [2026-07-30 plan](plans/2026-07-30-surface-contract-harness.md)；本 track
-  尚未进入 live `features.md`；
-- 坚持“一个 lifecycle authority，而不是一个全局 persistence
-  store”：gameplay、conversation、UI Artifact、workspace layout 与 renderer
-  transient 各自保留明确 owner；domain/workspace stable target 只能经 typed
-  intent 改变，并携带只在目标 occurrence 改变时更新的 ID；Coordinator 只拥有
-  transient target 与 runtime Surface instance topology；
-- 把“打开一个影响输入/焦点的 Surface”统一为 managed session：Coordinator 对
-  source revision 做 reconcile，并在自己的 commit 内原子管理 definition/instance
-  ID、application epoch、topology revision、managed routing
-  lease、layer、modality、dismiss、focus、readiness 与 lifecycle；不伪装成跨
-  domain/workspace owner 的分布式事务；
-- `RuntimePresentationPublication`、Surface topology、可执行 action、hit
-  regions、input/focus owner 必须绑定同一 target occurrence、source
-  publication/topology revision；renderer 不能旁读更新更快的 State
-  拼出第二帧真相；
-- Managed Surface input 固定设计文档定义的 canonical dispatch
-  envelope（唯一权威字段清单见 design 的 input/gesture 一章，以
-  `surfaceInstanceId` 为唯一 Surface 实例身份）；target occurrence 只在
-  owner↔Coordinator reconcile 与 publication 中出现（epoch 内与 instance
-  一一对应），semantic occurrence 属于 Base semantic dispatch；非 Surface
-  HUD/Stage input 使用 `inputOwnerId + sourcePublicationRevision`，不伪造
-  Surface identity；pointer-down 后发生 replace/close 时，旧 pointer-up/click
-  必须稳定 cancel/reject；
-- input route、Surface transition 与 semantic/workspace dispatch 保持分层
-  receipt；application-composition bridge 只从 immutable evidence 组合端到端
-  outcome `applied / consumed / rejected / faulted / postcondition_failed`；内部
-  Session `committed` 不自动等于用户动作已生效，postcondition 失败也不得虚构
-  rollback；
-- 合并 VnLayer 与 DialoguePanel 的职责模型（player controller / view / narrative
-  surface host 分层）；历史回看成为统一 Surface
-  session，不再是面板内的绝对定位视觉层；
-- 修复已列裂缝：dismiss policy 单点化、稳定 instance ID、不可用 system dialog 在
-  open 前拒绝、单一有序 layer descriptor、registration/owner trace，以及
-  focus-loss/pointer-cancel/visibility-change 的统一复位；
-- Authoring builder 为标准路径生成 stable IDs、安全默认值和 test metadata；常规
-  Story/Mod 不直接写 z-index、global listener、Back 数组、focus/input owner 或
-  visibility/raycast boolean 组合；
-- Contract Harness 分成 structural check、pure model、seeded exploration +
-  shrink、frame-aware virtual input、真实 browser interaction 与 prebuilt
-  验证；随机失败必须输出稳定 code、第一处分歧、最短 trace、seed 和 replay
-  command；
-- [window model](design/window-model.md) 的槽位互斥契约保留为产品语义
-  recipe，坐落在统一 lifecycle 上；SillyOS 的自由 MDI 几何与文档状态继续留在
-  Story 侧；
-- [Mod design](design/mod-system.md) 的 route/window/overlay/input-context
-  合并规则以本 track 的统一 registry 为前置；弱模型 fresh-baseline canary 是作者
-  API 冻结证据，确定性 contract 与 browser acceptance 才是每次合并的 hard gate。
+PF2 Coordinator MVP 不引入 universal application receipt。PF6
+AI-friendly promotion 时，声明 presentation postcondition 的 action 必须组合分层
+evidence，并能返回 `postcondition_failed`；普通 action 不统一 envelope。弱模型
+canary 用于冻结作者 API，不阻塞每个 runtime migration commit。
 
-### Continuous track — Save migration as a release capability
+## 8. Strategic track D — content platform and creator tooling
 
-**Outcome:** 任意受支持的历史 Save 在 CI 中可迁移、可加载；State schema
-演进不再默默放弃旧存档。
+**Outcome:** 大量数值、文本、关系和素材可由人类/Agent 安全编辑、验证、查询、构建和定位来源，而不把数据库变成第二 gameplay State。
 
-合同见 [Save migration design](design/save-migration.md)：一等 migration
-registry（相邻 revision 纯函数迁移链）、解码顺序改造（current snapshot schema
-验证移到迁移之后，Strict JSON 限额不放开）、dry-run 与写入前备份、adoption
-声明集合与 lineage re-anchor 政策、每发布版本的 Save fixture corpus 与 CI
-迁移验收。migration 与 adoption 保持不同语义；CommandLog
-兼容轴独立管理。执行顺序与验收见
-[Snapshot integrity and Save migration plan](plans/2026-07-30-snapshot-integrity-and-save-migration.md)；本
-track 独立于 Mod 系统排期并先于其 M3 落地。
+### Data planes
 
-### Continuous track — Mod composition and distribution
+```text
+Authoring Content DB
+  static characters/items/skills/events/text/asset indexes
 
-**Outcome:** Engine 保持通用机制，VN
-等一等能力与经营/养成等经验证能力可以作为显式、可诊断、可版本化的纵向 Mod 被
-Application 组合。
+Authoritative Snapshot / module state
+  mutable run state, only through commands
 
-- `package.json`/lockfile 负责物理安装，Mod metadata 负责
-  activation、requires/optional/conflicts、facets、State ownership 与
-  compatibility；Application 是唯一 activation root；Module lifecycle 归
-  Authoring Kit，同 facet instance resource lifecycle 归对应
-  Composer，不设模糊的 Mod-wide load order；
-- 一个 Mod 身份按 `./base`、`./ui`、`./web`、`./tooling` 分面，复用 Mod 通过应用
-  type family 与 typed adapter factory 实例化，不引入万能 `install(context)`；
-- Mod graph 位于唯一 GameplayModule capability graph 之上；重复
-  State、command、reference、renderer、route 或 Host singleton 默认 hard
-  fail，不使用 load-order override；
-- resolved Mod manifest 进入 build identity 与 Save provenance；same-schema
-  Simulation drift 默认拒绝，只有 exact adoption 才放行；State migration 在
-  current Snapshot schema 解析前、bounded raw envelope decode 后执行；
-- VN 作为 Tier-1 first-party Mod/preset
-  验证第一阶段；“SLG”先拆为真实经营、时间经济、人物成长、互动与元进度切片，不预造大而全
-  genre API；
-- 构建期可信 npm Mod → 发布后 declarative data/content/assets/受约束 UI template
-  Mod → 有真实需求后才考虑同 realm trusted code Artifact；Conversation 中的 UI
-  Artifact 仍是产品数据，不是 Mod；不可信代码需另立隔离与权限设计。
+Host persistence
+  saves/settings/profile/cache
 
-本 track 的合同与分阶段 gate 见 [Mod design](design/mod-system.md)。前置关系：M2
-的 UI surface 类合并规则（route/window/overlay/input context duplicate hard
-fail）以 Surface lifecycle unification track 的统一 surface registry 为前提；M3
-的 per-namespace migration 以 [Save migration design](design/save-migration.md)
-的解码顺序与 registry 为前提；经营/时间经济切片的规模验证以 Snapshot integrity
-track 的性能契约为前提。在 resolver、manifest、Save migration 和外部 package
-smoke 落地前，`architecture.md`、`features.md` 与 `build-and-release.md`
-不宣称已经支持 Mod。
+Editor/project/asset index
+  search, dependency graph, thumbnails, build cache
+```
 
-### Continuous track — real-game gameplay feedback
+### Content compiler
 
-**Outcome:** 用真实玩法持续检验引擎，而不是让引擎预设 Tavern 模块。
+按真实规模逐步交付：
 
-经营、人物养成、关系、任务、商店、仓库、设施、文字冒险和网状叙事等玩法会经由真实游戏（旗舰示例或未来项目）分批检验。每个实验先判断需求属于：
+- JSON/YAML/CSV/spreadsheet/editor import；
+- schema、FK、localization 与 asset validation；
+- generated typed client；
+- declared primary/secondary indexes；
+- read-only content packs；
+- digest/patch manifest/source map；
+- query explain 与 authoring diagnostics。
 
-- Story-local rule/content/projection；
-- 可复用 module/capability；
-- 通用 SillyMaker runtime/presentation/tooling 能力。
+Prisma 风格只借鉴可发现、type-safe 的 query ergonomics；runtime 不引入通用 ORM/SQL transaction authority。SQLite 可用于 editor/project index 或 authoring backend，正式 runtime 优先消费编译后只读 pack。
 
-只有反复出现且与具体题材无关的需求进入引擎。玩法重构可以与路线图阶段交错，但不改变引擎测试对中性
-E2E Story 的依赖。
+### Tooling order
 
-## 5. Evidence and promotion rules
+1. `story doctor/check/inspect`；
+2. Narrative graph viewer；
+3. arbitrary-boundary Stage preview；
+4. Timeline scrubber 与 audio/transition inspection；
+5. scenario runner 与 capability-gated debug command；
+6. content table/asset/dependency tooling；
+7. Save migration inspector；
+8. 最后组合 editor shell。
 
-一项能力从路线图变为“已实现”需要同时满足：
+Editor 写普通 TS 或被 TS 引用的稳定数据，不形成另一种运行时语言。
 
-1. 公共合同和 package ownership 明确；
-2. focused behavior tests 通过；
-3. E2E Story 在适用时覆盖跨系统行为；
-4. Node/Browser 或 normal/reduced/skip 等适用语义保持一致；
-5. 现行 `architecture.md`、`features.md`、`story-authoring.md` 或
-   `development.md` 已更新；
-6. superseded API、Story
-   私有通用胶水和过时测试被迁移或删除，不长期维护平行权威。
+## 9. Strategic track E — genre capabilities
 
-研究笔记、proposal、路线图条目和 passing typecheck 本身都不等于已实现能力。
+**Outcome:** 多品类共享真正通用的机制，但 `base` 不膨胀成所有玩法概念的合集。
 
-## 6. Relationship to the current plans
+Story-local 的 narrative/VN、management/time economy、combat、card、
+JRPG/ATB、grid tactics 与 companion 可以随真实产品持续实验。只有被第二消费者和
+发布需求证明后，才把共享边界提升为 engine-level capability/package；production
+floor 延后的是这种通用化，不是 Story 玩法开发。
 
-当前活动执行计划：
+### Shared combat core candidates
 
-- [Surface Contract Harness plan](plans/2026-07-30-surface-contract-harness.md) — Managed Surface lifecycle、迁移与验证 harness 的执行顺序（P0–P5）；
-- [Snapshot integrity and Save migration plan](plans/2026-07-30-snapshot-integrity-and-save-migration.md) — 提交热路径性能契约与 digest 去重（A–B）、Save 迁移落地（C–E）。
+- battle lifecycle；
+- actor/team/stats/modifiers/cost/target query；
+- ability/action/effect；
+- deterministic RNG；
+- status/trigger/interrupt/reaction timing；
+- battle event log；
+- visual intent；
+- AI observation/action port；
+- replay/checkpoint/headless balance runner。
 
-两计划的代码热点不相交，可并行推进。Mod track 在其前置（Surface P1/P2 registry 形状、Save migration C–E）落地后按 [Mod design](design/mod-system.md) §14 的 M0–M6 排期；IntegrityPolicy 分层在专门 design 接受后另立计划。
+Deck zones、grid topology、LOS/fog、ATB clock 分属 adapter，不进入共同 core，除非多个品类证明同一语义。
 
-历史执行记录：[vNext foundations plan](plans/2026-07-19-sillymaker-vnext-foundations.md)（R1–R4）与 [R5–R7 plan](plans/2026-07-28-sillymaker-r5-r7.md)（T1–T3，defer 表仍有效）；交付史见 [roadmap archive](roadmap-archive.md)。
+### Required reference workloads
 
-若实现过程中发现目标合同与 live tree 冲突，应先更新对应 design
-并解释取舍；不得由 task plan 静默改变已接受方向。
+- production VN；
+- 1k+ actor management SLG；
+- deckbuilder；
+- JRPG/ATB；
+- tactical grid；
+- companion；
+- Agent workspace。
+
+示例是架构验收 workload，不只是视觉 demo。
+
+## 10. Strategic track F — presentation and renderer adapters
+
+**Outcome:** 在不污染 authoritative State 的前提下扩展演出、2D scene 与媒体能力。
+
+现有 semantic stage、typed Timeline、transition、audio、asset readiness 是 adapter 边界。目标数据流：
+
+```text
+Snapshot
+  -> SemanticPublication
+  -> VisualIntent / Timeline cue
+  -> renderer-local scene state
+  -> DOM / Canvas / WebGL
+```
+
+DOM 默认承载文本密集 HUD、对话、菜单、设置、复杂窗口和 accessibility；Canvas/WebGL 承载地图、角色、棋盘、卡牌桌、粒子和场景动画。
+
+优先级：
+
+1. bounded scene graph 只在扁平 Stage 被真实 Story 证明不足时扩展；
+2. 第一高级 2D adapter 倾向 renderer-only 集成，避免引入第二套 scene/input/clock authority；
+3. video、Rive、Live2D、2D skeletal 按项目需求选择；
+4. 3D/WebGPU 在明确商业项目和性能原型前不进入 core roadmap。
+
+Save 只存 stable semantic target，不存 renderer instance、decoded media 或播放进度。
+
+## 11. Strategic track G — companion, Agent and GenUI
+
+**Outcome:** SillyMaker 的 semantic/application contracts 可作为 Agent 产品 UI，但模型只能操作注册能力，不能取得任意 runtime 权限。
+
+推荐边界：
+
+```text
+Model stream
+  -> GenUI parser/schema validation
+  -> component/action allowlist
+  -> capability + approval policy
+  -> Managed Surface / Workspace
+  -> typed semantic/workspace intent
+  -> authoritative owner
+```
+
+OpenUI 等 renderer-agnostic streaming UI 可作为 adapter，不进入 Base。模型读取 approved immutable publications；修改必须经过 typed tool/intents、permission、idempotency 与 queue-front revalidation。模型不取得 `GameSession` mutable reference、数据库连接、文件系统、任意网络 client、任意 React component 或 HTML/JS execution。
+
+Agent workspace 需要 tab/split/task/approval/artifact/history 等独立领域模型；不要把现有游戏 Overlay 膨胀成桌面 WindowManager。流式半成品是 transient presentation；只有完整验证的 document 可持久化，replay 渲染保存 document 而不是重新调用模型。
+
+## 12. Strategic track H — Mod incubation
+
+[Mod design](design/mod-system.md) 保留为 accepted direction / incubation，不是当前实现队列。
+
+激活 M0–M2 前必须同时满足：
+
+1. Managed Surface live families 已统一，registry 形状稳定；
+2. Save migration registry/fixtures 已成为发布能力；
+3. Snapshot 性能契约能承载目标经营 workload；
+4. 至少两个真实 first-party capability slice 需要独立选择/分发，而不是复制代码；
+5. external package smoke 证明 application 可在仓库外消费 engine；
+6. resolver/manifest 不需要万能 `install(context)` 或 load-order override。
+
+第一阶段只做构建期可信 first-party capability。发布后 declarative Mod、trusted code Artifact 与隔离扩展分别立项。不在没有产品需求时建设 untrusted sandbox。
+
+完成 PF7 本身不激活 Mod。即使上述 gates 全部满足，也必须另行接受新的 active
+implementation plan，才能开始 resolver、public ABI、external SDK 或 distribution
+工作。
+
+## 13. Evidence and promotion
+
+能力从 roadmap/design 进入 `features.md` 必须同时满足：
+
+1. owner 与 public contract 明确；
+2. focused behavior/property tests；
+3. 中性 Engine Lab 第二消费者；
+4. 适用的 headless/browser/prebuilt/normal-reduced-skip 一致性；
+5. 性能/兼容/可访问性等对应非功能证据；
+6. superseded owner/API/glue 被删除；
+7. live architecture/features/development/story-authoring/build docs 同步；
+8. promotion record 记录未满足限制。
+
+研究笔记、proposal、计划、模型生成代码、passing typecheck 或一次 demo 都不等于已实现。
+
+## 14. Completed milestones and history
+
+R0 设计基线、R1 Engine Lab/conformance harness、R2 AI authoring 与应用组合、R3 语义 VN 舞台、R4 媒体与玩家播放、R5 Typed Timeline、R6 DevTools 数据面、R7 rollback、R8 音频第一刀，以及 2026-07-30 的“应用即项目”、编号 Save slots 和 tooling guardrails，均以 [features](features.md) 和 [roadmap archive](roadmap-archive.md) 的记录为准。
+
+历史任务计划：
+
+- [vNext foundations](plans/2026-07-19-sillymaker-vnext-foundations.md)
+- [R5–R7](plans/2026-07-28-sillymaker-r5-r7.md)
+
+实现发现 live tree 与 accepted design 冲突时，先修订 design 并解释取舍；task plan 不得静默覆盖设计。

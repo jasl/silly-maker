@@ -1,10 +1,12 @@
 # Mod composition and distribution
 
-状态：2026-07-29 接受的目标设计；尚未实现。本文固定 Mod V1
-的分层、组合、身份、存档和分发边界；概念类型名可在 focused type prototype
-中调整。当前 Story 仍按 [architecture](../architecture.md) 与
+状态：2026-07-29 接受的目标设计；**incubation，尚未进入当前实现队列**。本文固定
+Mod V1 的分层、组合、身份、存档和分发边界；概念类型名可在 focused type
+prototype 中调整。当前 Story 仍按 [architecture](../architecture.md) 与
 [story authoring](../story-authoring.md) 显式组合，本文不把现状描述成已有 Mod
-loader。
+loader。执行优先级由 [roadmap](../roadmap.md) 与
+[production-floor sequence](../plans/2026-07-30-production-floor-sequence.md)
+控制；设计存在不构成 M0 激活。
 
 ## 1. Goal
 
@@ -37,6 +39,25 @@ Mod 系统需要同时回答：
 - 不在运行中的 Session 热插拔 Simulation Mod；
 - 不把任意同 realm JavaScript 描述成安全沙箱；
 - 不把 Agent 生成的一份 UI、一个窗口或一次报表误称为 Mod。
+
+### 1.1 Activation gate
+
+M0–M2 只有在以下条件同时满足后才进入 active plan：
+
+1. Managed Surface 的全部 live families——Overlay、System、Narrative/History
+   与 whole-canvas primary/detail——已迁移到统一 lifecycle authority，surface
+   contribution registry 形状稳定且不再建立在平行 store 上；
+2. Save migration registry、load order 与 maintained fixture corpus 已作为发布能力
+   落地；
+3. Snapshot 性能契约能承载目标经营/时间经济 workload；
+4. 至少两个真实 first-party capability slice 需要被独立选择/分发，且复制 Story-local
+   slice 已产生可量化维护成本；
+5. 应用在仓库外通过公开 package exports build/test 的 smoke 已稳定；
+6. prototype 不需要万能 `install(context)`、service locator、node_modules scanning
+   或 load-order override。
+
+未满足时可以继续评审 contribution 分类和第二消费者证据，但不得建立 resolver、SDK
+或 public Mod ABI。
 
 ## 2. Vocabulary and layers
 
@@ -645,6 +666,9 @@ missing renderer/tool-contract 诊断和安全 fallback，而不是据此判定 
 
 ## 14. Delivery sequence
 
+本节是激活后的内部顺序，不是当前 roadmap 队列。进入 M0 前必须通过 §1.1
+Activation gate，并在独立 active plan 中记录证据。
+
 ### M0 — contract and terminology
 
 - 接受本文与 roadmap 方向；
@@ -668,10 +692,12 @@ missing renderer/tool-contract 诊断和安全 fallback，而不是据此判定 
 - frozen resolved manifest、project inspect/check 与 build identity；
 - GameplayModules 仍汇入唯一 Authoring Kit graph；
 - 改变输入排列得到相同 topology/digest；实例初始化失败完整回滚并逆序 dispose；
-- UI surface 类贡献（route/window/overlay/input context）的合并合同在
+- UI surface 类贡献（route/window/overlay/input context）的合并合同基于
   [Managed Surface lifecycle and contract harness](surface-contract-harness.md)
-  交付统一 registry 后才冻结；在此之前 M2 先落 State、command、content、renderer
-  等无前置的合并类别。
+  已交付的统一 registry 冻结；
+- M2 整体只有通过 §1.1 Activation gate 并由新的 active plan 接受后才能开始，不存在
+  “先落无前置合并类别”的实现许可。激活前只允许继续评审 contribution 分类和第二
+  消费者证据；不得落地 resolver、SDK、public ABI 或 production merge contract。
 
 ### M3 — persistence
 

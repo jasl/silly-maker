@@ -38,12 +38,13 @@ bounded strict JSON decode        （现有 saveJsonLimitsV1 限额保持不变�
   -> envelope shell parse         （formatRevision、recordRevision、provenance、
                                     slot、savedAt、stateDigest、simulationLineage；
                                     snapshot 保持受限 raw 结构）
+  -> format-specific raw snapshot digest verification
   -> engine-owned envelope format migration （formatRevision N -> N+1）
   -> identify stored provenance and schema revisions
   -> ordered pure State migrations （state contract revision N -> N+1，由 runtime 组合）
   -> current snapshot schema validation
   -> compatibility classification  （exact / adoption / inspect_only / rejected）
-  -> reference and invariant validation, digest checks
+  -> reference and invariant validation, current digest checks
   -> atomically install one new replay anchor
 ```
 
@@ -58,9 +59,10 @@ envelope 外壳字段，snapshot 保持为受限 raw 数据。
   revision）是两条独立迁移轴：前者由 engine-owned migration
   处理，后者由应用（未来由 Mod namespace）声明；二者不共享一个模糊 registry；
 - `stateDigest` 校验对象是存档原文的 snapshot，并在 envelope shell parse
-  之后、第一步 State
-  迁移执行之前完成；迁移不在完整性未证实的数据上运行。迁移产生新 Snapshot 与新
-  digest，二者都进入 lineage 记录；
+  之后、任何会改写 snapshot 的 format/State migration 之前完成；verifier 由已解析的
+  stored `formatRevision` 选择。Envelope format migration 默认只能改外壳；若历史格式
+  必须转换 snapshot 表示，它只能在原始 digest 已验证后执行，并同时产生新的 Snapshot、
+  digest 与 lineage 记录。迁移绝不在完整性未证实的数据上运行；
 - 任何一步失败留下原 Save 数据不变，结果是结构化 rejection 或
   inspect_only，不存在半迁移状态。
 

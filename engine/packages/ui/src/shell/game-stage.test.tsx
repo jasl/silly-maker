@@ -159,7 +159,12 @@ describe("GameStageV1", () => {
 
     const leaked = vi.fn();
     stage.addEventListener("click", leaked);
-    const click = new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 });
+    const click = new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+      detail: 1,
+    });
     stage.dispatchEvent(click);
     expect(click.defaultPrevented).toBe(true);
     expect(leaked).not.toHaveBeenCalled();

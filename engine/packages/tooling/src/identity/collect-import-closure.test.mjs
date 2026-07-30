@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: MIT
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import { test } from "vitest";
 import {
@@ -14,7 +17,17 @@ import {
 // This module lives at engine/packages/tooling/src/identity/, five levels
 // below the repository root the closure walker resolves against.
 const root = join(dirname(fileURLToPath(import.meta.url)), "../../../../..");
+const cli = fileURLToPath(new URL("./collect-import-closure.mjs", import.meta.url));
+const execFileAsync = promisify(execFile);
 const reactSpecifierPattern = /^(?:react(?:\/|$)|react-dom(?:\/|$))/u;
+
+async function collectFromCli(cwd, entries) {
+  const { stdout } = await execFileAsync(process.execPath, ["run", "-A", cli, ...entries], {
+    cwd,
+    maxBuffer: 10 * 1024 * 1024,
+  });
+  return JSON.parse(stdout);
+}
 
 async function assertNodeSafeStoryClosure(entry) {
   const closure = await collectImportClosure(root, [entry]);
@@ -32,6 +45,132 @@ async function assertNodeSafeStoryClosure(entry) {
     assert(!/\b(?:document|window|HTMLElement|HTML[A-Za-z]*Element)\b/u.test(source), path);
   }
 }
+
+test("direct CLI resolves the same workspace closure from the repository and application roots", async () => {
+  const fromRepository = await collectFromCli(root, ["template/src/story.ts"]);
+  const fromApplication = await collectFromCli(join(root, "template"), ["src/story.ts"]);
+
+  assert.deepEqual(fromApplication, fromRepository);
+  assert(fromApplication.includes("template/src/story.ts"));
+  assert(fromApplication.includes("engine/packages/base/src/index.ts"));
+});
+
+test("keeps resolved external package exports outside the managed application closure", async () => {
+  const fixtureRoot = await mkdtemp(join(tmpdir(), "sillymaker-import-closure-"));
+  const applicationRoot = join(fixtureRoot, "application");
+  const packageRoot = join(applicationRoot, "node_modules", "@sillymaker", "fixture-engine");
+  await mkdir(join(applicationRoot, "src"), { recursive: true });
+  await mkdir(join(packageRoot, "src"), { recursive: true });
+  await writeFile(
+    join(applicationRoot, "package.json"),
+    JSON.stringify({
+      type: "module",
+      dependencies: {
+        "@sillymaker/fixture-engine": "1.0.0",
+      },
+    }),
+  );
+  await writeFile(
+    join(packageRoot, "package.json"),
+    JSON.stringify({
+      name: "@sillymaker/fixture-engine",
+      version: "1.0.0",
+      type: "module",
+      exports: {
+        "./public": {
+          import: "./src/public.mjs",
+        },
+        "./fallback": {
+          default: "./src/fallback.mjs",
+        },
+        "./feature/*": {
+          import: "./src/features/*.mjs",
+        },
+        "./runtime": {
+          deno: "./src/deno.mjs",
+          import: "./src/node.mjs",
+        },
+      },
+    }),
+  );
+  await writeFile(join(packageRoot, "src/public.mjs"), "export const publicValue = 1;\n");
+  await writeFile(join(packageRoot, "src/fallback.mjs"), "export const fallbackValue = 2;\n");
+  await writeFile(join(packageRoot, "src/deno.mjs"), 'export const runtime = "deno";\n');
+  await writeFile(join(packageRoot, "src/node.mjs"), 'export const runtime = "node";\n');
+  await mkdir(join(packageRoot, "src/features"), { recursive: true });
+  await writeFile(
+    join(packageRoot, "src/features/example.mjs"),
+    "export const featureValue = 3;\n",
+  );
+  try {
+    const runtimeEntry = join(applicationRoot, "src/runtime.mjs");
+    await writeFile(
+      runtimeEntry,
+      [
+        'import { publicValue } from "@sillymaker/fixture-engine/public";',
+        'import { fallbackValue } from "@sillymaker/fixture-engine/fallback";',
+        'import { featureValue } from "@sillymaker/fixture-engine/feature/example";',
+        'import { runtime } from "@sillymaker/fixture-engine/runtime";',
+        "console.log(JSON.stringify({ publicValue, fallbackValue, featureValue, runtime }));",
+        "",
+      ].join("\n"),
+    );
+    const { stdout: runtimeOutput } = await execFileAsync(
+      process.execPath,
+      ["run", "-A", runtimeEntry],
+      { cwd: applicationRoot },
+    );
+    assert.deepEqual(JSON.parse(runtimeOutput), {
+      publicValue: 1,
+      fallbackValue: 2,
+      featureValue: 3,
+      runtime: "deno",
+    });
+
+    await writeFile(
+      join(applicationRoot, "src/entry.ts"),
+      [
+        'import "@sillymaker/fixture-engine/public";',
+        'import "@sillymaker/fixture-engine/fallback";',
+        'import "@sillymaker/fixture-engine/feature/example";',
+        'import "@sillymaker/fixture-engine/runtime";',
+        "",
+      ].join("\n"),
+    );
+    const closure = await collectImportClosure(applicationRoot, ["src/entry.ts"]);
+    assert.deepEqual(closure.errors, []);
+    assert.deepEqual(closure.paths, ["src/entry.ts"]);
+    assert.deepEqual(closure.externalImports, [
+      {
+        owner: "src/entry.ts",
+        specifier: "@sillymaker/fixture-engine/fallback",
+      },
+      {
+        owner: "src/entry.ts",
+        specifier: "@sillymaker/fixture-engine/feature/example",
+      },
+      {
+        owner: "src/entry.ts",
+        specifier: "@sillymaker/fixture-engine/public",
+      },
+      {
+        owner: "src/entry.ts",
+        specifier: "@sillymaker/fixture-engine/runtime",
+      },
+    ]);
+
+    await writeFile(
+      join(applicationRoot, "src/entry.ts"),
+      'import "@sillymaker/fixture-engine/private";\n',
+    );
+    const privateClosure = await collectImportClosure(applicationRoot, ["src/entry.ts"]);
+    assert.deepEqual(privateClosure.errors, [
+      "src/entry.ts: unknown workspace import @sillymaker/fixture-engine/private",
+    ]);
+  } finally {
+    await rm(fixtureRoot, { force: true, recursive: true });
+  }
+});
 
 test("collects the production application closure", async () => {
   const cases = [{ entry: "e2e/src/application/entry.tsx" }];
