@@ -59,6 +59,59 @@ during recovery/reopen
 
 **Promotion gate D0:** conformance suite 能让当前 file adapter稳定暴露“batch 中途 crash 可部分提交”，而 memory/候选 transaction backend 通过语义基线。
 
+### D0a delivery record（2026-07-30）
+
+本切片只建立共享语义 conformance floor；D0 仍未完成。
+
+**目标：**
+
+- 用一个不依赖测试框架、且不进入任何 package barrel 的中性 workload，统一验证
+  memory、fake IndexedDB 与经 test-only bytes/base64 bridge 接入的 file preview；
+- 首批冻结 empty/duplicate rejection、single-key put/update/delete/conflict、
+  multi-key success/conflict、同 expected revision 并发 CAS、stable list 与
+  input/commit/read/list defensive-copy 语义；
+- 对具备持久 backing 的 IndexedDB 与 file preview，用新建 adapter handle 证明
+  revision/bytes 可读并可继续 CAS；
+- memory 在读取当前 revision 前完整 normalize batch，并以 staged Map 一次发布，
+  保证后项 revision overflow 不留下前项写入。
+
+**非目标：**
+
+- 不实现 deterministic crash/fault injection、真实子进程 crash、cross-process
+  CAS、corrupt/recovery fixture 或 case/Unicode/reserved/超长 key 完整矩阵；
+- 不选择 SQLite、journal 或 Deno KV，不改变 records HTTP/JSON wire、Save
+  envelope、SaveRepository 或 desktop packaging；
+- 不扩大 `HostAtomicRecordStoreV1`、Base root/testkit export 或 Story API；
+- 普通 reopen 只证明 backing 可重开，不证明 batch crash atomicity；file adapter
+  继续保持 preview/reference。
+
+**验收规格：**
+
+- 三个 adapter 对同一 core workload 产生相同 frozen report；
+- later-key conflict 后两个 key 均保持旧值，合法 batch 后同时变为新值；
+- 同一 adapter authority 的两个 same-revision caller 恰好一个 committed、一个
+  conflict，存储 bytes 与 committed receipt 一致；
+- 四条互不重叠的 mutation probe 分别证明 input、commit result、read 与 list
+  bytes 不反写 authoritative backing；
+- IndexedDB/file 的 fresh handle 读到 revision `1`，继续 CAS 到 revision `2`，
+  再次 fresh handle 仍观察 revision `2`；
+- seeded memory 的两项 batch 在第二项从 `MAX_SAFE_INTEGER` overflow 时抛错，第一
+  项保持 missing、原 maximum record byte-for-byte 不变。
+
+**执行证据：**
+
+- shared focused conformance：3 files / 9 tests；
+- 受影响 package：Base contracts/testkit 34 files / 232 tests，Web host 5 files /
+  38 tests，Tooling desktop 5 files / 26 tests；
+- 全仓 `deno task test`：182 files / 1574 tests；
+- `deno task check` 全部通过（format、lint、styles、typecheck、unit、assets、
+  Story checks 与 Engine Lab production build）。
+
+剩余 D0 工作包括完整 malformed/overflow/corrupt/key corpus、五个 deterministic
+fault points、file preview batch-crash partial 与独立 writer CAS
+characterization、真实子进程 crash/reopen，以及 D1 选出的 transaction candidate
+接入同一 conformance。完成这些证据前不得 promotion durability。
+
 ## 3. D1 — Backend decision record
 
 在不改变上层合同的前提下做一个短期 spike，并留下 decision record。至少比较：
