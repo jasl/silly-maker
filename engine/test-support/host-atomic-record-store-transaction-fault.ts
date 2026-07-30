@@ -24,7 +24,7 @@ export type HostRecordStoreTransactionPhaseV1 =
   | { readonly kind: "after_durable_write_before_response" };
 
 export interface HostRecordStoreTransactionPhaseObserverV1 {
-  reached(phase: HostRecordStoreTransactionPhaseV1): void;
+  reached(phase: HostRecordStoreTransactionPhaseV1): void | Promise<void>;
 }
 
 export interface HostRecordStoreTransactionFaultHandleV1 {

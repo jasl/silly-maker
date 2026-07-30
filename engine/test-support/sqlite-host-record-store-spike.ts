@@ -298,11 +298,11 @@ function revisionForV1(
     : parseNonNegativeSafeInteger(requiredNumberPropertyV1(row, "revision"));
 }
 
-function reachPhaseV1(
-  observer: HostRecordStoreTransactionPhaseObserverV1 | undefined,
+async function reachPhaseV1(
+  observer: HostRecordStoreTransactionPhaseObserverV1,
   phase: HostRecordStoreTransactionPhaseV1,
-): void {
-  observer?.reached(Object.freeze(phase));
+): Promise<void> {
+  await observer.reached(Object.freeze(phase));
 }
 
 /**
@@ -369,7 +369,9 @@ function createSqliteHostRecordStoreInternalV1(
     async commit(mutations: readonly [HostRecordMutationV1, ...HostRecordMutationV1[]]) {
       requireOpenV1();
       const normalized = normalizeMutationsV1(mutations);
-      reachPhaseV1(observer, { kind: "before_transaction" });
+      if (observer !== undefined) {
+        await reachPhaseV1(observer, { kind: "before_transaction" });
+      }
       database.exec("BEGIN IMMEDIATE");
       let transactionOpen = true;
       try {
@@ -386,7 +388,9 @@ function createSqliteHostRecordStoreInternalV1(
             });
           }
         }
-        reachPhaseV1(observer, { kind: "between_checks_and_writes" });
+        if (observer !== undefined) {
+          await reachPhaseV1(observer, { kind: "between_checks_and_writes" });
+        }
 
         const changed: HostStoredRecordV1[] = [];
         for (const [index, mutation] of normalized.entries()) {
@@ -411,8 +415,8 @@ function createSqliteHostRecordStoreInternalV1(
               }),
             );
           }
-          if (index + 1 < normalized.length) {
-            reachPhaseV1(observer, {
+          if (observer !== undefined && index + 1 < normalized.length) {
+            await reachPhaseV1(observer, {
               kind: "between_mutations",
               completedMutationCount: index + 1,
               remainingMutationCount: normalized.length - index - 1,
@@ -421,7 +425,11 @@ function createSqliteHostRecordStoreInternalV1(
         }
         database.exec("COMMIT");
         transactionOpen = false;
-        reachPhaseV1(observer, { kind: "after_durable_write_before_response" });
+        if (observer !== undefined) {
+          await reachPhaseV1(observer, {
+            kind: "after_durable_write_before_response",
+          });
+        }
         return Object.freeze({
           kind: "committed" as const,
           records: Object.freeze(changed),

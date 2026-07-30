@@ -639,6 +639,59 @@ candidate 复用的逻辑 fault report，不是 public Host API。剩余 D0 cand
 工作至少包括真实 transaction 中途与 post-commit/pre-response `SIGKILL`、
 schema migration/recovery phase、corrupt database 与平台 fault evidence。
 
+### D0l delivery record（2026-07-31）
+
+本切片只把 D0k 的两个关键 transaction phase 提升为当前真实 macOS Host 上的
+独立 Deno child `SIGKILL`/fresh-reopen evidence；它不选择 backend，也不把
+process crash 写成断电或完整 recovery promotion。
+
+**目标：**
+
+- 用同一两记录、跨 namespace、revision `1 → 2` workload，分别让独立 child
+  阻塞在 mutation 1 已执行、mutation 2 未执行，以及 SQLite `COMMIT` 已返回、
+  store response 尚未生成的 phase；
+- parent 只在收到精确 phase handshake 后发送真实 `SIGKILL`，等待真实 process
+  close，再用无 observer 的 fresh handle 执行 integrity check 与逐字段读取；
+- transaction 中途 crash 必须重开为 exact all-old；post-commit response-loss
+  必须重开为 exact all-new，随后以旧 expected revision 重试两项 batch 必须
+  conflict，指向 left/actual revision `2`；
+- observer 支持 test-only async barrier；普通 SQLite candidate factory 不安装
+  observer，也不经过额外的 phase await 分支。
+
+**非目标：**
+
+- 不把 SQLite 选为 production backend，不接入 shell、records handler、
+  Desktop staging、package exports 或 public Host API；
+- 不证明 power loss、fsync、checkpoint、schema migration/recovery、corrupt
+  database、disk-full/read-only、backup/restore 或 shutdown policy；
+- 不决定 event-loop/worker 隔离、busy timeout、WAL sidecar、record/batch
+  threshold 或 D2/D3 adapter；
+- POSIX signal test 在 Windows 明确跳过；当前 macOS 结果不外推
+  Windows/Linux，也不构成任一平台的 durability promotion。
+
+**验收规格与证据：**
+
+- TDD red 为 child fixture 尚不存在时 `1 file / 2 failed tests`，两个 case
+  都在到达目标 phase 前以 module-not-found 退出；
+- focused SIGKILL + 既有 deterministic phase 为 `2 files / 3 tests`，同一
+  SIGKILL focused 文件连续 `30/30` 通过；
+- 两个 child PID 都不同于 parent；stdout 精确只有对应
+  `ready:between_mutations` 或
+  `ready:after_durable_write_before_response`，stderr 为空，close 精确为
+  `code=null`、`signal=SIGKILL`，且 watchdog 未触发；
+- transaction 中途 fresh records exact 为 revision `[1, 1]` 与 old bytes；
+  post-commit fresh records exact 为 revision `[2, 2]` 与 new bytes；两者
+  `PRAGMA integrity_check` 都为 `ok`，post-commit stale retry 精确得到
+  conflict/actual revision `2`；
+- 受影响 Tooling Desktop 为 `10 files / 54 tests`，全仓
+  `deno task test` 为 `188 files / 1633 tests`；`deno task check` 全部通过
+  （format、lint、styles、typecheck、unit、assets、Story checks 与 Engine Lab
+  production build）。
+
+剩余 D0 candidate gate 包括 schema migration/recovery phase、corrupt database
+恢复合同、真实 disk/read-only/power-loss 与 Windows/Linux 平台 evidence。它们
+依赖 backend、平台和恢复策略决策，不能由当前 test-only SQLite spike 自动完成。
+
 ## 3. D1 — Backend decision record
 
 在不改变上层合同的前提下做一个短期 spike，并留下 decision record。至少比较：
