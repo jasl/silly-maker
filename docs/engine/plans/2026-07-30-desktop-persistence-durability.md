@@ -426,6 +426,57 @@ key corpus、其余 fault 边界、真实 signal/power-loss/recovery，以及 tr
 candidate 接入共享 conformance；cross-process CAS 的修复属于后续 durable
 backend 实现。
 
+### D0h delivery record（2026-07-31）
+
+本切片只补齐 file preview 现有两个 phase 的异常/真实 signal 证据；D0 仍未
+完成，结果不进入 durable backend 的共享 conformance expected。
+
+**目标：**
+
+- 在 `between_checks_and_writes` 直接注入普通异常，证明全部 precheck 完成后、
+  任一 mutation 开始前的失败留下精确的旧 pair；
+- 启动真实、PID 不同的 Deno child，在第一项 file mutation 已完成、第二项尚未
+  开始的 `between_mutations` phase 发送 `ready` 并阻塞；
+- parent 只在收到 `ready` 后发送真实 `SIGKILL`，等待真实 process close，再用
+  fresh、无 instrumentation 的 handle 证明 left 是 revision `2`/new bytes，
+  right 仍是 revision `1`/old bytes；
+- IPC 不使用 sleep、轮询或 scheduler winner；timeout 只作为挂死保护，所有退出
+  路径都终止必要 child 并等待 close。
+
+**非目标：**
+
+- 不修 partial batch、不增加 transaction/journal/fsync/lock/recovery，不选择或
+  接入 durable backend；
+- 不把 `SIGKILL` 称为 power loss，也不把单文件 rename 称为 durability
+  boundary；
+- 不覆盖 transaction 前后、durable write 后 response 前、recovery/reopen
+  中途、disk-full/read-only、schema migration 或 backup/restore；
+- 不改变 production file store、Host/Save/HTTP wire、package exports、
+  desktop shell/package 或平台支持声明；POSIX signal 测试在 Windows 明确跳过，
+  当前结果不推导 Windows/Linux 已验证。
+
+**验收规格与证据：**
+
+- TDD red 为 SIGKILL child fixture 尚不存在时 `1 failed / 5 passed`；加入
+  test-only child handshake 后 focused green 为 `1 file / 6 tests`，同一
+  focused 文件连续 `30/30` 通过；
+- prewrite observer 只收到 frozen `between_checks_and_writes`，commit 抛出注入
+  异常，fresh read 的两个 record 都逐字段保持 revision `1`/old bytes；
+- SIGKILL child stdout 精确只有 `ready`，stderr 为空，close 精确为
+  `code=null`、`signal=SIGKILL`，且可区分的 watchdog 没有触发；fresh read 精确
+  得到 left revision `2`/new bytes 与 right revision `1`/old bytes；
+- 变更只含 direct fault test、未进入 package exports 的 child fixture 和本
+  delivery record，没有 production source 改动；
+- Tooling Desktop 为 `7 files / 43 tests`；全仓 `deno task test` 为
+  `185 files / 1616 tests`；`deno task check` 全部通过（format、lint、styles、
+  typecheck、unit、assets、Story checks 与 Engine Lab production build）。
+
+该证据只证明当前 POSIX child 在确定性 mutation gate 收到真实 `SIGKILL` 后，
+preview backing 可重开并观察到 partial batch；它不证明断电、fsync 或 durable
+recovery。剩余 D0 包括 key corpus，以及由 D1–D3 候选 backend 才能诚实提供的
+transaction、durability、recovery、跨平台与 power-loss evidence；不得为了按
+字面关闭 D0 而给 preview adapter 虚构这些 phase。
+
 ## 3. D1 — Backend decision record
 
 在不改变上层合同的前提下做一个短期 spike，并留下 decision record。至少比较：

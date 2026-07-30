@@ -256,6 +256,115 @@ async function requireProcessPrecheckArrivalV1(child: ProcessCasChildV1): Promis
   await Promise.race([child.ready, earlySettlement]);
 }
 
+interface SigkillFaultChildV1 {
+  readonly processId: number;
+  readonly ready: Promise<void>;
+  readonly closed: Promise<{
+    readonly code: number | null;
+    readonly signal: string | null;
+    readonly stdoutLines: readonly string[];
+    readonly stderr: string;
+    readonly watchdogFired: boolean;
+  }>;
+  readonly killWithSigkill: () => void;
+  readonly terminate: () => void;
+}
+
+function spawnSigkillFaultChildV1(root: string): SigkillFaultChildV1 {
+  const args = [
+    "run",
+    "--quiet",
+    "--allow-read",
+    "--allow-write",
+    fileURLToPath(new URL("./record-file-store-sigkill-child.fixture.mts", import.meta.url)),
+    root,
+  ];
+  const child = spawn(process.execPath, args, {
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+  let watchdogFiredV1 = false;
+  const watchdogV1 = setTimeout(() => {
+    watchdogFiredV1 = true;
+    child.kill("SIGKILL");
+  }, 20_000);
+
+  let resolveReadyV1: (() => void) | undefined;
+  let rejectReadyV1: ((error: unknown) => void) | undefined;
+  const ready = new Promise<void>((resolve, reject) => {
+    resolveReadyV1 = resolve;
+    rejectReadyV1 = reject;
+  });
+  let resolveClosedV1: ((result: Awaited<SigkillFaultChildV1["closed"]>) => void) | undefined;
+  const closed = new Promise<Awaited<SigkillFaultChildV1["closed"]>>((resolve) => {
+    resolveClosedV1 = resolve;
+  });
+  void ready.catch(() => undefined);
+
+  let readySeenV1 = false;
+  let closedV1 = false;
+  let stderrV1 = "";
+  const stdoutLinesV1: string[] = [];
+  child.stderr.setEncoding("utf8");
+  child.stderr.on("data", (chunk: string) => {
+    stderrV1 += chunk;
+  });
+  const lines = createInterface({ input: child.stdout });
+  lines.on("line", (line) => {
+    stdoutLinesV1.push(line);
+    if (!readySeenV1 && line === "ready") {
+      readySeenV1 = true;
+      resolveReadyV1?.();
+      return;
+    }
+    rejectReadyV1?.(
+      new TypeError(`desktop record SIGKILL child emitted an unexpected line: ${line}`),
+    );
+  });
+  child.on("error", (error) => {
+    rejectReadyV1?.(error);
+  });
+  child.on("close", (code, signal) => {
+    closedV1 = true;
+    clearTimeout(watchdogV1);
+    if (!readySeenV1) {
+      rejectReadyV1?.(
+        new TypeError(
+          `desktop record SIGKILL child exited before its mutation gate: code=${code} signal=${signal} stderr=${stderrV1.trim()}`,
+        ),
+      );
+    }
+    resolveClosedV1?.(
+      Object.freeze({
+        code,
+        signal,
+        stdoutLines: Object.freeze([...stdoutLinesV1]),
+        stderr: stderrV1,
+        watchdogFired: watchdogFiredV1,
+      }),
+    );
+  });
+
+  return Object.freeze({
+    get processId() {
+      if (child.pid === undefined) {
+        throw new TypeError("desktop record SIGKILL child has no process id after ready");
+      }
+      return child.pid;
+    },
+    ready,
+    closed,
+    killWithSigkill: () => {
+      if (!child.kill("SIGKILL")) {
+        throw new TypeError("desktop record SIGKILL child could not be terminated");
+      }
+    },
+    terminate: () => {
+      if (!child.stdin.destroyed) child.stdin.destroy();
+      if (!closedV1) child.kill("SIGKILL");
+    },
+  });
+}
+
 describe("desktop file-preview deterministic fault characterization", () => {
   it("exposes cross-handle CAS without relying on scheduler timing", async () => {
     const root = await fixtureV1();
@@ -358,6 +467,55 @@ describe("desktop file-preview deterministic fault characterization", () => {
     });
   });
 
+  it("keeps a prewrite injected failure at zero mutations", async () => {
+    const root = await fixtureV1();
+    await seedPartialPairV1(root);
+    const phases: RecordFileStorePhaseInternalV1[] = [];
+    const store = createInstrumentedRecordFileStoreInternalV1(root, {
+      reached(point) {
+        phases.push(point);
+        if (point.kind === "between_checks_and_writes") {
+          throw new Error("injected prewrite failure");
+        }
+      },
+    });
+
+    await expect(
+      store.commit([
+        {
+          kind: "put",
+          namespace: "save",
+          key: "fault.partial.left",
+          expectedRevision: 1,
+          bytesBase64: "bmV3LWxlZnQ=",
+        },
+        {
+          kind: "put",
+          namespace: "save",
+          key: "fault.partial.right",
+          expectedRevision: 1,
+          bytesBase64: "bmV3LXJpZ2h0",
+        },
+      ]),
+    ).rejects.toThrow("injected prewrite failure");
+
+    expect(phases).toEqual([{ kind: "between_checks_and_writes" }]);
+    expect(phases.every(Object.isFrozen)).toBe(true);
+    const reopened = createRecordFileStoreV1(root);
+    expect(await reopened.read("save", "fault.partial.left")).toEqual({
+      namespace: "save",
+      key: "fault.partial.left",
+      revision: 1,
+      bytesBase64: "b2xkLWxlZnQ=",
+    });
+    expect(await reopened.read("save", "fault.partial.right")).toEqual({
+      namespace: "save",
+      key: "fault.partial.right",
+      revision: 1,
+      bytesBase64: "b2xkLXJpZ2h0",
+    });
+  });
+
   it("reopens the partial batch left by a child exit after mutation one", async () => {
     const root = await fixtureV1();
     await seedPartialPairV1(root);
@@ -379,6 +537,46 @@ describe("desktop file-preview deterministic fault characterization", () => {
       bytesBase64: "b2xkLXJpZ2h0",
     });
   }, 30_000);
+
+  it.skipIf(process.platform === "win32")(
+    "reopens the partial batch left by SIGKILL after mutation one",
+    async () => {
+      const root = await fixtureV1();
+      await seedPartialPairV1(root);
+      const child = spawnSigkillFaultChildV1(root);
+
+      try {
+        await child.ready;
+        expect(child.processId).not.toBe(process.pid);
+        child.killWithSigkill();
+        expect(await child.closed).toEqual({
+          code: null,
+          signal: "SIGKILL",
+          stdoutLines: ["ready"],
+          stderr: "",
+          watchdogFired: false,
+        });
+
+        const reopened = createRecordFileStoreV1(root);
+        expect(await reopened.read("save", "fault.partial.left")).toEqual({
+          namespace: "save",
+          key: "fault.partial.left",
+          revision: 2,
+          bytesBase64: "bmV3LWxlZnQ=",
+        });
+        expect(await reopened.read("save", "fault.partial.right")).toEqual({
+          namespace: "save",
+          key: "fault.partial.right",
+          revision: 1,
+          bytesBase64: "b2xkLXJpZ2h0",
+        });
+      } finally {
+        child.terminate();
+        await child.closed;
+      }
+    },
+    40_000,
+  );
 
   it("exposes independent OS-process CAS without relying on scheduler timing", async () => {
     const root = await fixtureV1();
