@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: MIT
+export { DebugDockV1, defaultDebugDockLabelsV1 } from "./debug-dock.tsx";
+export type { DebugDockLabelsV1, DebugDockPropsV1 } from "./debug-dock.tsx";
 export { CapabilityPanelV1 } from "./capability-panel.tsx";
 export type { CapabilityPanelPropsV1 } from "./capability-panel.tsx";
 export { DebugCommandPanelV1 } from "./debug-command-panel.tsx";
