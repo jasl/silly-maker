@@ -21,4 +21,5 @@ export type {
   AudioPresenterRetargetInputV1,
   AudioPresenterV1,
   CreateAudioPresenterOptionsV1,
+  ResolvedEffectAssetV1,
 } from "./audio-presenter.ts";

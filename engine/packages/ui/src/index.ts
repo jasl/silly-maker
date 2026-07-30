@@ -240,6 +240,7 @@ export type {
   FakeAudioHostV1,
   GameAudioPortsV1,
   GameAudioPropsV1,
+  ResolvedEffectAssetV1,
 } from "./audio/index.ts";
 export { createPlaybackControllerV1, createTextRevealV1 } from "./player/index.ts";
 export type {

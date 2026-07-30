@@ -14,7 +14,7 @@ import { parseDigest, parsePositiveSafeInteger } from "./values.ts";
 
 export type AudioMediaKindV1 = "music" | "ambient" | "sfx" | "voice";
 
-export type AudioMediaTypeV1 = "audio/ogg" | "audio/mpeg" | "audio/wav";
+export type AudioMediaTypeV1 = "audio/ogg" | "audio/mpeg" | "audio/wav" | "audio/mp4";
 
 const audioAssetIdPatternV1 = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)+$/u;
 
@@ -98,7 +98,8 @@ export function parseAudioProviderEntryV1(
   if (
     record.mediaType !== "audio/ogg" &&
     record.mediaType !== "audio/mpeg" &&
-    record.mediaType !== "audio/wav"
+    record.mediaType !== "audio/wav" &&
+    record.mediaType !== "audio/mp4"
   ) {
     return dataFailure(`${path}/mediaType`, "audio_media_type_invalid");
   }

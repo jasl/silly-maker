@@ -33,6 +33,47 @@ describe("audio media contracts", () => {
     expect(JSON.parse(JSON.stringify(manifest))).toEqual(manifest);
   });
 
+  it("accepts audio/mp4 providers (m4a/AAC payloads)", () => {
+    const manifest = resolveAudioManifestV1(
+      [{ assetId: "audio.test.jingle", kind: "sfx", fallback: "silence", loadGroup: "on_demand" }],
+      [
+        {
+          assetId: "audio.test.jingle",
+          runtimePath: "audio/jingle.m4a",
+          mediaType: "audio/mp4",
+          byteLength: 512,
+          sha256: digestV1,
+          durationMs: null,
+        },
+      ],
+    );
+    expect(manifest.entries).toMatchObject([
+      { assetId: "audio.test.jingle", provider: { mediaType: "audio/mp4" } },
+    ]);
+    expect(() =>
+      resolveAudioManifestV1(
+        [
+          {
+            assetId: "audio.test.jingle",
+            kind: "sfx",
+            fallback: "silence",
+            loadGroup: "on_demand",
+          },
+        ],
+        [
+          {
+            assetId: "audio.test.jingle",
+            runtimePath: "audio/jingle.m4a",
+            mediaType: "audio/x-m4a",
+            byteLength: 512,
+            sha256: digestV1,
+            durationMs: null,
+          },
+        ],
+      ),
+    ).toThrow("audio_media_type_invalid");
+  });
+
   it("rejects duplicate slots, orphan providers, and image-flavored kinds", () => {
     const slot = {
       assetId: "audio.test.theme",
