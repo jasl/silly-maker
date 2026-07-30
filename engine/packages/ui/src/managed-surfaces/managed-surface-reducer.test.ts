@@ -309,8 +309,11 @@ describe("reduceManagedSurfaceV1", () => {
 
     const pushed = reduceManagedSurfaceV1(state, {
       kind: "push_child",
-      applicationEpoch: state.publication.applicationEpoch,
-      parentInstanceId: parseManagedSurfaceInstanceIdV1("surface-instance.inventory"),
+      parentEvidence: {
+        applicationEpoch: state.publication.applicationEpoch,
+        topologyRevision: state.publication.topologyRevision,
+        surfaceInstanceId: parseManagedSurfaceInstanceIdV1("surface-instance.inventory"),
+      },
       candidate: child,
     });
     state = pushed.state;
@@ -370,8 +373,11 @@ describe("reduceManagedSurfaceV1", () => {
     });
     state = reduceManagedSurfaceV1(state, {
       kind: "push_child",
-      applicationEpoch: state.publication.applicationEpoch,
-      parentInstanceId: primary.surfaceInstanceId,
+      parentEvidence: {
+        applicationEpoch: state.publication.applicationEpoch,
+        topologyRevision: state.publication.topologyRevision,
+        surfaceInstanceId: primary.surfaceInstanceId,
+      },
       candidate: child,
     }).state;
 
@@ -407,8 +413,11 @@ describe("reduceManagedSurfaceV1", () => {
     });
     state = reduceManagedSurfaceV1(state, {
       kind: "push_child",
-      applicationEpoch: state.publication.applicationEpoch,
-      parentInstanceId: parseManagedSurfaceInstanceIdV1("surface-instance.inventory-first"),
+      parentEvidence: {
+        applicationEpoch: state.publication.applicationEpoch,
+        topologyRevision: state.publication.topologyRevision,
+        surfaceInstanceId: parseManagedSurfaceInstanceIdV1("surface-instance.inventory-first"),
+      },
       candidate: child,
     }).state;
 
@@ -417,7 +426,11 @@ describe("reduceManagedSurfaceV1", () => {
     });
     const replaced = reduceManagedSurfaceV1(state, {
       kind: "replace_primary",
-      applicationEpoch: state.publication.applicationEpoch,
+      expected: {
+        applicationEpoch: state.publication.applicationEpoch,
+        topologyRevision: state.publication.topologyRevision,
+        surfaceInstanceId: parseManagedSurfaceInstanceIdV1("surface-instance.inventory-first"),
+      },
       candidate: replacement,
     });
 
@@ -547,8 +560,11 @@ describe("reduceManagedSurfaceV1", () => {
       {
         operation: {
           kind: "push_child" as const,
-          applicationEpoch: parseNonNegativeSafeInteger(4),
-          parentInstanceId: parseManagedSurfaceInstanceIdV1("surface-instance.unknown"),
+          parentEvidence: {
+            applicationEpoch: parseNonNegativeSafeInteger(4),
+            topologyRevision: state.publication.topologyRevision,
+            surfaceInstanceId: parseManagedSurfaceInstanceIdV1("surface-instance.unknown"),
+          },
           candidate: candidateV1("orphan", {
             definition: definitionV1("orphan", {
               slotId: parseManagedSurfaceSlotIdV1("surface-slot.detail"),
@@ -558,13 +574,16 @@ describe("reduceManagedSurfaceV1", () => {
             }),
           }),
         },
-        code: "surface.invalid_parent",
+        code: "surface.stale_instance",
       },
       {
         operation: {
           kind: "push_child" as const,
-          applicationEpoch: parseNonNegativeSafeInteger(4),
-          parentInstanceId: parseManagedSurfaceInstanceIdV1("surface-instance.inventory"),
+          parentEvidence: {
+            applicationEpoch: parseNonNegativeSafeInteger(4),
+            topologyRevision: state.publication.topologyRevision,
+            surfaceInstanceId: parseManagedSurfaceInstanceIdV1("surface-instance.inventory"),
+          },
           candidate: candidateV1("child-below-parent", {
             definition: definitionV1("child-below-parent", {
               slotId: parseManagedSurfaceSlotIdV1("surface-slot.detail"),
@@ -609,7 +628,7 @@ describe("reduceManagedSurfaceV1", () => {
     for (const testCase of cases) {
       const result = reduceManagedSurfaceV1(state, testCase.operation);
       expect(result.receipt).toMatchObject({
-        kind: "rejected",
+        kind: testCase.code === "surface.stale_instance" ? "stale" : "rejected",
         code: testCase.code,
       });
       expect(result.state).toBe(state);

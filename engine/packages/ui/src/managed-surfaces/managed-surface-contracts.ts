@@ -172,13 +172,12 @@ export type ManagedSurfaceOperationV1 =
     }
   | {
       readonly kind: "replace_primary";
-      readonly applicationEpoch: NonNegativeSafeInteger;
+      readonly expected: ManagedSurfaceTransitionEvidenceV1;
       readonly candidate: ManagedSurfaceCandidateV1;
     }
   | {
       readonly kind: "push_child";
-      readonly applicationEpoch: NonNegativeSafeInteger;
-      readonly parentInstanceId: ManagedSurfaceInstanceIdV1;
+      readonly parentEvidence: ManagedSurfaceTransitionEvidenceV1;
       readonly candidate: ManagedSurfaceCandidateV1;
     }
   | {

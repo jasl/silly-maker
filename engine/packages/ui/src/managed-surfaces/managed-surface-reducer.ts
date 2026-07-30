@@ -429,21 +429,17 @@ export function reduceManagedSurfaceV1(
   if (state.publication.coordinatorDisposed) {
     return unchangedResultV1(state, "rejected", "surface.coordinator_disposed");
   }
-  if (
-    operation.kind !== "close_expected" &&
-    operation.kind !== "route_dismiss" &&
-    operation.applicationEpoch !== state.publication.applicationEpoch
-  ) {
-    return unchangedResultV1(
-      state,
-      "stale",
-      "surface.stale_application_epoch",
-      operation.kind === "dispose_owner" ? undefined : operation.candidate.surfaceInstanceId,
-    );
-  }
 
   switch (operation.kind) {
     case "open_primary": {
+      if (operation.applicationEpoch !== state.publication.applicationEpoch) {
+        return unchangedResultV1(
+          state,
+          "stale",
+          "surface.stale_application_epoch",
+          operation.candidate.surfaceInstanceId,
+        );
+      }
       const failure = openPreconditionFailureV1(state, operation.candidate, "root");
       if (failure !== null) return failure;
       if (
@@ -474,15 +470,20 @@ export function reduceManagedSurfaceV1(
     }
 
     case "replace_primary": {
+      const evidenceFailure = evidenceFailureV1(state, operation.expected);
+      if (evidenceFailure !== null) return evidenceFailure;
       const failure = openPreconditionFailureV1(state, operation.candidate, "root");
       if (failure !== null) return failure;
       const replacedRoot = state.publication.orderedInstances.find(
         (instance) =>
-          instance.parentInstanceId === null &&
-          instance.definition.ownerId === operation.candidate.definition.ownerId &&
-          instance.definition.slotId === operation.candidate.definition.slotId,
+          instance.surfaceInstanceId === operation.expected.surfaceInstanceId &&
+          instance.parentInstanceId === null,
       );
-      if (replacedRoot === undefined) {
+      if (
+        replacedRoot === undefined ||
+        replacedRoot.definition.ownerId !== operation.candidate.definition.ownerId ||
+        replacedRoot.definition.slotId !== operation.candidate.definition.slotId
+      ) {
         return unchangedResultV1(
           state,
           "rejected",
@@ -513,10 +514,12 @@ export function reduceManagedSurfaceV1(
     }
 
     case "push_child": {
+      const evidenceFailure = evidenceFailureV1(state, operation.parentEvidence);
+      if (evidenceFailure !== null) return evidenceFailure;
       const failure = openPreconditionFailureV1(state, operation.candidate, "child");
       if (failure !== null) return failure;
       const parent = state.publication.orderedInstances.find(
-        (instance) => instance.surfaceInstanceId === operation.parentInstanceId,
+        (instance) => instance.surfaceInstanceId === operation.parentEvidence.surfaceInstanceId,
       );
       if (
         parent === undefined ||
@@ -599,6 +602,9 @@ export function reduceManagedSurfaceV1(
     }
 
     case "dispose_owner": {
+      if (operation.applicationEpoch !== state.publication.applicationEpoch) {
+        return unchangedResultV1(state, "stale", "surface.stale_application_epoch");
+      }
       if (state.disposedOwnerIds.includes(operation.ownerId)) {
         return unchangedResultV1(state, "unchanged", "surface.owner_already_disposed");
       }

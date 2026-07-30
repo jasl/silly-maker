@@ -186,9 +186,47 @@ S1 标记为完成。
 - focused reducer `11/11`、`@sillymaker/ui` `51 files / 424 tests` 与 aggregate
   typecheck 通过。
 
-剩余 S1 工作包括 Coordinator/subscriber failure isolation、ID allocation 与便捷
-handle、close-top/close-owner/route-action、异步 readiness transition，以及在参数
-等价规则明确后实现 external owner reconcile。
+### S1b delivery record（2026-07-30）
+
+本切片在 S1a 纯 reducer 外建立 dormant、package-internal、application-local 的
+transient Coordinator store；S1 仍未完成。
+
+**目标：**
+
+- 由一个 monotonic allocation sequence 确定性派生 transient occurrence、
+  runtime instance 与 routing lease，rejection 不回滚或复用序号；
+- 以 frozen `{ applicationEpoch, topologyRevision, surfaceInstanceId }` handle
+  绑定 expected close、replace 与 child push；
+- applied transition 先提交 immutable publication 再通知 subscriber 一次；
+  unchanged/stale/rejected 不发布；
+- 隔离 subscriber 与 best-effort failure sink 异常，owner/Coordinator dispose
+  原子清理并保持幂等。
+
+**非目标：**
+
+- 不接入现有 Overlay/System/Narrative store，不加入 public barrel 或 Story API；
+- 不实现 external target reconcile、异步 readiness、route action、close-top、
+  React/DOM/Web adapter 或 subscriber reentrancy policy；
+- 不定义 application epoch 的全局分配或 HMR/rebootstrap 轮换策略。
+
+**验收证据：**
+
+- reducer 的 replace/push 也校验 exact epoch/revision/instance evidence，旧 callback
+  不能替换 successor 或向已经变化的 parent 拓扑追加 child；
+- allocation 产生 `surface-{occurrence|instance|lease}.e<epoch>.n<sequence>`，
+  failed attempt 消耗序号且 close/reopen 不复用；
+- handle 不在调用时自动刷新；`getHandle` 只为当前 live instance 捕获新的精确
+  evidence；
+- subscriber 在 commit 后观察新 publication；单个 listener 或 failure sink
+  抛错不回滚、不阻断后续 listener；
+- Coordinator dispose 提交 frozen terminal publication、通知现有 subscriber
+  一次后清空订阅；重复 dispose 不通知，late subscribe 稳定拒绝；
+- focused reducer/Coordinator `19/19`、`@sillymaker/ui`
+  `52 files / 432 tests` 与 aggregate typecheck 通过。
+
+剩余 S1 工作包括 close-top/close-owner/route-action、异步 readiness transition、
+application epoch 的 composition/HMR 轮换证明，以及在参数等价规则明确后实现
+external owner reconcile。
 
 **S1 acceptance：** kernel 可在无 DOM 环境运行；没有 public Story API promotion；没有旧 store 双写。
 
