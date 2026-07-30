@@ -585,6 +585,60 @@ SIGKILL/reopen、post-commit response-loss、corrupt schema/database recovery �
 SQL 写入时阻止现有 per-record corrupt-value fixture；不得用偶然
 `writable_schema` 或二进制破坏手法替未来 corruption/recovery 合同做决定。
 
+### D0k delivery record（2026-07-31）
+
+本切片只给 backend-independent transaction fault report 与 test-only SQLite
+candidate 增加四个确定性 phase；它不选择 backend，也不把普通异常模拟写成
+SIGKILL、断电或完整 recovery evidence。
+
+**目标：**
+
+- 冻结四个 transaction/response phase：mutation 完整 normalize 后且
+  `BEGIN IMMEDIATE` 前、全部 revision checks 后且任何 write 前、mutation 1 与
+  N 之间，以及 `COMMIT` 返回后且 response 生成/返回前；
+- 用同一两记录、跨 namespace、revision `1 → 2` workload 运行每个 phase；
+  observer exception 后必须关闭 current handle，再由 fresh handle 读取结果；
+- 前三个 phase 必须得到 commit rejection，且 fresh handle 可观察逻辑 records
+  全旧；post-commit response-loss 必须得到 rejection/无 receipt，且 fresh handle
+  可观察逻辑 records 全新，随后以旧 expected revision 重试必须返回
+  conflict/actual revision `2`；
+- phase 顺序、completed/remaining mutation count、完整 records/bytes 与 frozen
+  report 都使用确定性 expected；每个 fresh database 的 integrity 必须为 `ok`。
+
+**非目标：**
+
+- 不在 production adapter、shell、staging 或 package exports 增加 observer；
+  普通 candidate factory 不安装 observer；
+- 不实现或声称 `during recovery/reopen` phase；当前尚未决定它应落在 schema
+  migration、WAL recovery、checkpoint 还是 reopen validation；
+- 不使用 child process、signal 或 sleep，不证明 SIGKILL/power-loss/fsync
+  durability，不定义 busy retry 或 SQLite error taxonomy；
+- 不进入 corrupt database、旧 JSON migration、backup/restore、D2 adapter 或
+  backend selection。
+
+**验收规格：**
+
+- TDD red 为新 focused suite 引用尚不存在的 transaction-fault test-support
+  module，稳定得到 `1 failed suite / 0 tests`；
+- `before_transaction` trace 只有该 phase；
+  `between_checks_and_writes` trace 在其前包含 before；
+  `between_mutations` 进一步精确记录
+  `completedMutationCount: 1 / remainingMutationCount: 1`；
+  post-commit trace 最后才出现 `after_durable_write_before_response`；
+- 前三项 fresh records exact 保持 revision `[1, 1]` 与 old bytes；post-commit
+  exact 为 revision `[2, 2]` 与 new bytes，retry conflict 指向 left/actual `2`；
+- 所有原始 phase event、report/cases/phase arrays、record reports/bytes 与 retry
+  都 frozen；normal SQLite core/validation/schema/CAS suite 保持等价。
+- focused SQLite phase + existing spike 为 `2 files / 7 tests`，受影响 Tooling
+  Desktop 为 `9 files / 52 tests`，全仓 `deno task test` 为
+  `187 files / 1631 tests`；`deno task check` 全部通过（format、lint、styles、
+  typecheck、unit、assets、Story checks 与 Engine Lab production build）。
+
+该 phase seam 只存在于 `engine/test-support`；它定义的是可由其他 transaction
+candidate 复用的逻辑 fault report，不是 public Host API。剩余 D0 candidate
+工作至少包括真实 transaction 中途与 post-commit/pre-response `SIGKILL`、
+schema migration/recovery phase、corrupt database 与平台 fault evidence。
+
 ## 3. D1 — Backend decision record
 
 在不改变上层合同的前提下做一个短期 spike，并留下 decision record。至少比较：

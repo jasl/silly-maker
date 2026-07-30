@@ -7,6 +7,10 @@ import {
   type HostStoredRecordV1,
   parseNonNegativeSafeInteger,
 } from "@sillymaker/base";
+import type {
+  HostRecordStoreTransactionPhaseObserverV1,
+  HostRecordStoreTransactionPhaseV1,
+} from "./host-atomic-record-store-transaction-fault.ts";
 
 type HostRecordNamespaceV1 = HostStoredRecordV1["namespace"];
 type HostRecordKeyV1 = HostStoredRecordV1["key"];
@@ -294,6 +298,13 @@ function revisionForV1(
     : parseNonNegativeSafeInteger(requiredNumberPropertyV1(row, "revision"));
 }
 
+function reachPhaseV1(
+  observer: HostRecordStoreTransactionPhaseObserverV1 | undefined,
+  phase: HostRecordStoreTransactionPhaseV1,
+): void {
+  observer?.reached(Object.freeze(phase));
+}
+
 /**
  * D1 feasibility-only node:sqlite adapter. It is intentionally outside every
  * package source tree and export map; its schema and pragmas are not selected
@@ -301,6 +312,23 @@ function revisionForV1(
  */
 export function createSqliteHostRecordStoreSpikeV1(
   databasePath: string,
+): SqliteHostRecordStoreSpikeV1 {
+  return createSqliteHostRecordStoreInternalV1(databasePath);
+}
+
+/**
+ * Test-only fault seam for D0 transaction-phase conformance.
+ */
+export function createInstrumentedSqliteHostRecordStoreSpikeV1(
+  databasePath: string,
+  observer: HostRecordStoreTransactionPhaseObserverV1,
+): SqliteHostRecordStoreSpikeV1 {
+  return createSqliteHostRecordStoreInternalV1(databasePath, observer);
+}
+
+function createSqliteHostRecordStoreInternalV1(
+  databasePath: string,
+  observer?: HostRecordStoreTransactionPhaseObserverV1,
 ): SqliteHostRecordStoreSpikeV1 {
   const database = new DatabaseSync(databasePath);
   try {
@@ -341,6 +369,7 @@ export function createSqliteHostRecordStoreSpikeV1(
     async commit(mutations: readonly [HostRecordMutationV1, ...HostRecordMutationV1[]]) {
       requireOpenV1();
       const normalized = normalizeMutationsV1(mutations);
+      reachPhaseV1(observer, { kind: "before_transaction" });
       database.exec("BEGIN IMMEDIATE");
       let transactionOpen = true;
       try {
@@ -357,33 +386,42 @@ export function createSqliteHostRecordStoreSpikeV1(
             });
           }
         }
+        reachPhaseV1(observer, { kind: "between_checks_and_writes" });
 
         const changed: HostStoredRecordV1[] = [];
-        for (const mutation of normalized) {
+        for (const [index, mutation] of normalized.entries()) {
           if (mutation.kind === "delete") {
             database
               .prepare("DELETE FROM host_record WHERE namespace = ? AND key = ?")
               .run(mutation.namespace, mutation.key);
-            continue;
+          } else {
+            database
+              .prepare(
+                "INSERT INTO host_record(namespace, key, revision, bytes) VALUES(?, ?, ?, ?) " +
+                  "ON CONFLICT(namespace, key) DO UPDATE SET " +
+                  "revision = excluded.revision, bytes = excluded.bytes",
+              )
+              .run(mutation.namespace, mutation.key, mutation.nextRevision, mutation.bytes);
+            changed.push(
+              Object.freeze({
+                namespace: mutation.namespace,
+                key: mutation.key,
+                revision: mutation.nextRevision,
+                bytes: Uint8Array.from(mutation.bytes),
+              }),
+            );
           }
-          database
-            .prepare(
-              "INSERT INTO host_record(namespace, key, revision, bytes) VALUES(?, ?, ?, ?) " +
-                "ON CONFLICT(namespace, key) DO UPDATE SET " +
-                "revision = excluded.revision, bytes = excluded.bytes",
-            )
-            .run(mutation.namespace, mutation.key, mutation.nextRevision, mutation.bytes);
-          changed.push(
-            Object.freeze({
-              namespace: mutation.namespace,
-              key: mutation.key,
-              revision: mutation.nextRevision,
-              bytes: Uint8Array.from(mutation.bytes),
-            }),
-          );
+          if (index + 1 < normalized.length) {
+            reachPhaseV1(observer, {
+              kind: "between_mutations",
+              completedMutationCount: index + 1,
+              remainingMutationCount: normalized.length - index - 1,
+            });
+          }
         }
         database.exec("COMMIT");
         transactionOpen = false;
+        reachPhaseV1(observer, { kind: "after_durable_write_before_response" });
         return Object.freeze({
           kind: "committed" as const,
           records: Object.freeze(changed),
