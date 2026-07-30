@@ -123,6 +123,25 @@ export interface HostRecordStoreCorruptBackingReadListReportV1 {
   readonly neighborPreservedAfterList: boolean;
 }
 
+export interface HostRecordStoreCorruptBackingCommitReportV1 {
+  readonly commitRejected: boolean;
+  readonly recordBackingUnchangedAfterCommit: boolean;
+  readonly earlierMutationAbsent: boolean;
+  readonly freshHandleEarlierMutationAbsent: boolean;
+  readonly freshHandleCorruptReadRejected: boolean;
+  readonly freshHandleNeighborPreserved: boolean;
+}
+
+export interface HostRecordStoreCorruptBackingCommitFixtureV1<RecordBackingSnapshot> {
+  readonly store: HostAtomicRecordStoreV1;
+  readonly createFreshStore: () => HostAtomicRecordStoreV1 | Promise<HostAtomicRecordStoreV1>;
+  readonly snapshotRecordBacking: () => RecordBackingSnapshot | Promise<RecordBackingSnapshot>;
+  readonly recordBackingSnapshotsEqual: (
+    left: RecordBackingSnapshot,
+    right: RecordBackingSnapshot,
+  ) => boolean | Promise<boolean>;
+}
+
 export const hostRecordStoreConformanceExpectedV1 = Object.freeze({
   validation: Object.freeze({
     emptyRejected: true,
@@ -245,8 +264,18 @@ export const hostRecordStoreCorruptBackingReadListConformanceExpectedV1 = Object
   neighborPreservedAfterList: true,
 }) satisfies DeepReadonly<HostRecordStoreCorruptBackingReadListReportV1>;
 
+export const hostRecordStoreCorruptBackingCommitConformanceExpectedV1 = Object.freeze({
+  commitRejected: true,
+  recordBackingUnchangedAfterCommit: true,
+  earlierMutationAbsent: true,
+  freshHandleEarlierMutationAbsent: true,
+  freshHandleCorruptReadRejected: true,
+  freshHandleNeighborPreserved: true,
+}) satisfies DeepReadonly<HostRecordStoreCorruptBackingCommitReportV1>;
+
 export const hostRecordStoreRevisionOverflowEarlierKeyV1 = keyV1("conformance.overflow.earlier");
 export const hostRecordStoreCorruptBackingKeyV1 = keyV1("conformance.corrupt.target");
+export const hostRecordStoreCorruptBackingEarlierKeyV1 = keyV1("conformance.corrupt.earlier");
 
 export function createHostRecordStoreRevisionOverflowSeedV1(): HostStoredRecordV1 {
   return Object.freeze({
@@ -632,6 +661,59 @@ export async function runHostRecordStoreCorruptBackingReadListConformanceV1(
     neighborPreservedAfterRead: neighborMatchesV1(neighborAfterRead),
     listRejected,
     neighborPreservedAfterList: neighborMatchesV1(neighborAfterList),
+  });
+}
+
+/**
+ * Runs a valid two-put batch against a backing whose target has revision 1 but
+ * an objectively invalid persisted bytes representation. Adapter-local
+ * snapshots compare the logical record backing immediately after the rejected
+ * commit, before any Host read or fresh-handle probe can exercise a separate
+ * repair policy.
+ */
+export async function runHostRecordStoreCorruptBackingCommitConformanceV1<RecordBackingSnapshot>(
+  createFixture: () =>
+    | HostRecordStoreCorruptBackingCommitFixtureV1<RecordBackingSnapshot>
+    | Promise<HostRecordStoreCorruptBackingCommitFixtureV1<RecordBackingSnapshot>>,
+): Promise<DeepReadonly<HostRecordStoreCorruptBackingCommitReportV1>> {
+  const fixture = await createFixture();
+  const beforeCommit = await fixture.snapshotRecordBacking();
+  const commitRejected = await rejectsV1(() =>
+    fixture.store.commit([
+      putV1("settings", hostRecordStoreCorruptBackingEarlierKeyV1, null, bytesV1(2, 128, 254)),
+      putV1("settings", hostRecordStoreCorruptBackingKeyV1, 1, bytesV1(3, 129, 253)),
+    ]),
+  );
+  const afterCommit = await fixture.snapshotRecordBacking();
+  const recordBackingUnchangedAfterCommit = await fixture.recordBackingSnapshotsEqual(
+    beforeCommit,
+    afterCommit,
+  );
+  const earlierMutationAbsent =
+    (await fixture.store.read("settings", hostRecordStoreCorruptBackingEarlierKeyV1)) === null;
+
+  const freshStore = await fixture.createFreshStore();
+  const freshHandleEarlierMutationAbsent =
+    (await freshStore.read("settings", hostRecordStoreCorruptBackingEarlierKeyV1)) === null;
+  const freshHandleCorruptReadRejected = await rejectsV1(() =>
+    freshStore.read("settings", hostRecordStoreCorruptBackingKeyV1),
+  );
+  const neighbor = createHostRecordStoreCorruptBackingNeighborV1();
+  const freshNeighbor = await freshStore.read(neighbor.namespace, neighbor.key);
+  const freshHandleNeighborPreserved =
+    freshNeighbor !== null &&
+    freshNeighbor.namespace === neighbor.namespace &&
+    freshNeighbor.key === neighbor.key &&
+    freshNeighbor.revision === neighbor.revision &&
+    bytesEqualV1(freshNeighbor.bytes, neighbor.bytes);
+
+  return Object.freeze({
+    commitRejected,
+    recordBackingUnchangedAfterCommit,
+    earlierMutationAbsent,
+    freshHandleEarlierMutationAbsent,
+    freshHandleCorruptReadRejected,
+    freshHandleNeighborPreserved,
   });
 }
 

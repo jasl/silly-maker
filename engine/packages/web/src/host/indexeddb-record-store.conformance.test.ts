@@ -6,6 +6,7 @@ import {
   createHostRecordStoreCorruptBackingNeighborV1,
   createHostRecordStoreRevisionOverflowSeedV1,
   hostRecordStoreConformanceExpectedV1,
+  hostRecordStoreCorruptBackingCommitConformanceExpectedV1,
   hostRecordStoreCorruptBackingKeyV1,
   hostRecordStoreCorruptBackingReadListConformanceExpectedV1,
   hostRecordStoreMalformedConformanceExpectedV1,
@@ -13,10 +14,12 @@ import {
   hostRecordStoreRevisionOverflowConformanceExpectedV1,
   hostRecordStoreRevisionOverflowEarlierKeyV1,
   runHostRecordStoreConformanceV1,
+  runHostRecordStoreCorruptBackingCommitConformanceV1,
   runHostRecordStoreCorruptBackingReadListConformanceV1,
   runHostRecordStoreMalformedConformanceV1,
   runHostRecordStoreReopenConformanceV1,
   runHostRecordStoreRevisionOverflowConformanceV1,
+  type HostRecordStoreCorruptBackingCommitFixtureV1,
 } from "../../../../test-support/host-atomic-record-store-conformance.ts";
 
 import {
@@ -77,6 +80,43 @@ async function seedRawRowsV1(indexedDB: IDBFactory, rows: readonly unknown[]): P
   database.close();
 }
 
+function describeRawValueV1(value: unknown): string {
+  if (value instanceof ArrayBuffer) {
+    return `ArrayBuffer:${Array.from(new Uint8Array(value)).join(",")}`;
+  }
+  if (ArrayBuffer.isView(value)) {
+    const bytes = new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+    return `${Object.prototype.toString.call(value)}:${Array.from(bytes).join(",")}`;
+  }
+  if (typeof value === "number" && Object.is(value, -0)) return "number:-0";
+  return `${typeof value}:${JSON.stringify(value)}`;
+}
+
+async function snapshotRawRowsV1(
+  indexedDB: IDBFactory,
+): Promise<readonly (readonly (readonly [string, string])[])[]> {
+  const database = await requestResultV1(indexedDB.open(databaseNameV1, 1));
+  const transaction = database.transaction(SILLYMAKER_RECORD_STORE_NAME_V1, "readonly");
+  const completion = transactionCompletionV1(transaction);
+  const rows = await requestResultV1<unknown[]>(
+    transaction.objectStore(SILLYMAKER_RECORD_STORE_NAME_V1).getAll(),
+  );
+  await completion;
+  database.close();
+  return Object.freeze(
+    rows.map((row) => {
+      if (typeof row !== "object" || row === null || Array.isArray(row)) {
+        return Object.freeze([Object.freeze(["<root>", describeRawValueV1(row)] as const)]);
+      }
+      return Object.freeze(
+        Object.keys(row)
+          .toSorted()
+          .map((key) => Object.freeze([key, describeRawValueV1(Reflect.get(row, key))] as const)),
+      );
+    }),
+  );
+}
+
 type CorruptRowFactoryV1 = () => Readonly<Record<string, unknown>>;
 
 async function createCorruptBackingStoreV1(
@@ -98,6 +138,37 @@ async function createCorruptBackingStoreV1(
   return store;
 }
 
+async function createCorruptCommitFixtureV1(
+  createCorruptRow: CorruptRowFactoryV1,
+): Promise<
+  HostRecordStoreCorruptBackingCommitFixtureV1<readonly (readonly (readonly [string, string])[])[]>
+> {
+  const indexedDB = new FakeIDBFactory();
+  const createStore = () =>
+    createIndexedDbRecordStoreV1({ indexedDB, databaseName: databaseNameV1 });
+  const store = createStore();
+  const neighbor = createHostRecordStoreCorruptBackingNeighborV1();
+  await store.list(neighbor.namespace);
+  await seedRawRowsV1(indexedDB, [
+    {
+      namespace: neighbor.namespace,
+      key: neighbor.key,
+      revision: neighbor.revision,
+      bytes: Uint8Array.from(neighbor.bytes).buffer,
+    },
+    createCorruptRow(),
+  ]);
+  return Object.freeze({
+    store,
+    createFreshStore: createStore,
+    snapshotRecordBacking: () => snapshotRawRowsV1(indexedDB),
+    recordBackingSnapshotsEqual: (
+      left: readonly (readonly (readonly [string, string])[])[],
+      right: readonly (readonly (readonly [string, string])[])[],
+    ) => JSON.stringify(left) === JSON.stringify(right),
+  });
+}
+
 const corruptRowCasesV1 = Object.freeze([
   [
     "missing revision",
@@ -116,6 +187,26 @@ const corruptRowCasesV1 = Object.freeze([
       bytes: Uint8Array.of(1).buffer,
     }),
   ],
+  [
+    "missing bytes",
+    () => ({
+      namespace: "settings",
+      key: hostRecordStoreCorruptBackingKeyV1,
+      revision: 1,
+    }),
+  ],
+  [
+    "non-ArrayBuffer bytes",
+    () => ({
+      namespace: "settings",
+      key: hostRecordStoreCorruptBackingKeyV1,
+      revision: 1,
+      bytes: "AQ==",
+    }),
+  ],
+] as const satisfies readonly (readonly [string, CorruptRowFactoryV1])[]);
+
+const corruptCommitRowCasesV1 = Object.freeze([
   [
     "missing bytes",
     () => ({
@@ -191,6 +282,17 @@ describe("IndexedDB Host record store conformance", () => {
           createCorruptBackingStoreV1(createCorruptRow),
         ),
       ).toEqual(hostRecordStoreCorruptBackingReadListConformanceExpectedV1);
+    },
+  );
+
+  it.each(corruptCommitRowCasesV1)(
+    "rejects an atomic batch before mutating a persisted row with %s",
+    async (_name, createCorruptRow) => {
+      expect(
+        await runHostRecordStoreCorruptBackingCommitConformanceV1(() =>
+          createCorruptCommitFixtureV1(createCorruptRow),
+        ),
+      ).toEqual(hostRecordStoreCorruptBackingCommitConformanceExpectedV1);
     },
   );
 });

@@ -320,6 +320,60 @@ handle 证据、额外 persisted shape 与 future-schema policy，以及 corrupt
 database/recovery。key corpus、其余 fault 边界、真实 signal/power-loss、
 独立 OS process CAS 和 transaction candidate 也仍未完成。
 
+### D0f delivery record（2026-07-31）
+
+本切片只建立 valid-revision/invalid-value 的 commit-on-corrupt atomic
+baseline；D0 仍未完成，file adapter 仍是 preview/reference。
+
+**目标：**
+
+- 用 direct-file/test-support-only workload 让 fake IndexedDB 与 direct file
+  preview 执行同一个两项 put batch：先创建 missing earlier key，再以
+  `expectedRevision: 1` 更新 raw revision 同为 `1` 的 corrupt target；
+- 两个 adapter 都覆盖 persisted value 缺失和错误表示：IndexedDB 的 missing
+  `bytes`/string `bytes`，以及 file 的 missing `bytesBase64`/invalid base64；
+- commit 必须 reject 而不能返回 conflict 或 committed，earlier mutation
+  必须保持 missing；
+- 在任何 post-read 或 fresh-open 前，用 adapter-local snapshot 证明完整逻辑
+  record backing 未变：IndexedDB 比较全部 raw rows、own fields、value 类型与
+  bytes，file 比较完整相对 entry tree 与原始文件 bytes；
+- rejection 后才创建 fresh adapter handle，再次证明 earlier missing、corrupt
+  target read reject，且合法 neighbor 的 namespace/key/revision/bytes 完全一致。
+
+**非目标：**
+
+- 不把 IndexedDB/SQLite 文件、WAL、transaction metadata、mtime 或 inode 的物理
+  byte-for-byte 不变升级成 Host 合同；
+- 不覆盖 missing/`-0`/负数/非整数/unsafe persisted revision；这些 case
+  无法构造合法且精确匹配的 Host expected revision，会引入 corruption 与
+  conflict/preflight precedence 决策；
+- 不覆盖 truncated JSON、wrong identity、delete-on-corrupt、extra fields、
+  future schema、repair、quarantine、recovery 或 stable error taxonomy；
+- 不改变 production adapter、Host/Save/records wire、package exports，也不把
+  opaque Host bytes 的应用 payload 内容定义成 storage corruption。
+
+**验收规格与证据：**
+
+- frozen report 的 `commitRejected`、`recordBackingUnchangedAfterCommit`、
+  `earlierMutationAbsent`、`freshHandleEarlierMutationAbsent`、
+  `freshHandleCorruptReadRejected` 与 `freshHandleNeighborPreserved` 均为
+  `true`；
+- TDD red 为新增 runner 尚不存在时 `4 failed / 16 passed`；最小 test-support
+  runner 后 focused green 为 `2 files / 20 tests`，没有 production source
+  改动；
+- Web Host 为 `5 files / 46 tests`，Tooling Desktop 为
+  `7 files / 40 tests`；
+- 全仓 `deno task test` 为 `185 files / 1613 tests`；`deno task check`
+  全部通过（format、lint、styles、typecheck、unit、assets、Story checks 与
+  Engine Lab production build）。
+
+该证据只证明 corrupt-current precheck fail-closed 且没有 partial record
+mutation，不证明 crash atomicity、durability 或 fault-injection promotion。
+剩余 D0 corruption 工作包括 persisted revision precedence、额外 shape 与
+future-schema policy、repair/quarantine/recovery。key corpus、其余 fault
+边界、真实 signal/power-loss、独立 OS process CAS 和 transaction candidate
+也仍未完成。
+
 ## 3. D1 — Backend decision record
 
 在不改变上层合同的前提下做一个短期 spike，并留下 decision record。至少比较：

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 import { Buffer } from "node:buffer";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -14,15 +14,18 @@ import {
   createHostRecordStoreCorruptBackingNeighborV1,
   createHostRecordStoreRevisionOverflowSeedV1,
   hostRecordStoreConformanceExpectedV1,
+  hostRecordStoreCorruptBackingCommitConformanceExpectedV1,
   hostRecordStoreCorruptBackingKeyV1,
   hostRecordStoreCorruptBackingReadListConformanceExpectedV1,
   hostRecordStoreReopenExpectedV1,
   hostRecordStoreRevisionOverflowConformanceExpectedV1,
   hostRecordStoreRevisionOverflowEarlierKeyV1,
   runHostRecordStoreConformanceV1,
+  runHostRecordStoreCorruptBackingCommitConformanceV1,
   runHostRecordStoreCorruptBackingReadListConformanceV1,
   runHostRecordStoreReopenConformanceV1,
   runHostRecordStoreRevisionOverflowConformanceV1,
+  type HostRecordStoreCorruptBackingCommitFixtureV1,
 } from "../../../../test-support/host-atomic-record-store-conformance.ts";
 
 import {
@@ -150,12 +153,86 @@ async function createCorruptBackingStoreV1(rawCorruptRecord: string) {
   return store;
 }
 
+interface RecordTreeEntryV1 {
+  readonly kind: "directory" | "file" | "other";
+  readonly path: string;
+  readonly bytes?: readonly number[];
+}
+
+async function snapshotRecordTreeV1(root: string): Promise<readonly RecordTreeEntryV1[]> {
+  const snapshot: RecordTreeEntryV1[] = [];
+  const visitV1 = async (directory: string, relativeDirectory: string): Promise<void> => {
+    const entries = (await readdir(directory, { withFileTypes: true })).toSorted((left, right) =>
+      left.name < right.name ? -1 : left.name > right.name ? 1 : 0,
+    );
+    for (const entry of entries) {
+      const relativePath =
+        relativeDirectory.length === 0 ? entry.name : join(relativeDirectory, entry.name);
+      const absolutePath = join(directory, entry.name);
+      if (entry.isDirectory()) {
+        snapshot.push(Object.freeze({ kind: "directory", path: relativePath }));
+        await visitV1(absolutePath, relativePath);
+      } else if (entry.isFile()) {
+        snapshot.push(
+          Object.freeze({
+            kind: "file",
+            path: relativePath,
+            bytes: Object.freeze(Array.from(await readFile(absolutePath))),
+          }),
+        );
+      } else {
+        snapshot.push(Object.freeze({ kind: "other", path: relativePath }));
+      }
+    }
+  };
+  await visitV1(root, "");
+  return Object.freeze(snapshot);
+}
+
+async function createCorruptCommitFixtureV1(
+  rawCorruptRecord: string,
+): Promise<HostRecordStoreCorruptBackingCommitFixtureV1<readonly RecordTreeEntryV1[]>> {
+  const { root, createStore, store } = await fixtureV1();
+  const neighbor = createHostRecordStoreCorruptBackingNeighborV1();
+  const directory = join(root, neighbor.namespace);
+  await mkdir(directory, { recursive: true });
+  await Promise.all([
+    writeFile(
+      join(directory, `${encodeURIComponent(neighbor.key as string)}.json`),
+      JSON.stringify({
+        revision: neighbor.revision,
+        bytesBase64: Buffer.from(neighbor.bytes).toString("base64"),
+      }),
+      "utf8",
+    ),
+    writeFile(
+      join(directory, `${encodeURIComponent(hostRecordStoreCorruptBackingKeyV1 as string)}.json`),
+      rawCorruptRecord,
+      "utf8",
+    ),
+  ]);
+  return Object.freeze({
+    store,
+    createFreshStore: createStore,
+    snapshotRecordBacking: () => snapshotRecordTreeV1(root),
+    recordBackingSnapshotsEqual: (
+      left: readonly RecordTreeEntryV1[],
+      right: readonly RecordTreeEntryV1[],
+    ) => JSON.stringify(left) === JSON.stringify(right),
+  });
+}
+
 const corruptRecordCasesV1 = Object.freeze([
   ["missing revision", JSON.stringify({ bytesBase64: "AQ==" })],
   ["negative-zero revision", '{"revision":-0,"bytesBase64":"AQ=="}'],
   ["missing bytes", JSON.stringify({ revision: 1 })],
   ["invalid base64 bytes", JSON.stringify({ revision: 1, bytesBase64: "not-base64" })],
   ["truncated JSON", '{"revision":1'],
+] as const);
+
+const corruptCommitRecordCasesV1 = Object.freeze([
+  ["missing bytes", JSON.stringify({ revision: 1 })],
+  ["invalid base64 bytes", JSON.stringify({ revision: 1, bytesBase64: "not-base64" })],
 ] as const);
 
 describe("desktop file-preview Host record store conformance", () => {
@@ -198,6 +275,17 @@ describe("desktop file-preview Host record store conformance", () => {
           createCorruptBackingStoreV1(rawCorruptRecord),
         ),
       ).toEqual(hostRecordStoreCorruptBackingReadListConformanceExpectedV1);
+    },
+  );
+
+  it.each(corruptCommitRecordCasesV1)(
+    "rejects an atomic batch before mutating a persisted record with %s",
+    async (_name, rawCorruptRecord) => {
+      expect(
+        await runHostRecordStoreCorruptBackingCommitConformanceV1(() =>
+          createCorruptCommitFixtureV1(rawCorruptRecord),
+        ),
+      ).toEqual(hostRecordStoreCorruptBackingCommitConformanceExpectedV1);
     },
   );
 });
