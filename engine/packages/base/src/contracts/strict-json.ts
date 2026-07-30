@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: MIT
+import {
+  canonicalJsonBytesObservedInternalV1,
+  type CanonicalJsonTraversalObserverInternalV1,
+} from "./canonical-json.ts";
 import type { DeepReadonly, NonNegativeSafeInteger, PositiveSafeInteger } from "./values.ts";
 import { parsePositiveSafeInteger } from "./values.ts";
+import type { SnapshotWorkInstrumentationV1 } from "../internal/snapshot-work-instrumentation.ts";
 
 export interface StrictJsonLimitsV1 {
   readonly maxBytes: PositiveSafeInteger;
@@ -55,6 +60,15 @@ export interface StrictJsonErrorV1 {
 export type StrictJsonResultV1 =
   | { readonly ok: true; readonly value: unknown }
   | { readonly ok: false; readonly error: StrictJsonErrorV1 };
+
+/** @internal Result for canonical encoding with inline Strict-limit validation. */
+export type CanonicalJsonStrictLimitsResultInternalV1 =
+  | { readonly ok: true; readonly bytes: Uint8Array }
+  | {
+      readonly ok: false;
+      readonly bytes: Uint8Array;
+      readonly error: { readonly code: StrictJsonErrorCodeV1 };
+    };
 
 const limitKeys = [
   "maxBytes",
@@ -164,6 +178,66 @@ function decodeUtf8(bytes: Uint8Array): string | null {
     return null;
   }
   return characters.join("");
+}
+
+/**
+ * Encodes canonical JSON while tracking the Strict failures reachable from
+ * canonical output. The tracker never interrupts canonical encoding, so a
+ * later canonical failure keeps the same precedence as the legacy two-pass
+ * composition.
+ *
+ * @internal Package-only Save encoder path; untrusted bytes still use
+ * `parseStrictJson`.
+ */
+export function canonicalJsonBytesWithStrictLimitsInternalV1(
+  value: unknown,
+  limits: DeepReadonly<StrictJsonLimitsV1>,
+  instrumentation?: SnapshotWorkInstrumentationV1,
+): CanonicalJsonStrictLimitsResultInternalV1 {
+  let firstError: StrictJsonErrorCodeV1 | undefined;
+  let nodes = 0;
+  const recordFirstError = (code: StrictJsonErrorCodeV1): void => {
+    firstError ??= code;
+  };
+  const observer: CanonicalJsonTraversalObserverInternalV1 = {
+    enterValue(depth) {
+      if (firstError !== undefined) return;
+      if (depth > limits.maxDepth) {
+        recordFirstError("limit.depth");
+        return;
+      }
+      nodes += 1;
+      if (nodes > limits.maxNodes) recordFirstError("limit.nodes");
+    },
+    enterArrayItem(index) {
+      if (firstError === undefined && index >= limits.maxArrayItems) {
+        recordFirstError("limit.array_items");
+      }
+    },
+    enterObjectMember(index) {
+      if (firstError === undefined && index >= limits.maxObjectMembers) {
+        recordFirstError("limit.object_members");
+      }
+    },
+    observeString(string) {
+      if (firstError === undefined && utf8ByteLength(string) > limits.maxStringBytes) {
+        recordFirstError("limit.string_bytes");
+      }
+    },
+    observeObjectKey(key) {
+      if (firstError === undefined && dangerousKeys.has(key)) {
+        recordFirstError("object.dangerous_key");
+      }
+    },
+  };
+  const bytes = canonicalJsonBytesObservedInternalV1(value, observer, instrumentation);
+  if (bytes.byteLength > limits.maxBytes) {
+    return { ok: false, bytes, error: { code: "limit.bytes" } };
+  }
+  if (firstError !== undefined) {
+    return { ok: false, bytes, error: { code: firstError } };
+  }
+  return { ok: true, bytes };
 }
 
 class ParseFailure {

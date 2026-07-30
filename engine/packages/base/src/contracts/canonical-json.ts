@@ -27,6 +27,15 @@ export class CanonicalJsonError extends Error {
   }
 }
 
+/** @internal Package-only observer for work fused into canonical traversal. */
+export interface CanonicalJsonTraversalObserverInternalV1 {
+  enterValue(depth: number): void;
+  enterArrayItem(index: number): void;
+  enterObjectMember(index: number): void;
+  observeString(value: string): void;
+  observeObjectKey(key: string): void;
+}
+
 function pointerSegment(value: string): string {
   return value.replaceAll("~", "~0").replaceAll("/", "~1");
 }
@@ -167,4 +176,99 @@ export function canonicalJsonBytesInternalV1(
   }
 
   return utf8(encode(value, ""));
+}
+
+/**
+ * Save-only observed traversal. The unobserved encoder above intentionally
+ * keeps its original hot-path shape for digest, replay, and public callers.
+ *
+ * @internal
+ */
+export function canonicalJsonBytesObservedInternalV1(
+  value: unknown,
+  observer: CanonicalJsonTraversalObserverInternalV1,
+  instrumentation?: SnapshotWorkInstrumentationV1,
+): Uint8Array {
+  recordSnapshotWorkV1(instrumentation, "canonical_traversal");
+  const active = new Set<object>();
+
+  function encode(current: unknown, path: string, depth: number): string {
+    observer.enterValue(depth);
+    if (current === null) return "null";
+    if (typeof current === "boolean") return current ? "true" : "false";
+    if (typeof current === "string") {
+      assertValidString(current, path);
+      observer.observeString(current);
+      return JSON.stringify(current);
+    }
+    if (typeof current === "number") {
+      if (!Number.isFinite(current)) {
+        throw new CanonicalJsonError("number.non_finite", path);
+      }
+      if (!Number.isInteger(current)) {
+        throw new CanonicalJsonError("number.not_integer", path);
+      }
+      if (!Number.isSafeInteger(current)) {
+        throw new CanonicalJsonError("number.unsafe_integer", path);
+      }
+      if (Object.is(current, -0)) {
+        throw new CanonicalJsonError("number.negative_zero", path);
+      }
+      return String(current);
+    }
+    if (typeof current === "undefined" || typeof current === "symbol") {
+      throw new CanonicalJsonError("value.undefined", path);
+    }
+    if (typeof current === "function") {
+      throw new CanonicalJsonError("value.function", path);
+    }
+
+    const object = current as object;
+    if (active.has(object)) throw new CanonicalJsonError("value.cycle", path);
+    active.add(object);
+    try {
+      if (Array.isArray(object)) {
+        const values = [];
+        for (let index = 0; index < object.length; index += 1) {
+          observer.enterArrayItem(index);
+          if (!Object.hasOwn(object, index)) {
+            throw new CanonicalJsonError("value.sparse_array", `${path}/${index}`);
+          }
+          values.push(encode(object[index], `${path}/${index}`, depth + 1));
+        }
+        return `[${values.join(",")}]`;
+      }
+
+      if (Object.getPrototypeOf(object) !== Object.prototype) {
+        throw new CanonicalJsonError("value.custom_prototype", path);
+      }
+      const descriptors = Object.getOwnPropertyDescriptors(object);
+      const keys = Object.keys(descriptors).sort(compareCodePoints);
+      const members = [];
+      let memberIndex = 0;
+      for (const key of keys) {
+        observer.enterObjectMember(memberIndex);
+        memberIndex += 1;
+        const descriptor = descriptors[key];
+        if (descriptor?.get !== undefined || descriptor?.set !== undefined) {
+          throw new CanonicalJsonError("value.getter", `${path}/${pointerSegment(key)}`);
+        }
+        assertValidString(key, path);
+        observer.observeString(key);
+        observer.observeObjectKey(key);
+        members.push(
+          `${JSON.stringify(key)}:${encode(
+            descriptor?.value,
+            `${path}/${pointerSegment(key)}`,
+            depth + 1,
+          )}`,
+        );
+      }
+      return `{${members.join(",")}}`;
+    } finally {
+      active.delete(object);
+    }
+  }
+
+  return utf8(encode(value, "", 1));
 }

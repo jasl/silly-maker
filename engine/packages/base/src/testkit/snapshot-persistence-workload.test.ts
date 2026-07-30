@@ -15,7 +15,7 @@ const firstAutoSaveCountsV1 = Object.freeze({
   commandLogContinuityVerifications: 1,
   saveCanonicalSerializations: 1,
   strictJsonParses: 1,
-  strictJsonPreflights: 1,
+  strictJsonPreflights: 0,
 });
 
 const rotationCountsV1 = Object.freeze({
@@ -25,7 +25,7 @@ const rotationCountsV1 = Object.freeze({
   commandLogContinuityVerifications: 1,
   saveCanonicalSerializations: 2,
   strictJsonParses: 2,
-  strictJsonPreflights: 2,
+  strictJsonPreflights: 0,
 });
 
 const digestFallbackFirstAutoSaveCountsV1 = Object.freeze({
@@ -45,7 +45,7 @@ const writeReceiptFallbackFirstAutoSaveCountsV1 = Object.freeze({
   canonicalTraversals: 6,
   canonicalDigests: 4,
   saveCanonicalSerializations: 2,
-  strictJsonPreflights: 2,
+  strictJsonPreflights: 0,
 });
 
 const writeReceiptFallbackRotationCountsV1 = Object.freeze({
@@ -53,7 +53,7 @@ const writeReceiptFallbackRotationCountsV1 = Object.freeze({
   canonicalTraversals: 9,
   canonicalDigests: 6,
   saveCanonicalSerializations: 3,
-  strictJsonPreflights: 3,
+  strictJsonPreflights: 0,
 });
 
 describe("Snapshot persistence workload", () => {
@@ -97,7 +97,7 @@ describe("Snapshot persistence workload", () => {
         commandLogContinuityVerifications: 2,
         saveCanonicalSerializations: 3,
         strictJsonParses: 3,
-        strictJsonPreflights: 3,
+        strictJsonPreflights: 0,
       },
     });
     await expect(prepared.runOnce()).rejects.toThrow(

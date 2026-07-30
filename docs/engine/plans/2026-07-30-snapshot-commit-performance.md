@@ -291,3 +291,24 @@ TDD red 先把 standard workload 目标改为下表，在 S2a HEAD 上得到 3/3
 Strict readback parse 保持 `1 / 2 / aggregate 3`，deep-freeze 与 CommandLog continuity 保持每轮各 1。只遮蔽 receipt 的 opaque Repository wrapper 恢复 S2a 的 `6/4`、`9/6` 与 `2/3` 次 serialization/preflight；只遮蔽 Session digest evidence、仍命中 receipt 的 runtime-control wrapper 则为 `5/4`、`8/6`。两类 fallback 与 optimized 两轮 `auto.current` / `auto.previous` Host revision 和原始 bytes 完全相等；既有 semantic-equivalent physical-byte tamper 测试仍返回 conflict。
 
 receipt 路径保留一次 commit 前的 encoded-byte 防御性复制，以及由 matcher 执行的既有 raw-byte comparison；这两个线性 byte pass 不伪装成 canonical traversal，留到 S2d 统一 benchmark/成本归因。S2 仍未完成：S2c 将在不改变 schema/digest/canonical/Strict 错误顺序的前提下共享 canonical encoding 与 Strict limits traversal；S2d 仍需完整 equivalence corpus、browser/prebuilt 验证、before/after benchmark 与 PF1 promotion decision。
+
+### 2026-07-30 — S2c Shared Save canonical/Strict traversal
+
+本切片只合并 Save encode 的 canonical serialization 与 Strict limits preflight，不完成 S2 的 equivalence corpus 或 promotion：
+
+- Save encode 的 `record schema parse -> envelope validation -> normalized Snapshot digest audit` 顺序不变。随后 package-internal combined helper 只执行一次 observed canonical traversal，同时统计 depth、nodes、array items、object members、decoded string bytes 与 dangerous keys；生成后的 bytes 不再交给 `parseStrictJson` 做第二次 preflight traversal。public/digest/replay 使用的 unobserved canonical encoder 保留原递归 fast path，不承担 Save-only observer bookkeeping；
+- public `canonicalJsonBytes`、`parseStrictJson`、Save codec 签名、`saveJsonLimitsV1` 与 decoder 均未改变。untrusted bytes 的 decode 仍完整执行 Strict UTF-8 / BOM / syntax / duplicate-key / limits parser，再进行 schema 与 digest audit；
+- inline tracker 只记录第一个 Strict 候选，绝不提前终止 canonical encoding。任一后续 canonical error、array getter 或原生异常仍优先；canonical 成功后，最终 byte length 的 `limit.bytes` 仍覆盖其他 Strict 候选。其余顺序保持 depth before nodes、array/object count before extra child/key、key string limit before dangerous key；
+- `strictJsonPreflights` 继续只计“canonical bytes 生成后另行执行的 Strict parse traversal”，因此每次 Save encode 从 `1` 降为 `0`；inline limits protection 已包含在同一次 `saveCanonicalSerializations` / `canonicalTraversals` 中，不另造一个会掩盖已消除遍历的逻辑事件。
+
+TDD red 在 S2b HEAD 上得到 codec 1 个、persistence workload 4 个确定性失败，received 仍为每次 encode 一个独立 preflight。green 后，tuple 按 `canonical traversal / digest / Save serialization / Strict read parse / standalone preflight` 记录为：
+
+| path                    | first commit + autosave |            rotation |             aggregate |
+| ----------------------- | ----------------------: | ------------------: | --------------------: |
+| standard                |     `4 / 3 / 1 / 1 / 0` | `7 / 5 / 2 / 2 / 0` |  `11 / 8 / 3 / 3 / 0` |
+| runtime digest fallback |     `5 / 4 / 1 / 1 / 0` | `8 / 6 / 2 / 2 / 0` | `13 / 10 / 3 / 3 / 0` |
+| write-receipt fallback  |     `6 / 4 / 2 / 1 / 0` | `9 / 6 / 3 / 2 / 0` | `15 / 10 / 5 / 3 / 0` |
+
+deep-freeze 与 CommandLog continuity 仍为每轮各 `1`。一个固定 Save canonical text golden 防止新旧路径只用共享 core 自证；direct-file differential matrix 把 combined helper 与旧 composition `canonicalJsonBytes + parseStrictJson` 对照，覆盖全部六项 limits、dangerous keys、Unicode/key order、多重违规优先级、canonical errors、cycle/shared alias 与 object/array accessor 行为。既有 standard/no-probe、digest fallback 与 receipt fallback workload 继续逐 slot 比较 Host revision 及 `auto.current` / `auto.previous` 原始 bytes。
+
+S2 仍未完成。S2d 还需 normal save/load/export/import、autosave rotation、rejected/faulted、rollback、debug command、lease conflict/retry、anchor replacement 与 corrupted/tampered record 的完整 byte-equivalence corpus，browser/prebuilt 验证、before/after benchmark、剩余 byte-copy/compare 成本归因，以及 PF1 promotion decision。

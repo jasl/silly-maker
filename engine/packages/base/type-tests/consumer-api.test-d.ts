@@ -463,3 +463,9 @@ export { createInstrumentedPersistenceServiceV1 } from "@sillymaker/base/runtime
 export { matchesCommittedSaveWriteReceiptInternalV1 } from "@sillymaker/base/runtime";
 // @ts-expect-error instrumented Save codec helpers stay package-internal
 export { encodeSaveRecordInternalV1 } from "@sillymaker/base/runtime";
+// @ts-expect-error canonical traversal observers stay package-internal
+export type { CanonicalJsonTraversalObserverInternalV1 } from "@sillymaker/base";
+// @ts-expect-error observed canonical traversal stays package-internal
+export { canonicalJsonBytesObservedInternalV1 } from "@sillymaker/base";
+// @ts-expect-error combined canonical/Strict encoding stays package-internal
+export { canonicalJsonBytesWithStrictLimitsInternalV1 } from "@sillymaker/base";

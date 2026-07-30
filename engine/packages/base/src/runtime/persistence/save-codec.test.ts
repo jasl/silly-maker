@@ -247,7 +247,7 @@ describe("Save record codec", () => {
       commandLogContinuityVerifications: 0,
       saveCanonicalSerializations: 1,
       strictJsonParses: 0,
-      strictJsonPreflights: 1,
+      strictJsonPreflights: 0,
     });
 
     counter.reset();
@@ -268,8 +268,19 @@ describe("Save record codec", () => {
   it("encodes one canonical representation and round-trips a strict frozen record", () => {
     const record = makeRecordV1();
     const bytes = encodeSaveRecordV1(record, codecV1);
+    const goldenText =
+      '{"formatRevision":1,"provenance":{"resolved":{"simulationDigest":' +
+      '"sha256:e687ff8c5f6b8a8a833e6d3630788e6ef88a68d18ffb46dcf3eeae94170a9e06"},' +
+      '"story":{"id":"story.synthetic"}},"recordRevision":2,' +
+      '"savedAt":"2026-07-14T00:00:00.000Z","simulationLineage":[],' +
+      '"slot":{"capturedCommandSequence":3,"storyId":"story.synthetic"},' +
+      '"snapshot":{"commandSequence":3,"integrity":{"firstMutationSequence":null,' +
+      '"mode":"normal","mutationCount":0,"reasons":[]},"rng":{"cursor":17},' +
+      '"state":{"count":4,"referenceId":"reference.synthetic"}},' +
+      '"stateDigest":"sha256:2bdf84bdc2272526196b1df013db754b7a31b491a35d3db892317f1ab326300b"}';
 
     expect(bytes).toEqual(canonicalJsonBytes(record));
+    expect(new TextDecoder().decode(bytes)).toBe(goldenText);
     expect(new TextDecoder().decode(bytes)).not.toMatch(/^\uFEFF|\n|\r/u);
     const decoded = decodeSaveRecordV1(bytes, codecV1);
     expect(decoded).toEqual({ kind: "decoded", record });
@@ -369,7 +380,9 @@ describe("Save record codec", () => {
       kind: "rejected",
       code: "limit.bytes",
     });
-    expect(() => encodeSaveRecordV1(record, codecV1)).toThrow(TypeError);
+    expect(() => encodeSaveRecordV1(record, codecV1)).toThrowError(
+      "Save record violates Strict JSON constraints: limit.bytes",
+    );
   });
 
   it("does not encode a Save that exceeds the decoder string byte limit", () => {
@@ -388,7 +401,9 @@ describe("Save record codec", () => {
       kind: "rejected",
       code: "limit.string_bytes",
     });
-    expect(() => encodeSaveRecordV1(record, codecV1)).toThrow(TypeError);
+    expect(() => encodeSaveRecordV1(record, codecV1)).toThrowError(
+      "Save record violates Strict JSON constraints: limit.string_bytes",
+    );
   });
 
   it("rejects disconnected and wrong-tail lineage before Story validation", () => {

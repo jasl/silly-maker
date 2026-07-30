@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: MIT
-import { canonicalJsonBytesInternalV1 } from "../../contracts/canonical-json.ts";
 import { digestCanonicalInternalV1 } from "../../contracts/digest.ts";
 import {
   SaveRecordEnvelopeSchemaFailureV1,
@@ -10,7 +9,10 @@ import type {
   SaveRecordDecodeResultV1,
   SaveRecordEnvelopeV1,
 } from "../../contracts/persistence.ts";
-import { parseStrictJson } from "../../contracts/strict-json.ts";
+import {
+  canonicalJsonBytesWithStrictLimitsInternalV1,
+  parseStrictJson,
+} from "../../contracts/strict-json.ts";
 import type { DeepReadonly } from "../../contracts/values.ts";
 import type { SnapshotWorkInstrumentationV1 } from "../../internal/snapshot-work-instrumentation.ts";
 import { recordSnapshotWorkV1 } from "../../internal/snapshot-work-instrumentation.ts";
@@ -76,13 +78,15 @@ export function encodeSaveRecordInternalV1<
     throw new TypeError("Save state digest mismatch");
   }
   recordSnapshotWorkV1(instrumentation, "save_canonical_serialization");
-  const bytes = canonicalJsonBytesInternalV1(parsed, instrumentation);
-  recordSnapshotWorkV1(instrumentation, "strict_json_preflight");
-  const preflight = parseStrictJson(bytes, saveJsonLimitsV1);
-  if (!preflight.ok) {
-    throw new TypeError(`Save record violates Strict JSON constraints: ${preflight.error.code}`);
+  const encoded = canonicalJsonBytesWithStrictLimitsInternalV1(
+    parsed,
+    saveJsonLimitsV1,
+    instrumentation,
+  );
+  if (!encoded.ok) {
+    throw new TypeError(`Save record violates Strict JSON constraints: ${encoded.error.code}`);
   }
-  return bytes;
+  return encoded.bytes;
 }
 
 export function decodeSaveRecordV1<
