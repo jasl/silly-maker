@@ -11,6 +11,7 @@ import {
   type ManagedSurfaceDismissKindV1,
   type ManagedSurfaceInstanceIdV1,
   type ManagedSurfaceOwnerIdV1,
+  type ManagedSurfaceOwnerTransitionEvidenceV1,
   type ManagedSurfacePublicationV1,
   type ManagedSurfaceResolvedDefinitionV1,
   type ManagedSurfaceTransitionEvidenceV1,
@@ -25,6 +26,7 @@ import {
 } from "./managed-surface-reducer.ts";
 
 export type ManagedSurfaceHandleV1 = ManagedSurfaceTransitionEvidenceV1;
+export type ManagedSurfaceOwnerHandleV1 = ManagedSurfaceOwnerTransitionEvidenceV1;
 
 export interface ManagedSurfaceTransientOpenInputV1 {
   readonly definition: ManagedSurfaceResolvedDefinitionV1;
@@ -60,6 +62,7 @@ export interface CreateManagedSurfaceCoordinatorInputV1 {
 export interface ManagedSurfaceCoordinatorV1 {
   getSnapshot(): DeepReadonly<ManagedSurfacePublicationV1>;
   getHandle(surfaceInstanceId: ManagedSurfaceInstanceIdV1): ManagedSurfaceHandleV1 | null;
+  getOwnerHandle(ownerId: ManagedSurfaceOwnerIdV1): ManagedSurfaceOwnerHandleV1 | null;
   subscribe(listener: () => void): () => void;
   openTransientPrimary(input: ManagedSurfaceTransientOpenInputV1): ManagedSurfaceHandleResultV1;
   replaceTransientPrimary(
@@ -67,6 +70,9 @@ export interface ManagedSurfaceCoordinatorV1 {
   ): ManagedSurfaceHandleResultV1;
   pushTransientChild(input: ManagedSurfaceTransientChildInputV1): ManagedSurfaceHandleResultV1;
   closeExpected(handle: ManagedSurfaceHandleV1): ManagedSurfaceTransitionReceiptV1;
+  /** Synchronous current-intent convenience; delayed callbacks use closeExpected. */
+  closeTop(): ManagedSurfaceTransitionReceiptV1;
+  closeOwner(handle: ManagedSurfaceOwnerHandleV1): ManagedSurfaceTransitionReceiptV1;
   routeDismiss(
     handle: ManagedSurfaceHandleV1,
     dismissKind: ManagedSurfaceDismissKindV1,
@@ -186,6 +192,19 @@ export function createManagedSurfaceCoordinatorV1(
         : handleV1(applicationEpoch, state.publication.topologyRevision, surfaceInstanceId);
     },
 
+    getOwnerHandle(ownerId) {
+      const hasLiveInstance = state.publication.orderedInstances.some(
+        (instance) => instance.definition.ownerId === ownerId,
+      );
+      return hasLiveInstance
+        ? Object.freeze({
+            applicationEpoch,
+            topologyRevision: state.publication.topologyRevision,
+            ownerId,
+          })
+        : null;
+    },
+
     subscribe(listener) {
       if (state.publication.coordinatorDisposed) {
         throw new TypeError("ui.managed_surface_coordinator_disposed");
@@ -228,6 +247,14 @@ export function createManagedSurfaceCoordinatorV1(
 
     closeExpected(handle) {
       return transition({ kind: "close_expected", evidence: handle });
+    },
+
+    closeTop() {
+      return transition({ kind: "close_top", applicationEpoch });
+    },
+
+    closeOwner(handle) {
+      return transition({ kind: "close_owner", evidence: handle });
     },
 
     routeDismiss(handle, dismissKind) {

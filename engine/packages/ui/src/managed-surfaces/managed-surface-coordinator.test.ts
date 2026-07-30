@@ -402,4 +402,186 @@ describe("ManagedSurfaceCoordinatorV1", () => {
       code: "surface.closed",
     });
   });
+
+  it("closes the current top explicitly without treating dismiss policy as close authority", () => {
+    const coordinator = createManagedSurfaceCoordinatorV1({
+      applicationEpoch: parseNonNegativeSafeInteger(12),
+    });
+    const parent = coordinator.openTransientPrimary({
+      definition: definitionV1("workspace"),
+      semanticOccurrenceId: null,
+    });
+    coordinator.pushTransientChild({
+      parent: parent.handle!,
+      definition: childDefinitionV1("detail"),
+      semanticOccurrenceId: null,
+    });
+    const locked = coordinator.openTransientPrimary({
+      definition: definitionV1("locked", {
+        ownerId: parseManagedSurfaceOwnerIdV1("surface-owner.system"),
+        slotId: parseManagedSurfaceSlotIdV1("surface-slot.modal"),
+        layerId: parseManagedSurfaceLayerIdV1("surface-layer.system"),
+        layerOrder: parseNonNegativeSafeInteger(80),
+        modality: "blocking",
+        inputContextId: "system",
+        dismissPolicy: {
+          back: false,
+          escape: false,
+          backdrop: false,
+          routedCancel: false,
+        },
+      }),
+      semanticOccurrenceId: null,
+    });
+    const listener = vi.fn();
+    coordinator.subscribe(listener);
+
+    expect(coordinator.routeDismiss(locked.handle!, "back")).toMatchObject({
+      kind: "rejected",
+      code: "surface.dismiss_locked",
+    });
+    expect(listener).not.toHaveBeenCalled();
+
+    coordinator.openTransientPrimary({
+      definition: definitionV1("higher-nonblocking", {
+        ownerId: parseManagedSurfaceOwnerIdV1("surface-owner.debug"),
+        slotId: parseManagedSurfaceSlotIdV1("surface-slot.debug"),
+        layerId: parseManagedSurfaceLayerIdV1("surface-layer.debug"),
+        layerOrder: parseNonNegativeSafeInteger(90),
+        inputContextId: "debug",
+      }),
+      semanticOccurrenceId: null,
+    });
+    expect(coordinator.getSnapshot().topmostBlockingInstanceId).toBe("surface-instance.e12.n3");
+    expect(coordinator.getSnapshot().inputOwner?.surfaceInstanceId).toBe("surface-instance.e12.n4");
+    listener.mockClear();
+
+    expect(coordinator.closeTop()).toMatchObject({
+      kind: "applied",
+      code: "surface.closed",
+      surfaceInstanceId: "surface-instance.e12.n4",
+    });
+    expect(coordinator.getSnapshot().inputOwner?.surfaceInstanceId).toBe("surface-instance.e12.n3");
+    expect(coordinator.closeTop()).toMatchObject({
+      kind: "applied",
+      code: "surface.closed",
+      surfaceInstanceId: "surface-instance.e12.n3",
+    });
+    expect(coordinator.getSnapshot().inputOwner?.surfaceInstanceId).toBe("surface-instance.e12.n2");
+    expect(coordinator.closeTop()).toMatchObject({
+      kind: "applied",
+      surfaceInstanceId: "surface-instance.e12.n2",
+    });
+    expect(coordinator.closeTop()).toMatchObject({
+      kind: "applied",
+      surfaceInstanceId: "surface-instance.e12.n1",
+    });
+    const empty = coordinator.getSnapshot();
+    expect(coordinator.closeTop()).toMatchObject({
+      kind: "unchanged",
+      code: "surface.already_closed",
+    });
+    expect(coordinator.getSnapshot()).toBe(empty);
+    expect(listener).toHaveBeenCalledTimes(4);
+  });
+
+  it("closes an owner's live topology without permanently disposing that owner", () => {
+    const coordinator = createManagedSurfaceCoordinatorV1({
+      applicationEpoch: parseNonNegativeSafeInteger(13),
+    });
+    coordinator.openTransientPrimary({
+      definition: definitionV1("workspace"),
+      semanticOccurrenceId: null,
+    });
+    const system = coordinator.openTransientPrimary({
+      definition: definitionV1("system", {
+        ownerId: parseManagedSurfaceOwnerIdV1("surface-owner.system"),
+        slotId: parseManagedSurfaceSlotIdV1("surface-slot.system"),
+        layerId: parseManagedSurfaceLayerIdV1("surface-layer.system"),
+        layerOrder: parseNonNegativeSafeInteger(80),
+        modality: "blocking",
+        inputContextId: "system",
+      }),
+      semanticOccurrenceId: null,
+    });
+    const systemOwnerId = parseManagedSurfaceOwnerIdV1("surface-owner.system");
+    coordinator.pushTransientChild({
+      parent: system.handle!,
+      definition: definitionV1("system-detail", {
+        ownerId: systemOwnerId,
+        slotId: parseManagedSurfaceSlotIdV1("surface-slot.system-detail"),
+        layerId: parseManagedSurfaceLayerIdV1("surface-layer.system"),
+        layerOrder: parseNonNegativeSafeInteger(90),
+        placement: "child",
+        slotCardinality: "stack",
+        allowedParentSlotIds: [parseManagedSurfaceSlotIdV1("surface-slot.system")],
+        modality: "blocking",
+        inputContextId: "system",
+      }),
+      semanticOccurrenceId: null,
+    });
+    const listener = vi.fn();
+    coordinator.subscribe(listener);
+
+    const firstOwnerHandle = coordinator.getOwnerHandle(systemOwnerId);
+    expect(firstOwnerHandle).toEqual({
+      applicationEpoch: 13,
+      topologyRevision: 3,
+      ownerId: "surface-owner.system",
+    });
+    expect(Object.isFrozen(firstOwnerHandle)).toBe(true);
+    expect(coordinator.closeOwner(firstOwnerHandle!)).toMatchObject({
+      kind: "applied",
+      code: "surface.owner_closed",
+      beforeTopologyRevision: 3,
+      afterTopologyRevision: 4,
+    });
+    expect(coordinator.getSnapshot().orderedInstances).toMatchObject([
+      { surfaceInstanceId: "surface-instance.e13.n1" },
+    ]);
+    expect(coordinator.getSnapshot().inputOwner?.surfaceInstanceId).toBe("surface-instance.e13.n1");
+    expect(coordinator.getSnapshot().focusOwner?.surfaceInstanceId).toBe("surface-instance.e13.n1");
+    expect(listener).toHaveBeenCalledOnce();
+
+    const reopened = coordinator.openTransientPrimary({
+      definition: definitionV1("system-reopened", {
+        ownerId: systemOwnerId,
+        slotId: parseManagedSurfaceSlotIdV1("surface-slot.system"),
+        layerId: parseManagedSurfaceLayerIdV1("surface-layer.system"),
+        layerOrder: parseNonNegativeSafeInteger(80),
+        modality: "blocking",
+        inputContextId: "system",
+      }),
+      semanticOccurrenceId: null,
+    });
+    expect(reopened).toMatchObject({
+      receipt: { kind: "applied", code: "surface.opened" },
+      handle: { surfaceInstanceId: "surface-instance.e13.n4" },
+    });
+    expect(coordinator.getSnapshot().orderedInstances[1]).toMatchObject({
+      target: { occurrenceId: "surface-occurrence.e13.n4" },
+      surfaceInstanceId: "surface-instance.e13.n4",
+      routingLeaseId: "surface-lease.e13.n4",
+    });
+    expect(listener).toHaveBeenCalledTimes(2);
+    const beforeStale = coordinator.getSnapshot();
+    listener.mockClear();
+    expect(coordinator.closeOwner(firstOwnerHandle!)).toMatchObject({
+      kind: "stale",
+      code: "surface.stale_topology_revision",
+    });
+    expect(coordinator.getSnapshot()).toBe(beforeStale);
+    expect(listener).not.toHaveBeenCalled();
+
+    expect(coordinator.closeOwner(coordinator.getOwnerHandle(systemOwnerId)!)).toMatchObject({
+      kind: "applied",
+      code: "surface.owner_closed",
+    });
+    const afterClose = coordinator.getSnapshot();
+    listener.mockClear();
+
+    expect(coordinator.getOwnerHandle(systemOwnerId)).toBeNull();
+    expect(coordinator.getSnapshot()).toBe(afterClose);
+    expect(listener).not.toHaveBeenCalled();
+  });
 });

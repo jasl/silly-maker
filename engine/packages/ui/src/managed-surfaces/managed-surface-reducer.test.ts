@@ -657,6 +657,40 @@ describe("reduceManagedSurfaceV1", () => {
     });
     expect(staleOpen.state).toBe(state);
 
+    const staleCloseTop = reduceManagedSurfaceV1(state, {
+      kind: "close_top",
+      applicationEpoch: parseNonNegativeSafeInteger(8),
+    });
+    expect(staleCloseTop.receipt).toMatchObject({
+      kind: "stale",
+      code: "surface.stale_application_epoch",
+    });
+    expect(staleCloseTop.state).toBe(state);
+
+    const empty = createManagedSurfaceReducerStateV1(9);
+    const alreadyClosed = reduceManagedSurfaceV1(empty, {
+      kind: "close_top",
+      applicationEpoch: empty.publication.applicationEpoch,
+    });
+    expect(alreadyClosed.receipt).toMatchObject({
+      kind: "unchanged",
+      code: "surface.already_closed",
+    });
+    expect(alreadyClosed.state).toBe(empty);
+    const ownerAlreadyClosed = reduceManagedSurfaceV1(empty, {
+      kind: "close_owner",
+      evidence: {
+        applicationEpoch: empty.publication.applicationEpoch,
+        topologyRevision: empty.publication.topologyRevision,
+        ownerId: parseManagedSurfaceOwnerIdV1("surface-owner.workspace"),
+      },
+    });
+    expect(ownerAlreadyClosed.receipt).toMatchObject({
+      kind: "unchanged",
+      code: "surface.already_closed",
+    });
+    expect(ownerAlreadyClosed.state).toBe(empty);
+
     const evidenceCases = [
       {
         evidence: {

@@ -224,9 +224,46 @@ transient Coordinator store；S1 仍未完成。
 - focused reducer/Coordinator `19/19`、`@sillymaker/ui`
   `52 files / 432 tests` 与 aggregate typecheck 通过。
 
-剩余 S1 工作包括 close-top/close-owner/route-action、异步 readiness transition、
-application epoch 的 composition/HMR 轮换证明，以及在参数等价规则明确后实现
-external owner reconcile。
+### S1c delivery record（2026-07-30）
+
+本切片只补齐 transient/synchronous close convenience；S1 仍未完成。
+
+**目标：**
+
+- `closeTop()` 显式关闭调用时同一 frozen publication 的 current input owner，而
+  不是重新搜索 topmost blocking 或可 dismiss Surface；
+- `closeOwner(ownerHandle)` 以 frozen epoch/revision/owner evidence 一次关闭该
+  owner 的全部 live topology/subtree，但不把 owner 标为 disposed，允许 fresh
+  reopen；
+- close commit 一次递增 topology revision、退休 occurrence/instance/lease，并
+  在同一 publication 恢复下层 input/focus/owner trace。
+
+**非目标：**
+
+- `closeTop()` 不是 Back，也不是异步 callback fence；指定 occurrence 或延迟
+  callback 必须继续使用 `closeExpected(handle)`；
+- 不实现 route action。完整 managed input route 仍需 canonical
+  `gestureId`/`inputPublicationRevision`、registration-captured routing lease 与
+  InputRouter/Web 的分层 outcome；Coordinator 不伪装成 semantic dispatcher；
+- 不改变 dismiss policy，不接入 external stable targets、现有 writable stores、
+  React/DOM/Web adapter 或 public API。
+
+**验收证据：**
+
+- locked Surface 的 Back 仍稳定拒绝；显式 closeTop 可关闭它且不下穿；
+- lower blocking 与 higher non-blocking 并存时，closeTop 关闭 publication 的
+  higher input owner，再原子恢复 blocking owner；
+- owner handle 不自动刷新；close → fresh reopen 后旧 owner handle 返回 stale，
+  不能关闭 successor；
+- owner root 与 child 在一个 revision 中一起关闭，其他 owner 的 input/focus
+  同 commit 恢复；reopen 产生新的 occurrence/instance/routing lease；
+- empty closeTop unchanged 且不发布；
+- focused reducer/Coordinator `21/21`、`@sillymaker/ui`
+  `52 files / 434 tests` 与 aggregate typecheck 通过。
+
+剩余 S1 工作包括 route-action/InputRouter canonical envelope、异步 readiness
+transition、application epoch 的 composition/HMR 轮换证明，以及在参数等价规则
+明确后实现 external owner reconcile。
 
 **S1 acceptance：** kernel 可在无 DOM 环境运行；没有 public Story API promotion；没有旧 store 双写。
 

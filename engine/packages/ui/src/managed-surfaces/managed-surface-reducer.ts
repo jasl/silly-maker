@@ -569,6 +569,54 @@ export function reduceManagedSurfaceV1(
       return closeInstanceV1(state, operation.evidence.surfaceInstanceId, "surface.closed");
     }
 
+    case "close_top": {
+      if (operation.applicationEpoch !== state.publication.applicationEpoch) {
+        return unchangedResultV1(state, "stale", "surface.stale_application_epoch");
+      }
+      const topInstanceId = state.publication.inputOwner?.surfaceInstanceId;
+      if (topInstanceId === undefined) {
+        return unchangedResultV1(state, "unchanged", "surface.already_closed");
+      }
+      return closeInstanceV1(state, topInstanceId, "surface.closed");
+    }
+
+    case "close_owner": {
+      if (operation.evidence.applicationEpoch !== state.publication.applicationEpoch) {
+        return unchangedResultV1(state, "stale", "surface.stale_application_epoch");
+      }
+      if (operation.evidence.topologyRevision !== state.publication.topologyRevision) {
+        return unchangedResultV1(state, "stale", "surface.stale_topology_revision");
+      }
+      if (state.disposedOwnerIds.includes(operation.evidence.ownerId)) {
+        return unchangedResultV1(state, "unchanged", "surface.owner_already_disposed");
+      }
+      const ownerInstances = state.publication.orderedInstances.filter(
+        (instance) => instance.definition.ownerId === operation.evidence.ownerId,
+      );
+      if (ownerInstances.length === 0) {
+        return unchangedResultV1(state, "unchanged", "surface.already_closed");
+      }
+      const removedIds = new Set(
+        ownerInstances.flatMap((instance) =>
+          descendantsIncludingV1(
+            state.publication.orderedInstances,
+            instance.surfaceInstanceId,
+          ).map((removed) => removed.surfaceInstanceId),
+        ),
+      );
+      const removed = state.publication.orderedInstances.filter((instance) =>
+        removedIds.has(instance.surfaceInstanceId),
+      );
+      return appliedResultV1(
+        state,
+        "surface.owner_closed",
+        state.publication.orderedInstances.filter(
+          (instance) => !removedIds.has(instance.surfaceInstanceId),
+        ),
+        removed,
+      );
+    }
+
     case "route_dismiss": {
       const failure = evidenceFailureV1(state, operation.evidence);
       if (failure !== null) return failure;

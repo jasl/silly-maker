@@ -162,6 +162,12 @@ export interface ManagedSurfaceTransitionEvidenceV1 {
   readonly surfaceInstanceId: ManagedSurfaceInstanceIdV1;
 }
 
+export interface ManagedSurfaceOwnerTransitionEvidenceV1 {
+  readonly applicationEpoch: NonNegativeSafeInteger;
+  readonly topologyRevision: NonNegativeSafeInteger;
+  readonly ownerId: ManagedSurfaceOwnerIdV1;
+}
+
 export type ManagedSurfaceDismissKindV1 = "back" | "escape" | "backdrop" | "routed_cancel";
 
 export type ManagedSurfaceOperationV1 =
@@ -185,6 +191,14 @@ export type ManagedSurfaceOperationV1 =
       readonly evidence: ManagedSurfaceTransitionEvidenceV1;
     }
   | {
+      readonly kind: "close_top";
+      readonly applicationEpoch: NonNegativeSafeInteger;
+    }
+  | {
+      readonly kind: "close_owner";
+      readonly evidence: ManagedSurfaceOwnerTransitionEvidenceV1;
+    }
+  | {
       readonly kind: "route_dismiss";
       readonly dismissKind: ManagedSurfaceDismissKindV1;
       readonly evidence: ManagedSurfaceTransitionEvidenceV1;
@@ -206,11 +220,13 @@ export type ManagedSurfaceTransitionCodeV1 =
   | "surface.replaced"
   | "surface.child_pushed"
   | "surface.closed"
+  | "surface.owner_closed"
   | "surface.dismissed"
   | "surface.owner_disposed"
   | "surface.coordinator_disposed"
   | "surface.owner_already_disposed"
   | "surface.coordinator_already_disposed"
+  | "surface.already_closed"
   | "surface.duplicate_occurrence"
   | "surface.duplicate_instance"
   | "surface.duplicate_routing_lease"
