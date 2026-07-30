@@ -109,6 +109,13 @@ export interface HostRecordStoreMalformedConformanceReportV1 {
   }[];
 }
 
+export interface HostRecordStoreRevisionOverflowConformanceReportV1 {
+  readonly seedMatched: boolean;
+  readonly overflowRejectedWithTypeError: boolean;
+  readonly earlierMutationPreserved: boolean;
+  readonly maximumRecordPreserved: boolean;
+}
+
 export const hostRecordStoreConformanceExpectedV1 = Object.freeze({
   validation: Object.freeze({
     emptyRejected: true,
@@ -216,6 +223,24 @@ export const hostRecordStoreMalformedConformanceExpectedV1 = Object.freeze({
     ),
   ),
 }) satisfies DeepReadonly<HostRecordStoreMalformedConformanceReportV1>;
+
+export const hostRecordStoreRevisionOverflowConformanceExpectedV1 = Object.freeze({
+  seedMatched: true,
+  overflowRejectedWithTypeError: true,
+  earlierMutationPreserved: true,
+  maximumRecordPreserved: true,
+}) satisfies DeepReadonly<HostRecordStoreRevisionOverflowConformanceReportV1>;
+
+export const hostRecordStoreRevisionOverflowEarlierKeyV1 = keyV1("conformance.overflow.earlier");
+
+export function createHostRecordStoreRevisionOverflowSeedV1(): HostStoredRecordV1 {
+  return Object.freeze({
+    namespace: "settings",
+    key: keyV1("conformance.overflow.maximum"),
+    revision: Number.MAX_SAFE_INTEGER as HostStoredRecordV1["revision"],
+    bytes: bytesV1(1, 127, 255),
+  });
+}
 
 function putV1(
   namespace: HostRecordMutationV1["namespace"],
@@ -496,6 +521,48 @@ export async function runHostRecordStoreMalformedConformanceV1(
   }
   return Object.freeze({
     cases: Object.freeze(cases),
+  });
+}
+
+/**
+ * Runs the matched-revision overflow boundary against a store pre-seeded with
+ * createHostRecordStoreRevisionOverflowSeedV1(). Stale-MAX conflict precedence
+ * remains intentionally outside this workload.
+ */
+export async function runHostRecordStoreRevisionOverflowConformanceV1(
+  store: HostAtomicRecordStoreV1,
+): Promise<DeepReadonly<HostRecordStoreRevisionOverflowConformanceReportV1>> {
+  const seed = createHostRecordStoreRevisionOverflowSeedV1();
+  const earlierKey = hostRecordStoreRevisionOverflowEarlierKeyV1;
+  const beforeMaximum = await store.read(seed.namespace, seed.key);
+  const seedMatched =
+    beforeMaximum !== null &&
+    beforeMaximum.namespace === seed.namespace &&
+    beforeMaximum.key === seed.key &&
+    beforeMaximum.revision === seed.revision &&
+    bytesEqualV1(beforeMaximum.bytes, seed.bytes) &&
+    (await store.read("settings", earlierKey)) === null;
+
+  const overflowRejectedWithTypeError = await rejectsTypeErrorV1(() =>
+    store.commit([
+      putV1("settings", earlierKey, null, bytesV1(2, 128, 254)),
+      putV1(seed.namespace, seed.key, seed.revision, bytesV1(3, 129, 253)),
+    ]),
+  );
+  const afterMaximum = await store.read(seed.namespace, seed.key);
+  const earlierMutationPreserved = (await store.read("settings", earlierKey)) === null;
+  const maximumRecordPreserved =
+    afterMaximum !== null &&
+    afterMaximum.namespace === seed.namespace &&
+    afterMaximum.key === seed.key &&
+    afterMaximum.revision === seed.revision &&
+    bytesEqualV1(afterMaximum.bytes, seed.bytes);
+
+  return Object.freeze({
+    seedMatched,
+    overflowRejectedWithTypeError,
+    earlierMutationPreserved,
+    maximumRecordPreserved,
   });
 }
 

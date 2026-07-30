@@ -6,15 +6,17 @@ import type {
   HostAtomicRecordStoreV1,
   HostRecordKeyV1,
   HostRecordMutationV1,
-  HostStoredRecordV1,
 } from "../contracts/host.ts";
 import { createSeededMemoryHostRecordStoreInternalV1 } from "../contracts/host.ts";
 import { parseNonNegativeSafeInteger } from "../contracts/values.ts";
 import {
+  createHostRecordStoreRevisionOverflowSeedV1,
   hostRecordStoreConformanceExpectedV1,
   hostRecordStoreMalformedConformanceExpectedV1,
+  hostRecordStoreRevisionOverflowConformanceExpectedV1,
   runHostRecordStoreConformanceV1,
   runHostRecordStoreMalformedConformanceV1,
+  runHostRecordStoreRevisionOverflowConformanceV1,
 } from "../../../../test-support/host-atomic-record-store-conformance.ts";
 
 const keyV1 = (value: string) => value as HostRecordKeyV1;
@@ -153,35 +155,12 @@ describe("Host record store conformance workload", () => {
   });
 
   it("rejects a later revision overflow without committing an earlier mutation", async () => {
-    const maximumRevision = parseNonNegativeSafeInteger(Number.MAX_SAFE_INTEGER);
-    const maximum = Object.freeze({
-      namespace: "settings",
-      key: keyV1("conformance.overflow.maximum"),
-      revision: maximumRevision,
-      bytes: Uint8Array.of(1),
-    }) satisfies HostStoredRecordV1;
-    const store = createSeededMemoryHostRecordStoreInternalV1([maximum]);
+    const store = createSeededMemoryHostRecordStoreInternalV1([
+      createHostRecordStoreRevisionOverflowSeedV1(),
+    ]);
 
-    await expect(
-      store.commit([
-        {
-          kind: "put",
-          namespace: "settings",
-          key: keyV1("conformance.overflow.earlier"),
-          expectedRevision: null,
-          bytes: Uint8Array.of(2),
-        },
-        {
-          kind: "put",
-          namespace: "settings",
-          key: maximum.key,
-          expectedRevision: maximumRevision,
-          bytes: Uint8Array.of(3),
-        },
-      ]),
-    ).rejects.toThrow(TypeError);
-
-    expect(await store.read("settings", keyV1("conformance.overflow.earlier"))).toBeNull();
-    expect(await store.read("settings", maximum.key)).toEqual(maximum);
+    expect(await runHostRecordStoreRevisionOverflowConformanceV1(store)).toEqual(
+      hostRecordStoreRevisionOverflowConformanceExpectedV1,
+    );
   });
 });

@@ -196,32 +196,6 @@ describe("the desktop record file store", () => {
     await expect(store.list("save")).rejects.toThrow("duplicate desktop Host record key: a");
   });
 
-  it("rejects revision overflow and preserves the existing record", async () => {
-    const { root, store } = await fixtureV1();
-    await mkdir(join(root, "settings"), { recursive: true });
-    await writeFile(
-      join(root, "settings", "maximum.json"),
-      JSON.stringify({ revision: Number.MAX_SAFE_INTEGER, bytesBase64: "YQ==" }),
-      "utf8",
-    );
-
-    await expect(
-      store.commit([
-        {
-          kind: "put",
-          namespace: "settings",
-          key: "maximum",
-          expectedRevision: Number.MAX_SAFE_INTEGER,
-          bytesBase64: "Yg==",
-        },
-      ]),
-    ).rejects.toThrow("invalid Host record revision");
-    expect(await store.read("settings", "maximum")).toMatchObject({
-      revision: Number.MAX_SAFE_INTEGER,
-      bytesBase64: "YQ==",
-    });
-  });
-
   it("returns immutable records and commit results", async () => {
     const { store } = await fixtureV1();
     const result = await store.commit([

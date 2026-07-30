@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 import { Buffer } from "node:buffer";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -11,10 +11,14 @@ import type {
   HostStoredRecordV1,
 } from "@sillymaker/base";
 import {
+  createHostRecordStoreRevisionOverflowSeedV1,
   hostRecordStoreConformanceExpectedV1,
   hostRecordStoreReopenExpectedV1,
+  hostRecordStoreRevisionOverflowConformanceExpectedV1,
+  hostRecordStoreRevisionOverflowEarlierKeyV1,
   runHostRecordStoreConformanceV1,
   runHostRecordStoreReopenConformanceV1,
+  runHostRecordStoreRevisionOverflowConformanceV1,
 } from "../../../../test-support/host-atomic-record-store-conformance.ts";
 
 import {
@@ -100,7 +104,23 @@ async function fixtureV1() {
   const root = await mkdtemp(join(tmpdir(), "sillymaker-record-conformance-"));
   cleanupDirV1 = root;
   const createStore = () => adaptFileStoreV1(createRecordFileStoreV1(root));
-  return Object.freeze({ createStore, store: createStore() });
+  return Object.freeze({ root, createStore, store: createStore() });
+}
+
+async function seedRevisionOverflowV1(
+  root: string,
+  seed: ReturnType<typeof createHostRecordStoreRevisionOverflowSeedV1>,
+): Promise<void> {
+  const directory = join(root, seed.namespace);
+  await mkdir(directory, { recursive: true });
+  await writeFile(
+    join(directory, `${encodeURIComponent(seed.key as string)}.json`),
+    JSON.stringify({
+      revision: seed.revision,
+      bytesBase64: Buffer.from(seed.bytes).toString("base64"),
+    }),
+    "utf8",
+  );
 }
 
 describe("desktop file-preview Host record store conformance", () => {
@@ -118,5 +138,20 @@ describe("desktop file-preview Host record store conformance", () => {
     expect(await runHostRecordStoreReopenConformanceV1(store, createStore)).toEqual(
       hostRecordStoreReopenExpectedV1,
     );
+  });
+
+  it("rejects matched revision exhaustion atomically and preserves it across a fresh handle", async () => {
+    const { root, createStore, store } = await fixtureV1();
+    const seed = createHostRecordStoreRevisionOverflowSeedV1();
+    await seedRevisionOverflowV1(root, seed);
+
+    expect(await runHostRecordStoreRevisionOverflowConformanceV1(store)).toEqual(
+      hostRecordStoreRevisionOverflowConformanceExpectedV1,
+    );
+    const freshStore = createStore();
+    expect(await freshStore.read(seed.namespace, seed.key)).toEqual(seed);
+    expect(
+      await freshStore.read(seed.namespace, hostRecordStoreRevisionOverflowEarlierKeyV1),
+    ).toBeNull();
   });
 });

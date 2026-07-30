@@ -221,6 +221,57 @@ signal/power-loss recovery、独立 OS process CAS，以及 transaction candidat
 接入同一 shared conformance。cross-realm IndexedDB valid-input parity 是独立 Web
 Host 问题，不由本 Desktop malformed 切片改动。
 
+### D0d delivery record（2026-07-31）
+
+本切片只补齐已由 safe-integer revision 与 multi-key atomicity 决定的
+matched-MAX exhaustion baseline；D0 仍未完成，file adapter 仍是
+preview/reference。
+
+**目标：**
+
+- 用同一中性 workload 验证
+  `actualRevision === expectedRevision === Number.MAX_SAFE_INTEGER` 的 put；
+- 预置一个可经 Host `read` 精确验证 namespace、key、revision 与 bytes 的合法
+  MAX record，再执行“先创建 missing key、后更新 MAX record”的两项 batch；
+- memory、fake IndexedDB、direct file preview 与真实
+  HTTP client → handler → file 都必须以 `TypeError` 拒绝，前项保持 missing，
+  MAX record revision/bytes 完全不变；
+- 对 IndexedDB、direct file 与 HTTP/file 组合用 fresh adapter handle 再次验证
+  backing 中 MAX record 未变、前项仍 missing；
+- HTTP 边界明确产生一次 commit request，并依次观察全部 CAS check 完成与第一项
+  mutation 完成的 package-internal phase，证明证据覆盖 server/file rollback，
+  而不是 client 或 handler preflight 短路。
+
+**非目标：**
+
+- 不决定 stale MAX 的 conflict/overflow 优先级；memory/IndexedDB 在 storage read
+  前计算 next revision，而 file preview 先做 CAS，当前顺序差异不进入合同；
+- 不实现 revision wrap、saturation、BigInt 或新的 public error/status；
+- 不改变 `HostAtomicRecordStoreV1`、records HTTP/JSON wire、SaveRepository、
+  Save envelope、package exports 或生产 adapter；
+- 不处理 corrupt record、key grammar/collation、crash/recovery、cross-process
+  CAS、durable backend 选择、packaging 或 migration。
+
+**验收规格与证据：**
+
+- shared report 的 seed、overflow rejection、earlier preservation 与 maximum
+  preservation 四项均为 `true`，不冻结精确 error message；
+- 本切片是现状通过的 conformance baseline：没有诚实的 production behavior
+  red，因此只增加 direct-file/test-only workload 与 adapter-local seed fixture，
+  不制造生产实现改动；原有 Base/file 单 adapter overflow 测试被 shared workload
+  取代；
+- focused 为 `4 files / 16 tests`；Base contracts/testkit 为
+  `34 files / 234 tests`，Web Host 为 `5 files / 40 tests`，Tooling Desktop 为
+  `7 files / 34 tests`；
+- 全仓 `deno task test` 为 `185 files / 1601 tests`；`deno task check`
+  全部通过（format、lint、styles、typecheck、unit、assets、Story checks 与
+  Engine Lab production build）。
+
+剩余 D0 工作包括 corrupt/key corpus、其余 fault 边界、真实
+signal/power-loss recovery、独立 OS process CAS，以及 transaction candidate
+接入同一 shared conformance。stale MAX precedence 仍需单独合同决定，不得从本
+baseline 推导。
+
 ## 3. D1 — Backend decision record
 
 在不改变上层合同的前提下做一个短期 spike，并留下 decision record。至少比较：
