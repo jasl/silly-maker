@@ -116,6 +116,13 @@ export interface HostRecordStoreRevisionOverflowConformanceReportV1 {
   readonly maximumRecordPreserved: boolean;
 }
 
+export interface HostRecordStoreCorruptBackingReadListReportV1 {
+  readonly readRejected: boolean;
+  readonly neighborPreservedAfterRead: boolean;
+  readonly listRejected: boolean;
+  readonly neighborPreservedAfterList: boolean;
+}
+
 export const hostRecordStoreConformanceExpectedV1 = Object.freeze({
   validation: Object.freeze({
     emptyRejected: true,
@@ -231,7 +238,15 @@ export const hostRecordStoreRevisionOverflowConformanceExpectedV1 = Object.freez
   maximumRecordPreserved: true,
 }) satisfies DeepReadonly<HostRecordStoreRevisionOverflowConformanceReportV1>;
 
+export const hostRecordStoreCorruptBackingReadListConformanceExpectedV1 = Object.freeze({
+  readRejected: true,
+  neighborPreservedAfterRead: true,
+  listRejected: true,
+  neighborPreservedAfterList: true,
+}) satisfies DeepReadonly<HostRecordStoreCorruptBackingReadListReportV1>;
+
 export const hostRecordStoreRevisionOverflowEarlierKeyV1 = keyV1("conformance.overflow.earlier");
+export const hostRecordStoreCorruptBackingKeyV1 = keyV1("conformance.corrupt.target");
 
 export function createHostRecordStoreRevisionOverflowSeedV1(): HostStoredRecordV1 {
   return Object.freeze({
@@ -239,6 +254,15 @@ export function createHostRecordStoreRevisionOverflowSeedV1(): HostStoredRecordV
     key: keyV1("conformance.overflow.maximum"),
     revision: Number.MAX_SAFE_INTEGER as HostStoredRecordV1["revision"],
     bytes: bytesV1(1, 127, 255),
+  });
+}
+
+export function createHostRecordStoreCorruptBackingNeighborV1(): HostStoredRecordV1 {
+  return Object.freeze({
+    namespace: "settings",
+    key: keyV1("conformance.corrupt.neighbor"),
+    revision: 1 as HostStoredRecordV1["revision"],
+    bytes: bytesV1(0, 127, 255, 16),
   });
 }
 
@@ -276,6 +300,15 @@ async function rejectsTypeErrorV1(operation: () => Promise<unknown>): Promise<bo
     return false;
   } catch (error) {
     return error instanceof TypeError;
+  }
+}
+
+async function rejectsV1(operation: () => Promise<unknown>): Promise<boolean> {
+  try {
+    await operation();
+    return false;
+  } catch {
+    return true;
   }
 }
 
@@ -563,6 +596,42 @@ export async function runHostRecordStoreRevisionOverflowConformanceV1(
     overflowRejectedWithTypeError,
     earlierMutationPreserved,
     maximumRecordPreserved,
+  });
+}
+
+/**
+ * Runs read and list fail-closed probes against separately seeded corrupt
+ * backings. The factory must also seed createHostRecordStoreCorruptBackingNeighborV1()
+ * so the report can prove unrelated valid data remains readable without
+ * constraining repair or quarantine behavior for the corrupt record itself.
+ */
+export async function runHostRecordStoreCorruptBackingReadListConformanceV1(
+  createStore: () => HostAtomicRecordStoreV1 | Promise<HostAtomicRecordStoreV1>,
+): Promise<DeepReadonly<HostRecordStoreCorruptBackingReadListReportV1>> {
+  const neighbor = createHostRecordStoreCorruptBackingNeighborV1();
+
+  const readStore = await createStore();
+  const readRejected = await rejectsV1(() =>
+    readStore.read(neighbor.namespace, hostRecordStoreCorruptBackingKeyV1),
+  );
+  const neighborAfterRead = await readStore.read(neighbor.namespace, neighbor.key);
+
+  const listStore = await createStore();
+  const listRejected = await rejectsV1(() => listStore.list(neighbor.namespace));
+  const neighborAfterList = await listStore.read(neighbor.namespace, neighbor.key);
+
+  const neighborMatchesV1 = (record: HostStoredRecordV1 | null) =>
+    record !== null &&
+    record.namespace === neighbor.namespace &&
+    record.key === neighbor.key &&
+    record.revision === neighbor.revision &&
+    bytesEqualV1(record.bytes, neighbor.bytes);
+
+  return Object.freeze({
+    readRejected,
+    neighborPreservedAfterRead: neighborMatchesV1(neighborAfterRead),
+    listRejected,
+    neighborPreservedAfterList: neighborMatchesV1(neighborAfterList),
   });
 }
 

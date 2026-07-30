@@ -272,6 +272,54 @@ signal/power-loss recovery、独立 OS process CAS，以及 transaction candidat
 接入同一 shared conformance。stale MAX precedence 仍需单独合同决定，不得从本
 baseline 推导。
 
+### D0e delivery record（2026-07-31）
+
+本切片只建立 persisted-record 的 read/list fail-closed baseline；D0
+仍未完成，file adapter 仍是 preview/reference。
+
+**目标：**
+
+- 用 direct-file/test-support-only report 让 fake IndexedDB 与 direct file
+  preview 对客观非法的 persisted metadata/value 执行相同 read/list probe；
+- 两个 adapter 都覆盖 missing revision、`-0` revision、missing bytes 与错误
+  bytes 表示；file 额外覆盖 truncated JSON；
+- 每次 `read(corruptKey)` 与 `list(namespace)` 使用分别新建、只含一个 corrupt
+  target 与一个合法 neighbor 的 backing，必须 reject 而不能返回 missing 或静默
+  省略坏记录；
+- 每次 rejection 后，合法 neighbor 的 namespace/key/revision/bytes 必须保持
+  完全一致且仍可读取；
+- 原 file invalid-JSON 单测由更强的同 corpus read/list + neighbor-preservation
+  证据取代。
+
+**非目标：**
+
+- 不决定 persisted record extra-field policy；IndexedDB 当前 exact-reject，
+  file 当前忽略额外字段，而 file format 尚无 accepted per-record schema marker；
+- 不定义 unknown/future record schema、repair、rewrite、delete、quarantine、
+  recovery 或 migration；
+- 不覆盖 commit-on-corrupt、fresh reopen、raw backing byte preservation、
+  corrupt database、disk full/read-only、filename/key collision 或 HTTP error
+  mapping；
+- 不冻结 error class、message、code/status，不改变 Host、Save、records wire、
+  package export 或生产 adapter。
+
+**验收规格与证据：**
+
+- 每个 case 的 frozen report 中 `readRejected`、`listRejected`、
+  `neighborPreservedAfterRead` 与 `neighborPreservedAfterList` 均为 `true`；
+- 本切片是现状通过的 conformance baseline，没有 production behavior red，
+  因而没有制造生产实现改动；
+- focused 为 `2 files / 16 tests`；Web Host 为 `5 files / 44 tests`，
+  Tooling Desktop 为 `7 files / 38 tests`；
+- 全仓 `deno task test` 为 `185 files / 1609 tests`；`deno task check`
+  全部通过（format、lint、styles、typecheck、unit、assets、Story checks 与
+  Engine Lab production build）。
+
+剩余 D0 corruption 工作包括 commit-on-corrupt atomicity、raw backing/fresh
+handle 证据、额外 persisted shape 与 future-schema policy，以及 corrupt
+database/recovery。key corpus、其余 fault 边界、真实 signal/power-loss、
+独立 OS process CAS 和 transaction candidate 也仍未完成。
+
 ## 3. D1 — Backend decision record
 
 在不改变上层合同的前提下做一个短期 spike，并留下 decision record。至少比较：

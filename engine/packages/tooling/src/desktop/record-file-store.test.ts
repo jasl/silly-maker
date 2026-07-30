@@ -163,15 +163,6 @@ describe("the desktop record file store", () => {
     expect(() => parseWireMutationsV1(sparseBatch)).toThrow(TypeError);
   });
 
-  it("fails closed for corrupt records instead of treating them as missing", async () => {
-    const { root, store } = await fixtureV1();
-    await mkdir(join(root, "save"), { recursive: true });
-    await writeFile(join(root, "save", "broken.json"), "{not-json", "utf8");
-
-    await expect(store.read("save", "broken")).rejects.toThrow("not valid JSON");
-    await expect(store.list("save")).rejects.toThrow("not valid JSON");
-  });
-
   it("fails closed for non-canonical record filenames", async () => {
     const { root, store } = await fixtureV1();
     await mkdir(join(root, "save"), { recursive: true });

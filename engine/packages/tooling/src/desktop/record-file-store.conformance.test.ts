@@ -11,12 +11,16 @@ import type {
   HostStoredRecordV1,
 } from "@sillymaker/base";
 import {
+  createHostRecordStoreCorruptBackingNeighborV1,
   createHostRecordStoreRevisionOverflowSeedV1,
   hostRecordStoreConformanceExpectedV1,
+  hostRecordStoreCorruptBackingKeyV1,
+  hostRecordStoreCorruptBackingReadListConformanceExpectedV1,
   hostRecordStoreReopenExpectedV1,
   hostRecordStoreRevisionOverflowConformanceExpectedV1,
   hostRecordStoreRevisionOverflowEarlierKeyV1,
   runHostRecordStoreConformanceV1,
+  runHostRecordStoreCorruptBackingReadListConformanceV1,
   runHostRecordStoreReopenConformanceV1,
   runHostRecordStoreRevisionOverflowConformanceV1,
 } from "../../../../test-support/host-atomic-record-store-conformance.ts";
@@ -31,13 +35,13 @@ type HostAtomicCommitResultV1 = Awaited<ReturnType<HostAtomicRecordStoreV1["comm
 type HostRecordKeyV1 = HostStoredRecordV1["key"];
 type HostRecordNamespaceV1 = Parameters<HostAtomicRecordStoreV1["read"]>[0];
 
-let cleanupDirV1: string | null = null;
+const cleanupDirsV1 = new Set<string>();
 
 afterEach(async () => {
-  if (cleanupDirV1 !== null) {
-    await rm(cleanupDirV1, { recursive: true, force: true });
-  }
-  cleanupDirV1 = null;
+  await Promise.all(
+    [...cleanupDirsV1].map((directory) => rm(directory, { recursive: true, force: true })),
+  );
+  cleanupDirsV1.clear();
 });
 
 function fromWireRecordV1(record: StoredWireRecordV1): HostStoredRecordV1 {
@@ -102,7 +106,7 @@ function adaptFileStoreV1(
 
 async function fixtureV1() {
   const root = await mkdtemp(join(tmpdir(), "sillymaker-record-conformance-"));
-  cleanupDirV1 = root;
+  cleanupDirsV1.add(root);
   const createStore = () => adaptFileStoreV1(createRecordFileStoreV1(root));
   return Object.freeze({ root, createStore, store: createStore() });
 }
@@ -122,6 +126,37 @@ async function seedRevisionOverflowV1(
     "utf8",
   );
 }
+
+async function createCorruptBackingStoreV1(rawCorruptRecord: string) {
+  const { root, store } = await fixtureV1();
+  const neighbor = createHostRecordStoreCorruptBackingNeighborV1();
+  const directory = join(root, neighbor.namespace);
+  await mkdir(directory, { recursive: true });
+  await Promise.all([
+    writeFile(
+      join(directory, `${encodeURIComponent(neighbor.key as string)}.json`),
+      JSON.stringify({
+        revision: neighbor.revision,
+        bytesBase64: Buffer.from(neighbor.bytes).toString("base64"),
+      }),
+      "utf8",
+    ),
+    writeFile(
+      join(directory, `${encodeURIComponent(hostRecordStoreCorruptBackingKeyV1 as string)}.json`),
+      rawCorruptRecord,
+      "utf8",
+    ),
+  ]);
+  return store;
+}
+
+const corruptRecordCasesV1 = Object.freeze([
+  ["missing revision", JSON.stringify({ bytesBase64: "AQ==" })],
+  ["negative-zero revision", '{"revision":-0,"bytesBase64":"AQ=="}'],
+  ["missing bytes", JSON.stringify({ revision: 1 })],
+  ["invalid base64 bytes", JSON.stringify({ revision: 1, bytesBase64: "not-base64" })],
+  ["truncated JSON", '{"revision":1'],
+] as const);
 
 describe("desktop file-preview Host record store conformance", () => {
   it("matches the shared core workload under one process-local handle", async () => {
@@ -154,4 +189,15 @@ describe("desktop file-preview Host record store conformance", () => {
       await freshStore.read(seed.namespace, hostRecordStoreRevisionOverflowEarlierKeyV1),
     ).toBeNull();
   });
+
+  it.each(corruptRecordCasesV1)(
+    "fails closed for a persisted record with %s",
+    async (_name, rawCorruptRecord) => {
+      expect(
+        await runHostRecordStoreCorruptBackingReadListConformanceV1(() =>
+          createCorruptBackingStoreV1(rawCorruptRecord),
+        ),
+      ).toEqual(hostRecordStoreCorruptBackingReadListConformanceExpectedV1);
+    },
+  );
 });

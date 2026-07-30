@@ -3,13 +3,17 @@ import { IDBFactory as FakeIDBFactory } from "fake-indexeddb";
 import { describe, expect, it } from "vitest";
 
 import {
+  createHostRecordStoreCorruptBackingNeighborV1,
   createHostRecordStoreRevisionOverflowSeedV1,
   hostRecordStoreConformanceExpectedV1,
+  hostRecordStoreCorruptBackingKeyV1,
+  hostRecordStoreCorruptBackingReadListConformanceExpectedV1,
   hostRecordStoreMalformedConformanceExpectedV1,
   hostRecordStoreReopenExpectedV1,
   hostRecordStoreRevisionOverflowConformanceExpectedV1,
   hostRecordStoreRevisionOverflowEarlierKeyV1,
   runHostRecordStoreConformanceV1,
+  runHostRecordStoreCorruptBackingReadListConformanceV1,
   runHostRecordStoreMalformedConformanceV1,
   runHostRecordStoreReopenConformanceV1,
   runHostRecordStoreRevisionOverflowConformanceV1,
@@ -53,20 +57,83 @@ async function seedRevisionOverflowV1(
   indexedDB: IDBFactory,
   seed: ReturnType<typeof createHostRecordStoreRevisionOverflowSeedV1>,
 ): Promise<void> {
-  const database = await requestResultV1(indexedDB.open(databaseNameV1, 1));
-  const transaction = database.transaction(SILLYMAKER_RECORD_STORE_NAME_V1, "readwrite");
-  const completion = transactionCompletionV1(transaction);
-  await requestResultV1(
-    transaction.objectStore(SILLYMAKER_RECORD_STORE_NAME_V1).put({
+  await seedRawRowsV1(indexedDB, [
+    {
       namespace: seed.namespace,
       key: seed.key,
       revision: seed.revision,
       bytes: Uint8Array.from(seed.bytes).buffer,
-    }),
-  );
+    },
+  ]);
+}
+
+async function seedRawRowsV1(indexedDB: IDBFactory, rows: readonly unknown[]): Promise<void> {
+  const database = await requestResultV1(indexedDB.open(databaseNameV1, 1));
+  const transaction = database.transaction(SILLYMAKER_RECORD_STORE_NAME_V1, "readwrite");
+  const completion = transactionCompletionV1(transaction);
+  const objectStore = transaction.objectStore(SILLYMAKER_RECORD_STORE_NAME_V1);
+  await Promise.all(rows.map((row) => requestResultV1(objectStore.put(row))));
   await completion;
   database.close();
 }
+
+type CorruptRowFactoryV1 = () => Readonly<Record<string, unknown>>;
+
+async function createCorruptBackingStoreV1(
+  createCorruptRow: CorruptRowFactoryV1,
+): Promise<ReturnType<typeof createIndexedDbRecordStoreV1>> {
+  const indexedDB = new FakeIDBFactory();
+  const store = createIndexedDbRecordStoreV1({ indexedDB, databaseName: databaseNameV1 });
+  const neighbor = createHostRecordStoreCorruptBackingNeighborV1();
+  await store.list(neighbor.namespace);
+  await seedRawRowsV1(indexedDB, [
+    {
+      namespace: neighbor.namespace,
+      key: neighbor.key,
+      revision: neighbor.revision,
+      bytes: Uint8Array.from(neighbor.bytes).buffer,
+    },
+    createCorruptRow(),
+  ]);
+  return store;
+}
+
+const corruptRowCasesV1 = Object.freeze([
+  [
+    "missing revision",
+    () => ({
+      namespace: "settings",
+      key: hostRecordStoreCorruptBackingKeyV1,
+      bytes: Uint8Array.of(1).buffer,
+    }),
+  ],
+  [
+    "negative-zero revision",
+    () => ({
+      namespace: "settings",
+      key: hostRecordStoreCorruptBackingKeyV1,
+      revision: -0,
+      bytes: Uint8Array.of(1).buffer,
+    }),
+  ],
+  [
+    "missing bytes",
+    () => ({
+      namespace: "settings",
+      key: hostRecordStoreCorruptBackingKeyV1,
+      revision: 1,
+    }),
+  ],
+  [
+    "non-ArrayBuffer bytes",
+    () => ({
+      namespace: "settings",
+      key: hostRecordStoreCorruptBackingKeyV1,
+      revision: 1,
+      bytes: "AQ==",
+    }),
+  ],
+] as const satisfies readonly (readonly [string, CorruptRowFactoryV1])[]);
 
 describe("IndexedDB Host record store conformance", () => {
   it("matches the shared core workload", async () => {
@@ -115,4 +182,15 @@ describe("IndexedDB Host record store conformance", () => {
       await freshStore.read(seed.namespace, hostRecordStoreRevisionOverflowEarlierKeyV1),
     ).toBeNull();
   });
+
+  it.each(corruptRowCasesV1)(
+    "fails closed for a persisted row with %s",
+    async (_name, createCorruptRow) => {
+      expect(
+        await runHostRecordStoreCorruptBackingReadListConformanceV1(() =>
+          createCorruptBackingStoreV1(createCorruptRow),
+        ),
+      ).toEqual(hostRecordStoreCorruptBackingReadListConformanceExpectedV1);
+    },
+  );
 });
