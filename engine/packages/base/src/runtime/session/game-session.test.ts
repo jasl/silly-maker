@@ -20,6 +20,7 @@ import {
   createGameSessionV1,
   createInstrumentedGameSessionV1,
   type GameSessionDebugInputV1,
+  lookupInstalledSnapshotDigestInternalV1,
 } from "./game-session.ts";
 import { createSnapshotWorkCounterV1 } from "../../internal/snapshot-work-instrumentation.ts";
 
@@ -888,6 +889,65 @@ describe("GameSession FIFO", () => {
     expect(created.session).not.toHaveProperty("currentStateDigest");
     expect(created.runtimeControl).not.toHaveProperty("currentStateDigest");
     expect(created.commandLog).not.toHaveProperty("currentStateDigest");
+  });
+
+  it("indexes only successfully installed Snapshot identities under the exact runtime control", async () => {
+    const created = fixture();
+    const initial = created.session.getCurrentSnapshot();
+    const initialDigest = digestCanonical("sillymaker:state:v1", initial);
+
+    expect(lookupInstalledSnapshotDigestInternalV1(created.runtimeControl, initial)).toBe(
+      initialDigest,
+    );
+    expect(
+      lookupInstalledSnapshotDigestInternalV1(
+        created.runtimeControl,
+        Object.freeze({ ...initial }),
+      ),
+    ).toBeUndefined();
+
+    const other = fixture();
+    expect(lookupInstalledSnapshotDigestInternalV1(other.runtimeControl, initial)).toBeUndefined();
+
+    await created.session.dispatch({ kind: "increment" });
+    const firstCommit = created.session.getCurrentSnapshot();
+    const firstDigest = created.commandLog.entries().at(-1)?.postStateDigest;
+    expect(lookupInstalledSnapshotDigestInternalV1(created.runtimeControl, firstCommit)).toBe(
+      firstDigest,
+    );
+
+    await created.session.dispatch({ kind: "increment" });
+    const secondCommit = created.session.getCurrentSnapshot();
+    expect(lookupInstalledSnapshotDigestInternalV1(created.runtimeControl, firstCommit)).toBe(
+      firstDigest,
+    );
+    expect(lookupInstalledSnapshotDigestInternalV1(created.runtimeControl, secondCommit)).toBe(
+      created.commandLog.entries().at(-1)?.postStateDigest,
+    );
+
+    const failedCandidate = createSnapshot(40);
+    await expect(
+      created.runtimeControl.enqueueAuthoritative(
+        async () =>
+          Object.freeze({
+            kind: "replace" as const,
+            snapshot: failedCandidate,
+            result: "anchored" as const,
+            anchor: "replace_replay_base" as const,
+          }),
+        () => "faulted" as const,
+        () => {
+          throw new Error("replacement side effect failed");
+        },
+      ),
+    ).resolves.toBe("faulted");
+    expect(
+      lookupInstalledSnapshotDigestInternalV1(created.runtimeControl, failedCandidate),
+    ).toBeUndefined();
+    expect(created.session.getCurrentSnapshot()).toBe(secondCommit);
+    expect(lookupInstalledSnapshotDigestInternalV1(created.runtimeControl, secondCommit)).toBe(
+      created.commandLog.entries().at(-1)?.postStateDigest,
+    );
   });
 
   it.each(["committed", "rejected", "faulted"] as const)(

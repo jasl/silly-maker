@@ -9,8 +9,8 @@ import {
 } from "./snapshot-persistence-workload.ts";
 
 const firstAutoSaveCountsV1 = Object.freeze({
-  canonicalTraversals: 8,
-  canonicalDigests: 6,
+  canonicalTraversals: 6,
+  canonicalDigests: 4,
   deepFreezeTraversals: 1,
   commandLogContinuityVerifications: 1,
   saveCanonicalSerializations: 2,
@@ -19,13 +19,25 @@ const firstAutoSaveCountsV1 = Object.freeze({
 });
 
 const rotationCountsV1 = Object.freeze({
-  canonicalTraversals: 11,
-  canonicalDigests: 8,
+  canonicalTraversals: 9,
+  canonicalDigests: 6,
   deepFreezeTraversals: 1,
   commandLogContinuityVerifications: 1,
   saveCanonicalSerializations: 3,
   strictJsonParses: 2,
   strictJsonPreflights: 3,
+});
+
+const fallbackFirstAutoSaveCountsV1 = Object.freeze({
+  ...firstAutoSaveCountsV1,
+  canonicalTraversals: 8,
+  canonicalDigests: 6,
+});
+
+const fallbackRotationCountsV1 = Object.freeze({
+  ...rotationCountsV1,
+  canonicalTraversals: 11,
+  canonicalDigests: 8,
 });
 
 describe("Snapshot persistence workload", () => {
@@ -63,8 +75,8 @@ describe("Snapshot persistence workload", () => {
         previousRecordRevision: 1,
       },
       aggregateCounts: {
-        canonicalTraversals: 19,
-        canonicalDigests: 14,
+        canonicalTraversals: 15,
+        canonicalDigests: 10,
         deepFreezeTraversals: 2,
         commandLogContinuityVerifications: 2,
         saveCanonicalSerializations: 5,
@@ -124,5 +136,47 @@ describe("Snapshot persistence workload", () => {
 
     await measured.dispose();
     await reference.dispose();
+  });
+
+  it("keeps raw Save bytes identical when an opaque runtime-control wrapper forces fallback", async () => {
+    const optimizedCounter = createSnapshotWorkCounterV1();
+    const fallbackCounter = createSnapshotWorkCounterV1();
+    const optimized = await createSnapshotPersistenceWorkloadV1({
+      entityCount: 100,
+      instrumentation: optimizedCounter.instrumentation,
+    });
+    const fallback = await createSnapshotPersistenceWorkloadV1({
+      entityCount: 100,
+      instrumentation: fallbackCounter.instrumentation,
+      wrapRuntimeControlForFallback: true,
+    });
+    optimizedCounter.reset();
+    fallbackCounter.reset();
+
+    try {
+      await optimized.commitAndDrain();
+      await fallback.commitAndDrain();
+      expect(optimizedCounter.snapshot()).toEqual(firstAutoSaveCountsV1);
+      expect(fallbackCounter.snapshot()).toEqual(fallbackFirstAutoSaveCountsV1);
+      expect(await optimized.slotRecord("auto.current")).toEqual(
+        await fallback.slotRecord("auto.current"),
+      );
+
+      optimizedCounter.reset();
+      fallbackCounter.reset();
+      await optimized.commitAndDrain();
+      await fallback.commitAndDrain();
+      expect(optimizedCounter.snapshot()).toEqual(rotationCountsV1);
+      expect(fallbackCounter.snapshot()).toEqual(fallbackRotationCountsV1);
+      expect(await optimized.slotRecord("auto.current")).toEqual(
+        await fallback.slotRecord("auto.current"),
+      );
+      expect(await optimized.slotRecord("auto.previous")).toEqual(
+        await fallback.slotRecord("auto.previous"),
+      );
+    } finally {
+      await optimized.dispose();
+      await fallback.dispose();
+    }
   });
 });

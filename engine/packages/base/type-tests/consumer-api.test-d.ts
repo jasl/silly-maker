@@ -267,6 +267,8 @@ publicSessionCompositionV1.currentStateDigest;
 publicSessionCompositionV1.session.currentStateDigest;
 // @ts-expect-error runtime control cannot inject a replacement digest
 publicSessionCompositionV1.runtimeControl.setCurrentStateDigest;
+// @ts-expect-error runtime control cannot expose the installed-Snapshot digest lookup
+publicSessionCompositionV1.runtimeControl.lookupInstalledSnapshotDigest;
 
 export type BaseConsumerValuesV1 = {
   createCoreGameApplicationInstance: typeof createCoreGameApplicationInstanceV1;
@@ -449,6 +451,8 @@ export { snapshotMemoryGrowthBenchmarkConfigV1 } from "@sillymaker/base/testkit"
 export type { SnapshotWorkInstrumentationV1 } from "@sillymaker/base/testkit";
 // @ts-expect-error Session digest-cache injection stays package-internal
 export { createInstrumentedGameSessionV1 } from "@sillymaker/base/runtime";
+// @ts-expect-error installed-Snapshot digest lookup stays package-internal
+export { lookupInstalledSnapshotDigestInternalV1 } from "@sillymaker/base/runtime";
 // @ts-expect-error CommandLog audit policy stays package-internal
 export { createCommandLogInternalV1 } from "@sillymaker/base/runtime";
 // @ts-expect-error instrumented replay helpers stay package-internal

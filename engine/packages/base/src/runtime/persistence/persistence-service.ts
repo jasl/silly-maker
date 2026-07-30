@@ -52,6 +52,7 @@ import {
 } from "../../contracts/values.ts";
 import type { SnapshotWorkInstrumentationV1 } from "../../internal/snapshot-work-instrumentation.ts";
 import type { GameSessionRuntimeControlV1 } from "../session/game-session.ts";
+import { lookupInstalledSnapshotDigestInternalV1 } from "../session/game-session.ts";
 import { createAutoSaveQueueV1 } from "./auto-save-queue.ts";
 import { classifySaveCompatibilityV1, validateSaveImportCandidateV1 } from "./compatibility.ts";
 import { encodeSaveRecordInternalV1 } from "./save-codec.ts";
@@ -322,11 +323,9 @@ async function createPersistenceServiceWithDependenciesV1<
         capturedCommandSequence: candidate.snapshot.commandSequence,
       }),
       savedAt: candidate.savedAt,
-      stateDigest: digestCanonicalInternalV1(
-        "sillymaker:state:v1",
-        candidate.snapshot,
-        instrumentation,
-      ),
+      stateDigest:
+        lookupInstalledSnapshotDigestInternalV1(options.runtimeControl, candidate.snapshot) ??
+        digestCanonicalInternalV1("sillymaker:state:v1", candidate.snapshot, instrumentation),
       snapshot: candidate.snapshot,
       simulationLineage: candidate.simulationLineage,
     };

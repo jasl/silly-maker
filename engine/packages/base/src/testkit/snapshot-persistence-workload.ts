@@ -104,6 +104,7 @@ function addCountsV1(
 export async function createSnapshotPersistenceWorkloadV1(input: {
   readonly entityCount: 100;
   readonly instrumentation?: SnapshotWorkInstrumentationV1;
+  readonly wrapRuntimeControlForFallback?: boolean;
 }) {
   const session = createSnapshotTransactionWorkloadV1({
     entityCount: input.entityCount,
@@ -111,7 +112,10 @@ export async function createSnapshotPersistenceWorkloadV1(input: {
   });
   const records = createMemoryHostRecordStoreV1();
   const persistenceOptions = {
-    runtimeControl: session.runtimeControl,
+    runtimeControl:
+      input.wrapRuntimeControlForFallback === true
+        ? Object.freeze({ ...session.runtimeControl })
+        : session.runtimeControl,
     records,
     snapshotSchema: snapshotTransactionSnapshotSchemaV1,
     provenance: snapshotTransactionProvenanceV1,

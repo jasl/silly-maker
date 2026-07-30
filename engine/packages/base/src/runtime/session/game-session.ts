@@ -34,6 +34,25 @@ import {
   type RuntimeInvalidationControllerV1,
 } from "./runtime-invalidation.ts";
 
+const installedSnapshotDigestsV1 = new WeakMap<object, WeakMap<object, Digest>>();
+
+function installSnapshotDigestV1(runtimeControl: object, snapshot: object, digest: Digest): void {
+  let digests = installedSnapshotDigestsV1.get(runtimeControl);
+  if (digests === undefined) {
+    digests = new WeakMap<object, Digest>();
+    installedSnapshotDigestsV1.set(runtimeControl, digests);
+  }
+  digests.set(snapshot, digest);
+}
+
+/** @internal Exact-identity lookup; intentionally absent from runtime barrels. */
+export function lookupInstalledSnapshotDigestInternalV1(
+  runtimeControl: object,
+  snapshot: object,
+): Digest | undefined {
+  return installedSnapshotDigestsV1.get(runtimeControl)?.get(snapshot);
+}
+
 export interface GameSessionV1<TTypes extends GameSimulationTypeMapV1> {
   getStatus(): RuntimeSessionStatusV1;
   getCurrentSnapshot(): DeepReadonly<TTypes["snapshot"]>;
@@ -508,6 +527,7 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
               currentStateDigest = preparedCommandLogAnchor.stateDigest;
             }
             snapshot = finalized;
+            installSnapshotDigestV1(runtimeControl, snapshot, currentStateDigest);
             if (outcome.anchor === "replace_replay_base") stableStatus = "ready";
             publish();
           }
@@ -542,6 +562,7 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
       return () => committedSnapshotListeners.delete(listener);
     },
   });
+  installSnapshotDigestV1(runtimeControl, snapshot, currentStateDigest);
 
   const debugControl: GameSessionDebugControlV1<TTypes> = Object.freeze({
     execute(command: DeepReadonly<TTypes["debugCommand"]>, isCapabilityEnabled: () => boolean) {
@@ -637,6 +658,7 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
         if (finalizedAttempt.result.kind === "committed") {
           snapshot = finalizedAttempt.result.snapshot;
           currentStateDigest = finalizedAttempt.postStateDigest;
+          installSnapshotDigestV1(runtimeControl, snapshot, currentStateDigest);
           publish();
           publishCommittedSnapshot();
         } else {
@@ -700,6 +722,7 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
           commandLog.establishPreparedAnchor(preparedCommandLogAnchor);
           snapshot = finalized;
           currentStateDigest = preparedCommandLogAnchor.stateDigest;
+          installSnapshotDigestV1(runtimeControl, snapshot, currentStateDigest);
           stableStatus = "ready";
           publish();
           return outcome.result;
@@ -786,6 +809,7 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
         if (finalizedAttempt.result.kind === "committed") {
           snapshot = finalizedAttempt.result.snapshot;
           currentStateDigest = finalizedAttempt.postStateDigest;
+          installSnapshotDigestV1(runtimeControl, snapshot, currentStateDigest);
           publish();
           publishCommittedSnapshot();
         } else if (finalizedAttempt.result.kind === "faulted") {

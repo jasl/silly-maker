@@ -252,3 +252,21 @@ S0 至此完成。S1 Session/CommandLog digest reuse 与 S2 persistence-path reu
 同一 Deno 2.9.4 / V8 15.0 环境、`warmup = 0`、单样本复测只作为方向性趋势，不作为 CI gate：100k `single_field_committed` 从 `650.5 ms` 降至 `185.1 ms`，10k `cross_owner_atomic_committed` 从 `69.6 ms` 降至 `35.7 ms`。1k-entity / 1,200-command memory workload 的两次复测总 dispatch 时间从 S0d 的约 `5.7 s` 降至约 `1.91 s`，确定性 run digest 计数从 `4,800` 降至 `1,200`；post-GC `heapUsed` 终值和 steady delta 仍与 S0d 同数量级，因此本切片只记录 CPU 趋势，不声称 retained-memory 改善。所有原始 JSON 仍只位于 OS 临时目录。
 
 Autosave 仍对同一 Snapshot 执行 persistence-owned digest、Save canonical serialization、Strict JSON preflight/readback 与 rotation encoding；这些已计数的剩余重复只属于 S2。PF1 尚未完成，`IntegrityPolicy`、changed-set、结构共享与 StateStore 仍未激活。
+
+### 2026-07-30 — S2a Installed-Snapshot digest evidence
+
+本切片只建立 Session → Persistence 的 exact-identity digest 证据，不完成 S2 的 encoding/preflight reuse：
+
+- `GameSession` 用双层弱引用表把 exact runtime-control identity、已经成功安装的 exact Snapshot identity 与 freeze 后 digest 绑定。initial、game/debug commit 与 runtime/debug anchor 都只在 Snapshot/digest 已同步安装后、任何 publish/subscriber 前登记；历史 committed Snapshot 只作为弱键保留，因此 delayed/debounced candidate 可以命中而不会被强引用；
+- lookup 只允许 package-internal direct-file import，不增加 runtime-control own property、public subscription 参数、Story state、Snapshot、Save 或 package export。same-bytes clone、另一 Session、opaque runtime-control wrapper 与未成功安装的 anchor candidate 都不能命中；
+- Persistence 在 `makeRecord` 时惰性 lookup；miss 保留原来的独立 digest。Save record / Snapshot schema 会创建 normalization 后的新对象，且 `RuntimeSchemaV1` 允许转换输出，因此 public/internal codec 对 normalized Snapshot 的 digest audit、physical readback audit 与坏 digest 拒绝语义都保持不变，不能把 pre-parse Session 证据越权传给它们。
+
+TDD red 先得到 S1 后的旧计数 `8/6`、`11/8`、aggregate `19/14`；green 后只有同一个 installed Snapshot 上的两次 `makeRecord` digest 被消除：
+
+| phase                         | canonical traversal before | canonical traversal after | state digest before | state digest after |
+| ----------------------------- | -------------------------: | ------------------------: | ------------------: | -----------------: |
+| first commit + autosave idle  |                          8 |                         6 |                   6 |                  4 |
+| second commit + rotation idle |                         11 |                         9 |                   8 |                  6 |
+| two autosaves aggregate       |                         19 |                        15 |                  14 |                 10 |
+
+deep-freeze、CommandLog continuity、Save serialization 与 Strict JSON parse/preflight 计数不变。中性 workload 另用 opaque runtime-control wrapper 强制 fallback，确认它恢复旧计数，同时 optimized/fallback 两轮 `auto.current` / `auto.previous` Host revision 与原始 bytes 完全相等。S2 仍未完成：同一 normalized Save envelope 的 expected re-encoding、canonical/Strict-limits shared traversal、rotation 的唯一必要 encodes，以及完整 equivalence corpus 属于后续切片。
