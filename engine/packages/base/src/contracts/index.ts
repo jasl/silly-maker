@@ -204,6 +204,13 @@ export type {
   TextId,
 } from "./presentation.ts";
 export {
+  emptyVersionStampV1,
+  formatVersionStampV1,
+  readVersionStampV1,
+  versionStampGlobalKeyV1,
+} from "./version-stamp.ts";
+export type { VersionStampV1 } from "./version-stamp.ts";
+export {
   createSaveRecordEnvelopeSchemaV1,
   exportedSaveSchemaV1,
   parseSaveAnnotationV1,
