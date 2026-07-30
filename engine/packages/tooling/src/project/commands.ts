@@ -460,25 +460,83 @@ export async function buildStoryApplicationV1(
   });
 }
 
+/** Cross-compile triples accepted by `deno desktop --target` (Deno >= 2.9). */
+export const DESKTOP_TARGET_TRIPLES_V1 = Object.freeze([
+  "x86_64-apple-darwin",
+  "aarch64-apple-darwin",
+  "x86_64-pc-windows-msvc",
+  "aarch64-pc-windows-msvc",
+  "x86_64-unknown-linux-gnu",
+  "aarch64-unknown-linux-gnu",
+] as const);
+
+export type DesktopTargetTripleV1 = (typeof DESKTOP_TARGET_TRIPLES_V1)[number];
+
+export type DesktopCompressionV1 = "xz" | "lzma" | "zstd";
+
+export interface StoryDesktopOptionsV1 extends StoryBuildOptionsV1 {
+  /**
+   * Explicit `deno desktop --target` triples; one package per entry, named
+   * `<Name>-<triple>.<ext>`. Empty/absent keeps the host-platform preview
+   * (`<Name>.app`, unsuffixed) exactly as before.
+   */
+  readonly targets?: readonly DesktopTargetTripleV1[];
+  /** Self-extracting payload compression (`--compress[=algo]`); off by default. */
+  readonly compress?: DesktopCompressionV1 | true;
+}
+
+export interface StoryDesktopOutputV1 {
+  readonly target: DesktopTargetTripleV1 | "host";
+  readonly outputPath: string;
+  readonly ok: boolean;
+  readonly exitCode: number;
+}
+
 export interface StoryDesktopReportV1 {
   readonly applicationId: string;
   readonly ok: boolean;
   readonly stagingDir: string;
+  /** First packaged output (kept for single-target consumers). */
   readonly outputPath: string;
   readonly exitCode: number;
+  readonly outputs: readonly StoryDesktopOutputV1[];
 }
 
 /**
- * Packages the built web Artifact as a macOS `.app` preview through
- * `deno desktop` (Deno >= 2.9, experimental). The staging directory is a
- * thin explicit host — a Vite SPA layout with the Artifact copied to
- * `dist/` — so engine and Story code never depend on Deno Desktop APIs,
- * and the web Artifact stays the canonical delivery.
+ * Per-OS package format. `deno desktop` infers the format from the output
+ * extension; these are the copy-and-run choices per platform (macOS bundle,
+ * Windows installer, Linux AppImage).
+ */
+function desktopOutputNameV1(name: string, target: DesktopTargetTripleV1 | "host"): string {
+  if (target === "host") return `${name}.app`;
+  if (target.endsWith("apple-darwin")) return `${name}-${target}.app`;
+  if (target.includes("windows")) return `${name}-${target}.msi`;
+  return `${name}-${target}.AppImage`;
+}
+
+/** `.app` is a directory bundle; single-file formats verify the file itself. */
+function desktopOutputMarkerV1(outputPath: string): string {
+  return outputPath.endsWith(".app") ? `${outputPath}/Contents/Info.plist` : outputPath;
+}
+
+/** Config icons are `.png`/`.icns` — macOS formats; skip them on other targets. */
+function desktopIconAppliesV1(target: DesktopTargetTripleV1 | "host"): boolean {
+  return target === "host" || target.endsWith("apple-darwin");
+}
+
+/**
+ * Packages the built web Artifact through `deno desktop` (Deno >= 2.9,
+ * experimental): the host-platform `.app` preview by default, or explicit
+ * cross-compiled packages via `targets`. The staging directory is a thin
+ * explicit host — a Vite SPA layout with the Artifact copied to `dist/` —
+ * so engine and Story code never depend on Deno Desktop APIs, and the web
+ * Artifact stays the canonical delivery.
  */
 export async function desktopStoryApplicationV1(
   project: SillymakerProjectConfigV1,
   applicationId: string,
   deps: { readonly runner: ProjectCommandRunnerV1; readonly repositoryRoot: string },
+  options: StoryDesktopOptionsV1 = {},
 ): Promise<StoryDesktopReportV1> {
   const application = resolveStoryApplicationV1(project, applicationId);
   const web = requireWebTargetV1(application, applicationId);
@@ -496,7 +554,10 @@ export async function desktopStoryApplicationV1(
   // (the runtime points the window at whatever it binds) and owns a
   // records API over the platform user-data directory. Ports may vary per
   // launch; persistence lives in files, so origin drift is harmless.
-  const build = await buildStoryApplicationV1(project, applicationId, deps);
+  const build = await buildStoryApplicationV1(project, applicationId, deps, {
+    ...(options.sourcemap === undefined ? {} : { sourcemap: options.sourcemap }),
+    ...(options.minify === undefined ? {} : { minify: options.minify }),
+  });
   if (!build.ok) {
     commandErrorV1(
       "project.desktop_build_failed",
@@ -509,8 +570,8 @@ export async function desktopStoryApplicationV1(
   // `vite build` with emptyOutDir cannot delete a packaged bundle.
   const desktopRoot = `${deps.repositoryRoot}/${joinAppPathV1(web.storyRoot, "dist-desktop")}`;
   const stagingDir = `${desktopRoot}/staging`;
-  const outputName = `${desktop.name}.app`;
-  const outputPath = `${desktopRoot}/${outputName}`;
+  const requestedTargets: readonly (DesktopTargetTripleV1 | "host")[] =
+    options.targets === undefined || options.targets.length === 0 ? ["host"] : options.targets;
   await deps.runner.removeDirectory(desktopRoot);
   await deps.runner.copyDirectory(`${deps.repositoryRoot}/${web.outDir}`, `${stagingDir}/dist`);
 
@@ -574,39 +635,71 @@ export async function desktopStoryApplicationV1(
     )}\n`,
   );
 
-  let exitCode: number;
-  try {
-    exitCode = await deps.runner.run(
-      "deno",
-      [
-        "desktop",
-        "--allow-env",
-        "--allow-read",
-        "--allow-write",
-        "--allow-net",
-        "--include",
-        "dist",
-        ...iconArgs,
-        "--output",
-        `../${outputName}`,
-        "main.ts",
-      ],
-      { cwd: stagingDir },
+  const compressArgs =
+    options.compress === undefined
+      ? []
+      : options.compress === true
+        ? ["--compress"]
+        : [`--compress=${options.compress}`];
+
+  const outputs: StoryDesktopOutputV1[] = [];
+  for (const target of requestedTargets) {
+    const outputName = desktopOutputNameV1(desktop.name, target);
+    const outputPath = `${desktopRoot}/${outputName}`;
+    let exitCode: number;
+    try {
+      exitCode = await deps.runner.run(
+        "deno",
+        [
+          "desktop",
+          "--allow-env",
+          "--allow-read",
+          "--allow-write",
+          "--allow-net",
+          "--include",
+          "dist",
+          ...compressArgs,
+          ...(target === "host" ? [] : ["--target", target]),
+          ...(desktopIconAppliesV1(target) ? iconArgs : []),
+          "--output",
+          `../${outputName}`,
+          "main.ts",
+        ],
+        { cwd: stagingDir },
+      );
+    } catch {
+      commandErrorV1(
+        "project.desktop_deno_missing",
+        "`deno` was not found on PATH; the desktop preview requires Deno >= 2.9",
+        `/applications/${applicationId}/web/desktop`,
+      );
+    }
+    const bundleMarker = await deps.runner.fileSize(desktopOutputMarkerV1(outputPath));
+    outputs.push(
+      Object.freeze({
+        target,
+        outputPath,
+        ok: exitCode === 0 && bundleMarker !== null && bundleMarker > 0,
+        exitCode,
+      }),
     );
-  } catch {
+  }
+
+  const firstOutput = outputs[0];
+  if (firstOutput === undefined) {
     commandErrorV1(
-      "project.desktop_deno_missing",
-      "`deno` was not found on PATH; the macOS desktop preview requires Deno >= 2.9",
+      "project.desktop_unconfigured",
+      `desktop packaging for "${applicationId}" produced no outputs`,
       `/applications/${applicationId}/web/desktop`,
     );
   }
-  const bundleMarker = await deps.runner.fileSize(`${outputPath}/Contents/Info.plist`);
   return Object.freeze({
     applicationId: application.applicationId,
-    ok: exitCode === 0 && bundleMarker !== null && bundleMarker > 0,
+    ok: outputs.every((output) => output.ok),
     stagingDir,
-    outputPath,
-    exitCode,
+    outputPath: firstOutput.outputPath,
+    exitCode: outputs.find((output) => output.exitCode !== 0)?.exitCode ?? 0,
+    outputs: Object.freeze(outputs),
   });
 }
 

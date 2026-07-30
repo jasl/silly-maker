@@ -4,16 +4,16 @@ All commands run through Deno tasks from the repository root; every verb also ru
 
 ## Everyday
 
-| Command                                            | What it does                                                                    |
-| -------------------------------------------------- | ------------------------------------------------------------------------------- |
-| `deno task story dev <app>`                        | Vite dev server for one application (`--smoke` boots, probes, and exits)        |
-| `deno task story check <app>` \| `--all`           | Structured Story diagnostics                                                    |
-| `deno task story simulate <app> --scenario <name>` | Headless scripted playthrough via the Agent port                                |
-| `deno task story simulate … --trace <dot.paths>`   | Adds per-step numeric trajectories to the report                                |
-| `deno task story build <app>`                      | Production Player bundle into `<app>/dist-web`                                  |
-| `deno task story desktop <app>`                    | macOS `.app` packaging preview; local file-store durability is not yet promoted |
-| `deno task story diff <a.json> <b.json>`           | Structured diff of two JSON files (saves, reports)                              |
-| `deno task story inspect <app>`                    | Resolved Story identity and composition report                                  |
+| Command                                            | What it does                                                                                                                                           |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `deno task story dev <app>`                        | Vite dev server for one application (`--smoke` boots, probes, and exits)                                                                               |
+| `deno task story check <app>` \| `--all`           | Structured Story diagnostics                                                                                                                           |
+| `deno task story simulate <app> --scenario <name>` | Headless scripted playthrough via the Agent port                                                                                                       |
+| `deno task story simulate … --trace <dot.paths>`   | Adds per-step numeric trajectories to the report                                                                                                       |
+| `deno task story build <app>`                      | Production Player bundle into `<app>/dist-web`                                                                                                         |
+| `deno task story desktop <app>`                    | Desktop packaging preview (host `.app`; `--target <triple>` cross-compiles `.app`/`.msi`/`.AppImage`); local file-store durability is not yet promoted |
+| `deno task story diff <a.json> <b.json>`           | Structured diff of two JSON files (saves, reports)                                                                                                     |
+| `deno task story inspect <app>`                    | Resolved Story identity and composition report                                                                                                         |
 
 ## Repository-wide
 

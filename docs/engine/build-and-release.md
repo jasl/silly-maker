@@ -52,14 +52,15 @@ deno task story build <app>
 
 This creates a static Player under the application's own `dist-web/` (the plain `dist/` stays the TypeScript project-references emit directory). The build runs the application's own `vite.config.ts` from its directory — the CLI never selects a build switch. A build is useful for local inspection, but it is not by itself a release handoff and does not publish anything.
 
-Build output policy: dependencies split into stable `vendor`/`vendor-react` chunks (application and engine code stay in the entry chunk; all three sit well under the 500 kB warning line and the vendor chunks hash identically across applications for caching). Production output is minified and mangled by default (Vite's built-in minifier — the modern successor to the old "uglify" step); that is baseline code protection, not real obfuscation. Two debug switches:
+Build output policy: dependencies split into stable `vendor`/`vendor-react` chunks (application and engine code stay in the entry chunk; all three sit well under the 500 kB warning line and the vendor chunks hash identically across applications for caching). Production output is minified and mangled by default (Vite's built-in minifier — the modern successor to the old "uglify" step); that is baseline code protection, not real obfuscation. Debug switches:
 
 ```sh
-deno task story build <app> --sourcemap    # emit .map files next to the chunks
-deno task story build <app> --no-minify    # readable output for debugging
+deno task story build <app> --profile debug   # sourcemap + no minify in one flag
+deno task story build <app> --sourcemap       # emit .map files next to the chunks
+deno task story build <app> --no-minify       # readable output for debugging
 ```
 
-The per-application `web.sourcemap` field in the app's `sillymaker.config.ts` remains the configured default; the CLI flag overrides it for one build.
+`--profile release` names the default (minified, no sourcemaps); `--profile debug` expands to `--sourcemap --no-minify`. The per-application `web.sourcemap` field in the app's `sillymaker.config.ts` remains the configured default; the CLI flags override it for one build.
 
 Build identity is generated from the application and resolved Story inputs used by the build. The collector is an optional per-application declaration (`web.identity` pointing at `<app>/tools/build-identity.mjs` over `@sillymaker/tooling/identity/*`); it doubles as a structural facet gate (no React/DOM in simulation closures, no cross-facet imports). It resolves engine sources against the repository root, so it is an in-repo gate — external application projects (and the copy-me starter) omit it and run on the default composer identity. Runtime digests and manifests are technical identity for compatibility, caching, diagnostics, and inspection; they are not proof of copyright ownership or asset approval.
 
@@ -101,15 +102,20 @@ deno task test:e2e
 
 The current JSON-file backend is a **preview/reference implementation**. It survives ordinary restarts, uses optimistic revisions, serializes one process, and replaces each record through a unique temporary file plus rename. A process/OS crash between records in one batch can still expose a partial commit, and a second process has no shared CAS authority. Do not describe it as a production atomic store until the [desktop persistence durability plan](plans/2026-07-30-desktop-persistence-durability.md) passes.
 
-## Desktop packaging preview (macOS `.app`)
+## Desktop packaging preview
 
 ```sh
-deno task story desktop <app>
+deno task story desktop <app>                                  # host preview: <Name>.app
+deno task story desktop <app> --target x86_64-pc-windows-msvc  # cross-compiled package
+deno task story desktop <app> --target aarch64-apple-darwin --target x86_64-unknown-linux-gnu
+deno task story desktop <app> --compress=zstd --profile debug
 ```
 
-Applications that declare `web.desktop` (safe name + lowercase reverse-DNS identifier + optional app-relative `icon`) can currently package a macOS `.app` under `<app>/dist-desktop/`. The command builds the canonical web Artifact, stages a shell under `<app>/dist-desktop/staging/`, embeds `dist/`, injects `__SILLYMAKER_RECORDS__ = "local"`, and points the records endpoint at `~/Library/Application Support/<identifier>/saves`. It then invokes the experimental `deno desktop` command from Deno >= 2.9.
+Applications that declare `web.desktop` (safe name + lowercase reverse-DNS identifier + optional app-relative `icon`) package under `<app>/dist-desktop/`. The command builds the canonical web Artifact (honoring `--profile`/`--sourcemap`/`--no-minify`), stages a shell under `<app>/dist-desktop/staging/`, embeds `dist/`, injects `__SILLYMAKER_RECORDS__ = "local"`, and points the records endpoint at the platform user-data directory (`~/Library/Application Support/<identifier>/saves` on macOS, `%APPDATA%` on Windows, `$XDG_DATA_HOME` on Linux). It then invokes the experimental `deno desktop` command from Deno >= 2.9.
 
-This repository has not yet promoted Windows/Linux output, installers, signing, notarization, auto-update, or crash-atomic desktop persistence. A release claim requires a real build → launch → write → exit → reopen smoke on each named platform, not only an output-directory marker. Engine and Story packages remain independent of Deno Desktop APIs; the web Artifact is the canonical stable fallback.
+Without `--target` the output is the host-platform preview (`<Name>.app`). Each explicit `--target <triple>` adds one cross-compiled package named `<Name>-<triple>.<ext>` with a per-OS copy-and-run format: macOS `.app`, Windows `.msi`, Linux `.AppImage` (the accepted triples are `deno desktop`'s six `x86_64`/`aarch64` × darwin/windows/linux values). `--compress[=xz|lzma|zstd]` makes the payload self-extracting — useful for asset-heavy applications. The configured `.png`/`.icns` icon is macOS-format and is forwarded only to darwin outputs.
+
+Cross-compiled outputs are packaging previews: this repository still has not promoted installers beyond these formats, signing, notarization, auto-update, or crash-atomic desktop persistence. A release claim requires a real build → launch → write → exit → reopen smoke on each named platform, not only an output-directory marker. Engine and Story packages remain independent of Deno Desktop APIs; the web Artifact is the canonical stable fallback.
 
 ## Publish to static hosting (GitHub Pages / Cloudflare Workers)
 
