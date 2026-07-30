@@ -314,5 +314,8 @@ export const templateGameApplicationV1: WebGameApplicationV1<
       labels: templateRootLabelsV1,
       saveLabels: templateSaveOverlayLabelsV1,
       inputMaps: Object.freeze({ keyboard: templateKeyboardMapV1 }),
+      // Game-shell feel: no browser context menu or text selection; editable
+      // controls and data-native-menu / data-native-text subtrees stay native.
+      nativeBehaviorReset: Object.freeze({}),
     }),
 });
