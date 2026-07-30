@@ -3,6 +3,10 @@ import { describe, expect, it, vi } from "vitest";
 
 import { parseNonNegativeSafeInteger, type HostStoredRecordV1 } from "@sillymaker/base";
 import { createMemoryHostRecordStoreV1 } from "@sillymaker/base/testkit";
+import {
+  hostRecordStoreKeyCorpusExpectedV1,
+  runHostRecordStoreKeyCorpusV1,
+} from "../../../../test-support/host-atomic-record-store-conformance.ts";
 
 type HostRecordKeyV1 = HostStoredRecordV1["key"];
 type HostRecordNamespaceV1 = HostStoredRecordV1["namespace"];
@@ -116,6 +120,17 @@ describe("the HTTP host record store", () => {
       { kind: "put", namespace: "settings", key, expectedRevision: null, bytes },
     ]);
     expect(conflict).toMatchObject({ kind: "conflict", key, actualRevision: 1 });
+  });
+
+  it("round-trips the shared logical key corpus through the HTTP wire", async () => {
+    expect(
+      await runHostRecordStoreKeyCorpusV1(() =>
+        createHttpHostRecordStoreV1({
+          baseUrl: "/sillymaker/records",
+          fetchImpl: fetchFakeV1(),
+        }),
+      ),
+    ).toEqual(hostRecordStoreKeyCorpusExpectedV1);
   });
 });
 

@@ -477,6 +477,68 @@ recovery。剩余 D0 包括 key corpus，以及由 D1–D3 候选 backend 才能
 transaction、durability、recovery、跨平台与 power-loss evidence；不得为了按
 字面关闭 D0 而给 preview adapter 虚构这些 phase。
 
+### D0i delivery record（2026-07-31）
+
+本切片只建立 backend-independent logical key corpus，并让 file preview 与真实
+HTTP → file 边界运行同一 workload 以记录 filename-mapping 缺口；D0 仍未完成，
+preview 失败不进入共享成功 expected。
+
+**目标：**
+
+- 每个类别都使用 fresh empty store，提交不同 bytes，并记录 committed/listed
+  total、exact committed/read/listed 数量、重复 list 稳定性与任一操作
+  rejection；
+- logical corpus 覆盖 case-distinct 两键、两个明显不同且包含 `/` 的非 ASCII
+  key、`CON`/`NUL`/`COM1`/filesystem-reserved punctuation，以及两个末位不同的
+  1024-code-unit representative long key；
+- memory、fake IndexedDB 与 HTTP-over-memory 精确匹配同一 frozen expected；
+- direct file preview 与真实 browser HTTP adapter → handler → file backing 运行
+  同一 workload，并稳定暴露至少 representative-long 类不满足 logical expected。
+
+**非目标：**
+
+- 不改变 `HostAtomicRecordStoreV1`、key validator、HTTP wire、filename mapping、
+  list comparator、production store 或 package exports；
+- 不修 file preview，不选择 durable backend，不进入旧 JSON import/migration；
+- 不覆盖 embedded NUL、empty key、lone surrogate/Unicode-scalar validity、
+  Unicode normalization/equivalence 或跨 backend Unicode collation；这些会
+  改变当前分歧的有效输入/ordering 合同；
+- 1024 只是代表性 workload，不定义公共最大 key 长度或 URL/body 上限；
+- 不从当前 macOS backing 推导 Windows/Linux reserved-name、case 或 length
+  行为，不宣称 durability、packaging 或平台 promotion。
+
+**验收规格与证据：**
+
+- TDD red 为 shared runner 尚不存在时 Base focused `1 failed / 7 passed`；
+  实现 test-support-only runner 后 Base focused 为 `1 file / 8 tests`；自审又用
+  会在后续 read/list 原地改写旧结果的合成 adapter 复现一个活引用 false
+  positive（`1 failed / 8 passed`），再用返回 `number[]` bytes 的 adapter 复现
+  snapshot 正规化非法 observation 的 false positive（`1 failed / 9 passed`），
+  最后用 read 返回 `Uint8ClampedArray` 复现独立 read 漏检
+  （`1 failed / 10 passed`）；runner-owned record/bytes snapshot 与 cross-realm-safe
+  `Uint8Array` validation 后 Base focused 为 `1 file / 11 tests`；
+- 全通过 expected 的类别 key 数量固定为 `[2, 2, 4, 2]`，每类 committed/listed
+  total 与 committed/read/listed exact count 都等于 key count，重复 list 稳定
+  且无 rejection；
+- memory、fake IndexedDB 与 HTTP-over-memory 逐字段等于 expected；report、cases
+  array 与每个 case 都 frozen；
+- 当前 macOS direct-file characterization 为：case-distinct committed
+  total/exact `2/2`、read exact `1`、listed total/exact `1/0`；非 ASCII 为
+  `2/2, 2, 2/2`；reserved 为 `4/4, 4, 4/4`；representative-long 为
+  `0/0, 0, 0/0 + rejected`；每类重复 list 稳定。真实 HTTP → file 逐字段等于
+  同宿主 direct-file report；两个边界都固定非 ASCII 成功类与完整 long 失败
+  形状，避免任意全面拒绝伪装成已知 filename 缺口；
+- focused 跨边界为 `5 files / 49 tests`；Web Host 为 `5 files / 48 tests`；
+  Tooling Desktop 为 `7 files / 45 tests`；全仓 `deno task test` 为
+  `185 files / 1624 tests`；`deno task check` 全部通过（format、lint、styles、
+  typecheck、unit、assets、Story checks 与 Engine Lab production build）。
+
+该 workload 冻结逻辑 key 的无碰撞期望和当前 preview 的可重复失败形状，但不把
+宿主 filename 行为提升为合同。剩余 key gate 包括 general key grammar
+（embedded NUL、empty key 与 lone surrogate/Unicode-scalar validity）、跨
+backend deterministic ordering、公开长度/字节上限与真实 Windows/Linux
+evidence；这些必须先由设计/平台 evidence 决定，不能由本机文件系统偶然定义。
+
 ## 3. D1 — Backend decision record
 
 在不改变上层合同的前提下做一个短期 spike，并留下 decision record。至少比较：

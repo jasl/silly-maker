@@ -10,33 +10,37 @@ import type { HostStoredRecordV1 } from "@sillymaker/base";
 import { createHttpHostRecordStoreV1 } from "@sillymaker/web";
 import {
   createHostRecordStoreRevisionOverflowSeedV1,
+  hostRecordStoreKeyCorpusExpectedV1,
   hostRecordStoreMalformedConformanceExpectedV1,
   hostRecordStoreRevisionOverflowConformanceExpectedV1,
   hostRecordStoreRevisionOverflowEarlierKeyV1,
+  runHostRecordStoreKeyCorpusV1,
   runHostRecordStoreMalformedConformanceV1,
   runHostRecordStoreRevisionOverflowConformanceV1,
 } from "../../../../test-support/host-atomic-record-store-conformance.ts";
 
 import {
   createInstrumentedRecordFileStoreInternalV1,
+  createRecordFileStoreV1,
   type RecordFileStorePhaseInternalV1,
 } from "./record-file-store.mts";
+import { adaptRecordFileStoreForHostTestsV1 } from "../../../../test-support/record-file-store-host-adapter.ts";
 import { handleRecordHttpRequestV1 } from "./record-http-handler.mts";
 
 type HostRecordKeyV1 = HostStoredRecordV1["key"];
 
-let cleanupDirV1: string | null = null;
+const cleanupDirsV1 = new Set<string>();
 
 afterEach(async () => {
-  if (cleanupDirV1 !== null) {
-    await rm(cleanupDirV1, { recursive: true, force: true });
-  }
-  cleanupDirV1 = null;
+  await Promise.all(
+    [...cleanupDirsV1].map((directory) => rm(directory, { recursive: true, force: true })),
+  );
+  cleanupDirsV1.clear();
 });
 
 async function productionBoundaryFixtureV1() {
   const root = await mkdtemp(join(tmpdir(), "sillymaker-http-record-conformance-"));
-  cleanupDirV1 = root;
+  cleanupDirsV1.add(root);
   let commitEndpointRequestCount = 0;
   const phaseEvents: RecordFileStorePhaseInternalV1[] = [];
   const createStore = () => {
@@ -89,6 +93,34 @@ async function seedRevisionOverflowV1(
 }
 
 describe("the Desktop HTTP record boundary", () => {
+  it("exposes the preview filename mapping through the real HTTP boundary", async () => {
+    const report = await runHostRecordStoreKeyCorpusV1(
+      async () => (await productionBoundaryFixtureV1()).store,
+    );
+    const directReport = await runHostRecordStoreKeyCorpusV1(async () => {
+      const root = await mkdtemp(join(tmpdir(), "sillymaker-direct-record-conformance-"));
+      cleanupDirsV1.add(root);
+      return adaptRecordFileStoreForHostTestsV1(createRecordFileStoreV1(root));
+    });
+
+    expect(report).not.toEqual(hostRecordStoreKeyCorpusExpectedV1);
+    expect(report).toEqual(directReport);
+    expect(report.cases.find((testCase) => testCase.id === "non_ascii")).toEqual(
+      hostRecordStoreKeyCorpusExpectedV1.cases.find((testCase) => testCase.id === "non_ascii"),
+    );
+    expect(report.cases.find((testCase) => testCase.id === "representative_long")).toEqual({
+      id: "representative_long",
+      keyCount: 2,
+      committedRecordCount: 0,
+      committedExactCount: 0,
+      readExactCount: 0,
+      listedRecordCount: 0,
+      listedExactCount: 0,
+      listStable: true,
+      rejected: true,
+    });
+  });
+
   it("rejects malformed input before a commit request and preserves valid cross-realm bytes", async () => {
     const fixture = await productionBoundaryFixtureV1();
 

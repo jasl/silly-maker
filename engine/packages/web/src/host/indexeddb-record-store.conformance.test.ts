@@ -9,6 +9,7 @@ import {
   hostRecordStoreCorruptBackingCommitConformanceExpectedV1,
   hostRecordStoreCorruptBackingKeyV1,
   hostRecordStoreCorruptBackingReadListConformanceExpectedV1,
+  hostRecordStoreKeyCorpusExpectedV1,
   hostRecordStoreMalformedConformanceExpectedV1,
   hostRecordStoreReopenExpectedV1,
   hostRecordStoreRevisionOverflowConformanceExpectedV1,
@@ -16,6 +17,7 @@ import {
   runHostRecordStoreConformanceV1,
   runHostRecordStoreCorruptBackingCommitConformanceV1,
   runHostRecordStoreCorruptBackingReadListConformanceV1,
+  runHostRecordStoreKeyCorpusV1,
   runHostRecordStoreMalformedConformanceV1,
   runHostRecordStoreReopenConformanceV1,
   runHostRecordStoreRevisionOverflowConformanceV1,
@@ -234,6 +236,17 @@ describe("IndexedDB Host record store conformance", () => {
     expect(await runHostRecordStoreConformanceV1(store)).toEqual(
       hostRecordStoreConformanceExpectedV1,
     );
+  });
+
+  it("round-trips the shared logical key corpus without collisions", async () => {
+    expect(
+      await runHostRecordStoreKeyCorpusV1(() =>
+        createIndexedDbRecordStoreV1({
+          indexedDB: new FakeIDBFactory(),
+          databaseName: databaseNameV1,
+        }),
+      ),
+    ).toEqual(hostRecordStoreKeyCorpusExpectedV1);
   });
 
   it("retains revisions and bytes across a fresh adapter handle", async () => {

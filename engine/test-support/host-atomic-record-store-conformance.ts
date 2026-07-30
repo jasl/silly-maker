@@ -23,6 +23,28 @@ function bytesEqualV1(left: Uint8Array, right: Uint8Array): boolean {
   );
 }
 
+function isUint8ArrayV1(value: unknown): value is Uint8Array {
+  return (
+    ArrayBuffer.isView(value) && Object.prototype.toString.call(value) === "[object Uint8Array]"
+  );
+}
+
+function snapshotRecordsV1(records: readonly HostStoredRecordV1[]): readonly HostStoredRecordV1[] {
+  return Object.freeze(
+    records.map((record) => {
+      if (!isUint8ArrayV1(record.bytes)) {
+        throw new TypeError("invalid Host stored record bytes");
+      }
+      return Object.freeze({
+        namespace: record.namespace,
+        key: record.key,
+        revision: record.revision,
+        bytes: Uint8Array.from(record.bytes),
+      });
+    }),
+  );
+}
+
 export interface HostRecordStoreConformanceReportV1 {
   readonly validation: {
     readonly emptyRejected: boolean;
@@ -68,6 +90,23 @@ export interface HostRecordStoreReopenConformanceReportV1 {
   readonly updatedRevision: number;
   readonly secondRevision: number | null;
   readonly secondValue: readonly number[] | null;
+}
+
+export type HostRecordStoreKeyCorpusCaseIdV1 =
+  "case_distinct" | "non_ascii" | "filesystem_reserved" | "representative_long";
+
+export interface HostRecordStoreKeyCorpusReportV1 {
+  readonly cases: readonly {
+    readonly id: HostRecordStoreKeyCorpusCaseIdV1;
+    readonly keyCount: number;
+    readonly committedRecordCount: number;
+    readonly committedExactCount: number;
+    readonly readExactCount: number;
+    readonly listedRecordCount: number;
+    readonly listedExactCount: number;
+    readonly listStable: boolean;
+    readonly rejected: boolean;
+  }[];
 }
 
 export type HostRecordStoreMalformedCaseIdV1 =
@@ -206,6 +245,55 @@ export const hostRecordStoreReopenExpectedV1 = Object.freeze({
   secondValue: Object.freeze([255, 32, 0, 129]),
 }) satisfies DeepReadonly<HostRecordStoreReopenConformanceReportV1>;
 
+export const hostRecordStoreKeyCorpusExpectedV1 = Object.freeze({
+  cases: Object.freeze([
+    Object.freeze({
+      id: "case_distinct",
+      keyCount: 2,
+      committedRecordCount: 2,
+      committedExactCount: 2,
+      readExactCount: 2,
+      listedRecordCount: 2,
+      listedExactCount: 2,
+      listStable: true,
+      rejected: false,
+    }),
+    Object.freeze({
+      id: "non_ascii",
+      keyCount: 2,
+      committedRecordCount: 2,
+      committedExactCount: 2,
+      readExactCount: 2,
+      listedRecordCount: 2,
+      listedExactCount: 2,
+      listStable: true,
+      rejected: false,
+    }),
+    Object.freeze({
+      id: "filesystem_reserved",
+      keyCount: 4,
+      committedRecordCount: 4,
+      committedExactCount: 4,
+      readExactCount: 4,
+      listedRecordCount: 4,
+      listedExactCount: 4,
+      listStable: true,
+      rejected: false,
+    }),
+    Object.freeze({
+      id: "representative_long",
+      keyCount: 2,
+      committedRecordCount: 2,
+      committedExactCount: 2,
+      readExactCount: 2,
+      listedRecordCount: 2,
+      listedExactCount: 2,
+      listStable: true,
+      rejected: false,
+    }),
+  ]),
+}) satisfies DeepReadonly<HostRecordStoreKeyCorpusReportV1>;
+
 const hostRecordStoreMalformedCaseIdsV1 = Object.freeze([
   "non_array_batch",
   "empty_batch",
@@ -294,6 +382,75 @@ export function createHostRecordStoreCorruptBackingNeighborV1(): HostStoredRecor
     bytes: bytesV1(0, 127, 255, 16),
   });
 }
+
+interface HostRecordStoreKeyCorpusEntryV1 {
+  readonly key: string;
+  readonly byteValues: readonly number[];
+}
+
+interface HostRecordStoreKeyCorpusCaseV1 {
+  readonly id: HostRecordStoreKeyCorpusCaseIdV1;
+  readonly entries: readonly HostRecordStoreKeyCorpusEntryV1[];
+}
+
+const longKeyPrefixV1 = "conformance.keys.long.";
+const longKeyBodyV1 = "x".repeat(1024 - longKeyPrefixV1.length - 1);
+const hostRecordStoreKeyCorpusV1 = Object.freeze([
+  Object.freeze({
+    id: "case_distinct",
+    entries: Object.freeze([
+      Object.freeze({
+        key: "conformance.keys.Case",
+        byteValues: Object.freeze([1, 0, 255]),
+      }),
+      Object.freeze({
+        key: "conformance.keys.case",
+        byteValues: Object.freeze([2, 0, 254]),
+      }),
+    ]),
+  }),
+  Object.freeze({
+    id: "non_ascii",
+    entries: Object.freeze([
+      Object.freeze({
+        key: "conformance.keys/猫咪/東京",
+        byteValues: Object.freeze([3, 128, 253]),
+      }),
+      Object.freeze({
+        key: "conformance.keys/mañana/Δ",
+        byteValues: Object.freeze([4, 129, 252]),
+      }),
+    ]),
+  }),
+  Object.freeze({
+    id: "filesystem_reserved",
+    entries: Object.freeze([
+      Object.freeze({ key: "CON", byteValues: Object.freeze([5, 130, 251]) }),
+      Object.freeze({ key: "NUL", byteValues: Object.freeze([6, 131, 250]) }),
+      Object.freeze({
+        key: "COM1",
+        byteValues: Object.freeze([7, 132, 249]),
+      }),
+      Object.freeze({
+        key: '<>:"/\\|?*',
+        byteValues: Object.freeze([8, 133, 248]),
+      }),
+    ]),
+  }),
+  Object.freeze({
+    id: "representative_long",
+    entries: Object.freeze([
+      Object.freeze({
+        key: `${longKeyPrefixV1}${longKeyBodyV1}a`,
+        byteValues: Object.freeze([9, 134, 247]),
+      }),
+      Object.freeze({
+        key: `${longKeyPrefixV1}${longKeyBodyV1}b`,
+        byteValues: Object.freeze([10, 135, 246]),
+      }),
+    ]),
+  }),
+] as const satisfies readonly HostRecordStoreKeyCorpusCaseV1[]);
 
 function putV1(
   namespace: HostRecordMutationV1["namespace"],
@@ -897,4 +1054,111 @@ export async function runHostRecordStoreReopenConformanceV1(
     secondRevision: second?.revision ?? null,
     secondValue: second === null ? null : byteReportV1(second.bytes),
   });
+}
+
+/**
+ * Runs collision-sensitive logical-key probes with a fresh empty store per
+ * category. The representative long keys are workload inputs, not a public
+ * maximum; embedded NUL and cross-runtime collation remain separate contract
+ * decisions.
+ */
+export async function runHostRecordStoreKeyCorpusV1(
+  createStore: () => HostAtomicRecordStoreV1 | Promise<HostAtomicRecordStoreV1>,
+): Promise<DeepReadonly<HostRecordStoreKeyCorpusReportV1>> {
+  const cases = [];
+  for (const testCase of hostRecordStoreKeyCorpusV1) {
+    const store = await createStore();
+    const expectedEntries = testCase.entries.map((entry) =>
+      Object.freeze({
+        key: keyV1(entry.key),
+        bytes: bytesV1(...entry.byteValues),
+      }),
+    );
+    const matchesExpectedV1 = (
+      record: HostStoredRecordV1,
+      entry: (typeof expectedEntries)[number],
+    ) =>
+      isUint8ArrayV1(record.bytes) &&
+      record.namespace === "settings" &&
+      record.key === entry.key &&
+      record.revision === 1 &&
+      bytesEqualV1(record.bytes, entry.bytes);
+    const exactEntryCountV1 = (records: readonly HostStoredRecordV1[]) =>
+      expectedEntries.filter(
+        (entry) => records.filter((record) => matchesExpectedV1(record, entry)).length === 1,
+      ).length;
+
+    let rejected = false;
+    let committedRecords: readonly HostStoredRecordV1[] = [];
+    try {
+      const result = await store.commit(
+        expectedEntries.map((entry) =>
+          putV1("settings", entry.key, null, Uint8Array.from(entry.bytes)),
+        ) as [HostRecordMutationV1, ...HostRecordMutationV1[]],
+      );
+      if (result.kind === "committed") {
+        committedRecords = snapshotRecordsV1(result.records);
+      } else {
+        rejected = true;
+      }
+    } catch {
+      rejected = true;
+    }
+    const committedExactCount = exactEntryCountV1(committedRecords);
+
+    let readExactCount = 0;
+    for (const entry of expectedEntries) {
+      try {
+        const record = await store.read("settings", entry.key);
+        if (record !== null && !isUint8ArrayV1(record.bytes)) {
+          rejected = true;
+          continue;
+        }
+        if (record !== null && matchesExpectedV1(record, entry)) {
+          readExactCount += 1;
+        }
+      } catch {
+        rejected = true;
+      }
+    }
+
+    let firstList: readonly HostStoredRecordV1[] | undefined;
+    let secondList: readonly HostStoredRecordV1[] | undefined;
+    try {
+      firstList = snapshotRecordsV1(await store.list("settings"));
+      secondList = snapshotRecordsV1(await store.list("settings"));
+    } catch {
+      rejected = true;
+    }
+    const listedExactCount = firstList === undefined ? 0 : exactEntryCountV1(firstList);
+    const listStable =
+      firstList !== undefined &&
+      secondList !== undefined &&
+      firstList.length === secondList.length &&
+      firstList.every((record, index) => {
+        const repeated = secondList[index];
+        return (
+          repeated !== undefined &&
+          record.namespace === repeated.namespace &&
+          record.key === repeated.key &&
+          record.revision === repeated.revision &&
+          bytesEqualV1(record.bytes, repeated.bytes)
+        );
+      });
+
+    cases.push(
+      Object.freeze({
+        id: testCase.id,
+        keyCount: expectedEntries.length,
+        committedRecordCount: committedRecords.length,
+        committedExactCount,
+        readExactCount,
+        listedRecordCount: firstList?.length ?? 0,
+        listedExactCount,
+        listStable,
+        rejected,
+      }),
+    );
+  }
+  return Object.freeze({ cases: Object.freeze(cases) });
 }
