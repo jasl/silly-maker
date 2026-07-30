@@ -4,7 +4,10 @@ export type SnapshotWorkEventV1 =
   | "canonical_traversal"
   | "canonical_digest"
   | "deep_freeze_traversal"
-  | "command_log_continuity_verification";
+  | "command_log_continuity_verification"
+  | "save_canonical_serialization"
+  | "strict_json_parse"
+  | "strict_json_preflight";
 
 export interface SnapshotWorkInstrumentationV1 {
   record(event: SnapshotWorkEventV1): unknown;
@@ -15,6 +18,9 @@ export interface SnapshotWorkCountsV1 {
   readonly canonicalDigests: number;
   readonly deepFreezeTraversals: number;
   readonly commandLogContinuityVerifications: number;
+  readonly saveCanonicalSerializations: number;
+  readonly strictJsonParses: number;
+  readonly strictJsonPreflights: number;
 }
 
 interface MutableSnapshotWorkCountsV1 {
@@ -22,6 +28,9 @@ interface MutableSnapshotWorkCountsV1 {
   canonicalDigests: number;
   deepFreezeTraversals: number;
   commandLogContinuityVerifications: number;
+  saveCanonicalSerializations: number;
+  strictJsonParses: number;
+  strictJsonPreflights: number;
 }
 
 function emptyCountsV1(): MutableSnapshotWorkCountsV1 {
@@ -30,6 +39,9 @@ function emptyCountsV1(): MutableSnapshotWorkCountsV1 {
     canonicalDigests: 0,
     deepFreezeTraversals: 0,
     commandLogContinuityVerifications: 0,
+    saveCanonicalSerializations: 0,
+    strictJsonParses: 0,
+    strictJsonPreflights: 0,
   };
 }
 
@@ -74,6 +86,15 @@ export function createSnapshotWorkCounterV1(): {
           return;
         case "command_log_continuity_verification":
           counts.commandLogContinuityVerifications += 1;
+          return;
+        case "save_canonical_serialization":
+          counts.saveCanonicalSerializations += 1;
+          return;
+        case "strict_json_parse":
+          counts.strictJsonParses += 1;
+          return;
+        case "strict_json_preflight":
+          counts.strictJsonPreflights += 1;
       }
     },
   });

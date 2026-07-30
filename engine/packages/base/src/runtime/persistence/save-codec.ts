@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-import { canonicalJsonBytes } from "../../contracts/canonical-json.ts";
-import { digestCanonical } from "../../contracts/digest.ts";
+import { canonicalJsonBytesInternalV1 } from "../../contracts/canonical-json.ts";
+import { digestCanonicalInternalV1 } from "../../contracts/digest.ts";
 import {
   SaveRecordEnvelopeSchemaFailureV1,
   saveJsonLimitsV1,
@@ -12,6 +12,8 @@ import type {
 } from "../../contracts/persistence.ts";
 import { parseStrictJson } from "../../contracts/strict-json.ts";
 import type { DeepReadonly } from "../../contracts/values.ts";
+import type { SnapshotWorkInstrumentationV1 } from "../../internal/snapshot-work-instrumentation.ts";
+import { recordSnapshotWorkV1 } from "../../internal/snapshot-work-instrumentation.ts";
 
 function parseRecordV1<
   TSnapshot,
@@ -42,8 +44,11 @@ function parseRecordV1<
 function hasMatchingStateDigestV1<
   TSnapshot,
   TSaveRecord extends SaveRecordEnvelopeV1<TSnapshot, unknown, unknown, unknown>,
->(record: DeepReadonly<TSaveRecord>): boolean {
-  return record.stateDigest === digestCanonical("sillymaker:state:v1", record.snapshot);
+>(record: DeepReadonly<TSaveRecord>, instrumentation?: SnapshotWorkInstrumentationV1): boolean {
+  return (
+    record.stateDigest ===
+    digestCanonicalInternalV1("sillymaker:state:v1", record.snapshot, instrumentation)
+  );
 }
 
 export function encodeSaveRecordV1<
@@ -53,12 +58,26 @@ export function encodeSaveRecordV1<
   record: DeepReadonly<TSaveRecord>,
   context: SaveCodecContextV1<TSnapshot, TSaveRecord>,
 ): Uint8Array {
+  return encodeSaveRecordInternalV1(record, context);
+}
+
+/** @internal Instrumented test/bench path; public codec bytes remain unchanged. */
+export function encodeSaveRecordInternalV1<
+  TSnapshot,
+  TSaveRecord extends SaveRecordEnvelopeV1<TSnapshot, unknown, unknown, unknown>,
+>(
+  record: DeepReadonly<TSaveRecord>,
+  context: SaveCodecContextV1<TSnapshot, TSaveRecord>,
+  instrumentation?: SnapshotWorkInstrumentationV1,
+): Uint8Array {
   const parsed = context.recordSchema.parse(record) as DeepReadonly<TSaveRecord>;
   context.validateEnvelope(parsed);
-  if (!hasMatchingStateDigestV1(parsed)) {
+  if (!hasMatchingStateDigestV1(parsed, instrumentation)) {
     throw new TypeError("Save state digest mismatch");
   }
-  const bytes = canonicalJsonBytes(parsed);
+  recordSnapshotWorkV1(instrumentation, "save_canonical_serialization");
+  const bytes = canonicalJsonBytesInternalV1(parsed, instrumentation);
+  recordSnapshotWorkV1(instrumentation, "strict_json_preflight");
   const preflight = parseStrictJson(bytes, saveJsonLimitsV1);
   if (!preflight.ok) {
     throw new TypeError(`Save record violates Strict JSON constraints: ${preflight.error.code}`);
@@ -73,13 +92,26 @@ export function decodeSaveRecordV1<
   bytes: Uint8Array,
   context: SaveCodecContextV1<TSnapshot, TSaveRecord>,
 ): SaveRecordDecodeResultV1<TSaveRecord> {
+  return decodeSaveRecordInternalV1(bytes, context);
+}
+
+/** @internal Instrumented test/bench path; public decoder semantics remain unchanged. */
+export function decodeSaveRecordInternalV1<
+  TSnapshot,
+  TSaveRecord extends SaveRecordEnvelopeV1<TSnapshot, unknown, unknown, unknown>,
+>(
+  bytes: Uint8Array,
+  context: SaveCodecContextV1<TSnapshot, TSaveRecord>,
+  instrumentation?: SnapshotWorkInstrumentationV1,
+): SaveRecordDecodeResultV1<TSaveRecord> {
+  recordSnapshotWorkV1(instrumentation, "strict_json_parse");
   const decoded = parseStrictJson(bytes, saveJsonLimitsV1);
   if (!decoded.ok) {
     return Object.freeze({ kind: "rejected", code: decoded.error.code });
   }
   const parsed = parseRecordV1(decoded.value, context);
   if (parsed.kind === "rejected") return parsed;
-  if (!hasMatchingStateDigestV1(parsed.record)) {
+  if (!hasMatchingStateDigestV1(parsed.record, instrumentation)) {
     return Object.freeze({ kind: "rejected", code: "digest.state_mismatch" });
   }
   return Object.freeze({ kind: "decoded", record: parsed.record });

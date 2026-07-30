@@ -15,7 +15,7 @@ import {
   manualSaveSlotIndexV1,
   parseManualSaveSlotCountV1,
 } from "../../contracts/application.ts";
-import { digestBytes, digestCanonical } from "../../contracts/digest.ts";
+import { digestBytes, digestCanonicalInternalV1 } from "../../contracts/digest.ts";
 import type { HostAtomicRecordStoreV1, IsoUtcInstant } from "../../contracts/host.ts";
 import type {
   AppliedHotfixV1,
@@ -50,16 +50,17 @@ import {
   parseNonNegativeSafeInteger,
   parsePositiveSafeInteger,
 } from "../../contracts/values.ts";
+import type { SnapshotWorkInstrumentationV1 } from "../../internal/snapshot-work-instrumentation.ts";
 import type { GameSessionRuntimeControlV1 } from "../session/game-session.ts";
 import { createAutoSaveQueueV1 } from "./auto-save-queue.ts";
 import { classifySaveCompatibilityV1, validateSaveImportCandidateV1 } from "./compatibility.ts";
-import { encodeSaveRecordV1 } from "./save-codec.ts";
+import { encodeSaveRecordInternalV1 } from "./save-codec.ts";
 import type {
   SaveRepositorySlotMetadataV1,
   SaveRepositoryV1,
   SaveRepositoryWriteResultV1,
 } from "./save-repository.ts";
-import { createSaveRepositoryV1 } from "./save-repository.ts";
+import { createSaveRepositoryInternalV1 } from "./save-repository.ts";
 import type { SessionLeaseFenceV1, SessionLeaseV1 } from "./session-lease.ts";
 import { createSessionLeaseV1 } from "./session-lease.ts";
 
@@ -237,6 +238,7 @@ async function createPersistenceServiceWithDependenciesV1<
   },
 >(
   options: CreatePersistenceServiceOptionsV1<TState, TSnapshot>,
+  instrumentation?: SnapshotWorkInstrumentationV1,
 ): Promise<PersistenceServiceV1<TSnapshot>> {
   if (typeof options.exportFilename !== "string" || options.exportFilename.length === 0) {
     throw new TypeError("Persistence service requires an export filename");
@@ -320,7 +322,11 @@ async function createPersistenceServiceWithDependenciesV1<
         capturedCommandSequence: candidate.snapshot.commandSequence,
       }),
       savedAt: candidate.savedAt,
-      stateDigest: digestCanonical("sillymaker:state:v1", candidate.snapshot),
+      stateDigest: digestCanonicalInternalV1(
+        "sillymaker:state:v1",
+        candidate.snapshot,
+        instrumentation,
+      ),
       snapshot: candidate.snapshot,
       simulationLineage: candidate.simulationLineage,
     };
@@ -332,9 +338,10 @@ async function createPersistenceServiceWithDependenciesV1<
   };
 
   const encodeRecordV1 = (record: DeepReadonly<PersistenceSaveRecordV1<TSnapshot>>): Uint8Array =>
-    encodeSaveRecordV1<TSnapshot, PersistenceSaveRecordV1<TSnapshot>>(
+    encodeSaveRecordInternalV1<TSnapshot, PersistenceSaveRecordV1<TSnapshot>>(
       record,
       options.validation.codec,
+      instrumentation,
     );
 
   const captureV1 = (snapshot: DeepReadonly<TSnapshot>): SaveCandidateV1<TSnapshot> =>
@@ -1325,6 +1332,7 @@ function createStandardPersistenceDependenciesV1<
   },
 >(
   options: CreateStandardPersistenceServiceOptionsV1<TState, TSnapshot>,
+  instrumentation?: SnapshotWorkInstrumentationV1,
 ): {
   readonly repository: SaveRepositoryV1<PersistenceSaveRecordV1<TSnapshot>>;
   readonly lease: SessionLeaseV1;
@@ -1377,11 +1385,14 @@ function createStandardPersistenceDependenciesV1<
     ownerId: options.ownerId,
     nextHandoffRequestId: options.nextHandoffRequestId,
   });
-  const repository = createSaveRepositoryV1({
-    records: options.records,
-    storyId: options.provenance.story.id,
-    codec,
-  });
+  const repository = createSaveRepositoryInternalV1(
+    {
+      records: options.records,
+      storyId: options.provenance.story.id,
+      codec,
+    },
+    instrumentation,
+  );
   const validation: SaveImportValidationContextV1<
     TState,
     TSnapshot,
@@ -1401,6 +1412,39 @@ function createStandardPersistenceDependenciesV1<
     validateInvariants: options.validateInvariants,
   });
   return Object.freeze({ repository, lease, validation });
+}
+
+function createStandardPersistenceServiceInternalV1<
+  TState,
+  TSnapshot extends {
+    readonly state: TState;
+    readonly commandSequence: NonNegativeSafeInteger;
+  },
+>(
+  options: CreateStandardPersistenceServiceOptionsV1<TState, TSnapshot>,
+  instrumentation?: SnapshotWorkInstrumentationV1,
+): Promise<PersistenceServiceV1<TSnapshot>> {
+  const dependencies = createStandardPersistenceDependenciesV1(options, instrumentation);
+  return createPersistenceServiceWithDependenciesV1(
+    {
+      runtimeControl: options.runtimeControl,
+      ...dependencies,
+      provenance: options.provenance,
+      initialSimulationLineage: options.initialSimulationLineage,
+      metadataClock: options.metadataClock,
+      exportFilename: options.exportFilename,
+      ...(options.manualSaveSlotCount === undefined
+        ? {}
+        : { manualSaveSlotCount: options.manualSaveSlotCount }),
+      ...(options.leaseAcquisition === undefined
+        ? {}
+        : { leaseAcquisition: options.leaseAcquisition }),
+      ...(options.autoSaveCapture === undefined
+        ? {}
+        : { autoSaveCapture: options.autoSaveCapture }),
+    },
+    instrumentation,
+  );
 }
 
 export function createPersistenceServiceV1<
@@ -1435,20 +1479,22 @@ export function createPersistenceServiceV1<
   if ("repository" in options) {
     return createPersistenceServiceWithDependenciesV1(options);
   }
-  const dependencies = createStandardPersistenceDependenciesV1(options);
-  return createPersistenceServiceWithDependenciesV1({
-    runtimeControl: options.runtimeControl,
-    ...dependencies,
-    provenance: options.provenance,
-    initialSimulationLineage: options.initialSimulationLineage,
-    metadataClock: options.metadataClock,
-    exportFilename: options.exportFilename,
-    ...(options.manualSaveSlotCount === undefined
-      ? {}
-      : { manualSaveSlotCount: options.manualSaveSlotCount }),
-    ...(options.leaseAcquisition === undefined
-      ? {}
-      : { leaseAcquisition: options.leaseAcquisition }),
-    ...(options.autoSaveCapture === undefined ? {} : { autoSaveCapture: options.autoSaveCapture }),
-  });
+  return createStandardPersistenceServiceInternalV1(options);
+}
+
+/**
+ * @internal Instrumented standard-composition test/bench path; intentionally
+ * absent from runtime package barrels.
+ */
+export function createInstrumentedPersistenceServiceV1<
+  TState,
+  TSnapshot extends {
+    readonly state: TState;
+    readonly commandSequence: NonNegativeSafeInteger;
+  },
+>(
+  options: CreateStandardPersistenceServiceOptionsV1<TState, TSnapshot>,
+  instrumentation: SnapshotWorkInstrumentationV1,
+): Promise<PersistenceServiceV1<TSnapshot>> {
+  return createStandardPersistenceServiceInternalV1(options, instrumentation);
 }

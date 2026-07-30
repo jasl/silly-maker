@@ -62,6 +62,9 @@ describe("Snapshot sequence and replay workloads", () => {
       canonicalDigests: 4,
       deepFreezeTraversals: 1,
       commandLogContinuityVerifications: 1,
+      saveCanonicalSerializations: 0,
+      strictJsonParses: 0,
+      strictJsonPreflights: 0,
     });
   });
 

@@ -13,10 +13,13 @@ import type {
   SnapshotCommitEntityCountV1,
   SnapshotCommitSequenceClassV1,
   SnapshotCommitWorkloadRunV1,
+  SnapshotPersistenceWorkCountsV1,
+  SnapshotPersistenceWorkloadStepV1,
   SnapshotSessionWorkCountsV1,
   SnapshotTransactionCommandClassV1,
 } from "@sillymaker/base/testkit";
 import { prepareTimedSnapshotCommitWorkloadV1 } from "../src/testkit/snapshot-commit-workload.ts";
+import { prepareTimedSnapshotPersistenceWorkloadV1 } from "../src/testkit/snapshot-persistence-workload.ts";
 import {
   prepareTimedSnapshotCommitSequenceWorkloadV1,
   prepareTimedSnapshotReplayWorkloadV1,
@@ -52,6 +55,7 @@ const snapshotBenchmarkWorkloadClassesV1 = Object.freeze([
   "command",
   "sequence",
   "replay",
+  "persistence",
 ] as const);
 type SnapshotBenchmarkWorkloadClassV1 = (typeof snapshotBenchmarkWorkloadClassesV1)[number];
 
@@ -107,13 +111,27 @@ interface ReplayWorkloadBaselineV1 extends WorkloadBaselineCommonV1 {
   >["comparison"];
 }
 
+interface PersistenceWorkloadBaselineV1 extends WorkloadBaselineCommonV1 {
+  readonly workloadClass: "persistence";
+  readonly entityCount: 100;
+  readonly counts: SnapshotPersistenceWorkCountsV1;
+  readonly setupCounts: SnapshotPersistenceWorkCountsV1;
+  readonly autosaveClass: "every_commit_auto_rotation";
+  readonly commandCount: 2;
+  readonly firstAutoSave: SnapshotPersistenceWorkloadStepV1;
+  readonly rotation: SnapshotPersistenceWorkloadStepV1;
+}
+
 type WorkloadBaselineV1 =
-  CommandWorkloadBaselineV1 | SequenceWorkloadBaselineV1 | ReplayWorkloadBaselineV1;
+  | CommandWorkloadBaselineV1
+  | SequenceWorkloadBaselineV1
+  | ReplayWorkloadBaselineV1
+  | PersistenceWorkloadBaselineV1;
 
 const usageV1 =
   "usage: deno task bench:snapshot " +
   "[--entity-count <100|1000|10000|100000>]... " +
-  "[--workload-class <command|sequence|replay>]... " +
+  "[--workload-class <command|sequence|replay|persistence>]... " +
   "[--command-class <single_field_committed|multi_slice_committed|" +
   "cross_owner_atomic_committed|rejected|faulted>]... " +
   "[--warmup <non-negative integer>] [--samples <positive integer>] [--output <path>]";
@@ -243,7 +261,7 @@ function parseOptionsV1(argv: readonly string[]): BenchmarkOptionsV1 {
     !entityCounts.includes(100)
   ) {
     return argumentErrorV1(
-      "sequence and replay workloads are admitted only for --entity-count 100",
+      "sequence, replay, and persistence workloads are admitted only for --entity-count 100",
     );
   }
   return {
@@ -484,6 +502,48 @@ async function runReplayWorkloadV1(input: {
   };
 }
 
+async function runPersistenceWorkloadV1(input: {
+  readonly warmup: number;
+  readonly samples: number;
+}): Promise<PersistenceWorkloadBaselineV1> {
+  const entityCount = 100;
+  const workloadId = "snapshot-persistence-v1/100/every_commit_auto_rotation";
+  const measured = await measureFreshRunsV1({
+    workloadId,
+    warmup: input.warmup,
+    samples: input.samples,
+    async runFresh() {
+      const prepared = await prepareTimedSnapshotPersistenceWorkloadV1({
+        entityCount,
+      });
+      if (prepared.descriptor.workloadId !== workloadId) {
+        throw new Error(`unexpected workload descriptor: ${prepared.descriptor.workloadId}`);
+      }
+      const outcome = await prepared.runOnce();
+      return {
+        consistentRun: {
+          counts: outcome.aggregateCounts,
+          setupCounts: prepared.setupCounts,
+          autosaveClass: prepared.descriptor.autosaveClass,
+          commandCount: prepared.descriptor.commandCount,
+          firstAutoSave: outcome.firstAutoSave,
+          rotation: outcome.rotation,
+        },
+        dispatchDurationMs: outcome.dispatchDurationMs,
+      };
+    },
+  });
+
+  return {
+    workloadId,
+    workloadClass: "persistence",
+    entityCount,
+    samples: input.samples,
+    durationMs: measured.durationMs,
+    ...measured.consistentRun,
+  };
+}
+
 async function outputPathV1(requestedPath: string | undefined): Promise<string> {
   if (requestedPath !== undefined) return resolve(requestedPath);
   const outputDirectory = await Deno.makeTempDir({
@@ -525,9 +585,17 @@ async function mainV1(): Promise<void> {
       }),
     );
   }
+  if (options.entityCounts.includes(100) && options.workloadClasses.includes("persistence")) {
+    workloads.push(
+      await runPersistenceWorkloadV1({
+        warmup: options.warmup,
+        samples: options.samples,
+      }),
+    );
+  }
 
   const report = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     generatedAt: new Date().toISOString(),
     environment: {
       deno: Deno.version.deno,

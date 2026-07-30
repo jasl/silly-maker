@@ -14,6 +14,7 @@ export {
   snapshotCommitSequenceClassesV1,
   snapshotTransactionCommandClassesV1,
 } from "./snapshot-transaction-workload.ts";
+export { prepareSnapshotPersistenceWorkloadV1 } from "./snapshot-persistence-workload.ts";
 export { createSyntheticCounterGamePackageV1 } from "./synthetic-counter.ts";
 export { resolveStoryForTestV1, validateStoryV1 } from "./story-contracts.ts";
 export { createGameHarnessV1 } from "./game-harness.ts";
@@ -46,4 +47,11 @@ export type {
   SnapshotTransactionCommandClassV1,
   SnapshotTransactionWorkloadDescriptorV1,
 } from "./snapshot-transaction-workload.ts";
+export type {
+  PreparedSnapshotPersistenceWorkloadV1,
+  SnapshotPersistenceWorkCountsV1,
+  SnapshotPersistenceWorkloadDescriptorV1,
+  SnapshotPersistenceWorkloadRunV1,
+  SnapshotPersistenceWorkloadStepV1,
+} from "./snapshot-persistence-workload.ts";
 export type { SyntheticSimulationTypesV1 } from "./synthetic-counter.ts";

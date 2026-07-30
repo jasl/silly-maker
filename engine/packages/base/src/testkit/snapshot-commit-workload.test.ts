@@ -132,6 +132,9 @@ describe("Snapshot commit workload", () => {
             ? 1
             : 0,
         commandLogContinuityVerifications: 1,
+        saveCanonicalSerializations: 0,
+        strictJsonParses: 0,
+        strictJsonPreflights: 0,
       });
     },
   );

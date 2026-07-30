@@ -17,7 +17,8 @@ import type {
   PositiveSafeInteger,
 } from "../../contracts/values.ts";
 import { parsePositiveSafeInteger } from "../../contracts/values.ts";
-import { decodeSaveRecordV1, encodeSaveRecordV1 } from "./save-codec.ts";
+import type { SnapshotWorkInstrumentationV1 } from "../../internal/snapshot-work-instrumentation.ts";
+import { decodeSaveRecordInternalV1, encodeSaveRecordInternalV1 } from "./save-codec.ts";
 import { decodeSessionLeaseRecordV1 } from "./session-lease.ts";
 import type { SessionLeaseFenceV1 } from "./session-lease.ts";
 import { createSaveSlotRecordKeyV1, createSessionLeaseRecordKeyV1 } from "./slot-keys.ts";
@@ -186,6 +187,22 @@ export function createSaveRepositoryV1<
     unknown
   >,
 >(options: CreateSaveRepositoryOptionsV1<TSnapshot, TSaveRecord>): SaveRepositoryV1<TSaveRecord> {
+  return createSaveRepositoryInternalV1(options);
+}
+
+/** @internal Instrumented test/bench path; repository semantics are unchanged. */
+export function createSaveRepositoryInternalV1<
+  TSnapshot,
+  TSaveRecord extends SaveRecordEnvelopeV1<
+    TSnapshot,
+    unknown,
+    SaveRepositorySlotMetadataV1,
+    unknown
+  >,
+>(
+  options: CreateSaveRepositoryOptionsV1<TSnapshot, TSaveRecord>,
+  instrumentation?: SnapshotWorkInstrumentationV1,
+): SaveRepositoryV1<TSaveRecord> {
   if (typeof options.storyId !== "string" || options.storyId.length === 0) {
     throw new TypeError("invalid Save repository Story ID");
   }
@@ -195,7 +212,7 @@ export function createSaveRepositoryV1<
     stored: HostStoredRecordV1,
     slotId: SaveSlotIdV1,
   ): PhysicalDecodeResultV1<TSaveRecord> => {
-    const decoded = decodeSaveRecordV1(stored.bytes, options.codec);
+    const decoded = decodeSaveRecordInternalV1(stored.bytes, options.codec, instrumentation);
     if (decoded.kind === "rejected") {
       return Object.freeze({ kind: "invalid", code: decoded.code });
     }
@@ -230,7 +247,7 @@ export function createSaveRepositoryV1<
         capturedCommandSequence: candidate.slot.capturedCommandSequence,
       }),
     }) as DeepReadonly<TSaveRecord>;
-    return encodeSaveRecordV1(normalized, options.codec);
+    return encodeSaveRecordInternalV1(normalized, options.codec, instrumentation);
   };
 
   const readLeaseTouchV1 = async (

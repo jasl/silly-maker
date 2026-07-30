@@ -175,3 +175,25 @@ S0a 结束时仍属于 S0、尚未完成：基于真实 `TransactionRunner` 的�
 - benchmark 的四档 command matrix 增加真实 cross-owner command；100-entity artifact 另记录 mixed-256 与 retained-200 replay。常规测试只锁定上述计数和等价性，p50/p95 仍只作临时/CI artifact 趋势。
 
 仍属于 S0、尚未完成：`every_commit`/`auto.previous` 的 Save canonical serialization 与 Strict JSON parse/preflight 计数，以及长时内存/GC 增长采样。DebugBundle/Save byte-equivalence corpus、S1 digest cache 与 S2 persistence reuse 均未开始。
+
+### 2026-07-30 — S0c Persistence/autosave baseline
+
+本切片继续扩展 S0 的纯测量面，不实施 S1 digest cache 或 S2 persistence reuse：
+
+- 中性 fixture 固定为 100 entities，使用标准 `every_commit` / `committed_snapshots` 路径连续执行两次真实 `cross_owner_atomic_committed` command，并在每次提交后等待 `autoSaveIdle()`；第一次写入只有 `auto.current`（command sequence / record revision `1/1`），第二次写入后 `auto.current` 为 `2/2`、`auto.previous` 为 `1/1`；
+- package-internal / direct-file-only 注入把 Save canonical serialization、Strict JSON parse/preflight 接入既有 Snapshot work counter，公开 Session、Persistence、Save codec、digest 和 canonical JSON API 均未扩大；
+- 常规测试固定下列当前基线；两次提交的合计不包含单独列出的 setup：
+
+| phase                         | canonical traversal | state digest | deep-freeze | CommandLog continuity | Save serialization | Strict JSON parse | Strict JSON preflight |
+| ----------------------------- | ------------------: | -----------: | ----------: | --------------------: | -----------------: | ----------------: | --------------------: |
+| setup                         |                   1 |            1 |           1 |                     0 |                  0 |                 0 |                     0 |
+| first commit + autosave idle  |                  11 |            9 |           1 |                     1 |                  2 |                 1 |                     2 |
+| second commit + rotation idle |                  14 |           11 |           1 |                     1 |                  3 |                 2 |                     3 |
+| two-commit aggregate          |                  25 |           20 |           2 |                     2 |                  5 |                 3 |                     5 |
+
+- instrumented 与 production no-probe 路径逐次比较 dispatch result、最终 Snapshot、CommandLog canonical bytes，以及 Host 中 `auto.current` / `auto.previous` 的原始 record revision 和 bytes，保持相等；
+- benchmark 的 persistence class 每个 sample 使用新 fixture，并只计时两次 commit + autosave drain；确定性计数进入普通测试，p50/p95 仍只写临时目录或 CI artifact，不成为宿主相关硬门。
+
+该中性 100k-entity Snapshot 的 Save 会超过现有 Strict JSON `maxNodes: 100_000` 保护上限；S0c 因而固定 100 entities，不改变 Save 格式或公开限额。S0a/S0b 的 command / transaction matrix 仍覆盖 100 / 1k / 10k / 100k 四档，mixed sequence 与 retained replay 则保持固定 100-entity workload。
+
+S0 尚未完成的下一切片是长时内存/GC 增长采样（S0d）。DebugBundle/Save byte-equivalence corpus、S1 digest cache 与 S2 persistence reuse 均未实现。

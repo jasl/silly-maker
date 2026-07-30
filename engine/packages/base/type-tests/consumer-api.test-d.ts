@@ -122,6 +122,7 @@ import {
   createSyntheticCounterGamePackageV1,
   prepareSnapshotCommitSequenceWorkloadV1,
   prepareSnapshotCommitWorkloadV1,
+  prepareSnapshotPersistenceWorkloadV1,
   prepareSnapshotReplayWorkloadV1,
   prepareSnapshotTransactionWorkloadV1,
   resolveStoryForTestV1,
@@ -136,6 +137,7 @@ import {
 import type {
   PreparedSnapshotCommitWorkloadV1,
   PreparedSnapshotCommitSequenceWorkloadV1,
+  PreparedSnapshotPersistenceWorkloadV1,
   PreparedSnapshotReplayWorkloadV1,
   PreparedSnapshotTransactionWorkloadV1,
   SnapshotCommitCommandClassV1,
@@ -145,6 +147,10 @@ import type {
   SnapshotCommitSequenceWorkloadRunV1,
   SnapshotCommitWorkloadDescriptorV1,
   SnapshotCommitWorkloadRunV1,
+  SnapshotPersistenceWorkCountsV1,
+  SnapshotPersistenceWorkloadDescriptorV1,
+  SnapshotPersistenceWorkloadRunV1,
+  SnapshotPersistenceWorkloadStepV1,
   SnapshotReplayWorkloadDescriptorV1,
   SnapshotReplayWorkloadRunV1,
   SnapshotSessionWorkCountsV1,
@@ -233,6 +239,7 @@ export type BaseConsumerTypesV1 = {
   transientEffect: TransientEffectV1;
   preparedSnapshotCommitWorkload: PreparedSnapshotCommitWorkloadV1;
   preparedSnapshotCommitSequenceWorkload: PreparedSnapshotCommitSequenceWorkloadV1;
+  preparedSnapshotPersistenceWorkload: PreparedSnapshotPersistenceWorkloadV1;
   preparedSnapshotReplayWorkload: PreparedSnapshotReplayWorkloadV1;
   preparedSnapshotTransactionWorkload: PreparedSnapshotTransactionWorkloadV1;
   snapshotCommitCommandClass: SnapshotCommitCommandClassV1;
@@ -242,6 +249,10 @@ export type BaseConsumerTypesV1 = {
   snapshotCommitSequenceWorkloadRun: SnapshotCommitSequenceWorkloadRunV1;
   snapshotCommitWorkloadDescriptor: SnapshotCommitWorkloadDescriptorV1;
   snapshotCommitWorkloadRun: SnapshotCommitWorkloadRunV1;
+  snapshotPersistenceWorkCounts: SnapshotPersistenceWorkCountsV1;
+  snapshotPersistenceWorkloadDescriptor: SnapshotPersistenceWorkloadDescriptorV1;
+  snapshotPersistenceWorkloadRun: SnapshotPersistenceWorkloadRunV1;
+  snapshotPersistenceWorkloadStep: SnapshotPersistenceWorkloadStepV1;
   snapshotReplayWorkloadDescriptor: SnapshotReplayWorkloadDescriptorV1;
   snapshotReplayWorkloadRun: SnapshotReplayWorkloadRunV1;
   snapshotSessionWorkCounts: SnapshotSessionWorkCountsV1;
@@ -259,6 +270,7 @@ export type BaseConsumerValuesV1 = {
   createMemoryHostRecordStore: typeof createMemoryHostRecordStoreV1;
   prepareSnapshotCommitWorkload: typeof prepareSnapshotCommitWorkloadV1;
   prepareSnapshotCommitSequenceWorkload: typeof prepareSnapshotCommitSequenceWorkloadV1;
+  prepareSnapshotPersistenceWorkload: typeof prepareSnapshotPersistenceWorkloadV1;
   prepareSnapshotReplayWorkload: typeof prepareSnapshotReplayWorkloadV1;
   prepareSnapshotTransactionWorkload: typeof prepareSnapshotTransactionWorkloadV1;
   createGameSnapshotEnvelopeSchema: typeof createGameSnapshotEnvelopeSchemaV1;
@@ -415,5 +427,15 @@ export { createMemoryHostRecordStoreV1 as ForbiddenRootMemoryRecordStoreV1 } fro
 export { createSnapshotWorkCounterV1 } from "@sillymaker/base/testkit";
 // @ts-expect-error raw transaction workload factories stay package-internal
 export { createSnapshotTransactionWorkloadV1 } from "@sillymaker/base/testkit";
+// @ts-expect-error raw persistence workload factories stay package-internal
+export { createSnapshotPersistenceWorkloadV1 } from "@sillymaker/base/testkit";
+// @ts-expect-error timed persistence workload helpers stay package-internal
+export { prepareTimedSnapshotPersistenceWorkloadV1 } from "@sillymaker/base/testkit";
+// @ts-expect-error instrumentation types stay package-internal
+export type { SnapshotWorkInstrumentationV1 } from "@sillymaker/base/testkit";
 // @ts-expect-error instrumented replay helpers stay package-internal
 export { replayAuthoritativelyFromAttemptsInternalV1 } from "@sillymaker/base/runtime";
+// @ts-expect-error instrumented persistence factories stay package-internal
+export { createInstrumentedPersistenceServiceV1 } from "@sillymaker/base/runtime";
+// @ts-expect-error instrumented Save codec helpers stay package-internal
+export { encodeSaveRecordInternalV1 } from "@sillymaker/base/runtime";

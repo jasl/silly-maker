@@ -430,6 +430,9 @@ describe("authoritative replay", () => {
       canonicalDigests: 26,
       deepFreezeTraversals: 0,
       commandLogContinuityVerifications: 0,
+      saveCanonicalSerializations: 0,
+      strictJsonParses: 0,
+      strictJsonPreflights: 0,
     });
   });
 

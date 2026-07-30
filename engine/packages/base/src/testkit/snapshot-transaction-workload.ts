@@ -13,11 +13,15 @@ import type {
 } from "../contracts/gameplay-module.ts";
 import {
   createTransactionalRngV1,
+  rngStateV1Schema,
   type RngDrawTraceV1,
   type RngStateV1,
 } from "../contracts/rng.ts";
 import type { GameSnapshotEnvelopeV1 } from "../contracts/snapshot.ts";
-import { createPristineRunIntegrityV1 } from "../contracts/snapshot.ts";
+import {
+  createGameSnapshotEnvelopeSchemaV1,
+  createPristineRunIntegrityV1,
+} from "../contracts/snapshot.ts";
 import type { DeepReadonly, Digest, RuntimeSchemaV1 } from "../contracts/values.ts";
 import {
   parseNonNegativeSafeInteger,
@@ -249,6 +253,12 @@ const stateSchemaV1: RuntimeSchemaV1<SnapshotTransactionStateV1> = Object.freeze
     return value as unknown as SnapshotTransactionStateV1;
   },
 });
+
+/** @internal Direct-file-only schema reused by the persistence workload. */
+export const snapshotTransactionSnapshotSchemaV1 = createGameSnapshotEnvelopeSchemaV1(
+  stateSchemaV1,
+  rngStateV1Schema,
+);
 
 const commandSchemaV1: RuntimeSchemaV1<SnapshotTransactionCommandV1> = Object.freeze({
   parse(value: unknown): SnapshotTransactionCommandV1 {
@@ -532,6 +542,7 @@ export function createSnapshotTransactionWorkloadV1(input: {
   return Object.freeze({
     snapshot: () => created.session.getCurrentSnapshot(),
     status: () => created.session.getStatus(),
+    runtimeControl: created.runtimeControl,
     commandLog: () => created.commandLog.entries(),
     replayBase: () => created.commandLog.replayBase(),
     replayBaseStateDigest: () => created.commandLog.replayBaseStateDigest(),
@@ -717,7 +728,8 @@ export function prepareTimedSnapshotCommitSequenceWorkloadV1(input: {
 const identityDigestV1 = (label: string): Digest =>
   digestBytes(new TextEncoder().encode(`snapshot-transaction-workload:${label}`));
 
-const replayProvenanceV1: BuildProvenanceV1 = Object.freeze({
+/** @internal Direct-file-only deterministic identity reused by neutral workloads. */
+export const snapshotTransactionProvenanceV1: BuildProvenanceV1 = Object.freeze({
   story: Object.freeze({
     id: "snapshot-transaction-workload",
     revision: parsePositiveSafeInteger(1),
@@ -763,7 +775,7 @@ async function prepareSnapshotReplayCoreV1(entityCount: SnapshotCommitEntityCoun
     async replayOnce(): Promise<ReplayComparisonV1> {
       if (replayed) throw new TypeError("Snapshot replay workload can only run once");
       replayed = true;
-      const identity = Object.freeze({ provenance: replayProvenanceV1 });
+      const identity = Object.freeze({ provenance: snapshotTransactionProvenanceV1 });
       return await replayAuthoritativelyFromAttemptsInternalV1(
         {
           identity,

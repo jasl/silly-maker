@@ -24,7 +24,13 @@ import {
   parseNonNegativeSafeInteger,
   parsePositiveSafeInteger,
 } from "../../contracts/values.ts";
-import { decodeSaveRecordV1, encodeSaveRecordV1 } from "./save-codec.ts";
+import { createSnapshotWorkCounterV1 } from "../../internal/snapshot-work-instrumentation.ts";
+import {
+  decodeSaveRecordInternalV1,
+  decodeSaveRecordV1,
+  encodeSaveRecordInternalV1,
+  encodeSaveRecordV1,
+} from "./save-codec.ts";
 
 interface SyntheticStateV1 {
   readonly referenceId: string;
@@ -227,6 +233,38 @@ function bytesWithV1(record: SyntheticSaveRecordV1, overrides: Readonly<Record<s
 }
 
 describe("Save record codec", () => {
+  it("counts Save serialization and Strict JSON work without changing codec bytes", () => {
+    const record = makeRecordV1();
+    const counter = createSnapshotWorkCounterV1();
+
+    const bytes = encodeSaveRecordInternalV1(record, codecV1, counter.instrumentation);
+
+    expect(bytes).toEqual(encodeSaveRecordV1(record, codecV1));
+    expect(counter.snapshot()).toEqual({
+      canonicalTraversals: 2,
+      canonicalDigests: 1,
+      deepFreezeTraversals: 0,
+      commandLogContinuityVerifications: 0,
+      saveCanonicalSerializations: 1,
+      strictJsonParses: 0,
+      strictJsonPreflights: 1,
+    });
+
+    counter.reset();
+    expect(decodeSaveRecordInternalV1(bytes, codecV1, counter.instrumentation)).toEqual(
+      decodeSaveRecordV1(bytes, codecV1),
+    );
+    expect(counter.snapshot()).toEqual({
+      canonicalTraversals: 1,
+      canonicalDigests: 1,
+      deepFreezeTraversals: 0,
+      commandLogContinuityVerifications: 0,
+      saveCanonicalSerializations: 0,
+      strictJsonParses: 1,
+      strictJsonPreflights: 0,
+    });
+  });
+
   it("encodes one canonical representation and round-trips a strict frozen record", () => {
     const record = makeRecordV1();
     const bytes = encodeSaveRecordV1(record, codecV1);
