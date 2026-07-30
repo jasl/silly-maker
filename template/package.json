@@ -13,6 +13,7 @@
     "build": "deno task build:web",
     "build:web": "deno run -A npm:vite build",
     "build:desktop": "deno run -A ./tools/story.mts desktop .",
+    "deploy:cf": "deno task build && deno run -A npm:wrangler deploy",
     "preview": "deno run -A npm:vite preview",
     "clean": "rm -rf dist-web dist-desktop",
     "story": "deno run -A ./tools/story.mts",
@@ -30,6 +31,7 @@
     "@sillymaker/tooling": "workspace:*",
     "@types/node": "24.13.3",
     "@types/react": "19.2.17",
-    "vite": "8.1.4"
+    "vite": "8.1.4",
+    "wrangler": "4.114.0"
   }
 }
