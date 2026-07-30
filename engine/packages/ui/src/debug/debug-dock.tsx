@@ -10,9 +10,9 @@ import type { SaveOverlayPortV1 } from "../persistence/save-overlay.tsx";
  * The session debug dock: a collapsed chip pinned to the top-right corner of
  * the page that expands into a right-aligned panel of session-maintenance
  * actions. This is the default debug surface a running game exposes behind
- * the `debug_tools` capability (grown out of the external MV rig verification
- * rig's hand-play dock); the panel-based DevDock remains only as a
- * deprecated, explicitly-opted-in host for legacy tooling contributions.
+ * the `debug_tools` capability (grown out of a porting rig's hand-play
+ * dock); the panel-based DevDock remains only as a deprecated,
+ * explicitly-opted-in host for legacy tooling contributions.
  *
  * Built-in actions (each rendered only when its port/callback is provided):
  *   - Export state: download the current session as an engine save JSON.
