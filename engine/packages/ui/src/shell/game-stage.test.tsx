@@ -75,6 +75,19 @@ describe("GameStageV1", () => {
     );
     expect(screen.getByTestId("stage-narrative")).toHaveAttribute("data-stage-layer", "narrative");
     expect(screen.getByTestId("stage-system")).toHaveAttribute("data-stage-layer", "system");
+
+    const contentByLayer = Object.freeze([
+      ["background", screen.getByText("背景")],
+      ["character", screen.getByText("角色")],
+      ["scene_interaction", screen.getByRole("button", { name: "场景交互" })],
+      ["hud", screen.getByRole("button", { name: "状态操作" })],
+      ["narrative", screen.getByRole("region", { name: "叙事" })],
+      ["workspace_overlay", screen.getByRole("region", { name: "工作区" })],
+      ["system", screen.getByRole("status")],
+    ] as const satisfies readonly (readonly [StageLayerIdV1, HTMLElement])[]);
+    for (const [layerId, content] of contentByLayer) {
+      expect(screen.getByTestId(`stage-${layerId.replaceAll("_", "-")}`)).toContainElement(content);
+    }
   });
 
   it("keeps empty layer hosts mounted, except the pointer-eating interaction layer", () => {
@@ -220,7 +233,13 @@ describe("GameStageV1", () => {
     expect(css).toContain("[data-blocking-focus-scope]");
 
     for (const layerId of stageLayerIdsV1) {
-      expect(css).toContain(`var(--silly-stage-z-${layerId.replaceAll("_", "-")})`);
+      const cssId = layerId.replaceAll("_", "-");
+      expect(css).toMatch(
+        new RegExp(
+          `\\.game-stage__layer\\[data-stage-layer="${layerId}"\\]\\s*\\{[^}]*z-index:\\s*var\\(--silly-stage-z-${cssId}\\);`,
+          "su",
+        ),
+      );
     }
   });
 });

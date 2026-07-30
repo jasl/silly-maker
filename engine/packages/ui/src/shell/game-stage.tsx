@@ -85,24 +85,7 @@ export function useStagePointerGestureFenceV1(
   );
 }
 
-export type StageLayerIdV1 =
-  | "background"
-  | "character"
-  | "scene_interaction"
-  | "hud"
-  | "workspace_overlay"
-  | "narrative"
-  | "system";
-
-export const stageLayerIdsV1 = Object.freeze([
-  "background",
-  "character",
-  "scene_interaction",
-  "hud",
-  "narrative",
-  "workspace_overlay",
-  "system",
-] as const satisfies readonly StageLayerIdV1[]);
+type StageLayerInertPolicyV1 = "ordinary_gameplay" | "gameplay" | "narrative" | "system" | "none";
 
 export interface GameStageLayersV1 {
   readonly background: ReactNode;
@@ -113,6 +96,63 @@ export interface GameStageLayersV1 {
   readonly narrative: ReactNode;
   readonly system: ReactNode;
 }
+
+interface StageLayerDescriptorV1 {
+  readonly id: string;
+  readonly slot: keyof GameStageLayersV1;
+  readonly inertPolicy: StageLayerInertPolicyV1;
+  readonly omitWhenEmpty: boolean;
+  readonly pointerSurface: boolean;
+  readonly portalTarget: boolean;
+}
+
+interface StageLayerDescriptorOptionsV1 {
+  readonly omitWhenEmpty?: boolean;
+  readonly pointerSurface?: boolean;
+  readonly portalTarget?: boolean;
+}
+
+function defineStageLayerV1<const TId extends string, const TSlot extends keyof GameStageLayersV1>(
+  id: TId,
+  slot: TSlot,
+  inertPolicy: StageLayerInertPolicyV1,
+  options: StageLayerDescriptorOptionsV1 = {},
+) {
+  return Object.freeze({
+    id,
+    slot,
+    inertPolicy,
+    omitWhenEmpty: options.omitWhenEmpty ?? false,
+    pointerSurface: options.pointerSurface ?? false,
+    portalTarget: options.portalTarget ?? false,
+  });
+}
+
+const stageLayerDescriptorsV1 = Object.freeze([
+  defineStageLayerV1("background", "background", "ordinary_gameplay"),
+  defineStageLayerV1("character", "character", "ordinary_gameplay"),
+  defineStageLayerV1("scene_interaction", "sceneInteraction", "gameplay", {
+    omitWhenEmpty: true,
+    pointerSurface: true,
+  }),
+  defineStageLayerV1("hud", "hud", "ordinary_gameplay"),
+  defineStageLayerV1("narrative", "narrative", "narrative"),
+  defineStageLayerV1("workspace_overlay", "workspaceOverlay", "system"),
+  defineStageLayerV1("system", "system", "none", { portalTarget: true }),
+] as const satisfies readonly StageLayerDescriptorV1[]);
+
+export type StageLayerIdV1 = (typeof stageLayerDescriptorsV1)[number]["id"];
+type StageLayerIdsV1<TDescriptors extends readonly StageLayerDescriptorV1[]> = {
+  readonly [TIndex in keyof TDescriptors]: TDescriptors[TIndex] extends {
+    readonly id: infer TId extends string;
+  }
+    ? TId
+    : never;
+};
+
+export const stageLayerIdsV1 = Object.freeze(
+  stageLayerDescriptorsV1.map((descriptor) => descriptor.id),
+) as unknown as StageLayerIdsV1<typeof stageLayerDescriptorsV1>;
 
 export interface GameStagePropsV1 {
   readonly accessibleName: string;
@@ -210,6 +250,13 @@ export function GameStageV1(props: GameStagePropsV1): ReactElement {
   const gameplayInert = systemActive || overlayActive || narrativeActive;
   const ordinaryGameplayInert = gameplayInert || interactionActive;
   const narrativeInert = systemActive || overlayActive;
+  const inertByPolicy = {
+    ordinary_gameplay: ordinaryGameplayInert,
+    gameplay: gameplayInert,
+    narrative: narrativeInert,
+    system: systemActive,
+    none: false,
+  } satisfies Readonly<Record<StageLayerInertPolicyV1, boolean>>;
 
   return (
     <StageInputIsolationContextV1.Provider value={isolationPort}>
@@ -219,70 +266,28 @@ export function GameStageV1(props: GameStagePropsV1): ReactElement {
         aria-label={props.accessibleName}
         data-stage-root="true"
       >
-        <div
-          className={styles["game-stage__layer"]}
-          data-stage-layer="background"
-          data-testid="stage-background"
-          inert={ordinaryGameplayInert}
-        >
-          {props.layers.background}
-        </div>
-        <div
-          className={styles["game-stage__layer"]}
-          data-stage-layer="character"
-          data-testid="stage-character"
-          inert={ordinaryGameplayInert}
-        >
-          {props.layers.character}
-        </div>
-        {/* An empty interaction layer must not eat stage pointer input
-            (its container is pointer-events: auto by design). */}
-        {props.layers.sceneInteraction === null ||
-        props.layers.sceneInteraction === undefined ? null : (
-          <div
-            className={styles["game-stage__layer"]}
-            data-stage-layer="scene_interaction"
-            data-stage-pointer-surface="true"
-            data-testid="stage-scene-interaction"
-            inert={gameplayInert}
-          >
-            {props.layers.sceneInteraction}
-          </div>
-        )}
-        <div
-          className={styles["game-stage__layer"]}
-          data-stage-layer="hud"
-          data-testid="stage-hud"
-          inert={ordinaryGameplayInert}
-        >
-          {props.layers.hud}
-        </div>
-        <div
-          className={styles["game-stage__layer"]}
-          data-stage-layer="narrative"
-          data-testid="stage-narrative"
-          inert={narrativeInert}
-        >
-          {props.layers.narrative}
-        </div>
-        {/* Overlays paint above the narrative panel: a modal workspace
-            surface (album, save…) must never sit under dialogue text. */}
-        <div
-          className={styles["game-stage__layer"]}
-          data-stage-layer="workspace_overlay"
-          data-testid="stage-workspace-overlay"
-          inert={systemActive}
-        >
-          {props.layers.workspaceOverlay}
-        </div>
-        <div
-          ref={setSystemPortalContainer}
-          className={styles["game-stage__layer"]}
-          data-stage-layer="system"
-          data-testid="stage-system"
-        >
-          {props.layers.system}
-        </div>
+        {/* The descriptor tuple is the one runtime authority for layer order,
+            slot mapping, isolation, pointer ownership, and portal placement.
+            An empty pointer-enabled layer is omitted so it cannot eat hits. */}
+        {stageLayerDescriptorsV1.map((descriptor) => {
+          const content = props.layers[descriptor.slot];
+          if (descriptor.omitWhenEmpty && (content === null || content === undefined)) {
+            return null;
+          }
+          return (
+            <div
+              key={descriptor.id}
+              ref={descriptor.portalTarget ? setSystemPortalContainer : undefined}
+              className={styles["game-stage__layer"]}
+              data-stage-layer={descriptor.id}
+              data-stage-pointer-surface={descriptor.pointerSurface ? "true" : undefined}
+              data-testid={`stage-${descriptor.id.replaceAll("_", "-")}`}
+              inert={inertByPolicy[descriptor.inertPolicy]}
+            >
+              {content}
+            </div>
+          );
+        })}
       </main>
     </StageInputIsolationContextV1.Provider>
   );
