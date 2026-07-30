@@ -2,9 +2,10 @@
 import { readFile } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
 
-import { injectDesktopRecordsMarkerV1 } from "./desktop-html.mts";
+import { injectDesktopLifetimeScriptV1, injectDesktopRecordsMarkerV1 } from "./desktop-html.mts";
 import { createRecordFileStoreV1 } from "./record-file-store.mts";
 import { handleRecordHttpRequestV1 } from "./record-http-handler.mts";
+import { desktopLifetimePathPrefixV1, createShellLifetimeWatchdogV1 } from "./shell-lifetime.mts";
 import { resolveStaticFilePathV1 } from "./static-file-path.mts";
 
 /**
@@ -25,6 +26,7 @@ declare const Deno: {
   env: { get(name: string): string | undefined };
   build: { os: string };
   args: string[];
+  exit(code?: number): never;
 };
 
 const appIdentifierV1 = "__SILLYMAKER_APP_IDENTIFIER__";
@@ -113,8 +115,11 @@ async function handleStaticV1(request: Request, pathname: string): Promise<Respo
     };
     if (mediaType.startsWith("text/html")) {
       // The desktop shell marks its pages so the engine selects the HTTP
-      // record store without needing a query parameter on the window URL.
-      const html = injectDesktopRecordsMarkerV1(new TextDecoder().decode(bytes));
+      // record store without needing a query parameter on the window URL,
+      // and installs the lifetime client so a closed window ends the shell.
+      const html = injectDesktopLifetimeScriptV1(
+        injectDesktopRecordsMarkerV1(new TextDecoder().decode(bytes)),
+      );
       return new Response(request.method === "HEAD" ? null : html, { headers });
     }
     return new Response(request.method === "HEAD" ? null : new Uint8Array(bytes), { headers });
@@ -123,8 +128,21 @@ async function handleStaticV1(request: Request, pathname: string): Promise<Respo
   }
 }
 
+// The `ln` runtime owns the window; without this watchdog the serve loop
+// would keep the process (and dock icon) alive after the window closes.
+const watchdog = createShellLifetimeWatchdogV1({ exit: () => Deno.exit(0) });
+setInterval(() => watchdog.tick(), 5_000);
+
 Deno.serve((request: Request) => {
+  watchdog.markRequest();
   const url = new URL(request.url);
+  if (url.pathname === `${desktopLifetimePathPrefixV1}/heartbeat`) {
+    return new Response(null, { status: 204 });
+  }
+  if (url.pathname === `${desktopLifetimePathPrefixV1}/goodbye`) {
+    watchdog.markGoodbye();
+    return new Response(null, { status: 204 });
+  }
   if (url.pathname === "/sillymaker/records" || url.pathname.startsWith("/sillymaker/records/")) {
     return handleRecordHttpRequestV1(
       request,
