@@ -70,7 +70,7 @@ benchmark/fixture 准备并行；D0–D3 与 D4 也可在目标/报告合同定�
 不得同时改变共享 Host/Save/records wire contract。PF-D 不得与 PF3 同时改变
 `HostAtomicRecordStoreV1`、SaveRepository 或 records wire contract。
 
-### PF1 — Snapshot baseline and digest dedup
+### PF1 — Snapshot baseline and digest dedup（已完成）
 
 执行 [Snapshot plan](2026-07-30-snapshot-commit-performance.md) 的 S0–S2：
 
@@ -80,6 +80,11 @@ benchmark/fixture 准备并行；D0–D3 与 D4 也可在目标/报告合同定�
 4. 以 byte-for-byte 等价性证明 digest、CommandLog、debug bundle、Save 与 replay 没有语义变化。
 
 完成 PF1 后再判断是否激活 `IntegrityPolicy` / changed-set design。不得因为路线图已经写了目标形状就直接实现模块摘要、结构共享或 ECS。
+
+2026-07-30 promotion：S0–S2 的中性 workload、确定性计数、byte-equivalence
+corpus、browser/prebuilt evidence 与同机趋势均已完成。结果只标记
+digest/serialization dedup；四项 evidence gate 均未达到充分标准，
+`IntegrityPolicy` / changed-set design 未激活。
 
 ### PF2 — Surface lifecycle kernel and one pilot family
 

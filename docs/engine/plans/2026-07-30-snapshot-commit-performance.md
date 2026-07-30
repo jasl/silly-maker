@@ -1,6 +1,11 @@
 # Snapshot commit performance execution plan
 
-状态：2026-07-30 接受执行，审查后从 Save migration 拆分。承接 [roadmap](../roadmap.md) 的 Snapshot integrity track；在 [production-floor sequence](2026-07-30-production-floor-sequence.md) 中属于 PF1。本文只处理可证明等价的热路径去重，不实现 `IntegrityPolicy`、module-root digest、changed-set 或 StateStore 重写。
+状态：2026-07-30 接受执行，审查后从 Save migration 拆分；2026-07-30
+完成 S0–S2 与 PF1 promotion。承接 [roadmap](../roadmap.md) 的 Snapshot
+integrity track；在
+[production-floor sequence](2026-07-30-production-floor-sequence.md) 中属于
+PF1。本文只处理可证明等价的热路径去重，不实现 `IntegrityPolicy`、module-root
+digest、changed-set 或 StateStore 重写。
 
 ## 1. Outcome
 
@@ -312,3 +317,131 @@ TDD red 在 S2b HEAD 上得到 codec 1 个、persistence workload 4 个确定性
 deep-freeze 与 CommandLog continuity 仍为每轮各 `1`。一个固定 Save canonical text golden 防止新旧路径只用共享 core 自证；direct-file differential matrix 把 combined helper 与旧 composition `canonicalJsonBytes + parseStrictJson` 对照，覆盖全部六项 limits、dangerous keys、Unicode/key order、多重违规优先级、canonical errors、cycle/shared alias 与 object/array accessor 行为。既有 standard/no-probe、digest fallback 与 receipt fallback workload 继续逐 slot 比较 Host revision 及 `auto.current` / `auto.previous` 原始 bytes。
 
 S2 仍未完成。S2d 还需 normal save/load/export/import、autosave rotation、rejected/faulted、rollback、debug command、lease conflict/retry、anchor replacement 与 corrupted/tampered record 的完整 byte-equivalence corpus，browser/prebuilt 验证、before/after benchmark、剩余 byte-copy/compare 成本归因，以及 PF1 promotion decision。
+
+### 2026-07-30 — S2d Equivalence corpus and PF1 promotion
+
+本切片没有再改变 runtime 优化、公开 API、digest、canonical JSON、Save、replay
+或 Debug Bundle 语义；它用 package-internal/test-local seam 完成 S2 验收：
+
+- Core 中性语料在两个独立实例上执行
+  `game committed -> game rejected -> debug committed -> game faulted`。逐 entry
+  与完整 CommandLog canonical bytes、digest chain、authoritative replay 结果完全
+  相等；replay 不改变 live Snapshot identity/digest、Session status 或 log bytes；
+- 同一真实 CommandLog 经 Core extension 的 queue-front reader 进入 Debug Bundle。
+  两个实例导出的 filename/media type/digest/bytes 相等，decode 后 replay-base/current
+  digest 可独立重算，Strict round-trip 后的真实 entries 与 live log 相等，codec
+  还闭合检查 replay-base → entries → current 的 digest chain；decode 后重新 encode
+  仍得到原始 bytes；
+- Debug Bundle anchor 经 test-local Core extension 调用真实 persistence
+  `establishAnchor` callback。测试先阻塞旧 epoch autosave，anchor 从
+  `fault_paused` 恢复 `ready` 后再释放写入；最终 repair Save、anchored Snapshot
+  和下一条 command/Save 都匹配固定 oracle，且 log 清空、下一条 pre digest 精确
+  等于新 anchor digest；
+- 中性 Core rollback 恢复 checkpoint 的 canonical Snapshot bytes/digest，清空
+  CommandLog 并推进 `rollback` presentation epoch；第二次 command 的 autosave
+  在 rollback 时保持 in-flight，释放后必须 repair 为 checkpoint raw Save。同一
+  command retry 得到与第一次相同的 Snapshot bytes/digest、除新 log ordinal 外
+  相同的 entry evidence，以及固定的 rotation bytes；
+- 100-entity persistence 语料在 standard composition 与同时遮蔽 Session digest
+  evidence / write receipt 的 double-fallback composition 上执行同一 transcript：
+  first autosave、Quick Save/export、second autosave rotation、current export、load
+  Quick 与 import current。每个稳定 checkpoint 的独立 Snapshot digest、Snapshot /
+  CommandLog / replay-base canonical bytes、replay-base digest，以及全部 Host Save
+  `{key, revision, bytes}` 相等；
+- 同一 persistence pair 还覆盖 stale lease conflict 后用新 fence retry、语义相同但
+  raw bytes 不同的物理 readback tamper，以及 corrupt Quick load。两条路径的分类和
+  raw records 相等；失败不改变 authoritative Snapshot、CommandLog 或 replay base；
+- double fallback 只重建 S1/S2a/S2b 的独立校验路径，不冒充 pre-S2c encoder。S2c
+  仍由固定 canonical golden 与
+  `canonicalJsonBytes + parseStrictJson` differential matrix 作为旧 composition
+  oracle。
+
+两组最初 TDD red 分别是缺少 direct-file replay-base evidence，以及中性 Core 尚未
+安装 Debug Bundle extension。自审随后拒绝了 current-vs-current 自证与四参数 raw
+anchor 调用：最终 Core corpus 把 Snapshot、CommandLog、Debug Bundle 与各 Save
+checkpoint 固定为 `{byteLength, SHA-256}` / `{key, revision, byteLength, SHA-256}`；
+同一最终测试文件覆盖到 S0-complete `96a0a93` archive 的未优化 production 源后
+13 tests 全绿，当前源再跑得到同一 oracle。两个当前实例仍直接比较完整 raw
+`Uint8Array`，compact golden 不代替 byte comparison。没有新增 testkit barrel
+export，也没有提交长期 Save fixture、本地 benchmark JSON 或第二份 authoritative
+state。
+
+最终验证证据：
+
+- focused corpus：
+  `deno run -A npm:vitest run engine/packages/base/src/runtime/application/core-game-application.test.ts engine/packages/base/src/testkit/snapshot-persistence-workload.test.ts`
+  为 2 files / 21 tests；S0-complete archive 上的 Core corpus 为 1 file /
+  13 tests；
+- `deno run -A npm:vitest run engine/packages/base` 为 65 files / 588 tests；
+  `deno task test` 为 177 files / 1,544 tests；
+- `deno task check` 全绿，包含 format、type-aware lint、styles、typecheck、全量
+  tests、assets、all Story checks 与 Engine Lab production build；
+- 开发源码/Vite Chromium 与同一 prebuilt Artifact 各运行 manual Save reload、
+  PendingInteraction Save/refresh/load 两条 persistence contract，共 `2 + 2`
+  Playwright tests；prebuilt 前的 Artifact file smoke 也通过。
+
+确定性计数从 S0-complete `96a0a93` 到 S2c `1ec9bd2` 的变化如下。`T/D/S/P/F`
+依次表示 canonical traversal / state digest / Save serialization / Strict read
+parse / standalone Strict preflight：
+
+| path                               |   S0 complete |            S1 |           S2a |          S2b | S2c / promoted |
+| ---------------------------------- | ------------: | ------------: | ------------: | -----------: | -------------: |
+| committed command `T/D`            |         `4/4` |         `1/1` |         `1/1` |        `1/1` |          `1/1` |
+| rejected / faulted `T/D`           |         `4/4` |         `0/0` |         `0/0` |        `0/0` |          `0/0` |
+| mixed-256 recording `T/D`          |   `1024/1024` |     `170/170` |     `170/170` |    `170/170` |      `170/170` |
+| retained-200 replay `T/D`          |   `3409/1405` |   `3409/1405` |   `3409/1405` |  `3409/1405` |    `3409/1405` |
+| first autosave `T/D/S/P/F`         |  `11/9/2/1/2` |   `8/6/2/1/2` |   `6/4/2/1/2` |  `4/3/1/1/1` |    `4/3/1/1/0` |
+| rotation `T/D/S/P/F`               | `14/11/3/2/3` |  `11/8/3/2/3` |   `9/6/3/2/3` |  `7/5/2/2/2` |    `7/5/2/2/0` |
+| two-autosave aggregate `T/D/S/P/F` | `25/20/5/3/5` | `19/14/5/3/5` | `15/10/5/3/5` | `11/8/3/3/3` |   `11/8/3/3/0` |
+
+不变项仍是：Session setup `1/1/1` traversal/digest/freeze；每个 committed
+command 的 freeze/continuity `1/1`；每个 rejected/faulted command 的
+freeze/continuity `0/1`；两次 autosave 的 aggregate freeze/continuity `2/2`。
+Replay 本身保留独立的完整审计；PF1 减少的是 transcript recording 与同一 Save
+attempt 的重复工作。
+
+同一 Deno 2.9.4 / V8 15.0 环境以 S0-complete archive 与当前工作树相邻运行
+`warmup = 1 / samples = 5`。下列结果只作方向性 promotion 趋势，不进入普通 CI
+硬门；原始 JSON 与 CPU profile 只保留在 OS 临时目录：
+
+| workload                            |       S0 p50 / p95 |       S2 p50 / p95 |
+| ----------------------------------- | -----------------: | -----------------: |
+| 100k single-field committed         | `504.3 / 517.4 ms` | `159.7 / 224.2 ms` |
+| 100k cross-owner committed          | `523.0 / 537.2 ms` | `174.0 / 180.2 ms` |
+| 100-entity two autosaves + rotation |   `5.28 / 5.54 ms` |   `2.73 / 3.85 ms` |
+
+完整当前矩阵的另一次复测把 100k single/multi/cross-owner p95 分别记录为
+`155.5 / 155.7 / 173.7 ms`，说明上表 single-field 的五样本 p95 含明显宿主噪声。
+1k-entity / 1,200-command memory workload 的 total dispatch 从 `5736.6 ms`
+降到 `1895.2 ms`，run digest 从 `4800` 降到 `1200`；单次 post-GC steady
+`heapUsed` delta 为 `523,656 B -> 70,880 B`，但 RSS 方向相反且样本不足，所以
+不能据此声称 retained-memory 或结构共享收益。
+
+当前 100k cross-owner 的采样 profile 只对 timed dispatch 子树做方向性归因：
+唯一 canonical digest 约 `69%`、整树 freeze 约 `22%`、中性 fixture 的两层
+validation 约 `9%`。剩余随 Snapshot 总大小线性增长的工作包括：
+
+- committed command 的唯一 canonical digest、整树 deep freeze，以及 Story slice /
+  aggregate validation；真实 Story 常用 Standard Schema adapter 的 canonical check /
+  freeze 尚未进入该中性 counter；
+- Save envelope/Snapshot normalization、每个必要 envelope 的 canonical encode、
+  physical readback Strict parse/schema/digest、rotation 的 old-current decode 与
+  previous/current 两个不同 envelope encode；
+- successful standard write 的 commit 前 encoded-byte 防御性复制、Host 边界复制及
+  physical readback raw-byte compare；
+- load/import、authoritative replay 与 Debug Bundle 的完整安全/诊断边界审计。
+
+因此 promotion decision 是：**PF1 / roadmap A1 的 digest/serialization dedup
+完成；`IntegrityPolicy` 不激活。** 四个 activation gate 均没有充分证据：
+
+1. 仓库没有已接受的真实经营 Story performance workload 或预算，不能判断真实目标
+   workload 超预算；
+2. 100k 中性 workload 仍显示整树 freeze/validation 信号，但没有产品预算，单次
+   sampling profile 也不足以证明它已成为目标 workload blocker；
+3. memory/GC 没有证明 structural sharing 的实际收益；
+4. 没有第二个 maintained large-state Story 重复出现同一问题。
+
+100k 中性 Snapshot 仍超过当前 Save Strict JSON `maxNodes: 100_000`，所以 Save
+workload 保持 100 entities；PF1 不改变该公开限制。未来只有 activation gate 出现
+新证据时才新建 A2 design，且仍须比较 changed-set、module revision、persistent
+data structure 与 typed StateStore，不预设 ECS。

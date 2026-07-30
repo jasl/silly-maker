@@ -56,7 +56,7 @@ Story、GameplayModule、Narrative、UI contribution 与可信 Hotfix 使用 Typ
 workload 证据：
 
 1. repository/tooling guardrails；
-2. Snapshot 热路径 baseline 与 digest/serialization 去重；
+2. Snapshot 热路径 baseline 与 digest/serialization 去重（PF1/A1 已完成）；
 3. Managed Surface kernel + Workspace Overlay pilot；
 4. Save envelope/load order + migration registry；
 5. System/Narrative/History/whole-canvas primary-detail 的逐 family
@@ -88,9 +88,18 @@ auto-update 分轴记录；packager/updater 缺口不阻塞 backend durability�
 
 **Outcome:** 经营、战棋、ATB 和长期伴侣的大状态小改动不再被整树工作阻塞，同时保持原子提交、确定性、replay 与可诊断失败。
 
-### A1 — immediate
+### A1 — completed: digest/serialization dedup
 
-先完成 digest/serialization 去重，不改变 canonical 语义。建立 100/1k/10k/100k entity、长序列、autosave、replay 与内存 workload。
+已建立 100/1k/10k/100k entity、长序列、autosave、replay 与内存 workload，并在
+不改变 canonical/digest/Save/replay 语义的前提下完成 Session、CommandLog 与
+Persistence 的 digest/serialization 去重。常规测试锁确定性次数和 byte
+equivalence；wall-clock、memory 与 profile 只作临时趋势证据。普通 committed
+command 仍保留一次完整 digest 与整树 freeze；这不是 changed-set proportional
+commit。
+
+当前没有已接受的真实经营 Story 性能预算，100k 中性 profile 与 memory/GC 也不足以
+激活 A2。该 evidence limitation 不阻塞 production-floor 核心顺序进入 Managed
+Surface pilot。
 
 ### A2 — evidence-gated integrity policy
 

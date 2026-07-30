@@ -4,7 +4,11 @@ import type {
   SaveSlotIdV1,
   SessionLeaseOwnerId,
 } from "../contracts/application.ts";
-import type { HostRecordRevisionV1, IsoUtcInstant } from "../contracts/host.ts";
+import type {
+  HostAtomicRecordStoreV1,
+  HostRecordRevisionV1,
+  IsoUtcInstant,
+} from "../contracts/host.ts";
 import { createMemoryHostRecordStoreV1 } from "../contracts/host.ts";
 import type { NonNegativeSafeInteger, PositiveSafeInteger } from "../contracts/values.ts";
 import {
@@ -104,6 +108,7 @@ function addCountsV1(
 export async function createSnapshotPersistenceWorkloadV1(input: {
   readonly entityCount: 100;
   readonly instrumentation?: SnapshotWorkInstrumentationV1;
+  readonly records?: HostAtomicRecordStoreV1;
   readonly wrapRuntimeControlForFallback?: boolean;
   readonly wrapRepositoryForWriteReceiptFallback?: boolean;
 }) {
@@ -111,7 +116,7 @@ export async function createSnapshotPersistenceWorkloadV1(input: {
     entityCount: input.entityCount,
     ...(input.instrumentation === undefined ? {} : { instrumentation: input.instrumentation }),
   });
-  const records = createMemoryHostRecordStoreV1();
+  const records = input.records ?? createMemoryHostRecordStoreV1();
   const persistenceOptions = {
     runtimeControl:
       input.wrapRuntimeControlForFallback === true
@@ -142,12 +147,16 @@ export async function createSnapshotPersistenceWorkloadV1(input: {
   return Object.freeze({
     snapshot: session.snapshot,
     commandLog: session.commandLog,
+    replayBase: session.replayBase,
+    replayBaseStateDigest: session.replayBaseStateDigest,
+    saves: persistence.port,
     async commitAndDrain() {
       const result = await session.dispatch("cross_owner_atomic_committed");
       await persistence.autoSaveIdle();
       return result;
     },
-    async slotRecord(slotId: Extract<SaveSlotIdV1, "auto.current" | "auto.previous">) {
+    drain: () => persistence.autoSaveIdle(),
+    async slotRecord(slotId: SaveSlotIdV1) {
       const stored = await records.read(
         "save",
         createSaveSlotRecordKeyV1(snapshotTransactionProvenanceV1.story.id, slotId),
@@ -158,6 +167,19 @@ export async function createSnapshotPersistenceWorkloadV1(input: {
             revision: stored.revision,
             bytes: Uint8Array.from(stored.bytes),
           } satisfies StoredSlotRecordV1);
+    },
+    async rawSaveRecords() {
+      return Object.freeze(
+        (await records.list("save"))
+          .toSorted((left, right) => left.key.localeCompare(right.key))
+          .map((stored) =>
+            Object.freeze({
+              key: stored.key,
+              revision: stored.revision,
+              bytes: Uint8Array.from(stored.bytes),
+            }),
+          ),
+      );
     },
     slotSummaries: () => persistence.port.listSlots(),
     dispose: () => persistence.disposeForRebootstrap(),
