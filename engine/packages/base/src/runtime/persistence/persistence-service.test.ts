@@ -23,6 +23,7 @@ import type {
   SaveRecordEnvelopeV1,
   SimulationAdoptionV1,
 } from "../../contracts/persistence.ts";
+import type { VersionStampV1 } from "../../contracts/version-stamp.ts";
 import type { GameSnapshotEnvelopeV1, RunIntegrityV1 } from "../../contracts/snapshot.ts";
 import {
   createGameSnapshotEnvelopeSchemaV1,
@@ -401,6 +402,7 @@ function failReplacementCommitV1(
 }
 
 interface FixtureOptionsV1 {
+  readonly collectVersionStamp?: () => VersionStampV1;
   readonly records?: HostAtomicRecordStoreV1;
   readonly ownerId?: SessionLeaseOwnerId;
   readonly manualSaveSlotCount?: number;
@@ -476,6 +478,9 @@ async function fixtureV1(options: FixtureOptionsV1 = {}) {
       ? {}
       : { leaseAcquisition: options.leaseAcquisition }),
     ...(options.summarizeSave === undefined ? {} : { summarizeSave: options.summarizeSave }),
+    ...(options.collectVersionStamp === undefined
+      ? {}
+      : { collectVersionStamp: options.collectVersionStamp }),
   });
   return Object.freeze({
     ...created,
@@ -1315,6 +1320,45 @@ describe("PersistenceServiceV1", () => {
     await expect(fixtureV1({ manualSaveSlotCount: 100 })).rejects.toThrow(
       "invalid manual Save slot count",
     );
+  });
+
+  it("stamps records for diagnostics; import never reads the stamp", async () => {
+    const stampA: VersionStampV1 = Object.freeze({
+      applicationVersion: "1.2.0",
+      applicationCommit: "abc1234",
+      engineVersion: "0.4.2",
+      engineCommit: "def5678",
+    });
+    const stampB: VersionStampV1 = Object.freeze({
+      applicationVersion: "9.9.9",
+      applicationCommit: "fffffff",
+      engineVersion: null,
+      engineCommit: null,
+    });
+
+    // Written records and exports carry the collector's stamp.
+    const writer = await fixtureV1({ collectVersionStamp: () => stampA });
+    const exported = decodeSaveRecordV1(
+      (await writer.service.port.exportCurrentSave()).bytes,
+      codecV1,
+    );
+    expect(exported).toMatchObject({ kind: "decoded", record: { versionStamp: stampA } });
+
+    // A build with a DIFFERENT stamp imports the file untouched: the stamp
+    // is diagnostic-only and never part of import compatibility.
+    const reader = await fixtureV1({ collectVersionStamp: () => stampB });
+    await expect(
+      reader.service.port.importSave((await writer.service.port.exportCurrentSave()).bytes),
+    ).resolves.toMatchObject({ kind: "imported", compatibility: "exact" });
+
+    // Headless default (no injected global): all-null stamp is omitted, so
+    // pre-stamp record bytes stay byte-identical.
+    const bare = await fixtureV1();
+    const plain = decodeSaveRecordV1((await bare.service.port.exportCurrentSave()).bytes, codecV1);
+    expect(plain.kind).toBe("decoded");
+    if (plain.kind === "decoded") {
+      expect(plain.record).not.toHaveProperty("versionStamp");
+    }
   });
 
   it("offers Auto recovery only from a fully runnable previous Save", async () => {

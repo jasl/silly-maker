@@ -97,6 +97,29 @@ describe("persistence contracts", () => {
     expect(() => schema.parse({ ...valid, annotation: null })).toThrow();
     expect(() => schema.parse({ ...valid, annotation: { summary: null, note: null } })).toThrow();
 
+    // The version stamp is additive-optional AND diagnostic-only: absent on
+    // legacy records, round-tripped when valid, and a malformed stamp
+    // normalizes to nulls instead of rejecting an otherwise valid record.
+    const stamped = {
+      ...valid,
+      versionStamp: {
+        applicationVersion: "1.2.0",
+        applicationCommit: "abc1234",
+        engineVersion: "0.4.2",
+        engineCommit: "def5678",
+      },
+    };
+    expect(schema.parse(stamped)).toEqual(stamped);
+    expect(schema.parse(valid)).not.toHaveProperty("versionStamp");
+    expect(schema.parse({ ...valid, versionStamp: "garbage" })).toMatchObject({
+      versionStamp: {
+        applicationVersion: null,
+        applicationCommit: null,
+        engineVersion: null,
+        engineCommit: null,
+      },
+    });
+
     for (const [value, code] of [
       [{ ...valid, formatRevision: 2 }, "envelope.unsupported_revision"],
       [{ ...valid, stateDigest: "not-a-digest" }, "digest.invalid_format"],
