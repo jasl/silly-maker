@@ -573,6 +573,103 @@ D0–D3 前，该平台的 desktop persistence 保持 `preview`，当前 file ad
 本身也始终保持 preview/reference，除非它通过同样故障门槛。应用 auto-update
 不属于本 gate。
 
+### D1a delivery record（2026-07-31）
+
+本切片只建立默认 SQLite 候选在当前真实 macOS/Deno Host 的第一组可行性证据；
+D0 与 D1 均仍未完成，尚未选择 backend，也未改变 packaged Desktop 的默认
+file preview。
+
+**目标：**
+
+- 在 `engine/test-support` 实现不进入 package exports、production source 或
+  Desktop staging 的 `node:sqlite` spike，逻辑表只保存
+  `(namespace, key, revision, bytes)` 与 schema metadata；
+- 用 candidate-only `WAL + synchronous FULL + 5s busy timeout` 配置运行 shared
+  core、reopen 与 logical-key workload，结果必须逐字段等于既有 expected；
+- 从中性 schema 1 fixture 升级到 schema 2，关闭升级 handle 后再用 fresh
+  handle 证明 identity、revision 与 bytes 不变；
+- 预先完成 schema bootstrap 后启动两个真实 Deno PID，同时竞争同一 missing
+  revision；CAS check 与 mutation 必须位于同一个 `BEGIN IMMEDIATE`
+  transaction，并精确得到一个 commit 与一个 conflict；
+- 记录当前宿主的 API、编译/打包、代表性容量/延迟、backup 与同步阻塞证据，
+  但不把本机墙钟或一次性体积变成 CI 门禁。
+
+**非目标：**
+
+- 不把 SQLite 选为 production backend，不接入 shell、records handler、Story
+  或 Base public API，不改变 file preview、Save/Host wire 或 package exports；
+- candidate PRAGMA 不是生产默认 policy；不在本切片决定 busy timeout、WAL
+  checkpoint/sidecar、worker/process isolation、backup/restore 或退出策略；
+- 不实现旧 JSON import、deterministic fault phases、SIGKILL/power-loss、disk
+  full、read-only、corrupt database recovery 或 D2/D3 adapter；
+- 不从当前 macOS arm64 外推 Windows/Linux，也不定义 public key grammar、
+  ordering、最大 record 或最大 batch。
+
+**确定性验收：**
+
+- TDD red 为 spike module 尚不存在时 focused suite load 失败；最小 test-only
+  adapter 后 focused 为 `1 file / 4 tests`，修复 first-open schema race 后本机
+  连续运行 `30/30`；
+- shared core、reopen 与 logical-key report 逐字段等于 frozen expected；
+  schema 1 → 2 在升级 handle 与再次 fresh reopen 后都保留
+  `settings/spike.schema-upgrade` 的 revision `7` 与 bytes
+  `[0, 127, 255, 16]`；
+- 两个不同 PID 只在都发出 `ready` 后同时释放，结果固定为
+  `1 committed/revision 1 + 1 conflict/actualRevision 1`；fresh parent handle
+  读到 winner bytes，`PRAGMA integrity_check` 为 `ok`；
+- aggregate `tsc` 覆盖 `.fixture.ts` child；spike implementation、child 与测试
+  不在任何 export map 或 Desktop staging copy list 中。
+
+**当前宿主的非门禁 evidence：**
+
+- 实际环境为 Deno `2.9.4 stable`、darwin arm64；SQL 查询得到 SQLite `3.53.2`
+  与 source id
+  `2026-06-03 19:12:13 d6e03d8c…`。spike 实际读回 schema `2`、journal
+  `wal`、synchronous `2`、busy timeout `5000ms` 与 integrity `ok`；这些记录
+  不固定仓库支持的 Deno/SQLite patch；
+- 20 次 new-open 为 `p50 1.141ms / p95 1.339ms`，40 次 reopen 为
+  `0.397ms / 0.508ms`，50 次 single commit 为 `0.058ms / 0.076ms`，20 次
+  100-record batch 为 `1.505ms / 1.638ms`，20 次 schema 1 → 2 为
+  `0.824ms / 0.967ms`；1 MiB opaque record commit/read 为
+  `1.988ms / 0.347ms` 且 bytes exact。原始 JSON 只写入 OS 临时目录；这些数字
+  不是性能承诺，最大 record/batch 仍为 `not_measured`；
+- 独立的 type-checked `deno compile` probe 产物为 `67,347,570` bytes，并在
+  standalone runtime 中写读 `[0, 127, 255]`。独立临时 `deno desktop`
+  `.app` 也实际启动并完成 file-backed SQLite 写读，只使用现有 read/write
+  permission；未引入 npm/native addon/FFI 或外部 `libsqlite3`。空探针与静态
+  `node:sqlite` 探针的 `libruntime.dylib` 为 `67,351,824` 与
+  `67,351,840` bytes；该 `+16` bytes 只说明当前 runtime 已内置 SQLite，不是
+  Desktop 包体预算；
+- 当前 probe 没有额外 dependency；SQLite 为
+  [public domain](https://www.sqlite.org/copyright.html)，Deno 为
+  [MIT](https://github.com/denoland/deno/blob/main/LICENSE.md)。正式打包仍需在
+  D2/D4 审计完整 bundled-runtime notices；
+- `node:sqlite` backup probe 生成可 read-only 重开的 `8192`-byte database，
+  revision `7`、bytes `[0, 127, 255]` 与 integrity `ok`；仍未形成产品
+  backup/restore contract；
+- `DatabaseSync` 是同步 API：第二连接在 `60ms` busy timeout 下争夺
+  `BEGIN IMMEDIATE`，当前宿主阻塞 `72.522ms` 后才抛出通用
+  `ERR_SQLITE_ERROR/database is locked`。错误 message/code 不进入公共合同；
+  是否接受 bounded shell event-loop blocking，或改用 dedicated worker/process，
+  是 backend 选择前必须完成的决策。
+
+**验证：**
+
+- focused spike 为 `1 file / 4 tests`，受影响 Tooling Desktop 为
+  `8 files / 49 tests`，全仓 `deno task test` 为
+  `186 files / 1628 tests`；
+- `deno task check` 全部通过（format、lint、styles、typecheck、unit、assets、
+  Story checks 与 Engine Lab production build）；本切片不改变浏览器行为，因此
+  没有机械扩大到 browser E2E。
+
+`node:sqlite` 当前上游状态仍是 release candidate；WAL 还带来 local-filesystem、
+`-wal`/`-shm` 与 checkpoint 运维边界。D1 剩余工作包括 journal/manifest 与
+Deno KV 对照、生产阈值、Windows/Linux 真实 runner、故障恢复、完整 package
+与 license/notices 审计、退出策略及正式 backend decision record。临时 macOS
+`.app` 启动后还出现 `libruntime.dylib.update-ok`，使 post-launch strict
+codesign 失败；该旁路观察属于 D4 signing/auto-update 调查，不改变本 D1a
+结论。
+
 ## 4. D2 — Durable adapter implementation
 
 实现 package-internal durable adapter：
