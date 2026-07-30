@@ -47,6 +47,18 @@ export type WireCommitResultV1 =
       readonly actualRevision: number | null;
     };
 
+export type RecordFileStorePhaseInternalV1 =
+  | { readonly kind: "between_checks_and_writes" }
+  | {
+      readonly kind: "between_mutations";
+      readonly completedMutationCount: number;
+      readonly remainingMutationCount: number;
+    };
+
+export interface RecordFileStorePhaseObserverInternalV1 {
+  reached(point: RecordFileStorePhaseInternalV1): void | Promise<void>;
+}
+
 const namespacesV1 = new Set(["save", "lease", "settings"]);
 const base64PatternV1 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u;
 
@@ -137,13 +149,23 @@ function fileNameV1(key: string): string {
   return `${encodeURIComponent(key)}.json`;
 }
 
-export function createRecordFileStoreV1(rootDir: string) {
+function createRecordFileStoreInternalV1(
+  rootDir: string,
+  phaseObserver: RecordFileStorePhaseObserverInternalV1 | undefined,
+) {
   let queue: Promise<unknown> = Promise.resolve();
   const serialize = <T,>(task: () => Promise<T>): Promise<T> => {
     const next = queue.then(task);
     queue = next.catch(() => undefined);
     return next;
   };
+
+  const reachPhaseV1 =
+    phaseObserver === undefined
+      ? undefined
+      : async (point: RecordFileStorePhaseInternalV1): Promise<void> => {
+          await phaseObserver.reached(Object.freeze(point));
+        };
 
   function directoryFor(namespace: string): string {
     return join(rootDir, requireNamespaceV1(namespace));
@@ -266,11 +288,14 @@ export function createRecordFileStoreV1(rootDir: string) {
             });
           }
         }
+        if (reachPhaseV1 !== undefined) {
+          await reachPhaseV1({ kind: "between_checks_and_writes" });
+        }
 
         const applied: string[] = [];
         const committed: StoredWireRecordV1[] = [];
         try {
-          for (const mutation of normalized) {
+          for (const [index, mutation] of normalized.entries()) {
             const id = `${mutation.namespace}\0${mutation.key}`;
             const existing = previous.get(id) ?? null;
             if (mutation.kind === "put") {
@@ -292,6 +317,14 @@ export function createRecordFileStoreV1(rootDir: string) {
               });
             }
             applied.push(id);
+            const completedMutationCount = index + 1;
+            if (reachPhaseV1 !== undefined && completedMutationCount < normalized.length) {
+              await reachPhaseV1({
+                kind: "between_mutations",
+                completedMutationCount,
+                remainingMutationCount: normalized.length - completedMutationCount,
+              });
+            }
           }
         } catch (error) {
           const rollbackFailures: unknown[] = [];
@@ -326,4 +359,20 @@ export function createRecordFileStoreV1(rootDir: string) {
         });
       }),
   });
+}
+
+/**
+ * Direct-file-only deterministic test seam. Observers may pause a precise
+ * phase or terminate a child process; production callers use the wrapper
+ * below, and this seam is absent from package exports.
+ */
+export function createInstrumentedRecordFileStoreInternalV1(
+  rootDir: string,
+  phaseObserver: RecordFileStorePhaseObserverInternalV1,
+) {
+  return createRecordFileStoreInternalV1(rootDir, phaseObserver);
+}
+
+export function createRecordFileStoreV1(rootDir: string) {
+  return createRecordFileStoreInternalV1(rootDir, undefined);
 }

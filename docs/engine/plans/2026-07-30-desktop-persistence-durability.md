@@ -112,6 +112,59 @@ fault points、file preview batch-crash partial 与独立 writer CAS
 characterization、真实子进程 crash/reopen，以及 D1 选出的 transaction candidate
 接入同一 conformance。完成这些证据前不得 promotion durability。
 
+### D0b delivery record（2026-07-31）
+
+本切片只把 file preview 的两个已知故障变成确定性 characterization；D0
+仍未完成，失败结果不进入共享 conformance expected。
+
+**目标：**
+
+- 以 direct-file-only phase observer 精确停在全部 CAS precheck 之后，以及相邻
+  file mutation 之间；
+- 让两个独立 file-store handle 先同时完成 missing-revision precheck，再顺序释放
+  write，确定性证明二者都返回 revision `1` 的 `committed`，后释放者覆盖最终
+  bytes；
+- 让独立 Deno child 在第一项 rename 完成后受控退出，再以 fresh、无
+  instrumentation 的 handle 证明 left 已是 revision `2`/new bytes，而 right
+  仍是 revision `1`/old bytes；
+- 以普通 observer exception 对照证明现有 best-effort rollback 仍把两项都恢复为
+  revision `1`/old bytes。
+
+**非目标：**
+
+- 不修 file adapter 的 partial batch 或 cross-process CAS，不选择
+  SQLite/journal/KV；
+- 不改变 `HostAtomicRecordStoreV1`、records HTTP wire、SaveRepository、Save
+  envelope、desktop packaging 或 package exports；
+- 不把受控 child exit 写成断电、`SIGKILL`、fsync 或 recovery promotion
+  evidence；
+- 不实现 `before transaction`、`after durable write before response`、
+  `during recovery/reopen` 的完整 fault matrix；当前 preview adapter 没有
+  durable transaction/recovery 可供伪造这些阶段。
+
+**验收规格与证据：**
+
+- phase events 深冻结；两项 batch 精确观察
+  `between_checks_and_writes`，随后观察 `between_mutations`，其 completed 与
+  remaining mutation count 都是 `1`；
+- independent-handle workload 不用 sleep、轮询或调度器胜负，稳定得到
+  `2 committed / 0 conflict`，最终为后释放者的 revision `1` bytes；
+- ordinary injected error 经过原 rollback 路径，fresh handle 观察完整旧 batch；
+  child exit 绕过 catch/rollback 后，fresh handle 稳定观察 mixed batch；
+- instrumentation 只从未列入 `@sillymaker/tooling` package exports 的
+  `record-file-store.mts` direct file 暴露；正常 factory 不安装 observer，也不新增
+  observer await；
+- focused fault characterization `1 file / 3 tests`、Tooling Desktop
+  `6 files / 29 tests` 与 aggregate typecheck 通过；
+- 全仓 `deno task test` 为 `184 files / 1592 tests`；`deno task check`
+  全部通过（format、lint、styles、typecheck、unit、assets、Story checks 与
+  Engine Lab production build）。
+
+剩余 D0 工作包括完整 validation/corruption/key corpus、其余 fault
+边界、真实 signal/power-loss recovery、独立 OS process CAS，以及 transaction
+candidate 接入同一 shared conformance。file adapter 继续保持
+preview/reference。
+
 ## 3. D1 — Backend decision record
 
 在不改变上层合同的前提下做一个短期 spike，并留下 decision record。至少比较：
