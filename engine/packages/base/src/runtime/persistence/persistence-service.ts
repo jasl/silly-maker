@@ -17,6 +17,8 @@ import {
 } from "../../contracts/application.ts";
 import { digestBytes, digestCanonical } from "../../contracts/digest.ts";
 import type { HostAtomicRecordStoreV1, IsoUtcInstant } from "../../contracts/host.ts";
+import { readVersionStampV1 } from "../../contracts/version-stamp.ts";
+import type { VersionStampV1 } from "../../contracts/version-stamp.ts";
 import type {
   AppliedHotfixV1,
   PatchReplacementTraceV1,
@@ -162,6 +164,13 @@ export interface CreatePersistenceServiceOptionsV1<
    * for a given state; a throwing projector fails the capture.
    */
   summarizeSave?(state: DeepReadonly<TState>): readonly string[] | null;
+  /**
+   * Diagnostic build stamp recorded into every written record and export
+   * (which build wrote this save). Defaults to `readVersionStampV1`; all-null
+   * stamps are omitted so headless runs keep the pre-stamp record bytes.
+   * Strictly diagnostic — import compatibility never reads it.
+   */
+  collectVersionStamp?(): VersionStampV1;
 }
 
 export interface CreateStandardPersistenceServiceOptionsV1<
@@ -193,6 +202,8 @@ export interface CreateStandardPersistenceServiceOptionsV1<
    * for a given state; a throwing projector fails the capture.
    */
   summarizeSave?(state: DeepReadonly<TState>): readonly string[] | null;
+  /** See CreatePersistenceServiceOptionsV1.collectVersionStamp. */
+  collectVersionStamp?(): VersionStampV1;
 }
 
 interface SaveCandidateV1<TSnapshot> {
@@ -320,6 +331,19 @@ async function createPersistenceServiceWithDependenciesV1<
     return result;
   };
 
+  // Diagnostic build stamp: resolved once per service (stable within a
+  // session, so write-then-verify re-encodes stay byte-identical); all-null
+  // stamps are omitted so headless runs keep the pre-stamp record bytes.
+  const versionStampV1: VersionStampV1 | null = (() => {
+    const stamp = (options.collectVersionStamp ?? readVersionStampV1)();
+    const empty =
+      stamp.applicationVersion === null &&
+      stamp.applicationCommit === null &&
+      stamp.engineVersion === null &&
+      stamp.engineCommit === null;
+    return empty ? null : Object.freeze({ ...stamp });
+  })();
+
   const makeRecordV1 = (
     candidate: SaveCandidateV1<TSnapshot>,
     slotId: SaveSlotIdV1,
@@ -344,6 +368,7 @@ async function createPersistenceServiceWithDependenciesV1<
       ...(candidate.summary === null
         ? {}
         : { annotation: Object.freeze({ summary: candidate.summary, note: null }) }),
+      ...(versionStampV1 === null ? {} : { versionStamp: versionStampV1 }),
     };
     const parsed = options.validation.codec.recordSchema.parse(value);
     options.validation.codec.validateEnvelope(
@@ -1542,5 +1567,8 @@ export function createPersistenceServiceV1<
     ...(options.summarizeSave === undefined
       ? {}
       : { summarizeSave: options.summarizeSave.bind(options) }),
+    ...(options.collectVersionStamp === undefined
+      ? {}
+      : { collectVersionStamp: options.collectVersionStamp.bind(options) }),
   });
 }
