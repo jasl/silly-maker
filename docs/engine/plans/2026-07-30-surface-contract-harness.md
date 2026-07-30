@@ -32,7 +32,7 @@ pilot 只冻结能够直接防止现有 bug 的最小字段：
 - dismiss policy（escape/backdrop/routed cancel）；
 - focus policy（initial/trap/restore）；
 - input context/owner；
-- lifecycle（opening/active/closing）；
+- lifecycle（preparing/active/suspended/exiting）；
 - readiness state；
 - `applicationEpoch`（Managed Surface dispatch/reconcile 的 presentation fence）；
 - target occurrence（external stable target 由 owner 提供，transient target 由
@@ -119,7 +119,7 @@ S3、S4，不能为了让 S0 全绿而提前迁移。
 - route action against application epoch + instance + topology revision；
 - dispose owner/Coordinator。
 
-每个操作返回 **surface transition receipt**（applied/unchanged/rejected/faulted + stable code）。它只描述 Coordinator transition，不冒充 semantic command 或 workspace document mutation。
+每个操作返回 **surface transition receipt**（applied/unchanged/stale/rejected/faulted + stable code）。它只描述 Coordinator transition，不冒充 semantic command 或 workspace document mutation。
 
 ### Publication invariants
 
@@ -143,6 +143,52 @@ S3、S4，不能为了让 S0 全绿而提前迁移。
 - readiness stale ack；
 - dispose cleanup；
 - immutable publication 与 subscriber failure isolation。
+
+### S1a delivery record（2026-07-30）
+
+本切片只建立 dormant、package-internal 的 transient/synchronous 纯模型基础，不将
+S1 标记为完成。
+
+**目标：**
+
+- 固定 transient target occurrence、runtime instance、routing lease、
+  application epoch 与 topology revision 的分离身份；
+- 以纯 reducer 原子生成 frozen topology、blocking、input/focus owner、
+  lifecycle/readiness 与 owner trace；
+- 覆盖 single primary 的 open/replace、child push、expected close、dismiss、
+  owner/Coordinator dispose，以及 stale/ABA fence。
+
+**非目标：**
+
+- 不接入现有 Overlay/System/Narrative store，不建立第二份 live authority；
+- 不公开 Story API，不加入 `@sillymaker/ui` barrel/package exports；
+- 不实现 external target reconcile、target parameter equality 或 source
+  publication revision；
+- 不选择异步 readiness 的 retain-previous/blocking-fallback 策略，不实现 ready
+  ack；
+- 不实现 Coordinator subscriber store、route action、DOM/React/Web adapter 或平台
+  primitive。
+
+**验收证据：**
+
+- direct-file-only contracts/reducer 无 DOM、React 或现有 writable store 依赖；
+- lifecycle 术语固定为
+  `preparing/active/suspended/exiting`，当前同步 reducer 只产生
+  `active/suspended + ready`；
+- primary 明确为 single slot；child 不得落在 parent 的更低 layer；
+- occurrence、instance 与 routing lease 分别拒绝 live duplicate 和 retired ABA
+  reuse；
+- stale epoch/revision/instance、locked dismiss 和所有 rejection 保持原
+  state/publication identity；每个 applied transition 只递增一次 topology
+  revision；
+- publication 深冻结并 defensively copy definition/target；input context 直接复用
+  现有 `InputContextIdV1`，可注册到真实 InputRouter；
+- focused reducer `11/11`、`@sillymaker/ui` `51 files / 424 tests` 与 aggregate
+  typecheck 通过。
+
+剩余 S1 工作包括 Coordinator/subscriber failure isolation、ID allocation 与便捷
+handle、close-top/close-owner/route-action、异步 readiness transition，以及在参数
+等价规则明确后实现 external owner reconcile。
 
 **S1 acceptance：** kernel 可在无 DOM 环境运行；没有 public Story API promotion；没有旧 store 双写。
 
