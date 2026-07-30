@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
 
 import { injectDesktopLifetimeScriptV1, injectDesktopRecordsMarkerV1 } from "./desktop-html.mts";
+import { desktopFilesPathPrefixV1, handleFileDownloadRequestV1 } from "./file-download-handler.mts";
 import { createRecordFileStoreV1 } from "./record-file-store.mts";
 import { handleRecordHttpRequestV1 } from "./record-http-handler.mts";
 import {
@@ -67,6 +68,12 @@ function userDataDirV1(): string {
 
 const savesDir = join(userDataDirV1(), "saves");
 const store = createRecordFileStoreV1(savesDir);
+
+/** Exports (state/save JSON) land where a browser download would. */
+function downloadsDirV1(): string {
+  const home = Deno.env.get("HOME") ?? Deno.env.get("USERPROFILE") ?? ".";
+  return join(home, "Downloads");
+}
 
 // Web shell types plus the engine's runtime-asset media set (see
 // `vite/runtime-assets.ts`): the Artifact ships runtime assets verbatim, so
@@ -154,6 +161,13 @@ Deno.serve((request: Request) => {
   if (url.pathname === `${desktopLifetimePathPrefixV1}/goodbye`) {
     watchdog.markGoodbye();
     return new Response(null, { status: 204 });
+  }
+  if (url.pathname.startsWith(`${desktopFilesPathPrefixV1}/`)) {
+    return handleFileDownloadRequestV1(
+      request,
+      url.pathname.slice(desktopFilesPathPrefixV1.length),
+      downloadsDirV1(),
+    );
   }
   if (url.pathname === "/sillymaker/records" || url.pathname.startsWith("/sillymaker/records/")) {
     return handleRecordHttpRequestV1(

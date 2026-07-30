@@ -165,6 +165,8 @@ function desktopShellFilesV1(): Record<string, string> {
       'const appIdentifierV1 = "__SILLYMAKER_APP_IDENTIFIER__";\nconst distDirNameV1 = "__SILLYMAKER_DIST_DIR__";\n',
     [fileURLToPath(new URL("../desktop/desktop-html.mts", import.meta.url))]:
       "export const desktopHtmlV1 = 1;\n",
+    [fileURLToPath(new URL("../desktop/file-download-handler.mts", import.meta.url))]:
+      "export const fileDownloadHandlerV1 = 1;\n",
     [fileURLToPath(new URL("../desktop/record-file-store.mts", import.meta.url))]:
       "export const storeV1 = 1;\n",
     [fileURLToPath(new URL("../desktop/record-http-handler.mts", import.meta.url))]:
@@ -376,6 +378,7 @@ describe("runProjectCliV1", () => {
     expect(written).toContain("/repo/test/dist-desktop/staging/main.ts");
     expect(written).toContain("/repo/test/dist-desktop/staging/desktop-html.mts");
     expect(written).toContain("/repo/test/dist-desktop/staging/record-file-store.mts");
+    expect(written).toContain("/repo/test/dist-desktop/staging/file-download-handler.mts");
     expect(written).toContain("/repo/test/dist-desktop/staging/record-http-handler.mts");
     expect(written).toContain("/repo/test/dist-desktop/staging/shell-lifetime.mts");
     expect(written).toContain("/repo/test/dist-desktop/staging/static-file-path.mts");

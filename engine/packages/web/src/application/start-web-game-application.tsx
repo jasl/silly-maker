@@ -51,6 +51,8 @@ import { installPointerAdapterV1 } from "../input/install-pointer-adapter.ts";
 import { installBrowserAutomationBridgeV1 } from "../automation/browser-automation-bridge.ts";
 import type { InstalledBrowserAutomationBridgeV1 } from "../automation/browser-automation-bridge.ts";
 import { parseCapabilityRequestV1 } from "../capabilities/parse-capability-request.ts";
+import { createBrowserFilePortV1 } from "../host/browser-file-port.ts";
+import { createShellFilePortV1 } from "../host/shell-file-port.ts";
 import { createWebHostV1 } from "../host/create-web-host.ts";
 import { createHttpHostRecordStoreV1 } from "../host/http-record-store.ts";
 import { mountGameApplicationV1 } from "./mount-game-application.tsx";
@@ -365,6 +367,12 @@ export async function startWebGameApplicationV1<
     (wantsLocalRecords
       ? createWebHostV1({
           records: createHttpHostRecordStoreV1({ baseUrl: "/sillymaker/records" }),
+          // The shell webview ignores `<a download>`; route downloads to the
+          // shell endpoint so exports land in the platform Downloads folder.
+          files: createShellFilePortV1({
+            baseUrl: "/sillymaker/files",
+            picker: createBrowserFilePortV1(),
+          }),
         })
       : createWebHostV1({
           databaseName: options.databaseName ?? `sillymaker.${application.applicationId}`,
