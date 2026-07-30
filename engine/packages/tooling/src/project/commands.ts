@@ -588,30 +588,23 @@ export async function desktopStoryApplicationV1(
       .replace('"__SILLYMAKER_APP_IDENTIFIER__"', JSON.stringify(desktop.identifier))
       .replace('"__SILLYMAKER_DIST_DIR__"', JSON.stringify("dist")),
   );
-  await deps.runner.writeFile(
-    `${stagingDir}/desktop-html.mts`,
-    await deps.runner.readFile(
-      fileURLToPath(new URL("../desktop/desktop-html.mts", import.meta.url)),
-    ),
-  );
-  await deps.runner.writeFile(
-    `${stagingDir}/record-file-store.mts`,
-    await deps.runner.readFile(
-      fileURLToPath(new URL("../desktop/record-file-store.mts", import.meta.url)),
-    ),
-  );
-  await deps.runner.writeFile(
-    `${stagingDir}/record-http-handler.mts`,
-    await deps.runner.readFile(
-      fileURLToPath(new URL("../desktop/record-http-handler.mts", import.meta.url)),
-    ),
-  );
-  await deps.runner.writeFile(
-    `${stagingDir}/static-file-path.mts`,
-    await deps.runner.readFile(
-      fileURLToPath(new URL("../desktop/static-file-path.mts", import.meta.url)),
-    ),
-  );
+  // Every module shell-main.ts imports must ship into the staging directory,
+  // or the `deno desktop` type-check fails on a missing local specifier.
+  const shellModuleNames = [
+    "desktop-html.mts",
+    "record-file-store.mts",
+    "record-http-handler.mts",
+    "shell-lifetime.mts",
+    "static-file-path.mts",
+  ] as const;
+  for (const moduleName of shellModuleNames) {
+    await deps.runner.writeFile(
+      `${stagingDir}/${moduleName}`,
+      await deps.runner.readFile(
+        fileURLToPath(new URL(`../desktop/${moduleName}`, import.meta.url)),
+      ),
+    );
+  }
   const iconArgs: string[] = [];
   if (desktop.icon !== undefined) {
     const iconName = `icon.${desktop.icon.split(".").pop() ?? "png"}`;

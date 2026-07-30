@@ -169,6 +169,8 @@ function desktopShellFilesV1(): Record<string, string> {
       "export const storeV1 = 1;\n",
     [fileURLToPath(new URL("../desktop/record-http-handler.mts", import.meta.url))]:
       "export const recordHttpHandlerV1 = 1;\n",
+    [fileURLToPath(new URL("../desktop/shell-lifetime.mts", import.meta.url))]:
+      "export const shellLifetimeV1 = 1;\n",
     [fileURLToPath(new URL("../desktop/static-file-path.mts", import.meta.url))]:
       "export const staticFilePathV1 = 1;\n",
   };
@@ -375,6 +377,7 @@ describe("runProjectCliV1", () => {
     expect(written).toContain("/repo/test/dist-desktop/staging/desktop-html.mts");
     expect(written).toContain("/repo/test/dist-desktop/staging/record-file-store.mts");
     expect(written).toContain("/repo/test/dist-desktop/staging/record-http-handler.mts");
+    expect(written).toContain("/repo/test/dist-desktop/staging/shell-lifetime.mts");
     expect(written).toContain("/repo/test/dist-desktop/staging/static-file-path.mts");
     // The staged shell carries the application identity, not placeholders.
     const stagedMain = fake.log.writes.find((entry) => entry.path.endsWith("main.ts"));
