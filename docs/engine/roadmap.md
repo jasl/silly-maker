@@ -1,61 +1,6 @@
 # SillyMaker engine roadmap
 
-状态：2026-07-19 接受的连续演进方向。R1–R4 已随
-[vNext foundations plan](plans/2026-07-19-sillymaker-vnext-foundations.md)
-实现并进入 [feature list](features.md)（含 Engine Conformance 垂直切片、AI
-authoring canaries 与 PoC 的 Composer 迁移）；R5 的 Timeline、R6 的 1–2
-步（DevTools 数据面）与 R7 玩家回滚已按
-[R5–R7 执行计划](plans/2026-07-28-sillymaker-r5-r7.md) 实现并进入 feature
-list；该计划的 defer 表（keyframes、onLifecycle、受约束场景图、R6.3–6.5
-编辑器、R8 媒体 adapter
-等）记录了未做部分及其激活条件。复刻缺口分析驱动的内容数据库、语义舞台命中区域与
-Host
-元进度命名空间已随《雨巷猫舍》示例交付（`examples/cat-cafe`，见计划的缺口交付记录）。《雨巷猫舍》此后升格为旗舰示例：完整可玩游戏（标题屏、设置基线、AIGC
-全套美术、运行时资产管线、竞赛/图鉴/结局演出、后日谈、双语），并交付了一步桌面打包（`story desktop`，含图标与文件存档）。2026-07-28
-晚间批次以《雨巷猫舍》为第二真实消费者落地：R8 音频第一刀（`GameAudioV1`
-组件、真实 MP3 场景 BGM/环境声/一次性音效、设置音量联动）、VN 播放
-QoL（打字机/自动/快进/历史回看，偏好持久化）、R7 rollback
-产品策略（开赛/结局确认为硬边界、HUD
-一步回退、防重掷证明）；系统菜单收敛为单模态路由（保存/设置互斥、存档安全点、标题屏载入存档）。
-
-2026-07-29 接受 [Mod composition and distribution](design/mod-system.md)
-作为尚未实现的 continuous track：先做显式、构建期、可信的 first-party capability
-Mod，再做发布后 declarative Mod；不把 npm
-安装、运行时可安装代码和不可信沙箱混成一个里程碑。同批接受三条 production-floor
-方向：Snapshot 提交完整性分层（增量 freeze/digest/validation 与性能契约）、UI
-surface 生命周期统一（单一 modality/focus/input 真相），以及
-[Save migration design](design/save-migration.md)（一等迁移 registry
-与解码顺序改造）。三者是 Mod track 的事实前置，依赖关系见各 continuous track。
-
-2026-07-30 持久化槽位模型从固定 `quick`/`manual` 扩展为 Story 可配置的编号手动槽
-`manual.1..N`（核心应用声明 `manualSaveSlotCount`，引擎默认 8、上限
-99），`quick` 与双自动档语义不变；Save overlay 按 port 枚举顺序渲染槽位，槽名经
-`slotNames.manualSlot(index)`。多标签页继续由单写者 Session lease
-管辖，不引入按槽锁。该能力已实现并进入 feature list。
-
-2026-07-30 接受并落地「应用即项目」契约修订（改写 R2 的 project config 交付形态）：
-每个应用（template、examples、e2e 与外部项目）是自包含项目——自己的
-`sillymaker.config.ts`（应用根相对路径）、自己的 `vite.config.ts`（调用
-`@sillymaker/tooling/vite` 的共享装配）、通过 package exports 依赖引擎（仓库内
-`workspace:*`；未发布 npm 期间外部项目用相对 `file:` 路径 +
-`"nodeModulesDir": "manual"`）。根 `project.config.ts` 退化为目录清单（CI
-聚合与根 `--mode` 便捷分发）；gitignored `project.config.local.ts` overlay
-机制退役——本地/外部游戏不再注册进主仓，而是作为普通外部消费者存在。运行时资产
-runtimePath 从仓库相对改为应用根相对（`assets/…`）；Web 构建产物固定
-`<app>/dist-web`（`dist/` 归 TypeScript 项目引用输出）。「复制 `template/`
-开新项目」是受支持的起点；AI-agent 文档（authoring-quickstart、各目录
-AGENTS 手册）随之修订。npm 发布、版本化与脚手架 CLI 仍未排期。
-
-2026-07-30 在 Unity、Unreal、Godot 与 Bevy 的官方机制对照、Web
-平台原生原语（`<dialog>`/top layer、`inert`、CloseWatcher、Navigation
-API）评估和本地整画布验证实验之后，Surface track 收紧为
-[Managed Surface lifecycle and contract harness](design/surface-contract-harness.md)：不引入第二套
-gameplay State 或 Runtime ORM，而是由一个 Coordinator 原子发布
-lifecycle/render/action/input/focus，以 instance/topology-revision/gesture fence
-拒绝陈旧输入，并从同一声明生成结构检查、状态模型、最小失败轨迹与真实浏览器验证。AI
-friendliness 是本 track 的硬性能力下限：标准路径必须让较弱模型无需手写 boolean
-soup、Back 栈、z-index、focus restore 或全局 listener，也能通过确定性
-conformance。
+状态：2026-07-19 接受的连续演进方向，最近修订 2026-07-30。已实现能力的现状描述以 [features](features.md) 为准；带日期的交付/接受历史与已完成里程碑全文归档于 [roadmap archive](roadmap-archive.md)。当前活动执行计划：[Surface Contract Harness plan](plans/2026-07-30-surface-contract-harness.md) 与 [Snapshot integrity and Save migration plan](plans/2026-07-30-snapshot-integrity-and-save-migration.md)。
 
 ## 1. North star
 
@@ -127,146 +72,42 @@ Session 创建前冻结。发布后的 declarative Artifact、同 realm 可信�
 
 ## 4. Milestones and continuous tracks
 
-### R0 — Active design baseline（2026-07-19 已完成）
+### Completed milestones（已归档）
 
-**Outcome:** 当前实现、已接受方向、探索性 proposal 和执行计划不再混淆。
+R0 设计基线、R1 Engine conformance Story 与通用 harness、R2 AI authoring 与应用组合（project config 形态经 2026-07-30「应用即项目」修订）、R3 语义 VN 舞台与交互运行时、R4 媒体与玩家播放系统、R5 的 Typed Timeline、R6 的 1–2 步（DevTools 数据面）、R7 玩家回滚（含《雨巷猫舍》产品策略）与 R8 音频第一刀均已完成并进入 [feature list](features.md)。原文与逐日交付记录见 [roadmap archive](roadmap-archive.md)；逐任务执行与 defer 记录见 [vNext foundations plan](plans/2026-07-19-sillymaker-vnext-foundations.md) 和 [R5–R7 plan](plans/2026-07-28-sillymaker-r5-r7.md)。
 
-- 登记 Ren'Py 本地参考身份、许可和 no-copy 边界；
-- 形成 VN presentation、AI authoring 和 E2E engine validation 设计；
-- 建立一个逐任务、可验收的当前实施计划；
-- 保留 `architecture.md`、`features.md` 和 `story-authoring.md` 对 live
-  implementation 的描述。
+### R5 remainder — bounded Presentation Scene Graph（证据门控）
 
-### R1 — Engine conformance Story and common harness
+**Outcome:** 在不引入 ATL 语法的前提下继续提高演出表达力。
 
-**Outcome:** `e2e` 成为只使用公开 API 的真实第二消费者。
+- 扁平 Stage 被真实 Story 证明不足后，再从 background/character/prop 扩展为受约束 Presentation Scene Graph；
+- layer/camera transform、enter/exit/move/pose/expression 和 effect contribution 使用稳定 ID；
+- timeline 执行只改变 presentation runtime，不通过动画回调偷偷改 gameplay State。
 
-- 新 E2E Story 覆盖 stateful module、typed capability dependency、跨 owner 原子
-  command、query/semantic action、rejection/fault 和 deterministic route；
-- `@sillymaker/base/testkit` 提供通用 Game harness；
-- Host-neutral core `AgentGamePort` 支持 observe、describe
-  actions、preview、dispatch 和 session/publication wait；Save 与 diagnostics
-  使用独立可撤销 capability；
-- Node in-process 与 JSONL stdio 对同一 transcript 得到一致语义结果；
+是否支持更一般的 2D/3D renderer node，由真实 Story 需求和性能原型决定；路线图不要求复制 Godot scene tree。激活条件沿 [R5–R7 plan](plans/2026-07-28-sillymaker-r5-r7.md) 的 defer 表。
 
-E2E Story 是维护中的测试应用和最小参考实现，不是旧 fixture/golden
-系统的恢复，也不作为发行游戏。
-
-### R2 — AI authoring and application composition
-
-**Outcome:** 新 Story 不再复制 Tavern 的隐藏引擎。
-
-- 提供官方 schema adapter、稳定 Authoring Diagnostic 和 JSON output；
-- 提供分层 Base/UI/Web Application Composers：分别统一 Host-neutral
-  Session/Persistence/Diagnostics、React UI/Input/Save surfaces，以及 browser
-  Assets/Automation/HMR/lifecycle；
-- 保留低层 composition 和 renderer contribution 作为 escape hatch；
-- 建立 Story/application project config 和 Node-only tooling，使
-  inspect、check、simulate、dev、build 与 prebuilt smoke 不依赖 PoC
-  switch（2026-07-30 修订为「应用即项目」：应用本地 `sillymaker.config.ts` +
-  共享 Vite 装配，根注册表仅是目录清单）；
-- 增加 TS Narrative builder/lint，但不增加 parser 或自定义 DSL。
-- 在 Web Composer 可用后加入 Browser Agent adapter，并与 Node/JSONL 执行同一
-  semantic transcript；
-- 在 Composer/config 可用后，把浏览器 E2E 从 PoC 产品测试中拆出独立 Engine
-  conformance suite。
-
-### R3 — Semantic VN stage and interaction runtime
-
-**Outcome:** Narrative 的舞台与交互语义真正进入运行时和存档。
-
-- 可序列化 SemanticStageState、Layer、稳定 Tag 和 StageMutation，以及由
-  projector 产生的 StageRenderTarget；
-- show、replace、hide、clear、placement、z-order 与 layer/camera transform
-  的基础合同；
-- previous/target Transition、Presentation
-  Clock、完成、取消、跳过、reduced-motion 和输入策略；
-- say、choice、pause、presentationBarrier 与可扩展 custom interaction surface；
-- load 时恢复稳定目标舞台和当前交互，不恢复“动画进行到 37%”；
-- E2E/Agent 可以观察语义舞台目标和交互；只读 PresentationObservation/DOM tests
-  观察 transition lifecycle，均不获得 renderer authority。
-
-### R4 — Media, player systems, input, and prediction
-
-**Outcome:** VN 具备长期游玩所需的基础播放器体验。
-
-- image、music、ambient、SFX、voice asset metadata 和加载诊断；
-- BGM、ambient、voice 的 continuous saveable intent、transient SFX occurrence 与
-  Web Audio Host reconciliation；
-- Text reveal、History/backlog、seen、auto、skip-read/skip-all、hide UI 和 voice
-  replay；
-- keyboard 和 gamepad adapter，继续兼容 pointer/touch 与 accessibility；
-- 有预算、无副作用的 Narrative control-flow prediction 和素材 prefetch；
-- 页面隐藏、音频权限、缺失素材、加载失败和 reduced-motion 下的可预测降级。
-
-R0 是本轮实施开始前已经完成的设计基线。R1–R4 的核心集成验收是一条 3–5 分钟 E2E
-VN/SLG 垂直切片；各里程碑仍须满足实施计划与本文 promotion rules 的独立验收。
-
-### R5 — Typed Timeline and bounded Presentation Scene Graph
-
-**Outcome:** 在不引入 ATL 语法的前提下提高演出表达力。
-
-- TypeScript authoring API 表达 sequence、parallel、wait、tween、repeat、event
-  和 reusable cue；
-- Timeline executor 复用 R3 的 PresentationRun、Presentation Clock、interruption
-  和 completion fencing；
-- 可暂停、取消、跳过、快进、检查和在 reduced-motion 下稳定降级；
-- 扁平 Stage 被真实 Story 证明不足后，再从 background/character/prop
-  扩展为受约束 Presentation Scene Graph；
-- layer/camera transform、enter/exit/move/pose/expression 和 effect contribution
-  使用稳定 ID；
-- timeline 执行只改变 presentation runtime，不通过动画回调偷偷改 gameplay
-  State。
-
-是否支持更一般的 2D/3D renderer node，由真实 Story
-需求和性能原型决定；路线图不要求复制 Godot scene tree。video、Live2D
-等高级媒体与渲染 adapter 的交付属于 R8。
-
-### R6 — Authoring DevTools and editors
+### R6 remainder — Stage preview, scrubber, debug commands, and editors
 
 **Outcome:** 人类与 AI 都能更快理解、预览和修复 Story。
 
-按以下顺序演进：
+在已交付的 runtime inspector 与 Narrative graph 数据面之上，按序演进：
 
-1. runtime inspector、State/semantic/presentation diff、structured diagnostics；
-2. Narrative graph、不可达节点、引用和素材依赖可视化；
 3. Stage preview、Timeline scrubber、transition/audio inspection；
-4. capability-gated debug command、经 Session transaction 的受控 State 修改和
-   scenario runner；任何修改都更新 RunIntegrity；
+4. capability-gated debug command、经 Session transaction 的受控 State 修改和 scenario runner；任何修改都更新 RunIntegrity；
 5. 根据真实生产成本决定可视化 Narrative、Stage 或 Timeline editor。
 
-Editor 应写入普通 TS 或被 TS 引用的稳定 Story
-data，不形成另一套运行时语言或隐含权威 State。
+Editor 应写入普通 TS 或被 TS 引用的稳定 Story data，不形成另一套运行时语言或隐含权威 State。
 
-### R7 — Player rollback and time travel
+### R8 remainder — Advanced media and renderer adapters
 
-**Outcome:** VN 玩家回滚与 SLG 决策边界可以共存。
+**Outcome:** 真实 Story 需要的高级媒体与渲染形式成为受约束的 presentation contribution。
 
-- 基于 bounded immutable GameSnapshot checkpoint，而不是复制 Python mutation
-  log；
-- 区分玩家 history、player rollback、Debug replay 和 CommandLog；
-- 默认随 Snapshot 恢复
-  RNG；对防重掷结果、营业结算、跨日、外部副作用和不可逆剧情定义
-  pinned-outcome/hard-barrier policy；
-- rollback 恢复 authoritative Snapshot，并重新投影 settled Stage target、Audio
-  intent 和 PendingInteraction；不恢复 renderer transient state；
-- 先用 E2E Story
-  验证，再在真实游戏中落产品策略（已随《雨巷猫舍》落地：开赛/结局确认为
-  barrier + HUD 回退）。
+音频意图栈（BGM/环境声/一次性音效、音量联动、逐条增益）已交付；其余形式仍按证据进入：
 
-### R8 — Advanced media and renderer adapters
-
-**Outcome:** 真实 Story 需要的高级媒体与渲染形式成为受约束的 presentation
-contribution。
-
-- 在 typed media manifest、Audio Host 和 bounded Presentation Scene Graph
-  稳定后进入；
-- 按真实 Story 需求从 video、Live2D、2D skeletal、Rive 和 WebGL/3D adapter
-  中交付子集，不预先实现全部形式；
-- adapter 使用稳定 manifest ID、加载/就绪诊断和 code-native fallback，遵循既有
-  asset demand/readiness 边界；
-- Save 只保存稳定 semantic target，不保存 renderer instance、decoded media
-  或播放进度；
+- 在 typed media manifest、Audio Host 和 bounded Presentation Scene Graph 稳定后进入；
+- 按真实 Story 需求从 video、Live2D、2D skeletal、Rive 和 WebGL/3D adapter 中交付子集，不预先实现全部形式；
+- adapter 使用稳定 manifest ID、加载/就绪诊断和 code-native fallback，遵循既有 asset demand/readiness 边界；
+- Save 只保存稳定 semantic target，不保存 renderer instance、decoded media 或播放进度；
 - 平板/16:10、资源预算和降级路径在 conformance tests 中证明。
 
 ### Continuous track — Snapshot integrity and commit performance
@@ -288,11 +129,14 @@ VN 无感，大状态品类会最先撞墙。
   内的重算校验按 debug/audit 运行模式启停、rejected/faulted 路径以对象恒等短路
   post digest。该步把每命令全量 digest 从 4 次降到提交 1 次、拒绝 0
   次，但不改变单次 digest 的渐近线，后续分层仍然必要；autosave 的
-  digest/序列化成本纳入同一性能契约；
+  digest/序列化成本纳入同一性能契约；执行顺序与验收见
+  [Snapshot integrity and Save migration plan](plans/2026-07-30-snapshot-integrity-and-save-migration.md)；
 - 引入显式完整性分层（概念
   `IntegrityPolicy`）：freeze（`deep`/`changed-subtrees`/`none`）、digest（`every-command`/`checkpoint`/`module-root`/`off`）、validation（`full`/`changed-modules`/`boundary-only`），按
   debug（开发与 Agent
-  验证）、audit（CI/replay/存档认证）、release（玩家运行时）运行模式组合；
+  验证）、audit（CI/replay/存档认证）、release（玩家运行时）运行模式组合；该分层进入实现前需先接受专门
+  design（含与 [typed StateStore proposal](proposals/typed-state-store.md)
+  的交互取舍）；
 - 数据结构演进优先模块级 revision、changed-set
   与结构共享；根摘要由模块摘要组成；全量 canonical digest 保留给存档、显式
   checkpoint、replay verification 与调试导出；
@@ -386,10 +230,12 @@ occurrence、热点和回退栈各自推进时，会出现“命令 committed
 
 合同见 [Save migration design](design/save-migration.md)：一等 migration
 registry（相邻 revision 纯函数迁移链）、解码顺序改造（current snapshot schema
-验证移到迁移之后，Strict JSON 限额不放开）、dry-run 与写入前备份、每发布版本的
-Save fixture corpus 与 CI 迁移验收。migration 与 adoption
-保持不同语义；CommandLog 兼容轴独立管理。本 track 独立于 Mod 系统排期并先于其 M3
-落地。
+验证移到迁移之后，Strict JSON 限额不放开）、dry-run 与写入前备份、adoption
+声明集合与 lineage re-anchor 政策、每发布版本的 Save fixture corpus 与 CI
+迁移验收。migration 与 adoption 保持不同语义；CommandLog
+兼容轴独立管理。执行顺序与验收见
+[Snapshot integrity and Save migration plan](plans/2026-07-30-snapshot-integrity-and-save-migration.md)；本
+track 独立于 Mod 系统排期并先于其 M3 落地。
 
 ### Continuous track — Mod composition and distribution
 
@@ -456,13 +302,14 @@ E2E Story 的依赖。
 
 ## 6. Relationship to the current plans
 
-[SillyMaker vNext foundations plan](plans/2026-07-19-sillymaker-vnext-foundations.md)
-已完成
-R1–R4，现为历史执行记录；[R5–R7 plan](plans/2026-07-28-sillymaker-r5-r7.md)
-记录已完成项与仍有效的 defer gate。当前 Surface 强化按
-[Surface Contract Harness plan](plans/2026-07-30-surface-contract-harness.md)
-推进；Snapshot、Save migration 与 Mod track
-在各自设计/计划明确前置关系后独立排期。
+当前活动执行计划：
+
+- [Surface Contract Harness plan](plans/2026-07-30-surface-contract-harness.md) — Managed Surface lifecycle、迁移与验证 harness 的执行顺序（P0–P5）；
+- [Snapshot integrity and Save migration plan](plans/2026-07-30-snapshot-integrity-and-save-migration.md) — 提交热路径性能契约与 digest 去重（A–B）、Save 迁移落地（C–E）。
+
+两计划的代码热点不相交，可并行推进。Mod track 在其前置（Surface P1/P2 registry 形状、Save migration C–E）落地后按 [Mod design](design/mod-system.md) §14 的 M0–M6 排期；IntegrityPolicy 分层在专门 design 接受后另立计划。
+
+历史执行记录：[vNext foundations plan](plans/2026-07-19-sillymaker-vnext-foundations.md)（R1–R4）与 [R5–R7 plan](plans/2026-07-28-sillymaker-r5-r7.md)（T1–T3，defer 表仍有效）；交付史见 [roadmap archive](roadmap-archive.md)。
 
 若实现过程中发现目标合同与 live tree 冲突，应先更新对应 design
 并解释取舍；不得由 task plan 静默改变已接受方向。

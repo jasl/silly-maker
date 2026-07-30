@@ -3,8 +3,8 @@
 状态：2026-07-19 接受，R1–R4 已完成并进入
 [features](../features.md)。本文保留为历史执行记录，不再是活动计划；未完成的
 continuous track 按 [roadmap](../roadmap.md)
-与各自后续计划推进，当前引擎强化顺序见
-[Surface Contract Harness plan](2026-07-30-surface-contract-harness.md)。
+与其第 6 节列出的活动执行计划推进，交付史见
+[roadmap archive](../roadmap-archive.md)。
 
 ## Goal
 
