@@ -1,26 +1,31 @@
 // SPDX-License-Identifier: MIT
 
-const desktopRecordsMarkerSourceV1 =
-  '<script>globalThis.__SILLYMAKER_RECORDS__ = "local";</script>';
+import { isShellCapabilityInternalV1 } from "./shell-http-admission.mts";
+
 const htmlCommentPatternV1 = /<!--[\s\S]*?(?:-->|$)/gu;
 const scriptElementPatternV1 = /<script(\s[^>]*)?>([\s\S]*?)<\/script\s*>/giu;
-const localRecordsAssignmentPatternV1 =
-  /^\s*globalThis\.__SILLYMAKER_RECORDS__\s*=\s*(["'])local\1\s*;?\s*$/u;
+
+function desktopRecordsMarkerBodyV1(capability: string): string {
+  return `Object.defineProperties(globalThis,{"__SILLYMAKER_RECORDS__":{value:"local",writable:false,configurable:false},"__SILLYMAKER_DESKTOP_CAPABILITY__":{value:${JSON.stringify(
+    capability,
+  )},writable:false,configurable:false}});`;
+}
+
+function desktopRecordsMarkerSourceV1(capability: string): string {
+  return `<script>${desktopRecordsMarkerBodyV1(capability)}</script>`;
+}
 
 function maskHtmlCommentsV1(html: string): string {
   return html.replaceAll(htmlCommentPatternV1, (comment) => " ".repeat(comment.length));
 }
 
-function hasScriptAssignmentV1(searchableHtml: string, pattern: RegExp): boolean {
+function hasDesktopRecordsMarkerV1(searchableHtml: string, capability: string): boolean {
+  const expectedBody = desktopRecordsMarkerBodyV1(capability);
   for (const match of searchableHtml.matchAll(scriptElementPatternV1)) {
     if ((match[1] ?? "").trim() !== "") continue;
-    if (pattern.test(match[2] ?? "")) return true;
+    if ((match[2] ?? "").trim() === expectedBody) return true;
   }
   return false;
-}
-
-function hasDesktopRecordsMarkerV1(searchableHtml: string): boolean {
-  return hasScriptAssignmentV1(searchableHtml, localRecordsAssignmentPatternV1);
 }
 
 function injectHeadScriptV1(html: string, searchableHtml: string, scriptSource: string): string {
@@ -50,13 +55,36 @@ function injectHeadScriptV1(html: string, searchableHtml: string, scriptSource: 
 
 /**
  * Marks a built Player document so the browser-side runtime selects the
- * desktop HTTP record store. Vite normally emits a lowercase `<head>`, but
- * this boundary intentionally tolerates attributes, casing, and minimal HTML
- * documents so a harmless template change cannot silently switch persistence
- * back to per-origin browser storage.
+ * desktop HTTP record store and captures this launch's private-route
+ * capability. Vite normally emits a lowercase `<head>`, but this boundary
+ * intentionally tolerates attributes, casing, and minimal HTML documents so a
+ * harmless template change cannot silently switch persistence back to
+ * per-origin browser storage.
  */
-export function injectDesktopRecordsMarkerV1(html: string): string {
+export function injectDesktopRecordsMarkerV1(html: string, capability: string): string {
+  if (!isShellCapabilityInternalV1(capability)) {
+    throw new TypeError("invalid Desktop shell capability");
+  }
   const searchableHtml = maskHtmlCommentsV1(html);
-  if (hasDesktopRecordsMarkerV1(searchableHtml)) return html;
-  return injectHeadScriptV1(html, searchableHtml, desktopRecordsMarkerSourceV1);
+  if (hasDesktopRecordsMarkerV1(searchableHtml, capability)) return html;
+  return injectHeadScriptV1(html, searchableHtml, desktopRecordsMarkerSourceV1(capability));
+}
+
+/** Package-internal response boundary for launch-specific Desktop HTML. */
+export function createDesktopHtmlResponseInternalV1(
+  html: string,
+  capability: string,
+  head: boolean,
+): Response {
+  const markedHtml = injectDesktopRecordsMarkerV1(html, capability);
+  return new Response(head ? null : markedHtml, {
+    headers: {
+      "cache-control": "no-store",
+      "content-security-policy": "frame-ancestors 'none'",
+      "content-type": "text/html; charset=utf-8",
+      "cross-origin-resource-policy": "same-origin",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+    },
+  });
 }

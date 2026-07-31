@@ -128,7 +128,8 @@ Playwright config 或 Save schema 的切片并行合并。
     copy、fixed-state/fixed-metadata-clock Save bytes、standard receipt 与 opaque
     repository fallback equivalence；
 11. bounded presentation/runtime persistence metadata characterization：
-    `versionStamp` absent、all-null、partial、full、malformed 与 collector throw，
+    `versionStamp` absent、all-null、partial、fixed full-clean、fixed full-dirty、
+    status-unavailable、malformed 与 collector throw，
     per-service collector count、bounded printable normalization、defensive
     copy/freeze、fixed Snapshot/fixed metadata clock bytes，以及 standard receipt
     与 opaque repository fallback equivalence；同时固定 stamp 作为 Snapshot
@@ -214,7 +215,8 @@ authoritative transition；目标 normalization 不调用 getter，逐字段丢�
   characterization 并明确归入 DET2e，只有证明不在 authoritative closure 的
   Host/Presentation/tooling/test callsite 才能作为 negative control；
 - Host entropy、Presentation clock、tooling/bench 不被误分类；
-- `versionStamp` corpus 固定 absent/all-null/partial/full/malformed/throw 的
+- `versionStamp` corpus 固定 absent/all-null/partial/fixed full-clean/fixed
+  full-dirty/status-unavailable/malformed/throw 的
   normalization、freeze identity 与 Save bytes；每个成功创建的 service 恰好
   collect 一次，后续 capture/rewrite/rotation/export 的新增 collect count 为 `0`；
   headless absent/all-null oracle 与 PF1 unstamped bytes 完全相同，partial/full 的
@@ -224,7 +226,8 @@ authoritative transition；目标 normalization 不调用 getter，逐字段丢�
   collector。load/import compatibility 不读取 stamp，post-load/import fresh
   capture 使用当前 service stamp；两者都不把 stamp 纳入
   compatibility/authoritative identity；
-- fixed-clock export filename corpus 明确证明秒级 suffix 不提供唯一性：同一秒可
+- fixed-clock export filename corpus 固定 UTC `yyyyMMddHHmmss` 并明确证明秒级
+  suffix 不提供唯一性：同一秒可
   得到相同 suggested filename，Desktop/Browser Host 的 no-clobber collision
   policy 单独验证且不得改变 payload bytes；
 - 每个后续 slice 都有明确 before count/behavior；
@@ -653,9 +656,11 @@ synthetic normalization callback 证明 shape，并以 fixed State、fixed metad
 clock 的 `summarizeSave` vector 比较 normalized summary 与 annotated Save bytes；
 同一 persistence seam 还要运行两个独立 `versionStamp` oracle：headless
 absent/all-null stamp 必须继续产生 PF1 unstamped bytes；固定 browser-injected
-partial/full stamp 必须在四 runtime 得到相同 normalized frozen value 与 stamped
-Save bytes。all-null、完全 malformed、accessor-only、hostile Proxy 与 collector
-throw corpus 固定降级为 absent，且成功创建 service 的 collector count 为 `1`、
+partial、fixed full-clean 与 fixed full-dirty stamp 必须在四 runtime 得到相同
+normalized frozen value 与 stamped Save bytes；status-unavailable 以固定注入
+vector 降级为 unknown，不读取 CI checkout。all-null、完全 malformed、
+accessor-only、hostile Proxy 与 collector throw corpus 固定降级为 absent，且
+成功创建 service 的 collector count 为 `1`、
 后续处理新增 count 为 `0`；Snapshot digest、compatibility 与 authoritative trace
 不因 runtime 改变。annotation rewrite、rotation 与 stored-record export 的 vector
 保留原 capture-origin stamp；load/import compatibility 忽略 stamp，后续 fresh

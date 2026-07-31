@@ -1,19 +1,32 @@
 // SPDX-License-Identifier: MIT
 import { readFile } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
+import { fileURLToPath } from "node:url";
 
-import { injectDesktopRecordsMarkerV1 } from "./desktop-html.mts";
-import { desktopFilesPathPrefixV1, handleFileDownloadRequestV1 } from "./file-download-handler.mts";
+import { createDesktopHtmlResponseInternalV1 } from "./desktop-html.mts";
+import { createFileDownloadRequestCoordinatorInternalV1 } from "./file-download-handler.mts";
 import { createRecordFileStoreV1 } from "./record-file-store.mts";
 import { handleRecordHttpRequestV1 } from "./record-http-handler.mts";
 import {
+  allocateShellCapabilityInternalV1,
+  createShellHttpHandlerInternalV1,
+} from "./shell-http-admission.mts";
+import {
   adoptShellWindowV1,
+  createShellServerDrainInternalV1,
   createShellShutdownV1,
   requestShellRendererFlushV1,
   type ShellServerLikeV1,
   type ShellWindowLikeV1,
 } from "./shell-lifetime.mts";
 import { resolveStaticFilePathV1 } from "./static-file-path.mts";
+
+interface ShellHttpServerV1 extends ShellServerLikeV1 {
+  readonly addr: {
+    readonly hostname: string;
+    readonly port: number;
+  };
+}
 
 /**
  * The desktop webview shell. `deno desktop` compiles this entry: the
@@ -30,9 +43,9 @@ import { resolveStaticFilePathV1 } from "./static-file-path.mts";
 
 declare const Deno: {
   serve(
-    options: { readonly hostname: string },
+    options: { readonly hostname: string; readonly port: number },
     handler: (request: Request) => Response | Promise<Response>,
-  ): ShellServerLikeV1;
+  ): ShellHttpServerV1;
   env: { get(name: string): string | undefined };
   build: { os: string };
   args: string[];
@@ -43,6 +56,11 @@ declare const Deno: {
 
 const appIdentifierV1 = "__SILLYMAKER_APP_IDENTIFIER__";
 const distDirNameV1 = "__SILLYMAKER_DIST_DIR__";
+const moduleUrlV1 = Reflect.get(import.meta, "url");
+if (typeof moduleUrlV1 !== "string") {
+  throw new TypeError("Desktop shell module URL is unavailable");
+}
+const moduleDirV1 = fileURLToPath(new URL(".", moduleUrlV1));
 
 function argValueV1(name: string, fallback: string): string {
   const index = Deno.args.indexOf(`--${name}`);
@@ -56,7 +74,7 @@ const identifier = appIdentifierV1.startsWith("__SILLYMAKER_")
 const distDir = normalize(
   distDirNameV1.startsWith("__SILLYMAKER_")
     ? argValueV1("dist", "dist")
-    : join(import.meta.dirname ?? ".", distDirNameV1),
+    : join(moduleDirV1, distDirNameV1),
 );
 
 function userDataDirV1(): string {
@@ -133,9 +151,13 @@ async function handleStaticV1(request: Request, pathname: string): Promise<Respo
     };
     if (mediaType.startsWith("text/html")) {
       // The desktop shell marks its pages so the engine selects the HTTP
-      // record store without needing a query parameter on the window URL.
-      const html = injectDesktopRecordsMarkerV1(new TextDecoder().decode(bytes));
-      return new Response(request.method === "HEAD" ? null : html, { headers });
+      // record store and captures this launch's private-route capability
+      // without placing that capability in the window URL.
+      return createDesktopHtmlResponseInternalV1(
+        new TextDecoder().decode(bytes),
+        shellCapabilityV1,
+        request.method === "HEAD",
+      );
     }
     return new Response(request.method === "HEAD" ? null : new Uint8Array(bytes), { headers });
   } catch {
@@ -146,25 +168,24 @@ async function handleStaticV1(request: Request, pathname: string): Promise<Respo
 // The handler closes over this binding so the adopting BrowserWindow remains
 // strongly reachable for the lifetime of the HTTP server.
 let adoptedWindowV1: ShellWindowLikeV1 | null = null;
-const serverV1 = Deno.serve({ hostname: "127.0.0.1" }, (request: Request) => {
-  void adoptedWindowV1;
-  const url = new URL(request.url);
-  if (url.pathname.startsWith(`${desktopFilesPathPrefixV1}/`)) {
-    return handleFileDownloadRequestV1(
-      request,
-      url.pathname.slice(desktopFilesPathPrefixV1.length),
-      downloadsDirV1(),
-    );
-  }
-  if (url.pathname === "/sillymaker/records" || url.pathname.startsWith("/sillymaker/records/")) {
-    return handleRecordHttpRequestV1(
-      request,
-      url.pathname.slice("/sillymaker/records".length),
-      store,
-    );
-  }
-  return handleStaticV1(request, url.pathname);
+const shellCapabilityV1 = allocateShellCapabilityInternalV1();
+const downloadRequestsV1 = createFileDownloadRequestCoordinatorInternalV1(downloadsDirV1());
+let shellOriginV1 = "";
+const shellHandlerV1 = createShellHttpHandlerInternalV1({
+  expectedOrigin: () => shellOriginV1,
+  capability: shellCapabilityV1,
+  handleStatic: (request, pathname) => {
+    void adoptedWindowV1;
+    return handleStaticV1(request, pathname);
+  },
+  handleFiles: (request, subPath) => downloadRequestsV1.handle(request, subPath),
+  handleRecords: (request, subPath) => handleRecordHttpRequestV1(request, subPath, store),
 });
+const serverV1 = Deno.serve({ hostname: "127.0.0.1", port: 0 }, shellHandlerV1);
+if (serverV1.addr.hostname !== "127.0.0.1") {
+  throw new TypeError("Desktop shell did not bind the required loopback host");
+}
+shellOriginV1 = `http://127.0.0.1:${String(serverV1.addr.port)}`;
 
 // The first BrowserWindow construction adopts the implicit startup window.
 // Its close request first fences gameplay and waits for the renderer's
@@ -174,7 +195,10 @@ adoptedWindowV1 = adoptShellWindowV1({
   browserWindow: Deno.BrowserWindow,
   requestShutdown: createShellShutdownV1({
     prepare: () => requestShellRendererFlushV1(adoptedWindowV1),
-    shutdown: () => serverV1.shutdown(),
+    shutdown: createShellServerDrainInternalV1({
+      cancelNonAuthoritativeRequests: () => downloadRequestsV1.close(),
+      shutdown: () => serverV1.shutdown(),
+    }),
     exit: () => Deno.exit(0),
   }),
 });

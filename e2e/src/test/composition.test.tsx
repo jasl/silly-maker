@@ -16,8 +16,10 @@ import type {
 import { labGameApplicationV1 } from "../application/composition.tsx";
 
 const automationGlobalKeyV1 = "__SILLYMAKER_AUTOMATION_V1__";
+const desktopCapabilityGlobalKeyV1 = "__SILLYMAKER_DESKTOP_CAPABILITY__";
 const desktopCloseGlobalKeyV1 = "__SILLYMAKER_DESKTOP_CLOSE_V1__";
 const desktopRecordsMarkerKeyV1 = "__SILLYMAKER_RECORDS__";
+const desktopCapabilityV1 = "a".repeat(43);
 
 function createTestRootV1(): HTMLElement {
   const root = document.createElement("div");
@@ -218,9 +220,18 @@ describe("startWebGameApplicationV1 with the Engine Lab declaration", () => {
 
   it("fences gameplay and durably flushes a pending autosave for native close", async () => {
     const previousMarker = Object.getOwnPropertyDescriptor(globalThis, desktopRecordsMarkerKeyV1);
+    const previousCapability = Object.getOwnPropertyDescriptor(
+      globalThis,
+      desktopCapabilityGlobalKeyV1,
+    );
     Object.defineProperty(globalThis, desktopRecordsMarkerKeyV1, {
       configurable: true,
       value: "local",
+      writable: true,
+    });
+    Object.defineProperty(globalThis, desktopCapabilityGlobalKeyV1, {
+      configurable: true,
+      value: desktopCapabilityV1,
       writable: true,
     });
     const counter = withAutosaveCounterV1(createMemoryHostRecordStoreV1());
@@ -290,6 +301,39 @@ describe("startWebGameApplicationV1 with the Engine Lab declaration", () => {
         Reflect.deleteProperty(globalThis, desktopRecordsMarkerKeyV1);
       } else {
         Object.defineProperty(globalThis, desktopRecordsMarkerKeyV1, previousMarker);
+      }
+      if (previousCapability === undefined) {
+        Reflect.deleteProperty(globalThis, desktopCapabilityGlobalKeyV1);
+      } else {
+        Object.defineProperty(globalThis, desktopCapabilityGlobalKeyV1, previousCapability);
+      }
+    }
+  });
+
+  it("fails closed when the Desktop marker has no valid launch capability", async () => {
+    const previousMarker = Object.getOwnPropertyDescriptor(globalThis, desktopRecordsMarkerKeyV1);
+    const previousCapability = Object.getOwnPropertyDescriptor(
+      globalThis,
+      desktopCapabilityGlobalKeyV1,
+    );
+    Object.defineProperty(globalThis, desktopRecordsMarkerKeyV1, {
+      configurable: true,
+      value: "local",
+      writable: true,
+    });
+    Reflect.deleteProperty(globalThis, desktopCapabilityGlobalKeyV1);
+    try {
+      await expect(startLabV1("")).rejects.toThrow("web.desktop_shell_capability_invalid");
+    } finally {
+      if (previousMarker === undefined) {
+        Reflect.deleteProperty(globalThis, desktopRecordsMarkerKeyV1);
+      } else {
+        Object.defineProperty(globalThis, desktopRecordsMarkerKeyV1, previousMarker);
+      }
+      if (previousCapability === undefined) {
+        Reflect.deleteProperty(globalThis, desktopCapabilityGlobalKeyV1);
+      } else {
+        Object.defineProperty(globalThis, desktopCapabilityGlobalKeyV1, previousCapability);
       }
     }
   });

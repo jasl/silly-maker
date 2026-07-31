@@ -2672,10 +2672,8 @@ describe("PersistenceService standard composition", () => {
     expect(fixture.session.getCurrentSnapshot().commandSequence).toBe(1);
 
     const exported = await fixture.service.port.exportCurrentSave();
-    // The filename dates itself in unix seconds from the metadata clock.
-    const stampSeconds = Math.floor(Date.parse("2026-07-14T12:00:00.000Z") / 1000);
     expect(exported).toMatchObject({
-      filename: `standard-save-${String(stampSeconds)}.json`,
+      filename: "standard-save-20260714120000.json",
       mediaType: "application/json",
     });
     await fixture.service.autoSaveIdle();
@@ -2714,11 +2712,10 @@ describe("PersistenceService standard composition", () => {
     const dated = await standardFixtureV1(provenanceV1(), {
       exportFilename: "standard-save",
     });
-    const stampSeconds = Math.floor(Date.parse("2026-07-14T12:00:00.000Z") / 1000);
     const first = await dated.service.port.exportCurrentSave();
     const second = await dated.service.port.exportCurrentSave();
-    expect(first.filename).toBe(`standard-save-${String(stampSeconds)}`);
-    // Seconds are diagnostic dating, not an in-process uniqueness contract;
+    expect(first.filename).toBe("standard-save-20260714120000");
+    // The UTC second is diagnostic dating, not an in-process uniqueness contract;
     // a Host such as Desktop applies its own no-clobber collision suffix.
     expect(second.filename).toBe(first.filename);
     expect(second.bytes).toEqual(first.bytes);

@@ -898,9 +898,17 @@ surface：
   先同步 fence renderer authoritative ingress，再以 close-scoped
   `prepare/read` receipt 等待当前 authoritative Snapshot 通过精确候选的物理
   Save 验证（包括 initial/restart/load/rollback 后尚无新 command 的 Snapshot）。只有
-  receipt 成功才停止 server ingress、drain active commits 并 exit；缺失/失败
-  receipt 保持窗口和 server，不把页面 heartbeat、watchdog 或 timeout 强退当成
-  正常关闭合同。
+  receipt 成功才取消仍在接收 body 的非权威 download、停止 server ingress、
+  drain active commits 并 exit；缺失/失败 receipt 保持窗口、server 与 download
+  ingress，不把页面 heartbeat、watchdog 或 timeout 强退当成正常关闭合同；
+- 每次 shell launch 生成新的 32-byte capability，HTML marker 自动捕获；所有
+  request 绑定实际 runtime-selected loopback origin，records/download private
+  route 还必须携带 capability 并通过 cross-site/Origin admission。capability
+  不进入 URL、Save、log 或 diagnostics；缺失/畸形 marker fail-closed；注入
+  launch-specific capability 的 HTML 必须 `no-store` 且拒绝跨页面 framing；
+- 非权威 download ingress 固定并发上限和 body deadline，超载/关闭在 temp file
+  创建前拒绝，timeout/close 删除 partial temp；完整 body 已进入原子 publication
+  后继续完成。该 deadline 不得用于 records/autosave。
 
 这些只建立 preview wrapper、output naming 与 close-lifetime floor；macOS、
 Windows、Linux 当前都**没有**通过 D4 promotion。
@@ -910,7 +918,9 @@ Windows、Linux 当前都**没有**通过 D4 promotion。
 1. 用仓库 CI 声明的 Deno `latest` stable channel 运行真实
    `story desktop`，并在 promotion record 记录实际版本；
 2. 在对应真实 OS runner 构建并启动该平台的真实产物，验证 embedded
-   `dist`、HTML marker、records API、write → exit → reopen；
+   `dist`、HTML marker + per-launch capability、HTML no-store/no-frame、
+   exact-origin/private-route admission、bounded/cancellable download、
+   records API 与 write → exit → reopen；
 3. 验证 packaged VFS 下 static resolver 的 `lstat`/`realpath` 行为；
 4. 验证 prebuilt Vite assets 原样嵌入；若 `deno desktop` 暴露等价的 as-is
    include 能力，优先使用，否则加入包含 `.js`/`.mjs` 资产的 smoke fixture 防止

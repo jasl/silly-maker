@@ -155,7 +155,7 @@ deno task test:e2e
 
 ## Desktop save server (preview local persistence channel)
 
-`deno task desktop:save-server --dist <app>/dist-web --saves <dir> --port 41800` serves a built Player bundle from one fixed loopback port and owns a save directory behind `/sillymaker/records`. Pages started with `?records=local` use `createHttpHostRecordStoreV1` instead of per-origin IndexedDB. The endpoint accepts only the bounded records protocol: same-origin JSON commits, validated namespaces/keys/revisions/base64, and GET-only record reads; the static side only accepts GET/HEAD and rejects malformed, traversing, or symlinked paths.
+`deno task desktop:save-server --dist <app>/dist-web --saves <dir> --port 41800` serves a built Player bundle from one fixed loopback port and owns a save directory behind `/sillymaker/records`. Pages started with `?records=local` use `createHttpHostRecordStoreV1` instead of per-origin IndexedDB. The endpoint accepts only the bounded records protocol: same-origin JSON commits, validated namespaces/keys/revisions/base64, and GET-only record reads; the static side only accepts GET/HEAD and rejects malformed, traversing, or symlinked paths. This query-selected server is a trusted local development channel, not the packaged Desktop private-route authority; do not expose it to untrusted pages or treat its fixed port as authorization.
 
 The current JSON-file backend is a **preview/reference implementation**. It survives ordinary restarts, uses optimistic revisions, serializes one process, and replaces each record through a unique temporary file plus rename. A process/OS crash between records in one batch can still expose a partial commit, and a second process has no shared CAS authority. Do not describe it as a production atomic store until the [desktop persistence durability plan](plans/2026-07-30-desktop-persistence-durability.md) passes.
 
@@ -173,33 +173,63 @@ Applications that declare `web.desktop` (safe name + lowercase reverse-DNS
 identifier + optional app-relative `icon`) package under
 `<app>/dist-desktop/`. The command builds the web Player (honoring
 `--profile`/`--sourcemap`/`--no-minify`), stages a shell under
-`<app>/dist-desktop/staging/`, embeds `dist/`, injects
-`__SILLYMAKER_RECORDS__ = "local"`, and points the records endpoint at the
+`<app>/dist-desktop/staging/`, embeds `dist/`, and injects both the
+`__SILLYMAKER_RECORDS__ = "local"` marker and one per-launch 32-byte
+capability. The page captures that capability once and attaches it only to the
+packaged shell's records/download requests. It never enters the URL, Save,
+local storage, logs, or diagnostics. The records endpoint points at the
 platform user-data directory (`~/Library/Application Support/<identifier>/saves`
 on macOS, `%APPDATA%/<identifier>/saves` on Windows, and
-`${XDG_DATA_HOME:-~/.local/share}/<identifier>/saves` on Linux). It then invokes
-the experimental `deno desktop` command from Deno >= 2.9.
+`${XDG_DATA_HOME:-~/.local/share}/<identifier>/saves` on Linux). The command
+then invokes the experimental `deno desktop` command from Deno >= 2.9.
 
 The shell adopts Deno Desktop's startup window instead of creating a second
 window. Closing that window first fences renderer mutation ingress, asks the
 page to verify the exact current authoritative Snapshot in `auto.current`, and
-waits for that close request's acknowledgement; only then does the shell stop HTTP
-admission, drain active record commits, and exit. A failed or missing
-acknowledgement keeps the shell alive instead of discarding the latest
+waits for that close request's acknowledgement. Only then does the shell stop
+new download admission, cancel non-authoritative downloads still receiving a
+body, stop HTTP ingress, drain active record commits and already-complete
+download publications, and exit. A failed or missing acknowledgement keeps the
+shell and download coordinator alive instead of discarding the latest
 Snapshot; no page heartbeat or timeout force-exits the process.
 
-The shell binds its HTTP ingress explicitly to loopback and also serves
+The shell binds its HTTP ingress explicitly to loopback and admits every
+request only for the exact origin (host and runtime-selected port) allocated to
+that launch. Its private records/download routes additionally require the
+per-launch capability and reject cross-site or mismatched-Origin requests. A
+marker with a missing or malformed capability fails application startup
+instead of silently falling back. Launch-specific HTML is never cached and
+cannot be embedded in another page, so a stale capability or clickjacked shell
+cannot become an ingress path. The capability is a browser-network fence, not
+protection against same-origin script compromise or another trusted local process.
+
+The shell also serves
 `/sillymaker/files/download` for the embedded webview, which does not honor
 ordinary `<a download>` clicks. Shell-marked pages (not the standalone
 `?records=local` save-server flow) stream bounded export bytes to that endpoint.
 The shell sanitizes the requested single-segment filename, writes an exclusive
 same-directory temporary file, and atomically publishes a non-overwriting final
 name; collisions get a ` (n)` suffix and failed writes leave no partial final
-file.
+file. A package-internal coordinator admits at most two concurrent downloads
+and gives each incoming body a 30-second deadline; overload/closed admission is
+`503`, a body cancelled by deadline or close is `408`, and cleanup closes and
+removes its temporary file before the server drain completes.
+
+Before the web build starts, Desktop packaging collects one immutable,
+human-facing version receipt. Vite injects that exact receipt into the page and
+the packager derives the artifact stem from it, so the page/Save stamp cannot
+drift from the filename during one build. Known application versions are
+portable-normalized and known full Git commits are shortened only in the
+filename; an observed uncommitted checkout keeps the `-dirty` suffix (for
+example `SillyGame-0_1_0-abc1234-dirty`). Invalid, overlong, unavailable, or
+status-unverifiable fields are omitted, and the final filename stays within a
+portable single-segment byte budget. This stamp is diagnostic provenance, not
+an exact dirty-tree identity or a replacement for BuildIdentity, byte digests,
+or an optional prepared Artifact manifest.
 
 Without `--target` the output is a host-platform preview in the format selected
 for that platform. Each explicit supported `--target <triple>` adds one
-cross-compiled package named `<Name>-<triple>.<ext>`: macOS `.app`, a Windows
+cross-compiled package named `<Stem>-<triple>.<ext>`: macOS `.app`, a Windows
 `.msi` installer, or Linux `.AppImage`. An `.msi` must be installed; it is not a
 copy-and-run directory. The Deno >= 2.9.0 compatibility floor admits
 `aarch64-apple-darwin`, `x86_64-apple-darwin`,

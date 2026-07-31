@@ -138,7 +138,7 @@ function requireDesktopNameV1(value: unknown, pointer: string): string {
   const name = requireNonEmptyStringV1(value, pointer);
   if (
     name !== name.trim() ||
-    name.length > 120 ||
+    new TextEncoder().encode(name).byteLength > 120 ||
     name === "." ||
     name === ".." ||
     name.includes("/") ||

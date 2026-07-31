@@ -7,6 +7,10 @@ import {
   hostRecordStoreKeyCorpusExpectedV1,
   runHostRecordStoreKeyCorpusV1,
 } from "../../../../test-support/host-atomic-record-store-conformance.ts";
+import {
+  createDesktopShellFetchInternalV1,
+  desktopShellCapabilityHeaderInternalV1,
+} from "./desktop-shell-capability.ts";
 
 type HostRecordKeyV1 = HostStoredRecordV1["key"];
 type HostRecordNamespaceV1 = HostStoredRecordV1["namespace"];
@@ -95,6 +99,46 @@ function fetchFakeV1() {
 }
 
 describe("the HTTP host record store", () => {
+  it("preserves one Desktop capability across read, list, and commit requests", async () => {
+    const capability = "a".repeat(43);
+    const requests: RequestInit[] = [];
+    const backingFetch = fetchFakeV1();
+    const shellFetch = createDesktopShellFetchInternalV1(capability, (async (
+      input: RequestInfo | URL,
+      init?: RequestInit,
+    ) => {
+      requests.push(init ?? {});
+      return await backingFetch(String(input), init);
+    }) as typeof fetch);
+    const store = createHttpHostRecordStoreV1({
+      baseUrl: "/sillymaker/records",
+      fetchImpl: shellFetch,
+    });
+    const key = "desktop-capability" as HostRecordKeyV1;
+
+    await expect(store.read("settings", key)).resolves.toBeNull();
+    await expect(store.list("settings")).resolves.toEqual([]);
+    await expect(
+      store.commit([
+        {
+          kind: "put",
+          namespace: "settings",
+          key,
+          expectedRevision: null,
+          bytes: new Uint8Array([1]),
+        },
+      ]),
+    ).resolves.toMatchObject({ kind: "committed" });
+
+    expect(requests).toHaveLength(3);
+    for (const init of requests) {
+      expect(new Headers(init.headers).get(desktopShellCapabilityHeaderInternalV1)).toBe(
+        capability,
+      );
+    }
+    expect(new Headers(requests[2]?.headers).get("content-type")).toBe("application/json");
+  });
+
   it("round-trips read/list/commit with revisions and binary bytes", async () => {
     const store = createHttpHostRecordStoreV1({
       baseUrl: "/sillymaker/records",

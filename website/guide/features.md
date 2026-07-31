@@ -40,8 +40,10 @@ Saves are plain, versioned, validated data — a quick slot plus numbered manual
   while `site:build` composes the docs site. Applications that declare
   `build:desktop` can produce host or cross-target Desktop previews
   (`.app`, Windows `.msi` installer, `.AppImage`); the shell adopts the startup
-  window and drains its local HTTP server on native close. Signing/notarization
-  and durable-store promotion remain explicit release gates. Distributors must
+  window, fences private local routes with an exact launch origin plus
+  per-launch page capability, and cancels incomplete non-authoritative
+  downloads before draining its local HTTP server on native close.
+  Signing/notarization and durable-store promotion remain explicit release gates. Distributors must
   expose the SillyMaker MIT text and applicable bundled-material notices
   through a product page, accompanying files, or a stable link; a technical
   Artifact manifest is optional and is not a legal inventory. The Engine Lab,

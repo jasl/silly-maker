@@ -4,14 +4,14 @@ Applications are self-contained projects (their own `sillymaker.config.ts` and `
 
 ## Inside an application directory
 
-| Command                                   | What it does                                                                                  |
-| ----------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `deno task dev`                           | Vite dev server for this application                                                          |
-| `deno task build:web`                     | Production Player bundle into `dist-web/` (`build` is its alias)                              |
-| `deno task build:desktop [--target <t>]…` | Where declared, Desktop package(s) into `dist-desktop/`; the host format is platform-specific |
-| `deno task preview`                       | Serve `dist-web/` over HTTP (`file://` cannot load ES modules)                                |
-| `deno task story <verb> .`                | App-local `inspect`, `check`, `simulate`, `dev --smoke`, or `prebuilt-smoke`                  |
-| `deno task story diff <a.json> <b.json>`  | Structured diff of two JSON files; both paths are required                                    |
+| Command                                   | What it does                                                                                                                                                                                              |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `deno task dev`                           | Vite dev server for this application                                                                                                                                                                      |
+| `deno task build:web`                     | Production Player bundle into `dist-web/` (`build` is its alias)                                                                                                                                          |
+| `deno task build:desktop [--target <t>]…` | Where declared, Desktop package(s) into `dist-desktop/`; the host format is platform-specific, and bounded names include version plus an abbreviated commit when the shared diagnostic receipt knows them |
+| `deno task preview`                       | Serve `dist-web/` over HTTP (`file://` cannot load ES modules)                                                                                                                                            |
+| `deno task story <verb> .`                | App-local `inspect`, `check`, `simulate`, `dev --smoke`, or `prebuilt-smoke`                                                                                                                              |
+| `deno task story diff <a.json> <b.json>`  | Structured diff of two JSON files; both paths are required                                                                                                                                                |
 
 `build:desktop` forwards appended flags to the packaging verb:
 `--target <os-arch-triple>` (repeatable),

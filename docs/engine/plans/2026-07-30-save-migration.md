@@ -38,8 +38,9 @@ zero RNG state 或经 binary64 舍入入场的 fractional number token 重新冻
   copy/freeze、fixed metadata clock，以及 projection failure 后没有 physical Save
   write；
 - autosave rotation 保留每个 candidate capture 时的 summary；
-- `versionStamp` absent、all-null、partial、full、malformed、accessor/Proxy-backed
-  与 collector throw；每个成功创建的 persistence service 恰好 collect 一次，
+- `versionStamp` absent、all-null、partial、fixed full-clean、fixed full-dirty、
+  status-unavailable、malformed、accessor/Proxy-backed 与 collector throw；每个
+  成功创建的 persistence service 恰好 collect 一次，
   后续 capture/rewrite/rotation/export 的新增 collect count 为 `0`；partial/full
   先做 bounded printable normalization、defensive copy/freeze；
   normalization 不调用 getter，mixed malformed fields 逐字段丢弃，最终
@@ -54,8 +55,9 @@ zero RNG state 或经 binary64 舍入入场的 fractional number token 重新冻
 - headless absent/all-null stamp 的 Save bytes 继续等于 PF1 unstamped oracle；
   fixed browser partial/full stamp 使用独立 expected bytes/SHA，并覆盖 standard
   receipt 与 opaque repository fallback；
-- fixed metadata clock 的 export suggested filename 覆盖有/无 extension、invalid
-  clock 与同一秒重复；秒级 suffix 不承诺唯一，Desktop/Browser Host 以
+- fixed metadata clock 的 UTC `yyyyMMddHHmmss` export suggested filename 覆盖
+  有/无 extension、invalid clock 与同一秒重复；秒级 suffix 不承诺唯一，
+  Desktop/Browser Host 以
   no-clobber collision policy 保留每份导出，filename collision 不改变 payload
   bytes；
 - annotation rewrite 绑定 source Host revision 与 exact source bytes 做 conditional
@@ -161,7 +163,8 @@ guard，四 runtime vector 全绿且缺 browser 不得 silently skip。
 - lineage policy：re-anchor 上限、触限提示、导出/回退路径；
 - 用户文案：稳定 diagnostic code 映射为人类可理解的结果与操作，不直接展示内部 stack；
 - maintained fixture corpus：Engine Lab + 旗舰示例，至少一条多版本链、一次 adoption、一次 lineage 边界与失败备份恢复；
-- corpus 保留 M0 的 `versionStamp` absent/all-null/partial/full/malformed/throw 与
+- corpus 保留 M0 的 `versionStamp` absent/all-null/partial/fixed full-clean/fixed
+  full-dirty/status-unavailable/malformed/throw 与
   headless/browser fixed bytes，并逐版本证明 migration、annotation rewrite、
   autosave rotation 与 stored export 不覆盖 Snapshot capture origin；load/import
   compatibility 忽略 stamp，post-load/import fresh capture 使用当前 service

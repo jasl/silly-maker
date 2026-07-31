@@ -135,7 +135,7 @@ interface SaveStateMigrationV1 {
 - **玩家可读结果**：rejected / inspect_only
   必须映射为用户可读文案与可行动选项（回滚版本、导出存档、放弃迁移），诊断码不是最终用户界面；
 - 迁移过程与结果进入现有结构化 diagnostics 与 debug bundle。
-- **导出文件名**：Host 可使用显式 metadata clock 生成秒级 timestamp
+- **导出文件名**：Host 可使用显式 metadata clock 生成 UTC `yyyyMMddHHmmss`
   suggested filename，但它不进入 Save bytes/identity，也不保证同一秒唯一。实际
   Desktop/Browser 下载必须以 no-clobber suffix、浏览器下载策略或等价的原子
   collision policy 保留所有导出；不得通过修改 payload 来消除文件名冲突。
@@ -153,8 +153,9 @@ interface SaveStateMigrationV1 {
   lineage 上限的边界样本）；
 - fixture corpus 覆盖 annotation absent、summary-only、note-only、summary + note
   与 cleared-note，并证明 State migration 不消费或改写 annotation；
-- fixture corpus 覆盖 `versionStamp` absent/all-null/partial/full/malformed/throw、
-  normalized freeze 与 fixed bytes；headless absent/all-null 保留 PF1 unstamped
+- fixture corpus 覆盖 `versionStamp` absent/all-null/partial/fixed full-clean/fixed
+  full-dirty/status-unavailable/malformed/throw、normalized freeze 与 fixed
+  bytes；headless absent/all-null 保留 PF1 unstamped
   oracle，fixed browser stamp 有独立 byte oracle，并证明 migration、annotation
   rewrite、rotation 与 stored-record export 保留 Snapshot capture origin；
   load/import compatibility 忽略 stamp，post-load/import fresh capture 使用当前

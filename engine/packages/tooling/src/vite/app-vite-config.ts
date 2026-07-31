@@ -2,6 +2,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join, resolve } from "node:path";
+import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import react from "@vitejs/plugin-react";
@@ -10,7 +11,12 @@ import type { Plugin, PluginOption, UserConfig } from "vite";
 import type { SillymakerAppConfigV1 } from "../project/config-types.ts";
 import { defineSillymakerAppV1 } from "../project/config.ts";
 import { applyStoryMetadataToHtmlV1, parseStoryMetadataV1 } from "../project/story-metadata.ts";
-import { collectVersionStampV1, versionStampPluginV1 } from "./version-stamp.ts";
+import {
+  collectVersionStampV1,
+  parseVersionStampReceiptInternalV1,
+  versionStampPluginV1,
+  versionStampReceiptEnvironmentKeyInternalV1,
+} from "./version-stamp.ts";
 import {
   copyRuntimeAssetsV1,
   parseRuntimeAssetContentTypesV1,
@@ -162,6 +168,9 @@ export async function createSillymakerAppViteConfigV1(
     const identity = loadBuildIdentityModuleV1(appRoot, web.identity);
     plugins.push(identity.createPlugin({ initialIdentity: await identity.collect() }));
   }
+  const versionStamp =
+    parseVersionStampReceiptInternalV1(process.env[versionStampReceiptEnvironmentKeyInternalV1]) ??
+    collectVersionStampV1({ appRoot });
   plugins.push(
     react(),
     runtimeAssetsPluginV1(appRoot, runtimeAssetContentTypes),
@@ -169,7 +178,7 @@ export async function createSillymakerAppViteConfigV1(
     // Human-facing version stamp (package versions + git commits, all
     // soft-failing) — shown in the debug dock and readable by Stories
     // through readVersionStampV1.
-    versionStampPluginV1(collectVersionStampV1({ appRoot })),
+    versionStampPluginV1(versionStamp),
   );
 
   return {

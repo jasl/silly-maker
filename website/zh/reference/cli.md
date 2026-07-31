@@ -4,14 +4,14 @@
 
 ## 应用目录内
 
-| 命令                                      | 作用                                                                     |
-| ----------------------------------------- | ------------------------------------------------------------------------ |
-| `deno task dev`                           | 本应用的 Vite 开发服务器                                                 |
-| `deno task build:web`                     | 生产 Player 构建到 `dist-web/`（`build` 是它的别名）                     |
-| `deno task build:desktop [--target <t>]…` | 应用声明后可用：桌面包到 `dist-desktop/`；本机格式由平台决定             |
-| `deno task preview`                       | 用 HTTP 预览 `dist-web/`（`file://` 无法加载 ES module）                 |
-| `deno task story <verb> .`                | 应用内 `inspect`、`check`、`simulate`、`dev --smoke` 或 `prebuilt-smoke` |
-| `deno task story diff <a.json> <b.json>`  | 对两个 JSON 文件做结构化对比；两个路径都必填                             |
+| 命令                                      | 作用                                                                                                                                   |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `deno task dev`                           | 本应用的 Vite 开发服务器                                                                                                               |
+| `deno task build:web`                     | 生产 Player 构建到 `dist-web/`（`build` 是它的别名）                                                                                   |
+| `deno task build:desktop [--target <t>]…` | 应用声明后可用：桌面包到 `dist-desktop/`；本机格式由平台决定，共享诊断 receipt 已知版本和 commit 时，受限文件名会附加版本与缩写 commit |
+| `deno task preview`                       | 用 HTTP 预览 `dist-web/`（`file://` 无法加载 ES module）                                                                               |
+| `deno task story <verb> .`                | 应用内 `inspect`、`check`、`simulate`、`dev --smoke` 或 `prebuilt-smoke`                                                               |
+| `deno task story diff <a.json> <b.json>`  | 对两个 JSON 文件做结构化对比；两个路径都必填                                                                                           |
 
 `build:desktop` 把追加参数透传给打包动词：`--target <os-arch-triple>`
 （可重复）、`--compress[=xz|lzma|zstd]` 与 `--profile <release|debug>`。

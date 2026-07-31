@@ -144,6 +144,14 @@ describe("formatVersionStampV1", () => {
     ).toBe("app 1.2.0 (abcdef0)");
     expect(
       formatVersionStampV1({
+        applicationVersion: "1.2.0",
+        applicationCommit: "abcdef0123456789abcdef0123456789abcdef01-dirty",
+        engineVersion: null,
+        engineCommit: null,
+      }),
+    ).toBe("app 1.2.0 (abcdef0-dirty)");
+    expect(
+      formatVersionStampV1({
         applicationVersion: null,
         applicationCommit: "😀".repeat(13),
         engineVersion: null,

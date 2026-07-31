@@ -15,7 +15,11 @@ export interface RecordHttpStoreV1 {
 const namespacesV1 = new Set(["save", "lease", "settings"]);
 const maximumCommitBodyBytesV1 = 32 * 1024 * 1024;
 
-function jsonResponseV1(payload: unknown, status = 200, extraHeaders?: HeadersInit): Response {
+function jsonResponseV1(
+  payload: unknown,
+  status = 200,
+  extraHeaders?: Readonly<Record<string, string>>,
+): Response {
   const headers = new Headers(extraHeaders);
   headers.set("content-type", "application/json; charset=utf-8");
   headers.set("cache-control", "no-store");

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   adoptShellWindowV1,
+  createShellServerDrainInternalV1,
   createShellShutdownV1,
   requestShellRendererFlushV1,
   type ShellCloseEventLikeV1,
@@ -10,6 +11,32 @@ import {
 } from "./shell-lifetime.mts";
 
 describe("shell window adoption", () => {
+  it("cancels non-authoritative requests only after preparation, before server drain", async () => {
+    const operations: string[] = [];
+    const requestShutdown = createShellShutdownV1({
+      prepare: async () => {
+        operations.push("prepare");
+        return true;
+      },
+      shutdown: createShellServerDrainInternalV1({
+        cancelNonAuthoritativeRequests: () => {
+          operations.push("cancel downloads");
+        },
+        shutdown: async () => {
+          operations.push("shutdown");
+        },
+      }),
+      exit: () => {
+        operations.push("exit");
+      },
+    });
+
+    requestShutdown();
+    for (let turn = 0; turn < 5; turn += 1) await Promise.resolve();
+
+    expect(operations).toEqual(["prepare", "cancel downloads", "shutdown", "exit"]);
+  });
+
   it("flushes the renderer before graceful shutdown and exits only after the drain", async () => {
     let rendererStatus: "preparing" | "flushed" = "preparing";
     let continuePolling!: () => void;

@@ -197,6 +197,16 @@ export type PersistenceLeaseAcquisitionV1 = "acquire_initial" | "deferred_reboot
  */
 export type PersistenceAutoSaveCaptureV1 = "committed_snapshots" | "external";
 
+/** Stable UTC `yyyyMMddHHmmss` used only in suggested export filenames. */
+function formatExportTimestampV1(millis: number): string {
+  const at = new Date(millis);
+  const pad = (value: number): string => String(value).padStart(2, "0");
+  return (
+    `${String(at.getUTCFullYear())}${pad(at.getUTCMonth() + 1)}${pad(at.getUTCDate())}` +
+    `${pad(at.getUTCHours())}${pad(at.getUTCMinutes())}${pad(at.getUTCSeconds())}`
+  );
+}
+
 export interface CreatePersistenceServiceOptionsV1<
   TState,
   TSnapshot extends {
@@ -949,15 +959,15 @@ async function createPersistenceServiceWithDependenciesV1<
     );
   };
 
-  // Export filenames carry the export instant (unix seconds, from the
-  // metadata clock so tests stay deterministic). This dates the file but is
-  // not a uniqueness guarantee within one second; no-clobber Hosts apply
-  // their own collision policy. An unparsable instant falls back to the bare
-  // configured name.
+  // Export filenames carry the export instant as UTC `yyyyMMddHHmmss`, from
+  // the metadata clock so every Host suggests the same name. This dates the
+  // file but does not promise uniqueness within one second; no-clobber Hosts
+  // apply their own collision policy. An unparsable instant falls back to the
+  // bare configured name.
   const exportFilenameV1 = (): string => {
     const millis = Date.parse(options.metadataClock.now());
     if (!Number.isFinite(millis)) return options.exportFilename;
-    const suffix = String(Math.floor(millis / 1000));
+    const suffix = formatExportTimestampV1(millis);
     const filename = options.exportFilename;
     const dot = filename.lastIndexOf(".");
     return dot > 0

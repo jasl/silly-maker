@@ -104,8 +104,11 @@ export function readVersionStampV1(): VersionStampV1 {
 
 function displayCommitV1(commit: string | null): string | null {
   if (commit === null) return null;
-  const codePoints = Array.from(commit);
-  return codePoints.length > 12 ? codePoints.slice(0, 7).join("") : commit;
+  const dirtySuffix = commit.endsWith("-dirty") ? "-dirty" : "";
+  const identity = dirtySuffix === "" ? commit : commit.slice(0, -dirtySuffix.length);
+  const codePoints = Array.from(identity);
+  const displayIdentity = codePoints.length > 12 ? codePoints.slice(0, 7).join("") : identity;
+  return `${displayIdentity}${dirtySuffix}`;
 }
 
 function sideV1(label: string, version: string | null, commit: string | null): string | null {

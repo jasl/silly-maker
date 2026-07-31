@@ -173,6 +173,19 @@ describe("application and workspace config validation", () => {
           ...desktopApp,
           web: {
             ...desktopApp.web,
+            // 31 code points but 124 UTF-8 bytes: unsafe once target and
+            // diagnostic artifact suffixes are appended.
+            desktop: { ...desktopApp.web.desktop, name: "😀".repeat(31) },
+          },
+        }),
+      ),
+    ).toMatchObject([{ code: "project.config_invalid" }]);
+    expect(
+      diagnosticsOf(() =>
+        defineSillymakerAppV1({
+          ...desktopApp,
+          web: {
+            ...desktopApp.web,
             desktop: { ...desktopApp.web.desktop, identifier: "Dev.Sillymaker.Synthetic" },
           },
         }),

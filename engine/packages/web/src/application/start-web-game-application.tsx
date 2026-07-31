@@ -49,6 +49,7 @@ import { installBrowserAutomationBridgeV1 } from "../automation/browser-automati
 import type { InstalledBrowserAutomationBridgeV1 } from "../automation/browser-automation-bridge.ts";
 import { parseCapabilityRequestV1 } from "../capabilities/parse-capability-request.ts";
 import { createBrowserFilePortV1 } from "../host/browser-file-port.ts";
+import { createDesktopShellFetchInternalV1 } from "../host/desktop-shell-capability.ts";
 import { createShellFilePortV1 } from "../host/shell-file-port.ts";
 import { createWebHostV1 } from "../host/create-web-host.ts";
 import { createHttpHostRecordStoreV1 } from "../host/http-record-store.ts";
@@ -362,16 +363,23 @@ export async function startWebGameApplicationV1<
   // Both local channels persist through the HTTP record store. Only the
   // injected marker identifies the Desktop shell, whose private file-download
   // endpoint is unavailable to the query-only browser save server.
-  const { usesDesktopShell, wantsLocalRecords } = resolveLocalRecordsHostModeV1(
-    typeof location === "undefined" ? "" : location.search,
-    Reflect.get(globalThis, "__SILLYMAKER_RECORDS__"),
-  );
+  const { desktopShellCapability, usesDesktopShell, wantsLocalRecords } =
+    resolveLocalRecordsHostModeV1(
+      typeof location === "undefined" ? "" : location.search,
+      Reflect.get(globalThis, "__SILLYMAKER_RECORDS__"),
+      Reflect.get(globalThis, "__SILLYMAKER_DESKTOP_CAPABILITY__"),
+    );
+  const desktopShellFetch =
+    desktopShellCapability === null
+      ? null
+      : createDesktopShellFetchInternalV1(desktopShellCapability);
   const host =
     options.host ??
     (wantsLocalRecords
       ? createWebHostV1({
           records: createHttpHostRecordStoreV1({
             baseUrl: "/sillymaker/records",
+            ...(desktopShellFetch === null ? {} : { fetchImpl: desktopShellFetch }),
           }),
           ...(usesDesktopShell
             ? {
@@ -380,6 +388,7 @@ export async function startWebGameApplicationV1<
                 files: createShellFilePortV1({
                   baseUrl: "/sillymaker/files",
                   picker: createBrowserFilePortV1(),
+                  ...(desktopShellFetch === null ? {} : { fetchImpl: desktopShellFetch }),
                 }),
               }
             : {}),

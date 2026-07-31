@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
-import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
+  createFileDownloadRequestCoordinatorInternalV1,
   handleFileDownloadRequestV1,
   sanitizeDownloadFilenameV1,
 } from "./file-download-handler.mts";
@@ -199,5 +200,109 @@ describe("handleFileDownloadRequestV1", () => {
     expect(response.status).toBe(500);
     expect(pulls).toBe(2);
     expect(await readdir(dir)).toEqual([]);
+  });
+});
+
+describe("Desktop download request coordinator", () => {
+  it("bounds concurrent requests and aborts active bodies during close", async () => {
+    let cancelledDeadlines = 0;
+    const coordinator = createFileDownloadRequestCoordinatorInternalV1(dir, {
+      maxConcurrent: 1,
+      scheduleTimeout: () =>
+        Object.freeze({
+          cancel() {
+            cancelledDeadlines += 1;
+          },
+        }),
+    });
+    const enteredBodyRead = Promise.withResolvers<void>();
+    const pending = new Request("http://shell/sillymaker/files/download", {
+      method: "POST",
+      headers: { "x-sillymaker-filename": encodeURIComponent("pending.json") },
+      body: new ReadableStream<Uint8Array>(
+        {
+          pull() {
+            enteredBodyRead.resolve();
+          },
+        },
+        { highWaterMark: 0 },
+      ),
+    });
+    const first = coordinator.handle(pending, "/download");
+    await enteredBodyRead.promise;
+    expect((await readdir(dir)).some((entry) => entry.endsWith(".tmp"))).toBe(true);
+
+    const rejected = await coordinator.handle(downloadRequestV1("late.json", "late"), "/download");
+    expect(rejected.status).toBe(503);
+
+    coordinator.close();
+    coordinator.close();
+    expect((await first).status).toBe(408);
+    expect(
+      (await coordinator.handle(downloadRequestV1("after-close.json", "late"), "/download")).status,
+    ).toBe(503);
+    expect(cancelledDeadlines).toBe(1);
+    expect(await readdir(dir)).toEqual([]);
+  });
+
+  it("uses an injected deterministic deadline and cleans the temporary file", async () => {
+    let expire!: () => void;
+    let cancelledDeadlines = 0;
+    const coordinator = createFileDownloadRequestCoordinatorInternalV1(dir, {
+      scheduleTimeout(callback) {
+        expire = callback;
+        return Object.freeze({
+          cancel() {
+            cancelledDeadlines += 1;
+          },
+        });
+      },
+    });
+    const enteredBodyRead = Promise.withResolvers<void>();
+    const pending = new Request("http://shell/sillymaker/files/download", {
+      method: "POST",
+      headers: { "x-sillymaker-filename": encodeURIComponent("pending.json") },
+      body: new ReadableStream<Uint8Array>(
+        {
+          pull() {
+            enteredBodyRead.resolve();
+          },
+        },
+        { highWaterMark: 0 },
+      ),
+    });
+    const response = coordinator.handle(pending, "/download");
+    await enteredBodyRead.promise;
+    expect((await readdir(dir)).some((entry) => entry.endsWith(".tmp"))).toBe(true);
+    expire();
+
+    expect((await response).status).toBe(408);
+    expect(cancelledDeadlines).toBe(1);
+    expect(await readdir(dir)).toEqual([]);
+  });
+
+  it("releases the concurrency slot and deadline after successful publication", async () => {
+    let scheduledDeadlines = 0;
+    let cancelledDeadlines = 0;
+    const coordinator = createFileDownloadRequestCoordinatorInternalV1(dir, {
+      maxConcurrent: 1,
+      scheduleTimeout: () => {
+        scheduledDeadlines += 1;
+        return Object.freeze({
+          cancel() {
+            cancelledDeadlines += 1;
+          },
+        });
+      },
+    });
+
+    expect(
+      (await coordinator.handle(downloadRequestV1("one.json", "one"), "/download")).status,
+    ).toBe(200);
+    expect(
+      (await coordinator.handle(downloadRequestV1("two.json", "two"), "/download")).status,
+    ).toBe(200);
+    expect(scheduledDeadlines).toBe(2);
+    expect(cancelledDeadlines).toBe(2);
   });
 });

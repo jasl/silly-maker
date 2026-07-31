@@ -200,7 +200,13 @@ function createNodeRunnerV1(): ProjectCommandRunnerV1 {
             : null,
     run: (command, args, options) =>
       new Promise<number>((resolve, reject) => {
-        const child = spawn(command, [...args], { cwd: options.cwd, stdio: "inherit" });
+        const child = spawn(command, [...args], {
+          cwd: options.cwd,
+          stdio: "inherit",
+          ...(options.environment === undefined
+            ? {}
+            : { env: { ...process.env, ...options.environment } }),
+        });
         child.once("error", reject);
         child.once("exit", (code) => resolve(code ?? 1));
       }),

@@ -7,9 +7,10 @@ import type { Plugin } from "vite";
 
 /**
  * Build-time collection of the human-facing version stamp: the application's
- * and the engine's `package.json` versions plus their git commits. Injected
- * into the page as `globalThis.__SILLYMAKER_VERSIONS__` and read at runtime
- * through `readVersionStampV1` (`@sillymaker/base`).
+ * and the engine's `package.json` versions plus their git commits (suffixed
+ * `-dirty` when the checkout has uncommitted changes). Injected into the
+ * page as `globalThis.__SILLYMAKER_VERSIONS__` and read at runtime through
+ * `readVersionStampV1` (`@sillymaker/base`).
  *
  * Every field degrades independently to `null` — no package version, no git
  * binary, a non-git checkout (e.g. a published engine package), or a detached
@@ -26,6 +27,14 @@ export interface CollectedVersionStampV1 {
 type RunGitV1 = (args: readonly string[], cwd: string) => string;
 const versionStampFieldMaxCodePointsV1 = 128;
 const nonPrintableVersionStampPatternV1 = /[\p{Cc}\p{Cf}\p{Cs}\p{Zl}\p{Zp}]/u;
+const fullGitCommitPatternV1 = /^(?:[0-9a-f]{40}|[0-9a-f]{64})(?:-dirty)?$/u;
+
+/**
+ * @internal One immutable Desktop build receipt crosses the process boundary
+ * through this key so Vite injection and artifact naming cannot observe
+ * different package/Git state.
+ */
+export const versionStampReceiptEnvironmentKeyInternalV1 = "SILLYMAKER_BUILD_VERSION_STAMP_V1";
 
 const defaultRunGitV1: RunGitV1 = (args, cwd) =>
   execFileSync("git", [...args], {
@@ -46,6 +55,69 @@ function boundedPrintableFieldV1(value: string): string | null {
   return nonPrintableVersionStampPatternV1.test(trimmed) ? null : trimmed;
 }
 
+function fieldDescriptorValueV1(
+  descriptors: PropertyDescriptorMap,
+  key: keyof CollectedVersionStampV1,
+): unknown {
+  const descriptor = descriptors[key];
+  return descriptor !== undefined && Object.prototype.hasOwnProperty.call(descriptor, "value")
+    ? descriptor.value
+    : null;
+}
+
+/**
+ * @internal Normalizes a process-boundary receipt without invoking accessors.
+ */
+export function normalizeCollectedVersionStampInternalV1(
+  source: unknown,
+): CollectedVersionStampV1 | null {
+  if (source === null || (typeof source !== "object" && typeof source !== "function")) return null;
+  let descriptors: PropertyDescriptorMap;
+  try {
+    descriptors = Object.getOwnPropertyDescriptors(source);
+  } catch {
+    return null;
+  }
+  const versionV1 = (key: "applicationVersion" | "engineVersion"): string | null => {
+    const value = fieldDescriptorValueV1(descriptors, key);
+    return typeof value === "string" ? boundedPrintableFieldV1(value) : null;
+  };
+  const commitV1 = (key: "applicationCommit" | "engineCommit"): string | null => {
+    const value = fieldDescriptorValueV1(descriptors, key);
+    return typeof value === "string" && fullGitCommitPatternV1.test(value) ? value : null;
+  };
+  return Object.freeze({
+    applicationVersion: versionV1("applicationVersion"),
+    applicationCommit: commitV1("applicationCommit"),
+    engineVersion: versionV1("engineVersion"),
+    engineCommit: commitV1("engineCommit"),
+  });
+}
+
+/** @internal Serializes one already-collected Desktop build receipt. */
+export function serializeVersionStampReceiptInternalV1(stamp: CollectedVersionStampV1): string {
+  return JSON.stringify(
+    normalizeCollectedVersionStampInternalV1(stamp) ?? {
+      applicationVersion: null,
+      applicationCommit: null,
+      engineVersion: null,
+      engineCommit: null,
+    },
+  );
+}
+
+/** @internal Reads a Desktop receipt; malformed ambient input is ignored. */
+export function parseVersionStampReceiptInternalV1(
+  serialized: string | undefined,
+): CollectedVersionStampV1 | null {
+  if (serialized === undefined) return null;
+  try {
+    return normalizeCollectedVersionStampInternalV1(JSON.parse(serialized) as unknown);
+  } catch {
+    return null;
+  }
+}
+
 function packageVersionV1(packageJsonPath: string): string | null {
   try {
     const parsed: unknown = JSON.parse(readFileSync(packageJsonPath, "utf8"));
@@ -61,8 +133,15 @@ function packageVersionV1(packageJsonPath: string): string | null {
 function gitCommitV1(directory: string, runGit: RunGitV1): string | null {
   try {
     const commit = runGit(["rev-parse", "--verify", "HEAD"], directory).trim();
-    return /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(commit) ? commit : null;
+    if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(commit)) return null;
+    const status = runGit(
+      ["status", "--porcelain=v1", "--untracked-files=normal"],
+      directory,
+    ).trim();
+    return `${commit}${status === "" ? "" : "-dirty"}`;
   } catch {
+    // A commit without a successful cleanliness probe would falsely look
+    // clean. Diagnostic metadata fails closed to "unknown" instead.
     return null;
   }
 }

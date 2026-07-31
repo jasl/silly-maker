@@ -13,6 +13,13 @@ import {
   resolveGamePackageV1,
 } from "@sillymaker/base";
 
+import type { CollectedVersionStampV1 } from "../vite/version-stamp.ts";
+import {
+  collectVersionStampV1,
+  normalizeCollectedVersionStampInternalV1,
+  serializeVersionStampReceiptInternalV1,
+  versionStampReceiptEnvironmentKeyInternalV1,
+} from "../vite/version-stamp.ts";
 import type { SillymakerProjectConfigV1 } from "./config.ts";
 import { joinAppPathV1, resolveStoryApplicationV1 } from "./config.ts";
 
@@ -384,7 +391,15 @@ export interface ProjectCommandRunnerV1 {
   /** Host OS used when desktop packaging omits an explicit target. */
   readonly hostPlatform: "darwin" | "windows" | "linux" | null;
   /** Runs a command to completion and resolves with its exit code. */
-  run(command: string, args: readonly string[], options: { readonly cwd: string }): Promise<number>;
+  run(
+    command: string,
+    args: readonly string[],
+    options: {
+      readonly cwd: string;
+      /** Additional child-process environment entries for one command. */
+      readonly environment?: Readonly<Record<string, string>>;
+    },
+  ): Promise<number>;
   /** Starts a long-running server process; kill() must terminate it. */
   start(
     command: string,
@@ -447,6 +462,22 @@ export async function buildStoryApplicationV1(
   deps: { readonly runner: ProjectCommandRunnerV1; readonly repositoryRoot: string },
   options: StoryBuildOptionsV1 = {},
 ): Promise<StoryBuildReportV1> {
+  return await buildStoryApplicationWithReceiptInternalV1(
+    project,
+    applicationId,
+    deps,
+    options,
+    null,
+  );
+}
+
+async function buildStoryApplicationWithReceiptInternalV1(
+  project: SillymakerProjectConfigV1,
+  applicationId: string,
+  deps: { readonly runner: ProjectCommandRunnerV1; readonly repositoryRoot: string },
+  options: StoryBuildOptionsV1,
+  versionStamp: CollectedVersionStampV1 | null,
+): Promise<StoryBuildReportV1> {
   const application = resolveStoryApplicationV1(project, applicationId);
   const web = requireWebTargetV1(application, applicationId);
   const args = ["run", "-A", "npm:vite", "build"];
@@ -455,6 +486,14 @@ export async function buildStoryApplicationV1(
   if (options.minify === false) args.push("--minify", "false");
   const exitCode = await deps.runner.run("deno", args, {
     cwd: applicationRootV1(deps.repositoryRoot, web.storyRoot),
+    ...(versionStamp === null
+      ? {}
+      : {
+          environment: {
+            [versionStampReceiptEnvironmentKeyInternalV1]:
+              serializeVersionStampReceiptInternalV1(versionStamp),
+          },
+        }),
   });
   return Object.freeze({
     applicationId: application.applicationId,
@@ -480,8 +519,9 @@ export type DesktopCompressionV1 = "xz" | "lzma" | "zstd";
 export interface StoryDesktopOptionsV1 extends StoryBuildOptionsV1 {
   /**
    * Explicit `deno desktop --target` triples; one package per entry, named
-   * `<Name>-<triple>.<ext>`. Empty/absent keeps the host-platform preview
-   * (`<Name>` plus the platform package extension, without a target suffix).
+   * `<Stem>-<triple>.<ext>`. Empty/absent keeps the host-platform preview
+   * (`<Stem>` plus its platform extension, without a target suffix). The
+   * package-internal stem adds bounded version/commit diagnostics when known.
    */
   readonly targets?: readonly DesktopTargetTripleV1[];
   /** Self-extracting payload compression (`--compress[=algo]`); off by default. */
@@ -505,13 +545,40 @@ export interface StoryDesktopReportV1 {
   readonly outputs: readonly StoryDesktopOutputV1[];
 }
 
+function artifactVersionSegmentV1(version: string | null): string | null {
+  if (version === null) return null;
+  const portable = version.replaceAll(/[^0-9A-Za-z_-]+/gu, "_").replace(/^_+|_+$/gu, "");
+  return portable === "" || portable.length > 64 ? null : portable;
+}
+
+function artifactCommitSegmentV1(commit: string | null): string | null {
+  if (commit === null) return null;
+  const match = /^(?<identity>[0-9a-f]{40}|[0-9a-f]{64})(?<dirty>-dirty)?$/u.exec(commit);
+  const identity = match?.groups?.identity;
+  if (identity === undefined) return null;
+  return `${identity.slice(0, 7)}${match?.groups?.dirty ?? ""}`;
+}
+
+/** @internal Bounded single-segment diagnostic artifact stem. */
+export function desktopArtifactStemInternalV1(
+  name: string,
+  stamp: CollectedVersionStampV1,
+): string {
+  const normalized = normalizeCollectedVersionStampInternalV1(stamp);
+  const parts = [
+    artifactVersionSegmentV1(normalized?.applicationVersion ?? null),
+    artifactCommitSegmentV1(normalized?.applicationCommit ?? null),
+  ].filter((part): part is string => part !== null);
+  return parts.reduce((stem, part) => `${stem}-${part}`, name);
+}
+
 /**
  * Per-OS package format. `deno desktop` infers the format from the output
  * extension; these are the preview package choices per platform (macOS
  * bundle, Windows installer, Linux AppImage).
  */
 function desktopOutputNameV1(
-  name: string,
+  stem: string,
   target: DesktopTargetTripleV1 | "host",
   hostPlatform: NonNullable<ProjectCommandRunnerV1["hostPlatform"]>,
 ): string {
@@ -524,9 +591,25 @@ function desktopOutputNameV1(
           ? "windows"
           : "linux";
   const targetSuffix = target === "host" ? "" : `-${target}`;
-  if (targetPlatform === "darwin") return `${name}${targetSuffix}.app`;
-  if (targetPlatform === "windows") return `${name}${targetSuffix}.msi`;
-  return `${name}${targetSuffix}.AppImage`;
+  const outputName =
+    targetPlatform === "darwin"
+      ? `${stem}${targetSuffix}.app`
+      : targetPlatform === "windows"
+        ? `${stem}${targetSuffix}.msi`
+        : `${stem}${targetSuffix}.AppImage`;
+  if (
+    outputName.length > 240 ||
+    new TextEncoder().encode(outputName).byteLength > 240 ||
+    outputName.includes("/") ||
+    outputName.includes("\\")
+  ) {
+    commandErrorV1(
+      "project.desktop_artifact_name_invalid",
+      "desktop artifact filename exceeds the portable single-segment budget",
+      "/web/desktop/name",
+    );
+  }
+  return outputName;
 }
 
 /** `.app` is a directory bundle; single-file formats verify the file itself. */
@@ -557,6 +640,28 @@ export async function desktopStoryApplicationV1(
   project: SillymakerProjectConfigV1,
   applicationId: string,
   deps: { readonly runner: ProjectCommandRunnerV1; readonly repositoryRoot: string },
+  options: StoryDesktopOptionsV1 = {},
+): Promise<StoryDesktopReportV1> {
+  return await desktopStoryApplicationWithDependenciesInternalV1(
+    project,
+    applicationId,
+    {
+      ...deps,
+      collectVersionStamp: collectVersionStampV1,
+    },
+    options,
+  );
+}
+
+/** @internal Test seam; the public Desktop command always uses the real collector. */
+export async function desktopStoryApplicationWithDependenciesInternalV1(
+  project: SillymakerProjectConfigV1,
+  applicationId: string,
+  deps: {
+    readonly runner: ProjectCommandRunnerV1;
+    readonly repositoryRoot: string;
+    readonly collectVersionStamp: (input: { readonly appRoot: string }) => CollectedVersionStampV1;
+  },
   options: StoryDesktopOptionsV1 = {},
 ): Promise<StoryDesktopReportV1> {
   const application = resolveStoryApplicationV1(project, applicationId);
@@ -636,15 +741,48 @@ export async function desktopStoryApplicationV1(
     }
   }
 
+  const appRoot = applicationRootV1(deps.repositoryRoot, web.storyRoot);
+  let collectedVersionStamp: CollectedVersionStampV1 | null = null;
+  try {
+    collectedVersionStamp = normalizeCollectedVersionStampInternalV1(
+      deps.collectVersionStamp({ appRoot }),
+    );
+  } catch {
+    // Human-facing diagnostics must never make a package build unavailable.
+  }
+  const versionStamp =
+    collectedVersionStamp ??
+    Object.freeze({
+      applicationVersion: null,
+      applicationCommit: null,
+      engineVersion: null,
+      engineCommit: null,
+    });
+  const artifactStem = desktopArtifactStemInternalV1(desktop.name, versionStamp);
+  // Resolve and validate every final filename before starting the web build or
+  // deleting any previous output.
+  const outputPlans = requestedTargets.map((target) =>
+    Object.freeze({
+      target,
+      outputName: desktopOutputNameV1(artifactStem, target, hostPlatform),
+    }),
+  );
+
   // The desktop bundle wraps the exact bytes a web build produces around
   // the webview shell: the shell serves dist/ itself through Deno.serve
   // (the runtime points the window at whatever it binds) and owns a
   // records API over the platform user-data directory. Ports may vary per
   // launch; persistence lives in files, so origin drift is harmless.
-  const build = await buildStoryApplicationV1(project, applicationId, deps, {
-    ...(options.sourcemap === undefined ? {} : { sourcemap: options.sourcemap }),
-    ...(options.minify === undefined ? {} : { minify: options.minify }),
-  });
+  const build = await buildStoryApplicationWithReceiptInternalV1(
+    project,
+    applicationId,
+    deps,
+    {
+      ...(options.sourcemap === undefined ? {} : { sourcemap: options.sourcemap }),
+      ...(options.minify === undefined ? {} : { minify: options.minify }),
+    },
+    versionStamp,
+  );
   if (!build.ok) {
     commandErrorV1(
       "project.desktop_build_failed",
@@ -678,6 +816,7 @@ export async function desktopStoryApplicationV1(
   const shellModuleNames = [
     "desktop-html.mts",
     "file-download-handler.mts",
+    "shell-http-admission.mts",
     "record-file-store.mts",
     "record-http-handler.mts",
     "shell-lifetime.mts",
@@ -719,8 +858,7 @@ export async function desktopStoryApplicationV1(
         : [`--compress=${compression}`];
 
   const outputs: StoryDesktopOutputV1[] = [];
-  for (const target of requestedTargets) {
-    const outputName = desktopOutputNameV1(desktop.name, target, hostPlatform);
+  for (const { target, outputName } of outputPlans) {
     const outputPath = `${desktopRoot}/${outputName}`;
     let exitCode: number;
     try {

@@ -39,7 +39,9 @@
 - 交付：`deno task build:web` 产出可直接静态托管的 `dist-web/`，`site:build`
   负责组合文档站。声明了 `build:desktop` 的应用可产出本机或交叉目标 Desktop
   preview（`.app`、Windows `.msi` 安装包、`.AppImage`）；shell 领取启动窗口，
-  原生关闭时会先排空本地 HTTP server。签名/公证与 durable store 仍有明确发布门槛。
+  以本次启动的精确 origin 和页面 capability 隔离私有本地路由；原生关闭时会先
+  取消未完成的非权威下载，再排空本地 HTTP server。签名/公证与 durable store
+  仍有明确发布门槛。
   分发者必须通过产品内页面、伴随文件或稳定链接提供
   SillyMaker MIT 文本和实际随包材料要求的 notice；技术 Artifact manifest
   可选且不是法律清单。Engine Lab、starter 与第一方 examples 的基线 HTML 已带稳定的

@@ -134,7 +134,7 @@ stored-record export 的 runtime。该 stamp 可以进入 Save envelope，因此
   compatibility、adoption 或 authoritative identity 判断。
 
 导出建议文件名中的 Host timestamp 与之不同：它只来自显式 metadata clock，不进入
-Save bytes、digest 或 identity。秒级后缀只帮助人类辨认导出时间，不承诺唯一；同一秒
+Save bytes、digest 或 identity。UTC `yyyyMMddHHmmss` 秒级后缀只帮助人类辨认导出时间，不承诺唯一；同一秒
 的冲突由实际下载 Host 使用 no-clobber suffix、浏览器下载策略或等价的原子
 collision policy 解决，不能靠重写 Save bytes 获得唯一性。
 

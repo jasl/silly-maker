@@ -5,13 +5,21 @@ import { describe, expect, it } from "vitest";
 
 import { createSyntheticCounterGamePackageV1 } from "@sillymaker/base/testkit";
 
+import {
+  parseVersionStampReceiptInternalV1,
+  versionStampReceiptEnvironmentKeyInternalV1,
+} from "../vite/version-stamp.ts";
 import { runProjectCliV1 } from "./cli.ts";
 import type {
   ProjectCommandRunnerV1,
   ProjectModuleLoaderV1,
   StoryDesktopOptionsV1,
 } from "./commands.ts";
-import { desktopStoryApplicationV1 } from "./commands.ts";
+import {
+  desktopArtifactStemInternalV1,
+  desktopStoryApplicationV1,
+  desktopStoryApplicationWithDependenciesInternalV1,
+} from "./commands.ts";
 import { defineSillymakerProjectV1 } from "./config.ts";
 
 const projectV1 = defineSillymakerProjectV1({
@@ -45,7 +53,12 @@ const projectV1 = defineSillymakerProjectV1({
 });
 
 interface FakeRunnerLogV1 {
-  readonly runs: { command: string; args: readonly string[]; cwd: string }[];
+  readonly runs: {
+    command: string;
+    args: readonly string[];
+    cwd: string;
+    environment?: Readonly<Record<string, string>>;
+  }[];
   readonly starts: { command: string; args: readonly string[]; killed: boolean }[];
   readonly writes: { path: string; contents: string }[];
   readonly copies: { source: string; destination: string }[];
@@ -71,7 +84,12 @@ function createFakeRunnerV1(input: {
   const runner: ProjectCommandRunnerV1 = {
     hostPlatform: input.hostPlatform ?? "darwin",
     run: (command, args, options) => {
-      log.runs.push({ command, args, cwd: options.cwd });
+      log.runs.push({
+        command,
+        args,
+        cwd: options.cwd,
+        ...(options.environment === undefined ? {} : { environment: options.environment }),
+      });
       return Promise.resolve(input.exitCode ?? 0);
     },
     start(command, args) {
@@ -194,6 +212,8 @@ function desktopShellFilesV1(): Record<string, string> {
       "export const desktopHtmlV1 = 1;\n",
     [fileURLToPath(new URL("../desktop/file-download-handler.mts", import.meta.url))]:
       "export const fileDownloadHandlerV1 = 1;\n",
+    [fileURLToPath(new URL("../desktop/shell-http-admission.mts", import.meta.url))]:
+      "export const shellHttpAdmissionV1 = 1;\n",
     [fileURLToPath(new URL("../desktop/record-file-store.mts", import.meta.url))]:
       "export const storeV1 = 1;\n",
     [fileURLToPath(new URL("../desktop/record-http-handler.mts", import.meta.url))]:
@@ -431,6 +451,7 @@ describe("runProjectCliV1", () => {
     expect(written).toContain("/repo/test/dist-desktop/staging/desktop-html.mts");
     expect(written).toContain("/repo/test/dist-desktop/staging/record-file-store.mts");
     expect(written).toContain("/repo/test/dist-desktop/staging/file-download-handler.mts");
+    expect(written).toContain("/repo/test/dist-desktop/staging/shell-http-admission.mts");
     expect(written).toContain("/repo/test/dist-desktop/staging/record-http-handler.mts");
     expect(written).toContain("/repo/test/dist-desktop/staging/shell-lifetime.mts");
     expect(written).toContain("/repo/test/dist-desktop/staging/static-file-path.mts");
@@ -765,6 +786,91 @@ describe("runProjectCliV1", () => {
     const windowsRun = fake.log.runs[2];
     expect(darwinRun?.args).toContain("--icon");
     expect(windowsRun?.args).not.toContain("--icon");
+  });
+
+  it("desktop artifact names carry the app version and commit when known", async () => {
+    const fullCommit = "a".repeat(40);
+    const stampV1 = Object.freeze({
+      applicationVersion: "0.1.0",
+      applicationCommit: `${fullCommit}-dirty`,
+      engineVersion: null,
+      engineCommit: null,
+    });
+    const fake = createFakeRunnerV1({
+      files: Object.freeze({
+        "/repo/test/dist-desktop/SyntheticApp-0_1_0-aaaaaaa-dirty-x86_64-pc-windows-msvc.msi":
+          "msi",
+        ...desktopShellFilesV1(),
+      }),
+    });
+    const seenAppRoots: string[] = [];
+    const report = await desktopStoryApplicationWithDependenciesInternalV1(
+      projectV1,
+      "synthetic",
+      {
+        runner: fake.runner,
+        repositoryRoot: "/repo",
+        collectVersionStamp: ({ appRoot }: { readonly appRoot: string }) => {
+          seenAppRoots.push(appRoot);
+          return stampV1;
+        },
+      },
+      { targets: ["x86_64-pc-windows-msvc"] },
+    );
+    expect(seenAppRoots).toEqual(["/repo/test"]);
+    expect(report).toMatchObject({
+      ok: true,
+      outputPath:
+        "/repo/test/dist-desktop/SyntheticApp-0_1_0-aaaaaaa-dirty-x86_64-pc-windows-msvc.msi",
+    });
+    expect(fake.log.runs[1]?.args).toContain(
+      "../SyntheticApp-0_1_0-aaaaaaa-dirty-x86_64-pc-windows-msvc.msi",
+    );
+    expect(
+      parseVersionStampReceiptInternalV1(
+        fake.log.runs[0]?.environment?.[versionStampReceiptEnvironmentKeyInternalV1],
+      ),
+    ).toEqual(stampV1);
+
+    // The host preview carries the same stem; a commit without a version
+    // (or vice versa) keeps only the known part.
+    const hostFake = createFakeRunnerV1({
+      files: Object.freeze({
+        "/repo/test/dist-desktop/SyntheticApp-aaaaaaa-dirty.app/Contents/Info.plist": "<plist/>",
+        ...desktopShellFilesV1(),
+      }),
+    });
+    const hostReport = await desktopStoryApplicationWithDependenciesInternalV1(
+      projectV1,
+      "synthetic",
+      {
+        runner: hostFake.runner,
+        repositoryRoot: "/repo",
+        collectVersionStamp: () => ({ ...stampV1, applicationVersion: null }),
+      },
+    );
+    expect(hostReport).toMatchObject({
+      ok: true,
+      outputPath: "/repo/test/dist-desktop/SyntheticApp-aaaaaaa-dirty.app",
+    });
+  });
+
+  it("bounds and sanitizes package-internal desktop artifact diagnostics", () => {
+    const stampV1 = (applicationVersion: string | null, applicationCommit: string | null) =>
+      Object.freeze({
+        applicationVersion,
+        applicationCommit,
+        engineVersion: null,
+        engineCommit: null,
+      });
+    expect(
+      desktopArtifactStemInternalV1("App", stampV1("1.0.0-rc.1", `${"b".repeat(64)}-dirty`)),
+    ).toBe("App-1_0_0-rc_1-bbbbbbb-dirty");
+    expect(desktopArtifactStemInternalV1("App", stampV1("0.0.0", null))).toBe("App-0_0_0");
+    expect(desktopArtifactStemInternalV1("App", stampV1(null, "../../escape"))).toBe("App");
+    expect(desktopArtifactStemInternalV1("App", stampV1("///", null))).toBe("App");
+    expect(desktopArtifactStemInternalV1("App", stampV1("x".repeat(65), null))).toBe("App");
+    expect(desktopArtifactStemInternalV1("App", stampV1(null, null))).toBe("App");
   });
 
   it("answers usage errors on stderr with exit code 2", async () => {

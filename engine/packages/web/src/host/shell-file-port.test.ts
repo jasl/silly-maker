@@ -2,6 +2,10 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { parsePositiveSafeInteger, type HostFilePortV1 } from "@sillymaker/base";
+import {
+  createDesktopShellFetchInternalV1,
+  desktopShellCapabilityHeaderInternalV1,
+} from "./desktop-shell-capability.ts";
 import { createShellFilePortV1 } from "./shell-file-port.ts";
 
 const pickerV1: HostFilePortV1 = Object.freeze({
@@ -13,11 +17,15 @@ const pickerV1: HostFilePortV1 = Object.freeze({
 
 describe("createShellFilePortV1", () => {
   it("POSTs downloads to the shell endpoint with the encoded filename", async () => {
+    const capability = "a".repeat(43);
     const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ path: "/x" })));
     const port = createShellFilePortV1({
       baseUrl: "/sillymaker/files",
       picker: pickerV1,
-      fetchImpl: fetchImpl as unknown as typeof fetch,
+      fetchImpl: createDesktopShellFetchInternalV1(
+        capability,
+        fetchImpl as unknown as typeof fetch,
+      ),
     });
     await port.download({
       filename: "存档 备份.json",
@@ -28,9 +36,10 @@ describe("createShellFilePortV1", () => {
     const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe("/sillymaker/files/download");
     expect(init.method).toBe("POST");
-    expect((init.headers as Record<string, string>)["x-sillymaker-filename"]).toBe(
-      encodeURIComponent("存档 备份.json"),
-    );
+    const headers = new Headers(init.headers);
+    expect(headers.get("x-sillymaker-filename")).toBe(encodeURIComponent("存档 备份.json"));
+    expect(headers.get(desktopShellCapabilityHeaderInternalV1)).toBe(capability);
+    expect(headers.get("content-type")).toBe("application/json");
     expect(new TextDecoder().decode(init.body as Uint8Array)).toBe("{}");
   });
 

@@ -17,6 +17,21 @@ export interface ShellServerLikeV1 {
   shutdown(): Promise<void>;
 }
 
+/**
+ * Builds the non-authoritative request drain used only after renderer
+ * preparation has acknowledged the exact current autosave. Active downloads
+ * are cancelled before the server begins its graceful record-request drain.
+ */
+export function createShellServerDrainInternalV1(input: {
+  readonly cancelNonAuthoritativeRequests: () => void;
+  readonly shutdown: ShellServerLikeV1["shutdown"];
+}): ShellServerLikeV1["shutdown"] {
+  return async (): Promise<void> => {
+    input.cancelNonAuthoritativeRequests();
+    await input.shutdown();
+  };
+}
+
 let nextRendererFlushRequestIdV1 = 0;
 
 function readOwnDataPropertyV1(value: object, key: string): unknown {
