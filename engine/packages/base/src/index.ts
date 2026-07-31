@@ -136,7 +136,12 @@ export {
   saveJsonLimitsV1,
   saveAnnotationLimitsV1,
   setContentMaturityFlagV1,
+  emptyVersionStampV1,
+  formatVersionStampV1,
+  readVersionStampV1,
+  versionStampGlobalKeyV1,
 } from "./contracts/index.ts";
+export type { VersionStampV1 } from "./contracts/index.ts";
 export {
   collectGamePackageDiagnosticsV1,
   createGameAuthoringKitV1,

@@ -40,7 +40,7 @@
 bounded strict JSON decode        （现有 saveJsonLimitsV1 限额保持不变）
   -> envelope shell parse         （formatRevision、recordRevision、provenance、
                                     slot、savedAt、stateDigest、simulationLineage、
-                                    bounded annotation；
+                                    bounded annotation、bounded versionStamp；
                                     snapshot 保持受限 raw 结构）
   -> format-specific raw snapshot digest verification
   -> engine-owned envelope format migration （formatRevision N -> N+1）
@@ -66,6 +66,17 @@ envelope 外壳字段，snapshot 保持为受限 raw 数据。
   State migration 默认原样保留且不得读取、生成或改写它；只有明确的
   engine-owned envelope format migration 可以转换 annotation shape，并必须为
   absent、summary、note 与 cleared-note 提供 byte/semantic corpus；
+- 目标 `versionStamp` 是 bounded presentation/runtime persistence metadata，记录
+  Save candidate 中 Snapshot 的 application/engine capture origin。它会改变
+  envelope bytes，但不参与 Snapshot/`stateDigest`、compatibility、adoption、
+  authoritative identity、CommandLog 或 replay。State migration、annotation
+  rewrite、rotation 与 stored-record export 默认原样保留；不得用运行 migration
+  或 export 的当前 build stamp 覆盖。load/import compatibility 不读取 stamp，
+  post-load/import fresh capture 使用当前 service stamp，不传播旧 envelope
+  metadata。absent/all-null、完全 malformed、
+  accessor-only、hostile Proxy 或 collector throw 规范化为 field absent；mixed
+  malformed fields 逐字段丢弃后可形成 partial stamp，partial/full 经 bounded
+  printable normalization、copy 与 freeze，且不调用 getter；
 - `stateDigest` 校验对象是存档原文的 snapshot，并在 envelope shell parse
   之后、任何会改写 snapshot 的 format/State migration 之前完成；verifier 由已解析的
   stored `formatRevision` 选择。Envelope format migration 默认只能改外壳；若历史格式
@@ -124,6 +135,10 @@ interface SaveStateMigrationV1 {
 - **玩家可读结果**：rejected / inspect_only
   必须映射为用户可读文案与可行动选项（回滚版本、导出存档、放弃迁移），诊断码不是最终用户界面；
 - 迁移过程与结果进入现有结构化 diagnostics 与 debug bundle。
+- **导出文件名**：Host 可使用显式 metadata clock 生成秒级 timestamp
+  suggested filename，但它不进入 Save bytes/identity，也不保证同一秒唯一。实际
+  Desktop/Browser 下载必须以 no-clobber suffix、浏览器下载策略或等价的原子
+  collision policy 保留所有导出；不得通过修改 payload 来消除文件名冲突。
 
 ## 5. Release acceptance
 
@@ -138,6 +153,14 @@ interface SaveStateMigrationV1 {
   lineage 上限的边界样本）；
 - fixture corpus 覆盖 annotation absent、summary-only、note-only、summary + note
   与 cleared-note，并证明 State migration 不消费或改写 annotation；
+- fixture corpus 覆盖 `versionStamp` absent/all-null/partial/full/malformed/throw、
+  normalized freeze 与 fixed bytes；headless absent/all-null 保留 PF1 unstamped
+  oracle，fixed browser stamp 有独立 byte oracle，并证明 migration、annotation
+  rewrite、rotation 与 stored-record export 保留 Snapshot capture origin；
+  load/import compatibility 忽略 stamp，post-load/import fresh capture 使用当前
+  service stamp；
+- Host acceptance 覆盖同一秒重复 suggested filename，证明 collision policy
+  no-clobber 且两个落盘 payload bytes 都等于各自导出内容；
 - fixture 代表用户可见的兼容承诺，符合项目测试原则；它不是计划执行凭据；
 - 支持范围与放弃策略是显式、文档化的产品决定，不是缺省的无限承诺。
 

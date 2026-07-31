@@ -111,6 +111,33 @@ default 或 DOM。其 normalized output 进入 Save annotation，但不进入 Sn
 digest、CommandLog 或 replay。玩家 note 是显式 persistence input，不是 Story
 callback。
 
+另一个窄类别是 **bounded presentation/runtime persistence metadata**。目标
+`versionStamp` 由 persistence composition root 在每个 service 生命周期内采集一次，
+标识创建 Save candidate 所包含 Snapshot 的 application/engine build，即
+**Snapshot capture origin**；它不标识之后执行 annotation rewrite、rotation 或
+stored-record export 的 runtime。该 stamp 可以进入 Save envelope，因此会
+改变 Save/export bytes，但必须：
+
+- 先把每个字段规范化为最多 128 Unicode code points、trimmed 且不含
+  control/format/surrogate/line-separator/paragraph-separator 的 plain
+  string/null，再 defensive copy 与 freeze；
+- absent、all-null、完全 malformed、accessor-only、hostile Proxy 或 collector
+  throw 都降级为 stamp absent，不阻止 Snapshot capture 或 physical Save write；
+  mixed malformed fields 逐字段降级为 null，仍有合法字段时形成 partial stamp，且
+  normalization 不调用 getter；
+- annotation rewrite、autosave rotation 与 stored-record export 原样保留
+  capture-origin stamp，不用当前 runtime stamp 覆盖；load/import compatibility
+  不读取 stamp，而 post-load/import 的 fresh capture 使用当前 service 已采集的
+  stamp，不传播旧 envelope metadata；
+- 不进入 Snapshot、`stateDigest`、BuildIdentity/simulation digest、CommandLog、
+  replay、gameplay transition 或 authoritative evidence，也不参与 Save
+  compatibility、adoption 或 authoritative identity 判断。
+
+导出建议文件名中的 Host timestamp 与之不同：它只来自显式 metadata clock，不进入
+Save bytes、digest 或 identity。秒级后缀只帮助人类辨认导出时间，不承诺唯一；同一秒
+的冲突由实际下载 Host 使用 no-clobber suffix、浏览器下载策略或等价的原子
+collision policy 解决，不能靠重写 Save bytes 获得唯一性。
+
 ## 3. Numeric contract
 
 ### 3.1 Authoritative wire values

@@ -341,7 +341,9 @@ export type AuthoringConsumerTypesV1 = {
 };
 
 declare const inferenceWitnessSchemaV1: StandardSchemaLikeV1<{ readonly count: number }> & {
-  readonly "~standard": { readonly types: { readonly output: { readonly count: number } } };
+  readonly "~standard": {
+    readonly types: { readonly output: { readonly count: number } };
+  };
 };
 export const inferredStandardSchemaOutputV1: { readonly count: number } = fromStandardSchemaV1(
   inferenceWitnessSchemaV1,
@@ -469,3 +471,15 @@ export type { CanonicalJsonTraversalObserverInternalV1 } from "@sillymaker/base"
 export { canonicalJsonBytesObservedInternalV1 } from "@sillymaker/base";
 // @ts-expect-error combined canonical/Strict encoding stays package-internal
 export { canonicalJsonBytesWithStrictLimitsInternalV1 } from "@sillymaker/base";
+// @ts-expect-error exact autosave attempt receipts stay package-internal
+export type { AutoSaveAttemptReceiptInternalV1 } from "@sillymaker/base/runtime";
+// @ts-expect-error exact autosave enqueue stays package-internal
+export { enqueueAutoSaveWithReceiptInternalV1 } from "@sillymaker/base/runtime";
+// @ts-expect-error exact autosave anchor repair stays package-internal
+export { establishAutoSaveAnchorWithReceiptInternalV1 } from "@sillymaker/base/runtime";
+// @ts-expect-error persistence autosave receipts stay package-internal
+export type { PersistenceAutoSaveAttemptReceiptInternalV1 } from "@sillymaker/base/runtime";
+// @ts-expect-error exact persistence autosave capture stays package-internal
+export { captureAutoSaveWithReceiptInternalV1 } from "@sillymaker/base/runtime";
+// @ts-expect-error player-persistence close fencing stays package-internal
+export { fencePersistencePlayerMutationsInternalV1 } from "@sillymaker/base/runtime";

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { randomUUID } from "node:crypto";
 import { copyFile, lstat, mkdir, open, realpath, rename, stat, unlink } from "node:fs/promises";
-import { isAbsolute, posix, relative, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, posix, relative, resolve, sep } from "node:path";
 
 const windowsReservedNamePatternV1 = /^(?:con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(?:\..*)?$/iu;
 const windowsInvalidFilenameCharacterPatternV1 = /[<>:"|?*]/u;
@@ -31,6 +31,17 @@ export interface MaterializeAssetSelectionResultV1 {
 function escapesRootV1(root: string, candidate: string): boolean {
   const path = relative(root, candidate);
   return path === ".." || path.startsWith(`..${sep}`) || isAbsolute(path);
+}
+
+function assertRootsDoNotOverlapV1(realSourceRoot: string, realOutputRoot: string): void {
+  if (
+    !escapesRootV1(realSourceRoot, realOutputRoot) ||
+    !escapesRootV1(realOutputRoot, realSourceRoot)
+  ) {
+    throw new TypeError(
+      `asset selection source and output roots must not overlap: ${realSourceRoot} and ${realOutputRoot}`,
+    );
+  }
 }
 
 function isMissingPathErrorV1(error: unknown): boolean {
@@ -63,6 +74,22 @@ async function lstatIfPresentV1(path: string): Promise<Awaited<ReturnType<typeof
   } catch (error) {
     if (isMissingPathErrorV1(error)) return null;
     throw error;
+  }
+}
+
+async function resolveProspectiveRealPathV1(path: string): Promise<string> {
+  let existingAncestor = path;
+  const missingSegments: string[] = [];
+  while (true) {
+    try {
+      return resolve(await realpath(existingAncestor), ...missingSegments.toReversed());
+    } catch (error) {
+      if (!isMissingPathErrorV1(error)) throw error;
+      const parent = dirname(existingAncestor);
+      if (parent === existingAncestor) throw error;
+      missingSegments.push(basename(existingAncestor));
+      existingAncestor = parent;
+    }
   }
 }
 
@@ -127,10 +154,11 @@ async function resolveSourceFileV1(
   return Object.freeze({ realSource, size: sourceStat.size });
 }
 
-async function pinOutputRootV1(outputDirectory: string): Promise<string> {
+async function pinOutputRootV1(outputDirectory: string, realSourceRoot: string): Promise<string> {
   const outputRoot = resolve(outputDirectory);
   let outputStat = await lstatIfPresentV1(outputRoot);
   if (outputStat === null) {
+    assertRootsDoNotOverlapV1(realSourceRoot, await resolveProspectiveRealPathV1(outputRoot));
     await mkdir(outputRoot, { recursive: true });
     outputStat = await lstat(outputRoot);
   }
@@ -149,6 +177,7 @@ async function pinOutputRootV1(outputDirectory: string): Promise<string> {
   if (!confirmedStat.isDirectory()) {
     throw new TypeError(`asset selection output root is not a directory: ${outputRoot}`);
   }
+  assertRootsDoNotOverlapV1(realSourceRoot, realOutputRoot);
   return realOutputRoot;
 }
 
@@ -266,6 +295,8 @@ async function unlinkIfPresentV1(path: string): Promise<void> {
  *   duplicates are de-duplicated; portable case/Unicode aliases throw.
  * - A source root or selected source path may resolve through symbolic links,
  *   but the selected real file must remain inside the pinned real source root.
+ * - The pinned real source and output roots must not be equal or contain one
+ *   another. A missing overlapping output root is rejected before it is made.
  * - The output root, its selected directory components, and existing output
  *   leaves must not be symbolic links. Output leaves are regular files.
  * - A planned file missing from the payload throws: the plan was computed
@@ -317,7 +348,7 @@ export async function materializeAssetSelectionV1(input: {
       ...(await resolveSourceFileV1(realRoot, relativePath, segments)),
     })),
   );
-  const realOutputRoot = await pinOutputRootV1(input.outputDirectory);
+  const realOutputRoot = await pinOutputRootV1(input.outputDirectory, realRoot);
 
   let totalBytes = 0;
   for (const { realSource, relativePath, segments, size } of sourceFiles) {

@@ -677,6 +677,7 @@ export async function desktopStoryApplicationV1(
   // or the `deno desktop` type-check fails on a missing local specifier.
   const shellModuleNames = [
     "desktop-html.mts",
+    "file-download-handler.mts",
     "record-file-store.mts",
     "record-http-handler.mts",
     "shell-lifetime.mts",

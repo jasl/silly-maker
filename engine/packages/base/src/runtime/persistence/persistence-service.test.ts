@@ -23,6 +23,7 @@ import type {
   SaveRecordEnvelopeV1,
   SimulationAdoptionV1,
 } from "../../contracts/persistence.ts";
+import type { VersionStampV1 } from "../../contracts/version-stamp.ts";
 import type { GameSnapshotEnvelopeV1, RunIntegrityV1 } from "../../contracts/snapshot.ts";
 import {
   createGameSnapshotEnvelopeSchemaV1,
@@ -48,8 +49,10 @@ import { createGameSessionV1 } from "../session/game-session.ts";
 import { classifySaveCompatibilityV1 } from "./compatibility.ts";
 import { decodeSaveRecordV1, encodeSaveRecordV1 } from "./save-codec.ts";
 import {
+  captureAutoSaveWithReceiptInternalV1,
   createInstrumentedPersistenceServiceV1,
   createPersistenceServiceV1,
+  fencePersistencePlayerMutationsInternalV1,
 } from "./persistence-service.ts";
 import { createSaveRepositoryV1 } from "./save-repository.ts";
 import type { SaveRepositorySlotMetadataV1, SaveRepositoryV1 } from "./save-repository.ts";
@@ -193,7 +196,9 @@ function exactObjectV1(value: unknown, keys: readonly string[]): Readonly<Record
 const stateSchemaV1: RuntimeSchemaV1<SyntheticStateV1> = Object.freeze({
   parse(value: unknown) {
     const fields = exactObjectV1(value, ["count", "referenceId"]);
-    if (typeof fields.referenceId !== "string") throw new TypeError("invalid reference ID");
+    if (typeof fields.referenceId !== "string") {
+      throw new TypeError("invalid reference ID");
+    }
     return Object.freeze({
       count: parseNonNegativeSafeInteger(fields.count),
       referenceId: fields.referenceId,
@@ -204,14 +209,18 @@ const stateSchemaV1: RuntimeSchemaV1<SyntheticStateV1> = Object.freeze({
 const rngSchemaV1: RuntimeSchemaV1<SyntheticRngV1> = Object.freeze({
   parse(value: unknown) {
     const fields = exactObjectV1(value, ["cursor"]);
-    return Object.freeze({ cursor: parseNonNegativeSafeInteger(fields.cursor) });
+    return Object.freeze({
+      cursor: parseNonNegativeSafeInteger(fields.cursor),
+    });
   },
 });
 
 const snapshotSchemaV1 = createGameSnapshotEnvelopeSchemaV1(stateSchemaV1, rngSchemaV1);
 const provenanceSchemaV1: RuntimeSchemaV1<BuildProvenanceV1> = Object.freeze({
   parse(value: unknown) {
-    if (value === null || typeof value !== "object") throw new TypeError("invalid provenance");
+    if (value === null || typeof value !== "object") {
+      throw new TypeError("invalid provenance");
+    }
     return value as BuildProvenanceV1;
   },
 });
@@ -240,7 +249,9 @@ const slotSchemaV1: RuntimeSchemaV1<SaveRepositorySlotMetadataV1> = Object.freez
 });
 const lineageSchemaV1: RuntimeSchemaV1<readonly SimulationAdoptionV1[]> = Object.freeze({
   parse(value: unknown) {
-    if (!Array.isArray(value)) throw new TypeError("invalid simulation lineage");
+    if (!Array.isArray(value)) {
+      throw new TypeError("invalid simulation lineage");
+    }
     return Object.freeze(value) as readonly SimulationAdoptionV1[];
   },
 });
@@ -408,6 +419,7 @@ function failReplacementCommitV1(
 }
 
 interface FixtureOptionsV1 {
+  readonly collectVersionStamp?: () => VersionStampV1;
   readonly records?: HostAtomicRecordStoreV1;
   readonly ownerId?: SessionLeaseOwnerId;
   readonly manualSaveSlotCount?: number;
@@ -436,7 +448,11 @@ async function fixtureV1(options: FixtureOptionsV1 = {}) {
     ownerId: options.ownerId ?? ownerIdV1,
     nextHandoffRequestId: () => "handoff.persistence-service-test" as never,
   });
-  const baseRepository = createSaveRepositoryV1({ records, storyId: storyIdV1, codec: codecV1 });
+  const baseRepository = createSaveRepositoryV1({
+    records,
+    storyId: storyIdV1,
+    codec: codecV1,
+  });
   const repository = options.decorateRepository?.(baseRepository, lease, records) ?? baseRepository;
   const serviceLease = options.decorateLease?.(lease, records) ?? lease;
   const validation: SaveImportValidationContextV1<
@@ -483,6 +499,9 @@ async function fixtureV1(options: FixtureOptionsV1 = {}) {
       ? {}
       : { leaseAcquisition: options.leaseAcquisition }),
     ...(options.summarizeSave === undefined ? {} : { summarizeSave: options.summarizeSave }),
+    ...(options.collectVersionStamp === undefined
+      ? {}
+      : { collectVersionStamp: options.collectVersionStamp }),
   });
   return Object.freeze({
     ...created,
@@ -536,7 +555,9 @@ function createSemanticallyTamperingStoreV1() {
   const records: HostAtomicRecordStoreV1 = Object.freeze({
     async read(...args: Parameters<HostAtomicRecordStoreV1["read"]>) {
       const stored = await memory.read(...args);
-      if (!tamperSaveReads || args[0] !== "save" || stored === null) return stored;
+      if (!tamperSaveReads || args[0] !== "save" || stored === null) {
+        return stored;
+      }
       const parsed = JSON.parse(new TextDecoder().decode(stored.bytes)) as unknown;
       return Object.freeze({
         ...stored,
@@ -640,6 +661,303 @@ async function corruptAutoCurrentV1(fixture: Awaited<ReturnType<typeof fixtureV1
 }
 
 describe("PersistenceServiceV1", () => {
+  it("fences every mutable player ingress while preserving exact internal Auto capture", async () => {
+    const initialLineage = lineageV1(1, provenanceV1().resolved.simulationDigest);
+    const fixture = await fixtureV1({ initialLineage });
+
+    fencePersistencePlayerMutationsInternalV1(fixture.service);
+    fencePersistencePlayerMutationsInternalV1(fixture.service);
+    expect(fixture.service).not.toHaveProperty("fencePlayerMutations");
+
+    fixture.service.captureAutoSave(snapshotV1(3));
+    fixture.service.establishAnchor(snapshotV1(4), Object.freeze([]));
+    await fixture.service.autoSaveIdle();
+    await expect(fixture.repository.read("auto.current")).resolves.toMatchObject({
+      health: "empty",
+    });
+    expect(fixture.service.getSimulationLineage()).toEqual(initialLineage);
+
+    for (const operation of [
+      fixture.service.port.save("quick"),
+      fixture.service.port.annotateSave("quick", "blocked"),
+      fixture.service.port.load("quick"),
+      fixture.service.port.clear("quick"),
+      fixture.service.port.importSave(Uint8Array.of(1)),
+    ]) {
+      await expect(operation).resolves.toEqual({
+        kind: "faulted",
+        code: "runtime_disposed",
+      });
+    }
+    for (const operation of [
+      fixture.service.port.lease.requestHandoff(),
+      fixture.service.port.lease.approveHandoff("handoff.persistence-service-test" as never),
+      fixture.service.port.lease.takeOver(),
+      fixture.service.port.lease.release(),
+    ]) {
+      await expect(operation).resolves.toEqual({
+        kind: "rejected",
+        code: "conflict",
+      });
+    }
+
+    await expect(
+      captureAutoSaveWithReceiptInternalV1(fixture.service, fixture.session.getCurrentSnapshot()),
+    ).resolves.toEqual({ kind: "saved" });
+    await expect(fixture.repository.read("auto.current")).resolves.toMatchObject({
+      health: "valid",
+      record: { snapshot: { commandSequence: 0 } },
+    });
+  });
+
+  it("joins an in-flight exact Snapshot and never rotates the same verified Auto Save twice", async () => {
+    const delayed = createDelayedSaveStoreV1();
+    const fixture = await fixtureV1({ records: delayed.records });
+    delayed.blockSaveWrites();
+
+    await fixture.session.dispatch({ kind: "increment" });
+    await delayed.waitUntilWriteStarts();
+    const snapshot = fixture.session.getCurrentSnapshot();
+    const exact = captureAutoSaveWithReceiptInternalV1(fixture.service, snapshot);
+    delayed.releaseWrites();
+
+    await expect(exact).resolves.toEqual({ kind: "saved" });
+    await expect(captureAutoSaveWithReceiptInternalV1(fixture.service, snapshot)).resolves.toEqual({
+      kind: "saved",
+    });
+    await expect(fixture.repository.read("auto.current")).resolves.toMatchObject({
+      health: "valid",
+      record: {
+        recordRevision: 1,
+        snapshot: { commandSequence: 1 },
+      },
+    });
+    await expect(fixture.repository.read("auto.previous")).resolves.toMatchObject({
+      health: "empty",
+    });
+  });
+
+  it("joins the current anchor repair without rotating the repaired Snapshot twice", async () => {
+    const delayed = createDelayedSaveStoreV1();
+    const fixture = await fixtureV1({ records: delayed.records });
+    delayed.blockSaveWrites();
+
+    await fixture.session.dispatch({ kind: "increment" });
+    await delayed.waitUntilWriteStarts();
+    const anchor = snapshotV1(0);
+    fixture.service.establishAnchor(anchor, Object.freeze([]));
+    fencePersistencePlayerMutationsInternalV1(fixture.service);
+    const exact = captureAutoSaveWithReceiptInternalV1(fixture.service, anchor);
+    delayed.releaseWrites();
+
+    await expect(exact).resolves.toEqual({ kind: "saved" });
+    await expect(fixture.repository.read("auto.current")).resolves.toMatchObject({
+      health: "valid",
+      record: {
+        recordRevision: 2,
+        snapshot: { commandSequence: 0 },
+      },
+    });
+    await expect(fixture.repository.read("auto.previous")).resolves.toMatchObject({
+      health: "valid",
+      record: {
+        recordRevision: 1,
+        snapshot: { commandSequence: 1 },
+      },
+    });
+  });
+
+  it("never reuses a verified Auto receipt after its lease fence is released", async () => {
+    const fixture = await fixtureV1();
+    const snapshot = fixture.session.getCurrentSnapshot();
+
+    await expect(captureAutoSaveWithReceiptInternalV1(fixture.service, snapshot)).resolves.toEqual({
+      kind: "saved",
+    });
+    await expect(fixture.service.port.lease.release()).resolves.toMatchObject({
+      kind: "updated",
+      status: { kind: "unowned" },
+    });
+    fencePersistencePlayerMutationsInternalV1(fixture.service);
+
+    await expect(captureAutoSaveWithReceiptInternalV1(fixture.service, snapshot)).resolves.toEqual({
+      kind: "failed",
+      result: { kind: "rejected", code: "unavailable" },
+    });
+  });
+
+  it("never joins an in-flight Auto attempt captured under an older lease fence", async () => {
+    const delayed = createDelayedSaveStoreV1();
+    const fixture = await fixtureV1({ records: delayed.records });
+    delayed.blockSaveWrites();
+
+    await fixture.session.dispatch({ kind: "increment" });
+    await delayed.waitUntilWriteStarts();
+    const snapshot = fixture.session.getCurrentSnapshot();
+    await expect(fixture.service.port.lease.release()).resolves.toMatchObject({
+      kind: "updated",
+      status: { kind: "unowned", fencingToken: 1 },
+    });
+    await expect(fixture.service.port.lease.takeOver()).resolves.toMatchObject({
+      kind: "updated",
+      status: { kind: "owned", fencingToken: 2 },
+    });
+    fencePersistencePlayerMutationsInternalV1(fixture.service);
+    const exact = captureAutoSaveWithReceiptInternalV1(fixture.service, snapshot);
+    delayed.releaseWrites();
+
+    await expect(exact).resolves.toEqual({ kind: "saved" });
+    await expect(fixture.repository.read("auto.current")).resolves.toMatchObject({
+      health: "valid",
+      record: {
+        recordRevision: 1,
+        snapshot: { commandSequence: 1 },
+      },
+    });
+    await expect(fixture.repository.read("auto.previous")).resolves.toMatchObject({
+      health: "empty",
+    });
+  });
+
+  it("orders a fenced exact Auto capture after a pre-fence clear already on the physical tail", async () => {
+    const delayed = createDelayedSaveStoreV1();
+    const fixture = await fixtureV1({ records: delayed.records });
+    delayed.blockSaveWrites();
+
+    await fixture.session.dispatch({ kind: "increment" });
+    await delayed.waitUntilWriteStarts();
+    const clear = fixture.service.port.clear("auto.current");
+    fencePersistencePlayerMutationsInternalV1(fixture.service);
+    const exact = captureAutoSaveWithReceiptInternalV1(
+      fixture.service,
+      fixture.session.getCurrentSnapshot(),
+    );
+    let exactSettled = false;
+    void exact.then(() => {
+      exactSettled = true;
+    });
+    await Promise.resolve();
+    expect(exactSettled).toBe(false);
+
+    delayed.releaseWrites();
+    await expect(clear).resolves.toEqual({
+      kind: "cleared",
+      slotId: "auto.current",
+    });
+    await expect(exact).resolves.toEqual({ kind: "saved" });
+    await expect(fixture.repository.read("auto.current")).resolves.toMatchObject({
+      health: "valid",
+      record: { snapshot: { commandSequence: 1 } },
+    });
+  });
+
+  it("joins a pending Auto attempt that is physically ordered after a successful clear", async () => {
+    const delayed = createDelayedSaveStoreV1();
+    const autoSequences: number[] = [];
+    const fixture = await fixtureV1({
+      records: delayed.records,
+      decorateRepository(repository) {
+        return Object.freeze({
+          ...repository,
+          writeAuto(
+            record: Parameters<SaveRepositoryV1<SyntheticSaveRecordV1>["writeAuto"]>[0],
+            fence: Parameters<SaveRepositoryV1<SyntheticSaveRecordV1>["writeAuto"]>[1],
+          ) {
+            autoSequences.push(record.snapshot.commandSequence);
+            return repository.writeAuto(record, fence);
+          },
+        });
+      },
+    });
+    await expect(
+      captureAutoSaveWithReceiptInternalV1(fixture.service, fixture.session.getCurrentSnapshot()),
+    ).resolves.toEqual({ kind: "saved" });
+    delayed.blockSaveWrites();
+
+    await fixture.session.dispatch({ kind: "increment" });
+    await delayed.waitUntilWriteStarts();
+    await fixture.session.dispatch({ kind: "increment" });
+    const current = fixture.session.getCurrentSnapshot();
+    const clear = fixture.service.port.clear("auto.current");
+    fencePersistencePlayerMutationsInternalV1(fixture.service);
+    const exact = captureAutoSaveWithReceiptInternalV1(fixture.service, current);
+    delayed.releaseWrites();
+
+    await expect(clear).resolves.toEqual({
+      kind: "cleared",
+      slotId: "auto.current",
+    });
+    await expect(exact).resolves.toEqual({ kind: "saved" });
+    expect(autoSequences).toEqual([0, 1, 2]);
+    await expect(fixture.repository.read("auto.current")).resolves.toMatchObject({
+      health: "valid",
+      record: {
+        recordRevision: 1,
+        snapshot: { commandSequence: 2 },
+      },
+    });
+    await expect(fixture.repository.read("auto.previous")).resolves.toMatchObject({
+      health: "valid",
+      record: { snapshot: { commandSequence: 0 } },
+    });
+  });
+
+  it("keeps a verified Auto receipt and recovery slot when clear is rejected", async () => {
+    const autoSequences: number[] = [];
+    const fixture = await fixtureV1({
+      decorateRepository(repository) {
+        return Object.freeze({
+          ...repository,
+          writeAuto(
+            record: Parameters<SaveRepositoryV1<SyntheticSaveRecordV1>["writeAuto"]>[0],
+            fence: Parameters<SaveRepositoryV1<SyntheticSaveRecordV1>["writeAuto"]>[1],
+          ) {
+            autoSequences.push(record.snapshot.commandSequence);
+            return repository.writeAuto(record, fence);
+          },
+          clear(
+            slot: Parameters<SaveRepositoryV1<SyntheticSaveRecordV1>["clear"]>[0],
+            fence: Parameters<SaveRepositoryV1<SyntheticSaveRecordV1>["clear"]>[1],
+          ) {
+            return slot === "auto.current"
+              ? Promise.resolve(
+                  Object.freeze({
+                    kind: "rejected" as const,
+                    code: "conflict" as const,
+                  }),
+                )
+              : repository.clear(slot, fence);
+          },
+        });
+      },
+    });
+    await expect(
+      captureAutoSaveWithReceiptInternalV1(fixture.service, fixture.session.getCurrentSnapshot()),
+    ).resolves.toEqual({ kind: "saved" });
+    await fixture.session.dispatch({ kind: "increment" });
+    await fixture.service.autoSaveIdle();
+    const current = fixture.session.getCurrentSnapshot();
+
+    await expect(fixture.service.port.clear("auto.current")).resolves.toEqual({
+      kind: "rejected",
+      code: "conflict",
+    });
+    fencePersistencePlayerMutationsInternalV1(fixture.service);
+    await expect(captureAutoSaveWithReceiptInternalV1(fixture.service, current)).resolves.toEqual({
+      kind: "saved",
+    });
+
+    expect(autoSequences).toEqual([0, 1]);
+    await expect(fixture.repository.read("auto.current")).resolves.toMatchObject({
+      health: "valid",
+      record: { snapshot: { commandSequence: 1 } },
+    });
+    await expect(fixture.repository.read("auto.previous")).resolves.toMatchObject({
+      health: "valid",
+      record: { snapshot: { commandSequence: 0 } },
+    });
+  });
+
   it("exposes a frozen current-lineage snapshot only on the internal service", async () => {
     const initialLineage = lineageV1(1, provenanceV1().resolved.simulationDigest);
     const fixture = await fixtureV1({ initialLineage });
@@ -924,7 +1242,10 @@ describe("PersistenceServiceV1", () => {
               await firstWriteGate;
               return repository.writeAuto(...arguments_);
             }
-            return Object.freeze({ kind: "rejected" as const, code: "conflict" as const });
+            return Object.freeze({
+              kind: "rejected" as const,
+              code: "conflict" as const,
+            });
           },
         });
       },
@@ -953,7 +1274,10 @@ describe("PersistenceServiceV1", () => {
         return Object.freeze({
           ...lease,
           async releaseFence() {
-            return Object.freeze({ kind: "rejected" as const, code: "unavailable" as const });
+            return Object.freeze({
+              kind: "rejected" as const,
+              code: "unavailable" as const,
+            });
           },
         });
       },
@@ -1031,7 +1355,10 @@ describe("PersistenceServiceV1", () => {
         return Object.freeze({
           ...lease,
           async takeOverUnowned() {
-            return Object.freeze({ kind: "rejected" as const, code: "conflict" as const });
+            return Object.freeze({
+              kind: "rejected" as const,
+              code: "conflict" as const,
+            });
           },
         });
       },
@@ -1083,7 +1410,10 @@ describe("PersistenceServiceV1", () => {
 
   it("captures Quick at accepted call time and does not make dispatch wait for storage", async () => {
     const delayed = createDelayedSaveStoreV1();
-    const fixture = await fixtureV1({ records: delayed.records, initial: snapshotV1(3) });
+    const fixture = await fixtureV1({
+      records: delayed.records,
+      initial: snapshotV1(3),
+    });
     delayed.blockSaveWrites();
 
     const save = fixture.service.port.save("quick");
@@ -1098,7 +1428,10 @@ describe("PersistenceServiceV1", () => {
     await expect(save).resolves.toEqual({ kind: "saved", slotId: "quick" });
     await expect(fixture.repository.read("quick")).resolves.toMatchObject({
       health: "valid",
-      record: { slot: { capturedCommandSequence: 3 }, snapshot: { commandSequence: 3 } },
+      record: {
+        slot: { capturedCommandSequence: 3 },
+        snapshot: { commandSequence: 3 },
+      },
     });
     await fixture.service.autoSaveIdle();
   });
@@ -1124,13 +1457,19 @@ describe("PersistenceServiceV1", () => {
     });
 
     delayed.releaseWrites();
-    await expect(quick).resolves.toEqual({ kind: "rejected", code: "conflict" });
+    await expect(quick).resolves.toEqual({
+      kind: "rejected",
+      code: "conflict",
+    });
     await fixture.service.autoSaveIdle();
   });
 
   it("does not publish an old Quick result as safely saved after a new anchor", async () => {
     const delayed = createDelayedSaveStoreV1();
-    const fixture = await fixtureV1({ records: delayed.records, initial: snapshotV1(3) });
+    const fixture = await fixtureV1({
+      records: delayed.records,
+      initial: snapshotV1(3),
+    });
     delayed.blockSaveWrites();
 
     const quick = fixture.service.port.save("quick");
@@ -1138,7 +1477,11 @@ describe("PersistenceServiceV1", () => {
     const replacement = recordV1({ snapshot: snapshotV1(9) });
     await expect(
       fixture.service.port.importSave(encodeSaveRecordV1(replacement, codecV1)),
-    ).resolves.toEqual({ kind: "imported", compatibility: "exact", commandSequence: 9 });
+    ).resolves.toEqual({
+      kind: "imported",
+      compatibility: "exact",
+      commandSequence: 9,
+    });
 
     delayed.releaseWrites();
     await expect(quick).resolves.toEqual({ kind: "saved", slotId: "quick" });
@@ -1229,14 +1572,18 @@ describe("PersistenceServiceV1", () => {
   });
 
   it("detects semantically equivalent physical-byte changes after a Save commit", async () => {
-    const fixture = await fixtureV1({ records: createSemanticallyTamperingStoreV1() });
+    const fixture = await fixtureV1({
+      records: createSemanticallyTamperingStoreV1(),
+    });
 
     await expect(fixture.service.port.save("quick")).resolves.toEqual({
       kind: "rejected",
       code: "conflict",
     });
     const stored = await fixture.repository.read("quick");
-    if (stored.health !== "valid") throw new TypeError("expected a valid tampered Save");
+    if (stored.health !== "valid") {
+      throw new TypeError("expected a valid tampered Save");
+    }
     expect(stored.bytes).not.toEqual(encodeSaveRecordV1(stored.record, codecV1));
     await expect(fixture.service.port.exportSave("quick")).resolves.toMatchObject({
       kind: "exported",
@@ -1272,7 +1619,10 @@ describe("PersistenceServiceV1", () => {
     expect(summaries).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ slotId: "auto.current", health: "invalid" }),
-        expect.objectContaining({ slotId: "auto.previous", health: "recovery_candidate" }),
+        expect.objectContaining({
+          slotId: "auto.previous",
+          health: "recovery_candidate",
+        }),
       ]),
     );
     expect(fixture.session.getCurrentSnapshot().commandSequence).toBe(0);
@@ -1324,6 +1674,213 @@ describe("PersistenceServiceV1", () => {
     );
   });
 
+  it("stamps records for diagnostics; import never reads the stamp", async () => {
+    const stampA: VersionStampV1 = Object.freeze({
+      applicationVersion: "1.2.0",
+      applicationCommit: "abc1234",
+      engineVersion: "0.4.2",
+      engineCommit: "def5678",
+    });
+    const stampB: VersionStampV1 = Object.freeze({
+      applicationVersion: "9.9.9",
+      applicationCommit: "fffffff",
+      engineVersion: null,
+      engineCommit: null,
+    });
+
+    // Written records and exports carry one normalized, frozen capture-origin
+    // stamp for the lifetime of the service.
+    let collectorCalls = 0;
+    const writer = await fixtureV1({
+      collectVersionStamp: () => {
+        collectorCalls += 1;
+        return { ...stampA };
+      },
+    });
+    const exported = decodeSaveRecordV1(
+      (await writer.service.port.exportCurrentSave()).bytes,
+      codecV1,
+    );
+    expect(exported).toMatchObject({
+      kind: "decoded",
+      record: { versionStamp: stampA },
+    });
+    expect(collectorCalls).toBe(1);
+    if (exported.kind === "decoded") {
+      expect(Object.isFrozen(exported.record.versionStamp)).toBe(true);
+    }
+    await expect(writer.service.port.save("quick")).resolves.toMatchObject({
+      kind: "saved",
+    });
+    const storedExport = await writer.service.port.exportSave("quick");
+    if (storedExport.kind !== "exported") {
+      throw new TypeError("expected stored Save export");
+    }
+    expect(decodeSaveRecordV1(storedExport.file.bytes, codecV1)).toMatchObject({
+      kind: "decoded",
+      record: { versionStamp: stampA },
+    });
+
+    // A build with a DIFFERENT stamp imports the file untouched: the stamp
+    // is diagnostic-only and never part of import compatibility.
+    const reader = await fixtureV1({ collectVersionStamp: () => stampB });
+    await expect(reader.service.port.importSave(storedExport.file.bytes)).resolves.toMatchObject({
+      kind: "imported",
+      compatibility: "exact",
+    });
+    const freshAfterImport = decodeSaveRecordV1(
+      (await reader.service.port.exportCurrentSave()).bytes,
+      codecV1,
+    );
+    expect(freshAfterImport).toMatchObject({
+      kind: "decoded",
+      record: { versionStamp: stampB },
+    });
+    expect(collectorCalls).toBe(1);
+
+    // Headless default (no injected global): all-null stamp is omitted, so
+    // pre-stamp record bytes stay byte-identical.
+    const bare = await fixtureV1();
+    const plain = decodeSaveRecordV1((await bare.service.port.exportCurrentSave()).bytes, codecV1);
+    expect(plain.kind).toBe("decoded");
+    if (plain.kind === "decoded") {
+      expect(plain.record).not.toHaveProperty("versionStamp");
+    }
+  });
+
+  it("normalizes a failing or hostile stamp collector before lease acquisition", async () => {
+    const events: string[] = [];
+    let getterCalls = 0;
+    const hostile = Object.create(null) as Record<string, unknown>;
+    Object.defineProperty(hostile, "applicationVersion", {
+      enumerable: true,
+      get() {
+        getterCalls += 1;
+        return "must-not-run";
+      },
+    });
+    const malformed = await fixtureV1({
+      collectVersionStamp: () => {
+        events.push("collect");
+        return hostile as unknown as VersionStampV1;
+      },
+      decorateLease(lease) {
+        return Object.freeze({
+          ...lease,
+          async acquireInitial() {
+            events.push("acquire");
+            return lease.acquireInitial();
+          },
+        });
+      },
+    });
+    expect(events).toEqual(["collect", "acquire"]);
+    expect(getterCalls).toBe(0);
+    const malformedExport = decodeSaveRecordV1(
+      (await malformed.service.port.exportCurrentSave()).bytes,
+      codecV1,
+    );
+    expect(malformedExport).toMatchObject({ kind: "decoded" });
+    if (malformedExport.kind === "decoded") {
+      expect(malformedExport.record).not.toHaveProperty("versionStamp");
+    }
+
+    const throwing = await fixtureV1({
+      collectVersionStamp: () => {
+        throw new Error("diagnostic collector failed");
+      },
+    });
+    await expect(throwing.service.port.lease.getStatus()).resolves.toMatchObject({
+      kind: "owned",
+    });
+    const throwingExport = decodeSaveRecordV1(
+      (await throwing.service.port.exportCurrentSave()).bytes,
+      codecV1,
+    );
+    expect(throwingExport).toMatchObject({ kind: "decoded" });
+    if (throwingExport.kind === "decoded") {
+      expect(throwingExport.record).not.toHaveProperty("versionStamp");
+    }
+  });
+
+  it("preserves capture-origin stamps through annotation rewrite and Auto rotation", async () => {
+    const stampA: VersionStampV1 = Object.freeze({
+      applicationVersion: "1.0.0",
+      applicationCommit: "a".repeat(40),
+      engineVersion: "0.4.2",
+      engineCommit: "b".repeat(40),
+    });
+    const stampB: VersionStampV1 = Object.freeze({
+      applicationVersion: "2.0.0",
+      applicationCommit: "c".repeat(40),
+      engineVersion: "0.4.3",
+      engineCommit: "d".repeat(40),
+    });
+    const records = createMemoryHostRecordStoreV1();
+    let firstCollectorCalls = 0;
+    let secondCollectorCalls = 0;
+    const first = await fixtureV1({
+      records,
+      ownerId: "owner.stamp-a" as SessionLeaseOwnerId,
+      collectVersionStamp: () => {
+        firstCollectorCalls += 1;
+        return stampA;
+      },
+    });
+    await expect(first.service.port.save("quick")).resolves.toMatchObject({
+      kind: "saved",
+    });
+    await first.session.dispatch({ kind: "increment" });
+    await first.service.autoSaveIdle();
+    const released = await first.service.disposeForRebootstrap();
+    expect(released).toMatchObject({
+      ownership: "released",
+    });
+
+    const second = await fixtureV1({
+      records,
+      ownerId: "owner.stamp-b" as SessionLeaseOwnerId,
+      leaseAcquisition: "deferred_rebootstrap",
+      collectVersionStamp: () => {
+        secondCollectorCalls += 1;
+        return stampB;
+      },
+    });
+    await expect(second.service.takeOverForRebootstrap(released)).resolves.toMatchObject({
+      ownership: "writable",
+    });
+    await expect(second.service.port.annotateSave("quick", "kept origin")).resolves.toEqual({
+      kind: "saved",
+      slotId: "quick",
+    });
+    const rewritten = await second.repository.read("quick");
+    expect(rewritten).toMatchObject({
+      health: "valid",
+      record: { versionStamp: stampA },
+    });
+    const rewrittenExport = await second.service.port.exportSave("quick");
+    if (rewrittenExport.kind !== "exported") {
+      throw new TypeError("expected rewritten Save export");
+    }
+    expect(decodeSaveRecordV1(rewrittenExport.file.bytes, codecV1)).toMatchObject({
+      kind: "decoded",
+      record: { versionStamp: stampA },
+    });
+
+    await second.session.dispatch({ kind: "increment" });
+    await second.service.autoSaveIdle();
+    expect(await second.repository.read("auto.current")).toMatchObject({
+      health: "valid",
+      record: { versionStamp: stampB },
+    });
+    expect(await second.repository.read("auto.previous")).toMatchObject({
+      health: "valid",
+      record: { versionStamp: stampA },
+    });
+    expect(firstCollectorCalls).toBe(1);
+    expect(secondCollectorCalls).toBe(1);
+  });
+
   it("offers Auto recovery only from a fully runnable previous Save", async () => {
     const currentProvenance = provenanceV1();
     const inspectFixture = await fixtureV1({ provenance: currentProvenance });
@@ -1364,12 +1921,18 @@ describe("PersistenceServiceV1", () => {
     await expect(runnableFixture.service.port.listSlots()).resolves.toEqual(
       expect.arrayContaining([
         expect.objectContaining({ slotId: "auto.current", health: "valid" }),
-        expect.objectContaining({ slotId: "auto.previous", health: "recovery_candidate" }),
+        expect.objectContaining({
+          slotId: "auto.previous",
+          health: "recovery_candidate",
+        }),
       ]),
     );
 
     const stored = provenanceV1({ simulation: "simulation.old", patch: "old" });
-    const adoptedCurrent = provenanceV1({ simulation: "simulation.new", patch: "new" });
+    const adoptedCurrent = provenanceV1({
+      simulation: "simulation.new",
+      patch: "new",
+    });
     const lineageFixture = await fixtureV1({
       provenance: adoptedCurrent,
       adoptionDeclaration: adoptionDeclarationV1(stored, adoptedCurrent),
@@ -1528,10 +2091,19 @@ describe("PersistenceServiceV1", () => {
       mode: "modified",
       mutationCount: 1,
       firstMutationSequence: 7,
-      reasons: [{ kind: "fixture_anchor", fixtureId: "fixture.loaded", sequence: 7 }],
+      reasons: [
+        {
+          kind: "fixture_anchor",
+          fixtureId: "fixture.loaded",
+          sequence: 7,
+        },
+      ],
     });
     const lineage = lineageV1(1, provenanceV1().resolved.simulationDigest);
-    const saved = recordV1({ snapshot: snapshotV1(7, loadedIntegrity), lineage });
+    const saved = recordV1({
+      snapshot: snapshotV1(7, loadedIntegrity),
+      lineage,
+    });
     await fixture.repository.writePlayer("quick", saved, await ownedFenceV1(fixture));
     const before = await saveRecordsV1(fixture.records);
 
@@ -1554,19 +2126,34 @@ describe("PersistenceServiceV1", () => {
     expect(await saveRecordsV1(fixture.records)).toEqual(before);
     const exported = await fixture.service.port.exportCurrentSave();
     const decoded = decodeSaveRecordV1(exported.bytes, codecV1);
-    expect(decoded).toMatchObject({ kind: "decoded", record: { simulationLineage: lineage } });
+    expect(decoded).toMatchObject({
+      kind: "decoded",
+      record: { simulationLineage: lineage },
+    });
   });
 
   it("imports an adopted Save using current provenance, appends lineage, and writes no slot", async () => {
     const stored = provenanceV1({ simulation: "simulation.old", patch: "old" });
-    const current = provenanceV1({ simulation: "simulation.new", patch: "new" });
+    const current = provenanceV1({
+      simulation: "simulation.new",
+      patch: "new",
+    });
     const modified = runIntegrityV1Schema.parse({
       mode: "modified",
       mutationCount: 1,
       firstMutationSequence: 5,
-      reasons: [{ kind: "fixture_anchor", fixtureId: "fixture.modified", sequence: 5 }],
+      reasons: [
+        {
+          kind: "fixture_anchor",
+          fixtureId: "fixture.modified",
+          sequence: 5,
+        },
+      ],
     });
-    const candidate = recordV1({ snapshot: snapshotV1(5, modified), provenance: stored });
+    const candidate = recordV1({
+      snapshot: snapshotV1(5, modified),
+      provenance: stored,
+    });
     const fixture = await fixtureV1({
       provenance: current,
       adoptionDeclaration: adoptionDeclarationV1(stored, current),
@@ -1582,7 +2169,11 @@ describe("PersistenceServiceV1", () => {
 
     await expect(
       fixture.service.port.importSave(encodeSaveRecordV1(candidate, codecV1)),
-    ).resolves.toEqual({ kind: "imported", compatibility: "adopted", commandSequence: 5 });
+    ).resolves.toEqual({
+      kind: "imported",
+      compatibility: "adopted",
+      commandSequence: 5,
+    });
     const adopted = fixture.session.getCurrentSnapshot();
     expect(adopted.integrity).toEqual(modified);
     expect(fixture.commandLog.entries()).toEqual([]);
@@ -1665,7 +2256,10 @@ describe("PersistenceServiceV1", () => {
     expect(await saveRecordsV1(inspectFixture.records)).toEqual(inspectStorage);
 
     const stored = provenanceV1({ simulation: "simulation.old", patch: "old" });
-    const current = provenanceV1({ simulation: "simulation.new", patch: "new" });
+    const current = provenanceV1({
+      simulation: "simulation.new",
+      patch: "new",
+    });
     const limitFixture = await fixtureV1({
       provenance: current,
       adoptionDeclaration: adoptionDeclarationV1(stored, current),
@@ -1742,7 +2336,10 @@ describe("PersistenceServiceV1", () => {
 
   it("keeps a lineage-limited physical Save available for inspection and export", async () => {
     const stored = provenanceV1({ simulation: "simulation.old", patch: "old" });
-    const current = provenanceV1({ simulation: "simulation.new", patch: "new" });
+    const current = provenanceV1({
+      simulation: "simulation.new",
+      patch: "new",
+    });
     const fixture = await fixtureV1({
       provenance: current,
       adoptionDeclaration: adoptionDeclarationV1(stored, current),
@@ -1779,7 +2376,10 @@ describe("PersistenceServiceV1", () => {
       debugTools: true,
       marker: "CAPABILITY_SENTINEL_MUST_NOT_ENTER_SAVE",
     });
-    const fixture = await fixtureV1({ records: unavailableStoreV1(), initial: snapshotV1(6) });
+    const fixture = await fixtureV1({
+      records: unavailableStoreV1(),
+      initial: snapshotV1(6),
+    });
 
     await expect(fixture.service.port.save("manual.1")).resolves.toEqual({
       kind: "rejected",
@@ -1790,13 +2390,19 @@ describe("PersistenceServiceV1", () => {
     expect(new TextDecoder().decode(exported.bytes)).not.toContain(capabilitySentinel.marker);
     expect(decodeSaveRecordV1(exported.bytes, codecV1)).toMatchObject({
       kind: "decoded",
-      record: { snapshot: { commandSequence: 6 }, slot: { slotId: "manual.1" } },
+      record: {
+        snapshot: { commandSequence: 6 },
+        slot: { slotId: "manual.1" },
+      },
     });
   });
 
   it("records an exact degraded code after a healthy store becomes unavailable", async () => {
     const switchable = createSwitchableUnavailableStoreV1();
-    const fixture = await fixtureV1({ records: switchable.records, initial: snapshotV1(6) });
+    const fixture = await fixtureV1({
+      records: switchable.records,
+      initial: snapshotV1(6),
+    });
     await expect(fixture.service.port.save("quick")).resolves.toEqual({
       kind: "saved",
       slotId: "quick",
@@ -1894,13 +2500,17 @@ describe("PersistenceServiceV1", () => {
           await ownedFenceV1(dispatchFirst),
         );
       }
-      const firstDispatch = dispatchFirst.session.dispatch({ kind: "increment" });
+      const firstDispatch = dispatchFirst.session.dispatch({
+        kind: "increment",
+      });
       const firstReplacement =
         operation === "load"
           ? dispatchFirst.service.port.load("quick")
           : dispatchFirst.service.port.importSave(encodeSaveRecordV1(candidate, codecV1));
       await firstDispatch;
-      await expect(firstReplacement).resolves.toMatchObject({ compatibility: "exact" });
+      await expect(firstReplacement).resolves.toMatchObject({
+        compatibility: "exact",
+      });
       expect(dispatchFirst.session.getCurrentSnapshot().commandSequence).toBe(9);
 
       const replacementFirst = await fixtureV1();
@@ -1915,8 +2525,12 @@ describe("PersistenceServiceV1", () => {
         operation === "load"
           ? replacementFirst.service.port.load("quick")
           : replacementFirst.service.port.importSave(encodeSaveRecordV1(candidate, codecV1));
-      const secondDispatch = replacementFirst.session.dispatch({ kind: "increment" });
-      await expect(secondReplacement).resolves.toMatchObject({ compatibility: "exact" });
+      const secondDispatch = replacementFirst.session.dispatch({
+        kind: "increment",
+      });
+      await expect(secondReplacement).resolves.toMatchObject({
+        compatibility: "exact",
+      });
       await secondDispatch;
       expect(replacementFirst.session.getCurrentSnapshot().commandSequence).toBe(10);
       await Promise.all([
@@ -1938,6 +2552,9 @@ describe("PersistenceService standard composition", () => {
     provenance: BuildProvenanceV1 = provenanceV1(),
     options: {
       summarizeSave?(state: DeepReadonly<SyntheticStateV1>): readonly string[] | null;
+      collectVersionStamp?(): VersionStampV1;
+      readonly exportFilename?: string;
+      readonly metadataClock?: { now(): IsoUtcInstant };
       readonly instrumentation?: SnapshotWorkInstrumentationV1;
       readonly wrapRepositoryForWriteReceiptFallback?: boolean;
     } = {},
@@ -1958,9 +2575,16 @@ describe("PersistenceService standard composition", () => {
           : Object.freeze(["reference.unknown"]),
       validateInvariants: () => Object.freeze([]),
       initialSimulationLineage: Object.freeze([]),
-      metadataClock: Object.freeze({ now: () => "2026-07-14T12:00:00.000Z" as IsoUtcInstant }),
-      exportFilename: "standard-save.json",
+      metadataClock:
+        options.metadataClock ??
+        Object.freeze({
+          now: () => "2026-07-14T12:00:00.000Z" as IsoUtcInstant,
+        }),
+      exportFilename: options.exportFilename ?? "standard-save.json",
       ...(options.summarizeSave === undefined ? {} : { summarizeSave: options.summarizeSave }),
+      ...(options.collectVersionStamp === undefined
+        ? {}
+        : { collectVersionStamp: options.collectVersionStamp }),
     };
     const service =
       options.instrumentation === undefined
@@ -1993,7 +2617,9 @@ describe("PersistenceService standard composition", () => {
         bytes: textEncoderV1.encode(JSON.stringify(parsed)),
       },
     ]);
-    if (committed.kind !== "committed") throw new Error("tampering commit failed");
+    if (committed.kind !== "committed") {
+      throw new Error("tampering commit failed");
+    }
   }
 
   it("saves, reloads, and exports through the standard record schemas", async () => {
@@ -2046,11 +2672,68 @@ describe("PersistenceService standard composition", () => {
     expect(fixture.session.getCurrentSnapshot().commandSequence).toBe(1);
 
     const exported = await fixture.service.port.exportCurrentSave();
+    // The filename dates itself in unix seconds from the metadata clock.
+    const stampSeconds = Math.floor(Date.parse("2026-07-14T12:00:00.000Z") / 1000);
     expect(exported).toMatchObject({
-      filename: "standard-save.json",
+      filename: `standard-save-${String(stampSeconds)}.json`,
       mediaType: "application/json",
     });
     await fixture.service.autoSaveIdle();
+  });
+
+  it("passes the normalized stamp through standard composition", async () => {
+    let calls = 0;
+    const fixture = await standardFixtureV1(provenanceV1(), {
+      collectVersionStamp: () => {
+        calls += 1;
+        return {
+          applicationVersion: "1.2.0",
+          applicationCommit: "a".repeat(40),
+          engineVersion: null,
+          engineCommit: null,
+        };
+      },
+    });
+    const decoded = decodeSaveRecordV1(
+      (await fixture.service.port.exportCurrentSave()).bytes,
+      codecV1,
+    );
+    expect(decoded).toMatchObject({
+      kind: "decoded",
+      record: {
+        versionStamp: {
+          applicationVersion: "1.2.0",
+          applicationCommit: "a".repeat(40),
+        },
+      },
+    });
+    expect(calls).toBe(1);
+  });
+
+  it("dates extensionless exports and falls back on an invalid metadata clock", async () => {
+    const dated = await standardFixtureV1(provenanceV1(), {
+      exportFilename: "standard-save",
+    });
+    const stampSeconds = Math.floor(Date.parse("2026-07-14T12:00:00.000Z") / 1000);
+    const first = await dated.service.port.exportCurrentSave();
+    const second = await dated.service.port.exportCurrentSave();
+    expect(first.filename).toBe(`standard-save-${String(stampSeconds)}`);
+    // Seconds are diagnostic dating, not an in-process uniqueness contract;
+    // a Host such as Desktop applies its own no-clobber collision suffix.
+    expect(second.filename).toBe(first.filename);
+    expect(second.bytes).toEqual(first.bytes);
+
+    let now = "2026-07-14T12:00:00.000Z";
+    const invalidClock = await standardFixtureV1(provenanceV1(), {
+      exportFilename: "standard-save.json",
+      metadataClock: Object.freeze({ now: () => now as IsoUtcInstant }),
+    });
+    await expect(invalidClock.service.port.save("quick")).resolves.toMatchObject({ kind: "saved" });
+    now = "not-an-instant";
+    await expect(invalidClock.service.port.exportSave("quick")).resolves.toMatchObject({
+      kind: "exported",
+      file: { filename: "standard-save.json" },
+    });
   });
 
   it("passes one normalized summary through optimized and receipt-fallback standard paths", async () => {
@@ -2247,11 +2930,16 @@ describe("PersistenceService standard composition", () => {
 
     const slots = await fixture.service.port.listSlots();
     const quick = slots.find((slot) => slot.slotId === "quick");
-    expect(quick?.annotation).toEqual({ summary: ["count 1", "line 2"], note: null });
+    expect(quick?.annotation).toEqual({
+      summary: ["count 1", "line 2"],
+      note: null,
+    });
 
     // Saves without a projector keep records annotation-free.
     const bare = await fixtureV1();
-    await expect(bare.service.port.save("quick")).resolves.toMatchObject({ kind: "saved" });
+    await expect(bare.service.port.save("quick")).resolves.toMatchObject({
+      kind: "saved",
+    });
     const bareSlots = await bare.service.port.listSlots();
     expect(bareSlots.find((slot) => slot.slotId === "quick")?.annotation).toBeNull();
     await fixture.service.autoSaveIdle();
@@ -2364,7 +3052,10 @@ describe("PersistenceService standard composition", () => {
     });
     const slots = await fixture.service.port.listSlots();
     const manual = slots.find((slot) => slot.slotId === "manual.1");
-    expect(manual?.annotation).toEqual({ summary: ["count 1"], note: "存主线前" });
+    expect(manual?.annotation).toEqual({
+      summary: ["count 1"],
+      note: "存主线前",
+    });
     if (before.health === "valid") {
       const after = await fixture.repository.read("manual.1");
       expect(after.health).toBe("valid");
@@ -2381,11 +3072,16 @@ describe("PersistenceService standard composition", () => {
         } = after.record;
         expect(afterRevision).toBe(Number(beforeRevision) + 1);
         expect(beforeAnnotation).toEqual({ summary: ["count 1"], note: null });
-        expect(afterAnnotation).toEqual({ summary: ["count 1"], note: "存主线前" });
+        expect(afterAnnotation).toEqual({
+          summary: ["count 1"],
+          note: "存主线前",
+        });
         expect(afterStableFields).toEqual(beforeStableFields);
       }
     }
-    await expect(fixture.service.port.load("manual.1")).resolves.toMatchObject({ kind: "loaded" });
+    await expect(fixture.service.port.load("manual.1")).resolves.toMatchObject({
+      kind: "loaded",
+    });
 
     // Empty string clears the note but keeps the summary.
     await expect(fixture.service.port.annotateSave("manual.1", "")).resolves.toEqual({
@@ -2423,7 +3119,9 @@ describe("PersistenceService standard composition", () => {
         });
       },
     });
-    await expect(fixture.service.port.save("manual.1")).resolves.toMatchObject({ kind: "saved" });
+    await expect(fixture.service.port.save("manual.1")).resolves.toMatchObject({
+      kind: "saved",
+    });
 
     await expect(fixture.service.port.annotateSave("manual.1", "stale note")).resolves.toEqual({
       kind: "rejected",
@@ -2437,7 +3135,9 @@ describe("PersistenceService standard composition", () => {
       health: "valid",
       record: { snapshot: { commandSequence: 9 } },
     });
-    if (stored.health === "valid") expect(stored.record).not.toHaveProperty("annotation");
+    if (stored.health === "valid") {
+      expect(stored.record).not.toHaveProperty("annotation");
+    }
     await fixture.service.autoSaveIdle();
   });
 
@@ -2463,7 +3163,9 @@ describe("PersistenceService standard composition", () => {
         });
       },
     });
-    await expect(fenceLoss.service.port.save("quick")).resolves.toMatchObject({ kind: "saved" });
+    await expect(fenceLoss.service.port.save("quick")).resolves.toMatchObject({
+      kind: "saved",
+    });
     await expect(fenceLoss.service.port.annotateSave("quick", "note")).resolves.toEqual({
       kind: "rejected",
       code: "conflict",
@@ -2496,7 +3198,9 @@ describe("PersistenceService standard composition", () => {
         });
       },
     });
-    await expect(byteTamper.service.port.save("quick")).resolves.toMatchObject({ kind: "saved" });
+    await expect(byteTamper.service.port.save("quick")).resolves.toMatchObject({
+      kind: "saved",
+    });
     await expect(byteTamper.service.port.annotateSave("quick", "note")).resolves.toEqual({
       kind: "rejected",
       code: "conflict",
@@ -2532,7 +3236,9 @@ describe("PersistenceService standard composition", () => {
         });
       },
     });
-    await expect(fixture.service.port.save("quick")).resolves.toMatchObject({ kind: "saved" });
+    await expect(fixture.service.port.save("quick")).resolves.toMatchObject({
+      kind: "saved",
+    });
 
     await expect(fixture.service.port.annotateSave("quick", "note")).resolves.toEqual({
       kind: "rejected",
@@ -2558,7 +3264,9 @@ describe("PersistenceService standard composition", () => {
     // A note on a summary-less record round-trips, and clearing it removes
     // the annotation field entirely (byte shape matches a fresh save).
     await fixture.session.dispatch({ kind: "increment" });
-    await expect(fixture.service.port.save("quick")).resolves.toMatchObject({ kind: "saved" });
+    await expect(fixture.service.port.save("quick")).resolves.toMatchObject({
+      kind: "saved",
+    });
     await expect(fixture.service.port.annotateSave("quick", "note")).resolves.toEqual({
       kind: "saved",
       slotId: "quick",

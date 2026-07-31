@@ -38,6 +38,26 @@ zero RNG state 或经 binary64 舍入入场的 fractional number token 重新冻
   copy/freeze、fixed metadata clock，以及 projection failure 后没有 physical Save
   write；
 - autosave rotation 保留每个 candidate capture 时的 summary；
+- `versionStamp` absent、all-null、partial、full、malformed、accessor/Proxy-backed
+  与 collector throw；每个成功创建的 persistence service 恰好 collect 一次，
+  后续 capture/rewrite/rotation/export 的新增 collect count 为 `0`；partial/full
+  先做 bounded printable normalization、defensive copy/freeze；
+  normalization 不调用 getter，mixed malformed fields 逐字段丢弃，最终
+  absent/all-null、accessor-only、hostile Proxy 或 collector throw 降级为 field
+  absent 且不阻止 physical Save write；
+- stamp 标识 Save candidate 中 Snapshot 的 capture-origin build，不参与
+  compatibility、adoption、Snapshot/`stateDigest`、authoritative identity、
+  CommandLog 或 replay；annotation rewrite、autosave rotation 与 stored-record
+  export 保留每个 record 原有 stamp，不调用当前 runtime collector；load/import
+  compatibility 不读取 stamp，post-load/import fresh capture 使用当前 service
+  已采集 stamp；
+- headless absent/all-null stamp 的 Save bytes 继续等于 PF1 unstamped oracle；
+  fixed browser partial/full stamp 使用独立 expected bytes/SHA，并覆盖 standard
+  receipt 与 opaque repository fallback；
+- fixed metadata clock 的 export suggested filename 覆盖有/无 extension、invalid
+  clock 与同一秒重复；秒级 suffix 不承诺唯一，Desktop/Browser Host 以
+  no-clobber collision policy 保留每份导出，filename collision 不改变 payload
+  bytes；
 - annotation rewrite 绑定 source Host revision 与 exact source bytes 做 conditional
   read-modify-write，随后通过 physical readback、accepted lease fence，以及 built-in
   one-shot write receipt 或 opaque repository 的 exact expected-byte re-encode 验证；
@@ -46,8 +66,8 @@ zero RNG state 或经 binary64 舍入入场的 fractional number token 重新冻
   state，同时 corpus 明确记录 already-committed physical annotation 是否仍在，和
   normal Save receipt contract 保持一致；
 - note rewrite 保持 Snapshot、`stateDigest`、`savedAt`、captured command
-  sequence、provenance、lineage 与 summary；只允许 `recordRevision` 和 normalized
-  note/annotation presence 改变；
+  sequence、provenance、lineage、summary 与 `versionStamp`；只允许
+  `recordRevision` 和 normalized note/annotation presence 改变；
 - 每个 valid annotation variant 的 list/export/import/load round-trip，且 optimized
   receipt 与 opaque-repository fallback 产生相同 bytes。
 
@@ -60,6 +80,13 @@ transition。玩家 note 是 persistence metadata。在尚无 downstream release
 current behavior，再进入 M1 load-order 改造。既有 PF1 unannotated byte oracle 保持
 不变，annotation vectors 是追加 corpus，不得以它们重生成或替换旧 oracle。
 
+`versionStamp` 是 bounded presentation/runtime persistence metadata，不是 durable
+deterministic projection；它从显式 build/runtime ingress 采集一次并记录 Snapshot
+capture origin。其 vectors 同样只追加 corpus：PF1 unstamped oracle 保持不变，
+stamp 不得成为 compatibility 或 authoritative identity 的新轴。export timestamp
+filename 是 Save envelope 外的 Host metadata，也不进入 migration corpus 的 payload
+identity。
+
 **M0 acceptance：** 现有结果逐字段固定，所有写入点与 live Session install 点可追踪。
 
 ## 3. M1 — Bounded envelope shell and load order
@@ -67,7 +94,8 @@ current behavior，再进入 M1 load-order 改造。既有 PF1 unannotated byte 
 实现 design 的目标顺序：
 
 1. Strict JSON 限额下 parse envelope shell；
-2. 只解析 format/record revision、provenance、slot、savedAt、stateDigest、lineage 等外壳；
+2. 只解析 format/record revision、provenance、slot、savedAt、stateDigest、lineage、
+   bounded annotation 与 bounded `versionStamp` 等外壳；
 3. `snapshot` 保持 bounded raw JSON；
 4. 按 stored format 验证 raw snapshot digest；任何会改写 snapshot 的 format/State migration 都不得先于此步骤；
 5. 处理 engine-owned envelope format migration；默认只改外壳，确需转换 snapshot 时必须同时生成新 digest/lineage；
@@ -133,6 +161,14 @@ guard，四 runtime vector 全绿且缺 browser 不得 silently skip。
 - lineage policy：re-anchor 上限、触限提示、导出/回退路径；
 - 用户文案：稳定 diagnostic code 映射为人类可理解的结果与操作，不直接展示内部 stack；
 - maintained fixture corpus：Engine Lab + 旗舰示例，至少一条多版本链、一次 adoption、一次 lineage 边界与失败备份恢复；
+- corpus 保留 M0 的 `versionStamp` absent/all-null/partial/full/malformed/throw 与
+  headless/browser fixed bytes，并逐版本证明 migration、annotation rewrite、
+  autosave rotation 与 stored export 不覆盖 Snapshot capture origin；load/import
+  compatibility 忽略 stamp，post-load/import fresh capture 使用当前 service
+  stamp；
+- Host export acceptance 固定同一秒重复 suggested filename，证明
+  Desktop/Browser collision policy no-clobber，且 filename/落盘路径不进入或改写
+  Save bytes；
 - CI：对 corpus 全量执行 inspect → migrate → current schema/reference/invariant/digest → load → save round-trip。
 
 **M3 acceptance：** design 的 release acceptance 全部满足；任何被声明支持的 revision 都有 fixture；不存在“代码声称支持但 CI 没有真实字节”的版本。

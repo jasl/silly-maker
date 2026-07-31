@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 
 import { digestBytes } from "./digest.ts";
+import { versionStampGlobalKeyV1 } from "./version-stamp.ts";
 import {
   createSaveRecordEnvelopeSchemaV1,
   exportedSaveSchemaV1,
@@ -96,6 +97,44 @@ describe("persistence contracts", () => {
     expect(schema.parse(valid)).not.toHaveProperty("annotation");
     expect(() => schema.parse({ ...valid, annotation: null })).toThrow();
     expect(() => schema.parse({ ...valid, annotation: { summary: null, note: null } })).toThrow();
+
+    // The version stamp is additive-optional AND diagnostic-only: absent on
+    // legacy records, round-tripped when valid, and malformed/all-null input
+    // is omitted instead of rejecting an otherwise valid record.
+    const stamped = {
+      ...valid,
+      versionStamp: {
+        applicationVersion: "1.2.0",
+        applicationCommit: "abc1234",
+        engineVersion: "0.4.2",
+        engineCommit: "def5678",
+      },
+    };
+    expect(schema.parse(stamped)).toEqual(stamped);
+    expect(schema.parse(valid)).not.toHaveProperty("versionStamp");
+    expect(schema.parse({ ...valid, versionStamp: "garbage" })).not.toHaveProperty("versionStamp");
+    expect(
+      schema.parse({
+        ...valid,
+        versionStamp: {
+          applicationVersion: null,
+          applicationCommit: null,
+          engineVersion: null,
+          engineCommit: null,
+        },
+      }),
+    ).not.toHaveProperty("versionStamp");
+
+    // Explicit wire `undefined` is never confused with the ambient build
+    // stamp used by readVersionStampV1().
+    Reflect.set(globalThis, versionStampGlobalKeyV1, stamped.versionStamp);
+    try {
+      expect(schema.parse({ ...valid, versionStamp: undefined })).not.toHaveProperty(
+        "versionStamp",
+      );
+    } finally {
+      Reflect.deleteProperty(globalThis, versionStampGlobalKeyV1);
+    }
 
     for (const [value, code] of [
       [{ ...valid, formatRevision: 2 }, "envelope.unsupported_revision"],

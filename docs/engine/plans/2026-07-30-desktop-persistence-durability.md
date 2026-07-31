@@ -894,9 +894,13 @@ surface：
   `x86_64-apple-darwin`、`aarch64-apple-darwin`、
   `x86_64-pc-windows-msvc`、`x86_64-unknown-linux-gnu` 与
   `aarch64-unknown-linux-gnu`，不把较新 patch 才出现的 target 提前加入合同；
-- Desktop shell 通过 `BrowserWindow` 领取 startup window，原生 close request
-  触发 server 停止 ingress 并等待 shutdown，而不是把页面心跳或强制 process
-  exit 当成正常关闭合同。
+- Desktop shell 通过 `BrowserWindow` 领取 startup window；原生 close request
+  先同步 fence renderer authoritative ingress，再以 close-scoped
+  `prepare/read` receipt 等待当前 authoritative Snapshot 通过精确候选的物理
+  Save 验证（包括 initial/restart/load/rollback 后尚无新 command 的 Snapshot）。只有
+  receipt 成功才停止 server ingress、drain active commits 并 exit；缺失/失败
+  receipt 保持窗口和 server，不把页面 heartbeat、watchdog 或 timeout 强退当成
+  正常关闭合同。
 
 这些只建立 preview wrapper、output naming 与 close-lifetime floor；macOS、
 Windows、Linux 当前都**没有**通过 D4 promotion。

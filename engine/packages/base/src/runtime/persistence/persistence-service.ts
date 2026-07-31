@@ -17,6 +17,11 @@ import {
 } from "../../contracts/application.ts";
 import { digestBytes, digestCanonicalInternalV1 } from "../../contracts/digest.ts";
 import type { HostAtomicRecordStoreV1, IsoUtcInstant } from "../../contracts/host.ts";
+import {
+  normalizeVersionStampInternalV1,
+  readVersionStampV1,
+} from "../../contracts/version-stamp.ts";
+import type { VersionStampV1 } from "../../contracts/version-stamp.ts";
 import type {
   AppliedHotfixV1,
   PatchReplacementTraceV1,
@@ -28,8 +33,8 @@ import type {
   ExportedSaveV1,
   PersistenceOperationResultV1,
   PersistenceStatusV1,
-  SaveExportOperationResultV1,
   SaveCodecContextV1,
+  SaveExportOperationResultV1,
   SaveImportInvariantViewV1,
   SaveImportValidationContextV1,
   SaveRecordEnvelopeV1,
@@ -57,7 +62,12 @@ import {
 import type { SnapshotWorkInstrumentationV1 } from "../../internal/snapshot-work-instrumentation.ts";
 import type { GameSessionRuntimeControlV1 } from "../session/game-session.ts";
 import { lookupInstalledSnapshotDigestInternalV1 } from "../session/game-session.ts";
-import { createAutoSaveQueueV1 } from "./auto-save-queue.ts";
+import type { AutoSaveAttemptReceiptInternalV1 } from "./auto-save-queue.ts";
+import {
+  createAutoSaveQueueV1,
+  enqueueAutoSaveWithReceiptInternalV1,
+  establishAutoSaveAnchorWithReceiptInternalV1,
+} from "./auto-save-queue.ts";
 import { classifySaveCompatibilityV1, validateSaveImportCandidateV1 } from "./compatibility.ts";
 import { encodeSaveRecordInternalV1 } from "./save-codec.ts";
 import type {
@@ -123,7 +133,7 @@ export interface PersistenceServiceV1<TSnapshot> {
   /**
    * Enqueues one auto-save candidate for the given committed Snapshot. Used
    * by application-level autosave policies when the service was created with
-   * `autoSaveCapture: "external"`; a no-op after disposal.
+   * `autoSaveCapture: "external"`; a no-op after disposal or mutation fencing.
    */
   captureAutoSave(snapshot: DeepReadonly<TSnapshot>): void;
   autoSaveIdle(): Promise<void>;
@@ -131,6 +141,51 @@ export interface PersistenceServiceV1<TSnapshot> {
   takeOverForRebootstrap(
     previous: DeepReadonly<PersistenceRebootstrapDisposalV1>,
   ): Promise<PersistenceRebootstrapTakeoverV1>;
+}
+
+export type PersistenceAutoSaveAttemptReceiptInternalV1 =
+  | {
+      readonly kind: "saved";
+    }
+  | {
+      readonly kind: "failed";
+      readonly result: PersistenceOperationResultV1 | null;
+    }
+  | {
+      readonly kind: "superseded";
+    };
+
+interface PersistenceServiceControlInternalV1 {
+  captureAutoSaveWithReceipt(
+    snapshot: unknown,
+  ): Promise<PersistenceAutoSaveAttemptReceiptInternalV1>;
+  fencePlayerMutations(): void;
+}
+
+const persistenceServiceControlsInternalV1 = new WeakMap<
+  object,
+  PersistenceServiceControlInternalV1
+>();
+
+export function captureAutoSaveWithReceiptInternalV1<TSnapshot>(
+  service: PersistenceServiceV1<TSnapshot>,
+  snapshot: DeepReadonly<TSnapshot>,
+): Promise<PersistenceAutoSaveAttemptReceiptInternalV1> {
+  const control = persistenceServiceControlsInternalV1.get(service);
+  if (control === undefined) {
+    throw new TypeError("Persistence service does not support exact Auto Save receipts");
+  }
+  return control.captureAutoSaveWithReceipt(snapshot);
+}
+
+export function fencePersistencePlayerMutationsInternalV1<TSnapshot>(
+  service: PersistenceServiceV1<TSnapshot>,
+): void {
+  const control = persistenceServiceControlsInternalV1.get(service);
+  if (control === undefined) {
+    throw new TypeError("Persistence service does not support mutation fencing");
+  }
+  control.fencePlayerMutations();
 }
 
 export type PersistenceLeaseAcquisitionV1 = "acquire_initial" | "deferred_rebootstrap";
@@ -171,6 +226,14 @@ export interface CreatePersistenceServiceOptionsV1<
    * for a given state; a throwing projector fails the capture.
    */
   summarizeSave?(state: DeepReadonly<TState>): readonly string[] | null;
+  /**
+   * Diagnostic build stamp captured once for each service and attached to new
+   * Snapshot captures. Annotation rewrites and Auto rotation preserve the
+   * original stamp. Defaults to `readVersionStampV1`; malformed/all-null
+   * results are omitted so headless runs keep the pre-stamp record bytes.
+   * Strictly diagnostic — import compatibility never reads it.
+   */
+  collectVersionStamp?(): VersionStampV1;
 }
 
 export interface CreateStandardPersistenceServiceOptionsV1<
@@ -202,6 +265,8 @@ export interface CreateStandardPersistenceServiceOptionsV1<
    * for a given state; a throwing projector fails the capture.
    */
   summarizeSave?(state: DeepReadonly<TState>): readonly string[] | null;
+  /** See CreatePersistenceServiceOptionsV1.collectVersionStamp. */
+  collectVersionStamp?(): VersionStampV1;
 }
 
 interface SaveCandidateV1<TSnapshot> {
@@ -219,6 +284,7 @@ interface AutoCandidateV1<TSnapshot> {
   readonly snapshot: TSnapshot;
   readonly simulationLineage: readonly SimulationAdoptionV1[];
   readonly fence: SessionLeaseFenceV1 | null;
+  readonly attemptIdentity: object;
 }
 
 function copyLineageV1(
@@ -283,6 +349,17 @@ async function createPersistenceServiceWithDependenciesV1<
     return index !== null && index <= manualSlotCount;
   };
 
+  // Resolve optional diagnostic metadata before the first lease mutation. A
+  // throwing or runtime-malformed collector degrades to absence and therefore
+  // cannot strand an acquired lease during service construction.
+  const versionStampV1: VersionStampV1 | null = (() => {
+    try {
+      return normalizeVersionStampInternalV1((options.collectVersionStamp ?? readVersionStampV1)());
+    } catch {
+      return null;
+    }
+  })();
+
   let currentLineage = copyLineageV1(options.initialSimulationLineage);
   let safelySavedCommandSequence: NonNegativeSafeInteger | null = null;
   let lastFailureCode: string | null = null;
@@ -291,6 +368,7 @@ async function createPersistenceServiceWithDependenciesV1<
   let autoWrites = 0;
   let physicalTail: Promise<void> = Promise.resolve();
   let lifecycle: "active" | "disposing" | "disposed" = "active";
+  let playerMutationsFenced = false;
   let rebootstrapTransferPending = leaseAcquisition === "deferred_rebootstrap";
   let leaseMutationTail: Promise<void> = Promise.resolve();
   let publicReleaseFence: DeepReadonly<SessionLeaseFenceV1> | null = null;
@@ -355,7 +433,10 @@ async function createPersistenceServiceWithDependenciesV1<
       // A fresh capture starts with no player note; annotateSave adds one.
       ...(candidate.summary === null
         ? {}
-        : { annotation: Object.freeze({ summary: candidate.summary, note: null }) }),
+        : {
+            annotation: Object.freeze({ summary: candidate.summary, note: null }),
+          }),
+      ...(versionStampV1 === null ? {} : { versionStamp: versionStampV1 }),
     };
     const parsed = options.validation.codec.recordSchema.parse(value);
     options.validation.codec.validateEnvelope(
@@ -506,6 +587,25 @@ async function createPersistenceServiceWithDependenciesV1<
     }
   };
 
+  let lastSuccessfulAutoSnapshot: DeepReadonly<TSnapshot> | null = null;
+  let lastSuccessfulAutoFence: DeepReadonly<SessionLeaseFenceV1> | null = null;
+  let lastSuccessfulAutoPhysicalOrder: NonNegativeSafeInteger | null = null;
+  let nextAutoPhysicalOrder = parseNonNegativeSafeInteger(0);
+  let lastSuccessfulAutoClearOrder = parseNonNegativeSafeInteger(0);
+  const autoPhysicalOrderByAttempt = new WeakMap<object, NonNegativeSafeInteger>();
+  const takeNextAutoPhysicalOrderV1 = (): NonNegativeSafeInteger => {
+    nextAutoPhysicalOrder = parseNonNegativeSafeInteger(Number(nextAutoPhysicalOrder) + 1);
+    return nextAutoPhysicalOrder;
+  };
+  let autoSaveAttemptsBySnapshot = new WeakMap<
+    object,
+    {
+      readonly anchorEpoch: NonNegativeSafeInteger;
+      readonly fence: DeepReadonly<SessionLeaseFenceV1> | null;
+      readonly attemptIdentity: object;
+      readonly settled: Promise<PersistenceAutoSaveAttemptReceiptInternalV1>;
+    }
+  >();
   const autoQueue = createAutoSaveQueueV1<AutoCandidateV1<TSnapshot>, PersistenceOperationResultV1>(
     {
       async write(candidate) {
@@ -513,6 +613,7 @@ async function createPersistenceServiceWithDependenciesV1<
         try {
           const savedAt = options.metadataClock.now();
           const summary = captureSummaryV1(candidate.snapshot);
+          autoPhysicalOrderByAttempt.set(candidate.attemptIdentity, takeNextAutoPhysicalOrderV1());
           return await schedulePhysicalV1(() =>
             writeVerifiedV1(
               Object.freeze({ ...candidate, savedAt, summary }),
@@ -530,8 +631,14 @@ async function createPersistenceServiceWithDependenciesV1<
         return result.kind === "saved" || lifecycle !== "active";
       },
       onCurrentResult(candidate, result) {
-        if (result.kind === "saved") rememberSuccessV1(candidate.snapshot.commandSequence);
-        else if (result.kind === "rejected" || result.kind === "faulted") {
+        if (result.kind === "saved") {
+          lastSuccessfulAutoSnapshot = candidate.snapshot;
+          lastSuccessfulAutoFence =
+            candidate.fence === null ? null : Object.freeze({ ...candidate.fence });
+          lastSuccessfulAutoPhysicalOrder =
+            autoPhysicalOrderByAttempt.get(candidate.attemptIdentity) ?? null;
+          rememberSuccessV1(candidate.snapshot.commandSequence);
+        } else if (result.kind === "rejected" || result.kind === "faulted") {
           rememberOperationFailureV1(result.code);
         }
       },
@@ -541,36 +648,207 @@ async function createPersistenceServiceWithDependenciesV1<
     },
   );
 
+  const sameAutoSaveFenceV1 = (
+    left: DeepReadonly<SessionLeaseFenceV1> | null,
+    right: DeepReadonly<SessionLeaseFenceV1> | null,
+  ): boolean =>
+    left === null || right === null
+      ? left === right
+      : left.ownerId === right.ownerId && left.fencingToken === right.fencingToken;
+
+  const trackAutoSaveAttemptV1 = (
+    snapshot: DeepReadonly<TSnapshot>,
+    fence: DeepReadonly<SessionLeaseFenceV1> | null,
+    anchorEpoch: NonNegativeSafeInteger,
+    attemptIdentity: object,
+    receipt: Promise<AutoSaveAttemptReceiptInternalV1<PersistenceOperationResultV1>>,
+  ): Promise<PersistenceAutoSaveAttemptReceiptInternalV1> => {
+    const snapshotKey = snapshot as object;
+    const attemptMap = autoSaveAttemptsBySnapshot;
+    const settled = receipt
+      .then((attemptReceipt): PersistenceAutoSaveAttemptReceiptInternalV1 => {
+        if (attemptReceipt.kind === "superseded") {
+          return Object.freeze({ kind: "superseded" as const });
+        }
+        if (attemptReceipt.kind === "rejected") {
+          return Object.freeze({ kind: "failed" as const, result: null });
+        }
+        return attemptReceipt.result.kind === "saved"
+          ? Object.freeze({ kind: "saved" as const })
+          : Object.freeze({
+              kind: "failed" as const,
+              result: attemptReceipt.result,
+            });
+      })
+      .catch(() =>
+        Object.freeze({
+          kind: "failed" as const,
+          result: null,
+        }),
+      );
+    const tracked = Object.freeze({
+      anchorEpoch,
+      fence: fence === null ? null : Object.freeze({ ...fence }),
+      attemptIdentity,
+      settled,
+    });
+    attemptMap.set(snapshotKey, tracked);
+    void settled.then(() => {
+      if (attemptMap.get(snapshotKey) === tracked) {
+        attemptMap.delete(snapshotKey);
+      }
+    });
+    return settled;
+  };
+
   const establishAnchorV1 = (
     snapshot: DeepReadonly<TSnapshot>,
     simulationLineage: readonly DeepReadonly<SimulationAdoptionV1>[],
   ): void => {
-    if (lifecycle !== "active") return;
+    if (lifecycle !== "active" || playerMutationsFenced) return;
     const nextLineage = copyLineageV1(simulationLineage);
-    autoQueue.establishAnchor(
+    lastSuccessfulAutoSnapshot = null;
+    lastSuccessfulAutoFence = null;
+    lastSuccessfulAutoPhysicalOrder = null;
+    autoSaveAttemptsBySnapshot = new WeakMap();
+    const fence = options.lease.captureFence();
+    const attemptIdentity = Object.freeze({});
+    const receipt = establishAutoSaveAnchorWithReceiptInternalV1<
+      AutoCandidateV1<TSnapshot>,
+      PersistenceOperationResultV1
+    >(
+      autoQueue,
       Object.freeze({
         snapshot,
         simulationLineage: nextLineage,
-        fence: options.lease.captureFence(),
+        fence,
+        attemptIdentity,
       }),
     );
+    void trackAutoSaveAttemptV1(snapshot, fence, autoQueue.anchorEpoch(), attemptIdentity, receipt);
     currentLineage = nextLineage;
     safelySavedCommandSequence = null;
   };
 
-  const captureAutoSaveV1 = (snapshot: DeepReadonly<TSnapshot>): void => {
-    if (lifecycle !== "active") return;
+  const captureTrackedAutoSaveV1 = (
+    snapshot: DeepReadonly<TSnapshot>,
+  ): Promise<PersistenceAutoSaveAttemptReceiptInternalV1> => {
+    if (lifecycle !== "active") {
+      return Promise.resolve(
+        Object.freeze({
+          kind: "failed" as const,
+          result: faultedV1("runtime_disposed"),
+        }),
+      );
+    }
+    if (snapshot === null || typeof snapshot !== "object") {
+      rememberFailureV1("persistence.capture_invalid");
+      return Promise.resolve(
+        Object.freeze({
+          kind: "failed" as const,
+          result: faultedV1("persistence.capture_invalid"),
+        }),
+      );
+    }
+    const snapshotKey = snapshot as object;
+    const fence = options.lease.captureFence();
+    const anchorEpoch = autoQueue.anchorEpoch();
+    const existing = autoSaveAttemptsBySnapshot.get(snapshotKey);
+    const existingPhysicalOrder =
+      existing === undefined ? undefined : autoPhysicalOrderByAttempt.get(existing.attemptIdentity);
+    if (
+      existing !== undefined &&
+      existing.anchorEpoch === anchorEpoch &&
+      sameAutoSaveFenceV1(existing.fence, fence) &&
+      (existingPhysicalOrder === undefined ||
+        Number(existingPhysicalOrder) > Number(lastSuccessfulAutoClearOrder))
+    ) {
+      return existing.settled;
+    }
+
+    const attemptIdentity = Object.freeze({});
+    let receipt: ReturnType<
+      typeof enqueueAutoSaveWithReceiptInternalV1<
+        AutoCandidateV1<TSnapshot>,
+        PersistenceOperationResultV1
+      >
+    >;
     try {
-      autoQueue.enqueue(
+      receipt = enqueueAutoSaveWithReceiptInternalV1<
+        AutoCandidateV1<TSnapshot>,
+        PersistenceOperationResultV1
+      >(
+        autoQueue,
         Object.freeze({
           snapshot,
           simulationLineage: currentLineage,
-          fence: options.lease.captureFence(),
+          fence,
+          attemptIdentity,
         }),
       );
     } catch {
       rememberFailureV1("persistence.capture_invalid");
+      return Promise.resolve(
+        Object.freeze({
+          kind: "failed" as const,
+          result: faultedV1("persistence.capture_invalid"),
+        }),
+      );
     }
+    return trackAutoSaveAttemptV1(snapshot, fence, anchorEpoch, attemptIdentity, receipt);
+  };
+
+  const captureAutoSaveV1 = (snapshot: DeepReadonly<TSnapshot>): void => {
+    if (lifecycle !== "active" || playerMutationsFenced) return;
+    void captureTrackedAutoSaveV1(snapshot);
+  };
+
+  const matchesSuccessfulAutoSaveV1 = (snapshot: DeepReadonly<TSnapshot>): boolean => {
+    const fence = options.lease.captureFence();
+    return (
+      lastSuccessfulAutoSnapshot === snapshot &&
+      lastSuccessfulAutoFence !== null &&
+      lastSuccessfulAutoPhysicalOrder !== null &&
+      Number(lastSuccessfulAutoPhysicalOrder) > Number(lastSuccessfulAutoClearOrder) &&
+      fence !== null &&
+      lastSuccessfulAutoFence.ownerId === fence.ownerId &&
+      lastSuccessfulAutoFence.fencingToken === fence.fencingToken &&
+      autoQueue.isIdle()
+    );
+  };
+
+  const refreshSuccessfulAutoSaveV1 = async (
+    snapshot: DeepReadonly<TSnapshot>,
+    enqueueAfterRefresh: boolean,
+  ): Promise<PersistenceAutoSaveAttemptReceiptInternalV1> => {
+    try {
+      await refreshLeaseStatusV1();
+    } catch {
+      rememberFailureV1("persistence.unexpected");
+      return Object.freeze({ kind: "failed" as const, result: null });
+    }
+    if (matchesSuccessfulAutoSaveV1(snapshot)) {
+      return Object.freeze({ kind: "saved" as const });
+    }
+    return enqueueAfterRefresh
+      ? captureTrackedAutoSaveV1(snapshot)
+      : Object.freeze({ kind: "superseded" as const });
+  };
+
+  const captureAutoSaveWithReceiptV1 = (
+    snapshot: DeepReadonly<TSnapshot>,
+  ): Promise<PersistenceAutoSaveAttemptReceiptInternalV1> => {
+    if (playerMutationsFenced) {
+      const acceptedPhysicalTail = physicalTail;
+      const acceptedLeaseTail = leaseMutationTail;
+      return Promise.all([acceptedPhysicalTail, acceptedLeaseTail]).then(
+        () => refreshSuccessfulAutoSaveV1(snapshot, true),
+        () => refreshSuccessfulAutoSaveV1(snapshot, true),
+      );
+    }
+    return matchesSuccessfulAutoSaveV1(snapshot)
+      ? refreshSuccessfulAutoSaveV1(snapshot, false)
+      : captureTrackedAutoSaveV1(snapshot);
   };
 
   if ((options.autoSaveCapture ?? "committed_snapshots") === "committed_snapshots") {
@@ -618,7 +896,9 @@ async function createPersistenceServiceWithDependenciesV1<
       current: DeepReadonly<TSnapshot>,
     ) => Promise<ReturnType<typeof replacementOutcomeV1>>,
   ): Promise<PersistenceOperationResultV1> => {
-    if (lifecycle !== "active") return Promise.resolve(faultedV1("runtime_disposed"));
+    if (lifecycle !== "active" || playerMutationsFenced) {
+      return Promise.resolve(faultedV1("runtime_disposed"));
+    }
     let preparedLineage: readonly DeepReadonly<SimulationAdoptionV1>[] | null = null;
     return options.runtimeControl.enqueueAuthoritative<PersistenceOperationResultV1>(
       async (current) => {
@@ -648,7 +928,10 @@ async function createPersistenceServiceWithDependenciesV1<
           return outcome;
         } catch {
           rememberFailureV1("persistence.unexpected");
-          return Object.freeze({ kind: "preserve" as const, result: faultedV1() });
+          return Object.freeze({
+            kind: "preserve" as const,
+            result: faultedV1(),
+          });
         }
       },
       () => {
@@ -666,12 +949,28 @@ async function createPersistenceServiceWithDependenciesV1<
     );
   };
 
+  // Export filenames carry the export instant (unix seconds, from the
+  // metadata clock so tests stay deterministic). This dates the file but is
+  // not a uniqueness guarantee within one second; no-clobber Hosts apply
+  // their own collision policy. An unparsable instant falls back to the bare
+  // configured name.
+  const exportFilenameV1 = (): string => {
+    const millis = Date.parse(options.metadataClock.now());
+    if (!Number.isFinite(millis)) return options.exportFilename;
+    const suffix = String(Math.floor(millis / 1000));
+    const filename = options.exportFilename;
+    const dot = filename.lastIndexOf(".");
+    return dot > 0
+      ? `${filename.slice(0, dot)}-${suffix}${filename.slice(dot)}`
+      : `${filename}-${suffix}`;
+  };
+
   const makeExportV1 = (
     record: DeepReadonly<PersistenceSaveRecordV1<TSnapshot>>,
   ): ExportedSaveV1 => {
     const bytes = Uint8Array.from(encodeRecordV1(record));
     return Object.freeze({
-      filename: options.exportFilename,
+      filename: exportFilenameV1(),
       mediaType: "application/json" as const,
       digest: digestBytes(bytes),
       bytes,
@@ -681,7 +980,7 @@ async function createPersistenceServiceWithDependenciesV1<
   const makeStoredExportV1 = (storedBytes: Uint8Array): ExportedSaveV1 => {
     const bytes = Uint8Array.from(storedBytes);
     return Object.freeze({
-      filename: options.exportFilename,
+      filename: exportFilenameV1(),
       mediaType: "application/json" as const,
       digest: digestBytes(bytes),
       bytes,
@@ -706,7 +1005,7 @@ async function createPersistenceServiceWithDependenciesV1<
     operation: () => Promise<SessionLeaseOperationResultV1>,
     trackSuccessfulRelease = false,
   ): Promise<SessionLeaseOperationResultV1> => {
-    if (lifecycle !== "active" || rebootstrapTransferPending) {
+    if (lifecycle !== "active" || playerMutationsFenced || rebootstrapTransferPending) {
       return Promise.resolve(
         Object.freeze({ kind: "rejected" as const, code: "conflict" as const }),
       );
@@ -860,7 +1159,9 @@ async function createPersistenceServiceWithDependenciesV1<
     },
 
     save(slot: PlayerWritableSaveSlotIdV1) {
-      if (lifecycle !== "active") return Promise.resolve(faultedV1("runtime_disposed"));
+      if (lifecycle !== "active" || playerMutationsFenced) {
+        return Promise.resolve(faultedV1("runtime_disposed"));
+      }
       if (!isPlayerWritableSaveSlotIdV1(slot) || !slotWithinCountV1(slot)) {
         return Promise.resolve(faultedV1("persistence.invalid_slot"));
       }
@@ -889,8 +1190,9 @@ async function createPersistenceServiceWithDependenciesV1<
       )
         .then((result) => {
           if (acceptedAnchorEpoch === autoQueue.anchorEpoch()) {
-            if (result.kind === "saved") rememberSuccessV1(candidate.snapshot.commandSequence);
-            else if (result.kind === "rejected" || result.kind === "faulted") {
+            if (result.kind === "saved") {
+              rememberSuccessV1(candidate.snapshot.commandSequence);
+            } else if (result.kind === "rejected" || result.kind === "faulted") {
               rememberOperationFailureV1(result.code);
             }
           }
@@ -902,7 +1204,9 @@ async function createPersistenceServiceWithDependenciesV1<
     },
 
     annotateSave(slot: PlayerWritableSaveSlotIdV1, note: string) {
-      if (lifecycle !== "active") return Promise.resolve(faultedV1("runtime_disposed"));
+      if (lifecycle !== "active" || playerMutationsFenced) {
+        return Promise.resolve(faultedV1("runtime_disposed"));
+      }
       if (!isPlayerWritableSaveSlotIdV1(slot) || !slotWithinCountV1(slot)) {
         return Promise.resolve(faultedV1("persistence.invalid_slot"));
       }
@@ -997,21 +1301,32 @@ async function createPersistenceServiceWithDependenciesV1<
       return enqueueReplacementV1(async () => {
         const read = await options.repository.read(slot);
         if (read.health === "empty") {
-          return Object.freeze({ kind: "preserve" as const, result: rejectedV1("empty_slot") });
+          return Object.freeze({
+            kind: "preserve" as const,
+            result: rejectedV1("empty_slot"),
+          });
         }
         if (read.health === "unavailable") {
           rememberFailureV1(read.code);
-          return Object.freeze({ kind: "preserve" as const, result: rejectedV1("unavailable") });
+          return Object.freeze({
+            kind: "preserve" as const,
+            result: rejectedV1("unavailable"),
+          });
         }
         if (read.health === "invalid") {
-          return Object.freeze({ kind: "preserve" as const, result: rejectedV1("invalid_record") });
+          return Object.freeze({
+            kind: "preserve" as const,
+            result: rejectedV1("invalid_record"),
+          });
         }
         return replacementOutcomeV1(read.bytes, "loaded");
       });
     },
 
     clear(slot: SaveSlotIdV1) {
-      if (lifecycle !== "active") return Promise.resolve(faultedV1("runtime_disposed"));
+      if (lifecycle !== "active" || playerMutationsFenced) {
+        return Promise.resolve(faultedV1("runtime_disposed"));
+      }
       if (!slotWithinCountV1(slot)) {
         return Promise.resolve(faultedV1("persistence.invalid_slot"));
       }
@@ -1021,6 +1336,7 @@ async function createPersistenceServiceWithDependenciesV1<
         return Promise.resolve(rejectedV1("unavailable"));
       }
       const acceptedAnchorEpoch = autoQueue.anchorEpoch();
+      const acceptedAutoClearOrder = slot === "auto.current" ? takeNextAutoPhysicalOrderV1() : null;
       foregroundWrites += 1;
       return schedulePhysicalV1(async () => {
         if (lifecycle !== "active") return faultedV1("runtime_disposed");
@@ -1031,6 +1347,12 @@ async function createPersistenceServiceWithDependenciesV1<
               rememberOperationFailureV1(result.code);
             }
             return repositoryRejectionV1(result.code);
+          }
+          if (acceptedAutoClearOrder !== null) {
+            lastSuccessfulAutoClearOrder = acceptedAutoClearOrder;
+            lastSuccessfulAutoSnapshot = null;
+            lastSuccessfulAutoFence = null;
+            lastSuccessfulAutoPhysicalOrder = null;
           }
           if (acceptedAnchorEpoch === autoQueue.anchorEpoch()) {
             safelySavedCommandSequence = null;
@@ -1050,7 +1372,10 @@ async function createPersistenceServiceWithDependenciesV1<
 
     async exportSave(slot: SaveSlotIdV1) {
       if (!slotWithinCountV1(slot)) {
-        return Object.freeze({ kind: "faulted" as const, code: "persistence.invalid_slot" });
+        return Object.freeze({
+          kind: "faulted" as const,
+          code: "persistence.invalid_slot",
+        });
       }
       try {
         const first = await options.repository.read(slot);
@@ -1059,7 +1384,9 @@ async function createPersistenceServiceWithDependenciesV1<
           rememberFailureV1(first.code);
           return exportRejectedV1("unavailable");
         }
-        if (first.health === "invalid") return exportRejectedV1("invalid_record");
+        if (first.health === "invalid") {
+          return exportRejectedV1("invalid_record");
+        }
         const bytes = first.bytes;
         const validation = validateSaveImportCandidateV1(bytes, options.validation);
         if (validation.kind === "rejected" && validation.code !== "compatibility.lineage_limit") {
@@ -1080,7 +1407,10 @@ async function createPersistenceServiceWithDependenciesV1<
           file: makeStoredExportV1(bytes),
         });
       } catch {
-        return Object.freeze({ kind: "faulted" as const, code: "persistence.unexpected" });
+        return Object.freeze({
+          kind: "faulted" as const,
+          code: "persistence.unexpected",
+        });
       }
     },
 
@@ -1132,6 +1462,7 @@ async function createPersistenceServiceWithDependenciesV1<
             snapshot: runtime.snapshot,
             simulationLineage: currentLineage,
             fence: releaseFence,
+            attemptIdentity: Object.freeze({}),
           }),
         );
         safelySavedCommandSequence = null;
@@ -1189,7 +1520,11 @@ async function createPersistenceServiceWithDependenciesV1<
           previous.ownership === "read_only" ? previous.code : ("lease_takeover_failed" as const);
         rebootstrapFailureCode = code;
         rememberFailureV1(code);
-        return Object.freeze({ ownership: "read_only" as const, code, fence: null });
+        return Object.freeze({
+          ownership: "read_only" as const,
+          code,
+          fence: null,
+        });
       }
       try {
         const result = await options.lease.takeOverUnowned(previous.fence.fencingToken);
@@ -1224,7 +1559,7 @@ async function createPersistenceServiceWithDependenciesV1<
     return takeoverPromise;
   };
 
-  return Object.freeze({
+  const service: PersistenceServiceV1<TSnapshot> = Object.freeze({
     port,
     getSimulationLineage: () => currentLineage,
     establishAnchor: establishAnchorV1,
@@ -1233,6 +1568,17 @@ async function createPersistenceServiceWithDependenciesV1<
     disposeForRebootstrap: disposeForRebootstrapV1,
     takeOverForRebootstrap: takeOverForRebootstrapV1,
   });
+  persistenceServiceControlsInternalV1.set(
+    service,
+    Object.freeze({
+      captureAutoSaveWithReceipt: (snapshot: unknown) =>
+        captureAutoSaveWithReceiptV1(snapshot as DeepReadonly<TSnapshot>),
+      fencePlayerMutations: () => {
+        playerMutationsFenced = true;
+      },
+    }),
+  );
+  return service;
 }
 
 type ExactFieldsV1 = Readonly<Record<string, unknown>>;
@@ -1308,7 +1654,9 @@ function denseArrayV1<T>(
 }
 
 function nonemptyStringV1(value: unknown, label: string): string {
-  if (typeof value !== "string" || value.length === 0) throw new TypeError(`invalid ${label}`);
+  if (typeof value !== "string" || value.length === 0) {
+    throw new TypeError(`invalid ${label}`);
+  }
   return value;
 }
 
@@ -1347,7 +1695,9 @@ function parseAppliedHotfixV1(value: unknown, index: number): AppliedHotfixV1 {
     "AppliedHotfixV1 identity",
   );
   const ordinal = parsePositiveSafeInteger(fields.ordinal);
-  if (Number(ordinal) !== index + 1) throw new TypeError("invalid Applied Hotfix ordinal");
+  if (Number(ordinal) !== index + 1) {
+    throw new TypeError("invalid Applied Hotfix ordinal");
+  }
   return Object.freeze({
     identity: Object.freeze({
       id: nonemptyStringV1(identity.id, "Hotfix ID"),
@@ -1616,6 +1966,9 @@ function createStandardPersistenceServiceInternalV1<
       ...(options.summarizeSave === undefined
         ? {}
         : { summarizeSave: options.summarizeSave.bind(options) }),
+      ...(options.collectVersionStamp === undefined
+        ? {}
+        : { collectVersionStamp: options.collectVersionStamp.bind(options) }),
     },
     instrumentation,
   );

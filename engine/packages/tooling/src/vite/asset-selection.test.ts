@@ -209,6 +209,100 @@ describe("asset selection materialization", () => {
     ).rejects.toThrow("source root is not a directory");
   });
 
+  it("rejects equal source and output roots before changing source files", async () => {
+    const fixture = await fixtureV1();
+
+    await expect(
+      materializeAssetSelectionV1({
+        sourceRoot: fixture.payload,
+        outputDirectory: fixture.payload,
+        plan: { files: ["records/catalog.json"], warnings: [] },
+      }),
+    ).rejects.toThrow("source and output roots must not overlap");
+
+    expect(await readFile(join(fixture.payload, "records", "catalog.json"), "utf8")).toBe("{}");
+  });
+
+  it("rejects an output root below the source root before changing source files", async () => {
+    const fixture = await fixtureV1();
+    const source = join(fixture.root, "source-with-output");
+    const output = join(source, "out");
+    await mkdir(output, { recursive: true });
+    await writeFile(join(source, "a"), "A", "utf8");
+    await writeFile(join(output, "a"), "B", "utf8");
+
+    await expect(
+      materializeAssetSelectionV1({
+        sourceRoot: source,
+        outputDirectory: output,
+        plan: { files: ["a", "out/a"], warnings: [] },
+      }),
+    ).rejects.toThrow("source and output roots must not overlap");
+
+    expect(await readFile(join(source, "a"), "utf8")).toBe("A");
+    expect(await readFile(join(output, "a"), "utf8")).toBe("B");
+    await expect(lstat(join(output, "out", "a"))).rejects.toThrow();
+  });
+
+  it("rejects a missing output root below the source root before creating it", async () => {
+    const fixture = await fixtureV1();
+    const output = join(fixture.payload, "generated");
+
+    await expect(
+      materializeAssetSelectionV1({
+        sourceRoot: fixture.payload,
+        outputDirectory: output,
+        plan: { files: ["records/catalog.json"], warnings: [] },
+      }),
+    ).rejects.toThrow("source and output roots must not overlap");
+
+    await expect(lstat(output)).rejects.toThrow();
+    expect(await readFile(join(fixture.payload, "records", "catalog.json"), "utf8")).toBe("{}");
+  });
+
+  it("compares pinned real roots when the source root is a symbolic-link alias", async () => {
+    const fixture = await fixtureV1();
+    const linkedRoot = join(fixture.root, "linked-overlap-source");
+    const output = join(fixture.payload, "generated");
+    try {
+      await symlink(fixture.payload, linkedRoot, "dir");
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "EPERM") return;
+      throw error;
+    }
+
+    await expect(
+      materializeAssetSelectionV1({
+        sourceRoot: linkedRoot,
+        outputDirectory: output,
+        plan: { files: ["records/catalog.json"], warnings: [] },
+      }),
+    ).rejects.toThrow("source and output roots must not overlap");
+
+    await expect(lstat(output)).rejects.toThrow();
+  });
+
+  it("rejects an output root above the source root before changing source files", async () => {
+    const fixture = await fixtureV1();
+    const output = join(fixture.root, "output-with-source");
+    const source = join(output, "in");
+    await mkdir(join(source, "in"), { recursive: true });
+    await writeFile(join(source, "z"), "A", "utf8");
+    await writeFile(join(source, "in", "z"), "B", "utf8");
+
+    await expect(
+      materializeAssetSelectionV1({
+        sourceRoot: source,
+        outputDirectory: output,
+        plan: { files: ["in/z", "z"], warnings: [] },
+      }),
+    ).rejects.toThrow("source and output roots must not overlap");
+
+    expect(await readFile(join(source, "z"), "utf8")).toBe("A");
+    expect(await readFile(join(source, "in", "z"), "utf8")).toBe("B");
+    await expect(lstat(join(output, "z"))).rejects.toThrow();
+  });
+
   it("rejects an output root symbolic link without writing through it", async () => {
     const fixture = await fixtureV1();
     try {

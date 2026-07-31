@@ -26,7 +26,10 @@ createWebHostV1({ records: injectedRecordsV1 });
 // @ts-expect-error persistence composition requires databaseName or records
 createWebHostV1({});
 // @ts-expect-error persistence composition forbids databaseName and records together
-createWebHostV1({ databaseName: "sillymaker.type-test.runtime", records: injectedRecordsV1 });
+createWebHostV1({
+  databaseName: "sillymaker.type-test.runtime",
+  records: injectedRecordsV1,
+});
 
 declare const preferenceInputV1: Parameters<typeof createWebContentPreferencePortV1>[0];
 const preferenceRecordsV1: HostAtomicRecordStoreV1 = preferenceInputV1.records;
@@ -80,3 +83,7 @@ export {
 export { DevelopmentPanel as ForbiddenDevelopmentPanel } from "@sillymaker/web";
 // @ts-expect-error the single Artifact surface has no Developer subpath
 export { DevelopmentPanel as ForbiddenDeveloperSubpath } from "@sillymaker/web/developer";
+// @ts-expect-error the Desktop close bridge is package-internal
+export { installDesktopCloseFlushV1 } from "@sillymaker/web";
+// @ts-expect-error the Desktop close global key is package-internal
+export { desktopCloseFlushGlobalKeyV1 } from "@sillymaker/web";

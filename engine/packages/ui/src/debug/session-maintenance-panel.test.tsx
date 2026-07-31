@@ -4,11 +4,11 @@ import "@testing-library/jest-dom/vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { RuntimeCapabilityPortV1, RuntimeCapabilitiesV1 } from "@sillymaker/base";
+import type { RuntimeCapabilitiesV1, RuntimeCapabilityPortV1 } from "@sillymaker/base";
 import { createInputRouterV1 } from "../input/input-router.ts";
 import type { SaveOverlayPortV1 } from "../persistence/save-overlay.tsx";
 import { DevDockPortalCoordinatorV1 } from "./dev-dock-portal-coordinator.tsx";
-import { DevDockV1, createDevDockContributionSetV1 } from "./dev-dock.tsx";
+import { createDevDockContributionSetV1, DevDockV1 } from "./dev-dock.tsx";
 import { SessionMaintenancePanelV1 } from "./session-maintenance-panel.tsx";
 
 afterEach(cleanup);
@@ -72,6 +72,58 @@ describe("SessionMaintenancePanelV1", () => {
       ),
     );
     expect(port.importSave).toHaveBeenCalledTimes(1);
+  });
+
+  it("explains pre-checked incompatible and invalid imports in player-facing language", async () => {
+    const importSave = vi
+      .fn()
+      .mockResolvedValueOnce({ kind: "rejected", code: "incompatible" })
+      .mockResolvedValueOnce({ kind: "rejected", code: "invalid_record" });
+    const port = fakeSavePortV1({ importSave: importSave as never });
+    render(<SessionMaintenancePanelV1 savePort={port} />);
+
+    fireEvent.click(screen.getByText("Import state"));
+    await waitFor(() =>
+      expect(document.querySelector("[data-session-maintenance-note]")?.textContent).toContain(
+        "different game or version",
+      ),
+    );
+
+    fireEvent.click(screen.getByText("Import state"));
+    await waitFor(() =>
+      expect(document.querySelector("[data-session-maintenance-note]")?.textContent).toContain(
+        "Not a valid engine save",
+      ),
+    );
+    expect(importSave).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows the build version stamp readout and hides an empty stamp", () => {
+    const { rerender } = render(
+      <SessionMaintenancePanelV1
+        versionStamp={{
+          applicationVersion: "1.2.0",
+          applicationCommit: "abc1234",
+          engineVersion: "0.4.2",
+          engineCommit: "def5678",
+        }}
+      />,
+    );
+    expect(document.querySelector("[data-session-maintenance-versions]")?.textContent).toBe(
+      "app 1.2.0 (abc1234) · engine 0.4.2 (def5678)",
+    );
+
+    rerender(
+      <SessionMaintenancePanelV1
+        versionStamp={{
+          applicationVersion: null,
+          applicationCommit: null,
+          engineVersion: null,
+          engineCommit: null,
+        }}
+      />,
+    );
+    expect(document.querySelector("[data-session-maintenance-versions]")).toBeNull();
   });
 
   it("arms cleanup, skips empty slots, and reports every structured failure", async () => {
@@ -165,7 +217,9 @@ describe("SessionMaintenancePanelV1", () => {
           resolveExport = () => resolve({ filename: "state.json" });
         }),
     );
-    const port = fakeSavePortV1({ exportCurrentSave: exportCurrentSave as never });
+    const port = fakeSavePortV1({
+      exportCurrentSave: exportCurrentSave as never,
+    });
     const capabilities = capabilityPortV1({
       debugTools: true,
       cheats: true,

@@ -10,6 +10,7 @@ import type { Plugin, PluginOption, UserConfig } from "vite";
 import type { SillymakerAppConfigV1 } from "../project/config-types.ts";
 import { defineSillymakerAppV1 } from "../project/config.ts";
 import { applyStoryMetadataToHtmlV1, parseStoryMetadataV1 } from "../project/story-metadata.ts";
+import { collectVersionStampV1, versionStampPluginV1 } from "./version-stamp.ts";
 import {
   copyRuntimeAssetsV1,
   parseRuntimeAssetContentTypesV1,
@@ -165,6 +166,10 @@ export async function createSillymakerAppViteConfigV1(
     react(),
     runtimeAssetsPluginV1(appRoot, runtimeAssetContentTypes),
     storyMetadataPluginV1(appRoot),
+    // Human-facing version stamp (package versions + git commits, all
+    // soft-failing) — shown in the debug dock and readable by Stories
+    // through readVersionStampV1.
+    versionStampPluginV1(collectVersionStampV1({ appRoot })),
   );
 
   return {

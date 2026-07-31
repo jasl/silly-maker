@@ -181,9 +181,21 @@ on macOS, `%APPDATA%/<identifier>/saves` on Windows, and
 the experimental `deno desktop` command from Deno >= 2.9.
 
 The shell adopts Deno Desktop's startup window instead of creating a second
-window. Closing that window stops HTTP admission and gracefully shuts down the
-local server so active record commits can finish; it does not force-exit the
-process from a page heartbeat.
+window. Closing that window first fences renderer mutation ingress, asks the
+page to verify the exact current authoritative Snapshot in `auto.current`, and
+waits for that close request's acknowledgement; only then does the shell stop HTTP
+admission, drain active record commits, and exit. A failed or missing
+acknowledgement keeps the shell alive instead of discarding the latest
+Snapshot; no page heartbeat or timeout force-exits the process.
+
+The shell binds its HTTP ingress explicitly to loopback and also serves
+`/sillymaker/files/download` for the embedded webview, which does not honor
+ordinary `<a download>` clicks. Shell-marked pages (not the standalone
+`?records=local` save-server flow) stream bounded export bytes to that endpoint.
+The shell sanitizes the requested single-segment filename, writes an exclusive
+same-directory temporary file, and atomically publishes a non-overwriting final
+name; collisions get a ` (n)` suffix and failed writes leave no partial final
+file.
 
 Without `--target` the output is a host-platform preview in the format selected
 for that platform. Each explicit supported `--target <triple>` adds one

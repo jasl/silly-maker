@@ -10,6 +10,19 @@ export interface AutoSaveQueueV1<TCandidate> {
   idle(): Promise<void>;
 }
 
+export type AutoSaveAttemptReceiptInternalV1<TResult> =
+  | {
+      readonly kind: "fulfilled";
+      readonly result: TResult;
+    }
+  | {
+      readonly kind: "rejected";
+      readonly error: unknown;
+    }
+  | {
+      readonly kind: "superseded";
+    };
+
 export interface CreateAutoSaveQueueOptionsV1<TCandidate, TResult> {
   write(candidate: DeepReadonly<TCandidate>): Promise<TResult>;
   isSuccessfulResult?(result: DeepReadonly<TResult>): boolean;
@@ -17,14 +30,44 @@ export interface CreateAutoSaveQueueOptionsV1<TCandidate, TResult> {
   onFailure?(error: unknown): void;
 }
 
-interface AutoSaveCandidateV1<TCandidate> {
+interface AutoSaveCandidateV1<TCandidate, TResult> {
   readonly candidate: DeepReadonly<TCandidate>;
   readonly epoch: NonNegativeSafeInteger;
+  readonly settleReceipt?: (receipt: AutoSaveAttemptReceiptInternalV1<TResult>) => void;
 }
 
 type WriteSettlementV1<TResult> =
   | { readonly kind: "fulfilled"; readonly result: TResult }
   | { readonly kind: "rejected"; readonly error: unknown };
+
+interface AutoSaveReceiptControlInternalV1 {
+  enqueue(candidate: unknown): Promise<AutoSaveAttemptReceiptInternalV1<unknown>>;
+  establishAnchor(candidate: unknown): Promise<AutoSaveAttemptReceiptInternalV1<unknown>>;
+}
+
+const receiptControlsInternalV1 = new WeakMap<object, AutoSaveReceiptControlInternalV1>();
+
+export function enqueueAutoSaveWithReceiptInternalV1<TCandidate, TResult>(
+  queue: AutoSaveQueueV1<TCandidate>,
+  candidate: DeepReadonly<TCandidate>,
+): Promise<AutoSaveAttemptReceiptInternalV1<TResult>> {
+  const control = receiptControlsInternalV1.get(queue);
+  if (control === undefined) {
+    throw new TypeError("Auto Save queue does not support internal receipts");
+  }
+  return control.enqueue(candidate) as Promise<AutoSaveAttemptReceiptInternalV1<TResult>>;
+}
+
+export function establishAutoSaveAnchorWithReceiptInternalV1<TCandidate, TResult>(
+  queue: AutoSaveQueueV1<TCandidate>,
+  candidate: DeepReadonly<TCandidate>,
+): Promise<AutoSaveAttemptReceiptInternalV1<TResult>> {
+  const control = receiptControlsInternalV1.get(queue);
+  if (control === undefined) {
+    throw new TypeError("Auto Save queue does not support internal receipts");
+  }
+  return control.establishAnchor(candidate) as Promise<AutoSaveAttemptReceiptInternalV1<TResult>>;
+}
 
 export function createAutoSaveQueueV1<TCandidate, TResult>(
   options: CreateAutoSaveQueueOptionsV1<TCandidate, TResult>,
@@ -46,9 +89,9 @@ export function createAutoSaveQueueV1<TCandidate, TResult>(
   }
 
   let epoch = parseNonNegativeSafeInteger(0);
-  let running: AutoSaveCandidateV1<TCandidate> | null = null;
-  let pending: AutoSaveCandidateV1<TCandidate> | null = null;
-  let requiredRepair: AutoSaveCandidateV1<TCandidate> | null = null;
+  let running: AutoSaveCandidateV1<TCandidate, TResult> | null = null;
+  let pending: AutoSaveCandidateV1<TCandidate, TResult> | null = null;
+  let requiredRepair: AutoSaveCandidateV1<TCandidate, TResult> | null = null;
   let repairOutstanding = false;
   const idleResolvers = new Set<() => void>();
 
@@ -61,7 +104,7 @@ export function createAutoSaveQueueV1<TCandidate, TResult>(
   };
 
   const publishCurrentResultV1 = (
-    entry: AutoSaveCandidateV1<TCandidate>,
+    entry: AutoSaveCandidateV1<TCandidate, TResult>,
     result: TResult,
   ): void => {
     try {
@@ -89,7 +132,11 @@ export function createAutoSaveQueueV1<TCandidate, TResult>(
     }
   };
 
-  const startV1 = (entry: AutoSaveCandidateV1<TCandidate>): void => {
+  const supersedeV1 = (entry: AutoSaveCandidateV1<TCandidate, TResult>): void => {
+    entry.settleReceipt?.(Object.freeze({ kind: "superseded" }));
+  };
+
+  const startV1 = (entry: AutoSaveCandidateV1<TCandidate, TResult>): void => {
     running = entry;
     let write: Promise<TResult>;
     try {
@@ -105,25 +152,49 @@ export function createAutoSaveQueueV1<TCandidate, TResult>(
   };
 
   const settleV1 = (
-    entry: AutoSaveCandidateV1<TCandidate>,
+    entry: AutoSaveCandidateV1<TCandidate, TResult>,
     settlement: WriteSettlementV1<TResult>,
   ): void => {
     if (running !== entry) {
-      reportFailureV1(new TypeError("Auto Save queue settled an inactive write"));
+      const error = new TypeError("Auto Save queue settled an inactive write");
+      reportFailureV1(error);
+      entry.settleReceipt?.(Object.freeze({ kind: "rejected", error }));
       return;
     }
 
+    let completedWrite = false;
     if (settlement.kind === "rejected") {
       reportFailureV1(settlement.error);
     } else if (entry.epoch === epoch) {
       publishCurrentResultV1(entry, settlement.result);
+      if (entry.epoch === epoch) {
+        completedWrite = resultCompletedWriteV1(settlement.result);
+      }
     }
 
-    const completedCurrentWrite =
-      entry.epoch === epoch &&
-      settlement.kind === "fulfilled" &&
-      resultCompletedWriteV1(settlement.result);
-    if (completedCurrentWrite) repairOutstanding = false;
+    // Result, success, and failure callbacks may synchronously establish a new
+    // anchor. Re-read the epoch after every callback before acknowledging the
+    // exact attempt or mutating repair state for its epoch.
+    const isCurrent = entry.epoch === epoch;
+    if (isCurrent && completedWrite) repairOutstanding = false;
+
+    if (!isCurrent) {
+      supersedeV1(entry);
+    } else if (settlement.kind === "fulfilled") {
+      entry.settleReceipt?.(
+        Object.freeze({
+          kind: "fulfilled",
+          result: settlement.result,
+        }),
+      );
+    } else {
+      entry.settleReceipt?.(
+        Object.freeze({
+          kind: "rejected",
+          error: settlement.error,
+        }),
+      );
+    }
 
     running = null;
     const next = requiredRepair ?? pending;
@@ -140,34 +211,56 @@ export function createAutoSaveQueueV1<TCandidate, TResult>(
     resolveIdleV1();
   };
 
-  return Object.freeze({
-    enqueue(candidate: DeepReadonly<TCandidate>) {
-      const entry = Object.freeze({ candidate, epoch });
-      if (running === null) {
-        if (repairOutstanding) requiredRepair = null;
-        startV1(entry);
-        return;
-      }
-      pending = entry;
-    },
+  const enqueueV1 = (
+    candidate: DeepReadonly<TCandidate>,
+    settleReceipt?: (receipt: AutoSaveAttemptReceiptInternalV1<TResult>) => void,
+  ): void => {
+    const entry = Object.freeze({
+      candidate,
+      epoch,
+      ...(settleReceipt === undefined ? {} : { settleReceipt }),
+    });
+    if (running === null) {
+      if (repairOutstanding) requiredRepair = null;
+      startV1(entry);
+      return;
+    }
+    if (pending !== null) supersedeV1(pending);
+    pending = entry;
+  };
 
-    establishAnchor(candidate: DeepReadonly<TCandidate>) {
-      const nextEpoch = parseNonNegativeSafeInteger(epoch + 1);
-      epoch = nextEpoch;
-      pending = null;
-      const repair = Object.freeze({ candidate, epoch: nextEpoch });
-      if (running === null) {
-        if (repairOutstanding) {
-          requiredRepair = null;
-          startV1(repair);
-        } else {
-          requiredRepair = null;
-        }
-        return;
+  const establishAnchorV1 = (
+    candidate: DeepReadonly<TCandidate>,
+    settleReceipt?: (receipt: AutoSaveAttemptReceiptInternalV1<TResult>) => void,
+  ): void => {
+    const nextEpoch = parseNonNegativeSafeInteger(epoch + 1);
+    epoch = nextEpoch;
+    if (pending !== null) supersedeV1(pending);
+    pending = null;
+    const repair = Object.freeze({
+      candidate,
+      epoch: nextEpoch,
+      ...(settleReceipt === undefined ? {} : { settleReceipt }),
+    });
+    if (running === null) {
+      if (requiredRepair !== null) supersedeV1(requiredRepair);
+      if (repairOutstanding) {
+        requiredRepair = null;
+        startV1(repair);
+      } else {
+        requiredRepair = null;
+        supersedeV1(repair);
       }
-      repairOutstanding = true;
-      requiredRepair = repair;
-    },
+      return;
+    }
+    repairOutstanding = true;
+    if (requiredRepair !== null) supersedeV1(requiredRepair);
+    requiredRepair = repair;
+  };
+
+  const queue: AutoSaveQueueV1<TCandidate> = Object.freeze({
+    enqueue: (candidate: DeepReadonly<TCandidate>) => enqueueV1(candidate),
+    establishAnchor: (candidate: DeepReadonly<TCandidate>) => establishAnchorV1(candidate),
 
     anchorEpoch: () => epoch,
 
@@ -183,4 +276,30 @@ export function createAutoSaveQueueV1<TCandidate, TResult>(
       });
     },
   });
+
+  const createReceiptV1 = (
+    operation: (settle: (receipt: AutoSaveAttemptReceiptInternalV1<TResult>) => void) => void,
+  ): Promise<AutoSaveAttemptReceiptInternalV1<unknown>> =>
+    new Promise<AutoSaveAttemptReceiptInternalV1<TResult>>((resolve) => {
+      let settled = false;
+      operation((receipt) => {
+        if (settled) return;
+        settled = true;
+        resolve(receipt);
+      });
+    }) as Promise<AutoSaveAttemptReceiptInternalV1<unknown>>;
+
+  receiptControlsInternalV1.set(
+    queue,
+    Object.freeze({
+      enqueue: (candidate: unknown) =>
+        createReceiptV1((settle) => enqueueV1(candidate as DeepReadonly<TCandidate>, settle)),
+      establishAnchor: (candidate: unknown) =>
+        createReceiptV1((settle) =>
+          establishAnchorV1(candidate as DeepReadonly<TCandidate>, settle),
+        ),
+    }),
+  );
+
+  return queue;
 }

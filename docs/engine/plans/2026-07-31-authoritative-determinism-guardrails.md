@@ -126,7 +126,18 @@ Playwright config 或 Save schema 的切片并行合并。
 10. durable Save projector characterization：无 projector、null、empty、valid、
     malformed 与 throw 的 `summarizeSave`，以及 callback count、normalized frozen
     copy、fixed-state/fixed-metadata-clock Save bytes、standard receipt 与 opaque
-    repository fallback equivalence。
+    repository fallback equivalence；
+11. bounded presentation/runtime persistence metadata characterization：
+    `versionStamp` absent、all-null、partial、full、malformed 与 collector throw，
+    per-service collector count、bounded printable normalization、defensive
+    copy/freeze、fixed Snapshot/fixed metadata clock bytes，以及 standard receipt
+    与 opaque repository fallback equivalence；同时固定 stamp 作为 Snapshot
+    capture origin 在 annotation rewrite、autosave rotation 与 stored-record
+    export 中被保留，而不是由后来处理记录的 runtime 重采集；load/import
+    compatibility 不读取 stamp，post-load/import fresh capture 使用当前 service
+    stamp。导出 filename 另以
+    fixed metadata clock 覆盖有/无 extension、invalid clock 与同一秒重复建议名；
+    后者只锁“秒级名称可能相同”，最终 no-clobber 由 Host collision policy 保证。
 
 DET0 可以加入 package-internal/test-only observation，但不改变 production
 behavior、public API、canonical algorithm 或 schema。JSON 输出只写 OS temp/CI
@@ -168,6 +179,14 @@ React/Presentation composition 共置，先提取 dedicated save-projection entr
 整棵 renderer closure 纳入 authoritative scope。玩家 note 是 persistence
 metadata/input，不是 authoritative simulation callback。
 
+`versionStamp` collector 不属于 authoritative closure；它是
+presentation/runtime persistence metadata ingress。DET0 仍必须证明它只生成
+bounded frozen envelope metadata，且 compatibility、adoption、Snapshot
+digest/identity、CommandLog 与 replay 对其 absent/partial/full 变化保持不敏感。
+malformed output、accessor/Proxy side effect 或 throw 不得污染或中止
+authoritative transition；目标 normalization 不调用 getter，逐字段丢弃 malformed
+值，并让最终 all-null、accessor-only 或 hostile Proxy shape 降级为 stamp absent。
+
 ### Acceptance
 
 - characterization test 能在当前实现上稳定证明四类真实缺口：raw/mutable bootstrap
@@ -195,6 +214,19 @@ metadata/input，不是 authoritative simulation callback。
   characterization 并明确归入 DET2e，只有证明不在 authoritative closure 的
   Host/Presentation/tooling/test callsite 才能作为 negative control；
 - Host entropy、Presentation clock、tooling/bench 不被误分类；
+- `versionStamp` corpus 固定 absent/all-null/partial/full/malformed/throw 的
+  normalization、freeze identity 与 Save bytes；每个成功创建的 service 恰好
+  collect 一次，后续 capture/rewrite/rotation/export 的新增 collect count 为 `0`；
+  headless absent/all-null oracle 与 PF1 unstamped bytes 完全相同，partial/full 的
+  独立 fixed bytes/SHA 不从待测 collector 或 encoder 生成；
+- stamp 在 annotation rewrite、每次 autosave candidate rotation 与 stored-record
+  export 后仍等于原 Snapshot capture origin；这些路径不调用当前 runtime
+  collector。load/import compatibility 不读取 stamp，post-load/import fresh
+  capture 使用当前 service stamp；两者都不把 stamp 纳入
+  compatibility/authoritative identity；
+- fixed-clock export filename corpus 明确证明秒级 suffix 不提供唯一性：同一秒可
+  得到相同 suggested filename，Desktop/Browser Host 的 no-clobber collision
+  policy 单独验证且不得改变 payload bytes；
 - 每个后续 slice 都有明确 before count/behavior；
 - 保留并复用 PF1 S0 的独立 byte oracle：现有固定 hashes 与对优化前 archive
   `96a0a93` 的比较；不得从当前 source 重新生成 expected，也不得让 expected 与
@@ -619,6 +651,17 @@ transcript 至少包含：
 driver/comparator 还要提供可复用的 pure authoritative vector seam；PF-DET 用
 synthetic normalization callback 证明 shape，并以 fixed State、fixed metadata
 clock 的 `summarizeSave` vector 比较 normalized summary 与 annotated Save bytes；
+同一 persistence seam 还要运行两个独立 `versionStamp` oracle：headless
+absent/all-null stamp 必须继续产生 PF1 unstamped bytes；固定 browser-injected
+partial/full stamp 必须在四 runtime 得到相同 normalized frozen value 与 stamped
+Save bytes。all-null、完全 malformed、accessor-only、hostile Proxy 与 collector
+throw corpus 固定降级为 absent，且成功创建 service 的 collector count 为 `1`、
+后续处理新增 count 为 `0`；Snapshot digest、compatibility 与 authoritative trace
+不因 runtime 改变。annotation rewrite、rotation 与 stored-record export 的 vector
+保留原 capture-origin stamp；load/import compatibility 忽略 stamp，后续 fresh
+capture 使用当前 service stamp；
+fixed-clock filename vector 只比较 suggested name，并明确同一秒碰撞交给 Host
+no-clobber policy，不把 filename 当作 Save identity；
 DET4 还必须直接消费 DET2e 已在 Deno 固定的 exact order/draw/apply vectors，不得在
 browser path 复制或重生成 expected。PF3 M1/M2 每次注册真实 format/State migration
 时，再把对应 vector 接入同一 Deno/browser matrix。PF-DET 不伪造尚不存在的
@@ -655,6 +698,10 @@ Snapshot、只比 V8 两端或只跑 Chromium 都不算完成。
 - 四 runtime 逐 command compact vector 与各自 repeat 全相等；
 - DET2e 的 exact Event Pool、Content Database 与 transaction/apply pure vectors
   使用同一 fixed expected 在 Deno、Chromium、Firefox、WebKit 全相等；
+- headless unstamped 与 fixed browser-stamped persistence vectors 在四 runtime
+  分别等于独立 expected bytes；stamp normalization、collector count/freeze、
+  capture-origin preservation 和 malformed/throw fallback 无 divergence，PF1
+  unstamped oracle 未被重生成或替换；
 - production Browser Agent 仍不获得 raw Snapshot/RNG/CommandLog；
 - 不提交 raw local report、browser cache 或一次性 transcript JSON；
 - focused Deno test、dedicated browser task、`deno task test` 与

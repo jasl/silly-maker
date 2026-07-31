@@ -43,7 +43,11 @@ import type {
   PersistenceRebootstrapDisposalV1,
   PersistenceServiceV1,
 } from "../persistence/persistence-service.ts";
-import { createPersistenceServiceV1 } from "../persistence/persistence-service.ts";
+import {
+  captureAutoSaveWithReceiptInternalV1,
+  createPersistenceServiceV1,
+  fencePersistencePlayerMutationsInternalV1,
+} from "../persistence/persistence-service.ts";
 import { createSemanticGamePortV1 } from "./semantic-game-port.ts";
 
 type SessionDispatchResultOfV1<TTypes extends GameSimulationTypeMapV1> = Awaited<
@@ -269,7 +273,11 @@ export function defineCoreGameApplicationV1<
 
 interface ResolvedGamePackageSliceV1 {
   readonly provenance: {
-    readonly story: { readonly id: string; readonly revision: number; readonly digest: Digest };
+    readonly story: {
+      readonly id: string;
+      readonly revision: number;
+      readonly digest: Digest;
+    };
   };
 }
 
@@ -308,7 +316,10 @@ export type ResolveCoreGameApplicationResultV1<TResolvedApplication> =
   | { readonly kind: "resolved"; readonly application: TResolvedApplication }
   | {
       readonly kind: "failed";
-      readonly failure: { readonly code: string; readonly details: Record<string, unknown> };
+      readonly failure: {
+        readonly code: string;
+        readonly details: Record<string, unknown>;
+      };
     };
 
 const composerValidationDigestV1 = digestBytes(Uint8Array.of(0x63, 0x6f, 0x72));
@@ -476,7 +487,11 @@ export interface CorePresentationAnchorV1 {
 }
 
 export type CoreEpochBoundOutcomeV1<TValue> =
-  { readonly kind: "current"; readonly value: TValue } | { readonly kind: "stale_epoch" };
+  | {
+      readonly kind: "current";
+      readonly value: TValue;
+    }
+  | { readonly kind: "stale_epoch" };
 
 export interface CreateCoreGameApplicationInstanceOptionsV1 {
   readonly host: CoreApplicationHostServicesV1;
@@ -517,7 +532,10 @@ export interface CoreRollbackPolicyV1<TCommand> {
 }
 
 export type CoreRollbackResultV1 =
-  | { readonly kind: "rolled_back"; readonly commandSequence: NonNegativeSafeInteger }
+  | {
+      readonly kind: "rolled_back";
+      readonly commandSequence: NonNegativeSafeInteger;
+    }
   | {
       readonly kind: "rejected";
       readonly code: "rollback_unavailable" | "rollback_unconfigured" | "hmr_invalidated";
@@ -598,7 +616,10 @@ export interface CoreGameApplicationInstanceV1<
   readonly admin: CoreApplicationAdminV1<TTypes>;
   isDisposed(): boolean;
   dispose(): Promise<{ readonly kind: "disposed" }>;
-  /** Fences the session for a dev rebootstrap without releasing anything. */
+  /**
+   * Fences authoritative session and player-persistence mutation ingress for a
+   * dev rebootstrap without releasing the persistence lease.
+   */
   invalidateForHmr(): void;
   /**
    * Disposes the instance and returns the persistence handoff disposition a
@@ -717,10 +738,18 @@ export async function createCoreGameApplicationInstanceV1<
   // Instance-local debug evidence: the latest faulted attempt with its
   // triggering command. Story diagnostics scrub it before any export.
   let latestAttemptFailure:
-    | { readonly source: "game" | "debug"; readonly command: unknown; readonly attempt: unknown }
+    | {
+        readonly source: "game" | "debug";
+        readonly command: unknown;
+        readonly attempt: unknown;
+      }
     | undefined;
   let pendingAttemptCommand:
-    { readonly source: "game" | "debug"; readonly command: unknown } | undefined;
+    | {
+        readonly source: "game" | "debug";
+        readonly command: unknown;
+      }
+    | undefined;
 
   // Steps below acquire live resources; anything after session creation is
   // failure-guarded so a failed construction leaves no owner or listener.
@@ -729,7 +758,10 @@ export async function createCoreGameApplicationInstanceV1<
     commandSchema: gameSimulation.commandSchema,
     executionContext: undefined as TTypes["executionContext"],
     executeAttempt: (snapshot, command) => {
-      pendingAttemptCommand = Object.freeze({ source: "game" as const, command });
+      pendingAttemptCommand = Object.freeze({
+        source: "game" as const,
+        command,
+      });
       return gameSimulation.commandExecutor.executeAttempt(
         snapshot,
         command,
@@ -750,7 +782,10 @@ export async function createCoreGameApplicationInstanceV1<
           undefined as TTypes["executionContext"],
         ),
       executeAttempt: (snapshot, command) => {
-        pendingAttemptCommand = Object.freeze({ source: "debug" as const, command });
+        pendingAttemptCommand = Object.freeze({
+          source: "debug" as const,
+          command,
+        });
         return gameSimulation.debugCommandExecutor.executeAttempt(
           snapshot,
           command,
@@ -886,6 +921,7 @@ export async function createCoreGameApplicationInstanceV1<
     let origin: CorePresentationAnchorOriginV1 = "bootstrap";
     let pendingOrigin: CorePresentationAnchorOriginV1 | undefined;
     let lastReplayBase: unknown = created.commandLog.replayBase();
+    let clearPendingAutoSaveForAnchorV1: () => void = () => {};
     const anchorListeners = new Set<(anchor: CorePresentationAnchorV1) => void>();
     const currentAnchorV1 = (): CorePresentationAnchorV1 => Object.freeze({ epoch, origin });
     cleanups.push(
@@ -896,6 +932,10 @@ export async function createCoreGameApplicationInstanceV1<
         epoch = parseNonNegativeSafeInteger(epoch + 1);
         origin = pendingOrigin ?? "replacement";
         pendingOrigin = undefined;
+        // A debounce candidate belongs to the replay base that produced it.
+        // Never let an old-base timer write back over a load/import/restart/
+        // rollback replacement.
+        clearPendingAutoSaveForAnchorV1();
         // A replaced replay base invalidates the rollback lineage — except
         // for rollback itself, which already trimmed the surviving prefix.
         if (!rollingBack && rollbackCapacity > 0) {
@@ -950,7 +990,9 @@ export async function createCoreGameApplicationInstanceV1<
     }
 
     function emitTransientEffectsV1(result: SessionDispatchResultOfV1<TTypes>): void {
-      if (result.kind !== "executed" || result.execution.kind !== "committed") return;
+      if (result.kind !== "executed" || result.execution.kind !== "committed") {
+        return;
+      }
       emitTransientEffectsFromFactsV1(
         result.execution.facts as readonly DeepReadonly<TTypes["fact"]>[],
       );
@@ -960,6 +1002,13 @@ export async function createCoreGameApplicationInstanceV1<
     let cancelFlushTimer: (() => void) | undefined;
     let pendingAutoSnapshot: DeepReadonly<TTypes["snapshot"]> | undefined;
     let commandsSinceCapture = 0;
+    const clearPendingAutoSaveV1 = (): void => {
+      cancelFlushTimer?.();
+      cancelFlushTimer = undefined;
+      pendingAutoSnapshot = undefined;
+      commandsSinceCapture = 0;
+    };
+    clearPendingAutoSaveForAnchorV1 = clearPendingAutoSaveV1;
     const captureNowV1 = (): void => {
       cancelFlushTimer?.();
       cancelFlushTimer = undefined;
@@ -968,9 +1017,9 @@ export async function createCoreGameApplicationInstanceV1<
       commandsSinceCapture = 0;
       if (snapshot !== undefined) persistence.captureAutoSave(snapshot);
     };
-    if (autosave.mode === "debounced") {
-      cleanups.push(
-        created.runtimeControl.subscribeCommittedSnapshots((snapshot) => {
+    cleanups.push(
+      created.runtimeControl.subscribeCommittedSnapshots((snapshot) => {
+        if (autosave.mode === "debounced") {
           pendingAutoSnapshot = snapshot;
           commandsSinceCapture += 1;
           if (
@@ -982,13 +1031,49 @@ export async function createCoreGameApplicationInstanceV1<
           }
           cancelFlushTimer?.();
           cancelFlushTimer = scheduler.schedule(captureNowV1, autosave.delayMs);
-        }),
-      );
-      cleanups.push(() => {
-        cancelFlushTimer?.();
-        cancelFlushTimer = undefined;
-      });
-    }
+        }
+      }),
+    );
+    cleanups.push(clearPendingAutoSaveV1);
+
+    const flushAutoSaveV1 = async (): Promise<void> => {
+      clearPendingAutoSaveV1();
+      try {
+        while (true) {
+          // Enqueue inside the synchronous queue-front reader. Awaiting the
+          // Snapshot first would let a replacement anchor rotate between the
+          // read and capture, assigning an old Snapshot to the new epoch.
+          const attempt = await created.runtimeControl.readAtQueueFront((snapshot) =>
+            Object.freeze({
+              snapshot,
+              settled: captureAutoSaveWithReceiptInternalV1(persistence, snapshot),
+            }),
+          );
+          const receipt = await attempt.settled;
+          const current = await created.runtimeControl.readAtQueueFront((snapshot) => snapshot);
+          if (receipt.kind === "superseded" || current !== attempt.snapshot) {
+            continue;
+          }
+          if (receipt.kind !== "saved") {
+            throw new TypeError("persistence.autosave_flush_failed");
+          }
+          return;
+        }
+      } catch (error) {
+        if (error instanceof TypeError && error.message === "persistence.autosave_flush_failed") {
+          throw error;
+        }
+        throw new TypeError("persistence.autosave_flush_failed", {
+          cause: error,
+        });
+      }
+    };
+
+    const invalidateForHmrV1 = (): void => {
+      clearPendingAutoSaveV1();
+      fencePersistencePlayerMutationsInternalV1(persistence);
+      created.invalidationController.invalidateForHmr();
+    };
 
     const withOriginV1 = async <TOperationResult>(
       nextOrigin: CorePresentationAnchorOriginV1,
@@ -1025,9 +1110,17 @@ export async function createCoreGameApplicationInstanceV1<
               anchor: "replace_replay_base" as const,
             });
           },
-          () => Object.freeze({ kind: "faulted" as const, code: "runtime.anchor_failed" as const }),
+          () =>
+            Object.freeze({
+              kind: "faulted" as const,
+              code: "runtime.anchor_failed" as const,
+            }),
           (snapshot) => persistence.establishAnchor(snapshot, []),
-          () => Object.freeze({ kind: "rejected" as const, code: "hmr_invalidated" as const }),
+          () =>
+            Object.freeze({
+              kind: "rejected" as const,
+              code: "hmr_invalidated" as const,
+            }),
         ),
       );
 
@@ -1072,7 +1165,9 @@ export async function createCoreGameApplicationInstanceV1<
       result: SessionDispatchResultOfV1<TTypes>,
     ): void {
       if (rollbackPolicy === null || disposed) return;
-      if (result.kind !== "executed" || result.execution.kind !== "committed") return;
+      if (result.kind !== "executed" || result.execution.kind !== "committed") {
+        return;
+      }
       // The pre-commit state is already in the ring (seeded at bootstrap and
       // after every commit). A barrier commit invalidates everything behind
       // itself: the post-barrier state becomes the new earliest checkpoint.
@@ -1140,14 +1235,24 @@ export async function createCoreGameApplicationInstanceV1<
                   anchor: "replace_replay_base" as const,
                 }),
               () =>
-                Object.freeze({ kind: "faulted" as const, code: "runtime.anchor_failed" as const }),
+                Object.freeze({
+                  kind: "faulted" as const,
+                  code: "runtime.anchor_failed" as const,
+                }),
               (snapshot) => persistence.establishAnchor(snapshot, []),
-              () => Object.freeze({ kind: "rejected" as const, code: "hmr_invalidated" as const }),
+              () =>
+                Object.freeze({
+                  kind: "rejected" as const,
+                  code: "hmr_invalidated" as const,
+                }),
             ),
           );
           if (anchored.kind !== "anchored") {
             return anchored.kind === "rejected" && anchored.code === "hmr_invalidated"
-              ? Object.freeze({ kind: "rejected" as const, code: "hmr_invalidated" as const })
+              ? Object.freeze({
+                  kind: "rejected" as const,
+                  code: "hmr_invalidated" as const,
+                })
               : Object.freeze({
                   kind: "rejected" as const,
                   code: "rollback_unavailable" as const,
@@ -1199,7 +1304,9 @@ export async function createCoreGameApplicationInstanceV1<
           runtimeControl: created.runtimeControl,
           commandLog: created.commandLog,
           debugControl: created.debugControl,
-          invalidationController: created.invalidationController,
+          invalidationController: Object.freeze({
+            invalidateForHmr: invalidateForHmrV1,
+          }),
           persistence,
           runtimeFailures: () => runtimeFailures.entries(),
           capabilityState: capabilityStateV1,
@@ -1220,7 +1327,7 @@ export async function createCoreGameApplicationInstanceV1<
       if (disposalPromise !== undefined) return disposalPromise;
       disposed = true;
       for (const cleanup of cleanups.splice(0)) cleanup();
-      created.invalidationController.invalidateForHmr();
+      invalidateForHmrV1();
       disposalPromise = Promise.resolve(persistence.disposeForRebootstrap());
       return disposalPromise;
     };
@@ -1329,10 +1436,7 @@ export async function createCoreGameApplicationInstanceV1<
       storyRevision: application.storyRevision,
       semantic,
       persistence: persistencePort,
-      flushAutoSave: async () => {
-        captureNowV1();
-        await persistence.autoSaveIdle();
-      },
+      flushAutoSave: flushAutoSaveV1,
       autoSaveIdle: () => persistence.autoSaveIdle(),
       lifecycle: Object.freeze({ restart: restartV1 }),
       rollback: rollbackPortV1,
@@ -1366,7 +1470,10 @@ export async function createCoreGameApplicationInstanceV1<
           if (disposed || epoch !== boundEpoch) {
             return Object.freeze({ kind: "stale_epoch" as const });
           }
-          return Object.freeze({ kind: "current" as const, value: callback(...args) });
+          return Object.freeze({
+            kind: "current" as const,
+            value: callback(...args),
+          });
         };
       },
       admin,
@@ -1375,12 +1482,15 @@ export async function createCoreGameApplicationInstanceV1<
         await disposeForRebootstrapV1();
         return Object.freeze({ kind: "disposed" as const });
       },
-      invalidateForHmr: () => created.invalidationController.invalidateForHmr(),
+      invalidateForHmr: invalidateForHmrV1,
       disposeForRebootstrap: () => disposeForRebootstrapV1(),
     });
   } catch (error) {
     disposed = true;
     for (const cleanup of cleanups.splice(0)) cleanup();
+    if (persistenceService !== undefined) {
+      fencePersistencePlayerMutationsInternalV1(persistenceService);
+    }
     created.invalidationController.invalidateForHmr();
     if (persistenceService !== undefined) {
       await persistenceService.disposeForRebootstrap();

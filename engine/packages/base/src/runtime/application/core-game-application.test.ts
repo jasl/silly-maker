@@ -35,9 +35,9 @@ import type {
 import { createSyntheticCounterGamePackageV1 } from "../../testkit/synthetic-counter.ts";
 import {
   createGameDiagnosticsServiceV1,
+  type DebugBundleCodecContextV1,
   decodeDebugBundleV1,
   encodeDebugBundleV1,
-  type DebugBundleCodecContextV1,
 } from "../diagnostics/debug-bundle.ts";
 import type {
   CoreApplicationHostServicesV1,
@@ -476,7 +476,10 @@ const adapterV1 = {
       : Object.freeze({ kind: "faulted" as const });
   },
   invalidInvocationResult: () =>
-    Object.freeze({ kind: "not_executed" as const, code: "validation_failed" as const }),
+    Object.freeze({
+      kind: "not_executed" as const,
+      code: "validation_failed" as const,
+    }),
 };
 
 const definitionV1 = defineCoreGameApplicationV1({
@@ -721,7 +724,9 @@ function debugDefinitionFixtureV1() {
           codec,
           anchorDebugBundle,
           captureCurrentAutoSave: () =>
-            context.persistence.captureAutoSave(context.session.getCurrentSnapshot()),
+            context.persistence.captureAutoSave(
+              snapshotSchema.parse(context.session.getCurrentSnapshot()),
+            ),
         }),
       });
     },
@@ -736,7 +741,9 @@ function resolvedApplicationV1() {
   const result = resolveCoreGameApplicationV1(definitionV1, {
     buildIdentityInput: deterministicBuildIdentityInputV1,
   });
-  if (result.kind !== "resolved") throw new Error("synthetic story must resolve");
+  if (result.kind !== "resolved") {
+    throw new Error("synthetic story must resolve");
+  }
   return result.application;
 }
 
@@ -744,7 +751,9 @@ function resolvedRollbackApplicationV1() {
   const result = resolveCoreGameApplicationV1(rollbackDefinitionV1, {
     buildIdentityInput: deterministicBuildIdentityInputV1,
   });
-  if (result.kind !== "resolved") throw new Error("synthetic rollback story must resolve");
+  if (result.kind !== "resolved") {
+    throw new Error("synthetic rollback story must resolve");
+  }
   return result.application;
 }
 
@@ -757,7 +766,9 @@ function resolvedResumingApplicationV1() {
   const result = resolveCoreGameApplicationV1(resumingDefinitionV1, {
     buildIdentityInput: deterministicBuildIdentityInputV1,
   });
-  if (result.kind !== "resolved") throw new Error("synthetic story must resolve");
+  if (result.kind !== "resolved") {
+    throw new Error("synthetic story must resolve");
+  }
   return result.application;
 }
 
@@ -800,6 +811,46 @@ function countingRecordsV1() {
   };
 }
 
+function recoverableFailingSaveRecordsV1() {
+  const memory = createMemoryHostRecordStoreV1();
+  let failSaveWrites = true;
+  const records: HostAtomicRecordStoreV1 = Object.freeze({
+    read: memory.read,
+    list: memory.list,
+    commit(mutations: Parameters<HostAtomicRecordStoreV1["commit"]>[0]) {
+      if (failSaveWrites && mutations.some(({ namespace }) => namespace === "save")) {
+        return Promise.reject(new Error("synthetic disk failure"));
+      }
+      return memory.commit(mutations);
+    },
+  });
+  return Object.freeze({
+    records,
+    recover() {
+      failSaveWrites = false;
+    },
+  });
+}
+
+function failingAutoSaveRecordsV1() {
+  const memory = createMemoryHostRecordStoreV1();
+  const records: HostAtomicRecordStoreV1 = Object.freeze({
+    read: memory.read,
+    list: memory.list,
+    commit(mutations: Parameters<HostAtomicRecordStoreV1["commit"]>[0]) {
+      if (
+        mutations.some(
+          ({ namespace, key }) => namespace === "save" && key.includes(":auto.current"),
+        )
+      ) {
+        return Promise.reject(new Error("synthetic Auto Save failure"));
+      }
+      return memory.commit(mutations);
+    },
+  });
+  return records;
+}
+
 function delayedSaveRecordsV1() {
   const memory = createMemoryHostRecordStoreV1();
   let block = false;
@@ -837,8 +888,68 @@ function delayedSaveRecordsV1() {
   });
 }
 
+function blockedThenFailingSaveRecordsV1() {
+  const memory = createMemoryHostRecordStoreV1();
+  let blockFirstSave = true;
+  let failLaterSaves = true;
+  let releaseFirstSave: (() => void) | undefined;
+  let reportFirstSaveStarted: (() => void) | undefined;
+  const firstSaveStarted = new Promise<void>((resolve) => {
+    reportFirstSaveStarted = resolve;
+  });
+  const firstSaveGate = new Promise<void>((resolve) => {
+    releaseFirstSave = resolve;
+  });
+  const attemptedAutoCounts: number[] = [];
+  const records: HostAtomicRecordStoreV1 = Object.freeze({
+    read: memory.read,
+    list: memory.list,
+    async commit(mutations: Parameters<HostAtomicRecordStoreV1["commit"]>[0]) {
+      const autoCurrent = mutations.find(
+        (mutation) => mutation.kind === "put" && mutation.key.includes(":auto.current"),
+      );
+      if (autoCurrent?.kind === "put") {
+        const record = JSON.parse(new TextDecoder().decode(autoCurrent.bytes)) as {
+          readonly snapshot: {
+            readonly state: {
+              readonly simulation: {
+                readonly counter: { readonly count: number };
+              };
+            };
+          };
+        };
+        attemptedAutoCounts.push(record.snapshot.state.simulation.counter.count);
+      }
+      const writesSave = mutations.some(({ namespace }) => namespace === "save");
+      if (blockFirstSave && writesSave) {
+        blockFirstSave = false;
+        reportFirstSaveStarted?.();
+        await firstSaveGate;
+        return memory.commit(mutations);
+      }
+      if (failLaterSaves && writesSave) {
+        return Promise.reject(new Error("synthetic repair failure"));
+      }
+      return memory.commit(mutations);
+    },
+  });
+  return Object.freeze({
+    records,
+    attemptedAutoCounts,
+    waitUntilFirstSaveStarts: () => firstSaveStarted,
+    releaseFirstSave: () => releaseFirstSave?.(),
+    recover: () => {
+      failLaterSaves = false;
+    },
+  });
+}
+
 function manualSchedulerV1() {
-  const scheduled: { callback: () => void; delayMs: number; cancelled: boolean }[] = [];
+  const scheduled: {
+    callback: () => void;
+    delayMs: number;
+    cancelled: boolean;
+  }[] = [];
   const scheduler: CoreSchedulerV1 = Object.freeze({
     schedule(callback: () => void, delayMs: number) {
       const entry = { callback, delayMs, cancelled: false };
@@ -850,7 +961,9 @@ function manualSchedulerV1() {
   });
   const runLast = () => {
     const entry = scheduled.at(-1);
-    if (entry === undefined || entry.cancelled) throw new Error("no scheduled autosave flush");
+    if (entry === undefined || entry.cancelled) {
+      throw new Error("no scheduled autosave flush");
+    }
     entry.callback();
   };
   return { scheduler, scheduled, runLast };
@@ -869,9 +982,18 @@ async function createInstanceV1(options?: {
   });
 }
 
-const incrementV1 = Object.freeze({ kind: "invoke" as const, actionId: "synthetic.increment" });
-const rejectV1 = Object.freeze({ kind: "invoke" as const, actionId: "synthetic.reject" });
-const faultV1 = Object.freeze({ kind: "invoke" as const, actionId: "synthetic.fault" });
+const incrementV1 = Object.freeze({
+  kind: "invoke" as const,
+  actionId: "synthetic.increment",
+});
+const rejectV1 = Object.freeze({
+  kind: "invoke" as const,
+  actionId: "synthetic.reject",
+});
+const faultV1 = Object.freeze({
+  kind: "invoke" as const,
+  actionId: "synthetic.fault",
+});
 
 describe("resolveCoreGameApplicationV1", () => {
   it("reports resolution failures structurally instead of throwing", () => {
@@ -886,7 +1008,9 @@ describe("resolveCoreGameApplicationV1", () => {
     });
     const result = resolveCoreGameApplicationV1(broken);
     expect(result.kind).toBe("failed");
-    if (result.kind === "failed") expect(result.failure.code.length).toBeGreaterThan(0);
+    if (result.kind === "failed") {
+      expect(result.failure.code.length).toBeGreaterThan(0);
+    }
   });
 });
 
@@ -903,7 +1027,9 @@ describe("createCoreGameApplicationInstanceV1", () => {
     const resolved = resolveCoreGameApplicationV1(invalidSummaryDefinition, {
       buildIdentityInput: deterministicBuildIdentityInputV1,
     });
-    if (resolved.kind !== "resolved") throw new Error("synthetic story must resolve");
+    if (resolved.kind !== "resolved") {
+      throw new Error("synthetic story must resolve");
+    }
     const records = createMemoryHostRecordStoreV1();
     const instance = await createCoreGameApplicationInstanceV1(resolved.application, {
       host: hostServicesV1(records),
@@ -930,7 +1056,9 @@ describe("createCoreGameApplicationInstanceV1", () => {
       slotId: "manual.1",
     });
     await instance.semantic.dispatch(incrementV1);
-    await expect(instance.persistence.load("manual.1")).resolves.toMatchObject({ kind: "loaded" });
+    await expect(instance.persistence.load("manual.1")).resolves.toMatchObject({
+      kind: "loaded",
+    });
     expect(instance.admin.stateDigest()).toBe(digest);
     await instance.dispose();
   });
@@ -939,7 +1067,10 @@ describe("createCoreGameApplicationInstanceV1", () => {
     const instance = await createInstanceV1();
     await instance.semantic.dispatch(incrementV1);
     await instance.semantic.dispatch(
-      Object.freeze({ kind: "invoke" as const, actionId: "synthetic.reject" as const }),
+      Object.freeze({
+        kind: "invoke" as const,
+        actionId: "synthetic.reject" as const,
+      }),
     );
     await instance.semantic.dispatch(incrementV1);
 
@@ -978,7 +1109,9 @@ describe("createCoreGameApplicationInstanceV1", () => {
       capabilities: { debugTools: true },
     });
     const debugControl = instance.admin.debugControl;
-    if (debugControl === undefined) throw new TypeError("debug control must be enabled");
+    if (debugControl === undefined) {
+      throw new TypeError("debug control must be enabled");
+    }
 
     await expect(
       debugControl.execute(Object.freeze({ kind: "debug.synthetic.add", amount: 5 }), () => true),
@@ -1069,7 +1202,9 @@ describe("createCoreGameApplicationInstanceV1", () => {
         await instance.autoSaveIdle();
         expect(await rawSaveEvidenceV1(delayed.records)).toEqual(firstCommit);
         const debugControl = instance.admin.debugControl;
-        if (debugControl === undefined) throw new TypeError("debug control must be enabled");
+        if (debugControl === undefined) {
+          throw new TypeError("debug control must be enabled");
+        }
         await debugControl.execute(
           Object.freeze({ kind: "debug.synthetic.add", amount: 5 }),
           () => true,
@@ -1157,7 +1292,9 @@ describe("createCoreGameApplicationInstanceV1", () => {
       const decoded = decodeDebugBundleV1(firstBundle.bytes, firstExtensions.codec);
       const secondDecoded = decodeDebugBundleV1(secondBundle.bytes, secondExtensions.codec);
       expect(decoded.kind).toBe("decoded");
-      if (decoded.kind !== "decoded") throw new TypeError("expected decoded Debug Bundle");
+      if (decoded.kind !== "decoded") {
+        throw new TypeError("expected decoded Debug Bundle");
+      }
       if (secondDecoded.kind !== "decoded") {
         throw new TypeError("expected second decoded Debug Bundle");
       }
@@ -1273,7 +1410,9 @@ describe("createCoreGameApplicationInstanceV1", () => {
       const firstResultBytes = canonicalJsonBytes(instance.admin.inspectForTest().snapshot);
       const firstResultDigest = instance.admin.stateDigest();
       const firstEntry = instance.admin.commandLog()[1];
-      if (firstEntry === undefined) throw new TypeError("expected second committed entry");
+      if (firstEntry === undefined) {
+        throw new TypeError("expected second committed entry");
+      }
       expect(exactBytesEvidenceV1(firstResultBytes)).toEqual(
         s0CompleteRollbackGoldenV1.firstResultSnapshot,
       );
@@ -1302,7 +1441,9 @@ describe("createCoreGameApplicationInstanceV1", () => {
       );
       expect(instance.admin.stateDigest()).toBe(firstResultDigest);
       const retryEntry = instance.admin.commandLog()[0];
-      if (retryEntry === undefined) throw new TypeError("expected retried committed entry");
+      if (retryEntry === undefined) {
+        throw new TypeError("expected retried committed entry");
+      }
       expect(retryEntry.preStateDigest).toBe(checkpointDigest);
       const { logOrdinal: _firstOrdinal, ...firstEvidence } = firstEntry;
       const { logOrdinal: _retryOrdinal, ...retryEvidence } = retryEntry;
@@ -1331,7 +1472,9 @@ describe("createCoreGameApplicationInstanceV1", () => {
       }),
     });
     await expect(
-      createCoreGameApplicationInstanceV1(resolvedApplicationV1(), { host: throwingHost }),
+      createCoreGameApplicationInstanceV1(resolvedApplicationV1(), {
+        host: throwingHost,
+      }),
     ).rejects.toThrow("entropy unavailable");
     expect(writes).toEqual([]);
 
@@ -1346,7 +1489,10 @@ describe("createCoreGameApplicationInstanceV1", () => {
 
   it("advances the presentation epoch on load/import/restart but never on dispatch", async () => {
     const instance = await createInstanceV1({ seeds: [77, 78] });
-    expect(instance.presentationAnchor()).toEqual({ epoch: 0, origin: "bootstrap" });
+    expect(instance.presentationAnchor()).toEqual({
+      epoch: 0,
+      origin: "bootstrap",
+    });
 
     const anchors: unknown[] = [];
     const unsubscribe = instance.subscribePresentationAnchor((anchor) => anchors.push(anchor));
@@ -1359,7 +1505,9 @@ describe("createCoreGameApplicationInstanceV1", () => {
 
     await instance.persistence.save("manual.1");
     await instance.semantic.dispatch(incrementV1);
-    await expect(instance.persistence.load("manual.1")).resolves.toMatchObject({ kind: "loaded" });
+    await expect(instance.persistence.load("manual.1")).resolves.toMatchObject({
+      kind: "loaded",
+    });
     expect(instance.presentationAnchor()).toEqual({ epoch: 1, origin: "load" });
     const loadedDigest = instance.admin.stateDigest();
     expect(instance.admin.commandLog()).toEqual([]);
@@ -1369,7 +1517,9 @@ describe("createCoreGameApplicationInstanceV1", () => {
     expect(anchors).toEqual([{ epoch: 1, origin: "load" }]);
 
     // A failed load leaves state and epoch untouched.
-    await expect(instance.persistence.load("quick")).resolves.toMatchObject({ kind: "rejected" });
+    await expect(instance.persistence.load("quick")).resolves.toMatchObject({
+      kind: "rejected",
+    });
     expect(instance.presentationAnchor().epoch).toBe(1);
 
     const exported = await instance.persistence.exportCurrentSave();
@@ -1377,7 +1527,10 @@ describe("createCoreGameApplicationInstanceV1", () => {
     await expect(instance.persistence.importSave(bytes)).resolves.toMatchObject({
       kind: "imported",
     });
-    expect(instance.presentationAnchor()).toEqual({ epoch: 2, origin: "import" });
+    expect(instance.presentationAnchor()).toEqual({
+      epoch: 2,
+      origin: "import",
+    });
     const importedDigest = instance.admin.stateDigest();
     expect(instance.admin.commandLog()).toEqual([]);
     await instance.semantic.dispatch(incrementV1);
@@ -1387,7 +1540,10 @@ describe("createCoreGameApplicationInstanceV1", () => {
       kind: "anchored",
       commandSequence: 0,
     });
-    expect(instance.presentationAnchor()).toEqual({ epoch: 3, origin: "restart" });
+    expect(instance.presentationAnchor()).toEqual({
+      epoch: 3,
+      origin: "restart",
+    });
     expect(instance.semantic.observe().game).toEqual({ count: 0 });
     const restartedDigest = instance.admin.stateDigest();
     expect(instance.admin.commandLog()).toEqual([]);
@@ -1430,12 +1586,161 @@ describe("createCoreGameApplicationInstanceV1", () => {
     await instance.dispose();
   });
 
+  it("flushes the exact current Snapshot even before the first command", async () => {
+    const records = countingRecordsV1();
+    const { scheduler } = manualSchedulerV1();
+    const instance = await createInstanceV1({
+      records: records.counting,
+      autosave: { mode: "debounced", delayMs: 800 },
+      scheduler,
+    });
+
+    await expect(instance.flushAutoSave()).resolves.toBeUndefined();
+    expect(records.autoWrites()).toHaveLength(1);
+    const stored = await records.counting.list("save");
+    const current = stored.find(({ key }) => key.includes(":auto.current"));
+    if (current === undefined) throw new TypeError("expected exact Auto Save");
+    expect(JSON.parse(new TextDecoder().decode(current.bytes))).toMatchObject({
+      snapshot: {
+        commandSequence: 0,
+        state: { simulation: { counter: { count: 0 } } },
+      },
+    });
+    await instance.dispose();
+  });
+
+  it("does not let a same-sequence quick save mask an exact Auto Save failure", async () => {
+    const records = failingAutoSaveRecordsV1();
+    const { scheduler, runLast } = manualSchedulerV1();
+    const instance = await createInstanceV1({
+      records,
+      autosave: { mode: "debounced", delayMs: 800 },
+      scheduler,
+    });
+
+    await instance.semantic.dispatch(incrementV1);
+    runLast();
+    await instance.autoSaveIdle();
+    await expect(instance.persistence.save("quick")).resolves.toEqual({
+      kind: "saved",
+      slotId: "quick",
+    });
+    await expect(instance.persistence.getStatus()).resolves.toMatchObject({
+      safelySavedCommandSequence: 1,
+      lastFailureCode: null,
+    });
+
+    await expect(instance.flushAutoSave()).rejects.toThrow("persistence.autosave_flush_failed");
+    await instance.dispose();
+  });
+
+  it("fails a durability flush on a physical write fault and retries the same Snapshot", async () => {
+    const storage = recoverableFailingSaveRecordsV1();
+    const { scheduler } = manualSchedulerV1();
+    const instance = await createInstanceV1({
+      records: storage.records,
+      autosave: { mode: "debounced", delayMs: 800 },
+      scheduler,
+    });
+
+    await instance.semantic.dispatch(incrementV1);
+    await expect(instance.flushAutoSave()).rejects.toThrow("persistence.autosave_flush_failed");
+    await expect(instance.persistence.getStatus()).resolves.toMatchObject({
+      safelySavedCommandSequence: null,
+      lastFailureCode: "persistence.unexpected",
+    });
+
+    storage.recover();
+    await expect(instance.flushAutoSave()).resolves.toBeUndefined();
+    await expect(instance.persistence.getStatus()).resolves.toMatchObject({
+      safelySavedCommandSequence: 1,
+      lastFailureCode: null,
+    });
+    await instance.dispose();
+  });
+
+  it("rejects a failed anchor repair, never requeues the old target, and retries current", async () => {
+    const storage = blockedThenFailingSaveRecordsV1();
+    const { scheduler } = manualSchedulerV1();
+    const instance = await createInstanceV1({
+      records: storage.records,
+      autosave: { mode: "debounced", delayMs: 800 },
+      scheduler,
+      seeds: [77, 78],
+    });
+
+    await instance.semantic.dispatch(incrementV1);
+    const firstFlush = instance.flushAutoSave();
+    await storage.waitUntilFirstSaveStarts();
+    await expect(instance.lifecycle.restart()).resolves.toMatchObject({
+      kind: "anchored",
+    });
+    storage.releaseFirstSave();
+
+    await expect(firstFlush).rejects.toThrow("persistence.autosave_flush_failed");
+    expect(storage.attemptedAutoCounts).toEqual([1, 0]);
+
+    storage.recover();
+    await expect(instance.flushAutoSave()).resolves.toBeUndefined();
+    expect(storage.attemptedAutoCounts).toEqual([1, 0, 0]);
+    const stored = await storage.records.list("save");
+    const current = stored.find(({ key }) => key.includes(":auto.current"));
+    if (current === undefined) {
+      throw new TypeError("expected repaired Auto Save");
+    }
+    expect(JSON.parse(new TextDecoder().decode(current.bytes))).toMatchObject({
+      snapshot: {
+        commandSequence: 0,
+        state: { simulation: { counter: { count: 0 } } },
+      },
+    });
+    await instance.dispose();
+  });
+
+  it("drops a pending debounced candidate when the replay base is replaced", async () => {
+    const records = countingRecordsV1();
+    const { scheduler } = manualSchedulerV1();
+    const instance = await createInstanceV1({
+      records: records.counting,
+      autosave: { mode: "debounced", delayMs: 800 },
+      scheduler,
+      seeds: [77, 78],
+    });
+
+    await instance.semantic.dispatch(incrementV1);
+    await expect(instance.lifecycle.restart()).resolves.toMatchObject({
+      kind: "anchored",
+    });
+    await instance.flushAutoSave();
+    expect(records.autoWrites()).toHaveLength(1);
+    const afterRestart = await records.counting.list("save");
+    const current = afterRestart.find(({ key }) => key.includes(":auto.current"));
+    if (current === undefined) {
+      throw new TypeError("expected restarted Auto Save");
+    }
+    expect(JSON.parse(new TextDecoder().decode(current.bytes))).toMatchObject({
+      snapshot: {
+        commandSequence: 0,
+        state: { simulation: { counter: { count: 0 } } },
+      },
+    });
+
+    await instance.semantic.dispatch(incrementV1);
+    await instance.flushAutoSave();
+    expect(records.autoWrites()).toHaveLength(2);
+    await instance.dispose();
+  });
+
   it("honors checkpointEveryCommands and the default every-commit policy", async () => {
     const checkpointed = countingRecordsV1();
     const { scheduler } = manualSchedulerV1();
     const instance = await createInstanceV1({
       records: checkpointed.counting,
-      autosave: { mode: "debounced", delayMs: 1_000, checkpointEveryCommands: 2 },
+      autosave: {
+        mode: "debounced",
+        delayMs: 1_000,
+        checkpointEveryCommands: 2,
+      },
       scheduler,
     });
     await instance.semantic.dispatch(incrementV1);
@@ -1529,5 +1834,26 @@ describe("createCoreGameApplicationInstanceV1", () => {
       slotId: "manual.1",
     });
     await successor.dispose();
+  });
+
+  it("fences persistence mutation ingress while exact close flush remains available", async () => {
+    const records = createMemoryHostRecordStoreV1();
+    const instance = await createInstanceV1({
+      records,
+      autosave: { mode: "debounced", delayMs: 60_000 },
+    });
+
+    instance.invalidateForHmr();
+    await expect(instance.semantic.dispatch(incrementV1)).resolves.toEqual({
+      kind: "not_executed",
+      code: "hmr_invalidated",
+    });
+    await expect(instance.persistence.clear("auto.current")).resolves.toEqual({
+      kind: "faulted",
+      code: "runtime_disposed",
+    });
+    await expect(instance.flushAutoSave()).resolves.toBeUndefined();
+    expect(await records.list("save")).toHaveLength(1);
+    await instance.dispose();
   });
 });

@@ -2,6 +2,9 @@
 import { useState } from "react";
 import type { ReactElement } from "react";
 
+import { formatVersionStampV1, readVersionStampV1 } from "@sillymaker/base";
+import type { VersionStampV1 } from "@sillymaker/base";
+
 import type { SaveOverlayPortV1 } from "../persistence/save-overlay.tsx";
 import { Button } from "../primitives/button.tsx";
 
@@ -22,6 +25,10 @@ export interface SessionMaintenanceLabelsV1 {
   readonly busySuffix: string;
   readonly exportDoneText: string;
   readonly importDoneText: string;
+  /** Pre-checked rejection: the save belongs to another game or version. */
+  readonly importIncompatibleText: string;
+  /** Pre-checked rejection: not a valid engine save (corrupt or edited). */
+  readonly importInvalidText: string;
   readonly wipeArmedText: string;
   readonly wipeDoneText: string;
 }
@@ -36,6 +43,9 @@ export const defaultSessionMaintenanceLabelsV1: SessionMaintenanceLabelsV1 = Obj
   busySuffix: "…",
   exportDoneText: "State exported as JSON.",
   importDoneText: "State imported.",
+  importIncompatibleText:
+    "This save belongs to a different game or version; import rejected — the session is unchanged.",
+  importInvalidText: "Not a valid engine save (corrupt or edited); import rejected.",
   wipeArmedText: "Destructive: click the confirm button to clear all saves, or cancel.",
   wipeDoneText: "All saves cleared.",
 });
@@ -47,10 +57,16 @@ export interface SessionMaintenancePanelPropsV1 {
   readonly onReinitialize?: () => void | Promise<unknown>;
   readonly reinitializeDisabled?: boolean;
   readonly labels?: Partial<SessionMaintenanceLabelsV1>;
+  /**
+   * Human-facing build identity shown below the maintenance actions. Defaults
+   * to the build-injected version stamp and hides when no field is known.
+   */
+  readonly versionStamp?: VersionStampV1;
 }
 
 export function SessionMaintenancePanelV1(props: SessionMaintenancePanelPropsV1): ReactElement {
   const labels = { ...defaultSessionMaintenanceLabelsV1, ...props.labels };
+  const versionLine = formatVersionStampV1(props.versionStamp ?? readVersionStampV1());
   const [busy, setBusy] = useState<"export" | "import" | "wipe" | "reinitialize" | null>(null);
   const [wipeArmed, setWipeArmed] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -75,7 +91,9 @@ export function SessionMaintenancePanelV1(props: SessionMaintenancePanelPropsV1)
           slot.slotId as Parameters<SaveOverlayPortV1["clear"]>[0],
         );
         if (result.kind === "cleared") continue;
-        if (result.kind === "rejected" && result.code === "empty_slot") continue;
+        if (result.kind === "rejected" && result.code === "empty_slot") {
+          continue;
+        }
         failures.add(
           result.kind === "rejected" || result.kind === "faulted" ? result.code : result.kind,
         );
@@ -153,10 +171,17 @@ export function SessionMaintenancePanelV1(props: SessionMaintenancePanelPropsV1)
               void savePort
                 .importSave()
                 .then((result) => {
-                  if (result.kind === "imported") setNote(labels.importDoneText);
-                  else if (result.kind !== "cancelled") {
-                    const code = "code" in result ? ` (${result.code})` : "";
-                    setNote(`${result.kind}${code}`);
+                  if (result.kind === "imported") {
+                    setNote(labels.importDoneText);
+                  } else if (result.kind !== "cancelled") {
+                    const code = "code" in result ? result.code : null;
+                    setNote(
+                      code === "incompatible"
+                        ? labels.importIncompatibleText
+                        : code === "invalid_record"
+                          ? labels.importInvalidText
+                          : `${result.kind}${code === null ? "" : ` (${code})`}`,
+                    );
                   }
                 })
                 .catch((error: unknown) => setNote(failureNote(error)))
@@ -209,6 +234,14 @@ export function SessionMaintenancePanelV1(props: SessionMaintenancePanelPropsV1)
           style={{ opacity: 0.9, overflowWrap: "anywhere" }}
         >
           {note}
+        </div>
+      )}
+      {versionLine === null ? null : (
+        <div
+          data-session-maintenance-versions="true"
+          style={{ opacity: 0.65, fontSize: 11, overflowWrap: "anywhere" }}
+        >
+          {versionLine}
         </div>
       )}
     </section>

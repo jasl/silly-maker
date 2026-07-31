@@ -11,6 +11,8 @@ import type { PatchSetAdoptionDeclarationV1, PatchSetIdentityV1 } from "./hotfix
 import type { BuildProvenanceV1 } from "./provenance.ts";
 import { parseStrictJsonLimitsV1 } from "./strict-json.ts";
 import type { StrictJsonErrorCodeV1 } from "./strict-json.ts";
+import { normalizeVersionStampInternalV1 } from "./version-stamp.ts";
+import type { VersionStampV1 } from "./version-stamp.ts";
 import type {
   DeepReadonly,
   Digest,
@@ -242,6 +244,14 @@ export interface SaveRecordEnvelopeV1<TSnapshot, TProvenance, TSlotMetadata, TSi
    * written before this capability existed — decoding stays additive.
    */
   readonly annotation?: SaveAnnotationV1;
+  /**
+   * Optional diagnostic build stamp captured with this record's Snapshot.
+   * Later annotation rewrites and Auto-slot rotation preserve that origin.
+   * Additive like `annotation`, and strictly diagnostic — import compatibility
+   * never reads it, and malformed/all-null metadata is omitted instead of
+   * rejecting an otherwise valid record.
+   */
+  readonly versionStamp?: VersionStampV1;
 }
 
 export interface SaveCompatibilityKeyV1 {
@@ -588,12 +598,17 @@ export function createSaveRecordEnvelopeSchemaV1<
 > {
   return Object.freeze({
     parse(value: unknown) {
-      // `annotation` is additive-optional: records written before the field
-      // existed must keep parsing, so the exact-field list admits both shapes.
+      // `annotation` and `versionStamp` are additive-optional: records
+      // written before either field existed must keep parsing, so the
+      // exact-field list admits every shape combination.
       const hasAnnotation =
         value !== null &&
         typeof value === "object" &&
         Object.prototype.hasOwnProperty.call(value, "annotation");
+      const hasVersionStamp =
+        value !== null &&
+        typeof value === "object" &&
+        Object.prototype.hasOwnProperty.call(value, "versionStamp");
       const fields = exactDescriptors(
         value,
         [
@@ -606,6 +621,7 @@ export function createSaveRecordEnvelopeSchemaV1<
           "snapshot",
           "simulationLineage",
           ...(hasAnnotation ? (["annotation"] as const) : []),
+          ...(hasVersionStamp ? (["versionStamp"] as const) : []),
         ],
         "SaveRecordEnvelopeV1",
       );
@@ -631,6 +647,9 @@ export function createSaveRecordEnvelopeSchemaV1<
       } catch {
         throw new SaveRecordEnvelopeSchemaFailureV1("digest.invalid_format");
       }
+      const versionStamp = hasVersionStamp
+        ? normalizeVersionStampInternalV1(fields.versionStamp?.value)
+        : null;
       return Object.freeze({
         formatRevision: 1 as const,
         recordRevision,
@@ -641,6 +660,8 @@ export function createSaveRecordEnvelopeSchemaV1<
         snapshot: snapshotSchema.parse(fields.snapshot?.value),
         simulationLineage: simulationLineageSchema.parse(fields.simulationLineage?.value),
         ...(hasAnnotation ? { annotation: parseSaveAnnotationV1(fields.annotation?.value) } : {}),
+        // Diagnostic-only: normalize/omit instead of reject (see the field doc).
+        ...(versionStamp === null ? {} : { versionStamp }),
       });
     },
   });

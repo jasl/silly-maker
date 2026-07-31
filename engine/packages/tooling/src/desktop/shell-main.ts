@@ -3,11 +3,13 @@ import { readFile } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
 
 import { injectDesktopRecordsMarkerV1 } from "./desktop-html.mts";
+import { desktopFilesPathPrefixV1, handleFileDownloadRequestV1 } from "./file-download-handler.mts";
 import { createRecordFileStoreV1 } from "./record-file-store.mts";
 import { handleRecordHttpRequestV1 } from "./record-http-handler.mts";
 import {
   adoptShellWindowV1,
   createShellShutdownV1,
+  requestShellRendererFlushV1,
   type ShellServerLikeV1,
   type ShellWindowLikeV1,
 } from "./shell-lifetime.mts";
@@ -27,7 +29,10 @@ import { resolveStaticFilePathV1 } from "./static-file-path.mts";
  */
 
 declare const Deno: {
-  serve(handler: (request: Request) => Response | Promise<Response>): ShellServerLikeV1;
+  serve(
+    options: { readonly hostname: string },
+    handler: (request: Request) => Response | Promise<Response>,
+  ): ShellServerLikeV1;
   env: { get(name: string): string | undefined };
   build: { os: string };
   args: string[];
@@ -67,6 +72,12 @@ function userDataDirV1(): string {
 
 const savesDir = join(userDataDirV1(), "saves");
 const store = createRecordFileStoreV1(savesDir);
+
+/** Exports (state/save JSON) land where a browser download would. */
+function downloadsDirV1(): string {
+  const home = Deno.env.get("HOME") ?? Deno.env.get("USERPROFILE") ?? ".";
+  return join(home, "Downloads");
+}
 
 // Web shell types plus the engine's runtime-asset media set (see
 // `vite/runtime-assets.ts`): the Artifact ships runtime assets verbatim, so
@@ -135,9 +146,16 @@ async function handleStaticV1(request: Request, pathname: string): Promise<Respo
 // The handler closes over this binding so the adopting BrowserWindow remains
 // strongly reachable for the lifetime of the HTTP server.
 let adoptedWindowV1: ShellWindowLikeV1 | null = null;
-const serverV1 = Deno.serve((request: Request) => {
+const serverV1 = Deno.serve({ hostname: "127.0.0.1" }, (request: Request) => {
   void adoptedWindowV1;
   const url = new URL(request.url);
+  if (url.pathname.startsWith(`${desktopFilesPathPrefixV1}/`)) {
+    return handleFileDownloadRequestV1(
+      request,
+      url.pathname.slice(desktopFilesPathPrefixV1.length),
+      downloadsDirV1(),
+    );
+  }
   if (url.pathname === "/sillymaker/records" || url.pathname.startsWith("/sillymaker/records/")) {
     return handleRecordHttpRequestV1(
       request,
@@ -149,11 +167,13 @@ const serverV1 = Deno.serve((request: Request) => {
 });
 
 // The first BrowserWindow construction adopts the implicit startup window.
-// Its close request stops ingress and drains active records writes before the
-// process exits; no page heartbeat or timeout can interrupt persistence.
+// Its close request first fences gameplay and waits for the renderer's
+// verified autosave receipt, then stops ingress and drains active record
+// writes before exit. No page heartbeat or timeout can interrupt persistence.
 adoptedWindowV1 = adoptShellWindowV1({
   browserWindow: Deno.BrowserWindow,
   requestShutdown: createShellShutdownV1({
+    prepare: () => requestShellRendererFlushV1(adoptedWindowV1),
     shutdown: () => serverV1.shutdown(),
     exit: () => Deno.exit(0),
   }),

@@ -16,6 +16,8 @@ import type {
 import { labGameApplicationV1 } from "../application/composition.tsx";
 
 const automationGlobalKeyV1 = "__SILLYMAKER_AUTOMATION_V1__";
+const desktopCloseGlobalKeyV1 = "__SILLYMAKER_DESKTOP_CLOSE_V1__";
+const desktopRecordsMarkerKeyV1 = "__SILLYMAKER_RECORDS__";
 
 function createTestRootV1(): HTMLElement {
   const root = document.createElement("div");
@@ -162,7 +164,7 @@ describe("startWebGameApplicationV1 with the Engine Lab declaration", () => {
 
   it("debounces autosave writes and flushes them on pagehide", async () => {
     const counter = withAutosaveCounterV1(createMemoryHostRecordStoreV1());
-    const started = await startLabV1("", {
+    const started = await startLabV1("?capability=automation_bridge", {
       host: createWebHostV1({
         records: counter.records,
         seeds: [20260721],
@@ -190,7 +192,19 @@ describe("startWebGameApplicationV1 with the Engine Lab declaration", () => {
       expect(counter.autosaveWrites()).toBe(0);
 
       // The page lifecycle teardown flushes the pending capture.
+      const automation = Reflect.get(globalThis, automationGlobalKeyV1) as {
+        dispatch(invocation: unknown): Promise<{
+          readonly kind: string;
+          readonly value?: { readonly kind: string; readonly code?: string };
+        }>;
+      };
       globalThis.dispatchEvent(new Event("pagehide"));
+      await expect(
+        automation.dispatch({ kind: "invoke", actionId: "lab.collect_sample" }),
+      ).resolves.toMatchObject({
+        kind: "ok",
+        value: { kind: "not_executed", code: "hmr_invalidated" },
+      });
       await waitFor(() => {
         expect(counter.autosaveWrites()).toBe(1);
       });
@@ -199,6 +213,84 @@ describe("startWebGameApplicationV1 with the Engine Lab declaration", () => {
       });
     } finally {
       await started.dispose();
+    }
+  });
+
+  it("fences gameplay and durably flushes a pending autosave for native close", async () => {
+    const previousMarker = Object.getOwnPropertyDescriptor(globalThis, desktopRecordsMarkerKeyV1);
+    Object.defineProperty(globalThis, desktopRecordsMarkerKeyV1, {
+      configurable: true,
+      value: "local",
+      writable: true,
+    });
+    const counter = withAutosaveCounterV1(createMemoryHostRecordStoreV1());
+    const started = await startLabV1("?capability=automation_bridge", {
+      host: createWebHostV1({
+        records: counter.records,
+        seeds: [20260731],
+        uuids: ["bf668891-5e0f-424c-8d86-25df14789173"],
+      }),
+      autosave: { mode: "debounced", delayMs: 60_000 },
+    });
+    try {
+      const automation = Reflect.get(globalThis, automationGlobalKeyV1) as {
+        dispatch(invocation: unknown): Promise<{
+          readonly kind: string;
+          readonly value?: { readonly kind: string; readonly code?: string };
+        }>;
+      };
+      for (let command = 0; command < 3; command += 1) {
+        await expect(
+          automation.dispatch({
+            kind: "invoke",
+            actionId: "lab.collect_sample",
+          }),
+        ).resolves.toMatchObject({ kind: "ok", value: { kind: "committed" } });
+      }
+      expect(counter.autosaveWrites()).toBe(0);
+
+      const close = Reflect.get(globalThis, desktopCloseGlobalKeyV1) as
+        | ((action: unknown) => {
+            readonly kind: "preparing" | "flushed" | "failed";
+            readonly protocolRevision: 1;
+            readonly requestId: number;
+          })
+        | undefined;
+      expect(close).toBeTypeOf("function");
+      expect(close?.({ operation: "prepare", protocolRevision: 1, requestId: 41 })).toEqual({
+        kind: "preparing",
+        protocolRevision: 1,
+        requestId: 41,
+      });
+
+      // The close preparation fences semantic ingress synchronously, before
+      // the async Save write can acknowledge the shell.
+      await expect(
+        automation.dispatch({ kind: "invoke", actionId: "lab.collect_sample" }),
+      ).resolves.toMatchObject({
+        kind: "ok",
+        value: { kind: "not_executed", code: "hmr_invalidated" },
+      });
+      await waitFor(() => {
+        expect(close?.({ operation: "read", protocolRevision: 1, requestId: 41 })).toEqual({
+          kind: "flushed",
+          protocolRevision: 1,
+          requestId: 41,
+        });
+      });
+      expect(counter.autosaveWrites()).toBe(1);
+      expect(
+        (await counter.records.list("save")).some(({ key }) =>
+          String(key).includes("auto.current"),
+        ),
+      ).toBe(true);
+    } finally {
+      await started.dispose();
+      if (previousMarker === undefined) {
+        Reflect.deleteProperty(globalThis, desktopRecordsMarkerKeyV1);
+      } else {
+        Object.defineProperty(globalThis, desktopRecordsMarkerKeyV1, previousMarker);
+      }
     }
   });
 });

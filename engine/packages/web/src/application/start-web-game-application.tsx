@@ -19,22 +19,22 @@ import {
   resolveCoreGameApplicationV1,
 } from "@sillymaker/base/runtime";
 import type {
-  DefaultGameRootSlotsV1,
   DefaultGameRootLabelsV1,
+  DefaultGameRootSlotsV1,
   GamepadActionMapV1,
   GameShellViewportOptionsV1,
   GameUiProjectorV1,
   KeyboardActionMapV1,
   NativeBehaviorResetConfigV1,
-  RuntimePresentationPublicationV1,
   RuntimeAssetLoaderV1,
+  RuntimePresentationPublicationV1,
   SaveOverlayLabelsV1,
   SystemDialogCustomSavesV1,
 } from "@sillymaker/ui";
 import type { DevDockContributionSetV1, DevDockOpenStateV1 } from "@sillymaker/ui/debug";
 import {
-  DefaultGameRootV1,
   createGameUiCompositionV1,
+  DefaultGameRootV1,
   installNativeBehaviorResetV1,
 } from "@sillymaker/ui";
 import type { ContentPreferencePortV1, SemanticPublicationV1 } from "@sillymaker/base";
@@ -48,11 +48,15 @@ import { installPointerAdapterV1 } from "../input/install-pointer-adapter.ts";
 import { installBrowserAutomationBridgeV1 } from "../automation/browser-automation-bridge.ts";
 import type { InstalledBrowserAutomationBridgeV1 } from "../automation/browser-automation-bridge.ts";
 import { parseCapabilityRequestV1 } from "../capabilities/parse-capability-request.ts";
+import { createBrowserFilePortV1 } from "../host/browser-file-port.ts";
+import { createShellFilePortV1 } from "../host/shell-file-port.ts";
 import { createWebHostV1 } from "../host/create-web-host.ts";
 import { createHttpHostRecordStoreV1 } from "../host/http-record-store.ts";
 import { mountGameApplicationV1 } from "./mount-game-application.tsx";
 import type { MountedGameApplicationV1 } from "./mount-game-application.tsx";
 import { createPlayerSaveSurfacesV1 } from "./create-player-save-surfaces.ts";
+import { installDesktopCloseFlushV1 } from "./install-desktop-close-flush.ts";
+import { resolveLocalRecordsHostModeV1 } from "./resolve-local-records-host-mode.ts";
 
 type WebSemanticPublicationV1<TGameView, TNarrativeView, TActionDescriptor> = SemanticPublicationV1<
   TGameView,
@@ -108,7 +112,10 @@ export interface WebGameUiDefinitionV1<
   readonly titleScreen?: {
     readonly title: string;
     readonly backgroundUrl?: string;
-    readonly splash?: { readonly lines: readonly string[]; readonly durationMs?: number };
+    readonly splash?: {
+      readonly lines: readonly string[];
+      readonly durationMs?: number;
+    };
     /** After restart on New game — Story-specific boot (see DefaultGameRoot). */
     beginNewGame?(semantic: unknown): void | Promise<unknown>;
   };
@@ -144,9 +151,14 @@ export interface WebGameUiDefinitionV1<
     readonly devDockOpenState: () => DevDockOpenStateV1;
     readonly presentation: { getSnapshot(): unknown };
     readonly overlaySession: {
-      getSnapshot(): { readonly primaryId: string | null; readonly detailIds: readonly string[] };
+      getSnapshot(): {
+        readonly primaryId: string | null;
+        readonly detailIds: readonly string[];
+      };
     };
-    readonly systemDialogSession: { getSnapshot(): { readonly active: string | null } };
+    readonly systemDialogSession: {
+      getSnapshot(): { readonly active: string | null };
+    };
   }) => () => unknown;
   /** Releases Story-owned UI resources (asset registries, caches). */
   dispose?(): void;
@@ -267,7 +279,10 @@ export interface StartedWebGameApplicationV1 {
   readonly capabilitySearch: string;
   isDisposed(): boolean;
   dispose(): Promise<void>;
-  /** Fences the session for a dev rebootstrap without releasing anything. */
+  /**
+   * Fences authoritative session and player-persistence mutation ingress for a
+   * dev rebootstrap without releasing the persistence lease.
+   */
   invalidateForHmr(): void;
   /**
    * Tears the application down for a dev rebootstrap and returns the
@@ -344,19 +359,30 @@ export async function startWebGameApplicationV1<
   // (not at module scope) keeps custom Roots on their own style composition.
   await import("@sillymaker/ui/styles.css");
 
-  // Desktop channel: a trusted local save server marks pages it serves with
-  // `?records=local` (browser flows) or an injected global (the desktop
-  // webview shell); persistence then goes through the HTTP record store to
-  // a real save directory instead of per-origin IndexedDB.
-  const wantsLocalRecords =
-    (typeof location !== "undefined" &&
-      new URLSearchParams(location.search).get("records") === "local") ||
-    Reflect.get(globalThis, "__SILLYMAKER_RECORDS__") === "local";
+  // Both local channels persist through the HTTP record store. Only the
+  // injected marker identifies the Desktop shell, whose private file-download
+  // endpoint is unavailable to the query-only browser save server.
+  const { usesDesktopShell, wantsLocalRecords } = resolveLocalRecordsHostModeV1(
+    typeof location === "undefined" ? "" : location.search,
+    Reflect.get(globalThis, "__SILLYMAKER_RECORDS__"),
+  );
   const host =
     options.host ??
     (wantsLocalRecords
       ? createWebHostV1({
-          records: createHttpHostRecordStoreV1({ baseUrl: "/sillymaker/records" }),
+          records: createHttpHostRecordStoreV1({
+            baseUrl: "/sillymaker/records",
+          }),
+          ...(usesDesktopShell
+            ? {
+                // The shell webview ignores `<a download>`; route downloads to
+                // the shell endpoint so exports reach platform Downloads.
+                files: createShellFilePortV1({
+                  baseUrl: "/sillymaker/files",
+                  picker: createBrowserFilePortV1(),
+                }),
+              }
+            : {}),
         })
       : createWebHostV1({
           databaseName: options.databaseName ?? `sillymaker.${application.applicationId}`,
@@ -427,12 +453,14 @@ export async function startWebGameApplicationV1<
     | undefined;
   let disposed = false;
   let removePageLifecycle: (() => void) | undefined;
+  let removeDesktopCloseFlush: (() => void) | undefined;
 
   let disposalPromise: Promise<DeepReadonly<PersistenceRebootstrapDisposalV1>> | undefined;
   const disposeForRebootstrap = (): Promise<DeepReadonly<PersistenceRebootstrapDisposalV1>> => {
     if (disposalPromise !== undefined) return disposalPromise;
     disposed = true;
     removePageLifecycle?.();
+    removeDesktopCloseFlush?.();
     disposalPromise = (async () => {
       try {
         mounted?.unmount();
@@ -458,6 +486,12 @@ export async function startWebGameApplicationV1<
   };
 
   try {
+    removeDesktopCloseFlush = installDesktopCloseFlushV1({
+      enabled: usesDesktopShell,
+      fence: () => instance.invalidateForHmr(),
+      flush: () => instance.flushAutoSave(),
+      reportFailure: (error) => reportFailure("web.desktop_close_flush_failed", error),
+    });
     const playerProfile = await createPlayerProfileStoreV1({
       records: host.records,
       storyId: instance.storyId as string,
@@ -523,7 +557,9 @@ export async function startWebGameApplicationV1<
         viewport={application.viewport}
         capabilities={capabilities}
         playerProfile={playerProfile}
-        lifecycle={Object.freeze({ restart: () => instance.lifecycle.restart() })}
+        lifecycle={Object.freeze({
+          restart: () => instance.lifecycle.restart(),
+        })}
         {...(uiDefinition.titleScreen === undefined
           ? {}
           : { titleScreen: uiDefinition.titleScreen })}
@@ -589,8 +625,10 @@ export async function startWebGameApplicationV1<
       typeof globalThis.addEventListener === "function"
     ) {
       const onPageHide = (): void => {
-        // Best-effort: capture any pending debounced autosave synchronously
-        // and queue the write before the teardown releases the lease.
+        // Stop new authoritative and persistence mutations synchronously, then
+        // best-effort register the exact current Snapshot before teardown
+        // releases the persistence lease.
+        instance.invalidateForHmr();
         void instance
           .flushAutoSave()
           .catch(() => undefined)
