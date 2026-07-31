@@ -7,6 +7,7 @@ import { createSyntheticCounterGamePackageV1 } from "@sillymaker/base/testkit";
 
 import { runProjectCliV1 } from "./cli.ts";
 import type { ProjectCommandRunnerV1, ProjectModuleLoaderV1 } from "./commands.ts";
+import { desktopArtifactStemV1, desktopStoryApplicationV1 } from "./commands.ts";
 import { defineSillymakerProjectV1 } from "./config.ts";
 
 const projectV1 = defineSillymakerProjectV1({
@@ -525,6 +526,77 @@ describe("runProjectCliV1", () => {
     const windowsRun = fake.log.runs[2];
     expect(darwinRun?.args).toContain("--icon");
     expect(windowsRun?.args).not.toContain("--icon");
+  });
+
+  it("desktop artifact names carry the app version and commit when known", async () => {
+    const stampV1 = Object.freeze({
+      applicationVersion: "0.1.0",
+      applicationCommit: "abc1234",
+      engineVersion: null,
+      engineCommit: null,
+    });
+    const fake = createFakeRunnerV1({
+      files: Object.freeze({
+        "/repo/test/dist-desktop/SyntheticApp-0_1_0-abc1234-x86_64-pc-windows-msvc.msi": "msi",
+        ...desktopShellFilesV1(),
+      }),
+    });
+    const seenAppRoots: string[] = [];
+    const report = await desktopStoryApplicationV1(
+      projectV1,
+      "synthetic",
+      {
+        runner: fake.runner,
+        repositoryRoot: "/repo",
+        collectVersionStamp: ({ appRoot }) => {
+          seenAppRoots.push(appRoot);
+          return stampV1;
+        },
+      },
+      { targets: ["x86_64-pc-windows-msvc"] },
+    );
+    expect(seenAppRoots).toEqual(["/repo/test"]);
+    expect(report).toMatchObject({
+      ok: true,
+      outputPath: "/repo/test/dist-desktop/SyntheticApp-0_1_0-abc1234-x86_64-pc-windows-msvc.msi",
+    });
+    expect(fake.log.runs[1]?.args).toContain(
+      "../SyntheticApp-0_1_0-abc1234-x86_64-pc-windows-msvc.msi",
+    );
+
+    // The host preview carries the same stem; a commit without a version
+    // (or vice versa) keeps only the known part.
+    const hostFake = createFakeRunnerV1({
+      files: Object.freeze({
+        "/repo/test/dist-desktop/SyntheticApp-abc1234.app/Contents/Info.plist": "<plist/>",
+        ...desktopShellFilesV1(),
+      }),
+    });
+    const hostReport = await desktopStoryApplicationV1(projectV1, "synthetic", {
+      runner: hostFake.runner,
+      repositoryRoot: "/repo",
+      collectVersionStamp: () => ({ ...stampV1, applicationVersion: null }),
+    });
+    expect(hostReport).toMatchObject({
+      ok: true,
+      outputPath: "/repo/test/dist-desktop/SyntheticApp-abc1234.app",
+    });
+  });
+
+  it("desktop artifact stem swaps dots for underscores and drops unknown parts", () => {
+    const stampV1 = (applicationVersion: string | null, applicationCommit: string | null) =>
+      Object.freeze({
+        applicationVersion,
+        applicationCommit,
+        engineVersion: null,
+        engineCommit: null,
+      });
+    expect(desktopArtifactStemV1("App", stampV1("1.0.0-rc.1", "abc1234"))).toBe(
+      "App-1_0_0-rc_1-abc1234",
+    );
+    expect(desktopArtifactStemV1("App", stampV1("0.0.0", null))).toBe("App-0_0_0");
+    expect(desktopArtifactStemV1("App", stampV1(null, "abc1234"))).toBe("App-abc1234");
+    expect(desktopArtifactStemV1("App", stampV1(null, null))).toBe("App");
   });
 
   it("answers usage errors on stderr with exit code 2", async () => {

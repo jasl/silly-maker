@@ -4,13 +4,13 @@
 
 ## 应用目录内
 
-| 命令                                      | 作用                                                                                   |
-| ----------------------------------------- | -------------------------------------------------------------------------------------- |
-| `deno task dev`                           | 本应用的 Vite 开发服务器                                                               |
-| `deno task build:web`                     | 生产 Player 构建到 `dist-web/`（`build` 是它的别名）                                   |
-| `deno task build:desktop [--target <t>]…` | 桌面包到 `dist-desktop/`（默认本机 `.app`；triple 交叉编译 `.app`/`.msi`/`.AppImage`） |
-| `deno task preview`                       | 用 HTTP 预览 `dist-web/`（`file://` 无法加载 ES module）                               |
-| `deno task story <verb> .`                | 应用内诊断：`inspect`、`check`、`simulate`、`dev --smoke`、`prebuilt-smoke`、`diff`    |
+| 命令                                      | 作用                                                                                                                                                                  |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `deno task dev`                           | 本应用的 Vite 开发服务器                                                                                                                                              |
+| `deno task build:web`                     | 生产 Player 构建到 `dist-web/`（`build` 是它的别名）                                                                                                                  |
+| `deno task build:desktop [--target <t>]…` | 桌面包到 `dist-desktop/`（默认本机 `.app`；triple 交叉编译 `.app`/`.msi`/`.AppImage`；已知应用版本与 git commit 时附加到文件名，如 `App-0_1_0-abc1234-<triple>.msi`） |
+| `deno task preview`                       | 用 HTTP 预览 `dist-web/`（`file://` 无法加载 ES module）                                                                                                              |
+| `deno task story <verb> .`                | 应用内诊断：`inspect`、`check`、`simulate`、`dev --smoke`、`prebuilt-smoke`、`diff`                                                                                   |
 
 `build:desktop` 把追加参数透传给打包动词：`--target <os-arch-triple>`（可重复）、`--compress[=xz|lzma|zstd]`、`--profile <release|debug>`。本地文件 store 尚未通过 durability promotion。
 
