@@ -85,13 +85,6 @@ export interface ManagedSurfaceCoordinatorV1 {
   dispose(): ManagedSurfaceTransitionReceiptV1;
 }
 
-const emptyFailureDetailsV1 = Object.freeze({}) as StrictJsonObjectV1;
-const subscriberFailureV1 = Object.freeze({
-  code: "surface.subscriber_failed" as const,
-  summary: "Managed Surface publication subscriber failed.",
-  details: emptyFailureDetailsV1,
-});
-
 function handleV1(
   applicationEpoch: NonNegativeSafeInteger,
   topologyRevision: NonNegativeSafeInteger,
@@ -124,6 +117,11 @@ export function createManagedSurfaceCoordinatorV1(
   input: CreateManagedSurfaceCoordinatorInputV1,
 ): ManagedSurfaceCoordinatorV1 {
   const applicationEpoch = parseNonNegativeSafeInteger(input.applicationEpoch);
+  const subscriberFailureV1 = Object.freeze({
+    code: "surface.subscriber_failed" as const,
+    summary: "Managed Surface publication subscriber failed.",
+    details: Object.freeze({ applicationEpoch }) as StrictJsonObjectV1,
+  });
   let state = createManagedSurfaceReducerStateV1(
     applicationEpoch,
     input.resolvedOwnerIds,

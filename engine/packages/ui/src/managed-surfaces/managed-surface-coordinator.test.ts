@@ -571,7 +571,7 @@ describe("ManagedSurfaceCoordinatorV1", () => {
     expect(failures[0]).toEqual({
       code: "surface.subscriber_failed",
       summary: "Managed Surface publication subscriber failed.",
-      details: {},
+      details: { applicationEpoch: 9 },
     });
     expect(Object.isFrozen(failures[0])).toBe(true);
     expect(Object.isFrozen((failures[0] as { details: object }).details)).toBe(true);

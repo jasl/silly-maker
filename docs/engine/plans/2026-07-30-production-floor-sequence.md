@@ -183,8 +183,8 @@ digest/serialization dedup；四项 evidence gate 均未达到充分标准，
 
 执行 [Surface plan](2026-07-30-surface-contract-harness.md) 的
 **S0 → S1d.1 → S1d.2 → S1d.3 → S1e → S1f → S2**，只迁移
-**Workspace Overlay**。S1a–S1d.3 已交付 dormant baseline，S1e–S1f 完成
-S1-T 的剩余部分：
+**Workspace Overlay**。S1a–S1e 已交付 dormant baseline，S1f 完成 S1-T 的
+剩余部分：
 
 1. 用现有 bug/trace 建立红测试；
 2. S1d.1 让 binding-origin action fail closed，同时保持 direct untagged
@@ -229,8 +229,15 @@ blocking/input/focus/navigation target 独立派生，Back/`closeTop` 不再从 
 反推。同步 topology commit、空 owner dispose 与 rejected/unchanged 的
 publication/topology delta 分别冻结为 `1/1`、`1/0`、`0/0`；publication-only commit
 复用同一 binding、registration 与 `inputPublicationRevision`，公共 InputRouter shape
-和六字段 Surface action envelope 未改变。以上批次均没有决定 composition-root epoch
-ownership 或实现 readiness/live Surface family；下一独立切片是 S1e。
+和六字段 Surface action envelope 未改变。S1e 随后增加 package-internal lifetime
+owner 与 Web realm-stable allocator cell：同 realm + application ID 的 epoch 严格单调，
+新 realm 可从 `1` 重启；四类 successor 都在旧 binding/gesture/Coordinator 完整 cleanup
+后才 allocate/construct/open ingress。两代 local sequence 可同时从 `n1` 开始而 compound
+identity 不复用，旧 handle/action/gesture 分别稳定 stale 且 lower handler、publication
+mutation 与 notification 均为 `0`。runtime 不暴露 whole-generation Coordinator
+`dispose()`，reentrant handoff 与 cleanup/allocation/construction failure 均 fail closed。
+以上批次没有实现 readiness 或 live Surface family；S1e allocator/lifetime 也尚未接入
+真实 startWeb/HMR caller。下一独立切片是 S1f。
 
 S2 只依赖 S1-T，全部 Overlay target 都是 Coordinator-owned transient target；它不
 等待 S1-R，也不得为了统一形状预埋 source publication revision、stable-target

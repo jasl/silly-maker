@@ -10,10 +10,11 @@ reconcile、dormant-kernel boundedness/action provenance 与 Overlay cutover
 在 [production-floor sequence](2026-07-30-production-floor-sequence.md)
 中：PF2 的顺序是 `S0 -> S1-T -> S2`；PF4 的顺序是
 `S3 -> S1-R -> S4 -> S4b`；S5–S6 属于 PF6。当前 S1-T 的剩余顺序是
-`S1e -> S1f`：先建立 application epoch，再完成 readiness。S1d.1 已关闭
+`S1f`：application epoch 已建立，下一步完成 readiness。S1d.1 已关闭
 binding-origin action provenance 缺口，S1d.2 已把 transient identity 与 owner
 lifetime state 收敛到有界模型，S1d.3 已冻结 slot scope、独立 topology axes 与双
-revision 语义。S2
+revision 语义，S1e 已封闭 composition-root successor handoff 与 realm-stable epoch
+allocation。S2
 只依赖完成的
 S1-T。S1-R
 延后到第一个真实 externally published stable-target family 前完成；按 accepted
@@ -618,6 +619,45 @@ stable-target reconcile；下一独立切片是 S1e。
   lease；
 - epoch allocator 与 capture seam 保持 package-internal，不要求 Story
   作者传入 epoch。
+
+**2026-08-01 S1e delivery：** 原实现允许两个手工构造的 successor 都使用 epoch
+`1` 并各自从 local sequence `n1` 开始，因此 occurrence、instance 与 routing lease
+逐字复用；旧 handle 会实际关闭 successor。单独 dispose Coordinator 后，外部 action
+binding registration 仍为 `1`，gesture currentness 仍为 `true`。focused baseline
+得到 `2 failed tests / 4 failed assertions`，分别固定 identity ABA、旧 handle 误命中
+和 cleanup ownership 缺口。
+
+最小实现增加 dormant、package-internal 的 Coordinator lifetime owner。它从注入的
+allocator 自动领取 epoch，独占完整 Coordinator、单个 current action binding 与
+有界的单-current gesture lease；runtime 只得到运行时真正不含 whole-generation
+`dispose()` 的 frozen forwarding port。四类
+load/import rebootstrap、HMR successor 与 Coordinator successor 共用同一同步
+handoff：先关闭 current/ingress，再 unregister binding、永久撤销旧 gesture lease、
+提交 Coordinator terminal publication，之后才分配更大 epoch、构造并开放 successor。
+显式 `active/transitioning/sealed` phase 同时阻止 terminal subscriber、cleanup、
+allocator 或 factory callback 重入创建第二个 successor；cleanup、allocator validation
+或 successor construction 失败均保持 current `null`、无新 ingress。subscriber failure
+diagnostics 现在携带 frozen `applicationEpoch` details。
+
+Web package 同时增加未导出、未接 live composition 的 realm-stable allocator cell：同
+realm + application ID 的独立 allocator 共享 `1 -> 2 -> 3` high-water，不同 application
+ID 独立，新 realm（full reload model）可重新从 `1` 开始；locked realm descriptor、
+exact native Map、corrupt high-water 与 safe-integer exhaustion 都 fail closed。UI
+deterministic successor table 使用跳号 `41 -> 47`，两代 local sequence 都从 `n1`
+重启但 compound identity 逐字不同；旧 handle 返回
+`surface.stale_application_epoch`，旧 binding action 返回
+`input.stale_publication`，旧 gesture 放入 successor envelope 返回
+`input.stale_gesture`，三者的 ordinary/lower handler、publication mutation 与
+subscriber notification 计数都为 `0`。每类 handoff 在 successor allocation callback
+内精确观察到 registration `1 -> 0`、gesture current `true -> false`、旧 input/focus/
+navigation owner 全部为 `null` 且 Coordinator 已 disposed。
+
+验证为 focused lifetime/Coordinator/action-route/InputRouter/Web allocator
+`5 files / 105 tests`、`@sillymaker/ui` `59 files / 532 tests`、`@sillymaker/web`
+`23 files / 247 tests`、aggregate `207 files / 1924 tests` 与 `deno task check` 全绿。
+本切片没有修改 Base/Snapshot/Save、Story/React、公共 package export、六字段 Surface
+action envelope 或任何 live Overlay/startWeb/HMR caller；browser pointer/focus 的真实
+successor proof 仍属于 S2，pending readiness cancellation 属于下一独立切片 S1f。
 
 ### S1f — Transition-kind readiness kernel
 

@@ -1,0 +1,309 @@
+// SPDX-License-Identifier: MIT
+import {
+  type NonNegativeSafeInteger,
+  parseNonNegativeSafeInteger,
+  parsePositiveSafeInteger,
+} from "@sillymaker/base";
+
+import type { InputRouterV1 } from "../input/contracts.ts";
+import {
+  type ManagedInputHandlerRegistrationV1,
+  registerManagedInputHandlerV1,
+} from "../input/input-router.ts";
+import {
+  createManagedSurfaceActionBindingV1,
+  type ManagedSurfaceActionBindingV1,
+} from "./managed-surface-action-route.ts";
+import {
+  type ManagedSurfaceGestureIdV1,
+  type ManagedSurfaceOwnerIdV1,
+  type ManagedSurfaceResolvedSlotDescriptorV1,
+  parseManagedSurfaceGestureIdV1,
+} from "./managed-surface-contracts.ts";
+import {
+  createManagedSurfaceCoordinatorV1,
+  type CreateManagedSurfaceCoordinatorInputV1,
+  type ManagedSurfaceCoordinatorV1,
+} from "./managed-surface-coordinator.ts";
+
+export type ManagedSurfaceCoordinatorSuccessorKindV1 =
+  | "load_rebootstrap"
+  | "import_rebootstrap"
+  | "hmr_successor"
+  | "coordinator_successor";
+
+export type ManagedSurfaceCoordinatorActivationKindV1 =
+  | "initial"
+  | ManagedSurfaceCoordinatorSuccessorKindV1;
+
+export interface ManagedSurfaceApplicationEpochAllocatorV1 {
+  allocate(): NonNegativeSafeInteger;
+}
+
+export interface ManagedSurfaceCoordinatorRecipeV1 {
+  readonly resolvedOwnerIds: readonly ManagedSurfaceOwnerIdV1[];
+  readonly resolvedSlotDescriptors: readonly ManagedSurfaceResolvedSlotDescriptorV1[];
+  readonly reportSubscriberFailure?: CreateManagedSurfaceCoordinatorInputV1[
+    "reportSubscriberFailure"
+  ];
+}
+
+export interface ManagedSurfaceGestureLeaseV1 {
+  begin(): ManagedSurfaceGestureIdV1;
+  isCurrent(gestureId: ManagedSurfaceGestureIdV1): boolean;
+  revoke(): void;
+}
+
+export type ManagedSurfaceCoordinatorRuntimePortV1 = Omit<
+  ManagedSurfaceCoordinatorV1,
+  "dispose"
+>;
+
+export interface ManagedSurfaceCoordinatorRuntimeV1 {
+  readonly applicationEpoch: NonNegativeSafeInteger;
+  readonly activationKind: ManagedSurfaceCoordinatorActivationKindV1;
+  readonly coordinator: ManagedSurfaceCoordinatorRuntimePortV1;
+  readonly gestureLease: ManagedSurfaceGestureLeaseV1;
+  bindCurrentInput(): ManagedSurfaceActionBindingV1;
+  isIngressOpen(): boolean;
+}
+
+export interface ManagedSurfaceCoordinatorReplaceInputV1 {
+  readonly kind: ManagedSurfaceCoordinatorSuccessorKindV1;
+  readonly recipe: ManagedSurfaceCoordinatorRecipeV1;
+}
+
+export interface ManagedSurfaceCoordinatorLifetimeV1 {
+  getCurrent(): ManagedSurfaceCoordinatorRuntimeV1 | null;
+  replace(input: ManagedSurfaceCoordinatorReplaceInputV1): ManagedSurfaceCoordinatorRuntimeV1;
+  dispose(): void;
+}
+
+export interface CreateManagedSurfaceCoordinatorLifetimeInputV1 {
+  readonly epochAllocator: ManagedSurfaceApplicationEpochAllocatorV1;
+  readonly inputRouter: InputRouterV1;
+  readonly initialRecipe: ManagedSurfaceCoordinatorRecipeV1;
+  /** @internal Injected disposers must revoke registration before reporting failure. */
+  readonly registerManagedInputHandler?: (
+    router: InputRouterV1,
+    registration: ManagedInputHandlerRegistrationV1,
+  ) => () => void;
+  /** @internal Deterministic test seam; the result must honor the Coordinator contract. */
+  readonly createCoordinator?: (
+    input: CreateManagedSurfaceCoordinatorInputV1,
+  ) => ManagedSurfaceCoordinatorV1;
+}
+
+interface RuntimeRecordV1 {
+  readonly runtime: ManagedSurfaceCoordinatorRuntimeV1;
+  readonly coordinator: ManagedSurfaceCoordinatorV1;
+  readonly gestureLease: ManagedSurfaceGestureLeaseOwnerV1;
+  binding: ManagedSurfaceActionBindingV1 | null;
+  ingressOpen: boolean;
+}
+
+interface ManagedSurfaceGestureLeaseOwnerV1 extends ManagedSurfaceGestureLeaseV1 {
+  dispose(): void;
+}
+
+type ManagedSurfaceCoordinatorLifetimePhaseV1 = "active" | "transitioning" | "sealed";
+
+function createGestureLeaseV1(
+  applicationEpoch: NonNegativeSafeInteger,
+): ManagedSurfaceGestureLeaseOwnerV1 {
+  let sequenceHighWater = 0;
+  let currentGestureId: ManagedSurfaceGestureIdV1 | null = null;
+  let disposed = false;
+
+  return Object.freeze({
+    begin(): ManagedSurfaceGestureIdV1 {
+      if (disposed) throw new TypeError("ui.managed_surface_gesture_lease_disposed");
+      if (sequenceHighWater >= Number.MAX_SAFE_INTEGER) {
+        throw new TypeError("ui.managed_surface_gesture_sequence_exhausted");
+      }
+      const sequence = parsePositiveSafeInteger(sequenceHighWater + 1);
+      sequenceHighWater = sequence;
+      currentGestureId = parseManagedSurfaceGestureIdV1(
+        `surface-gesture.e${applicationEpoch}.n${sequence}`,
+      );
+      return currentGestureId;
+    },
+    isCurrent(gestureId: ManagedSurfaceGestureIdV1): boolean {
+      return !disposed && currentGestureId !== null && gestureId === currentGestureId;
+    },
+    revoke(): void {
+      currentGestureId = null;
+    },
+    dispose(): void {
+      disposed = true;
+      currentGestureId = null;
+    },
+  });
+}
+
+function cleanupErrorV1(errors: readonly unknown[]): AggregateError {
+  return new AggregateError(errors, "ui.managed_surface_successor_cleanup_failed");
+}
+
+function createRuntimeCoordinatorPortV1(
+  coordinator: ManagedSurfaceCoordinatorV1,
+): ManagedSurfaceCoordinatorRuntimePortV1 {
+  return Object.freeze({
+    getSnapshot: coordinator.getSnapshot,
+    getHandle: coordinator.getHandle,
+    getOwnerHandle: coordinator.getOwnerHandle,
+    subscribe: coordinator.subscribe,
+    openTransientPrimary: coordinator.openTransientPrimary,
+    replaceTransientPrimary: coordinator.replaceTransientPrimary,
+    pushTransientChild: coordinator.pushTransientChild,
+    closeExpected: coordinator.closeExpected,
+    closeTop: coordinator.closeTop,
+    closeOwner: coordinator.closeOwner,
+    routeDismiss: coordinator.routeDismiss,
+    routeAction: coordinator.routeAction,
+    disposeOwner: coordinator.disposeOwner,
+  });
+}
+
+export function createManagedSurfaceCoordinatorLifetimeV1(
+  input: CreateManagedSurfaceCoordinatorLifetimeInputV1,
+): ManagedSurfaceCoordinatorLifetimeV1 {
+  const createCoordinator = input.createCoordinator ?? createManagedSurfaceCoordinatorV1;
+  const registerManagedInputHandler = input.registerManagedInputHandler ??
+    ((router: InputRouterV1, registration: ManagedInputHandlerRegistrationV1) =>
+      registerManagedInputHandlerV1(router, registration));
+  let lastApplicationEpoch: NonNegativeSafeInteger | null = null;
+  let current: RuntimeRecordV1 | null = null;
+  let phase: ManagedSurfaceCoordinatorLifetimePhaseV1 = "active";
+
+  const allocateEpoch = (): NonNegativeSafeInteger => {
+    const applicationEpoch = parseNonNegativeSafeInteger(input.epochAllocator.allocate());
+    if (lastApplicationEpoch !== null && applicationEpoch <= lastApplicationEpoch) {
+      throw new TypeError("ui.managed_surface_application_epoch_not_monotonic");
+    }
+    lastApplicationEpoch = applicationEpoch;
+    return applicationEpoch;
+  };
+
+  const createRuntime = (
+    activationKind: ManagedSurfaceCoordinatorActivationKindV1,
+    recipe: ManagedSurfaceCoordinatorRecipeV1,
+  ): RuntimeRecordV1 => {
+    const applicationEpoch = allocateEpoch();
+    const coordinator = createCoordinator({
+      applicationEpoch,
+      resolvedOwnerIds: recipe.resolvedOwnerIds,
+      resolvedSlotDescriptors: recipe.resolvedSlotDescriptors,
+      ...(recipe.reportSubscriberFailure === undefined
+        ? {}
+        : { reportSubscriberFailure: recipe.reportSubscriberFailure }),
+    });
+    if (coordinator.getSnapshot().applicationEpoch !== applicationEpoch) {
+      coordinator.dispose();
+      throw new TypeError("ui.managed_surface_coordinator_epoch_mismatch");
+    }
+    const gestureLease = createGestureLeaseV1(applicationEpoch);
+    const coordinatorPort = createRuntimeCoordinatorPortV1(coordinator);
+    let record!: RuntimeRecordV1;
+    const runtime: ManagedSurfaceCoordinatorRuntimeV1 = Object.freeze({
+      applicationEpoch,
+      activationKind,
+      coordinator: coordinatorPort,
+      gestureLease,
+      bindCurrentInput(): ManagedSurfaceActionBindingV1 {
+        if (!record.ingressOpen || current !== record) {
+          throw new TypeError("ui.managed_surface_ingress_closed");
+        }
+        const binding = createManagedSurfaceActionBindingV1({
+          coordinator,
+          inputRouter: input.inputRouter,
+          isGestureCurrent: gestureLease.isCurrent,
+          registerManagedInputHandler,
+        });
+        record.binding = binding;
+        return binding;
+      },
+      isIngressOpen(): boolean {
+        return record.ingressOpen && current === record;
+      },
+    });
+    record = {
+      runtime,
+      coordinator,
+      gestureLease,
+      binding: null,
+      ingressOpen: false,
+    };
+    return record;
+  };
+
+  const cleanupCurrent = (): void => {
+    const predecessor = current;
+    current = null;
+    if (predecessor === null) return;
+    predecessor.ingressOpen = false;
+    const binding = predecessor.binding;
+    predecessor.binding = null;
+    const errors: unknown[] = [];
+    try {
+      binding?.dispose();
+    } catch (error) {
+      errors.push(error);
+    }
+    try {
+      predecessor.gestureLease.dispose();
+    } catch (error) {
+      errors.push(error);
+    }
+    try {
+      predecessor.coordinator.dispose();
+    } catch (error) {
+      errors.push(error);
+    }
+    if (errors.length > 0) throw cleanupErrorV1(errors);
+  };
+
+  const initial = createRuntime("initial", input.initialRecipe);
+  initial.ingressOpen = true;
+  current = initial;
+
+  const lifetime: ManagedSurfaceCoordinatorLifetimeV1 = Object.freeze({
+    getCurrent(): ManagedSurfaceCoordinatorRuntimeV1 | null {
+      return current?.runtime ?? null;
+    },
+    replace(request: ManagedSurfaceCoordinatorReplaceInputV1): ManagedSurfaceCoordinatorRuntimeV1 {
+      if (phase === "sealed") throw new TypeError("ui.managed_surface_lifetime_disposed");
+      if (phase === "transitioning") {
+        throw new TypeError("ui.managed_surface_lifetime_transition_in_progress");
+      }
+      phase = "transitioning";
+      try {
+        cleanupCurrent();
+      } catch (error) {
+        phase = "sealed";
+        throw error;
+      }
+      let successor: RuntimeRecordV1;
+      try {
+        successor = createRuntime(request.kind, request.recipe);
+      } catch (error) {
+        phase = "sealed";
+        throw error;
+      }
+      successor.ingressOpen = true;
+      current = successor;
+      phase = "active";
+      return successor.runtime;
+    },
+    dispose(): void {
+      if (phase === "sealed") return;
+      if (phase === "transitioning") {
+        throw new TypeError("ui.managed_surface_lifetime_transition_in_progress");
+      }
+      phase = "sealed";
+      cleanupCurrent();
+    },
+  });
+
+  return lifetime;
+}
