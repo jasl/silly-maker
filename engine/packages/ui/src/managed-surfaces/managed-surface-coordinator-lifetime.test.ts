@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { parseNonNegativeSafeInteger } from "@sillymaker/base";
+import { parseNonNegativeSafeInteger, parsePositiveSafeInteger } from "@sillymaker/base";
 import { describe, expect, it } from "vitest";
 
 import { inputHandledV1 } from "../input/contracts.ts";
@@ -29,6 +29,7 @@ import {
 import {
   createManagedSurfaceCoordinatorV1,
   type CreateManagedSurfaceCoordinatorInputV1,
+  type ManagedSurfaceHandleResultV1,
 } from "./managed-surface-coordinator.ts";
 
 const ownerIdV1 = parseManagedSurfaceOwnerIdV1("surface-owner.workspace");
@@ -39,6 +40,12 @@ const slotDescriptorsV1 = Object.freeze(
       slotId: parseManagedSurfaceSlotIdV1("surface-slot.primary"),
       cardinality: "single",
     }),
+    Object.freeze({
+      kind: "child",
+      parentDefinitionId: parseManagedSurfaceDefinitionIdV1("surface.workspace"),
+      slotId: parseManagedSurfaceSlotIdV1("surface-slot.detail"),
+      cardinality: "stack",
+    }),
   ] as const satisfies readonly ManagedSurfaceResolvedSlotDescriptorV1[],
 );
 const recipeV1: ManagedSurfaceCoordinatorRecipeV1 = Object.freeze({
@@ -46,9 +53,12 @@ const recipeV1: ManagedSurfaceCoordinatorRecipeV1 = Object.freeze({
   resolvedSlotDescriptors: slotDescriptorsV1,
 });
 
-function definitionV1(): ManagedSurfaceResolvedDefinitionV1 {
+function definitionV1(
+  overrides: Partial<ManagedSurfaceResolvedDefinitionV1> = {},
+): ManagedSurfaceResolvedDefinitionV1 {
   return Object.freeze({
     definitionId: parseManagedSurfaceDefinitionIdV1("surface.workspace"),
+    contractRevision: parsePositiveSafeInteger(1),
     ownerId: ownerIdV1,
     slotId: parseManagedSurfaceSlotIdV1("surface-slot.primary"),
     layerId: parseManagedSurfaceLayerIdV1("surface-layer.workspace"),
@@ -72,15 +82,29 @@ function definitionV1(): ManagedSurfaceResolvedDefinitionV1 {
     actionIds: Object.freeze([
       parseManagedSurfaceActionIdV1("surface-action.activate"),
     ]),
+    readiness: Object.freeze({
+      initialOpen: "blocking_fallback",
+      primaryReplacement: "retain_current",
+      childOpen: "blocking_fallback",
+    }),
+    ...overrides,
   });
 }
 
 function openV1(runtime: ManagedSurfaceCoordinatorRuntimeV1) {
-  const result = runtime.coordinator.openTransientPrimary({
+  const preparation = runtime.coordinator.openTransientPrimary({
     definition: definitionV1(),
     semanticOccurrenceId: null,
   });
-  expect(result.receipt).toMatchObject({ kind: "applied", code: "surface.opened" });
+  expect(preparation.receipt).toMatchObject({
+    kind: "applied",
+    code: "surface.preparation_started",
+  });
+  const result = preparation.readiness!.ready();
+  expect(result.receipt).toMatchObject({
+    kind: "applied",
+    code: "surface.readiness_ready",
+  });
   return result.handle!;
 }
 
@@ -97,6 +121,33 @@ function deterministicAllocatorV1(
       onAllocate?.(value, calls);
       return parseNonNegativeSafeInteger(value);
     },
+  });
+}
+
+function countingManagedInputRegistrationV1() {
+  let activeRegistrations = 0;
+  let registrations = 0;
+  let unregistrations = 0;
+  return Object.freeze({
+    register(
+      router: ReturnType<typeof createInputRouterV1>,
+      registration: ManagedInputHandlerRegistrationV1,
+    ): () => void {
+      registrations += 1;
+      activeRegistrations += 1;
+      const unregister = registerManagedInputHandlerV1(router, registration);
+      let active = true;
+      return (): void => {
+        if (!active) return;
+        active = false;
+        unregistrations += 1;
+        activeRegistrations -= 1;
+        unregister();
+      };
+    },
+    active: () => activeRegistrations,
+    registered: () => registrations,
+    unregistered: () => unregistrations,
   });
 }
 
@@ -284,6 +335,353 @@ describe("Managed Surface application lifetime", () => {
     lifetime.dispose();
   });
 
+  it("retains the current binding and gesture until replacement readiness cuts over", () => {
+    const router = createInputRouterV1();
+    let ordinaryInputCalls = 0;
+    router.register({
+      context: "overlay",
+      handle: () => {
+        ordinaryInputCalls += 1;
+        return inputHandledV1;
+      },
+    });
+    const registrations = countingManagedInputRegistrationV1();
+    const lifetime = createManagedSurfaceCoordinatorLifetimeV1({
+      epochAllocator: deterministicAllocatorV1([21]),
+      inputRouter: router,
+      initialRecipe: recipeV1,
+      registerManagedInputHandler: registrations.register,
+    });
+    const runtime = lifetime.getCurrent()!;
+    const retainedHandle = openV1(runtime);
+    const retainedGesture = runtime.gestureLease.begin();
+    const retainedBinding = runtime.bindCurrentInput();
+    const retainedEnvelope = retainedBinding.createEnvelope({
+      actionId: parseManagedSurfaceActionIdV1("surface-action.activate"),
+      gestureId: retainedGesture,
+    });
+    expect(registrations.active()).toBe(1);
+
+    const first = runtime.coordinator.replaceTransientPrimary({
+      definition: definitionV1(),
+      semanticOccurrenceId: null,
+      expected: retainedHandle,
+    });
+    expect(runtime.coordinator.getSnapshot()).toMatchObject({
+      publicationRevision: 3,
+      topologyRevision: 2,
+      inputOwner: { surfaceInstanceId: retainedHandle.surfaceInstanceId },
+      focusOwner: { surfaceInstanceId: retainedHandle.surfaceInstanceId },
+      navigationTargetInstanceId: retainedHandle.surfaceInstanceId,
+    });
+    expect(runtime.bindCurrentInput()).toBe(retainedBinding);
+    expect(registrations.registered()).toBe(1);
+    expect(registrations.active()).toBe(1);
+    expect(runtime.gestureLease.isCurrent(retainedGesture)).toBe(true);
+    expect(retainedBinding.route(retainedEnvelope)).toMatchObject({
+      input: { kind: "consumed", code: "input.managed_surface_consumed" },
+      surface: { kind: "unchanged", code: "surface.action_routed" },
+    });
+    expect(ordinaryInputCalls).toBe(1);
+
+    const second = runtime.coordinator.replaceTransientPrimary({
+      definition: definitionV1(),
+      semanticOccurrenceId: null,
+      expected: retainedHandle,
+    });
+    expect(first.readiness!.ready().receipt).toMatchObject({
+      kind: "stale",
+      code: "surface.stale_readiness",
+    });
+    expect(runtime.bindCurrentInput()).toBe(retainedBinding);
+    expect(registrations.active()).toBe(1);
+    expect(runtime.gestureLease.isCurrent(retainedGesture)).toBe(true);
+
+    expect(second.readiness!.fail()).toMatchObject({
+      kind: "applied",
+      code: "surface.readiness_failed",
+    });
+    expect(runtime.coordinator.getSnapshot()).toMatchObject({
+      publicationRevision: 5,
+      topologyRevision: 2,
+      inputOwner: { surfaceInstanceId: retainedHandle.surfaceInstanceId },
+    });
+    expect(runtime.bindCurrentInput()).toBe(retainedBinding);
+    expect(registrations.active()).toBe(1);
+    expect(runtime.gestureLease.isCurrent(retainedGesture)).toBe(true);
+
+    const third = runtime.coordinator.replaceTransientPrimary({
+      definition: definitionV1(),
+      semanticOccurrenceId: null,
+      expected: retainedHandle,
+    });
+    const candidateInstanceId = third.receipt.surfaceInstanceId!;
+    const observedAtomicCutovers: unknown[] = [];
+    runtime.coordinator.subscribe(() => {
+      const snapshot = runtime.coordinator.getSnapshot();
+      if (snapshot.inputOwner?.surfaceInstanceId !== candidateInstanceId) return;
+      observedAtomicCutovers.push({
+        publicationRevision: snapshot.publicationRevision,
+        topologyRevision: snapshot.topologyRevision,
+        focusOwner: snapshot.focusOwner?.surfaceInstanceId ?? null,
+        navigationTarget: snapshot.navigationTargetInstanceId,
+        activeRegistrations: registrations.active(),
+        retainedGestureCurrent: runtime.gestureLease.isCurrent(retainedGesture),
+      });
+    });
+
+    const activated = third.readiness!.ready();
+    expect(activated.receipt).toMatchObject({
+      kind: "applied",
+      code: "surface.readiness_ready",
+      surfaceInstanceId: candidateInstanceId,
+    });
+    expect(observedAtomicCutovers).toEqual([
+      {
+        publicationRevision: 7,
+        topologyRevision: 3,
+        focusOwner: candidateInstanceId,
+        navigationTarget: candidateInstanceId,
+        activeRegistrations: 0,
+        retainedGestureCurrent: false,
+      },
+    ]);
+    expect(registrations.unregistered()).toBe(1);
+    expect(retainedBinding.route(retainedEnvelope)).toMatchObject({
+      input: { kind: "consumed", code: "input.stale_publication" },
+      surface: null,
+    });
+    expect(ordinaryInputCalls).toBe(1);
+
+    const successorGesture = runtime.gestureLease.begin();
+    const successorBinding = runtime.bindCurrentInput();
+    expect(successorBinding).not.toBe(retainedBinding);
+    expect(registrations.registered()).toBe(2);
+    expect(registrations.active()).toBe(1);
+    expect(successorBinding.route(successorBinding.createEnvelope({
+      actionId: parseManagedSurfaceActionIdV1("surface-action.activate"),
+      gestureId: successorGesture,
+    }))).toMatchObject({
+      input: { kind: "consumed", code: "input.managed_surface_consumed" },
+      surface: { kind: "unchanged", code: "surface.action_routed" },
+    });
+    expect(ordinaryInputCalls).toBe(2);
+
+    lifetime.dispose();
+  });
+
+  it("revokes ordinary input before publishing a child blocking fallback", () => {
+    const router = createInputRouterV1();
+    router.register({ context: "overlay", handle: () => inputHandledV1 });
+    const registrations = countingManagedInputRegistrationV1();
+    const lifetime = createManagedSurfaceCoordinatorLifetimeV1({
+      epochAllocator: deterministicAllocatorV1([31]),
+      inputRouter: router,
+      initialRecipe: recipeV1,
+      registerManagedInputHandler: registrations.register,
+    });
+    const runtime = lifetime.getCurrent()!;
+    const parentHandle = openV1(runtime);
+    const parentGesture = runtime.gestureLease.begin();
+    const parentBinding = runtime.bindCurrentInput();
+    const parentEnvelope = parentBinding.createEnvelope({
+      actionId: parseManagedSurfaceActionIdV1("surface-action.activate"),
+      gestureId: parentGesture,
+    });
+    const observedFallbackFences: unknown[] = [];
+    runtime.coordinator.subscribe(() => {
+      const snapshot = runtime.coordinator.getSnapshot();
+      if (snapshot.preparationFallbacks.length === 0) return;
+      observedFallbackFences.push({
+        publicationRevision: snapshot.publicationRevision,
+        topologyRevision: snapshot.topologyRevision,
+        inputOwner: snapshot.inputOwner,
+        focusOwner: snapshot.focusOwner,
+        navigationTargetInstanceId: snapshot.navigationTargetInstanceId,
+        activeRegistrations: registrations.active(),
+        parentGestureCurrent: runtime.gestureLease.isCurrent(parentGesture),
+      });
+    });
+
+    const child = runtime.coordinator.pushTransientChild({
+      definition: definitionV1({
+        definitionId: parseManagedSurfaceDefinitionIdV1("surface.workspace.detail"),
+        slotId: parseManagedSurfaceSlotIdV1("surface-slot.detail"),
+        layerId: parseManagedSurfaceLayerIdV1("surface-layer.workspace-detail"),
+        layerOrder: parseNonNegativeSafeInteger(30),
+        placement: "child",
+      }),
+      semanticOccurrenceId: null,
+      parent: parentHandle,
+    });
+    expect(child.receipt).toMatchObject({
+      kind: "applied",
+      code: "surface.preparation_started",
+    });
+    expect(observedFallbackFences).toEqual([
+      {
+        publicationRevision: 3,
+        topologyRevision: 3,
+        inputOwner: null,
+        focusOwner: null,
+        navigationTargetInstanceId: null,
+        activeRegistrations: 0,
+        parentGestureCurrent: false,
+      },
+    ]);
+    expect(parentBinding.route(parentEnvelope)).toMatchObject({
+      input: { kind: "consumed", code: "input.stale_publication" },
+      surface: null,
+    });
+
+    expect(child.readiness!.fail()).toMatchObject({
+      kind: "applied",
+      code: "surface.readiness_failed",
+    });
+    expect(runtime.coordinator.getSnapshot()).toMatchObject({
+      publicationRevision: 4,
+      topologyRevision: 4,
+      inputOwner: { surfaceInstanceId: parentHandle.surfaceInstanceId },
+      focusOwner: { surfaceInstanceId: parentHandle.surfaceInstanceId },
+      navigationTargetInstanceId: parentHandle.surfaceInstanceId,
+    });
+    expect(runtime.gestureLease.isCurrent(parentGesture)).toBe(false);
+    expect(registrations.active()).toBe(0);
+    const restoredBinding = runtime.bindCurrentInput();
+    expect(restoredBinding).not.toBe(parentBinding);
+    expect(registrations.registered()).toBe(2);
+    expect(registrations.active()).toBe(1);
+
+    lifetime.dispose();
+  });
+
+  it("cancels pending readiness across an epoch rotation before successor ingress", () => {
+    const lifetime = createManagedSurfaceCoordinatorLifetimeV1({
+      epochAllocator: deterministicAllocatorV1([37, 41]),
+      inputRouter: createInputRouterV1(),
+      initialRecipe: recipeV1,
+    });
+    const predecessor = lifetime.getCurrent()!;
+    const pending = predecessor.coordinator.openTransientPrimary({
+      definition: definitionV1(),
+      semanticOccurrenceId: null,
+    });
+    expect(pending.receipt.surfaceInstanceId).toBe("surface-instance.e37.n1");
+
+    const successor = lifetime.replace({
+      kind: "coordinator_successor",
+      recipe: recipeV1,
+    });
+    const predecessorTerminal = predecessor.coordinator.getSnapshot();
+    expect(predecessorTerminal).toMatchObject({
+      publicationRevision: 2,
+      topologyRevision: 2,
+      orderedInstances: [],
+      preparationFallbacks: [],
+      inputOwner: null,
+      focusOwner: null,
+      navigationTargetInstanceId: null,
+      coordinatorDisposed: true,
+    });
+    const successorBeforeLateReceipt = successor.coordinator.getSnapshot();
+
+    expect(pending.readiness!.ready()).toMatchObject({
+      receipt: {
+        kind: "stale",
+        code: "surface.stale_readiness",
+        surfaceInstanceId: "surface-instance.e37.n1",
+      },
+      handle: null,
+      readiness: null,
+    });
+    expect(pending.readiness!.fail()).toMatchObject({
+      kind: "stale",
+      code: "surface.stale_readiness",
+      surfaceInstanceId: "surface-instance.e37.n1",
+    });
+    expect(predecessor.coordinator.getSnapshot()).toBe(predecessorTerminal);
+    expect(successor.coordinator.getSnapshot()).toBe(successorBeforeLateReceipt);
+
+    const successorPending = successor.coordinator.openTransientPrimary({
+      definition: definitionV1(),
+      semanticOccurrenceId: null,
+    });
+    expect(successorPending.receipt.surfaceInstanceId).toBe("surface-instance.e41.n1");
+    expect(successorPending.receipt.surfaceInstanceId).not.toBe(
+      pending.receipt.surfaceInstanceId,
+    );
+
+    lifetime.dispose();
+  });
+
+  it("fences reentrant readiness from input cleanup before terminal disposal", () => {
+    const router = createInputRouterV1();
+    router.register({ context: "overlay", handle: () => inputHandledV1 });
+    let pending!: ManagedSurfaceHandleResultV1;
+    let reentrantReadiness: ManagedSurfaceHandleResultV1 | undefined;
+    const lifetime = createManagedSurfaceCoordinatorLifetimeV1({
+      epochAllocator: deterministicAllocatorV1([51, 53]),
+      inputRouter: router,
+      initialRecipe: recipeV1,
+      registerManagedInputHandler(target, registration) {
+        const unregister = registerManagedInputHandlerV1(target, registration);
+        return () => {
+          unregister();
+          reentrantReadiness = pending.readiness!.ready();
+        };
+      },
+    });
+    const predecessor = lifetime.getCurrent()!;
+    const retainedHandle = openV1(predecessor);
+    const retainedGesture = predecessor.gestureLease.begin();
+    predecessor.bindCurrentInput();
+    pending = predecessor.coordinator.replaceTransientPrimary({
+      definition: definitionV1(),
+      semanticOccurrenceId: null,
+      expected: retainedHandle,
+    });
+    const observedPublications: Array<{
+      readonly publicationRevision: number;
+      readonly topologyRevision: number;
+      readonly coordinatorDisposed: boolean;
+    }> = [];
+    predecessor.coordinator.subscribe(() => {
+      const snapshot = predecessor.coordinator.getSnapshot();
+      observedPublications.push({
+        publicationRevision: snapshot.publicationRevision,
+        topologyRevision: snapshot.topologyRevision,
+        coordinatorDisposed: snapshot.coordinatorDisposed,
+      });
+    });
+
+    const successor = lifetime.replace({
+      kind: "hmr_successor",
+      recipe: recipeV1,
+    });
+
+    expect(reentrantReadiness).toMatchObject({
+      receipt: {
+        kind: "stale",
+        code: "surface.stale_readiness",
+        surfaceInstanceId: pending.receipt.surfaceInstanceId,
+      },
+      handle: null,
+      readiness: null,
+    });
+    expect(observedPublications).toEqual([
+      {
+        publicationRevision: 4,
+        topologyRevision: 3,
+        coordinatorDisposed: true,
+      },
+    ]);
+    expect(predecessor.gestureLease.isCurrent(retainedGesture)).toBe(false);
+    expect(predecessor.coordinator.getSnapshot().orderedInstances).toEqual([]);
+    expect(successor.isIngressOpen()).toBe(true);
+
+    lifetime.dispose();
+  });
+
   it("rejects reentrant successor creation from the predecessor terminal notification", () => {
     const router = createInputRouterV1();
     let allocatorCalls = 0;
@@ -391,14 +789,14 @@ describe("Managed Surface application lifetime", () => {
     expect(observedPublications).toEqual([
       {
         coordinatorDisposed: true,
-        publicationRevision: 2,
-        topologyRevision: 2,
+        publicationRevision: 3,
+        topologyRevision: 3,
       },
     ]);
     expect(predecessor.coordinator.getSnapshot()).toMatchObject({
       coordinatorDisposed: true,
-      publicationRevision: 2,
-      topologyRevision: 2,
+      publicationRevision: 3,
+      topologyRevision: 3,
       orderedInstances: [],
     });
     const closedCoordinatorIngress = [

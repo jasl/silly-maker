@@ -24,6 +24,8 @@ import {
   createManagedSurfaceCoordinatorV1,
   type CreateManagedSurfaceCoordinatorInputV1,
   type ManagedSurfaceCoordinatorV1,
+  type ManagedSurfaceHandleResultV1,
+  type ManagedSurfaceReadinessAdapterV1,
 } from "./managed-surface-coordinator.ts";
 
 export type ManagedSurfaceCoordinatorSuccessorKindV1 =
@@ -100,6 +102,7 @@ interface RuntimeRecordV1 {
   readonly gestureLease: ManagedSurfaceGestureLeaseOwnerV1;
   binding: ManagedSurfaceActionBindingV1 | null;
   ingressOpen: boolean;
+  lastTopologyRevision: NonNegativeSafeInteger;
 }
 
 interface ManagedSurfaceGestureLeaseOwnerV1 extends ManagedSurfaceGestureLeaseV1 {
@@ -148,6 +151,7 @@ function cleanupErrorV1(errors: readonly unknown[]): AggregateError {
 function createRuntimeCoordinatorPortV1(
   coordinator: ManagedSurfaceCoordinatorV1,
   requireIngress: () => void,
+  isIngressOpen: () => boolean,
 ): ManagedSurfaceCoordinatorRuntimePortV1 {
   const gated = <Args extends unknown[], Result>(
     operation: (...args: Args) => Result,
@@ -157,14 +161,56 @@ function createRuntimeCoordinatorPortV1(
     return operation(...args);
   };
 
+  const staleReadinessReceiptV1 = (
+    evidence: ManagedSurfaceReadinessAdapterV1["evidence"],
+  ) => {
+    const topologyRevision = coordinator.getSnapshot().topologyRevision;
+    return Object.freeze({
+      kind: "stale" as const,
+      code: "surface.stale_readiness" as const,
+      beforeTopologyRevision: topologyRevision,
+      afterTopologyRevision: topologyRevision,
+      surfaceInstanceId: evidence.surfaceInstanceId,
+    });
+  };
+  const runtimeReadinessAdapterV1 = (
+    readiness: ManagedSurfaceReadinessAdapterV1,
+  ): ManagedSurfaceReadinessAdapterV1 =>
+    Object.freeze({
+      evidence: readiness.evidence,
+      ready(): ManagedSurfaceHandleResultV1 {
+        if (isIngressOpen()) return readiness.ready();
+        return Object.freeze({
+          receipt: staleReadinessReceiptV1(readiness.evidence),
+          handle: null,
+          readiness: null,
+        });
+      },
+      fail() {
+        return isIngressOpen() ? readiness.fail() : staleReadinessReceiptV1(readiness.evidence);
+      },
+    });
+  const preparationResultV1 = (result: ManagedSurfaceHandleResultV1) =>
+    result.readiness === null ? result : Object.freeze({
+      ...result,
+      readiness: runtimeReadinessAdapterV1(result.readiness),
+    });
+  const gatedPreparation = <Args extends unknown[]>(
+    operation: (...args: Args) => ManagedSurfaceHandleResultV1,
+  ): (...args: Args) => ManagedSurfaceHandleResultV1 =>
+  (...args: Args): ManagedSurfaceHandleResultV1 => {
+    requireIngress();
+    return preparationResultV1(operation(...args));
+  };
+
   return Object.freeze({
     getSnapshot: coordinator.getSnapshot,
     getHandle: gated(coordinator.getHandle),
     getOwnerHandle: gated(coordinator.getOwnerHandle),
     subscribe: gated(coordinator.subscribe),
-    openTransientPrimary: gated(coordinator.openTransientPrimary),
-    replaceTransientPrimary: gated(coordinator.replaceTransientPrimary),
-    pushTransientChild: gated(coordinator.pushTransientChild),
+    openTransientPrimary: gatedPreparation(coordinator.openTransientPrimary),
+    replaceTransientPrimary: gatedPreparation(coordinator.replaceTransientPrimary),
+    pushTransientChild: gatedPreparation(coordinator.pushTransientChild),
     closeExpected: gated(coordinator.closeExpected),
     closeTop: gated(coordinator.closeTop),
     closeOwner: gated(coordinator.closeOwner),
@@ -239,7 +285,11 @@ export function createManagedSurfaceCoordinatorLifetimeV1(
         throw new TypeError("ui.managed_surface_ingress_closed");
       }
     };
-    const coordinatorPort = createRuntimeCoordinatorPortV1(coordinator, requireIngress);
+    const coordinatorPort = createRuntimeCoordinatorPortV1(
+      coordinator,
+      requireIngress,
+      isIngressOpen,
+    );
     const gestureLeasePort = createRuntimeGestureLeasePortV1(
       gestureLease,
       requireIngress,
@@ -271,7 +321,19 @@ export function createManagedSurfaceCoordinatorLifetimeV1(
       gestureLease,
       binding: null,
       ingressOpen: false,
+      lastTopologyRevision: coordinator.getSnapshot().topologyRevision,
     };
+    coordinator.subscribe(() => {
+      if (coordinator.getSnapshot().topologyRevision === record.lastTopologyRevision) return;
+      record.lastTopologyRevision = coordinator.getSnapshot().topologyRevision;
+      const binding = record.binding;
+      record.binding = null;
+      try {
+        binding?.dispose();
+      } finally {
+        gestureLease.revoke();
+      }
+    });
     return record;
   };
 

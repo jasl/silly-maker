@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { parseNonNegativeSafeInteger } from "@sillymaker/base";
+import { parseNonNegativeSafeInteger, parsePositiveSafeInteger } from "@sillymaker/base";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -15,7 +15,12 @@ import {
 import {
   createManagedSurfaceCoordinatorV1 as createManagedSurfaceCoordinatorImplementationV1,
   type CreateManagedSurfaceCoordinatorInputV1,
+  type ManagedSurfaceCoordinatorV1,
   type ManagedSurfaceHandleV1,
+  type ManagedSurfaceHandleResultV1,
+  type ManagedSurfaceTransientChildInputV1,
+  type ManagedSurfaceTransientOpenInputV1,
+  type ManagedSurfaceTransientReplaceInputV1,
 } from "./managed-surface-coordinator.ts";
 
 const resolvedOwnerIdsV1 = Object.freeze([
@@ -58,12 +63,39 @@ function createManagedSurfaceCoordinatorV1(
   });
 }
 
+function readyResultV1(result: ManagedSurfaceHandleResultV1): ManagedSurfaceHandleResultV1 {
+  expect(result.readiness).not.toBeNull();
+  return result.readiness!.ready();
+}
+
+function openReadyV1(
+  coordinator: ManagedSurfaceCoordinatorV1,
+  input: ManagedSurfaceTransientOpenInputV1,
+): ManagedSurfaceHandleResultV1 {
+  return readyResultV1(coordinator.openTransientPrimary(input));
+}
+
+function replaceReadyV1(
+  coordinator: ManagedSurfaceCoordinatorV1,
+  input: ManagedSurfaceTransientReplaceInputV1,
+): ManagedSurfaceHandleResultV1 {
+  return readyResultV1(coordinator.replaceTransientPrimary(input));
+}
+
+function pushReadyV1(
+  coordinator: ManagedSurfaceCoordinatorV1,
+  input: ManagedSurfaceTransientChildInputV1,
+): ManagedSurfaceHandleResultV1 {
+  return readyResultV1(coordinator.pushTransientChild(input));
+}
+
 function definitionV1(
   _suffix: string,
   overrides: Partial<ManagedSurfaceResolvedDefinitionV1> = {},
 ): ManagedSurfaceResolvedDefinitionV1 {
   return {
     definitionId: primaryDefinitionIdV1,
+    contractRevision: parsePositiveSafeInteger(1),
     ownerId: parseManagedSurfaceOwnerIdV1("surface-owner.workspace"),
     slotId: parseManagedSurfaceSlotIdV1("surface-slot.primary"),
     layerId: parseManagedSurfaceLayerIdV1("surface-layer.workspace"),
@@ -85,6 +117,11 @@ function definitionV1(
     },
     navigationPolicy: { kind: "close" },
     actionIds: [parseManagedSurfaceActionIdV1("surface-action.activate")],
+    readiness: {
+      initialOpen: "blocking_fallback",
+      primaryReplacement: "retain_current",
+      childOpen: "blocking_fallback",
+    },
     ...overrides,
   };
 }
@@ -112,6 +149,7 @@ describe("ManagedSurfaceCoordinatorV1", () => {
       publicationRevision: 0,
       topologyRevision: 0,
       orderedInstances: [],
+      preparationFallbacks: [],
       topmostBlockingInstanceId: null,
       inputOwner: null,
       focusOwner: null,
@@ -121,21 +159,21 @@ describe("ManagedSurfaceCoordinatorV1", () => {
     });
     expect(Object.isFrozen(initial)).toBe(true);
 
-    const opened = coordinator.openTransientPrimary({
+    const opened = openReadyV1(coordinator, {
       definition: definitionV1("inventory"),
       semanticOccurrenceId: "semantic.inventory",
     });
 
     expect(opened.receipt).toMatchObject({
       kind: "applied",
-      code: "surface.opened",
-      beforeTopologyRevision: 0,
-      afterTopologyRevision: 1,
+      code: "surface.readiness_ready",
+      beforeTopologyRevision: 1,
+      afterTopologyRevision: 2,
       surfaceInstanceId: "surface-instance.e4.n1",
     });
     expect(opened.handle).toEqual({
       applicationEpoch: 4,
-      topologyRevision: 1,
+      topologyRevision: 2,
       surfaceInstanceId: "surface-instance.e4.n1",
     });
     expect(coordinator.getSnapshot().orderedInstances[0]).toMatchObject({
@@ -147,7 +185,15 @@ describe("ManagedSurfaceCoordinatorV1", () => {
       routingLeaseId: "surface-lease.e4.n1",
       semanticOccurrenceId: "semantic.inventory",
     });
-    expect(observed).toEqual([coordinator.getSnapshot()]);
+    expect(observed).toHaveLength(2);
+    expect(observed[0]).toMatchObject({
+      publicationRevision: 1,
+      topologyRevision: 1,
+      preparationFallbacks: [
+        { candidateInstanceId: "surface-instance.e4.n1" },
+      ],
+    });
+    expect(observed[1]).toBe(coordinator.getSnapshot());
     expect(Object.isFrozen(opened)).toBe(true);
     expect(Object.isFrozen(opened.receipt)).toBe(true);
     expect(Object.isFrozen(opened.handle)).toBe(true);
@@ -183,6 +229,7 @@ describe("ManagedSurfaceCoordinatorV1", () => {
         afterTopologyRevision: 0,
       },
       handle: null,
+      readiness: null,
     });
     expect(coordinator.disposeOwner(lateOwnerId)).toEqual({
       kind: "rejected",
@@ -193,7 +240,7 @@ describe("ManagedSurfaceCoordinatorV1", () => {
     expect(coordinator.getSnapshot()).toBe(initial);
     expect(listener).not.toHaveBeenCalled();
 
-    const primary = coordinator.openTransientPrimary({
+    const primary = openReadyV1(coordinator, {
       definition: definitionV1("workspace"),
       semanticOccurrenceId: null,
     });
@@ -228,13 +275,13 @@ describe("ManagedSurfaceCoordinatorV1", () => {
     expect(coordinator.getSnapshot()).toBe(afterPrimary);
     expect(listener).not.toHaveBeenCalled();
 
-    const child = coordinator.pushTransientChild({
+    const child = pushReadyV1(coordinator, {
       parent: primary.handle!,
       definition: childDefinitionV1("detail"),
       semanticOccurrenceId: null,
     });
     expect(child.handle).toMatchObject({ surfaceInstanceId: "surface-instance.e14.n2" });
-    expect(listener).toHaveBeenCalledOnce();
+    expect(listener).toHaveBeenCalledTimes(2);
 
     expect(() =>
       createManagedSurfaceCoordinatorV1({
@@ -308,7 +355,7 @@ describe("ManagedSurfaceCoordinatorV1", () => {
     expect(listener).not.toHaveBeenCalled();
 
     expect(
-      coordinator.openTransientPrimary({
+      openReadyV1(coordinator, {
         definition: definitionV1("valid"),
         semanticOccurrenceId: null,
       }),
@@ -338,7 +385,7 @@ describe("ManagedSurfaceCoordinatorV1", () => {
     });
     const listener = vi.fn();
     coordinator.subscribe(listener);
-    const parent = coordinator.openTransientPrimary({
+    const parent = openReadyV1(coordinator, {
       definition: definitionV1("other-parent", {
         definitionId: parseManagedSurfaceDefinitionIdV1("surface.other-parent"),
       }),
@@ -362,7 +409,7 @@ describe("ManagedSurfaceCoordinatorV1", () => {
     expect(listener).not.toHaveBeenCalled();
 
     expect(
-      coordinator.openTransientPrimary({
+      openReadyV1(coordinator, {
         definition: definitionV1("next", {
           slotId: parseManagedSurfaceSlotIdV1("surface-slot.other"),
         }),
@@ -374,14 +421,14 @@ describe("ManagedSurfaceCoordinatorV1", () => {
     });
   });
 
-  it("does not publish rejected work and never rolls an allocated identity back", () => {
+  it("rejects preflight work before allocating an identity", () => {
     const coordinator = createManagedSurfaceCoordinatorV1({
       applicationEpoch: parseNonNegativeSafeInteger(5),
       resolvedOwnerIds: resolvedOwnerIdsV1,
     });
     const listener = vi.fn();
     coordinator.subscribe(listener);
-    const first = coordinator.openTransientPrimary({
+    const first = openReadyV1(coordinator, {
       definition: definitionV1("first"),
       semanticOccurrenceId: null,
     });
@@ -401,13 +448,13 @@ describe("ManagedSurfaceCoordinatorV1", () => {
     expect(listener).not.toHaveBeenCalled();
 
     coordinator.closeExpected(first.handle!);
-    const next = coordinator.openTransientPrimary({
+    const next = openReadyV1(coordinator, {
       definition: definitionV1("next"),
       semanticOccurrenceId: null,
     });
-    expect(next.handle?.surfaceInstanceId).toBe("surface-instance.e5.n3");
+    expect(next.handle?.surfaceInstanceId).toBe("surface-instance.e5.n2");
     expect(coordinator.getSnapshot().orderedInstances[0]?.target.occurrenceId).toBe(
-      "surface-occurrence.e5.n3",
+      "surface-occurrence.e5.n2",
     );
   });
 
@@ -416,11 +463,11 @@ describe("ManagedSurfaceCoordinatorV1", () => {
       applicationEpoch: parseNonNegativeSafeInteger(6),
       resolvedOwnerIds: resolvedOwnerIdsV1,
     });
-    const first = coordinator.openTransientPrimary({
+    const first = openReadyV1(coordinator, {
       definition: definitionV1("first"),
       semanticOccurrenceId: null,
     });
-    coordinator.openTransientPrimary({
+    openReadyV1(coordinator, {
       definition: definitionV1("other", {
         ownerId: parseManagedSurfaceOwnerIdV1("surface-owner.other"),
         slotId: parseManagedSurfaceSlotIdV1("surface-slot.other"),
@@ -436,8 +483,8 @@ describe("ManagedSurfaceCoordinatorV1", () => {
     expect(stale).toMatchObject({
       kind: "stale",
       code: "surface.stale_topology_revision",
-      beforeTopologyRevision: 2,
-      afterTopologyRevision: 2,
+      beforeTopologyRevision: 4,
+      afterTopologyRevision: 4,
     });
     expect(coordinator.getSnapshot()).toBe(beforeStale);
     expect(listener).not.toHaveBeenCalled();
@@ -445,7 +492,7 @@ describe("ManagedSurfaceCoordinatorV1", () => {
     const refreshed = coordinator.getHandle(first.handle!.surfaceInstanceId);
     expect(refreshed).toEqual({
       applicationEpoch: 6,
-      topologyRevision: 2,
+      topologyRevision: 4,
       surfaceInstanceId: "surface-instance.e6.n1",
     });
     expect(coordinator.closeExpected(refreshed!)).toMatchObject({
@@ -460,11 +507,11 @@ describe("ManagedSurfaceCoordinatorV1", () => {
       applicationEpoch: parseNonNegativeSafeInteger(7),
       resolvedOwnerIds: resolvedOwnerIdsV1,
     });
-    const parent = coordinator.openTransientPrimary({
+    const parent = openReadyV1(coordinator, {
       definition: definitionV1("parent"),
       semanticOccurrenceId: null,
     });
-    const firstChild = coordinator.pushTransientChild({
+    const firstChild = pushReadyV1(coordinator, {
       parent: parent.handle!,
       definition: childDefinitionV1("first-child"),
       semanticOccurrenceId: null,
@@ -485,16 +532,16 @@ describe("ManagedSurfaceCoordinatorV1", () => {
     expect(coordinator.getSnapshot()).toBe(beforeStale);
 
     const refreshedParent = coordinator.getHandle(parent.handle!.surfaceInstanceId);
-    const pushed = coordinator.pushTransientChild({
+    const pushed = pushReadyV1(coordinator, {
       parent: refreshedParent!,
       definition: childDefinitionV1("fresh-child"),
       semanticOccurrenceId: null,
     });
     expect(pushed).toMatchObject({
-      receipt: { kind: "applied", code: "surface.child_pushed" },
+      receipt: { kind: "applied", code: "surface.readiness_ready" },
       handle: {
-        topologyRevision: 4,
-        surfaceInstanceId: "surface-instance.e7.n4",
+        topologyRevision: 7,
+        surfaceInstanceId: "surface-instance.e7.n3",
       },
     });
   });
@@ -504,11 +551,11 @@ describe("ManagedSurfaceCoordinatorV1", () => {
       applicationEpoch: parseNonNegativeSafeInteger(8),
       resolvedOwnerIds: resolvedOwnerIdsV1,
     });
-    const first = coordinator.openTransientPrimary({
+    const first = openReadyV1(coordinator, {
       definition: definitionV1("first"),
       semanticOccurrenceId: null,
     });
-    const second = coordinator.replaceTransientPrimary({
+    const second = replaceReadyV1(coordinator, {
       expected: first.handle!,
       definition: definitionV1("second"),
       semanticOccurrenceId: null,
@@ -527,16 +574,16 @@ describe("ManagedSurfaceCoordinatorV1", () => {
     });
     expect(coordinator.getSnapshot()).toBe(beforeStale);
 
-    const third = coordinator.replaceTransientPrimary({
+    const third = replaceReadyV1(coordinator, {
       expected: coordinator.getHandle(second.handle!.surfaceInstanceId)!,
       definition: definitionV1("third"),
       semanticOccurrenceId: null,
     });
     expect(third).toMatchObject({
-      receipt: { kind: "applied", code: "surface.replaced" },
+      receipt: { kind: "applied", code: "surface.readiness_ready" },
       handle: {
-        topologyRevision: 3,
-        surfaceInstanceId: "surface-instance.e8.n4",
+        topologyRevision: 4,
+        surfaceInstanceId: "surface-instance.e8.n3",
       },
     });
   });
@@ -585,11 +632,11 @@ describe("ManagedSurfaceCoordinatorV1", () => {
       applicationEpoch: parseNonNegativeSafeInteger(10),
       resolvedOwnerIds: resolvedOwnerIdsV1,
     });
-    coordinator.openTransientPrimary({
+    openReadyV1(coordinator, {
       definition: definitionV1("workspace"),
       semanticOccurrenceId: null,
     });
-    coordinator.openTransientPrimary({
+    openReadyV1(coordinator, {
       definition: definitionV1("system", {
         ownerId: parseManagedSurfaceOwnerIdV1("surface-owner.system"),
         slotId: parseManagedSurfaceSlotIdV1("surface-slot.system"),
@@ -617,7 +664,7 @@ describe("ManagedSurfaceCoordinatorV1", () => {
     });
     const terminal = coordinator.getSnapshot();
     expect(terminal).toMatchObject({
-      topologyRevision: 4,
+      topologyRevision: 6,
       orderedInstances: [],
       inputOwner: null,
       focusOwner: null,
@@ -658,7 +705,7 @@ describe("ManagedSurfaceCoordinatorV1", () => {
       applicationEpoch: parseNonNegativeSafeInteger(11),
       resolvedOwnerIds: resolvedOwnerIdsV1,
     });
-    const opened = coordinator.openTransientPrimary({
+    const opened = openReadyV1(coordinator, {
       definition: definitionV1("inventory"),
       semanticOccurrenceId: null,
     });
@@ -679,16 +726,16 @@ describe("ManagedSurfaceCoordinatorV1", () => {
       applicationEpoch: parseNonNegativeSafeInteger(12),
       resolvedOwnerIds: resolvedOwnerIdsV1,
     });
-    const parent = coordinator.openTransientPrimary({
+    const parent = openReadyV1(coordinator, {
       definition: definitionV1("workspace"),
       semanticOccurrenceId: null,
     });
-    coordinator.pushTransientChild({
+    pushReadyV1(coordinator, {
       parent: parent.handle!,
       definition: childDefinitionV1("detail"),
       semanticOccurrenceId: null,
     });
-    const locked = coordinator.openTransientPrimary({
+    const locked = openReadyV1(coordinator, {
       definition: definitionV1("locked", {
         ownerId: parseManagedSurfaceOwnerIdV1("surface-owner.system"),
         slotId: parseManagedSurfaceSlotIdV1("surface-slot.modal"),
@@ -714,7 +761,7 @@ describe("ManagedSurfaceCoordinatorV1", () => {
     });
     expect(listener).not.toHaveBeenCalled();
 
-    coordinator.openTransientPrimary({
+    openReadyV1(coordinator, {
       definition: definitionV1("higher-nonblocking", {
         ownerId: parseManagedSurfaceOwnerIdV1("surface-owner.debug"),
         slotId: parseManagedSurfaceSlotIdV1("surface-slot.debug"),
@@ -762,13 +809,13 @@ describe("ManagedSurfaceCoordinatorV1", () => {
       applicationEpoch: parseNonNegativeSafeInteger(16),
       resolvedOwnerIds: resolvedOwnerIdsV1,
     });
-    const navigationTarget = coordinator.openTransientPrimary({
+    const navigationTarget = openReadyV1(coordinator, {
       definition: definitionV1("navigation-target", {
         navigationPolicy: { kind: "close" },
       }),
       semanticOccurrenceId: null,
     });
-    const passive = coordinator.openTransientPrimary({
+    const passive = openReadyV1(coordinator, {
       definition: definitionV1("passive", {
         ownerId: parseManagedSurfaceOwnerIdV1("surface-owner.other"),
         slotId: parseManagedSurfaceSlotIdV1("surface-slot.other"),
@@ -795,11 +842,11 @@ describe("ManagedSurfaceCoordinatorV1", () => {
       applicationEpoch: parseNonNegativeSafeInteger(13),
       resolvedOwnerIds: resolvedOwnerIdsV1,
     });
-    coordinator.openTransientPrimary({
+    openReadyV1(coordinator, {
       definition: definitionV1("workspace"),
       semanticOccurrenceId: null,
     });
-    const system = coordinator.openTransientPrimary({
+    const system = openReadyV1(coordinator, {
       definition: definitionV1("system", {
         ownerId: parseManagedSurfaceOwnerIdV1("surface-owner.system"),
         slotId: parseManagedSurfaceSlotIdV1("surface-slot.system"),
@@ -811,7 +858,7 @@ describe("ManagedSurfaceCoordinatorV1", () => {
       semanticOccurrenceId: null,
     });
     const systemOwnerId = parseManagedSurfaceOwnerIdV1("surface-owner.system");
-    coordinator.pushTransientChild({
+    pushReadyV1(coordinator, {
       parent: system.handle!,
       definition: definitionV1("system-detail", {
         ownerId: systemOwnerId,
@@ -830,15 +877,15 @@ describe("ManagedSurfaceCoordinatorV1", () => {
     const firstOwnerHandle = coordinator.getOwnerHandle(systemOwnerId);
     expect(firstOwnerHandle).toEqual({
       applicationEpoch: 13,
-      topologyRevision: 3,
+      topologyRevision: 6,
       ownerId: "surface-owner.system",
     });
     expect(Object.isFrozen(firstOwnerHandle)).toBe(true);
     expect(coordinator.closeOwner(firstOwnerHandle!)).toMatchObject({
       kind: "applied",
       code: "surface.owner_closed",
-      beforeTopologyRevision: 3,
-      afterTopologyRevision: 4,
+      beforeTopologyRevision: 6,
+      afterTopologyRevision: 7,
     });
     expect(coordinator.getSnapshot().orderedInstances).toMatchObject([
       { surfaceInstanceId: "surface-instance.e13.n1" },
@@ -847,7 +894,7 @@ describe("ManagedSurfaceCoordinatorV1", () => {
     expect(coordinator.getSnapshot().focusOwner?.surfaceInstanceId).toBe("surface-instance.e13.n1");
     expect(listener).toHaveBeenCalledOnce();
 
-    const reopened = coordinator.openTransientPrimary({
+    const reopened = openReadyV1(coordinator, {
       definition: definitionV1("system-reopened", {
         ownerId: systemOwnerId,
         slotId: parseManagedSurfaceSlotIdV1("surface-slot.system"),
@@ -859,7 +906,7 @@ describe("ManagedSurfaceCoordinatorV1", () => {
       semanticOccurrenceId: null,
     });
     expect(reopened).toMatchObject({
-      receipt: { kind: "applied", code: "surface.opened" },
+      receipt: { kind: "applied", code: "surface.readiness_ready" },
       handle: { surfaceInstanceId: "surface-instance.e13.n4" },
     });
     expect(coordinator.getSnapshot().orderedInstances[1]).toMatchObject({
@@ -867,7 +914,7 @@ describe("ManagedSurfaceCoordinatorV1", () => {
       surfaceInstanceId: "surface-instance.e13.n4",
       routingLeaseId: "surface-lease.e13.n4",
     });
-    expect(listener).toHaveBeenCalledTimes(2);
+    expect(listener).toHaveBeenCalledTimes(3);
     const beforeStale = coordinator.getSnapshot();
     listener.mockClear();
     expect(coordinator.closeOwner(firstOwnerHandle!)).toMatchObject({

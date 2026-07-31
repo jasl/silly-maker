@@ -246,7 +246,10 @@ Implemented portions of the [AI authoring design](design/ai-authoring.md),
 [E2E engine validation design](design/e2e-engine-validation.md), and
 [VN presentation runtime design](design/vn-presentation-runtime.md) are
 described above and in [features](features.md). Further accepted evolution is
-tracked in the [engine roadmap](roadmap.md), including the not-yet-implemented
-[Managed Surface lifecycle and contract harness](design/surface-contract-harness.md).
-Target documents do not alter the current data flow until their implementation
-and behavior tests land.
+tracked in the [engine roadmap](roadmap.md). The
+[Managed Surface lifecycle and contract harness](design/surface-contract-harness.md)
+currently has a dormant, package-internal S1-T kernel for transient topology,
+action provenance, application-epoch fencing, and transition-kind readiness;
+no live Surface family or Story-facing export consumes it yet. Target documents
+do not alter the current data flow until each migration and its behavior tests
+land.

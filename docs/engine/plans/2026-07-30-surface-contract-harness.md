@@ -734,6 +734,44 @@ Managed Surface，不分配普通 Surface instance，不经过 Story renderer re
 epoch 与 readiness cancellation contracts 有确定性证明；没有 public Story API
 promotion，没有 source revision/reconcile 占位字段，也没有旧 store 双写。
 
+**2026-08-01 S1f delivery：** 首轮 focused RED 同时固定 definition admission 与三类
+transition：缺少 contract/readiness、非法 policy 与 future reconcile 字段原本都会被
+接受，initial/replacement/child 也都会立即 active，得到 `7 failed / 7 tests`。第二轮
+cancel RED 证明 initial fallback 与 retained predecessor 的 close 尚未取消 pending，
+得到 `2 failed / 18 tests`。独立审查随后补出两个真实 RED：稀疏 `actionIds` 会跳过
+校验并开始 preparation（`1 failed / 25 tests`）；stale preparation 会在 publication
+不变时推进 identity high-water（reducer `1 failed / 28 tests`），而三个 legacy
+immediate operation 仍在 type union 中（typecheck 的三个 unused `@ts-expect-error`）。
+
+最小实现把 definition contract revision 与 initial/replacement/child readiness policy
+作为 exact、deep-frozen admission 数据；action catalog 用 dense own-index 校验，不调用
+caller array method。Coordinator 的三个 transient intent 现在只生成 preparing
+candidate，返回 package-internal readiness adapter；evidence 精确只有 application epoch
+与 candidate instance。pure operation union/reducer 删除 immediate
+open/replace/push 与旧 receipt codes，candidate 只有在全部 epoch/evidence/owner/slot/
+parent/cardinality precondition 成功后才推进 high-water；一旦 preparation 发布，失败、
+取消与替换都保留 cursor，因此 retired attempt ID 不复用。
+
+Code-native blocking fallback 只作为 frozen preparation projection；它没有第二个普通
+instance、routing lease、input/focus/action authority 或 renderer/required-port 依赖。
+exact delta 为 initial/child prepare `+1/+1`、replacement prepare `+1/+0`、三类 ready
+均 `+1/+1`、initial/child failure `+1/+1`、replacement failure `+1/+0`、second replace
+`+1/+0`，stale receipt `+0/+0` 且保留同一 publication identity。close、second
+replace、owner dispose、Coordinator dispose 与 epoch rotation 都在触发 commit 中移除
+pending；重试使用 fresh compound instance identity，无关 publication/topology mutation
+不误杀 live candidate。
+
+Lifetime 只在 replacement preparing 保留原 binding、input publication 与已开始 gesture；
+ready cutover、blocking fallback 或 successor cleanup 会先 unregister/revoke，再让外部
+subscriber 观察新 topology。关闭 ingress 后的 late ready/fail 与 unregister callback
+重入稳定返回 stale，不产生额外 publication；successor 仍只在 predecessor terminal
+publication 后开放 ingress。最终 focused Managed Surface 为 `5 files / 114 tests`，
+`@sillymaker/ui` 为 `60 files / 566 tests`，aggregate 为 `208 files / 1958 tests`，
+`deno task check` 全绿。该切片没有接入 Overlay/React/DOM、没有 public package export、
+没有 source revision/reconcile 字段，也没有改变现有 live Surface authority；因此未额外
+运行 browser/E2E，canonical check 内置的 Engine Lab build 已通过，首个 live cutover
+仍属于 S2。
+
 ## 5. S2 — Workspace Overlay pilot
 
 S2 只依赖 S1-T，只迁移 Overlay family。不要同时动 System/Narrative，也不等待

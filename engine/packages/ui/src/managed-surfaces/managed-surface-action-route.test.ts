@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { parseNonNegativeSafeInteger } from "@sillymaker/base";
+import { parseNonNegativeSafeInteger, parsePositiveSafeInteger } from "@sillymaker/base";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -38,7 +38,11 @@ import {
 import {
   createManagedSurfaceCoordinatorV1 as createManagedSurfaceCoordinatorImplementationV1,
   type CreateManagedSurfaceCoordinatorInputV1,
+  type ManagedSurfaceCoordinatorV1,
   type ManagedSurfaceHandleV1,
+  type ManagedSurfaceHandleResultV1,
+  type ManagedSurfaceTransientOpenInputV1,
+  type ManagedSurfaceTransientReplaceInputV1,
 } from "./managed-surface-coordinator.ts";
 
 const resolvedSlotDescriptorsV1 = Object.freeze(
@@ -70,6 +74,25 @@ function createManagedSurfaceCoordinatorV1(
   });
 }
 
+function readyResultV1(result: ManagedSurfaceHandleResultV1): ManagedSurfaceHandleResultV1 {
+  expect(result.readiness).not.toBeNull();
+  return result.readiness!.ready();
+}
+
+function openReadyV1(
+  coordinator: ManagedSurfaceCoordinatorV1,
+  input: ManagedSurfaceTransientOpenInputV1,
+): ManagedSurfaceHandleResultV1 {
+  return readyResultV1(coordinator.openTransientPrimary(input));
+}
+
+function replaceReadyV1(
+  coordinator: ManagedSurfaceCoordinatorV1,
+  input: ManagedSurfaceTransientReplaceInputV1,
+): ManagedSurfaceHandleResultV1 {
+  return readyResultV1(coordinator.replaceTransientPrimary(input));
+}
+
 const activateActionIdV1 = parseManagedSurfaceActionIdV1("surface-action.activate");
 const otherActionIdV1 = parseManagedSurfaceActionIdV1("surface-action.other");
 
@@ -79,6 +102,7 @@ function definitionV1(
 ): ManagedSurfaceResolvedDefinitionV1 {
   return {
     definitionId: parseManagedSurfaceDefinitionIdV1(`surface-definition.${suffix}`),
+    contractRevision: parsePositiveSafeInteger(1),
     ownerId: parseManagedSurfaceOwnerIdV1("surface-owner.workspace"),
     slotId: parseManagedSurfaceSlotIdV1("surface-slot.primary"),
     layerId: parseManagedSurfaceLayerIdV1("surface-layer.workspace"),
@@ -100,6 +124,11 @@ function definitionV1(
     },
     navigationPolicy: { kind: "close" },
     actionIds: [activateActionIdV1],
+    readiness: {
+      initialOpen: "blocking_fallback",
+      primaryReplacement: "retain_current",
+      childOpen: "blocking_fallback",
+    },
     ...overrides,
   };
 }
@@ -167,7 +196,7 @@ function createFixtureV1(options: FixtureOptionsV1 = {}) {
       parseManagedSurfaceOwnerIdV1("surface-owner.debug"),
     ],
   });
-  const opened = coordinator.openTransientPrimary({
+  const opened = openReadyV1(coordinator, {
     definition: definitionV1("inventory"),
     semanticOccurrenceId: "semantic.inventory",
   });
@@ -220,7 +249,7 @@ describe("Managed Surface action route", () => {
     expect(envelope).toEqual({
       applicationEpoch: 4,
       surfaceInstanceId: "surface-instance.e4.n1",
-      surfaceTopologyRevision: 1,
+      surfaceTopologyRevision: 2,
       actionId: "surface-action.activate",
       gestureId: "gesture.test.exact",
       inputPublicationRevision: 1,
@@ -268,8 +297,8 @@ describe("Managed Surface action route", () => {
       surface: {
         kind: "unchanged",
         code: "surface.action_routed",
-        beforeTopologyRevision: 1,
-        afterTopologyRevision: 1,
+        beforeTopologyRevision: 2,
+        afterTopologyRevision: 2,
         surfaceInstanceId: "surface-instance.e4.n1",
       },
     });
@@ -322,8 +351,8 @@ describe("Managed Surface action route", () => {
       surface: {
         kind: "rejected",
         code: "surface.action_unpublished",
-        beforeTopologyRevision: 1,
-        afterTopologyRevision: 1,
+        beforeTopologyRevision: 2,
+        afterTopologyRevision: 2,
         surfaceInstanceId: "surface-instance.e4.n1",
       },
     });
@@ -344,8 +373,8 @@ describe("Managed Surface action route", () => {
       surface: {
         kind: "rejected",
         code: "surface.action_unpublished",
-        beforeTopologyRevision: 1,
-        afterTopologyRevision: 1,
+        beforeTopologyRevision: 2,
+        afterTopologyRevision: 2,
         surfaceInstanceId: "surface-instance.e4.n1",
       },
     });
@@ -361,7 +390,7 @@ describe("Managed Surface action route", () => {
       gestureId: gestureV1("undeclared-old-publication"),
     });
     expect(
-      fixture.coordinator.replaceTransientPrimary({
+      replaceReadyV1(fixture.coordinator, {
         expected: fixture.opened,
         definition: definitionV1("successor"),
         semanticOccurrenceId: null,
@@ -409,8 +438,8 @@ describe("Managed Surface action route", () => {
         surface: {
           kind: "stale",
           code: "surface.stale_topology_revision",
-          beforeTopologyRevision: 2,
-          afterTopologyRevision: 2,
+          beforeTopologyRevision: 3,
+          afterTopologyRevision: 3,
           surfaceInstanceId: "surface-instance.e4.n1",
         },
       },
@@ -420,8 +449,8 @@ describe("Managed Surface action route", () => {
         surface: {
           kind: "rejected",
           code: "surface.coordinator_disposed",
-          beforeTopologyRevision: 2,
-          afterTopologyRevision: 2,
+          beforeTopologyRevision: 3,
+          afterTopologyRevision: 3,
         },
       },
     ] as const,
@@ -543,7 +572,7 @@ describe("Managed Surface action route", () => {
       code: "surface.action_unpublished",
     });
 
-    fixture.coordinator.openTransientPrimary({
+    openReadyV1(fixture.coordinator, {
       definition: definitionV1("debug", {
         ownerId: parseManagedSurfaceOwnerIdV1("surface-owner.debug"),
         slotId: parseManagedSurfaceSlotIdV1("surface-slot.debug"),
@@ -565,8 +594,8 @@ describe("Managed Surface action route", () => {
       code: "surface.not_input_owner",
     });
 
-    expect(before.topologyRevision).toBe(1);
-    expect(listener).toHaveBeenCalledOnce();
+    expect(before.topologyRevision).toBe(2);
+    expect(listener).toHaveBeenCalledTimes(2);
   });
 
   it("consumes stale input-publication and gesture evidence before ordinary handlers", () => {
@@ -576,7 +605,7 @@ describe("Managed Surface action route", () => {
       gestureId: gestureV1("old-publication"),
     });
     expect(
-      fixture.coordinator.replaceTransientPrimary({
+      replaceReadyV1(fixture.coordinator, {
         expected: fixture.opened,
         definition: definitionV1("successor"),
         semanticOccurrenceId: null,
@@ -684,7 +713,7 @@ describe("Managed Surface action route", () => {
       applicationEpoch: parseNonNegativeSafeInteger(18),
       resolvedOwnerIds: [parseManagedSurfaceOwnerIdV1("surface-owner.workspace")],
     });
-    coordinator.openTransientPrimary({
+    openReadyV1(coordinator, {
       definition: definitionV1("inventory"),
       semanticOccurrenceId: null,
     });
@@ -736,7 +765,7 @@ describe("Managed Surface action route", () => {
         applicationEpoch: parseNonNegativeSafeInteger(19),
         resolvedOwnerIds: [ownerId],
       });
-      coordinator.openTransientPrimary({
+      openReadyV1(coordinator, {
         definition: definitionV1("inventory"),
         semanticOccurrenceId: null,
       });
@@ -781,7 +810,7 @@ describe("Managed Surface action route", () => {
         parseManagedSurfaceOwnerIdV1("surface-owner.system"),
       ],
     });
-    coordinator.openTransientPrimary({
+    openReadyV1(coordinator, {
       definition: definitionV1("inventory"),
       semanticOccurrenceId: null,
     });
@@ -863,7 +892,7 @@ describe("Managed Surface action route", () => {
         if (!shouldRebind) return;
         shouldRebind = false;
         expect(
-          fixture.coordinator.replaceTransientPrimary({
+          replaceReadyV1(fixture.coordinator, {
             expected: fixture.opened,
             definition: definitionV1("preflight-successor"),
             semanticOccurrenceId: null,
@@ -904,7 +933,7 @@ describe("Managed Surface action route", () => {
         gestureCheckCount += 1;
         if (gestureCheckCount !== 2) return;
         expect(
-          fixture.coordinator.replaceTransientPrimary({
+          replaceReadyV1(fixture.coordinator, {
             expected: fixture.opened,
             definition: definitionV1("gate-successor"),
             semanticOccurrenceId: null,
@@ -941,7 +970,7 @@ describe("Managed Surface action route", () => {
       handle: () => {
         if (replaced) return inputIgnoredV1;
         replaced = true;
-        const replacement = fixture.coordinator.replaceTransientPrimary({
+        const replacement = replaceReadyV1(fixture.coordinator, {
           expected: fixture.opened,
           definition: definitionV1("replacement"),
           semanticOccurrenceId: null,
@@ -1035,7 +1064,7 @@ describe("Managed Surface action route", () => {
     }
     expect(fixture.lower).not.toHaveBeenCalled();
     expect(fixture.coordinator.getSnapshot()).toBe(before);
-    expect(fixture.coordinator.getSnapshot().topologyRevision).toBe(1);
+    expect(fixture.coordinator.getSnapshot().topologyRevision).toBe(2);
     expect(listener).not.toHaveBeenCalled();
 
     expect(
@@ -1064,8 +1093,8 @@ describe("Managed Surface action route", () => {
     expect(receipt).toEqual({
       kind: "unchanged",
       code: "surface.action_routed",
-      beforeTopologyRevision: 1,
-      afterTopologyRevision: 1,
+      beforeTopologyRevision: 2,
+      afterTopologyRevision: 2,
       surfaceInstanceId: "surface-instance.e4.n1",
     });
     expect(Object.isFrozen(receipt)).toBe(true);

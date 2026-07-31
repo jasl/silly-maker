@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { parseNonNegativeSafeInteger } from "@sillymaker/base";
+import { parseNonNegativeSafeInteger, parsePositiveSafeInteger } from "@sillymaker/base";
 import type { DeepReadonly, NonNegativeSafeInteger } from "@sillymaker/base";
 
 import type {
@@ -10,6 +10,7 @@ import type {
   ManagedSurfaceOwnerIdV1,
   ManagedSurfacePublicationV1,
   ManagedSurfacePublishedInstanceV1,
+  ManagedSurfaceReadinessV1,
   ManagedSurfaceResolvedDefinitionV1,
   ManagedSurfaceResolvedSlotDescriptorV1,
   ManagedSurfaceSlotIdV1,
@@ -41,6 +42,7 @@ function freezeDefinitionV1(
 ): DeepReadonly<ManagedSurfaceResolvedDefinitionV1> {
   return Object.freeze({
     definitionId: definition.definitionId,
+    contractRevision: parsePositiveSafeInteger(definition.contractRevision),
     ownerId: definition.ownerId,
     slotId: definition.slotId,
     layerId: definition.layerId,
@@ -52,12 +54,14 @@ function freezeDefinitionV1(
     focusPolicy: Object.freeze({ ...definition.focusPolicy }),
     navigationPolicy: Object.freeze({ ...definition.navigationPolicy }),
     actionIds: Object.freeze([...definition.actionIds]),
+    readiness: Object.freeze({ ...definition.readiness }),
   }) as DeepReadonly<ManagedSurfaceResolvedDefinitionV1>;
 }
 
 function freezePublishedInstanceV1(
   candidate: ManagedSurfaceCandidateV1,
   parentInstanceId: ManagedSurfaceInstanceIdV1 | null,
+  readiness: ManagedSurfaceReadinessV1 = Object.freeze({ kind: "ready" }),
 ): DeepReadonly<ManagedSurfacePublishedInstanceV1> {
   return Object.freeze({
     definition: freezeDefinitionV1(candidate.definition),
@@ -65,8 +69,8 @@ function freezePublishedInstanceV1(
     surfaceInstanceId: candidate.surfaceInstanceId,
     semanticOccurrenceId: candidate.semanticOccurrenceId,
     parentInstanceId,
-    phase: "active",
-    readiness: Object.freeze({ kind: "ready" as const }),
+    phase: readiness.kind === "preparing" ? "preparing" : "active",
+    readiness: Object.freeze({ ...readiness }),
     routingLeaseId: candidate.routingLeaseId,
   }) as DeepReadonly<ManagedSurfacePublishedInstanceV1>;
 }
@@ -77,6 +81,16 @@ function withPhaseV1(
 ): DeepReadonly<ManagedSurfacePublishedInstanceV1> {
   if (instance.phase === phase) return instance;
   return Object.freeze({ ...instance, phase }) as DeepReadonly<ManagedSurfacePublishedInstanceV1>;
+}
+
+function withReadyReadinessV1(
+  instance: DeepReadonly<ManagedSurfacePublishedInstanceV1>,
+): DeepReadonly<ManagedSurfacePublishedInstanceV1> {
+  return Object.freeze({
+    ...instance,
+    phase: "active",
+    readiness: Object.freeze({ kind: "ready" as const }),
+  }) as DeepReadonly<ManagedSurfacePublishedInstanceV1>;
 }
 
 function orderedWithDerivedPhasesV1(
@@ -92,16 +106,31 @@ function orderedWithDerivedPhasesV1(
     .map(({ instance }) => instance);
   let topmostBlockingIndex = -1;
   for (let index = 0; index < ordered.length; index += 1) {
-    if (ordered[index]?.definition.modality === "blocking") topmostBlockingIndex = index;
+    const instance = ordered[index];
+    if (
+      instance !== undefined &&
+      ((instance.readiness.kind === "ready" && instance.definition.modality === "blocking") ||
+        isBlockingFallbackV1(instance))
+    ) {
+      topmostBlockingIndex = index;
+    }
   }
   return Object.freeze(
     ordered.map((instance, index) =>
-      withPhaseV1(
+      instance.readiness.kind === "preparing" ? instance : withPhaseV1(
         instance,
         topmostBlockingIndex >= 0 && index < topmostBlockingIndex ? "suspended" : "active",
       )
     ),
   );
+}
+
+function isBlockingFallbackV1(
+  instance: DeepReadonly<ManagedSurfacePublishedInstanceV1>,
+): boolean {
+  return instance.readiness.kind === "preparing" &&
+    (instance.readiness.transition === "initial_open" ||
+      instance.readiness.transition === "child_open");
 }
 
 function ownerTraceV1(
@@ -144,8 +173,18 @@ function publicationV1(
   coordinatorDisposed: boolean,
 ): DeepReadonly<ManagedSurfacePublicationV1> {
   const orderedInstances = orderedWithDerivedPhasesV1(instances);
+  const preparationFallbacks = Object.freeze(
+    orderedInstances.filter(isBlockingFallbackV1).map((instance) =>
+      Object.freeze({
+        kind: "blocking_fallback" as const,
+        candidateInstanceId: instance.surfaceInstanceId,
+      })
+    ),
+  );
   const topmostBlocking =
-    orderedInstances.toReversed().find((instance) => instance.definition.modality === "blocking") ??
+    orderedInstances.toReversed().find((instance) =>
+      instance.readiness.kind === "ready" && instance.definition.modality === "blocking"
+    ) ??
       null;
   const inputInstance =
     orderedInstances.toReversed().find((instance) =>
@@ -181,6 +220,7 @@ function publicationV1(
     publicationRevision,
     topologyRevision,
     orderedInstances,
+    preparationFallbacks,
     topmostBlockingInstanceId: topmostBlocking?.surfaceInstanceId ?? null,
     inputOwner,
     focusOwner,
@@ -362,12 +402,10 @@ function candidateIdentityFailureV1(
   return null;
 }
 
-function admitCandidateV1(
+function withAdmittedCandidateIdentityV1(
   state: ManagedSurfaceReducerStateV1,
   candidate: ManagedSurfaceCandidateV1,
-): ManagedSurfaceReducerResultV1 | ManagedSurfaceReducerStateV1 {
-  const identityFailure = candidateIdentityFailureV1(state, candidate);
-  if (identityFailure !== null) return identityFailure;
+): ManagedSurfaceReducerStateV1 {
   return stateV1(
     state.publication,
     state.resolvedOwnerIds,
@@ -407,7 +445,7 @@ function candidateStructuralFailureV1(
   if (!state.resolvedOwnerIds.includes(candidate.definition.ownerId)) {
     return unchangedResultV1(state, "rejected", "surface.unknown_owner");
   }
-  if (operation.kind !== "push_child") {
+  if (operation.kind !== "prepare_child") {
     if (candidate.definition.placement !== "root") {
       return unchangedResultV1(state, "rejected", "surface.slot_placement_mismatch");
     }
@@ -509,7 +547,9 @@ function evidenceFailureV1(
   }
   if (
     !state.publication.orderedInstances.some(
-      (instance) => instance.surfaceInstanceId === evidence.surfaceInstanceId,
+      (instance) =>
+        instance.surfaceInstanceId === evidence.surfaceInstanceId &&
+        instance.readiness.kind === "ready",
     )
   ) {
     return unchangedResultV1(state, "stale", "surface.stale_instance", evidence.surfaceInstanceId);
@@ -529,6 +569,15 @@ function closeInstanceV1(
   }
   const removed = descendantsIncludingV1(instances, surfaceInstanceId);
   const removedIds = new Set(removed.map((instance) => instance.surfaceInstanceId));
+  for (const instance of instances) {
+    if (
+      instance.readiness.kind === "preparing" &&
+      instance.readiness.transition === "primary_replacement" &&
+      removedIds.has(instance.readiness.retainedInstanceId)
+    ) {
+      removedIds.add(instance.surfaceInstanceId);
+    }
+  }
   return appliedResultV1(
     state,
     code,
@@ -536,6 +585,74 @@ function closeInstanceV1(
     state.disposedOwnerIds,
     false,
     surfaceInstanceId,
+  );
+}
+
+function settleReadinessV1(
+  state: ManagedSurfaceReducerStateV1,
+  operation: Extract<
+    ManagedSurfaceOperationV1,
+    { readonly kind: "readiness_ready" | "readiness_failed" }
+  >,
+): ManagedSurfaceReducerResultV1 {
+  if (operation.evidence.applicationEpoch !== state.publication.applicationEpoch) {
+    return unchangedResultV1(
+      state,
+      "stale",
+      "surface.stale_application_epoch",
+      operation.evidence.surfaceInstanceId,
+    );
+  }
+  const candidate = state.publication.orderedInstances.find(
+    (instance) =>
+      instance.surfaceInstanceId === operation.evidence.surfaceInstanceId &&
+      instance.readiness.kind === "preparing",
+  );
+  if (candidate === undefined) {
+    return unchangedResultV1(
+      state,
+      "stale",
+      "surface.stale_readiness",
+      operation.evidence.surfaceInstanceId,
+    );
+  }
+  if (operation.kind === "readiness_failed") {
+    return appliedResultV1(
+      state,
+      "surface.readiness_failed",
+      state.publication.orderedInstances.filter(
+        (instance) => instance.surfaceInstanceId !== candidate.surfaceInstanceId,
+      ),
+      state.disposedOwnerIds,
+      false,
+      candidate.surfaceInstanceId,
+      isBlockingFallbackV1(candidate),
+    );
+  }
+
+  let instances = state.publication.orderedInstances;
+  if (
+    candidate.readiness.kind === "preparing" &&
+    candidate.readiness.transition === "primary_replacement"
+  ) {
+    const removed = descendantsIncludingV1(instances, candidate.readiness.retainedInstanceId);
+    const removedIds = new Set(removed.map((instance) => instance.surfaceInstanceId));
+    instances = instances.filter(
+      (instance) => !removedIds.has(instance.surfaceInstanceId),
+    );
+  }
+  return appliedResultV1(
+    state,
+    "surface.readiness_ready",
+    instances.map((instance) =>
+      instance.surfaceInstanceId === candidate.surfaceInstanceId
+        ? withReadyReadinessV1(instance)
+        : instance
+    ),
+    state.disposedOwnerIds,
+    false,
+    candidate.surfaceInstanceId,
+    true,
   );
 }
 
@@ -575,6 +692,9 @@ export function reduceManagedSurfaceV1(
   operation: ManagedSurfaceOperationV1,
 ): ManagedSurfaceReducerResultV1 {
   let state = initialState;
+  if (operation.kind === "readiness_ready" || operation.kind === "readiness_failed") {
+    return settleReadinessV1(state, operation);
+  }
   if (operation.kind === "dispose_coordinator") {
     if (state.publication.coordinatorDisposed) {
       return unchangedResultV1(state, "unchanged", "surface.coordinator_already_disposed");
@@ -594,13 +714,12 @@ export function reduceManagedSurfaceV1(
   if ("candidate" in operation) {
     const structuralFailure = candidateStructuralFailureV1(state, operation);
     if (structuralFailure !== null) return structuralFailure;
-    const admission = admitCandidateV1(state, operation.candidate);
-    if ("receipt" in admission) return admission;
-    state = admission;
+    const identityFailure = candidateIdentityFailureV1(state, operation.candidate);
+    if (identityFailure !== null) return identityFailure;
   }
 
   switch (operation.kind) {
-    case "open_primary": {
+    case "prepare_initial": {
       if (operation.applicationEpoch !== state.publication.applicationEpoch) {
         return unchangedResultV1(
           state,
@@ -627,31 +746,38 @@ export function reduceManagedSurfaceV1(
           operation.candidate.surfaceInstanceId,
         );
       }
-      const instance = freezePublishedInstanceV1(operation.candidate, null);
+      state = withAdmittedCandidateIdentityV1(state, operation.candidate);
+      const instance = freezePublishedInstanceV1(
+        operation.candidate,
+        null,
+        Object.freeze({ kind: "preparing", transition: "initial_open" }),
+      );
       return appliedResultV1(
         state,
-        "surface.opened",
+        "surface.preparation_started",
         [...state.publication.orderedInstances, instance],
         state.disposedOwnerIds,
         false,
         instance.surfaceInstanceId,
+        true,
       );
     }
 
-    case "replace_primary": {
+    case "prepare_replacement": {
       const evidenceFailure = evidenceFailureV1(state, operation.expected);
       if (evidenceFailure !== null) return evidenceFailure;
       const failure = openPreconditionFailureV1(state, operation.candidate);
       if (failure !== null) return failure;
-      const replacedRoot = state.publication.orderedInstances.find(
+      const retainedRoot = state.publication.orderedInstances.find(
         (instance) =>
           instance.surfaceInstanceId === operation.expected.surfaceInstanceId &&
-          instance.parentInstanceId === null,
+          instance.parentInstanceId === null &&
+          instance.readiness.kind === "ready",
       );
       if (
-        replacedRoot === undefined ||
-        replacedRoot.definition.ownerId !== operation.candidate.definition.ownerId ||
-        replacedRoot.definition.slotId !== operation.candidate.definition.slotId
+        retainedRoot === undefined ||
+        retainedRoot.definition.ownerId !== operation.candidate.definition.ownerId ||
+        retainedRoot.definition.slotId !== operation.candidate.definition.slotId
       ) {
         return unchangedResultV1(
           state,
@@ -660,34 +786,43 @@ export function reduceManagedSurfaceV1(
           operation.candidate.surfaceInstanceId,
         );
       }
-      const removed = descendantsIncludingV1(
-        state.publication.orderedInstances,
-        replacedRoot.surfaceInstanceId,
+      state = withAdmittedCandidateIdentityV1(state, operation.candidate);
+      const instance = freezePublishedInstanceV1(
+        operation.candidate,
+        null,
+        Object.freeze({
+          kind: "preparing",
+          transition: "primary_replacement",
+          retainedInstanceId: retainedRoot.surfaceInstanceId,
+        }),
       );
-      const removedIds = new Set(removed.map((instance) => instance.surfaceInstanceId));
-      const instance = freezePublishedInstanceV1(operation.candidate, null);
       return appliedResultV1(
         state,
-        "surface.replaced",
+        "surface.preparation_started",
         [
-          ...state.publication.orderedInstances.filter(
-            (current) => !removedIds.has(current.surfaceInstanceId),
+          ...state.publication.orderedInstances.filter((current) =>
+            current.readiness.kind !== "preparing" ||
+            current.readiness.transition !== "primary_replacement" ||
+            current.readiness.retainedInstanceId !== retainedRoot.surfaceInstanceId
           ),
           instance,
         ],
         state.disposedOwnerIds,
         false,
         instance.surfaceInstanceId,
+        false,
       );
     }
 
-    case "push_child": {
+    case "prepare_child": {
       const evidenceFailure = evidenceFailureV1(state, operation.parentEvidence);
       if (evidenceFailure !== null) return evidenceFailure;
       const failure = openPreconditionFailureV1(state, operation.candidate);
       if (failure !== null) return failure;
       const parent = state.publication.orderedInstances.find(
-        (instance) => instance.surfaceInstanceId === operation.parentEvidence.surfaceInstanceId,
+        (instance) =>
+          instance.surfaceInstanceId === operation.parentEvidence.surfaceInstanceId &&
+          instance.readiness.kind === "ready",
       );
       if (
         parent === undefined ||
@@ -722,14 +857,20 @@ export function reduceManagedSurfaceV1(
           operation.candidate.surfaceInstanceId,
         );
       }
-      const instance = freezePublishedInstanceV1(operation.candidate, parent.surfaceInstanceId);
+      state = withAdmittedCandidateIdentityV1(state, operation.candidate);
+      const instance = freezePublishedInstanceV1(
+        operation.candidate,
+        parent.surfaceInstanceId,
+        Object.freeze({ kind: "preparing", transition: "child_open" }),
+      );
       return appliedResultV1(
         state,
-        "surface.child_pushed",
+        "surface.preparation_started",
         [...state.publication.orderedInstances, instance],
         state.disposedOwnerIds,
         false,
         instance.surfaceInstanceId,
+        true,
       );
     }
 
@@ -743,7 +884,11 @@ export function reduceManagedSurfaceV1(
       if (operation.applicationEpoch !== state.publication.applicationEpoch) {
         return unchangedResultV1(state, "stale", "surface.stale_application_epoch");
       }
-      const topInstanceId = state.publication.navigationTargetInstanceId;
+      const topInstanceId =
+        state.publication.orderedInstances.toReversed().find((instance) =>
+          isBlockingFallbackV1(instance) ||
+          instance.surfaceInstanceId === state.publication.navigationTargetInstanceId
+        )?.surfaceInstanceId ?? null;
       if (topInstanceId === null) {
         return unchangedResultV1(state, "unchanged", "surface.already_closed");
       }

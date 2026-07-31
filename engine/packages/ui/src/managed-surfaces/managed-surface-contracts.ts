@@ -127,8 +127,15 @@ export type ManagedSurfaceNavigationPolicyV1 =
   | { readonly kind: "none" }
   | { readonly kind: "close" };
 
+export interface ManagedSurfaceReadinessPolicyV1 {
+  readonly initialOpen: "blocking_fallback";
+  readonly primaryReplacement: "retain_current";
+  readonly childOpen: "blocking_fallback";
+}
+
 export interface ManagedSurfaceResolvedDefinitionV1 {
   readonly definitionId: ManagedSurfaceDefinitionIdV1;
+  readonly contractRevision: PositiveSafeInteger;
   readonly ownerId: ManagedSurfaceOwnerIdV1;
   readonly slotId: ManagedSurfaceSlotIdV1;
   readonly layerId: ManagedSurfaceLayerIdV1;
@@ -140,6 +147,7 @@ export interface ManagedSurfaceResolvedDefinitionV1 {
   readonly focusPolicy: ManagedSurfaceFocusPolicyV1;
   readonly navigationPolicy: ManagedSurfaceNavigationPolicyV1;
   readonly actionIds: readonly ManagedSurfaceActionIdV1[];
+  readonly readiness: ManagedSurfaceReadinessPolicyV1;
 }
 
 export interface ManagedSurfaceTransientTargetV1 {
@@ -161,13 +169,22 @@ export interface ManagedSurfaceCandidateV1 {
   readonly semanticOccurrenceId: string | null;
 }
 
+export type ManagedSurfacePreparationTransitionV1 =
+  | "initial_open"
+  | "primary_replacement"
+  | "child_open";
+
 export type ManagedSurfaceReadinessV1 =
-  | { readonly kind: "preparing" }
-  | { readonly kind: "ready" }
   | {
-    readonly kind: "faulted";
-    readonly code: string;
-  };
+    readonly kind: "preparing";
+    readonly transition: "initial_open" | "child_open";
+  }
+  | {
+    readonly kind: "preparing";
+    readonly transition: "primary_replacement";
+    readonly retainedInstanceId: ManagedSurfaceInstanceIdV1;
+  }
+  | { readonly kind: "ready" };
 
 export interface ManagedSurfacePublishedInstanceV1 {
   readonly surfaceInstanceId: ManagedSurfaceInstanceIdV1;
@@ -199,11 +216,17 @@ export interface ManagedSurfaceOwnerTraceV1 {
   readonly disposed: boolean;
 }
 
+export interface ManagedSurfaceBlockingFallbackProjectionV1 {
+  readonly kind: "blocking_fallback";
+  readonly candidateInstanceId: ManagedSurfaceInstanceIdV1;
+}
+
 export interface ManagedSurfacePublicationV1 {
   readonly applicationEpoch: NonNegativeSafeInteger;
   readonly publicationRevision: NonNegativeSafeInteger;
   readonly topologyRevision: NonNegativeSafeInteger;
   readonly orderedInstances: readonly ManagedSurfacePublishedInstanceV1[];
+  readonly preparationFallbacks: readonly ManagedSurfaceBlockingFallbackProjectionV1[];
   readonly topmostBlockingInstanceId: ManagedSurfaceInstanceIdV1 | null;
   readonly inputOwner: ManagedSurfaceInputOwnerV1 | null;
   readonly focusOwner: ManagedSurfaceFocusOwnerV1 | null;
@@ -215,6 +238,11 @@ export interface ManagedSurfacePublicationV1 {
 export interface ManagedSurfaceTransitionEvidenceV1 {
   readonly applicationEpoch: NonNegativeSafeInteger;
   readonly topologyRevision: NonNegativeSafeInteger;
+  readonly surfaceInstanceId: ManagedSurfaceInstanceIdV1;
+}
+
+export interface ManagedSurfaceReadinessEvidenceV1 {
+  readonly applicationEpoch: NonNegativeSafeInteger;
   readonly surfaceInstanceId: ManagedSurfaceInstanceIdV1;
 }
 
@@ -243,19 +271,27 @@ export type ManagedSurfaceDismissKindV1 = "back" | "escape" | "backdrop" | "rout
 
 export type ManagedSurfaceOperationV1 =
   | {
-    readonly kind: "open_primary";
+    readonly kind: "prepare_initial";
     readonly applicationEpoch: NonNegativeSafeInteger;
     readonly candidate: ManagedSurfaceCandidateV1;
   }
   | {
-    readonly kind: "replace_primary";
+    readonly kind: "prepare_replacement";
     readonly expected: ManagedSurfaceTransitionEvidenceV1;
     readonly candidate: ManagedSurfaceCandidateV1;
   }
   | {
-    readonly kind: "push_child";
+    readonly kind: "prepare_child";
     readonly parentEvidence: ManagedSurfaceTransitionEvidenceV1;
     readonly candidate: ManagedSurfaceCandidateV1;
+  }
+  | {
+    readonly kind: "readiness_ready";
+    readonly evidence: ManagedSurfaceReadinessEvidenceV1;
+  }
+  | {
+    readonly kind: "readiness_failed";
+    readonly evidence: ManagedSurfaceReadinessEvidenceV1;
   }
   | {
     readonly kind: "close_expected";
@@ -294,9 +330,9 @@ export type ManagedSurfaceTransitionOutcomeV1 =
   | "faulted";
 
 export type ManagedSurfaceTransitionCodeV1 =
-  | "surface.opened"
-  | "surface.replaced"
-  | "surface.child_pushed"
+  | "surface.preparation_started"
+  | "surface.readiness_ready"
+  | "surface.readiness_failed"
   | "surface.closed"
   | "surface.owner_closed"
   | "surface.dismissed"
@@ -304,6 +340,7 @@ export type ManagedSurfaceTransitionCodeV1 =
   | "surface.owner_disposed"
   | "surface.coordinator_disposed"
   | "surface.owner_already_disposed"
+  | "surface.invalid_definition"
   | "surface.unknown_owner"
   | "surface.coordinator_already_disposed"
   | "surface.already_closed"
@@ -327,6 +364,7 @@ export type ManagedSurfaceTransitionCodeV1 =
   | "surface.stale_application_epoch"
   | "surface.stale_topology_revision"
   | "surface.stale_instance"
+  | "surface.stale_readiness"
   | "surface.invariant_failed"
   | "surface.transition_faulted";
 
