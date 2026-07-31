@@ -4,13 +4,13 @@ Applications are self-contained projects (their own `sillymaker.config.ts` and `
 
 ## Inside an application directory
 
-| Command                                   | What it does                                                                                                      |
-| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `deno task dev`                           | Vite dev server for this application                                                                              |
-| `deno task build:web`                     | Production Player bundle into `dist-web/` (`build` is its alias)                                                  |
-| `deno task build:desktop [--target <t>]…` | Desktop package(s) into `dist-desktop/` (host `.app` by default; triples cross-compile `.app`/`.msi`/`.AppImage`) |
-| `deno task preview`                       | Serve `dist-web/` over HTTP (`file://` cannot load ES modules)                                                    |
-| `deno task story <verb> .`                | App-local diagnostics: `inspect`, `check`, `simulate`, `dev --smoke`, `prebuilt-smoke`, `diff`                    |
+| Command                                   | What it does                                                                                                                                                                                                    |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `deno task dev`                           | Vite dev server for this application                                                                                                                                                                            |
+| `deno task build:web`                     | Production Player bundle into `dist-web/` (`build` is its alias)                                                                                                                                                |
+| `deno task build:desktop [--target <t>]…` | Desktop package(s) into `dist-desktop/` (host `.app` by default; triples cross-compile `.app`/`.msi`/`.AppImage`; names carry the app version and git commit when known, e.g. `App-0_1_0-abc1234-<triple>.msi`) |
+| `deno task preview`                       | Serve `dist-web/` over HTTP (`file://` cannot load ES modules)                                                                                                                                                  |
+| `deno task story <verb> .`                | App-local diagnostics: `inspect`, `check`, `simulate`, `dev --smoke`, `prebuilt-smoke`, `diff`                                                                                                                  |
 
 `build:desktop` forwards appended flags to the packaging verb: `--target <os-arch-triple>` (repeatable), `--compress[=xz|lzma|zstd]`, `--profile <release|debug>`. Local file-store durability is not yet promoted.
 

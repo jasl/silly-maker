@@ -13,6 +13,8 @@ import {
   resolveGamePackageV1,
 } from "@sillymaker/base";
 
+import type { CollectedVersionStampV1 } from "../vite/version-stamp.ts";
+import { collectVersionStampV1 } from "../vite/version-stamp.ts";
 import type { SillymakerProjectConfigV1 } from "./config.ts";
 import { joinAppPathV1, resolveStoryApplicationV1 } from "./config.ts";
 
@@ -477,8 +479,10 @@ export type DesktopCompressionV1 = "xz" | "lzma" | "zstd";
 export interface StoryDesktopOptionsV1 extends StoryBuildOptionsV1 {
   /**
    * Explicit `deno desktop --target` triples; one package per entry, named
-   * `<Name>-<triple>.<ext>`. Empty/absent keeps the host-platform preview
-   * (`<Name>.app`, unsuffixed) exactly as before.
+   * `<Stem>-<triple>.<ext>`. Empty/absent keeps the host-platform preview
+   * (`<Stem>.app`, no triple). The stem is the configured name plus the
+   * application's version and git commit when known — see
+   * `desktopArtifactStemV1`.
    */
   readonly targets?: readonly DesktopTargetTripleV1[];
   /** Self-extracting payload compression (`--compress[=algo]`); off by default. */
@@ -503,15 +507,33 @@ export interface StoryDesktopReportV1 {
 }
 
 /**
+ * Release-friendly artifact stem: `<Name>-<version>-<commit>` with dots
+ * swapped for underscores (a dotted stem reads as an extension boundary to
+ * installers and upload forms). Either part drops out when unknown — no
+ * package version or no git must never fail or rename-break packaging —
+ * so the stem degrades back to the bare configured name.
+ */
+export function desktopArtifactStemV1(name: string, stamp: CollectedVersionStampV1): string {
+  const version =
+    stamp.applicationVersion === null
+      ? null
+      : stamp.applicationVersion.replaceAll(/[^0-9A-Za-z_-]+/gu, "_");
+  const parts = [version, stamp.applicationCommit].filter(
+    (part): part is string => part !== null && part !== "",
+  );
+  return parts.reduce((stem, part) => `${stem}-${part}`, name);
+}
+
+/**
  * Per-OS package format. `deno desktop` infers the format from the output
  * extension; these are the copy-and-run choices per platform (macOS bundle,
  * Windows installer, Linux AppImage).
  */
-function desktopOutputNameV1(name: string, target: DesktopTargetTripleV1 | "host"): string {
-  if (target === "host") return `${name}.app`;
-  if (target.endsWith("apple-darwin")) return `${name}-${target}.app`;
-  if (target.includes("windows")) return `${name}-${target}.msi`;
-  return `${name}-${target}.AppImage`;
+function desktopOutputNameV1(stem: string, target: DesktopTargetTripleV1 | "host"): string {
+  if (target === "host") return `${stem}.app`;
+  if (target.endsWith("apple-darwin")) return `${stem}-${target}.app`;
+  if (target.includes("windows")) return `${stem}-${target}.msi`;
+  return `${stem}-${target}.AppImage`;
 }
 
 /** `.app` is a directory bundle; single-file formats verify the file itself. */
@@ -535,7 +557,12 @@ function desktopIconAppliesV1(target: DesktopTargetTripleV1 | "host"): boolean {
 export async function desktopStoryApplicationV1(
   project: SillymakerProjectConfigV1,
   applicationId: string,
-  deps: { readonly runner: ProjectCommandRunnerV1; readonly repositoryRoot: string },
+  deps: {
+    readonly runner: ProjectCommandRunnerV1;
+    readonly repositoryRoot: string;
+    /** Injectable version-stamp collection; defaults to package.json + git. */
+    readonly collectVersionStamp?: (input: { readonly appRoot: string }) => CollectedVersionStampV1;
+  },
   options: StoryDesktopOptionsV1 = {},
 ): Promise<StoryDesktopReportV1> {
   const application = resolveStoryApplicationV1(project, applicationId);
@@ -565,6 +592,16 @@ export async function desktopStoryApplicationV1(
       `/applications/${applicationId}/web/outDir`,
     );
   }
+
+  // Artifact names carry the application's version and commit when known
+  // (`Name-0_1_0-abc1234[-<triple>].<ext>`) so a release upload identifies
+  // its build at a glance.
+  const artifactStem = desktopArtifactStemV1(
+    desktop.name,
+    (deps.collectVersionStamp ?? collectVersionStampV1)({
+      appRoot: applicationRootV1(deps.repositoryRoot, web.storyRoot),
+    }),
+  );
 
   // Desktop output lives beside (not inside) the web outDir so a later
   // `vite build` with emptyOutDir cannot delete a packaged bundle.
@@ -638,7 +675,7 @@ export async function desktopStoryApplicationV1(
 
   const outputs: StoryDesktopOutputV1[] = [];
   for (const target of requestedTargets) {
-    const outputName = desktopOutputNameV1(desktop.name, target);
+    const outputName = desktopOutputNameV1(artifactStem, target);
     const outputPath = `${desktopRoot}/${outputName}`;
     let exitCode: number;
     try {
