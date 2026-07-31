@@ -44,7 +44,7 @@ import type {
 import { createGameSessionV1 } from "../session/game-session.ts";
 import { classifySaveCompatibilityV1 } from "./compatibility.ts";
 import { decodeSaveRecordV1, encodeSaveRecordV1 } from "./save-codec.ts";
-import { createPersistenceServiceV1 } from "./persistence-service.ts";
+import { createPersistenceServiceV1, formatExportTimestampV1 } from "./persistence-service.ts";
 import { createSaveRepositoryV1 } from "./save-repository.ts";
 import type { SaveRepositorySlotMetadataV1, SaveRepositoryV1 } from "./save-repository.ts";
 import { createSessionLeaseV1 } from "./session-lease.ts";
@@ -2062,10 +2062,13 @@ describe("PersistenceService standard composition", () => {
     expect(fixture.session.getCurrentSnapshot().commandSequence).toBe(1);
 
     const exported = await fixture.service.port.exportCurrentSave();
-    // The filename dates itself in unix seconds from the metadata clock.
-    const stampSeconds = Math.floor(Date.parse("2026-07-14T12:00:00.000Z") / 1000);
+    // The filename dates itself (local wall-clock yyyyMMddHHmmss from the
+    // metadata clock; the expectation uses the same formatter so the test
+    // stays deterministic in every timezone).
+    const stamp = formatExportTimestampV1(Date.parse("2026-07-14T12:00:00.000Z"));
+    expect(stamp).toMatch(/^\d{14}$/u);
     expect(exported).toMatchObject({
-      filename: `standard-save-${String(stampSeconds)}.json`,
+      filename: `standard-save-${stamp}.json`,
       mediaType: "application/json",
     });
     await fixture.service.autoSaveIdle();

@@ -135,6 +135,20 @@ export type PersistenceLeaseAcquisitionV1 = "acquire_initial" | "deferred_reboot
  */
 export type PersistenceAutoSaveCaptureV1 = "committed_snapshots" | "external";
 
+/**
+ * Local wall-clock `yyyyMMddHHmmss` used in export filenames — the reader
+ * is the human who just clicked Export on this machine, so local time (not
+ * UTC) is the readable choice. Exported for tests to build expectations.
+ */
+export function formatExportTimestampV1(millis: number): string {
+  const at = new Date(millis);
+  const pad = (value: number): string => String(value).padStart(2, "0");
+  return (
+    `${String(at.getFullYear())}${pad(at.getMonth() + 1)}${pad(at.getDate())}` +
+    `${pad(at.getHours())}${pad(at.getMinutes())}${pad(at.getSeconds())}`
+  );
+}
+
 export interface CreatePersistenceServiceOptionsV1<
   TState,
   TSnapshot extends {
@@ -642,14 +656,14 @@ async function createPersistenceServiceWithDependenciesV1<
     );
   };
 
-  // Export filenames carry the export instant (unix seconds, from the
-  // metadata clock so tests stay deterministic): repeated exports get
-  // distinct names and a diagnostic file dates itself. An unparsable
-  // instant falls back to the bare configured name.
+  // Export filenames carry the export instant (local wall-clock
+  // `yyyyMMddHHmmss`, from the metadata clock so tests stay deterministic
+  // per machine): repeated exports get distinct, human-readable, sortable
+  // names. An unparsable instant falls back to the bare configured name.
   const exportFilenameV1 = (): string => {
     const millis = Date.parse(options.metadataClock.now());
     if (!Number.isFinite(millis)) return options.exportFilename;
-    const suffix = String(Math.floor(millis / 1000));
+    const suffix = formatExportTimestampV1(millis);
     const filename = options.exportFilename;
     const dot = filename.lastIndexOf(".");
     return dot > 0
