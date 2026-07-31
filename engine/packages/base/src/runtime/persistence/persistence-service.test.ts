@@ -2062,8 +2062,10 @@ describe("PersistenceService standard composition", () => {
     expect(fixture.session.getCurrentSnapshot().commandSequence).toBe(1);
 
     const exported = await fixture.service.port.exportCurrentSave();
+    // The filename dates itself in unix seconds from the metadata clock.
+    const stampSeconds = Math.floor(Date.parse("2026-07-14T12:00:00.000Z") / 1000);
     expect(exported).toMatchObject({
-      filename: "standard-save.json",
+      filename: `standard-save-${String(stampSeconds)}.json`,
       mediaType: "application/json",
     });
     await fixture.service.autoSaveIdle();
