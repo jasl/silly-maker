@@ -182,7 +182,9 @@ export function CatcafeHudV1(props: {
       <style>{catcafeChromeCssV1}</style>
       <header style={{ gridRow: 1, display: "flex", gap: "8px", alignItems: "start" }}>
         <p
-          data-cc-calendar={`${String(game.calendar.week)}.${String(game.calendar.day)}.${String(game.calendar.slot)}`}
+          data-cc-calendar={`${String(game.calendar.week)}.${String(game.calendar.day)}.${
+            String(game.calendar.slot)
+          }`}
           style={{ ...panel, margin: 0, fontSize: "14px" }}
         >
           {game.shop.epilogue === null ? null : (
@@ -202,21 +204,24 @@ export function CatcafeHudV1(props: {
           )}
           {uiText("text.cc.hud.week")}
           {String(game.calendar.week)}
-          {uiText("text.cc.hud.week.suffix")} · {uiText(`text.cc.day.${String(game.calendar.day)}`)}{" "}
+          {uiText("text.cc.hud.week.suffix")} · {uiText(`text.cc.day.${String(game.calendar.day)}`)}
+          {" "}
           · {uiText(`text.cc.slot.${slotName}`)}
         </p>
         <p data-cc-wallet="true" style={{ ...panel, margin: 0, fontSize: "14px" }}>
           {uiText("text.cc.hud.stamina")} {String(game.calendar.stamina)} ·{" "}
           {uiText("text.cc.hud.money")} {String(game.shop.money)}
         </p>
-        {autoAdvancePending ? (
-          <p
-            data-cc-auto-advance="true"
-            style={{ ...panel, margin: 0, fontSize: "13px", color: catcafeThemeV1.inkSoft }}
-          >
-            {uiText("text.cc.hud.auto-advance")}
-          </p>
-        ) : null}
+        {autoAdvancePending
+          ? (
+            <p
+              data-cc-auto-advance="true"
+              style={{ ...panel, margin: 0, fontSize: "13px", color: catcafeThemeV1.inkSoft }}
+            >
+              {uiText("text.cc.hud.auto-advance")}
+            </p>
+          )
+          : null}
       </header>
 
       <aside
@@ -256,7 +261,13 @@ export function CatcafeHudV1(props: {
         </span>
         {/* Hidden machine-readable mirror for tests and automation assertions. */}
         <span data-cc-stats-text="true" style={{ display: "none" }}>
-          {`${uiText("text.cc.hud.trust")}${String(game.cat.trust)} · ${uiText("text.cc.hud.vigor")}${String(game.cat.vigor)} · ${uiText("text.cc.hud.skill")}${String(game.cat.skill)} · ${uiText("text.cc.hud.money")}${String(game.shop.money)} · ${uiText("text.cc.hud.reputation")}${String(game.shop.reputation)} · ${uiText("text.cc.hud.tidiness")}${String(game.shop.tidiness)}`}
+          {`${uiText("text.cc.hud.trust")}${String(game.cat.trust)} · ${
+            uiText("text.cc.hud.vigor")
+          }${String(game.cat.vigor)} · ${uiText("text.cc.hud.skill")}${String(game.cat.skill)} · ${
+            uiText("text.cc.hud.money")
+          }${String(game.shop.money)} · ${uiText("text.cc.hud.reputation")}${
+            String(game.shop.reputation)
+          } · ${uiText("text.cc.hud.tidiness")}${String(game.shop.tidiness)}`}
         </span>
       </aside>
 
@@ -289,71 +300,71 @@ export function CatcafeHudV1(props: {
             {uiText(contestToast === "won" ? "text.cc.contest.won" : "text.cc.contest.lost")}
           </p>
         )}
-        {contest === null ? (
-          <div
-            style={{
-              ...panel,
-              display: "flex",
-              gap: "8px",
-              flexWrap: "wrap",
-              justifyContent: "center",
-            }}
-          >
-            <span role="group" aria-label="日程" style={{ display: "flex", gap: "8px" }}>
-              {systemActions.map((action) => (
-                <Button
-                  key={action.actionId}
-                  disabled={!action.enabled}
-                  data-cc-action-id={action.actionId}
-                  onClick={() =>
-                    dispatchV1(props.semantic, { kind: "invoke", actionId: action.actionId })
-                  }
-                >
-                  {uiText(actionTextIdsV1[action.actionId])}
-                </Button>
-              ))}
-              <Button data-cc-album-open="true" onClick={props.openAlbum}>
-                {uiText("text.cc.album.open")}
-              </Button>
-              <CatcafeRollbackControlV1
-                instance={props.instance}
-                label={uiText("text.cc.playback.rollback")}
-              />
-            </span>
-            {inOpening ? null : (
-              <span
-                role="group"
-                aria-label="活动"
-                style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}
-              >
-                {activityActions.map((action) => (
+        {contest === null
+          ? (
+            <div
+              style={{
+                ...panel,
+                display: "flex",
+                gap: "8px",
+                flexWrap: "wrap",
+                justifyContent: "center",
+              }}
+            >
+              <span role="group" aria-label="日程" style={{ display: "flex", gap: "8px" }}>
+                {systemActions.map((action) => (
                   <Button
-                    key={action.activityId}
+                    key={action.actionId}
                     disabled={!action.enabled}
-                    data-cc-activity={action.activityId}
-                    data-cc-blocked={action.blockedBy ?? undefined}
+                    data-cc-action-id={action.actionId}
                     onClick={() =>
-                      dispatchV1(props.semantic, {
-                        kind: "activity",
-                        activityId: action.activityId,
-                      })
-                    }
+                      dispatchV1(props.semantic, { kind: "invoke", actionId: action.actionId })}
                   >
-                    {uiText(action.nameTextId)}
+                    {uiText(actionTextIdsV1[action.actionId])}
                   </Button>
                 ))}
+                <Button data-cc-album-open="true" onClick={props.openAlbum}>
+                  {uiText("text.cc.album.open")}
+                </Button>
+                <CatcafeRollbackControlV1
+                  instance={props.instance}
+                  label={uiText("text.cc.playback.rollback")}
+                />
               </span>
-            )}
-          </div>
-        ) : (
-          <CatcafeContestPanelV1
-            contest={contest}
-            semantic={props.semantic}
-            registry={props.registry}
-            uiText={uiText}
-            panelStyle={panel}
-          />
-        )}
+              {inOpening ? null : (
+                <span
+                  role="group"
+                  aria-label="活动"
+                  style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}
+                >
+                  {activityActions.map((action) => (
+                    <Button
+                      key={action.activityId}
+                      disabled={!action.enabled}
+                      data-cc-activity={action.activityId}
+                      data-cc-blocked={action.blockedBy ?? undefined}
+                      onClick={() =>
+                        dispatchV1(props.semantic, {
+                          kind: "activity",
+                          activityId: action.activityId,
+                        })}
+                    >
+                      {uiText(action.nameTextId)}
+                    </Button>
+                  ))}
+                </span>
+              )}
+            </div>
+          )
+          : (
+            <CatcafeContestPanelV1
+              contest={contest}
+              semantic={props.semantic}
+              registry={props.registry}
+              uiText={uiText}
+              panelStyle={panel}
+            />
+          )}
       </footer>
     </div>
   );

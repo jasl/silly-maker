@@ -82,7 +82,9 @@ async function captureArtifactRootV1(artifactRoot, expectedIdentity) {
       throw error;
     }
     throw new TypeError(
-      `release.invalid_artifact_target: Artifact root is unavailable: ${error instanceof Error ? error.message : String(error)}`,
+      `release.invalid_artifact_target: Artifact root is unavailable: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
       { cause: error },
     );
   } finally {
@@ -320,8 +322,8 @@ export async function prepareArtifactDirectoryV1(repositoryRoot, artifactRoot, e
   }
 }
 
-const isMainV1 =
-  process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+const isMainV1 = process.argv[1] !== undefined &&
+  resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 
 if (isMainV1) {
   try {

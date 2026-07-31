@@ -83,31 +83,28 @@ export function parseNarrativeGraphNodeV1(value: unknown, path = "/node"): Narra
   ) {
     return dataFailure(`${path}/kind`, "narrative_node_kind_invalid");
   }
-  const interaction =
-    record.interaction === null
-      ? null
-      : (() => {
-          const interactionRecord = readExactRecord(
-            record.interaction,
-            ["definitionId", "seenRevision"],
-            `${path}/interaction`,
-          );
-          if (
-            typeof interactionRecord.seenRevision !== "number" ||
-            !Number.isSafeInteger(interactionRecord.seenRevision) ||
-            interactionRecord.seenRevision < 1
-          ) {
-            return dataFailure(`${path}/interaction/seenRevision`, "seen_revision_invalid");
-          }
-          return Object.freeze({
-            definitionId: parseGraphIdV1(
-              interactionRecord.definitionId,
-              `${path}/interaction/definitionId`,
-              "definition_id_invalid",
-            ),
-            seenRevision: interactionRecord.seenRevision,
-          });
-        })();
+  const interaction = record.interaction === null ? null : (() => {
+    const interactionRecord = readExactRecord(
+      record.interaction,
+      ["definitionId", "seenRevision"],
+      `${path}/interaction`,
+    );
+    if (
+      typeof interactionRecord.seenRevision !== "number" ||
+      !Number.isSafeInteger(interactionRecord.seenRevision) ||
+      interactionRecord.seenRevision < 1
+    ) {
+      return dataFailure(`${path}/interaction/seenRevision`, "seen_revision_invalid");
+    }
+    return Object.freeze({
+      definitionId: parseGraphIdV1(
+        interactionRecord.definitionId,
+        `${path}/interaction/definitionId`,
+        "definition_id_invalid",
+      ),
+      seenRevision: interactionRecord.seenRevision,
+    });
+  })();
   if ((record.kind === "interaction") !== (interaction !== null)) {
     return dataFailure(`${path}/interaction`, "narrative_interaction_identity_invalid");
   }
@@ -126,10 +123,9 @@ export function parseNarrativeGraphNodeV1(value: unknown, path = "/node"): Narra
     nodeId: parseGraphIdV1(record.nodeId, `${path}/nodeId`, "node_id_invalid"),
     kind: record.kind,
     successors: parseIdListV1(record.successors, `${path}/successors`, "node_id_invalid"),
-    callTarget:
-      record.callTarget === null
-        ? null
-        : parseGraphIdV1(record.callTarget, `${path}/callTarget`, "node_id_invalid"),
+    callTarget: record.callTarget === null
+      ? null
+      : parseGraphIdV1(record.callTarget, `${path}/callTarget`, "node_id_invalid"),
     interaction,
     dependencies: Object.freeze({
       textIds: parseIdListV1(
@@ -162,7 +158,7 @@ export function parseNarrativeGraphV1(value: unknown, path = ""): NarrativeGraph
     entryNodeId: parseGraphIdV1(record.entryNodeId, `${path}/entryNodeId`, "node_id_invalid"),
     nodes: Object.freeze(
       nodesValue.map((node, index) =>
-        parseNarrativeGraphNodeV1(node, `${path}/nodes/${String(index)}`),
+        parseNarrativeGraphNodeV1(node, `${path}/nodes/${String(index)}`)
       ),
     ),
   });
@@ -315,8 +311,9 @@ export function lintNarrativeGraphV1(graph: NarrativeGraphV1): readonly Diagnost
         stack.pop();
         continue;
       }
-      const edges =
-        node.callTarget === null ? node.successors : [node.callTarget, ...node.successors];
+      const edges = node.callTarget === null
+        ? node.successors
+        : [node.callTarget, ...node.successors];
       if (frame.nextSuccessor >= edges.length) {
         visiting.delete(frame.nodeId);
         settled.add(frame.nodeId);

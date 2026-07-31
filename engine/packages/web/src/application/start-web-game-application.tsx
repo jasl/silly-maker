@@ -199,8 +199,7 @@ export interface WebGameApplicationV1<
     TResult
   >;
   readonly buildIdentityInput?: Parameters<typeof resolveCoreGameApplicationV1>[1] extends
-    { readonly buildIdentityInput?: infer TIdentity } | undefined
-    ? TIdentity
+    { readonly buildIdentityInput?: infer TIdentity } | undefined ? TIdentity
     : never;
   /**
    * The application's autosave/checkpoint policy. Defaults to a debounced
@@ -350,8 +349,7 @@ export async function startWebGameApplicationV1<
   >,
   options: StartWebGameApplicationOptionsV1 = {},
 ): Promise<StartedWebGameApplicationV1> {
-  const rootElement =
-    options.rootElement ??
+  const rootElement = options.rootElement ??
     (typeof document === "undefined" ? null : document.querySelector("#root"));
   if (!(rootElement instanceof HTMLElement)) {
     throw new TypeError("web.application_root_missing");
@@ -370,41 +368,39 @@ export async function startWebGameApplicationV1<
       Reflect.get(globalThis, "__SILLYMAKER_RECORDS__"),
       Reflect.get(globalThis, "__SILLYMAKER_DESKTOP_CAPABILITY__"),
     );
-  const desktopShellFetch =
-    desktopShellCapability === null
-      ? null
-      : createDesktopShellFetchInternalV1(desktopShellCapability);
-  const host =
-    options.host ??
+  const desktopShellFetch = desktopShellCapability === null
+    ? null
+    : createDesktopShellFetchInternalV1(desktopShellCapability);
+  const host = options.host ??
     (wantsLocalRecords
       ? createWebHostV1({
-          records: createHttpHostRecordStoreV1({
-            baseUrl: "/sillymaker/records",
-            ...(desktopShellFetch === null ? {} : { fetchImpl: desktopShellFetch }),
-          }),
-          ...(usesDesktopShell
-            ? {
-                // The shell webview ignores `<a download>`; route downloads to
-                // the shell endpoint so exports reach platform Downloads.
-                files: createShellFilePortV1({
-                  baseUrl: "/sillymaker/files",
-                  picker: createBrowserFilePortV1(),
-                  ...(desktopShellFetch === null ? {} : { fetchImpl: desktopShellFetch }),
-                }),
-              }
-            : {}),
-        })
+        records: createHttpHostRecordStoreV1({
+          baseUrl: "/sillymaker/records",
+          ...(desktopShellFetch === null ? {} : { fetchImpl: desktopShellFetch }),
+        }),
+        ...(usesDesktopShell
+          ? {
+            // The shell webview ignores `<a download>`; route downloads to
+            // the shell endpoint so exports reach platform Downloads.
+            files: createShellFilePortV1({
+              baseUrl: "/sillymaker/files",
+              picker: createBrowserFilePortV1(),
+              ...(desktopShellFetch === null ? {} : { fetchImpl: desktopShellFetch }),
+            }),
+          }
+          : {}),
+      })
       : createWebHostV1({
-          databaseName: options.databaseName ?? `sillymaker.${application.applicationId}`,
-        }));
+        databaseName: options.databaseName ?? `sillymaker.${application.applicationId}`,
+      }));
   const reportFailure = (code: string, error: unknown): void => {
     host.log.write("warn", code, {
       message: error instanceof Error ? error.message : String(error),
     });
   };
 
-  const capabilitySearch =
-    options.capabilitySearch ?? (typeof location === "undefined" ? "" : location.search);
+  const capabilitySearch = options.capabilitySearch ??
+    (typeof location === "undefined" ? "" : location.search);
   const capabilityRequest = parseCapabilityRequestV1(capabilitySearch);
   const persistedCapabilities = await createWebCapabilityPreferencesV1(host);
   // The live capability session: page-local requests overlay the persisted
@@ -451,15 +447,15 @@ export async function startWebGameApplicationV1<
   let uiDisposer: (() => void) | undefined;
   let composition:
     | ReturnType<
-        typeof createGameUiCompositionV1<
-          WebSemanticPublicationV1<TGameView, TNarrativeView, TActionDescriptor>,
-          TResolvedCatalog,
-          TStoryUiState,
-          TView,
-          TAssetId,
-          TOverlayId
-        >
+      typeof createGameUiCompositionV1<
+        WebSemanticPublicationV1<TGameView, TNarrativeView, TActionDescriptor>,
+        TResolvedCatalog,
+        TStoryUiState,
+        TView,
+        TAssetId,
+        TOverlayId
       >
+    >
     | undefined;
   let disposed = false;
   let removePageLifecycle: (() => void) | undefined;
@@ -509,8 +505,7 @@ export async function startWebGameApplicationV1<
     });
     const uiDefinition = application.ui({
       instance,
-      assetLoader:
-        options.assetLoader ??
+      assetLoader: options.assetLoader ??
         createBrowserImageLoaderV1({
           resolveRuntimeUrl: (runtimePath) => new URL(runtimePath, document.baseURI).href,
           createImage: () => new Image(),
@@ -574,13 +569,11 @@ export async function startWebGameApplicationV1<
         {...(uiDefinition.titleScreen === undefined
           ? {}
           : { titleScreen: uiDefinition.titleScreen })}
-        {...(uiDefinition.resolveStageAccessibleName === undefined
-          ? {}
-          : {
-              resolveStageAccessibleName: uiDefinition.resolveStageAccessibleName as (
-                publication: never,
-              ) => string,
-            })}
+        {...(uiDefinition.resolveStageAccessibleName === undefined ? {} : {
+          resolveStageAccessibleName: uiDefinition.resolveStageAccessibleName as (
+            publication: never,
+          ) => string,
+        })}
         {...(saveSurfaces.saveUi === undefined ? {} : { saveUi: saveSurfaces.saveUi })}
         {...(saveSurfaces.customSaves === undefined
           ? {}

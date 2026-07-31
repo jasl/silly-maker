@@ -89,12 +89,14 @@ describe("asset selection materialization", () => {
 
   it("rejects traversal, absolute paths, backslashes, and NUL bytes", async () => {
     const fixture = await fixtureV1();
-    for (const path of [
-      "../outside/secret.txt",
-      "/etc/passwd",
-      "media\\cards\\cover.png",
-      "a\0b",
-    ]) {
+    for (
+      const path of [
+        "../outside/secret.txt",
+        "/etc/passwd",
+        "media\\cards\\cover.png",
+        "a\0b",
+      ]
+    ) {
       await expect(
         materializeAssetSelectionV1({
           sourceRoot: fixture.payload,
@@ -107,13 +109,15 @@ describe("asset selection materialization", () => {
 
   it("rejects non-canonical POSIX relative path aliases", async () => {
     const fixture = await fixtureV1();
-    for (const path of [
-      "./records/catalog.json",
-      "records//catalog.json",
-      "records/./catalog.json",
-      "records/../records/catalog.json",
-      "records/catalog.json/",
-    ]) {
+    for (
+      const path of [
+        "./records/catalog.json",
+        "records//catalog.json",
+        "records/./catalog.json",
+        "records/../records/catalog.json",
+        "records/catalog.json/",
+      ]
+    ) {
       await expect(
         materializeAssetSelectionV1({
           sourceRoot: fixture.payload,
@@ -126,15 +130,17 @@ describe("asset selection materialization", () => {
 
   it("rejects path segments outside the repository portable-path grammar", async () => {
     const fixture = await fixtureV1();
-    for (const path of [
-      "records/alternate:stream.json",
-      "records/draft?.json",
-      "records/CON",
-      "records/LPT\u00b3.log",
-      "records/trailing.",
-      "records/trailing ",
-      `records/control-${String.fromCharCode(31)}`,
-    ]) {
+    for (
+      const path of [
+        "records/alternate:stream.json",
+        "records/draft?.json",
+        "records/CON",
+        "records/LPT\u00b3.log",
+        "records/trailing.",
+        "records/trailing ",
+        `records/control-${String.fromCharCode(31)}`,
+      ]
+    ) {
       await expect(
         materializeAssetSelectionV1({
           sourceRoot: fixture.payload,

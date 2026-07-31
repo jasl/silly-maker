@@ -61,8 +61,9 @@ export function RuntimeFailureDialogV1(props: RuntimeFailureDialogPropsV1): Reac
     initialFocusRef.current = Object.freeze({ target: readFocusedElementV1() });
   }
   const returnFocusRef = useRef<HTMLElement | null>(null);
-  returnFocusRef.current =
-    props.returnFocusTo === undefined ? initialFocusRef.current.target : props.returnFocusTo;
+  returnFocusRef.current = props.returnFocusTo === undefined
+    ? initialFocusRef.current.target
+    : props.returnFocusTo;
 
   useStageInputIsolationV1("system", true);
   useStageSystemFocusScopeRegistrationV1(focusScopeElement);
@@ -129,9 +130,9 @@ export function RuntimeFailureDialogV1(props: RuntimeFailureDialogPropsV1): Reac
             >
               {props.reloadApplicationLabel}
             </Button>
-            {props.actions.requestExit === null ? null : (
-              <Button onClick={props.actions.requestExit}>{props.requestExitLabel}</Button>
-            )}
+            {props.actions.requestExit === null
+              ? null
+              : <Button onClick={props.actions.requestExit}>{props.requestExitLabel}</Button>}
           </div>
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>

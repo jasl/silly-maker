@@ -52,10 +52,12 @@ function createHashEnvironmentV1(initialHash: string) {
 }
 
 describe("createHashRouterV1", () => {
-  it.each([
-    ["#/", "main_menu"],
-    ["#/play", "play"],
-  ] as const)("maps the canonical %s hash to %s", (hash, route) => {
+  it.each(
+    [
+      ["#/", "main_menu"],
+      ["#/play", "play"],
+    ] as const,
+  )("maps the canonical %s hash to %s", (hash, route) => {
     const fixture = createHashEnvironmentV1(hash);
     const router = createHashRouterV1({
       location: fixture.location,

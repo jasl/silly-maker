@@ -132,8 +132,7 @@ export function createCatcafeUiSlotsV1(input: {
           openAlbum={() =>
             context.intents.execute(
               Object.freeze({ kind: "overlay.open" as const, overlayId: "overlay.catcafe.album" }),
-            )
-          }
+            )}
         />
       </>
     ),
@@ -152,17 +151,17 @@ export function createCatcafeUiSlotsV1(input: {
         resolve: (overlayId: DeepReadonly<CatcafeUiOverlayIdV1>) =>
           overlayId === "overlay.catcafe.album"
             ? Object.freeze({
-                accessibleName: catcafeTextForLocaleV1(
-                  input.playerProfile.current().preferences.locale,
-                  "text.cc.album.title",
-                ),
-                content: (
-                  <CatcafeAlbumViewV1
-                    playerProfile={input.playerProfile}
-                    registry={input.registry}
-                  />
-                ),
-              })
+              accessibleName: catcafeTextForLocaleV1(
+                input.playerProfile.current().preferences.locale,
+                "text.cc.album.title",
+              ),
+              content: (
+                <CatcafeAlbumViewV1
+                  playerProfile={input.playerProfile}
+                  registry={input.registry}
+                />
+              ),
+            })
             : null,
       }),
   };
@@ -221,8 +220,8 @@ export const catcafeGameApplicationV1: WebGameApplicationV1<
     const registry: CatcafeAssetRegistryV1 | null =
       manifest !== undefined && assetLoader !== undefined
         ? (createAssetRegistryV1(manifest, assetLoader, (diagnostic) => {
-            reportFailure?.("catcafe.asset_fault", diagnostic);
-          }) as CatcafeAssetRegistryV1)
+          reportFailure?.("catcafe.asset_fault", diagnostic);
+        }) as CatcafeAssetRegistryV1)
         : null;
     return Object.freeze({
       dispose: () => registry?.dispose(),
@@ -234,16 +233,15 @@ export const catcafeGameApplicationV1: WebGameApplicationV1<
         backgroundUrl: "assets/cc-bg-title.webp",
         // Splash: this game is entirely AI-generated (code, text, art, audio).
         splash: Object.freeze({
-          lines:
-            playerProfile.current().preferences.locale === "en"
-              ? Object.freeze([
-                  "This game is entirely AI-generated",
-                  "Code, story, art, and audio · SillyMaker Engine",
-                ])
-              : Object.freeze([
-                  "本游戏内容完全由 AI 生成",
-                  "代码 · 剧本 · 美术 · 音频 — SillyMaker 引擎",
-                ]),
+          lines: playerProfile.current().preferences.locale === "en"
+            ? Object.freeze([
+              "This game is entirely AI-generated",
+              "Code, story, art, and audio · SillyMaker Engine",
+            ])
+            : Object.freeze([
+              "本游戏内容完全由 AI 生成",
+              "代码 · 剧本 · 美术 · 音频 — SillyMaker 引擎",
+            ]),
         }),
       }),
       projector: catcafeUiProjectorV1,
@@ -261,7 +259,7 @@ export const catcafeGameApplicationV1: WebGameApplicationV1<
       inputMaps: Object.freeze({ keyboard: catcafeKeyboardMapV1, pointer: catcafePointerMapV1 }),
       loadDevDockContributions: () =>
         import("./dev-dock.tsx").then((module) =>
-          module.createCatcafeDevDockContributionsV1({ instance }),
+          module.createCatcafeDevDockContributionsV1({ instance })
         ),
     });
   },

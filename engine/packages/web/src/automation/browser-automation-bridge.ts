@@ -129,7 +129,7 @@ export function installBrowserAutomationBridgeV1<
         return Promise.reject(error);
       }
       return Promise.resolve(admitted).then((value) =>
-        successfulOperationV1(value as DeepReadonly<T>),
+        successfulOperationV1(value as DeepReadonly<T>)
       );
     };
 

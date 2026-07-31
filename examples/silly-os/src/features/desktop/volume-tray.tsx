@@ -36,52 +36,53 @@ export function OsVolumeTrayV1(props: {
       >
         {muted ? "🔇" : "🔊"}
       </button>
-      {open ? (
-        <div
-          data-os-volume-popup="true"
-          style={{
-            position: "absolute",
-            insetInlineEnd: 0,
-            insetBlockEnd: `${String(osTaskbarHeightV1 - 6)}px`,
-            padding: "10px",
-            display: "grid",
-            gap: "8px",
-            font: os98.font,
-            ...osBevelOutV1,
-          }}
-        >
-          <strong>{props.volumeLabel}</strong>
-          <input
-            type="range"
-            min={0}
-            max={1000}
-            step={50}
-            value={gain}
-            data-os-volume-slider="true"
-            aria-label={props.volumeLabel}
-            onChange={(event) => {
-              const value = Number(event.target.value);
-              void props.playerProfile.updatePreferences({
-                bgmGainPermille: value,
-                voiceGainPermille: value,
-                sfxGainPermille: value,
-              });
+      {open
+        ? (
+          <div
+            data-os-volume-popup="true"
+            style={{
+              position: "absolute",
+              insetInlineEnd: 0,
+              insetBlockEnd: `${String(osTaskbarHeightV1 - 6)}px`,
+              padding: "10px",
+              display: "grid",
+              gap: "8px",
+              font: os98.font,
+              ...osBevelOutV1,
             }}
-            style={{ inlineSize: "120px" }}
-          />
-          <label style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+          >
+            <strong>{props.volumeLabel}</strong>
             <input
-              type="checkbox"
-              data-os-volume-mute="true"
-              checked={muted}
-              onChange={(event) =>
-                void props.playerProfile.updatePreferences({ muted: event.target.checked })
-              }
+              type="range"
+              min={0}
+              max={1000}
+              step={50}
+              value={gain}
+              data-os-volume-slider="true"
+              aria-label={props.volumeLabel}
+              onChange={(event) => {
+                const value = Number(event.target.value);
+                void props.playerProfile.updatePreferences({
+                  bgmGainPermille: value,
+                  voiceGainPermille: value,
+                  sfxGainPermille: value,
+                });
+              }}
+              style={{ inlineSize: "120px" }}
             />
-            {props.muteLabel}
-          </label>
-        </div>
-      ) : null}
+            <label style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+              <input
+                type="checkbox"
+                data-os-volume-mute="true"
+                checked={muted}
+                onChange={(event) =>
+                  void props.playerProfile.updatePreferences({ muted: event.target.checked })}
+              />
+              {props.muteLabel}
+            </label>
+          </div>
+        )
+        : null}
     </span>
   );
 }

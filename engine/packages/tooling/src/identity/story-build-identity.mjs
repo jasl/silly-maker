@@ -116,9 +116,11 @@ function assertNoReactImportsV1(label, externalImports) {
   );
   if (forbidden.length > 0) {
     throw new TypeError(
-      `${label} import closure contains React: ${forbidden
-        .map(({ owner, specifier }) => `${owner} -> ${specifier}`)
-        .join(", ")}`,
+      `${label} import closure contains React: ${
+        forbidden
+          .map(({ owner, specifier }) => `${owner} -> ${specifier}`)
+          .join(", ")
+      }`,
     );
   }
 }
@@ -215,8 +217,9 @@ function collectIdentityWatchPathsV1(root, identity, label) {
       throw new TypeError(`${label} BuildIdentity ${key} records are invalid`);
     }
     for (const record of records) {
-      const path =
-        typeof record === "object" && record !== null ? Reflect.get(record, "path") : null;
+      const path = typeof record === "object" && record !== null
+        ? Reflect.get(record, "path")
+        : null;
       if (typeof path !== "string" || path.length === 0) {
         throw new TypeError(`${label} BuildIdentity ${key} record path is invalid`);
       }
@@ -235,8 +238,8 @@ export function createStoryBuildIdentityOwnerV1(input) {
 
   async function collectBuildIdentityV1(inputRoot) {
     const root = resolve(requireNonEmptyStringV1(inputRoot, `${config.label} BuildIdentity root`));
-    const [engineVersion, engine, storySimulation, storyPresentation, application] =
-      await Promise.all([
+    const [engineVersion, engine, storySimulation, storyPresentation, application] = await Promise
+      .all([
         readEngineVersionV1(root),
         collectEngineRecordsV1(root),
         collectStoryFacetRecordsV1(root, config, {

@@ -23,7 +23,9 @@ const inspectorCharBudgetV1 = 20_000;
 function renderValueV1(value: unknown): string {
   const text = JSON.stringify(value, null, 2) ?? "undefined";
   if (text.length <= inspectorCharBudgetV1) return text;
-  return `${text.slice(0, inspectorCharBudgetV1)}\n… (${String(text.length - inspectorCharBudgetV1)} chars truncated)`;
+  return `${text.slice(0, inspectorCharBudgetV1)}\n… (${
+    String(text.length - inspectorCharBudgetV1)
+  } chars truncated)`;
 }
 
 /**
@@ -73,15 +75,14 @@ export function DebugNarrativeGraphViewV1(props: {
 }): ReactElement {
   const flaggedNodeIds = new Set(
     props.diagnostics.flatMap((diagnostic) =>
-      diagnostic.nodeId === null ? [] : [diagnostic.nodeId],
+      diagnostic.nodeId === null ? [] : [diagnostic.nodeId]
     ),
   );
   return (
     <div data-debug-inspector="narrative-graph">
       <ol className={styles["graph-list"]}>
         {props.graph.nodes.map((node) => {
-          const active =
-            props.activeDefinitionId !== null &&
+          const active = props.activeDefinitionId !== null &&
             props.activeDefinitionId !== undefined &&
             node.interaction !== null &&
             node.interaction.definitionId === props.activeDefinitionId;
@@ -97,27 +98,34 @@ export function DebugNarrativeGraphViewV1(props: {
               <span className={styles["graph-kind"]}>{node.kind}</span>
               <span className={styles["graph-id"]}>{node.nodeId}</span>
               {node.interaction === null ? null : (
-                <span className={styles["graph-interaction"]}>{node.interaction.definitionId}</span>
+                <span className={styles["graph-interaction"]}>
+                  {node.interaction.definitionId}
+                </span>
               )}
-              {node.successors.length === 0 ? null : (
-                <span className={styles["graph-successors"]}>→ {node.successors.join(", ")}</span>
-              )}
+              {node.successors.length === 0
+                ? null
+                : (
+                  <span className={styles["graph-successors"]}>→ {node.successors.join(", ")}</span>
+                )}
             </li>
           );
         })}
       </ol>
-      {props.diagnostics.length === 0 ? (
-        <p data-graph-lint="clean">lint clean</p>
-      ) : (
-        <ul data-graph-lint="issues">
-          {props.diagnostics.map((diagnostic, index) => (
-            <li key={`${diagnostic.code}.${String(index)}`} data-graph-diagnostic={diagnostic.code}>
-              {diagnostic.code}
-              {diagnostic.nodeId === null ? "" : ` @ ${diagnostic.nodeId}`} — {diagnostic.message}
-            </li>
-          ))}
-        </ul>
-      )}
+      {props.diagnostics.length === 0
+        ? <p data-graph-lint="clean">lint clean</p>
+        : (
+          <ul data-graph-lint="issues">
+            {props.diagnostics.map((diagnostic, index) => (
+              <li
+                key={`${diagnostic.code}.${String(index)}`}
+                data-graph-diagnostic={diagnostic.code}
+              >
+                {diagnostic.code}
+                {diagnostic.nodeId === null ? "" : ` @ ${diagnostic.nodeId}`} — {diagnostic.message}
+              </li>
+            ))}
+          </ul>
+        )}
     </div>
   );
 }

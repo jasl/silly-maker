@@ -87,7 +87,7 @@ export function GameAudioV1(props: GameAudioPropsV1): null {
     const unsubscribeSemantic = ports.semantic.subscribe(apply);
     const unsubscribeAnchor = ports.subscribePresentationAnchor(apply);
     const unsubscribeEffects = ports.subscribeTransientEffects((effect) =>
-      presenter.onTransientEffect(effect),
+      presenter.onTransientEffect(effect)
     );
     const unsubscribeProfile = playerProfile?.subscribe(applyProfile);
     const hasDocument = typeof document !== "undefined";

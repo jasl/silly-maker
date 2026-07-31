@@ -22,11 +22,13 @@ type SyntheticResultV1 =
   | { readonly kind: "faulted" }
   | { readonly kind: "not_executed"; readonly code: string };
 
-const syntheticActionIdsV1 = Object.freeze([
-  "synthetic.increment",
-  "synthetic.reject",
-  "synthetic.fault",
-] as const);
+const syntheticActionIdsV1 = Object.freeze(
+  [
+    "synthetic.increment",
+    "synthetic.reject",
+    "synthetic.fault",
+  ] as const,
+);
 
 const syntheticAdapterV1 = {
   createQueries: (state: {
@@ -41,7 +43,7 @@ const syntheticAdapterV1 = {
   actions: (queries: SyntheticQueriesV1) =>
     Object.freeze(
       syntheticActionIdsV1.map((actionId) =>
-        Object.freeze({ actionId, countBefore: queries.count }),
+        Object.freeze({ actionId, countBefore: queries.count })
       ),
     ),
   preview: (queries: SyntheticQueriesV1) => Object.freeze({ countBefore: queries.count }),

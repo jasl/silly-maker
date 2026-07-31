@@ -32,8 +32,9 @@ const debugCapabilitiesV1 = Object.freeze({
 
 function SettingsDialogDevDockHarnessV1(props: { readonly onClose: () => void }): ReactElement {
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [devDockOpenState, setDevDockOpenState] =
-    useState<DevDockOpenStateV1>(closedDevDockStateV1);
+  const [devDockOpenState, setDevDockOpenState] = useState<DevDockOpenStateV1>(
+    closedDevDockStateV1,
+  );
   const inputRouterRef = useRef(createInputRouterV1());
   const openerRef = useRef<HTMLButtonElement>(null);
   return (
@@ -52,19 +53,21 @@ function SettingsDialogDevDockHarnessV1(props: { readonly onClose: () => void })
             <button ref={openerRef} type="button" onClick={() => setSettingsOpen(true)}>
               打开真实设置
             </button>
-            {settingsOpen ? (
-              <SettingsDialogV1
-                title="真实设置"
-                closeLabel="关闭真实设置"
-                sections={Object.freeze([<section key="fixture">设置内容</section>])}
-                emptyText="没有设置"
-                onClose={() => {
-                  setSettingsOpen(false);
-                  props.onClose();
-                  queueMicrotask(() => openerRef.current?.focus());
-                }}
-              />
-            ) : null}
+            {settingsOpen
+              ? (
+                <SettingsDialogV1
+                  title="真实设置"
+                  closeLabel="关闭真实设置"
+                  sections={Object.freeze([<section key="fixture">设置内容</section>])}
+                  emptyText="没有设置"
+                  onClose={() => {
+                    setSettingsOpen(false);
+                    props.onClose();
+                    queueMicrotask(() => openerRef.current?.focus());
+                  }}
+                />
+              )
+              : null}
           </>
         ),
       })}

@@ -8,7 +8,9 @@ export interface InteractionSessionStateV1 {
 }
 
 export type InteractionSessionCleanupReasonV1 =
-  "pointer_cancel" | "focus_loss" | "stage_scene_replaced";
+  | "pointer_cancel"
+  | "focus_loss"
+  | "stage_scene_replaced";
 
 export type InteractionSessionStateReducerV1 = (
   current: DeepReadonly<InteractionSessionStateV1>,
@@ -33,8 +35,8 @@ export interface InteractionSessionStoreV1 {
   cleanup(reason: InteractionSessionCleanupReasonV1): void;
 }
 
-export const initialInteractionSessionStateV1: DeepReadonly<InteractionSessionStateV1> =
-  Object.freeze({
+export const initialInteractionSessionStateV1: DeepReadonly<InteractionSessionStateV1> = Object
+  .freeze({
     activeSurfaceId: null,
     choosingTargetId: null,
     returnFocusId: null,

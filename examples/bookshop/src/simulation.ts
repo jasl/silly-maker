@@ -63,19 +63,19 @@ export type BookshopCommandV1 =
   | { readonly kind: "bookshop.begin_story" }
   | { readonly kind: "bookshop.earn_coin" }
   | {
-      readonly kind: "bookshop.narrative_resolve";
-      readonly expectedOccurrenceId: string;
-      readonly resolution: InteractionResolution;
-    };
+    readonly kind: "bookshop.narrative_resolve";
+    readonly expectedOccurrenceId: string;
+    readonly resolution: InteractionResolution;
+  };
 
 export type BookshopFactV1 =
   | { readonly kind: "bookshop.coins_changed"; readonly delta: number; readonly balance: number }
   | { readonly kind: "bookshop.stage_changed"; readonly mutations: number }
   | {
-      readonly kind: "bookshop.interaction_resolved";
-      readonly definitionId: string;
-      readonly occurrenceId: string;
-    };
+    readonly kind: "bookshop.interaction_resolved";
+    readonly definitionId: string;
+    readonly occurrenceId: string;
+  };
 
 export type BookshopRejectionCodeV1 =
   | "bookshop.narrative_busy"
@@ -127,11 +127,12 @@ export interface BookshopBootstrapInputV1 {
   readonly rngSeed: NonZeroUint32;
 }
 
-export interface BookshopSimulationTypesV1 extends GameSimulationTypeMapV1<
-  BookshopBootstrapInputV1,
-  BookshopGameStateV1,
-  RngStateV1
-> {
+export interface BookshopSimulationTypesV1 extends
+  GameSimulationTypeMapV1<
+    BookshopBootstrapInputV1,
+    BookshopGameStateV1,
+    RngStateV1
+  > {
   readonly snapshot: GameSnapshotEnvelopeV1<BookshopGameStateV1, RngStateV1>;
   readonly rngDrawTrace: RngDrawTraceV1;
   readonly command: BookshopCommandV1;
@@ -167,11 +168,11 @@ type StageOperationV1 = {
 type NarrativeOperationV1 =
   | { readonly kind: "begin"; readonly next: BookshopNarrativeStateV1 }
   | {
-      readonly kind: "resolve";
-      readonly expectedOccurrenceId: string;
-      readonly resolution: InteractionResolution;
-      readonly next: BookshopNarrativeStateV1;
-    };
+    readonly kind: "resolve";
+    readonly expectedOccurrenceId: string;
+    readonly resolution: InteractionResolution;
+    readonly next: BookshopNarrativeStateV1;
+  };
 
 const commandSchemaV1: RuntimeSchemaV1<BookshopCommandV1> = Object.freeze({
   parse(value: unknown): BookshopCommandV1 {
@@ -241,7 +242,7 @@ const stageOperationSchemaV1: RuntimeSchemaV1<StageOperationV1> = Object.freeze(
       kind: "apply" as const,
       mutations: Object.freeze(
         record.mutations.map((mutation, index) =>
-          parseStageMutation(mutation, `/mutations/${String(index)}`),
+          parseStageMutation(mutation, `/mutations/${String(index)}`)
         ),
       ),
     });
@@ -335,8 +336,9 @@ const inventoryModuleV1 = kit.defineStatefulModule({
           rejection: Object.freeze({ code: "bookshop.insufficient_coins" as const }),
         });
       }
-      const balance =
-        operation.kind === "earn" ? state.coins + operation.amount : state.coins - operation.amount;
+      const balance = operation.kind === "earn"
+        ? state.coins + operation.amount
+        : state.coins - operation.amount;
       return Object.freeze({
         kind: "proposed" as const,
         proposal: Object.freeze({
@@ -354,10 +356,9 @@ const inventoryModuleV1 = kit.defineStatefulModule({
     apply(state: BookshopInventoryStateV1, proposal) {
       const operation = proposal.payload;
       return Object.freeze({
-        coins:
-          operation.kind === "earn"
-            ? state.coins + operation.amount
-            : state.coins - operation.amount,
+        coins: operation.kind === "earn"
+          ? state.coins + operation.amount
+          : state.coins - operation.amount,
       });
     },
   },

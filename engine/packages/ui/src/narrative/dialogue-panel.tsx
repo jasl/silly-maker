@@ -37,8 +37,10 @@ export interface DialoguePanelLabelsV1 {
   readonly historyCloseLabel: string;
 }
 
-export type DialogueResolutionV1 =
-  { readonly kind: "advance" } | { readonly kind: "choose"; readonly choiceId: string };
+export type DialogueResolutionV1 = { readonly kind: "advance" } | {
+  readonly kind: "choose";
+  readonly choiceId: string;
+};
 
 export interface DialoguePanelPropsV1 {
   readonly pending: PendingInteractionV1 | null;
@@ -186,50 +188,56 @@ export function DialoguePanelV1(props: DialoguePanelPropsV1): ReactElement | nul
           data-dialogue-reveal={revealComplete ? "complete" : "revealing"}
           style={panelStyle}
         >
-          {showHistory ? (
-            <div
-              style={{
-                position: "absolute",
-                insetInline: "min(200px, 10%)",
-                insetBlock: "min(60px, 8%)",
-                display: "grid",
-                padding: "clamp(12px, 3%, 32px)",
-                borderRadius: "16px",
-                background: "rgba(12, 15, 20, 0.94)",
-                pointerEvents: "auto",
-              }}
-            >
-              <PanelV1
-                title={props.labels.historyTitle}
-                titleId="dialogue-history-title"
-                onClose={() => setShowHistory(false)}
-                closeLabel={props.labels.historyCloseLabel}
-                rootAttributes={{ "data-dialogue-history": "true" }}
+          {showHistory
+            ? (
+              <div
+                style={{
+                  position: "absolute",
+                  insetInline: "min(200px, 10%)",
+                  insetBlock: "min(60px, 8%)",
+                  display: "grid",
+                  padding: "clamp(12px, 3%, 32px)",
+                  borderRadius: "16px",
+                  background: "rgba(12, 15, 20, 0.94)",
+                  pointerEvents: "auto",
+                }}
               >
-                {props.history.entries.length === 0 ? (
-                  <p>{props.labels.historyEmptyText}</p>
-                ) : (
-                  <ul style={{ listStyle: "none", padding: 0, display: "grid", gap: "10px" }}>
-                    {props.history.entries.map((entry) => (
-                      <li key={entry.occurrenceId} data-dialogue-history-entry={entry.kind}>
-                        {entry.speakerTextId === null ? null : (
-                          <strong style={{ color: "#ffd9a0", marginInlineEnd: "8px" }}>
-                            {uiText(entry.speakerTextId)}
-                          </strong>
-                        )}
-                        <span>{uiText(entry.textId)}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </PanelV1>
-            </div>
-          ) : null}
-          {pending.speakerTextId === null ? null : (
-            <strong style={{ display: "block", color: "#ffd9a0" }}>
-              {uiText(pending.speakerTextId)}
-            </strong>
-          )}
+                <PanelV1
+                  title={props.labels.historyTitle}
+                  titleId="dialogue-history-title"
+                  onClose={() => setShowHistory(false)}
+                  closeLabel={props.labels.historyCloseLabel}
+                  rootAttributes={{ "data-dialogue-history": "true" }}
+                >
+                  {props.history.entries.length === 0
+                    ? <p>{props.labels.historyEmptyText}</p>
+                    : (
+                      <ul style={{ listStyle: "none", padding: 0, display: "grid", gap: "10px" }}>
+                        {props.history.entries.map((entry) => (
+                          <li key={entry.occurrenceId} data-dialogue-history-entry={entry.kind}>
+                            {entry.speakerTextId === null
+                              ? null
+                              : (
+                                <strong style={{ color: "#ffd9a0", marginInlineEnd: "8px" }}>
+                                  {uiText(entry.speakerTextId)}
+                                </strong>
+                              )}
+                            <span>{uiText(entry.textId)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                </PanelV1>
+              </div>
+            )
+            : null}
+          {pending.speakerTextId === null
+            ? null
+            : (
+              <strong style={{ display: "block", color: "#ffd9a0" }}>
+                {uiText(pending.speakerTextId)}
+              </strong>
+            )}
           <p style={{ margin: "8px 0 16px", minBlockSize: "1.6em" }} onClick={advance}>
             {revealed}
           </p>
@@ -279,8 +287,7 @@ export function DialoguePanelV1(props: DialoguePanelPropsV1): ReactElement | nul
                 onResolve(
                   pending.occurrenceId,
                   Object.freeze({ kind: "choose", choiceId: option.choiceId }),
-                )
-              }
+                )}
             >
               {uiText(option.textId)}
             </Button>

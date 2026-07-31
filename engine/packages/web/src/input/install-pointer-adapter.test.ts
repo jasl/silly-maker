@@ -150,37 +150,39 @@ describe("installPointerAdapterV1", () => {
     fixture.adapter.dispose();
   });
 
-  it.each([
-    ["button", () => document.createElement("button")],
+  it.each(
     [
-      "link",
-      () => {
-        const element = document.createElement("a");
-        element.href = "/settings";
-        return element;
-      },
-    ],
-    ["input", () => document.createElement("input")],
-    ["select", () => document.createElement("select")],
-    ["textarea", () => document.createElement("textarea")],
-    ["summary", () => document.createElement("summary")],
-    [
-      "contenteditable",
-      () => {
-        const element = document.createElement("div");
-        element.setAttribute("contenteditable", "true");
-        return element;
-      },
-    ],
-    [
-      "explicit native semantic control",
-      () => {
-        const element = document.createElement("div");
-        element.dataset.nativeSemanticControl = "true";
-        return element;
-      },
-    ],
-  ] as const)("leaves a %s and its descendants to native semantic activation", (_name, create) => {
+      ["button", () => document.createElement("button")],
+      [
+        "link",
+        () => {
+          const element = document.createElement("a");
+          element.href = "/settings";
+          return element;
+        },
+      ],
+      ["input", () => document.createElement("input")],
+      ["select", () => document.createElement("select")],
+      ["textarea", () => document.createElement("textarea")],
+      ["summary", () => document.createElement("summary")],
+      [
+        "contenteditable",
+        () => {
+          const element = document.createElement("div");
+          element.setAttribute("contenteditable", "true");
+          return element;
+        },
+      ],
+      [
+        "explicit native semantic control",
+        () => {
+          const element = document.createElement("div");
+          element.dataset.nativeSemanticControl = "true";
+          return element;
+        },
+      ],
+    ] as const,
+  )("leaves a %s and its descendants to native semantic activation", (_name, create) => {
     const fixture = createPointerFixtureV1();
     const control = create();
     const descendant = document.createElement("span");

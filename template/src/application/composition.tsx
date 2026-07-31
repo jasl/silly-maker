@@ -111,10 +111,9 @@ export const templateStageRenderersV1: Readonly<Record<string, SemanticStageEntr
         style={{
           width: "1600px",
           height: "900px",
-          background:
-            entry.props.surface === "study"
-              ? "linear-gradient(180deg, #4a3f33, #1c150e)"
-              : "linear-gradient(180deg, #6d8a96, #2c3b42)",
+          background: entry.props.surface === "study"
+            ? "linear-gradient(180deg, #4a3f33, #1c150e)"
+            : "linear-gradient(180deg, #6d8a96, #2c3b42)",
         }}
       />
     ),

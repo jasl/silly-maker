@@ -14,10 +14,8 @@ export interface PresentationCatalogValidationErrorV1 extends Error {
   readonly details: StrictJsonObjectV1;
 }
 
-export class PresentationCatalogValidationError
-  extends Error
-  implements PresentationCatalogValidationErrorV1
-{
+export class PresentationCatalogValidationError extends Error
+  implements PresentationCatalogValidationErrorV1 {
   readonly name = "PresentationCatalogValidationError";
   readonly code: PresentationCatalogValidationCodeV1;
   readonly details: StrictJsonObjectV1;
@@ -203,7 +201,7 @@ function cloneStrictJsonValue(
   try {
     if (Array.isArray(value)) {
       return readArray(value, path).map((entry, index) =>
-        cloneStrictJsonValue(entry, `${path}/${index}`, active),
+        cloneStrictJsonValue(entry, `${path}/${index}`, active)
       );
     }
     if (Object.getPrototypeOf(value) !== Object.prototype) {

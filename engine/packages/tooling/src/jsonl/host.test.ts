@@ -21,8 +21,8 @@ function createFixtureAgentV1() {
       narrative: null,
       actions: Object.freeze([Object.freeze({ actionId: "fixture.step" })]),
     });
-  const agent: AgentGamePortV1<unknown, unknown, unknown, unknown, unknown, unknown> =
-    Object.freeze({
+  const agent: AgentGamePortV1<unknown, unknown, unknown, unknown, unknown, unknown> = Object
+    .freeze({
       identity: () => Object.freeze({ storyId: "story.fixture", storyRevision: 1 }),
       observe: () => publication() as never,
       describeActions: () => publication().actions as never,
@@ -136,7 +136,14 @@ describe("createJsonlAgentHostV1", () => {
     toHost.write(`${JSON.stringify({ v: 2, id: "raw-version", method: "observe" })}\n`);
     toHost.write(`${JSON.stringify({ v: 1, id: "raw-eval", method: "eval" })}\n`);
     toHost.write(
-      `${JSON.stringify({ v: 1, id: "raw-depth", method: "observe", params: { a: { b: { c: { d: { e: 1 } } } } } })}\n`,
+      `${
+        JSON.stringify({
+          v: 1,
+          id: "raw-depth",
+          method: "observe",
+          params: { a: { b: { c: { d: { e: 1 } } } } },
+        })
+      }\n`,
     );
     toHost.write(`${"x".repeat(600)}\n`);
     const timeout = await client.request("waitForIdle", { timeoutMs: 1 });

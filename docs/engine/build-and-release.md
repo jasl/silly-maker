@@ -209,8 +209,8 @@ ordinary `<a download>` clicks. Shell-marked pages (not the standalone
 `?records=local` save-server flow) stream bounded export bytes to that endpoint.
 The shell sanitizes the requested single-segment filename, writes an exclusive
 same-directory temporary file, and atomically publishes a non-overwriting final
-name; collisions get a ` (n)` suffix and failed writes leave no partial final
-file. A package-internal coordinator admits at most two concurrent downloads
+name; collisions append a space and parenthesized number before the extension,
+and failed writes leave no partial final file. A package-internal coordinator admits at most two concurrent downloads
 and gives each incoming body a 30-second deadline; overload/closed admission is
 `503`, a body cancelled by deadline or close is `408`, and cleanup closes and
 removes its temporary file before the server drain completes.

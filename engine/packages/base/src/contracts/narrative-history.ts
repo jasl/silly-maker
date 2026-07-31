@@ -87,15 +87,13 @@ export function parseNarrativeHistoryEntryV1(
       "definition_id_invalid",
     ),
     seenRevision: record.seenRevision,
-    speakerTextId:
-      record.speakerTextId === null
-        ? null
-        : parseHistoryIdV1(record.speakerTextId, `${path}/speakerTextId`, "text_id_invalid"),
+    speakerTextId: record.speakerTextId === null
+      ? null
+      : parseHistoryIdV1(record.speakerTextId, `${path}/speakerTextId`, "text_id_invalid"),
     textId: parseHistoryIdV1(record.textId, `${path}/textId`, "text_id_invalid"),
-    voiceAssetId:
-      record.voiceAssetId === null
-        ? null
-        : parseHistoryIdV1(record.voiceAssetId, `${path}/voiceAssetId`, "asset_id_invalid"),
+    voiceAssetId: record.voiceAssetId === null
+      ? null
+      : parseHistoryIdV1(record.voiceAssetId, `${path}/voiceAssetId`, "asset_id_invalid"),
   });
 }
 

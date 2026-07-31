@@ -117,9 +117,9 @@ describe("Node in-process versus JSONL host parity", () => {
     // Both channels finished the whole route, not just a prefix.
     const final = observedAfter.ok
       ? (observedAfter.result as {
-          narrative: { phase: string; calibration: number | null };
-          game: { procedurePhase: string };
-        })
+        narrative: { phase: string; calibration: number | null };
+        game: { procedurePhase: string };
+      })
       : null;
     expect(final?.narrative).toMatchObject({ phase: "completed", calibration: 2 });
     expect(final?.game.procedurePhase).toBe("complete");

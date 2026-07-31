@@ -154,11 +154,11 @@ export function GameViewportV1(props: GameViewportPropsV1): ReactElement {
     "--gv-scale": String(geometry.scale),
     "--gv-canvas-width": String(props.canvas.width),
     "--gv-canvas-height": String(props.canvas.height),
-    ...(mode === "fluid"
-      ? {}
-      : {
-          "--silly-stage-aspect-ratio": `${String(props.canvas.width)} / ${String(props.canvas.height)}`,
-        }),
+    ...(mode === "fluid" ? {} : {
+      "--silly-stage-aspect-ratio": `${String(props.canvas.width)} / ${
+        String(props.canvas.height)
+      }`,
+    }),
   } as CSSProperties;
 
   return (

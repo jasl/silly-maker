@@ -56,7 +56,8 @@ export const catcafeTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
         { textId: "text.cc.line.unnamed", text: "名字先欠着。她不在意，已经把你的围裙当成了床。" },
         {
           textId: "text.cc.line.tutorial",
-          text: "七周后是街区的猫咪运动会。先把店开起来，再把这只小家伙养大——白天营业、打扫、陪她玩，周日傍晚记得去赛场看看。",
+          text:
+            "七周后是街区的猫咪运动会。先把店开起来，再把这只小家伙养大——白天营业、打扫、陪她玩，周日傍晚记得去赛场看看。",
         },
         // —— Activities (referenced by content tables) ——
         { textId: "text.cc.activity.business", text: "开门营业" },
@@ -194,7 +195,8 @@ export const catcafeTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
         { textId: "text.cc.settings.fullscreen", text: "切换全屏" },
         {
           textId: "text.cc.settings.resolution",
-          text: "分辨率随窗口自适应：舞台按 1280×720 逻辑画布等比缩放。桌面渠道的窗口尺寸设置属后续工作。",
+          text:
+            "分辨率随窗口自适应：舞台按 1280×720 逻辑画布等比缩放。桌面渠道的窗口尺寸设置属后续工作。",
         },
       ],
     },
@@ -206,11 +208,13 @@ export const catcafeTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
         { textId: "text.cc.stage.name", text: "The cat house" },
         {
           textId: "text.cc.line.rain",
-          text: "It rained for a whole week. The eaves were still dripping on your first night in the little shop at the alley's end.",
+          text:
+            "It rained for a whole week. The eaves were still dripping on your first night in the little shop at the alley's end.",
         },
         {
           textId: "text.cc.line.box",
-          text: "The cardboard box by the door stirred. Inside: a soaked kitten, crying at you with everything she had.",
+          text:
+            "The cardboard box by the door stirred. Inside: a soaked kitten, crying at you with everything she had.",
         },
         {
           textId: "text.cc.line.meet",
@@ -226,7 +230,8 @@ export const catcafeTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
         },
         {
           textId: "text.cc.line.tutorial",
-          text: "The neighborhood cat games are seven weeks away. Open the shop, raise this little one — run the till by day, keep things clean, play with her, and check the arena on Sunday evenings.",
+          text:
+            "The neighborhood cat games are seven weeks away. Open the shop, raise this little one — run the till by day, keep things clean, play with her, and check the arena on Sunday evenings.",
         },
         { textId: "text.cc.activity.business", text: "Open for business" },
         { textId: "text.cc.activity.clean", text: "Clean the shop" },
@@ -361,7 +366,8 @@ export const catcafeTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
         },
         {
           textId: "text.cc.ending.adopted",
-          text: "Ending · A Better Home: when the young lady carried her away, neither of you looked back.",
+          text:
+            "Ending · A Better Home: when the young lady carried her away, neither of you looked back.",
         },
         {
           textId: "text.cc.ending.ordinary",
@@ -371,7 +377,8 @@ export const catcafeTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
         { textId: "text.cc.contest.lost", text: "Not this time. Back to training." },
         {
           textId: "text.cc.encounter.stray",
-          text: "A stray slipped in and raided the food bowl. Drizzle supervised sternly throughout.",
+          text:
+            "A stray slipped in and raided the food bowl. Drizzle supervised sternly throughout.",
         },
         {
           textId: "text.cc.encounter.baker",
@@ -379,7 +386,8 @@ export const catcafeTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
         },
         {
           textId: "text.cc.encounter.sketch",
-          text: "The girl by the window filled another page — a yawning Drizzle, shown to you on her way out.",
+          text:
+            "The girl by the window filled another page — a yawning Drizzle, shown to you on her way out.",
         },
         {
           textId: "text.cc.encounter.mechanic",
@@ -387,7 +395,8 @@ export const catcafeTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
         },
         {
           textId: "text.cc.encounter.critic",
-          text: "A customer photographed every corner of the shop — next day you were on the local food blog.",
+          text:
+            "A customer photographed every corner of the shop — next day you were on the local food blog.",
         },
         { textId: "text.cc.settings.language", text: "Language" },
         { textId: "text.cc.settings.volume", text: "Volume" },
@@ -395,7 +404,8 @@ export const catcafeTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
         { textId: "text.cc.settings.fullscreen", text: "Toggle fullscreen" },
         {
           textId: "text.cc.settings.resolution",
-          text: "Resolution follows the window: the stage letterboxes its 1280x720 canvas automatically. A desktop-channel window-size setting is a future concern.",
+          text:
+            "Resolution follows the window: the stage letterboxes its 1280x720 canvas automatically. A desktop-channel window-size setting is a future concern.",
         },
       ],
     },
@@ -997,15 +1007,15 @@ export const catcafeStageContentCatalogV1: StageContentCatalog = {
           y: number,
           width: number,
         ) => Object.freeze({ regionId, accessibleNameText, x, y, width, height: third });
-        const expressionName =
-          typeof appearance.expression === "string" ? appearance.expression : "calm";
+        const expressionName = typeof appearance.expression === "string"
+          ? appearance.expression
+          : "calm";
         // Three expression tiers map to three images: happy/purring→happy, grumpy/hissing→hissing.
-        const spriteExpression =
-          expressionName === "happy" || expressionName === "purring"
-            ? "happy"
-            : expressionName === "grumpy" || expressionName === "hissing"
-              ? "hissing"
-              : "calm";
+        const spriteExpression = expressionName === "happy" || expressionName === "purring"
+          ? "happy"
+          : expressionName === "grumpy" || expressionName === "hissing"
+          ? "hissing"
+          : "calm";
         const catAssetId =
           catcafeAssetIdsV1[`cat_${stage}_${spriteExpression}` as keyof typeof catcafeAssetIdsV1];
         return Object.freeze({
@@ -1058,7 +1068,7 @@ const transitionDefinitionsV1: readonly StageTransitionDefinition[] = Object.fre
       slide: { x: 0, y: 120 },
     },
   ].map((definition, index) =>
-    parseStageTransitionDefinition(definition, `/transitions/${String(index)}`),
+    parseStageTransitionDefinition(definition, `/transitions/${String(index)}`)
   ),
 );
 

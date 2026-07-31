@@ -44,15 +44,15 @@ export function installGamepadAdapterV1(
   options: InstallGamepadAdapterOptionsV1,
 ): InstalledGamepadAdapterV1 {
   const poll = options.poll ?? defaultPollV1;
-  const schedule =
-    options.schedule ??
+  const schedule = options.schedule ??
     ((callback: () => void) => {
       if (typeof requestAnimationFrame !== "function") return () => {};
       const handle = requestAnimationFrame(() => callback());
       return () => cancelAnimationFrame(handle);
     });
-  const events =
-    options.events === undefined ? (typeof window === "undefined" ? null : window) : options.events;
+  const events = options.events === undefined
+    ? (typeof window === "undefined" ? null : window)
+    : options.events;
 
   const pressed = new Map<string, boolean>();
   let cancelTick: (() => void) | undefined;

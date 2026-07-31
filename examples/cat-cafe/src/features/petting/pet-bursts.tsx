@@ -56,8 +56,9 @@ export function useCatcafePetBurstsV1(
           readonly zone?: string;
           readonly trustDelta?: number;
         };
-        const reaction =
-          payload.reactionId === undefined ? null : catcafePettingV1.byId(payload.reactionId);
+        const reaction = payload.reactionId === undefined
+          ? null
+          : catcafePettingV1.byId(payload.reactionId);
         if (reaction === null) return;
         const anchor = locateZoneV1(payload.zone ?? "back");
         const burstId = nextIdRef.current++;
@@ -121,18 +122,16 @@ export function CatcafePetBurstsV1(props: {
             <span
               key={`${String(burst.burstId)}.${String(index)}`}
               aria-hidden="true"
-              style={
-                {
-                  position: "absolute",
-                  insetBlockStart: "-8px",
-                  insetInlineStart: `${String(index * 18 - (burst.emojis.length - 1) * 9)}px`,
-                  fontSize: index === 0 ? "30px" : "22px",
-                  "--cc-drift": `${String((index - (burst.emojis.length - 1) / 2) * 34)}px`,
-                  animation: `cc-pet-emoji 1.5s ease-out ${String(index * 90)}ms forwards`,
-                  opacity: 0,
-                  textShadow: "0 2px 6px rgba(0, 0, 0, 0.35)",
-                } as never
-              }
+              style={{
+                position: "absolute",
+                insetBlockStart: "-8px",
+                insetInlineStart: `${String(index * 18 - (burst.emojis.length - 1) * 9)}px`,
+                fontSize: index === 0 ? "30px" : "22px",
+                "--cc-drift": `${String((index - (burst.emojis.length - 1) / 2) * 34)}px`,
+                animation: `cc-pet-emoji 1.5s ease-out ${String(index * 90)}ms forwards`,
+                opacity: 0,
+                textShadow: "0 2px 6px rgba(0, 0, 0, 0.35)",
+              } as never}
             >
               {emoji}
             </span>

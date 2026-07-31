@@ -32,45 +32,45 @@ export interface SaveRepositorySlotMetadataV1 {
 
 export type SaveRepositoryReadResultV1<TSaveRecord> =
   | {
-      readonly health: "empty";
-      readonly slotId: SaveSlotIdV1;
-      readonly hostRevision: null;
-      readonly record: null;
-      readonly code: null;
-    }
+    readonly health: "empty";
+    readonly slotId: SaveSlotIdV1;
+    readonly hostRevision: null;
+    readonly record: null;
+    readonly code: null;
+  }
   | {
-      readonly health: "valid";
-      readonly slotId: SaveSlotIdV1;
-      readonly hostRevision: HostRecordRevisionV1;
-      readonly record: DeepReadonly<TSaveRecord>;
-      readonly bytes: Uint8Array;
-      readonly code: null;
-    }
+    readonly health: "valid";
+    readonly slotId: SaveSlotIdV1;
+    readonly hostRevision: HostRecordRevisionV1;
+    readonly record: DeepReadonly<TSaveRecord>;
+    readonly bytes: Uint8Array;
+    readonly code: null;
+  }
   | {
-      readonly health: "invalid";
-      readonly slotId: SaveSlotIdV1;
-      readonly hostRevision: HostRecordRevisionV1;
-      readonly record: null;
-      readonly code: string;
-    }
+    readonly health: "invalid";
+    readonly slotId: SaveSlotIdV1;
+    readonly hostRevision: HostRecordRevisionV1;
+    readonly record: null;
+    readonly code: string;
+  }
   | {
-      readonly health: "unavailable";
-      readonly slotId: SaveSlotIdV1;
-      readonly hostRevision: null;
-      readonly record: null;
-      readonly code: string;
-    };
+    readonly health: "unavailable";
+    readonly slotId: SaveSlotIdV1;
+    readonly hostRevision: null;
+    readonly record: null;
+    readonly code: string;
+  };
 
 export type SaveRepositoryWriteResultV1 =
   | {
-      readonly kind: "saved";
-      readonly slotId: SaveSlotIdV1;
-      readonly recordRevision: PositiveSafeInteger;
-    }
+    readonly kind: "saved";
+    readonly slotId: SaveSlotIdV1;
+    readonly recordRevision: PositiveSafeInteger;
+  }
   | {
-      readonly kind: "rejected";
-      readonly code: "conflict" | "unavailable" | "invalid_record" | "empty_slot";
-    };
+    readonly kind: "rejected";
+    readonly code: "conflict" | "unavailable" | "invalid_record" | "empty_slot";
+  };
 
 interface CommittedSaveWriteReceiptV1 {
   readonly slotId: SaveSlotIdV1;
@@ -105,11 +105,9 @@ export function matchesCommittedSaveWriteReceiptInternalV1(
   const receipts = committedSaveWriteReceiptsV1.get(repository);
   const receipt = receipts?.get(result);
   if (receipt !== undefined) receipts?.delete(result);
-  return receipt === undefined
-    ? undefined
-    : receipt.slotId === observed.slotId &&
-        receipt.recordRevision === observed.recordRevision &&
-        bytesEqualV1(receipt.bytes, observed.bytes);
+  return receipt === undefined ? undefined : receipt.slotId === observed.slotId &&
+    receipt.recordRevision === observed.recordRevision &&
+    bytesEqualV1(receipt.bytes, observed.bytes);
 }
 
 export type SaveRepositoryClearResultV1 =
@@ -174,23 +172,25 @@ type LeaseTouchResultV1 =
 const expectedWriteReasonV1 = (slotId: SaveSlotIdV1): SaveWriteReasonV1 =>
   slotId === "auto.current" || slotId === "auto.previous" ? "auto" : slotId;
 
-const indexedDbFailureCodesV1 = Object.freeze([
-  "indexeddb.unavailable",
-  "indexeddb.database_newer",
-  "indexeddb.upgrade_blocked",
-  "indexeddb.quota_exceeded",
-  "indexeddb.transaction_aborted",
-  "indexeddb.request_failed",
-  "indexeddb.schema_invalid",
-] as const);
+const indexedDbFailureCodesV1 = Object.freeze(
+  [
+    "indexeddb.unavailable",
+    "indexeddb.database_newer",
+    "indexeddb.upgrade_blocked",
+    "indexeddb.quota_exceeded",
+    "indexeddb.transaction_aborted",
+    "indexeddb.request_failed",
+    "indexeddb.schema_invalid",
+  ] as const,
+);
 const indexedDbFailureOperationsV1 = Object.freeze(["open", "read", "list", "commit"] as const);
 
 function dataPropertyValueV1(value: object, key: string): unknown {
   const descriptor = Object.getOwnPropertyDescriptor(value, key);
   return descriptor !== undefined &&
-    descriptor.get === undefined &&
-    descriptor.set === undefined &&
-    "value" in descriptor
+      descriptor.get === undefined &&
+      descriptor.set === undefined &&
+      "value" in descriptor
     ? descriptor.value
     : undefined;
 }
@@ -201,8 +201,8 @@ function stableHostFailureCodeV1(error: unknown): string | null {
   const code = dataPropertyValueV1(error, "code");
   const operation = dataPropertyValueV1(error, "operation");
   return name === "IndexedDbRecordStoreFailureV1" &&
-    indexedDbFailureCodesV1.some((candidate) => candidate === code) &&
-    indexedDbFailureOperationsV1.some((candidate) => candidate === operation)
+      indexedDbFailureCodesV1.some((candidate) => candidate === code) &&
+      indexedDbFailureOperationsV1.some((candidate) => candidate === operation)
     ? (code as (typeof indexedDbFailureCodesV1)[number])
     : null;
 }
@@ -386,7 +386,7 @@ export function createSaveRepositoryInternalV1<
     runWriteV1(async () => {
       const [current, lease] = await Promise.all([
         callHostRecordStoreV1(() =>
-          options.records.read("save", createSaveSlotRecordKeyV1(options.storyId, slotId)),
+          options.records.read("save", createSaveSlotRecordKeyV1(options.storyId, slotId))
         ),
         readLeaseTouchV1(fence),
       ]);
@@ -397,8 +397,9 @@ export function createSaveRepositoryInternalV1<
       const recordRevision = nextRecordRevisionV1(current?.revision ?? null);
       if (recordRevision === null) return rejectedV1("invalid_record");
       const bytes = encodeForSlotV1(candidate, slotId, recordRevision);
-      const receiptBytes =
-        internalOptions?.writeReceiptEvidence === true ? Uint8Array.from(bytes) : null;
+      const receiptBytes = internalOptions?.writeReceiptEvidence === true
+        ? Uint8Array.from(bytes)
+        : null;
       const key = createSaveSlotRecordKeyV1(options.storyId, slotId);
       const result = await callHostRecordStoreV1(() =>
         options.records.commit([
@@ -410,7 +411,7 @@ export function createSaveRepositoryInternalV1<
             bytes,
           }),
           lease.mutation,
-        ]),
+        ])
       );
       return result.kind === "conflict"
         ? rejectedV1("conflict")
@@ -441,8 +442,9 @@ export function createSaveRepositoryInternalV1<
       const recordRevision = nextRecordRevisionV1(current.revision);
       if (recordRevision === null) return rejectedV1("invalid_record");
       const bytes = encodeForSlotV1(candidate, slotId, recordRevision);
-      const receiptBytes =
-        internalOptions?.writeReceiptEvidence === true ? Uint8Array.from(bytes) : null;
+      const receiptBytes = internalOptions?.writeReceiptEvidence === true
+        ? Uint8Array.from(bytes)
+        : null;
       const result = await callHostRecordStoreV1(() =>
         options.records.commit([
           Object.freeze({
@@ -453,7 +455,7 @@ export function createSaveRepositoryInternalV1<
             bytes,
           }),
           lease.mutation,
-        ]),
+        ])
       );
       return result.kind === "conflict"
         ? rejectedV1("conflict")
@@ -465,7 +467,7 @@ export function createSaveRepositoryInternalV1<
     async read(slotId) {
       try {
         const stored = await callHostRecordStoreV1(() =>
-          options.records.read("save", createSaveSlotRecordKeyV1(options.storyId, slotId)),
+          options.records.read("save", createSaveSlotRecordKeyV1(options.storyId, slotId))
         );
         if (stored === null) {
           return Object.freeze({
@@ -534,8 +536,9 @@ export function createSaveRepositoryInternalV1<
           );
         }
         const currentBytes = encodeForSlotV1(candidate, "auto.current", currentRevision);
-        const currentReceiptBytes =
-          internalOptions?.writeReceiptEvidence === true ? Uint8Array.from(currentBytes) : null;
+        const currentReceiptBytes = internalOptions?.writeReceiptEvidence === true
+          ? Uint8Array.from(currentBytes)
+          : null;
         mutations.push(
           Object.freeze({
             kind: "put",
@@ -547,7 +550,7 @@ export function createSaveRepositoryInternalV1<
           lease.mutation,
         );
         const result = await callHostRecordStoreV1(() =>
-          options.records.commit(mutations as [HostRecordMutationV1, ...HostRecordMutationV1[]]),
+          options.records.commit(mutations as [HostRecordMutationV1, ...HostRecordMutationV1[]])
         );
         return result.kind === "conflict"
           ? rejectedV1("conflict")
@@ -581,7 +584,7 @@ export function createSaveRepositoryInternalV1<
               expectedRevision: stored.revision,
             }),
             lease.mutation,
-          ]),
+          ])
         );
         return result.kind === "conflict"
           ? rejectedV1("conflict")

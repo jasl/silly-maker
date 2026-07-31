@@ -20,7 +20,7 @@ export function createSemanticPublicationBridgeV1<TPublication>(
 
   const getSnapshot = (): DeepReadonly<TPublication> => source.observe();
 
-  const subscribe = (listener: () => void): (() => void) => {
+  const subscribe = (listener: () => void): () => void => {
     if (disposed) throw new TypeError("ui.semantic_bridge_disposed");
 
     const unsubscribeFromSource = source.subscribe(listener);

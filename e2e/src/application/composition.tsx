@@ -135,9 +135,9 @@ const labUiSlotsDefinitionV1: DefaultGameRootSlotsV1<
   hud: (context) => <LabHudV1 publication={context.publication} semantic={context.semantic} />,
   narrative: (context) => (
     <div data-lab-narrative-root="true">
-      {context.publication.view.procedurePhase === "complete" ? (
-        <p data-lab-narrative="complete">{labUiTextV1("text.e2e.lab.narrative.completed")}</p>
-      ) : null}
+      {context.publication.view.procedurePhase === "complete"
+        ? <p data-lab-narrative="complete">{labUiTextV1("text.e2e.lab.narrative.completed")}</p>
+        : null}
       <LabBarrierRecoveryV1 publication={context.publication} semantic={context.semantic} />
     </div>
   ),
@@ -147,8 +147,7 @@ const labUiSlotsDefinitionV1: DefaultGameRootSlotsV1<
         onClick={() =>
           context.intents.execute(
             Object.freeze({ kind: "overlay.open" as const, overlayId: "overlay.lab.journal" }),
-          )
-        }
+          )}
       >
         {labUiTextV1("text.e2e.lab.overlay.journal.open")}
       </Button>
@@ -156,8 +155,7 @@ const labUiSlotsDefinitionV1: DefaultGameRootSlotsV1<
         onClick={() =>
           context.intents.execute(
             Object.freeze({ kind: "overlay.open" as const, overlayId: "overlay.lab.shop" }),
-          )
-        }
+          )}
       >
         {labUiTextV1("text.e2e.lab.overlay.shop.open")}
       </Button>
@@ -237,9 +235,9 @@ export function createLabUiSlotsV1(input: {
           resolveEffectAsset={resolveLabEffectAssetV1}
           registerReplayVoice={registerReplay}
         />
-        {context.publication.view.procedurePhase === "complete" ? (
-          <p data-lab-narrative="complete">{labUiTextV1("text.e2e.lab.narrative.completed")}</p>
-        ) : null}
+        {context.publication.view.procedurePhase === "complete"
+          ? <p data-lab-narrative="complete">{labUiTextV1("text.e2e.lab.narrative.completed")}</p>
+          : null}
         <LabBarrierRecoveryV1 publication={context.publication} semantic={context.semantic} />
         <LabNarrativePlayerV1
           publication={context.publication}
@@ -421,7 +419,7 @@ export const labGameApplicationV1: WebGameApplicationV1<
       inputMaps: Object.freeze({ keyboard: labKeyboardMapV1, gamepad: labGamepadMapV1 }),
       loadDevDockContributions: () =>
         import("./dev-dock.tsx").then((module) =>
-          module.createLabDevDockContributionsV1({ instance }),
+          module.createLabDevDockContributionsV1({ instance })
         ),
     }),
 });

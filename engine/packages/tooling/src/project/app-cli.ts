@@ -30,7 +30,7 @@ export async function runSillymakerAppCliV1(input: AppCliInputV1): Promise<numbe
   const applicationId = project.applications[0]?.applicationId ?? "";
   // Accept `.` as a convenience selector for "this application".
   const argv = input.argv.map((argument, index) =>
-    index === 1 && argument === "." ? applicationId : argument,
+    index === 1 && argument === "." ? applicationId : argument
   );
   return await runProjectCliV1({
     project,

@@ -34,7 +34,8 @@ const zhEntries = [
   { textId: "text.os.settings.about", text: "运行在 SillyMaker 引擎里的复古桌面" },
   {
     textId: "text.os.settings.notice",
-    text: "系统状态（文件、壁纸、扫雷进度）自动保存，下次开机自动恢复。本系统的代码、文案与图标全部由 AI 生成。",
+    text:
+      "系统状态（文件、壁纸、扫雷进度）自动保存，下次开机自动恢复。本系统的代码、文案与图标全部由 AI 生成。",
   },
   { textId: "text.os.app.minesweeper", text: "扫雷" },
   { textId: "text.os.mine.beginner", text: "初级" },
@@ -62,12 +63,14 @@ const zhEntries = [
   { textId: "text.os.browser.home.title", text: "欢迎使用 Silly Explorer" },
   {
     textId: "text.os.browser.home.body",
-    text: "这是一台运行在 SillyMaker 引擎里的复古电脑——一次不务正业的尝试。桌面、窗口与任务栏都是游戏 UI；扫雷是真正的确定性模拟（雷区来自事务 RNG，同种子可重放）；记事本的文件写在硬盘上，关机后再开机还在。",
+    text:
+      "这是一台运行在 SillyMaker 引擎里的复古电脑——一次不务正业的尝试。桌面、窗口与任务栏都是游戏 UI；扫雷是真正的确定性模拟（雷区来自事务 RNG，同种子可重放）；记事本的文件写在硬盘上，关机后再开机还在。",
   },
   { textId: "text.os.browser.home.docs", text: "打开引擎文档（站点允许内嵌）" },
   {
     textId: "text.os.browser.blocked",
-    text: "多数现代网站通过 X-Frame-Options / CSP frame-ancestors 拒绝被内嵌——这不是故障，是对方的安全策略。试试引擎文档站，或输入允许内嵌的地址。",
+    text:
+      "多数现代网站通过 X-Frame-Options / CSP frame-ancestors 拒绝被内嵌——这不是故障，是对方的安全策略。试试引擎文档站，或输入允许内嵌的地址。",
   },
 
   { textId: "text.os.app.wallpaper", text: "显示属性" },
@@ -108,7 +111,8 @@ const enEntries = [
   { textId: "text.os.settings.about", text: "A retro desktop running on the SillyMaker engine" },
   {
     textId: "text.os.settings.notice",
-    text: "System state (files, wallpaper, Minesweeper progress) saves automatically and restores on next boot. Code, copy, and icons are entirely AI-generated.",
+    text:
+      "System state (files, wallpaper, Minesweeper progress) saves automatically and restores on next boot. Code, copy, and icons are entirely AI-generated.",
   },
   { textId: "text.os.app.minesweeper", text: "Minesweeper" },
   { textId: "text.os.mine.beginner", text: "Beginner" },
@@ -139,12 +143,14 @@ const enEntries = [
   { textId: "text.os.browser.home.title", text: "Welcome to Silly Explorer" },
   {
     textId: "text.os.browser.home.body",
-    text: "This is a retro computer running inside the SillyMaker engine — an off-label experiment. The desktop, windows and taskbar are game UI; Minesweeper is a real deterministic simulation (mines from the transactional RNG, replayable with the same seed); Notepad files live on the hard disk and survive reboot.",
+    text:
+      "This is a retro computer running inside the SillyMaker engine — an off-label experiment. The desktop, windows and taskbar are game UI; Minesweeper is a real deterministic simulation (mines from the transactional RNG, replayable with the same seed); Notepad files live on the hard disk and survive reboot.",
   },
   { textId: "text.os.browser.home.docs", text: "Open the engine docs (embeds allowed)" },
   {
     textId: "text.os.browser.blocked",
-    text: "Most modern sites refuse to be embedded via X-Frame-Options / CSP frame-ancestors — that is their security policy, not a bug. Try the engine docs site, or an address that allows embedding.",
+    text:
+      "Most modern sites refuse to be embedded via X-Frame-Options / CSP frame-ancestors — that is their security policy, not a bug. Try the engine docs site, or an address that allows embedding.",
   },
 
   { textId: "text.os.app.wallpaper", text: "Display Properties" },
@@ -183,8 +189,7 @@ export function osResolveLocaleV1(preference: string | null, requested: readonly
 }
 
 export function osTextForLocaleV1(locale: string, textId: string): string {
-  const catalog =
-    osTextCatalogsV1.catalogs.find((candidate) => candidate.locale === locale) ??
+  const catalog = osTextCatalogsV1.catalogs.find((candidate) => candidate.locale === locale) ??
     osTextCatalogsV1.catalogs.find(
       (candidate) => candidate.locale === osTextCatalogsV1.defaultLocale,
     );

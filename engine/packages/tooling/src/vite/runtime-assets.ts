@@ -80,27 +80,29 @@ export function resolveRuntimeAssetPathV1(
   return Object.freeze({ kind: "file", filePath: candidate });
 }
 
-const runtimeAssetContentTypesV1 = Object.freeze({
-  ".aac": "audio/aac",
-  ".avif": "image/avif",
-  ".flac": "audio/flac",
-  ".gif": "image/gif",
-  ".jpeg": "image/jpeg",
-  ".jpg": "image/jpeg",
-  ".json": "application/json; charset=utf-8",
-  ".m4a": "audio/mp4",
-  ".mp3": "audio/mpeg",
-  ".mp4": "video/mp4",
-  ".oga": "audio/ogg",
-  ".ogg": "audio/ogg",
-  ".opus": "audio/ogg",
-  ".png": "image/png",
-  ".svg": "image/svg+xml",
-  ".wav": "audio/wav",
-  ".weba": "audio/webm",
-  ".webm": "video/webm",
-  ".webp": "image/webp",
-} satisfies Readonly<Record<string, string>>);
+const runtimeAssetContentTypesV1 = Object.freeze(
+  {
+    ".aac": "audio/aac",
+    ".avif": "image/avif",
+    ".flac": "audio/flac",
+    ".gif": "image/gif",
+    ".jpeg": "image/jpeg",
+    ".jpg": "image/jpeg",
+    ".json": "application/json; charset=utf-8",
+    ".m4a": "audio/mp4",
+    ".mp3": "audio/mpeg",
+    ".mp4": "video/mp4",
+    ".oga": "audio/ogg",
+    ".ogg": "audio/ogg",
+    ".opus": "audio/ogg",
+    ".png": "image/png",
+    ".svg": "image/svg+xml",
+    ".wav": "audio/wav",
+    ".weba": "audio/webm",
+    ".webm": "video/webm",
+    ".webp": "image/webp",
+  } satisfies Readonly<Record<string, string>>,
+);
 
 const runtimeAssetExtensionPatternV1 = /^\.[a-z0-9]+$/u;
 const mediaTypePatternV1 = /^[\x20-\x7e]+$/u;
@@ -141,8 +143,8 @@ export function runtimeAssetContentTypeV1(
   const extension = extname(filePath).toLowerCase();
   return (
     additionalContentTypes?.[extension] ??
-    runtimeAssetContentTypesV1[extension as keyof typeof runtimeAssetContentTypesV1] ??
-    "application/octet-stream"
+      runtimeAssetContentTypesV1[extension as keyof typeof runtimeAssetContentTypesV1] ??
+      "application/octet-stream"
   );
 }
 

@@ -15,11 +15,12 @@ interface KitWitnessStateV1 {
   };
 }
 
-interface KitWitnessTypesV1 extends GameSimulationTypeMapV1<
-  GameBootstrapInputV1,
-  KitWitnessStateV1,
-  { readonly cursor: number }
-> {
+interface KitWitnessTypesV1 extends
+  GameSimulationTypeMapV1<
+    GameBootstrapInputV1,
+    KitWitnessStateV1,
+    { readonly cursor: number }
+  > {
   readonly command: { readonly kind: "witness.kit" };
   readonly fact: { readonly kind: "witness.fact" };
   readonly rejection: { readonly code: string };
@@ -87,8 +88,8 @@ export const shopModuleV1 = kit.defineStatefulModule({
 export const compositionV1 = kit.composeModules([storageModuleV1, shopModuleV1]);
 
 declare const witnessStateV1: KitWitnessStateV1;
-export const inferredPortsV1: { readonly storage: StorageReadPortV1 } =
-  compositionV1.createDependencyPortsFor(shopModuleV1, witnessStateV1);
+export const inferredPortsV1: { readonly storage: StorageReadPortV1 } = compositionV1
+  .createDependencyPortsFor(shopModuleV1, witnessStateV1);
 export const inferredPortResultV1: number = inferredPortsV1.storage.itemCount();
 export const inferredReadCapabilityV1: StorageReadPortV1 = compositionV1.readCapability(
   shopModuleV1,

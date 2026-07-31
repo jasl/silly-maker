@@ -556,8 +556,11 @@ function parseAdoptionV1(value: unknown): SimulationAdoptionV1 {
 }
 
 function validateStoryErrorsV1(value: unknown, label: string): readonly string[] {
-  return parseDenseArrayV1(value, `${label} result`, 10_000, (entry) =>
-    requiredStringV1(entry, `${label} error`),
+  return parseDenseArrayV1(
+    value,
+    `${label} result`,
+    10_000,
+    (entry) => requiredStringV1(entry, `${label} error`),
   );
 }
 

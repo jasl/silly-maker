@@ -3,20 +3,20 @@ import type { RngDrawTraceV1, RngStateV1, RuleRngV1 } from "./rng.ts";
 
 export type CommandExecutionResultEnvelopeV1<TSnapshot, TFact, TRejection, TFault> =
   | {
-      readonly kind: "committed";
-      readonly snapshot: TSnapshot;
-      readonly facts: readonly TFact[];
-    }
+    readonly kind: "committed";
+    readonly snapshot: TSnapshot;
+    readonly facts: readonly TFact[];
+  }
   | {
-      readonly kind: "rejected";
-      readonly snapshot: TSnapshot;
-      readonly reasons: readonly TRejection[];
-    }
+    readonly kind: "rejected";
+    readonly snapshot: TSnapshot;
+    readonly reasons: readonly TRejection[];
+  }
   | {
-      readonly kind: "faulted";
-      readonly snapshot: TSnapshot;
-      readonly fault: TFault;
-    };
+    readonly kind: "faulted";
+    readonly snapshot: TSnapshot;
+    readonly fault: TFault;
+  };
 
 export interface CommandExecutionDiagnosticsEnvelopeV1<TRngState, TRngDrawTrace> {
   readonly committedRngBefore: TRngState;

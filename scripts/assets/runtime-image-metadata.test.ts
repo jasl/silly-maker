@@ -491,11 +491,13 @@ describe("readRuntimeImageMetadataV1", () => {
     );
   });
 
-  it.each([
-    [pngFixture(1, 1), "image/webp"],
-    [webpFixture(webpChunk("VP8X", vp8xPayload(1, 1))), "image/svg+xml"],
-    [svgFixture('<svg width="1" height="1" viewBox="0 0 1 1" />'), "image/png"],
-  ] as const)(
+  it.each(
+    [
+      [pngFixture(1, 1), "image/webp"],
+      [webpFixture(webpChunk("VP8X", vp8xPayload(1, 1))), "image/svg+xml"],
+      [svgFixture('<svg width="1" height="1" viewBox="0 0 1 1" />'), "image/png"],
+    ] as const,
+  )(
     "rejects detected bytes that do not match the declared media type",
     (bytes, mediaType) => {
       expectInvalid(readRuntimeImageMetadataV1(bytes, mediaType), "unsupported_media");

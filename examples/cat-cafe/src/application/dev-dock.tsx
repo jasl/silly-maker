@@ -33,9 +33,9 @@ async function executeV1(
       return result.attempt.result.kind === "committed"
         ? Object.freeze({ kind: "handled" as const, message: "committed" })
         : Object.freeze({
-            kind: "rejected" as const,
-            message: JSON.stringify(result.attempt.result.kind),
-          });
+          kind: "rejected" as const,
+          message: JSON.stringify(result.attempt.result.kind),
+        });
     case "validation_failed":
       return Object.freeze({
         kind: "rejected" as const,

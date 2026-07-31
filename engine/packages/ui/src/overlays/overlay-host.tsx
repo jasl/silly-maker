@@ -151,9 +151,9 @@ function OverlayDialogEntryV1(props: {
             className={styles["overlay-host__backdrop"]}
             data-overlay-backdrop={props.entry.depth}
             aria-hidden="true"
-            onClick={
-              isTop && props.entry.resolution.dismissible !== false ? requestTopCloseV1 : undefined
-            }
+            onClick={isTop && props.entry.resolution.dismissible !== false
+              ? requestTopCloseV1
+              : undefined}
           />
           <Dialog.Content
             ref={setContentElement}
@@ -169,10 +169,9 @@ function OverlayDialogEntryV1(props: {
               event.preventDefault();
               const root = event.currentTarget as HTMLElement | null;
               const body = root?.querySelector("[data-panel-content]") ?? null;
-              const target =
-                body?.querySelector<HTMLElement>(
-                  'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-                ) ??
+              const target = body?.querySelector<HTMLElement>(
+                'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+              ) ??
                 (body as HTMLElement | null) ??
                 root;
               target?.focus({ preventScroll: true });
@@ -189,9 +188,11 @@ function OverlayDialogEntryV1(props: {
             onInteractOutside={(event) => event.preventDefault()}
             onCloseAutoFocus={(event) => event.preventDefault()}
           >
-            {/* Every gameplay window shares the Panel chrome: a visible
+            {
+              /* Every gameplay window shares the Panel chrome: a visible
                 title bar with the close control, and a focusable scrollable
-                content region. */}
+                content region. */
+            }
             <PanelV1
               title={
                 <Dialog.Title asChild>
@@ -309,12 +310,11 @@ export function OverlayHostV1<TOverlayId>(props: OverlayHostPropsV1<TOverlayId>)
     return Object.freeze([
       resolveEntryV1(props.rendererResolver, snapshot.primaryId, "primary", 0),
       ...snapshot.detailIds.map((id, index) =>
-        resolveEntryV1(props.rendererResolver, id, "detail", index + 1),
+        resolveEntryV1(props.rendererResolver, id, "detail", index + 1)
       ),
     ]);
   }, [props.rendererResolver, snapshot]);
-  topDismissibleRef.current =
-    entries.length === 0 ||
+  topDismissibleRef.current = entries.length === 0 ||
     (entries[entries.length - 1] as ResolvedOverlayEntryV1).resolution.dismissible !== false;
 
   return (
@@ -324,18 +324,16 @@ export function OverlayHostV1<TOverlayId>(props: OverlayHostPropsV1<TOverlayId>)
       data-testid="overlay-host"
       style={{ pointerEvents: active ? "auto" : "none" }}
     >
-      {portalContainer === null
-        ? null
-        : entries.map((entry) => (
-            <OverlayDialogEntryV1
-              key={`${entry.kind}:${entry.depth}`}
-              entry={entry}
-              topDepth={entries.length - 1}
-              portalContainer={portalContainer}
-              closeTop={() => props.store.closeTop()}
-              closeLabel={props.closeLabel}
-            />
-          ))}
+      {portalContainer === null ? null : entries.map((entry) => (
+        <OverlayDialogEntryV1
+          key={`${entry.kind}:${entry.depth}`}
+          entry={entry}
+          topDepth={entries.length - 1}
+          portalContainer={portalContainer}
+          closeTop={() => props.store.closeTop()}
+          closeLabel={props.closeLabel}
+        />
+      ))}
     </div>
   );
 }

@@ -10,9 +10,9 @@ export type RuntimeImageMetadataV1 = {
 export type RuntimeImageMetadataResultV1 =
   | { readonly kind: "valid"; readonly metadata: RuntimeImageMetadataV1 }
   | {
-      readonly kind: "invalid";
-      readonly code: "unsupported_media" | "invalid_bytes" | "unsafe_svg" | "invalid_dimensions";
-    };
+    readonly kind: "invalid";
+    readonly code: "unsupported_media" | "invalid_bytes" | "unsafe_svg" | "invalid_dimensions";
+  };
 
 type RuntimeImageMediaTypeV1 = RuntimeImageMetadataV1["mediaType"];
 type InvalidRuntimeImageCodeV1 = Extract<
@@ -40,7 +40,8 @@ type SvgDocumentResultV1 =
 const pngSignatureV1 = Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10]);
 const xmlNumberSourceV1 = String.raw`[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?`;
 const viewBoxPatternV1 = new RegExp(
-  String.raw`^\s*(${xmlNumberSourceV1})(?:\s+|\s*,\s*)(${xmlNumberSourceV1})(?:\s+|\s*,\s*)(${xmlNumberSourceV1})(?:\s+|\s*,\s*)(${xmlNumberSourceV1})\s*$`,
+  String
+    .raw`^\s*(${xmlNumberSourceV1})(?:\s+|\s*,\s*)(${xmlNumberSourceV1})(?:\s+|\s*,\s*)(${xmlNumberSourceV1})(?:\s+|\s*,\s*)(${xmlNumberSourceV1})\s*$`,
   "u",
 );
 const xmlDeclarationPatternV1 =
@@ -366,8 +367,8 @@ function decodeXmlEntities(source: string): string | null {
       const codePoint = hexadecimal
         ? Number.parseInt(hexadecimal[1] ?? "", 16)
         : decimal
-          ? Number.parseInt(decimal[1] ?? "", 10)
-          : Number.NaN;
+        ? Number.parseInt(decimal[1] ?? "", 10)
+        : Number.NaN;
       if (!Number.isSafeInteger(codePoint) || !isValidXmlCodePoint(codePoint)) return null;
       decoded += String.fromCodePoint(codePoint);
     }
@@ -481,8 +482,7 @@ function hasUnsafeSvgAttributes(
       return true;
     }
     if (svgResourceAttributeNamesV1.has(localName)) {
-      const allowedLocalReference =
-        localName === "href" &&
+      const allowedLocalReference = localName === "href" &&
         safeSvgLocalReferenceElementNamesV1.has(elementName) &&
         /^#[A-Za-z_][A-Za-z0-9_.:-]*$/u.test(decodedValue);
       if (!allowedLocalReference) return true;

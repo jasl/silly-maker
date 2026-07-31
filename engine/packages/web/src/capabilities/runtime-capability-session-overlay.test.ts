@@ -10,11 +10,13 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createRuntimeCapabilitySessionOverlayV1 } from "./runtime-capability-session-overlay.ts";
 
-const capabilityFieldsV1 = Object.freeze({
-  debug_tools: "debugTools",
-  cheats: "cheats",
-  automation_bridge: "automationBridge",
-} satisfies Record<RuntimeCapabilityIdV1, keyof RuntimeCapabilitiesV1>);
+const capabilityFieldsV1 = Object.freeze(
+  {
+    debug_tools: "debugTools",
+    cheats: "cheats",
+    automation_bridge: "automationBridge",
+  } satisfies Record<RuntimeCapabilityIdV1, keyof RuntimeCapabilitiesV1>,
+);
 
 function freezeStateV1(state: RuntimeCapabilitiesV1): DeepReadonly<RuntimeCapabilitiesV1> {
   return Object.freeze({ ...state });

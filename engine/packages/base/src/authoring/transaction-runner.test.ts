@@ -44,11 +44,12 @@ interface BankFaultV1 {
   readonly diagnosticCode: string | null;
 }
 
-interface BankTypesV1 extends GameSimulationTypeMapV1<
-  GameBootstrapInputV1,
-  BankStateV1,
-  RngStateV1
-> {
+interface BankTypesV1 extends
+  GameSimulationTypeMapV1<
+    GameBootstrapInputV1,
+    BankStateV1,
+    RngStateV1
+  > {
   readonly snapshot: GameSnapshotEnvelopeV1<BankStateV1, RngStateV1>;
   readonly command: { readonly kind: "bank.transfer" };
   readonly fact: BankFactV1;
@@ -175,8 +176,9 @@ function createBankFixtureV1() {
     createFault: (cause) =>
       Object.freeze({
         code: "bank.transaction_failed" as const,
-        diagnosticCode:
-          cause instanceof AuthoringDiagnosticErrorV1 ? (cause.diagnostics[0]?.code ?? null) : null,
+        diagnosticCode: cause instanceof AuthoringDiagnosticErrorV1
+          ? (cause.diagnostics[0]?.code ?? null)
+          : null,
       }),
     validateCandidate: (state) =>
       state.simulation.ledger.entries > state.simulation.vault.coins + 100

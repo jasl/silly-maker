@@ -81,14 +81,13 @@ const emptyFailureDetailsV1: StrictJsonObjectV1 = Object.freeze({});
 function presentationFailureV1(
   code: PresentationRuntimeFailureV1["code"],
 ): DeepReadonly<PresentationRuntimeFailureV1> {
-  const summary =
-    code === "presentation.initial_projection_failed"
-      ? "Initial runtime presentation projection failed."
-      : code === "presentation.projection_failed"
-        ? "Runtime presentation projection failed."
-        : code === "presentation.subscriber_failed"
-          ? "Runtime presentation subscriber failed."
-          : "Runtime presentation asset preload failed.";
+  const summary = code === "presentation.initial_projection_failed"
+    ? "Initial runtime presentation projection failed."
+    : code === "presentation.projection_failed"
+    ? "Runtime presentation projection failed."
+    : code === "presentation.subscriber_failed"
+    ? "Runtime presentation subscriber failed."
+    : "Runtime presentation asset preload failed.";
   return Object.freeze({ code, summary, details: emptyFailureDetailsV1 });
 }
 

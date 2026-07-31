@@ -28,8 +28,8 @@ export interface CreateTextRevealOptionsV1 {
 
 export function createTextRevealV1(options: CreateTextRevealOptionsV1): TextRevealV1 {
   const listeners = new Set<() => void>();
-  const instant =
-    options.reducedMotion === true || options.charactersPerSecond <= 0 || options.textLength === 0;
+  const instant = options.reducedMotion === true || options.charactersPerSecond <= 0 ||
+    options.textLength === 0;
   let revealed = instant ? options.textLength : 0;
   let cancelTick: (() => void) | undefined;
   let disposed = false;

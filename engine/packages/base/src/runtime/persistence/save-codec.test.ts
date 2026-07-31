@@ -170,7 +170,7 @@ function validateEnvelopeV1(record: Readonly<SyntheticSaveRecordV1>): void {
   for (let index = 1; index < record.simulationLineage.length; index += 1) {
     if (
       record.simulationLineage[index - 1]?.toSimulationDigest !==
-      record.simulationLineage[index]?.fromSimulationDigest
+        record.simulationLineage[index]?.fromSimulationDigest
     ) {
       throw new TypeError("lineage is disconnected");
     }
@@ -268,8 +268,7 @@ describe("Save record codec", () => {
   it("encodes one canonical representation and round-trips a strict frozen record", () => {
     const record = makeRecordV1();
     const bytes = encodeSaveRecordV1(record, codecV1);
-    const goldenText =
-      '{"formatRevision":1,"provenance":{"resolved":{"simulationDigest":' +
+    const goldenText = '{"formatRevision":1,"provenance":{"resolved":{"simulationDigest":' +
       '"sha256:e687ff8c5f6b8a8a833e6d3630788e6ef88a68d18ffb46dcf3eeae94170a9e06"},' +
       '"story":{"id":"story.synthetic"}},"recordRevision":2,' +
       '"savedAt":"2026-07-14T00:00:00.000Z","simulationLineage":[],' +
@@ -291,58 +290,60 @@ describe("Save record codec", () => {
     expect(Object.isFrozen(decoded.record.snapshot.integrity)).toBe(true);
   });
 
-  it.each([
+  it.each(
     [
-      "unknown envelope field",
-      (record: SyntheticSaveRecordV1) => bytesWithV1(record, { unknown: true }),
-      "envelope.schema_invalid",
-    ],
-    [
-      "future format revision",
-      (record: SyntheticSaveRecordV1) => bytesWithV1(record, { formatRevision: 2 }),
-      "envelope.unsupported_revision",
-    ],
-    [
-      "malformed format revision",
-      (record: SyntheticSaveRecordV1) => bytesWithV1(record, { formatRevision: 0 }),
-      "envelope.schema_invalid",
-    ],
-    [
-      "invalid state digest format",
-      (record: SyntheticSaveRecordV1) => bytesWithV1(record, { stateDigest: "not-a-digest" }),
-      "digest.invalid_format",
-    ],
-    [
-      "wrong state digest",
-      (record: SyntheticSaveRecordV1) => bytesWithV1(record, { stateDigest: digestV1("wrong") }),
-      "digest.state_mismatch",
-    ],
-    [
-      "malformed integrity",
-      (record: SyntheticSaveRecordV1) => {
-        const snapshot = { ...record.snapshot, integrity: { mode: "normal" } };
-        return bytesWithV1(record, {
-          snapshot,
-          stateDigest: digestCanonical("sillymaker:state:v1", snapshot),
-        });
-      },
-      "envelope.schema_invalid",
-    ],
-    [
-      "cross-record Story mismatch",
-      (record: SyntheticSaveRecordV1) =>
-        bytesWithV1(record, { slot: { ...record.slot, storyId: "story.other" } }),
-      "envelope.schema_invalid",
-    ],
-    [
-      "cross-record sequence mismatch",
-      (record: SyntheticSaveRecordV1) =>
-        bytesWithV1(record, {
-          slot: { ...record.slot, capturedCommandSequence: record.snapshot.commandSequence + 1 },
-        }),
-      "envelope.schema_invalid",
-    ],
-  ] as const)("rejects a %s at its stable stage", (_label, makeBytes, code) => {
+      [
+        "unknown envelope field",
+        (record: SyntheticSaveRecordV1) => bytesWithV1(record, { unknown: true }),
+        "envelope.schema_invalid",
+      ],
+      [
+        "future format revision",
+        (record: SyntheticSaveRecordV1) => bytesWithV1(record, { formatRevision: 2 }),
+        "envelope.unsupported_revision",
+      ],
+      [
+        "malformed format revision",
+        (record: SyntheticSaveRecordV1) => bytesWithV1(record, { formatRevision: 0 }),
+        "envelope.schema_invalid",
+      ],
+      [
+        "invalid state digest format",
+        (record: SyntheticSaveRecordV1) => bytesWithV1(record, { stateDigest: "not-a-digest" }),
+        "digest.invalid_format",
+      ],
+      [
+        "wrong state digest",
+        (record: SyntheticSaveRecordV1) => bytesWithV1(record, { stateDigest: digestV1("wrong") }),
+        "digest.state_mismatch",
+      ],
+      [
+        "malformed integrity",
+        (record: SyntheticSaveRecordV1) => {
+          const snapshot = { ...record.snapshot, integrity: { mode: "normal" } };
+          return bytesWithV1(record, {
+            snapshot,
+            stateDigest: digestCanonical("sillymaker:state:v1", snapshot),
+          });
+        },
+        "envelope.schema_invalid",
+      ],
+      [
+        "cross-record Story mismatch",
+        (record: SyntheticSaveRecordV1) =>
+          bytesWithV1(record, { slot: { ...record.slot, storyId: "story.other" } }),
+        "envelope.schema_invalid",
+      ],
+      [
+        "cross-record sequence mismatch",
+        (record: SyntheticSaveRecordV1) =>
+          bytesWithV1(record, {
+            slot: { ...record.slot, capturedCommandSequence: record.snapshot.commandSequence + 1 },
+          }),
+        "envelope.schema_invalid",
+      ],
+    ] as const,
+  )("rejects a %s at its stable stage", (_label, makeBytes, code) => {
     expect(decodeSaveRecordV1(makeBytes(makeRecordV1()), codecV1)).toEqual({
       kind: "rejected",
       code,
@@ -473,8 +474,7 @@ describe("Save record codec", () => {
 
   it("does not emit bytes for an invalid typed candidate", () => {
     const record = makeRecordV1();
-    expect(() =>
-      encodeSaveRecordV1({ ...record, stateDigest: digestV1("wrong") }, codecV1),
-    ).toThrow();
+    expect(() => encodeSaveRecordV1({ ...record, stateDigest: digestV1("wrong") }, codecV1))
+      .toThrow();
   });
 });

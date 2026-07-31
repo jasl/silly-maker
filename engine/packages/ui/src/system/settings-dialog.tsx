@@ -29,17 +29,17 @@ export function SettingsDialogContentV1(
       <DialogPrimitive.Title asChild>
         <h2>{props.title}</h2>
       </DialogPrimitive.Title>
-      {props.sections.length === 0 ? (
-        <p data-settings-empty="true">{props.emptyText}</p>
-      ) : (
-        <div data-settings-sections="true">
-          {props.sections.map((section, index) => (
-            <div key={index} data-settings-section={index} data-testid="settings-section">
-              {section}
-            </div>
-          ))}
-        </div>
-      )}
+      {props.sections.length === 0
+        ? <p data-settings-empty="true">{props.emptyText}</p>
+        : (
+          <div data-settings-sections="true">
+            {props.sections.map((section, index) => (
+              <div key={index} data-settings-section={index} data-testid="settings-section">
+                {section}
+              </div>
+            ))}
+          </div>
+        )}
       <DialogPrimitive.Close asChild>
         <Button autoFocus>{props.closeLabel}</Button>
       </DialogPrimitive.Close>

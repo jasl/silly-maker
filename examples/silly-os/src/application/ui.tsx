@@ -147,13 +147,15 @@ export function OsShellV1(props: {
       }}
     >
       <style>{osChromeCssV1}</style>
-      <style>{`@keyframes os-shake {
+      <style>
+        {`@keyframes os-shake {
         0%, 100% { translate: 0 0; }
         20% { translate: -6px 2px; }
         40% { translate: 5px -2px; }
         60% { translate: -4px 1px; }
         80% { translate: 3px -1px; }
-      }`}</style>
+      }`}
+      </style>
       <div
         role="group"
         aria-label={uiText("text.os.desktop.aria")}
@@ -214,31 +216,33 @@ export function OsShellV1(props: {
         );
       })}
 
-      {startOpen ? (
-        <OsStartMenuV1
-          appItems={osAppsV1.map((app) => ({
-            id: app.appId,
-            label: uiText(app.nameTextId),
-            icon: app.icon(20),
-            onActivate: () => openApp(app.appId),
-          }))}
-          systemItems={[
-            {
-              id: "system.settings",
-              label: uiText("text.os.start.settings"),
-              icon: <OsDisplayIconV1 size={20} />,
-              onActivate: () => openApp("app.control-panel"),
-            },
-            {
-              id: "system.shutdown",
-              label: uiText("text.os.start.shutdown"),
-              icon: <OsComputerIconV1 size={20} />,
-              onActivate: () => setShutdown(true),
-            },
-          ]}
-          onClose={() => setStartOpen(false)}
-        />
-      ) : null}
+      {startOpen
+        ? (
+          <OsStartMenuV1
+            appItems={osAppsV1.map((app) => ({
+              id: app.appId,
+              label: uiText(app.nameTextId),
+              icon: app.icon(20),
+              onActivate: () => openApp(app.appId),
+            }))}
+            systemItems={[
+              {
+                id: "system.settings",
+                label: uiText("text.os.start.settings"),
+                icon: <OsDisplayIconV1 size={20} />,
+                onActivate: () => openApp("app.control-panel"),
+              },
+              {
+                id: "system.shutdown",
+                label: uiText("text.os.start.shutdown"),
+                icon: <OsComputerIconV1 size={20} />,
+                onActivate: () => setShutdown(true),
+              },
+            ]}
+            onClose={() => setStartOpen(false)}
+          />
+        )
+        : null}
 
       <OsTaskbarV1
         wm={wm}

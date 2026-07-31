@@ -13,10 +13,10 @@ function resolveEnvironmentV1(
 ): BrowserFilePortEnvironmentV1 {
   return (
     environment ??
-    Object.freeze({
-      document: globalThis.document,
-      url: globalThis.URL,
-    })
+      Object.freeze({
+        document: globalThis.document,
+        url: globalThis.URL,
+      })
   );
 }
 

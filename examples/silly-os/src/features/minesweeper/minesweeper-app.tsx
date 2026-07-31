@@ -37,19 +37,18 @@ function CellButtonV1(props: {
     ? view.mine === true
       ? "✷"
       : view.adjacent !== null && view.adjacent > 0
-        ? String(view.adjacent)
-        : ""
+      ? String(view.adjacent)
+      : ""
     : view.state === "flagged"
-      ? "⚑"
-      : props.finished && view.mine === true
-        ? "✷"
-        : "";
-  const color =
-    revealed && view.adjacent !== null
-      ? adjacentColors[Math.min(view.adjacent, 8)]
-      : view.state === "flagged"
-        ? "#c00000"
-        : "#000000";
+    ? "⚑"
+    : props.finished && view.mine === true
+    ? "✷"
+    : "";
+  const color = revealed && view.adjacent !== null
+    ? adjacentColors[Math.min(view.adjacent, 8)]
+    : view.state === "flagged"
+    ? "#c00000"
+    : "#000000";
   return (
     <button
       type="button"
@@ -79,10 +78,10 @@ function CellButtonV1(props: {
         color,
         ...(revealed
           ? {
-              border: "1px solid #808080",
-              borderWidth: "1px 0 0 1px",
-              background: view.mine === true ? "#ff4040" : "#c0c0c0",
-            }
+            border: "1px solid #808080",
+            borderWidth: "1px 0 0 1px",
+            background: view.mine === true ? "#ff4040" : "#c0c0c0",
+          }
           : {}),
       }}
     >
@@ -93,10 +92,9 @@ function CellButtonV1(props: {
 
 function LcdV1(props: { readonly value: number; readonly testId: string }): ReactElement {
   const clamped = Math.max(-99, Math.min(999, props.value));
-  const text =
-    clamped < 0
-      ? `-${String(Math.abs(clamped)).padStart(2, "0")}`
-      : String(clamped).padStart(3, "0");
+  const text = clamped < 0
+    ? `-${String(Math.abs(clamped)).padStart(2, "0")}`
+    : String(clamped).padStart(3, "0");
   return (
     <span
       data-os-mine-lcd={props.testId}
@@ -119,8 +117,8 @@ export function OsMinesweeperAppV1(props: {
 
   const status = minesweeper?.status ?? null;
   // Win98 semantics: the timer starts on the first reveal (a fresh board sits at 000).
-  const anyRevealed =
-    minesweeper !== null && minesweeper.cells.some((cell) => cell.state === "revealed");
+  const anyRevealed = minesweeper !== null &&
+    minesweeper.cells.some((cell) => cell.state === "revealed");
   const playing = status === "playing" && anyRevealed;
   const boardWidth = minesweeper === null ? 0 : minesweeper.width;
   useEffect(() => {
@@ -230,11 +228,13 @@ export function OsMinesweeperAppV1(props: {
               );
             })}
           </div>
-          {minesweeper.status === "playing" ? null : (
-            <p data-os-mine-result={minesweeper.status} style={{ margin: 0, fontWeight: 700 }}>
-              {uiText(minesweeper.status === "won" ? "text.os.mine.won" : "text.os.mine.lost")}
-            </p>
-          )}
+          {minesweeper.status === "playing"
+            ? null
+            : (
+              <p data-os-mine-result={minesweeper.status} style={{ margin: 0, fontWeight: 700 }}>
+                {uiText(minesweeper.status === "won" ? "text.os.mine.won" : "text.os.mine.lost")}
+              </p>
+            )}
         </div>
       )}
     </div>

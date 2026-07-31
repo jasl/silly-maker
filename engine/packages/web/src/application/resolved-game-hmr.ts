@@ -29,10 +29,10 @@ export interface WebRuntimeRebootstrapLifecycleV1<TDisposition> {
 
 export type ResolvedGameHmrReasonV1 =
   | {
-      readonly kind: "identity_changed";
-      readonly previous: ResolvedGameHmrIdentityV1;
-      readonly next: ResolvedGameHmrIdentityV1;
-    }
+    readonly kind: "identity_changed";
+    readonly previous: ResolvedGameHmrIdentityV1;
+    readonly next: ResolvedGameHmrIdentityV1;
+  }
   | { readonly kind: "resolution_failed" };
 
 export interface ResolvedGameHmrRebootstrapInputV1<TModule, TDisposition> {

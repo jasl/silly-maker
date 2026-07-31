@@ -50,9 +50,9 @@ export interface AudioProviderEntryV1 {
 export type ResolvedAudioAssetEntryV1 =
   | (AudioAssetSlotV1 & { readonly delivery: "silence_fallback"; readonly provider: null })
   | (AudioAssetSlotV1 & {
-      readonly delivery: "runtime_audio";
-      readonly provider: AudioProviderEntryV1;
-    });
+    readonly delivery: "runtime_audio";
+    readonly provider: AudioProviderEntryV1;
+  });
 
 export interface ResolvedAudioManifestV1 {
   readonly entries: readonly ResolvedAudioAssetEntryV1[];
@@ -126,10 +126,10 @@ export function resolveAudioManifestV1(
   providersValue: unknown,
 ): ResolvedAudioManifestV1 {
   const slots = readArray(slotsValue, "/slots").map((slot, index) =>
-    parseAudioAssetSlotV1(slot, `/slots/${String(index)}`),
+    parseAudioAssetSlotV1(slot, `/slots/${String(index)}`)
   );
   const providers = readArray(providersValue, "/providers").map((provider, index) =>
-    parseAudioProviderEntryV1(provider, `/providers/${String(index)}`),
+    parseAudioProviderEntryV1(provider, `/providers/${String(index)}`)
   );
 
   const slotIds = new Set<string>();
@@ -248,8 +248,9 @@ export function parseAudioIntentV1(value: unknown, path = "/audio"): AudioIntent
   const record = readExactRecord(value, ["bgm", "ambient", "voice"], path);
   return Object.freeze({
     bgm: record.bgm === null ? null : parseAudioChannelIntentV1(record.bgm, `${path}/bgm`),
-    ambient:
-      record.ambient === null ? null : parseAudioChannelIntentV1(record.ambient, `${path}/ambient`),
+    ambient: record.ambient === null
+      ? null
+      : parseAudioChannelIntentV1(record.ambient, `${path}/ambient`),
     voice: record.voice === null ? null : parseVoiceIntentV1(record.voice, `${path}/voice`),
   });
 }

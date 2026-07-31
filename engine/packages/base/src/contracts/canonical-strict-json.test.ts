@@ -59,8 +59,9 @@ function generatedCanonicalValueV1(seed: number, depth = 0): unknown {
   if (depth >= 4 || mixed % 3 === 0) return primitive();
   if (mixed % 2 === 0) {
     const length = (mixed >>> 4) % 4;
-    return Array.from({ length }, (_, index) =>
-      generatedCanonicalValueV1(mixed + index + 1, depth + 1),
+    return Array.from(
+      { length },
+      (_, index) => generatedCanonicalValueV1(mixed + index + 1, depth + 1),
     );
   }
   const size = (mixed >>> 5) % 4;
@@ -98,28 +99,35 @@ function expectOracleEquivalentV1(
 }
 
 describe("canonical JSON with Strict limits", () => {
-  it.each([
+  it.each(
     [
-      "total bytes before every structural limit",
-      [[[0]]],
-      { maxBytes: 1, maxDepth: 1, maxNodes: 1 },
-      "limit.bytes",
-    ],
-    ["depth before nodes", [0], { maxDepth: 1, maxNodes: 1 }, "limit.depth"],
-    ["node count", [0, 1, 2], { maxNodes: 3 }, "limit.nodes"],
-    ["array item count", [0, 1, 2], { maxArrayItems: 2 }, "limit.array_items"],
-    ["object member count", { a: 0, b: 1, c: 2 }, { maxObjectMembers: 2 }, "limit.object_members"],
-    ["decoded value string bytes", "éé", { maxStringBytes: 3 }, "limit.string_bytes"],
-    [
-      "decoded key string bytes",
-      ownKeyObjectV1("éé", 0),
-      { maxStringBytes: 3 },
-      "limit.string_bytes",
-    ],
-    ["dangerous __proto__ key", ownKeyObjectV1("__proto__", 0), {}, "object.dangerous_key"],
-    ["dangerous prototype key", ownKeyObjectV1("prototype", 0), {}, "object.dangerous_key"],
-    ["dangerous constructor key", ownKeyObjectV1("constructor", 0), {}, "object.dangerous_key"],
-  ] as const)("%s matches the prior two-pass oracle", (_label, value, overrides, code) => {
+      [
+        "total bytes before every structural limit",
+        [[[0]]],
+        { maxBytes: 1, maxDepth: 1, maxNodes: 1 },
+        "limit.bytes",
+      ],
+      ["depth before nodes", [0], { maxDepth: 1, maxNodes: 1 }, "limit.depth"],
+      ["node count", [0, 1, 2], { maxNodes: 3 }, "limit.nodes"],
+      ["array item count", [0, 1, 2], { maxArrayItems: 2 }, "limit.array_items"],
+      [
+        "object member count",
+        { a: 0, b: 1, c: 2 },
+        { maxObjectMembers: 2 },
+        "limit.object_members",
+      ],
+      ["decoded value string bytes", "éé", { maxStringBytes: 3 }, "limit.string_bytes"],
+      [
+        "decoded key string bytes",
+        ownKeyObjectV1("éé", 0),
+        { maxStringBytes: 3 },
+        "limit.string_bytes",
+      ],
+      ["dangerous __proto__ key", ownKeyObjectV1("__proto__", 0), {}, "object.dangerous_key"],
+      ["dangerous prototype key", ownKeyObjectV1("prototype", 0), {}, "object.dangerous_key"],
+      ["dangerous constructor key", ownKeyObjectV1("constructor", 0), {}, "object.dangerous_key"],
+    ] as const,
+  )("%s matches the prior two-pass oracle", (_label, value, overrides, code) => {
     expectOracleEquivalentV1(value, limitsV1(overrides), code);
   });
 
@@ -146,68 +154,69 @@ describe("canonical JSON with Strict limits", () => {
     expect(new TextDecoder().decode(bytes)).toBe('{"":"éé","𐀀":"\\u0000","😀":[{"a":1},{"a":1}]}');
   });
 
-  it.each([
+  it.each(
     [
-      "array item count before the extra child",
-      [0, [[0]]],
-      { maxArrayItems: 1, maxDepth: 2 },
-      "limit.array_items",
-    ],
-    [
-      "object member count before the extra key",
-      Object.fromEntries([
-        ["a", 0],
-        ["constructor", 1],
-      ]),
-      { maxObjectMembers: 1, maxStringBytes: 1 },
-      "limit.object_members",
-    ],
-    [
-      "nodes before a current string",
-      { a: "éé" },
-      { maxNodes: 1, maxStringBytes: 3 },
-      "limit.nodes",
-    ],
-    [
-      "key string bytes before dangerous-key rejection",
-      ownKeyObjectV1("constructor", 0),
-      { maxStringBytes: 1 },
-      "limit.string_bytes",
-    ],
-    [
-      "dangerous key before its deep value",
-      ownKeyObjectV1("constructor", [[0]]),
-      { maxDepth: 2 },
-      "object.dangerous_key",
-    ],
-    [
-      "canonical key order before insertion order",
-      Object.fromEntries([
-        ["constructor", 0],
-        ["aaaaaaaaaaaa", 0],
-      ]),
-      { maxStringBytes: 11 },
-      "limit.string_bytes",
-    ],
-  ] as const)("%s preserves Strict parser precedence", (_label, value, overrides, code) => {
+      [
+        "array item count before the extra child",
+        [0, [[0]]],
+        { maxArrayItems: 1, maxDepth: 2 },
+        "limit.array_items",
+      ],
+      [
+        "object member count before the extra key",
+        Object.fromEntries([
+          ["a", 0],
+          ["constructor", 1],
+        ]),
+        { maxObjectMembers: 1, maxStringBytes: 1 },
+        "limit.object_members",
+      ],
+      [
+        "nodes before a current string",
+        { a: "éé" },
+        { maxNodes: 1, maxStringBytes: 3 },
+        "limit.nodes",
+      ],
+      [
+        "key string bytes before dangerous-key rejection",
+        ownKeyObjectV1("constructor", 0),
+        { maxStringBytes: 1 },
+        "limit.string_bytes",
+      ],
+      [
+        "dangerous key before its deep value",
+        ownKeyObjectV1("constructor", [[0]]),
+        { maxDepth: 2 },
+        "object.dangerous_key",
+      ],
+      [
+        "canonical key order before insertion order",
+        Object.fromEntries([
+          ["constructor", 0],
+          ["aaaaaaaaaaaa", 0],
+        ]),
+        { maxStringBytes: 11 },
+        "limit.string_bytes",
+      ],
+    ] as const,
+  )("%s preserves Strict parser precedence", (_label, value, overrides, code) => {
     expectOracleEquivalentV1(value, limitsV1(overrides), code);
   });
 
   it("does not let an earlier Strict violation hide a later canonical failure", () => {
     const dangerousCycle = ownKeyObjectV1("constructor", 0);
     dangerousCycle.z = dangerousCycle;
-    expect(() =>
-      canonicalJsonBytesWithStrictLimitsInternalV1(dangerousCycle, limitsV1()),
-    ).toThrowError(
-      expect.objectContaining({
-        name: "CanonicalJsonError",
-        code: "value.cycle",
-        path: "/z",
-      }),
-    );
+    expect(() => canonicalJsonBytesWithStrictLimitsInternalV1(dangerousCycle, limitsV1()))
+      .toThrowError(
+        expect.objectContaining({
+          name: "CanonicalJsonError",
+          code: "value.cycle",
+          path: "/z",
+        }),
+      );
 
     expect(() =>
-      canonicalJsonBytesWithStrictLimitsInternalV1([0, -0], limitsV1({ maxArrayItems: 1 })),
+      canonicalJsonBytesWithStrictLimitsInternalV1([0, -0], limitsV1({ maxArrayItems: 1 }))
     ).toThrowError(
       expect.objectContaining({
         name: "CanonicalJsonError",
@@ -224,7 +233,7 @@ describe("canonical JSON with Strict limits", () => {
       },
     );
     expect(() =>
-      canonicalJsonBytesWithStrictLimitsInternalV1(laterGetter, limitsV1({ maxStringBytes: 1 })),
+      canonicalJsonBytesWithStrictLimitsInternalV1(laterGetter, limitsV1({ maxStringBytes: 1 }))
     ).toThrowError(
       expect.objectContaining({
         name: "CanonicalJsonError",
@@ -259,9 +268,8 @@ describe("canonical JSON with Strict limits", () => {
         return 1;
       },
     });
-    expect(() =>
-      canonicalJsonBytesWithStrictLimitsInternalV1(objectWithGetter, limitsV1()),
-    ).toThrow(CanonicalJsonError);
+    expect(() => canonicalJsonBytesWithStrictLimitsInternalV1(objectWithGetter, limitsV1()))
+      .toThrow(CanonicalJsonError);
     expect(objectGetterCalls).toBe(0);
 
     let arrayGetterCalls = 0;
@@ -299,19 +307,21 @@ describe("canonical JSON with Strict limits", () => {
     expect(caught).toBe(sentinel);
   });
 
-  it.each([
-    ["undefined", undefined, "value.undefined", ""],
-    ["a symbol", Symbol("symbol"), "value.undefined", ""],
-    ["a function", () => undefined, "value.function", ""],
-    ["a sparse array", sparseArrayV1(), "value.sparse_array", "/0"],
-    ["a custom object prototype", Object.create(null), "value.custom_prototype", ""],
-    ["a non-finite number", Number.POSITIVE_INFINITY, "number.non_finite", ""],
-    ["a fractional number", 1.5, "number.not_integer", ""],
-    ["an unsafe integer", Number.MAX_SAFE_INTEGER + 1, "number.unsafe_integer", ""],
-    ["negative zero", -0, "number.negative_zero", ""],
-    ["a lone surrogate value", "\ud800", "string.lone_surrogate", ""],
-    ["a lone surrogate key", ownKeyObjectV1("\ud800", 0), "string.lone_surrogate", ""],
-  ] as const)("preserves the canonical error for %s", (_label, value, code, path) => {
+  it.each(
+    [
+      ["undefined", undefined, "value.undefined", ""],
+      ["a symbol", Symbol("symbol"), "value.undefined", ""],
+      ["a function", () => undefined, "value.function", ""],
+      ["a sparse array", sparseArrayV1(), "value.sparse_array", "/0"],
+      ["a custom object prototype", Object.create(null), "value.custom_prototype", ""],
+      ["a non-finite number", Number.POSITIVE_INFINITY, "number.non_finite", ""],
+      ["a fractional number", 1.5, "number.not_integer", ""],
+      ["an unsafe integer", Number.MAX_SAFE_INTEGER + 1, "number.unsafe_integer", ""],
+      ["negative zero", -0, "number.negative_zero", ""],
+      ["a lone surrogate value", "\ud800", "string.lone_surrogate", ""],
+      ["a lone surrogate key", ownKeyObjectV1("\ud800", 0), "string.lone_surrogate", ""],
+    ] as const,
+  )("preserves the canonical error for %s", (_label, value, code, path) => {
     expect(() => canonicalJsonBytesWithStrictLimitsInternalV1(value, limitsV1())).toThrowError(
       expect.objectContaining({
         name: "CanonicalJsonError",

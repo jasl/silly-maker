@@ -11,7 +11,8 @@ import {
 const markerNeedleV1 = "__SILLYMAKER_RECORDS__";
 const capabilityNeedleV1 = "__SILLYMAKER_DESKTOP_CAPABILITY__";
 const capabilityV1 = "a".repeat(43);
-const markerBodyV1 = `Object.defineProperties(globalThis,{"__SILLYMAKER_RECORDS__":{value:"local",writable:false,configurable:false},"__SILLYMAKER_DESKTOP_CAPABILITY__":{value:"${capabilityV1}",writable:false,configurable:false}});`;
+const markerBodyV1 =
+  `Object.defineProperties(globalThis,{"__SILLYMAKER_RECORDS__":{value:"local",writable:false,configurable:false},"__SILLYMAKER_DESKTOP_CAPABILITY__":{value:"${capabilityV1}",writable:false,configurable:false}});`;
 const markerSourceV1 = `<script>${markerBodyV1}</script>`;
 const executableScriptPatternV1 = /<script>([\s\S]*?)<\/script>/giu;
 
@@ -66,9 +67,12 @@ describe("desktop HTML marker injection", () => {
       '<html><head><script>globalThis.__SILLYMAKER_RECORDS__ = "custom";</script></head></html>';
     const recordsOnly =
       '<html><head><script>globalThis.__SILLYMAKER_RECORDS__ = "local";</script></head></html>';
-    const stale = `<html><head><script>globalThis.__SILLYMAKER_RECORDS__ = "local";globalThis.__SILLYMAKER_DESKTOP_CAPABILITY__ = "${"b".repeat(
-      43,
-    )}";</script></head></html>`;
+    const stale =
+      `<html><head><script>globalThis.__SILLYMAKER_RECORDS__ = "local";globalThis.__SILLYMAKER_DESKTOP_CAPABILITY__ = "${
+        "b".repeat(
+          43,
+        )
+      }";</script></head></html>`;
 
     expect(injectV1(commented)).toContain(`<head>${markerSourceV1}<!--`);
     expect(injectV1(custom)).toContain(`<head>${markerSourceV1}<script>`);
@@ -77,9 +81,12 @@ describe("desktop HTML marker injection", () => {
   });
 
   it("prevents later classic scripts from replacing the launch handshake", () => {
-    const laterAssignments = `<script>globalThis.__SILLYMAKER_RECORDS__ = "custom";globalThis.__SILLYMAKER_DESKTOP_CAPABILITY__ = "${"b".repeat(
-      43,
-    )}";</script>`;
+    const laterAssignments =
+      `<script>globalThis.__SILLYMAKER_RECORDS__ = "custom";globalThis.__SILLYMAKER_DESKTOP_CAPABILITY__ = "${
+        "b".repeat(
+          43,
+        )
+      }";</script>`;
     const context = executeClassicInlineScriptsV1(
       injectV1(`<html><head>${laterAssignments}</head></html>`),
     );

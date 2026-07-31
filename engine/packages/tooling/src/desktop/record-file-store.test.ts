@@ -134,7 +134,7 @@ describe("the desktop record file store", () => {
           expectedRevision: -0,
           bytesBase64: "AQ==",
         },
-      ]),
+      ])
     ).toThrow(TypeError);
     expect(() =>
       parseWireMutationsV1([
@@ -144,7 +144,7 @@ describe("the desktop record file store", () => {
           key: "negative-zero-delete",
           expectedRevision: -0,
         },
-      ]),
+      ])
     ).toThrow(TypeError);
   });
 

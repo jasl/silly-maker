@@ -34,17 +34,16 @@ export const calendarModuleV1 = kit.defineStatefulModule({
         kind: "proposed" as const,
         proposal: Object.freeze({
           payload: operation,
-          facts:
-            operation.kind === "advance"
-              ? Object.freeze([
-                  Object.freeze({
-                    kind: "cc.slot_advanced" as const,
-                    week: next.week,
-                    day: next.day,
-                    slot: next.slot,
-                  }),
-                ])
-              : Object.freeze([]),
+          facts: operation.kind === "advance"
+            ? Object.freeze([
+              Object.freeze({
+                kind: "cc.slot_advanced" as const,
+                week: next.week,
+                day: next.day,
+                slot: next.slot,
+              }),
+            ])
+            : Object.freeze([]),
         }),
       });
     },

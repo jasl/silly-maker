@@ -17,11 +17,12 @@ interface KitTestStateV1 {
   };
 }
 
-interface KitTestTypesV1 extends GameSimulationTypeMapV1<
-  GameBootstrapInputV1,
-  KitTestStateV1,
-  { readonly cursor: number }
-> {
+interface KitTestTypesV1 extends
+  GameSimulationTypeMapV1<
+    GameBootstrapInputV1,
+    KitTestStateV1,
+    { readonly cursor: number }
+  > {
   readonly command: { readonly kind: "kit.test" };
   readonly fact: { readonly kind: "kit.fact" };
   readonly rejection: { readonly code: string };
@@ -173,7 +174,7 @@ describe("createGameAuthoringKitV1", () => {
         kit.composeModules([
           provider("kit.storage", "simulation.storage"),
           provider("kit.shop", "simulation.shop"),
-        ]),
+        ])
       ),
     ).toMatchObject([{ code: "authoring.capability.duplicate_provider" }]);
   });
@@ -235,7 +236,7 @@ describe("createGameAuthoringKitV1", () => {
       kit.composeModules([
         moduleWith("kit.storage", "simulation.storage", "kit.shop"),
         moduleWith("kit.shop", "simulation.shop", "kit.storage"),
-      ]),
+      ])
     ).map((diagnostic) => diagnostic.code);
     expect(codes).toContain("authoring.lifecycle.dependency_cycle");
     expect(codes).not.toContain("authoring.capability.dependency_cycle");

@@ -75,9 +75,9 @@ export function normalizeVersionStampInternalV1(source: unknown): VersionStampV1
     engineCommit: fieldV1(descriptors, "engineCommit"),
   });
   return normalized.applicationVersion === null &&
-    normalized.applicationCommit === null &&
-    normalized.engineVersion === null &&
-    normalized.engineCommit === null
+      normalized.applicationCommit === null &&
+      normalized.engineVersion === null &&
+      normalized.engineCommit === null
     ? null
     : normalized;
 }

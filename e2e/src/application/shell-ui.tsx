@@ -35,18 +35,17 @@ const labActionTextIdsV1: Readonly<Record<LabActionIdV1, string>> = Object.freez
  * They draw from Strict JSON props only; missing registrations fall back to
  * the host's code-native placeholder with a diagnostic.
  */
-export const labStageRenderersV1: Readonly<Record<string, SemanticStageEntryRendererV1>> =
-  Object.freeze({
+export const labStageRenderersV1: Readonly<Record<string, SemanticStageEntryRendererV1>> = Object
+  .freeze({
     "renderer.e2e.lab.stage-background": ({ entry }) => (
       <div
         data-lab-surface={String(entry.props.surface)}
         style={{
           width: "1600px",
           height: "1000px",
-          background:
-            entry.props.surface === "storeroom"
-              ? "linear-gradient(180deg, #3a3630, #17140f)"
-              : "linear-gradient(180deg, #2b3a4a, #101820)",
+          background: entry.props.surface === "storeroom"
+            ? "linear-gradient(180deg, #3a3630, #17140f)"
+            : "linear-gradient(180deg, #2b3a4a, #101820)",
         }}
       />
     ),
@@ -72,23 +71,21 @@ export const labStageRenderersV1: Readonly<Record<string, SemanticStageEntryRend
     "renderer.e2e.lab.stage-prop": ({ entry }) => (
       <div
         data-lab-prop={entry.contentId}
-        style={
-          entry.props.variant === "banner"
-            ? {
-                width: "420px",
-                height: "72px",
-                border: "3px solid #8a5a2b",
-                background: "#b3452e",
-                transform: "translate(-50%, -100%)",
-              }
-            : {
-                width: "160px",
-                height: "120px",
-                border: "3px solid #9c8a63",
-                background: "#6f6146",
-                transform: "translate(-50%, -100%)",
-              }
-        }
+        style={entry.props.variant === "banner"
+          ? {
+            width: "420px",
+            height: "72px",
+            border: "3px solid #8a5a2b",
+            background: "#b3452e",
+            transform: "translate(-50%, -100%)",
+          }
+          : {
+            width: "160px",
+            height: "120px",
+            border: "3px solid #9c8a63",
+            background: "#6f6146",
+            transform: "translate(-50%, -100%)",
+          }}
       />
     ),
   });
@@ -190,8 +187,7 @@ export function LabHudV1(props: {
             onClick={() =>
               void props.semantic.dispatch(
                 Object.freeze({ kind: "invoke" as const, actionId: action.actionId }),
-              )
-            }
+              )}
           >
             {labUiTextV1(labActionTextIdsV1[action.actionId])}
           </Button>
@@ -308,8 +304,7 @@ export function LabShopOverlayV1(props: {
               data-lab-shop-action={actionId}
               data-lab-shop-blocked={action.blockedBy ?? undefined}
               onClick={() =>
-                void props.semantic.dispatch(Object.freeze({ kind: "invoke" as const, actionId }))
-              }
+                void props.semantic.dispatch(Object.freeze({ kind: "invoke" as const, actionId }))}
             >
               {labUiTextV1(labActionTextIdsV1[actionId])}
             </Button>

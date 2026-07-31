@@ -62,13 +62,15 @@ export function OsWindowFrameV1(props: {
 }): ReactElement | null {
   const { window: win, wm } = props;
   const viewport = useGameViewportV1();
-  const drag = useRef<{
-    pointerId: number;
-    startX: number;
-    startY: number;
-    rectX: number;
-    rectY: number;
-  } | null>(null);
+  const drag = useRef<
+    {
+      pointerId: number;
+      startX: number;
+      startY: number;
+      rectX: number;
+      rectY: number;
+    } | null
+  >(null);
 
   if (win.mode === "minimized") return null;
 

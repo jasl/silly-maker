@@ -101,27 +101,27 @@ type PersistencePortV1 = PlayerPersistencePortV1<
 
 export type PersistenceRebootstrapDisposalV1 =
   | {
-      readonly ownership: "released";
-      readonly code: null;
-      readonly fence: DeepReadonly<SessionLeaseFenceV1>;
-    }
+    readonly ownership: "released";
+    readonly code: null;
+    readonly fence: DeepReadonly<SessionLeaseFenceV1>;
+  }
   | {
-      readonly ownership: "read_only";
-      readonly code: "lease_release_failed";
-      readonly fence: null;
-    };
+    readonly ownership: "read_only";
+    readonly code: "lease_release_failed";
+    readonly fence: null;
+  };
 
 export type PersistenceRebootstrapTakeoverV1 =
   | {
-      readonly ownership: "writable";
-      readonly code: null;
-      readonly fence: DeepReadonly<SessionLeaseFenceV1>;
-    }
+    readonly ownership: "writable";
+    readonly code: null;
+    readonly fence: DeepReadonly<SessionLeaseFenceV1>;
+  }
   | {
-      readonly ownership: "read_only";
-      readonly code: "lease_release_failed" | "lease_takeover_failed";
-      readonly fence: null;
-    };
+    readonly ownership: "read_only";
+    readonly code: "lease_release_failed" | "lease_takeover_failed";
+    readonly fence: null;
+  };
 
 export interface PersistenceServiceV1<TSnapshot> {
   readonly port: PersistencePortV1;
@@ -145,15 +145,15 @@ export interface PersistenceServiceV1<TSnapshot> {
 
 export type PersistenceAutoSaveAttemptReceiptInternalV1 =
   | {
-      readonly kind: "saved";
-    }
+    readonly kind: "saved";
+  }
   | {
-      readonly kind: "failed";
-      readonly result: PersistenceOperationResultV1 | null;
-    }
+    readonly kind: "failed";
+    readonly result: PersistenceOperationResultV1 | null;
+  }
   | {
-      readonly kind: "superseded";
-    };
+    readonly kind: "superseded";
+  };
 
 interface PersistenceServiceControlInternalV1 {
   captureAutoSaveWithReceipt(
@@ -384,10 +384,9 @@ async function createPersistenceServiceWithDependenciesV1<
   let publicReleaseFence: DeepReadonly<SessionLeaseFenceV1> | null = null;
   let disposalPromise: Promise<PersistenceRebootstrapDisposalV1> | null = null;
   let takeoverPromise: Promise<PersistenceRebootstrapTakeoverV1> | null = null;
-  let leaseStatus =
-    leaseAcquisition === "acquire_initial"
-      ? await options.lease.acquireInitial()
-      : await options.lease.getStatus();
+  let leaseStatus = leaseAcquisition === "acquire_initial"
+    ? await options.lease.acquireInitial()
+    : await options.lease.getStatus();
   if (leaseStatus.kind === "unavailable") lastFailureCode = leaseStatus.code;
 
   const rememberFailureV1 = (code: string): void => {
@@ -437,15 +436,13 @@ async function createPersistenceServiceWithDependenciesV1<
       savedAt: candidate.savedAt,
       stateDigest:
         lookupInstalledSnapshotDigestInternalV1(options.runtimeControl, candidate.snapshot) ??
-        digestCanonicalInternalV1("sillymaker:state:v1", candidate.snapshot, instrumentation),
+          digestCanonicalInternalV1("sillymaker:state:v1", candidate.snapshot, instrumentation),
       snapshot: candidate.snapshot,
       simulationLineage: candidate.simulationLineage,
       // A fresh capture starts with no player note; annotateSave adds one.
-      ...(candidate.summary === null
-        ? {}
-        : {
-            annotation: Object.freeze({ summary: candidate.summary, note: null }),
-          }),
+      ...(candidate.summary === null ? {} : {
+        annotation: Object.freeze({ summary: candidate.summary, note: null }),
+      }),
       ...(versionStampV1 === null ? {} : { versionStamp: versionStampV1 }),
     };
     const parsed = options.validation.codec.recordSchema.parse(value);
@@ -463,11 +460,9 @@ async function createPersistenceServiceWithDependenciesV1<
     );
 
   const captureSummaryV1 = (snapshot: DeepReadonly<TSnapshot>): readonly string[] | null =>
-    options.summarizeSave === undefined
-      ? null
-      : normalizeSaveSummaryInternalV1(
-          options.summarizeSave((snapshot as { readonly state: DeepReadonly<TState> }).state),
-        );
+    options.summarizeSave === undefined ? null : normalizeSaveSummaryInternalV1(
+      options.summarizeSave((snapshot as { readonly state: DeepReadonly<TState> }).state),
+    );
 
   const captureV1 = (snapshot: DeepReadonly<TSnapshot>): SaveCandidateV1<TSnapshot> =>
     Object.freeze({
@@ -515,17 +510,16 @@ async function createPersistenceServiceWithDependenciesV1<
       return faultedV1("persistence.capture_invalid");
     }
     try {
-      const written =
-        slotId === "auto.current"
-          ? await options.repository.writeAuto(
-              record as DeepReadonly<PersistenceSaveRecordV1<TSnapshot>>,
-              fence,
-            )
-          : await options.repository.writePlayer(
-              slotId,
-              record as DeepReadonly<PersistenceSaveRecordV1<TSnapshot>>,
-              fence,
-            );
+      const written = slotId === "auto.current"
+        ? await options.repository.writeAuto(
+          record as DeepReadonly<PersistenceSaveRecordV1<TSnapshot>>,
+          fence,
+        )
+        : await options.repository.writePlayer(
+          slotId,
+          record as DeepReadonly<PersistenceSaveRecordV1<TSnapshot>>,
+          fence,
+        );
       if (written.kind === "rejected") {
         if (written.code === "unavailable") {
           await refreshLeaseStatusV1();
@@ -629,7 +623,7 @@ async function createPersistenceServiceWithDependenciesV1<
               Object.freeze({ ...candidate, savedAt, summary }),
               "auto.current",
               candidate.fence,
-            ),
+            )
           );
         } catch {
           return faultedV1();
@@ -643,8 +637,9 @@ async function createPersistenceServiceWithDependenciesV1<
       onCurrentResult(candidate, result) {
         if (result.kind === "saved") {
           lastSuccessfulAutoSnapshot = candidate.snapshot;
-          lastSuccessfulAutoFence =
-            candidate.fence === null ? null : Object.freeze({ ...candidate.fence });
+          lastSuccessfulAutoFence = candidate.fence === null
+            ? null
+            : Object.freeze({ ...candidate.fence });
           lastSuccessfulAutoPhysicalOrder =
             autoPhysicalOrderByAttempt.get(candidate.attemptIdentity) ?? null;
           rememberSuccessV1(candidate.snapshot.commandSequence);
@@ -686,15 +681,15 @@ async function createPersistenceServiceWithDependenciesV1<
         return attemptReceipt.result.kind === "saved"
           ? Object.freeze({ kind: "saved" as const })
           : Object.freeze({
-              kind: "failed" as const,
-              result: attemptReceipt.result,
-            });
+            kind: "failed" as const,
+            result: attemptReceipt.result,
+          });
       })
       .catch(() =>
         Object.freeze({
           kind: "failed" as const,
           result: null,
-        }),
+        })
       );
     const tracked = Object.freeze({
       anchorEpoch,
@@ -764,8 +759,9 @@ async function createPersistenceServiceWithDependenciesV1<
     const fence = options.lease.captureFence();
     const anchorEpoch = autoQueue.anchorEpoch();
     const existing = autoSaveAttemptsBySnapshot.get(snapshotKey);
-    const existingPhysicalOrder =
-      existing === undefined ? undefined : autoPhysicalOrderByAttempt.get(existing.attemptIdentity);
+    const existingPhysicalOrder = existing === undefined
+      ? undefined
+      : autoPhysicalOrderByAttempt.get(existing.attemptIdentity);
     if (
       existing !== undefined &&
       existing.anchorEpoch === anchorEpoch &&
@@ -884,10 +880,9 @@ async function createPersistenceServiceWithDependenciesV1<
     if (validation.kind !== "exact" && validation.kind !== "adopted") {
       throw new TypeError("invalid runnable Save validation result");
     }
-    const lineage =
-      validation.kind === "adopted"
-        ? Object.freeze([...validation.candidate.simulationLineage, validation.adoption])
-        : validation.candidate.simulationLineage;
+    const lineage = validation.kind === "adopted"
+      ? Object.freeze([...validation.candidate.simulationLineage, validation.adoption])
+      : validation.candidate.simulationLineage;
     return Object.freeze({
       kind: "replace" as const,
       snapshot: validation.candidate.snapshot as TSnapshot,
@@ -1083,25 +1078,23 @@ async function createPersistenceServiceWithDependenciesV1<
           }
           const bytes = read.bytes;
           const validation = validateSaveImportCandidateV1(bytes, options.validation);
-          const warningCodes =
-            validation.kind === "rejected"
-              ? [validation.code]
-              : validation.kind === "inspect_only"
-                ? [
-                    ...validation.mismatches.map(({ code }) => code),
-                    ...validation.warnings.map(({ code }) => code),
-                  ]
-                : validation.warnings.map(({ code }) => code);
-          const lineageLimited =
-            validation.kind === "rejected" && validation.code === "compatibility.lineage_limit";
+          const warningCodes = validation.kind === "rejected"
+            ? [validation.code]
+            : validation.kind === "inspect_only"
+            ? [
+              ...validation.mismatches.map(({ code }) => code),
+              ...validation.warnings.map(({ code }) => code),
+            ]
+            : validation.warnings.map(({ code }) => code);
+          const lineageLimited = validation.kind === "rejected" &&
+            validation.code === "compatibility.lineage_limit";
           return Object.freeze({
             runnable: validation.kind === "exact" || validation.kind === "adopted",
             summary: Object.freeze({
               slotId: read.slotId,
-              health:
-                validation.kind === "rejected" && !lineageLimited
-                  ? ("invalid" as const)
-                  : ("valid" as const),
+              health: validation.kind === "rejected" && !lineageLimited
+                ? ("invalid" as const)
+                : ("valid" as const),
               recordRevision: read.record.recordRevision,
               capturedCommandSequence: read.record.slot.capturedCommandSequence,
               savedAt: read.record.savedAt,
@@ -1139,7 +1132,7 @@ async function createPersistenceServiceWithDependenciesV1<
               savedAt: null,
               annotation: null,
               warningCodes: Object.freeze(["persistence.unexpected"]),
-            }),
+            })
           ),
         );
       }
@@ -1161,8 +1154,8 @@ async function createPersistenceServiceWithDependenciesV1<
       const runtimeStatus = options.runtimeControl.inspectForRuntime().status;
       return Object.freeze({
         available: leaseStatus.kind !== "unavailable",
-        busy:
-          runtimeStatus === "busy" || foregroundWrites > 0 || autoWrites > 0 || !autoQueue.isIdle(),
+        busy: runtimeStatus === "busy" || foregroundWrites > 0 || autoWrites > 0 ||
+          !autoQueue.isIdle(),
         safelySavedCommandSequence,
         lastFailureCode: rebootstrapFailureCode ?? lastFailureCode,
       });
@@ -1196,7 +1189,7 @@ async function createPersistenceServiceWithDependenciesV1<
       return schedulePhysicalV1(() =>
         lifecycle === "active"
           ? writeVerifiedV1(candidate, slot, fence)
-          : Promise.resolve(faultedV1("runtime_disposed")),
+          : Promise.resolve(faultedV1("runtime_disposed"))
       )
         .then((result) => {
           if (acceptedAnchorEpoch === autoQueue.anchorEpoch()) {
@@ -1253,9 +1246,9 @@ async function createPersistenceServiceWithDependenciesV1<
             summary === null && normalizedNote === null
               ? (bare as PersistenceSaveRecordV1<TSnapshot>)
               : Object.freeze({
-                  ...bare,
-                  annotation: Object.freeze({ summary, note: normalizedNote }),
-                } as PersistenceSaveRecordV1<TSnapshot>);
+                ...bare,
+                annotation: Object.freeze({ summary, note: normalizedNote }),
+              } as PersistenceSaveRecordV1<TSnapshot>);
           const written = await options.repository.rewritePlayer(
             slot,
             Object.freeze({
@@ -1458,13 +1451,12 @@ async function createPersistenceServiceWithDependenciesV1<
       }
       const releaseFence = options.lease.captureFence();
       const releasedFenceCandidate = publicReleaseFence ?? preDrainFence;
-      const alreadyReleasedFence =
-        releaseFence === null &&
-        observedAfterDrain?.kind === "unowned" &&
-        releasedFenceCandidate !== null &&
-        observedAfterDrain.fencingToken === releasedFenceCandidate.fencingToken
-          ? releasedFenceCandidate
-          : null;
+      const alreadyReleasedFence = releaseFence === null &&
+          observedAfterDrain?.kind === "unowned" &&
+          releasedFenceCandidate !== null &&
+          observedAfterDrain.fencingToken === releasedFenceCandidate.fencingToken
+        ? releasedFenceCandidate
+        : null;
       try {
         const runtime = options.runtimeControl.inspectForRuntime();
         autoQueue.establishAnchor(
@@ -1526,8 +1518,9 @@ async function createPersistenceServiceWithDependenciesV1<
     if (takeoverPromise !== null) return takeoverPromise;
     takeoverPromise = (async () => {
       if (lifecycle !== "active" || previous.ownership === "read_only") {
-        const code =
-          previous.ownership === "read_only" ? previous.code : ("lease_takeover_failed" as const);
+        const code = previous.ownership === "read_only"
+          ? previous.code
+          : ("lease_takeover_failed" as const);
         rebootstrapFailureCode = code;
         rememberFailureV1(code);
         return Object.freeze({
@@ -1951,10 +1944,9 @@ function createStandardPersistenceServiceInternalV1<
   },
 ): Promise<PersistenceServiceV1<TSnapshot>> {
   const dependencies = createStandardPersistenceDependenciesV1(options, instrumentation);
-  const repository =
-    testOptions?.wrapRepositoryForWriteReceiptFallback === true
-      ? Object.freeze({ ...dependencies.repository })
-      : dependencies.repository;
+  const repository = testOptions?.wrapRepositoryForWriteReceiptFallback === true
+    ? Object.freeze({ ...dependencies.repository })
+    : dependencies.repository;
   return createPersistenceServiceWithDependenciesV1(
     {
       runtimeControl: options.runtimeControl,

@@ -43,8 +43,8 @@ export interface UiContributionRegistryV1<
     rendererId: string,
   ):
     | {
-        readonly kind: "found";
-        readonly component: ComponentType<TContexts[TNamespace]>;
-      }
+      readonly kind: "found";
+      readonly component: ComponentType<TContexts[TNamespace]>;
+    }
     | { readonly kind: "not_found"; readonly code: "ui.renderer_not_found" };
 }

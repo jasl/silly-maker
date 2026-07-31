@@ -84,8 +84,9 @@ export function parseInteractionJsonObjectV1(value: unknown, path = "/params"): 
       return candidate;
     }
     if (typeof candidate === "string") {
-      if (candidate.length > 1024)
+      if (candidate.length > 1024) {
         return dataFailure(valuePath, "interaction_json_string_too_long");
+      }
       return candidate;
     }
     if (Array.isArray(candidate)) {
@@ -136,31 +137,31 @@ export interface InteractionChoiceOptionV1 {
 
 export type PendingInteractionV1 =
   | (PendingInteractionBaseV1 & {
-      readonly kind: "say";
-      readonly speakerTextId: string | null;
-      readonly textId: string;
-      readonly advancePolicy: "confirm" | "auto";
-    })
+    readonly kind: "say";
+    readonly speakerTextId: string | null;
+    readonly textId: string;
+    readonly advancePolicy: "confirm" | "auto";
+  })
   | (PendingInteractionBaseV1 & {
-      readonly kind: "choice";
-      readonly promptTextId: string;
-      readonly options: readonly InteractionChoiceOptionV1[];
-    })
+    readonly kind: "choice";
+    readonly promptTextId: string;
+    readonly options: readonly InteractionChoiceOptionV1[];
+  })
   | (PendingInteractionBaseV1 & {
-      readonly kind: "pause";
-      readonly durationMs: number;
-      readonly skippable: boolean;
-    })
+    readonly kind: "pause";
+    readonly durationMs: number;
+    readonly skippable: boolean;
+  })
   | (PendingInteractionBaseV1 & {
-      readonly kind: "presentation_barrier";
-      readonly expectedTransitionId: string;
-      readonly loadRecovery: "replay" | "settle";
-    })
+    readonly kind: "presentation_barrier";
+    readonly expectedTransitionId: string;
+    readonly loadRecovery: "replay" | "settle";
+  })
   | (PendingInteractionBaseV1 & {
-      readonly kind: "custom";
-      readonly surfaceId: string;
-      readonly params: StrictJsonObjectV1;
-    });
+    readonly kind: "custom";
+    readonly surfaceId: string;
+    readonly params: StrictJsonObjectV1;
+  });
 
 export type InteractionResolutionV1 =
   | { readonly kind: "advance" }
@@ -204,14 +205,11 @@ export function parsePendingInteractionV1(value: unknown, path = "/pending"): Pe
       return Object.freeze({
         kind,
         ...parseInteractionBaseV1(record, path),
-        speakerTextId:
-          record.speakerTextId === null
-            ? null
-            : parseInteractionIdV1(
-                record.speakerTextId,
-                `${path}/speakerTextId`,
-                "text_id_invalid",
-              ),
+        speakerTextId: record.speakerTextId === null ? null : parseInteractionIdV1(
+          record.speakerTextId,
+          `${path}/speakerTextId`,
+          "text_id_invalid",
+        ),
         textId: parseInteractionIdV1(record.textId, `${path}/textId`, "text_id_invalid"),
         advancePolicy: record.advancePolicy,
       });

@@ -21,11 +21,15 @@ export type StageTransitionInterruptionV1 = "settle_and_retarget" | "cancel_to_t
 
 export type StageTransitionEasingV1 = "linear" | "ease_in_out";
 
-export type StageTransitionReducedMotionV1 =
-  { readonly kind: "settle" } | { readonly kind: "fallback"; readonly transitionId: string };
+export type StageTransitionReducedMotionV1 = { readonly kind: "settle" } | {
+  readonly kind: "fallback";
+  readonly transitionId: string;
+};
 
-export type StageTransitionReadinessV1 =
-  { readonly kind: "immediate" } | { readonly kind: "wait_for_assets"; readonly timeoutMs: number };
+export type StageTransitionReadinessV1 = { readonly kind: "immediate" } | {
+  readonly kind: "wait_for_assets";
+  readonly timeoutMs: number;
+};
 
 export interface StageTransitionDefinitionV1 {
   readonly transitionId: string;

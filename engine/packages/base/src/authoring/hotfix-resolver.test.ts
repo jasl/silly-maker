@@ -201,7 +201,7 @@ describe("Hotfix resolution", () => {
           },
         ],
         { id: "story.synthetic-counter", revision: parsePositiveSafeInteger(1) },
-      ),
+      )
     ).toThrowError(expect.objectContaining({ code: "hotfix.install_threw" }));
     expect(captured).not.toBeNull();
     expect(() => captured?.replace("text.title", "Too late")).toThrow(
@@ -229,7 +229,7 @@ describe("Hotfix resolution", () => {
         emptyPresentationSurface,
         [createHotfix("hotfix.first", ["hotfix.second"]), createHotfix("hotfix.second", [])],
         { id: "story.synthetic-counter", revision: parsePositiveSafeInteger(1) },
-      ),
+      )
     ).toThrowError(expect.objectContaining({ code: "hotfix.requires_order" }));
     expect(() =>
       resolveHotfixesV1(
@@ -240,7 +240,7 @@ describe("Hotfix resolution", () => {
           id: "story.synthetic-counter",
           revision: parsePositiveSafeInteger(1),
         },
-      ),
+      )
     ).toThrowError(expect.objectContaining({ code: "hotfix.requires_missing" }));
   });
 
@@ -264,7 +264,7 @@ describe("Hotfix resolution", () => {
         emptyPresentationSurface,
         [createHotfix("hotfix.first", ["hotfix.second"]), createHotfix("hotfix.second", [])],
         { id: "story.synthetic-counter", revision: parsePositiveSafeInteger(1) },
-      ),
+      )
     ).toThrowError(expect.objectContaining({ code: "hotfix.conflict" }));
   });
 
@@ -306,7 +306,7 @@ describe("Hotfix resolution", () => {
           },
         ],
         { id: "story.synthetic-counter", revision: parsePositiveSafeInteger(1) },
-      ),
+      )
     ).toThrowError(expect.objectContaining({ code: "hotfix.output_invalid" }));
   });
 
@@ -333,7 +333,7 @@ describe("Hotfix resolution", () => {
           },
         ],
         { id: "story.synthetic-counter", revision: parsePositiveSafeInteger(1) },
-      ),
+      )
     ).toThrowError(expect.objectContaining({ code: "hotfix.install_threw" }));
   });
 });

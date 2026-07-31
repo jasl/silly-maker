@@ -15,15 +15,15 @@ export interface StageViewportV1 {
 
 export type StageFrameV1 =
   | {
-      readonly mode: "landscape";
-      readonly width: number;
-      readonly height: number;
-    }
+    readonly mode: "landscape";
+    readonly width: number;
+    readonly height: number;
+  }
   | {
-      readonly mode: "portrait_reflow";
-      readonly width: number;
-      readonly height: number;
-    };
+    readonly mode: "portrait_reflow";
+    readonly width: number;
+    readonly height: number;
+  };
 
 function assertViewportV1(viewport: StageViewportV1): void {
   if (

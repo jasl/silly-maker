@@ -48,9 +48,11 @@ import type {
 } from "./snapshot-commit-workload.ts";
 import { snapshotCommitEntityCountsV1 } from "./snapshot-commit-workload.ts";
 
-export const snapshotTransactionCommandClassesV1 = Object.freeze([
-  "cross_owner_atomic_committed",
-] as const);
+export const snapshotTransactionCommandClassesV1 = Object.freeze(
+  [
+    "cross_owner_atomic_committed",
+  ] as const,
+);
 export type SnapshotTransactionCommandClassV1 =
   (typeof snapshotTransactionCommandClassesV1)[number];
 
@@ -58,7 +60,10 @@ export const snapshotCommitSequenceClassesV1 = Object.freeze(["mixed_long"] as c
 export type SnapshotCommitSequenceClassV1 = (typeof snapshotCommitSequenceClassesV1)[number];
 
 type SnapshotTransactionSequenceCommandClassV1 =
-  SnapshotTransactionCommandClassV1 | "single_field_committed" | "rejected" | "faulted";
+  | SnapshotTransactionCommandClassV1
+  | "single_field_committed"
+  | "rejected"
+  | "faulted";
 
 export interface SnapshotTransactionWorkloadDescriptorV1 {
   readonly workloadId: string;
@@ -145,14 +150,14 @@ interface SnapshotTransactionCommandV1 {
 
 type SnapshotTransactionFactV1 =
   | {
-      readonly kind: "snapshot_workload.audit_recorded";
-      readonly count: number;
-    }
+    readonly kind: "snapshot_workload.audit_recorded";
+    readonly count: number;
+  }
   | {
-      readonly kind: "snapshot_workload.entity_updated";
-      readonly entityId: number;
-      readonly value: number;
-    };
+    readonly kind: "snapshot_workload.entity_updated";
+    readonly entityId: number;
+    readonly value: number;
+  };
 
 interface SnapshotTransactionRejectionV1 {
   readonly code: "snapshot_workload.rejected";
@@ -162,11 +167,12 @@ interface SnapshotTransactionFaultV1 {
   readonly code: "snapshot_workload.faulted";
 }
 
-interface SnapshotTransactionTypesV1 extends GameSimulationTypeMapV1<
-  GameBootstrapInputV1,
-  SnapshotTransactionStateV1,
-  RngStateV1
-> {
+interface SnapshotTransactionTypesV1 extends
+  GameSimulationTypeMapV1<
+    GameBootstrapInputV1,
+    SnapshotTransactionStateV1,
+    RngStateV1
+  > {
   readonly snapshot: SnapshotTransactionSnapshotV1;
   readonly command: SnapshotTransactionCommandV1;
   readonly fact: SnapshotTransactionFactV1;
@@ -371,8 +377,8 @@ const entitiesModuleV1 = kitV1.defineStatefulModule({
       },
     }),
     propose(state, operation) {
-      const entity =
-        state.chunks[Math.floor(operation.entityId / 1_000)]?.[operation.entityId % 1_000];
+      const entity = state.chunks[Math.floor(operation.entityId / 1_000)]
+        ?.[operation.entityId % 1_000];
       if (entity === undefined) throw new TypeError("Snapshot transaction entity is missing");
       const value = parseNonNegativeSafeInteger(entity.value + 1);
       return Object.freeze({
@@ -413,8 +419,7 @@ function createEntityChunksV1(
           Object.freeze({
             entityId: start + offset,
             value: (start + offset) % 97,
-          }),
-        ),
+          })),
       ),
     );
   }
@@ -444,8 +449,8 @@ function singleFieldAttemptV1(
   const rng = createTransactionalRngV1(current.rng);
   const target = targetEntityV1(current.state.simulation.entities);
   const entities = updateEntityV1(current.state.simulation.entities, target.entityId);
-  const value =
-    entities.chunks[Math.floor(target.entityId / 1_000)]?.[target.entityId % 1_000]?.value;
+  const value = entities.chunks[Math.floor(target.entityId / 1_000)]?.[target.entityId % 1_000]
+    ?.value;
   if (value === undefined) throw new TypeError("Snapshot transaction update disappeared");
   const snapshot: SnapshotTransactionSnapshotV1 = {
     state: {
@@ -532,13 +537,12 @@ export function createSnapshotTransactionWorkloadV1(input: {
       );
     },
   };
-  const created =
-    input.instrumentation === undefined
-      ? createGameSessionV1<SnapshotTransactionTypesV1>(sessionInput)
-      : createInstrumentedGameSessionV1<SnapshotTransactionTypesV1>(
-          sessionInput,
-          input.instrumentation,
-        );
+  const created = input.instrumentation === undefined
+    ? createGameSessionV1<SnapshotTransactionTypesV1>(sessionInput)
+    : createInstrumentedGameSessionV1<SnapshotTransactionTypesV1>(
+      sessionInput,
+      input.instrumentation,
+    );
   return Object.freeze({
     snapshot: () => created.session.getCurrentSnapshot(),
     status: () => created.session.getStatus(),
@@ -631,8 +635,8 @@ export function prepareTimedSnapshotTransactionWorkloadV1(input: {
 }
 
 /** @internal Direct-file-only transcript definition used by deterministic tests. */
-export const snapshotCommitMixedLongSequenceV1: readonly SnapshotTransactionSequenceCommandClassV1[] =
-  Object.freeze([
+export const snapshotCommitMixedLongSequenceV1:
+  readonly SnapshotTransactionSequenceCommandClassV1[] = Object.freeze([
     ...Array.from({ length: 85 }, () => [
       "cross_owner_atomic_committed" as const,
       "single_field_committed" as const,

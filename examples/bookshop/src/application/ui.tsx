@@ -75,8 +75,7 @@ export function BookshopNarrativePanelV1(props: {
       playerProfile={props.playerProfile}
       uiText={bookshopUiTextV1}
       onResolve={(occurrenceId: string, resolution: DialogueResolutionV1) =>
-        resolveV1(props.semantic, occurrenceId, resolution as never)
-      }
+        resolveV1(props.semantic, occurrenceId, resolution as never)}
       labels={{
         advanceLabel: bookshopUiTextV1("text.bookshop.narrative.advance"),
         autoLabel: bookshopUiTextV1("text.bookshop.playback.auto"),
@@ -109,8 +108,7 @@ export function BookshopHudV1(props: {
           onClick={() =>
             void props.semantic.dispatch(
               Object.freeze({ kind: "invoke" as const, actionId: action.actionId }),
-            )
-          }
+            )}
         >
           {bookshopUiTextV1(actionTextIdsV1[action.actionId])}
         </Button>

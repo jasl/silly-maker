@@ -34,10 +34,10 @@ export interface LabActionDescriptorV1 {
 export type LabInvocationV1 =
   | { readonly kind: "invoke"; readonly actionId: LabActionIdV1 }
   | {
-      readonly kind: "resolve";
-      readonly expectedOccurrenceId: string;
-      readonly resolution: InteractionResolutionV1;
-    };
+    readonly kind: "resolve";
+    readonly expectedOccurrenceId: string;
+    readonly resolution: InteractionResolutionV1;
+  };
 
 export type LabPreviewV1 =
   | { readonly kind: "allowed" }
@@ -48,10 +48,9 @@ export type LabActionResultV1 =
   | { readonly kind: "rejected"; readonly codes: readonly LabRejectionV1["code"][] }
   | { readonly kind: "faulted"; readonly code: string }
   | {
-      readonly kind: "not_executed";
-      readonly code:
-        "session_unavailable" | "fault_paused" | "hmr_invalidated" | "validation_failed";
-    };
+    readonly kind: "not_executed";
+    readonly code: "session_unavailable" | "fault_paused" | "hmr_invalidated" | "validation_failed";
+  };
 
 const labActionIdsV1: readonly LabActionIdV1[] = Object.freeze([
   "lab.collect_sample",
@@ -122,20 +121,19 @@ export function projectLabNarrativeViewV1(queries: LabQueriesV1): LabNarrativeVi
     calibration: queries.narrative.calibration,
     history: queries.narrative.history,
     pending,
-    choiceOptions:
-      pending !== null && pending.kind === "choice"
-        ? Object.freeze(
-            labChoiceOptionsForV1(pending.definitionId).map((option) => {
-              const blockedBy = labChoiceBlockedByV1(option, queries.samplesCollected);
-              return Object.freeze({
-                choiceId: option.choiceId,
-                textId: option.textId,
-                enabled: blockedBy === null,
-                blockedBy,
-              });
-            }),
-          )
-        : null,
+    choiceOptions: pending !== null && pending.kind === "choice"
+      ? Object.freeze(
+        labChoiceOptionsForV1(pending.definitionId).map((option) => {
+          const blockedBy = labChoiceBlockedByV1(option, queries.samplesCollected);
+          return Object.freeze({
+            choiceId: option.choiceId,
+            textId: option.textId,
+            enabled: blockedBy === null,
+            blockedBy,
+          });
+        }),
+      )
+      : null,
   });
 }
 
@@ -189,10 +187,9 @@ export const labSemanticAdapterV1: CoreSemanticAdapterV1<
       }),
     ),
   preview: (queries, invocation) => {
-    const blockedBy =
-      invocation.kind === "resolve"
-        ? resolutionBlockedByV1(queries, invocation)
-        : blockedByV1(queries, invocation.actionId);
+    const blockedBy = invocation.kind === "resolve"
+      ? resolutionBlockedByV1(queries, invocation)
+      : blockedByV1(queries, invocation.actionId);
     return blockedBy === null
       ? Object.freeze({ kind: "allowed" as const })
       : Object.freeze({ kind: "blocked" as const, code: blockedBy });
@@ -201,10 +198,10 @@ export const labSemanticAdapterV1: CoreSemanticAdapterV1<
   commandForInvocation: (invocation) =>
     invocation.kind === "resolve"
       ? Object.freeze({
-          kind: "lab.narrative_resolve" as const,
-          expectedOccurrenceId: invocation.expectedOccurrenceId,
-          resolution: invocation.resolution,
-        })
+        kind: "lab.narrative_resolve" as const,
+        expectedOccurrenceId: invocation.expectedOccurrenceId,
+        resolution: invocation.resolution,
+      })
       : Object.freeze({ kind: invocation.actionId }),
   projectDispatchResult: (result) => {
     if (result.kind === "not_executed") {

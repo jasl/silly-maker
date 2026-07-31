@@ -132,7 +132,10 @@ describe("Snapshot memory-growth workload", () => {
       ...zeroSaveCountsV1,
     });
     expect(run.memory.samples.map(({ afterCommandCount }) => afterCommandCount)).toEqual([
-      0, 2, 4, 5,
+      0,
+      2,
+      4,
+      5,
     ]);
     expect(run.memory.summary.steadyState.afterGc.heapUsedBytes).toEqual({
       start: 130,
@@ -293,7 +296,7 @@ describe("Snapshot memory-growth workload", () => {
           }),
         collectGarbage: () => undefined,
         now: () => 0,
-      }),
+      })
     ).toThrow("Snapshot memory-growth checkpoints must begin at zero");
 
     const prepared = prepareSnapshotMemoryGrowthWorkloadV1({

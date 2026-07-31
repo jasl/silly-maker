@@ -70,13 +70,11 @@ function RuntimeFailureStageHarnessV1(props: {
             <RuntimeFailureDialogV1
               {...labelsV1}
               inputRouter={props.inputRouter}
-              actions={
-                props.actions ?? {
-                  retry: () => undefined,
-                  reloadApplication: () => undefined,
-                  requestExit: () => undefined,
-                }
-              }
+              actions={props.actions ?? {
+                retry: () => undefined,
+                reloadApplication: () => undefined,
+                requestExit: () => undefined,
+              }}
               diagnosticExport={<button type="button">导出诊断包</button>}
             />
           </>
@@ -95,18 +93,20 @@ function FocusReturnHarnessV1(props: {
       <button type="button" onClick={() => setOpen(true)}>
         打开故障恢复
       </button>
-      {open ? (
-        <RuntimeFailureDialogV1
-          {...labelsV1}
-          inputRouter={props.inputRouter}
-          actions={{
-            retry: () => setOpen(false),
-            reloadApplication: () => undefined,
-            requestExit: null,
-          }}
-          diagnosticExport={<button type="button">导出诊断包</button>}
-        />
-      ) : null}
+      {open
+        ? (
+          <RuntimeFailureDialogV1
+            {...labelsV1}
+            inputRouter={props.inputRouter}
+            actions={{
+              retry: () => setOpen(false),
+              reloadApplication: () => undefined,
+              requestExit: null,
+            }}
+            diagnosticExport={<button type="button">导出诊断包</button>}
+          />
+        )
+        : null}
     </>
   );
 }
@@ -154,7 +154,7 @@ describe("RuntimeFailureDialogV1", () => {
       expect(screen.getByTestId("devdock-portal-selection")).toHaveAttribute(
         "data-target-scope",
         "fault_pause",
-      ),
+      )
     );
     expect(screen.getByTestId("devdock-portal-selection")).toHaveAttribute(
       "data-surface",
@@ -186,7 +186,7 @@ describe("RuntimeFailureDialogV1", () => {
 
     const dialog = screen.getByRole("dialog", { name: labelsV1.title });
     await waitFor(() =>
-      expect(screen.getByTestId("system-focus-scope-target")).toHaveTextContent("fault_pause"),
+      expect(screen.getByTestId("system-focus-scope-target")).toHaveTextContent("fault_pause")
     );
     expect(dialog).toHaveAttribute("data-blocking-focus-scope", "fault_pause");
     expect(dialog).toHaveAttribute("data-system-surface", "runtime_failure");

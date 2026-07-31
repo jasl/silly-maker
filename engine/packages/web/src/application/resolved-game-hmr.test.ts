@@ -252,8 +252,9 @@ describe("resolved Game HMR", () => {
     expect(secondInstallation).toBeDefined();
 
     secondHot.emit({ provenance: changed });
-    if (secondInstallation === undefined)
+    if (secondInstallation === undefined) {
       throw new TypeError("next HMR boundary was not installed");
+    }
     await secondInstallation.waitForTransition();
     expect(lifecycle.invalidateForHmr).toHaveBeenCalledOnce();
     expect(lifecycle.disposeForRebootstrap).toHaveBeenCalledOnce();
@@ -286,16 +287,18 @@ describe("resolved Game HMR", () => {
     expect(rebootstrap).not.toHaveBeenCalled();
   });
 
-  it.each([
-    "storyId",
-    "storyRevision",
-    "storyDigest",
-    "engineDigest",
-    "stateContractRevision",
-    "stateContractDigest",
-    "simulationDigest",
-    "presentationDigest",
-  ] as const)("invalidates once when %s changes", async (field) => {
+  it.each(
+    [
+      "storyId",
+      "storyRevision",
+      "storyDigest",
+      "engineDigest",
+      "stateContractRevision",
+      "stateContractDigest",
+      "simulationDigest",
+      "presentationDigest",
+    ] as const,
+  )("invalidates once when %s changes", async (field) => {
     const events: string[] = [];
     const current = provenanceV1();
     const changed = withProvenanceChangeV1(current, field);
@@ -524,9 +527,8 @@ describe("resolved Game HMR", () => {
       },
     });
 
-    expect(() =>
-      hot.emit({ provenance: withProvenanceChangeV1(current, "presentationDigest") }),
-    ).not.toThrow();
+    expect(() => hot.emit({ provenance: withProvenanceChangeV1(current, "presentationDigest") }))
+      .not.toThrow();
     await expect(installation.waitForTransition()).resolves.toBeUndefined();
     expect(rebootstrap).not.toHaveBeenCalled();
   });

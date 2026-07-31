@@ -27,7 +27,9 @@ export interface StrictJsonLimitsInputV1 {
 
 export type StrictJsonPrimitiveV1 = null | boolean | string | number;
 export type StrictJsonValueV1 =
-  StrictJsonPrimitiveV1 | StrictJsonObjectV1 | readonly StrictJsonValueV1[];
+  | StrictJsonPrimitiveV1
+  | StrictJsonObjectV1
+  | readonly StrictJsonValueV1[];
 export interface StrictJsonObjectV1 {
   readonly [key: string]: StrictJsonValueV1;
 }
@@ -65,10 +67,10 @@ export type StrictJsonResultV1 =
 export type CanonicalJsonStrictLimitsResultInternalV1 =
   | { readonly ok: true; readonly bytes: Uint8Array }
   | {
-      readonly ok: false;
-      readonly bytes: Uint8Array;
-      readonly error: { readonly code: StrictJsonErrorCodeV1 };
-    };
+    readonly ok: false;
+    readonly bytes: Uint8Array;
+    readonly error: { readonly code: StrictJsonErrorCodeV1 };
+  };
 
 const limitKeys = [
   "maxBytes",

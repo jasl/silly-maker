@@ -108,7 +108,7 @@ describe("project commands", () => {
   it("reports unloadable modules and missing exports structurally", async () => {
     await expect(
       diagnosticsOfAsync(() =>
-        inspectStoryApplicationV1(projectV1(), "synthetic", mapLoaderV1({})),
+        inspectStoryApplicationV1(projectV1(), "synthetic", mapLoaderV1({}))
       ),
     ).resolves.toMatchObject([{ code: "project.module_unloadable" }]);
 
@@ -118,7 +118,7 @@ describe("project commands", () => {
           projectV1(),
           "synthetic",
           mapLoaderV1({ "test/synthetic-story.ts": { other: 1 } }),
-        ),
+        )
       ),
     ).resolves.toMatchObject([{ code: "project.export_missing" }]);
   });

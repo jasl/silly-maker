@@ -80,44 +80,46 @@ export type CreateGameDiagnosticsServiceInputV1<
   TDiagnostics,
   TFailure,
   TUiContext = never,
-> = {
-  readonly codec: DebugBundleCodecContextV1<
-    TSnapshot,
-    StandardDebugBundleV1<
-      TProvenance,
-      TCapabilities,
-      TSimulationLineage,
+> =
+  & {
+    readonly codec: DebugBundleCodecContextV1<
       TSnapshot,
-      TCommandLogEntry,
-      TDiagnostics,
-      TFailure,
-      TUiContext
-    >
-  >;
-  readonly provenance: DeepReadonly<TProvenance>;
-  readonly appBuildId?: Digest;
-  getCapabilities(): DeepReadonly<TCapabilities>;
-  getSimulationLineage(): DeepReadonly<TSimulationLineage>;
-  readAtQueueFront<TResult>(
-    reader: (snapshot: DeepReadonly<TSnapshot>) => TResult,
-  ): Promise<TResult>;
-  getReplayEvidence(): DebugBundleReplayEvidenceV1<TSnapshot, TCommandLogEntry>;
-  getDiagnostics(): DeepReadonly<TDiagnostics>;
-  getRuntimeFailures(): readonly DeepReadonly<RuntimeOperationFaultV1>[];
-  getFailure(): DeepReadonly<TFailure> | undefined;
-  scrubFailure(failure: DeepReadonly<TFailure>): DeepReadonly<TFailure>;
-  readonly metadataClock: { now(): IsoUtcInstant };
-  readonly exportFilename: string;
-} & (
-  | {
+      StandardDebugBundleV1<
+        TProvenance,
+        TCapabilities,
+        TSimulationLineage,
+        TSnapshot,
+        TCommandLogEntry,
+        TDiagnostics,
+        TFailure,
+        TUiContext
+      >
+    >;
+    readonly provenance: DeepReadonly<TProvenance>;
+    readonly appBuildId?: Digest;
+    getCapabilities(): DeepReadonly<TCapabilities>;
+    getSimulationLineage(): DeepReadonly<TSimulationLineage>;
+    readAtQueueFront<TResult>(
+      reader: (snapshot: DeepReadonly<TSnapshot>) => TResult,
+    ): Promise<TResult>;
+    getReplayEvidence(): DebugBundleReplayEvidenceV1<TSnapshot, TCommandLogEntry>;
+    getDiagnostics(): DeepReadonly<TDiagnostics>;
+    getRuntimeFailures(): readonly DeepReadonly<RuntimeOperationFaultV1>[];
+    getFailure(): DeepReadonly<TFailure> | undefined;
+    scrubFailure(failure: DeepReadonly<TFailure>): DeepReadonly<TFailure>;
+    readonly metadataClock: { now(): IsoUtcInstant };
+    readonly exportFilename: string;
+  }
+  & (
+    | {
       readonly uiContextSchema: RuntimeSchemaV1<TUiContext>;
       readonly readUiContext: () => unknown;
     }
-  | {
+    | {
       readonly uiContextSchema?: undefined;
       readonly readUiContext?: undefined;
     }
-);
+  );
 
 function hasMatchingStateDigestV1<TSnapshot>(snapshot: TSnapshot, digest: Digest): boolean {
   return digest === digestCanonical("sillymaker:state:v1", snapshot);
@@ -129,10 +131,12 @@ function parseBundleV1<TSnapshot, TBundle extends DebugBundleDigestEnvelopeV1<TS
 ):
   | { readonly kind: "parsed"; readonly bundle: TBundle }
   | {
-      readonly kind: "rejected";
-      readonly code:
-        "envelope.schema_invalid" | "envelope.unsupported_revision" | "digest.invalid_format";
-    } {
+    readonly kind: "rejected";
+    readonly code:
+      | "envelope.schema_invalid"
+      | "envelope.unsupported_revision"
+      | "digest.invalid_format";
+  } {
   try {
     const bundle = context.bundleSchema.parse(value);
     context.validateEnvelope(bundle);
@@ -150,9 +154,9 @@ function validateStateDigestsV1<TSnapshot, TBundle extends DebugBundleDigestEnve
 ):
   | { readonly kind: "valid" }
   | {
-      readonly kind: "rejected";
-      readonly code: "digest.replay_base_state_mismatch" | "digest.current_state_mismatch";
-    } {
+    readonly kind: "rejected";
+    readonly code: "digest.replay_base_state_mismatch" | "digest.current_state_mismatch";
+  } {
   if (!hasMatchingStateDigestV1(bundle.replayBase, bundle.replayBaseStateDigest)) {
     return Object.freeze({
       kind: "rejected" as const,
@@ -248,10 +252,9 @@ export function createGameDiagnosticsServiceV1<
   if ((uiContextSchema === undefined) !== (readUiContext === undefined)) {
     throw new TypeError("Debug Bundle UI-context schema and reader must be supplied together");
   }
-  const uiContextProvider =
-    uiContextSchema === undefined || readUiContext === undefined
-      ? undefined
-      : Object.freeze({ schema: uiContextSchema, read: readUiContext });
+  const uiContextProvider = uiContextSchema === undefined || readUiContext === undefined
+    ? undefined
+    : Object.freeze({ schema: uiContextSchema, read: readUiContext });
 
   return Object.freeze({
     async exportDebugBundle(): Promise<ExportedDebugBundleV1> {
@@ -260,8 +263,9 @@ export function createGameDiagnosticsServiceV1<
           const replay = input.getReplayEvidence();
           const failure = input.getFailure();
           const rawUiContext = uiContextProvider?.read();
-          const uiContext =
-            rawUiContext === undefined ? undefined : uiContextProvider?.schema.parse(rawUiContext);
+          const uiContext = rawUiContext === undefined
+            ? undefined
+            : uiContextProvider?.schema.parse(rawUiContext);
           const runtimeFailures = Object.freeze(
             input
               .getRuntimeFailures()

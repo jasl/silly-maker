@@ -75,8 +75,7 @@ export function TemplateNarrativePanelV1(props: {
       playerProfile={props.playerProfile}
       uiText={templateUiTextV1}
       onResolve={(occurrenceId: string, resolution: DialogueResolutionV1) =>
-        resolveV1(props.semantic, occurrenceId, resolution as never)
-      }
+        resolveV1(props.semantic, occurrenceId, resolution as never)}
       labels={{
         advanceLabel: templateUiTextV1("text.template.narrative.advance"),
         autoLabel: templateUiTextV1("text.template.playback.auto"),
@@ -109,8 +108,7 @@ export function TemplateHudV1(props: {
           onClick={() =>
             void props.semantic.dispatch(
               Object.freeze({ kind: "invoke" as const, actionId: action.actionId }),
-            )
-          }
+            )}
         >
           {templateUiTextV1(actionTextIdsV1[action.actionId])}
         </Button>

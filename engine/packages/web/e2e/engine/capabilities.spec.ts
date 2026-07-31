@@ -11,9 +11,7 @@ test.describe("engine player/debug boundary", () => {
     await expect(page.getByRole("button", { name: /开发工具/u })).toHaveCount(0);
   });
 
-  test("the DevDock appears only behind debug_tools and hosts the debug surface", async ({
-    page,
-  }) => {
+  test("the DevDock appears only behind debug_tools and hosts the debug surface", async ({ page }) => {
     await gotoLabV1(page, "?capability=debug_tools");
     const launcher = page.getByRole("button", { name: "打开左侧开发工具" });
     await expect(launcher).toBeVisible();

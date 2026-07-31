@@ -3,7 +3,7 @@ import { labTextCatalogsV1 } from "../presentation.ts";
 
 const labTextByIdV1: ReadonlyMap<string, string> = new Map(
   labTextCatalogsV1.catalogs.flatMap((catalog) =>
-    catalog.entries.map((entry) => [entry.textId as string, entry.text] as const),
+    catalog.entries.map((entry) => [entry.textId as string, entry.text] as const)
   ),
 );
 

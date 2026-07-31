@@ -108,7 +108,7 @@ describe("GameSymbolV1", () => {
     expect(() =>
       render(
         <GameSymbolV1 registry={registryV1()} symbolId={symbolId} size={24} accessibleName="   " />,
-      ),
+      )
     ).toThrow();
   });
 

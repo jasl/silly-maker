@@ -41,26 +41,20 @@ function recoveryLayersV1(system: ReactNode): GameStageLayersV1 {
 
 export function GameShell(props: GameShellPropsV1): ReactElement {
   const bareStage = <GameStageV1 accessibleName={props.accessibleName} layers={props.layers} />;
-  const stage =
-    props.viewport === undefined ? (
-      bareStage
-    ) : (
-      <GameViewportV1 {...props.viewport}>{bareStage}</GameViewportV1>
-    );
-  const protectedStage =
-    props.errorBoundary === undefined ? (
-      stage
-    ) : (
-      <RootErrorBoundaryV1
-        {...props.errorBoundary}
-        inputRouter={props.inputRouter}
-        renderFailure={(dialog) => (
-          <GameStageV1 accessibleName={props.accessibleName} layers={recoveryLayersV1(dialog)} />
-        )}
-      >
-        {stage}
-      </RootErrorBoundaryV1>
-    );
+  const stage = props.viewport === undefined
+    ? bareStage
+    : <GameViewportV1 {...props.viewport}>{bareStage}</GameViewportV1>;
+  const protectedStage = props.errorBoundary === undefined ? stage : (
+    <RootErrorBoundaryV1
+      {...props.errorBoundary}
+      inputRouter={props.inputRouter}
+      renderFailure={(dialog) => (
+        <GameStageV1 accessibleName={props.accessibleName} layers={recoveryLayersV1(dialog)} />
+      )}
+    >
+      {stage}
+    </RootErrorBoundaryV1>
+  );
 
   return (
     <div className={styles["game-shell"]}>

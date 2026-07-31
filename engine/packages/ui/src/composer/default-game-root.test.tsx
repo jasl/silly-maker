@@ -26,7 +26,8 @@ function renderLifecycleRootV1(input: {
   readonly beginNewGame?: () => void | Promise<unknown>;
 }) {
   let returnToTitle:
-    DefaultGameRootSlotContextV1<unknown, unknown>["systemDialogs"]["returnToTitle"] | undefined;
+    | DefaultGameRootSlotContextV1<unknown, unknown>["systemDialogs"]["returnToTitle"]
+    | undefined;
   const inputRouter = createInputRouterV1();
   const overlaySession = createOverlaySessionStoreV1<string>();
   const systemDialogSession = createSystemDialogSessionStoreV1();
@@ -35,25 +36,23 @@ function renderLifecycleRootV1(input: {
 
   render(
     <DefaultGameRootV1
-      composition={
-        {
-          presentation: Object.freeze({
-            getSnapshot: () => publication,
-            subscribe: () => () => undefined,
-          }),
-          anchor: Object.freeze({
-            getCurrent: () => anchor,
-            subscribe: () => () => undefined,
-          }),
-          input: inputRouter,
-          intents: Object.freeze({}),
-          cues: Object.freeze({}),
-          overlaySession,
-          systemDialogSession,
-          interactionSession: Object.freeze({}),
-          updateUiState: () => undefined,
-        } as never
-      }
+      composition={{
+        presentation: Object.freeze({
+          getSnapshot: () => publication,
+          subscribe: () => () => undefined,
+        }),
+        anchor: Object.freeze({
+          getCurrent: () => anchor,
+          subscribe: () => () => undefined,
+        }),
+        input: inputRouter,
+        intents: Object.freeze({}),
+        cues: Object.freeze({}),
+        overlaySession,
+        systemDialogSession,
+        interactionSession: Object.freeze({}),
+        updateUiState: () => undefined,
+      } as never}
       semantic={Object.freeze({})}
       accessibleName="Lifecycle fixture"
       applicationId="lifecycle-fixture"
@@ -116,16 +115,18 @@ function openActiveTopologyV1(fixture: ReturnType<typeof renderLifecycleRootV1>)
 }
 
 describe("DefaultGameRootV1 lifecycle result handling", () => {
-  it.each([
-    Object.freeze({
-      kind: "rejected" as const,
-      code: "validation_failed" as const,
-    }),
-    Object.freeze({
-      kind: "faulted" as const,
-      code: "runtime.anchor_failed",
-    }),
-  ] satisfies readonly SessionAnchorResultV1[])(
+  it.each(
+    [
+      Object.freeze({
+        kind: "rejected" as const,
+        code: "validation_failed" as const,
+      }),
+      Object.freeze({
+        kind: "faulted" as const,
+        code: "runtime.anchor_failed",
+      }),
+    ] satisfies readonly SessionAnchorResultV1[],
+  )(
     "keeps the title in place and skips the opening hook when restart returns $kind",
     async (result) => {
       const beginNewGame = vi.fn();
@@ -188,16 +189,18 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
     expect(screen.getByRole("dialog", { name: "Lifecycle fixture" })).toBeInTheDocument();
   });
 
-  it.each([
-    Object.freeze({
-      kind: "rejected" as const,
-      code: "validation_failed" as const,
-    }),
-    Object.freeze({
-      kind: "faulted" as const,
-      code: "runtime.anchor_failed",
-    }),
-  ] satisfies readonly SessionAnchorResultV1[])(
+  it.each(
+    [
+      Object.freeze({
+        kind: "rejected" as const,
+        code: "validation_failed" as const,
+      }),
+      Object.freeze({
+        kind: "faulted" as const,
+        code: "runtime.anchor_failed",
+      }),
+    ] satisfies readonly SessionAnchorResultV1[],
+  )(
     "rejects returnToTitle on $kind and retains the current foreground",
     async (result) => {
       const restart = vi
@@ -208,7 +211,7 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
 
       await userEvent.setup().click(screen.getByRole("button", { name: "New game" }));
       await waitFor(() =>
-        expect(screen.queryByRole("dialog", { name: "Lifecycle fixture" })).toBeNull(),
+        expect(screen.queryByRole("dialog", { name: "Lifecycle fixture" })).toBeNull()
       );
       const topology = openActiveTopologyV1(fixture);
 
@@ -232,7 +235,7 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
 
     await userEvent.setup().click(screen.getByRole("button", { name: "New game" }));
     await waitFor(() =>
-      expect(screen.queryByRole("dialog", { name: "Lifecycle fixture" })).toBeNull(),
+      expect(screen.queryByRole("dialog", { name: "Lifecycle fixture" })).toBeNull()
     );
     const topology = openActiveTopologyV1(fixture);
 
@@ -254,7 +257,7 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
 
     await userEvent.setup().click(screen.getByRole("button", { name: "New game" }));
     await waitFor(() =>
-      expect(screen.queryByRole("dialog", { name: "Lifecycle fixture" })).toBeNull(),
+      expect(screen.queryByRole("dialog", { name: "Lifecycle fixture" })).toBeNull()
     );
     openActiveTopologyV1(fixture);
 
@@ -274,7 +277,7 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
 
     await userEvent.setup().click(screen.getByRole("button", { name: "New game" }));
     await waitFor(() =>
-      expect(screen.queryByRole("dialog", { name: "Lifecycle fixture" })).toBeNull(),
+      expect(screen.queryByRole("dialog", { name: "Lifecycle fixture" })).toBeNull()
     );
     openActiveTopologyV1(fixture);
     const systemFailure = new Error("synthetic System close subscriber failure");
@@ -300,7 +303,7 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
 
     await userEvent.setup().click(screen.getByRole("button", { name: "New game" }));
     await waitFor(() =>
-      expect(screen.queryByRole("dialog", { name: "Lifecycle fixture" })).toBeNull(),
+      expect(screen.queryByRole("dialog", { name: "Lifecycle fixture" })).toBeNull()
     );
     openActiveTopologyV1(fixture);
     const systemFailure = new Error("synthetic System close subscriber failure");
@@ -347,7 +350,7 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
 
     await userEvent.setup().click(screen.getByRole("button", { name: "New game" }));
     await waitFor(() =>
-      expect(screen.queryByRole("dialog", { name: "Lifecycle fixture" })).toBeNull(),
+      expect(screen.queryByRole("dialog", { name: "Lifecycle fixture" })).toBeNull()
     );
 
     expect(order).toEqual(["restart", "begin"]);

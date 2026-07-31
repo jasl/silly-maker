@@ -96,7 +96,7 @@ describe("GameViewportV1", () => {
         <GameViewportV1 canvas={{ width: 0, height: 1000 }} fallbackSize={{ width: 1, height: 1 }}>
           <main />
         </GameViewportV1>,
-      ),
+      )
     ).toThrow("ui.game_viewport_invalid_canvas");
 
     expect(() => render(<GeometryProbeV1 onGeometry={() => undefined} />)).toThrow(

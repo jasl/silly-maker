@@ -158,15 +158,15 @@ function writableSlotIdV1(slotId: SaveUiReadableSlotIdV1): SaveUiWritableSlotIdV
 
 type SlotReadStateV1 =
   | {
-      readonly kind: "loading";
-      /** Last known slot list so rows survive a refresh (kept disabled). */
-      readonly slots: readonly DeepReadonly<SaveSlotSummaryV1>[] | null;
-    }
+    readonly kind: "loading";
+    /** Last known slot list so rows survive a refresh (kept disabled). */
+    readonly slots: readonly DeepReadonly<SaveSlotSummaryV1>[] | null;
+  }
   | {
-      readonly kind: "ready";
-      readonly status: DeepReadonly<PersistenceStatusV1>;
-      readonly slots: readonly DeepReadonly<SaveSlotSummaryV1>[];
-    }
+    readonly kind: "ready";
+    readonly status: DeepReadonly<PersistenceStatusV1>;
+    readonly slots: readonly DeepReadonly<SaveSlotSummaryV1>[];
+  }
   | { readonly kind: "failed" };
 
 type SaveOperationContextV1 =
@@ -195,22 +195,22 @@ type SaveOperationViewV1 =
   | { readonly kind: "idle" }
   | { readonly kind: "pending"; readonly context: SaveOperationContextV1 }
   | {
-      readonly kind: "persistence_result";
-      readonly context: Exclude<
-        SaveOperationContextV1,
-        { readonly kind: "export" | "export_current" }
-      >;
-      readonly result: PersistenceOperationViewResultV1;
-    }
+    readonly kind: "persistence_result";
+    readonly context: Exclude<
+      SaveOperationContextV1,
+      { readonly kind: "export" | "export_current" }
+    >;
+    readonly result: PersistenceOperationViewResultV1;
+  }
   | {
-      readonly kind: "export_result";
-      readonly context: Extract<SaveOperationContextV1, { readonly kind: "export" }>;
-      readonly result: SaveExportOperationViewResultV1;
-    }
+    readonly kind: "export_result";
+    readonly context: Extract<SaveOperationContextV1, { readonly kind: "export" }>;
+    readonly result: SaveExportOperationViewResultV1;
+  }
   | {
-      readonly kind: "import_file_selection_result";
-      readonly result: SaveImportFileSelectionViewResultV1;
-    }
+    readonly kind: "import_file_selection_result";
+    readonly result: SaveImportFileSelectionViewResultV1;
+  }
   | { readonly kind: "current_exported" }
   | { readonly kind: "unexpected_failure" };
 
@@ -508,10 +508,10 @@ function canExportSlotV1(health: SaveSlotHealthV1 | null): boolean {
 
 export function SaveOverlayV1(props: SaveOverlayPropsV1): ReactElement {
   const [readState, setReadState] = useState<SlotReadStateV1>(() =>
-    Object.freeze({ kind: "loading", slots: null }),
+    Object.freeze({ kind: "loading", slots: null })
   );
   const [operationState, setOperationState] = useState<SaveOperationViewV1>(() =>
-    Object.freeze({ kind: "idle" }),
+    Object.freeze({ kind: "idle" })
   );
   const [confirmation, setConfirmation] = useState<ConfirmationStateV1 | null>(null);
   const mountedRef = useRef(true);
@@ -535,7 +535,7 @@ export function SaveOverlayV1(props: SaveOverlayPropsV1): ReactElement {
         Object.freeze({
           kind: "loading",
           slots: previous.kind === "failed" ? null : previous.slots,
-        }),
+        })
       );
     }
     try {
@@ -662,16 +662,18 @@ export function SaveOverlayV1(props: SaveOverlayPropsV1): ReactElement {
       try {
         switch (invocation.kind) {
           case "load": {
-            const result = await runPersistenceOperationV1(invocation, () =>
-              props.port.load(invocation.slotId),
+            const result = await runPersistenceOperationV1(
+              invocation,
+              () => props.port.load(invocation.slotId),
             );
             // Convention: a successful load enters gameplay right away.
             if (result?.kind === "loaded") onClose?.();
             return result;
           }
           case "clear":
-            return await runPersistenceOperationV1(invocation, () =>
-              props.port.clear(invocation.slotId),
+            return await runPersistenceOperationV1(
+              invocation,
+              () => props.port.clear(invocation.slotId),
             );
           case "import": {
             const result = await runImportOperationV1();
@@ -733,14 +735,14 @@ export function SaveOverlayV1(props: SaveOverlayPropsV1): ReactElement {
     confirmation?.invocation.kind === "load" && confirmationSlotName !== null
       ? props.labels.confirmation.loadTitle(confirmationSlotName)
       : confirmation?.invocation.kind === "clear" && confirmationSlotName !== null
-        ? props.labels.confirmation.clearTitle(confirmationSlotName)
-        : props.labels.confirmation.importTitle;
+      ? props.labels.confirmation.clearTitle(confirmationSlotName)
+      : props.labels.confirmation.importTitle;
   const confirmationDescription =
     confirmation?.invocation.kind === "load" && confirmationSlotName !== null
       ? props.labels.confirmation.loadDescription(confirmationSlotName)
       : confirmation?.invocation.kind === "clear" && confirmationSlotName !== null
-        ? props.labels.confirmation.clearDescription(confirmationSlotName)
-        : props.labels.confirmation.importDescription;
+      ? props.labels.confirmation.clearDescription(confirmationSlotName)
+      : props.labels.confirmation.importDescription;
 
   return (
     <section
@@ -750,26 +752,30 @@ export function SaveOverlayV1(props: SaveOverlayPropsV1): ReactElement {
     >
       <header className={styles["save-overlay__header"]}>
         <h2>{props.labels.title}</h2>
-        {props.onClose === undefined ? null : (
-          <Button data-save-overlay-close="true" onClick={props.onClose}>
-            {props.closeLabel ?? "Close"}
-          </Button>
-        )}
-        {saveAllowed || props.guard?.reasonText === undefined ? null : (
-          <p role="status" data-save-guard="blocked">
-            {props.guard.reasonText}
-          </p>
-        )}
+        {props.onClose === undefined
+          ? null
+          : (
+            <Button data-save-overlay-close="true" onClick={props.onClose}>
+              {props.closeLabel ?? "Close"}
+            </Button>
+          )}
+        {saveAllowed || props.guard?.reasonText === undefined
+          ? null
+          : (
+            <p role="status" data-save-guard="blocked">
+              {props.guard.reasonText}
+            </p>
+          )}
         <p role="status" aria-live="polite">
           {storageStatusTextV1(readState, props.labels)}
         </p>
         {status?.safelySavedCommandSequence === null ||
-        status?.safelySavedCommandSequence === undefined ? null : (
-          <p>{props.labels.safelySaved(status.safelySavedCommandSequence)}</p>
-        )}
-        {status?.lastFailureCode === null || status?.lastFailureCode === undefined ? null : (
-          <p>{props.labels.lastFailure(status.lastFailureCode)}</p>
-        )}
+            status?.safelySavedCommandSequence === undefined
+          ? null
+          : <p>{props.labels.safelySaved(status.safelySavedCommandSequence)}</p>}
+        {status?.lastFailureCode === null || status?.lastFailureCode === undefined
+          ? null
+          : <p>{props.labels.lastFailure(status.lastFailureCode)}</p>}
       </header>
 
       <ul className={styles["save-overlay__slots"]}>
@@ -799,8 +805,7 @@ export function SaveOverlayV1(props: SaveOverlayPropsV1): ReactElement {
                       void runPersistenceOperationV1(
                         Object.freeze({ kind: "save", slotId: writableSlotId }),
                         () => props.port.save(writableSlotId),
-                      ).catch(() => undefined)
-                    }
+                      ).catch(() => undefined)}
                   >
                     {writableSlotId === "quick" ? props.labels.quickSave : props.labels.manualSave}
                   </Button>
@@ -808,24 +813,21 @@ export function SaveOverlayV1(props: SaveOverlayPropsV1): ReactElement {
                 <Button
                   disabled={!storageOperationsEnabled || !canLoadSlotV1(health)}
                   onClick={(event) =>
-                    openConfirmationV1(event, Object.freeze({ kind: "load", slotId }))
-                  }
+                    openConfirmationV1(event, Object.freeze({ kind: "load", slotId }))}
                 >
                   {props.labels.loadSlot(slotName)}
                 </Button>
                 <Button
                   disabled={!storageOperationsEnabled || !canClearSlotV1(health)}
                   onClick={(event) =>
-                    openConfirmationV1(event, Object.freeze({ kind: "clear", slotId }))
-                  }
+                    openConfirmationV1(event, Object.freeze({ kind: "clear", slotId }))}
                 >
                   {props.labels.clearSlot(slotName)}
                 </Button>
                 <Button
                   disabled={!storageOperationsEnabled || !canExportSlotV1(health)}
                   onClick={() =>
-                    void runExportOperationV1(Object.freeze({ kind: "export", slotId }))
-                  }
+                    void runExportOperationV1(Object.freeze({ kind: "export", slotId }))}
                 >
                   {props.labels.exportSlot(slotName)}
                 </Button>

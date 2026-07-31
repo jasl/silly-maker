@@ -405,60 +405,62 @@ describe("runtime asset manifest validation", () => {
     ]);
   });
 
-  it.each([
-    {
-      id: "media-mismatch",
-      manifest: createManifestV1([
-        {
-          assetId: "scene.media",
-          runtimePath: "assets/scene.svg",
-          mediaType: "image/svg+xml",
-        },
-      ]),
-      path: "assets/scene.svg",
-      bytes: validPngV1,
-      code: "asset.runtime_media_mismatch",
-    },
-    {
-      id: "byte-length-mismatch",
-      manifest: createManifestV1([
-        {
-          assetId: "scene.bytes",
-          runtimePath: "assets/scene.png",
-          byteLength: validPngV1.byteLength + 1,
-        },
-      ]),
-      path: "assets/scene.png",
-      bytes: validPngV1,
-      code: "asset.runtime_byte_length_mismatch",
-    },
-    {
-      id: "hash-mismatch",
-      manifest: createManifestV1([
-        {
-          assetId: "scene.hash",
-          runtimePath: "assets/scene.png",
-          sha256: digestBytes(Uint8Array.of(0)),
-        },
-      ]),
-      path: "assets/scene.png",
-      bytes: validPngV1,
-      code: "asset.runtime_hash_mismatch",
-    },
-    {
-      id: "dimension-mismatch",
-      manifest: createManifestV1([
-        {
-          assetId: "scene.dimensions",
-          runtimePath: "assets/scene.png",
-          width: 2,
-        },
-      ]),
-      path: "assets/scene.png",
-      bytes: validPngV1,
-      code: "asset.runtime_dimensions_mismatch",
-    },
-  ] as const)("rejects $id with $code", async ({ manifest, path, bytes, code }) => {
+  it.each(
+    [
+      {
+        id: "media-mismatch",
+        manifest: createManifestV1([
+          {
+            assetId: "scene.media",
+            runtimePath: "assets/scene.svg",
+            mediaType: "image/svg+xml",
+          },
+        ]),
+        path: "assets/scene.svg",
+        bytes: validPngV1,
+        code: "asset.runtime_media_mismatch",
+      },
+      {
+        id: "byte-length-mismatch",
+        manifest: createManifestV1([
+          {
+            assetId: "scene.bytes",
+            runtimePath: "assets/scene.png",
+            byteLength: validPngV1.byteLength + 1,
+          },
+        ]),
+        path: "assets/scene.png",
+        bytes: validPngV1,
+        code: "asset.runtime_byte_length_mismatch",
+      },
+      {
+        id: "hash-mismatch",
+        manifest: createManifestV1([
+          {
+            assetId: "scene.hash",
+            runtimePath: "assets/scene.png",
+            sha256: digestBytes(Uint8Array.of(0)),
+          },
+        ]),
+        path: "assets/scene.png",
+        bytes: validPngV1,
+        code: "asset.runtime_hash_mismatch",
+      },
+      {
+        id: "dimension-mismatch",
+        manifest: createManifestV1([
+          {
+            assetId: "scene.dimensions",
+            runtimePath: "assets/scene.png",
+            width: 2,
+          },
+        ]),
+        path: "assets/scene.png",
+        bytes: validPngV1,
+        code: "asset.runtime_dimensions_mismatch",
+      },
+    ] as const,
+  )("rejects $id with $code", async ({ manifest, path, bytes, code }) => {
     const result = await validateRuntimeAssetManifestV1(
       manifest,
       createEnvironmentV1({ files: new Map([[path, bytes]]) }),

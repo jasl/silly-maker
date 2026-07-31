@@ -116,7 +116,10 @@ export interface ReplayInputV1<
 }
 
 export type ReplayBlockingIdentityFieldV1 =
-  "engine_digest" | "state_contract_revision" | "state_contract_digest" | "simulation_digest";
+  | "engine_digest"
+  | "state_contract_revision"
+  | "state_contract_digest"
+  | "simulation_digest";
 
 export type ReplayEntryMismatchFieldV1 =
   | "pre_state_digest"
@@ -134,22 +137,22 @@ export type ReplayEntryMismatchFieldV1 =
 
 export type ReplayMismatchV1 =
   | {
-      readonly scope: "identity";
-      readonly field: ReplayBlockingIdentityFieldV1;
-    }
+    readonly scope: "identity";
+    readonly field: ReplayBlockingIdentityFieldV1;
+  }
   | {
-      readonly scope: "replay_base";
-      readonly field: "state_digest" | "integrity";
-    }
+    readonly scope: "replay_base";
+    readonly field: "state_digest" | "integrity";
+  }
   | {
-      readonly scope: "entry";
-      readonly logOrdinal: PositiveSafeInteger;
-      readonly field: ReplayEntryMismatchFieldV1;
-    }
+    readonly scope: "entry";
+    readonly logOrdinal: PositiveSafeInteger;
+    readonly field: ReplayEntryMismatchFieldV1;
+  }
   | {
-      readonly scope: "final";
-      readonly field: "declared_current_state_digest" | "integrity" | "current_state_digest";
-    };
+    readonly scope: "final";
+    readonly field: "declared_current_state_digest" | "integrity" | "current_state_digest";
+  };
 
 export interface ReplayComparisonV1 {
   readonly authoritative: boolean;
@@ -194,13 +197,13 @@ function identityMismatchesV1(
   }
   if (
     recorded.provenance.resolved.stateContractRevision !==
-    runtime.provenance.resolved.stateContractRevision
+      runtime.provenance.resolved.stateContractRevision
   ) {
     mismatches.push(Object.freeze({ scope: "identity", field: "state_contract_revision" }));
   }
   if (
     recorded.provenance.resolved.stateContractDigest !==
-    runtime.provenance.resolved.stateContractDigest
+      runtime.provenance.resolved.stateContractDigest
   ) {
     mismatches.push(Object.freeze({ scope: "identity", field: "state_contract_digest" }));
   }
@@ -321,8 +324,8 @@ async function compareReplayV1<
 ): Promise<ReplayComparisonV1> {
   const mismatches = identityMismatchesV1(input.recordedIdentity, input.runtimeIdentity);
   const identityMatch = mismatches.length === 0;
-  const visualMatch =
-    identityMatch && exactVisualIdentityV1(input.recordedIdentity, input.runtimeIdentity);
+  const visualMatch = identityMatch &&
+    exactVisualIdentityV1(input.recordedIdentity, input.runtimeIdentity);
   if (mode === "authoritative" && !identityMatch) {
     return comparisonV1(false, false, false, 0, mismatches);
   }
@@ -440,7 +443,7 @@ async function compareReplayV1<
     }
     if (
       stateDigestV1(driver.getCurrentSnapshot(), instrumentation) !==
-      stateDigestV1(after, instrumentation)
+        stateDigestV1(after, instrumentation)
     ) {
       addMismatchV1(mismatches, {
         scope: "entry",

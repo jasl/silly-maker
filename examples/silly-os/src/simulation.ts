@@ -101,8 +101,8 @@ export function projectOsMinesweeperViewV1(
       state: revealed
         ? ("revealed" as const)
         : flagged
-          ? ("flagged" as const)
-          : ("hidden" as const),
+        ? ("flagged" as const)
+        : ("hidden" as const),
       adjacent: revealed && (cell & osCellMineV1) === 0 ? osAdjacentMinesV1(board, index) : null,
       mine: finished ? (cell & osCellMineV1) !== 0 : revealed ? (cell & osCellMineV1) !== 0 : null,
     });

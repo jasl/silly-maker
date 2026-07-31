@@ -93,7 +93,10 @@ export interface HostRecordStoreReopenConformanceReportV1 {
 }
 
 export type HostRecordStoreKeyCorpusCaseIdV1 =
-  "case_distinct" | "non_ascii" | "filesystem_reserved" | "representative_long";
+  | "case_distinct"
+  | "non_ascii"
+  | "filesystem_reserved"
+  | "representative_long";
 
 export interface HostRecordStoreKeyCorpusReportV1 {
   readonly cases: readonly {
@@ -294,37 +297,39 @@ export const hostRecordStoreKeyCorpusExpectedV1 = Object.freeze({
   ]),
 }) satisfies DeepReadonly<HostRecordStoreKeyCorpusReportV1>;
 
-const hostRecordStoreMalformedCaseIdsV1 = Object.freeze([
-  "non_array_batch",
-  "empty_batch",
-  "sparse_batch",
-  "null_mutation",
-  "non_object_mutation",
-  "unknown_kind",
-  "unknown_namespace",
-  "non_string_key",
-  "array_bytes",
-  "data_view_bytes",
-  "put_undefined_revision",
-  "put_string_revision",
-  "put_nan_revision",
-  "put_infinite_revision",
-  "put_negative_zero_revision",
-  "put_fractional_revision",
-  "put_negative_revision",
-  "put_unsafe_revision",
-  "delete_null_revision",
-  "delete_undefined_revision",
-  "delete_string_revision",
-  "delete_nan_revision",
-  "delete_infinite_revision",
-  "delete_negative_zero_revision",
-  "delete_fractional_revision",
-  "delete_negative_revision",
-  "delete_unsafe_revision",
-  "late_invalid_bytes",
-  "duplicate_identity",
-] as const satisfies readonly HostRecordStoreMalformedCaseIdV1[]);
+const hostRecordStoreMalformedCaseIdsV1 = Object.freeze(
+  [
+    "non_array_batch",
+    "empty_batch",
+    "sparse_batch",
+    "null_mutation",
+    "non_object_mutation",
+    "unknown_kind",
+    "unknown_namespace",
+    "non_string_key",
+    "array_bytes",
+    "data_view_bytes",
+    "put_undefined_revision",
+    "put_string_revision",
+    "put_nan_revision",
+    "put_infinite_revision",
+    "put_negative_zero_revision",
+    "put_fractional_revision",
+    "put_negative_revision",
+    "put_unsafe_revision",
+    "delete_null_revision",
+    "delete_undefined_revision",
+    "delete_string_revision",
+    "delete_nan_revision",
+    "delete_infinite_revision",
+    "delete_negative_zero_revision",
+    "delete_fractional_revision",
+    "delete_negative_revision",
+    "delete_unsafe_revision",
+    "late_invalid_bytes",
+    "duplicate_identity",
+  ] as const satisfies readonly HostRecordStoreMalformedCaseIdV1[],
+);
 
 export const hostRecordStoreMalformedConformanceExpectedV1 = Object.freeze({
   cases: Object.freeze(
@@ -333,7 +338,7 @@ export const hostRecordStoreMalformedConformanceExpectedV1 = Object.freeze({
         id,
         rejectedWithTypeError: true,
         statePreserved: true,
-      }),
+      })
     ),
   ),
 }) satisfies DeepReadonly<HostRecordStoreMalformedConformanceReportV1>;
@@ -395,62 +400,64 @@ interface HostRecordStoreKeyCorpusCaseV1 {
 
 const longKeyPrefixV1 = "conformance.keys.long.";
 const longKeyBodyV1 = "x".repeat(1024 - longKeyPrefixV1.length - 1);
-const hostRecordStoreKeyCorpusV1 = Object.freeze([
-  Object.freeze({
-    id: "case_distinct",
-    entries: Object.freeze([
-      Object.freeze({
-        key: "conformance.keys.Case",
-        byteValues: Object.freeze([1, 0, 255]),
-      }),
-      Object.freeze({
-        key: "conformance.keys.case",
-        byteValues: Object.freeze([2, 0, 254]),
-      }),
-    ]),
-  }),
-  Object.freeze({
-    id: "non_ascii",
-    entries: Object.freeze([
-      Object.freeze({
-        key: "conformance.keys/猫咪/東京",
-        byteValues: Object.freeze([3, 128, 253]),
-      }),
-      Object.freeze({
-        key: "conformance.keys/mañana/Δ",
-        byteValues: Object.freeze([4, 129, 252]),
-      }),
-    ]),
-  }),
-  Object.freeze({
-    id: "filesystem_reserved",
-    entries: Object.freeze([
-      Object.freeze({ key: "CON", byteValues: Object.freeze([5, 130, 251]) }),
-      Object.freeze({ key: "NUL", byteValues: Object.freeze([6, 131, 250]) }),
-      Object.freeze({
-        key: "COM1",
-        byteValues: Object.freeze([7, 132, 249]),
-      }),
-      Object.freeze({
-        key: '<>:"/\\|?*',
-        byteValues: Object.freeze([8, 133, 248]),
-      }),
-    ]),
-  }),
-  Object.freeze({
-    id: "representative_long",
-    entries: Object.freeze([
-      Object.freeze({
-        key: `${longKeyPrefixV1}${longKeyBodyV1}a`,
-        byteValues: Object.freeze([9, 134, 247]),
-      }),
-      Object.freeze({
-        key: `${longKeyPrefixV1}${longKeyBodyV1}b`,
-        byteValues: Object.freeze([10, 135, 246]),
-      }),
-    ]),
-  }),
-] as const satisfies readonly HostRecordStoreKeyCorpusCaseV1[]);
+const hostRecordStoreKeyCorpusV1 = Object.freeze(
+  [
+    Object.freeze({
+      id: "case_distinct",
+      entries: Object.freeze([
+        Object.freeze({
+          key: "conformance.keys.Case",
+          byteValues: Object.freeze([1, 0, 255]),
+        }),
+        Object.freeze({
+          key: "conformance.keys.case",
+          byteValues: Object.freeze([2, 0, 254]),
+        }),
+      ]),
+    }),
+    Object.freeze({
+      id: "non_ascii",
+      entries: Object.freeze([
+        Object.freeze({
+          key: "conformance.keys/猫咪/東京",
+          byteValues: Object.freeze([3, 128, 253]),
+        }),
+        Object.freeze({
+          key: "conformance.keys/mañana/Δ",
+          byteValues: Object.freeze([4, 129, 252]),
+        }),
+      ]),
+    }),
+    Object.freeze({
+      id: "filesystem_reserved",
+      entries: Object.freeze([
+        Object.freeze({ key: "CON", byteValues: Object.freeze([5, 130, 251]) }),
+        Object.freeze({ key: "NUL", byteValues: Object.freeze([6, 131, 250]) }),
+        Object.freeze({
+          key: "COM1",
+          byteValues: Object.freeze([7, 132, 249]),
+        }),
+        Object.freeze({
+          key: '<>:"/\\|?*',
+          byteValues: Object.freeze([8, 133, 248]),
+        }),
+      ]),
+    }),
+    Object.freeze({
+      id: "representative_long",
+      entries: Object.freeze([
+        Object.freeze({
+          key: `${longKeyPrefixV1}${longKeyBodyV1}a`,
+          byteValues: Object.freeze([9, 134, 247]),
+        }),
+        Object.freeze({
+          key: `${longKeyPrefixV1}${longKeyBodyV1}b`,
+          byteValues: Object.freeze([10, 135, 246]),
+        }),
+      ]),
+    }),
+  ] as const satisfies readonly HostRecordStoreKeyCorpusCaseV1[],
+);
 
 function putV1(
   namespace: HostRecordMutationV1["namespace"],
@@ -705,10 +712,12 @@ async function recordStoreStateV1(store: HostAtomicRecordStoreV1): Promise<reado
       namespaces.map(async (namespace) =>
         (await store.list(namespace)).map(
           (record) =>
-            `${record.namespace}\0${record.key as string}\0${String(record.revision)}\0${Array.from(
-              record.bytes,
-            ).join(",")}`,
-        ),
+            `${record.namespace}\0${record.key as string}\0${String(record.revision)}\0${
+              Array.from(
+                record.bytes,
+              ).join(",")
+            }`,
+        )
       ),
     )
   ).flat();
@@ -727,7 +736,7 @@ export async function runHostRecordStoreMalformedConformanceV1(
   for (const testCase of malformedCasesV1(victimKey)) {
     const beforeState = await recordStoreStateV1(store);
     const rejectedWithTypeError = await rejectsTypeErrorV1(() =>
-      store.commit(testCase.mutations as never),
+      store.commit(testCase.mutations as never)
     );
     cases.push(
       Object.freeze({
@@ -754,8 +763,7 @@ export async function runHostRecordStoreRevisionOverflowConformanceV1(
   const seed = createHostRecordStoreRevisionOverflowSeedV1();
   const earlierKey = hostRecordStoreRevisionOverflowEarlierKeyV1;
   const beforeMaximum = await store.read(seed.namespace, seed.key);
-  const seedMatched =
-    beforeMaximum !== null &&
+  const seedMatched = beforeMaximum !== null &&
     beforeMaximum.namespace === seed.namespace &&
     beforeMaximum.key === seed.key &&
     beforeMaximum.revision === seed.revision &&
@@ -766,12 +774,11 @@ export async function runHostRecordStoreRevisionOverflowConformanceV1(
     store.commit([
       putV1("settings", earlierKey, null, bytesV1(2, 128, 254)),
       putV1(seed.namespace, seed.key, seed.revision, bytesV1(3, 129, 253)),
-    ]),
+    ])
   );
   const afterMaximum = await store.read(seed.namespace, seed.key);
   const earlierMutationPreserved = (await store.read("settings", earlierKey)) === null;
-  const maximumRecordPreserved =
-    afterMaximum !== null &&
+  const maximumRecordPreserved = afterMaximum !== null &&
     afterMaximum.namespace === seed.namespace &&
     afterMaximum.key === seed.key &&
     afterMaximum.revision === seed.revision &&
@@ -798,7 +805,7 @@ export async function runHostRecordStoreCorruptBackingReadListConformanceV1(
 
   const readStore = await createStore();
   const readRejected = await rejectsV1(() =>
-    readStore.read(neighbor.namespace, hostRecordStoreCorruptBackingKeyV1),
+    readStore.read(neighbor.namespace, hostRecordStoreCorruptBackingKeyV1)
   );
   const neighborAfterRead = await readStore.read(neighbor.namespace, neighbor.key);
 
@@ -839,7 +846,7 @@ export async function runHostRecordStoreCorruptBackingCommitConformanceV1<Record
     fixture.store.commit([
       putV1("settings", hostRecordStoreCorruptBackingEarlierKeyV1, null, bytesV1(2, 128, 254)),
       putV1("settings", hostRecordStoreCorruptBackingKeyV1, 1, bytesV1(3, 129, 253)),
-    ]),
+    ])
   );
   const afterCommit = await fixture.snapshotRecordBacking();
   const recordBackingUnchangedAfterCommit = await fixture.recordBackingSnapshotsEqual(
@@ -853,12 +860,11 @@ export async function runHostRecordStoreCorruptBackingCommitConformanceV1<Record
   const freshHandleEarlierMutationAbsent =
     (await freshStore.read("settings", hostRecordStoreCorruptBackingEarlierKeyV1)) === null;
   const freshHandleCorruptReadRejected = await rejectsV1(() =>
-    freshStore.read("settings", hostRecordStoreCorruptBackingKeyV1),
+    freshStore.read("settings", hostRecordStoreCorruptBackingKeyV1)
   );
   const neighbor = createHostRecordStoreCorruptBackingNeighborV1();
   const freshNeighbor = await freshStore.read(neighbor.namespace, neighbor.key);
-  const freshHandleNeighborPreserved =
-    freshNeighbor !== null &&
+  const freshHandleNeighborPreserved = freshNeighbor !== null &&
     freshNeighbor.namespace === neighbor.namespace &&
     freshNeighbor.key === neighbor.key &&
     freshNeighbor.revision === neighbor.revision &&
@@ -889,7 +895,7 @@ export async function runHostRecordStoreConformanceV1(
     store.commit([
       putV1("settings", duplicateKey, null, bytesV1(1, 255)),
       putV1("settings", duplicateKey, null, bytesV1(2, 0)),
-    ]),
+    ])
   );
   const duplicateLeftStoreEmpty = (await store.read("settings", duplicateKey)) === null;
 
@@ -950,8 +956,7 @@ export async function runHostRecordStoreConformanceV1(
   );
   const concurrentStored = await store.read("settings", concurrentKey);
   const concurrentCommittedRecord = concurrentCommits[0]?.records[0];
-  const storedMatchesCommittedBytes =
-    concurrentStored !== null &&
+  const storedMatchesCommittedBytes = concurrentStored !== null &&
     concurrentCommittedRecord !== undefined &&
     bytesEqualV1(concurrentStored.bytes, concurrentCommittedRecord.bytes);
 
@@ -982,7 +987,7 @@ export async function runHostRecordStoreConformanceV1(
       ["a", "m", "x", "z"].map(async (suffix) =>
         byteReportV1(
           (await readRequiredV1(store, "settings", keyV1(`conformance.list.${suffix}`))).bytes,
-        ),
+        )
       ),
     ),
   );
@@ -1022,8 +1027,7 @@ export async function runHostRecordStoreConformanceV1(
       committedBytesDefended: byteReportsEqualV1(valuesAfterExternalMutation[0]!, [255, 97, 0]),
       readBytesDefended: byteReportsEqualV1(valuesAfterExternalMutation[1]!, [128, 109, 1]),
       listedBytesDefended: byteReportsEqualV1(valuesAfterExternalMutation[2]!, [1, 120, 128, 0]),
-      envelopesFrozen:
-        Object.isFrozen(listCommit) &&
+      envelopesFrozen: Object.isFrozen(listCommit) &&
         Object.isFrozen(listCommit.records) &&
         listCommit.records.every(Object.isFrozen) &&
         Object.isFrozen(listed) &&
@@ -1072,7 +1076,7 @@ export async function runHostRecordStoreKeyCorpusV1(
       Object.freeze({
         key: keyV1(entry.key),
         bytes: bytesV1(...entry.byteValues),
-      }),
+      })
     );
     const matchesExpectedV1 = (
       record: HostStoredRecordV1,
@@ -1093,7 +1097,7 @@ export async function runHostRecordStoreKeyCorpusV1(
     try {
       const result = await store.commit(
         expectedEntries.map((entry) =>
-          putV1("settings", entry.key, null, Uint8Array.from(entry.bytes)),
+          putV1("settings", entry.key, null, Uint8Array.from(entry.bytes))
         ) as [HostRecordMutationV1, ...HostRecordMutationV1[]],
       );
       if (result.kind === "committed") {
@@ -1131,8 +1135,7 @@ export async function runHostRecordStoreKeyCorpusV1(
       rejected = true;
     }
     const listedExactCount = firstList === undefined ? 0 : exactEntryCountV1(firstList);
-    const listStable =
-      firstList !== undefined &&
+    const listStable = firstList !== undefined &&
       secondList !== undefined &&
       firstList.length === secondList.length &&
       firstList.every((record, index) => {

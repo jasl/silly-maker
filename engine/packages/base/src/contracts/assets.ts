@@ -60,26 +60,29 @@ export interface AssetPackDigestProjectionV1 {
 export type AssetProviderRefV1 =
   | { readonly kind: "asset_pack"; readonly identity: AssetPackResolvedIdentityV1 }
   | {
-      readonly kind: "hotfix";
-      readonly identity: {
-        readonly id: string;
-        readonly revision: PositiveSafeInteger;
-        readonly digest: Digest;
-      };
+    readonly kind: "hotfix";
+    readonly identity: {
+      readonly id: string;
+      readonly revision: PositiveSafeInteger;
+      readonly digest: Digest;
     };
+  };
 
 export type ResolvedAssetEntryV1 =
   | (AssetSlotDefinitionV1 & {
-      readonly delivery: "code_fallback";
-      readonly provider: null;
+    readonly delivery: "code_fallback";
+    readonly provider: null;
+    readonly overrideChain: readonly AssetProviderRefV1[];
+  })
+  | (
+    & AssetSlotDefinitionV1
+    & AssetProviderEntryV1
+    & {
+      readonly delivery: "runtime_image";
+      readonly provider: AssetProviderRefV1;
       readonly overrideChain: readonly AssetProviderRefV1[];
-    })
-  | (AssetSlotDefinitionV1 &
-      AssetProviderEntryV1 & {
-        readonly delivery: "runtime_image";
-        readonly provider: AssetProviderRefV1;
-        readonly overrideChain: readonly AssetProviderRefV1[];
-      });
+    }
+  );
 
 export interface ResolvedAssetManifestV1 {
   readonly packs: readonly AssetPackResolvedIdentityV1[];

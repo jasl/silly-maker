@@ -44,20 +44,22 @@ export interface PlayerUiPortsV1 {
   readonly diagnostics: DiagnosticExportPortV1;
 }
 
-const requiredDebugBundleKeysV1 = Object.freeze([
-  "formatRevision",
-  "provenance",
-  "capabilities",
-  "simulationLineage",
-  "generatedAt",
-  "replayBase",
-  "replayBaseStateDigest",
-  "commandLog",
-  "currentSnapshot",
-  "currentStateDigest",
-  "diagnostics",
-  "runtimeFailures",
-] as const);
+const requiredDebugBundleKeysV1 = Object.freeze(
+  [
+    "formatRevision",
+    "provenance",
+    "capabilities",
+    "simulationLineage",
+    "generatedAt",
+    "replayBase",
+    "replayBaseStateDigest",
+    "commandLog",
+    "currentSnapshot",
+    "currentStateDigest",
+    "diagnostics",
+    "runtimeFailures",
+  ] as const,
+);
 const optionalDebugBundleKeysV1 = Object.freeze(["appBuildId", "failure", "uiContext"] as const);
 const allowedDebugBundleKeysV1 = new Set<string>([
   ...requiredDebugBundleKeysV1,
@@ -209,9 +211,9 @@ export function createPlayerUiPortsV1(input: {
   let diagnosticGeneration = 0;
   let preparedDiagnostic:
     | {
-        readonly exported: ExportedDebugBundleV1;
-        readonly preview: DiagnosticExportPreviewV1;
-      }
+      readonly exported: ExportedDebugBundleV1;
+      readonly preview: DiagnosticExportPreviewV1;
+    }
     | undefined;
   const diagnostics = Object.freeze({
     async prepareDebugBundle() {

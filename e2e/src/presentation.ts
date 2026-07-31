@@ -117,8 +117,9 @@ export const labStageContentCatalogV1: StageContentCatalogV1 = {
           accessibleName: "研究员甲",
           props: Object.freeze({
             pose: typeof appearance.pose === "string" ? appearance.pose : "standing",
-            expression:
-              typeof appearance.expression === "string" ? appearance.expression : "neutral",
+            expression: typeof appearance.expression === "string"
+              ? appearance.expression
+              : "neutral",
           }),
         });
       case labStageContentIdsV1.characterBeta:
@@ -128,8 +129,9 @@ export const labStageContentCatalogV1: StageContentCatalogV1 = {
           accessibleName: "研究员乙",
           props: Object.freeze({
             pose: typeof appearance.pose === "string" ? appearance.pose : "standing",
-            expression:
-              typeof appearance.expression === "string" ? appearance.expression : "neutral",
+            expression: typeof appearance.expression === "string"
+              ? appearance.expression
+              : "neutral",
           }),
         });
       case labStageContentIdsV1.propCrate:
@@ -212,7 +214,7 @@ const labTransitionDefinitionsV1: readonly StageTransitionDefinitionV1[] = Objec
       slide: { x: 0, y: 0 },
     },
   ].map((definition, index) =>
-    parseStageTransitionDefinitionV1(definition, `/transitions/${String(index)}`),
+    parseStageTransitionDefinitionV1(definition, `/transitions/${String(index)}`)
   ),
 );
 

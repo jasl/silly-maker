@@ -13,15 +13,17 @@ import {
 type AssetUsageV1 = ResolvedAssetManifestV1["assets"][number]["usage"];
 
 export type AssetLoadFaultCodeV1 =
-  "asset.fetch_failed" | "asset.decode_failed" | "asset.usage_mismatch";
+  | "asset.fetch_failed"
+  | "asset.decode_failed"
+  | "asset.usage_mismatch";
 
 export type AssetLoadResultV1<TAssetId> =
   | { readonly assetId: TAssetId; readonly status: "loaded" }
   | {
-      readonly assetId: TAssetId;
-      readonly status: "fallback";
-      readonly faultCode: AssetLoadFaultCodeV1 | null;
-    }
+    readonly assetId: TAssetId;
+    readonly status: "fallback";
+    readonly faultCode: AssetLoadFaultCodeV1 | null;
+  }
   | { readonly assetId: TAssetId; readonly status: "aborted" };
 
 export interface RuntimeAssetLoadRequestV1 {
@@ -362,7 +364,7 @@ export function createAssetRegistryV1<
     const promise = requested
       .then(normalizeLoaderSettlementV1)
       .catch((): RuntimeAssetLoaderSettlementV1 =>
-        Object.freeze({ kind: "failed", code: "fetch_failed" }),
+        Object.freeze({ kind: "failed", code: "fetch_failed" })
       )
       .then((settlement) => {
         publishSharedSettlementV1(runtime.cacheKey, settlement, loadCycle);
@@ -415,7 +417,7 @@ export function createAssetRegistryV1<
       if (signal.aborted) {
         return Object.freeze(
           records.map(({ requestedId }) =>
-            Object.freeze({ assetId: requestedId, status: "aborted" as const }),
+            Object.freeze({ assetId: requestedId, status: "aborted" as const })
           ),
         );
       }
@@ -431,8 +433,8 @@ export function createAssetRegistryV1<
 
       if (usage !== record.usage) {
         if (record.runtime !== null) {
-          const cycle =
-            sharedLoads.get(record.runtime.cacheKey)?.loadCycle ?? parseNonNegativeSafeInteger(0);
+          const cycle = sharedLoads.get(record.runtime.cacheKey)?.loadCycle ??
+            parseNonNegativeSafeInteger(0);
           emitDiagnosticV1(record, "asset.usage_mismatch", cycle);
         }
         return Object.freeze({

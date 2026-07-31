@@ -101,28 +101,31 @@ export function ActionConfirmationDialogV1<TInvocation, TResult>(
     }
   };
 
-  const resultText =
-    status === "pending"
-      ? props.pendingText
-      : status === "completed"
-        ? props.completedText
-        : status === "failed"
-          ? props.failedText
-          : "";
+  const resultText = status === "pending"
+    ? props.pendingText
+    : status === "completed"
+    ? props.completedText
+    : status === "failed"
+    ? props.failedText
+    : "";
   const position = portalContainer === null ? "fixed" : "absolute";
 
   return (
     <DialogPrimitive.Root open onOpenChange={(open) => !open && close()}>
       <DialogPrimitive.Portal container={portalContainer ?? undefined}>
         <DialogPrimitive.Overlay
-          className={`${styles["blocking-dialog__backdrop"]} ${styles["blocking-dialog__backdrop--confirm"]}`}
+          className={`${styles["blocking-dialog__backdrop"]} ${
+            styles["blocking-dialog__backdrop--confirm"]
+          }`}
           data-system-dialog-backdrop="action_confirmation"
           onClick={close}
           style={{ position }}
         />
         <DialogPrimitive.Content
           ref={setFocusScopeElement}
-          className={`${styles["blocking-dialog__content"]} ${styles["blocking-dialog__content--confirm"]}`}
+          className={`${styles["blocking-dialog__content"]} ${
+            styles["blocking-dialog__content--confirm"]
+          }`}
           data-blocking-focus-scope="system"
           data-system-surface="action_confirmation"
           style={{ position }}

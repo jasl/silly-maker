@@ -42,9 +42,8 @@ describe("NarrativeHistoryV1", () => {
 
   it("rejects duplicate occurrences and oversized histories", () => {
     const history = appendNarrativeHistoryV1(emptyNarrativeHistoryV1, entryV1(1));
-    expect(() =>
-      parseNarrativeHistoryV1({ entries: [...history.entries, ...history.entries] }),
-    ).toThrow("history_occurrence_duplicate");
+    expect(() => parseNarrativeHistoryV1({ entries: [...history.entries, ...history.entries] }))
+      .toThrow("history_occurrence_duplicate");
   });
 });
 

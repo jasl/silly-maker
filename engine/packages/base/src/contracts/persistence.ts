@@ -154,22 +154,22 @@ export interface PersistenceStatusV1 {
 export type PersistenceOperationResultV1 =
   | { readonly kind: "saved" | "cleared"; readonly slotId: SaveSlotIdV1 }
   | {
-      readonly kind: "loaded" | "imported";
-      readonly compatibility: "exact" | "adopted";
-      readonly commandSequence: NonNegativeSafeInteger;
-    }
+    readonly kind: "loaded" | "imported";
+    readonly compatibility: "exact" | "adopted";
+    readonly commandSequence: NonNegativeSafeInteger;
+  }
   | {
-      readonly kind: "rejected";
-      readonly code:
-        | "busy"
-        | "unavailable"
-        | "empty_slot"
-        | "conflict"
-        | "invalid_record"
-        | "invalid_note"
-        | "lineage_limit"
-        | "incompatible";
-    }
+    readonly kind: "rejected";
+    readonly code:
+      | "busy"
+      | "unavailable"
+      | "empty_slot"
+      | "conflict"
+      | "invalid_record"
+      | "invalid_note"
+      | "lineage_limit"
+      | "incompatible";
+  }
   | { readonly kind: "faulted"; readonly code: string };
 
 export interface ExportedSaveV1 {
@@ -181,52 +181,52 @@ export interface ExportedSaveV1 {
 
 export type SaveExportOperationResultV1 =
   | {
-      readonly kind: "exported";
-      readonly slotId: SaveSlotIdV1;
-      readonly file: ExportedSaveV1;
-    }
+    readonly kind: "exported";
+    readonly slotId: SaveSlotIdV1;
+    readonly file: ExportedSaveV1;
+  }
   | {
-      readonly kind: "rejected";
-      readonly code: "unavailable" | "empty_slot" | "conflict" | "invalid_record";
-    }
+    readonly kind: "rejected";
+    readonly code: "unavailable" | "empty_slot" | "conflict" | "invalid_record";
+  }
   | { readonly kind: "faulted"; readonly code: string };
 
 export type SessionLeaseStatusV1 =
   | {
-      readonly kind: "owned";
-      readonly ownerId: SessionLeaseOwnerId;
-      readonly fencingToken: PositiveSafeInteger;
-    }
+    readonly kind: "owned";
+    readonly ownerId: SessionLeaseOwnerId;
+    readonly fencingToken: PositiveSafeInteger;
+  }
   | {
-      readonly kind: "readonly";
-      readonly ownerId: SessionLeaseOwnerId;
-      readonly fencingToken: PositiveSafeInteger;
-    }
+    readonly kind: "readonly";
+    readonly ownerId: SessionLeaseOwnerId;
+    readonly fencingToken: PositiveSafeInteger;
+  }
   | {
-      readonly kind: "handoff_requested";
-      readonly ownerId: SessionLeaseOwnerId;
-      readonly fencingToken: PositiveSafeInteger;
-      readonly requestId: LeaseHandoffRequestId;
-      readonly requestedByOwnerId: SessionLeaseOwnerId;
-    }
+    readonly kind: "handoff_requested";
+    readonly ownerId: SessionLeaseOwnerId;
+    readonly fencingToken: PositiveSafeInteger;
+    readonly requestId: LeaseHandoffRequestId;
+    readonly requestedByOwnerId: SessionLeaseOwnerId;
+  }
   | {
-      readonly kind: "unowned";
-      readonly ownerId: null;
-      readonly fencingToken: PositiveSafeInteger;
-    }
+    readonly kind: "unowned";
+    readonly ownerId: null;
+    readonly fencingToken: PositiveSafeInteger;
+  }
   | {
-      readonly kind: "unavailable";
-      readonly ownerId: null;
-      readonly fencingToken: null;
-      readonly code: string;
-    };
+    readonly kind: "unavailable";
+    readonly ownerId: null;
+    readonly fencingToken: null;
+    readonly code: string;
+  };
 
 export type SessionLeaseOperationResultV1 =
   | { readonly kind: "updated"; readonly status: SessionLeaseStatusV1 }
   | {
-      readonly kind: "rejected";
-      readonly code: "conflict" | "unavailable" | "unknown_request";
-    };
+    readonly kind: "rejected";
+    readonly code: "conflict" | "unavailable" | "unknown_request";
+  };
 
 export type SaveWriteReasonV1 = "auto" | PlayerWritableSaveSlotIdV1;
 
@@ -287,61 +287,61 @@ export type ImportValidationErrorCodeV1 =
 
 export type SaveCompatibilityMismatchV1 =
   | {
-      readonly field: "story_id";
-      readonly code: "identity.story_id_mismatch";
-      readonly stored: string;
-      readonly current: string;
-    }
+    readonly field: "story_id";
+    readonly code: "identity.story_id_mismatch";
+    readonly stored: string;
+    readonly current: string;
+  }
   | {
-      readonly field: "story_revision";
-      readonly code: "identity.story_revision_mismatch";
-      readonly stored: PositiveSafeInteger;
-      readonly current: PositiveSafeInteger;
-    }
+    readonly field: "story_revision";
+    readonly code: "identity.story_revision_mismatch";
+    readonly stored: PositiveSafeInteger;
+    readonly current: PositiveSafeInteger;
+  }
   | {
-      readonly field: "state_contract_revision";
-      readonly code: "identity.state_contract_revision_mismatch";
-      readonly stored: PositiveSafeInteger;
-      readonly current: PositiveSafeInteger;
-    }
+    readonly field: "state_contract_revision";
+    readonly code: "identity.state_contract_revision_mismatch";
+    readonly stored: PositiveSafeInteger;
+    readonly current: PositiveSafeInteger;
+  }
   | {
-      readonly field: "state_contract_digest";
-      readonly code: "identity.state_contract_digest_mismatch";
-      readonly stored: Digest;
-      readonly current: Digest;
-    }
+    readonly field: "state_contract_digest";
+    readonly code: "identity.state_contract_digest_mismatch";
+    readonly stored: Digest;
+    readonly current: Digest;
+  }
   | {
-      readonly field: "engine_digest";
-      readonly code: "identity.engine_digest_mismatch";
-      readonly stored: Digest;
-      readonly current: Digest;
-    }
+    readonly field: "engine_digest";
+    readonly code: "identity.engine_digest_mismatch";
+    readonly stored: Digest;
+    readonly current: Digest;
+  }
   | {
-      readonly field: "simulation_digest";
-      readonly code: "identity.simulation_digest_mismatch";
-      readonly stored: Digest;
-      readonly current: Digest;
-    };
+    readonly field: "simulation_digest";
+    readonly code: "identity.simulation_digest_mismatch";
+    readonly stored: Digest;
+    readonly current: Digest;
+  };
 
 export type ImportCompatibilityWarningV1 =
   | {
-      readonly field: "story_digest";
-      readonly code: "identity.story_digest_mismatch";
-      readonly stored: Digest;
-      readonly current: Digest;
-    }
+    readonly field: "story_digest";
+    readonly code: "identity.story_digest_mismatch";
+    readonly stored: Digest;
+    readonly current: Digest;
+  }
   | {
-      readonly field: "presentation_digest";
-      readonly code: "identity.presentation_digest_mismatch";
-      readonly stored: Digest;
-      readonly current: Digest;
-    }
+    readonly field: "presentation_digest";
+    readonly code: "identity.presentation_digest_mismatch";
+    readonly stored: Digest;
+    readonly current: Digest;
+  }
   | {
-      readonly field: "hotfix_set";
-      readonly code: "identity.hotfix_set_mismatch";
-      readonly stored: PatchSetIdentityV1;
-      readonly current: PatchSetIdentityV1;
-    };
+    readonly field: "hotfix_set";
+    readonly code: "identity.hotfix_set_mismatch";
+    readonly stored: PatchSetIdentityV1;
+    readonly current: PatchSetIdentityV1;
+  };
 
 export type ImportRejectionCodeV1 =
   | StrictJsonErrorCodeV1
@@ -355,21 +355,21 @@ export type ImportRejectionCodeV1 =
 
 export type ImportCompatibilityOutcomeV1 =
   | {
-      readonly kind: "exact";
-      readonly mismatches: readonly [];
-      readonly warnings: readonly ImportCompatibilityWarningV1[];
-    }
+    readonly kind: "exact";
+    readonly mismatches: readonly [];
+    readonly warnings: readonly ImportCompatibilityWarningV1[];
+  }
   | {
-      readonly kind: "adopted";
-      readonly mismatches: readonly [];
-      readonly warnings: readonly ImportCompatibilityWarningV1[];
-      readonly adoption: SimulationAdoptionV1;
-    }
+    readonly kind: "adopted";
+    readonly mismatches: readonly [];
+    readonly warnings: readonly ImportCompatibilityWarningV1[];
+    readonly adoption: SimulationAdoptionV1;
+  }
   | {
-      readonly kind: "inspect_only";
-      readonly mismatches: readonly [SaveCompatibilityMismatchV1, ...SaveCompatibilityMismatchV1[]];
-      readonly warnings: readonly ImportCompatibilityWarningV1[];
-    }
+    readonly kind: "inspect_only";
+    readonly mismatches: readonly [SaveCompatibilityMismatchV1, ...SaveCompatibilityMismatchV1[]];
+    readonly warnings: readonly ImportCompatibilityWarningV1[];
+  }
   | { readonly kind: "rejected"; readonly code: ImportRejectionCodeV1 };
 
 export type SaveRecordDecodeRejectionCodeV1 =
@@ -402,17 +402,17 @@ export interface SaveCompatibilityClassificationInputV1 {
 export type SaveCompatibilityClassificationV1 =
   | Extract<ImportCompatibilityOutcomeV1, { readonly kind: "exact" }>
   | {
-      readonly kind: "adoption_candidate";
-      readonly mismatches: readonly [];
-      readonly warnings: readonly ImportCompatibilityWarningV1[];
-      readonly adoption: SimulationAdoptionV1;
-    }
+    readonly kind: "adoption_candidate";
+    readonly mismatches: readonly [];
+    readonly warnings: readonly ImportCompatibilityWarningV1[];
+    readonly adoption: SimulationAdoptionV1;
+  }
   | Extract<ImportCompatibilityOutcomeV1, { readonly kind: "inspect_only" | "rejected" }>;
 
 export type SaveImportValidationResultV1<TSaveRecord> =
   | (Extract<ImportCompatibilityOutcomeV1, { readonly kind: "exact" | "adopted" }> & {
-      readonly candidate: DeepReadonly<TSaveRecord>;
-    })
+    readonly candidate: DeepReadonly<TSaveRecord>;
+  })
   | Extract<ImportCompatibilityOutcomeV1, { readonly kind: "inspect_only" | "rejected" }>;
 
 export interface SaveImportInvariantViewV1<TState> {
@@ -435,7 +435,8 @@ export interface SaveImportValidationContextV1<
 }
 
 type SaveRecordEnvelopeSchemaFailureCodeV1 =
-  "envelope.unsupported_revision" | "digest.invalid_format";
+  | "envelope.unsupported_revision"
+  | "digest.invalid_format";
 
 export class SaveRecordEnvelopeSchemaFailureV1 extends TypeError {
   readonly code: SaveRecordEnvelopeSchemaFailureCodeV1;
@@ -601,12 +602,10 @@ export function createSaveRecordEnvelopeSchemaV1<
       // `annotation` and `versionStamp` are additive-optional: records
       // written before either field existed must keep parsing, so the
       // exact-field list admits every shape combination.
-      const hasAnnotation =
-        value !== null &&
+      const hasAnnotation = value !== null &&
         typeof value === "object" &&
         Object.prototype.hasOwnProperty.call(value, "annotation");
-      const hasVersionStamp =
-        value !== null &&
+      const hasVersionStamp = value !== null &&
         typeof value === "object" &&
         Object.prototype.hasOwnProperty.call(value, "versionStamp");
       const fields = exactDescriptors(

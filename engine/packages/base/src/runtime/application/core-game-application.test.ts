@@ -104,9 +104,9 @@ interface SyntheticEquivalenceExtensionsV1 {
     | { readonly kind: "faulted" }
     | { readonly kind: "capability_disabled" }
     | {
-        readonly kind: "not_executed";
-        readonly code: "session_unavailable" | "hmr_invalidated";
-      }
+      readonly kind: "not_executed";
+      readonly code: "session_unavailable" | "hmr_invalidated";
+    }
   >;
   captureCurrentAutoSave(): void;
 }
@@ -140,7 +140,7 @@ async function rawSaveEvidenceV1(
           key,
           revision,
           ...exactBytesEvidenceV1(bytes),
-        }),
+        })
       ),
   );
 }
@@ -423,11 +423,13 @@ const absentSchemaV1: RuntimeSchemaV1<never> = Object.freeze({
   },
 });
 
-const syntheticActionIdsV1 = Object.freeze([
-  "synthetic.increment",
-  "synthetic.reject",
-  "synthetic.fault",
-] as const);
+const syntheticActionIdsV1 = Object.freeze(
+  [
+    "synthetic.increment",
+    "synthetic.reject",
+    "synthetic.fault",
+  ] as const,
+);
 
 const adapterV1 = {
   createQueries: (state: {

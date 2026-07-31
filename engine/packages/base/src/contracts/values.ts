@@ -7,15 +7,11 @@ export type Brand<T, TBrand extends string> = T & {
 };
 
 export type DeepReadonly<T> = T extends
-  null | undefined | string | number | boolean | bigint | symbol
-  ? T
-  : T extends (...args: never[]) => unknown
-    ? T
-    : T extends readonly (infer TItem)[]
-      ? readonly DeepReadonly<TItem>[]
-      : T extends object
-        ? { readonly [TKey in keyof T]: DeepReadonly<T[TKey]> }
-        : T;
+  null | undefined | string | number | boolean | bigint | symbol ? T
+  : T extends (...args: never[]) => unknown ? T
+  : T extends readonly (infer TItem)[] ? readonly DeepReadonly<TItem>[]
+  : T extends object ? { readonly [TKey in keyof T]: DeepReadonly<T[TKey]> }
+  : T;
 
 export type ModuleId = Brand<string, "ModuleId">;
 export type StateSlotId = Brand<string, "StateSlotId">;

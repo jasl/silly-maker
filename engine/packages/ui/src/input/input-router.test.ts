@@ -12,14 +12,16 @@ import {
 } from "./contracts.ts";
 import { createInputRouterV1 } from "./input-router.ts";
 
-const precedenceV1 = Object.freeze([
-  "debug",
-  "system",
-  "overlay",
-  "narrative",
-  "interaction",
-  "gameplay",
-] as const satisfies readonly InputContextIdV1[]);
+const precedenceV1 = Object.freeze(
+  [
+    "debug",
+    "system",
+    "overlay",
+    "narrative",
+    "interaction",
+    "gameplay",
+  ] as const satisfies readonly InputContextIdV1[],
+);
 
 function actionEventV1(actionId = "story.e2e.custom_action"): InputEventV1 {
   return Object.freeze({ kind: "action", actionId: parseInputActionIdV1(actionId) });
@@ -421,7 +423,7 @@ describe("createInputRouterV1", () => {
           readonly context: InputContextIdV1;
           readonly handle: (event: InputEventV1) => InputHandlerResultV1;
         },
-      ),
+      )
     ).toThrowError("ui.invalid_input_registration");
   });
 

@@ -26,10 +26,12 @@ function parseRecordV1<
 ):
   | { readonly kind: "parsed"; readonly record: DeepReadonly<TSaveRecord> }
   | {
-      readonly kind: "rejected";
-      readonly code:
-        "envelope.schema_invalid" | "envelope.unsupported_revision" | "digest.invalid_format";
-    } {
+    readonly kind: "rejected";
+    readonly code:
+      | "envelope.schema_invalid"
+      | "envelope.unsupported_revision"
+      | "digest.invalid_format";
+  } {
   let record: DeepReadonly<TSaveRecord>;
   try {
     record = context.recordSchema.parse(value) as DeepReadonly<TSaveRecord>;
@@ -49,7 +51,7 @@ function hasMatchingStateDigestV1<
 >(record: DeepReadonly<TSaveRecord>, instrumentation?: SnapshotWorkInstrumentationV1): boolean {
   return (
     record.stateDigest ===
-    digestCanonicalInternalV1("sillymaker:state:v1", record.snapshot, instrumentation)
+      digestCanonicalInternalV1("sillymaker:state:v1", record.snapshot, instrumentation)
   );
 }
 

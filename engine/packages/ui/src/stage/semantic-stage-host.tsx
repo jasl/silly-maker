@@ -111,8 +111,8 @@ function cameraStyleV1(
   const { camera } = frame;
   const x = camera.x - overlayChannelV1(channels, "offsetX");
   const y = camera.y - overlayChannelV1(channels, "offsetY");
-  const zoom =
-    permilleV1(camera.zoomPermille) * permilleV1(overlayChannelV1(channels, "scalePermille"));
+  const zoom = permilleV1(camera.zoomPermille) *
+    permilleV1(overlayChannelV1(channels, "scalePermille"));
   const opacity = permilleV1(overlayChannelV1(channels, "opacityPermille"));
   return {
     transform: `translate3d(${String(-x)}px, ${String(-y)}px, 0) scale(${String(zoom)})`,
@@ -123,9 +123,11 @@ function cameraStyleV1(
 function layerStyleV1(layer: StageFrameLayerV1): CSSProperties {
   const { transform } = layer;
   return {
-    transform: `translate3d(${String(transform.x)}px, ${String(transform.y)}px, 0) scale(${String(
-      permilleV1(transform.scalePermille),
-    )})`,
+    transform: `translate3d(${String(transform.x)}px, ${String(transform.y)}px, 0) scale(${
+      String(
+        permilleV1(transform.scalePermille),
+      )
+    })`,
   };
 }
 
@@ -201,36 +203,33 @@ function StageEntryV1(props: {
       data-stage-renderer={entry.rendererId}
       data-stage-fallback={renderer === undefined || entry.fallback ? "true" : undefined}
     >
-      {renderer === undefined ? (
-        <div className={styles.fallback}>{entry.accessibleName}</div>
-      ) : (
+      {renderer === undefined ? <div className={styles.fallback}>{entry.accessibleName}</div> : (
         renderer({ layerId, entry })
       )}
       {onHitRegionActivate === undefined || exiting || entry.hitRegions.length === 0
         ? null
         : entry.hitRegions.map((region) => (
-            <button
-              key={region.regionId}
-              type="button"
-              className={styles["hit-region"]}
-              data-stage-hit-region={region.regionId}
-              aria-label={region.accessibleNameText}
-              style={{
-                left: `${String(region.x)}px`,
-                top: `${String(region.y)}px`,
-                width: `${String(region.width)}px`,
-                height: `${String(region.height)}px`,
-              }}
-              onClick={() =>
-                onHitRegionActivate({
-                  layerId,
-                  tag: entry.tag as string,
-                  contentId: entry.contentId as string,
-                  regionId: region.regionId,
-                })
-              }
-            />
-          ))}
+          <button
+            key={region.regionId}
+            type="button"
+            className={styles["hit-region"]}
+            data-stage-hit-region={region.regionId}
+            aria-label={region.accessibleNameText}
+            style={{
+              left: `${String(region.x)}px`,
+              top: `${String(region.y)}px`,
+              width: `${String(region.width)}px`,
+              height: `${String(region.height)}px`,
+            }}
+            onClick={() =>
+              onHitRegionActivate({
+                layerId,
+                tag: entry.tag as string,
+                contentId: entry.contentId as string,
+                regionId: region.regionId,
+              })}
+          />
+        ))}
     </div>
   );
 }
@@ -253,8 +252,8 @@ export function SemanticStageHostV1(props: SemanticStageHostPropsV1): ReactEleme
               code: "stage.renderer_unregistered" as const,
               entryKey: frameEntry.entry.key,
               rendererId: frameEntry.entry.rendererId,
-            }),
-          ),
+            })
+          )
       ),
     [frame, renderers],
   );
@@ -269,17 +268,14 @@ export function SemanticStageHostV1(props: SemanticStageHostPropsV1): ReactEleme
   // scales the whole stage uniformly (Ren'Py-style letterboxed canvas).
   // Without a viewport the stage renders 1:1 for tests and bare hosts.
   const geometry = useOptionalGameViewportV1();
-  const scaledRootStyle =
-    geometry === null
-      ? undefined
-      : ({
-          insetBlockEnd: "auto",
-          insetInlineEnd: "auto",
-          inlineSize: `${String(geometry.canvas.width)}px`,
-          blockSize: `${String(geometry.canvas.height)}px`,
-          transform: `scale(${String(geometry.scale)})`,
-          transformOrigin: "0 0",
-        } as const);
+  const scaledRootStyle = geometry === null ? undefined : ({
+    insetBlockEnd: "auto",
+    insetInlineEnd: "auto",
+    inlineSize: `${String(geometry.canvas.width)}px`,
+    blockSize: `${String(geometry.canvas.height)}px`,
+    transform: `scale(${String(geometry.scale)})`,
+    transformOrigin: "0 0",
+  } as const);
 
   return (
     <div
@@ -316,11 +312,9 @@ export function SemanticStageHostV1(props: SemanticStageHostPropsV1): ReactEleme
                 overlayChannels={overlayIndex.entry.get(
                   `${layer.layerId}\u0000${frameEntry.entry.tag}`,
                 )}
-                renderer={
-                  Object.hasOwn(renderers, frameEntry.entry.rendererId)
-                    ? renderers[frameEntry.entry.rendererId]
-                    : undefined
-                }
+                renderer={Object.hasOwn(renderers, frameEntry.entry.rendererId)
+                  ? renderers[frameEntry.entry.rendererId]
+                  : undefined}
               />
             ))}
           </div>

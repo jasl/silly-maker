@@ -125,8 +125,7 @@ function validateHitRegionsV1(
   const valid: StageHitRegionV1[] = [];
   regions.forEach((region, index) => {
     const path = `${pointer}/hitRegions/${String(index)}`;
-    const ok =
-      typeof region.regionId === "string" &&
+    const ok = typeof region.regionId === "string" &&
       region.regionId !== "" &&
       typeof region.accessibleNameText === "string" &&
       region.accessibleNameText !== "" &&
@@ -219,13 +218,13 @@ export function projectStageRenderTargetV1(
         zOrder: entry.zOrder,
         placement: entry.placement,
         appearance: entry.appearance,
-        rendererId:
-          resolution.rendererId.length === 0 ? stageFallbackRendererIdV1 : resolution.rendererId,
+        rendererId: resolution.rendererId.length === 0
+          ? stageFallbackRendererIdV1
+          : resolution.rendererId,
         assetIds: resolution.assetIds,
-        accessibleName:
-          resolution.accessibleName.length === 0
-            ? (entry.contentId as string)
-            : resolution.accessibleName,
+        accessibleName: resolution.accessibleName.length === 0
+          ? (entry.contentId as string)
+          : resolution.accessibleName,
         props: resolution.props,
         fallback: resolution.rendererId.length === 0,
         hitRegions: validateHitRegionsV1(resolution.hitRegions, pointer, diagnostics),

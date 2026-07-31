@@ -68,16 +68,15 @@ async function playNarrativeToEndV1(harness: LabHarnessV1): Promise<readonly str
     const pending = harness.observe().narrative.pending;
     if (pending === null) break;
     definitions.push(pending.definitionId);
-    const resolution: InteractionResolutionV1 =
-      pending.kind === "choice"
-        ? { kind: "choose", choiceId: "choice.e2e.cal.basic" }
-        : pending.kind === "presentation_barrier"
-          ? { kind: "barrier_completed", transitionId: pending.expectedTransitionId }
-          : pending.kind === "pause"
-            ? { kind: "resume" }
-            : pending.kind === "custom"
-              ? { kind: "custom", payload: { value: 2 } }
-              : { kind: "advance" };
+    const resolution: InteractionResolutionV1 = pending.kind === "choice"
+      ? { kind: "choose", choiceId: "choice.e2e.cal.basic" }
+      : pending.kind === "presentation_barrier"
+      ? { kind: "barrier_completed", transitionId: pending.expectedTransitionId }
+      : pending.kind === "pause"
+      ? { kind: "resume" }
+      : pending.kind === "custom"
+      ? { kind: "custom", payload: { value: 2 } }
+      : { kind: "advance" };
     await dispatchCommittedV1(harness, resolveV1(pending.occurrenceId, resolution));
   }
   return Object.freeze(definitions);

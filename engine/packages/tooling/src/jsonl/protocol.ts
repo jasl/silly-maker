@@ -7,20 +7,22 @@
  */
 export const jsonlProtocolVersionV1 = 1;
 
-export const jsonlAgentMethodsV1 = Object.freeze([
-  "hello",
-  "observe",
-  "describeActions",
-  "preview",
-  "dispatch",
-  "waitForIdle",
-  "exportDiagnostics",
-  "save",
-  "load",
-  "exportSave",
-  "importSave",
-  "shutdown",
-] as const);
+export const jsonlAgentMethodsV1 = Object.freeze(
+  [
+    "hello",
+    "observe",
+    "describeActions",
+    "preview",
+    "dispatch",
+    "waitForIdle",
+    "exportDiagnostics",
+    "save",
+    "load",
+    "exportSave",
+    "importSave",
+    "shutdown",
+  ] as const,
+);
 
 export type JsonlAgentMethodV1 = (typeof jsonlAgentMethodsV1)[number];
 
@@ -84,8 +86,11 @@ const errorMessageLimitV1 = 512;
 
 /** Bounded, stack-free error text safe for the protocol stream. */
 export function boundProtocolMessageV1(value: unknown): string {
-  const raw =
-    typeof value === "string" ? value : value instanceof Error ? value.message : String(value);
+  const raw = typeof value === "string"
+    ? value
+    : value instanceof Error
+    ? value.message
+    : String(value);
   const firstLine = raw.split("\n", 1)[0] ?? "";
   return firstLine.length > errorMessageLimitV1
     ? `${firstLine.slice(0, errorMessageLimitV1 - 1)}…`
@@ -107,11 +112,11 @@ export function jsonDepthExceedsV1(value: unknown, maxDepth: number): boolean {
 export type JsonlRequestParseResultV1 =
   | { readonly kind: "request"; readonly request: JsonlRequestV1 }
   | {
-      readonly kind: "invalid";
-      readonly id: string | null;
-      readonly code: JsonlProtocolErrorCodeV1;
-      readonly message: string;
-    };
+    readonly kind: "invalid";
+    readonly id: string | null;
+    readonly code: JsonlProtocolErrorCodeV1;
+    readonly message: string;
+  };
 
 export function parseJsonlRequestLineV1(
   line: string,

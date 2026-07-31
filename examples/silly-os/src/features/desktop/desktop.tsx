@@ -27,8 +27,7 @@ export function osDesktopBoundsForV1(viewport: {
 export const osWallpaperStylesV1: Readonly<Record<string, CSSProperties>> = Object.freeze({
   teal: Object.freeze({ background: os98.desktop }),
   clouds: Object.freeze({
-    background:
-      "radial-gradient(ellipse 60% 40% at 25% 30%, #f4f8ff 0 18%, transparent 42%)," +
+    background: "radial-gradient(ellipse 60% 40% at 25% 30%, #f4f8ff 0 18%, transparent 42%)," +
       "radial-gradient(ellipse 50% 32% at 70% 60%, #e8f2ff 0 16%, transparent 40%)," +
       "linear-gradient(180deg, #4a86c8, #9fc4e8)",
   }),
@@ -151,8 +150,8 @@ export function OsTaskbarV1(props: {
       <span style={{ inlineSize: "2px", alignSelf: "stretch", ...osBevelInV1, padding: 0 }} />
       <div style={{ flex: 1, display: "flex", gap: "3px", overflow: "hidden" }}>
         {ordered.map((window) => {
-          const active =
-            props.snapshot.focusedWindowId === window.windowId && window.mode !== "minimized";
+          const active = props.snapshot.focusedWindowId === window.windowId &&
+            window.mode !== "minimized";
           return (
             <button
               key={window.windowId}

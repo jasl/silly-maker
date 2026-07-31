@@ -43,16 +43,13 @@ import {
 
 type FunctionResultV1<TValue, TKey extends PropertyKey> = TValue extends {
   readonly [TCurrent in TKey]: infer TFunction;
-}
-  ? TFunction extends (...arguments_: never[]) => infer TResult
-    ? TResult
-    : never
+} ? TFunction extends (...arguments_: never[]) => infer TResult ? TResult
+  : never
   : never;
 
 type PropertyValueV1<TValue, TKey extends PropertyKey> = TValue extends {
   readonly [TCurrent in TKey]: infer TResult;
-}
-  ? TResult
+} ? TResult
   : never;
 
 export type ResolvedGameForPackageV1<TSimulationFacet, TPresentationFacet> = ResolvedGameV1<
@@ -68,8 +65,9 @@ type ResolvedForV1<TSimulationFacet, TPresentationFacet> = ResolvedGameForPackag
 >;
 
 type DataFunctionV1 = (...arguments_: never[]) => unknown;
-const validateUnknownGameSimulationV1 =
-  defineGameSimulation<GameSimulationTypeMapV1>() as unknown as DataFunctionV1;
+const validateUnknownGameSimulationV1 = defineGameSimulation<
+  GameSimulationTypeMapV1
+>() as unknown as DataFunctionV1;
 
 interface SourceSimulationFacetLikeV1 {
   readonly record: Record<string, unknown>;
@@ -144,9 +142,9 @@ function ownStringDataPropertyV1(value: unknown, key: string): string | undefine
   try {
     const descriptor = Object.getOwnPropertyDescriptor(value, key);
     return descriptor !== undefined &&
-      descriptor.get === undefined &&
-      descriptor.set === undefined &&
-      typeof descriptor.value === "string"
+        descriptor.get === undefined &&
+        descriptor.set === undefined &&
+        typeof descriptor.value === "string"
       ? descriptor.value
       : undefined;
   } catch {
@@ -161,9 +159,9 @@ function ownDataPropertyV1(value: unknown, key: string): unknown {
   try {
     const descriptor = Object.getOwnPropertyDescriptor(value, key);
     return descriptor !== undefined &&
-      descriptor.get === undefined &&
-      descriptor.set === undefined &&
-      "value" in descriptor
+        descriptor.get === undefined &&
+        descriptor.set === undefined &&
+        "value" in descriptor
       ? descriptor.value
       : undefined;
   } catch {
@@ -438,7 +436,7 @@ function snapshotDeterministicValueV1(
     if (Array.isArray(value)) {
       return Object.freeze(
         requireArrayDataDescriptorsV1(value, path).values.map((entry, index) =>
-          snapshotDeterministicValueV1(entry, `${path}/${index}`, active),
+          snapshotDeterministicValueV1(entry, `${path}/${index}`, active)
         ),
       );
     }
@@ -584,7 +582,7 @@ function parseStateContractManifestV1(value: unknown): StateContractManifestV1 {
     ownDataValue(record, "moduleStateSchemas", label),
     "State-contract module State schemas",
   ).map((entry, index) =>
-    parseStateContractModuleManifestV1(entry, `State-contract module State schema ${index}`),
+    parseStateContractModuleManifestV1(entry, `State-contract module State schema ${index}`)
   );
   assertStrictlyIncreasingV1(
     moduleStateSchemas.map((entry) => entry.moduleId),
@@ -594,7 +592,7 @@ function parseStateContractManifestV1(value: unknown): StateContractManifestV1 {
     ownDataValue(record, "persistentIrSchemas", label),
     "State-contract persistent IR schemas",
   ).map((entry, index) =>
-    parseStateContractSchemaManifestV1(entry, `State-contract persistent IR schema ${index}`),
+    parseStateContractSchemaManifestV1(entry, `State-contract persistent IR schema ${index}`)
   );
   assertStrictlyIncreasingV1(
     persistentIrSchemas.map((entry) => entry.schemaId),
@@ -604,7 +602,7 @@ function parseStateContractManifestV1(value: unknown): StateContractManifestV1 {
     ownDataValue(record, "stableReferenceSets", label),
     "State-contract stable reference sets",
   ).map((entry, index) =>
-    parseStateContractStableReferenceSetV1(entry, `State-contract stable reference set ${index}`),
+    parseStateContractStableReferenceSetV1(entry, `State-contract stable reference set ${index}`)
   );
   assertStrictlyIncreasingV1(
     stableReferenceSets.map((entry) => entry.setId),
@@ -715,8 +713,7 @@ function compareDeterministicValue(
     }
 
     const executableProviderKeys = ["provider", "providerId", "sourceDigest"];
-    const hasExecutableProviderMarker =
-      firstKeys.includes("sourceDigest") ||
+    const hasExecutableProviderMarker = firstKeys.includes("sourceDigest") ||
       (firstKeys.includes("provider") && typeof firstDescriptors.provider?.value === "function");
     if (hasExecutableProviderMarker) {
       if (
@@ -875,15 +872,14 @@ function gameSimulationIdentityProjectionsV1(value: unknown): {
       ownDataValue(descriptor, "dependencies", "GameSimulation module descriptor identity"),
       "GameSimulation module dependencies",
     ).map(parseModuleId);
-    const capabilities =
-      bindingKind === "stateless"
-        ? Object.keys(
-            requirePlainRecord(
-              ownDataValue(module, "capabilities", "GameSimulation module identity"),
-              "GameSimulation module capabilities identity",
-            ),
-          ).sort(compareUnicodeCodePointsV1)
-        : [];
+    const capabilities = bindingKind === "stateless"
+      ? Object.keys(
+        requirePlainRecord(
+          ownDataValue(module, "capabilities", "GameSimulation module identity"),
+          "GameSimulation module capabilities identity",
+        ),
+      ).sort(compareUnicodeCodePointsV1)
+      : [];
     projectedModules.push({
       id,
       contractRevision: moduleContractRevision,
@@ -1138,10 +1134,9 @@ export function resolveGamePackageV1<TSimulationFacet, TPresentationFacet>(
       firstDeterminismSnapshot,
     );
   } catch (error) {
-    const code =
-      ownStringDataPropertyV1(error, "resolutionFailureKind") === "nondeterministic"
-        ? "story.nondeterministic"
-        : "story.contract_invalid";
+    const code = ownStringDataPropertyV1(error, "resolutionFailureKind") === "nondeterministic"
+      ? "story.nondeterministic"
+      : "story.contract_invalid";
     return failure<TResolved>(code, [], errorMessage(error), error);
   }
 

@@ -24,10 +24,9 @@ function nodeV1(input: {
     kind,
     successors: input.successors ?? [],
     callTarget: input.callTarget ?? null,
-    interaction:
-      kind === "interaction"
-        ? { definitionId: input.definitionId ?? `${input.nodeId}.def`, seenRevision: 1 }
-        : null,
+    interaction: kind === "interaction"
+      ? { definitionId: input.definitionId ?? `${input.nodeId}.def`, seenRevision: 1 }
+      : null,
     dependencies: {
       textIds: input.textIds ?? [],
       assetIds: input.assetIds ?? [],

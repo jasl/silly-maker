@@ -53,8 +53,10 @@ export interface CommandLogEntryBaseV1 {
   readonly committedRngAfter: RngStateV1;
 }
 
-export type CommandLogEntryEnvelopeV1<TLoggedCommand, TOutcome> = CommandLogEntryBaseV1 &
-  TLoggedCommand & { readonly outcome: TOutcome };
+export type CommandLogEntryEnvelopeV1<TLoggedCommand, TOutcome> =
+  & CommandLogEntryBaseV1
+  & TLoggedCommand
+  & { readonly outcome: TOutcome };
 
 export interface RuntimeFaultBaseV1 {
   readonly occurredAt: IsoUtcInstant;
@@ -72,25 +74,29 @@ export type PersistenceFaultCodeV1 =
   | "persistence.connection_closed"
   | "persistence.stale_writer";
 export type AssetLoadFaultCodeV1 =
-  "asset.fetch_failed" | "asset.decode_failed" | "asset.integrity_mismatch";
+  | "asset.fetch_failed"
+  | "asset.decode_failed"
+  | "asset.integrity_mismatch";
 export type UiFaultCodeV1 = "ui.render_failed" | "ui.event_handler_failed";
 export type RuntimeFaultCodeV1 =
-  "runtime.async_operation_failed" | "runtime.dispatch_failed" | "runtime.hmr_invalidated";
+  | "runtime.async_operation_failed"
+  | "runtime.dispatch_failed"
+  | "runtime.hmr_invalidated";
 
 export type RuntimeOperationFaultV1 =
   | (RuntimeFaultBaseV1 & {
-      readonly category: "persistence";
-      readonly code: PersistenceFaultCodeV1;
-    })
+    readonly category: "persistence";
+    readonly code: PersistenceFaultCodeV1;
+  })
   | (RuntimeFaultBaseV1 & {
-      readonly category: "asset_load";
-      readonly code: AssetLoadFaultCodeV1;
-    })
+    readonly category: "asset_load";
+    readonly code: AssetLoadFaultCodeV1;
+  })
   | (RuntimeFaultBaseV1 & { readonly category: "ui"; readonly code: UiFaultCodeV1 })
   | (RuntimeFaultBaseV1 & {
-      readonly category: "runtime";
-      readonly code: RuntimeFaultCodeV1;
-    });
+    readonly category: "runtime";
+    readonly code: RuntimeFaultCodeV1;
+  });
 
 export interface DebugBundleEnvelopeV1<
   TProvenance,
@@ -120,13 +126,15 @@ export interface DebugBundleEnvelopeV1<
   readonly uiContext?: TUiContext;
 }
 
-export const debugPresentationLimitsV1 = Object.freeze({
-  stableIdUtf8Bytes: 256,
-  renderers: 16,
-  appearanceLayersPerRenderer: 16,
-  visibleInteractionSurfaces: 32,
-  detailOverlayStack: 8,
-} as const);
+export const debugPresentationLimitsV1 = Object.freeze(
+  {
+    stableIdUtf8Bytes: 256,
+    renderers: 16,
+    appearanceLayersPerRenderer: 16,
+    visibleInteractionSurfaces: 32,
+    detailOverlayStack: 8,
+  } as const,
+);
 
 export interface DebugPresentationRendererSummaryV1 {
   readonly rendererId: string;
@@ -179,17 +187,20 @@ export interface DebugUiContextCurrentIdentityV1 {
 }
 
 export type DebugUiContextUseMismatchReasonV1 =
-  "story_identity_mismatch" | "presentation_identity_mismatch" | "application_identity_mismatch";
+  | "story_identity_mismatch"
+  | "presentation_identity_mismatch"
+  | "application_identity_mismatch";
 
 export type DebugUiContextUseClassificationV1 =
   | { readonly kind: "restorable" }
   | {
-      readonly kind: "diagnostic_only";
-      readonly reasons: readonly DebugUiContextUseMismatchReasonV1[];
-    };
+    readonly kind: "diagnostic_only";
+    readonly reasons: readonly DebugUiContextUseMismatchReasonV1[];
+  };
 
 export type DebugBundleEnvelopeSchemaFailureCodeV1 =
-  "envelope.unsupported_revision" | "digest.invalid_format";
+  | "envelope.unsupported_revision"
+  | "digest.invalid_format";
 
 export class DebugBundleEnvelopeSchemaFailureV1 extends TypeError {
   readonly code: DebugBundleEnvelopeSchemaFailureCodeV1;
@@ -645,8 +656,9 @@ export function createDebugUiContextSchemaV1(): RuntimeSchemaV1<DebugUiContextV1
       const presentationValue = fields.presentation?.value;
       return Object.freeze({
         revision: 1 as const,
-        presentation:
-          presentationValue === null ? null : parseDebugPresentationSummaryV1(presentationValue),
+        presentation: presentationValue === null
+          ? null
+          : parseDebugPresentationSummaryV1(presentationValue),
         session: parseDebugUiSessionSummaryV1(fields.session?.value),
       });
     },
@@ -690,12 +702,12 @@ export function createDebugBundleEnvelopeSchemaV1<
 > {
   return Object.freeze({
     parse(value: unknown) {
-      const hasAppBuildId =
-        value !== null && typeof value === "object" && Object.hasOwn(value, "appBuildId");
-      const hasFailure =
-        value !== null && typeof value === "object" && Object.hasOwn(value, "failure");
-      const hasUiContext =
-        value !== null && typeof value === "object" && Object.hasOwn(value, "uiContext");
+      const hasAppBuildId = value !== null && typeof value === "object" &&
+        Object.hasOwn(value, "appBuildId");
+      const hasFailure = value !== null && typeof value === "object" &&
+        Object.hasOwn(value, "failure");
+      const hasUiContext = value !== null && typeof value === "object" &&
+        Object.hasOwn(value, "uiContext");
       const fields = exactEnvelopeDescriptorsV1(
         value,
         [
@@ -782,8 +794,8 @@ export function createDebugBundleEnvelopeSchemaV1<
   });
 }
 
-export const runtimeOperationFaultSchemaV1: RuntimeSchemaV1<RuntimeOperationFaultV1> =
-  Object.freeze({
+export const runtimeOperationFaultSchemaV1: RuntimeSchemaV1<RuntimeOperationFaultV1> = Object
+  .freeze({
     parse(value: unknown) {
       if (value === null || typeof value !== "object") throw new TypeError("invalid runtime fault");
       const hasStack = Object.hasOwn(value, "stack");

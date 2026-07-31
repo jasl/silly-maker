@@ -304,8 +304,7 @@ function createRuntimePresentationStoreFixtureV1(
       throwOnNext = false;
       throw new Error("fixture projection");
     }
-    const useAlpha =
-      input.semantic.game.scene === "extra" &&
+    const useAlpha = input.semantic.game.scene === "extra" &&
       input.contentPreference.allowedFlags === testContentPolicyV1.flags[0]!.flag;
     const assets = [
       useAlpha
@@ -457,7 +456,7 @@ function assetManifestV1(assets: readonly ResolvedAssetEntryV1[]): ResolvedAsset
           loadGroup: asset.loadGroup,
           safeArea: asset.safeArea,
           pivot: asset.pivot,
-        }),
+        })
       ),
     ),
     assets: Object.freeze([...assets]),
@@ -534,12 +533,11 @@ async function collectProductionImportsV1(directory: string): Promise<string> {
 
 async function existingSourcePathV1(rawPath: string): Promise<string | null> {
   const extension = extname(rawPath);
-  const candidates =
-    extension === ".js"
-      ? [`${rawPath.slice(0, -3)}.ts`, `${rawPath.slice(0, -3)}.tsx`]
-      : extension === ""
-        ? [rawPath, `${rawPath}.ts`, `${rawPath}.tsx`, resolve(rawPath, "index.ts")]
-        : [rawPath];
+  const candidates = extension === ".js"
+    ? [`${rawPath.slice(0, -3)}.ts`, `${rawPath.slice(0, -3)}.tsx`]
+    : extension === ""
+    ? [rawPath, `${rawPath}.ts`, `${rawPath}.tsx`, resolve(rawPath, "index.ts")]
+    : [rawPath];
   for (const candidate of candidates) {
     try {
       await access(candidate);
@@ -720,9 +718,8 @@ describe("RuntimePresentationStoreV1", () => {
     const before = fixture.store.getSnapshot();
     fixture.throwOnNextProjection();
 
-    expect(() =>
-      fixture.publishSemantic({ game: game1, narrative: narrative1, actions: actions1 }),
-    ).not.toThrow();
+    expect(() => fixture.publishSemantic({ game: game1, narrative: narrative1, actions: actions1 }))
+      .not.toThrow();
     expect(fixture.store.getSnapshot()).toBe(before);
 
     const recovered = fixture.publishSemantic({

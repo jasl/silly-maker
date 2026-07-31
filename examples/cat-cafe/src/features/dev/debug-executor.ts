@@ -66,9 +66,9 @@ export interface CatcafeDebugCommandExecutorV1 {
   ):
     | { readonly kind: "allowed" }
     | {
-        readonly kind: "validation_failed";
-        readonly errors: readonly CatcafeDebugValidationErrorV1[];
-      };
+      readonly kind: "validation_failed";
+      readonly errors: readonly CatcafeDebugValidationErrorV1[];
+    };
   executeAttempt(
     snapshot: CatcafeSnapshotV1,
     command: CatcafeDebugCommandV1,

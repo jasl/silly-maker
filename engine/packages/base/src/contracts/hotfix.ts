@@ -40,22 +40,18 @@ export interface HotfixManifestV1 {
   readonly supersedes: readonly string[];
 }
 
-export type PatchReplacementValuesV1<TPatchSurface> =
-  TPatchSurface extends Readonly<{ readonly slots: infer TSlots }>
-    ? TSlots extends Readonly<Record<string, unknown>>
-      ? {
-          readonly [
-            TKey in keyof TSlots as TSlots[TKey] extends Readonly<{
-              readonly symbolId: infer TSymbolId extends string;
-            }>
-              ? TSymbolId
-              : never
-          ]: TSlots[TKey] extends Readonly<{ readonly defaultValue: infer TValue }>
-            ? TValue
-            : never;
-        }
-      : Readonly<Record<string, unknown>>
-    : Readonly<Record<string, unknown>>;
+export type PatchReplacementValuesV1<TPatchSurface> = TPatchSurface extends
+  Readonly<{ readonly slots: infer TSlots }> ? TSlots extends Readonly<Record<string, unknown>> ? {
+      readonly [
+        TKey in keyof TSlots as TSlots[TKey] extends Readonly<{
+          readonly symbolId: infer TSymbolId extends string;
+        }> ? TSymbolId
+          : never
+      ]: TSlots[TKey] extends Readonly<{ readonly defaultValue: infer TValue }> ? TValue
+        : never;
+    }
+  : Readonly<Record<string, unknown>>
+  : Readonly<Record<string, unknown>>;
 
 export interface PatchReplacementPortV1<
   TValues extends Readonly<Record<string, unknown>> = Readonly<Record<string, unknown>>,
@@ -116,27 +112,27 @@ export interface PatchSetAdoptionDeclarationV1 {
 
 export type GameBootstrapResolutionResultV1<TResolvedStory, TResolvedIdentity> =
   | {
-      readonly kind: "ready";
-      readonly base: TResolvedStory;
-      readonly resolved: TResolvedStory;
-      readonly lastSuccessfulResolvedIdentity: TResolvedIdentity | null;
-    }
+    readonly kind: "ready";
+    readonly base: TResolvedStory;
+    readonly resolved: TResolvedStory;
+    readonly lastSuccessfulResolvedIdentity: TResolvedIdentity | null;
+  }
   | {
-      readonly kind: "safe_mode";
-      readonly base: TResolvedStory;
-      readonly resolved: TResolvedStory;
-      readonly code: GamePackageResolutionFailureCodeV1;
-      readonly rejectedHotfixIds: readonly string[];
-      readonly details: StrictJsonObjectV1;
-      readonly lastSuccessfulResolvedIdentity: TResolvedIdentity | null;
-    }
+    readonly kind: "safe_mode";
+    readonly base: TResolvedStory;
+    readonly resolved: TResolvedStory;
+    readonly code: GamePackageResolutionFailureCodeV1;
+    readonly rejectedHotfixIds: readonly string[];
+    readonly details: StrictJsonObjectV1;
+    readonly lastSuccessfulResolvedIdentity: TResolvedIdentity | null;
+  }
   | {
-      readonly kind: "fatal";
-      readonly code: GamePackageResolutionFailureCodeV1;
-      readonly rejectedHotfixIds: readonly string[];
-      readonly details: StrictJsonObjectV1;
-      readonly lastSuccessfulResolvedIdentity: TResolvedIdentity | null;
-    };
+    readonly kind: "fatal";
+    readonly code: GamePackageResolutionFailureCodeV1;
+    readonly rejectedHotfixIds: readonly string[];
+    readonly details: StrictJsonObjectV1;
+    readonly lastSuccessfulResolvedIdentity: TResolvedIdentity | null;
+  };
 
 export type GamePackageResolutionFailureCodeV1 =
   | "story.define_threw"

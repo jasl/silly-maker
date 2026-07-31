@@ -42,7 +42,7 @@ function createAssetRegistryFixtureV1() {
       assetId,
       usage,
       fallbackToken: "fallback.e2e.current",
-    }),
+    })
   );
   const observe = vi.fn(() => publication);
   const subscribe = vi.fn((listener: () => void) => {

@@ -68,38 +68,38 @@ export interface CatcafeChoiceOptionV1 {
 
 export type CatcafeNarrativeNodeV1 =
   | {
-      readonly kind: "say";
-      readonly nodeId: string;
-      readonly definitionId: string;
-      readonly seenRevision: number;
-      readonly speakerTextId: string | null;
-      readonly textId: string;
-      readonly next: string;
-    }
+    readonly kind: "say";
+    readonly nodeId: string;
+    readonly definitionId: string;
+    readonly seenRevision: number;
+    readonly speakerTextId: string | null;
+    readonly textId: string;
+    readonly next: string;
+  }
   | {
-      readonly kind: "stage";
-      readonly nodeId: string;
-      readonly mutations: (stage: SemanticStageState) => readonly StageMutation[];
-      /** Static annotation of contents this node may show (for lint). */
-      readonly mayShow: readonly string[];
-      readonly next: string;
-    }
+    readonly kind: "stage";
+    readonly nodeId: string;
+    readonly mutations: (stage: SemanticStageState) => readonly StageMutation[];
+    /** Static annotation of contents this node may show (for lint). */
+    readonly mayShow: readonly string[];
+    readonly next: string;
+  }
   | {
-      readonly kind: "choice";
-      readonly nodeId: string;
-      readonly definitionId: string;
-      readonly seenRevision: number;
-      readonly promptTextId: string;
-      readonly options: readonly CatcafeChoiceOptionV1[];
-    }
+    readonly kind: "choice";
+    readonly nodeId: string;
+    readonly definitionId: string;
+    readonly seenRevision: number;
+    readonly promptTextId: string;
+    readonly options: readonly CatcafeChoiceOptionV1[];
+  }
   | {
-      readonly kind: "branch";
-      readonly nodeId: string;
-      /** Static successor annotation for the lint/prediction graph. */
-      readonly successors: readonly string[];
-      /** Pure flag-conditioned routing; must pick a successor. */
-      readonly choose: (context: { readonly flags: readonly string[] }) => string;
-    }
+    readonly kind: "branch";
+    readonly nodeId: string;
+    /** Static successor annotation for the lint/prediction graph. */
+    readonly successors: readonly string[];
+    /** Pure flag-conditioned routing; must pick a successor. */
+    readonly choose: (context: { readonly flags: readonly string[] }) => string;
+  }
   | { readonly kind: "end"; readonly nodeId: string };
 
 /** Stage vocabulary shared by the script and the content catalog. */
@@ -142,21 +142,19 @@ export const catcafeScriptV1: readonly CatcafeNarrativeNodeV1[] = [
     kind: "stage",
     nodeId: "node.catcafe.opening",
     mutations: (stage) =>
-      hasTagV1(stage, catcafeLayersV1.characters, catcafeTagsV1.xiaoyu)
-        ? []
-        : batchV1([
-            {
-              kind: hasTagV1(stage, catcafeLayersV1.background, catcafeTagsV1.background)
-                ? "replace"
-                : "show",
-              layerId: catcafeLayersV1.background,
-              tag: catcafeTagsV1.background,
-              contentId: catcafeContentIdsV1.backgroundShopfront,
-              ...(hasTagV1(stage, catcafeLayersV1.background, catcafeTagsV1.background)
-                ? {}
-                : { zOrder: 0 }),
-            },
-          ]),
+      hasTagV1(stage, catcafeLayersV1.characters, catcafeTagsV1.xiaoyu) ? [] : batchV1([
+        {
+          kind: hasTagV1(stage, catcafeLayersV1.background, catcafeTagsV1.background)
+            ? "replace"
+            : "show",
+          layerId: catcafeLayersV1.background,
+          tag: catcafeTagsV1.background,
+          contentId: catcafeContentIdsV1.backgroundShopfront,
+          ...(hasTagV1(stage, catcafeLayersV1.background, catcafeTagsV1.background)
+            ? {}
+            : { zOrder: 0 }),
+        },
+      ]),
     mayShow: [catcafeContentIdsV1.backgroundShopfront],
     next: "node.catcafe.rain",
   },
@@ -182,25 +180,23 @@ export const catcafeScriptV1: readonly CatcafeNarrativeNodeV1[] = [
     kind: "stage",
     nodeId: "node.catcafe.kitten-enters",
     mutations: (stage) =>
-      hasTagV1(stage, catcafeLayersV1.characters, catcafeTagsV1.xiaoyu)
-        ? []
-        : batchV1([
-            {
-              kind: "show",
-              layerId: catcafeLayersV1.characters,
-              tag: catcafeTagsV1.xiaoyu,
-              contentId: catcafeContentIdsV1.characterXiaoyu,
-              zOrder: 10,
-              placement: {
-                x: 920,
-                y: 600,
-                scalePermille: 1000,
-                opacityPermille: 1000,
-                mirrored: false,
-              },
-              appearance: { stage: "kitten", expression: "calm" },
-            },
-          ]),
+      hasTagV1(stage, catcafeLayersV1.characters, catcafeTagsV1.xiaoyu) ? [] : batchV1([
+        {
+          kind: "show",
+          layerId: catcafeLayersV1.characters,
+          tag: catcafeTagsV1.xiaoyu,
+          contentId: catcafeContentIdsV1.characterXiaoyu,
+          zOrder: 10,
+          placement: {
+            x: 920,
+            y: 600,
+            scalePermille: 1000,
+            opacityPermille: 1000,
+            mirrored: false,
+          },
+          appearance: { stage: "kitten", expression: "calm" },
+        },
+      ]),
     mayShow: [catcafeContentIdsV1.characterXiaoyu],
     next: "node.catcafe.meet",
   },

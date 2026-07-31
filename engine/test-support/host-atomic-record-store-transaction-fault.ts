@@ -17,10 +17,10 @@ export type HostRecordStoreTransactionPhaseV1 =
   | { readonly kind: "before_transaction" }
   | { readonly kind: "between_checks_and_writes" }
   | {
-      readonly kind: "between_mutations";
-      readonly completedMutationCount: number;
-      readonly remainingMutationCount: number;
-    }
+    readonly kind: "between_mutations";
+    readonly completedMutationCount: number;
+    readonly remainingMutationCount: number;
+  }
   | { readonly kind: "after_durable_write_before_response" };
 
 export interface HostRecordStoreTransactionPhaseObserverV1 {
@@ -36,7 +36,8 @@ export interface HostRecordStoreTransactionFaultFixtureV1 {
   readonly current: HostRecordStoreTransactionFaultHandleV1;
   readonly observedPhases: () => readonly HostRecordStoreTransactionPhaseV1[];
   readonly reopen: () =>
-    HostRecordStoreTransactionFaultHandleV1 | Promise<HostRecordStoreTransactionFaultHandleV1>;
+    | HostRecordStoreTransactionFaultHandleV1
+    | Promise<HostRecordStoreTransactionFaultHandleV1>;
 }
 
 interface HostRecordStoreTransactionFaultRecordReportV1 {
@@ -75,12 +76,14 @@ const oldRightBytesV1 = Object.freeze([255, 128, 0]);
 const newLeftBytesV1 = Object.freeze([1, 2, 3, 4]);
 const newRightBytesV1 = Object.freeze([4, 3, 2, 1]);
 
-const targetPhasesV1 = Object.freeze([
-  "before_transaction",
-  "between_checks_and_writes",
-  "between_mutations",
-  "after_durable_write_before_response",
-] as const satisfies readonly HostRecordStoreTransactionPhaseIdV1[]);
+const targetPhasesV1 = Object.freeze(
+  [
+    "before_transaction",
+    "between_checks_and_writes",
+    "between_mutations",
+    "after_durable_write_before_response",
+  ] as const satisfies readonly HostRecordStoreTransactionPhaseIdV1[],
+);
 
 function phaseV1(
   kind: Exclude<HostRecordStoreTransactionPhaseIdV1, "between_mutations">,
@@ -120,14 +123,18 @@ function recordReportV1(
   });
 }
 
-const allOldRecordsV1 = Object.freeze([
-  recordReportV1("save", leftKeyV1, 1, oldLeftBytesV1),
-  recordReportV1("lease", rightKeyV1, 1, oldRightBytesV1),
-] as const);
-const allNewRecordsV1 = Object.freeze([
-  recordReportV1("save", leftKeyV1, 2, newLeftBytesV1),
-  recordReportV1("lease", rightKeyV1, 2, newRightBytesV1),
-] as const);
+const allOldRecordsV1 = Object.freeze(
+  [
+    recordReportV1("save", leftKeyV1, 1, oldLeftBytesV1),
+    recordReportV1("lease", rightKeyV1, 1, oldRightBytesV1),
+  ] as const,
+);
+const allNewRecordsV1 = Object.freeze(
+  [
+    recordReportV1("save", leftKeyV1, 2, newLeftBytesV1),
+    recordReportV1("lease", rightKeyV1, 2, newRightBytesV1),
+  ] as const,
+);
 
 export const hostRecordStoreTransactionFaultExpectedV1 = Object.freeze({
   cases: Object.freeze([
@@ -197,10 +204,10 @@ function phaseSnapshotV1(
 ): HostRecordStoreTransactionPhaseV1 {
   return phase.kind === "between_mutations"
     ? Object.freeze({
-        kind: phase.kind,
-        completedMutationCount: phase.completedMutationCount,
-        remainingMutationCount: phase.remainingMutationCount,
-      })
+      kind: phase.kind,
+      completedMutationCount: phase.completedMutationCount,
+      remainingMutationCount: phase.remainingMutationCount,
+    })
     : phaseV1(phase.kind);
 }
 
@@ -228,15 +235,15 @@ function retryReportV1(
 ): HostRecordStoreTransactionFaultRetryReportV1 {
   return result.kind === "conflict"
     ? Object.freeze({
-        kind: result.kind,
-        namespace: result.namespace,
-        key: result.key,
-        actualRevision: result.actualRevision,
-      })
+      kind: result.kind,
+      namespace: result.namespace,
+      key: result.key,
+      actualRevision: result.actualRevision,
+    })
     : Object.freeze({
-        kind: result.kind,
-        committedRevisions: Object.freeze(result.records.map((record) => record.revision)),
-      });
+      kind: result.kind,
+      committedRevisions: Object.freeze(result.records.map((record) => record.revision)),
+    });
 }
 
 /**
@@ -264,14 +271,15 @@ export async function runHostRecordStoreTransactionFaultConformanceV1(
     const phaseEventsFrozen = observedPhases.every(Object.isFrozen);
     const reopened = await fixture.reopen();
     try {
-      const reopenedRecords = Object.freeze([
-        await recordSnapshotV1(reopened.store, "save", leftKeyV1),
-        await recordSnapshotV1(reopened.store, "lease", rightKeyV1),
-      ] as const);
-      const retry =
-        targetPhase === "after_durable_write_before_response"
-          ? retryReportV1(await reopened.store.commit(updateBatchV1()))
-          : null;
+      const reopenedRecords = Object.freeze(
+        [
+          await recordSnapshotV1(reopened.store, "save", leftKeyV1),
+          await recordSnapshotV1(reopened.store, "lease", rightKeyV1),
+        ] as const,
+      );
+      const retry = targetPhase === "after_durable_write_before_response"
+        ? retryReportV1(await reopened.store.commit(updateBatchV1()))
+        : null;
       cases.push(
         Object.freeze({
           targetPhase,

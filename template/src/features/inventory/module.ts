@@ -73,8 +73,9 @@ export const inventoryModuleV1 = kit.defineStatefulModule({
           rejection: Object.freeze({ code: "template.insufficient_coins" as const }),
         });
       }
-      const balance =
-        operation.kind === "earn" ? state.coins + operation.amount : state.coins - operation.amount;
+      const balance = operation.kind === "earn"
+        ? state.coins + operation.amount
+        : state.coins - operation.amount;
       return Object.freeze({
         kind: "proposed" as const,
         proposal: Object.freeze({
@@ -92,10 +93,9 @@ export const inventoryModuleV1 = kit.defineStatefulModule({
     apply(state: TemplateInventoryStateV1, proposal) {
       const operation = proposal.payload;
       return Object.freeze({
-        coins:
-          operation.kind === "earn"
-            ? state.coins + operation.amount
-            : state.coins - operation.amount,
+        coins: operation.kind === "earn"
+          ? state.coins + operation.amount
+          : state.coins - operation.amount,
       });
     },
   },

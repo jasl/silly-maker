@@ -86,11 +86,11 @@ type StageOperationV1 = {
 type NarrativeOperationV1 =
   | { readonly kind: "begin"; readonly next: TemplateNarrativeStateV1 }
   | {
-      readonly kind: "resolve";
-      readonly expectedOccurrenceId: string;
-      readonly resolution: InteractionResolution;
-      readonly next: TemplateNarrativeStateV1;
-    };
+    readonly kind: "resolve";
+    readonly expectedOccurrenceId: string;
+    readonly resolution: InteractionResolution;
+    readonly next: TemplateNarrativeStateV1;
+  };
 
 const stageOperationSchemaV1: RuntimeSchemaV1<StageOperationV1> = Object.freeze({
   parse(value: unknown): StageOperationV1 {
@@ -110,7 +110,7 @@ const stageOperationSchemaV1: RuntimeSchemaV1<StageOperationV1> = Object.freeze(
       kind: "apply" as const,
       mutations: Object.freeze(
         record.mutations.map((mutation, index) =>
-          parseStageMutation(mutation, `/mutations/${String(index)}`),
+          parseStageMutation(mutation, `/mutations/${String(index)}`)
         ),
       ),
     });

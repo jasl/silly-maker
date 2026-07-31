@@ -294,18 +294,17 @@ function entryV1(
     committedRngAfter: attempt.diagnostics.committedRngAfter,
     outcome: outcomeV1(attempt),
   });
-  const entry: SyntheticEntryV1 =
-    logged.source === "game"
-      ? Object.freeze({
-          ...entryBase,
-          source: "game" as const,
-          command: logged.command,
-        })
-      : Object.freeze({
-          ...entryBase,
-          source: "debug" as const,
-          command: logged.command,
-        });
+  const entry: SyntheticEntryV1 = logged.source === "game"
+    ? Object.freeze({
+      ...entryBase,
+      source: "game" as const,
+      command: logged.command,
+    })
+    : Object.freeze({
+      ...entryBase,
+      source: "debug" as const,
+      command: logged.command,
+    });
   return Object.freeze({
     entry,
     after,
@@ -436,12 +435,14 @@ describe("authoritative replay", () => {
     });
   });
 
-  it.each([
-    ["engine_digest", { engineDigest: digestV1("engine.other") }],
-    ["state_contract_revision", { stateContractRevision: 2 }],
-    ["state_contract_digest", { stateContractDigest: digestV1("state.other") }],
-    ["simulation_digest", { simulationDigest: digestV1("simulation.other") }],
-  ] as const)("blocks on %s before creating or reading a replay session", async (field, change) => {
+  it.each(
+    [
+      ["engine_digest", { engineDigest: digestV1("engine.other") }],
+      ["state_contract_revision", { stateContractRevision: 2 }],
+      ["state_contract_digest", { stateContractDigest: digestV1("state.other") }],
+      ["simulation_digest", { simulationDigest: digestV1("simulation.other") }],
+    ] as const,
+  )("blocks on %s before creating or reading a replay session", async (field, change) => {
     const fixture = fixtureV1();
     const createDriver = vi.fn(fixture.input.createDriver);
     const result = await replayAuthoritativelyV1({
@@ -587,7 +588,7 @@ describe("authoritative replay", () => {
         kind: "rejected",
         reasons: Object.freeze(
           rejection.outcome.reasons.map((reason) =>
-            Object.freeze({ ...reason, message: "different local wording" }),
+            Object.freeze({ ...reason, message: "different local wording" })
           ),
         ),
       }),
@@ -625,7 +626,7 @@ describe("authoritative replay", () => {
         kind: "rejected",
         reasons: Object.freeze(
           rejection.outcome.reasons.map((reason) =>
-            Object.freeze({ ...reason, slot: "other" as const }),
+            Object.freeze({ ...reason, slot: "other" as const })
           ),
         ),
       }),
@@ -643,19 +644,21 @@ describe("authoritative replay", () => {
     });
   });
 
-  it.each([
-    ["outcome", 0],
-    ["facts", 0],
-    ["reasons", 1],
-    ["fault", 2],
-    ["pre_state_digest", 0],
-    ["post_state_digest", 0],
-    ["command_sequence", 0],
-    ["attempted_draws", 0],
-    ["committed_rng_before", 0],
-    ["candidate_rng_after", 0],
-    ["committed_rng_after", 0],
-  ] as const)(
+  it.each(
+    [
+      ["outcome", 0],
+      ["facts", 0],
+      ["reasons", 1],
+      ["fault", 2],
+      ["pre_state_digest", 0],
+      ["post_state_digest", 0],
+      ["command_sequence", 0],
+      ["attempted_draws", 0],
+      ["committed_rng_before", 0],
+      ["candidate_rng_after", 0],
+      ["committed_rng_after", 0],
+    ] as const,
+  )(
     "detects a recorded %s mismatch without applying log evidence",
     async (field, index) => {
       const fixture = fixtureV1();

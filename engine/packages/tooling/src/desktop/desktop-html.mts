@@ -6,9 +6,11 @@ const htmlCommentPatternV1 = /<!--[\s\S]*?(?:-->|$)/gu;
 const scriptElementPatternV1 = /<script(\s[^>]*)?>([\s\S]*?)<\/script\s*>/giu;
 
 function desktopRecordsMarkerBodyV1(capability: string): string {
-  return `Object.defineProperties(globalThis,{"__SILLYMAKER_RECORDS__":{value:"local",writable:false,configurable:false},"__SILLYMAKER_DESKTOP_CAPABILITY__":{value:${JSON.stringify(
-    capability,
-  )},writable:false,configurable:false}});`;
+  return `Object.defineProperties(globalThis,{"__SILLYMAKER_RECORDS__":{value:"local",writable:false,configurable:false},"__SILLYMAKER_DESKTOP_CAPABILITY__":{value:${
+    JSON.stringify(
+      capability,
+    )
+  },writable:false,configurable:false}});`;
 }
 
 function desktopRecordsMarkerSourceV1(capability: string): string {

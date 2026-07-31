@@ -151,17 +151,14 @@ export async function inspectStoryApplicationV1(
     const diagnostics = collectGamePackageDiagnosticsV1(entry);
     return Object.freeze({
       kind: "invalid" as const,
-      diagnostics:
-        diagnostics.kind === "invalid"
-          ? diagnostics.diagnostics
-          : Object.freeze([
-              createDiagnosticV1({
-                code: result.failure.code,
-                phase: "resolution",
-                message: "Story resolution failed",
-                details: {},
-              }),
-            ]),
+      diagnostics: diagnostics.kind === "invalid" ? diagnostics.diagnostics : Object.freeze([
+        createDiagnosticV1({
+          code: result.failure.code,
+          phase: "resolution",
+          message: "Story resolution failed",
+          details: {},
+        }),
+      ]),
     });
   }
   const resolved = result.resolved as unknown as InspectableResolvedV1;
@@ -486,14 +483,13 @@ async function buildStoryApplicationWithReceiptInternalV1(
   if (options.minify === false) args.push("--minify", "false");
   const exitCode = await deps.runner.run("deno", args, {
     cwd: applicationRootV1(deps.repositoryRoot, web.storyRoot),
-    ...(versionStamp === null
-      ? {}
-      : {
-          environment: {
-            [versionStampReceiptEnvironmentKeyInternalV1]:
-              serializeVersionStampReceiptInternalV1(versionStamp),
-          },
-        }),
+    ...(versionStamp === null ? {} : {
+      environment: {
+        [versionStampReceiptEnvironmentKeyInternalV1]: serializeVersionStampReceiptInternalV1(
+          versionStamp,
+        ),
+      },
+    }),
   });
   return Object.freeze({
     applicationId: application.applicationId,
@@ -504,13 +500,15 @@ async function buildStoryApplicationWithReceiptInternalV1(
 }
 
 /** Cross-compile triples accepted by `deno desktop --target` (Deno >= 2.9). */
-export const DESKTOP_TARGET_TRIPLES_V1 = Object.freeze([
-  "x86_64-apple-darwin",
-  "aarch64-apple-darwin",
-  "x86_64-pc-windows-msvc",
-  "x86_64-unknown-linux-gnu",
-  "aarch64-unknown-linux-gnu",
-] as const);
+export const DESKTOP_TARGET_TRIPLES_V1 = Object.freeze(
+  [
+    "x86_64-apple-darwin",
+    "aarch64-apple-darwin",
+    "x86_64-pc-windows-msvc",
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu",
+  ] as const,
+);
 
 export type DesktopTargetTripleV1 = (typeof DESKTOP_TARGET_TRIPLES_V1)[number];
 
@@ -582,21 +580,19 @@ function desktopOutputNameV1(
   target: DesktopTargetTripleV1 | "host",
   hostPlatform: NonNullable<ProjectCommandRunnerV1["hostPlatform"]>,
 ): string {
-  const targetPlatform =
-    target === "host"
-      ? hostPlatform
-      : target.endsWith("apple-darwin")
-        ? "darwin"
-        : target.includes("windows")
-          ? "windows"
-          : "linux";
+  const targetPlatform = target === "host"
+    ? hostPlatform
+    : target.endsWith("apple-darwin")
+    ? "darwin"
+    : target.includes("windows")
+    ? "windows"
+    : "linux";
   const targetSuffix = target === "host" ? "" : `-${target}`;
-  const outputName =
-    targetPlatform === "darwin"
-      ? `${stem}${targetSuffix}.app`
-      : targetPlatform === "windows"
-        ? `${stem}${targetSuffix}.msi`
-        : `${stem}${targetSuffix}.AppImage`;
+  const outputName = targetPlatform === "darwin"
+    ? `${stem}${targetSuffix}.app`
+    : targetPlatform === "windows"
+    ? `${stem}${targetSuffix}.msi`
+    : `${stem}${targetSuffix}.AppImage`;
   if (
     outputName.length > 240 ||
     new TextEncoder().encode(outputName).byteLength > 240 ||
@@ -715,8 +711,9 @@ export async function desktopStoryApplicationWithDependenciesInternalV1(
     );
   }
   const compression = rawCompression as DesktopCompressionV1 | true | undefined;
-  const requestedTargets: readonly (DesktopTargetTripleV1 | "host")[] =
-    explicitTargets.length === 0 ? ["host"] : explicitTargets;
+  const requestedTargets: readonly (DesktopTargetTripleV1 | "host")[] = explicitTargets.length === 0
+    ? ["host"]
+    : explicitTargets;
   if (requestedTargets[0] === "host" && deps.runner.hostPlatform === null) {
     commandErrorV1(
       "project.desktop_host_unsupported",
@@ -726,10 +723,11 @@ export async function desktopStoryApplicationWithDependenciesInternalV1(
   }
   const hostPlatform = deps.runner.hostPlatform ?? "darwin";
   const needsDarwinIcon = requestedTargets.some((target) =>
-    target === "host" ? hostPlatform === "darwin" : desktopIconAppliesV1(target),
+    target === "host" ? hostPlatform === "darwin" : desktopIconAppliesV1(target)
   );
-  const iconSourcePath =
-    desktop.icon !== undefined && needsDarwinIcon ? `${deps.repositoryRoot}/${desktop.icon}` : null;
+  const iconSourcePath = desktop.icon !== undefined && needsDarwinIcon
+    ? `${deps.repositoryRoot}/${desktop.icon}`
+    : null;
   if (iconSourcePath !== null) {
     const iconSize = await deps.runner.fileSize(iconSourcePath);
     if (iconSize === null || iconSize <= 0) {
@@ -750,8 +748,7 @@ export async function desktopStoryApplicationWithDependenciesInternalV1(
   } catch {
     // Human-facing diagnostics must never make a package build unavailable.
   }
-  const versionStamp =
-    collectedVersionStamp ??
+  const versionStamp = collectedVersionStamp ??
     Object.freeze({
       applicationVersion: null,
       applicationCommit: null,
@@ -765,7 +762,7 @@ export async function desktopStoryApplicationWithDependenciesInternalV1(
     Object.freeze({
       target,
       outputName: desktopOutputNameV1(artifactStem, target, hostPlatform),
-    }),
+    })
   );
 
   // The desktop bundle wraps the exact bytes a web build produces around
@@ -838,24 +835,25 @@ export async function desktopStoryApplicationWithDependenciesInternalV1(
   }
   await deps.runner.writeFile(
     `${stagingDir}/deno.json`,
-    `${JSON.stringify(
-      {
-        desktop: {
-          app: { name: desktop.name, identifier: desktop.identifier },
-          backend: "webview",
+    `${
+      JSON.stringify(
+        {
+          desktop: {
+            app: { name: desktop.name, identifier: desktop.identifier },
+            backend: "webview",
+          },
         },
-      },
-      null,
-      2,
-    )}\n`,
+        null,
+        2,
+      )
+    }\n`,
   );
 
-  const compressArgs =
-    compression === undefined
-      ? []
-      : compression === true
-        ? ["--compress"]
-        : [`--compress=${compression}`];
+  const compressArgs = compression === undefined
+    ? []
+    : compression === true
+    ? ["--compress"]
+    : [`--compress=${compression}`];
 
   const outputs: StoryDesktopOutputV1[] = [];
   for (const { target, outputName } of outputPlans) {
@@ -875,12 +873,10 @@ export async function desktopStoryApplicationWithDependenciesInternalV1(
           ...compressArgs,
           ...(target === "host" ? [] : ["--target", target]),
           ...(target === "host"
-            ? hostPlatform === "darwin"
-              ? iconArgs
-              : []
+            ? hostPlatform === "darwin" ? iconArgs : []
             : desktopIconAppliesV1(target)
-              ? iconArgs
-              : []),
+            ? iconArgs
+            : []),
           "--output",
           `../${outputName}`,
           "main.ts",

@@ -183,16 +183,16 @@ export interface GameHarnessV1<
   dispatch(invocation: DeepReadonly<TInvocation>): Promise<TResult | GameHarnessDisposedV1>;
   waitForIdle(): Promise<
     | ReturnType<
-        SemanticGamePortV1<
-          TGameView,
-          TNarrativeView,
-          TActionDescriptor,
-          TInvocation,
-          TPreview,
-          TResult,
-          RuntimeSessionStatusV1
-        >["observe"]
-      >
+      SemanticGamePortV1<
+        TGameView,
+        TNarrativeView,
+        TActionDescriptor,
+        TInvocation,
+        TPreview,
+        TResult,
+        RuntimeSessionStatusV1
+      >["observe"]
+    >
     | GameHarnessDisposedV1
   >;
   trace(): readonly GameHarnessTraceEntryV1[];
@@ -275,7 +275,9 @@ export async function createGameHarnessV1<
   });
   if (resolved.kind === "failed") {
     throw new TypeError(
-      `${resolved.failure.code}: ${String(resolved.failure.details.message ?? "Story resolution failed")}`,
+      `${resolved.failure.code}: ${
+        String(resolved.failure.details.message ?? "Story resolution failed")
+      }`,
     );
   }
 
@@ -285,7 +287,7 @@ export async function createGameHarnessV1<
       entropy: createFixedBootstrapEntropyV1({
         uuids: (input.uuids ?? [defaultHarnessUuidV1]).map((value) => String(parseRunId(value))),
         seeds: (input.seeds ?? [input.seed ?? defaultHarnessSeedV1]).map((value) =>
-          parseNonZeroUint32(value),
+          parseNonZeroUint32(value)
         ),
       }),
       records: input.records ?? createMemoryHostRecordStoreV1(),
@@ -307,7 +309,7 @@ export async function createGameHarnessV1<
           ordinal: index + 1,
           outcome: entry.outcome.kind,
           postStateDigest: entry.postStateDigest,
-        }),
+        })
       ),
     ) as readonly GameHarnessTraceEntryV1[];
 

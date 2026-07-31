@@ -240,18 +240,20 @@ function executableProvider(providerId: string, sourceByte: number, provider: ()
   });
 }
 
-const textJoinReferencesV1 = Object.freeze([
-  "text.synthetic.stage.name",
-  "text.synthetic.character.name",
-  "text.synthetic.surface.name",
-  "text.synthetic.target.name",
-  "text.synthetic.behavior.name",
-  "text.synthetic.behavior.description",
-  "text.synthetic.content_flag.name",
-  "text.synthetic.content_flag.description",
-  "text.synthetic.content_preset.name",
-  "text.synthetic.content_preset.description",
-] as const);
+const textJoinReferencesV1 = Object.freeze(
+  [
+    "text.synthetic.stage.name",
+    "text.synthetic.character.name",
+    "text.synthetic.surface.name",
+    "text.synthetic.target.name",
+    "text.synthetic.behavior.name",
+    "text.synthetic.behavior.description",
+    "text.synthetic.content_flag.name",
+    "text.synthetic.content_flag.description",
+    "text.synthetic.content_preset.name",
+    "text.synthetic.content_preset.description",
+  ] as const,
+);
 
 function createTextJoinCatalogSetV1(excludedTextId?: (typeof textJoinReferencesV1)[number]) {
   return {
@@ -370,22 +372,20 @@ function buildIdentityWithChangedFacet(facet: "simulation" | "presentation") {
   const changedDigest = digestBytes(Uint8Array.of(facet === "simulation" ? 0x51 : 0x52));
   return Object.freeze({
     ...deterministicBuildIdentityInputV1,
-    storySimulation:
-      facet === "simulation"
-        ? Object.freeze(
-            deterministicBuildIdentityInputV1.storySimulation.map((record) =>
-              Object.freeze({ ...record, sha256: changedDigest }),
-            ),
-          )
-        : deterministicBuildIdentityInputV1.storySimulation,
-    storyPresentation:
-      facet === "presentation"
-        ? Object.freeze(
-            deterministicBuildIdentityInputV1.storyPresentation.map((record) =>
-              Object.freeze({ ...record, sha256: changedDigest }),
-            ),
-          )
-        : deterministicBuildIdentityInputV1.storyPresentation,
+    storySimulation: facet === "simulation"
+      ? Object.freeze(
+        deterministicBuildIdentityInputV1.storySimulation.map((record) =>
+          Object.freeze({ ...record, sha256: changedDigest })
+        ),
+      )
+      : deterministicBuildIdentityInputV1.storySimulation,
+    storyPresentation: facet === "presentation"
+      ? Object.freeze(
+        deterministicBuildIdentityInputV1.storyPresentation.map((record) =>
+          Object.freeze({ ...record, sha256: changedDigest })
+        ),
+      )
+      : deterministicBuildIdentityInputV1.storyPresentation,
   });
 }
 
@@ -523,39 +523,41 @@ describe("Story resolver", () => {
     );
   });
 
-  it.each([
+  it.each(
     [
-      "duplicate schema IDs",
-      Object.freeze({
-        ...createSyntheticStateContractManifestV1(),
-        moduleStateSchemas: Object.freeze([
-          Object.freeze({
-            moduleId: parseModuleId("synthetic.counter"),
-            moduleContractRevision: parsePositiveSafeInteger(1),
-            stateSlots: Object.freeze([parseStateSlotId("simulation.counter")]),
-            stateSchema: Object.freeze({
-              schemaId: "schema.synthetic.game-state",
-              revision: parsePositiveSafeInteger(1),
+      [
+        "duplicate schema IDs",
+        Object.freeze({
+          ...createSyntheticStateContractManifestV1(),
+          moduleStateSchemas: Object.freeze([
+            Object.freeze({
+              moduleId: parseModuleId("synthetic.counter"),
+              moduleContractRevision: parsePositiveSafeInteger(1),
+              stateSlots: Object.freeze([parseStateSlotId("simulation.counter")]),
+              stateSchema: Object.freeze({
+                schemaId: "schema.synthetic.game-state",
+                revision: parsePositiveSafeInteger(1),
+              }),
             }),
-          }),
-        ]),
-      }),
-      "schema",
-    ],
-    [
-      "unsorted stable reference IDs",
-      Object.freeze({
-        ...createSyntheticStateContractManifestV1(),
-        stableReferenceSets: Object.freeze([
-          Object.freeze({
-            setId: "references.synthetic.scene",
-            ids: Object.freeze(["scene.synthetic.z", "scene.synthetic.a"]),
-          }),
-        ]),
-      }),
-      "strictly increasing",
-    ],
-  ] as const)("rejects invalid State-contract manifest data: %s", (_label, manifest, message) => {
+          ]),
+        }),
+        "schema",
+      ],
+      [
+        "unsorted stable reference IDs",
+        Object.freeze({
+          ...createSyntheticStateContractManifestV1(),
+          stableReferenceSets: Object.freeze([
+            Object.freeze({
+              setId: "references.synthetic.scene",
+              ids: Object.freeze(["scene.synthetic.z", "scene.synthetic.a"]),
+            }),
+          ]),
+        }),
+        "strictly increasing",
+      ],
+    ] as const,
+  )("rejects invalid State-contract manifest data: %s", (_label, manifest, message) => {
     const result = resolveGamePackageV1(
       createPackageWithStateContractManifest(manifest),
       [],
@@ -570,75 +572,77 @@ describe("Story resolver", () => {
     });
   });
 
-  it.each([
+  it.each(
     [
-      "missing module",
-      Object.freeze({
-        ...createSyntheticStateContractManifestV1(),
-        moduleStateSchemas: Object.freeze([]),
-      }),
-    ],
-    [
-      "wrong module revision",
-      Object.freeze({
-        ...createSyntheticStateContractManifestV1(),
-        moduleStateSchemas: Object.freeze([
-          Object.freeze({
-            moduleId: parseModuleId("synthetic.counter"),
-            moduleContractRevision: parsePositiveSafeInteger(2),
-            stateSlots: Object.freeze([parseStateSlotId("simulation.counter")]),
-            stateSchema: Object.freeze({
-              schemaId: "schema.synthetic.counter-state",
-              revision: parsePositiveSafeInteger(1),
+      [
+        "missing module",
+        Object.freeze({
+          ...createSyntheticStateContractManifestV1(),
+          moduleStateSchemas: Object.freeze([]),
+        }),
+      ],
+      [
+        "wrong module revision",
+        Object.freeze({
+          ...createSyntheticStateContractManifestV1(),
+          moduleStateSchemas: Object.freeze([
+            Object.freeze({
+              moduleId: parseModuleId("synthetic.counter"),
+              moduleContractRevision: parsePositiveSafeInteger(2),
+              stateSlots: Object.freeze([parseStateSlotId("simulation.counter")]),
+              stateSchema: Object.freeze({
+                schemaId: "schema.synthetic.counter-state",
+                revision: parsePositiveSafeInteger(1),
+              }),
             }),
-          }),
-        ]),
-      }),
-    ],
-    [
-      "wrong state slot",
-      Object.freeze({
-        ...createSyntheticStateContractManifestV1(),
-        moduleStateSchemas: Object.freeze([
-          Object.freeze({
-            moduleId: parseModuleId("synthetic.counter"),
-            moduleContractRevision: parsePositiveSafeInteger(1),
-            stateSlots: Object.freeze([parseStateSlotId("simulation.other")]),
-            stateSchema: Object.freeze({
-              schemaId: "schema.synthetic.counter-state",
-              revision: parsePositiveSafeInteger(1),
+          ]),
+        }),
+      ],
+      [
+        "wrong state slot",
+        Object.freeze({
+          ...createSyntheticStateContractManifestV1(),
+          moduleStateSchemas: Object.freeze([
+            Object.freeze({
+              moduleId: parseModuleId("synthetic.counter"),
+              moduleContractRevision: parsePositiveSafeInteger(1),
+              stateSlots: Object.freeze([parseStateSlotId("simulation.other")]),
+              stateSchema: Object.freeze({
+                schemaId: "schema.synthetic.counter-state",
+                revision: parsePositiveSafeInteger(1),
+              }),
             }),
-          }),
-        ]),
-      }),
-    ],
-    [
-      "stateless module entry",
-      Object.freeze({
-        ...createSyntheticStateContractManifestV1(),
-        moduleStateSchemas: Object.freeze([
-          Object.freeze({
-            moduleId: parseModuleId("synthetic.counter"),
-            moduleContractRevision: parsePositiveSafeInteger(1),
-            stateSlots: Object.freeze([parseStateSlotId("simulation.counter")]),
-            stateSchema: Object.freeze({
-              schemaId: "schema.synthetic.counter-state",
-              revision: parsePositiveSafeInteger(1),
+          ]),
+        }),
+      ],
+      [
+        "stateless module entry",
+        Object.freeze({
+          ...createSyntheticStateContractManifestV1(),
+          moduleStateSchemas: Object.freeze([
+            Object.freeze({
+              moduleId: parseModuleId("synthetic.counter"),
+              moduleContractRevision: parsePositiveSafeInteger(1),
+              stateSlots: Object.freeze([parseStateSlotId("simulation.counter")]),
+              stateSchema: Object.freeze({
+                schemaId: "schema.synthetic.counter-state",
+                revision: parsePositiveSafeInteger(1),
+              }),
             }),
-          }),
-          Object.freeze({
-            moduleId: parseModuleId("synthetic.parity"),
-            moduleContractRevision: parsePositiveSafeInteger(1),
-            stateSlots: Object.freeze([]),
-            stateSchema: Object.freeze({
-              schemaId: "schema.synthetic.parity-state",
-              revision: parsePositiveSafeInteger(1),
+            Object.freeze({
+              moduleId: parseModuleId("synthetic.parity"),
+              moduleContractRevision: parsePositiveSafeInteger(1),
+              stateSlots: Object.freeze([]),
+              stateSchema: Object.freeze({
+                schemaId: "schema.synthetic.parity-state",
+                revision: parsePositiveSafeInteger(1),
+              }),
             }),
-          }),
-        ]),
-      }),
-    ],
-  ] as const)(
+          ]),
+        }),
+      ],
+    ] as const,
+  )(
     "rejects State-contract manifests that disagree with GameSimulation: %s",
     (_label, manifest) => {
       const result = resolveGamePackageV1(
@@ -691,38 +695,40 @@ describe("Story resolver", () => {
     expect(fixture.getterCalls()).toBe(0);
   });
 
-  it.each([
+  it.each(
     [
-      "extra schema field",
-      Object.freeze({
-        ...createSyntheticStateContractManifestV1(),
-        aggregateStateSchema: Object.freeze({
-          schemaId: "schema.synthetic.game-state",
-          revision: parsePositiveSafeInteger(1),
-          description: "not part of the ABI",
-        }),
-      }),
-    ],
-    [
-      "sparse module array",
-      Object.freeze({
-        ...createSyntheticStateContractManifestV1(),
-        moduleStateSchemas: createSparseStateContractArrayV1(),
-      }),
-    ],
-    [
-      "duplicate stable reference member",
-      Object.freeze({
-        ...createSyntheticStateContractManifestV1(),
-        stableReferenceSets: Object.freeze([
-          Object.freeze({
-            setId: "references.synthetic.scene",
-            ids: Object.freeze(["scene.synthetic.counter", "scene.synthetic.counter"]),
+      [
+        "extra schema field",
+        Object.freeze({
+          ...createSyntheticStateContractManifestV1(),
+          aggregateStateSchema: Object.freeze({
+            schemaId: "schema.synthetic.game-state",
+            revision: parsePositiveSafeInteger(1),
+            description: "not part of the ABI",
           }),
-        ]),
-      }),
-    ],
-  ] as const)("rejects malformed State-contract data: %s", (_label, manifest) => {
+        }),
+      ],
+      [
+        "sparse module array",
+        Object.freeze({
+          ...createSyntheticStateContractManifestV1(),
+          moduleStateSchemas: createSparseStateContractArrayV1(),
+        }),
+      ],
+      [
+        "duplicate stable reference member",
+        Object.freeze({
+          ...createSyntheticStateContractManifestV1(),
+          stableReferenceSets: Object.freeze([
+            Object.freeze({
+              setId: "references.synthetic.scene",
+              ids: Object.freeze(["scene.synthetic.counter", "scene.synthetic.counter"]),
+            }),
+          ]),
+        }),
+      ],
+    ] as const,
+  )("rejects malformed State-contract data: %s", (_label, manifest) => {
     const result = resolveGamePackageV1(
       createPackageWithStateContractManifest(manifest),
       [],
@@ -750,8 +756,8 @@ describe("Story resolver", () => {
     expect(result.resolved.presentation).toMatchObject({ textCatalogs: activeCatalog });
     const resolvedCatalogs = (result.resolved.presentation as { readonly textCatalogs: unknown })
       .textCatalogs as {
-      readonly catalogs: readonly { readonly entries: readonly unknown[] }[];
-    };
+        readonly catalogs: readonly { readonly entries: readonly unknown[] }[];
+      };
     expect(resolvedCatalogs).not.toBe(activeCatalog);
     expect(Object.isFrozen(resolvedCatalogs)).toBe(true);
     expect(Object.isFrozen(resolvedCatalogs.catalogs)).toBe(true);

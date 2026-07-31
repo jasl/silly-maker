@@ -30,11 +30,12 @@ interface SyntheticRngStateV1 {
   readonly cursor: number;
 }
 
-interface SyntheticSimulationTypesV1 extends GameSimulationTypeMapV1<
-  GameBootstrapInputV1,
-  SyntheticStateV1,
-  SyntheticRngStateV1
-> {
+interface SyntheticSimulationTypesV1 extends
+  GameSimulationTypeMapV1<
+    GameBootstrapInputV1,
+    SyntheticStateV1,
+    SyntheticRngStateV1
+  > {
   readonly snapshot: GameSnapshotEnvelopeV1<SyntheticStateV1, SyntheticRngStateV1>;
   readonly rngDrawTrace: never;
   readonly command: { readonly kind: "synthetic.increment" };
@@ -127,8 +128,9 @@ function simulation(modules: readonly GameplayModuleBindingV1<SyntheticSimulatio
     factSchema: passthroughSchema<SyntheticSimulationTypesV1["fact"]>(),
     rejectionSchema: passthroughSchema<SyntheticSimulationTypesV1["rejection"]>(),
     debugCommandSchema: passthroughSchema<SyntheticSimulationTypesV1["debugCommand"]>(),
-    debugValidationErrorSchema:
-      passthroughSchema<SyntheticSimulationTypesV1["debugValidationError"]>(),
+    debugValidationErrorSchema: passthroughSchema<
+      SyntheticSimulationTypesV1["debugValidationError"]
+    >(),
     commandExecutor: {
       executeAttempt: () => Object.freeze({ kind: "not-exercised" as const }),
     },
@@ -263,9 +265,8 @@ describe("GameSimulation invariants", () => {
         }),
       ),
     ]);
-    expect(() =>
-      resolved.createInitialState(Object.freeze({ rngSeed: parseNonZeroUint32(1) })),
-    ).not.toThrow();
+    expect(() => resolved.createInitialState(Object.freeze({ rngSeed: parseNonZeroUint32(1) }))).not
+      .toThrow();
     expect(ownerSchemaParseCalls).toBe(2);
   });
 

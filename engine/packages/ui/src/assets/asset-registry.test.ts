@@ -107,7 +107,7 @@ function manifestV1(assets: readonly ResolvedAssetEntryV1[]): ResolvedAssetManif
       loadGroup: entry.loadGroup,
       safeArea: entry.safeArea,
       pivot: entry.pivot,
-    }),
+    })
   );
 
   return Object.freeze({
@@ -178,9 +178,8 @@ describe("AssetRegistryV1", () => {
       assets: Object.freeze([first, second]),
     });
 
-    expect(() =>
-      createAssetRegistryV1(duplicateManifest, fakeLoaderV1(new Map()), vi.fn()),
-    ).toThrow("asset.registry_duplicate_id");
+    expect(() => createAssetRegistryV1(duplicateManifest, fakeLoaderV1(new Map()), vi.fn()))
+      .toThrow("asset.registry_duplicate_id");
   });
 
   it("loads only exact demanded IDs in first-occurrence order", async () => {

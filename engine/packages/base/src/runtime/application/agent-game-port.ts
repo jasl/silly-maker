@@ -123,10 +123,9 @@ export function createInProcessAgentGamePortV1<
     dispatch: (invocation: DeepReadonly<TInvocation>) => input.semantic.dispatch(invocation),
     async waitForIdle(options: AgentWaitOptionsV1 = {}) {
       if (options.signal?.aborted === true) return abortedResultV1;
-      const afterRevision =
-        options.afterRevision === undefined
-          ? undefined
-          : parseNonNegativeSafeInteger(options.afterRevision);
+      const afterRevision = options.afterRevision === undefined
+        ? undefined
+        : parseNonNegativeSafeInteger(options.afterRevision);
       const wait = input.semantic
         .waitForIdle(afterRevision as NonNegativeSafeInteger | undefined)
         .then((publication) => Object.freeze({ kind: "idle" as const, publication }));
@@ -141,24 +140,20 @@ export function createInProcessAgentGamePortV1<
           // The underlying wait is a read-only subscription; discarding it on
           // timeout/abort cannot change gameplay State.
           wait,
-          ...(options.timeoutMs === undefined
-            ? []
-            : [
-                new Promise<typeof timedOutResultV1>((resolve) => {
-                  const handle = setTimeout(() => resolve(timedOutResultV1), options.timeoutMs);
-                  cancelTimer = () => clearTimeout(handle);
-                }),
-              ]),
-          ...(options.signal === undefined
-            ? []
-            : [
-                new Promise<typeof abortedResultV1>((resolve) => {
-                  const signal = options.signal as AbortSignal;
-                  const onAbort = () => resolve(abortedResultV1);
-                  signal.addEventListener("abort", onAbort, { once: true });
-                  removeAbortListener = () => signal.removeEventListener("abort", onAbort);
-                }),
-              ]),
+          ...(options.timeoutMs === undefined ? [] : [
+            new Promise<typeof timedOutResultV1>((resolve) => {
+              const handle = setTimeout(() => resolve(timedOutResultV1), options.timeoutMs);
+              cancelTimer = () => clearTimeout(handle);
+            }),
+          ]),
+          ...(options.signal === undefined ? [] : [
+            new Promise<typeof abortedResultV1>((resolve) => {
+              const signal = options.signal as AbortSignal;
+              const onAbort = () => resolve(abortedResultV1);
+              signal.addEventListener("abort", onAbort, { once: true });
+              removeAbortListener = () => signal.removeEventListener("abort", onAbort);
+            }),
+          ]),
         ]);
       } finally {
         cancelTimer?.();
@@ -205,8 +200,7 @@ export function createAgentPersistenceCapabilityV1<TPersistenceResult, TExported
   let revoked = false;
   const guard = async <TValue>(
     operation: () => Promise<TValue>,
-  ): Promise<TValue | AgentCapabilityRevokedV1> =>
-    revoked ? agentCapabilityRevokedV1 : operation();
+  ): Promise<TValue | AgentCapabilityRevokedV1> => revoked ? agentCapabilityRevokedV1 : operation();
   return Object.freeze({
     capability: Object.freeze({
       save: (slot: PlayerWritableSaveSlotIdV1) => guard(() => input.save(slot)),
@@ -232,8 +226,7 @@ export function createAgentDiagnosticsCapabilityV1<TDiagnostics>(input: {
   let revoked = false;
   return Object.freeze({
     capability: Object.freeze({
-      exportDiagnostics: async () =>
-        revoked ? agentCapabilityRevokedV1 : input.exportDiagnostics(),
+      exportDiagnostics: async () => revoked ? agentCapabilityRevokedV1 : input.exportDiagnostics(),
     }),
     isRevoked: () => revoked,
     revoke: () => {
@@ -257,11 +250,11 @@ export interface AgentTranscriptRecorderV1<TAgent> {
 export type AgentTranscriptComparisonV1 =
   | { readonly kind: "matching"; readonly entries: number }
   | {
-      readonly kind: "diverged";
-      readonly ordinal: number;
-      readonly left: AgentTranscriptEntryV1 | null;
-      readonly right: AgentTranscriptEntryV1 | null;
-    };
+    readonly kind: "diverged";
+    readonly ordinal: number;
+    readonly left: AgentTranscriptEntryV1 | null;
+    readonly right: AgentTranscriptEntryV1 | null;
+  };
 
 /**
  * Compares two agent transcripts (for example in-process Node versus the

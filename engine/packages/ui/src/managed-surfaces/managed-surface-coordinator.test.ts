@@ -294,7 +294,7 @@ describe("ManagedSurfaceCoordinatorV1", () => {
       coordinator.openTransientPrimary({
         definition: definitionV1("inventory"),
         semanticOccurrenceId: null,
-      }),
+      })
     ).not.toThrow();
 
     expect(healthy).toHaveBeenCalledOnce();

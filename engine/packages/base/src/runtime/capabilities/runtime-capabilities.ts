@@ -11,17 +11,19 @@ import type { DeepReadonly } from "../../contracts/values.ts";
 type CapabilityPersistenceResultV1 =
   | { readonly kind: "committed" }
   | {
-      readonly kind: "conflict";
-      readonly state: DeepReadonly<RuntimeCapabilitiesV1>;
-    }
+    readonly kind: "conflict";
+    readonly state: DeepReadonly<RuntimeCapabilitiesV1>;
+  }
   | { readonly kind: "unavailable" };
 
 const capabilityKeysV1 = ["automationBridge", "cheats", "debugTools"] as const;
-const capabilityFieldsV1 = Object.freeze({
-  debug_tools: "debugTools",
-  cheats: "cheats",
-  automation_bridge: "automationBridge",
-} satisfies Record<RuntimeCapabilityIdV1, keyof RuntimeCapabilitiesV1>);
+const capabilityFieldsV1 = Object.freeze(
+  {
+    debug_tools: "debugTools",
+    cheats: "cheats",
+    automation_bridge: "automationBridge",
+  } satisfies Record<RuntimeCapabilityIdV1, keyof RuntimeCapabilitiesV1>,
+);
 
 function parseRuntimeCapabilitiesV1(value: unknown): DeepReadonly<RuntimeCapabilitiesV1> {
   if (

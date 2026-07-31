@@ -12,11 +12,11 @@ export type PlainDataDiffEntryV1 =
   | { readonly kind: "added"; readonly path: string; readonly after: unknown }
   | { readonly kind: "removed"; readonly path: string; readonly before: unknown }
   | {
-      readonly kind: "changed";
-      readonly path: string;
-      readonly before: unknown;
-      readonly after: unknown;
-    };
+    readonly kind: "changed";
+    readonly path: string;
+    readonly before: unknown;
+    readonly after: unknown;
+  };
 
 function isPlainObjectV1(value: unknown): value is Readonly<Record<string, unknown>> {
   return value !== null && typeof value === "object" && !Array.isArray(value);

@@ -118,8 +118,8 @@ function createFakeRunnerV1(input: {
         input.nonRegularFiles?.includes(path) === true
           ? null
           : input.files?.[path] === undefined
-            ? null
-            : new TextEncoder().encode(input.files[path]).byteLength,
+          ? null
+          : new TextEncoder().encode(input.files[path]).byteLength,
       );
     },
     writeFile: (path, contents) => {
@@ -583,14 +583,20 @@ describe("runProjectCliV1", () => {
     expect(fake.log.runs).toEqual([]);
   });
 
-  it.each([
+  it.each(
     [
-      "unsupported target",
-      { targets: ["riscv64-unknown-linux-gnu"] },
-      "project.desktop_target_unsupported",
-    ],
-    ["unsupported compression", { compress: "brotli" }, "project.desktop_compression_unsupported"],
-  ] as const)(
+      [
+        "unsupported target",
+        { targets: ["riscv64-unknown-linux-gnu"] },
+        "project.desktop_target_unsupported",
+      ],
+      [
+        "unsupported compression",
+        { compress: "brotli" },
+        "project.desktop_compression_unsupported",
+      ],
+    ] as const,
+  )(
     "desktop rejects programmatic %s options before mutating output",
     async (_caseName, rawOptions, diagnosticCode) => {
       const fake = createFakeRunnerV1({ exitCode: 0 });
@@ -611,11 +617,13 @@ describe("runProjectCliV1", () => {
     },
   );
 
-  it.each([
-    ["darwin", "SyntheticApp.app", "/Contents/Info.plist", true],
-    ["windows", "SyntheticApp.msi", "", false],
-    ["linux", "SyntheticApp.AppImage", "", false],
-  ] as const)(
+  it.each(
+    [
+      ["darwin", "SyntheticApp.app", "/Contents/Info.plist", true],
+      ["windows", "SyntheticApp.msi", "", false],
+      ["linux", "SyntheticApp.AppImage", "", false],
+    ] as const,
+  )(
     "desktop host output follows %s and admits the macOS icon only on darwin",
     async (hostPlatform, outputName, markerSuffix, expectsIcon) => {
       const projectWithIconV1 = defineSillymakerProjectV1({
@@ -698,11 +706,13 @@ describe("runProjectCliV1", () => {
     expect(fake.log.fileSizeChecks).not.toContain("/repo/test/missing-icon.png");
   });
 
-  it.each([
-    ["missing", undefined, undefined],
-    ["empty", "", undefined],
-    ["non-regular", "directory marker", ["/repo/test/icon.png"]],
-  ] as const)(
+  it.each(
+    [
+      ["missing", undefined, undefined],
+      ["empty", "", undefined],
+      ["non-regular", "directory marker", ["/repo/test/icon.png"]],
+    ] as const,
+  )(
     "desktop rejects a %s Darwin icon before building or mutating output",
     async (_caseName, iconContents, nonRegularFiles) => {
       const projectWithIconV1 = defineSillymakerProjectV1({

@@ -25,13 +25,13 @@ export interface TitleScreenLabelsV1 {
 
 export type TitleScreenMiddleActionV1 =
   | {
-      readonly kind: "continue";
-      readonly available: boolean;
-      onActivate(): void;
-    }
+    readonly kind: "continue";
+    readonly available: boolean;
+    onActivate(): void;
+  }
   | {
-      readonly kind: "load";
-    };
+    readonly kind: "load";
+  };
 
 export function TitleScreenV1(props: {
   readonly title: string;
@@ -58,13 +58,13 @@ export function TitleScreenV1(props: {
         gap: "16px",
         textAlign: "center",
         backgroundColor: "rgba(10, 12, 16, 0.86)",
-        ...(props.backgroundUrl === undefined
-          ? {}
-          : {
-              backgroundImage: `linear-gradient(rgba(10, 12, 16, 0.4), rgba(10, 12, 16, 0.62)), url(${JSON.stringify(props.backgroundUrl)})`,
-              backgroundSize: "cover",
-              backgroundPosition: "center",
-            }),
+        ...(props.backgroundUrl === undefined ? {} : {
+          backgroundImage: `linear-gradient(rgba(10, 12, 16, 0.4), rgba(10, 12, 16, 0.62)), url(${
+            JSON.stringify(props.backgroundUrl)
+          })`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        }),
         color: "#f2efe8",
         zIndex: "var(--silly-surface-z-front-door)",
         pointerEvents: "auto",
@@ -83,21 +83,21 @@ export function TitleScreenV1(props: {
         <Button data-title-new-game="true" onClick={() => props.onNewGame()}>
           {props.labels.newGameLabel}
         </Button>
-        {middleAction.kind === "load" ? (
-          <SavesLauncherV1 data-title-load-game="true" label={props.labels.loadGameLabel} />
-        ) : (
-          <Button
-            data-title-continue="true"
-            data-title-continue-available={middleAction.available ? "true" : "false"}
-            disabled={!middleAction.available}
-            onClick={() => middleAction.onActivate()}
-          >
-            {props.labels.continueLabel}
-          </Button>
-        )}
-        {props.showLoadGame === true && middleAction.kind === "continue" ? (
-          <SavesLauncherV1 data-title-load-game="true" label={props.labels.loadGameLabel} />
-        ) : null}
+        {middleAction.kind === "load"
+          ? <SavesLauncherV1 data-title-load-game="true" label={props.labels.loadGameLabel} />
+          : (
+            <Button
+              data-title-continue="true"
+              data-title-continue-available={middleAction.available ? "true" : "false"}
+              disabled={!middleAction.available}
+              onClick={() => middleAction.onActivate()}
+            >
+              {props.labels.continueLabel}
+            </Button>
+          )}
+        {props.showLoadGame === true && middleAction.kind === "continue"
+          ? <SavesLauncherV1 data-title-load-game="true" label={props.labels.loadGameLabel} />
+          : null}
         <SettingsLauncherV1 data-title-settings="true" label={props.labels.settingsLabel} />
       </div>
     </section>

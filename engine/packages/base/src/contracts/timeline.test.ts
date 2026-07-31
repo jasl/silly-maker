@@ -137,7 +137,7 @@ describe("timeline definition contract", () => {
             timelineV1.tween({ target: beacon, property: "offsetX", to: -10, durationMs: 10 }),
           ),
         ),
-      ),
+      )
     ).toThrowError(expect.objectContaining({ code: "timeline.parallel_conflict" }));
   });
 

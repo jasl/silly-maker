@@ -24,7 +24,7 @@ export const stageModuleV1 = kit.defineStatefulModule({
     operationSchema: operationSchemaV1<StageOperationV1>("stage"),
     propose(state, operation) {
       const mutations = operation.mutations.map((mutation, index) =>
-        parseStageMutation(mutation, `/mutations/${String(index)}`),
+        parseStageMutation(mutation, `/mutations/${String(index)}`)
       );
       const outcome = reduceStageMutations(state, mutations);
       if (outcome.kind === "rejected") {

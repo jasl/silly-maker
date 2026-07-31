@@ -193,7 +193,7 @@ describe("reduceManagedSurfaceV1", () => {
       inputRouter.register({
         context: result.state.publication.inputOwner!.inputContextId,
         handle: () => ({ kind: "ignored" }),
-      }),
+      })
     ).not.toThrow();
     expect(result.state.publication.focusOwner).toEqual({
       surfaceInstanceId: "surface-instance.inventory",

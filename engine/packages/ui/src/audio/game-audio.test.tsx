@@ -76,8 +76,7 @@ describe("GameAudioV1", () => {
         createHost={() => host}
         selectIntent={selectIntentV1}
         resolveEffectAsset={(effect) =>
-          effect.effectId === "sfx" ? { assetId: String(effect.payload.assetId) } : null
-        }
+          effect.effectId === "sfx" ? { assetId: String(effect.payload.assetId) } : null}
         playerProfile={playerProfile}
       />,
     );
@@ -99,7 +98,7 @@ describe("GameAudioV1", () => {
           ambient: null,
           voice: null,
         }),
-      ),
+      )
     );
     expect(host.channel("bgm")?.assetId).toBe("audio.test.bgm");
 

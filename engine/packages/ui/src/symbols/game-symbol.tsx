@@ -76,10 +76,10 @@ function renderPropsV1(props: GameSymbolPropsV1): GameSymbolRenderPropsV1 {
 
   return props.decorative === false
     ? Object.freeze({
-        size: props.size,
-        accessibleName: props.accessibleName,
-        decorative: false,
-      })
+      size: props.size,
+      accessibleName: props.accessibleName,
+      decorative: false,
+    })
     : Object.freeze({ size: props.size, accessibleName: props.accessibleName });
 }
 

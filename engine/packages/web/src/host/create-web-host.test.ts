@@ -101,7 +101,7 @@ describe("Web Host", () => {
       createWebHostV1({
         databaseName: "application.test.runtime",
         records: createMemoryHostRecordStoreV1(),
-      } as never),
+      } as never)
     ).toThrow(TypeError);
   });
 });

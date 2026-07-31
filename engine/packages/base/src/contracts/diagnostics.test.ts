@@ -137,14 +137,14 @@ describe("diagnostic contracts", () => {
         ...common,
         operation: "😀".repeat(1_025),
         message: "failed",
-      }),
+      })
     ).toThrow();
     expect(() =>
       runtimeOperationFaultSchemaV1.parse({
         ...common,
         operation: "runtime.test",
         message: "x".repeat(65_537),
-      }),
+      })
     ).toThrow();
     expect(() =>
       runtimeOperationFaultSchemaV1.parse({
@@ -152,7 +152,7 @@ describe("diagnostic contracts", () => {
         operation: "runtime.test",
         message: "failed",
         cause: { name: "x".repeat(4_097), message: "cause" },
-      }),
+      })
     ).toThrow();
   });
 
@@ -214,98 +214,105 @@ describe("diagnostic contracts", () => {
     expect(Object.isFrozen(parsed.session.devDock)).toBe(true);
   });
 
-  it.each([
+  it.each(
     [
-      "root",
-      (value: ReturnType<typeof createValidDebugUiContextV1>) => Reflect.set(value, "extra", true),
-    ],
-    [
-      "presentation",
-      (value: ReturnType<typeof createValidDebugUiContextV1>) =>
-        Reflect.set(value.presentation, "coordinates", { x: 0, y: 0 }),
-    ],
-    [
-      "renderer",
-      (value: ReturnType<typeof createValidDebugUiContextV1>) =>
-        Reflect.set(value.presentation.renderers[0] ?? {}, "runtimePath", "/private/asset.png"),
-    ],
-    [
-      "session",
-      (value: ReturnType<typeof createValidDebugUiContextV1>) =>
-        Reflect.set(value.session, "pointer", "secret"),
-    ],
-    [
-      "dev dock",
-      (value: ReturnType<typeof createValidDebugUiContextV1>) =>
-        Reflect.set(value.session.devDock, "bottomOpen", true),
-    ],
-  ] as const)("rejects unknown %s keys", (_name, mutate) => {
+      [
+        "root",
+        (value: ReturnType<typeof createValidDebugUiContextV1>) =>
+          Reflect.set(value, "extra", true),
+      ],
+      [
+        "presentation",
+        (value: ReturnType<typeof createValidDebugUiContextV1>) =>
+          Reflect.set(value.presentation, "coordinates", { x: 0, y: 0 }),
+      ],
+      [
+        "renderer",
+        (value: ReturnType<typeof createValidDebugUiContextV1>) =>
+          Reflect.set(value.presentation.renderers[0] ?? {}, "runtimePath", "/private/asset.png"),
+      ],
+      [
+        "session",
+        (value: ReturnType<typeof createValidDebugUiContextV1>) =>
+          Reflect.set(value.session, "pointer", "secret"),
+      ],
+      [
+        "dev dock",
+        (value: ReturnType<typeof createValidDebugUiContextV1>) =>
+          Reflect.set(value.session.devDock, "bottomOpen", true),
+      ],
+    ] as const,
+  )("rejects unknown %s keys", (_name, mutate) => {
     const value = createValidDebugUiContextV1();
     mutate(value);
     expect(() => createDebugUiContextSchemaV1().parse(value)).toThrow(TypeError);
   });
 
-  it.each([
+  it.each(
     [
-      "foreign root prototype",
-      () => Object.setPrototypeOf(createValidDebugUiContextV1(), { inherited: true }),
-    ],
-    [
-      "null nested prototype",
-      () => {
-        const value = createValidDebugUiContextV1();
-        Object.setPrototypeOf(value.session.devDock, null);
-        return value;
-      },
-    ],
-    [
-      "accessor",
-      () => {
-        const value = createValidDebugUiContextV1();
-        Object.defineProperty(value.session, "routeId", {
-          enumerable: true,
-          get: () => "route.e2e.accessor",
-        });
-        return value;
-      },
-    ],
-    [
-      "symbol key",
-      () => {
-        const value = createValidDebugUiContextV1();
-        Object.defineProperty(value.presentation, Symbol("private"), {
-          enumerable: true,
-          value: true,
-        });
-        return value;
-      },
-    ],
-  ] as const)("rejects a %s instead of accepting non-plain data", (_name, createValue) => {
+      [
+        "foreign root prototype",
+        () => Object.setPrototypeOf(createValidDebugUiContextV1(), { inherited: true }),
+      ],
+      [
+        "null nested prototype",
+        () => {
+          const value = createValidDebugUiContextV1();
+          Object.setPrototypeOf(value.session.devDock, null);
+          return value;
+        },
+      ],
+      [
+        "accessor",
+        () => {
+          const value = createValidDebugUiContextV1();
+          Object.defineProperty(value.session, "routeId", {
+            enumerable: true,
+            get: () => "route.e2e.accessor",
+          });
+          return value;
+        },
+      ],
+      [
+        "symbol key",
+        () => {
+          const value = createValidDebugUiContextV1();
+          Object.defineProperty(value.presentation, Symbol("private"), {
+            enumerable: true,
+            value: true,
+          });
+          return value;
+        },
+      ],
+    ] as const,
+  )("rejects a %s instead of accepting non-plain data", (_name, createValue) => {
     expect(() => createDebugUiContextSchemaV1().parse(createValue())).toThrow(TypeError);
   });
 
-  it.each([
+  it.each(
     [
-      "renderer list",
-      (value: ReturnType<typeof createValidDebugUiContextV1>) =>
-        Reflect.deleteProperty(value.presentation.renderers, "0"),
-    ],
-    [
-      "appearance list",
-      (value: ReturnType<typeof createValidDebugUiContextV1>) =>
-        Reflect.deleteProperty(value.presentation.renderers[0]?.appearanceLayerIds ?? [], "0"),
-    ],
-    [
-      "surface list",
-      (value: ReturnType<typeof createValidDebugUiContextV1>) =>
-        Reflect.deleteProperty(value.presentation.visibleInteractionSurfaceIds, "0"),
-    ],
-    [
-      "detail-overlay list",
-      (value: ReturnType<typeof createValidDebugUiContextV1>) =>
-        Reflect.deleteProperty(value.session.detailOverlayIds, "0"),
-    ],
-  ] as const)("rejects holes in the %s", (_name, mutate) => {
+      [
+        "renderer list",
+        (value: ReturnType<typeof createValidDebugUiContextV1>) =>
+          Reflect.deleteProperty(value.presentation.renderers, "0"),
+      ],
+      [
+        "appearance list",
+        (value: ReturnType<typeof createValidDebugUiContextV1>) =>
+          Reflect.deleteProperty(value.presentation.renderers[0]?.appearanceLayerIds ?? [], "0"),
+      ],
+      [
+        "surface list",
+        (value: ReturnType<typeof createValidDebugUiContextV1>) =>
+          Reflect.deleteProperty(value.presentation.visibleInteractionSurfaceIds, "0"),
+      ],
+      [
+        "detail-overlay list",
+        (value: ReturnType<typeof createValidDebugUiContextV1>) =>
+          Reflect.deleteProperty(value.session.detailOverlayIds, "0"),
+      ],
+    ] as const,
+  )("rejects holes in the %s", (_name, mutate) => {
     const value = createValidDebugUiContextV1();
     mutate(value);
     expect(() => createDebugUiContextSchemaV1().parse(value)).toThrow(TypeError);
@@ -348,48 +355,50 @@ describe("diagnostic contracts", () => {
     expectDebugUiContextFailureCodeV1(withinDiagnosticButOutsideBrandLimit, "invalid CharacterId");
   });
 
-  it.each([
+  it.each(
     [
-      "renderers",
-      "diagnostics.presentation_renderers_limit",
-      (value: ReturnType<typeof createValidDebugUiContextV1>) => {
-        value.presentation.renderers = Array.from(
-          { length: debugPresentationLimitsV1.renderers + 1 },
-          (_unused, index) => createDebugPresentationRendererSummaryV1(index),
-        );
-      },
-    ],
-    [
-      "appearance layers",
-      "diagnostics.presentation_appearance_limit",
-      (value: ReturnType<typeof createValidDebugUiContextV1>) => {
-        value.presentation.renderers[0]!.appearanceLayerIds = Array.from(
-          { length: debugPresentationLimitsV1.appearanceLayersPerRenderer + 1 },
-          (_unused, index) => `appearance.e2e.counter.layer.${index}`,
-        );
-      },
-    ],
-    [
-      "visible surfaces",
-      "diagnostics.presentation_surfaces_limit",
-      (value: ReturnType<typeof createValidDebugUiContextV1>) => {
-        value.presentation.visibleInteractionSurfaceIds = Array.from(
-          { length: debugPresentationLimitsV1.visibleInteractionSurfaces + 1 },
-          (_unused, index) => `surface.e2e.counter.${index}`,
-        );
-      },
-    ],
-    [
-      "detail overlays",
-      "diagnostics.ui_context_detail_stack_limit",
-      (value: ReturnType<typeof createValidDebugUiContextV1>) => {
-        value.session.detailOverlayIds = Array.from(
-          { length: debugPresentationLimitsV1.detailOverlayStack + 1 },
-          (_unused, index) => `overlay.e2e.detail.${index}`,
-        );
-      },
-    ],
-  ] as const)("rejects the exact +1 %s boundary with %s", (_name, code, mutate) => {
+      [
+        "renderers",
+        "diagnostics.presentation_renderers_limit",
+        (value: ReturnType<typeof createValidDebugUiContextV1>) => {
+          value.presentation.renderers = Array.from(
+            { length: debugPresentationLimitsV1.renderers + 1 },
+            (_unused, index) => createDebugPresentationRendererSummaryV1(index),
+          );
+        },
+      ],
+      [
+        "appearance layers",
+        "diagnostics.presentation_appearance_limit",
+        (value: ReturnType<typeof createValidDebugUiContextV1>) => {
+          value.presentation.renderers[0]!.appearanceLayerIds = Array.from(
+            { length: debugPresentationLimitsV1.appearanceLayersPerRenderer + 1 },
+            (_unused, index) => `appearance.e2e.counter.layer.${index}`,
+          );
+        },
+      ],
+      [
+        "visible surfaces",
+        "diagnostics.presentation_surfaces_limit",
+        (value: ReturnType<typeof createValidDebugUiContextV1>) => {
+          value.presentation.visibleInteractionSurfaceIds = Array.from(
+            { length: debugPresentationLimitsV1.visibleInteractionSurfaces + 1 },
+            (_unused, index) => `surface.e2e.counter.${index}`,
+          );
+        },
+      ],
+      [
+        "detail overlays",
+        "diagnostics.ui_context_detail_stack_limit",
+        (value: ReturnType<typeof createValidDebugUiContextV1>) => {
+          value.session.detailOverlayIds = Array.from(
+            { length: debugPresentationLimitsV1.detailOverlayStack + 1 },
+            (_unused, index) => `overlay.e2e.detail.${index}`,
+          );
+        },
+      ],
+    ] as const,
+  )("rejects the exact +1 %s boundary with %s", (_name, code, mutate) => {
     const value = createValidDebugUiContextV1();
     mutate(value);
     expectDebugUiContextFailureCodeV1(value, code);

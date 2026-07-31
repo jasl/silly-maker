@@ -206,11 +206,13 @@ test("maps declared UI package subpaths to production source", async () => {
   try {
     const closure = await collectImportClosure(root, [fixture]);
     assert.deepEqual(closure.errors, []);
-    for (const path of [
-      "engine/packages/ui/src/assets/index.ts",
-      "engine/packages/ui/src/debug/index.ts",
-      "engine/packages/ui/src/diagnostics/index.ts",
-    ]) {
+    for (
+      const path of [
+        "engine/packages/ui/src/assets/index.ts",
+        "engine/packages/ui/src/debug/index.ts",
+        "engine/packages/ui/src/diagnostics/index.ts",
+      ]
+    ) {
       assert(closure.paths.includes(path), path);
     }
     assert(
@@ -286,9 +288,11 @@ test("builds sorted live records from an explicit managed path set", async () =>
     assert.equal(record.facet, "application");
     assert.equal(
       record.sha256,
-      `sha256:${createHash("sha256")
-        .update(await readFile(`${root}/${record.path}`))
-        .digest("hex")}`,
+      `sha256:${
+        createHash("sha256")
+          .update(await readFile(`${root}/${record.path}`))
+          .digest("hex")
+      }`,
     );
   }
   await assert.rejects(

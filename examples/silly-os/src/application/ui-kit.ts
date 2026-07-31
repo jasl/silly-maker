@@ -41,8 +41,9 @@ export function useOsTextV1(playerProfile: PlayerProfileStoreV1): (textId: strin
     [playerProfile],
   );
   const preference = playerProfile.current().preferences.locale;
-  const requested =
-    typeof navigator === "undefined" ? [] : (navigator.languages ?? [navigator.language]);
+  const requested = typeof navigator === "undefined"
+    ? []
+    : (navigator.languages ?? [navigator.language]);
   const locale = osResolveLocaleV1(preference, requested);
   return (textId: string) => osTextForLocaleV1(locale, textId);
 }
@@ -58,7 +59,8 @@ export const os98 = Object.freeze({
   titleActive: "linear-gradient(90deg, #000080, #1084d0)",
   titleInactive: "linear-gradient(90deg, #808080, #b5b5b5)",
   titleText: "#ffffff",
-  font: '11px "MS Sans Serif", Tahoma, "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", "Hiragino Sans", "Yu Gothic UI", Meiryo, ui-sans-serif, system-ui, sans-serif',
+  font:
+    '11px "MS Sans Serif", Tahoma, "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", "Hiragino Sans", "Yu Gothic UI", Meiryo, ui-sans-serif, system-ui, sans-serif',
 });
 
 /** Raised bevel (windows, buttons at rest). */

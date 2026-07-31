@@ -158,10 +158,9 @@ export async function createSillymakerAppViteConfigV1(
     throw new TypeError(`application "${config.applicationId}" declares no web target`);
   }
 
-  const runtimeAssetContentTypes =
-    input.runtimeAssetContentTypes === undefined
-      ? undefined
-      : parseRuntimeAssetContentTypesV1(input.runtimeAssetContentTypes);
+  const runtimeAssetContentTypes = input.runtimeAssetContentTypes === undefined
+    ? undefined
+    : parseRuntimeAssetContentTypesV1(input.runtimeAssetContentTypes);
 
   const plugins: PluginOption[] = [];
   if (web.identity !== null && web.identity !== undefined) {
@@ -170,7 +169,7 @@ export async function createSillymakerAppViteConfigV1(
   }
   const versionStamp =
     parseVersionStampReceiptInternalV1(process.env[versionStampReceiptEnvironmentKeyInternalV1]) ??
-    collectVersionStampV1({ appRoot });
+      collectVersionStampV1({ appRoot });
   plugins.push(
     react(),
     runtimeAssetsPluginV1(appRoot, runtimeAssetContentTypes),

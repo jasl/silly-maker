@@ -90,11 +90,13 @@ function createCapabilityFixtureV1(automationBridge: boolean) {
   const listeners = new Set<() => void>();
   let subscribeCount = 0;
   let unsubscribeCount = 0;
-  const capabilityFields = Object.freeze({
-    debug_tools: "debugTools",
-    cheats: "cheats",
-    automation_bridge: "automationBridge",
-  } satisfies Record<RuntimeCapabilityIdV1, keyof RuntimeCapabilitiesV1>);
+  const capabilityFields = Object.freeze(
+    {
+      debug_tools: "debugTools",
+      cheats: "cheats",
+      automation_bridge: "automationBridge",
+    } satisfies Record<RuntimeCapabilityIdV1, keyof RuntimeCapabilitiesV1>,
+  );
   const port: RuntimeCapabilityPortV1 = Object.freeze({
     state: Object.freeze({
       getCurrent: () => current,
@@ -194,7 +196,8 @@ const liveInstallations = new Set<InstalledBrowserAutomationBridgeV1>();
 
 function readAutomationGlobalV1(): TestAutomationBridgeV1 | undefined {
   return Object.getOwnPropertyDescriptor(globalThis, "__SILLYMAKER_AUTOMATION_V1__")?.value as
-    TestAutomationBridgeV1 | undefined;
+    | TestAutomationBridgeV1
+    | undefined;
 }
 
 function createAutomationFixtureV1(input: {
@@ -327,57 +330,54 @@ describe("browser automation bridge", () => {
       const semantic = createSemanticFixtureV1({
         ...(method === "preview"
           ? {
-              preview: async () => {
-                admitted();
-                return (await pending) as TestPreviewV1;
-              },
-            }
+            preview: async () => {
+              admitted();
+              return (await pending) as TestPreviewV1;
+            },
+          }
           : {}),
         ...(method === "dispatch"
           ? {
-              dispatch: async () => {
-                admitted();
-                return (await pending) as TestResultV1;
-              },
-            }
+            dispatch: async () => {
+              admitted();
+              return (await pending) as TestResultV1;
+            },
+          }
           : {}),
         ...(method === "waitForIdle"
           ? {
-              waitForIdle: async () => {
-                admitted();
-                return (await pending) as TestPublicationV1;
-              },
-            }
+            waitForIdle: async () => {
+              admitted();
+              return (await pending) as TestPublicationV1;
+            },
+          }
           : {}),
       });
       const fixture = createAutomationFixtureV1({ automationBridge: true, semantic });
       const bridge = readAutomationGlobalV1();
       expect(bridge).toBeDefined();
       if (bridge === undefined) throw new Error("missing automation bridge");
-      const inFlight =
-        method === "preview"
-          ? bridge.preview(semantic.invocation)
-          : method === "dispatch"
-            ? bridge.dispatch(semantic.invocation)
-            : bridge.waitForIdle();
+      const inFlight = method === "preview"
+        ? bridge.preview(semantic.invocation)
+        : method === "dispatch"
+        ? bridge.dispatch(semantic.invocation)
+        : bridge.waitForIdle();
 
       await admittedPromise;
       await fixture.capabilities.port.setEnabled("automation_bridge", false);
-      const expected =
-        method === "preview"
-          ? base.previewValue
-          : method === "dispatch"
-            ? base.result
-            : base.publication;
+      const expected = method === "preview"
+        ? base.previewValue
+        : method === "dispatch"
+        ? base.result
+        : base.publication;
       resolve(expected);
 
       await expect(inFlight).resolves.toEqual({ kind: "ok", value: expected });
-      const rejected =
-        method === "preview"
-          ? bridge.preview(semantic.invocation)
-          : method === "dispatch"
-            ? bridge.dispatch(semantic.invocation)
-            : bridge.waitForIdle();
+      const rejected = method === "preview"
+        ? bridge.preview(semantic.invocation)
+        : method === "dispatch"
+        ? bridge.dispatch(semantic.invocation)
+        : bridge.waitForIdle();
       await expect(rejected).resolves.toEqual({ kind: "capability_disabled" });
       const delegate = semantic[method];
       expect(delegate).toHaveBeenCalledTimes(1);

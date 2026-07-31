@@ -22,8 +22,9 @@ export function markRunModifiedV1(
   return runIntegrityV1Schema.parse({
     mode: "modified",
     mutationCount,
-    firstMutationSequence:
-      integrity.firstMutationSequence === null ? reason.sequence : integrity.firstMutationSequence,
+    firstMutationSequence: integrity.firstMutationSequence === null
+      ? reason.sequence
+      : integrity.firstMutationSequence,
     reasons,
   });
 }

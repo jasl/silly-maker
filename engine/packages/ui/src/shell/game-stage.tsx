@@ -128,25 +128,26 @@ function defineStageLayerV1<const TId extends string, const TSlot extends keyof 
   });
 }
 
-const stageLayerDescriptorsV1 = Object.freeze([
-  defineStageLayerV1("background", "background", "ordinary_gameplay"),
-  defineStageLayerV1("character", "character", "ordinary_gameplay"),
-  defineStageLayerV1("scene_interaction", "sceneInteraction", "gameplay", {
-    omitWhenEmpty: true,
-    pointerSurface: true,
-  }),
-  defineStageLayerV1("hud", "hud", "ordinary_gameplay"),
-  defineStageLayerV1("narrative", "narrative", "narrative"),
-  defineStageLayerV1("workspace_overlay", "workspaceOverlay", "system"),
-  defineStageLayerV1("system", "system", "none", { portalTarget: true }),
-] as const satisfies readonly StageLayerDescriptorV1[]);
+const stageLayerDescriptorsV1 = Object.freeze(
+  [
+    defineStageLayerV1("background", "background", "ordinary_gameplay"),
+    defineStageLayerV1("character", "character", "ordinary_gameplay"),
+    defineStageLayerV1("scene_interaction", "sceneInteraction", "gameplay", {
+      omitWhenEmpty: true,
+      pointerSurface: true,
+    }),
+    defineStageLayerV1("hud", "hud", "ordinary_gameplay"),
+    defineStageLayerV1("narrative", "narrative", "narrative"),
+    defineStageLayerV1("workspace_overlay", "workspaceOverlay", "system"),
+    defineStageLayerV1("system", "system", "none", { portalTarget: true }),
+  ] as const satisfies readonly StageLayerDescriptorV1[],
+);
 
 export type StageLayerIdV1 = (typeof stageLayerDescriptorsV1)[number]["id"];
 type StageLayerIdsV1<TDescriptors extends readonly StageLayerDescriptorV1[]> = {
   readonly [TIndex in keyof TDescriptors]: TDescriptors[TIndex] extends {
     readonly id: infer TId extends string;
-  }
-    ? TId
+  } ? TId
     : never;
 };
 
@@ -175,8 +176,9 @@ const noStageInputIsolationV1 = Object.freeze({
 export function GameStageV1(props: GameStagePropsV1): ReactElement {
   const stageRootRef = useRef<HTMLElement | null>(null);
   const gestureFenceRef = useRef<StagePointerGestureFenceHandleV1 | null>(null);
-  const [isolationCounts, setIsolationCounts] =
-    useState<StageInputIsolationCountsV1>(noStageInputIsolationV1);
+  const [isolationCounts, setIsolationCounts] = useState<StageInputIsolationCountsV1>(
+    noStageInputIsolationV1,
+  );
   const [systemPortalContainer, setSystemPortalContainer] = useState<HTMLDivElement | null>(null);
   const [systemFocusScopeRegistrations, setSystemFocusScopeRegistrations] = useState<
     readonly StageSystemFocusScopeRegistrationV1[]
@@ -188,7 +190,7 @@ export function GameStageV1(props: GameStagePropsV1): ReactElement {
       if (!registered) return;
       registered = false;
       setIsolationCounts((current) =>
-        Object.freeze({ ...current, [context]: Math.max(0, current[context] - 1) }),
+        Object.freeze({ ...current, [context]: Math.max(0, current[context] - 1) })
       );
     };
   }, []);
@@ -200,7 +202,7 @@ export function GameStageV1(props: GameStagePropsV1): ReactElement {
       if (!registered) return;
       registered = false;
       setSystemFocusScopeRegistrations((current) =>
-        Object.freeze(current.filter((candidate) => candidate !== registration)),
+        Object.freeze(current.filter((candidate) => candidate !== registration))
       );
     };
   }, []);
@@ -266,9 +268,11 @@ export function GameStageV1(props: GameStagePropsV1): ReactElement {
         aria-label={props.accessibleName}
         data-stage-root="true"
       >
-        {/* The descriptor tuple is the one runtime authority for layer order,
+        {
+          /* The descriptor tuple is the one runtime authority for layer order,
             slot mapping, isolation, pointer ownership, and portal placement.
-            An empty pointer-enabled layer is omitted so it cannot eat hits. */}
+            An empty pointer-enabled layer is omitted so it cannot eat hits. */
+        }
         {stageLayerDescriptorsV1.map((descriptor) => {
           const content = props.layers[descriptor.slot];
           if (descriptor.omitWhenEmpty && (content === null || content === undefined)) {

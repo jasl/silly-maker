@@ -87,11 +87,12 @@ type SyntheticAttemptV1 = CommandExecutionAttemptEnvelopeV1<
   never
 >;
 
-interface SyntheticTypesV1 extends GameSimulationTypeMapV1<
-  GameBootstrapInputV1,
-  SyntheticStateV1,
-  SyntheticRngV1
-> {
+interface SyntheticTypesV1 extends
+  GameSimulationTypeMapV1<
+    GameBootstrapInputV1,
+    SyntheticStateV1,
+    SyntheticRngV1
+  > {
   readonly snapshot: SyntheticSnapshotV1;
   readonly command: SyntheticCommandV1;
   readonly fact: { readonly count: NonNegativeSafeInteger };
@@ -310,7 +311,7 @@ function lineageV1(length: number, finalDigest: Digest): readonly SimulationAdop
         toSimulationDigest: boundaries[index + 1] ?? finalDigest,
         viaSimulationPatchSetDigest: digestV1(`lineage-patch:${index}`),
         adoptedAtCommandSequence: parseNonNegativeSafeInteger(index),
-      }),
+      })
     ),
   );
 }
@@ -408,11 +409,9 @@ function failReplacementCommitV1(
       return control.enqueueAuthoritative(
         operation,
         normalizeUnexpectedFault,
-        prepareReplacementCommit === undefined
-          ? undefined
-          : () => {
-              throw new Error("replacement callback failed");
-            },
+        prepareReplacementCommit === undefined ? undefined : () => {
+          throw new Error("replacement callback failed");
+        },
       );
     },
   });
@@ -481,10 +480,9 @@ async function fixtureV1(options: FixtureOptionsV1 = {}) {
     now: () => "2026-07-14T12:00:00.000Z" as IsoUtcInstant,
   });
   const service = await createPersistenceServiceV1({
-    runtimeControl:
-      options.failReplacementCommit === true
-        ? failReplacementCommitV1(created.runtimeControl)
-        : created.runtimeControl,
+    runtimeControl: options.failReplacementCommit === true
+      ? failReplacementCommitV1(created.runtimeControl)
+      : created.runtimeControl,
     repository,
     lease: serviceLease,
     validation,
@@ -677,24 +675,28 @@ describe("PersistenceServiceV1", () => {
     });
     expect(fixture.service.getSimulationLineage()).toEqual(initialLineage);
 
-    for (const operation of [
-      fixture.service.port.save("quick"),
-      fixture.service.port.annotateSave("quick", "blocked"),
-      fixture.service.port.load("quick"),
-      fixture.service.port.clear("quick"),
-      fixture.service.port.importSave(Uint8Array.of(1)),
-    ]) {
+    for (
+      const operation of [
+        fixture.service.port.save("quick"),
+        fixture.service.port.annotateSave("quick", "blocked"),
+        fixture.service.port.load("quick"),
+        fixture.service.port.clear("quick"),
+        fixture.service.port.importSave(Uint8Array.of(1)),
+      ]
+    ) {
       await expect(operation).resolves.toEqual({
         kind: "faulted",
         code: "runtime_disposed",
       });
     }
-    for (const operation of [
-      fixture.service.port.lease.requestHandoff(),
-      fixture.service.port.lease.approveHandoff("handoff.persistence-service-test" as never),
-      fixture.service.port.lease.takeOver(),
-      fixture.service.port.lease.release(),
-    ]) {
+    for (
+      const operation of [
+        fixture.service.port.lease.requestHandoff(),
+        fixture.service.port.lease.approveHandoff("handoff.persistence-service-test" as never),
+        fixture.service.port.lease.takeOver(),
+        fixture.service.port.lease.release(),
+      ]
+    ) {
       await expect(operation).resolves.toEqual({
         kind: "rejected",
         code: "conflict",
@@ -921,11 +923,11 @@ describe("PersistenceServiceV1", () => {
           ) {
             return slot === "auto.current"
               ? Promise.resolve(
-                  Object.freeze({
-                    kind: "rejected" as const,
-                    code: "conflict" as const,
-                  }),
-                )
+                Object.freeze({
+                  kind: "rejected" as const,
+                  code: "conflict" as const,
+                }),
+              )
               : repository.clear(slot, fence);
           },
         });
@@ -1058,14 +1060,16 @@ describe("PersistenceServiceV1", () => {
       slotId: "quick",
     });
 
-    for (const operation of [
-      fixture.service.port.save("quick"),
-      fixture.service.port.clear("quick"),
-      fixture.service.port.load("quick"),
-      fixture.service.port.importSave(
-        encodeSaveRecordV1(recordV1({ snapshot: snapshotV1(9) }), codecV1),
-      ),
-    ]) {
+    for (
+      const operation of [
+        fixture.service.port.save("quick"),
+        fixture.service.port.clear("quick"),
+        fixture.service.port.load("quick"),
+        fixture.service.port.importSave(
+          encodeSaveRecordV1(recordV1({ snapshot: snapshotV1(9) }), codecV1),
+        ),
+      ]
+    ) {
       await expect(operation).resolves.toEqual({
         kind: "faulted",
         code: "runtime_disposed",
@@ -1394,12 +1398,11 @@ describe("PersistenceServiceV1", () => {
       const snapshot = fixture.session.getCurrentSnapshot();
       fixture.invalidationController.invalidateForHmr();
 
-      const result =
-        operation === "load"
-          ? fixture.service.port.load("quick")
-          : fixture.service.port.importSave(
-              encodeSaveRecordV1(recordV1({ snapshot: snapshotV1(9) }), codecV1),
-            );
+      const result = operation === "load"
+        ? fixture.service.port.load("quick")
+        : fixture.service.port.importSave(
+          encodeSaveRecordV1(recordV1({ snapshot: snapshotV1(9) }), codecV1),
+        );
       await expect(result).resolves.toEqual({
         kind: "faulted",
         code: "runtime_disposed",
@@ -2503,10 +2506,9 @@ describe("PersistenceServiceV1", () => {
       const firstDispatch = dispatchFirst.session.dispatch({
         kind: "increment",
       });
-      const firstReplacement =
-        operation === "load"
-          ? dispatchFirst.service.port.load("quick")
-          : dispatchFirst.service.port.importSave(encodeSaveRecordV1(candidate, codecV1));
+      const firstReplacement = operation === "load"
+        ? dispatchFirst.service.port.load("quick")
+        : dispatchFirst.service.port.importSave(encodeSaveRecordV1(candidate, codecV1));
       await firstDispatch;
       await expect(firstReplacement).resolves.toMatchObject({
         compatibility: "exact",
@@ -2521,10 +2523,9 @@ describe("PersistenceServiceV1", () => {
           await ownedFenceV1(replacementFirst),
         );
       }
-      const secondReplacement =
-        operation === "load"
-          ? replacementFirst.service.port.load("quick")
-          : replacementFirst.service.port.importSave(encodeSaveRecordV1(candidate, codecV1));
+      const secondReplacement = operation === "load"
+        ? replacementFirst.service.port.load("quick")
+        : replacementFirst.service.port.importSave(encodeSaveRecordV1(candidate, codecV1));
       const secondDispatch = replacementFirst.session.dispatch({
         kind: "increment",
       });
@@ -2575,8 +2576,7 @@ describe("PersistenceService standard composition", () => {
           : Object.freeze(["reference.unknown"]),
       validateInvariants: () => Object.freeze([]),
       initialSimulationLineage: Object.freeze([]),
-      metadataClock:
-        options.metadataClock ??
+      metadataClock: options.metadataClock ??
         Object.freeze({
           now: () => "2026-07-14T12:00:00.000Z" as IsoUtcInstant,
         }),
@@ -2586,16 +2586,15 @@ describe("PersistenceService standard composition", () => {
         ? {}
         : { collectVersionStamp: options.collectVersionStamp }),
     };
-    const service =
-      options.instrumentation === undefined
-        ? await createPersistenceServiceV1(serviceOptions)
-        : await createInstrumentedPersistenceServiceV1(
-            serviceOptions,
-            options.instrumentation,
-            options.wrapRepositoryForWriteReceiptFallback === true
-              ? { wrapRepositoryForWriteReceiptFallback: true }
-              : undefined,
-          );
+    const service = options.instrumentation === undefined
+      ? await createPersistenceServiceV1(serviceOptions)
+      : await createInstrumentedPersistenceServiceV1(
+        serviceOptions,
+        options.instrumentation,
+        options.wrapRepositoryForWriteReceiptFallback === true
+          ? { wrapRepositoryForWriteReceiptFallback: true }
+          : undefined,
+      );
     return Object.freeze({ records, ...created, service });
   }
 

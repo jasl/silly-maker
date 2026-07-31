@@ -305,10 +305,9 @@ function normalizeMutationsV1(
       if (!(mutation.bytes instanceof Uint8Array)) {
         throw new TypeError("invalid Host record mutation bytes");
       }
-      const expectedRevision =
-        mutation.expectedRevision === null
-          ? null
-          : parseNonNegativeSafeInteger(mutation.expectedRevision);
+      const expectedRevision = mutation.expectedRevision === null
+        ? null
+        : parseNonNegativeSafeInteger(mutation.expectedRevision);
       return Object.freeze({
         kind: "put",
         namespace: mutation.namespace,
@@ -418,11 +417,11 @@ export function createIndexedDbRecordStoreV1(
         const objectStore = transaction.objectStore(SILLYMAKER_RECORD_STORE_NAME_V1);
         const currentRows = await Promise.all(
           normalized.map(({ namespace, key }) =>
-            requestResultV1(objectStore.get([namespace, key])),
+            requestResultV1(objectStore.get([namespace, key]))
           ),
         );
         const currentRecords = currentRows.map((row) =>
-          row === undefined ? null : parseStoredRowV1(row, "commit"),
+          row === undefined ? null : parseStoredRowV1(row, "commit")
         );
         for (let index = 0; index < normalized.length; index += 1) {
           const mutation = normalized[index];
@@ -442,7 +441,7 @@ export function createIndexedDbRecordStoreV1(
         const writeRequests = normalized.map((mutation) =>
           mutation.kind === "put"
             ? requestResultV1(objectStore.put(rowFromMutationV1(mutation)))
-            : requestResultV1(objectStore.delete([mutation.namespace, mutation.key])),
+            : requestResultV1(objectStore.delete([mutation.namespace, mutation.key]))
         );
         await Promise.all(writeRequests);
         await completion;
@@ -454,7 +453,7 @@ export function createIndexedDbRecordStoreV1(
               key: mutation.key,
               revision: mutation.nextRevision,
               bytes: mutation.bytes,
-            }),
+            })
           );
         return Object.freeze({
           kind: "committed",

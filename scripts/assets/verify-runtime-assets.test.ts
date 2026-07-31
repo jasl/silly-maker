@@ -48,7 +48,7 @@ describe("closed runtime asset verification", () => {
           resolutionCalls.push(this.storyId);
           return manifest;
         },
-      }),
+      })
     );
     const environmentRoots: string[] = [];
     const environmentFor = (appRoot: string): RuntimeAssetValidationEnvironmentV1 => {
@@ -171,7 +171,7 @@ describe("closed runtime asset verification", () => {
     expect(dynamicSpecifiers.every((specifier) => !specifier.includes("/testkit"))).toBe(true);
     expect(
       dynamicSpecifiers.some((specifier) =>
-        /\.tsx$|\/application\/|\/stories\/[^/]+\/src\/tooling\b/u.test(specifier),
+        /\.tsx$|\/application\/|\/stories\/[^/]+\/src\/tooling\b/u.test(specifier)
       ),
     ).toBe(false);
   });

@@ -205,8 +205,8 @@ function callWriteV1(
   return kind === "auto"
     ? repository.writeAuto(record, fence)
     : kind === "quick"
-      ? repository.writePlayer("quick", record, fence)
-      : repository.writePlayer("manual.1", record, fence);
+    ? repository.writePlayer("quick", record, fence)
+    : repository.writePlayer("manual.1", record, fence);
 }
 
 type CommitOrderV1 = "save_first" | "takeover_first";
@@ -228,10 +228,10 @@ function createOrderedCommitStoreV1() {
     order = null;
     pending = [];
     const save = selected.find(({ mutations }) =>
-      mutations.some(({ namespace }) => namespace === "save"),
+      mutations.some(({ namespace }) => namespace === "save")
     );
     const takeover = selected.find(({ mutations }) =>
-      mutations.every(({ namespace }) => namespace === "lease"),
+      mutations.every(({ namespace }) => namespace === "lease")
     );
     if (selectedOrder === null || save === undefined || takeover === undefined) {
       const error = new TypeError("invalid ordered Host commit pair");

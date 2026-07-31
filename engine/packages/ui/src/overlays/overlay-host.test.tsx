@@ -127,7 +127,7 @@ describe("OverlayHostV1", () => {
       expect(screen.getByTestId("devdock-portal-selection")).toHaveAttribute(
         "data-target-overlay-depth",
         "1",
-      ),
+      )
     );
 
     act(() => {
@@ -137,7 +137,7 @@ describe("OverlayHostV1", () => {
       expect(screen.getByTestId("devdock-portal-selection")).toHaveAttribute(
         "data-target-overlay-depth",
         "0",
-      ),
+      )
     );
     expect(screen.getByRole("dialog", { name: "背包" })).toHaveAttribute(
       "data-blocking-focus-scope",
@@ -151,7 +151,7 @@ describe("OverlayHostV1", () => {
       expect(screen.getByTestId("devdock-portal-selection")).toHaveAttribute(
         "data-surface",
         "base",
-      ),
+      )
     );
   });
 
@@ -475,7 +475,7 @@ describe("OverlayHostV1", () => {
           inputRouter={createInputRouterV1()}
           closeLabel="关闭"
         />,
-      ),
+      )
     ).toThrowError("ui.overlay_renderer_missing");
   });
 

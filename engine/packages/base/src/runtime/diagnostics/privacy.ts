@@ -84,13 +84,10 @@ export function scrubDiagnosticTextV1(value: string, maximumBytes: number): stri
 export function scrubRuntimeOperationFaultV1(
   fault: RuntimeOperationFaultV1,
 ): RuntimeOperationFaultV1 {
-  const cause =
-    fault.cause === undefined
-      ? undefined
-      : Object.freeze({
-          name: scrubDiagnosticTextV1(fault.cause.name, runtimeDiagnosticTextLimitsV1.cause),
-          message: scrubDiagnosticTextV1(fault.cause.message, runtimeDiagnosticTextLimitsV1.cause),
-        });
+  const cause = fault.cause === undefined ? undefined : Object.freeze({
+    name: scrubDiagnosticTextV1(fault.cause.name, runtimeDiagnosticTextLimitsV1.cause),
+    message: scrubDiagnosticTextV1(fault.cause.message, runtimeDiagnosticTextLimitsV1.cause),
+  });
 
   return Object.freeze({
     occurredAt: fault.occurredAt,

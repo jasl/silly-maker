@@ -4,19 +4,19 @@ import { parseNonNegativeSafeInteger } from "./values.ts";
 
 export type RunIntegrityReasonV1 =
   | {
-      readonly kind: "debug_command";
-      readonly commandKind: string;
-      readonly sequence: NonNegativeSafeInteger;
-    }
+    readonly kind: "debug_command";
+    readonly commandKind: string;
+    readonly sequence: NonNegativeSafeInteger;
+  }
   | {
-      readonly kind: "fixture_anchor";
-      readonly fixtureId: string;
-      readonly sequence: NonNegativeSafeInteger;
-    }
+    readonly kind: "fixture_anchor";
+    readonly fixtureId: string;
+    readonly sequence: NonNegativeSafeInteger;
+  }
   | {
-      readonly kind: "debug_bundle_anchor";
-      readonly sequence: NonNegativeSafeInteger;
-    };
+    readonly kind: "debug_bundle_anchor";
+    readonly sequence: NonNegativeSafeInteger;
+  };
 
 export interface RunIntegrityV1 {
   readonly mode: "normal" | "modified";
@@ -163,12 +163,12 @@ export const runIntegrityV1Schema: RuntimeSchemaV1<RunIntegrityV1> = Object.free
     }
     const mutationCount = parseNonNegativeSafeInteger(fields.mutationCount?.value);
     const firstValue = fields.firstMutationSequence?.value;
-    const firstMutationSequence =
-      firstValue === null ? null : parseNonNegativeSafeInteger(firstValue);
+    const firstMutationSequence = firstValue === null
+      ? null
+      : parseNonNegativeSafeInteger(firstValue);
     const reasons = parseReasonsV1(fields.reasons?.value);
     const pristine = mutationCount === 0 && firstMutationSequence === null && reasons.length === 0;
-    const modified =
-      mutationCount > 0 &&
+    const modified = mutationCount > 0 &&
       firstMutationSequence !== null &&
       reasons.length > 0 &&
       reasons.length <= mutationCount;

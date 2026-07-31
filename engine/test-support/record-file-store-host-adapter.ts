@@ -16,27 +16,27 @@ interface StoredWireRecordV1 {
 
 type WireMutationV1 =
   | {
-      readonly kind: "put";
-      readonly namespace: string;
-      readonly key: string;
-      readonly expectedRevision: number | null;
-      readonly bytesBase64: string;
-    }
+    readonly kind: "put";
+    readonly namespace: string;
+    readonly key: string;
+    readonly expectedRevision: number | null;
+    readonly bytesBase64: string;
+  }
   | {
-      readonly kind: "delete";
-      readonly namespace: string;
-      readonly key: string;
-      readonly expectedRevision: number;
-    };
+    readonly kind: "delete";
+    readonly namespace: string;
+    readonly key: string;
+    readonly expectedRevision: number;
+  };
 
 type WireCommitResultV1 =
   | { readonly kind: "committed"; readonly records: readonly StoredWireRecordV1[] }
   | {
-      readonly kind: "conflict";
-      readonly namespace: string;
-      readonly key: string;
-      readonly actualRevision: number | null;
-    };
+    readonly kind: "conflict";
+    readonly namespace: string;
+    readonly key: string;
+    readonly actualRevision: number | null;
+  };
 
 interface RecordFileStoreWireV1 {
   read(namespace: string, key: string): Promise<StoredWireRecordV1 | null>;
@@ -60,18 +60,18 @@ function fromWireRecordV1(record: StoredWireRecordV1): HostStoredRecordV1 {
 function toWireMutationV1(mutation: HostRecordMutationV1): WireMutationV1 {
   return mutation.kind === "put"
     ? Object.freeze({
-        kind: "put",
-        namespace: mutation.namespace,
-        key: mutation.key,
-        expectedRevision: mutation.expectedRevision,
-        bytesBase64: Buffer.from(mutation.bytes).toString("base64"),
-      })
+      kind: "put",
+      namespace: mutation.namespace,
+      key: mutation.key,
+      expectedRevision: mutation.expectedRevision,
+      bytesBase64: Buffer.from(mutation.bytes).toString("base64"),
+    })
     : Object.freeze({
-        kind: "delete",
-        namespace: mutation.namespace,
-        key: mutation.key,
-        expectedRevision: mutation.expectedRevision,
-      });
+      kind: "delete",
+      namespace: mutation.namespace,
+      key: mutation.key,
+      expectedRevision: mutation.expectedRevision,
+    });
 }
 
 /** Test-only bridge from the Desktop preview wire store to the Host contract. */
@@ -95,15 +95,15 @@ export function adaptRecordFileStoreForHostTestsV1(
       return (
         result.kind === "conflict"
           ? Object.freeze({
-              kind: "conflict",
-              namespace: result.namespace as HostStoredRecordV1["namespace"],
-              key: result.key as HostRecordKeyV1,
-              actualRevision: result.actualRevision as HostStoredRecordV1["revision"] | null,
-            })
+            kind: "conflict",
+            namespace: result.namespace as HostStoredRecordV1["namespace"],
+            key: result.key as HostRecordKeyV1,
+            actualRevision: result.actualRevision as HostStoredRecordV1["revision"] | null,
+          })
           : Object.freeze({
-              kind: "committed",
-              records: Object.freeze(result.records.map(fromWireRecordV1)),
-            })
+            kind: "committed",
+            records: Object.freeze(result.records.map(fromWireRecordV1)),
+          })
       ) satisfies HostAtomicCommitResultV1;
     },
   });

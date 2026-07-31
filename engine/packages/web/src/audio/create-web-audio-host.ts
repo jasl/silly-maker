@@ -123,15 +123,16 @@ export function createWebAudioHostV1(options: CreateWebAudioHostOptionsV1): Audi
     if (disposed) return null;
     if (context !== null) return context;
     try {
-      context =
-        options.createContext !== undefined
-          ? options.createContext()
-          : (new AudioContext() as unknown as WebAudioContextLikeV1);
+      context = options.createContext !== undefined
+        ? options.createContext()
+        : (new AudioContext() as unknown as WebAudioContextLikeV1);
     } catch (error) {
       reportDiagnostic({
         code: "audio.autoplay_denied",
         assetId: null,
-        detail: `AudioContext unavailable: ${error instanceof Error ? error.message : String(error)}`,
+        detail: `AudioContext unavailable: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
       });
       return null;
     }
@@ -210,7 +211,9 @@ export function createWebAudioHostV1(options: CreateWebAudioHostOptionsV1): Audi
         reportDiagnostic({
           code: "audio.integrity_mismatch",
           assetId,
-          detail: `expected ${String(entry.provider.byteLength)} bytes, received ${String(bytes.byteLength)}`,
+          detail: `expected ${String(entry.provider.byteLength)} bytes, received ${
+            String(bytes.byteLength)
+          }`,
         });
         return null;
       }

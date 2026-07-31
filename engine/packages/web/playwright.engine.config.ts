@@ -20,7 +20,9 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: `deno run -A npm:vite --mode e2e --host ${engineTargetV1.host} --port ${String(engineTargetV1.port)} --strictPort`,
+      command: `deno run -A npm:vite --mode e2e --host ${engineTargetV1.host} --port ${
+        String(engineTargetV1.port)
+      } --strictPort`,
       cwd: "../../..",
       reuseExistingServer: false,
       timeout: 120_000,

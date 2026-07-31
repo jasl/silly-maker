@@ -28,9 +28,8 @@ describe("Story tooling entry", () => {
         notes: [],
       }),
     });
-    expect(() =>
-      validateToolingFixturesV1(valid, { fixtureIdSchema, commandSchema }),
-    ).not.toThrow();
+    expect(() => validateToolingFixturesV1(valid, { fixtureIdSchema, commandSchema })).not
+      .toThrow();
 
     const duplicate = defineStoryToolingEntry({
       contractRevision: 1,
@@ -50,7 +49,7 @@ describe("Story tooling entry", () => {
       validateToolingFixturesV1(duplicate, {
         fixtureIdSchema,
         commandSchema,
-      }),
+      })
     ).toThrow("duplicate fixture ID");
   });
 
@@ -79,8 +78,7 @@ describe("Story tooling entry", () => {
         notes: [],
       }),
     });
-    expect(() =>
-      validateToolingFixturesV1(nondeterministic, { fixtureIdSchema, commandSchema }),
-    ).toThrow("nondeterministic tooling support");
+    expect(() => validateToolingFixturesV1(nondeterministic, { fixtureIdSchema, commandSchema }))
+      .toThrow("nondeterministic tooling support");
   });
 });

@@ -108,9 +108,7 @@ export function OsBrowserAppV1(props: {
       <div
         style={{ ...osBevelInV1, padding: 0, display: "grid", minBlockSize: 0, overflow: "hidden" }}
       >
-        {location === "about:home" ? (
-          <HomePageV1 uiText={uiText} onNavigate={navigate} />
-        ) : (
+        {location === "about:home" ? <HomePageV1 uiText={uiText} onNavigate={navigate} /> : (
           <iframe
             key={location}
             src={location}

@@ -44,10 +44,11 @@ type CommandLogOutcomeV1<TFact, TRejection, TFault> =
 
 type CommandLogEntryForV1<TLoggedCommand, TFact, TRejection, TFault, TRngState, TRngDrawTrace> =
   DeepReadonly<
-    CommandLogEntryBaseForV1<TRngState, TRngDrawTrace> &
-      TLoggedCommand & {
-        readonly outcome: CommandLogOutcomeV1<TFact, TRejection, TFault>;
-      }
+    & CommandLogEntryBaseForV1<TRngState, TRngDrawTrace>
+    & TLoggedCommand
+    & {
+      readonly outcome: CommandLogOutcomeV1<TFact, TRejection, TFault>;
+    }
   >;
 
 interface InternalCommandLogEntryV1<TSnapshot, TEntry> {
@@ -62,13 +63,22 @@ export type FinalizedCommandAttemptV1<
   TFault = unknown,
   TRngState = TSnapshot["rng"],
   TRngDrawTrace = unknown,
-> = DeepReadonly<
-  CommandExecutionAttemptEnvelopeV1<TSnapshot, TFact, TRejection, TFault, TRngState, TRngDrawTrace>
-> & {
-  readonly preSnapshot: DeepReadonly<TSnapshot>;
-  readonly preStateDigest: Digest;
-  readonly postStateDigest: Digest;
-};
+> =
+  & DeepReadonly<
+    CommandExecutionAttemptEnvelopeV1<
+      TSnapshot,
+      TFact,
+      TRejection,
+      TFault,
+      TRngState,
+      TRngDrawTrace
+    >
+  >
+  & {
+    readonly preSnapshot: DeepReadonly<TSnapshot>;
+    readonly preStateDigest: Digest;
+    readonly postStateDigest: Digest;
+  };
 
 interface PreparedCommandLogAnchorV1<TSnapshot> {
   readonly snapshot: DeepReadonly<TSnapshot>;
@@ -176,13 +186,13 @@ function validateFinalizedAttemptV1<
   if (auditStateDigests) {
     if (
       attempt.preStateDigest !==
-      digestCanonicalInternalV1("sillymaker:state:v1", attempt.preSnapshot, instrumentation)
+        digestCanonicalInternalV1("sillymaker:state:v1", attempt.preSnapshot, instrumentation)
     ) {
       throw new TypeError("Finalized command attempt pre-state digest mismatch");
     }
     if (
       attempt.postStateDigest !==
-      digestCanonicalInternalV1("sillymaker:state:v1", attempt.result.snapshot, instrumentation)
+        digestCanonicalInternalV1("sillymaker:state:v1", attempt.result.snapshot, instrumentation)
     ) {
       throw new TypeError("Finalized command attempt post-state digest mismatch");
     }
@@ -232,8 +242,7 @@ export function createCommandLogInternalV1<
   }
 
   let replayBase = input.replayBase;
-  let replayBaseDigest =
-    input.replayBaseStateDigest ??
+  let replayBaseDigest = input.replayBaseStateDigest ??
     digestCanonicalInternalV1("sillymaker:state:v1", replayBase, instrumentation);
   let nextOrdinal = parsePositiveSafeInteger(1);
   const internalEntries: InternalEntry[] = [];
@@ -260,8 +269,8 @@ export function createCommandLogInternalV1<
         throw new TypeError("Debug CommandLog entries cannot be rejected");
       }
       const preAttemptSnapshot = internalEntries.at(-1)?.postAttemptSnapshot ?? replayBase;
-      const preAttemptStateDigest =
-        internalEntries.at(-1)?.entry.postStateDigest ?? replayBaseDigest;
+      const preAttemptStateDigest = internalEntries.at(-1)?.entry.postStateDigest ??
+        replayBaseDigest;
       validateFinalizedAttemptV1(
         preAttemptSnapshot,
         preAttemptStateDigest,

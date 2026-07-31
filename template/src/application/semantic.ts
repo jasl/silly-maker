@@ -38,10 +38,10 @@ export interface TemplateActionDescriptorV1 {
 export type TemplateInvocationV1 =
   | { readonly kind: "invoke"; readonly actionId: TemplateActionIdV1 }
   | {
-      readonly kind: "resolve";
-      readonly expectedOccurrenceId: string;
-      readonly resolution: InteractionResolution;
-    };
+    readonly kind: "resolve";
+    readonly expectedOccurrenceId: string;
+    readonly resolution: InteractionResolution;
+  };
 
 export type TemplatePreviewV1 =
   | { readonly kind: "allowed" }
@@ -52,10 +52,9 @@ export type TemplateActionResultV1 =
   | { readonly kind: "rejected"; readonly codes: readonly TemplateRejectionV1["code"][] }
   | { readonly kind: "faulted"; readonly code: string }
   | {
-      readonly kind: "not_executed";
-      readonly code:
-        "session_unavailable" | "fault_paused" | "hmr_invalidated" | "validation_failed";
-    };
+    readonly kind: "not_executed";
+    readonly code: "session_unavailable" | "fault_paused" | "hmr_invalidated" | "validation_failed";
+  };
 
 const templateActionIdsV1: readonly TemplateActionIdV1[] = Object.freeze([
   "template.begin_story",
@@ -102,20 +101,19 @@ export function projectTemplateNarrativeViewV1(
     pending,
     flags: queries.narrative.flags,
     history: queries.narrative.history,
-    choiceOptions:
-      pending !== null && pending.kind === "choice"
-        ? Object.freeze(
-            templateChoiceOptionsForV1(pending.definitionId).map((option) => {
-              const blockedBy = templateChoiceBlockedByV1(option, queries.coins);
-              return Object.freeze({
-                choiceId: option.choiceId,
-                textId: option.textId,
-                enabled: blockedBy === null,
-                blockedBy,
-              });
-            }),
-          )
-        : null,
+    choiceOptions: pending !== null && pending.kind === "choice"
+      ? Object.freeze(
+        templateChoiceOptionsForV1(pending.definitionId).map((option) => {
+          const blockedBy = templateChoiceBlockedByV1(option, queries.coins);
+          return Object.freeze({
+            choiceId: option.choiceId,
+            textId: option.textId,
+            enabled: blockedBy === null,
+            blockedBy,
+          });
+        }),
+      )
+      : null,
   });
 }
 
@@ -169,10 +167,9 @@ export const templateSemanticAdapterV1: CoreSemanticAdapterV1<
       }),
     ),
   preview: (queries, invocation) => {
-    const blockedBy =
-      invocation.kind === "resolve"
-        ? resolutionBlockedByV1(queries, invocation)
-        : blockedByV1(queries, invocation.actionId);
+    const blockedBy = invocation.kind === "resolve"
+      ? resolutionBlockedByV1(queries, invocation)
+      : blockedByV1(queries, invocation.actionId);
     return blockedBy === null
       ? Object.freeze({ kind: "allowed" as const })
       : Object.freeze({ kind: "blocked" as const, code: blockedBy });
@@ -181,10 +178,10 @@ export const templateSemanticAdapterV1: CoreSemanticAdapterV1<
   commandForInvocation: (invocation) =>
     invocation.kind === "resolve"
       ? Object.freeze({
-          kind: "template.narrative_resolve" as const,
-          expectedOccurrenceId: invocation.expectedOccurrenceId,
-          resolution: invocation.resolution,
-        })
+        kind: "template.narrative_resolve" as const,
+        expectedOccurrenceId: invocation.expectedOccurrenceId,
+        resolution: invocation.resolution,
+      })
       : Object.freeze({ kind: invocation.actionId }),
   projectDispatchResult: (result) => {
     if (result.kind === "not_executed") {

@@ -112,8 +112,9 @@ export const osGameApplicationV1: WebGameApplicationV1<
     readonly instance: OsApplicationInstanceV1;
     readonly playerProfile: PlayerProfileStoreV1;
   }) => {
-    const requested =
-      typeof navigator === "undefined" ? [] : (navigator.languages ?? [navigator.language]);
+    const requested = typeof navigator === "undefined"
+      ? []
+      : (navigator.languages ?? [navigator.language]);
     const locale = osResolveLocaleV1(playerProfile.current().preferences.locale, requested);
     const zh = locale === "zh-CN";
     return Object.freeze({

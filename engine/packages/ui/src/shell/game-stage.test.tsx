@@ -61,9 +61,9 @@ function GestureFenceLifecycleHarnessV1(props: { readonly onLowerAction: () => v
             下层业务操作
           </button>
         ),
-        narrative: dismissVisible ? (
-          <GestureFenceDismissButtonV1 onDismiss={() => setDismissVisible(false)} />
-        ) : null,
+        narrative: dismissVisible
+          ? <GestureFenceDismissButtonV1 onDismiss={() => setDismissVisible(false)} />
+          : null,
       })}
     />
   );
@@ -98,15 +98,17 @@ describe("GameStageV1", () => {
     expect(screen.getByTestId("stage-narrative")).toHaveAttribute("data-stage-layer", "narrative");
     expect(screen.getByTestId("stage-system")).toHaveAttribute("data-stage-layer", "system");
 
-    const contentByLayer = Object.freeze([
-      ["background", screen.getByText("背景")],
-      ["character", screen.getByText("角色")],
-      ["scene_interaction", screen.getByRole("button", { name: "场景交互" })],
-      ["hud", screen.getByRole("button", { name: "状态操作" })],
-      ["narrative", screen.getByRole("region", { name: "叙事" })],
-      ["workspace_overlay", screen.getByRole("region", { name: "工作区" })],
-      ["system", screen.getByRole("status")],
-    ] as const satisfies readonly (readonly [StageLayerIdV1, HTMLElement])[]);
+    const contentByLayer = Object.freeze(
+      [
+        ["background", screen.getByText("背景")],
+        ["character", screen.getByText("角色")],
+        ["scene_interaction", screen.getByRole("button", { name: "场景交互" })],
+        ["hud", screen.getByRole("button", { name: "状态操作" })],
+        ["narrative", screen.getByRole("region", { name: "叙事" })],
+        ["workspace_overlay", screen.getByRole("region", { name: "工作区" })],
+        ["system", screen.getByRole("status")],
+      ] as const satisfies readonly (readonly [StageLayerIdV1, HTMLElement])[],
+    );
     for (const [layerId, content] of contentByLayer) {
       expect(screen.getByTestId(`stage-${layerId.replaceAll("_", "-")}`)).toContainElement(content);
     }
@@ -213,15 +215,17 @@ describe("GameStageV1", () => {
 
   it("exports the exact frozen layer ID sequence", () => {
     expect(Object.isFrozen(stageLayerIdsV1)).toBe(true);
-    expect(stageLayerIdsV1).toEqual([
-      "background",
-      "character",
-      "scene_interaction",
-      "hud",
-      "narrative",
-      "workspace_overlay",
-      "system",
-    ] satisfies readonly StageLayerIdV1[]);
+    expect(stageLayerIdsV1).toEqual(
+      [
+        "background",
+        "character",
+        "scene_interaction",
+        "hud",
+        "narrative",
+        "workspace_overlay",
+        "system",
+      ] satisfies readonly StageLayerIdV1[],
+    );
   });
 
   it("keeps the CSS Stage basis, z-order, safe area, and motion policy explicit", async () => {

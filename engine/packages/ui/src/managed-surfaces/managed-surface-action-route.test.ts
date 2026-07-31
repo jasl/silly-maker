@@ -168,7 +168,7 @@ describe("Managed Surface action route", () => {
         routingLeaseId: "surface-lease.forged",
         targetOccurrenceId: "surface-occurrence.forged",
         semanticOccurrenceId: "semantic.forged",
-      } as never),
+      } as never)
     ).toThrowError("ui.invalid_managed_surface_action_envelope");
     const { gestureId: _gestureId, ...missingGesture } = envelope;
     expect(() => fixture.binding.route(missingGesture as never)).toThrowError(

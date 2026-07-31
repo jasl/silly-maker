@@ -11,14 +11,16 @@ import {
   type InputRouterV1,
 } from "./contracts.ts";
 
-const inputContextPrecedenceV1 = Object.freeze([
-  "debug",
-  "system",
-  "overlay",
-  "narrative",
-  "interaction",
-  "gameplay",
-] as const satisfies readonly InputContextIdV1[]);
+const inputContextPrecedenceV1 = Object.freeze(
+  [
+    "debug",
+    "system",
+    "overlay",
+    "narrative",
+    "interaction",
+    "gameplay",
+  ] as const satisfies readonly InputContextIdV1[],
+);
 
 const inputContextIdsV1 = new Set<InputContextIdV1>(inputContextPrecedenceV1);
 
@@ -33,13 +35,15 @@ const handledResultsV1 = Object.freeze({
 
 const focusLossEventV1 = Object.freeze({ kind: "focus_loss" as const });
 const actionEventKeysV1 = Object.freeze(["kind", "actionId"] as const);
-const viewportPointEventKeysV1 = Object.freeze([
-  "kind",
-  "phase",
-  "point",
-  "pointerId",
-  "pointerType",
-] as const);
+const viewportPointEventKeysV1 = Object.freeze(
+  [
+    "kind",
+    "phase",
+    "point",
+    "pointerId",
+    "pointerType",
+  ] as const,
+);
 const viewportPointKeysV1 = Object.freeze(["x", "y"] as const);
 const pointerCancelEventKeysV1 = Object.freeze(["kind", "pointerId"] as const);
 const focusLossEventKeysV1 = Object.freeze(["kind"] as const);

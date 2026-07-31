@@ -411,7 +411,7 @@ describe("desktop file-preview deterministic fault characterization", () => {
     expect(results.map((result) => result.kind)).toEqual(["committed", "committed"]);
     expect(
       results.flatMap((result) =>
-        result.kind === "committed" ? result.records.map((record) => record.revision) : [],
+        result.kind === "committed" ? result.records.map((record) => record.revision) : []
       ),
     ).toEqual([1, 1]);
 

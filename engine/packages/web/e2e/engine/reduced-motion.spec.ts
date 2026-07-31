@@ -83,9 +83,7 @@ test.describe("engine reduced motion", () => {
   });
 });
 
-test("reduced motion settles timeline cues instantly with the same event trail", async ({
-  page,
-}) => {
+test("reduced motion settles timeline cues instantly with the same event trail", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await gotoLabV1(page);
 

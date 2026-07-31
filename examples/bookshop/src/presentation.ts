@@ -165,7 +165,7 @@ const transitionDefinitionsV1: readonly StageTransitionDefinition[] = Object.fre
       slide: { x: 0, y: 120 },
     },
   ].map((definition, index) =>
-    parseStageTransitionDefinition(definition, `/transitions/${String(index)}`),
+    parseStageTransitionDefinition(definition, `/transitions/${String(index)}`)
   ),
 );
 

@@ -27,11 +27,11 @@ export interface EventPoolContextV1 {
 
 export type EventConditionV1 =
   | {
-      readonly kind: "number";
-      readonly key: string;
-      readonly op: "eq" | "ne" | "lt" | "lte" | "gt" | "gte";
-      readonly value: number;
-    }
+    readonly kind: "number";
+    readonly key: string;
+    readonly op: "eq" | "ne" | "lt" | "lte" | "gt" | "gte";
+    readonly value: number;
+  }
   | { readonly kind: "flag"; readonly flag: string; readonly present: boolean }
   | { readonly kind: "label"; readonly key: string; readonly anyOf: readonly string[] }
   | { readonly kind: "all"; readonly conditions: readonly EventConditionV1[] }
@@ -132,7 +132,7 @@ function parseConditionAtV1(value: unknown, path: string, depth: number): EventC
         kind: record.kind,
         conditions: Object.freeze(
           conditions.map((child, index) =>
-            parseConditionAtV1(child, `${path}/${String(index)}`, depth + 1),
+            parseConditionAtV1(child, `${path}/${String(index)}`, depth + 1)
           ),
         ),
       });
@@ -216,10 +216,10 @@ export interface EventPoolDrawExplanationV1 {
 
 export type EventPoolDrawResultV1 =
   | {
-      readonly kind: "drawn";
-      readonly eventId: string;
-      readonly explanation: EventPoolDrawExplanationV1;
-    }
+    readonly kind: "drawn";
+    readonly eventId: string;
+    readonly explanation: EventPoolDrawExplanationV1;
+  }
   | { readonly kind: "empty"; readonly explanation: EventPoolDrawExplanationV1 };
 
 export interface EventPoolDrawInputV1 {
@@ -262,7 +262,7 @@ export function drawFromEventPoolV1(input: EventPoolDrawInputV1): EventPoolDrawR
     considered: input.candidates.length,
     eligible: Object.freeze(
       eligible.map((candidate) =>
-        Object.freeze({ eventId: candidate.eventId, weight: candidate.weight }),
+        Object.freeze({ eventId: candidate.eventId, weight: candidate.weight })
       ),
     ),
     totalWeight,

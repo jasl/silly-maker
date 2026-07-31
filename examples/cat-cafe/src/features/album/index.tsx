@@ -160,25 +160,27 @@ export function CatcafeAlbumViewV1(props: {
                 placeContent: "center",
               }}
             >
-              {url !== null ? (
-                <img
-                  src={url}
-                  alt={uiText(entry.nameTextId)}
-                  style={{ inlineSize: "100%", blockSize: "100%", objectFit: "cover" }}
-                />
-              ) : (
-                <span style={{ fontSize: "22px", opacity: 0.6 }}>{unlocked ? "♪" : "？"}</span>
-              )}
+              {url !== null
+                ? (
+                  <img
+                    src={url}
+                    alt={uiText(entry.nameTextId)}
+                    style={{ inlineSize: "100%", blockSize: "100%", objectFit: "cover" }}
+                  />
+                )
+                : <span style={{ fontSize: "22px", opacity: 0.6 }}>{unlocked ? "♪" : "？"}</span>}
             </div>
             <div style={{ padding: "8px 10px", display: "grid", gap: "2px" }}>
               <strong style={{ fontSize: "13px" }}>
                 {unlocked ? uiText(entry.nameTextId) : "？？？"}
               </strong>
-              {unlocked ? (
-                <p style={{ margin: 0, fontSize: "12px", opacity: 0.85 }}>
-                  {uiText(entry.captionTextId)}
-                </p>
-              ) : null}
+              {unlocked
+                ? (
+                  <p style={{ margin: 0, fontSize: "12px", opacity: 0.85 }}>
+                    {uiText(entry.captionTextId)}
+                  </p>
+                )
+                : null}
             </div>
           </li>
         );

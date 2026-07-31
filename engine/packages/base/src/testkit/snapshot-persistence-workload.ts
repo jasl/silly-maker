@@ -92,10 +92,10 @@ function addCountsV1(
     canonicalTraversals: left.canonicalTraversals + right.canonicalTraversals,
     canonicalDigests: left.canonicalDigests + right.canonicalDigests,
     deepFreezeTraversals: left.deepFreezeTraversals + right.deepFreezeTraversals,
-    commandLogContinuityVerifications:
-      left.commandLogContinuityVerifications + right.commandLogContinuityVerifications,
-    saveCanonicalSerializations:
-      left.saveCanonicalSerializations + right.saveCanonicalSerializations,
+    commandLogContinuityVerifications: left.commandLogContinuityVerifications +
+      right.commandLogContinuityVerifications,
+    saveCanonicalSerializations: left.saveCanonicalSerializations +
+      right.saveCanonicalSerializations,
     strictJsonParses: left.strictJsonParses + right.strictJsonParses,
     strictJsonPreflights: left.strictJsonPreflights + right.strictJsonPreflights,
   });
@@ -118,10 +118,9 @@ export async function createSnapshotPersistenceWorkloadV1(input: {
   });
   const records = input.records ?? createMemoryHostRecordStoreV1();
   const persistenceOptions = {
-    runtimeControl:
-      input.wrapRuntimeControlForFallback === true
-        ? Object.freeze({ ...session.runtimeControl })
-        : session.runtimeControl,
+    runtimeControl: input.wrapRuntimeControlForFallback === true
+      ? Object.freeze({ ...session.runtimeControl })
+      : session.runtimeControl,
     records,
     snapshotSchema: snapshotTransactionSnapshotSchemaV1,
     provenance: snapshotTransactionProvenanceV1,
@@ -136,13 +135,11 @@ export async function createSnapshotPersistenceWorkloadV1(input: {
     manualSaveSlotCount: 0,
     autoSaveCapture: "committed_snapshots" as const,
   };
-  const persistence =
-    input.instrumentation === undefined
-      ? await createPersistenceServiceV1(persistenceOptions)
-      : await createInstrumentedPersistenceServiceV1(persistenceOptions, input.instrumentation, {
-          wrapRepositoryForWriteReceiptFallback:
-            input.wrapRepositoryForWriteReceiptFallback === true,
-        });
+  const persistence = input.instrumentation === undefined
+    ? await createPersistenceServiceV1(persistenceOptions)
+    : await createInstrumentedPersistenceServiceV1(persistenceOptions, input.instrumentation, {
+      wrapRepositoryForWriteReceiptFallback: input.wrapRepositoryForWriteReceiptFallback === true,
+    });
 
   return Object.freeze({
     snapshot: session.snapshot,
@@ -161,12 +158,12 @@ export async function createSnapshotPersistenceWorkloadV1(input: {
         "save",
         createSaveSlotRecordKeyV1(snapshotTransactionProvenanceV1.story.id, slotId),
       );
-      return stored === null
-        ? null
-        : Object.freeze({
-            revision: stored.revision,
-            bytes: Uint8Array.from(stored.bytes),
-          } satisfies StoredSlotRecordV1);
+      return stored === null ? null : Object.freeze(
+        {
+          revision: stored.revision,
+          bytes: Uint8Array.from(stored.bytes),
+        } satisfies StoredSlotRecordV1,
+      );
     },
     async rawSaveRecords() {
       return Object.freeze(
@@ -177,7 +174,7 @@ export async function createSnapshotPersistenceWorkloadV1(input: {
               key: stored.key,
               revision: stored.revision,
               bytes: Uint8Array.from(stored.bytes),
-            }),
+            })
           ),
       );
     },
@@ -252,11 +249,13 @@ async function preparePersistenceCoreV1() {
       const rotationCounts = persistenceCountsV1(counter.snapshot());
       const rotation = await readStepV1(workload, rotationCounts);
       return Object.freeze({
-        result: Object.freeze({
-          firstAutoSave,
-          rotation,
-          aggregateCounts: addCountsV1(firstCounts, rotationCounts),
-        } satisfies SnapshotPersistenceWorkloadRunV1),
+        result: Object.freeze(
+          {
+            firstAutoSave,
+            rotation,
+            aggregateCounts: addCountsV1(firstCounts, rotationCounts),
+          } satisfies SnapshotPersistenceWorkloadRunV1,
+        ),
         dispatchDurationMs,
       });
     } finally {

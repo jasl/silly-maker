@@ -66,20 +66,17 @@ export function createJsonlAgentHostV1(input: JsonlAgentHostInputV1): JsonlAgent
     });
   };
 
-  const unsubscribe =
-    input.subscribe === undefined
-      ? undefined
-      : input.subscribe(() => {
-          try {
-            writeLine({
-              v: jsonlProtocolVersionV1,
-              event: "publication",
-              publication: input.agent.observe(),
-            });
-          } catch (error) {
-            log(`publication event failed: ${boundProtocolMessageV1(error)}`);
-          }
-        });
+  const unsubscribe = input.subscribe === undefined ? undefined : input.subscribe(() => {
+    try {
+      writeLine({
+        v: jsonlProtocolVersionV1,
+        event: "publication",
+        publication: input.agent.observe(),
+      });
+    } catch (error) {
+      log(`publication event failed: ${boundProtocolMessageV1(error)}`);
+    }
+  });
 
   const settleIfDrained = (): void => {
     if ((shuttingDown || inputEnded) && pending === 0) {
@@ -141,10 +138,9 @@ export function createJsonlAgentHostV1(input: JsonlAgentHostInputV1): JsonlAgent
         const timeoutMs = request.params?.timeoutMs;
         return input.agent.waitForIdle({
           ...(typeof afterRevision === "number" ? { afterRevision } : {}),
-          timeoutMs:
-            typeof timeoutMs === "number"
-              ? Math.min(timeoutMs, limits.requestTimeoutMs)
-              : limits.requestTimeoutMs,
+          timeoutMs: typeof timeoutMs === "number"
+            ? Math.min(timeoutMs, limits.requestTimeoutMs)
+            : limits.requestTimeoutMs,
         });
       }
       case "exportDiagnostics": {

@@ -68,9 +68,7 @@ async function exportSimulationStateV1(page: Page): Promise<unknown> {
 }
 
 test.describe("engine conformance route parity", () => {
-  test("normal, reduced-motion, skip, and Browser-Agent runs end in the identical authoritative state", async ({
-    browser,
-  }) => {
+  test("normal, reduced-motion, skip, and Browser-Agent runs end in the identical authoritative state", async ({ browser }) => {
     test.setTimeout(120_000);
     const simulations: Record<string, unknown> = {};
 

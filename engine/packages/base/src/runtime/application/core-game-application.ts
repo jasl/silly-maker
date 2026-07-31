@@ -55,8 +55,10 @@ type SessionDispatchResultOfV1<TTypes extends GameSimulationTypeMapV1> = Awaited
 >;
 
 type CoreSaveMaintenanceOperationV1 = () => Promise<void>;
-type CoreSaveMaintenanceBarrierResultV1 =
-  { readonly kind: "cleared" } | { readonly kind: "failed"; readonly message: string };
+type CoreSaveMaintenanceBarrierResultV1 = { readonly kind: "cleared" } | {
+  readonly kind: "failed";
+  readonly message: string;
+};
 
 const coreSaveMaintenanceOperationsV1 = new WeakMap<object, CoreSaveMaintenanceOperationV1>();
 
@@ -239,10 +241,10 @@ export interface CoreApplicationExtensionContextV1<TTypes extends GameSimulation
    */
   latestAttemptFailure():
     | {
-        readonly source: "game" | "debug";
-        readonly command: unknown;
-        readonly attempt: unknown;
-      }
+      readonly source: "game" | "debug";
+      readonly command: unknown;
+      readonly attempt: unknown;
+    }
     | undefined;
   /** Late-bound presentation context reader for DebugBundle exports. */
   readUiContext(): unknown;
@@ -337,12 +339,12 @@ export interface ResolvedCoreGameApplicationV1<
 export type ResolveCoreGameApplicationResultV1<TResolvedApplication> =
   | { readonly kind: "resolved"; readonly application: TResolvedApplication }
   | {
-      readonly kind: "failed";
-      readonly failure: {
-        readonly code: string;
-        readonly details: Record<string, unknown>;
-      };
+    readonly kind: "failed";
+    readonly failure: {
+      readonly code: string;
+      readonly details: Record<string, unknown>;
     };
+  };
 
 const composerValidationDigestV1 = digestBytes(Uint8Array.of(0x63, 0x6f, 0x72));
 
@@ -477,10 +479,10 @@ export interface CoreApplicationHostServicesV1 {
 export type CoreAutosavePolicyV1 =
   | { readonly mode: "every_commit" }
   | {
-      readonly mode: "debounced";
-      readonly delayMs: number;
-      readonly checkpointEveryCommands?: number;
-    };
+    readonly mode: "debounced";
+    readonly delayMs: number;
+    readonly checkpointEveryCommands?: number;
+  };
 
 /** Injectable timer so autosave policies are testable with a manual clock. */
 export interface CoreSchedulerV1 {
@@ -495,7 +497,13 @@ const defaultSchedulerV1: CoreSchedulerV1 = Object.freeze({
 });
 
 export type CorePresentationAnchorOriginV1 =
-  "bootstrap" | "load" | "import" | "restart" | "replay_anchor" | "rollback" | "replacement";
+  | "bootstrap"
+  | "load"
+  | "import"
+  | "restart"
+  | "replay_anchor"
+  | "rollback"
+  | "replacement";
 
 /**
  * Instance-local presentation continuity marker. The epoch advances whenever
@@ -510,9 +518,9 @@ export interface CorePresentationAnchorV1 {
 
 export type CoreEpochBoundOutcomeV1<TValue> =
   | {
-      readonly kind: "current";
-      readonly value: TValue;
-    }
+    readonly kind: "current";
+    readonly value: TValue;
+  }
   | { readonly kind: "stale_epoch" };
 
 export interface CreateCoreGameApplicationInstanceOptionsV1 {
@@ -555,13 +563,13 @@ export interface CoreRollbackPolicyV1<TCommand> {
 
 export type CoreRollbackResultV1 =
   | {
-      readonly kind: "rolled_back";
-      readonly commandSequence: NonNegativeSafeInteger;
-    }
+    readonly kind: "rolled_back";
+    readonly commandSequence: NonNegativeSafeInteger;
+  }
   | {
-      readonly kind: "rejected";
-      readonly code: "rollback_unavailable" | "rollback_unconfigured" | "hmr_invalidated";
-    };
+    readonly kind: "rejected";
+    readonly code: "rollback_unavailable" | "rollback_unconfigured" | "hmr_invalidated";
+  };
 
 export interface CoreRollbackPortV1 {
   /** Checkpoints currently reachable behind the live state. */
@@ -711,28 +719,28 @@ export async function createCoreGameApplicationInstanceV1<
   const definition = application.definition;
   const gameSimulation = (application.resolved as { readonly gameSimulation: unknown })
     .gameSimulation as GameSimulationV1<
-    TTypes,
-    readonly unknown[],
-    {
-      executeAttempt(
-        snapshot: DeepReadonly<TTypes["snapshot"]>,
-        command: DeepReadonly<TTypes["command"]>,
-        context: TTypes["executionContext"],
-      ): never;
-    },
-    {
-      validate(
-        snapshot: DeepReadonly<TTypes["snapshot"]>,
-        command: DeepReadonly<TTypes["debugCommand"]>,
-        context: TTypes["executionContext"],
-      ): never;
-      executeAttempt(
-        snapshot: DeepReadonly<TTypes["snapshot"]>,
-        command: DeepReadonly<TTypes["debugCommand"]>,
-        context: TTypes["executionContext"],
-      ): never;
-    }
-  >;
+      TTypes,
+      readonly unknown[],
+      {
+        executeAttempt(
+          snapshot: DeepReadonly<TTypes["snapshot"]>,
+          command: DeepReadonly<TTypes["command"]>,
+          context: TTypes["executionContext"],
+        ): never;
+      },
+      {
+        validate(
+          snapshot: DeepReadonly<TTypes["snapshot"]>,
+          command: DeepReadonly<TTypes["debugCommand"]>,
+          context: TTypes["executionContext"],
+        ): never;
+        executeAttempt(
+          snapshot: DeepReadonly<TTypes["snapshot"]>,
+          command: DeepReadonly<TTypes["debugCommand"]>,
+          context: TTypes["executionContext"],
+        ): never;
+      }
+    >;
 
   const snapshotSchema = createGameSnapshotEnvelopeSchemaV1(
     gameSimulation.stateSchema,
@@ -761,16 +769,16 @@ export async function createCoreGameApplicationInstanceV1<
   // triggering command. Story diagnostics scrub it before any export.
   let latestAttemptFailure:
     | {
-        readonly source: "game" | "debug";
-        readonly command: unknown;
-        readonly attempt: unknown;
-      }
+      readonly source: "game" | "debug";
+      readonly command: unknown;
+      readonly attempt: unknown;
+    }
     | undefined;
   let pendingAttemptCommand:
     | {
-        readonly source: "game" | "debug";
-        readonly command: unknown;
-      }
+      readonly source: "game" | "debug";
+      readonly command: unknown;
+    }
     | undefined;
 
   // Steps below acquire live resources; anything after session creation is
@@ -796,31 +804,33 @@ export async function createCoreGameApplicationInstanceV1<
       }
       throw error;
     },
-    debug: Object.freeze({
-      validate: (snapshot, command) =>
-        gameSimulation.debugCommandExecutor.validate(
-          snapshot,
-          command,
-          undefined as TTypes["executionContext"],
-        ),
-      executeAttempt: (snapshot, command) => {
-        pendingAttemptCommand = Object.freeze({
-          source: "debug" as const,
-          command,
-        });
-        return gameSimulation.debugCommandExecutor.executeAttempt(
-          snapshot,
-          command,
-          undefined as TTypes["executionContext"],
-        );
-      },
-      normalizeUnexpectedFault(error, snapshot) {
-        if (definition.normalizeUnexpectedDebugFault !== undefined) {
-          return definition.normalizeUnexpectedDebugFault(error, snapshot);
-        }
-        throw error;
-      },
-    } satisfies GameSessionDebugInputV1<TTypes>),
+    debug: Object.freeze(
+      {
+        validate: (snapshot, command) =>
+          gameSimulation.debugCommandExecutor.validate(
+            snapshot,
+            command,
+            undefined as TTypes["executionContext"],
+          ),
+        executeAttempt: (snapshot, command) => {
+          pendingAttemptCommand = Object.freeze({
+            source: "debug" as const,
+            command,
+          });
+          return gameSimulation.debugCommandExecutor.executeAttempt(
+            snapshot,
+            command,
+            undefined as TTypes["executionContext"],
+          );
+        },
+        normalizeUnexpectedFault(error, snapshot) {
+          if (definition.normalizeUnexpectedDebugFault !== undefined) {
+            return definition.normalizeUnexpectedDebugFault(error, snapshot);
+          }
+          throw error;
+        },
+      } satisfies GameSessionDebugInputV1<TTypes>,
+    ),
     onAttempt(attempt) {
       const pending = pendingAttemptCommand;
       pendingAttemptCommand = undefined;
@@ -852,7 +862,7 @@ export async function createCoreGameApplicationInstanceV1<
           reader: (state: DeepReadonly<TTypes["state"]>) => TReadResult,
         ) =>
           created.runtimeControl.readAtQueueFront((snapshot) =>
-            reader(stateOfSnapshotV1(snapshot)),
+            reader(stateOfSnapshotV1(snapshot))
           ),
       },
     );
@@ -915,15 +925,13 @@ export async function createCoreGameApplicationInstanceV1<
       ...(definition.manualSaveSlotCount === undefined
         ? {}
         : { manualSaveSlotCount: definition.manualSaveSlotCount }),
-      ...(definition.summarizeSave === undefined
-        ? {}
-        : {
-            summarizeSave: (state: DeepReadonly<TTypes["state"]>) =>
-              definition.summarizeSave!(state),
-          }),
+      ...(definition.summarizeSave === undefined ? {} : {
+        summarizeSave: (state: DeepReadonly<TTypes["state"]>) => definition.summarizeSave!(state),
+      }),
       autoSaveCapture: autosave.mode === "every_commit" ? "committed_snapshots" : "external",
-      leaseAcquisition:
-        options.rebootstrapDisposition === undefined ? "acquire_initial" : "deferred_rebootstrap",
+      leaseAcquisition: options.rebootstrapDisposition === undefined
+        ? "acquire_initial"
+        : "deferred_rebootstrap",
     });
     const persistence = persistenceService;
     if (options.rebootstrapDisposition !== undefined) {
@@ -1069,7 +1077,7 @@ export async function createCoreGameApplicationInstanceV1<
             Object.freeze({
               snapshot,
               settled: captureAutoSaveWithReceiptInternalV1(persistence, snapshot),
-            }),
+            })
           );
           const receipt = await attempt.settled;
           const current = await created.runtimeControl.readAtQueueFront((snapshot) => snapshot);
@@ -1120,89 +1128,91 @@ export async function createCoreGameApplicationInstanceV1<
     const maintenanceFailureMessageV1 = (error: unknown): string =>
       error instanceof Error ? error.message : String(error);
     const clearAllSavesForMaintenanceV1 = async (): Promise<void> => {
-      const outcome =
-        await created.runtimeControl.enqueueAuthoritative<CoreSaveMaintenanceBarrierResultV1>(
-          async () => {
-            const failures = new Set<string>();
-            try {
-              // Once this preserve barrier reaches the queue front, no later
-              // command can commit until the physical cleanup is complete.
-              clearPendingAutoSaveV1();
-              await persistence.autoSaveIdle();
-              const slots = await persistencePort.listSlots();
-              for (const slot of slots) {
-                if (slot.health === "empty") continue;
-                try {
-                  const result = await persistencePort.clear(slot.slotId);
-                  if (result.kind === "cleared") continue;
-                  if (result.kind === "rejected" && result.code === "empty_slot") {
-                    continue;
-                  }
-                  failures.add(
-                    result.kind === "rejected" || result.kind === "faulted"
-                      ? result.code
-                      : result.kind,
-                  );
-                } catch (error) {
-                  failures.add(maintenanceFailureMessageV1(error));
+      const outcome = await created.runtimeControl.enqueueAuthoritative<
+        CoreSaveMaintenanceBarrierResultV1
+      >(
+        async () => {
+          const failures = new Set<string>();
+          try {
+            // Once this preserve barrier reaches the queue front, no later
+            // command can commit until the physical cleanup is complete.
+            clearPendingAutoSaveV1();
+            await persistence.autoSaveIdle();
+            const slots = await persistencePort.listSlots();
+            for (const slot of slots) {
+              if (slot.health === "empty") continue;
+              try {
+                const result = await persistencePort.clear(slot.slotId);
+                if (result.kind === "cleared") continue;
+                if (result.kind === "rejected" && result.code === "empty_slot") {
+                  continue;
                 }
+                failures.add(
+                  result.kind === "rejected" || result.kind === "faulted"
+                    ? result.code
+                    : result.kind,
+                );
+              } catch (error) {
+                failures.add(maintenanceFailureMessageV1(error));
               }
-            } catch (error) {
-              failures.add(maintenanceFailureMessageV1(error));
             }
-            return Object.freeze({
-              kind: "preserve" as const,
-              result:
-                failures.size === 0
-                  ? Object.freeze({ kind: "cleared" as const })
-                  : Object.freeze({
-                      kind: "failed" as const,
-                      message: `Save cleanup incomplete: ${[...failures].join(", ")}`,
-                    }),
-            });
-          },
-          (error) =>
-            Object.freeze({
-              kind: "failed" as const,
-              message: maintenanceFailureMessageV1(error),
-            }),
-          undefined,
-          () =>
-            Object.freeze({
-              kind: "failed" as const,
-              message: "core.save_maintenance_unavailable",
-            }),
-        );
+          } catch (error) {
+            failures.add(maintenanceFailureMessageV1(error));
+          }
+          return Object.freeze({
+            kind: "preserve" as const,
+            result: failures.size === 0
+              ? Object.freeze({ kind: "cleared" as const })
+              : Object.freeze({
+                kind: "failed" as const,
+                message: `Save cleanup incomplete: ${[...failures].join(", ")}`,
+              }),
+          });
+        },
+        (error) =>
+          Object.freeze({
+            kind: "failed" as const,
+            message: maintenanceFailureMessageV1(error),
+          }),
+        undefined,
+        () =>
+          Object.freeze({
+            kind: "failed" as const,
+            message: "core.save_maintenance_unavailable",
+          }),
+      );
       if (outcome.kind === "failed") throw new Error(outcome.message);
     };
 
     const restartV1 = (): Promise<SessionAnchorResultV1> =>
-      withOriginV1("restart", () =>
-        created.runtimeControl.enqueueAuthoritative<SessionAnchorResultV1>(
-          async () => {
-            const snapshot = createInitialSnapshotV1();
-            return Object.freeze({
-              kind: "replace" as const,
-              snapshot,
-              result: Object.freeze({
-                kind: "anchored" as const,
-                commandSequence: parseNonNegativeSafeInteger(0),
+      withOriginV1(
+        "restart",
+        () =>
+          created.runtimeControl.enqueueAuthoritative<SessionAnchorResultV1>(
+            async () => {
+              const snapshot = createInitialSnapshotV1();
+              return Object.freeze({
+                kind: "replace" as const,
+                snapshot,
+                result: Object.freeze({
+                  kind: "anchored" as const,
+                  commandSequence: parseNonNegativeSafeInteger(0),
+                }),
+                anchor: "replace_replay_base" as const,
+              });
+            },
+            () =>
+              Object.freeze({
+                kind: "faulted" as const,
+                code: "runtime.anchor_failed" as const,
               }),
-              anchor: "replace_replay_base" as const,
-            });
-          },
-          () =>
-            Object.freeze({
-              kind: "faulted" as const,
-              code: "runtime.anchor_failed" as const,
-            }),
-          (snapshot) => persistence.establishAnchor(snapshot, []),
-          () =>
-            Object.freeze({
-              kind: "rejected" as const,
-              code: "hmr_invalidated" as const,
-            }),
-        ),
+            (snapshot) => persistence.establishAnchor(snapshot, []),
+            () =>
+              Object.freeze({
+                kind: "rejected" as const,
+                code: "hmr_invalidated" as const,
+              }),
+          ),
       );
 
     // Player rollback (R7): a bounded ring of committed Snapshots. The ring
@@ -1216,8 +1226,9 @@ export async function createCoreGameApplicationInstanceV1<
       readonly commandSequence: NonNegativeSafeInteger;
     }
     const rollbackPolicy = definition.rollback ?? null;
-    const rollbackCapacity =
-      rollbackPolicy === null ? 0 : Math.max(1, Math.min(256, Math.trunc(rollbackPolicy.capacity)));
+    const rollbackCapacity = rollbackPolicy === null
+      ? 0
+      : Math.max(1, Math.min(256, Math.trunc(rollbackPolicy.capacity)));
     let rollbackRing: RollbackCheckpointV1[] = [];
     let rollingBack = false;
     const rollbackListeners = new Set<() => void>();
@@ -1303,41 +1314,43 @@ export async function createCoreGameApplicationInstanceV1<
         }
         rollingBack = true;
         try {
-          const anchored = await withOriginV1("rollback", () =>
-            created.runtimeControl.enqueueAuthoritative<SessionAnchorResultV1>(
-              async () =>
-                Object.freeze({
-                  kind: "replace" as const,
-                  snapshot: target.snapshot as TTypes["snapshot"],
-                  result: Object.freeze({
-                    kind: "anchored" as const,
-                    commandSequence: target.commandSequence,
+          const anchored = await withOriginV1(
+            "rollback",
+            () =>
+              created.runtimeControl.enqueueAuthoritative<SessionAnchorResultV1>(
+                async () =>
+                  Object.freeze({
+                    kind: "replace" as const,
+                    snapshot: target.snapshot as TTypes["snapshot"],
+                    result: Object.freeze({
+                      kind: "anchored" as const,
+                      commandSequence: target.commandSequence,
+                    }),
+                    anchor: "replace_replay_base" as const,
                   }),
-                  anchor: "replace_replay_base" as const,
-                }),
-              () =>
-                Object.freeze({
-                  kind: "faulted" as const,
-                  code: "runtime.anchor_failed" as const,
-                }),
-              (snapshot) => persistence.establishAnchor(snapshot, []),
-              () =>
-                Object.freeze({
-                  kind: "rejected" as const,
-                  code: "hmr_invalidated" as const,
-                }),
-            ),
+                () =>
+                  Object.freeze({
+                    kind: "faulted" as const,
+                    code: "runtime.anchor_failed" as const,
+                  }),
+                (snapshot) => persistence.establishAnchor(snapshot, []),
+                () =>
+                  Object.freeze({
+                    kind: "rejected" as const,
+                    code: "hmr_invalidated" as const,
+                  }),
+              ),
           );
           if (anchored.kind !== "anchored") {
             return anchored.kind === "rejected" && anchored.code === "hmr_invalidated"
               ? Object.freeze({
-                  kind: "rejected" as const,
-                  code: "hmr_invalidated" as const,
-                })
+                kind: "rejected" as const,
+                code: "hmr_invalidated" as const,
+              })
               : Object.freeze({
-                  kind: "rejected" as const,
-                  code: "rollback_unavailable" as const,
-                });
+                kind: "rejected" as const,
+                code: "rollback_unavailable" as const,
+              });
           }
           // Keep the target and everything before it: the player may step
           // further back. (The anchor listener reseeds the ring on replay
@@ -1371,33 +1384,32 @@ export async function createCoreGameApplicationInstanceV1<
         }),
       subscribe: () => () => {},
     };
-    const extensionOwner =
-      definition.createExtensions?.(
-        Object.freeze({
-          provenance: application.provenance as Record<string, unknown>,
-          appBuildId: options.appBuildId ?? null,
-          resolved: application.resolved,
-          session: Object.freeze({
-            getCurrentSnapshot: () => created.session.getCurrentSnapshot(),
-            getStatus: () => created.session.getStatus(),
-            subscribe: (listener: () => void) => created.session.subscribe(listener),
-          }),
-          runtimeControl: created.runtimeControl,
-          commandLog: created.commandLog,
-          debugControl: created.debugControl,
-          invalidationController: Object.freeze({
-            invalidateForHmr: invalidateForHmrV1,
-          }),
-          persistence,
-          runtimeFailures: () => runtimeFailures.entries(),
-          capabilityState: capabilityStateV1,
-          metadataClock: Object.freeze({ now: () => options.host.now() }),
-          reportFailure: reportObserverFailure,
-          createInitialSnapshot: createInitialSnapshotV1,
-          latestAttemptFailure: () => latestAttemptFailure,
-          readUiContext: () => uiContextReader?.(),
+    const extensionOwner = definition.createExtensions?.(
+      Object.freeze({
+        provenance: application.provenance as Record<string, unknown>,
+        appBuildId: options.appBuildId ?? null,
+        resolved: application.resolved,
+        session: Object.freeze({
+          getCurrentSnapshot: () => created.session.getCurrentSnapshot(),
+          getStatus: () => created.session.getStatus(),
+          subscribe: (listener: () => void) => created.session.subscribe(listener),
         }),
-      ) ?? undefined;
+        runtimeControl: created.runtimeControl,
+        commandLog: created.commandLog,
+        debugControl: created.debugControl,
+        invalidationController: Object.freeze({
+          invalidateForHmr: invalidateForHmrV1,
+        }),
+        persistence,
+        runtimeFailures: () => runtimeFailures.entries(),
+        capabilityState: capabilityStateV1,
+        metadataClock: Object.freeze({ now: () => options.host.now() }),
+        reportFailure: reportObserverFailure,
+        createInitialSnapshot: createInitialSnapshotV1,
+        latestAttemptFailure: () => latestAttemptFailure,
+        readUiContext: () => uiContextReader?.(),
+      }),
+    ) ?? undefined;
     if (extensionOwner?.dispose !== undefined) {
       const disposeExtensions = extensionOwner.dispose.bind(extensionOwner);
       cleanups.push(() => disposeExtensions());
@@ -1452,25 +1464,25 @@ export async function createCoreGameApplicationInstanceV1<
               };
               return raw.result.kind === "committed"
                 ? ({
-                    ...raw,
-                    result: {
-                      ...raw.result,
-                      snapshot: finalizeSnapshotIntegrityV1(
-                        preSnapshot as never,
-                        raw.result.snapshot as never,
-                        {
-                          kind: "mark_modified",
-                          reason: parseRunIntegrityReasonV1({
-                            kind: "debug_command",
-                            commandKind: String(
-                              (logged.command as { readonly kind?: unknown }).kind ?? "",
-                            ),
-                            sequence: raw.result.snapshot.commandSequence,
-                          }),
-                        },
-                      ),
-                    },
-                  } as never)
+                  ...raw,
+                  result: {
+                    ...raw.result,
+                    snapshot: finalizeSnapshotIntegrityV1(
+                      preSnapshot as never,
+                      raw.result.snapshot as never,
+                      {
+                        kind: "mark_modified",
+                        reason: parseRunIntegrityReasonV1({
+                          kind: "debug_command",
+                          commandKind: String(
+                            (logged.command as { readonly kind?: unknown }).kind ?? "",
+                          ),
+                          sequence: raw.result.snapshot.commandSequence,
+                        }),
+                      },
+                    ),
+                  },
+                } as never)
                 : (raw as never);
             }
             return gameSimulation.commandExecutor.executeAttempt(
@@ -1490,25 +1502,25 @@ export async function createCoreGameApplicationInstanceV1<
         digestCanonical("sillymaker:state:v1", created.session.getCurrentSnapshot()),
       ...(options.capabilities?.debugTools === true
         ? {
-            debugControl: Object.freeze({
-              ...created.debugControl,
-              // Committed debug commands raise the same commit-only
-              // transient effects as gameplay: tuning previews (forced
-              // encounters, SFX) render through one path.
-              execute: async (
-                command: DeepReadonly<TTypes["debugCommand"]>,
-                isCapabilityEnabled: () => boolean,
-              ) => {
-                const result = await created.debugControl.execute(command, isCapabilityEnabled);
-                if (result.kind === "executed" && result.attempt.result.kind === "committed") {
-                  emitTransientEffectsFromFactsV1(
-                    result.attempt.result.facts as readonly DeepReadonly<TTypes["fact"]>[],
-                  );
-                }
-                return result;
-              },
-            }),
-          }
+          debugControl: Object.freeze({
+            ...created.debugControl,
+            // Committed debug commands raise the same commit-only
+            // transient effects as gameplay: tuning previews (forced
+            // encounters, SFX) render through one path.
+            execute: async (
+              command: DeepReadonly<TTypes["debugCommand"]>,
+              isCapabilityEnabled: () => boolean,
+            ) => {
+              const result = await created.debugControl.execute(command, isCapabilityEnabled);
+              if (result.kind === "executed" && result.attempt.result.kind === "committed") {
+                emitTransientEffectsFromFactsV1(
+                  result.attempt.result.facts as readonly DeepReadonly<TTypes["fact"]>[],
+                );
+              }
+              return result;
+            },
+          }),
+        }
         : {}),
     });
 

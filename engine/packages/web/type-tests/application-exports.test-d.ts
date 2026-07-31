@@ -61,8 +61,9 @@ const capabilitySessionV1: RuntimeCapabilitySessionOverlayV1 =
 const effectiveCapabilityPortV1: RuntimeCapabilityPortV1 = capabilitySessionV1;
 const sessionRequestedCapabilityV1: RuntimeCapabilityIdV1 | undefined =
   capabilitySessionV1.sessionRequested[0];
-const capabilityRequestV1: CapabilityRequestParseResultV1 =
-  parseCapabilityRequestV1("?capability=debug_tools");
+const capabilityRequestV1: CapabilityRequestParseResultV1 = parseCapabilityRequestV1(
+  "?capability=debug_tools",
+);
 void effectiveCapabilityPortV1;
 void sessionRequestedCapabilityV1;
 void capabilityRequestV1;

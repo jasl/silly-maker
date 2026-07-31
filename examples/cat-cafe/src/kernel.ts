@@ -37,48 +37,48 @@ export type CatcafeCommandV1 =
   | { readonly kind: "cc.enter_contest" }
   | { readonly kind: "cc.contest_move"; readonly moveId: string }
   | {
-      readonly kind: "cc.narrative_resolve";
-      readonly expectedOccurrenceId: string;
-      readonly resolution: InteractionResolution;
-    };
+    readonly kind: "cc.narrative_resolve";
+    readonly expectedOccurrenceId: string;
+    readonly resolution: InteractionResolution;
+  };
 
 export type CatcafeFactV1 =
   | {
-      readonly kind: "cc.slot_advanced";
-      readonly week: number;
-      readonly day: number;
-      readonly slot: number;
-    }
+    readonly kind: "cc.slot_advanced";
+    readonly week: number;
+    readonly day: number;
+    readonly slot: number;
+  }
   | { readonly kind: "cc.activity_done"; readonly activityId: string }
   | {
-      readonly kind: "cc.petted";
-      readonly zone: string;
-      readonly reactionId: string;
-      readonly trustDelta: number;
-    }
+    readonly kind: "cc.petted";
+    readonly zone: string;
+    readonly reactionId: string;
+    readonly trustDelta: number;
+  }
   | { readonly kind: "cc.contest_started"; readonly rivalId: string }
   | {
-      readonly kind: "cc.contest_resolved";
-      readonly moveId: string;
-      readonly rivalMorale: number;
-      readonly morale: number;
-    }
+    readonly kind: "cc.contest_resolved";
+    readonly moveId: string;
+    readonly rivalMorale: number;
+    readonly morale: number;
+  }
   | { readonly kind: "cc.contest_won"; readonly rivalId: string; readonly albumId: string }
   | { readonly kind: "cc.contest_lost"; readonly rivalId: string }
   | { readonly kind: "cc.album_unlocked"; readonly albumId: string }
   | { readonly kind: "cc.postgame_entered"; readonly ending: string }
   | {
-      readonly kind: "cc.encounter";
-      readonly encounterId: string;
-      readonly textId: string | null;
-      readonly explanation: EventPoolDrawExplanationV1;
-    }
+    readonly kind: "cc.encounter";
+    readonly encounterId: string;
+    readonly textId: string | null;
+    readonly explanation: EventPoolDrawExplanationV1;
+  }
   | { readonly kind: "cc.stage_changed"; readonly mutations: number }
   | {
-      readonly kind: "cc.interaction_resolved";
-      readonly definitionId: string;
-      readonly occurrenceId: string;
-    };
+    readonly kind: "cc.interaction_resolved";
+    readonly definitionId: string;
+    readonly occurrenceId: string;
+  };
 
 export type CatcafeRejectionCodeV1 =
   | "cc.narrative_busy"
@@ -165,11 +165,12 @@ export interface CatcafeBootstrapInputV1 {
   readonly rngSeed: NonZeroUint32;
 }
 
-export interface CatcafeSimulationTypesV1 extends GameSimulationTypeMapV1<
-  CatcafeBootstrapInputV1,
-  CatcafeGameStateV1,
-  RngStateV1
-> {
+export interface CatcafeSimulationTypesV1 extends
+  GameSimulationTypeMapV1<
+    CatcafeBootstrapInputV1,
+    CatcafeGameStateV1,
+    RngStateV1
+  > {
   readonly snapshot: GameSnapshotEnvelopeV1<CatcafeGameStateV1, RngStateV1>;
   readonly rngDrawTrace: RngDrawTraceV1;
   readonly command: CatcafeCommandV1;

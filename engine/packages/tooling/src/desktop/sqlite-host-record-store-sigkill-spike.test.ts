@@ -195,18 +195,22 @@ const casesV1 = Object.freeze([
   Object.freeze({
     phase: "between_mutations" as const,
     revisions: Object.freeze([1, 1] as const),
-    bytes: Object.freeze([
-      Object.freeze([0, 127, 255] as const),
-      Object.freeze([255, 128, 0] as const),
-    ] as const),
+    bytes: Object.freeze(
+      [
+        Object.freeze([0, 127, 255] as const),
+        Object.freeze([255, 128, 0] as const),
+      ] as const,
+    ),
   }),
   Object.freeze({
     phase: "after_durable_write_before_response" as const,
     revisions: Object.freeze([2, 2] as const),
-    bytes: Object.freeze([
-      Object.freeze([1, 2, 3, 4] as const),
-      Object.freeze([4, 3, 2, 1] as const),
-    ] as const),
+    bytes: Object.freeze(
+      [
+        Object.freeze([1, 2, 3, 4] as const),
+        Object.freeze([4, 3, 2, 1] as const),
+      ] as const,
+    ),
   }),
 ]);
 

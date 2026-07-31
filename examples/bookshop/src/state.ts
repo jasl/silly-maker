@@ -75,10 +75,9 @@ export const bookshopNarrativeStateSchemaV1: RuntimeSchemaV1<BookshopNarrativeSt
         if (record.cursor !== null && !bookshopNodeIdsV1.includes(record.cursor)) {
           throw new TypeError("unknown bookshop narrative cursor");
         }
-        const pending =
-          record.pending === null || record.pending === undefined
-            ? null
-            : parsePendingInteraction(record.pending);
+        const pending = record.pending === null || record.pending === undefined
+          ? null
+          : parsePendingInteraction(record.pending);
         if ((record.phase === "active") !== (record.cursor !== null)) {
           throw new TypeError("bookshop narrative cursor must match active phase");
         }

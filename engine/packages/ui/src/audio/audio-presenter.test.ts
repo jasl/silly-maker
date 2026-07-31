@@ -17,23 +17,18 @@ function intentV1(input: {
   } | null;
 }): AudioIntentV1 {
   return parseAudioIntentV1({
-    bgm:
-      input.bgm === undefined || input.bgm === null
-        ? null
-        : { assetId: input.bgm, loop: true, gainPermille: 800, fadeMs: 300 },
-    ambient:
-      input.ambient === undefined || input.ambient === null
-        ? null
-        : { assetId: input.ambient, loop: true, gainPermille: 500, fadeMs: 200 },
-    voice:
-      input.voice === undefined || input.voice === null
-        ? null
-        : {
-            assetId: input.voice.assetId,
-            interactionDefinitionId: "interaction.test.say",
-            occurrenceId: input.voice.occurrenceId,
-            stopPolicy: input.voice.stopPolicy ?? "stop_on_advance",
-          },
+    bgm: input.bgm === undefined || input.bgm === null
+      ? null
+      : { assetId: input.bgm, loop: true, gainPermille: 800, fadeMs: 300 },
+    ambient: input.ambient === undefined || input.ambient === null
+      ? null
+      : { assetId: input.ambient, loop: true, gainPermille: 500, fadeMs: 200 },
+    voice: input.voice === undefined || input.voice === null ? null : {
+      assetId: input.voice.assetId,
+      interactionDefinitionId: "interaction.test.say",
+      occurrenceId: input.voice.occurrenceId,
+      stopPolicy: input.voice.stopPolicy ?? "stop_on_advance",
+    },
   });
 }
 
@@ -116,11 +111,11 @@ describe("createAudioPresenterV1", () => {
       resolveEffectAsset: (effect) =>
         typeof effect.payload.assetId === "string"
           ? {
-              assetId: effect.payload.assetId,
-              ...(typeof effect.payload.gainPermille === "number"
-                ? { gainPermille: effect.payload.gainPermille }
-                : {}),
-            }
+            assetId: effect.payload.assetId,
+            ...(typeof effect.payload.gainPermille === "number"
+              ? { gainPermille: effect.payload.gainPermille }
+              : {}),
+          }
           : null,
     });
     presenter.retarget({ intent: intentV1({}), revision: 1, epoch: 0 });

@@ -31,19 +31,19 @@ export type TemplateCommandV1 =
   | { readonly kind: "template.begin_story" }
   | { readonly kind: "template.earn_coin" }
   | {
-      readonly kind: "template.narrative_resolve";
-      readonly expectedOccurrenceId: string;
-      readonly resolution: InteractionResolution;
-    };
+    readonly kind: "template.narrative_resolve";
+    readonly expectedOccurrenceId: string;
+    readonly resolution: InteractionResolution;
+  };
 
 export type TemplateFactV1 =
   | { readonly kind: "template.coins_changed"; readonly delta: number; readonly balance: number }
   | { readonly kind: "template.stage_changed"; readonly mutations: number }
   | {
-      readonly kind: "template.interaction_resolved";
-      readonly definitionId: string;
-      readonly occurrenceId: string;
-    };
+    readonly kind: "template.interaction_resolved";
+    readonly definitionId: string;
+    readonly occurrenceId: string;
+  };
 
 export type TemplateRejectionCodeV1 =
   | "template.narrative_busy"
@@ -95,11 +95,12 @@ export interface TemplateBootstrapInputV1 {
   readonly rngSeed: NonZeroUint32;
 }
 
-export interface TemplateSimulationTypesV1 extends GameSimulationTypeMapV1<
-  TemplateBootstrapInputV1,
-  TemplateGameStateV1,
-  RngStateV1
-> {
+export interface TemplateSimulationTypesV1 extends
+  GameSimulationTypeMapV1<
+    TemplateBootstrapInputV1,
+    TemplateGameStateV1,
+    RngStateV1
+  > {
   readonly snapshot: GameSnapshotEnvelopeV1<TemplateGameStateV1, RngStateV1>;
   readonly rngDrawTrace: RngDrawTraceV1;
   readonly command: TemplateCommandV1;

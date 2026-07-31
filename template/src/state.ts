@@ -75,10 +75,9 @@ export const templateNarrativeStateSchemaV1: RuntimeSchemaV1<TemplateNarrativeSt
         if (record.cursor !== null && !templateNodeIdsV1.includes(record.cursor)) {
           throw new TypeError("unknown template narrative cursor");
         }
-        const pending =
-          record.pending === null || record.pending === undefined
-            ? null
-            : parsePendingInteraction(record.pending);
+        const pending = record.pending === null || record.pending === undefined
+          ? null
+          : parsePendingInteraction(record.pending);
         if ((record.phase === "active") !== (record.cursor !== null)) {
           throw new TypeError("template narrative cursor must match active phase");
         }

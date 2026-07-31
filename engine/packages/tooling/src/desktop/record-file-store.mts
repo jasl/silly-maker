@@ -25,35 +25,35 @@ export interface StoredWireRecordV1 {
 
 export type WireMutationV1 =
   | {
-      readonly kind: "put";
-      readonly namespace: string;
-      readonly key: string;
-      readonly expectedRevision: number | null;
-      readonly bytesBase64: string;
-    }
+    readonly kind: "put";
+    readonly namespace: string;
+    readonly key: string;
+    readonly expectedRevision: number | null;
+    readonly bytesBase64: string;
+  }
   | {
-      readonly kind: "delete";
-      readonly namespace: string;
-      readonly key: string;
-      readonly expectedRevision: number;
-    };
+    readonly kind: "delete";
+    readonly namespace: string;
+    readonly key: string;
+    readonly expectedRevision: number;
+  };
 
 export type WireCommitResultV1 =
   | { readonly kind: "committed"; readonly records: readonly StoredWireRecordV1[] }
   | {
-      readonly kind: "conflict";
-      readonly namespace: string;
-      readonly key: string;
-      readonly actualRevision: number | null;
-    };
+    readonly kind: "conflict";
+    readonly namespace: string;
+    readonly key: string;
+    readonly actualRevision: number | null;
+  };
 
 export type RecordFileStorePhaseInternalV1 =
   | { readonly kind: "between_checks_and_writes" }
   | {
-      readonly kind: "between_mutations";
-      readonly completedMutationCount: number;
-      readonly remainingMutationCount: number;
-    };
+    readonly kind: "between_mutations";
+    readonly completedMutationCount: number;
+    readonly remainingMutationCount: number;
+  };
 
 export interface RecordFileStorePhaseObserverInternalV1 {
   reached(point: RecordFileStorePhaseInternalV1): void | Promise<void>;
@@ -165,12 +165,11 @@ function createRecordFileStoreInternalV1(
     return next;
   };
 
-  const reachPhaseV1 =
-    phaseObserver === undefined
-      ? undefined
-      : async (point: RecordFileStorePhaseInternalV1): Promise<void> => {
-          await phaseObserver.reached(Object.freeze(point));
-        };
+  const reachPhaseV1 = phaseObserver === undefined
+    ? undefined
+    : async (point: RecordFileStorePhaseInternalV1): Promise<void> => {
+      await phaseObserver.reached(Object.freeze(point));
+    };
 
   function directoryFor(namespace: string): string {
     return join(rootDir, requireNamespaceV1(namespace));

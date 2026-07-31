@@ -51,20 +51,25 @@ interface BenchmarkOptionsV1 {
   readonly output?: string;
 }
 
-const snapshotBenchmarkWorkloadClassesV1 = Object.freeze([
-  "command",
-  "sequence",
-  "replay",
-  "persistence",
-] as const);
+const snapshotBenchmarkWorkloadClassesV1 = Object.freeze(
+  [
+    "command",
+    "sequence",
+    "replay",
+    "persistence",
+  ] as const,
+);
 type SnapshotBenchmarkWorkloadClassV1 = (typeof snapshotBenchmarkWorkloadClassesV1)[number];
 
-const snapshotBenchmarkCommandClassesV1 = Object.freeze([
-  ...snapshotCommitCommandClassesV1,
-  ...snapshotTransactionCommandClassesV1,
-] as const);
+const snapshotBenchmarkCommandClassesV1 = Object.freeze(
+  [
+    ...snapshotCommitCommandClassesV1,
+    ...snapshotTransactionCommandClassesV1,
+  ] as const,
+);
 type SnapshotBenchmarkCommandClassV1 =
-  SnapshotCommitCommandClassV1 | SnapshotTransactionCommandClassV1;
+  | SnapshotCommitCommandClassV1
+  | SnapshotTransactionCommandClassV1;
 
 interface ConsistentCommandRunV1 {
   readonly counts: SnapshotSessionWorkCountsV1;
@@ -128,8 +133,7 @@ type WorkloadBaselineV1 =
   | ReplayWorkloadBaselineV1
   | PersistenceWorkloadBaselineV1;
 
-const usageV1 =
-  "usage: deno task bench:snapshot " +
+const usageV1 = "usage: deno task bench:snapshot " +
   "[--entity-count <100|1000|10000|100000>]... " +
   "[--workload-class <command|sequence|replay|persistence>]... " +
   "[--command-class <single_field_committed|multi_slice_committed|" +
@@ -234,24 +238,21 @@ function parseOptionsV1(argv: readonly string[]): BenchmarkOptionsV1 {
     }
   }
 
-  const entityCounts =
-    selectedEntityCounts.size === 0
-      ? snapshotCommitEntityCountsV1
-      : snapshotCommitEntityCountsV1.filter((entityCount) => selectedEntityCounts.has(entityCount));
-  const commandClasses =
-    selectedCommandClasses.size === 0
-      ? snapshotBenchmarkCommandClassesV1
-      : snapshotBenchmarkCommandClassesV1.filter((commandClass) =>
-          selectedCommandClasses.has(commandClass),
-        );
-  const workloadClasses =
-    selectedWorkloadClasses.size === 0
-      ? selectedCommandClasses.size === 0
-        ? snapshotBenchmarkWorkloadClassesV1
-        : (["command"] as const)
-      : snapshotBenchmarkWorkloadClassesV1.filter((workloadClass) =>
-          selectedWorkloadClasses.has(workloadClass),
-        );
+  const entityCounts = selectedEntityCounts.size === 0
+    ? snapshotCommitEntityCountsV1
+    : snapshotCommitEntityCountsV1.filter((entityCount) => selectedEntityCounts.has(entityCount));
+  const commandClasses = selectedCommandClasses.size === 0
+    ? snapshotBenchmarkCommandClassesV1
+    : snapshotBenchmarkCommandClassesV1.filter((commandClass) =>
+      selectedCommandClasses.has(commandClass)
+    );
+  const workloadClasses = selectedWorkloadClasses.size === 0
+    ? selectedCommandClasses.size === 0
+      ? snapshotBenchmarkWorkloadClassesV1
+      : (["command"] as const)
+    : snapshotBenchmarkWorkloadClassesV1.filter((workloadClass) =>
+      selectedWorkloadClasses.has(workloadClass)
+    );
   if (selectedCommandClasses.size > 0 && !workloadClasses.includes("command")) {
     return argumentErrorV1("--command-class requires the command workload class to be selected");
   }
@@ -353,15 +354,14 @@ async function runWorkloadV1(input: {
     warmup: input.warmup,
     samples: input.samples,
     async runFresh() {
-      const prepared =
-        input.commandClass === "cross_owner_atomic_committed"
-          ? prepareTimedSnapshotTransactionWorkloadV1({
-              entityCount: input.entityCount,
-            })
-          : prepareTimedSnapshotCommitWorkloadV1({
-              entityCount: input.entityCount,
-              commandClass: input.commandClass,
-            });
+      const prepared = input.commandClass === "cross_owner_atomic_committed"
+        ? prepareTimedSnapshotTransactionWorkloadV1({
+          entityCount: input.entityCount,
+        })
+        : prepareTimedSnapshotCommitWorkloadV1({
+          entityCount: input.entityCount,
+          commandClass: input.commandClass,
+        });
       if (prepared.descriptor.workloadId !== workloadId) {
         throw new Error(`unexpected workload descriptor: ${prepared.descriptor.workloadId}`);
       }

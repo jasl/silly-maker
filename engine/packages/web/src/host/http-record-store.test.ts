@@ -61,24 +61,23 @@ function fetchFakeV1() {
         body.mutations.map((mutation) =>
           mutation.kind === "put"
             ? {
-                kind: "put" as const,
-                namespace: mutation.namespace as HostRecordNamespaceV1,
-                key: mutation.key as HostRecordKeyV1,
-                expectedRevision: mutation.expectedRevision as never,
-                bytes: fromBase64(mutation.bytesBase64 ?? ""),
-              }
+              kind: "put" as const,
+              namespace: mutation.namespace as HostRecordNamespaceV1,
+              key: mutation.key as HostRecordKeyV1,
+              expectedRevision: mutation.expectedRevision as never,
+              bytes: fromBase64(mutation.bytesBase64 ?? ""),
+            }
             : {
-                kind: "delete" as const,
-                namespace: mutation.namespace as HostRecordNamespaceV1,
-                key: mutation.key as HostRecordKeyV1,
-                expectedRevision: mutation.expectedRevision as never,
-              },
+              kind: "delete" as const,
+              namespace: mutation.namespace as HostRecordNamespaceV1,
+              key: mutation.key as HostRecordKeyV1,
+              expectedRevision: mutation.expectedRevision as never,
+            }
         ) as never,
       );
-      const payload =
-        result.kind === "committed"
-          ? { kind: "committed", records: result.records.map(wire) }
-          : result;
+      const payload = result.kind === "committed"
+        ? { kind: "committed", records: result.records.map(wire) }
+        : result;
       return new Response(JSON.stringify(payload), { status: 200 });
     }
     if (segments.length === 1) {
@@ -103,13 +102,16 @@ describe("the HTTP host record store", () => {
     const capability = "a".repeat(43);
     const requests: RequestInit[] = [];
     const backingFetch = fetchFakeV1();
-    const shellFetch = createDesktopShellFetchInternalV1(capability, (async (
-      input: RequestInfo | URL,
-      init?: RequestInit,
-    ) => {
-      requests.push(init ?? {});
-      return await backingFetch(String(input), init);
-    }) as typeof fetch);
+    const shellFetch = createDesktopShellFetchInternalV1(
+      capability,
+      (async (
+        input: RequestInfo | URL,
+        init?: RequestInit,
+      ) => {
+        requests.push(init ?? {});
+        return await backingFetch(String(input), init);
+      }) as typeof fetch,
+    );
     const store = createHttpHostRecordStoreV1({
       baseUrl: "/sillymaker/records",
       fetchImpl: shellFetch,
@@ -172,7 +174,7 @@ describe("the HTTP host record store", () => {
         createHttpHostRecordStoreV1({
           baseUrl: "/sillymaker/records",
           fetchImpl: fetchFakeV1(),
-        }),
+        })
       ),
     ).toEqual(hostRecordStoreKeyCorpusExpectedV1);
   });

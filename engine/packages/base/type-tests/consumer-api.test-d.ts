@@ -356,19 +356,21 @@ export type GameSimulationDefinitionV1 = ReturnType<
   typeof defineGameSimulation<GameSimulationTypeMapV1>
 >;
 
-interface WitnessTypesAV1 extends GameSimulationTypeMapV1<
-  GameBootstrapInputV1,
-  { readonly simulation: { readonly a: number } },
-  { readonly cursor: number }
-> {
+interface WitnessTypesAV1 extends
+  GameSimulationTypeMapV1<
+    GameBootstrapInputV1,
+    { readonly simulation: { readonly a: number } },
+    { readonly cursor: number }
+  > {
   readonly command: { readonly kind: "witness.a" };
 }
 
-interface WitnessTypesBV1 extends GameSimulationTypeMapV1<
-  GameBootstrapInputV1,
-  { readonly simulation: { readonly b: number } },
-  { readonly cursor: number }
-> {
+interface WitnessTypesBV1 extends
+  GameSimulationTypeMapV1<
+    GameBootstrapInputV1,
+    { readonly simulation: { readonly b: number } },
+    { readonly cursor: number }
+  > {
   readonly command: { readonly kind: "witness.b" };
 }
 

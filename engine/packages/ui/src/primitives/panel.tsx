@@ -33,11 +33,13 @@ export function PanelV1(props: PanelPropsV1): ReactElement {
           {props.title}
         </h2>
         {props.actions ?? null}
-        {props.onClose === undefined ? null : (
-          <Button data-panel-close="true" onClick={props.onClose}>
-            {props.closeLabel ?? "Close"}
-          </Button>
-        )}
+        {props.onClose === undefined
+          ? null
+          : (
+            <Button data-panel-close="true" onClick={props.onClose}>
+              {props.closeLabel ?? "Close"}
+            </Button>
+          )}
       </header>
       <div
         className={styles["panel__content"]}

@@ -28,12 +28,14 @@ export interface DevDockPortalCoordinatorPropsV1 {
 
 const DevDockPortalContextV1 = createContext<DevDockPortalContextValueV1 | null>(null);
 
-const devDockPortalSurfacePriorityV1 = Object.freeze([
-  "fault_pause",
-  "system",
-  "overlay",
-  "narrative",
-] as const satisfies readonly DevDockPortalSurfaceV1[]);
+const devDockPortalSurfacePriorityV1 = Object.freeze(
+  [
+    "fault_pause",
+    "system",
+    "overlay",
+    "narrative",
+  ] as const satisfies readonly DevDockPortalSurfaceV1[],
+);
 
 const missingDevDockPortalSelectionV1 = Object.freeze({
   target: null,
@@ -70,7 +72,7 @@ export function DevDockPortalCoordinatorV1(props: DevDockPortalCoordinatorPropsV
   );
 
   const register = useCallback(
-    (surface: DevDockPortalSurfaceV1, target: HTMLElement): (() => void) => {
+    (surface: DevDockPortalSurfaceV1, target: HTMLElement): () => void => {
       const registration = Object.freeze({ surface, target });
       setRegistrations((current) => Object.freeze([...current, registration]));
       let registered = true;
@@ -78,7 +80,7 @@ export function DevDockPortalCoordinatorV1(props: DevDockPortalCoordinatorPropsV
         if (!registered) return;
         registered = false;
         setRegistrations((current) =>
-          Object.freeze(current.filter((candidate) => candidate !== registration)),
+          Object.freeze(current.filter((candidate) => candidate !== registration))
         );
       };
     },

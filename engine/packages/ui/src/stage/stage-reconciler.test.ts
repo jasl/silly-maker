@@ -132,7 +132,7 @@ describe("createStageReconcilerV1", () => {
       catalog: catalogV1((kind) =>
         kind === "replace"
           ? definitionV1({ transitionId: "transition.test.ack", acknowledge: true })
-          : definitionV1({ transitionId: "transition.test.silent" }),
+          : definitionV1({ transitionId: "transition.test.silent" })
       ),
       onAcknowledgment,
     });
@@ -173,7 +173,7 @@ describe("createStageReconcilerV1", () => {
           transitionId: "transition.test.settle",
           acknowledge: true,
           interruption: "settle_and_retarget",
-        }),
+        })
       ),
       onAcknowledgment,
     });
@@ -218,7 +218,7 @@ describe("createStageReconcilerV1", () => {
           transitionId: "transition.test.cancel",
           acknowledge: true,
           interruption: "cancel_to_target",
-        }),
+        })
       ),
       onAcknowledgment,
     });
@@ -252,7 +252,7 @@ describe("createStageReconcilerV1", () => {
     const reconciler = createStageReconcilerV1({
       clock,
       catalog: catalogV1(() =>
-        definitionV1({ transitionId: "transition.test.epoch", acknowledge: true }),
+        definitionV1({ transitionId: "transition.test.epoch", acknowledge: true })
       ),
       onAcknowledgment,
     });
@@ -285,10 +285,10 @@ describe("createStageReconcilerV1", () => {
         kind === "replace"
           ? definitionV1({ transitionId: "transition.test.block", inputPolicy: "block" })
           : definitionV1({
-              transitionId: "transition.test.skip",
-              inputPolicy: "skip_to_end",
-              acknowledge: true,
-            }),
+            transitionId: "transition.test.skip",
+            inputPolicy: "skip_to_end",
+            acknowledge: true,
+          })
       ),
       onAcknowledgment,
     });
@@ -329,7 +329,7 @@ describe("createStageReconcilerV1", () => {
           transitionId: "transition.test.ack-reduced",
           acknowledge: true,
           reducedMotion: { kind: "settle" },
-        }),
+        })
       ),
       prefersReducedMotion: () => true,
       onAcknowledgment,
@@ -365,13 +365,13 @@ describe("createStageReconcilerV1", () => {
         (kind) =>
           kind === "replace"
             ? definitionV1({
-                transitionId: "transition.test.rich",
-                reducedMotion: { kind: "fallback", transitionId: "transition.test.short" },
-              })
+              transitionId: "transition.test.rich",
+              reducedMotion: { kind: "fallback", transitionId: "transition.test.short" },
+            })
             : definitionV1({
-                transitionId: "transition.test.settle-only",
-                reducedMotion: { kind: "settle" },
-              }),
+              transitionId: "transition.test.settle-only",
+              reducedMotion: { kind: "settle" },
+            }),
         { "transition.test.short": fallback },
       ),
       prefersReducedMotion: () => reduced,
@@ -445,7 +445,7 @@ describe("createStageReconcilerV1", () => {
         definitionV1({
           transitionId: "transition.test.wait",
           readiness: { kind: "wait_for_assets", timeoutMs: 50 },
-        }),
+        })
       ),
       assetsReady: () => ready,
       reportFailure,
@@ -519,7 +519,7 @@ describe("createStageReconcilerV1", () => {
     const reconciler = createStageReconcilerV1({
       clock,
       catalog: catalogV1(() =>
-        definitionV1({ transitionId: "transition.test.dispose", acknowledge: true }),
+        definitionV1({ transitionId: "transition.test.dispose", acknowledge: true })
       ),
       onAcknowledgment,
     });

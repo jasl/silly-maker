@@ -86,7 +86,7 @@ function orderedWithDerivedPhasesV1(
       withPhaseV1(
         instance,
         topmostBlockingIndex >= 0 && index < topmostBlockingIndex ? "suspended" : "active",
-      ),
+      )
     ),
   );
 }
@@ -106,7 +106,7 @@ function ownerTraceV1(
       Object.freeze({
         ownerId,
         surfaceInstanceIds: Object.freeze(surfaceInstanceIds),
-      }),
+      })
     ),
   );
 }
@@ -120,26 +120,20 @@ function publicationV1(
   const orderedInstances = orderedWithDerivedPhasesV1(instances);
   const topmostBlocking =
     orderedInstances.toReversed().find((instance) => instance.definition.modality === "blocking") ??
-    null;
+      null;
   const inputInstance =
     orderedInstances.toReversed().find((instance) => instance.phase === "active") ?? null;
-  const inputOwner =
-    inputInstance === null
-      ? null
-      : Object.freeze({
-          surfaceInstanceId: inputInstance.surfaceInstanceId,
-          inputContextId: inputInstance.definition.inputContextId,
-          routingLeaseId: inputInstance.routingLeaseId,
-        });
-  const focusOwner =
-    inputInstance === null
-      ? null
-      : Object.freeze({
-          surfaceInstanceId: inputInstance.surfaceInstanceId,
-          initialTargetId: inputInstance.definition.focusPolicy.initialTargetId,
-          trap: inputInstance.definition.focusPolicy.trap,
-          restore: inputInstance.definition.focusPolicy.restore,
-        });
+  const inputOwner = inputInstance === null ? null : Object.freeze({
+    surfaceInstanceId: inputInstance.surfaceInstanceId,
+    inputContextId: inputInstance.definition.inputContextId,
+    routingLeaseId: inputInstance.routingLeaseId,
+  });
+  const focusOwner = inputInstance === null ? null : Object.freeze({
+    surfaceInstanceId: inputInstance.surfaceInstanceId,
+    initialTargetId: inputInstance.definition.focusPolicy.initialTargetId,
+    trap: inputInstance.definition.focusPolicy.trap,
+    restore: inputInstance.definition.focusPolicy.restore,
+  });
   return Object.freeze({
     applicationEpoch,
     topologyRevision,
@@ -601,11 +595,11 @@ export function reduceManagedSurfaceV1(
           descendantsIncludingV1(
             state.publication.orderedInstances,
             instance.surfaceInstanceId,
-          ).map((removed) => removed.surfaceInstanceId),
+          ).map((removed) => removed.surfaceInstanceId)
         ),
       );
       const removed = state.publication.orderedInstances.filter((instance) =>
-        removedIds.has(instance.surfaceInstanceId),
+        removedIds.has(instance.surfaceInstanceId)
       );
       return appliedResultV1(
         state,
@@ -634,10 +628,9 @@ export function reduceManagedSurfaceV1(
           operation.evidence.surfaceInstanceId,
         );
       }
-      const dismissAllowed =
-        operation.dismissKind === "routed_cancel"
-          ? target.definition.dismissPolicy.routedCancel
-          : target.definition.dismissPolicy[operation.dismissKind];
+      const dismissAllowed = operation.dismissKind === "routed_cancel"
+        ? target.definition.dismissPolicy.routedCancel
+        : target.definition.dismissPolicy[operation.dismissKind];
       if (!dismissAllowed) {
         return unchangedResultV1(
           state,

@@ -111,10 +111,9 @@ export const bookshopStageRenderersV1: Readonly<Record<string, SemanticStageEntr
         style={{
           width: "1600px",
           height: "900px",
-          background:
-            entry.props.surface === "yard"
-              ? "linear-gradient(180deg, #3d4a42, #141a16)"
-              : "linear-gradient(180deg, #5c4634, #1a120c)",
+          background: entry.props.surface === "yard"
+            ? "linear-gradient(180deg, #3d4a42, #141a16)"
+            : "linear-gradient(180deg, #5c4634, #1a120c)",
         }}
       />
     ),
@@ -127,10 +126,9 @@ export const bookshopStageRenderersV1: Readonly<Record<string, SemanticStageEntr
           width: "220px",
           height: "420px",
           borderRadius: "110px 110px 16px 16px",
-          background:
-            entry.contentId === "content.bookshop.character.zhou"
-              ? "rgba(210, 198, 176, 0.92)"
-              : "rgba(228, 218, 200, 0.92)",
+          background: entry.contentId === "content.bookshop.character.zhou"
+            ? "rgba(210, 198, 176, 0.92)"
+            : "rgba(228, 218, 200, 0.92)",
           transform: "translate(-50%, -100%)",
           display: "flex",
           alignItems: "flex-end",

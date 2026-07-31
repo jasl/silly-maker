@@ -10,9 +10,9 @@ export interface PresentationIntentRouteContextV1 {
 export type PresentationIntentRouteResultV1 =
   | { readonly kind: "executed" }
   | {
-      readonly kind: "rejected";
-      readonly code: "presentation.intent_unknown";
-    };
+    readonly kind: "rejected";
+    readonly code: "presentation.intent_unknown";
+  };
 
 export interface PresentationOverlayWriterV1 {
   open(overlayId: string): void;

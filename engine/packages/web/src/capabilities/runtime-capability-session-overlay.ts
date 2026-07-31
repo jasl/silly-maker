@@ -14,11 +14,13 @@ export interface RuntimeCapabilitySessionOverlayV1 extends RuntimeCapabilityPort
   dispose(): void;
 }
 
-const capabilityFieldsV1 = Object.freeze({
-  debug_tools: "debugTools",
-  cheats: "cheats",
-  automation_bridge: "automationBridge",
-} satisfies Record<RuntimeCapabilityIdV1, keyof RuntimeCapabilitiesV1>);
+const capabilityFieldsV1 = Object.freeze(
+  {
+    debug_tools: "debugTools",
+    cheats: "cheats",
+    automation_bridge: "automationBridge",
+  } satisfies Record<RuntimeCapabilityIdV1, keyof RuntimeCapabilitiesV1>,
+);
 
 function freezeRequestedV1(
   requested: readonly RuntimeCapabilityIdV1[],

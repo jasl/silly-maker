@@ -3,24 +3,26 @@ import { describe, expect, it } from "vitest";
 import { computeStageFrameV1, stageLayoutConstantsV1 } from "./stage-layout.ts";
 
 describe("computeStageFrameV1", () => {
-  it.each([
+  it.each(
     [
-      { width: 1024, height: 768 },
-      { mode: "landscape", width: 1024, height: 640 },
-    ],
-    [
-      { width: 768, height: 1024 },
-      { mode: "portrait_reflow", width: 768, height: 1024 },
-    ],
-    [
-      { width: 1600, height: 1000 },
-      { mode: "landscape", width: 1600, height: 1000 },
-    ],
-    [
-      { width: 2560, height: 1080 },
-      { mode: "landscape", width: 1600, height: 1000 },
-    ],
-  ] as const)("computes the capped Stage for %o", (viewport, expected) => {
+      [
+        { width: 1024, height: 768 },
+        { mode: "landscape", width: 1024, height: 640 },
+      ],
+      [
+        { width: 768, height: 1024 },
+        { mode: "portrait_reflow", width: 768, height: 1024 },
+      ],
+      [
+        { width: 1600, height: 1000 },
+        { mode: "landscape", width: 1600, height: 1000 },
+      ],
+      [
+        { width: 2560, height: 1080 },
+        { mode: "landscape", width: 1600, height: 1000 },
+      ],
+    ] as const,
+  )("computes the capped Stage for %o", (viewport, expected) => {
     expect(computeStageFrameV1(viewport)).toEqual(expected);
   });
 

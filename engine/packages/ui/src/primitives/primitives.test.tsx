@@ -67,7 +67,7 @@ describe("IconButton", () => {
         <IconButton accessibleName={name}>
           <svg />
         </IconButton>,
-      ),
+      )
     ).toThrowError("ui.icon_button_accessible_name_missing");
   });
 
@@ -79,7 +79,7 @@ describe("IconButton", () => {
           <IconButton accessibleName={name as never}>
             <svg />
           </IconButton>,
-        ),
+        )
       ).toThrowError("ui.icon_button_accessible_name_missing");
     },
   );
@@ -119,9 +119,8 @@ describe("ProgressMeter", () => {
     { value: 1, max: 0 },
     { value: 1, max: Number.POSITIVE_INFINITY },
   ])("rejects the invalid range $value/$max", ({ value, max }) => {
-    expect(() =>
-      render(<ProgressMeter accessibleName="酒馆声望" value={value} max={max} />),
-    ).toThrowError("ui.progress_meter_range_invalid");
+    expect(() => render(<ProgressMeter accessibleName="酒馆声望" value={value} max={max} />))
+      .toThrowError("ui.progress_meter_range_invalid");
   });
 
   it("rejects a blank accessible name", () => {
@@ -133,15 +132,14 @@ describe("ProgressMeter", () => {
   it.each([undefined, null, 42])(
     "rejects the non-string accessible name %j with the stable code",
     (name) => {
-      expect(() =>
-        render(<ProgressMeter accessibleName={name as never} value={1} max={10} />),
-      ).toThrowError("ui.progress_meter_accessible_name_missing");
+      expect(() => render(<ProgressMeter accessibleName={name as never} value={1} max={10} />))
+        .toThrowError("ui.progress_meter_accessible_name_missing");
     },
   );
 
   it("rejects blank authored value text", () => {
     expect(() =>
-      render(<ProgressMeter accessibleName="酒馆声望" value={1} max={10} valueText="  " />),
+      render(<ProgressMeter accessibleName="酒馆声望" value={1} max={10} valueText="  " />)
     ).toThrowError("ui.progress_meter_value_text_invalid");
   });
 
@@ -154,7 +152,7 @@ describe("ProgressMeter", () => {
           max={10}
           valueText={valueText as never}
         />,
-      ),
+      )
     ).toThrowError("ui.progress_meter_value_text_invalid");
   });
 });

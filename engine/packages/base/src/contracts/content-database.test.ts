@@ -75,7 +75,7 @@ describe("content table definition", () => {
         schema: activitySchemaV1,
         primaryKey: "id",
         rows: [{ id: "a", nameTextId: "t", slots: [], stamina: 1, unlockStage: null }],
-      }),
+      })
     ).toThrowError(expect.objectContaining({ code: "content.table_id_invalid" }));
 
     expect(() =>
@@ -84,7 +84,7 @@ describe("content table definition", () => {
         schema: activitySchemaV1,
         primaryKey: "id",
         rows: [{ id: "a", stamina: "not-a-number" }],
-      }),
+      })
     ).toThrowError(/content\.row_invalid/u);
 
     expect(() =>
@@ -96,7 +96,7 @@ describe("content table definition", () => {
           { id: "same", nameTextId: "t", slots: [], stamina: 1, unlockStage: null },
           { id: "same", nameTextId: "t", slots: [], stamina: 2, unlockStage: null },
         ],
-      }),
+      })
     ).toThrowError(expect.objectContaining({ code: "content.primary_key_duplicate" }));
   });
 });

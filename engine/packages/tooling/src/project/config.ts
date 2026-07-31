@@ -206,35 +206,27 @@ function freezeWebTargetV1(web: StoryWebTargetV1, pointer: string): StoryWebTarg
     outDir: requireRepositoryPathV1(web.outDir, `${pointer}/outDir`),
     base: requireBaseV1(web.base, `${pointer}/base`),
     sourcemap: requireBooleanV1(web.sourcemap, `${pointer}/sourcemap`),
-    identity:
-      web.identity === null
-        ? null
-        : Object.freeze({
-            module: requireRepositoryPathV1(web.identity.module, `${pointer}/identity/module`),
-            collectExport: requireExportNameV1(
-              web.identity.collectExport,
-              `${pointer}/identity/collectExport`,
-            ),
-            createPluginExport: requireExportNameV1(
-              web.identity.createPluginExport,
-              `${pointer}/identity/createPluginExport`,
-            ),
-          }),
-    desktop:
-      web.desktop === undefined || web.desktop === null
-        ? null
-        : Object.freeze({
-            name: requireDesktopNameV1(web.desktop.name, `${pointer}/desktop/name`),
-            identifier: requireDesktopIdentifierV1(
-              web.desktop.identifier,
-              `${pointer}/desktop/identifier`,
-            ),
-            ...(web.desktop.icon === undefined
-              ? {}
-              : {
-                  icon: requireDesktopIconPathV1(web.desktop.icon, `${pointer}/desktop/icon`),
-                }),
-          }),
+    identity: web.identity === null ? null : Object.freeze({
+      module: requireRepositoryPathV1(web.identity.module, `${pointer}/identity/module`),
+      collectExport: requireExportNameV1(
+        web.identity.collectExport,
+        `${pointer}/identity/collectExport`,
+      ),
+      createPluginExport: requireExportNameV1(
+        web.identity.createPluginExport,
+        `${pointer}/identity/createPluginExport`,
+      ),
+    }),
+    desktop: web.desktop === undefined || web.desktop === null ? null : Object.freeze({
+      name: requireDesktopNameV1(web.desktop.name, `${pointer}/desktop/name`),
+      identifier: requireDesktopIdentifierV1(
+        web.desktop.identifier,
+        `${pointer}/desktop/identifier`,
+      ),
+      ...(web.desktop.icon === undefined ? {} : {
+        icon: requireDesktopIconPathV1(web.desktop.icon, `${pointer}/desktop/icon`),
+      }),
+    }),
   });
 }
 
@@ -267,10 +259,9 @@ export function defineSillymakerProjectV1(
         application.assetVerification,
         `${pointer}/assetVerification`,
       ),
-      simulate:
-        application.simulate === null
-          ? null
-          : freezeModuleRefV1(application.simulate, `${pointer}/simulate`),
+      simulate: application.simulate === null
+        ? null
+        : freezeModuleRefV1(application.simulate, `${pointer}/simulate`),
       web: application.web === null ? null : freezeWebTargetV1(application.web, `${pointer}/web`),
     });
   });
@@ -294,9 +285,11 @@ export function resolveStoryApplicationV1(
   if (application === undefined) {
     configErrorV1(
       "project.application_unknown",
-      `unknown application "${applicationId}"; known applications: ${listStoryApplicationIdsV1(
-        project,
-      ).join(", ")}`,
+      `unknown application "${applicationId}"; known applications: ${
+        listStoryApplicationIdsV1(
+          project,
+        ).join(", ")
+      }`,
       "/applications",
     );
   }
@@ -312,10 +305,12 @@ export function resolveWebBuildTargetV1(
   if (application.web === null) {
     configErrorV1(
       "project.web_target_missing",
-      `application "${applicationId}" has no web target; web applications: ${project.applications
-        .filter((candidate) => candidate.web !== null)
-        .map((candidate) => candidate.applicationId)
-        .join(", ")}`,
+      `application "${applicationId}" has no web target; web applications: ${
+        project.applications
+          .filter((candidate) => candidate.web !== null)
+          .map((candidate) => candidate.applicationId)
+          .join(", ")
+      }`,
       "/applications",
     );
   }
@@ -343,61 +338,49 @@ export function defineSillymakerAppV1(config: SillymakerAppConfigV1): Sillymaker
     label: requireNonEmptyStringV1(config.label, `${pointer}/label`),
     storyEntry: freezeModuleRefV1(config.storyEntry, `${pointer}/storyEntry`),
     assetVerification: requireBooleanV1(config.assetVerification, `${pointer}/assetVerification`),
-    simulate:
-      config.simulate === undefined || config.simulate === null
-        ? null
-        : freezeModuleRefV1(config.simulate, `${pointer}/simulate`),
-    web:
-      web === null
-        ? null
-        : Object.freeze({
-            applicationHtml: requireRepositoryPathV1(
-              web.applicationHtml,
-              `${pointer}/web/applicationHtml`,
-            ),
-            applicationEntry: requireRepositoryPathV1(
-              web.applicationEntry,
-              `${pointer}/web/applicationEntry`,
-            ),
-            outDir: requireRepositoryPathV1(web.outDir ?? "dist-web", `${pointer}/web/outDir`),
-            base: requireBaseV1(web.base, `${pointer}/web/base`),
-            sourcemap: requireBooleanV1(web.sourcemap, `${pointer}/web/sourcemap`),
-            identity:
-              web.identity === undefined || web.identity === null
-                ? null
-                : Object.freeze({
-                    module: requireRepositoryPathV1(
-                      web.identity.module,
-                      `${pointer}/web/identity/module`,
-                    ),
-                    collectExport: requireExportNameV1(
-                      web.identity.collectExport,
-                      `${pointer}/web/identity/collectExport`,
-                    ),
-                    createPluginExport: requireExportNameV1(
-                      web.identity.createPluginExport,
-                      `${pointer}/web/identity/createPluginExport`,
-                    ),
-                  }),
-            desktop:
-              web.desktop === undefined || web.desktop === null
-                ? null
-                : Object.freeze({
-                    name: requireDesktopNameV1(web.desktop.name, `${pointer}/web/desktop/name`),
-                    identifier: requireDesktopIdentifierV1(
-                      web.desktop.identifier,
-                      `${pointer}/web/desktop/identifier`,
-                    ),
-                    ...(web.desktop.icon === undefined
-                      ? {}
-                      : {
-                          icon: requireDesktopIconPathV1(
-                            web.desktop.icon,
-                            `${pointer}/web/desktop/icon`,
-                          ),
-                        }),
-                  }),
-          }),
+    simulate: config.simulate === undefined || config.simulate === null
+      ? null
+      : freezeModuleRefV1(config.simulate, `${pointer}/simulate`),
+    web: web === null ? null : Object.freeze({
+      applicationHtml: requireRepositoryPathV1(
+        web.applicationHtml,
+        `${pointer}/web/applicationHtml`,
+      ),
+      applicationEntry: requireRepositoryPathV1(
+        web.applicationEntry,
+        `${pointer}/web/applicationEntry`,
+      ),
+      outDir: requireRepositoryPathV1(web.outDir ?? "dist-web", `${pointer}/web/outDir`),
+      base: requireBaseV1(web.base, `${pointer}/web/base`),
+      sourcemap: requireBooleanV1(web.sourcemap, `${pointer}/web/sourcemap`),
+      identity: web.identity === undefined || web.identity === null ? null : Object.freeze({
+        module: requireRepositoryPathV1(
+          web.identity.module,
+          `${pointer}/web/identity/module`,
+        ),
+        collectExport: requireExportNameV1(
+          web.identity.collectExport,
+          `${pointer}/web/identity/collectExport`,
+        ),
+        createPluginExport: requireExportNameV1(
+          web.identity.createPluginExport,
+          `${pointer}/web/identity/createPluginExport`,
+        ),
+      }),
+      desktop: web.desktop === undefined || web.desktop === null ? null : Object.freeze({
+        name: requireDesktopNameV1(web.desktop.name, `${pointer}/web/desktop/name`),
+        identifier: requireDesktopIdentifierV1(
+          web.desktop.identifier,
+          `${pointer}/web/desktop/identifier`,
+        ),
+        ...(web.desktop.icon === undefined ? {} : {
+          icon: requireDesktopIconPathV1(
+            web.desktop.icon,
+            `${pointer}/web/desktop/icon`,
+          ),
+        }),
+      }),
+    }),
   });
 }
 
@@ -460,40 +443,28 @@ export function deriveStoryApplicationV1(
       exportName: app.storyEntry.exportName,
     }),
     assetVerification: app.assetVerification,
-    simulate:
-      app.simulate === null || app.simulate === undefined
-        ? null
-        : Object.freeze({
-            module: joinAppPathV1(directory, app.simulate.module),
-            exportName: app.simulate.exportName,
-          }),
-    web:
-      web === null
-        ? null
-        : Object.freeze({
-            storyRoot: directory,
-            applicationHtml: joinAppPathV1(directory, web.applicationHtml),
-            applicationEntry: joinAppPathV1(directory, web.applicationEntry),
-            outDir: joinAppPathV1(directory, web.outDir ?? "dist-web"),
-            base: web.base,
-            sourcemap: web.sourcemap,
-            identity:
-              webIdentity === null
-                ? null
-                : Object.freeze({
-                    module: joinAppPathV1(directory, webIdentity.module),
-                    collectExport: webIdentity.collectExport,
-                    createPluginExport: webIdentity.createPluginExport,
-                  }),
-            desktop:
-              web.desktop === null || web.desktop === undefined
-                ? null
-                : Object.freeze({
-                    ...web.desktop,
-                    ...(web.desktop.icon === undefined
-                      ? {}
-                      : { icon: joinAppPathV1(directory, web.desktop.icon) }),
-                  }),
-          }),
+    simulate: app.simulate === null || app.simulate === undefined ? null : Object.freeze({
+      module: joinAppPathV1(directory, app.simulate.module),
+      exportName: app.simulate.exportName,
+    }),
+    web: web === null ? null : Object.freeze({
+      storyRoot: directory,
+      applicationHtml: joinAppPathV1(directory, web.applicationHtml),
+      applicationEntry: joinAppPathV1(directory, web.applicationEntry),
+      outDir: joinAppPathV1(directory, web.outDir ?? "dist-web"),
+      base: web.base,
+      sourcemap: web.sourcemap,
+      identity: webIdentity === null ? null : Object.freeze({
+        module: joinAppPathV1(directory, webIdentity.module),
+        collectExport: webIdentity.collectExport,
+        createPluginExport: webIdentity.createPluginExport,
+      }),
+      desktop: web.desktop === null || web.desktop === undefined ? null : Object.freeze({
+        ...web.desktop,
+        ...(web.desktop.icon === undefined
+          ? {}
+          : { icon: joinAppPathV1(directory, web.desktop.icon) }),
+      }),
+    }),
   });
 }

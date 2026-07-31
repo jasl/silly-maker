@@ -380,15 +380,12 @@ export function DefaultGameRootV1<
   ) as DeepReadonly<PublicationV1>;
   const anchor = useReadonlyViewV1(props.composition.anchor);
   const saveGuard = props.saveUi?.evaluateGuard?.(publication);
-  const systemSaves =
-    props.customSaves ??
-    (props.saveUi === undefined
-      ? undefined
-      : Object.freeze({
-          port: props.saveUi.port,
-          labels: props.saveUi.labels,
-          ...(saveGuard === undefined ? {} : { guard: saveGuard }),
-        }));
+  const systemSaves = props.customSaves ??
+    (props.saveUi === undefined ? undefined : Object.freeze({
+      port: props.saveUi.port,
+      labels: props.saveUi.labels,
+      ...(saveGuard === undefined ? {} : { guard: saveGuard }),
+    }));
 
   // Loading (or importing) a save from the title screen's Load-game dialog
   // enters gameplay: the anchored epoch origin is the authoritative signal.
@@ -534,36 +531,36 @@ export function DefaultGameRootV1<
           title: labels.settingsTitle,
           closeLabel: labels.closeLabel,
           sections: Object.freeze([
-            ...(props.playerProfile === undefined || props.capabilities === undefined
-              ? []
-              : [
-                  <DefaultSettingsSectionsV1
-                    key="sillymaker-default-settings"
-                    playerProfile={props.playerProfile}
-                    capabilities={props.capabilities}
-                    labels={Object.freeze({
-                      bgmVolumeLabel: labels.settingsBgmVolumeLabel,
-                      voiceVolumeLabel: labels.settingsVoiceVolumeLabel,
-                      sfxVolumeLabel: labels.settingsSfxVolumeLabel,
-                      mutedLabel: labels.settingsMutedLabel,
-                      textSpeedLabel: labels.settingsTextSpeedLabel,
-                      autoWaitLabel: labels.settingsAutoWaitLabel,
-                      fullscreenLabel: labels.settingsFullscreenLabel,
-                      developerToolsLabel: labels.settingsDeveloperToolsLabel,
-                    })}
-                  />,
-                ]),
+            ...(props.playerProfile === undefined || props.capabilities === undefined ? [] : [
+              <DefaultSettingsSectionsV1
+                key="sillymaker-default-settings"
+                playerProfile={props.playerProfile}
+                capabilities={props.capabilities}
+                labels={Object.freeze({
+                  bgmVolumeLabel: labels.settingsBgmVolumeLabel,
+                  voiceVolumeLabel: labels.settingsVoiceVolumeLabel,
+                  sfxVolumeLabel: labels.settingsSfxVolumeLabel,
+                  mutedLabel: labels.settingsMutedLabel,
+                  textSpeedLabel: labels.settingsTextSpeedLabel,
+                  autoWaitLabel: labels.settingsAutoWaitLabel,
+                  fullscreenLabel: labels.settingsFullscreenLabel,
+                  developerToolsLabel: labels.settingsDeveloperToolsLabel,
+                })}
+              />,
+            ]),
             ...(slots.settingsSections?.(slotContext) ?? []),
           ]),
           emptyText: labels.settingsEmptyText,
         })}
       >
-        {props.titleScreen?.splash === undefined || splashDismissed || titleDismissed ? null : (
-          <BootSplashV1
-            splash={props.titleScreen.splash}
-            onDismiss={() => setSplashDismissed(true)}
-          />
-        )}
+        {props.titleScreen?.splash === undefined || splashDismissed || titleDismissed
+          ? null
+          : (
+            <BootSplashV1
+              splash={props.titleScreen.splash}
+              onDismiss={() => setSplashDismissed(true)}
+            />
+          )}
         {props.titleScreen === undefined || titleDismissed || !splashDismissed ? null : (
           <>
             <TitleScreenV1
@@ -603,15 +600,13 @@ export function DefaultGameRootV1<
                     }
                   });
               }}
-              middleAction={
-                props.customSaves === undefined
-                  ? Object.freeze({
-                      kind: "continue" as const,
-                      available: continueAvailable,
-                      onActivate: () => setTitleDismissed(true),
-                    })
-                  : Object.freeze({ kind: "load" as const })
-              }
+              middleAction={props.customSaves === undefined
+                ? Object.freeze({
+                  kind: "continue" as const,
+                  available: continueAvailable,
+                  onActivate: () => setTitleDismissed(true),
+                })
+                : Object.freeze({ kind: "load" as const })}
               showLoadGame={props.saveUi !== undefined}
             />
             {titleLifecycleFailureCode === null ? null : (
@@ -645,7 +640,10 @@ export function DefaultGameRootV1<
             {systemSaves === undefined ? null : <SavesLauncherV1 label={labels.saveLabel} />}
             <SettingsLauncherV1 label={labels.settingsLabel} />
             {props.playerProfile === undefined ? null : (
-              <MuteToggleV1 playerProfile={props.playerProfile} label={labels.settingsMutedLabel} />
+              <MuteToggleV1
+                playerProfile={props.playerProfile}
+                label={labels.settingsMutedLabel}
+              />
             )}
             {slots.systemMenuExtras?.(slotContext) ?? null}
           </div>
@@ -664,30 +662,29 @@ export function DefaultGameRootV1<
   ).semantic;
   const semanticRevision = semanticWitness?.revision;
   const semanticStatus = semanticWitness?.status;
-  const builtInDevDockContributions =
-    props.sessionMaintenance === undefined
-      ? emptyDevDockContributionsV1
-      : createDevDockContributionSetV1({
-          panels: [
-            {
-              id: "engine.session_maintenance",
-              side: "right",
-              title: "Session maintenance",
-              authority: "cheat",
-              render: () => (
-                <SessionMaintenancePanelV1
-                  {...(props.sessionMaintenance?.savePort === undefined
-                    ? {}
-                    : { savePort: props.sessionMaintenance.savePort })}
-                  {...(props.sessionMaintenance?.clearAllSaves === undefined
-                    ? {}
-                    : { clearAllSaves: props.sessionMaintenance.clearAllSaves })}
-                  onReinitialize={slotContext.systemDialogs.returnToTitle}
-                />
-              ),
-            },
-          ],
-        });
+  const builtInDevDockContributions = props.sessionMaintenance === undefined
+    ? emptyDevDockContributionsV1
+    : createDevDockContributionSetV1({
+      panels: [
+        {
+          id: "engine.session_maintenance",
+          side: "right",
+          title: "Session maintenance",
+          authority: "cheat",
+          render: () => (
+            <SessionMaintenancePanelV1
+              {...(props.sessionMaintenance?.savePort === undefined
+                ? {}
+                : { savePort: props.sessionMaintenance.savePort })}
+              {...(props.sessionMaintenance?.clearAllSaves === undefined
+                ? {}
+                : { clearAllSaves: props.sessionMaintenance.clearAllSaves })}
+              onReinitialize={slotContext.systemDialogs.returnToTitle}
+            />
+          ),
+        },
+      ],
+    });
   return (
     <div
       role="application"
@@ -708,20 +705,22 @@ export function DefaultGameRootV1<
         devDock={
           // Story tooling keeps DevDock's input/focus and authority contract.
           props.capabilities === undefined ||
-          (builtInDevDockContributions.panels.length === 0 &&
-            props.devDockContributions === undefined &&
-            props.devDock?.load === undefined) ? null : (
-            <DefaultDevDockV1
-              capabilities={props.capabilities}
-              builtInContributions={builtInDevDockContributions}
-              contributions={props.devDockContributions ?? emptyDevDockContributionsV1}
-              {...(props.devDock?.load === undefined ? {} : { load: props.devDock.load })}
-              {...(props.devDock?.observeOpenState === undefined
-                ? {}
-                : { observeOpenState: props.devDock.observeOpenState })}
-              composition={props.composition}
-            />
-          )
+            (builtInDevDockContributions.panels.length === 0 &&
+              props.devDockContributions === undefined &&
+              props.devDock?.load === undefined)
+            ? null
+            : (
+              <DefaultDevDockV1
+                capabilities={props.capabilities}
+                builtInContributions={builtInDevDockContributions}
+                contributions={props.devDockContributions ?? emptyDevDockContributionsV1}
+                {...(props.devDock?.load === undefined ? {} : { load: props.devDock.load })}
+                {...(props.devDock?.observeOpenState === undefined
+                  ? {}
+                  : { observeOpenState: props.devDock.observeOpenState })}
+                composition={props.composition}
+              />
+            )
         }
       />
     </div>

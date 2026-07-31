@@ -16,8 +16,9 @@ import { SemanticStageTargetHostV1 } from "./semantic-stage-host.tsx";
 const catalogV1: StageContentCatalogV1 = {
   resolveContent: (contentId, appearance) =>
     Object.freeze({
-      rendererId:
-        contentId === "content.test.ghost" ? "renderer.test.unregistered" : "renderer.test.box",
+      rendererId: contentId === "content.test.ghost"
+        ? "renderer.test.unregistered"
+        : "renderer.test.box",
       assetIds: Object.freeze([]),
       accessibleName: `内容 ${contentId}`,
       props: Object.freeze({ expression: appearance.expression ?? "neutral" }),

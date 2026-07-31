@@ -75,7 +75,7 @@ function makeLineageV1(
         toSimulationDigest: boundaries[index + 1] ?? finalSimulationDigest,
         viaSimulationPatchSetDigest: digestV1(`lineage-patch:${index}`),
         adoptedAtCommandSequence: parseNonNegativeSafeInteger(index),
-      }),
+      })
     ),
   );
 }
@@ -197,24 +197,25 @@ describe("Save compatibility classification", () => {
     });
   });
 
-  it.each([
-    "storyId",
-    "storyRevision",
-    "stateContractRevision",
-    "stateContractDigest",
-    "fromSimulationDigest",
-    "toSimulationDigest",
-    "simulationPatchSetDigest",
-  ] as const)("does not adopt when declaration.%s differs", (field) => {
+  it.each(
+    [
+      "storyId",
+      "storyRevision",
+      "stateContractRevision",
+      "stateContractDigest",
+      "fromSimulationDigest",
+      "toSimulationDigest",
+      "simulationPatchSetDigest",
+    ] as const,
+  )("does not adopt when declaration.%s differs", (field) => {
     const stored = makeProvenanceV1({ simulationDigest: digestV1("simulation.old") });
     const current = makeProvenanceV1({ simulationDigest: digestV1("simulation.new") });
     const declaration = declarationV1(stored, current);
-    const wrongValue =
-      field === "storyRevision" || field === "stateContractRevision"
-        ? parsePositiveSafeInteger(99)
-        : field === "storyId"
-          ? "story.wrong"
-          : digestV1(`wrong:${field}`);
+    const wrongValue = field === "storyRevision" || field === "stateContractRevision"
+      ? parsePositiveSafeInteger(99)
+      : field === "storyId"
+      ? "story.wrong"
+      : digestV1(`wrong:${field}`);
 
     expect(
       classifyV1({ stored, current, declaration: { ...declaration, [field]: wrongValue } }),
@@ -316,8 +317,8 @@ const validationRecordSchemaV1: RuntimeSchemaV1<ValidationRecordV1> = Object.fre
   },
 });
 
-const validationCodecV1: SaveCodecContextV1<ValidationSnapshotV1, ValidationRecordV1> =
-  Object.freeze({
+const validationCodecV1: SaveCodecContextV1<ValidationSnapshotV1, ValidationRecordV1> = Object
+  .freeze({
     recordSchema: validationRecordSchemaV1,
     validateEnvelope() {},
   });
@@ -377,8 +378,8 @@ function uncheckedClassificationV1(value: unknown): SaveCompatibilityClassificat
   return value as SaveCompatibilityClassificationV1;
 }
 
-const exactV1: Extract<SaveCompatibilityClassificationV1, { readonly kind: "exact" }> =
-  Object.freeze({
+const exactV1: Extract<SaveCompatibilityClassificationV1, { readonly kind: "exact" }> = Object
+  .freeze({
     kind: "exact" as const,
     mismatches: Object.freeze([] as const),
     warnings: Object.freeze([]),
@@ -481,14 +482,16 @@ describe("Save import candidate validation", () => {
     const fixture = validationContextV1({
       classification: Object.freeze({
         kind: "inspect_only",
-        mismatches: Object.freeze([
-          Object.freeze({
-            field: "story_id",
-            code: "identity.story_id_mismatch",
-            stored: "story.old",
-            current: "story.current",
-          }),
-        ] as const),
+        mismatches: Object.freeze(
+          [
+            Object.freeze({
+              field: "story_id",
+              code: "identity.story_id_mismatch",
+              stored: "story.old",
+              current: "story.current",
+            }),
+          ] as const,
+        ),
         warnings: Object.freeze([]),
       }),
     });
@@ -500,127 +503,129 @@ describe("Save import candidate validation", () => {
     expect(fixture.validateInvariants).not.toHaveBeenCalled();
   });
 
-  it.each([
+  it.each(
     [
-      "nonempty exact mismatches",
-      {
-        kind: "exact",
-        mismatches: [
-          {
-            field: "story_id",
-            code: "identity.story_id_mismatch",
-            stored: "story.old",
-            current: "story.current",
-          },
-        ],
-        warnings: [],
-      },
-    ],
-    ["malformed warning entries", { kind: "exact", mismatches: [], warnings: [{}] }],
-    [
-      "malformed inspect-only mismatches",
-      { kind: "inspect_only", mismatches: [null], warnings: [] },
-    ],
-    [
-      "missing adoption receipt",
-      { kind: "adoption_candidate", mismatches: [], warnings: [], adoption: undefined },
-    ],
-    ["an extra branch field", { kind: "exact", mismatches: [], warnings: [], unexpected: true }],
-    ["an invalid rejection code", { kind: "rejected", code: "identity.story_id_mismatch" }],
-    [
-      "unordered mismatches",
-      {
-        kind: "inspect_only",
-        mismatches: [
-          {
-            field: "simulation_digest",
-            code: "identity.simulation_digest_mismatch",
-            stored: digestV1("simulation.old"),
-            current: digestV1("simulation.current"),
-          },
-          {
-            field: "story_id",
-            code: "identity.story_id_mismatch",
-            stored: "story.old",
-            current: "story.current",
-          },
-        ],
-        warnings: [],
-      },
-    ],
-    [
-      "unordered warnings",
-      {
-        kind: "exact",
-        mismatches: [],
-        warnings: [
-          {
-            field: "presentation_digest",
-            code: "identity.presentation_digest_mismatch",
-            stored: digestV1("presentation.old"),
-            current: digestV1("presentation.current"),
-          },
-          {
-            field: "story_digest",
-            code: "identity.story_digest_mismatch",
-            stored: digestV1("story.old"),
-            current: digestV1("story.current"),
-          },
-        ],
-      },
-    ],
-    [
-      "a malformed nested PatchSet warning",
-      {
-        kind: "exact",
-        mismatches: [],
-        warnings: [
-          {
-            field: "hotfix_set",
-            code: "identity.hotfix_set_mismatch",
-            stored: { ...makePatchSetV1("old"), appliedHotfixes: [{}] },
-            current: makePatchSetV1("current"),
-          },
-        ],
-      },
-    ],
-    [
-      "an invalid PatchSurface kind pairing",
-      {
-        kind: "exact",
-        mismatches: [],
-        warnings: [
-          {
-            field: "hotfix_set",
-            code: "identity.hotfix_set_mismatch",
-            stored: {
-              ...makePatchSetV1("old"),
-              appliedHotfixes: [
-                {
-                  identity: {
-                    id: "hotfix.invalid-pairing",
-                    revision: parsePositiveSafeInteger(1),
-                    digest: digestV1("hotfix.invalid-pairing"),
-                  },
-                  ordinal: parsePositiveSafeInteger(1),
-                  replacements: [
-                    {
-                      surface: "simulation",
-                      symbolId: "asset.invalid-pairing",
-                      kind: "asset",
-                      previousProviderDigest: digestV1("provider.before"),
-                      nextProviderDigest: digestV1("provider.after"),
-                    },
-                  ],
-                },
-              ],
+      [
+        "nonempty exact mismatches",
+        {
+          kind: "exact",
+          mismatches: [
+            {
+              field: "story_id",
+              code: "identity.story_id_mismatch",
+              stored: "story.old",
+              current: "story.current",
             },
-            current: makePatchSetV1("current"),
-          },
-        ],
-      },
-    ],
-  ] as const)("throws for a compatibility callback with %s", (_label, classification) => {
+          ],
+          warnings: [],
+        },
+      ],
+      ["malformed warning entries", { kind: "exact", mismatches: [], warnings: [{}] }],
+      [
+        "malformed inspect-only mismatches",
+        { kind: "inspect_only", mismatches: [null], warnings: [] },
+      ],
+      [
+        "missing adoption receipt",
+        { kind: "adoption_candidate", mismatches: [], warnings: [], adoption: undefined },
+      ],
+      ["an extra branch field", { kind: "exact", mismatches: [], warnings: [], unexpected: true }],
+      ["an invalid rejection code", { kind: "rejected", code: "identity.story_id_mismatch" }],
+      [
+        "unordered mismatches",
+        {
+          kind: "inspect_only",
+          mismatches: [
+            {
+              field: "simulation_digest",
+              code: "identity.simulation_digest_mismatch",
+              stored: digestV1("simulation.old"),
+              current: digestV1("simulation.current"),
+            },
+            {
+              field: "story_id",
+              code: "identity.story_id_mismatch",
+              stored: "story.old",
+              current: "story.current",
+            },
+          ],
+          warnings: [],
+        },
+      ],
+      [
+        "unordered warnings",
+        {
+          kind: "exact",
+          mismatches: [],
+          warnings: [
+            {
+              field: "presentation_digest",
+              code: "identity.presentation_digest_mismatch",
+              stored: digestV1("presentation.old"),
+              current: digestV1("presentation.current"),
+            },
+            {
+              field: "story_digest",
+              code: "identity.story_digest_mismatch",
+              stored: digestV1("story.old"),
+              current: digestV1("story.current"),
+            },
+          ],
+        },
+      ],
+      [
+        "a malformed nested PatchSet warning",
+        {
+          kind: "exact",
+          mismatches: [],
+          warnings: [
+            {
+              field: "hotfix_set",
+              code: "identity.hotfix_set_mismatch",
+              stored: { ...makePatchSetV1("old"), appliedHotfixes: [{}] },
+              current: makePatchSetV1("current"),
+            },
+          ],
+        },
+      ],
+      [
+        "an invalid PatchSurface kind pairing",
+        {
+          kind: "exact",
+          mismatches: [],
+          warnings: [
+            {
+              field: "hotfix_set",
+              code: "identity.hotfix_set_mismatch",
+              stored: {
+                ...makePatchSetV1("old"),
+                appliedHotfixes: [
+                  {
+                    identity: {
+                      id: "hotfix.invalid-pairing",
+                      revision: parsePositiveSafeInteger(1),
+                      digest: digestV1("hotfix.invalid-pairing"),
+                    },
+                    ordinal: parsePositiveSafeInteger(1),
+                    replacements: [
+                      {
+                        surface: "simulation",
+                        symbolId: "asset.invalid-pairing",
+                        kind: "asset",
+                        previousProviderDigest: digestV1("provider.before"),
+                        nextProviderDigest: digestV1("provider.after"),
+                      },
+                    ],
+                  },
+                ],
+              },
+              current: makePatchSetV1("current"),
+            },
+          ],
+        },
+      ],
+    ] as const,
+  )("throws for a compatibility callback with %s", (_label, classification) => {
     const fixture = validationContextV1({
       classification: uncheckedClassificationV1(classification),
     });

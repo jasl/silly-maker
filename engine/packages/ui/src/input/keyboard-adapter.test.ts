@@ -12,7 +12,7 @@ const autoV1 = parseInputActionIdV1("player.toggle_auto");
 
 function routerSpyV1(handled = true) {
   const route = vi.fn(() =>
-    handled ? ({ kind: "handled", context: "narrative" } as const) : ({ kind: "ignored" } as const),
+    handled ? ({ kind: "handled", context: "narrative" } as const) : ({ kind: "ignored" } as const)
   );
   return { route };
 }
@@ -59,16 +59,18 @@ describe("installKeyboardAdapterV1", () => {
     const router = routerSpyV1();
     const uninstall = installKeyboardAdapterV1({ router, map: { Enter: advanceV1 } });
 
-    for (const build of [
-      () => document.createElement("input"),
-      () => document.createElement("textarea"),
-      () => document.createElement("button"),
-      () => {
-        const div = document.createElement("div");
-        div.setAttribute("role", "button");
-        return div;
-      },
-    ]) {
+    for (
+      const build of [
+        () => document.createElement("input"),
+        () => document.createElement("textarea"),
+        () => document.createElement("button"),
+        () => {
+          const div = document.createElement("div");
+          div.setAttribute("role", "button");
+          return div;
+        },
+      ]
+    ) {
       const element = build();
       document.body.append(element);
       pressV1("Enter", element);

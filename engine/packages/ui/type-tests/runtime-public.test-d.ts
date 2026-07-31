@@ -15,8 +15,8 @@ import {
   type UiRendererNamespaceV1,
 } from "@sillymaker/ui";
 
-type EqualV1<TLeft, TRight> =
-  (<T>() => T extends TLeft ? 1 : 2) extends <T>() => T extends TRight ? 1 : 2 ? true : false;
+type EqualV1<TLeft, TRight> = (<T>() => T extends TLeft ? 1 : 2) extends
+  <T>() => T extends TRight ? 1 : 2 ? true : false;
 type ExpectV1<TValue extends true> = TValue;
 
 interface PublicationV1 {

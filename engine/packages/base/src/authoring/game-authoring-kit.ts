@@ -51,8 +51,7 @@ export interface CapabilityProvisionV1<TStateSlice> {
 export type CapabilityRequirementsV1 = Readonly<Record<string, CapabilityTokenV1<unknown>>>;
 
 export type DependencyPortsOfV1<TRequires extends CapabilityRequirementsV1> = {
-  readonly [TKey in keyof TRequires]: TRequires[TKey] extends CapabilityTokenV1<infer TPort>
-    ? TPort
+  readonly [TKey in keyof TRequires]: TRequires[TKey] extends CapabilityTokenV1<infer TPort> ? TPort
     : never;
 };
 
@@ -211,7 +210,8 @@ export interface AuthoringKitAnyStatelessModuleV1 {
 }
 
 export type AuthoringKitAnyModuleV1 =
-  AuthoringKitAnyStatefulModuleV1 | AuthoringKitAnyStatelessModuleV1;
+  | AuthoringKitAnyStatefulModuleV1
+  | AuthoringKitAnyStatelessModuleV1;
 
 export type AuthoringKitBindingOfV1<TTypes extends GameSimulationTypeMapV1, TModule> =
   TModule extends AuthoringKitStatefulModuleV1<
@@ -220,22 +220,19 @@ export type AuthoringKitBindingOfV1<TTypes extends GameSimulationTypeMapV1, TMod
     infer TOwnerOperation,
     infer TModuleCommand,
     infer TRequires
-  >
-    ? AuthoringKitStatefulBindingV1<TTypes, TStateSlice, TOwnerOperation, TModuleCommand, TRequires>
+  > ? AuthoringKitStatefulBindingV1<TTypes, TStateSlice, TOwnerOperation, TModuleCommand, TRequires>
     : TModule extends AuthoringKitStatelessModuleV1<TTypes, infer TCapabilities>
       ? StatelessGameplayModuleBindingV1<TTypes, never, never, never, TCapabilities>
-      : GameplayModuleBindingV1<TTypes>;
+    : GameplayModuleBindingV1<TTypes>;
 
-export type KitOwnerOperationOfV1<TModule> =
-  TModule extends AuthoringKitStatefulModuleV1<
-    infer _TTypes,
-    infer _TStateSlice,
-    infer TOwnerOperation,
-    infer _TModuleCommand,
-    infer _TRequires
-  >
-    ? TOwnerOperation
-    : never;
+export type KitOwnerOperationOfV1<TModule> = TModule extends AuthoringKitStatefulModuleV1<
+  infer _TTypes,
+  infer _TStateSlice,
+  infer TOwnerOperation,
+  infer _TModuleCommand,
+  infer _TRequires
+> ? TOwnerOperation
+  : never;
 
 export type KitTransactionOutcomeV1<TTypes extends GameSimulationTypeMapV1> =
   | { readonly kind: "transaction_complete" }
@@ -441,7 +438,8 @@ interface ErasedStatefulConfigV1 {
   readonly commandSchema?: RuntimeSchemaV1<unknown> | undefined;
   readonly requires?: CapabilityRequirementsV1 | undefined;
   readonly provides?:
-    ((provide: ProvideCapabilityV1<never>) => readonly CapabilityProvisionV1<never>[]) | undefined;
+    | ((provide: ProvideCapabilityV1<never>) => readonly CapabilityProvisionV1<never>[])
+    | undefined;
   readonly initializesAfter?: readonly string[] | undefined;
   readonly owner: {
     readonly operationSchema: RuntimeSchemaV1<unknown>;
@@ -710,8 +708,8 @@ export function createGameAuthoringKitV1<
           }),
         ),
       ].sort((left, right) => left.localeCompare(right));
-      const proposalSchema =
-        config.owner.proposalSchema ?? deriveProposalSchemaV1(config.owner.operationSchema);
+      const proposalSchema = config.owner.proposalSchema ??
+        deriveProposalSchemaV1(config.owner.operationSchema);
       return defineGameplayModule<TTypes>()({
         bindingKind: "stateful" as const,
         descriptor: {
@@ -836,7 +834,7 @@ export function createGameAuthoringKitV1<
               return rejectAttemptV1(snapshot, rng, ownerRejections);
             }
             const ordered = [...staged.values()].sort((left, right) =>
-              String(left.module.id).localeCompare(String(right.module.id)),
+              String(left.module.id).localeCompare(String(right.module.id))
             );
             let nextState: unknown = snapshot.state;
             const facts: unknown[] = [];

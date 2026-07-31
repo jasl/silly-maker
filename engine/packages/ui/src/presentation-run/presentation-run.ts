@@ -68,8 +68,9 @@ export function createPresentationRunV1(
     if (status === "cancelled") return finalLinearProgress;
     if (status === "pending") return 0;
     if (options.durationMs <= 0) return 1;
-    const elapsed =
-      status === "paused" ? pausedElapsed : pausedElapsed + (options.clock.now() - startedAt);
+    const elapsed = status === "paused"
+      ? pausedElapsed
+      : pausedElapsed + (options.clock.now() - startedAt);
     return Math.min(1, Math.max(0, elapsed / options.durationMs));
   };
 

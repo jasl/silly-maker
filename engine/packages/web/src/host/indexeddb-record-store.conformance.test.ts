@@ -171,62 +171,66 @@ async function createCorruptCommitFixtureV1(
   });
 }
 
-const corruptRowCasesV1 = Object.freeze([
+const corruptRowCasesV1 = Object.freeze(
   [
-    "missing revision",
-    () => ({
-      namespace: "settings",
-      key: hostRecordStoreCorruptBackingKeyV1,
-      bytes: Uint8Array.of(1).buffer,
-    }),
-  ],
-  [
-    "negative-zero revision",
-    () => ({
-      namespace: "settings",
-      key: hostRecordStoreCorruptBackingKeyV1,
-      revision: -0,
-      bytes: Uint8Array.of(1).buffer,
-    }),
-  ],
-  [
-    "missing bytes",
-    () => ({
-      namespace: "settings",
-      key: hostRecordStoreCorruptBackingKeyV1,
-      revision: 1,
-    }),
-  ],
-  [
-    "non-ArrayBuffer bytes",
-    () => ({
-      namespace: "settings",
-      key: hostRecordStoreCorruptBackingKeyV1,
-      revision: 1,
-      bytes: "AQ==",
-    }),
-  ],
-] as const satisfies readonly (readonly [string, CorruptRowFactoryV1])[]);
+    [
+      "missing revision",
+      () => ({
+        namespace: "settings",
+        key: hostRecordStoreCorruptBackingKeyV1,
+        bytes: Uint8Array.of(1).buffer,
+      }),
+    ],
+    [
+      "negative-zero revision",
+      () => ({
+        namespace: "settings",
+        key: hostRecordStoreCorruptBackingKeyV1,
+        revision: -0,
+        bytes: Uint8Array.of(1).buffer,
+      }),
+    ],
+    [
+      "missing bytes",
+      () => ({
+        namespace: "settings",
+        key: hostRecordStoreCorruptBackingKeyV1,
+        revision: 1,
+      }),
+    ],
+    [
+      "non-ArrayBuffer bytes",
+      () => ({
+        namespace: "settings",
+        key: hostRecordStoreCorruptBackingKeyV1,
+        revision: 1,
+        bytes: "AQ==",
+      }),
+    ],
+  ] as const satisfies readonly (readonly [string, CorruptRowFactoryV1])[],
+);
 
-const corruptCommitRowCasesV1 = Object.freeze([
+const corruptCommitRowCasesV1 = Object.freeze(
   [
-    "missing bytes",
-    () => ({
-      namespace: "settings",
-      key: hostRecordStoreCorruptBackingKeyV1,
-      revision: 1,
-    }),
-  ],
-  [
-    "non-ArrayBuffer bytes",
-    () => ({
-      namespace: "settings",
-      key: hostRecordStoreCorruptBackingKeyV1,
-      revision: 1,
-      bytes: "AQ==",
-    }),
-  ],
-] as const satisfies readonly (readonly [string, CorruptRowFactoryV1])[]);
+    [
+      "missing bytes",
+      () => ({
+        namespace: "settings",
+        key: hostRecordStoreCorruptBackingKeyV1,
+        revision: 1,
+      }),
+    ],
+    [
+      "non-ArrayBuffer bytes",
+      () => ({
+        namespace: "settings",
+        key: hostRecordStoreCorruptBackingKeyV1,
+        revision: 1,
+        bytes: "AQ==",
+      }),
+    ],
+  ] as const satisfies readonly (readonly [string, CorruptRowFactoryV1])[],
+);
 
 describe("IndexedDB Host record store conformance", () => {
   it("matches the shared core workload", async () => {
@@ -244,7 +248,7 @@ describe("IndexedDB Host record store conformance", () => {
         createIndexedDbRecordStoreV1({
           indexedDB: new FakeIDBFactory(),
           databaseName: databaseNameV1,
-        }),
+        })
       ),
     ).toEqual(hostRecordStoreKeyCorpusExpectedV1);
   });
@@ -292,7 +296,7 @@ describe("IndexedDB Host record store conformance", () => {
     async (_name, createCorruptRow) => {
       expect(
         await runHostRecordStoreCorruptBackingReadListConformanceV1(() =>
-          createCorruptBackingStoreV1(createCorruptRow),
+          createCorruptBackingStoreV1(createCorruptRow)
         ),
       ).toEqual(hostRecordStoreCorruptBackingReadListConformanceExpectedV1);
     },
@@ -303,7 +307,7 @@ describe("IndexedDB Host record store conformance", () => {
     async (_name, createCorruptRow) => {
       expect(
         await runHostRecordStoreCorruptBackingCommitConformanceV1(() =>
-          createCorruptCommitFixtureV1(createCorruptRow),
+          createCorruptCommitFixtureV1(createCorruptRow)
         ),
       ).toEqual(hostRecordStoreCorruptBackingCommitConformanceExpectedV1);
     },

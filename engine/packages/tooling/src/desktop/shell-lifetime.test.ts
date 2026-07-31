@@ -63,8 +63,8 @@ describe("shell window adoption", () => {
         const operation = source.includes('"operation":"prepare"')
           ? "prepare"
           : source.includes('"operation":"read"')
-            ? "read"
-            : "bad_script";
+          ? "read"
+          : "bad_script";
         operations.push(operation);
         return Promise.resolve({
           kind: rendererStatus,

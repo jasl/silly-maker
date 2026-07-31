@@ -137,12 +137,14 @@ export interface StatefulGameplayModuleBindingV1<
     TTypes["rejection"],
     TDependencyPorts
   >;
-  readonly queries: ModuleQueryCapabilityV1<
-    TStateSlice,
-    TModuleQuery,
-    TModuleQueryResult,
-    TDependencyPorts
-  > | null;
+  readonly queries:
+    | ModuleQueryCapabilityV1<
+      TStateSlice,
+      TModuleQuery,
+      TModuleQueryResult,
+      TDependencyPorts
+    >
+    | null;
   createInitialState(bootstrap: DeepReadonly<TTypes["bootstrapInput"]>): TStateSlice;
   createReadPort(state: DeepReadonly<TStateSlice>): TReadPort;
 }
@@ -174,23 +176,23 @@ export type GameplayModuleBindingV1<
   TDependencyPorts = unknown,
 > =
   | StatefulGameplayModuleBindingV1<
-      TTypes,
-      TStateSlice,
-      TModuleCommand,
-      TModuleQuery,
-      TModuleQueryResult,
-      TOwnerOperation,
-      TOwnerProposal,
-      TReadPort,
-      TDependencyPorts
-    >
+    TTypes,
+    TStateSlice,
+    TModuleCommand,
+    TModuleQuery,
+    TModuleQueryResult,
+    TOwnerOperation,
+    TOwnerProposal,
+    TReadPort,
+    TDependencyPorts
+  >
   | StatelessGameplayModuleBindingV1<
-      TTypes,
-      TModuleCommand,
-      TModuleQuery,
-      TModuleQueryResult,
-      TReadPort
-    >;
+    TTypes,
+    TModuleCommand,
+    TModuleQuery,
+    TModuleQueryResult,
+    TReadPort
+  >;
 
 export type GameplayModuleTupleForSimulationV1<
   TTypes extends GameSimulationTypeMapV1,
@@ -206,8 +208,7 @@ export type GameplayModuleTupleForSimulationV1<
     infer _TOwnerProposal,
     infer _TReadPort,
     infer _TDependencyPorts
-  >
-    ? TModules[TIndex]
+  > ? TModules[TIndex]
     : never;
 };
 
@@ -222,9 +223,9 @@ export interface GameCommandExecutorV1<TSnapshot, TCommand, TContext, TAttempt> 
 export type GameDebugCommandValidationResultV1<TValidationError> =
   | { readonly kind: "allowed" }
   | {
-      readonly kind: "validation_failed";
-      readonly errors: readonly TValidationError[];
-    };
+    readonly kind: "validation_failed";
+    readonly errors: readonly TValidationError[];
+  };
 
 export interface GameDebugCommandExecutorV1<
   TSnapshot,

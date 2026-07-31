@@ -87,8 +87,8 @@ function causeDiagnosticV1(
       details: Object.freeze({
         resolutionFailureCode: failureCode,
         ...(causeDetails !== null &&
-        typeof causeDetails === "object" &&
-        !Array.isArray(causeDetails)
+            typeof causeDetails === "object" &&
+            !Array.isArray(causeDetails)
           ? (causeDetails as StrictJsonObjectV1)
           : {}),
       }),
@@ -117,8 +117,9 @@ export function collectGamePackageDiagnosticsV1<TSimulationFacet, TPresentationF
   if (result.kind === "resolved") return Object.freeze({ kind: "valid" });
 
   const failure = result.failure;
-  const message =
-    typeof failure.details.message === "string" ? failure.details.message : failure.code;
+  const message = typeof failure.details.message === "string"
+    ? failure.details.message
+    : failure.code;
 
   const embedded = embeddedDiagnosticsV1(failure.details);
   if (embedded !== null) return Object.freeze({ kind: "invalid", diagnostics: embedded });

@@ -74,20 +74,19 @@ export function classifyShellHttpRequestInternalV1(
     return Object.freeze({ kind: "rejected", status: 421 });
   }
 
-  const route =
-    url.pathname === shellFilesPathPrefixInternalV1 ||
-    url.pathname.startsWith(`${shellFilesPathPrefixInternalV1}/`)
-      ? Object.freeze({
-          kind: "files" as const,
-          subPath: url.pathname.slice(shellFilesPathPrefixInternalV1.length),
-        })
-      : url.pathname === shellRecordsPathPrefixInternalV1 ||
-          url.pathname.startsWith(`${shellRecordsPathPrefixInternalV1}/`)
-        ? Object.freeze({
-            kind: "records" as const,
-            subPath: url.pathname.slice(shellRecordsPathPrefixInternalV1.length),
-          })
-        : Object.freeze({ kind: "static" as const, pathname: url.pathname });
+  const route = url.pathname === shellFilesPathPrefixInternalV1 ||
+      url.pathname.startsWith(`${shellFilesPathPrefixInternalV1}/`)
+    ? Object.freeze({
+      kind: "files" as const,
+      subPath: url.pathname.slice(shellFilesPathPrefixInternalV1.length),
+    })
+    : url.pathname === shellRecordsPathPrefixInternalV1 ||
+        url.pathname.startsWith(`${shellRecordsPathPrefixInternalV1}/`)
+    ? Object.freeze({
+      kind: "records" as const,
+      subPath: url.pathname.slice(shellRecordsPathPrefixInternalV1.length),
+    })
+    : Object.freeze({ kind: "static" as const, pathname: url.pathname });
   if (route.kind === "static") return route;
 
   if (!isShellCapabilityInternalV1(capability)) {

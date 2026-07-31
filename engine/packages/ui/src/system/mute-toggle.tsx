@@ -39,29 +39,31 @@ export function MuteToggleV1(props: {
           strokeWidth="1.4"
           strokeLinejoin="round"
         />
-        {muted ? (
-          <path
-            d="M16 9l5 6M21 9l-5 6"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-          />
-        ) : (
-          <>
+        {muted
+          ? (
             <path
-              d="M15.5 9.5a3.5 3.5 0 0 1 0 5"
+              d="M16 9l5 6M21 9l-5 6"
               stroke="currentColor"
               strokeWidth="1.8"
               strokeLinecap="round"
             />
-            <path
-              d="M17.8 7.2a6.5 6.5 0 0 1 0 9.6"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-            />
-          </>
-        )}
+          )
+          : (
+            <>
+              <path
+                d="M15.5 9.5a3.5 3.5 0 0 1 0 5"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+              />
+              <path
+                d="M17.8 7.2a6.5 6.5 0 0 1 0 9.6"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+              />
+            </>
+          )}
       </svg>
     </button>
   );

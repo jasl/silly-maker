@@ -173,14 +173,13 @@ function storyBuildOptionsV1(parsed: ParsedArgsV1): {
   readonly sourcemap?: boolean;
   readonly minify?: boolean;
 } {
-  const sourcemap =
-    parsed.sourcemap === true
-      ? true
-      : parsed.profile === "debug"
-        ? true
-        : parsed.profile === "release"
-          ? false
-          : undefined;
+  const sourcemap = parsed.sourcemap === true
+    ? true
+    : parsed.profile === "debug"
+    ? true
+    : parsed.profile === "release"
+    ? false
+    : undefined;
   const minify = parsed.noMinify || parsed.profile === "debug" ? false : undefined;
   return {
     ...(sourcemap === undefined ? {} : { sourcemap }),
@@ -190,14 +189,13 @@ function storyBuildOptionsV1(parsed: ParsedArgsV1): {
 
 function createNodeRunnerV1(): ProjectCommandRunnerV1 {
   const runner: ProjectCommandRunnerV1 = {
-    hostPlatform:
-      process.platform === "darwin"
-        ? "darwin"
-        : process.platform === "win32"
-          ? "windows"
-          : process.platform === "linux"
-            ? "linux"
-            : null,
+    hostPlatform: process.platform === "darwin"
+      ? "darwin"
+      : process.platform === "win32"
+      ? "windows"
+      : process.platform === "linux"
+      ? "linux"
+      : null,
     run: (command, args, options) =>
       new Promise<number>((resolve, reject) => {
         const child = spawn(command, [...args], {
@@ -297,7 +295,9 @@ export async function runProjectCliV1(input: ProjectCliInputV1): Promise<number>
           after = JSON.parse(await deps.runner.readFile(afterPath)) as unknown;
         } catch (error) {
           input.writeErr(
-            `story diff could not read inputs: ${error instanceof Error ? error.message : String(error)}`,
+            `story diff could not read inputs: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
           );
           return 1;
         }
@@ -313,8 +313,9 @@ export async function runProjectCliV1(input: ProjectCliInputV1): Promise<number>
         return 0;
       }
       case "check": {
-        const applicationIds =
-          selector === "--all" ? listStoryApplicationIdsV1(input.project) : [selector];
+        const applicationIds = selector === "--all"
+          ? listStoryApplicationIdsV1(input.project)
+          : [selector];
         const reports = [];
         for (const applicationId of applicationIds) {
           reports.push(await checkStoryApplicationV1(input.project, applicationId, input.loader));

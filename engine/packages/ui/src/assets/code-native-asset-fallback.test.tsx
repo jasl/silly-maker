@@ -57,7 +57,7 @@ describe("CodeNativeAssetFallbackV1", () => {
           usage="character_pose"
           accessibleName="  "
         />,
-      ),
+      )
     ).toThrow();
   });
 });

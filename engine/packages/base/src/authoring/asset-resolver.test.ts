@@ -102,7 +102,7 @@ describe("Asset resolver", () => {
             },
           },
         ],
-      ),
+      )
     ).toThrow("asset slot sealed");
   });
 
@@ -111,7 +111,7 @@ describe("Asset resolver", () => {
       resolveAssetManifestV1(
         [slot],
         [{ ...pack, providers: [{ ...provider, runtimePath: "../escape.png" }] }],
-      ),
+      )
     ).toThrow("asset path invalid");
   });
 });

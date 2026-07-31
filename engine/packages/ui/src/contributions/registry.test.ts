@@ -8,33 +8,41 @@ import type {
   UiRendererNamespaceV1,
 } from "./types.ts";
 
-const rendererNamespacesV1 = Object.freeze([
-  "background",
-  "character",
-  "scene_interaction",
-  "hud",
-  "workspace_overlay",
-  "narrative",
-  "system",
-] as const satisfies readonly UiRendererNamespaceV1[]);
+const rendererNamespacesV1 = Object.freeze(
+  [
+    "background",
+    "character",
+    "scene_interaction",
+    "hud",
+    "workspace_overlay",
+    "narrative",
+    "system",
+  ] as const satisfies readonly UiRendererNamespaceV1[],
+);
 
-type TestRendererContextsV1 = Readonly<{
-  [TNamespace in UiRendererNamespaceV1]: Readonly<{
-    readonly namespace: TNamespace;
-  }>;
-}>;
+type TestRendererContextsV1 = Readonly<
+  {
+    [TNamespace in UiRendererNamespaceV1]: Readonly<{
+      readonly namespace: TNamespace;
+    }>;
+  }
+>;
 
-const componentsByNamespaceV1 = Object.freeze({
-  background: () => null,
-  character: () => null,
-  scene_interaction: () => null,
-  hud: () => null,
-  workspace_overlay: () => null,
-  narrative: () => null,
-  system: () => null,
-} satisfies {
-  readonly [TNamespace in UiRendererNamespaceV1]: ComponentType<TestRendererContextsV1[TNamespace]>;
-});
+const componentsByNamespaceV1 = Object.freeze(
+  {
+    background: () => null,
+    character: () => null,
+    scene_interaction: () => null,
+    hud: () => null,
+    workspace_overlay: () => null,
+    narrative: () => null,
+    system: () => null,
+  } satisfies {
+    readonly [TNamespace in UiRendererNamespaceV1]: ComponentType<
+      TestRendererContextsV1[TNamespace]
+    >;
+  },
+);
 
 function rendererV1<TNamespace extends UiRendererNamespaceV1>(
   namespace: TNamespace,
@@ -106,9 +114,8 @@ describe("UiContributionRegistryV1", () => {
         rendererV1(namespace, sharedId),
       ]);
 
-      expect(() =>
-        createUiContributionRegistryV1<TestRendererContextsV1>([first, duplicate]),
-      ).toThrowError(`ui.duplicate_renderer_id:${namespace}:${sharedId}`);
+      expect(() => createUiContributionRegistryV1<TestRendererContextsV1>([first, duplicate]))
+        .toThrowError(`ui.duplicate_renderer_id:${namespace}:${sharedId}`);
     },
   );
 
@@ -121,7 +128,7 @@ describe("UiContributionRegistryV1", () => {
     const sets = components.map(({ namespace, component }, index) =>
       contributionV1(`contribution.${index}`, namespace, [
         rendererV1(namespace, sharedId, component),
-      ]),
+      ])
     );
 
     const registry = createUiContributionRegistryV1<TestRendererContextsV1>(sets);
@@ -137,9 +144,8 @@ describe("UiContributionRegistryV1", () => {
     ]);
     const empty = contributionV1("", "system", [rendererV1("system", "renderer.empty-owner")]);
 
-    expect(() =>
-      createUiContributionRegistryV1<TestRendererContextsV1>([first, empty]),
-    ).toThrowError("ui.empty_contribution_id:1");
+    expect(() => createUiContributionRegistryV1<TestRendererContextsV1>([first, empty]))
+      .toThrowError("ui.empty_contribution_id:1");
   });
 
   it("rejects a duplicate contribution ID before combining its renderers", () => {
@@ -151,9 +157,8 @@ describe("UiContributionRegistryV1", () => {
       rendererV1("system", "renderer.system"),
     ]);
 
-    expect(() =>
-      createUiContributionRegistryV1<TestRendererContextsV1>([first, duplicate]),
-    ).toThrowError(`ui.duplicate_contribution_id:${contributionId}`);
+    expect(() => createUiContributionRegistryV1<TestRendererContextsV1>([first, duplicate]))
+      .toThrowError(`ui.duplicate_contribution_id:${contributionId}`);
   });
 
   it.each(rendererNamespacesV1)(
@@ -162,9 +167,8 @@ describe("UiContributionRegistryV1", () => {
       const contributionId = `contribution.empty.${namespace}`;
       const contribution = contributionV1(contributionId, namespace, [rendererV1(namespace, "")]);
 
-      expect(() =>
-        createUiContributionRegistryV1<TestRendererContextsV1>([contribution]),
-      ).toThrowError(`ui.empty_renderer_id:${namespace}:${contributionId}`);
+      expect(() => createUiContributionRegistryV1<TestRendererContextsV1>([contribution]))
+        .toThrowError(`ui.empty_renderer_id:${namespace}:${contributionId}`);
     },
   );
 
@@ -210,7 +214,7 @@ describe("UiContributionRegistryV1", () => {
         seed,
         firstConflictingContribution,
         laterConflict,
-      ]),
+      ])
     ).toThrowError("ui.duplicate_renderer_id:hud:renderer.second");
   });
 });

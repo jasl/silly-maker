@@ -60,12 +60,12 @@ export function createJsonlAgentClientV1(streams: {
       record.ok === true
         ? Object.freeze({ ok: true as const, result: record.result })
         : Object.freeze({
-            ok: false as const,
-            error: record.error ?? {
-              code: "protocol.internal_error" as const,
-              message: "malformed response",
-            },
-          }),
+          ok: false as const,
+          error: record.error ?? {
+            code: "protocol.internal_error" as const,
+            message: "malformed response",
+          },
+        }),
     );
   });
 
@@ -76,7 +76,14 @@ export function createJsonlAgentClientV1(streams: {
         nextId += 1;
         pending.set(id, resolve);
         streams.input.write(
-          `${JSON.stringify({ v: jsonlProtocolVersionV1, id, method, ...(params === undefined ? {} : { params }) })}\n`,
+          `${
+            JSON.stringify({
+              v: jsonlProtocolVersionV1,
+              id,
+              method,
+              ...(params === undefined ? {} : { params }),
+            })
+          }\n`,
         );
       }),
     events: () => Object.freeze([...events]),

@@ -28,15 +28,15 @@ export type TimelineEasingV1 = "linear" | "ease_in_out";
 
 export type TimelineStepV1 =
   | {
-      readonly kind: "tween";
-      readonly target: TimelineTargetV1;
-      readonly property: TimelinePropertyV1;
-      /** Start value; defaults to the channel baseline (0 or 1000). */
-      readonly from?: number;
-      readonly to: number;
-      readonly durationMs: number;
-      readonly easing: TimelineEasingV1;
-    }
+    readonly kind: "tween";
+    readonly target: TimelineTargetV1;
+    readonly property: TimelinePropertyV1;
+    /** Start value; defaults to the channel baseline (0 or 1000). */
+    readonly from?: number;
+    readonly to: number;
+    readonly durationMs: number;
+    readonly easing: TimelineEasingV1;
+  }
   | { readonly kind: "wait"; readonly durationMs: number }
   | { readonly kind: "event"; readonly eventId: string }
   | { readonly kind: "sequence"; readonly steps: readonly TimelineStepV1[] }
@@ -180,10 +180,9 @@ function parseStepV1(
         `${path}/durationMs`,
       );
       const to = requireIntV1(record.to, -100_000, 100_000, "timeline.value_invalid", `${path}/to`);
-      const from =
-        record.from === undefined
-          ? undefined
-          : requireIntV1(record.from, -100_000, 100_000, "timeline.value_invalid", `${path}/from`);
+      const from = record.from === undefined
+        ? undefined
+        : requireIntV1(record.from, -100_000, 100_000, "timeline.value_invalid", `${path}/from`);
       return Object.freeze({
         kind: "tween" as const,
         target: parseTargetV1(record.target, `${path}/target`),
@@ -228,7 +227,7 @@ function parseStepV1(
       }
       const steps = Object.freeze(
         record.steps.map((child, index) =>
-          parseStepV1(child, `${path}/steps/${String(index)}`, depth + 1, state),
+          parseStepV1(child, `${path}/steps/${String(index)}`, depth + 1, state)
         ),
       );
       if (record.kind === "parallel") {
@@ -330,8 +329,8 @@ export function timelineDurationV1(definition: TimelineDefinitionV1): number {
   return timelineStepDurationV1(definition.root);
 }
 
-const easingFunctionsV1: Readonly<Record<TimelineEasingV1, (value: number) => number>> =
-  Object.freeze({
+const easingFunctionsV1: Readonly<Record<TimelineEasingV1, (value: number) => number>> = Object
+  .freeze({
     linear: (value: number) => value,
     ease_in_out: (value: number) => {
       const clamped = Math.min(1, Math.max(0, value));

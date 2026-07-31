@@ -6,15 +6,17 @@ import type {
   UiRendererNamespaceV1,
 } from "./types.ts";
 
-const rendererNamespacesV1 = Object.freeze([
-  "background",
-  "character",
-  "scene_interaction",
-  "hud",
-  "workspace_overlay",
-  "narrative",
-  "system",
-] as const satisfies readonly UiRendererNamespaceV1[]);
+const rendererNamespacesV1 = Object.freeze(
+  [
+    "background",
+    "character",
+    "scene_interaction",
+    "hud",
+    "workspace_overlay",
+    "narrative",
+    "system",
+  ] as const satisfies readonly UiRendererNamespaceV1[],
+);
 
 type StoredRendererV1 = Readonly<{
   readonly kind: "found";

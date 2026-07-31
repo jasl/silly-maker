@@ -9,5 +9,5 @@ export default defineConfig(() =>
   createSillymakerAppViteConfigV1({
     appRoot: import.meta.dirname,
     config: sillymakerAppConfigV1,
-  }),
+  })
 );

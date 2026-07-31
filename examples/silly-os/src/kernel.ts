@@ -19,11 +19,11 @@ export type OsCommandV1 =
   | { readonly kind: "os.fs.write"; readonly name: string; readonly content: string }
   | { readonly kind: "os.fs.remove"; readonly name: string }
   | {
-      readonly kind: "os.mine.new";
-      readonly width: number;
-      readonly height: number;
-      readonly mines: number;
-    }
+    readonly kind: "os.mine.new";
+    readonly width: number;
+    readonly height: number;
+    readonly mines: number;
+  }
   | { readonly kind: "os.mine.reveal"; readonly x: number; readonly y: number }
   | { readonly kind: "os.mine.flag"; readonly x: number; readonly y: number }
   | { readonly kind: "os.desktop.set_wallpaper"; readonly wallpaperId: string };
@@ -99,11 +99,12 @@ export interface OsBootstrapInputV1 {
   readonly rngSeed: NonZeroUint32;
 }
 
-export interface OsSimulationTypesV1 extends GameSimulationTypeMapV1<
-  OsBootstrapInputV1,
-  OsGameStateV1,
-  RngStateV1
-> {
+export interface OsSimulationTypesV1 extends
+  GameSimulationTypeMapV1<
+    OsBootstrapInputV1,
+    OsGameStateV1,
+    RngStateV1
+  > {
   readonly snapshot: GameSnapshotEnvelopeV1<OsGameStateV1, RngStateV1>;
   readonly rngDrawTrace: RngDrawTraceV1;
   readonly command: OsCommandV1;

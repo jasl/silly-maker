@@ -2,17 +2,19 @@
 import type { RuntimeCapabilityIdV1 } from "@sillymaker/base";
 
 export type CapabilityRequestRejectionCodeV1 =
-  "capability.malformed_request" | "capability.unknown_request" | "capability.duplicate_request";
+  | "capability.malformed_request"
+  | "capability.unknown_request"
+  | "capability.duplicate_request";
 
 export type CapabilityRequestParseResultV1 =
   | {
-      readonly kind: "accepted";
-      readonly requested: readonly RuntimeCapabilityIdV1[];
-    }
+    readonly kind: "accepted";
+    readonly requested: readonly RuntimeCapabilityIdV1[];
+  }
   | {
-      readonly kind: "rejected";
-      readonly code: CapabilityRequestRejectionCodeV1;
-    };
+    readonly kind: "rejected";
+    readonly code: CapabilityRequestRejectionCodeV1;
+  };
 
 const acceptedCapabilitiesV1 = new Set<RuntimeCapabilityIdV1>([
   "debug_tools",

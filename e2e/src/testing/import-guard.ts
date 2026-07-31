@@ -30,7 +30,7 @@ export function collectImportSpecifiersV1(source: string): readonly string[] {
 export function findForbiddenImportSpecifiersV1(source: string): readonly string[] {
   return Object.freeze(
     collectImportSpecifiersV1(source).filter((specifier) =>
-      forbiddenSpecifierPatternsV1.some((pattern) => pattern.test(specifier)),
+      forbiddenSpecifierPatternsV1.some((pattern) => pattern.test(specifier))
     ),
   );
 }

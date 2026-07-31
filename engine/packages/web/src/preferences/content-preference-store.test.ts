@@ -125,8 +125,9 @@ function createPreferenceRecordFixtureV1(
   input: PreferenceRecordFixtureInputV1,
 ): HostAtomicRecordStoreV1 {
   const key = (input.key ?? `content-maturity.v1:${e2eStoryIdV1}`) as HostRecordKeyV1;
-  const bytes =
-    input.bytes !== undefined ? Uint8Array.from(input.bytes) : canonicalJsonBytes(input.value);
+  const bytes = input.bytes !== undefined
+    ? Uint8Array.from(input.bytes)
+    : canonicalJsonBytes(input.value);
   const record: HostStoredRecordV1 = Object.freeze({
     namespace: "settings",
     key,
@@ -340,75 +341,77 @@ async function createThrowingPreferenceSubscriberFixtureV1() {
   return Object.freeze({ records, port, secondListener });
 }
 
-const invalidStoredPreferenceCasesV1 = Object.freeze([
-  Object.freeze({
-    name: "non-canonical bytes",
-    record: Object.freeze({
-      bytes: new TextEncoder().encode(
-        '{"contractRevision":1,"storyId":"story.e2e","policyRevision":1,"allowedFlags":2}',
-      ),
+const invalidStoredPreferenceCasesV1 = Object.freeze(
+  [
+    Object.freeze({
+      name: "non-canonical bytes",
+      record: Object.freeze({
+        bytes: new TextEncoder().encode(
+          '{"contractRevision":1,"storyId":"story.e2e","policyRevision":1,"allowedFlags":2}',
+        ),
+      }),
+      policy: neutralTwoFlagPolicyV1,
+      warning: Object.freeze({
+        code: "content_preference.record_invalid",
+        storyId: e2eStoryIdV1,
+        reason: "non_canonical",
+      }),
     }),
-    policy: neutralTwoFlagPolicyV1,
-    warning: Object.freeze({
-      code: "content_preference.record_invalid",
-      storyId: e2eStoryIdV1,
-      reason: "non_canonical",
+    Object.freeze({
+      name: "extra field",
+      record: Object.freeze({ value: { ...preferenceRecordValueV1(), extra: true } }),
+      policy: neutralTwoFlagPolicyV1,
+      warning: Object.freeze({
+        code: "content_preference.record_invalid",
+        storyId: e2eStoryIdV1,
+        reason: "shape",
+      }),
     }),
-  }),
-  Object.freeze({
-    name: "extra field",
-    record: Object.freeze({ value: { ...preferenceRecordValueV1(), extra: true } }),
-    policy: neutralTwoFlagPolicyV1,
-    warning: Object.freeze({
-      code: "content_preference.record_invalid",
-      storyId: e2eStoryIdV1,
-      reason: "shape",
+    Object.freeze({
+      name: "unsupported contract revision",
+      record: Object.freeze({
+        value: { ...preferenceRecordValueV1(), contractRevision: 2 },
+      }),
+      policy: neutralTwoFlagPolicyV1,
+      warning: Object.freeze({
+        code: "content_preference.record_invalid",
+        storyId: e2eStoryIdV1,
+        reason: "contract_revision",
+      }),
     }),
-  }),
-  Object.freeze({
-    name: "unsupported contract revision",
-    record: Object.freeze({
-      value: { ...preferenceRecordValueV1(), contractRevision: 2 },
+    Object.freeze({
+      name: "foreign Story",
+      record: Object.freeze({ value: preferenceRecordValueV1({ storyId: "story.other" }) }),
+      policy: neutralTwoFlagPolicyV1,
+      warning: Object.freeze({
+        code: "content_preference.story_mismatch",
+        storyId: e2eStoryIdV1,
+        storedStoryId: "story.other",
+      }),
     }),
-    policy: neutralTwoFlagPolicyV1,
-    warning: Object.freeze({
-      code: "content_preference.record_invalid",
-      storyId: e2eStoryIdV1,
-      reason: "contract_revision",
+    Object.freeze({
+      name: "non-uint32 mask",
+      record: Object.freeze({ value: preferenceRecordValueV1({ allowedFlags: -1 }) }),
+      policy: neutralTwoFlagPolicyV1,
+      warning: Object.freeze({
+        code: "content_preference.record_invalid",
+        storyId: e2eStoryIdV1,
+        reason: "mask",
+      }),
     }),
-  }),
-  Object.freeze({
-    name: "foreign Story",
-    record: Object.freeze({ value: preferenceRecordValueV1({ storyId: "story.other" }) }),
-    policy: neutralTwoFlagPolicyV1,
-    warning: Object.freeze({
-      code: "content_preference.story_mismatch",
-      storyId: e2eStoryIdV1,
-      storedStoryId: "story.other",
+    Object.freeze({
+      name: "unknown high bit",
+      record: Object.freeze({ value: preferenceRecordValueV1({ allowedFlags: 0x8000_0000 }) }),
+      policy: emptyFlagPolicyV1,
+      warning: Object.freeze({
+        code: "content_preference.unknown_flags",
+        storyId: e2eStoryIdV1,
+        storedAllowedFlags: 2_147_483_648,
+        unknownFlags: 2_147_483_648,
+      }),
     }),
-  }),
-  Object.freeze({
-    name: "non-uint32 mask",
-    record: Object.freeze({ value: preferenceRecordValueV1({ allowedFlags: -1 }) }),
-    policy: neutralTwoFlagPolicyV1,
-    warning: Object.freeze({
-      code: "content_preference.record_invalid",
-      storyId: e2eStoryIdV1,
-      reason: "mask",
-    }),
-  }),
-  Object.freeze({
-    name: "unknown high bit",
-    record: Object.freeze({ value: preferenceRecordValueV1({ allowedFlags: 0x8000_0000 }) }),
-    policy: emptyFlagPolicyV1,
-    warning: Object.freeze({
-      code: "content_preference.unknown_flags",
-      storyId: e2eStoryIdV1,
-      storedAllowedFlags: 2_147_483_648,
-      unknownFlags: 2_147_483_648,
-    }),
-  }),
-] as const);
+  ] as const,
+);
 
 async function collectProductionImportsV1(directory: string): Promise<string> {
   const repositoryRoot = resolve(import.meta.dirname, "../../../../..");
@@ -522,13 +525,15 @@ describe("Web ContentPreferencePort", () => {
     expect(fixture.port.observe()).toEqual({ allowedFlags: 0 });
   });
 
-  it.each([
-    { allowedFlags: -1 },
-    { allowedFlags: 1.5 },
-    { allowedFlags: Number.NaN },
-    { allowedFlags: 0x1_0000_0000 },
-    { allowedFlags: 0, extra: true },
-  ] as const)("rejects malformed runtime preference input before storage", async (runtimeInput) => {
+  it.each(
+    [
+      { allowedFlags: -1 },
+      { allowedFlags: 1.5 },
+      { allowedFlags: Number.NaN },
+      { allowedFlags: 0x1_0000_0000 },
+      { allowedFlags: 0, extra: true },
+    ] as const,
+  )("rejects malformed runtime preference input before storage", async (runtimeInput) => {
     const fixture = await createE2ePreferenceFixtureV1();
 
     await expect(fixture.port.set(runtimeInput as never)).resolves.toEqual({

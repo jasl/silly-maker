@@ -12,16 +12,16 @@ export interface AutoSaveQueueV1<TCandidate> {
 
 export type AutoSaveAttemptReceiptInternalV1<TResult> =
   | {
-      readonly kind: "fulfilled";
-      readonly result: TResult;
-    }
+    readonly kind: "fulfilled";
+    readonly result: TResult;
+  }
   | {
-      readonly kind: "rejected";
-      readonly error: unknown;
-    }
+    readonly kind: "rejected";
+    readonly error: unknown;
+  }
   | {
-      readonly kind: "superseded";
-    };
+    readonly kind: "superseded";
+  };
 
 export interface CreateAutoSaveQueueOptionsV1<TCandidate, TResult> {
   write(candidate: DeepReadonly<TCandidate>): Promise<TResult>;
@@ -296,7 +296,7 @@ export function createAutoSaveQueueV1<TCandidate, TResult>(
         createReceiptV1((settle) => enqueueV1(candidate as DeepReadonly<TCandidate>, settle)),
       establishAnchor: (candidate: unknown) =>
         createReceiptV1((settle) =>
-          establishAnchorV1(candidate as DeepReadonly<TCandidate>, settle),
+          establishAnchorV1(candidate as DeepReadonly<TCandidate>, settle)
         ),
     }),
   );

@@ -11,19 +11,19 @@ import styles from "./vn-layer.module.css";
 
 export type VnChoiceV1<TInvocation> =
   | {
-      readonly choiceId: string;
-      readonly label: string;
-      readonly enabled: true;
-      readonly disabledReasons: readonly [];
-      readonly invocation: DeepReadonly<TInvocation>;
-    }
+    readonly choiceId: string;
+    readonly label: string;
+    readonly enabled: true;
+    readonly disabledReasons: readonly [];
+    readonly invocation: DeepReadonly<TInvocation>;
+  }
   | {
-      readonly choiceId: string;
-      readonly label: string;
-      readonly enabled: false;
-      readonly disabledReasons: readonly string[];
-      readonly invocation?: never;
-    };
+    readonly choiceId: string;
+    readonly label: string;
+    readonly enabled: false;
+    readonly disabledReasons: readonly string[];
+    readonly invocation?: never;
+  };
 
 export interface VnLayerPropsV1<TInvocation, TResult> {
   readonly active: boolean;
@@ -145,8 +145,9 @@ function resolveLiveFocusReturnTargetV1(
   ) {
     return transition.opener;
   }
-  const fallbackStart =
-    liveOpenerIndex >= 0 ? liveOpenerIndex + 1 : transition.logicalAnchorOrdinal;
+  const fallbackStart = liveOpenerIndex >= 0
+    ? liveOpenerIndex + 1
+    : transition.logicalAnchorOrdinal;
   if (fallbackStart === null) return undefined;
   return candidates.slice(fallbackStart).find(isAvailableFocusTargetV1);
 }
@@ -176,8 +177,8 @@ function VnChoiceControlV1<TInvocation, TResult>(
   );
   const dispatch = choice.enabled
     ? () => {
-        void props.semantic.dispatch(choice.invocation);
-      }
+      void props.semantic.dispatch(choice.invocation);
+    }
     : undefined;
 
   return (
@@ -190,15 +191,17 @@ function VnChoiceControlV1<TInvocation, TResult>(
       >
         {choice.label}
       </Button>
-      {choice.disabledReasons.length === 0 ? null : (
-        <ul className={styles["vn-layer__disabled-reasons"]}>
-          {choice.disabledReasons.map((reason, index) => (
-            <li key={descriptionIds[index]} id={descriptionIds[index]}>
-              {reason}
-            </li>
-          ))}
-        </ul>
-      )}
+      {choice.disabledReasons.length === 0
+        ? null
+        : (
+          <ul className={styles["vn-layer__disabled-reasons"]}>
+            {choice.disabledReasons.map((reason, index) => (
+              <li key={descriptionIds[index]} id={descriptionIds[index]}>
+                {reason}
+              </li>
+            ))}
+          </ul>
+        )}
     </div>
   );
 }
@@ -246,8 +249,7 @@ export function VnLayerV1<TInvocation, TResult>(
         }
 
         if (event.kind === "action") {
-          const requestsAdvance =
-            event.actionId === systemInputActionIdsV1.confirm ||
+          const requestsAdvance = event.actionId === systemInputActionIdsV1.confirm ||
             event.actionId === systemInputActionIdsV1.narrativeAdvance;
           if (requestsAdvance && props.advance?.enabled === true) {
             void props.semantic.dispatch(props.advance.invocation);
@@ -267,8 +269,8 @@ export function VnLayerV1<TInvocation, TResult>(
     }
     activeFocusCommitRef.current = true;
     const dialog = dialogRef.current;
-    const focusReturnTransition =
-      focusReturnTransitionRef.current ?? captureCurrentFocusReturnTransitionV1(dialog);
+    const focusReturnTransition = focusReturnTransitionRef.current ??
+      captureCurrentFocusReturnTransitionV1(dialog);
     if (focusReturnTransition !== null) {
       focusReturnTransitionRef.current = focusReturnTransition;
     }
@@ -300,9 +302,9 @@ export function VnLayerV1<TInvocation, TResult>(
       tabIndex={-1}
     >
       <section className={styles["vn-layer__panel"]}>
-        {props.speakerLabel === null ? null : (
-          <p className={styles["vn-layer__speaker"]}>{props.speakerLabel}</p>
-        )}
+        {props.speakerLabel === null
+          ? null
+          : <p className={styles["vn-layer__speaker"]}>{props.speakerLabel}</p>}
         <p className={styles["vn-layer__text"]} aria-live="polite" aria-atomic="true">
           {props.text}
         </p>

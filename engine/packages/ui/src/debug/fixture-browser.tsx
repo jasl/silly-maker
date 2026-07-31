@@ -4,8 +4,10 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Button } from "../primitives/button.tsx";
 
-export type FixtureBrowserAnchorResultV1 =
-  { readonly kind: "anchored" } | { readonly kind: "rejected"; readonly message: string };
+export type FixtureBrowserAnchorResultV1 = { readonly kind: "anchored" } | {
+  readonly kind: "rejected";
+  readonly message: string;
+};
 
 export interface FixtureBrowserPropsV1<TFixtureId extends string> {
   readonly listFixtures: () => Promise<DebugFixtureListResultV1<TFixtureId>>;
@@ -133,36 +135,41 @@ export function FixtureBrowserV1<TFixtureId extends string>(
       {listState.kind === "loading" ? <p role="status">正在读取夹具</p> : null}
       {listState.kind === "capability_disabled" ? <p role="status">调试工具已关闭</p> : null}
       {listState.kind === "failed" ? <p role="alert">无法读取夹具</p> : null}
-      {listState.kind === "listed" && listState.fixtureIds.length === 0 ? (
-        <p role="status">没有可用夹具</p>
-      ) : null}
-      {listState.kind === "listed" && listState.fixtureIds.length > 0 ? (
-        <ul aria-label="可用夹具">
-          {listState.fixtureIds.map((fixtureId) => {
-            return (
-              <li key={fixtureId}>
-                <span>{fixtureId}</span>
-                <Button disabled={operationPending} onClick={() => void inspectFixture(fixtureId)}>
-                  检查夹具 {fixtureId}
-                </Button>
-                <Button
-                  aria-describedby={!props.canAnchor ? disabledReasonId : undefined}
-                  disabled={!props.canAnchor || operationPending}
-                  onClick={() => void anchorFixture(fixtureId)}
-                >
-                  载入夹具 {fixtureId}
-                </Button>
-              </li>
-            );
-          })}
-        </ul>
-      ) : null}
+      {listState.kind === "listed" && listState.fixtureIds.length === 0
+        ? <p role="status">没有可用夹具</p>
+        : null}
+      {listState.kind === "listed" && listState.fixtureIds.length > 0
+        ? (
+          <ul aria-label="可用夹具">
+            {listState.fixtureIds.map((fixtureId) => {
+              return (
+                <li key={fixtureId}>
+                  <span>{fixtureId}</span>
+                  <Button
+                    disabled={operationPending}
+                    onClick={() => void inspectFixture(fixtureId)}
+                  >
+                    检查夹具 {fixtureId}
+                  </Button>
+                  <Button
+                    aria-describedby={!props.canAnchor ? disabledReasonId : undefined}
+                    disabled={!props.canAnchor || operationPending}
+                    onClick={() => void anchorFixture(fixtureId)}
+                  >
+                    载入夹具 {fixtureId}
+                  </Button>
+                </li>
+              );
+            })}
+          </ul>
+        )
+        : null}
 
       {!props.canAnchor ? <p id={disabledReasonId}>{props.disabledReason}</p> : null}
       <div aria-live="polite">
-        {operationState.kind === "pending" ? (
-          <p role="status">正在处理夹具 {pendingFixtureId}</p>
-        ) : null}
+        {operationState.kind === "pending"
+          ? <p role="status">正在处理夹具 {pendingFixtureId}</p>
+          : null}
         {operationState.kind === "inspected" ? <p>夹具检查已打开</p> : null}
         {operationState.kind === "anchored" ? <p>夹具已载入</p> : null}
         {operationState.kind === "rejected" ? <p role="alert">{operationState.message}</p> : null}

@@ -15,7 +15,7 @@ const invocationV1 = Object.freeze({
 
 function createSemanticFixtureV1() {
   const dispatch = vi.fn(async (_invocation: typeof invocationV1) =>
-    Object.freeze({ kind: "committed" as const }),
+    Object.freeze({ kind: "committed" as const })
   );
   const availableActions = vi.fn(() => Object.freeze([]));
   const preview = vi.fn(async () => Object.freeze({ kind: "allowed" as const }));
@@ -143,7 +143,7 @@ describe("SemanticActionControlV1", () => {
           label="购买茶叶"
           disabledReasonLabels={labels}
         />,
-      ),
+      )
     ).toThrowError("ui.semantic_action_reason_mismatch");
   });
 });

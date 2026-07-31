@@ -111,8 +111,8 @@ function RealActionConfirmationDevDockHarnessV1(props: {
           hud: null,
           workspaceOverlay: null,
           narrative: null,
-          system:
-            confirmationOpen && opener !== null ? (
+          system: confirmationOpen && opener !== null
+            ? (
               <ActionConfirmationDialogV1
                 title="真实动作确认"
                 description="验证嵌套开发工具的 Escape 所有权"
@@ -127,7 +127,8 @@ function RealActionConfirmationDevDockHarnessV1(props: {
                 opener={opener}
                 onClose={() => setConfirmationOpen(false)}
               />
-            ) : null,
+            )
+            : null,
         })}
         devDock={
           <DevDockV1
@@ -299,7 +300,7 @@ describe("ActionConfirmationDialogV1", () => {
   it("lets the nested DevDock own the first Escape inside the real Radix confirmation", async () => {
     const inputRouter = createInputRouterV1();
     const dispatch = vi.fn(async (_invocation: typeof invocationV1) =>
-      Object.freeze({ kind: "committed" as const }),
+      Object.freeze({ kind: "committed" as const })
     );
     const user = userEvent.setup();
     render(
@@ -329,7 +330,7 @@ describe("ActionConfirmationDialogV1", () => {
   it("claims System input during the layout commit", () => {
     const inputRouter = createInputRouterV1();
     const dispatch = vi.fn(async (_invocation: typeof invocationV1) =>
-      Object.freeze({ kind: "committed" as const }),
+      Object.freeze({ kind: "committed" as const })
     );
     render(<button type="button">布局期 opener</button>);
     const opener = screen.getByRole("button", { name: "布局期 opener" });
@@ -352,7 +353,7 @@ describe("ActionConfirmationDialogV1", () => {
   it("requires a native second activation and dispatches the exact supplied invocation once", async () => {
     const inputRouter = createInputRouterV1();
     const dispatch = vi.fn(async (_invocation: typeof invocationV1) =>
-      Object.freeze({ kind: "committed" as const }),
+      Object.freeze({ kind: "committed" as const })
     );
     render(<ConfirmationHarnessV1 inputRouter={inputRouter} dispatch={dispatch} />);
     const user = userEvent.setup();
@@ -379,7 +380,7 @@ describe("ActionConfirmationDialogV1", () => {
   it("uses native cancel, never dispatches, and returns focus to the exact opener", async () => {
     const inputRouter = createInputRouterV1();
     const dispatch = vi.fn(async (_invocation: typeof invocationV1) =>
-      Object.freeze({ kind: "committed" as const }),
+      Object.freeze({ kind: "committed" as const })
     );
     render(<ConfirmationHarnessV1 inputRouter={inputRouter} dispatch={dispatch} />);
     const user = userEvent.setup();
@@ -398,7 +399,7 @@ describe("ActionConfirmationDialogV1", () => {
   it("passes transient cleanup through without confirming or closing", async () => {
     const inputRouter = createInputRouterV1();
     const dispatch = vi.fn(async (_invocation: typeof invocationV1) =>
-      Object.freeze({ kind: "committed" as const }),
+      Object.freeze({ kind: "committed" as const })
     );
     const lowerCleanup = vi.fn(() => inputHandledV1);
     inputRouter.register({ context: "overlay", handle: lowerCleanup });
@@ -424,7 +425,7 @@ describe("ActionConfirmationDialogV1", () => {
   it("portals a nested confirmation into the in-stage System focus scope", async () => {
     const inputRouter = createInputRouterV1();
     const dispatch = vi.fn(async (_invocation: typeof invocationV1) =>
-      Object.freeze({ kind: "committed" as const }),
+      Object.freeze({ kind: "committed" as const })
     );
     render(<WorkspaceConfirmationHarnessV1 inputRouter={inputRouter} dispatch={dispatch} />);
     const user = userEvent.setup();
@@ -456,7 +457,7 @@ describe("ActionConfirmationDialogV1", () => {
   it("restores the previous System focus scope when a nested confirmation closes", async () => {
     const inputRouter = createInputRouterV1();
     const dispatch = vi.fn(async (_invocation: typeof invocationV1) =>
-      Object.freeze({ kind: "committed" as const }),
+      Object.freeze({ kind: "committed" as const })
     );
     render(<NestedSystemFocusScopeHarnessV1 inputRouter={inputRouter} dispatch={dispatch} />);
     const user = userEvent.setup();
@@ -480,7 +481,7 @@ describe("ActionConfirmationDialogV1", () => {
   it("closes on routed ui.cancel, returns focus, and unregisters on unmount", async () => {
     const inputRouter = createInputRouterV1();
     const dispatch = vi.fn(async (_invocation: typeof invocationV1) =>
-      Object.freeze({ kind: "committed" as const }),
+      Object.freeze({ kind: "committed" as const })
     );
     const rendered = render(
       <ConfirmationHarnessV1 inputRouter={inputRouter} dispatch={dispatch} />,

@@ -14,15 +14,17 @@ import { labStageContentIdsV1, labStageTagsV1 } from "../stage-ids.ts";
  * commit-only transient effect stream.
  */
 
-export const labAudioAssetIdsV1 = Object.freeze({
-  bgmLab: "audio.e2e.bgm.lab",
-  bgmStoreroom: "audio.e2e.bgm.storeroom",
-  ambientHum: "audio.e2e.ambient.hum",
-  voiceIntro: "audio.e2e.voice.cal-intro",
-  voiceDone: "audio.e2e.voice.cal-done",
-  sfxChime: "audio.e2e.sfx.chime",
-  sfxFanfare: "audio.e2e.sfx.fanfare",
-} as const);
+export const labAudioAssetIdsV1 = Object.freeze(
+  {
+    bgmLab: "audio.e2e.bgm.lab",
+    bgmStoreroom: "audio.e2e.bgm.storeroom",
+    ambientHum: "audio.e2e.ambient.hum",
+    voiceIntro: "audio.e2e.voice.cal-intro",
+    voiceDone: "audio.e2e.voice.cal-done",
+    sfxChime: "audio.e2e.sfx.chime",
+    sfxFanfare: "audio.e2e.sfx.fanfare",
+  } as const,
+);
 
 export function labVoiceForSayV1(
   definitionId: string,
@@ -57,26 +59,21 @@ export function projectLabAudioIntentV1(queries: LabQueriesV1): AudioIntentV1 {
   const bgmAssetId = labBgmForBackgroundV1(background?.contentId);
 
   const pending = queries.narrative.pending;
-  const voice =
-    pending !== null && pending.kind === "say"
-      ? (labVoiceBySayDefinitionV1[pending.definitionId] ?? null)
-      : null;
+  const voice = pending !== null && pending.kind === "say"
+    ? (labVoiceBySayDefinitionV1[pending.definitionId] ?? null)
+    : null;
 
   return parseAudioIntentV1({
     bgm: { assetId: bgmAssetId, loop: true, gainPermille: 800, fadeMs: 400 },
-    ambient:
-      queries.procedurePhase === "running"
-        ? { assetId: labAudioAssetIdsV1.ambientHum, loop: true, gainPermille: 400, fadeMs: 200 }
-        : null,
-    voice:
-      voice === null || pending === null
-        ? null
-        : {
-            assetId: voice.assetId,
-            interactionDefinitionId: pending.definitionId,
-            occurrenceId: pending.occurrenceId,
-            stopPolicy: voice.stopPolicy,
-          },
+    ambient: queries.procedurePhase === "running"
+      ? { assetId: labAudioAssetIdsV1.ambientHum, loop: true, gainPermille: 400, fadeMs: 200 }
+      : null,
+    voice: voice === null || pending === null ? null : {
+      assetId: voice.assetId,
+      interactionDefinitionId: pending.definitionId,
+      occurrenceId: pending.occurrenceId,
+      stopPolicy: voice.stopPolicy,
+    },
   });
 }
 

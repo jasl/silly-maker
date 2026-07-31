@@ -44,7 +44,7 @@ const advanceInvocationV1: TestInvocationV1 = Object.freeze({
 
 function createSemanticFixtureV1() {
   const dispatch = vi.fn(async (_invocation: TestInvocationV1) =>
-    Object.freeze({ kind: "committed" as const }),
+    Object.freeze({ kind: "committed" as const })
   );
   return Object.freeze({ dispatch });
 }
@@ -161,7 +161,7 @@ describe("VnLayerV1 semantic controls", () => {
       expect(screen.getByTestId("devdock-portal-selection")).toHaveAttribute(
         "data-target-scope",
         "narrative",
-      ),
+      )
     );
 
     rendered.rerender(
@@ -174,7 +174,7 @@ describe("VnLayerV1 semantic controls", () => {
       expect(screen.getByTestId("devdock-portal-selection")).toHaveAttribute(
         "data-surface",
         "base",
-      ),
+      )
     );
   });
 
@@ -289,10 +289,12 @@ describe("VnLayerV1 narrative InputContext", () => {
     expect(props.semantic.dispatch.mock.calls[1]?.[0]).toBe(latestAdvanceInvocation);
   });
 
-  it.each([
-    ["confirm", systemInputActionIdsV1.confirm],
-    ["narrative advance", systemInputActionIdsV1.narrativeAdvance],
-  ] as const)("dispatches the exact enabled advance invocation for %s", (_name, actionId) => {
+  it.each(
+    [
+      ["confirm", systemInputActionIdsV1.confirm],
+      ["narrative advance", systemInputActionIdsV1.narrativeAdvance],
+    ] as const,
+  )("dispatches the exact enabled advance invocation for %s", (_name, actionId) => {
     const props = createVnPropsV1();
     render(<VnLayerV1 {...props} />);
 
@@ -359,10 +361,12 @@ describe("VnLayerV1 narrative InputContext", () => {
     });
     render(<VnLayerV1 {...props} advance={disabledAdvance} />);
 
-    for (const actionId of [
-      systemInputActionIdsV1.confirm,
-      systemInputActionIdsV1.narrativeAdvance,
-    ]) {
+    for (
+      const actionId of [
+        systemInputActionIdsV1.confirm,
+        systemInputActionIdsV1.narrativeAdvance,
+      ]
+    ) {
       expect(props.inputRouter.route({ kind: "action", actionId })).toEqual({
         kind: "handled",
         context: "narrative",
@@ -752,12 +756,14 @@ describe("VnLayerV1 motion and Stage isolation", () => {
       />,
     );
 
-    for (const testId of [
-      "stage-background",
-      "stage-character",
-      "stage-scene-interaction",
-      "stage-hud",
-    ]) {
+    for (
+      const testId of [
+        "stage-background",
+        "stage-character",
+        "stage-scene-interaction",
+        "stage-hud",
+      ]
+    ) {
       expect(screen.getByTestId(testId)).toHaveAttribute("inert");
     }
     expect(screen.getByTestId("stage-workspace-overlay")).not.toHaveAttribute("inert");

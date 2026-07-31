@@ -44,7 +44,8 @@ export function OsWallpaperAppV1(props: {
               name="os-wallpaper"
               data-os-wallpaper-option={wallpaperId}
               checked={selected === wallpaperId}
-              onChange={() => setSelected(wallpaperId)}
+              onChange={() =>
+                setSelected(wallpaperId)}
             />
             {uiText(`text.os.wallpaper.${wallpaperId}`)}
           </label>

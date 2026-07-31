@@ -8,9 +8,8 @@ import { parsePositiveSafeInteger } from "../../contracts/values.ts";
 import { scrubRuntimeOperationFaultV1 } from "./privacy.ts";
 
 type RuntimeFailureIdentityV1 = RuntimeOperationFaultV1 extends infer TFault
-  ? TFault extends RuntimeOperationFaultV1
-    ? Pick<TFault, "category" | "code">
-    : never
+  ? TFault extends RuntimeOperationFaultV1 ? Pick<TFault, "category" | "code">
+  : never
   : never;
 
 export interface RuntimeFailureBufferV1 {
@@ -34,8 +33,9 @@ interface CreateRuntimeFailureReporterInputV1 {
   readonly operation: string;
 }
 
-type CreateRuntimeFailureReporterV1 = CreateRuntimeFailureReporterInputV1 &
-  RuntimeFailureIdentityV1;
+type CreateRuntimeFailureReporterV1 =
+  & CreateRuntimeFailureReporterInputV1
+  & RuntimeFailureIdentityV1;
 
 const runtimeFailureMaximumEntriesV1 = 50;
 
@@ -80,8 +80,8 @@ function primitiveTextV1(value: unknown): string | undefined {
 function errorMessageV1(error: unknown): string {
   return (
     primitiveTextV1(error) ??
-    primitiveTextV1(readDataPropertyV1(error, "message")) ??
-    "Unknown runtime failure"
+      primitiveTextV1(readDataPropertyV1(error, "message")) ??
+      "Unknown runtime failure"
   );
 }
 
@@ -100,8 +100,7 @@ function errorCauseV1(
   const causeValue = readDataPropertyV1(error, "cause");
   if (causeValue === undefined) return undefined;
   const message = errorMessageV1(causeValue);
-  const name =
-    primitiveTextV1(readDataPropertyV1(causeValue, "name")) ??
+  const name = primitiveTextV1(readDataPropertyV1(causeValue, "name")) ??
     (typeof causeValue === "object" && causeValue !== null ? "Error" : "Cause");
   return Object.freeze({ name, message });
 }

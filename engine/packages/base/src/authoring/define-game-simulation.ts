@@ -200,9 +200,9 @@ function assertDependencyDag(modules: readonly RuntimeRecord[]): void {
     active.delete(id);
     complete.add(id);
   }
-  for (const id of [...byId.keys()].sort((left, right) =>
-    String(left).localeCompare(String(right)),
-  )) {
+  for (
+    const id of [...byId.keys()].sort((left, right) => String(left).localeCompare(String(right)))
+  ) {
     visit(id);
   }
 }
@@ -307,14 +307,16 @@ function validateRuntimeSimulationV1(simulationValue: unknown): unknown {
   }
   assertDependencyDag(modules);
 
-  for (const [key, label] of [
-    ["stateSchema", "State Schema"],
-    ["commandSchema", "Command Schema"],
-    ["factSchema", "Fact Schema"],
-    ["rejectionSchema", "Rejection Schema"],
-    ["debugCommandSchema", "DebugCommand Schema"],
-    ["debugValidationErrorSchema", "Debug validation error Schema"],
-  ] as const) {
+  for (
+    const [key, label] of [
+      ["stateSchema", "State Schema"],
+      ["commandSchema", "Command Schema"],
+      ["factSchema", "Fact Schema"],
+      ["rejectionSchema", "Rejection Schema"],
+      ["debugCommandSchema", "DebugCommand Schema"],
+      ["debugValidationErrorSchema", "Debug validation error Schema"],
+    ] as const
+  ) {
     requireSchema(simulation[key], label);
   }
   const commandExecutor = requireRecord(simulation.commandExecutor, "GameCommandExecutor");

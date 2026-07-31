@@ -21,10 +21,10 @@ export const catcafeRivalAssetForV1 = (rivalId: string): string | undefined =>
   rivalId === "rival.mochi"
     ? catcafeAssetIdsV1.rival_mochi
     : rivalId === "rival.smoke"
-      ? catcafeAssetIdsV1.rival_smoke
-      : rivalId === "rival.general"
-        ? catcafeAssetIdsV1.rival_general
-        : undefined;
+    ? catcafeAssetIdsV1.rival_smoke
+    : rivalId === "rival.general"
+    ? catcafeAssetIdsV1.rival_general
+    : undefined;
 
 /** Win/loss toast: subscribes to the transient-effect channel (a UI notice, not authoritative state). */
 export function useCatcafeContestToastV1(

@@ -333,9 +333,11 @@ export async function materializeAssetSelectionV1(input: {
     const previous = portablePaths.get(comparisonKey);
     if (previous !== undefined) {
       throw new TypeError(
-        `asset selection portable path collision: ${JSON.stringify(previous)} and ${JSON.stringify(
-          relativePath,
-        )}`,
+        `asset selection portable path collision: ${JSON.stringify(previous)} and ${
+          JSON.stringify(
+            relativePath,
+          )
+        }`,
       );
     }
     portablePaths.set(comparisonKey, relativePath);

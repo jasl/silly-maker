@@ -21,27 +21,28 @@ export type OsInvocationV1 =
   | { readonly kind: "fs_write"; readonly name: string; readonly content: string }
   | { readonly kind: "fs_remove"; readonly name: string }
   | {
-      readonly kind: "mine_new";
-      readonly width: number;
-      readonly height: number;
-      readonly mines: number;
-    }
+    readonly kind: "mine_new";
+    readonly width: number;
+    readonly height: number;
+    readonly mines: number;
+  }
   | { readonly kind: "mine_reveal"; readonly x: number; readonly y: number }
   | { readonly kind: "mine_flag"; readonly x: number; readonly y: number }
   | { readonly kind: "set_wallpaper"; readonly wallpaperId: string };
 
-export type OsPreviewV1 =
-  { readonly kind: "allowed" } | { readonly kind: "blocked"; readonly code: OsRejectionV1["code"] };
+export type OsPreviewV1 = { readonly kind: "allowed" } | {
+  readonly kind: "blocked";
+  readonly code: OsRejectionV1["code"];
+};
 
 export type OsActionResultV1 =
   | { readonly kind: "committed" }
   | { readonly kind: "rejected"; readonly codes: readonly OsRejectionV1["code"][] }
   | { readonly kind: "faulted"; readonly code: string }
   | {
-      readonly kind: "not_executed";
-      readonly code:
-        "session_unavailable" | "fault_paused" | "hmr_invalidated" | "validation_failed";
-    };
+    readonly kind: "not_executed";
+    readonly code: "session_unavailable" | "fault_paused" | "hmr_invalidated" | "validation_failed";
+  };
 
 const simulationForSemanticV1 = createOsGameSimulationV1();
 

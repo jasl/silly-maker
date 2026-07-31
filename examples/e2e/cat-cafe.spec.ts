@@ -39,8 +39,9 @@ async function clearCatCafeRecordsV1(page: Page): Promise<void> {
     await new Promise<void>((resolve, reject) => {
       const request = indexedDB.deleteDatabase(name);
       request.addEventListener("success", () => resolve());
-      request.addEventListener("error", () =>
-        reject(request.error ?? new Error("indexedDB.deleteDatabase failed")),
+      request.addEventListener(
+        "error",
+        () => reject(request.error ?? new Error("indexedDB.deleteDatabase failed")),
       );
       request.addEventListener("blocked", () => resolve());
     });
@@ -105,9 +106,7 @@ test("touch taps activate hit regions @responsive", async ({ page }, testInfo) =
   await expect(page.locator("[data-cc-stage]")).toHaveAttribute("data-cc-petting-left", "2");
 });
 
-test("the stage scales uniformly on small viewports and hit regions still work", async ({
-  page,
-}) => {
+test("the stage scales uniformly on small viewports and hit regions still work", async ({ page }) => {
   // Play the opening at desktop size, then shrink to a phone-landscape
   // window (the genre's standard handheld posture): the 1280x720 logical
   // canvas letterboxes down live. Narrow-portrait HUD stacking is a Story
@@ -157,9 +156,7 @@ test("the DevDock tuning panel commits debug commands through the session", asyn
   await expect(page.locator("[data-cc-stats]")).toContainText("金钱55");
 });
 
-test("Settings and Load game open above the title screen and stay interactive", async ({
-  page,
-}) => {
+test("Settings and Load game open above the title screen and stay interactive", async ({ page }) => {
   await page.goto(catcafeTargetUrlV1());
   await dismissSplashV1(page);
 
@@ -186,7 +183,7 @@ test("Settings and Load game open above the title screen and stay interactive", 
   await page.setViewportSize({ width: 2400, height: 1400 });
   await expect
     .poll(async () =>
-      Number(await page.locator("[data-stage-scale]").getAttribute("data-stage-scale")),
+      Number(await page.locator("[data-stage-scale]").getAttribute("data-stage-scale"))
     )
     .toBeGreaterThan(1.5);
 });
@@ -250,9 +247,7 @@ test("the HUD rollback steps one committed action back without rerolling", async
   await expect(stats).toHaveText(statsAfter ?? "");
 });
 
-test("auto mode advances revealed lines and the history panel replays the backlog", async ({
-  page,
-}) => {
+test("auto mode advances revealed lines and the history panel replays the backlog", async ({ page }) => {
   await page.goto(catcafeTargetUrlV1());
   await dismissSplashV1(page);
   await page.getByRole("button", { name: "新游戏" }).click();
@@ -285,9 +280,7 @@ test("auto mode advances revealed lines and the history panel replays the backlo
   await expect(history).toHaveCount(0);
 });
 
-test("audio follows play: shop BGM and rain load on start, petting fires a one-shot", async ({
-  page,
-}) => {
+test("audio follows play: shop BGM and rain load on start, petting fires a one-shot", async ({ page }) => {
   const fetched = new Set<string>();
   page.on("request", (request) => {
     const name = request.url().split("/").pop() ?? "";
@@ -370,9 +363,7 @@ test("the system menu is one modal at a time and saves honor the safepoint", asy
   await expect(page.locator("[data-cc-calendar='1.0.0']")).toBeVisible();
 });
 
-test("the ending settles once and Keep-the-shop-open enters the endless epilogue", async ({
-  page,
-}) => {
+test("the ending settles once and Keep-the-shop-open enters the endless epilogue", async ({ page }) => {
   await page.goto(catcafeTargetUrlV1("?capability=debug_tools&capability=cheats"));
   await playOpeningV1(page);
 
@@ -442,9 +433,7 @@ test("language switches live in Settings and persists across reload", async ({ p
   await expect(page.getByRole("button", { name: "Settings" })).toBeVisible();
 });
 
-test("the album overlay masks locked entries and shows unlocked meta progress", async ({
-  page,
-}) => {
+test("the album overlay masks locked entries and shows unlocked meta progress", async ({ page }) => {
   await page.goto(catcafeTargetUrlV1());
   await playOpeningV1(page);
   await page.locator("[data-cc-album-open]").click();

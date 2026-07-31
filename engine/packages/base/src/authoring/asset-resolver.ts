@@ -101,10 +101,9 @@ export function resolveAssetManifestV1(
       if (current.delivery === "runtime_image" && slot.overridePolicy === "sealed") {
         throw new TypeError(`asset slot sealed: ${provider.assetId}`);
       }
-      const chain =
-        current.delivery === "runtime_image"
-          ? [...current.overrideChain, providerRef]
-          : [providerRef];
+      const chain = current.delivery === "runtime_image"
+        ? [...current.overrideChain, providerRef]
+        : [providerRef];
       resolvedById.set(
         provider.assetId,
         Object.freeze({

@@ -294,16 +294,16 @@ export function formatDiagnosticHumanV1(diagnostic: DiagnosticEnvelopeV1): strin
   const subject = diagnostic.subject
     ? ` [${diagnostic.subject.kind} ${diagnostic.subject.id}]`
     : "";
-  const pointer =
-    diagnostic.location?.jsonPointer !== undefined
-      ? ` (at ${diagnostic.location.jsonPointer === "" ? "/" : diagnostic.location.jsonPointer})`
-      : diagnostic.location?.file !== undefined
-        ? ` (${diagnostic.location.file}${
-            diagnostic.location.line === undefined ? "" : `:${diagnostic.location.line}`
-          })`
-        : "";
-  const suggestion =
-    diagnostic.suggestion === undefined ? "" : `\n  suggestion: ${diagnostic.suggestion}`;
+  const pointer = diagnostic.location?.jsonPointer !== undefined
+    ? ` (at ${diagnostic.location.jsonPointer === "" ? "/" : diagnostic.location.jsonPointer})`
+    : diagnostic.location?.file !== undefined
+    ? ` (${diagnostic.location.file}${
+      diagnostic.location.line === undefined ? "" : `:${diagnostic.location.line}`
+    })`
+    : "";
+  const suggestion = diagnostic.suggestion === undefined
+    ? ""
+    : `\n  suggestion: ${diagnostic.suggestion}`;
   return `${diagnostic.severity} ${diagnostic.code}: ${diagnostic.message}${pointer}${subject}${suggestion}`;
 }
 

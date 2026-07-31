@@ -144,7 +144,7 @@ describe("SystemDialogHostV1", () => {
       expect(screen.getByTestId("devdock-portal-selection")).toHaveAttribute(
         "data-target-scope",
         "system",
-      ),
+      )
     );
 
     await userEvent.setup().click(screen.getByRole("button", { name: "关闭设置" }));
@@ -152,7 +152,7 @@ describe("SystemDialogHostV1", () => {
       expect(screen.getByTestId("devdock-portal-selection")).toHaveAttribute(
         "data-surface",
         "base",
-      ),
+      )
     );
   });
 
@@ -355,7 +355,7 @@ describe("SystemDialogHostV1", () => {
       expect(screen.getByTestId("devdock-portal-selection")).toHaveAttribute(
         "data-target-scope",
         "system",
-      ),
+      )
     );
     expect(inputRouter.route({ kind: "action", actionId: systemInputActionIdsV1.confirm })).toEqual(
       { kind: "handled", context: "system" },
@@ -374,7 +374,7 @@ describe("SystemDialogHostV1", () => {
       expect(screen.getByTestId("devdock-portal-selection")).toHaveAttribute(
         "data-surface",
         "base",
-      ),
+      )
     );
     expect(inputRouter.route({ kind: "action", actionId: systemInputActionIdsV1.cancel })).toEqual({
       kind: "handled",

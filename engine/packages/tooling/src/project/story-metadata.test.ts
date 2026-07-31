@@ -38,12 +38,10 @@ describe("story metadata", () => {
     expect(() => parseStoryMetadataV1({ name: "x", description: "y", extra: 1 }, "s")).toThrow(
       /unknown key "extra"/u,
     );
-    expect(() =>
-      parseStoryMetadataV1({ name: "x", description: "y", shareImage: "/abs.png" }, "s"),
-    ).toThrow(/story-relative/u);
-    expect(() =>
-      parseStoryMetadataV1({ name: "x", description: "y", icon: "../up.png" }, "s"),
-    ).toThrow(/story-relative/u);
+    expect(() => parseStoryMetadataV1({ name: "x", description: "y", shareImage: "/abs.png" }, "s"))
+      .toThrow(/story-relative/u);
+    expect(() => parseStoryMetadataV1({ name: "x", description: "y", icon: "../up.png" }, "s"))
+      .toThrow(/story-relative/u);
   });
 
   it("renders share tags with app-relative asset URLs and escaping", () => {

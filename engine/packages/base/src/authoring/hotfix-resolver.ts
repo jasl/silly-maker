@@ -423,10 +423,9 @@ export function resolveHotfixesV1<TSimulationPatchSurface, TPresentationPatchSur
           if (!replacementPortsActive) {
             throw new TypeError("Hotfix replacement port is revoked");
           }
-          const state =
-            surface === "simulation"
-              ? simulation.providers.get(symbolId)
-              : presentation.providers.get(symbolId);
+          const state = surface === "simulation"
+            ? simulation.providers.get(symbolId)
+            : presentation.providers.get(symbolId);
           if (!state) hotfixFailure("hotfix.unknown_symbol", `hotfix unknown symbol: ${symbolId}`);
           const target = hotfix.manifest.targets.find(
             (candidate) => candidate.surface === surface && candidate.symbolId === symbolId,

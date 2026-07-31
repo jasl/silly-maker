@@ -20,15 +20,17 @@ interface CapabilityDescriptorV1 {
   readonly label: string;
 }
 
-const capabilityDescriptorsV1 = Object.freeze([
-  Object.freeze({ id: "debug_tools", field: "debugTools", label: "调试工具" }),
-  Object.freeze({ id: "cheats", field: "cheats", label: "作弊功能" }),
-  Object.freeze({
-    id: "automation_bridge",
-    field: "automationBridge",
-    label: "自动化桥接",
-  }),
-] as const satisfies readonly CapabilityDescriptorV1[]);
+const capabilityDescriptorsV1 = Object.freeze(
+  [
+    Object.freeze({ id: "debug_tools", field: "debugTools", label: "调试工具" }),
+    Object.freeze({ id: "cheats", field: "cheats", label: "作弊功能" }),
+    Object.freeze({
+      id: "automation_bridge",
+      field: "automationBridge",
+      label: "自动化桥接",
+    }),
+  ] as const satisfies readonly CapabilityDescriptorV1[],
+);
 
 function useCapabilityStateV1(
   source: ReadonlyViewSourceV1<RuntimeCapabilitiesV1>,
@@ -77,10 +79,9 @@ export function CapabilityPanelV1(props: CapabilityPanelPropsV1): ReactElement {
       <div>
         {capabilityDescriptorsV1.map((descriptor) => {
           const sessionOverride = props.sessionRequested.includes(descriptor.id);
-          const enablingUnconfirmedCheats =
-            descriptor.id === "cheats" && !persisted.cheats && !cheatsConfirmed;
-          const disabled =
-            sessionOverride ||
+          const enablingUnconfirmedCheats = descriptor.id === "cheats" && !persisted.cheats &&
+            !cheatsConfirmed;
+          const disabled = sessionOverride ||
             pendingCapability !== null ||
             (enablingUnconfirmedCheats && !effective.cheats);
           const descriptionId = `${descriptionPrefix}-${descriptor.id}`;
@@ -92,8 +93,7 @@ export function CapabilityPanelV1(props: CapabilityPanelPropsV1): ReactElement {
                   checked={effective[descriptor.field]}
                   disabled={disabled}
                   onChange={(event: ChangeEvent<HTMLInputElement>) =>
-                    void setCapability(descriptor, event.currentTarget.checked)
-                  }
+                    void setCapability(descriptor, event.currentTarget.checked)}
                   role="switch"
                   type="checkbox"
                 />
@@ -102,23 +102,27 @@ export function CapabilityPanelV1(props: CapabilityPanelPropsV1): ReactElement {
               <p id={descriptionId}>
                 {sessionOverride
                   ? `${descriptor.label}由本次会话请求启用`
-                  : `已保存：${persisted[descriptor.field] ? "开启" : "关闭"}；当前有效：${effective[descriptor.field] ? "开启" : "关闭"}`}
+                  : `已保存：${persisted[descriptor.field] ? "开启" : "关闭"}；当前有效：${
+                    effective[descriptor.field] ? "开启" : "关闭"
+                  }`}
               </p>
             </div>
           );
         })}
       </div>
 
-      {!props.sessionRequested.includes("cheats") && !persisted.cheats ? (
-        <label>
-          <input
-            checked={cheatsConfirmed}
-            onChange={(event) => setCheatsConfirmed(event.currentTarget.checked)}
-            type="checkbox"
-          />
-          我确认启用作弊功能
-        </label>
-      ) : null}
+      {!props.sessionRequested.includes("cheats") && !persisted.cheats
+        ? (
+          <label>
+            <input
+              checked={cheatsConfirmed}
+              onChange={(event) => setCheatsConfirmed(event.currentTarget.checked)}
+              type="checkbox"
+            />
+            我确认启用作弊功能
+          </label>
+        )
+        : null}
       <div aria-live="polite">{feedback === null ? null : <p>{feedback}</p>}</div>
     </section>
   );

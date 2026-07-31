@@ -137,24 +137,23 @@ function integrityDriftAttempt(
   drifted: Snapshot,
   kind: "committed" | "rejected" | "faulted",
 ): Attempt {
-  const result: Attempt["result"] =
-    kind === "committed"
-      ? Object.freeze({
-          kind: "committed" as const,
-          snapshot: drifted,
-          facts: Object.freeze([{ count: drifted.state.count }]),
-        })
-      : kind === "rejected"
-        ? Object.freeze({
-            kind: "rejected" as const,
-            snapshot: drifted,
-            reasons: Object.freeze([{ code: "synthetic.reject" }]),
-          })
-        : Object.freeze({
-            kind: "faulted" as const,
-            snapshot: drifted,
-            fault: Object.freeze({ code: "synthetic.fault" }),
-          });
+  const result: Attempt["result"] = kind === "committed"
+    ? Object.freeze({
+      kind: "committed" as const,
+      snapshot: drifted,
+      facts: Object.freeze([{ count: drifted.state.count }]),
+    })
+    : kind === "rejected"
+    ? Object.freeze({
+      kind: "rejected" as const,
+      snapshot: drifted,
+      reasons: Object.freeze([{ code: "synthetic.reject" }]),
+    })
+    : Object.freeze({
+      kind: "faulted" as const,
+      snapshot: drifted,
+      fault: Object.freeze({ code: "synthetic.fault" }),
+    });
   return Object.freeze({
     result,
     diagnostics: Object.freeze({
@@ -542,20 +541,22 @@ describe("GameSession FIFO", () => {
         result: Object.freeze({ kind: "anchored" as const }),
       });
     };
-    const unavailableFirst =
-      await unavailable.debugControl.anchorReplacement<DebugAnchorTestResult>(
-        Object.freeze({ kind: "fixture" as const, fixtureId: "fixture.synthetic" }),
-        unavailableOperation,
-        () => true,
-        () => Object.freeze({ kind: "faulted" as const }),
-      );
-    const unavailableSecond =
-      await unavailable.debugControl.anchorReplacement<DebugAnchorTestResult>(
-        Object.freeze({ kind: "fixture" as const, fixtureId: "fixture.synthetic" }),
-        unavailableOperation,
-        () => true,
-        () => Object.freeze({ kind: "faulted" as const }),
-      );
+    const unavailableFirst = await unavailable.debugControl.anchorReplacement<
+      DebugAnchorTestResult
+    >(
+      Object.freeze({ kind: "fixture" as const, fixtureId: "fixture.synthetic" }),
+      unavailableOperation,
+      () => true,
+      () => Object.freeze({ kind: "faulted" as const }),
+    );
+    const unavailableSecond = await unavailable.debugControl.anchorReplacement<
+      DebugAnchorTestResult
+    >(
+      Object.freeze({ kind: "fixture" as const, fixtureId: "fixture.synthetic" }),
+      unavailableOperation,
+      () => true,
+      () => Object.freeze({ kind: "faulted" as const }),
+    );
     expect(unavailableFirst).toEqual({
       kind: "not_executed",
       code: "session_unavailable",
@@ -1567,27 +1568,29 @@ describe("GameSession FIFO", () => {
     expect(session.getStatus()).toBe("fault_paused");
   });
 
-  it.each([
+  it.each(
     [
-      "cyclic",
-      () => {
-        const state = { count: 40 } as { count: number; self?: unknown };
-        state.self = state;
-        return Object.freeze({
-          ...createSnapshot(40),
-          state: Object.freeze(state),
-        }) as Snapshot;
-      },
-    ],
-    [
-      "noncanonical",
-      () =>
-        Object.freeze({
-          ...createSnapshot(40),
-          state: Object.freeze({ count: 40, invalid: undefined }),
-        }) as Snapshot,
-    ],
-  ] as const)(
+      [
+        "cyclic",
+        () => {
+          const state = { count: 40 } as { count: number; self?: unknown };
+          state.self = state;
+          return Object.freeze({
+            ...createSnapshot(40),
+            state: Object.freeze(state),
+          }) as Snapshot;
+        },
+      ],
+      [
+        "noncanonical",
+        () =>
+          Object.freeze({
+            ...createSnapshot(40),
+            state: Object.freeze({ count: 40, invalid: undefined }),
+          }) as Snapshot,
+      ],
+    ] as const,
+  )(
     "rejects a %s replay-base replacement before its callback and preserves live/log state",
     async (_label, replacementFactory) => {
       const { session, runtimeControl, commandLog } = fixture();

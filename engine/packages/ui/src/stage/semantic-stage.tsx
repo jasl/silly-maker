@@ -82,7 +82,7 @@ export function SemanticStageV1(props: SemanticStagePropsV1): ReactElement {
       prefersReducedMotion: () => reducedMotionRef.current,
       onAcknowledgment: (acknowledgment) => acknowledgmentRef.current?.(acknowledgment),
       reportFailure: (code, detail) => failureRef.current?.(code, detail),
-    }),
+    })
   );
   const retargetedRef = useRef(false);
 
@@ -90,7 +90,7 @@ export function SemanticStageV1(props: SemanticStagePropsV1): ReactElement {
   // cancels the previous one), samples never touch the reconciler frames,
   // and every ending clears back to the settled rendering.
   const [timelinePlayer] = useState<TimelinePlayerV1>(() =>
-    createTimelinePlayerV1({ clock, reducedMotion: () => reducedMotionRef.current }),
+    createTimelinePlayerV1({ clock, reducedMotion: () => reducedMotionRef.current })
   );
   const [overlay, setOverlay] = useState<TimelineSampleV1 | null>(null);
   const [activeCueId, setActiveCueId] = useState<string | null>(null);

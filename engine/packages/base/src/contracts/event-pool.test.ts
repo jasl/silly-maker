@@ -70,7 +70,7 @@ describe("event condition language", () => {
           flag: "a",
           present: true,
         })),
-      }),
+      })
     ).toThrow(expect.objectContaining({ code: "event_pool.condition_branches" }));
   });
 });
@@ -159,7 +159,7 @@ describe("event pool draws", () => {
         rng: rngV1(),
         purpose: "check:test.pool",
         force: "event.a",
-      }),
+      })
     ).toThrow(expect.objectContaining({ code: "event_pool.force_ineligible" }));
   });
 
@@ -173,7 +173,7 @@ describe("event pool draws", () => {
         context: contextV1,
         rng: rngV1(),
         purpose: "check:test.pool",
-      }),
+      })
     ).toThrow(expect.objectContaining({ code: "event_pool.candidate_invalid" }));
     expect(() =>
       drawFromEventPoolV1({
@@ -181,7 +181,7 @@ describe("event pool draws", () => {
         context: contextV1,
         rng: rngV1(),
         purpose: "check:test.pool",
-      }),
+      })
     ).toThrow(expect.objectContaining({ code: "event_pool.weight_invalid" }));
   });
 });

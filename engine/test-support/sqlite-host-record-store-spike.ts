@@ -18,19 +18,19 @@ type HostRecordRevisionV1 = HostStoredRecordV1["revision"];
 
 type NormalizedMutationV1 =
   | {
-      readonly kind: "put";
-      readonly namespace: HostRecordNamespaceV1;
-      readonly key: HostRecordKeyV1;
-      readonly expectedRevision: HostRecordRevisionV1 | null;
-      readonly nextRevision: HostRecordRevisionV1;
-      readonly bytes: Uint8Array;
-    }
+    readonly kind: "put";
+    readonly namespace: HostRecordNamespaceV1;
+    readonly key: HostRecordKeyV1;
+    readonly expectedRevision: HostRecordRevisionV1 | null;
+    readonly nextRevision: HostRecordRevisionV1;
+    readonly bytes: Uint8Array;
+  }
   | {
-      readonly kind: "delete";
-      readonly namespace: HostRecordNamespaceV1;
-      readonly key: HostRecordKeyV1;
-      readonly expectedRevision: HostRecordRevisionV1;
-    };
+    readonly kind: "delete";
+    readonly namespace: HostRecordNamespaceV1;
+    readonly key: HostRecordKeyV1;
+    readonly expectedRevision: HostRecordRevisionV1;
+  };
 
 export interface SqliteHostRecordStoreSpikeV1 {
   readonly store: HostAtomicRecordStoreV1;
@@ -96,10 +96,9 @@ function normalizeMutationsV1(
       if (!isUint8ArrayV1(mutation.bytes)) {
         throw new TypeError("invalid Host record mutation bytes");
       }
-      const expectedRevision =
-        mutation.expectedRevision === null
-          ? null
-          : parseNonNegativeSafeInteger(mutation.expectedRevision);
+      const expectedRevision = mutation.expectedRevision === null
+        ? null
+        : parseNonNegativeSafeInteger(mutation.expectedRevision);
       return Object.freeze({
         kind: "put",
         namespace,

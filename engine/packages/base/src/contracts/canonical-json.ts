@@ -257,11 +257,13 @@ export function canonicalJsonBytesObservedInternalV1(
         observer.observeString(key);
         observer.observeObjectKey(key);
         members.push(
-          `${JSON.stringify(key)}:${encode(
-            descriptor?.value,
-            `${path}/${pointerSegment(key)}`,
-            depth + 1,
-          )}`,
+          `${JSON.stringify(key)}:${
+            encode(
+              descriptor?.value,
+              `${path}/${pointerSegment(key)}`,
+              depth + 1,
+            )
+          }`,
         );
       }
       return `{${members.join(",")}}`;

@@ -30,10 +30,11 @@ export function CatcafeEndingScreenV1(props: {
         gap: "18px",
         textAlign: "center",
         color: catcafeThemeV1.ink,
-        background:
-          endingUrl === null
-            ? "rgba(10, 12, 16, 0.92)"
-            : `linear-gradient(rgba(10, 12, 16, 0.55), rgba(10, 12, 16, 0.75)), url(${JSON.stringify(endingUrl)}) center / cover no-repeat`,
+        background: endingUrl === null
+          ? "rgba(10, 12, 16, 0.92)"
+          : `linear-gradient(rgba(10, 12, 16, 0.55), rgba(10, 12, 16, 0.75)), url(${
+            JSON.stringify(endingUrl)
+          }) center / cover no-repeat`,
         zIndex: 6,
         pointerEvents: "auto",
       }}
@@ -48,8 +49,7 @@ export function CatcafeEndingScreenV1(props: {
         <Button
           data-cc-ending-continue="true"
           onClick={() =>
-            dispatchV1(props.semantic, { kind: "invoke", actionId: "cc.enter_postgame" })
-          }
+            dispatchV1(props.semantic, { kind: "invoke", actionId: "cc.enter_postgame" })}
         >
           {uiText("text.cc.ending.continue")}
         </Button>

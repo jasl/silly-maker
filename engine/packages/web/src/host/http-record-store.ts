@@ -123,10 +123,9 @@ function normalizeMutationsV1(
         kind,
         namespace,
         key,
-        expectedRevision:
-          expectedRevisionValue === null
-            ? null
-            : parseNonNegativeSafeInteger(expectedRevisionValue),
+        expectedRevision: expectedRevisionValue === null
+          ? null
+          : parseNonNegativeSafeInteger(expectedRevisionValue),
         bytes: Uint8Array.from(bytes),
       });
     }
@@ -141,7 +140,7 @@ function normalizeMutationsV1(
     });
   });
   const identities = normalized.map((mutation) =>
-    recordIdentityV1(mutation.namespace, mutation.key),
+    recordIdentityV1(mutation.namespace, mutation.key)
   );
   if (new Set(identities).size !== identities.length) {
     throw new TypeError("duplicate Host record mutation");
@@ -236,8 +235,8 @@ export function createHttpHostRecordStoreV1(
   options: CreateHttpHostRecordStoreOptionsV1,
 ): HostAtomicRecordStoreV1 {
   const base = options.baseUrl.replace(/\/$/u, "");
-  const fetchImpl =
-    options.fetchImpl ?? ((input: string, init?: RequestInit) => fetch(input, init));
+  const fetchImpl = options.fetchImpl ??
+    ((input: string, init?: RequestInit) => fetch(input, init));
 
   async function requestJsonV1(path: string, init?: RequestInit): Promise<unknown> {
     const response = await fetchImpl(`${base}${path}`, init);
@@ -272,18 +271,18 @@ export function createHttpHostRecordStoreV1(
       const wireMutations = requestedMutations.map((mutation) =>
         mutation.kind === "put"
           ? {
-              kind: "put",
-              namespace: mutation.namespace,
-              key: mutation.key as string,
-              expectedRevision: mutation.expectedRevision,
-              bytesBase64: toBase64V1(mutation.bytes),
-            }
+            kind: "put",
+            namespace: mutation.namespace,
+            key: mutation.key as string,
+            expectedRevision: mutation.expectedRevision,
+            bytesBase64: toBase64V1(mutation.bytes),
+          }
           : {
-              kind: "delete",
-              namespace: mutation.namespace,
-              key: mutation.key as string,
-              expectedRevision: mutation.expectedRevision,
-            },
+            kind: "delete",
+            namespace: mutation.namespace,
+            key: mutation.key as string,
+            expectedRevision: mutation.expectedRevision,
+          }
       );
       const payload = await requestJsonV1("/commit", {
         method: "POST",

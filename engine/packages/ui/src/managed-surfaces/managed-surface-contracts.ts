@@ -132,9 +132,9 @@ export type ManagedSurfaceReadinessV1 =
   | { readonly kind: "preparing" }
   | { readonly kind: "ready" }
   | {
-      readonly kind: "faulted";
-      readonly code: string;
-    };
+    readonly kind: "faulted";
+    readonly code: string;
+  };
 
 export interface ManagedSurfacePublishedInstanceV1 {
   readonly surfaceInstanceId: ManagedSurfaceInstanceIdV1;
@@ -207,51 +207,55 @@ export type ManagedSurfaceDismissKindV1 = "back" | "escape" | "backdrop" | "rout
 
 export type ManagedSurfaceOperationV1 =
   | {
-      readonly kind: "open_primary";
-      readonly applicationEpoch: NonNegativeSafeInteger;
-      readonly candidate: ManagedSurfaceCandidateV1;
-    }
+    readonly kind: "open_primary";
+    readonly applicationEpoch: NonNegativeSafeInteger;
+    readonly candidate: ManagedSurfaceCandidateV1;
+  }
   | {
-      readonly kind: "replace_primary";
-      readonly expected: ManagedSurfaceTransitionEvidenceV1;
-      readonly candidate: ManagedSurfaceCandidateV1;
-    }
+    readonly kind: "replace_primary";
+    readonly expected: ManagedSurfaceTransitionEvidenceV1;
+    readonly candidate: ManagedSurfaceCandidateV1;
+  }
   | {
-      readonly kind: "push_child";
-      readonly parentEvidence: ManagedSurfaceTransitionEvidenceV1;
-      readonly candidate: ManagedSurfaceCandidateV1;
-    }
+    readonly kind: "push_child";
+    readonly parentEvidence: ManagedSurfaceTransitionEvidenceV1;
+    readonly candidate: ManagedSurfaceCandidateV1;
+  }
   | {
-      readonly kind: "close_expected";
-      readonly evidence: ManagedSurfaceTransitionEvidenceV1;
-    }
+    readonly kind: "close_expected";
+    readonly evidence: ManagedSurfaceTransitionEvidenceV1;
+  }
   | {
-      readonly kind: "close_top";
-      readonly applicationEpoch: NonNegativeSafeInteger;
-    }
+    readonly kind: "close_top";
+    readonly applicationEpoch: NonNegativeSafeInteger;
+  }
   | {
-      readonly kind: "close_owner";
-      readonly evidence: ManagedSurfaceOwnerTransitionEvidenceV1;
-    }
+    readonly kind: "close_owner";
+    readonly evidence: ManagedSurfaceOwnerTransitionEvidenceV1;
+  }
   | {
-      readonly kind: "route_dismiss";
-      readonly dismissKind: ManagedSurfaceDismissKindV1;
-      readonly evidence: ManagedSurfaceTransitionEvidenceV1;
-    }
+    readonly kind: "route_dismiss";
+    readonly dismissKind: ManagedSurfaceDismissKindV1;
+    readonly evidence: ManagedSurfaceTransitionEvidenceV1;
+  }
   | ({
-      readonly kind: "route_action";
-    } & ManagedSurfaceRouteActionInputV1)
+    readonly kind: "route_action";
+  } & ManagedSurfaceRouteActionInputV1)
   | {
-      readonly kind: "dispose_owner";
-      readonly applicationEpoch: NonNegativeSafeInteger;
-      readonly ownerId: ManagedSurfaceOwnerIdV1;
-    }
+    readonly kind: "dispose_owner";
+    readonly applicationEpoch: NonNegativeSafeInteger;
+    readonly ownerId: ManagedSurfaceOwnerIdV1;
+  }
   | {
-      readonly kind: "dispose_coordinator";
-    };
+    readonly kind: "dispose_coordinator";
+  };
 
 export type ManagedSurfaceTransitionOutcomeV1 =
-  "applied" | "unchanged" | "stale" | "rejected" | "faulted";
+  | "applied"
+  | "unchanged"
+  | "stale"
+  | "rejected"
+  | "faulted";
 
 export type ManagedSurfaceTransitionCodeV1 =
   | "surface.opened"

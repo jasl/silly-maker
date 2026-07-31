@@ -52,12 +52,11 @@ function createCapabilityFixtureV1(input: {
   });
   const listeners = new Set<() => void>();
   const setEnabled = vi.fn(async (capability: string, enabled: boolean) => {
-    const field =
-      capability === "debug_tools"
-        ? "debugTools"
-        : capability === "cheats"
-          ? "cheats"
-          : "automationBridge";
+    const field = capability === "debug_tools"
+      ? "debugTools"
+      : capability === "cheats"
+      ? "cheats"
+      : "automationBridge";
     current = Object.freeze({ ...current, [field]: enabled });
     for (const listener of [...listeners]) listener();
     return Object.freeze({ kind: "updated" as const, state: current });
@@ -108,8 +107,8 @@ function DevDockHarnessV1(props: {
     props.initialOpenState ?? closedDockStateV1,
   );
   const inputRouterRef = useRef(createInputRouterV1());
-  const contributions =
-    props.contributions ?? createDevDockContributionSetV1(Object.freeze({ panels: [] }));
+  const contributions = props.contributions ??
+    createDevDockContributionSetV1(Object.freeze({ panels: [] }));
   return (
     <div onClick={props.stageActivation}>
       <GameShell
@@ -166,9 +165,15 @@ function BlockingSurfaceHarnessV1(props: {
   const [opener, setOpener] = useState<HTMLButtonElement | null>(null);
   const [dockState, setDockState] = useState<DevDockOpenStateV1>(closedDockStateV1);
   const inputRouterRef = useRef(createInputRouterV1());
-  const surface = open ? (
-    <SyntheticBlockingSurfaceV1 kind={props.kind} onClose={() => setOpen(false)} opener={opener} />
-  ) : null;
+  const surface = open
+    ? (
+      <SyntheticBlockingSurfaceV1
+        kind={props.kind}
+        onClose={() => setOpen(false)}
+        opener={opener}
+      />
+    )
+    : null;
   const layers = Object.freeze({
     ...emptyLayersV1(),
     workspaceOverlay: props.kind === "overlay" ? surface : null,
@@ -453,7 +458,7 @@ describe("DevDockV1", () => {
       expect(rail.closest("[data-blocking-focus-scope]")).toHaveAttribute(
         "data-blocking-focus-scope",
         "narrative",
-      ),
+      )
     );
     await waitFor(() => expect(close).toHaveFocus());
 
@@ -470,7 +475,7 @@ describe("DevDockV1", () => {
       expect(movedRail.closest("[data-blocking-focus-scope]")).toHaveAttribute(
         "data-blocking-focus-scope",
         "system",
-      ),
+      )
     );
     await waitFor(() => expect(movedClose).toHaveFocus());
 
@@ -519,10 +524,10 @@ describe("DevDockV1", () => {
       Object.freeze({
         kind: "diagnostics" as const,
         entries: Object.freeze([Object.freeze({ id: "revision", label: "当前修订", value: "7" })]),
-      }),
+      })
     );
     const executeDebugCommand = vi.fn(async () =>
-      Object.freeze({ kind: "handled" as const, message: "调试命令已执行" }),
+      Object.freeze({ kind: "handled" as const, message: "调试命令已执行" })
     );
     const panels = createDevDockContributionSetV1({
       panels: [
@@ -740,8 +745,7 @@ describe("DevDockV1", () => {
           render: () => (
             <FixtureBrowserV1
               listFixtures={async () =>
-                Object.freeze({ kind: "listed" as const, fixtureIds: ["fixture.one"] as const })
-              }
+                Object.freeze({ kind: "listed" as const, fixtureIds: ["fixture.one"] as const })}
               inspectFixture={() => undefined}
               anchorFixture={async (fixtureId) => {
                 const result = await storyAnchorFixture(fixtureId);
@@ -784,7 +788,7 @@ describe("DevDockV1", () => {
 
     act(() => capabilities.publish({ debugTools: false, cheats: false, automationBridge: false }));
     await waitFor(() =>
-      expect(screen.queryByRole("button", { name: "打开左侧开发工具" })).not.toBeInTheDocument(),
+      expect(screen.queryByRole("button", { name: "打开左侧开发工具" })).not.toBeInTheDocument()
     );
 
     act(() => capabilities.publish({ debugTools: true, cheats: false, automationBridge: false }));
@@ -809,28 +813,28 @@ describe("DevDock contribution validation", () => {
     expect(() =>
       createDevDockContributionSetV1({
         panels: [panelV1(), panelV1({ side: "right" })],
-      }),
+      })
     ).toThrowError("ui.devdock_duplicate_panel_id");
     expect(() =>
       createDevDockContributionSetV1({
         panels: [panelV1({ side: "center" as "left" })],
-      }),
+      })
     ).toThrowError("ui.devdock_invalid_side");
     expect(() =>
       createDevDockContributionSetV1({
         panels: [panelV1({ authority: "owner" as "read_only" })],
-      }),
+      })
     ).toThrowError("ui.devdock_invalid_authority");
     expect(() =>
       createDevDockContributionSetV1({
-        panels: Array.from({ length: 17 }, (_, index) =>
-          panelV1({ id: `panel.synthetic.${index}` }),
+        panels: Array.from(
+          { length: 17 },
+          (_, index) => panelV1({ id: `panel.synthetic.${index}` }),
         ),
-      }),
+      })
     ).toThrowError("ui.devdock_panels_limit");
-    expect(() =>
-      createDevDockContributionSetV1({ panels: [panelV1({ title: "a".repeat(129) })] }),
-    ).toThrowError("ui.devdock_title_limit");
+    expect(() => createDevDockContributionSetV1({ panels: [panelV1({ title: "a".repeat(129) })] }))
+      .toThrowError("ui.devdock_title_limit");
   });
 
   it("accepts exact limits, preserves authored order, and freezes the copied registry", () => {
@@ -838,8 +842,7 @@ describe("DevDock contribution validation", () => {
       panelV1({
         id: `panel.synthetic.${index}`,
         title: index === 0 ? "界".repeat(42) + "aa" : `${index}`,
-      }),
-    );
+      }));
     const contributions = createDevDockContributionSetV1({ panels: input });
     expect(contributions.panels.map(({ id }) => id)).toEqual(input.map(({ id }) => id));
     expect(Object.isFrozen(contributions)).toBe(true);
@@ -893,8 +896,7 @@ describe("neutral async debug panels", () => {
           Object.freeze({
             kind: "listed" as const,
             fixtureIds: Object.freeze(["fixture.one", "fixture.two"]),
-          })
-        }
+          })}
         inspectFixture={() => undefined}
         anchorFixture={() => anchored.promise}
         canAnchor
@@ -926,8 +928,7 @@ describe("neutral async debug panels", () => {
       <FixtureBrowserV1
         {...commonProps}
         listFixtures={async () =>
-          Object.freeze({ kind: "listed" as const, fixtureIds: ["fixture.old"] as const })
-        }
+          Object.freeze({ kind: "listed" as const, fixtureIds: ["fixture.old"] as const })}
       />,
     );
     const user = userEvent.setup();
@@ -937,8 +938,7 @@ describe("neutral async debug panels", () => {
       <FixtureBrowserV1
         {...commonProps}
         listFixtures={async () =>
-          Object.freeze({ kind: "listed" as const, fixtureIds: ["fixture.new"] as const })
-        }
+          Object.freeze({ kind: "listed" as const, fixtureIds: ["fixture.new"] as const })}
       />,
     );
     expect(await screen.findByText("fixture.new")).toBeVisible();
@@ -958,8 +958,7 @@ describe("neutral async debug panels", () => {
             entries: Object.freeze([
               Object.freeze({ id: "revision", label: "当前修订", value: "7" }),
             ]),
-          })
-        }
+          })}
         classification={Object.freeze({ kind: "restorable" as const })}
         onRestore={onRestore}
       />,
@@ -985,8 +984,7 @@ describe("neutral async debug panels", () => {
         fields={<span>命令字段</span>}
         command={Object.freeze({ kind: "synthetic" as const })}
         executeDebugCommand={async () =>
-          Object.freeze({ kind: "rejected" as const, message: "调试命令验证失败" })
-        }
+          Object.freeze({ kind: "rejected" as const, message: "调试命令验证失败" })}
         canExecute
         disabledReason=""
       />,
@@ -1004,7 +1002,7 @@ describe("neutral async debug panels", () => {
     }>();
     const executeOld = vi.fn(() => oldExecution.promise);
     const executeNew = vi.fn(async () =>
-      Object.freeze({ kind: "handled" as const, message: "新命令已执行" }),
+      Object.freeze({ kind: "handled" as const, message: "新命令已执行" })
     );
     const rendered = render(
       <DebugCommandPanelV1
@@ -1030,7 +1028,7 @@ describe("neutral async debug panels", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "执行调试命令" })).toBeEnabled());
 
     act(() =>
-      oldExecution.resolve(Object.freeze({ kind: "rejected" as const, message: "旧命令不应显示" })),
+      oldExecution.resolve(Object.freeze({ kind: "rejected" as const, message: "旧命令不应显示" }))
     );
     await waitFor(() => expect(screen.queryByText("旧命令不应显示")).not.toBeInTheDocument());
     expect(executeOld).toHaveBeenCalledOnce();
@@ -1071,7 +1069,7 @@ describe("neutral async debug panels", () => {
     expect(execute).toHaveBeenCalledOnce();
 
     act(() =>
-      execution.resolve(Object.freeze({ kind: "handled" as const, message: "命令 A 已执行" })),
+      execution.resolve(Object.freeze({ kind: "handled" as const, message: "命令 A 已执行" }))
     );
     await waitFor(() => expect(screen.getByRole("button", { name: "执行调试命令" })).toBeEnabled());
     expect(screen.queryByText("命令 A 已执行")).not.toBeInTheDocument();

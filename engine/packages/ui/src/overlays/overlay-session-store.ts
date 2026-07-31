@@ -11,9 +11,9 @@ export interface OverlaySessionStateV1<TOverlayId> {
 export type OverlayPushDetailResultV1 =
   | { readonly kind: "opened" }
   | {
-      readonly kind: "rejected";
-      readonly code: "no_primary" | "duplicate" | "detail_limit";
-    };
+    readonly kind: "rejected";
+    readonly code: "no_primary" | "duplicate" | "detail_limit";
+  };
 
 export type OverlayCloseTopResultV1 = "detail_closed" | "primary_closed" | "already_closed";
 

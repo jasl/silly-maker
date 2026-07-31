@@ -111,7 +111,7 @@ describe("desktop close flush bridge", () => {
         fence: () => {},
         flush: async () => {},
         target,
-      }),
+      })
     ).toThrow("web.desktop_close_bridge_collision");
     expect(target[desktopCloseFlushGlobalKeyV1]).toBe(firstHandler);
 
@@ -134,7 +134,7 @@ describe("desktop close flush bridge", () => {
         fence: () => {},
         flush: async () => {},
         target,
-      }),
+      })
     ).toThrow("web.desktop_close_bridge_collision");
   });
 });

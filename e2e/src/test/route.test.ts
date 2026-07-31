@@ -198,14 +198,13 @@ describe("Engine Conformance route", () => {
     for (let step = 0; step < 16; step += 1) {
       const pending = interrupted.observe().narrative.pending;
       if (pending === null) break;
-      const resolution: InteractionResolutionV1 =
-        pending.kind === "presentation_barrier"
-          ? { kind: "barrier_completed", transitionId: pending.expectedTransitionId }
-          : pending.kind === "pause"
-            ? { kind: "resume" }
-            : pending.kind === "custom"
-              ? { kind: "custom", payload: { value: 2 } }
-              : { kind: "advance" };
+      const resolution: InteractionResolutionV1 = pending.kind === "presentation_barrier"
+        ? { kind: "barrier_completed", transitionId: pending.expectedTransitionId }
+        : pending.kind === "pause"
+        ? { kind: "resume" }
+        : pending.kind === "custom"
+        ? { kind: "custom", payload: { value: 2 } }
+        : { kind: "advance" };
       const result = await interrupted.dispatch(resolveV1(pending.occurrenceId, resolution));
       expect(result).toMatchObject({ kind: "committed" });
     }

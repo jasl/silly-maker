@@ -108,14 +108,13 @@ function handleResultV1(
 ): ManagedSurfaceHandleResultV1 {
   return Object.freeze({
     receipt,
-    handle:
-      receipt.kind === "applied" && receipt.surfaceInstanceId !== undefined
-        ? handleV1(
-            applicationEpoch,
-            parseNonNegativeSafeInteger(receipt.afterTopologyRevision),
-            receipt.surfaceInstanceId,
-          )
-        : null,
+    handle: receipt.kind === "applied" && receipt.surfaceInstanceId !== undefined
+      ? handleV1(
+        applicationEpoch,
+        parseNonNegativeSafeInteger(receipt.afterTopologyRevision),
+        receipt.surfaceInstanceId,
+      )
+      : null,
   });
 }
 
@@ -200,10 +199,10 @@ export function createManagedSurfaceCoordinatorV1(
       );
       return hasLiveInstance
         ? Object.freeze({
-            applicationEpoch,
-            topologyRevision: state.publication.topologyRevision,
-            ownerId,
-          })
+          applicationEpoch,
+          topologyRevision: state.publication.topologyRevision,
+          ownerId,
+        })
         : null;
     },
 

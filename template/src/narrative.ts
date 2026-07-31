@@ -68,38 +68,38 @@ export interface TemplateChoiceOptionV1 {
 
 export type TemplateNarrativeNodeV1 =
   | {
-      readonly kind: "say";
-      readonly nodeId: string;
-      readonly definitionId: string;
-      readonly seenRevision: number;
-      readonly speakerTextId: string | null;
-      readonly textId: string;
-      readonly next: string;
-    }
+    readonly kind: "say";
+    readonly nodeId: string;
+    readonly definitionId: string;
+    readonly seenRevision: number;
+    readonly speakerTextId: string | null;
+    readonly textId: string;
+    readonly next: string;
+  }
   | {
-      readonly kind: "stage";
-      readonly nodeId: string;
-      readonly mutations: (stage: SemanticStageState) => readonly StageMutation[];
-      /** Static annotation of contents this node may show (for lint). */
-      readonly mayShow: readonly string[];
-      readonly next: string;
-    }
+    readonly kind: "stage";
+    readonly nodeId: string;
+    readonly mutations: (stage: SemanticStageState) => readonly StageMutation[];
+    /** Static annotation of contents this node may show (for lint). */
+    readonly mayShow: readonly string[];
+    readonly next: string;
+  }
   | {
-      readonly kind: "choice";
-      readonly nodeId: string;
-      readonly definitionId: string;
-      readonly seenRevision: number;
-      readonly promptTextId: string;
-      readonly options: readonly TemplateChoiceOptionV1[];
-    }
+    readonly kind: "choice";
+    readonly nodeId: string;
+    readonly definitionId: string;
+    readonly seenRevision: number;
+    readonly promptTextId: string;
+    readonly options: readonly TemplateChoiceOptionV1[];
+  }
   | {
-      readonly kind: "branch";
-      readonly nodeId: string;
-      /** Static successor annotation for the lint/prediction graph. */
-      readonly successors: readonly string[];
-      /** Pure flag-conditioned routing; must pick a successor. */
-      readonly choose: (context: { readonly flags: readonly string[] }) => string;
-    }
+    readonly kind: "branch";
+    readonly nodeId: string;
+    /** Static successor annotation for the lint/prediction graph. */
+    readonly successors: readonly string[];
+    /** Pure flag-conditioned routing; must pick a successor. */
+    readonly choose: (context: { readonly flags: readonly string[] }) => string;
+  }
   | { readonly kind: "end"; readonly nodeId: string };
 
 /** Stage vocabulary shared by the script and the content catalog. */
@@ -142,38 +142,36 @@ export const templateScriptV1: readonly TemplateNarrativeNodeV1[] = [
     kind: "stage",
     nodeId: "node.template.opening",
     mutations: (stage) =>
-      hasTagV1(stage, templateLayersV1.characters, templateTagsV1.mei)
-        ? []
-        : batchV1([
-            {
-              // `show` places new content; `replace` swaps content already
-              // on stage (a background change mid-scene, for example).
-              kind: hasTagV1(stage, templateLayersV1.background, templateTagsV1.background)
-                ? "replace"
-                : "show",
-              layerId: templateLayersV1.background,
-              tag: templateTagsV1.background,
-              contentId: templateContentIdsV1.backgroundCourtyard,
-              ...(hasTagV1(stage, templateLayersV1.background, templateTagsV1.background)
-                ? {}
-                : { zOrder: 0 }),
-            },
-            {
-              kind: "show",
-              layerId: templateLayersV1.characters,
-              tag: templateTagsV1.mei,
-              contentId: templateContentIdsV1.characterMei,
-              zOrder: 10,
-              placement: {
-                x: 1180,
-                y: 880,
-                scalePermille: 1000,
-                opacityPermille: 1000,
-                mirrored: false,
-              },
-              appearance: { expression: "calm" },
-            },
-          ]),
+      hasTagV1(stage, templateLayersV1.characters, templateTagsV1.mei) ? [] : batchV1([
+        {
+          // `show` places new content; `replace` swaps content already
+          // on stage (a background change mid-scene, for example).
+          kind: hasTagV1(stage, templateLayersV1.background, templateTagsV1.background)
+            ? "replace"
+            : "show",
+          layerId: templateLayersV1.background,
+          tag: templateTagsV1.background,
+          contentId: templateContentIdsV1.backgroundCourtyard,
+          ...(hasTagV1(stage, templateLayersV1.background, templateTagsV1.background)
+            ? {}
+            : { zOrder: 0 }),
+        },
+        {
+          kind: "show",
+          layerId: templateLayersV1.characters,
+          tag: templateTagsV1.mei,
+          contentId: templateContentIdsV1.characterMei,
+          zOrder: 10,
+          placement: {
+            x: 1180,
+            y: 880,
+            scalePermille: 1000,
+            opacityPermille: 1000,
+            mirrored: false,
+          },
+          appearance: { expression: "calm" },
+        },
+      ]),
     mayShow: [templateContentIdsV1.backgroundCourtyard, templateContentIdsV1.characterMei],
     next: "node.template.greeting",
   },

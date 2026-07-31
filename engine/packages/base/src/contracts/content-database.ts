@@ -104,19 +104,17 @@ export function defineContentTableV1<TRow extends Readonly<Record<string, unknow
 }
 
 /** Column conditions; comparison operators require number columns. */
-export type ContentConditionV1<TValue> = TValue extends number
-  ? {
-      readonly eq?: TValue;
-      readonly ne?: TValue;
-      readonly in?: readonly TValue[];
-      readonly lt?: number;
-      readonly lte?: number;
-      readonly gt?: number;
-      readonly gte?: number;
-    }
-  : TValue extends readonly (infer TItem)[]
-    ? { readonly has?: TItem }
-    : { readonly eq?: TValue; readonly ne?: TValue; readonly in?: readonly TValue[] };
+export type ContentConditionV1<TValue> = TValue extends number ? {
+    readonly eq?: TValue;
+    readonly ne?: TValue;
+    readonly in?: readonly TValue[];
+    readonly lt?: number;
+    readonly lte?: number;
+    readonly gt?: number;
+    readonly gte?: number;
+  }
+  : TValue extends readonly (infer TItem)[] ? { readonly has?: TItem }
+  : { readonly eq?: TValue; readonly ne?: TValue; readonly in?: readonly TValue[] };
 
 export type ContentWhereV1<TRow> = {
   readonly [K in keyof TRow]?: TRow[K] | ContentConditionV1<TRow[K]>;
@@ -247,10 +245,9 @@ export function createContentDatabaseV1(input: {
         rows: () => table.rows,
         byId: (key: string) => index.get(key) ?? null,
         findMany: (query: ContentQueryV1<Readonly<Record<string, unknown>>> = {}) => {
-          let selected =
-            query.where === undefined
-              ? [...table.rows]
-              : table.rows.filter((row) => matchesWhereV1(row, query.where ?? {}));
+          let selected = query.where === undefined
+            ? [...table.rows]
+            : table.rows.filter((row) => matchesWhereV1(row, query.where ?? {}));
           const orderBy = query.orderBy;
           if (orderBy !== undefined) {
             const direction = query.direction === "desc" ? -1 : 1;
@@ -290,8 +287,8 @@ export function createContentDatabaseV1(input: {
                 table.rows.flatMap((row) => {
                   const value = row[column];
                   return typeof value === "string" && value !== "" ? [value] : [];
-                }),
-              ),
+                })
+              )
             ),
           ),
         ].toSorted(),

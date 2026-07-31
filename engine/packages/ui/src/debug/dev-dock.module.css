@@ -136,11 +136,11 @@
 /* stylelint-disable-next-line selector-pseudo-class-no-unknown -- CSS Modules global scope */
 :global([data-blocking-focus-scope]):has(> .dev-dock) {
   padding-inline: calc(
-      var(--silly-safe-area-inline-start) + var(--silly-target-min-size) + 5 * var(--silly-space-2)
-    )
+    var(--silly-safe-area-inline-start) + var(--silly-target-min-size) + 5 * var(--silly-space-2)
+  )
     calc(
-      var(--silly-safe-area-inline-end) + var(--silly-target-min-size) + 5 * var(--silly-space-2)
-    );
+    var(--silly-safe-area-inline-end) + var(--silly-target-min-size) + 5 * var(--silly-space-2)
+  );
 }
 
 @media (aspect-ratio < 4 / 3) {

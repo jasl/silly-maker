@@ -73,45 +73,49 @@ export function OsNotepadAppV1(props: {
             display: "block",
           }}
         >
-          {files.length === 0 ? (
-            <li style={{ padding: "4px", color: "#606060" }}>{uiText("text.os.notepad.empty")}</li>
-          ) : (
-            files.map((file) => (
-              <li key={file.name} style={{ display: "flex", gap: "2px" }}>
-                <button
-                  type="button"
-                  data-os-notepad-file={file.name}
-                  onClick={() => {
-                    setName(file.name);
-                    setDraft(file.content);
-                  }}
-                  style={{
-                    flex: 1,
-                    border: "none",
-                    background: name === file.name ? "#000080" : "transparent",
-                    color: name === file.name ? "#ffffff" : "#000000",
-                    font: os98.font,
-                    textAlign: "start",
-                    padding: "2px 4px",
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                  }}
-                >
-                  {file.name}
-                </button>
-                <button
-                  type="button"
-                  aria-label={`${uiText("text.os.notepad.delete")} ${file.name}`}
-                  data-os-notepad-delete={file.name}
-                  onClick={() => dispatchV1(semantic, { kind: "fs_remove", name: file.name })}
-                  style={{ border: "none", background: "transparent", cursor: "default" }}
-                >
-                  ✕
-                </button>
+          {files.length === 0
+            ? (
+              <li style={{ padding: "4px", color: "#606060" }}>
+                {uiText("text.os.notepad.empty")}
               </li>
-            ))
-          )}
+            )
+            : (
+              files.map((file) => (
+                <li key={file.name} style={{ display: "flex", gap: "2px" }}>
+                  <button
+                    type="button"
+                    data-os-notepad-file={file.name}
+                    onClick={() => {
+                      setName(file.name);
+                      setDraft(file.content);
+                    }}
+                    style={{
+                      flex: 1,
+                      border: "none",
+                      background: name === file.name ? "#000080" : "transparent",
+                      color: name === file.name ? "#ffffff" : "#000000",
+                      font: os98.font,
+                      textAlign: "start",
+                      padding: "2px 4px",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {file.name}
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`${uiText("text.os.notepad.delete")} ${file.name}`}
+                    data-os-notepad-delete={file.name}
+                    onClick={() => dispatchV1(semantic, { kind: "fs_remove", name: file.name })}
+                    style={{ border: "none", background: "transparent", cursor: "default" }}
+                  >
+                    ✕
+                  </button>
+                </li>
+              ))
+            )}
         </ul>
       </aside>
       <div style={{ display: "grid", gridTemplateRows: "auto 1fr", gap: "4px", minBlockSize: 0 }}>

@@ -57,8 +57,11 @@ export const minesweeperCommandHandlersV1: Pick<
 
       let working = board;
       if (!working.minesPlaced) {
-        working = osPlaceMinesV1(working, index, (exclusiveMax) =>
-          rng.nextInt(Object.freeze({ purpose: "check:os.mine_place", exclusiveMax })),
+        working = osPlaceMinesV1(
+          working,
+          index,
+          (exclusiveMax) =>
+            rng.nextInt(Object.freeze({ purpose: "check:os.mine_place", exclusiveMax })),
         );
       }
 

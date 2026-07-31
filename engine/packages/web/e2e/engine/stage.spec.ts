@@ -7,9 +7,7 @@ const betaKeyV1 = '[data-stage-key="layer.e2e.characters:tag.e2e.beta"]';
 const crateKeyV1 = '[data-stage-key="layer.e2e.props:tag.e2e.crate"]';
 
 test.describe("engine semantic stage", () => {
-  test("@smoke stage mutations drive the visible stage with stable identities", async ({
-    page,
-  }) => {
+  test("@smoke stage mutations drive the visible stage with stable identities", async ({ page }) => {
     await gotoLabV1(page);
 
     // Opening target: the lab background under its stable key; nobody else.

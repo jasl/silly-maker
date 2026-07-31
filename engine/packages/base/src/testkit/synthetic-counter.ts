@@ -64,11 +64,12 @@ interface SyntheticDebugValidationErrorV1 {
   readonly code: "synthetic.debug_command_unsupported";
 }
 
-export interface SyntheticSimulationTypesV1 extends GameSimulationTypeMapV1<
-  { readonly rngSeed: ReturnType<BootstrapEntropyV1["nextNonZeroUint32"]> },
-  SyntheticGameStateV1,
-  RngStateV1
-> {
+export interface SyntheticSimulationTypesV1 extends
+  GameSimulationTypeMapV1<
+    { readonly rngSeed: ReturnType<BootstrapEntropyV1["nextNonZeroUint32"]> },
+    SyntheticGameStateV1,
+    RngStateV1
+  > {
   readonly snapshot: GameSnapshotEnvelopeV1<SyntheticGameStateV1, RngStateV1>;
   readonly rngDrawTrace: RngDrawTraceV1;
   readonly command: SyntheticCounterCommandV1;
@@ -96,13 +97,14 @@ interface CounterOperationV1 {
   readonly count: number;
 }
 
-interface CounterProposalV1 extends ModuleOwnerProposalEnvelopeV1<
-  CounterOperationV1,
-  SyntheticCounterFactV1
-> {}
+interface CounterProposalV1 extends
+  ModuleOwnerProposalEnvelopeV1<
+    CounterOperationV1,
+    SyntheticCounterFactV1
+  > {}
 
-export const syntheticCounterStateSchemaV1: RuntimeSchemaV1<SyntheticCounterStateV1> =
-  Object.freeze({
+export const syntheticCounterStateSchemaV1: RuntimeSchemaV1<SyntheticCounterStateV1> = Object
+  .freeze({
     parse(value: unknown): SyntheticCounterStateV1 {
       if (
         value === null ||

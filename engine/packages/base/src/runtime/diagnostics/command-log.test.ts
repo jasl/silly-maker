@@ -28,16 +28,16 @@ interface FixtureCommandV1 {
 
 type FixtureLoggedCommandV1 =
   | {
-      readonly source: "game";
-      readonly command: FixtureCommandV1;
-    }
+    readonly source: "game";
+    readonly command: FixtureCommandV1;
+  }
   | {
-      readonly source: "debug";
-      readonly command: {
-        readonly kind: "debug.fixture.command";
-        readonly ordinal: PositiveSafeInteger;
-      };
+    readonly source: "debug";
+    readonly command: {
+      readonly kind: "debug.fixture.command";
+      readonly ordinal: PositiveSafeInteger;
     };
+  };
 
 interface FixtureFactV1 {
   readonly kind: "fixture.committed";
@@ -241,7 +241,7 @@ describe("CommandLog", () => {
           ...finalizedAttempt(replayBase, 1),
           preStateDigest: unrelatedDigest,
         }),
-      ),
+      )
     ).toThrow("Finalized command attempt breaks digest continuity");
     expect(brokenPre.entries()).toEqual([]);
 
@@ -253,7 +253,7 @@ describe("CommandLog", () => {
           ...finalizedAttempt(replayBase, 2),
           postStateDigest: unrelatedDigest,
         }),
-      ),
+      )
     ).toThrow("Non-committed finalized attempt changed the state digest");
     expect(brokenNonCommittedPost.entries()).toEqual([]);
 
@@ -261,7 +261,7 @@ describe("CommandLog", () => {
     const sameBytesDifferentReference = snapshotAtSequence(0);
     expect(sameBytesDifferentReference).not.toBe(replayBase);
     expect(() =>
-      brokenIdentity.append(parsedCommand(1), finalizedAttempt(sameBytesDifferentReference, 1)),
+      brokenIdentity.append(parsedCommand(1), finalizedAttempt(sameBytesDifferentReference, 1))
     ).toThrow("Finalized command attempt breaks snapshot continuity");
     expect(brokenIdentity.entries()).toEqual([]);
   });
@@ -395,7 +395,7 @@ describe("CommandLog", () => {
       log.append(
         { source: "semantic", command: first.parsedCommand.command } as never,
         first.finalizedAttempt,
-      ),
+      )
     ).toThrow("CommandLog source must be game or debug");
     expect(log.replayBase()).toBe(replayBaseBefore);
     expect(log.entries()).toBe(entriesBefore);
@@ -411,7 +411,7 @@ describe("CommandLog", () => {
       log.append(
         { source: "debug", command: rejected.parsedCommand.command } as never,
         rejected.finalizedAttempt,
-      ),
+      )
     ).toThrow("Debug CommandLog entries cannot be rejected");
     expect(log.replayBase()).toBe(replayBaseBefore);
     expect(log.entries()).toBe(entriesBefore);

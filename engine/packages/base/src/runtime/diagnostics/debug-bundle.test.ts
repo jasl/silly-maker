@@ -213,12 +213,12 @@ function bundleV1(overrides: Partial<SyntheticBundleV1> = {}): SyntheticBundleV1
     simulationLineage: [],
     generatedAt: "2026-07-14T00:00:00.000Z",
     replayBase,
-    replayBaseStateDigest:
-      overrides.replayBaseStateDigest ?? digestCanonical("sillymaker:state:v1", replayBase),
+    replayBaseStateDigest: overrides.replayBaseStateDigest ??
+      digestCanonical("sillymaker:state:v1", replayBase),
     commandLog: [],
     currentSnapshot,
-    currentStateDigest:
-      overrides.currentStateDigest ?? digestCanonical("sillymaker:state:v1", currentSnapshot),
+    currentStateDigest: overrides.currentStateDigest ??
+      digestCanonical("sillymaker:state:v1", currentSnapshot),
     diagnostics: { codes: [] },
     runtimeFailures: [],
     ...overrides,

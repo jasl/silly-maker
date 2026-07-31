@@ -52,8 +52,8 @@ function isTargetPhaseV1(
 ): boolean {
   return target === "between_mutations"
     ? phase.kind === target &&
-        phase.completedMutationCount === 1 &&
-        phase.remainingMutationCount === 1
+      phase.completedMutationCount === 1 &&
+      phase.remainingMutationCount === 1
     : phase.kind === target;
 }
 

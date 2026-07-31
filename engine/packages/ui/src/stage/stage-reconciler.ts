@@ -306,10 +306,9 @@ export function createStageReconcilerV1(
     active.push(transition);
     transition.run.subscribe(notify);
 
-    const demanded =
-      change.next === null
-        ? (change.previous?.assetIds ?? [])
-        : [...(change.previous?.assetIds ?? []), ...change.next.assetIds];
+    const demanded = change.next === null
+      ? (change.previous?.assetIds ?? [])
+      : [...(change.previous?.assetIds ?? []), ...change.next.assetIds];
     if (definition.readiness.kind === "wait_for_assets" && !assetsReady(demanded)) {
       transition.readiness = Object.freeze({
         deadline: options.clock.now() + definition.readiness.timeoutMs,
@@ -348,8 +347,9 @@ export function createStageReconcilerV1(
         transitionKind: transition.definition.kind,
         progress: transition.run.progress(),
         slide: transition.definition.slide,
-        fromPlacement:
-          transition.changeKind === "move" ? (transition.previousEntry?.placement ?? null) : null,
+        fromPlacement: transition.changeKind === "move"
+          ? (transition.previousEntry?.placement ?? null)
+          : null,
       };
     });
     for (const transition of active) {
@@ -432,7 +432,9 @@ export function createStageReconcilerV1(
             occurrenceCounter += 1;
             options.onAcknowledgment?.(
               Object.freeze({
-                occurrenceId: `stage-transition.${String(input.epoch)}.${String(occurrenceCounter)}`,
+                occurrenceId: `stage-transition.${String(input.epoch)}.${
+                  String(occurrenceCounter)
+                }`,
                 transitionId: resolved.transitionId,
                 epoch: input.epoch,
                 outcome: "completed" as const,
@@ -464,7 +466,7 @@ export function createStageReconcilerV1(
             layerId: layer.layerId,
             transform: layer.transform,
             entries: Object.freeze(frameEntriesForLayer(layer.layerId, layer.entries)),
-          }),
+          })
         ),
         camera: currentTarget.camera,
         requiredAssetIds: Object.freeze([...requiredAssetIds].sort()),
@@ -530,7 +532,7 @@ export function settledStageFrameV1(target: StageRenderTargetV1): StageRenderFra
             fromPlacement: null,
           })),
         ),
-      }),
+      })
     ),
     camera: target.camera,
     requiredAssetIds: target.requiredAssetIds,

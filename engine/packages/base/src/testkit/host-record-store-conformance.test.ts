@@ -108,12 +108,10 @@ function createClampedReadObservationStoreV1(): HostAtomicRecordStoreV1 {
     list: delegate.list,
     async read(namespace: Parameters<HostAtomicRecordStoreV1["read"]>[0], key: HostRecordKeyV1) {
       const record = await delegate.read(namespace, key);
-      return record === null
-        ? null
-        : {
-            ...record,
-            bytes: Uint8ClampedArray.from(record.bytes) as never,
-          };
+      return record === null ? null : {
+        ...record,
+        bytes: Uint8ClampedArray.from(record.bytes) as never,
+      };
     },
   });
 }
@@ -129,7 +127,7 @@ describe("Host record store conformance workload", () => {
 
   it("round-trips the shared logical key corpus without collisions", async () => {
     const report = await runHostRecordStoreKeyCorpusV1(() =>
-      createSeededMemoryHostRecordStoreInternalV1([]),
+      createSeededMemoryHostRecordStoreInternalV1([])
     );
 
     expect(report).toEqual(hostRecordStoreKeyCorpusExpectedV1);
@@ -234,11 +232,10 @@ describe("Host record store conformance workload", () => {
           mapMutationsV1(mutations, (mutation) =>
             mutation.kind === "put"
               ? Object.freeze({
-                  ...mutation,
-                  bytes: Uint8Array.of(0xef, 0xbb, 0xbf, ...mutation.bytes),
-                })
-              : mutation,
-          ),
+                ...mutation,
+                bytes: Uint8Array.of(0xef, 0xbb, 0xbf, ...mutation.bytes),
+              })
+              : mutation),
         ),
     }) satisfies HostAtomicRecordStoreV1;
 

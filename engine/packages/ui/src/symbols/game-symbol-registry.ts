@@ -20,9 +20,9 @@ export interface GameSymbolProviderV1 {
 
 export type GameSymbolResolutionV1 =
   | {
-      readonly kind: "found";
-      readonly component: ComponentType<GameSymbolRenderPropsV1>;
-    }
+    readonly kind: "found";
+    readonly component: ComponentType<GameSymbolRenderPropsV1>;
+  }
   | { readonly kind: "not_found"; readonly code: "ui.game_symbol_not_found" };
 
 export interface GameSymbolRegistryV1 {

@@ -150,10 +150,9 @@ export const catcafeNarrativeStateSchemaV1: RuntimeSchemaV1<CatcafeNarrativeStat
         if (record.cursor !== null && !catcafeNodeIdsV1.includes(record.cursor)) {
           throw new TypeError("unknown catcafe narrative cursor");
         }
-        const pending =
-          record.pending === null || record.pending === undefined
-            ? null
-            : parsePendingInteraction(record.pending);
+        const pending = record.pending === null || record.pending === undefined
+          ? null
+          : parsePendingInteraction(record.pending);
         if ((record.phase === "active") !== (record.cursor !== null)) {
           throw new TypeError("catcafe narrative cursor must match active phase");
         }

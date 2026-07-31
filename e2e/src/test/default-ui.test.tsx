@@ -220,56 +220,62 @@ describe("Engine Lab default UI", () => {
     await instance.dispose();
   }, 15_000);
 
-  it("settles a load-restored presentation barrier instead of replaying its transition", async () => {
-    const labUi = await composeLabUiV1();
-    const { instance, composition } = labUi;
-    renderLabRootV1(labUi);
-    const user = userEvent.setup();
+  it(
+    "settles a load-restored presentation barrier instead of replaying its transition",
+    async () => {
+      const labUi = await composeLabUiV1();
+      const { instance, composition } = labUi;
+      renderLabRootV1(labUi);
+      const user = userEvent.setup();
 
-    // Reach the barrier and save exactly there. The save runs on the queue
-    // long before the ~400ms crossfade acknowledgment can resolve it.
-    await user.click(screen.getByRole("button", { name: "开始校准" }));
-    await user.click(await screen.findByRole("button", { name: "继续" }));
-    await user.click(await screen.findByRole("button", { name: "继续" }));
-    await user.click(await screen.findByRole("button", { name: "直接校准" }));
-    await waitFor(() => {
-      expect(document.querySelector("[data-lab-interaction='barrier']")).toBeInTheDocument();
-    });
-    const barrierOccurrence = document
-      .querySelector("[data-lab-interaction='barrier']")
-      ?.getAttribute("data-lab-occurrence");
-    await expect(instance.persistence.save("manual.1")).resolves.toMatchObject({ kind: "saved" });
+      // Reach the barrier and save exactly there. The save runs on the queue
+      // long before the ~400ms crossfade acknowledgment can resolve it.
+      await user.click(screen.getByRole("button", { name: "开始校准" }));
+      await user.click(await screen.findByRole("button", { name: "继续" }));
+      await user.click(await screen.findByRole("button", { name: "继续" }));
+      await user.click(await screen.findByRole("button", { name: "直接校准" }));
+      await waitFor(() => {
+        expect(document.querySelector("[data-lab-interaction='barrier']")).toBeInTheDocument();
+      });
+      const barrierOccurrence = document
+        .querySelector("[data-lab-interaction='barrier']")
+        ?.getAttribute("data-lab-occurrence");
+      await expect(instance.persistence.save("manual.1")).resolves.toMatchObject({ kind: "saved" });
 
-    // Let the live run finish normally all the way to completion.
-    await waitFor(
-      () => {
-        expect(document.querySelector("[data-lab-interaction='custom']")).toBeInTheDocument();
-      },
-      { timeout: 4000 },
-    );
-    await user.click(screen.getByRole("button", { name: "2" }));
-    await user.click(await screen.findByRole("button", { name: "继续" }));
-    await waitFor(() => {
-      expect(document.querySelector("[data-lab-narrative='calibrated']")).toBeInTheDocument();
-    });
+      // Let the live run finish normally all the way to completion.
+      await waitFor(
+        () => {
+          expect(document.querySelector("[data-lab-interaction='custom']")).toBeInTheDocument();
+        },
+        { timeout: 4000 },
+      );
+      await user.click(screen.getByRole("button", { name: "2" }));
+      await user.click(await screen.findByRole("button", { name: "继续" }));
+      await waitFor(() => {
+        expect(document.querySelector("[data-lab-narrative='calibrated']")).toBeInTheDocument();
+      });
 
-    // Load back to the barrier: the epoch advances, no transition replays,
-    // and the settle recovery policy acknowledges the restored occurrence
-    // through the ordinary semantic command. Play continues to the custom
-    // surface without re-choosing anything.
-    await expect(instance.persistence.load("manual.1")).resolves.toMatchObject({ kind: "loaded" });
-    await waitFor(
-      () => {
-        expect(document.querySelector("[data-lab-interaction='custom']")).toBeInTheDocument();
-      },
-      { timeout: 4000 },
-    );
-    expect(barrierOccurrence).toMatch(/^interaction-occurrence\./u);
-    expect(instance.semantic.observe().narrative.pending).toMatchObject({ kind: "custom" });
+      // Load back to the barrier: the epoch advances, no transition replays,
+      // and the settle recovery policy acknowledges the restored occurrence
+      // through the ordinary semantic command. Play continues to the custom
+      // surface without re-choosing anything.
+      await expect(instance.persistence.load("manual.1")).resolves.toMatchObject({
+        kind: "loaded",
+      });
+      await waitFor(
+        () => {
+          expect(document.querySelector("[data-lab-interaction='custom']")).toBeInTheDocument();
+        },
+        { timeout: 4000 },
+      );
+      expect(barrierOccurrence).toMatch(/^interaction-occurrence\./u);
+      expect(instance.semantic.observe().narrative.pending).toMatchObject({ kind: "custom" });
 
-    composition.dispose();
-    await instance.dispose();
-  }, 15_000);
+      composition.dispose();
+      await instance.dispose();
+    },
+    15_000,
+  );
 
   it("keeps the resident player DOM free of debug vocabulary", async () => {
     const labUi = await composeLabUiV1();

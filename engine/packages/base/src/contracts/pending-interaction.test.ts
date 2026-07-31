@@ -77,7 +77,7 @@ describe("PendingInteractionV1", () => {
         occurrenceId: interactionOccurrenceIdV1(1),
         surfaceId: "surface.test.calibration",
         params: { callback: () => {} },
-      }),
+      })
     ).toThrow(PresentationDataError);
     expect(() =>
       parsePendingInteractionV1({
@@ -87,7 +87,7 @@ describe("PendingInteractionV1", () => {
         occurrenceId: interactionOccurrenceIdV1(1),
         surfaceId: "surface.test.calibration",
         params: { scale: 0.5 },
-      }),
+      })
     ).toThrow("interaction_json_integer_expected");
     expect(() =>
       parsePendingInteractionV1({
@@ -96,7 +96,7 @@ describe("PendingInteractionV1", () => {
           { choiceId: "choice.test.basic", textId: "text.test.basic" },
           { choiceId: "choice.test.basic", textId: "text.test.copy" },
         ],
-      }),
+      })
     ).toThrow("choice_id_duplicate");
     expect(() => parsePendingInteractionV1({ kind: "teleport" })).toThrow(
       "interaction_kind_invalid",

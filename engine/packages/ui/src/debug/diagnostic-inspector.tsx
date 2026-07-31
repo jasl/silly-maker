@@ -18,8 +18,9 @@ export interface DiagnosticInspectorEntriesV1 {
   readonly entries: readonly DiagnosticTextEntryV1[];
 }
 
-export type DiagnosticInspectorQueryResultV1 =
-  DebugToolsOperationResultV1<DiagnosticInspectorEntriesV1>;
+export type DiagnosticInspectorQueryResultV1 = DebugToolsOperationResultV1<
+  DiagnosticInspectorEntriesV1
+>;
 
 export interface DiagnosticInspectorPropsV1 {
   readonly queryDiagnostics: () => Promise<DiagnosticInspectorQueryResultV1>;
@@ -36,17 +37,19 @@ type DiagnosticRestoreStateV1 = {
   readonly kind: "idle" | "restoring" | "restored" | "restore_failed";
 };
 
-const diagnosticOnlyReasonTextV1 = Object.freeze({
-  story_identity_mismatch: "Story 身份不匹配",
-  presentation_identity_mismatch: "呈现身份不匹配",
-  application_identity_mismatch: "应用构建身份不匹配",
-} satisfies Record<
-  Extract<
-    DebugUiContextUseClassificationV1,
-    { readonly kind: "diagnostic_only" }
-  >["reasons"][number],
-  string
->);
+const diagnosticOnlyReasonTextV1 = Object.freeze(
+  {
+    story_identity_mismatch: "Story 身份不匹配",
+    presentation_identity_mismatch: "呈现身份不匹配",
+    application_identity_mismatch: "应用构建身份不匹配",
+  } satisfies Record<
+    Extract<
+      DebugUiContextUseClassificationV1,
+      { readonly kind: "diagnostic_only" }
+    >["reasons"][number],
+    string
+  >,
+);
 
 export function DiagnosticInspectorV1(props: DiagnosticInspectorPropsV1): ReactElement {
   const [queryState, setQueryState] = useState<DiagnosticQueryStateV1>({ kind: "idle" });
@@ -133,33 +136,39 @@ export function DiagnosticInspectorV1(props: DiagnosticInspectorPropsV1): ReactE
         </Button>
       </header>
 
-      {props.classification.kind === "diagnostic_only" ? (
-        <div role="note">
-          <p>此呈现上下文仅可用于诊断，不能恢复。</p>
-          <ul aria-label="不能恢复的原因">
-            {props.classification.reasons.map((reason) => (
-              <li key={reason}>{diagnosticOnlyReasonTextV1[reason]}</li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-      {props.classification.kind === "restorable" && props.onRestore !== undefined ? (
-        <Button disabled={operationPending} onClick={() => void restore()}>
-          恢复界面状态
-        </Button>
-      ) : null}
+      {props.classification.kind === "diagnostic_only"
+        ? (
+          <div role="note">
+            <p>此呈现上下文仅可用于诊断，不能恢复。</p>
+            <ul aria-label="不能恢复的原因">
+              {props.classification.reasons.map((reason) => (
+                <li key={reason}>{diagnosticOnlyReasonTextV1[reason]}</li>
+              ))}
+            </ul>
+          </div>
+        )
+        : null}
+      {props.classification.kind === "restorable" && props.onRestore !== undefined
+        ? (
+          <Button disabled={operationPending} onClick={() => void restore()}>
+            恢复界面状态
+          </Button>
+        )
+        : null}
 
       {queryState.kind === "loading" ? <p role="status">正在读取诊断摘要</p> : null}
-      {queryState.kind === "ready" && queryState.entries.length === 0 ? (
-        <p role="status">没有诊断信息</p>
-      ) : null}
-      {queryState.kind === "ready" && queryState.entries.length > 0 ? (
-        <ul aria-label="诊断摘要">
-          {queryState.entries.map((entry, index) => (
-            <li key={`${entry.id}:${index}`}>{`${entry.label}：${entry.value}`}</li>
-          ))}
-        </ul>
-      ) : null}
+      {queryState.kind === "ready" && queryState.entries.length === 0
+        ? <p role="status">没有诊断信息</p>
+        : null}
+      {queryState.kind === "ready" && queryState.entries.length > 0
+        ? (
+          <ul aria-label="诊断摘要">
+            {queryState.entries.map((entry, index) => (
+              <li key={`${entry.id}:${index}`}>{`${entry.label}：${entry.value}`}</li>
+            ))}
+          </ul>
+        )
+        : null}
       <div aria-live="polite">
         {queryState.kind === "capability_disabled" ? <p>调试工具已关闭</p> : null}
         {queryState.kind === "query_failed" ? <p>无法读取诊断摘要</p> : null}

@@ -70,26 +70,26 @@ export type LabCommandV1 =
   | { readonly kind: "lab.sell_sample" }
   | { readonly kind: "lab.buy_banner" }
   | {
-      readonly kind: "lab.narrative_resolve";
-      readonly expectedOccurrenceId: string;
-      readonly resolution: InteractionResolutionV1;
-    };
+    readonly kind: "lab.narrative_resolve";
+    readonly expectedOccurrenceId: string;
+    readonly resolution: InteractionResolutionV1;
+  };
 
 export type LabFactV1 =
   | { readonly kind: "lab.sample_collected"; readonly yield: number; readonly total: number }
   | { readonly kind: "lab.samples_consumed"; readonly amount: number; readonly remaining: number }
   | {
-      readonly kind: "lab.procedure_advanced";
-      readonly phase: LabProcedureStateV1["phase"];
-      readonly stepsTaken: number;
-    }
+    readonly kind: "lab.procedure_advanced";
+    readonly phase: LabProcedureStateV1["phase"];
+    readonly stepsTaken: number;
+  }
   | { readonly kind: "lab.stage_changed"; readonly mutations: number }
   | { readonly kind: "lab.credits_changed"; readonly delta: number; readonly balance: number }
   | {
-      readonly kind: "lab.interaction_resolved";
-      readonly definitionId: string;
-      readonly occurrenceId: string;
-    };
+    readonly kind: "lab.interaction_resolved";
+    readonly definitionId: string;
+    readonly occurrenceId: string;
+  };
 
 export type LabRejectionCodeV1 =
   | "lab.procedure_already_running"
@@ -158,11 +158,12 @@ export interface LabBootstrapInputV1 {
   readonly rngSeed: NonZeroUint32;
 }
 
-export interface LabSimulationTypesV1 extends GameSimulationTypeMapV1<
-  LabBootstrapInputV1,
-  LabGameStateV1,
-  RngStateV1
-> {
+export interface LabSimulationTypesV1 extends
+  GameSimulationTypeMapV1<
+    LabBootstrapInputV1,
+    LabGameStateV1,
+    RngStateV1
+  > {
   readonly snapshot: GameSnapshotEnvelopeV1<LabGameStateV1, RngStateV1>;
   readonly rngDrawTrace: RngDrawTraceV1;
   readonly command: LabCommandV1;
@@ -208,11 +209,11 @@ type StageOperationV1 = {
 type NarrativeOperationV1 =
   | { readonly kind: "begin"; readonly next: LabNarrativeStateV1 }
   | {
-      readonly kind: "resolve";
-      readonly expectedOccurrenceId: string;
-      readonly resolution: InteractionResolutionV1;
-      readonly next: LabNarrativeStateV1;
-    };
+    readonly kind: "resolve";
+    readonly expectedOccurrenceId: string;
+    readonly resolution: InteractionResolutionV1;
+    readonly next: LabNarrativeStateV1;
+  };
 
 const commandSchemaV1: RuntimeSchemaV1<LabCommandV1> = Object.freeze({
   parse(value: unknown): LabCommandV1 {
@@ -342,7 +343,7 @@ const stageOperationSchemaV1: RuntimeSchemaV1<StageOperationV1> = Object.freeze(
       kind: "apply" as const,
       mutations: Object.freeze(
         record.mutations.map((mutation, index) =>
-          parseStageMutationV1(mutation, `/mutations/${String(index)}`),
+          parseStageMutationV1(mutation, `/mutations/${String(index)}`)
         ),
       ),
     });
@@ -363,8 +364,8 @@ export const labProcedureStepsToCompleteV1 = 2;
 
 const kit = createGameAuthoringKitV1<LabSimulationTypesV1>();
 
-export const labSamplesReadCapabilityV1: CapabilityTokenV1<LabSamplesReadPortV1> =
-  kit.defineCapability<LabSamplesReadPortV1>("capability.lab.samples.read");
+export const labSamplesReadCapabilityV1: CapabilityTokenV1<LabSamplesReadPortV1> = kit
+  .defineCapability<LabSamplesReadPortV1>("capability.lab.samples.read");
 
 const samplesModuleV1 = kit.defineStatefulModule({
   id: "lab.samples",
@@ -389,18 +390,17 @@ const samplesModuleV1 = kit.defineStatefulModule({
           rejection: Object.freeze({ code: "lab.insufficient_samples" as const }),
         });
       }
-      const fact =
-        operation.kind === "collect"
-          ? Object.freeze({
-              kind: "lab.sample_collected" as const,
-              yield: operation.yield,
-              total: state.collected + operation.yield,
-            })
-          : Object.freeze({
-              kind: "lab.samples_consumed" as const,
-              amount: operation.amount,
-              remaining: state.collected - operation.amount,
-            });
+      const fact = operation.kind === "collect"
+        ? Object.freeze({
+          kind: "lab.sample_collected" as const,
+          yield: operation.yield,
+          total: state.collected + operation.yield,
+        })
+        : Object.freeze({
+          kind: "lab.samples_consumed" as const,
+          amount: operation.amount,
+          remaining: state.collected - operation.amount,
+        });
       return Object.freeze({
         kind: "proposed" as const,
         proposal: Object.freeze({ payload: operation, facts: Object.freeze([fact]) }),
@@ -409,10 +409,9 @@ const samplesModuleV1 = kit.defineStatefulModule({
     apply(state, proposal) {
       const operation = proposal.payload;
       return Object.freeze({
-        collected:
-          operation.kind === "collect"
-            ? state.collected + operation.yield
-            : state.collected - operation.amount,
+        collected: operation.kind === "collect"
+          ? state.collected + operation.yield
+          : state.collected - operation.amount,
       });
     },
   },
@@ -468,8 +467,9 @@ function applyProcedureOperationV1(
   }
   const stepsTaken = state.stepsTaken + 1;
   return Object.freeze({
-    phase:
-      stepsTaken >= labProcedureStepsToCompleteV1 ? ("complete" as const) : ("running" as const),
+    phase: stepsTaken >= labProcedureStepsToCompleteV1
+      ? ("complete" as const)
+      : ("running" as const),
     stepsTaken,
   });
 }
@@ -625,10 +625,9 @@ const walletModuleV1 = kit.defineStatefulModule({
           rejection: Object.freeze({ code: "lab.insufficient_credits" as const }),
         });
       }
-      const balance =
-        operation.kind === "earn"
-          ? state.credits + operation.amount
-          : state.credits - operation.amount;
+      const balance = operation.kind === "earn"
+        ? state.credits + operation.amount
+        : state.credits - operation.amount;
       return Object.freeze({
         kind: "proposed" as const,
         proposal: Object.freeze({
@@ -646,10 +645,9 @@ const walletModuleV1 = kit.defineStatefulModule({
     apply(state, proposal) {
       const operation = proposal.payload;
       return Object.freeze({
-        credits:
-          operation.kind === "earn"
-            ? state.credits + operation.amount
-            : state.credits - operation.amount,
+        credits: operation.kind === "earn"
+          ? state.credits + operation.amount
+          : state.credits - operation.amount,
       });
     },
   },

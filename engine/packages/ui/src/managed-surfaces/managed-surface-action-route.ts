@@ -77,14 +77,16 @@ interface ManagedSurfaceDispatchContextV1 {
 
 const routerBindingStatesV1 = new WeakMap<InputRouterV1, RouterBindingStateV1>();
 const managedDispatchesV1 = new WeakMap<object, ManagedSurfaceDispatchContextV1>();
-const envelopeKeysV1 = Object.freeze([
-  "applicationEpoch",
-  "surfaceInstanceId",
-  "surfaceTopologyRevision",
-  "actionId",
-  "gestureId",
-  "inputPublicationRevision",
-] as const);
+const envelopeKeysV1 = Object.freeze(
+  [
+    "applicationEpoch",
+    "surfaceInstanceId",
+    "surfaceTopologyRevision",
+    "actionId",
+    "gestureId",
+    "inputPublicationRevision",
+  ] as const,
+);
 
 function isRecordV1(value: unknown): value is Readonly<Record<string, unknown>> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
@@ -243,7 +245,7 @@ export function createManagedSurfaceActionBindingV1(
     }
     return inputIgnoredV1;
   };
-  const registerManagedGateV1 = (): (() => void) =>
+  const registerManagedGateV1 = (): () => void =>
     input.inputRouter.register({
       context: inputOwner.inputContextId,
       handle: handleManagedEventV1,

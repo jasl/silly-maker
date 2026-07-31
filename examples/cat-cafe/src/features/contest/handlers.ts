@@ -52,22 +52,22 @@ export const contestCommandHandlersV1: Pick<
       const variance = rng.nextInt(
         Object.freeze({ purpose: "check:cc.contest_variance", exclusiveMax: 5 }),
       );
-      const damage =
-        move.kind === "charm" ? 0 : move.power + Math.floor(state.cat.skill / 10) + variance;
+      const damage = move.kind === "charm"
+        ? 0
+        : move.power + Math.floor(state.cat.skill / 10) + variance;
       const selfHeal = move.kind === "charm" ? 12 : 0;
       let rivalMorale = Math.max(0, contest.rivalMorale - damage);
       let morale = contest.morale + selfHeal;
 
       // The opponent strikes back (per behavior pattern); a feint can dodge it.
       if (rivalMorale > 0) {
-        const rivalHit =
-          rival.pattern === "aggressive"
-            ? rival.power + 3
-            : rival.pattern === "steady"
-              ? rival.power
-              : contest.round === 3
-                ? rival.power + 5
-                : Math.max(0, rival.power - 3);
+        const rivalHit = rival.pattern === "aggressive"
+          ? rival.power + 3
+          : rival.pattern === "steady"
+          ? rival.power
+          : contest.round === 3
+          ? rival.power + 5
+          : Math.max(0, rival.power - 3);
         morale = Math.max(0, morale - (contest.feintActive ? 0 : rivalHit));
       }
 

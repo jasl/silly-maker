@@ -11,11 +11,11 @@ import { commandSchemaV1, kit, operationSchemaV1 } from "../../kernel.ts";
 export type NarrativeOperationV1 =
   | { readonly kind: "begin"; readonly next: CatcafeNarrativeStateV1 }
   | {
-      readonly kind: "resolve";
-      readonly expectedOccurrenceId: string;
-      readonly resolution: InteractionResolution;
-      readonly next: CatcafeNarrativeStateV1;
-    };
+    readonly kind: "resolve";
+    readonly expectedOccurrenceId: string;
+    readonly resolution: InteractionResolution;
+    readonly next: CatcafeNarrativeStateV1;
+  };
 
 export const narrativeModuleV1 = kit.defineStatefulModule({
   id: "catcafe.narrative",

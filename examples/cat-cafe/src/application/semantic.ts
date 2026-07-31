@@ -31,24 +31,27 @@ import { catcafeActivitiesV1, catcafeSlotsV1, catcafeStageForWeekV1 } from "../c
  */
 
 export type CatcafeActionIdV1 =
-  "cc.begin_story" | "cc.advance_slot" | "cc.enter_contest" | "cc.enter_postgame";
+  | "cc.begin_story"
+  | "cc.advance_slot"
+  | "cc.enter_contest"
+  | "cc.enter_postgame";
 
 export type CatcafeActionDescriptorV1 =
   | {
-      readonly kind: "system";
-      readonly actionId: CatcafeActionIdV1;
-      readonly enabled: boolean;
-      readonly blockedBy: CatcafeRejectionV1["code"] | null;
-    }
+    readonly kind: "system";
+    readonly actionId: CatcafeActionIdV1;
+    readonly enabled: boolean;
+    readonly blockedBy: CatcafeRejectionV1["code"] | null;
+  }
   | {
-      /** Parameterized actions: content-table rows expand into catalog entries; availability uses the same table-lookup rule. */
-      readonly kind: "activity";
-      readonly activityId: string;
-      readonly nameTextId: string;
-      readonly stamina: number;
-      readonly enabled: boolean;
-      readonly blockedBy: CatcafeRejectionV1["code"] | null;
-    };
+    /** Parameterized actions: content-table rows expand into catalog entries; availability uses the same table-lookup rule. */
+    readonly kind: "activity";
+    readonly activityId: string;
+    readonly nameTextId: string;
+    readonly stamina: number;
+    readonly enabled: boolean;
+    readonly blockedBy: CatcafeRejectionV1["code"] | null;
+  };
 
 export type CatcafeInvocationV1 =
   | { readonly kind: "invoke"; readonly actionId: CatcafeActionIdV1 }
@@ -56,10 +59,10 @@ export type CatcafeInvocationV1 =
   | { readonly kind: "pet"; readonly zone: string }
   | { readonly kind: "contest_move"; readonly moveId: string }
   | {
-      readonly kind: "resolve";
-      readonly expectedOccurrenceId: string;
-      readonly resolution: InteractionResolution;
-    };
+    readonly kind: "resolve";
+    readonly expectedOccurrenceId: string;
+    readonly resolution: InteractionResolution;
+  };
 
 export type CatcafePreviewV1 =
   | { readonly kind: "allowed" }
@@ -70,10 +73,9 @@ export type CatcafeActionResultV1 =
   | { readonly kind: "rejected"; readonly codes: readonly CatcafeRejectionV1["code"][] }
   | { readonly kind: "faulted"; readonly code: string }
   | {
-      readonly kind: "not_executed";
-      readonly code:
-        "session_unavailable" | "fault_paused" | "hmr_invalidated" | "validation_failed";
-    };
+    readonly kind: "not_executed";
+    readonly code: "session_unavailable" | "fault_paused" | "hmr_invalidated" | "validation_failed";
+  };
 
 const actionIdsV1: readonly CatcafeActionIdV1[] = Object.freeze([
   "cc.begin_story",
@@ -170,19 +172,18 @@ export function projectCatcafeNarrativeViewV1(queries: CatcafeQueriesV1): Catcaf
     pending,
     flags: queries.narrative.flags,
     history: queries.narrative.history,
-    choiceOptions:
-      pending !== null && pending.kind === "choice"
-        ? Object.freeze(
-            pending.options.map((option) =>
-              Object.freeze({
-                choiceId: option.choiceId,
-                textId: option.textId,
-                enabled: true,
-                blockedBy: null,
-              }),
-            ),
-          )
-        : null,
+    choiceOptions: pending !== null && pending.kind === "choice"
+      ? Object.freeze(
+        pending.options.map((option) =>
+          Object.freeze({
+            choiceId: option.choiceId,
+            textId: option.textId,
+            enabled: true,
+            blockedBy: null,
+          })
+        ),
+      )
+      : null,
   });
 }
 
@@ -234,14 +235,13 @@ function commandForInvocationV1(invocation: CatcafeInvocationV1): CatcafeCommand
   switch (invocation.kind) {
     case "invoke":
       return Object.freeze({
-        kind:
-          invocation.actionId === "cc.begin_story"
-            ? ("cc.begin_story" as const)
-            : invocation.actionId === "cc.advance_slot"
-              ? ("cc.advance_slot" as const)
-              : invocation.actionId === "cc.enter_postgame"
-                ? ("cc.enter_postgame" as const)
-                : ("cc.enter_contest" as const),
+        kind: invocation.actionId === "cc.begin_story"
+          ? ("cc.begin_story" as const)
+          : invocation.actionId === "cc.advance_slot"
+          ? ("cc.advance_slot" as const)
+          : invocation.actionId === "cc.enter_postgame"
+          ? ("cc.enter_postgame" as const)
+          : ("cc.enter_contest" as const),
       });
     case "activity":
       return Object.freeze({ kind: "cc.do_activity", activityId: invocation.activityId });
@@ -297,14 +297,12 @@ export function projectCatcafeTransientEffectsV1(
           }),
         ];
       case "cc.encounter":
-        return fact.textId === null
-          ? []
-          : [
-              Object.freeze({
-                effectId: "effect.catcafe.encounter",
-                payload: Object.freeze({ encounterId: fact.encounterId, textId: fact.textId }),
-              }),
-            ];
+        return fact.textId === null ? [] : [
+          Object.freeze({
+            effectId: "effect.catcafe.encounter",
+            payload: Object.freeze({ encounterId: fact.encounterId, textId: fact.textId }),
+          }),
+        ];
       default:
         return [];
     }
@@ -336,10 +334,9 @@ export const catcafeSemanticAdapterV1: CoreSemanticAdapterV1<
         });
       }),
       ...catcafeActivitiesV1.rows().map((activity) => {
-        const blockedBy =
-          queries.narrative.phase !== "completed"
-            ? ("cc.narrative_busy" as const)
-            : catcafeActivityBlockedByV1(queries, activity.id);
+        const blockedBy = queries.narrative.phase !== "completed"
+          ? ("cc.narrative_busy" as const)
+          : catcafeActivityBlockedByV1(queries, activity.id);
         return Object.freeze({
           kind: "activity" as const,
           activityId: activity.id,

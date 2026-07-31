@@ -7,8 +7,9 @@ import { parseNonZeroUint32 } from "./values.ts";
 
 function runDrawVector(seed: number, exclusiveMax: number) {
   const rng = createTransactionalRngV1(parseNonZeroUint32(seed));
-  const results = Array.from({ length: 64 }, (_, index) =>
-    rng.nextInt({ exclusiveMax, purpose: `scheduler:property.${index}` }),
+  const results = Array.from(
+    { length: 64 },
+    (_, index) => rng.nextInt({ exclusiveMax, purpose: `scheduler:property.${index}` }),
   );
   return { results, state: rng.candidateState() };
 }

@@ -231,22 +231,21 @@ async function createFixtureV1(input?: { readonly writeReceiptEvidence?: boolean
   await lease.acquireInitial();
   const fence = lease.captureFence();
   if (fence === null) throw new TypeError("expected owned lease fence");
-  const repository =
-    input?.writeReceiptEvidence === true
-      ? createSaveRepositoryInternalV1(
-          {
-            records: instrumented.records,
-            storyId: storyIdV1,
-            codec: codecV1,
-          },
-          undefined,
-          { writeReceiptEvidence: true },
-        )
-      : createSaveRepositoryV1({
-          records: instrumented.records,
-          storyId: storyIdV1,
-          codec: codecV1,
-        });
+  const repository = input?.writeReceiptEvidence === true
+    ? createSaveRepositoryInternalV1(
+      {
+        records: instrumented.records,
+        storyId: storyIdV1,
+        codec: codecV1,
+      },
+      undefined,
+      { writeReceiptEvidence: true },
+    )
+    : createSaveRepositoryV1({
+      records: instrumented.records,
+      storyId: storyIdV1,
+      codec: codecV1,
+    });
   return Object.freeze({ ...instrumented, lease, fence, repository });
 }
 
@@ -291,7 +290,7 @@ describe("Save repository", () => {
   it("creates unique versioned Story-scoped keys for all physical slots and the lease", () => {
     const firstStory = slotIdsV1.map((slotId) => createSaveSlotRecordKeyV1("story.first", slotId));
     const secondStory = slotIdsV1.map((slotId) =>
-      createSaveSlotRecordKeyV1("story.second", slotId),
+      createSaveSlotRecordKeyV1("story.second", slotId)
     );
 
     expect(new Set([...firstStory, ...secondStory])).toHaveLength(slotIdsV1.length * 2);
@@ -654,21 +653,20 @@ describe("Save repository", () => {
       const previousBefore = await physicalRecordV1(fixture.records, "auto.previous");
       const current = await physicalRecordV1(fixture.records, "auto.current");
       if (previousBefore === null || current === null) throw new TypeError("missing Auto records");
-      const mutation: HostRecordMutationV1 =
-        mode === "corrupt"
-          ? {
-              kind: "put",
-              namespace: "save",
-              key: current.key,
-              expectedRevision: current.revision,
-              bytes: new TextEncoder().encode('{"corrupt":'),
-            }
-          : {
-              kind: "delete",
-              namespace: "save",
-              key: current.key,
-              expectedRevision: current.revision,
-            };
+      const mutation: HostRecordMutationV1 = mode === "corrupt"
+        ? {
+          kind: "put",
+          namespace: "save",
+          key: current.key,
+          expectedRevision: current.revision,
+          bytes: new TextEncoder().encode('{"corrupt":'),
+        }
+        : {
+          kind: "delete",
+          namespace: "save",
+          key: current.key,
+          expectedRevision: current.revision,
+        };
       expect((await fixture.records.commit([mutation])).kind).toBe("committed");
 
       await expect(

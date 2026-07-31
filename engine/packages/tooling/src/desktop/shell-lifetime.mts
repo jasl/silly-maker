@@ -59,16 +59,19 @@ function rendererFlushStatusV1(
 }
 
 function rendererFlushRequestSourceV1(operation: "prepare" | "read", requestId: number): string {
-  return `globalThis.__SILLYMAKER_DESKTOP_CLOSE_V1__?.(${JSON.stringify({
-    operation,
-    protocolRevision: 1,
-    requestId,
-  })})`;
+  return `globalThis.__SILLYMAKER_DESKTOP_CLOSE_V1__?.(${
+    JSON.stringify({
+      operation,
+      protocolRevision: 1,
+      requestId,
+    })
+  })`;
 }
 
 function allocateRendererFlushRequestIdV1(): number {
-  nextRendererFlushRequestIdV1 =
-    nextRendererFlushRequestIdV1 >= Number.MAX_SAFE_INTEGER ? 1 : nextRendererFlushRequestIdV1 + 1;
+  nextRendererFlushRequestIdV1 = nextRendererFlushRequestIdV1 >= Number.MAX_SAFE_INTEGER
+    ? 1
+    : nextRendererFlushRequestIdV1 + 1;
   return nextRendererFlushRequestIdV1;
 }
 
@@ -91,8 +94,8 @@ export async function requestShellRendererFlushV1(
   if (window === null || typeof window.executeJs !== "function") return false;
   const requestId = options.requestId ?? allocateRendererFlushRequestIdV1();
   if (!Number.isSafeInteger(requestId) || requestId < 1) return false;
-  const waitForPoll =
-    options.waitForPoll ?? (() => new Promise<void>((resolve) => setTimeout(resolve, 25)));
+  const waitForPoll = options.waitForPoll ??
+    (() => new Promise<void>((resolve) => setTimeout(resolve, 25)));
   try {
     let status = rendererFlushStatusV1(
       await window.executeJs(rendererFlushRequestSourceV1("prepare", requestId)),

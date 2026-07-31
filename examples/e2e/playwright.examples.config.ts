@@ -17,14 +17,20 @@ export default defineConfig({
   reporter: "line",
   webServer: [
     {
-      command: `deno run -A npm:vite --mode example-cat-cafe --host ${catcafeTargetV1.host} --port ${String(catcafeTargetV1.port)} --strictPort`,
+      command:
+        `deno run -A npm:vite --mode example-cat-cafe --host ${catcafeTargetV1.host} --port ${
+          String(catcafeTargetV1.port)
+        } --strictPort`,
       cwd: "../..",
       reuseExistingServer: false,
       timeout: 120_000,
       url: catcafeTargetUrlV1(),
     },
     {
-      command: `deno run -A npm:vite --mode example-silly-os --host ${sillyOsTargetV1.host} --port ${String(sillyOsTargetV1.port)} --strictPort`,
+      command:
+        `deno run -A npm:vite --mode example-silly-os --host ${sillyOsTargetV1.host} --port ${
+          String(sillyOsTargetV1.port)
+        } --strictPort`,
       cwd: "../..",
       reuseExistingServer: false,
       timeout: 120_000,

@@ -95,12 +95,14 @@ export interface SnapshotMemoryGrowthRunV1 {
   readonly final: SnapshotMemoryGrowthFinalV1;
 }
 
-export const snapshotMemoryGrowthBenchmarkConfigV1 = Object.freeze({
-  entityCount: 1_000,
-  commandCount: 1_200,
-  checkpointCommandSequences: Object.freeze([0, 200, 400, 800, 1_200]),
-  steadyStateStartCommandSequence: 400,
-} as const satisfies SnapshotMemoryGrowthConfigV1);
+export const snapshotMemoryGrowthBenchmarkConfigV1 = Object.freeze(
+  {
+    entityCount: 1_000,
+    commandCount: 1_200,
+    checkpointCommandSequences: Object.freeze([0, 200, 400, 800, 1_200]),
+    steadyStateStartCommandSequence: 400,
+  } as const satisfies SnapshotMemoryGrowthConfigV1,
+);
 
 interface MemoryBuffersV1 {
   readonly beforeRss: Float64Array;
@@ -158,8 +160,7 @@ function validateConfigV1(config: SnapshotMemoryGrowthConfigV1): void {
 
 function descriptorV1(config: SnapshotMemoryGrowthConfigV1): SnapshotMemoryGrowthDescriptorV1 {
   return Object.freeze({
-    workloadId:
-      `snapshot-memory-growth-v1/${String(config.entityCount)}/` +
+    workloadId: `snapshot-memory-growth-v1/${String(config.entityCount)}/` +
       `cross_owner_atomic_committed/${String(config.commandCount)}`,
     entityCount: config.entityCount,
     commandClass: "cross_owner_atomic_committed",
@@ -401,7 +402,7 @@ export function prepareSnapshotMemoryGrowthWorkloadV1(
             afterCommandCount,
             beforeGc: readUsageV1(before, index),
             afterGc: readUsageV1(after, index),
-          }),
+          })
         ),
       );
       const entries = workload.commandLog();
@@ -413,8 +414,8 @@ export function prepareSnapshotMemoryGrowthWorkloadV1(
       const currentSnapshot = workload.snapshot();
       const replayBase = workload.replayBase();
       const targetEntityId = Math.floor(input.entityCount / 2);
-      const targetEntity =
-        currentSnapshot.state.simulation.entities.chunks[Math.floor(targetEntityId / 1_000)]?.[
+      const targetEntity = currentSnapshot.state.simulation.entities
+        .chunks[Math.floor(targetEntityId / 1_000)]?.[
           targetEntityId % 1_000
         ];
       if (targetEntity === undefined) {

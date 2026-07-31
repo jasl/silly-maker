@@ -58,12 +58,11 @@ function isWithin(root, path) {
 async function resolveRelativeSpecifier(owner, specifier) {
   const raw = resolve(dirname(owner), specifier);
   const extension = extname(raw);
-  const candidates =
-    extension === ".js"
-      ? [raw, `${raw.slice(0, -3)}.ts`, `${raw.slice(0, -3)}.tsx`]
-      : extension === ""
-        ? [raw, `${raw}.ts`, `${raw}.tsx`, join(raw, "index.ts"), join(raw, "index.tsx")]
-        : [raw];
+  const candidates = extension === ".js"
+    ? [raw, `${raw.slice(0, -3)}.ts`, `${raw.slice(0, -3)}.tsx`]
+    : extension === ""
+    ? [raw, `${raw}.ts`, `${raw}.tsx`, join(raw, "index.ts"), join(raw, "index.tsx")]
+    : [raw];
   return existing(candidates);
 }
 
@@ -167,7 +166,7 @@ export async function collectImportClosure(root, entries) {
         compareUtf16CodeUnits(
           `${left.owner}\0${left.specifier}`,
           `${right.owner}\0${right.specifier}`,
-        ),
+        )
       ),
     ),
   });
@@ -207,9 +206,11 @@ export async function buildImportClosureRecordsV1(root, paths, facet) {
       return Object.freeze({
         path,
         facet,
-        sha256: `sha256:${createHash("sha256")
-          .update(await readFile(actual))
-          .digest("hex")}`,
+        sha256: `sha256:${
+          createHash("sha256")
+            .update(await readFile(actual))
+            .digest("hex")
+        }`,
       });
     }),
   );

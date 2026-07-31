@@ -101,10 +101,9 @@ export const labNarrativeStateSchemaV1: RuntimeSchemaV1<LabNarrativeStateV1> =
         if (record.cursor !== null && !labNarrativeNodeIdsV1.includes(record.cursor)) {
           throw new TypeError("unknown lab narrative cursor");
         }
-        const pending =
-          record.pending === null || record.pending === undefined
-            ? null
-            : parsePendingInteractionV1(record.pending);
+        const pending = record.pending === null || record.pending === undefined
+          ? null
+          : parsePendingInteractionV1(record.pending);
         if ((record.phase === "active") !== (record.cursor !== null)) {
           throw new TypeError("lab narrative cursor must match active phase");
         }

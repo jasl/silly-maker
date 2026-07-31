@@ -99,7 +99,7 @@ describe("bookshop narrative playthrough", () => {
       // 阿澄 has entered after the opening lines.
       expect(
         publication.game.stage.layers.flatMap((layer) =>
-          layer.entries.map((entry) => entry.contentId),
+          layer.entries.map((entry) => entry.contentId)
         ),
       ).toEqual([
         "content.bookshop.background.shop",

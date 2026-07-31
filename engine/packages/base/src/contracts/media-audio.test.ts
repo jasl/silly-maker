@@ -70,7 +70,7 @@ describe("audio media contracts", () => {
             durationMs: null,
           },
         ],
-      ),
+      )
     ).toThrow("audio_media_type_invalid");
   });
 
@@ -95,7 +95,7 @@ describe("audio media contracts", () => {
             durationMs: null,
           },
         ],
-      ),
+      )
     ).toThrow("audio_provider_unknown_slot");
     expect(() => resolveAudioManifestV1([{ ...slot, kind: "background" }], [])).toThrow(
       "audio_kind_invalid",
@@ -119,7 +119,7 @@ describe("audio media contracts", () => {
         bgm: { assetId: "audio.test.theme", loop: true, gainPermille: 800.5, fadeMs: 0 },
         ambient: null,
         voice: null,
-      }),
+      })
     ).toThrow(PresentationDataError);
     expect(() =>
       parseVoiceIntentV1({
@@ -127,7 +127,7 @@ describe("audio media contracts", () => {
         interactionDefinitionId: "interaction.test.say",
         occurrenceId: "interaction-occurrence.3",
         stopPolicy: "loop_forever",
-      }),
+      })
     ).toThrow("voice_stop_policy_invalid");
   });
 
@@ -151,7 +151,7 @@ describe("audio media contracts", () => {
           { assetId: "asset.test.bg", priority: "blocking", group: "stage" },
           { assetId: "asset.test.bg", priority: "opportunistic", group: "stage" },
         ],
-      }),
+      })
     ).toThrow("duplicates");
   });
 });

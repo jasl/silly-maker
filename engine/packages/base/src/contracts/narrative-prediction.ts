@@ -56,10 +56,9 @@ export function createNarrativeGraphBuilderV1(input: {
       kind,
       successors: node.successors ?? [],
       callTarget: node.callTarget ?? null,
-      interaction:
-        kind === "interaction"
-          ? { definitionId: node.definitionId, seenRevision: node.seenRevision ?? 1 }
-          : null,
+      interaction: kind === "interaction"
+        ? { definitionId: node.definitionId, seenRevision: node.seenRevision ?? 1 }
+        : null,
       dependencies: {
         ...emptyNarrativeDependenciesV1,
         ...node.dependencies,
@@ -163,8 +162,9 @@ export function predictNarrativeDependenciesV1(
       assetIds.add(assetId);
     }
 
-    const edges =
-      node.callTarget === null ? node.successors : [node.callTarget, ...node.successors];
+    const edges = node.callTarget === null
+      ? node.successors
+      : [node.callTarget, ...node.successors];
     for (const successor of edges) {
       if (!visited.has(successor)) queue.push({ nodeId: successor, depth: next.depth + 1 });
     }

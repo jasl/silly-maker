@@ -195,53 +195,59 @@ export function SystemDialogHostV1(props: SystemDialogHostPropsV1): ReactElement
       <div data-system-dialog-host-content="true" inert={dialogOpen}>
         {props.children}
       </div>
-      {surface === null ? null : (
-        <DialogPrimitive.Root open onOpenChange={(open) => !open && closeDialog()}>
-          <DialogPrimitive.Portal container={portalContainer ?? undefined}>
-            <DialogPrimitive.Overlay
-              className={styles["blocking-dialog__backdrop"]}
-              data-system-dialog-backdrop={surface}
-              style={{ position }}
-              onClick={closeDialog}
-            />
-            <DialogPrimitive.Content
-              ref={setFocusScope}
-              className={styles["blocking-dialog__content"]}
-              data-blocking-focus-scope="system"
-              data-system-surface={surface}
-              {...(surface === "saves" && standardSaves !== undefined
-                ? { "aria-label": standardSaves.labels.accessibleName }
-                : surface === "saves" && customSaves !== undefined
+      {surface === null
+        ? null
+        : (
+          <DialogPrimitive.Root open onOpenChange={(open) => !open && closeDialog()}>
+            <DialogPrimitive.Portal container={portalContainer ?? undefined}>
+              <DialogPrimitive.Overlay
+                className={styles["blocking-dialog__backdrop"]}
+                data-system-dialog-backdrop={surface}
+                style={{ position }}
+                onClick={closeDialog}
+              />
+              <DialogPrimitive.Content
+                ref={setFocusScope}
+                className={styles["blocking-dialog__content"]}
+                data-blocking-focus-scope="system"
+                data-system-surface={surface}
+                {...(surface === "saves" && standardSaves !== undefined
+                  ? { "aria-label": standardSaves.labels.accessibleName }
+                  : surface === "saves" && customSaves !== undefined
                   ? { "aria-label": customSaves.accessibleName }
                   : {})}
-              aria-describedby={undefined}
-              style={{ position }}
-              onEscapeKeyDown={(event) => {
-                if (isDevDockEscapeOwnerTargetV1(event.target)) event.preventDefault();
-              }}
-              onPointerDownOutside={(event) => event.preventDefault()}
-            >
-              {surface === "settings" ? (
-                <SettingsDialogContentV1 {...props.settings} />
-              ) : customSaves !== undefined ? (
-                <SystemDialogCustomSavesContentV1
-                  saves={customSaves}
-                  intents={customSavesIntents}
-                />
-              ) : standardSaves === undefined ? null : (
-                <SaveOverlayV1
-                  port={standardSaves.port}
-                  labels={standardSaves.labels}
-                  inputRouter={props.inputRouter}
-                  {...(standardSaves.guard === undefined ? {} : { guard: standardSaves.guard })}
-                  onClose={closeDialog}
-                  closeLabel={props.settings.closeLabel}
-                />
-              )}
-            </DialogPrimitive.Content>
-          </DialogPrimitive.Portal>
-        </DialogPrimitive.Root>
-      )}
+                aria-describedby={undefined}
+                style={{ position }}
+                onEscapeKeyDown={(event) => {
+                  if (isDevDockEscapeOwnerTargetV1(event.target)) event.preventDefault();
+                }}
+                onPointerDownOutside={(event) => event.preventDefault()}
+              >
+                {surface === "settings"
+                  ? <SettingsDialogContentV1 {...props.settings} />
+                  : customSaves !== undefined
+                  ? (
+                    <SystemDialogCustomSavesContentV1
+                      saves={customSaves}
+                      intents={customSavesIntents}
+                    />
+                  )
+                  : standardSaves === undefined
+                  ? null
+                  : (
+                    <SaveOverlayV1
+                      port={standardSaves.port}
+                      labels={standardSaves.labels}
+                      inputRouter={props.inputRouter}
+                      {...(standardSaves.guard === undefined ? {} : { guard: standardSaves.guard })}
+                      onClose={closeDialog}
+                      closeLabel={props.settings.closeLabel}
+                    />
+                  )}
+              </DialogPrimitive.Content>
+            </DialogPrimitive.Portal>
+          </DialogPrimitive.Root>
+        )}
     </SystemDialogContextV1.Provider>
   );
 }

@@ -155,8 +155,8 @@ export function SessionMaintenancePanelV1(props: SessionMaintenancePanelPropsV1)
                       code === "incompatible"
                         ? labels.importIncompatibleText
                         : code === "invalid_record"
-                          ? labels.importInvalidText
-                          : `${result.kind}${code === null ? "" : ` (${code})`}`,
+                        ? labels.importInvalidText
+                        : `${result.kind}${code === null ? "" : ` (${code})`}`,
                     );
                   }
                 })
@@ -191,15 +191,17 @@ export function SessionMaintenancePanelV1(props: SessionMaintenancePanelPropsV1)
             {busy === "wipe"
               ? `${labels.wipeLabel}${labels.busySuffix}`
               : wipeArmed
-                ? labels.wipeConfirmLabel
-                : labels.wipeLabel}
+              ? labels.wipeConfirmLabel
+              : labels.wipeLabel}
           </Button>
         )}
-        {wipeArmed ? (
-          <Button data-session-maintenance-action="wipe_cancel" onClick={disarm}>
-            {labels.wipeCancelLabel}
-          </Button>
-        ) : null}
+        {wipeArmed
+          ? (
+            <Button data-session-maintenance-action="wipe_cancel" onClick={disarm}>
+              {labels.wipeCancelLabel}
+            </Button>
+          )
+          : null}
       </div>
       {note === null ? null : (
         <div

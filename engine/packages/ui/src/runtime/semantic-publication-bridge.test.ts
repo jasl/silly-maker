@@ -34,8 +34,7 @@ function createPublicationV1(
 ): TestPublicationV1 {
   const game = references?.game ?? Object.freeze({ count: revision });
   const narrative = references?.narrative ?? Object.freeze({ nodeId: `node.${revision}` });
-  const actions =
-    references?.actions ??
+  const actions = references?.actions ??
     Object.freeze([Object.freeze({ actionId: "action.test.increment" as const, enabled: true })]);
   return Object.freeze({
     revision: parseNonNegativeSafeInteger(revision),

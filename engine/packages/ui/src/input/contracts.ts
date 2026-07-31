@@ -3,7 +3,12 @@ import { parseModuleId } from "@sillymaker/base";
 import type { Brand, DeepReadonly, NonNegativeSafeInteger } from "@sillymaker/base";
 
 export type InputContextIdV1 =
-  "gameplay" | "interaction" | "narrative" | "overlay" | "system" | "debug";
+  | "gameplay"
+  | "interaction"
+  | "narrative"
+  | "overlay"
+  | "system"
+  | "debug";
 
 export type InputActionIdV1 = Brand<string, "InputActionIdV1">;
 
@@ -44,12 +49,12 @@ export interface ViewportPointV1 {
 export type InputEventV1 =
   | { readonly kind: "action"; readonly actionId: InputActionIdV1 }
   | {
-      readonly kind: "viewport_point";
-      readonly phase: "begin" | "activate";
-      readonly point: ViewportPointV1;
-      readonly pointerId: NonNegativeSafeInteger;
-      readonly pointerType: "mouse" | "touch" | "pen";
-    }
+    readonly kind: "viewport_point";
+    readonly phase: "begin" | "activate";
+    readonly point: ViewportPointV1;
+    readonly pointerId: NonNegativeSafeInteger;
+    readonly pointerType: "mouse" | "touch" | "pen";
+  }
   | { readonly kind: "pointer_cancel"; readonly pointerId: NonNegativeSafeInteger }
   | { readonly kind: "focus_loss" };
 
@@ -59,7 +64,8 @@ export const inputHandledV1 = Object.freeze({ kind: "handled" as const });
 export const inputIgnoredV1 = Object.freeze({ kind: "ignored" as const });
 
 export type InputRouteResultV1 =
-  { readonly kind: "handled"; readonly context: InputContextIdV1 } | { readonly kind: "ignored" };
+  | { readonly kind: "handled"; readonly context: InputContextIdV1 }
+  | { readonly kind: "ignored" };
 
 export interface InputRouterV1 {
   register(registration: {

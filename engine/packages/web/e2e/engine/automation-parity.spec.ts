@@ -36,7 +36,8 @@ const forbiddenPlayerResultKeysV1 = Object.freeze([
 async function observeV1(page: Page): Promise<LabPublicationV1> {
   const operation = await page.evaluate((key) => {
     const facade = Reflect.get(globalThis, key) as
-      { observe(): { kind: string; value?: unknown } } | undefined;
+      | { observe(): { kind: string; value?: unknown } }
+      | undefined;
     return facade?.observe() ?? { kind: "capability_disabled" };
   }, automationKeyV1);
   expect(operation.kind).toBe("ok");
@@ -46,8 +47,9 @@ async function observeV1(page: Page): Promise<LabPublicationV1> {
 async function dispatchV1(page: Page, actionId: string): Promise<AutomationOperationV1<unknown>> {
   const operation = await page.evaluate(
     async ({ key, invocation }) => {
-      const facade = Reflect.get(globalThis, key) as
-        { dispatch(value: unknown): Promise<{ kind: string; value?: unknown }> } | undefined;
+      const facade = Reflect.get(globalThis, key) as {
+        dispatch(value: unknown): Promise<{ kind: string; value?: unknown }>;
+      } | undefined;
       return (await facade?.dispatch(invocation)) ?? { kind: "capability_disabled" };
     },
     { key: automationKeyV1, invocation: { kind: "invoke", actionId } },

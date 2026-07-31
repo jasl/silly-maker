@@ -75,11 +75,9 @@ function fixtureV1(input?: {
   readonly importResult?: PersistenceOperationResultV1;
 }) {
   const selection = input?.selection ?? Object.freeze({ kind: "cancelled" as const });
-  const exportSaveResult =
-    input?.exportSaveResult ??
+  const exportSaveResult = input?.exportSaveResult ??
     Object.freeze({ kind: "exported" as const, slotId: "quick" as const, file: exportedSaveV1() });
-  const importResult =
-    input?.importResult ??
+  const importResult = input?.importResult ??
     Object.freeze({ kind: "rejected" as const, code: "incompatible" as const });
   const files = Object.freeze({
     selectOne: vi.fn(async () => selection),
@@ -89,16 +87,16 @@ function fixtureV1(input?: {
     getStatus: vi.fn(async () => readyStatusV1),
     listSlots: vi.fn(async () => Object.freeze([])),
     save: vi.fn(async (slotId: "quick" | `manual.${number}`) =>
-      Object.freeze({ kind: "saved" as const, slotId }),
+      Object.freeze({ kind: "saved" as const, slotId })
     ),
     load: vi.fn(async () =>
-      Object.freeze({ kind: "rejected" as const, code: "empty_slot" as const }),
+      Object.freeze({ kind: "rejected" as const, code: "empty_slot" as const })
     ),
     clear: vi.fn(async (slotId: "auto.current" | "auto.previous" | "quick" | `manual.${number}`) =>
-      Object.freeze({ kind: "cleared" as const, slotId }),
+      Object.freeze({ kind: "cleared" as const, slotId })
     ),
     annotateSave: vi.fn(async (slotId: "quick" | `manual.${number}`, _note: string) =>
-      Object.freeze({ kind: "saved" as const, slotId }),
+      Object.freeze({ kind: "saved" as const, slotId })
     ),
     importSave: vi.fn(async (_bytes: Uint8Array) => importResult),
     exportSave: vi.fn(async () => exportSaveResult),

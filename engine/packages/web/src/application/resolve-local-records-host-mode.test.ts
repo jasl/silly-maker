@@ -6,13 +6,15 @@ import { resolveLocalRecordsHostModeV1 } from "./resolve-local-records-host-mode
 describe("local records Host mode", () => {
   const capabilityV1 = "a".repeat(43);
 
-  it.each([
-    ["", undefined, undefined, false, false, null],
-    ["?records=local", undefined, undefined, false, true, null],
-    ["?records=local", "other", capabilityV1, false, true, null],
-    ["", "local", capabilityV1, true, true, capabilityV1],
-    ["?records=remote", "local", capabilityV1, true, true, capabilityV1],
-  ] as const)(
+  it.each(
+    [
+      ["", undefined, undefined, false, false, null],
+      ["?records=local", undefined, undefined, false, true, null],
+      ["?records=local", "other", capabilityV1, false, true, null],
+      ["", "local", capabilityV1, true, true, capabilityV1],
+      ["?records=remote", "local", capabilityV1, true, true, capabilityV1],
+    ] as const,
+  )(
     "separates search %j, marker %j, and capability %j",
     (
       search,

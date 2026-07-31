@@ -47,28 +47,28 @@ interface ContentPreferenceRecordV1 {
 
 type ContentPreferenceWarningV1 =
   | {
-      readonly code: "content_preference.record_invalid";
-      readonly storyId: StoryId;
-      readonly reason: "non_canonical" | "shape" | "contract_revision" | "mask";
-    }
+    readonly code: "content_preference.record_invalid";
+    readonly storyId: StoryId;
+    readonly reason: "non_canonical" | "shape" | "contract_revision" | "mask";
+  }
   | {
-      readonly code: "content_preference.story_mismatch";
-      readonly storyId: StoryId;
-      readonly storedStoryId: string;
-    }
+    readonly code: "content_preference.story_mismatch";
+    readonly storyId: StoryId;
+    readonly storedStoryId: string;
+  }
   | {
-      readonly code: "content_preference.policy_mismatch";
-      readonly storyId: StoryId;
-      readonly storedPolicyRevision: PositiveSafeInteger;
-      readonly activePolicyRevision: PositiveSafeInteger;
-      readonly storedAllowedFlags: ContentMaturityFlagsV1;
-    }
+    readonly code: "content_preference.policy_mismatch";
+    readonly storyId: StoryId;
+    readonly storedPolicyRevision: PositiveSafeInteger;
+    readonly activePolicyRevision: PositiveSafeInteger;
+    readonly storedAllowedFlags: ContentMaturityFlagsV1;
+  }
   | {
-      readonly code: "content_preference.unknown_flags";
-      readonly storyId: StoryId;
-      readonly storedAllowedFlags: ContentMaturityFlagsV1;
-      readonly unknownFlags: ContentMaturityFlagsV1;
-    }
+    readonly code: "content_preference.unknown_flags";
+    readonly storyId: StoryId;
+    readonly storedAllowedFlags: ContentMaturityFlagsV1;
+    readonly unknownFlags: ContentMaturityFlagsV1;
+  }
   | { readonly code: "content_preference.subscriber_failed"; readonly storyId: StoryId };
 
 interface CreateWebContentPreferencePortInputV1 {
@@ -260,12 +260,14 @@ export async function createWebContentPreferencePortV1(
       });
     }
 
-    const bytes = canonicalJsonBytes({
-      contractRevision: contentPreferenceRecordRevisionV1,
-      storyId: input.storyId,
-      policyRevision: input.policy.policyRevision,
-      allowedFlags: parsed.preference.allowedFlags,
-    } satisfies ContentPreferenceRecordV1);
+    const bytes = canonicalJsonBytes(
+      {
+        contractRevision: contentPreferenceRecordRevisionV1,
+        storyId: input.storyId,
+        policyRevision: input.policy.policyRevision,
+        allowedFlags: parsed.preference.allowedFlags,
+      } satisfies ContentPreferenceRecordV1,
+    );
     const commitAt = (expectedRevision: HostRecordRevisionV1 | null) =>
       input.records.commit([
         Object.freeze({
@@ -284,15 +286,14 @@ export async function createWebContentPreferencePortV1(
         result = await commitAt(latest?.revision ?? null);
       }
       if (result.kind !== "committed") return storageFailureV1();
-      const committed =
-        result.records.length === 1
-          ? result.records.find(
-              (record) =>
-                record.namespace === "settings" &&
-                record.key === key &&
-                bytesEqualV1(record.bytes, bytes),
-            )
-          : undefined;
+      const committed = result.records.length === 1
+        ? result.records.find(
+          (record) =>
+            record.namespace === "settings" &&
+            record.key === key &&
+            bytesEqualV1(record.bytes, bytes),
+        )
+        : undefined;
       if (committed === undefined) return storageFailureV1();
 
       currentRevision = committed.revision;

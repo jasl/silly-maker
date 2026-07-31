@@ -37,8 +37,9 @@ function putV1(
     kind: "put",
     namespace,
     key: keyV1(key),
-    expectedRevision:
-      expectedRevision === null ? null : parseNonNegativeSafeInteger(expectedRevision),
+    expectedRevision: expectedRevision === null
+      ? null
+      : parseNonNegativeSafeInteger(expectedRevision),
     bytes: typeof value === "string" ? bytesV1(value) : value,
   });
 }
@@ -207,10 +208,12 @@ describe("IndexedDB atomic record store", () => {
     expect([...(await store.read("settings", keyV1("bytes")))!.bytes]).toEqual([1, 2, 3]);
   });
 
-  it.each([
-    ["memory", createMemoryHostRecordStoreV1()],
-    ["indexeddb", createTestStoreV1()],
-  ] as const)("matches the Host record-key ABI for empty branded keys in %s", async (_, store) => {
+  it.each(
+    [
+      ["memory", createMemoryHostRecordStoreV1()],
+      ["indexeddb", createTestStoreV1()],
+    ] as const,
+  )("matches the Host record-key ABI for empty branded keys in %s", async (_, store) => {
     const result = await store.commit([putV1("settings", "", null, "empty-key")]);
 
     expect(result).toMatchObject({

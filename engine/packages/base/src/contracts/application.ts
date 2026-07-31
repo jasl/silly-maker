@@ -39,14 +39,14 @@ export interface RuntimeCapabilitiesV1 {
 
 export type RuntimeCapabilityOperationResultV1 =
   | {
-      readonly kind: "updated" | "unchanged";
-      readonly state: DeepReadonly<RuntimeCapabilitiesV1>;
-    }
+    readonly kind: "updated" | "unchanged";
+    readonly state: DeepReadonly<RuntimeCapabilitiesV1>;
+  }
   | {
-      readonly kind: "rejected";
-      readonly code: "conflict" | "unavailable";
-      readonly state: DeepReadonly<RuntimeCapabilitiesV1>;
-    };
+    readonly kind: "rejected";
+    readonly code: "conflict" | "unavailable";
+    readonly state: DeepReadonly<RuntimeCapabilitiesV1>;
+  };
 
 export interface RuntimeCapabilityPortV1 {
   readonly state: ReadonlyViewSourceV1<RuntimeCapabilitiesV1>;
@@ -56,8 +56,9 @@ export interface RuntimeCapabilityPortV1 {
   ): Promise<RuntimeCapabilityOperationResultV1>;
 }
 
-export type DebugToolsOperationResultV1<TAllowedResult> =
-  TAllowedResult | { readonly kind: "capability_disabled" };
+export type DebugToolsOperationResultV1<TAllowedResult> = TAllowedResult | {
+  readonly kind: "capability_disabled";
+};
 
 export type DebugFixtureListResultV1<TFixtureId> = DebugToolsOperationResultV1<{
   readonly kind: "listed";

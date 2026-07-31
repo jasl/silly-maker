@@ -31,46 +31,49 @@ import { PresentationDataError, readExactRecord } from "./presentation-data.ts";
  */
 export type StageMutationV1 =
   | {
-      readonly kind: "show";
-      readonly layerId: StageLayerIdV1;
-      readonly tag: StageTagV1;
-      readonly contentId: StageContentIdV1;
-      readonly zOrder?: number;
-      readonly placement?: StagePlacementV1;
-      readonly appearance?: StageAppearanceV1;
-    }
+    readonly kind: "show";
+    readonly layerId: StageLayerIdV1;
+    readonly tag: StageTagV1;
+    readonly contentId: StageContentIdV1;
+    readonly zOrder?: number;
+    readonly placement?: StagePlacementV1;
+    readonly appearance?: StageAppearanceV1;
+  }
   | {
-      readonly kind: "replace";
-      readonly layerId: StageLayerIdV1;
-      readonly tag: StageTagV1;
-      readonly contentId: StageContentIdV1;
-      readonly placement?: StagePlacementV1;
-      readonly appearance?: StageAppearanceV1;
-    }
+    readonly kind: "replace";
+    readonly layerId: StageLayerIdV1;
+    readonly tag: StageTagV1;
+    readonly contentId: StageContentIdV1;
+    readonly placement?: StagePlacementV1;
+    readonly appearance?: StageAppearanceV1;
+  }
   | { readonly kind: "hide"; readonly layerId: StageLayerIdV1; readonly tag: StageTagV1 }
   | { readonly kind: "clearLayer"; readonly layerId: StageLayerIdV1 }
   | { readonly kind: "clearStage" }
   | {
-      readonly kind: "setPlacement";
-      readonly layerId: StageLayerIdV1;
-      readonly tag: StageTagV1;
-      readonly placement: StagePlacementV1;
-    }
+    readonly kind: "setPlacement";
+    readonly layerId: StageLayerIdV1;
+    readonly tag: StageTagV1;
+    readonly placement: StagePlacementV1;
+  }
   | {
-      readonly kind: "setAppearance";
-      readonly layerId: StageLayerIdV1;
-      readonly tag: StageTagV1;
-      readonly appearance: StageAppearanceV1;
-    }
+    readonly kind: "setAppearance";
+    readonly layerId: StageLayerIdV1;
+    readonly tag: StageTagV1;
+    readonly appearance: StageAppearanceV1;
+  }
   | {
-      readonly kind: "setLayerTransform";
-      readonly layerId: StageLayerIdV1;
-      readonly transform: StageLayerTransformV1;
-    }
+    readonly kind: "setLayerTransform";
+    readonly layerId: StageLayerIdV1;
+    readonly transform: StageLayerTransformV1;
+  }
   | { readonly kind: "setCamera"; readonly camera: StageCameraV1 };
 
 export type StageMutationRejectionCodeV1 =
-  "stage.mutation_invalid" | "stage.layer_unknown" | "stage.tag_exists" | "stage.tag_unknown";
+  | "stage.mutation_invalid"
+  | "stage.layer_unknown"
+  | "stage.tag_exists"
+  | "stage.tag_unknown";
 
 export interface StageMutationRejectionV1 {
   readonly code: StageMutationRejectionCodeV1;
@@ -104,12 +107,11 @@ function readMutationRecordV1(value: unknown, path: string): Record<string, unkn
   if (expected === undefined) {
     throw new PresentationDataError(`${path}/kind`, "stage_mutation_kind_unknown");
   }
-  const optionalKeys =
-    kind === "show"
-      ? ["zOrder", "placement", "appearance"]
-      : kind === "replace"
-        ? ["placement", "appearance"]
-        : [];
+  const optionalKeys = kind === "show"
+    ? ["zOrder", "placement", "appearance"]
+    : kind === "replace"
+    ? ["placement", "appearance"]
+    : [];
   const presentKeys = expected.filter(
     (key) => !optionalKeys.includes(key) || Reflect.get(value, key) !== undefined,
   );

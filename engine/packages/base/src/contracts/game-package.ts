@@ -13,8 +13,8 @@ export interface PatchSurfaceValueMapWitnessV1<TValues> {
   readonly [patchSurfaceValuesV1]?: (values: TValues) => TValues;
 }
 
-export type ResolvedPatchValuesV1<TSurface> =
-  TSurface extends PatchSurfaceValueMapWitnessV1<infer TValues> ? TValues : never;
+export type ResolvedPatchValuesV1<TSurface> = TSurface extends
+  PatchSurfaceValueMapWitnessV1<infer TValues> ? TValues : never;
 
 export interface StateContractSchemaManifestV1 {
   readonly schemaId: string;

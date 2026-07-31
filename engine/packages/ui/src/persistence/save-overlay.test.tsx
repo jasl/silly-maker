@@ -27,13 +27,15 @@ import {
 
 afterEach(cleanup);
 
-const slotIdsV1 = Object.freeze([
-  "auto.current",
-  "auto.previous",
-  "quick",
-  "manual.1",
-  "manual.2",
-] as const satisfies readonly SaveSlotIdV1[]);
+const slotIdsV1 = Object.freeze(
+  [
+    "auto.current",
+    "auto.previous",
+    "quick",
+    "manual.1",
+    "manual.2",
+  ] as const satisfies readonly SaveSlotIdV1[],
+);
 
 const exportedSaveV1 = Object.freeze({
   filename: "tavern-save.json",
@@ -159,13 +161,12 @@ interface FixtureOptionsV1 {
 }
 
 function fixtureV1(options: FixtureOptionsV1 = {}) {
-  const slots =
-    options.slots ??
+  const slots = options.slots ??
     slotIdsV1.map((slotId) => slotV1(slotId, slotId === "quick" ? "valid" : "empty"));
   const getStatus = vi.fn(() => options.status ?? statusV1());
   const listSlots = vi.fn(async () => slots);
   const save = vi.fn(async (slotId: SaveUiWritableSlotIdV1) =>
-    Promise.resolve(options.saveResult ?? Object.freeze({ kind: "saved" as const, slotId })),
+    Promise.resolve(options.saveResult ?? Object.freeze({ kind: "saved" as const, slotId }))
   );
   const load = vi.fn(async (_slotId: SaveSlotIdV1) =>
     Promise.resolve(
@@ -175,10 +176,10 @@ function fixtureV1(options: FixtureOptionsV1 = {}) {
           compatibility: "exact" as const,
           commandSequence: parseNonNegativeSafeInteger(0),
         }),
-    ),
+    )
   );
   const clear = vi.fn(async (slotId: SaveSlotIdV1) =>
-    Promise.resolve(options.clearResult ?? Object.freeze({ kind: "cleared" as const, slotId })),
+    Promise.resolve(options.clearResult ?? Object.freeze({ kind: "cleared" as const, slotId }))
   );
   const importSave = vi.fn(async () =>
     Promise.resolve(
@@ -188,17 +189,17 @@ function fixtureV1(options: FixtureOptionsV1 = {}) {
           compatibility: "exact" as const,
           commandSequence: parseNonNegativeSafeInteger(0),
         }),
-    ),
+    )
   );
   const exportSave = vi.fn(async (slotId: SaveSlotIdV1) =>
     Promise.resolve(
       options.exportResult ??
         Object.freeze({ kind: "exported" as const, slotId, file: exportedSaveV1 }),
-    ),
+    )
   );
   const exportCurrentSave = vi.fn(async () => exportedSaveV1);
   const annotateSave = vi.fn(async (slotId: SaveUiWritableSlotIdV1, _note: string) =>
-    Promise.resolve(Object.freeze({ kind: "saved" as const, slotId })),
+    Promise.resolve(Object.freeze({ kind: "saved" as const, slotId }))
   );
   const port = Object.freeze({
     getStatus,
@@ -372,10 +373,12 @@ describe("SaveOverlayV1", () => {
     expect(screen.queryByText("存档操作发生未预期错误")).not.toBeInTheDocument();
   });
 
-  it.each([
-    ["too_large", "所选存档文件过大"],
-    ["unsupported_type", "所选文件类型不受支持"],
-  ] as const)("projects Host file rejection %s independently", async (code, expectedText) => {
+  it.each(
+    [
+      ["too_large", "所选存档文件过大"],
+      ["unsupported_type", "所选文件类型不受支持"],
+    ] as const,
+  )("projects Host file rejection %s independently", async (code, expectedText) => {
     const fixture = fixtureV1({
       importResult: Object.freeze({ kind: "rejected", code }),
     });

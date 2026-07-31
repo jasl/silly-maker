@@ -4,14 +4,16 @@ import { useEffect, useId, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Button } from "../primitives/button.tsx";
 
-export const diagnosticExportContentCategoryIdsV1 = Object.freeze([
-  "provenance",
-  "capabilities_and_integrity",
-  "replay_evidence",
-  "diagnostics_and_runtime_failures",
-  "failure_context",
-  "ui_context",
-] as const);
+export const diagnosticExportContentCategoryIdsV1 = Object.freeze(
+  [
+    "provenance",
+    "capabilities_and_integrity",
+    "replay_evidence",
+    "diagnostics_and_runtime_failures",
+    "failure_context",
+    "ui_context",
+  ] as const,
+);
 
 export type DiagnosticExportContentCategoryIdV1 =
   (typeof diagnosticExportContentCategoryIdsV1)[number];
@@ -55,14 +57,14 @@ type DiagnosticExportStateV1 =
   | { readonly kind: "saving"; readonly preview: DiagnosticExportPreviewV1 }
   | { readonly kind: "completed" }
   | {
-      readonly kind: "prepare_failed";
-      readonly code: "ui.event_handler_failed";
-    }
+    readonly kind: "prepare_failed";
+    readonly code: "ui.event_handler_failed";
+  }
   | {
-      readonly kind: "save_failed";
-      readonly code: "ui.event_handler_failed";
-      readonly preview: DiagnosticExportPreviewV1;
-    };
+    readonly kind: "save_failed";
+    readonly code: "ui.event_handler_failed";
+    readonly preview: DiagnosticExportPreviewV1;
+  };
 
 const idleStateV1 = Object.freeze({ kind: "idle" as const });
 const preparingStateV1 = Object.freeze({ kind: "preparing" as const });
@@ -230,42 +232,44 @@ export function DiagnosticExportButtonV1(props: DiagnosticExportButtonPropsV1): 
       >
         {props.label}
       </Button>
-      {preview === null ? null : (
-        <section aria-label={props.reviewTitle} data-diagnostic-export-review="true">
-          <dl>
-            <div>
-              <dt>{props.filenameLabel}</dt>
-              <dd>{preview.filename}</dd>
-            </div>
-            <div>
-              <dt>{props.digestLabel}</dt>
-              <dd>
-                <code>{preview.digest}</code>
-              </dd>
-            </div>
-            <div>
-              <dt>{props.encodedByteLengthLabel}</dt>
-              <dd>{preview.encodedByteLength} B</dd>
-            </div>
-          </dl>
-          <p>{props.categoriesLabel}</p>
-          <ul aria-label={props.categoriesLabel}>
-            {preview.categories.map((categoryId) => (
-              <li key={categoryId}>{props.categoryLabels[categoryId]}</li>
-            ))}
-          </ul>
-          <Button
-            aria-busy={saving}
-            disabled={saving}
-            onClick={() => void saveDiagnostics(preview)}
-          >
-            {props.saveLabel}
-          </Button>
-          <Button disabled={saving} onClick={cancelDiagnostics}>
-            {props.cancelLabel}
-          </Button>
-        </section>
-      )}
+      {preview === null
+        ? null
+        : (
+          <section aria-label={props.reviewTitle} data-diagnostic-export-review="true">
+            <dl>
+              <div>
+                <dt>{props.filenameLabel}</dt>
+                <dd>{preview.filename}</dd>
+              </div>
+              <div>
+                <dt>{props.digestLabel}</dt>
+                <dd>
+                  <code>{preview.digest}</code>
+                </dd>
+              </div>
+              <div>
+                <dt>{props.encodedByteLengthLabel}</dt>
+                <dd>{preview.encodedByteLength} B</dd>
+              </div>
+            </dl>
+            <p>{props.categoriesLabel}</p>
+            <ul aria-label={props.categoriesLabel}>
+              {preview.categories.map((categoryId) => (
+                <li key={categoryId}>{props.categoryLabels[categoryId]}</li>
+              ))}
+            </ul>
+            <Button
+              aria-busy={saving}
+              disabled={saving}
+              onClick={() => void saveDiagnostics(preview)}
+            >
+              {props.saveLabel}
+            </Button>
+            <Button disabled={saving} onClick={cancelDiagnostics}>
+              {props.cancelLabel}
+            </Button>
+          </section>
+        )}
       <span
         id={statusId}
         role="status"

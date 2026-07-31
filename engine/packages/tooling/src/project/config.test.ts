@@ -96,7 +96,7 @@ describe("defineSillymakerProjectV1", () => {
         defineSillymakerProjectV1({
           projectId: "project-test",
           applications: [headlessApplicationV1("beta"), headlessApplicationV1("beta")],
-        }),
+        })
       ),
     ).toMatchObject([{ code: "project.application_duplicate" }]);
   });
@@ -108,7 +108,7 @@ describe("defineSillymakerProjectV1", () => {
     };
     expect(
       diagnosticsOf(() =>
-        defineSillymakerProjectV1({ projectId: "project-test", applications: [application] }),
+        defineSillymakerProjectV1({ projectId: "project-test", applications: [application] })
       ),
     ).toMatchObject([{ code: "project.config_invalid" }]);
   });
@@ -164,7 +164,7 @@ describe("application and workspace config validation", () => {
         defineSillymakerAppV1({
           ...desktopApp,
           web: { ...desktopApp.web, desktop: { ...desktopApp.web.desktop, name: "../Outside" } },
-        }),
+        })
       ),
     ).toMatchObject([{ code: "project.config_invalid" }]);
     expect(
@@ -177,7 +177,7 @@ describe("application and workspace config validation", () => {
             // diagnostic artifact suffixes are appended.
             desktop: { ...desktopApp.web.desktop, name: "😀".repeat(31) },
           },
-        }),
+        })
       ),
     ).toMatchObject([{ code: "project.config_invalid" }]);
     expect(
@@ -188,7 +188,7 @@ describe("application and workspace config validation", () => {
             ...desktopApp.web,
             desktop: { ...desktopApp.web.desktop, identifier: "Dev.Sillymaker.Synthetic" },
           },
-        }),
+        })
       ),
     ).toMatchObject([{ code: "project.config_invalid" }]);
     expect(
@@ -196,7 +196,7 @@ describe("application and workspace config validation", () => {
         defineSillymakerAppV1({
           ...desktopApp,
           web: { ...desktopApp.web, desktop: { ...desktopApp.web.desktop, name: "CON" } },
-        }),
+        })
       ),
     ).toMatchObject([{ code: "project.config_invalid" }]);
     expect(
@@ -207,7 +207,7 @@ describe("application and workspace config validation", () => {
             ...desktopApp.web,
             desktop: { ...desktopApp.web.desktop, icon: "assets/icon.webp" },
           },
-        }),
+        })
       ),
     ).toMatchObject([{ code: "project.config_invalid" }]);
   });
@@ -229,7 +229,7 @@ describe("application and workspace config validation", () => {
         defineSillymakerWorkspaceV1({
           projectId: "project-test",
           appDirectories: ["examples/alpha", "../outside"],
-        }),
+        })
       ),
     ).toMatchObject([{ code: "project.config_invalid" }]);
 
@@ -238,7 +238,7 @@ describe("application and workspace config validation", () => {
         defineSillymakerWorkspaceV1({
           projectId: "project-test",
           appDirectories: ["examples/alpha", "examples/alpha"],
-        }),
+        })
       ),
     ).toMatchObject([{ code: "project.application_directory_duplicate" }]);
 
@@ -247,7 +247,7 @@ describe("application and workspace config validation", () => {
         defineSillymakerWorkspaceV1({
           projectId: "project-test",
           appDirectories: ["examples/App", "examples/app"],
-        }),
+        })
       ),
     ).toMatchObject([{ code: "project.application_directory_duplicate" }]);
 
@@ -256,7 +256,7 @@ describe("application and workspace config validation", () => {
         defineSillymakerWorkspaceV1({
           projectId: "project-test",
           appDirectories: ["examples/caf\u00e9", "examples/cafe\u0301"],
-        }),
+        })
       ),
     ).toMatchObject([{ code: "project.application_directory_duplicate" }]);
 
@@ -279,7 +279,7 @@ describe("application and workspace config validation", () => {
         defineSillymakerWorkspaceV1({
           projectId: "project-test",
           appDirectories: [first, alias],
-        }),
+        })
       ),
     ).toMatchObject([{ code: "project.application_directory_duplicate" }]);
   });
@@ -312,7 +312,7 @@ describe("application and workspace config validation", () => {
           defineSillymakerWorkspaceV1({
             projectId: "project-test",
             appDirectories: [directory],
-          }),
+          })
         ),
         directory,
       ).toMatchObject([{ code: "project.config_invalid" }]);
@@ -341,7 +341,7 @@ describe("application and workspace config validation", () => {
         defineSillymakerAppV1({
           ...app,
           web: { ...app.web, outDir: "C:/outside" },
-        }),
+        })
       ),
     ).toMatchObject([{ code: "project.config_invalid" }]);
     expect(
@@ -349,7 +349,7 @@ describe("application and workspace config validation", () => {
         defineSillymakerAppV1({
           ...app,
           web: { ...app.web, outDir: "dist:alternate" },
-        }),
+        })
       ),
     ).toMatchObject([{ code: "project.config_invalid" }]);
     expect(
@@ -357,7 +357,7 @@ describe("application and workspace config validation", () => {
         defineSillymakerAppV1({
           ...app,
           web: { ...app.web, applicationEntry: String.raw`src\application\entry.tsx` },
-        }),
+        })
       ),
     ).toMatchObject([{ code: "project.config_invalid" }]);
     expect(
@@ -365,7 +365,7 @@ describe("application and workspace config validation", () => {
         defineSillymakerAppV1({
           ...app,
           storyEntry: { ...app.storyEntry, module: "/outside/story.ts" },
-        }),
+        })
       ),
     ).toMatchObject([{ code: "project.config_invalid" }]);
   });
@@ -393,7 +393,7 @@ describe("application and workspace config validation", () => {
           defineSillymakerAppV1({
             ...desktopApp,
             web: { ...desktopApp.web, desktop: { ...desktopApp.web.desktop, name } },
-          }),
+          })
         ),
         name,
       ).toMatchObject([{ code: "project.config_invalid" }]);

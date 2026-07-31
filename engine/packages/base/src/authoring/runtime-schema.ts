@@ -119,13 +119,13 @@ export type StandardSchemaOutputV1<TSchema> = TSchema extends {
   readonly "~standard": {
     readonly types?: { readonly output: infer TOutput } | undefined;
   };
-}
-  ? TOutput
+} ? TOutput
   : never;
 
 function pointerSegmentV1(segment: PropertyKey | { readonly key: PropertyKey }): string {
-  const key =
-    typeof segment === "object" && segment !== null && "key" in segment ? segment.key : segment;
+  const key = typeof segment === "object" && segment !== null && "key" in segment
+    ? segment.key
+    : segment;
   return String(key).replaceAll("~", "~0").replaceAll("/", "~1");
 }
 
@@ -156,7 +156,8 @@ export function fromStandardSchemaV1<TSchema extends StandardSchemaLikeV1<unknow
             code: "authoring.schema.async_unsupported",
             severity: "error" as const,
             phase: "definition" as const,
-            message: `${standard.vendor} schema validated asynchronously; runtime schemas must be synchronous`,
+            message:
+              `${standard.vendor} schema validated asynchronously; runtime schemas must be synchronous`,
             ...(options?.subject === undefined ? {} : { subject: options.subject }),
             details: Object.freeze({ vendor: standard.vendor }),
           }),

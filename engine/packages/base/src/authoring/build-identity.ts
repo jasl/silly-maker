@@ -5,7 +5,10 @@ import { parseDigest } from "../contracts/values.ts";
 import { deepFreezeAuthoringValueV1 } from "./define-gameplay-module.ts";
 
 export type BuildIdentityFacetV1 =
-  "engine" | "story_simulation" | "story_presentation" | "application";
+  | "engine"
+  | "story_simulation"
+  | "story_presentation"
+  | "application";
 
 export interface ImportClosureRecordV1 {
   readonly path: string;

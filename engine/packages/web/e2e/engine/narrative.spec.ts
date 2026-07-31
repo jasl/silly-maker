@@ -74,9 +74,7 @@ test.describe("engine pending interactions", () => {
     await expect(page.locator('[data-stage-key="layer.e2e.props:tag.e2e.beacon"]')).toHaveCount(0);
   });
 
-  test("save, refresh, and load restore the same interaction and stage target", async ({
-    page,
-  }) => {
+  test("save, refresh, and load restore the same interaction and stage target", async ({ page }) => {
     await gotoLabV1(page);
 
     // Reach the choice — a stable interaction boundary — and save there.

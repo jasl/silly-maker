@@ -61,7 +61,7 @@ describe("SessionMaintenancePanelV1", () => {
     await waitFor(() =>
       expect(document.querySelector("[data-session-maintenance-note]")?.textContent).toBe(
         "State exported as JSON.",
-      ),
+      )
     );
     expect(port.exportCurrentSave).toHaveBeenCalledTimes(1);
 
@@ -69,7 +69,7 @@ describe("SessionMaintenancePanelV1", () => {
     await waitFor(() =>
       expect(document.querySelector("[data-session-maintenance-note]")?.textContent).toBe(
         "State imported.",
-      ),
+      )
     );
     expect(port.importSave).toHaveBeenCalledTimes(1);
   });
@@ -86,14 +86,14 @@ describe("SessionMaintenancePanelV1", () => {
     await waitFor(() =>
       expect(document.querySelector("[data-session-maintenance-note]")?.textContent).toContain(
         "different game or version",
-      ),
+      )
     );
 
     fireEvent.click(screen.getByText("Import state"));
     await waitFor(() =>
       expect(document.querySelector("[data-session-maintenance-note]")?.textContent).toContain(
         "Not a valid engine save",
-      ),
+      )
     );
     expect(importSave).toHaveBeenCalledTimes(2);
   });
@@ -146,7 +146,7 @@ describe("SessionMaintenancePanelV1", () => {
     await waitFor(() =>
       expect(document.querySelector("[data-session-maintenance-note]")?.textContent).toContain(
         "Save cleanup incomplete",
-      ),
+      )
     );
     expect(document.querySelector("[data-session-maintenance-note]")?.textContent).toContain(
       "unavailable",
@@ -166,7 +166,7 @@ describe("SessionMaintenancePanelV1", () => {
     await waitFor(() =>
       expect(document.querySelector("[data-session-maintenance-note]")?.textContent).toBe(
         "All saves cleared.",
-      ),
+      )
     );
     expect(clearAllSaves).toHaveBeenCalledTimes(1);
     expect(port.clear).not.toHaveBeenCalled();
@@ -263,7 +263,7 @@ describe("SessionMaintenancePanelV1", () => {
         debugTools: false,
         cheats: false,
         automationBridge: false,
-      }),
+      })
     );
     expect(document.querySelector("[data-session-maintenance-panel]")).toBeNull();
     act(() =>
@@ -271,7 +271,7 @@ describe("SessionMaintenancePanelV1", () => {
         debugTools: true,
         cheats: true,
         automationBridge: false,
-      }),
+      })
     );
     expect(screen.getByText("Clear all saves")).toBeTruthy();
     expect(screen.queryByText("Confirm clear?")).toBeNull();
@@ -283,7 +283,7 @@ describe("SessionMaintenancePanelV1", () => {
         debugTools: false,
         cheats: false,
         automationBridge: false,
-      }),
+      })
     );
     await act(async () => resolveExport?.());
     act(() =>
@@ -291,7 +291,7 @@ describe("SessionMaintenancePanelV1", () => {
         debugTools: true,
         cheats: true,
         automationBridge: false,
-      }),
+      })
     );
     expect(document.querySelector("[data-session-maintenance-note]")).toBeNull();
   });

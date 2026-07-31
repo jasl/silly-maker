@@ -237,8 +237,9 @@ export function createSemanticGamePortV1<
     waitForIdle(afterRevision?: NonNegativeSafeInteger): Promise<Publication> {
       let parsedRevision: NonNegativeSafeInteger | undefined;
       try {
-        parsedRevision =
-          afterRevision === undefined ? undefined : parseNonNegativeSafeInteger(afterRevision);
+        parsedRevision = afterRevision === undefined
+          ? undefined
+          : parseNonNegativeSafeInteger(afterRevision);
       } catch (error) {
         return Promise.reject(error);
       }

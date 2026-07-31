@@ -274,30 +274,34 @@ export function LabNarrativePlayerV1(props: LabNarrativePlayerInputV1): ReactEle
         <Button data-lab-player="hide-ui" onClick={() => setHidden(true)}>
           {labUiTextV1("text.e2e.lab.player.hide_ui")}
         </Button>
-        {pending?.kind === "say" && props.replayVoice !== undefined ? (
-          <Button data-lab-player="replay-voice" onClick={() => props.replayVoice?.()}>
-            {labUiTextV1("text.e2e.lab.player.replay_voice")}
-          </Button>
-        ) : null}
+        {pending?.kind === "say" && props.replayVoice !== undefined
+          ? (
+            <Button data-lab-player="replay-voice" onClick={() => props.replayVoice?.()}>
+              {labUiTextV1("text.e2e.lab.player.replay_voice")}
+            </Button>
+          )
+          : null}
       </div>
 
-      {showHistory ? (
-        <section
-          data-lab-player="history-panel"
-          aria-label={labUiTextV1("text.e2e.lab.player.history")}
-        >
-          <ol>
-            {narrative.history.entries.map((entry) => (
-              <li key={entry.occurrenceId} data-lab-history-kind={entry.kind}>
-                {entry.speakerTextId === null ? null : (
-                  <strong>{labUiTextV1(entry.speakerTextId)}：</strong>
-                )}
-                {labUiTextV1(entry.textId)}
-              </li>
-            ))}
-          </ol>
-        </section>
-      ) : null}
+      {showHistory
+        ? (
+          <section
+            data-lab-player="history-panel"
+            aria-label={labUiTextV1("text.e2e.lab.player.history")}
+          >
+            <ol>
+              {narrative.history.entries.map((entry) => (
+                <li key={entry.occurrenceId} data-lab-history-kind={entry.kind}>
+                  {entry.speakerTextId === null
+                    ? null
+                    : <strong>{labUiTextV1(entry.speakerTextId)}：</strong>}
+                  {labUiTextV1(entry.textId)}
+                </li>
+              ))}
+            </ol>
+          </section>
+        )
+        : null}
 
       <LabPendingInteractionV1
         publication={publication}
@@ -337,24 +341,25 @@ function LabPendingInteractionV1(props: {
   }, [semantic, pauseOccurrenceId, pauseDurationMs]);
 
   if (pending === null) {
-    return narrative.phase === "completed" && narrative.calibration !== null ? (
-      <p data-lab-narrative="calibrated">
-        {labUiTextV1("text.e2e.lab.narrative.cal.done")}（{String(narrative.calibration)}）
-      </p>
-    ) : null;
+    return narrative.phase === "completed" && narrative.calibration !== null
+      ? (
+        <p data-lab-narrative="calibrated">
+          {labUiTextV1("text.e2e.lab.narrative.cal.done")}（{String(narrative.calibration)}）
+        </p>
+      )
+      : null;
   }
 
   if (pending.kind === "say") {
-    const revealed =
-      reveal === null || sayText === null
-        ? (sayText ?? "")
-        : sayText.slice(0, reveal.revealedCharacters());
+    const revealed = reveal === null || sayText === null
+      ? (sayText ?? "")
+      : sayText.slice(0, reveal.revealedCharacters());
     const complete = reveal?.isComplete() ?? true;
     return (
       <div data-lab-interaction="say" data-lab-occurrence={pending.occurrenceId}>
-        {pending.speakerTextId === null ? null : (
-          <strong>{labUiTextV1(pending.speakerTextId)}</strong>
-        )}
+        {pending.speakerTextId === null
+          ? null
+          : <strong>{labUiTextV1(pending.speakerTextId)}</strong>}
         <p data-lab-say-reveal={complete ? "complete" : "revealing"}>{revealed}</p>
         <Button
           onClick={() => {
@@ -420,18 +425,15 @@ function LabPendingInteractionV1(props: {
                 key={option.choiceId}
                 disabled={!option.enabled}
                 data-lab-choice-id={option.choiceId}
-                title={
-                  option.blockedBy === null
-                    ? undefined
-                    : labUiTextV1("text.e2e.lab.narrative.cal.precise.locked")
-                }
+                title={option.blockedBy === null
+                  ? undefined
+                  : labUiTextV1("text.e2e.lab.narrative.cal.precise.locked")}
                 onClick={() =>
                   labResolveV1(
                     semantic,
                     pending.occurrenceId,
                     Object.freeze({ kind: "choose" as const, choiceId: option.choiceId }),
-                  )
-                }
+                  )}
               >
                 {labUiTextV1(option.textId)}
               </Button>
@@ -446,19 +448,20 @@ function LabPendingInteractionV1(props: {
     return (
       <div data-lab-interaction="pause" data-lab-occurrence={pending.occurrenceId}>
         <p>{labUiTextV1("text.e2e.lab.narrative.cal.waiting")}</p>
-        {pending.skippable ? (
-          <Button
-            onClick={() =>
-              labResolveV1(
-                semantic,
-                pending.occurrenceId,
-                Object.freeze({ kind: "resume" as const }),
-              )
-            }
-          >
-            {labUiTextV1("text.e2e.lab.narrative.cal.skip")}
-          </Button>
-        ) : null}
+        {pending.skippable
+          ? (
+            <Button
+              onClick={() =>
+                labResolveV1(
+                  semantic,
+                  pending.occurrenceId,
+                  Object.freeze({ kind: "resume" as const }),
+                )}
+            >
+              {labUiTextV1("text.e2e.lab.narrative.cal.skip")}
+            </Button>
+          )
+          : null}
       </div>
     );
   }
@@ -480,8 +483,7 @@ function LabPendingInteractionV1(props: {
                   semantic,
                   pending.occurrenceId,
                   Object.freeze({ kind: "custom" as const, payload: Object.freeze({ value }) }),
-                )
-              }
+                )}
             >
               {String(value)}
             </Button>

@@ -89,13 +89,13 @@ describe("RunIntegrity finalization", () => {
           fixtureId: "fixture.synthetic",
           sequence: parseNonNegativeSafeInteger(2),
         },
-      ),
+      )
     ).toThrow();
     expect(() =>
       markRunModifiedV1(createPristineRunIntegrityV1(), {
         kind: "debug_bundle_anchor",
         sequence: -1 as never,
-      }),
+      })
     ).toThrow();
   });
 });

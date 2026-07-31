@@ -68,38 +68,38 @@ export interface BookshopChoiceOptionV1 {
 
 export type BookshopNarrativeNodeV1 =
   | {
-      readonly kind: "say";
-      readonly nodeId: string;
-      readonly definitionId: string;
-      readonly seenRevision: number;
-      readonly speakerTextId: string | null;
-      readonly textId: string;
-      readonly next: string;
-    }
+    readonly kind: "say";
+    readonly nodeId: string;
+    readonly definitionId: string;
+    readonly seenRevision: number;
+    readonly speakerTextId: string | null;
+    readonly textId: string;
+    readonly next: string;
+  }
   | {
-      readonly kind: "stage";
-      readonly nodeId: string;
-      readonly mutations: (stage: SemanticStageState) => readonly StageMutation[];
-      /** Static annotation of contents this node may show (for lint). */
-      readonly mayShow: readonly string[];
-      readonly next: string;
-    }
+    readonly kind: "stage";
+    readonly nodeId: string;
+    readonly mutations: (stage: SemanticStageState) => readonly StageMutation[];
+    /** Static annotation of contents this node may show (for lint). */
+    readonly mayShow: readonly string[];
+    readonly next: string;
+  }
   | {
-      readonly kind: "choice";
-      readonly nodeId: string;
-      readonly definitionId: string;
-      readonly seenRevision: number;
-      readonly promptTextId: string;
-      readonly options: readonly BookshopChoiceOptionV1[];
-    }
+    readonly kind: "choice";
+    readonly nodeId: string;
+    readonly definitionId: string;
+    readonly seenRevision: number;
+    readonly promptTextId: string;
+    readonly options: readonly BookshopChoiceOptionV1[];
+  }
   | {
-      readonly kind: "branch";
-      readonly nodeId: string;
-      /** Static successor annotation for the lint/prediction graph. */
-      readonly successors: readonly string[];
-      /** Pure flag-conditioned routing; must pick a successor. */
-      readonly choose: (context: { readonly flags: readonly string[] }) => string;
-    }
+    readonly kind: "branch";
+    readonly nodeId: string;
+    /** Static successor annotation for the lint/prediction graph. */
+    readonly successors: readonly string[];
+    /** Pure flag-conditioned routing; must pick a successor. */
+    readonly choose: (context: { readonly flags: readonly string[] }) => string;
+  }
   | { readonly kind: "end"; readonly nodeId: string };
 
 /** Stage vocabulary shared by the script and the content catalog. */
@@ -144,38 +144,36 @@ export const bookshopScriptV1: readonly BookshopNarrativeNodeV1[] = [
     kind: "stage",
     nodeId: "node.bookshop.opening",
     mutations: (stage) =>
-      hasTagV1(stage, bookshopLayersV1.characters, bookshopTagsV1.zhou)
-        ? []
-        : batchV1([
-            {
-              // `show` places new content; `replace` swaps content already
-              // on stage (a background change mid-scene, for example).
-              kind: hasTagV1(stage, bookshopLayersV1.background, bookshopTagsV1.background)
-                ? "replace"
-                : "show",
-              layerId: bookshopLayersV1.background,
-              tag: bookshopTagsV1.background,
-              contentId: bookshopContentIdsV1.backgroundShop,
-              ...(hasTagV1(stage, bookshopLayersV1.background, bookshopTagsV1.background)
-                ? {}
-                : { zOrder: 0 }),
-            },
-            {
-              kind: "show",
-              layerId: bookshopLayersV1.characters,
-              tag: bookshopTagsV1.zhou,
-              contentId: bookshopContentIdsV1.characterZhou,
-              zOrder: 10,
-              placement: {
-                x: 480,
-                y: 880,
-                scalePermille: 1000,
-                opacityPermille: 1000,
-                mirrored: false,
-              },
-              appearance: { expression: "calm" },
-            },
-          ]),
+      hasTagV1(stage, bookshopLayersV1.characters, bookshopTagsV1.zhou) ? [] : batchV1([
+        {
+          // `show` places new content; `replace` swaps content already
+          // on stage (a background change mid-scene, for example).
+          kind: hasTagV1(stage, bookshopLayersV1.background, bookshopTagsV1.background)
+            ? "replace"
+            : "show",
+          layerId: bookshopLayersV1.background,
+          tag: bookshopTagsV1.background,
+          contentId: bookshopContentIdsV1.backgroundShop,
+          ...(hasTagV1(stage, bookshopLayersV1.background, bookshopTagsV1.background)
+            ? {}
+            : { zOrder: 0 }),
+        },
+        {
+          kind: "show",
+          layerId: bookshopLayersV1.characters,
+          tag: bookshopTagsV1.zhou,
+          contentId: bookshopContentIdsV1.characterZhou,
+          zOrder: 10,
+          placement: {
+            x: 480,
+            y: 880,
+            scalePermille: 1000,
+            opacityPermille: 1000,
+            mirrored: false,
+          },
+          appearance: { expression: "calm" },
+        },
+      ]),
     mayShow: [bookshopContentIdsV1.backgroundShop, bookshopContentIdsV1.characterZhou],
     next: "node.bookshop.opening-narration",
   },
@@ -201,25 +199,23 @@ export const bookshopScriptV1: readonly BookshopNarrativeNodeV1[] = [
     kind: "stage",
     nodeId: "node.bookshop.cheng-enters",
     mutations: (stage) =>
-      hasTagV1(stage, bookshopLayersV1.characters, bookshopTagsV1.cheng)
-        ? []
-        : batchV1([
-            {
-              kind: "show",
-              layerId: bookshopLayersV1.characters,
-              tag: bookshopTagsV1.cheng,
-              contentId: bookshopContentIdsV1.characterCheng,
-              zOrder: 11,
-              placement: {
-                x: 1180,
-                y: 880,
-                scalePermille: 1000,
-                opacityPermille: 1000,
-                mirrored: false,
-              },
-              appearance: { expression: "eager" },
-            },
-          ]),
+      hasTagV1(stage, bookshopLayersV1.characters, bookshopTagsV1.cheng) ? [] : batchV1([
+        {
+          kind: "show",
+          layerId: bookshopLayersV1.characters,
+          tag: bookshopTagsV1.cheng,
+          contentId: bookshopContentIdsV1.characterCheng,
+          zOrder: 11,
+          placement: {
+            x: 1180,
+            y: 880,
+            scalePermille: 1000,
+            opacityPermille: 1000,
+            mirrored: false,
+          },
+          appearance: { expression: "eager" },
+        },
+      ]),
     mayShow: [bookshopContentIdsV1.characterCheng],
     next: "node.bookshop.cheng-asks",
   },

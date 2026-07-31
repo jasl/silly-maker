@@ -41,9 +41,8 @@ describe("persistence contracts", () => {
     };
     expect(exportedSaveSchemaV1.parse(valid)).toEqual(valid);
     expect(() => exportedSaveSchemaV1.parse({ ...valid, summary: {} })).toThrow();
-    expect(() =>
-      exportedSaveSchemaV1.parse({ ...valid, digest: digestBytes(Uint8Array.of(2)) }),
-    ).toThrow();
+    expect(() => exportedSaveSchemaV1.parse({ ...valid, digest: digestBytes(Uint8Array.of(2)) }))
+      .toThrow();
   });
 
   it("carries owner and fencing state through every available lease branch", () => {
@@ -136,10 +135,12 @@ describe("persistence contracts", () => {
       Reflect.deleteProperty(globalThis, versionStampGlobalKeyV1);
     }
 
-    for (const [value, code] of [
-      [{ ...valid, formatRevision: 2 }, "envelope.unsupported_revision"],
-      [{ ...valid, stateDigest: "not-a-digest" }, "digest.invalid_format"],
-    ] as const) {
+    for (
+      const [value, code] of [
+        [{ ...valid, formatRevision: 2 }, "envelope.unsupported_revision"],
+        [{ ...valid, stateDigest: "not-a-digest" }, "digest.invalid_format"],
+      ] as const
+    ) {
       try {
         schema.parse(value);
         throw new TypeError("expected tagged envelope failure");

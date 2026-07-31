@@ -237,13 +237,15 @@ describe("TextCatalogSetV1 contracts", () => {
       extra: true,
     } as never;
 
-    for (const invalid of [
-      Object.assign(Object.create(null), createRawTextCatalogSetV1()),
-      extraSetField,
-      extraCatalogField,
-      extraEntryField,
-      accessorCatalog,
-    ]) {
+    for (
+      const invalid of [
+        Object.assign(Object.create(null), createRawTextCatalogSetV1()),
+        extraSetField,
+        extraCatalogField,
+        extraEntryField,
+        accessorCatalog,
+      ]
+    ) {
       expect(() => parsePendingTextCatalogSetV1(invalid)).toThrow();
     }
     expect(getterCalls).toBe(0);
@@ -332,12 +334,14 @@ describe("neutral presentation contracts", () => {
     );
   });
 
-  it.each([
-    [Number.NaN, "number.non_finite"],
-    [Number.POSITIVE_INFINITY, "number.non_finite"],
-    [Number.NEGATIVE_INFINITY, "number.non_finite"],
-    [-0, "number.negative_zero"],
-  ] as const)("rejects non-canonical Presentation number %#", (value, code) => {
+  it.each(
+    [
+      [Number.NaN, "number.non_finite"],
+      [Number.POSITIVE_INFINITY, "number.non_finite"],
+      [Number.NEGATIVE_INFINITY, "number.non_finite"],
+      [-0, "number.negative_zero"],
+    ] as const,
+  )("rejects non-canonical Presentation number %#", (value, code) => {
     expect(() => canonicalPresentationJsonBytesV1({ value })).toThrowError(
       expect.objectContaining({ code }),
     );

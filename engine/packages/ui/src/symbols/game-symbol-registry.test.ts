@@ -57,7 +57,7 @@ describe("GameSymbolRegistryV1", () => {
         providerV1(secondId),
         providerV1(firstId, FirstStorySymbolV1),
         providerV1(secondId, SecondStorySymbolV1),
-      ]),
+      ])
     ).toThrow(firstId);
   });
 

@@ -34,8 +34,8 @@ async function loadRuntimeAssetModulesV1() {
   });
 
   try {
-    const [baseModule, workspaceModule, configModule, loaderModule, validatorModule] =
-      await Promise.all([
+    const [baseModule, workspaceModule, configModule, loaderModule, validatorModule] = await Promise
+      .all([
         import("../../engine/packages/base/src/index.ts"),
         import("../../engine/packages/tooling/src/project/workspace.ts"),
         import("../../project.config.ts"),
@@ -100,9 +100,11 @@ function resolutionFailureMessageV1(
   storyId: string,
   result: Extract<ReturnType<typeof resolveGamePackageV1>, { readonly kind: "failed" }>,
 ): string {
-  return `${storyId}:${result.failure.code}:${String(
-    result.failure.details.message ?? "Story resolution failed",
-  )}`;
+  return `${storyId}:${result.failure.code}:${
+    String(
+      result.failure.details.message ?? "Story resolution failed",
+    )
+  }`;
 }
 
 export const runtimeAssetStoryChecksV1: readonly RuntimeAssetStoryCheckV1[] = Object.freeze(
@@ -121,7 +123,7 @@ export const runtimeAssetStoryChecksV1: readonly RuntimeAssetStoryCheckV1[] = Ob
         }
         return result.resolved.assets;
       },
-    }),
+    })
   ),
 );
 
@@ -180,8 +182,7 @@ export async function verifyRuntimeAssetsV1(
   root: string,
   options: RuntimeAssetVerificationOptionsV1 = {},
 ): Promise<readonly string[]> {
-  const environmentFor =
-    options.environmentFor ??
+  const environmentFor = options.environmentFor ??
     ((appDirectory: string) => createNodeRuntimeAssetEnvironmentV1(join(root, appDirectory)));
   return verifyRuntimeAssetStoryChecksV1(
     runtimeAssetStoryChecksV1,
@@ -190,8 +191,8 @@ export async function verifyRuntimeAssetsV1(
   );
 }
 
-const isMain =
-  process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+const isMain = process.argv[1] !== undefined &&
+  resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
   try {
     await verifyRuntimeAssetsV1(resolve(import.meta.dirname, "../.."));

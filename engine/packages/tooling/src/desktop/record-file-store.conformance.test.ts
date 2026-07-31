@@ -93,11 +93,12 @@ async function snapshotRecordTreeV1(root: string): Promise<readonly RecordTreeEn
   const snapshot: RecordTreeEntryV1[] = [];
   const visitV1 = async (directory: string, relativeDirectory: string): Promise<void> => {
     const entries = (await readdir(directory, { withFileTypes: true })).toSorted((left, right) =>
-      left.name < right.name ? -1 : left.name > right.name ? 1 : 0,
+      left.name < right.name ? -1 : left.name > right.name ? 1 : 0
     );
     for (const entry of entries) {
-      const relativePath =
-        relativeDirectory.length === 0 ? entry.name : join(relativeDirectory, entry.name);
+      const relativePath = relativeDirectory.length === 0
+        ? entry.name
+        : join(relativeDirectory, entry.name);
       const absolutePath = join(directory, entry.name);
       if (entry.isDirectory()) {
         snapshot.push(Object.freeze({ kind: "directory", path: relativePath }));
@@ -152,18 +153,22 @@ async function createCorruptCommitFixtureV1(
   });
 }
 
-const corruptRecordCasesV1 = Object.freeze([
-  ["missing revision", JSON.stringify({ bytesBase64: "AQ==" })],
-  ["negative-zero revision", '{"revision":-0,"bytesBase64":"AQ=="}'],
-  ["missing bytes", JSON.stringify({ revision: 1 })],
-  ["invalid base64 bytes", JSON.stringify({ revision: 1, bytesBase64: "not-base64" })],
-  ["truncated JSON", '{"revision":1'],
-] as const);
+const corruptRecordCasesV1 = Object.freeze(
+  [
+    ["missing revision", JSON.stringify({ bytesBase64: "AQ==" })],
+    ["negative-zero revision", '{"revision":-0,"bytesBase64":"AQ=="}'],
+    ["missing bytes", JSON.stringify({ revision: 1 })],
+    ["invalid base64 bytes", JSON.stringify({ revision: 1, bytesBase64: "not-base64" })],
+    ["truncated JSON", '{"revision":1'],
+  ] as const,
+);
 
-const corruptCommitRecordCasesV1 = Object.freeze([
-  ["missing bytes", JSON.stringify({ revision: 1 })],
-  ["invalid base64 bytes", JSON.stringify({ revision: 1, bytesBase64: "not-base64" })],
-] as const);
+const corruptCommitRecordCasesV1 = Object.freeze(
+  [
+    ["missing bytes", JSON.stringify({ revision: 1 })],
+    ["invalid base64 bytes", JSON.stringify({ revision: 1, bytesBase64: "not-base64" })],
+  ] as const,
+);
 
 describe("desktop file-preview Host record store conformance", () => {
   it("matches the shared core workload under one process-local handle", async () => {
@@ -222,7 +227,7 @@ describe("desktop file-preview Host record store conformance", () => {
     async (_name, rawCorruptRecord) => {
       expect(
         await runHostRecordStoreCorruptBackingReadListConformanceV1(() =>
-          createCorruptBackingStoreV1(rawCorruptRecord),
+          createCorruptBackingStoreV1(rawCorruptRecord)
         ),
       ).toEqual(hostRecordStoreCorruptBackingReadListConformanceExpectedV1);
     },
@@ -233,7 +238,7 @@ describe("desktop file-preview Host record store conformance", () => {
     async (_name, rawCorruptRecord) => {
       expect(
         await runHostRecordStoreCorruptBackingCommitConformanceV1(() =>
-          createCorruptCommitFixtureV1(rawCorruptRecord),
+          createCorruptCommitFixtureV1(rawCorruptRecord)
         ),
       ).toEqual(hostRecordStoreCorruptBackingCommitConformanceExpectedV1);
     },

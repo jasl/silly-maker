@@ -11,17 +11,19 @@ import type { CatcafeGameViewV1 } from "../../simulation.ts";
  * see resolveCatcafeEffectAssetV1). Assets are script-synthesized placeholders (source in `art-source/audio-synth/generate.py`); swapping files + digests suffices later.
  */
 
-export const catcafeAudioIdsV1 = Object.freeze({
-  bgmShop: "audio.catcafe.bgm.shop",
-  bgmArena: "audio.catcafe.bgm.arena",
-  bgmEnding: "audio.catcafe.bgm.ending",
-  ambientRain: "audio.catcafe.ambient.rain",
-  sfxPurr: "audio.catcafe.sfx.purr",
-  sfxHiss: "audio.catcafe.sfx.hiss",
-  sfxCoin: "audio.catcafe.sfx.coin",
-  sfxWin: "audio.catcafe.sfx.win",
-  sfxLose: "audio.catcafe.sfx.lose",
-} as const);
+export const catcafeAudioIdsV1 = Object.freeze(
+  {
+    bgmShop: "audio.catcafe.bgm.shop",
+    bgmArena: "audio.catcafe.bgm.arena",
+    bgmEnding: "audio.catcafe.bgm.ending",
+    ambientRain: "audio.catcafe.ambient.rain",
+    sfxPurr: "audio.catcafe.sfx.purr",
+    sfxHiss: "audio.catcafe.sfx.hiss",
+    sfxCoin: "audio.catcafe.sfx.coin",
+    sfxWin: "audio.catcafe.sfx.win",
+    sfxLose: "audio.catcafe.sfx.lose",
+  } as const,
+);
 
 const audioPathV1 = (file: string): string => `assets/${file}`;
 
@@ -156,12 +158,11 @@ export const catcafeAudioManifestV1: ResolvedAudioManifestV1 = resolveAudioManif
 export function projectCatcafeAudioIntentV1(
   view: Pick<CatcafeGameViewV1, "contest" | "ending">,
 ): AudioIntentV1 {
-  const bgmAssetId =
-    view.contest !== null
-      ? catcafeAudioIdsV1.bgmArena
-      : view.ending !== null
-        ? catcafeAudioIdsV1.bgmEnding
-        : catcafeAudioIdsV1.bgmShop;
+  const bgmAssetId = view.contest !== null
+    ? catcafeAudioIdsV1.bgmArena
+    : view.ending !== null
+    ? catcafeAudioIdsV1.bgmEnding
+    : catcafeAudioIdsV1.bgmShop;
   return parseAudioIntentV1({
     bgm: { assetId: bgmAssetId, loop: true, gainPermille: 700, fadeMs: 600 },
     ambient: { assetId: catcafeAudioIdsV1.ambientRain, loop: true, gainPermille: 320, fadeMs: 800 },

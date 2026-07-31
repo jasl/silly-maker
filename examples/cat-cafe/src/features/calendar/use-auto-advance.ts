@@ -19,8 +19,7 @@ export function useCatcafeAutoAdvanceV1(
 ): boolean {
   const game = publication.semantic.game;
   const phase = publication.semantic.narrative.phase;
-  const eligible =
-    phase === "completed" &&
+  const eligible = phase === "completed" &&
     game.ending === null &&
     game.contest === null &&
     game.calendar.stamina === 0 &&

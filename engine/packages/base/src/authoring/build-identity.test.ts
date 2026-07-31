@@ -109,7 +109,7 @@ describe("build identity", () => {
         storySimulation: [],
         storyPresentation: [],
         application: [],
-      }),
+      })
     ).toThrow("build identity path invalid");
   });
 });

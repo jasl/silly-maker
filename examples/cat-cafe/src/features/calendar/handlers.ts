@@ -10,8 +10,8 @@ import { catcafeGrowthMutationV1 } from "../cat/growth.ts";
 import { shopModuleV1 } from "../shop/module.ts";
 import { stageModuleV1 } from "../stage/module.ts";
 
-export const calendarCommandHandlersV1: Pick<CatcafeCommandHandlerMapV1, "cc.advance_slot"> =
-  Object.freeze({
+export const calendarCommandHandlersV1: Pick<CatcafeCommandHandlerMapV1, "cc.advance_slot"> = Object
+  .freeze({
     "cc.advance_slot": ({ snapshot, rng, state }) =>
       transactionRunnerV1.execute(snapshot, rng, (transaction) => {
         // Daily gameplay unlocks after the opening narrative completes.

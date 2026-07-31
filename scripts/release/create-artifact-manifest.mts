@@ -274,7 +274,7 @@ async function readArtifactPayloadBytesWithAuthorityV1(
     parent = resolve(parent, part);
     expectedRealParent = resolve(expectedRealParent, part);
     const metadata = await lstat(parent).catch(() =>
-      failV1(`payload parent is unavailable: ${path}`),
+      failV1(`payload parent is unavailable: ${path}`)
     );
     if (
       metadata.isSymbolicLink() ||
@@ -354,10 +354,9 @@ async function listArtifactFilesWithAuthorityV1(
     await assertArtifactRootUnchangedV1(authority);
     const directoryMetadata = await lstat(directory);
     const directoryRelative = relative(authority.path, directory);
-    const expectedRealDirectory =
-      directoryRelative.length === 0
-        ? authority.realPath
-        : resolve(authority.realPath, ...directoryRelative.split(sep));
+    const expectedRealDirectory = directoryRelative.length === 0
+      ? authority.realPath
+      : resolve(authority.realPath, ...directoryRelative.split(sep));
     if (
       directoryMetadata.isSymbolicLink() ||
       !directoryMetadata.isDirectory() ||
@@ -535,7 +534,9 @@ export async function writeArtifactManifestV1(
   await authority.handle.close().catch(() => undefined);
   if (failure !== undefined && cleanupFailure !== undefined) {
     throw new TypeError(
-      `${detailFromV1(failure)}; manifest candidate cleanup failed: ${detailFromV1(cleanupFailure)}`,
+      `${detailFromV1(failure)}; manifest candidate cleanup failed: ${
+        detailFromV1(cleanupFailure)
+      }`,
       { cause: new AggregateError([failure, cleanupFailure]) },
     );
   }
@@ -545,8 +546,8 @@ export async function writeArtifactManifestV1(
   return result;
 }
 
-const isMainV1 =
-  process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+const isMainV1 = process.argv[1] !== undefined &&
+  resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 
 if (isMainV1) {
   try {

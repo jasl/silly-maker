@@ -11,20 +11,20 @@ export interface ResolvedTextPresentationV1<TTextId, TLocaleId> {
 
 export type ResolvedAssetPresentationV1<TAssetId, TAssetUsage, TFallbackToken> =
   | {
-      readonly delivery: "code_fallback";
-      readonly assetId: TAssetId;
-      readonly usage: TAssetUsage;
-      readonly fallbackToken: TFallbackToken;
-    }
+    readonly delivery: "code_fallback";
+    readonly assetId: TAssetId;
+    readonly usage: TAssetUsage;
+    readonly fallbackToken: TFallbackToken;
+  }
   | {
-      readonly delivery: "runtime_image";
-      readonly assetId: TAssetId;
-      readonly usage: TAssetUsage;
-      readonly url: string;
-      readonly width: PositiveSafeInteger;
-      readonly height: PositiveSafeInteger;
-      readonly fallbackToken: TFallbackToken;
-    };
+    readonly delivery: "runtime_image";
+    readonly assetId: TAssetId;
+    readonly usage: TAssetUsage;
+    readonly url: string;
+    readonly width: PositiveSafeInteger;
+    readonly height: PositiveSafeInteger;
+    readonly fallbackToken: TFallbackToken;
+  };
 
 export interface PresentationReadPortV1<TTextId, TAssetId, TAssetUsage, TLocaleId, TFallbackToken> {
   readonly locale: TLocaleId;

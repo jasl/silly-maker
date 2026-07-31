@@ -12,9 +12,7 @@ async function expectNoWcagViolationsV1(page: Page, surface: string): Promise<vo
 }
 
 test.describe("engine default UI accessibility", () => {
-  test("has no WCAG A or AA violations on play, save, journal, and DevDock surfaces", async ({
-    page,
-  }) => {
+  test("has no WCAG A or AA violations on play, save, journal, and DevDock surfaces", async ({ page }) => {
     await gotoLabV1(page, "?capability=debug_tools");
     await expectNoWcagViolationsV1(page, "play");
 

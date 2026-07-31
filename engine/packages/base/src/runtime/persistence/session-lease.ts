@@ -129,10 +129,9 @@ function normalizeSessionLeaseRecordV1(value: unknown): SessionLeaseRecordV1 {
     throw new TypeError("invalid SessionLeaseRecordV1 formatRevision");
   }
   const ownerValue = descriptorValueV1(descriptors, "ownerId");
-  const ownerId =
-    ownerValue === null
-      ? null
-      : parseLeaseIdV1<SessionLeaseOwnerId>(ownerValue, "SessionLeaseOwnerId");
+  const ownerId = ownerValue === null
+    ? null
+    : parseLeaseIdV1<SessionLeaseOwnerId>(ownerValue, "SessionLeaseOwnerId");
   const fencingToken = parsePositiveSafeInteger(descriptorValueV1(descriptors, "fencingToken"));
   const handoffValue = descriptorValueV1(descriptors, "handoff");
   let handoff: SessionLeaseRecordV1["handoff"] = null;
@@ -186,10 +185,10 @@ export function decodeSessionLeaseRecordV1(bytes: Uint8Array): SessionLeaseRecor
 type LeaseObservationV1 =
   | { readonly kind: "absent" }
   | {
-      readonly kind: "available";
-      readonly stored: HostStoredRecordV1;
-      readonly record: SessionLeaseRecordV1;
-    }
+    readonly kind: "available";
+    readonly stored: HostStoredRecordV1;
+    readonly record: SessionLeaseRecordV1;
+  }
   | { readonly kind: "invalid" }
   | { readonly kind: "unavailable"; readonly code: string };
 
@@ -197,29 +196,31 @@ type AvailableLeaseObservationV1 = Extract<LeaseObservationV1, { readonly kind: 
 
 type LeaseCommitResultV1 =
   | {
-      readonly kind: "committed";
-      readonly observation: AvailableLeaseObservationV1;
-    }
+    readonly kind: "committed";
+    readonly observation: AvailableLeaseObservationV1;
+  }
   | { readonly kind: "conflict" }
   | { readonly kind: "unavailable"; readonly code: string };
 
-const indexedDbFailureCodesV1 = Object.freeze([
-  "indexeddb.unavailable",
-  "indexeddb.database_newer",
-  "indexeddb.upgrade_blocked",
-  "indexeddb.quota_exceeded",
-  "indexeddb.transaction_aborted",
-  "indexeddb.request_failed",
-  "indexeddb.schema_invalid",
-] as const);
+const indexedDbFailureCodesV1 = Object.freeze(
+  [
+    "indexeddb.unavailable",
+    "indexeddb.database_newer",
+    "indexeddb.upgrade_blocked",
+    "indexeddb.quota_exceeded",
+    "indexeddb.transaction_aborted",
+    "indexeddb.request_failed",
+    "indexeddb.schema_invalid",
+  ] as const,
+);
 const indexedDbFailureOperationsV1 = Object.freeze(["open", "read", "list", "commit"] as const);
 
 function dataPropertyValueV1(value: object, key: string): unknown {
   const descriptor = Object.getOwnPropertyDescriptor(value, key);
   return descriptor !== undefined &&
-    descriptor.get === undefined &&
-    descriptor.set === undefined &&
-    "value" in descriptor
+      descriptor.get === undefined &&
+      descriptor.set === undefined &&
+      "value" in descriptor
     ? descriptor.value
     : undefined;
 }
@@ -230,8 +231,8 @@ function stableHostFailureCodeV1(error: unknown): string | null {
   const code = dataPropertyValueV1(error, "code");
   const operation = dataPropertyValueV1(error, "operation");
   return name === "IndexedDbRecordStoreFailureV1" &&
-    indexedDbFailureCodesV1.some((candidate) => candidate === code) &&
-    indexedDbFailureOperationsV1.some((candidate) => candidate === operation)
+      indexedDbFailureCodesV1.some((candidate) => candidate === code) &&
+      indexedDbFailureOperationsV1.some((candidate) => candidate === operation)
     ? (code as (typeof indexedDbFailureCodesV1)[number])
     : null;
 }

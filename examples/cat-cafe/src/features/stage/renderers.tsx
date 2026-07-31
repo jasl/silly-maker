@@ -37,10 +37,9 @@ export function createCatcafeStageRenderersV1(
           style={{
             width: "1280px",
             height: "720px",
-            background:
-              entry.props.surface === "backyard"
-                ? "linear-gradient(180deg, #56705a, #22301f)"
-                : "linear-gradient(180deg, #6b5b4a, #2c241c)",
+            background: entry.props.surface === "backyard"
+              ? "linear-gradient(180deg, #56705a, #22301f)"
+              : "linear-gradient(180deg, #6b5b4a, #2c241c)",
           }}
         />
       );
@@ -53,8 +52,11 @@ export function createCatcafeStageRenderersV1(
       if (url !== null) {
         // Transparent character art sits straight in the scene: breathing idle runs constantly,
         // an expression switch triggers one feedback motion (happy=bounce, hissing=shake). All still under reduced-motion.
-        const reaction =
-          expression === "hissing" ? "cc-cat-shake" : expression === "calm" ? "" : "cc-cat-pop";
+        const reaction = expression === "hissing"
+          ? "cc-cat-shake"
+          : expression === "calm"
+          ? ""
+          : "cc-cat-pop";
         return (
           <figure
             data-cc-cat={stage}
@@ -85,16 +87,15 @@ export function createCatcafeStageRenderersV1(
         );
       }
       const size = frame.width;
-      const tone =
-        expression === "hissing"
-          ? "#c96a5a"
-          : expression === "grumpy"
-            ? "#a08a6a"
-            : expression === "purring"
-              ? "#e8c8a8"
-              : expression === "happy"
-                ? "#dcb890"
-                : "#c8b09a";
+      const tone = expression === "hissing"
+        ? "#c96a5a"
+        : expression === "grumpy"
+        ? "#a08a6a"
+        : expression === "purring"
+        ? "#e8c8a8"
+        : expression === "happy"
+        ? "#dcb890"
+        : "#c8b09a";
       return (
         <figure
           data-cc-cat={stage}

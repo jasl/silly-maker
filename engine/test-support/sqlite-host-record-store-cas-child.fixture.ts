@@ -63,21 +63,20 @@ try {
       bytes: Uint8Array.from(valuesV1),
     },
   ]);
-  const summary =
-    result.kind === "conflict"
-      ? Object.freeze({
-          side: sideV1,
-          processId: Deno.pid,
-          kind: result.kind,
-          actualRevision: result.actualRevision,
-        })
-      : Object.freeze({
-          side: sideV1,
-          processId: Deno.pid,
-          kind: result.kind,
-          revision: result.records[0]?.revision,
-          bytes: result.records[0] === undefined ? undefined : Array.from(result.records[0].bytes),
-        });
+  const summary = result.kind === "conflict"
+    ? Object.freeze({
+      side: sideV1,
+      processId: Deno.pid,
+      kind: result.kind,
+      actualRevision: result.actualRevision,
+    })
+    : Object.freeze({
+      side: sideV1,
+      processId: Deno.pid,
+      kind: result.kind,
+      revision: result.records[0]?.revision,
+      bytes: result.records[0] === undefined ? undefined : Array.from(result.records[0].bytes),
+    });
   await writeAllV1(`${JSON.stringify(summary)}\n`);
 } finally {
   handleV1.close();

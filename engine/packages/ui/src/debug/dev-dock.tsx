@@ -103,8 +103,8 @@ export function createDevDockContributionSetV1(
 
 function focusableElementsV1(scope: HTMLElement): readonly HTMLElement[] {
   const scopeBounds = scope.getBoundingClientRect();
-  const layoutIsMeasured =
-    scopeBounds.width > 0 || scopeBounds.height > 0 || scope.getClientRects().length > 0;
+  const layoutIsMeasured = scopeBounds.width > 0 || scopeBounds.height > 0 ||
+    scope.getClientRects().length > 0;
 
   return [
     ...scope.querySelectorAll<HTMLElement>(
@@ -140,12 +140,10 @@ function trapTabV1(event: KeyboardEvent<HTMLElement>): void {
     (control) => control === event.currentTarget.ownerDocument.activeElement,
   );
   const nextIndex = event.shiftKey
-    ? activeIndex <= 0
-      ? controls.length - 1
-      : activeIndex - 1
+    ? activeIndex <= 0 ? controls.length - 1 : activeIndex - 1
     : activeIndex < 0 || activeIndex === controls.length - 1
-      ? 0
-      : activeIndex + 1;
+    ? 0
+    : activeIndex + 1;
   const next = controls[nextIndex];
   if (next === undefined) return;
   event.preventDefault();
@@ -175,12 +173,12 @@ function DevDockRailV1(props: {
   onSelect(panelId: string): void;
   onClose(): void;
 }): ReactElement {
-  const selected =
-    props.panels.find((panel) => panel.id === props.selectedPanelId) ?? props.panels[0] ?? null;
-  const selectedAuthorized =
-    selected !== null && (selected.authority === "read_only" || props.cheatsEnabled);
-  const hasDisabledCheatPanel =
-    !props.cheatsEnabled && props.panels.some((panel) => panel.authority === "cheat");
+  const selected = props.panels.find((panel) => panel.id === props.selectedPanelId) ??
+    props.panels[0] ?? null;
+  const selectedAuthorized = selected !== null &&
+    (selected.authority === "read_only" || props.cheatsEnabled);
+  const hasDisabledCheatPanel = !props.cheatsEnabled &&
+    props.panels.some((panel) => panel.authority === "cheat");
   const disabledReasonId = `sillymaker-dev-dock-${props.side}-cheat-reason`;
   const label = props.side === "left" ? "左侧开发工具" : "右侧开发工具";
 
@@ -199,42 +197,44 @@ function DevDockRailV1(props: {
         <h2>{label}</h2>
         <Button onClick={props.onClose}>关闭{label}</Button>
       </header>
-      {props.panels.length === 0 ? (
-        <p className={styles["dev-dock__empty"]}>暂无可用开发工具</p>
-      ) : (
-        <>
-          <nav className={styles["dev-dock__tabs"]} aria-label={`${label}面板`}>
-            {props.panels.map((panel) => {
-              const disabled = panel.authority === "cheat" && !props.cheatsEnabled;
-              return (
-                <Button
-                  key={panel.id}
-                  aria-pressed={selected?.id === panel.id}
-                  aria-describedby={disabled ? disabledReasonId : undefined}
-                  disabled={disabled}
-                  onClick={() => props.onSelect(panel.id)}
-                >
-                  {panel.title}
-                </Button>
-              );
-            })}
-          </nav>
-          {hasDisabledCheatPanel ? (
-            <p id={disabledReasonId} className={styles["dev-dock__authority-reason"]}>
-              需要启用作弊功能
-            </p>
-          ) : null}
-          {/* Scrollable panel content stays keyboard-reachable (WCAG). */}
-          <section
-            className={styles["dev-dock__panel"]}
-            aria-live="polite"
-            aria-label={selected?.title ?? "面板"}
-            tabIndex={0}
-          >
-            {selectedAuthorized ? selected.render() : <p>需要启用作弊功能</p>}
-          </section>
-        </>
-      )}
+      {props.panels.length === 0
+        ? <p className={styles["dev-dock__empty"]}>暂无可用开发工具</p>
+        : (
+          <>
+            <nav className={styles["dev-dock__tabs"]} aria-label={`${label}面板`}>
+              {props.panels.map((panel) => {
+                const disabled = panel.authority === "cheat" && !props.cheatsEnabled;
+                return (
+                  <Button
+                    key={panel.id}
+                    aria-pressed={selected?.id === panel.id}
+                    aria-describedby={disabled ? disabledReasonId : undefined}
+                    disabled={disabled}
+                    onClick={() => props.onSelect(panel.id)}
+                  >
+                    {panel.title}
+                  </Button>
+                );
+              })}
+            </nav>
+            {hasDisabledCheatPanel
+              ? (
+                <p id={disabledReasonId} className={styles["dev-dock__authority-reason"]}>
+                  需要启用作弊功能
+                </p>
+              )
+              : null}
+            {/* Scrollable panel content stays keyboard-reachable (WCAG). */}
+            <section
+              className={styles["dev-dock__panel"]}
+              aria-live="polite"
+              aria-label={selected?.title ?? "面板"}
+              tabIndex={0}
+            >
+              {selectedAuthorized ? selected.render() : <p>需要启用作弊功能</p>}
+            </section>
+          </>
+        )}
     </aside>
   );
 }
@@ -263,8 +263,8 @@ export function DevDockV1(props: DevDockPropsV1): ReactElement | null {
   const openSide: DevDockSideV1 | null = props.openState.leftOpen
     ? "left"
     : props.openState.rightOpen
-      ? "right"
-      : null;
+    ? "right"
+    : null;
 
   const publishOpenState = useCallback(
     (next: DevDockOpenStateV1): void => onOpenStateChange(next),
@@ -365,13 +365,9 @@ export function DevDockV1(props: DevDockPropsV1): ReactElement | null {
           ref={focusScopeRef}
           className={styles["dev-dock__focus-scope"]}
           role={portraitLayout ? "dialog" : undefined}
-          aria-label={
-            portraitLayout
-              ? openSide === "left"
-                ? "左侧开发工具面板"
-                : "右侧开发工具面板"
-              : undefined
-          }
+          aria-label={portraitLayout
+            ? openSide === "left" ? "左侧开发工具面板" : "右侧开发工具面板"
+            : undefined}
           aria-modal={portraitLayout ? true : undefined}
           tabIndex={-1}
           onKeyDownCapture={(event) => {

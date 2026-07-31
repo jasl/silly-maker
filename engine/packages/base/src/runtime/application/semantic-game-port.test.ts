@@ -39,8 +39,10 @@ interface Invocation {
   readonly minimum: number;
 }
 
-type Preview =
-  { readonly kind: "allowed" } | { readonly kind: "rejected"; readonly current: number };
+type Preview = { readonly kind: "allowed" } | {
+  readonly kind: "rejected";
+  readonly current: number;
+};
 
 type Result = { readonly kind: "committed" };
 type Status = "busy" | "ready";
@@ -146,8 +148,7 @@ function createFixture(options?: {
     },
     projectGameView: (queries) =>
       Object.freeze({ value: queries.value, queryWitness: queries.witness }),
-    projectNarrativeView:
-      options?.projectNarrativeView ??
+    projectNarrativeView: options?.projectNarrativeView ??
       ((queries) => ({
         active: queries.value > 0,
         queryWitness: queries.witness,
@@ -157,8 +158,7 @@ function createFixture(options?: {
       Object.freeze([
         Object.freeze({ actionId: "increment" as const, queryWitness: queries.witness }),
       ]),
-    preview:
-      options?.preview ??
+    preview: options?.preview ??
       ((queries, invocation) =>
         queries.value >= invocation.minimum
           ? Object.freeze({ kind: "allowed" as const })

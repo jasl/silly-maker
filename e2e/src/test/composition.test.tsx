@@ -34,16 +34,18 @@ function withAutosaveCounterV1(records: HostAtomicRecordStoreV1): {
   autosaveWrites(): number;
 } {
   let autosaveWrites = 0;
-  const counted: HostAtomicRecordStoreV1 = Object.freeze({
-    read: (namespace, key) => records.read(namespace, key),
-    list: (namespace) => records.list(namespace),
-    commit: (mutations) => {
-      if (mutations.some((mutation) => String(mutation.key).includes("auto.current"))) {
-        autosaveWrites += 1;
-      }
-      return records.commit(mutations);
-    },
-  } satisfies HostAtomicRecordStoreV1);
+  const counted: HostAtomicRecordStoreV1 = Object.freeze(
+    {
+      read: (namespace, key) => records.read(namespace, key),
+      list: (namespace) => records.list(namespace),
+      commit: (mutations) => {
+        if (mutations.some((mutation) => String(mutation.key).includes("auto.current"))) {
+          autosaveWrites += 1;
+        }
+        return records.commit(mutations);
+      },
+    } satisfies HostAtomicRecordStoreV1,
+  );
   return { records: counted, autosaveWrites: () => autosaveWrites };
 }
 
@@ -262,10 +264,10 @@ describe("startWebGameApplicationV1 with the Engine Lab declaration", () => {
 
       const close = Reflect.get(globalThis, desktopCloseGlobalKeyV1) as
         | ((action: unknown) => {
-            readonly kind: "preparing" | "flushed" | "failed";
-            readonly protocolRevision: 1;
-            readonly requestId: number;
-          })
+          readonly kind: "preparing" | "flushed" | "failed";
+          readonly protocolRevision: 1;
+          readonly requestId: number;
+        })
         | undefined;
       expect(close).toBeTypeOf("function");
       expect(close?.({ operation: "prepare", protocolRevision: 1, requestId: 41 })).toEqual({
@@ -292,7 +294,7 @@ describe("startWebGameApplicationV1 with the Engine Lab declaration", () => {
       expect(counter.autosaveWrites()).toBe(1);
       expect(
         (await counter.records.list("save")).some(({ key }) =>
-          String(key).includes("auto.current"),
+          String(key).includes("auto.current")
         ),
       ).toBe(true);
     } finally {

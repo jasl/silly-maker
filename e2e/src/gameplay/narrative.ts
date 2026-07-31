@@ -77,69 +77,69 @@ export interface LabChoiceOptionV1 {
 
 export type LabNarrativeNodeV1 =
   | {
-      readonly kind: "say";
-      readonly nodeId: string;
-      readonly definitionId: string;
-      readonly seenRevision: number;
-      readonly speakerTextId: string | null;
-      readonly textId: string;
-      readonly next: string;
-    }
+    readonly kind: "say";
+    readonly nodeId: string;
+    readonly definitionId: string;
+    readonly seenRevision: number;
+    readonly speakerTextId: string | null;
+    readonly textId: string;
+    readonly next: string;
+  }
   | {
-      readonly kind: "branch";
-      readonly nodeId: string;
-      /** Static successor annotation for the lint/prediction graph. */
-      readonly successors: readonly string[];
-      /** Pure relationship-conditioned routing; must pick a successor. */
-      readonly choose: (context: { readonly rapport: number }) => string;
-    }
+    readonly kind: "branch";
+    readonly nodeId: string;
+    /** Static successor annotation for the lint/prediction graph. */
+    readonly successors: readonly string[];
+    /** Pure relationship-conditioned routing; must pick a successor. */
+    readonly choose: (context: { readonly rapport: number }) => string;
+  }
   | {
-      readonly kind: "stage";
-      readonly nodeId: string;
-      readonly mutations: (stage: SemanticStageStateV1) => readonly StageMutationV1[];
-      /**
-       * Static annotation of every content this node may show or replace,
-       * for the lint/prediction graph. A conformance test runs the actual
-       * mutation functions and proves the annotation stays honest.
-       */
-      readonly mayShow: readonly string[];
-      readonly next: string;
-    }
+    readonly kind: "stage";
+    readonly nodeId: string;
+    readonly mutations: (stage: SemanticStageStateV1) => readonly StageMutationV1[];
+    /**
+     * Static annotation of every content this node may show or replace,
+     * for the lint/prediction graph. A conformance test runs the actual
+     * mutation functions and proves the annotation stays honest.
+     */
+    readonly mayShow: readonly string[];
+    readonly next: string;
+  }
   | {
-      readonly kind: "choice";
-      readonly nodeId: string;
-      readonly definitionId: string;
-      readonly seenRevision: number;
-      readonly promptTextId: string;
-      readonly options: readonly LabChoiceOptionV1[];
-    }
+    readonly kind: "choice";
+    readonly nodeId: string;
+    readonly definitionId: string;
+    readonly seenRevision: number;
+    readonly promptTextId: string;
+    readonly options: readonly LabChoiceOptionV1[];
+  }
   | {
-      readonly kind: "pause";
-      readonly nodeId: string;
-      readonly definitionId: string;
-      readonly seenRevision: number;
-      readonly durationMs: number;
-      readonly skippable: boolean;
-      readonly next: string;
-    }
+    readonly kind: "pause";
+    readonly nodeId: string;
+    readonly definitionId: string;
+    readonly seenRevision: number;
+    readonly durationMs: number;
+    readonly skippable: boolean;
+    readonly next: string;
+  }
   | {
-      readonly kind: "barrier";
-      readonly nodeId: string;
-      readonly definitionId: string;
-      readonly seenRevision: number;
-      readonly expectedTransitionId: string;
-      readonly loadRecovery: "replay" | "settle";
-      readonly next: string;
-    }
+    readonly kind: "barrier";
+    readonly nodeId: string;
+    readonly definitionId: string;
+    readonly seenRevision: number;
+    readonly expectedTransitionId: string;
+    readonly loadRecovery: "replay" | "settle";
+    readonly next: string;
+  }
   | {
-      readonly kind: "custom";
-      readonly nodeId: string;
-      readonly definitionId: string;
-      readonly seenRevision: number;
-      readonly surfaceId: string;
-      readonly params: StrictJsonObjectV1;
-      readonly next: string;
-    }
+    readonly kind: "custom";
+    readonly nodeId: string;
+    readonly definitionId: string;
+    readonly seenRevision: number;
+    readonly surfaceId: string;
+    readonly params: StrictJsonObjectV1;
+    readonly next: string;
+  }
   | { readonly kind: "end"; readonly nodeId: string };
 
 const propsLayerV1 = "layer.e2e.props";
@@ -170,25 +170,23 @@ export const labNarrativeScriptV1: readonly LabNarrativeNodeV1[] = [
     kind: "stage",
     nodeId: "node.e2e.cal.enter-alpha",
     mutations: (stage) =>
-      stageHasTagV1(stage, charactersLayerV1, labStageTagsV1.alpha)
-        ? []
-        : stageBatchV1([
-            {
-              kind: "show",
-              layerId: charactersLayerV1,
-              tag: labStageTagsV1.alpha,
-              contentId: labStageContentIdsV1.characterAlpha,
-              zOrder: 10,
-              placement: {
-                x: 480,
-                y: 860,
-                scalePermille: 1000,
-                opacityPermille: 1000,
-                mirrored: false,
-              },
-              appearance: { pose: "standing", expression: "neutral" },
-            },
-          ]),
+      stageHasTagV1(stage, charactersLayerV1, labStageTagsV1.alpha) ? [] : stageBatchV1([
+        {
+          kind: "show",
+          layerId: charactersLayerV1,
+          tag: labStageTagsV1.alpha,
+          contentId: labStageContentIdsV1.characterAlpha,
+          zOrder: 10,
+          placement: {
+            x: 480,
+            y: 860,
+            scalePermille: 1000,
+            opacityPermille: 1000,
+            mirrored: false,
+          },
+          appearance: { pose: "standing", expression: "neutral" },
+        },
+      ]),
     mayShow: [labStageContentIdsV1.characterAlpha],
     next: "node.e2e.cal.intro",
   },
@@ -205,24 +203,22 @@ export const labNarrativeScriptV1: readonly LabNarrativeNodeV1[] = [
     kind: "stage",
     nodeId: "node.e2e.cal.show-beacon",
     mutations: (stage) =>
-      stageHasTagV1(stage, propsLayerV1, labStageTagsV1.beacon)
-        ? []
-        : stageBatchV1([
-            {
-              kind: "show",
-              layerId: propsLayerV1,
-              tag: labStageTagsV1.beacon,
-              contentId: labStageContentIdsV1.propBeacon,
-              zOrder: 6,
-              placement: {
-                x: 360,
-                y: 760,
-                scalePermille: 900,
-                opacityPermille: 1000,
-                mirrored: false,
-              },
-            },
-          ]),
+      stageHasTagV1(stage, propsLayerV1, labStageTagsV1.beacon) ? [] : stageBatchV1([
+        {
+          kind: "show",
+          layerId: propsLayerV1,
+          tag: labStageTagsV1.beacon,
+          contentId: labStageContentIdsV1.propBeacon,
+          zOrder: 6,
+          placement: {
+            x: 360,
+            y: 760,
+            scalePermille: 900,
+            opacityPermille: 1000,
+            mirrored: false,
+          },
+        },
+      ]),
     mayShow: [labStageContentIdsV1.propBeacon],
     next: "node.e2e.cal.enter-beta",
   },
@@ -230,25 +226,23 @@ export const labNarrativeScriptV1: readonly LabNarrativeNodeV1[] = [
     kind: "stage",
     nodeId: "node.e2e.cal.enter-beta",
     mutations: (stage) =>
-      stageHasTagV1(stage, charactersLayerV1, labStageTagsV1.beta)
-        ? []
-        : stageBatchV1([
-            {
-              kind: "show",
-              layerId: charactersLayerV1,
-              tag: labStageTagsV1.beta,
-              contentId: labStageContentIdsV1.characterBeta,
-              zOrder: 11,
-              placement: {
-                x: 1120,
-                y: 860,
-                scalePermille: 1000,
-                opacityPermille: 1000,
-                mirrored: true,
-              },
-              appearance: { pose: "standing", expression: "neutral" },
-            },
-          ]),
+      stageHasTagV1(stage, charactersLayerV1, labStageTagsV1.beta) ? [] : stageBatchV1([
+        {
+          kind: "show",
+          layerId: charactersLayerV1,
+          tag: labStageTagsV1.beta,
+          contentId: labStageContentIdsV1.characterBeta,
+          zOrder: 11,
+          placement: {
+            x: 1120,
+            y: 860,
+            scalePermille: 1000,
+            opacityPermille: 1000,
+            mirrored: true,
+          },
+          appearance: { pose: "standing", expression: "neutral" },
+        },
+      ]),
     mayShow: [labStageContentIdsV1.characterBeta],
     next: "node.e2e.cal.beta-gate",
   },
@@ -361,10 +355,9 @@ export const labNarrativeScriptV1: readonly LabNarrativeNodeV1[] = [
       const background = stage.layers
         .find((layer) => layer.layerId === backgroundLayerV1)
         ?.entries.find((entry) => entry.tag === labStageTagsV1.background);
-      const nextContent =
-        background?.contentId === labStageContentIdsV1.backgroundStoreroom
-          ? labStageContentIdsV1.backgroundLab
-          : labStageContentIdsV1.backgroundStoreroom;
+      const nextContent = background?.contentId === labStageContentIdsV1.backgroundStoreroom
+        ? labStageContentIdsV1.backgroundLab
+        : labStageContentIdsV1.backgroundStoreroom;
       return stageBatchV1([
         {
           kind: "replace",

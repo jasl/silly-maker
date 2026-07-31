@@ -40,8 +40,8 @@ export function CatcafeStageV1(props: {
   const uiText = useCatcafeTextV1(props.playerProfile);
   const petBursts = useCatcafePetBurstsV1(instance);
   const game = context.publication.semantic.game;
-  const pettingReady =
-    context.publication.semantic.narrative.phase === "completed" && game.cat.pettingLeft > 0;
+  const pettingReady = context.publication.semantic.narrative.phase === "completed" &&
+    game.cat.pettingLeft > 0;
 
   // Scene-asset preload: pull the whole group on entry (the full 4MB webp set); failures degrade to code-native.
   // No explicit abort on unmount: registry.dispose stops in-flight loads, and under the jsdom

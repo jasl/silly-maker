@@ -194,15 +194,13 @@ export async function validateRuntimeAssetManifestV1(
     }
 
     const metadataResult = readRuntimeImageMetadataV1(bytes, asset.mediaType);
-    const mediaMismatch =
-      metadataResult.kind === "invalid"
-        ? metadataResult.code !== "invalid_dimensions"
-        : metadataResult.metadata.mediaType !== asset.mediaType;
-    const dimensionsMismatch =
-      metadataResult.kind === "invalid"
-        ? metadataResult.code === "invalid_dimensions"
-        : metadataResult.metadata.width !== asset.width ||
-          metadataResult.metadata.height !== asset.height;
+    const mediaMismatch = metadataResult.kind === "invalid"
+      ? metadataResult.code !== "invalid_dimensions"
+      : metadataResult.metadata.mediaType !== asset.mediaType;
+    const dimensionsMismatch = metadataResult.kind === "invalid"
+      ? metadataResult.code === "invalid_dimensions"
+      : metadataResult.metadata.width !== asset.width ||
+        metadataResult.metadata.height !== asset.height;
 
     if (mediaMismatch) {
       errors.push(validationErrorV1(asset.assetId, "asset.runtime_media_mismatch"));

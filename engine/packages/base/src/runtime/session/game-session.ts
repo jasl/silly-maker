@@ -74,11 +74,11 @@ export interface GameSessionV1<TTypes extends GameSimulationTypeMapV1> {
 export type AuthoritativeOutcomeV1<TSnapshot, TResult> =
   | { readonly kind: "preserve"; readonly result: TResult }
   | {
-      readonly kind: "replace";
-      readonly snapshot: TSnapshot;
-      readonly result: TResult;
-      readonly anchor: "preserve_log" | "replace_replay_base";
-    };
+    readonly kind: "replace";
+    readonly snapshot: TSnapshot;
+    readonly result: TResult;
+    readonly anchor: "preserve_log" | "replace_replay_base";
+  };
 
 export interface GameSessionRuntimeControlV1<TSnapshot> {
   enqueueAuthoritative<TResult>(
@@ -131,7 +131,8 @@ type LoggedDebugCommandFor<TTypes extends GameSimulationTypeMapV1> = {
 };
 
 type LoggedCommandFor<TTypes extends GameSimulationTypeMapV1> =
-  LoggedGameCommandFor<TTypes> | LoggedDebugCommandFor<TTypes>;
+  | LoggedGameCommandFor<TTypes>
+  | LoggedDebugCommandFor<TTypes>;
 
 type CommandLogFor<TTypes extends GameSimulationTypeMapV1> = CommandLogV1<
   TTypes["snapshot"],
@@ -163,17 +164,18 @@ export interface GameSessionDebugInputV1<TTypes extends GameSimulationTypeMapV1>
 export type GameSessionDebugCommandResultV1<TTypes extends GameSimulationTypeMapV1> =
   | { readonly kind: "capability_disabled" }
   | {
-      readonly kind: "not_executed";
-      readonly code: "session_unavailable" | "fault_paused" | "hmr_invalidated";
-    }
+    readonly kind: "not_executed";
+    readonly code: "session_unavailable" | "fault_paused" | "hmr_invalidated";
+  }
   | {
-      readonly kind: "validation_failed";
-      readonly errors: readonly DeepReadonly<TTypes["debugValidationError"]>[];
-    }
+    readonly kind: "validation_failed";
+    readonly errors: readonly DeepReadonly<TTypes["debugValidationError"]>[];
+  }
   | { readonly kind: "executed"; readonly attempt: FinalizedAttemptFor<TTypes> };
 
-export type GameSessionDebugAnchorV1 =
-  { readonly kind: "fixture"; readonly fixtureId: string } | { readonly kind: "debug_bundle" };
+export type GameSessionDebugAnchorV1 = { readonly kind: "fixture"; readonly fixtureId: string } | {
+  readonly kind: "debug_bundle";
+};
 
 type DebugAnchorOutcomeV1<TSnapshot, TResult> =
   | { readonly kind: "preserve"; readonly result: TResult }
@@ -196,9 +198,9 @@ export interface GameSessionDebugControlV1<TTypes extends GameSimulationTypeMapV
     | TResult
     | { readonly kind: "capability_disabled" }
     | {
-        readonly kind: "not_executed";
-        readonly code: "session_unavailable" | "hmr_invalidated";
-      }
+      readonly kind: "not_executed";
+      readonly code: "session_unavailable" | "hmr_invalidated";
+    }
   >;
 }
 
@@ -269,39 +271,36 @@ function finalizeCommandAttemptV1<TTypes extends GameSimulationTypeMapV1>(
   if (candidate.result.kind !== "committed" && finalizedSnapshot !== before) {
     throw new TypeError("Non-committed command attempt changed the Snapshot");
   }
-  const postSnapshot =
-    candidate.result.kind === "committed"
-      ? deepFreezeSnapshotV1(finalizedSnapshot, instrumentation)
-      : finalizedSnapshot;
+  const postSnapshot = candidate.result.kind === "committed"
+    ? deepFreezeSnapshotV1(finalizedSnapshot, instrumentation)
+    : finalizedSnapshot;
 
-  const result: AttemptFor<TTypes>["result"] =
-    candidate.result.kind === "committed"
-      ? Object.freeze({
-          kind: "committed" as const,
-          snapshot: postSnapshot,
-          facts: candidate.result.facts,
-        })
-      : candidate.result.kind === "rejected"
-        ? Object.freeze({
-            kind: "rejected" as const,
-            snapshot: finalizedSnapshot,
-            reasons: candidate.result.reasons,
-          })
-        : Object.freeze({
-            kind: "faulted" as const,
-            snapshot: finalizedSnapshot,
-            fault: candidate.result.fault,
-          });
+  const result: AttemptFor<TTypes>["result"] = candidate.result.kind === "committed"
+    ? Object.freeze({
+      kind: "committed" as const,
+      snapshot: postSnapshot,
+      facts: candidate.result.facts,
+    })
+    : candidate.result.kind === "rejected"
+    ? Object.freeze({
+      kind: "rejected" as const,
+      snapshot: finalizedSnapshot,
+      reasons: candidate.result.reasons,
+    })
+    : Object.freeze({
+      kind: "faulted" as const,
+      snapshot: finalizedSnapshot,
+      fault: candidate.result.fault,
+    });
 
   return Object.freeze({
     result,
     diagnostics: candidate.diagnostics,
     preSnapshot: before,
     preStateDigest: beforeStateDigest,
-    postStateDigest:
-      candidate.result.kind === "committed"
-        ? digestCanonicalInternalV1("sillymaker:state:v1", postSnapshot, instrumentation)
-        : beforeStateDigest,
+    postStateDigest: candidate.result.kind === "committed"
+      ? digestCanonicalInternalV1("sillymaker:state:v1", postSnapshot, instrumentation)
+      : beforeStateDigest,
   }) as FinalizedAttemptFor<TTypes>;
 }
 
@@ -348,14 +347,14 @@ function debugAnchorReasonV1<
 >(anchor: GameSessionDebugAnchorV1, snapshot: TSnapshot): RunIntegrityReasonV1 {
   return anchor.kind === "fixture"
     ? Object.freeze({
-        kind: "fixture_anchor" as const,
-        fixtureId: anchor.fixtureId,
-        sequence: snapshot.commandSequence,
-      })
+      kind: "fixture_anchor" as const,
+      fixtureId: anchor.fixtureId,
+      sequence: snapshot.commandSequence,
+    })
     : Object.freeze({
-        kind: "debug_bundle_anchor" as const,
-        sequence: snapshot.commandSequence,
-      });
+      kind: "debug_bundle_anchor" as const,
+      sequence: snapshot.commandSequence,
+    });
 }
 
 /**
@@ -514,10 +513,9 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
             if (outcome.anchor === "preserve_log" && finalized !== snapshot) {
               throw new TypeError("preserve_log replacement changed the Snapshot");
             }
-            const preparedCommandLogAnchor =
-              outcome.anchor === "replace_replay_base"
-                ? commandLog.prepareAnchor(finalized as DeepReadonly<TTypes["snapshot"]>)
-                : null;
+            const preparedCommandLogAnchor = outcome.anchor === "replace_replay_base"
+              ? commandLog.prepareAnchor(finalized as DeepReadonly<TTypes["snapshot"]>)
+              : null;
             prepareReplacementCommit?.(
               finalized as DeepReadonly<TTypes["snapshot"]>,
               outcome.anchor,
@@ -615,17 +613,16 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
 
         let finalizedAttempt: FinalizedAttemptFor<TTypes>;
         try {
-          const integrityDirective: IntegrityDirectiveV1 =
-            candidate.result.kind === "committed"
-              ? {
-                  kind: "mark_modified",
-                  reason: {
-                    kind: "debug_command",
-                    commandKind: debugCommandKindV1(command),
-                    sequence: candidate.result.snapshot.commandSequence,
-                  },
-                }
-              : { kind: "preserve_current" };
+          const integrityDirective: IntegrityDirectiveV1 = candidate.result.kind === "committed"
+            ? {
+              kind: "mark_modified",
+              reason: {
+                kind: "debug_command",
+                commandKind: debugCommandKindV1(command),
+                sequence: candidate.result.snapshot.commandSequence,
+              },
+            }
+            : { kind: "preserve_current" };
           finalizedAttempt = finalizeCommandAttemptV1<TTypes>(
             before,
             currentStateDigest,
@@ -683,9 +680,9 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
       | TResult
       | { readonly kind: "capability_disabled" }
       | {
-          readonly kind: "not_executed";
-          readonly code: "session_unavailable" | "hmr_invalidated";
-        }
+        readonly kind: "not_executed";
+        readonly code: "session_unavailable" | "hmr_invalidated";
+      }
     > {
       return enqueue(async () => {
         if (!hasCapabilityV1(isCapabilityEnabled)) return capabilityDisabledV1;

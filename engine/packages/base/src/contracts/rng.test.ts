@@ -19,7 +19,7 @@ describe("xorshift32-v1", () => {
         algorithm: "xorshift32-v1",
         cursor: 0x1_0000_0000,
         rawDrawCount: 0,
-      }),
+      })
     ).toThrow();
     expect(
       Array.from(

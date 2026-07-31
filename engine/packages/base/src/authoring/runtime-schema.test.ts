@@ -54,7 +54,7 @@ describe("createRuntimeSchemaV1", () => {
     const diagnostics = diagnosticsOfV1(() =>
       createRuntimeSchemaV1({
         parse: () => ({ ratio: 0.5 }),
-      }).parse({}),
+      }).parse({})
     );
     expect(diagnostics).toEqual([
       expect.objectContaining({
@@ -97,7 +97,7 @@ describe("fromStandardSchemaV1 (official Zod adapter)", () => {
       subject: { kind: "module", id: "lab.samples" },
     });
     const diagnostics = diagnosticsOfV1(() =>
-      schema.parse({ collected: -1, tags: ["", "ok"], extra: true }),
+      schema.parse({ collected: -1, tags: ["", "ok"], extra: true })
     );
     expect(diagnostics.length).toBeGreaterThanOrEqual(3);
     const pointers = diagnostics.map((diagnostic) => diagnostic.location?.jsonPointer);

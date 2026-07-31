@@ -110,7 +110,7 @@ describe("createPlayerSaveSurfacesV1", () => {
         clearAllSaves: vi.fn(),
         saveLabels: Object.freeze({}) as never,
         customSaves,
-      }),
+      })
     ).toThrowError("web.system_saves_ambiguous");
     expect(() =>
       createPlayerSaveSurfacesV1({
@@ -119,7 +119,7 @@ describe("createPlayerSaveSurfacesV1", () => {
         clearAllSaves: vi.fn(),
         saveGuard: () => ({ allowed: true }),
         customSaves,
-      }),
+      })
     ).toThrowError("web.system_saves_ambiguous");
   });
 });

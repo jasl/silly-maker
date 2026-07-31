@@ -24,8 +24,9 @@ export interface AssetDemandRetryPolicyV1 {
   readonly backoffMs: number;
 }
 
-export type AssetDemandRetentionV1 =
-  { readonly kind: "while_demanded" } | { readonly kind: "retain_all" };
+export type AssetDemandRetentionV1 = { readonly kind: "while_demanded" } | {
+  readonly kind: "retain_all";
+};
 
 export interface AssetDemandPlanV1 {
   readonly planId: string;

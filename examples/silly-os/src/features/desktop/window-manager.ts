@@ -130,8 +130,9 @@ export function createOsWindowManagerV1(): OsWindowManagerV1 {
         Object.freeze({
           windowId,
           appId,
-          rect:
-            options.bounds === undefined ? cascaded : clampOsWindowRectV1(cascaded, options.bounds),
+          rect: options.bounds === undefined
+            ? cascaded
+            : clampOsWindowRectV1(cascaded, options.bounds),
           mode: "normal" as const,
           restoreRect: null,
           z: nextZ++,
@@ -157,20 +158,19 @@ export function createOsWindowManagerV1(): OsWindowManagerV1 {
       update(windowId, (window) =>
         window.mode === "maximized"
           ? {
-              ...window,
-              mode: "normal" as const,
-              rect: window.restoreRect ?? window.rect,
-              restoreRect: null,
-              z: nextZ++,
-            }
+            ...window,
+            mode: "normal" as const,
+            rect: window.restoreRect ?? window.rect,
+            restoreRect: null,
+            z: nextZ++,
+          }
           : {
-              ...window,
-              mode: "maximized" as const,
-              restoreRect: window.rect,
-              rect: bounds,
-              z: nextZ++,
-            },
-      );
+            ...window,
+            mode: "maximized" as const,
+            restoreRect: window.rect,
+            rect: bounds,
+            z: nextZ++,
+          });
     },
     taskbarActivate(windowId) {
       const target = windows.find((window) => window.windowId === windowId);
@@ -186,10 +186,12 @@ export function createOsWindowManagerV1(): OsWindowManagerV1 {
       update(windowId, (window) => ({ ...window, z: nextZ++ }));
     },
     move(windowId, x, y) {
-      update(windowId, (window) =>
-        window.mode === "maximized"
-          ? window
-          : { ...window, rect: Object.freeze({ ...window.rect, x, y }) },
+      update(
+        windowId,
+        (window) =>
+          window.mode === "maximized"
+            ? window
+            : { ...window, rect: Object.freeze({ ...window.rect, x, y }) },
       );
     },
     clampToBounds(bounds) {
@@ -197,7 +199,7 @@ export function createOsWindowManagerV1(): OsWindowManagerV1 {
         windows.map((window) =>
           window.mode === "maximized"
             ? { ...window, rect: bounds }
-            : { ...window, rect: clampOsWindowRectV1(window.rect, bounds) },
+            : { ...window, rect: clampOsWindowRectV1(window.rect, bounds) }
         ),
       );
     },

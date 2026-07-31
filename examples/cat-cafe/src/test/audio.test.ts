@@ -73,7 +73,7 @@ describe("catcafe audio", () => {
 
   it("ships every declared audio provider with matching bytes and digest", async () => {
     const providers = catcafeAudioManifestV1.entries.flatMap((entry) =>
-      entry.delivery === "runtime_audio" ? [entry.provider] : [],
+      entry.delivery === "runtime_audio" ? [entry.provider] : []
     );
     expect(providers.length).toBe(9);
     for (const provider of providers) {

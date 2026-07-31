@@ -10,8 +10,8 @@ import { calendarModuleV1 } from "../calendar/module.ts";
 import { catModuleV1 } from "../cat/module.ts";
 import { drawCatcafeEncounterV1 } from "../encounters/draw.ts";
 
-export const shopCommandHandlersV1: Pick<CatcafeCommandHandlerMapV1, "cc.do_activity"> =
-  Object.freeze({
+export const shopCommandHandlersV1: Pick<CatcafeCommandHandlerMapV1, "cc.do_activity"> = Object
+  .freeze({
     "cc.do_activity": ({ snapshot, rng, state, command }) =>
       transactionRunnerV1.execute(snapshot, rng, (transaction) => {
         // Daily gameplay unlocks after the opening narrative completes.
@@ -39,8 +39,8 @@ export const shopCommandHandlersV1: Pick<CatcafeCommandHandlerMapV1, "cc.do_acti
         applyStatEffectsV1(cat, shop, activity.effects, { fishBuffDoublesTrust: true });
         let encounterFacts: readonly CatcafeFactV1[] = Object.freeze([]);
         if (activity.income === "business") {
-          shop.money +=
-            10 + Math.floor(state.shop.reputation / 10) + Math.floor(state.shop.tidiness / 20);
+          shop.money += 10 + Math.floor(state.shop.reputation / 10) +
+            Math.floor(state.shop.tidiness / 20);
           encounterFacts = drawCatcafeEncounterV1({ state, rng, cat, shop });
         }
         if (shop.money < 0) return transaction.reject({ code: "cc.money_short" });

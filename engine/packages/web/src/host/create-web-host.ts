@@ -17,8 +17,9 @@ interface CreateWebHostCommonOptionsV1 {
   readonly files?: GameHostV1["files"];
 }
 
-export type CreateWebHostOptionsV1 = CreateWebHostCommonOptionsV1 &
-  (
+export type CreateWebHostOptionsV1 =
+  & CreateWebHostCommonOptionsV1
+  & (
     | { readonly databaseName: string; readonly records?: never }
     | { readonly databaseName?: never; readonly records: HostAtomicRecordStoreV1 }
   );
@@ -77,8 +78,7 @@ export function createWebHostV1(options: CreateWebHostOptionsV1): GameHostV1 {
       return parseNonZeroUint32(fixed);
     }
     const values = new Uint32Array(1);
-    do cryptoPort.getRandomValues(values);
-    while (values[0] === 0);
+    do cryptoPort.getRandomValues(values); while (values[0] === 0);
     return parseNonZeroUint32(values[0]);
   };
   return Object.freeze({
@@ -109,14 +109,13 @@ export function createWebHostV1(options: CreateWebHostOptionsV1): GameHostV1 {
         code: string,
         details: Parameters<GameHostV1["log"]["write"]>[2],
       ) {
-        const method =
-          level === "debug"
-            ? console.debug
-            : level === "info"
-              ? console.info
-              : level === "warn"
-                ? console.warn
-                : console.error;
+        const method = level === "debug"
+          ? console.debug
+          : level === "info"
+          ? console.info
+          : level === "warn"
+          ? console.warn
+          : console.error;
         method(code, details);
       },
     }),

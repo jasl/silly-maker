@@ -21,12 +21,14 @@ import {
 export const snapshotCommitEntityCountsV1 = Object.freeze([100, 1_000, 10_000, 100_000] as const);
 export type SnapshotCommitEntityCountV1 = (typeof snapshotCommitEntityCountsV1)[number];
 
-export const snapshotCommitCommandClassesV1 = Object.freeze([
-  "single_field_committed",
-  "multi_slice_committed",
-  "rejected",
-  "faulted",
-] as const);
+export const snapshotCommitCommandClassesV1 = Object.freeze(
+  [
+    "single_field_committed",
+    "multi_slice_committed",
+    "rejected",
+    "faulted",
+  ] as const,
+);
 export type SnapshotCommitCommandClassV1 = (typeof snapshotCommitCommandClassesV1)[number];
 
 export interface SnapshotSessionWorkCountsV1 {
@@ -105,11 +107,12 @@ interface SnapshotWorkloadFaultV1 {
   readonly code: "snapshot_workload.faulted";
 }
 
-interface SnapshotWorkloadTypesV1 extends GameSimulationTypeMapV1<
-  GameBootstrapInputV1,
-  SnapshotWorkloadStateV1,
-  SnapshotWorkloadRngStateV1
-> {
+interface SnapshotWorkloadTypesV1 extends
+  GameSimulationTypeMapV1<
+    GameBootstrapInputV1,
+    SnapshotWorkloadStateV1,
+    SnapshotWorkloadRngStateV1
+  > {
   readonly snapshot: SnapshotWorkloadSnapshotV1;
   readonly command: SnapshotWorkloadCommandV1;
   readonly fact: SnapshotWorkloadFactV1;
@@ -133,10 +136,9 @@ type SnapshotWorkloadAttemptV1 = CommandExecutionAttemptEnvelopeV1<
 
 const commandSchemaV1: RuntimeSchemaV1<SnapshotWorkloadCommandV1> = Object.freeze({
   parse(value: unknown): SnapshotWorkloadCommandV1 {
-    const kind =
-      value !== null && typeof value === "object" && !Array.isArray(value)
-        ? Reflect.get(value, "kind")
-        : undefined;
+    const kind = value !== null && typeof value === "object" && !Array.isArray(value)
+      ? Reflect.get(value, "kind")
+      : undefined;
     if (
       !snapshotCommitCommandClassesV1.some(
         (candidate: SnapshotCommitCommandClassV1) => candidate === kind,
@@ -202,12 +204,11 @@ function committedSnapshotV1(
   return {
     state: {
       entitySlice: { chunks },
-      auditSlice:
-        commandClass === "multi_slice_committed"
-          ? {
-              multiSliceCommitCount: current.state.auditSlice.multiSliceCommitCount + 1,
-            }
-          : current.state.auditSlice,
+      auditSlice: commandClass === "multi_slice_committed"
+        ? {
+          multiSliceCommitCount: current.state.auditSlice.multiSliceCommitCount + 1,
+        }
+        : current.state.auditSlice,
     },
     rng: current.rng,
     commandSequence: parseNonNegativeSafeInteger(current.commandSequence + 1),
@@ -300,13 +301,12 @@ export function createSnapshotCommitWorkloadV1(input: {
       return attemptV1(snapshot, Object.freeze({ kind: "faulted" }));
     },
   };
-  const created =
-    input.instrumentation === undefined
-      ? createGameSessionV1<SnapshotWorkloadTypesV1>(sessionInput)
-      : createInstrumentedGameSessionV1<SnapshotWorkloadTypesV1>(
-          sessionInput,
-          input.instrumentation,
-        );
+  const created = input.instrumentation === undefined
+    ? createGameSessionV1<SnapshotWorkloadTypesV1>(sessionInput)
+    : createInstrumentedGameSessionV1<SnapshotWorkloadTypesV1>(
+      sessionInput,
+      input.instrumentation,
+    );
   return Object.freeze({
     snapshot: () => created.session.getCurrentSnapshot(),
     commandLog: () => created.commandLog.entries(),

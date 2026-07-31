@@ -13,7 +13,7 @@ describe("Snapshot work instrumentation", () => {
           },
         },
         "canonical_digest",
-      ),
+      )
     ).not.toThrow();
   });
 

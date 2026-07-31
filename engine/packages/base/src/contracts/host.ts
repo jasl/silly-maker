@@ -18,27 +18,27 @@ export interface HostStoredRecordV1 {
 
 export type HostRecordMutationV1 =
   | {
-      readonly kind: "put";
-      readonly namespace: HostRecordNamespaceV1;
-      readonly key: HostRecordKeyV1;
-      readonly expectedRevision: HostRecordRevisionV1 | null;
-      readonly bytes: Uint8Array;
-    }
+    readonly kind: "put";
+    readonly namespace: HostRecordNamespaceV1;
+    readonly key: HostRecordKeyV1;
+    readonly expectedRevision: HostRecordRevisionV1 | null;
+    readonly bytes: Uint8Array;
+  }
   | {
-      readonly kind: "delete";
-      readonly namespace: HostRecordNamespaceV1;
-      readonly key: HostRecordKeyV1;
-      readonly expectedRevision: HostRecordRevisionV1;
-    };
+    readonly kind: "delete";
+    readonly namespace: HostRecordNamespaceV1;
+    readonly key: HostRecordKeyV1;
+    readonly expectedRevision: HostRecordRevisionV1;
+  };
 
 export type HostAtomicCommitResultV1 =
   | { readonly kind: "committed"; readonly records: readonly HostStoredRecordV1[] }
   | {
-      readonly kind: "conflict";
-      readonly namespace: HostRecordNamespaceV1;
-      readonly key: HostRecordKeyV1;
-      readonly actualRevision: HostRecordRevisionV1 | null;
-    };
+    readonly kind: "conflict";
+    readonly namespace: HostRecordNamespaceV1;
+    readonly key: HostRecordKeyV1;
+    readonly actualRevision: HostRecordRevisionV1 | null;
+  };
 
 export interface HostAtomicRecordStoreV1 {
   read(namespace: HostRecordNamespaceV1, key: HostRecordKeyV1): Promise<HostStoredRecordV1 | null>;
@@ -87,19 +87,19 @@ function cloneRecord(record: HostStoredRecordV1): HostStoredRecordV1 {
 
 type NormalizedMemoryMutationV1 =
   | {
-      readonly kind: "put";
-      readonly namespace: HostRecordNamespaceV1;
-      readonly key: HostRecordKeyV1;
-      readonly expectedRevision: HostRecordRevisionV1 | null;
-      readonly nextRevision: HostRecordRevisionV1;
-      readonly bytes: Uint8Array;
-    }
+    readonly kind: "put";
+    readonly namespace: HostRecordNamespaceV1;
+    readonly key: HostRecordKeyV1;
+    readonly expectedRevision: HostRecordRevisionV1 | null;
+    readonly nextRevision: HostRecordRevisionV1;
+    readonly bytes: Uint8Array;
+  }
   | {
-      readonly kind: "delete";
-      readonly namespace: HostRecordNamespaceV1;
-      readonly key: HostRecordKeyV1;
-      readonly expectedRevision: HostRecordRevisionV1;
-    };
+    readonly kind: "delete";
+    readonly namespace: HostRecordNamespaceV1;
+    readonly key: HostRecordKeyV1;
+    readonly expectedRevision: HostRecordRevisionV1;
+  };
 
 function isHostRecordNamespaceV1(value: unknown): value is HostRecordNamespaceV1 {
   return value === "save" || value === "lease" || value === "settings";
@@ -136,10 +136,9 @@ function normalizeMemoryMutationsV1(
       if (!isUint8ArrayV1(mutation.bytes)) {
         throw new TypeError("invalid Host record mutation bytes");
       }
-      const expectedRevision =
-        mutation.expectedRevision === null
-          ? null
-          : parseNonNegativeSafeInteger(mutation.expectedRevision);
+      const expectedRevision = mutation.expectedRevision === null
+        ? null
+        : parseNonNegativeSafeInteger(mutation.expectedRevision);
       return Object.freeze({
         kind: "put",
         namespace,
@@ -160,7 +159,7 @@ function normalizeMemoryMutationsV1(
     });
   });
   const identities = normalized.map((mutation) =>
-    compositeRecordKeyV1(mutation.namespace, mutation.key),
+    compositeRecordKeyV1(mutation.namespace, mutation.key)
   );
   if (new Set(identities).size !== identities.length) {
     throw new TypeError("duplicate Host record mutation");

@@ -62,14 +62,14 @@ describe("generic Snapshot envelope", () => {
       schema.parse({
         ...snapshot,
         integrity: { ...snapshot.integrity, injected: true },
-      }),
+      })
     ).toThrow();
     expect(() =>
       schema.parse({
         state: snapshot.state,
         rng: snapshot.rng,
         commandSequence: snapshot.commandSequence,
-      }),
+      })
     ).toThrow();
   });
 
@@ -81,50 +81,52 @@ describe("generic Snapshot envelope", () => {
       reasons: [],
     });
 
-    for (const invalid of [
-      {
-        mode: "normal",
-        mutationCount: 1,
-        firstMutationSequence: 1,
-        reasons: [{ kind: "debug_bundle_anchor", sequence: 1 }],
-      },
-      {
-        mode: "modified",
-        mutationCount: 0,
-        firstMutationSequence: null,
-        reasons: [],
-      },
-      {
-        mode: "modified",
-        mutationCount: 1,
-        firstMutationSequence: -1,
-        reasons: [{ kind: "debug_bundle_anchor", sequence: 1 }],
-      },
-      {
-        mode: "modified",
-        mutationCount: Number.NaN,
-        firstMutationSequence: 1,
-        reasons: [{ kind: "unknown", sequence: 1 }],
-      },
-      {
-        mode: "modified",
-        mutationCount: 1,
-        firstMutationSequence: 1,
-        reasons: [],
-      },
-      {
-        mode: "modified",
-        mutationCount: -0,
-        firstMutationSequence: 1,
-        reasons: [{ kind: "debug_bundle_anchor", sequence: 1 }],
-      },
-      {
-        mode: "normal",
-        mutationCount: 0,
-        firstMutationSequence: null,
-        reasons: [{ kind: "debug_bundle_anchor", sequence: 0 }],
-      },
-    ]) {
+    for (
+      const invalid of [
+        {
+          mode: "normal",
+          mutationCount: 1,
+          firstMutationSequence: 1,
+          reasons: [{ kind: "debug_bundle_anchor", sequence: 1 }],
+        },
+        {
+          mode: "modified",
+          mutationCount: 0,
+          firstMutationSequence: null,
+          reasons: [],
+        },
+        {
+          mode: "modified",
+          mutationCount: 1,
+          firstMutationSequence: -1,
+          reasons: [{ kind: "debug_bundle_anchor", sequence: 1 }],
+        },
+        {
+          mode: "modified",
+          mutationCount: Number.NaN,
+          firstMutationSequence: 1,
+          reasons: [{ kind: "unknown", sequence: 1 }],
+        },
+        {
+          mode: "modified",
+          mutationCount: 1,
+          firstMutationSequence: 1,
+          reasons: [],
+        },
+        {
+          mode: "modified",
+          mutationCount: -0,
+          firstMutationSequence: 1,
+          reasons: [{ kind: "debug_bundle_anchor", sequence: 1 }],
+        },
+        {
+          mode: "normal",
+          mutationCount: 0,
+          firstMutationSequence: null,
+          reasons: [{ kind: "debug_bundle_anchor", sequence: 0 }],
+        },
+      ]
+    ) {
       expect(() => runIntegrityV1Schema.parse(invalid)).toThrow();
     }
   });
@@ -157,7 +159,7 @@ describe("generic Snapshot envelope", () => {
         mutationCount: 1,
         firstMutationSequence: 1,
         reasons: [{ ...reasons[0], injected: true }],
-      }),
+      })
     ).toThrow();
     expect(() =>
       runIntegrityV1Schema.parse({
@@ -165,7 +167,7 @@ describe("generic Snapshot envelope", () => {
         mutationCount: 1,
         firstMutationSequence: 1,
         reasons: [{ kind: "debug_bundle_anchor", sequence: 1, injected: true }],
-      }),
+      })
     ).toThrow();
     expect(() =>
       runIntegrityV1Schema.parse({
@@ -173,7 +175,7 @@ describe("generic Snapshot envelope", () => {
         mutationCount: 2,
         firstMutationSequence: 1,
         reasons: [reasons[0], { ...reasons[0], commandKind: "debug.synthetic.other" }],
-      }),
+      })
     ).toThrow();
     expect(() =>
       runIntegrityV1Schema.parse({
@@ -184,7 +186,7 @@ describe("generic Snapshot envelope", () => {
           kind: "debug_bundle_anchor",
           sequence: index + 1,
         })),
-      }),
+      })
     ).toThrow();
   });
 
@@ -230,7 +232,7 @@ describe("generic Snapshot envelope", () => {
           firstMutationSequence: null,
           reasons: [],
         }),
-      ),
+      )
     ).toThrow();
   });
 });
