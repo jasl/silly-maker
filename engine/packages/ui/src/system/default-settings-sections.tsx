@@ -22,6 +22,8 @@ export interface DefaultSettingsLabelsV1 {
   readonly voiceVolumeLabel: string;
   readonly sfxVolumeLabel: string;
   readonly mutedLabel: string;
+  /** Supplying a label opts a Story into the cutscene-skip control. */
+  readonly skipCutscenesLabel?: string;
   readonly textSpeedLabel: string;
   readonly autoWaitLabel: string;
   readonly fullscreenLabel: string;
@@ -99,6 +101,21 @@ export function DefaultSettingsSectionsV1(props: {
         />
         {props.labels.mutedLabel}
       </label>
+      {props.labels.skipCutscenesLabel === undefined
+        ? null
+        : (
+          <label style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            <input
+              type="checkbox"
+              data-default-settings-skip-cutscenes="true"
+              checked={preferences.skipCutscenes}
+              onChange={(event) => {
+                void props.playerProfile.updatePreferences({ skipCutscenes: event.target.checked });
+              }}
+            />
+            {props.labels.skipCutscenesLabel}
+          </label>
+        )}
       <label style={{ display: "flex", gap: "8px", alignItems: "center" }}>
         <span style={{ minInlineSize: "7em" }}>{props.labels.textSpeedLabel}</span>
         <input

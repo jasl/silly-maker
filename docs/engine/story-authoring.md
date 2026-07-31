@@ -104,6 +104,8 @@ A Story ships one `WebGameApplicationV1` declaration (core definition with the s
 
 The composer is the composition root. Base, UI, and Web must not import a concrete Story to make this happen.
 
+Player playback choices live in the per-Story Host profile, outside every Game Save. A Story that consumes `playerProfile.current().preferences.skipCutscenes` may opt into the default Settings checkbox with `settingsSkipCutscenesLabel`; otherwise the control is absent. The preference may only settle explicitly skippable presentation waits to their stable end state. Any gameplay progression still goes through the same validated semantic commands, so normal and collapsed playback converge on the same authoritative Snapshot, digest, and replay evidence.
+
 ## 3. Persistence considerations
 
 Save only plain versioned data and stable IDs. A Save must not contain Store clients, derived indexes, functions, component instances, DOM values, or Host handles.

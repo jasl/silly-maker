@@ -59,6 +59,8 @@ export interface DefaultGameRootLabelsV1 {
   readonly settingsVoiceVolumeLabel: string;
   readonly settingsSfxVolumeLabel: string;
   readonly settingsMutedLabel: string;
+  /** Player preference for Story-owned skippable presentation dwells. */
+  readonly settingsSkipCutscenesLabel?: string;
   readonly settingsTextSpeedLabel: string;
   readonly settingsAutoWaitLabel: string;
   readonly settingsFullscreenLabel: string;
@@ -541,6 +543,9 @@ export function DefaultGameRootV1<
                   voiceVolumeLabel: labels.settingsVoiceVolumeLabel,
                   sfxVolumeLabel: labels.settingsSfxVolumeLabel,
                   mutedLabel: labels.settingsMutedLabel,
+                  ...(labels.settingsSkipCutscenesLabel === undefined
+                    ? {}
+                    : { skipCutscenesLabel: labels.settingsSkipCutscenesLabel }),
                   textSpeedLabel: labels.settingsTextSpeedLabel,
                   autoWaitLabel: labels.settingsAutoWaitLabel,
                   fullscreenLabel: labels.settingsFullscreenLabel,

@@ -154,7 +154,7 @@ History、Seen、CommandLog、Debug replay 和未来 Player rollback 是五个�
 第一版明确采用以下持久化边界：
 
 - NarrativeHistory 是 Story/Narrative authoritative State 中的稳定语义记录，进入 Save，并随 Player rollback 恢复到 checkpoint 对应内容；
-- Seen registry 与文本速度、auto wait、skip policy、音量等 preference 属于 Host profile，不进入单个 Game Save，也不随 rollback 撤销；
+- Seen registry 与文本速度、auto wait、skip policy、`skipCutscenes`、音量等 preference 属于 Host profile，不进入单个 Game Save，也不随 rollback 撤销；`skipCutscenes` 只允许 Story 立即结算明确可跳过的 PresentationRun、wait 或 fade 到稳定终值，不得跳过 PendingInteraction、choice、权威 scheduler time 或 semantic command；
 - 当前 typewriter cursor、hover、focus 和临时 auto/skip 执行状态属于 UI transient state，load 后按 preference 与当前 PendingInteraction 重建。
 
 这不是额外的 presentation Save sidecar；任何进入 Game Save 的 player data 都必须属于版本化、可验证的 Story/Game State 或现有 Save envelope 明确定义的字段。

@@ -22,6 +22,12 @@ export interface PlayerPlaybackPreferencesV1 {
   readonly autoWaitMs: number;
   /** skip_read stops at unread lines; skip_all skips everything skippable. */
   readonly skipPolicy: "skip_read" | "skip_all";
+  /**
+   * Lets a Story settle skippable, non-authoritative presentation dwells.
+   * It must not bypass authoritative scheduler time or semantic commands.
+   * Older profiles omit this field and soft-default to `false`.
+   */
+  readonly skipCutscenes: boolean;
   readonly masterGainPermille: number;
   /** Per-bus player volumes multiplied under the master gain. */
   readonly bgmGainPermille: number;
@@ -53,6 +59,7 @@ export const defaultPlayerProfileV1: PlayerProfileV1 = Object.freeze({
     textRevealCharsPerSecond: 40,
     autoWaitMs: 600,
     skipPolicy: "skip_read" as const,
+    skipCutscenes: false,
     masterGainPermille: 1000,
     bgmGainPermille: 1000,
     voiceGainPermille: 1000,
@@ -130,6 +137,7 @@ function parsePlayerProfileV1(value: unknown): PlayerProfileV1 | null {
   const charsPerSecond = preferences.textRevealCharsPerSecond;
   const autoWaitMs = preferences.autoWaitMs;
   const skipPolicy = preferences.skipPolicy;
+  const skipCutscenes = preferences.skipCutscenes;
   const masterGain = preferences.masterGainPermille;
   const bgmGain = preferences.bgmGainPermille;
   const voiceGain = preferences.voiceGainPermille;
@@ -142,6 +150,7 @@ function parsePlayerProfileV1(value: unknown): PlayerProfileV1 | null {
     (autoWaitMs !== undefined &&
       (!Number.isSafeInteger(autoWaitMs) || (autoWaitMs as number) < 0)) ||
     (skipPolicy !== undefined && skipPolicy !== "skip_read" && skipPolicy !== "skip_all") ||
+    (skipCutscenes !== undefined && typeof skipCutscenes !== "boolean") ||
     (masterGain !== undefined &&
       (!Number.isSafeInteger(masterGain) ||
         (masterGain as number) < 0 ||
@@ -164,6 +173,7 @@ function parsePlayerProfileV1(value: unknown): PlayerProfileV1 | null {
       textRevealCharsPerSecond: charsPerSecond ?? defaults.textRevealCharsPerSecond,
       autoWaitMs: autoWaitMs ?? defaults.autoWaitMs,
       skipPolicy: skipPolicy ?? defaults.skipPolicy,
+      skipCutscenes: skipCutscenes ?? defaults.skipCutscenes,
       masterGainPermille: masterGain ?? defaults.masterGainPermille,
       bgmGainPermille: bgmGain ?? defaults.bgmGainPermille,
       voiceGainPermille: voiceGain ?? defaults.voiceGainPermille,

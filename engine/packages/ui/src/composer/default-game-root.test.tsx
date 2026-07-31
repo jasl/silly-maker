@@ -6,12 +6,16 @@ import { userEvent } from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { parseNonNegativeSafeInteger } from "@sillymaker/base";
-import type { SessionAnchorResultV1 } from "@sillymaker/base";
+import type { RuntimeCapabilityPortV1, SessionAnchorResultV1 } from "@sillymaker/base";
+import { createPlayerProfileStoreV1 } from "@sillymaker/base/runtime";
+import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
+import { createMemoryHostRecordStoreV1 } from "@sillymaker/base/testkit";
 
 import { createInputRouterV1 } from "../input/input-router.ts";
 import { createOverlaySessionStoreV1 } from "../overlays/overlay-session-store.ts";
 import { createSystemDialogSessionStoreV1 } from "../system/system-dialog-session-store.ts";
 import type { DefaultGameRootSlotContextV1 } from "./default-game-root.tsx";
+import type { DefaultGameRootLabelsV1 } from "./default-game-root.tsx";
 import { DefaultGameRootV1 } from "./default-game-root.tsx";
 
 afterEach(cleanup);
@@ -21,9 +25,26 @@ const anchoredV1 = Object.freeze({
   commandSequence: parseNonNegativeSafeInteger(0),
 }) satisfies SessionAnchorResultV1;
 
+const disabledCapabilityStateV1 = Object.freeze({
+  debugTools: false,
+  cheats: false,
+  automationBridge: false,
+});
+const disabledCapabilitiesV1 = Object.freeze({
+  state: Object.freeze({
+    getCurrent: () => disabledCapabilityStateV1,
+    subscribe: () => () => undefined,
+  }),
+  setEnabled: async () =>
+    Object.freeze({ kind: "unchanged" as const, state: disabledCapabilityStateV1 }),
+}) satisfies RuntimeCapabilityPortV1;
+
 function renderLifecycleRootV1(input: {
   readonly restart: () => Promise<SessionAnchorResultV1>;
   readonly beginNewGame?: () => void | Promise<unknown>;
+  readonly playerProfile?: PlayerProfileStoreV1;
+  readonly capabilities?: RuntimeCapabilityPortV1;
+  readonly labels?: Partial<DefaultGameRootLabelsV1>;
 }) {
   let returnToTitle:
     | DefaultGameRootSlotContextV1<unknown, unknown>["systemDialogs"]["returnToTitle"]
@@ -57,6 +78,9 @@ function renderLifecycleRootV1(input: {
       accessibleName="Lifecycle fixture"
       applicationId="lifecycle-fixture"
       viewport={undefined as never}
+      {...(input.playerProfile === undefined ? {} : { playerProfile: input.playerProfile })}
+      {...(input.capabilities === undefined ? {} : { capabilities: input.capabilities })}
+      {...(input.labels === undefined ? {} : { labels: input.labels })}
       lifecycle={Object.freeze({ restart: input.restart })}
       titleScreen={Object.freeze({
         title: "Lifecycle fixture",
@@ -115,6 +139,25 @@ function openActiveTopologyV1(fixture: ReturnType<typeof renderLifecycleRootV1>)
 }
 
 describe("DefaultGameRootV1 lifecycle result handling", () => {
+  it("forwards the Story opt-in cutscene label to the default Settings control", async () => {
+    const playerProfile = await createPlayerProfileStoreV1({
+      records: createMemoryHostRecordStoreV1(),
+      storyId: "story.test.default-root-settings",
+    });
+    const fixture = renderLifecycleRootV1({
+      restart: async () => anchoredV1,
+      playerProfile,
+      capabilities: disabledCapabilitiesV1,
+      labels: Object.freeze({ settingsSkipCutscenesLabel: "Skip cinematic waits" }),
+    });
+
+    act(() => fixture.systemDialogSession.open("settings"));
+
+    expect(
+      screen.getByRole("checkbox", { name: "Skip cinematic waits" }),
+    ).toBeInTheDocument();
+  });
+
   it.each(
     [
       Object.freeze({

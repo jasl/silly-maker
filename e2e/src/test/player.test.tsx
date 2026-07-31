@@ -258,7 +258,11 @@ describe("Engine Lab VN player", () => {
     await waitFor(() => {
       expect(playerProfile.current().seen["interaction.e2e.cal-intro"]).toBe(1);
     });
-    await playerProfile.updatePreferences({ skipPolicy: "skip_all", autoWaitMs: 250 });
+    await playerProfile.updatePreferences({
+      skipPolicy: "skip_all",
+      skipCutscenes: true,
+      autoWaitMs: 250,
+    });
 
     // A fresh store over the same records reads the persisted profile.
     const reopened = await createPlayerProfileStoreV1({
@@ -268,6 +272,7 @@ describe("Engine Lab VN player", () => {
     expect(reopened.current().seen["interaction.e2e.cal-intro"]).toBe(1);
     expect(reopened.current().preferences).toMatchObject({
       skipPolicy: "skip_all",
+      skipCutscenes: true,
       autoWaitMs: 250,
     });
 
@@ -276,7 +281,9 @@ describe("Engine Lab VN player", () => {
     // carry the author-controlled seenRevision contract field.)
     const exported = await instance.persistence.exportCurrentSave();
     const text = new TextDecoder().decode(exported.bytes);
-    expect(text).not.toMatch(/skip_all|autoWaitMs|textReveal|"seen":|playbackMode/u);
+    expect(text).not.toMatch(
+      /skip_all|skipCutscenes|autoWaitMs|textReveal|"seen":|playbackMode/u,
+    );
     await dispose();
   });
 });
