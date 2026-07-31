@@ -49,7 +49,7 @@ promotion record 的合同。
 
 PF0 不代表全部 tooling 已完成；它只消除本次新增“应用即项目”与 pointer fence 中会在后续计划放大的确定性缺口。
 
-### PF0.1 — Pre-pilot maintenance gates（下一批，两个独立切片）
+### PF0.1 — Pre-pilot maintenance gates（CI0 已完成；AUTO0 下一批）
 
 在继续 S1-T 前先分别完成两个小切片；二者不能与 Surface kernel 合并成一个提交：
 
@@ -78,6 +78,16 @@ protection required check。若当前权限不能修改 branch protection，prom
 必须把“workflow landed”与“required policy active”分开并向用户报告，不能虚称已
 required。CI0 不引入 floor lane、browser matrix、Deno patch pin 或 Player runtime
 dependency。
+
+**2026-08-01 CI0 promotion：** versioned `CI` workflow 已在 pull request 与 `main`
+push 上提供 latest-stable、browser-free quality job，并在其成功后运行 locked Chromium
+Engine Lab prebuilt smoke；Pages 保持手动触发且改用 `deno ci`。commit `216767e` 的
+[GitHub run 30648776840](https://github.com/jasl/silly-maker/actions/runs/30648776840)
+在实际 Deno 2.9.4 上两项全绿，且没有旧 checkout runtime annotation。`main` branch
+protection 已将两个稳定 job name 绑定为 GitHub Actions app 提供的 required checks；
+`strict` 与 admin enforcement 保持关闭，未附带 PR review 或 push restriction。CI0
+没有增加 2.9.0 floor lane、普通 browser matrix、Deno patch pin、Pages push deploy
+或 Player runtime dependency。下一独立切片是 AUTO0。
 
 **AUTO0 — autosave policy admission：**
 
