@@ -30,7 +30,8 @@ describe("collectVersionStampV1", () => {
     await writeEngineLinkV1();
     const stamp = collectVersionStampV1({
       appRoot,
-      runGit: (_args, cwd) => (cwd.includes("sillymaker-app-") ? "abc1234\n" : "def5678\n"),
+      runGit: (args, cwd) =>
+        args[0] === "status" ? "" : cwd.includes("sillymaker-app-") ? "abc1234\n" : "def5678\n",
     });
     expect(stamp).toEqual({
       applicationVersion: "1.2.0",
@@ -38,6 +39,24 @@ describe("collectVersionStampV1", () => {
       engineVersion: "0.4.2",
       engineCommit: "def5678",
     });
+  });
+
+  it("suffixes -dirty on uncommitted changes; a failing probe keeps the plain commit", async () => {
+    await writeFile(join(appRoot, "package.json"), JSON.stringify({ version: "1.2.0" }));
+    await writeEngineLinkV1();
+    const stamp = collectVersionStampV1({
+      appRoot,
+      runGit: (args, cwd) => {
+        const isApp = cwd.includes("sillymaker-app-");
+        if (args[0] === "status") {
+          if (isApp) return " M src/application/ui.tsx\n?? notes.txt\n";
+          throw new Error("status unavailable");
+        }
+        return isApp ? "abc1234\n" : "def5678\n";
+      },
+    });
+    expect(stamp.applicationCommit).toBe("abc1234-dirty");
+    expect(stamp.engineCommit).toBe("def5678");
   });
 
   it("degrades every field to null without ever throwing", () => {
