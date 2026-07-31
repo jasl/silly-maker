@@ -55,6 +55,8 @@ export interface DefaultGameRootLabelsV1 {
   readonly settingsVoiceVolumeLabel: string;
   readonly settingsSfxVolumeLabel: string;
   readonly settingsMutedLabel: string;
+  /** Skip Wait/fade cutscene dwells; optional for Stories that have not localized it. */
+  readonly settingsSkipCutscenesLabel?: string;
   readonly settingsTextSpeedLabel: string;
   readonly settingsAutoWaitLabel: string;
   readonly settingsFullscreenLabel: string;
@@ -75,6 +77,7 @@ export const defaultGameRootLabelsV1: DefaultGameRootLabelsV1 = Object.freeze({
   settingsVoiceVolumeLabel: "Voice volume",
   settingsSfxVolumeLabel: "Effects volume",
   settingsMutedLabel: "Mute",
+  settingsSkipCutscenesLabel: "Skip cutscenes",
   settingsTextSpeedLabel: "Text speed",
   settingsAutoWaitLabel: "Auto-forward wait",
   settingsFullscreenLabel: "Toggle fullscreen",
@@ -532,6 +535,9 @@ export function DefaultGameRootV1<
                       voiceVolumeLabel: labels.settingsVoiceVolumeLabel,
                       sfxVolumeLabel: labels.settingsSfxVolumeLabel,
                       mutedLabel: labels.settingsMutedLabel,
+                      ...(labels.settingsSkipCutscenesLabel === undefined
+                        ? {}
+                        : { skipCutscenesLabel: labels.settingsSkipCutscenesLabel }),
                       textSpeedLabel: labels.settingsTextSpeedLabel,
                       autoWaitLabel: labels.settingsAutoWaitLabel,
                       fullscreenLabel: labels.settingsFullscreenLabel,
