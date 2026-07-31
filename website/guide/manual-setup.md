@@ -2,7 +2,7 @@
 
 This is what [Getting started with AI](/guide/getting-started) has the agent do for you — the same steps as plain commands, for when you want to understand the machine or work without an agent.
 
-SillyMaker runs entirely on [Deno](https://deno.com) (>= 2.9): runtime, package manager, and tooling in one. npm dependencies resolve through Deno's Node compatibility.
+SillyMaker runs entirely on [Deno](https://deno.com): runtime, package manager, and tooling in one. Use latest stable for maintained development; the public compatibility floor remains >= 2.9.0, without a patch pin. npm dependencies resolve through Deno's Node compatibility.
 
 ## Set up
 
@@ -29,7 +29,7 @@ deno task check        # format, lint, typecheck, all unit tests, story checks
 deno task test:e2e     # browser conformance suites (Chromium + WebKit)
 ```
 
-A green `deno task check` is the project's own definition of "working" — the same gate the CI and the coding agents use.
+A green `deno task check` is the project's own definition of "working" — the same gate maintained coding-agent work uses before handoff.
 
 ## Play headlessly
 

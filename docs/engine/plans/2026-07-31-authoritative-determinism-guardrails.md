@@ -1,9 +1,10 @@
 # Authoritative determinism guardrails execution plan
 
-状态：2026-07-31 接受执行。目标合同见
+状态：2026-07-31 接受执行；同日按 Save-metadata ownership、DET-A/DET-B join 与
+latest-stable Deno policy 重切片。目标合同见
 [Authoritative simulation determinism boundary](../design/deterministic-simulation-boundary.md)；
 在 [Production-floor sequence](2026-07-30-production-floor-sequence.md) 中属于
-PF-DET，排在 PF2 Workspace Overlay pilot 之后、PF3 Save migration 之前。本文只
+PF-DET，排在 PF2 Workspace Overlay pilot 之后，并与 PF3 按显式 DAG 汇合。本文只
 补齐受支持 authoritative path 的数值、direct ambient input 与跨 runtime
 证据，不引入
 `decimal.js`、RNG V2、StateStore 或 Mod sandbox。
@@ -72,29 +73,31 @@ timing、机器型号或一次性 browser 数值设为 CI 硬门。
 
 ## 3. Slice order
 
-每次只领取一个可独立合并的子切片：
+每次只领取一个可独立合并的子切片。跨计划顺序是：
 
 ```text
-DET0
-  -> DET1
-  -> DET2a
-  -> DET2b
-  -> DET2c
-  -> DET2d
-  -> DET2e
-  -> DET3a
-  -> DET3b
-  -> DET4
+DET0-core
+  -> Save M0a shared metadata floor
+  -> DET1 -> DET2a -> DET2b -> DET2c -> DET2d -> DET2e  [DET-A]
+      ├-> DET3a -> DET3b -> DET4                         [DET-B]
+      └-> Save M0b -> M1 (strictly callback-free)
+                    same-merged-HEAD join
+                    -> Save M2
 ```
 
-PF2 不依赖 PF-DET。PF3 必须等待 PF-DET promotion：M0 一旦冻结 current Save/load
-行为，就不应再把 zero RNG 或 malformed command evidence 当作未决定的
-历史基线。PF-D 仍是独立条件 lane。
+PF2 不依赖 PF-DET。M0a 先拥有一份 shared Save metadata corpus；DET0-core 只映射
+`summarizeSave` authority/call boundary，不复制 metadata lifecycle golden。DET-A
+完成后，callback-free M0b/M1 可以与 DET-B 并行；DET-A 不是完整 guardrail
+promotion。只有 DET-B 完成才能聚合宣称 PF-DET 落地，Save M2 又必须等待 DET-B 与
+M1 在同一 merged HEAD 汇合。PF-D 仍是独立条件 lane。
 
-PF-DET 切片不得与另一个正在改相同 Base Session/replay、Story tooling task、
+DET-B 独占 authority collector、determinism task、test-only driver、Playwright
+config 与 CI；M0b/M1 独占 Base Save codec/load order/public persistence result types
+与对应 tests。共同需要的 testkit seam/public export 必须在 fork 前单独合并。除此
+之外，PF-DET 切片不得与另一个正在改相同 Base Session/replay、Story tooling task、
 Playwright config 或 Save schema 的切片并行合并。
 
-## 4. DET0 — Authority map and characterization baseline
+## 4. DET0-core — Authority map and characterization baseline
 
 ### Work
 
@@ -123,24 +126,13 @@ Playwright config 或 Save schema 的切片并行合并。
    bytes、stable diagnostics，还是只属于 Host/Presentation/tooling/test negative
    control；
 9. 当前 Deno 与已安装 browser 的 per-command trace shape；
-10. durable Save projector characterization：无 projector、null、empty、valid、
-    malformed 与 throw 的 `summarizeSave`，以及 callback count、normalized frozen
-    copy、fixed-state/fixed-metadata-clock Save bytes、standard receipt 与 opaque
-    repository fallback equivalence；
-11. bounded presentation/runtime persistence metadata characterization：
-    `versionStamp` absent、all-null、partial、fixed full-clean、fixed full-dirty、
-    status-unavailable、malformed 与 collector throw，
-    per-service collector count、bounded printable normalization、defensive
-    copy/freeze、fixed Snapshot/fixed metadata clock bytes，以及 standard receipt
-    与 opaque repository fallback equivalence；同时固定 stamp 作为 Snapshot
-    capture origin 在 annotation rewrite、autosave rotation 与 stored-record
-    export 中被保留，而不是由后来处理记录的 runtime 重采集；load/import
-    compatibility 不读取 stamp，post-load/import fresh capture 使用当前 service
-    stamp。导出 filename 另以
-    fixed metadata clock 覆盖有/无 extension、invalid clock 与同一秒重复建议名；
-    后者只锁“秒级名称可能相同”，最终 no-clobber 由 Host collision policy 保证。
+10. `summarizeSave` owner、Base invocation boundary 与未来 migration extension seam
+    的 authority-map/instrumentation entry。annotation/summary/note、callback count、
+    `versionStamp`、capture-origin preservation、Save bytes 与 fixed-clock filename
+    corpus 由紧随其后的 Save M0a 唯一拥有；DET0-core 只冻结双方共用的
+    instrumentation/authority handoff seam，不建立第二套 metadata golden。
 
-DET0 可以加入 package-internal/test-only observation，但不改变 production
+DET0-core 可以加入 package-internal/test-only observation，但不改变 production
 behavior、public API、canonical algorithm 或 schema。JSON 输出只写 OS temp/CI
 artifact；常规测试锁 outcome、count、bytes 与 first failure phase，不锁 wall
 clock。
@@ -181,12 +173,10 @@ React/Presentation composition 共置，先提取 dedicated save-projection entr
 metadata/input，不是 authoritative simulation callback。
 
 `versionStamp` collector 不属于 authoritative closure；它是
-presentation/runtime persistence metadata ingress。DET0 仍必须证明它只生成
-bounded frozen envelope metadata，且 compatibility、adoption、Snapshot
-digest/identity、CommandLog 与 replay 对其 absent/partial/full 变化保持不敏感。
-malformed output、accessor/Proxy side effect 或 throw 不得污染或中止
-authoritative transition；目标 normalization 不调用 getter，逐字段丢弃 malformed
-值，并让最终 all-null、accessor-only 或 hostile Proxy shape 降级为 stamp absent。
+presentation/runtime persistence metadata ingress。其 normalization、freeze、
+failure fallback、capture-origin preservation 与 bytes 由 M0a 验收。DET0-core
+只把它保留为 Host/Presentation negative control，证明 authority collector 不把该
+ingress 误纳入 simulation closure。
 
 ### Acceptance
 
@@ -208,35 +198,24 @@ authoritative transition；目标 normalization 不调用 getter，逐字段丢�
   Snapshot/RNG/sequence 与 CommandLog 现状被逐字段固定；若 DET2b 不能在不改
   public shape 的前提下保留该合同，触发 fault stop rule；
 - authority map 覆盖 simulation、rules/handlers、module `propose/apply`、
-  authoritative Narrative/debug callbacks、current durable Save projector 与当前已
-  注册 migration entry；PF3 新增真实 migrator 时再由 PF3 注册该 callback 并扩 corpus；
+  authoritative Narrative/debug callbacks 与 current durable Save projector；M2
+  之前没有 production migration registry，DET-B 只用 synthetic extension seam
+  证明未来可追加 entry；
 - `localeCompare` inventory 覆盖全部 live callsite；任何影响 authoritative
   apply/order、bytes 或 stable diagnostics 的 callsite 都有 fixed input/output
   characterization 并明确归入 DET2e，只有证明不在 authoritative closure 的
   Host/Presentation/tooling/test callsite 才能作为 negative control；
 - Host entropy、Presentation clock、tooling/bench 不被误分类；
-- `versionStamp` corpus 固定 absent/all-null/partial/fixed full-clean/fixed
-  full-dirty/status-unavailable/malformed/throw 的
-  normalization、freeze identity 与 Save bytes；每个成功创建的 service 恰好
-  collect 一次，后续 capture/rewrite/rotation/export 的新增 collect count 为 `0`；
-  headless absent/all-null oracle 与 PF1 unstamped bytes 完全相同，partial/full 的
-  独立 fixed bytes/SHA 不从待测 collector 或 encoder 生成；
-- stamp 在 annotation rewrite、每次 autosave candidate rotation 与 stored-record
-  export 后仍等于原 Snapshot capture origin；这些路径不调用当前 runtime
-  collector。load/import compatibility 不读取 stamp，post-load/import fresh
-  capture 使用当前 service stamp；两者都不把 stamp 纳入
-  compatibility/authoritative identity；
-- fixed-clock export filename corpus 固定 UTC `yyyyMMddHHmmss` 并明确证明秒级
-  suffix 不提供唯一性：同一秒可
-  得到相同 suggested filename，Desktop/Browser Host 的 no-clobber collision
-  policy 单独验证且不得改变 payload bytes；
+- DET0-core 已冻结供 M0a/DET-B 共用的 projector instrumentation/authority handoff
+  seam，Host/Presentation metadata ingress 不被误分类；metadata lifecycle 与 bytes
+  expected 留给下一切片 M0a，DET0-core 不建立第二套 corpus；
 - 每个后续 slice 都有明确 before count/behavior；
 - 保留并复用 PF1 S0 的独立 byte oracle：现有固定 hashes 与对优化前 archive
   `96a0a93` 的比较；不得从当前 source 重新生成 expected，也不得让 expected 与
   actual 共享待测 canonical helper。archive 比较只作一次性/promotion review
   evidence；常规 CI 使用已嵌入的固定 byte length + SHA oracle，不读取 Git history
   或依赖完整 clone；
-- DET0 为真实 RNG-draw committed case 从同一独立 pre-change oracle 固定额外
+- DET0-core 为真实 RNG-draw committed case 从同一独立 pre-change oracle 固定额外
   byte-length + SHA/vector；现有 mixed corpus 只创建 RNG 而不 draw，不能冒充该项
   evidence。任何 divergence 先停止调查，不重新生成 golden；
 - bootstrap 三条 valid path 使用 fixed entropy，并为涉及 Save 的断言同时固定
@@ -244,7 +223,7 @@ authoritative transition；目标 normalization 不调用 getter，逐字段丢�
   Snapshot、replay base 与随后捕获的 Save，extension 锁 returned candidate 的
   canonical bytes/digest。每项都记录不可由 DET2d 重新生成的 pre-change byte-length +
   SHA；显式 oracle digest/serialization 不计入上面的 production-path delta；
-- DET0 合并的是证明当前缺口的 passing characterization tests；DET1–DET3b
+- DET0-core 合并的是证明当前缺口的 passing characterization tests；DET1–DET3b
   每个行为改变都必须先加入或翻转目标断言并观察 focused red；
 - `deno task test` 仍绿，且无 production behavior change。
 
@@ -322,7 +301,7 @@ replay。由用户决定保留旧零流、声明不兼容或建立新的显式�
 - invalid command 的 candidate Snapshot traversal/post-digest/freeze 为
   `0/0/0`；
 - valid command 的 dispatch result、log bytes、replay 与 PF1 Snapshot
-  digest/freeze count 等价；command admission 自身的 canonical traversal 按 DET0
+  digest/freeze count 等价；command admission 自身的 canonical traversal 按 DET0-core
   purpose tag 单独锁定。
 
 ### Acceptance
@@ -355,7 +334,7 @@ current digest，不得为失败 attempt 重新遍历 Snapshot。
 
 ### Fault stop rule
 
-当前没有 `faultSchema`。先用 DET0 fixture 证明一个最小 package-internal
+当前没有 `faultSchema`。先用 DET0-core fixture 证明一个最小 package-internal
 finalizer 是否能保持现有 public result shape。若必须新增 public
 Session/Simulation/CommandLog/fault contract、`GameSimulation` contract
 revision、universal receipt 或跨 Base/UI/Web 的 fault envelope，停止 DET2b
@@ -371,7 +350,7 @@ revision、universal receipt 或跨 Base/UI/Web 的 fault envelope，停止 DET2
 - failed evidence 的 candidate Snapshot traversal/post-digest/freeze 精确为
   `0/0/0`；
 - committed command 仍是 PF1 的一次 Snapshot digest/freeze；evidence admission
-  自身的 canonical traversal 按 DET0 purpose tag 单独锁定，且不重做整树 Snapshot
+  自身的 canonical traversal 按 DET0-core purpose tag 单独锁定，且不重做整树 Snapshot
   traversal；
 - public Save record 与 Surface/application receipt 语义不变。
 
@@ -430,7 +409,7 @@ schema 承担；本切片只封闭 plain canonical shape 与 immutable handoff�
 
 ### TDD and acceptance
 
-- DET0 先固定当前 raw object identity、mutable handoff 与 non-canonical extra field
+- DET0-core 先固定当前 raw object identity、mutable handoff 与 non-canonical extra field
   可达 `createInitialState` 的 passing characterization；DET2d 翻转目标断言并观察
   focused red；
 - invalid fixture 覆盖 fractional、non-finite、unsafe integer、`-0`、
@@ -456,7 +435,7 @@ invocation；其内部 root/module callback count 由上面的独立断言锁定
 | queued restart            | `1/1/1/1/1` | `1/0/0/0/0`             | invalid 时返回既有 `runtime.anchor_failed`、Session 保持既有 `fault_paused`；Snapshot identity/digest/RNG/sequence、CommandLog/replay base 与 persistence anchor/slot bytes 不变 |
 | captured extension helper | `1/1/1/0/0` | `1/0/0/0/0`             | valid 只返回未安装 candidate；invalid 同步 throw，live Session status/state/log/replay base/persistence 全不变                                                                   |
 
-三条 valid path 必须逐项等于 DET0 用 fixed entropy（Save 另用 fixed metadata
+三条 valid path 必须逐项等于 DET0-core 用 fixed entropy（Save 另用 fixed metadata
 clock）记录的 pre-change byte-length + SHA：construction 比 live initial
 Snapshot/Save，restart 比 installed Snapshot、replay base 与随后捕获的
 Save，extension 比 returned candidate bytes/digest。不得以 post-change
@@ -484,7 +463,7 @@ non-canonical bootstrap，停止并提交 contract decision，不能静默收紧
 - Game Authoring Kit staged transaction 的 module/apply order 使用同一明确的
   canonical code-unit semantics；owner `apply`、facts 聚合、candidate Snapshot 与
   CommandLog/replay evidence 不再由 Host locale 决定。
-- 按 DET0 inventory 处理其余 `localeCompare`：凡是影响 authoritative callback
+- 按 DET0-core inventory 处理其余 `localeCompare`：凡是影响 authoritative callback
   order、authoritative bytes 或 stable diagnostics 的 callsite，都在本切片改为有
   fixed vector 的 canonical code-unit comparator；只有已证明位于
   Host/Presentation/tooling/test negative-control closure 的 callsite 才保持原状。
@@ -516,6 +495,10 @@ authoritative row order。
   locale-default ordering，停止并提交 compatibility decision，不能重生成 golden；
 - 不改变 public shape、canonical JSON 或 digest algorithm。
 
+**DET-A gate：** DET1–DET2e 全部完成后，合法 authoritative bytes/order 才成为
+M0b 的 current baseline。此时可以分叉 callback-free M0b/M1，但不得宣称完整
+determinism promotion，也不得注册 executable migrator。
+
 ## 11. DET3a — Import-closure-aware static guard
 
 ### Implementation direction
@@ -523,14 +506,16 @@ authoritative row order。
 保留现有 Oxlint 作为 general lint。新增独立 determinism lint/check：
 
 - 外层从 root application registry 枚举所有应用，以现有 BuildIdentity
-  managed-simulation records 作为 dependency seed，再合并 DET0 确认的 simulation
+  managed-simulation records 作为 dependency seed，再合并 DET0-core 确认的 simulation
   callback owner 与显式 authority entry；
 - template 使用同一个 import-closure collector 和显式 repo-internal authority
   entry；
 - Base 使用有界、显式的 Session/executor/RNG/replay authority entries 收集
   dependency closure；不得扫描整个 engine，也不得因 Story collector 过滤 Base
   就漏掉 core authoritative code；
-- engine-owned authoritative/migration callbacks 使用显式 entry；
+- engine-owned authoritative callbacks 使用显式 entry；migration callback 在 M2
+  首次真实注册时才加入 live recollection，DET3a 只用 synthetic extension seam
+  验证该能力；
 - Story-owned `createBootstrapInput` callback owner 必须保留在 collected closure；
   checker 只对该函数中以已验证 `BootstrapEntropyV1` 参数为根的 capability 调用给予窄
   allowance，不能排除整个 source，也不能允许该函数直接访问 ambient provider；
@@ -539,8 +524,8 @@ authoritative row order。
   ambient clock/random/network/environment/locale/DOM；
 - PF-DET 先用 synthetic repo-local callback 冻结“追加显式 authority entry”的
   tooling contract；它只是 test fixture，不创建 production migration registry
-  或未来文件清单。PF3 注册真实 migrator 时必须 live recollect、复用该入口并扩展
-  corpus；
+  或未来文件清单。Save M2 首次注册真实 migrator 时必须 live recollect、复用该
+  入口并扩展 corpus；
 - 任一 registered application 缺 managed dependency seed 或缺 callback-owner /
   explicit authority classification 时都 fail closed；只有 BuildIdentity identity
   但未声明 callback owner 仍必须失败。每次运行 live recollect closure，不读取
@@ -555,8 +540,9 @@ authoritative row order。
   的 repo-owned runner fallback；
 - plugin adapter 与 fallback 对同一 corpus 的 diagnostic code、file/range、message
   完全等价，并实际覆盖 plugin unavailable 时的 fallback path；
-- 在 Deno 2.9.0 support floor 与 current stable 都真实运行可用 path 与同一
-  diagnostics corpus，不固定开发者 host patch；
+- public compatibility floor 仍为 Deno `>=2.9.0`；required CI/promotion 只在执行
+  时 latest stable 上运行可用 path 与 diagnostics corpus，记录实际版本、不固定
+  patch，也不增加 2.9.0 per-PR lane；
 - 本切片把 dedicated determinism task 纳入 `deno task check`，不替换 Oxlint。
 
 ### Rules
@@ -576,7 +562,7 @@ authoritative row order。
 
 同一切片对 fractional literal、`parseFloat` 与 approximate `Math` 建立
 diagnostic + explicit narrow exemption。当前不完整 collector 的零命中只作
-baseline；DET0 得到的 fail-closed authority closure 必须在 hard rule 启用前
+baseline；DET0-core 得到的 fail-closed authority closure 必须在 hard rule 启用前
 clean。任何 exception 必须带 reason、algorithm bounds/rounding 和 focused
 vector test，不能 whole-file disable。
 
@@ -593,7 +579,7 @@ vector test，不能 whole-file disable。
 - closure 新增一个违规依赖时会被捕获，删除依赖后不残留 stale file list；
 - 新增只有 managed identity、未声明 callback owner 的 application 会 fail
   closed；
-- synthetic migration-style entry 的违规被捕获，证明后续 PF3 不需要另建 lint
+- synthetic migration-style entry 的违规被捕获，证明后续 Save M2 不需要另建 lint
   path；
 - Base Session/executor/RNG/replay closure 新增违规依赖时会被捕获；
 - diagnostics 有 stable code、file/line/column 与修复方向；
@@ -652,25 +638,19 @@ transcript 至少包含：
 5. replay verification。
 
 driver/comparator 还要提供可复用的 pure authoritative vector seam；PF-DET 用
-synthetic normalization callback 证明 shape，并以 fixed State、fixed metadata
-clock 的 `summarizeSave` vector 比较 normalized summary 与 annotated Save bytes；
-同一 persistence seam 还要运行两个独立 `versionStamp` oracle：headless
-absent/all-null stamp 必须继续产生 PF1 unstamped bytes；固定 browser-injected
-partial、fixed full-clean 与 fixed full-dirty stamp 必须在四 runtime 得到相同
-normalized frozen value 与 stamped Save bytes；status-unavailable 以固定注入
-vector 降级为 unknown，不读取 CI checkout。all-null、完全 malformed、
-accessor-only、hostile Proxy 与 collector throw corpus 固定降级为 absent，且
-成功创建 service 的 collector count 为 `1`、
-后续处理新增 count 为 `0`；Snapshot digest、compatibility 与 authoritative trace
-不因 runtime 改变。annotation rewrite、rotation 与 stored-record export 的 vector
-保留原 capture-origin stamp；load/import compatibility 忽略 stamp，后续 fresh
-capture 使用当前 service stamp；
-fixed-clock filename vector 只比较 suggested name，并明确同一秒碰撞交给 Host
-no-clobber policy，不把 filename 当作 Save identity；
+synthetic normalization callback 证明 shape，并直接消费 M0a 的 compact fixed
+vectors：fixed State/metadata clock 下的 normalized `summarizeSave` output、annotated
+Save bytes、headless absent/all-null `versionStamp` 的 PF1 unstamped bytes，以及 fixed
+partial/full stamp 的 normalized value/stamped bytes。Expected 只由 M0a corpus
+拥有，DET4 不重生成。Exactly-once capture、malformed/throw fallback、annotation
+rewrite/rotation/export preservation、post-load fresh capture 与真实 filename
+no-clobber 属于 Save/Host lifecycle tests，不在 DET4 重复；DET4 只证明同一 pure
+input vector 的 normalized value/bytes 在四 runtime 等价，且 Snapshot
+digest/compatibility/authoritative trace 不因 metadata 改变。
 DET4 还必须直接消费 DET2e 已在 Deno 固定的 exact order/draw/apply vectors，不得在
-browser path 复制或重生成 expected。PF3 M1/M2 每次注册真实 format/State migration
-时，再把对应 vector 接入同一 Deno/browser matrix。PF-DET 不伪造尚不存在的
-migration registry。
+browser path 复制或重生成 expected。Save M2 及以后每次注册真实 format/State
+migration 时，再把对应 vector 接入同一 Deno/browser matrix。PF-DET 不伪造尚不
+存在的 migration registry。
 
 同一 driver/compact expected vector 在：
 
@@ -679,11 +659,11 @@ migration registry。
 - Firefox；
 - WebKit
 
-执行。本切片建立独立 determinism Playwright config/task 与 production-check CI
-job，按 locked Playwright version 安装 Chromium/Firefox/WebKit，并同时运行 DET3b
-tripwire 与 parity matrix；不把 Firefox 强塞进全部 UI suite。仓库当前只有 Pages
-deployment workflow，不能把 general CI 当作既有前提。缺 browser 是环境 blocker，
-不能 skip 后报绿。
+执行。本切片在 CI0 的 latest-stable required CI 上增加独立 determinism
+Playwright config/task/job，按 locked Playwright version 安装
+Chromium/Firefox/WebKit，并同时运行 DET3b tripwire 与 parity matrix；不把 Firefox
+强塞进全部 UI suite。若 CI0 尚未落地，先停止补齐它，不能把 general CI 当作既有
+前提。缺 browser 是环境 blocker，不能 skip 后报绿。
 
 ### Per-command comparison
 
@@ -703,16 +683,21 @@ Snapshot、只比 V8 两端或只跑 Chromium 都不算完成。
 - 四 runtime 逐 command compact vector 与各自 repeat 全相等；
 - DET2e 的 exact Event Pool、Content Database 与 transaction/apply pure vectors
   使用同一 fixed expected 在 Deno、Chromium、Firefox、WebKit 全相等；
-- headless unstamped 与 fixed browser-stamped persistence vectors 在四 runtime
-  分别等于独立 expected bytes；stamp normalization、collector count/freeze、
-  capture-origin preservation 和 malformed/throw fallback 无 divergence，PF1
-  unstamped oracle 未被重生成或替换；
+- M0a 的 compact summary/unstamped/stamped pure vectors 在四 runtime 分别等于同一
+  独立 expected value/bytes；DET4 没有复制 lifecycle corpus，PF1 unstamped oracle
+  未被重生成或替换；
 - production Browser Agent 仍不获得 raw Snapshot/RNG/CommandLog；
 - 不提交 raw local report、browser cache 或一次性 transcript JSON；
 - focused Deno test、dedicated browser task、`deno task test` 与
   `deno task check` 全绿；
 - PF7/CI 将 dedicated matrix 作为 production promotion evidence，但普通
   `deno task check` 不因本机未安装全部 browser 而隐式下载或静默 skip。
+
+**DET-B gate：** DET3a–DET4 完成后才构成完整 PF-DET promotion。若 M0b/M1 已在
+另一分支完成，进入 Save M2 前必须在同一 merged HEAD 重跑 focused
+M0a/M0b/M1、shared Save byte corpus、`deno task test`、`deno task check` 与本节
+四 runtime matrix，并证明尚无 executable migrator、migration callback count 为
+`0`。两边各自绿但未完成该 join，不得开始 M2。
 
 ## 14. Deferred work
 
@@ -738,8 +723,9 @@ compiler/authoring adapter。
 
 每个 slice 按顺序：
 
-1. DET0 建立 passing characterization baseline；其余行为改变 slice 先记录 focused
-   red 的命令、断言与预期失败原因；
+1. 在执行时 latest stable Deno 上记录实际版本（不固定 patch、不另跑 2.9.0
+   required lane）；DET0-core 建立 passing characterization baseline；其余行为改变
+   slice 先记录 focused red 的命令、断言与预期失败原因；
 2. minimal implementation；
 3. focused green；
 4. affected package tests；

@@ -1,6 +1,7 @@
 # Desktop persistence durability plan
 
-状态：2026-07-30 审查后接受执行。本文处理桌面 Host persistence
+状态：2026-07-30 审查后接受执行，2026-07-31 按 usable-preview、SQLite D1b 与
+latest-stable Deno policy 修订。本文处理桌面 Host persistence
 durability，并以独立 D4 子轨处理 per-platform packaging promotion；不改变
 Gameplay Snapshot、Save envelope、slot 语义或浏览器 IndexedDB adapter。
 
@@ -14,7 +15,13 @@ Gameplay Snapshot、Save envelope、slot 语义或浏览器 IndexedDB adapter。
 - corrupt record fail-closed；
 - local HTTP 的 same-origin/content-type/body/path 边界。
 
-但它**还不是** `HostAtomicRecordStoreV1` 的 production-grade 桌面实现：进程或 OS 在多记录 batch 中途终止仍可能留下部分提交，两个应用进程也没有共同的 CAS/transaction authority。因此文件 adapter 仅是 desktop preview/reference adapter，不能用“原子存档”概括其多记录 durability。
+当前 Desktop wrapper/file channel 已是可实际使用的 preview；仓库外应用也提供了
+持续需求反馈。但它**还不是** `HostAtomicRecordStoreV1` 的 production-grade
+桌面实现：进程或 OS 在多记录 batch 中途终止仍可能留下部分提交，两个应用进程也
+没有共同的 CAS/transaction authority。因此文件 adapter 仅是 desktop
+preview/reference adapter，不能用“原子存档”概括其多记录 durability。仓库外应用
+只决定优先级，不提供源码、fixture、测试、构建依赖或 promotion evidence；正式证据
+必须由仓库内中性 workload 复现。
 
 ## 1. Scope and invariants
 
@@ -27,9 +34,10 @@ Gameplay Snapshot、Save envelope、slot 语义或浏览器 IndexedDB adapter。
 5. persistence backend 不成为第二份 gameplay authority；它只保存已经由 Session 产生的 Host records。
 6. wire endpoint 只接受受控 JSON 协议，不成为任意文件读写 API。
 7. desktop package 的平台/格式能力必须按已验证目标声明；目标平台是
-   macOS、Windows 与 Linux。当前 `story desktop` 只有 provisional wrapper：
+   macOS、Windows 与 Linux。当前 `story desktop` 是 usable provisional wrapper：
    host output 按宿主选择 `.app`、`.msi` 或 `.AppImage`，显式 cross-target
-   只接受 Deno `>= 2.9.0` support floor 内的五个 triple。产物存在和
+   只接受 SillyMaker 当前明确 allowlist 中的五个 triple。该 allowlist 不是从
+   `>=2.9.0` floor 推导，也不会因新 Deno patch 自动扩张；产物存在和
    cross-compile 成功都不能推导任一平台已经 D4 promotion。
 8. persistence durability、package format 和 auto-update 是三条独立 promotion
    轴；某个平台尚未支持 package/update，不能降低 durable store 的事务合同，也不能
@@ -698,7 +706,11 @@ process crash 写成断电或完整 recovery promotion。
 
 ## 3. D1 — Backend decision record
 
-在不改变上层合同的前提下做一个短期 spike，并留下 decision record。至少比较：
+在不改变上层合同的前提下做短期 spike 并留下 decision record。D1a 已证明
+`node:sqlite` 在当前 macOS/Deno Host 的 transaction、reopen、schema upgrade 与
+cross-process CAS 可行。下一切片 D1b 采用 **SQLite default-selection policy**：
+除非出现可复现的发布、运行或运维 blocker，直接选择 SQLite 进入 D2；不再把实现
+journal/manifest 与 Deno KV 对照当作选择前置。
 
 ### SQLite transaction adapter（默认候选）
 
@@ -708,19 +720,21 @@ process crash 写成断电或完整 recovery promotion。
 - 可用表 `(namespace, key, revision, bytes)`，在一个 transaction 内完成 read-check-mutate；
 - 需要证明 Deno Desktop 的目标平台、cross-compile、native/wasm dependency 和 bundle size 可接受。
 
-### Journal + manifest file adapter
+### Journal + manifest file adapter（只在 SQLite 有 concrete blocker 时激活）
 
 - 无数据库依赖，文件可直接检查；
 - 必须自行实现 lock、fsync 顺序、journal replay、manifest generation、orphan cleanup 与 Windows rename 语义；
 - 只有在 SQLite 的发布约束不可接受时才进入生产实现，不把“代码更少”当作依据。
 
-### Deno KV adapter（实验对照，不是默认生产路径）
+### Deno KV adapter（只在 SQLite 有 concrete blocker 时激活）
 
 - 原生 atomic check/mutation 与本地 SQLite backend 有吸引力；
 - 目前仍需要 unstable KV 能力，不能让引擎长期 persistence contract 绑定其 API；
 - 可作为 adapter spike 或未来替换候选，不作为 D1 自动结论。
 
-Decision record 必须记录：支持平台、依赖/许可、包体、启动/commit 延迟、最大记录与 batch、备份可读性、故障恢复、cross-process 行为和退出策略。
+Decision record 必须记录：支持平台、依赖/许可、包体、启动/commit 延迟、最大记录与
+batch、备份可读性、故障恢复、cross-process 行为和退出策略。执行时使用 latest
+stable Deno，记录 Deno/SQLite/OS/arch/API 状态但不固定 patch。
 
 **Promotion gate D1:** 选择一个 backend，并先用独立 backend
 spike 在当前真实 macOS Host 证明启动、写入、退出、重开与 schema
@@ -819,13 +833,47 @@ file preview。
   Story checks 与 Engine Lab production build）；本切片不改变浏览器行为，因此
   没有机械扩大到 browser E2E。
 
-`node:sqlite` 当前上游状态仍是 release candidate；WAL 还带来 local-filesystem、
-`-wal`/`-shm` 与 checkpoint 运维边界。D1 剩余工作包括 journal/manifest 与
-Deno KV 对照、生产阈值、Windows/Linux 真实 runner、故障恢复、完整 package
-与 license/notices 审计、退出策略及正式 backend decision record。临时 macOS
+`node:sqlite` 在 D1a 记录时的上游状态仍是 release candidate；WAL 还带来
+local-filesystem、`-wal`/`-shm` 与 checkpoint 运维边界。D1 下一步是 D1b 的
+SQLite operational decision，不再强制 journal/manifest 与 Deno KV 对照。临时 macOS
 `.app` 启动后还出现 `libruntime.dylib.update-ok`，使 post-launch strict
 codesign 失败；该旁路观察属于 D4 signing/auto-update 调查，不改变本 D1a
 结论。
+
+### D1b — SQLite selection and operational contract（下一 durability 切片）
+
+**目标：**
+
+- 在执行时 latest stable Deno 上重新记录实际 Deno、SQLite、OS/arch 与 API
+  status；这些进入 evidence，不成为 patch pin；
+- 除非发现具体且可重复的 blocker，正式选择 SQLite 作为 D2 backend。若出现
+  blocker，停止并记录事实，再显式激活 journal/KV 对照；
+- 在 shell event loop、dedicated Worker 或独立 process 中选择 `DatabaseSync`
+  placement；数据库 lock wait 期间不得阻塞 window close coordination、HTTP
+  admission 或已接受 request 的 drain；
+- 冻结 busy/conflict 语义：revision mismatch 才是 optimistic `conflict`；
+  `SQLITE_BUSY` 是 bounded operational failure/retry；只在 commit 前安全重试；
+  post-commit response loss 继续由旧 revision retry 得到 conflict，不重复提交；
+- 冻结 journal/synchronous/busy/checkpoint、database/WAL/SHM path ownership 与
+  close order：stop new ingress → drain accepted commits → checkpoint/close handle；
+- 冻结 consistent backup 边界、record/batch operational bounds、newer-schema
+  fail-closed 与 stable diagnostics。Backup 使用 SQLite consistency mechanism，
+  不复制 live DB/WAL 文件猜状态；旧 JSON read-only import 留给 D3。
+
+**确定性验收：**
+
+- 用 barrier/handshake 而非墙钟阈值证明 lock wait 时 shell ingress/close
+  coordinator 仍可进展；wall-clock 只作非门禁 evidence；
+- close 中的新 request 稳定拒绝，已接受 commit 完成；fresh reopen 的 exact
+  revision/bytes 与 receipt 一致；
+- busy-before-commit、transaction conflict、commit 后 response loss 与 retry 的
+  result/write count 分别固定；
+- consistent backup 可 fresh read-only reopen 并通过 integrity/read bytes；源
+  database 的 logical records/revisions 不删除、不改变，不把 DB/WAL 物理 bytes
+  identity 设为门禁；旧 JSON 仍不在本切片处理；
+- 决策记录 platform/dependency/license/notices/package/backup/operations，但本切片
+  不把 candidate 接入 shell 默认 store，不改 public Host/Save/records wire，也不
+  实现 D2 adapter。
 
 ## 4. D2 — Durable adapter implementation
 
@@ -892,10 +940,12 @@ surface：
 
 - 无显式 target 时按真实宿主选择 unsuffixed `.app`、`.msi` 或 `.AppImage`
   output，并按对应 output shape 检查产物；
-- 显式 target 只接受 Deno `>= 2.9.0` support floor 内的
+- 显式 target 只接受 SillyMaker 当前已声明的
   `x86_64-apple-darwin`、`aarch64-apple-darwin`、
   `x86_64-pc-windows-msvc`、`x86_64-unknown-linux-gnu` 与
-  `aarch64-unknown-linux-gnu`，不把较新 patch 才出现的 target 提前加入合同；
+  `aarch64-unknown-linux-gnu`。该 allowlist 与 engine `>=2.9.0` compatibility
+  floor 分开；latest stable 新增 target 也必须经显式合同与真实平台 evidence 后
+  才能加入；
 - web build 前只采集一次 bounded、immutable、human-facing version receipt；Vite
   注入与 artifact stem 使用同一份 receipt，page/Save 保留完整合法
   application/engine commit（包括 `-dirty`），artifact filename 只缩短 application
@@ -970,9 +1020,10 @@ assets、records integration 与 write → exit → reopen smoke 全绿后，
 
 两条独立 lane 不组成一个 D0 → D4 串行队列：
 
-- **Durability lane:** D0 shared conformance + fault-injection interface → D1
-  backend spike/decision record → D2 transaction adapter → D3 old-record
-  import/recovery/operations；
+- **Durability lane:** 已有 D0 shared conformance/fault characterization 与 D1a
+  SQLite spike → **下一步 D1b SQLite decision** → D2 transaction adapter → D3
+  old-record import/recovery/operations。Backend-specific recovery/fault evidence
+  进入 D2/D3；不要为了形式上“关闭 D0”继续无限刻画 preview file adapter；
 - **Packaging lane:** provisional platform target/output/report contract 与
   BrowserWindow startup adoption 已落地；下一步按平台执行真实 D4 package
   smoke、签名/installer/update 边界验证与 documentation promotion。它可与

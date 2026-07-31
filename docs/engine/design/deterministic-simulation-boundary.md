@@ -1,6 +1,7 @@
 # Authoritative simulation determinism boundary
 
-状态：2026-07-31 接受的目标设计；具体落地顺序见
+状态：2026-07-31 接受的目标设计；同日按 Save-corpus ownership 与 DET-A/DET-B
+promotion boundary 修订。具体落地顺序见
 [Authoritative determinism guardrails plan](../plans/2026-07-31-authoritative-determinism-guardrails.md)。
 当前 Snapshot、Save 与 Debug Bundle encoding 已有 integer-only canonical
 边界，事务 RNG 也已进入 Snapshot；Strict JSON number token 的精确数学整数检查、
@@ -138,6 +139,13 @@ Save bytes、digest 或 identity。UTC `yyyyMMddHHmmss` 秒级后缀只帮助人
 的冲突由实际下载 Host 使用 no-clobber suffix、浏览器下载策略或等价的原子
 collision policy 解决，不能靠重写 Save bytes 获得唯一性。
 
+这三类证据只有一份 owner：Save M0a corpus 拥有 summary/annotation/note 与
+`versionStamp` normalization、exact bytes、capture/rewrite/rotation/export
+preservation；DET-B 只拥有 projector authority closure、ambient negative controls
+与 M0a compact pure vectors 的跨 runtime equality；Browser/Desktop Host 拥有真实
+filename collision/no-clobber。Desktop D4 可以消费同一 build receipt/bytes 证明
+package integration，但不得复制 Save lifecycle/migration matrix。
+
 ## 3. Numeric contract
 
 ### 3.1 Authoritative wire values
@@ -265,11 +273,15 @@ rule 内部的 filename 猜测。当前 BuildIdentity 的 `storySimulation` reco
 `*/simulation.ts` 出发的 managed dependency seed，不是完整 authority closure：
 实际 `*/src/story.ts` 还拥有 materialize/create simulation callback。目标
 collector 必须从 root registry fail-closed 枚举所有应用，把 managed identity
-seed、callback owner、template 和 engine-owned migration/runtime explicit entry
+seed、callback owner、template 和 engine-owned runtime explicit entry
 合并；如果 callback owner 与 React/Presentation 耦合，先拆 dedicated
 simulation-definition entry。Base 的 Session/executor/RNG/replay 也从有界显式
 authority entries 收集，不能因 Story collector 过滤 Base 而漏检，也不能退化成
 全 engine 扫描。每次检查重新收集 live closure，不缓存 file list。
+
+Save M2 及以后第一次注册 executable format/State migrator 时，其 entry 才加入
+上述 live recollection。DET-B 先用 synthetic extension seam 证明 collector 可追加
+entry；它不伪造尚不存在的 production migration registry。
 
 第一批 hard diagnostics 覆盖直接 ambient entropy、clock、network/LLM client、
 process environment、locale-default 与 DOM access；fractional literal、
@@ -341,7 +353,9 @@ test-only driver 执行。每个 command 比较：
 
 报告第一处分歧的 command identity、sequence 与字段 path，而不是只比较最终
 Snapshot。相同 runtime 也重复执行以区分普通 nondeterminism 和跨 engine
-差异。矩阵证明维护中的受支持路径，不认证任意第三方 JavaScript。
+差异。矩阵还直接消费 M0a 唯一拥有的 compact summary/unstamped/stamped pure
+vectors 与 fixed expected bytes，不复制 lifecycle corpus或从待测 encoder 重生成
+expected。矩阵证明维护中的受支持路径，不认证任意第三方 JavaScript。
 
 ## 7. Decimal decision
 
@@ -365,7 +379,9 @@ Save 中不保存 Decimal instance；若未来 runtime 真需 Decimal，也必�
 
 ## 8. Promotion and stop rules
 
-guardrail 只有在以下证据齐全后才能写入 live features/development：
+DET1–DET2e（DET-A）完成只允许 callback-free Save M0b/M1 分叉，不构成完整
+promotion。只有 DET3a–DET4（DET-B）也完成、四 runtime matrix 全绿后，guardrail
+才能写入 live features/development：
 
 1. current-gap tests 先证明 raw/mutable bootstrap handoff、zero cursor、
    command/evidence late failure 与 replay admission 的旧行为；

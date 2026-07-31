@@ -499,7 +499,7 @@ async function buildStoryApplicationWithReceiptInternalV1(
   });
 }
 
-/** Cross-compile triples accepted by `deno desktop --target` (Deno >= 2.9). */
+/** SillyMaker's explicitly admitted `deno desktop --target` triples. */
 export const DESKTOP_TARGET_TRIPLES_V1 = Object.freeze(
   [
     "x86_64-apple-darwin",
@@ -625,8 +625,8 @@ function isDesktopTargetTripleV1(value: unknown): value is DesktopTargetTripleV1
 }
 
 /**
- * Packages the built web Player through `deno desktop` (Deno >= 2.9,
- * experimental): a host-platform package by default, or explicit
+ * Packages the built web Player through the experimental `deno desktop`
+ * command: a host-platform package by default, or explicit
  * cross-compiled packages via `targets`. The staging directory is a thin
  * explicit host — a Vite SPA layout with the Player copied to `dist/` —
  * so engine and Story code never depend on Deno Desktop APIs, and the web
@@ -674,7 +674,7 @@ export async function desktopStoryApplicationWithDependenciesInternalV1(
   if (rawTargets !== undefined && !Array.isArray(rawTargets)) {
     commandErrorV1(
       "project.desktop_target_unsupported",
-      "desktop targets must be an array of supported Deno 2.9.0 target triples",
+      "desktop targets must be an array of SillyMaker-supported target triples",
       "/options/targets",
     );
   }
@@ -683,7 +683,7 @@ export async function desktopStoryApplicationWithDependenciesInternalV1(
     if (!isDesktopTargetTripleV1(target)) {
       commandErrorV1(
         "project.desktop_target_unsupported",
-        `desktop target "${String(target)}" is not supported by Deno 2.9.0`,
+        `desktop target "${String(target)}" is not in SillyMaker's supported target allowlist`,
         "/options/targets",
       );
     }
@@ -886,7 +886,7 @@ export async function desktopStoryApplicationWithDependenciesInternalV1(
     } catch {
       commandErrorV1(
         "project.desktop_deno_missing",
-        "`deno` was not found on PATH; the desktop preview requires Deno >= 2.9",
+        "`deno` was not found on PATH; install or upgrade to the latest stable Deno for Desktop previews",
         `/applications/${applicationId}/web/desktop`,
       );
     }

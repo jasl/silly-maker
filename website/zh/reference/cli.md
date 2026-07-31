@@ -18,12 +18,14 @@
 显式目标产出 Deno Desktop 对应的平台格式（`.app`、Windows `.msi` 安装包或
 `.AppImage`）。本地文件 store 尚未通过 durability promotion。
 
-Deno >= 2.9.0 支持下限只接纳
+SillyMaker 当前明确的 target allowlist 是
 `aarch64-apple-darwin`、`x86_64-apple-darwin`、
 `x86_64-pc-windows-msvc`、`aarch64-unknown-linux-gnu` 与
-`x86_64-unknown-linux-gnu`。不传 target 时产出宿主平台格式。`release` profile
-强制 minify 并关闭 sourcemap；`debug` 打开 sourcemap 并关闭 minify。诊断构建可用显式
-`--sourcemap` 覆盖 release profile；没有 profile 或显式 override 时，以应用配置为准。
+`x86_64-unknown-linux-gnu`。它与 Deno >= 2.9.0 的公开兼容下限相互独立；后续
+Deno 版本不会在缺少平台证据时自动扩张该列表。不传 target 时产出宿主平台格式。
+`release` profile 强制 minify 并关闭 sourcemap；`debug` 打开 sourcemap 并关闭
+minify。诊断构建可用显式 `--sourcemap` 覆盖 release profile；没有 profile 或显式
+override 时，以应用配置为准。
 
 ## 仓库根（工作区聚合）
 

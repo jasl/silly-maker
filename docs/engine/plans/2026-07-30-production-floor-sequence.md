@@ -1,14 +1,18 @@
 # Production-floor execution sequence
 
-状态：2026-07-30 接受执行，2026-07-31 根据 PF2 pilot 决策与 authoritative
-determinism 审计修订。本文是当前唯一的跨计划排序入口；具体合同仍由各 design
-文档拥有，具体任务由五个独立计划拥有：
+状态：2026-07-30 接受执行，2026-07-31 根据 PF2 pilot、authoritative
+determinism/Save graph、CI 与 Desktop 审计修订。本文是当前唯一的跨计划排序入口；
+具体合同仍由各 design 文档拥有，主要任务由五个独立计划拥有：
 
 - [Desktop persistence durability](2026-07-30-desktop-persistence-durability.md)
 - [Snapshot commit performance](2026-07-30-snapshot-commit-performance.md)
 - [Save migration](2026-07-30-save-migration.md)
 - [Managed Surface lifecycle](2026-07-30-surface-contract-harness.md)
 - [Authoritative determinism guardrails](2026-07-31-authoritative-determinism-guardrails.md)
+
+PF0.1 的 CI0/AUTO0 是两个刻意保持很小的 pre-pilot maintenance slice，不另建 focused
+plan；它们的 scope、TDD/验收与 stop boundary 由本文第 2 节直接拥有。下一位 Agent
+领取它们时以该小节为任务 authority，仍一次只实现一个切片。
 
 本文不把尚未实现的目标写成 live capability。`architecture.md`、`features.md` 与公开网站只描述已经通过验收的行为。
 
@@ -45,6 +49,58 @@ promotion record 的合同。
 
 PF0 不代表全部 tooling 已完成；它只消除本次新增“应用即项目”与 pointer fence 中会在后续计划放大的确定性缺口。
 
+### PF0.1 — Pre-pilot maintenance gates（下一批，两个独立切片）
+
+在继续 S1-T 前先分别完成两个小切片；二者不能与 Surface kernel 合并成一个提交：
+
+**CI0 — latest-stable required CI：**
+
+- 为 pull request 与 `main` push 建立 required、browser-free quality lane；执行时
+  使用 Deno latest stable、`deno ci` 与 `deno task check`；
+- 不增加 Deno 2.9.0 lane，不固定 patch。`>=2.9.0` 只保留为 public
+  compatibility floor；workflow/promotion log 记录实际 Deno 版本；
+- 另用 locked Playwright 的 Chromium 执行 Engine Lab prebuilt smoke；完整普通
+  browser matrix 可先由 nightly/manual 运行，DET4 再接管 dedicated
+  Deno/Chromium/Firefox/WebKit parity gate；
+- Deno 是 repository tool/build host，不是 Web Player runtime dependency；产物
+  correctness 由 prebuilt/browser tests 约束，而不是通过固定构建机 patch 推导；
+- Pages build 改用 `deno ci`，且自动发布只能消费同一 commit 已通过 required
+  validation 的 build；当前只有手动 Pages workflow，不能把 general CI 写成已存在
+  capability。
+
+**CI0 acceptance：** versioned workflow 明确触发 pull request 与 `main` push，quality
+job 打印实际 `deno --version`、只配置 latest stable、依次执行 `deno ci` 与
+`deno task check`，且不安装/启动 browser；独立 Chromium prebuilt-smoke job 只在
+quality 成功后运行。Pages 若启用 push deployment，只能在同一 commit 的这些 gate
+成功后 build/deploy。workflow static validation、一次本地 `deno ci` +
+`deno task check` 与一次真实 GitHub run 全绿；stable job name 可配置为 branch
+protection required check。若当前权限不能修改 branch protection，promotion record
+必须把“workflow landed”与“required policy active”分开并向用户报告，不能虚称已
+required。CI0 不引入 floor lane、browser matrix、Deno patch pin 或 Player runtime
+dependency。
+
+**AUTO0 — autosave policy admission：**
+
+- TDD 固定当前 `delayMs` 会接受 `Infinity`、fractional、unsafe integer 与 `-0`，
+  `checkpointEveryCommands` 也没有完整 runtime admission；
+- `delayMs` 必须是 non-negative safe integer 且拒绝 `-0`；可选
+  `checkpointEveryCommands` 必须是 positive safe integer；在 Session、Host owner、
+  timer 或 persistence side effect 创建前原子拒绝；
+- valid policy 的 schedule/capture/flush 次数与 bytes 不变，不改变 public
+  persistence/Save/autosave outcome。
+
+`auto.current` boot 遇到 corrupt/invalid record 时保持 fresh bootstrap 的现有玩家
+行为；DET1 负责让 precise rejection 进入 Core diagnostics。AUTO0 不把一个
+catch-only patch 冒充 determinism closure。
+
+**AUTO0 acceptance：** focused red/green 分别覆盖每个 invalid number class、合法
+zero/positive boundary 与 omitted checkpoint；invalid construction 的 Session、Host
+owner、timer、persistence factory/write count 全为 `0`，valid schedule/capture/flush
+count 与 fixed Save bytes 等于 pre-change oracle。受影响 package tests、
+`deno task test`、`deno task check` 与 diff hygiene 全绿；若只能通过改变 public Save/
+autosave result、boot recovery 或 scheduling semantics 才能收紧，立即停止并修订
+合同。
+
 ### PF-D — Desktop durability/package promotion（独立、条件性发布轨）
 
 执行 [Desktop persistence plan](2026-07-30-desktop-persistence-durability.md)：
@@ -53,7 +109,9 @@ Durability 子轨 D0–D3：
 
 1. 建立 `HostAtomicRecordStoreV1` 共享 conformance 与 deterministic fault injection；
 2. 用当前 file adapter 明确重现 multi-record crash partial 与 cross-process CAS 缺口；
-3. 在 SQLite transaction、journal/manifest 与实验性 Deno KV 之间形成 backend decision record，默认优先验证稳定 SQLite 路径；
+3. 下一切片 D1b 在执行时 latest stable 上完成 SQLite operational decision；除非
+   出现可复现的发布/运行 blocker，选择 SQLite，journal/manifest 与实验性 Deno
+   KV 不再是必须先实现的平行比较；
 4. 实现真正的 batch transaction、跨进程 optimistic conflict、reopen/recovery 与旧 JSON record 幂等导入；
 
 Packaging 子轨 D4：
@@ -67,7 +125,10 @@ Platform target、output shape 与 promotion-report contract 定稿后，D4
 即可独立启动，不等待 D0–D3。使用 preview/reference adapter 得到的 packaged
 write/reopen smoke 只证明 packaging integration，不证明 durability。
 
-当前 file adapter 在 PF-D promotion 前保持 `preview/reference` 身份。它的普通错误 rollback 和单文件 rename 不能作为 `HostAtomicRecordStoreV1` crash-atomic 的发布证据。
+当前 Desktop wrapper/file channel 是可使用的 preview；仓库外产品反馈可以决定
+优先级，但不能成为源码、fixture、测试、构建依赖或 promotion evidence。File
+adapter 在 PF-D promotion 前保持 `preview/reference` 身份；它的普通错误 rollback
+和单文件 rename 不能作为 `HostAtomicRecordStoreV1` crash-atomic 的发布证据。
 
 PF-D 可在 PF0 后独立启动，但**不是 PF1–PF6 / PF-DET 的默认串行 blocker**：只要
 desktop 仍明确标为 preview，核心 production-floor 顺序从 PF1
@@ -100,21 +161,33 @@ digest/serialization dedup；四项 evidence gate 均未达到充分标准，
 ### PF2 — Surface lifecycle kernel and one pilot family
 
 执行 [Surface plan](2026-07-30-surface-contract-harness.md) 的
-**S0 → S1-T → S2**，只迁移 **Workspace Overlay**：
+**S0 → S1d.1 → S1d.2 → S1d.3 → S1e → S1f → S2**，只迁移
+**Workspace Overlay**。S1a–S1d 已交付 dormant baseline，S1d.1–S1f 合计完成
+S1-T：
 
 1. 用现有 bug/trace 建立红测试；
-2. S1-T 建立 package-internal transient Coordinator、immutable topology
-   publication、稳定 instance ID、单点 dismiss/focus/input ownership、按 transition
-   kind 表达的 readiness，以及 composition-root-owned monotonic application epoch；
-3. S2 在 topology mutation 前完成 definition、definition contract
+2. S1d.1 让 binding-origin action fail closed，同时保持 direct untagged
+   InputRouter fallthrough；S1d.2 先以 Coordinator-lifetime monotonic allocator/
+   bounded cursor 取代 append-only retired-ID history；
+3. S1d.3 冻结 global root slot、parent-scoped child slot，拆开
+   modality/input/focus/navigation owner，并区分 publication 与 active-topology
+   revision，先验收现有同步 transition；publication-only commit 不轮换未变化的
+   input binding/`inputPublicationRevision`；
+4. S1e 把 bounded identity cursor 与 composition-root-owned monotonic application
+   epoch 组合并封闭 successor；S1f 建立按 transition kind 表达的 readiness；
+   readiness receipt 绑定 epoch + candidate attempt（stable target 后续再加 source
+   revision），相关 mutation 原子取消 pending，无关 revision 变化不误杀 candidate，
+   并补齐 preparation/fallback/ready/failure/cancel 的 exact 双 revision delta table
+   与 retain-current binding continuity；
+5. S2 在 topology mutation 前完成 definition、definition contract
    revision、schema、renderer resolver、required port、parent 与 slot
    preflight；缺失直接结构化拒绝，不创建
    active-but-invisible instance，也不为 pilot 建通用 fault surface；
-4. 同一 S2 cutover slice 把 Overlay 的 open/detail/back/close 写权迁入
+6. 同一 S2 cutover slice 把 Overlay 的 open/detail/back/close 写权迁入
    Coordinator，并删除或只读化旧 lifecycle authority；legacy adapter 只能把旧调用
    翻译为 Coordinator intent，或从 immutable publication 派生只读 view，禁止双写
    和异步 writable mirror；
-5. 真实浏览器覆盖 Escape/backdrop/pointer/keyboard、initial/replace/detail
+7. 真实浏览器覆盖 Escape/backdrop/pointer/keyboard、initial/replace/detail
    readiness、failure/focus restore、candidate cancellation、epoch rotation 与 stale
    gesture/readiness receipt。
 
@@ -127,9 +200,21 @@ cutover slice 无法消除 Overlay 双重 writable authority，停止并修订�
 
 ### PF-DET — Authoritative determinism guardrails
 
-PF2 pilot 通过后、PF3 M0 冻结当前 Save/load 行为前，执行
-[Determinism plan](2026-07-31-authoritative-determinism-guardrails.md) 的 **DET0
-→ DET1 → DET2a → DET2b → DET2c → DET2d → DET2e → DET3a → DET3b → DET4**：
+PF2 pilot 通过后，Determinism 与 Save 按以下跨计划 DAG 执行，不能再解释为
+“完整 PF-DET 后才开始全部 PF3”：
+
+```text
+DET0-core
+  -> M0a shared Save-metadata floor
+  -> DET1 -> DET2a -> DET2b -> DET2c -> DET2d -> DET2e  [DET-A]
+      ├-> DET3a -> DET3b -> DET4                         [DET-B]
+      └-> M0b -> M1 (strictly callback-free)
+                    join on the same merged HEAD
+                    -> M2
+```
+
+[Determinism plan](2026-07-31-authoritative-determinism-guardrails.md) 的
+DET0-core/DET-A/DET-B 负责：
 
 1. 用中性 fixture 固定 raw/mutable bootstrap handoff、permissive
    command/evidence 的 late admission、replay command 漏口与 xorshift32 zero
@@ -183,22 +268,37 @@ Surface receipt。若 DET2d 需要新增 public `GameSimulation` revision、boot
 schema/envelope，或改变合法 initial Snapshot/Save bytes，也同样停止并提交
 contract decision。
 
-PF3 必须等待完整 PF-DET promotion。PF2 不依赖 PF-DET；插在 pilot
-后是为了保持已经冻结的 Overlay 单 authority 切片不混入 Base/tooling/browser
-determinism 改造。PF-DET 用 synthetic callback 冻结可追加 authority entry 与
-pure-vector runner；PF3 M1/M2 每次注册真实 format/State migration 时必须加入同一
-static/tripwire scope 并扩展四 runtime matrix，不能把 PF-DET 当作一次性已完成
-认证。
+DET-A 完成只允许 callback-free Save lane 分叉，不等于完整 PF-DET promotion；只有
+DET-B 通过后才能更新 live capability 或 PF7 promotion。PF2 不依赖 PF-DET；把它放
+在 pilot 后，是为了保持 Overlay 单 authority 切片不混入
+Base/tooling/browser determinism 改造。
+
+DET-B 用 synthetic callback 冻结可追加 authority entry 与 pure-vector runner，
+不伪造 production migration registry。M2 首次注册真实 format/State migration
+时必须 live recollect、加入同一 static/tripwire scope 并扩展四 runtime matrix；
+以后每个新 migrator 也重复这项认证，不能把 PF-DET 当作一次性完成。
 
 ### PF3 — Save envelope and migration registry
 
-执行 [Save migration plan](2026-07-30-save-migration.md) 的 M0–M2：
+执行 [Save migration plan](2026-07-30-save-migration.md) 的分段 gate：
 
-1. bounded envelope shell decode；
-2. raw snapshot digest 验证与 load-order 重排；
-3. namespace-keyed adjacent-revision pure migration registry；
-4. 一步与两步 migration、失败原子性、新 replay anchor；
-5. migration 与 same-schema adoption 保持不同语义。
+1. **M0a** 在 DET0-core 后先建立唯一的 shared Save metadata corpus：annotation/
+   summary/note、`summarizeSave`、`versionStamp`、capture-origin preservation、
+   unstamped/stamped bytes 与 fixed-clock filename payload independence；
+2. **DET-A** 完成后，**M0b** 冻结 post-DET-A current load baseline；随后 **M1**
+   只实现 bounded envelope shell、raw digest verification、load-order 与明确的
+   `migration_unavailable` public rejection，不注册、不注入、不执行任何 migrator；
+3. M0b/M1 可以与 DET-B 并行，但文件 ownership 必须分离：DET-B 独占 authority
+   collector、determinism task、test-only driver、Playwright config 与 CI；M0b/M1
+   独占 Base Save codec/load order/public persistence result type 及其 tests；双方共同
+   需要的 testkit seam/public export 必须在分叉前单独合并；
+4. DET-B 与 M1 必须在**同一个 merged HEAD** 汇合；该 HEAD 同时通过 focused
+   M0a/M0b/M1、`deno task test`、`deno task check`、shared Save byte corpus 与
+   dedicated Deno/Chromium/Firefox/WebKit matrix，并证明 migration callback count
+   为 `0`；
+5. 只有该 join 通过，**M2** 才建立 namespace-keyed adjacent-revision executable
+   registry、一步/两步 migration、失败原子性与新 replay anchor；migration 与
+   same-schema adoption 保持不同语义。
 
 PF3 完成后，State schema 才允许进入第一个需要跨版本迁移的正式发布周期。
 
@@ -262,7 +362,8 @@ presentation postcondition，application-composition bridge 就必须组合这�
 
 ### PF7 — Release stabilization
 
-- `deno task check`、受影响的 browser/prebuilt matrix、Save fixture corpus、
+- 在执行时 latest stable Deno（记录实际版本、不固定 patch、不另设 2.9.0 lane）上，
+  `deno task check`、受影响的 browser/prebuilt matrix、Save fixture corpus、
   PF-DET 四 runtime 逐 command matrix 和性能计数 gate 全绿；若本次发布包含
   desktop durability promotion，只要求对应 D0–D3 evidence；若包含 packaging
   promotion，只要求对应 D4 evidence；只有 “packaged app 使用 atomic
@@ -309,13 +410,17 @@ PF7 只完成 production floor，不自动激活 Mod。Mod M0–M2 仍必须满�
 - PF-D 的 backend spike、fault fixture 与 packaged smoke，可与 PF1/PF2/PF-DET
   的纯准备工作并行；D4 在 target/output/report contract 定稿后也可与 D0–D3
   并行；一旦触及共享 Host/Save/records wire contract 即停止并串行；
+- DET-A 后唯一额外允许的 implementation fork 是 DET-B 与 strictly
+  callback-free M0b/M1；两边遵守 PF3 写明的文件 ownership，并在同一 merged HEAD
+  通过 join gate 后才进入 M2；
 - 文档校对、测试夹具准备、benchmark 运行和结果分析；
 - 不同 package 的纯 bug fix；
 - 真实 Story 的 Story-local 内容/玩法；
 - 已有公共 API 上的示例改进。
 
-共享 `GameSession`、Save decode、Surface/input ownership、Story import-closure
-tooling、browser parity config 或 public export 的工作不得并行落地。
+除上述显式 fork 外，共享 `GameSession`、Save decode、Surface/input ownership、
+Story import-closure tooling、browser parity config 或 public export 的工作不得并行
+落地。
 
 ## 5. Deferred tracks
 

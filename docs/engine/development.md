@@ -4,14 +4,23 @@
 
 ## Requirements and installation
 
-- Deno >= 2.9.0
+- Deno latest stable (public compatibility floor: >= 2.9.0)
 
-Only this compatibility floor is authoritative. An exact patch version, Homebrew service, PostgreSQL server, machine attestation, or pre-materialized browser cache is not required.
+The floor is an engine compatibility claim, not a second required CI lane.
+Maintained development follows the latest stable release so the experimental
+Desktop toolchain receives current fixes. The accepted CI/Desktop promotion
+policy does the same and records the actual Deno version, but does not pin an
+exact patch. It also does not require a Homebrew service, PostgreSQL server,
+machine attestation, or pre-materialized browser cache.
 
 ```sh
 deno install
 deno task dev
 ```
+
+General PR/main CI is not implemented yet. The accepted CI0 slice will use
+`deno ci` against the shared lockfile; `deno install` remains the normal
+interactive setup command.
 
 The workspace is ESM, imports TypeScript sources with explicit `.ts`/`.tsx` extensions, and uses one shared `deno.lock` with exact dependency versions (npm packages resolve through Deno's Node compatibility).
 
@@ -39,25 +48,25 @@ Package manifests define supported cross-package entries. Do not bypass them wit
 
 ## Daily commands
 
-| Command                                          | Use                                                                                                                                                |
-| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `deno task dev`                                  | Start the Vite development server (pick an app with `--mode`; inside an app directory it serves that app).                                         |
-| `deno task check`                                | Canonical local code-quality and product-behavior check.                                                                                           |
-| `deno task test`                                 | Run engine and game behavior tests.                                                                                                                |
-| `deno task test:coverage`                        | Run unit tests with engine line-coverage reporting.                                                                                                |
-| `deno task bench:snapshot`                       | Write a neutral Snapshot hot-path baseline JSON to a temporary path.                                                                               |
-| `deno task bench:snapshot:memory`                | Sample retained memory for one long-lived neutral Snapshot Session.                                                                                |
-| `deno task test:e2e:engine`                      | Engine browser suite against the Engine Lab Story.                                                                                                 |
-| `deno task test:e2e`                             | Run the engine and example browser suites.                                                                                                         |
-| `deno task build:web` (in an app directory)      | Canonical web build → `<app>/dist-web` (`build` is its alias; `preview` serves it over HTTP).                                                      |
-| `deno task build:desktop` (where declared)       | Preview Desktop package(s) → `<app>/dist-desktop`; no platform has passed D4 packaging promotion, and the file store remains a durability preview. |
-| `deno task story <verb> <app>`                   | Story diagnostics and workspace aggregation CLI (JSON reports); verbs below.                                                                       |
-| `deno task check:stories`                        | Structured Story diagnostics for every application (part of `check`).                                                                              |
-| `deno task story simulate <app> --trace <paths>` | Headless play with per-step numeric trajectories (balance tuning).                                                                                 |
-| `deno task story diff <a.json> <b.json>`         | Structured diff of two JSON files (exported saves, simulate reports).                                                                              |
-| `deno task simulate:e2e`                         | Scripted Engine Lab run through the Agent port.                                                                                                    |
-| `deno task test:conformance:headless`            | Engine Lab headless conformance suite.                                                                                                             |
-| `deno task test:e2e:engine:prebuilt`             | Build the Engine Lab and run the engine suite on the built Player.                                                                                 |
+| Command                                          | Use                                                                                                                                                        |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `deno task dev`                                  | Start the Vite development server (pick an app with `--mode`; inside an app directory it serves that app).                                                 |
+| `deno task check`                                | Canonical local code-quality and product-behavior check.                                                                                                   |
+| `deno task test`                                 | Run engine and game behavior tests.                                                                                                                        |
+| `deno task test:coverage`                        | Run unit tests with engine line-coverage reporting.                                                                                                        |
+| `deno task bench:snapshot`                       | Write a neutral Snapshot hot-path baseline JSON to a temporary path.                                                                                       |
+| `deno task bench:snapshot:memory`                | Sample retained memory for one long-lived neutral Snapshot Session.                                                                                        |
+| `deno task test:e2e:engine`                      | Engine browser suite against the Engine Lab Story.                                                                                                         |
+| `deno task test:e2e`                             | Run the engine and example browser suites.                                                                                                                 |
+| `deno task build:web` (in an app directory)      | Canonical web build → `<app>/dist-web` (`build` is its alias; `preview` serves it over HTTP).                                                              |
+| `deno task build:desktop` (where declared)       | Usable Desktop preview package(s) → `<app>/dist-desktop`; no platform has passed D4 production promotion, and the file store remains a durability preview. |
+| `deno task story <verb> <app>`                   | Story diagnostics and workspace aggregation CLI (JSON reports); verbs below.                                                                               |
+| `deno task check:stories`                        | Structured Story diagnostics for every application (part of `check`).                                                                                      |
+| `deno task story simulate <app> --trace <paths>` | Headless play with per-step numeric trajectories (balance tuning).                                                                                         |
+| `deno task story diff <a.json> <b.json>`         | Structured diff of two JSON files (exported saves, simulate reports).                                                                                      |
+| `deno task simulate:e2e`                         | Scripted Engine Lab run through the Agent port.                                                                                                            |
+| `deno task test:conformance:headless`            | Engine Lab headless conformance suite.                                                                                                                     |
+| `deno task test:e2e:engine:prebuilt`             | Build the Engine Lab and run the engine suite on the built Player.                                                                                         |
 
 Every application is a self-contained project: `<app>/sillymaker.config.ts` declares it (paths app-root-relative), `<app>/vite.config.ts` calls the shared `@sillymaker/tooling/vite` assembly, and the root `project.config.ts` only lists the registered directories for repository-level aggregation. Builds are application tasks; the story CLI is the diagnostics and aggregation surface (it also runs app-locally through `<app>/tools/story.mts`, where `.` selects the app):
 
@@ -82,6 +91,11 @@ The `story build`/`story desktop` verbs remain as the plumbing behind the build 
 ### Local and external application projects
 
 Private studies, outside-checkout validation applications, and other external checkouts do not register into the repository at all: they are ordinary application projects. Copy `template/`, keep `sillymaker.config.ts` + `vite.config.ts` + `tools/story.mts`, and point `package.json` dependencies at the engine packages by relative `file:` path (with `"nodeModulesDir": "manual"` in the project's `deno.json`, required for `file:` npm dependencies). `deno install` inside the project directory materializes the engine link; `deno task dev`, the declared `build:*` tasks, `deno task test`, and the app-local story CLI then run without any root-registry edit or engine `src/**` alias.
+
+An external application may provide anonymous product feedback and help
+prioritize engine work. Promotion evidence must still be reproduced by neutral,
+maintained repository fixtures/workloads; do not import external content or make
+source, tests, builds, or release claims depend on that checkout.
 
 Use a focused package or test-file command while iterating when that is faster. Run `deno task check` before handing off a change, and add `deno task test:e2e` or prebuilt testing when the affected behavior crosses the browser/build boundary.
 

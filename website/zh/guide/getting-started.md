@@ -11,9 +11,10 @@
 ```text
 在这台机器上装好 SillyMaker 引擎：
 
-1. 检查 Deno >= 2.9 是否已安装（`deno --version`）；没有就安装
-   （macOS/Linux：`curl -fsSL https://deno.land/install.sh | sh`，
-   Windows PowerShell：`irm https://deno.land/install.ps1 | iex`），并确认在 PATH 上。
+1. 检查是否已安装 Deno latest stable（`deno --version`）；没有就安装或升级
+   （macOS/Linux：`curl -fsSL https://deno.land/install.sh | sh`，Windows
+   PowerShell：`irm https://deno.land/install.ps1 | iex`），并确认在 PATH 上。引擎的
+   公开兼容下限仍是 Deno >= 2.9.0，但维护开发跟随 latest stable，不固定 patch。
 2. 克隆 https://github.com/jasl/silly-maker 并进入目录。
 3. 运行 `deno install` 解析依赖。
 4. 运行 `deno task check` 并汇报结果。必须全绿——这是基线，之后你造成的

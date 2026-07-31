@@ -1,10 +1,10 @@
 # Save migration execution plan
 
-状态：2026-07-30 接受执行，审查后从 Snapshot 性能计划拆分；2026-07-31 继承
-PF-DET 的 authority-closure 与 cross-runtime guard。目标合同见
+状态：2026-07-30 接受执行，审查后从 Snapshot 性能计划拆分；2026-07-31 按
+M0a/M0b metadata ownership 与 PF-DET same-HEAD join 重切片。目标合同见
 [Save migration design](../design/save-migration.md)；在
 [production-floor sequence](2026-07-30-production-floor-sequence.md) 中分为 PF3
-与 PF5，PF3 在完整 PF-DET promotion 后开始。
+与 PF5，并与 PF-DET 按显式 DAG 汇合；不是“完整 PF-DET 后才开始全部 M0–M2”。
 
 ## 1. Outcome
 
@@ -15,83 +15,73 @@ PF-DET 的 authority-closure 与 cross-runtime guard。目标合同见
 - 每个受支持正式 Save revision 有 maintained fixture，并在 CI 中 migrate + validate + load；
 - 玩家可以 dry-run、看到可行动结果，并在写入前保留原记录。
 
-## 2. M0 — Current behavior and fixture floor
+## 2. M0a — Shared Save metadata floor
 
-在改 load order 前固定 PF-DET promotion 后的现有行为；不得把 PF-DET 已拒绝的
-zero RNG state 或经 binary64 舍入入场的 fractional number token 重新冻结成 Save
-兼容基线：
+M0a 紧随 DET0-core，在任何可能改变合法 authoritative bytes/order 的 DET-A 工作前
+建立唯一的 maintained Save-metadata corpus。它只冻结已经落地的 envelope
+metadata，不冻结 zero RNG、fractional token admission、authoritative ordering、
+browser parity 或实际 filesystem collision：
 
-- current valid Save；
-- unsupported format/record revision；
-- corrupt JSON、超限、unknown fields；
-- raw snapshot digest mismatch；
-- current schema invalid；
-- reference/invariant failure；
-- same-schema adoption allow/deny；
-- simulation lineage boundary；
-- auto recovery candidate；
-- export/import bytes；
-- annotation field absent、summary-only、note-only、summary + note 与 note
-  clearing/removal；
-- malformed、over-limit、sparse 与 accessor-backed annotation/summary shape；
-- `summarizeSave` absent/null/empty/valid/throw、exactly-once capture、defensive
-  copy/freeze、fixed metadata clock，以及 projection failure 后没有 physical Save
-  write；
-- autosave rotation 保留每个 candidate capture 时的 summary；
-- `versionStamp` absent、all-null、partial、fixed full-clean、fixed full-dirty、
-  status-unavailable、malformed、accessor/Proxy-backed 与 collector throw；每个
-  成功创建的 persistence service 恰好 collect 一次，
-  后续 capture/rewrite/rotation/export 的新增 collect count 为 `0`；partial/full
-  先做 bounded printable normalization、defensive copy/freeze；
-  normalization 不调用 getter，mixed malformed fields 逐字段丢弃，最终
-  absent/all-null、accessor-only、hostile Proxy 或 collector throw 降级为 field
-  absent 且不阻止 physical Save write；
-- stamp 标识 Save candidate 中 Snapshot 的 capture-origin build，不参与
-  compatibility、adoption、Snapshot/`stateDigest`、authoritative identity、
-  CommandLog 或 replay；annotation rewrite、autosave rotation 与 stored-record
-  export 保留每个 record 原有 stamp，不调用当前 runtime collector；load/import
-  compatibility 不读取 stamp，post-load/import fresh capture 使用当前 service
-  已采集 stamp；
-- headless absent/all-null stamp 的 Save bytes 继续等于 PF1 unstamped oracle；
-  fixed browser partial/full stamp 使用独立 expected bytes/SHA，并覆盖 standard
-  receipt 与 opaque repository fallback；
-- fixed metadata clock 的 UTC `yyyyMMddHHmmss` export suggested filename 覆盖
-  有/无 extension、invalid clock 与同一秒重复；秒级 suffix 不承诺唯一，
-  Desktop/Browser Host 以
-  no-clobber collision policy 保留每份导出，filename collision 不改变 payload
-  bytes；
-- annotation rewrite 绑定 source Host revision 与 exact source bytes 做 conditional
-  read-modify-write，随后通过 physical readback、accepted lease fence，以及 built-in
-  one-shot write receipt 或 opaque repository 的 exact expected-byte re-encode 验证；
-- stale-source conflict 保持 newer record byte-for-byte 不变；post-commit
-  fence/readback failure 不得报告成功，也不改变 live Session 或 safely-saved
-  state，同时 corpus 明确记录 already-committed physical annotation 是否仍在，和
-  normal Save receipt contract 保持一致；
-- note rewrite 保持 Snapshot、`stateDigest`、`savedAt`、captured command
-  sequence、provenance、lineage、summary 与 `versionStamp`；只允许
-  `recordRevision` 和 normalized note/annotation presence 改变；
-- 每个 valid annotation variant 的 list/export/import/load round-trip，且 optimized
-  receipt 与 opaque-repository fallback 产生相同 bytes。
+- annotation absent、summary-only、note-only、summary + note、note
+  clearing/removal，以及 malformed/over-limit/sparse/accessor-backed shape；
+- `summarizeSave` absent/null/empty/valid/throw、exactly-once capture、normalized
+  defensive copy/freeze、fixed State/metadata clock bytes，以及 projection failure
+  在 physical write 前原子失败；
+- autosave rotation 保留每个 candidate capture 时的 summary；annotation rewrite
+  绑定 source Host revision 与 exact bytes，stale conflict 保持 newer record bytes；
+- note rewrite 保持 Snapshot、`stateDigest`、`savedAt`、captured command sequence、
+  provenance、lineage、summary 与 `versionStamp`，只改变允许的 record revision 与
+  normalized annotation presence；
+- `versionStamp` absent/all-null/partial/fixed full-clean/fixed full-dirty/
+  status-unavailable/malformed/accessor/Proxy/throw 的 bounded normalization、一次
+  collect、copy/freeze 与 failure fallback；后续 capture/rewrite/rotation/export
+  collect delta 为 `0`；
+- stamp 是 Snapshot capture origin，不参与 compatibility/adoption/authoritative
+  identity；rewrite/rotation/stored export 原样保留，load/import compatibility
+  忽略，post-load/import fresh capture 使用 current service stamp；
+- PF1 unstamped oracle 保持不变；partial/full stamp 与 annotation 使用追加的独立
+  expected bytes/SHA，standard receipt 与 opaque-repository fallback 等价；
+- fixed metadata clock 的 UTC `yyyyMMddHHmmss` suggested filename 与 payload
+  independence；同一秒名称可以相同，真正 no-clobber 由 Browser/Desktop Host
+  单独证明；
+- 每个 valid metadata variant 的 list/export/import/load round-trip，以及 physical
+  readback、accepted lease fence 与 post-commit failure semantics。
 
-fixture 只为已经发布或明确承诺维护的格式建立；临时测试对象继续在 test factory 中生成。
+M0a 同时落一个中性、可维护的 shared corpus/testkit seam。DET-B 只消费其 compact
+pure summary/stamp/bytes vectors做跨 runtime equality，不复制 lifecycle golden；
+Host/Desktop 只消费相同 payload/build receipt 做真实 no-clobber/package integration。
+共同 seam/public export 必须在分叉前完成，避免 DET-B 与 M0b/M1 争改同一文件。
 
-`summarizeSave` 是 Story-owned durable deterministic projection：其输出影响
-Save/export bytes，但不影响 Snapshot digest、CommandLog、replay 或 gameplay
-transition。玩家 note 是 persistence metadata。在尚无 downstream release 时于
-`formatRevision: 1` 内加入该 shape 不构成本轮 compatibility blocker；M0 从此冻结
-current behavior，再进入 M1 load-order 改造。既有 PF1 unannotated byte oracle 保持
-不变，annotation vectors 是追加 corpus，不得以它们重生成或替换旧 oracle。
+`summarizeSave` 是 Story-owned durable deterministic projection；玩家 note 是
+persistence input；`versionStamp` 是 bounded presentation/runtime metadata。在尚无
+downstream release 时于 `formatRevision: 1` 加入这些 shape 不构成 compatibility
+blocker，但 M0a 从此成为唯一 bytes/preservation authority。
 
-`versionStamp` 是 bounded presentation/runtime persistence metadata，不是 durable
-deterministic projection；它从显式 build/runtime ingress 采集一次并记录 Snapshot
-capture origin。其 vectors 同样只追加 corpus：PF1 unstamped oracle 保持不变，
-stamp 不得成为 compatibility 或 authoritative identity 的新轴。export timestamp
-filename 是 Save envelope 外的 Host metadata，也不进入 migration corpus 的 payload
-identity。
+**M0a acceptance：** metadata normalization、callback/collector count、failure
+atomicity、preservation 与 exact bytes 逐项固定；PF1 oracle 未重生成；无 browser/
+filesystem/private-project dependency。
 
-**M0 acceptance：** 现有结果逐字段固定，所有写入点与 live Session install 点可追踪。
+## 3. M0b — Post-DET-A current load baseline
 
-## 3. M1 — Bounded envelope shell and load order
+M0b 必须等待完整 DET-A，因为 DET2d 会影响 initial Save path，DET2e 会影响
+authoritative ordering/State bytes。它在改 load order 前冻结此时的合法行为：
+
+- current valid Save；unsupported format/record revision；
+- corrupt JSON、限额、unknown fields、raw snapshot digest mismatch；
+- current schema invalid、reference/invariant failure；
+- same-schema adoption allow/deny、simulation lineage boundary；
+- auto recovery candidate、export/import 与 live Session install/write；
+- M0a metadata variants 在所有上述路径继续保持同一 semantics/bytes。
+
+不得把 DET-A 已拒绝的 zero RNG、经 binary64 舍入入场的 fractional token 或旧
+locale-default ordering 重新冻结成兼容基线。fixture 只为已发布或明确承诺维护的
+格式建立；临时对象继续由 test factory 生成。
+
+**M0b acceptance：** post-DET-A current result 与写入/install point 逐字段固定；
+shared M0a corpus 无漂移；本切片不创建 migration callback、registry 或 browser
+config。
+
+## 4. M1 — Bounded envelope shell and load order
 
 实现 design 的目标顺序：
 
@@ -99,26 +89,46 @@ identity。
 2. 只解析 format/record revision、provenance、slot、savedAt、stateDigest、lineage、
    bounded annotation 与 bounded `versionStamp` 等外壳；
 3. `snapshot` 保持 bounded raw JSON；
-4. 按 stored format 验证 raw snapshot digest；任何会改写 snapshot 的 format/State migration 都不得先于此步骤；
-5. 处理 engine-owned envelope format migration；默认只改外壳，确需转换 snapshot 时必须同时生成新 digest/lineage；
-6. 根据 State contract revision 选择 migration chain；
-7. migration 完成后才用 current Snapshot schema parse；
-8. 再执行 compatibility/adoption、reference、invariant 与 install。
+4. 按 stored format 验证 raw snapshot digest；未来任何会改写 snapshot 的
+   format/State migration 都不得先于此步骤；
+5. current format + current State revision 才进入 current Snapshot schema parse；
+6. shell/digest 合法但 State revision 不同且尚无 executable chain 时返回明确
+   unavailable；
+7. current schema 后再执行 compatibility/adoption、reference、invariant 与 install。
 
-不注册 migration 时，现行受支持 Save 的结果与 M0 等价；旧 schema 从“current schema parse 失败”变成稳定的 `migration_unavailable` 类结果，不写入。
+M1 **严格 callback-free**：不创建 executable registry，不接受 migrator injection，
+不执行 Story/engine migration callback，也没有“顺手注册一个 format migrator”的
+逃生口。它只建立未来 M2 插入 format/State migration 的阶段边界。
 
-M1 默认只建立 callback-free envelope shell 与调用顺序，不凭空发布 format
-migration。若同一切片确实注册 executable engine-owned format migrator，其 source
-必须作为 explicit authority entry 进入 PF-DET static/tripwire scope，并把 pure
-input/output/diagnostic/digest vector 接入已经建立的 Deno/Chromium/Firefox/WebKit
-matrix；否则停止并拆出独立 migration slice。
+本切片冻结两层公开可观察合同：
 
-**M1 acceptance：** Strict JSON 限额不放宽；tampered raw snapshot 在任何会改写它的 migration 前被拒绝；现格式回归逐字段等价；callback-free shell 不冒充已实现 migration，任何真实 format migrator 都有 authority entry 与四 runtime vector。
+- validation/inspection：`kind: "inspect_only"`、`code:
+  "migration.unavailable"`，携带 stored/current state-contract revision；
+- Player-facing `PersistenceOperationResultV1`：`{ kind: "rejected", code:
+  "migration_unavailable" }`。
 
-## 4. M2 — Migration registry and new replay anchor
+错误 precedence：unknown/unsupported envelope format 继续
+`envelope.unsupported_revision`；raw digest mismatch 继续
+`digest.state_mismatch`；current revision 但 current schema invalid 继续
+`envelope.schema_invalid`；只有 shell/digest 合法、State revision 不同且没有完整
+前向链时才是 `migration.unavailable`。所有 unavailable path 都不写 record、不安装
+Session、不替换 replay anchor。
+
+**M1 acceptance：** Strict JSON 限额不放宽；tampered raw snapshot 在任何未来
+migration 前被拒绝；current format 回归逐字段等于 M0b；migration callback count
+精确为 `0`，没有 executable registry/export；public/internal unavailable mapping 与
+precedence 有 focused tests。
+
+## 5. M2 — Migration registry and new replay anchor
+
+M2 必须等待 DET-B 与 M1 的 same-merged-HEAD join。两边各自绿不算完成；join HEAD
+必须同时通过 focused M0a/M0b/M1、shared Save bytes、`deno task test`、
+`deno task check` 与 dedicated Deno/Chromium/Firefox/WebKit matrix，并证明尚无
+executable migrator、callback count 为 `0`。
 
 ### Registry contract
 
+- 本切片首次建立 executable registry；M1 shell 没有隐藏 callback path；
 - namespace-keyed；单应用使用 engine/application namespace，未来 Mod 可复用而不改管线；
 - 每条 migration 只处理 `N -> N+1`；跨版本由 runtime 组合；
 - 输入/输出是 plain bounded data；
@@ -127,6 +137,8 @@ matrix；否则停止并拆出独立 migration slice。
 - duplicate、gap、cycle、反向或歧义链在 authoring/build 阶段失败；
 - registered migration source entry 进入 PF-DET 已建立的 authoritative
   import-closure lint 与 isolated tripwire，不靠文件名猜测或作者自觉；
+- 每个真实 entry 在包含它的同一 HEAD 上 live recollect，并扩展四 runtime matrix；
+  missing/gapped chain 保留 M1 的 `migration_unavailable` mapping；
 
 ### Execution
 
@@ -155,7 +167,7 @@ Engine Lab 提供：
 replay 自洽；migration registry/source 已进入 determinism static/tripwire
 guard，四 runtime vector 全绿且缺 browser 不得 silently skip。
 
-## 5. M3 — Product surface and release corpus
+## 6. M3 — Product surface and release corpus
 
 - dry-run/inspect：不写入，按 slot 返回可直载、需 migration、需 adoption、拒绝及原因；
 - 写入前备份：原记录进入可恢复位置或导出流，迁移后的记录才替换目标；
@@ -163,20 +175,20 @@ guard，四 runtime vector 全绿且缺 browser 不得 silently skip。
 - lineage policy：re-anchor 上限、触限提示、导出/回退路径；
 - 用户文案：稳定 diagnostic code 映射为人类可理解的结果与操作，不直接展示内部 stack；
 - maintained fixture corpus：Engine Lab + 旗舰示例，至少一条多版本链、一次 adoption、一次 lineage 边界与失败备份恢复；
-- corpus 保留 M0 的 `versionStamp` absent/all-null/partial/fixed full-clean/fixed
+- corpus 直接消费 M0a 的 `versionStamp` absent/all-null/partial/fixed full-clean/fixed
   full-dirty/status-unavailable/malformed/throw 与
   headless/browser fixed bytes，并逐版本证明 migration、annotation rewrite、
   autosave rotation 与 stored export 不覆盖 Snapshot capture origin；load/import
   compatibility 忽略 stamp，post-load/import fresh capture 使用当前 service
   stamp；
-- Host export acceptance 固定同一秒重复 suggested filename，证明
-  Desktop/Browser collision policy no-clobber，且 filename/落盘路径不进入或改写
-  Save bytes；
+- Host export acceptance 以 M0a payload 为唯一 expected，固定同一秒重复 suggested
+  filename，证明 Desktop/Browser 实际生成两个不覆盖文件，且各自 payload 等于
+  shared corpus；不得另建 Host/Desktop Save golden；
 - CI：对 corpus 全量执行 inspect → migrate → current schema/reference/invariant/digest → load → save round-trip。
 
 **M3 acceptance：** design 的 release acceptance 全部满足；任何被声明支持的 revision 都有 fixture；不存在“代码声称支持但 CI 没有真实字节”的版本。
 
-## 6. API discipline
+## 7. API discipline
 
 - migration registry 是 authoring/runtime contract，不把 raw storage adapter 暴露给 Story；
 - migration function 不取得 arbitrary context；确需静态内容时只取得已 digest 的 read-only migration resources，并由设计先批准；
@@ -184,7 +196,7 @@ guard，四 runtime vector 全绿且缺 browser 不得 silently skip。
 - 不把 Mod 安装/卸载、content patch、adoption 与 State migration 合并为一个万能 hook；
 - diagnostics 包含稳定 code、revision path、migration ID 与 failing validation phase。
 
-## 7. Non-goals
+## 8. Non-goals
 
 - downgrade；
 - 跳版本捷径（除非以后由相邻链性能证据激活）；
@@ -194,7 +206,7 @@ guard，四 runtime vector 全绿且缺 browser 不得 silently skip。
 - renderer/workspace/conversation 数据迁入 gameplay Save；
 - CommandLog 跨新 anchor 重放。
 
-## 8. Stop conditions
+## 9. Stop conditions
 
 - shell parse 需要放开当前 JSON size/depth/key 限额；
 - migration 需要 live Session、网络、墙钟或随机；
@@ -202,8 +214,10 @@ guard，四 runtime vector 全绿且缺 browser 不得 silently skip。
 - migration 与 adoption 无法在结果中区分；
 - fixture 依赖 `tmp/**`、`references/**` 或未发布复刻；
 - current schema validation 仍在 migration 之前执行；
+- M1 必须接受或执行 executable migrator 才能建立 shell/load order，或 M2 想在
+  DET-B/M1 same-HEAD join 前开始；
 - 实现需要静默改变已接受 design。
 
-## 9. Promotion record
+## 10. Promotion record
 
 每阶段记录：旧 bytes/红测试、load-order 变化、public contract、失败原子性、fixture revision、focused/aggregate checks、玩家路径、仍未支持的历史版本。M1–M2 只证明机制；M3 通过后才能在 `features.md` 宣称 Save migration 是发布能力。

@@ -1,15 +1,19 @@
 # Managed Surface lifecycle execution plan
 
 状态：2026-07-30 接受执行，2026-07-31 按 readiness、application epoch、external
-reconcile 与 Overlay cutover 决策重切片。目标合同见
+reconcile、dormant-kernel boundedness/action provenance 与 Overlay cutover
+决策重切片。目标合同见
 [Managed Surface lifecycle and contract harness](../design/surface-contract-harness.md)。
 本文只规定可独立交付的实施顺序；不要求一次实现 design
 中所有可选字段，也不把作者能力评测绑进 runtime migration。
 
 在 [production-floor sequence](2026-07-30-production-floor-sequence.md)
 中：PF2 的顺序是 `S0 -> S1-T -> S2`；PF4 的顺序是
-`S3 -> S1-R -> S4 -> S4b`；S5–S6 属于 PF6。S1-T 只建立 transient
-lifecycle、application epoch 与 readiness，S2 只依赖 S1-T。S1-R
+`S3 -> S1-R -> S4 -> S4b`；S5–S6 属于 PF6。当前 S1-T 的剩余顺序是
+`S1d.1 -> S1d.2 -> S1d.3 -> S1e -> S1f`：先关闭已交付 dormant kernel 的
+action provenance、有界状态与 topology-axis 缺口，再建立 application epoch 与
+readiness。S2 只依赖完成的
+S1-T。S1-R
 延后到第一个真实 externally published stable-target family 前完成；按 accepted
 target ownership，S4 Narrative 计划成为该 family，因此 S1-R 位于 S3 与 S4
 之间。若更早的 family 改为 externally published stable target，必须把 S1-R
@@ -46,11 +50,16 @@ S1-T 与 Overlay pilot 只冻结能够直接防止现有 bug 的 transient 字�
 - `surfaceInstanceId`（每次 preparation/runtime attempt 唯一）；
 - `ownerId`；
 - `slotId` / parent instance（适用时）；
+- root slot 是 Coordinator/topology-recipe global scope，child slot 是 exact
+  parent-instance scope；cardinality 由 resolved slot descriptor 提供，不由 owner
+  namespace 或 candidate 自报；
 - `topologyRevision`；
-- `layer` 与 `modality`；
+- `publicationRevision`；
+- `layer`、`modality`、managed input policy 与 focus policy；blocking、input、
+  focus 与 lifecycle navigation owner 独立派生；
 - dismiss policy（escape/backdrop/routed cancel）；
-- focus policy（initial/trap/restore）；
-- input context/owner；
+- tagged focus policy（`none` 或 initial/trap/restore）；
+- tagged managed input policy（`none` 或 context/owner）；
 - lifecycle（preparing/active/suspended/exiting）；
 - readiness state；
 - 按 initial open、primary replacement、child/detail open 区分的 definition-level
@@ -66,7 +75,7 @@ S1-T/S2 的 transient target、handle、action/readiness envelope 与 publicatio
 
 第一个 externally published stable-target family 激活前，S1-R 另行冻结：
 
-- stable target owner 与 owner-provided occurrence；
+- stable target owner 与 owner/publisher-lease-minted monotonic occurrence；
 - 复用 S1-T 已声明的 definition contract revision；
 - definition schema validation/normalization 后的 Strict Canonical Data 与
   canonical parameter bytes；
@@ -167,8 +176,9 @@ S1-T 最小操作集：
 
 - ordered active topology；
 - topmost blocking surface；
-- current input/focus owner；
+- current input owner、focus owner 与 lifecycle navigation target；
 - per-instance lifecycle/readiness；
+- publication revision；
 - topology revision；
 - diagnostics/owner trace。
 
@@ -188,6 +198,10 @@ S1-T 最小操作集：
 
 以下 S1a–S1d 是在本次重切片前形成并归入 S1-T 的历史 delivery record。各记录保留
 当时的目标、非目标、计数与状态，不把后续接受的 epoch/readiness 决策倒写为已实现。
+其中 S1d 记录的 undeclared-action fallthrough、S1a/S1b 的 append-only retired
+ID，以及 S1a/S1c 从 candidate/input owner 推导 slot/navigation 的语义，只是当时的
+dormant baseline；2026-07-31 审计已确认它们不能进入 live pilot，分别由
+S1d.1/S1d.2/S1d.3 修正后才允许继续 S1e/S1f。
 
 ### S1a delivery record（2026-07-30）
 
@@ -358,12 +372,132 @@ InputRouter binding seam；S1 仍未完成。
   `4 files / 77 tests`、`@sillymaker/ui` `53 files / 449 tests` 与 aggregate
   typecheck 通过。
 
+### S1d.1 — Managed action provenance closure
+
+Live audit 已确认 package-internal binding 在 `actionId` 不属于 captured catalog 时
+直接调用 `InputRouter.route()`。因此一个明确由 Managed Surface binding 创建的
+envelope 会绕过 epoch/instance/topology/lease/gesture fence，并且旧 binding 在
+rebind、dispose 后仍能触达 ordinary/lower handler。该行为在 dormant kernel 中没有
+production caller，但在 Overlay cutover 前是 blocking defect。
+
+**目标：**
+
+- 任何通过 Managed Surface binding `createEnvelope`/`route` 的 action 都保留
+  Surface provenance；unpublished action 进入 Coordinator admission，返回
+  `surface.action_unpublished`（或同义稳定 code）并被 input route 消费；
+- stale publication/gesture、rebind、binding dispose 与 owner/Coordinator dispose
+  后的 binding-origin action 全部 fail closed，不能调用 ordinary/lower handler；S1e
+  再把 successor epoch 接入同一 admission path；
+- 只有从未经过 Managed Surface binding、直接进入 InputRouter 的普通 input event
+  保留当前 snapshot/LIFO/fallthrough 语义；
+- 不改变 public `InputEventV1`/`InputRouterV1`、不把 internal binding 导出，也不
+  发送 semantic/workspace action。
+
+**TDD 与验收：**
+
+- 先翻转现有 undeclared/rebind/dispose tests，记录它们仍触达 lower handler 的
+  focused red；
+- valid declared action 的 current behavior 与 receipt 不变；unpublished、stale、
+  disposed case 的 lower-handler count 精确为 `0`，publication identity/revision
+  不变；
+- direct untagged InputRouter event 仍能由 ordinary handler consumed/unhandled；
+- focused route-action、相邻 Coordinator/InputRouter、UI package 与 aggregate
+  tests 全绿。
+
+### S1d.2 — Bounded transient identity
+
+Live reducer 当前永久保存 `retiredOccurrenceIds`、`retiredInstanceIds` 与
+`retiredRoutingLeaseIds`，每次 transition 都 copy/dedupe、每次 admission 都线性
+scan；长生命周期 churn 的内存为 O(history)，累计工作可退化为 O(N²)。同时
+`disposedOwnerIds` 也会随动态 owner 历史追加。该 dormant state 必须在
+readiness/pilot 前改成由 resolved owner domain 与 allocator cursor 有界的模型。
+
+**目标：**
+
+- transient occurrence/instance/routing lease 由 Coordinator construction 已注入的
+  epoch + monotonic local allocator/cursor seam 生成；production candidate 不能绕过
+  该 seam；本切片不决定 epoch 的 composition-root ownership/successor 单调性，留给
+  S1e；
+- Coordinator construction 同时注入并冻结 finite resolved-owner domain；它不从
+  首个 candidate 动态学习 owner。unknown/late owner 的 open/replace/push/dispose
+  在 identity allocation 与 publication mutation 前拒绝；这只是 owner admission，
+  S2 才接完整 definition/schema/renderer/port/slot preflight；
+- reducer 保留 resolved owner domain、live/pending identity 与 bounded allocator
+  cursors/high-water，不保留 append-only retired-ID arrays；disposed owner 由
+  bounded resolved-owner set/bit 表达，不随任意 owner churn 增长；
+- external stable-target occurrence 的 bounded non-reuse 留给 S1-R 的
+  owner/publisher lease，不在 transient state 预埋 source cursor。
+
+**TDD 与验收：**
+
+- 先以 10,000 次 deterministic open/replace/close churn 证明当前 retired arrays
+  精确增长和历史相关 copy/scan，再翻转为 state size 只与 resolved owners +
+  live/pending + bounded cursors 有关；不使用 wall-clock 门禁；
+- 同一 Coordinator lifetime 已发行 identity 的 replay/reuse 与 stale handle 仍
+  拒绝，fresh allocation 永不复用；本切片不伪造 successor epoch，跨 successor
+  sequence/旧 handle fencing 由 S1e 验收；不把 TypeScript brand 误写成 arbitrary
+  untrusted-token security boundary；
+- empty/finite owner domain、duplicate owner declaration、unknown candidate 与 unknown
+  `disposeOwner` 有 focused tests；invalid owner 的 allocator cursor、publication/
+  topology revision、live identities 与 subscriber count 全为零变化；
+- reducer/Coordinator/publication state 不再有历史 tombstone collection，所有
+  focused/UI/aggregate tests 全绿。
+
+### S1d.3 — Slot scope and independent topology axes
+
+Live publication 当前把最高 active instance 同时设为 input/focus owner，并让
+`closeTop` 从 input owner 反推 lifecycle target；slot cardinality 也由 candidate
+definition 携带。两个不同 owner 还能同时占用同名 root slot。这些 dormant semantics
+必须在 readiness/pilot 前单独冻结。
+
+**目标：**
+
+- root slot 在 Coordinator/topology recipe 中全局 scoped；child slot 以 exact
+  parent instance scoped；cardinality 来自 resolved slot descriptor，删除
+  definition/candidate 的 cardinality override。owner 仍是 source/lifecycle/dispose
+  authority，但不 namespace root slot；
+- resolved input 与 focus policy 使用可表达 `none` 的 tagged shape；
+  modality/blocking、input participation/owner、focus ownership/restore 与
+  lifecycle navigation target 各自派生；`closeTop`/Back 使用明确 navigation
+  target，不从 input/focus owner 猜测；
+- 增加 publication revision 与 active topology revision 的区分：任意 immutable
+  publication commit 推进前者，只有 active topology/action/input fence 变化才推进
+  后者；本切片先冻结现有同步 open/replace/push/close/dispose 操作的规则，现有
+  applied topology transition 同时推进两者，unchanged/rejected 为 `0/0`，现有
+  action/gesture envelope 继续绑定 topology revision；无 live topology 的 resolved
+  owner dispose 只改变 publication/owner trace，推进 `1/0`。S1f 再把 preparing/
+  fallback/ready/failure/cancel 的 exact delta 接入同一双 revision 模型；
+- input binding identity 只在 current owner/instance、context、routing lease、action
+  catalog 或 topology revision 改变时轮换；publication-only commit 必须复用当前
+  binding 与 `inputPublicationRevision`。S1f 再以 retain-current preparation 做真实
+  integration proof。
+
+**TDD 与验收：**
+
+- 两个 owner 争用同一 root slot 稳定拒绝；不同 parent 的同名 child slot 可独立
+  使用，同 parent 的 cardinality 仍受限；definition/candidate type 不再允许自报或
+  覆盖 cardinality，缺失 descriptor 或 placement mismatch 在 mutation 前拒绝；
+- table-driven cases 分别覆盖 blocking-but-no-input、input-without-focus、独立 focus
+  owner、focus-only/passive instance 与 navigation target；
+  passive/focus-only instance 不被 `closeTop` 误关；
+- exact revision table 覆盖现有同步 open/replace/push/close/owner dispose、unchanged
+  与 rejected case；applied topology transition（包括 dispose live owner）的
+  publication/topology delta 为 `1/1`，dispose 无 live/pending topology 的 resolved
+  owner 为 `1/0`，unchanged/rejected 为 `0/0`；
+- pure binding-continuity table 证明 publication revision 单独变化时
+  `inputPublicationRevision`/registration identity 不变，input contract 任一组成项
+  变化时才轮换；
+- focused reducer/Coordinator/publication、UI package 与 aggregate tests 全绿。
+
 ### S1e — Composition-root application epoch
 
 **目标：**
 
 - application composition root 持有 monotonic allocator；epoch 是
   presentation/runtime fence，不进入 Snapshot、Save 或 stable target data；
+- S1d.2 的 bounded identity cursor 在本切片与 epoch 组合；successor 可以重新开始
+  局部 sequence，但 `(epoch, sequence)` 不复用，旧 occurrence/instance/routing lease
+  与 binding-origin action 全部 stale；
 - full page reload 可以重新开始计数；同一 realm 内的 load/import rebootstrap、HMR
   successor 与 Coordinator successor 每次都领取新 epoch；
 - allocator 位于 HMR successor 外，或由 hot-data/realm-stable cell 保持单调；
@@ -388,7 +522,8 @@ InputRouter binding seam；S1 仍未完成。
 **验收：**
 
 - deterministic tests 证明每类 successor 都得到更大 epoch、full reload
-  可重新初始化、旧 handle/action 在 successor 下稳定 stale；
+  可重新初始化、局部 sequence 可重启而组合 identity 不复用，旧
+  handle/binding-origin action 在 successor 下稳定 stale；
 - old Coordinator dispose 与 successor ingress 有明确 happens-before
   证明，dispose 后没有 live input/focus owner、routing registration 或 gesture
   lease；
@@ -414,10 +549,17 @@ InputRouter binding seam；S1 仍未完成。
   failure 撤销 fallback 后保持既有 parent/focus；
 - close、second replace、owner dispose、Coordinator dispose 与 epoch rotation
   都取消 pending candidate；
-- ready/failure receipt 绑定 application epoch、candidate instance 与 expected
-  topology revision；S1-R 再为 stable target 增加 source revision；
+- ready/failure receipt 绑定 application epoch 与 candidate instance；candidate
+  instance 是 preparation-attempt identity。会使 candidate 失效的 mutation 原子
+  cancel/remove pending attempt；无关 publication/topology 变化不使它孤立；S1-R
+  再为 stable target 增加 source revision；
 - stale ready/failure receipt 只返回 stale，不改变 topology、input、focus 或
-  publication identity。
+  publication identity；
+- readiness revision delta 明确为：retain-current preparation 只推进 publication
+  revision；initial/child blocking fallback 因改变 isolation/input fence 而推进
+  topology revision；ready activation 按实际 active ownership/action 变化推进
+  topology revision，并总是推进 publication revision；failure/cancel 由 exact table
+  按是否撤销 fallback/改变 active fence 决定。
 
 code-native fallback 是 preparation phase 的 Host projection，不是另一个普通
 Managed Surface，不分配普通 Surface instance，不经过 Story renderer resolver，
@@ -434,11 +576,16 @@ Managed Surface，不分配普通 Surface instance，不经过 Story renderer re
 - definition type/runtime guard 要求 contract revision 与三类 readiness policy，
   且不出现 source revision/reconcile 字段；
 - pure transition table 覆盖三种 transition kind、ready/failure、全部五类
-  cancellation 触发器与 stale epoch/instance/topology receipt；
+  cancellation 触发器与 stale epoch/candidate-instance receipt；另有用例证明无关
+  publication/topology mutation 不误杀合法 candidate；
 - 每个 cancellation 后的重试都得到 fresh instance ID，失败或取消的 ID
   不复活；
 - retain-current 与 fallback 路径在 preparing、ready、failure、cancel
-  各阶段都有 exact topology/input/focus/publication 断言；
+  各阶段都有 exact topology/input/focus/publication 断言及 publication/topology
+  revision delta table；
+- retain-current preparation 期间旧 active Surface 的 binding、
+  `inputPublicationRevision` 与已开始 gesture 继续有效；只有 ready cutover 或真实
+  input-contract mutation 原子轮换，late old action/gesture 才 stale；
 - successor epoch rotation 在开放 ingress 前取消 pending candidate 并撤销旧
   input/focus/gesture lease，late readiness receipt 稳定 stale。
 
@@ -482,8 +629,10 @@ initial failure 撤销 fallback 并恢复前一 focus owner。child/detail candi
 replace、owner dispose、Coordinator dispose 与 epoch rotation 全部取消 pending
 candidate。每次 preparation 分配 fresh instance ID，失败/取消实例永不复用。
 
-ready/failure receipt 必须绑定 application epoch、candidate instance 与 expected
-topology revision；任何 stale receipt 都不得产生 topology/input/focus mutation。
+ready/failure receipt 必须绑定 application epoch 与 candidate instance；会使
+candidate 失效的 mutation 在同一 commit 取消/remove 它，不能依赖全局 topology
+revision 偶然变化。任何 stale receipt 都不得产生 topology/input/focus mutation，
+无关 publication/topology mutation 也不得误拒仍 live 的 candidate。
 fallback 是 preparation phase 的 code-native projection，不是另一个普通 Managed
 Surface，不依赖 Story renderer resolver 或 required port。
 
@@ -581,6 +730,9 @@ parameters 是非法 publication；close 后以相同 definition/parameters reop
 - 每个 stable owner 有自己的 monotonic safe-integer source revision，允许跳号；
   当前 owner/publisher lease 管理该 revision，不得由 React component local state
   管理；
+- 同一 lease 还分配 monotonic target occurrence（或 S1-R 明确证明的等价 bounded
+  cursor）；作者不手写可任意复用的 opaque occurrence，Coordinator 不维护无界
+  retired-occurrence tombstone；
 - lower revision 返回 stale；
 - equal revision + same canonical vector 返回 idempotent unchanged；
 - equal revision + different canonical vector 返回 invalid；
@@ -597,8 +749,7 @@ parameters 是非法 publication；close 后以相同 definition/parameters reop
   revision 和 fresh instance ID 重新开始；不得把旧 candidate receipt 改绑到新
   revision；
 - stable-target ready/failure receipt 在 S1-T 的 application
-  epoch/candidate instance/expected topology revision 外，必须再绑定 source
-  revision。
+  epoch/candidate instance 外，必须再绑定 source revision。
 
 Coordinator 只记录 owner lease 已接受的 source cursor 和 normalized vector，不直接
 写回、乐观镜像或另建 writable stable target。source revision 只存在于 stable
@@ -625,6 +776,8 @@ reconcile/readiness/publication/diagnostics 路径；普通 transient Surface �
   table；
 - two-owner independent cursors、legal revision gap 与 non-safe-integer
   rejection；
+- publisher-lease occurrence allocation 单调、fresh reopen 不复用，长 churn 只保留
+  bounded cursor/live/pending identity；
 - invalid vector 原子不应用且不推进 revision；greater-invalid 也不取消现有 pending
   candidate；
 - greater-same canonical vector 在 active 时只推进 source cursor、不重建
@@ -693,8 +846,8 @@ Engine Lab fixture 中：
   只按已解析 topology 退栈；
 - primary replace、detail close 与对应 hit/action unpublish 在同一可观察 commit
   边界完成；
-- renderer 只消费绑定 application epoch、target occurrence、topology revision
-  与 source publication revision 的 immutable frame；
+- renderer 只消费绑定 application epoch、target occurrence、Surface publication
+  revision、topology revision 与 source publication revision 的 immutable frame；
 - 相同 definition/参数 close 后 reopen 必须产生新的 occurrence/instance，旧
   gesture、action、readiness 与 focus restore receipt 稳定拒绝；
 - Engine Lab 先作为中性第二消费者，真实 Story 只提供 Story-local target、内容和
@@ -713,7 +866,8 @@ removal gate。
 
 对 resolved definitions/registries 检查：
 
-- duplicate definition/slot/input context；
+- duplicate definition/root slot/input context，以及同一 exact parent 下的 duplicate
+  child slot；
 - unknown renderer/action/required port/parent/slot；
 - invalid definition contract revision/parameter schema；
 - modal surface 无 focus target；
@@ -800,8 +954,10 @@ action 可组合分层 evidence，并在目标未成立时稳定返回
 
 1. Overlay/System/Narrative/History 各只有一个 writable lifecycle authority；
 2. topology/input/focus/dismiss/readiness 从同一 immutable publication 派生；
-3. stale epoch/instance/topology/semantic occurrence/gesture/readiness/source
-   revision 均可明确拒绝且不改变 topology/input/focus；
+   modality/input/focus/navigation owner 是可独立断言的维度；
+3. action/gesture 以 epoch + instance + topology/input/gesture evidence 拒绝 stale；
+   readiness 以 epoch + candidate instance（stable target 再加 source revision）拒绝
+   stale；两者都不改变 topology/input/focus；
 4. renderer 不旁读更快 State 拼第二帧真相；
 5. application epoch 由 composition-root monotonic allocator 管理，不进入 Save；
    successor ingress 前旧 Coordinator 与其 readiness/input/focus/gesture lease
@@ -822,6 +978,13 @@ action 可组合分层 evidence，并在目标未成立时稳定返回
 14. whole-canvas primary/detail 已作为独立 family 在 tooling/harness 前迁移；
 15. 声明 presentation postcondition 的 action 有组合 evidence 与
     `postcondition_failed` 证明，普通 action 保持分层 receipt。
+16. binding-origin unpublished/stale action fail closed，direct untagged
+    InputRouter fallthrough 不变；transient identity state 为
+    O(resolved owners + live + pending + bounded cursors)，10k churn 不累积历史
+    tombstone；
+17. root slot 是 topology-recipe global，child slot 是 parent-instance scoped；
+    readiness receipt 只绑定 attempt identity（stable 再绑定 source revision），
+    不依赖无关全局 topology/publication revision 保持不变。
 
 ## 13. Non-goals
 
@@ -845,6 +1008,12 @@ action 可组合分层 evidence，并在目标未成立时稳定返回
 - Story/React component 必须手写 application epoch，或以 local state 管理 stable
   source revision；
 - transient pilot 必须预埋 source revision/reconcile 字段才能继续；
+- transient/non-reuse 只能靠随历史增长的 retired-ID tombstone，或 root slot
+  cardinality 依赖 owner namespace；
+- binding-origin Surface action 必须绕过 stale/unpublished fence 才能复用普通
+  InputRouter fallthrough；
+- readiness correctness 依赖全局 topology/publication revision 不发生无关变化，
+  而不是 candidate attempt identity 与原子 cancellation；
 - stable target equality 必须依赖 renderer callback 或只比较 hash；
 - renderer/port admission 必须创建 active-but-invisible 或通用 fault Surface；
 - Headless 必须模拟 CSS/focus/animation 才能判断 gameplay outcome；
@@ -857,8 +1026,9 @@ action 可组合分层 evidence，并在目标未成立时稳定返回
 
 每个阶段记录：red trace、最小 public/internal contract、删除的 authority、
 focused/aggregate/browser 命令、Engine Lab 证据、adapter removal gate、未激活的
-可选机制。S1-T 分别记录 epoch allocator/successor handoff 与 readiness transition
-matrix；S1-R 记录 canonical equivalence、source revision table 与 vector
+可选机制。S1-T 先记录 action-provenance closure、10k bounded-churn、slot scope、
+owner-dimension table，再记录 epoch allocator/successor handoff 与 readiness
+transition matrix；S1-R 记录 canonical equivalence、source revision table 与 vector
 atomicity；S2 只证明 transient Overlay pilot；S4 只证明 Narrative/History；S4b
 才证明 whole-canvas primary/detail family；S6 才证明 harness 与 authoring
 surface。

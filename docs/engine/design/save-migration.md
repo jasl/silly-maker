@@ -1,6 +1,7 @@
 # Save migration and load compatibility
 
-状态：2026-07-29 接受的目标设计；尚未实现。本文把 Save
+状态：2026-07-29 接受的目标设计，2026-07-31 按 callback-free shell、shared
+metadata corpus 与 determinism join 修订；尚未实现。本文把 Save
 兼容从“分类与拒绝”升级为“一等迁移能力”：固定 migration registry 合同、load
 阶段顺序与发布验收。它独立于 Mod 系统并先于其落地；[Mod design](mod-system.md)
 第 8 节的 per-namespace migration 建立在本文的引擎级合同之上。当前实现状态见
@@ -15,7 +16,8 @@
 - Save 是 plain、versioned、validated data：`SaveRecordEnvelopeV1` 携带
   `formatRevision`、`recordRevision`、provenance、`stateDigest`、`snapshot` 与
   `simulationLineage`，并可携带 bounded `annotation`（Story-projected summary
-  与 player note）；
+  与 player note）及 bounded diagnostic `versionStamp`（Snapshot capture-origin
+  build；不参与 compatibility/authoritative identity）；
 - 解码入口有 Strict JSON 字节/深度/节点限额（`saveJsonLimitsV1`）；
 - `classifySaveCompatibilityV1` 以 story identity、state contract
   revision/digest、engine digest 与 simulation digest 分类为 exact / adoption /
@@ -43,9 +45,9 @@ bounded strict JSON decode        （现有 saveJsonLimitsV1 限额保持不变�
                                     bounded annotation、bounded versionStamp；
                                     snapshot 保持受限 raw 结构）
   -> format-specific raw snapshot digest verification
-  -> engine-owned envelope format migration （formatRevision N -> N+1）
+  -> engine-owned envelope format migration （formatRevision N -> N+1；M2 起启用）
   -> identify stored provenance and schema revisions
-  -> ordered pure State migrations （state contract revision N -> N+1，由 runtime 组合）
+  -> ordered pure State migrations （state contract revision N -> N+1，M2 起启用）
   -> current snapshot schema validation
   -> compatibility classification  （exact / adoption / inspect_only / rejected）
   -> reference and invariant validation, current digest checks
@@ -54,6 +56,11 @@ bounded strict JSON decode        （现有 saveJsonLimitsV1 限额保持不变�
 
 与现状的差异是：current snapshot schema 验证从解码期移到迁移之后；解码期只解析
 envelope 外壳字段，snapshot 保持为受限 raw 数据。
+
+M1 只交付 callback-free shell、raw-digest verification 与上述 phase ordering；当
+shell/digest 合法但 State revision 不同，它返回 `migration.unavailable`，不执行
+图中的 migration node。M2 在完整 determinism guard 与 M1 same-HEAD join 后才首次
+建立 executable registry/启用这些 node。
 
 要点：
 
@@ -85,9 +92,21 @@ envelope 外壳字段，snapshot 保持为受限 raw 数据。
 - 任何一步失败留下原 Save 数据不变，结果是结构化 rejection 或
   inspect_only，不存在半迁移状态。
 
+### Phase and corpus ownership
+
+- Save M0a 是 annotation/summary/note、`summarizeSave`、`versionStamp`
+  normalization/preservation 与 exact bytes 的唯一 maintained corpus owner；
+- determinism DET-B 拥有 projector/migrator authority closure、ambient negative
+  controls 与 M0a compact vectors 的跨 runtime equality，不复制 Save lifecycle
+  golden；
+- Browser/Desktop Host 拥有真实 filename collision/no-clobber；D4 只消费同一
+  payload/build receipt 验证 package integration，不重复 Save migration matrix；
+- 两个执行 lane 共用的 testkit seam/public export 必须在 fork 前合并；M0b/M1 只改
+  Base Save codec/load order/result contracts，DET-B 只改 collector/driver/browser/CI。
+
 ## 3. Migration registry contract
 
-概念合同（名字可在实现原型中调整）：
+Executable registry 从 M2 才存在。概念合同（名字可在实现原型中调整）：
 
 ```ts
 interface SaveStateMigrationV1 {
@@ -120,6 +139,13 @@ interface SaveStateMigrationV1 {
 
 ## 4. Product surface
 
+- **M1 unavailable contract**：shell/digest valid、State revision 不同但没有完整
+  forward chain 时，inspection 返回
+  `{ kind: "inspect_only", code: "migration.unavailable", storedStateContractRevision,
+  currentStateContractRevision }`，Player persistence 返回
+  `{ kind: "rejected", code: "migration_unavailable" }`。Unsupported envelope
+  format、raw digest mismatch 与 current-revision schema invalid 保持各自更早的
+  rejection；此结果不写 record、不安装 Session、不替换 replay anchor；
 - **dry-run / forward inspection**：只检查、不写入；输出结构化
   diagnostics（哪些槽位可直迁、哪些需要 adoption、哪些会被拒绝及原因）；
 - **写入前备份**：迁移写入前保留原记录（复用现有 lineage/slot
@@ -142,6 +168,8 @@ interface SaveStateMigrationV1 {
 
 ## 5. Release acceptance
 
+- metadata expected bytes 只由 M0a shared corpus 维护；DET、Host、Desktop 与
+  migration fixtures 直接消费，不复制或从待测 encoder 重生成；
 - 每个发布版本为维护中的产品格式保存真实 Save fixture（旗舰示例与 e2e
   conformance Story）；
 - CI 对支持范围内全部历史 fixture 执行 migrate + load + reference + invariant +

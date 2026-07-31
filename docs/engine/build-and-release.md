@@ -181,7 +181,10 @@ local storage, logs, or diagnostics. The records endpoint points at the
 platform user-data directory (`~/Library/Application Support/<identifier>/saves`
 on macOS, `%APPDATA%/<identifier>/saves` on Windows, and
 `${XDG_DATA_HOME:-~/.local/share}/<identifier>/saves` on Linux). The command
-then invokes the experimental `deno desktop` command from Deno >= 2.9.
+then invokes the experimental `deno desktop` command using the current latest
+stable Deno. The engine/tooling compatibility floor remains `>=2.9.0`, but
+Desktop build and promotion deliberately track current stable fixes; promotion
+records the actual version without pinning one patch.
 
 The shell adopts Deno Desktop's startup window instead of creating a second
 window. Closing that window first fences renderer mutation ingress, asks the
@@ -231,15 +234,16 @@ Without `--target` the output is a host-platform preview in the format selected
 for that platform. Each explicit supported `--target <triple>` adds one
 cross-compiled package named `<Stem>-<triple>.<ext>`: macOS `.app`, a Windows
 `.msi` installer, or Linux `.AppImage`. An `.msi` must be installed; it is not a
-copy-and-run directory. The Deno >= 2.9.0 compatibility floor admits
+copy-and-run directory. SillyMaker's current explicit target allowlist is
 `aarch64-apple-darwin`, `x86_64-apple-darwin`,
 `x86_64-pc-windows-msvc`, `aarch64-unknown-linux-gnu`, and
-`x86_64-unknown-linux-gnu`; a target added by a later Deno patch is not part of
-the repository floor until intentionally promoted. `--compress[=xz|lzma|zstd]`
+`x86_64-unknown-linux-gnu`. It is not derived from the `>=2.9.0` compatibility
+floor: a target added by a later Deno release joins the public contract only
+after intentional platform evidence. `--compress[=xz|lzma|zstd]`
 asks Deno Desktop to compress the payload. The configured `.png`/`.icns` icon
 is currently forwarded only to darwin outputs.
 
-Cross-compiled outputs are packaging previews: this repository still has not
+Cross-compiled outputs are usable packaging previews: this repository still has not
 promoted installers beyond these formats, signing, notarization, auto-update,
 or crash-atomic desktop persistence. A release claim requires a real build →
 launch → write → exit → reopen smoke on each named platform, not only an

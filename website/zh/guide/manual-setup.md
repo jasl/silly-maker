@@ -2,7 +2,7 @@
 
 这一页就是[用 AI 快速开始](/zh/guide/getting-started)里 agent 替你做的事——同样的步骤，换成普通命令，供你想理解机器或不用 agent 时参考。
 
-SillyMaker 完全运行在 [Deno](https://deno.com)（>= 2.9）上：运行时、包管理器与工具链一体。npm 依赖经 Deno 的 Node 兼容层解析。
+SillyMaker 完全运行在 [Deno](https://deno.com) 上：运行时、包管理器与工具链一体。维护开发使用 latest stable；公开兼容下限仍是 >= 2.9.0，不固定 patch。npm 依赖经 Deno 的 Node 兼容层解析。
 
 ## 搭环境
 
@@ -29,7 +29,7 @@ deno task check        # 格式、静态检查、类型检查、全部单测、s
 deno task test:e2e     # 浏览器一致性套件（Chromium + WebKit）
 ```
 
-`deno task check` 全绿就是本项目对"能用"的定义——CI 和 coding agent 用的是同一道门。
+`deno task check` 全绿就是本项目对"能用"的定义——维护本项目的 coding agent 在交付前也使用同一道门。
 
 ## Headless 游玩
 

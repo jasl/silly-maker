@@ -19,11 +19,13 @@ Applications are self-contained projects (their own `sillymaker.config.ts` and `
 produce the Deno Desktop platform format (`.app`, Windows `.msi` installer, or
 `.AppImage`). Local file-store durability is not yet promoted.
 
-The Deno >= 2.9.0 support floor admits exactly
+SillyMaker's current explicit target allowlist is
 `aarch64-apple-darwin`, `x86_64-apple-darwin`,
 `x86_64-pc-windows-msvc`, `aarch64-unknown-linux-gnu`, and
-`x86_64-unknown-linux-gnu`. With no target, the command emits the host-platform
-format. The `release` profile forces minification and disables sourcemaps;
+`x86_64-unknown-linux-gnu`. It is independent of the Deno >= 2.9.0 public
+compatibility floor; later Deno releases do not expand it without platform
+evidence. With no target, the command emits the host-platform format. The
+`release` profile forces minification and disables sourcemaps;
 `debug` enables sourcemaps and disables minification. An explicit `--sourcemap`
 may override the release profile for a diagnostic build; with no profile or
 override, the application config remains authoritative.

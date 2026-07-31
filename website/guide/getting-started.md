@@ -11,10 +11,12 @@ Paste this into your agent:
 ```text
 Set up the SillyMaker engine on this machine:
 
-1. Check whether Deno >= 2.9 is installed (`deno --version`); if not, install it
-   (macOS/Linux: `curl -fsSL https://deno.land/install.sh | sh`,
-   Windows PowerShell: `irm https://deno.land/install.ps1 | iex`) and make sure
-   it is on PATH.
+1. Check whether the latest stable Deno is installed (`deno --version`); if not,
+   install or upgrade it (macOS/Linux:
+   `curl -fsSL https://deno.land/install.sh | sh`, Windows PowerShell:
+   `irm https://deno.land/install.ps1 | iex`) and make sure it is on PATH. The
+   engine's public compatibility floor is Deno >= 2.9.0, but maintained
+   development follows latest stable without pinning a patch.
 2. Clone https://github.com/jasl/silly-maker and cd into it.
 3. Run `deno install` to resolve dependencies.
 4. Run `deno task check` and report the result. Everything must be green —

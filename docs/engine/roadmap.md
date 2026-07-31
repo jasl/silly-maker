@@ -57,30 +57,38 @@ Story、GameplayModule、Narrative、UI contribution 与可信 Hotfix 使用 Typ
 在把 Story 成果提升为 engine-level genre pack、Mod、renderer 或 editor
 能力之前，按 [Production-floor sequence](plans/2026-07-30-production-floor-sequence.md)
 完成。Story-local 的 SLG/VN/卡牌等真实玩法实验可以并行，并继续作为需求与
-workload 证据：
+workload 证据；仓库外私有实验只能提供匿名需求反馈，正式 promotion evidence 必须
+由仓库内中性 workload 复现：
 
 1. repository/tooling guardrails；
-2. Snapshot 热路径 baseline 与 digest/serialization 去重（PF1/A1 已完成）；
-3. Managed Surface kernel + Workspace Overlay pilot；
-4. authoritative determinism guardrails：zero RNG、canonical command/evidence
+2. latest-stable required CI 与 autosave policy admission 两个 pre-pilot 小切片；
+3. Snapshot 热路径 baseline 与 digest/serialization 去重（PF1/A1 已完成）；
+4. Managed Surface dormant-kernel action provenance/boundedness 修正 + Workspace
+   Overlay pilot；
+5. authoritative determinism guardrails：zero RNG、canonical command/evidence
    admission、simulation-closure lint/tripwire 与四 runtime 逐 command parity；
-5. Save envelope/load order + migration registry；
-6. System/Narrative/History/whole-canvas primary-detail 的逐 family migration；
-7. Save dry-run/backup/fixture corpus；
-8. Surface structural/model/browser harness 与作者 API promotion；
-9. release stabilization。
+6. Save metadata floor、callback-free envelope/load order 与 determinism 以
+   same-HEAD join 汇合后，再建立 executable migration registry；
+7. System/Narrative/History/whole-canvas primary-detail 的逐 family migration；
+8. Save dry-run/backup/fixture corpus；
+9. Surface structural/model/browser harness 与作者 API promotion；
+10. release stabilization。
 
 Desktop Host persistence 是独立、条件性的 promotion lane：目标平台是
-macOS、Windows 与 Linux，当前 live wrapper/file adapter 仍只有 macOS
-preview。只有某次发布要在某个平台宣称 desktop capability 可生产时，才必须在该
+macOS、Windows 与 Linux，当前 live wrapper/file channel 已是可用 preview，真实
+Host evidence 主要来自 macOS；三个平台都尚未完成各自 production
+promotion。只有某次发布要在某个平台宣称 desktop capability 可生产时，才必须在该
 发布 stabilization 前完成对应 evidence。Durability 需要 batch
 crash-atomic、cross-process CAS 与旧记录迁移；packaging 需要该平台真实 package
 build/launch/reopen smoke。平台逐项 promotion，durability、packaging 与
 auto-update 分轴记录；packager/updater 缺口不阻塞 backend durability。只有产品要
 宣称 packaged app 使用 atomic persistence 时才同时要求前两条 evidence。它不阻塞
-默认核心顺序从 Snapshot S0 开始。
+默认核心顺序。下一 durability slice 是 D1b：在执行时 latest stable Deno 上冻结
+SQLite operational contract；除非出现 concrete blocker，不再把 journal/KV 对照
+作为选择前置。
 
-五个独立计划：
+五个独立 focused plan（CI0/AUTO0 两个小切片由 production-floor sequence 的 PF0.1
+直接拥有）：
 
 - [Desktop persistence durability](plans/2026-07-30-desktop-persistence-durability.md)
 - [Snapshot commit performance](plans/2026-07-30-snapshot-commit-performance.md)
@@ -129,7 +137,9 @@ Surface pilot。
   callback owner 与显式 authority entry；再用 path-aware static guard、isolated
   test tripwire 与 Deno/Chromium/Firefox/WebKit 逐 command matrix 提供纵深证据。
 
-PF-DET 排在 Workspace Overlay pilot 后、Save migration M0 前。它不引入
+PF-DET 排在 Workspace Overlay pilot 后，并与 Save 按
+`DET0-core -> M0a -> DET-A -> (DET-B || callback-free M0b/M1) -> same-HEAD join -> M2`
+执行。DET-A 不是完整 promotion，M2 必须等待 DET-B。它不引入
 `decimal.js`、通用 FixedPoint package、named/keyed RNG、production Worker 或 Mod
 sandbox；这些仍须真实需求、版本化 wire 与 migration 证据后另行激活。
 

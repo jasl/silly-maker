@@ -53,7 +53,7 @@ async function diagnosticsOfAsync(
 }
 
 describe("project commands", () => {
-  it("keeps explicit desktop targets within the Deno 2.9.0 support floor", () => {
+  it("keeps the explicit SillyMaker desktop target allowlist stable", () => {
     expect(DESKTOP_TARGET_TRIPLES_V1).toEqual([
       "x86_64-apple-darwin",
       "aarch64-apple-darwin",

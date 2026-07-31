@@ -30,7 +30,7 @@ Declaring a title screen gives a complete front door: boot splash (e.g. an AI-ge
 
 ## Persistence
 
-Saves are plain, versioned, validated data — a quick slot plus numbered manual slots (count declared per game, default 8, with zero allowed) plus current/previous autosaves. Records may carry a bounded Story summary and player note for custom slot UI; the standard save dialog does not render those annotations yet. The Host profile keeps preferences and **meta progress** (album unlocks, endings reached) outside saves, so cross-playthrough collections survive restarts and rollbacks. Browser builds use the production IndexedDB store with atomic batches and optimistic revisions. The current desktop file channel is a preview: it validates the local protocol and atomically replaces each record, but crash-atomic multi-record commits and cross-process CAS are still on the production-floor plan.
+Saves are plain, versioned, validated data — a quick slot plus numbered manual slots (count declared per game, default 8, with zero allowed) plus current/previous autosaves. Records may carry a bounded Story summary and player note for custom slot UI; the standard save dialog does not render those annotations yet. The Host profile keeps preferences and **meta progress** (album unlocks, endings reached) outside saves, so cross-playthrough collections survive restarts and rollbacks. Browser builds use the production IndexedDB store with atomic batches and optimistic revisions. The current desktop file channel is a usable preview: it validates the local protocol and atomically replaces each record, but crash-atomic multi-record commits and cross-process CAS are still on the production-floor plan.
 
 ## Tooling for humans and agents
 

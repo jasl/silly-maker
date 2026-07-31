@@ -107,10 +107,12 @@ documented migration path.
 
 ## Development workflow
 
-- The supported environment is Deno >= 2.9.0 (the runtime and package manager;
-  npm dependencies resolve through Deno's Node compatibility). Do not require
-  one exact host version, package-manager patch version, browser revision,
-  machine attestation, or shell layout.
+- The public compatibility floor is Deno >= 2.9.0 (the runtime and package
+  manager; npm dependencies resolve through Deno's Node compatibility).
+  Maintained development, required CI, and Desktop promotion run on the latest
+  stable Deno available at execution time. Do not pin one exact patch, require
+  the floor as a second per-PR lane, or require a browser revision, machine
+  attestation, or shell layout.
 - Install with `deno install`. Use `deno task dev` for local development and
   `deno task check` as the canonical local code-quality and product-behavior
   check.
