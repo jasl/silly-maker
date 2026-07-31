@@ -190,7 +190,6 @@ export function createManagedSurfaceActionBindingV1(
     routerBindingStatesV1.set(input.inputRouter, routerState);
   }
   const revision = allocateInputPublicationRevisionV1(routerState);
-  const capturedActionIds = new Set(target.definition.actionIds);
   const capturedRoutingLeaseId: ManagedSurfaceRoutingLeaseIdV1 = inputOwner.routingLeaseId;
   const evidence = Object.freeze({
     applicationEpoch: publication.applicationEpoch,
@@ -212,7 +211,6 @@ export function createManagedSurfaceActionBindingV1(
     if (event.kind !== "action") return inputIgnoredV1;
     const dispatch = managedDispatchesV1.get(event);
     if (dispatch === undefined || dispatch.binding !== record) return inputIgnoredV1;
-    if (!capturedActionIds.has(dispatch.envelope.actionId)) return inputIgnoredV1;
 
     const surface = input.coordinator.routeAction({
       evidence: {
@@ -283,9 +281,6 @@ export function createManagedSurfaceActionBindingV1(
       kind: "action" as const,
       actionId: parseInputActionIdV1(envelope.actionId),
     }) satisfies DeepReadonly<InputEventV1>;
-    if (!capturedActionIds.has(envelope.actionId)) {
-      return routeResultV1(routedInputReceiptV1(input.inputRouter.route(event), envelope), null);
-    }
     if (!isCurrentInputPublicationV1(envelope)) {
       return staleInputResultV1(envelope, "input.stale_publication");
     }

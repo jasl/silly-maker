@@ -236,8 +236,11 @@ describe("Managed Surface action route", () => {
     expect(listener).not.toHaveBeenCalled();
   });
 
-  it("keeps undeclared actions outside the Surface receipt and preserves normal fallthrough", () => {
+  it("rejects binding-origin unpublished actions without ordinary fallthrough", () => {
     const fixture = createFixtureV1();
+    const before = fixture.coordinator.getSnapshot();
+    const listener = vi.fn();
+    fixture.coordinator.subscribe(listener);
     const envelope = fixture.binding.createEnvelope({
       actionId: otherActionIdV1,
       gestureId: gestureV1("undeclared"),
@@ -250,9 +253,15 @@ describe("Managed Surface action route", () => {
         gestureId: "gesture.test.undeclared",
         inputPublicationRevision: 1,
       },
-      surface: null,
+      surface: {
+        kind: "rejected",
+        code: "surface.action_unpublished",
+        beforeTopologyRevision: 1,
+        afterTopologyRevision: 1,
+        surfaceInstanceId: "surface-instance.e4.n1",
+      },
     });
-    expect(fixture.lower).toHaveBeenCalledOnce();
+    expect(fixture.lower).not.toHaveBeenCalled();
 
     fixture.lower.mockImplementation(() => inputIgnoredV1);
     const ignored = fixture.binding.createEnvelope({
@@ -261,17 +270,27 @@ describe("Managed Surface action route", () => {
     });
     expect(fixture.binding.route(ignored)).toEqual({
       input: {
-        kind: "unhandled",
-        code: "input.managed_surface_unhandled",
+        kind: "consumed",
+        code: "input.managed_surface_consumed",
         gestureId: "gesture.test.undeclared-ignored",
         inputPublicationRevision: 1,
       },
-      surface: null,
+      surface: {
+        kind: "rejected",
+        code: "surface.action_unpublished",
+        beforeTopologyRevision: 1,
+        afterTopologyRevision: 1,
+        surfaceInstanceId: "surface-instance.e4.n1",
+      },
     });
+    expect(fixture.lower).not.toHaveBeenCalled();
+    expect(fixture.coordinator.getSnapshot()).toBe(before);
+    expect(listener).not.toHaveBeenCalled();
   });
 
-  it("keeps undeclared actions outside managed stale fences after rebind, gesture expiry, and dispose", () => {
+  it("fails closed after rebind, gesture expiry, and binding dispose", () => {
     const fixture = createFixtureV1();
+    const before = fixture.coordinator.getSnapshot();
     const oldEnvelope = fixture.binding.createEnvelope({
       actionId: otherActionIdV1,
       gestureId: gestureV1("undeclared-old-publication"),
@@ -283,10 +302,10 @@ describe("Managed Surface action route", () => {
     });
 
     expect(fixture.binding.route(oldEnvelope)).toMatchObject({
-      input: { kind: "consumed", code: "input.managed_surface_consumed" },
+      input: { kind: "consumed", code: "input.stale_publication" },
       surface: null,
     });
-    expect(fixture.lower).toHaveBeenCalledOnce();
+    expect(fixture.lower).not.toHaveBeenCalled();
 
     const expiredGesture = successor.createEnvelope({
       actionId: otherActionIdV1,
@@ -294,17 +313,72 @@ describe("Managed Surface action route", () => {
     });
     fixture.staleGestures.add(expiredGesture.gestureId);
     expect(successor.route(expiredGesture)).toMatchObject({
-      input: { kind: "consumed", code: "input.managed_surface_consumed" },
+      input: { kind: "consumed", code: "input.stale_gesture" },
       surface: null,
     });
-    expect(fixture.lower).toHaveBeenCalledTimes(2);
+    expect(fixture.lower).not.toHaveBeenCalled();
 
     successor.dispose();
     expect(successor.route(expiredGesture)).toMatchObject({
-      input: { kind: "consumed", code: "input.managed_surface_consumed" },
+      input: { kind: "consumed", code: "input.stale_publication" },
       surface: null,
     });
-    expect(fixture.lower).toHaveBeenCalledTimes(3);
+    expect(fixture.lower).not.toHaveBeenCalled();
+    expect(fixture.coordinator.getSnapshot()).toBe(before);
+  });
+
+  it.each(
+    [
+      {
+        label: "owner dispose",
+        dispose: (fixture: ReturnType<typeof createFixtureV1>) =>
+          fixture.coordinator.disposeOwner(parseManagedSurfaceOwnerIdV1("surface-owner.workspace")),
+        surface: {
+          kind: "stale",
+          code: "surface.stale_topology_revision",
+          beforeTopologyRevision: 2,
+          afterTopologyRevision: 2,
+          surfaceInstanceId: "surface-instance.e4.n1",
+        },
+      },
+      {
+        label: "Coordinator dispose",
+        dispose: (fixture: ReturnType<typeof createFixtureV1>) => fixture.coordinator.dispose(),
+        surface: {
+          kind: "rejected",
+          code: "surface.coordinator_disposed",
+          beforeTopologyRevision: 2,
+          afterTopologyRevision: 2,
+        },
+      },
+    ] as const,
+  )("fails closed after $label", ({ dispose, surface }) => {
+    const fixture = createFixtureV1();
+    const listener = vi.fn();
+    fixture.coordinator.subscribe(listener);
+    const queuedEnvelope = fixture.binding.createEnvelope({
+      actionId: otherActionIdV1,
+      gestureId: gestureV1("queued-before-dispose"),
+    });
+    expect(dispose(fixture)).toMatchObject({ kind: "applied" });
+    const afterDispose = fixture.coordinator.getSnapshot();
+    listener.mockClear();
+    const retainedBindingEnvelope = fixture.binding.createEnvelope({
+      actionId: otherActionIdV1,
+      gestureId: gestureV1("created-after-dispose"),
+    });
+
+    for (const envelope of [queuedEnvelope, retainedBindingEnvelope]) {
+      const result = fixture.binding.route(envelope);
+      expect(result.input).toMatchObject({
+        kind: "consumed",
+        code: "input.managed_surface_consumed",
+      });
+      expect(result.surface).toEqual(surface);
+    }
+    expect(fixture.lower).not.toHaveBeenCalled();
+    expect(fixture.coordinator.getSnapshot()).toBe(afterDispose);
+    expect(listener).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -581,21 +655,9 @@ describe("Managed Surface action route", () => {
     expect(fixture.lower).toHaveBeenCalledOnce();
   });
 
-  it("keeps ordinary public actions unchanged and cleans up the managed registration", () => {
+  it("preserves direct untagged fallthrough while the managed gate is active", () => {
     const fixture = createFixtureV1();
-    const oldEnvelope = fixture.binding.createEnvelope({
-      actionId: activateActionIdV1,
-      gestureId: gestureV1("disposed"),
-    });
-
-    fixture.binding.dispose();
-    fixture.binding.dispose();
-
-    expect(fixture.binding.route(oldEnvelope)).toMatchObject({
-      input: { kind: "consumed", code: "input.stale_publication" },
-      surface: null,
-    });
-    expect(fixture.lower).not.toHaveBeenCalled();
+    const before = fixture.coordinator.getSnapshot();
 
     expect(
       fixture.router.route({
@@ -604,6 +666,60 @@ describe("Managed Surface action route", () => {
       }),
     ).toEqual({ kind: "handled", context: "overlay" });
     expect(fixture.lower).toHaveBeenCalledOnce();
+
+    fixture.lower.mockImplementation(() => inputIgnoredV1);
+    expect(
+      fixture.router.route({
+        kind: "action",
+        actionId: parseInputActionIdV1(otherActionIdV1),
+      }),
+    ).toEqual({ kind: "ignored" });
+    expect(fixture.lower).toHaveBeenCalledTimes(2);
+    expect(fixture.coordinator.getSnapshot()).toBe(before);
+  });
+
+  it("fails closed for envelopes created before and after binding dispose", () => {
+    const fixture = createFixtureV1();
+    const before = fixture.coordinator.getSnapshot();
+    const listener = vi.fn();
+    fixture.coordinator.subscribe(listener);
+    const queuedEnvelope = fixture.binding.createEnvelope({
+      actionId: otherActionIdV1,
+      gestureId: gestureV1("queued-before-binding-dispose"),
+    });
+
+    fixture.binding.dispose();
+    fixture.binding.dispose();
+    const retainedBindingEnvelope = fixture.binding.createEnvelope({
+      actionId: otherActionIdV1,
+      gestureId: gestureV1("created-after-binding-dispose"),
+    });
+
+    for (const envelope of [queuedEnvelope, retainedBindingEnvelope]) {
+      expect(fixture.binding.route(envelope)).toEqual({
+        input: {
+          kind: "consumed",
+          code: "input.stale_publication",
+          gestureId: envelope.gestureId,
+          inputPublicationRevision: envelope.inputPublicationRevision,
+        },
+        surface: null,
+      });
+    }
+    expect(fixture.lower).not.toHaveBeenCalled();
+    expect(fixture.coordinator.getSnapshot()).toBe(before);
+    expect(fixture.coordinator.getSnapshot().topologyRevision).toBe(1);
+    expect(listener).not.toHaveBeenCalled();
+
+    expect(
+      fixture.router.route({
+        kind: "action",
+        actionId: parseInputActionIdV1(activateActionIdV1),
+      }),
+    ).toEqual({ kind: "handled", context: "overlay" });
+    expect(fixture.lower).toHaveBeenCalledOnce();
+    expect(fixture.coordinator.getSnapshot()).toBe(before);
+    expect(listener).not.toHaveBeenCalled();
   });
 
   it("keeps a direct valid Coordinator route action unchanged and frozen", () => {

@@ -49,7 +49,7 @@ promotion record 的合同。
 
 PF0 不代表全部 tooling 已完成；它只消除本次新增“应用即项目”与 pointer fence 中会在后续计划放大的确定性缺口。
 
-### PF0.1 — Pre-pilot maintenance gates（CI0/AUTO0 已完成；S1d.1 下一批）
+### PF0.1 — Pre-pilot maintenance gates（已完成）
 
 在继续 S1-T 前先分别完成两个小切片；二者不能与 Surface kernel 合并成一个提交：
 
@@ -183,8 +183,8 @@ digest/serialization dedup；四项 evidence gate 均未达到充分标准，
 
 执行 [Surface plan](2026-07-30-surface-contract-harness.md) 的
 **S0 → S1d.1 → S1d.2 → S1d.3 → S1e → S1f → S2**，只迁移
-**Workspace Overlay**。S1a–S1d 已交付 dormant baseline，S1d.1–S1f 合计完成
-S1-T：
+**Workspace Overlay**。S1a–S1d.1 已交付 dormant baseline，S1d.2–S1f 完成
+S1-T 的剩余部分：
 
 1. 用现有 bug/trace 建立红测试；
 2. S1d.1 让 binding-origin action fail closed，同时保持 direct untagged
@@ -211,6 +211,14 @@ S1-T：
 7. 真实浏览器覆盖 Escape/backdrop/pointer/keyboard、initial/replace/detail
    readiness、failure/focus restore、candidate cancellation、epoch rotation 与 stale
    gesture/readiness receipt。
+
+2026-08-01 promotion：S1d.1 已让所有 binding-origin action 保留 package-internal
+provenance，并经过既有 publication/gesture/Coordinator admission；current
+unpublished action 现在返回 `surface.action_unpublished`，stale、rebind 与各类
+dispose 后的 route 全部 fail closed，ordinary/lower handler count 为 `0`；被拒的
+route 本身不再改变已有 publication（owner/Coordinator dispose transition 已先独立
+提交）。direct untagged InputRouter event 仍保留 ordinary fallthrough。该批没有新增
+public export、live Surface family 或 S1d.2+ 能力；下一独立切片是 S1d.2。
 
 S2 只依赖 S1-T，全部 Overlay target 都是 Coordinator-owned transient target；它不
 等待 S1-R，也不得为了统一形状预埋 source publication revision、stable-target

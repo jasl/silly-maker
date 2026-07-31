@@ -10,9 +10,9 @@ reconcile、dormant-kernel boundedness/action provenance 与 Overlay cutover
 在 [production-floor sequence](2026-07-30-production-floor-sequence.md)
 中：PF2 的顺序是 `S0 -> S1-T -> S2`；PF4 的顺序是
 `S3 -> S1-R -> S4 -> S4b`；S5–S6 属于 PF6。当前 S1-T 的剩余顺序是
-`S1d.1 -> S1d.2 -> S1d.3 -> S1e -> S1f`：先关闭已交付 dormant kernel 的
-action provenance、有界状态与 topology-axis 缺口，再建立 application epoch 与
-readiness。S2 只依赖完成的
+`S1d.2 -> S1d.3 -> S1e -> S1f`：先关闭已交付 dormant kernel 的有界状态与
+topology-axis 缺口，再建立 application epoch 与 readiness。S1d.1 已关闭
+binding-origin action provenance 缺口。S2 只依赖完成的
 S1-T。S1-R
 延后到第一个真实 externally published stable-target family 前完成；按 accepted
 target ownership，S4 Narrative 计划成为该 family，因此 S1-R 位于 S3 与 S4
@@ -403,6 +403,29 @@ production caller，但在 Overlay cutover 前是 blocking defect。
 - direct untagged InputRouter event 仍能由 ordinary handler consumed/unhandled；
 - focused route-action、相邻 Coordinator/InputRouter、UI package 与 aggregate
   tests 全绿。
+
+**2026-08-01 S1d.1 delivery：** focused red 在原实现上得到 `17 tests / 4 failed`：
+current unpublished action 没有 Surface receipt，旧 publication、owner dispose 与
+Coordinator dispose 后的 binding-origin action 仍可绕过相应 admission；现有
+rebind case 的 ordinary/lower handler count 会从 `1` 累加到 `2`、`3`。最小修复
+删除 binding route 与 managed gate 中两处 captured-catalog early-out，使所有
+binding-origin action 经过既有 publication/gesture fence 与 Coordinator
+`routeAction`；未携带 package-internal provenance、直接进入 InputRouter 的 event
+仍走原有 snapshot/LIFO/fallthrough。
+
+green path 对 current unpublished action 返回 `surface.action_unpublished`，对
+stale publication/gesture、rebind、binding dispose、owner dispose 与 Coordinator
+dispose 全部 fail closed；每次 route attempt 的 lower-handler count 为 `0`。
+owner/Coordinator dispose 先正常提交各自的 topology transition；随后被拒的 queued
+或新建 route 保持已提交的 post-dispose publication identity/topology revision，且不
+增加 subscriber notification。valid declared action 的 handled/unhandled receipt 与
+direct untagged event 的 handled/ignored fallthrough 保持不变。验证为 focused
+`18/18`、相邻 action
+route/Coordinator/reducer/InputRouter `4 files / 80 tests`、UI package
+`58 files / 490 tests`、aggregate `205 files / 1874 tests`，`deno task check`
+全绿。该切片没有改变 public event/router/export、canonical Surface envelope 或
+semantic/workspace action，也没有实现 S1d.2 及其后续工作；下一独立切片是
+S1d.2。
 
 ### S1d.2 — Bounded transient identity
 
