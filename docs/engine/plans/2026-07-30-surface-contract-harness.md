@@ -659,6 +659,18 @@ navigation owner 全部为 `null` 且 Coordinator 已 disposed。
 action envelope 或任何 live Overlay/startWeb/HMR caller；browser pointer/focus 的真实
 successor proof 仍属于 S2，pending readiness cancellation 属于下一独立切片 S1f。
 
+**2026-08-01 S1e follow-up：** S1f 前置审查发现 runtime forwarding port 虽隐藏
+whole-generation `dispose()`，其余 Coordinator 方法却没有实际执行 ingress gate；因此
+binding unregister 回调可在 lifetime 已将 current 置空后重入 `closeTop()`，并在 terminal
+publication 前额外提交一次 `surface.closed`。focused red 得到 `1 failed / 12 tests`，且
+重入 receipt 明确为 `applied`。runtime port 现仅保留 `getSnapshot()` 作为关闭后的只读
+terminal diagnostics；handle/owner lookup、subscribe、全部 transition/action/owner ingress
+以及 gesture `begin/revoke` 统一检查 current record，gesture currentness 也随 ingress
+同步失效。相同 unregister 重入现在返回稳定的
+`ui.managed_surface_ingress_closed`，predecessor 只产生一次 terminal notification，之后
+才允许 successor allocation 与 ingress；terminal publication/topology revision 精确为
+`2/2`，而旧路径会依次提交 close `2/2` 与 dispose `3/3`。
+
 ### S1f — Transition-kind readiness kernel
 
 **目标：**

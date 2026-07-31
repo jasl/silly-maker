@@ -191,7 +191,7 @@ describe("Managed Surface application lifetime", () => {
       expect(successor.isIngressOpen()).toBe(true);
       expect(predecessor.isIngressOpen()).toBe(false);
       expect(() => predecessor.gestureLease.begin()).toThrowError(
-        "ui.managed_surface_gesture_lease_disposed",
+        "ui.managed_surface_ingress_closed",
       );
       expect(Object.isFrozen(successor)).toBe(true);
 
@@ -334,6 +334,144 @@ describe("Managed Surface application lifetime", () => {
     expect(coordinatorCreates).toBe(2);
     expect(successor.applicationEpoch).toBe(2);
     expect(lifetime.getCurrent()).toBe(successor);
+    expect(successor.isIngressOpen()).toBe(true);
+
+    lifetime.dispose();
+  });
+
+  it("closes every predecessor runtime ingress before unregister callbacks run", () => {
+    const router = createInputRouterV1();
+    router.register({ context: "overlay", handle: () => inputHandledV1 });
+    let predecessor!: ManagedSurfaceCoordinatorRuntimeV1;
+    let reentrantReceipt: unknown;
+    let reentrantFailure: unknown;
+    const lifetime = createManagedSurfaceCoordinatorLifetimeV1({
+      epochAllocator: deterministicAllocatorV1([11, 12]),
+      inputRouter: router,
+      initialRecipe: recipeV1,
+      registerManagedInputHandler(target, registration) {
+        const unregister = registerManagedInputHandlerV1(target, registration);
+        return () => {
+          unregister();
+          try {
+            reentrantReceipt = predecessor.coordinator.closeTop();
+          } catch (error) {
+            reentrantFailure = error;
+          }
+        };
+      },
+    });
+    predecessor = lifetime.getCurrent()!;
+    const predecessorHandle = openV1(predecessor);
+    const predecessorOwnerHandle = predecessor.coordinator.getOwnerHandle(ownerIdV1)!;
+    const predecessorInstance = predecessor.coordinator.getSnapshot().orderedInstances[0]!;
+    const predecessorGesture = predecessor.gestureLease.begin();
+    predecessor.bindCurrentInput();
+    const observedPublications: Array<{
+      readonly coordinatorDisposed: boolean;
+      readonly publicationRevision: number;
+      readonly topologyRevision: number;
+    }> = [];
+    predecessor.coordinator.subscribe(() => {
+      const snapshot = predecessor.coordinator.getSnapshot();
+      observedPublications.push({
+        coordinatorDisposed: snapshot.coordinatorDisposed,
+        publicationRevision: snapshot.publicationRevision,
+        topologyRevision: snapshot.topologyRevision,
+      });
+    });
+
+    const successor = lifetime.replace({ kind: "hmr_successor", recipe: recipeV1 });
+
+    expect(reentrantReceipt).toBeUndefined();
+    expect(reentrantFailure).toBeInstanceOf(TypeError);
+    expect((reentrantFailure as Error).message).toBe(
+      "ui.managed_surface_ingress_closed",
+    );
+    expect(observedPublications).toEqual([
+      {
+        coordinatorDisposed: true,
+        publicationRevision: 2,
+        topologyRevision: 2,
+      },
+    ]);
+    expect(predecessor.coordinator.getSnapshot()).toMatchObject({
+      coordinatorDisposed: true,
+      publicationRevision: 2,
+      topologyRevision: 2,
+      orderedInstances: [],
+    });
+    const closedCoordinatorIngress = [
+      [
+        "getHandle",
+        () => predecessor.coordinator.getHandle(predecessorHandle.surfaceInstanceId),
+      ],
+      ["getOwnerHandle", () => predecessor.coordinator.getOwnerHandle(ownerIdV1)],
+      ["subscribe", () => predecessor.coordinator.subscribe(() => {})],
+      [
+        "openTransientPrimary",
+        () =>
+          predecessor.coordinator.openTransientPrimary({
+            definition: definitionV1(),
+            semanticOccurrenceId: null,
+          }),
+      ],
+      [
+        "replaceTransientPrimary",
+        () =>
+          predecessor.coordinator.replaceTransientPrimary({
+            definition: definitionV1(),
+            semanticOccurrenceId: null,
+            expected: predecessorHandle,
+          }),
+      ],
+      [
+        "pushTransientChild",
+        () =>
+          predecessor.coordinator.pushTransientChild({
+            definition: definitionV1(),
+            semanticOccurrenceId: null,
+            parent: predecessorHandle,
+          }),
+      ],
+      ["closeExpected", () => predecessor.coordinator.closeExpected(predecessorHandle)],
+      ["closeTop", () => predecessor.coordinator.closeTop()],
+      ["closeOwner", () => predecessor.coordinator.closeOwner(predecessorOwnerHandle)],
+      [
+        "routeDismiss",
+        () => predecessor.coordinator.routeDismiss(predecessorHandle, "back"),
+      ],
+      [
+        "routeAction",
+        () =>
+          predecessor.coordinator.routeAction({
+            evidence: predecessorHandle,
+            actionId: parseManagedSurfaceActionIdV1("surface-action.activate"),
+            routingLeaseId: predecessorInstance.routingLeaseId,
+          }),
+      ],
+      ["disposeOwner", () => predecessor.coordinator.disposeOwner(ownerIdV1)],
+    ] as const;
+    expect(
+      Reflect.ownKeys(predecessor.coordinator)
+        .filter((key) => key !== "getSnapshot")
+        .map(String)
+        .sort(),
+    ).toEqual(closedCoordinatorIngress.map(([name]) => name).sort());
+    for (const [, call] of closedCoordinatorIngress) {
+      expect(call).toThrowError("ui.managed_surface_ingress_closed");
+    }
+    expect(() => predecessor.bindCurrentInput()).toThrowError(
+      "ui.managed_surface_ingress_closed",
+    );
+    expect(() => predecessor.gestureLease.begin()).toThrowError(
+      "ui.managed_surface_ingress_closed",
+    );
+    expect(() => predecessor.gestureLease.revoke()).toThrowError(
+      "ui.managed_surface_ingress_closed",
+    );
+    expect(predecessor.gestureLease.isCurrent(predecessorGesture)).toBe(false);
+    expect(successor).toBe(lifetime.getCurrent());
     expect(successor.isIngressOpen()).toBe(true);
 
     lifetime.dispose();
