@@ -25,8 +25,10 @@
 5. persistence backend 不成为第二份 gameplay authority；它只保存已经由 Session 产生的 Host records。
 6. wire endpoint 只接受受控 JSON 协议，不成为任意文件读写 API。
 7. desktop package 的平台/格式能力必须按已验证目标声明；目标平台是
-   macOS、Windows 与 Linux，但当前 `story desktop` 只验证 macOS `.app`，不能从
-   Deno CLI 的跨平台能力推导 SillyMaker 已支持全部平台。
+   macOS、Windows 与 Linux。当前 `story desktop` 只有 provisional wrapper：
+   host output 按宿主选择 `.app`、`.msi` 或 `.AppImage`，显式 cross-target
+   只接受 Deno `>= 2.9.0` support floor 内的五个 triple。产物存在和
+   cross-compile 成功都不能推导任一平台已经 D4 promotion。
 8. persistence durability、package format 和 auto-update 是三条独立 promotion
    轴；某个平台尚未支持 package/update，不能降低 durable store 的事务合同，也不能
    在 durable evidence 已通过时反向阻塞其他平台的 persistence promotion。
@@ -883,8 +885,21 @@ fixture 全绿后，才可在该平台把 backend 称为 `HostAtomicRecordStoreV
 ## 6. D4 — Per-platform desktop packaging promotion
 
 上游 `deno desktop` 是 experimental、跨平台能力；SillyMaker 的目标矩阵是
-macOS、Windows 与 Linux。当前 live wrapper 仍固定产出并检查 macOS `.app`，所以
-只有 macOS preview，不把目标矩阵写成已实现能力。
+macOS、Windows 与 Linux。当前 live wrapper 已吸收 provisional packaging
+surface：
+
+- 无显式 target 时按真实宿主选择 unsuffixed `.app`、`.msi` 或 `.AppImage`
+  output，并按对应 output shape 检查产物；
+- 显式 target 只接受 Deno `>= 2.9.0` support floor 内的
+  `x86_64-apple-darwin`、`aarch64-apple-darwin`、
+  `x86_64-pc-windows-msvc`、`x86_64-unknown-linux-gnu` 与
+  `aarch64-unknown-linux-gnu`，不把较新 patch 才出现的 target 提前加入合同；
+- Desktop shell 通过 `BrowserWindow` 领取 startup window，原生 close request
+  触发 server 停止 ingress 并等待 shutdown，而不是把页面心跳或强制 process
+  exit 当成正常关闭合同。
+
+这些只建立 preview wrapper、output naming 与 close-lifetime floor；macOS、
+Windows、Linux 当前都**没有**通过 D4 promotion。
 
 `story desktop` packaging 按平台独立 promotion，必须：
 
@@ -896,7 +911,15 @@ macOS、Windows 与 Linux。当前 live wrapper 仍固定产出并检查 macOS `
 4. 验证 prebuilt Vite assets 原样嵌入；若 `deno desktop` 暴露等价的 as-is
    include 能力，优先使用，否则加入包含 `.js`/`.mjs` 资产的 smoke fixture 防止
    module-resolution 改写；
-5. 记录该平台尚未支持的签名、notarization、installer 与 updater 边界。
+5. 验证 installed/offline package 随包携带本地 SillyMaker MIT 文本和实际
+   bundled third-party material 要求的 notices，不能只依赖 Web Player 的
+   `rel="license"` 链接；技术 manifest 只描述 bytes，不作为法律清单；
+6. 记录该平台尚未支持的签名、notarization、installer 与 updater 边界。
+
+剩余 D4 evidence 必须来自仓库可复现的中性 fixture 和对应真实 OS runner；
+仓库外应用可以说明需求，但不得成为正式代码/测试依赖或 promotion evidence。
+三个平台都仍需真实 build → launch → write → exit → reopen、签名审计与各自
+installer/update 边界验证。
 
 D4 在 platform target、output shape 与 promotion-report contract
 定稿后即可独立启动，不等待 D0–D3。它可以先使用明确标为 preview/reference
@@ -925,9 +948,10 @@ assets、records integration 与 write → exit → reopen smoke 全绿后，
 - **Durability lane:** D0 shared conformance + fault-injection interface → D1
   backend spike/decision record → D2 transaction adapter → D3 old-record
   import/recovery/operations；
-- **Packaging lane:** 先冻结 platform target/output/report contract，再按平台执行
-  D4 wrapper、真实 package smoke 与 documentation promotion。它可与 D0–D3
-  并行，但不改变共享 Host/Save/records wire contract。
+- **Packaging lane:** provisional platform target/output/report contract 与
+  BrowserWindow startup adoption 已落地；下一步按平台执行真实 D4 package
+  smoke、签名/installer/update 边界验证与 documentation promotion。它可与
+  D0–D3 并行，但不改变共享 Host/Save/records wire contract。
 
 每个提交都可独立回滚。不要在同一提交同时修改 Save envelope migration、Snapshot representation 或 Surface Coordinator。
 

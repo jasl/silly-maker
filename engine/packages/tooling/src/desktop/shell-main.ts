@@ -5,6 +5,12 @@ import { extname, join, normalize } from "node:path";
 import { injectDesktopRecordsMarkerV1 } from "./desktop-html.mts";
 import { createRecordFileStoreV1 } from "./record-file-store.mts";
 import { handleRecordHttpRequestV1 } from "./record-http-handler.mts";
+import {
+  adoptShellWindowV1,
+  createShellShutdownV1,
+  type ShellServerLikeV1,
+  type ShellWindowLikeV1,
+} from "./shell-lifetime.mts";
 import { resolveStaticFilePathV1 } from "./static-file-path.mts";
 
 /**
@@ -21,10 +27,13 @@ import { resolveStaticFilePathV1 } from "./static-file-path.mts";
  */
 
 declare const Deno: {
-  serve(handler: (request: Request) => Response | Promise<Response>): unknown;
+  serve(handler: (request: Request) => Response | Promise<Response>): ShellServerLikeV1;
   env: { get(name: string): string | undefined };
   build: { os: string };
   args: string[];
+  exit(code?: number): never;
+  /** Desktop runtime only (`deno desktop`); absent under plain `deno run`. */
+  BrowserWindow?: new (options?: Record<never, never>) => ShellWindowLikeV1;
 };
 
 const appIdentifierV1 = "__SILLYMAKER_APP_IDENTIFIER__";
@@ -123,7 +132,11 @@ async function handleStaticV1(request: Request, pathname: string): Promise<Respo
   }
 }
 
-Deno.serve((request: Request) => {
+// The handler closes over this binding so the adopting BrowserWindow remains
+// strongly reachable for the lifetime of the HTTP server.
+let adoptedWindowV1: ShellWindowLikeV1 | null = null;
+const serverV1 = Deno.serve((request: Request) => {
+  void adoptedWindowV1;
   const url = new URL(request.url);
   if (url.pathname === "/sillymaker/records" || url.pathname.startsWith("/sillymaker/records/")) {
     return handleRecordHttpRequestV1(
@@ -133,4 +146,15 @@ Deno.serve((request: Request) => {
     );
   }
   return handleStaticV1(request, url.pathname);
+});
+
+// The first BrowserWindow construction adopts the implicit startup window.
+// Its close request stops ingress and drains active records writes before the
+// process exits; no page heartbeat or timeout can interrupt persistence.
+adoptedWindowV1 = adoptShellWindowV1({
+  browserWindow: Deno.BrowserWindow,
+  requestShutdown: createShellShutdownV1({
+    shutdown: () => serverV1.shutdown(),
+    exit: () => Deno.exit(0),
+  }),
 });

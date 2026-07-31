@@ -891,6 +891,33 @@ describe("resolveCoreGameApplicationV1", () => {
 });
 
 describe("createCoreGameApplicationInstanceV1", () => {
+  it("rejects a configured Save projector that returns undefined", async () => {
+    let summarizeCalls = 0;
+    const invalidSummaryDefinition = defineCoreGameApplicationV1({
+      ...definitionV1,
+      summarizeSave() {
+        summarizeCalls += 1;
+        return undefined as never;
+      },
+    });
+    const resolved = resolveCoreGameApplicationV1(invalidSummaryDefinition, {
+      buildIdentityInput: deterministicBuildIdentityInputV1,
+    });
+    if (resolved.kind !== "resolved") throw new Error("synthetic story must resolve");
+    const records = createMemoryHostRecordStoreV1();
+    const instance = await createCoreGameApplicationInstanceV1(resolved.application, {
+      host: hostServicesV1(records),
+    });
+
+    await expect(instance.persistence.save("quick")).resolves.toEqual({
+      kind: "faulted",
+      code: "persistence.capture_failed",
+    });
+    expect(summarizeCalls).toBe(1);
+    expect(await records.list("save")).toEqual([]);
+    await instance.dispose();
+  });
+
   it("plays, saves, and restores through the composed surfaces", async () => {
     const instance = await createInstanceV1();
     await expect(instance.semantic.dispatch(incrementV1)).resolves.toEqual({

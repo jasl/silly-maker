@@ -272,7 +272,6 @@ export function defineSillymakerProjectV1(
           ? null
           : freezeModuleRefV1(application.simulate, `${pointer}/simulate`),
       web: application.web === null ? null : freezeWebTargetV1(application.web, `${pointer}/web`),
-      releaseArtifact: requireBooleanV1(application.releaseArtifact, `${pointer}/releaseArtifact`),
     });
   });
   return Object.freeze({
@@ -399,7 +398,6 @@ export function defineSillymakerAppV1(config: SillymakerAppConfigV1): Sillymaker
                         }),
                   }),
           }),
-    releaseArtifact: requireBooleanV1(config.releaseArtifact, `${pointer}/releaseArtifact`),
   });
 }
 
@@ -497,6 +495,5 @@ export function deriveStoryApplicationV1(
                       : { icon: joinAppPathV1(directory, web.desktop.icon) }),
                   }),
           }),
-    releaseArtifact: app.releaseArtifact,
   });
 }

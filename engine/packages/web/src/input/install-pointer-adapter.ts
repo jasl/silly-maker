@@ -12,6 +12,7 @@ const nativeSemanticControlSelectorV1 = [
   "summary",
   '[contenteditable="true"]',
   '[data-native-semantic-control="true"]',
+  "[data-native-menu]",
 ].join(",");
 
 type PointerTypeV1 = "mouse" | "touch" | "pen";
@@ -119,6 +120,7 @@ export function installPointerAdapterV1(input: PointerAdapterInputV1): Installed
       disposed ||
       activePointer !== undefined ||
       !event.isPrimary ||
+      event.button !== 0 ||
       isWithinNativeSemanticControlV1(event) ||
       !hasFiniteViewportPointV1(event)
     ) {
@@ -141,7 +143,7 @@ export function installPointerAdapterV1(input: PointerAdapterInputV1): Installed
   };
 
   const onPointerUp = (event: PointerEvent): void => {
-    if (disposed || !event.isPrimary) return;
+    if (disposed || !event.isPrimary || event.button !== 0) return;
     const accepted = activePointer;
     if (accepted === undefined || event.pointerId !== accepted.pointerId) return;
 

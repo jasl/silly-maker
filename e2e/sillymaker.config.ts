@@ -25,5 +25,4 @@ export const sillymakerAppConfigV1 = {
       createPluginExport: "createE2eBuildIdentityVirtualPluginV1",
     },
   },
-  releaseArtifact: false,
 } as const satisfies SillymakerAppConfigV1;

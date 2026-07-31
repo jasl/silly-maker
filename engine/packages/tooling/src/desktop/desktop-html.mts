@@ -11,12 +11,41 @@ function maskHtmlCommentsV1(html: string): string {
   return html.replaceAll(htmlCommentPatternV1, (comment) => " ".repeat(comment.length));
 }
 
-function hasDesktopRecordsMarkerV1(searchableHtml: string): boolean {
+function hasScriptAssignmentV1(searchableHtml: string, pattern: RegExp): boolean {
   for (const match of searchableHtml.matchAll(scriptElementPatternV1)) {
     if ((match[1] ?? "").trim() !== "") continue;
-    if (localRecordsAssignmentPatternV1.test(match[2] ?? "")) return true;
+    if (pattern.test(match[2] ?? "")) return true;
   }
   return false;
+}
+
+function hasDesktopRecordsMarkerV1(searchableHtml: string): boolean {
+  return hasScriptAssignmentV1(searchableHtml, localRecordsAssignmentPatternV1);
+}
+
+function injectHeadScriptV1(html: string, searchableHtml: string, scriptSource: string): string {
+  const openingHead = /<head(?:\s[^>]*)?>/iu.exec(searchableHtml);
+  if (openingHead !== null) {
+    const insertion = openingHead.index + openingHead[0].length;
+    return `${html.slice(0, insertion)}${scriptSource}${html.slice(insertion)}`;
+  }
+
+  // A script is valid in the document body. For non-standard/minimal output,
+  // placing the marker immediately after the root/doctype (or at byte zero)
+  // still guarantees it executes before later application scripts.
+  const openingHtml = /<html(?:\s[^>]*)?>/iu.exec(searchableHtml);
+  if (openingHtml !== null) {
+    const insertion = openingHtml.index + openingHtml[0].length;
+    return `${html.slice(0, insertion)}${scriptSource}${html.slice(insertion)}`;
+  }
+
+  const doctype = /<!doctype(?:\s[^>]*)?>/iu.exec(searchableHtml);
+  if (doctype !== null) {
+    const insertion = doctype.index + doctype[0].length;
+    return `${html.slice(0, insertion)}${scriptSource}${html.slice(insertion)}`;
+  }
+
+  return `${scriptSource}${html}`;
 }
 
 /**
@@ -29,27 +58,5 @@ function hasDesktopRecordsMarkerV1(searchableHtml: string): boolean {
 export function injectDesktopRecordsMarkerV1(html: string): string {
   const searchableHtml = maskHtmlCommentsV1(html);
   if (hasDesktopRecordsMarkerV1(searchableHtml)) return html;
-
-  const openingHead = /<head(?:\s[^>]*)?>/iu.exec(searchableHtml);
-  if (openingHead !== null) {
-    const insertion = openingHead.index + openingHead[0].length;
-    return `${html.slice(0, insertion)}${desktopRecordsMarkerSourceV1}${html.slice(insertion)}`;
-  }
-
-  // A script is valid in the document body. For non-standard/minimal output,
-  // placing the marker immediately after the root/doctype (or at byte zero)
-  // still guarantees it executes before later application scripts.
-  const openingHtml = /<html(?:\s[^>]*)?>/iu.exec(searchableHtml);
-  if (openingHtml !== null) {
-    const insertion = openingHtml.index + openingHtml[0].length;
-    return `${html.slice(0, insertion)}${desktopRecordsMarkerSourceV1}${html.slice(insertion)}`;
-  }
-
-  const doctype = /<!doctype(?:\s[^>]*)?>/iu.exec(searchableHtml);
-  if (doctype !== null) {
-    const insertion = doctype.index + doctype[0].length;
-    return `${html.slice(0, insertion)}${desktopRecordsMarkerSourceV1}${html.slice(insertion)}`;
-  }
-
-  return `${desktopRecordsMarkerSourceV1}${html}`;
+  return injectHeadScriptV1(html, searchableHtml, desktopRecordsMarkerSourceV1);
 }

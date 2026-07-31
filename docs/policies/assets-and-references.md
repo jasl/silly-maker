@@ -60,7 +60,7 @@ Package-manager dependencies are not copied third-party assets for this director
 5. allowed research purpose;
 6. explicit no-copy and no-build boundary.
 
-References may inform broad ideas such as time ownership, persistence metadata, debugging workflow, and content organization. Do not copy or adapt their code, prose, assets, schemas, constants, data, or distinctive structures into Project Tavern.
+References may inform broad ideas such as time ownership, persistence metadata, debugging workflow, and content organization. Do not copy or adapt their code, prose, assets, schemas, constants, data, or distinctive structures into SillyMaker's tracked production tree.
 
 Production code, tests, fixtures, generators, Image Gen inputs, screenshots, builds, and Artifacts must not import, scan, read, or depend on `references/`. This is independent-reimplementation and contamination control, not a claim that every reference has the same license.
 

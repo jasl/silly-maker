@@ -11,6 +11,7 @@ interface PointerEventFieldsV1 {
   readonly pointerId?: number;
   readonly pointerType?: string;
   readonly isPrimary?: boolean;
+  readonly button?: number;
   readonly clientX?: number;
   readonly clientY?: number;
 }
@@ -29,6 +30,7 @@ function dispatchPointerEventV1(
     pointerId: { value: fields.pointerId ?? 1 },
     pointerType: { value: fields.pointerType ?? "touch" },
     isPrimary: { value: fields.isPrimary ?? true },
+    button: { value: fields.button ?? 0 },
     clientX: { value: fields.clientX ?? 123 },
     clientY: { value: fields.clientY ?? 456 },
   });
@@ -121,6 +123,32 @@ describe("installPointerAdapterV1", () => {
       expect(fixture.capturedPointerIds).toEqual(new Set());
     },
   );
+
+  it("leaves a right mouse gesture to the semantic secondary-button adapter", () => {
+    const fixture = createPointerFixtureV1();
+
+    fixture.dispatch("pointerdown", { pointerType: "mouse", button: 2 });
+    fixture.dispatch("pointerup", { pointerType: "mouse", button: 2 });
+
+    expect(fixture.routedEvents).toEqual([]);
+    expect(fixture.setPointerCapture).not.toHaveBeenCalled();
+  });
+
+  it("keeps viewport semantics out of a native-menu subtree", () => {
+    const fixture = createPointerFixtureV1();
+    const nativeMenu = document.createElement("div");
+    nativeMenu.dataset.nativeMenu = "true";
+    const child = document.createElement("span");
+    nativeMenu.append(child);
+    fixture.target.append(nativeMenu);
+
+    fixture.dispatch("pointerdown", { pointerType: "touch" }, child);
+    fixture.dispatch("pointerup", { pointerType: "touch" }, child);
+
+    expect(fixture.routedEvents).toEqual([]);
+    expect(fixture.setPointerCapture).not.toHaveBeenCalled();
+    fixture.adapter.dispose();
+  });
 
   it.each([
     ["button", () => document.createElement("button")],

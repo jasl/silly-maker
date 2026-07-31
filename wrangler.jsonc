@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Cloudflare Workers static-assets deployment for the composed site
-// (documentation + playable Cat Cafe demo). Build first, then deploy:
+// (documentation + playable Cat Cafe and SillyOS 98 demos). Build first,
+// then deploy:
 //
 //   deno task site:build          # SITE_BASE defaults to "/"
 //   deno task site:deploy:cf      # needs `wrangler login` once

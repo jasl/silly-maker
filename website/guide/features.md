@@ -26,14 +26,26 @@ A tour of the capabilities a Story gets by declaring, not building. Everything h
 
 ## The player-facing baseline
 
-Declaring a title screen gives a complete front door: boot splash (e.g. an AI-generation notice), New game / Continue / Load game / Settings, and a single-modal system menu (Save and Settings never stack; Escape closes). The save dialog lists slots with timestamps, import/export, and Story-declared safepoints; a successful load enters gameplay directly. Settings ship with three volume sliders, mute, text speed, auto-forward wait, fullscreen, and a developer-tools switch. Dialogue playback includes a typewriter, auto mode, skip-read, and a history panel backed by the saveable narrative backlog. Gameplay windows (album, shop, inventory…) mount into the overlay session and inherit the shared `PanelV1` window chrome.
+Declaring a title screen gives a complete front door: boot splash (e.g. an AI-generation notice), New game / Continue / Load game / Settings, and a single-modal system menu (Save and Settings never stack; Escape closes). The standard save dialog lists slots with timestamps, import/export, and Story-declared safepoints; a Story may replace its body with a custom renderer without replacing the System modal, input, or focus authority. A successful load enters gameplay directly. Settings ship with three volume sliders, mute, text speed, auto-forward wait, fullscreen, and a developer-tools switch. Dialogue playback includes a typewriter, auto mode, skip-read, and a history panel backed by the saveable narrative backlog. Gameplay windows (album, shop, inventory…) mount into the overlay session and inherit the shared `PanelV1` window chrome.
 
 ## Persistence
 
-Saves are plain, versioned, validated data — a quick slot plus numbered manual slots (count declared per game, default 8, with zero allowed) plus current/previous autosaves. The Host profile keeps preferences and **meta progress** (album unlocks, endings reached) outside saves, so cross-playthrough collections survive restarts and rollbacks. Browser builds use the production IndexedDB store with atomic batches and optimistic revisions. The current desktop file channel is a preview: it validates the local protocol and atomically replaces each record, but crash-atomic multi-record commits and cross-process CAS are still on the production-floor plan.
+Saves are plain, versioned, validated data — a quick slot plus numbered manual slots (count declared per game, default 8, with zero allowed) plus current/previous autosaves. Records may carry a bounded Story summary and player note for custom slot UI; the standard save dialog does not render those annotations yet. The Host profile keeps preferences and **meta progress** (album unlocks, endings reached) outside saves, so cross-playthrough collections survive restarts and rollbacks. Browser builds use the production IndexedDB store with atomic batches and optimistic revisions. The current desktop file channel is a preview: it validates the local protocol and atomically replaces each record, but crash-atomic multi-record commits and cross-process CAS are still on the production-floor plan.
 
 ## Tooling for humans and agents
 
 - `story check` / `story simulate` emit structured JSON: an agent (or CI) can validate a story graph and play every route headlessly. `--trace` prints per-step numeric trajectories; `story diff` compares two saves or reports structurally.
-- The **DevDock** (capability-gated, never part of the player UI) hosts live state inspectors, the narrative graph view, and Story tuning panels driven by validated debug commands that go through the same transactional commit path as gameplay.
-- Delivery: `story build` for the web and `site:build` for static hosting (GitHub Pages / Cloudflare Workers). `story desktop` currently produces a macOS `.app` preview with an icon and file-backed saves; durable-store and additional-platform promotion remain explicit release gates.
+- The **DevDock** is the sole capability-gated debug UI host (never part of the player UI). It combines live inspectors, the narrative graph, Story tuning panels, and a cheat-gated Session maintenance panel for export/import, confirmed Save-slot cleanup with partial-failure reporting, and reinitialization.
+- Delivery: `deno task build:web` produces deployable static `dist-web/` output,
+  while `site:build` composes the docs site. Applications that declare
+  `build:desktop` can produce host or cross-target Desktop previews
+  (`.app`, Windows `.msi` installer, `.AppImage`); the shell adopts the startup
+  window and drains its local HTTP server on native close. Signing/notarization
+  and durable-store promotion remain explicit release gates. Distributors must
+  expose the SillyMaker MIT text and applicable bundled-material notices
+  through a product page, accompanying files, or a stable link; a technical
+  Artifact manifest is optional and is not a legal inventory. The Engine Lab,
+  starter, and first-party examples include stable `rel="license"` links to the
+  MIT text and a [maintained minimum of concrete runtime notices](/reference/licenses)
+  in their baseline HTML. Distributors still inspect their actual bundle and
+  add notices for other included material.

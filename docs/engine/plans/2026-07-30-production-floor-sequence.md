@@ -129,13 +129,16 @@ cutover slice 无法消除 Overlay 双重 writable authority，停止并修订�
 
 PF2 pilot 通过后、PF3 M0 冻结当前 Save/load 行为前，执行
 [Determinism plan](2026-07-31-authoritative-determinism-guardrails.md) 的 **DET0
-→ DET1 → DET2a → DET2b → DET2c → DET2d → DET3a → DET3b → DET4**：
+→ DET1 → DET2a → DET2b → DET2c → DET2d → DET2e → DET3a → DET3b → DET4**：
 
 1. 用中性 fixture 固定 raw/mutable bootstrap handoff、permissive
    command/evidence 的 late admission、replay command 漏口与 xorshift32 zero
    absorbing state；
 2. runtime 拒绝 zero seed/restored cursor；若发现被承诺维护的 zero-state Save，
-   因无法恢复原 non-zero lineage 而停止并请求明确兼容性决定；
+   因无法恢复原 non-zero lineage 而停止并请求明确兼容性决定；同一 fixed
+   zero-state Save 还必须作为 `auto.current` 走 `resumeFromAutosave` boot
+   integration，证明 fresh bootstrap/Session/replay base、lease/persistence anchor
+   与 stable diagnostic 保持正确；
 3. normalized game/debug command 在 executor 前 canonical admission，完整
    facts/rejections/fault/RNG evidence 在 Snapshot/RNG install 和 CommandLog
    append 前、candidate Snapshot freeze/post-digest 前 finalization；合法
@@ -149,18 +152,27 @@ PF2 pilot 通过后、PF3 M0 冻结当前 Save/load 行为前，执行
    deep-freeze，所有 initial-Snapshot 路径共用同一个 admitted value，不新增 public
    bootstrap schema/envelope；新增 bootstrap canonical/freeze traversal 单独
    purpose-tagged 计数；
-6. 从 root registry fail-closed 枚举应用，以 BuildIdentity managed simulation
+6. 收紧 live bounded helper：Event Pool 在 forced/ordinary 两条路径都拒绝
+   invalid context number 与逐步 `totalWeight` overflow；Content Database
+   authoritative order 使用明确 code-unit/numeric comparator，不读取 Host locale
+   或用可能越过 safe integer 的 subtraction；Game Authoring Kit
+   transaction/apply ordering 同样改用 canonical code-unit comparator，并分类所有
+   其余 `localeCompare` callsite，凡影响 authoritative bytes/order 或 stable
+   diagnostics 的都在 DET2e 以 fixed vector 收口；DET2e 只在 Deno 冻结可复用的
+   order/draw/apply pure vectors；
+7. 从 root registry fail-closed 枚举应用，以 BuildIdentity managed simulation
    records 为 seed，并补齐实际 simulation callback owner 与显式 authority
    entries；同时用有界显式 entries 覆盖 Base Session/executor/RNG/replay
    closure。增加独立 determinism lint，保留 Oxlint，不固定 Deno patch，不全仓库
    禁止合法 Host/Presentation；
-7. isolated test-only realm 捕获 direct entropy/clock/network/environment/
+8. isolated test-only realm 捕获 direct entropy/clock/network/environment/
    locale-default/DOM ambient access，不能污染 Player realm 或冒充 sandbox；
-8. 同一中性 test-only authoritative transcript 在 Deno、Chromium、Firefox、
+9. 同一中性 test-only authoritative transcript 在 Deno、Chromium、Firefox、
    WebKit 逐 command 比较 outcome、facts/reasons/fault、RNG、sequence、pre/post
    digest 与 log/replay evidence，并报告第一处分歧；fixture 必须含显式
    deterministic fault 和必然触发 rejection sampling 的受控 vector，production
-   check CI 显式安装 lock 对应的三种 browser。
+   check CI 显式安装 lock 对应的三种 browser；DET4 在四 runtime 直接执行 DET2e
+   已由 Deno 固定的 exact order/draw/apply vectors，不复制或重生成 expected。
 
 PF-DET 不引入 `decimal.js`、通用 numeric package、named/keyed RNG、trace V2、
 production Simulation Worker、untrusted Mod 隔离或 universal application

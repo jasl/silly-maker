@@ -4,6 +4,7 @@ import "@testing-library/jest-dom/vitest";
 import { parseNonNegativeSafeInteger } from "@sillymaker/base";
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
+import { useEffect, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   DevDockPortalCoordinatorV1,
@@ -12,6 +13,7 @@ import {
 import { inputHandledV1, systemInputActionIdsV1, type InputEventV1 } from "../input/contracts.ts";
 import { createInputRouterV1 } from "../input/input-router.ts";
 import { GameStageV1 } from "../shell/game-stage.tsx";
+import { SavesLauncherV1 } from "./saves-launcher.tsx";
 import { SettingsLauncherV1 } from "./settings-launcher.tsx";
 import { SystemDialogHostV1 } from "./system-dialog-host.tsx";
 import { createSystemDialogSessionStoreV1 } from "./system-dialog-session-store.ts";
@@ -71,6 +73,57 @@ function DevDockPortalSelectionProbeV1() {
 }
 
 describe("SystemDialogHostV1", () => {
+  it("hosts a hook-using custom Save renderer behind its own React boundary", async () => {
+    const mounted = vi.fn();
+    const unmounted = vi.fn();
+    function HookedCustomSavesV1(props: { readonly close: () => void }) {
+      const [count, setCount] = useState(0);
+      useEffect(() => {
+        mounted();
+        return unmounted;
+      }, []);
+      return (
+        <>
+          <output aria-label="Custom count">{count}</output>
+          <button type="button" onClick={() => setCount((current) => current + 1)}>
+            Increment
+          </button>
+          <button type="button" onClick={props.close}>
+            Close custom saves
+          </button>
+        </>
+      );
+    }
+    render(
+      <SystemDialogHostV1
+        inputRouter={createInputRouterV1()}
+        settings={settingsV1}
+        saves={Object.freeze({
+          kind: "custom",
+          accessibleName: "Custom saves",
+          render: HookedCustomSavesV1,
+        })}
+      >
+        <SavesLauncherV1 label="存档" />
+        <SettingsLauncherV1 label="设置" />
+      </SystemDialogHostV1>,
+    );
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: "存档" }));
+    await user.click(screen.getByRole("button", { name: "Increment" }));
+    expect(screen.getByRole("status", { name: "Custom count" })).toHaveTextContent("1");
+    await user.click(screen.getByRole("button", { name: "Close custom saves" }));
+    expect(unmounted).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole("button", { name: "设置" }));
+    expect(screen.getByRole("dialog", { name: "设置" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "关闭设置" }));
+    await user.click(screen.getByRole("button", { name: "存档" }));
+    expect(screen.getByRole("status", { name: "Custom count" })).toHaveTextContent("0");
+    expect(mounted).toHaveBeenCalledTimes(2);
+  });
+
   it("registers the actual settings Dialog.Content as the DevDock system target", async () => {
     const inputRouter = createInputRouterV1();
     render(

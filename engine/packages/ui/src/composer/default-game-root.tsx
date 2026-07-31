@@ -6,6 +6,7 @@ import type { DeepReadonly, RuntimeCapabilityPortV1 } from "@sillymaker/base";
 
 import { DevDockV1, createDevDockContributionSetV1 } from "../debug/dev-dock.tsx";
 import type { DevDockContributionSetV1, DevDockOpenStateV1 } from "../debug/dev-dock.tsx";
+import { SessionMaintenancePanelV1 } from "../debug/session-maintenance-panel.tsx";
 import type { InputRouterV1 } from "../input/contracts.ts";
 import type { GamepadActionMapV1 } from "../input/gamepad-adapter.ts";
 import { installGamepadAdapterV1 } from "../input/gamepad-adapter.ts";
@@ -34,6 +35,7 @@ import { DefaultSettingsSectionsV1 } from "../system/default-settings-sections.t
 import { TitleScreenV1 } from "../system/title-screen.tsx";
 import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
 import { SystemDialogHostV1 } from "../system/system-dialog-host.tsx";
+import type { SystemDialogCustomSavesV1 } from "../system/system-dialog-host.tsx";
 import type { InteractionSessionStoreV1 } from "../interaction/interaction-session-store.ts";
 import type {
   GameUiCompositionV1,
@@ -100,7 +102,7 @@ export interface DefaultGameRootSlotContextV1<TPublication, TSemantic> {
      * `TitleScreenV1` (skips splash). Used by Stories that wire MV Return to
      * Title / game-over endings to the host lifecycle.
      */
-    returnToTitle(): void;
+    returnToTitle(): Promise<void>;
   };
   /** Read access to the composition overlay session for Story projections. */
   readonly overlays: {
@@ -196,12 +198,18 @@ export interface DefaultGameRootPropsV1<
      */
     evaluateGuard?(publication: unknown): SaveOverlayGuardV1;
   };
+  /**
+   * Story-rendered Save UI hosted by the existing System modal authority.
+   * Mutually exclusive with the engine `saveUi`.
+   */
+  readonly customSaves?: SystemDialogCustomSavesV1;
   readonly labels?: Partial<DefaultGameRootLabelsV1>;
   readonly slots?: DefaultGameRootSlotsV1<
     RuntimePresentationPublicationV1<TSemanticPublication, TView, TAssetId>,
     TSemantic,
     TOverlayId
   >;
+  /** Typed Story tooling panels, including `read_only` / `cheat` authority. */
   readonly devDockContributions?: DevDockContributionSetV1;
   /**
    * Optional DevDock extensions: a capability-gated lazy contribution
@@ -211,6 +219,10 @@ export interface DefaultGameRootPropsV1<
   readonly devDock?: {
     load?(): Promise<DevDockContributionSetV1>;
     observeOpenState?(state: DevDockOpenStateV1): void;
+  };
+  /** Engine-owned maintenance panel contributed to the sole DevDock host. */
+  readonly sessionMaintenance?: {
+    readonly savePort?: SaveOverlayPortV1;
   };
   /** Optional keyboard/gamepad adapters routed through the composition. */
   readonly inputMaps?: {
@@ -247,8 +259,10 @@ function createDefaultOverlayResolverV1<TOverlayId extends string>(input: {
   });
 }
 
+/** Story tooling panel host; renders only for explicit contributions. */
 function DefaultDevDockV1(props: {
   readonly capabilities: RuntimeCapabilityPortV1;
+  readonly builtInContributions: DevDockContributionSetV1;
   readonly contributions: DevDockContributionSetV1;
   readonly load?: () => Promise<DevDockContributionSetV1>;
   readonly observeOpenState?: (state: DevDockOpenStateV1) => void;
@@ -286,10 +300,14 @@ function DefaultDevDockV1(props: {
     };
   }, [debugTools, load]);
   if (!debugTools) return null;
+  const storyContributions = loaded ?? props.contributions;
+  const contributions = createDevDockContributionSetV1({
+    panels: [...props.builtInContributions.panels, ...storyContributions.panels],
+  });
   return (
     <DevDockV1
       capabilities={props.capabilities}
-      contributions={loaded ?? props.contributions}
+      contributions={contributions}
       inputRouter={props.composition.input}
       openState={openState}
       onOpenStateChange={setOpenState}
@@ -301,8 +319,8 @@ function DefaultDevDockV1(props: {
  * The default GameRoot: a complete playable shell over a composed UI with
  * zero Story React code. The stage renders inside a managed GameViewport;
  * default surfaces (Save, Settings, dialogs) satisfy the designed baseline;
- * the resident player DOM carries no debug vocabulary — DevDock is the only
- * debug host and appears solely behind the `debug_tools` capability.
+ * DevDock remains the sole capability-gated debug UI host. Engine maintenance
+ * and Story tooling both enter it as typed, authority-classified panels.
  */
 export function DefaultGameRootV1<
   TSemanticPublication,
@@ -321,6 +339,9 @@ export function DefaultGameRootV1<
     TSemantic
   >,
 ): ReactElement {
+  if (props.saveUi !== undefined && props.customSaves !== undefined) {
+    throw new TypeError("ui.system_saves_ambiguous");
+  }
   type PublicationV1 = RuntimePresentationPublicationV1<TSemanticPublication, TView, TAssetId>;
   const labels = Object.freeze({ ...defaultGameRootLabelsV1, ...props.labels });
   const [titleDismissed, setTitleDismissed] = useState(props.titleScreen === undefined);
@@ -333,6 +354,15 @@ export function DefaultGameRootV1<
   ) as DeepReadonly<PublicationV1>;
   const anchor = useReadonlyViewV1(props.composition.anchor);
   const saveGuard = props.saveUi?.evaluateGuard?.(publication);
+  const systemSaves =
+    props.customSaves ??
+    (props.saveUi === undefined
+      ? undefined
+      : Object.freeze({
+          port: props.saveUi.port,
+          labels: props.saveUi.labels,
+          ...(saveGuard === undefined ? {} : { guard: saveGuard }),
+        }));
 
   // Loading (or importing) a save from the title screen's Load-game dialog
   // enters gameplay: the anchored epoch origin is the authoritative signal.
@@ -378,10 +408,17 @@ export function DefaultGameRootV1<
       openSettings: () => props.composition.systemDialogSession.open("settings"),
       openSaves: () => props.composition.systemDialogSession.open("saves"),
       returnToTitle: () => {
-        void (props.lifecycle?.restart() ?? Promise.resolve()).finally(() => {
-          setSplashDismissed(true);
-          setTitleDismissed(false);
-        });
+        return (props.lifecycle?.restart() ?? Promise.resolve()).then(
+          () => {
+            setSplashDismissed(true);
+            setTitleDismissed(false);
+          },
+          (error: unknown) => {
+            setSplashDismissed(true);
+            setTitleDismissed(false);
+            throw error;
+          },
+        );
       },
     }),
     overlays: props.composition.overlaySession as never,
@@ -450,15 +487,7 @@ export function DefaultGameRootV1<
       <SystemDialogHostV1
         inputRouter={props.composition.input}
         store={props.composition.systemDialogSession}
-        {...(props.saveUi === undefined
-          ? {}
-          : {
-              saves: Object.freeze({
-                port: props.saveUi.port,
-                labels: props.saveUi.labels,
-                ...(saveGuard === undefined ? {} : { guard: saveGuard }),
-              }),
-            })}
+        {...(systemSaves === undefined ? {} : { saves: systemSaves })}
         settings={Object.freeze({
           title: labels.settingsTitle,
           closeLabel: labels.closeLabel,
@@ -505,7 +534,6 @@ export function DefaultGameRootV1<
               loadGameLabel: labels.titleLoadGameLabel,
               settingsLabel: labels.settingsLabel,
             })}
-            continueAvailable={continueAvailable}
             onNewGame={() => {
               const restart = props.lifecycle?.restart();
               const begin = props.titleScreen?.beginNewGame;
@@ -513,7 +541,15 @@ export function DefaultGameRootV1<
                 .then(() => (begin === undefined ? undefined : begin(props.semantic)))
                 .finally(() => setTitleDismissed(true));
             }}
-            onContinue={() => setTitleDismissed(true)}
+            middleAction={
+              props.customSaves === undefined
+                ? Object.freeze({
+                    kind: "continue" as const,
+                    available: continueAvailable,
+                    onActivate: () => setTitleDismissed(true),
+                  })
+                : Object.freeze({ kind: "load" as const })
+            }
             showLoadGame={props.saveUi !== undefined}
           />
         )}
@@ -524,7 +560,7 @@ export function DefaultGameRootV1<
             className={styles["default-root__system-menu"]}
             data-default-system-menu="true"
           >
-            {props.saveUi === undefined ? null : <SavesLauncherV1 label={labels.saveLabel} />}
+            {systemSaves === undefined ? null : <SavesLauncherV1 label={labels.saveLabel} />}
             <SettingsLauncherV1 label={labels.settingsLabel} />
             {props.playerProfile === undefined ? null : (
               <MuteToggleV1 playerProfile={props.playerProfile} label={labels.settingsMutedLabel} />
@@ -543,6 +579,27 @@ export function DefaultGameRootV1<
   ).semantic;
   const semanticRevision = semanticWitness?.revision;
   const semanticStatus = semanticWitness?.status;
+  const builtInDevDockContributions =
+    props.sessionMaintenance === undefined
+      ? emptyDevDockContributionsV1
+      : createDevDockContributionSetV1({
+          panels: [
+            {
+              id: "engine.session_maintenance",
+              side: "right",
+              title: "Session maintenance",
+              authority: "cheat",
+              render: () => (
+                <SessionMaintenancePanelV1
+                  {...(props.sessionMaintenance?.savePort === undefined
+                    ? {}
+                    : { savePort: props.sessionMaintenance.savePort })}
+                  onReinitialize={slotContext.systemDialogs.returnToTitle}
+                />
+              ),
+            },
+          ],
+        });
   return (
     <div
       role="application"
@@ -561,9 +618,14 @@ export function DefaultGameRootV1<
         inputRouter={props.composition.input}
         viewport={props.viewport}
         devDock={
-          props.capabilities === undefined ? null : (
+          // Story tooling keeps DevDock's input/focus and authority contract.
+          props.capabilities === undefined ||
+          (builtInDevDockContributions.panels.length === 0 &&
+            props.devDockContributions === undefined &&
+            props.devDock?.load === undefined) ? null : (
             <DefaultDevDockV1
               capabilities={props.capabilities}
+              builtInContributions={builtInDevDockContributions}
               contributions={props.devDockContributions ?? emptyDevDockContributionsV1}
               {...(props.devDock?.load === undefined ? {} : { load: props.devDock.load })}
               {...(props.devDock?.observeOpenState === undefined

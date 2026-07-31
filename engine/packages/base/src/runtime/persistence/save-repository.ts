@@ -116,6 +116,11 @@ export type SaveRepositoryClearResultV1 =
   | { readonly kind: "cleared"; readonly slotId: SaveSlotIdV1 }
   | Extract<SaveRepositoryWriteResultV1, { readonly kind: "rejected" }>;
 
+export interface SaveRepositoryRewriteExpectationV1 {
+  readonly hostRevision: HostRecordRevisionV1;
+  readonly bytes: Uint8Array;
+}
+
 export interface SaveRepositoryV1<TSaveRecord> {
   read(slotId: SaveSlotIdV1): Promise<SaveRepositoryReadResultV1<TSaveRecord>>;
   writeAuto(
@@ -125,6 +130,16 @@ export interface SaveRepositoryV1<TSaveRecord> {
   /** One quick or numbered manual slot; the service enforces the slot count. */
   writePlayer(
     slotId: PlayerWritableSaveSlotIdV1,
+    record: DeepReadonly<TSaveRecord>,
+    fence: DeepReadonly<SessionLeaseFenceV1>,
+  ): Promise<SaveRepositoryWriteResultV1>;
+  /**
+   * Package-internal read-modify-write primitive. The expected revision and
+   * bytes must come from one valid repository read of the same slot.
+   */
+  rewritePlayer(
+    slotId: PlayerWritableSaveSlotIdV1,
+    expected: DeepReadonly<SaveRepositoryRewriteExpectationV1>,
     record: DeepReadonly<TSaveRecord>,
     fence: DeepReadonly<SessionLeaseFenceV1>,
   ): Promise<SaveRepositoryWriteResultV1>;
@@ -402,6 +417,50 @@ export function createSaveRepositoryInternalV1<
         : savedWithReceiptV1(slotId, recordRevision, receiptBytes);
     });
 
+  const rewriteSingleV1 = (
+    slotId: PlayerWritableSaveSlotIdV1,
+    expected: DeepReadonly<SaveRepositoryRewriteExpectationV1>,
+    candidate: DeepReadonly<TSaveRecord>,
+    fence: DeepReadonly<SessionLeaseFenceV1>,
+  ): Promise<SaveRepositoryWriteResultV1> => {
+    const expectedBytes = Uint8Array.from(expected.bytes);
+    return runWriteV1(async () => {
+      const key = createSaveSlotRecordKeyV1(options.storyId, slotId);
+      const [current, lease] = await Promise.all([
+        callHostRecordStoreV1(() => options.records.read("save", key)),
+        readLeaseTouchV1(fence),
+      ]);
+      if (lease.kind === "rejected") return rejectedV1(lease.code);
+      if (
+        current === null ||
+        current.revision !== expected.hostRevision ||
+        !bytesEqualV1(current.bytes, expectedBytes)
+      ) {
+        return rejectedV1("conflict");
+      }
+      const recordRevision = nextRecordRevisionV1(current.revision);
+      if (recordRevision === null) return rejectedV1("invalid_record");
+      const bytes = encodeForSlotV1(candidate, slotId, recordRevision);
+      const receiptBytes =
+        internalOptions?.writeReceiptEvidence === true ? Uint8Array.from(bytes) : null;
+      const result = await callHostRecordStoreV1(() =>
+        options.records.commit([
+          Object.freeze({
+            kind: "put",
+            namespace: "save",
+            key,
+            expectedRevision: current.revision,
+            bytes,
+          }),
+          lease.mutation,
+        ]),
+      );
+      return result.kind === "conflict"
+        ? rejectedV1("conflict")
+        : savedWithReceiptV1(slotId, recordRevision, receiptBytes);
+    });
+  };
+
   repository = {
     async read(slotId) {
       try {
@@ -498,6 +557,10 @@ export function createSaveRepositoryInternalV1<
 
     writePlayer(slotId, candidate, fence) {
       return writeSingleV1(slotId, candidate, fence);
+    },
+
+    rewritePlayer(slotId, expected, candidate, fence) {
+      return rewriteSingleV1(slotId, expected, candidate, fence);
     },
 
     clear(slotId, fence) {

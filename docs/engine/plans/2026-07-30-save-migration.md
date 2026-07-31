@@ -30,9 +30,35 @@ zero RNG state 或经 binary64 舍入入场的 fractional number token 重新冻
 - same-schema adoption allow/deny；
 - simulation lineage boundary；
 - auto recovery candidate；
-- export/import bytes。
+- export/import bytes；
+- annotation field absent、summary-only、note-only、summary + note 与 note
+  clearing/removal；
+- malformed、over-limit、sparse 与 accessor-backed annotation/summary shape；
+- `summarizeSave` absent/null/empty/valid/throw、exactly-once capture、defensive
+  copy/freeze、fixed metadata clock，以及 projection failure 后没有 physical Save
+  write；
+- autosave rotation 保留每个 candidate capture 时的 summary；
+- annotation rewrite 绑定 source Host revision 与 exact source bytes 做 conditional
+  read-modify-write，随后通过 physical readback、accepted lease fence，以及 built-in
+  one-shot write receipt 或 opaque repository 的 exact expected-byte re-encode 验证；
+- stale-source conflict 保持 newer record byte-for-byte 不变；post-commit
+  fence/readback failure 不得报告成功，也不改变 live Session 或 safely-saved
+  state，同时 corpus 明确记录 already-committed physical annotation 是否仍在，和
+  normal Save receipt contract 保持一致；
+- note rewrite 保持 Snapshot、`stateDigest`、`savedAt`、captured command
+  sequence、provenance、lineage 与 summary；只允许 `recordRevision` 和 normalized
+  note/annotation presence 改变；
+- 每个 valid annotation variant 的 list/export/import/load round-trip，且 optimized
+  receipt 与 opaque-repository fallback 产生相同 bytes。
 
 fixture 只为已经发布或明确承诺维护的格式建立；临时测试对象继续在 test factory 中生成。
+
+`summarizeSave` 是 Story-owned durable deterministic projection：其输出影响
+Save/export bytes，但不影响 Snapshot digest、CommandLog、replay 或 gameplay
+transition。玩家 note 是 persistence metadata。在尚无 downstream release 时于
+`formatRevision: 1` 内加入该 shape 不构成本轮 compatibility blocker；M0 从此冻结
+current behavior，再进入 M1 load-order 改造。既有 PF1 unannotated byte oracle 保持
+不变，annotation vectors 是追加 corpus，不得以它们重生成或替换旧 oracle。
 
 **M0 acceptance：** 现有结果逐字段固定，所有写入点与 live Session install 点可追踪。
 

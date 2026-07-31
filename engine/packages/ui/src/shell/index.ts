@@ -18,5 +18,15 @@ export type {
 } from "./game-stage.tsx";
 export { computeStageFrameV1, stageLayoutConstantsV1 } from "./stage-layout.ts";
 export type { StageFrameV1, StageViewportV1 } from "./stage-layout.ts";
+export {
+  installNativeBehaviorResetV1,
+  nativeBehaviorAllowMenuAttributeV1,
+  nativeBehaviorAllowTextAttributeV1,
+  nativeBehaviorEditableSelectorV1,
+} from "./native-behavior-reset.ts";
+export type {
+  NativeBehaviorResetConfigV1,
+  NativeBehaviorResetHandleV1,
+} from "./native-behavior-reset.ts";
 export { TopCardHudV1 } from "./top-card-hud.tsx";
 export type { StageHudSlotsV1, TopCardHudPropsV1 } from "./top-card-hud.tsx";

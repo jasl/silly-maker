@@ -31,9 +31,16 @@ export interface InstallPointerButtonAdapterOptionsV1 {
   now?(): number;
 }
 
-const interactiveSelectorV1 =
-  'input, textarea, select, button, a, option, [contenteditable="true"], ' +
+/** Package-internal selector shared with the native browser-behavior floor. */
+export const pointerInteractiveSelectorV1 =
+  'input, textarea, select, button, a, option, [contenteditable]:not([contenteditable="false"]), ' +
   '[role="button"], [role="textbox"], [role="combobox"]';
+
+function closestAncestorV1(target: unknown, selector: string): Element | null {
+  const candidate = target as { closest?: (selectors: string) => Element | null } | null;
+  if (typeof candidate?.closest !== "function") return null;
+  return candidate.closest(selector);
+}
 
 /**
  * Controls own their pointer buttons: the default secondary-button behavior
@@ -41,21 +48,30 @@ const interactiveSelectorV1 =
  * "none" — the mapped stage action only fires on scene surfaces. A control
  * can opt into a specific action with `data-secondary-action="<actionId>"`.
  */
-function interactiveAncestorV1(target: unknown): Element | null {
-  if (typeof Element === "undefined" || !(target instanceof Element)) return null;
-  return target.closest(interactiveSelectorV1);
+export function pointerInteractiveAncestorV1(target: unknown): Element | null {
+  return closestAncestorV1(target, pointerInteractiveSelectorV1);
 }
 
 function isInteractiveTargetV1(target: unknown): boolean {
-  return interactiveAncestorV1(target) !== null;
+  return pointerInteractiveAncestorV1(target) !== null;
 }
 
 function insideScrollableV1(target: unknown): boolean {
-  if (typeof Element === "undefined" || !(target instanceof Element)) return false;
-  let element: Element | null = target;
-  while (element !== null && element !== document.body) {
+  const candidate = target as {
+    readonly scrollHeight?: number;
+    readonly clientHeight?: number;
+    readonly parentElement?: Element | null;
+  } | null;
+  let element: Element | null =
+    typeof candidate?.scrollHeight === "number" && typeof candidate.clientHeight === "number"
+      ? (candidate as Element)
+      : (candidate?.parentElement ?? null);
+  const ownerDocument = element?.ownerDocument;
+  const view = ownerDocument?.defaultView;
+  if (ownerDocument === undefined || view === null || view === undefined) return false;
+  while (element !== null && element !== ownerDocument.body) {
     if (element.scrollHeight > element.clientHeight + 1) {
-      const overflowY = getComputedStyle(element).overflowY;
+      const overflowY = view.getComputedStyle(element).overflowY;
       if (overflowY === "auto" || overflowY === "scroll") return true;
     }
     element = element.parentElement;
@@ -74,7 +90,10 @@ export function installPointerButtonAdapterV1(
 
   const onContextMenu = (event: Event): void => {
     if (event.defaultPrevented) return;
-    const control = interactiveAncestorV1(event.target);
+    // `data-native-menu` is an absolute browser-behavior opt-out. It wins
+    // over both the stage mapping and a nested control's secondary action.
+    if (closestAncestorV1(event.target, "[data-native-menu]") !== null) return;
+    const control = pointerInteractiveAncestorV1(event.target);
     if (control !== null) {
       // Controls default to no secondary behavior; an explicit
       // data-secondary-action opts one in.

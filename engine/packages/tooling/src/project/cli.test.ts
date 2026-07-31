@@ -6,7 +6,12 @@ import { describe, expect, it } from "vitest";
 import { createSyntheticCounterGamePackageV1 } from "@sillymaker/base/testkit";
 
 import { runProjectCliV1 } from "./cli.ts";
-import type { ProjectCommandRunnerV1, ProjectModuleLoaderV1 } from "./commands.ts";
+import type {
+  ProjectCommandRunnerV1,
+  ProjectModuleLoaderV1,
+  StoryDesktopOptionsV1,
+} from "./commands.ts";
+import { desktopStoryApplicationV1 } from "./commands.ts";
 import { defineSillymakerProjectV1 } from "./config.ts";
 
 const projectV1 = defineSillymakerProjectV1({
@@ -35,7 +40,6 @@ const projectV1 = defineSillymakerProjectV1({
           identifier: "dev.sillymaker.synthetic",
         },
       },
-      releaseArtifact: false,
     },
   ],
 });
@@ -46,15 +50,26 @@ interface FakeRunnerLogV1 {
   readonly writes: { path: string; contents: string }[];
   readonly copies: { source: string; destination: string }[];
   readonly removals: string[];
+  readonly fileSizeChecks: string[];
 }
 
 function createFakeRunnerV1(input: {
   readonly exitCode?: number;
+  readonly hostPlatform?: "darwin" | "windows" | "linux";
   readonly pages?: Readonly<Record<string, string>>;
   readonly files?: Readonly<Record<string, string>>;
+  readonly nonRegularFiles?: readonly string[];
 }): { readonly runner: ProjectCommandRunnerV1; readonly log: FakeRunnerLogV1 } {
-  const log: FakeRunnerLogV1 = { runs: [], starts: [], writes: [], copies: [], removals: [] };
+  const log: FakeRunnerLogV1 = {
+    runs: [],
+    starts: [],
+    writes: [],
+    copies: [],
+    removals: [],
+    fileSizeChecks: [],
+  };
   const runner: ProjectCommandRunnerV1 = {
+    hostPlatform: input.hostPlatform ?? "darwin",
     run: (command, args, options) => {
       log.runs.push({ command, args, cwd: options.cwd });
       return Promise.resolve(input.exitCode ?? 0);
@@ -79,7 +94,16 @@ function createFakeRunnerV1(input: {
       if (body === undefined) return Promise.reject(new Error("missing file"));
       return Promise.resolve(body);
     },
-    fileSize: (path) => Promise.resolve(input.files?.[path] === undefined ? null : 1024),
+    fileSize: (path) => {
+      log.fileSizeChecks.push(path);
+      return Promise.resolve(
+        input.nonRegularFiles?.includes(path) === true
+          ? null
+          : input.files?.[path] === undefined
+            ? null
+            : new TextEncoder().encode(input.files[path]).byteLength,
+      );
+    },
     writeFile: (path, contents) => {
       log.writes.push({ path, contents });
       return Promise.resolve();
@@ -89,6 +113,9 @@ function createFakeRunnerV1(input: {
       return Promise.resolve();
     },
     copyFile: (source, destination) => {
+      if (input.files?.[source] === undefined) {
+        return Promise.reject(new Error(`missing copy source: ${source}`));
+      }
       log.copies.push({ source, destination });
       return Promise.resolve();
     },
@@ -139,11 +166,15 @@ const loaderV1: ProjectModuleLoaderV1 = Object.freeze({
   },
 });
 
-async function runV1(argv: readonly string[], runner?: ProjectCommandRunnerV1) {
+async function runV1(
+  argv: readonly string[],
+  runner?: ProjectCommandRunnerV1,
+  project = projectV1,
+) {
   const out: string[] = [];
   const err: string[] = [];
   const code = await runProjectCliV1({
-    project: projectV1,
+    project,
     argv,
     loader: loaderV1,
     repositoryRoot: "/repo",
@@ -152,6 +183,24 @@ async function runV1(argv: readonly string[], runner?: ProjectCommandRunnerV1) {
     writeErr: (line) => err.push(line),
   });
   return { code, out, err };
+}
+
+/** Shell templates the desktop verb stages from @sillymaker/tooling itself. */
+function desktopShellFilesV1(): Record<string, string> {
+  return {
+    [fileURLToPath(new URL("../desktop/shell-main.ts", import.meta.url))]:
+      'const appIdentifierV1 = "__SILLYMAKER_APP_IDENTIFIER__";\nconst distDirNameV1 = "__SILLYMAKER_DIST_DIR__";\n',
+    [fileURLToPath(new URL("../desktop/desktop-html.mts", import.meta.url))]:
+      "export const desktopHtmlV1 = 1;\n",
+    [fileURLToPath(new URL("../desktop/record-file-store.mts", import.meta.url))]:
+      "export const storeV1 = 1;\n",
+    [fileURLToPath(new URL("../desktop/record-http-handler.mts", import.meta.url))]:
+      "export const recordHttpHandlerV1 = 1;\n",
+    [fileURLToPath(new URL("../desktop/shell-lifetime.mts", import.meta.url))]:
+      "export const shellLifetimeV1 = 1;\n",
+    [fileURLToPath(new URL("../desktop/static-file-path.mts", import.meta.url))]:
+      "export const staticFilePathV1 = 1;\n",
+  };
 }
 
 describe("runProjectCliV1", () => {
@@ -247,6 +296,49 @@ describe("runProjectCliV1", () => {
     ]);
   });
 
+  it("build --profile debug expands to sourcemap + no minify", async () => {
+    const fake = createFakeRunnerV1({ exitCode: 0 });
+    const result = await runV1(["build", "synthetic", "--profile", "debug"], fake.runner);
+    expect(result.code).toBe(0);
+    expect(fake.log.runs[0]?.args).toEqual([
+      "run",
+      "-A",
+      "npm:vite",
+      "build",
+      "--sourcemap",
+      "--minify",
+      "false",
+    ]);
+
+    const invalid = await runV1(["build", "synthetic", "--profile", "fast"], fake.runner);
+    expect(invalid.code).toBe(2);
+  });
+
+  it("build release forces sourcemaps off while an explicit flag overrides the profile", async () => {
+    const release = createFakeRunnerV1({ exitCode: 0 });
+    const releaseResult = await runV1(
+      ["build", "synthetic", "--profile", "release"],
+      release.runner,
+    );
+    expect(releaseResult.code).toBe(0);
+    expect(release.log.runs[0]?.args).toEqual([
+      "run",
+      "-A",
+      "npm:vite",
+      "build",
+      "--sourcemap",
+      "false",
+    ]);
+
+    const overridden = createFakeRunnerV1({ exitCode: 0 });
+    const overriddenResult = await runV1(
+      ["build", "synthetic", "--profile", "release", "--sourcemap"],
+      overridden.runner,
+    );
+    expect(overriddenResult.code).toBe(0);
+    expect(overridden.log.runs[0]?.args).toEqual(["run", "-A", "npm:vite", "build", "--sourcemap"]);
+  });
+
   it("dev --smoke boots the dev server, proves the page, and kills it", async () => {
     const fake = createFakeRunnerV1({
       pages: Object.freeze({
@@ -297,28 +389,10 @@ describe("runProjectCliV1", () => {
   it("desktop stages the webview shell and invokes deno desktop", async () => {
     // The shell sources ship inside @sillymaker/tooling and are read from
     // the package itself, so packaging works from any application root.
-    const shellMainPathV1 = fileURLToPath(new URL("../desktop/shell-main.ts", import.meta.url));
-    const desktopHtmlPathV1 = fileURLToPath(
-      new URL("../desktop/desktop-html.mts", import.meta.url),
-    );
-    const recordStorePathV1 = fileURLToPath(
-      new URL("../desktop/record-file-store.mts", import.meta.url),
-    );
-    const recordHttpHandlerPathV1 = fileURLToPath(
-      new URL("../desktop/record-http-handler.mts", import.meta.url),
-    );
-    const staticFilePathV1 = fileURLToPath(
-      new URL("../desktop/static-file-path.mts", import.meta.url),
-    );
     const fake = createFakeRunnerV1({
       files: Object.freeze({
         "/repo/test/dist-desktop/SyntheticApp.app/Contents/Info.plist": "<plist/>",
-        [shellMainPathV1]:
-          'const appIdentifierV1 = "__SILLYMAKER_APP_IDENTIFIER__";\nconst distDirNameV1 = "__SILLYMAKER_DIST_DIR__";\n',
-        [desktopHtmlPathV1]: "export const desktopHtmlV1 = 1;\n",
-        [recordStorePathV1]: "export const storeV1 = 1;\n",
-        [recordHttpHandlerPathV1]: "export const recordHttpHandlerV1 = 1;\n",
-        [staticFilePathV1]: "export const staticFilePathV1 = 1;\n",
+        ...desktopShellFilesV1(),
       }),
     });
     const result = await runV1(["desktop", "synthetic"], fake.runner);
@@ -355,6 +429,7 @@ describe("runProjectCliV1", () => {
     expect(written).toContain("/repo/test/dist-desktop/staging/desktop-html.mts");
     expect(written).toContain("/repo/test/dist-desktop/staging/record-file-store.mts");
     expect(written).toContain("/repo/test/dist-desktop/staging/record-http-handler.mts");
+    expect(written).toContain("/repo/test/dist-desktop/staging/shell-lifetime.mts");
     expect(written).toContain("/repo/test/dist-desktop/staging/static-file-path.mts");
     // The staged shell carries the application identity, not placeholders.
     const stagedMain = fake.log.writes.find((entry) => entry.path.endsWith("main.ts"));
@@ -367,6 +442,326 @@ describe("runProjectCliV1", () => {
         backend: "webview",
       },
     });
+  });
+
+  it("desktop --target packages one output per triple with per-OS formats", async () => {
+    const fake = createFakeRunnerV1({
+      files: Object.freeze({
+        "/repo/test/dist-desktop/SyntheticApp-x86_64-pc-windows-msvc.msi": "msi",
+        "/repo/test/dist-desktop/SyntheticApp-aarch64-unknown-linux-gnu.AppImage": "appimage",
+        ...desktopShellFilesV1(),
+      }),
+    });
+    const result = await runV1(
+      [
+        "desktop",
+        "synthetic",
+        "--target",
+        "x86_64-pc-windows-msvc",
+        "--target",
+        "aarch64-unknown-linux-gnu",
+        "--compress=zstd",
+        "--profile",
+        "debug",
+      ],
+      fake.runner,
+    );
+    expect(result.code).toBe(0);
+    expect(JSON.parse(result.out.join("\n"))).toMatchObject({
+      ok: true,
+      outputPath: "/repo/test/dist-desktop/SyntheticApp-x86_64-pc-windows-msvc.msi",
+      outputs: [
+        {
+          target: "x86_64-pc-windows-msvc",
+          outputPath: "/repo/test/dist-desktop/SyntheticApp-x86_64-pc-windows-msvc.msi",
+          ok: true,
+        },
+        {
+          target: "aarch64-unknown-linux-gnu",
+          outputPath: "/repo/test/dist-desktop/SyntheticApp-aarch64-unknown-linux-gnu.AppImage",
+          ok: true,
+        },
+      ],
+    });
+    // Profile debug reaches the inner web build; each triple gets its own
+    // deno desktop invocation with the target and compression forwarded.
+    expect(fake.log.runs[0]?.args).toEqual([
+      "run",
+      "-A",
+      "npm:vite",
+      "build",
+      "--sourcemap",
+      "--minify",
+      "false",
+    ]);
+    expect(fake.log.runs[1]?.args).toEqual([
+      "desktop",
+      "--allow-env",
+      "--allow-read",
+      "--allow-write",
+      "--allow-net",
+      "--include",
+      "dist",
+      "--compress=zstd",
+      "--target",
+      "x86_64-pc-windows-msvc",
+      "--output",
+      "../SyntheticApp-x86_64-pc-windows-msvc.msi",
+      "main.ts",
+    ]);
+    expect(fake.log.runs[2]?.args).toEqual([
+      "desktop",
+      "--allow-env",
+      "--allow-read",
+      "--allow-write",
+      "--allow-net",
+      "--include",
+      "dist",
+      "--compress=zstd",
+      "--target",
+      "aarch64-unknown-linux-gnu",
+      "--output",
+      "../SyntheticApp-aarch64-unknown-linux-gnu.AppImage",
+      "main.ts",
+    ]);
+
+    const unknownTriple = await runV1(
+      ["desktop", "synthetic", "--target", "riscv64-unknown-linux-gnu"],
+      fake.runner,
+    );
+    expect(unknownTriple.code).toBe(2);
+
+    const unsupportedAtFloor = await runV1(
+      ["desktop", "synthetic", "--target", "aarch64-pc-windows-msvc"],
+      fake.runner,
+    );
+    expect(unsupportedAtFloor.code).toBe(2);
+  });
+
+  it("desktop rejects a duplicate explicit target before building", async () => {
+    const fake = createFakeRunnerV1({ exitCode: 0 });
+    const result = await runV1(
+      [
+        "desktop",
+        "synthetic",
+        "--target",
+        "x86_64-apple-darwin",
+        "--target",
+        "x86_64-apple-darwin",
+      ],
+      fake.runner,
+    );
+    expect(result.code).toBe(1);
+    expect(JSON.parse(result.out.join("\n"))).toMatchObject({
+      kind: "error",
+      diagnostics: [{ code: "project.desktop_target_duplicate" }],
+    });
+    expect(fake.log.runs).toEqual([]);
+  });
+
+  it.each([
+    [
+      "unsupported target",
+      { targets: ["riscv64-unknown-linux-gnu"] },
+      "project.desktop_target_unsupported",
+    ],
+    ["unsupported compression", { compress: "brotli" }, "project.desktop_compression_unsupported"],
+  ] as const)(
+    "desktop rejects programmatic %s options before mutating output",
+    async (_caseName, rawOptions, diagnosticCode) => {
+      const fake = createFakeRunnerV1({ exitCode: 0 });
+
+      await expect(
+        desktopStoryApplicationV1(
+          projectV1,
+          "synthetic",
+          { runner: fake.runner, repositoryRoot: "/repo" },
+          rawOptions as unknown as StoryDesktopOptionsV1,
+        ),
+      ).rejects.toMatchObject({
+        diagnostics: [{ code: diagnosticCode }],
+      });
+      expect(fake.log.runs).toEqual([]);
+      expect(fake.log.copies).toEqual([]);
+      expect(fake.log.removals).toEqual([]);
+    },
+  );
+
+  it.each([
+    ["darwin", "SyntheticApp.app", "/Contents/Info.plist", true],
+    ["windows", "SyntheticApp.msi", "", false],
+    ["linux", "SyntheticApp.AppImage", "", false],
+  ] as const)(
+    "desktop host output follows %s and admits the macOS icon only on darwin",
+    async (hostPlatform, outputName, markerSuffix, expectsIcon) => {
+      const projectWithIconV1 = defineSillymakerProjectV1({
+        projectId: "project-host-icon-test",
+        applications: [
+          {
+            ...projectV1.applications[0]!,
+            web: {
+              ...projectV1.applications[0]!.web!,
+              desktop: {
+                name: "SyntheticApp",
+                identifier: "dev.sillymaker.synthetic",
+                icon: "test/icon.png",
+              },
+            },
+          },
+        ],
+      });
+      const outputPath = `/repo/test/dist-desktop/${outputName}`;
+      const fake = createFakeRunnerV1({
+        hostPlatform,
+        files: Object.freeze({
+          [`${outputPath}${markerSuffix}`]: "bundle",
+          ...(expectsIcon ? { "/repo/test/icon.png": "icon" } : {}),
+          ...desktopShellFilesV1(),
+        }),
+      });
+      const result = await runV1(["desktop", "synthetic"], fake.runner, projectWithIconV1);
+      expect(result.code).toBe(0);
+      expect(JSON.parse(result.out.join("\n"))).toMatchObject({ outputPath });
+      const desktopRun = fake.log.runs[1];
+      expect(desktopRun?.args).toContain(`../${outputName}`);
+      expect(desktopRun?.args.includes("--icon")).toBe(expectsIcon);
+      expect(fake.log.copies.some((copy) => copy.destination.endsWith("/icon.png"))).toBe(
+        expectsIcon,
+      );
+    },
+  );
+
+  it("desktop does not read a Darwin-only icon for only Linux and Windows targets", async () => {
+    const projectWithIconV1 = defineSillymakerProjectV1({
+      projectId: "project-non-darwin-icon-test",
+      applications: [
+        {
+          ...projectV1.applications[0]!,
+          web: {
+            ...projectV1.applications[0]!.web!,
+            desktop: {
+              name: "SyntheticApp",
+              identifier: "dev.sillymaker.synthetic",
+              icon: "test/missing-icon.png",
+            },
+          },
+        },
+      ],
+    });
+    const fake = createFakeRunnerV1({
+      files: Object.freeze({
+        "/repo/test/dist-desktop/SyntheticApp-x86_64-pc-windows-msvc.msi": "msi",
+        "/repo/test/dist-desktop/SyntheticApp-aarch64-unknown-linux-gnu.AppImage": "appimage",
+        ...desktopShellFilesV1(),
+      }),
+    });
+
+    const result = await runV1(
+      [
+        "desktop",
+        "synthetic",
+        "--target",
+        "x86_64-pc-windows-msvc",
+        "--target",
+        "aarch64-unknown-linux-gnu",
+      ],
+      fake.runner,
+      projectWithIconV1,
+    );
+
+    expect(result.code).toBe(0);
+    expect(fake.log.copies.some((copy) => copy.destination.endsWith("/icon.png"))).toBe(false);
+    expect(fake.log.fileSizeChecks).not.toContain("/repo/test/missing-icon.png");
+  });
+
+  it.each([
+    ["missing", undefined, undefined],
+    ["empty", "", undefined],
+    ["non-regular", "directory marker", ["/repo/test/icon.png"]],
+  ] as const)(
+    "desktop rejects a %s Darwin icon before building or mutating output",
+    async (_caseName, iconContents, nonRegularFiles) => {
+      const projectWithIconV1 = defineSillymakerProjectV1({
+        projectId: "project-invalid-icon-test",
+        applications: [
+          {
+            ...projectV1.applications[0]!,
+            web: {
+              ...projectV1.applications[0]!.web!,
+              desktop: {
+                name: "SyntheticApp",
+                identifier: "dev.sillymaker.synthetic",
+                icon: "test/icon.png",
+              },
+            },
+          },
+        ],
+      });
+      const fake = createFakeRunnerV1({
+        files: Object.freeze({
+          ...(iconContents === undefined ? {} : { "/repo/test/icon.png": iconContents }),
+          ...desktopShellFilesV1(),
+        }),
+        ...(nonRegularFiles === undefined ? {} : { nonRegularFiles }),
+      });
+
+      const result = await runV1(["desktop", "synthetic"], fake.runner, projectWithIconV1);
+
+      expect(result.code).toBe(1);
+      expect(JSON.parse(result.out.join("\n"))).toMatchObject({
+        kind: "error",
+        diagnostics: [{ code: "project.desktop_icon_invalid" }],
+      });
+      expect(fake.log.runs).toEqual([]);
+      expect(fake.log.copies).toEqual([]);
+      expect(fake.log.removals).toEqual([]);
+      expect(fake.log.fileSizeChecks).toEqual(["/repo/test/icon.png"]);
+    },
+  );
+
+  it("desktop forwards the .png/.icns icon only to darwin targets", async () => {
+    const projectWithIconV1 = defineSillymakerProjectV1({
+      projectId: "project-icon-test",
+      applications: [
+        {
+          ...projectV1.applications[0]!,
+          web: {
+            ...projectV1.applications[0]!.web!,
+            desktop: {
+              name: "SyntheticApp",
+              identifier: "dev.sillymaker.synthetic",
+              icon: "test/icon.png",
+            },
+          },
+        },
+      ],
+    });
+    const fake = createFakeRunnerV1({
+      files: Object.freeze({
+        "/repo/test/dist-desktop/SyntheticApp-aarch64-apple-darwin.app/Contents/Info.plist":
+          "<plist/>",
+        "/repo/test/dist-desktop/SyntheticApp-x86_64-pc-windows-msvc.msi": "msi",
+        "/repo/test/icon.png": "icon",
+        ...desktopShellFilesV1(),
+      }),
+    });
+    const result = await runV1(
+      [
+        "desktop",
+        "synthetic",
+        "--target",
+        "aarch64-apple-darwin",
+        "--target",
+        "x86_64-pc-windows-msvc",
+      ],
+      fake.runner,
+      projectWithIconV1,
+    );
+    expect(result.code).toBe(0);
+    const darwinRun = fake.log.runs[1];
+    const windowsRun = fake.log.runs[2];
+    expect(darwinRun?.args).toContain("--icon");
+    expect(windowsRun?.args).not.toContain("--icon");
   });
 
   it("answers usage errors on stderr with exit code 2", async () => {

@@ -38,7 +38,11 @@ import type {
   SessionLeaseStatusV1,
   SimulationAdoptionV1,
 } from "../../contracts/persistence.ts";
-import { createSaveRecordEnvelopeSchemaV1 } from "../../contracts/persistence.ts";
+import {
+  createSaveRecordEnvelopeSchemaV1,
+  normalizeSaveSummaryInternalV1,
+  parseSaveNoteV1,
+} from "../../contracts/persistence.ts";
 import type {
   DeepReadonly,
   NonNegativeSafeInteger,
@@ -161,6 +165,12 @@ export interface CreatePersistenceServiceOptionsV1<
   readonly manualSaveSlotCount?: number;
   readonly leaseAcquisition?: PersistenceLeaseAcquisitionV1;
   readonly autoSaveCapture?: PersistenceAutoSaveCaptureV1;
+  /**
+   * Optional application projector: summary lines stored in every written
+   * record's annotation (custom slot pickers may consume them). Must be deterministic
+   * for a given state; a throwing projector fails the capture.
+   */
+  summarizeSave?(state: DeepReadonly<TState>): readonly string[] | null;
 }
 
 export interface CreateStandardPersistenceServiceOptionsV1<
@@ -186,12 +196,23 @@ export interface CreateStandardPersistenceServiceOptionsV1<
   readonly manualSaveSlotCount?: number;
   readonly leaseAcquisition?: PersistenceLeaseAcquisitionV1;
   readonly autoSaveCapture?: PersistenceAutoSaveCaptureV1;
+  /**
+   * Optional application projector: summary lines stored in every written
+   * record's annotation (custom slot pickers may consume them). Must be deterministic
+   * for a given state; a throwing projector fails the capture.
+   */
+  summarizeSave?(state: DeepReadonly<TState>): readonly string[] | null;
 }
 
 interface SaveCandidateV1<TSnapshot> {
   readonly snapshot: DeepReadonly<TSnapshot>;
   readonly simulationLineage: readonly DeepReadonly<SimulationAdoptionV1>[];
   readonly savedAt: IsoUtcInstant;
+  /**
+   * Application summary lines captured once per candidate so the record
+   * bytes stay deterministic across the write-then-verify re-encode.
+   */
+  readonly summary: readonly string[] | null;
 }
 
 interface AutoCandidateV1<TSnapshot> {
@@ -331,6 +352,10 @@ async function createPersistenceServiceWithDependenciesV1<
         digestCanonicalInternalV1("sillymaker:state:v1", candidate.snapshot, instrumentation),
       snapshot: candidate.snapshot,
       simulationLineage: candidate.simulationLineage,
+      // A fresh capture starts with no player note; annotateSave adds one.
+      ...(candidate.summary === null
+        ? {}
+        : { annotation: Object.freeze({ summary: candidate.summary, note: null }) }),
     };
     const parsed = options.validation.codec.recordSchema.parse(value);
     options.validation.codec.validateEnvelope(
@@ -346,11 +371,19 @@ async function createPersistenceServiceWithDependenciesV1<
       instrumentation,
     );
 
+  const captureSummaryV1 = (snapshot: DeepReadonly<TSnapshot>): readonly string[] | null =>
+    options.summarizeSave === undefined
+      ? null
+      : normalizeSaveSummaryInternalV1(
+          options.summarizeSave((snapshot as { readonly state: DeepReadonly<TState> }).state),
+        );
+
   const captureV1 = (snapshot: DeepReadonly<TSnapshot>): SaveCandidateV1<TSnapshot> =>
     Object.freeze({
       snapshot,
       simulationLineage: currentLineage,
       savedAt: options.metadataClock.now(),
+      summary: captureSummaryV1(snapshot),
     });
 
   const verifyFenceV1 = async (
@@ -408,6 +441,29 @@ async function createPersistenceServiceWithDependenciesV1<
         }
         return repositoryRejectionV1(written.code);
       }
+      return await verifyCommittedWriteV1(
+        written,
+        slotId,
+        fence,
+        candidate.snapshot.commandSequence,
+        () =>
+          makeRecordV1(candidate, slotId, reason, written.recordRevision) as DeepReadonly<
+            PersistenceSaveRecordV1<TSnapshot>
+          >,
+      );
+    } catch {
+      return faultedV1();
+    }
+  };
+
+  const verifyCommittedWriteV1 = async (
+    written: Extract<SaveRepositoryWriteResultV1, { readonly kind: "saved" }>,
+    slotId: "auto.current" | PlayerWritableSaveSlotIdV1,
+    fence: DeepReadonly<SessionLeaseFenceV1>,
+    capturedCommandSequence: NonNegativeSafeInteger,
+    expectedRecord: () => DeepReadonly<PersistenceSaveRecordV1<TSnapshot>>,
+  ): Promise<PersistenceOperationResultV1> => {
+    try {
       const observed = await options.repository.read(slotId);
       if (observed.health === "unavailable") {
         rememberFailureV1(observed.code);
@@ -422,7 +478,7 @@ async function createPersistenceServiceWithDependenciesV1<
         observed.health !== "valid" ||
         Number(observed.hostRevision) !== Number(written.recordRevision) ||
         observed.record.recordRevision !== written.recordRevision ||
-        observed.record.slot.capturedCommandSequence !== candidate.snapshot.commandSequence
+        observed.record.slot.capturedCommandSequence !== capturedCommandSequence
       ) {
         return rejectedV1("conflict");
       }
@@ -439,11 +495,7 @@ async function createPersistenceServiceWithDependenciesV1<
         return rejectedV1("conflict");
       }
       if (receiptMatch === undefined) {
-        const expectedBytes = encodeRecordV1(
-          makeRecordV1(candidate, slotId, reason, written.recordRevision) as DeepReadonly<
-            PersistenceSaveRecordV1<TSnapshot>
-          >,
-        );
+        const expectedBytes = encodeRecordV1(expectedRecord());
         if (!bytesEqualV1(observed.bytes, expectedBytes)) {
           return rejectedV1("conflict");
         }
@@ -460,9 +512,10 @@ async function createPersistenceServiceWithDependenciesV1<
         autoWrites += 1;
         try {
           const savedAt = options.metadataClock.now();
+          const summary = captureSummaryV1(candidate.snapshot);
           return await schedulePhysicalV1(() =>
             writeVerifiedV1(
-              Object.freeze({ ...candidate, savedAt }),
+              Object.freeze({ ...candidate, savedAt, summary }),
               "auto.current",
               candidate.fence,
             ),
@@ -714,6 +767,7 @@ async function createPersistenceServiceWithDependenciesV1<
                 recordRevision: null,
                 capturedCommandSequence: null,
                 savedAt: null,
+                annotation: null,
                 warningCodes: Object.freeze(read.code === null ? [] : [read.code]),
               }) satisfies SaveSlotSummaryV1,
             });
@@ -742,6 +796,7 @@ async function createPersistenceServiceWithDependenciesV1<
               recordRevision: read.record.recordRevision,
               capturedCommandSequence: read.record.slot.capturedCommandSequence,
               savedAt: read.record.savedAt,
+              annotation: read.record.annotation ?? null,
               warningCodes: Object.freeze(warningCodes),
             }) satisfies SaveSlotSummaryV1,
           });
@@ -773,6 +828,7 @@ async function createPersistenceServiceWithDependenciesV1<
               recordRevision: null,
               capturedCommandSequence: null,
               savedAt: null,
+              annotation: null,
               warningCodes: Object.freeze(["persistence.unexpected"]),
             }),
           ),
@@ -834,6 +890,95 @@ async function createPersistenceServiceWithDependenciesV1<
         .then((result) => {
           if (acceptedAnchorEpoch === autoQueue.anchorEpoch()) {
             if (result.kind === "saved") rememberSuccessV1(candidate.snapshot.commandSequence);
+            else if (result.kind === "rejected" || result.kind === "faulted") {
+              rememberOperationFailureV1(result.code);
+            }
+          }
+          return result;
+        })
+        .finally(() => {
+          foregroundWrites -= 1;
+        });
+    },
+
+    annotateSave(slot: PlayerWritableSaveSlotIdV1, note: string) {
+      if (lifecycle !== "active") return Promise.resolve(faultedV1("runtime_disposed"));
+      if (!isPlayerWritableSaveSlotIdV1(slot) || !slotWithinCountV1(slot)) {
+        return Promise.resolve(faultedV1("persistence.invalid_slot"));
+      }
+      let normalizedNote: string | null;
+      try {
+        normalizedNote = parseSaveNoteV1(note);
+      } catch {
+        return Promise.resolve(rejectedV1("invalid_note"));
+      }
+      if (foregroundWrites > 0) return Promise.resolve(rejectedV1("busy"));
+      const fence = options.lease.captureFence();
+      if (fence === null) {
+        rememberFailureV1("unavailable");
+        return Promise.resolve(rejectedV1("unavailable"));
+      }
+      const acceptedAnchorEpoch = autoQueue.anchorEpoch();
+      foregroundWrites += 1;
+      return schedulePhysicalV1(async () => {
+        if (lifecycle !== "active") return faultedV1("runtime_disposed");
+        try {
+          const read = await options.repository.read(slot);
+          if (read.health === "empty") return rejectedV1("empty_slot");
+          if (read.health === "unavailable") {
+            rememberFailureV1(read.code);
+            return rejectedV1("unavailable");
+          }
+          if (read.health === "invalid") return rejectedV1("invalid_record");
+          const summary = read.record.annotation?.summary ?? null;
+          const stored = read.record as PersistenceSaveRecordV1<TSnapshot>;
+          const { annotation: _dropped, ...bare } = stored;
+          // Only the player note changes: snapshot, capture time, and the
+          // application summary are preserved byte-for-byte semantics.
+          const updated: PersistenceSaveRecordV1<TSnapshot> =
+            summary === null && normalizedNote === null
+              ? (bare as PersistenceSaveRecordV1<TSnapshot>)
+              : Object.freeze({
+                  ...bare,
+                  annotation: Object.freeze({ summary, note: normalizedNote }),
+                } as PersistenceSaveRecordV1<TSnapshot>);
+          const written = await options.repository.rewritePlayer(
+            slot,
+            Object.freeze({
+              hostRevision: read.hostRevision,
+              bytes: read.bytes,
+            }),
+            updated as DeepReadonly<PersistenceSaveRecordV1<TSnapshot>>,
+            fence,
+          );
+          if (written.kind === "rejected") {
+            if (written.code === "unavailable") await refreshLeaseStatusV1();
+            return repositoryRejectionV1(written.code);
+          }
+          const result = await verifyCommittedWriteV1(
+            written,
+            slot,
+            fence,
+            stored.slot.capturedCommandSequence,
+            () => {
+              const expected = options.validation.codec.recordSchema.parse({
+                ...updated,
+                recordRevision: written.recordRevision,
+              });
+              options.validation.codec.validateEnvelope(
+                expected as DeepReadonly<PersistenceSaveRecordV1<TSnapshot>>,
+              );
+              return expected as DeepReadonly<PersistenceSaveRecordV1<TSnapshot>>;
+            },
+          );
+          return result;
+        } catch {
+          return faultedV1();
+        }
+      })
+        .then((result) => {
+          if (acceptedAnchorEpoch === autoQueue.anchorEpoch()) {
+            if (result.kind === "saved") lastFailureCode = null;
             else if (result.kind === "rejected" || result.kind === "faulted") {
               rememberOperationFailureV1(result.code);
             }
@@ -1468,6 +1613,9 @@ function createStandardPersistenceServiceInternalV1<
       ...(options.autoSaveCapture === undefined
         ? {}
         : { autoSaveCapture: options.autoSaveCapture }),
+      ...(options.summarizeSave === undefined
+        ? {}
+        : { summarizeSave: options.summarizeSave.bind(options) }),
     },
     instrumentation,
   );

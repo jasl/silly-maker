@@ -389,6 +389,86 @@ describe("Save repository", () => {
     expect([4, 5]).toContain(final.health === "valid" ? final.record.snapshot.commandSequence : -1);
   });
 
+  it("conditionally rewrites only the exact Save record that was read", async () => {
+    const fixture = await createFixtureV1();
+    await fixture.repository.writePlayer("quick", makeRecordV1(1), fixture.fence);
+    const source = await fixture.repository.read("quick");
+    if (source.health !== "valid") throw new TypeError("expected a valid source Save");
+
+    await fixture.repository.writePlayer("quick", makeRecordV1(2), fixture.fence);
+    await expect(
+      fixture.repository.rewritePlayer(
+        "quick",
+        Object.freeze({
+          hostRevision: source.hostRevision,
+          bytes: source.bytes,
+        }),
+        makeRecordV1(3),
+        fixture.fence,
+      ),
+    ).resolves.toEqual({ kind: "rejected", code: "conflict" });
+    expectValidSequenceV1(await fixture.repository.read("quick"), 2);
+
+    const current = await fixture.repository.read("quick");
+    if (current.health !== "valid") throw new TypeError("expected a valid current Save");
+    const wrongBytes = Uint8Array.from(current.bytes);
+    wrongBytes[0] = (wrongBytes[0] ?? 0) ^ 1;
+    await expect(
+      fixture.repository.rewritePlayer(
+        "quick",
+        Object.freeze({
+          hostRevision: current.hostRevision,
+          bytes: wrongBytes,
+        }),
+        makeRecordV1(4),
+        fixture.fence,
+      ),
+    ).resolves.toEqual({ kind: "rejected", code: "conflict" });
+    expectValidSequenceV1(await fixture.repository.read("quick"), 2);
+  });
+
+  it("binds a successful conditional rewrite to its committed physical bytes", async () => {
+    const fixture = await createFixtureV1({ writeReceiptEvidence: true });
+    await fixture.repository.writePlayer("quick", makeRecordV1(1), fixture.fence);
+    const source = await fixture.repository.read("quick");
+    if (source.health !== "valid") throw new TypeError("expected a valid source Save");
+    const updated = recordSchemaV1.parse({
+      ...source.record,
+      annotation: { summary: null, note: "rewrite" },
+    });
+
+    const result = await fixture.repository.rewritePlayer(
+      "quick",
+      Object.freeze({
+        hostRevision: source.hostRevision,
+        bytes: source.bytes,
+      }),
+      updated,
+      fixture.fence,
+    );
+    expect(result).toEqual({
+      kind: "saved",
+      slotId: "quick",
+      recordRevision: 2,
+    });
+    const observed = await fixture.repository.read("quick");
+    if (result.kind !== "saved" || observed.health !== "valid") {
+      throw new TypeError("expected a verified conditional rewrite");
+    }
+    expect(observed.record.annotation).toEqual({ summary: null, note: "rewrite" });
+    expect(
+      matchesCommittedSaveWriteReceiptInternalV1(
+        fixture.repository,
+        result,
+        Object.freeze({
+          slotId: "quick",
+          recordRevision: result.recordRevision,
+          bytes: observed.bytes,
+        }),
+      ),
+    ).toBe(true);
+  });
+
   it("binds committed bytes to the exact repository and saved attempt only", async () => {
     const fixture = await createFixtureV1({ writeReceiptEvidence: true });
     const other = await createFixtureV1({ writeReceiptEvidence: true });

@@ -5,6 +5,7 @@ import type {
   NonNegativeSafeInteger,
   PatchSetAdoptionDeclarationV1,
   RuntimeSchemaV1,
+  SaveAnnotationV1,
   SaveCodecContextV1,
   SaveCompatibilityClassificationV1,
   SaveImportInvariantViewV1,
@@ -13,13 +14,13 @@ import type {
   SaveRecordEnvelopeV1,
   SimulationAdoptionV1,
 } from "@sillymaker/base";
+import { parseSaveAnnotationV1, parseSaveNoteV1, saveAnnotationLimitsV1 } from "@sillymaker/base";
 import {
   classifySaveCompatibilityV1,
   decodeSaveRecordV1,
   encodeSaveRecordV1,
   validateSaveImportCandidateV1,
 } from "@sillymaker/base/runtime";
-
 interface SyntheticStateV1 {
   readonly referenceId: string;
   readonly count: NonNegativeSafeInteger;
@@ -46,6 +47,13 @@ type SyntheticSaveRecordV1 = SaveRecordEnvelopeV1<
 declare const recordSchema: RuntimeSchemaV1<SyntheticSaveRecordV1>;
 declare const record: SyntheticSaveRecordV1;
 declare const classification: SaveCompatibilityClassificationV1;
+
+export const annotationLimits = saveAnnotationLimitsV1;
+export const parsedAnnotation: SaveAnnotationV1 = parseSaveAnnotationV1({
+  summary: ["Day 3"],
+  note: null,
+});
+export const parsedNote: string | null = parseSaveNoteV1("note");
 
 export const codec = {
   recordSchema,

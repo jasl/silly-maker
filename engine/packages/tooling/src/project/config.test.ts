@@ -34,7 +34,6 @@ function webApplicationV1(applicationId: string): StoryApplicationConfigV1 {
         createPluginExport: "createPocBuildIdentityVirtualPluginV1",
       },
     },
-    releaseArtifact: true,
   };
 }
 
@@ -46,7 +45,6 @@ function headlessApplicationV1(applicationId: string): StoryApplicationConfigV1 
     assetVerification: false,
     simulate: { module: `examples/${applicationId}/src/target.ts`, exportName: "createV1" },
     web: null,
-    releaseArtifact: false,
   };
 }
 
@@ -140,7 +138,6 @@ describe("application and workspace config validation", () => {
       assetVerification: "yes",
       simulate: null,
       web: null,
-      releaseArtifact: false,
     } as unknown as Parameters<typeof defineSillymakerAppV1>[0];
 
     expect(diagnosticsOf(() => defineSillymakerAppV1(invalid))).toMatchObject([
@@ -161,7 +158,6 @@ describe("application and workspace config validation", () => {
         identity: null,
         desktop: { name: "Synthetic", identifier: "dev.sillymaker.synthetic" },
       },
-      releaseArtifact: false,
     } as const;
     expect(
       diagnosticsOf(() =>
@@ -325,7 +321,6 @@ describe("application and workspace config validation", () => {
         sourcemap: false,
         identity: null,
       },
-      releaseArtifact: false,
     } as const;
 
     expect(
@@ -377,7 +372,6 @@ describe("application and workspace config validation", () => {
         identity: null,
         desktop: { name: "Synthetic", identifier: "dev.sillymaker.synthetic" },
       },
-      releaseArtifact: false,
     } as const;
 
     for (const name of ["COM\u00b9", "LPT\u00b2.log"]) {
@@ -401,7 +395,6 @@ describe("application and workspace config validation", () => {
       assetVerification: true,
       simulate: null,
       web: null,
-      releaseArtifact: false,
     } as const;
     expect(diagnosticsOf(() => deriveStoryApplicationV1("../outside", config))).toMatchObject([
       { code: "project.config_invalid" },

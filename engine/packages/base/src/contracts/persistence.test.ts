@@ -5,7 +5,10 @@ import { digestBytes } from "./digest.ts";
 import {
   createSaveRecordEnvelopeSchemaV1,
   exportedSaveSchemaV1,
+  parseSaveAnnotationV1,
+  parseSaveNoteV1,
   SaveRecordEnvelopeSchemaFailureV1,
+  saveAnnotationLimitsV1,
   saveJsonLimitsV1,
   sessionLeaseStatusSchemaV1,
 } from "./persistence.ts";
@@ -83,6 +86,17 @@ describe("persistence contracts", () => {
     expect(() => schema.parse({ ...valid, savedAt: "2026-07-12" })).toThrow();
     expect(Object.isFrozen(schema.parse(valid))).toBe(true);
 
+    // Annotation is additive-optional: legacy records (absent) and annotated
+    // records both parse; a malformed annotation still fails closed.
+    const annotated = {
+      ...valid,
+      annotation: { summary: ["3日目 19:30", "信赖 25"], note: "存主线前" },
+    };
+    expect(schema.parse(annotated)).toEqual(annotated);
+    expect(schema.parse(valid)).not.toHaveProperty("annotation");
+    expect(() => schema.parse({ ...valid, annotation: null })).toThrow();
+    expect(() => schema.parse({ ...valid, annotation: { summary: null, note: null } })).toThrow();
+
     for (const [value, code] of [
       [{ ...valid, formatRevision: 2 }, "envelope.unsupported_revision"],
       [{ ...valid, stateDigest: "not-a-digest" }, "digest.invalid_format"],
@@ -96,6 +110,48 @@ describe("persistence contracts", () => {
       }
     }
     expect(() => schema.parse({ ...valid, formatRevision: 0 })).toThrow(TypeError);
+  });
+
+  it("bounds Save annotations and normalizes player notes", () => {
+    expect(saveAnnotationLimitsV1).toEqual({
+      maxSummaryLines: 8,
+      maxSummaryLineLength: 120,
+      maxNoteLength: 64,
+    });
+
+    const annotation = parseSaveAnnotationV1({ summary: ["line 1"], note: null });
+    expect(annotation).toEqual({ summary: ["line 1"], note: null });
+    expect(Object.isFrozen(annotation)).toBe(true);
+    expect(parseSaveAnnotationV1({ summary: null, note: "note" })).toEqual({
+      summary: null,
+      note: "note",
+    });
+
+    expect(() => parseSaveAnnotationV1({ summary: [], note: null })).toThrow();
+    expect(() => parseSaveAnnotationV1({ summary: Array(9).fill("x"), note: null })).toThrow();
+    expect(() => parseSaveAnnotationV1({ summary: ["a\nb"], note: null })).toThrow();
+    expect(() => parseSaveAnnotationV1({ summary: ["x".repeat(121)], note: null })).toThrow();
+    const sparseSummary = Array<string>(1);
+    expect(() => parseSaveAnnotationV1({ summary: sparseSummary, note: null })).toThrow();
+    const accessorSummary = ["line"];
+    Object.defineProperty(accessorSummary, "0", {
+      enumerable: true,
+      configurable: true,
+      get: () => "accessed",
+    });
+    expect(() => parseSaveAnnotationV1({ summary: accessorSummary, note: null })).toThrow();
+    expect(() => parseSaveAnnotationV1({ summary: null, note: "x".repeat(65) })).toThrow();
+    expect(() => parseSaveAnnotationV1({ summary: null, note: "   " })).toThrow();
+    expect(() => parseSaveAnnotationV1({ summary: null, note: " note " })).toThrow();
+    expect(() => parseSaveAnnotationV1({ summary: null, note: null })).toThrow();
+    expect(() => parseSaveAnnotationV1({ summary: null })).toThrow();
+
+    expect(parseSaveNoteV1("  ")).toBeNull();
+    expect(parseSaveNoteV1(" 备注 ")).toBe("备注");
+    // Astral characters count as one: 32 emoji fit inside the 64 cap.
+    expect(parseSaveNoteV1("😀".repeat(32))).toBe("😀".repeat(32));
+    expect(() => parseSaveNoteV1("😀".repeat(65))).toThrow();
+    expect(() => parseSaveNoteV1("a\u0007b")).toThrow();
   });
 
   it("freezes the reviewed Save limits", () => {

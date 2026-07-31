@@ -50,12 +50,22 @@ export interface SystemDialogSavesV1 {
   readonly guard?: SaveOverlayGuardV1;
 }
 
+export interface SystemDialogCustomSavesRenderIntentsV1 {
+  close(): void;
+}
+
+export interface SystemDialogCustomSavesV1 {
+  readonly kind: "custom";
+  readonly accessibleName: string;
+  render(intents: SystemDialogCustomSavesRenderIntentsV1): ReactNode;
+}
+
 export interface SystemDialogHostPropsV1 {
   readonly store?: SystemDialogSessionStoreV1;
   readonly inputRouter: InputRouterV1;
   readonly settings: SystemDialogSettingsV1;
   /** Enables the system Save dialog; absent when the Host has no persistence. */
-  readonly saves?: SystemDialogSavesV1;
+  readonly saves?: SystemDialogSavesV1 | SystemDialogCustomSavesV1;
   readonly children: ReactNode;
 }
 
@@ -66,6 +76,19 @@ export interface SystemDialogControllerV1 {
 }
 
 const SystemDialogContextV1 = createContext<SystemDialogControllerV1 | null>(null);
+
+function isCustomSavesV1(
+  saves: SystemDialogSavesV1 | SystemDialogCustomSavesV1,
+): saves is SystemDialogCustomSavesV1 {
+  return "kind" in saves && saves.kind === "custom";
+}
+
+function SystemDialogCustomSavesContentV1(props: {
+  readonly saves: SystemDialogCustomSavesV1;
+  readonly intents: SystemDialogCustomSavesRenderIntentsV1;
+}): ReactElement {
+  return <>{props.saves.render(props.intents)}</>;
+}
 
 export function useSystemDialogControllerV1(): SystemDialogControllerV1 {
   const controller = useContext(SystemDialogContextV1);
@@ -163,6 +186,9 @@ export function SystemDialogHostV1(props: SystemDialogHostPropsV1): ReactElement
   );
   const position = portalContainer === null ? "fixed" : "absolute";
   const saves = props.saves;
+  const customSaves = saves !== undefined && isCustomSavesV1(saves) ? saves : undefined;
+  const standardSaves = saves !== undefined && !isCustomSavesV1(saves) ? saves : undefined;
+  const customSavesIntents = useMemo(() => Object.freeze({ close: closeDialog }), [closeDialog]);
 
   return (
     <SystemDialogContextV1.Provider value={controller}>
@@ -183,9 +209,11 @@ export function SystemDialogHostV1(props: SystemDialogHostPropsV1): ReactElement
               className={styles["blocking-dialog__content"]}
               data-blocking-focus-scope="system"
               data-system-surface={surface}
-              {...(surface === "saves" && saves !== undefined
-                ? { "aria-label": saves.labels.accessibleName }
-                : {})}
+              {...(surface === "saves" && standardSaves !== undefined
+                ? { "aria-label": standardSaves.labels.accessibleName }
+                : surface === "saves" && customSaves !== undefined
+                  ? { "aria-label": customSaves.accessibleName }
+                  : {})}
               aria-describedby={undefined}
               style={{ position }}
               onEscapeKeyDown={(event) => {
@@ -195,12 +223,17 @@ export function SystemDialogHostV1(props: SystemDialogHostPropsV1): ReactElement
             >
               {surface === "settings" ? (
                 <SettingsDialogContentV1 {...props.settings} />
-              ) : saves === undefined ? null : (
+              ) : customSaves !== undefined ? (
+                <SystemDialogCustomSavesContentV1
+                  saves={customSaves}
+                  intents={customSavesIntents}
+                />
+              ) : standardSaves === undefined ? null : (
                 <SaveOverlayV1
-                  port={saves.port}
-                  labels={saves.labels}
+                  port={standardSaves.port}
+                  labels={standardSaves.labels}
                   inputRouter={props.inputRouter}
-                  {...(saves.guard === undefined ? {} : { guard: saves.guard })}
+                  {...(standardSaves.guard === undefined ? {} : { guard: standardSaves.guard })}
                   onClose={closeDialog}
                   closeLabel={props.settings.closeLabel}
                 />

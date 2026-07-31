@@ -61,6 +61,12 @@ timing、机器型号或一次性 browser 数值设为 CI 硬门。
   authority owner，因此不是完整 authoritative closure；
 - 现有 browser suite 有 Chromium/WebKit，prebuilt 只有 Chromium，没有 Firefox
   或跨 project 的逐 command evidence comparison。
+- Persistence 已接受可选的 Story-owned `summarizeSave(state)` projector。它的
+  normalized output 是 durable Save annotation，会改变 Save/export bytes，但不改变
+  Snapshot `stateDigest`、CommandLog、replay 或 gameplay transition。projector 对每个
+  实际写入 candidate 只 capture 一次，返回数组立即 copy/freeze；null 与 empty 都表示
+  “无 summary”。PF1 的 unannotated byte oracle 仍有效，但还没有 promoted
+  cross-runtime summary/annotated-Save vector。
 
 这些是计划 baseline，不等于 guardrail 已实现。
 
@@ -75,6 +81,7 @@ DET0
   -> DET2b
   -> DET2c
   -> DET2d
+  -> DET2e
   -> DET3a
   -> DET3b
   -> DET4
@@ -108,7 +115,18 @@ Playwright config 或 Save schema 的切片并行合并。
 7. command classes：no-draw commit、RNG commit、rejected、faulted；
 8. 当前 managed simulation closure、实际 Story callback owner、template 与
    engine authority entry，以及合法 Host/Presentation negative controls；
-9. 当前 Deno 与已安装 browser 的 per-command trace shape。
+   同时固定 Content Database authoritative `orderBy` 和 Game Authoring Kit
+   transaction/apply ordering 当前使用 locale-default
+   `String.prototype.localeCompare` 的路径，以及 Event Pool 对 invalid context
+   number / `totalWeight` safe-integer overflow 的当前处理；枚举仓库其余
+   `localeCompare` callsite，并逐项分类它是否影响 authoritative callback/order、
+   bytes、stable diagnostics，还是只属于 Host/Presentation/tooling/test negative
+   control；
+9. 当前 Deno 与已安装 browser 的 per-command trace shape；
+10. durable Save projector characterization：无 projector、null、empty、valid、
+    malformed 与 throw 的 `summarizeSave`，以及 callback count、normalized frozen
+    copy、fixed-state/fixed-metadata-clock Save bytes、standard receipt 与 opaque
+    repository fallback equivalence。
 
 DET0 可以加入 package-internal/test-only observation，但不改变 production
 behavior、public API、canonical algorithm 或 schema。JSON 输出只写 OS temp/CI
@@ -144,6 +162,12 @@ source。若 `story.ts` 同时拖入 Presentation/React，先拆出 dedicated
 simulation-definition entry，不能把整棵 UI closure 当作 authoritative
 scope。每次 guard 运行都重新收集 live closure，不缓存文件清单。
 
+同一 authority map 必须把每个已配置的 `summarizeSave` owner 与 Base invocation
+boundary 归类为 durable deterministic projection path。若 projector 与
+React/Presentation composition 共置，先提取 dedicated save-projection entry，不能把
+整棵 renderer closure 纳入 authoritative scope。玩家 note 是 persistence
+metadata/input，不是 authoritative simulation callback。
+
 ### Acceptance
 
 - characterization test 能在当前实现上稳定证明四类真实缺口：raw/mutable bootstrap
@@ -164,7 +188,12 @@ scope。每次 guard 运行都重新收集 live closure，不缓存文件清单�
   Snapshot/RNG/sequence 与 CommandLog 现状被逐字段固定；若 DET2b 不能在不改
   public shape 的前提下保留该合同，触发 fault stop rule；
 - authority map 覆盖 simulation、rules/handlers、module `propose/apply`、
-  authoritative Narrative/debug callbacks 与未来 migration entry；
+  authoritative Narrative/debug callbacks、current durable Save projector 与当前已
+  注册 migration entry；PF3 新增真实 migrator 时再由 PF3 注册该 callback 并扩 corpus；
+- `localeCompare` inventory 覆盖全部 live callsite；任何影响 authoritative
+  apply/order、bytes 或 stable diagnostics 的 callsite 都有 fixed input/output
+  characterization 并明确归入 DET2e，只有证明不在 authoritative closure 的
+  Host/Presentation/tooling/test callsite 才能作为 negative control；
 - Host entropy、Presentation clock、tooling/bench 不被误分类；
 - 每个后续 slice 都有明确 before count/behavior；
 - 保留并复用 PF1 S0 的独立 byte oracle：现有固定 hashes 与对优化前 archive
@@ -212,8 +241,19 @@ replay。由用户决定保留旧零流、声明不兼容或建立新的显式�
 - 覆盖 branded numeric `0 as NonZeroUint32` 的 runtime bypass；
 - 构造 stateDigest 正确但 `cursor: 0` 的 raw Save，覆盖 load/import 的稳定
   diagnostic classification、原子拒绝与 live Session 不变；
+- 把同一份 correctly-digested fixed zero-state Save bytes 写入 `auto.current`，以
+  `resumeFromAutosave` 走完整 Core boot-resume integration；构造必须继续使用 fresh
+  bootstrap Snapshot/digest/RNG/sequence，Session 保持 ready，CommandLog 为空且
+  replay base 仍是 fresh bootstrap，lease/persistence ownership 与 anchor
+  可继续使用，并在 boot 有意不向玩家暴露 load rejection 的同时由 diagnostics
+  保留与显式 load/import 相同的 stable invalid-RNG classification；不得产生 physical
+  Save write 或安装 zero-state candidate；
 - 覆盖 zero-state replay anchor / debug-anchor 拒绝，以及 rejection/fault
   rollback；
+- 用独立 fixed bytes/SHA 固定 zero-state Save 与 debug-anchor 输入，并逐入口锁定
+  first failing phase、stable diagnostic、returned result 与 live
+  Snapshot/RNG/sequence/CommandLog 不变；`auto.current` boot-resume 必须复用同一
+  fixed Save oracle，不得在 DET1 green 后重生成这些输入；
 - 覆盖 valid resume、load/import、replay 与 debug-anchor；
 - valid corpus 的 RNG/CommandLog/Snapshot/Save bytes 完全相等；
 - 不改变 algorithm ID、draw order、trace shape 或 Save envelope。
@@ -232,6 +272,8 @@ replay。由用户决定保留旧零流、声明不兼容或建立新的显式�
   gate；标准 Core composition 另外执行 Story command schema
   normalization。test/bench injection 只能观察/counter，不得替换或绕过
   admission。
+- public `createGameSessionV1` 直接构造路径也必须执行 canonical admission；不得因
+  绕开 standard Core composition 而保留 permissive bypass。
 
 ### Required tests
 
@@ -390,7 +432,56 @@ template 都必须覆盖；任何合法 bytes divergence 先触发 stop rule。
 revision、改变合法 initial Snapshot/Save bytes，或发现维护中的 Story 依赖 mutable /
 non-canonical bootstrap，停止并提交 contract decision，不能静默收紧后重写 fixture。
 
-## 10. DET3a — Import-closure-aware static guard
+## 10. DET2e — Bounded authoritative helpers
+
+### Changes
+
+收紧两条已经进入 live Base、但尚未满足 accepted deterministic numeric contract 的
+通用 helper：
+
+- Event Pool 在 condition/context admission 时拒绝 fractional、non-finite、
+  unsafe integer 与 `-0`；无论 ordinary draw 或 forced selection，累加每个 eligible
+  weight 时都检查 safe-integer overflow，并在调用 RNG 或返回 explanation 前
+  fail closed；
+- Content Database 数值排序不使用可能越过 safe-integer 的 subtraction comparator；
+  字符串排序改用明确的 canonical code-unit comparator，不调用
+  locale-default `localeCompare`、`Intl` 或 Host locale。
+- Game Authoring Kit staged transaction 的 module/apply order 使用同一明确的
+  canonical code-unit semantics；owner `apply`、facts 聚合、candidate Snapshot 与
+  CommandLog/replay evidence 不再由 Host locale 决定。
+- 按 DET0 inventory 处理其余 `localeCompare`：凡是影响 authoritative callback
+  order、authoritative bytes 或 stable diagnostics 的 callsite，都在本切片改为有
+  fixed vector 的 canonical code-unit comparator；只有已证明位于
+  Host/Presentation/tooling/test negative-control closure 的 callsite 才保持原状。
+
+本切片不新增通用 numeric package、collator、自然语言排序或 locale-aware 内容 API。
+若 Story 需要玩家可见的本地化排序，它属于 Presentation projection，不能反向成为
+authoritative row order。
+
+### TDD and acceptance
+
+- Event Pool 覆盖 invalid context number、单个合法权重、逐步 overflow、forced 与
+  ordinary draw；所有失败都在 RNG draw 前发生，不返回 unsafe `totalWeight`，合法
+  explanation/fact/RNG vector byte-identical；
+- Content Database 覆盖 safe-integer 极值、ASCII、非 ASCII、大小写和 canonically
+  equivalent-but-distinct strings，固定中性 expected order，不从
+  `localeCompare`/`Intl.Collator` 生成 oracle；
+- transaction/apply vector 使用顺序敏感的 module IDs 与不同 owner
+  proposals，逐项固定 `apply` call order、facts order、candidate Snapshot、
+  CommandLog 与 replay evidence；expected 不从 `localeCompare` 或当前 Host
+  locale 生成；
+- 每个被归类为 authoritative bytes/stable diagnostics 的其余 callsite 都有
+  focused fixed vector；DET3a 启用 hard rule 前，authoritative closure 中不再遗留
+  locale-default comparator；
+- DET2e 把 order/draw/apply vectors 落成可复用的 pure runner，并只在 Deno 对 fixed
+  expected 执行断言；本切片不创建 Playwright config、安装 browser 或把 DET4
+  browser evidence 作为自身 acceptance；
+- 当前 registered Stories、PF1 oracle 与 maintained valid corpus 的
+  Save/replay/diagnostic bytes 保持相等。若某个维护中的消费者依赖
+  locale-default ordering，停止并提交 compatibility decision，不能重生成 golden；
+- 不改变 public shape、canonical JSON 或 digest algorithm。
+
+## 11. DET3a — Import-closure-aware static guard
 
 ### Implementation direction
 
@@ -408,6 +499,9 @@ non-canonical bootstrap，停止并提交 contract decision，不能静默收紧
 - Story-owned `createBootstrapInput` callback owner 必须保留在 collected closure；
   checker 只对该函数中以已验证 `BootstrapEntropyV1` 参数为根的 capability 调用给予窄
   allowance，不能排除整个 source，也不能允许该函数直接访问 ambient provider；
+- 已配置的 Story-owned `summarizeSave` owner 必须保留在 collected closure；projector
+  只消费 immutable State，同一 State 必须得到同一 normalized summary，且不得读取
+  ambient clock/random/network/environment/locale/DOM；
 - PF-DET 先用 synthetic repo-local callback 冻结“追加显式 authority entry”的
   tooling contract；它只是 test fixture，不创建 production migration registry
   或未来文件清单。PF3 注册真实 migrator 时必须 live recollect、复用该入口并扩展
@@ -441,7 +535,7 @@ non-canonical bootstrap，停止并提交 contract decision，不能静默收紧
 - `fetch`、`XMLHttpRequest`、`WebSocket` 与直接 LLM/network client；
 - `Deno.env`、`process.env`；
 - `navigator.language` / `navigator.languages`、locale-default `Intl` /
-  `toLocale*`；
+  `toLocale*` / `String.prototype.localeCompare`；
 - DOM/document/window storage 读取；
 - 直接 import 已知 ambient entropy、clock、network 或 environment provider。
 
@@ -470,7 +564,7 @@ vector test，不能 whole-file disable。
 - diagnostics 有 stable code、file/line/column 与修复方向；
 - no exact Deno patch/browser revision attestation。
 
-## 11. DET3b — Test-only isolated ambient tripwire
+## 12. DET3b — Test-only isolated ambient tripwire
 
 ### Changes
 
@@ -489,21 +583,23 @@ patch/restore，也不得把 Simulation production runtime 重写为 Worker。�
 runtime 只 patch 其中实际存在的 API；缺失的 global 必须由 probe 证明访问会
 稳定失败，不能把“该 runtime 没有此 API”记为 skipped coverage。
 
-本切片同时建立共享的 dedicated determinism Playwright config/task 与
-production-check CI job，按 lock 中的 Playwright 版本显式安装
-Chromium/Firefox/WebKit 并运行 tripwire matrix。普通 `deno task check`
-保持 browser-free；DET4 只扩展同一 substrate，不另建第二套 config/job。
+本切片建立 isolated tripwire contract 与 browser-executable test driver，但不
+provision 四 runtime dependency matrix。DET4 负责 dedicated determinism
+Playwright config/task、browser 安装与 production-check CI job，并在每个 browser
+运行同一个 tripwire driver。普通 `deno task check` 保持 browser-free。
 
 ### Acceptance
 
 - intentional direct ambient call 被稳定归类；
 - guard 无法安装时返回 `tripwire_unavailable` 并失败，不 silently skip；
 - test driver 证明没有加载 Web Host/Presentation bootstrap；
-- Deno、Chromium、Firefox、WebKit 各自验证可用性；
+- Deno isolated realm 验证 guard availability；browser guard
+  installation/descriptor 行为具有 pure harness contract，等待 DET4 的真实 browser
+  matrix 验证；
 - 普通 Host/bootstrap/browser E2E 不受影响；
 - 文档明确它是 test probe，不是 security boundary。
 
-## 12. DET4 — Four-runtime per-command parity
+## 13. DET4 — Four-runtime per-command parity
 
 ### Driver and matrix
 
@@ -521,9 +617,12 @@ transcript 至少包含：
 5. replay verification。
 
 driver/comparator 还要提供可复用的 pure authoritative vector seam；PF-DET 用
-synthetic normalization callback 证明 shape；PF3 M1/M2 每次注册真实
-format/State migration 时，再把对应 vector 接入同一 Deno/browser matrix。PF-DET
-不伪造尚不存在的 migration registry。
+synthetic normalization callback 证明 shape，并以 fixed State、fixed metadata
+clock 的 `summarizeSave` vector 比较 normalized summary 与 annotated Save bytes；
+DET4 还必须直接消费 DET2e 已在 Deno 固定的 exact order/draw/apply vectors，不得在
+browser path 复制或重生成 expected。PF3 M1/M2 每次注册真实 format/State migration
+时，再把对应 vector 接入同一 Deno/browser matrix。PF-DET 不伪造尚不存在的
+migration registry。
 
 同一 driver/compact expected vector 在：
 
@@ -532,10 +631,11 @@ format/State migration 时，再把对应 vector 接入同一 Deno/browser matri
 - Firefox；
 - WebKit
 
-执行。浏览器复用 DET3b 已建立的独立 determinism Playwright config/task，不把
-Firefox 强塞进全部 UI suite。本切片扩展同一个 production-check CI job 运行 parity
-matrix；仓库在 DET3b 前只有 Pages deployment workflow，不能把 general CI
-当作既有前提。缺 browser 是环境 blocker，不能 skip 后报绿。
+执行。本切片建立独立 determinism Playwright config/task 与 production-check CI
+job，按 locked Playwright version 安装 Chromium/Firefox/WebKit，并同时运行 DET3b
+tripwire 与 parity matrix；不把 Firefox 强塞进全部 UI suite。仓库当前只有 Pages
+deployment workflow，不能把 general CI 当作既有前提。缺 browser 是环境 blocker，
+不能 skip 后报绿。
 
 ### Per-command comparison
 
@@ -553,6 +653,8 @@ Snapshot、只比 V8 两端或只跑 Chromium 都不算完成。
 ### Acceptance
 
 - 四 runtime 逐 command compact vector 与各自 repeat 全相等；
+- DET2e 的 exact Event Pool、Content Database 与 transaction/apply pure vectors
+  使用同一 fixed expected 在 Deno、Chromium、Firefox、WebKit 全相等；
 - production Browser Agent 仍不获得 raw Snapshot/RNG/CommandLog；
 - 不提交 raw local report、browser cache 或一次性 transcript JSON；
 - focused Deno test、dedicated browser task、`deno task test` 与
@@ -560,7 +662,7 @@ Snapshot、只比 V8 两端或只跑 Chromium 都不算完成。
 - PF7/CI 将 dedicated matrix 作为 production promotion evidence，但普通
   `deno task check` 不因本机未安装全部 browser 而隐式下载或静默 skip。
 
-## 13. Deferred work
+## 14. Deferred work
 
 本计划不实现：
 
@@ -580,7 +682,7 @@ Snapshot、只比 V8 两端或只跑 Chromium 都不算完成。
 Decimal 只有在 design 的 activation gates 达到后才单独立项，首选 content
 compiler/authoring adapter。
 
-## 14. Validation and promotion record
+## 15. Validation and promotion record
 
 每个 slice 按顺序：
 

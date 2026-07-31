@@ -36,6 +36,10 @@ import type {
   RuntimeSchemaV1,
 } from "../../contracts/values.ts";
 import { parseNonNegativeSafeInteger, parsePositiveSafeInteger } from "../../contracts/values.ts";
+import {
+  createSnapshotWorkCounterV1,
+  type SnapshotWorkInstrumentationV1,
+} from "../../internal/snapshot-work-instrumentation.ts";
 import type {
   AuthoritativeOutcomeV1,
   GameSessionRuntimeControlV1,
@@ -43,7 +47,10 @@ import type {
 import { createGameSessionV1 } from "../session/game-session.ts";
 import { classifySaveCompatibilityV1 } from "./compatibility.ts";
 import { decodeSaveRecordV1, encodeSaveRecordV1 } from "./save-codec.ts";
-import { createPersistenceServiceV1 } from "./persistence-service.ts";
+import {
+  createInstrumentedPersistenceServiceV1,
+  createPersistenceServiceV1,
+} from "./persistence-service.ts";
 import { createSaveRepositoryV1 } from "./save-repository.ts";
 import type { SaveRepositorySlotMetadataV1, SaveRepositoryV1 } from "./save-repository.ts";
 import { createSessionLeaseV1 } from "./session-lease.ts";
@@ -410,6 +417,7 @@ interface FixtureOptionsV1 {
   readonly adoptionDeclaration?: PatchSetAdoptionDeclarationV1 | null;
   readonly initialLineage?: readonly SimulationAdoptionV1[];
   readonly failReplacementCommit?: boolean;
+  summarizeSave?(state: DeepReadonly<SyntheticStateV1>): readonly string[] | null;
   decorateRepository?(
     repository: SaveRepositoryV1<SyntheticSaveRecordV1>,
     lease: SessionLeaseV1,
@@ -474,6 +482,7 @@ async function fixtureV1(options: FixtureOptionsV1 = {}) {
     ...(options.leaseAcquisition === undefined
       ? {}
       : { leaseAcquisition: options.leaseAcquisition }),
+    ...(options.summarizeSave === undefined ? {} : { summarizeSave: options.summarizeSave }),
   });
   return Object.freeze({
     ...created,
@@ -1925,10 +1934,17 @@ describe("PersistenceService standard composition", () => {
     provenance: { resolved: { patchSet: { [key: string]: unknown } } };
   }
 
-  async function standardFixtureV1(provenance: BuildProvenanceV1 = provenanceV1()) {
+  async function standardFixtureV1(
+    provenance: BuildProvenanceV1 = provenanceV1(),
+    options: {
+      summarizeSave?(state: DeepReadonly<SyntheticStateV1>): readonly string[] | null;
+      readonly instrumentation?: SnapshotWorkInstrumentationV1;
+      readonly wrapRepositoryForWriteReceiptFallback?: boolean;
+    } = {},
+  ) {
     const records = createMemoryHostRecordStoreV1();
     const created = createSessionV1(snapshotV1(0));
-    const service = await createPersistenceServiceV1({
+    const serviceOptions = {
       runtimeControl: created.runtimeControl,
       records,
       snapshotSchema: snapshotSchemaV1,
@@ -1944,7 +1960,18 @@ describe("PersistenceService standard composition", () => {
       initialSimulationLineage: Object.freeze([]),
       metadataClock: Object.freeze({ now: () => "2026-07-14T12:00:00.000Z" as IsoUtcInstant }),
       exportFilename: "standard-save.json",
-    });
+      ...(options.summarizeSave === undefined ? {} : { summarizeSave: options.summarizeSave }),
+    };
+    const service =
+      options.instrumentation === undefined
+        ? await createPersistenceServiceV1(serviceOptions)
+        : await createInstrumentedPersistenceServiceV1(
+            serviceOptions,
+            options.instrumentation,
+            options.wrapRepositoryForWriteReceiptFallback === true
+              ? { wrapRepositoryForWriteReceiptFallback: true }
+              : undefined,
+          );
     return Object.freeze({ records, ...created, service });
   }
 
@@ -2026,6 +2053,123 @@ describe("PersistenceService standard composition", () => {
     await fixture.service.autoSaveIdle();
   });
 
+  it("passes one normalized summary through optimized and receipt-fallback standard paths", async () => {
+    const optimizedCounter = createSnapshotWorkCounterV1();
+    const fallbackCounter = createSnapshotWorkCounterV1();
+    let optimizedCalls = 0;
+    let fallbackCalls = 0;
+    const optimized = await standardFixtureV1(provenanceV1(), {
+      instrumentation: optimizedCounter.instrumentation,
+      summarizeSave: () => {
+        optimizedCalls += 1;
+        return ["summary"];
+      },
+    });
+    const fallback = await standardFixtureV1(provenanceV1(), {
+      instrumentation: fallbackCounter.instrumentation,
+      wrapRepositoryForWriteReceiptFallback: true,
+      summarizeSave: () => {
+        fallbackCalls += 1;
+        return ["summary"];
+      },
+    });
+    optimizedCounter.reset();
+    fallbackCounter.reset();
+
+    await expect(optimized.service.port.save("quick")).resolves.toEqual({
+      kind: "saved",
+      slotId: "quick",
+    });
+    await expect(fallback.service.port.save("quick")).resolves.toEqual({
+      kind: "saved",
+      slotId: "quick",
+    });
+    expect(optimizedCalls).toBe(1);
+    expect(fallbackCalls).toBe(1);
+    expect(optimizedCounter.snapshot()).toEqual({
+      canonicalTraversals: 3,
+      canonicalDigests: 2,
+      deepFreezeTraversals: 0,
+      commandLogContinuityVerifications: 0,
+      saveCanonicalSerializations: 1,
+      strictJsonParses: 1,
+      strictJsonPreflights: 0,
+    });
+    expect(fallbackCounter.snapshot()).toEqual({
+      canonicalTraversals: 5,
+      canonicalDigests: 3,
+      deepFreezeTraversals: 0,
+      commandLogContinuityVerifications: 0,
+      saveCanonicalSerializations: 2,
+      strictJsonParses: 1,
+      strictJsonPreflights: 0,
+    });
+    const key = createSaveSlotRecordKeyV1(storyIdV1, "quick");
+    expect((await optimized.records.read("save", key))?.bytes).toEqual(
+      (await fallback.records.read("save", key))?.bytes,
+    );
+    await Promise.all([optimized.service.autoSaveIdle(), fallback.service.autoSaveIdle()]);
+  });
+
+  it("keeps annotation bytes equivalent while measuring receipt and fallback work", async () => {
+    const optimizedCounter = createSnapshotWorkCounterV1();
+    const fallbackCounter = createSnapshotWorkCounterV1();
+    let optimizedSummaryCalls = 0;
+    let fallbackSummaryCalls = 0;
+    const optimized = await standardFixtureV1(provenanceV1(), {
+      instrumentation: optimizedCounter.instrumentation,
+      summarizeSave: () => {
+        optimizedSummaryCalls += 1;
+        return ["summary"];
+      },
+    });
+    const fallback = await standardFixtureV1(provenanceV1(), {
+      instrumentation: fallbackCounter.instrumentation,
+      wrapRepositoryForWriteReceiptFallback: true,
+      summarizeSave: () => {
+        fallbackSummaryCalls += 1;
+        return ["summary"];
+      },
+    });
+    await Promise.all([optimized.service.port.save("quick"), fallback.service.port.save("quick")]);
+    optimizedCounter.reset();
+    fallbackCounter.reset();
+
+    await expect(optimized.service.port.annotateSave("quick", "note")).resolves.toEqual({
+      kind: "saved",
+      slotId: "quick",
+    });
+    await expect(fallback.service.port.annotateSave("quick", "note")).resolves.toEqual({
+      kind: "saved",
+      slotId: "quick",
+    });
+    expect(optimizedSummaryCalls).toBe(1);
+    expect(fallbackSummaryCalls).toBe(1);
+    expect(optimizedCounter.snapshot()).toEqual({
+      canonicalTraversals: 4,
+      canonicalDigests: 3,
+      deepFreezeTraversals: 0,
+      commandLogContinuityVerifications: 0,
+      saveCanonicalSerializations: 1,
+      strictJsonParses: 2,
+      strictJsonPreflights: 0,
+    });
+    expect(fallbackCounter.snapshot()).toEqual({
+      canonicalTraversals: 6,
+      canonicalDigests: 4,
+      deepFreezeTraversals: 0,
+      commandLogContinuityVerifications: 0,
+      saveCanonicalSerializations: 2,
+      strictJsonParses: 2,
+      strictJsonPreflights: 0,
+    });
+    const key = createSaveSlotRecordKeyV1(storyIdV1, "quick");
+    expect((await optimized.records.read("save", key))?.bytes).toEqual(
+      (await fallback.records.read("save", key))?.bytes,
+    );
+    await Promise.all([optimized.service.autoSaveIdle(), fallback.service.autoSaveIdle()]);
+  });
+
   it("rejects loading a stored record whose slot identity was tampered", async () => {
     const fixture = await standardFixtureV1();
     await fixture.session.dispatch({ kind: "increment" });
@@ -2088,6 +2232,348 @@ describe("PersistenceService standard composition", () => {
       code: "invalid_record",
     });
     expect(fixture.session.getCurrentSnapshot().commandSequence).toBe(1);
+    await fixture.service.autoSaveIdle();
+  });
+
+  it("captures the application summary into saves and lists it as annotation", async () => {
+    const fixture = await fixtureV1({
+      summarizeSave: (state) => Object.freeze([`count ${String(state.count)}`, "line 2"]),
+    });
+    await fixture.session.dispatch({ kind: "increment" });
+    await expect(fixture.service.port.save("quick")).resolves.toEqual({
+      kind: "saved",
+      slotId: "quick",
+    });
+
+    const slots = await fixture.service.port.listSlots();
+    const quick = slots.find((slot) => slot.slotId === "quick");
+    expect(quick?.annotation).toEqual({ summary: ["count 1", "line 2"], note: null });
+
+    // Saves without a projector keep records annotation-free.
+    const bare = await fixtureV1();
+    await expect(bare.service.port.save("quick")).resolves.toMatchObject({ kind: "saved" });
+    const bareSlots = await bare.service.port.listSlots();
+    expect(bareSlots.find((slot) => slot.slotId === "quick")?.annotation).toBeNull();
+    await fixture.service.autoSaveIdle();
+    await bare.service.autoSaveIdle();
+  });
+
+  it("captures one immutable summary value and treats an empty summary as absent", async () => {
+    const delayed = createDelayedSaveStoreV1();
+    const projected = ["capture value"];
+    let calls = 0;
+    const fixture = await fixtureV1({
+      records: delayed.records,
+      summarizeSave() {
+        calls += 1;
+        return projected;
+      },
+    });
+    delayed.blockSaveWrites();
+    const saving = fixture.service.port.save("quick");
+    projected[0] = "mutated value";
+    projected.push("late line");
+    await delayed.waitUntilWriteStarts();
+    delayed.releaseWrites();
+
+    await expect(saving).resolves.toEqual({ kind: "saved", slotId: "quick" });
+    expect(calls).toBe(1);
+    const stored = await fixture.repository.read("quick");
+    expect(stored).toMatchObject({
+      health: "valid",
+      record: { annotation: { summary: ["capture value"], note: null } },
+    });
+
+    const empty = await fixtureV1({ summarizeSave: () => [] });
+    await expect(empty.service.port.save("quick")).resolves.toEqual({
+      kind: "saved",
+      slotId: "quick",
+    });
+    const emptyStored = await empty.repository.read("quick");
+    expect(emptyStored).toMatchObject({ health: "valid" });
+    if (emptyStored.health === "valid") {
+      expect(emptyStored.record).not.toHaveProperty("annotation");
+    }
+    await Promise.all([fixture.service.autoSaveIdle(), empty.service.autoSaveIdle()]);
+  });
+
+  it("rejects unsafe summary arrays before writing any Save bytes", async () => {
+    const accessorSummary = ["line"];
+    let reads = 0;
+    Object.defineProperty(accessorSummary, "0", {
+      enumerable: true,
+      configurable: true,
+      get() {
+        reads += 1;
+        return "accessed";
+      },
+    });
+    const fixture = await fixtureV1({ summarizeSave: () => accessorSummary });
+
+    await expect(fixture.service.port.save("quick")).resolves.toEqual({
+      kind: "faulted",
+      code: "persistence.capture_failed",
+    });
+    expect(reads).toBe(0);
+    expect(await saveRecordsV1(fixture.records)).toEqual([]);
+    await fixture.service.autoSaveIdle();
+
+    const throwing = await fixtureV1({
+      summarizeSave() {
+        throw new TypeError("summary failed");
+      },
+    });
+    await expect(throwing.service.port.save("quick")).resolves.toEqual({
+      kind: "faulted",
+      code: "persistence.capture_failed",
+    });
+    expect(await saveRecordsV1(throwing.records)).toEqual([]);
+    await throwing.service.autoSaveIdle();
+
+    let undefinedCalls = 0;
+    const undefinedOutput = await fixtureV1({
+      summarizeSave() {
+        undefinedCalls += 1;
+        return undefined as never;
+      },
+    });
+    await expect(undefinedOutput.service.port.save("quick")).resolves.toEqual({
+      kind: "faulted",
+      code: "persistence.capture_failed",
+    });
+    expect(undefinedCalls).toBe(1);
+    expect(await saveRecordsV1(undefinedOutput.records)).toEqual([]);
+    await undefinedOutput.service.autoSaveIdle();
+  });
+
+  it("annotateSave edits only the note and the record stays loadable", async () => {
+    const fixture = await fixtureV1({
+      summarizeSave: (state) => Object.freeze([`count ${String(state.count)}`]),
+    });
+    await fixture.session.dispatch({ kind: "increment" });
+    await expect(fixture.service.port.save("manual.1")).resolves.toEqual({
+      kind: "saved",
+      slotId: "manual.1",
+    });
+    const before = await fixture.repository.read("manual.1");
+    expect(before.health).toBe("valid");
+
+    await expect(fixture.service.port.annotateSave("manual.1", " 存主线前 ")).resolves.toEqual({
+      kind: "saved",
+      slotId: "manual.1",
+    });
+    const slots = await fixture.service.port.listSlots();
+    const manual = slots.find((slot) => slot.slotId === "manual.1");
+    expect(manual?.annotation).toEqual({ summary: ["count 1"], note: "存主线前" });
+    if (before.health === "valid") {
+      const after = await fixture.repository.read("manual.1");
+      expect(after.health).toBe("valid");
+      if (after.health === "valid") {
+        const {
+          recordRevision: beforeRevision,
+          annotation: beforeAnnotation,
+          ...beforeStableFields
+        } = before.record;
+        const {
+          recordRevision: afterRevision,
+          annotation: afterAnnotation,
+          ...afterStableFields
+        } = after.record;
+        expect(afterRevision).toBe(Number(beforeRevision) + 1);
+        expect(beforeAnnotation).toEqual({ summary: ["count 1"], note: null });
+        expect(afterAnnotation).toEqual({ summary: ["count 1"], note: "存主线前" });
+        expect(afterStableFields).toEqual(beforeStableFields);
+      }
+    }
+    await expect(fixture.service.port.load("manual.1")).resolves.toMatchObject({ kind: "loaded" });
+
+    // Empty string clears the note but keeps the summary.
+    await expect(fixture.service.port.annotateSave("manual.1", "")).resolves.toEqual({
+      kind: "saved",
+      slotId: "manual.1",
+    });
+    const cleared = await fixture.service.port.listSlots();
+    expect(cleared.find((slot) => slot.slotId === "manual.1")?.annotation).toEqual({
+      summary: ["count 1"],
+      note: null,
+    });
+    await fixture.service.autoSaveIdle();
+  });
+
+  it("does not let annotateSave overwrite a newer Save record", async () => {
+    const fixture = await fixtureV1({
+      decorateRepository(repository) {
+        let injectNewerSave = true;
+        return Object.freeze({
+          ...repository,
+          async rewritePlayer(
+            ...arguments_: Parameters<SaveRepositoryV1<SyntheticSaveRecordV1>["rewritePlayer"]>
+          ) {
+            if (injectNewerSave) {
+              injectNewerSave = false;
+              const [slotId, , , fence] = arguments_;
+              await repository.writePlayer(
+                slotId,
+                recordV1({ snapshot: snapshotV1(9), slotId }),
+                fence,
+              );
+            }
+            return repository.rewritePlayer(...arguments_);
+          },
+        });
+      },
+    });
+    await expect(fixture.service.port.save("manual.1")).resolves.toMatchObject({ kind: "saved" });
+
+    await expect(fixture.service.port.annotateSave("manual.1", "stale note")).resolves.toEqual({
+      kind: "rejected",
+      code: "conflict",
+    });
+    await expect(fixture.service.port.getStatus()).resolves.toMatchObject({
+      lastFailureCode: "conflict",
+    });
+    const stored = await fixture.repository.read("manual.1");
+    expect(stored).toMatchObject({
+      health: "valid",
+      record: { snapshot: { commandSequence: 9 } },
+    });
+    if (stored.health === "valid") expect(stored.record).not.toHaveProperty("annotation");
+    await fixture.service.autoSaveIdle();
+  });
+
+  it("verifies annotateSave physical bytes and the accepted lease fence", async () => {
+    let contender: SessionLeaseV1 | undefined;
+    const fenceLoss = await fixtureV1({
+      decorateRepository(repository, _lease, records) {
+        contender = createSessionLeaseV1({
+          records,
+          storyId: storyIdV1,
+          ownerId: "owner.annotation-contender" as SessionLeaseOwnerId,
+          nextHandoffRequestId: () => "handoff.annotation-contender" as never,
+        });
+        return Object.freeze({
+          ...repository,
+          async rewritePlayer(
+            ...arguments_: Parameters<SaveRepositoryV1<SyntheticSaveRecordV1>["rewritePlayer"]>
+          ) {
+            const result = await repository.rewritePlayer(...arguments_);
+            if (result.kind === "saved") await contender?.takeOver();
+            return result;
+          },
+        });
+      },
+    });
+    await expect(fenceLoss.service.port.save("quick")).resolves.toMatchObject({ kind: "saved" });
+    await expect(fenceLoss.service.port.annotateSave("quick", "note")).resolves.toEqual({
+      kind: "rejected",
+      code: "conflict",
+    });
+    await expect(fenceLoss.repository.read("quick")).resolves.toMatchObject({
+      health: "valid",
+      record: { annotation: { summary: null, note: "note" } },
+    });
+
+    let tamperRead = false;
+    const byteTamper = await fixtureV1({
+      decorateRepository(repository) {
+        return Object.freeze({
+          ...repository,
+          async read(slotId: Parameters<typeof repository.read>[0]) {
+            const observed = await repository.read(slotId);
+            if (!tamperRead || observed.health !== "valid") return observed;
+            return Object.freeze({
+              ...observed,
+              bytes: Uint8Array.from([...observed.bytes, 0x20]),
+            });
+          },
+          async rewritePlayer(
+            ...arguments_: Parameters<SaveRepositoryV1<SyntheticSaveRecordV1>["rewritePlayer"]>
+          ) {
+            const result = await repository.rewritePlayer(...arguments_);
+            if (result.kind === "saved") tamperRead = true;
+            return result;
+          },
+        });
+      },
+    });
+    await expect(byteTamper.service.port.save("quick")).resolves.toMatchObject({ kind: "saved" });
+    await expect(byteTamper.service.port.annotateSave("quick", "note")).resolves.toEqual({
+      kind: "rejected",
+      code: "conflict",
+    });
+    await Promise.all([fenceLoss.service.autoSaveIdle(), byteTamper.service.autoSaveIdle()]);
+  });
+
+  it("preserves the storage failure code when annotation readback is unavailable", async () => {
+    let unavailable = false;
+    const fixture = await fixtureV1({
+      decorateRepository(repository) {
+        return Object.freeze({
+          ...repository,
+          async read(slotId: Parameters<typeof repository.read>[0]) {
+            if (unavailable) {
+              return Object.freeze({
+                health: "unavailable" as const,
+                slotId,
+                hostRevision: null,
+                record: null,
+                code: "indexeddb.quota_exceeded",
+              });
+            }
+            return repository.read(slotId);
+          },
+          async rewritePlayer(
+            ...arguments_: Parameters<SaveRepositoryV1<SyntheticSaveRecordV1>["rewritePlayer"]>
+          ) {
+            const result = await repository.rewritePlayer(...arguments_);
+            if (result.kind === "saved") unavailable = true;
+            return result;
+          },
+        });
+      },
+    });
+    await expect(fixture.service.port.save("quick")).resolves.toMatchObject({ kind: "saved" });
+
+    await expect(fixture.service.port.annotateSave("quick", "note")).resolves.toEqual({
+      kind: "rejected",
+      code: "unavailable",
+    });
+    await expect(fixture.service.port.getStatus()).resolves.toMatchObject({
+      lastFailureCode: "indexeddb.quota_exceeded",
+    });
+    await fixture.service.autoSaveIdle();
+  });
+
+  it("annotateSave rejects invalid notes and empty slots", async () => {
+    const fixture = await fixtureV1();
+    await expect(fixture.service.port.annotateSave("manual.1", "x".repeat(65))).resolves.toEqual({
+      kind: "rejected",
+      code: "invalid_note",
+    });
+    await expect(fixture.service.port.annotateSave("manual.1", "note")).resolves.toEqual({
+      kind: "rejected",
+      code: "empty_slot",
+    });
+
+    // A note on a summary-less record round-trips, and clearing it removes
+    // the annotation field entirely (byte shape matches a fresh save).
+    await fixture.session.dispatch({ kind: "increment" });
+    await expect(fixture.service.port.save("quick")).resolves.toMatchObject({ kind: "saved" });
+    await expect(fixture.service.port.annotateSave("quick", "note")).resolves.toEqual({
+      kind: "saved",
+      slotId: "quick",
+    });
+    const slots = await fixture.service.port.listSlots();
+    expect(slots.find((slot) => slot.slotId === "quick")?.annotation).toEqual({
+      summary: null,
+      note: "note",
+    });
+    await expect(fixture.service.port.annotateSave("quick", " ")).resolves.toEqual({
+      kind: "saved",
+      slotId: "quick",
+    });
+    const cleared = await fixture.service.port.listSlots();
+    expect(cleared.find((slot) => slot.slotId === "quick")?.annotation).toBeNull();
     await fixture.service.autoSaveIdle();
   });
 });

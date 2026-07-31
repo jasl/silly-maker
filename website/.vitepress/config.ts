@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: CC-BY-NC-SA-4.0
+// SPDX-License-Identifier: MIT
 import { defineConfig } from "vitepress";
 
 /**
@@ -15,7 +15,7 @@ export default defineConfig({
   base: process.env.SITE_BASE ?? "/",
   lastUpdated: false,
   themeConfig: {
-    socialLinks: [{ icon: "github", link: "https://github.com/jasl/project-tavern" }],
+    socialLinks: [{ icon: "github", link: "https://github.com/jasl/silly-maker" }],
   },
   locales: {
     root: {
@@ -62,6 +62,7 @@ export default defineConfig({
             items: [
               { text: "Story CLI", link: "/reference/cli" },
               { text: "Repository layout", link: "/reference/layout" },
+              { text: "Licenses and notices", link: "/reference/licenses" },
             ],
           },
         ],
@@ -112,6 +113,7 @@ export default defineConfig({
             items: [
               { text: "Story CLI", link: "/zh/reference/cli" },
               { text: "仓库结构", link: "/zh/reference/layout" },
+              { text: "许可证与第三方声明", link: "/zh/reference/licenses" },
             ],
           },
         ],

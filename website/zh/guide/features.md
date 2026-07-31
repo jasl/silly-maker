@@ -26,14 +26,22 @@
 
 ## 玩家侧基线
 
-声明一个标题屏就得到完整前门：片头（例如 AI 生成声明）、新游戏/继续/载入存档/设置、单模态系统菜单（保存与设置互斥，Esc 关闭）。存档对话框自带槽位列表、时间戳、导入导出与 Story 声明的安全点；载入成功直接进游戏。设置出厂含三条音量、静音、文字速度、自动播放停留、全屏与开发者工具开关。对话播放有打字机、自动模式、跳过已读与历史回看（数据来自可存档的叙事回顾）。玩法窗体（图鉴、商店、道具箱……）挂进 overlay 会话即继承统一的 `PanelV1` 窗体外壳。
+声明一个标题屏就得到完整前门：片头（例如 AI 生成声明）、新游戏/继续/载入存档/设置、单模态系统菜单（保存与设置互斥，Esc 关闭）。标准存档对话框自带槽位列表、时间戳、导入导出与 Story 声明的安全点；Story 可以替换对话框主体，但仍由同一 System modal、input 与 focus authority 承载。载入成功直接进游戏。设置出厂含三条音量、静音、文字速度、自动播放停留、全屏与开发者工具开关。对话播放有打字机、自动模式、跳过已读与历史回看（数据来自可存档的叙事回顾）。玩法窗体（图鉴、商店、道具箱……）挂进 overlay 会话即继承统一的 `PanelV1` 窗体外壳。
 
 ## 持久化
 
-存档是纯数据、带版本、经校验——快速槽加编号手动槽（数量由游戏声明，默认 8，也可设为 0）再加当前/上一自动档。Host profile 在存档之外保存偏好与**元进度**（图鉴解锁、结局达成），跨周目收藏在重开与回退后依然保留。浏览器使用具备批量原子提交与乐观修订的生产级 IndexedDB store；当前桌面文件渠道仍是 preview：本地协议和单记录替换已加固，但多记录崩溃原子性与跨进程 CAS 尚在 production-floor 计划中。
+存档是纯数据、带版本、经校验——快速槽加编号手动槽（数量由游戏声明，默认 8，也可设为 0）再加当前/上一自动档。记录可以携带供自定义槽位 UI 使用的有界 Story 摘要与玩家备注；标准存档对话框暂不渲染这些 annotation。Host profile 在存档之外保存偏好与**元进度**（图鉴解锁、结局达成），跨周目收藏在重开与回退后依然保留。浏览器使用具备批量原子提交与乐观修订的生产级 IndexedDB store；当前桌面文件渠道仍是 preview：本地协议和单记录替换已加固，但多记录崩溃原子性与跨进程 CAS 尚在 production-floor 计划中。
 
 ## 给人与给 AI 的工具
 
 - `story check` / `story simulate` 输出结构化 JSON：agent（或 CI）可以校验叙事图、headless 玩通每条路线。`--trace` 打印逐步数值轨迹；`story diff` 结构化对比两份存档或报告。
-- **DevDock**（能力门控，绝不混进玩家 UI）承载实时状态检查器、叙事图视图和 Story 调参面板——调参走与玩法相同的事务提交路径。
-- 交付：`story build` 出网页版，`site:build` 出静态托管站（GitHub Pages / Cloudflare Workers）；`story desktop` 当前产出带图标与文件存档的 macOS `.app` preview，durable store 与其他平台仍有明确发布门槛。
+- **DevDock** 是唯一的能力门控调试 UI 宿主（绝不混进玩家 UI）：它统一承载实时检查器、叙事图、Story 调参面板，以及 cheat 门控的会话维护面板；后者支持导入导出、带确认且准确报告部分失败的存档槽清理与重新初始化。
+- 交付：`deno task build:web` 产出可直接静态托管的 `dist-web/`，`site:build`
+  负责组合文档站。声明了 `build:desktop` 的应用可产出本机或交叉目标 Desktop
+  preview（`.app`、Windows `.msi` 安装包、`.AppImage`）；shell 领取启动窗口，
+  原生关闭时会先排空本地 HTTP server。签名/公证与 durable store 仍有明确发布门槛。
+  分发者必须通过产品内页面、伴随文件或稳定链接提供
+  SillyMaker MIT 文本和实际随包材料要求的 notice；技术 Artifact manifest
+  可选且不是法律清单。Engine Lab、starter 与第一方 examples 的基线 HTML 已带稳定的
+  MIT 与[实际 runtime notice 最小维护集合](/zh/reference/licenses)
+  `rel="license"` 链接；分发者仍须检查实际 bundle，并补充其他随包材料要求的声明。

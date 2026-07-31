@@ -14,7 +14,8 @@
 
 - Save 是 plain、versioned、validated data：`SaveRecordEnvelopeV1` 携带
   `formatRevision`、`recordRevision`、provenance、`stateDigest`、`snapshot` 与
-  `simulationLineage`；
+  `simulationLineage`，并可携带 bounded `annotation`（Story-projected summary
+  与 player note）；
 - 解码入口有 Strict JSON 字节/深度/节点限额（`saveJsonLimitsV1`）；
 - `classifySaveCompatibilityV1` 以 story identity、state contract
   revision/digest、engine digest 与 simulation digest 分类为 exact / adoption /
@@ -38,7 +39,8 @@
 ```text
 bounded strict JSON decode        （现有 saveJsonLimitsV1 限额保持不变）
   -> envelope shell parse         （formatRevision、recordRevision、provenance、
-                                    slot、savedAt、stateDigest、simulationLineage；
+                                    slot、savedAt、stateDigest、simulationLineage、
+                                    bounded annotation；
                                     snapshot 保持受限 raw 结构）
   -> format-specific raw snapshot digest verification
   -> engine-owned envelope format migration （formatRevision N -> N+1）
@@ -60,6 +62,10 @@ envelope 外壳字段，snapshot 保持为受限 raw 数据。
 - envelope format（`formatRevision`）与 State schema（state contract
   revision）是两条独立迁移轴：前者由 engine-owned migration
   处理，后者由应用（未来由 Mod namespace）声明；二者不共享一个模糊 registry；
+- `annotation` 是 envelope persistence metadata，不是 authoritative State。
+  State migration 默认原样保留且不得读取、生成或改写它；只有明确的
+  engine-owned envelope format migration 可以转换 annotation shape，并必须为
+  absent、summary、note 与 cleared-note 提供 byte/semantic corpus；
 - `stateDigest` 校验对象是存档原文的 snapshot，并在 envelope shell parse
   之后、任何会改写 snapshot 的 format/State migration 之前完成；verifier 由已解析的
   stored `formatRevision` 选择。Envelope format migration 默认只能改外壳；若历史格式
@@ -130,6 +136,8 @@ interface SaveStateMigrationV1 {
   缺 browser 不得 silently skip；
 - fixture corpus 至少包含一条跨多个发布版本的 migration/adoption 链样本（含逼近
   lineage 上限的边界样本）；
+- fixture corpus 覆盖 annotation absent、summary-only、note-only、summary + note
+  与 cleared-note，并证明 State migration 不消费或改写 annotation；
 - fixture 代表用户可见的兼容承诺，符合项目测试原则；它不是计划执行凭据；
 - 支持范围与放弃策略是显式、文档化的产品决定，不是缺省的无限承诺。
 

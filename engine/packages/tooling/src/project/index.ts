@@ -5,6 +5,7 @@ export { runProjectCliV1 } from "./cli.ts";
 export type { ProjectCliInputV1 } from "./cli.ts";
 export {
   buildStoryApplicationV1,
+  DESKTOP_TARGET_TRIPLES_V1,
   desktopStoryApplicationV1,
   checkStoryApplicationV1,
   devSmokeStoryApplicationV1,
@@ -13,9 +14,14 @@ export {
   simulateStoryApplicationV1,
 } from "./commands.ts";
 export type {
+  DesktopCompressionV1,
+  DesktopTargetTripleV1,
   ProjectCommandRunnerV1,
   ProjectModuleLoaderV1,
+  StoryBuildOptionsV1,
   StoryBuildReportV1,
+  StoryDesktopOptionsV1,
+  StoryDesktopOutputV1,
   StoryDesktopReportV1,
   StoryCheckReportV1,
   StoryDevSmokeReportV1,

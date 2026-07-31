@@ -54,16 +54,25 @@ Revision-sync rules (mistakes are rejected at startup by structured diagnostics;
 
 ## Tier C: a new application / new Story (recommended for strong models)
 
-One application = one `WebGameApplicationV1` declaration + one `startWebGameApplicationV1` call. Start from `template` (copy the directory + global rename; the copy is a complete project — `sillymaker.config.ts`, `vite.config.ts`, `tools/story.mts` — and inside this repository you additionally add its directory to the root `project.config.ts` list); the full reference is `e2e/src/application/`. Application-directory conventions: `composition.tsx` (projector/slots/the `*GameApplicationV1` declaration), `ui.tsx` or `shell-ui.tsx` (PascalCase components, in a separate file from the application declaration for Vite Fast Refresh), `core-application.ts` (headless instance factory), `entry.tsx` (boots from composition). Six lifecycle verbs are available (app-locally via `deno run -A tools/story.mts <verb> .`, or at the repository root once the directory is listed in `project.config.ts`):
+One application = one `WebGameApplicationV1` declaration + one `startWebGameApplicationV1` call. Start from `template` (copy the directory + global rename; the copy is a complete project — `sillymaker.config.ts`, `vite.config.ts`, `tools/story.mts` — and inside this repository you additionally add its directory to the root `project.config.ts` list); the full reference is `e2e/src/application/`. Application-directory conventions: `composition.tsx` (projector/slots/the `*GameApplicationV1` declaration), `ui.tsx` or `shell-ui.tsx` (PascalCase components, in a separate file from the application declaration for Vite Fast Refresh), `core-application.ts` (headless instance factory), `entry.tsx` (boots from composition). Builds are application tasks; the story CLI carries diagnostics (app-locally via `deno task story <verb> .`, or at the repository root once the directory is listed in `project.config.ts`):
 
 ```sh
+deno task dev                    # inside the application directory
+deno task build:web
+deno task build:desktop          # only when the application declares Desktop packaging
+deno task preview
 deno task story inspect <app>    # resolved identity and program report
 deno task story check <app>      # structured Story diagnostics
 deno task story simulate <app> [--scenario s] [--seed n]
 deno task story dev <app> --smoke
-deno task story build <app>
 deno task story prebuilt-smoke <app>
 ```
+
+`dist-web/` can be deployed directly to static hosting. A distributed Player
+must make the SillyMaker MIT text and any notices required by its bundled
+material available through an in-product page, accompanying files, or a stable
+public link; a technical Artifact manifest is optional and does not replace
+that review.
 
 ## Diagnostics quick-reference (all from real pitfalls)
 

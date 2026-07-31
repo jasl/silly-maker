@@ -19,13 +19,13 @@
 
 ```ts
 interface EventPoolContextV1 {
-  readonly numbers: Readonly<Record<string, number>>; // 例：cat.trust, shop.reputation, calendar.week
+  readonly numbers: Readonly<Record<string, number>>; // bounded safe integers; 例：cat.trust, shop.reputation, calendar.week
   readonly flags: readonly string[]; // 排序去重的字符串集合
   readonly labels: Readonly<Record<string, string>>; // 例：slot: "dusk"
 }
 
 type EventConditionV1 =
-  | { kind: "number"; key: string; op: "eq" | "ne" | "lt" | "lte" | "gt" | "gte"; value: number }
+  | { kind: "number"; key: string; op: "eq" | "ne" | "lt" | "lte" | "gt" | "gte"; value: number } // bounded safe integer
   | { kind: "flag"; flag: string; present: boolean }
   | { kind: "label"; key: string; anyOf: readonly string[] }
   | { kind: "all"; conditions: readonly EventConditionV1[] }
@@ -65,7 +65,7 @@ drawFromEventPoolV1(input: {
 }): EventPoolDrawResultV1
 ```
 
-语义：过滤合格候选 → 求权重和 → `rng.nextInt({ purpose, exclusiveMax: totalWeight })` → 线性走表。`force` 命中时不消耗 RNG draw（`roll: null, forced: true`），但仍要求事件存在且合格——强制的是选择，不是资格。
+语义：过滤合格候选 → 求权重和 → `rng.nextInt({ purpose, exclusiveMax: totalWeight })` → 线性走表。所有 condition/context 数值都服从 [authoritative determinism](deterministic-simulation-boundary.md) 的 bounded safe-integer / explicit-quantization 合同；`totalWeight` 求和必须在每一步拒绝 safe-integer overflow。`force` 命中时不消耗 RNG draw（`roll: null, forced: true`），但仍要求事件存在且合格——强制的是选择，不是资格。
 
 ### 边界
 

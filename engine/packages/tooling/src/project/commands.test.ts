@@ -7,6 +7,7 @@ import { createSyntheticCounterGamePackageV1 } from "@sillymaker/base/testkit";
 import type { ProjectModuleLoaderV1, StorySimulationTargetV1 } from "./commands.ts";
 import {
   checkStoryApplicationV1,
+  DESKTOP_TARGET_TRIPLES_V1,
   inspectStoryApplicationV1,
   simulateStoryApplicationV1,
 } from "./commands.ts";
@@ -34,7 +35,6 @@ function projectV1(): SillymakerProjectConfigV1 {
         assetVerification: false,
         simulate: { module: "test/synthetic-target.ts", exportName: "createTargetV1" },
         web: null,
-        releaseArtifact: false,
       },
     ],
   });
@@ -53,6 +53,16 @@ async function diagnosticsOfAsync(
 }
 
 describe("project commands", () => {
+  it("keeps explicit desktop targets within the Deno 2.9.0 support floor", () => {
+    expect(DESKTOP_TARGET_TRIPLES_V1).toEqual([
+      "x86_64-apple-darwin",
+      "aarch64-apple-darwin",
+      "x86_64-pc-windows-msvc",
+      "x86_64-unknown-linux-gnu",
+      "aarch64-unknown-linux-gnu",
+    ]);
+  });
+
   it("inspects a resolvable application into a JSON-safe report", async () => {
     const loader = mapLoaderV1({
       "test/synthetic-story.ts": { entryV1: createSyntheticCounterGamePackageV1() },
@@ -209,7 +219,6 @@ describe("project commands", () => {
           assetVerification: false,
           simulate: null,
           web: null,
-          releaseArtifact: false,
         },
       ],
     });

@@ -23,18 +23,28 @@ export interface TitleScreenLabelsV1 {
   readonly settingsLabel: string;
 }
 
+export type TitleScreenMiddleActionV1 =
+  | {
+      readonly kind: "continue";
+      readonly available: boolean;
+      onActivate(): void;
+    }
+  | {
+      readonly kind: "load";
+    };
+
 export function TitleScreenV1(props: {
   readonly title: string;
   readonly labels: TitleScreenLabelsV1;
   /** Optional key-art URL painted behind the menu. */
   readonly backgroundUrl?: string;
-  /** False when no runnable autosave exists — Continue must stay unavailable. */
-  readonly continueAvailable: boolean;
   onNewGame(): void;
-  onContinue(): void;
-  /** Shows the Load-game entry (opens the system Save dialog). */
+  /** Required runnable contract for the title's middle action. */
+  readonly middleAction: TitleScreenMiddleActionV1;
+  /** Shows a separate Load-game entry (opens the system Save dialog). */
   readonly showLoadGame?: boolean;
 }): ReactElement {
+  const middleAction = props.middleAction;
   return (
     <section
       data-title-screen="true"
@@ -73,15 +83,19 @@ export function TitleScreenV1(props: {
         <Button data-title-new-game="true" onClick={() => props.onNewGame()}>
           {props.labels.newGameLabel}
         </Button>
-        <Button
-          data-title-continue="true"
-          data-title-continue-available={props.continueAvailable ? "true" : "false"}
-          disabled={!props.continueAvailable}
-          onClick={() => props.onContinue()}
-        >
-          {props.labels.continueLabel}
-        </Button>
-        {props.showLoadGame === true ? (
+        {middleAction.kind === "load" ? (
+          <SavesLauncherV1 data-title-load-game="true" label={props.labels.loadGameLabel} />
+        ) : (
+          <Button
+            data-title-continue="true"
+            data-title-continue-available={middleAction.available ? "true" : "false"}
+            disabled={!middleAction.available}
+            onClick={() => middleAction.onActivate()}
+          >
+            {props.labels.continueLabel}
+          </Button>
+        )}
+        {props.showLoadGame === true && middleAction.kind === "continue" ? (
           <SavesLauncherV1 data-title-load-game="true" label={props.labels.loadGameLabel} />
         ) : null}
         <SettingsLauncherV1 data-title-settings="true" label={props.labels.settingsLabel} />

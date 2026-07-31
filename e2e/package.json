@@ -9,7 +9,13 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "test": "deno run -A npm:vitest run e2e/src"
+    "dev": "deno run -A npm:vite",
+    "build": "deno task build:web",
+    "build:web": "deno run -A npm:vite build",
+    "preview": "deno run -A npm:vite preview",
+    "clean": "rm -rf dist-web dist-desktop",
+    "story": "deno run -A ./tools/story.mts",
+    "test": "deno run -A npm:vitest run src"
   },
   "dependencies": {
     "@sillymaker/base": "workspace:*",

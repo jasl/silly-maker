@@ -48,6 +48,8 @@ export {
   parsePositiveSafeInteger,
   parsePresentationProviderId,
   parseRunId,
+  parseSaveAnnotationV1,
+  parseSaveNoteV1,
   createSaveSlotIdsV1,
   defaultManualSaveSlotCountV1,
   isPlayerWritableSaveSlotIdV1,
@@ -132,6 +134,7 @@ export {
   runtimeOperationFaultSchemaV1,
   runIntegrityV1Schema,
   saveJsonLimitsV1,
+  saveAnnotationLimitsV1,
   setContentMaturityFlagV1,
 } from "./contracts/index.ts";
 export {
@@ -412,6 +415,7 @@ export type {
   RuntimeSessionStatusV1,
   RuntimeViewModelEnvelopeV1,
   SaveCodecContextV1,
+  SaveAnnotationV1,
   SaveCompatibilityClassificationInputV1,
   SaveCompatibilityClassificationV1,
   SaveCompatibilityKeyV1,

@@ -33,7 +33,6 @@ async function createAppV1(input: {
       `  assetVerification: false,\n` +
       `  simulate: null,\n` +
       `  web: null,\n` +
-      `  releaseArtifact: false,\n` +
       `});\n`,
     "utf8",
   );

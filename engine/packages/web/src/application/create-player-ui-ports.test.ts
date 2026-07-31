@@ -97,6 +97,9 @@ function fixtureV1(input?: {
     clear: vi.fn(async (slotId: "auto.current" | "auto.previous" | "quick" | `manual.${number}`) =>
       Object.freeze({ kind: "cleared" as const, slotId }),
     ),
+    annotateSave: vi.fn(async (slotId: "quick" | `manual.${number}`, _note: string) =>
+      Object.freeze({ kind: "saved" as const, slotId }),
+    ),
     importSave: vi.fn(async (_bytes: Uint8Array) => importResult),
     exportSave: vi.fn(async () => exportSaveResult),
     exportCurrentSave: vi.fn(async () => exportedSaveV1("current.json")),

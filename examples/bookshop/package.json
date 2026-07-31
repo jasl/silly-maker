@@ -9,7 +9,15 @@
     ".": "./src/story.ts"
   },
   "scripts": {
-    "test": "deno run -A npm:vitest run examples/bookshop/src"
+    "dev": "deno run -A npm:vite",
+    "build": "deno task build:web",
+    "build:web": "deno run -A npm:vite build",
+    "build:desktop": "deno run -A ./tools/story.mts desktop .",
+    "deploy:cf": "deno task build && deno run -A npm:wrangler@4.114.0 deploy",
+    "preview": "deno run -A npm:vite preview",
+    "clean": "rm -rf dist-web dist-desktop",
+    "story": "deno run -A ./tools/story.mts",
+    "test": "deno run -A npm:vitest run src"
   },
   "dependencies": {
     "@sillymaker/base": "workspace:*",
@@ -22,6 +30,7 @@
   "devDependencies": {
     "@sillymaker/tooling": "workspace:*",
     "@types/node": "24.13.3",
-    "@types/react": "19.2.17"
+    "@types/react": "19.2.17",
+    "wrangler": "4.114.0"
   }
 }

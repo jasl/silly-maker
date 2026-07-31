@@ -24,17 +24,17 @@ export interface StoryWebIdentityRefV1 {
 }
 
 /**
- * macOS desktop packaging preview for a web application: a thin
- * `deno desktop` host that serves the already built web Artifact. Engine and
- * Story code never depend on Deno Desktop APIs; this is delivery-layer
- * configuration only until other platforms earn an explicit contract.
+ * Desktop packaging preview for a web application: a thin `deno desktop`
+ * host that serves the already built web Player. Engine and Story code never
+ * depend on Deno Desktop APIs; each platform remains preview until it earns
+ * promotion evidence.
  */
 export interface StoryDesktopTargetV1 {
   /** The human-visible application name (also the bundle file name). */
   readonly name: string;
   /** The reverse-DNS bundle identifier. */
   readonly identifier: string;
-  /** Optional repository-relative app icon (`.png` or `.icns` for the current macOS preview). */
+  /** Optional repository-relative Darwin app icon (`.png` or `.icns`). */
   readonly icon?: string;
 }
 
@@ -48,7 +48,7 @@ export interface StoryWebTargetV1 {
   readonly sourcemap: boolean;
   /** Optional structural build-identity collector; null for default identity. */
   readonly identity: StoryWebIdentityRefV1 | null;
-  /** Optional macOS desktop packaging preview; null/absent for web-only applications. */
+  /** Optional Desktop packaging preview; null/absent for web-only applications. */
   readonly desktop?: StoryDesktopTargetV1 | null;
 }
 
@@ -63,8 +63,6 @@ export interface StoryApplicationConfigV1 {
   readonly simulate: ProjectModuleRefV1 | null;
   /** Dev/build target; null for headless-only applications. */
   readonly web: StoryWebTargetV1 | null;
-  /** Whether a build of this application is a distributable product Artifact. */
-  readonly releaseArtifact: boolean;
 }
 
 export interface SillymakerProjectConfigV1 {
@@ -102,7 +100,6 @@ export interface SillymakerAppConfigV1 {
   readonly assetVerification: boolean;
   readonly simulate?: ProjectModuleRefV1 | null;
   readonly web?: SillymakerAppWebTargetV1 | null;
-  readonly releaseArtifact: boolean;
 }
 
 /**

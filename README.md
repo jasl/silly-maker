@@ -4,7 +4,7 @@ English | [简体中文](README.zh-CN.md)
 
 An LLM-friendly TypeScript + React game engine for visual novels, management sims, and RPG-flavored story games. Deterministic simulation, a semantic stage, atomic saves — authorable by humans and AI agents alike, running on [Deno](https://deno.com/).
 
-**Play the flagship example**: the [Cat Cafe](examples/cat-cafe/) (《雨巷猫舍》) is a complete, publishable game built to drive the engine — title screen, scheduling gameplay, petting hit-regions, a turn-based contest, an album, multiple endings with a postgame, dialogue playback QoL (typewriter / auto / skip / history / rollback), scene-driven audio, save slots with safepoints, bilingual text, and a macOS desktop-packaging preview.
+**Play the flagship example**: the [Cat Cafe](examples/cat-cafe/) (《雨巷猫舍》) is a complete, publishable game built to drive the engine — title screen, scheduling gameplay, petting hit-regions, a turn-based contest, an album, multiple endings with a postgame, dialogue playback QoL (typewriter / auto / skip / history / rollback), scene-driven audio, save slots with safepoints, bilingual text, and a host/cross-target desktop-packaging preview.
 
 **Then break the genre**: [SillyOS 98](examples/silly-os/) is a retro desktop shell — overlapping draggable windows, a taskbar, a Start menu, deterministic Minesweeper (mines drawn from the transactional RNG, never leaked to the UI), a Notepad whose files persist through engine saves, and a period browser. Same engine, zero visual-novel assumptions.
 
@@ -29,7 +29,7 @@ Common commands:
 - `deno task check` — the canonical local gate: format, lint, typecheck, and the product-level test suite;
 - `deno task test` / `deno task test:e2e` — engine/game behavior tests and browser user flows;
 - `deno task story <verb> <app>` — the application lifecycle CLI (inspect / check / simulate / dev --smoke / build / desktop, JSON reports);
-- `deno task site:build` — compose the publishable static site (docs + the playable Cat Cafe) into `dist/site`, then deploy via the GitHub Pages workflow or `deno task site:deploy:cf` (Cloudflare Workers); see [build-and-release](docs/engine/build-and-release.md).
+- `deno task site:build` — compose the publishable static site (docs + the playable Cat Cafe and SillyOS 98 examples) into `dist/site`, then deploy via the GitHub Pages workflow or `deno task site:deploy:cf` (Cloudflare Workers); see [build-and-release](docs/engine/build-and-release.md).
 
 Start a new game by copying [`template/`](template/) and following its README. Each application is a self-contained project with its own `sillymaker.config.ts`; the root [`project.config.ts`](project.config.ts) only lists application directories for repository-wide commands.
 

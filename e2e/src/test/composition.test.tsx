@@ -3,7 +3,7 @@
 import "@testing-library/jest-dom/vitest";
 import { screen, waitFor } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { HostAtomicRecordStoreV1 } from "@sillymaker/base";
 import { createMemoryHostRecordStoreV1 } from "@sillymaker/base/testkit";
@@ -65,6 +65,37 @@ afterEach(() => {
 });
 
 describe("startWebGameApplicationV1 with the Engine Lab declaration", () => {
+  it("disposes Story UI resources when Save-surface preflight rejects startup", async () => {
+    const disposeUi = vi.fn();
+    const application = Object.freeze({
+      ...labGameApplicationV1,
+      ui(input: Parameters<typeof labGameApplicationV1.ui>[0]) {
+        return Object.freeze({
+          ...labGameApplicationV1.ui(input),
+          customSaves: Object.freeze({
+            kind: "custom" as const,
+            accessibleName: "Synthetic saves",
+            render: () => null,
+          }),
+          dispose: disposeUi,
+        });
+      },
+    });
+
+    await expect(
+      startWebGameApplicationV1(application, {
+        rootElement: createTestRootV1(),
+        host: createWebHostV1({
+          records: createMemoryHostRecordStoreV1(),
+          seeds: [20260731],
+          uuids: ["9c8cc628-fd86-42f4-b479-120466b439ea"],
+        }),
+        registerPageLifecycle: false,
+      }),
+    ).rejects.toThrow("web.system_saves_ambiguous");
+    expect(disposeUi).toHaveBeenCalledTimes(1);
+  });
+
   it("boots, plays, and disposes the whole browser application from one call", async () => {
     const started = await startLabV1("");
     try {

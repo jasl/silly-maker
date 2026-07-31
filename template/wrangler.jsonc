@@ -1,0 +1,20 @@
+// SPDX-License-Identifier: MIT
+// Standalone Cloudflare Workers deployment for this Player. Rename `name`
+// alongside the template rename (it becomes your workers.dev subdomain),
+// build, then deploy from this directory:
+//
+//   deno task deploy:cf      # builds dist-web/ and deploys it
+//                            # (authenticate once:
+//                            #  deno run -A npm:wrangler@4.114.0 login)
+//
+// The Player is location-independent (base "./", assets against
+// document.baseURI) and saves live in the visitor's browser (IndexedDB), so
+// an assets-only Worker is all it takes.
+{
+  "name": "sillymaker-starter",
+  "compatibility_date": "2026-07-01",
+  "assets": {
+    "directory": "./dist-web",
+    "not_found_handling": "single-page-application",
+  },
+}

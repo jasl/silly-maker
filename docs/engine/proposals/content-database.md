@@ -19,8 +19,8 @@ const activitiesTableV1 = defineContentTable({
   schema: z.strictObject({
     id: z.string(), // 主键，稳定 ID
     nameTextId: z.string(), // i18n 感知列：textId 引用，跨表校验
-    staminaCost: z.number().int(),
-    rewards: z.array(z.strictObject({ stat: z.string(), delta: z.number().int() })),
+    staminaCost: z.number().int().safe(),
+    rewards: z.array(z.strictObject({ stat: z.string(), delta: z.number().int().safe() })),
     unlockFlag: z.string().nullable(),
   }),
   primaryKey: "id",
@@ -39,7 +39,7 @@ db.table("table.tavern.activities").findMany({
 ## Constraints (non-negotiable)
 
 1. **只读**：运行时没有 insert/update/delete。内容变更 = 改源码 = 新 Story revision。可变状态永远走模块。
-2. **JSON-safe + 确定性**：行数据是普通数据，参与 facet digest（simulation 侧表进 simulationDigest，presentation 侧表进 presentationDigest）；同一 Story 的查询结果跨 Host 完全一致。
+2. **JSON-safe + 确定性**：行数据是普通数据，参与 facet digest（simulation 侧表进 simulationDigest，presentation 侧表进 presentationDigest）；同一 Story 的查询结果跨 Host 完全一致。Simulation facet 的数值服从 [authoritative determinism](../design/deterministic-simulation-boundary.md) 的 bounded safe-integer / explicit-quantization 合同；presentation-only facet 若确需有限 binary64，必须由自己的 schema 明确声明并保证不流入 authoritative State、command、facts、Save 或 replay。
 3. **同步、内存内、无依赖**：不引入 SQL、SQLite、IndexedDB 或 Prisma 本体；"Prisma 风格"只指类型化可发现的查询 API。
 4. **解析时全量校验**：主键唯一、外键（跨表引用列）、textId 引用进文本目录校验（沿用 resolver 现有的 catalog join 模式）、行数上限。坏数据在 `story check` 阶段拒绝，带 JSON pointer。
 5. **i18n 原生**：文本列存 textId 而非字符串；缺失键检测属于表校验的一部分。这直接修复参考游戏"文本烧进事件"的本地化灾难。

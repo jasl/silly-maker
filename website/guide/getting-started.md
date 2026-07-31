@@ -78,6 +78,35 @@ deno task story simulate <app-id> --scenario <name> \
   --trace game.<dot.path>                             # numeric trajectories
 ```
 
+## Prompt 4 — publish
+
+A Player build is a self-contained static bundle (relative paths, saves in each
+visitor's browser — no server), so `dist-web/` can go straight to static
+hosting. The template and examples ship a ready `deploy:cf` task for Cloudflare
+Workers:
+
+```text
+Publish ⟨app directory⟩ to Cloudflare Workers:
+
+1. If wrangler is not authenticated yet, run `deno run -A npm:wrangler@4.114.0 login`
+   and hand the browser authorization to me.
+2. Check wrangler.jsonc in the app directory: the `name` field is the Worker
+   name and becomes the public `<name>.<account>.workers.dev` URL — rename it
+   to match the game if it still carries the template name.
+3. Confirm that the product makes the SillyMaker MIT license and all
+   notices required by material actually bundled in the Player available
+   through a licenses page, accompanying file, or stable public link.
+4. Run `deno task deploy:cf` from the app directory (it builds dist-web/ and
+   deploys it), then give me the deployed URL to open.
+```
+
+For GitHub Pages instead: one repository hosts one Pages site, so give the game
+its own repository — publish the built `dist-web/` contents from it and enable
+Pages. The relative-base bundle works unchanged from any path. A technical
+Artifact manifest is optional for offline/integrity/signing/store handoffs, not
+a hosted-deployment prerequisite. Details for both targets live in
+[Build and release](https://github.com/jasl/silly-maker/blob/main/docs/engine/build-and-release.md).
+
 ## Advice that improves results
 
 - **Give a concrete premise** — named characters, a place, and the endings you want. "Make something fun" produces mush; "a lighthouse keeper, one stormy night, a stranger knocks, three ways it ends" produces a game.

@@ -12,6 +12,7 @@ import {
   createFakeAudioHostV1,
   createGameUiCompositionV1,
 } from "@sillymaker/ui";
+import type { SystemDialogCustomSavesV1 } from "@sillymaker/ui";
 
 import { createLabApplicationInstanceV1 } from "../application/core-application.ts";
 import {
@@ -46,7 +47,10 @@ async function composeLabUiV1() {
   return { instance, composition, playerProfile };
 }
 
-function renderLabRootV1(input: Awaited<ReturnType<typeof composeLabUiV1>>) {
+function renderLabRootV1(
+  input: Awaited<ReturnType<typeof composeLabUiV1>>,
+  customSaves?: SystemDialogCustomSavesV1,
+) {
   return render(
     <DefaultGameRootV1
       composition={input.composition}
@@ -55,6 +59,7 @@ function renderLabRootV1(input: Awaited<ReturnType<typeof composeLabUiV1>>) {
       applicationId="e2e"
       viewport={{ canvas: labViewportCanvasV1, fallbackSize: { width: 1600, height: 1000 } }}
       labels={labRootLabelsV1}
+      {...(customSaves === undefined ? {} : { customSaves })}
       slots={createLabUiSlotsV1({
         instance: input.instance,
         createAudioHost: createFakeAudioHostV1,
@@ -125,6 +130,32 @@ describe("Engine Lab default UI", () => {
       ).toBe("true");
     });
     expect(instance.semantic.observe().revision).toBe(revisionDuringPlay);
+
+    composition.dispose();
+    await instance.dispose();
+  });
+
+  it("keeps a custom Save surface reachable from the in-game System menu", async () => {
+    const labUi = await composeLabUiV1();
+    const { instance, composition } = labUi;
+    renderLabRootV1(
+      labUi,
+      Object.freeze({
+        kind: "custom",
+        accessibleName: "Custom saves",
+        render: ({ close }: { readonly close: () => void }) => (
+          <button type="button" onClick={close}>
+            Close custom saves
+          </button>
+        ),
+      }),
+    );
+
+    const saveLauncher = screen.getByRole("button", { name: "保存" });
+    await userEvent.setup().click(saveLauncher);
+    expect(screen.getByRole("dialog", { name: "Custom saves" })).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Close custom saves" }));
+    expect(screen.queryByRole("dialog", { name: "Custom saves" })).toBeNull();
 
     composition.dispose();
     await instance.dispose();

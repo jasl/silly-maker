@@ -7,11 +7,14 @@
 ## 现在就能跑
 
 ```sh
-deno task story check template                       # 结构化 Story 诊断
-deno task story simulate template --scenario opening # 无浏览器跑完整叙事
-deno run -A npm:vitest run template      # 基线 + 图 lint + 全剧本走通
+deno task story check .                              # 结构化 Story 诊断
+deno task story simulate . --scenario opening        # 无浏览器跑完整叙事
+deno task test                                        # 基线 + 图 lint + 全剧本走通
 deno task dev                                         # 在本目录启动开发服务器
-deno task build                                       # 静态构建到 dist-web/
+deno task build:web                                   # 静态构建到 dist-web/（`build` 是它的别名）
+deno task build:desktop                               # 桌面 preview 到 dist-desktop/（可加 --target <triple>）
+deno task preview                                     # 用 HTTP 预览 dist-web/
+deno task clean                                       # 清理 dist-web/ 与 dist-desktop/
 ```
 
 ## 文件地图（按"你想改什么"排列）
@@ -34,12 +37,16 @@ deno task build                                       # 静态构建到 dist-web
 改完剧本的验证环（几秒钟）：
 
 ```sh
-deno task typecheck && deno run -A npm:vitest run template
-deno task story simulate template --scenario opening
+deno task typecheck && deno task test
+deno task story simulate . --scenario opening
 ```
 
 注意：新增/删除交互边界会移动 occurrence 编号；`src/tooling/simulation-target.ts` 的场景脚本和测试里按编号步进的断言要同步（失败信息会给出期望编号）。
 
 ## 授权
 
-模板代码 MIT。复制出去的新 Story 归你自己的授权策略管。
+模板和 SillyMaker 引擎代码是 MIT。复制出去的新 Story 可以为自己新增的代码与
+内容选择授权，但独立分发时仍须保留 SillyMaker 的 MIT 文本，并让实际随包材料
+要求的 notice 可通过产品内页面、伴随文件或稳定链接获得。`dist-web/` 可直接部署；
+基线 HTML 已链接仓库维护的第一方 runtime notice 最小集合，但新增依赖仍由分发者
+检查并补充。技术 manifest 仅在需要离线交接、完整性、签名或商店打包时使用。

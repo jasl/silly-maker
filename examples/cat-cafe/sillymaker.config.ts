@@ -29,5 +29,4 @@ export const sillymakerAppConfigV1 = {
       icon: "icon.png",
     },
   },
-  releaseArtifact: false,
 } as const satisfies SillymakerAppConfigV1;

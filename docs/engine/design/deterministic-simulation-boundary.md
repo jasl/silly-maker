@@ -103,6 +103,14 @@ adapter，而不是 authoritative transition callback；它只能消费显式注
 - 需要影响 gameplay 时，必须发送新的 validated semantic/authoritative command；
 - 仍受各自 presentation epoch、readiness、input 和 persistence fence 约束。
 
+这个区域中的 **durable deterministic projection** 是窄例外：它不改变 gameplay
+transition，却会改变持久化 bytes，因此不能继承普通 Presentation 的 ambient
+能力。当前 `summarizeSave(state)` 只能读取 immutable State，并为同一 State 返回同一
+bounded canonical summary；不得读取 clock、random、network、environment、locale
+default 或 DOM。其 normalized output 进入 Save annotation，但不进入 Snapshot
+digest、CommandLog 或 replay。玩家 note 是显式 persistence input，不是 Story
+callback。
+
 ## 3. Numeric contract
 
 ### 3.1 Authoritative wire values
@@ -219,6 +227,8 @@ draw-order coupling、诊断歧义或第二消费者出现后才单独设计与�
 - external decision 先 canonical admission；
 - bootstrap entropy 只经显式 provider 进入 ingress adapter，其输出在
   `createInitialState` 前 canonical admission + deep-freeze；
+- durable Save projector 只消费 immutable State，输出立即 normalize、copy 与
+  freeze；异常必须在任何 physical Save write 前原子失败；
 - Presentation/Host 不获得 State setter。
 
 ### 6.2 Static guard

@@ -15,7 +15,7 @@
 - **对话播放器**——打字机、自动/快进、历史回看、已读标记，全部来自引擎 `DialoguePanelV1`。
 - **确定性模拟**——事件池相遇、回合制运动会、带硬边界的玩家回退、存档安全点。
 - **场景驱动声音层**——BGM/环境声/音效跟随发布的游戏视图；三条音量总线持久在玩家档案里。
-- **双语文本 + 浏览器语言自动检测**、风格统一的 AIGC 美术，以及 macOS `.app` 打包 preview；其文件持久化仍需通过 durability promotion gate。
+- **双语文本 + 浏览器语言自动检测**、风格统一的 AIGC 美术，以及本机/交叉目标 Desktop 打包 preview（`.app`、Windows `.msi` 或 `.AppImage`）；其文件持久化仍需通过 durability promotion gate。
 
 ## SillyOS 98
 

@@ -1,6 +1,6 @@
 # Tuning and debugging
 
-The engine treats "adjust the game" as a first-class workflow, for humans and agents alike. Nothing here bypasses the authoritative session — every tool goes through the same commit path the game uses.
+The engine treats "adjust the game" as a first-class workflow, for humans and agents alike. Tuning commands go through the same authoritative commit path as gameplay; session and Save maintenance use the engine's explicit lifecycle and persistence ports rather than a second state authority.
 
 ## Data first
 
@@ -16,6 +16,7 @@ http://localhost:5173/?capability=debug_tools&capability=cheats
 
 - **Read-only inspectors** show the live game view, interactions, and the narrative graph with lint results.
 - The **tuning panel** (cheat authority) submits Story-defined debug commands — set a stat, fast-forward days, force an encounter. They validate first, commit atomically, land in the command log tagged `source: "debug"`, and replay faithfully.
+- The built-in **Session maintenance** panel (cheat authority) exports or imports state, reinitializes the session, and clears Save slots behind an explicit confirmation. It reports partial cleanup failures instead of claiming that all local data was wiped.
 
 ## Trajectories
 

@@ -38,20 +38,57 @@ describe("pointer-button adapter", () => {
     expect(spy.routed).toHaveLength(1);
   });
 
-  it("leaves interactive elements their native context menu", () => {
+  it("leaves interactive elements and their descendants unclaimed", () => {
     const spy = routerSpyV1();
     const dispose = installPointerButtonAdapterV1({
       router: spy.router as never,
       map: { secondary: backV1 },
     });
     const button = document.createElement("button");
-    document.body.append(button);
+    const child = document.createElement("span");
+    button.append(child);
+    const editable = document.createElement("div");
+    editable.setAttribute("contenteditable", "");
+    document.body.append(button, editable);
     const event = new MouseEvent("contextmenu", { bubbles: true, cancelable: true });
-    button.dispatchEvent(event);
+    child.dispatchEvent(event);
     expect(spy.routed).toEqual([]);
     expect(event.defaultPrevented).toBe(false);
+    const editableEvent = new MouseEvent("contextmenu", { bubbles: true, cancelable: true });
+    editable.dispatchEvent(editableEvent);
+    expect(spy.routed).toEqual([]);
+    expect(editableEvent.defaultPrevented).toBe(false);
     button.remove();
+    editable.remove();
     dispose();
+  });
+
+  it("recognizes interactive descendants from another Window realm", () => {
+    const frame = document.createElement("iframe");
+    document.body.append(frame);
+    const frameWindow = frame.contentWindow;
+    const frameDocument = frame.contentDocument;
+    if (frameWindow === null || frameDocument === null) throw new TypeError("missing iframe realm");
+    const spy = routerSpyV1();
+    const dispose = installPointerButtonAdapterV1({
+      router: spy.router as never,
+      map: { secondary: backV1 },
+      target: frameDocument,
+    });
+    const button = frameDocument.createElement("button");
+    const child = frameDocument.createElement("span");
+    button.append(child);
+    frameDocument.body.append(button);
+    const FrameMouseEvent = (frameWindow as unknown as { readonly MouseEvent: typeof MouseEvent })
+      .MouseEvent;
+    const event = new FrameMouseEvent("contextmenu", { bubbles: true, cancelable: true });
+
+    child.dispatchEvent(event);
+
+    expect(spy.routed).toEqual([]);
+    expect(event.defaultPrevented).toBe(false);
+    dispose();
+    frame.remove();
   });
 
   it("routes wheel directions with an interval and skips scrollable regions", () => {
@@ -92,5 +129,41 @@ describe("pointer-button adapter", () => {
     expect(spy.routed).toHaveLength(2);
     scroller.remove();
     dispose();
+  });
+
+  it("keeps native wheel scrolling in a scrollable ancestor from another Window realm", () => {
+    const frame = document.createElement("iframe");
+    document.body.append(frame);
+    const frameWindow = frame.contentWindow;
+    const frameDocument = frame.contentDocument;
+    if (frameWindow === null || frameDocument === null) throw new TypeError("missing iframe realm");
+    const spy = routerSpyV1();
+    const dispose = installPointerButtonAdapterV1({
+      router: spy.router as never,
+      map: { wheelDown: backV1 },
+      target: frameDocument,
+      now: () => 0,
+    });
+    const scroller = frameDocument.createElement("div");
+    scroller.style.overflowY = "auto";
+    Object.defineProperty(scroller, "scrollHeight", { value: 500 });
+    Object.defineProperty(scroller, "clientHeight", { value: 100 });
+    const inner = frameDocument.createElement("span");
+    scroller.append(inner);
+    frameDocument.body.append(scroller);
+    const FrameWheelEvent = (frameWindow as unknown as { readonly WheelEvent: typeof WheelEvent })
+      .WheelEvent;
+    const event = new FrameWheelEvent("wheel", {
+      deltaY: 3,
+      bubbles: true,
+      cancelable: true,
+    });
+
+    inner.dispatchEvent(event);
+
+    expect(spy.routed).toEqual([]);
+    expect(event.defaultPrevented).toBe(false);
+    dispose();
+    frame.remove();
   });
 });

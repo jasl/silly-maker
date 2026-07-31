@@ -25,12 +25,18 @@ import type {
   GameShellViewportOptionsV1,
   GameUiProjectorV1,
   KeyboardActionMapV1,
+  NativeBehaviorResetConfigV1,
   RuntimePresentationPublicationV1,
   RuntimeAssetLoaderV1,
   SaveOverlayLabelsV1,
+  SystemDialogCustomSavesV1,
 } from "@sillymaker/ui";
 import type { DevDockContributionSetV1, DevDockOpenStateV1 } from "@sillymaker/ui/debug";
-import { DefaultGameRootV1, createGameUiCompositionV1 } from "@sillymaker/ui";
+import {
+  DefaultGameRootV1,
+  createGameUiCompositionV1,
+  installNativeBehaviorResetV1,
+} from "@sillymaker/ui";
 import type { ContentPreferencePortV1, SemanticPublicationV1 } from "@sillymaker/base";
 import type { RuntimeSessionStatusV1 } from "@sillymaker/base";
 
@@ -46,7 +52,7 @@ import { createWebHostV1 } from "../host/create-web-host.ts";
 import { createHttpHostRecordStoreV1 } from "../host/http-record-store.ts";
 import { mountGameApplicationV1 } from "./mount-game-application.tsx";
 import type { MountedGameApplicationV1 } from "./mount-game-application.tsx";
-import { createPlayerSaveUiPortV1 } from "./create-player-ui-ports.ts";
+import { createPlayerSaveSurfacesV1 } from "./create-player-save-surfaces.ts";
 
 type WebSemanticPublicationV1<TGameView, TNarrativeView, TActionDescriptor> = SemanticPublicationV1<
   TGameView,
@@ -91,8 +97,14 @@ export interface WebGameUiDefinitionV1<
   readonly hideSystemMenu?: boolean;
   /** Story safepoint over the live publication (see SaveOverlayGuardV1). */
   readonly saveGuard?: (publication: unknown) => { allowed: boolean; reasonText?: string };
+  /**
+   * Story Save renderer hosted by the existing System modal authority.
+   * Mutually exclusive with `saveLabels` / `saveGuard`.
+   */
+  readonly customSaves?: SystemDialogCustomSavesV1;
+  /** Typed Story tooling panels with read-only / cheat authority. */
   readonly devDockContributions?: DevDockContributionSetV1;
-  /** Shows the engine title screen (New game / Continue / Settings). */
+  /** Shows the engine title screen (New game / Continue|Load / Settings). */
   readonly titleScreen?: {
     readonly title: string;
     readonly backgroundUrl?: string;
@@ -112,6 +124,13 @@ export interface WebGameUiDefinitionV1<
   };
   /** Install the pointer adapter on the application root element. */
   readonly pointer?: boolean;
+  /**
+   * Game-shell native-behavior reset: suppress the browser context menu and
+   * text selection document-wide (editable controls and `data-native-menu` /
+   * `data-native-text` subtrees keep native behavior). Semantic right-click
+   * actions remain exclusively routed through the InputRouter.
+   */
+  readonly nativeBehaviorReset?: NativeBehaviorResetConfigV1;
   /** Spatial interaction surface IDs the intent router accepts. */
   readonly interactionSurfaceIds?: readonly string[];
   /** Optional live stage label (current scene name) for the shell main region. */
@@ -391,6 +410,7 @@ export async function startWebGameApplicationV1<
   let automation: InstalledBrowserAutomationBridgeV1 | undefined;
   let mounted: MountedGameApplicationV1 | undefined;
   let pointer: { dispose(): void } | undefined;
+  let nativeBehaviorReset: { dispose(): void } | undefined;
   let unbindUiContext: (() => void) | undefined;
   let uiDisposer: (() => void) | undefined;
   let composition:
@@ -419,6 +439,7 @@ export async function startWebGameApplicationV1<
       } finally {
         unbindUiContext?.();
         pointer?.dispose();
+        nativeBehaviorReset?.dispose();
         composition?.dispose();
         automation?.dispose();
         try {
@@ -455,8 +476,15 @@ export async function startWebGameApplicationV1<
       capabilities,
       reportFailure,
     });
-
     uiDisposer = uiDefinition.dispose?.bind(uiDefinition);
+    const saveSurfaces = createPlayerSaveSurfacesV1({
+      files: host.files,
+      persistence: instance.persistence,
+      ...(uiDefinition.saveLabels === undefined ? {} : { saveLabels: uiDefinition.saveLabels }),
+      ...(uiDefinition.saveGuard === undefined ? {} : { saveGuard: uiDefinition.saveGuard }),
+      ...(uiDefinition.customSaves === undefined ? {} : { customSaves: uiDefinition.customSaves }),
+    });
+
     composition = createGameUiCompositionV1({
       semantic: instance.semantic,
       projector: uiDefinition.projector,
@@ -479,20 +507,6 @@ export async function startWebGameApplicationV1<
       semantic: instance.semantic,
       capabilities,
     });
-
-    const saveUi =
-      uiDefinition.saveLabels === undefined
-        ? undefined
-        : Object.freeze({
-            port: createPlayerSaveUiPortV1({
-              files: host.files,
-              persistence: instance.persistence,
-            }),
-            labels: uiDefinition.saveLabels,
-            ...(uiDefinition.saveGuard === undefined
-              ? {}
-              : { evaluateGuard: uiDefinition.saveGuard }),
-          });
 
     // DevDock open state feeds the diagnostics UI context without giving
     // the resident player DOM any debug vocabulary.
@@ -520,10 +534,16 @@ export async function startWebGameApplicationV1<
                 publication: never,
               ) => string,
             })}
-        {...(saveUi === undefined ? {} : { saveUi })}
+        {...(saveSurfaces.saveUi === undefined ? {} : { saveUi: saveSurfaces.saveUi })}
+        {...(saveSurfaces.customSaves === undefined
+          ? {}
+          : { customSaves: saveSurfaces.customSaves })}
         {...(uiDefinition.hideSystemMenu === undefined
           ? {}
           : { hideSystemMenu: uiDefinition.hideSystemMenu })}
+        sessionMaintenance={Object.freeze({
+          savePort: saveSurfaces.maintenanceSavePort,
+        })}
         {...(uiDefinition.labels === undefined ? {} : { labels: uiDefinition.labels })}
         {...(uiDefinition.slots === undefined ? {} : { slots: uiDefinition.slots })}
         {...(uiDefinition.devDockContributions === undefined
@@ -549,6 +569,9 @@ export async function startWebGameApplicationV1<
         window: globalThis.window,
         document,
       });
+    }
+    if (uiDefinition.nativeBehaviorReset !== undefined) {
+      nativeBehaviorReset = installNativeBehaviorResetV1(uiDefinition.nativeBehaviorReset);
     }
     if (uiDefinition.debugUiContext !== undefined) {
       unbindUiContext = instance.bindDebugUiContext(

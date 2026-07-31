@@ -259,6 +259,7 @@ export const templateSaveOverlayLabelsV1: SaveOverlayLabelsV1 = Object.freeze({
       empty_slot: "存档槽为空",
       conflict: "存档发生冲突",
       invalid_record: "存档无效",
+      invalid_note: "备注不合法",
       lineage_limit: "存档兼容链过长",
       incompatible: "存档不兼容",
     }),
@@ -313,5 +314,8 @@ export const templateGameApplicationV1: WebGameApplicationV1<
       labels: templateRootLabelsV1,
       saveLabels: templateSaveOverlayLabelsV1,
       inputMaps: Object.freeze({ keyboard: templateKeyboardMapV1 }),
+      // Game-shell feel: no browser context menu or text selection; editable
+      // controls and data-native-menu / data-native-text subtrees stay native.
+      nativeBehaviorReset: Object.freeze({}),
     }),
 });

@@ -206,11 +206,15 @@ export type {
 export {
   createSaveRecordEnvelopeSchemaV1,
   exportedSaveSchemaV1,
+  parseSaveAnnotationV1,
+  parseSaveNoteV1,
+  saveAnnotationLimitsV1,
   saveJsonLimitsV1,
   sessionLeaseStatusSchemaV1,
 } from "./persistence.ts";
 export type {
   ExportedSaveV1,
+  SaveAnnotationV1,
   ImportCompatibilityOutcomeV1,
   ImportCompatibilityWarningV1,
   ImportRejectionCodeV1,
