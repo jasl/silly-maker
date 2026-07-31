@@ -642,12 +642,27 @@ async function createPersistenceServiceWithDependenciesV1<
     );
   };
 
+  // Export filenames carry the export instant (unix seconds, from the
+  // metadata clock so tests stay deterministic): repeated exports get
+  // distinct names and a diagnostic file dates itself. An unparsable
+  // instant falls back to the bare configured name.
+  const exportFilenameV1 = (): string => {
+    const millis = Date.parse(options.metadataClock.now());
+    if (!Number.isFinite(millis)) return options.exportFilename;
+    const suffix = String(Math.floor(millis / 1000));
+    const filename = options.exportFilename;
+    const dot = filename.lastIndexOf(".");
+    return dot > 0
+      ? `${filename.slice(0, dot)}-${suffix}${filename.slice(dot)}`
+      : `${filename}-${suffix}`;
+  };
+
   const makeExportV1 = (
     record: DeepReadonly<PersistenceSaveRecordV1<TSnapshot>>,
   ): ExportedSaveV1 => {
     const bytes = Uint8Array.from(encodeRecordV1(record));
     return Object.freeze({
-      filename: options.exportFilename,
+      filename: exportFilenameV1(),
       mediaType: "application/json" as const,
       digest: digestBytes(bytes),
       bytes,
@@ -657,7 +672,7 @@ async function createPersistenceServiceWithDependenciesV1<
   const makeStoredExportV1 = (storedBytes: Uint8Array): ExportedSaveV1 => {
     const bytes = Uint8Array.from(storedBytes);
     return Object.freeze({
-      filename: options.exportFilename,
+      filename: exportFilenameV1(),
       mediaType: "application/json" as const,
       digest: digestBytes(bytes),
       bytes,
