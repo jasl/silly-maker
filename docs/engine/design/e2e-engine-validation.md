@@ -249,9 +249,11 @@ cases 使用明确可达的 project/tag，不保留配置中永远不会执行�
 determinism config 另覆盖 Chromium/Firefox/WebKit，但不把 Firefox 强塞进所有 UI
 cases。普通 `deno task check` 继续不隐式下载完整 browser matrix；DET3b 必须先创建
 shared config/task 与 production-check CI job，按 lock 中的 Playwright 版本显式
-安装并运行三种 browser 的 tripwire；DET4 再扩展同一 substrate 运行 parity。仓库
-当前只有 Pages deployment workflow，不能把 general check job 当作已存在前提。缺
-browser 不得 silently skip。
+安装并运行三种 browser 的 tripwire；DET4 再扩展同一 substrate 运行 parity。CI0
+只提供 latest-stable、browser-free quality job 与其后的 locked Chromium prebuilt
+smoke；它不是 DET3b 的三浏览器 determinism gate。workflow 落地也不自动证明
+branch-protection policy 已启用，二者的 promotion evidence 必须分开记录。缺 browser
+不得 silently skip。
 
 ## 8. Fixture and artifact policy
 

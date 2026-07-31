@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: MIT
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: CI quality (Deno latest stable)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: latest
+      - name: Report Deno version
+        run: deno --version
+      - name: Install locked dependencies
+        run: deno ci
+      - name: Run repository checks
+        run: deno task check
+
+  prebuilt-smoke:
+    name: CI Engine Lab prebuilt smoke (Chromium)
+    needs: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: latest
+      - name: Install locked dependencies
+        run: deno ci
+      - name: Install locked Playwright Chromium
+        run: deno run -A npm:@playwright/test/playwright install --with-deps chromium
+      - name: Run Engine Lab prebuilt smoke
+        run: deno task test:e2e:engine:prebuilt --grep @smoke

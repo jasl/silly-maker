@@ -18,9 +18,15 @@ deno install
 deno task dev
 ```
 
-General PR/main CI is not implemented yet. The accepted CI0 slice will use
-`deno ci` against the shared lockfile; `deno install` remains the normal
-interactive setup command.
+Pull requests targeting `main` and pushes to `main` run two ordered GitHub
+Actions jobs. `CI quality (Deno latest stable)` reports the actual Deno version,
+uses `deno ci` against the shared lockfile, and runs `deno task check` without
+installing or starting a browser. After it succeeds, `CI Engine Lab prebuilt
+smoke (Chromium)` installs only the lockfile-selected Playwright Chromium and
+runs the Engine Lab smoke cases against a production build. These stable job
+names are the branch-protection check identities; repository policy activation
+is separate from landing the workflow and must not be inferred from this file.
+`deno install` remains the normal interactive setup command.
 
 The workspace is ESM, imports TypeScript sources with explicit `.ts`/`.tsx` extensions, and uses one shared `deno.lock` with exact dependency versions (npm packages resolve through Deno's Node compatibility).
 
