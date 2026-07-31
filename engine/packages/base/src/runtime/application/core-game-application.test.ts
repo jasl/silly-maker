@@ -39,7 +39,9 @@ import {
   decodeDebugBundleV1,
   encodeDebugBundleV1,
 } from "../diagnostics/debug-bundle.ts";
+import { decodeSessionLeaseRecordV1 } from "../persistence/session-lease.ts";
 import type {
+  CoreApplicationConstructionEventInternalV1,
   CoreApplicationHostServicesV1,
   CoreAutosavePolicyV1,
   CoreSchedulerV1,
@@ -49,6 +51,7 @@ import {
   clearAllCoreApplicationSavesForMaintenanceInternalV1,
   createCoreGameApplicationInstanceV1,
   defineCoreGameApplicationV1,
+  instrumentCoreApplicationConstructionOptionsInternalV1,
   resolveCoreGameApplicationV1,
 } from "./core-game-application.ts";
 
@@ -1010,6 +1013,159 @@ function manualSchedulerV1() {
   return { scheduler, scheduled, runLast };
 }
 
+function constructionProbeV1(policy: CoreAutosavePolicyV1) {
+  const memory = createMemoryHostRecordStoreV1();
+  let sessionFactories = 0;
+  let persistenceFactories = 0;
+  let schedulerReads = 0;
+  let timerSchedules = 0;
+  let hostCommits = 0;
+  let leaseOwnerAcquisitions = 0;
+  let persistenceWrites = 0;
+  const records: HostAtomicRecordStoreV1 = Object.freeze({
+    read: memory.read,
+    list: memory.list,
+    commit(mutations: Parameters<HostAtomicRecordStoreV1["commit"]>[0]) {
+      hostCommits += 1;
+      for (const mutation of mutations) {
+        if (mutation.kind !== "put") continue;
+        if (mutation.namespace === "save") persistenceWrites += 1;
+        if (mutation.namespace !== "lease") continue;
+        const decoded = decodeSessionLeaseRecordV1(mutation.bytes);
+        if (decoded.kind === "decoded" && decoded.record.ownerId !== null) {
+          leaseOwnerAcquisitions += 1;
+        }
+      }
+      return memory.commit(mutations);
+    },
+  });
+  const scheduler: CoreSchedulerV1 = Object.freeze({
+    schedule() {
+      timerSchedules += 1;
+      return () => {};
+    },
+  });
+  const options = instrumentCoreApplicationConstructionOptionsInternalV1(
+    Object.freeze({
+      host: hostServicesV1(records),
+      autosave: policy,
+      get scheduler() {
+        schedulerReads += 1;
+        return scheduler;
+      },
+    }),
+    Object.freeze({
+      record(event: CoreApplicationConstructionEventInternalV1) {
+        if (event === "session_factory") sessionFactories += 1;
+        else persistenceFactories += 1;
+      },
+    }),
+  );
+  return Object.freeze({
+    options,
+    snapshot: () =>
+      Object.freeze({
+        sessionFactories,
+        persistenceFactories,
+        schedulerReads,
+        timerSchedules,
+        hostCommits,
+        leaseOwnerAcquisitions,
+        persistenceWrites,
+      }),
+  });
+}
+
+const invalidAutosavePoliciesV1 = [
+  ["negative delay", { mode: "debounced", delayMs: -1 }],
+  ["negative-zero delay", { mode: "debounced", delayMs: -0 }],
+  ["fractional delay", { mode: "debounced", delayMs: 0.5 }],
+  ["unsafe delay", { mode: "debounced", delayMs: Number.MAX_SAFE_INTEGER + 1 }],
+  ["positive-infinite delay", { mode: "debounced", delayMs: Number.POSITIVE_INFINITY }],
+  ["negative-infinite delay", { mode: "debounced", delayMs: Number.NEGATIVE_INFINITY }],
+  ["NaN delay", { mode: "debounced", delayMs: Number.NaN }],
+  ["non-number delay", { mode: "debounced", delayMs: "0" as never }],
+  ["zero checkpoint", { mode: "debounced", delayMs: 0, checkpointEveryCommands: 0 }],
+  ["negative-zero checkpoint", { mode: "debounced", delayMs: 0, checkpointEveryCommands: -0 }],
+  ["negative checkpoint", { mode: "debounced", delayMs: 0, checkpointEveryCommands: -1 }],
+  ["fractional checkpoint", { mode: "debounced", delayMs: 0, checkpointEveryCommands: 0.5 }],
+  [
+    "unsafe checkpoint",
+    {
+      mode: "debounced",
+      delayMs: 0,
+      checkpointEveryCommands: Number.MAX_SAFE_INTEGER + 1,
+    },
+  ],
+  [
+    "positive-infinite checkpoint",
+    { mode: "debounced", delayMs: 0, checkpointEveryCommands: Number.POSITIVE_INFINITY },
+  ],
+  [
+    "negative-infinite checkpoint",
+    { mode: "debounced", delayMs: 0, checkpointEveryCommands: Number.NEGATIVE_INFINITY },
+  ],
+  ["NaN checkpoint", { mode: "debounced", delayMs: 0, checkpointEveryCommands: Number.NaN }],
+  [
+    "non-number checkpoint",
+    { mode: "debounced", delayMs: 0, checkpointEveryCommands: "1" as never },
+  ],
+] as const satisfies readonly (readonly [string, CoreAutosavePolicyV1])[];
+
+const validAutosavePolicyBoundariesV1 = [
+  ["zero delay with omitted checkpoint", { mode: "debounced", delayMs: 0 }, [0], 0],
+  [
+    "maximum delay with omitted checkpoint",
+    { mode: "debounced", delayMs: Number.MAX_SAFE_INTEGER },
+    [Number.MAX_SAFE_INTEGER],
+    0,
+  ],
+  [
+    "minimum positive checkpoint",
+    { mode: "debounced", delayMs: 0, checkpointEveryCommands: 1 },
+    [],
+    1,
+  ],
+  [
+    "maximum positive checkpoint",
+    {
+      mode: "debounced",
+      delayMs: 0,
+      checkpointEveryCommands: Number.MAX_SAFE_INTEGER,
+    },
+    [0],
+    0,
+  ],
+] as const satisfies readonly (
+  readonly [string, CoreAutosavePolicyV1, readonly number[], number]
+)[];
+
+// Captured from the pre-AUTO0 implementation at 9724ea3. Length + SHA-256
+// pins the physical Save bytes without committing a duplicate Save fixture.
+const auto0PreAdmissionCheckpointGoldenV1 = [
+  {
+    key: "save-record.v1:story.synthetic-counter:auto.current",
+    revision: 1,
+    byteLength: 1_452,
+    bytesDigest: "sha256:7104c4165695ce59705973f7f4cd865435ccaaf301f05b8415a5d4d0ff08e16f",
+  },
+] as const;
+
+const auto0PreAdmissionSaveGoldenV1 = [
+  {
+    key: "save-record.v1:story.synthetic-counter:auto.current",
+    revision: 2,
+    byteLength: 1_452,
+    bytesDigest: "sha256:68e1d817a66fe718bec5c6ff4a798517ec87c3218e07fe8b8cff3cce04655ce2",
+  },
+  {
+    key: "save-record.v1:story.synthetic-counter:auto.previous",
+    revision: 1,
+    byteLength: 1_453,
+    bytesDigest: "sha256:43138ffdc7749369104ae008b7a83350dea1519f42d7cd561f5cf63ded5d0104",
+  },
+] as const;
+
 async function createInstanceV1(options?: {
   records?: HostAtomicRecordStoreV1;
   autosave?: CoreAutosavePolicyV1;
@@ -1056,6 +1212,73 @@ describe("resolveCoreGameApplicationV1", () => {
 });
 
 describe("createCoreGameApplicationInstanceV1", () => {
+  it("calibrates the package-internal construction probe on a valid policy", async () => {
+    const probe = constructionProbeV1({ mode: "every_commit" });
+    const instance = await createCoreGameApplicationInstanceV1(
+      resolvedApplicationV1(),
+      probe.options,
+    );
+
+    expect(probe.snapshot()).toEqual({
+      sessionFactories: 1,
+      persistenceFactories: 1,
+      schedulerReads: 1,
+      timerSchedules: 0,
+      hostCommits: 1,
+      leaseOwnerAcquisitions: 1,
+      persistenceWrites: 0,
+    });
+    await instance.dispose();
+  });
+
+  it.each(invalidAutosavePoliciesV1)(
+    "rejects an invalid autosave policy: %s",
+    async (_, policy) => {
+      const probe = constructionProbeV1(policy);
+      const result = await createCoreGameApplicationInstanceV1(
+        resolvedApplicationV1(),
+        probe.options,
+      ).then(
+        (instance) => Object.freeze({ kind: "resolved" as const, instance }),
+        (error: unknown) => Object.freeze({ kind: "rejected" as const, error }),
+      );
+      const countsBeforeCleanup = probe.snapshot();
+
+      if (result.kind === "resolved") {
+        await result.instance.dispose();
+      }
+      expect(result).toMatchObject({ kind: "rejected", error: expect.any(TypeError) });
+      expect(countsBeforeCleanup).toEqual({
+        sessionFactories: 0,
+        persistenceFactories: 0,
+        schedulerReads: 0,
+        timerSchedules: 0,
+        hostCommits: 0,
+        leaseOwnerAcquisitions: 0,
+        persistenceWrites: 0,
+      });
+    },
+  );
+
+  it.each(validAutosavePolicyBoundariesV1)(
+    "accepts autosave policy boundary: %s",
+    async (_, policy, expectedDelays, expectedAutoWrites) => {
+      const records = countingRecordsV1();
+      const scheduler = manualSchedulerV1();
+      const instance = await createInstanceV1({
+        records: records.counting,
+        autosave: policy,
+        scheduler: scheduler.scheduler,
+      });
+
+      await instance.semantic.dispatch(incrementV1);
+      await instance.autoSaveIdle();
+      expect(scheduler.scheduled.map(({ delayMs }) => delayMs)).toEqual(expectedDelays);
+      expect(records.autoWrites()).toHaveLength(expectedAutoWrites);
+      await instance.dispose();
+    },
+  );
+
   it("rejects a configured Save projector that returns undefined", async () => {
     let summarizeCalls = 0;
     const invalidSummaryDefinition = defineCoreGameApplicationV1({
@@ -1624,6 +1847,40 @@ describe("createCoreGameApplicationInstanceV1", () => {
     // A pagehide-style flush writes the pending Snapshot immediately.
     await instance.flushAutoSave();
     expect(autoWrites()).toHaveLength(2);
+    await instance.dispose();
+  });
+
+  it("pins valid debounced scheduling, capture, flush, and Save bytes", async () => {
+    const records = countingRecordsV1();
+    const scheduler = manualSchedulerV1();
+    const instance = await createInstanceV1({
+      records: records.counting,
+      autosave: { mode: "debounced", delayMs: 0, checkpointEveryCommands: 2 },
+      scheduler: scheduler.scheduler,
+    });
+
+    await instance.semantic.dispatch(incrementV1);
+    expect(scheduler.scheduled).toHaveLength(1);
+    expect(records.autoWrites()).toEqual([]);
+
+    await instance.semantic.dispatch(incrementV1);
+    await instance.autoSaveIdle();
+    expect(records.autoWrites()).toHaveLength(1);
+    expect(await rawSaveEvidenceV1(records.counting)).toEqual(
+      auto0PreAdmissionCheckpointGoldenV1,
+    );
+
+    await instance.semantic.dispatch(incrementV1);
+    expect(scheduler.scheduled).toHaveLength(2);
+    await instance.flushAutoSave();
+    await instance.autoSaveIdle();
+
+    expect(scheduler.scheduled).toEqual([
+      { callback: expect.any(Function), delayMs: 0, cancelled: true },
+      { callback: expect.any(Function), delayMs: 0, cancelled: true },
+    ]);
+    expect(records.autoWrites()).toHaveLength(2);
+    expect(await rawSaveEvidenceV1(records.counting)).toEqual(auto0PreAdmissionSaveGoldenV1);
     await instance.dispose();
   });
 

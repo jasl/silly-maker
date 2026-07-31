@@ -49,7 +49,7 @@ promotion record 的合同。
 
 PF0 不代表全部 tooling 已完成；它只消除本次新增“应用即项目”与 pointer fence 中会在后续计划放大的确定性缺口。
 
-### PF0.1 — Pre-pilot maintenance gates（CI0 已完成；AUTO0 下一批）
+### PF0.1 — Pre-pilot maintenance gates（CI0/AUTO0 已完成；S1d.1 下一批）
 
 在继续 S1-T 前先分别完成两个小切片；二者不能与 Surface kernel 合并成一个提交：
 
@@ -110,6 +110,17 @@ count 与 fixed Save bytes 等于 pre-change oracle。受影响 package tests、
 `deno task test`、`deno task check` 与 diff hygiene 全绿；若只能通过改变 public Save/
 autosave result、boot recovery 或 scheduling semantics 才能收紧，立即停止并修订
 合同。
+
+**2026-08-01 AUTO0 promotion：** Core composer 现在会在读取 scheduler、创建 Session、
+进入 persistence factory 或取得 lease owner 前，一次性读取、验证并冻结 debounced
+policy；`delayMs` 接受 `0..Number.MAX_SAFE_INTEGER` 但拒绝 `-0`，可选 checkpoint
+接受 `1..Number.MAX_SAFE_INTEGER`。red baseline 证明旧实现会放行 `-0`、fractional、
+unsafe integer、`Infinity` 与全部非法 checkpoint 类；green path 对每类非法输入的
+Session/persistence factory、scheduler/timer、Host commit、lease acquisition 与 Save
+write 计数均为 `0`。合法 workload 保持两次 schedule、一次 checkpoint capture、一次
+显式 flush 和两次 `auto.current` write，checkpoint/final Save 的 byte length 与 SHA-256
+仍等于 pre-change oracle。Save/autosave outcome、boot recovery、调度语义和 public
+export 均未改变；下一独立切片是 S1d.1。
 
 ### PF-D — Desktop durability/package promotion（独立、条件性发布轨）
 

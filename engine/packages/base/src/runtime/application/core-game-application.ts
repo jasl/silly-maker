@@ -25,7 +25,7 @@ import {
 import type { RunIntegrityV1 } from "../../contracts/snapshot.ts";
 import { finalizeSnapshotIntegrityV1 } from "../session/run-integrity.ts";
 import type { DeepReadonly, Digest, NonNegativeSafeInteger } from "../../contracts/values.ts";
-import { parseNonNegativeSafeInteger } from "../../contracts/values.ts";
+import { parseNonNegativeSafeInteger, parsePositiveSafeInteger } from "../../contracts/values.ts";
 import type { ReplayComparisonV1 } from "../diagnostics/replay.ts";
 import { replayAuthoritativelyFromAttemptsInternalV1 } from "../diagnostics/replay.ts";
 import type { RuntimeOperationFaultV1 } from "../../contracts/diagnostics.ts";
@@ -474,7 +474,11 @@ export interface CoreApplicationHostServicesV1 {
  * When to write committed Snapshots to the auto-save slot. `every_commit`
  * preserves the historical immediate-write behavior; `debounced` coalesces
  * commits and flushes after `delayMs` of quiet (or immediately every
- * `checkpointEveryCommands` commits). Explicit slot saves are always allowed.
+ * `checkpointEveryCommands` commits). `delayMs` must be a non-negative safe
+ * integer other than negative zero; `checkpointEveryCommands`, when present,
+ * must be a positive safe integer. Invalid policies are rejected before the
+ * instance creates a Session, persistence owner, or timer. Explicit slot saves
+ * are always allowed.
  */
 export type CoreAutosavePolicyV1 =
   | { readonly mode: "every_commit" }
@@ -495,6 +499,74 @@ const defaultSchedulerV1: CoreSchedulerV1 = Object.freeze({
     return () => clearTimeout(handle);
   },
 });
+
+export type CoreApplicationConstructionEventInternalV1 =
+  | "session_factory"
+  | "persistence_factory";
+
+export interface CoreApplicationConstructionInstrumentationInternalV1 {
+  record(event: CoreApplicationConstructionEventInternalV1): unknown;
+}
+
+const constructionInstrumentationV1 = new WeakMap<
+  CreateCoreGameApplicationInstanceOptionsV1,
+  CoreApplicationConstructionInstrumentationInternalV1
+>();
+
+/**
+ * Attaches a one-shot, observational construction probe for same-package tests.
+ * This seam is intentionally absent from every package barrel.
+ *
+ * @internal
+ */
+export function instrumentCoreApplicationConstructionOptionsInternalV1(
+  options: CreateCoreGameApplicationInstanceOptionsV1,
+  instrumentation: CoreApplicationConstructionInstrumentationInternalV1,
+): CreateCoreGameApplicationInstanceOptionsV1 {
+  constructionInstrumentationV1.set(options, instrumentation);
+  return options;
+}
+
+function recordCoreApplicationConstructionV1(
+  instrumentation: CoreApplicationConstructionInstrumentationInternalV1 | undefined,
+  event: CoreApplicationConstructionEventInternalV1,
+): void {
+  try {
+    const result = instrumentation?.record(event);
+    if (result !== undefined) {
+      void Promise.resolve(result).catch(() => undefined);
+    }
+  } catch {
+    // Test instrumentation is observational and cannot affect construction.
+  }
+}
+
+function normalizeCoreAutosavePolicyV1(
+  configured: CoreAutosavePolicyV1 | undefined,
+): CoreAutosavePolicyV1 {
+  if (configured === undefined) {
+    return Object.freeze({ mode: "every_commit" as const });
+  }
+  const mode: unknown = (configured as { readonly mode: unknown }).mode;
+  if (mode === "every_commit") {
+    return Object.freeze({ mode });
+  }
+  if (mode !== "debounced") {
+    // Tag admission is outside AUTO0; preserve the existing runtime behavior
+    // for an untyped caller that violates the discriminated union.
+    return configured;
+  }
+  const debounced = configured as Extract<CoreAutosavePolicyV1, { readonly mode: "debounced" }>;
+  const delayMs = parseNonNegativeSafeInteger(debounced.delayMs);
+  const checkpointEveryCommands = debounced.checkpointEveryCommands;
+  return Object.freeze({
+    mode,
+    delayMs,
+    ...(checkpointEveryCommands === undefined
+      ? {}
+      : { checkpointEveryCommands: parsePositiveSafeInteger(checkpointEveryCommands) }),
+  });
+}
 
 export type CorePresentationAnchorOriginV1 =
   | "bootstrap"
@@ -711,10 +783,9 @@ export async function createCoreGameApplicationInstanceV1<
     TResult
   >
 > {
-  const autosave = options.autosave ?? Object.freeze({ mode: "every_commit" as const });
-  if (autosave.mode === "debounced" && !(autosave.delayMs >= 0)) {
-    throw new TypeError("debounced autosave policy requires a non-negative delayMs");
-  }
+  const constructionInstrumentation = constructionInstrumentationV1.get(options);
+  constructionInstrumentationV1.delete(options);
+  const autosave = normalizeCoreAutosavePolicyV1(options.autosave);
   const scheduler = options.scheduler ?? defaultSchedulerV1;
   const definition = application.definition;
   const gameSimulation = (application.resolved as { readonly gameSimulation: unknown })
@@ -783,6 +854,7 @@ export async function createCoreGameApplicationInstanceV1<
 
   // Steps below acquire live resources; anything after session creation is
   // failure-guarded so a failed construction leaves no owner or listener.
+  recordCoreApplicationConstructionV1(constructionInstrumentation, "session_factory");
   const created = createGameSessionV1<TTypes>({
     initialSnapshot: createInitialSnapshotV1(),
     commandSchema: gameSimulation.commandSchema,
@@ -901,6 +973,7 @@ export async function createCoreGameApplicationInstanceV1<
       },
     });
 
+    recordCoreApplicationConstructionV1(constructionInstrumentation, "persistence_factory");
     persistenceService = await createPersistenceServiceV1<TTypes["state"], TTypes["snapshot"]>({
       runtimeControl: created.runtimeControl,
       records: options.host.records,
