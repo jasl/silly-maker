@@ -7,9 +7,10 @@ import type { Plugin } from "vite";
 
 /**
  * Build-time collection of the human-facing version stamp: the application's
- * and the engine's `package.json` versions plus their git commits. Injected
- * into the page as `globalThis.__SILLYMAKER_VERSIONS__` and read at runtime
- * through `readVersionStampV1` (`@sillymaker/base`).
+ * and the engine's `package.json` versions plus their git commits (suffixed
+ * `-dirty` when the checkout has uncommitted changes). Injected into the
+ * page as `globalThis.__SILLYMAKER_VERSIONS__` and read at runtime through
+ * `readVersionStampV1` (`@sillymaker/base`).
  *
  * Every field degrades independently to `null` — no package version, no git
  * binary, a non-git checkout (e.g. a published engine package), or a detached
@@ -48,9 +49,24 @@ function packageVersionV1(packageJsonPath: string): string | null {
 function gitCommitV1(directory: string, runGit: RunGitV1): string | null {
   try {
     const commit = runGit(["rev-parse", "--short", "HEAD"], directory).trim();
-    return /^[0-9a-f]{4,40}$/u.test(commit) ? commit : null;
+    if (!/^[0-9a-f]{4,40}$/u.test(commit)) return null;
+    return `${commit}${gitDirtySuffixV1(directory, runGit)}`;
   } catch {
     return null;
+  }
+}
+
+/**
+ * `-dirty` when the checkout has uncommitted changes (staged, unstaged, or
+ * untracked): a bare commit hash must not claim to describe a tree it does
+ * not match. A failing status probe keeps the plain commit — the suffix is
+ * best-effort like every other field.
+ */
+function gitDirtySuffixV1(directory: string, runGit: RunGitV1): "" | "-dirty" {
+  try {
+    return runGit(["status", "--porcelain"], directory).trim() === "" ? "" : "-dirty";
+  } catch {
+    return "";
   }
 }
 
