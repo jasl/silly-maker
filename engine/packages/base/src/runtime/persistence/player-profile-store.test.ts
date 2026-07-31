@@ -55,7 +55,11 @@ describe("createPlayerProfileStoreV1", () => {
     expect(store.current()).toEqual(defaultPlayerProfileV1);
 
     await store.markSeen("interaction.test.line", 2);
-    await store.updatePreferences({ autoWaitMs: 250, skipPolicy: "skip_all" });
+    await store.updatePreferences({
+      autoWaitMs: 250,
+      skipPolicy: "skip_all",
+      skipCutscenes: true,
+    });
     expect(isSeenV1(store.current(), "interaction.test.line", 2)).toBe(true);
     expect(isSeenV1(store.current(), "interaction.test.line", 3)).toBe(false);
 
@@ -64,7 +68,41 @@ describe("createPlayerProfileStoreV1", () => {
     expect(reopened.current().preferences).toMatchObject({
       autoWaitMs: 250,
       skipPolicy: "skip_all",
+      skipCutscenes: true,
     });
+
+    // Profiles written before skipCutscenes still load (soft-default false).
+    await records.commit([
+      {
+        kind: "put",
+        namespace: "settings",
+        key: "player-profile/story.test.legacy" as never,
+        expectedRevision: null,
+        bytes: new TextEncoder().encode(
+          JSON.stringify({
+            profileRevision: 1,
+            seen: {},
+            meta: {},
+            preferences: {
+              textRevealCharsPerSecond: 40,
+              autoWaitMs: 600,
+              skipPolicy: "skip_read",
+              masterGainPermille: 1000,
+              bgmGainPermille: 1000,
+              voiceGainPermille: 1000,
+              sfxGainPermille: 1000,
+              muted: false,
+              locale: null,
+            },
+          }),
+        ),
+      },
+    ]);
+    const legacy = await createPlayerProfileStoreV1({
+      records,
+      storyId: "story.test.legacy",
+    });
+    expect(legacy.current().preferences.skipCutscenes).toBe(false);
 
     // Profiles are per story.
     const other = await createPlayerProfileStoreV1({ records, storyId: "story.test.other" });
