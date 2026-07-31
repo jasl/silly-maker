@@ -10,9 +10,10 @@ reconcile、dormant-kernel boundedness/action provenance 与 Overlay cutover
 在 [production-floor sequence](2026-07-30-production-floor-sequence.md)
 中：PF2 的顺序是 `S0 -> S1-T -> S2`；PF4 的顺序是
 `S3 -> S1-R -> S4 -> S4b`；S5–S6 属于 PF6。当前 S1-T 的剩余顺序是
-`S1d.2 -> S1d.3 -> S1e -> S1f`：先关闭已交付 dormant kernel 的有界状态与
-topology-axis 缺口，再建立 application epoch 与 readiness。S1d.1 已关闭
-binding-origin action provenance 缺口。S2 只依赖完成的
+`S1d.3 -> S1e -> S1f`：先关闭已交付 dormant kernel 的 topology-axis 缺口，再建立
+application epoch 与 readiness。S1d.1 已关闭 binding-origin action provenance
+缺口，S1d.2 已把 transient identity 与 owner lifetime state 收敛到有界模型。S2
+只依赖完成的
 S1-T。S1-R
 延后到第一个真实 externally published stable-target family 前完成；按 accepted
 target ownership，S4 Narrative 计划成为该 family，因此 S1-R 位于 S3 与 S4
@@ -465,6 +466,33 @@ readiness/pilot 前改成由 resolved owner domain 与 allocator cursor 有界�
   topology revision、live identities 与 subscriber count 全为零变化；
 - reducer/Coordinator/publication state 不再有历史 tombstone collection，所有
   focused/UI/aggregate tests 全绿。
+
+**2026-08-01 S1d.2 delivery：** 由 3,333 轮中性、确定性的
+`open -> replace -> close` 和一次 final open 组成的 10,000 次 transition，在原实现上
+产生三个各含 `6,666` 项的 retired-ID arrays，共 `19,998` 个历史 tombstone。按实际
+spread/dedupe 与
+fresh-candidate admission 路径推导，该 workload 分别遍历 `99,999,999` 个历史
+copy/dedupe input entries 与 `66,653,334` 个 retired-ID admission entries；这些是由
+operation 序列和 collection 长度得出的确定性计数，不是 wall-clock 门禁。保留该
+characterization 后翻转 bounded assertions，focused red 精确失败在仍存在、长度为
+`6,666` 的 `retiredOccurrenceIds`。
+
+最小实现把三个 append-only arrays 替换为 current-epoch scalar allocation
+high-water，并要求 candidate 携带 allocator provenance；occurrence、instance 与
+routing lease 必须与 epoch/sequence 的 canonical 派生值逐字一致。replay allocation
+与伪造单项 identity 均 fail closed，fresh allocation 继续严格递增。Coordinator
+construction 现在 defensive-copy 并冻结 finite resolved-owner domain；duplicate
+declaration 同步拒绝，empty domain 合法，unknown open/replace/push/dispose 在分配、
+publication、revision 与 subscriber notification 前拒绝。disposed-owner 状态只能
+包含该有限 domain 的成员，重复 dispose 保持同一 state identity。
+
+green workload 精确得到 topology revision `10,000`、allocation high-water `6,667`、
+一个 live `e14.n6667` instance、一个 resolved owner、零 disposed owner，以及零
+retired/tombstone collection。验证为 focused reducer/Coordinator/action-route
+`3 files / 44 tests`、`@sillymaker/ui` `58 files / 495 tests`、aggregate
+`205 files / 1879 tests`，`deno task check` 全绿（含所有 Story check 与 Engine Lab
+production build）。该切片没有决定 composition-root epoch ownership，没有新增
+public export/live Surface family，也没有实现 S1d.3+；下一独立切片是 S1d.3。
 
 ### S1d.3 — Slot scope and independent topology axes
 

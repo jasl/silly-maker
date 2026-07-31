@@ -183,7 +183,7 @@ digest/serialization dedup；四项 evidence gate 均未达到充分标准，
 
 执行 [Surface plan](2026-07-30-surface-contract-harness.md) 的
 **S0 → S1d.1 → S1d.2 → S1d.3 → S1e → S1f → S2**，只迁移
-**Workspace Overlay**。S1a–S1d.1 已交付 dormant baseline，S1d.2–S1f 完成
+**Workspace Overlay**。S1a–S1d.2 已交付 dormant baseline，S1d.3–S1f 完成
 S1-T 的剩余部分：
 
 1. 用现有 bug/trace 建立红测试；
@@ -218,7 +218,13 @@ unpublished action 现在返回 `surface.action_unpublished`，stale、rebind �
 dispose 后的 route 全部 fail closed，ordinary/lower handler count 为 `0`；被拒的
 route 本身不再改变已有 publication（owner/Coordinator dispose transition 已先独立
 提交）。direct untagged InputRouter event 仍保留 ordinary fallthrough。该批没有新增
-public export、live Surface family 或 S1d.2+ 能力；下一独立切片是 S1d.2。
+public export 或 live Surface family。S1d.2 随后以 frozen finite resolved-owner
+domain 与 current-epoch scalar allocation high-water 取代三个 append-only retired-ID
+arrays；10,000 次 deterministic churn 从 `19,998` 个历史 tombstone 收敛为一个
+`6,667` high-water、一个 live instance 和零 tombstone collection。unknown owner 在
+allocation/publication/revision/subscriber 前拒绝，identity replay 与 component
+forgery fail closed。该批没有决定 composition-root epoch ownership 或实现
+S1d.3+；下一独立切片是 S1d.3。
 
 S2 只依赖 S1-T，全部 Overlay target 都是 Coordinator-owned transient target；它不
 等待 S1-R，也不得为了统一形状预埋 source publication revision、stable-target

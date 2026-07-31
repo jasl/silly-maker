@@ -16,6 +16,13 @@ import {
   type ManagedSurfaceHandleV1,
 } from "./managed-surface-coordinator.ts";
 
+const resolvedOwnerIdsV1 = Object.freeze([
+  parseManagedSurfaceOwnerIdV1("surface-owner.workspace"),
+  parseManagedSurfaceOwnerIdV1("surface-owner.other"),
+  parseManagedSurfaceOwnerIdV1("surface-owner.system"),
+  parseManagedSurfaceOwnerIdV1("surface-owner.debug"),
+]);
+
 function definitionV1(
   suffix: string,
   overrides: Partial<ManagedSurfaceResolvedDefinitionV1> = {},
@@ -61,6 +68,7 @@ describe("ManagedSurfaceCoordinatorV1", () => {
   it("allocates deterministic transient identities and publishes each applied transition once", () => {
     const coordinator = createManagedSurfaceCoordinatorV1({
       applicationEpoch: parseNonNegativeSafeInteger(4),
+      resolvedOwnerIds: resolvedOwnerIdsV1,
     });
     const initial = coordinator.getSnapshot();
     const observed: (typeof initial)[] = [];
@@ -110,9 +118,128 @@ describe("ManagedSurfaceCoordinatorV1", () => {
     expect(Object.isFrozen(opened.handle)).toBe(true);
   });
 
+  it("freezes a finite owner domain and rejects unknown work before identity allocation", () => {
+    const workspaceOwnerId = parseManagedSurfaceOwnerIdV1("surface-owner.workspace");
+    const lateOwnerId = parseManagedSurfaceOwnerIdV1("surface-owner.late");
+    const ownerIds = [workspaceOwnerId];
+    const coordinator = createManagedSurfaceCoordinatorV1({
+      applicationEpoch: parseNonNegativeSafeInteger(14),
+      resolvedOwnerIds: ownerIds,
+    });
+    ownerIds.push(lateOwnerId);
+    const listener = vi.fn();
+    coordinator.subscribe(listener);
+    const initial = coordinator.getSnapshot();
+    const lateDefinition = definitionV1("late", {
+      ownerId: lateOwnerId,
+      slotId: parseManagedSurfaceSlotIdV1("surface-slot.late"),
+    });
+
+    expect(
+      coordinator.openTransientPrimary({
+        definition: lateDefinition,
+        semanticOccurrenceId: null,
+      }),
+    ).toEqual({
+      receipt: {
+        kind: "rejected",
+        code: "surface.unknown_owner",
+        beforeTopologyRevision: 0,
+        afterTopologyRevision: 0,
+      },
+      handle: null,
+    });
+    expect(coordinator.disposeOwner(lateOwnerId)).toEqual({
+      kind: "rejected",
+      code: "surface.unknown_owner",
+      beforeTopologyRevision: 0,
+      afterTopologyRevision: 0,
+    });
+    expect(coordinator.getSnapshot()).toBe(initial);
+    expect(listener).not.toHaveBeenCalled();
+
+    const primary = coordinator.openTransientPrimary({
+      definition: definitionV1("workspace"),
+      semanticOccurrenceId: null,
+    });
+    expect(primary.handle).toMatchObject({ surfaceInstanceId: "surface-instance.e14.n1" });
+    const afterPrimary = coordinator.getSnapshot();
+    listener.mockClear();
+
+    expect(
+      coordinator.replaceTransientPrimary({
+        expected: primary.handle!,
+        definition: lateDefinition,
+        semanticOccurrenceId: null,
+      }),
+    ).toMatchObject({
+      receipt: { kind: "rejected", code: "surface.unknown_owner" },
+      handle: null,
+    });
+    expect(
+      coordinator.pushTransientChild({
+        parent: primary.handle!,
+        definition: lateDefinition,
+        semanticOccurrenceId: null,
+      }),
+    ).toMatchObject({
+      receipt: { kind: "rejected", code: "surface.unknown_owner" },
+      handle: null,
+    });
+    expect(coordinator.disposeOwner(lateOwnerId)).toMatchObject({
+      kind: "rejected",
+      code: "surface.unknown_owner",
+    });
+    expect(coordinator.getSnapshot()).toBe(afterPrimary);
+    expect(listener).not.toHaveBeenCalled();
+
+    const child = coordinator.pushTransientChild({
+      parent: primary.handle!,
+      definition: childDefinitionV1("detail"),
+      semanticOccurrenceId: null,
+    });
+    expect(child.handle).toMatchObject({ surfaceInstanceId: "surface-instance.e14.n2" });
+    expect(listener).toHaveBeenCalledOnce();
+
+    expect(() =>
+      createManagedSurfaceCoordinatorV1({
+        applicationEpoch: parseNonNegativeSafeInteger(14),
+        resolvedOwnerIds: [workspaceOwnerId, workspaceOwnerId],
+      })
+    ).toThrowError("ui.managed_surface_duplicate_owner");
+  });
+
+  it("allows an empty owner domain without learning from rejected work", () => {
+    const coordinator = createManagedSurfaceCoordinatorV1({
+      applicationEpoch: parseNonNegativeSafeInteger(15),
+      resolvedOwnerIds: [],
+    });
+    const before = coordinator.getSnapshot();
+    const listener = vi.fn();
+    coordinator.subscribe(listener);
+    const workspaceOwnerId = parseManagedSurfaceOwnerIdV1("surface-owner.workspace");
+
+    expect(
+      coordinator.openTransientPrimary({
+        definition: definitionV1("workspace"),
+        semanticOccurrenceId: null,
+      }),
+    ).toMatchObject({
+      receipt: { kind: "rejected", code: "surface.unknown_owner" },
+      handle: null,
+    });
+    expect(coordinator.disposeOwner(workspaceOwnerId)).toMatchObject({
+      kind: "rejected",
+      code: "surface.unknown_owner",
+    });
+    expect(coordinator.getSnapshot()).toBe(before);
+    expect(listener).not.toHaveBeenCalled();
+  });
+
   it("does not publish rejected work and never rolls an allocated identity back", () => {
     const coordinator = createManagedSurfaceCoordinatorV1({
       applicationEpoch: parseNonNegativeSafeInteger(5),
+      resolvedOwnerIds: resolvedOwnerIdsV1,
     });
     const listener = vi.fn();
     coordinator.subscribe(listener);
@@ -149,6 +276,7 @@ describe("ManagedSurfaceCoordinatorV1", () => {
   it("keeps handles bound to the exact topology revision instead of refreshing them", () => {
     const coordinator = createManagedSurfaceCoordinatorV1({
       applicationEpoch: parseNonNegativeSafeInteger(6),
+      resolvedOwnerIds: resolvedOwnerIdsV1,
     });
     const first = coordinator.openTransientPrimary({
       definition: definitionV1("first"),
@@ -192,6 +320,7 @@ describe("ManagedSurfaceCoordinatorV1", () => {
   it("fences child pushes with exact parent evidence after intervening topology changes", () => {
     const coordinator = createManagedSurfaceCoordinatorV1({
       applicationEpoch: parseNonNegativeSafeInteger(7),
+      resolvedOwnerIds: resolvedOwnerIdsV1,
     });
     const parent = coordinator.openTransientPrimary({
       definition: definitionV1("parent"),
@@ -235,6 +364,7 @@ describe("ManagedSurfaceCoordinatorV1", () => {
   it("fences primary replacement against callbacks for a retired predecessor", () => {
     const coordinator = createManagedSurfaceCoordinatorV1({
       applicationEpoch: parseNonNegativeSafeInteger(8),
+      resolvedOwnerIds: resolvedOwnerIdsV1,
     });
     const first = coordinator.openTransientPrimary({
       definition: definitionV1("first"),
@@ -277,6 +407,7 @@ describe("ManagedSurfaceCoordinatorV1", () => {
     const failures: unknown[] = [];
     const coordinator = createManagedSurfaceCoordinatorV1({
       applicationEpoch: parseNonNegativeSafeInteger(9),
+      resolvedOwnerIds: resolvedOwnerIdsV1,
       reportSubscriberFailure(failure) {
         failures.push(failure);
         throw new Error("failure-sink");
@@ -314,6 +445,7 @@ describe("ManagedSurfaceCoordinatorV1", () => {
   it("publishes owner and coordinator disposal atomically, then seals the store", () => {
     const coordinator = createManagedSurfaceCoordinatorV1({
       applicationEpoch: parseNonNegativeSafeInteger(10),
+      resolvedOwnerIds: resolvedOwnerIdsV1,
     });
     coordinator.openTransientPrimary({
       definition: definitionV1("workspace"),
@@ -386,6 +518,7 @@ describe("ManagedSurfaceCoordinatorV1", () => {
   it("treats caller-supplied handles as immutable evidence values", () => {
     const coordinator = createManagedSurfaceCoordinatorV1({
       applicationEpoch: parseNonNegativeSafeInteger(11),
+      resolvedOwnerIds: resolvedOwnerIdsV1,
     });
     const opened = coordinator.openTransientPrimary({
       definition: definitionV1("inventory"),
@@ -406,6 +539,7 @@ describe("ManagedSurfaceCoordinatorV1", () => {
   it("closes the current top explicitly without treating dismiss policy as close authority", () => {
     const coordinator = createManagedSurfaceCoordinatorV1({
       applicationEpoch: parseNonNegativeSafeInteger(12),
+      resolvedOwnerIds: resolvedOwnerIdsV1,
     });
     const parent = coordinator.openTransientPrimary({
       definition: definitionV1("workspace"),
@@ -488,6 +622,7 @@ describe("ManagedSurfaceCoordinatorV1", () => {
   it("closes an owner's live topology without permanently disposing that owner", () => {
     const coordinator = createManagedSurfaceCoordinatorV1({
       applicationEpoch: parseNonNegativeSafeInteger(13),
+      resolvedOwnerIds: resolvedOwnerIdsV1,
     });
     coordinator.openTransientPrimary({
       definition: definitionV1("workspace"),

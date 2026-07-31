@@ -3,6 +3,7 @@ import {
   type DeepReadonly,
   type NonNegativeSafeInteger,
   parseNonNegativeSafeInteger,
+  parsePositiveSafeInteger,
   type StrictJsonObjectV1,
 } from "@sillymaker/base";
 
@@ -17,10 +18,8 @@ import {
   type ManagedSurfaceRouteActionInputV1,
   type ManagedSurfaceTransitionEvidenceV1,
   type ManagedSurfaceTransitionReceiptV1,
-  parseManagedSurfaceInstanceIdV1,
-  parseManagedSurfaceRoutingLeaseIdV1,
-  parseManagedSurfaceTargetOccurrenceIdV1,
 } from "./managed-surface-contracts.ts";
+import { createManagedSurfaceTransientIdentityV1 } from "./managed-surface-identity.ts";
 import {
   createManagedSurfaceReducerStateV1,
   reduceManagedSurfaceV1,
@@ -55,6 +54,7 @@ export interface ManagedSurfaceSubscriberFailureV1 {
 
 export interface CreateManagedSurfaceCoordinatorInputV1 {
   readonly applicationEpoch: NonNegativeSafeInteger;
+  readonly resolvedOwnerIds: readonly ManagedSurfaceOwnerIdV1[];
   readonly reportSubscriberFailure?: (
     failure: DeepReadonly<ManagedSurfaceSubscriberFailureV1>,
   ) => void;
@@ -122,9 +122,9 @@ export function createManagedSurfaceCoordinatorV1(
   input: CreateManagedSurfaceCoordinatorInputV1,
 ): ManagedSurfaceCoordinatorV1 {
   const applicationEpoch = parseNonNegativeSafeInteger(input.applicationEpoch);
+  let state = createManagedSurfaceReducerStateV1(applicationEpoch, input.resolvedOwnerIds);
+  const resolvedOwnerIds = new Set(state.resolvedOwnerIds);
   const listeners = new Set<() => void>();
-  let state = createManagedSurfaceReducerStateV1(applicationEpoch);
-  let nextIdentitySequence = 1;
 
   const reportSubscriberFailure = (): void => {
     try {
@@ -147,36 +147,49 @@ export function createManagedSurfaceCoordinatorV1(
   const transition = (
     operation: Parameters<typeof reduceManagedSurfaceV1>[1],
   ): ManagedSurfaceTransitionReceiptV1 => {
+    const previousPublication = state.publication;
     const result = reduceManagedSurfaceV1(state, operation);
-    if (result.state !== state) {
-      state = result.state;
-      notify();
-    }
+    state = result.state;
+    if (state.publication !== previousPublication) notify();
     return result.receipt;
+  };
+
+  const rejectedReceipt = (
+    code: "surface.coordinator_disposed" | "surface.unknown_owner",
+  ): ManagedSurfaceTransitionReceiptV1 =>
+    Object.freeze({
+      kind: "rejected",
+      code,
+      beforeTopologyRevision: state.publication.topologyRevision,
+      afterTopologyRevision: state.publication.topologyRevision,
+    });
+
+  const candidateOwnerFailure = (
+    ownerId: ManagedSurfaceOwnerIdV1,
+  ): ManagedSurfaceTransitionReceiptV1 | null => {
+    if (state.publication.coordinatorDisposed) {
+      return rejectedReceipt("surface.coordinator_disposed");
+    }
+    return resolvedOwnerIds.has(ownerId) ? null : rejectedReceipt("surface.unknown_owner");
   };
 
   const allocateCandidate = (
     request: ManagedSurfaceTransientOpenInputV1,
   ): ManagedSurfaceCandidateV1 => {
-    if (!Number.isSafeInteger(nextIdentitySequence)) {
+    if (state.identitySequenceHighWater >= Number.MAX_SAFE_INTEGER) {
       throw new TypeError("ui.managed_surface_id_sequence_exhausted");
     }
-    const sequence = nextIdentitySequence;
-    nextIdentitySequence += 1;
+    const sequence = parsePositiveSafeInteger(state.identitySequenceHighWater + 1);
+    const identity = createManagedSurfaceTransientIdentityV1(applicationEpoch, sequence);
     return Object.freeze({
+      identityAllocation: identity.allocation,
       definition: request.definition,
       target: Object.freeze({
         kind: "transient" as const,
-        occurrenceId: parseManagedSurfaceTargetOccurrenceIdV1(
-          `surface-occurrence.e${applicationEpoch}.n${sequence}`,
-        ),
+        occurrenceId: identity.occurrenceId,
       }),
-      surfaceInstanceId: parseManagedSurfaceInstanceIdV1(
-        `surface-instance.e${applicationEpoch}.n${sequence}`,
-      ),
-      routingLeaseId: parseManagedSurfaceRoutingLeaseIdV1(
-        `surface-lease.e${applicationEpoch}.n${sequence}`,
-      ),
+      surfaceInstanceId: identity.surfaceInstanceId,
+      routingLeaseId: identity.routingLeaseId,
       semanticOccurrenceId: request.semanticOccurrenceId,
     });
   };
@@ -220,6 +233,8 @@ export function createManagedSurfaceCoordinatorV1(
     },
 
     openTransientPrimary(request) {
+      const ownerFailure = candidateOwnerFailure(request.definition.ownerId);
+      if (ownerFailure !== null) return handleResultV1(applicationEpoch, ownerFailure);
       const receipt = transition({
         kind: "open_primary",
         applicationEpoch,
@@ -229,6 +244,8 @@ export function createManagedSurfaceCoordinatorV1(
     },
 
     replaceTransientPrimary(request) {
+      const ownerFailure = candidateOwnerFailure(request.definition.ownerId);
+      if (ownerFailure !== null) return handleResultV1(applicationEpoch, ownerFailure);
       const receipt = transition({
         kind: "replace_primary",
         expected: request.expected,
@@ -238,6 +255,8 @@ export function createManagedSurfaceCoordinatorV1(
     },
 
     pushTransientChild(request) {
+      const ownerFailure = candidateOwnerFailure(request.definition.ownerId);
+      if (ownerFailure !== null) return handleResultV1(applicationEpoch, ownerFailure);
       const receipt = transition({
         kind: "push_child",
         parentEvidence: request.parent,

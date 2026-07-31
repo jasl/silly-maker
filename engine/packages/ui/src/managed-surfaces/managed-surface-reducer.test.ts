@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { parseNonNegativeSafeInteger } from "@sillymaker/base";
+import { parseNonNegativeSafeInteger, parsePositiveSafeInteger } from "@sillymaker/base";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -21,6 +21,20 @@ import {
   reduceManagedSurfaceV1,
   type ManagedSurfaceReducerStateV1,
 } from "./managed-surface-reducer.ts";
+import { createManagedSurfaceTransientIdentityV1 } from "./managed-surface-identity.ts";
+
+const resolvedOwnerIdsV1 = Object.freeze([
+  parseManagedSurfaceOwnerIdV1("surface-owner.workspace"),
+  parseManagedSurfaceOwnerIdV1("surface-owner.system"),
+  parseManagedSurfaceOwnerIdV1("surface-owner.other"),
+]);
+
+function createReducerStateV1(
+  applicationEpoch: number,
+  resolvedOwnerIds = resolvedOwnerIdsV1,
+): ManagedSurfaceReducerStateV1 {
+  return createManagedSurfaceReducerStateV1(applicationEpoch, resolvedOwnerIds);
+}
 
 function definitionV1(
   suffix: string,
@@ -54,17 +68,23 @@ function definitionV1(
 }
 
 function candidateV1(
+  state: ManagedSurfaceReducerStateV1,
   suffix: string,
   overrides: Partial<ManagedSurfaceCandidateV1> = {},
 ): ManagedSurfaceCandidateV1 {
+  const identity = createManagedSurfaceTransientIdentityV1(
+    state.publication.applicationEpoch,
+    parsePositiveSafeInteger(state.identitySequenceHighWater + 1),
+  );
   return {
+    identityAllocation: identity.allocation,
     definition: definitionV1(suffix),
     target: {
       kind: "transient",
-      occurrenceId: parseManagedSurfaceTargetOccurrenceIdV1(`surface-occurrence.${suffix}`),
+      occurrenceId: identity.occurrenceId,
     },
-    surfaceInstanceId: parseManagedSurfaceInstanceIdV1(`surface-instance.${suffix}`),
-    routingLeaseId: parseManagedSurfaceRoutingLeaseIdV1(`surface-lease.${suffix}`),
+    surfaceInstanceId: identity.surfaceInstanceId,
+    routingLeaseId: identity.routingLeaseId,
     semanticOccurrenceId: null,
     ...overrides,
   };
@@ -102,7 +122,7 @@ describe("Managed Surface package-internal contracts", () => {
 
 describe("reduceManagedSurfaceV1", () => {
   it("opens one synchronous primary into one deeply frozen atomic publication", () => {
-    const initial = createManagedSurfaceReducerStateV1(4);
+    const initial = createReducerStateV1(4);
     const actionIds = [parseManagedSurfaceActionIdV1("surface-action.activate")];
     const allowedParentSlotIds: ReturnType<typeof parseManagedSurfaceSlotIdV1>[] = [];
     const dismissPolicy = {
@@ -116,19 +136,18 @@ describe("reduceManagedSurfaceV1", () => {
       trap: true,
       restore: "opener" as const,
     };
-    const target = {
-      kind: "transient" as const,
-      occurrenceId: parseManagedSurfaceTargetOccurrenceIdV1("surface-occurrence.inventory"),
-    };
-    const candidate = candidateV1("inventory", {
+    const candidate = candidateV1(initial, "inventory", {
       definition: definitionV1("inventory", {
         actionIds,
         allowedParentSlotIds,
         dismissPolicy,
         focusPolicy,
       }),
-      target,
     });
+    const target = candidate.target as {
+      occurrenceId: ReturnType<typeof parseManagedSurfaceTargetOccurrenceIdV1>;
+    };
+    const originalOccurrenceId = target.occurrenceId;
 
     expect(Object.isFrozen(initial)).toBe(true);
     expect(Object.isFrozen(initial.publication)).toBe(true);
@@ -155,19 +174,19 @@ describe("reduceManagedSurfaceV1", () => {
       code: "surface.opened",
       beforeTopologyRevision: 0,
       afterTopologyRevision: 1,
-      surfaceInstanceId: "surface-instance.inventory",
+      surfaceInstanceId: candidate.surfaceInstanceId,
     });
     expect(result.state).not.toBe(initial);
     expect(result.state.publication).not.toBe(initial.publication);
     expect(result.state.publication.orderedInstances).toHaveLength(1);
     expect(result.state.publication.orderedInstances[0]).toMatchObject({
-      surfaceInstanceId: "surface-instance.inventory",
+      surfaceInstanceId: candidate.surfaceInstanceId,
       parentInstanceId: null,
       phase: "active",
       readiness: { kind: "ready" },
       target: {
         kind: "transient",
-        occurrenceId: "surface-occurrence.inventory",
+        occurrenceId: originalOccurrenceId,
       },
     });
     expect(result.state.publication.orderedInstances[0]).not.toHaveProperty(
@@ -184,9 +203,9 @@ describe("reduceManagedSurfaceV1", () => {
     );
     expect(result.state.publication.orderedInstances[0]?.definition.focusPolicy.trap).toBe(true);
     expect(result.state.publication.inputOwner).toEqual({
-      surfaceInstanceId: "surface-instance.inventory",
+      surfaceInstanceId: candidate.surfaceInstanceId,
       inputContextId: "overlay",
-      routingLeaseId: "surface-lease.inventory",
+      routingLeaseId: candidate.routingLeaseId,
     });
     const inputRouter = createInputRouterV1();
     expect(() =>
@@ -196,7 +215,7 @@ describe("reduceManagedSurfaceV1", () => {
       })
     ).not.toThrow();
     expect(result.state.publication.focusOwner).toEqual({
-      surfaceInstanceId: "surface-instance.inventory",
+      surfaceInstanceId: candidate.surfaceInstanceId,
       initialTargetId: "focus-target.primary",
       trap: true,
       restore: "opener",
@@ -204,7 +223,7 @@ describe("reduceManagedSurfaceV1", () => {
     expect(result.state.publication.ownerTrace).toEqual([
       {
         ownerId: "surface-owner.workspace",
-        surfaceInstanceIds: ["surface-instance.inventory"],
+        surfaceInstanceIds: [candidate.surfaceInstanceId],
       },
     ]);
 
@@ -238,11 +257,10 @@ describe("reduceManagedSurfaceV1", () => {
   });
 
   it("derives suspension, render order, blocking, input, and focus from one topology", () => {
-    let state = openPrimaryV1(
-      createManagedSurfaceReducerStateV1(1),
-      candidateV1("workspace"),
-    ).state;
-    const blocking = candidateV1("confirm", {
+    let state = createReducerStateV1(1);
+    const workspace = candidateV1(state, "workspace");
+    state = openPrimaryV1(state, workspace).state;
+    const blocking = candidateV1(state, "confirm", {
       definition: definitionV1("confirm", {
         ownerId: parseManagedSurfaceOwnerIdV1("surface-owner.system"),
         slotId: parseManagedSurfaceSlotIdV1("surface-slot.modal"),
@@ -266,12 +284,12 @@ describe("reduceManagedSurfaceV1", () => {
         phase,
       })),
     ).toEqual([
-      { surfaceInstanceId: "surface-instance.workspace", phase: "suspended" },
-      { surfaceInstanceId: "surface-instance.confirm", phase: "active" },
+      { surfaceInstanceId: workspace.surfaceInstanceId, phase: "suspended" },
+      { surfaceInstanceId: blocking.surfaceInstanceId, phase: "active" },
     ]);
-    expect(state.publication.topmostBlockingInstanceId).toBe("surface-instance.confirm");
-    expect(state.publication.inputOwner?.surfaceInstanceId).toBe("surface-instance.confirm");
-    expect(state.publication.focusOwner?.surfaceInstanceId).toBe("surface-instance.confirm");
+    expect(state.publication.topmostBlockingInstanceId).toBe(blocking.surfaceInstanceId);
+    expect(state.publication.inputOwner?.surfaceInstanceId).toBe(blocking.surfaceInstanceId);
+    expect(state.publication.focusOwner?.surfaceInstanceId).toBe(blocking.surfaceInstanceId);
 
     const closed = reduceManagedSurfaceV1(state, {
       kind: "close_expected",
@@ -284,20 +302,19 @@ describe("reduceManagedSurfaceV1", () => {
 
     expect(closed.receipt.kind).toBe("applied");
     expect(closed.state.publication.orderedInstances).toMatchObject([
-      { surfaceInstanceId: "surface-instance.workspace", phase: "active" },
+      { surfaceInstanceId: workspace.surfaceInstanceId, phase: "active" },
     ]);
     expect(closed.state.publication.topmostBlockingInstanceId).toBeNull();
     expect(closed.state.publication.inputOwner?.surfaceInstanceId).toBe(
-      "surface-instance.workspace",
+      workspace.surfaceInstanceId,
     );
   });
 
   it("pushes and dismisses a child in parent-first topology order", () => {
-    let state = openPrimaryV1(
-      createManagedSurfaceReducerStateV1(2),
-      candidateV1("inventory"),
-    ).state;
-    const child = candidateV1("item", {
+    let state = createReducerStateV1(2);
+    const primary = candidateV1(state, "inventory");
+    state = openPrimaryV1(state, primary).state;
+    const child = candidateV1(state, "item", {
       definition: definitionV1("item", {
         slotId: parseManagedSurfaceSlotIdV1("surface-slot.detail"),
         layerOrder: parseNonNegativeSafeInteger(30),
@@ -312,7 +329,7 @@ describe("reduceManagedSurfaceV1", () => {
       parentEvidence: {
         applicationEpoch: state.publication.applicationEpoch,
         topologyRevision: state.publication.topologyRevision,
-        surfaceInstanceId: parseManagedSurfaceInstanceIdV1("surface-instance.inventory"),
+        surfaceInstanceId: primary.surfaceInstanceId,
       },
       candidate: child,
     });
@@ -327,17 +344,17 @@ describe("reduceManagedSurfaceV1", () => {
       })),
     ).toEqual([
       {
-        surfaceInstanceId: "surface-instance.inventory",
+        surfaceInstanceId: primary.surfaceInstanceId,
         parentInstanceId: null,
         phase: "active",
       },
       {
-        surfaceInstanceId: "surface-instance.item",
-        parentInstanceId: "surface-instance.inventory",
+        surfaceInstanceId: child.surfaceInstanceId,
+        parentInstanceId: primary.surfaceInstanceId,
         phase: "active",
       },
     ]);
-    expect(state.publication.inputOwner?.surfaceInstanceId).toBe("surface-instance.item");
+    expect(state.publication.inputOwner?.surfaceInstanceId).toBe(child.surfaceInstanceId);
 
     const dismissed = reduceManagedSurfaceV1(state, {
       kind: "route_dismiss",
@@ -352,17 +369,18 @@ describe("reduceManagedSurfaceV1", () => {
     expect(dismissed.receipt).toMatchObject({
       kind: "applied",
       code: "surface.dismissed",
-      surfaceInstanceId: "surface-instance.item",
+      surfaceInstanceId: child.surfaceInstanceId,
     });
     expect(dismissed.state.publication.orderedInstances).toMatchObject([
-      { surfaceInstanceId: "surface-instance.inventory", phase: "active" },
+      { surfaceInstanceId: primary.surfaceInstanceId, phase: "active" },
     ]);
   });
 
   it("closes an expected parent and its subtree without guessing the current top", () => {
-    const primary = candidateV1("inventory");
-    let state = openPrimaryV1(createManagedSurfaceReducerStateV1(2), primary).state;
-    const child = candidateV1("item", {
+    let state = createReducerStateV1(2);
+    const primary = candidateV1(state, "inventory");
+    state = openPrimaryV1(state, primary).state;
+    const child = candidateV1(state, "item", {
       definition: definitionV1("item", {
         slotId: parseManagedSurfaceSlotIdV1("surface-slot.detail"),
         layerOrder: parseNonNegativeSafeInteger(30),
@@ -393,17 +411,16 @@ describe("reduceManagedSurfaceV1", () => {
     expect(closed.receipt).toMatchObject({
       kind: "applied",
       code: "surface.closed",
-      surfaceInstanceId: "surface-instance.inventory",
+      surfaceInstanceId: primary.surfaceInstanceId,
     });
     expect(closed.state.publication.orderedInstances).toEqual([]);
   });
 
   it("replaces a primary with fresh identity and atomically retires its subtree", () => {
-    let state = openPrimaryV1(
-      createManagedSurfaceReducerStateV1(3),
-      candidateV1("inventory-first"),
-    ).state;
-    const child = candidateV1("item-first", {
+    let state = createReducerStateV1(3);
+    const original = candidateV1(state, "inventory-first");
+    state = openPrimaryV1(state, original).state;
+    const child = candidateV1(state, "item-first", {
       definition: definitionV1("item", {
         slotId: parseManagedSurfaceSlotIdV1("surface-slot.detail"),
         placement: "child",
@@ -416,12 +433,12 @@ describe("reduceManagedSurfaceV1", () => {
       parentEvidence: {
         applicationEpoch: state.publication.applicationEpoch,
         topologyRevision: state.publication.topologyRevision,
-        surfaceInstanceId: parseManagedSurfaceInstanceIdV1("surface-instance.inventory-first"),
+        surfaceInstanceId: original.surfaceInstanceId,
       },
       candidate: child,
     }).state;
 
-    const replacement = candidateV1("inventory-second", {
+    const replacement = candidateV1(state, "inventory-second", {
       definition: definitionV1("inventory-first"),
     });
     const replaced = reduceManagedSurfaceV1(state, {
@@ -429,7 +446,7 @@ describe("reduceManagedSurfaceV1", () => {
       expected: {
         applicationEpoch: state.publication.applicationEpoch,
         topologyRevision: state.publication.topologyRevision,
-        surfaceInstanceId: parseManagedSurfaceInstanceIdV1("surface-instance.inventory-first"),
+        surfaceInstanceId: original.surfaceInstanceId,
       },
       candidate: replacement,
     });
@@ -437,14 +454,14 @@ describe("reduceManagedSurfaceV1", () => {
     expect(replaced.receipt).toMatchObject({
       kind: "applied",
       code: "surface.replaced",
-      surfaceInstanceId: "surface-instance.inventory-second",
+      surfaceInstanceId: replacement.surfaceInstanceId,
     });
     expect(replaced.state.publication.topologyRevision).toBe(
       state.publication.topologyRevision + 1,
     );
     expect(replaced.state.publication.orderedInstances).toMatchObject([
       {
-        surfaceInstanceId: "surface-instance.inventory-second",
+        surfaceInstanceId: replacement.surfaceInstanceId,
         parentInstanceId: null,
         phase: "active",
       },
@@ -455,7 +472,7 @@ describe("reduceManagedSurfaceV1", () => {
       evidence: {
         applicationEpoch: parseNonNegativeSafeInteger(3),
         topologyRevision: replaced.state.publication.topologyRevision,
-        surfaceInstanceId: parseManagedSurfaceInstanceIdV1("surface-instance.inventory-first"),
+        surfaceInstanceId: original.surfaceInstanceId,
       },
     });
     expect(staleOldInstance.receipt).toMatchObject({
@@ -466,7 +483,7 @@ describe("reduceManagedSurfaceV1", () => {
 
     const reusedChildOccurrence = openPrimaryV1(
       replaced.state,
-      candidateV1("reuse-child-occurrence", {
+      candidateV1(replaced.state, "reuse-child-occurrence", {
         target: child.target,
         definition: definitionV1("reuse-child-occurrence", {
           ownerId: parseManagedSurfaceOwnerIdV1("surface-owner.other"),
@@ -476,14 +493,14 @@ describe("reduceManagedSurfaceV1", () => {
     );
     expect(reusedChildOccurrence.receipt).toMatchObject({
       kind: "rejected",
-      code: "surface.reused_occurrence",
+      code: "surface.invalid_identity_allocation",
     });
     expect(reusedChildOccurrence.state).toBe(replaced.state);
 
     const reusedRootInstance = openPrimaryV1(
       replaced.state,
-      candidateV1("reuse-root-instance", {
-        surfaceInstanceId: parseManagedSurfaceInstanceIdV1("surface-instance.inventory-first"),
+      candidateV1(replaced.state, "reuse-root-instance", {
+        surfaceInstanceId: original.surfaceInstanceId,
         definition: definitionV1("reuse-root-instance", {
           ownerId: parseManagedSurfaceOwnerIdV1("surface-owner.other"),
           slotId: parseManagedSurfaceSlotIdV1("surface-slot.other"),
@@ -492,27 +509,23 @@ describe("reduceManagedSurfaceV1", () => {
     );
     expect(reusedRootInstance.receipt).toMatchObject({
       kind: "rejected",
-      code: "surface.reused_instance",
+      code: "surface.invalid_identity_allocation",
     });
     expect(reusedRootInstance.state).toBe(replaced.state);
   });
 
   it("rejects duplicate identity, occupied slots, and invalid parents atomically", () => {
-    let state = openPrimaryV1(
-      createManagedSurfaceReducerStateV1(4),
-      candidateV1("inventory"),
-    ).state;
+    let state = createReducerStateV1(4);
+    const primary = candidateV1(state, "inventory");
+    state = openPrimaryV1(state, primary).state;
 
     const cases = [
       {
         operation: {
           kind: "open_primary" as const,
           applicationEpoch: parseNonNegativeSafeInteger(4),
-          candidate: candidateV1("duplicate-occurrence", {
-            target: {
-              kind: "transient",
-              occurrenceId: parseManagedSurfaceTargetOccurrenceIdV1("surface-occurrence.inventory"),
-            },
+          candidate: candidateV1(state, "duplicate-occurrence", {
+            target: primary.target,
             definition: definitionV1("duplicate-occurrence", {
               ownerId: parseManagedSurfaceOwnerIdV1("surface-owner.other"),
               slotId: parseManagedSurfaceSlotIdV1("surface-slot.other"),
@@ -525,8 +538,8 @@ describe("reduceManagedSurfaceV1", () => {
         operation: {
           kind: "open_primary" as const,
           applicationEpoch: parseNonNegativeSafeInteger(4),
-          candidate: candidateV1("duplicate-instance", {
-            surfaceInstanceId: parseManagedSurfaceInstanceIdV1("surface-instance.inventory"),
+          candidate: candidateV1(state, "duplicate-instance", {
+            surfaceInstanceId: primary.surfaceInstanceId,
             definition: definitionV1("duplicate-instance", {
               ownerId: parseManagedSurfaceOwnerIdV1("surface-owner.other"),
               slotId: parseManagedSurfaceSlotIdV1("surface-slot.other"),
@@ -539,8 +552,8 @@ describe("reduceManagedSurfaceV1", () => {
         operation: {
           kind: "open_primary" as const,
           applicationEpoch: parseNonNegativeSafeInteger(4),
-          candidate: candidateV1("duplicate-lease", {
-            routingLeaseId: parseManagedSurfaceRoutingLeaseIdV1("surface-lease.inventory"),
+          candidate: candidateV1(state, "duplicate-lease", {
+            routingLeaseId: primary.routingLeaseId,
             definition: definitionV1("duplicate-lease", {
               ownerId: parseManagedSurfaceOwnerIdV1("surface-owner.other"),
               slotId: parseManagedSurfaceSlotIdV1("surface-slot.other"),
@@ -553,7 +566,7 @@ describe("reduceManagedSurfaceV1", () => {
         operation: {
           kind: "open_primary" as const,
           applicationEpoch: parseNonNegativeSafeInteger(4),
-          candidate: candidateV1("occupied"),
+          candidate: candidateV1(state, "occupied"),
         },
         code: "surface.slot_occupied",
       },
@@ -565,7 +578,7 @@ describe("reduceManagedSurfaceV1", () => {
             topologyRevision: state.publication.topologyRevision,
             surfaceInstanceId: parseManagedSurfaceInstanceIdV1("surface-instance.unknown"),
           },
-          candidate: candidateV1("orphan", {
+          candidate: candidateV1(state, "orphan", {
             definition: definitionV1("orphan", {
               slotId: parseManagedSurfaceSlotIdV1("surface-slot.detail"),
               placement: "child",
@@ -582,9 +595,9 @@ describe("reduceManagedSurfaceV1", () => {
           parentEvidence: {
             applicationEpoch: parseNonNegativeSafeInteger(4),
             topologyRevision: state.publication.topologyRevision,
-            surfaceInstanceId: parseManagedSurfaceInstanceIdV1("surface-instance.inventory"),
+            surfaceInstanceId: primary.surfaceInstanceId,
           },
-          candidate: candidateV1("child-below-parent", {
+          candidate: candidateV1(state, "child-below-parent", {
             definition: definitionV1("child-below-parent", {
               slotId: parseManagedSurfaceSlotIdV1("surface-slot.detail"),
               layerOrder: parseNonNegativeSafeInteger(10),
@@ -600,7 +613,7 @@ describe("reduceManagedSurfaceV1", () => {
         operation: {
           kind: "open_primary" as const,
           applicationEpoch: parseNonNegativeSafeInteger(4),
-          candidate: candidateV1("child-as-primary", {
+          candidate: candidateV1(state, "child-as-primary", {
             definition: definitionV1("child-as-primary", {
               placement: "child",
               allowedParentSlotIds: [parseManagedSurfaceSlotIdV1("surface-slot.primary")],
@@ -613,7 +626,7 @@ describe("reduceManagedSurfaceV1", () => {
         operation: {
           kind: "open_primary" as const,
           applicationEpoch: parseNonNegativeSafeInteger(4),
-          candidate: candidateV1("stack-as-primary", {
+          candidate: candidateV1(state, "stack-as-primary", {
             definition: definitionV1("stack-as-primary", {
               ownerId: parseManagedSurfaceOwnerIdV1("surface-owner.other"),
               slotId: parseManagedSurfaceSlotIdV1("surface-slot.stack"),
@@ -631,20 +644,25 @@ describe("reduceManagedSurfaceV1", () => {
         kind: testCase.code === "surface.stale_instance" ? "stale" : "rejected",
         code: testCase.code,
       });
-      expect(result.state).toBe(state);
       expect(result.state.publication).toBe(state.publication);
+      if (testCase.code.startsWith("surface.duplicate_")) {
+        expect(result.state).toBe(state);
+        expect(result.state.identitySequenceHighWater).toBe(1);
+      } else {
+        expect(result.state).not.toBe(state);
+        expect(result.state.identitySequenceHighWater).toBe(2);
+      }
     }
   });
 
   it("never lets stale epoch, revision, or instance evidence mutate the current topology", () => {
-    const state = openPrimaryV1(
-      createManagedSurfaceReducerStateV1(9),
-      candidateV1("inventory"),
-    ).state;
+    let state = createReducerStateV1(9);
+    const primary = candidateV1(state, "inventory");
+    state = openPrimaryV1(state, primary).state;
     const staleOpen = reduceManagedSurfaceV1(state, {
       kind: "open_primary",
       applicationEpoch: parseNonNegativeSafeInteger(8),
-      candidate: candidateV1("stale-open", {
+      candidate: candidateV1(state, "stale-open", {
         definition: definitionV1("stale-open", {
           ownerId: parseManagedSurfaceOwnerIdV1("surface-owner.other"),
           slotId: parseManagedSurfaceSlotIdV1("surface-slot.other"),
@@ -655,7 +673,9 @@ describe("reduceManagedSurfaceV1", () => {
       kind: "stale",
       code: "surface.stale_application_epoch",
     });
-    expect(staleOpen.state).toBe(state);
+    expect(staleOpen.state).not.toBe(state);
+    expect(staleOpen.state.publication).toBe(state.publication);
+    expect(staleOpen.state.identitySequenceHighWater).toBe(2);
 
     const staleCloseTop = reduceManagedSurfaceV1(state, {
       kind: "close_top",
@@ -667,7 +687,7 @@ describe("reduceManagedSurfaceV1", () => {
     });
     expect(staleCloseTop.state).toBe(state);
 
-    const empty = createManagedSurfaceReducerStateV1(9);
+    const empty = createReducerStateV1(9);
     const alreadyClosed = reduceManagedSurfaceV1(empty, {
       kind: "close_top",
       applicationEpoch: empty.publication.applicationEpoch,
@@ -696,7 +716,7 @@ describe("reduceManagedSurfaceV1", () => {
         evidence: {
           applicationEpoch: parseNonNegativeSafeInteger(8),
           topologyRevision: state.publication.topologyRevision,
-          surfaceInstanceId: parseManagedSurfaceInstanceIdV1("surface-instance.inventory"),
+          surfaceInstanceId: primary.surfaceInstanceId,
         },
         code: "surface.stale_application_epoch",
       },
@@ -704,7 +724,7 @@ describe("reduceManagedSurfaceV1", () => {
         evidence: {
           applicationEpoch: parseNonNegativeSafeInteger(9),
           topologyRevision: parseNonNegativeSafeInteger(0),
-          surfaceInstanceId: parseManagedSurfaceInstanceIdV1("surface-instance.inventory"),
+          surfaceInstanceId: primary.surfaceInstanceId,
         },
         code: "surface.stale_topology_revision",
       },
@@ -733,7 +753,10 @@ describe("reduceManagedSurfaceV1", () => {
   });
 
   it("blocks every dismiss route without falling through but allows explicit close", () => {
-    const locked = candidateV1("locked", {
+    let state = createReducerStateV1(5);
+    const background = candidateV1(state, "background");
+    state = openPrimaryV1(state, background).state;
+    const locked = candidateV1(state, "locked", {
       definition: definitionV1("locked", {
         ownerId: parseManagedSurfaceOwnerIdV1("surface-owner.system"),
         slotId: parseManagedSurfaceSlotIdV1("surface-slot.modal"),
@@ -748,11 +771,7 @@ describe("reduceManagedSurfaceV1", () => {
         },
       }),
     });
-    const background = openPrimaryV1(
-      createManagedSurfaceReducerStateV1(5),
-      candidateV1("background"),
-    );
-    const opened = openPrimaryV1(background.state, locked);
+    const opened = openPrimaryV1(state, locked);
 
     for (const dismissKind of ["back", "escape", "backdrop", "routed_cancel"] as const) {
       const result = reduceManagedSurfaceV1(opened.state, {
@@ -770,8 +789,8 @@ describe("reduceManagedSurfaceV1", () => {
       });
       expect(result.state).toBe(opened.state);
       expect(result.state.publication.orderedInstances).toMatchObject([
-        { surfaceInstanceId: "surface-instance.background", phase: "suspended" },
-        { surfaceInstanceId: "surface-instance.locked", phase: "active" },
+        { surfaceInstanceId: background.surfaceInstanceId, phase: "suspended" },
+        { surfaceInstanceId: locked.surfaceInstanceId, phase: "active" },
       ]);
     }
 
@@ -788,16 +807,171 @@ describe("reduceManagedSurfaceV1", () => {
       code: "surface.closed",
     });
     expect(explicitlyClosed.state.publication.orderedInstances).toMatchObject([
-      { surfaceInstanceId: "surface-instance.background", phase: "active" },
+      { surfaceInstanceId: background.surfaceInstanceId, phase: "active" },
     ]);
     expect(explicitlyClosed.state.publication.inputOwner?.surfaceInstanceId).toBe(
-      "surface-instance.background",
+      background.surfaceInstanceId,
     );
   });
 
-  it("rejects occurrence and instance ABA reuse after close", () => {
-    const original = candidateV1("first");
-    let state = openPrimaryV1(createManagedSurfaceReducerStateV1(6), original).state;
+  it("freezes the resolved owner domain and rejects unknown owners before allocation", () => {
+    const workspaceOwnerId = parseManagedSurfaceOwnerIdV1("surface-owner.workspace");
+    const lateOwnerId = parseManagedSurfaceOwnerIdV1("surface-owner.late");
+    const ownerIds = [workspaceOwnerId];
+    const state = createReducerStateV1(15, ownerIds);
+    ownerIds.push(lateOwnerId);
+
+    expect(state.resolvedOwnerIds).toEqual([workspaceOwnerId]);
+    expect(Object.isFrozen(state.resolvedOwnerIds)).toBe(true);
+    expect(() => createReducerStateV1(15, [workspaceOwnerId, workspaceOwnerId])).toThrowError(
+      "ui.managed_surface_duplicate_owner",
+    );
+
+    const unknownCandidate = candidateV1(state, "late", {
+      definition: definitionV1("late", { ownerId: lateOwnerId }),
+    });
+    const unknownOpen = openPrimaryV1(state, unknownCandidate);
+    expect(unknownOpen.receipt).toEqual({
+      kind: "rejected",
+      code: "surface.unknown_owner",
+      beforeTopologyRevision: 0,
+      afterTopologyRevision: 0,
+    });
+    expect(unknownOpen.state).toBe(state);
+    expect(unknownOpen.state.identitySequenceHighWater).toBe(0);
+
+    const unknownDispose = reduceManagedSurfaceV1(state, {
+      kind: "dispose_owner",
+      applicationEpoch: state.publication.applicationEpoch,
+      ownerId: lateOwnerId,
+    });
+    expect(unknownDispose.receipt).toEqual({
+      kind: "rejected",
+      code: "surface.unknown_owner",
+      beforeTopologyRevision: 0,
+      afterTopologyRevision: 0,
+    });
+    expect(unknownDispose.state).toBe(state);
+
+    const empty = createReducerStateV1(15, []);
+    expect(openPrimaryV1(empty, candidateV1(empty, "empty-domain")).receipt).toMatchObject({
+      kind: "rejected",
+      code: "surface.unknown_owner",
+    });
+    expect(empty.identitySequenceHighWater).toBe(0);
+  });
+
+  it("admits only the exact current-epoch next identity allocation", () => {
+    const state = createReducerStateV1(16, [
+      parseManagedSurfaceOwnerIdV1("surface-owner.workspace"),
+    ]);
+    const skippedIdentity = createManagedSurfaceTransientIdentityV1(
+      state.publication.applicationEpoch,
+      parsePositiveSafeInteger(2),
+    );
+    const skipped = candidateV1(state, "skipped", {
+      identityAllocation: skippedIdentity.allocation,
+      target: { kind: "transient", occurrenceId: skippedIdentity.occurrenceId },
+      surfaceInstanceId: skippedIdentity.surfaceInstanceId,
+      routingLeaseId: skippedIdentity.routingLeaseId,
+    });
+    expect(openPrimaryV1(state, skipped)).toMatchObject({
+      state,
+      receipt: { kind: "rejected", code: "surface.invalid_identity_allocation" },
+    });
+
+    const otherEpochIdentity = createManagedSurfaceTransientIdentityV1(
+      parseNonNegativeSafeInteger(15),
+      parsePositiveSafeInteger(1),
+    );
+    const otherEpoch = candidateV1(state, "other-epoch", {
+      identityAllocation: otherEpochIdentity.allocation,
+      target: { kind: "transient", occurrenceId: otherEpochIdentity.occurrenceId },
+      surfaceInstanceId: otherEpochIdentity.surfaceInstanceId,
+      routingLeaseId: otherEpochIdentity.routingLeaseId,
+    });
+    expect(openPrimaryV1(state, otherEpoch)).toMatchObject({
+      state,
+      receipt: { kind: "stale", code: "surface.stale_application_epoch" },
+    });
+
+    const mismatched = candidateV1(state, "mismatched", {
+      surfaceInstanceId: parseManagedSurfaceInstanceIdV1("surface-instance.forged"),
+    });
+    expect(openPrimaryV1(state, mismatched)).toMatchObject({
+      state,
+      receipt: { kind: "rejected", code: "surface.invalid_identity_allocation" },
+    });
+
+    const valid = candidateV1(state, "valid");
+    const opened = openPrimaryV1(state, valid);
+    expect(opened.receipt).toMatchObject({
+      kind: "applied",
+      code: "surface.opened",
+      surfaceInstanceId: "surface-instance.e16.n1",
+    });
+    expect(opened.state.identitySequenceHighWater).toBe(1);
+  });
+
+  it("keeps identity state bounded across 10,000 deterministic transitions", () => {
+    const applicationEpoch = parseNonNegativeSafeInteger(14);
+    const workspaceOwnerId = parseManagedSurfaceOwnerIdV1("surface-owner.workspace");
+    let state = createReducerStateV1(applicationEpoch, [workspaceOwnerId]);
+
+    for (let cycle = 1; cycle <= 3_333; cycle += 1) {
+      const opened = candidateV1(state, `churn-${cycle}-open`);
+      state = openPrimaryV1(state, opened).state;
+      const replacement = candidateV1(state, `churn-${cycle}-replace`, {
+        definition: opened.definition,
+      });
+      state = reduceManagedSurfaceV1(state, {
+        kind: "replace_primary",
+        expected: {
+          applicationEpoch,
+          topologyRevision: state.publication.topologyRevision,
+          surfaceInstanceId: opened.surfaceInstanceId,
+        },
+        candidate: replacement,
+      }).state;
+      state = reduceManagedSurfaceV1(state, {
+        kind: "close_expected",
+        evidence: {
+          applicationEpoch,
+          topologyRevision: state.publication.topologyRevision,
+          surfaceInstanceId: replacement.surfaceInstanceId,
+        },
+      }).state;
+    }
+
+    state = openPrimaryV1(state, candidateV1(state, "churn-final-open")).state;
+
+    expect(state.publication.topologyRevision).toBe(10_000);
+    expect(state.publication.orderedInstances).toHaveLength(1);
+    expect(state.publication.orderedInstances[0]).toMatchObject({
+      target: { occurrenceId: "surface-occurrence.e14.n6667" },
+      surfaceInstanceId: "surface-instance.e14.n6667",
+      routingLeaseId: "surface-lease.e14.n6667",
+    });
+    expect(state).not.toHaveProperty("retiredOccurrenceIds");
+    expect(state).not.toHaveProperty("retiredInstanceIds");
+    expect(state).not.toHaveProperty("retiredRoutingLeaseIds");
+    expect(state.identitySequenceHighWater).toBe(6_667);
+    expect(state.resolvedOwnerIds).toEqual([workspaceOwnerId]);
+    expect(state.disposedOwnerIds).toEqual([]);
+    expect(Object.keys(state).sort()).toEqual([
+      "disposedOwnerIds",
+      "identitySequenceHighWater",
+      "publication",
+      "resolvedOwnerIds",
+    ]);
+    expect(Object.isFrozen(state.resolvedOwnerIds)).toBe(true);
+    expect(Object.isFrozen(state.disposedOwnerIds)).toBe(true);
+  });
+
+  it("rejects allocation replay and forged identity-component ABA after close", () => {
+    let state = createReducerStateV1(6);
+    const original = candidateV1(state, "first");
+    state = openPrimaryV1(state, original).state;
     state = reduceManagedSurfaceV1(state, {
       kind: "close_expected",
       evidence: {
@@ -807,45 +981,60 @@ describe("reduceManagedSurfaceV1", () => {
       },
     }).state;
 
+    const replayedAllocation = openPrimaryV1(state, original);
+    expect(replayedAllocation.receipt).toMatchObject({
+      kind: "rejected",
+      code: "surface.reused_identity_allocation",
+    });
+    expect(replayedAllocation.state).toBe(state);
+
     const reusedOccurrence = openPrimaryV1(
       state,
-      candidateV1("second", { target: original.target }),
+      candidateV1(state, "second", { target: original.target }),
     );
     expect(reusedOccurrence.receipt).toMatchObject({
       kind: "rejected",
-      code: "surface.reused_occurrence",
+      code: "surface.invalid_identity_allocation",
     });
     expect(reusedOccurrence.state).toBe(state);
 
     const reusedInstance = openPrimaryV1(
       state,
-      candidateV1("third", { surfaceInstanceId: original.surfaceInstanceId }),
+      candidateV1(state, "third", { surfaceInstanceId: original.surfaceInstanceId }),
     );
     expect(reusedInstance.receipt).toMatchObject({
       kind: "rejected",
-      code: "surface.reused_instance",
+      code: "surface.invalid_identity_allocation",
     });
     expect(reusedInstance.state).toBe(state);
 
     const reusedLease = openPrimaryV1(
       state,
-      candidateV1("fourth", { routingLeaseId: original.routingLeaseId }),
+      candidateV1(state, "fourth", { routingLeaseId: original.routingLeaseId }),
     );
     expect(reusedLease.receipt).toMatchObject({
       kind: "rejected",
-      code: "surface.reused_routing_lease",
+      code: "surface.invalid_identity_allocation",
     });
     expect(reusedLease.state).toBe(state);
+
+    const fresh = candidateV1(state, "fresh");
+    const reopened = openPrimaryV1(state, fresh);
+    expect(reopened.receipt).toMatchObject({
+      kind: "applied",
+      code: "surface.opened",
+      surfaceInstanceId: fresh.surfaceInstanceId,
+    });
+    expect(reopened.state.identitySequenceHighWater).toBe(2);
   });
 
   it("disposes one owner and then the coordinator without leaving live topology", () => {
-    let state = openPrimaryV1(
-      createManagedSurfaceReducerStateV1(7),
-      candidateV1("workspace"),
-    ).state;
+    let state = createReducerStateV1(7);
+    const workspace = candidateV1(state, "workspace");
+    state = openPrimaryV1(state, workspace).state;
     state = openPrimaryV1(
       state,
-      candidateV1("system", {
+      candidateV1(state, "system", {
         definition: definitionV1("system", {
           ownerId: parseManagedSurfaceOwnerIdV1("surface-owner.system"),
           slotId: parseManagedSurfaceSlotIdV1("surface-slot.system"),
@@ -866,23 +1055,36 @@ describe("reduceManagedSurfaceV1", () => {
       code: "surface.owner_disposed",
     });
     expect(ownerDisposed.state.publication.orderedInstances).toMatchObject([
-      { surfaceInstanceId: "surface-instance.workspace", phase: "active" },
+      { surfaceInstanceId: workspace.surfaceInstanceId, phase: "active" },
     ]);
     expect(ownerDisposed.state.publication.inputOwner?.surfaceInstanceId).toBe(
-      "surface-instance.workspace",
+      workspace.surfaceInstanceId,
     );
     expect(ownerDisposed.state.publication.focusOwner?.surfaceInstanceId).toBe(
-      "surface-instance.workspace",
+      workspace.surfaceInstanceId,
     );
     expect(ownerDisposed.state.publication.ownerTrace).toEqual([
       {
         ownerId: "surface-owner.workspace",
-        surfaceInstanceIds: ["surface-instance.workspace"],
+        surfaceInstanceIds: [workspace.surfaceInstanceId],
       },
     ]);
+    expect(ownerDisposed.state.disposedOwnerIds).toEqual(["surface-owner.system"]);
+    expect(Object.isFrozen(ownerDisposed.state.disposedOwnerIds)).toBe(true);
+    const ownerDisposedAgain = reduceManagedSurfaceV1(ownerDisposed.state, {
+      kind: "dispose_owner",
+      applicationEpoch: ownerDisposed.state.publication.applicationEpoch,
+      ownerId: parseManagedSurfaceOwnerIdV1("surface-owner.system"),
+    });
+    expect(ownerDisposedAgain.receipt).toMatchObject({
+      kind: "unchanged",
+      code: "surface.owner_already_disposed",
+    });
+    expect(ownerDisposedAgain.state).toBe(ownerDisposed.state);
+    expect(ownerDisposedAgain.state.disposedOwnerIds).toEqual(["surface-owner.system"]);
     const rejectedOwner = openPrimaryV1(
-      ownerDisposed.state,
-      candidateV1("system-later", {
+      ownerDisposedAgain.state,
+      candidateV1(ownerDisposedAgain.state, "system-later", {
         definition: definitionV1("system-later", {
           ownerId: parseManagedSurfaceOwnerIdV1("surface-owner.system"),
           slotId: parseManagedSurfaceSlotIdV1("surface-slot.system-later"),
@@ -893,9 +1095,11 @@ describe("reduceManagedSurfaceV1", () => {
       kind: "rejected",
       code: "surface.owner_disposed",
     });
-    expect(rejectedOwner.state).toBe(ownerDisposed.state);
+    expect(rejectedOwner.state).not.toBe(ownerDisposed.state);
+    expect(rejectedOwner.state.publication).toBe(ownerDisposed.state.publication);
+    expect(rejectedOwner.state.identitySequenceHighWater).toBe(3);
 
-    const disposed = reduceManagedSurfaceV1(ownerDisposed.state, {
+    const disposed = reduceManagedSurfaceV1(rejectedOwner.state, {
       kind: "dispose_coordinator",
     });
     expect(disposed.receipt).toMatchObject({
@@ -918,7 +1122,7 @@ describe("reduceManagedSurfaceV1", () => {
 
     const rejected = openPrimaryV1(
       disposed.state,
-      candidateV1("after-dispose", {
+      candidateV1(disposed.state, "after-dispose", {
         definition: definitionV1("after-dispose", {
           ownerId: parseManagedSurfaceOwnerIdV1("surface-owner.other"),
           slotId: parseManagedSurfaceSlotIdV1("surface-slot.other"),

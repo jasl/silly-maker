@@ -103,6 +103,10 @@ function createCountingInputRouterV1() {
 function createFixtureV1(options: FixtureOptionsV1 = {}) {
   const coordinator = createManagedSurfaceCoordinatorV1({
     applicationEpoch: parseNonNegativeSafeInteger(4),
+    resolvedOwnerIds: [
+      parseManagedSurfaceOwnerIdV1("surface-owner.workspace"),
+      parseManagedSurfaceOwnerIdV1("surface-owner.debug"),
+    ],
   });
   const opened = coordinator.openTransientPrimary({
     definition: definitionV1("inventory"),

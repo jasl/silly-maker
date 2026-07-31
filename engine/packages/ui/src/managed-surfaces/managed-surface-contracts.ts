@@ -2,6 +2,7 @@
 import {
   type Brand,
   type NonNegativeSafeInteger,
+  type PositiveSafeInteger,
   parseModuleId,
   parseNonNegativeSafeInteger,
 } from "@sillymaker/base";
@@ -120,7 +121,13 @@ export interface ManagedSurfaceTransientTargetV1 {
   readonly occurrenceId: ManagedSurfaceTargetOccurrenceIdV1;
 }
 
+export interface ManagedSurfaceIdentityAllocationV1 {
+  readonly applicationEpoch: NonNegativeSafeInteger;
+  readonly sequence: PositiveSafeInteger;
+}
+
 export interface ManagedSurfaceCandidateV1 {
+  readonly identityAllocation: ManagedSurfaceIdentityAllocationV1;
   readonly definition: ManagedSurfaceResolvedDefinitionV1;
   readonly target: ManagedSurfaceTransientTargetV1;
   readonly surfaceInstanceId: ManagedSurfaceInstanceIdV1;
@@ -268,6 +275,7 @@ export type ManagedSurfaceTransitionCodeV1 =
   | "surface.owner_disposed"
   | "surface.coordinator_disposed"
   | "surface.owner_already_disposed"
+  | "surface.unknown_owner"
   | "surface.coordinator_already_disposed"
   | "surface.already_closed"
   | "surface.duplicate_occurrence"
@@ -276,6 +284,8 @@ export type ManagedSurfaceTransitionCodeV1 =
   | "surface.reused_occurrence"
   | "surface.reused_instance"
   | "surface.reused_routing_lease"
+  | "surface.reused_identity_allocation"
+  | "surface.invalid_identity_allocation"
   | "surface.slot_occupied"
   | "surface.invalid_parent"
   | "surface.invalid_transition"
