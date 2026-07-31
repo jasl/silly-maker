@@ -10,7 +10,7 @@ import {
   type InputEventV1,
   type InputHandlerResultV1,
 } from "./contracts.ts";
-import { createInputRouterV1 } from "./input-router.ts";
+import { createInputRouterV1, registerManagedInputHandlerV1 } from "./input-router.ts";
 
 const precedenceV1 = Object.freeze(
   [
@@ -163,6 +163,42 @@ describe("createInputRouterV1", () => {
 
     expect(router.route(actionEventV1())).toEqual({ kind: "handled", context: "interaction" });
     expect(calls).toEqual(["newest", "middle"]);
+  });
+
+  it("routes a package-internal managed gate before ordinary LIFO handlers", () => {
+    const router = createInputRouterV1();
+    const calls: string[] = [];
+    router.register({
+      context: "overlay",
+      handle: () => {
+        calls.push("ordinary-oldest");
+        return inputHandledV1;
+      },
+    });
+    const unregisterManaged = registerManagedInputHandlerV1(router, {
+      context: "overlay",
+      handle: () => {
+        calls.push("managed");
+        return inputIgnoredV1;
+      },
+    });
+    router.register({
+      context: "overlay",
+      handle: () => {
+        calls.push("ordinary-newest");
+        return inputIgnoredV1;
+      },
+    });
+
+    expect(router.route(actionEventV1())).toEqual({ kind: "handled", context: "overlay" });
+    expect(calls).toEqual(["managed", "ordinary-newest", "ordinary-oldest"]);
+
+    calls.length = 0;
+    unregisterManaged();
+    unregisterManaged();
+    expect(router.route(actionEventV1())).toEqual({ kind: "handled", context: "overlay" });
+    expect(calls).toEqual(["ordinary-newest", "ordinary-oldest"]);
+    expect(Reflect.ownKeys(router)).toEqual(["register", "route", "clearTransientInput"]);
   });
 
   it("defers registrations made during dispatch until the next event", () => {

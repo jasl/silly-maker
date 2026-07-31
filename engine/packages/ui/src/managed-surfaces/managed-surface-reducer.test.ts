@@ -13,7 +13,9 @@ import {
   parseManagedSurfaceSlotIdV1,
   parseManagedSurfaceTargetOccurrenceIdV1,
   type ManagedSurfaceCandidateV1,
+  type ManagedSurfaceOwnerIdV1,
   type ManagedSurfaceResolvedDefinitionV1,
+  type ManagedSurfaceResolvedSlotDescriptorV1,
 } from "./managed-surface-contracts.ts";
 import { createInputRouterV1 } from "../input/input-router.ts";
 import {
@@ -28,29 +30,75 @@ const resolvedOwnerIdsV1 = Object.freeze([
   parseManagedSurfaceOwnerIdV1("surface-owner.system"),
   parseManagedSurfaceOwnerIdV1("surface-owner.other"),
 ]);
+const primaryDefinitionIdV1 = parseManagedSurfaceDefinitionIdV1("surface.primary");
+const resolvedSlotDescriptorsV1 = Object.freeze(
+  [
+    {
+      kind: "root",
+      slotId: parseManagedSurfaceSlotIdV1("surface-slot.primary"),
+      cardinality: "single",
+    },
+    {
+      kind: "root",
+      slotId: parseManagedSurfaceSlotIdV1("surface-slot.other"),
+      cardinality: "single",
+    },
+    {
+      kind: "root",
+      slotId: parseManagedSurfaceSlotIdV1("surface-slot.modal"),
+      cardinality: "single",
+    },
+    {
+      kind: "root",
+      slotId: parseManagedSurfaceSlotIdV1("surface-slot.system"),
+      cardinality: "single",
+    },
+    {
+      kind: "root",
+      slotId: parseManagedSurfaceSlotIdV1("surface-slot.system-later"),
+      cardinality: "single",
+    },
+    {
+      kind: "child",
+      parentDefinitionId: primaryDefinitionIdV1,
+      slotId: parseManagedSurfaceSlotIdV1("surface-slot.detail"),
+      cardinality: "stack",
+    },
+    {
+      kind: "child",
+      parentDefinitionId: primaryDefinitionIdV1,
+      slotId: parseManagedSurfaceSlotIdV1("surface-slot.stack"),
+      cardinality: "stack",
+    },
+  ] as const satisfies readonly ManagedSurfaceResolvedSlotDescriptorV1[],
+);
 
 function createReducerStateV1(
   applicationEpoch: number,
-  resolvedOwnerIds = resolvedOwnerIdsV1,
+  resolvedOwnerIds: readonly ManagedSurfaceOwnerIdV1[] = resolvedOwnerIdsV1,
+  resolvedSlotDescriptors: readonly ManagedSurfaceResolvedSlotDescriptorV1[] =
+    resolvedSlotDescriptorsV1,
 ): ManagedSurfaceReducerStateV1 {
-  return createManagedSurfaceReducerStateV1(applicationEpoch, resolvedOwnerIds);
+  return createManagedSurfaceReducerStateV1(
+    applicationEpoch,
+    resolvedOwnerIds,
+    resolvedSlotDescriptors,
+  );
 }
 
 function definitionV1(
-  suffix: string,
+  _suffix: string,
   overrides: Partial<ManagedSurfaceResolvedDefinitionV1> = {},
 ): ManagedSurfaceResolvedDefinitionV1 {
   return {
-    definitionId: parseManagedSurfaceDefinitionIdV1(`surface.${suffix}`),
+    definitionId: primaryDefinitionIdV1,
     ownerId: parseManagedSurfaceOwnerIdV1("surface-owner.workspace"),
     slotId: parseManagedSurfaceSlotIdV1("surface-slot.primary"),
     layerId: parseManagedSurfaceLayerIdV1("surface-layer.workspace"),
     layerOrder: parseNonNegativeSafeInteger(20),
     placement: "root",
-    slotCardinality: "single",
-    allowedParentSlotIds: [],
     modality: "non_blocking",
-    inputContextId: "overlay",
+    inputPolicy: { kind: "managed", inputContextId: "overlay" },
     dismissPolicy: {
       back: true,
       escape: true,
@@ -58,10 +106,12 @@ function definitionV1(
       routedCancel: true,
     },
     focusPolicy: {
+      kind: "owns_focus",
       initialTargetId: parseManagedSurfaceFocusTargetIdV1("focus-target.primary"),
       trap: true,
       restore: "opener",
     },
+    navigationPolicy: { kind: "close" },
     actionIds: [parseManagedSurfaceActionIdV1("surface-action.activate")],
     ...overrides,
   };
@@ -98,6 +148,16 @@ function openPrimaryV1(state: ManagedSurfaceReducerStateV1, candidate: ManagedSu
   });
 }
 
+function expectRevisionDeltaV1(
+  before: ManagedSurfaceReducerStateV1["publication"],
+  after: ManagedSurfaceReducerStateV1["publication"],
+  publicationDelta: number,
+  topologyDelta: number,
+): void {
+  expect(after.publicationRevision - before.publicationRevision).toBe(publicationDelta);
+  expect(after.topologyRevision - before.topologyRevision).toBe(topologyDelta);
+}
+
 describe("Managed Surface package-internal contracts", () => {
   it("uses the shared stable-ID grammar for every package-internal identity", () => {
     expect(parseManagedSurfaceDefinitionIdV1("surface.inventory")).toBe("surface.inventory");
@@ -124,7 +184,6 @@ describe("reduceManagedSurfaceV1", () => {
   it("opens one synchronous primary into one deeply frozen atomic publication", () => {
     const initial = createReducerStateV1(4);
     const actionIds = [parseManagedSurfaceActionIdV1("surface-action.activate")];
-    const allowedParentSlotIds: ReturnType<typeof parseManagedSurfaceSlotIdV1>[] = [];
     const dismissPolicy = {
       back: true,
       escape: true,
@@ -132,6 +191,7 @@ describe("reduceManagedSurfaceV1", () => {
       routedCancel: true,
     };
     const focusPolicy = {
+      kind: "owns_focus" as const,
       initialTargetId: parseManagedSurfaceFocusTargetIdV1("focus-target.primary"),
       trap: true,
       restore: "opener" as const,
@@ -139,7 +199,6 @@ describe("reduceManagedSurfaceV1", () => {
     const candidate = candidateV1(initial, "inventory", {
       definition: definitionV1("inventory", {
         actionIds,
-        allowedParentSlotIds,
         dismissPolicy,
         focusPolicy,
       }),
@@ -153,18 +212,19 @@ describe("reduceManagedSurfaceV1", () => {
     expect(Object.isFrozen(initial.publication)).toBe(true);
     expect(initial.publication).toEqual({
       applicationEpoch: 4,
+      publicationRevision: 0,
       topologyRevision: 0,
       orderedInstances: [],
       topmostBlockingInstanceId: null,
       inputOwner: null,
       focusOwner: null,
+      navigationTargetInstanceId: null,
       ownerTrace: [],
       coordinatorDisposed: false,
     });
 
     const result = openPrimaryV1(initial, candidate);
     actionIds.push(parseManagedSurfaceActionIdV1("surface-action.after-open"));
-    allowedParentSlotIds.push(parseManagedSurfaceSlotIdV1("surface-slot.after-open"));
     dismissPolicy.escape = false;
     focusPolicy.trap = false;
     target.occurrenceId = parseManagedSurfaceTargetOccurrenceIdV1("surface-occurrence.after-open");
@@ -195,13 +255,18 @@ describe("reduceManagedSurfaceV1", () => {
     expect(result.state.publication.orderedInstances[0]?.definition.actionIds).toEqual([
       "surface-action.activate",
     ]);
-    expect(result.state.publication.orderedInstances[0]?.definition.allowedParentSlotIds).toEqual(
-      [],
+    expect(result.state.publication.orderedInstances[0]?.definition).not.toHaveProperty(
+      "slotCardinality",
     );
     expect(result.state.publication.orderedInstances[0]?.definition.dismissPolicy.escape).toBe(
       true,
     );
-    expect(result.state.publication.orderedInstances[0]?.definition.focusPolicy.trap).toBe(true);
+    expect(result.state.publication.orderedInstances[0]?.definition.focusPolicy).toEqual({
+      kind: "owns_focus",
+      initialTargetId: "focus-target.primary",
+      trap: true,
+      restore: "opener",
+    });
     expect(result.state.publication.inputOwner).toEqual({
       surfaceInstanceId: candidate.surfaceInstanceId,
       inputContextId: "overlay",
@@ -220,10 +285,12 @@ describe("reduceManagedSurfaceV1", () => {
       trap: true,
       restore: "opener",
     });
+    expect(result.state.publication.navigationTargetInstanceId).toBe(candidate.surfaceInstanceId);
     expect(result.state.publication.ownerTrace).toEqual([
       {
         ownerId: "surface-owner.workspace",
         surfaceInstanceIds: [candidate.surfaceInstanceId],
+        disposed: false,
       },
     ]);
 
@@ -240,15 +307,16 @@ describe("reduceManagedSurfaceV1", () => {
       Object.isFrozen(result.state.publication.orderedInstances[0]?.definition.actionIds),
     ).toBe(true);
     expect(
-      Object.isFrozen(
-        result.state.publication.orderedInstances[0]?.definition.allowedParentSlotIds,
-      ),
+      Object.isFrozen(result.state.publication.orderedInstances[0]?.definition.inputPolicy),
     ).toBe(true);
     expect(
       Object.isFrozen(result.state.publication.orderedInstances[0]?.definition.dismissPolicy),
     ).toBe(true);
     expect(
       Object.isFrozen(result.state.publication.orderedInstances[0]?.definition.focusPolicy),
+    ).toBe(true);
+    expect(
+      Object.isFrozen(result.state.publication.orderedInstances[0]?.definition.navigationPolicy),
     ).toBe(true);
     expect(Object.isFrozen(result.state.publication.inputOwner)).toBe(true);
     expect(Object.isFrozen(result.state.publication.focusOwner)).toBe(true);
@@ -267,8 +335,9 @@ describe("reduceManagedSurfaceV1", () => {
         layerId: parseManagedSurfaceLayerIdV1("surface-layer.system"),
         layerOrder: parseNonNegativeSafeInteger(80),
         modality: "blocking",
-        inputContextId: "system",
+        inputPolicy: { kind: "managed", inputContextId: "system" },
         focusPolicy: {
+          kind: "owns_focus",
           initialTargetId: parseManagedSurfaceFocusTargetIdV1("focus-target.confirm"),
           trap: true,
           restore: "opener",
@@ -310,6 +379,190 @@ describe("reduceManagedSurfaceV1", () => {
     );
   });
 
+  it.each([
+    {
+      label: "input without focus",
+      overrides: {
+        focusPolicy: { kind: "none" as const },
+        navigationPolicy: { kind: "none" as const },
+      },
+      input: true,
+      focus: false,
+      navigation: false,
+    },
+    {
+      label: "focus only",
+      overrides: {
+        inputPolicy: { kind: "none" as const },
+        navigationPolicy: { kind: "none" as const },
+      },
+      input: false,
+      focus: true,
+      navigation: false,
+    },
+    {
+      label: "passive",
+      overrides: {
+        inputPolicy: { kind: "none" as const },
+        focusPolicy: { kind: "none" as const },
+        navigationPolicy: { kind: "none" as const },
+      },
+      input: false,
+      focus: false,
+      navigation: false,
+    },
+    {
+      label: "navigation only",
+      overrides: {
+        inputPolicy: { kind: "none" as const },
+        focusPolicy: { kind: "none" as const },
+      },
+      input: false,
+      focus: false,
+      navigation: true,
+    },
+  ])("derives independent axes for $label", ({ overrides, input, focus, navigation }) => {
+    const state = createReducerStateV1(20);
+    const candidate = candidateV1(state, "axis", {
+      definition: definitionV1("axis", overrides),
+    });
+    const opened = openPrimaryV1(state, candidate).state.publication;
+
+    expect(opened.inputOwner?.surfaceInstanceId ?? null).toBe(
+      input ? candidate.surfaceInstanceId : null,
+    );
+    expect(opened.focusOwner?.surfaceInstanceId ?? null).toBe(
+      focus ? candidate.surfaceInstanceId : null,
+    );
+    expect(opened.navigationTargetInstanceId).toBe(
+      navigation ? candidate.surfaceInstanceId : null,
+    );
+    expect(opened.topmostBlockingInstanceId).toBeNull();
+  });
+
+  it("lets a blocker suspend input without implicitly taking input or focus", () => {
+    let state = createReducerStateV1(21);
+    const lower = candidateV1(state, "lower");
+    state = openPrimaryV1(state, lower).state;
+    const blocker = candidateV1(state, "blocker", {
+      definition: definitionV1("blocker", {
+        ownerId: parseManagedSurfaceOwnerIdV1("surface-owner.system"),
+        slotId: parseManagedSurfaceSlotIdV1("surface-slot.modal"),
+        layerOrder: parseNonNegativeSafeInteger(80),
+        modality: "blocking",
+        inputPolicy: { kind: "none" },
+        focusPolicy: { kind: "none" },
+        navigationPolicy: { kind: "close" },
+      }),
+    });
+    state = openPrimaryV1(state, blocker).state;
+
+    expect(state.publication.orderedInstances).toMatchObject([
+      { surfaceInstanceId: lower.surfaceInstanceId, phase: "suspended" },
+      { surfaceInstanceId: blocker.surfaceInstanceId, phase: "active" },
+    ]);
+    expect(state.publication.topmostBlockingInstanceId).toBe(blocker.surfaceInstanceId);
+    expect(state.publication.inputOwner).toBeNull();
+    expect(state.publication.focusOwner).toBeNull();
+    expect(state.publication.navigationTargetInstanceId).toBe(blocker.surfaceInstanceId);
+  });
+
+  it("keeps focus and navigation owners independent from a higher passive instance", () => {
+    let state = createReducerStateV1(22);
+    const navigation = candidateV1(state, "navigation", {
+      definition: definitionV1("navigation", {
+        inputPolicy: { kind: "none" },
+        focusPolicy: { kind: "none" },
+        navigationPolicy: { kind: "close" },
+      }),
+    });
+    state = openPrimaryV1(state, navigation).state;
+    const focusOnly = candidateV1(state, "focus-only", {
+      definition: definitionV1("focus-only", {
+        ownerId: parseManagedSurfaceOwnerIdV1("surface-owner.other"),
+        slotId: parseManagedSurfaceSlotIdV1("surface-slot.other"),
+        layerOrder: parseNonNegativeSafeInteger(30),
+        inputPolicy: { kind: "none" },
+        navigationPolicy: { kind: "none" },
+      }),
+    });
+    state = openPrimaryV1(state, focusOnly).state;
+
+    expect(state.publication.inputOwner).toBeNull();
+    expect(state.publication.focusOwner?.surfaceInstanceId).toBe(focusOnly.surfaceInstanceId);
+    expect(state.publication.navigationTargetInstanceId).toBe(navigation.surfaceInstanceId);
+
+    expect(
+      reduceManagedSurfaceV1(state, {
+        kind: "route_dismiss",
+        dismissKind: "back",
+        evidence: {
+          applicationEpoch: state.publication.applicationEpoch,
+          topologyRevision: state.publication.topologyRevision,
+          surfaceInstanceId: focusOnly.surfaceInstanceId,
+        },
+      }).receipt,
+    ).toMatchObject({ kind: "rejected", code: "surface.invalid_transition" });
+    expect(
+      reduceManagedSurfaceV1(state, {
+        kind: "route_dismiss",
+        dismissKind: "back",
+        evidence: {
+          applicationEpoch: state.publication.applicationEpoch,
+          topologyRevision: state.publication.topologyRevision,
+          surfaceInstanceId: navigation.surfaceInstanceId,
+        },
+      }).receipt,
+    ).toMatchObject({
+      kind: "applied",
+      code: "surface.dismissed",
+      surfaceInstanceId: navigation.surfaceInstanceId,
+    });
+
+    const closed = reduceManagedSurfaceV1(state, {
+      kind: "close_top",
+      applicationEpoch: state.publication.applicationEpoch,
+    });
+    expect(closed.receipt).toMatchObject({
+      kind: "applied",
+      surfaceInstanceId: navigation.surfaceInstanceId,
+    });
+    expect(closed.state.publication.orderedInstances).toMatchObject([
+      { surfaceInstanceId: focusOnly.surfaceInstanceId },
+    ]);
+    expect(closed.state.publication.navigationTargetInstanceId).toBeNull();
+    expect(
+      reduceManagedSurfaceV1(closed.state, {
+        kind: "close_top",
+        applicationEpoch: closed.state.publication.applicationEpoch,
+      }).receipt,
+    ).toMatchObject({ kind: "unchanged", code: "surface.already_closed" });
+  });
+
+  it("selects different active instances for input and focus ownership", () => {
+    let state = createReducerStateV1(23);
+    const focusOwner = candidateV1(state, "focus-owner", {
+      definition: definitionV1("focus-owner", {
+        inputPolicy: { kind: "none" },
+        navigationPolicy: { kind: "none" },
+      }),
+    });
+    state = openPrimaryV1(state, focusOwner).state;
+    const inputOwner = candidateV1(state, "input-owner", {
+      definition: definitionV1("input-owner", {
+        ownerId: parseManagedSurfaceOwnerIdV1("surface-owner.other"),
+        slotId: parseManagedSurfaceSlotIdV1("surface-slot.other"),
+        layerOrder: parseNonNegativeSafeInteger(30),
+        focusPolicy: { kind: "none" },
+        navigationPolicy: { kind: "none" },
+      }),
+    });
+    state = openPrimaryV1(state, inputOwner).state;
+
+    expect(state.publication.inputOwner?.surfaceInstanceId).toBe(inputOwner.surfaceInstanceId);
+    expect(state.publication.focusOwner?.surfaceInstanceId).toBe(focusOwner.surfaceInstanceId);
+  });
+
   it("pushes and dismisses a child in parent-first topology order", () => {
     let state = createReducerStateV1(2);
     const primary = candidateV1(state, "inventory");
@@ -319,8 +572,6 @@ describe("reduceManagedSurfaceV1", () => {
         slotId: parseManagedSurfaceSlotIdV1("surface-slot.detail"),
         layerOrder: parseNonNegativeSafeInteger(30),
         placement: "child",
-        slotCardinality: "stack",
-        allowedParentSlotIds: [parseManagedSurfaceSlotIdV1("surface-slot.primary")],
       }),
     });
 
@@ -385,8 +636,6 @@ describe("reduceManagedSurfaceV1", () => {
         slotId: parseManagedSurfaceSlotIdV1("surface-slot.detail"),
         layerOrder: parseNonNegativeSafeInteger(30),
         placement: "child",
-        slotCardinality: "stack",
-        allowedParentSlotIds: [parseManagedSurfaceSlotIdV1("surface-slot.primary")],
       }),
     });
     state = reduceManagedSurfaceV1(state, {
@@ -424,8 +673,6 @@ describe("reduceManagedSurfaceV1", () => {
       definition: definitionV1("item", {
         slotId: parseManagedSurfaceSlotIdV1("surface-slot.detail"),
         placement: "child",
-        slotCardinality: "stack",
-        allowedParentSlotIds: [parseManagedSurfaceSlotIdV1("surface-slot.primary")],
       }),
     });
     state = reduceManagedSurfaceV1(state, {
@@ -582,8 +829,6 @@ describe("reduceManagedSurfaceV1", () => {
             definition: definitionV1("orphan", {
               slotId: parseManagedSurfaceSlotIdV1("surface-slot.detail"),
               placement: "child",
-              slotCardinality: "stack",
-              allowedParentSlotIds: [parseManagedSurfaceSlotIdV1("surface-slot.primary")],
             }),
           }),
         },
@@ -602,8 +847,6 @@ describe("reduceManagedSurfaceV1", () => {
               slotId: parseManagedSurfaceSlotIdV1("surface-slot.detail"),
               layerOrder: parseNonNegativeSafeInteger(10),
               placement: "child",
-              slotCardinality: "stack",
-              allowedParentSlotIds: [parseManagedSurfaceSlotIdV1("surface-slot.primary")],
             }),
           }),
         },
@@ -616,11 +859,10 @@ describe("reduceManagedSurfaceV1", () => {
           candidate: candidateV1(state, "child-as-primary", {
             definition: definitionV1("child-as-primary", {
               placement: "child",
-              allowedParentSlotIds: [parseManagedSurfaceSlotIdV1("surface-slot.primary")],
             }),
           }),
         },
-        code: "surface.invalid_transition",
+        code: "surface.slot_placement_mismatch",
       },
       {
         operation: {
@@ -630,11 +872,10 @@ describe("reduceManagedSurfaceV1", () => {
             definition: definitionV1("stack-as-primary", {
               ownerId: parseManagedSurfaceOwnerIdV1("surface-owner.other"),
               slotId: parseManagedSurfaceSlotIdV1("surface-slot.stack"),
-              slotCardinality: "stack",
             }),
           }),
         },
-        code: "surface.invalid_transition",
+        code: "surface.slot_placement_mismatch",
       },
     ] as const;
 
@@ -645,7 +886,10 @@ describe("reduceManagedSurfaceV1", () => {
         code: testCase.code,
       });
       expect(result.state.publication).toBe(state.publication);
-      if (testCase.code.startsWith("surface.duplicate_")) {
+      if (
+        testCase.code.startsWith("surface.duplicate_") ||
+        testCase.code === "surface.slot_placement_mismatch"
+      ) {
         expect(result.state).toBe(state);
         expect(result.state.identitySequenceHighWater).toBe(1);
       } else {
@@ -653,6 +897,182 @@ describe("reduceManagedSurfaceV1", () => {
         expect(result.state.identitySequenceHighWater).toBe(2);
       }
     }
+  });
+
+  it("scopes a single root slot globally instead of namespacing it by owner", () => {
+    let state = createReducerStateV1(17);
+    state = openPrimaryV1(state, candidateV1(state, "workspace")).state;
+    const before = state.publication;
+    const forgedDefinition: ManagedSurfaceResolvedDefinitionV1 = {
+      ...definitionV1("other-owner-same-root", {
+        ownerId: parseManagedSurfaceOwnerIdV1("surface-owner.other"),
+      }),
+      // @ts-expect-error cardinality belongs to the resolved slot descriptor.
+      slotCardinality: "stack",
+    };
+    const otherOwner = candidateV1(state, "other-owner-same-root", {
+      definition: forgedDefinition,
+    });
+
+    const result = openPrimaryV1(state, otherOwner);
+
+    expect(result.receipt).toMatchObject({
+      kind: "rejected",
+      code: "surface.slot_occupied",
+    });
+    expect(result.state.publication).toBe(before);
+    expect(result.state.publication.orderedInstances).toHaveLength(1);
+  });
+
+  it("freezes slot descriptors and rejects missing or mismatched slots before allocation", () => {
+    const descriptors = [...resolvedSlotDescriptorsV1];
+    const state = createReducerStateV1(18, resolvedOwnerIdsV1, descriptors);
+    descriptors.push({
+      kind: "root",
+      slotId: parseManagedSurfaceSlotIdV1("surface-slot.late"),
+      cardinality: "single",
+    });
+
+    expect(state.resolvedSlotDescriptors).toEqual(resolvedSlotDescriptorsV1);
+    expect(Object.isFrozen(state.resolvedSlotDescriptors)).toBe(true);
+    expect(Object.isFrozen(state.resolvedSlotDescriptors[0])).toBe(true);
+    expect(() =>
+      createReducerStateV1(18, resolvedOwnerIdsV1, [
+        resolvedSlotDescriptorsV1[0]!,
+        resolvedSlotDescriptorsV1[0]!,
+      ])
+    ).toThrowError("ui.managed_surface_duplicate_slot_descriptor");
+
+    const missing = openPrimaryV1(
+      state,
+      candidateV1(state, "missing-slot", {
+        definition: definitionV1("missing-slot", {
+          slotId: parseManagedSurfaceSlotIdV1("surface-slot.missing"),
+        }),
+      }),
+    );
+    expect(missing.receipt).toEqual({
+      kind: "rejected",
+      code: "surface.slot_not_resolved",
+      beforeTopologyRevision: 0,
+      afterTopologyRevision: 0,
+    });
+    expect(missing.state).toBe(state);
+    expect(missing.state.identitySequenceHighWater).toBe(0);
+
+    const mismatched = openPrimaryV1(
+      state,
+      candidateV1(state, "child-as-root", {
+        definition: definitionV1("child-as-root", {
+          slotId: parseManagedSurfaceSlotIdV1("surface-slot.detail"),
+          placement: "child",
+        }),
+      }),
+    );
+    expect(mismatched.receipt).toMatchObject({
+      kind: "rejected",
+      code: "surface.slot_placement_mismatch",
+    });
+    expect(mismatched.state).toBe(state);
+    expect(mismatched.state.identitySequenceHighWater).toBe(0);
+
+    const parent = candidateV1(state, "parent");
+    const parentOpened = openPrimaryV1(state, parent).state;
+    const missingChild = reduceManagedSurfaceV1(parentOpened, {
+      kind: "push_child",
+      parentEvidence: {
+        applicationEpoch: parentOpened.publication.applicationEpoch,
+        topologyRevision: parentOpened.publication.topologyRevision,
+        surfaceInstanceId: parent.surfaceInstanceId,
+      },
+      candidate: candidateV1(parentOpened, "missing-child", {
+        definition: definitionV1("missing-child", {
+          slotId: parseManagedSurfaceSlotIdV1("surface-slot.missing-child"),
+          placement: "child",
+        }),
+      }),
+    });
+    expect(missingChild.receipt).toMatchObject({
+      kind: "rejected",
+      code: "surface.slot_not_resolved",
+    });
+    expect(missingChild.state).toBe(parentOpened);
+    expect(missingChild.state.identitySequenceHighWater).toBe(1);
+  });
+
+  it("scopes single child slots by exact parent and does not require the parent to own input", () => {
+    const singleChildDescriptors = resolvedSlotDescriptorsV1.map((descriptor) =>
+      descriptor.kind === "child" && descriptor.slotId === "surface-slot.detail"
+        ? Object.freeze({ ...descriptor, cardinality: "single" as const })
+        : descriptor
+    );
+    let state = createReducerStateV1(19, resolvedOwnerIdsV1, singleChildDescriptors);
+    const parentA = candidateV1(state, "parent-a");
+    state = openPrimaryV1(state, parentA).state;
+    const parentB = candidateV1(state, "parent-b", {
+      definition: definitionV1("parent-b", {
+        slotId: parseManagedSurfaceSlotIdV1("surface-slot.other"),
+        layerOrder: parseNonNegativeSafeInteger(25),
+      }),
+    });
+    state = openPrimaryV1(state, parentB).state;
+    expect(state.publication.inputOwner?.surfaceInstanceId).toBe(parentB.surfaceInstanceId);
+
+    const childA = candidateV1(state, "child-a", {
+      definition: definitionV1("child-a", {
+        slotId: parseManagedSurfaceSlotIdV1("surface-slot.detail"),
+        placement: "child",
+        layerOrder: parseNonNegativeSafeInteger(30),
+      }),
+    });
+    const pushedA = reduceManagedSurfaceV1(state, {
+      kind: "push_child",
+      parentEvidence: {
+        applicationEpoch: state.publication.applicationEpoch,
+        topologyRevision: state.publication.topologyRevision,
+        surfaceInstanceId: parentA.surfaceInstanceId,
+      },
+      candidate: childA,
+    });
+    expect(pushedA.receipt).toMatchObject({ kind: "applied", code: "surface.child_pushed" });
+    state = pushedA.state;
+
+    const childB = candidateV1(state, "child-b", {
+      definition: childA.definition,
+    });
+    const pushedB = reduceManagedSurfaceV1(state, {
+      kind: "push_child",
+      parentEvidence: {
+        applicationEpoch: state.publication.applicationEpoch,
+        topologyRevision: state.publication.topologyRevision,
+        surfaceInstanceId: parentB.surfaceInstanceId,
+      },
+      candidate: childB,
+    });
+    expect(pushedB.receipt).toMatchObject({ kind: "applied", code: "surface.child_pushed" });
+    state = pushedB.state;
+
+    const occupiedA = reduceManagedSurfaceV1(state, {
+      kind: "push_child",
+      parentEvidence: {
+        applicationEpoch: state.publication.applicationEpoch,
+        topologyRevision: state.publication.topologyRevision,
+        surfaceInstanceId: parentA.surfaceInstanceId,
+      },
+      candidate: candidateV1(state, "child-a-second", {
+        definition: childA.definition,
+      }),
+    });
+    expect(occupiedA.receipt).toMatchObject({
+      kind: "rejected",
+      code: "surface.slot_occupied",
+    });
+    expect(occupiedA.state.publication).toBe(state.publication);
+    expect(
+      state.publication.orderedInstances.filter(
+        (instance) => instance.definition.slotId === "surface-slot.detail",
+      ).map((instance) => instance.parentInstanceId),
+    ).toEqual([parentA.surfaceInstanceId, parentB.surfaceInstanceId]);
   });
 
   it("never lets stale epoch, revision, or instance evidence mutate the current topology", () => {
@@ -762,7 +1182,7 @@ describe("reduceManagedSurfaceV1", () => {
         slotId: parseManagedSurfaceSlotIdV1("surface-slot.modal"),
         layerOrder: parseNonNegativeSafeInteger(80),
         modality: "blocking",
-        inputContextId: "system",
+        inputPolicy: { kind: "managed", inputContextId: "system" },
         dismissPolicy: {
           back: false,
           escape: false,
@@ -913,6 +1333,140 @@ describe("reduceManagedSurfaceV1", () => {
     expect(opened.state.identitySequenceHighWater).toBe(1);
   });
 
+  it("tracks publication commits separately from active topology fences", () => {
+    let state = createReducerStateV1(24);
+    const root = candidateV1(state, "root");
+    let before = state.publication;
+    let result = openPrimaryV1(state, root);
+    expectRevisionDeltaV1(before, result.state.publication, 1, 1);
+    state = result.state;
+
+    before = state.publication;
+    const occupied = openPrimaryV1(state, candidateV1(state, "occupied"));
+    expect(occupied.receipt).toMatchObject({ kind: "rejected", code: "surface.slot_occupied" });
+    expectRevisionDeltaV1(before, occupied.state.publication, 0, 0);
+    expect(occupied.state.publication).toBe(before);
+    state = occupied.state;
+
+    const replacement = candidateV1(state, "replacement", { definition: root.definition });
+    before = state.publication;
+    result = reduceManagedSurfaceV1(state, {
+      kind: "replace_primary",
+      expected: {
+        applicationEpoch: state.publication.applicationEpoch,
+        topologyRevision: state.publication.topologyRevision,
+        surfaceInstanceId: root.surfaceInstanceId,
+      },
+      candidate: replacement,
+    });
+    expectRevisionDeltaV1(before, result.state.publication, 1, 1);
+    state = result.state;
+
+    const child = candidateV1(state, "detail", {
+      definition: definitionV1("detail", {
+        slotId: parseManagedSurfaceSlotIdV1("surface-slot.detail"),
+        placement: "child",
+        layerOrder: parseNonNegativeSafeInteger(30),
+      }),
+    });
+    before = state.publication;
+    result = reduceManagedSurfaceV1(state, {
+      kind: "push_child",
+      parentEvidence: {
+        applicationEpoch: state.publication.applicationEpoch,
+        topologyRevision: state.publication.topologyRevision,
+        surfaceInstanceId: replacement.surfaceInstanceId,
+      },
+      candidate: child,
+    });
+    expectRevisionDeltaV1(before, result.state.publication, 1, 1);
+    state = result.state;
+
+    before = state.publication;
+    const routed = reduceManagedSurfaceV1(state, {
+      kind: "route_action",
+      evidence: {
+        applicationEpoch: state.publication.applicationEpoch,
+        topologyRevision: state.publication.topologyRevision,
+        surfaceInstanceId: child.surfaceInstanceId,
+      },
+      actionId: parseManagedSurfaceActionIdV1("surface-action.activate"),
+      routingLeaseId: child.routingLeaseId,
+    });
+    expect(routed.receipt).toMatchObject({ kind: "unchanged", code: "surface.action_routed" });
+    expectRevisionDeltaV1(before, routed.state.publication, 0, 0);
+    expect(routed.state).toBe(state);
+
+    before = state.publication;
+    result = reduceManagedSurfaceV1(state, {
+      kind: "close_expected",
+      evidence: {
+        applicationEpoch: state.publication.applicationEpoch,
+        topologyRevision: state.publication.topologyRevision,
+        surfaceInstanceId: child.surfaceInstanceId,
+      },
+    });
+    expectRevisionDeltaV1(before, result.state.publication, 1, 1);
+    state = result.state;
+    const rootEvidence = {
+      applicationEpoch: state.publication.applicationEpoch,
+      topologyRevision: state.publication.topologyRevision,
+      surfaceInstanceId: replacement.surfaceInstanceId,
+    };
+
+    before = state.publication;
+    const emptyOwnerDisposed = reduceManagedSurfaceV1(state, {
+      kind: "dispose_owner",
+      applicationEpoch: state.publication.applicationEpoch,
+      ownerId: parseManagedSurfaceOwnerIdV1("surface-owner.other"),
+    });
+    expectRevisionDeltaV1(before, emptyOwnerDisposed.state.publication, 1, 0);
+    expect(emptyOwnerDisposed.receipt).toMatchObject({
+      kind: "applied",
+      beforeTopologyRevision: before.topologyRevision,
+      afterTopologyRevision: before.topologyRevision,
+    });
+    expect(emptyOwnerDisposed.state.publication.ownerTrace).toContainEqual({
+      ownerId: "surface-owner.other",
+      surfaceInstanceIds: [],
+      disposed: true,
+    });
+    state = emptyOwnerDisposed.state;
+
+    before = state.publication;
+    const repeated = reduceManagedSurfaceV1(state, {
+      kind: "dispose_owner",
+      applicationEpoch: state.publication.applicationEpoch,
+      ownerId: parseManagedSurfaceOwnerIdV1("surface-owner.other"),
+    });
+    expectRevisionDeltaV1(before, repeated.state.publication, 0, 0);
+    expect(repeated.state).toBe(state);
+
+    before = state.publication;
+    const closedWithPreDisposeEvidence = reduceManagedSurfaceV1(state, {
+      kind: "close_expected",
+      evidence: rootEvidence,
+    });
+    expect(closedWithPreDisposeEvidence.receipt.kind).toBe("applied");
+    expectRevisionDeltaV1(before, closedWithPreDisposeEvidence.state.publication, 1, 1);
+    state = closedWithPreDisposeEvidence.state;
+
+    const system = candidateV1(state, "system", {
+      definition: definitionV1("system", {
+        ownerId: parseManagedSurfaceOwnerIdV1("surface-owner.system"),
+        slotId: parseManagedSurfaceSlotIdV1("surface-slot.system"),
+      }),
+    });
+    state = openPrimaryV1(state, system).state;
+    before = state.publication;
+    const liveOwnerDisposed = reduceManagedSurfaceV1(state, {
+      kind: "dispose_owner",
+      applicationEpoch: state.publication.applicationEpoch,
+      ownerId: parseManagedSurfaceOwnerIdV1("surface-owner.system"),
+    });
+    expectRevisionDeltaV1(before, liveOwnerDisposed.state.publication, 1, 1);
+  });
+
   it("keeps identity state bounded across 10,000 deterministic transitions", () => {
     const applicationEpoch = parseNonNegativeSafeInteger(14);
     const workspaceOwnerId = parseManagedSurfaceOwnerIdV1("surface-owner.workspace");
@@ -945,6 +1499,7 @@ describe("reduceManagedSurfaceV1", () => {
 
     state = openPrimaryV1(state, candidateV1(state, "churn-final-open")).state;
 
+    expect(state.publication.publicationRevision).toBe(10_000);
     expect(state.publication.topologyRevision).toBe(10_000);
     expect(state.publication.orderedInstances).toHaveLength(1);
     expect(state.publication.orderedInstances[0]).toMatchObject({
@@ -963,8 +1518,10 @@ describe("reduceManagedSurfaceV1", () => {
       "identitySequenceHighWater",
       "publication",
       "resolvedOwnerIds",
+      "resolvedSlotDescriptors",
     ]);
     expect(Object.isFrozen(state.resolvedOwnerIds)).toBe(true);
+    expect(Object.isFrozen(state.resolvedSlotDescriptors)).toBe(true);
     expect(Object.isFrozen(state.disposedOwnerIds)).toBe(true);
   });
 
@@ -1040,7 +1597,7 @@ describe("reduceManagedSurfaceV1", () => {
           slotId: parseManagedSurfaceSlotIdV1("surface-slot.system"),
           layerOrder: parseNonNegativeSafeInteger(80),
           modality: "blocking",
-          inputContextId: "system",
+          inputPolicy: { kind: "managed", inputContextId: "system" },
         }),
       }),
     ).state;
@@ -1067,6 +1624,12 @@ describe("reduceManagedSurfaceV1", () => {
       {
         ownerId: "surface-owner.workspace",
         surfaceInstanceIds: [workspace.surfaceInstanceId],
+        disposed: false,
+      },
+      {
+        ownerId: "surface-owner.system",
+        surfaceInstanceIds: [],
+        disposed: true,
       },
     ]);
     expect(ownerDisposed.state.disposedOwnerIds).toEqual(["surface-owner.system"]);

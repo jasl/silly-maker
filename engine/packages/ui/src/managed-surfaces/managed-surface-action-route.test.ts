@@ -10,9 +10,14 @@ import {
   type InputHandlerResultV1,
   type InputRouterV1,
 } from "../input/contracts.ts";
-import { createInputRouterV1 } from "../input/input-router.ts";
+import {
+  createInputRouterV1,
+  type ManagedInputHandlerRegistrationV1,
+  registerManagedInputHandlerV1,
+} from "../input/input-router.ts";
 import {
   type ManagedSurfaceResolvedDefinitionV1,
+  type ManagedSurfaceResolvedSlotDescriptorV1,
   type ManagedSurfaceGestureIdV1,
   parseManagedSurfaceActionIdV1,
   parseManagedSurfaceDefinitionIdV1,
@@ -26,12 +31,44 @@ import {
 } from "./managed-surface-contracts.ts";
 import {
   createManagedSurfaceActionBindingV1,
+  equalManagedSurfaceInputBindingContractV1,
   type ManagedSurfaceActionBindingV1,
+  type ManagedSurfaceInputBindingContractV1,
 } from "./managed-surface-action-route.ts";
 import {
-  createManagedSurfaceCoordinatorV1,
+  createManagedSurfaceCoordinatorV1 as createManagedSurfaceCoordinatorImplementationV1,
+  type CreateManagedSurfaceCoordinatorInputV1,
   type ManagedSurfaceHandleV1,
 } from "./managed-surface-coordinator.ts";
+
+const resolvedSlotDescriptorsV1 = Object.freeze(
+  [
+    {
+      kind: "root",
+      slotId: parseManagedSurfaceSlotIdV1("surface-slot.primary"),
+      cardinality: "single",
+    },
+    {
+      kind: "root",
+      slotId: parseManagedSurfaceSlotIdV1("surface-slot.debug"),
+      cardinality: "single",
+    },
+    {
+      kind: "root",
+      slotId: parseManagedSurfaceSlotIdV1("surface-slot.system"),
+      cardinality: "single",
+    },
+  ] as const satisfies readonly ManagedSurfaceResolvedSlotDescriptorV1[],
+);
+
+function createManagedSurfaceCoordinatorV1(
+  input: Omit<CreateManagedSurfaceCoordinatorInputV1, "resolvedSlotDescriptors">,
+) {
+  return createManagedSurfaceCoordinatorImplementationV1({
+    ...input,
+    resolvedSlotDescriptors: resolvedSlotDescriptorsV1,
+  });
+}
 
 const activateActionIdV1 = parseManagedSurfaceActionIdV1("surface-action.activate");
 const otherActionIdV1 = parseManagedSurfaceActionIdV1("surface-action.other");
@@ -47,10 +84,8 @@ function definitionV1(
     layerId: parseManagedSurfaceLayerIdV1("surface-layer.workspace"),
     layerOrder: parseNonNegativeSafeInteger(20),
     placement: "root",
-    slotCardinality: "single",
-    allowedParentSlotIds: [],
     modality: "non_blocking",
-    inputContextId: "overlay",
+    inputPolicy: { kind: "managed", inputContextId: "overlay" },
     dismissPolicy: {
       back: true,
       escape: true,
@@ -58,10 +93,12 @@ function definitionV1(
       routedCancel: true,
     },
     focusPolicy: {
+      kind: "owns_focus",
       initialTargetId: parseManagedSurfaceFocusTargetIdV1("focus-target.primary"),
       trap: true,
       restore: "opener",
     },
+    navigationPolicy: { kind: "close" },
     actionIds: [activateActionIdV1],
     ...overrides,
   };
@@ -71,32 +108,54 @@ function gestureV1(suffix: string) {
   return parseManagedSurfaceGestureIdV1(`gesture.test.${suffix}`);
 }
 
+function inputBindingContractV1(
+  overrides: Partial<ManagedSurfaceInputBindingContractV1> = {},
+): ManagedSurfaceInputBindingContractV1 {
+  return Object.freeze({
+    applicationEpoch: parseNonNegativeSafeInteger(4),
+    ownerId: parseManagedSurfaceOwnerIdV1("surface-owner.workspace"),
+    surfaceInstanceId: parseManagedSurfaceInstanceIdV1("surface-instance.e4.n1"),
+    inputContextId: "overlay",
+    routingLeaseId: parseManagedSurfaceRoutingLeaseIdV1("surface-lease.e4.n1"),
+    actionIds: Object.freeze([activateActionIdV1]),
+    topologyRevision: parseNonNegativeSafeInteger(1),
+    ...overrides,
+  });
+}
+
 interface FixtureOptionsV1 {
   readonly inputRouter?: InputRouterV1;
   readonly beforeGestureCheck?: (gestureId: ManagedSurfaceGestureIdV1) => void;
+  readonly registerManagedInputHandler?: typeof registerManagedInputHandlerV1;
 }
 
 function createCountingInputRouterV1() {
-  const delegate = createInputRouterV1();
+  const router = createInputRouterV1();
   let activeRegistrationCount = 0;
-  const router: InputRouterV1 = Object.freeze({
-    register(registration: Parameters<InputRouterV1["register"]>[0]) {
-      const unregisterDelegate = delegate.register(registration);
-      activeRegistrationCount += 1;
-      let active = true;
-      return (): void => {
-        if (!active) return;
-        active = false;
-        activeRegistrationCount -= 1;
-        unregisterDelegate();
-      };
-    },
-    route: (event: Parameters<InputRouterV1["route"]>[0]) => delegate.route(event),
-    clearTransientInput: () => delegate.clearTransientInput(),
-  });
+  let registrationCount = 0;
+  let unregistrationCount = 0;
+  const registerManagedInputHandler = (
+    target: InputRouterV1,
+    registration: ManagedInputHandlerRegistrationV1,
+  ): () => void => {
+    registrationCount += 1;
+    activeRegistrationCount += 1;
+    const unregisterDelegate = registerManagedInputHandlerV1(target, registration);
+    let active = true;
+    return (): void => {
+      if (!active) return;
+      active = false;
+      unregistrationCount += 1;
+      activeRegistrationCount -= 1;
+      unregisterDelegate();
+    };
+  };
   return Object.freeze({
     router,
+    registerManagedInputHandler,
     getActiveRegistrationCount: () => activeRegistrationCount,
+    getRegistrationCount: () => registrationCount,
+    getUnregistrationCount: () => unregistrationCount,
   });
 }
 
@@ -127,6 +186,9 @@ function createFixtureV1(options: FixtureOptionsV1 = {}) {
       options.beforeGestureCheck?.(gestureId);
       return !staleGestures.has(gestureId);
     },
+    ...(options.registerManagedInputHandler === undefined
+      ? {}
+      : { registerManagedInputHandler: options.registerManagedInputHandler }),
   });
   return {
     binding,
@@ -294,11 +356,18 @@ describe("Managed Surface action route", () => {
 
   it("fails closed after rebind, gesture expiry, and binding dispose", () => {
     const fixture = createFixtureV1();
-    const before = fixture.coordinator.getSnapshot();
     const oldEnvelope = fixture.binding.createEnvelope({
       actionId: otherActionIdV1,
       gestureId: gestureV1("undeclared-old-publication"),
     });
+    expect(
+      fixture.coordinator.replaceTransientPrimary({
+        expected: fixture.opened,
+        definition: definitionV1("successor"),
+        semanticOccurrenceId: null,
+      }).receipt.kind,
+    ).toBe("applied");
+    const afterRebind = fixture.coordinator.getSnapshot();
     const successor = createManagedSurfaceActionBindingV1({
       coordinator: fixture.coordinator,
       inputRouter: fixture.router,
@@ -328,7 +397,7 @@ describe("Managed Surface action route", () => {
       surface: null,
     });
     expect(fixture.lower).not.toHaveBeenCalled();
-    expect(fixture.coordinator.getSnapshot()).toBe(before);
+    expect(fixture.coordinator.getSnapshot()).toBe(afterRebind);
   });
 
   it.each(
@@ -480,7 +549,7 @@ describe("Managed Surface action route", () => {
         slotId: parseManagedSurfaceSlotIdV1("surface-slot.debug"),
         layerId: parseManagedSurfaceLayerIdV1("surface-layer.debug"),
         layerOrder: parseNonNegativeSafeInteger(90),
-        inputContextId: "debug",
+        inputPolicy: { kind: "managed", inputContextId: "debug" },
       }),
       semanticOccurrenceId: null,
     });
@@ -506,6 +575,13 @@ describe("Managed Surface action route", () => {
       actionId: activateActionIdV1,
       gestureId: gestureV1("old-publication"),
     });
+    expect(
+      fixture.coordinator.replaceTransientPrimary({
+        expected: fixture.opened,
+        definition: definitionV1("successor"),
+        semanticOccurrenceId: null,
+      }).receipt.kind,
+    ).toBe("applied");
     const successor = createManagedSurfaceActionBindingV1({
       coordinator: fixture.coordinator,
       inputRouter: fixture.router,
@@ -546,6 +622,235 @@ describe("Managed Surface action route", () => {
     expect(fixture.lower).not.toHaveBeenCalled();
   });
 
+  it.each([
+    {
+      label: "application epoch",
+      contract: inputBindingContractV1({ applicationEpoch: parseNonNegativeSafeInteger(5) }),
+    },
+    {
+      label: "owner",
+      contract: inputBindingContractV1({
+        ownerId: parseManagedSurfaceOwnerIdV1("surface-owner.other"),
+      }),
+    },
+    {
+      label: "instance",
+      contract: inputBindingContractV1({
+        surfaceInstanceId: parseManagedSurfaceInstanceIdV1("surface-instance.e4.n2"),
+      }),
+    },
+    { label: "context", contract: inputBindingContractV1({ inputContextId: "system" }) },
+    {
+      label: "routing lease",
+      contract: inputBindingContractV1({
+        routingLeaseId: parseManagedSurfaceRoutingLeaseIdV1("surface-lease.e4.n2"),
+      }),
+    },
+    {
+      label: "action catalog",
+      contract: inputBindingContractV1({
+        actionIds: [activateActionIdV1, parseManagedSurfaceActionIdV1("surface-action.other")],
+      }),
+    },
+    {
+      label: "topology revision",
+      contract: inputBindingContractV1({ topologyRevision: parseNonNegativeSafeInteger(2) }),
+    },
+  ])("replaces an input binding when its $label changes", ({ contract }) => {
+    expect(equalManagedSurfaceInputBindingContractV1(inputBindingContractV1(), contract)).toBe(
+      false,
+    );
+  });
+
+  it("compares input action catalogs by value and order rather than array identity", () => {
+    const actionA = activateActionIdV1;
+    const actionB = parseManagedSurfaceActionIdV1("surface-action.other");
+    expect(
+      equalManagedSurfaceInputBindingContractV1(
+        inputBindingContractV1({ actionIds: [actionA, actionB] }),
+        inputBindingContractV1({ actionIds: [actionA, actionB] }),
+      ),
+    ).toBe(true);
+    expect(
+      equalManagedSurfaceInputBindingContractV1(
+        inputBindingContractV1({ actionIds: [actionA, actionB] }),
+        inputBindingContractV1({ actionIds: [actionB, actionA] }),
+      ),
+    ).toBe(false);
+  });
+
+  it("reuses one binding and input publication across recreated construction delegates", () => {
+    const coordinator = createManagedSurfaceCoordinatorV1({
+      applicationEpoch: parseNonNegativeSafeInteger(18),
+      resolvedOwnerIds: [parseManagedSurfaceOwnerIdV1("surface-owner.workspace")],
+    });
+    coordinator.openTransientPrimary({
+      definition: definitionV1("inventory"),
+      semanticOccurrenceId: null,
+    });
+    const countingRouter = createCountingInputRouterV1();
+    const inputRouter = countingRouter.router;
+    const initialGestureCurrent = vi.fn(() => false);
+    const first = createManagedSurfaceActionBindingV1({
+      coordinator,
+      inputRouter,
+      isGestureCurrent: initialGestureCurrent,
+      registerManagedInputHandler: countingRouter.registerManagedInputHandler,
+    });
+    const firstEnvelope = first.createEnvelope({
+      actionId: activateActionIdV1,
+      gestureId: gestureV1("same-contract-first"),
+    });
+    const retainedGestureCurrent = vi.fn(() => true);
+    const alternateRegistrar = vi.fn(countingRouter.registerManagedInputHandler);
+
+    const retained = createManagedSurfaceActionBindingV1({
+      coordinator,
+      inputRouter,
+      isGestureCurrent: retainedGestureCurrent,
+      registerManagedInputHandler: alternateRegistrar,
+    });
+    const retainedEnvelope = retained.createEnvelope({
+      actionId: activateActionIdV1,
+      gestureId: gestureV1("same-contract-retained"),
+    });
+
+    expect(retained).toBe(first);
+    expect(retainedEnvelope.inputPublicationRevision).toBe(
+      firstEnvelope.inputPublicationRevision,
+    );
+    expect(countingRouter.getRegistrationCount()).toBe(1);
+    expect(countingRouter.getUnregistrationCount()).toBe(0);
+    expect(alternateRegistrar).not.toHaveBeenCalled();
+    expect(first.route(firstEnvelope)).toMatchObject({
+      surface: { kind: "unchanged", code: "surface.action_routed" },
+    });
+    expect(initialGestureCurrent).not.toHaveBeenCalled();
+    expect(retainedGestureCurrent).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects a value-equal contract from a different Coordinator authority", () => {
+    const ownerId = parseManagedSurfaceOwnerIdV1("surface-owner.workspace");
+    const createCoordinator = () => {
+      const coordinator = createManagedSurfaceCoordinatorV1({
+        applicationEpoch: parseNonNegativeSafeInteger(19),
+        resolvedOwnerIds: [ownerId],
+      });
+      coordinator.openTransientPrimary({
+        definition: definitionV1("inventory"),
+        semanticOccurrenceId: null,
+      });
+      return coordinator;
+    };
+    const firstCoordinator = createCoordinator();
+    const secondCoordinator = createCoordinator();
+    const countingRouter = createCountingInputRouterV1();
+    const binding = createManagedSurfaceActionBindingV1({
+      coordinator: firstCoordinator,
+      inputRouter: countingRouter.router,
+      isGestureCurrent: () => true,
+      registerManagedInputHandler: countingRouter.registerManagedInputHandler,
+    });
+    const queued = binding.createEnvelope({
+      actionId: activateActionIdV1,
+      gestureId: gestureV1("authority-conflict"),
+    });
+
+    expect(() =>
+      createManagedSurfaceActionBindingV1({
+        coordinator: secondCoordinator,
+        inputRouter: countingRouter.router,
+        isGestureCurrent: () => true,
+        registerManagedInputHandler: vi.fn(countingRouter.registerManagedInputHandler),
+      })
+    ).toThrowError("ui.managed_surface_input_authority_conflict");
+    secondCoordinator.dispose();
+
+    expect(binding.route(queued)).toMatchObject({
+      surface: { kind: "unchanged", code: "surface.action_routed" },
+    });
+    expect(countingRouter.getRegistrationCount()).toBe(1);
+    expect(countingRouter.getUnregistrationCount()).toBe(0);
+  });
+
+  it("retains binding, registration, and queued actions across a publication-only owner commit", () => {
+    const coordinator = createManagedSurfaceCoordinatorV1({
+      applicationEpoch: parseNonNegativeSafeInteger(25),
+      resolvedOwnerIds: [
+        parseManagedSurfaceOwnerIdV1("surface-owner.workspace"),
+        parseManagedSurfaceOwnerIdV1("surface-owner.system"),
+      ],
+    });
+    coordinator.openTransientPrimary({
+      definition: definitionV1("inventory"),
+      semanticOccurrenceId: null,
+    });
+    const countingRouter = createCountingInputRouterV1();
+    const lower = vi.fn(() => inputHandledV1);
+    countingRouter.router.register({ context: "overlay", handle: lower });
+    const binding = createManagedSurfaceActionBindingV1({
+      coordinator,
+      inputRouter: countingRouter.router,
+      isGestureCurrent: () => true,
+      registerManagedInputHandler: countingRouter.registerManagedInputHandler,
+    });
+    const queuedBeforeCommit = binding.createEnvelope({
+      actionId: activateActionIdV1,
+      gestureId: gestureV1("before-publication-only"),
+    });
+    const before = coordinator.getSnapshot();
+    const listener = vi.fn();
+    coordinator.subscribe(listener);
+
+    expect(
+      coordinator.disposeOwner(parseManagedSurfaceOwnerIdV1("surface-owner.system")),
+    ).toMatchObject({
+      kind: "applied",
+      beforeTopologyRevision: before.topologyRevision,
+      afterTopologyRevision: before.topologyRevision,
+    });
+    const after = coordinator.getSnapshot();
+    expect(after.publicationRevision).toBe(before.publicationRevision + 1);
+    expect(after.topologyRevision).toBe(before.topologyRevision);
+    expect(after.ownerTrace).toContainEqual({
+      ownerId: "surface-owner.system",
+      surfaceInstanceIds: [],
+      disposed: true,
+    });
+    expect(listener).toHaveBeenCalledOnce();
+
+    const alternateRegistrar = vi.fn(countingRouter.registerManagedInputHandler);
+    const retained = createManagedSurfaceActionBindingV1({
+      coordinator,
+      inputRouter: countingRouter.router,
+      isGestureCurrent: () => true,
+      registerManagedInputHandler: alternateRegistrar,
+    });
+    const afterCommitEnvelope = retained.createEnvelope({
+      actionId: activateActionIdV1,
+      gestureId: gestureV1("after-publication-only"),
+    });
+    expect(retained).toBe(binding);
+    expect(afterCommitEnvelope.inputPublicationRevision).toBe(
+      queuedBeforeCommit.inputPublicationRevision,
+    );
+    expect(countingRouter.getRegistrationCount()).toBe(1);
+    expect(countingRouter.getUnregistrationCount()).toBe(0);
+    expect(alternateRegistrar).not.toHaveBeenCalled();
+
+    expect(binding.route(queuedBeforeCommit)).toMatchObject({
+      input: { kind: "consumed" },
+      surface: { kind: "unchanged", code: "surface.action_routed" },
+    });
+    expect(retained.route(afterCommitEnvelope)).toMatchObject({
+      input: { kind: "consumed" },
+      surface: { kind: "unchanged", code: "surface.action_routed" },
+    });
+    expect(lower).toHaveBeenCalledTimes(2);
+    expect(countingRouter.getRegistrationCount()).toBe(1);
+    expect(countingRouter.getUnregistrationCount()).toBe(0);
+  });
+
   it("does not revive a superseded gate when the preflight currentness check rebinds", () => {
     const countingRouter = createCountingInputRouterV1();
     let shouldRebind = false;
@@ -553,13 +858,22 @@ describe("Managed Surface action route", () => {
     let fixture: ReturnType<typeof createFixtureV1>;
     fixture = createFixtureV1({
       inputRouter: countingRouter.router,
+      registerManagedInputHandler: countingRouter.registerManagedInputHandler,
       beforeGestureCheck: () => {
         if (!shouldRebind) return;
         shouldRebind = false;
+        expect(
+          fixture.coordinator.replaceTransientPrimary({
+            expected: fixture.opened,
+            definition: definitionV1("preflight-successor"),
+            semanticOccurrenceId: null,
+          }).receipt.kind,
+        ).toBe("applied");
         successor = createManagedSurfaceActionBindingV1({
           coordinator: fixture.coordinator,
           inputRouter: fixture.router,
           isGestureCurrent: () => true,
+          registerManagedInputHandler: countingRouter.registerManagedInputHandler,
         });
       },
     });
@@ -574,7 +888,7 @@ describe("Managed Surface action route", () => {
       surface: null,
     });
     expect(successor).not.toBeNull();
-    expect(countingRouter.getActiveRegistrationCount()).toBe(2);
+    expect(countingRouter.getActiveRegistrationCount()).toBe(1);
     expect(fixture.lower).not.toHaveBeenCalled();
   });
 
@@ -585,13 +899,22 @@ describe("Managed Surface action route", () => {
     let fixture: ReturnType<typeof createFixtureV1>;
     fixture = createFixtureV1({
       inputRouter: countingRouter.router,
+      registerManagedInputHandler: countingRouter.registerManagedInputHandler,
       beforeGestureCheck: () => {
         gestureCheckCount += 1;
         if (gestureCheckCount !== 2) return;
+        expect(
+          fixture.coordinator.replaceTransientPrimary({
+            expected: fixture.opened,
+            definition: definitionV1("gate-successor"),
+            semanticOccurrenceId: null,
+          }).receipt.kind,
+        ).toBe("applied");
         successor = createManagedSurfaceActionBindingV1({
           coordinator: fixture.coordinator,
           inputRouter: fixture.router,
           isGestureCurrent: () => true,
+          registerManagedInputHandler: countingRouter.registerManagedInputHandler,
         });
       },
     });
@@ -605,7 +928,7 @@ describe("Managed Surface action route", () => {
       surface: null,
     });
     expect(successor).not.toBeNull();
-    expect(countingRouter.getActiveRegistrationCount()).toBe(2);
+    expect(countingRouter.getActiveRegistrationCount()).toBe(1);
     expect(fixture.lower).not.toHaveBeenCalled();
   });
 

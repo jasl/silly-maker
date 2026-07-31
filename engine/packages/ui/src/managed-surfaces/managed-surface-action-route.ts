@@ -7,14 +7,18 @@ import {
   inputIgnoredV1,
   parseInputActionIdV1,
   type InputEventV1,
+  type InputContextIdV1,
   type InputRouteResultV1,
   type InputRouterV1,
 } from "../input/contracts.ts";
+import { registerManagedInputHandlerV1 } from "../input/input-router.ts";
 import {
   type ManagedSurfaceActionEnvelopeV1,
   type ManagedSurfaceActionIdV1,
   type ManagedSurfaceGestureIdV1,
   type ManagedSurfaceInputPublicationRevisionV1,
+  type ManagedSurfaceInstanceIdV1,
+  type ManagedSurfaceOwnerIdV1,
   type ManagedSurfaceRoutingLeaseIdV1,
   type ManagedSurfaceTransitionReceiptV1,
   parseManagedSurfaceActionIdV1,
@@ -55,6 +59,31 @@ export interface CreateManagedSurfaceActionBindingInputV1 {
   readonly coordinator: ManagedSurfaceCoordinatorV1;
   readonly inputRouter: InputRouterV1;
   readonly isGestureCurrent: (gestureId: ManagedSurfaceGestureIdV1) => boolean;
+  readonly registerManagedInputHandler?: typeof registerManagedInputHandlerV1;
+}
+
+export interface ManagedSurfaceInputBindingContractV1 {
+  readonly applicationEpoch: ManagedSurfaceActionEnvelopeV1["applicationEpoch"];
+  readonly ownerId: ManagedSurfaceOwnerIdV1;
+  readonly surfaceInstanceId: ManagedSurfaceInstanceIdV1;
+  readonly inputContextId: InputContextIdV1;
+  readonly routingLeaseId: ManagedSurfaceRoutingLeaseIdV1;
+  readonly actionIds: readonly ManagedSurfaceActionIdV1[];
+  readonly topologyRevision: ManagedSurfaceActionEnvelopeV1["surfaceTopologyRevision"];
+}
+
+export function equalManagedSurfaceInputBindingContractV1(
+  left: ManagedSurfaceInputBindingContractV1,
+  right: ManagedSurfaceInputBindingContractV1,
+): boolean {
+  return left.applicationEpoch === right.applicationEpoch &&
+    left.ownerId === right.ownerId &&
+    left.surfaceInstanceId === right.surfaceInstanceId &&
+    left.inputContextId === right.inputContextId &&
+    left.routingLeaseId === right.routingLeaseId &&
+    left.topologyRevision === right.topologyRevision &&
+    left.actionIds.length === right.actionIds.length &&
+    left.actionIds.every((actionId, index) => actionId === right.actionIds[index]);
 }
 
 interface RouterBindingStateV1 {
@@ -64,7 +93,11 @@ interface RouterBindingStateV1 {
 
 interface ManagedSurfaceActionBindingRecordV1 {
   readonly revision: ManagedSurfaceInputPublicationRevisionV1;
+  readonly contract: ManagedSurfaceInputBindingContractV1;
+  readonly coordinator: ManagedSurfaceCoordinatorV1;
+  isGestureCurrent: CreateManagedSurfaceActionBindingInputV1["isGestureCurrent"];
   readonly unregister: () => void;
+  binding: ManagedSurfaceActionBindingV1 | null;
   active: boolean;
 }
 
@@ -184,10 +217,35 @@ export function createManagedSurfaceActionBindingV1(
     throw new TypeError("ui.managed_surface_input_owner_required");
   }
 
+  const contract: ManagedSurfaceInputBindingContractV1 = Object.freeze({
+    applicationEpoch: publication.applicationEpoch,
+    ownerId: target.definition.ownerId,
+    surfaceInstanceId: target.surfaceInstanceId,
+    inputContextId: inputOwner.inputContextId,
+    routingLeaseId: inputOwner.routingLeaseId,
+    actionIds: Object.freeze([...target.definition.actionIds]),
+    topologyRevision: publication.topologyRevision,
+  });
+  const registerManagedInputHandler = input.registerManagedInputHandler ??
+    registerManagedInputHandlerV1;
+
   let routerState = routerBindingStatesV1.get(input.inputRouter);
   if (routerState === undefined) {
     routerState = { revision: 0, current: null };
     routerBindingStatesV1.set(input.inputRouter, routerState);
+  }
+  const retained = routerState.current;
+  if (
+    retained !== null &&
+    retained.active &&
+    retained.binding !== null &&
+    equalManagedSurfaceInputBindingContractV1(retained.contract, contract)
+  ) {
+    if (retained.coordinator !== input.coordinator) {
+      throw new TypeError("ui.managed_surface_input_authority_conflict");
+    }
+    retained.isGestureCurrent = input.isGestureCurrent;
+    return retained.binding;
   }
   const revision = allocateInputPublicationRevisionV1(routerState);
   const capturedRoutingLeaseId: ManagedSurfaceRoutingLeaseIdV1 = inputOwner.routingLeaseId;
@@ -200,7 +258,11 @@ export function createManagedSurfaceActionBindingV1(
   let unregisterRegistrationV1 = (): void => {};
   const record: ManagedSurfaceActionBindingRecordV1 = {
     revision,
+    contract,
+    coordinator: input.coordinator,
+    isGestureCurrent: input.isGestureCurrent,
     unregister: () => unregisterRegistrationV1(),
+    binding: null,
     active: true,
   };
   const isCurrentInputPublicationV1 = (envelope: ManagedSurfaceActionEnvelopeV1): boolean =>
@@ -212,7 +274,7 @@ export function createManagedSurfaceActionBindingV1(
     const dispatch = managedDispatchesV1.get(event);
     if (dispatch === undefined || dispatch.binding !== record) return inputIgnoredV1;
 
-    const surface = input.coordinator.routeAction({
+    const surface = record.coordinator.routeAction({
       evidence: {
         applicationEpoch: dispatch.envelope.applicationEpoch,
         topologyRevision: dispatch.envelope.surfaceTopologyRevision,
@@ -230,7 +292,7 @@ export function createManagedSurfaceActionBindingV1(
       dispatch.inputFailure = "input.stale_publication";
       return inputHandledV1;
     }
-    const gestureCurrent = input.isGestureCurrent(dispatch.envelope.gestureId);
+    const gestureCurrent = record.isGestureCurrent(dispatch.envelope.gestureId);
     if (!isCurrentInputPublicationV1(dispatch.envelope)) {
       dispatch.surface = null;
       dispatch.inputFailure = "input.stale_publication";
@@ -244,14 +306,10 @@ export function createManagedSurfaceActionBindingV1(
     return inputIgnoredV1;
   };
   const registerManagedGateV1 = (): () => void =>
-    input.inputRouter.register({
+    registerManagedInputHandler(input.inputRouter, {
       context: inputOwner.inputContextId,
       handle: handleManagedEventV1,
     });
-  const refreshManagedGateV1 = (): void => {
-    unregisterRegistrationV1();
-    unregisterRegistrationV1 = registerManagedGateV1();
-  };
   unregisterRegistrationV1 = registerManagedGateV1();
   const previous = routerState.current;
   routerState.current = record;
@@ -284,7 +342,7 @@ export function createManagedSurfaceActionBindingV1(
     if (!isCurrentInputPublicationV1(envelope)) {
       return staleInputResultV1(envelope, "input.stale_publication");
     }
-    const gestureCurrent = input.isGestureCurrent(envelope.gestureId);
+    const gestureCurrent = record.isGestureCurrent(envelope.gestureId);
     if (!isCurrentInputPublicationV1(envelope)) {
       return staleInputResultV1(envelope, "input.stale_publication");
     }
@@ -292,7 +350,6 @@ export function createManagedSurfaceActionBindingV1(
       return staleInputResultV1(envelope, "input.stale_gesture");
     }
 
-    refreshManagedGateV1();
     const dispatch: ManagedSurfaceDispatchContextV1 = {
       binding: record,
       envelope,
@@ -311,7 +368,7 @@ export function createManagedSurfaceActionBindingV1(
     }
   };
 
-  return Object.freeze({
+  const binding: ManagedSurfaceActionBindingV1 = Object.freeze({
     createEnvelope,
     route,
     dispose(): void {
@@ -324,4 +381,6 @@ export function createManagedSurfaceActionBindingV1(
       }
     },
   });
+  record.binding = binding;
+  return binding;
 }

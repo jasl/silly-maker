@@ -183,7 +183,7 @@ digest/serialization dedup；四项 evidence gate 均未达到充分标准，
 
 执行 [Surface plan](2026-07-30-surface-contract-harness.md) 的
 **S0 → S1d.1 → S1d.2 → S1d.3 → S1e → S1f → S2**，只迁移
-**Workspace Overlay**。S1a–S1d.2 已交付 dormant baseline，S1d.3–S1f 完成
+**Workspace Overlay**。S1a–S1d.3 已交付 dormant baseline，S1e–S1f 完成
 S1-T 的剩余部分：
 
 1. 用现有 bug/trace 建立红测试；
@@ -223,8 +223,14 @@ domain 与 current-epoch scalar allocation high-water 取代三个 append-only r
 arrays；10,000 次 deterministic churn 从 `19,998` 个历史 tombstone 收敛为一个
 `6,667` high-water、一个 live instance 和零 tombstone collection。unknown owner 在
 allocation/publication/revision/subscriber 前拒绝，identity replay 与 component
-forgery fail closed。该批没有决定 composition-root epoch ownership 或实现
-S1d.3+；下一独立切片是 S1d.3。
+forgery fail closed。S1d.3 随后把 root slot 改为 global scope、child slot 改为
+exact-parent-instance scope，并让 cardinality 只来自 frozen resolved descriptor；
+blocking/input/focus/navigation target 独立派生，Back/`closeTop` 不再从 input owner
+反推。同步 topology commit、空 owner dispose 与 rejected/unchanged 的
+publication/topology delta 分别冻结为 `1/1`、`1/0`、`0/0`；publication-only commit
+复用同一 binding、registration 与 `inputPublicationRevision`，公共 InputRouter shape
+和六字段 Surface action envelope 未改变。以上批次均没有决定 composition-root epoch
+ownership 或实现 readiness/live Surface family；下一独立切片是 S1e。
 
 S2 只依赖 S1-T，全部 Overlay target 都是 Coordinator-owned transient target；它不
 等待 S1-R，也不得为了统一形状预埋 source publication revision、stable-target

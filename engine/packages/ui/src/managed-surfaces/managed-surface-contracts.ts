@@ -87,6 +87,19 @@ export type ManagedSurfaceModalityV1 = "non_blocking" | "blocking";
 export type ManagedSurfaceLifecyclePhaseV1 = "preparing" | "active" | "suspended" | "exiting";
 export type ManagedSurfaceFocusRestoreV1 = "opener" | "previous_owner" | "none";
 
+export type ManagedSurfaceResolvedSlotDescriptorV1 =
+  | {
+    readonly kind: "root";
+    readonly slotId: ManagedSurfaceSlotIdV1;
+    readonly cardinality: ManagedSurfaceSlotCardinalityV1;
+  }
+  | {
+    readonly kind: "child";
+    readonly parentDefinitionId: ManagedSurfaceDefinitionIdV1;
+    readonly slotId: ManagedSurfaceSlotIdV1;
+    readonly cardinality: ManagedSurfaceSlotCardinalityV1;
+  };
+
 export interface ManagedSurfaceDismissPolicyV1 {
   readonly back: boolean;
   readonly escape: boolean;
@@ -94,11 +107,25 @@ export interface ManagedSurfaceDismissPolicyV1 {
   readonly routedCancel: boolean;
 }
 
-export interface ManagedSurfaceFocusPolicyV1 {
-  readonly initialTargetId: ManagedSurfaceFocusTargetIdV1;
-  readonly trap: boolean;
-  readonly restore: ManagedSurfaceFocusRestoreV1;
-}
+export type ManagedSurfaceInputPolicyV1 =
+  | { readonly kind: "none" }
+  | {
+    readonly kind: "managed";
+    readonly inputContextId: InputContextIdV1;
+  };
+
+export type ManagedSurfaceFocusPolicyV1 =
+  | { readonly kind: "none" }
+  | {
+    readonly kind: "owns_focus";
+    readonly initialTargetId: ManagedSurfaceFocusTargetIdV1;
+    readonly trap: boolean;
+    readonly restore: ManagedSurfaceFocusRestoreV1;
+  };
+
+export type ManagedSurfaceNavigationPolicyV1 =
+  | { readonly kind: "none" }
+  | { readonly kind: "close" };
 
 export interface ManagedSurfaceResolvedDefinitionV1 {
   readonly definitionId: ManagedSurfaceDefinitionIdV1;
@@ -107,12 +134,11 @@ export interface ManagedSurfaceResolvedDefinitionV1 {
   readonly layerId: ManagedSurfaceLayerIdV1;
   readonly layerOrder: NonNegativeSafeInteger;
   readonly placement: ManagedSurfacePlacementV1;
-  readonly slotCardinality: ManagedSurfaceSlotCardinalityV1;
-  readonly allowedParentSlotIds: readonly ManagedSurfaceSlotIdV1[];
   readonly modality: ManagedSurfaceModalityV1;
-  readonly inputContextId: InputContextIdV1;
+  readonly inputPolicy: ManagedSurfaceInputPolicyV1;
   readonly dismissPolicy: ManagedSurfaceDismissPolicyV1;
   readonly focusPolicy: ManagedSurfaceFocusPolicyV1;
+  readonly navigationPolicy: ManagedSurfaceNavigationPolicyV1;
   readonly actionIds: readonly ManagedSurfaceActionIdV1[];
 }
 
@@ -170,15 +196,18 @@ export interface ManagedSurfaceFocusOwnerV1 {
 export interface ManagedSurfaceOwnerTraceV1 {
   readonly ownerId: ManagedSurfaceOwnerIdV1;
   readonly surfaceInstanceIds: readonly ManagedSurfaceInstanceIdV1[];
+  readonly disposed: boolean;
 }
 
 export interface ManagedSurfacePublicationV1 {
   readonly applicationEpoch: NonNegativeSafeInteger;
+  readonly publicationRevision: NonNegativeSafeInteger;
   readonly topologyRevision: NonNegativeSafeInteger;
   readonly orderedInstances: readonly ManagedSurfacePublishedInstanceV1[];
   readonly topmostBlockingInstanceId: ManagedSurfaceInstanceIdV1 | null;
   readonly inputOwner: ManagedSurfaceInputOwnerV1 | null;
   readonly focusOwner: ManagedSurfaceFocusOwnerV1 | null;
+  readonly navigationTargetInstanceId: ManagedSurfaceInstanceIdV1 | null;
   readonly ownerTrace: readonly ManagedSurfaceOwnerTraceV1[];
   readonly coordinatorDisposed: boolean;
 }
@@ -286,6 +315,8 @@ export type ManagedSurfaceTransitionCodeV1 =
   | "surface.reused_routing_lease"
   | "surface.reused_identity_allocation"
   | "surface.invalid_identity_allocation"
+  | "surface.slot_not_resolved"
+  | "surface.slot_placement_mismatch"
   | "surface.slot_occupied"
   | "surface.invalid_parent"
   | "surface.invalid_transition"

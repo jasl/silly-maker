@@ -4,21 +4,29 @@ import type { DeepReadonly, NonNegativeSafeInteger } from "@sillymaker/base";
 
 import type {
   ManagedSurfaceCandidateV1,
+  ManagedSurfaceDefinitionIdV1,
   ManagedSurfaceInstanceIdV1,
   ManagedSurfaceOperationV1,
   ManagedSurfaceOwnerIdV1,
   ManagedSurfacePublicationV1,
   ManagedSurfacePublishedInstanceV1,
   ManagedSurfaceResolvedDefinitionV1,
+  ManagedSurfaceResolvedSlotDescriptorV1,
+  ManagedSurfaceSlotIdV1,
   ManagedSurfaceTransitionCodeV1,
   ManagedSurfaceTransitionReceiptV1,
 } from "./managed-surface-contracts.ts";
-import { parseManagedSurfaceOwnerIdV1 } from "./managed-surface-contracts.ts";
+import {
+  parseManagedSurfaceDefinitionIdV1,
+  parseManagedSurfaceOwnerIdV1,
+  parseManagedSurfaceSlotIdV1,
+} from "./managed-surface-contracts.ts";
 import { hasExpectedManagedSurfaceTransientIdentityV1 } from "./managed-surface-identity.ts";
 
 export interface ManagedSurfaceReducerStateV1 {
   readonly publication: DeepReadonly<ManagedSurfacePublicationV1>;
   readonly resolvedOwnerIds: readonly ManagedSurfaceOwnerIdV1[];
+  readonly resolvedSlotDescriptors: readonly ManagedSurfaceResolvedSlotDescriptorV1[];
   readonly identitySequenceHighWater: NonNegativeSafeInteger;
   readonly disposedOwnerIds: readonly ManagedSurfaceOwnerIdV1[];
 }
@@ -32,11 +40,17 @@ function freezeDefinitionV1(
   definition: ManagedSurfaceResolvedDefinitionV1,
 ): DeepReadonly<ManagedSurfaceResolvedDefinitionV1> {
   return Object.freeze({
-    ...definition,
+    definitionId: definition.definitionId,
+    ownerId: definition.ownerId,
+    slotId: definition.slotId,
+    layerId: definition.layerId,
     layerOrder: parseNonNegativeSafeInteger(definition.layerOrder),
-    allowedParentSlotIds: Object.freeze([...definition.allowedParentSlotIds]),
+    placement: definition.placement,
+    modality: definition.modality,
+    inputPolicy: Object.freeze({ ...definition.inputPolicy }),
     dismissPolicy: Object.freeze({ ...definition.dismissPolicy }),
     focusPolicy: Object.freeze({ ...definition.focusPolicy }),
+    navigationPolicy: Object.freeze({ ...definition.navigationPolicy }),
     actionIds: Object.freeze([...definition.actionIds]),
   }) as DeepReadonly<ManagedSurfaceResolvedDefinitionV1>;
 }
@@ -92,6 +106,7 @@ function orderedWithDerivedPhasesV1(
 
 function ownerTraceV1(
   instances: readonly DeepReadonly<ManagedSurfacePublishedInstanceV1>[],
+  disposedOwnerIds: readonly ManagedSurfaceOwnerIdV1[],
 ): ManagedSurfacePublicationV1["ownerTrace"] {
   const byOwner = new Map<ManagedSurfaceOwnerIdV1, ManagedSurfaceInstanceIdV1[]>();
   for (const instance of instances) {
@@ -100,20 +115,32 @@ function ownerTraceV1(
     if (current === undefined) byOwner.set(ownerId, [instance.surfaceInstanceId]);
     else current.push(instance.surfaceInstanceId);
   }
-  return Object.freeze(
-    [...byOwner].map(([ownerId, surfaceInstanceIds]) =>
+  return Object.freeze([
+    ...[...byOwner].map(([ownerId, surfaceInstanceIds]) =>
       Object.freeze({
         ownerId,
         surfaceInstanceIds: Object.freeze(surfaceInstanceIds),
+        disposed: false,
       })
     ),
-  );
+    ...disposedOwnerIds
+      .filter((ownerId) => !byOwner.has(ownerId))
+      .map((ownerId) =>
+        Object.freeze({
+          ownerId,
+          surfaceInstanceIds: Object.freeze([]),
+          disposed: true,
+        })
+      ),
+  ]);
 }
 
 function publicationV1(
   applicationEpoch: NonNegativeSafeInteger,
+  publicationRevision: NonNegativeSafeInteger,
   topologyRevision: NonNegativeSafeInteger,
   instances: readonly DeepReadonly<ManagedSurfacePublishedInstanceV1>[],
+  disposedOwnerIds: readonly ManagedSurfaceOwnerIdV1[],
   coordinatorDisposed: boolean,
 ): DeepReadonly<ManagedSurfacePublicationV1> {
   const orderedInstances = orderedWithDerivedPhasesV1(instances);
@@ -121,26 +148,44 @@ function publicationV1(
     orderedInstances.toReversed().find((instance) => instance.definition.modality === "blocking") ??
       null;
   const inputInstance =
-    orderedInstances.toReversed().find((instance) => instance.phase === "active") ?? null;
-  const inputOwner = inputInstance === null ? null : Object.freeze({
-    surfaceInstanceId: inputInstance.surfaceInstanceId,
-    inputContextId: inputInstance.definition.inputContextId,
-    routingLeaseId: inputInstance.routingLeaseId,
-  });
-  const focusOwner = inputInstance === null ? null : Object.freeze({
-    surfaceInstanceId: inputInstance.surfaceInstanceId,
-    initialTargetId: inputInstance.definition.focusPolicy.initialTargetId,
-    trap: inputInstance.definition.focusPolicy.trap,
-    restore: inputInstance.definition.focusPolicy.restore,
-  });
+    orderedInstances.toReversed().find((instance) =>
+      instance.phase === "active" && instance.definition.inputPolicy.kind === "managed"
+    ) ?? null;
+  const inputOwner =
+    inputInstance === null || inputInstance.definition.inputPolicy.kind !== "managed"
+      ? null
+      : Object.freeze({
+        surfaceInstanceId: inputInstance.surfaceInstanceId,
+        inputContextId: inputInstance.definition.inputPolicy.inputContextId,
+        routingLeaseId: inputInstance.routingLeaseId,
+      });
+  const focusInstance =
+    orderedInstances.toReversed().find((instance) =>
+      instance.phase === "active" && instance.definition.focusPolicy.kind === "owns_focus"
+    ) ?? null;
+  const focusOwner = focusInstance === null ||
+      focusInstance.definition.focusPolicy.kind !== "owns_focus"
+    ? null
+    : Object.freeze({
+      surfaceInstanceId: focusInstance.surfaceInstanceId,
+      initialTargetId: focusInstance.definition.focusPolicy.initialTargetId,
+      trap: focusInstance.definition.focusPolicy.trap,
+      restore: focusInstance.definition.focusPolicy.restore,
+    });
+  const navigationTarget =
+    orderedInstances.toReversed().find((instance) =>
+      instance.phase === "active" && instance.definition.navigationPolicy.kind === "close"
+    ) ?? null;
   return Object.freeze({
     applicationEpoch,
+    publicationRevision,
     topologyRevision,
     orderedInstances,
     topmostBlockingInstanceId: topmostBlocking?.surfaceInstanceId ?? null,
     inputOwner,
     focusOwner,
-    ownerTrace: ownerTraceV1(orderedInstances),
+    navigationTargetInstanceId: navigationTarget?.surfaceInstanceId ?? null,
+    ownerTrace: ownerTraceV1(orderedInstances, disposedOwnerIds),
     coordinatorDisposed,
   }) as DeepReadonly<ManagedSurfacePublicationV1>;
 }
@@ -148,15 +193,47 @@ function publicationV1(
 function stateV1(
   publication: DeepReadonly<ManagedSurfacePublicationV1>,
   resolvedOwnerIds: readonly ManagedSurfaceOwnerIdV1[],
+  resolvedSlotDescriptors: readonly ManagedSurfaceResolvedSlotDescriptorV1[],
   identitySequenceHighWater: NonNegativeSafeInteger,
   disposedOwnerIds: readonly ManagedSurfaceOwnerIdV1[],
 ): ManagedSurfaceReducerStateV1 {
   return Object.freeze({
     publication,
     resolvedOwnerIds: Object.freeze([...resolvedOwnerIds]),
+    resolvedSlotDescriptors: Object.freeze([...resolvedSlotDescriptors]),
     identitySequenceHighWater: parseNonNegativeSafeInteger(identitySequenceHighWater),
     disposedOwnerIds: Object.freeze([...new Set(disposedOwnerIds)]),
   });
+}
+
+function freezeSlotDescriptorV1(
+  descriptor: ManagedSurfaceResolvedSlotDescriptorV1,
+): ManagedSurfaceResolvedSlotDescriptorV1 {
+  if (descriptor.cardinality !== "single" && descriptor.cardinality !== "stack") {
+    throw new TypeError("ui.invalid_managed_surface_slot_descriptor");
+  }
+  if (descriptor.kind === "root") {
+    return Object.freeze({
+      kind: "root",
+      slotId: parseManagedSurfaceSlotIdV1(descriptor.slotId),
+      cardinality: descriptor.cardinality,
+    });
+  }
+  if (descriptor.kind === "child") {
+    return Object.freeze({
+      kind: "child",
+      parentDefinitionId: parseManagedSurfaceDefinitionIdV1(descriptor.parentDefinitionId),
+      slotId: parseManagedSurfaceSlotIdV1(descriptor.slotId),
+      cardinality: descriptor.cardinality,
+    });
+  }
+  throw new TypeError("ui.invalid_managed_surface_slot_descriptor");
+}
+
+function slotDescriptorKeyV1(descriptor: ManagedSurfaceResolvedSlotDescriptorV1): string {
+  return descriptor.kind === "root"
+    ? `root:${descriptor.slotId}`
+    : `child:${descriptor.parentDefinitionId}:${descriptor.slotId}`;
 }
 
 function receiptV1(
@@ -194,17 +271,31 @@ function appliedResultV1(
   disposedOwnerIds = state.disposedOwnerIds,
   coordinatorDisposed = false,
   surfaceInstanceId?: ManagedSurfaceInstanceIdV1,
+  topologyChanged = true,
 ): ManagedSurfaceReducerResultV1 {
-  const nextRevision = parseNonNegativeSafeInteger(state.publication.topologyRevision + 1);
+  const nextPublicationRevision = parseNonNegativeSafeInteger(
+    state.publication.publicationRevision + 1,
+  );
+  const nextTopologyRevision = topologyChanged
+    ? parseNonNegativeSafeInteger(state.publication.topologyRevision + 1)
+    : state.publication.topologyRevision;
   const nextState = stateV1(
-    publicationV1(state.publication.applicationEpoch, nextRevision, instances, coordinatorDisposed),
+    publicationV1(
+      state.publication.applicationEpoch,
+      nextPublicationRevision,
+      nextTopologyRevision,
+      instances,
+      disposedOwnerIds,
+      coordinatorDisposed,
+    ),
     state.resolvedOwnerIds,
+    state.resolvedSlotDescriptors,
     state.identitySequenceHighWater,
     disposedOwnerIds,
   );
   return Object.freeze({
     state: nextState,
-    receipt: receiptV1(state, "applied", code, nextRevision, surfaceInstanceId),
+    receipt: receiptV1(state, "applied", code, nextTopologyRevision, surfaceInstanceId),
   });
 }
 
@@ -275,40 +366,95 @@ function admitCandidateV1(
   state: ManagedSurfaceReducerStateV1,
   candidate: ManagedSurfaceCandidateV1,
 ): ManagedSurfaceReducerResultV1 | ManagedSurfaceReducerStateV1 {
-  if (!state.resolvedOwnerIds.includes(candidate.definition.ownerId)) {
-    return unchangedResultV1(state, "rejected", "surface.unknown_owner");
-  }
   const identityFailure = candidateIdentityFailureV1(state, candidate);
   if (identityFailure !== null) return identityFailure;
   return stateV1(
     state.publication,
     state.resolvedOwnerIds,
+    state.resolvedSlotDescriptors,
     parseNonNegativeSafeInteger(candidate.identityAllocation.sequence),
     state.disposedOwnerIds,
+  );
+}
+
+function rootSlotDescriptorV1(
+  state: ManagedSurfaceReducerStateV1,
+  slotId: ManagedSurfaceSlotIdV1,
+): ManagedSurfaceResolvedSlotDescriptorV1 | undefined {
+  return state.resolvedSlotDescriptors.find(
+    (descriptor) => descriptor.kind === "root" && descriptor.slotId === slotId,
+  );
+}
+
+function childSlotDescriptorV1(
+  state: ManagedSurfaceReducerStateV1,
+  parentDefinitionId: ManagedSurfaceDefinitionIdV1,
+  slotId: ManagedSurfaceSlotIdV1,
+): ManagedSurfaceResolvedSlotDescriptorV1 | undefined {
+  return state.resolvedSlotDescriptors.find(
+    (descriptor) =>
+      descriptor.kind === "child" &&
+      descriptor.parentDefinitionId === parentDefinitionId &&
+      descriptor.slotId === slotId,
+  );
+}
+
+function candidateStructuralFailureV1(
+  state: ManagedSurfaceReducerStateV1,
+  operation: Extract<ManagedSurfaceOperationV1, { readonly candidate: ManagedSurfaceCandidateV1 }>,
+): ManagedSurfaceReducerResultV1 | null {
+  const candidate = operation.candidate;
+  if (!state.resolvedOwnerIds.includes(candidate.definition.ownerId)) {
+    return unchangedResultV1(state, "rejected", "surface.unknown_owner");
+  }
+  if (operation.kind !== "push_child") {
+    if (candidate.definition.placement !== "root") {
+      return unchangedResultV1(state, "rejected", "surface.slot_placement_mismatch");
+    }
+    if (rootSlotDescriptorV1(state, candidate.definition.slotId) !== undefined) return null;
+    const hasOtherPlacement = state.resolvedSlotDescriptors.some(
+      (descriptor) => descriptor.slotId === candidate.definition.slotId,
+    );
+    return unchangedResultV1(
+      state,
+      "rejected",
+      hasOtherPlacement ? "surface.slot_placement_mismatch" : "surface.slot_not_resolved",
+    );
+  }
+  if (candidate.definition.placement !== "child") {
+    return unchangedResultV1(state, "rejected", "surface.slot_placement_mismatch");
+  }
+  if (
+    operation.parentEvidence.applicationEpoch !== state.publication.applicationEpoch ||
+    operation.parentEvidence.topologyRevision !== state.publication.topologyRevision
+  ) {
+    return null;
+  }
+
+  const parent = state.publication.orderedInstances.find(
+    (instance) => instance.surfaceInstanceId === operation.parentEvidence.surfaceInstanceId,
+  );
+  if (parent === undefined) return null;
+  if (childSlotDescriptorV1(state, parent.definition.definitionId, candidate.definition.slotId)) {
+    return null;
+  }
+  const hasRootDescriptor = rootSlotDescriptorV1(state, candidate.definition.slotId) !== undefined;
+  return unchangedResultV1(
+    state,
+    "rejected",
+    hasRootDescriptor ? "surface.slot_placement_mismatch" : "surface.slot_not_resolved",
   );
 }
 
 function openPreconditionFailureV1(
   state: ManagedSurfaceReducerStateV1,
   candidate: ManagedSurfaceCandidateV1,
-  expectedPlacement: "root" | "child",
 ): ManagedSurfaceReducerResultV1 | null {
   if (state.disposedOwnerIds.includes(candidate.definition.ownerId)) {
     return unchangedResultV1(
       state,
       "rejected",
       "surface.owner_disposed",
-      candidate.surfaceInstanceId,
-    );
-  }
-  if (
-    candidate.definition.placement !== expectedPlacement ||
-    (expectedPlacement === "root" && candidate.definition.slotCardinality !== "single")
-  ) {
-    return unchangedResultV1(
-      state,
-      "rejected",
-      "surface.invalid_transition",
       candidate.surfaceInstanceId,
     );
   }
@@ -396,15 +542,29 @@ function closeInstanceV1(
 export function createManagedSurfaceReducerStateV1(
   applicationEpoch: number,
   resolvedOwnerIds: readonly ManagedSurfaceOwnerIdV1[],
+  resolvedSlotDescriptors: readonly ManagedSurfaceResolvedSlotDescriptorV1[],
 ): ManagedSurfaceReducerStateV1 {
   const parsedEpoch = parseNonNegativeSafeInteger(applicationEpoch);
   const parsedOwnerIds = resolvedOwnerIds.map(parseManagedSurfaceOwnerIdV1);
   if (new Set(parsedOwnerIds).size !== parsedOwnerIds.length) {
     throw new TypeError("ui.managed_surface_duplicate_owner");
   }
+  const parsedSlotDescriptors = resolvedSlotDescriptors.map(freezeSlotDescriptorV1);
+  const slotDescriptorKeys = parsedSlotDescriptors.map(slotDescriptorKeyV1);
+  if (new Set(slotDescriptorKeys).size !== slotDescriptorKeys.length) {
+    throw new TypeError("ui.managed_surface_duplicate_slot_descriptor");
+  }
   return stateV1(
-    publicationV1(parsedEpoch, parseNonNegativeSafeInteger(0), [], false),
+    publicationV1(
+      parsedEpoch,
+      parseNonNegativeSafeInteger(0),
+      parseNonNegativeSafeInteger(0),
+      [],
+      [],
+      false,
+    ),
     parsedOwnerIds,
+    parsedSlotDescriptors,
     parseNonNegativeSafeInteger(0),
     [],
   );
@@ -432,6 +592,8 @@ export function reduceManagedSurfaceV1(
   }
 
   if ("candidate" in operation) {
+    const structuralFailure = candidateStructuralFailureV1(state, operation);
+    if (structuralFailure !== null) return structuralFailure;
     const admission = admitCandidateV1(state, operation.candidate);
     if ("receipt" in admission) return admission;
     state = admission;
@@ -447,13 +609,14 @@ export function reduceManagedSurfaceV1(
           operation.candidate.surfaceInstanceId,
         );
       }
-      const failure = openPreconditionFailureV1(state, operation.candidate, "root");
+      const failure = openPreconditionFailureV1(state, operation.candidate);
       if (failure !== null) return failure;
+      const slotDescriptor = rootSlotDescriptorV1(state, operation.candidate.definition.slotId);
       if (
-        operation.candidate.definition.slotCardinality === "single" &&
+        slotDescriptor?.cardinality === "single" &&
         state.publication.orderedInstances.some(
           (instance) =>
-            instance.definition.ownerId === operation.candidate.definition.ownerId &&
+            instance.parentInstanceId === null &&
             instance.definition.slotId === operation.candidate.definition.slotId,
         )
       ) {
@@ -478,7 +641,7 @@ export function reduceManagedSurfaceV1(
     case "replace_primary": {
       const evidenceFailure = evidenceFailureV1(state, operation.expected);
       if (evidenceFailure !== null) return evidenceFailure;
-      const failure = openPreconditionFailureV1(state, operation.candidate, "root");
+      const failure = openPreconditionFailureV1(state, operation.candidate);
       if (failure !== null) return failure;
       const replacedRoot = state.publication.orderedInstances.find(
         (instance) =>
@@ -521,7 +684,7 @@ export function reduceManagedSurfaceV1(
     case "push_child": {
       const evidenceFailure = evidenceFailureV1(state, operation.parentEvidence);
       if (evidenceFailure !== null) return evidenceFailure;
-      const failure = openPreconditionFailureV1(state, operation.candidate, "child");
+      const failure = openPreconditionFailureV1(state, operation.candidate);
       if (failure !== null) return failure;
       const parent = state.publication.orderedInstances.find(
         (instance) => instance.surfaceInstanceId === operation.parentEvidence.surfaceInstanceId,
@@ -530,9 +693,7 @@ export function reduceManagedSurfaceV1(
         parent === undefined ||
         parent.phase !== "active" ||
         parent.definition.ownerId !== operation.candidate.definition.ownerId ||
-        state.publication.inputOwner?.surfaceInstanceId !== parent.surfaceInstanceId ||
-        operation.candidate.definition.layerOrder < parent.definition.layerOrder ||
-        !operation.candidate.definition.allowedParentSlotIds.includes(parent.definition.slotId)
+        operation.candidate.definition.layerOrder < parent.definition.layerOrder
       ) {
         return unchangedResultV1(
           state,
@@ -541,8 +702,13 @@ export function reduceManagedSurfaceV1(
           operation.candidate.surfaceInstanceId,
         );
       }
+      const slotDescriptor = childSlotDescriptorV1(
+        state,
+        parent.definition.definitionId,
+        operation.candidate.definition.slotId,
+      );
       if (
-        operation.candidate.definition.slotCardinality === "single" &&
+        slotDescriptor?.cardinality === "single" &&
         state.publication.orderedInstances.some(
           (instance) =>
             instance.parentInstanceId === parent.surfaceInstanceId &&
@@ -577,8 +743,8 @@ export function reduceManagedSurfaceV1(
       if (operation.applicationEpoch !== state.publication.applicationEpoch) {
         return unchangedResultV1(state, "stale", "surface.stale_application_epoch");
       }
-      const topInstanceId = state.publication.inputOwner?.surfaceInstanceId;
-      if (topInstanceId === undefined) {
+      const topInstanceId = state.publication.navigationTargetInstanceId;
+      if (topInstanceId === null) {
         return unchangedResultV1(state, "unchanged", "surface.already_closed");
       }
       return closeInstanceV1(state, topInstanceId, "surface.closed");
@@ -623,10 +789,10 @@ export function reduceManagedSurfaceV1(
       const target = state.publication.orderedInstances.find(
         (instance) => instance.surfaceInstanceId === operation.evidence.surfaceInstanceId,
       );
-      if (
-        target === undefined ||
-        state.publication.inputOwner?.surfaceInstanceId !== target.surfaceInstanceId
-      ) {
+      const isCurrentDismissTarget = operation.dismissKind === "back"
+        ? state.publication.navigationTargetInstanceId === target?.surfaceInstanceId
+        : state.publication.inputOwner?.surfaceInstanceId === target?.surfaceInstanceId;
+      if (target === undefined || !isCurrentDismissTarget) {
         return unchangedResultV1(
           state,
           "rejected",
@@ -713,6 +879,9 @@ export function reduceManagedSurfaceV1(
           (instance) => !removedIds.has(instance.surfaceInstanceId),
         ),
         [...state.disposedOwnerIds, operation.ownerId],
+        false,
+        undefined,
+        removed.length > 0,
       );
     }
   }

@@ -10,9 +10,10 @@ reconcile、dormant-kernel boundedness/action provenance 与 Overlay cutover
 在 [production-floor sequence](2026-07-30-production-floor-sequence.md)
 中：PF2 的顺序是 `S0 -> S1-T -> S2`；PF4 的顺序是
 `S3 -> S1-R -> S4 -> S4b`；S5–S6 属于 PF6。当前 S1-T 的剩余顺序是
-`S1d.3 -> S1e -> S1f`：先关闭已交付 dormant kernel 的 topology-axis 缺口，再建立
-application epoch 与 readiness。S1d.1 已关闭 binding-origin action provenance
-缺口，S1d.2 已把 transient identity 与 owner lifetime state 收敛到有界模型。S2
+`S1e -> S1f`：先建立 application epoch，再完成 readiness。S1d.1 已关闭
+binding-origin action provenance 缺口，S1d.2 已把 transient identity 与 owner
+lifetime state 收敛到有界模型，S1d.3 已冻结 slot scope、独立 topology axes 与双
+revision 语义。S2
 只依赖完成的
 S1-T。S1-R
 延后到第一个真实 externally published stable-target family 前完成；按 accepted
@@ -539,6 +540,43 @@ definition 携带。两个不同 owner 还能同时占用同名 root slot。这�
   `inputPublicationRevision`/registration identity 不变，input contract 任一组成项
   变化时才轮换；
 - focused reducer/Coordinator/publication、UI package 与 aggregate tests 全绿。
+
+**2026-08-01 S1d.3 delivery：** 先在原实现上加入三个代表性 red case，focused
+结果为 `3 failed / 44 passed`：两个 owner 的同名 root slot 被同时接纳，`closeTop`
+从最高 active/input instance 猜测并关闭了较高 passive instance，同一 input contract
+也创建了不同 binding/registration。随后将 cardinality 移入 construction-time frozen
+resolved slot descriptor：root descriptor 全局解析，child descriptor 由 parent
+definition + child slot 解析，而 runtime single occupancy 以 exact parent instance +
+child slot 为 key；definition/candidate 不再携带 cardinality 或 parent-slot 自授权字段，
+missing descriptor 与 placement mismatch 在 identity allocation 前结构化拒绝。不同
+parent definition 即使引用已知 child slot 也会保持 publication/revision/subscriber 与
+allocation cursor 不变并返回 `surface.slot_not_resolved`。
+
+Publication 现在分别从 active topology 派生 blocking、managed input、focus 与
+navigation target；input/focus 使用可表达 `none` 的 tagged policy，Back/`closeTop`
+只使用明确 navigation target。十个 deterministic revision-delta assertions 冻结：同步
+open/replace/push/close 与 live-owner dispose 的 publication/topology delta 为 `1/1`，
+无 live topology 的 resolved-owner dispose 为 `1/0`，action/unchanged/rejected/
+repeated dispose 为 `0/0`；现有 handle、receipt 与六字段 action envelope 仍只绑定
+topology revision。空 owner dispose 的 immutable owner trace 明确记录 disposed owner，
+同时不会使既有 topology evidence stale。
+
+为同时保留 managed gate 优先级与 registration identity，InputRouter 增加仅在 package
+内部可达的 managed-priority registrar；公共 Router 仍严格只有
+`register/route/clearTransientInput`，ordinary registration 的 context precedence、LIFO
+与 dispatch snapshot 语义不变。相同 application epoch、owner、instance、context、
+routing lease、action vector 与 topology revision contract（包括 publication-only
+commit 后重建的 callback/registrar wrapper）从原实现的
+`2 registrations / 1 unregistration` 和新 input publication revision，收敛为同一
+binding/revision、`1 registration / 0 unregistrations`；两次 route 后计数仍为
+`1/0`。任一 contract field 或真实 topology replacement 改变才轮换；value-equal
+contract 不能把 binding 静默改绑到另一个 Coordinator authority。
+
+验证为 focused InputRouter/reducer/Coordinator/action-route `4 files / 111 tests`、
+`@sillymaker/ui` `58 files / 521 tests`、aggregate `205 files / 1905 tests`，
+`deno task check` 全绿。该切片没有新增 public export/live Surface family，没有实现
+composition-root epoch、readiness、renderer/port admission、Overlay cutover 或 external
+stable-target reconcile；下一独立切片是 S1e。
 
 ### S1e — Composition-root application epoch
 

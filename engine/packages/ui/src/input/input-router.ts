@@ -59,6 +59,17 @@ interface DispatchRegistrationV1 {
   readonly handle: InputHandlerV1;
 }
 
+export interface ManagedInputHandlerRegistrationV1 {
+  readonly context: InputContextIdV1;
+  readonly handle: InputHandlerV1;
+}
+
+type ManagedInputRegistrarV1 = (
+  registration: ManagedInputHandlerRegistrationV1,
+) => () => void;
+
+const managedInputRegistrarsV1 = new WeakMap<InputRouterV1, ManagedInputRegistrarV1>();
+
 function isInputContextIdV1(value: unknown): value is InputContextIdV1 {
   return typeof value === "string" && inputContextIdsV1.has(value as InputContextIdV1);
 }
@@ -155,30 +166,77 @@ function assertHandlerResultV1(result: unknown): asserts result is InputHandlerR
 
 function createRegistrationSnapshotV1(
   registrations: ReadonlyMap<InputContextIdV1, readonly InputHandlerRegistrationV1[]>,
+  managedRegistrations: ReadonlyMap<InputContextIdV1, readonly InputHandlerRegistrationV1[]>,
 ): readonly DispatchRegistrationV1[] {
   const snapshot: DispatchRegistrationV1[] = [];
   for (const context of inputContextPrecedenceV1) {
-    const contextRegistrations = registrations.get(context);
-    if (contextRegistrations === undefined) continue;
-    for (let index = contextRegistrations.length - 1; index >= 0; index -= 1) {
-      const registration = contextRegistrations[index];
-      if (registration !== undefined) {
-        snapshot.push(Object.freeze({ context, handle: registration.handle }));
+    for (
+      const contextRegistrations of [
+        managedRegistrations.get(context),
+        registrations.get(context),
+      ]
+    ) {
+      if (contextRegistrations === undefined) continue;
+      for (let index = contextRegistrations.length - 1; index >= 0; index -= 1) {
+        const registration = contextRegistrations[index];
+        if (registration !== undefined) {
+          snapshot.push(Object.freeze({ context, handle: registration.handle }));
+        }
       }
     }
   }
   return Object.freeze(snapshot);
 }
 
+export function registerManagedInputHandlerV1(
+  router: InputRouterV1,
+  registration: ManagedInputHandlerRegistrationV1,
+): () => void {
+  const registrar = managedInputRegistrarsV1.get(router);
+  if (registrar === undefined) {
+    throw new TypeError("ui.managed_input_router_required");
+  }
+  return registrar(registration);
+}
+
 export function createInputRouterV1(): InputRouterV1 {
   const registrations = new Map<InputContextIdV1, InputHandlerRegistrationV1[]>();
+  const managedRegistrations = new Map<InputContextIdV1, InputHandlerRegistrationV1[]>();
   for (const context of inputContextPrecedenceV1) {
     registrations.set(context, []);
+    managedRegistrations.set(context, []);
   }
+
+  const registerIntoV1 = (
+    target: Map<InputContextIdV1, InputHandlerRegistrationV1[]>,
+    registration: ManagedInputHandlerRegistrationV1,
+  ): () => void => {
+    if (
+      !isRecordV1(registration) ||
+      !isInputContextIdV1(registration.context) ||
+      typeof registration.handle !== "function"
+    ) {
+      throw new TypeError("ui.invalid_input_registration");
+    }
+
+    const contextRegistrations = target.get(registration.context);
+    if (contextRegistrations === undefined) {
+      throw new TypeError("ui.invalid_input_registration");
+    }
+    const record = Object.freeze({ handle: registration.handle });
+    contextRegistrations.push(record);
+    let active = true;
+    return () => {
+      if (!active) return;
+      active = false;
+      const index = contextRegistrations.indexOf(record);
+      if (index >= 0) contextRegistrations.splice(index, 1);
+    };
+  };
 
   const route = (event: DeepReadonly<InputEventV1>): InputRouteResultV1 => {
     assertInputEventV1(event);
-    const snapshot = createRegistrationSnapshotV1(registrations);
+    const snapshot = createRegistrationSnapshotV1(registrations, managedRegistrations);
     for (const registration of snapshot) {
       const result = registration.handle(event);
       assertHandlerResultV1(result);
@@ -187,36 +245,21 @@ export function createInputRouterV1(): InputRouterV1 {
     return inputIgnoredV1;
   };
 
-  return Object.freeze({
+  const router: InputRouterV1 = Object.freeze({
     register(registration: {
       readonly context: InputContextIdV1;
       readonly handle: InputHandlerV1;
     }): () => void {
-      if (
-        !isRecordV1(registration) ||
-        !isInputContextIdV1(registration.context) ||
-        typeof registration.handle !== "function"
-      ) {
-        throw new TypeError("ui.invalid_input_registration");
-      }
-
-      const contextRegistrations = registrations.get(registration.context);
-      if (contextRegistrations === undefined) {
-        throw new TypeError("ui.invalid_input_registration");
-      }
-      const record = Object.freeze({ handle: registration.handle });
-      contextRegistrations.push(record);
-      let active = true;
-      return () => {
-        if (!active) return;
-        active = false;
-        const index = contextRegistrations.indexOf(record);
-        if (index >= 0) contextRegistrations.splice(index, 1);
-      };
+      return registerIntoV1(registrations, registration);
     },
     route,
     clearTransientInput(): void {
       route(focusLossEventV1);
     },
   });
+  managedInputRegistrarsV1.set(
+    router,
+    (registration) => registerIntoV1(managedRegistrations, registration),
+  );
+  return router;
 }

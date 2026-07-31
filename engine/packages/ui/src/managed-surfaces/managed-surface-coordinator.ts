@@ -16,6 +16,7 @@ import {
   type ManagedSurfacePublicationV1,
   type ManagedSurfaceResolvedDefinitionV1,
   type ManagedSurfaceRouteActionInputV1,
+  type ManagedSurfaceResolvedSlotDescriptorV1,
   type ManagedSurfaceTransitionEvidenceV1,
   type ManagedSurfaceTransitionReceiptV1,
 } from "./managed-surface-contracts.ts";
@@ -55,6 +56,7 @@ export interface ManagedSurfaceSubscriberFailureV1 {
 export interface CreateManagedSurfaceCoordinatorInputV1 {
   readonly applicationEpoch: NonNegativeSafeInteger;
   readonly resolvedOwnerIds: readonly ManagedSurfaceOwnerIdV1[];
+  readonly resolvedSlotDescriptors: readonly ManagedSurfaceResolvedSlotDescriptorV1[];
   readonly reportSubscriberFailure?: (
     failure: DeepReadonly<ManagedSurfaceSubscriberFailureV1>,
   ) => void;
@@ -122,8 +124,13 @@ export function createManagedSurfaceCoordinatorV1(
   input: CreateManagedSurfaceCoordinatorInputV1,
 ): ManagedSurfaceCoordinatorV1 {
   const applicationEpoch = parseNonNegativeSafeInteger(input.applicationEpoch);
-  let state = createManagedSurfaceReducerStateV1(applicationEpoch, input.resolvedOwnerIds);
+  let state = createManagedSurfaceReducerStateV1(
+    applicationEpoch,
+    input.resolvedOwnerIds,
+    input.resolvedSlotDescriptors,
+  );
   const resolvedOwnerIds = new Set(state.resolvedOwnerIds);
+  const resolvedSlotDescriptors = state.resolvedSlotDescriptors;
   const listeners = new Set<() => void>();
 
   const reportSubscriberFailure = (): void => {
@@ -155,7 +162,11 @@ export function createManagedSurfaceCoordinatorV1(
   };
 
   const rejectedReceipt = (
-    code: "surface.coordinator_disposed" | "surface.unknown_owner",
+    code:
+      | "surface.coordinator_disposed"
+      | "surface.unknown_owner"
+      | "surface.slot_not_resolved"
+      | "surface.slot_placement_mismatch",
   ): ManagedSurfaceTransitionReceiptV1 =>
     Object.freeze({
       kind: "rejected",
@@ -164,13 +175,53 @@ export function createManagedSurfaceCoordinatorV1(
       afterTopologyRevision: state.publication.topologyRevision,
     });
 
-  const candidateOwnerFailure = (
-    ownerId: ManagedSurfaceOwnerIdV1,
+  const candidateAdmissionFailure = (
+    definition: ManagedSurfaceResolvedDefinitionV1,
+    expectedPlacement: "root" | "child",
+    parent?: ManagedSurfaceHandleV1,
   ): ManagedSurfaceTransitionReceiptV1 | null => {
     if (state.publication.coordinatorDisposed) {
       return rejectedReceipt("surface.coordinator_disposed");
     }
-    return resolvedOwnerIds.has(ownerId) ? null : rejectedReceipt("surface.unknown_owner");
+    if (!resolvedOwnerIds.has(definition.ownerId)) {
+      return rejectedReceipt("surface.unknown_owner");
+    }
+    if (definition.placement !== expectedPlacement) {
+      return rejectedReceipt("surface.slot_placement_mismatch");
+    }
+    if (expectedPlacement === "root") {
+      const hasRoot = resolvedSlotDescriptors.some(
+        (descriptor) => descriptor.kind === "root" && descriptor.slotId === definition.slotId,
+      );
+      if (hasRoot) return null;
+      const hasOtherPlacement = resolvedSlotDescriptors.some(
+        (descriptor) => descriptor.slotId === definition.slotId,
+      );
+      return rejectedReceipt(
+        hasOtherPlacement ? "surface.slot_placement_mismatch" : "surface.slot_not_resolved",
+      );
+    }
+    const currentParent = parent === undefined ||
+        parent.applicationEpoch !== state.publication.applicationEpoch ||
+        parent.topologyRevision !== state.publication.topologyRevision
+      ? undefined
+      : state.publication.orderedInstances.find(
+        (instance) => instance.surfaceInstanceId === parent.surfaceInstanceId,
+      );
+    if (currentParent === undefined) return null;
+    const hasChild = resolvedSlotDescriptors.some(
+      (descriptor) =>
+        descriptor.kind === "child" &&
+        descriptor.parentDefinitionId === currentParent.definition.definitionId &&
+        descriptor.slotId === definition.slotId,
+    );
+    if (hasChild) return null;
+    const hasRoot = resolvedSlotDescriptors.some(
+      (descriptor) => descriptor.kind === "root" && descriptor.slotId === definition.slotId,
+    );
+    return rejectedReceipt(
+      hasRoot ? "surface.slot_placement_mismatch" : "surface.slot_not_resolved",
+    );
   };
 
   const allocateCandidate = (
@@ -233,8 +284,8 @@ export function createManagedSurfaceCoordinatorV1(
     },
 
     openTransientPrimary(request) {
-      const ownerFailure = candidateOwnerFailure(request.definition.ownerId);
-      if (ownerFailure !== null) return handleResultV1(applicationEpoch, ownerFailure);
+      const admissionFailure = candidateAdmissionFailure(request.definition, "root");
+      if (admissionFailure !== null) return handleResultV1(applicationEpoch, admissionFailure);
       const receipt = transition({
         kind: "open_primary",
         applicationEpoch,
@@ -244,8 +295,8 @@ export function createManagedSurfaceCoordinatorV1(
     },
 
     replaceTransientPrimary(request) {
-      const ownerFailure = candidateOwnerFailure(request.definition.ownerId);
-      if (ownerFailure !== null) return handleResultV1(applicationEpoch, ownerFailure);
+      const admissionFailure = candidateAdmissionFailure(request.definition, "root");
+      if (admissionFailure !== null) return handleResultV1(applicationEpoch, admissionFailure);
       const receipt = transition({
         kind: "replace_primary",
         expected: request.expected,
@@ -255,8 +306,12 @@ export function createManagedSurfaceCoordinatorV1(
     },
 
     pushTransientChild(request) {
-      const ownerFailure = candidateOwnerFailure(request.definition.ownerId);
-      if (ownerFailure !== null) return handleResultV1(applicationEpoch, ownerFailure);
+      const admissionFailure = candidateAdmissionFailure(
+        request.definition,
+        "child",
+        request.parent,
+      );
+      if (admissionFailure !== null) return handleResultV1(applicationEpoch, admissionFailure);
       const receipt = transition({
         kind: "push_child",
         parentEvidence: request.parent,

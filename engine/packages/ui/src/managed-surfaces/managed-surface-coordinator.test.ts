@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   type ManagedSurfaceResolvedDefinitionV1,
+  type ManagedSurfaceResolvedSlotDescriptorV1,
   parseManagedSurfaceActionIdV1,
   parseManagedSurfaceDefinitionIdV1,
   parseManagedSurfaceFocusTargetIdV1,
@@ -12,7 +13,8 @@ import {
   parseManagedSurfaceSlotIdV1,
 } from "./managed-surface-contracts.ts";
 import {
-  createManagedSurfaceCoordinatorV1,
+  createManagedSurfaceCoordinatorV1 as createManagedSurfaceCoordinatorImplementationV1,
+  type CreateManagedSurfaceCoordinatorInputV1,
   type ManagedSurfaceHandleV1,
 } from "./managed-surface-coordinator.ts";
 
@@ -22,22 +24,53 @@ const resolvedOwnerIdsV1 = Object.freeze([
   parseManagedSurfaceOwnerIdV1("surface-owner.system"),
   parseManagedSurfaceOwnerIdV1("surface-owner.debug"),
 ]);
+const primaryDefinitionIdV1 = parseManagedSurfaceDefinitionIdV1("surface.primary");
+const resolvedSlotDescriptorsV1 = Object.freeze(
+  [
+    ...["primary", "other", "system", "modal", "debug"].map((slot) => ({
+      kind: "root" as const,
+      slotId: parseManagedSurfaceSlotIdV1(`surface-slot.${slot}`),
+      cardinality: "single" as const,
+    })),
+    {
+      kind: "child",
+      parentDefinitionId: primaryDefinitionIdV1,
+      slotId: parseManagedSurfaceSlotIdV1("surface-slot.detail"),
+      cardinality: "stack",
+    },
+    {
+      kind: "child",
+      parentDefinitionId: primaryDefinitionIdV1,
+      slotId: parseManagedSurfaceSlotIdV1("surface-slot.system-detail"),
+      cardinality: "stack",
+    },
+  ] satisfies readonly ManagedSurfaceResolvedSlotDescriptorV1[],
+);
+
+function createManagedSurfaceCoordinatorV1(
+  input: Omit<CreateManagedSurfaceCoordinatorInputV1, "resolvedSlotDescriptors"> & {
+    readonly resolvedSlotDescriptors?: readonly ManagedSurfaceResolvedSlotDescriptorV1[];
+  },
+) {
+  return createManagedSurfaceCoordinatorImplementationV1({
+    ...input,
+    resolvedSlotDescriptors: input.resolvedSlotDescriptors ?? resolvedSlotDescriptorsV1,
+  });
+}
 
 function definitionV1(
-  suffix: string,
+  _suffix: string,
   overrides: Partial<ManagedSurfaceResolvedDefinitionV1> = {},
 ): ManagedSurfaceResolvedDefinitionV1 {
   return {
-    definitionId: parseManagedSurfaceDefinitionIdV1(`surface.${suffix}`),
+    definitionId: primaryDefinitionIdV1,
     ownerId: parseManagedSurfaceOwnerIdV1("surface-owner.workspace"),
     slotId: parseManagedSurfaceSlotIdV1("surface-slot.primary"),
     layerId: parseManagedSurfaceLayerIdV1("surface-layer.workspace"),
     layerOrder: parseNonNegativeSafeInteger(20),
     placement: "root",
-    slotCardinality: "single",
-    allowedParentSlotIds: [],
     modality: "non_blocking",
-    inputContextId: "overlay",
+    inputPolicy: { kind: "managed", inputContextId: "overlay" },
     dismissPolicy: {
       back: true,
       escape: true,
@@ -45,10 +78,12 @@ function definitionV1(
       routedCancel: true,
     },
     focusPolicy: {
+      kind: "owns_focus",
       initialTargetId: parseManagedSurfaceFocusTargetIdV1("focus-target.primary"),
       trap: true,
       restore: "opener",
     },
+    navigationPolicy: { kind: "close" },
     actionIds: [parseManagedSurfaceActionIdV1("surface-action.activate")],
     ...overrides,
   };
@@ -59,8 +94,6 @@ function childDefinitionV1(suffix: string): ManagedSurfaceResolvedDefinitionV1 {
     slotId: parseManagedSurfaceSlotIdV1("surface-slot.detail"),
     layerOrder: parseNonNegativeSafeInteger(30),
     placement: "child",
-    slotCardinality: "stack",
-    allowedParentSlotIds: [parseManagedSurfaceSlotIdV1("surface-slot.primary")],
   });
 }
 
@@ -76,11 +109,13 @@ describe("ManagedSurfaceCoordinatorV1", () => {
 
     expect(initial).toEqual({
       applicationEpoch: 4,
+      publicationRevision: 0,
       topologyRevision: 0,
       orderedInstances: [],
       topmostBlockingInstanceId: null,
       inputOwner: null,
       focusOwner: null,
+      navigationTargetInstanceId: null,
       ownerTrace: [],
       coordinatorDisposed: false,
     });
@@ -234,6 +269,109 @@ describe("ManagedSurfaceCoordinatorV1", () => {
     });
     expect(coordinator.getSnapshot()).toBe(before);
     expect(listener).not.toHaveBeenCalled();
+  });
+
+  it("rejects unresolved or mismatched slots before allocating an identity", () => {
+    const primaryDescriptor = resolvedSlotDescriptorsV1.find(
+      (descriptor) => descriptor.kind === "root" && descriptor.slotId === "surface-slot.primary",
+    )!;
+    const coordinator = createManagedSurfaceCoordinatorV1({
+      applicationEpoch: parseNonNegativeSafeInteger(17),
+      resolvedOwnerIds: [parseManagedSurfaceOwnerIdV1("surface-owner.workspace")],
+      resolvedSlotDescriptors: [primaryDescriptor],
+    });
+    const listener = vi.fn();
+    coordinator.subscribe(listener);
+    const initial = coordinator.getSnapshot();
+
+    expect(
+      coordinator.openTransientPrimary({
+        definition: definitionV1("missing", {
+          slotId: parseManagedSurfaceSlotIdV1("surface-slot.missing"),
+        }),
+        semanticOccurrenceId: null,
+      }),
+    ).toMatchObject({
+      receipt: { kind: "rejected", code: "surface.slot_not_resolved" },
+      handle: null,
+    });
+    expect(
+      coordinator.openTransientPrimary({
+        definition: definitionV1("mismatched", { placement: "child" }),
+        semanticOccurrenceId: null,
+      }),
+    ).toMatchObject({
+      receipt: { kind: "rejected", code: "surface.slot_placement_mismatch" },
+      handle: null,
+    });
+    expect(coordinator.getSnapshot()).toBe(initial);
+    expect(listener).not.toHaveBeenCalled();
+
+    expect(
+      coordinator.openTransientPrimary({
+        definition: definitionV1("valid"),
+        semanticOccurrenceId: null,
+      }),
+    ).toMatchObject({
+      receipt: { kind: "applied" },
+      handle: { surfaceInstanceId: "surface-instance.e17.n1" },
+    });
+
+    expect(() =>
+      createManagedSurfaceCoordinatorV1({
+        applicationEpoch: parseNonNegativeSafeInteger(17),
+        resolvedOwnerIds: [parseManagedSurfaceOwnerIdV1("surface-owner.workspace")],
+        resolvedSlotDescriptors: [primaryDescriptor, primaryDescriptor],
+      })
+    ).toThrowError("ui.managed_surface_duplicate_slot_descriptor");
+  });
+
+  it("resolves a child descriptor against the exact parent definition", () => {
+    const coordinator = createManagedSurfaceCoordinatorV1({
+      applicationEpoch: parseNonNegativeSafeInteger(26),
+      resolvedOwnerIds: [parseManagedSurfaceOwnerIdV1("surface-owner.workspace")],
+      resolvedSlotDescriptors: resolvedSlotDescriptorsV1.filter((descriptor) =>
+        descriptor.slotId === "surface-slot.primary" ||
+        descriptor.slotId === "surface-slot.other" ||
+        descriptor.slotId === "surface-slot.detail"
+      ),
+    });
+    const listener = vi.fn();
+    coordinator.subscribe(listener);
+    const parent = coordinator.openTransientPrimary({
+      definition: definitionV1("other-parent", {
+        definitionId: parseManagedSurfaceDefinitionIdV1("surface.other-parent"),
+      }),
+      semanticOccurrenceId: null,
+    });
+    expect(parent.receipt.kind).toBe("applied");
+    listener.mockClear();
+    const before = coordinator.getSnapshot();
+
+    expect(
+      coordinator.pushTransientChild({
+        parent: parent.handle!,
+        definition: childDefinitionV1("detail"),
+        semanticOccurrenceId: null,
+      }),
+    ).toMatchObject({
+      receipt: { kind: "rejected", code: "surface.slot_not_resolved" },
+      handle: null,
+    });
+    expect(coordinator.getSnapshot()).toBe(before);
+    expect(listener).not.toHaveBeenCalled();
+
+    expect(
+      coordinator.openTransientPrimary({
+        definition: definitionV1("next", {
+          slotId: parseManagedSurfaceSlotIdV1("surface-slot.other"),
+        }),
+        semanticOccurrenceId: null,
+      }),
+    ).toMatchObject({
+      receipt: { kind: "applied" },
+      handle: { surfaceInstanceId: "surface-instance.e26.n2" },
+    });
   });
 
   it("does not publish rejected work and never rolls an allocated identity back", () => {
@@ -458,7 +596,7 @@ describe("ManagedSurfaceCoordinatorV1", () => {
         layerId: parseManagedSurfaceLayerIdV1("surface-layer.system"),
         layerOrder: parseNonNegativeSafeInteger(80),
         modality: "blocking",
-        inputContextId: "system",
+        inputPolicy: { kind: "managed", inputContextId: "system" },
       }),
       semanticOccurrenceId: null,
     });
@@ -557,7 +695,7 @@ describe("ManagedSurfaceCoordinatorV1", () => {
         layerId: parseManagedSurfaceLayerIdV1("surface-layer.system"),
         layerOrder: parseNonNegativeSafeInteger(80),
         modality: "blocking",
-        inputContextId: "system",
+        inputPolicy: { kind: "managed", inputContextId: "system" },
         dismissPolicy: {
           back: false,
           escape: false,
@@ -582,7 +720,7 @@ describe("ManagedSurfaceCoordinatorV1", () => {
         slotId: parseManagedSurfaceSlotIdV1("surface-slot.debug"),
         layerId: parseManagedSurfaceLayerIdV1("surface-layer.debug"),
         layerOrder: parseNonNegativeSafeInteger(90),
-        inputContextId: "debug",
+        inputPolicy: { kind: "managed", inputContextId: "debug" },
       }),
       semanticOccurrenceId: null,
     });
@@ -619,6 +757,39 @@ describe("ManagedSurfaceCoordinatorV1", () => {
     expect(listener).toHaveBeenCalledTimes(4);
   });
 
+  it("closes the explicit navigation target instead of a higher passive input owner", () => {
+    const coordinator = createManagedSurfaceCoordinatorV1({
+      applicationEpoch: parseNonNegativeSafeInteger(16),
+      resolvedOwnerIds: resolvedOwnerIdsV1,
+    });
+    const navigationTarget = coordinator.openTransientPrimary({
+      definition: definitionV1("navigation-target", {
+        navigationPolicy: { kind: "close" },
+      }),
+      semanticOccurrenceId: null,
+    });
+    const passive = coordinator.openTransientPrimary({
+      definition: definitionV1("passive", {
+        ownerId: parseManagedSurfaceOwnerIdV1("surface-owner.other"),
+        slotId: parseManagedSurfaceSlotIdV1("surface-slot.other"),
+        layerOrder: parseNonNegativeSafeInteger(30),
+        inputPolicy: { kind: "none" },
+        focusPolicy: { kind: "none" },
+        navigationPolicy: { kind: "none" },
+      }),
+      semanticOccurrenceId: null,
+    });
+
+    expect(coordinator.closeTop()).toMatchObject({
+      kind: "applied",
+      code: "surface.closed",
+      surfaceInstanceId: navigationTarget.handle!.surfaceInstanceId,
+    });
+    expect(coordinator.getSnapshot().orderedInstances).toMatchObject([
+      { surfaceInstanceId: passive.handle!.surfaceInstanceId },
+    ]);
+  });
+
   it("closes an owner's live topology without permanently disposing that owner", () => {
     const coordinator = createManagedSurfaceCoordinatorV1({
       applicationEpoch: parseNonNegativeSafeInteger(13),
@@ -635,7 +806,7 @@ describe("ManagedSurfaceCoordinatorV1", () => {
         layerId: parseManagedSurfaceLayerIdV1("surface-layer.system"),
         layerOrder: parseNonNegativeSafeInteger(80),
         modality: "blocking",
-        inputContextId: "system",
+        inputPolicy: { kind: "managed", inputContextId: "system" },
       }),
       semanticOccurrenceId: null,
     });
@@ -648,10 +819,8 @@ describe("ManagedSurfaceCoordinatorV1", () => {
         layerId: parseManagedSurfaceLayerIdV1("surface-layer.system"),
         layerOrder: parseNonNegativeSafeInteger(90),
         placement: "child",
-        slotCardinality: "stack",
-        allowedParentSlotIds: [parseManagedSurfaceSlotIdV1("surface-slot.system")],
         modality: "blocking",
-        inputContextId: "system",
+        inputPolicy: { kind: "managed", inputContextId: "system" },
       }),
       semanticOccurrenceId: null,
     });
@@ -685,7 +854,7 @@ describe("ManagedSurfaceCoordinatorV1", () => {
         layerId: parseManagedSurfaceLayerIdV1("surface-layer.system"),
         layerOrder: parseNonNegativeSafeInteger(80),
         modality: "blocking",
-        inputContextId: "system",
+        inputPolicy: { kind: "managed", inputContextId: "system" },
       }),
       semanticOccurrenceId: null,
     });
