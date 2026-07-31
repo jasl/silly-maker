@@ -9,7 +9,7 @@
   },
   "scripts": {
     "test": "deno run -A npm:vitest run engine/packages/web/src",
-    "test:host": "deno task --dir ../../.. exec vitest run engine/packages/web/src/host engine/packages/web/src/capabilities engine/packages/web/src/application"
+    "test:host": "deno run -A npm:vitest run engine/packages/web/src/host engine/packages/web/src/capabilities engine/packages/web/src/application"
   },
   "dependencies": {
     "@sillymaker/base": "workspace:*",

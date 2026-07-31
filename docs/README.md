@@ -42,13 +42,14 @@ These documents describe accepted targets and planned work. A capability remains
 - [Typed StateStore proposal](engine/proposals/typed-state-store.md) — an independent, non-binding State-management option to evaluate only against concrete authoring/gameplay friction.
 - [Content database proposal](engine/proposals/content-database.md) — delivered 2026-07-28; kept as the design rationale for the shipped tables.
 - [Pointer gesture fence proposal](engine/proposals/pointer-gesture-fence.md) — delivered tactical bridge; only the stage hook is public, and the Surface web adapter owns its absorption/removal gate.
-- [External content import vs runtime State boundary](engine/proposals/external-content-runtime-boundary.md) — where imported/static content ends and mutable gameplay State begins, without binding the engine contract to a private experiment.
+- [External content import vs runtime State boundary](engine/proposals/external-content-runtime-boundary.md) — where imported/static content ends and mutable gameplay State begins, without binding the engine contract to any external validation workload.
 - [RNG reseed audit lineage proposal](engine/proposals/rng-seed-lineage.md) — deferred; prefer CommandLog/DebugBundle-derived evidence over a second wall-clock lineage store.
 
 ## Research
 
 - [Reference register](research/reference-register.md) — every ignored local reference and its usage boundary.
-- [RPG Maker MV gap analysis](research/2026-07-28-mv-slg-gap-analysis.md) and [DoL engine gap review](research/2026-07-28-dol-engine-gap-review.md) — the capability-gap evidence behind the content database, hit regions, meta progress, event pool, and tuning channel.
+- [Medium-SLG capability validation](research/2026-07-28-medium-slg-capability-validation.md) — the publication-safe boundary around private validation evidence; maintained content-table, hit-region, and meta-progress evidence lives in the original Cat Cafe Story.
+- [DoL engine gap review](research/2026-07-28-dol-engine-gap-review.md) — the research evidence behind the event pool and tuning channel.
 - [Game-engine surface/state/verification survey](research/2026-07-30-game-engine-surface-state-harness.md) — the cross-engine comparison behind the Surface Contract Harness design.
 - [OpenUI Generative UI research](research/2026-07-29-openui-genui-support.md) — dependency/architecture fit, the Query/Mutation permission boundary, and the durable UI Artifact model.
 

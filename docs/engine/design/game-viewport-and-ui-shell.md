@@ -1,14 +1,14 @@
 # Game viewport and UI shell design
 
-状态：2026-07-20 接受的目标设计。C3 已落地 `GameViewportV1`（逻辑画布/fit letterbox/两空间查询/maxScale 居中）、默认 GameRoot 的 surface 基线与 player/debug 边界（DevDock 仅在 `debug_tools` 下出现，玩家 DOM 零 debug 词汇、探针仅 `data-*`）；Stage placement 换算（D2）、VN 界面锚定（E2）、PoC 玩家 UI 的边界修复（F3）仍待各自任务。本文约束这些任务的实现，不新增独立里程碑。
+状态：2026-07-20 接受的目标设计。C3、D2、E2 与 F3 对应基线均已落地：`GameViewportV1` 提供逻辑画布、fit letterbox、两空间查询与 maxScale 居中，Semantic Stage placement 按逻辑坐标渲染，VN/shell surface 锚定到画布安全区，首个 PoC 退役后 player/debug 边界由默认 GameRoot 与浏览器验收持续保护。后来增加的 `fluid` mode 也已交付；`expand-height` / `expand-width` 与显式 layout variant 仍是目标设计而非当前能力。本文记录已交付合同和剩余设计边界，不新增独立里程碑。
 
-## 1. Problem statement
+## 1. Original problem statement
 
-当前 UI shell 是一个响应式 DOM 布局：七个固定层直接随浏览器窗口伸缩，只有 `--silly-stage-max-width` 和 4:3 媒体查询两个约束。它没有逻辑坐标系，没有设计画布，没有 letterbox 语义；素材与布局之间没有可声明的空间合同。
+本文接受时，UI shell 只是一个响应式 DOM 布局：七个固定层直接随浏览器窗口伸缩，只有 `--silly-stage-max-width` 和 4:3 媒体查询两个约束。它没有逻辑坐标系，没有设计画布，没有 letterbox 语义；素材与布局之间没有可声明的空间合同。
 
-默认 surface 没有视觉基线。引擎组件只输出语义 DOM（例如 DiagnosticExportButton 的 review 面板是一个裸 `<section>`），叠层、对话框容器和排版全部缺席，行为测试全绿的同时画面是坏的。
+当时的默认 surface 没有视觉基线。引擎组件只输出语义 DOM（例如 DiagnosticExportButton 的 review 面板是一个裸 `<section>`），叠层、对话框容器和排版全部缺席，行为测试全绿的同时画面是坏的。
 
-Debug 与玩家界面的边界被侵蚀。DevDock 按约定由 `debug_tools` capability 门控，但 diagnostic export 按钮与 semantic status 文本被无条件渲染进常驻玩家 UI——一个 task 验收静默覆盖了"debug 只是一个开关，开启后出现调试面板"的设计约定。
+Debug 与玩家界面的边界当时也被侵蚀。DevDock 按约定由 `debug_tools` capability 门控，但 diagnostic export 按钮与 semantic status 文本被无条件渲染进常驻玩家 UI——一个 task 验收静默覆盖了"debug 只是一个开关，开启后出现调试面板"的设计约定。
 
 成熟游戏引擎（Ren'Py 的 virtual size、Godot 的 viewport stretch）都以"逻辑画布 + 缩放政策"为一等公民。SillyMaker 需要同等标准，但保留 DOM/React 在文本清晰度和可访问性上的优势。
 
@@ -23,18 +23,19 @@ Debug 与玩家界面的边界被侵蚀。DevDock 按约定由 `debug_tools` cap
 
 ### 3.1 Logical canvas
 
-每个 application 声明一个逻辑画布（design resolution），例如 Project Tavern 的 `1600×1000`（16:10）。逻辑画布是素材构图、Stage placement、HitMap 和遮挡分区的唯一坐标系；美术、Story 和引擎讨论位置时只使用逻辑坐标。
+每个固定画布 application 声明一个逻辑画布（design resolution），例如 Engine Lab 的 `1600×1000`（16:10）。逻辑画布是素材构图、Stage placement、hit regions 和遮挡分区的唯一坐标系；美术、Story 和引擎讨论位置时只使用逻辑坐标。
 
 ### 3.2 Scaling policy
 
 Viewport 把逻辑画布映射到实际窗口：
 
-- **fit**（默认）：等比缩放至完全可见，两侧或上下留 letterbox/pillarbox；letterbox 区域属于 shell，不可交互、可由主题填充；
-- **expand-height / expand-width**：允许在声明的安全区外露出更多画布（用于为竖屏/极端比例声明扩展构图的 Story）；
+- **fit**（已交付、默认）：等比缩放至完全可见，两侧或上下留 letterbox/pillarbox；letterbox 区域属于 shell，不可交互、可由主题填充；
+- **fluid**（已交付）：以 1:1 CSS pixel 填满可用区域，不产生 letterbox，适合文档式或桌面式 shell；
+- **expand-height / expand-width**（目标设计）：允许在声明的安全区外露出更多画布，用于为竖屏或极端比例声明扩展构图的 Story；当前公共 mode 尚未提供；
 - 超过声明的最大逻辑尺寸时居中，不再放大；
 - 缩放因子连续，不要求整数倍；渲染按 `devicePixelRatio` 保持位图与文本清晰。
 
-Story 声明画布、允许的伸缩模式和安全区（例如 4:3 核心安全区）；引擎负责换算、letterbox 与 resize/DPR/page-zoom 的一致行为。竖屏等重排布局是 Story 显式声明的另一套 layout variant，不是对 16:10 画布的强行拉伸。
+当前 Story 声明画布、`fit` / `fluid` mode 和安全区 token；引擎负责换算、letterbox 与 resize/DPR/page-zoom 的一致行为。竖屏等显式 layout variant 以及扩展画布 mode 仍是目标合同，不应通过对 16:10 画布的强行拉伸或组件私自测量窗口来模拟。
 
 ### 3.3 Two spaces: stage space and shell space
 
@@ -45,7 +46,7 @@ Story 声明画布、允许的伸缩模式和安全区（例如 4:3 核心安全
 
 ### 3.4 Layer anchoring
 
-现有七层（background、character、sceneInteraction、hud、workspaceOverlay、narrative、system）保留 DOM 顺序与输入语义，并按 space 归类：background/character/sceneInteraction 属于 stage space；hud/workspaceOverlay/narrative/system 属于 shell space，各自声明锚定分区（例如顶部 HUD 带、底部 VN 带、中央 Overlay 区）。分区值由 Story/application 主题声明，引擎提供锚定机制与冲突诊断。
+现有七层（background、character、sceneInteraction、hud、narrative、workspaceOverlay、system）保留 DOM 顺序与输入语义，并按 space 归类：background/character/sceneInteraction 属于 stage space；hud/narrative/workspaceOverlay/system 属于 shell space，各自声明锚定分区（例如顶部 HUD 带、底部 VN 带、中央 Overlay 区）。分区值由 Story/application 主题声明，引擎提供锚定机制与冲突诊断。
 
 ## 4. Theme tokens and default surface baseline
 
@@ -77,13 +78,13 @@ Composer 提供的每个默认 surface——Save、Settings、系统对话框、
 
 ## 6. Acceptance
 
-本文并入以下既有任务的验收，不追加新阶段：
+本文已随以下既有任务完成基线验收，不追加新阶段：
 
-- **C3（UI/Web Composer）**：default GameRoot 建立 GameViewport（声明画布、fit letterbox、两 space 换算、DPR/resize/page-zoom 行为一致）；默认 surface 全部满足 §4.3 基线；player/debug 边界按 §5 断言；
-- **D2（Stage projection）**：StageRenderTarget 的 placement 以逻辑坐标表达并经 viewport 换算渲染；
-- **E2（VN player systems）**：对话框、history、choice 界面按 shell space 锚定并消费 token；
-- **F1（vertical slice）**：验收路线在 1600×1000、1024×768、平板横屏与 200% zoom 下核心画面可用、letterbox 正确、文本清晰；
-- **F3（PoC migration）**：PoC 玩家 UI 移除违反 §5 的常驻 debug 元素。
+- **C3（UI/Web Composer，已交付）**：default GameRoot 建立 GameViewport（声明画布、fit letterbox、两 space 换算、DPR/resize/page-zoom 行为一致）；默认 surface 满足 §4.3 基线；player/debug 边界按 §5 断言；
+- **D2（Stage projection，已交付）**：StageRenderTarget 的 placement 以逻辑坐标表达并经 viewport 换算渲染；
+- **E2（VN player systems，已交付）**：对话框、history、choice 界面按 shell space 锚定并消费 token；
+- **F1（vertical slice，已交付）**：验收路线在 1600×1000、1024×768、平板横屏与 200% zoom 下核心画面可用、letterbox 正确、文本清晰；
+- **F3（PoC migration，已关闭）**：首个 PoC 与其 V1 scene glue 已退役，不再保留待迁移的玩家 UI；当前应用持续遵守 §5。
 
 ## 7. Stop rules
 

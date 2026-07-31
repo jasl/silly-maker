@@ -483,3 +483,7 @@ export type { PersistenceAutoSaveAttemptReceiptInternalV1 } from "@sillymaker/ba
 export { captureAutoSaveWithReceiptInternalV1 } from "@sillymaker/base/runtime";
 // @ts-expect-error player-persistence close fencing stays package-internal
 export { fencePersistencePlayerMutationsInternalV1 } from "@sillymaker/base/runtime";
+// @ts-expect-error save maintenance authority stays out of the ordinary Base barrel
+export { clearAllCoreApplicationSavesForMaintenanceInternalV1 } from "@sillymaker/base";
+// @ts-expect-error save maintenance authority stays out of the ordinary runtime barrel
+export { clearAllCoreApplicationSavesForMaintenanceInternalV1 as runtimeClearAllCoreApplicationSavesForMaintenanceInternalV1 } from "@sillymaker/base/runtime";

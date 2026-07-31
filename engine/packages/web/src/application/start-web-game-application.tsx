@@ -18,6 +18,7 @@ import {
   createPlayerProfileStoreV1,
   resolveCoreGameApplicationV1,
 } from "@sillymaker/base/runtime";
+import { clearAllCoreApplicationSavesForMaintenanceInternalV1 } from "@sillymaker/base/runtime/internal";
 import type {
   DefaultGameRootLabelsV1,
   DefaultGameRootSlotsV1,
@@ -523,6 +524,7 @@ export async function startWebGameApplicationV1<
     const saveSurfaces = createPlayerSaveSurfacesV1({
       files: host.files,
       persistence: instance.persistence,
+      clearAllSaves: () => clearAllCoreApplicationSavesForMaintenanceInternalV1(instance),
       ...(uiDefinition.saveLabels === undefined ? {} : { saveLabels: uiDefinition.saveLabels }),
       ...(uiDefinition.saveGuard === undefined ? {} : { saveGuard: uiDefinition.saveGuard }),
       ...(uiDefinition.customSaves === undefined ? {} : { customSaves: uiDefinition.customSaves }),
@@ -587,7 +589,8 @@ export async function startWebGameApplicationV1<
           ? {}
           : { hideSystemMenu: uiDefinition.hideSystemMenu })}
         sessionMaintenance={Object.freeze({
-          savePort: saveSurfaces.maintenanceSavePort,
+          savePort: saveSurfaces.maintenance.savePort,
+          clearAllSaves: saveSurfaces.maintenance.clearAllSaves,
         })}
         {...(uiDefinition.labels === undefined ? {} : { labels: uiDefinition.labels })}
         {...(uiDefinition.slots === undefined ? {} : { slots: uiDefinition.slots })}

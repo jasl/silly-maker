@@ -60,6 +60,12 @@ Package-manager dependencies are not copied third-party assets for this director
 5. allowed research purpose;
 6. explicit no-copy and no-build boundary.
 
+When an exact title, release name, acquisition path, or workspace path is
+publication-sensitive, the public register uses an opaque stable reference ID
+and records the rights assumption plus allowed/prohibited use. Exact provenance
+stays with the owner-controlled external material; it must not be copied into a
+tracked compatibility note merely to make the public register more specific.
+
 References may inform broad ideas such as time ownership, persistence metadata, debugging workflow, and content organization. Do not copy or adapt their code, prose, assets, schemas, constants, data, or distinctive structures into SillyMaker's tracked production tree.
 
 Production code, tests, fixtures, generators, Image Gen inputs, screenshots, builds, and Artifacts must not import, scan, read, or depend on `references/`. This is independent-reimplementation and contamination control, not a claim that every reference has the same license.
@@ -69,9 +75,9 @@ Production code, tests, fixtures, generators, Image Gen inputs, screenshots, bui
 Engine-validation replicas of existing games (including material with unclear provenance collected for research) are permitted under these boundaries:
 
 1. They exist to prove engine capability with complete playable games and are never published, distributed, or included in any Artifact or release channel.
-2. Source material lives in `references/` (registered as above); replica working trees live in `tmp/` or another gitignored location. Neither enters Git history.
-3. Task briefs given to authoring models describe mechanics, structure, and pacing (which are not copyrightable expression) — they do not paste protected narrative text, art, audio, or distinctive names for reproduction.
-4. A replica may be promoted into `examples/**` only after an originalization pass: mechanics may stay, all expression (text, names, art direction, audio) must be original, and the result passes the ordinary licensing review for tracked files.
+2. Source material remains local and is registered as above. Replica working trees live in a separate owner-controlled workspace outside the SillyMaker checkout; SillyMaker's `tmp/**`, tests, builds, and task graph do not host or depend on them.
+3. Task briefs given to authoring models may describe only high-level functional requirements and general mechanics. They must not reproduce protected narrative text, art, audio, distinctive names, content structure, pacing, data, or implementation details.
+4. A replica working tree is never promoted or copied into `examples/**`. A public example must be a fresh independent implementation in the formal repository, use original expression and assets, rely only on neutral engine requirements, and pass the ordinary licensing review for tracked files.
 
 ## 5. Artifact boundary
 

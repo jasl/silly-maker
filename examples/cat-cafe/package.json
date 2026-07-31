@@ -32,6 +32,8 @@
     "@testing-library/jest-dom": "6.9.1",
     "@types/node": "24.13.3",
     "@types/react": "19.2.17",
+    "vite": "8.1.4",
+    "vitest": "4.1.10",
     "wrangler": "4.114.0"
   }
 }

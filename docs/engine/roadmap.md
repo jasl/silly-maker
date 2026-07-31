@@ -29,7 +29,7 @@ stable deterministic core
 
 作者或 Agent 只通过受支持的 package exports，用普通 TypeScript 与稳定数据编写 Story、GameplayModule、Narrative、内容表和 React UI。同一个产品可在 headless 与 browser 运行，被语义自动化操作、独立构建、诊断和长期迁移，不复制示例胶水，不修改 engine core。
 
-真实游戏持续充当第一消费者，Engine Lab 是中性 conformance rig；任何一个游戏或复刻实验都不是引擎隐含模板。
+真实游戏持续充当第一消费者，Engine Lab 是中性 conformance rig；任何一个游戏或外部验证 workload 都不是引擎隐含模板。
 
 ## 2. Non-negotiable architecture
 
@@ -155,7 +155,11 @@ sandbox；这些仍须真实需求、版本化 wire 与 migration 证据后另�
 - grid/path/LOS workload；
 - offline companion progression。
 
-它们先是 Story/module workload，再决定是否提升为 engine capability。
+它们先是 Story/module workload，再决定是否提升为 engine capability。每个 workload
+必须区分纯表现 clock 与 authoritative scheduler time；headless fast-forward、玩家加速
+或跳过只能 settle 表现 dwell，或按完整 duration 以相同顺序确定性 catch up 权威事件，
+并证明 normal/accelerated 的最终 Snapshot、Save/replay bytes 与 RNG evidence 等价。
+若玩法刻意让加速改变结算，它必须是独立 semantic command，不能伪装成播放器偏好。
 
 ## 6. Strategic track B — Save compatibility and release engineering
 
@@ -222,16 +226,21 @@ Editor/project/asset index
 
 Prisma 风格只借鉴可发现、type-safe 的 query ergonomics；runtime 不引入通用 ORM/SQL transaction authority。SQLite 可用于 editor/project index 或 authoring backend，正式 runtime 优先消费编译后只读 pack。
 
-### Tooling order
+### Tooling status and remaining order
 
-1. `story doctor/check/inspect`；
-2. Narrative graph viewer；
-3. arbitrary-boundary Stage preview；
-4. Timeline scrubber 与 audio/transition inspection；
-5. scenario runner 与 capability-gated debug command；
-6. content table/asset/dependency tooling；
-7. Save migration inspector；
-8. 最后组合 editor shell。
+已交付的基础包括 `story check/inspect`、Narrative graph viewer、通过
+`story simulate` 运行 named scenario（含 `--trace`）与 `story diff`，以及
+capability-gated debug command 合同和 DevDock 面板。它们不再作为未来 editor
+工作的前置待办。
+
+剩余工作按以下顺序推进：
+
+1. 在现有 `check/inspect` 不能承载新的修复型诊断时，再定义独立的 `story doctor`；
+2. arbitrary-boundary Stage preview；
+3. Timeline scrubber 与 audio/transition inspection；
+4. content table/asset/dependency tooling；
+5. Save migration inspector；
+6. 最后组合 editor shell。
 
 Editor 写普通 TS 或被 TS 引用的稳定数据，不形成另一种运行时语言。
 

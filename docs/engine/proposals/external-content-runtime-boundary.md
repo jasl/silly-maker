@@ -72,4 +72,7 @@ Examples of classification:
 
 ## Decision record
 
-本备忘不批准新 public API。兼容实验可留在 gitignored/local research；引擎只吸收由原创第二消费者证明的通用缺口。正式 importer 应输出 SillyMaker content/module contracts，而不是把来源工程挂进 runtime。
+本备忘不批准新 public API。兼容实验只能留在所有者控制、位于 SillyMaker checkout
+之外的外部工作区；SillyMaker 不托管或依赖它。引擎只吸收由原创第二消费者证明的
+通用缺口。正式 importer 应输出 SillyMaker content/module contracts，而不是把来源
+工程挂进 runtime。

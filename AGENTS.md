@@ -165,7 +165,10 @@ documented migration path.
 - `references/` is ignored, untracked research input. Register it in
   `docs/research/reference-register.md`; production code, tests, generators, and
   artifacts must not depend on it or copy distinctive third-party material from
-  it.
+  it. Publication-sensitive commercial references use an opaque public register
+  ID; their exact identity and unpublished validation worktree must stay outside
+  the current tracked tree and all future changes. This rule does not claim that
+  older Git objects have been rewritten.
 - AIGC source archives and promoted runtime assets follow
   `docs/policies/assets-and-references.md`. Runtime digests establish technical
   identity, not copyright provenance or approval.

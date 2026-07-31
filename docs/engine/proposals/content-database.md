@@ -6,16 +6,16 @@
 
 ## Motivation
 
-中型以上的 VN/SLG/RPG 携带大量结构化内容数据：活动定义（消耗/产出/解锁条件）、物品、技能、角色档案、日程模板、商店条目、图鉴条目。参考游戏的规模：约 30 个核心数值系统、615 个事件里散落的活动规则、1621 个全局变量。行业先例（RPG Maker 数据库、魔兽的 DBC 表）证明数据驱动是正解，但 RPG Maker 的教训同样重要：**固定 schema 的数据库会被绕开**——引擎必须让 Story 定义自己的表。
+中型以上的 VN/SLG/RPG 携带大量结构化内容数据：活动定义（消耗/产出/解锁条件）、物品、技能、角色档案、日程模板、商店条目、图鉴条目。把这些定义和可变进度一起堆进脚本或无类型全局变量池，会让校验、查询、本地化和维护同时失效。行业先例（RPG Maker 数据库、魔兽的 DBC 表）证明数据驱动的价值，但固定品类 schema 也容易被 Story 绕开——引擎必须让 Story 定义自己的表。
 
-对 SillyMaker 还有一个特有动机：**LLM 授权**。生成表行是模型最可靠的产出形式（结构重复、逐行可校验）；把内容从代码常量迁到带 schema 的表，直接提高复刻实验和真实创作的可交付性。
+对 SillyMaker 还有一个特有动机：**LLM authoring**。生成表行是模型最可靠的产出形式（结构重复、逐行可校验）；把内容从代码常量迁到带 schema 的表，直接提高真实 Story 创作的可交付性。
 
 ## Shape (design sketch)
 
 ```ts
 // Story 侧：定义表（zod schema + 行数据；builder 与 literal 同契约）
 const activitiesTableV1 = defineContentTable({
-  tableId: "table.tavern.activities",
+  tableId: "table.catcafe.activities",
   schema: z.strictObject({
     id: z.string(), // 主键，稳定 ID
     nameTextId: z.string(), // i18n 感知列：textId 引用，跨表校验
@@ -29,8 +29,8 @@ const activitiesTableV1 = defineContentTable({
 
 // 运行时：类型化只读查询（Prisma 风格 + KV 直取）
 const db = createContentDatabase({ tables: [activitiesTableV1, itemsTableV1] });
-db.table("table.tavern.activities").byId("activity.train"); // KV
-db.table("table.tavern.activities").findMany({
+db.table("table.catcafe.activities").byId("activity.train"); // KV
+db.table("table.catcafe.activities").findMany({
   where: { staminaCost: { lte: 20 }, unlockFlag: null },
   orderBy: "staminaCost",
 }); // 查询
@@ -42,11 +42,11 @@ db.table("table.tavern.activities").findMany({
 2. **JSON-safe + 确定性**：行数据是普通数据，参与 facet digest（simulation 侧表进 simulationDigest，presentation 侧表进 presentationDigest）；同一 Story 的查询结果跨 Host 完全一致。Simulation facet 的数值服从 [authoritative determinism](../design/deterministic-simulation-boundary.md) 的 bounded safe-integer / explicit-quantization 合同；presentation-only facet 若确需有限 binary64，必须由自己的 schema 明确声明并保证不流入 authoritative State、command、facts、Save 或 replay。
 3. **同步、内存内、无依赖**：不引入 SQL、SQLite、IndexedDB 或 Prisma 本体；"Prisma 风格"只指类型化可发现的查询 API。
 4. **解析时全量校验**：主键唯一、外键（跨表引用列）、textId 引用进文本目录校验（沿用 resolver 现有的 catalog join 模式）、行数上限。坏数据在 `story check` 阶段拒绝，带 JSON pointer。
-5. **i18n 原生**：文本列存 textId 而非字符串；缺失键检测属于表校验的一部分。这直接修复参考游戏"文本烧进事件"的本地化灾难。
+5. **i18n 原生**：文本列存 textId 而非字符串；缺失键检测属于表校验的一部分，避免把可翻译文本烧进规则脚本或事件定义。
 
-## Adoption gate
+## Adoption evidence
 
-进入实现前需要一个真实消费者：建议的顺序是先做"日程 + 数值"原创复刻实验的设计规格，让表 schema 从真实内容需求里长出来，再实现引擎侧（估计 Base 契约 + 查询构建器 + resolver 集成 + story CLI 校验各一件）。不先建空 API。
+首个 adoption gate 已由原创 `examples/cat-cafe` 满足：其设计规格先定义日程、数值、技能、对手、部位反应和图鉴需求，再由六张真实表消费 Base 契约、resolver/catalog join 与 Story 校验。后续分页、索引、多值外键或新的查询语法仍必须由独立真实消费者驱动，不先建空 API。
 
 ## Open questions
 

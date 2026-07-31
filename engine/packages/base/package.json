@@ -8,11 +8,12 @@
     ".": "./src/index.ts",
     "./authoring": "./src/authoring/index.ts",
     "./runtime": "./src/runtime/index.ts",
+    "./runtime/internal": "./src/runtime/internal.ts",
     "./story": "./src/story/index.ts",
     "./testkit": "./src/testkit/index.ts"
   },
   "scripts": {
-    "test:runtime": "deno task --dir ../../.. exec vitest run engine/packages/base/src/runtime"
+    "test:runtime": "deno run -A npm:vitest run engine/packages/base/src/runtime"
   },
   "devDependencies": {
     "zod": "4.4.3"

@@ -21,12 +21,12 @@ Dependency reference rule: engine and Story sources (everything Vite builds or v
 
 ```text
 engine/packages/base     framework-neutral authoring, contracts, and runtime
-engine/packages/tooling  Node-only tooling (JSONL agent host protocol)
+engine/packages/tooling  non-browser CLI, Vite/identity, JSONL, and Desktop preview tools
 engine/packages/ui       generic React presentation and input
 engine/packages/web      browser Host and application adapters
 e2e/                     neutral Engine Conformance Story (MIT test consumer)
 template    minimal starter Story (new-project skeleton)
-examples/                curated example Stories (bookshop; cat-cafe, the engine-gap delivery vehicle)
+examples/                curated example Stories (bookshop; cat-cafe; SillyOS)
 project.config.ts        the workspace registry (application directory list)
 website/                 the public documentation site (VitePress, en + zh; deno task docs:dev)
 scripts                  maintained build, asset, and product tooling
@@ -81,7 +81,7 @@ The `story build`/`story desktop` verbs remain as the plumbing behind the build 
 
 ### Local and external application projects
 
-Private studies, `tmp/`-only verification games, and external checkouts do not register into the repository at all: they are ordinary application projects. Copy `template/`, keep `sillymaker.config.ts` + `vite.config.ts` + `tools/story.mts`, and point `package.json` dependencies at the engine packages by relative `file:` path (with `"nodeModulesDir": "manual"` in the project's `deno.json`, required for `file:` npm dependencies). `deno install` inside the project directory materializes the engine link; `deno task dev`, the declared `build:*` tasks, `deno task test`, and the app-local story CLI then run without any root-registry edit or engine `src/**` alias.
+Private studies, outside-checkout validation applications, and other external checkouts do not register into the repository at all: they are ordinary application projects. Copy `template/`, keep `sillymaker.config.ts` + `vite.config.ts` + `tools/story.mts`, and point `package.json` dependencies at the engine packages by relative `file:` path (with `"nodeModulesDir": "manual"` in the project's `deno.json`, required for `file:` npm dependencies). `deno install` inside the project directory materializes the engine link; `deno task dev`, the declared `build:*` tasks, `deno task test`, and the app-local story CLI then run without any root-registry edit or engine `src/**` alias.
 
 Use a focused package or test-file command while iterating when that is faster. Run `deno task check` before handing off a change, and add `deno task test:e2e` or prebuilt testing when the affected behavior crosses the browser/build boundary.
 

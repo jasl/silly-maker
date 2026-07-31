@@ -1,6 +1,6 @@
 # SillyMaker architecture
 
-状态：持续维护的现状文档。最后结构性复核：2026-07-19。
+状态：持续维护的现状文档。最后结构性复核：2026-07-31。
 
 本文描述当前实现的主要边界和数据流。它不是冻结 ABI；修改包职责、权威状态、Story
 组合、持久化格式或公开入口时，应同时更新本文、相应类型和行为测试。
@@ -10,7 +10,7 @@
 SillyMaker 是浏览器优先、可 headless 运行的 Story 游戏引擎；仓库内的 Story
 包（旗舰示例《雨巷猫舍》等）是使用它开发的具体游戏。引擎提供可组合的规则运行时、权威
 Session、存档/诊断、React presentation 和 Web Host；Story 提供具体
-State、Command、规则、查询、内容、Scene 和应用组合。
+State、Command、规则、查询、内容、Semantic Stage 和应用组合。
 
 当前所有 workspace package 都是 `private`。本文所说的“公开 API”指 package
 `exports` 暴露的仓库内受支持入口，不表示 npm 发布承诺。
@@ -29,18 +29,24 @@ Story；UI 和 Web 可以依赖 Base；具体 Story/application 可以依赖三�
 
 ## 2. Package responsibilities
 
-| Package                 | Workspace public entries                      | Responsibility                                                                                                                                                                                                                                                            |
-| ----------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@sillymaker/base`      | `.`, `./authoring`, `./runtime`, `./testkit`  | Contracts, authoring definitions and kit, deterministic resolution, authoritative sessions, persistence orchestration, replay, diagnostics, the agent port, and reusable behavior-test helpers.                                                                           |
-| `@sillymaker/tooling`   | `.`, `./project`, config-types/loader entries | Node-only tooling: the JSONL agent host protocol/client plus the project/application config with inspect/check/simulate commands and web target data. Never imported by Base/UI browser bundles.                                                                          |
-| `@sillymaker/ui`        | `.`, `./assets`, `./debug`, `./diagnostics`   | React shell, GameViewport, UI composition and default GameRoot, stage, characters, assets, interaction/input, overlays, narrative, settings, semantic/presentation bridges, and recovery UI.                                                                              |
-| `@sillymaker/web`       | `.`                                           | Browser Host, IndexedDB record storage, files/images, `startWebGameApplicationV1`, mounting, routing, pointer input, capabilities, automation, Loader, and HMR rebootstrap.                                                                                               |
-| `@sillymaker/story-e2e` | `.`                                           | The neutral Engine Conformance Story (Engine Lab, `e2e/`): gameplay modules, narrative script, presentation catalogs, semantic actions, and application composition used to validate engine contracts.                                                                    |
-| Story packages          | `.` per package                               | `template/` (the minimal starter, MIT) and `examples/*` (bookshop, cat-cafe) each compose one self-contained application project (`sillymaker.config.ts` + `vite.config.ts`); the root `project.config.ts` only lists their directories for repository-level aggregation. |
+| Package                 | Workspace public entries                                                                     | Responsibility                                                                                                                                                                                                                                                                      |
+| ----------------------- | -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@sillymaker/base`      | `.`, `./authoring`, `./runtime`, `./story`, `./testkit`; workspace-only `./runtime/internal` | Contracts, the Story prelude and authoring kit, deterministic resolution, authoritative sessions, persistence orchestration, replay, diagnostics, the agent port, and reusable behavior-test helpers.                                                                               |
+| `@sillymaker/tooling`   | `.`, `./project` + subentries, `./vite` + subentries, `./identity/*`                         | Non-browser project and Story CLI, Vite assembly, build identity, JSONL agent protocol/client, and package-internal Desktop preview packaging/local-server tools. Never imported by Base or browser bundles.                                                                        |
+| `@sillymaker/ui`        | `.`, `./assets`, `./debug`, `./diagnostics`, `./styles.css`                                  | React shell, GameViewport, UI composition and default GameRoot, stage, characters, assets, interaction/input, overlays, narrative, settings, semantic/presentation bridges, recovery UI, and the published global theme stylesheet.                                                 |
+| `@sillymaker/web`       | `.`                                                                                          | Browser Host, IndexedDB record storage, files/images, Desktop-channel HTTP record/file adapters, `startWebGameApplicationV1`, mounting, routing, pointer input, capabilities, automation, Loader, and HMR rebootstrap.                                                              |
+| `@sillymaker/story-e2e` | `.`                                                                                          | The neutral Engine Conformance Story (Engine Lab, `e2e/`): gameplay modules, narrative script, presentation catalogs, semantic actions, and application composition used to validate engine contracts.                                                                              |
+| Story packages          | `.` per package                                                                              | `template/` (the minimal starter, MIT) and `examples/*` (bookshop, cat-cafe, silly-os) each compose one self-contained application project (`sillymaker.config.ts` + `vite.config.ts`); the root `project.config.ts` only lists their directories for repository-level aggregation. |
 
 Cross-package imports use package exports and declared `workspace:*`
 dependencies. Application-only composition may stay internal to a Story package
 when no other package should consume it.
+
+`@sillymaker/base/runtime/internal` is the narrow cross-package seam for engine
+workspace composition that cannot use `src/**` imports. It is consumed only by
+`@sillymaker/web`, is absent from ordinary Base/runtime barrels, and is guarded
+by negative consumer type tests. It is not a Story API; before any npm
+publication, internal export visibility needs an explicit audience policy.
 
 Implementation anchors:
 
@@ -58,8 +64,8 @@ A Story package supplies a `GamePackageV1` with two facets:
 
 - **Simulation**: state contract, module composition, schemas, commands,
   rule/value program, queries, and ViewModel projection.
-- **Presentation**: scene graph, text and asset catalogs, presentation values,
-  and renderer identifiers.
+- **Presentation**: Semantic Stage/content, text and asset catalogs,
+  presentation values, and renderer identifiers.
 
 `defineGamePackage` creates the package entry. `resolveGamePackageV1` validates
 the definition, applies authorized simulation and presentation patches,
@@ -172,9 +178,12 @@ leases, and settings. `createWebHostV1` supplies its IndexedDB implementation
 plus browser entropy, file, clock, navigation, and logging ports. Tests or other
 Hosts can inject a different record store without moving browser concerns into
 Base. The current desktop channel exercises that seam through a loopback HTTP
-adapter backed by local files, but it remains a preview: it has not yet earned
-the crash-atomic multi-record commit, cross-process revision, migration, and
-packaged-restart guarantees required for promotion to a production Host.
+adapter backed by local files. Its file backend remains a durability preview
+until it proves crash-atomic multi-record commits, cross-process revisions, and
+old-record migration/recovery. Desktop packaging is a separate preview axis
+until each named platform proves a real package build, launch, write, exit, and
+reopen. The two axes promote independently; only a combined claim that a
+packaged app uses atomic persistence requires both sets of evidence.
 
 A Save carries its Snapshot, state digest, provenance, and simulation lineage.
 Import/load validates bytes, schema, identity, references, and invariants before

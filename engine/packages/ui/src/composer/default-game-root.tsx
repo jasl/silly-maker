@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: MIT
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement, ReactNode } from "react";
 
-import type { DeepReadonly, RuntimeCapabilityPortV1 } from "@sillymaker/base";
+import type {
+  DeepReadonly,
+  RuntimeCapabilityPortV1,
+  SessionAnchorResultV1,
+} from "@sillymaker/base";
 
-import { DevDockV1, createDevDockContributionSetV1 } from "../debug/dev-dock.tsx";
+import { createDevDockContributionSetV1, DevDockV1 } from "../debug/dev-dock.tsx";
 import type { DevDockContributionSetV1, DevDockOpenStateV1 } from "../debug/dev-dock.tsx";
 import { SessionMaintenancePanelV1 } from "../debug/session-maintenance-panel.tsx";
 import type { InputRouterV1 } from "../input/contracts.ts";
@@ -60,6 +64,7 @@ export interface DefaultGameRootLabelsV1 {
   readonly settingsFullscreenLabel: string;
   readonly settingsDeveloperToolsLabel: string;
   readonly titleNewGameLabel: string;
+  readonly titleNewGameFailedText: string;
   readonly titleContinueLabel: string;
   readonly titleLoadGameLabel: string;
   readonly closeLabel: string;
@@ -80,6 +85,7 @@ export const defaultGameRootLabelsV1: DefaultGameRootLabelsV1 = Object.freeze({
   settingsFullscreenLabel: "Toggle fullscreen",
   settingsDeveloperToolsLabel: "Developer tools",
   titleNewGameLabel: "New game",
+  titleNewGameFailedText: "Unable to start a new game.",
   titleContinueLabel: "Continue",
   titleLoadGameLabel: "Load game",
   closeLabel: "Close",
@@ -106,7 +112,10 @@ export interface DefaultGameRootSlotContextV1<TPublication, TSemantic> {
   };
   /** Read access to the composition overlay session for Story projections. */
   readonly overlays: {
-    getSnapshot(): { readonly primaryId: string | null; readonly detailIds: readonly string[] };
+    getSnapshot(): {
+      readonly primaryId: string | null;
+      readonly detailIds: readonly string[];
+    };
     subscribe(listener: () => void): () => void;
   };
   /** The live presentation store (snapshot + subscribe) for Story controllers. */
@@ -188,7 +197,7 @@ export interface DefaultGameRootPropsV1<
      */
     beginNewGame?(semantic: TSemantic): void | Promise<unknown>;
   };
-  readonly lifecycle?: { restart(): Promise<unknown> };
+  readonly lifecycle?: { restart(): Promise<SessionAnchorResultV1> };
   readonly saveUi?: {
     readonly port: SaveOverlayPortV1;
     readonly labels: SaveOverlayLabelsV1;
@@ -223,6 +232,7 @@ export interface DefaultGameRootPropsV1<
   /** Engine-owned maintenance panel contributed to the sole DevDock host. */
   readonly sessionMaintenance?: {
     readonly savePort?: SaveOverlayPortV1;
+    readonly clearAllSaves?: () => Promise<void>;
   };
   /** Optional keyboard/gamepad adapters routed through the composition. */
   readonly inputMaps?: {
@@ -236,7 +246,21 @@ const closedDevDockStateV1 = Object.freeze({
   leftOpen: false,
   rightOpen: false,
 }) satisfies DevDockOpenStateV1;
-const emptyDevDockContributionsV1 = createDevDockContributionSetV1({ panels: [] });
+const emptyDevDockContributionsV1 = createDevDockContributionSetV1({
+  panels: [],
+});
+
+function lifecycleRestartFailureV1(
+  result: Exclude<SessionAnchorResultV1, { readonly kind: "anchored" }>,
+): Error {
+  return new Error(`ui.lifecycle_restart_${result.kind}:${result.code}`);
+}
+
+function rethrowReturnToTitleCleanupFailuresV1(failures: readonly unknown[]): void {
+  if (failures.length === 0) return;
+  if (failures.length === 1) throw failures[0];
+  throw new AggregateError(failures, "ui.return_to_title_topology_cleanup_failed");
+}
 
 /** Continue is only available when the autosave slot can be loaded. */
 function continueAvailableFromSlotsV1(
@@ -346,6 +370,8 @@ export function DefaultGameRootV1<
   const labels = Object.freeze({ ...defaultGameRootLabelsV1, ...props.labels });
   const [titleDismissed, setTitleDismissed] = useState(props.titleScreen === undefined);
   const [splashDismissed, setSplashDismissed] = useState(props.titleScreen?.splash === undefined);
+  const [titleLifecycleFailureCode, setTitleLifecycleFailureCode] = useState<string | null>(null);
+  const titleLifecycleGenerationRef = useRef(0);
   const [continueAvailable, setContinueAvailable] = useState(false);
   const publication = useSyncExternalStore(
     props.composition.presentation.subscribe,
@@ -368,7 +394,9 @@ export function DefaultGameRootV1<
   // enters gameplay: the anchored epoch origin is the authoritative signal.
   const anchorOrigin = anchor.origin;
   useEffect(() => {
-    if (anchorOrigin === "load" || anchorOrigin === "import") setTitleDismissed(true);
+    if (anchorOrigin === "load" || anchorOrigin === "import") {
+      setTitleDismissed(true);
+    }
   }, [anchorOrigin]);
 
   // Continue must stay disabled until a runnable autosave is confirmed.
@@ -382,7 +410,9 @@ export function DefaultGameRootV1<
       void savePort
         .listSlots()
         .then((slots) => {
-          if (!cancelled) setContinueAvailable(continueAvailableFromSlotsV1(slots));
+          if (!cancelled) {
+            setContinueAvailable(continueAvailableFromSlotsV1(slots));
+          }
         })
         .catch(() => {
           if (!cancelled) setContinueAvailable(false);
@@ -408,17 +438,29 @@ export function DefaultGameRootV1<
       openSettings: () => props.composition.systemDialogSession.open("settings"),
       openSaves: () => props.composition.systemDialogSession.open("saves"),
       returnToTitle: () => {
-        return (props.lifecycle?.restart() ?? Promise.resolve()).then(
-          () => {
+        return Promise.resolve()
+          .then(() => props.lifecycle?.restart())
+          .then((result) => {
+            if (result !== undefined && result.kind !== "anchored") {
+              throw lifecycleRestartFailureV1(result);
+            }
+            const cleanupFailures: unknown[] = [];
+            try {
+              props.composition.systemDialogSession.close();
+            } catch (error) {
+              cleanupFailures.push(error);
+            }
+            try {
+              props.composition.overlaySession.closeAll();
+            } catch (error) {
+              cleanupFailures.push(error);
+            }
+            titleLifecycleGenerationRef.current += 1;
+            setTitleLifecycleFailureCode(null);
             setSplashDismissed(true);
             setTitleDismissed(false);
-          },
-          (error: unknown) => {
-            setSplashDismissed(true);
-            setTitleDismissed(false);
-            throw error;
-          },
-        );
+            rethrowReturnToTitleCleanupFailuresV1(cleanupFailures);
+          });
       },
     }),
     overlays: props.composition.overlaySession as never,
@@ -523,35 +565,75 @@ export function DefaultGameRootV1<
           />
         )}
         {props.titleScreen === undefined || titleDismissed || !splashDismissed ? null : (
-          <TitleScreenV1
-            title={props.titleScreen.title}
-            {...(props.titleScreen.backgroundUrl === undefined
-              ? {}
-              : { backgroundUrl: props.titleScreen.backgroundUrl })}
-            labels={Object.freeze({
-              newGameLabel: labels.titleNewGameLabel,
-              continueLabel: labels.titleContinueLabel,
-              loadGameLabel: labels.titleLoadGameLabel,
-              settingsLabel: labels.settingsLabel,
-            })}
-            onNewGame={() => {
-              const restart = props.lifecycle?.restart();
-              const begin = props.titleScreen?.beginNewGame;
-              void (restart ?? Promise.resolve())
-                .then(() => (begin === undefined ? undefined : begin(props.semantic)))
-                .finally(() => setTitleDismissed(true));
-            }}
-            middleAction={
-              props.customSaves === undefined
-                ? Object.freeze({
-                    kind: "continue" as const,
-                    available: continueAvailable,
-                    onActivate: () => setTitleDismissed(true),
+          <>
+            <TitleScreenV1
+              title={props.titleScreen.title}
+              {...(props.titleScreen.backgroundUrl === undefined
+                ? {}
+                : { backgroundUrl: props.titleScreen.backgroundUrl })}
+              labels={Object.freeze({
+                newGameLabel: labels.titleNewGameLabel,
+                continueLabel: labels.titleContinueLabel,
+                loadGameLabel: labels.titleLoadGameLabel,
+                settingsLabel: labels.settingsLabel,
+              })}
+              onNewGame={() => {
+                const generation = titleLifecycleGenerationRef.current + 1;
+                titleLifecycleGenerationRef.current = generation;
+                setTitleLifecycleFailureCode(null);
+                const begin = props.titleScreen?.beginNewGame;
+                void Promise.resolve()
+                  .then(() => props.lifecycle?.restart())
+                  .then(async (result) => {
+                    if (titleLifecycleGenerationRef.current !== generation) {
+                      return;
+                    }
+                    if (result !== undefined && result.kind !== "anchored") {
+                      setTitleLifecycleFailureCode(`${result.kind}:${result.code}`);
+                      return;
+                    }
+                    if (begin !== undefined) await begin(props.semantic);
+                    if (titleLifecycleGenerationRef.current === generation) {
+                      setTitleDismissed(true);
+                    }
                   })
-                : Object.freeze({ kind: "load" as const })
-            }
-            showLoadGame={props.saveUi !== undefined}
-          />
+                  .catch(() => {
+                    if (titleLifecycleGenerationRef.current === generation) {
+                      setTitleLifecycleFailureCode("unexpected");
+                    }
+                  });
+              }}
+              middleAction={
+                props.customSaves === undefined
+                  ? Object.freeze({
+                      kind: "continue" as const,
+                      available: continueAvailable,
+                      onActivate: () => setTitleDismissed(true),
+                    })
+                  : Object.freeze({ kind: "load" as const })
+              }
+              showLoadGame={props.saveUi !== undefined}
+            />
+            {titleLifecycleFailureCode === null ? null : (
+              <p
+                role="alert"
+                data-title-lifecycle-failure={titleLifecycleFailureCode}
+                style={{
+                  position: "absolute",
+                  insetInline: "var(--silly-space-4)",
+                  insetBlockEnd: "var(--silly-space-4)",
+                  zIndex: "var(--silly-surface-z-front-door)",
+                  margin: 0,
+                  padding: "var(--silly-space-2)",
+                  textAlign: "center",
+                  color: "#fff",
+                  background: "rgba(96, 24, 24, 0.94)",
+                }}
+              >
+                {labels.titleNewGameFailedText}
+              </p>
+            )}
+          </>
         )}
         {props.hideSystemMenu === true ? null : (
           <div
@@ -574,7 +656,10 @@ export function DefaultGameRootV1<
 
   const semanticWitness = (
     publication as {
-      readonly semantic?: { readonly revision?: number; readonly status?: string };
+      readonly semantic?: {
+        readonly revision?: number;
+        readonly status?: string;
+      };
     }
   ).semantic;
   const semanticRevision = semanticWitness?.revision;
@@ -594,6 +679,9 @@ export function DefaultGameRootV1<
                   {...(props.sessionMaintenance?.savePort === undefined
                     ? {}
                     : { savePort: props.sessionMaintenance.savePort })}
+                  {...(props.sessionMaintenance?.clearAllSaves === undefined
+                    ? {}
+                    : { clearAllSaves: props.sessionMaintenance.clearAllSaves })}
                   onReinitialize={slotContext.systemDialogs.returnToTitle}
                 />
               ),

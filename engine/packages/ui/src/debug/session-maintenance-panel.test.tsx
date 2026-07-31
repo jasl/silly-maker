@@ -126,24 +126,21 @@ describe("SessionMaintenancePanelV1", () => {
     expect(document.querySelector("[data-session-maintenance-versions]")).toBeNull();
   });
 
-  it("arms cleanup, skips empty slots, and reports every structured failure", async () => {
-    const clear = vi.fn(async (slotId: string) =>
-      slotId === "manual.1"
-        ? ({ kind: "rejected", code: "unavailable" } as const)
-        : ({ kind: "cleared", slotId } as const),
-    );
-    const port = fakeSavePortV1({
-      listSlots: vi.fn(async () => [
-        { slotId: "auto.current", health: "empty" },
-        { slotId: "manual.1", health: "valid" },
-        { slotId: "quick", health: "invalid" },
-      ]) as never,
-      clear: clear as never,
+  it("does not synthesize cleanup from the ordinary player Save port", () => {
+    render(<SessionMaintenancePanelV1 savePort={fakeSavePortV1()} />);
+
+    expect(screen.queryByText("Clear all saves")).toBeNull();
+  });
+
+  it("arms cleanup and reports a maintenance operation failure", async () => {
+    const clearAllSaves = vi.fn(async () => {
+      throw new Error("Save cleanup incomplete: unavailable");
     });
-    render(<SessionMaintenancePanelV1 savePort={port} />);
+    const port = fakeSavePortV1();
+    render(<SessionMaintenancePanelV1 savePort={port} clearAllSaves={clearAllSaves} />);
 
     fireEvent.click(screen.getByText("Clear all saves"));
-    expect(clear).not.toHaveBeenCalled();
+    expect(clearAllSaves).not.toHaveBeenCalled();
     fireEvent.click(screen.getByText("Confirm clear?"));
 
     await waitFor(() =>
@@ -154,14 +151,14 @@ describe("SessionMaintenancePanelV1", () => {
     expect(document.querySelector("[data-session-maintenance-note]")?.textContent).toContain(
       "unavailable",
     );
-    expect(clear).toHaveBeenCalledTimes(2);
-    expect(clear).toHaveBeenNthCalledWith(1, "manual.1");
-    expect(clear).toHaveBeenNthCalledWith(2, "quick");
+    expect(clearAllSaves).toHaveBeenCalledTimes(1);
+    expect(port.clear).not.toHaveBeenCalled();
   });
 
-  it("reports completion only after every listed save returns a clear-equivalent result", async () => {
+  it("reports completion only after the maintenance operation resolves", async () => {
     const port = fakeSavePortV1();
-    render(<SessionMaintenancePanelV1 savePort={port} />);
+    const clearAllSaves = vi.fn(async () => undefined);
+    render(<SessionMaintenancePanelV1 savePort={port} clearAllSaves={clearAllSaves} />);
 
     fireEvent.click(screen.getByText("Clear all saves"));
     fireEvent.click(screen.getByText("Confirm clear?"));
@@ -171,18 +168,20 @@ describe("SessionMaintenancePanelV1", () => {
         "All saves cleared.",
       ),
     );
-    expect(port.clear).toHaveBeenCalledTimes(2);
+    expect(clearAllSaves).toHaveBeenCalledTimes(1);
+    expect(port.clear).not.toHaveBeenCalled();
   });
 
   it("cancels an armed cleanup without mutating persistence", () => {
     const port = fakeSavePortV1();
-    render(<SessionMaintenancePanelV1 savePort={port} />);
+    const clearAllSaves = vi.fn(async () => undefined);
+    render(<SessionMaintenancePanelV1 savePort={port} clearAllSaves={clearAllSaves} />);
 
     fireEvent.click(screen.getByText("Clear all saves"));
     fireEvent.click(screen.getByText("Cancel"));
 
     expect(screen.getByText("Clear all saves")).toBeTruthy();
-    expect(port.clear).not.toHaveBeenCalled();
+    expect(clearAllSaves).not.toHaveBeenCalled();
   });
 
   it("serializes lifecycle reinitialize with every persistence operation", async () => {
@@ -194,7 +193,11 @@ describe("SessionMaintenancePanelV1", () => {
         }),
     );
     render(
-      <SessionMaintenancePanelV1 savePort={fakeSavePortV1()} onReinitialize={onReinitialize} />,
+      <SessionMaintenancePanelV1
+        savePort={fakeSavePortV1()}
+        clearAllSaves={vi.fn(async () => undefined)}
+        onReinitialize={onReinitialize}
+      />,
     );
 
     const reinitialize = screen.getByRole("button", { name: "Reinitialize" });
@@ -232,7 +235,12 @@ describe("SessionMaintenancePanelV1", () => {
           side: "right",
           title: "Session maintenance",
           authority: "cheat",
-          render: () => <SessionMaintenancePanelV1 savePort={port} />,
+          render: () => (
+            <SessionMaintenancePanelV1
+              savePort={port}
+              clearAllSaves={vi.fn(async () => undefined)}
+            />
+          ),
         },
       ],
     });

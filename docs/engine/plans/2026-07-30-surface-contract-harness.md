@@ -186,9 +186,8 @@ S1-T 最小操作集：
 - dispose cleanup；
 - immutable publication 与 subscriber failure isolation。
 
-以下 S1a–S1d 是在本次重切片前形成的历史 delivery record；它们全部归入
-S1-T。各记录的目标、非目标、计数与当时“尚未完成”结论保持原样，不把后续已接受的
-epoch/readiness 决策倒写成当时已经实现。
+以下 S1a–S1d 是在本次重切片前形成并归入 S1-T 的历史 delivery record。各记录保留
+当时的目标、非目标、计数与状态，不把后续接受的 epoch/readiness 决策倒写为已实现。
 
 ### S1a delivery record（2026-07-30）
 

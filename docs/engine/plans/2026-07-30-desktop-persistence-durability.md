@@ -1,6 +1,8 @@
 # Desktop persistence durability plan
 
-状态：2026-07-30 审查后接受执行。本文只处理桌面 Host persistence；不改变 Gameplay Snapshot、Save envelope、slot 语义或浏览器 IndexedDB adapter。
+状态：2026-07-30 审查后接受执行。本文处理桌面 Host persistence
+durability，并以独立 D4 子轨处理 per-platform packaging promotion；不改变
+Gameplay Snapshot、Save envelope、slot 语义或浏览器 IndexedDB adapter。
 
 当前 `record-file-store.mts` 已具备：
 
@@ -894,6 +896,12 @@ surface：
   `x86_64-apple-darwin`、`aarch64-apple-darwin`、
   `x86_64-pc-windows-msvc`、`x86_64-unknown-linux-gnu` 与
   `aarch64-unknown-linux-gnu`，不把较新 patch 才出现的 target 提前加入合同；
+- web build 前只采集一次 bounded、immutable、human-facing version receipt；Vite
+  注入与 artifact stem 使用同一份 receipt，page/Save 保留完整合法
+  application/engine commit（包括 `-dirty`），artifact filename 只缩短 application
+  commit 并规范化 version。cleanliness probe 不可用时对应 commit fail-closed 为
+  `null`；该 receipt 只提供 diagnostic provenance，不成为 BuildIdentity、
+  compatibility、migration 或 authoritative identity；
 - Desktop shell 通过 `BrowserWindow` 领取 startup window；原生 close request
   先同步 fence renderer authoritative ingress，再以 close-scoped
   `prepare/read` receipt 等待当前 authoritative Snapshot 通过精确候选的物理
@@ -921,14 +929,17 @@ Windows、Linux 当前都**没有**通过 D4 promotion。
    `dist`、HTML marker + per-launch capability、HTML no-store/no-frame、
    exact-origin/private-route admission、bounded/cancellable download、
    records API 与 write → exit → reopen；
-3. 验证 packaged VFS 下 static resolver 的 `lstat`/`realpath` 行为；
-4. 验证 prebuilt Vite assets 原样嵌入；若 `deno desktop` 暴露等价的 as-is
+3. 用 deterministic injected receipt vectors 验证 full-clean、full-dirty 与
+   status-unavailable 的 page/stamp/artifact 一致性；真实 runner 同时记录该次实际
+   receipt 与 artifact stem，证明一次 build 没有二次采样；
+4. 验证 packaged VFS 下 static resolver 的 `lstat`/`realpath` 行为；
+5. 验证 prebuilt Vite assets 原样嵌入；若 `deno desktop` 暴露等价的 as-is
    include 能力，优先使用，否则加入包含 `.js`/`.mjs` 资产的 smoke fixture 防止
    module-resolution 改写；
-5. 验证 installed/offline package 随包携带本地 SillyMaker MIT 文本和实际
+6. 验证 installed/offline package 随包携带本地 SillyMaker MIT 文本和实际
    bundled third-party material 要求的 notices，不能只依赖 Web Player 的
    `rel="license"` 链接；技术 manifest 只描述 bytes，不作为法律清单；
-6. 记录该平台尚未支持的签名、notarization、installer 与 updater 边界。
+7. 记录该平台尚未支持的签名、notarization、installer 与 updater 边界。
 
 剩余 D4 evidence 必须来自仓库可复现的中性 fixture 和对应真实 OS runner；
 仓库外应用可以说明需求，但不得成为正式代码/测试依赖或 promotion evidence。

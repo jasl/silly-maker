@@ -46,6 +46,7 @@ import type {
   CoreSemanticAdapterV1,
 } from "./core-game-application.ts";
 import {
+  clearAllCoreApplicationSavesForMaintenanceInternalV1,
   createCoreGameApplicationInstanceV1,
   defineCoreGameApplicationV1,
   resolveCoreGameApplicationV1,
@@ -944,6 +945,44 @@ function blockedThenFailingSaveRecordsV1() {
   });
 }
 
+function blockedSaveClearRecordsV1() {
+  const memory = createMemoryHostRecordStoreV1();
+  let blockNextSaveClear = false;
+  let reportClearStarted: (() => void) | undefined;
+  let releaseClear: (() => void) | undefined;
+  let clearStarted = Promise.resolve();
+  let clearGate = Promise.resolve();
+  const records: HostAtomicRecordStoreV1 = Object.freeze({
+    read: memory.read,
+    list: memory.list,
+    async commit(mutations: Parameters<HostAtomicRecordStoreV1["commit"]>[0]) {
+      if (
+        blockNextSaveClear &&
+        mutations.some(({ kind, namespace }) => kind === "delete" && namespace === "save")
+      ) {
+        blockNextSaveClear = false;
+        reportClearStarted?.();
+        await clearGate;
+      }
+      return memory.commit(mutations);
+    },
+  });
+  return Object.freeze({
+    records,
+    blockNextClear() {
+      blockNextSaveClear = true;
+      clearStarted = new Promise<void>((resolve) => {
+        reportClearStarted = resolve;
+      });
+      clearGate = new Promise<void>((resolve) => {
+        releaseClear = resolve;
+      });
+    },
+    waitUntilClearStarts: () => clearStarted,
+    releaseClear: () => releaseClear?.(),
+  });
+}
+
 function manualSchedulerV1() {
   const scheduled: {
     callback: () => void;
@@ -1584,6 +1623,58 @@ describe("createCoreGameApplicationInstanceV1", () => {
     await instance.flushAutoSave();
     expect(autoWrites()).toHaveLength(2);
     await instance.dispose();
+  });
+
+  it("clears behind an authoritative barrier without letting an old debounce candidate write back", async () => {
+    const storage = blockedSaveClearRecordsV1();
+    const { scheduler, scheduled, runLast } = manualSchedulerV1();
+    const instance = await createInstanceV1({
+      records: storage.records,
+      autosave: { mode: "debounced", delayMs: 800 },
+      scheduler,
+    });
+
+    await expect(instance.persistence.save("quick")).resolves.toMatchObject({
+      kind: "saved",
+    });
+    await instance.semantic.dispatch(incrementV1);
+    const staleDebounce = scheduled.at(-1);
+    if (staleDebounce === undefined) throw new TypeError("expected pending Auto Save");
+
+    storage.blockNextClear();
+    const cleanup = clearAllCoreApplicationSavesForMaintenanceInternalV1(instance);
+    await storage.waitUntilClearStarts();
+    expect(staleDebounce.cancelled).toBe(true);
+    staleDebounce.callback();
+
+    let dispatchSettled = false;
+    const dispatch = instance.semantic.dispatch(incrementV1).finally(() => {
+      dispatchSettled = true;
+    });
+    await Promise.resolve();
+    expect(dispatchSettled).toBe(false);
+    expect(instance.admin.inspectForTest().snapshot.commandSequence).toBe(1);
+
+    storage.releaseClear();
+    await cleanup;
+    await dispatch;
+    expect(instance.admin.inspectForTest().snapshot.commandSequence).toBe(2);
+    expect((await instance.persistence.listSlots()).every(({ health }) => health === "empty")).toBe(
+      true,
+    );
+
+    runLast();
+    await instance.autoSaveIdle();
+    await expect(instance.persistence.listSlots()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ slotId: "auto.current", health: "valid" }),
+        expect.objectContaining({ slotId: "quick", health: "empty" }),
+      ]),
+    );
+    await instance.dispose();
+    await expect(clearAllCoreApplicationSavesForMaintenanceInternalV1(instance)).rejects.toThrow(
+      "core.save_maintenance_unavailable",
+    );
   });
 
   it("flushes the exact current Snapshot even before the first command", async () => {

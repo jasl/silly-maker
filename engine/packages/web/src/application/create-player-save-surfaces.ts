@@ -22,9 +22,15 @@ interface PlayerSaveUiV1 {
   evaluateGuard?(publication: unknown): PlayerSaveGuardV1;
 }
 
+interface PlayerSaveMaintenanceV1 {
+  readonly savePort: SaveOverlayPortV1;
+  /** Runs Core's authoritative cleanup barrier. */
+  clearAllSaves(): Promise<void>;
+}
+
 export interface PlayerSaveSurfacesV1 {
   /** Always available to the capability-gated built-in DevDock panel. */
-  readonly maintenanceSavePort: SaveOverlayPortV1;
+  readonly maintenance: PlayerSaveMaintenanceV1;
   /** Present only when the Story opts into the default player Save dialog. */
   readonly saveUi?: PlayerSaveUiV1;
   /** Declarative Story renderer hosted by the existing System saves authority. */
@@ -38,6 +44,7 @@ export interface PlayerSaveSurfacesV1 {
 export function createPlayerSaveSurfacesV1(input: {
   readonly files: HostFilePortV1;
   readonly persistence: PlayerUiPersistenceSourceV1;
+  readonly clearAllSaves: () => Promise<void>;
   readonly saveLabels?: SaveOverlayLabelsV1;
   readonly saveGuard?: (publication: unknown) => PlayerSaveGuardV1;
   readonly customSaves?: SystemDialogCustomSavesV1;
@@ -52,12 +59,16 @@ export function createPlayerSaveSurfacesV1(input: {
     files: input.files,
     persistence: input.persistence,
   });
+  const maintenance: PlayerSaveMaintenanceV1 = Object.freeze({
+    savePort: maintenanceSavePort,
+    clearAllSaves: input.clearAllSaves,
+  });
   if (input.customSaves !== undefined) {
-    return Object.freeze({ maintenanceSavePort, customSaves: input.customSaves });
+    return Object.freeze({ maintenance, customSaves: input.customSaves });
   }
-  if (input.saveLabels === undefined) return Object.freeze({ maintenanceSavePort });
+  if (input.saveLabels === undefined) return Object.freeze({ maintenance });
   return Object.freeze({
-    maintenanceSavePort,
+    maintenance,
     saveUi: Object.freeze({
       port: maintenanceSavePort,
       labels: input.saveLabels,

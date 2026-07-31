@@ -4,7 +4,7 @@ layout: home
 hero:
   name: SillyMaker
   text: 对 LLM 友好的剧情游戏引擎
-  tagline: TypeScript + React。确定性模拟、语义舞台、原子存档——人类与 AI 代理都能创作。
+  tagline: TypeScript + React。确定性运行时合同、语义舞台、原子存档——人类与 AI 代理都能创作。
   actions:
     - theme: brand
       text: 用 AI 快速开始
@@ -19,8 +19,8 @@ hero:
 features:
   - title: 同时服务两种作者
     details: AI 代理有结构化诊断、headless 模拟与创作金丝雀；人类有 DevDock 实时检查器、可写调参面板、数值轨迹与存档对比。
-  - title: 构造上的确定性
-    details: 一个会话拥有权威状态。通过校验的命令要么原子提交、要么不留痕迹；事务性 RNG 随快照存储，受支持的重放与回退路径会复现已记录结果。
+  - title: 受支持路径上的确定性
+    details: 一个会话拥有权威状态。经准入的命令要么原子提交、要么不留痕迹；事务性 RNG 随快照存储，受支持的重放与回退路径会复现已记录结果。
   - title: 语义舞台，而非画布
     details: Story 发布纯数据的舞台目标——内容 ID、位置、外观、命中区域。渲染器是可替换的 React 组件；存档永不包含渲染器状态。
   - title: 静态数据即内容表

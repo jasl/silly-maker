@@ -4,11 +4,11 @@
 
 ## 顺序与理由
 
-1. **T1 — R5 Typed Timeline**：演出向复刻实验的硬前置；复用 R3 的 PresentationRun/Clock/interruption/fencing。
-2. **T2 — R6.1/6.2 DevTools 数据面**：runtime inspector（Stage/PendingInteraction/Transition/Audio intent/History inspector 面板）与 Narrative graph 可视化；提高后续复刻实验中模型自查效率。
+1. **T1 — R5 Typed Timeline**：演出密集 Story 的硬前置；复用 R3 的 PresentationRun/Clock/interruption/fencing。
+2. **T2 — R6.1/6.2 DevTools 数据面**：runtime inspector（Stage/PendingInteraction/Transition/Audio intent/History inspector 面板）与 Narrative graph 可视化；提高后续真实 Story 中模型自查效率。
 3. **T3 — R7 Player rollback**：依赖 Snapshot/Stage 重投影/Audio intent/PendingInteraction 恢复均已稳定，放最后风险最低；先在 Engine Lab 验证，再谈产品策略。
 
-复刻验证实验与本计划并行，其产出的真实需求证据决定 defer 项是否激活（政策见 [assets-and-references](../../policies/assets-and-references.md) 的 Unpublished validation replicas 节）。
+外部、未发布的验证 workload 与本计划并行，其产出的中性需求证据决定 defer 项是否激活（边界见 [assets-and-references](../../policies/assets-and-references.md) 的 Unpublished validation replicas 节）。
 
 ## 明确 defer（本计划不做，激活需真实 Story 证据）
 
@@ -45,15 +45,15 @@
 - Engine Lab：叙事中段回滚（跨 say/choice/barrier）、SLG 命令后回滚、pinned RNG 结果的防重掷证明、rollback 与 autosave/手动存档的互不污染。
 - 验收：headless 确定性测试 + 浏览器 spec；History/Seen/profile 的 R7 所有权按设计合同落地；docs 更新。
 
-## 缺口交付记录（2026-07-28，随《雨巷猫舍》）
+## 原创 Story 缺口交付记录（2026-07-28，随《雨巷猫舍》）
 
-[RPG Maker 复刻缺口分析](../../research/2026-07-28-mv-slg-gap-analysis.md)识别的三项缺口不再 defer，已随 `examples/cat-cafe`（设计规格 `DESIGN.md`）交付：
+[中型 SLG 能力验证](../../research/2026-07-28-medium-slg-capability-validation.md)记录的三个通用压力不再 defer；它们已由原创 `examples/cat-cafe`（设计规格 `DESIGN.md`）和正式测试独立交付：
 
-- 内容数据库（缺口 A/B）：`defineContentTableV1`/`createContentDatabaseV1`，五张真实表消费（活动/部位反应/技能/对手/图鉴），adoption gate 由设计规格满足。
+- 内容数据库（缺口 A/B）：`defineContentTableV1`/`createContentDatabaseV1`，六张真实表消费（活动/随机事件/部位反应/技能/对手/图鉴），adoption gate 由设计规格满足。
 - 语义舞台命中区域（缺口 C）：内容目录按 contentId+appearance 解析 `hitRegions`，host 渲染可聚焦命中层，指针/触摸/键盘同路径；抚摸玩法浏览器 spec 验收（`hit-regions.spec.ts`）。
 - Host 元进度命名空间（缺口 E）：`PlayerProfileV1.meta` 单调映射 + `markMeta`，图鉴相册跨存档验证。
 
-i18n 工作流（缺口 F）保持 defer：架构已支持多 locale 目录，工具在真实翻译需求出现时再立项（猫舍已交付双语目录与缺键对等测试，验证了架构侧无缺口）。
+i18n 工作流保持 defer：架构已支持多 locale 目录，工具在真实翻译需求出现时再立项（猫舍已交付双语目录与缺键对等测试，验证了架构侧无缺口）。
 
 [DoL 对照复查](../../research/2026-07-28-dol-engine-gap-review.md)（2026-07-28）新增证据行：
 

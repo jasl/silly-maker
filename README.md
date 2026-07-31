@@ -2,7 +2,7 @@
 
 English | [简体中文](README.zh-CN.md)
 
-An LLM-friendly TypeScript + React game engine for visual novels, management sims, and RPG-flavored story games. Deterministic simulation, a semantic stage, atomic saves — authorable by humans and AI agents alike, running on [Deno](https://deno.com/).
+An LLM-friendly TypeScript + React game engine for visual novels, management sims, and RPG-flavored story games. Deterministic runtime contracts, a semantic stage, atomic saves — authorable by humans and AI agents alike, running on [Deno](https://deno.com/).
 
 **Play the flagship example**: the [Cat Cafe](examples/cat-cafe/) (《雨巷猫舍》) is a complete, publishable game built to drive the engine — title screen, scheduling gameplay, petting hit-regions, a turn-based contest, an album, multiple endings with a postgame, dialogue playback QoL (typewriter / auto / skip / history / rollback), scene-driven audio, save slots with safepoints, bilingual text, and a host/cross-target desktop-packaging preview.
 
@@ -10,7 +10,7 @@ An LLM-friendly TypeScript + React game engine for visual novels, management sim
 
 ## Why SillyMaker
 
-- **Deterministic by construction** — one session owns authoritative state; commands commit atomically or not at all; RNG travels inside snapshots, so replay and player rollback reproduce the same run bit for bit.
+- **Deterministic on supported paths** — one session owns authoritative state; admitted commands commit atomically or not at all; transactional RNG travels inside snapshots, so supported replay and rollback paths reproduce recorded outcomes.
 - **Semantic stage, not a canvas** — Stories publish plain-data stage targets (content IDs, placements, appearances, hit regions); renderers are swappable React components; saves never contain renderer state.
 - **Static data as content tables** — items, activities, events, and reactions live in validated content-database tables with typed queries; mutable state stays in modules; tuning is editing a table row.
 - **Built for both audiences** — AI agents get structured diagnostics, headless simulation, and authoring canaries; humans get a DevDock with live inspectors, a writable tuning panel, trajectory traces, and save diffs.

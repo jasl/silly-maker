@@ -39,9 +39,9 @@ active、谁拥有输入和焦点、谁阻塞谁、Back 作用于谁”。游戏
 
 1. 当前引擎的 overlay、system dialog、narrative、stage interaction、InputRouter
    和 focus/isolation 分别拥有局部真相，组合正确性仍依赖手工约定；
-2. 本地、不可发布的整画布复刻实验反复暴露同一类故障：视觉画面、可点击动作、导航栈、pending
+2. 外部、不可发布的整画布验证 workload 反复暴露同一类故障：视觉画面、可点击动作、导航栈、pending
    interaction 和 React
-   状态并非同一权威投影，较弱模型只能逐点补丁，难以证明所有组合闭合。该实验只提供抽象行为证据，不是源码、素材或测试依赖。
+   状态并非同一权威投影，较弱模型只能逐点补丁，难以证明所有组合闭合。该 workload 只提供抽象行为证据，不是源码、素材或测试依赖。
 
 官方引擎调研与取舍见
 [game engine Surface/state/harness research](../../research/2026-07-30-game-engine-surface-state-harness.md)。

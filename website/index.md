@@ -4,7 +4,7 @@ layout: home
 hero:
   name: SillyMaker
   text: An LLM-friendly game engine for story games
-  tagline: TypeScript + React. Deterministic simulation, semantic stages, atomic saves — authorable by humans and AI agents alike.
+  tagline: TypeScript + React. Deterministic runtime contracts, semantic stages, atomic saves — authorable by humans and AI agents alike.
   actions:
     - theme: brand
       text: Get started with AI
@@ -19,8 +19,8 @@ hero:
 features:
   - title: Built for both audiences
     details: AI agents get structured diagnostics, headless simulation, and authoring canaries. Humans get a DevDock with live inspectors, a writable tuning panel, trajectory traces, and save diffs.
-  - title: Deterministic by construction
-    details: One session owns authoritative state. Validated commands commit atomically or not at all; transactional RNG travels inside snapshots, so supported replay and rollback paths reproduce recorded outcomes.
+  - title: Deterministic on supported paths
+    details: One session owns authoritative state. Admitted commands commit atomically or not at all; transactional RNG travels inside snapshots, so supported replay and rollback paths reproduce recorded outcomes.
   - title: Semantic stage, not a canvas
     details: Stories publish plain-data stage targets — content IDs, placements, appearances, hit regions. Renderers are swappable React components; saves never contain renderer state.
   - title: Static data as content tables

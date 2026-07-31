@@ -15,6 +15,9 @@
     },
     {
       "path": "./examples/cat-cafe"
+    },
+    {
+      "path": "./examples/silly-os"
     }
   ]
 }

@@ -54,6 +54,28 @@ type SessionDispatchResultOfV1<TTypes extends GameSimulationTypeMapV1> = Awaited
   ReturnType<GameSessionV1<TTypes>["dispatch"]>
 >;
 
+type CoreSaveMaintenanceOperationV1 = () => Promise<void>;
+type CoreSaveMaintenanceBarrierResultV1 =
+  { readonly kind: "cleared" } | { readonly kind: "failed"; readonly message: string };
+
+const coreSaveMaintenanceOperationsV1 = new WeakMap<object, CoreSaveMaintenanceOperationV1>();
+
+/**
+ * Package-internal Web composition seam. The maintenance operation stays off
+ * the ordinary Core instance and player persistence ports.
+ *
+ * @internal
+ */
+export function clearAllCoreApplicationSavesForMaintenanceInternalV1(
+  instance: object,
+): Promise<void> {
+  const operation = coreSaveMaintenanceOperationsV1.get(instance);
+  if (operation === undefined) {
+    return Promise.reject(new TypeError("core.save_maintenance_unavailable"));
+  }
+  return operation();
+}
+
 export type CoreAttemptForV1<TTypes extends GameSimulationTypeMapV1> = ReturnType<
   GameSessionDebugInputV1<TTypes>["normalizeUnexpectedFault"]
 >;
@@ -1095,6 +1117,65 @@ export async function createCoreGameApplicationInstanceV1<
         withOriginV1("import", () => persistence.port.importSave(bytes)),
     });
 
+    const maintenanceFailureMessageV1 = (error: unknown): string =>
+      error instanceof Error ? error.message : String(error);
+    const clearAllSavesForMaintenanceV1 = async (): Promise<void> => {
+      const outcome =
+        await created.runtimeControl.enqueueAuthoritative<CoreSaveMaintenanceBarrierResultV1>(
+          async () => {
+            const failures = new Set<string>();
+            try {
+              // Once this preserve barrier reaches the queue front, no later
+              // command can commit until the physical cleanup is complete.
+              clearPendingAutoSaveV1();
+              await persistence.autoSaveIdle();
+              const slots = await persistencePort.listSlots();
+              for (const slot of slots) {
+                if (slot.health === "empty") continue;
+                try {
+                  const result = await persistencePort.clear(slot.slotId);
+                  if (result.kind === "cleared") continue;
+                  if (result.kind === "rejected" && result.code === "empty_slot") {
+                    continue;
+                  }
+                  failures.add(
+                    result.kind === "rejected" || result.kind === "faulted"
+                      ? result.code
+                      : result.kind,
+                  );
+                } catch (error) {
+                  failures.add(maintenanceFailureMessageV1(error));
+                }
+              }
+            } catch (error) {
+              failures.add(maintenanceFailureMessageV1(error));
+            }
+            return Object.freeze({
+              kind: "preserve" as const,
+              result:
+                failures.size === 0
+                  ? Object.freeze({ kind: "cleared" as const })
+                  : Object.freeze({
+                      kind: "failed" as const,
+                      message: `Save cleanup incomplete: ${[...failures].join(", ")}`,
+                    }),
+            });
+          },
+          (error) =>
+            Object.freeze({
+              kind: "failed" as const,
+              message: maintenanceFailureMessageV1(error),
+            }),
+          undefined,
+          () =>
+            Object.freeze({
+              kind: "failed" as const,
+              message: "core.save_maintenance_unavailable",
+            }),
+        );
+      if (outcome.kind === "failed") throw new Error(outcome.message);
+    };
+
     const restartV1 = (): Promise<SessionAnchorResultV1> =>
       withOriginV1("restart", () =>
         created.runtimeControl.enqueueAuthoritative<SessionAnchorResultV1>(
@@ -1431,7 +1512,13 @@ export async function createCoreGameApplicationInstanceV1<
         : {}),
     });
 
-    return Object.freeze({
+    let maintenanceInstance: object | undefined;
+    const unregisterSaveMaintenanceV1 = (): void => {
+      if (maintenanceInstance !== undefined) {
+        coreSaveMaintenanceOperationsV1.delete(maintenanceInstance);
+      }
+    };
+    const instance = Object.freeze({
       storyId: application.storyId,
       storyRevision: application.storyRevision,
       semantic,
@@ -1479,12 +1566,22 @@ export async function createCoreGameApplicationInstanceV1<
       admin,
       isDisposed: () => disposed,
       dispose: async () => {
+        unregisterSaveMaintenanceV1();
         await disposeForRebootstrapV1();
         return Object.freeze({ kind: "disposed" as const });
       },
-      invalidateForHmr: invalidateForHmrV1,
-      disposeForRebootstrap: () => disposeForRebootstrapV1(),
+      invalidateForHmr: () => {
+        unregisterSaveMaintenanceV1();
+        invalidateForHmrV1();
+      },
+      disposeForRebootstrap: () => {
+        unregisterSaveMaintenanceV1();
+        return disposeForRebootstrapV1();
+      },
     });
+    maintenanceInstance = instance;
+    coreSaveMaintenanceOperationsV1.set(instance, clearAllSavesForMaintenanceV1);
+    return instance;
   } catch (error) {
     disposed = true;
     for (const cleanup of cleanups.splice(0)) cleanup();

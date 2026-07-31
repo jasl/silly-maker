@@ -51,8 +51,10 @@ export const defaultSessionMaintenanceLabelsV1: SessionMaintenanceLabelsV1 = Obj
 });
 
 export interface SessionMaintenancePanelPropsV1 {
-  /** Enables Export/Import state and the default slot-clearing cleanup. */
+  /** Enables Export/Import state. */
   readonly savePort?: SaveOverlayPortV1;
+  /** Engine-owned cleanup operation that first drains pending Auto Save work. */
+  readonly clearAllSaves?: () => Promise<void>;
   /** Return to the title front door; omit to hide the action. */
   readonly onReinitialize?: () => void | Promise<unknown>;
   readonly reinitializeDisabled?: boolean;
@@ -80,33 +82,7 @@ export function SessionMaintenancePanelV1(props: SessionMaintenancePanelPropsV1)
     error instanceof Error ? error.message : String(error);
 
   const savePort = props.savePort;
-  const defaultWipe = async (): Promise<string | void> => {
-    if (savePort === undefined) return;
-    const slots = await savePort.listSlots();
-    const failures = new Set<string>();
-    for (const slot of slots) {
-      if (slot.health === "empty") continue;
-      try {
-        const result = await savePort.clear(
-          slot.slotId as Parameters<SaveOverlayPortV1["clear"]>[0],
-        );
-        if (result.kind === "cleared") continue;
-        if (result.kind === "rejected" && result.code === "empty_slot") {
-          continue;
-        }
-        failures.add(
-          result.kind === "rejected" || result.kind === "faulted" ? result.code : result.kind,
-        );
-      } catch (error) {
-        failures.add(failureNote(error));
-      }
-    }
-    if (failures.size > 0) {
-      throw new Error(`Save cleanup incomplete: ${[...failures].join(", ")}`);
-    }
-    return labels.wipeDoneText;
-  };
-  const wipe = savePort === undefined ? undefined : defaultWipe;
+  const wipe = props.clearAllSaves;
 
   return (
     <section
@@ -207,9 +183,7 @@ export function SessionMaintenancePanelV1(props: SessionMaintenancePanelPropsV1)
               setBusy("wipe");
               setNote(null);
               void wipe()
-                .then((doneNote) =>
-                  setNote(typeof doneNote === "string" ? doneNote : labels.wipeDoneText),
-                )
+                .then(() => setNote(labels.wipeDoneText))
                 .catch((error: unknown) => setNote(failureNote(error)))
                 .finally(() => setBusy(null));
             }}
