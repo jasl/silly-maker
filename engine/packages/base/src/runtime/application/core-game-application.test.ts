@@ -1774,6 +1774,8 @@ describe("createCoreGameApplicationInstanceV1", () => {
       bootstrapHandoffFreezeTraversals: 0,
       commandAdmissionCanonicalTraversals: 0,
       commandHandoffFreezeTraversals: 0,
+      commandLogMetadataAdmissionCanonicalTraversals: 0,
+      commandLogMetadataFreezeTraversals: 0,
       evidenceAdmissionCanonicalTraversals: 0,
       replayComparisonTraversals: 0,
       totalPhysicalCanonicalTraversals: 1,
@@ -1788,6 +1790,8 @@ describe("createCoreGameApplicationInstanceV1", () => {
       bootstrapHandoffFreezeTraversals: 0,
       commandAdmissionCanonicalTraversals: 0,
       commandHandoffFreezeTraversals: 0,
+      commandLogMetadataAdmissionCanonicalTraversals: 0,
+      commandLogMetadataFreezeTraversals: 0,
       evidenceAdmissionCanonicalTraversals: 0,
       replayComparisonTraversals: 0,
       totalPhysicalCanonicalTraversals: 1,
@@ -2441,36 +2445,42 @@ describe("createCoreGameApplicationInstanceV1", () => {
       expect(fixture.factSchemaInputs[0]).toBe(fixture.rawFacts[0]);
       expect(fixture.factSchemaInputs[1]).toBe(fixture.rawFacts[1]);
       expect(fixture.earlierFactFrozenDuringNormalization).toEqual([false]);
-      expect(fixture.projectedFacts()?.[0]).toBe(fixture.normalizedFacts[0]);
-      expect(fixture.projectedFacts()?.[1]).toBe(fixture.normalizedFacts[1]);
-      expect(Object.isFrozen(fixture.projectedFacts())).toBe(true);
-      expect(fixture.normalizedFacts.every(Object.isFrozen)).toBe(true);
+      const committedFacts = fixture.projectedFacts();
+      expect(committedFacts?.[0]).not.toBe(fixture.normalizedFacts[0]);
+      expect(committedFacts?.[1]).not.toBe(fixture.normalizedFacts[1]);
+      expect(committedFacts?.[0]).toEqual(fixture.normalizedFacts[0]);
+      expect(committedFacts?.[1]).toEqual(fixture.normalizedFacts[1]);
+      expect(Object.isFrozen(committedFacts)).toBe(true);
+      expect(fixture.normalizedFacts.every(Object.isFrozen)).toBe(false);
       const committedEntry = instance.admin.commandLog()[0] as {
         readonly outcome: {
           readonly kind: "committed";
           readonly facts: readonly EvidenceFactV1[];
         };
       };
-      expect(committedEntry.outcome.facts[0]).toBe(fixture.normalizedFacts[0]);
-      expect(committedEntry.outcome.facts[1]).toBe(fixture.normalizedFacts[1]);
+      expect(committedEntry.outcome.facts[0]).toBe(committedFacts?.[0]);
+      expect(committedEntry.outcome.facts[1]).toBe(committedFacts?.[1]);
 
       await expect(instance.semantic.dispatch(rejectV1)).resolves.toEqual({ kind: "rejected" });
       expect(fixture.rejectionSchemaInputs).toHaveLength(2);
       expect(fixture.rejectionSchemaInputs[0]).toBe(fixture.rawRejections[0]);
       expect(fixture.rejectionSchemaInputs[1]).toBe(fixture.rawRejections[1]);
       expect(fixture.earlierRejectionFrozenDuringNormalization).toEqual([false]);
-      expect(fixture.projectedRejections()?.[0]).toBe(fixture.normalizedRejections[0]);
-      expect(fixture.projectedRejections()?.[1]).toBe(fixture.normalizedRejections[1]);
-      expect(Object.isFrozen(fixture.projectedRejections())).toBe(true);
-      expect(fixture.normalizedRejections.every(Object.isFrozen)).toBe(true);
+      const rejectedReasons = fixture.projectedRejections();
+      expect(rejectedReasons?.[0]).not.toBe(fixture.normalizedRejections[0]);
+      expect(rejectedReasons?.[1]).not.toBe(fixture.normalizedRejections[1]);
+      expect(rejectedReasons?.[0]).toEqual(fixture.normalizedRejections[0]);
+      expect(rejectedReasons?.[1]).toEqual(fixture.normalizedRejections[1]);
+      expect(Object.isFrozen(rejectedReasons)).toBe(true);
+      expect(fixture.normalizedRejections.every(Object.isFrozen)).toBe(false);
       const rejectedEntry = instance.admin.commandLog()[1] as {
         readonly outcome: {
           readonly kind: "rejected";
           readonly reasons: readonly EvidenceRejectionV1[];
         };
       };
-      expect(rejectedEntry.outcome.reasons[0]).toBe(fixture.normalizedRejections[0]);
-      expect(rejectedEntry.outcome.reasons[1]).toBe(fixture.normalizedRejections[1]);
+      expect(rejectedEntry.outcome.reasons[0]).toBe(rejectedReasons?.[0]);
+      expect(rejectedEntry.outcome.reasons[1]).toBe(rejectedReasons?.[1]);
 
       const debugControl = instance.admin.debugControl;
       if (debugControl === undefined) throw new TypeError("debug control must be enabled");
@@ -2488,9 +2498,11 @@ describe("createCoreGameApplicationInstanceV1", () => {
       }
       expect(fixture.debugValidationSchemaInputs).toHaveLength(1);
       expect(fixture.debugValidationSchemaInputs[0]).toBe(fixture.rawDebugValidationErrors[0]);
-      expect(validation.errors[0]).toBe(fixture.normalizedDebugValidationErrors[0]);
+      expect(validation.errors[0]).not.toBe(fixture.normalizedDebugValidationErrors[0]);
+      expect(validation.errors[0]).toEqual(fixture.normalizedDebugValidationErrors[0]);
       expect(Object.isFrozen(validation.errors)).toBe(true);
       expect(Object.isFrozen(validation.errors[0])).toBe(true);
+      expect(Object.isFrozen(fixture.normalizedDebugValidationErrors[0])).toBe(false);
       expect(instance.admin.commandLog()).toBe(logBeforeDebugValidation);
 
       const commandLogBytesBeforeReplay = canonicalJsonBytes(instance.admin.commandLog());
@@ -2505,10 +2517,10 @@ describe("createCoreGameApplicationInstanceV1", () => {
       expect(fixture.rejectionSchemaInputs).toHaveLength(4);
       expect(canonicalJsonBytes(instance.admin.commandLog())).toEqual(commandLogBytesBeforeReplay);
       expect((instance.admin.commandLog()[0] as typeof committedEntry).outcome.facts[0]).toBe(
-        fixture.normalizedFacts[0],
+        committedFacts?.[0],
       );
       expect((instance.admin.commandLog()[1] as typeof rejectedEntry).outcome.reasons[0]).toBe(
-        fixture.normalizedRejections[0],
+        rejectedReasons?.[0],
       );
     } finally {
       await instance.dispose();
@@ -2546,6 +2558,8 @@ describe("createCoreGameApplicationInstanceV1", () => {
         bootstrapHandoffFreezeTraversals: 0,
         commandAdmissionCanonicalTraversals: 1,
         commandHandoffFreezeTraversals: 1,
+        commandLogMetadataAdmissionCanonicalTraversals: 0,
+        commandLogMetadataFreezeTraversals: 0,
         evidenceAdmissionCanonicalTraversals: 0,
         replayComparisonTraversals: 0,
         totalPhysicalCanonicalTraversals: 1,
@@ -2593,6 +2607,8 @@ describe("createCoreGameApplicationInstanceV1", () => {
         bootstrapHandoffFreezeTraversals: 0,
         commandAdmissionCanonicalTraversals: 1,
         commandHandoffFreezeTraversals: 1,
+        commandLogMetadataAdmissionCanonicalTraversals: 0,
+        commandLogMetadataFreezeTraversals: 0,
         evidenceAdmissionCanonicalTraversals: 0,
         replayComparisonTraversals: 0,
         totalPhysicalCanonicalTraversals: 1,

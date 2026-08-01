@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: MIT
 import { digestCanonicalInternalV1 } from "../../contracts/digest.ts";
+import {
+  CanonicalJsonError,
+  projectCanonicalJsonInternalV1,
+} from "../../contracts/canonical-json.ts";
 import type { CommandExecutionAttemptEnvelopeV1 } from "../../contracts/execution.ts";
 import type {
   DeepReadonly,
@@ -47,14 +51,21 @@ type CommandLogOutcomeV1<TFact, TRejection, TFault> =
   | { readonly kind: "rejected"; readonly reasons: readonly TRejection[] }
   | { readonly kind: "faulted"; readonly fault: TFault };
 
+type CommandLogEngineFieldV1<TRngState, TRngDrawTrace> =
+  | keyof LoggedCommandShapeV1
+  | keyof CommandLogEntryBaseForV1<TRngState, TRngDrawTrace>
+  | "outcome";
+
 type CommandLogEntryForV1<TLoggedCommand, TFact, TRejection, TFault, TRngState, TRngDrawTrace> =
-  DeepReadonly<
-    & CommandLogEntryBaseForV1<TRngState, TRngDrawTrace>
-    & TLoggedCommand
-    & {
-      readonly outcome: CommandLogOutcomeV1<TFact, TRejection, TFault>;
-    }
-  >;
+  TLoggedCommand extends LoggedCommandShapeV1 ? DeepReadonly<
+      & CommandLogEntryBaseForV1<TRngState, TRngDrawTrace>
+      & Pick<TLoggedCommand, keyof LoggedCommandShapeV1>
+      & Omit<TLoggedCommand, CommandLogEngineFieldV1<TRngState, TRngDrawTrace>>
+      & {
+        readonly outcome: CommandLogOutcomeV1<TFact, TRejection, TFault>;
+      }
+    >
+    : never;
 
 interface InternalCommandLogEntryV1<TSnapshot, TEntry> {
   readonly entry: TEntry;
@@ -129,23 +140,89 @@ export interface CommandLogV1<
 
 const commandLogMaximumEntriesV1 = 200;
 
-function copyAdditionalLoggedCommandFieldsV1(
+const commandLogReservedFieldsV1 = new Set<PropertyKey>([
+  "source",
+  "command",
+  "logOrdinal",
+  "preStateDigest",
+  "postStateDigest",
+  "commandSequence",
+  "committedRngBefore",
+  "attemptedDraws",
+  "candidateRngAfter",
+  "committedRngAfter",
+  "outcome",
+]);
+
+function pointerSegmentV1(value: string): string {
+  return value.replaceAll("~", "~0").replaceAll("/", "~1");
+}
+
+function freezeAdditionalLoggedCommandFieldsV1(
+  value: object,
+  instrumentation?: SnapshotWorkInstrumentationV1,
+): void {
+  recordSnapshotWorkV1(
+    instrumentation,
+    "deep_freeze_traversal",
+    "command_log_metadata_freeze",
+  );
+  const visited = new Set<object>();
+  const freeze = (current: unknown): void => {
+    if (current === null || typeof current !== "object" || visited.has(current)) return;
+    visited.add(current);
+    for (const descriptor of Object.values(Object.getOwnPropertyDescriptors(current))) {
+      if (descriptor.get === undefined && descriptor.set === undefined) freeze(descriptor.value);
+    }
+    Object.freeze(current);
+  };
+  freeze(value);
+}
+
+function projectAdditionalLoggedCommandFieldsV1(
   loggedCommand: object,
-): Record<PropertyKey, unknown> {
-  const fields = Object.create(null) as Record<PropertyKey, unknown>;
+  instrumentation?: SnapshotWorkInstrumentationV1,
+): Readonly<Record<string, unknown>> | undefined {
+  const fields = {} as Record<string, unknown>;
+  let fieldCount = 0;
   for (const key of Reflect.ownKeys(loggedCommand)) {
     if (key === "source" || key === "command") continue;
     const descriptor = Object.getOwnPropertyDescriptor(loggedCommand, key);
-    if (descriptor?.enumerable === true) {
-      Object.defineProperty(fields, key, {
-        configurable: true,
-        enumerable: true,
-        writable: true,
-        value: Reflect.get(loggedCommand, key),
-      });
+    if (descriptor?.enumerable !== true) continue;
+    if (commandLogReservedFieldsV1.has(key)) {
+      throw new TypeError(`CommandLog logged-command field ${String(key)} is engine-owned`);
     }
+    if (typeof key === "symbol") {
+      throw new CanonicalJsonError("value.unrepresented_property", "");
+    }
+    if (descriptor.get !== undefined || descriptor.set !== undefined) {
+      throw new CanonicalJsonError("value.getter", `/${pointerSegmentV1(key)}`);
+    }
+    Object.defineProperty(fields, key, {
+      configurable: true,
+      enumerable: true,
+      writable: true,
+      value: descriptor.value,
+    });
+    fieldCount += 1;
   }
-  return fields;
+  if (fieldCount === 0) return undefined;
+  const projection = projectCanonicalJsonInternalV1(
+    fields,
+    instrumentation,
+    "command_log_metadata_admission",
+  ).value;
+  const orderedProjection = {} as Record<string, unknown>;
+  for (const key of Object.keys(fields)) {
+    Object.defineProperty(orderedProjection, key, {
+      configurable: true,
+      enumerable: true,
+      writable: true,
+      value: projection[key],
+    });
+  }
+  freezeAdditionalLoggedCommandFieldsV1(orderedProjection, instrumentation);
+  return orderedProjection;
 }
 
 function createOutcomeV1<
@@ -317,7 +394,10 @@ export function createCommandLogInternalV1<
         instrumentation,
       );
 
-      const additionalLoggedCommandFields = copyAdditionalLoggedCommandFieldsV1(loggedCommand);
+      const additionalLoggedCommandFields = projectAdditionalLoggedCommandFieldsV1(
+        loggedCommand,
+        instrumentation,
+      );
       const postAttemptSnapshot = admittedAttempt.result.snapshot;
       const diagnostics = admittedAttempt.diagnostics;
       const entry = Object.freeze({

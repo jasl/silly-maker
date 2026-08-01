@@ -34,20 +34,34 @@ Schemas can be hand-written parse functions or, preferably, built through `@sill
 A hand-written permissive schema is still supported, but it cannot bypass the
 engine's command boundary. `GameSession.dispatch` keeps a thrown Story schema
 failure as `not_executed/validation_failed`; after the schema successfully
-returns, the engine validates and freezes that exact normalized identity before
-queueing it. A Strict Canonical Data violation instead rejects with
+returns, the engine validates it and constructs a new ordinary Strict Canonical
+Data projection before queueing. Only that engine-owned projection is frozen and
+delivered to execution/log/replay. Command admission itself neither retains nor
+freezes the schema return identity: a mutable hand-written schema result remains
+mutable, while `createRuntimeSchemaV1` / `fromStandardSchemaV1` output is already
+frozen by the schema contract described above. Shared aliases expand per canonical path, so do not
+use object identity as command semantics. A Strict Canonical Data violation instead rejects with
 `CanonicalJsonError` (`code` plus JSON-Pointer `path`) from `@sillymaker/base` and
 does not enter the Story fault normalizer. Direct low-level Simulation and
 CommandLog calls apply the same gate synchronously. Use integer, plain,
 cycle-free command data. Do not attach symbol-keyed members or extra own
 properties to arrays, and do not replace an array's prototype: those members
-are visible to JavaScript executors but are not represented by canonical command
-bytes or replay. Command admission rejects unrepresented members as
+are not represented by canonical command bytes or replay. Command admission
+rejects unrepresented members as
 `value.unrepresented_property` and a custom array prototype as
 `value.custom_prototype` without changing the public canonical encoder. Use data
 properties rather than accessors; admission rejects an accessor as
 `value.getter` without invoking it when traversal reaches that member. Do not
 rely on a later Snapshot or Save encode to catch an invalid command.
+
+Likewise, finalization does not retain or itself freeze the upstream identities
+produced by Story fact/rejection/Debug-error normalizers; a schema helper may
+already have frozen its output. Evidence arrays use one captured own `length`
+data descriptor, so Proxy virtual length cannot alter their item vector.
+Finalization projects and freezes the Snapshot-free canonical data;
+the returned attempt and CommandLog share that admitted projection. Snapshot
+objects themselves remain the authoritative identity and are not cloned by this
+evidence boundary.
 
 For module wiring, `createGameAuthoringKitV1` captures the Game type family once and provides `defineCapability` (typed tokens), `defineStatefulModule`/`defineStatelessModule` helpers (omit absent command/query surfaces; proposal schemas derive from operation schemas), `provides` factories that build narrow read-only ports from the owner's own State slice, `requires` declarations that surface as typed dependency ports in `owner.propose`, and `initializesAfter` for startup order. `composeModules` validates both the capability DAG and the lifecycle DAG with stable diagnostic codes and emits ordinary low-level bindings for `defineGameSimulation`, so kit and hand-written modules never form two authorities.
 

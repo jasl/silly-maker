@@ -17,6 +17,8 @@ export type SnapshotWorkPurposeV1 =
   | "bootstrap_handoff_freeze"
   | "command_admission"
   | "command_handoff_freeze"
+  | "command_log_metadata_admission"
+  | "command_log_metadata_freeze"
   | "evidence_admission"
   | "replay_comparison";
 
@@ -31,6 +33,8 @@ export interface PurposeTaggedSnapshotWorkCountsV1 {
   readonly bootstrapHandoffFreezeTraversals: number;
   readonly commandAdmissionCanonicalTraversals: number;
   readonly commandHandoffFreezeTraversals: number;
+  readonly commandLogMetadataAdmissionCanonicalTraversals: number;
+  readonly commandLogMetadataFreezeTraversals: number;
   readonly evidenceAdmissionCanonicalTraversals: number;
   readonly replayComparisonTraversals: number;
   readonly totalPhysicalCanonicalTraversals: number;
@@ -97,6 +101,8 @@ function emptyPurposeTaggedCountsV1(): PurposeTaggedSnapshotWorkCountsV1 {
     bootstrapHandoffFreezeTraversals: 0,
     commandAdmissionCanonicalTraversals: 0,
     commandHandoffFreezeTraversals: 0,
+    commandLogMetadataAdmissionCanonicalTraversals: 0,
+    commandLogMetadataFreezeTraversals: 0,
     evidenceAdmissionCanonicalTraversals: 0,
     replayComparisonTraversals: 0,
     totalPhysicalCanonicalTraversals: 0,
@@ -159,6 +165,23 @@ export function createPurposeTaggedSnapshotWorkCounterV1(): {
             counts = {
               ...counts,
               commandHandoffFreezeTraversals: counts.commandHandoffFreezeTraversals + 1,
+            };
+          }
+          return;
+        case "command_log_metadata_admission":
+          if (event === "canonical_traversal") {
+            counts = {
+              ...counts,
+              commandLogMetadataAdmissionCanonicalTraversals:
+                counts.commandLogMetadataAdmissionCanonicalTraversals + 1,
+            };
+          }
+          return;
+        case "command_log_metadata_freeze":
+          if (event === "deep_freeze_traversal") {
+            counts = {
+              ...counts,
+              commandLogMetadataFreezeTraversals: counts.commandLogMetadataFreezeTraversals + 1,
             };
           }
           return;

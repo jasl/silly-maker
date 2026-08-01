@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { canonicalJsonBytesInternalV1 } from "../contracts/canonical-json.ts";
+import { projectCanonicalJsonInternalV1 } from "../contracts/canonical-json.ts";
 import type { DeepReadonly } from "../contracts/values.ts";
 import type { SnapshotWorkInstrumentationV1 } from "./snapshot-work-instrumentation.ts";
 import { recordSnapshotWorkV1 } from "./snapshot-work-instrumentation.ts";
@@ -62,18 +62,17 @@ export function prepareCanonicalCommandAdmissionInternalV1<TCommand>(
   value: TCommand,
   instrumentation?: SnapshotWorkInstrumentationV1,
 ): CanonicalCommandAdmissionInternalV1<TCommand> {
-  canonicalJsonBytesInternalV1(
+  const projection = projectCanonicalJsonInternalV1(
     value,
     instrumentation,
     "command_admission",
-    { requireFullyRepresentedOwnData: true },
   );
   return Object.freeze({
     [canonicalCommandAdmissionBrandV1]: true as const,
     ...(instrumentation === undefined
       ? {}
       : { [canonicalCommandAdmissionInstrumentationV1]: instrumentation }),
-    value: value as DeepReadonly<TCommand>,
+    value: projection.value as DeepReadonly<TCommand>,
   });
 }
 

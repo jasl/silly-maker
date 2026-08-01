@@ -98,6 +98,8 @@ function countsV1(input: {
       bootstrapHandoffFreezeTraversals: 0,
       commandAdmissionCanonicalTraversals: commandAdmission ? 1 : 0,
       commandHandoffFreezeTraversals: commandAdmission ? 1 : 0,
+      commandLogMetadataAdmissionCanonicalTraversals: 0,
+      commandLogMetadataFreezeTraversals: 0,
       evidenceAdmissionCanonicalTraversals: evidenceAdmissions,
       replayComparisonTraversals: 0,
       totalPhysicalCanonicalTraversals: (input.committed ? 1 : 0) +
@@ -326,6 +328,8 @@ describe("authoritative determinism evidence finalization", () => {
         bootstrapHandoffFreezeTraversals: 0,
         commandAdmissionCanonicalTraversals: 1,
         commandHandoffFreezeTraversals: 0,
+        commandLogMetadataAdmissionCanonicalTraversals: 0,
+        commandLogMetadataFreezeTraversals: 0,
         evidenceAdmissionCanonicalTraversals: 0,
         replayComparisonTraversals: 0,
         totalPhysicalCanonicalTraversals: 1,

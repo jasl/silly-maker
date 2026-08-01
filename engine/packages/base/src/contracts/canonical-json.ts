@@ -45,6 +45,12 @@ export interface CanonicalJsonInternalOptionsV1 {
   readonly requireFullyRepresentedOwnData?: boolean;
 }
 
+/** @internal Canonical bytes and their engine-owned plain-data tree. */
+export interface CanonicalJsonProjectionInternalV1<TValue> {
+  readonly bytes: Uint8Array;
+  readonly value: TValue;
+}
+
 function pointerSegment(value: string): string {
   return value.replaceAll("~", "~0").replaceAll("/", "~1");
 }
@@ -108,6 +114,165 @@ function utf8(value: string): Uint8Array {
 
 export function canonicalJsonBytes(value: unknown): Uint8Array {
   return canonicalJsonBytesInternalV1(value);
+}
+
+function defineCanonicalProjectionMemberV1(
+  container: object,
+  key: PropertyKey,
+  value: unknown,
+): void {
+  Object.defineProperty(container, key, {
+    configurable: true,
+    enumerable: true,
+    writable: true,
+    value,
+  });
+}
+
+function encodeCanonicalJsonProjectionV1(
+  current: unknown,
+  path: string,
+  active: Set<object>,
+): readonly [encoded: string, projection: unknown] {
+  if (current === null) return ["null", null];
+  if (typeof current === "boolean") return [current ? "true" : "false", current];
+  if (typeof current === "string") {
+    assertValidString(current, path);
+    return [JSON.stringify(current), current];
+  }
+  if (typeof current === "number") {
+    if (!Number.isFinite(current)) {
+      throw new CanonicalJsonError("number.non_finite", path);
+    }
+    if (!Number.isInteger(current)) {
+      throw new CanonicalJsonError("number.not_integer", path);
+    }
+    if (!Number.isSafeInteger(current)) {
+      throw new CanonicalJsonError("number.unsafe_integer", path);
+    }
+    if (Object.is(current, -0)) {
+      throw new CanonicalJsonError("number.negative_zero", path);
+    }
+    return [String(current), current];
+  }
+  if (typeof current === "undefined" || typeof current === "symbol") {
+    throw new CanonicalJsonError("value.undefined", path);
+  }
+  if (typeof current === "function") {
+    throw new CanonicalJsonError("value.function", path);
+  }
+
+  const object = current as object;
+  if (active.has(object)) throw new CanonicalJsonError("value.cycle", path);
+  active.add(object);
+  try {
+    if (Array.isArray(object)) {
+      if (Object.getPrototypeOf(object) !== Array.prototype) {
+        throw new CanonicalJsonError("value.custom_prototype", path);
+      }
+      const ownKeys = Reflect.ownKeys(object);
+      if (ownKeys.some((key) => typeof key === "symbol")) {
+        throw new CanonicalJsonError("value.unrepresented_property", path);
+      }
+      const lengthDescriptor = Object.getOwnPropertyDescriptor(object, "length");
+      if (
+        lengthDescriptor === undefined ||
+        lengthDescriptor.get !== undefined ||
+        lengthDescriptor.set !== undefined ||
+        typeof lengthDescriptor.value !== "number" ||
+        !Number.isInteger(lengthDescriptor.value) ||
+        lengthDescriptor.value < 0 ||
+        lengthDescriptor.value > 0xffff_ffff
+      ) {
+        throw new TypeError("Canonical array length descriptor is invalid");
+      }
+      const length = lengthDescriptor.value;
+      const extraKeys = ownKeys
+        .filter((key): key is string => typeof key === "string")
+        .filter((key) => {
+          if (key === "length") return false;
+          const index = Number(key);
+          return !(
+            Number.isInteger(index) &&
+            index >= 0 &&
+            index < length &&
+            String(index) === key
+          );
+        })
+        .sort(compareCodePoints);
+      const extraKey = extraKeys[0];
+      if (extraKey !== undefined) {
+        throw new CanonicalJsonError(
+          "value.unrepresented_property",
+          `${path}/${pointerSegment(extraKey)}`,
+        );
+      }
+      const projected: unknown[] = [];
+      const values: string[] = [];
+      for (let index = 0; index < length; index += 1) {
+        const descriptor = Object.getOwnPropertyDescriptor(object, String(index));
+        if (descriptor === undefined) {
+          throw new CanonicalJsonError("value.sparse_array", `${path}/${index}`);
+        }
+        if (descriptor.get !== undefined || descriptor.set !== undefined) {
+          throw new CanonicalJsonError("value.getter", `${path}/${index}`);
+        }
+        const [encoded, childProjection] = encodeCanonicalJsonProjectionV1(
+          descriptor.value,
+          `${path}/${index}`,
+          active,
+        );
+        values.push(encoded);
+        defineCanonicalProjectionMemberV1(projected, String(index), childProjection);
+      }
+      return [`[${values.join(",")}]`, projected];
+    }
+
+    if (Object.getPrototypeOf(object) !== Object.prototype) {
+      throw new CanonicalJsonError("value.custom_prototype", path);
+    }
+    const ownKeys = Reflect.ownKeys(object);
+    if (ownKeys.some((key) => typeof key === "symbol")) {
+      throw new CanonicalJsonError("value.unrepresented_property", path);
+    }
+    const keys = ownKeys
+      .filter((key): key is string => typeof key === "string")
+      .sort(compareCodePoints);
+    const projected = {};
+    const members: string[] = [];
+    for (const key of keys) {
+      const descriptor = Object.getOwnPropertyDescriptor(object, key);
+      if (descriptor === undefined) {
+        throw new TypeError("Canonical object property descriptor is missing");
+      }
+      if (descriptor.get !== undefined || descriptor.set !== undefined) {
+        throw new CanonicalJsonError("value.getter", `${path}/${pointerSegment(key)}`);
+      }
+      assertValidString(key, path);
+      const [encoded, childProjection] = encodeCanonicalJsonProjectionV1(
+        descriptor.value,
+        `${path}/${pointerSegment(key)}`,
+        active,
+      );
+      members.push(`${JSON.stringify(key)}:${encoded}`);
+      defineCanonicalProjectionMemberV1(projected, key, childProjection);
+    }
+    return [`{${members.join(",")}}`, projected];
+  } finally {
+    active.delete(object);
+  }
+}
+
+/** @internal Builds a path-local plain-data projection during the canonical traversal. */
+export function projectCanonicalJsonInternalV1<TValue>(
+  value: TValue,
+  instrumentation?: SnapshotWorkInstrumentationV1,
+  purpose?: SnapshotWorkPurposeV1,
+): CanonicalJsonProjectionInternalV1<TValue> {
+  recordSnapshotWorkV1(instrumentation, "canonical_traversal", purpose);
+  const [encoded, projection] = encodeCanonicalJsonProjectionV1(value, "", new Set());
+  const bytes = utf8(encoded);
+  return Object.freeze({ bytes, value: projection as TValue });
 }
 
 /** @internal Instrumented test/bench path; public canonical bytes remain unchanged. */

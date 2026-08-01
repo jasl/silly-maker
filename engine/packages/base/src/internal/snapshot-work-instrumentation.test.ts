@@ -67,6 +67,8 @@ describe("Snapshot work instrumentation", () => {
       bootstrapHandoffFreezeTraversals: 1,
       commandAdmissionCanonicalTraversals: 0,
       commandHandoffFreezeTraversals: 1,
+      commandLogMetadataAdmissionCanonicalTraversals: 0,
+      commandLogMetadataFreezeTraversals: 0,
       evidenceAdmissionCanonicalTraversals: 0,
       replayComparisonTraversals: 1,
       totalPhysicalCanonicalTraversals: 4,

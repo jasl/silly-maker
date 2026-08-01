@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { CanonicalJsonError, canonicalJsonBytesInternalV1 } from "../contracts/canonical-json.ts";
+import { CanonicalJsonError, projectCanonicalJsonInternalV1 } from "../contracts/canonical-json.ts";
 import type { CommandExecutionAttemptEnvelopeV1 } from "../contracts/execution.ts";
 import type { DeepReadonly, Digest } from "../contracts/values.ts";
 import type { SnapshotWorkInstrumentationV1 } from "./snapshot-work-instrumentation.ts";
@@ -180,17 +180,30 @@ function captureDenseArrayV1(value: unknown, path: string): readonly unknown[] {
   if (Object.getPrototypeOf(value) !== Array.prototype) {
     throw new CanonicalJsonError("value.custom_prototype", path);
   }
-  if (Object.getOwnPropertySymbols(value).length !== 0) {
+  const ownKeys = Reflect.ownKeys(value);
+  if (ownKeys.some((key) => typeof key === "symbol")) {
     throw new CanonicalJsonError("value.unrepresented_property", path);
   }
-  const names = Object.getOwnPropertyNames(value);
-  const extra = names.filter((name) => {
+  const lengthDescriptor = Object.getOwnPropertyDescriptor(value, "length");
+  if (
+    lengthDescriptor === undefined ||
+    lengthDescriptor.get !== undefined ||
+    lengthDescriptor.set !== undefined ||
+    typeof lengthDescriptor.value !== "number" ||
+    !Number.isInteger(lengthDescriptor.value) ||
+    lengthDescriptor.value < 0 ||
+    lengthDescriptor.value > 0xffff_ffff
+  ) {
+    throw new TypeError("Canonical array length descriptor is invalid");
+  }
+  const length = lengthDescriptor.value;
+  const extra = ownKeys.filter((key): key is string => typeof key === "string").filter((name) => {
     if (name === "length") return false;
     const index = Number(name);
     return !(
       Number.isInteger(index) &&
       index >= 0 &&
-      index < value.length &&
+      index < length &&
       String(index) === name
     );
   }).sort(compareCodePointsV1);
@@ -201,8 +214,8 @@ function captureDenseArrayV1(value: unknown, path: string): readonly unknown[] {
     );
   }
   const captured: unknown[] = [];
-  for (let index = 0; index < value.length; index += 1) {
-    const descriptor = Object.getOwnPropertyDescriptor(value, index);
+  for (let index = 0; index < length; index += 1) {
+    const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
     if (descriptor === undefined) {
       throw new CanonicalJsonError("value.sparse_array", `${path}/${index}`);
     }
@@ -382,17 +395,39 @@ function prepareAttemptEvidenceV1<
     diagnostics,
     ...(receipt === undefined ? {} : { receipt }),
   };
-  canonicalJsonBytesInternalV1(
+  const admittedProjection = projectCanonicalJsonInternalV1(
     projection,
     instrumentation,
     "evidence_admission",
-    { requireFullyRepresentedOwnData: true },
   );
-  deepFreezeEvidenceV1(projection, instrumentation);
+  deepFreezeEvidenceV1(admittedProjection.value, instrumentation);
+  const admittedEvidence = admittedProjection.value as {
+    readonly result: Readonly<Record<string, unknown>>;
+    readonly diagnostics: typeof diagnostics;
+  };
+  if (kind === "committed") {
+    result = {
+      kind,
+      snapshot,
+      facts: admittedEvidence.result.facts as readonly TFact[],
+    };
+  } else if (kind === "rejected") {
+    result = {
+      kind,
+      snapshot,
+      reasons: admittedEvidence.result.reasons as readonly TRejection[],
+    };
+  } else {
+    result = {
+      kind: "faulted",
+      snapshot,
+      fault: admittedEvidence.result.fault as TFault,
+    };
+  }
 
   return Object.freeze({
     result: Object.freeze(result),
-    diagnostics: projection.diagnostics,
+    diagnostics: admittedEvidence.diagnostics,
   }) as DeepReadonly<AttemptV1<TSnapshot, TFact, TRejection, TFault, TRngState, TRngDrawTrace>>;
 }
 
@@ -438,15 +473,13 @@ export function admitDebugValidationErrorsInternalV1<TValidationError>(
     captureDenseArrayV1(errors, "/errors"),
     parse,
   );
-  const projection = { errors: normalized };
-  canonicalJsonBytesInternalV1(
-    projection,
+  const projection = projectCanonicalJsonInternalV1(
+    { errors: normalized },
     instrumentation,
     "evidence_admission",
-    { requireFullyRepresentedOwnData: true },
   );
-  deepFreezeEvidenceV1(projection, instrumentation);
-  return projection.errors as readonly DeepReadonly<TValidationError>[];
+  deepFreezeEvidenceV1(projection.value, instrumentation);
+  return projection.value.errors as readonly DeepReadonly<TValidationError>[];
 }
 
 /** @internal Exact outer validation plus admission for a Debug validator result. */
@@ -538,7 +571,7 @@ export function withFinalizedEvidenceHandoffInternalV1<TResult>(
   return outcome.value;
 }
 
-/** @internal CommandLog admission with exact-identity one-shot Session reuse. */
+/** @internal CommandLog admission with exact admitted-attempt one-shot Session reuse. */
 export function admitFinalizedCommandAttemptEvidenceInternalV1<
   TSnapshot extends SnapshotWithCommandEvidenceV1,
   TFact,

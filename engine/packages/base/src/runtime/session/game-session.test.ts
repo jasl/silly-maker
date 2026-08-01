@@ -361,6 +361,8 @@ describe("GameSession FIFO", () => {
         bootstrapHandoffFreezeTraversals: 0,
         commandAdmissionCanonicalTraversals: 1,
         commandHandoffFreezeTraversals: 0,
+        commandLogMetadataAdmissionCanonicalTraversals: 0,
+        commandLogMetadataFreezeTraversals: 0,
         evidenceAdmissionCanonicalTraversals: 0,
         replayComparisonTraversals: 0,
         totalPhysicalCanonicalTraversals: 1,
@@ -462,13 +464,15 @@ describe("GameSession FIFO", () => {
       bootstrapHandoffFreezeTraversals: 0,
       commandAdmissionCanonicalTraversals: 0,
       commandHandoffFreezeTraversals: 0,
+      commandLogMetadataAdmissionCanonicalTraversals: 0,
+      commandLogMetadataFreezeTraversals: 0,
       evidenceAdmissionCanonicalTraversals: 0,
       replayComparisonTraversals: 0,
       totalPhysicalCanonicalTraversals: 0,
     });
   });
 
-  it("re-admits a reused normalized identity and passes the frozen value to executor and log", async () => {
+  it("re-admits reused normalized input into distinct frozen projections for executor and log", async () => {
     const counter = createSnapshotWorkCounterV1();
     const purposes = createPurposeTaggedSnapshotWorkCounterV1();
     const instrumentation = Object.freeze({
@@ -482,7 +486,7 @@ describe("GameSession FIFO", () => {
       metadata: { ordinal: 1 },
     } as unknown as Command;
     let schemaCalls = 0;
-    let executedCommand: DeepReadonly<Command> | undefined;
+    const executedCommands: DeepReadonly<Command>[] = [];
     const created = createInstrumentedGameSessionV1<Types>(
       {
         initialSnapshot: createSnapshot(0),
@@ -495,7 +499,7 @@ describe("GameSession FIFO", () => {
         }),
         executionContext: undefined,
         executeAttempt(snapshot, command) {
-          executedCommand = command;
+          executedCommands.push(command);
           return attempt(snapshot as Snapshot, command as Command);
         },
         normalizeUnexpectedDispatchFault(_error, snapshot) {
@@ -514,11 +518,19 @@ describe("GameSession FIFO", () => {
     }
 
     expect(schemaCalls).toBe(2);
-    expect(executedCommand).toBe(normalized);
+    expect(executedCommands).toHaveLength(2);
+    expect(executedCommands[0]).not.toBe(normalized);
+    expect(executedCommands[1]).not.toBe(normalized);
+    expect(executedCommands[0]).not.toBe(executedCommands[1]);
+    expect(executedCommands[0]).toEqual(normalized);
+    expect(executedCommands[1]).toEqual(normalized);
     expect(created.commandLog.entries()).toHaveLength(2);
-    expect(created.commandLog.entries().every(({ command }) => command === normalized)).toBe(true);
-    expect(Object.isFrozen(normalized)).toBe(true);
-    expect(Object.isFrozen((normalized as unknown as { metadata: object }).metadata)).toBe(true);
+    expect(created.commandLog.entries()[0]?.command).toBe(executedCommands[0]);
+    expect(created.commandLog.entries()[1]?.command).toBe(executedCommands[1]);
+    expect(Object.isFrozen(executedCommands[0])).toBe(true);
+    expect(Object.isFrozen(executedCommands[1])).toBe(true);
+    expect(Object.isFrozen(normalized)).toBe(false);
+    expect(Object.isFrozen((normalized as unknown as { metadata: object }).metadata)).toBe(false);
     expect(counter.snapshot()).toEqual({
       canonicalTraversals: 6,
       canonicalDigests: 2,
@@ -535,6 +547,8 @@ describe("GameSession FIFO", () => {
       bootstrapHandoffFreezeTraversals: 0,
       commandAdmissionCanonicalTraversals: 2,
       commandHandoffFreezeTraversals: 2,
+      commandLogMetadataAdmissionCanonicalTraversals: 0,
+      commandLogMetadataFreezeTraversals: 0,
       evidenceAdmissionCanonicalTraversals: 2,
       replayComparisonTraversals: 0,
       totalPhysicalCanonicalTraversals: 6,

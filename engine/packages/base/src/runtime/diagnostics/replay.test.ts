@@ -496,6 +496,8 @@ describe("authoritative replay", () => {
       bootstrapHandoffFreezeTraversals: 0,
       commandAdmissionCanonicalTraversals: 3,
       commandHandoffFreezeTraversals: 3,
+      commandLogMetadataAdmissionCanonicalTraversals: 0,
+      commandLogMetadataFreezeTraversals: 0,
       evidenceAdmissionCanonicalTraversals: 0,
       replayComparisonTraversals: 34,
       totalPhysicalCanonicalTraversals: 63,
@@ -745,7 +747,74 @@ describe("authoritative replay", () => {
     expect(createDriver).not.toHaveBeenCalled();
   });
 
-  it("submits the command identity captured by authoritative vector preflight", async () => {
+  it("rejects an invalid captured source before that entry's command admission", async () => {
+    const fixture = fixtureV1();
+    const sourceReads = fixture.input.commandLog.map(() => 0);
+    const commandReads = fixture.input.commandLog.map(() => 0);
+    const commandLog = fixture.input.commandLog.map((entry, index) =>
+      Object.defineProperties({}, {
+        source: {
+          enumerable: true,
+          get() {
+            sourceReads[index] = (sourceReads[index] ?? 0) + 1;
+            return index === 1 ? "surface" : entry.source;
+          },
+        },
+        command: {
+          enumerable: true,
+          get() {
+            commandReads[index] = (commandReads[index] ?? 0) + 1;
+            return index === 1 ? { kind: "add", amount: 0.25 } : entry.command;
+          },
+        },
+      }) as unknown as SyntheticEntryV1
+    );
+    const counter = createSnapshotWorkCounterV1();
+    const purposes = createPurposeTaggedSnapshotWorkCounterV1();
+    const instrumentation = Object.freeze({
+      record(event: SnapshotWorkEventV1, purpose?: SnapshotWorkPurposeV1) {
+        counter.instrumentation.record(event, purpose);
+        purposes.instrumentation.record(event, purpose);
+      },
+    });
+    const executeAttempt = vi.fn(executeAttemptV1);
+
+    await expect(
+      replayAuthoritativelyFromAttemptsInternalV1(
+        {
+          identity: fixture.input.recordedIdentity,
+          replayBase: fixture.input.replayBase,
+          replayBaseStateDigest: fixture.input.replayBaseStateDigest,
+          commandLog,
+          currentSnapshot: fixture.input.currentSnapshot,
+          projectStableRejection: fixture.input.projectStableRejection,
+          projectStableFault: fixture.input.projectStableFault,
+          executeAttempt,
+        },
+        instrumentation,
+      ),
+    ).rejects.toThrow("Replay command source must be game or debug");
+
+    expect(sourceReads).toEqual(fixture.input.commandLog.map(() => 1));
+    expect(commandReads).toEqual(fixture.input.commandLog.map(() => 1));
+    expect(executeAttempt).not.toHaveBeenCalled();
+    expect(counter.snapshot()).toEqual({
+      canonicalTraversals: 1,
+      canonicalDigests: 0,
+      deepFreezeTraversals: 0,
+      commandLogContinuityVerifications: 0,
+      saveCanonicalSerializations: 0,
+      strictJsonParses: 0,
+      strictJsonPreflights: 0,
+    });
+    expect(purposes.snapshot()).toMatchObject({
+      commandAdmissionCanonicalTraversals: 1,
+      commandHandoffFreezeTraversals: 0,
+      totalPhysicalCanonicalTraversals: 1,
+    });
+  });
+
+  it("submits the admitted projection captured by authoritative vector preflight", async () => {
     const fixture = fixtureV1();
     const second = fixture.input.commandLog[1];
     if (second?.source !== "game" || second.command.kind !== "reject") {
@@ -821,7 +890,56 @@ describe("authoritative replay", () => {
     expect(appendedCommandReads).toBe(0);
     expect(submitted).toHaveLength(3);
     expect(submitted[1]?.source).toBe("game");
-    expect(submitted[1]?.command).toBe(originalSecondCommand);
+    expect(submitted[1]?.command).not.toBe(originalSecondCommand);
+    expect(submitted[1]?.command).toEqual(originalSecondCommand);
+  });
+
+  it("submits a captured null command without rereading its replay slot", async () => {
+    const fixture = fixtureV1();
+    const first = fixture.input.commandLog[0];
+    if (first?.source !== "game") throw new TypeError("expected a Game command");
+    let commandReads = 0;
+    const firstEntry = { ...first } as Record<string, unknown>;
+    Object.defineProperty(firstEntry, "command", {
+      enumerable: true,
+      get() {
+        commandReads += 1;
+        return commandReads === 1 ? null : first.command;
+      },
+    });
+    const commandLog = replaceEntryV1(
+      fixture.input.commandLog,
+      0,
+      firstEntry as unknown as SyntheticEntryV1,
+    );
+    const receivedCommands: unknown[] = [];
+    const createDriver = vi.fn((base: SyntheticSnapshotV1) => {
+      const driver = createDriverV1(base, []);
+      let submissionIndex = 0;
+      return Object.freeze({
+        getCurrentSnapshot: driver.getCurrentSnapshot,
+        submit(command: SyntheticLoggedCommandV1) {
+          receivedCommands.push(command.command);
+          const delegated = submissionIndex === 0
+            ? Object.freeze({ source: "game" as const, command: first.command })
+            : command;
+          submissionIndex += 1;
+          return driver.submit(delegated);
+        },
+      });
+    });
+
+    await expect(
+      replayAuthoritativelyV1({ ...fixture.input, commandLog, createDriver }),
+    ).resolves.toMatchObject({
+      authoritative: true,
+      matches: true,
+      executedEntries: 3,
+    });
+
+    expect(commandReads).toBe(1);
+    expect(receivedCommands[0]).toBeNull();
+    expect(createDriver).toHaveBeenCalledOnce();
   });
 
   it.each(

@@ -107,11 +107,17 @@ Use a focused package or test-file command while iterating when that is faster. 
 
 `deno task bench:snapshot` runs generated 100/1k/10k/100k-entity Session workloads for single-field commits, multi-slice committed controls, real cross-owner atomic commits, rejection, and fault. Its full matrix also includes a neutral 256-command mixed sequence at 100 entities, authoritative replay of the retained 200-entry CommandLog, and a fixed 100-entity `every_commit` persistence workload that drains each of two committed commands and records the resulting `auto.previous` rotation. By default its schema-v3 report writes machine-readable p50/p95 and deterministic traversal, digest, freeze, continuity, Save serialization, and Strict JSON counts under an operating-system temporary directory; pass `--output <path>` for a CI artifact.
 
-The deterministic counters distinguish command admission, finalized-evidence
-admission, Snapshot digest/freeze, and CommandLog continuity. Each finalized
-attempt performs one Snapshot-free evidence canonical traversal and freeze;
-Session-to-CommandLog handoff does not repeat it. Failure fixtures assert zero
-candidate Snapshot traversal/digest/freeze rather than using wall-clock timing.
+The deterministic counters distinguish command admission/freeze,
+finalized-evidence admission, conditional additional CommandLog-metadata
+admission/freeze, Snapshot digest/freeze, and CommandLog continuity. Each
+finalized attempt performs one Snapshot-free evidence canonical projection
+traversal and freeze; Session-to-CommandLog handoff does not repeat it. The
+standard `{source, command}` path records metadata `0/0`; a direct generic log
+entry with non-empty valid extras adds `1/1`; symbol/accessor descriptor
+rejection at the top-level extra-field capture, or an enumerable engine-owned
+field collision, records `0/0`; any canonical failure reached after metadata
+projection starts (including a nested symbol/accessor) records `1/0`. Failure fixtures assert zero candidate Snapshot
+traversal/digest/freeze rather than using wall-clock timing.
 
 Save encoding performs canonical serialization and the Strict depth/node/collection/string/dangerous-key checks in the same package-internal traversal. The benchmark's `strictJsonPreflights` counter therefore means a separate post-encoding Strict parse traversal and is zero for each encode; `strictJsonParses` still counts decoder/readback parsing of untrusted bytes.
 

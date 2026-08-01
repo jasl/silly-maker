@@ -48,6 +48,12 @@ interface PreparedAuthoritativeCommandInternalV1 {
   readonly admission: CanonicalCommandAdmissionInternalV1<unknown>;
 }
 
+function assertReplayCommandSourceV1(source: unknown): asserts source is ReplayCommandSourceV1 {
+  if (source !== "game" && source !== "debug") {
+    throw new TypeError("Replay command source must be game or debug");
+  }
+}
+
 function prepareAuthoritativeCommandVectorV1(
   commandLog: readonly {
     readonly source: ReplayCommandSourceV1;
@@ -59,10 +65,13 @@ function prepareAuthoritativeCommandVectorV1(
     source: entry.source,
     command: entry.command,
   }));
-  const prepared = captured.map(({ source, command }) => ({
-    source,
-    admission: prepareCanonicalCommandAdmissionInternalV1(command, instrumentation),
-  }));
+  const prepared = captured.map(({ source, command }) => {
+    assertReplayCommandSourceV1(source);
+    return {
+      source,
+      admission: prepareCanonicalCommandAdmissionInternalV1(command, instrumentation),
+    };
+  });
   for (const { admission } of prepared) {
     commitCanonicalCommandAdmissionInternalV1(admission, instrumentation);
   }
@@ -408,8 +417,8 @@ async function compareReplayV1<
     }
     const preparedCommand = authoritativeCommands?.[entryIndex];
     const command = Object.freeze({
-      source: preparedCommand?.source ?? entry.source,
-      command: preparedCommand?.admission.value ?? entry.command,
+      source: preparedCommand === undefined ? entry.source : preparedCommand.source,
+      command: preparedCommand === undefined ? entry.command : preparedCommand.admission.value,
     }) as DeepReadonly<TLoggedCommand>;
     const admission = preparedCommand?.admission;
     const attempt = await (admission === undefined

@@ -170,6 +170,8 @@ describe("Snapshot commit workload", () => {
         bootstrapHandoffFreezeTraversals: 0,
         commandAdmissionCanonicalTraversals: 1,
         commandHandoffFreezeTraversals: 1,
+        commandLogMetadataAdmissionCanonicalTraversals: 0,
+        commandLogMetadataFreezeTraversals: 0,
         evidenceAdmissionCanonicalTraversals: 1,
         replayComparisonTraversals: 0,
         totalPhysicalCanonicalTraversals: (committed ? 1 : 0) + 2,

@@ -41,7 +41,7 @@ describe("canonical command admission", () => {
     withCanonicalCommandHandoffInternalV1(outer, "command_log_append", () => {
       independent = admitCanonicalCommandInternalV1(command, counter.instrumentation);
       handedOff = admitCanonicalCommandForTargetInternalV1(
-        command,
+        outer.value,
         "command_log_append",
         counter.instrumentation,
       );
@@ -65,12 +65,12 @@ describe("canonical command admission", () => {
     let second: unknown;
     withCanonicalCommandHandoffInternalV1(outer, "simulation_game_execute", () => {
       first = admitCanonicalCommandForTargetInternalV1(
-        command,
+        outer.value,
         "simulation_game_execute",
         counter.instrumentation,
       );
       second = admitCanonicalCommandForTargetInternalV1(
-        command,
+        outer.value,
         "simulation_game_execute",
         counter.instrumentation,
       );
@@ -99,7 +99,7 @@ describe("canonical command admission", () => {
         counter.instrumentation,
       );
       matched = admitCanonicalCommandForTargetInternalV1(
-        command,
+        outer.value,
         "simulation_game_execute",
         counter.instrumentation,
       );
@@ -129,12 +129,67 @@ describe("canonical command admission", () => {
         )
       ).toThrow(CanonicalJsonError);
       matched = admitCanonicalCommandForTargetInternalV1(
-        command,
+        outer.value,
         "simulation_game_execute",
       );
     });
 
     expect(matched).toBe(outer);
+  });
+
+  it("hands off a frozen canonical projection without retaining raw identity state", () => {
+    let virtualReads = 0;
+    const shared = { value: 1 };
+    const rawTarget = {
+      kind: "fixture.command" as const,
+      payload: [shared, shared],
+    };
+    const raw = new Proxy(rawTarget, {
+      get(target, key, receiver) {
+        if (key === "virtual") return ++virtualReads;
+        return Reflect.get(target, key, receiver);
+      },
+    });
+    const sideTable = new WeakMap<object, string>([[raw, "raw-only"]]);
+    const expectedBytes = canonicalJsonBytes(raw);
+
+    const admission = admitCanonicalCommandInternalV1(raw);
+    const admitted = admission.value;
+
+    expect(admitted).not.toBe(raw);
+    expect(admitted.payload).not.toBe(rawTarget.payload);
+    expect(admitted.payload[0]).not.toBe(shared);
+    expect(admitted.payload[0]).not.toBe(admitted.payload[1]);
+    expect((admitted as { readonly virtual?: number }).virtual).toBeUndefined();
+    expect(virtualReads).toBe(0);
+    expect(sideTable.has(admitted as object)).toBe(false);
+    expect(Object.isFrozen(admitted)).toBe(true);
+    expect(Object.isFrozen(admitted.payload)).toBe(true);
+    expect(Object.isFrozen(admitted.payload[0])).toBe(true);
+    expect(Object.isFrozen(raw)).toBe(false);
+    expect(Object.isFrozen(rawTarget.payload)).toBe(false);
+    expect(canonicalJsonBytes(admitted)).toEqual(expectedBytes);
+  });
+
+  it("does not carry private elements from a canonical-looking raw command", () => {
+    class HiddenCommand {
+      #counter = 0;
+      readonly kind = "fixture.command" as const;
+      readonly payload = [1];
+
+      static next(value: HiddenCommand): number {
+        return ++value.#counter;
+      }
+    }
+
+    const raw = new HiddenCommand();
+    Object.setPrototypeOf(raw, Object.prototype);
+
+    const admitted = admitCanonicalCommandInternalV1(raw).value;
+
+    expect(admitted).not.toBe(raw);
+    expect(() => HiddenCommand.next(admitted as unknown as HiddenCommand)).toThrow(TypeError);
+    expect(HiddenCommand.next(raw)).toBe(1);
   });
 
   it("attributes fallback work to the outer operation instrumentation", () => {

@@ -311,8 +311,9 @@ DET0-core/DET-A/DET-B 负责：
    保留 `1.0` / `1e0` 等数学整数写法，不改变 canonical output/digest；
 5. 把 Story-owned `createBootstrapInput` 定义为只消费 injected
    `BootstrapEntropyV1` 的 composition-root ingress adapter；Core 在
-   `createInitialState` 前对整个 output 做 package-internal canonical admission +
-   deep-freeze，所有 initial-Snapshot 路径共用同一个 admitted value，不新增 public
+   `createInitialState` 前对整个 output 做 package-internal canonical projection
+   admission，并只 deep-freeze engine-owned projection；所有 initial-Snapshot 路径共用
+   同一个 admitted projection，admission 不冻结或保留 raw adapter output，不新增 public
    bootstrap schema/envelope；新增 bootstrap canonical/freeze traversal 单独
    purpose-tagged 计数；
 6. 收紧 live bounded helper：Event Pool 在 forced/ordinary 两条路径都拒绝
@@ -388,12 +389,18 @@ order 与 PF1 traversal 合同保持不变。默认 core 下一独立切片现�
 Session/Simulation/CommandLog command ingress 与 authoritative replay 已有
 engine-owned canonical admission；root `CanonicalJsonError` 公开稳定 `code/path`，
 command-only mode 拒绝 canonical bytes 未表示的 symbol/array-extra/custom-array-
-prototype members，随后递归 freeze 同一 identity。exact-target one-shot internal receipt
+prototype members，同一次 traversal 构造 byte-identical、path-local ordinary projection，
+随后只递归 freeze/交付该 projection；admission 不冻结或保留 upstream normalized identity，
+而 schema helper 的独立 output-freeze contract 不变。exact-target
+one-shot internal receipt
 让一次 Session/replay operation 只做一次 command traversal，并阻断独立嵌套 ingress
-借用；authoritative replay 先 capture 全向量 source/command，再全部 prepare、统一
-freeze，失败不构造 driver，best-effort 仍 ungated。合法 canonical/digest/Save/replay
+借用；authoritative replay 先 capture 全向量 source/command，再逐 entry runtime-check
+`game | debug` source、prepare admitted command projection，全部成功后统一 freeze；失败不
+构造 driver，best-effort 仍 ungated。合法 canonical/digest/Save/replay
 bytes 与 PF1 Snapshot digest/freeze purpose counts 保持不变；新增成本已由 command
-admission/freeze purpose 独立计数，256-command recording 为 `170/170 -> 426/426`，
+admission/freeze purpose 独立计数，标准 Session 的 additional CommandLog metadata purpose
+为 `0/0`；只有 direct generic extras 才条件性新增 `1/1`。256-command recording 为
+`170/170 -> 426/426`，
 retained-200 replay 为 canonical `3409 -> 3609`、freeze `0 -> 200`。latest-stable
 Deno `2.9.4` 的 focused/Base/full unit 与 `deno task check` 全绿；Host-neutral 改动没有
 追加浏览器 E2E。默认 core 下一独立切片现在是 PF-DET `DET2b`。
@@ -404,7 +411,10 @@ package-internal finalized-evidence admission；fact/rejection/debug-error 走�
 fault/RNG/receipt 走 exact shape + Strict Canonical Data。Standard Core 保留 zero-RNG
 precedence，Session 在 post-callback 与 post-finalization 两处执行 HMR fence；valid fault
 fallback 只记录一次，invalid/non-faulted fallback 不递归 normalizer。Session→CommandLog
-exact-identity handoff 不重复 traversal，opaque `GameSimulationV1` generic result 与 public
+handoff 绑定承载 evidence projection 的 exact admitted-attempt identity，不重复 traversal；
+upstream normalized evidence 不被 admission 保留或冻结，schema helper freeze 与 Snapshot
+identity 是明确例外。opaque `GameSimulationV1`
+generic result 与 public
 Save/CommandLog/replay shape 均未改变。每 attempt 新增一次 Snapshot-free evidence
 canonical/freeze；256-command recording `426/426 -> 682/682`，Snapshot digest `170` 与
 continuity `256` 不变。latest-stable Deno `2.9.4` 的 focused `7/211`、Base `73/834`、
@@ -420,6 +430,20 @@ classification，不参与 admission/value/bytes。M0a fixed Save corpus、Save/
 canonical bytes/digests 与 PF1 state digest 均未改变；focused `6/132`、Base `73/877`、
 full unit `218/2205`、`deno task check` 与 Engine Lab browser `103/103` 全绿。默认 core
 下一独立切片现在是 PF-DET `DET2d`。
+
+**2026-08-01 DET2a/DET2b contract repair：** command 与 Snapshot-free evidence admission
+不再自行 freeze 或保留 upstream raw identity；原一次 canonical traversal 同时生成 byte-identical path-local
+ordinary projection，executor/CommandLog/replay 只共享该 admitted projection，Snapshot
+identity 明确保留。该选择封闭 Proxy/private/WeakMap raw-identity state，且不形成第二
+authoritative value；schema helper 可能已按自身合同冻结 output。Evidence collection 以一次
+own length descriptor capture 固定 vector。direct CommandLog extras 条件性独立
+project/freeze（标准 path `0/0`），engine-owned field collision 同步拒绝；authoritative
+replay 还在 command projection 前 runtime-check captured source，并对合法 `null`
+projection 不重读 slot。
+public canonical hot path、合法 canonical/digest/Save/CommandLog/replay bytes 与 PF1 counts
+保持不变；focused `12/289`、Base `73/899`、full unit `218/2227`、`deno task check`、Snapshot
+benchmark deterministic counts 与 browser `103/103` 全绿。DET2d 的 active contract 已同步
+采用相同 projection ownership，默认 core 下一切片仍是 `DET2d`。
 
 ### PF3 — Save envelope and migration registry
 

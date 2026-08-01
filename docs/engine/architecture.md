@@ -120,29 +120,55 @@ properties, and custom array prototypes before encoding that container's
 children. A represented accessor is instead rejected without invocation when
 the ordinary index/key traversal reaches that member, so an earlier child
 failure can retain precedence over a later accessor. These values could
-otherwise be observed by an executor even though canonical command bytes,
-CommandLog, and replay do not represent them. The same traversal validates the
-remaining value, then the gate recursively freezes the original command
-identity before a Story executor or Debug domain validator sees it. A Session
-operation reuses one package-internal admission receipt through Simulation and
-CommandLog, so the same operation traverses the command once rather than
-creating a second normalized authority. Direct Simulation and CommandLog calls
-cannot bypass the gate. This stricter command traversal mode does not change
-public `canonicalJsonBytes`, digest, Save, or Debug Bundle encoding behavior.
+otherwise be observed through the caller's identity even though canonical
+command bytes, CommandLog, and replay do not represent them. From the same
+descriptor-safe traversal, the gate constructs byte-identical canonical bytes
+and a new path-local ordinary-object/array projection, then recursively freezes
+only that projection before a Story executor or Debug domain validator sees it.
+The admission step neither retains nor freezes the upstream normalized identity;
+schema helpers may already have frozen their own output under their separate
+contract. Shared aliases expand per canonical path, cycles still reject, and
+Proxy virtual reads, private elements, and raw-identity side tables do not cross
+the ingress.
+A Session operation reuses one package-internal exact-projection admission
+receipt through Simulation and CommandLog, so the operation traverses the
+command once without creating a second normalized authority. Direct Simulation
+and CommandLog calls cannot bypass the gate. Authoritative replay captures every
+source/command slot once, checks the closed source kind, then supplies only the
+admitted command projection to its driver. This stricter traversal does not
+change public `canonicalJsonBytes`, digest, Save, or Debug Bundle encoding
+behavior.
 
 Finalized attempt evidence has a separate package-internal admission boundary.
 After an executor returns, Standard Core captures the attempt envelope without
 invoking accessors, validates the candidate Snapshot RNG, then normalizes Story
 facts/rejections and Debug validation errors through their declared schemas.
-The complete Snapshot-free evidence projection must be Strict Canonical Data
-before any candidate Snapshot integrity mutation, whole-tree freeze, digest,
-CommandLog continuity check, installation, or publication. One exact-identity
-handoff lets the Session append the already admitted evidence without a second
-traversal. Independent CommandLog calls still self-admit, while direct
+Evidence collections capture their own array `length` data descriptor once and
+validate every represented index against that fixed length; a Proxy's virtual
+`get("length")` cannot truncate or expand the admitted vector.
+The complete Snapshot-free evidence candidate is converted into an engine-owned
+Strict Canonical Data projection before any candidate Snapshot integrity
+mutation, whole-tree freeze, digest, CommandLog continuity check, installation,
+or publication. One exact admitted-attempt handoff lets the Session append the
+projection carried by that attempt without a second traversal. Evidence
+admission itself neither retains nor freezes upstream normalized identities;
+an upstream schema may already have frozen its output. Result/pre-attempt
+Snapshots deliberately preserve authoritative identity and are not projected.
+Independent CommandLog calls still self-admit,
+while direct
 Simulation results are admitted only when their opaque generic result is
 structurally attempt-shaped (`result` plus `diagnostics`). A finalization failure
 uses the existing unexpected-fault normalizer once; an invalid fallback is not
 normalized recursively and leaves the stable Snapshot and log unchanged.
+
+Additional enumerable fields on a direct generic CommandLog command are a
+separate conditional ingress after continuity and before ordinal/publication.
+They are descriptor-captured, projected, frozen, and retain their public field
+enumeration order; symbol/accessor metadata rejects without invoking a getter.
+An enumerable collision with an engine-owned entry field is rejected
+synchronously, also without invoking an accessor, rather than being silently
+overwritten or masquerading as a generic field in the returned type.
+The ordinary Session `{source, command}` path performs no metadata traversal.
 
 The current validator checks unique State ownership and an acyclic module
 dependency graph. A Story's aggregate State should reflect the modules it

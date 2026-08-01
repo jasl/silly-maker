@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 
 import { CanonicalJsonError } from "../../contracts/canonical-json.ts";
 import { digestCanonical } from "../../contracts/digest.ts";
@@ -8,7 +8,7 @@ import type { RngStateV1 } from "../../contracts/rng.ts";
 import { createPristineRunIntegrityV1 } from "../../contracts/snapshot.ts";
 import type { GameSnapshotEnvelopeV1 } from "../../contracts/snapshot.ts";
 import { parseNonNegativeSafeInteger, parsePositiveSafeInteger } from "../../contracts/values.ts";
-import type { Digest, PositiveSafeInteger } from "../../contracts/values.ts";
+import type { DeepReadonly, Digest, PositiveSafeInteger } from "../../contracts/values.ts";
 import {
   createPurposeTaggedSnapshotWorkCounterV1,
   createSnapshotWorkCounterV1,
@@ -193,6 +193,49 @@ function createFixtureLog(replayBase = snapshotAtSequence(0)) {
     FixtureFaultV1
   >({ replayBase, limit: 200 });
 }
+
+it("keeps logged-command discriminants and engine-owned field types precise", () => {
+  type IndexedGameCommandV1 = {
+    readonly source: "game";
+    readonly command: FixtureCommandV1;
+  } & Record<string, unknown>;
+  type CollidingGameCommandV1 = {
+    readonly source: "game";
+    readonly command: FixtureCommandV1;
+    readonly candidateRngAfter: string;
+  };
+  const indexedLog = createCommandLogV1<FixtureSnapshotV1, IndexedGameCommandV1>({
+    replayBase: snapshotAtSequence(0),
+    limit: 1,
+  });
+  const collidingLog = createCommandLogV1<FixtureSnapshotV1, CollidingGameCommandV1>({
+    replayBase: snapshotAtSequence(0),
+    limit: 1,
+  });
+  type IndexedEntryV1 = ReturnType<typeof indexedLog.append>;
+  type CollidingEntryV1 = ReturnType<typeof collidingLog.append>;
+
+  expectTypeOf<IndexedEntryV1["source"]>().toEqualTypeOf<"game">();
+  expectTypeOf<IndexedEntryV1["command"]>().toEqualTypeOf<DeepReadonly<FixtureCommandV1>>();
+  expectTypeOf<CollidingEntryV1["candidateRngAfter"]>().toEqualTypeOf<
+    DeepReadonly<RngStateV1> | undefined
+  >();
+
+  type EntryV1 = ReturnType<ReturnType<typeof createFixtureLog>["append"]>;
+  const assertDiscriminated = (entry: EntryV1): void => {
+    if (entry.source === "game") {
+      expectTypeOf(entry.command).toEqualTypeOf<DeepReadonly<FixtureCommandV1>>();
+    } else {
+      expectTypeOf(entry.command).toEqualTypeOf<
+        DeepReadonly<{
+          readonly kind: "debug.fixture.command";
+          readonly ordinal: PositiveSafeInteger;
+        }>
+      >();
+    }
+  };
+  expectTypeOf(assertDiscriminated).toBeFunction();
+});
 
 function createMeasuredFixtureLog(replayBase: FixtureSnapshotV1) {
   const counter = createSnapshotWorkCounterV1();
@@ -407,7 +450,7 @@ describe("CommandLog", () => {
     expect(log.append(parsedCommand(1), finalizedAttempt(replayBase, 1)).logOrdinal).toBe(1);
   });
 
-  it("admits and recursively freezes one direct command identity", () => {
+  it("admits and recursively freezes one direct command projection", () => {
     const replayBase = snapshotAtSequence(0);
     const counter = createSnapshotWorkCounterV1();
     const purposes = createPurposeTaggedSnapshotWorkCounterV1();
@@ -443,10 +486,15 @@ describe("CommandLog", () => {
     const logged = { source: "game" as const, command };
 
     const entry = log.append(logged, finalizedAttempt(replayBase, 1));
+    const projectedCommand = entry.command as typeof command;
 
-    expect(entry.command).toBe(command);
-    expect(Object.isFrozen(command)).toBe(true);
-    expect(Object.isFrozen(nested)).toBe(true);
+    expect(projectedCommand).not.toBe(command);
+    expect(projectedCommand).toEqual(command);
+    expect(projectedCommand.metadata).not.toBe(nested);
+    expect(Object.isFrozen(projectedCommand)).toBe(true);
+    expect(Object.isFrozen(projectedCommand.metadata)).toBe(true);
+    expect(Object.isFrozen(command)).toBe(false);
+    expect(Object.isFrozen(nested)).toBe(false);
     expect(counter.snapshot()).toEqual({
       canonicalTraversals: 2,
       canonicalDigests: 0,
@@ -501,6 +549,8 @@ describe("CommandLog", () => {
         bootstrapHandoffFreezeTraversals: 0,
         commandAdmissionCanonicalTraversals: 1,
         commandHandoffFreezeTraversals: 1,
+        commandLogMetadataAdmissionCanonicalTraversals: 0,
+        commandLogMetadataFreezeTraversals: 0,
         evidenceAdmissionCanonicalTraversals: 1,
         replayComparisonTraversals: 0,
         totalPhysicalCanonicalTraversals: 2,
@@ -604,7 +654,7 @@ describe("CommandLog", () => {
     });
   });
 
-  it("records the same finalized and frozen evidence identities", () => {
+  it("records finalized evidence projections without retaining raw identities", () => {
     const replayBase = snapshotAtSequence(0);
     const log = createFixtureLog(replayBase);
     const fact = { kind: "fixture.committed" as const, value: 1 };
@@ -646,21 +696,32 @@ describe("CommandLog", () => {
 
     expect(entry.outcome.kind).toBe("committed");
     if (entry.outcome.kind !== "committed") throw new TypeError("Expected committed outcome");
-    expect(entry.outcome.facts[0]).toBe(fact);
-    expect(entry.attemptedDraws[0]).toBe(draw);
-    expect(entry.committedRngBefore).toBe(committedRngBefore);
-    expect(entry.candidateRngAfter).toBe(candidateRngAfter);
-    expect(entry.committedRngAfter).toBe(committedRngAfter);
+    expect(entry.outcome.facts[0]).not.toBe(fact);
+    expect(entry.outcome.facts[0]).toEqual(fact);
+    expect(entry.attemptedDraws[0]).not.toBe(draw);
+    expect(entry.attemptedDraws[0]).toEqual(draw);
+    expect(entry.committedRngBefore).not.toBe(committedRngBefore);
+    expect(entry.committedRngBefore).toEqual(committedRngBefore);
+    expect(entry.candidateRngAfter).not.toBe(candidateRngAfter);
+    expect(entry.candidateRngAfter).toEqual(candidateRngAfter);
+    expect(entry.committedRngAfter).not.toBe(committedRngAfter);
+    expect(entry.committedRngAfter).toEqual(committedRngAfter);
+    expect(entry.committedRngBefore).not.toBe(entry.candidateRngAfter);
+    expect(entry.committedRngBefore).not.toBe(entry.committedRngAfter);
+    expect(entry.candidateRngAfter).not.toBe(entry.committedRngAfter);
     for (
       const evidence of [
-        fact,
-        draw,
-        committedRngBefore,
-        candidateRngAfter,
-        committedRngAfter,
+        entry.outcome.facts[0],
+        entry.attemptedDraws[0],
+        entry.committedRngBefore,
+        entry.candidateRngAfter,
+        entry.committedRngAfter,
       ]
     ) {
       expect(Object.isFrozen(evidence)).toBe(true);
+    }
+    for (const raw of [fact, draw, committedRngBefore, candidateRngAfter, committedRngAfter]) {
+      expect(Object.isFrozen(raw)).toBe(false);
     }
   });
 
@@ -685,6 +746,14 @@ describe("CommandLog", () => {
     );
 
     expect(entry.logOrdinal).toBe(1);
+    if (admitted.result.kind !== "committed" || entry.outcome.kind !== "committed") {
+      throw new TypeError("Expected committed evidence");
+    }
+    expect(entry.outcome.facts[0]).toBe(admitted.result.facts[0]);
+    expect(entry.attemptedDraws[0]).toBe(admitted.diagnostics.attemptedDraws[0]);
+    expect(entry.committedRngBefore).toBe(admitted.diagnostics.committedRngBefore);
+    expect(entry.candidateRngAfter).toBe(admitted.diagnostics.candidateRngAfter);
+    expect(entry.committedRngAfter).toBe(admitted.diagnostics.committedRngAfter);
     expect(measured.counter.snapshot()).toEqual({
       canonicalTraversals: 2,
       canonicalDigests: 0,
@@ -702,7 +771,7 @@ describe("CommandLog", () => {
     });
   });
 
-  it("captures source and command once before recording the admitted identity", () => {
+  it("captures source and command once before recording the admitted projection", () => {
     const replayBase = snapshotAtSequence(0);
     const log = createFixtureLog(replayBase);
     const nested = { note: "first value" };
@@ -735,13 +804,18 @@ describe("CommandLog", () => {
     }) as FixtureLoggedCommandV1;
 
     const entry = log.append(loggedCommand, finalizedAttempt(replayBase, 1));
+    const projectedCommand = entry.command as typeof firstCommand;
 
     expect(sourceReads).toBe(1);
     expect(commandReads).toBe(1);
     expect(entry.source).toBe("game");
-    expect(entry.command).toBe(firstCommand);
-    expect(Object.isFrozen(firstCommand)).toBe(true);
-    expect(Object.isFrozen(nested)).toBe(true);
+    expect(projectedCommand).not.toBe(firstCommand);
+    expect(projectedCommand).toEqual(firstCommand);
+    expect(projectedCommand.metadata).not.toBe(nested);
+    expect(Object.isFrozen(projectedCommand)).toBe(true);
+    expect(Object.isFrozen(projectedCommand.metadata)).toBe(true);
+    expect(Object.isFrozen(firstCommand)).toBe(false);
+    expect(Object.isFrozen(nested)).toBe(false);
   });
 
   it("preserves additional enumerable logged-command fields exactly once", () => {
@@ -750,6 +824,278 @@ describe("CommandLog", () => {
       readonly command: FixtureCommandV1;
       readonly label: string;
       readonly __proto__: { readonly kind: "neutral.metadata" };
+      readonly secondMetadata: { readonly kind: "neutral.metadata" };
+    };
+    const replayBase = snapshotAtSequence(0);
+    const counter = createSnapshotWorkCounterV1();
+    const purposes = createPurposeTaggedSnapshotWorkCounterV1();
+    const instrumentation = Object.freeze({
+      record(event: SnapshotWorkEventV1, purpose?: SnapshotWorkPurposeV1) {
+        counter.instrumentation.record(event, purpose);
+        purposes.instrumentation.record(event, purpose);
+      },
+    });
+    const log = createCommandLogInternalV1<
+      FixtureSnapshotV1,
+      ExtendedLoggedCommandV1,
+      FixtureFactV1,
+      FixtureRejectionV1,
+      FixtureFaultV1
+    >({
+      replayBase,
+      replayBaseStateDigest: stateDigest(replayBase),
+      limit: 200,
+      auditStateDigests: false,
+    }, instrumentation);
+    counter.reset();
+    purposes.reset();
+    const command = {
+      kind: "fixture.command" as const,
+      ordinal: parsePositiveSafeInteger(1),
+    };
+    const metadata = { kind: "neutral.metadata" as const };
+    const loggedCommand = Object.create(null) as Record<PropertyKey, unknown>;
+    Object.defineProperties(loggedCommand, {
+      source: { enumerable: true, value: "game" },
+      command: { enumerable: true, value: command },
+      label: { enumerable: true, value: "neutral" },
+      secondMetadata: { enumerable: true, value: metadata },
+    });
+    Object.defineProperty(loggedCommand, "__proto__", {
+      enumerable: true,
+      value: metadata,
+    });
+
+    const entry = log.append(
+      loggedCommand as unknown as ExtendedLoggedCommandV1,
+      finalizedAttempt(replayBase, 1),
+    );
+
+    expect(entry.label).toBe("neutral");
+    expect(Object.hasOwn(entry, "__proto__")).toBe(true);
+    expect(entry.__proto__).not.toBe(metadata);
+    expect(entry.secondMetadata).not.toBe(metadata);
+    expect(entry.__proto__).not.toBe(entry.secondMetadata);
+    expect(entry.__proto__).toEqual(metadata);
+    expect(entry.secondMetadata).toEqual(metadata);
+    expect(Object.isFrozen(entry.__proto__)).toBe(true);
+    expect(Object.isFrozen(entry.secondMetadata)).toBe(true);
+    expect(Object.isFrozen(metadata)).toBe(false);
+    expect(Object.getPrototypeOf(entry)).toBe(Object.prototype);
+    expect(Object.keys(entry).slice(2, 5)).toEqual([
+      "label",
+      "secondMetadata",
+      "__proto__",
+    ]);
+    expect(counter.snapshot()).toMatchObject({
+      canonicalTraversals: 3,
+      deepFreezeTraversals: 3,
+      commandLogContinuityVerifications: 1,
+    });
+    expect(purposes.snapshot()).toMatchObject({
+      commandAdmissionCanonicalTraversals: 1,
+      commandHandoffFreezeTraversals: 1,
+      commandLogMetadataAdmissionCanonicalTraversals: 1,
+      commandLogMetadataFreezeTraversals: 1,
+      evidenceAdmissionCanonicalTraversals: 1,
+      totalPhysicalCanonicalTraversals: 3,
+    });
+  });
+
+  it("rejects engine-owned additional fields without reading them or mutating the log", () => {
+    type CollidingLoggedCommandV1 = FixtureLoggedCommandV1 & {
+      readonly candidateRngAfter: unknown;
+    };
+    const replayBase = snapshotAtSequence(0);
+    const measured = createMeasuredFixtureLog(replayBase);
+    const command = {
+      kind: "fixture.command" as const,
+      ordinal: parsePositiveSafeInteger(1),
+    };
+    let collisionReads = 0;
+    const loggedCommand = Object.defineProperties({}, {
+      source: { enumerable: true, value: "game" },
+      command: { enumerable: true, value: command },
+      candidateRngAfter: {
+        enumerable: true,
+        get() {
+          collisionReads += 1;
+          return { cursor: 99 };
+        },
+      },
+    }) as CollidingLoggedCommandV1;
+    const entriesBefore = measured.log.entries();
+
+    expect(() =>
+      measured.log.append(
+        loggedCommand as unknown as FixtureLoggedCommandV1,
+        finalizedAttempt(replayBase, 1),
+      )
+    ).toThrow("CommandLog logged-command field candidateRngAfter is engine-owned");
+
+    expect(collisionReads).toBe(0);
+    expect(measured.log.entries()).toBe(entriesBefore);
+    expect(measured.log.replayBase()).toBe(replayBase);
+    expect(Object.isFrozen(command)).toBe(false);
+    expect(measured.purposes.snapshot()).toMatchObject({
+      commandAdmissionCanonicalTraversals: 1,
+      commandHandoffFreezeTraversals: 1,
+      commandLogMetadataAdmissionCanonicalTraversals: 0,
+      commandLogMetadataFreezeTraversals: 0,
+      evidenceAdmissionCanonicalTraversals: 1,
+      totalPhysicalCanonicalTraversals: 2,
+    });
+  });
+
+  it("rejects non-canonical additional metadata without reading accessors or mutating the log", () => {
+    type ExtendedLoggedCommandV1 = FixtureLoggedCommandV1 & {
+      readonly label: string;
+    };
+    const replayBase = snapshotAtSequence(0);
+    const counter = createSnapshotWorkCounterV1();
+    const purposes = createPurposeTaggedSnapshotWorkCounterV1();
+    const instrumentation = Object.freeze({
+      record(event: SnapshotWorkEventV1, purpose?: SnapshotWorkPurposeV1) {
+        counter.instrumentation.record(event, purpose);
+        purposes.instrumentation.record(event, purpose);
+      },
+    });
+    const log = createCommandLogInternalV1<
+      FixtureSnapshotV1,
+      ExtendedLoggedCommandV1,
+      FixtureFactV1,
+      FixtureRejectionV1,
+      FixtureFaultV1
+    >({
+      replayBase,
+      replayBaseStateDigest: stateDigest(replayBase),
+      limit: 200,
+      auditStateDigests: false,
+    }, instrumentation);
+    counter.reset();
+    purposes.reset();
+    const command = {
+      kind: "fixture.command" as const,
+      ordinal: parsePositiveSafeInteger(1),
+    };
+    let labelReads = 0;
+    const loggedCommand = Object.defineProperties({}, {
+      source: { enumerable: true, value: "game" },
+      command: { enumerable: true, value: command },
+      label: {
+        enumerable: true,
+        get() {
+          labelReads += 1;
+          return "unreachable";
+        },
+      },
+    }) as ExtendedLoggedCommandV1;
+    const entriesBefore = log.entries();
+
+    expect(() => log.append(loggedCommand, finalizedAttempt(replayBase, 1))).toThrowError(
+      expect.objectContaining({ code: "value.getter", path: "/label" }),
+    );
+    expect(labelReads).toBe(0);
+    expect(log.entries()).toBe(entriesBefore);
+    expect(log.replayBase()).toBe(replayBase);
+    expect(Object.isFrozen(command)).toBe(false);
+    expect(counter.snapshot()).toEqual({
+      canonicalTraversals: 2,
+      canonicalDigests: 0,
+      deepFreezeTraversals: 2,
+      commandLogContinuityVerifications: 1,
+      saveCanonicalSerializations: 0,
+      strictJsonParses: 0,
+      strictJsonPreflights: 0,
+    });
+    expect(purposes.snapshot()).toMatchObject({
+      commandAdmissionCanonicalTraversals: 1,
+      commandHandoffFreezeTraversals: 1,
+      commandLogMetadataAdmissionCanonicalTraversals: 0,
+      commandLogMetadataFreezeTraversals: 0,
+      evidenceAdmissionCanonicalTraversals: 1,
+      totalPhysicalCanonicalTraversals: 2,
+    });
+    expect(
+      log.append(
+        { source: "game", command: { ...command }, label: "neutral" },
+        finalizedAttempt(replayBase, 1),
+      ).logOrdinal,
+    ).toBe(1);
+  });
+
+  it("counts a nested metadata accessor after projection starts without invoking it", () => {
+    type ExtendedLoggedCommandV1 = FixtureLoggedCommandV1 & {
+      readonly metadata: { readonly value: string };
+    };
+    const replayBase = snapshotAtSequence(0);
+    const counter = createSnapshotWorkCounterV1();
+    const purposes = createPurposeTaggedSnapshotWorkCounterV1();
+    const instrumentation = Object.freeze({
+      record(event: SnapshotWorkEventV1, purpose?: SnapshotWorkPurposeV1) {
+        counter.instrumentation.record(event, purpose);
+        purposes.instrumentation.record(event, purpose);
+      },
+    });
+    const log = createCommandLogInternalV1<
+      FixtureSnapshotV1,
+      ExtendedLoggedCommandV1,
+      FixtureFactV1,
+      FixtureRejectionV1,
+      FixtureFaultV1
+    >({
+      replayBase,
+      replayBaseStateDigest: stateDigest(replayBase),
+      limit: 200,
+      auditStateDigests: false,
+    }, instrumentation);
+    counter.reset();
+    purposes.reset();
+    let valueReads = 0;
+    const metadata = Object.defineProperty({}, "value", {
+      enumerable: true,
+      get() {
+        valueReads += 1;
+        return "unreachable";
+      },
+    }) as { readonly value: string };
+    const command = {
+      kind: "fixture.command" as const,
+      ordinal: parsePositiveSafeInteger(1),
+    };
+    const entriesBefore = log.entries();
+
+    expect(() =>
+      log.append(
+        { source: "game", command, metadata },
+        finalizedAttempt(replayBase, 1),
+      )
+    ).toThrowError(expect.objectContaining({
+      code: "value.getter",
+      path: "/metadata/value",
+    }));
+
+    expect(valueReads).toBe(0);
+    expect(log.entries()).toBe(entriesBefore);
+    expect(log.replayBase()).toBe(replayBase);
+    expect(counter.snapshot()).toMatchObject({
+      canonicalTraversals: 3,
+      deepFreezeTraversals: 2,
+      commandLogContinuityVerifications: 1,
+    });
+    expect(purposes.snapshot()).toMatchObject({
+      commandAdmissionCanonicalTraversals: 1,
+      commandHandoffFreezeTraversals: 1,
+      commandLogMetadataAdmissionCanonicalTraversals: 1,
+      commandLogMetadataFreezeTraversals: 0,
+      evidenceAdmissionCanonicalTraversals: 1,
+      totalPhysicalCanonicalTraversals: 3,
+    });
+  });
+
+  it("keeps continuity failure ahead of additional metadata admission", () => {
+    type ExtendedLoggedCommandV1 = FixtureLoggedCommandV1 & {
+      readonly label: string;
     };
     const replayBase = snapshotAtSequence(0);
     const log = createCommandLogV1<
@@ -763,35 +1109,161 @@ describe("CommandLog", () => {
       kind: "fixture.command" as const,
       ordinal: parsePositiveSafeInteger(1),
     };
-    const metadata = Object.freeze({ kind: "neutral.metadata" as const });
     let labelReads = 0;
-    const loggedCommand = Object.create(null) as Record<PropertyKey, unknown>;
-    Object.defineProperties(loggedCommand, {
+    const loggedCommand = Object.defineProperties({}, {
       source: { enumerable: true, value: "game" },
       command: { enumerable: true, value: command },
       label: {
         enumerable: true,
         get() {
           labelReads += 1;
-          return "neutral";
+          return "unreachable";
         },
       },
+    }) as ExtendedLoggedCommandV1;
+    const entriesBefore = log.entries();
+
+    expect(() =>
+      log.append(
+        loggedCommand,
+        finalizedAttempt(snapshotAtSequence(1), 2),
+      )
+    ).toThrow("Finalized command attempt breaks snapshot continuity");
+    expect(labelReads).toBe(0);
+    expect(log.entries()).toBe(entriesBefore);
+    expect(log.replayBase()).toBe(replayBase);
+    expect(Object.isFrozen(command)).toBe(false);
+  });
+
+  it("rejects symbol-keyed additional metadata without mutating the log", () => {
+    const replayBase = snapshotAtSequence(0);
+    const counter = createSnapshotWorkCounterV1();
+    const purposes = createPurposeTaggedSnapshotWorkCounterV1();
+    const instrumentation = Object.freeze({
+      record(event: SnapshotWorkEventV1, purpose?: SnapshotWorkPurposeV1) {
+        counter.instrumentation.record(event, purpose);
+        purposes.instrumentation.record(event, purpose);
+      },
     });
-    Object.defineProperty(loggedCommand, "__proto__", {
+    const log = createCommandLogInternalV1<
+      FixtureSnapshotV1,
+      FixtureLoggedCommandV1,
+      FixtureFactV1,
+      FixtureRejectionV1,
+      FixtureFaultV1
+    >({
+      replayBase,
+      replayBaseStateDigest: stateDigest(replayBase),
+      limit: 200,
+      auditStateDigests: false,
+    }, instrumentation);
+    counter.reset();
+    purposes.reset();
+    const command = {
+      kind: "fixture.command" as const,
+      ordinal: parsePositiveSafeInteger(1),
+    };
+    const loggedCommand = { source: "game", command } as Record<PropertyKey, unknown>;
+    Object.defineProperty(loggedCommand, Symbol("hidden"), {
       enumerable: true,
-      value: metadata,
+      value: "unrepresented",
     });
+    const entriesBefore = log.entries();
 
-    const entry = log.append(
-      loggedCommand as unknown as ExtendedLoggedCommandV1,
-      finalizedAttempt(replayBase, 1),
+    expect(() =>
+      log.append(
+        loggedCommand as unknown as FixtureLoggedCommandV1,
+        finalizedAttempt(replayBase, 1),
+      )
+    ).toThrowError(expect.objectContaining({
+      code: "value.unrepresented_property",
+      path: "",
+    }));
+    expect(log.entries()).toBe(entriesBefore);
+    expect(log.replayBase()).toBe(replayBase);
+    expect(Object.isFrozen(command)).toBe(false);
+    expect(counter.snapshot()).toEqual({
+      canonicalTraversals: 2,
+      canonicalDigests: 0,
+      deepFreezeTraversals: 2,
+      commandLogContinuityVerifications: 1,
+      saveCanonicalSerializations: 0,
+      strictJsonParses: 0,
+      strictJsonPreflights: 0,
+    });
+    expect(purposes.snapshot()).toMatchObject({
+      commandAdmissionCanonicalTraversals: 1,
+      commandHandoffFreezeTraversals: 1,
+      commandLogMetadataAdmissionCanonicalTraversals: 0,
+      commandLogMetadataFreezeTraversals: 0,
+      evidenceAdmissionCanonicalTraversals: 1,
+      totalPhysicalCanonicalTraversals: 2,
+    });
+  });
+
+  it("counts fractional additional metadata admission without freezing or publishing it", () => {
+    type ExtendedLoggedCommandV1 = FixtureLoggedCommandV1 & {
+      readonly label: number;
+    };
+    const replayBase = snapshotAtSequence(0);
+    const counter = createSnapshotWorkCounterV1();
+    const purposes = createPurposeTaggedSnapshotWorkCounterV1();
+    const instrumentation = Object.freeze({
+      record(event: SnapshotWorkEventV1, purpose?: SnapshotWorkPurposeV1) {
+        counter.instrumentation.record(event, purpose);
+        purposes.instrumentation.record(event, purpose);
+      },
+    });
+    const log = createCommandLogInternalV1<
+      FixtureSnapshotV1,
+      ExtendedLoggedCommandV1,
+      FixtureFactV1,
+      FixtureRejectionV1,
+      FixtureFaultV1
+    >({
+      replayBase,
+      replayBaseStateDigest: stateDigest(replayBase),
+      limit: 200,
+      auditStateDigests: false,
+    }, instrumentation);
+    counter.reset();
+    purposes.reset();
+    const command = {
+      kind: "fixture.command" as const,
+      ordinal: parsePositiveSafeInteger(1),
+    };
+    const loggedCommand = { source: "game" as const, command, label: 0.25 };
+    const entriesBefore = log.entries();
+
+    expect(() => log.append(loggedCommand, finalizedAttempt(replayBase, 1))).toThrowError(
+      expect.objectContaining({ code: "number.not_integer", path: "/label" }),
     );
-
-    expect(labelReads).toBe(1);
-    expect(entry.label).toBe("neutral");
-    expect(Object.hasOwn(entry, "__proto__")).toBe(true);
-    expect(entry.__proto__).toBe(metadata);
-    expect(Object.getPrototypeOf(entry)).toBe(Object.prototype);
+    expect(log.entries()).toBe(entriesBefore);
+    expect(log.replayBase()).toBe(replayBase);
+    expect(Object.isFrozen(command)).toBe(false);
+    expect(counter.snapshot()).toEqual({
+      canonicalTraversals: 3,
+      canonicalDigests: 0,
+      deepFreezeTraversals: 2,
+      commandLogContinuityVerifications: 1,
+      saveCanonicalSerializations: 0,
+      strictJsonParses: 0,
+      strictJsonPreflights: 0,
+    });
+    expect(purposes.snapshot()).toMatchObject({
+      commandAdmissionCanonicalTraversals: 1,
+      commandHandoffFreezeTraversals: 1,
+      commandLogMetadataAdmissionCanonicalTraversals: 1,
+      commandLogMetadataFreezeTraversals: 0,
+      evidenceAdmissionCanonicalTraversals: 1,
+      totalPhysicalCanonicalTraversals: 3,
+    });
+    expect(
+      log.append(
+        { source: "game", command: { ...command }, label: 1 },
+        finalizedAttempt(replayBase, 1),
+      ).logOrdinal,
+    ).toBe(1);
   });
 
   it("keeps cheap identity and digest-chain checks when internal recomputation is off", () => {
