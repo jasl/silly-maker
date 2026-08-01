@@ -677,8 +677,19 @@ docs，未机械追加浏览器 E2E。下一独立切片是 DET2c Strict numeric
 - 继续接受数学上恰为 safe integer 的替代写法，例如 `1.0`、`1e0` 与 `100e-2`；
 - 拒绝数学上仍为 fractional 的 token，即使 `Number(token)` 恰好舍入到 safe
   integer；
-- 拒绝所有 negative-zero token 变体、non-finite outcome、unsafe integer 与超出
-  支持范围的 exponent/coefficient；
+- coefficient 全零且 lexical sign 为负时返回既有 `number.negative_zero`；非零但数学
+  值仍为 fractional 时返回 `number.not_integer`；数学上恰为整数、但绝对值超出
+  safe-integer range 时返回 `number.unsafe_integer`，包括 binary64 conversion 会成为
+  non-finite 的巨大正 exponent；
+- `StrictJsonLimitsV1.maxBytes` 是唯一 numeric-token 资源上限；在这个 bound 内做线性
+  coefficient scan、饱和 exponent comparison；合法 exact-integer path 只对至多 16
+  位 normalized digits 做最终 `Number` conversion。为保留下面的旧 failure
+  precedence，已由 exact math 判定为 fractional、但旧 parser 可能因舍入接受的 token
+  可额外执行一次受同一 `maxBytes` 约束的 legacy binary64 classification；该结果只决定
+  failure 是立即返回还是 deferred，不参与 admission、decoded value 或 canonical
+  bytes。不引入 BigInt/Decimal、按 exponent 的 allocation/幂运算或第二个任意
+  token-length limit。巨大负 exponent 的非零值归类为 fractional，任意 exponent 的
+  正零仍归一为 `0`；
 - 不改变 canonical JSON output、key order、number spelling 或 digest algorithm。
 
 这是 Save、Debug Bundle 与其他 Strict JSON import 的公开 admission 收紧。实施前
@@ -691,10 +702,48 @@ docs，未机械追加浏览器 E2E。下一独立切片是 DET2c Strict numeric
   `9007199254740990.6` baseline，再观察目标 rejection red/green；
 - 覆盖合法 exact-integer 替代写法、`0` 与正负 safe-integer 边界、fractional
   临界值、negative-zero 变体和恶意长 token/大 exponent；
-- limit、duplicate-key 与 parse-error precedence 保持现有稳定顺序；
+- bytes/BOM/UTF-8 preflight、depth/node/collection limit、object key 与 number token
+  的 traversal 顺序不变。旧 parser 已经立即拒绝的 numeric token 保持 immediate
+  failure；只对旧 parser 因 binary64 舍入而接受、DET2c 才发现的 exact-number
+  failure 做 deferred reporting，使 document 余下部分原本会产生的 later syntax、
+  trailing-comma、duplicate-key 或 structural-limit failure 保持 precedence；若余下
+  document 合法，则返回最早的 deferred `number.not_integer`；
 - 合法 Save/DebugBundle/import corpus 的 decoded value、re-encoded canonical
   bytes、digest 与 PF1 独立 oracle 完全相等；
+- Strict parse 失败不返回 partial value；Save/DebugBundle decoder 必须在 schema、
+  digest 与 authoritative replacement 前原子返回既有 rejection，不新增 result
+  branch 或 envelope field；
 - 不改 runtime canonical value 合同、public envelope shape 或 digest algorithm。
+
+**2026-08-01 DET2c promotion：** tracked config、静态 JSON value、M0a 的 10 份
+fixed Save metadata records、DET1 zero-state fixture、Save golden 与 DebugBundle raw
+input 审计均未发现任何 maintained valid record 依赖 binary64 舍入，因此没有触发
+compatibility stop condition。Strict parser 现在先手工扫描 JSON number grammar，再以
+coefficient/fraction length/trailing zeros 与饱和 exponent 精确分类；合法 path 只构造
+至多 16 位 integer digits。`1e-324`、`0.999999999999999999999`、
+`9007199254740990.6` 等 rounded fractions 稳定返回 `number.not_integer`，真正的
+negative-zero spelling 返回 `number.negative_zero`，数学整数但超 safe range（包括
+`1e309`）返回 `number.unsafe_integer`；`1.0`、`1e0`、`100e-2`、长尾零抵消与正负
+safe boundary 仍解码为同一整数。没有新增 error code、numeric package、public API 或
+第二个 token limit。
+
+第一轮 focused red 为 `31` tests 中 `7` red，精确固定四类 rounding gap 与 non-finite/
+巨大 exponent 的旧错误分类；第二轮 precedence red 为 `35` tests 中 `4` red。最终
+parser 对旧实现因舍入而接受的 fractional token 暂存第一处 exact failure，保留 later
+syntax/trailing-comma/duplicate-key/node-limit 的既有 precedence；旧实现本来立即拒绝的
+numeric token 仍立即失败。独立 BigInt oracle 的 `788,018` 个生成 token 与 20 MB 级
+resource probe 均通过；常规测试另保留 `2,048` 个确定性 oracle vector。Save
+`formatRevision: 1.0` 与 DebugBundle `1e0` 输入 decode 后重编码为原 canonical bytes，
+fractional variant 在 schema/digest 前原子拒绝；10 份 fixed Save records 逐份
+Strict-decode 后的 canonical bytes、byte digest 与 Snapshot state digest 全部等于既有
+oracle。每次 decoder 的 `strictJsonParses` 仍为 `1`，encode preflight、canonical/
+digest/traversal work counts 未改变。
+
+latest-stable Deno `2.9.4` 验证为 focused `6/132`、Base `73/877`、repository unit
+`218/2205` 全绿；`deno task check` 通过 format/lint/style/typecheck、同一完整 unit、
+assets/全部 Story checks 与 Engine Lab production build。实际 Web import/build path 另以
+Engine Lab Chromium/WebKit/touch/responsive suite `103/103` 通过。下一独立切片是 DET2d
+canonical bootstrap handoff。
 
 ## 9. DET2d — Canonical bootstrap handoff
 

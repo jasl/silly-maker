@@ -7,9 +7,9 @@ finalized evidence admission 的公开失败 surface、precedence、representabi
 落地顺序见
 [Authoritative determinism guardrails plan](../plans/2026-07-31-authoritative-determinism-guardrails.md)。
 当前 Snapshot、Save 与 Debug Bundle encoding 已有 integer-only canonical
-边界，事务 RNG 已进入 Snapshot，zero xorshift state 与 command canonical
-admission 也已 fail closed；Strict JSON number token 的精确数学整数检查、
-bootstrap/evidence 尽早入场、ambient input 检查、隔离探针与多 JavaScript 引擎逐
+边界，事务 RNG 已进入 Snapshot，zero xorshift state、command/finalized-evidence
+canonical admission 与 Strict JSON number token 的精确数学整数检查也已 fail
+closed；bootstrap 尽早入场、ambient input 检查、隔离探针与多 JavaScript 引擎逐
 command parity 尚未实现。本文其余部分描述目标合同，不把未落地项写成当前能力。
 
 ## 1. Guarantee and threat boundary
@@ -167,13 +167,35 @@ gameplay 部分使用现有 Strict Canonical Data 数值合同：
   编码；
 - number token 必须在转换为 binary64 前按十进制 coefficient/scale/exponent
   验证数学值；数学上仍为 fractional 的 token 即使转换时舍入为 safe integer
-  也必须拒绝，所有 negative-zero token 变体同样拒绝。
+  也必须拒绝，所有 negative-zero token 变体同样拒绝；
+- Strict parser 的稳定分类是：非零 fractional token 使用
+  `number.not_integer`；coefficient 全零且带 lexical `-` 的 token 使用
+  `number.negative_zero`；数学上恰为整数、但绝对值超出 safe-integer range 的
+  token（包括 binary64 conversion 会成为 non-finite 的巨大正 exponent）使用
+  `number.unsafe_integer`。不新增 Decimal、BigInt wire 或另一组 public error code；
+- `StrictJsonLimitsV1.maxBytes` 同时是 numeric token 的资源上限，不再发明任意的
+  coefficient/exponent 位数上限。在该 byte bound 内以线性字符串扫描和饱和 exponent
+  比较完成分类，不按 exponent 分配空间或做幂运算：巨大正 exponent 的非零值是
+  unsafe integer，巨大负 exponent 的非零值是 fractional，任意 exponent 的正零仍是
+  `0`。合法 exact-integer path 最终只把至多 16 位 normalized digits 转为
+  `Number`；下面为兼容旧 failure precedence 而识别的 rejected-fraction path，允许在
+  exact rejection 已确定后对原 token 做一次受同一 `maxBytes` 约束的 legacy
+  binary64 classification，它不得改变 admission、decoded value 或 canonical bytes；
+- 全局 bytes/BOM/UTF-8 preflight 先于 token parser；depth/node/collection limits 与
+  object key checks 保留既有 traversal 顺序。对旧 parser 已经会立即拒绝的
+  fractional/unsafe/negative-zero token，原 immediate failure 保持；对旧 parser
+  因 binary64 舍入而错误接受、DET2c 才发现的 exact-decimal failure，parser 暂存第一
+  个 failure，只有余下 document 本来会成功时才返回它，因此 later syntax、trailing
+  comma、duplicate-key 或 structural limit 仍保留既有稳定 precedence；
+- Strict parse failure 不返回 partial value。Save、Debug Bundle 与其他 import 在
+  schema、digest 或 authoritative replacement 前原子拒绝；合法 `1.0` / `1e0` 等
+  spelling 解码为同一 safe-integer runtime value，重新编码仍只产生既有 canonical
+  bytes。
 
-当前 Snapshot/Save encoder 已执行这条边界；目标 guardrail 还要把 normalized
-command 和完整 authoritative evidence 在执行/记录点尽早封口，避免污染到
-CommandLog 后才在 Debug Bundle export 暴露。当前 Strict JSON parser 先执行
-`Number(token)`，所以会错误接受 `1e-324`、`0.999999999999999999999` 与
-`9007199254740990.6`；这是计划中的已验证 import gap，不是已实现能力。
+当前 Snapshot/Save encoder、Strict JSON parser、normalized command 与完整
+authoritative evidence 都已执行对应边界，避免 malformed data 先污染
+CommandLog、Save import 或 Debug Bundle decode 后才失败。bootstrap handoff 与其余
+ambient-authority guardrail 仍按 active plan 后续切片推进。
 
 ### 3.2 Domain representations
 

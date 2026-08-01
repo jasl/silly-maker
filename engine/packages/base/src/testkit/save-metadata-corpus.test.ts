@@ -1,12 +1,21 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
+import { canonicalJsonBytes } from "../contracts/canonical-json.ts";
+import { digestBytes, digestCanonical } from "../contracts/digest.ts";
+import { saveJsonLimitsV1 } from "../contracts/persistence.ts";
+import { parseStrictJson } from "../contracts/strict-json.ts";
 import {
   createSaveMetadataHostPayloadV1,
   evaluateSaveMetadataCompactVectorsV1,
   saveMetadataCompactExpectedV1,
   saveMetadataCorpusRevisionV1,
 } from "./index.ts";
+
+function bytesFromBase64V1(encoded: string): Uint8Array {
+  const binary = atob(encoded);
+  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+}
 
 describe("shared Save metadata corpus", () => {
   it("publishes one revisioned compact corpus for later runtime and Host consumers", () => {
@@ -23,6 +32,26 @@ describe("shared Save metadata corpus", () => {
       bytesBase64: saveMetadataCompactExpectedV1.records.unstamped.bytesBase64,
     });
     expect(actual.records.allNullStamp).toEqual(actual.records.unstamped);
+  });
+
+  it("Strict-decodes every maintained byte vector without changing bytes or digests", () => {
+    for (const [id, vector] of Object.entries(saveMetadataCompactExpectedV1.records)) {
+      const bytes = bytesFromBase64V1(vector.bytesBase64);
+      const decoded = parseStrictJson(bytes, saveJsonLimitsV1);
+      expect(decoded, id).toMatchObject({ ok: true });
+      if (!decoded.ok) throw new TypeError(`invalid maintained Save vector: ${id}`);
+
+      expect(canonicalJsonBytes(decoded.value), id).toEqual(bytes);
+      expect(digestBytes(bytes), id).toBe(vector.bytesDigest);
+      const record = decoded.value as {
+        readonly snapshot: unknown;
+        readonly stateDigest: unknown;
+      };
+      expect(record.stateDigest, id).toBe(saveMetadataCompactExpectedV1.stateDigest);
+      expect(digestCanonical("sillymaker:state:v1", record.snapshot), id).toBe(
+        saveMetadataCompactExpectedV1.stateDigest,
+      );
+    }
   });
 
   it("normalizes and freezes compact summary and version-stamp values", () => {

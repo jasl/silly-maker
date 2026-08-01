@@ -81,6 +81,7 @@ const limitKeys = [
   "maxStringBytes",
 ] as const;
 const dangerousKeys = new Set(["__proto__", "prototype", "constructor"]);
+const maxSafeIntegerDecimalV1 = "9007199254740991";
 
 export function parseStrictJsonLimitsV1(input: StrictJsonLimitsInputV1): StrictJsonLimitsV1 {
   if (
@@ -270,6 +271,7 @@ export function parseStrictJson(
 
   let index = 0;
   let nodes = 0;
+  let deferredExactNumberFailure: ParseFailure | undefined;
   const fail = (code: StrictJsonErrorCodeV1, offset = index): never => {
     throw new ParseFailure(code, offset);
   };
@@ -283,6 +285,10 @@ export function parseStrictJson(
       index += 1;
     }
     if (text[index] === "/") fail("syntax.comment_forbidden");
+  };
+  const isDecimalDigit = (offset: number): boolean => {
+    const code = text.charCodeAt(offset);
+    return code >= 0x30 && code <= 0x39;
   };
 
   const parseString = (): string => {
@@ -331,14 +337,117 @@ export function parseStrictJson(
 
   const parseNumber = (): number => {
     const start = index;
-    const match = /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/u.exec(text.slice(index));
-    if (match === null) return fail("syntax.invalid");
-    index += match[0].length;
-    const value = Number(match[0]);
-    if (!Number.isInteger(value)) fail("number.not_integer", start);
-    if (!Number.isSafeInteger(value)) fail("number.unsafe_integer", start);
-    if (Object.is(value, -0)) fail("number.negative_zero", start);
-    return value;
+    let cursor = index;
+    const negative = text[cursor] === "-";
+    if (negative) cursor += 1;
+
+    const integerStart = cursor;
+    if (text[cursor] === "0") {
+      cursor += 1;
+    } else {
+      const firstCode = text.charCodeAt(cursor);
+      if (firstCode < 0x31 || firstCode > 0x39) return fail("syntax.invalid", start);
+      cursor += 1;
+      while (isDecimalDigit(cursor)) cursor += 1;
+    }
+    const integerEnd = cursor;
+
+    let fractionStart = cursor;
+    let fractionEnd = cursor;
+    if (text[cursor] === "." && isDecimalDigit(cursor + 1)) {
+      cursor += 1;
+      fractionStart = cursor;
+      while (isDecimalDigit(cursor)) cursor += 1;
+      fractionEnd = cursor;
+    }
+
+    let exponentNegative = false;
+    let exponentDigitsStart = cursor;
+    let exponentDigitsEnd = cursor;
+    if (text[cursor] === "e" || text[cursor] === "E") {
+      const exponentMarker = cursor;
+      cursor += 1;
+      exponentNegative = text[cursor] === "-";
+      if (exponentNegative || text[cursor] === "+") cursor += 1;
+      const candidateDigitsStart = cursor;
+      while (isDecimalDigit(cursor)) cursor += 1;
+      if (cursor === candidateDigitsStart) {
+        cursor = exponentMarker;
+        exponentNegative = false;
+      } else {
+        exponentDigitsStart = candidateDigitsStart;
+        exponentDigitsEnd = cursor;
+      }
+    }
+    index = cursor;
+
+    const integerLength = integerEnd - integerStart;
+    const fractionLength = fractionEnd - fractionStart;
+    const coefficientLength = integerLength + fractionLength;
+    const coefficientDigitCodeAt = (offset: number): number =>
+      offset < integerLength
+        ? text.charCodeAt(integerStart + offset)
+        : text.charCodeAt(fractionStart + offset - integerLength);
+
+    let firstNonZero = -1;
+    let lastNonZero = -1;
+    for (let offset = 0; offset < coefficientLength; offset += 1) {
+      if (coefficientDigitCodeAt(offset) === 0x30) continue;
+      firstNonZero = firstNonZero < 0 ? offset : firstNonZero;
+      lastNonZero = offset;
+    }
+    if (firstNonZero < 0) {
+      if (negative) fail("number.negative_zero", start);
+      return 0;
+    }
+
+    // Only comparisons against positions in this already byte-bounded token
+    // matter. Saturation avoids BigInt or an unbounded exponent conversion.
+    const exponentCap = coefficientLength + 32;
+    let exponentMagnitude = 0;
+    for (let offset = exponentDigitsStart; offset < exponentDigitsEnd; offset += 1) {
+      const digit = text.charCodeAt(offset) - 0x30;
+      if (exponentMagnitude > Math.floor((exponentCap - digit) / 10)) {
+        exponentMagnitude = exponentCap + 1;
+        break;
+      }
+      exponentMagnitude = exponentMagnitude * 10 + digit;
+    }
+    const exponent = exponentNegative ? -exponentMagnitude : exponentMagnitude;
+    const scale = exponent - fractionLength;
+    const trailingZeros = coefficientLength - lastNonZero - 1;
+    if (scale < -trailingZeros) {
+      // Preserve errors that the old parser reached after a fraction which
+      // binary64 had rounded to an otherwise accepted safe integer. Exact
+      // admission still fails if the rest of the input would have passed.
+      const legacyValue = Number(text.slice(start, index));
+      if (Number.isSafeInteger(legacyValue) && !Object.is(legacyValue, -0)) {
+        deferredExactNumberFailure ??= new ParseFailure("number.not_integer", start);
+        return legacyValue;
+      }
+      fail("number.not_integer", start);
+    }
+
+    const integerDigitCount = coefficientLength - firstNonZero + scale;
+    if (integerDigitCount > maxSafeIntegerDecimalV1.length) {
+      fail("number.unsafe_integer", start);
+    }
+
+    const sourceEnd = coefficientLength + Math.min(scale, 0);
+    let integerDigits = "";
+    for (let offset = firstNonZero; offset < sourceEnd; offset += 1) {
+      integerDigits += String.fromCharCode(coefficientDigitCodeAt(offset));
+    }
+    if (scale > 0) integerDigits += "0".repeat(scale);
+    if (
+      integerDigits.length === maxSafeIntegerDecimalV1.length &&
+      integerDigits > maxSafeIntegerDecimalV1
+    ) {
+      fail("number.unsafe_integer", start);
+    }
+
+    const value = Number(integerDigits);
+    return negative ? -value : value;
   };
 
   const parseValue = (depth: number): StrictJsonValueV1 => {
@@ -420,6 +529,7 @@ export function parseStrictJson(
     const value = parseValue(1);
     skipWhitespace();
     if (index !== text.length) fail("syntax.invalid");
+    if (deferredExactNumberFailure !== undefined) throw deferredExactNumberFailure;
     return { ok: true, value };
   } catch (error) {
     if (error instanceof ParseFailure) {

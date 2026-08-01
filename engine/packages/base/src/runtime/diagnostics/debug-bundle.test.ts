@@ -388,6 +388,31 @@ describe("Debug Bundle codec", () => {
     expect(Object.isFrozen(decoded.bundle.runtimeFailures)).toBe(true);
   });
 
+  it("normalizes exact-integer JSON spellings and atomically rejects exact fractions", () => {
+    const bundle = bundleV1();
+    const canonicalBytes = encodeDebugBundleV1(bundle, codecV1);
+    const canonicalText = new TextDecoder().decode(canonicalBytes);
+    expect(canonicalText).toContain('"formatRevision":1');
+
+    const alternateBytes = new TextEncoder().encode(
+      canonicalText.replace('"formatRevision":1', '"formatRevision":1e0'),
+    );
+    const alternate = decodeDebugBundleV1(alternateBytes, codecV1);
+    expect(alternate).toEqual({ kind: "decoded", bundle });
+    if (alternate.kind !== "decoded") throw new TypeError("expected decoded alternate bundle");
+    const normalizedBytes = encodeDebugBundleV1(alternate.bundle, codecV1);
+    expect(normalizedBytes).toEqual(canonicalBytes);
+    expect(digestBytes(normalizedBytes)).toBe(digestBytes(canonicalBytes));
+
+    const fractionalBytes = new TextEncoder().encode(
+      canonicalText.replace('"formatRevision":1', '"formatRevision":1e-324'),
+    );
+    expect(decodeDebugBundleV1(fractionalBytes, codecV1)).toEqual({
+      kind: "rejected",
+      code: "number.not_integer",
+    });
+  });
+
   it("checks both Snapshot digests independently even with an empty CommandLog", () => {
     const valid = bundleV1();
     const wrong = digestBytes(new TextEncoder().encode("wrong"));

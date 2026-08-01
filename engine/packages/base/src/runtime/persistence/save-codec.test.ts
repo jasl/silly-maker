@@ -339,6 +339,34 @@ describe("Save record codec", () => {
     expect(Object.isFrozen(decoded.record.snapshot.integrity)).toBe(true);
   });
 
+  it("normalizes exact-integer JSON spellings and atomically rejects exact fractions", () => {
+    const record = makeRecordV1();
+    const canonicalBytes = encodeSaveRecordV1(record, codecV1);
+    const canonicalText = new TextDecoder().decode(canonicalBytes);
+    expect(canonicalText).toContain('"formatRevision":1');
+
+    const alternateBytes = new TextEncoder().encode(
+      canonicalText.replace('"formatRevision":1', '"formatRevision":1.0'),
+    );
+    const alternate = decodeSaveRecordV1(alternateBytes, codecV1);
+    expect(alternate).toEqual({ kind: "decoded", record });
+    if (alternate.kind !== "decoded") throw new TypeError("expected decoded alternate record");
+    const normalizedBytes = encodeSaveRecordV1(alternate.record, codecV1);
+    expect(normalizedBytes).toEqual(canonicalBytes);
+    expect(digestBytes(normalizedBytes)).toBe(digestBytes(canonicalBytes));
+
+    const fractionalBytes = new TextEncoder().encode(
+      canonicalText.replace(
+        '"formatRevision":1',
+        '"formatRevision":0.999999999999999999999',
+      ),
+    );
+    expect(decodeSaveRecordV1(fractionalBytes, codecV1)).toEqual({
+      kind: "rejected",
+      code: "number.not_integer",
+    });
+  });
+
   it.each(
     [
       [

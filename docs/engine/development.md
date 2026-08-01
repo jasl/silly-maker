@@ -115,6 +115,15 @@ candidate Snapshot traversal/digest/freeze rather than using wall-clock timing.
 
 Save encoding performs canonical serialization and the Strict depth/node/collection/string/dangerous-key checks in the same package-internal traversal. The benchmark's `strictJsonPreflights` counter therefore means a separate post-encoding Strict parse traversal and is zero for each encode; `strictJsonParses` still counts decoder/readback parsing of untrusted bytes.
 
+Strict JSON numeric regression tests use exact decimal token vectors rather
+than wall-clock timing: rounded fractions, safe boundaries, negative-zero
+spellings, long coefficient/exponent inputs, and legacy parser-error precedence.
+The maintained Save metadata byte corpus is decoded directly and must
+canonicalize back to the same bytes, byte digest, and Snapshot state digest;
+Save and Debug Bundle tests also prove that exact-integer alternate spellings
+normalize without changing canonical output while fractional imports reject
+before schema/digest mutation.
+
 `deno task bench:snapshot:memory` is a separate schema-v1 process-isolated memory baseline; it does not change the `bench:snapshot` report. It holds one neutral 1k-entity Session for 1,200 real cross-owner atomic commits, samples `Deno.memoryUsage()` before and after an explicit `gc -> macrotask -> gc` cycle at command sequences 0/200/400/800/1,200, and treats sequence 400 onward as steady state after the 200-entry CommandLog has filled. Dispatch timing excludes collection and sampling; its interval percentiles use each batch's average per-command duration so differently sized checkpoint intervals remain comparable. It likewise writes to an operating-system temporary directory by default and accepts `--output <path>` for a CI artifact. Run it as its own process through the task so the exposed collector and retained-heap measurements are isolated.
 
 Wall-clock, memory, and GC values from either benchmark are trend evidence, not ordinary CI gates. Normal tests assert deterministic schedules, internal work counts, report schemas, and byte-equivalent Snapshot/CommandLog behavior; they do not assert one machine's timing, heap, RSS, or collector result. Raw local baseline JSON is not committed.

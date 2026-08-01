@@ -411,6 +411,16 @@ continuity `256` 不变。latest-stable Deno `2.9.4` 的 focused `7/211`、Base 
 full unit `218/2162` 与 `deno task check` 全绿；Host-neutral 改动未追加浏览器 E2E。默认
 core 下一独立切片现在是 PF-DET `DET2c`。
 
+**2026-08-01 DET2c promotion：** Strict JSON number token 现在在 binary64 value
+admission 前按 decimal coefficient/scale/exponent 精确分类；rounded fractions、真正
+negative zero 与 exact unsafe integer 分别使用既有 stable code，合法 alternate integer
+spellings 仍 normalization-equivalent。`maxBytes` 是唯一 token resource bound；为保留旧
+compound-input precedence，exact-rejected fraction 只可额外做一次 byte-bounded legacy
+classification，不参与 admission/value/bytes。M0a fixed Save corpus、Save/DebugBundle
+canonical bytes/digests 与 PF1 state digest 均未改变；focused `6/132`、Base `73/877`、
+full unit `218/2205`、`deno task check` 与 Engine Lab browser `103/103` 全绿。默认 core
+下一独立切片现在是 PF-DET `DET2d`。
+
 ### PF3 — Save envelope and migration registry
 
 执行 [Save migration plan](2026-07-30-save-migration.md) 的分段 gate：

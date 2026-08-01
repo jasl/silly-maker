@@ -260,6 +260,17 @@ Import/load validates bytes, schema, identity, references, and invariants before
 replacing the live replay anchor. Internal indexes, clients, closures, React
 values, and database handles must not enter a Save.
 
+Untrusted Save, Debug Bundle, lease, preference, and related JSON bytes share
+the bounded Strict JSON parser before schema or digest work. Numeric tokens are
+classified from their exact decimal coefficient/scale/exponent before a final
+safe-integer conversion: exact alternate spellings such as `1.0` and `1e0`
+normalize to the same runtime value, while rounded fractions, negative-zero
+spellings, and exact integers outside the safe range reject. The parser uses
+the enclosing byte limit as its numeric resource bound and never allocates or
+computes in proportion to the exponent. A rejection exposes no partial decoded
+value, so persistence replacement remains atomic; canonical encoding and digest
+bytes are unchanged.
+
 IndexedDB therefore remains durable storage, not the live query API. A future
 typed in-memory store may change how Gameplay State is accessed internally while
 preserving this persistence boundary.
