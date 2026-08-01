@@ -91,6 +91,19 @@ interface DebugCounterCommandV1 {
   readonly amount: number;
 }
 
+interface EvidenceFactV1 {
+  readonly kind: "synthetic.incremented";
+  readonly count: number;
+}
+
+interface EvidenceRejectionV1 {
+  readonly code: "synthetic.reject";
+}
+
+interface EvidenceDebugValidationErrorV1 {
+  readonly code: "synthetic.debug_command_unsupported";
+}
+
 type DebugSyntheticSimulationTypesV1 = Omit<SyntheticSimulationTypesV1, "debugCommand"> & {
   readonly debugCommand: DebugCounterCommandV1;
 };
@@ -554,6 +567,8 @@ function debugDefinitionFixtureV1() {
   let debugExecuteCalls = 0;
   let injectZeroRngCandidate = false;
   let normalizeFaultAsZeroRngCommit = false;
+  let throwGameExecutor = false;
+  let normalizeFaultAsValidCommit = false;
   const debugCommandSchemaV1 = Object.freeze({
     parse(value: unknown): DebugCounterCommandV1 {
       if (
@@ -618,6 +633,7 @@ function debugDefinitionFixtureV1() {
               command: SyntheticCounterCommandV1,
               context: SyntheticSimulationTypesV1["executionContext"],
             ) {
+              if (throwGameExecutor) throw new Error("synthetic game executor failure");
               return corruptCommittedAttemptV1(
                 gameSimulation.commandExecutor.executeAttempt(snapshot, command, context),
               );
@@ -684,6 +700,25 @@ function debugDefinitionFixtureV1() {
       ],
     );
   };
+  const validCommittedIncrementAttemptV1 = (snapshot: SyntheticSnapshotV1) => {
+    const rng = createTransactionalRngV1(snapshot.rng);
+    const count = parseNonNegativeSafeInteger(
+      snapshot.state.simulation.counter.count + 1,
+    );
+    const next = Object.freeze({
+      state: Object.freeze({
+        simulation: Object.freeze({
+          counter: Object.freeze({ count }),
+        }),
+      }),
+      rng: rng.candidateState(),
+      commandSequence: parseNonNegativeSafeInteger(snapshot.commandSequence + 1),
+      integrity: snapshot.integrity,
+    });
+    return commitAttemptV1(snapshot, next, rng, [
+      Object.freeze({ kind: "synthetic.incremented" as const, count }),
+    ]);
+  };
   const definition = defineCoreGameApplicationV1({
     entry,
     semantic: adapterV1 as unknown as CoreSemanticAdapterV1<
@@ -697,6 +732,7 @@ function debugDefinitionFixtureV1() {
       SyntheticResultV1
     >,
     normalizeUnexpectedDispatchFault(error, snapshot) {
+      if (normalizeFaultAsValidCommit) return validCommittedIncrementAttemptV1(snapshot);
       if (!normalizeFaultAsZeroRngCommit) throw error;
       return zeroRngCommittedAttemptV1(snapshot);
     },
@@ -858,6 +894,246 @@ function debugDefinitionFixtureV1() {
     normalizeFaultAsZeroRngCommit(value: boolean) {
       normalizeFaultAsZeroRngCommit = value;
     },
+    throwGameExecutor(value: boolean) {
+      throwGameExecutor = value;
+    },
+    normalizeFaultAsValidCommit(value: boolean) {
+      normalizeFaultAsValidCommit = value;
+    },
+  });
+}
+
+function evidenceNormalizationFixtureV1(options?: {
+  readonly zeroRngWithMalformedFact?: boolean;
+  readonly beforeGameAttemptReturns?: () => void;
+  readonly beforeEvidenceSchemaReturns?: (
+    kind: "fact" | "rejection" | "debug_validation",
+  ) => void;
+}) {
+  const baseEntry = createSyntheticCounterGamePackageV1();
+  const baseStory = baseEntry.define();
+  const factSchemaInputs: unknown[] = [];
+  const rejectionSchemaInputs: unknown[] = [];
+  const debugValidationSchemaInputs: unknown[] = [];
+  const rawFacts: EvidenceFactV1[] = [];
+  const rawRejections: EvidenceRejectionV1[] = [];
+  const rawDebugValidationErrors: EvidenceDebugValidationErrorV1[] = [];
+  const normalizedFacts: EvidenceFactV1[] = [];
+  const normalizedRejections: EvidenceRejectionV1[] = [];
+  const normalizedDebugValidationErrors: EvidenceDebugValidationErrorV1[] = [];
+  const earlierFactFrozenDuringNormalization: boolean[] = [];
+  const earlierRejectionFrozenDuringNormalization: boolean[] = [];
+  let projectedFacts: readonly EvidenceFactV1[] | undefined;
+  let projectedRejections: readonly EvidenceRejectionV1[] | undefined;
+
+  const factSchema: RuntimeSchemaV1<EvidenceFactV1> = Object.freeze({
+    parse(value: unknown): EvidenceFactV1 {
+      const earlier = normalizedFacts.at(-1);
+      if (earlier !== undefined) {
+        earlierFactFrozenDuringNormalization.push(Object.isFrozen(earlier));
+      }
+      factSchemaInputs.push(value);
+      const record = recordSchemaV1.parse(value);
+      if (record.kind !== "synthetic.incremented") {
+        throw new TypeError("invalid evidence-normalization fact kind");
+      }
+      const normalized = {
+        kind: "synthetic.incremented" as const,
+        count: parseNonNegativeSafeInteger(record.count),
+      };
+      normalizedFacts.push(normalized);
+      options?.beforeEvidenceSchemaReturns?.("fact");
+      return normalized;
+    },
+  });
+  const rejectionSchema: RuntimeSchemaV1<EvidenceRejectionV1> = Object.freeze({
+    parse(value: unknown): EvidenceRejectionV1 {
+      const earlier = normalizedRejections.at(-1);
+      if (earlier !== undefined) {
+        earlierRejectionFrozenDuringNormalization.push(Object.isFrozen(earlier));
+      }
+      rejectionSchemaInputs.push(value);
+      const record = recordSchemaV1.parse(value);
+      if (record.code !== "synthetic.reject") {
+        throw new TypeError("invalid evidence-normalization rejection code");
+      }
+      const normalized = { code: "synthetic.reject" as const };
+      normalizedRejections.push(normalized);
+      options?.beforeEvidenceSchemaReturns?.("rejection");
+      return normalized;
+    },
+  });
+  const debugValidationErrorSchema: RuntimeSchemaV1<EvidenceDebugValidationErrorV1> = Object.freeze(
+    {
+      parse(value: unknown): EvidenceDebugValidationErrorV1 {
+        debugValidationSchemaInputs.push(value);
+        const record = recordSchemaV1.parse(value);
+        if (record.code !== "synthetic.debug_command_unsupported") {
+          throw new TypeError("invalid evidence-normalization debug validation code");
+        }
+        const normalized = { code: "synthetic.debug_command_unsupported" as const };
+        normalizedDebugValidationErrors.push(normalized);
+        options?.beforeEvidenceSchemaReturns?.("debug_validation");
+        return normalized;
+      },
+    },
+  );
+
+  const story = Object.freeze({
+    ...baseStory,
+    simulation: Object.freeze({
+      ...baseStory.simulation,
+      createGameSimulation(
+        program: Parameters<typeof baseStory.simulation.createGameSimulation>[0],
+      ) {
+        const gameSimulation = baseStory.simulation.createGameSimulation(program);
+        return Object.freeze({
+          ...gameSimulation,
+          factSchema,
+          rejectionSchema,
+          debugValidationErrorSchema,
+          commandExecutor: Object.freeze({
+            ...gameSimulation.commandExecutor,
+            executeAttempt(
+              snapshot: SyntheticSimulationTypesV1["snapshot"],
+              command: SyntheticCounterCommandV1,
+              context: SyntheticSimulationTypesV1["executionContext"],
+            ) {
+              const attempt = gameSimulation.commandExecutor.executeAttempt(
+                snapshot,
+                command,
+                context,
+              );
+              options?.beforeGameAttemptReturns?.();
+              if (attempt.result.kind === "committed") {
+                const count = options?.zeroRngWithMalformedFact === true
+                  ? 0.5
+                  : attempt.result.facts[0]?.count ?? 0;
+                const first = {
+                  kind: "synthetic.incremented" as const,
+                  count,
+                  ignored: "first-raw-fact",
+                };
+                const second = {
+                  kind: "synthetic.incremented" as const,
+                  count: (attempt.result.facts[0]?.count ?? 0) + 100,
+                  ignored: "second-raw-fact",
+                };
+                rawFacts.push(first, second);
+                const candidateRng = options?.zeroRngWithMalformedFact === true
+                  ? Object.freeze({ ...attempt.result.snapshot.rng, cursor: 0 })
+                  : attempt.result.snapshot.rng;
+                const candidateSnapshot = options?.zeroRngWithMalformedFact === true
+                  ? Object.freeze({ ...attempt.result.snapshot, rng: candidateRng })
+                  : attempt.result.snapshot;
+                return Object.freeze({
+                  result: Object.freeze({
+                    kind: "committed" as const,
+                    snapshot: candidateSnapshot,
+                    facts: Object.freeze([first, second]),
+                  }),
+                  diagnostics: options?.zeroRngWithMalformedFact === true
+                    ? Object.freeze({
+                      ...attempt.diagnostics,
+                      candidateRngAfter: candidateRng,
+                      committedRngAfter: candidateRng,
+                    })
+                    : attempt.diagnostics,
+                });
+              }
+              if (attempt.result.kind === "rejected") {
+                const first = {
+                  code: "synthetic.reject" as const,
+                  ignored: "first-raw-rejection",
+                };
+                const second = {
+                  code: "synthetic.reject" as const,
+                  ignored: "second-raw-rejection",
+                };
+                rawRejections.push(first, second);
+                return Object.freeze({
+                  result: Object.freeze({
+                    kind: "rejected" as const,
+                    snapshot: attempt.result.snapshot,
+                    reasons: Object.freeze([first, second]),
+                  }),
+                  diagnostics: attempt.diagnostics,
+                });
+              }
+              return attempt;
+            },
+          }),
+          debugCommandExecutor: Object.freeze({
+            validate() {
+              const error = {
+                code: "synthetic.debug_command_unsupported" as const,
+                ignored: "raw-debug-validation-error",
+              };
+              rawDebugValidationErrors.push(error);
+              return Object.freeze({
+                kind: "validation_failed" as const,
+                errors: Object.freeze([error]),
+              });
+            },
+            executeAttempt(): never {
+              throw new TypeError("evidence-normalization debug command must not execute");
+            },
+          }),
+        });
+      },
+    }),
+  });
+  const entry = Object.freeze({ ...baseEntry, define: () => story });
+  const semantic = Object.freeze({
+    ...adapterV1,
+    projectDispatchResult(
+      result: Parameters<typeof adapterV1.projectDispatchResult>[0] & {
+        readonly execution?: {
+          readonly facts?: readonly EvidenceFactV1[];
+          readonly reasons?: readonly EvidenceRejectionV1[];
+        };
+      },
+    ): SyntheticResultV1 {
+      projectedFacts = result.execution?.facts;
+      projectedRejections = result.execution?.reasons;
+      return adapterV1.projectDispatchResult(result);
+    },
+  });
+  const definition = defineCoreGameApplicationV1({
+    entry,
+    semantic: semantic as unknown as CoreSemanticAdapterV1<
+      SyntheticSimulationTypesV1,
+      SyntheticQueriesV1,
+      SyntheticQueriesV1,
+      null,
+      { readonly actionId: string; readonly count: number },
+      SyntheticInvocationV1,
+      { readonly countBefore: number },
+      SyntheticResultV1
+    >,
+  });
+  const resolved = resolveCoreGameApplicationV1(definition, {
+    buildIdentityInput: deterministicBuildIdentityInputV1,
+  });
+  if (resolved.kind !== "resolved") {
+    throw new TypeError("evidence-normalization Story must resolve");
+  }
+
+  return Object.freeze({
+    application: resolved.application,
+    factSchemaInputs,
+    rejectionSchemaInputs,
+    debugValidationSchemaInputs,
+    rawFacts,
+    rawRejections,
+    rawDebugValidationErrors,
+    normalizedFacts,
+    normalizedRejections,
+    normalizedDebugValidationErrors,
+    earlierFactFrozenDuringNormalization,
+    earlierRejectionFrozenDuringNormalization,
+    projectedFacts: () => projectedFacts,
+    projectedRejections: () => projectedRejections,
   });
 }
 
@@ -2149,6 +2425,226 @@ describe("createCoreGameApplicationInstanceV1", () => {
     await instance.dispose();
   });
 
+  it("normalizes finalized Core evidence item-by-item before result, log, and replay use", async () => {
+    const fixture = evidenceNormalizationFixtureV1();
+    const instance = await createCoreGameApplicationInstanceV1(fixture.application, {
+      host: hostServicesV1(createMemoryHostRecordStoreV1()),
+      capabilities: { debugTools: true },
+    });
+
+    try {
+      await expect(instance.semantic.dispatch(incrementV1)).resolves.toEqual({
+        kind: "committed",
+        count: 1,
+      });
+      expect(fixture.factSchemaInputs).toHaveLength(2);
+      expect(fixture.factSchemaInputs[0]).toBe(fixture.rawFacts[0]);
+      expect(fixture.factSchemaInputs[1]).toBe(fixture.rawFacts[1]);
+      expect(fixture.earlierFactFrozenDuringNormalization).toEqual([false]);
+      expect(fixture.projectedFacts()?.[0]).toBe(fixture.normalizedFacts[0]);
+      expect(fixture.projectedFacts()?.[1]).toBe(fixture.normalizedFacts[1]);
+      expect(Object.isFrozen(fixture.projectedFacts())).toBe(true);
+      expect(fixture.normalizedFacts.every(Object.isFrozen)).toBe(true);
+      const committedEntry = instance.admin.commandLog()[0] as {
+        readonly outcome: {
+          readonly kind: "committed";
+          readonly facts: readonly EvidenceFactV1[];
+        };
+      };
+      expect(committedEntry.outcome.facts[0]).toBe(fixture.normalizedFacts[0]);
+      expect(committedEntry.outcome.facts[1]).toBe(fixture.normalizedFacts[1]);
+
+      await expect(instance.semantic.dispatch(rejectV1)).resolves.toEqual({ kind: "rejected" });
+      expect(fixture.rejectionSchemaInputs).toHaveLength(2);
+      expect(fixture.rejectionSchemaInputs[0]).toBe(fixture.rawRejections[0]);
+      expect(fixture.rejectionSchemaInputs[1]).toBe(fixture.rawRejections[1]);
+      expect(fixture.earlierRejectionFrozenDuringNormalization).toEqual([false]);
+      expect(fixture.projectedRejections()?.[0]).toBe(fixture.normalizedRejections[0]);
+      expect(fixture.projectedRejections()?.[1]).toBe(fixture.normalizedRejections[1]);
+      expect(Object.isFrozen(fixture.projectedRejections())).toBe(true);
+      expect(fixture.normalizedRejections.every(Object.isFrozen)).toBe(true);
+      const rejectedEntry = instance.admin.commandLog()[1] as {
+        readonly outcome: {
+          readonly kind: "rejected";
+          readonly reasons: readonly EvidenceRejectionV1[];
+        };
+      };
+      expect(rejectedEntry.outcome.reasons[0]).toBe(fixture.normalizedRejections[0]);
+      expect(rejectedEntry.outcome.reasons[1]).toBe(fixture.normalizedRejections[1]);
+
+      const debugControl = instance.admin.debugControl;
+      if (debugControl === undefined) throw new TypeError("debug control must be enabled");
+      const logBeforeDebugValidation = instance.admin.commandLog();
+      const validation = await debugControl.execute(
+        Object.freeze({ kind: "debug.evidence-normalization" }) as never,
+        () => true,
+      );
+      expect(validation).toMatchObject({
+        kind: "validation_failed",
+        errors: [{ code: "synthetic.debug_command_unsupported" }],
+      });
+      if (validation.kind !== "validation_failed") {
+        throw new TypeError("evidence-normalization debug command must fail validation");
+      }
+      expect(fixture.debugValidationSchemaInputs).toHaveLength(1);
+      expect(fixture.debugValidationSchemaInputs[0]).toBe(fixture.rawDebugValidationErrors[0]);
+      expect(validation.errors[0]).toBe(fixture.normalizedDebugValidationErrors[0]);
+      expect(Object.isFrozen(validation.errors)).toBe(true);
+      expect(Object.isFrozen(validation.errors[0])).toBe(true);
+      expect(instance.admin.commandLog()).toBe(logBeforeDebugValidation);
+
+      const commandLogBytesBeforeReplay = canonicalJsonBytes(instance.admin.commandLog());
+      await expect(instance.admin.replayAuthoritatively()).resolves.toMatchObject({
+        authoritative: true,
+        identityMatch: true,
+        matches: true,
+        executedEntries: 2,
+        mismatches: [],
+      });
+      expect(fixture.factSchemaInputs).toHaveLength(4);
+      expect(fixture.rejectionSchemaInputs).toHaveLength(4);
+      expect(canonicalJsonBytes(instance.admin.commandLog())).toEqual(commandLogBytesBeforeReplay);
+      expect((instance.admin.commandLog()[0] as typeof committedEntry).outcome.facts[0]).toBe(
+        fixture.normalizedFacts[0],
+      );
+      expect((instance.admin.commandLog()[1] as typeof rejectedEntry).outcome.reasons[0]).toBe(
+        fixture.normalizedRejections[0],
+      );
+    } finally {
+      await instance.dispose();
+    }
+  });
+
+  it("keeps Core candidate RNG admission ahead of malformed fact finalization", async () => {
+    const fixture = evidenceNormalizationFixtureV1({ zeroRngWithMalformedFact: true });
+    const counter = createPurposeTaggedSnapshotWorkCounterV1();
+    const instance = await createCoreGameApplicationInstanceV1(
+      fixture.application,
+      instrumentCoreApplicationSnapshotWorkOptionsInternalV1(
+        Object.freeze({ host: hostServicesV1(createMemoryHostRecordStoreV1()) }),
+        counter.instrumentation,
+      ),
+    );
+    const snapshotBefore = instance.admin.inspectForTest().snapshot;
+    const stateDigestBefore = instance.admin.stateDigest();
+    const commandLogBefore = instance.admin.commandLog();
+    const statusBefore = instance.semantic.observe().status;
+    counter.reset();
+
+    try {
+      await expect(instance.semantic.dispatch(incrementV1)).rejects.toMatchObject({
+        code: "rng.invalid_state",
+      });
+      expect(fixture.rawFacts).toHaveLength(2);
+      expect(fixture.factSchemaInputs).toEqual([]);
+      expect(fixture.normalizedFacts).toEqual([]);
+      expect(fixture.projectedFacts()).toBeUndefined();
+      expect(counter.snapshot()).toEqual({
+        snapshotDigestTraversals: 0,
+        snapshotFreezeTraversals: 0,
+        bootstrapAdmissionCanonicalTraversals: 0,
+        bootstrapHandoffFreezeTraversals: 0,
+        commandAdmissionCanonicalTraversals: 1,
+        commandHandoffFreezeTraversals: 1,
+        evidenceAdmissionCanonicalTraversals: 0,
+        replayComparisonTraversals: 0,
+        totalPhysicalCanonicalTraversals: 1,
+      });
+      expect(instance.admin.inspectForTest().snapshot).toBe(snapshotBefore);
+      expect(instance.admin.stateDigest()).toBe(stateDigestBefore);
+      expect(instance.admin.commandLog()).toBe(commandLogBefore);
+      expect(instance.semantic.observe().status).toBe(statusBefore);
+    } finally {
+      await instance.dispose();
+    }
+  });
+
+  it("lets the post-executor HMR fence win before candidate RNG or evidence admission", async () => {
+    let instance:
+      | Awaited<ReturnType<typeof createCoreGameApplicationInstanceV1>>
+      | undefined;
+    const fixture = evidenceNormalizationFixtureV1({
+      zeroRngWithMalformedFact: true,
+      beforeGameAttemptReturns: () => instance?.invalidateForHmr(),
+    });
+    const counter = createPurposeTaggedSnapshotWorkCounterV1();
+    instance = await createCoreGameApplicationInstanceV1(
+      fixture.application,
+      instrumentCoreApplicationSnapshotWorkOptionsInternalV1(
+        Object.freeze({ host: hostServicesV1(createMemoryHostRecordStoreV1()) }),
+        counter.instrumentation,
+      ),
+    );
+    const snapshotBefore = instance.admin.inspectForTest().snapshot;
+    const stateDigestBefore = instance.admin.stateDigest();
+    const commandLogBefore = instance.admin.commandLog();
+    counter.reset();
+
+    try {
+      await expect(instance.semantic.dispatch(incrementV1)).resolves.toEqual({
+        kind: "not_executed",
+        code: "hmr_invalidated",
+      });
+      expect(fixture.factSchemaInputs).toEqual([]);
+      expect(counter.snapshot()).toEqual({
+        snapshotDigestTraversals: 0,
+        snapshotFreezeTraversals: 0,
+        bootstrapAdmissionCanonicalTraversals: 0,
+        bootstrapHandoffFreezeTraversals: 0,
+        commandAdmissionCanonicalTraversals: 1,
+        commandHandoffFreezeTraversals: 1,
+        evidenceAdmissionCanonicalTraversals: 0,
+        replayComparisonTraversals: 0,
+        totalPhysicalCanonicalTraversals: 1,
+      });
+      expect(instance.admin.inspectForTest().snapshot).toBe(snapshotBefore);
+      expect(instance.admin.stateDigest()).toBe(stateDigestBefore);
+      expect(instance.admin.commandLog()).toBe(commandLogBefore);
+      expect(instance.semantic.observe().status).toBe("hmr_invalidated");
+    } finally {
+      await instance.dispose();
+    }
+  });
+
+  it.each(["fact", "rejection", "debug_validation"] as const)(
+    "drops a finalized %s candidate when its Story schema invalidates the Core instance",
+    async (target) => {
+      let instance:
+        | Awaited<ReturnType<typeof createCoreGameApplicationInstanceV1>>
+        | undefined;
+      const fixture = evidenceNormalizationFixtureV1({
+        beforeEvidenceSchemaReturns: (kind) => {
+          if (kind === target) instance?.invalidateForHmr();
+        },
+      });
+      instance = await createCoreGameApplicationInstanceV1(fixture.application, {
+        host: hostServicesV1(createMemoryHostRecordStoreV1()),
+        capabilities: { debugTools: true },
+      });
+      const snapshotBefore = instance.admin.inspectForTest().snapshot;
+      const stateDigestBefore = instance.admin.stateDigest();
+      const commandLogBefore = instance.admin.commandLog();
+
+      try {
+        const result = target === "fact"
+          ? await instance.semantic.dispatch(incrementV1)
+          : target === "rejection"
+          ? await instance.semantic.dispatch(rejectV1)
+          : await instance.admin.debugControl?.execute(
+            Object.freeze({ kind: "debug.evidence-normalization" }) as never,
+            () => true,
+          );
+        expect(result).toEqual({ kind: "not_executed", code: "hmr_invalidated" });
+        expect(instance.admin.inspectForTest().snapshot).toBe(snapshotBefore);
+        expect(instance.admin.stateDigest()).toBe(stateDigestBefore);
+        expect(instance.admin.commandLog()).toBe(commandLogBefore);
+        expect(instance.semantic.observe().status).toBe("hmr_invalidated");
+      } finally {
+        await instance.dispose();
+      }
+    },
+  );
+
   it.each(["game", "debug"] as const)(
     "rejects a zero RNG candidate from the Core %s executor before Session finalization",
     async (source) => {
@@ -2292,6 +2788,44 @@ describe("createCoreGameApplicationInstanceV1", () => {
       });
     } finally {
       fixture.injectZeroRngCandidate(false);
+      await instance.dispose();
+    }
+  });
+
+  it("requires the same faulted normalizer fallback during replay and live dispatch", async () => {
+    const fixture = debugDefinitionFixtureV1();
+    const resolved = resolveCoreGameApplicationV1(fixture.definition, {
+      buildIdentityInput: deterministicBuildIdentityInputV1,
+    });
+    if (resolved.kind !== "resolved") throw new TypeError("debug synthetic story must resolve");
+    const instance = await createCoreGameApplicationInstanceV1(resolved.application, {
+      host: hostServicesV1(createMemoryHostRecordStoreV1()),
+      capabilities: { debugTools: true },
+    });
+    await instance.semantic.dispatch(incrementV1);
+    const snapshotBefore = instance.admin.inspectForTest().snapshot;
+    const digestBefore = instance.admin.stateDigest();
+    const commandLogBefore = instance.admin.commandLog();
+    const commandLogBytesBefore = canonicalJsonBytes(commandLogBefore);
+    const statusBefore = instance.semantic.observe().status;
+    fixture.throwGameExecutor(true);
+    fixture.normalizeFaultAsValidCommit(true);
+
+    try {
+      await expect(instance.admin.replayAuthoritatively()).rejects.toThrow(
+        "Replay fault normalizer must return a faulted attempt",
+      );
+      await expect(instance.semantic.dispatch(incrementV1)).rejects.toThrow(
+        "Dispatch fault normalizer must return a faulted attempt",
+      );
+      expect(instance.admin.inspectForTest().snapshot).toBe(snapshotBefore);
+      expect(instance.admin.stateDigest()).toBe(digestBefore);
+      expect(instance.admin.commandLog()).toBe(commandLogBefore);
+      expect(canonicalJsonBytes(instance.admin.commandLog())).toEqual(commandLogBytesBefore);
+      expect(instance.semantic.observe().status).toBe(statusBefore);
+    } finally {
+      fixture.normalizeFaultAsValidCommit(false);
+      fixture.throwGameExecutor(false);
       await instance.dispose();
     }
   });

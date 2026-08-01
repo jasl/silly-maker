@@ -130,6 +130,20 @@ creating a second normalized authority. Direct Simulation and CommandLog calls
 cannot bypass the gate. This stricter command traversal mode does not change
 public `canonicalJsonBytes`, digest, Save, or Debug Bundle encoding behavior.
 
+Finalized attempt evidence has a separate package-internal admission boundary.
+After an executor returns, Standard Core captures the attempt envelope without
+invoking accessors, validates the candidate Snapshot RNG, then normalizes Story
+facts/rejections and Debug validation errors through their declared schemas.
+The complete Snapshot-free evidence projection must be Strict Canonical Data
+before any candidate Snapshot integrity mutation, whole-tree freeze, digest,
+CommandLog continuity check, installation, or publication. One exact-identity
+handoff lets the Session append the already admitted evidence without a second
+traversal. Independent CommandLog calls still self-admit, while direct
+Simulation results are admitted only when their opaque generic result is
+structurally attempt-shaped (`result` plus `diagnostics`). A finalization failure
+uses the existing unexpected-fault normalizer once; an invalid fallback is not
+normalized recursively and leaves the stable Snapshot and log unchanged.
+
 The current validator checks unique State ownership and an acyclic module
 dependency graph. A Story's aggregate State should reflect the modules it
 actually composes; unused modules should not force placeholder State.

@@ -520,9 +520,9 @@ describe("GameSession FIFO", () => {
     expect(Object.isFrozen(normalized)).toBe(true);
     expect(Object.isFrozen((normalized as unknown as { metadata: object }).metadata)).toBe(true);
     expect(counter.snapshot()).toEqual({
-      canonicalTraversals: 4,
+      canonicalTraversals: 6,
       canonicalDigests: 2,
-      deepFreezeTraversals: 4,
+      deepFreezeTraversals: 6,
       commandLogContinuityVerifications: 2,
       saveCanonicalSerializations: 0,
       strictJsonParses: 0,
@@ -535,9 +535,9 @@ describe("GameSession FIFO", () => {
       bootstrapHandoffFreezeTraversals: 0,
       commandAdmissionCanonicalTraversals: 2,
       commandHandoffFreezeTraversals: 2,
-      evidenceAdmissionCanonicalTraversals: 0,
+      evidenceAdmissionCanonicalTraversals: 2,
       replayComparisonTraversals: 0,
-      totalPhysicalCanonicalTraversals: 4,
+      totalPhysicalCanonicalTraversals: 6,
     });
   });
 
@@ -681,9 +681,9 @@ describe("GameSession FIFO", () => {
       () => true,
     );
     expect(counter.snapshot()).toEqual({
-      canonicalTraversals: 2,
+      canonicalTraversals: 3,
       canonicalDigests: 1,
-      deepFreezeTraversals: 2,
+      deepFreezeTraversals: 3,
       commandLogContinuityVerifications: 1,
       saveCanonicalSerializations: 0,
       strictJsonParses: 0,
@@ -696,9 +696,9 @@ describe("GameSession FIFO", () => {
       () => true,
     );
     expect(counter.snapshot()).toEqual({
-      canonicalTraversals: 1,
+      canonicalTraversals: 2,
       canonicalDigests: 0,
-      deepFreezeTraversals: 1,
+      deepFreezeTraversals: 2,
       commandLogContinuityVerifications: 1,
       saveCanonicalSerializations: 0,
       strictJsonParses: 0,
@@ -986,6 +986,7 @@ describe("GameSession FIFO", () => {
     expect(debugExecuteCalls).toBe(0);
     expect(purposes.snapshot().commandAdmissionCanonicalTraversals).toBe(1);
     expect(purposes.snapshot().commandHandoffFreezeTraversals).toBe(1);
+    expect(purposes.snapshot().evidenceAdmissionCanonicalTraversals).toBe(1);
     expect(created.commandLog.entries()).toHaveLength(1);
     expect(created.commandLog.entries()[0]?.source).toBe("game");
     expect(created.session.getCurrentSnapshot().integrity).toEqual(createPristineRunIntegrityV1());
@@ -1282,9 +1283,9 @@ describe("GameSession FIFO", () => {
       digestCanonical("sillymaker:state:v1", anchored),
     );
     expect(counter.snapshot()).toEqual({
-      canonicalTraversals: 2,
+      canonicalTraversals: 3,
       canonicalDigests: 1,
-      deepFreezeTraversals: 2,
+      deepFreezeTraversals: 3,
       commandLogContinuityVerifications: 1,
       saveCanonicalSerializations: 0,
       strictJsonParses: 0,
@@ -1396,9 +1397,9 @@ describe("GameSession FIFO", () => {
       digestCanonical("sillymaker:state:v1", created.session.getCurrentSnapshot()),
     );
     expect(counter.snapshot()).toEqual({
-      canonicalTraversals: 6,
+      canonicalTraversals: 9,
       canonicalDigests: 3,
-      deepFreezeTraversals: 6,
+      deepFreezeTraversals: 9,
       commandLogContinuityVerifications: 3,
       saveCanonicalSerializations: 0,
       strictJsonParses: 0,
@@ -1724,6 +1725,135 @@ describe("GameSession FIFO", () => {
     expect(attemptsObserved).toBe(0);
   });
 
+  it("checks the post-validator HMR fence before admitting Debug validation evidence", async () => {
+    const mutableError = {
+      code: "debug.synthetic.validation_failed" as const,
+      commandKind: "debug.synthetic.validation_failed" as const,
+    };
+    let normalizerCalls = 0;
+    let created!: ReturnType<typeof createGameSessionV1<Types>>;
+    created = createGameSessionV1<Types>({
+      initialSnapshot: createSnapshot(0),
+      commandSchema,
+      executionContext: undefined,
+      executeAttempt(snapshot, command) {
+        return attempt(snapshot as Snapshot, command as Command);
+      },
+      normalizeUnexpectedDispatchFault(_error, snapshot) {
+        return attempt(snapshot as Snapshot, { kind: "fault" });
+      },
+      debug: defineDebugInputV1({
+        validate() {
+          created.invalidationController.invalidateForHmr();
+          return { kind: "validation_failed" as const, errors: [mutableError] };
+        },
+        executeAttempt(): never {
+          throw new TypeError("invalidated validation must not execute");
+        },
+        normalizeUnexpectedFault(_error, snapshot) {
+          normalizerCalls += 1;
+          return attempt(snapshot as Snapshot, { kind: "fault" });
+        },
+      }),
+    });
+
+    await expect(
+      created.debugControl.execute(
+        Object.freeze({ kind: "debug.synthetic.validation_failed" }),
+        () => true,
+      ),
+    ).resolves.toEqual({ kind: "not_executed", code: "hmr_invalidated" });
+    expect(Object.isFrozen(mutableError)).toBe(false);
+    expect(normalizerCalls).toBe(0);
+    expect(created.commandLog.entries()).toEqual([]);
+  });
+
+  it.each(["game", "debug"] as const)(
+    "normalizes an undefined %s attempt exactly once through the valid fault fallback",
+    async (source) => {
+      let normalizerCalls = 0;
+      const created = createGameSessionV1<Types>({
+        initialSnapshot: createSnapshot(0),
+        commandSchema,
+        executionContext: undefined,
+        executeAttempt() {
+          return undefined as never;
+        },
+        normalizeUnexpectedDispatchFault(_error, snapshot) {
+          normalizerCalls += 1;
+          return attempt(snapshot as Snapshot, { kind: "fault" });
+        },
+        debug: defineDebugInputV1({
+          validate: () => Object.freeze({ kind: "allowed" as const }),
+          executeAttempt() {
+            return undefined as never;
+          },
+          normalizeUnexpectedFault(_error, snapshot) {
+            normalizerCalls += 1;
+            return attempt(snapshot as Snapshot, { kind: "fault" });
+          },
+        }),
+      });
+
+      const result = source === "game"
+        ? await created.session.dispatch({ kind: "increment" })
+        : await created.debugControl.execute(
+          Object.freeze({ kind: "debug.synthetic.fault" }),
+          () => true,
+        );
+      expect(result).toMatchObject(
+        source === "game"
+          ? { kind: "executed", execution: { kind: "faulted" } }
+          : { kind: "executed", attempt: { result: { kind: "faulted" } } },
+      );
+      expect(normalizerCalls).toBe(1);
+      expect(created.session.getStatus()).toBe("fault_paused");
+      expect(created.commandLog.entries()).toHaveLength(1);
+    },
+  );
+
+  it.each(["direct", "normalized"] as const)(
+    "records a %s fault for a canonical primitive DebugCommand without requiring kind",
+    async (mode) => {
+      let normalizerCalls = 0;
+      const created = createGameSessionV1<Types>({
+        initialSnapshot: createSnapshot(0),
+        commandSchema,
+        executionContext: undefined,
+        executeAttempt(snapshot, command) {
+          return attempt(snapshot as Snapshot, command as Command);
+        },
+        normalizeUnexpectedDispatchFault(_error, snapshot) {
+          return attempt(snapshot as Snapshot, { kind: "fault" });
+        },
+        debug: defineDebugInputV1({
+          validate: () => Object.freeze({ kind: "allowed" as const }),
+          executeAttempt(snapshot) {
+            if (mode === "normalized") throw new Error("synthetic primitive debug failure");
+            return attempt(snapshot as Snapshot, { kind: "fault" });
+          },
+          normalizeUnexpectedFault(_error, snapshot) {
+            normalizerCalls += 1;
+            return attempt(snapshot as Snapshot, { kind: "fault" });
+          },
+        }),
+      });
+
+      await expect(
+        created.debugControl.execute(1 as never, () => true),
+      ).resolves.toMatchObject({
+        kind: "executed",
+        attempt: { result: { kind: "faulted" } },
+      });
+      expect(normalizerCalls).toBe(mode === "normalized" ? 1 : 0);
+      expect(created.commandLog.entries()[0]).toMatchObject({
+        source: "debug",
+        command: 1,
+        outcome: { kind: "faulted" },
+      });
+    },
+  );
+
   it("does not let an in-flight authoritative replacement revive an invalidated Session", async () => {
     let releaseReplacement: (() => void) | undefined;
     let replacementStarted: (() => void) | undefined;
@@ -1771,6 +1901,7 @@ describe("GameSession FIFO", () => {
     const startedDispatch = new Promise<void>((resolve) => {
       dispatchStarted = resolve;
     });
+    let normalizerCalls = 0;
     const created = createGameSessionV1<Types>({
       initialSnapshot: createSnapshot(0),
       commandSchema,
@@ -1781,6 +1912,7 @@ describe("GameSession FIFO", () => {
         throw new Error("old executor failed");
       },
       normalizeUnexpectedDispatchFault(_error, snapshot) {
+        normalizerCalls += 1;
         return attempt(snapshot as Snapshot, { kind: "fault" });
       },
     });
@@ -1797,6 +1929,7 @@ describe("GameSession FIFO", () => {
     expect(created.session.getStatus()).toBe("hmr_invalidated");
     expect(created.session.getCurrentSnapshot().state.count).toBe(0);
     expect(created.commandLog.entries()).toEqual([]);
+    expect(normalizerCalls).toBe(0);
 
     let releaseReplacement: (() => void) | undefined;
     let replacementStarted: (() => void) | undefined;
@@ -2047,9 +2180,9 @@ describe("GameSession FIFO", () => {
       digestCanonical("sillymaker:state:v1", created.session.getCurrentSnapshot()),
     );
     expect(counter.snapshot()).toEqual({
-      canonicalTraversals: 2,
+      canonicalTraversals: 3,
       canonicalDigests: 1,
-      deepFreezeTraversals: 2,
+      deepFreezeTraversals: 3,
       commandLogContinuityVerifications: 1,
       saveCanonicalSerializations: 0,
       strictJsonParses: 0,

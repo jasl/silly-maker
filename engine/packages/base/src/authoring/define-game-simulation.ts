@@ -10,7 +10,14 @@ import { canonicalJsonBytes } from "../contracts/canonical-json.ts";
 import { parseModuleId, parsePositiveSafeInteger, parseStateSlotId } from "../contracts/values.ts";
 import {
   admitCanonicalCommandForTargetInternalV1,
+  withCanonicalCommandHandoffInternalV1,
 } from "../internal/canonical-command-admission.ts";
+import {
+  admitCommandAttemptEvidenceInternalV1,
+  admitDebugValidationResultInternalV1,
+  consumeSimulationEvidenceDeferralInternalV1,
+  isCommandAttemptEnvelopeCandidateInternalV1,
+} from "../internal/finalized-evidence-admission.ts";
 import { deepFreezeAuthoringValueV1, moduleDefinitionErrorV1 } from "./define-gameplay-module.ts";
 
 interface DefineGameSimulationV1<TTypes extends GameSimulationTypeMapV1> {
@@ -37,6 +44,7 @@ interface DefineGameSimulationV1<TTypes extends GameSimulationTypeMapV1> {
 }
 
 type RuntimeRecord = Record<PropertyKey, unknown>;
+const validatedGameSimulationsV1 = new WeakSet<object>();
 
 function requireRecord(value: unknown, label: string): RuntimeRecord {
   if (
@@ -266,6 +274,13 @@ function parseSchema(schemaValue: unknown, value: unknown, label: string): unkno
 }
 
 function validateRuntimeSimulationV1(simulationValue: unknown): unknown {
+  if (
+    simulationValue !== null &&
+    typeof simulationValue === "object" &&
+    validatedGameSimulationsV1.has(simulationValue)
+  ) {
+    return simulationValue;
+  }
   const simulation = requireRecord(simulationValue, "GameSimulation");
   deepFreezeAuthoringValueV1(simulationValue);
   if (simulation.contractRevision !== 1) {
@@ -356,11 +371,28 @@ function validateRuntimeSimulationV1(simulationValue: unknown): unknown {
           command,
           "simulation_game_execute",
         );
-        return Reflect.apply(executeCommandAttempt, commandExecutor, [
-          snapshot,
-          admission.value,
-          context,
-        ]);
+        const deferred = consumeSimulationEvidenceDeferralInternalV1("simulation_game_execute");
+        const candidate = withCanonicalCommandHandoffInternalV1(
+          admission,
+          "simulation_game_execute",
+          () =>
+            Reflect.apply(executeCommandAttempt, commandExecutor, [
+              snapshot,
+              admission.value,
+              context,
+            ]),
+        );
+        if (deferred) return candidate;
+        if (!isCommandAttemptEnvelopeCandidateInternalV1(candidate)) return candidate;
+        return admitCommandAttemptEvidenceInternalV1(
+          snapshot as never,
+          candidate as never,
+          {
+            parseFact: (value: unknown) => parseSchema(simulation.factSchema, value, "Fact Schema"),
+            parseRejection: (value: unknown) =>
+              parseSchema(simulation.rejectionSchema, value, "Rejection Schema"),
+          },
+        );
       },
     },
     debugCommandExecutor: {
@@ -370,22 +402,55 @@ function validateRuntimeSimulationV1(simulationValue: unknown): unknown {
           command,
           "simulation_debug_validate",
         );
-        return Reflect.apply(validateDebugCommand, debugCommandExecutor, [
-          snapshot,
-          admission.value,
-          context,
-        ]);
+        const deferred = consumeSimulationEvidenceDeferralInternalV1("simulation_debug_validate");
+        const validation = withCanonicalCommandHandoffInternalV1(
+          admission,
+          "simulation_debug_validate",
+          () =>
+            Reflect.apply(validateDebugCommand, debugCommandExecutor, [
+              snapshot,
+              admission.value,
+              context,
+            ]),
+        );
+        if (deferred) return validation;
+        return admitDebugValidationResultInternalV1(
+          validation,
+          (value: unknown) =>
+            parseSchema(
+              simulation.debugValidationErrorSchema,
+              value,
+              "Debug validation error Schema",
+            ),
+        );
       },
       executeAttempt(snapshot: unknown, command: unknown, context: unknown): unknown {
         const admission = admitCanonicalCommandForTargetInternalV1(
           command,
           "simulation_debug_execute",
         );
-        return Reflect.apply(executeDebugCommandAttempt, debugCommandExecutor, [
-          snapshot,
-          admission.value,
-          context,
-        ]);
+        const deferred = consumeSimulationEvidenceDeferralInternalV1("simulation_debug_execute");
+        const candidate = withCanonicalCommandHandoffInternalV1(
+          admission,
+          "simulation_debug_execute",
+          () =>
+            Reflect.apply(executeDebugCommandAttempt, debugCommandExecutor, [
+              snapshot,
+              admission.value,
+              context,
+            ]),
+        );
+        if (deferred) return candidate;
+        if (!isCommandAttemptEnvelopeCandidateInternalV1(candidate)) return candidate;
+        return admitCommandAttemptEvidenceInternalV1(
+          snapshot as never,
+          candidate as never,
+          {
+            parseFact: (value: unknown) => parseSchema(simulation.factSchema, value, "Fact Schema"),
+            parseRejection: (value: unknown) =>
+              parseSchema(simulation.rejectionSchema, value, "Rejection Schema"),
+          },
+        );
       },
     },
     createInitialState(bootstrap: unknown): unknown {
@@ -430,7 +495,9 @@ function validateRuntimeSimulationV1(simulationValue: unknown): unknown {
       return state;
     },
   };
-  return deepFreezeAuthoringValueV1(validated);
+  const frozen = deepFreezeAuthoringValueV1(validated);
+  validatedGameSimulationsV1.add(frozen);
+  return frozen;
 }
 
 export function defineGameSimulation<

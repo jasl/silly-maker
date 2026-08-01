@@ -98,9 +98,9 @@ describe("Snapshot commit workload", () => {
     await expect(prepared.runOnce()).resolves.toMatchObject({
       outcome: "committed",
       counts: {
-        canonicalTraversals: 2,
+        canonicalTraversals: 3,
         canonicalDigests: 1,
-        deepFreezeTraversals: 2,
+        deepFreezeTraversals: 3,
         commandLogContinuityVerifications: 1,
       },
     });
@@ -132,16 +132,16 @@ describe("Snapshot commit workload", () => {
       expect(counts).toEqual({
         canonicalTraversals:
           commandClass === "single_field_committed" || commandClass === "multi_slice_committed"
-            ? 2
-            : 1,
+            ? 3
+            : 2,
         canonicalDigests:
           commandClass === "single_field_committed" || commandClass === "multi_slice_committed"
             ? 1
             : 0,
         deepFreezeTraversals:
           commandClass === "single_field_committed" || commandClass === "multi_slice_committed"
-            ? 2
-            : 1,
+            ? 3
+            : 2,
         commandLogContinuityVerifications: 1,
         saveCanonicalSerializations: 0,
         strictJsonParses: 0,
@@ -151,7 +151,7 @@ describe("Snapshot commit workload", () => {
   );
 
   it.each(commandClassesV1)(
-    "labels the %s Snapshot and command-admission work separately",
+    "labels the %s Snapshot, command-admission, and evidence-admission work separately",
     async (commandClass) => {
       const counter = createPurposeTaggedSnapshotWorkCounterV1();
       const workload = createSnapshotCommitWorkloadV1({
@@ -170,9 +170,9 @@ describe("Snapshot commit workload", () => {
         bootstrapHandoffFreezeTraversals: 0,
         commandAdmissionCanonicalTraversals: 1,
         commandHandoffFreezeTraversals: 1,
-        evidenceAdmissionCanonicalTraversals: 0,
+        evidenceAdmissionCanonicalTraversals: 1,
         replayComparisonTraversals: 0,
-        totalPhysicalCanonicalTraversals: (committed ? 1 : 0) + 1,
+        totalPhysicalCanonicalTraversals: (committed ? 1 : 0) + 2,
       });
     },
   );

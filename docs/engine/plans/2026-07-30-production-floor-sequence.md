@@ -398,6 +398,19 @@ retained-200 replay 为 canonical `3409 -> 3609`、freeze `0 -> 200`。latest-st
 Deno `2.9.4` 的 focused/Base/full unit 与 `deno task check` 全绿；Host-neutral 改动没有
 追加浏览器 E2E。默认 core 下一独立切片现在是 PF-DET `DET2b`。
 
+**2026-08-01 DET2b promotion：** Session、independent CommandLog、Standard Core
+authoritative replay、Debug validation 与 attempt-shaped direct Simulation result 已有
+package-internal finalized-evidence admission；fact/rejection/debug-error 走既有 schema，
+fault/RNG/receipt 走 exact shape + Strict Canonical Data。Standard Core 保留 zero-RNG
+precedence，Session 在 post-callback 与 post-finalization 两处执行 HMR fence；valid fault
+fallback 只记录一次，invalid/non-faulted fallback 不递归 normalizer。Session→CommandLog
+exact-identity handoff 不重复 traversal，opaque `GameSimulationV1` generic result 与 public
+Save/CommandLog/replay shape 均未改变。每 attempt 新增一次 Snapshot-free evidence
+canonical/freeze；256-command recording `426/426 -> 682/682`，Snapshot digest `170` 与
+continuity `256` 不变。latest-stable Deno `2.9.4` 的 focused `7/211`、Base `73/834`、
+full unit `218/2162` 与 `deno task check` 全绿；Host-neutral 改动未追加浏览器 E2E。默认
+core 下一独立切片现在是 PF-DET `DET2c`。
+
 ### PF3 — Save envelope and migration registry
 
 执行 [Save migration plan](2026-07-30-save-migration.md) 的分段 gate：

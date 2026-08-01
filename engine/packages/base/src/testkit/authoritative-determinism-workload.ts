@@ -368,6 +368,7 @@ type UnsafeAuthoritativeDeterminismCaseV1 =
   | "fractional_fault"
   | "fractional_rng_draw"
   | "fractional_rng_state"
+  | "fractional_debug_validation"
   | "illegal_fallback_fault";
 
 interface UnsafeAuthoritativeDeterminismStateV1 {
@@ -395,7 +396,17 @@ interface UnsafeAuthoritativeDeterminismRejectionV1 {
 
 type UnsafeAuthoritativeDeterminismFaultV1 =
   | { readonly code: "determinism.unsafe_fault"; readonly value: number }
-  | { readonly code: "determinism.illegal_fallback" };
+  | { readonly code: "determinism.stable_fault" }
+  | { readonly code: "determinism.illegal_fallback"; readonly value: number };
+
+interface UnsafeAuthoritativeDeterminismDebugCommandV1 {
+  readonly kind: "fractional_debug_validation";
+}
+
+interface UnsafeAuthoritativeDeterminismDebugValidationErrorV1 {
+  readonly code: "determinism.unsafe_debug_validation";
+  readonly value: number;
+}
 
 interface UnsafeAuthoritativeDeterminismTypesV1 extends
   GameSimulationTypeMapV1<
@@ -408,8 +419,8 @@ interface UnsafeAuthoritativeDeterminismTypesV1 extends
   readonly fact: UnsafeAuthoritativeDeterminismFactV1;
   readonly rejection: UnsafeAuthoritativeDeterminismRejectionV1;
   readonly fault: UnsafeAuthoritativeDeterminismFaultV1;
-  readonly debugCommand: never;
-  readonly debugValidationError: never;
+  readonly debugCommand: UnsafeAuthoritativeDeterminismDebugCommandV1;
+  readonly debugValidationError: UnsafeAuthoritativeDeterminismDebugValidationErrorV1;
   readonly rngState: RngStateV1;
   readonly rngDrawTrace: RngDrawTraceV1;
   readonly executionContext: undefined;
@@ -431,8 +442,10 @@ interface UnsafeRngStateEvidenceV1 {
 }
 
 interface UnsafeAuthoritativeDeterminismCommandLogEntryV1 {
-  readonly source: "game";
-  readonly command: DeepReadonly<UnsafeAuthoritativeDeterminismCommandV1>;
+  readonly source: "game" | "debug";
+  readonly command: DeepReadonly<
+    UnsafeAuthoritativeDeterminismCommandV1 | UnsafeAuthoritativeDeterminismDebugCommandV1
+  >;
   readonly logOrdinal: PositiveSafeInteger;
   readonly preStateDigest: Digest;
   readonly postStateDigest: Digest;
@@ -549,16 +562,12 @@ function unsafeAttemptV1(
       return fractionalRngEvidenceAttemptV1(current, "draw_result");
     case "fractional_rng_state":
       return fractionalRngEvidenceAttemptV1(current, "candidate_raw_draw_count");
+    case "fractional_debug_validation":
+      throw new TypeError("debug validation case cannot execute as a game command");
     case "illegal_fallback_fault":
-      return commitAttemptV1(
-        current,
-        {
-          ...createUnsafeCommittedSnapshotV1(current, 1),
-          integrity: createPristineRunIntegrityV1(),
-        },
-        rng,
-        Object.freeze([]),
-      );
+      return commitAttemptV1(current, createUnsafeCommittedSnapshotV1(current, 1), rng, [
+        Object.freeze({ kind: "determinism.unsafe_fact" as const, value: 0.625 }),
+      ]);
   }
   throw new TypeError("unsupported unsafe authoritative determinism case");
 }
@@ -569,12 +578,30 @@ export function createUnsafeAuthoritativeDeterminismWorkloadV1(
 ) {
   const counter = createCompositeSnapshotWorkCounterV1();
   let normalizerCalls = 0;
+  const normalizerErrors: unknown[] = [];
   const initialSnapshot = createUnsafeInitialSnapshotV1();
   const commandAmount = unsafeCase === "fractional_command" ? 0.25 : 1;
   const command = Object.freeze({ kind: unsafeCase, amount: commandAmount });
   const commandSchema: RuntimeSchemaV1<UnsafeAuthoritativeDeterminismCommandV1> = Object.freeze({
     parse: () => command,
   });
+  const normalizeUnexpectedFault = (
+    error: unknown,
+    snapshot: DeepReadonly<UnsafeAuthoritativeDeterminismSnapshotV1>,
+  ): UnsafeAuthoritativeDeterminismAttemptV1 => {
+    normalizerCalls += 1;
+    normalizerErrors.push(error);
+    return faultAttemptV1(
+      snapshot,
+      createTransactionalRngV1(snapshot.rng),
+      unsafeCase === "illegal_fallback_fault"
+        ? Object.freeze({
+          code: "determinism.illegal_fallback" as const,
+          value: 0.375,
+        })
+        : Object.freeze({ code: "determinism.stable_fault" as const }),
+    );
+  };
   const created = createInstrumentedGameSessionV1<UnsafeAuthoritativeDeterminismTypesV1>(
     {
       initialSnapshot,
@@ -582,21 +609,27 @@ export function createUnsafeAuthoritativeDeterminismWorkloadV1(
       executionContext: undefined,
       executeAttempt: unsafeAttemptV1,
       normalizeUnexpectedDispatchFault(
-        _error: unknown,
+        error: unknown,
         snapshot: DeepReadonly<UnsafeAuthoritativeDeterminismSnapshotV1>,
       ): UnsafeAuthoritativeDeterminismAttemptV1 {
-        normalizerCalls += 1;
-        const replacement: UnsafeAuthoritativeDeterminismSnapshotV1 = {
-          state: { ...snapshot.state },
-          rng: snapshot.rng,
-          commandSequence: snapshot.commandSequence,
-          integrity: snapshot.integrity,
-        };
-        return faultAttemptV1(
-          replacement,
-          createTransactionalRngV1(snapshot.rng),
-          Object.freeze({ code: "determinism.illegal_fallback" as const }),
-        );
+        return normalizeUnexpectedFault(error, snapshot);
+      },
+      debug: {
+        validate() {
+          return Object.freeze({
+            kind: "validation_failed" as const,
+            errors: Object.freeze([
+              Object.freeze({
+                code: "determinism.unsafe_debug_validation" as const,
+                value: 0.375,
+              }),
+            ]),
+          });
+        },
+        executeAttempt() {
+          throw new TypeError("fractional debug validation must not execute");
+        },
+        normalizeUnexpectedFault,
       },
     },
     counter.instrumentation,
@@ -607,6 +640,12 @@ export function createUnsafeAuthoritativeDeterminismWorkloadV1(
     dispatch() {
       return created.session.dispatch(command);
     },
+    executeDebug() {
+      return created.debugControl.execute(
+        Object.freeze({ kind: "fractional_debug_validation" as const }),
+        () => true,
+      );
+    },
     status: () => created.session.getStatus(),
     snapshot: () => created.session.getCurrentSnapshot(),
     commandLog: () =>
@@ -614,5 +653,6 @@ export function createUnsafeAuthoritativeDeterminismWorkloadV1(
     replayBase: () => created.commandLog.replayBase(),
     counts: () => counter.snapshot(),
     normalizerCalls: () => normalizerCalls,
+    normalizerErrors: () => Object.freeze([...normalizerErrors]),
   });
 }

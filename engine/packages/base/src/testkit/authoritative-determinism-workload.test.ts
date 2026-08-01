@@ -78,12 +78,18 @@ function countsV1(input: {
   readonly committed: boolean;
   readonly log: boolean;
   readonly commandAdmission?: boolean;
+  readonly evidenceAdmissions?: number;
+  readonly evidenceFreezes?: number;
 }): AuthoritativeDeterminismWorkCountsV1 {
   const commandAdmission = input.commandAdmission ?? true;
+  const evidenceAdmissions = input.evidenceAdmissions ?? 1;
+  const evidenceFreezes = input.evidenceFreezes ?? (evidenceAdmissions === 0 ? 0 : 1);
   return Object.freeze({
-    canonicalTraversals: (input.committed ? 1 : 0) + (commandAdmission ? 1 : 0),
+    canonicalTraversals: (input.committed ? 1 : 0) + (commandAdmission ? 1 : 0) +
+      evidenceAdmissions,
     canonicalDigests: input.committed ? 1 : 0,
-    deepFreezeTraversals: (input.committed ? 1 : 0) + (commandAdmission ? 1 : 0),
+    deepFreezeTraversals: (input.committed ? 1 : 0) + (commandAdmission ? 1 : 0) +
+      evidenceFreezes,
     commandLogContinuityVerifications: input.log ? 1 : 0,
     purposes: Object.freeze({
       snapshotDigestTraversals: input.committed ? 1 : 0,
@@ -92,9 +98,10 @@ function countsV1(input: {
       bootstrapHandoffFreezeTraversals: 0,
       commandAdmissionCanonicalTraversals: commandAdmission ? 1 : 0,
       commandHandoffFreezeTraversals: commandAdmission ? 1 : 0,
-      evidenceAdmissionCanonicalTraversals: 0,
+      evidenceAdmissionCanonicalTraversals: evidenceAdmissions,
       replayComparisonTraversals: 0,
-      totalPhysicalCanonicalTraversals: (input.committed ? 1 : 0) + (commandAdmission ? 1 : 0),
+      totalPhysicalCanonicalTraversals: (input.committed ? 1 : 0) +
+        (commandAdmission ? 1 : 0) + evidenceAdmissions,
     }),
   });
 }
@@ -219,7 +226,12 @@ describe("authoritative determinism workload", () => {
         drawPurpose: authoritativeDeterminismDrawPurposeV1,
       });
       expect(prepared.setupCounts).toEqual(
-        countsV1({ committed: true, log: false, commandAdmission: false }),
+        countsV1({
+          committed: true,
+          log: false,
+          commandAdmission: false,
+          evidenceAdmissions: 0,
+        }),
       );
 
       const run = await prepared.runOnce();
@@ -275,7 +287,16 @@ describe("authoritative determinism workload", () => {
   });
 });
 
-describe("authoritative determinism permissive baseline", () => {
+function expectCanonicalErrorV1(error: unknown, path: string): void {
+  expect(error).toBeInstanceOf(CanonicalJsonError);
+  expect(error).toMatchObject({
+    name: "CanonicalJsonError",
+    code: "number.not_integer",
+    path,
+  });
+}
+
+describe("authoritative determinism evidence finalization", () => {
   it("rejects a fractional command at canonical admission before any authoritative work", async () => {
     const workload = createUnsafeAuthoritativeDeterminismWorkloadV1("fractional_command");
     const dispatch = workload.dispatch();
@@ -292,6 +313,7 @@ describe("authoritative determinism permissive baseline", () => {
     expect(workload.snapshot()).toBe(workload.initialSnapshot);
     expect(workload.commandLog()).toEqual([]);
     expect(workload.normalizerCalls()).toBe(0);
+    expect(workload.normalizerErrors()).toEqual([]);
     expect(workload.counts()).toEqual({
       canonicalTraversals: 1,
       canonicalDigests: 0,
@@ -313,139 +335,121 @@ describe("authoritative determinism permissive baseline", () => {
 
   it.each(
     [
-      ["fractional_fact", "committed", "ready", false, 1, 0.5],
-      ["fractional_rejection", "rejected", "ready", true, 1, 0.75],
-      ["fractional_fault", "faulted", "fault_paused", true, 1, 0.875],
+      ["fractional_fact", "/result/facts/0/value"],
+      ["fractional_rejection", "/result/reasons/0/value"],
+      ["fractional_fault", "/result/fault/value"],
+      ["fractional_rng_draw", "/diagnostics/attemptedDraws/0/result"],
+      ["fractional_rng_state", "/diagnostics/candidateRngAfter/rawDrawCount"],
     ] as const,
   )(
-    "retains the current %s late-admission behavior",
-    async (unsafeCase, outcome, status, snapshotRetained, commandAmount, evidenceValue) => {
+    "normalizes %s failure before candidate Snapshot work and logs only the stable fallback",
+    async (unsafeCase, errorPath) => {
       const workload = createUnsafeAuthoritativeDeterminismWorkloadV1(unsafeCase);
       const result = await workload.dispatch();
 
-      expect(result).toMatchObject({ kind: "executed", execution: { kind: outcome } });
-      expect(workload.status()).toBe(status);
-      expect(workload.snapshot() === workload.initialSnapshot).toBe(snapshotRetained);
+      expect(result).toMatchObject({
+        kind: "executed",
+        execution: {
+          kind: "faulted",
+          snapshot: workload.initialSnapshot,
+          fault: { code: "determinism.stable_fault" },
+        },
+      });
+      expect(workload.status()).toBe("fault_paused");
+      expect(workload.snapshot()).toBe(workload.initialSnapshot);
+      expect(workload.snapshot()).toMatchObject({
+        state: { value: 0 },
+        rng: initialRngV1,
+        commandSequence: 0,
+      });
+      expect(workload.normalizerCalls()).toBe(1);
+      const [normalizedError] = workload.normalizerErrors();
+      expectCanonicalErrorV1(normalizedError, errorPath);
       expect(workload.commandLog()).toHaveLength(1);
       const entry = workload.commandLog()[0];
-      expect(entry?.command).toEqual({ kind: unsafeCase, amount: commandAmount });
-      if (unsafeCase === "fractional_fact") {
-        expect(entry?.outcome).toEqual({
-          kind: "committed",
-          facts: [{ kind: "determinism.unsafe_fact", value: evidenceValue }],
-        });
-      } else if (unsafeCase === "fractional_rejection") {
-        expect(entry?.outcome).toEqual({
-          kind: "rejected",
-          reasons: [{ code: "determinism.unsafe_rejection", value: evidenceValue }],
-        });
-      } else if (unsafeCase === "fractional_fault") {
-        expect(entry?.outcome).toEqual({
+      expect(entry).toMatchObject({
+        source: "game",
+        command: { kind: unsafeCase, amount: 1 },
+        commandSequence: { before: 0, after: 0 },
+        committedRngBefore: initialRngV1,
+        attemptedDraws: [],
+        candidateRngAfter: initialRngV1,
+        committedRngAfter: initialRngV1,
+        outcome: {
           kind: "faulted",
-          fault: { code: "determinism.unsafe_fault", value: evidenceValue },
-        });
-      }
+          fault: { code: "determinism.stable_fault" },
+        },
+      });
+      expect(entry?.postStateDigest).toBe(entry?.preStateDigest);
+      expect(workload.replayBase()).toBe(workload.initialSnapshot);
       expect(workload.counts()).toEqual(
-        countsV1({ committed: outcome === "committed", log: true }),
+        countsV1({
+          committed: false,
+          log: true,
+          evidenceAdmissions: 2,
+          evidenceFreezes: 1,
+        }),
       );
     },
   );
 
-  it("retains a fractional attempted RNG draw in the current CommandLog", async () => {
-    const workload = createUnsafeAuthoritativeDeterminismWorkloadV1("fractional_rng_draw");
-    const result = await workload.dispatch();
-
-    expect(result).toEqual({
-      kind: "executed",
-      execution: {
-        kind: "rejected",
-        snapshot: workload.initialSnapshot,
-        reasons: [{ code: "determinism.unsafe_rejection", value: 1 }],
-      },
-    });
-    expect(workload.status()).toBe("ready");
-    expect(workload.snapshot()).toBe(workload.initialSnapshot);
-    expect(workload.snapshot()).toMatchObject({
-      state: { value: 0 },
-      rng: initialRngV1,
-      commandSequence: 0,
-    });
-    expect(workload.normalizerCalls()).toBe(0);
-    expect(workload.counts()).toEqual(countsV1({ committed: false, log: true }));
-
-    const entry = workload.commandLog()[0];
-    if (entry === undefined) throw new TypeError("expected fractional RNG CommandLog entry");
-    expect(entry).toEqual({
-      source: "game",
-      command: { kind: "fractional_rng_draw", amount: 1 },
-      logOrdinal: 1,
-      preStateDigest: entry.preStateDigest,
-      postStateDigest: entry.postStateDigest,
-      commandSequence: { before: 0, after: 0 },
-      committedRngBefore: initialRngV1,
-      attemptedDraws: [{ ...drawTraceV1, result: 0.5 }],
-      candidateRngAfter: drawnRngV1,
-      committedRngAfter: initialRngV1,
-      outcome: {
-        kind: "rejected",
-        reasons: [{ code: "determinism.unsafe_rejection", value: 1 }],
-      },
-    });
-    expect(entry.postStateDigest).toBe(entry.preStateDigest);
-    expect(workload.replayBase()).toBe(workload.initialSnapshot);
-  });
-
-  it("retains a fractional candidate RNG state in the current CommandLog", async () => {
-    const workload = createUnsafeAuthoritativeDeterminismWorkloadV1("fractional_rng_state");
-    const result = await workload.dispatch();
-
-    expect(result).toEqual({
-      kind: "executed",
-      execution: {
-        kind: "rejected",
-        snapshot: workload.initialSnapshot,
-        reasons: [{ code: "determinism.unsafe_rejection", value: 1 }],
-      },
-    });
-    expect(workload.status()).toBe("ready");
-    expect(workload.snapshot()).toBe(workload.initialSnapshot);
-    expect(workload.snapshot()).toMatchObject({
-      state: { value: 0 },
-      rng: initialRngV1,
-      commandSequence: 0,
-    });
-    expect(workload.normalizerCalls()).toBe(0);
-    expect(workload.counts()).toEqual(countsV1({ committed: false, log: true }));
-
-    const entry = workload.commandLog()[0];
-    if (entry === undefined) throw new TypeError("expected fractional RNG state log entry");
-    expect(entry).toEqual({
-      source: "game",
-      command: { kind: "fractional_rng_state", amount: 1 },
-      logOrdinal: 1,
-      preStateDigest: entry.preStateDigest,
-      postStateDigest: entry.postStateDigest,
-      commandSequence: { before: 0, after: 0 },
-      committedRngBefore: initialRngV1,
-      attemptedDraws: [drawTraceV1],
-      candidateRngAfter: { ...drawnRngV1, rawDrawCount: 0.5 },
-      committedRngAfter: initialRngV1,
-      outcome: {
-        kind: "rejected",
-        reasons: [{ code: "determinism.unsafe_rejection", value: 1 }],
-      },
-    });
-    expect(entry.postStateDigest).toBe(entry.preStateDigest);
-    expect(workload.replayBase()).toBe(workload.initialSnapshot);
-  });
-
-  it("locks the rejected Promise and untouched Session for an illegal fallback fault", async () => {
-    const workload = createUnsafeAuthoritativeDeterminismWorkloadV1("illegal_fallback_fault");
-
-    await expect(workload.dispatch()).rejects.toThrow(
-      "Non-committed command attempt changed the Snapshot",
+  it("finalizes debug validation errors before returning them", async () => {
+    const workload = createUnsafeAuthoritativeDeterminismWorkloadV1(
+      "fractional_debug_validation",
     );
+    const result = await workload.executeDebug();
+
+    expect(result).toMatchObject({
+      kind: "executed",
+      attempt: {
+        result: {
+          kind: "faulted",
+          snapshot: workload.initialSnapshot,
+          fault: { code: "determinism.stable_fault" },
+        },
+      },
+    });
+    expect(workload.status()).toBe("fault_paused");
+    expect(workload.snapshot()).toBe(workload.initialSnapshot);
     expect(workload.normalizerCalls()).toBe(1);
+    const [normalizedError] = workload.normalizerErrors();
+    expectCanonicalErrorV1(normalizedError, "/errors/0/value");
+    expect(workload.commandLog()).toHaveLength(1);
+    expect(workload.commandLog()[0]).toMatchObject({
+      source: "debug",
+      command: { kind: "fractional_debug_validation" },
+      commandSequence: { before: 0, after: 0 },
+      outcome: {
+        kind: "faulted",
+        fault: { code: "determinism.stable_fault" },
+      },
+    });
+    expect(workload.replayBase()).toBe(workload.initialSnapshot);
+    expect(workload.counts()).toEqual(
+      countsV1({
+        committed: false,
+        log: true,
+        evidenceAdmissions: 2,
+        evidenceFreezes: 1,
+      }),
+    );
+  });
+
+  it("rejects with the invalid fallback fault after preserving the original evidence error", async () => {
+    const workload = createUnsafeAuthoritativeDeterminismWorkloadV1("illegal_fallback_fault");
+    const dispatch = workload.dispatch();
+
+    await expect(dispatch).rejects.toEqual(
+      expect.objectContaining({
+        name: "CanonicalJsonError",
+        code: "number.not_integer",
+        path: "/result/fault/value",
+      }),
+    );
+    await expect(dispatch).rejects.toBeInstanceOf(CanonicalJsonError);
+    expect(workload.normalizerCalls()).toBe(1);
+    const [originalError] = workload.normalizerErrors();
+    expectCanonicalErrorV1(originalError, "/result/facts/0/value");
     expect(workload.status()).toBe("ready");
     expect(workload.snapshot()).toBe(workload.initialSnapshot);
     expect(workload.snapshot()).toMatchObject({
@@ -455,6 +459,13 @@ describe("authoritative determinism permissive baseline", () => {
     });
     expect(workload.commandLog()).toEqual([]);
     expect(workload.replayBase()).toBe(workload.initialSnapshot);
-    expect(workload.counts()).toEqual(countsV1({ committed: false, log: false }));
+    expect(workload.counts()).toEqual(
+      countsV1({
+        committed: false,
+        log: false,
+        evidenceAdmissions: 2,
+        evidenceFreezes: 0,
+      }),
+    );
   });
 });

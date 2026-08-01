@@ -451,8 +451,26 @@ describe("Debug Bundle codec", () => {
         { command: { amount: 1 }, outcome: { kind: "faulted", fault: { value: 0.875 } } },
         "/commandLog/0/outcome/fault/value",
       ],
+      [
+        "RNG draw",
+        {
+          command: { amount: 1 },
+          outcome: { kind: "rejected", reasons: [] },
+          attemptedDraws: [{ result: 0.5 }],
+        },
+        "/commandLog/0/attemptedDraws/0/result",
+      ],
+      [
+        "candidate RNG state",
+        {
+          command: { amount: 1 },
+          outcome: { kind: "rejected", reasons: [] },
+          candidateRngAfter: { rawDrawCount: 0.5 },
+        },
+        "/commandLog/0/candidateRngAfter/rawDrawCount",
+      ],
     ] as const,
-  )("discovers a fractional %s only while encoding the Debug Bundle", async (_, entry, path) => {
+  )("defensively rejects a manually supplied fractional %s", async (_, entry, path) => {
     const commandLog = Object.freeze([entry]);
     const bundle = permissiveBundleV1(commandLog);
 
@@ -468,50 +486,41 @@ describe("Debug Bundle codec", () => {
     );
   });
 
-  it("reports the exact first pointer for fractional RNG evidence retained by Session", async () => {
-    const workload = createUnsafeAuthoritativeDeterminismWorkloadV1("fractional_rng_draw");
-    await expect(workload.dispatch()).resolves.toMatchObject({
-      kind: "executed",
-      execution: { kind: "rejected" },
-    });
-    const commandLog = workload.commandLog();
-    expect(commandLog[0]?.attemptedDraws[0]?.result).toBe(0.5);
-    const bundle = permissiveBundleV1(commandLog);
+  it.each(["fractional_rng_draw", "fractional_rng_state"] as const)(
+    "does not first discover live Session %s evidence during Debug Bundle export",
+    async (unsafeCase) => {
+      const workload = createUnsafeAuthoritativeDeterminismWorkloadV1(unsafeCase);
+      await expect(workload.dispatch()).resolves.toMatchObject({
+        kind: "executed",
+        execution: {
+          kind: "faulted",
+          snapshot: workload.initialSnapshot,
+          fault: { code: "determinism.stable_fault" },
+        },
+      });
+      const commandLog = workload.commandLog();
+      expect(commandLog).toHaveLength(1);
+      expect(commandLog[0]).toMatchObject({
+        attemptedDraws: [],
+        candidateRngAfter: workload.initialSnapshot.rng,
+        committedRngAfter: workload.initialSnapshot.rng,
+        outcome: {
+          kind: "faulted",
+          fault: { code: "determinism.stable_fault" },
+        },
+      });
+      const bundle = permissiveBundleV1(commandLog);
 
-    expect(() => encodeDebugBundleV1(bundle, permissiveCodecV1)).toThrowError(
-      expect.objectContaining({
-        name: "CanonicalJsonError",
-        code: "number.not_integer",
-        path: "/commandLog/0/attemptedDraws/0/result",
-      }),
-    );
-    await expect(permissiveDiagnosticsServiceV1(commandLog).exportDebugBundle()).rejects.toEqual(
-      new TypeError("Debug Bundle export failed"),
-    );
-  });
-
-  it("reports the exact first pointer for a fractional candidate RNG state", async () => {
-    const workload = createUnsafeAuthoritativeDeterminismWorkloadV1("fractional_rng_state");
-    await expect(workload.dispatch()).resolves.toMatchObject({
-      kind: "executed",
-      execution: { kind: "rejected" },
-    });
-    const commandLog = workload.commandLog();
-    expect(commandLog[0]?.attemptedDraws[0]?.result).toBe(3);
-    expect(commandLog[0]?.candidateRngAfter.rawDrawCount).toBe(0.5);
-    const bundle = permissiveBundleV1(commandLog);
-
-    expect(() => encodeDebugBundleV1(bundle, permissiveCodecV1)).toThrowError(
-      expect.objectContaining({
-        name: "CanonicalJsonError",
-        code: "number.not_integer",
-        path: "/commandLog/0/candidateRngAfter/rawDrawCount",
-      }),
-    );
-    await expect(permissiveDiagnosticsServiceV1(commandLog).exportDebugBundle()).rejects.toEqual(
-      new TypeError("Debug Bundle export failed"),
-    );
-  });
+      expect(encodeDebugBundleV1(bundle, permissiveCodecV1)).toEqual(
+        canonicalJsonBytes(bundle),
+      );
+      await expect(permissiveDiagnosticsServiceV1(commandLog).exportDebugBundle()).resolves
+        .toMatchObject({
+          filename: "synthetic.debug-bundle.json",
+          mediaType: "application/json",
+        });
+    },
+  );
 });
 
 describe("Game diagnostics service", () => {

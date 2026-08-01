@@ -5,7 +5,10 @@ import { canonicalJsonBytes } from "../contracts/canonical-json.ts";
 import { digestBytes, digestCanonical } from "../contracts/digest.ts";
 import type { HostAtomicRecordStoreV1 } from "../contracts/host.ts";
 import { createMemoryHostRecordStoreV1 } from "../contracts/host.ts";
-import { createSnapshotWorkCounterV1 } from "../internal/snapshot-work-instrumentation.ts";
+import {
+  createPurposeTaggedSnapshotWorkCounterV1,
+  createSnapshotWorkCounterV1,
+} from "../internal/snapshot-work-instrumentation.ts";
 import { createSaveSlotRecordKeyV1 } from "../runtime/persistence/slot-keys.ts";
 import {
   createSnapshotPersistenceWorkloadV1,
@@ -14,9 +17,9 @@ import {
 import { snapshotTransactionProvenanceV1 } from "./snapshot-transaction-workload.ts";
 
 const firstAutoSaveCountsV1 = Object.freeze({
-  canonicalTraversals: 5,
+  canonicalTraversals: 6,
   canonicalDigests: 3,
-  deepFreezeTraversals: 2,
+  deepFreezeTraversals: 3,
   commandLogContinuityVerifications: 1,
   saveCanonicalSerializations: 1,
   strictJsonParses: 1,
@@ -24,9 +27,9 @@ const firstAutoSaveCountsV1 = Object.freeze({
 });
 
 const rotationCountsV1 = Object.freeze({
-  canonicalTraversals: 8,
+  canonicalTraversals: 9,
   canonicalDigests: 5,
-  deepFreezeTraversals: 2,
+  deepFreezeTraversals: 3,
   commandLogContinuityVerifications: 1,
   saveCanonicalSerializations: 2,
   strictJsonParses: 2,
@@ -35,19 +38,19 @@ const rotationCountsV1 = Object.freeze({
 
 const digestFallbackFirstAutoSaveCountsV1 = Object.freeze({
   ...firstAutoSaveCountsV1,
-  canonicalTraversals: 6,
+  canonicalTraversals: 7,
   canonicalDigests: 4,
 });
 
 const digestFallbackRotationCountsV1 = Object.freeze({
   ...rotationCountsV1,
-  canonicalTraversals: 9,
+  canonicalTraversals: 10,
   canonicalDigests: 6,
 });
 
 const writeReceiptFallbackFirstAutoSaveCountsV1 = Object.freeze({
   ...firstAutoSaveCountsV1,
-  canonicalTraversals: 7,
+  canonicalTraversals: 8,
   canonicalDigests: 4,
   saveCanonicalSerializations: 2,
   strictJsonPreflights: 0,
@@ -55,7 +58,7 @@ const writeReceiptFallbackFirstAutoSaveCountsV1 = Object.freeze({
 
 const writeReceiptFallbackRotationCountsV1 = Object.freeze({
   ...rotationCountsV1,
-  canonicalTraversals: 10,
+  canonicalTraversals: 11,
   canonicalDigests: 6,
   saveCanonicalSerializations: 3,
   strictJsonPreflights: 0,
@@ -228,9 +231,9 @@ describe("Snapshot persistence workload", () => {
         previousRecordRevision: 1,
       },
       aggregateCounts: {
-        canonicalTraversals: 13,
+        canonicalTraversals: 15,
         canonicalDigests: 8,
-        deepFreezeTraversals: 4,
+        deepFreezeTraversals: 6,
         commandLogContinuityVerifications: 2,
         saveCanonicalSerializations: 3,
         strictJsonParses: 3,
@@ -244,18 +247,26 @@ describe("Snapshot persistence workload", () => {
 
   it("keeps instrumented Session, CommandLog, and Save bytes production-equivalent", async () => {
     const counter = createSnapshotWorkCounterV1();
+    const purposes = createPurposeTaggedSnapshotWorkCounterV1();
     const measured = await createSnapshotPersistenceWorkloadV1({
       entityCount: 100,
-      instrumentation: counter.instrumentation,
+      instrumentation: {
+        record(event, purpose) {
+          counter.instrumentation.record(event, purpose);
+          purposes.instrumentation.record(event, purpose);
+        },
+      },
     });
     const reference = await createSnapshotPersistenceWorkloadV1({ entityCount: 100 });
     counter.reset();
+    purposes.reset();
 
     const measuredFirst = await measured.commitAndDrain();
     const referenceFirst = await reference.commitAndDrain();
 
     expect(canonicalJsonBytes(measuredFirst)).toEqual(canonicalJsonBytes(referenceFirst));
     expect(counter.snapshot()).toEqual(firstAutoSaveCountsV1);
+    expect(purposes.snapshot().evidenceAdmissionCanonicalTraversals).toBe(1);
     expect(canonicalJsonBytes(measured.snapshot())).toEqual(
       canonicalJsonBytes(reference.snapshot()),
     );
@@ -269,11 +280,13 @@ describe("Snapshot persistence workload", () => {
     expect(await reference.slotRecord("auto.previous")).toBeNull();
 
     counter.reset();
+    purposes.reset();
     const measuredSecond = await measured.commitAndDrain();
     const referenceSecond = await reference.commitAndDrain();
 
     expect(canonicalJsonBytes(measuredSecond)).toEqual(canonicalJsonBytes(referenceSecond));
     expect(counter.snapshot()).toEqual(rotationCountsV1);
+    expect(purposes.snapshot().evidenceAdmissionCanonicalTraversals).toBe(1);
     expect(canonicalJsonBytes(measured.snapshot())).toEqual(
       canonicalJsonBytes(reference.snapshot()),
     );

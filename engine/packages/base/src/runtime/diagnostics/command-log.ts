@@ -11,6 +11,10 @@ import { parsePositiveSafeInteger } from "../../contracts/values.ts";
 import type { SnapshotWorkInstrumentationV1 } from "../../internal/snapshot-work-instrumentation.ts";
 import { recordSnapshotWorkV1 } from "../../internal/snapshot-work-instrumentation.ts";
 import { admitCanonicalCommandForTargetInternalV1 } from "../../internal/canonical-command-admission.ts";
+import {
+  admitFinalizedCommandAttemptEvidenceInternalV1,
+  captureFinalizedCommandAttemptResultKindInternalV1,
+} from "../../internal/finalized-evidence-admission.ts";
 
 interface CommandLogSnapshotV1 {
   readonly rng: unknown;
@@ -286,7 +290,10 @@ export function createCommandLogInternalV1<
       if (source !== "game" && source !== "debug") {
         throw new TypeError("CommandLog source must be game or debug");
       }
-      if (source === "debug" && finalizedAttempt.result.kind === "rejected") {
+      if (
+        source === "debug" &&
+        captureFinalizedCommandAttemptResultKindInternalV1(finalizedAttempt) === "rejected"
+      ) {
         throw new TypeError("Debug CommandLog entries cannot be rejected");
       }
       const command = loggedCommand.command;
@@ -295,29 +302,33 @@ export function createCommandLogInternalV1<
         "command_log_append",
         instrumentation,
       );
+      const admittedAttempt = admitFinalizedCommandAttemptEvidenceInternalV1(
+        finalizedAttempt,
+        instrumentation,
+      );
       const preAttemptSnapshot = internalEntries.at(-1)?.postAttemptSnapshot ?? replayBase;
       const preAttemptStateDigest = internalEntries.at(-1)?.entry.postStateDigest ??
         replayBaseDigest;
       validateFinalizedAttemptV1(
         preAttemptSnapshot,
         preAttemptStateDigest,
-        finalizedAttempt,
+        admittedAttempt,
         input.auditStateDigests,
         instrumentation,
       );
 
       const additionalLoggedCommandFields = copyAdditionalLoggedCommandFieldsV1(loggedCommand);
-      const postAttemptSnapshot = finalizedAttempt.result.snapshot;
-      const diagnostics = finalizedAttempt.diagnostics;
+      const postAttemptSnapshot = admittedAttempt.result.snapshot;
+      const diagnostics = admittedAttempt.diagnostics;
       const entry = Object.freeze({
         source,
         command: admission.value,
         ...additionalLoggedCommandFields,
         logOrdinal: nextOrdinal,
-        preStateDigest: finalizedAttempt.preStateDigest,
-        postStateDigest: finalizedAttempt.postStateDigest,
+        preStateDigest: admittedAttempt.preStateDigest,
+        postStateDigest: admittedAttempt.postStateDigest,
         commandSequence: Object.freeze({
-          before: finalizedAttempt.preSnapshot.commandSequence,
+          before: admittedAttempt.preSnapshot.commandSequence,
           after: postAttemptSnapshot.commandSequence,
         }),
         committedRngBefore: diagnostics.committedRngBefore,
@@ -326,7 +337,7 @@ export function createCommandLogInternalV1<
           ? {}
           : { candidateRngAfter: diagnostics.candidateRngAfter }),
         committedRngAfter: diagnostics.committedRngAfter,
-        outcome: createOutcomeV1(finalizedAttempt),
+        outcome: createOutcomeV1(admittedAttempt),
       }) as PublicEntry;
       const followingOrdinal = parsePositiveSafeInteger(nextOrdinal + 1);
       const internalEntry = Object.freeze({

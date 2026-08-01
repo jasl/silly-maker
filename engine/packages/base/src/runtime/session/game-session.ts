@@ -25,6 +25,13 @@ import {
   type CanonicalCommandAdmissionInternalV1,
   withCanonicalCommandHandoffInternalV1,
 } from "../../internal/canonical-command-admission.ts";
+import {
+  admitCommandAttemptEvidenceInternalV1,
+  admitDebugValidationResultInternalV1,
+  type FinalizedEvidencePolicyInternalV1,
+  type FinalizedEvidenceResultConstraintInternalV1,
+  withFinalizedEvidenceHandoffInternalV1,
+} from "../../internal/finalized-evidence-admission.ts";
 import type { SnapshotWorkInstrumentationV1 } from "../../internal/snapshot-work-instrumentation.ts";
 import { recordSnapshotWorkV1 } from "../../internal/snapshot-work-instrumentation.ts";
 import {
@@ -124,6 +131,19 @@ type FinalizedAttemptFor<TTypes extends GameSimulationTypeMapV1> = FinalizedComm
   TTypes["rngState"],
   TTypes["rngDrawTrace"]
 >;
+
+type EvidencePolicyFor<TTypes extends GameSimulationTypeMapV1> = FinalizedEvidencePolicyInternalV1<
+  TTypes["fact"],
+  TTypes["rejection"],
+  TTypes["rngState"],
+  TTypes["rngDrawTrace"],
+  TTypes["debugValidationError"]
+>;
+
+interface FinalizeCommandAttemptOptionsV1 {
+  readonly resultConstraint?: FinalizedEvidenceResultConstraintInternalV1;
+  readonly debugCommand?: unknown;
+}
 
 type LoggedGameCommandFor<TTypes extends GameSimulationTypeMapV1> = {
   readonly source: "game";
@@ -265,45 +285,61 @@ function finalizeCommandAttemptV1<TTypes extends GameSimulationTypeMapV1>(
   before: DeepReadonly<TTypes["snapshot"]>,
   beforeStateDigest: Digest,
   candidate: AttemptFor<TTypes>,
+  evidencePolicy: EvidencePolicyFor<TTypes>,
   instrumentation?: SnapshotWorkInstrumentationV1,
-  integrityDirective: IntegrityDirectiveV1 = { kind: "preserve_current" },
+  options: FinalizeCommandAttemptOptionsV1 = {},
 ): FinalizedAttemptFor<TTypes> {
+  const admittedCandidate = admitCommandAttemptEvidenceInternalV1(
+    before,
+    candidate,
+    evidencePolicy,
+    instrumentation,
+    options.resultConstraint,
+  );
+  const integrityDirective: IntegrityDirectiveV1 =
+    options.debugCommand !== undefined && admittedCandidate.result.kind === "committed"
+      ? {
+        kind: "mark_modified",
+        reason: {
+          kind: "debug_command",
+          commandKind: debugCommandKindV1(options.debugCommand),
+          sequence: admittedCandidate.result.snapshot.commandSequence,
+        },
+      }
+      : { kind: "preserve_current" };
   const finalizedSnapshot = finalizeSnapshotIntegrityV1<TTypes["snapshot"]>(
     before,
-    candidate.result.snapshot,
+    admittedCandidate.result.snapshot,
     integrityDirective,
   );
-  if (candidate.result.kind !== "committed" && finalizedSnapshot !== before) {
-    throw new TypeError("Non-committed command attempt changed the Snapshot");
-  }
-  const postSnapshot = candidate.result.kind === "committed"
+  const postSnapshot = admittedCandidate.result.kind === "committed"
     ? deepFreezeSnapshotV1(finalizedSnapshot, instrumentation)
     : finalizedSnapshot;
 
-  const result: AttemptFor<TTypes>["result"] = candidate.result.kind === "committed"
+  const result: AttemptFor<TTypes>["result"] = admittedCandidate.result.kind === "committed"
     ? Object.freeze({
       kind: "committed" as const,
       snapshot: postSnapshot,
-      facts: candidate.result.facts,
+      facts: admittedCandidate.result.facts,
     })
-    : candidate.result.kind === "rejected"
+    : admittedCandidate.result.kind === "rejected"
     ? Object.freeze({
       kind: "rejected" as const,
       snapshot: finalizedSnapshot,
-      reasons: candidate.result.reasons,
+      reasons: admittedCandidate.result.reasons,
     })
     : Object.freeze({
       kind: "faulted" as const,
       snapshot: finalizedSnapshot,
-      fault: candidate.result.fault,
+      fault: admittedCandidate.result.fault,
     });
 
   return Object.freeze({
     result,
-    diagnostics: candidate.diagnostics,
+    diagnostics: admittedCandidate.diagnostics,
     preSnapshot: before,
     preStateDigest: beforeStateDigest,
-    postStateDigest: candidate.result.kind === "committed"
+    postStateDigest: admittedCandidate.result.kind === "committed"
       ? digestCanonicalInternalV1("sillymaker:state:v1", postSnapshot, instrumentation)
       : beforeStateDigest,
   }) as FinalizedAttemptFor<TTypes>;
@@ -393,6 +429,7 @@ function deepFreezeSnapshotV1<TSnapshot>(
 function createInternal<TTypes extends GameSimulationTypeMapV1>(
   input: GameSessionInputV1<TTypes>,
   instrumentation?: SnapshotWorkInstrumentationV1,
+  evidencePolicy: EvidencePolicyFor<TTypes> = {},
 ): GameSessionCompositionV1<TTypes> {
   type DispatchResult = Awaited<ReturnType<GameSessionV1<TTypes>["dispatch"]>>;
 
@@ -598,15 +635,22 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
           if (isThenable(normalized)) {
             throw new TypeError("Debug fault normalizer returned thenable");
           }
-          if (normalized.result.kind !== "faulted") {
-            throw new TypeError("Debug fault normalizer must return a faulted attempt");
-          }
           return normalized;
         };
 
-        let candidate: AttemptFor<TTypes>;
+        let candidate: AttemptFor<TTypes> | undefined;
+        let attemptReturned = false;
+        let candidateIsFallback = false;
+        let validationFailure:
+          | {
+            readonly kind: "validation_failed";
+            readonly errors: readonly DeepReadonly<TTypes["debugValidationError"]>[];
+          }
+          | undefined;
+        let operationFailure: { readonly error: unknown } | undefined;
+        let validation: unknown;
         try {
-          const validation = withCanonicalCommandHandoffInternalV1(
+          validation = withCanonicalCommandHandoffInternalV1(
             admission,
             "simulation_debug_validate",
             () => debug.validate(before, admission.value, input.executionContext),
@@ -614,70 +658,118 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
           if (isThenable(validation)) {
             throw new TypeError("DebugCommand validation returned thenable");
           }
-          if (validation.kind === "validation_failed") {
-            if (!Array.isArray(validation.errors) || validation.errors.length === 0) {
-              throw new TypeError("DebugCommand validation failure must contain errors");
-            }
-            return Object.freeze({
-              kind: "validation_failed" as const,
-              errors: Object.freeze([...validation.errors]),
-            });
-          }
-          if (validation.kind !== "allowed") {
-            throw new TypeError("DebugCommand validation returned an invalid result");
-          }
-          candidate = await withCanonicalCommandHandoffInternalV1(
-            admission,
-            "simulation_debug_execute",
-            () => debug.executeAttempt(before, admission.value, input.executionContext),
-          );
-          if (candidate.result.kind === "rejected") {
-            throw new TypeError("An admitted DebugCommand cannot be rejected");
-          }
         } catch (error) {
-          candidate = normalizeFault(error);
+          operationFailure = { error };
         }
         if (isHmrInvalidated()) return hmrInvalidatedV1;
+        if (operationFailure === undefined) {
+          try {
+            const admittedValidation = admitDebugValidationResultInternalV1(
+              validation,
+              evidencePolicy.parseDebugValidationError,
+              instrumentation,
+            );
+            if (isHmrInvalidated()) return hmrInvalidatedV1;
+            if (admittedValidation.kind === "validation_failed") {
+              validationFailure = Object.freeze({
+                kind: "validation_failed" as const,
+                errors: admittedValidation.errors,
+              });
+            } else if (admittedValidation.kind !== "allowed") {
+              throw new TypeError("DebugCommand validation returned an invalid result");
+            } else {
+              candidate = await withCanonicalCommandHandoffInternalV1(
+                admission,
+                "simulation_debug_execute",
+                () => debug.executeAttempt(before, admission.value, input.executionContext),
+              );
+              attemptReturned = true;
+            }
+          } catch (error) {
+            operationFailure = { error };
+          }
+        }
+        if (isHmrInvalidated()) return hmrInvalidatedV1;
+        if (operationFailure !== undefined) {
+          try {
+            candidate = normalizeFault(operationFailure.error);
+          } catch (error) {
+            if (isHmrInvalidated()) return hmrInvalidatedV1;
+            throw error;
+          }
+          attemptReturned = true;
+          candidateIsFallback = true;
+          if (isHmrInvalidated()) return hmrInvalidatedV1;
+        }
+        if (validationFailure !== undefined) return validationFailure;
+        if (!attemptReturned) throw new TypeError("DebugCommand produced no attempt");
 
         let finalizedAttempt: FinalizedAttemptFor<TTypes>;
         try {
-          const integrityDirective: IntegrityDirectiveV1 = candidate.result.kind === "committed"
-            ? {
-              kind: "mark_modified",
-              reason: {
-                kind: "debug_command",
-                commandKind: debugCommandKindV1(admission.value),
-                sequence: candidate.result.snapshot.commandSequence,
-              },
-            }
-            : { kind: "preserve_current" };
           finalizedAttempt = finalizeCommandAttemptV1<TTypes>(
             before,
             currentStateDigest,
-            candidate,
+            candidate as AttemptFor<TTypes>,
+            evidencePolicy,
             instrumentation,
-            integrityDirective,
+            {
+              debugCommand: admission.value,
+              resultConstraint: candidateIsFallback
+                ? {
+                  kind: "require",
+                  resultKind: "faulted",
+                  message: "Debug fault normalizer must return a faulted attempt",
+                }
+                : {
+                  kind: "forbid",
+                  resultKind: "rejected",
+                  message: "An admitted DebugCommand cannot be rejected",
+                },
+            },
           );
         } catch (error) {
-          candidate = normalizeFault(error);
+          if (candidateIsFallback) throw error;
+          if (isHmrInvalidated()) return hmrInvalidatedV1;
+          try {
+            candidate = normalizeFault(error);
+          } catch (normalizerError) {
+            if (isHmrInvalidated()) return hmrInvalidatedV1;
+            throw normalizerError;
+          }
+          candidateIsFallback = true;
+          if (isHmrInvalidated()) return hmrInvalidatedV1;
           finalizedAttempt = finalizeCommandAttemptV1<TTypes>(
             before,
             currentStateDigest,
             candidate,
+            evidencePolicy,
             instrumentation,
+            {
+              debugCommand: admission.value,
+              resultConstraint: {
+                kind: "require",
+                resultKind: "faulted",
+                message: "Debug fault normalizer must return a faulted attempt",
+              },
+            },
           );
         }
+        if (isHmrInvalidated()) return hmrInvalidatedV1;
 
         withCanonicalCommandHandoffInternalV1(
           admission,
           "command_log_append",
           () =>
-            commandLog.append(
-              Object.freeze({
-                source: "debug" as const,
-                command: admission.value,
-              }),
+            withFinalizedEvidenceHandoffInternalV1(
               finalizedAttempt,
+              () =>
+                commandLog.append(
+                  Object.freeze({
+                    source: "debug" as const,
+                    command: admission.value,
+                  }),
+                  finalizedAttempt,
+                ),
             ),
         );
         try {
@@ -802,7 +894,17 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
           });
         }
         const before = snapshot as DeepReadonly<TTypes["snapshot"]>;
-        let candidate: AttemptFor<TTypes>;
+        const normalizeFault = (error: unknown): AttemptFor<TTypes> => {
+          const normalized = input.normalizeUnexpectedDispatchFault(error, before);
+          if (isThenable(normalized)) {
+            throw new TypeError("Dispatch fault normalizer returned thenable");
+          }
+          return normalized;
+        };
+        let candidate: AttemptFor<TTypes> | undefined;
+        let attemptReturned = false;
+        let candidateIsFallback = false;
+        let executionFailure: { readonly error: unknown } | undefined;
         try {
           candidate = await withCanonicalCommandHandoffInternalV1(
             admission,
@@ -814,37 +916,82 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
                 input.executionContext,
               ),
           );
+          attemptReturned = true;
         } catch (error) {
-          candidate = input.normalizeUnexpectedDispatchFault(error, before);
+          executionFailure = { error };
         }
         if (isHmrInvalidated()) return hmrInvalidatedV1;
+        if (executionFailure !== undefined) {
+          try {
+            candidate = normalizeFault(executionFailure.error);
+          } catch (error) {
+            if (isHmrInvalidated()) return hmrInvalidatedV1;
+            throw error;
+          }
+          attemptReturned = true;
+          candidateIsFallback = true;
+          if (isHmrInvalidated()) return hmrInvalidatedV1;
+        }
+        if (!attemptReturned) throw new TypeError("Game command produced no attempt");
         let finalizedAttempt: FinalizedAttemptFor<TTypes>;
         try {
           finalizedAttempt = finalizeCommandAttemptV1<TTypes>(
             before,
             currentStateDigest,
-            candidate,
+            candidate as AttemptFor<TTypes>,
+            evidencePolicy,
             instrumentation,
+            candidateIsFallback
+              ? {
+                resultConstraint: {
+                  kind: "require",
+                  resultKind: "faulted",
+                  message: "Dispatch fault normalizer must return a faulted attempt",
+                },
+              }
+              : undefined,
           );
         } catch (error) {
-          candidate = input.normalizeUnexpectedDispatchFault(error, before);
+          if (candidateIsFallback) throw error;
+          if (isHmrInvalidated()) return hmrInvalidatedV1;
+          try {
+            candidate = normalizeFault(error);
+          } catch (normalizerError) {
+            if (isHmrInvalidated()) return hmrInvalidatedV1;
+            throw normalizerError;
+          }
+          candidateIsFallback = true;
+          if (isHmrInvalidated()) return hmrInvalidatedV1;
           finalizedAttempt = finalizeCommandAttemptV1<TTypes>(
             before,
             currentStateDigest,
             candidate,
+            evidencePolicy,
             instrumentation,
+            {
+              resultConstraint: {
+                kind: "require",
+                resultKind: "faulted",
+                message: "Dispatch fault normalizer must return a faulted attempt",
+              },
+            },
           );
         }
+        if (isHmrInvalidated()) return hmrInvalidatedV1;
         withCanonicalCommandHandoffInternalV1(
           admission,
           "command_log_append",
           () =>
-            commandLog.append(
-              Object.freeze({
-                source: "game" as const,
-                command: admission.value,
-              }),
+            withFinalizedEvidenceHandoffInternalV1(
               finalizedAttempt,
+              () =>
+                commandLog.append(
+                  Object.freeze({
+                    source: "game" as const,
+                    command: admission.value,
+                  }),
+                  finalizedAttempt,
+                ),
             ),
         );
         try {
@@ -891,4 +1038,13 @@ export function createInstrumentedGameSessionV1<TTypes extends GameSimulationTyp
   instrumentation: SnapshotWorkInstrumentationV1,
 ): GameSessionCompositionV1<TTypes> {
   return createInternal(input, instrumentation);
+}
+
+/** @internal Standard-Core schema policy; intentionally absent from package barrels. */
+export function createCoreGameSessionInternalV1<TTypes extends GameSimulationTypeMapV1>(
+  input: GameSessionInputV1<TTypes>,
+  evidencePolicy: EvidencePolicyFor<TTypes>,
+  instrumentation?: SnapshotWorkInstrumentationV1,
+): GameSessionCompositionV1<TTypes> {
+  return createInternal(input, instrumentation, evidencePolicy);
 }

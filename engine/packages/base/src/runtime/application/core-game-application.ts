@@ -14,10 +14,17 @@ import type {
 import type { HostAtomicRecordStoreV1, IsoUtcInstant } from "../../contracts/host.ts";
 import {
   createTransactionalRngV1,
+  parseRngDrawTraceInternalV1,
   parseRngSeedInternalV1,
   RngStateSchemaFailureInternalV1,
   rngStateV1Schema,
 } from "../../contracts/rng.ts";
+import {
+  admitCommandAttemptEvidenceInternalV1,
+  type FinalizedEvidencePolicyInternalV1,
+  type FinalizedEvidenceResultConstraintInternalV1,
+  withDeferredSimulationEvidenceAdmissionInternalV1,
+} from "../../internal/finalized-evidence-admission.ts";
 import type {
   RuntimeSessionStatusV1,
   SessionAnchorResultV1,
@@ -49,7 +56,7 @@ import type {
   GameSessionRuntimeControlV1,
   GameSessionV1,
 } from "../session/game-session.ts";
-import { createGameSessionV1, createInstrumentedGameSessionV1 } from "../session/game-session.ts";
+import { createCoreGameSessionInternalV1 } from "../session/game-session.ts";
 import type {
   CreateStandardPersistenceServiceOptionsV1,
   PersistenceRebootstrapDisposalV1,
@@ -872,15 +879,36 @@ export async function createCoreGameApplicationInstanceV1<
     rngStateV1Schema,
   );
   const validateSnapshotRngV1 = (snapshot: DeepReadonly<TTypes["snapshot"]>): void => {
-    rngStateV1Schema.parse((snapshot as { readonly rng: unknown }).rng);
+    if (snapshot === null || typeof snapshot !== "object") {
+      throw new RngStateSchemaFailureInternalV1("invalid candidate Snapshot RNG");
+    }
+    const descriptor = Object.getOwnPropertyDescriptor(snapshot, "rng");
+    if (
+      descriptor === undefined ||
+      descriptor.get !== undefined ||
+      descriptor.set !== undefined
+    ) {
+      throw new RngStateSchemaFailureInternalV1("invalid candidate Snapshot RNG");
+    }
+    rngStateV1Schema.parse(descriptor.value);
   };
-  const validateAttemptSnapshotRngV1 = <TAttempt>(attempt: TAttempt): TAttempt => {
-    const snapshot = (attempt as {
-      readonly result: { readonly snapshot: DeepReadonly<TTypes["snapshot"]> };
-    }).result.snapshot;
-    validateSnapshotRngV1(snapshot);
-    return attempt;
-  };
+  const evidencePolicyV1: FinalizedEvidencePolicyInternalV1<
+    TTypes["fact"],
+    TTypes["rejection"],
+    TTypes["rngState"],
+    TTypes["rngDrawTrace"],
+    TTypes["debugValidationError"]
+  > = Object.freeze({
+    validateCandidateSnapshot: (value: unknown) =>
+      validateSnapshotRngV1(value as DeepReadonly<TTypes["snapshot"]>),
+    parseFact: (value: unknown) => gameSimulation.factSchema.parse(value),
+    parseRejection: (value: unknown) => gameSimulation.rejectionSchema.parse(value),
+    parseRngState: (value: unknown) => rngStateV1Schema.parse(value) as TTypes["rngState"],
+    parseRngDrawTrace: (value: unknown) =>
+      parseRngDrawTraceInternalV1(value) as TTypes["rngDrawTrace"],
+    parseDebugValidationError: (value: unknown) =>
+      gameSimulation.debugValidationErrorSchema.parse(value),
+  });
   const createInitialSnapshotV1 = (): TTypes["snapshot"] => {
     const bootstrap = gameSimulation.createBootstrapInput(options.host.entropy);
     // Validate the Host seed before Story code can mutate the raw bootstrap
@@ -912,12 +940,12 @@ export async function createCoreGameApplicationInstanceV1<
       readonly attempt: unknown;
     }
     | undefined;
-  let pendingAttemptCommand:
+  let readLatestLoggedAttemptCommand: () =>
     | {
       readonly source: "game" | "debug";
       readonly command: unknown;
     }
-    | undefined;
+    | undefined = () => undefined;
 
   // Steps below acquire live resources; anything after session creation is
   // failure-guarded so a failed construction leaves no owner or listener.
@@ -926,60 +954,55 @@ export async function createCoreGameApplicationInstanceV1<
     commandSchema: gameSimulation.commandSchema,
     executionContext: undefined as TTypes["executionContext"],
     executeAttempt: (snapshot, command) => {
-      pendingAttemptCommand = Object.freeze({
-        source: "game" as const,
-        command,
-      });
-      return validateAttemptSnapshotRngV1(
-        gameSimulation.commandExecutor.executeAttempt(
-          snapshot,
-          command,
-          undefined as TTypes["executionContext"],
-        ),
+      return withDeferredSimulationEvidenceAdmissionInternalV1(
+        "simulation_game_execute",
+        () =>
+          gameSimulation.commandExecutor.executeAttempt(
+            snapshot,
+            command,
+            undefined as TTypes["executionContext"],
+          ),
       );
     },
     normalizeUnexpectedDispatchFault(error, snapshot) {
       if (definition.normalizeUnexpectedDispatchFault !== undefined) {
-        return validateAttemptSnapshotRngV1(
-          definition.normalizeUnexpectedDispatchFault(error, snapshot),
-        );
+        return definition.normalizeUnexpectedDispatchFault(error, snapshot);
       }
       throw error;
     },
     debug: Object.freeze(
       {
         validate: (snapshot, command) =>
-          gameSimulation.debugCommandExecutor.validate(
-            snapshot,
-            command,
-            undefined as TTypes["executionContext"],
+          withDeferredSimulationEvidenceAdmissionInternalV1(
+            "simulation_debug_validate",
+            () =>
+              gameSimulation.debugCommandExecutor.validate(
+                snapshot,
+                command,
+                undefined as TTypes["executionContext"],
+              ),
           ),
         executeAttempt: (snapshot, command) => {
-          pendingAttemptCommand = Object.freeze({
-            source: "debug" as const,
-            command,
-          });
-          return validateAttemptSnapshotRngV1(
-            gameSimulation.debugCommandExecutor.executeAttempt(
-              snapshot,
-              command,
-              undefined as TTypes["executionContext"],
-            ),
+          return withDeferredSimulationEvidenceAdmissionInternalV1(
+            "simulation_debug_execute",
+            () =>
+              gameSimulation.debugCommandExecutor.executeAttempt(
+                snapshot,
+                command,
+                undefined as TTypes["executionContext"],
+              ),
           );
         },
         normalizeUnexpectedFault(error, snapshot) {
           if (definition.normalizeUnexpectedDebugFault !== undefined) {
-            return validateAttemptSnapshotRngV1(
-              definition.normalizeUnexpectedDebugFault(error, snapshot),
-            );
+            return definition.normalizeUnexpectedDebugFault(error, snapshot);
           }
           throw error;
         },
       } satisfies GameSessionDebugInputV1<TTypes>,
     ),
     onAttempt(attempt) {
-      const pending = pendingAttemptCommand;
-      pendingAttemptCommand = undefined;
+      const pending = readLatestLoggedAttemptCommand();
       const result = (attempt as { readonly result?: { readonly kind?: unknown } }).result;
       if (pending === undefined || result?.kind !== "faulted") return;
       latestAttemptFailure = Object.freeze({ ...pending, attempt });
@@ -987,9 +1010,17 @@ export async function createCoreGameApplicationInstanceV1<
     onObserverFailure: reportObserverFailure,
   };
   recordCoreApplicationConstructionV1(constructionInstrumentation, "session_factory");
-  const created = snapshotWorkInstrumentation === undefined
-    ? createGameSessionV1<TTypes>(sessionInput)
-    : createInstrumentedGameSessionV1<TTypes>(sessionInput, snapshotWorkInstrumentation);
+  const created = createCoreGameSessionInternalV1<TTypes>(
+    sessionInput,
+    evidencePolicyV1,
+    snapshotWorkInstrumentation,
+  );
+  readLatestLoggedAttemptCommand = () => {
+    const latest = created.commandLog.entries().at(-1);
+    return latest === undefined
+      ? undefined
+      : Object.freeze({ source: latest.source, command: latest.command });
+  };
 
   // The low-level Session controls stay generic. Standard Core wraps the
   // replacement seams it exposes so xorshift admission remains Core-owned and
@@ -1711,15 +1742,64 @@ export async function createCoreGameApplicationInstanceV1<
               readonly command: DeepReadonly<TTypes["command"]>;
             },
           ) {
+            const admitReplayAttemptV1 = (
+              execute: () => unknown,
+              normalize: (
+                error: unknown,
+                snapshot: DeepReadonly<TTypes["snapshot"]>,
+              ) => unknown,
+              initialConstraint?: FinalizedEvidenceResultConstraintInternalV1,
+            ) => {
+              let candidate: unknown;
+              try {
+                candidate = execute();
+                return admitCommandAttemptEvidenceInternalV1(
+                  preSnapshot,
+                  candidate as never,
+                  evidencePolicyV1,
+                  snapshotWorkInstrumentation,
+                  initialConstraint,
+                );
+              } catch (error) {
+                candidate = normalize(error, preSnapshot);
+                return admitCommandAttemptEvidenceInternalV1(
+                  preSnapshot,
+                  candidate as never,
+                  evidencePolicyV1,
+                  snapshotWorkInstrumentation,
+                  {
+                    kind: "require",
+                    resultKind: "faulted",
+                    message: "Replay fault normalizer must return a faulted attempt",
+                  },
+                );
+              }
+            };
             // Debug-sourced log entries replay through the debug executor
             // with the same mark_modified integrity stamp the live session
             // applies, so the log stays one linear history across sources.
             if (logged.source === "debug") {
-              const raw = gameSimulation.debugCommandExecutor.executeAttempt(
-                preSnapshot as never,
-                logged.command as never,
-                undefined as TTypes["executionContext"],
-              ) as {
+              const raw = admitReplayAttemptV1(
+                () =>
+                  withDeferredSimulationEvidenceAdmissionInternalV1(
+                    "simulation_debug_execute",
+                    () =>
+                      gameSimulation.debugCommandExecutor.executeAttempt(
+                        preSnapshot as never,
+                        logged.command as never,
+                        undefined as TTypes["executionContext"],
+                      ),
+                  ),
+                (error, snapshot) => {
+                  if (definition.normalizeUnexpectedDebugFault === undefined) throw error;
+                  return definition.normalizeUnexpectedDebugFault(error, snapshot);
+                },
+                {
+                  kind: "forbid",
+                  resultKind: "rejected",
+                  message: "An admitted DebugCommand cannot be rejected",
+                },
+              ) as unknown as {
                 readonly result: {
                   readonly kind: string;
                   readonly snapshot: {
@@ -1728,7 +1808,6 @@ export async function createCoreGameApplicationInstanceV1<
                   };
                 };
               };
-              validateAttemptSnapshotRngV1(raw as never);
               return raw.result.kind === "committed"
                 ? ({
                   ...raw,
@@ -1752,11 +1831,22 @@ export async function createCoreGameApplicationInstanceV1<
                 } as never)
                 : (raw as never);
             }
-            return validateAttemptSnapshotRngV1(gameSimulation.commandExecutor.executeAttempt(
-              preSnapshot as never,
-              logged.command,
-              undefined as TTypes["executionContext"],
-            ) as never) as never;
+            return admitReplayAttemptV1(
+              () =>
+                withDeferredSimulationEvidenceAdmissionInternalV1(
+                  "simulation_game_execute",
+                  () =>
+                    gameSimulation.commandExecutor.executeAttempt(
+                      preSnapshot as never,
+                      logged.command,
+                      undefined as TTypes["executionContext"],
+                    ),
+                ),
+              (error, snapshot) => {
+                if (definition.normalizeUnexpectedDispatchFault === undefined) throw error;
+                return definition.normalizeUnexpectedDispatchFault(error, snapshot);
+              },
+            ) as never;
           },
         } as never, snapshotWorkInstrumentation);
       },

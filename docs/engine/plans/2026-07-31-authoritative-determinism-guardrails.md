@@ -1,9 +1,9 @@
 # Authoritative determinism guardrails execution plan
 
 状态：2026-07-31 接受执行；同日按 Save-metadata ownership、DET-A/DET-B join 与
-latest-stable Deno policy 重切片；2026-08-01 明确 DET2a command admission 的
-公开失败 surface、command identity representability、Debug fence precedence 与
-原子性。目标合同见
+latest-stable Deno policy 重切片；2026-08-01 明确 DET2a command admission 与
+DET2b finalized evidence admission 的公开失败 surface、precedence、representability
+与原子性。目标合同见
 [Authoritative simulation determinism boundary](../design/deterministic-simulation-boundary.md)；
 在 [Production-floor sequence](2026-07-30-production-floor-sequence.md) 中属于
 PF-DET，排在 PF2 Workspace Overlay pilot 之后，并与 PF3 按显式 DAG 汇合。本文只
@@ -553,27 +553,119 @@ fault 本身非法，则不得记录它。finalization 必须发生在 whole-tre
 Snapshot freeze/post-digest 前；command-start identity 只能复用已经存在的
 current digest，不得为失败 attempt 重新遍历 Snapshot。
 
+### Failure classification, precedence, and atomicity
+
+- fact/rejection schema、Debug validation-error schema 与 fault/RNG/receipt
+  canonical/exact-shape failure 都属于 attempt-finalization failure；不伪装成
+  command validation、Story rejection 或新 public result kind。direct synchronous
+  Simulation 对 own `result` + `diagnostics` 的 attempt-shaped result、以及 direct
+  CommandLog，保留既有 throw channel；opaque generic `TAttempt` 的其他 result 原样
+  返回。Session 只调用一次既有 game/debug unexpected-fault callback，不增加公开
+  error/envelope 或收窄 `GameSimulationV1`；
+- 固定顺序是：DET2a ingress/capability/session/queue fences → post-callback HMR fence →
+  descriptor-only outer attempt capture → Standard Core candidate Snapshot RNG admission
+  → outcome/non-committed identity invariant → branch schema normalization → 完整
+  evidence-only canonical gate → evidence commit/receipt → candidate Snapshot integrity /
+  whole-tree freeze / post-digest → CommandLog continuity/append → install 与
+  authoritative publication。direct CommandLog 在 source/debug-outcome 与 command
+  admission 后做 evidence finalization，再做 continuity/digest audit；第一个失败胜出；
+- preparation 不包含 Snapshot，也不部分冻结 caller-owned earlier evidence。所有项
+  成功后才统一冻结 normalized identity 并签发 exact-target/same-identity/one-shot
+  package-internal receipt；CommandLog 消费 receipt 不重做 traversal，独立或嵌套
+  ingress 必须重新 finalization。跨 `await` 的 generic low-level Session adapter 若在
+  自身 callback 中另行调用 public Simulation，后者属于独立 ingress；不得用 global
+  async deferral 让相同 Snapshot/command 的并发 direct call 绕过 gate；
+- valid canonical same-Snapshot fault fallback 只记录一条 fallback entry、返回既有
+  executed/faulted 并进入 `fault_paused`；原 malformed attempt 不发布、不记录。
+  normalizer 缺失/throw、返回非-faulted，或 fallback Snapshot/evidence 仍非法时不递归
+  normalizer，Promise reject、回到 original stable status，且 Snapshot/RNG/sequence/
+  replay base/log 不变。合法 Debug validation failure 仍不写 log；malformed errors
+  走同一个 debug fallback policy；
+- 已进入 queue 的 busy/idle observer notification 可以照旧发生，但 preparation failure
+  前不得有 candidate Snapshot traversal/post-digest/freeze、`onAttempt`、transient/
+  semantic publication、continuity/ordinal/eviction 或 persistence/autosave mutation。
+  若 HMR 是 Story evidence schema callback 在 preparation 内同步触发，已开始的 schema/
+  canonical/freeze 工作无法追溯撤销；finalization 后必须再 fence，且 CommandLog、install、
+  publication 与 persistence mutation 仍为零；
+
 ### Fault stop rule
 
 当前没有 `faultSchema`。先用 DET0-core fixture 证明一个最小 package-internal
 finalizer 是否能保持现有 public result shape。若必须新增 public
 Session/Simulation/CommandLog/fault contract、`GameSimulation` contract
-revision、universal receipt 或跨 Base/UI/Web 的 fault envelope，停止 DET2b
-并提交 design revision 给用户决定，不能在实现中偷偷扩 API。
+revision、universal receipt 或跨 Base/UI/Web 的 fault envelope；若无法保持 DET1
+zero-RNG precedence、fallback-invalid 的 rejected-Promise + original stable status +
+no-new-log 合同，或无法在零 candidate Snapshot traversal 下失败，停止 DET2b 并提交
+design revision 给用户决定，不能在实现中偷偷扩 API。
 
 ### Acceptance
 
 - fractional fact/rejection/fault/RNG evidence 在 first finalization boundary
   稳定失败；
+- Debug validation error、attempt-shaped direct Simulation result 与 independent public
+  CommandLog ingress 覆盖相同 schema/canonical/exact-shape gate，同时保留 opaque generic
+  `TAttempt` result；multi-invalid fixture 固定 post-callback HMR → outer shape → candidate
+  RNG → branch schema → canonical evidence 的 first-error order；
+- invalid original + valid fallback 只调用一次 normalizer、只记录 fallback 并进入
+  `fault_paused`；invalid/absent fallback 不递归 normalizer，Promise reject、Session
+  回到 original stable status 且不新增 log；
 - valid normalized evidence 与当前 CommandLog/replay/DebugBundle bytes
   byte-identical；
 - failed evidence 的 Snapshot identity/digest、RNG 与 sequence 不变；
 - failed evidence 的 candidate Snapshot traversal/post-digest/freeze 精确为
   `0/0/0`；
+- two-phase prepare failure 不部分冻结 caller-owned earlier evidence；每个完整 attempt
+  只有一次 `evidence_admission` traversal，CommandLog handoff 为 exact target、same
+  identity、one shot 且不重复 admission；
 - committed command 仍是 PF1 的一次 Snapshot digest/freeze；evidence admission
   自身的 canonical traversal 按 DET0-core purpose tag 单独锁定，且不重做整树 Snapshot
   traversal；
 - public Save record 与 Surface/application receipt 语义不变。
+
+**2026-08-01 DET2b promotion：** finalized attempt/Debug validation evidence 现在先做
+descriptor-only exact outer capture；Standard Core 依次执行 candidate Snapshot RNG、
+result constraint、Story fact/rejection/debug-error normalization 与一次 Snapshot-free
+`evidence_admission` canonical/freeze。Session→CommandLog 使用 exact-identity one-shot
+handoff，independent CommandLog 与 attempt-shaped direct Simulation 自行 admission；opaque
+generic `TAttempt` 保持原样。没有新增 public evidence hook/receipt、fault schema、result
+branch 或 `GameSimulation` revision。Core authoritative replay 复用相同 normalization 与
+fault fallback；Debug original replay 同 live path 禁止 rejected，fallback 必须 faulted。
+
+失败分类保持既有 surface：sync direct ingress throw，Session/authoritative replay reject 或
+只调用一次既有 unexpected-fault normalizer。合法 same-Snapshot canonical fault 是唯一可
+记录 fallback；invalid/non-faulted fallback 不递归 normalizer。固定 precedence 是
+post-callback HMR → outer shape → Core candidate RNG → result constraint/non-commit identity →
+branch schemas → evidence canonical/freeze → Snapshot integrity/freeze/digest → post-finalization
+HMR → CommandLog continuity/append → install/publication。若 Story schema 在 preparation 内
+同步触发 HMR，已经开始的 pure preparation 不可回滚，但 log/install/publication 仍为零。
+generic async Session adapter 内显式调用 public Simulation 属于独立 nested ingress，不用
+global cross-await deferral 混淆并发 direct call。
+
+TDD red 先证明 fractional fact/rejection/fault/RNG/Debug error、outer getter/extra shape、
+重复 Session→CommandLog admission、zero-RNG/evidence precedence、invalid fallback、replay
+normalization 与 partial freeze 的 permissive 行为；独立复审又复现并关闭 Debug raw getter、
+Debug-rejected pre-freeze、live/replay fallback kind divergence、post-callback/post-finalization
+HMR、undefined attempt、primitive Debug fault、stale failure attribution，以及 max-length sparse
+array 的 OOM 路径。最大 `0xffff_ffff` sparse facts 现在不物化 index vector，稳定在
+`/result/facts/0` 拒绝。
+
+确定性 before/after 计数为：committed command 总 canonical/freeze `2/2 -> 3/3`，
+rejected/faulted `1/1 -> 2/2`；每个 completed finalization 精确新增一次
+`evidence_admission` canonical 与 freeze，原 Snapshot digest/freeze 分别保持 `1/1`、
+`0/0`。256-command recording canonical/freeze `426/426 -> 682/682`，Snapshot digest
+`170`、continuity `256` 不变；5/201-attempt memory probes `10/10 -> 15/15`、
+`402/402 -> 603/603`；persistence first/rotation `5/2 -> 6/3`、`8/2 -> 9/3`，
+two-attempt aggregate `13/4 -> 15/6`，Save serialization/Strict parse、digest 与 continuity
+counts 不变。retained-200 replay execution canonical/freeze 仍为 `3609/200`，录制侧随 256
+次 finalization 变为 `682/682`。
+
+合法 RNG commit 的 dispatch/Snapshot/CommandLog 仍为 `351/202/900` bytes，既有三个
+SHA-256 golden、mixed/rollback/bootstrap/Save corpus、authoritative replay 与 DebugBundle
+bytes 全部保持 byte-for-byte 相等；canonical JSON、digest、Save/CommandLog/replay public
+shape 未改变。latest-stable Deno `2.9.4` 验证为 focused `7/211`、Base `73/834`、repository
+unit `218/2162` 全绿；`deno task check` 通过 format/lint/style/typecheck、同一完整 unit、
+assets/全部 Story checks 与 Engine Lab production build。改动仅限 Host-neutral Base 与 live
+docs，未机械追加浏览器 E2E。下一独立切片是 DET2c Strict numeric token exactness。
 
 ## 8. DET2c — Strict numeric token exactness
 

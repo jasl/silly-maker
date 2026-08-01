@@ -18,6 +18,10 @@ import type {
   SnapshotWorkPurposeV1,
 } from "../../internal/snapshot-work-instrumentation.ts";
 import {
+  admitCommandAttemptEvidenceInternalV1,
+  withFinalizedEvidenceHandoffInternalV1,
+} from "../../internal/finalized-evidence-admission.ts";
+import {
   createCommandLogInternalV1,
   createCommandLogV1,
   type FinalizedCommandAttemptV1,
@@ -190,6 +194,123 @@ function createFixtureLog(replayBase = snapshotAtSequence(0)) {
   >({ replayBase, limit: 200 });
 }
 
+function createMeasuredFixtureLog(replayBase: FixtureSnapshotV1) {
+  const counter = createSnapshotWorkCounterV1();
+  const purposes = createPurposeTaggedSnapshotWorkCounterV1();
+  const instrumentation = Object.freeze({
+    record(event: SnapshotWorkEventV1, purpose?: SnapshotWorkPurposeV1) {
+      counter.instrumentation.record(event, purpose);
+      purposes.instrumentation.record(event, purpose);
+    },
+  });
+  const log = createCommandLogInternalV1<
+    FixtureSnapshotV1,
+    FixtureLoggedCommandV1,
+    FixtureFactV1,
+    FixtureRejectionV1,
+    FixtureFaultV1
+  >(
+    {
+      replayBase,
+      replayBaseStateDigest: stateDigest(replayBase),
+      limit: 200,
+      auditStateDigests: false,
+    },
+    instrumentation,
+  );
+  counter.reset();
+  purposes.reset();
+  return Object.freeze({ counter, instrumentation, log, purposes });
+}
+
+const fractionalEvidenceCasesV1 = [
+  {
+    name: "fact",
+    path: "/result/facts/0/value",
+    createAttempt(before: FixtureSnapshotV1): FixtureAttemptV1 {
+      const after = snapshotAtSequence(before.commandSequence + 1, before.state.value + 1);
+      return {
+        ...finalizationEvidence(before, after),
+        result: {
+          kind: "committed",
+          snapshot: after,
+          facts: [{ kind: "fixture.committed", value: 0.25 }],
+        },
+        diagnostics: diagnostics(after),
+      } as unknown as FixtureAttemptV1;
+    },
+  },
+  {
+    name: "rejection",
+    path: "/result/reasons/0/weight",
+    createAttempt(before: FixtureSnapshotV1): FixtureAttemptV1 {
+      return {
+        ...finalizationEvidence(before, before),
+        result: {
+          kind: "rejected",
+          snapshot: before,
+          reasons: [{ code: "fixture.rejected", weight: 0.25 }],
+        },
+        diagnostics: diagnostics(before),
+      } as unknown as FixtureAttemptV1;
+    },
+  },
+  {
+    name: "fault",
+    path: "/result/fault/weight",
+    createAttempt(before: FixtureSnapshotV1): FixtureAttemptV1 {
+      return {
+        ...finalizationEvidence(before, before),
+        result: {
+          kind: "faulted",
+          snapshot: before,
+          fault: { code: "fixture.faulted", weight: 0.25 },
+        },
+        diagnostics: diagnostics(before),
+      } as unknown as FixtureAttemptV1;
+    },
+  },
+  {
+    name: "RNG state",
+    path: "/diagnostics/committedRngBefore/cursor",
+    createAttempt(before: FixtureSnapshotV1): FixtureAttemptV1 {
+      const attempt = finalizedAttempt(before, 2);
+      return {
+        ...attempt,
+        diagnostics: {
+          ...attempt.diagnostics,
+          committedRngBefore: {
+            algorithm: "xorshift32-v1",
+            cursor: 0.25,
+            rawDrawCount: 0,
+          },
+        },
+      } as unknown as FixtureAttemptV1;
+    },
+  },
+  {
+    name: "RNG draw",
+    path: "/diagnostics/attemptedDraws/0/result",
+    createAttempt(before: FixtureSnapshotV1): FixtureAttemptV1 {
+      const attempt = finalizedAttempt(before, 2);
+      return {
+        ...attempt,
+        diagnostics: {
+          ...attempt.diagnostics,
+          attemptedDraws: [{
+            ordinal: 1,
+            purpose: "demand:fixture",
+            exclusiveMax: 10,
+            result: 0.25,
+            before: before.rng,
+            after: before.rng,
+          }],
+        },
+      } as unknown as FixtureAttemptV1;
+    },
+  },
+] as const;
+
 describe("CommandLog", () => {
   it("keeps digest recomputation behind an explicit internal audit mode", () => {
     const replayBase = snapshotAtSequence(0);
@@ -214,9 +335,9 @@ describe("CommandLog", () => {
     log.append(parsedCommand(1), finalizedAttempt(replayBase, 1));
 
     expect(counter.snapshot()).toEqual({
-      canonicalTraversals: 3,
+      canonicalTraversals: 4,
       canonicalDigests: 2,
-      deepFreezeTraversals: 1,
+      deepFreezeTraversals: 2,
       commandLogContinuityVerifications: 1,
       saveCanonicalSerializations: 0,
       strictJsonParses: 0,
@@ -327,9 +448,9 @@ describe("CommandLog", () => {
     expect(Object.isFrozen(command)).toBe(true);
     expect(Object.isFrozen(nested)).toBe(true);
     expect(counter.snapshot()).toEqual({
-      canonicalTraversals: 1,
+      canonicalTraversals: 2,
       canonicalDigests: 0,
-      deepFreezeTraversals: 1,
+      deepFreezeTraversals: 2,
       commandLogContinuityVerifications: 1,
       saveCanonicalSerializations: 0,
       strictJsonParses: 0,
@@ -338,7 +459,246 @@ describe("CommandLog", () => {
     expect(purposes.snapshot()).toMatchObject({
       commandAdmissionCanonicalTraversals: 1,
       commandHandoffFreezeTraversals: 1,
+      evidenceAdmissionCanonicalTraversals: 1,
+      totalPhysicalCanonicalTraversals: 2,
+    });
+  });
+
+  it.each(fractionalEvidenceCasesV1)(
+    "rejects fractional $name evidence before continuity or log mutation",
+    ({ createAttempt, path }: (typeof fractionalEvidenceCasesV1)[number]) => {
+      const replayBase = snapshotAtSequence(0);
+      const measured = createMeasuredFixtureLog(replayBase);
+      const replayBaseBefore = measured.log.replayBase();
+      const replayBaseDigestBefore = measured.log.replayBaseStateDigest();
+      const entriesBefore = measured.log.entries();
+
+      let failure: unknown;
+      try {
+        measured.log.append(parsedCommand(1), createAttempt(replayBase));
+      } catch (error) {
+        failure = error;
+      }
+
+      expect(failure).toBeInstanceOf(CanonicalJsonError);
+      expect(failure).toMatchObject({ code: "number.not_integer", path });
+      expect(measured.log.replayBase()).toBe(replayBaseBefore);
+      expect(measured.log.replayBaseStateDigest()).toBe(replayBaseDigestBefore);
+      expect(measured.log.entries()).toBe(entriesBefore);
+      expect(measured.counter.snapshot()).toEqual({
+        canonicalTraversals: 2,
+        canonicalDigests: 0,
+        deepFreezeTraversals: 1,
+        commandLogContinuityVerifications: 0,
+        saveCanonicalSerializations: 0,
+        strictJsonParses: 0,
+        strictJsonPreflights: 0,
+      });
+      expect(measured.purposes.snapshot()).toEqual({
+        snapshotDigestTraversals: 0,
+        snapshotFreezeTraversals: 0,
+        bootstrapAdmissionCanonicalTraversals: 0,
+        bootstrapHandoffFreezeTraversals: 0,
+        commandAdmissionCanonicalTraversals: 1,
+        commandHandoffFreezeTraversals: 1,
+        evidenceAdmissionCanonicalTraversals: 1,
+        replayComparisonTraversals: 0,
+        totalPhysicalCanonicalTraversals: 2,
+      });
+      expect(
+        measured.log.append(parsedCommand(1), finalizedAttempt(replayBase, 1)).logOrdinal,
+      ).toBe(1);
+    },
+  );
+
+  it("rejects an extra finalized-attempt field before evidence traversal or continuity", () => {
+    const replayBase = snapshotAtSequence(0);
+    const measured = createMeasuredFixtureLog(replayBase);
+    const entriesBefore = measured.log.entries();
+    const invalidAttempt = {
+      ...finalizedAttempt(replayBase, 1),
+      unexpected: "not represented by the finalized-attempt contract",
+    } as unknown as FixtureAttemptV1;
+
+    expect(() => measured.log.append(parsedCommand(1), invalidAttempt)).toThrow(
+      "Finalized command attempt has invalid fields",
+    );
+    expect(measured.log.entries()).toBe(entriesBefore);
+    expect(measured.counter.snapshot()).toMatchObject({
+      canonicalTraversals: 1,
+      deepFreezeTraversals: 1,
+      commandLogContinuityVerifications: 0,
+    });
+    expect(measured.purposes.snapshot()).toMatchObject({
+      commandAdmissionCanonicalTraversals: 1,
+      commandHandoffFreezeTraversals: 1,
+      evidenceAdmissionCanonicalTraversals: 0,
       totalPhysicalCanonicalTraversals: 1,
+    });
+    expect(
+      measured.log.append(parsedCommand(1), finalizedAttempt(replayBase, 1)).logOrdinal,
+    ).toBe(1);
+  });
+
+  it("does not invoke an outer evidence getter while checking a Debug outcome", () => {
+    const replayBase = snapshotAtSequence(0);
+    const measured = createMeasuredFixtureLog(replayBase);
+    const validAttempt = finalizedAttempt(replayBase, 1);
+    const entriesBefore = measured.log.entries();
+    let resultReads = 0;
+    const invalidAttempt = Object.defineProperties({}, {
+      result: {
+        enumerable: true,
+        get() {
+          resultReads += 1;
+          return validAttempt.result;
+        },
+      },
+      diagnostics: { enumerable: true, value: validAttempt.diagnostics },
+      preSnapshot: { enumerable: true, value: validAttempt.preSnapshot },
+      preStateDigest: { enumerable: true, value: validAttempt.preStateDigest },
+      postStateDigest: { enumerable: true, value: validAttempt.postStateDigest },
+    }) as FixtureAttemptV1;
+
+    let failure: unknown;
+    try {
+      measured.log.append(parsedDebugCommand(1), invalidAttempt);
+    } catch (error) {
+      failure = error;
+    }
+
+    expect(failure).toBeInstanceOf(CanonicalJsonError);
+    expect(failure).toMatchObject({ code: "value.getter", path: "/result" });
+    expect(resultReads).toBe(0);
+    expect(measured.log.entries()).toBe(entriesBefore);
+    expect(measured.counter.snapshot()).toMatchObject({
+      commandLogContinuityVerifications: 0,
+    });
+  });
+
+  it("does not partially freeze earlier evidence when a later value is invalid", () => {
+    const replayBase = snapshotAtSequence(0);
+    const measured = createMeasuredFixtureLog(replayBase);
+    const after = snapshotAtSequence(1, 1);
+    const fact = { kind: "fixture.committed" as const, value: 1 };
+    const draw = { kind: "fixture.draw", raw: 0.25 };
+    const invalidAttempt = {
+      ...finalizationEvidence(replayBase, after),
+      result: { kind: "committed", snapshot: after, facts: [fact] },
+      diagnostics: {
+        committedRngBefore: replayBase.rng,
+        attemptedDraws: [draw],
+        committedRngAfter: after.rng,
+      },
+    } as unknown as FixtureAttemptV1;
+
+    expect(() => measured.log.append(parsedCommand(1), invalidAttempt)).toThrow(
+      CanonicalJsonError,
+    );
+    expect(Object.isFrozen(fact)).toBe(false);
+    expect(Object.isFrozen(draw)).toBe(false);
+    expect(measured.log.entries()).toEqual([]);
+    expect(measured.counter.snapshot()).toMatchObject({
+      deepFreezeTraversals: 1,
+      commandLogContinuityVerifications: 0,
+    });
+  });
+
+  it("records the same finalized and frozen evidence identities", () => {
+    const replayBase = snapshotAtSequence(0);
+    const log = createFixtureLog(replayBase);
+    const fact = { kind: "fixture.committed" as const, value: 1 };
+    const committedRngBefore = {
+      algorithm: "xorshift32-v1" as const,
+      cursor: 17,
+      rawDrawCount: 0,
+    };
+    const candidateRngAfter = {
+      algorithm: "xorshift32-v1" as const,
+      cursor: 18,
+      rawDrawCount: 1,
+    };
+    const committedRngAfter = candidateRngAfter;
+    const draw = {
+      ordinal: 1,
+      purpose: "demand:fixture",
+      exclusiveMax: 10,
+      result: 7,
+      before: committedRngBefore,
+      after: candidateRngAfter,
+    };
+    const after = Object.freeze({
+      ...snapshotAtSequence(1, 1),
+      rng: committedRngAfter,
+    }) as FixtureSnapshotV1;
+    const attempt = {
+      ...finalizationEvidence(replayBase, after),
+      result: { kind: "committed", snapshot: after, facts: [fact] },
+      diagnostics: {
+        committedRngBefore,
+        attemptedDraws: [draw],
+        candidateRngAfter,
+        committedRngAfter,
+      },
+    } as unknown as FixtureAttemptV1;
+
+    const entry = log.append(parsedCommand(1), attempt);
+
+    expect(entry.outcome.kind).toBe("committed");
+    if (entry.outcome.kind !== "committed") throw new TypeError("Expected committed outcome");
+    expect(entry.outcome.facts[0]).toBe(fact);
+    expect(entry.attemptedDraws[0]).toBe(draw);
+    expect(entry.committedRngBefore).toBe(committedRngBefore);
+    expect(entry.candidateRngAfter).toBe(candidateRngAfter);
+    expect(entry.committedRngAfter).toBe(committedRngAfter);
+    for (
+      const evidence of [
+        fact,
+        draw,
+        committedRngBefore,
+        candidateRngAfter,
+        committedRngAfter,
+      ]
+    ) {
+      expect(Object.isFrozen(evidence)).toBe(true);
+    }
+  });
+
+  it("consumes a Session evidence handoff without repeating admission", () => {
+    const replayBase = snapshotAtSequence(0);
+    const measured = createMeasuredFixtureLog(replayBase);
+    const candidate = finalizedAttempt(replayBase, 1);
+    const admitted = admitCommandAttemptEvidenceInternalV1(
+      replayBase,
+      { result: candidate.result, diagnostics: candidate.diagnostics },
+      {},
+      measured.instrumentation,
+    );
+    const finalized = Object.freeze({
+      ...admitted,
+      ...finalizationEvidence(replayBase, admitted.result.snapshot),
+    }) as FixtureAttemptV1;
+
+    const entry = withFinalizedEvidenceHandoffInternalV1(
+      finalized,
+      () => measured.log.append(parsedCommand(1), finalized),
+    );
+
+    expect(entry.logOrdinal).toBe(1);
+    expect(measured.counter.snapshot()).toEqual({
+      canonicalTraversals: 2,
+      canonicalDigests: 0,
+      deepFreezeTraversals: 2,
+      commandLogContinuityVerifications: 1,
+      saveCanonicalSerializations: 0,
+      strictJsonParses: 0,
+      strictJsonPreflights: 0,
+    });
+    expect(measured.purposes.snapshot()).toMatchObject({
+      commandAdmissionCanonicalTraversals: 1,
+      commandHandoffFreezeTraversals: 1,
+      evidenceAdmissionCanonicalTraversals: 1,
+      totalPhysicalCanonicalTraversals: 2,
     });
   });
 

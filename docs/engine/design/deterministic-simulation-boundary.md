@@ -1,8 +1,9 @@
 # Authoritative simulation determinism boundary
 
 状态：2026-07-31 接受的目标设计；同日按 Save-corpus ownership 与 DET-A/DET-B
-promotion boundary 修订；2026-08-01 明确 DET2a command admission 的公开失败
-surface、command identity representability、Debug fence precedence 与原子性。具体
+promotion boundary 修订；2026-08-01 明确 DET2a command admission 与 DET2b
+finalized evidence admission 的公开失败 surface、precedence、representability 与
+原子性。具体
 落地顺序见
 [Authoritative determinism guardrails plan](../plans/2026-07-31-authoritative-determinism-guardrails.md)。
 当前 Snapshot、Save 与 Debug Bundle encoding 已有 integer-only canonical
@@ -354,9 +355,52 @@ fail-closed closure；checker 只对该函数中以已验证 `BootstrapEntropyV1
   represented getter 通过 descriptor 检测拒绝且不调用。schema-bearing ingress 在
   gate 前仍可按 Story 自有 schema 语义读取 raw input，本合同不把 getter-zero 保证
   扩张到 schema；
-- attempt 的 facts/rejections/fault/RNG evidence 在安装 Snapshot/RNG、发布或
-  append CommandLog 前、且在 candidate Snapshot whole-tree freeze/post-digest
-  前完整验证；
+- executor 或 Debug validator 返回后，Session 先执行 post-callback HMR fence；fence
+  胜出时不读取 stale candidate、调用 normalizer 或执行 evidence traversal。随后才
+  descriptor-only capture attempt/result/diagnostics 外壳与 branch；capture 不读取
+  accessor、不遍历 candidate Snapshot。Standard Core 再使用 DET1 的既有 xorshift
+  schema 验证 captured candidate
+  Snapshot RNG，再进入 evidence finalization；因此同一个 candidate 同时包含 zero
+  RNG 与 malformed evidence 时，`rng.invalid_state` 仍先胜出。不得把 evidence gate
+  提前包进 resolved `GameSimulation` executor 而反转该 precedence；
+- finalized evidence 使用 package-internal 两阶段 prepare/commit：先检查 outer exact
+  shape 与 non-committed Snapshot identity，再按 outcome branch 的 array index 顺序做
+  fact/rejection schema normalization（fault 无 Story schema），随后依次准备
+  `committedRngBefore`、`attemptedDraws`、可选 `candidateRngAfter`、
+  `committedRngAfter` 与已有 engine receipt fields。Standard Core 还对 Debug
+  validation errors 按 index 使用既有 schema；low-level generic path 仍执行无条件
+  exact-shape + Strict Canonical Data gate。所有准备完成后，对不含 Snapshot 的完整
+  evidence projection 做一次 `evidence_admission` canonical traversal；成功才冻结同一
+  normalized identities 并签发 package-internal exact-target、same-identity、one-shot
+  receipt。CommandLog 消费 receipt 时不得重复 traversal，独立或嵌套 ingress 必须
+  自行重新 finalization。该 receipt 只覆盖 Standard Core 对同步
+  `GameSimulationV1` callback 的受控调用和 Session→CommandLog handoff；generic
+  low-level Session 允许 async adapter，若 adapter 在自身 callback 内显式调用 public
+  Simulation，那是 callback 返回前已经发生的独立 ingress，不得用全局跨-`await`
+  deferral 绕过或混淆并发 direct call；
+- evidence finalization 必须早于 candidate Snapshot integrity mutation、whole-tree
+  freeze、post-digest、install、authoritative/semantic publication 与 CommandLog
+  continuity/append。prepare 失败前 engine 不部分冻结 caller-owned earlier evidence，
+  candidate Snapshot traversal/post-digest/freeze 精确为 `0/0/0`，并保持 installed
+  Snapshot identity/digest、RNG、sequence、replay base 与 existing log 不变；queue 的
+  既有 busy/idle observer notification 不属于 authoritative publication；
+- failure classification 保持现有 public surface：fact/rejection schema、Debug
+  validation-error schema、fault/RNG/receipt shape 或 canonical failure 都是
+  attempt-finalization failure，不伪装成 command `validation_failed`、Story rejection
+  或新 result kind。direct synchronous Simulation 对同时带有 own `result` 与
+  `diagnostics` 的 attempt-shaped result、以及 direct CommandLog，继续从既有 throw
+  channel 暴露 schema error 或 root-public `CanonicalJsonError(code, path)`；Session
+  把该 error 交给既有 game/debug unexpected-fault callback **恰好一次**。现有
+  `GameSimulationV1` 的 `TAttempt` 是有意保持 opaque 的 generic；不具备该结构的
+  Story 自定义 result 原样返回，DET2b 不借机收窄其 public type 或语义；
+- normalizer 返回合法、canonical、保留 command-start Snapshot identity 的 faulted
+  fallback 时，只 append 这一条 fallback，返回既有 executed/faulted 并进入
+  `fault_paused`；原 malformed attempt 不被记录、observer 或 transient publication
+  看见。normalizer 缺失/throw、返回非-faulted，或 fallback 的 Snapshot/evidence 仍
+  非法时，不递归 normalizer：第二次 finalization/回调 error 使 Promise reject，Session
+  回到原 stable status，Snapshot/RNG/sequence/replay base 与 log 不变；malformed Debug
+  validation errors 同样走该 policy，合法 non-empty errors 才返回既有
+  `validation_failed` 且不写 log；
 - authoritative replay 保留 blocking identity mismatch 的最高 precedence；identity
   匹配后先同步、各一次地 capture 完整 recorded-command vector 的 `source` 与
   `command` identity；capture 不枚举 command、不执行 canonical traversal，也不
@@ -367,24 +411,34 @@ fail-closed closure；checker 只对该函数中以已验证 `BootstrapEntropyV1
   slot。因此第 `k` 个 entry 失败时已有 `k` 次 command canonical traversal，但
   handoff freeze 与 driver construction 均为 `0`；best-effort replay inspection 不
   执行该 gate；
-- invalid evidence 原子失败：不安装 candidate Snapshot/RNG，不推进
-  sequence，不写入 malformed CommandLog；
-- 所有 public Session/Simulation/CommandLog path 都执行无条件 canonical shape
-  gate；标准 Core composition 另外执行 Story fact/rejection schema
-  normalization，test/bench 只能注入 observation/counter，不得替换或绕过 gate；
+- 以上 evidence precedence 位于 DET2a command admission 与 queue-front/post-callback
+  HMR fence 之后；HMR fence 胜出时不读取 callback 返回的 stale candidate 或执行
+  Session-owned evidence traversal；它不能追溯撤销 callback 内显式完成的另一个 public
+  ingress。Story schema callback 自身若在 evidence preparation 中同步触发 HMR，Session
+  在 preparation/finalization 返回后、CommandLog append/install/publication 前再次检查
+  fence：已开始的 normalization/canonical/freeze 不能回滚，但 candidate 仍不得成为
+  authoritative state 或 log evidence；
+  direct CommandLog 先做
+  source/debug-outcome 约束与 command admission，再做 evidence finalization，随后才做
+  continuity/digest audit、ordinal/eviction 与 publication；第一个失败稳定胜出；
+- 所有 public Session/CommandLog path 与 attempt-shaped direct Simulation result 都执行
+  无条件 canonical shape gate；标准 Core composition 另外执行 Story fact/rejection
+  schema normalization，test/bench 只能注入 observation/counter，不得替换或绕过
+  gate；
 - 有效输入不改变 canonical algorithm、digest、Save bytes 或 PF1 的 Snapshot
   digest/freeze contract。bootstrap/command/evidence admission 会产生新增物理
   traversal，instrumentation 必须按 Snapshot digest/freeze、bootstrap admission /
   handoff freeze、command admission/handoff freeze、evidence admission、replay
   comparison 与 total 分标签报告。
 
-当前 `factSchema` / `rejectionSchema` 存在但未接入 execution path，fault
-没有对应 simulation schema。DET2a 只公开上述既有 canonical error class 与稳定
-fields，不新增 command result branch、universal command envelope 或 Story failure
-projector。后续 evidence admission 若无法通过 package-internal composition 和现有
-stable fault policy 闭合，或必须再改变任何 public
-Session/Simulation/CommandLog/fault contract，必须先修订设计；不得为此发明
-universal application receipt 或把 Surface envelope 扩张到所有 command。
+当前 `factSchema` / `rejectionSchema` 存在但尚未接入 execution path，fault 没有对应
+simulation schema。DET2b 只允许使用 package-internal composition、engine-owned outer
+shape/canonical gate 与现有 stable fault policy；不新增 public evidence hook/receipt、
+command result branch、`GameSimulation` revision、fault schema/envelope 或 universal
+application receipt，也不把 Surface envelope 扩张到所有 command。若实现不能保持
+DET1 zero-RNG precedence、fallback-invalid 的 rejected-Promise + original stable
+status + no-new-log 合同，或不能在零 candidate Snapshot traversal 下闭合，必须先
+停止并修订设计。
 
 ### 6.4 Test-only isolated tripwire
 
@@ -449,7 +503,10 @@ promotion。只有 DET3a–DET4（DET-B）也完成、四 runtime matrix 全绿�
 2. 合法 corpus 的 Snapshot/digest/Save/replay bytes 保持等价；
 3. invalid bootstrap output 在 `createInitialState` 前失败；有效 handoff 是一个
    admitted、deep-frozen value，且不新增 public schema/envelope；
-4. invalid command/evidence 在 first authoritative boundary 原子失败；
+4. invalid command/evidence 在 first authoritative boundary 原子失败；evidence
+   finalization 保持 DET1 zero-RNG precedence，valid fallback 只记录一条 canonical
+   fault 并进入 `fault_paused`，invalid/absent fallback 则 reject、回到原 stable
+   status 且不新增 log；
 5. Strict JSON 按 number token 的精确数学值拒绝舍入后伪装成整数的小数，同时保留
    合法 exact-integer 替代写法；
 6. static guard 覆盖 fail-closed authoritative closure，Host/Presentation
@@ -464,6 +521,9 @@ promotion。只有 DET3a–DET4（DET-B）也完成、四 runtime matrix 全绿�
 - zero-state compatibility 无法在保留坏状态与拒绝旧记录之间作明确产品决定；
 - stable fault evidence 需要 public Session/Simulation/CommandLog/fault contract
   change 或 universal receipt/envelope 才能表达；
+- evidence admission 无法保留 DET1 candidate-RNG precedence、fallback-invalid 的
+  rejected-Promise/status/no-log 合同，或无法在 candidate Snapshot 零 traversal 下
+  原子失败；
 - canonical bootstrap handoff 需要新增 public `GameSimulation` revision、
   bootstrap schema/envelope，或改变合法 initial Snapshot/Save bytes 才能实现；
 - lint 只能靠全仓库禁止 clock/float，因而误伤合法 Host/Presentation；

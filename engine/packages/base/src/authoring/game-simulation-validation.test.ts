@@ -15,6 +15,7 @@ import {
   type CanonicalCommandHandoffTargetInternalV1,
   withCanonicalCommandHandoffInternalV1,
 } from "../internal/canonical-command-admission.ts";
+import { withDeferredSimulationEvidenceAdmissionInternalV1 } from "../internal/finalized-evidence-admission.ts";
 import { createSnapshotWorkCounterV1 } from "../internal/snapshot-work-instrumentation.ts";
 import { createPristineRunIntegrityV1 } from "../contracts/snapshot.ts";
 import {
@@ -123,6 +124,24 @@ function stateless(id: string, dependencies: readonly string[] = []) {
       resolveParity(value: number): "even" | "odd" {
         return value % 2 === 0 ? "even" : "odd";
       },
+    }),
+  });
+}
+
+function syntheticRejectedAttemptV1(
+  snapshot: SyntheticSimulationTypesV1["snapshot"],
+) {
+  return Object.freeze({
+    result: Object.freeze({
+      kind: "rejected" as const,
+      snapshot,
+      reasons: Object.freeze([]),
+    }),
+    diagnostics: Object.freeze({
+      committedRngBefore: snapshot.rng,
+      attemptedDraws: Object.freeze([]),
+      candidateRngAfter: snapshot.rng,
+      committedRngAfter: snapshot.rng,
     }),
   });
 }
@@ -433,6 +452,259 @@ describe("GameSimulation invariants", () => {
       () => resolved.debugCommandExecutor.executeAttempt(snapshot, debugCommand, undefined),
     );
   });
+
+  it("normalizes and freezes synchronous game and Debug attempt evidence exactly once", () => {
+    const seed = defineSyntheticSimulation();
+    const snapshot = syntheticSnapshot();
+    const rawFact = { kind: "synthetic.changed" as const, transient: "remove" };
+    const rawReason = { code: "synthetic.rejected" as const, transient: "remove" };
+    const rawGameAttempt = {
+      result: {
+        kind: "committed" as const,
+        snapshot,
+        facts: [rawFact],
+      },
+      diagnostics: {
+        committedRngBefore: snapshot.rng,
+        attemptedDraws: [],
+        candidateRngAfter: snapshot.rng,
+        committedRngAfter: snapshot.rng,
+      },
+    };
+    const rawDebugAttempt = {
+      result: {
+        kind: "rejected" as const,
+        snapshot,
+        reasons: [rawReason],
+      },
+      diagnostics: {
+        committedRngBefore: snapshot.rng,
+        attemptedDraws: [],
+        candidateRngAfter: snapshot.rng,
+        committedRngAfter: snapshot.rng,
+      },
+    };
+    const normalizedFact = Object.freeze({ kind: "synthetic.changed" as const });
+    const normalizedReason = Object.freeze({ code: "synthetic.rejected" as const });
+    let factParseCalls = 0;
+    let rejectionParseCalls = 0;
+    let executeGameCalls = 0;
+    let executeDebugCalls = 0;
+    const parseFact = (value: unknown): SyntheticSimulationTypesV1["fact"] => {
+      factParseCalls += 1;
+      expect(value).toBe(rawFact);
+      return normalizedFact;
+    };
+    const parseRejection = (value: unknown): SyntheticSimulationTypesV1["rejection"] => {
+      rejectionParseCalls += 1;
+      expect(value).toBe(rawReason);
+      return normalizedReason;
+    };
+    const executeGame = (
+      _snapshot: SyntheticSimulationTypesV1["snapshot"],
+      _command: SyntheticSimulationTypesV1["command"],
+      _context: undefined,
+    ) => {
+      executeGameCalls += 1;
+      return rawGameAttempt;
+    };
+    const executeDebug = (
+      _snapshot: SyntheticSimulationTypesV1["snapshot"],
+      _command: SyntheticSimulationTypesV1["debugCommand"],
+      _context: undefined,
+    ) => {
+      executeDebugCalls += 1;
+      return rawDebugAttempt;
+    };
+    const resolved = defineGameSimulation<SyntheticSimulationTypesV1>()({
+      ...seed,
+      factSchema: Object.freeze({ parse: parseFact }),
+      rejectionSchema: Object.freeze({ parse: parseRejection }),
+      commandExecutor: { executeAttempt: executeGame },
+      debugCommandExecutor: {
+        ...seed.debugCommandExecutor,
+        executeAttempt: executeDebug,
+      },
+    });
+
+    const gameAttempt = resolved.commandExecutor.executeAttempt(
+      snapshot,
+      { kind: "synthetic.increment" },
+      undefined,
+    );
+    const debugAttempt = resolved.debugCommandExecutor.executeAttempt(
+      snapshot,
+      { kind: "debug.synthetic.increment" },
+      undefined,
+    );
+
+    expect(executeGameCalls).toBe(1);
+    expect(executeDebugCalls).toBe(1);
+    expect(factParseCalls).toBe(1);
+    expect(rejectionParseCalls).toBe(1);
+    expect(gameAttempt).not.toBe(rawGameAttempt);
+    expect(debugAttempt).not.toBe(rawDebugAttempt);
+    expect(gameAttempt).toMatchObject({
+      result: { kind: "committed", snapshot, facts: [normalizedFact] },
+    });
+    expect(debugAttempt).toMatchObject({
+      result: { kind: "rejected", snapshot, reasons: [normalizedReason] },
+    });
+    expect(Object.isFrozen(gameAttempt)).toBe(true);
+    expect(Object.isFrozen(gameAttempt.result)).toBe(true);
+    expect(Object.isFrozen(gameAttempt.diagnostics)).toBe(true);
+    expect(Object.isFrozen(debugAttempt)).toBe(true);
+    expect(Object.isFrozen(debugAttempt.result)).toBe(true);
+    expect(Object.isFrozen(debugAttempt.diagnostics)).toBe(true);
+    expect(Object.isFrozen(rawFact)).toBe(false);
+    expect(Object.isFrozen(rawReason)).toBe(false);
+  });
+
+  it.each(
+    [
+      {
+        label: "an extra outer field",
+        createAttempt(snapshot: SyntheticSimulationTypesV1["snapshot"]) {
+          return { ...syntheticRejectedAttemptV1(snapshot), leaked: true };
+        },
+        assertFailure(error: unknown) {
+          expect(error).toEqual(new TypeError("Command attempt has invalid fields"));
+        },
+      },
+      {
+        label: "fractional fault evidence",
+        createAttempt(snapshot: SyntheticSimulationTypesV1["snapshot"]) {
+          return {
+            result: {
+              kind: "faulted" as const,
+              snapshot,
+              fault: { code: "synthetic.fault" as const, value: 0.5 },
+            },
+            diagnostics: {
+              committedRngBefore: snapshot.rng,
+              attemptedDraws: [],
+              candidateRngAfter: snapshot.rng,
+              committedRngAfter: snapshot.rng,
+            },
+          };
+        },
+        assertFailure(error: unknown) {
+          expect(error).toBeInstanceOf(CanonicalJsonError);
+          expect(error).toMatchObject({
+            code: "number.not_integer",
+            path: "/result/fault/value",
+          });
+        },
+      },
+    ] as const,
+  )(
+    "rejects synchronous $label after one executor callback",
+    ({ createAttempt, assertFailure }) => {
+      const seed = defineSyntheticSimulation();
+      const snapshot = syntheticSnapshot();
+      let executeCalls = 0;
+      const executeAttempt = (
+        _snapshot: SyntheticSimulationTypesV1["snapshot"],
+        _command: SyntheticSimulationTypesV1["command"],
+        _context: undefined,
+      ) => {
+        executeCalls += 1;
+        return createAttempt(snapshot);
+      };
+      const resolved = defineGameSimulation<SyntheticSimulationTypesV1>()({
+        ...seed,
+        commandExecutor: { executeAttempt },
+      });
+
+      let failure: unknown;
+      try {
+        resolved.commandExecutor.executeAttempt(
+          snapshot,
+          { kind: "synthetic.increment" },
+          undefined,
+        );
+      } catch (error) {
+        failure = error;
+      }
+
+      assertFailure(failure);
+      expect(executeCalls).toBe(1);
+    },
+  );
+
+  it.each(
+    [
+      ["game", "simulation_game_execute"],
+      ["debug", "simulation_debug_execute"],
+    ] as const,
+  )(
+    "lets Standard Core defer synchronous %s evidence until after its RNG gate",
+    (surface, target) => {
+      const seed = defineSyntheticSimulation();
+      const snapshot = syntheticSnapshot();
+      const rawFact = { kind: "synthetic.changed" as const, value: 0.5 };
+      const candidate = {
+        result: {
+          kind: "committed" as const,
+          snapshot,
+          facts: [rawFact],
+        },
+        diagnostics: {
+          committedRngBefore: snapshot.rng,
+          attemptedDraws: [],
+          candidateRngAfter: snapshot.rng,
+          committedRngAfter: snapshot.rng,
+        },
+      };
+      let factParseCalls = 0;
+      let executeCalls = 0;
+      const parseFact = (_value: unknown): SyntheticSimulationTypesV1["fact"] => {
+        factParseCalls += 1;
+        throw new TypeError("evidence schema ran before the Core RNG gate");
+      };
+      const executeAttempt = (
+        _snapshot: SyntheticSimulationTypesV1["snapshot"],
+        _command:
+          | SyntheticSimulationTypesV1["command"]
+          | SyntheticSimulationTypesV1["debugCommand"],
+        _context: undefined,
+      ) => {
+        executeCalls += 1;
+        return candidate;
+      };
+      const resolved = defineGameSimulation<SyntheticSimulationTypesV1>()({
+        ...seed,
+        factSchema: Object.freeze({ parse: parseFact }),
+        commandExecutor: { executeAttempt },
+        debugCommandExecutor: {
+          ...seed.debugCommandExecutor,
+          executeAttempt,
+        },
+      });
+
+      const returned = withDeferredSimulationEvidenceAdmissionInternalV1(
+        target,
+        () =>
+          surface === "game"
+            ? resolved.commandExecutor.executeAttempt(
+              snapshot,
+              { kind: "synthetic.increment" },
+              undefined,
+            )
+            : resolved.debugCommandExecutor.executeAttempt(
+              snapshot,
+              { kind: "debug.synthetic.increment" },
+              undefined,
+            ),
+      );
+
+      expect(returned).toBe(candidate);
+      expect(executeCalls).toBe(1);
+      expect(factParseCalls).toBe(0);
+      expect(Object.isFrozen(candidate)).toBe(false);
+      expect(Object.isFrozen(rawFact)).toBe(false);
+    },
+  );
 
   it("rejects duplicate slots, missing dependencies, and dependency cycles", () => {
     expect(() => defineSimulationWithDuplicateId()).toThrow("duplicate GameplayModule ID");

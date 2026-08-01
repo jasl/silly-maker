@@ -97,6 +97,45 @@ export const rngStateV1Schema: RuntimeSchemaV1<RngStateV1> = Object.freeze({
   },
 });
 
+/** @internal Standard-Core finalized-evidence guard; intentionally absent from package barrels. */
+export function parseRngDrawTraceInternalV1(value: unknown): RngDrawTraceV1 {
+  if (
+    value === null ||
+    typeof value !== "object" ||
+    Array.isArray(value) ||
+    Object.getPrototypeOf(value) !== Object.prototype ||
+    Object.getOwnPropertySymbols(value).length !== 0
+  ) {
+    throw new TypeError("invalid RngDrawTraceV1");
+  }
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  if (
+    Object.keys(descriptors).sort().join("\0") !==
+      "after\0before\0exclusiveMax\0ordinal\0purpose\0result"
+  ) {
+    throw new TypeError("invalid RngDrawTraceV1 fields");
+  }
+  for (const descriptor of Object.values(descriptors)) {
+    if (descriptor.get !== undefined || descriptor.set !== undefined) {
+      throw new TypeError("RngDrawTraceV1 accessors are forbidden");
+    }
+  }
+  const exclusiveMax = parsePositiveSafeInteger(descriptors.exclusiveMax?.value);
+  if (exclusiveMax > 0x1_0000_0000) {
+    throw new TypeError("RngDrawTraceV1 exclusiveMax exceeds uint32 range");
+  }
+  const result = parseNonNegativeSafeInteger(descriptors.result?.value);
+  if (result >= exclusiveMax) throw new TypeError("RngDrawTraceV1 result is out of range");
+  return Object.freeze({
+    ordinal: parsePositiveSafeInteger(descriptors.ordinal?.value),
+    purpose: parsePurpose(descriptors.purpose?.value),
+    exclusiveMax,
+    result,
+    before: rngStateV1Schema.parse(descriptors.before?.value),
+    after: rngStateV1Schema.parse(descriptors.after?.value),
+  });
+}
+
 function parsePurpose(value: unknown): string {
   if (
     typeof value !== "string" ||
