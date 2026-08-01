@@ -29,6 +29,10 @@ import {
 import { createFixedBootstrapEntropyV1 } from "../../testkit/fixed-bootstrap-entropy.ts";
 import { createPurposeTaggedSnapshotWorkCounterV1 } from "../../internal/snapshot-work-instrumentation.ts";
 import { deterministicBuildIdentityInputV1 } from "../../testkit/resolver-fixtures.ts";
+import {
+  createSaveMetadataHostPayloadV1,
+  saveMetadataCompactExpectedV1,
+} from "../../testkit/save-metadata-corpus.ts";
 import type {
   SyntheticCounterCommandV1,
   SyntheticSimulationTypesV1,
@@ -315,15 +319,15 @@ const s0CompleteBootstrapGoldenV1 = Object.freeze({
     bytesDigest: "sha256:5a0f5dda819431423ed316d618fff0331194ef75fcf1fac201c0a47f2678e6e6",
   }),
   stateDigest: "sha256:c87eeea0469bd353df29a97b84e773fbffa5b0a661888342e4620353839379a5",
-  quickSave: Object.freeze([
-    Object.freeze({
-      key: "save-record.v1:story.synthetic-counter:quick",
-      revision: 1,
-      byteLength: 1_447,
-      bytesDigest: "sha256:c69e007af552917ce7207bbab2e3ff8c21a1ece6f34af0ff60a22375b4e0cd83",
-    }),
-  ]),
 });
+const s0CompleteBootstrapQuickSaveGoldenV1 = Object.freeze([
+  Object.freeze({
+    key: "save-record.v1:story.synthetic-counter:quick",
+    revision: 1,
+    byteLength: saveMetadataCompactExpectedV1.records.unstamped.byteLength,
+    bytesDigest: saveMetadataCompactExpectedV1.records.unstamped.bytesDigest,
+  }),
+]);
 
 const recordSchemaV1: RuntimeSchemaV1<Record<string, unknown>> = Object.freeze({
   parse(value: unknown) {
@@ -1452,7 +1456,10 @@ describe("createCoreGameApplicationInstanceV1", () => {
       slotId: "quick",
     });
     expect(await rawSaveEvidenceV1(constructionRecords)).toEqual(
-      s0CompleteBootstrapGoldenV1.quickSave,
+      s0CompleteBootstrapQuickSaveGoldenV1,
+    );
+    expect((await constructionRecords.list("save"))[0]?.bytes).toEqual(
+      createSaveMetadataHostPayloadV1("unstamped").bytes,
     );
     await construction.dispose();
 
@@ -1477,7 +1484,10 @@ describe("createCoreGameApplicationInstanceV1", () => {
       slotId: "quick",
     });
     expect(await rawSaveEvidenceV1(restartRecords)).toEqual(
-      s0CompleteBootstrapGoldenV1.quickSave,
+      s0CompleteBootstrapQuickSaveGoldenV1,
+    );
+    expect((await restartRecords.list("save"))[0]?.bytes).toEqual(
+      createSaveMetadataHostPayloadV1("unstamped").bytes,
     );
     await restarting.dispose();
 

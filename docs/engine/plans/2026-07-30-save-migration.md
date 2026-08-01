@@ -61,6 +61,38 @@ blocker，但 M0a 从此成为唯一 bytes/preservation authority。
 atomicity、preservation 与 exact bytes 逐项固定；PF1 oracle 未重生成；无 browser/
 filesystem/private-project dependency。
 
+**2026-08-01 M0a promotion：** `@sillymaker/base/testkit` 现在提供 revision `1`
+的中性 compact corpus：纯 summary/stamp/record vectors、独立 expected bytes
+（immutable base64 + byte length + SHA）以及每次返回 fresh bytes 的固定-clock Host
+payload。PF1 unstamped Quick Save 继续是 `1,447` bytes、
+`sha256:c69e007af552917ce7207bbab2e3ff8c21a1ece6f34af0ff60a22375b4e0cd83`；
+all-null stamp 与其 byte-for-byte 相同，原 `stateDigest`
+`sha256:c87eeea0469bd353df29a97b84e773fbffa5b0a661888342e4620353839379a5`
+对所有 compact record 保持不变。追加 vectors 为：
+
+| variant                           | bytes | SHA-256                                                            |
+| --------------------------------- | ----: | ------------------------------------------------------------------ |
+| summary-only                      | 1,517 | `2079b3fa038abf6dc7adc2309a476294dc4461d7183c93fbcda78fd30656e839` |
+| note-only                         | 1,504 | `8c0c6b1e3db6d3658aba554d376ae564d03a8f90d44078707fed0ec70bb4e142` |
+| summary + note                    | 1,532 | `5967b7572841cea0d933e66c626b35984892370ecd0610e7086808d290e66659` |
+| partial stamp                     | 1,559 | `537d5c785bfba490040b3e34ae33d70694edea4d0435b60e31b0485e897d89d3` |
+| full clean stamp                  | 1,638 | `062458d80eb8b8e96326827db5e8cc8b8ac80fdcf7fe7e4d1c8765fbbfdadb04` |
+| full dirty stamp                  | 1,650 | `c7d853587182247259fcf2b337c5102f18dd90e8876c82e539bdd723554c91e2` |
+| status-unavailable stamp          | 1,606 | `884bb5fa9cdcba9d088a14240a54220730ce6dfd43722c1e65d3dc3ef77213d4` |
+| summary + note + full dirty stamp | 1,735 | `eb62ceff1033406fe850515bbb0d04de0aa6662d873984de5820a780c2eefcd0` |
+
+14 个 valid lifecycle variants 已逐个覆盖 physical readback、list、stored export、
+load/import、lease fence 与 post-commit failure/retry；standard receipt 和 opaque
+fallback 的 capture/rewrite/two-rotation raw records 相同。每次 fresh capture 的
+`summarizeSave` 为 `0`（absent）或 `1`，stamp collector 为 `0`（absent）或 service
+construction 时 `1`；rewrite、rotation、list、stored/current export 的 collector
+delta 固定为 `0`。malformed、over-limit、sparse、accessor/Proxy 与 throwing sources
+继续由 contract/failure matrix 证明 fail closed；summary throw 在任何 physical Save
+write 前失败，stale rewrite 保留 newer raw bytes。该批只增加 testkit seam、测试与
+promotion evidence，没有改变 `formatRevision`、canonical JSON、codec、公开 Save/
+load/replay semantics、生产 load order，也没有创建 migration shell、callback 或
+registry。跨计划下一切片回到 PF-DET `DET1`。
+
 ## 3. M0b — Post-DET-A current load baseline
 
 M0b 必须等待完整 DET-A，因为 DET2d 会影响 initial Save path，DET2e 会影响

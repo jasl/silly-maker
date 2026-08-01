@@ -10,7 +10,12 @@ import type {
   IsoUtcInstant,
 } from "../contracts/host.ts";
 import { createMemoryHostRecordStoreV1 } from "../contracts/host.ts";
-import type { NonNegativeSafeInteger, PositiveSafeInteger } from "../contracts/values.ts";
+import type { VersionStampV1 } from "../contracts/version-stamp.ts";
+import type {
+  DeepReadonly,
+  NonNegativeSafeInteger,
+  PositiveSafeInteger,
+} from "../contracts/values.ts";
 import {
   createSnapshotWorkCounterV1,
   type SnapshotWorkCountsV1,
@@ -27,6 +32,7 @@ import {
   snapshotTransactionProvenanceV1,
   snapshotTransactionSnapshotSchemaV1,
 } from "./snapshot-transaction-workload.ts";
+import type { SnapshotTransactionStateV1 } from "./snapshot-transaction-workload.ts";
 
 export interface SnapshotPersistenceWorkCountsV1 extends SnapshotSessionWorkCountsV1 {
   readonly saveCanonicalSerializations: number;
@@ -111,6 +117,12 @@ export async function createSnapshotPersistenceWorkloadV1(input: {
   readonly records?: HostAtomicRecordStoreV1;
   readonly wrapRuntimeControlForFallback?: boolean;
   readonly wrapRepositoryForWriteReceiptFallback?: boolean;
+  readonly metadataClock?: { now(): IsoUtcInstant };
+  readonly exportFilename?: string;
+  summarizeSave?(
+    state: DeepReadonly<SnapshotTransactionStateV1>,
+  ): readonly string[] | null;
+  collectVersionStamp?(): VersionStampV1;
 }) {
   const session = createSnapshotTransactionWorkloadV1({
     entityCount: input.entityCount,
@@ -130,10 +142,14 @@ export async function createSnapshotPersistenceWorkloadV1(input: {
     validateReferences: () => Object.freeze([]),
     validateInvariants: () => Object.freeze([]),
     initialSimulationLineage: Object.freeze([]),
-    metadataClock: Object.freeze({ now: () => persistenceInstantV1 }),
-    exportFilename: "snapshot-persistence-workload.json",
+    metadataClock: input.metadataClock ?? Object.freeze({ now: () => persistenceInstantV1 }),
+    exportFilename: input.exportFilename ?? "snapshot-persistence-workload.json",
     manualSaveSlotCount: 0,
     autoSaveCapture: "committed_snapshots" as const,
+    ...(input.summarizeSave === undefined ? {} : { summarizeSave: input.summarizeSave }),
+    ...(input.collectVersionStamp === undefined
+      ? {}
+      : { collectVersionStamp: input.collectVersionStamp }),
   };
   const persistence = input.instrumentation === undefined
     ? await createPersistenceServiceV1(persistenceOptions)

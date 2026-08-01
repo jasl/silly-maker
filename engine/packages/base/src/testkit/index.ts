@@ -3,6 +3,12 @@ export { strictJsonRoundTripV1, validateToolingFixturesV1 } from "./contract-sui
 export { createFixedBootstrapEntropyV1 } from "./fixed-bootstrap-entropy.ts";
 export { createMemoryHostRecordStoreV1 } from "../contracts/host.ts";
 export {
+  createSaveMetadataHostPayloadV1,
+  evaluateSaveMetadataCompactVectorsV1,
+  saveMetadataCompactExpectedV1,
+  saveMetadataCorpusRevisionV1,
+} from "./save-metadata-corpus.ts";
+export {
   authoritativeDeterminismCommandClassesV1,
   authoritativeDeterminismDrawPurposeV1,
   prepareAuthoritativeDeterminismWorkloadV1,
@@ -39,6 +45,12 @@ export type {
   GameHarnessTraceEntryV1,
   GameHarnessV1,
 } from "./game-harness.ts";
+export type {
+  SaveMetadataCompactByteVectorV1,
+  SaveMetadataCompactRecordIdV1,
+  SaveMetadataCompactVectorsV1,
+  SaveMetadataHostPayloadV1,
+} from "./save-metadata-corpus.ts";
 export type {
   PreparedSnapshotCommitWorkloadV1,
   SnapshotCommitCommandClassV1,

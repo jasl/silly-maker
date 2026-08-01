@@ -135,7 +135,8 @@ interface SnapshotTransactionAuditSliceV1 {
   readonly crossOwnerCommitCount: number;
 }
 
-interface SnapshotTransactionStateV1 {
+/** @internal State shape shared only by neutral Base workloads. */
+export interface SnapshotTransactionStateV1 {
   readonly simulation: {
     readonly entities: SnapshotTransactionEntitySliceV1;
     readonly audit: SnapshotTransactionAuditSliceV1;

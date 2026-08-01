@@ -3203,6 +3203,7 @@ describe("PersistenceService standard composition", () => {
   });
 
   it("does not let annotateSave overwrite a newer Save record", async () => {
+    let injectedNewerBytes: Uint8Array | undefined;
     const fixture = await fixtureV1({
       decorateRepository(repository) {
         let injectNewerSave = true;
@@ -3219,6 +3220,11 @@ describe("PersistenceService standard composition", () => {
                 recordV1({ snapshot: snapshotV1(9), slotId }),
                 fence,
               );
+              const injected = await repository.read(slotId);
+              if (injected.health !== "valid") {
+                throw new TypeError("failed to observe injected newer Save");
+              }
+              injectedNewerBytes = Uint8Array.from(injected.bytes);
             }
             return repository.rewritePlayer(...arguments_);
           },
@@ -3243,6 +3249,7 @@ describe("PersistenceService standard composition", () => {
     });
     if (stored.health === "valid") {
       expect(stored.record).not.toHaveProperty("annotation");
+      expect(stored.bytes).toEqual(injectedNewerBytes);
     }
     await fixture.service.autoSaveIdle();
   });

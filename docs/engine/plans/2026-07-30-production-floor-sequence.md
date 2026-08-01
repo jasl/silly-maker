@@ -367,6 +367,15 @@ authoritative paths、`0` 个 production Save projector；这些是 live recolle
 atomicity、exemption 与 deferred runtime matrix 见 determinism plan 的 DET0 promotion
 record。跨计划下一切片现为 Save `M0a`，不是 DET1；M0a 合并后才回到 DET1。
 
+**2026-08-01 M0a promotion：** revision `1` 的 shared Save-metadata corpus 已成为
+annotation/summary/note、capture-origin `versionStamp`、unstamped/stamped raw bytes
+与 fixed-clock Host payload 的唯一维护权威。PF1 unstamped bytes/SHA 未重生成且无
+漂移；14 个 valid metadata variants、negative normalization、exact callback/collector
+counts、receipt/fallback equality、round-trip、lease fence、stale rewrite 与
+post-commit failure/retry 已固定。该批没有改变生产 codec/canonical/load order 或
+公开 Save/replay semantics，也没有 migration callback/registry、browser/filesystem 或
+private-project dependency。默认 core 下一独立切片现在是 PF-DET `DET1`。
+
 ### PF3 — Save envelope and migration registry
 
 执行 [Save migration plan](2026-07-30-save-migration.md) 的分段 gate：

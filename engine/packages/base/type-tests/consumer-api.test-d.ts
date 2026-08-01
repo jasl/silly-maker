@@ -119,13 +119,17 @@ import {
   createFixedBootstrapEntropyV1,
   createGameHarnessV1,
   createMemoryHostRecordStoreV1,
+  createSaveMetadataHostPayloadV1,
   createSyntheticCounterGamePackageV1,
+  evaluateSaveMetadataCompactVectorsV1,
   prepareSnapshotCommitSequenceWorkloadV1,
   prepareSnapshotCommitWorkloadV1,
   prepareSnapshotPersistenceWorkloadV1,
   prepareSnapshotReplayWorkloadV1,
   prepareSnapshotTransactionWorkloadV1,
   resolveStoryForTestV1,
+  saveMetadataCompactExpectedV1,
+  saveMetadataCorpusRevisionV1,
   snapshotCommitSequenceClassesV1,
   snapshotCommitCommandClassesV1,
   snapshotCommitEntityCountsV1,
@@ -140,6 +144,10 @@ import type {
   PreparedSnapshotPersistenceWorkloadV1,
   PreparedSnapshotReplayWorkloadV1,
   PreparedSnapshotTransactionWorkloadV1,
+  SaveMetadataCompactByteVectorV1,
+  SaveMetadataCompactRecordIdV1,
+  SaveMetadataCompactVectorsV1,
+  SaveMetadataHostPayloadV1,
   SnapshotCommitCommandClassV1,
   SnapshotCommitEntityCountV1,
   SnapshotCommitSequenceClassV1,
@@ -258,6 +266,10 @@ export type BaseConsumerTypesV1 = {
   snapshotSessionWorkCounts: SnapshotSessionWorkCountsV1;
   snapshotTransactionCommandClass: SnapshotTransactionCommandClassV1;
   snapshotTransactionWorkloadDescriptor: SnapshotTransactionWorkloadDescriptorV1;
+  saveMetadataByteVector: SaveMetadataCompactByteVectorV1;
+  saveMetadataRecordId: SaveMetadataCompactRecordIdV1;
+  saveMetadataVectors: SaveMetadataCompactVectorsV1;
+  saveMetadataHostPayload: SaveMetadataHostPayloadV1;
 };
 
 declare const publicSessionCompositionV1: GameSessionCompositionV1<GameSimulationTypeMapV1>;
@@ -278,6 +290,8 @@ export type BaseConsumerValuesV1 = {
   resolveCoreGameApplication: typeof resolveCoreGameApplicationV1;
   createFixedBootstrapEntropy: typeof createFixedBootstrapEntropyV1;
   createMemoryHostRecordStore: typeof createMemoryHostRecordStoreV1;
+  createSaveMetadataHostPayload: typeof createSaveMetadataHostPayloadV1;
+  evaluateSaveMetadataCompactVectors: typeof evaluateSaveMetadataCompactVectorsV1;
   prepareSnapshotCommitWorkload: typeof prepareSnapshotCommitWorkloadV1;
   prepareSnapshotCommitSequenceWorkload: typeof prepareSnapshotCommitSequenceWorkloadV1;
   prepareSnapshotPersistenceWorkload: typeof prepareSnapshotPersistenceWorkloadV1;
@@ -308,6 +322,8 @@ export type BaseConsumerValuesV1 = {
   predictNarrativeDependencies: typeof predictNarrativeDependenciesV1;
   resolveGamePackage: typeof resolveGamePackageV1;
   resolveStoryForTest: typeof resolveStoryForTestV1;
+  saveMetadataCompactExpected: typeof saveMetadataCompactExpectedV1;
+  saveMetadataCorpusRevision: typeof saveMetadataCorpusRevisionV1;
   rngStateSchema: typeof rngStateV1Schema;
   runIntegritySchema: typeof runIntegrityV1Schema;
   snapshotCommitCommandClasses: typeof snapshotCommitCommandClassesV1;
