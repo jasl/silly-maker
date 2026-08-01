@@ -85,6 +85,7 @@ export function parseStateSlotId(value: unknown): StateSlotId {
 }
 
 function parseInteger(value: unknown, label: string): number {
+  // sillymaker-determinism-allow-next-line {"code":"determinism.numeric_fractional_literal","reason":"recognize and reject negative-zero integer input","bounds":"binary64 zero representations only","rounding":"exact Object.is sentinel comparison; input is rejected before branding","test":"engine/packages/base/src/contracts/values.test.ts#rejects-hostile-integers-and-identifiers"}
   if (Object.is(value, -0)) throw new TypeError(`${label}: negative zero`);
   if (typeof value !== "number" || !Number.isSafeInteger(value)) {
     throw new TypeError(`invalid ${label}`);

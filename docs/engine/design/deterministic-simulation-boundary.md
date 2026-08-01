@@ -313,29 +313,59 @@ draw-order coupling、诊断歧义或第二消费者出现后才单独设计与�
 ### 6.2 Static guard
 
 静态检查以实际 authoritative import closure/注册入口为 scope，不用目录名或 lint
-rule 内部的 filename 猜测。当前 BuildIdentity 的 `storySimulation` record 只是从
-`*/simulation.ts` 出发的 managed dependency seed，不是完整 authority closure：
-实际 `*/src/story.ts` 还拥有 materialize/create simulation callback。目标
-collector 必须从 root registry fail-closed 枚举所有应用，把 managed identity
-seed、callback owner、template 和 engine-owned runtime explicit entry
-合并；如果 callback owner 与 React/Presentation 耦合，先拆 dedicated
-simulation-definition entry。Base 的 Session/executor/RNG/replay 也从有界显式
-authority entries 收集，不能因 Story collector 过滤 Base 而漏检，也不能退化成
-全 engine 扫描。每次检查重新收集 live closure，不缓存 file list。
+rule 内部的 filename 猜测。BuildIdentity 的 `storySimulation` record 只是 managed
+dependency seed，不是完整 authority closure；DET3a collector 从 root registry
+fail-closed 枚举所有应用，把 managed identity seed、dedicated
+`simulation-definition.ts` callback owner、template explicit seed 和 engine-owned
+runtime explicit entry 合并。Base 的 Session/executor/RNG/replay 与 canonical bootstrap
+admission 也从有界显式 authority entries 收集；bounded closure 命中已分类 Base
+negative-control entry 时 fail closed。collector 随后把 Story、Base、Save projector 与
+synthetic/additional authorities 合并成完整 authoritative path vector；任何已分类
+negative-control entry path 出现在该 vector 中，都在 lint 前令整次 collection 失败。
+negative-control closure 的其他 deterministic dependency 可以合法重合，不能误写成两边
+整段 closure 必须 disjoint。每次检查重新收集 live closure，不缓存 file list，也不能
+静默过滤、漏检或退化成全 engine 扫描。
 
 Save M2 及以后第一次注册 executable format/State migrator 时，其 entry 才加入
 上述 live recollection。DET-B 先用 synthetic extension seam 证明 collector 可追加
 entry；它不伪造尚不存在的 production migration registry。
 
 第一批 hard diagnostics 覆盖直接 ambient entropy、clock、network/LLM client、
-process environment、locale-default 与 DOM access；fractional literal、
-`parseFloat` 与 approximate Math 先以同一 authority scope 建立零误报基线，再按
-明确算法豁免收紧。显式 `new Date(recordedInstant)` 合法，zero-argument
-`new Date()` 不合法。Host provider、Presentation、tooling、test timing 和 bench
+process environment、Host locale/ICU 与 DOM access；fractional literal、
+`parseFloat` 与 approximate math（包括 `Math.pow` 的 `**` 等价写法）在同一 authority
+scope 中只允许带算法合同的 node-local 豁免。函数形式 `Date()` 无论参数都会读取
+ambient current time，zero-argument `new Date()` 同样不合法；显式
+`new Date(recordedInstant)`、`Date.parse(recordedText)` 与
+`Number(recordedText)` 合法。Date rule 按 target function identity 分类：bare `Date`、
+`Date.prototype.constructor` 与 explicit Date instance 的 `.constructor` 都是 constructor
+identity，函数调用或 zero/spread-argument construction 读取 ambient time；`Date.now`
+仍是 clock，而 `Date.parse` / `Date.UTC` 即使经 `call` / `apply` / `bind` 包装仍保持
+deterministic。bare `Math` / `Date` / `Number` / `globalThis` / `Deno` /
+`process` capability root 不得通过 alias、argument、return 或 export 逃离逐文件
+verification；已分类的 direct member operation 继续按其具体 rule 判断。即使显式给出 locale，
+`Intl` / `toLocale*` / `localeCompare` 仍依赖 Host ICU，因此不进入 authoritative
+algorithm；玩家可见的本地化格式化属于 Presentation。Host provider、Presentation、tooling、test timing 和 bench
 不在 authority closure 中。`createBootstrapInput` 的 callback owner 仍在
-fail-closed closure；checker 只对该函数中以已验证 `BootstrapEntropyV1` 参数为根的
-方法调用给窄 allowance，不能排除整个文件，因为同一 source 也可能拥有
+fail-closed closure；checker 只对该函数中由 exact `@sillymaker/base` named import
+验证过的 `BootstrapEntropyV1` 参数为根的直接方法调用给窄 allowance（local import
+alias 合法）。namespace/re-export/local/relative import 与 lexical shadow 都不构成验证，
+也不能排除整个文件，因为同一 source 也可能拥有
 `createInitialState` 等 authoritative callback。
+
+parser 按 `.ts/.tsx/.mts/.cts/.js/.jsx/.mjs/.cjs` extension 选择 TypeScript/JSX
+grammar，并接受 standard decorator syntax。pure type-only AST 不作为 runtime access；
+runtime-bearing TypeScript namespace/enum/`import =`/`export =`、default/computed/catch
+pattern、class generic shadow 与 decorator expression 必须进入和 JavaScript 相同的
+traversal，不能因 node type 以 `TS` 开头而跳过。
+
+numeric exemption 的 `allow-next-line` 是物理行合同：directive 与目标 node 必须位于
+相邻两行，blank line 或另一 comment 都不能跨越。它只抑制下一行第一处 matching
+numeric diagnostic；同一 node 的 ambient diagnostic 仍保留。metadata 固定为 non-empty
+`code/reason/bounds/rounding/test`，其中 test 是 repo-relative
+`*.test.ts#case-name`。该文件必须存在且恰好包含一处 exact trimmed marker
+`// sillymaker-determinism-vector: case-name`；evidence file 不因此进入 authoritative
+closure。missing file/marker、ambiguous duplicate marker、malformed、duplicate、stale、
+wrong-code 与 whole-file directive 全部 fail closed，numeric diagnostic 不被抑制。
 
 ### 6.3 Runtime admission
 

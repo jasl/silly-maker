@@ -421,6 +421,7 @@ export function parseStrictJson(
       // binary64 had rounded to an otherwise accepted safe integer. Exact
       // admission still fails if the rest of the input would have passed.
       const legacyValue = Number(text.slice(start, index));
+      // sillymaker-determinism-allow-next-line {"code":"determinism.numeric_fractional_literal","reason":"preserve legacy failure precedence while excluding negative zero","bounds":"maxBytes-bounded rejected exact-decimal token already classified as fractional","rounding":"binary64 is used only for legacy error precedence; no decoded value or canonical bytes commit","test":"engine/packages/base/src/contracts/strict-json.test.ts#rejects-the-negative-zero-spelling"}
       if (Number.isSafeInteger(legacyValue) && !Object.is(legacyValue, -0)) {
         deferredExactNumberFailure ??= new ParseFailure("number.not_integer", start);
         return legacyValue;

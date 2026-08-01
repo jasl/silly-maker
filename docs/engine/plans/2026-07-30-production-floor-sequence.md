@@ -469,6 +469,46 @@ Deno `2.9.4` 的 focused `8/89`、Base `75/958`、full unit `220/2286`、
 `deno task check` 全绿。DET-A 至此关闭，但不构成完整 PF-DET、也不注册 migrator；
 callback-free M0b/M1 fork 现在合法，当前线性 core 选择先进入 `DET3a`。
 
+**2026-08-01 DET3a promotion：** required browser-free check 现在每次从 root registry
+重建 `5` 个 application 的 managed/callback-owner closure，并合并 `27` 个 bounded/
+entry-only Base authorities、`0` 个 production Save projector 与一个 synthetic
+migration extension；当前 exact vector 为 `107` 个去重 source paths（不含 synthetic
+时 `106`），而不是 frozen inventory。canonical bootstrap admission 已成为显式 Base
+entry；negative-control entry 必须使用 exact canonical repo-relative spelling 并存在于
+自身 live closure。bounded Base closure 命中 classified Base negative-control entry，或 Story、Base、
+Save projector、synthetic/additional authority 的完整 merged path vector 命中 `17` 个
+classified negative-control entry 中任一个，都会在 lint 前 fail closed；不要求
+negative-control closure 的其他 deterministic dependency 与 authority closure 全面 disjoint。
+
+唯一 AST rule core 覆盖 ambient entropy/clock/network/provider/environment/locale/DOM、
+ambient capability-root escape，以及 fractional/negative-zero literal、`parseFloat`、
+approximate Math/`**`；alias、destructure、computed/globalThis、lexical shadow、
+type-only/versioned provider、runtime-bearing TypeScript 与 standard decorator expression、
+exact-decimal spellings都有 fixed contracts。bare ambient roots 不得通过 capture/pass/
+return/export 绕过逐文件 provenance；Date constructor/now/parse/UTC 按 callable identity
+区分，wrapper 不把 deterministic parse/UTC 误报为 clock。`createBootstrapInput` 只有由 exact `@sillymaker/base`
+named import 验证的 `BootstrapEntropyV1` 参数可 direct 调用两个 capability 方法；local
+import alias 合法，其他 import 来源、lexical type shadow、未验证参数、capability
+alias/return/pass 与 closure escape 均失败。当前 closure 唯一需要的 `7` 个 numeric
+exemption 都是以 `Object.is(..., -0)` 识别并拒绝 invalid input 的 admission guard，
+分布在 canonical JSON、Event Pool、Strict JSON 与 value parser；每个 directive 都
+绑定真实 `*.test.ts#vector-id`，且对应文件恰好含一处 exact
+`sillymaker-determinism-vector` `CommentLine` marker；template/string text 不能伪造。
+evidence test 不加入 authoritative closure，
+ambient diagnostics 不能豁免。
+
+repo-owned Deno runner 对 exact paths 各读取一次，稳定分类 read/unsupported/parse
+failure，冻结并按 UTF-16 file/range/code 排序；`check:determinism` 已进入普通
+`deno task check`，Oxlint 仍是 general lint。首轮 authority-map red 为 `3/7`、
+rule-core scaffold red 为 `54/79`、runner red 为 `6/7`；多轮 adversarial red 继续覆盖
+`18/144`、`1/17`、`13/141`、`2/18`、`13/161` 与 `8/171`，最终 focused green 为
+`3 files / 189 tests`，live closure clean；latest-stable Deno `2.9.4` 的 Base suite 为
+`75 files / 958 tests`，repository full unit 为 `222 files / 2470 tests`，
+`deno task check` 全绿。由于 browser/runtime graph 未改变，没有机械追加 browser E2E；
+canonical check 已包含 Engine Lab production build。本批没有 runtime/public API、canonical/
+digest/Save/replay bytes、migration registry 或 browser bundle change；DET-B 尚需
+DET3b/DET4，当前线性 core 下一切片是 `DET3b`。
+
 ### PF3 — Save envelope and migration registry
 
 执行 [Save migration plan](2026-07-30-save-migration.md) 的分段 gate：

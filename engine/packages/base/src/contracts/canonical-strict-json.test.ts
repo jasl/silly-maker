@@ -307,6 +307,7 @@ describe("canonical JSON with Strict limits", () => {
     expect(caught).toBe(sentinel);
   });
 
+  // sillymaker-determinism-vector: preserves-the-canonical-error-for-negative-zero
   it.each(
     [
       ["undefined", undefined, "value.undefined", ""],

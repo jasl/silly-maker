@@ -145,6 +145,12 @@ const baseAuthorityPoliciesV1 = Object.freeze(
       projection: "bounded_closure" as const,
     }),
     Object.freeze({
+      id: "canonical-bootstrap-admission",
+      entry: "engine/packages/base/src/internal/canonical-bootstrap-admission.ts",
+      classification: "authoritative_runtime" as const,
+      projection: "bounded_closure" as const,
+    }),
+    Object.freeze({
       id: "serializable-rng",
       entry: "engine/packages/base/src/contracts/rng.ts",
       classification: "authoritative_runtime" as const,
@@ -342,12 +348,6 @@ const negativeControlPoliciesV1 = Object.freeze(
       classification: "base_non_authoritative" as const,
     }),
   ] satisfies readonly NegativeControlPolicyV1[],
-);
-
-const baseNonAuthoritativePathsV1 = new Set<string>(
-  negativeControlPoliciesV1
-    .filter(({ classification }) => classification === "base_non_authoritative")
-    .map(({ entry }) => entry),
 );
 
 /** DET0-only policy. It is deliberately outside every package export. */
@@ -710,15 +710,25 @@ async function collectApplicationAuthorityV1(
   });
 }
 
-async function collectBaseAuthorityV1(repositoryRoot: string, policy: BaseAuthorityPolicyV1) {
+async function collectBaseAuthorityV1(
+  repositoryRoot: string,
+  policy: BaseAuthorityPolicyV1,
+  baseNegativeControlEntries: ReadonlySet<string>,
+) {
   const closure = await collectAuthorityClosureV1(repositoryRoot, [policy.entry]);
   assertProductionClosureV1(policy.id, closure);
   if (!closure.paths.includes(policy.entry)) {
     throw new TypeError(`${policy.id} authority entry is absent from its live closure`);
   }
-  const paths = policy.projection === "entry" ? Object.freeze([policy.entry]) : Object.freeze(
-    closure.paths.filter((path) => !baseNonAuthoritativePathsV1.has(path)),
-  );
+  if (policy.projection === "bounded_closure") {
+    const negativeControl = closure.paths.find((path) => baseNegativeControlEntries.has(path));
+    if (negativeControl !== undefined) {
+      throw new TypeError(
+        `bounded Base authority ${policy.id} includes negative control ${negativeControl}`,
+      );
+    }
+  }
+  const paths = policy.projection === "entry" ? Object.freeze([policy.entry]) : closure.paths;
   return Object.freeze({
     ...policy,
     paths,
@@ -744,6 +754,11 @@ async function collectNegativeControlV1(
   control: NegativeControlPolicyV1,
 ) {
   const closure = await collectAuthorityClosureV1(repositoryRoot, [control.entry]);
+  if (!closure.paths.includes(control.entry)) {
+    throw new TypeError(
+      `negative control ${control.id} entry is absent from its live closure`,
+    );
+  }
   return Object.freeze({
     ...control,
     paths: closure.paths,
@@ -761,6 +776,28 @@ export async function collectDeterminismAuthorityMapV1(options: {
   assertUniqueIdsV1(policy.negativeControls, "negative control");
   const additionalPolicies = options.additionalAuthorities ?? Object.freeze([]);
   assertUniqueIdsV1(additionalPolicies, "additional authority");
+  const baseNegativeControlEntries = new Set(
+    policy.negativeControls
+      .filter(({ classification }) => classification === "base_non_authoritative")
+      .map(({ entry }) => entry),
+  );
+  const policyNegativeControlEntries = new Set(
+    policy.negativeControls.map(({ entry }) => entry),
+  );
+  const declaredAuthorityEntryPaths = [
+    ...policy.applications.map(({ callbackOwnerEntry }) => callbackOwnerEntry),
+    ...policy.applications.flatMap(({ saveProjectorOwner }) =>
+      saveProjectorOwner === undefined ? [] : [saveProjectorOwner.module]
+    ),
+    ...policy.baseAuthorities.map(({ entry }) => entry),
+    ...additionalPolicies.map(({ entry }) => entry),
+  ];
+  const overlappingDeclaredEntry = declaredAuthorityEntryPaths.find((entry) =>
+    policyNegativeControlEntries.has(entry)
+  );
+  if (overlappingDeclaredEntry !== undefined) {
+    throw new TypeError(`authority entry overlaps negative control ${overlappingDeclaredEntry}`);
+  }
 
   const registry = await loadWorkspaceRegistryV1(repositoryRoot);
   const policyById = validatePolicyCoverageV1(registry.applications, policy);
@@ -777,7 +814,9 @@ export async function collectDeterminismAuthorityMapV1(options: {
           ),
         ),
         Promise.all(
-          policy.baseAuthorities.map((entry) => collectBaseAuthorityV1(repositoryRoot, entry)),
+          policy.baseAuthorities.map((entry) =>
+            collectBaseAuthorityV1(repositoryRoot, entry, baseNegativeControlEntries)
+          ),
         ),
         Promise.all(
           additionalPolicies.map((entry) => collectAdditionalAuthorityV1(repositoryRoot, entry)),
@@ -809,12 +848,27 @@ export async function collectDeterminismAuthorityMapV1(options: {
     ...baseAuthorities.map(({ entry }) => entry),
     ...additionalAuthorities.map(({ entry }) => entry),
   ]);
+  const negativeControlEntryPaths = new Set(negativeControls.map(({ entry }) => entry));
+  const overlappingEntry = authoritativeEntryPaths.find((entry) =>
+    negativeControlEntryPaths.has(entry)
+  );
+  if (overlappingEntry !== undefined) {
+    throw new TypeError(`authority entry overlaps negative control ${overlappingEntry}`);
+  }
   const authoritativePaths = new Set<string>();
   for (const application of applications) {
     for (const path of application.authorityPaths) authoritativePaths.add(path);
   }
   for (const authority of [...baseAuthorities, ...additionalAuthorities, ...saveProjectors]) {
     for (const path of authority.paths) authoritativePaths.add(path);
+  }
+  const overlappingClosurePath = negativeControls
+    .map(({ entry }) => entry)
+    .find((entry) => authoritativePaths.has(entry));
+  if (overlappingClosurePath !== undefined) {
+    throw new TypeError(
+      `authoritative closure includes negative control ${overlappingClosurePath}`,
+    );
   }
 
   const diagnostics = Object.freeze({

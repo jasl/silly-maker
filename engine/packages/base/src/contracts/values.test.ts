@@ -9,6 +9,7 @@ import {
 } from "./values.ts";
 
 describe("closed values", () => {
+  // sillymaker-determinism-vector: rejects-hostile-integers-and-identifiers
   it("rejects hostile integers and identifiers", () => {
     expect(() => parseNonNegativeSafeInteger(-0)).toThrow("negative zero");
     expect(parseModuleId("synthetic.parity")).toBe("synthetic.parity");

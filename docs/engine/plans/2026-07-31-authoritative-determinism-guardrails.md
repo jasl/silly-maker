@@ -1121,13 +1121,22 @@ realm tripwire 或 browser parity。
   entry；
 - Base 使用有界、显式的 Session/executor/RNG/replay authority entries 收集
   dependency closure；不得扫描整个 engine，也不得因 Story collector 过滤 Base
-  就漏掉 core authoritative code；
+  就漏掉 core authoritative code；canonical bootstrap admission 是独立的 bounded
+  Base authority entry。若 bounded Base closure 命中已分类 Base negative-control entry，
+  必须作为 classification conflict fail closed，不能静默过滤；collector 还必须对
+  Story、Base、Save projector 与 synthetic/additional authority 合并后的完整 path vector
+  检查全部 classified negative-control entry paths；negative-control closure 的其他
+  deterministic dependency 不要求 disjoint；每个 negative-control entry 必须以 canonical
+  repo-relative spelling 精确出现在自身 live closure，`./`、case alias 等非规范拼写
+  直接令 classification 失败；
 - engine-owned authoritative callbacks 使用显式 entry；migration callback 在 M2
   首次真实注册时才加入 live recollection，DET3a 只用 synthetic extension seam
   验证该能力；
 - Story-owned `createBootstrapInput` callback owner 必须保留在 collected closure；
-  checker 只对该函数中以已验证 `BootstrapEntropyV1` 参数为根的 capability 调用给予窄
-  allowance，不能排除整个 source，也不能允许该函数直接访问 ambient provider；
+  checker 只对该函数中由 exact `@sillymaker/base` named import provenance 验证过的
+  `BootstrapEntropyV1` 参数为根的 direct capability 调用给予窄 allowance（local import
+  alias 合法；namespace/re-export/local/relative import 与 lexical shadow 均不合法），
+  不能排除整个 source，也不能允许该函数直接访问 ambient provider；
 - 已配置的 Story-owned `summarizeSave` owner 必须保留在 collected closure；projector
   只消费 immutable State，同一 State 必须得到同一 normalized summary，且不得读取
   ambient clock/random/network/environment/locale/DOM；
@@ -1154,34 +1163,73 @@ realm tripwire 或 browser parity。
   patch，也不增加 2.9.0 per-PR lane；
 - 本切片把 dedicated determinism task 纳入 `deno task check`，不替换 Oxlint。
 
+**DET3a parser/adapter 决定（2026-08-01）：** 首批采用 Deno 执行的 repo-owned
+fallback runner 与精确锁定的 dev-only TypeScript parser；parser 只提供 AST，不拥有
+规则或 authority scope。Deno CLI 可以装载 custom lint plugin，但该 API 仍是
+experimental，其 programmatic `Deno.lint.runPlugin` test seam 又只可在 `deno test` /
+`deno bench` 调用；本切片刻意不新增这条 evolving second adapter/parity lane，因此不触发
+上面的 conditional parity 要求。若以后增加 adapter，仍必须只转接同一个 rule core，
+并另交 exact parity 证据；不得替换当前 required fallback task。
+
 ### Rules
 
 第一批 error：
 
 - `Math.random()`；
 - `crypto.getRandomValues()` / `crypto.randomUUID()`；
-- `Date.now()` / zero-argument `new Date()`；
+- `Date.now()`、函数形式 `Date()` 与 zero-argument `new Date()`；显式
+  `new Date(recordedInstant)` / `Date.parse(recordedText)` 是 negative。checker 按
+  target function identity 分类：`Date.prototype.constructor` 和 explicit Date instance
+  `.constructor` 仍是 Date constructor；`Date.parse` / `Date.UTC` 经
+  `call`/`apply`/`bind` 包装仍是 deterministic negative；
 - `performance.now()`；
 - `fetch`、`XMLHttpRequest`、`WebSocket` 与直接 LLM/network client；
 - `Deno.env`、`process.env`；
-- `navigator.language` / `navigator.languages`、locale-default `Intl` /
-  `toLocale*` / `String.prototype.localeCompare`；
+- `navigator.language` / `navigator.languages`、`Intl` / `toLocale*` /
+  `String.prototype.localeCompare`；显式 locale 仍依赖 Host ICU，不是 authoritative
+  exemption；
 - DOM/document/window storage 读取；
+- bare `Math` / `Date` / `Number` / `globalThis` / `Deno` / `process` capability
+  root 的 capture/pass/return/export；这关闭 import closure 内的跨文件 alias 绕过，
+  checked direct member operation 仍按上述具体 rule 判断；
 - 直接 import 已知 ambient entropy、clock、network 或 environment provider。
 
-同一切片对 fractional literal、`parseFloat` 与 approximate `Math` 建立
-diagnostic + explicit narrow exemption。当前不完整 collector 的零命中只作
+同一切片对 fractional literal、`parseFloat` 与 approximate `Math`（包括等价的
+`**` spelling）建立 diagnostic + explicit narrow exemption。当前不完整 collector 的零命中只作
 baseline；DET0-core 得到的 fail-closed authority closure 必须在 hard rule 启用前
 clean。任何 exception 必须带 reason、algorithm bounds/rounding 和 focused
 vector test，不能 whole-file disable。
+
+### Failure classification, precedence, and atomicity
+
+- live registry/policy/closure classification 先于任何 source lint；缺 registry policy、
+  managed seed、callback owner、explicit Base entry，或 authoritative/negative-control
+  冲突都直接令整次 check 失败，不能以空文件列表通过；
+- authority map 成功后，runner 对该次 exact path vector 各读取一次。missing/unreadable、
+  unsupported extension 与 parse failure 都是 stable checker diagnostic；规则 diagnostics
+  只在 source 成功解析后产生，最终按 UTF-16 file/range/code 排序并统一 non-zero exit；
+- ambient diagnostics 不可豁免。fractional / `parseFloat` / approximate-math 只接受位于
+  目标前一物理行、不中跨 blank/comment 的单点结构化 exemption；它只抑制下一行第一处
+  matching numeric diagnostic，同一 node 的 ambient error 仍保留。metadata 必须同时携带 non-empty reason、input
+  bounds、rounding/exception semantics 与 focused-vector test reference。repo-relative
+  `*.test.ts#vector-id` 必须存在且恰好包含一处 exact trimmed
+  `// sillymaker-determinism-vector: vector-id` marker；该 evidence file 不因此加入
+  authoritative closure。missing file/marker、ambiguous duplicate marker、malformed、
+  duplicate、stale、wrong-code 或 whole-file directive 本身就是 error，原 numeric
+  diagnostic 也不被抑制；
+- checker 不写 authoritative State、Save、artifact 或 cached inventory；一次失败不发布
+  partial success receipt，下次执行从 live registry/import graph 重新收集。
 
 ### Acceptance
 
 - 每条 rule 有 positive、alias/destructure 与 negative contract tests；
 - `createBootstrapInput(entropy)` 调用 injected entropy parameter 不报错；同一函数
   直接调用 `Math.random` / `crypto` 会报错，同一 source 的
-  `createInitialState` 读取任何 ambient capability 也会报错；
+  `createInitialState` 读取任何 ambient capability 也会报错；未验证参数或 capability
+  escape 同样失败；
 - `new Date(explicitInstant)` 等显式、已记录输入不会被 zero-argument rule 误报；
+- runtime TypeScript namespace/enum/`import =`、destructuring assignment、catch/class
+  pattern/generic 与 standard decorator syntax 都进入同一 runtime traversal；
 - 所有当前 authoritative closure clean；
 - Web Host bootstrap entropy、UI/presentation clock、tooling 与 benchmark
   negative controls 不在 scope；
@@ -1191,8 +1239,59 @@ vector test，不能 whole-file disable。
 - synthetic migration-style entry 的违规被捕获，证明后续 Save M2 不需要另建 lint
   path；
 - Base Session/executor/RNG/replay closure 新增违规依赖时会被捕获；
+- 完整 merged authoritative path vector 传递命中任一 classified negative-control entry
+  时会在 lint 前 fail closed；
 - diagnostics 有 stable code、file/line/column 与修复方向；
+- malformed/stale numeric exemption 与 authoritative/negative-control classification
+  conflict 都 fail closed；
 - no exact Deno patch/browser revision attestation。
+
+**2026-08-01 DET3a promotion：** root registry 的 `5` 个 applications 现在每次 live
+recollect `61` 个 managed simulation records 与 `61` 个 callback-owner paths，再与
+`27` 个显式 Base authorities、`0` 个 production Save projector、`17` 个 negative
+controls 和一个 synthetic migration authority 合并；含 synthetic 的 exact
+authoritative vector 为 `107` 个去重 source paths，不含时为 `106`。canonical
+bootstrap admission 不再依赖被截断的 Core application entry；bounded Base closure
+命中 Base negative control，或完整 merged authoritative path vector 命中 `17` 个
+classified negative-control entries 中任一个时，整次 collection 在 source lint 前失败。
+
+首批使用 exact dev-only `@babel/parser` 的 repo-owned Deno fallback；parser 只产生
+AST，rule core/authority scope 仍各自唯一，且 dependency 只在
+`scripts/determinism/**`，不进入 package export 或 browser graph。规则覆盖本节全部
+ambient/numeric category，以及 alias、destructure、computed/globalThis、lexical
+shadow、provider type-only import、versioned `npm:` provider 与 mathematical-decimal
+spelling；runtime TypeScript namespace/enum/`import =`、class generic、catch/assignment
+pattern 与 standard decorator syntax 都由同一 traversal 处理。bare ambient capability
+root capture/pass/return/export 使用不可豁免的 stable diagnostic，避免逐文件 import
+binding 丢失 provenance。bootstrap allowance
+同时验证 callback name、exact `@sillymaker/base` named-import provenance（local alias
+合法）、parameter binding、current function ownership 与 direct method name；其他 import
+来源、lexical type shadow、未验证参数、capability alias/pass/return 或 closure escape 均
+使用 stable diagnostic 拒绝。
+
+当前 live closure 的 `7` 个 numeric exemptions 全部是 existing admission code 用
+`Object.is(..., -0)` 识别并拒绝 invalid input，不是 authoritative fractional
+algorithm：canonical JSON `3`、Event Pool `2`、Strict JSON `1`、closed values `1`。
+每个紧邻物理行 directive 都携带完整 algorithm semantics，并引用真实存在、恰好带一处
+exact `sillymaker-determinism-vector` `CommentLine` marker 的 focused negative-zero test；
+template/string text 不能伪造 marker；没有 ambient
+exemption。evidence test 只被验证，不加入 authoritative closure。runner 对 exact path 各读取
+一次，read failure 优先于 unsupported extension，parse failure 由同一 core 产生；
+所有 diagnostics deep-freeze 并按 UTF-16 file/range/code 排序，失败不写 state、Save、
+artifact、receipt 或 cached inventory。
+
+TDD 记录为 authority map `3/7` red、rule scaffold `54/79` red、runner `6/7` red；
+独立 adversarial 扩展随后记录 `18/144`、focused evidence uniqueness `1/17`、
+runtime TypeScript/syntax `13/141`、canonical-entry/AST-marker `2/18`、wrapper/root
+escape `13/161` 与 Date callable-identity `8/171` red；补齐 alias/provenance/exact-number/
+exemption contracts 后 focused green 为 `3 files / 189 tests`，live determinism task 与
+typecheck 通过；latest-stable Deno `2.9.4` 的 Base suite 为 `75 files / 958 tests`，
+repository full unit 为 `222 files / 2470 tests`，`deno task check` 全绿。由于本批不改
+browser/runtime graph，没有机械追加 browser E2E；canonical check 已包含 Engine Lab
+production build。本批没有 public/runtime
+contract、canonical/digest/Save/replay bytes、production migrator、Deno plugin adapter 或
+browser behavior change。DET3a 只关闭 static layer；完整 DET-B/PF-DET 仍需 DET3b 与
+DET4，下一独立切片为 DET3b。
 
 ## 12. DET3b — Test-only isolated ambient tripwire
 

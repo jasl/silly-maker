@@ -65,6 +65,7 @@ function pointerSegmentV1(value: string): string {
 function admitContextNumbersV1(context: EventPoolContextV1): ReadonlyMap<string, number> {
   const admitted = new Map<string, number>();
   for (const [key, value] of Object.entries(context.numbers)) {
+    // sillymaker-determinism-allow-next-line {"code":"determinism.numeric_fractional_literal","reason":"recognize and reject negative-zero context input","bounds":"binary64 zero representations only","rounding":"exact Object.is sentinel comparison; context is rejected before evaluation","test":"engine/packages/base/src/contracts/event-pool.test.ts#rejects-a-negative-zero-context-number-before-evaluation"}
     if (!Number.isSafeInteger(value) || Object.is(value, -0)) {
       fail("event_pool.context_number_invalid", `/context/numbers/${pointerSegmentV1(key)}`);
     }
@@ -95,6 +96,7 @@ function parseConditionAtV1(value: unknown, path: string, depth: number): EventC
         !numberOpsV1.has(record.op) ||
         typeof record.value !== "number" ||
         !Number.isSafeInteger(record.value) ||
+        // sillymaker-determinism-allow-next-line {"code":"determinism.numeric_fractional_literal","reason":"recognize and reject a negative-zero condition operand","bounds":"binary64 zero representations only","rounding":"exact Object.is sentinel comparison; condition is rejected before evaluation","test":"engine/packages/base/src/contracts/event-pool.test.ts#rejects-malformed-shapes-bounded-numeric-violations-excess-depth-and-branch-explosions"}
         Object.is(record.value, -0)
       ) {
         fail("event_pool.condition_invalid", path);

@@ -150,6 +150,7 @@ function encodeCanonicalJsonProjectionV1(
     if (!Number.isSafeInteger(current)) {
       throw new CanonicalJsonError("number.unsafe_integer", path);
     }
+    // sillymaker-determinism-allow-next-line {"code":"determinism.numeric_fractional_literal","reason":"recognize and reject negative-zero input","bounds":"binary64 zero representations only","rounding":"exact Object.is sentinel comparison; value is rejected before commit","test":"engine/packages/base/src/contracts/canonical-strict-json.test.ts#preserves-the-canonical-error-for-negative-zero"}
     if (Object.is(current, -0)) {
       throw new CanonicalJsonError("number.negative_zero", path);
     }
@@ -302,6 +303,7 @@ export function canonicalJsonBytesInternalV1(
       if (!Number.isSafeInteger(current)) {
         throw new CanonicalJsonError("number.unsafe_integer", path);
       }
+      // sillymaker-determinism-allow-next-line {"code":"determinism.numeric_fractional_literal","reason":"recognize and reject negative-zero input","bounds":"binary64 zero representations only","rounding":"exact Object.is sentinel comparison; value is rejected before commit","test":"engine/packages/base/src/contracts/canonical-strict-json.test.ts#preserves-the-canonical-error-for-negative-zero"}
       if (Object.is(current, -0)) {
         throw new CanonicalJsonError("number.negative_zero", path);
       }
@@ -431,6 +433,7 @@ export function canonicalJsonBytesObservedInternalV1(
       if (!Number.isSafeInteger(current)) {
         throw new CanonicalJsonError("number.unsafe_integer", path);
       }
+      // sillymaker-determinism-allow-next-line {"code":"determinism.numeric_fractional_literal","reason":"recognize and reject negative-zero input","bounds":"binary64 zero representations only","rounding":"exact Object.is sentinel comparison; value is rejected before commit","test":"engine/packages/base/src/contracts/canonical-strict-json.test.ts#preserves-the-canonical-error-for-negative-zero"}
       if (Object.is(current, -0)) {
         throw new CanonicalJsonError("number.negative_zero", path);
       }

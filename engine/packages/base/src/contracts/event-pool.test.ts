@@ -76,6 +76,7 @@ describe("event condition language", () => {
     ).toBe(false);
   });
 
+  // sillymaker-determinism-vector: rejects-malformed-shapes-bounded-numeric-violations-excess-depth-and-branch-explosions
   it("rejects malformed shapes, bounded numeric violations, excess depth, and branch explosions", () => {
     expect(() => parseEventConditionV1({ kind: "number", key: "", op: "eq", value: 1 })).toThrow(
       expect.objectContaining({ code: "event_pool.condition_invalid" }),
@@ -109,6 +110,7 @@ describe("event condition language", () => {
     ).toThrow(expect.objectContaining({ code: "event_pool.condition_branches" }));
   });
 
+  // sillymaker-determinism-vector: rejects-a-negative-zero-context-number-before-evaluation
   it.each(invalidContextNumberCasesV1)(
     "rejects a %s context number before evaluation",
     (_, value, op, operand) => {

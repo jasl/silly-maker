@@ -113,6 +113,7 @@ describe("Strict JSON", () => {
     });
   });
 
+  // sillymaker-determinism-vector: rejects-the-negative-zero-spelling
   it.each([
     "-0",
     "-0.0",

@@ -93,6 +93,94 @@ describe("authoritative determinism authority map", () => {
     ).rejects.toThrow(/includes test source/u);
   });
 
+  it("fails closed when a bounded Base closure reaches a Base negative control", async () => {
+    const baseAuthorities = determinismAuthorityPolicyV1.baseAuthorities.map((authority) =>
+      authority.id === "save-projector-invocation"
+        ? Object.freeze({ ...authority, projection: "bounded_closure" as const })
+        : authority
+    );
+
+    await expect(
+      collectDeterminismAuthorityMapV1({
+        repositoryRoot: repositoryRootV1,
+        policy: Object.freeze({
+          ...determinismAuthorityPolicyV1,
+          baseAuthorities: Object.freeze(baseAuthorities),
+        }),
+      }),
+    ).rejects.toThrow(/bounded Base authority .* includes negative control/u);
+  });
+
+  it("fails closed when an authoritative entry is also a negative-control entry", async () => {
+    const rngAuthority = determinismAuthorityPolicyV1.baseAuthorities.find(
+      ({ id }) => id === "serializable-rng",
+    );
+    if (rngAuthority === undefined) throw new TypeError("serializable RNG authority missing");
+    const negativeControls = determinismAuthorityPolicyV1.negativeControls.map((control, index) =>
+      index === 0 ? Object.freeze({ ...control, entry: rngAuthority.entry }) : control
+    );
+
+    await expect(
+      collectDeterminismAuthorityMapV1({
+        repositoryRoot: repositoryRootV1,
+        policy: Object.freeze({
+          ...determinismAuthorityPolicyV1,
+          negativeControls: Object.freeze(negativeControls),
+        }),
+      }),
+    ).rejects.toThrow(/authority entry overlaps negative control .*contracts\/rng\.ts/u);
+  });
+
+  it(
+    "fails closed when an authoritative closure transitively reaches any negative control",
+    async () => {
+      const negativeControls = determinismAuthorityPolicyV1.negativeControls.map(
+        (control, index) =>
+          index === 0
+            ? Object.freeze({
+              ...control,
+              entry: "examples/cat-cafe/src/simulation.ts",
+            })
+            : control,
+      );
+
+      await expect(
+        collectDeterminismAuthorityMapV1({
+          repositoryRoot: repositoryRootV1,
+          policy: Object.freeze({
+            ...determinismAuthorityPolicyV1,
+            negativeControls: Object.freeze(negativeControls),
+          }),
+        }),
+      ).rejects.toThrow(
+        /authoritative closure includes negative control .*cat-cafe\/src\/simulation\.ts/u,
+      );
+    },
+    15_000,
+  );
+
+  it("rejects a noncanonical negative-control entry spelling", async () => {
+    const negativeControls = determinismAuthorityPolicyV1.negativeControls.map(
+      (control, index) =>
+        index === 0
+          ? Object.freeze({
+            ...control,
+            entry: "./examples/cat-cafe/src/simulation.ts",
+          })
+          : control,
+    );
+
+    await expect(
+      collectDeterminismAuthorityMapV1({
+        repositoryRoot: repositoryRootV1,
+        policy: Object.freeze({
+          ...determinismAuthorityPolicyV1,
+          negativeControls: Object.freeze(negativeControls),
+        }),
+      }),
+    ).rejects.toThrow(/negative control .* entry is absent from its live closure/u);
+  });
+
   it("recollects closure paths from live source instead of caching an inventory", async () => {
     const root = await mkdtemp(join(tmpdir(), "sillymaker-authority-map-"));
     temporaryDirectoriesV1.push(root);
@@ -226,6 +314,7 @@ describe("authoritative determinism authority map", () => {
       "engine/packages/base/src/contracts/content-database.ts",
       "engine/packages/base/src/contracts/digest.ts",
       "engine/packages/base/src/contracts/event-pool.ts",
+      "engine/packages/base/src/internal/canonical-bootstrap-admission.ts",
       "engine/packages/base/src/contracts/narrative-graph.ts",
       "engine/packages/base/src/contracts/media-audio.ts",
       "engine/packages/base/src/contracts/pending-interaction.ts",
@@ -276,6 +365,7 @@ describe("authoritative determinism authority map", () => {
       "engine/packages/base/src/authoring/runtime-schema.ts",
       "engine/packages/base/src/contracts/content-database.ts",
       "engine/packages/base/src/contracts/event-pool.ts",
+      "engine/packages/base/src/internal/canonical-bootstrap-admission.ts",
       "engine/packages/base/src/contracts/media-audio.ts",
       "engine/packages/base/src/contracts/narrative-graph.ts",
       "engine/packages/base/src/contracts/narrative-history.ts",

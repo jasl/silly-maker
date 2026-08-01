@@ -81,6 +81,25 @@ collectors, or an explicit dependency seed when an application has no collector,
 and the determinism authority collector all start the Story simulation closure
 at that dedicated owner.
 
+The repository-owned determinism checker is a development boundary, not a
+package API. On every run it rebuilds the registered-application graph from the
+root registry, joins managed BuildIdentity dependencies with each declared
+simulation callback owner, then adds bounded explicit Base authorities for
+Session/execution/RNG/replay and canonical bootstrap admission. A bounded Base
+closure that reaches a classified Base negative-control entry fails closed. The
+collector also builds the complete merged authoritative path vector from Story,
+Base, Save-projector, and synthetic/additional authorities, then rejects any
+classified negative-control entry path found anywhere in that vector before
+linting. Negative-control closures may share deterministic dependencies; their
+entry paths, not their entire closures, form the exclusion fence. Each such
+entry must use its canonical repo-relative spelling and appear exactly in its
+own live closure. The resulting
+exact path vector is read once and passed to one AST rule core; no generated
+inventory or second rule authority is retained.
+The maintained synthetic migration entry proves that later executable
+migrators can join this same collection seam without creating a production
+migration registry early.
+
 `defineGamePackage` creates the package entry. `resolveGamePackageV1` validates
 the definition, applies authorized simulation and presentation patches,
 materializes both facets, derives technical provenance, and returns a frozen

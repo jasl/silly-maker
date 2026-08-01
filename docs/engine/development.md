@@ -60,6 +60,7 @@ Package manifests define supported cross-package entries. Do not bypass them wit
 | `deno task check`                                | Canonical local code-quality and product-behavior check.                                                                                                   |
 | `deno task test`                                 | Run engine and game behavior tests.                                                                                                                        |
 | `deno task test:coverage`                        | Run unit tests with engine line-coverage reporting.                                                                                                        |
+| `deno task check:determinism`                    | Recollect and statically check the exact authoritative import closure (also part of `check`).                                                              |
 | `deno task bench:snapshot`                       | Write a neutral Snapshot hot-path baseline JSON to a temporary path.                                                                                       |
 | `deno task bench:snapshot:memory`                | Sample retained memory for one long-lived neutral Snapshot Session.                                                                                        |
 | `deno task test:e2e:engine`                      | Engine browser suite against the Engine Lab Story.                                                                                                         |
@@ -104,6 +105,58 @@ maintained repository fixtures/workloads; do not import external content or make
 source, tests, builds, or release claims depend on that checkout.
 
 Use a focused package or test-file command while iterating when that is faster. Run `deno task check` before handing off a change, and add `deno task test:e2e` or prebuilt testing when the affected behavior crosses the browser/build boundary.
+
+`deno task check:determinism` is the browser-free authoritative-source guard.
+It recollects the root application registry, managed simulation dependencies,
+declared callback owners, bounded Base authorities, and the maintained synthetic
+migration extension on every execution; it does not read a cached file list.
+Collection/classification failures abort before linting. After collection, every
+unique exact path is read once; read, unsupported-extension, and parse failures
+use stable diagnostics, and all output is ordered by UTF-16 file/range/code.
+The checker uses an exact dev-only `@babel/parser` AST dependency under
+`scripts/determinism/**`; it does not enter browser bundles, replace Oxlint as
+the general linter, or expose an engine package API. Parser selection follows
+the source extension for TypeScript and JSX and accepts standard decorators.
+Purely type-only syntax is not treated as runtime access; runtime-bearing
+TypeScript namespace/enum/`import =`/`export =`, parameter/pattern expressions,
+and decorator expressions enter the same rule traversal as JavaScript.
+
+Ambient entropy, clock, network/provider, environment, locale/ICU, and
+DOM/storage diagnostics cannot be disabled. Do not capture, pass, return, or
+export bare ambient capability roots such as `Math`, `Date`, `Number`,
+`globalThis`, `Deno`, or `process`; use a checked direct member operation or pass
+canonical recorded data. Explicit `Number(recordedText)`,
+`new Date(recordedInstant)`, and `Date.parse(recordedText)` remain allowed;
+`call`/`apply`/`bind` wrappers preserve the identity of `Date.parse`/`Date.UTC`
+rather than turning them into clock reads. The `Date` constructor identity,
+including `Date.prototype.constructor`, remains ambient when called as a function
+or constructed without an explicit non-spread argument. A reviewed fractional literal,
+`parseFloat`, or approximate-math node may use exactly one directive on the
+immediately preceding physical source line (blank or comment lines do not
+bridge it):
+
+```ts
+// sillymaker-determinism-allow-next-line {"code":"determinism.numeric_fractional_literal","reason":"recognize and reject negative-zero input","bounds":"binary64 zero representations only","rounding":"exact comparison; reject before commit","test":"path/to/focused-vector.test.ts#case-name"}
+if (Object.is(value, -0)) throw new TypeError("negative zero");
+```
+
+The JSON object must contain only non-empty `code`, `reason`, `bounds`,
+`rounding`, and `test` strings. `code` must be one of the three numeric
+diagnostics, and `test` must be a repository-relative `*.test.ts#case-name`
+reference. The referenced file must exist and contain exactly one exact, trimmed
+evidence marker matching the fragment:
+
+```ts
+// sillymaker-determinism-vector: case-name
+```
+
+Evidence files verify the exemption; they do not thereby join the authoritative
+closure or become lint inputs. Missing files or markers, ambiguous duplicate
+markers, malformed or duplicate directives, stale/wrong-code exemptions, and
+whole-file directives fail closed and leave the numeric diagnostic unsuppressed.
+New authoritative callback families must be added to the live authority policy;
+the first real executable Save migrator will reuse this seam rather than
+introducing another checker.
 
 `deno task bench:snapshot` runs generated 100/1k/10k/100k-entity Session workloads for single-field commits, multi-slice committed controls, real cross-owner atomic commits, rejection, and fault. Its full matrix also includes a neutral 256-command mixed sequence at 100 entities, authoritative replay of the retained 200-entry CommandLog, and a fixed 100-entity `every_commit` persistence workload that drains each of two committed commands and records the resulting `auto.previous` rotation. By default its schema-v3 report writes machine-readable p50/p95 and deterministic traversal, digest, freeze, continuity, Save serialization, and Strict JSON counts under an operating-system temporary directory; pass `--output <path>` for a CI artifact.
 
