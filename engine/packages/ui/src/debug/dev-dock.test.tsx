@@ -22,7 +22,11 @@ import {
   type DevDockPortalSurfaceV1,
 } from "./dev-dock-portal-coordinator.tsx";
 import { OverlayHostV1 } from "../overlays/overlay-host.tsx";
-import { createOverlaySessionStoreV1 } from "../overlays/overlay-session-store.ts";
+import {
+  createLocalWorkspaceOverlayEpochAllocatorInternalV1,
+  createWorkspaceOverlaySessionInternalV1,
+  defineWorkspaceOverlayV1,
+} from "../overlays/workspace-overlay-session.ts";
 import { SettingsLauncherV1 } from "../system/settings-launcher.tsx";
 import { SystemDialogHostV1 } from "../system/system-dialog-host.tsx";
 
@@ -252,10 +256,14 @@ function PriorityHarnessV1(props: {
 function RealOverlayEscapeHarnessV1(props: {
   readonly capabilities: ReturnType<typeof createCapabilityFixtureV1>["port"];
 }): ReactElement {
-  const storeRef = useRef(createOverlaySessionStoreV1<"inventory">());
   const inputRouterRef = useRef(createInputRouterV1());
+  const overlayFixtureRef = useRef<ReturnType<typeof createRealOverlayFixtureV1> | null>(null);
+  if (overlayFixtureRef.current === null) {
+    overlayFixtureRef.current = createRealOverlayFixtureV1(inputRouterRef.current);
+  }
   const [dockState, setDockState] = useState<DevDockOpenStateV1>(closedDockStateV1);
-  const store = storeRef.current;
+  const { rendererResolver, session } = overlayFixtureRef.current;
+  useLayoutEffect(() => () => session.disposeInternalV1(), [session]);
   return (
     <GameShell
       accessibleName="真实 Overlay Escape 测试舞台"
@@ -263,17 +271,14 @@ function RealOverlayEscapeHarnessV1(props: {
       layers={Object.freeze({
         ...emptyLayersV1(),
         hud: (
-          <button type="button" onClick={() => store.openPrimary("inventory")}>
+          <button type="button" onClick={() => session.openPrimary("overlay.test.devdock")}>
             打开真实背包
           </button>
         ),
         workspaceOverlay: (
           <OverlayHostV1
-            store={store}
-            rendererResolver={Object.freeze({
-              resolve: () =>
-                Object.freeze({ accessibleName: "真实背包", content: <p>背包内容</p> }),
-            })}
+            session={session}
+            rendererResolver={rendererResolver}
             inputRouter={inputRouterRef.current}
             closeLabel="关闭真实背包"
           />
@@ -290,6 +295,28 @@ function RealOverlayEscapeHarnessV1(props: {
       }
     />
   );
+}
+
+function createRealOverlayFixtureV1(inputRouter: ReturnType<typeof createInputRouterV1>) {
+  type OverlayIdV1 = "overlay.test.devdock";
+  const rendererResolver = Object.freeze({
+    resolve: (overlayId: OverlayIdV1) =>
+      overlayId === "overlay.test.devdock"
+        ? Object.freeze({
+          accessibleName: "真实背包",
+          content: <p>背包内容</p>,
+          prepare: () => undefined,
+        })
+        : null,
+  });
+  const session = createWorkspaceOverlaySessionInternalV1<OverlayIdV1>({
+    inputRouter,
+    epochAllocator: createLocalWorkspaceOverlayEpochAllocatorInternalV1(),
+    definitions: Object.freeze([
+      defineWorkspaceOverlayV1({ id: "overlay.test.devdock", contractRevision: 1 }),
+    ]),
+  });
+  return Object.freeze({ rendererResolver, session });
 }
 
 function RealSystemEscapeHarnessV1(props: {

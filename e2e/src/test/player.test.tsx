@@ -20,6 +20,7 @@ import {
   labRootLabelsV1,
   labUiProjectorV1,
   labViewportCanvasV1,
+  labWorkspaceOverlayDefinitionsV1,
 } from "../application/composition.tsx";
 
 afterEach(cleanup);
@@ -43,7 +44,7 @@ async function composePlayerLabV1(input: { readonly seed?: readonly [string, num
       current: () => instance.presentationAnchor(),
       subscribe: (listener: () => void) => instance.subscribePresentationAnchor(() => listener()),
     }),
-    overlayIds: ["overlay.lab.journal"],
+    overlayDefinitions: labWorkspaceOverlayDefinitionsV1,
   });
   render(
     <DefaultGameRootV1

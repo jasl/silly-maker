@@ -21,6 +21,7 @@ import {
   labRootLabelsV1,
   labUiProjectorV1,
   labViewportCanvasV1,
+  labWorkspaceOverlayDefinitionsV1,
 } from "../application/composition.tsx";
 
 afterEach(cleanup);
@@ -39,7 +40,7 @@ async function composeInputLabV1() {
       current: () => instance.presentationAnchor(),
       subscribe: (listener: () => void) => instance.subscribePresentationAnchor(() => listener()),
     }),
-    overlayIds: ["overlay.lab.journal"],
+    overlayDefinitions: labWorkspaceOverlayDefinitionsV1,
   });
   render(
     <DefaultGameRootV1

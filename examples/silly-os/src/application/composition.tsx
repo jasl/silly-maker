@@ -119,7 +119,6 @@ export const osGameApplicationV1: WebGameApplicationV1<
     const zh = locale === "zh-CN";
     return Object.freeze({
       projector: osUiProjectorV1,
-      overlayIds: Object.freeze([] as const),
       slots: createOsUiSlotsV1({ instance, playerProfile }),
       // No titleScreen: boot goes straight to the desktop. Persistence is fully engine-
       // internal with no save UI / slot rules exposed (computer semantics: the disk saves on shutdown and restores on boot).

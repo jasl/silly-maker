@@ -833,11 +833,44 @@ describe("Managed Surface application lifetime", () => {
           }),
       ],
       ["closeExpected", () => predecessor.coordinator.closeExpected(predecessorHandle)],
+      [
+        "closeExpectedWithOwnerPreparationCancel",
+        () =>
+          predecessor.coordinator.closeExpectedWithOwnerPreparationCancel(
+            predecessorHandle,
+            ownerIdV1,
+          ),
+      ],
       ["closeTop", () => predecessor.coordinator.closeTop()],
+      [
+        "closeTopWithOwnerPreparationCancel",
+        () => predecessor.coordinator.closeTopWithOwnerPreparationCancel(ownerIdV1),
+      ],
       ["closeOwner", () => predecessor.coordinator.closeOwner(predecessorOwnerHandle)],
       [
         "routeDismiss",
         () => predecessor.coordinator.routeDismiss(predecessorHandle, "back"),
+      ],
+      [
+        "routeDismissWithOwnerPreparationCancel",
+        () =>
+          predecessor.coordinator.routeDismissWithOwnerPreparationCancel(
+            predecessorHandle,
+            ownerIdV1,
+            "back",
+          ),
+      ],
+      [
+        "routeFallbackDismissWithOwnerPreparationCancel",
+        () =>
+          predecessor.coordinator.routeFallbackDismissWithOwnerPreparationCancel(
+            {
+              applicationEpoch: predecessorHandle.applicationEpoch,
+              surfaceInstanceId: predecessorHandle.surfaceInstanceId,
+            },
+            ownerIdV1,
+            "back",
+          ),
       ],
       [
         "routeAction",

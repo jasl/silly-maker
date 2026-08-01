@@ -33,7 +33,7 @@ Story；UI 和 Web 可以依赖 Base；具体 Story/application 可以依赖三�
 | ----------------------- | -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `@sillymaker/base`      | `.`, `./authoring`, `./runtime`, `./story`, `./testkit`; workspace-only `./runtime/internal` | Contracts, the Story prelude and authoring kit, deterministic resolution, authoritative sessions, persistence orchestration, replay, diagnostics, the agent port, and reusable behavior-test helpers.                                                                               |
 | `@sillymaker/tooling`   | `.`, `./project` + subentries, `./vite` + subentries, `./identity/*`                         | Non-browser project and Story CLI, Vite assembly, build identity, JSONL agent protocol/client, and package-internal Desktop preview packaging/local-server tools. Never imported by Base or browser bundles.                                                                        |
-| `@sillymaker/ui`        | `.`, `./assets`, `./debug`, `./diagnostics`, `./styles.css`                                  | React shell, GameViewport, UI composition and default GameRoot, stage, characters, assets, interaction/input, overlays, narrative, settings, semantic/presentation bridges, recovery UI, and the published global theme stylesheet.                                                 |
+| `@sillymaker/ui`        | `.`, `./assets`, `./debug`, `./diagnostics`, `./styles.css`; workspace-only `./internal`     | React shell, GameViewport, UI composition and default GameRoot, stage, characters, assets, interaction/input, overlays, narrative, settings, semantic/presentation bridges, recovery UI, and the published global theme stylesheet.                                                 |
 | `@sillymaker/web`       | `.`                                                                                          | Browser Host, IndexedDB record storage, files/images, Desktop-channel HTTP record/file adapters, `startWebGameApplicationV1`, mounting, routing, pointer input, capabilities, automation, Loader, and HMR rebootstrap.                                                              |
 | `@sillymaker/story-e2e` | `.`                                                                                          | The neutral Engine Conformance Story (Engine Lab, `e2e/`): gameplay modules, narrative script, presentation catalogs, semantic actions, and application composition used to validate engine contracts.                                                                              |
 | Story packages          | `.` per package                                                                              | `template/` (the minimal starter, MIT) and `examples/*` (bookshop, cat-cafe, silly-os) each compose one self-contained application project (`sillymaker.config.ts` + `vite.config.ts`); the root `project.config.ts` only lists their directories for repository-level aggregation. |
@@ -47,6 +47,11 @@ workspace composition that cannot use `src/**` imports. It is consumed only by
 `@sillymaker/web`, is absent from ordinary Base/runtime barrels, and is guarded
 by negative consumer type tests. It is not a Story API; before any npm
 publication, internal export visibility needs an explicit audience policy.
+
+`@sillymaker/ui/internal` is the equivalent Host-only composition seam. Web
+uses it to inject the realm-stable Managed Surface epoch allocator; Stories use
+the ordinary UI exports and cannot reach Overlay lifecycle internals through
+the public composition facade.
 
 Implementation anchors:
 
@@ -228,6 +233,19 @@ Story presentation code maps its immutable semantic publication and catalogs
 into these generic surfaces. Missing assets or renderer contributions can
 degrade to a visible fallback without changing authoritative gameplay.
 
+Workspace Overlay is the first live Managed Surface family. A Story declares
+validated Overlay definitions and a renderer resolver, then sends
+`openPrimary`, `pushDetail`, `closeTop`, or `closeAll` intents through the
+composition facade. The UI-owned Coordinator is the sole writable topology,
+input, focus, instance, and readiness authority; the facade's snapshot is an
+immutable compatibility view, not a second store. Admission completes before
+topology mutation. Initial and child preparation use a code-native blocking
+fallback, replacement keeps the existing surface until the candidate is ready,
+and application-epoch rotation fences late readiness during load, import, HMR,
+or another successor. The epoch is presentation/runtime fencing only and never
+enters a Save. System dialogs and Narrative have not yet migrated to this
+lifecycle kernel.
+
 ## 9. Changing the architecture
 
 Architecture evolution is expected. A substantial change should state:
@@ -248,8 +266,9 @@ Implemented portions of the [AI authoring design](design/ai-authoring.md),
 described above and in [features](features.md). Further accepted evolution is
 tracked in the [engine roadmap](roadmap.md). The
 [Managed Surface lifecycle and contract harness](design/surface-contract-harness.md)
-currently has a dormant, package-internal S1-T kernel for transient topology,
-action provenance, application-epoch fencing, and transition-kind readiness;
-no live Surface family or Story-facing export consumes it yet. Target documents
-do not alter the current data flow until each migration and its behavior tests
-land.
+has a package-internal S1-T kernel for transient topology, action provenance,
+application-epoch fencing, and transition-kind readiness. Workspace Overlay is
+its first live pilot and exposes only definitions, renderer resolution, intents,
+and an immutable compatibility view to Stories; stable-target reconcile and the
+System/Narrative migrations remain planned work. Target documents do not alter
+the current data flow until each migration and its behavior tests land.

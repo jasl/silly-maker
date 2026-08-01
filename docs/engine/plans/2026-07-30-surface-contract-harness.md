@@ -2,21 +2,16 @@
 
 状态：2026-07-30 接受执行，2026-07-31 按 readiness、application epoch、external
 reconcile、dormant-kernel boundedness/action provenance 与 Overlay cutover
-决策重切片。目标合同见
+决策重切片；2026-08-01 PF2 的 S1-T 与 S2 Workspace Overlay pilot 已 promotion。
+目标合同见
 [Managed Surface lifecycle and contract harness](../design/surface-contract-harness.md)。
 本文只规定可独立交付的实施顺序；不要求一次实现 design
 中所有可选字段，也不把作者能力评测绑进 runtime migration。
 
 在 [production-floor sequence](2026-07-30-production-floor-sequence.md)
-中：PF2 的顺序是 `S0 -> S1-T -> S2`；PF4 的顺序是
-`S3 -> S1-R -> S4 -> S4b`；S5–S6 属于 PF6。当前 S1-T 的剩余顺序是
-`S1f`：application epoch 已建立，下一步完成 readiness。S1d.1 已关闭
-binding-origin action provenance 缺口，S1d.2 已把 transient identity 与 owner
-lifetime state 收敛到有界模型，S1d.3 已冻结 slot scope、独立 topology axes 与双
-revision 语义，S1e 已封闭 composition-root successor handoff 与 realm-stable epoch
-allocation。S2
-只依赖完成的
-S1-T。S1-R
+中：PF2 的顺序 `S0 -> S1-T -> S2` 已完成；下一 core 节点是 PF-DET 的
+`DET0-core`，不是直接进入 S3。PF4 的顺序是
+`S3 -> S1-R -> S4 -> S4b`；S5–S6 属于 PF6。S1-R
 延后到第一个真实 externally published stable-target family 前完成；按 accepted
 target ownership，S4 Narrative 计划成为该 family，因此 S1-R 位于 S3 与 S4
 之间。若更早的 family 改为 externally published stable target，必须把 S1-R
@@ -828,23 +823,28 @@ legacy adapter 只能：
 改变 topology/input/focus 的旁路。adapter 删除条件写入 promotion record。若不能在
 同一 slice 消除双 authority，立即停止实现并修订 design。
 
-### Browser matrix
+### Cross-layer conformance matrix
 
-- open → replace → detail → back → close；
-- dismissible/locked 的 Escape、backdrop、routed cancel；
-- pointerdown/up/click-through；
-- keyboard activation；
-- focus initial/trap/restore；
-- initial/primary-replacement/child-detail 三类 delayed readiness；
-- initial failure + fallback 撤销 + previous focus restore；
-- child/detail failure + fallback 撤销 + parent/focus retained；
-- replacement failure + old instance retained；
-- close/second replace/owner dispose/Coordinator dispose/epoch rotation
-  取消 pending candidate；
-- stale ready/failure receipt 对 topology/input/focus 零 mutation；
-- missing definition/contract-revision/schema/renderer/required-port/parent/slot
-  的 direct rejection；
-- owner unmount/HMR/rebootstrap 与 successor ingress fence。
+真实 DOM、pointer 与 focus 行必须在 maintained browser projects 中验证；不能由正常
+Story UI 构造的 malformed admission、direct owner/Coordinator disposal 与 exact
+publication delta 留在 deterministic unit/headless harness。不得为了把这些纯 kernel
+行机械搬入浏览器而暴露 malformed definition、internal handle 或 dispose test hook。
+
+- browser：open → replace → detail → back → close；
+- browser：dismissible/locked 的 Escape、backdrop、routed cancel；
+- browser：pointerdown/up/click-through、keyboard activation 与 focus
+  initial/trap/restore；
+- browser + headless：initial/primary-replacement/child-detail 三类 delayed
+  readiness，以及三类 failure 的可见 rollback/focus 结果；
+- headless：close/second replace/owner dispose/Coordinator dispose/epoch rotation
+  取消 pending candidate 及其 exact revision delta；browser 另证 close、second replace
+  与 application successor 的 live Host integration；
+- headless：stale ready/failure receipt 对 topology/input/focus 零 mutation；browser
+  另证 cancelled close 的 stale failure 与 second replace/successor 的 stale ready；
+- headless：missing/ambiguous definition、invalid contract revision/schema、
+  unavailable/missing/faulted renderer、required-port/parent/slot rejection；
+- unit/headless：owner unmount 与 Web HMR/rebootstrap cleanup/ingress fence；browser：
+  application-anchor successor 的 live integration 与 late readiness fence。
 
 **S2 acceptance：** Overlay 全部现有产品路径通过；Coordinator 是唯一 writable
 lifecycle authority，旧 open/detail/back/close writer 已删除或只读化且没有 async
@@ -852,6 +852,69 @@ mirror；所有 admission failure 在 mutation 前结构化拒绝；readiness tr
 cancellation matrix 通过；transient API 没有 S1-R 占位字段；Engine Lab
 是中性第二消费者。若 pilot 需要跨 Base/Workspace 的巨大 receipt、通用 fault
 surface 或第二 writable authority 才工作，停止并修订 design。
+
+**2026-08-01 S2 delivery：** 本切片只迁移 exact-ID、Coordinator-owned transient
+Workspace Overlay。首轮 TDD 删除独立 store writer 后，旧 store contract 的七个用例
+全部变红；definition/session/Host focused RED 随后固定 definition/contract/schema/
+resolver/required-port/parent/slot admission、preparation 不挂载 Story content、locked
+fallback、Host unmount cancellation、structured intent rejection 与 concrete port
+binding。独立审查又固定 sparse/method-overridden author array、constructor failure
+subscription cleanup 与 detail 上方 pending replacement 的 close-result 分类；配置现于
+任何上游订阅前形成 dense own-index snapshot，且 facade 按 Coordinator 实际 receipt
+分类关闭层级。
+
+最终 kernel 复审把普通 close 保持为 topology-related cancellation，避免同 owner 的
+独立 root slot 被误删；Overlay 通过 package-internal owner-preparation variants 在一次
+reducer commit 中关闭 exact/current target 并取消该 owner 的 pending candidate。initial
+fallback 不依赖 ready-only owner handle，dismiss receipt 绑定 exact candidate，并在
+mutation 前原子校验 epoch、live fallback、global current target、owner 与 dismiss policy。
+
+完整浏览器门禁在 WebKit 找到两个真实 focus RED：pointer 打开 detail 时 Safari 把
+active focus 留在 `PanelV1` body，关闭后无法恢复到实际按钮 opener；Safari 默认 Tab
+行为也会把 focus 移出 active Dialog。Host 现在用 package-internal、单
+activation-task capture 记录真实 pointer target，并显式在 top Overlay 内循环 Tab；
+循环只包含实际 tabbable/visible target，initial/detail blocking fallback 则把双向 Tab
+保持在 code-native scope。unit 回归与 WebKit focused 均证明 exact opener restore 与
+focus trap；owner-wide close/unmount 即使同时删除 nested detail 或 child fallback，也从
+previous root identity 恢复外部 opener；nested renderer fault 删除一个 detail subtree
+时则从包含旧 focus owner 的最高 removed ancestor 恢复 surviving-parent opener。Story
+API 没有新增 DOM 参数。
+
+Story-facing `defineWorkspaceOverlayV1` 固定 contract revision、exact-ID schema、
+dismiss policy 与 required port IDs；composition 接收 concrete `overlayPorts`，resolver
+在任何 mutation 前提供 accessible name/content/可选 presentation-only `prepare()`。
+initial/detail 使用 code-native blocking fallback，preparing 时不挂载普通 Story
+content、不取得普通 input/focus/semantic action；replacement 保留旧 DOM/focus，ready
+后才原子 cutover，failure 保留旧实例。close、second replace、Host/owner/Coordinator
+dispose 与 epoch rotation 都取消 pending；late ready/fail 对 topology/input/focus 为零
+mutation，每次 attempt 使用 fresh instance ID。
+
+`OverlaySessionStoreV1` 现只把六个兼容操作直接委托给 Coordinator，并从同一
+immutable publication 派生 primary/detail view；旧 independent writer/factory 已删除，
+没有双写、异步 mirror 或第二份 topology。internal session/Host readiness seam 通过
+WeakMap 隐藏，普通 `@sillymaker/ui` facade 不暴露 `*Internal*` 方法；
+`@sillymaker/ui/internal` 只供 Web Host 注入 realm-stable epoch allocator。load/import
+anchor rotation、HMR/rebootstrap successor 都在新 ingress 前 dispose predecessor 并
+领取新 epoch；epoch 只属于 presentation/runtime fence，不进入 Save。
+
+Engine Lab 的 opt-in 中性 rig 覆盖 open→replace→detail→back→close、locked/dismissible
+native 与 routed cancel、真实 pointer click-through、keyboard activation、focus
+initial/trap/restore、三类 delayed readiness/failure、close/second replace/successor
+cancellation 以及 stale ready/failure；普通 Engine Lab DOM 不含该测试词汇。malformed
+admission、direct disposal 与 exact publication identity/count 由 deterministic
+unit/headless harness 覆盖，不向 production API 添加 browser-only hook。最终 focused
+为 `8 files / 147 tests`，UI package 为 `62 files / 601 tests`，Web package 为
+`23 files / 247 tests`，Engine Lab headless 为 `19 files / 89 tests`，aggregate 为
+`210 files / 1994 tests`；
+`deno task check`、engine browser `101/101`、examples browser `45 passed / 2 skipped`
+与 prebuilt Player `38/38` 全绿。
+
+兼容 facade/re-export 的删除 gate 是：typed presentation intent surface 覆盖
+primary/detail/back/close，且 direct-composer、Engine Lab、debug/read consumers 全部
+迁移后删除；在此之前只能继续做 Coordinator delegation/derived immutable view，
+不得加入新的 lifecycle 语义。该 promotion 没有实现 S1-R/source revision/parameter
+equivalence、System、Narrative/History、whole-canvas、通用 fault surface或
+application-level receipt，也没有改变 Save/digest/replay/persistence wire 语义。
 
 ## 6. S3 — System dialog family
 

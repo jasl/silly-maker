@@ -8,7 +8,12 @@ import type {
   RuntimeAssetLoaderV1,
   PointerActionMapV1,
 } from "@sillymaker/ui";
-import { createAssetRegistryV1, GameAudioV1, systemInputActionIdsV1 } from "@sillymaker/ui";
+import {
+  createAssetRegistryV1,
+  defineWorkspaceOverlayV1,
+  GameAudioV1,
+  systemInputActionIdsV1,
+} from "@sillymaker/ui";
 import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
 import type { WebGameApplicationV1 } from "@sillymaker/web";
 import { createWebAudioHostV1 } from "@sillymaker/web";
@@ -245,7 +250,9 @@ export const catcafeGameApplicationV1: WebGameApplicationV1<
         }),
       }),
       projector: catcafeUiProjectorV1,
-      overlayIds: Object.freeze(["overlay.catcafe.album"] as const),
+      overlayDefinitions: Object.freeze([
+        defineWorkspaceOverlayV1({ id: "overlay.catcafe.album", contractRevision: 1 }),
+      ]),
       slots: createCatcafeUiSlotsV1({ instance, playerProfile, registry }),
       ...(() => {
         const locale = playerProfile.current().preferences.locale;

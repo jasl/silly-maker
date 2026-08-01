@@ -1,6 +1,6 @@
 # SillyMaker engine roadmap
 
-状态：2026-07-19 接受，最近审查修订 2026-07-31。已实现能力以
+状态：2026-07-19 接受，最近审查修订 2026-08-01。已实现能力以
 [features](features.md) 为准；历史交付见
 [roadmap archive](roadmap-archive.md)。当前执行入口只有
 [Production-floor execution sequence](plans/2026-07-30-production-floor-sequence.md)，它再引用五个独立计划；design/roadmap
@@ -64,7 +64,7 @@ workload 证据；仓库外私有实验只能提供匿名需求反馈，正式 p
 2. latest-stable required CI 与 autosave policy admission 两个 pre-pilot 小切片；
 3. Snapshot 热路径 baseline 与 digest/serialization 去重（PF1/A1 已完成）；
 4. Managed Surface dormant-kernel action provenance/boundedness 修正 + Workspace
-   Overlay pilot；
+   Overlay pilot（PF2 已完成）；
 5. authoritative determinism guardrails：zero RNG、canonical command/evidence
    admission、simulation-closure lint/tripwire 与四 runtime 逐 command parity；
 6. Save metadata floor、callback-free envelope/load order 与 determinism 以
@@ -201,6 +201,11 @@ PF2 Coordinator MVP 不引入 universal application receipt。PF6
 AI-friendly promotion 时，声明 presentation postcondition 的 action 必须组合分层
 evidence，并能返回 `postcondition_failed`；普通 action 不统一 envelope。弱模型
 canary 用于冻结作者 API，不阻塞每个 runtime migration commit。
+
+当前 Workspace Overlay 已是第一个 live family：Coordinator 是其唯一 writable
+lifecycle authority，Story 只声明 definition/renderer/port 并发送 intents。System、
+Narrative/History、whole-canvas family 与 stable-target reconcile 仍按 active sequence
+逐批迁移。
 
 ## 8. Strategic track D — content platform and creator tooling
 

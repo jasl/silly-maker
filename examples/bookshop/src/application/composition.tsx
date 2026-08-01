@@ -319,7 +319,6 @@ export const bookshopGameApplicationV1: WebGameApplicationV1<
         }),
       }),
       projector: bookshopUiProjectorV1,
-      overlayIds: Object.freeze([] as const),
       slots: createBookshopUiSlotsV1(playerProfile),
       labels: bookshopRootLabelsV1,
       saveLabels: bookshopSaveOverlayLabelsV1,

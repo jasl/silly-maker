@@ -23,6 +23,7 @@ import type {
 } from "@sillymaker/ui";
 import {
   Button,
+  defineWorkspaceOverlayV1,
   GameAudioV1,
   playerInputActionIdsV1,
   systemInputActionIdsV1,
@@ -58,6 +59,13 @@ import {
   LabShopOverlayV1,
   LabStageV1,
 } from "./shell-ui.tsx";
+import {
+  asLabOverlayControllerV1,
+  createLabOverlayConformanceV1,
+  labOverlayConformanceDefinitionsV1,
+  type LabOverlayConformanceIdV1,
+  type LabOverlayConformanceV1,
+} from "./workspace-overlay-conformance.tsx";
 
 /** The Engine Lab logical canvas: a 16:10 design resolution. */
 export const labViewportCanvasV1 = Object.freeze({ width: 1600, height: 1000 });
@@ -82,7 +90,16 @@ export type LabUiPublicationV1 = RuntimePresentationPublicationV1<
   AssetId
 >;
 
-export type LabUiOverlayIdV1 = "overlay.lab.journal" | "overlay.lab.shop";
+export type LabUiOverlayIdV1 =
+  | "overlay.lab.journal"
+  | "overlay.lab.shop"
+  | LabOverlayConformanceIdV1;
+
+export const labWorkspaceOverlayDefinitionsV1 = Object.freeze([
+  defineWorkspaceOverlayV1({ id: "overlay.lab.journal", contractRevision: 1 }),
+  defineWorkspaceOverlayV1({ id: "overlay.lab.shop", contractRevision: 1 }),
+  ...labOverlayConformanceDefinitionsV1,
+]);
 
 export { labUiTextV1 } from "./ui-text.ts";
 
@@ -212,12 +229,15 @@ export function createLabUiSlotsV1(input: {
   readonly createAudioHost: () => AudioHostV1;
   readonly playerProfile: PlayerProfileStoreV1;
   readonly playerClock?: PresentationClockV1;
+  readonly overlayConformance?: LabOverlayConformanceV1;
 }): DefaultGameRootSlotsV1<LabUiPublicationV1, LabSemanticPortV1, LabUiOverlayIdV1> {
   const voiceReplayRef: { current: (() => boolean) | null } = { current: null };
   const registerReplay = (replay: (() => boolean) | null): void => {
     voiceReplayRef.current = replay;
   };
   const replayVoice = (): boolean => voiceReplayRef.current?.() ?? false;
+  const overlayConformance = input.overlayConformance ??
+    createLabOverlayConformanceV1({ enabled: false });
   const slots: DefaultGameRootSlotsV1<LabUiPublicationV1, LabSemanticPortV1, LabUiOverlayIdV1> = {
     ...labUiSlotsDefinitionV1,
     hud: (context) => (
@@ -249,6 +269,24 @@ export function createLabUiSlotsV1(input: {
         />
       </div>
     ),
+    systemMenuExtras: (context) => (
+      <>
+        {labUiSlotsDefinitionV1.systemMenuExtras?.(context)}
+        {overlayConformance.renderLaunchers(
+          asLabOverlayControllerV1(context.overlays),
+          context.systemDialogs.returnToTitle,
+        )}
+      </>
+    ),
+    overlayResolver: (context) => {
+      const storyResolver = labUiSlotsDefinitionV1.overlayResolver?.(context);
+      const overlays = asLabOverlayControllerV1(context.overlays);
+      return Object.freeze({
+        resolve: (overlayId: DeepReadonly<LabUiOverlayIdV1>) =>
+          overlayConformance.resolve(overlayId, overlays) ?? storyResolver?.resolve(overlayId) ??
+            null,
+      });
+    },
   };
   return Object.freeze(slots);
 }
@@ -400,14 +438,22 @@ export const labGameApplicationV1: WebGameApplicationV1<
   }: {
     readonly instance: LabApplicationInstanceV1;
     readonly playerProfile: PlayerProfileStoreV1;
-  }) =>
-    Object.freeze({
+  }) => {
+    const overlayConformanceEnabled = new URLSearchParams(globalThis.location?.search ?? "").has(
+      "overlay_conformance",
+    );
+    const overlayConformance = createLabOverlayConformanceV1({
+      enabled: overlayConformanceEnabled,
+      eventTarget: globalThis.window,
+    });
+    return Object.freeze({
       projector: labUiProjectorV1,
-      overlayIds: Object.freeze(["overlay.lab.journal", "overlay.lab.shop"] as const),
+      overlayDefinitions: labWorkspaceOverlayDefinitionsV1,
       cueIds: Object.freeze([labBeaconPulseCueIdV1]),
       slots: createLabUiSlotsV1({
         instance,
         playerProfile,
+        overlayConformance,
         createAudioHost: () =>
           createWebAudioHostV1({
             manifest: labAudioManifestV1,
@@ -416,10 +462,18 @@ export const labGameApplicationV1: WebGameApplicationV1<
       }),
       labels: labRootLabelsV1,
       saveLabels: labSaveOverlayLabelsV1,
-      inputMaps: Object.freeze({ keyboard: labKeyboardMapV1, gamepad: labGamepadMapV1 }),
+      inputMaps: Object.freeze({
+        keyboard: labKeyboardMapV1,
+        gamepad: labGamepadMapV1,
+        ...(overlayConformanceEnabled
+          ? { pointer: Object.freeze({ secondary: systemInputActionIdsV1.cancel }) }
+          : {}),
+      }),
       loadDevDockContributions: () =>
         import("./dev-dock.tsx").then((module) =>
           module.createLabDevDockContributionsV1({ instance })
         ),
-    }),
+      dispose: overlayConformance.dispose,
+    });
+  },
 });

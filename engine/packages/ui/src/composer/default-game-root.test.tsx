@@ -12,7 +12,12 @@ import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
 import { createMemoryHostRecordStoreV1 } from "@sillymaker/base/testkit";
 
 import { createInputRouterV1 } from "../input/input-router.ts";
-import { createOverlaySessionStoreV1 } from "../overlays/overlay-session-store.ts";
+import {
+  createLocalWorkspaceOverlayEpochAllocatorInternalV1,
+  createWorkspaceOverlayPublicSessionInternalV1,
+  createWorkspaceOverlaySessionInternalV1,
+  defineWorkspaceOverlayV1,
+} from "../overlays/workspace-overlay-session.ts";
 import { createSystemDialogSessionStoreV1 } from "../system/system-dialog-session-store.ts";
 import type { DefaultGameRootSlotContextV1 } from "./default-game-root.tsx";
 import type { DefaultGameRootLabelsV1 } from "./default-game-root.tsx";
@@ -39,6 +44,21 @@ const disabledCapabilitiesV1 = Object.freeze({
     Object.freeze({ kind: "unchanged" as const, state: disabledCapabilityStateV1 }),
 }) satisfies RuntimeCapabilityPortV1;
 
+type LifecycleOverlayIdV1 = "lifecycle.primary" | "lifecycle.detail";
+
+const lifecycleOverlayDefinitionsV1 = Object.freeze([
+  defineWorkspaceOverlayV1({ id: "lifecycle.primary", contractRevision: 1 }),
+  defineWorkspaceOverlayV1({ id: "lifecycle.detail", contractRevision: 1 }),
+]);
+
+function deferredV1() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return Object.freeze({ promise, resolve });
+}
+
 function renderLifecycleRootV1(input: {
   readonly restart: () => Promise<SessionAnchorResultV1>;
   readonly beginNewGame?: () => void | Promise<unknown>;
@@ -50,7 +70,26 @@ function renderLifecycleRootV1(input: {
     | DefaultGameRootSlotContextV1<unknown, unknown>["systemDialogs"]["returnToTitle"]
     | undefined;
   const inputRouter = createInputRouterV1();
-  const overlaySession = createOverlaySessionStoreV1<string>();
+  const overlayFailures: Array<{ readonly code: string; readonly error: unknown }> = [];
+  const preparations = new Map<LifecycleOverlayIdV1, ReturnType<typeof deferredV1>>([
+    ["lifecycle.primary", deferredV1()],
+    ["lifecycle.detail", deferredV1()],
+  ]);
+  const overlayInternal = createWorkspaceOverlaySessionInternalV1<LifecycleOverlayIdV1>({
+    inputRouter,
+    epochAllocator: createLocalWorkspaceOverlayEpochAllocatorInternalV1(),
+    definitions: lifecycleOverlayDefinitionsV1,
+    reportFailure: (code, error) => overlayFailures.push(Object.freeze({ code, error })),
+  });
+  const overlaySession = createWorkspaceOverlayPublicSessionInternalV1(overlayInternal);
+  const overlayResolver = Object.freeze({
+    resolve: (id: LifecycleOverlayIdV1) =>
+      Object.freeze({
+        accessibleName: id,
+        content: <p>{id}</p>,
+        prepare: () => preparations.get(id)!.promise,
+      }),
+  });
   const systemDialogSession = createSystemDialogSessionStoreV1();
   const publication = Object.freeze({ revision: 0 });
   const anchor = Object.freeze({ epoch: 0, origin: "bootstrap" });
@@ -91,20 +130,18 @@ function renderLifecycleRootV1(input: {
           returnToTitle = context.systemDialogs.returnToTitle;
           return null;
         },
-        overlayResolver: () =>
-          Object.freeze({
-            resolve: (id: string) =>
-              Object.freeze({
-                accessibleName: id,
-                content: <p>{id}</p>,
-              }),
-          }),
+        overlayResolver: () => overlayResolver,
       })}
     />,
   );
 
   return Object.freeze({
+    overlayInternal,
     overlaySession,
+    overlayFailures,
+    resolvePreparation(id: LifecycleOverlayIdV1) {
+      preparations.get(id)!.resolve();
+    },
     systemDialogSession,
     returnToTitle: () => {
       if (returnToTitle === undefined) {
@@ -115,25 +152,52 @@ function renderLifecycleRootV1(input: {
   });
 }
 
-function openActiveTopologyV1(fixture: ReturnType<typeof renderLifecycleRootV1>): Readonly<{
-  system: { readonly active: "settings" };
-  overlay: {
-    readonly primaryId: "primary";
-    readonly detailIds: readonly ["detail"];
-  };
-}> {
+async function settleOverlayPreparationV1(
+  fixture: ReturnType<typeof renderLifecycleRootV1>,
+  id: LifecycleOverlayIdV1,
+): Promise<void> {
+  const candidate = fixture.overlayInternal.getRenderSnapshotInternalV1().entries.find(
+    (entry) => entry.overlayId === id && entry.readiness === "preparing",
+  );
+  expect(candidate).toBeDefined();
+  const readiness = fixture.overlayInternal.beginCandidatePreparationInternalV1(
+    candidate!.surfaceInstanceId,
+  );
+  await act(async () => {
+    fixture.resolvePreparation(id);
+    await expect(readiness).resolves.toEqual({ kind: "ready" });
+  });
+}
+
+async function openActiveTopologyV1(fixture: ReturnType<typeof renderLifecycleRootV1>): Promise<
+  Readonly<{
+    system: { readonly active: "settings" };
+    overlay: {
+      readonly primaryId: "lifecycle.primary";
+      readonly detailIds: readonly ["lifecycle.detail"];
+    };
+  }>
+> {
   act(() => {
     fixture.systemDialogSession.open("settings");
-    fixture.overlaySession.openPrimary("primary");
-    expect(fixture.overlaySession.pushDetail("detail")).toEqual({
-      kind: "opened",
+    expect(fixture.overlaySession.openPrimary("lifecycle.primary")).toEqual({
+      kind: "preparing",
+      code: "overlay.preparation_started",
     });
   });
+  await settleOverlayPreparationV1(fixture, "lifecycle.primary");
+  act(() => {
+    expect(fixture.overlaySession.pushDetail("lifecycle.detail")).toEqual({
+      kind: "preparing",
+      code: "overlay.preparation_started",
+    });
+  });
+  await settleOverlayPreparationV1(fixture, "lifecycle.detail");
   return Object.freeze({
     system: Object.freeze({ active: "settings" as const }),
     overlay: Object.freeze({
-      primaryId: "primary" as const,
-      detailIds: Object.freeze(["detail"] as const),
+      primaryId: "lifecycle.primary" as const,
+      detailIds: Object.freeze(["lifecycle.detail"] as const),
     }),
   });
 }
@@ -256,7 +320,7 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
       await waitFor(() =>
         expect(screen.queryByRole("dialog", { name: "Lifecycle fixture" })).toBeNull()
       );
-      const topology = openActiveTopologyV1(fixture);
+      const topology = await openActiveTopologyV1(fixture);
 
       await expect(fixture.returnToTitle()).rejects.toThrow(
         `ui.lifecycle_restart_${result.kind}:${result.code}`,
@@ -280,7 +344,7 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
     await waitFor(() =>
       expect(screen.queryByRole("dialog", { name: "Lifecycle fixture" })).toBeNull()
     );
-    const topology = openActiveTopologyV1(fixture);
+    const topology = await openActiveTopologyV1(fixture);
 
     let outcome: Promise<void> | undefined;
     expect(() => {
@@ -302,7 +366,7 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
     await waitFor(() =>
       expect(screen.queryByRole("dialog", { name: "Lifecycle fixture" })).toBeNull()
     );
-    openActiveTopologyV1(fixture);
+    await openActiveTopologyV1(fixture);
 
     await fixture.returnToTitle();
 
@@ -322,7 +386,7 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
     await waitFor(() =>
       expect(screen.queryByRole("dialog", { name: "Lifecycle fixture" })).toBeNull()
     );
-    openActiveTopologyV1(fixture);
+    await openActiveTopologyV1(fixture);
     const systemFailure = new Error("synthetic System close subscriber failure");
     fixture.systemDialogSession.subscribe(() => {
       if (fixture.systemDialogSession.getSnapshot().active === null) {
@@ -340,7 +404,7 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
     expect(screen.getByRole("dialog", { name: "Lifecycle fixture" })).toBeInTheDocument();
   });
 
-  it("aggregates System and Overlay close subscriber failures after finishing the anchored return", async () => {
+  it("isolates an Overlay close subscriber failure without weakening the System failure", async () => {
     const restart = vi.fn(async () => anchoredV1);
     const fixture = renderLifecycleRootV1({ restart });
 
@@ -348,7 +412,7 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
     await waitFor(() =>
       expect(screen.queryByRole("dialog", { name: "Lifecycle fixture" })).toBeNull()
     );
-    openActiveTopologyV1(fixture);
+    await openActiveTopologyV1(fixture);
     const systemFailure = new Error("synthetic System close subscriber failure");
     const overlayFailure = new Error("synthetic Overlay close subscriber failure");
     fixture.systemDialogSession.subscribe(() => {
@@ -362,16 +426,11 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
       }
     });
 
-    let observed: unknown;
-    try {
-      await fixture.returnToTitle();
-    } catch (error) {
-      observed = error;
-    }
+    await expect(fixture.returnToTitle()).rejects.toBe(systemFailure);
 
-    expect(observed).toBeInstanceOf(AggregateError);
-    expect((observed as AggregateError).message).toBe("ui.return_to_title_topology_cleanup_failed");
-    expect((observed as AggregateError).errors).toEqual([systemFailure, overlayFailure]);
+    expect(fixture.overlayFailures).toEqual([
+      { code: "ui.workspace_overlay_subscriber_failed", error: overlayFailure },
+    ]);
     expect(fixture.systemDialogSession.getSnapshot()).toEqual({ active: null });
     expect(fixture.overlaySession.getSnapshot()).toEqual({
       primaryId: null,

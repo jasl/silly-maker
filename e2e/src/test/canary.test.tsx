@@ -23,6 +23,7 @@ import {
   labRootLabelsV1,
   labUiProjectorV1,
   labViewportCanvasV1,
+  labWorkspaceOverlayDefinitionsV1,
 } from "../application/composition.tsx";
 
 /**
@@ -223,7 +224,7 @@ describe("canary: semantic shop overlay", () => {
         current: () => instance.presentationAnchor(),
         subscribe: (listener: () => void) => instance.subscribePresentationAnchor(() => listener()),
       }),
-      overlayIds: ["overlay.lab.journal", "overlay.lab.shop"],
+      overlayDefinitions: labWorkspaceOverlayDefinitionsV1,
     });
     render(
       <DefaultGameRootV1

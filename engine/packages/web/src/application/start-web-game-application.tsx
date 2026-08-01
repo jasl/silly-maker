@@ -31,13 +31,12 @@ import type {
   RuntimePresentationPublicationV1,
   SaveOverlayLabelsV1,
   SystemDialogCustomSavesV1,
+  WorkspaceOverlayDefinitionV1,
+  WorkspaceOverlayPortBindingV1,
 } from "@sillymaker/ui";
 import type { DevDockContributionSetV1, DevDockOpenStateV1 } from "@sillymaker/ui/debug";
-import {
-  createGameUiCompositionV1,
-  DefaultGameRootV1,
-  installNativeBehaviorResetV1,
-} from "@sillymaker/ui";
+import { DefaultGameRootV1, installNativeBehaviorResetV1 } from "@sillymaker/ui";
+import { createHostedGameUiCompositionInternalV1 } from "@sillymaker/ui/internal";
 import type { ContentPreferencePortV1, SemanticPublicationV1 } from "@sillymaker/base";
 import type { RuntimeSessionStatusV1 } from "@sillymaker/base";
 
@@ -58,6 +57,7 @@ import { mountGameApplicationV1 } from "./mount-game-application.tsx";
 import type { MountedGameApplicationV1 } from "./mount-game-application.tsx";
 import { createPlayerSaveSurfacesV1 } from "./create-player-save-surfaces.ts";
 import { installDesktopCloseFlushV1 } from "./install-desktop-close-flush.ts";
+import { createManagedSurfaceApplicationEpochAllocatorInternalV1 } from "./managed-surface-application-epoch.ts";
 import { resolveLocalRecordsHostModeV1 } from "./resolve-local-records-host-mode.ts";
 
 type WebSemanticPublicationV1<TGameView, TNarrativeView, TActionDescriptor> = SemanticPublicationV1<
@@ -88,7 +88,8 @@ export interface WebGameUiDefinitionV1<
     TView,
     TAssetId
   >;
-  readonly overlayIds?: readonly TOverlayId[];
+  readonly overlayDefinitions?: readonly WorkspaceOverlayDefinitionV1<TOverlayId>[];
+  readonly overlayPorts?: readonly WorkspaceOverlayPortBindingV1[];
   /** Cue IDs the presentation intent router accepts for play_cue. */
   readonly cueIds?: readonly string[];
   readonly contentPreference?: ContentPreferencePortV1;
@@ -447,7 +448,7 @@ export async function startWebGameApplicationV1<
   let uiDisposer: (() => void) | undefined;
   let composition:
     | ReturnType<
-      typeof createGameUiCompositionV1<
+      typeof createHostedGameUiCompositionInternalV1<
         WebSemanticPublicationV1<TGameView, TNarrativeView, TActionDescriptor>,
         TResolvedCatalog,
         TStoryUiState,
@@ -525,7 +526,14 @@ export async function startWebGameApplicationV1<
       ...(uiDefinition.customSaves === undefined ? {} : { customSaves: uiDefinition.customSaves }),
     });
 
-    composition = createGameUiCompositionV1({
+    composition = createHostedGameUiCompositionInternalV1<
+      WebSemanticPublicationV1<TGameView, TNarrativeView, TActionDescriptor>,
+      TResolvedCatalog,
+      TStoryUiState,
+      TView,
+      TAssetId,
+      TOverlayId
+    >({
       semantic: instance.semantic,
       projector: uiDefinition.projector,
       anchor: Object.freeze({
@@ -535,12 +543,22 @@ export async function startWebGameApplicationV1<
       ...(uiDefinition.contentPreference === undefined
         ? {}
         : { contentPreference: uiDefinition.contentPreference }),
-      ...(uiDefinition.overlayIds === undefined ? {} : { overlayIds: uiDefinition.overlayIds }),
+      ...(uiDefinition.overlayDefinitions === undefined
+        ? {}
+        : { overlayDefinitions: uiDefinition.overlayDefinitions }),
+      ...(uiDefinition.overlayPorts === undefined
+        ? {}
+        : { overlayPorts: uiDefinition.overlayPorts }),
       ...(uiDefinition.cueIds === undefined ? {} : { cueIds: uiDefinition.cueIds }),
       ...(uiDefinition.interactionSurfaceIds === undefined
         ? {}
         : { interactionSurfaceIds: uiDefinition.interactionSurfaceIds }),
       reportFailure: (failure) => reportFailure(failure.code, new Error(failure.summary)),
+    }, {
+      managedSurfaceEpochAllocator: createManagedSurfaceApplicationEpochAllocatorInternalV1({
+        applicationId: application.applicationId,
+      }),
+      reportFailure,
     });
 
     automation = installBrowserAutomationBridgeV1({

@@ -20,6 +20,7 @@ import {
   labRootLabelsV1,
   labUiProjectorV1,
   labViewportCanvasV1,
+  labWorkspaceOverlayDefinitionsV1,
 } from "../application/composition.tsx";
 import { labAudioAssetIdsV1 } from "../gameplay/audio.ts";
 
@@ -40,7 +41,7 @@ async function composeAudioLabV1() {
       current: () => instance.presentationAnchor(),
       subscribe: (listener: () => void) => instance.subscribePresentationAnchor(() => listener()),
     }),
-    overlayIds: ["overlay.lab.journal"],
+    overlayDefinitions: labWorkspaceOverlayDefinitionsV1,
   });
   const rendered = render(
     <DefaultGameRootV1

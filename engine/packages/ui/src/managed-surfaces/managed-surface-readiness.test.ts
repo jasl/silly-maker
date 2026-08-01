@@ -565,6 +565,170 @@ describe("Managed Surface transition-kind readiness", () => {
     expect(retry.receipt.surfaceInstanceId).not.toBe(firstCandidate);
   });
 
+  it("keeps an unrelated same-owner root candidate when closing the global top", () => {
+    const coordinator = createCoordinatorV1();
+    const first = coordinator.openTransientPrimary({
+      definition: definitionV1(),
+      semanticOccurrenceId: null,
+    });
+    const second = coordinator.openTransientPrimary({
+      definition: definitionV1({
+        definitionId: parseManagedSurfaceDefinitionIdV1("surface.workspace.other"),
+        slotId: otherSlotIdV1,
+        layerId: parseManagedSurfaceLayerIdV1("surface-layer.workspace-other"),
+        layerOrder: parseNonNegativeSafeInteger(21),
+      }),
+      semanticOccurrenceId: null,
+    });
+    const firstCandidate = first.receipt.surfaceInstanceId!;
+    const secondCandidate = second.receipt.surfaceInstanceId!;
+
+    expect(coordinator.closeTop()).toMatchObject({
+      kind: "applied",
+      code: "surface.closed",
+      surfaceInstanceId: secondCandidate,
+    });
+    expect(
+      coordinator.getSnapshot().orderedInstances.map((instance) => instance.surfaceInstanceId),
+    ).toEqual([firstCandidate]);
+    expect(second.readiness!.ready().receipt).toMatchObject({
+      kind: "stale",
+      code: "surface.stale_readiness",
+    });
+    expect(first.readiness!.ready().receipt).toMatchObject({
+      kind: "applied",
+      code: "surface.readiness_ready",
+      surfaceInstanceId: firstCandidate,
+    });
+  });
+
+  it("atomically dismisses only the candidate-bound current fallback", () => {
+    const coordinator = createCoordinatorV1();
+    const first = coordinator.openTransientPrimary({
+      definition: definitionV1(),
+      semanticOccurrenceId: null,
+    });
+    const second = coordinator.openTransientPrimary({
+      definition: definitionV1({
+        definitionId: parseManagedSurfaceDefinitionIdV1("surface.other"),
+        ownerId: otherOwnerIdV1,
+        slotId: otherSlotIdV1,
+        layerId: parseManagedSurfaceLayerIdV1("surface-layer.other"),
+        layerOrder: parseNonNegativeSafeInteger(40),
+      }),
+      semanticOccurrenceId: null,
+    });
+    const beforeStaleTarget = coordinator.getSnapshot();
+
+    expect(coordinator.closeTopWithOwnerPreparationCancel(ownerIdV1)).toMatchObject({
+      kind: "rejected",
+      code: "surface.invalid_transition",
+      surfaceInstanceId: second.receipt.surfaceInstanceId,
+    });
+    expect(coordinator.getSnapshot()).toBe(beforeStaleTarget);
+    expect(coordinator.routeFallbackDismissWithOwnerPreparationCancel(
+      first.readiness!.evidence,
+      ownerIdV1,
+      "escape",
+    )).toMatchObject({
+      kind: "rejected",
+      code: "surface.invalid_transition",
+      surfaceInstanceId: first.receipt.surfaceInstanceId,
+    });
+    expect(coordinator.getSnapshot()).toBe(beforeStaleTarget);
+
+    const beforeDismiss = coordinator.getSnapshot();
+    let notifications = 0;
+    coordinator.subscribe(() => notifications += 1);
+    expect(coordinator.routeFallbackDismissWithOwnerPreparationCancel(
+      second.readiness!.evidence,
+      otherOwnerIdV1,
+      "escape",
+    )).toMatchObject({
+      kind: "applied",
+      code: "surface.dismissed",
+      surfaceInstanceId: second.receipt.surfaceInstanceId,
+    });
+    const afterDismiss = coordinator.getSnapshot();
+    expectRevisionDeltaV1(beforeDismiss, afterDismiss, 1, 1);
+    expect(notifications).toBe(1);
+    expect(afterDismiss.orderedInstances.map((instance) => instance.surfaceInstanceId)).toEqual([
+      first.receipt.surfaceInstanceId,
+    ]);
+    expect(second.readiness!.ready().receipt).toMatchObject({
+      kind: "stale",
+      code: "surface.stale_readiness",
+    });
+  });
+
+  it("keeps a locked candidate-bound fallback unchanged", () => {
+    const coordinator = createCoordinatorV1();
+    const preparation = coordinator.openTransientPrimary({
+      definition: definitionV1({
+        dismissPolicy: {
+          back: false,
+          escape: false,
+          backdrop: false,
+          routedCancel: false,
+        },
+      }),
+      semanticOccurrenceId: null,
+    });
+    const before = coordinator.getSnapshot();
+    let notifications = 0;
+    coordinator.subscribe(() => notifications += 1);
+
+    expect(coordinator.routeFallbackDismissWithOwnerPreparationCancel(
+      preparation.readiness!.evidence,
+      ownerIdV1,
+      "routed_cancel",
+    )).toMatchObject({
+      kind: "rejected",
+      code: "surface.dismiss_locked",
+      surfaceInstanceId: preparation.receipt.surfaceInstanceId,
+    });
+    expect(coordinator.getSnapshot()).toBe(before);
+    expect(notifications).toBe(0);
+  });
+
+  it("rejects owner-scope mismatch and locked ready dismissal without mutation", () => {
+    const coordinator = createCoordinatorV1();
+    const handle = requireHandleV1(coordinator.openTransientPrimary({
+      definition: definitionV1({
+        dismissPolicy: {
+          back: false,
+          escape: false,
+          backdrop: false,
+          routedCancel: false,
+        },
+      }),
+      semanticOccurrenceId: null,
+    }));
+    const before = coordinator.getSnapshot();
+    let notifications = 0;
+    coordinator.subscribe(() => notifications += 1);
+
+    expect(coordinator.closeExpectedWithOwnerPreparationCancel(
+      handle,
+      otherOwnerIdV1,
+    )).toMatchObject({
+      kind: "rejected",
+      code: "surface.invalid_transition",
+      surfaceInstanceId: handle.surfaceInstanceId,
+    });
+    expect(coordinator.routeDismissWithOwnerPreparationCancel(
+      handle,
+      ownerIdV1,
+      "escape",
+    )).toMatchObject({
+      kind: "rejected",
+      code: "surface.dismiss_locked",
+      surfaceInstanceId: handle.surfaceInstanceId,
+    });
+    expect(coordinator.getSnapshot()).toBe(before);
+    expect(notifications).toBe(0);
+  });
+
   it("closes a retained predecessor and cancels its replacement in one commit", () => {
     const scenario = preparedScenarioV1("primary_replacement");
     const before = scenario.coordinator.getSnapshot();

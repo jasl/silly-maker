@@ -21,6 +21,8 @@ import type { PointerActionMapV1 } from "../input/pointer-button-adapter.ts";
 import type { PresentationIntentRouterV1 } from "../interaction/presentation-intent-router.ts";
 import { OverlayHostV1 } from "../overlays/overlay-host.tsx";
 import type { OverlayRendererResolverV1 } from "../overlays/overlay-host.tsx";
+import { resolveWorkspaceOverlaySessionInternalV1 } from "../overlays/workspace-overlay-session.ts";
+import type { OverlaySessionStoreV1 } from "../overlays/workspace-overlay-session.ts";
 import type {
   SaveOverlayGuardV1,
   SaveOverlayLabelsV1,
@@ -93,7 +95,11 @@ export const defaultGameRootLabelsV1: DefaultGameRootLabelsV1 = Object.freeze({
   closeLabel: "Close",
 });
 
-export interface DefaultGameRootSlotContextV1<TPublication, TSemantic> {
+export interface DefaultGameRootSlotContextV1<
+  TPublication,
+  TSemantic,
+  TOverlayId extends string = string,
+> {
   readonly publication: DeepReadonly<TPublication>;
   readonly semantic: TSemantic;
   readonly intents: PresentationIntentRouterV1;
@@ -112,14 +118,8 @@ export interface DefaultGameRootSlotContextV1<TPublication, TSemantic> {
      */
     returnToTitle(): Promise<void>;
   };
-  /** Read access to the composition overlay session for Story projections. */
-  readonly overlays: {
-    getSnapshot(): {
-      readonly primaryId: string | null;
-      readonly detailIds: readonly string[];
-    };
-    subscribe(listener: () => void): () => void;
-  };
+  /** Coordinator-backed Overlay intents plus its immutable compatibility publication. */
+  readonly overlays: OverlaySessionStoreV1<TOverlayId>;
   /** The live presentation store (snapshot + subscribe) for Story controllers. */
   readonly presentation: {
     getSnapshot(): DeepReadonly<TPublication>;
@@ -137,18 +137,28 @@ export interface DefaultGameRootSlotContextV1<TPublication, TSemantic> {
  * contribution never modifies the composer.
  */
 export interface DefaultGameRootSlotsV1<TPublication, TSemantic, TOverlayId extends string> {
-  background?(context: DefaultGameRootSlotContextV1<TPublication, TSemantic>): ReactNode;
-  character?(context: DefaultGameRootSlotContextV1<TPublication, TSemantic>): ReactNode;
-  sceneInteraction?(context: DefaultGameRootSlotContextV1<TPublication, TSemantic>): ReactNode;
-  hud?(context: DefaultGameRootSlotContextV1<TPublication, TSemantic>): ReactNode;
-  narrative?(context: DefaultGameRootSlotContextV1<TPublication, TSemantic>): ReactNode;
-  systemMenuExtras?(context: DefaultGameRootSlotContextV1<TPublication, TSemantic>): ReactNode;
+  background?(
+    context: DefaultGameRootSlotContextV1<TPublication, TSemantic, TOverlayId>,
+  ): ReactNode;
+  character?(
+    context: DefaultGameRootSlotContextV1<TPublication, TSemantic, TOverlayId>,
+  ): ReactNode;
+  sceneInteraction?(
+    context: DefaultGameRootSlotContextV1<TPublication, TSemantic, TOverlayId>,
+  ): ReactNode;
+  hud?(context: DefaultGameRootSlotContextV1<TPublication, TSemantic, TOverlayId>): ReactNode;
+  narrative?(
+    context: DefaultGameRootSlotContextV1<TPublication, TSemantic, TOverlayId>,
+  ): ReactNode;
+  systemMenuExtras?(
+    context: DefaultGameRootSlotContextV1<TPublication, TSemantic, TOverlayId>,
+  ): ReactNode;
   /** Story sections for the default Settings dialog (language, volume…). */
   settingsSections?(
-    context: DefaultGameRootSlotContextV1<TPublication, TSemantic>,
+    context: DefaultGameRootSlotContextV1<TPublication, TSemantic, TOverlayId>,
   ): readonly ReactNode[];
   overlayResolver?(
-    context: DefaultGameRootSlotContextV1<TPublication, TSemantic>,
+    context: DefaultGameRootSlotContextV1<TPublication, TSemantic, TOverlayId>,
   ): OverlayRendererResolverV1<TOverlayId>;
 }
 
@@ -427,46 +437,47 @@ export function DefaultGameRootV1<
   const updateStoryUiState = props.composition.updateUiState as (
     updater: (current: unknown) => unknown,
   ) => void;
-  const slotContext: DefaultGameRootSlotContextV1<PublicationV1, TSemantic> = Object.freeze({
-    publication,
-    semantic: props.semantic,
-    intents: props.composition.intents,
-    input: props.composition.input,
-    updateStoryUiState,
-    systemDialogs: Object.freeze({
-      openSettings: () => props.composition.systemDialogSession.open("settings"),
-      openSaves: () => props.composition.systemDialogSession.open("saves"),
-      returnToTitle: () => {
-        return Promise.resolve()
-          .then(() => props.lifecycle?.restart())
-          .then((result) => {
-            if (result !== undefined && result.kind !== "anchored") {
-              throw lifecycleRestartFailureV1(result);
-            }
-            const cleanupFailures: unknown[] = [];
-            try {
-              props.composition.systemDialogSession.close();
-            } catch (error) {
-              cleanupFailures.push(error);
-            }
-            try {
-              props.composition.overlaySession.closeAll();
-            } catch (error) {
-              cleanupFailures.push(error);
-            }
-            titleLifecycleGenerationRef.current += 1;
-            setTitleLifecycleFailureCode(null);
-            setSplashDismissed(true);
-            setTitleDismissed(false);
-            rethrowReturnToTitleCleanupFailuresV1(cleanupFailures);
-          });
-      },
-    }),
-    overlays: props.composition.overlaySession as never,
-    presentation: props.composition.presentation as never,
-    interactionSession: props.composition.interactionSession,
-    cues: props.composition.cues,
-  });
+  const slotContext: DefaultGameRootSlotContextV1<PublicationV1, TSemantic, TOverlayId> = Object
+    .freeze({
+      publication,
+      semantic: props.semantic,
+      intents: props.composition.intents,
+      input: props.composition.input,
+      updateStoryUiState,
+      systemDialogs: Object.freeze({
+        openSettings: () => props.composition.systemDialogSession.open("settings"),
+        openSaves: () => props.composition.systemDialogSession.open("saves"),
+        returnToTitle: () => {
+          return Promise.resolve()
+            .then(() => props.lifecycle?.restart())
+            .then((result) => {
+              if (result !== undefined && result.kind !== "anchored") {
+                throw lifecycleRestartFailureV1(result);
+              }
+              const cleanupFailures: unknown[] = [];
+              try {
+                props.composition.systemDialogSession.close();
+              } catch (error) {
+                cleanupFailures.push(error);
+              }
+              try {
+                props.composition.overlaySession.closeAll();
+              } catch (error) {
+                cleanupFailures.push(error);
+              }
+              titleLifecycleGenerationRef.current += 1;
+              setTitleLifecycleFailureCode(null);
+              setSplashDismissed(true);
+              setTitleDismissed(false);
+              rethrowReturnToTitleCleanupFailuresV1(cleanupFailures);
+            });
+        },
+      }),
+      overlays: props.composition.overlaySession,
+      presentation: props.composition.presentation as never,
+      interactionSession: props.composition.interactionSession,
+      cues: props.composition.cues,
+    });
 
   // Optional keyboard/gamepad adapters: installed for the root's lifetime,
   // removed on unmount so disposal and page teardown leave no listener or
@@ -517,7 +528,7 @@ export function DefaultGameRootV1<
     hud: slots.hud?.(slotContext) ?? null,
     workspaceOverlay: (
       <OverlayHostV1
-        store={props.composition.overlaySession}
+        session={resolveWorkspaceOverlaySessionInternalV1(props.composition.overlaySession)}
         rendererResolver={overlayResolver}
         inputRouter={props.composition.input}
         closeLabel={labels.closeLabel}

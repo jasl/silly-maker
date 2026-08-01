@@ -26,8 +26,9 @@ function createPresentationIntentRouterFixtureV1() {
     knownSurfaceIds: Object.freeze([profileSurfaceIdV1]),
     knownCueIds: Object.freeze([greetingCueIdV1]),
     overlay: Object.freeze({
-      open(overlayId: string): void {
+      open(overlayId: string) {
         writes.push(Object.freeze({ kind: "overlay.open", overlayId }));
+        return Object.freeze({ kind: "unchanged" as const, code: "overlay.already_open" as const });
       },
     }),
     session: Object.freeze({
@@ -117,5 +118,29 @@ describe("createPresentationIntentRouterV1", () => {
     expect(result).toEqual({ kind: "rejected", code: "presentation.intent_unknown" });
     expect(Object.isFrozen(result)).toBe(true);
     expect(fixture.writes()).toEqual([]);
+  });
+
+  it("propagates a known Overlay's structured admission rejection", () => {
+    const router = createPresentationIntentRouterV1({
+      knownOverlayIds: Object.freeze([profileOverlayIdV1]),
+      knownSurfaceIds: Object.freeze([]),
+      knownCueIds: Object.freeze([]),
+      overlay: Object.freeze({
+        open: () =>
+          Object.freeze({
+            kind: "rejected" as const,
+            code: "overlay.required_port_missing" as const,
+            portId: "port.e2e.profile",
+          }),
+      }),
+      session: Object.freeze({ open: () => undefined, leave: () => undefined }),
+      cue: Object.freeze({ play: () => undefined }),
+    });
+
+    expect(router.execute({ kind: "overlay.open", overlayId: profileOverlayIdV1 })).toEqual({
+      kind: "rejected",
+      code: "overlay.required_port_missing",
+      portId: "port.e2e.profile",
+    });
   });
 });

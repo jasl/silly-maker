@@ -134,6 +134,43 @@ describe("startWebGameApplicationV1 with the Engine Lab declaration", () => {
     await started.dispose();
   });
 
+  it("keeps Managed Surface epochs monotonic across HMR-like Web start successors", async () => {
+    const host = createWebHostV1({
+      records: createMemoryHostRecordStoreV1(),
+      seeds: [20260801, 20260802],
+      uuids: [
+        "61667dfa-3c5e-4f6f-a30e-8637127f8d2a",
+        "e0caac0b-bc7d-496e-89da-9fa41ccb755e",
+        "f89adf64-9882-480a-84b4-aa2fce9e37e2",
+      ],
+    });
+    const predecessor = await startLabV1("", { host });
+    let successor: StartedWebGameApplicationV1 | undefined;
+    try {
+      await waitFor(() => expect(screen.getByTestId("overlay-host")).toBeInTheDocument());
+      const predecessorEpoch = Number(
+        screen.getByTestId("overlay-host").getAttribute("data-overlay-application-epoch"),
+      );
+      expect(Number.isSafeInteger(predecessorEpoch)).toBe(true);
+
+      const disposition = await predecessor.disposeForRebootstrap();
+      successor = await startLabV1("", {
+        host,
+        rebootstrapDisposition: disposition,
+      });
+      await waitFor(() => expect(screen.getByTestId("overlay-host")).toBeInTheDocument());
+      const successorEpoch = Number(
+        screen.getByTestId("overlay-host").getAttribute("data-overlay-application-epoch"),
+      );
+
+      expect(successor.host).toBe(predecessor.host);
+      expect(successorEpoch).toBe(predecessorEpoch + 1);
+    } finally {
+      await successor?.dispose();
+      await predecessor.dispose();
+    }
+  });
+
   it("installs and revokes the automation bridge with its capability", async () => {
     const started = await startLabV1("?capability=automation_bridge");
     try {

@@ -1,6 +1,6 @@
 # Production-floor execution sequence
 
-状态：2026-07-30 接受执行，2026-07-31 根据 PF2 pilot、authoritative
+状态：2026-07-30 接受执行，2026-08-01 根据 PF2 promotion、authoritative
 determinism/Save graph、CI 与 Desktop 审计修订。本文是当前唯一的跨计划排序入口；
 具体合同仍由各 design 文档拥有，主要任务由五个独立计划拥有：
 
@@ -183,8 +183,8 @@ digest/serialization dedup；四项 evidence gate 均未达到充分标准，
 
 执行 [Surface plan](2026-07-30-surface-contract-harness.md) 的
 **S0 → S1d.1 → S1d.2 → S1d.3 → S1e → S1f → S2**，只迁移
-**Workspace Overlay**。S1a–S1e 已交付 dormant baseline，S1f 完成 S1-T 的
-剩余部分：
+**Workspace Overlay**。该序列已于 2026-08-01 完成；S1a–S1f 交付 S1-T，S2
+完成首个 live family cutover：
 
 1. 用现有 bug/trace 建立红测试；
 2. S1d.1 让 binding-origin action fail closed，同时保持 direct untagged
@@ -208,9 +208,11 @@ digest/serialization dedup；四项 evidence gate 均未达到充分标准，
    Coordinator，并删除或只读化旧 lifecycle authority；legacy adapter 只能把旧调用
    翻译为 Coordinator intent，或从 immutable publication 派生只读 view，禁止双写
    和异步 writable mirror；
-7. 真实浏览器覆盖 Escape/backdrop/pointer/keyboard、initial/replace/detail
-   readiness、failure/focus restore、candidate cancellation、epoch rotation 与 stale
-   gesture/readiness receipt。
+7. 真实浏览器覆盖 Escape/backdrop/routed cancel、pointer click-through、keyboard、
+   focus trap/restore、initial/replace/detail readiness 与可见 failure/cancellation/
+   successor；malformed admission、direct disposal、exact revision 与 stale receipt
+   identity/count 由 deterministic unit/headless harness 覆盖，不为 browser 暴露
+   internal test hook。
 
 2026-08-01 promotion：S1d.1 已让所有 binding-origin action 保留 package-internal
 provenance，并经过既有 publication/gesture/Coordinator admission；current
@@ -236,8 +238,8 @@ owner 与 Web realm-stable allocator cell：同 realm + application ID 的 epoch
 identity 不复用，旧 handle/action/gesture 分别稳定 stale 且 lower handler、publication
 mutation 与 notification 均为 `0`。runtime 不暴露 whole-generation Coordinator
 `dispose()`，reentrant handoff 与 cleanup/allocation/construction failure 均 fail closed。
-以上批次没有实现 readiness 或 live Surface family；S1e allocator/lifetime 也尚未接入
-真实 startWeb/HMR caller。下一独立切片是 S1f。
+在该 S1e commit 时仍未实现 readiness 或 live Surface family，allocator/lifetime
+也尚未接入真实 startWeb/HMR caller；后续 S1f/S2 在各自独立提交中关闭这些缺口。
 
 S2 只依赖 S1-T，全部 Overlay target 都是 Coordinator-owned transient target；它不
 等待 S1-R，也不得为了统一形状预埋 source publication revision、stable-target
@@ -245,6 +247,34 @@ reconcile 或参数等价字段。本切片明确不实现 application-level end
 receipt、弱模型战役、全 surface fuzz explorer，也不迁移 System/Narrative。若同一
 cutover slice 无法消除 Overlay 双重 writable authority，停止并修订设计；pilot
 失败时必须可以删除 Coordinator 而不留下双写。
+
+**2026-08-01 PF2 promotion：** S1f 已冻结 transition-kind readiness、fresh attempt
+identity、fallback/retain-current、failure/cancellation/stale receipt 与 exact revision
+delta；S2 随后只把 exact-ID transient Workspace Overlay 接入该 kernel。definition、
+contract revision、schema、renderer、concrete required port、parent 与 slot 在 mutation
+前 admission；initial/detail fallback 不挂载 Story content，replacement 在 ready 前
+保留旧 DOM/focus。Web composition 使用 realm-stable per-application epoch，load/import
+anchor 与 HMR/rebootstrap successor 在 ingress 前 dispose predecessor；epoch 不进入
+Save。
+
+Coordinator 现在是 Workspace Overlay 唯一 writable lifecycle authority。
+`OverlaySessionStoreV1` 只做 direct intent delegation 与同 publication 的 immutable
+derived view，旧 independent writer/factory 已删除且没有 async mirror。compatibility
+facade 只在 typed intent surface 尚未覆盖 primary/detail/back/close、direct-composer/
+Engine Lab/debug-read consumers 尚未全部迁移时保留；此期间不得扩张第二套 lifecycle
+语义。普通 close 只取消 topology-related preparation；Overlay 的 package-internal
+owner-preparation variants 则把 exact/current close 与该 owner pending cancellation
+合并为一次 commit，candidate-bound fallback dismiss 不依赖 ready-only owner handle。
+Engine Lab 中性 rig 的真实浏览器行覆盖 native/routed dismissal、pointer
+click-through、keyboard/focus、三类 readiness/failure、candidate cancellation、epoch
+successor 与 late ready/failure；malformed admission、direct disposal 与 exact
+identity/count 留在 deterministic unit/headless。最终 aggregate
+`210 files / 1994 tests`、engine browser `101/101`、
+examples `45 passed / 2 skipped`、prebuilt `38/38` 与 `deno task check` 全绿。
+
+该 promotion 没有实现 S1-R、System、Narrative/History、whole-canvas、通用 fault
+surface 或 application-level receipt，也没有改变 Save/digest/replay/persistence wire
+语义。默认 core 下一独立切片是 PF-DET `DET0-core`，不是 PF4 S3。
 
 ### PF-DET — Authoritative determinism guardrails
 

@@ -298,8 +298,18 @@ export type ManagedSurfaceOperationV1 =
     readonly evidence: ManagedSurfaceTransitionEvidenceV1;
   }
   | {
+    readonly kind: "close_expected_with_owner_preparation_cancel";
+    readonly evidence: ManagedSurfaceTransitionEvidenceV1;
+    readonly ownerId: ManagedSurfaceOwnerIdV1;
+  }
+  | {
     readonly kind: "close_top";
     readonly applicationEpoch: NonNegativeSafeInteger;
+  }
+  | {
+    readonly kind: "close_top_with_owner_preparation_cancel";
+    readonly applicationEpoch: NonNegativeSafeInteger;
+    readonly ownerId: ManagedSurfaceOwnerIdV1;
   }
   | {
     readonly kind: "close_owner";
@@ -309,6 +319,18 @@ export type ManagedSurfaceOperationV1 =
     readonly kind: "route_dismiss";
     readonly dismissKind: ManagedSurfaceDismissKindV1;
     readonly evidence: ManagedSurfaceTransitionEvidenceV1;
+  }
+  | {
+    readonly kind: "route_dismiss_with_owner_preparation_cancel";
+    readonly dismissKind: ManagedSurfaceDismissKindV1;
+    readonly evidence: ManagedSurfaceTransitionEvidenceV1;
+    readonly ownerId: ManagedSurfaceOwnerIdV1;
+  }
+  | {
+    readonly kind: "route_fallback_dismiss_with_owner_preparation_cancel";
+    readonly dismissKind: ManagedSurfaceDismissKindV1;
+    readonly evidence: ManagedSurfaceReadinessEvidenceV1;
+    readonly ownerId: ManagedSurfaceOwnerIdV1;
   }
   | ({
     readonly kind: "route_action";

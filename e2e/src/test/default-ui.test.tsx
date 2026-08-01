@@ -20,6 +20,7 @@ import {
   labRootLabelsV1,
   labUiProjectorV1,
   labViewportCanvasV1,
+  labWorkspaceOverlayDefinitionsV1,
 } from "../application/composition.tsx";
 
 afterEach(cleanup);
@@ -42,7 +43,7 @@ async function composeLabUiV1() {
       current: () => instance.presentationAnchor(),
       subscribe: (listener: () => void) => instance.subscribePresentationAnchor(() => listener()),
     }),
-    overlayIds: ["overlay.lab.journal"],
+    overlayDefinitions: labWorkspaceOverlayDefinitionsV1,
   });
   return { instance, composition, playerProfile };
 }

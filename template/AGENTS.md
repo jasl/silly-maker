@@ -15,7 +15,7 @@ The game side must handle these itself (the engine cannot):
 - **No `Math.random()` or `Date.now()` on deterministic paths**: randomness goes through the transaction RNG, time through the engine clock.
 - **Bilingual text overflow**: eyeball long strings in both languages (English often runs 30%+ longer than Chinese); lay out HUD/buttons flexibly.
 - **Touch targets ≥ 32px**: compact buttons are already at the floor; do not shrink further.
-- **Use engine hooks instead of hand-rolling**: asset URLs via `useAssetUrlV1`/`resolveAssetUrlV1`, motion gating via `useReducedMotionV1`, windows via the overlay session + `PanelV1` — hand-rolled copies miss the pitfalls the engine already fixed.
+- **Use engine hooks instead of hand-rolling**: asset URLs via `useAssetUrlV1`/`resolveAssetUrlV1`, motion gating via `useReducedMotionV1`, gameplay windows via `defineWorkspaceOverlayV1` + `slots.overlayResolver` + the normal presentation-intent path (with `context.overlays` only for structural detail/back/close) — the Host supplies `PanelV1`; hand-rolled copies miss the pitfalls the engine already fixed.
 
 ## Engine baseline (free; do not rewrite)
 
@@ -30,8 +30,8 @@ Declaring `titleScreen` (title / background art / optional `splash` intro lines)
 - **Save safepoints**: add `saveGuard(publication)` to the web definition to disable manual saves mid-dialogue or mid-battle with a reason text.
 - **Stage hit regions**: declare `hitRegions` in the content catalog and pass `onHitRegionActivate` to `SemanticStageV1`.
 - **Content tables**: `defineContentTable` + `createContentDatabase` — static definitions go into tables (validated at resolve time), mutable state goes into modules.
-- **UI styling**: only the published `--silly-*` tokens (no raw z-index; the stacking scales are in the style quick-reference of `docs/engine/authoring-quickstart.md`); gameplay windows mounted on the overlay session get the `PanelV1` chrome automatically; native form controls pick up the theme as-is.
-- **Window model**: exclusivity is structural (`openPrimary` replaces the primary window, `pushDetail` stacks details, system dialogs have a single slot); do not coordinate "open A, close B" yourself. For dragging / minimize / maximize needs, follow the game-side recipes in `docs/engine/design/window-model.md` first (coordinates through viewport conversion, positions in Story UI state); promote to the engine only once the pattern recurs.
+- **UI styling**: only the published `--silly-*` tokens (no raw z-index; the stacking scales are in the style quick-reference of `docs/engine/authoring-quickstart.md`); gameplay windows declared with `defineWorkspaceOverlayV1` and resolved through `slots.overlayResolver` get the `PanelV1` chrome automatically; native form controls pick up the theme as-is.
+- **Window model**: ordinary primary opens use the presentation-intent path; `context.overlays.openPrimary` is available for structural replacement, `pushDetail` stacks details, and `closeTop`/`closeAll` remove them. The Overlay facade is Coordinator-backed and its snapshot is read-only, so do not mirror it into another writable store or coordinate "open A, close B" yourself. Definitions requiring a port/service name it in `requiredPortIds` and the application supplies the concrete `overlayPorts` binding. An optional resolver `prepare()` may prepare presentation/resources only, never send semantic commands. System dialogs retain their existing single-slot lifecycle; separately, a Workspace Overlay definition may set `dismissible: false`. For dragging / minimize / maximize needs, follow the game-side recipes in `docs/engine/design/window-model.md` first (coordinates through viewport conversion, positions in Story UI state); promote to the engine only once the pattern recurs.
 
 ## Script/text tasks (most common)
 

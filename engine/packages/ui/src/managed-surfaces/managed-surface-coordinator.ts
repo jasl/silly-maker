@@ -82,11 +82,32 @@ export interface ManagedSurfaceCoordinatorV1 {
   ): ManagedSurfaceHandleResultV1;
   pushTransientChild(input: ManagedSurfaceTransientChildInputV1): ManagedSurfaceHandleResultV1;
   closeExpected(handle: ManagedSurfaceHandleV1): ManagedSurfaceTransitionReceiptV1;
+  /** @internal Atomically closes the expected target and cancels this owner's preparation. */
+  closeExpectedWithOwnerPreparationCancel(
+    handle: ManagedSurfaceHandleV1,
+    ownerId: ManagedSurfaceOwnerIdV1,
+  ): ManagedSurfaceTransitionReceiptV1;
   /** Synchronous current-intent convenience; delayed callbacks use closeExpected. */
   closeTop(): ManagedSurfaceTransitionReceiptV1;
+  /** @internal Closes the global current target and cancels its owner's preparation. */
+  closeTopWithOwnerPreparationCancel(
+    ownerId: ManagedSurfaceOwnerIdV1,
+  ): ManagedSurfaceTransitionReceiptV1;
   closeOwner(handle: ManagedSurfaceOwnerHandleV1): ManagedSurfaceTransitionReceiptV1;
   routeDismiss(
     handle: ManagedSurfaceHandleV1,
+    dismissKind: ManagedSurfaceDismissKindV1,
+  ): ManagedSurfaceTransitionReceiptV1;
+  /** @internal Atomically dismisses the target and cancels this owner's preparation. */
+  routeDismissWithOwnerPreparationCancel(
+    handle: ManagedSurfaceHandleV1,
+    ownerId: ManagedSurfaceOwnerIdV1,
+    dismissKind: ManagedSurfaceDismissKindV1,
+  ): ManagedSurfaceTransitionReceiptV1;
+  /** @internal Candidate-bound dismissal for a code-native blocking fallback. */
+  routeFallbackDismissWithOwnerPreparationCancel(
+    evidence: ManagedSurfaceReadinessEvidenceV1,
+    ownerId: ManagedSurfaceOwnerIdV1,
     dismissKind: ManagedSurfaceDismissKindV1,
   ): ManagedSurfaceTransitionReceiptV1;
   routeAction(input: ManagedSurfaceRouteActionInputV1): ManagedSurfaceTransitionReceiptV1;
@@ -531,8 +552,24 @@ export function createManagedSurfaceCoordinatorV1(
       return transition({ kind: "close_expected", evidence: handle });
     },
 
+    closeExpectedWithOwnerPreparationCancel(handle, ownerId) {
+      return transition({
+        kind: "close_expected_with_owner_preparation_cancel",
+        evidence: handle,
+        ownerId,
+      });
+    },
+
     closeTop() {
       return transition({ kind: "close_top", applicationEpoch });
+    },
+
+    closeTopWithOwnerPreparationCancel(ownerId) {
+      return transition({
+        kind: "close_top_with_owner_preparation_cancel",
+        applicationEpoch,
+        ownerId,
+      });
     },
 
     closeOwner(handle) {
@@ -543,6 +580,24 @@ export function createManagedSurfaceCoordinatorV1(
       return transition({
         kind: "route_dismiss",
         evidence: handle,
+        dismissKind,
+      });
+    },
+
+    routeDismissWithOwnerPreparationCancel(handle, ownerId, dismissKind) {
+      return transition({
+        kind: "route_dismiss_with_owner_preparation_cancel",
+        evidence: handle,
+        ownerId,
+        dismissKind,
+      });
+    },
+
+    routeFallbackDismissWithOwnerPreparationCancel(evidence, ownerId, dismissKind) {
+      return transition({
+        kind: "route_fallback_dismiss_with_owner_preparation_cancel",
+        evidence,
+        ownerId,
         dismissKind,
       });
     },

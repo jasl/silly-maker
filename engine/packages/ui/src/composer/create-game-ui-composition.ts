@@ -17,8 +17,18 @@ import {
 } from "../interaction/interaction-session-store.ts";
 import type { PresentationIntentRouterV1 } from "../interaction/presentation-intent-router.ts";
 import { createPresentationIntentRouterV1 } from "../interaction/presentation-intent-router.ts";
-import type { OverlaySessionStoreV1 } from "../overlays/overlay-session-store.ts";
-import { createOverlaySessionStoreV1 } from "../overlays/overlay-session-store.ts";
+import type {
+  OverlaySessionStoreV1,
+  WorkspaceOverlayDefinitionV1,
+  WorkspaceOverlayPortBindingV1,
+} from "../overlays/workspace-overlay-session.ts";
+import {
+  createLocalWorkspaceOverlayEpochAllocatorInternalV1,
+  createWorkspaceOverlayPublicSessionInternalV1,
+  createWorkspaceOverlaySessionInternalV1,
+  snapshotWorkspaceOverlayDefinitionsInternalV1,
+} from "../overlays/workspace-overlay-session.ts";
+import type { ManagedSurfaceApplicationEpochAllocatorV1 } from "../managed-surfaces/managed-surface-coordinator-lifetime.ts";
 import { createViewSourceV1 } from "../runtime/create-view-bridge.ts";
 import type {
   PresentationRuntimeFailureV1,
@@ -95,8 +105,10 @@ export interface CreateGameUiCompositionInputV1<
   /** Instance-local presentation anchor; a static bootstrap anchor without one. */
   readonly anchor?: GameUiAnchorSourceV1;
   readonly contentPreference?: ContentPreferencePortV1;
-  /** Story overlay IDs the intent router accepts (system overlays are added). */
-  readonly overlayIds?: readonly TOverlayId[];
+  /** Resolved Workspace Overlay definitions accepted by the intent router. */
+  readonly overlayDefinitions?: readonly WorkspaceOverlayDefinitionV1<TOverlayId>[];
+  /** Concrete composition ports available to definitions during Overlay admission. */
+  readonly overlayPorts?: readonly WorkspaceOverlayPortBindingV1[];
   /** Cue IDs the intent router accepts for `presentation.play_cue`. */
   readonly cueIds?: readonly string[];
   /** Spatial interaction surface IDs the intent router accepts. */
@@ -104,8 +116,8 @@ export interface CreateGameUiCompositionInputV1<
   reportFailure?(failure: DeepReadonly<PresentationRuntimeFailureV1>): void;
 }
 
-/** The overlay ID space of a composed UI: Story overlays plus system surfaces. */
-export type GameUiOverlayIdV1<TOverlayId extends string> = TOverlayId | "system.save";
+/** The Workspace Overlay ID space of a composed UI. System dialogs remain a separate family. */
+export type GameUiOverlayIdV1<TOverlayId extends string> = TOverlayId;
 
 /** A mounted stage's timeline controller; play returns handled-or-not. */
 export interface GameUiCueControllerV1 {
@@ -171,7 +183,7 @@ function createStaticContentPreferencePortV1(): ContentPreferencePortV1 {
  * Story UI state), input router, intent router, and overlay/system dialog
  * sessions. Disposal revokes every subscription the composition created.
  */
-export function createGameUiCompositionV1<
+function createGameUiCompositionWithEpochAllocatorInternalV1<
   TSemanticPublication,
   TResolvedCatalog,
   TStoryUiState,
@@ -187,10 +199,32 @@ export function createGameUiCompositionV1<
     TAssetId,
     TOverlayId
   >,
+  managedSurfaceEpochAllocator: ManagedSurfaceApplicationEpochAllocatorV1,
+  managedSurfaceReportFailure?: (code: string, error: unknown) => void,
 ): GameUiCompositionV1<TSemanticPublication, TStoryUiState, TView, TAssetId, TOverlayId> {
   type OverlayIdV1 = GameUiOverlayIdV1<TOverlayId>;
   const anchorSource = input.anchor ?? staticAnchorSourceV1;
   const reportFailure = input.reportFailure ?? (() => undefined);
+  const overlayDefinitions = snapshotWorkspaceOverlayDefinitionsInternalV1(
+    input.overlayDefinitions ?? [],
+  );
+  const knownOverlayIds: OverlayIdV1[] = [];
+  for (const definition of overlayDefinitions) knownOverlayIds.push(definition.id);
+  const inputRouter = createInputRouterV1();
+
+  // Admit the complete Overlay configuration before establishing any
+  // upstream presentation subscription. A rejected composition must not
+  // leave a partially constructed semantic bridge behind.
+  const overlayInternal = createWorkspaceOverlaySessionInternalV1<OverlayIdV1>({
+    inputRouter,
+    epochAllocator: managedSurfaceEpochAllocator,
+    definitions: overlayDefinitions as readonly WorkspaceOverlayDefinitionV1<OverlayIdV1>[],
+    ...(input.overlayPorts === undefined ? {} : { availablePorts: input.overlayPorts }),
+    ...(managedSurfaceReportFailure === undefined
+      ? {}
+      : { reportFailure: managedSurfaceReportFailure }),
+  });
+  const overlaySession = createWorkspaceOverlayPublicSessionInternalV1(overlayInternal);
 
   const uiState = createViewSourceV1<GameUiStateV1<TStoryUiState>>(
     Object.freeze({
@@ -198,15 +232,6 @@ export function createGameUiCompositionV1<
       story: input.projector.initialUiState,
     }) as DeepReadonly<GameUiStateV1<TStoryUiState>>,
   );
-  const unsubscribeAnchor = anchorSource.subscribe(() => {
-    uiState.publish(
-      Object.freeze({
-        anchor: anchorSource.current(),
-        story: uiState.getCurrent().story,
-      }) as DeepReadonly<GameUiStateV1<TStoryUiState>>,
-    );
-  });
-
   const semanticBridge = createSemanticPublicationBridgeV1<TSemanticPublication>({
     observe: () => input.semantic.observe(),
     subscribe: (listener) => input.semantic.subscribe(listener),
@@ -227,9 +252,23 @@ export function createGameUiCompositionV1<
     reportFailure,
   });
 
-  const overlaySession = createOverlaySessionStoreV1<OverlayIdV1>();
   const systemDialogSession = createSystemDialogSessionStoreV1();
-  const inputRouter = createInputRouterV1();
+  const unsubscribeAnchor = anchorSource.subscribe(() => {
+    const anchor = anchorSource.current();
+    overlayInternal.rotateEpochInternalV1(
+      anchor.origin === "load"
+        ? "load_rebootstrap"
+        : anchor.origin === "import"
+        ? "import_rebootstrap"
+        : "coordinator_successor",
+    );
+    uiState.publish(
+      Object.freeze({
+        anchor,
+        story: uiState.getCurrent().story,
+      }) as DeepReadonly<GameUiStateV1<TStoryUiState>>,
+    );
+  });
 
   // Composition-owned spatial interaction session: UI transient state that
   // never enters the Story UI state, publications, or Saves.
@@ -254,7 +293,7 @@ export function createGameUiCompositionV1<
   });
 
   const intents = createPresentationIntentRouterV1({
-    knownOverlayIds: [...(input.overlayIds ?? []), "system.save"],
+    knownOverlayIds,
     knownSurfaceIds: [...(input.interactionSurfaceIds ?? [])] as never,
     knownCueIds: [...(input.cueIds ?? [])],
     overlay: Object.freeze({
@@ -305,8 +344,61 @@ export function createGameUiCompositionV1<
       if (disposed) return;
       disposed = true;
       unsubscribeAnchor();
+      overlayInternal.disposeInternalV1();
       presentation.dispose();
       semanticBridge.dispose();
     },
   });
+}
+
+export function createGameUiCompositionV1<
+  TSemanticPublication,
+  TResolvedCatalog,
+  TStoryUiState,
+  TView,
+  TAssetId,
+  TOverlayId extends string,
+>(
+  input: CreateGameUiCompositionInputV1<
+    TSemanticPublication,
+    TResolvedCatalog,
+    TStoryUiState,
+    TView,
+    TAssetId,
+    TOverlayId
+  >,
+): GameUiCompositionV1<TSemanticPublication, TStoryUiState, TView, TAssetId, TOverlayId> {
+  return createGameUiCompositionWithEpochAllocatorInternalV1(
+    input,
+    createLocalWorkspaceOverlayEpochAllocatorInternalV1(),
+  );
+}
+
+/** @internal Host-only entry point; Story authors never allocate application epochs. */
+export function createHostedGameUiCompositionInternalV1<
+  TSemanticPublication,
+  TResolvedCatalog,
+  TStoryUiState,
+  TView,
+  TAssetId,
+  TOverlayId extends string,
+>(
+  input: CreateGameUiCompositionInputV1<
+    TSemanticPublication,
+    TResolvedCatalog,
+    TStoryUiState,
+    TView,
+    TAssetId,
+    TOverlayId
+  >,
+  host: {
+    readonly managedSurfaceEpochAllocator: ManagedSurfaceApplicationEpochAllocatorV1;
+    readonly reportFailure?: (code: string, error: unknown) => void;
+  },
+): GameUiCompositionV1<TSemanticPublication, TStoryUiState, TView, TAssetId, TOverlayId> {
+  return createGameUiCompositionWithEpochAllocatorInternalV1(
+    input,
+    host.managedSurfaceEpochAllocator,
+    host.reportFailure,
+  );
 }

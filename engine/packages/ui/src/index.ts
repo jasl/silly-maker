@@ -114,20 +114,23 @@ export { useReducedMotionV1 } from "./system/use-reduced-motion.ts";
 export type { VnChoiceV1, VnLayerPropsV1 } from "./narrative/index.ts";
 export {
   ActionConfirmationDialogV1,
-  OverlayHostV1,
-  createOverlaySessionStoreV1,
+  defineWorkspaceOverlayV1,
   maximumOverlayDetailDepthV1,
 } from "./overlays/index.ts";
 export type {
   ActionConfirmationDialogPropsV1,
   ActionConfirmationDispatchPortV1,
+  DefineWorkspaceOverlayInputV1,
+  OverlayAdmissionRejectionV1,
   OverlayCloseTopResultV1,
-  OverlayHostPropsV1,
+  OverlayOpenResultV1,
   OverlayPushDetailResultV1,
   OverlayRendererResolutionV1,
   OverlayRendererResolverV1,
   OverlaySessionStateV1,
   OverlaySessionStoreV1,
+  WorkspaceOverlayDefinitionV1,
+  WorkspaceOverlayPortBindingV1,
 } from "./overlays/index.ts";
 export { SaveOverlayV1 } from "./persistence/index.ts";
 export type {

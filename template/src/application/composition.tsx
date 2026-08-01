@@ -308,7 +308,6 @@ export const templateGameApplicationV1: WebGameApplicationV1<
     Object.freeze({
       titleScreen: Object.freeze({ title: "SillyMaker Starter" }),
       projector: templateUiProjectorV1,
-      overlayIds: Object.freeze([] as const),
       slots: createTemplateUiSlotsV1(playerProfile),
       labels: templateRootLabelsV1,
       saveLabels: templateSaveOverlayLabelsV1,

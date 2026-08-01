@@ -4,19 +4,20 @@ export type {
   ActionConfirmationDialogPropsV1,
   ActionConfirmationDispatchPortV1,
 } from "./action-confirmation-dialog.tsx";
-export { OverlayHostV1 } from "./overlay-host.tsx";
+export {
+  defineWorkspaceOverlayV1,
+  maximumOverlayDetailDepthV1,
+} from "./workspace-overlay-session.ts";
 export type {
-  OverlayHostPropsV1,
+  DefineWorkspaceOverlayInputV1,
+  OverlayAdmissionRejectionV1,
+  OverlayCloseTopResultV1,
+  OverlayOpenResultV1,
+  OverlayPushDetailResultV1,
   OverlayRendererResolutionV1,
   OverlayRendererResolverV1,
-} from "./overlay-host.tsx";
-export {
-  createOverlaySessionStoreV1,
-  maximumOverlayDetailDepthV1,
-} from "./overlay-session-store.ts";
-export type {
-  OverlayCloseTopResultV1,
-  OverlayPushDetailResultV1,
   OverlaySessionStateV1,
   OverlaySessionStoreV1,
-} from "./overlay-session-store.ts";
+  WorkspaceOverlayDefinitionV1,
+  WorkspaceOverlayPortBindingV1,
+} from "./workspace-overlay-session.ts";

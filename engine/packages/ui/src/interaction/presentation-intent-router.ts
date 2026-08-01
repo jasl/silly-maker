@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 import type { DeepReadonly, InteractionSurfaceId } from "@sillymaker/base";
 
+import type { OverlayOpenResultV1 } from "../overlays/workspace-overlay-session.ts";
 import type { PresentationIntentV1 } from "./contracts.ts";
 
 export interface PresentationIntentRouteContextV1 {
@@ -9,13 +10,14 @@ export interface PresentationIntentRouteContextV1 {
 
 export type PresentationIntentRouteResultV1 =
   | { readonly kind: "executed" }
+  | Extract<OverlayOpenResultV1, { readonly kind: "rejected" | "faulted" }>
   | {
     readonly kind: "rejected";
     readonly code: "presentation.intent_unknown";
   };
 
 export interface PresentationOverlayWriterV1 {
-  open(overlayId: string): void;
+  open(overlayId: string): OverlayOpenResultV1;
 }
 
 export interface PresentationInteractionSessionWriterV1 {
@@ -67,7 +69,10 @@ export function createPresentationIntentRouterV1(
       switch (intent.kind) {
         case "overlay.open":
           if (!knownOverlayIds.has(intent.overlayId)) return presentationIntentUnknownV1;
-          options.overlay.open(intent.overlayId);
+          {
+            const outcome = options.overlay.open(intent.overlayId);
+            if (outcome.kind === "rejected" || outcome.kind === "faulted") return outcome;
+          }
           return presentationIntentExecutedV1;
         case "interaction.enter_surface":
           if (!knownSurfaceIds.has(intent.surfaceId)) return presentationIntentUnknownV1;

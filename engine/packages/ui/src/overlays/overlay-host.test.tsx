@@ -4,8 +4,9 @@ import "@testing-library/jest-dom/vitest";
 import { parseNonNegativeSafeInteger } from "@sillymaker/base";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
+import { useEffect, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   DevDockPortalCoordinatorV1,
@@ -20,49 +21,77 @@ import { createInputRouterV1 } from "../input/input-router.ts";
 import { GameStageV1 } from "../shell/game-stage.tsx";
 import type { OverlayRendererResolverV1, OverlayRendererResolutionV1 } from "./overlay-host.tsx";
 import { OverlayHostV1 } from "./overlay-host.tsx";
-import { createOverlaySessionStoreV1 } from "./overlay-session-store.ts";
+import {
+  createLocalWorkspaceOverlayEpochAllocatorInternalV1,
+  createWorkspaceOverlaySessionInternalV1,
+  defineWorkspaceOverlayV1,
+  type WorkspaceOverlaySessionInternalV1,
+} from "./workspace-overlay-session.ts";
 
 afterEach(cleanup);
 
-type OverlayIdV1 = "inventory" | "ingredient" | "supplier" | "unknown" | "locked";
+type OverlayIdV1 =
+  | "overlay.test.inventory"
+  | "overlay.test.ingredient"
+  | "overlay.test.supplier"
+  | "overlay.test.unknown"
+  | "overlay.test.locked";
+
+const overlayDefinitionsV1 = Object.freeze([
+  defineWorkspaceOverlayV1({ id: "overlay.test.inventory", contractRevision: 1 }),
+  defineWorkspaceOverlayV1({ id: "overlay.test.ingredient", contractRevision: 1 }),
+  defineWorkspaceOverlayV1({ id: "overlay.test.supplier", contractRevision: 1 }),
+  defineWorkspaceOverlayV1({ id: "overlay.test.unknown", contractRevision: 1 }),
+  defineWorkspaceOverlayV1({
+    id: "overlay.test.locked",
+    contractRevision: 1,
+    dismissible: false,
+  }),
+]);
 
 function resolutionV1(accessibleName: string, content: OverlayRendererResolutionV1["content"]) {
   return Object.freeze({ accessibleName, content });
 }
 
 function createResolverV1(
-  store: ReturnType<typeof createOverlaySessionStoreV1<OverlayIdV1>>,
+  store: WorkspaceOverlaySessionInternalV1<OverlayIdV1>,
 ): OverlayRendererResolverV1<OverlayIdV1> {
   const resolver: OverlayRendererResolverV1<OverlayIdV1> = {
     resolve(id: OverlayIdV1) {
       switch (id) {
-        case "inventory":
+        case "overlay.test.inventory":
           return resolutionV1(
             "背包",
-            <button type="button" onClick={() => store.pushDetail("ingredient")}>
+            <button
+              type="button"
+              onClick={() => store.pushDetail("overlay.test.ingredient")}
+            >
               食材详情
             </button>,
           );
-        case "locked":
-          return Object.freeze({
-            ...resolutionV1(
-              "锁定教程",
-              <button type="button" onClick={() => store.pushDetail("ingredient")}>
-                下一步
-              </button>,
-            ),
-            dismissible: false,
-          });
-        case "ingredient":
+        case "overlay.test.locked":
+          return resolutionV1(
+            "锁定教程",
+            <button
+              type="button"
+              onClick={() => store.pushDetail("overlay.test.ingredient")}
+            >
+              下一步
+            </button>,
+          );
+        case "overlay.test.ingredient":
           return resolutionV1(
             "食材详情",
-            <button type="button" onClick={() => store.pushDetail("supplier")}>
+            <button
+              type="button"
+              onClick={() => store.pushDetail("overlay.test.supplier")}
+            >
               供应商详情
             </button>,
           );
-        case "supplier":
+        case "overlay.test.supplier":
           return resolutionV1("供应商详情", <p>供应商内容</p>);
-        case "unknown":
+        case "overlay.test.unknown":
           return null;
       }
       return null;
@@ -71,17 +100,67 @@ function createResolverV1(
   return Object.freeze(resolver);
 }
 
+function createOverlaySessionStoreV1(
+  inputRouter = createInputRouterV1(),
+): WorkspaceOverlaySessionInternalV1<OverlayIdV1> {
+  const session = createWorkspaceOverlaySessionInternalV1({
+    inputRouter,
+    epochAllocator: createLocalWorkspaceOverlayEpochAllocatorInternalV1(),
+    definitions: overlayDefinitionsV1,
+  });
+  session.attachRendererResolverInternalV1(createResolverV1(session));
+  return session;
+}
+
+async function openReadyV1(
+  session: WorkspaceOverlaySessionInternalV1<OverlayIdV1>,
+  id: OverlayIdV1,
+): Promise<void> {
+  expect(session.openPrimary(id)).toMatchObject({ kind: "preparing" });
+  const candidate = session.getRenderSnapshotInternalV1().entries.find(
+    (entry) => entry.readiness === "preparing",
+  )!;
+  await session.beginCandidatePreparationInternalV1(candidate.surfaceInstanceId);
+}
+
+async function pushReadyV1(
+  session: WorkspaceOverlaySessionInternalV1<OverlayIdV1>,
+  id: OverlayIdV1,
+): Promise<void> {
+  expect(session.pushDetail(id)).toMatchObject({ kind: "preparing" });
+  const candidate = session.getRenderSnapshotInternalV1().entries.find(
+    (entry) => entry.readiness === "preparing",
+  )!;
+  await session.beginCandidatePreparationInternalV1(candidate.surfaceInstanceId);
+}
+
+function rejectedPreparationV1() {
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<void>((_resolve, rejectPromise) => {
+    reject = rejectPromise;
+  });
+  return Object.freeze({ promise, reject });
+}
+
+function pendingPreparationV1() {
+  let settle!: () => void;
+  const promise = new Promise<void>((resolvePromise) => {
+    settle = resolvePromise;
+  });
+  return Object.freeze({ promise, resolve: settle });
+}
+
 function OverlayHarnessV1() {
-  const store = createOverlaySessionStoreV1<OverlayIdV1>();
   const inputRouter = createInputRouterV1();
+  const store = createOverlaySessionStoreV1(inputRouter);
   const rendererResolver = createResolverV1(store);
   return (
     <div>
-      <button type="button" onClick={() => store.openPrimary("inventory")}>
+      <button type="button" onClick={() => store.openPrimary("overlay.test.inventory")}>
         打开背包
       </button>
       <OverlayHostV1
-        store={store}
+        session={store}
         rendererResolver={rendererResolver}
         inputRouter={inputRouter}
         closeLabel="关闭"
@@ -103,15 +182,525 @@ function DevDockPortalSelectionProbeV1() {
 }
 
 describe("OverlayHostV1", () => {
+  it("uses the fresh Coordinator instance as the React identity on primary replacement", async () => {
+    type EditorOverlayIdV1 = "overlay.test.editor-a" | "overlay.test.editor-b";
+    function EditorV1(props: { readonly id: EditorOverlayIdV1 }) {
+      const [draft, setDraft] = useState("");
+      return (
+        <>
+          <label>
+            {props.id}
+            <input
+              aria-label={`draft:${props.id}`}
+              value={draft}
+              onChange={(event) => setDraft(event.currentTarget.value)}
+            />
+          </label>
+          <button type="button">secondary:{props.id}</button>
+        </>
+      );
+    }
+    const inputRouter = createInputRouterV1();
+    const session = createWorkspaceOverlaySessionInternalV1<EditorOverlayIdV1>({
+      inputRouter,
+      epochAllocator: createLocalWorkspaceOverlayEpochAllocatorInternalV1(),
+      definitions: Object.freeze([
+        defineWorkspaceOverlayV1({ id: "overlay.test.editor-a", contractRevision: 1 }),
+        defineWorkspaceOverlayV1({ id: "overlay.test.editor-b", contractRevision: 1 }),
+      ]),
+    });
+    const resolver = Object.freeze({
+      resolve: (id: EditorOverlayIdV1) =>
+        Object.freeze({ accessibleName: id, content: <EditorV1 id={id} /> }),
+    });
+    render(
+      <>
+        <button type="button" onClick={() => session.openPrimary("overlay.test.editor-a")}>
+          open editor
+        </button>
+        <OverlayHostV1
+          session={session}
+          rendererResolver={resolver}
+          inputRouter={inputRouter}
+          closeLabel="close"
+        />
+      </>,
+    );
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: "open editor" }));
+    const firstDialog = await screen.findByRole("dialog", { name: "overlay.test.editor-a" });
+    const firstInstanceId = firstDialog.getAttribute("data-overlay-instance");
+    const firstDraft = screen.getByRole("textbox", { name: "draft:overlay.test.editor-a" });
+    await user.type(firstDraft, "dirty");
+    const secondary = screen.getByRole("button", { name: "secondary:overlay.test.editor-a" });
+    secondary.focus();
+
+    act(() => {
+      session.openPrimary("overlay.test.editor-b");
+    });
+    const secondDialog = await screen.findByRole("dialog", { name: "overlay.test.editor-b" });
+    expect(secondDialog.getAttribute("data-overlay-instance")).not.toBe(firstInstanceId);
+    expect(screen.getByRole("textbox", { name: "draft:overlay.test.editor-b" })).toHaveValue("");
+    expect(screen.getByRole("textbox", { name: "draft:overlay.test.editor-b" })).toHaveFocus();
+  });
+
+  it("focuses the code-native initial fallback and restores the opener on failure", async () => {
+    const preparation = rejectedPreparationV1();
+    const inputRouter = createInputRouterV1();
+    const session = createWorkspaceOverlaySessionInternalV1({
+      inputRouter,
+      epochAllocator: createLocalWorkspaceOverlayEpochAllocatorInternalV1(),
+      definitions: Object.freeze([
+        defineWorkspaceOverlayV1({ id: "overlay.test.initial-failure", contractRevision: 1 }),
+      ]),
+    });
+    const resolver = Object.freeze({
+      resolve: (id: string) =>
+        Object.freeze({
+          accessibleName: id,
+          content: <p>candidate</p>,
+          prepare: () => preparation.promise,
+        }),
+    });
+    render(
+      <>
+        <button
+          type="button"
+          onClick={() => session.openPrimary("overlay.test.initial-failure")}
+        >
+          open delayed
+        </button>
+        <OverlayHostV1
+          session={session}
+          rendererResolver={resolver}
+          inputRouter={inputRouter}
+          closeLabel="close"
+        />
+      </>,
+    );
+    const user = userEvent.setup();
+    const opener = screen.getByRole("button", { name: "open delayed" });
+
+    await user.click(opener);
+    const fallback = await waitFor(() => {
+      const element = document.querySelector<HTMLElement>("[data-overlay-fallback]");
+      expect(element).not.toBeNull();
+      return element!;
+    });
+    expect(fallback).toHaveFocus();
+    await user.tab();
+    expect(fallback).toHaveFocus();
+    await user.tab({ shift: true });
+    expect(fallback).toHaveFocus();
+
+    await act(async () => {
+      preparation.reject(new Error("synthetic initial failure"));
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(document.querySelector("[data-overlay-fallback]")).toBeNull());
+    expect(session.getSnapshot()).toEqual({ primaryId: null, detailIds: [] });
+    expect(opener).toHaveFocus();
+  });
+
+  it("restores the parent focus after a child fallback fails", async () => {
+    type ChildOverlayIdV1 = "overlay.test.parent" | "overlay.test.child-failure";
+    const preparation = rejectedPreparationV1();
+    const inputRouter = createInputRouterV1();
+    const session = createWorkspaceOverlaySessionInternalV1<ChildOverlayIdV1>({
+      inputRouter,
+      epochAllocator: createLocalWorkspaceOverlayEpochAllocatorInternalV1(),
+      definitions: Object.freeze([
+        defineWorkspaceOverlayV1({ id: "overlay.test.parent", contractRevision: 1 }),
+        defineWorkspaceOverlayV1({ id: "overlay.test.child-failure", contractRevision: 1 }),
+      ]),
+    });
+    const resolver = Object.freeze({
+      resolve(id: ChildOverlayIdV1) {
+        return id === "overlay.test.parent"
+          ? Object.freeze({
+            accessibleName: "parent",
+            content: (
+              <button
+                type="button"
+                onClick={() => session.pushDetail("overlay.test.child-failure")}
+              >
+                open child
+              </button>
+            ),
+          })
+          : Object.freeze({
+            accessibleName: "child",
+            content: <p>child candidate</p>,
+            prepare: () => preparation.promise,
+          });
+      },
+    });
+    render(
+      <>
+        <button type="button" onClick={() => session.openPrimary("overlay.test.parent")}>
+          open parent
+        </button>
+        <OverlayHostV1
+          session={session}
+          rendererResolver={resolver}
+          inputRouter={inputRouter}
+          closeLabel="close"
+        />
+      </>,
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "open parent" }));
+    const childOpener = await screen.findByRole("button", { name: "open child" });
+    await user.click(childOpener);
+    const fallback = await waitFor(() =>
+      document.querySelector<HTMLElement>("[data-overlay-fallback]")!
+    );
+    expect(fallback).toHaveFocus();
+    await user.tab();
+    expect(fallback).toHaveFocus();
+    await user.tab({ shift: true });
+    expect(fallback).toHaveFocus();
+
+    await act(async () => {
+      preparation.reject(new Error("synthetic child failure"));
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(document.querySelector("[data-overlay-fallback]")).toBeNull());
+    expect(screen.getByRole("dialog", { name: "parent" })).toBeVisible();
+    expect(childOpener).toHaveFocus();
+  });
+
+  it("retains the exact active DOM and focus when replacement preparation fails", async () => {
+    type ReplacementOverlayIdV1 = "overlay.test.retained" | "overlay.test.failed-replacement";
+    const preparation = rejectedPreparationV1();
+    const inputRouter = createInputRouterV1();
+    const session = createWorkspaceOverlaySessionInternalV1<ReplacementOverlayIdV1>({
+      inputRouter,
+      epochAllocator: createLocalWorkspaceOverlayEpochAllocatorInternalV1(),
+      definitions: Object.freeze([
+        defineWorkspaceOverlayV1({ id: "overlay.test.retained", contractRevision: 1 }),
+        defineWorkspaceOverlayV1({
+          id: "overlay.test.failed-replacement",
+          contractRevision: 1,
+        }),
+      ]),
+    });
+    const resolver = Object.freeze({
+      resolve: (id: ReplacementOverlayIdV1) =>
+        id === "overlay.test.retained"
+          ? Object.freeze({
+            accessibleName: "retained",
+            content: (
+              <>
+                <input aria-label="retained draft" defaultValue="dirty" />
+                <button type="button">retained secondary</button>
+              </>
+            ),
+          })
+          : Object.freeze({
+            accessibleName: "failed replacement",
+            content: <p>replacement candidate</p>,
+            prepare: () => preparation.promise,
+          }),
+    });
+    render(
+      <>
+        <button type="button" onClick={() => session.openPrimary("overlay.test.retained")}>
+          open retained
+        </button>
+        <OverlayHostV1
+          session={session}
+          rendererResolver={resolver}
+          inputRouter={inputRouter}
+          closeLabel="close"
+        />
+      </>,
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "open retained" }));
+    const retainedDialog = await screen.findByRole("dialog", { name: "retained" });
+    const retainedSecondary = screen.getByRole("button", { name: "retained secondary" });
+    retainedSecondary.focus();
+
+    act(() => {
+      session.openPrimary("overlay.test.failed-replacement");
+    });
+    await waitFor(() => expect(document.querySelector("[data-overlay-preparing]")).not.toBeNull());
+    expect(document.querySelector("[data-overlay-fallback]")).toBeNull();
+    expect(screen.getByRole("dialog", { name: "retained" })).toBe(retainedDialog);
+    expect(retainedSecondary).toHaveFocus();
+
+    await act(async () => {
+      preparation.reject(new Error("synthetic replacement failure"));
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(document.querySelector("[data-overlay-preparing]")).toBeNull());
+    expect(screen.getByRole("dialog", { name: "retained" })).toBe(retainedDialog);
+    expect(screen.getByRole("textbox", { name: "retained draft" })).toHaveValue("dirty");
+    expect(retainedSecondary).toHaveFocus();
+  });
+
+  it("fails a candidate whose renderer throws before it can become active", async () => {
+    function ThrowingCandidateV1(): React.ReactElement {
+      throw new Error("synthetic candidate render failure");
+    }
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const reportFailure = vi.fn();
+    const inputRouter = createInputRouterV1();
+    const session = createWorkspaceOverlaySessionInternalV1({
+      inputRouter,
+      epochAllocator: createLocalWorkspaceOverlayEpochAllocatorInternalV1(),
+      definitions: Object.freeze([
+        defineWorkspaceOverlayV1({ id: "overlay.test.render-failure", contractRevision: 1 }),
+      ]),
+      reportFailure,
+    });
+    const resolver = Object.freeze({
+      resolve: (id: string) =>
+        Object.freeze({
+          accessibleName: id,
+          content: <ThrowingCandidateV1 />,
+        }),
+    });
+    render(
+      <>
+        <button type="button" onClick={() => session.openPrimary("overlay.test.render-failure")}>
+          open failing renderer
+        </button>
+        <OverlayHostV1
+          session={session}
+          rendererResolver={resolver}
+          inputRouter={inputRouter}
+          closeLabel="close"
+        />
+      </>,
+    );
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "open failing renderer" }));
+    await waitFor(() => expect(session.getSnapshot()).toEqual({ primaryId: null, detailIds: [] }));
+    expect(document.querySelector("[data-overlay-fallback]")).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(consoleError).toHaveBeenCalled();
+    expect(reportFailure).toHaveBeenCalledWith(
+      "ui.workspace_overlay_active_render_failed",
+      expect.objectContaining({ message: "synthetic candidate render failure" }),
+    );
+    consoleError.mockRestore();
+  });
+
+  it("does not mount ordinary Story content while its candidate is preparing", async () => {
+    const preparation = pendingPreparationV1();
+    const mounted = vi.fn();
+    function EffectfulCandidateV1() {
+      useEffect(() => {
+        mounted();
+      }, []);
+      return <button type="button">candidate action</button>;
+    }
+    const inputRouter = createInputRouterV1();
+    const session = createWorkspaceOverlaySessionInternalV1({
+      inputRouter,
+      epochAllocator: createLocalWorkspaceOverlayEpochAllocatorInternalV1(),
+      definitions: Object.freeze([
+        defineWorkspaceOverlayV1({ id: "overlay.test.effectful", contractRevision: 1 }),
+      ]),
+    });
+    const resolver = Object.freeze({
+      resolve: (id: string) =>
+        Object.freeze({
+          accessibleName: id,
+          content: <EffectfulCandidateV1 />,
+          prepare: () => preparation.promise,
+        }),
+    });
+    render(
+      <>
+        <button type="button" onClick={() => session.openPrimary("overlay.test.effectful")}>
+          open effectful
+        </button>
+        <OverlayHostV1
+          session={session}
+          rendererResolver={resolver}
+          inputRouter={inputRouter}
+          closeLabel="close"
+        />
+      </>,
+    );
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "open effectful" }));
+    await waitFor(() => expect(document.querySelector("[data-overlay-preparing]")).not.toBeNull());
+    expect(mounted).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "candidate action" })).toBeNull();
+
+    await act(async () => {
+      preparation.resolve();
+      await Promise.resolve();
+    });
+    expect(await screen.findByRole("button", { name: "candidate action" })).toBeVisible();
+    expect(mounted).toHaveBeenCalledOnce();
+  });
+
+  it("cancels pending preparation when its Host unmounts", async () => {
+    const preparation = pendingPreparationV1();
+    const inputRouter = createInputRouterV1();
+    const session = createWorkspaceOverlaySessionInternalV1({
+      inputRouter,
+      epochAllocator: createLocalWorkspaceOverlayEpochAllocatorInternalV1(),
+      definitions: Object.freeze([
+        defineWorkspaceOverlayV1({ id: "overlay.test.unmount", contractRevision: 1 }),
+      ]),
+    });
+    const resolver = Object.freeze({
+      resolve: (id: string) =>
+        Object.freeze({
+          accessibleName: id,
+          content: <p>pending content</p>,
+          prepare: () => preparation.promise,
+        }),
+    });
+    const rendered = render(
+      <OverlayHostV1
+        session={session}
+        rendererResolver={resolver}
+        inputRouter={inputRouter}
+        closeLabel="close"
+      />,
+    );
+    act(() => {
+      session.openPrimary("overlay.test.unmount");
+    });
+    await waitFor(() => expect(document.querySelector("[data-overlay-preparing]")).not.toBeNull());
+
+    rendered.unmount();
+    const afterUnmount = session.getManagedSnapshotInternalV1();
+    expect(afterUnmount.orderedInstances).toEqual([]);
+    expect(afterUnmount.inputOwner).toBeNull();
+    expect(afterUnmount.focusOwner).toBeNull();
+    preparation.resolve();
+    await Promise.resolve();
+    expect(session.getManagedSnapshotInternalV1()).toBe(afterUnmount);
+  });
+
+  it("applies the locked dismiss policy while the code-native fallback is active", async () => {
+    const preparation = pendingPreparationV1();
+    const inputRouter = createInputRouterV1();
+    const session = createWorkspaceOverlaySessionInternalV1({
+      inputRouter,
+      epochAllocator: createLocalWorkspaceOverlayEpochAllocatorInternalV1(),
+      definitions: Object.freeze([
+        defineWorkspaceOverlayV1({
+          id: "overlay.test.locked-delayed",
+          contractRevision: 1,
+          dismissible: false,
+        }),
+      ]),
+    });
+    const resolver = Object.freeze({
+      resolve: (id: string) =>
+        Object.freeze({
+          accessibleName: "locked delayed",
+          content: <p>{id}</p>,
+          prepare: () => preparation.promise,
+        }),
+    });
+    render(
+      <OverlayHostV1
+        session={session}
+        rendererResolver={resolver}
+        inputRouter={inputRouter}
+        closeLabel="explicit close"
+      />,
+    );
+    act(() => {
+      session.openPrimary("overlay.test.locked-delayed");
+    });
+    const fallback = await waitFor(() =>
+      document.querySelector<HTMLElement>("[data-overlay-fallback]")!
+    );
+    const candidateId = fallback.getAttribute("data-overlay-fallback");
+    const user = userEvent.setup();
+
+    await user.click(fallback.querySelector("[aria-hidden='true']") as HTMLElement);
+    expect(document.querySelector("[data-overlay-fallback]")).toHaveAttribute(
+      "data-overlay-fallback",
+      candidateId,
+    );
+    expect(inputRouter.route({
+      kind: "action",
+      actionId: systemInputActionIdsV1.cancel,
+    })).toEqual({ kind: "handled", context: "overlay" });
+    expect(document.querySelector("[data-overlay-fallback]")).not.toBeNull();
+    await user.keyboard("{Escape}");
+    expect(document.querySelector("[data-overlay-fallback]")).not.toBeNull();
+
+    await act(async () => {
+      preparation.resolve();
+      await Promise.resolve();
+    });
+    const dialog = await screen.findByRole("dialog", { name: "locked delayed" });
+    await user.click(within(dialog).getByRole("button", { name: "explicit close" }));
+    expect(screen.queryByRole("dialog", { name: "locked delayed" })).toBeNull();
+  });
+
+  it("keeps keyboard Tab traversal inside the active top Overlay", async () => {
+    const store = createOverlaySessionStoreV1();
+    const resolver: OverlayRendererResolverV1<OverlayIdV1> = Object.freeze({
+      resolve: () =>
+        resolutionV1(
+          "focus fixture",
+          <>
+            <button type="button" tabIndex={-1}>excluded from tab order</button>
+            <input type="hidden" aria-label="hidden input" />
+            <button type="button" hidden>hidden control</button>
+            <span style={{ display: "none" }}>
+              <button type="button">css hidden control</button>
+            </span>
+            <span aria-hidden="true">
+              <button type="button">aria hidden control</button>
+            </span>
+            <button type="button">visible action</button>
+          </>,
+        ),
+    });
+    render(
+      <>
+        <button type="button">external control</button>
+        <OverlayHostV1
+          session={store}
+          rendererResolver={resolver}
+          inputRouter={createInputRouterV1()}
+          closeLabel="close"
+        />
+      </>,
+    );
+    act(() => {
+      store.openPrimary("overlay.test.inventory");
+    });
+    const dialog = await screen.findByRole("dialog", { name: "focus fixture" });
+    const user = userEvent.setup();
+    const visibleAction = within(dialog).getByRole("button", { name: "visible action" });
+
+    expect(visibleAction).toHaveFocus();
+
+    for (let index = 0; index < 6; index += 1) {
+      await user.tab();
+      expect(dialog).toContainElement(document.activeElement as HTMLElement);
+    }
+    expect(within(dialog).getByRole("button", { name: "excluded from tab order" })).not
+      .toHaveFocus();
+    expect(screen.getByRole("button", { name: "external control" })).not.toHaveFocus();
+  });
+
   it("registers only the actual top overlay Dialog.Content as the DevDock focus target", async () => {
-    const store = createOverlaySessionStoreV1<OverlayIdV1>();
-    store.openPrimary("inventory");
-    store.pushDetail("ingredient");
+    const store = createOverlaySessionStoreV1();
+    await openReadyV1(store, "overlay.test.inventory");
+    await pushReadyV1(store, "overlay.test.ingredient");
     render(
       <DevDockPortalCoordinatorV1>
         <DevDockPortalSelectionProbeV1 />
         <OverlayHostV1
-          store={store}
+          session={store}
           rendererResolver={createResolverV1(store)}
           inputRouter={createInputRouterV1()}
           closeLabel="关闭"
@@ -156,14 +745,14 @@ describe("OverlayHostV1", () => {
   });
 
   it("renders the primary and ordered details inside its Stage-layer host", async () => {
-    const store = createOverlaySessionStoreV1<OverlayIdV1>();
-    store.openPrimary("inventory");
-    store.pushDetail("ingredient");
-    store.pushDetail("supplier");
+    const store = createOverlaySessionStoreV1();
+    await openReadyV1(store, "overlay.test.inventory");
+    await pushReadyV1(store, "overlay.test.ingredient");
+    await pushReadyV1(store, "overlay.test.supplier");
 
     render(
       <OverlayHostV1
-        store={store}
+        session={store}
         rendererResolver={createResolverV1(store)}
         inputRouter={createInputRouterV1()}
         closeLabel="关闭"
@@ -210,6 +799,38 @@ describe("OverlayHostV1", () => {
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog", { name: "背包" })).not.toBeInTheDocument();
     expect(opener).toHaveFocus();
+  });
+
+  it("restores a pointer opener even when the browser leaves focus on its panel", async () => {
+    const store = createOverlaySessionStoreV1();
+    render(
+      <>
+        <button type="button" onClick={() => store.openPrimary("overlay.test.inventory")}>
+          open inventory
+        </button>
+        <OverlayHostV1
+          session={store}
+          rendererResolver={createResolverV1(store)}
+          inputRouter={createInputRouterV1()}
+          closeLabel="close"
+        />
+      </>,
+    );
+    const primaryOpener = screen.getByRole("button", { name: "open inventory" });
+    primaryOpener.focus();
+    fireEvent.click(primaryOpener);
+    const detailOpener = await screen.findByRole("button", { name: "食材详情" });
+    const panel = detailOpener.closest<HTMLElement>("[data-panel-content]")!;
+
+    panel.focus();
+    fireEvent.click(detailOpener);
+    expect(await screen.findByRole("dialog", { name: "食材详情" })).toBeVisible();
+
+    act(() => {
+      store.closeTop();
+    });
+    expect(screen.queryByRole("dialog", { name: "食材详情" })).not.toBeInTheDocument();
+    expect(detailOpener).toHaveFocus();
   });
 
   it("returns focus through every opener in a multi-detail stack", async () => {
@@ -266,11 +887,14 @@ describe("OverlayHostV1", () => {
   });
 
   it("returns focus to the external opener when an active host unmounts", async () => {
-    const store = createOverlaySessionStoreV1<OverlayIdV1>();
+    const store = createOverlaySessionStoreV1();
     const inputRouter = createInputRouterV1();
     const rendererResolver = createResolverV1(store);
     const opener = (
-      <button type="button" onClick={() => store.openPrimary("inventory")}>
+      <button
+        type="button"
+        onClick={() => store.openPrimary("overlay.test.inventory")}
+      >
         打开背包
       </button>
     );
@@ -278,7 +902,7 @@ describe("OverlayHostV1", () => {
       <>
         {opener}
         <OverlayHostV1
-          store={store}
+          session={store}
           rendererResolver={rendererResolver}
           inputRouter={inputRouter}
           closeLabel="关闭"
@@ -295,17 +919,196 @@ describe("OverlayHostV1", () => {
     rendered.rerender(opener);
 
     expect(screen.queryByRole("dialog", { name: "背包" })).not.toBeInTheDocument();
+    expect(store.getSnapshot()).toEqual({ primaryId: null, detailIds: [] });
     expect(externalOpener).toHaveFocus();
   });
 
+  it("returns focus to the external root opener when closeAll removes a nested stack", async () => {
+    const store = createOverlaySessionStoreV1();
+    render(
+      <>
+        <button
+          type="button"
+          onClick={() => store.openPrimary("overlay.test.inventory")}
+        >
+          打开背包
+        </button>
+        <OverlayHostV1
+          session={store}
+          rendererResolver={createResolverV1(store)}
+          inputRouter={createInputRouterV1()}
+          closeLabel="关闭"
+        />
+      </>,
+    );
+    const user = userEvent.setup();
+    const externalOpener = screen.getByRole("button", { name: "打开背包" });
+
+    await user.click(externalOpener);
+    const detailOpener = await screen.findByRole("button", { name: "食材详情" });
+    await user.click(detailOpener);
+    expect(await screen.findByRole("dialog", { name: "食材详情" })).toBeVisible();
+
+    act(() => store.closeAll());
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(externalOpener).toHaveFocus();
+  });
+
+  it("returns focus to the external root opener when closeAll cancels a child fallback", async () => {
+    const preparation = pendingPreparationV1();
+    const inputRouter = createInputRouterV1();
+    const store = createWorkspaceOverlaySessionInternalV1<OverlayIdV1>({
+      inputRouter,
+      epochAllocator: createLocalWorkspaceOverlayEpochAllocatorInternalV1(),
+      definitions: overlayDefinitionsV1,
+    });
+    const resolver = Object.freeze({
+      resolve(id: OverlayIdV1) {
+        if (id === "overlay.test.inventory") {
+          return resolutionV1(
+            "背包",
+            <button
+              type="button"
+              onClick={() => store.pushDetail("overlay.test.ingredient")}
+            >
+              食材详情
+            </button>,
+          );
+        }
+        if (id === "overlay.test.ingredient") {
+          return Object.freeze({
+            accessibleName: "食材详情",
+            content: <p>食材内容</p>,
+            prepare: () => preparation.promise,
+          });
+        }
+        return null;
+      },
+    });
+    render(
+      <>
+        <button
+          type="button"
+          onClick={() => store.openPrimary("overlay.test.inventory")}
+        >
+          打开背包
+        </button>
+        <OverlayHostV1
+          session={store}
+          rendererResolver={resolver}
+          inputRouter={inputRouter}
+          closeLabel="关闭"
+        />
+      </>,
+    );
+    const user = userEvent.setup();
+    const externalOpener = screen.getByRole("button", { name: "打开背包" });
+
+    await user.click(externalOpener);
+    await user.click(await screen.findByRole("button", { name: "食材详情" }));
+    await waitFor(() => expect(document.querySelector("[data-overlay-fallback]")).not.toBeNull());
+
+    act(() => store.closeAll());
+
+    expect(document.querySelector("[data-overlay-fallback]")).toBeNull();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(externalOpener).toHaveFocus();
+    preparation.resolve();
+  });
+
+  it("restores the surviving-parent opener when a nested renderer fault removes a subtree", async () => {
+    let failIngredient = (): void => {
+      throw new Error("ingredient renderer is not mounted");
+    };
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const inputRouter = createInputRouterV1();
+    const store = createWorkspaceOverlaySessionInternalV1<OverlayIdV1>({
+      inputRouter,
+      epochAllocator: createLocalWorkspaceOverlayEpochAllocatorInternalV1(),
+      definitions: overlayDefinitionsV1,
+    });
+    function FaultableIngredientV1() {
+      const [failed, setFailed] = useState(false);
+      useEffect(() => {
+        failIngredient = () => setFailed(true);
+      }, []);
+      if (failed) throw new Error("synthetic nested renderer failure");
+      return (
+        <button
+          type="button"
+          onClick={() => store.pushDetail("overlay.test.supplier")}
+        >
+          供应商详情
+        </button>
+      );
+    }
+    const resolver = Object.freeze({
+      resolve(id: OverlayIdV1) {
+        switch (id) {
+          case "overlay.test.inventory":
+            return resolutionV1(
+              "背包",
+              <button
+                type="button"
+                onClick={() => store.pushDetail("overlay.test.ingredient")}
+              >
+                食材详情
+              </button>,
+            );
+          case "overlay.test.ingredient":
+            return resolutionV1("食材详情", <FaultableIngredientV1 />);
+          case "overlay.test.supplier":
+            return resolutionV1("供应商详情", <button type="button">检查供应商</button>);
+          default:
+            return null;
+        }
+      },
+    });
+    render(
+      <>
+        <button
+          type="button"
+          onClick={() => store.openPrimary("overlay.test.inventory")}
+        >
+          打开背包
+        </button>
+        <OverlayHostV1
+          session={store}
+          rendererResolver={resolver}
+          inputRouter={inputRouter}
+          closeLabel="关闭"
+        />
+      </>,
+    );
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: "打开背包" }));
+    const ingredientOpener = await screen.findByRole("button", { name: "食材详情" });
+    await user.click(ingredientOpener);
+    await user.click(await screen.findByRole("button", { name: "供应商详情" }));
+    expect(await screen.findByRole("button", { name: "检查供应商" })).toHaveFocus();
+
+    act(() => failIngredient());
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "食材详情" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("dialog", { name: "供应商详情" })).not.toBeInTheDocument();
+    });
+
+    expect(screen.getByRole("dialog", { name: "背包" })).toBeVisible();
+    expect(ingredientOpener).toHaveFocus();
+    expect(consoleError).toHaveBeenCalled();
+    consoleError.mockRestore();
+  });
+
   it("registers Overlay only while active and blocks lower viewport/action events", async () => {
-    const store = createOverlaySessionStoreV1<OverlayIdV1>();
+    const store = createOverlaySessionStoreV1();
     const inputRouter = createInputRouterV1();
     const gameplay = vi.fn(() => inputHandledV1);
     inputRouter.register({ context: "gameplay", handle: gameplay });
     const rendered = render(
       <OverlayHostV1
-        store={store}
+        session={store}
         rendererResolver={createResolverV1(store)}
         inputRouter={inputRouter}
         closeLabel="关闭"
@@ -318,7 +1121,9 @@ describe("OverlayHostV1", () => {
 
     expect(inputRouter.route(unrelatedAction)).toEqual({ kind: "handled", context: "gameplay" });
     gameplay.mockClear();
-    act(() => store.openPrimary("inventory"));
+    act(() => {
+      store.openPrimary("overlay.test.inventory");
+    });
     const activeSnapshot = store.getSnapshot();
 
     const viewportEvent = Object.freeze({
@@ -338,11 +1143,11 @@ describe("OverlayHostV1", () => {
   });
 
   it("marks lower Stage layers inert while preserving Overlay and System access", async () => {
-    const store = createOverlaySessionStoreV1<OverlayIdV1>();
+    const store = createOverlaySessionStoreV1();
     const systemAction = vi.fn();
     const host = (
       <OverlayHostV1
-        store={store}
+        session={store}
         rendererResolver={createResolverV1(store)}
         inputRouter={createInputRouterV1()}
         closeLabel="关闭"
@@ -369,7 +1174,9 @@ describe("OverlayHostV1", () => {
 
     const overlayHost = screen.getByTestId("overlay-host");
     expect(overlayHost).toHaveStyle({ pointerEvents: "none" });
-    act(() => store.openPrimary("inventory"));
+    act(() => {
+      store.openPrimary("overlay.test.inventory");
+    });
     expect(await screen.findByRole("dialog", { name: "背包" })).toBeVisible();
     expect(overlayHost).toHaveStyle({ pointerEvents: "auto" });
     expect(screen.getByTestId("stage-background")).toHaveAttribute("inert");
@@ -389,23 +1196,27 @@ describe("OverlayHostV1", () => {
     expect(screen.getByTestId("stage-narrative")).not.toHaveAttribute("inert");
   });
 
-  it("handles ui.cancel one entry at a time but never closes on focus_loss", () => {
-    const store = createOverlaySessionStoreV1<OverlayIdV1>();
+  it("handles ui.cancel one entry at a time but never closes on focus_loss", async () => {
     const inputRouter = createInputRouterV1();
+    const store = createOverlaySessionStoreV1(inputRouter);
     const gameplay = vi.fn(() => inputHandledV1);
     inputRouter.register({ context: "gameplay", handle: gameplay });
     render(
       <OverlayHostV1
-        store={store}
+        session={store}
         rendererResolver={createResolverV1(store)}
         inputRouter={inputRouter}
         closeLabel="关闭"
       />,
     );
     act(() => {
-      store.openPrimary("inventory");
-      store.pushDetail("ingredient");
+      store.openPrimary("overlay.test.inventory");
     });
+    await screen.findByRole("dialog", { name: "背包" });
+    act(() => {
+      store.pushDetail("overlay.test.ingredient");
+    });
+    await screen.findByRole("dialog", { name: "食材详情" });
 
     const beforeFocusLoss = store.getSnapshot();
     expect(inputRouter.route(Object.freeze({ kind: "focus_loss" as const }))).toEqual({
@@ -432,7 +1243,10 @@ describe("OverlayHostV1", () => {
         ),
       ).toEqual({ kind: "handled", context: "overlay" });
     });
-    expect(store.getSnapshot()).toEqual({ primaryId: "inventory", detailIds: [] });
+    expect(store.getSnapshot()).toEqual({
+      primaryId: "overlay.test.inventory",
+      detailIds: [],
+    });
     act(() => {
       inputRouter.route(
         Object.freeze({ kind: "action" as const, actionId: systemInputActionIdsV1.cancel }),
@@ -441,50 +1255,51 @@ describe("OverlayHostV1", () => {
     expect(store.getSnapshot()).toEqual({ primaryId: null, detailIds: [] });
   });
 
-  it("resolves only IDs from the one observed stack snapshot", () => {
-    const store = createOverlaySessionStoreV1<OverlayIdV1>();
-    store.openPrimary("inventory");
-    store.pushDetail("ingredient");
+  it("resolves only IDs from the one observed stack snapshot", async () => {
+    const store = createOverlaySessionStoreV1();
+    await openReadyV1(store, "overlay.test.inventory");
+    await pushReadyV1(store, "overlay.test.ingredient");
     const baseResolver = createResolverV1(store);
     const resolveRenderer = vi.fn(baseResolver.resolve);
     const rendererResolver = Object.freeze({ resolve: resolveRenderer });
     render(
       <OverlayHostV1
-        store={store}
+        session={store}
         rendererResolver={rendererResolver}
         inputRouter={createInputRouterV1()}
         closeLabel="关闭"
       />,
     );
 
-    expect(resolveRenderer.mock.calls.map(([id]) => id)).toEqual(["inventory", "ingredient"]);
+    expect(resolveRenderer.mock.calls.map(([id]) => id)).toEqual([
+      "overlay.test.inventory",
+      "overlay.test.ingredient",
+    ]);
     resolveRenderer.mockClear();
-    act(() => store.openPrimary("supplier"));
-    expect(resolveRenderer.mock.calls.map(([id]) => id)).toEqual(["supplier"]);
+    act(() => {
+      store.openPrimary("overlay.test.supplier");
+    });
+    await screen.findByRole("dialog", { name: "供应商详情" });
+    expect(resolveRenderer.mock.calls.map(([id]) => id)).toContain("overlay.test.supplier");
   });
 
-  it("throws the bounded code when the closed resolver has no renderer", () => {
-    const store = createOverlaySessionStoreV1<OverlayIdV1>();
-    store.openPrimary("unknown");
+  it("rejects a missing renderer before publishing topology", () => {
+    const store = createOverlaySessionStoreV1();
+    const before = store.getManagedSnapshotInternalV1();
 
-    expect(() =>
-      render(
-        <OverlayHostV1
-          store={store}
-          rendererResolver={createResolverV1(store)}
-          inputRouter={createInputRouterV1()}
-          closeLabel="关闭"
-        />,
-      )
-    ).toThrowError("ui.overlay_renderer_missing");
+    expect(store.openPrimary("overlay.test.unknown")).toEqual({
+      kind: "rejected",
+      code: "overlay.renderer_missing",
+    });
+    expect(store.getManagedSnapshotInternalV1()).toBe(before);
   });
 
   it("does not steal focus when opening without an HTMLElement focus target", async () => {
-    const store = createOverlaySessionStoreV1<OverlayIdV1>();
+    const store = createOverlaySessionStoreV1();
     const inputRouter = createInputRouterV1();
     render(
       <OverlayHostV1
-        store={store}
+        session={store}
         rendererResolver={createResolverV1(store)}
         inputRouter={inputRouter}
         closeLabel="关闭"
@@ -492,7 +1307,9 @@ describe("OverlayHostV1", () => {
     );
 
     expect(document.activeElement).toBe(document.body);
-    act(() => store.openPrimary("inventory"));
+    act(() => {
+      store.openPrimary("overlay.test.inventory");
+    });
     expect(await screen.findByRole("dialog", { name: "背包" })).toBeVisible();
     act(() => store.closeAll());
     expect(document.activeElement).toBe(document.body);
@@ -508,14 +1325,14 @@ describe("OverlayHostV1", () => {
   });
 
   it("keeps every cancel path consistent for a non-dismissible Overlay", async () => {
-    const store = createOverlaySessionStoreV1<OverlayIdV1>();
+    const store = createOverlaySessionStoreV1();
     const inputRouter = createInputRouterV1();
     const gameplay = vi.fn(() => inputHandledV1);
     inputRouter.register({ context: "gameplay", handle: gameplay });
     render(
       <DevDockPortalCoordinatorV1>
         <OverlayHostV1
-          store={store}
+          session={store}
           rendererResolver={createResolverV1(store)}
           inputRouter={inputRouter}
           closeLabel="关闭"
@@ -523,8 +1340,11 @@ describe("OverlayHostV1", () => {
       </DevDockPortalCoordinatorV1>,
     );
     act(() => {
-      store.openPrimary("locked");
-      store.pushDetail("ingredient");
+      store.openPrimary("overlay.test.locked");
+    });
+    await screen.findByRole("dialog", { name: "锁定教程" });
+    act(() => {
+      store.pushDetail("overlay.test.ingredient");
     });
     const user = userEvent.setup();
     await screen.findByRole("dialog", { name: "食材详情" });
@@ -535,7 +1355,10 @@ describe("OverlayHostV1", () => {
     expect(topBackdrop).not.toBeNull();
     await user.click(topBackdrop as HTMLElement);
     // Only the top closed: the detail is gone, the primary window remains.
-    expect(store.getSnapshot()).toEqual({ primaryId: "locked", detailIds: [] });
+    expect(store.getSnapshot()).toEqual({
+      primaryId: "overlay.test.locked",
+      detailIds: [],
+    });
     await waitFor(() => expect(document.querySelector("[data-overlay-kind='detail']")).toBeNull());
     const lockedSnapshot = store.getSnapshot();
     const lockedDialog = screen.getByRole("dialog", { name: "锁定教程" });

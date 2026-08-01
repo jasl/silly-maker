@@ -212,9 +212,19 @@ function createRuntimeCoordinatorPortV1(
     replaceTransientPrimary: gatedPreparation(coordinator.replaceTransientPrimary),
     pushTransientChild: gatedPreparation(coordinator.pushTransientChild),
     closeExpected: gated(coordinator.closeExpected),
+    closeExpectedWithOwnerPreparationCancel: gated(
+      coordinator.closeExpectedWithOwnerPreparationCancel,
+    ),
     closeTop: gated(coordinator.closeTop),
+    closeTopWithOwnerPreparationCancel: gated(coordinator.closeTopWithOwnerPreparationCancel),
     closeOwner: gated(coordinator.closeOwner),
     routeDismiss: gated(coordinator.routeDismiss),
+    routeDismissWithOwnerPreparationCancel: gated(
+      coordinator.routeDismissWithOwnerPreparationCancel,
+    ),
+    routeFallbackDismissWithOwnerPreparationCancel: gated(
+      coordinator.routeFallbackDismissWithOwnerPreparationCancel,
+    ),
     routeAction: gated(coordinator.routeAction),
     disposeOwner: gated(coordinator.disposeOwner),
   });

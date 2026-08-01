@@ -8,6 +8,7 @@ import type {
   ManagedSurfaceInstanceIdV1,
   ManagedSurfaceOperationV1,
   ManagedSurfaceOwnerIdV1,
+  ManagedSurfaceOwnerTransitionEvidenceV1,
   ManagedSurfacePublicationV1,
   ManagedSurfacePublishedInstanceV1,
   ManagedSurfaceReadinessV1,
@@ -557,10 +558,45 @@ function evidenceFailureV1(
   return null;
 }
 
+function ownerEvidenceFailureV1(
+  state: ManagedSurfaceReducerStateV1,
+  evidence: ManagedSurfaceOwnerTransitionEvidenceV1,
+): ManagedSurfaceReducerResultV1 | null {
+  if (evidence.applicationEpoch !== state.publication.applicationEpoch) {
+    return unchangedResultV1(state, "stale", "surface.stale_application_epoch");
+  }
+  if (evidence.topologyRevision !== state.publication.topologyRevision) {
+    return unchangedResultV1(state, "stale", "surface.stale_topology_revision");
+  }
+  if (state.disposedOwnerIds.includes(evidence.ownerId)) {
+    return unchangedResultV1(state, "unchanged", "surface.owner_already_disposed");
+  }
+  return null;
+}
+
+type ClosePreparationCancellationScopeV1 =
+  | { readonly kind: "related" }
+  | {
+    readonly kind: "owner_preparations";
+    readonly ownerId: ManagedSurfaceOwnerIdV1;
+  };
+
+const relatedPreparationCancellationV1 = Object.freeze({ kind: "related" as const });
+
+function currentCloseTargetIdV1(
+  state: ManagedSurfaceReducerStateV1,
+): ManagedSurfaceInstanceIdV1 | null {
+  return state.publication.orderedInstances.toReversed().find((instance) =>
+    isBlockingFallbackV1(instance) ||
+    instance.surfaceInstanceId === state.publication.navigationTargetInstanceId
+  )?.surfaceInstanceId ?? null;
+}
+
 function closeInstanceV1(
   state: ManagedSurfaceReducerStateV1,
   surfaceInstanceId: ManagedSurfaceInstanceIdV1,
   code: "surface.closed" | "surface.dismissed",
+  cancellationScope: ClosePreparationCancellationScopeV1 = relatedPreparationCancellationV1,
 ): ManagedSurfaceReducerResultV1 {
   const instances = state.publication.orderedInstances;
   const target = instances.find((instance) => instance.surfaceInstanceId === surfaceInstanceId);
@@ -572,8 +608,10 @@ function closeInstanceV1(
   for (const instance of instances) {
     if (
       instance.readiness.kind === "preparing" &&
-      instance.readiness.transition === "primary_replacement" &&
-      removedIds.has(instance.readiness.retainedInstanceId)
+      ((cancellationScope.kind === "owner_preparations" &&
+        instance.definition.ownerId === cancellationScope.ownerId) ||
+        (instance.readiness.transition === "primary_replacement" &&
+          removedIds.has(instance.readiness.retainedInstanceId)))
     ) {
       removedIds.add(instance.surfaceInstanceId);
     }
@@ -880,31 +918,69 @@ export function reduceManagedSurfaceV1(
       return closeInstanceV1(state, operation.evidence.surfaceInstanceId, "surface.closed");
     }
 
+    case "close_expected_with_owner_preparation_cancel": {
+      const failure = evidenceFailureV1(state, operation.evidence);
+      if (failure !== null) return failure;
+      const target = state.publication.orderedInstances.find(
+        (instance) => instance.surfaceInstanceId === operation.evidence.surfaceInstanceId,
+      );
+      if (target?.definition.ownerId !== operation.ownerId) {
+        return unchangedResultV1(
+          state,
+          "rejected",
+          "surface.invalid_transition",
+          operation.evidence.surfaceInstanceId,
+        );
+      }
+      return closeInstanceV1(
+        state,
+        target.surfaceInstanceId,
+        "surface.closed",
+        { kind: "owner_preparations", ownerId: operation.ownerId },
+      );
+    }
+
     case "close_top": {
       if (operation.applicationEpoch !== state.publication.applicationEpoch) {
         return unchangedResultV1(state, "stale", "surface.stale_application_epoch");
       }
-      const topInstanceId =
-        state.publication.orderedInstances.toReversed().find((instance) =>
-          isBlockingFallbackV1(instance) ||
-          instance.surfaceInstanceId === state.publication.navigationTargetInstanceId
-        )?.surfaceInstanceId ?? null;
+      const topInstanceId = currentCloseTargetIdV1(state);
       if (topInstanceId === null) {
         return unchangedResultV1(state, "unchanged", "surface.already_closed");
       }
       return closeInstanceV1(state, topInstanceId, "surface.closed");
     }
 
-    case "close_owner": {
-      if (operation.evidence.applicationEpoch !== state.publication.applicationEpoch) {
+    case "close_top_with_owner_preparation_cancel": {
+      if (operation.applicationEpoch !== state.publication.applicationEpoch) {
         return unchangedResultV1(state, "stale", "surface.stale_application_epoch");
       }
-      if (operation.evidence.topologyRevision !== state.publication.topologyRevision) {
-        return unchangedResultV1(state, "stale", "surface.stale_topology_revision");
+      const topInstanceId = currentCloseTargetIdV1(state);
+      if (topInstanceId === null) {
+        return unchangedResultV1(state, "unchanged", "surface.already_closed");
       }
-      if (state.disposedOwnerIds.includes(operation.evidence.ownerId)) {
-        return unchangedResultV1(state, "unchanged", "surface.owner_already_disposed");
+      const target = state.publication.orderedInstances.find(
+        (instance) => instance.surfaceInstanceId === topInstanceId,
+      );
+      if (target?.definition.ownerId !== operation.ownerId) {
+        return unchangedResultV1(
+          state,
+          "rejected",
+          "surface.invalid_transition",
+          topInstanceId,
+        );
       }
+      return closeInstanceV1(
+        state,
+        topInstanceId,
+        "surface.closed",
+        { kind: "owner_preparations", ownerId: operation.ownerId },
+      );
+    }
+
+    case "close_owner": {
+      const failure = ownerEvidenceFailureV1(state, operation.evidence);
+      if (failure !== null) return failure;
       const ownerInstances = state.publication.orderedInstances.filter(
         (instance) => instance.definition.ownerId === operation.evidence.ownerId,
       );
@@ -957,6 +1033,99 @@ export function reduceManagedSurfaceV1(
         );
       }
       return closeInstanceV1(state, target.surfaceInstanceId, "surface.dismissed");
+    }
+
+    case "route_dismiss_with_owner_preparation_cancel": {
+      const failure = evidenceFailureV1(state, operation.evidence);
+      if (failure !== null) return failure;
+      const target = state.publication.orderedInstances.find(
+        (instance) => instance.surfaceInstanceId === operation.evidence.surfaceInstanceId,
+      );
+      const isCurrentDismissTarget = operation.dismissKind === "back"
+        ? state.publication.navigationTargetInstanceId === target?.surfaceInstanceId
+        : state.publication.inputOwner?.surfaceInstanceId === target?.surfaceInstanceId;
+      if (
+        target === undefined ||
+        target.definition.ownerId !== operation.ownerId ||
+        !isCurrentDismissTarget
+      ) {
+        return unchangedResultV1(
+          state,
+          "rejected",
+          "surface.invalid_transition",
+          operation.evidence.surfaceInstanceId,
+        );
+      }
+      const dismissAllowed = operation.dismissKind === "routed_cancel"
+        ? target.definition.dismissPolicy.routedCancel
+        : target.definition.dismissPolicy[operation.dismissKind];
+      if (!dismissAllowed) {
+        return unchangedResultV1(
+          state,
+          "rejected",
+          "surface.dismiss_locked",
+          target.surfaceInstanceId,
+        );
+      }
+      return closeInstanceV1(
+        state,
+        target.surfaceInstanceId,
+        "surface.dismissed",
+        { kind: "owner_preparations", ownerId: operation.ownerId },
+      );
+    }
+
+    case "route_fallback_dismiss_with_owner_preparation_cancel": {
+      if (operation.evidence.applicationEpoch !== state.publication.applicationEpoch) {
+        return unchangedResultV1(
+          state,
+          "stale",
+          "surface.stale_application_epoch",
+          operation.evidence.surfaceInstanceId,
+        );
+      }
+      const candidate = state.publication.orderedInstances.find(
+        (instance) =>
+          instance.surfaceInstanceId === operation.evidence.surfaceInstanceId &&
+          instance.readiness.kind === "preparing",
+      );
+      if (candidate === undefined) {
+        return unchangedResultV1(
+          state,
+          "stale",
+          "surface.stale_readiness",
+          operation.evidence.surfaceInstanceId,
+        );
+      }
+      if (
+        candidate.definition.ownerId !== operation.ownerId ||
+        !isBlockingFallbackV1(candidate) ||
+        currentCloseTargetIdV1(state) !== candidate.surfaceInstanceId
+      ) {
+        return unchangedResultV1(
+          state,
+          "rejected",
+          "surface.invalid_transition",
+          candidate.surfaceInstanceId,
+        );
+      }
+      const dismissAllowed = operation.dismissKind === "routed_cancel"
+        ? candidate.definition.dismissPolicy.routedCancel
+        : candidate.definition.dismissPolicy[operation.dismissKind];
+      if (!dismissAllowed) {
+        return unchangedResultV1(
+          state,
+          "rejected",
+          "surface.dismiss_locked",
+          candidate.surfaceInstanceId,
+        );
+      }
+      return closeInstanceV1(
+        state,
+        candidate.surfaceInstanceId,
+        "surface.dismissed",
+        { kind: "owner_preparations", ownerId: operation.ownerId },
+      );
     }
 
     case "route_action": {
