@@ -940,6 +940,46 @@ template 都必须覆盖；任何合法 bytes divergence 先触发 stop rule。
 revision、改变合法 initial Snapshot/Save bytes，或发现维护中的 Story 依赖 mutable /
 non-canonical bootstrap，停止并提交 contract decision，不能静默收紧后重写 fixture。
 
+**2026-08-01 DET2d promotion：** Standard Core 的 initial construction、queued restart 与
+captured extension helper 现共用一次 package-internal bootstrap admission：adapter raw output
+在一次 fully-represented canonical traversal 中变为 path-local ordinary projection，随后只对
+engine-owned projection 做一次 recursive freeze。raw 保持 caller-owned 且不冻结、不保留；
+shared alias 按 path 展开，cycle 拒绝，Proxy virtual read、private element 与 raw-identity
+`WeakMap` association 均未跨 ingress。seed 从 frozen projection descriptor-safe 读取并 parse
+一次，resolved root 与每个 stateful module initializer 按 tuple order 收到同一个 projection；
+没有新增 public schema、receipt、hook、contract revision 或第二份 authoritative state。
+
+pre-DET2d committed path 的 tuple 为 construction/restart `0/0/1/1/1`、extension
+`0/0/1/0/0`；本切片后分别稳定为 `1/1/1/1/1` 与 `1/1/1/0/0`。adapter throw 仍为
+`0/0/0/0/0`，canonical-invalid 与 traversal operational throw 为 `1/0/0/0/0`，
+projection-freeze 与 canonical-valid zero seed 为 `1/1/0/0/0`。construction failure 在任何
+Session/listener/lease 前 reject；restart 保留 installed Snapshot identity/digest/RNG/sequence、
+CommandLog/replay base 与 Save bytes，并进入既有 `fault_paused`；extension 同步失败保持 live
+Session 为 `ready`。其后的 root/module ordering 与 HMR fence 沿用已有 resolved wrapper 和
+Session queue 合同；完整回归套件保持这些 failure channels。
+
+production change 前的 red run 为 repository `219` files / `2269` tests 中 `11` red：
+admission `7` 项精确命中旧 raw identity/freezing 与缺少 projection-freeze failure，Core `4` 项
+命中三入口同一问题；其余 `2258` 项通过。初始 green 为 `2/111`；独立 acceptance review 又补入
+raw Proxy descriptor/virtual-seed negative control、root/aggregate/first-module sentinel 与 restart
+HMR preflight/post/catch fence，最终 focused 为 `3/133`。这些测试覆盖 invalid shape matrix、
+failure precedence/atomicity、三入口 work tuple 与 projection byte parity；相关合同组为 `5/144`，
+Base 为 `74/947`，repository unit 为 `219/2275`。pre-change fixed oracle 逐项保持：
+construction Snapshot `223` bytes / `sha256:6c99d0d9a0c04502afed614772cd2a477eb532379bce41b3e27f2ea1321b65ea`、
+State digest `sha256:8e239525d6a136d496011d477d123c90bfebb343c2b548d791457dfff60ddfdd`、
+quick Save `1446` bytes / `sha256:830ca8717f94430b384fb8a42c4521becdb3e935d1b23c07446c5f01f9986ac4`；
+subsequent Snapshot `224` bytes / `sha256:4e3d87e3fd4ae7f95af30380b018f686dc76176ee68a75fec254fa76fa41e236`、
+State digest `sha256:b609af2038e7cec8ec3995f452dd8d0a76e952c7753db1d335d9e177093fbfad`、
+quick Save `1447` bytes / `sha256:14bd0f03e919398a146bf9a54b0f29af856a409cf4008fc16ad05578f1ca01a8`。
+
+latest-stable Deno `2.9.4` 下 typecheck、完整 `deno task check` 与 Engine Lab browser
+`103/103` 通过；全部 registered Stories/template 保持 check/build。Snapshot benchmark
+schema-v3 report 写入 OS 临时目录，既有 Session workload 计数未改变：commit `3/3`、
+reject/fault `2/2`（canonical/freeze），mixed recording `682/682`、retained replay
+`3609/200`、persistence `15/6`。public canonical encoder 保持 pre-slice source，合法
+Snapshot/digest/Save/replay bytes 未变化。下一独立切片是 DET2e bounded authoritative
+helpers。
+
 ## 10. DET2e — Bounded authoritative helpers
 
 ### Changes

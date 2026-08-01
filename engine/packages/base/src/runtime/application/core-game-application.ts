@@ -25,6 +25,10 @@ import {
   type FinalizedEvidenceResultConstraintInternalV1,
   withDeferredSimulationEvidenceAdmissionInternalV1,
 } from "../../internal/finalized-evidence-admission.ts";
+import {
+  admitCanonicalBootstrapInternalV1,
+  type CanonicalBootstrapAdmissionHooksInternalV1,
+} from "../../internal/canonical-bootstrap-admission.ts";
 import type {
   RuntimeSessionStatusV1,
   SessionAnchorResultV1,
@@ -541,6 +545,10 @@ const saveProjectionInstrumentationV1 = new WeakMap<
   CreateCoreGameApplicationInstanceOptionsV1,
   SaveSummaryProjectionInstrumentationInternalV1
 >();
+const bootstrapAdmissionHooksV1 = new WeakMap<
+  CreateCoreGameApplicationInstanceOptionsV1,
+  CanonicalBootstrapAdmissionHooksInternalV1
+>();
 
 /**
  * Attaches a one-shot, observational construction probe for same-package tests.
@@ -577,6 +585,15 @@ export function instrumentCoreApplicationSaveProjectionOptionsInternalV1(
   instrumentation: SaveSummaryProjectionInstrumentationInternalV1,
 ): CreateCoreGameApplicationInstanceOptionsV1 {
   saveProjectionInstrumentationV1.set(options, instrumentation);
+  return options;
+}
+
+/** @internal One-shot bootstrap-admission failure seam for package tests. */
+export function instrumentCoreApplicationBootstrapAdmissionOptionsInternalV1(
+  options: CreateCoreGameApplicationInstanceOptionsV1,
+  hooks: CanonicalBootstrapAdmissionHooksInternalV1,
+): CreateCoreGameApplicationInstanceOptionsV1 {
+  bootstrapAdmissionHooksV1.set(options, hooks);
   return options;
 }
 
@@ -846,6 +863,8 @@ export async function createCoreGameApplicationInstanceV1<
   snapshotWorkInstrumentationV1.delete(options);
   const saveProjectionInstrumentation = saveProjectionInstrumentationV1.get(options);
   saveProjectionInstrumentationV1.delete(options);
+  const bootstrapAdmissionHooks = bootstrapAdmissionHooksV1.get(options);
+  bootstrapAdmissionHooksV1.delete(options);
   const autosave = normalizeCoreAutosavePolicyV1(options.autosave);
   const scheduler = options.scheduler ?? defaultSchedulerV1;
   const definition = application.definition;
@@ -910,13 +929,15 @@ export async function createCoreGameApplicationInstanceV1<
       gameSimulation.debugValidationErrorSchema.parse(value),
   });
   const createInitialSnapshotV1 = (): TTypes["snapshot"] => {
-    const bootstrap = gameSimulation.createBootstrapInput(options.host.entropy);
-    // Validate the Host seed before Story code can mutate the raw bootstrap
-    // handoff. DET2d owns canonicalizing that handoff; DET1 only closes zero.
-    parseRngSeedInternalV1(readBootstrapRngSeedV1(bootstrap));
+    const bootstrap = admitCanonicalBootstrapInternalV1(
+      gameSimulation.createBootstrapInput(options.host.entropy),
+      snapshotWorkInstrumentation,
+      bootstrapAdmissionHooks,
+    );
+    const rngSeed = parseRngSeedInternalV1(readBootstrapRngSeedV1(bootstrap));
     return snapshotSchema.parse({
-      state: gameSimulation.createInitialState(bootstrap as DeepReadonly<TTypes["bootstrapInput"]>),
-      rng: createTransactionalRngV1(readBootstrapRngSeedV1(bootstrap)).candidateState(),
+      state: gameSimulation.createInitialState(bootstrap),
+      rng: createTransactionalRngV1(rngSeed).candidateState(),
       commandSequence: parseNonNegativeSafeInteger(0),
       integrity: createPristineRunIntegrityV1(),
     }) as TTypes["snapshot"];

@@ -62,6 +62,15 @@ function passthroughSchema<T>(): RuntimeSchemaV1<T> {
   return Object.freeze({ parse: (value: unknown) => value as T });
 }
 
+function captureThrownV1(callback: () => unknown): unknown {
+  try {
+    callback();
+  } catch (error) {
+    return error;
+  }
+  throw new TypeError("expected callback to throw");
+}
+
 function statefulWithSlots(
   id: string,
   slots: readonly string[],
@@ -265,6 +274,161 @@ describe("GameSimulation invariants", () => {
       parity: "even",
     });
     expect(resolved.projectGameView(queries)).toEqual({ countLabel: "0" });
+  });
+
+  it("passes one admitted frozen bootstrap identity through root and stateful initializers in tuple order", () => {
+    const nestedBootstrap = Object.freeze({
+      labels: Object.freeze(["synthetic.bootstrap"]),
+    });
+    const bootstrap = Object.freeze({
+      rngSeed: parseNonZeroUint32(1),
+      nested: nestedBootstrap,
+    });
+    const callOrder: string[] = [];
+    const observedBootstraps: unknown[] = [];
+    const observeBootstrap = (owner: string, value: unknown): void => {
+      callOrder.push(owner);
+      observedBootstraps.push(value);
+      expect(value).toBe(bootstrap);
+      expect(Object.isFrozen(value)).toBe(true);
+      expect(Object.isFrozen((value as typeof bootstrap).nested)).toBe(true);
+      expect(Object.isFrozen((value as typeof bootstrap).nested.labels)).toBe(true);
+    };
+
+    const markerSeed = stateful("synthetic.marker", "simulation.marker");
+    const marker = defineGameplayModule<SyntheticSimulationTypesV1>()({
+      ...markerSeed,
+      createInitialState(value) {
+        observeBootstrap("synthetic.marker", value);
+        return Object.freeze({ enabled: false });
+      },
+    });
+    const parity = stateless("synthetic.parity", ["synthetic.counter"]);
+    const counterSeed = stateful("synthetic.counter", "simulation.counter");
+    const counter = defineGameplayModule<SyntheticSimulationTypesV1>()({
+      ...counterSeed,
+      createInitialState(value) {
+        observeBootstrap("synthetic.counter", value);
+        return Object.freeze({ count: 0 });
+      },
+    });
+    const modules = Object.freeze([marker, parity, counter] as const);
+    const seed = simulation(modules);
+    let rootInitialStateCalls = 0;
+    const rootInitialState = (value: unknown) => {
+      rootInitialStateCalls += 1;
+      observeBootstrap("root", value);
+      return Object.freeze({
+        simulation: Object.freeze({
+          counter: Object.freeze({ count: 0 }),
+          marker: Object.freeze({ enabled: false }),
+        }),
+      });
+    };
+    const resolved = defineGameSimulation<SyntheticSimulationTypesV1>()({
+      ...seed,
+      createInitialState: rootInitialState,
+    });
+
+    expect(Object.isFrozen(bootstrap)).toBe(true);
+    expect(Object.isFrozen(nestedBootstrap)).toBe(true);
+    expect(Object.isFrozen(nestedBootstrap.labels)).toBe(true);
+    expect(Object.hasOwn(parity, "createInitialState")).toBe(false);
+
+    expect(resolved.createInitialState(bootstrap)).toEqual({
+      simulation: { counter: { count: 0 }, marker: { enabled: false } },
+    });
+
+    expect(rootInitialStateCalls).toBe(1);
+    expect(observedBootstraps).toEqual([bootstrap, bootstrap, bootstrap]);
+    expect(callOrder).toEqual(["root", "synthetic.marker", "synthetic.counter"]);
+  });
+
+  it.each(["root", "aggregate_schema"] as const)(
+    "keeps %s initial-State failure ahead of every module initializer",
+    (failureStage) => {
+      const failure = new Error(`synthetic ${failureStage} initial-State failure`);
+      let rootCalls = 0;
+      let moduleCalls = 0;
+      const counterSeed = stateful("synthetic.counter", "simulation.counter");
+      const counter = defineGameplayModule<SyntheticSimulationTypesV1>()({
+        ...counterSeed,
+        createInitialState() {
+          moduleCalls += 1;
+          return Object.freeze({ count: 0 });
+        },
+      });
+      const seed = simulation(Object.freeze([counter]));
+      const resolved = defineGameSimulation<SyntheticSimulationTypesV1>()({
+        ...seed,
+        stateSchema: failureStage === "aggregate_schema"
+          ? Object.freeze({
+            parse(): never {
+              throw failure;
+            },
+          })
+          : seed.stateSchema,
+        createInitialState() {
+          rootCalls += 1;
+          if (failureStage === "root") throw failure;
+          return Object.freeze({
+            simulation: Object.freeze({
+              counter: Object.freeze({ count: 0 }),
+              marker: Object.freeze({ enabled: false }),
+            }),
+          });
+        },
+      });
+
+      expect(captureThrownV1(() =>
+        resolved.createInitialState(
+          Object.freeze({ rngSeed: parseNonZeroUint32(1) }),
+        )
+      )).toBe(failure);
+      expect(rootCalls).toBe(1);
+      expect(moduleCalls).toBe(0);
+    },
+  );
+
+  it("stops at the first failing stateful module initializer", () => {
+    const failure = new Error("synthetic first module initial-State failure");
+    const callOrder: string[] = [];
+    const markerSeed = stateful("synthetic.marker", "simulation.marker");
+    const marker = defineGameplayModule<SyntheticSimulationTypesV1>()({
+      ...markerSeed,
+      createInitialState(): never {
+        callOrder.push("synthetic.marker");
+        throw failure;
+      },
+    });
+    const counterSeed = stateful("synthetic.counter", "simulation.counter");
+    const counter = defineGameplayModule<SyntheticSimulationTypesV1>()({
+      ...counterSeed,
+      createInitialState() {
+        callOrder.push("synthetic.counter");
+        return Object.freeze({ count: 0 });
+      },
+    });
+    const seed = simulation(Object.freeze([marker, counter]));
+    const resolved = defineGameSimulation<SyntheticSimulationTypesV1>()({
+      ...seed,
+      createInitialState() {
+        callOrder.push("root");
+        return Object.freeze({
+          simulation: Object.freeze({
+            counter: Object.freeze({ count: 0 }),
+            marker: Object.freeze({ enabled: false }),
+          }),
+        });
+      },
+    });
+
+    expect(captureThrownV1(() =>
+      resolved.createInitialState(
+        Object.freeze({ rngSeed: parseNonZeroUint32(1) }),
+      )
+    )).toBe(failure);
+    expect(callOrder).toEqual(["root", "synthetic.marker"]);
   });
 
   it("gates every direct public Simulation command callback", () => {

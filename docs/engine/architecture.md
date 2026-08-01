@@ -1,6 +1,6 @@
 # SillyMaker architecture
 
-状态：持续维护的现状文档。最后结构性复核：2026-07-31。
+状态：持续维护的现状文档。最后结构性复核：2026-08-01。
 
 本文描述当前实现的主要边界和数据流。它不是冻结 ABI；修改包职责、权威状态、Story
 组合、持久化格式或公开入口时，应同时更新本文、相应类型和行为测试。
@@ -112,6 +112,25 @@ and Story-owned behavior:
 - gameplay and debug command executors;
 - `createQueries(State)`;
 - immutable game ViewModel projection.
+
+Story-owned `createBootstrapInput` is a composition-root/Host ingress adapter,
+not an authoritative transition callback. Standard Core uses one
+package-internal admission path that traverses the complete raw return once and
+constructs a path-local ordinary-data projection. Core neither
+retains nor freezes the raw adapter output: shared aliases expand independently
+at each canonical path, and Proxy-, private-field-, or WeakMap-backed hidden
+identity state cannot cross the boundary. Only after the projection succeeds
+does Core recursively freeze that engine-owned value, descriptor-read and parse
+its RNG seed once, and pass the frozen projection to the resolved root and
+stateful-module initializers. Construction, queued restart, and the extension
+initial-Snapshot helper share this admission. Canonical failure precedes seed
+and Story validation; failed construction acquires no Session or persistence
+ownership, while failed restart/extension never replaces the installed
+Snapshot, replay base, or persistence anchor. Queued restart retains its
+pre-operation, post-operation, and catch HMR fences: an invalidated outcome can
+win before admission or after transient bootstrap work, but never install the
+candidate. This internal mode does not change public canonical JSON, digest,
+Snapshot, Save, or replay bytes.
 
 Every public Simulation command callback has an engine-owned Strict Canonical
 Data gate. The command-admission canonical traversal adds package-internal
