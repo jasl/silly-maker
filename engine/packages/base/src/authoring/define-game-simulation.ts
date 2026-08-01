@@ -18,6 +18,7 @@ import {
   consumeSimulationEvidenceDeferralInternalV1,
   isCommandAttemptEnvelopeCandidateInternalV1,
 } from "../internal/finalized-evidence-admission.ts";
+import { compareUtf16CodeUnitsInternalV1 } from "../internal/utf16-code-unit-order.ts";
 import { deepFreezeAuthoringValueV1, moduleDefinitionErrorV1 } from "./define-gameplay-module.ts";
 
 interface DefineGameSimulationV1<TTypes extends GameSimulationTypeMapV1> {
@@ -212,7 +213,9 @@ function assertDependencyDag(modules: readonly RuntimeRecord[]): void {
     complete.add(id);
   }
   for (
-    const id of [...byId.keys()].sort((left, right) => String(left).localeCompare(String(right)))
+    const id of [...byId.keys()].sort((left, right) =>
+      compareUtf16CodeUnitsInternalV1(String(left), String(right))
+    )
   ) {
     visit(id);
   }

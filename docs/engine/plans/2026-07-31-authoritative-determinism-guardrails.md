@@ -1006,10 +1006,44 @@ helpers。
 若 Story 需要玩家可见的本地化排序，它属于 Presentation projection，不能反向成为
 authoritative row order。
 
+### Failure classification, precedence, and atomicity
+
+- Event Pool 保留 candidate id/weight validation 为第一阶段；每个 candidate 的
+  `eventId`/`weight` 在该阶段各捕获一次。随后把 `context.numbers` 的 own enumerable
+  entries 各读取一次并 capture/admission 为 engine-owned projection（继承属性按缺失），
+  再逐 candidate 一次捕获 condition、按 authoring order 评估并形成完整 eligible
+  vector，并按原 candidate index 逐项检查累计 overflow。之后才处理 force/empty、
+  ordinary RNG 与 explanation/result；
+- condition literal 的 `-0` 沿用 `event_pool.condition_invalid` 与 caller condition
+  path。context 的 fractional、non-finite、unsafe integer 或 `-0` 使用
+  `event_pool.context_number_invalid` 与 escaped
+  `/context/numbers/<key>`；累计溢出使用
+  `event_pool.total_weight_overflow` 与 `/candidates/<index>/weight`。candidate failure
+  优先于 context，context 优先于 eligibility/total，overflow 优先于 force lookup、
+  RNG 与任何 explanation；
+- 上述 failure 不改变 input、RNG candidate state 或 attempted draws，也不返回
+  partial eligibility/explanation。forced target 即使位于 eligible vector 前部，也必须
+  扫描并验证其后每个 eligible weight；validation 后的 condition evaluation、累计、
+  force、explanation 与 selection 只消费 captured projection，不重读 caller-owned
+  candidate scalar 或 numeric-context property；
+- positive-safe-integer weight 的既有 public shape 与当前 `RuleRngV1.nextInt`
+  draw-domain 都不在本切片改变。一个 safe 但超出当前 ordinary RNG domain 的 total
+  仍走既有 RNG rejection；DET2e 不把它伪装成 safe-integer overflow；
+- Content Database 只替换 comparator implementation，不新增 schema/failure branch；
+  equal numeric/string key 继续由稳定 sort 保留 authoring row order。Game Authoring Kit
+  proposal/schema callback 仍按 Story 调用顺序执行；只有 complete 后的 staged
+  apply/facts/candidate order 与 dependency/cycle diagnostics 使用固定 UTF-16
+  code-unit order。任何 owner apply/schema/invariant failure 仍走既有 atomic fault
+  attempt，未改变 Session/CommandLog/replay public result shape；
+- canonical JSON 的 Unicode code-point key comparator、digest、Save、CommandLog 与
+  replay encoding 不变；Host memory/Desktop/testkit/test-helper 四个 DET0 negative
+  control 不进入 authoritative closure，也不在本切片改写。
+
 ### TDD and acceptance
 
-- Event Pool 覆盖 invalid context number、单个合法权重、逐步 overflow、forced 与
-  ordinary draw；所有失败都在 RNG draw 前发生，不返回 unsafe `totalWeight`，合法
+- Event Pool 覆盖 invalid context number、own-only map semantics、accessor read-once、
+  candidate scalar projection、单个合法权重、逐步 overflow、forced 与 ordinary draw；
+  所有失败都在 RNG draw 前发生，不返回 unsafe `totalWeight`，合法
   explanation/fact/RNG vector byte-identical；
 - Content Database 覆盖 safe-integer 极值、ASCII、非 ASCII、大小写和 canonically
   equivalent-but-distinct strings，固定中性 expected order，不从
@@ -1032,6 +1066,47 @@ authoritative row order。
 **DET-A gate：** DET1–DET2e 全部完成后，合法 authoritative bytes/order 才成为
 M0b 的 current baseline。此时可以分叉 callback-free M0b/M1，但不得宣称完整
 determinism promotion，也不得注册 executable migrator。
+
+**2026-08-01 DET2e promotion：** Event Pool 现在一次捕获 candidate scalar，并在
+candidate validation 后把 own enumerable context number 各读取一次成为 engine-owned
+projection；number condition/context 都拒绝 fractional、
+non-finite、unsafe integer 与 `-0`；eligible weight 以加法前 threshold check 逐项
+累计，ordinary/forced overflow 都以 stable code/index path 在 RNG/explanation 前失败。
+Content Database numeric order 使用 bounded relational sign，string order 与 Game
+Authoring Kit dependency、cycle diagnostic、staged apply/facts order 共用 package-internal
+UTF-16 code-unit comparator；canonical JSON 的 Unicode code-point comparator 未改变。
+DET0 的 `5` 个 authoritative/stable-diagnostic `localeCompare` callsite 已清零；Host
+memory、Desktop tooling、snapshot testkit 与 Core test helper `4` 个 negative control
+保持原样，authority-map `5/5` 通过。
+
+初始 focused red 为 `5` files / `70` tests，其中 `22` failed、`48` passed；独立审查又以
+accessor/prototype vectors 揭示 raw candidate/context 在 validation 后被重读的 `5` 条 red，
+现已由 read-once engine-owned projection 收口。一条让
+`MAX_SAFE_INTEGER` ordinary total 进入 production RNG 的过宽测试同时暴露了既有
+`RuleRngV1` uint32 draw-domain，按本节 non-goal 改为合法单权重向量，没有收窄 weight
+或扩张 RNG。最终 focused（含 BuildIdentity、direct-file pure vector 与 authority map）
+为 `8/89`，Base `75/958`，full unit `220/2286`。中性 pure runner 在会抛错的
+`localeCompare` spy 下重复两次，精确固定 reverse-proposal transaction 的 apply/facts、
+candidate Snapshot、完整 CommandLog（pre/post State digest
+`sha256:2a679480c3003a2a82a5dc64f5b66ff80f49d32049636bbb0f0a8f27fd0718ec` /
+`sha256:7197db8c7a1cec33d052788995af132f81dc6fdc269c909e7c3abeea9f658153`）与
+authoritative replay `matches=true/executedEntries=1`。既有 Event Pool ordinary/forced
+golden 仍为 `555` /
+`sha256:5f8cdbfda5b0a0d3cff93d72b2452719abe245e5a939ed22084cca19a49f7d2f` 与
+`343` /
+`sha256:f480dfedc7b9419a9f8087672d3671b230d9aab31c204a107c7f7630bafa51ce`。
+
+latest-stable Deno `2.9.4` 下 typecheck、maintained Save/DET/PF1 workload、完整
+`deno task check` 均通过；Snapshot benchmark schema-v3 report 写入 OS 临时目录，
+commit/reject-fault/mixed/replay/persistence 的既有 deterministic counts 仍为
+`3/3`、`2/2`、`682/682`、`3609/200`、`15/6`（canonical/freeze）。没有 registered
+Story 依赖 locale-default ordering，合法 Snapshot/Save/replay/diagnostic corpus 没有
+重生成或漂移。本批没有 public comparator/numeric package、canonical/digest/Save/
+replay shape、browser config 或 executable migration change。
+
+DET-A 至此关闭，只表示 M0b/M1 的 callback-free 分叉已合法；完整 PF-DET 仍需
+DET3a–DET4。当前线性 core 下一独立切片选择 `DET3a`，不在本批预实现 static guard、
+realm tripwire 或 browser parity。
 
 ## 11. DET3a — Import-closure-aware static guard
 

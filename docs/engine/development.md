@@ -190,6 +190,17 @@ A checked-in fixture is justified when its bytes are themselves a maintained ext
 
 The reusable `@sillymaker/base/testkit` package is appropriate for compact behavior-level setup shared by real engine/Story tests. A “harness” is not a problem by name; a harness with no maintained product contract is. Its revisioned Save-metadata corpus is the shared byte authority for runtime/Host parity work: expected records use lossless base64 plus maintained lengths and SHA-256 values, while Host payload helpers return fresh byte copies. Update that corpus only with an intentional Save-contract change, record the old/new bytes in the active migration plan, and rerun the focused lifecycle matrix before aggregate checks; do not regenerate it from the implementation under test or duplicate it in Browser/Desktop fixtures.
 
+DET2e's browser-neutral ordering seam is intentionally direct-file-only under
+`engine/packages/base/src/testkit/`: `authoritative-ordering-vectors.ts` runs one
+Event Pool, Content Database, Session transaction, CommandLog, and authoritative
+replay vector; its focused Deno test executes that runner twice, while
+`authoritative-ordering-vector-expected.ts` owns the hand-written fixed expected.
+Neither file is a package-barrel API.
+Future DET4 browser runners must consume these exact files/expected rather than
+copying or sorting a new oracle. The expected module must never derive order
+from `localeCompare`, `Intl`, the implementation comparator, or current Host
+locale.
+
 ## Dependencies and toolchain
 
 - Add dependencies at the narrowest package that uses them and keep versions exact.

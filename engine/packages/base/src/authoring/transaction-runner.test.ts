@@ -260,21 +260,13 @@ describe("kit transaction runner", () => {
     expect(digests[0]).toBe(digests[1]);
   });
 
-  it("characterizes locale-controlled owner apply and fact ordering", () => {
+  it("uses fixed code-unit owner apply and fact ordering", () => {
     const applyOrder: string[] = [];
     const { vault, ledger, runner } = createBankFixtureV1(applyOrder);
     const snapshot = bankSnapshotV1();
-    const comparisons: [string, string][] = [];
-    const ranks = new Map([
-      ["bank.vault", 0],
-      ["bank.ledger", 1],
-    ]);
-    const localeCompare = vi.spyOn(String.prototype, "localeCompare").mockImplementation(
-      function (this: string, right: string): number {
-        comparisons.push([this, right]);
-        return (ranks.get(this) ?? 0) - (ranks.get(right) ?? 0);
-      },
-    );
+    const localeCompare = vi.spyOn(String.prototype, "localeCompare").mockImplementation(() => {
+      throw new TypeError("authoritative ordering consulted the Host locale");
+    });
 
     try {
       const attempt = runner.execute(
@@ -289,16 +281,16 @@ describe("kit transaction runner", () => {
 
       expect(attempt.result.kind).toBe("committed");
       if (attempt.result.kind !== "committed") return;
-      expect(applyOrder).toEqual(["bank.vault", "bank.ledger"]);
+      expect(applyOrder).toEqual(["bank.ledger", "bank.vault"]);
       expect(attempt.result.facts).toEqual([
-        { kind: "bank.coins_moved", amount: -3 },
         { kind: "bank.entry_recorded", entries: 1 },
+        { kind: "bank.coins_moved", amount: -3 },
       ]);
       expect(attempt.result.snapshot.state.simulation).toEqual({
         vault: { coins: 7 },
         ledger: { entries: 1 },
       });
-      expect(comparisons).toContainEqual(["bank.vault", "bank.ledger"]);
+      expect(localeCompare).not.toHaveBeenCalled();
     } finally {
       localeCompare.mockRestore();
     }

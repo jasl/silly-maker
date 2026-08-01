@@ -161,33 +161,28 @@ describe("content database queries", () => {
     expect(db.collectTextIds()).toEqual(["text.t.clean", "text.t.play", "text.t.train"]);
   });
 
-  it("characterizes locale-controlled authoritative string ordering", () => {
+  it("orders authoritative strings by fixed UTF-16 code units without Host locale", () => {
     const labels = ["A", "a", "a-1", "a_1", "e\u0301", "\u00e9", "\u{1f600}", "\ue000"];
     const table = orderedTableV1(
       labels.map((label, index) => ({ id: `row.${String(index)}`, label, score: index })),
     );
     const view = createContentDatabaseV1({ tables: [table] }).table(table);
-    const controlledOrder = ["\u{1f600}", "a", "A", "a_1", "a-1", "e\u0301", "\u00e9", "\ue000"];
-    const ranks = new Map(controlledOrder.map((value, index) => [value, index]));
-    const comparisons: [string, string][] = [];
-    const localeCompare = vi.spyOn(String.prototype, "localeCompare").mockImplementation(
-      function (this: string, right: string): number {
-        comparisons.push([this, right]);
-        return (ranks.get(this) ?? 0) - (ranks.get(right) ?? 0);
-      },
-    );
+    const expected = ["A", "a", "a-1", "a_1", "e\u0301", "\u00e9", "\u{1f600}", "\ue000"];
+    const localeCompare = vi.spyOn(String.prototype, "localeCompare").mockImplementation(() => {
+      throw new TypeError("authoritative ordering consulted the Host locale");
+    });
 
     try {
-      expect(view.findMany({ orderBy: "label" }).map((row) => row.label)).toEqual(
-        controlledOrder,
-      );
-      expect(comparisons.length).toBeGreaterThan(0);
+      expect(view.findMany({ orderBy: "label" }).map((row) => row.label)).toEqual(expected);
+      expect(view.findMany({ orderBy: "label", direction: "desc" }).map((row) => row.label))
+        .toEqual(expected.toReversed());
+      expect(localeCompare).not.toHaveBeenCalled();
     } finally {
       localeCompare.mockRestore();
     }
   });
 
-  it("characterizes safe-integer extremes without consulting the locale comparator", () => {
+  it("orders safe-integer extremes without subtraction overflow or Host locale", () => {
     const table = orderedTableV1([
       { id: "row.max", label: "maximum", score: Number.MAX_SAFE_INTEGER },
       { id: "row.zero", label: "zero", score: 0 },
@@ -204,6 +199,9 @@ describe("content database queries", () => {
         0,
         Number.MAX_SAFE_INTEGER,
       ]);
+      expect(
+        view.findMany({ orderBy: "score", direction: "desc" }).map((row) => row.score),
+      ).toEqual([Number.MAX_SAFE_INTEGER, 0, Number.MIN_SAFE_INTEGER]);
       expect(localeCompare).not.toHaveBeenCalled();
     } finally {
       localeCompare.mockRestore();

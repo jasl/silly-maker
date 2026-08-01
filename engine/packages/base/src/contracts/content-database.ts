@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 import type { RuntimeSchemaV1 } from "./values.ts";
+import { compareUtf16CodeUnitsInternalV1 } from "../internal/utf16-code-unit-order.ts";
 
 /**
  * The content database: Story-defined static data tables with typed
@@ -254,8 +255,11 @@ export function createContentDatabaseV1(input: {
             selected = selected.toSorted((left, right) => {
               const a = left[orderBy];
               const b = right[orderBy];
-              if (typeof a === "number" && typeof b === "number") return (a - b) * direction;
-              return String(a).localeCompare(String(b)) * direction;
+              if (typeof a === "number" && typeof b === "number") {
+                const comparison = a < b ? -1 : a > b ? 1 : 0;
+                return comparison * direction;
+              }
+              return compareUtf16CodeUnitsInternalV1(String(a), String(b)) * direction;
             });
           }
           return Object.freeze(selected);

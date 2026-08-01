@@ -195,8 +195,9 @@ gameplay 部分使用现有 Strict Canonical Data 数值合同：
 
 当前 Snapshot/Save encoder、Strict JSON parser、normalized command 与完整
 authoritative evidence 都已执行对应边界，避免 malformed data 先污染
-CommandLog、Save import 或 Debug Bundle decode 后才失败。bootstrap handoff 与其余
-ambient-authority guardrail 仍按 active plan 后续切片推进。
+CommandLog、Save import 或 Debug Bundle decode 后才失败。canonical bootstrap
+handoff 也已使用同一 engine-owned projection/freeze ownership；authority-aware static
+guard 与跨 runtime ambient/parity gate 仍按 active plan 后续切片推进。
 
 ### 3.2 Domain representations
 
@@ -226,6 +227,23 @@ branch。若某个真实算法必须使用：
 
 `parseFloat`、fractional literal、依赖实现近似的 `Math` 函数属于需要审查的信号，
 但不能用“全局禁止 `Math.*`”误伤 RNG 中对整数执行的 `Math.floor` 等已定义操作。
+
+### 3.4 Bounded helper ordering and accumulation
+
+进入 authoritative callback order、authoritative bytes 或 stable diagnostics 的通用
+helper 不读取 Host locale。Content Database string `orderBy`、Game Authoring Kit
+dependency/module transaction order、Simulation dependency-cycle root traversal统一使用
+UTF-16 code-unit comparator；这与 canonical JSON 的 Unicode code-point key order 是
+两个不同合同，不能互换。数值排序以 relational sign 返回 `-1/0/1`，不通过
+`left - right` 构造可能越过 safe-integer 的中间差值。
+
+Event Pool 在 candidate validation 后一次 admission 整份 context number map；所有
+number condition literal/context value 都拒绝 fractional、non-finite、unsafe integer
+与 `-0`。完整 eligibility 形成后，权重按 authoring order 在加法前逐项检查
+safe-integer overflow；overflow 在 forced/ordinary result、explanation 与 RNG 之前
+失败。Host record adapters、Presentation、tooling 与 test-only comparator 只有在
+authority collector 证明位于 closure 外时才是 negative control；它们的 locale 行为
+不能流回 authoritative ordering。
 
 ## 4. Entropy and clock contract
 

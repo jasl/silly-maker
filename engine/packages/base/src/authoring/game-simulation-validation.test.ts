@@ -918,24 +918,16 @@ describe("GameSimulation invariants", () => {
     expect(() => defineSimulationWithCycle()).toThrow("dependency cycle");
   });
 
-  it("characterizes locale-controlled dependency-cycle first failure", () => {
-    const comparisons: [string, string][] = [];
-    const ranks = new Map([
-      ["synthetic.right", 0],
-      ["synthetic.left", 1],
-    ]);
-    const localeCompare = vi.spyOn(String.prototype, "localeCompare").mockImplementation(
-      function (this: string, right: string): number {
-        comparisons.push([this, right]);
-        return (ranks.get(this) ?? 0) - (ranks.get(right) ?? 0);
-      },
-    );
+  it("uses fixed code-unit traversal for dependency-cycle diagnostics", () => {
+    const localeCompare = vi.spyOn(String.prototype, "localeCompare").mockImplementation(() => {
+      throw new TypeError("stable diagnostics consulted the Host locale");
+    });
 
     try {
       expect(() => defineSimulationWithCycle()).toThrow(
-        "dependency cycle at synthetic.right",
+        "dependency cycle at synthetic.left",
       );
-      expect(comparisons).toContainEqual(["synthetic.right", "synthetic.left"]);
+      expect(localeCompare).not.toHaveBeenCalled();
     } finally {
       localeCompare.mockRestore();
     }

@@ -193,6 +193,15 @@ The current validator checks unique State ownership and an acyclic module
 dependency graph. A Story's aggregate State should reflect the modules it
 actually composes; unused modules should not force placeholder State.
 
+The Game Authoring Kit transaction runner keeps proposal construction in the
+Story's explicit call order, then applies the completed staged owner vector by
+UTF-16 code-unit module-ID order. Each owner apply reads its command-start slice;
+the engine accumulates replacements and facts in that fixed order, validates the
+aggregate candidate, finalizes evidence, appends CommandLog, and only then
+installs/publishes a committed Snapshot. Authoritative replay runs the same
+executor/order. The comparator is package-internal and Host-locale-independent;
+it is not the Unicode code-point comparator used by canonical JSON keys.
+
 The authoritative runtime value is a `GameSnapshot`:
 
 ```text

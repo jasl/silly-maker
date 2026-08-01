@@ -66,20 +66,10 @@ function diagnosticsOfV1(run: () => unknown) {
   throw new Error("expected composition to throw");
 }
 
-function installControlledLocaleOrderV1(order: readonly string[]) {
-  const ranks = new Map(order.map((value, index) => [value, index]));
-  const comparisons: [string, string][] = [];
-  const spy = vi.spyOn(String.prototype, "localeCompare").mockImplementation(function (
-    this: string,
-    right: string,
-  ): number {
-    comparisons.push([this, right]);
-    const leftRank = ranks.get(this);
-    const rightRank = ranks.get(right);
-    if (leftRank !== undefined && rightRank !== undefined) return leftRank - rightRank;
-    return this < right ? -1 : this > right ? 1 : 0;
+function installRejectingLocaleCompareV1() {
+  return vi.spyOn(String.prototype, "localeCompare").mockImplementation(() => {
+    throw new TypeError("authoritative ordering consulted the Host locale");
   });
-  return { comparisons, spy };
 }
 
 function createFixtureV1() {
@@ -258,7 +248,7 @@ describe("createGameAuthoringKitV1", () => {
     expect(codes).not.toContain("authoring.capability.dependency_cycle");
   });
 
-  it("characterizes locale-controlled graph traversal in the first cycle diagnostic", () => {
+  it("uses fixed code-unit graph traversal for the first cycle diagnostic", () => {
     const kit = createGameAuthoringKitV1<KitTestTypesV1>();
     const moduleWith = (id: string, slot: string, after: string) =>
       kit.defineStatefulModule({
@@ -274,10 +264,7 @@ describe("createGameAuthoringKitV1", () => {
       });
     const storage = moduleWith("kit.storage", "simulation.storage", "kit.shop");
     const shop = moduleWith("kit.shop", "simulation.shop", "kit.storage");
-    const { comparisons, spy } = installControlledLocaleOrderV1([
-      "kit.storage",
-      "kit.shop",
-    ]);
+    const spy = installRejectingLocaleCompareV1();
 
     try {
       const diagnostics = diagnosticsOfV1(() => kit.composeModules([shop, storage]));
@@ -285,16 +272,16 @@ describe("createGameAuthoringKitV1", () => {
         (diagnostic) => diagnostic.code === "authoring.lifecycle.dependency_cycle",
       );
       expect(lifecycle).toMatchObject({
-        message: "lifecycle dependency cycle at kit.storage",
-        subject: { kind: "module", id: "kit.storage" },
+        message: "lifecycle dependency cycle at kit.shop",
+        subject: { kind: "module", id: "kit.shop" },
       });
-      expect(comparisons).toContainEqual(["kit.storage", "kit.shop"]);
+      expect(spy).not.toHaveBeenCalled();
     } finally {
       spy.mockRestore();
     }
   });
 
-  it("characterizes locale-controlled dependency vector ordering", () => {
+  it("orders dependency vectors by fixed code units", () => {
     const kit = createGameAuthoringKitV1<KitTestTypesV1>();
     const dashRead = kit.defineCapability<StorageReadPortV1>("capability.dash.read");
     const underscoreRead = kit.defineCapability<StorageReadPortV1>(
@@ -331,19 +318,15 @@ describe("createGameAuthoringKitV1", () => {
       requires: { dash: dashRead, underscore: underscoreRead },
       owner: noopOwnerV1,
     });
-    const { comparisons, spy } = installControlledLocaleOrderV1([
-      "kit.a_1",
-      "kit.a-1",
-      "kit.consumer",
-    ]);
+    const spy = installRejectingLocaleCompareV1();
 
     try {
       const composition = kit.composeModules([dash, underscore, consumer]);
       const binding = composition.modules.find(
         (module) => module.descriptor.id === "kit.consumer",
       );
-      expect(binding?.descriptor.dependencies).toEqual(["kit.a_1", "kit.a-1"]);
-      expect(comparisons).toContainEqual(["kit.a_1", "kit.a-1"]);
+      expect(binding?.descriptor.dependencies).toEqual(["kit.a-1", "kit.a_1"]);
+      expect(spy).not.toHaveBeenCalled();
     } finally {
       spy.mockRestore();
     }

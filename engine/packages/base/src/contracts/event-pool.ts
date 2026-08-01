@@ -58,6 +58,21 @@ function fail(code: string, path: string): never {
   throw new EventPoolErrorV1(code, path);
 }
 
+function pointerSegmentV1(value: string): string {
+  return value.replaceAll("~", "~0").replaceAll("/", "~1");
+}
+
+function admitContextNumbersV1(context: EventPoolContextV1): ReadonlyMap<string, number> {
+  const admitted = new Map<string, number>();
+  for (const [key, value] of Object.entries(context.numbers)) {
+    if (!Number.isSafeInteger(value) || Object.is(value, -0)) {
+      fail("event_pool.context_number_invalid", `/context/numbers/${pointerSegmentV1(key)}`);
+    }
+    admitted.set(key, value);
+  }
+  return admitted;
+}
+
 /** Validates one condition tree: shape, depth (≤8), branches (≤32 per node). */
 export function parseEventConditionV1(value: unknown, path = "/condition"): EventConditionV1 {
   return parseConditionAtV1(value, path, 1);
@@ -79,7 +94,8 @@ function parseConditionAtV1(value: unknown, path: string, depth: number): EventC
         typeof record.op !== "string" ||
         !numberOpsV1.has(record.op) ||
         typeof record.value !== "number" ||
-        !Number.isSafeInteger(record.value)
+        !Number.isSafeInteger(record.value) ||
+        Object.is(record.value, -0)
       ) {
         fail("event_pool.condition_invalid", path);
       }
@@ -154,9 +170,18 @@ export function evaluateEventConditionV1(
   condition: EventConditionV1,
   context: EventPoolContextV1,
 ): boolean {
+  const admittedNumbers = admitContextNumbersV1(context);
+  return evaluateAdmittedEventConditionV1(condition, context, admittedNumbers);
+}
+
+function evaluateAdmittedEventConditionV1(
+  condition: EventConditionV1,
+  context: EventPoolContextV1,
+  admittedNumbers: ReadonlyMap<string, number>,
+): boolean {
   switch (condition.kind) {
     case "number": {
-      const actual = context.numbers[condition.key];
+      const actual = admittedNumbers.get(condition.key);
       if (actual === undefined) return false;
       switch (condition.op) {
         case "eq":
@@ -184,11 +209,15 @@ export function evaluateEventConditionV1(
       return actual !== undefined && condition.anyOf.includes(actual);
     }
     case "all":
-      return condition.conditions.every((child) => evaluateEventConditionV1(child, context));
+      return condition.conditions.every((child) =>
+        evaluateAdmittedEventConditionV1(child, context, admittedNumbers)
+      );
     case "any":
-      return condition.conditions.some((child) => evaluateEventConditionV1(child, context));
+      return condition.conditions.some((child) =>
+        evaluateAdmittedEventConditionV1(child, context, admittedNumbers)
+      );
     case "not":
-      return !evaluateEventConditionV1(condition.condition, context);
+      return !evaluateAdmittedEventConditionV1(condition.condition, context, admittedNumbers);
     default: {
       const exhaustive: never = condition;
       throw new TypeError(`unknown condition ${String(exhaustive)}`);
@@ -236,6 +265,19 @@ export interface EventPoolDrawInputV1 {
   readonly force?: string;
 }
 
+interface CapturedEventPoolCandidateV1 {
+  readonly source: EventPoolCandidateV1;
+  readonly index: number;
+  readonly eventId: string;
+  readonly weight: number;
+}
+
+interface EligibleEventPoolCandidateV1 {
+  readonly index: number;
+  readonly eventId: string;
+  readonly weight: number;
+}
+
 /**
  * Filters eligible candidates, then draws by weight through one
  * purpose-tagged RNG draw (`exclusiveMax` = total weight, linear walk).
@@ -243,23 +285,49 @@ export interface EventPoolDrawInputV1 {
  */
 export function drawFromEventPoolV1(input: EventPoolDrawInputV1): EventPoolDrawResultV1 {
   const seen = new Set<string>();
-  for (const candidate of input.candidates) {
-    if (candidate.eventId === "" || seen.has(candidate.eventId)) {
-      fail("event_pool.candidate_invalid", `/candidates/${candidate.eventId}`);
+  const captured: CapturedEventPoolCandidateV1[] = [];
+  let candidateIndex = 0;
+  for (const source of input.candidates) {
+    const eventId = source.eventId;
+    const weight = source.weight;
+    if (eventId === "" || seen.has(eventId)) {
+      fail("event_pool.candidate_invalid", `/candidates/${eventId}`);
     }
-    if (!Number.isSafeInteger(candidate.weight) || candidate.weight <= 0) {
-      fail("event_pool.weight_invalid", `/candidates/${candidate.eventId}`);
+    if (!Number.isSafeInteger(weight) || weight <= 0) {
+      fail("event_pool.weight_invalid", `/candidates/${eventId}`);
     }
-    seen.add(candidate.eventId);
+    seen.add(eventId);
+    captured.push({ source, index: candidateIndex, eventId, weight });
+    candidateIndex += 1;
   }
 
-  const eligible = input.candidates.filter(
-    (candidate) =>
-      candidate.condition === null || evaluateEventConditionV1(candidate.condition, input.context),
-  );
-  const totalWeight = eligible.reduce((sum, candidate) => sum + candidate.weight, 0);
+  const context = input.context;
+  const admittedNumbers = admitContextNumbersV1(context);
+
+  const eligible: EligibleEventPoolCandidateV1[] = [];
+  for (const candidate of captured) {
+    const condition = candidate.source.condition;
+    if (
+      condition === null ||
+      evaluateAdmittedEventConditionV1(condition, context, admittedNumbers)
+    ) {
+      eligible.push({
+        eventId: candidate.eventId,
+        weight: candidate.weight,
+        index: candidate.index,
+      });
+    }
+  }
+  let totalWeight = 0;
+  for (const candidate of eligible) {
+    if (candidate.weight > Number.MAX_SAFE_INTEGER - totalWeight) {
+      const { index } = candidate;
+      fail("event_pool.total_weight_overflow", `/candidates/${String(index)}/weight`);
+    }
+    totalWeight += candidate.weight;
+  }
   const baseExplanation = {
-    considered: input.candidates.length,
+    considered: captured.length,
     eligible: Object.freeze(
       eligible.map((candidate) =>
         Object.freeze({ eventId: candidate.eventId, weight: candidate.weight })
@@ -268,10 +336,11 @@ export function drawFromEventPoolV1(input: EventPoolDrawInputV1): EventPoolDrawR
     totalWeight,
   };
 
-  if (input.force !== undefined) {
-    const forced = eligible.find((candidate) => candidate.eventId === input.force);
+  const force = input.force;
+  if (force !== undefined) {
+    const forced = eligible.find((candidate) => candidate.eventId === force);
     if (forced === undefined) {
-      fail("event_pool.force_ineligible", `/candidates/${input.force}`);
+      fail("event_pool.force_ineligible", `/candidates/${force}`);
     }
     return Object.freeze({
       kind: "drawn",

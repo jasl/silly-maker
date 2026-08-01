@@ -23,6 +23,7 @@ import {
   parsePositiveSafeInteger,
   parseStateSlotId,
 } from "../contracts/values.ts";
+import { compareUtf16CodeUnitsInternalV1 } from "../internal/utf16-code-unit-order.ts";
 import { defineGameplayModule } from "./define-gameplay-module.ts";
 
 declare const capabilityPortBrandV1: unique symbol;
@@ -380,7 +381,7 @@ function assertGraphIsDagV1(
     active.delete(id);
     complete.add(id);
   };
-  for (const id of [...nodes].sort((left, right) => left.localeCompare(right))) visit(id);
+  for (const id of [...nodes].sort(compareUtf16CodeUnitsInternalV1)) visit(id);
   return diagnostics;
 }
 
@@ -707,7 +708,7 @@ export function createGameAuthoringKitV1<
             return provider.module.id;
           }),
         ),
-      ].sort((left, right) => left.localeCompare(right));
+      ].sort(compareUtf16CodeUnitsInternalV1);
       const proposalSchema = config.owner.proposalSchema ??
         deriveProposalSchemaV1(config.owner.operationSchema);
       return defineGameplayModule<TTypes>()({
@@ -834,7 +835,7 @@ export function createGameAuthoringKitV1<
               return rejectAttemptV1(snapshot, rng, ownerRejections);
             }
             const ordered = [...staged.values()].sort((left, right) =>
-              String(left.module.id).localeCompare(String(right.module.id))
+              compareUtf16CodeUnitsInternalV1(String(left.module.id), String(right.module.id))
             );
             let nextState: unknown = snapshot.state;
             const facts: unknown[] = [];

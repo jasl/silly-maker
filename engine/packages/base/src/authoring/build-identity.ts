@@ -3,6 +3,7 @@ import type { Digest } from "../contracts/values.ts";
 import { digestCanonical } from "../contracts/digest.ts";
 import { parseDigest } from "../contracts/values.ts";
 import { deepFreezeAuthoringValueV1 } from "./define-gameplay-module.ts";
+import { compareUtf16CodeUnitsInternalV1 } from "../internal/utf16-code-unit-order.ts";
 
 export type BuildIdentityFacetV1 =
   | "engine"
@@ -61,15 +62,6 @@ function parseEngineVersion(engineVersion: unknown): string {
   return engineVersion;
 }
 
-function compareUtf16CodeUnits(left: string, right: string): number {
-  const sharedLength = Math.min(left.length, right.length);
-  for (let index = 0; index < sharedLength; index += 1) {
-    const difference = left.charCodeAt(index) - right.charCodeAt(index);
-    if (difference !== 0) return difference;
-  }
-  return left.length - right.length;
-}
-
 function resolveRecords(
   records: readonly ImportClosureRecordV1[],
   facet: BuildIdentityFacetV1,
@@ -85,7 +77,7 @@ function resolveRecords(
     if (record.facet !== facet) throw new TypeError("build identity facet mismatch");
     return Object.freeze({ ...record });
   });
-  sorted.sort((left, right) => compareUtf16CodeUnits(left.path, right.path));
+  sorted.sort((left, right) => compareUtf16CodeUnitsInternalV1(left.path, right.path));
   if (new Set(sorted.map((record) => record.path)).size !== sorted.length) {
     throw new TypeError("duplicate build identity path");
   }

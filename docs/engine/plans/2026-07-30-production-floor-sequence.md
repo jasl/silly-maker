@@ -443,7 +443,31 @@ projection 不重读 slot。
 public canonical hot path、合法 canonical/digest/Save/CommandLog/replay bytes 与 PF1 counts
 保持不变；focused `12/289`、Base `73/899`、full unit `218/2227`、`deno task check`、Snapshot
 benchmark deterministic counts 与 browser `103/103` 全绿。DET2d 的 active contract 已同步
-采用相同 projection ownership，默认 core 下一切片仍是 `DET2d`。
+采用相同 projection ownership；该 repair 完成时下一切片仍是 `DET2d`，后续状态由
+下面的 promotion record 继续推进。
+
+**2026-08-01 DET2d promotion：** Standard Core construction、queued restart 与
+captured extension initial-Snapshot helper 现在共用一个 package-internal canonical
+bootstrap admission。每次 ingress 从 adapter raw value 构造 path-local ordinary
+projection并只 freeze 该 projection；seed descriptor-read/parse 一次，同一 frozen
+identity 进入 root 与 stateful module initializers。adapter/canonical/freeze/seed/Story
+failure 保持既有 public channel、HMR precedence 与 no-install atomicity；无 public
+bootstrap schema/receipt/hook，合法 initial Snapshot/State digest/quick Save bytes 与
+PF1 benchmark counts 不变。latest-stable Deno `2.9.4` 的 focused `3/133`、Base
+`74/947`、full unit `219/2275`、`deno task check` 与 Engine Lab browser `103/103`
+全绿；默认 core 下一切片推进为 `DET2e`。
+
+**2026-08-01 DET2e / DET-A promotion：** Event Pool 完整 context number admission 与
+逐项 total-weight overflow 已在 ordinary/forced 结果和 RNG 前 fail closed；Content
+Database numeric/string order、Game Authoring Kit staged transaction/dependency order 与
+Simulation cycle diagnostics 已切换到明确的 relational sign / UTF-16 code-unit
+semantics。DET0 分类的 `5` 个 authoritative/stable locale callsite 已清零，`4` 个
+Host/tooling/test negative control 不变；direct-file Deno pure vector 固定 Event Pool、
+Content DB、candidate Snapshot、CommandLog 与 authoritative replay，未来 DET4 必须直接
+复用。maintained Save/replay/diagnostic corpus 与 PF1 oracle bytes/counts 不变；latest-stable
+Deno `2.9.4` 的 focused `8/89`、Base `75/958`、full unit `220/2286`、
+`deno task check` 全绿。DET-A 至此关闭，但不构成完整 PF-DET、也不注册 migrator；
+callback-free M0b/M1 fork 现在合法，当前线性 core 选择先进入 `DET3a`。
 
 ### PF3 — Save envelope and migration registry
 

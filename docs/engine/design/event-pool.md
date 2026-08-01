@@ -33,7 +33,17 @@ type EventConditionV1 =
   | { kind: "not"; condition: EventConditionV1 };
 ```
 
-`parseEventConditionV1` 校验形状、深度（≤8）与分支数（≤32）；`evaluateEventConditionV1(condition, context)` 是纯函数。缺失的 number/label key 视为不满足（显式、非抛错），解释数据会标注。
+`parseEventConditionV1` 校验形状、深度（≤8）与分支数（≤32）；number literal
+与整份 `context.numbers` 都只接受 safe integer，并显式拒绝 fractional、non-finite、
+unsafe integer 与 `-0`。`evaluateEventConditionV1(condition, context)` 是纯函数，
+会把 `context.numbers` 的 own enumerable entries 各读取一次、admission 并捕获为
+engine-owned numeric projection，而不是只检查当前 condition 访问的 key；后续 number
+condition 只读取该 projection。继承的 numeric property 不属于 context map，按缺失 key
+处理；represented getter 也只在 capture 时读取一次。缺失的 number/label key 视为不满足
+（显式、非抛错）。invalid condition literal 沿用
+`event_pool.condition_invalid`；invalid context 使用
+`event_pool.context_number_invalid` 与 escaped JSON-Pointer
+`/context/numbers/<key>`。
 
 ### 候选与抽取
 
@@ -65,13 +75,28 @@ drawFromEventPoolV1(input: {
 }): EventPoolDrawResultV1
 ```
 
-语义：过滤合格候选 → 求权重和 → `rng.nextInt({ purpose, exclusiveMax: totalWeight })` → 线性走表。所有 condition/context 数值都服从 [authoritative determinism](deterministic-simulation-boundary.md) 的 bounded safe-integer / explicit-quantization 合同；`totalWeight` 求和必须在每一步拒绝 safe-integer overflow。`force` 命中时不消耗 RNG draw（`roll: null, forced: true`），但仍要求事件存在且合格——强制的是选择，不是资格。
+语义顺序固定为：逐个一次捕获 candidate `eventId`/`weight` 并完成完整 validation →
+整份 context number capture/admission → 逐个一次捕获 candidate `condition` 并按 authoring
+order 过滤合格候选 → 按 eligible authoring order 逐项检查并
+累加权重 → force/empty 分支 → ordinary RNG → explanation/result。逐项加法在创建
+unsafe 中间值前检查；overflow 使用 `event_pool.total_weight_overflow` 与
+`/candidates/<index>/weight`，并在 force lookup、ordinary RNG 或任何 explanation
+返回前失败。candidate failure 优先于 context failure，context failure 优先于累计与
+RNG；所有这些 failure 都不改变 RNG candidate state 或 attempted draws。`force`
+命中时不消耗 RNG draw（`roll: null, forced: true`），但仍扫描完整 eligible vector 并
+要求事件存在且合格——强制的是选择，不是资格。validation、eligibility、累计、force、
+explanation 与 ordinary selection 都只消费上述 captured candidate projection，不重读
+caller-owned candidate scalar fields。
 
 ### 边界
 
 - 事件**内容**（文本、效果、叙事入口）不属于本合同：Story 把 `eventId` 映射到内容数据库行或叙事节点；
 - 冷却、已见去重等**动态状态**属于模块状态模型，Story 在构建候选清单时预过滤；
 - 动态权重（按状态缩放）V1 不做：Story 可在预过滤时用多行不同权重表达；真实需求出现再议。
+- candidate weight 的公开范围仍是 positive safe integer；ordinary draw 继续服从
+  当前 `RuleRngV1.nextInt` 的既有 draw-domain 上限。DET2e 没有借 overflow 修复收窄
+  weight shape 或扩张 RNG V1；若真实消费者需要更大 ordinary total，必须单独设计
+  RNG/Event Pool 合同，而不是静默改变 draw algorithm。
 
 ## 消费惯例
 
