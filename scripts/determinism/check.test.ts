@@ -15,6 +15,7 @@ import { checkDeterminismPathsV1, runDeterminismCheckV1 } from "./check.mts";
 
 const repositoryRootV1 = resolve(import.meta.dirname, "../..");
 const syntheticMigrationPathV1 = "scripts/determinism/fixtures/synthetic-migration-authority.ts";
+const liveRepositoryScanTimeoutV1 = 30_000;
 const temporaryDirectoriesV1: string[] = [];
 
 afterEach(async () => {
@@ -32,37 +33,45 @@ async function createTemporaryRootV1(): Promise<string> {
 }
 
 describe("authoritative determinism runner", () => {
-  it("checks the live authority map and its default synthetic migration entry cleanly", async () => {
-    expect(await runDeterminismCheckV1({ repositoryRoot: repositoryRootV1 })).toEqual([]);
-  });
+  it(
+    "checks the live authority map and its default synthetic migration entry cleanly",
+    async () => {
+      expect(await runDeterminismCheckV1({ repositoryRoot: repositoryRootV1 })).toEqual([]);
+    },
+    liveRepositoryScanTimeoutV1,
+  );
 
-  it("reads every exact authority path once and excludes classified negative controls", async () => {
-    const map = await collectDeterminismAuthorityMapV1({
-      repositoryRoot: repositoryRootV1,
-      additionalAuthorities: Object.freeze([
-        Object.freeze({
-          id: "synthetic-migration-extension",
-          entry: syntheticMigrationPathV1,
-        }),
-      ]),
-    });
-    const reads: string[] = [];
+  it(
+    "reads every exact authority path once and excludes classified negative controls",
+    async () => {
+      const map = await collectDeterminismAuthorityMapV1({
+        repositoryRoot: repositoryRootV1,
+        additionalAuthorities: Object.freeze([
+          Object.freeze({
+            id: "synthetic-migration-extension",
+            entry: syntheticMigrationPathV1,
+          }),
+        ]),
+      });
+      const reads: string[] = [];
 
-    const diagnostics = await checkDeterminismPathsV1({
-      repositoryRoot: repositoryRootV1,
-      paths: map.authoritativePaths,
-      readSource: async (file) => {
-        reads.push(file);
-        return await readFile(resolve(repositoryRootV1, file), "utf8");
-      },
-    });
+      const diagnostics = await checkDeterminismPathsV1({
+        repositoryRoot: repositoryRootV1,
+        paths: map.authoritativePaths,
+        readSource: async (file) => {
+          reads.push(file);
+          return await readFile(resolve(repositoryRootV1, file), "utf8");
+        },
+      });
 
-    expect(diagnostics).toEqual([]);
-    expect(reads).toEqual(map.authoritativePaths);
-    for (const negativeControl of map.negativeControls) {
-      expect(reads).not.toContain(negativeControl.entry);
-    }
-  });
+      expect(diagnostics).toEqual([]);
+      expect(reads).toEqual(map.authoritativePaths);
+      for (const negativeControl of map.negativeControls) {
+        expect(reads).not.toContain(negativeControl.entry);
+      }
+    },
+    liveRepositoryScanTimeoutV1,
+  );
 
   it("recollects an added violation and drops it after the import is removed", async () => {
     const root = await createTemporaryRootV1();
@@ -93,31 +102,55 @@ describe("authoritative determinism runner", () => {
     expect(after).toEqual([]);
   });
 
-  it("detects a violation supplied at the synthetic migration authority path", async () => {
-    const map = await collectDeterminismAuthorityMapV1({
-      repositoryRoot: repositoryRootV1,
-      additionalAuthorities: Object.freeze([
-        Object.freeze({
-          id: "synthetic-migration-extension",
-          entry: syntheticMigrationPathV1,
-        }),
-      ]),
-    });
+  it("fails at an unshadowed CommonJS loader instead of trusting an uncollected dependency", async () => {
+    const root = await createTemporaryRootV1();
+    await writeFile(join(root, "hidden.cjs"), "export const draw = Math.random();\n");
+    await writeFile(join(root, "entry.ts"), 'require("./hidden.cjs");\n');
 
-    const diagnostics = await checkDeterminismPathsV1({
-      repositoryRoot: repositoryRootV1,
-      paths: map.authoritativePaths,
-      readSource: async (file) =>
-        file === syntheticMigrationPathV1
-          ? "export const migrate = () => Math.random();\n"
-          : await readFile(resolve(repositoryRootV1, file), "utf8"),
-    });
-
-    expect(diagnostics).toContainEqual(expect.objectContaining({
-      code: "determinism.ambient_random",
-      file: syntheticMigrationPathV1,
-    }));
+    const closure = await collectAuthorityClosureV1(root, ["entry.ts"]);
+    expect(closure.paths).toEqual(["entry.ts"]);
+    expect(
+      await checkDeterminismPathsV1({
+        repositoryRoot: root,
+        paths: closure.paths,
+      }),
+    ).toEqual([
+      expect.objectContaining({
+        code: "determinism.ambient_capability_escape",
+        file: "entry.ts",
+      }),
+    ]);
   });
+
+  it(
+    "detects a violation supplied at the synthetic migration authority path",
+    async () => {
+      const map = await collectDeterminismAuthorityMapV1({
+        repositoryRoot: repositoryRootV1,
+        additionalAuthorities: Object.freeze([
+          Object.freeze({
+            id: "synthetic-migration-extension",
+            entry: syntheticMigrationPathV1,
+          }),
+        ]),
+      });
+
+      const diagnostics = await checkDeterminismPathsV1({
+        repositoryRoot: repositoryRootV1,
+        paths: map.authoritativePaths,
+        readSource: async (file) =>
+          file === syntheticMigrationPathV1
+            ? "export const migrate = () => Math.random();\n"
+            : await readFile(resolve(repositoryRootV1, file), "utf8"),
+      });
+
+      expect(diagnostics).toContainEqual(expect.objectContaining({
+        code: "determinism.ambient_random",
+        file: syntheticMigrationPathV1,
+      }));
+    },
+    liveRepositoryScanTimeoutV1,
+  );
 
   it("detects a transitive violation from a custom bounded Base authority", async () => {
     const transitiveAuthority = Object.freeze({
@@ -148,7 +181,7 @@ describe("authoritative determinism runner", () => {
       code: "determinism.locale",
       file: "engine/packages/base/src/contracts/host.ts",
     }));
-  });
+  }, liveRepositoryScanTimeoutV1);
 
   it("reads each path once and gives read failure precedence over unsupported-source checks", async () => {
     const readSource = vi.fn(async (file: string) => {

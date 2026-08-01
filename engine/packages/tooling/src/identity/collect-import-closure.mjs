@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { lstat, readFile, realpath } from "node:fs/promises";
 import { dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { parse } from "@babel/parser";
 import { moduleResolve } from "import-meta-resolve";
 
 const posix = (root, path) => relative(root, path).split(sep).join("/");
@@ -14,6 +15,66 @@ const buildIdentityFacetsV1 = new Set([
   "story_presentation",
   "application",
 ]);
+
+function parserPlugins(path) {
+  const plugins = ["decorators", "decoratorAutoAccessors"];
+  if (/\.(?:ts|tsx|mts|cts)$/u.test(path)) plugins.push("typescript");
+  if (/\.(?:jsx|tsx)$/u.test(path)) plugins.push("jsx");
+  return plugins;
+}
+
+function stringLiteralValue(node) {
+  return node?.type === "StringLiteral" && typeof node.value === "string" ? node.value : null;
+}
+
+function collectEsmSpecifiers(source, relativePath) {
+  const program = parse(source, {
+    sourceType: "unambiguous",
+    plugins: parserPlugins(relativePath),
+    allowAwaitOutsideFunction: true,
+    createImportExpressions: true,
+  });
+  const specifiers = [];
+  let hasNonStaticDynamicImport = false;
+
+  const visit = (node) => {
+    if (node === null || typeof node !== "object") return;
+    if (
+      node.type === "ImportDeclaration" || node.type === "ExportNamedDeclaration" ||
+      node.type === "ExportAllDeclaration"
+    ) {
+      const specifier = stringLiteralValue(node.source);
+      if (specifier !== null) specifiers.push(specifier);
+    } else if (node.type === "ImportExpression") {
+      const specifier = stringLiteralValue(node.source);
+      if (specifier === null) hasNonStaticDynamicImport = true;
+      else specifiers.push(specifier);
+    } else if (node.type === "CallExpression" && node.callee?.type === "Import") {
+      const specifier = stringLiteralValue(node.arguments?.[0]);
+      if (specifier === null) hasNonStaticDynamicImport = true;
+      else specifiers.push(specifier);
+    } else if (node.type === "TSImportType") {
+      const specifier = stringLiteralValue(node.argument);
+      if (specifier !== null) specifiers.push(specifier);
+    }
+
+    for (const [key, value] of Object.entries(node)) {
+      if (
+        key === "loc" || key === "comments" || key === "tokens" || key === "leadingComments" ||
+        key === "trailingComments" || key === "innerComments"
+      ) continue;
+      if (Array.isArray(value)) {
+        for (const child of value) visit(child);
+      } else visit(value);
+    }
+  };
+
+  visit(program);
+  return Object.freeze({
+    specifiers: Object.freeze(specifiers),
+    hasNonStaticDynamicImport,
+  });
+}
 
 function compareUtf16CodeUnits(left, right) {
   const sharedLength = Math.min(left.length, right.length);
@@ -123,18 +184,19 @@ export async function collectImportClosure(root, entries) {
     }
     if (paths.has(relativePath)) continue;
     paths.add(relativePath);
-    if (!/\.(?:ts|tsx|mts|mjs|js|jsx)$/u.test(relativePath)) continue;
+    if (!/\.(?:ts|tsx|mts|cts|mjs|cjs|js|jsx)$/u.test(relativePath)) continue;
     const source = await readFile(actual, "utf8");
-    if (/\bimport\s*\(\s*(?!["'])/u.test(source)) {
+    let imports;
+    try {
+      imports = collectEsmSpecifiers(source, relativePath);
+    } catch {
+      errors.push(`${relativePath}: import syntax cannot be analyzed`);
+      continue;
+    }
+    if (imports.hasNonStaticDynamicImport) {
       errors.push(`${relativePath}: dynamic import path is not static`);
     }
-    const specifiers = [];
-    const staticPattern =
-      /(?:\bimport|\bexport)\s+(?:type\s+)?(?:[^"']*?\s+from\s+)?["']([^"']+)["']/gu;
-    const dynamicPattern = /\bimport\s*\(\s*["']([^"']+)["']\s*\)/gu;
-    for (const match of source.matchAll(staticPattern)) if (match[1]) specifiers.push(match[1]);
-    for (const match of source.matchAll(dynamicPattern)) if (match[1]) specifiers.push(match[1]);
-    for (const specifier of specifiers) {
+    for (const specifier of imports.specifiers) {
       if (specifier.startsWith(".")) {
         const dependency = await resolveRelativeSpecifier(actual, specifier);
         if (dependency === null) {

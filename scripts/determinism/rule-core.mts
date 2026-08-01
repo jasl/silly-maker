@@ -102,13 +102,107 @@ const approximateMathMembersV1 = new Set([
   "tanh",
 ]);
 
+const mathPrimitiveStaticMembersV1 = new Set([
+  "E",
+  "LN10",
+  "LN2",
+  "LOG10E",
+  "LOG2E",
+  "PI",
+  "SQRT1_2",
+  "SQRT2",
+]);
+
+const numberPrimitiveStaticMembersV1 = new Set([
+  "EPSILON",
+  "MAX_SAFE_INTEGER",
+  "MAX_VALUE",
+  "MIN_SAFE_INTEGER",
+  "MIN_VALUE",
+  "NEGATIVE_INFINITY",
+  "NaN",
+  "POSITIVE_INFINITY",
+  "length",
+  "name",
+]);
+
 const ambientCapabilityRootsV1 = new Set([
   "Date",
   "Deno",
   "Math",
   "Number",
+  "Temporal",
   "globalThis",
+  "module",
   "process",
+]);
+
+const intrinsicStaticRootsV1 = new Set([
+  "Date",
+  "Math",
+  "Number",
+  "String",
+  "Temporal",
+]);
+
+const constructorTrackedRootsV1 = new Set([
+  ...ambientCapabilityRootsV1,
+  "String",
+]);
+
+const deterministicDateEpochProvenanceV1 = "\0deterministic-date-epoch";
+const deterministicDateZoneProvenanceV1 = "\0deterministic-date-zone";
+const localDateZoneProvenanceV1 = "\0local-date-zone";
+const ambiguousDateInputProvenanceV1 = "\0ambiguous-date-input";
+const ambiguousDateInstanceProvenanceV1 = "\0ambiguous-date-instance";
+const ambiguousCapabilityProvenanceV1 = "\0ambiguous-capability";
+
+const provenanceTrackedRootsV1 = new Set([
+  ...constructorTrackedRootsV1,
+  "Intl",
+  "WebSocket",
+  "XMLHttpRequest",
+  "crypto",
+  "document",
+  "fetch",
+  "localStorage",
+  "module",
+  "navigator",
+  "parseFloat",
+  "performance",
+  "require",
+  "sessionStorage",
+  "window",
+  deterministicDateEpochProvenanceV1,
+  deterministicDateZoneProvenanceV1,
+  localDateZoneProvenanceV1,
+  ambiguousDateInputProvenanceV1,
+  ambiguousDateInstanceProvenanceV1,
+  ambiguousCapabilityProvenanceV1,
+]);
+
+const dateHostDependentMembersV1 = new Set([
+  "getDate",
+  "getDay",
+  "getFullYear",
+  "getHours",
+  "getMilliseconds",
+  "getMinutes",
+  "getMonth",
+  "getSeconds",
+  "getTimezoneOffset",
+  "getYear",
+  "setDate",
+  "setFullYear",
+  "setHours",
+  "setMilliseconds",
+  "setMinutes",
+  "setMonth",
+  "setSeconds",
+  "setYear",
+  "toDateString",
+  "toString",
+  "toTimeString",
 ]);
 
 const diagnosticTextV1: Readonly<
@@ -129,6 +223,15 @@ const diagnosticTextV1: Readonly<
   "determinism.performance_clock": Object.freeze({
     message: "Authoritative code reads the performance clock.",
     hint: "Keep wall-clock measurements outside the authoritative simulation closure.",
+  }),
+  "determinism.host_timezone": Object.freeze({
+    message: "Authoritative code depends on the Host timezone.",
+    hint: "Use an explicit UTC/value operation or commit a canonical recorded zone as input.",
+  }),
+  "determinism.date_input_unverified": Object.freeze({
+    message: "Authoritative Date input is not statically proven deterministic.",
+    hint:
+      "Use an in-range integer epoch, Date.UTC result, known Date copy, or valid explicit-zone literal.",
   }),
   "determinism.network": Object.freeze({
     message: "Authoritative code accesses an ambient network provider.",
@@ -329,6 +432,7 @@ function predeclareStatementV1(statement: AstNodeV1, scope: ScopeV1): void {
     ? asNodeV1(statement.declaration)
     : statement;
   if (declaration === null) return;
+  if (declaration.declare === true) return;
 
   if (declaration.type === "VariableDeclaration") {
     const target = declaration.kind === "var" ? scope.functionScope : scope;
@@ -342,6 +446,10 @@ function predeclareStatementV1(statement: AstNodeV1, scope: ScopeV1): void {
     declaration.type === "TSEnumDeclaration" || declaration.type === "TSModuleDeclaration" ||
     declaration.type === "TSImportEqualsDeclaration"
   ) {
+    if (
+      declaration.type === "TSImportEqualsDeclaration" &&
+      (declaration.importKind === "type" || declaration.isTypeOnly === true)
+    ) return;
     const name = identifierNameV1(asNodeV1(declaration.id));
     if (name !== null) {
       declareIdentifierV1(scope, name);
@@ -365,7 +473,6 @@ function predeclareStatementV1(statement: AstNodeV1, scope: ScopeV1): void {
     for (const specifier of asNodesV1(declaration.specifiers)) {
       const name = identifierNameV1(asNodeV1(specifier.local));
       if (name === null) continue;
-      declareIdentifierV1(scope, name);
       const imported = asNodeV1(specifier.imported);
       const importedName = identifierNameV1(imported) ??
         (imported?.type === "StringLiteral" && typeof imported.value === "string"
@@ -376,6 +483,8 @@ function predeclareStatementV1(statement: AstNodeV1, scope: ScopeV1): void {
         specifier.type === "ImportSpecifier" && sourceName === "@sillymaker/base" &&
           importedName === "BootstrapEntropyV1",
       );
+      if (declaration.importKind === "type" || specifier.importKind === "type") continue;
+      declareIdentifierV1(scope, name);
     }
   }
 }
@@ -384,11 +493,19 @@ function collectHoistedVarV1(node: AstNodeV1, functionScope: ScopeV1): void {
   if (
     node.type === "FunctionDeclaration" || node.type === "FunctionExpression" ||
     node.type === "ArrowFunctionExpression" || node.type === "ObjectMethod" ||
-    node.type === "ClassMethod" || node.type === "ClassPrivateMethod"
+    node.type === "ClassMethod" || node.type === "ClassPrivateMethod" ||
+    node.type === "StaticBlock" || node.type === "TSModuleDeclaration" ||
+    node.type === "TSModuleBlock"
   ) return;
-  if (node.type === "VariableDeclaration" && node.kind === "var") {
+  if (node.type === "VariableDeclaration" && node.kind === "var" && node.declare !== true) {
     for (const item of asNodesV1(node.declarations)) {
-      declarePatternV1(asNodeV1(item.id), functionScope);
+      const pattern = asNodeV1(item.id);
+      declarePatternV1(pattern, functionScope);
+      const name = identifierNameV1(pattern);
+      if (name === "require" || name === "module") {
+        const binding = lookupBindingV1(functionScope, name);
+        if (binding !== null) binding.provenance = Object.freeze([name]);
+      }
     }
   }
   for (const [key, value] of Object.entries(node)) {
@@ -406,30 +523,445 @@ function unwrapExpressionV1(node: AstNodeV1 | null): AstNodeV1 | null {
     current !== null &&
     (current.type === "TSAsExpression" || current.type === "TSTypeAssertion" ||
       current.type === "TSNonNullExpression" || current.type === "TSSatisfiesExpression" ||
-      current.type === "TypeCastExpression" || current.type === "ParenthesizedExpression")
+      current.type === "TSInstantiationExpression" || current.type === "TypeCastExpression" ||
+      current.type === "ParenthesizedExpression")
   ) {
     current = asNodeV1(current.expression);
   }
   return current;
 }
 
+function sameProvenanceV1(
+  left: readonly string[] | null,
+  right: readonly string[] | null,
+): boolean {
+  return left === right ||
+    (left !== null && right !== null && left.length === right.length &&
+      left.every((member, index) => member === right[index]));
+}
+
+function isDeterministicDateInputProvenanceV1(
+  provenance: readonly string[] | null,
+): boolean {
+  return provenance?.length === 1 &&
+    (provenance[0] === deterministicDateEpochProvenanceV1 ||
+      provenance[0] === deterministicDateZoneProvenanceV1);
+}
+
+function isAnyDateInputProvenanceV1(
+  provenance: readonly string[] | null,
+): boolean {
+  return isDeterministicDateInputProvenanceV1(provenance) ||
+    (provenance?.length === 1 && provenance[0] === localDateZoneProvenanceV1);
+}
+
+function isTrackedAmbientCapabilityProvenanceV1(
+  provenance: readonly string[] | null,
+): boolean {
+  if (provenance === null || provenance.length === 0) return false;
+  const root = provenance[0] ?? "";
+  return provenanceTrackedRootsV1.has(root) &&
+    root !== deterministicDateEpochProvenanceV1 &&
+    root !== deterministicDateZoneProvenanceV1 && root !== localDateZoneProvenanceV1 &&
+    root !== ambiguousDateInputProvenanceV1;
+}
+
+function isKnownNonCoercingIntrinsicValueV1(
+  provenance: readonly string[] | null,
+): boolean {
+  if (provenance === null || provenance.length === 0) return false;
+  const root = provenance[0] ?? "";
+  if (!intrinsicStaticRootsV1.has(root)) return false;
+  if (provenance.length === 1) return true;
+  if (provenance.length === 2) {
+    const member = provenance[1] ?? "";
+    if (root === "Math") return !mathPrimitiveStaticMembersV1.has(member);
+    if (root === "Number") return !numberPrimitiveStaticMembersV1.has(member);
+    if (root === "Date" || root === "String") {
+      return member !== "length" && member !== "name";
+    }
+    if (root === "Temporal") return true;
+  }
+  return provenance.length === 3 && root === "Temporal" &&
+    (provenance[2] === "from" || provenance[2] === "compare");
+}
+
+function isDateInstancePathV1(provenance: readonly string[] | null): boolean {
+  return provenance?.[0] === "Date" &&
+    (provenance[1] === "instance" || provenance[1] === "prototype") &&
+    provenance[2] !== "constructor";
+}
+
+function isDateInstanceValueV1(provenance: readonly string[] | null): boolean {
+  return provenance?.length === 2 && provenance[0] === "Date" && provenance[1] === "instance";
+}
+
+function conservativeProvenanceJoinV1(
+  left: readonly string[] | null,
+  right: readonly string[] | null,
+): readonly string[] | null {
+  if (sameProvenanceV1(left, right)) return left;
+  const leftDateInstance = isDateInstancePathV1(left) ||
+    left?.[0] === ambiguousDateInstanceProvenanceV1;
+  const rightDateInstance = isDateInstancePathV1(right) ||
+    right?.[0] === ambiguousDateInstanceProvenanceV1;
+  if (leftDateInstance || rightDateInstance) {
+    return Object.freeze([ambiguousDateInstanceProvenanceV1]);
+  }
+  const leftDateInput = isAnyDateInputProvenanceV1(left) ||
+    left?.[0] === ambiguousDateInputProvenanceV1;
+  const rightDateInput = isAnyDateInputProvenanceV1(right) ||
+    right?.[0] === ambiguousDateInputProvenanceV1;
+  if (leftDateInput || rightDateInput) {
+    return Object.freeze([ambiguousDateInputProvenanceV1]);
+  }
+  const leftDateCapability = left?.[0] === "Date";
+  const rightDateCapability = right?.[0] === "Date";
+  if (leftDateCapability || rightDateCapability) {
+    return Object.freeze([ambiguousCapabilityProvenanceV1]);
+  }
+  const leftTracked = left !== null && provenanceTrackedRootsV1.has(left[0] ?? "");
+  const rightTracked = right !== null && provenanceTrackedRootsV1.has(right[0] ?? "");
+  if (leftTracked && rightTracked) return Object.freeze([ambiguousCapabilityProvenanceV1]);
+  if (leftTracked) return left;
+  if (rightTracked) return right;
+  return null;
+}
+
+function isLeapYearV1(year: number): boolean {
+  return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+}
+
+function isExplicitZoneDateLiteralV1(node: AstNodeV1 | null): boolean {
+  const expression = unwrapExpressionV1(node);
+  if (expression?.type !== "StringLiteral" || typeof expression.value !== "string") return false;
+  const match =
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{3})?(?:Z|([+-])(\d{2}):(\d{2}))$/u
+      .exec(expression.value);
+  if (match === null) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hour = Number(match[4]);
+  const minute = Number(match[5]);
+  const second = Number(match[6]);
+  const offsetHour = match[8] === undefined ? 0 : Number(match[8]);
+  const offsetMinute = match[9] === undefined ? 0 : Number(match[9]);
+  const daysInMonth = month === 2
+    ? isLeapYearV1(year) ? 29 : 28
+    : month === 4 || month === 6 || month === 9 || month === 11
+    ? 30
+    : 31;
+  return month >= 1 && month <= 12 && day >= 1 && day <= daysInMonth &&
+    hour <= 23 && minute <= 59 && second <= 59 && offsetHour <= 23 && offsetMinute <= 59;
+}
+
+function isLocalZoneDateLiteralV1(node: AstNodeV1 | null): boolean {
+  const expression = unwrapExpressionV1(node);
+  if (expression?.type !== "StringLiteral" || typeof expression.value !== "string") return false;
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d+))?)?$/u.exec(
+    expression.value,
+  );
+  if (match === null) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hour = Number(match[4]);
+  const minute = Number(match[5]);
+  const second = match[6] === undefined ? 0 : Number(match[6]);
+  const daysInMonth = month === 2
+    ? isLeapYearV1(year) ? 29 : 28
+    : month === 4 || month === 6 || month === 9 || month === 11
+    ? 30
+    : 31;
+  return month >= 1 && month <= 12 && day >= 1 && day <= daysInMonth &&
+    hour <= 23 && minute <= 59 && second <= 59;
+}
+
+function isInRangeIntegerEpochLiteralV1(node: AstNodeV1 | null): boolean {
+  const expression = unwrapExpressionV1(node);
+  let value: number | null = null;
+  if (expression?.type === "NumericLiteral" && typeof expression.value === "number") {
+    value = expression.value;
+  } else if (
+    expression?.type === "UnaryExpression" &&
+    (expression.operator === "+" || expression.operator === "-")
+  ) {
+    const argument = unwrapExpressionV1(asNodeV1(expression.argument));
+    if (argument?.type === "NumericLiteral" && typeof argument.value === "number") {
+      value = expression.operator === "-" ? -argument.value : argument.value;
+    }
+  }
+  return value !== null && Number.isInteger(value) && Number.isFinite(value) &&
+    Math.abs(value) <= 8_640_000_000_000_000;
+}
+
+function normalizedConstructorMembersV1(
+  provenance: readonly string[] | null,
+  root: "Date" | "String",
+): readonly string[] | null {
+  if (provenance?.[0] !== root) return null;
+  let members = provenance.slice(1);
+  while (
+    (members[0] === "prototype" || members[0] === "instance") &&
+    members[1] === "constructor"
+  ) {
+    members = members.slice(2);
+  }
+  if (members[0] === "prototype" || members[0] === "instance") return null;
+  return members;
+}
+
 function dateCallableKindV1(
   provenance: readonly string[] | null,
 ): "constructor" | "now" | "parse" | "utc" | "other" | null {
-  if (provenance?.[0] !== "Date") return null;
-  let members = provenance.slice(1);
-  if (
-    (members[0] === "prototype" || members[0] === "instance") &&
-    members[1] === "constructor"
-  ) members = members.slice(2);
+  const members = normalizedConstructorMembersV1(provenance, "Date");
+  if (members === null) return null;
   const target = members[0];
+  if (target === undefined) return "constructor";
   if (
-    target === undefined || target === "call" || target === "apply" || target === "bind"
+    members.length === 1 && (target === "call" || target === "apply" || target === "bind")
   ) return "constructor";
+  const wrapper = members[1];
+  if (
+    members.length > 2 ||
+    (members.length === 2 && wrapper !== "call" && wrapper !== "apply" && wrapper !== "bind")
+  ) return "other";
   if (target === "now") return "now";
   if (target === "parse") return "parse";
   if (target === "UTC") return "utc";
   return "other";
+}
+
+function isDateCallableBindV1(provenance: readonly string[] | null): boolean {
+  const members = normalizedConstructorMembersV1(provenance, "Date");
+  if (members === null) return false;
+  return (members.length === 1 && members[0] === "bind") ||
+    (members.length === 2 &&
+      (members[0] === "now" || members[0] === "parse" || members[0] === "UTC") &&
+      members[1] === "bind");
+}
+
+function isDateInstanceProvenanceV1(provenance: readonly string[] | null): boolean {
+  return isDateInstancePathV1(provenance) ||
+    provenance?.[0] === ambiguousDateInstanceProvenanceV1;
+}
+
+function isAmbientConstructorEscapeProvenanceV1(
+  provenance: readonly string[] | null,
+): boolean {
+  if (
+    provenance === null ||
+    !constructorTrackedRootsV1.has(provenance[0] ?? "") ||
+    !provenance.slice(1).includes("constructor")
+  ) return false;
+  const root = provenance[0];
+  let members = provenance.slice(1);
+  if (root === "Date" || root === "String") {
+    while (
+      (members[0] === "prototype" || members[0] === "instance") &&
+      members[1] === "constructor"
+    ) {
+      members = members.slice(2);
+    }
+  }
+  return members.includes("constructor");
+}
+
+function isAmbientLoaderProvenanceV1(provenance: readonly string[] | null): boolean {
+  return provenance?.[0] === "require" ||
+    (provenance?.[0] === "module" && provenance[1] === "require");
+}
+
+type StringCallableV1 = Readonly<{
+  kind: "constructor" | "raw";
+  wrapper: "call" | "apply" | "bind" | null;
+}>;
+
+type StaticArgumentVectorV1 = Readonly<{
+  prefix: readonly (AstNodeV1 | null)[];
+  hasUnknownTail: boolean;
+}>;
+
+function stringCallableV1(provenance: readonly string[] | null): StringCallableV1 | null {
+  const members = normalizedConstructorMembersV1(provenance, "String");
+  if (members === null) return null;
+  const target = members[0];
+  if (
+    target === undefined ||
+    (members.length === 1 && (target === "call" || target === "apply" || target === "bind"))
+  ) {
+    return Object.freeze({
+      kind: "constructor",
+      wrapper: target ?? null,
+    });
+  }
+  if (target !== "raw" || members.length > 2) return null;
+  const wrapper = members[1];
+  if (
+    wrapper !== undefined && wrapper !== "call" && wrapper !== "apply" && wrapper !== "bind"
+  ) return null;
+  return Object.freeze({
+    kind: "raw",
+    wrapper: wrapper ?? null,
+  });
+}
+
+function isUnsupportedStringCallablePathV1(
+  provenance: readonly string[] | null,
+): boolean {
+  const members = normalizedConstructorMembersV1(provenance, "String");
+  if (members === null) return false;
+  if (members[0] === "call" || members[0] === "apply" || members[0] === "bind") {
+    return members.length > 1;
+  }
+  return members[0] === "raw" &&
+    (members[1] === "call" || members[1] === "apply" || members[1] === "bind") &&
+    members.length > 2;
+}
+
+function dateCoercionDiagnosticV1(
+  provenance: readonly string[] | null,
+): "determinism.host_timezone" | "determinism.ambient_capability_escape" | null {
+  if (
+    isDateInstanceValueV1(provenance) ||
+    (provenance?.length === 1 && provenance[0] === ambiguousDateInstanceProvenanceV1)
+  ) return "determinism.host_timezone";
+  return isDateInstancePathV1(provenance) ||
+      provenance?.[0] === ambiguousDateInstanceProvenanceV1
+    ? "determinism.ambient_capability_escape"
+    : null;
+}
+
+function isExactHostDependentDateOperationV1(
+  provenance: readonly string[] | null,
+): boolean {
+  let members: readonly string[];
+  if (
+    provenance?.[0] === "Date" &&
+    (provenance[1] === "instance" || provenance[1] === "prototype")
+  ) {
+    members = provenance.slice(2);
+  } else if (provenance?.[0] === ambiguousDateInstanceProvenanceV1) {
+    members = provenance.slice(1);
+  } else return false;
+  return dateHostDependentMembersV1.has(members[0] ?? "") &&
+    (members.length === 1 ||
+      (members.length === 2 &&
+        (members[1] === "call" || members[1] === "apply")));
+}
+
+function expandStaticArgumentItemsV1(items: unknown): StaticArgumentVectorV1 {
+  if (!Array.isArray(items)) return { prefix: Object.freeze([]), hasUnknownTail: true };
+  const prefix: (AstNodeV1 | null)[] = [];
+  for (const item of items) {
+    if (item === null) {
+      prefix.push(null);
+      continue;
+    }
+    if (!isNodeV1(item) || item.type === "ArgumentPlaceholder") {
+      return { prefix: Object.freeze(prefix), hasUnknownTail: true };
+    }
+    if (item.type !== "SpreadElement") {
+      prefix.push(item);
+      continue;
+    }
+    const spread = unwrapExpressionV1(asNodeV1(item.argument));
+    if (spread?.type !== "ArrayExpression") {
+      return { prefix: Object.freeze(prefix), hasUnknownTail: true };
+    }
+    const expanded = expandStaticArgumentItemsV1(spread.elements);
+    prefix.push(...expanded.prefix);
+    if (expanded.hasUnknownTail) {
+      return { prefix: Object.freeze(prefix), hasUnknownTail: true };
+    }
+  }
+  return { prefix: Object.freeze(prefix), hasUnknownTail: false };
+}
+
+function stringEffectiveArgumentsV1(
+  node: AstNodeV1,
+  callable: StringCallableV1,
+  scope: ScopeV1,
+): StaticArgumentVectorV1 {
+  const callArguments = expandStaticArgumentItemsV1(node.arguments);
+  if (callable.wrapper === null) return callArguments;
+  if (callable.wrapper === "bind") {
+    return { prefix: Object.freeze([]), hasUnknownTail: true };
+  }
+  if (callable.wrapper === "call") {
+    if (callArguments.prefix.length === 0) {
+      return {
+        prefix: Object.freeze([]),
+        hasUnknownTail: callArguments.hasUnknownTail,
+      };
+    }
+    return {
+      prefix: Object.freeze(callArguments.prefix.slice(1)),
+      hasUnknownTail: callArguments.hasUnknownTail,
+    };
+  }
+
+  if (callArguments.prefix.length < 2) {
+    return {
+      prefix: Object.freeze([]),
+      hasUnknownTail: callArguments.hasUnknownTail,
+    };
+  }
+  const carrierNode = callArguments.prefix[1] ?? null;
+  const carrier = unwrapExpressionV1(carrierNode);
+  const unshadowedUndefined = carrier?.type === "Identifier" &&
+    identifierNameV1(carrier) === "undefined" && lookupBindingV1(scope, "undefined") === null;
+  if (
+    carrierNode === null || carrier?.type === "NullLiteral" ||
+    carrier?.type === "UnaryExpression" && carrier.operator === "void" || unshadowedUndefined
+  ) {
+    return { prefix: Object.freeze([]), hasUnknownTail: false };
+  }
+  if (carrier?.type !== "ArrayExpression") {
+    return { prefix: Object.freeze([]), hasUnknownTail: true };
+  }
+  return expandStaticArgumentItemsV1(carrier.elements);
+}
+
+function dateInvocationArgumentsV1(
+  node: AstNodeV1,
+  provenance: readonly string[] | null,
+): readonly AstNodeV1[] | null {
+  const members = normalizedConstructorMembersV1(provenance, "Date");
+  if (members === null) return null;
+  const target = members[0];
+  const wrapper = target === "parse" || target === "UTC" ? members[1] : target;
+  const argumentsV1 = asNodesV1(node.arguments);
+  if (wrapper === undefined) return argumentsV1;
+  if (wrapper === "call") return argumentsV1.slice(1);
+  if (wrapper !== "apply" || argumentsV1.length !== 2) return null;
+  const argumentArray = unwrapExpressionV1(argumentsV1[1] ?? null);
+  if (argumentArray?.type !== "ArrayExpression" || !Array.isArray(argumentArray.elements)) {
+    return null;
+  }
+  const elements: AstNodeV1[] = [];
+  for (const element of argumentArray.elements) {
+    if (!isNodeV1(element) || element.type === "SpreadElement") return null;
+    elements.push(element);
+  }
+  return elements;
+}
+
+function isSafeDateParseInputV1(node: AstNodeV1 | null, scope: ScopeV1): boolean {
+  const provenance = resolveExpressionV1(node, scope).provenance;
+  return provenance?.length === 1 && provenance[0] === deterministicDateZoneProvenanceV1;
+}
+
+function isSafeDateConstructorInputV1(node: AstNodeV1 | null, scope: ScopeV1): boolean {
+  const provenance = resolveExpressionV1(node, scope).provenance;
+  return isDeterministicDateInputProvenanceV1(provenance) ||
+    isDateInstanceValueV1(provenance);
+}
+
+function isLocalZoneDateInputV1(node: AstNodeV1 | null, scope: ScopeV1): boolean {
+  const provenance = resolveExpressionV1(node, scope).provenance;
+  return provenance?.length === 1 && provenance[0] === localDateZoneProvenanceV1;
 }
 
 function resolveExpressionV1(node: AstNodeV1 | null, scope: ScopeV1): ResolvedExpressionV1 {
@@ -443,6 +975,27 @@ function resolveExpressionV1(node: AstNodeV1 | null, scope: ScopeV1): ResolvedEx
     return binding === null
       ? { provenance: Object.freeze([name]), bootstrap: null }
       : { provenance: binding.provenance, bootstrap: binding.bootstrap === null ? null : binding };
+  }
+
+  if (isInRangeIntegerEpochLiteralV1(expression)) {
+    return {
+      provenance: Object.freeze([deterministicDateEpochProvenanceV1]),
+      bootstrap: null,
+    };
+  }
+
+  if (isExplicitZoneDateLiteralV1(expression)) {
+    return {
+      provenance: Object.freeze([deterministicDateZoneProvenanceV1]),
+      bootstrap: null,
+    };
+  }
+
+  if (isLocalZoneDateLiteralV1(expression)) {
+    return {
+      provenance: Object.freeze([localDateZoneProvenanceV1]),
+      bootstrap: null,
+    };
   }
 
   if (expression.type === "MemberExpression" || expression.type === "OptionalMemberExpression") {
@@ -466,6 +1019,72 @@ function resolveExpressionV1(node: AstNodeV1 | null, scope: ScopeV1): ResolvedEx
     ) {
       return { provenance: Object.freeze(["Date", "instance"]), bootstrap: null };
     }
+    if (
+      stringCallableV1(callee.provenance)?.kind === "constructor" &&
+      argumentsV1.every(({ type }) => type !== "SpreadElement")
+    ) {
+      return { provenance: Object.freeze(["String", "instance"]), bootstrap: null };
+    }
+  }
+
+  if (expression.type === "CallExpression" || expression.type === "OptionalCallExpression") {
+    const callee = resolveExpressionV1(asNodeV1(expression.callee), scope);
+    const callable = dateCallableKindV1(callee.provenance);
+    if (callable === "utc" && !isDateCallableBindV1(callee.provenance)) {
+      return {
+        provenance: Object.freeze([deterministicDateEpochProvenanceV1]),
+        bootstrap: null,
+      };
+    }
+    if (callable === "parse" && !isDateCallableBindV1(callee.provenance)) {
+      const argumentsV1 = dateInvocationArgumentsV1(expression, callee.provenance);
+      if (
+        argumentsV1?.length === 1 && isSafeDateParseInputV1(argumentsV1[0] ?? null, scope)
+      ) {
+        return {
+          provenance: Object.freeze([deterministicDateEpochProvenanceV1]),
+          bootstrap: null,
+        };
+      }
+    }
+    const calleeProvenance = callee.provenance;
+    if (
+      isDateInstancePathV1(calleeProvenance) &&
+      (calleeProvenance?.[2] === "getTime" || calleeProvenance?.[2] === "valueOf") &&
+      calleeProvenance.length === 3
+    ) {
+      return {
+        provenance: Object.freeze([deterministicDateEpochProvenanceV1]),
+        bootstrap: null,
+      };
+    }
+  }
+
+  if (expression.type === "ConditionalExpression" || expression.type === "LogicalExpression") {
+    const left = expression.type === "ConditionalExpression"
+      ? asNodeV1(expression.consequent)
+      : asNodeV1(expression.left);
+    const right = expression.type === "ConditionalExpression"
+      ? asNodeV1(expression.alternate)
+      : asNodeV1(expression.right);
+    const leftResolved = resolveExpressionV1(left, scope);
+    const rightResolved = resolveExpressionV1(right, scope);
+    return {
+      provenance: conservativeProvenanceJoinV1(
+        leftResolved.provenance,
+        rightResolved.provenance,
+      ),
+      bootstrap: leftResolved.bootstrap ?? rightResolved.bootstrap,
+    };
+  }
+
+  if (expression.type === "SequenceExpression") {
+    const expressions = asNodesV1(expression.expressions);
+    return resolveExpressionV1(expressions.at(-1) ?? null, scope);
+  }
+
+  if (expression.type === "AssignmentExpression" && expression.operator === "=") {
+    return resolveExpressionV1(asNodeV1(expression.right), scope);
   }
 
   return { provenance: null, bootstrap: null };
@@ -492,24 +1111,44 @@ function assignPatternV1(
   pattern: AstNodeV1 | null,
   resolved: ResolvedExpressionV1,
   scope: ScopeV1,
+  mode: "const" | "mutable" | "join" | "const_join",
 ): void {
+  pattern = unwrapExpressionV1(pattern);
   if (pattern === null) return;
   if (pattern.type === "Identifier") {
     const name = identifierNameV1(pattern);
     const binding = name === null ? null : lookupBindingV1(scope, name);
     if (binding !== null) {
-      binding.provenance = resolved.provenance;
+      const provenance = mode === "const" || mode === "const_join" ||
+          !isAnyDateInputProvenanceV1(resolved.provenance)
+        ? resolved.provenance
+        : Object.freeze([ambiguousDateInputProvenanceV1]);
+      binding.provenance = mode === "join" || mode === "const_join"
+        ? conservativeProvenanceJoinV1(binding.provenance, provenance)
+        : provenance;
       binding.bootstrap = resolved.bootstrap === null ? null : "forbidden";
     }
     return;
   }
   if (pattern.type === "AssignmentPattern") {
-    assignPatternV1(asNodeV1(pattern.left), resolved, scope);
+    const fallback = resolveExpressionV1(asNodeV1(pattern.right), scope);
+    assignPatternV1(
+      asNodeV1(pattern.left),
+      {
+        provenance: conservativeProvenanceJoinV1(
+          resolved.provenance,
+          fallback.provenance,
+        ),
+        bootstrap: resolved.bootstrap ?? fallback.bootstrap,
+      },
+      scope,
+      mode,
+    );
     return;
   }
   if (pattern.type === "ArrayPattern") {
     for (const element of asNodesV1(pattern.elements)) {
-      assignPatternV1(element, { provenance: null, bootstrap: null }, scope);
+      assignPatternV1(element, { provenance: null, bootstrap: null }, scope, mode);
     }
     return;
   }
@@ -520,6 +1159,7 @@ function assignPatternV1(
           asNodeV1(property.argument),
           { provenance: null, bootstrap: resolved.bootstrap },
           scope,
+          mode,
         );
         continue;
       }
@@ -537,6 +1177,7 @@ function assignPatternV1(
         asNodeV1(property.value),
         { provenance, bootstrap: resolved.bootstrap },
         scope,
+        mode,
       );
     }
   }
@@ -577,11 +1218,9 @@ function isAmbientProviderV1(specifier: string): boolean {
   const normalized = specifier.startsWith("npm:") ? specifier.slice(4) : specifier;
   return /^(?:openai|axios|undici|ws)(?:@[^/]+|\/|$)/u.test(normalized) ||
     /^(?:@anthropic-ai\/sdk)(?:@[^/]+|\/|$)/u.test(normalized) ||
-    normalized === "http" || normalized === "https" || normalized === "net" ||
-    normalized === "tls" || normalized === "dns" || normalized === "dgram" ||
-    normalized === "crypto" || normalized === "process" || normalized === "perf_hooks" ||
-    normalized === "fs" || normalized === "os" || normalized === "child_process" ||
-    /^node:(?:http|https|net|tls|dns|dgram|crypto|process|perf_hooks|fs|os|child_process)(?:\/|$)/u
+    /^(?:http|https|net|tls|dns|dgram|crypto|process|perf_hooks|fs|os|child_process|module)(?:\/|$)/u
+      .test(normalized) ||
+    /^node:(?:http|https|net|tls|dns|dgram|crypto|process|perf_hooks|fs|os|child_process|module)(?:\/|$)/u
       .test(normalized);
 }
 
@@ -751,14 +1390,19 @@ export function analyzeDeterminismSourceV1(
   const lines = sourceLinesV1(source);
   const rawDiagnostics: MutableDiagnosticV1[] = [];
   const diagnosticKeys = new Set<string>();
+  let traversalDiagnosticsEnabledV1 = false;
 
-  const reportV1 = (code: string, startInput: number, endInput: number): void => {
+  const recordDiagnosticV1 = (code: string, startInput: number, endInput: number): void => {
     const start = Math.max(0, Math.min(source.length, startInput));
     const end = Math.max(start, Math.min(source.length, endInput));
     const key = `${code}:${start}:${end}`;
     if (diagnosticKeys.has(key)) return;
     diagnosticKeys.add(key);
     rawDiagnostics.push({ code, start, end });
+  };
+  const reportV1 = (code: string, startInput: number, endInput: number): void => {
+    if (!traversalDiagnosticsEnabledV1) return;
+    recordDiagnosticV1(code, startInput, endInput);
   };
 
   let program: AstNodeV1;
@@ -769,7 +1413,7 @@ export function analyzeDeterminismSourceV1(
         typeof (error as { pos?: unknown }).pos === "number"
       ? (error as { pos: number }).pos
       : 0;
-    reportV1("determinism.source_parse_failed", position, position);
+    recordDiagnosticV1("determinism.source_parse_failed", position, position);
     return freezeDiagnosticsV1(options.file, lines, rawDiagnostics);
   }
   const lineCommentStartsV1 = new Set(
@@ -800,10 +1444,29 @@ export function analyzeDeterminismSourceV1(
     provenance: readonly string[] | null,
     node: AstNodeV1,
     mode: "call" | "new" | "member",
+    scope: ScopeV1,
   ): string | null => {
     if (provenance === null || provenance.length === 0) return null;
     const root = provenance[0];
     const members = provenance.slice(1);
+    if (
+      root === ambiguousCapabilityProvenanceV1 ||
+      root === ambiguousDateInstanceProvenanceV1
+    ) {
+      if (members.some((name) => dateHostDependentMembersV1.has(name))) {
+        return mode === "call" && isExactHostDependentDateOperationV1(provenance)
+          ? "determinism.host_timezone"
+          : "determinism.ambient_capability_escape";
+      }
+      return "determinism.ambient_capability_escape";
+    }
+    if (isAmbientLoaderProvenanceV1(provenance)) {
+      return "determinism.ambient_capability_escape";
+    }
+    if (root === "module") return "determinism.ambient_capability_escape";
+    if (isAmbientConstructorEscapeProvenanceV1(provenance)) {
+      return "determinism.ambient_capability_escape";
+    }
     if (root === "Math" && members.includes("random")) {
       return "determinism.ambient_random";
     }
@@ -812,20 +1475,69 @@ export function analyzeDeterminismSourceV1(
       (members.includes("getRandomValues") || members.includes("randomUUID"))
     ) return "determinism.crypto_random";
     if (root === "Date") {
+      if (
+        isDateInstanceProvenanceV1(provenance) &&
+        members.some((name) => dateHostDependentMembersV1.has(name))
+      ) {
+        return mode === "call" && isExactHostDependentDateOperationV1(provenance)
+          ? "determinism.host_timezone"
+          : "determinism.ambient_capability_escape";
+      }
       const callableKind = dateCallableKindV1(provenance);
+      if (isDateCallableBindV1(provenance)) {
+        return "determinism.ambient_capability_escape";
+      }
       if (callableKind === "constructor" && mode === "call") {
         return "determinism.ambient_clock";
       }
       if (callableKind === "constructor" && mode === "new") {
         const argumentsV1 = asNodesV1(node.arguments);
-        if (argumentsV1.length === 0 || argumentsV1.some(({ type }) => type === "SpreadElement")) {
+        if (argumentsV1.length === 0) {
           return "determinism.ambient_clock";
+        }
+        if (argumentsV1.some(({ type }) => type === "SpreadElement")) {
+          const onlyArgument = argumentsV1.length === 1 ? argumentsV1[0] : undefined;
+          const spreadValue = onlyArgument?.type === "SpreadElement"
+            ? unwrapExpressionV1(asNodeV1(onlyArgument.argument))
+            : null;
+          return spreadValue?.type === "ArrayExpression" &&
+              Array.isArray(spreadValue.elements) && spreadValue.elements.length === 0
+            ? "determinism.ambient_clock"
+            : "determinism.date_input_unverified";
+        }
+        if (argumentsV1.length > 1) return "determinism.host_timezone";
+        if (!isSafeDateConstructorInputV1(argumentsV1[0] ?? null, scope)) {
+          return isLocalZoneDateInputV1(argumentsV1[0] ?? null, scope)
+            ? "determinism.host_timezone"
+            : "determinism.date_input_unverified";
         }
       }
       if (callableKind === "constructor" && mode === "member") {
         return "determinism.ambient_capability_escape";
       }
       if (callableKind === "now") return "determinism.ambient_clock";
+      if (callableKind === "parse" && mode === "call") {
+        const argumentsV1 = dateInvocationArgumentsV1(node, provenance);
+        if (argumentsV1?.length === 1 && isSafeDateParseInputV1(argumentsV1[0] ?? null, scope)) {
+          return null;
+        }
+        return argumentsV1?.length === 1 &&
+            isLocalZoneDateInputV1(argumentsV1[0] ?? null, scope)
+          ? "determinism.host_timezone"
+          : "determinism.date_input_unverified";
+      }
+      if (callableKind === "other") return "determinism.ambient_capability_escape";
+    }
+    if (root === "String" && stringCallableV1(provenance)?.wrapper === "bind") {
+      return "determinism.ambient_capability_escape";
+    }
+    if (root === "String" && isUnsupportedStringCallablePathV1(provenance)) {
+      return "determinism.ambient_capability_escape";
+    }
+    if (root === "Temporal" && members.includes("Now")) {
+      return mode === "member" && members.length === 1
+        ? "determinism.ambient_capability_escape"
+        : "determinism.ambient_clock";
     }
     if (root === "performance" && members.includes("now")) {
       return "determinism.performance_clock";
@@ -859,13 +1571,136 @@ export function analyzeDeterminismSourceV1(
     return null;
   };
 
+  const visitPropertyKeyV1 = (key: AstNodeV1 | null, scope: ScopeV1): void => {
+    if (key === null) return;
+    visitV1(key, scope);
+    const code = dateCoercionDiagnosticV1(resolveExpressionV1(key, scope).provenance);
+    if (code !== null) reportNodeV1(code, key);
+  };
+
   const visitComputedPropertyV1 = (node: AstNodeV1, scope: ScopeV1): void => {
     if (node.computed !== true || staticPropertyNameV1(node) !== null) return;
-    const property = asNodeV1(node.property);
-    if (property !== null) visitV1(property, scope);
+    visitPropertyKeyV1(asNodeV1(node.property), scope);
+  };
+
+  const equalitySkipsObjectToPrimitiveV1 = (
+    node: AstNodeV1 | null,
+    scope: ScopeV1,
+  ): boolean => {
+    const expression = unwrapExpressionV1(node);
+    if (
+      expression === null || expression.type === "NullLiteral" ||
+      expression.type === "MetaProperty"
+    ) return true;
+    if (
+      expression.type === "Identifier" && identifierNameV1(expression) === "undefined" &&
+      lookupBindingV1(scope, "undefined") === null
+    ) return true;
+    if (expression.type === "UnaryExpression" && expression.operator === "void") return true;
+    if (
+      expression.type === "ObjectExpression" || expression.type === "ArrayExpression" ||
+      expression.type === "FunctionExpression" || expression.type === "ArrowFunctionExpression" ||
+      expression.type === "ClassExpression" || expression.type === "NewExpression" ||
+      expression.type === "RegExpLiteral"
+    ) return true;
+    const provenance = resolveExpressionV1(expression, scope).provenance;
+    return isDateInstanceValueV1(provenance) ||
+      (provenance?.length === 2 && provenance[0] === "Date" && provenance[1] === "prototype") ||
+      (provenance?.length === 1 && isTrackedAmbientCapabilityProvenanceV1(provenance)) ||
+      isKnownNonCoercingIntrinsicValueV1(provenance) ||
+      (dateCallableKindV1(provenance) !== null && dateCallableKindV1(provenance) !== "other") ||
+      stringCallableV1(provenance) !== null;
+  };
+
+  const visitRuntimeValueProducerV1 = (node: AstNodeV1 | null, scope: ScopeV1): void => {
+    const expression = unwrapExpressionV1(node);
+    if (expression === null) return;
+    if (
+      expression.type === "Identifier" || expression.type === "ThisExpression" ||
+      expression.type === "Super" || expression.type.endsWith("Literal")
+    ) return;
+    if (
+      expression.type === "MemberExpression" || expression.type === "OptionalMemberExpression"
+    ) {
+      const object = asNodeV1(expression.object);
+      visitRuntimeValueProducerV1(object, scope);
+      visitComputedPropertyV1(expression, scope);
+      if (
+        staticPropertyNameV1(expression) === null &&
+        isTrackedAmbientCapabilityProvenanceV1(resolveExpressionV1(object, scope).provenance)
+      ) reportNodeV1("determinism.ambient_capability_escape", expression);
+      return;
+    }
+    if (expression.type === "SequenceExpression") {
+      const expressions = asNodesV1(expression.expressions);
+      for (const item of expressions.slice(0, -1)) visitV1(item, scope);
+      visitRuntimeValueProducerV1(expressions.at(-1) ?? null, scope);
+      return;
+    }
+    if (expression.type === "ConditionalExpression") {
+      const test = asNodeV1(expression.test);
+      if (test !== null) visitV1(test, scope);
+      visitRuntimeValueProducerV1(asNodeV1(expression.consequent), scope);
+      visitRuntimeValueProducerV1(asNodeV1(expression.alternate), scope);
+      return;
+    }
+    if (expression.type === "LogicalExpression") {
+      const left = asNodeV1(expression.left);
+      if (left !== null) visitV1(left, scope);
+      visitRuntimeValueProducerV1(asNodeV1(expression.right), scope);
+      return;
+    }
+    visitV1(expression, scope);
+  };
+
+  const inspectWriteTargetV1 = (targetNode: AstNodeV1 | null, scope: ScopeV1): void => {
+    const target = unwrapExpressionV1(targetNode);
+    if (target === null) return;
+    if (target.type === "Identifier") {
+      const name = identifierNameV1(target);
+      if (
+        name !== null && lookupBindingV1(scope, name) === null &&
+        isTrackedAmbientCapabilityProvenanceV1(Object.freeze([name]))
+      ) reportNodeV1("determinism.ambient_capability_escape", target);
+      return;
+    }
+    if (target.type === "MemberExpression" || target.type === "OptionalMemberExpression") {
+      const object = asNodeV1(target.object);
+      visitRuntimeValueProducerV1(object, scope);
+      visitComputedPropertyV1(target, scope);
+      const provenance = resolveExpressionV1(target, scope).provenance;
+      const objectProvenance = resolveExpressionV1(object, scope).provenance;
+      if (
+        isTrackedAmbientCapabilityProvenanceV1(provenance) ||
+        isTrackedAmbientCapabilityProvenanceV1(objectProvenance)
+      ) {
+        reportNodeV1("determinism.ambient_capability_escape", target);
+      }
+      return;
+    }
+    if (target.type === "AssignmentPattern" || target.type === "RestElement") {
+      inspectWriteTargetV1(
+        asNodeV1(target.type === "AssignmentPattern" ? target.left : target.argument),
+        scope,
+      );
+      return;
+    }
+    if (target.type === "ArrayPattern") {
+      for (const element of asNodesV1(target.elements)) inspectWriteTargetV1(element, scope);
+      return;
+    }
+    if (target.type === "ObjectPattern") {
+      for (const property of asNodesV1(target.properties)) {
+        inspectWriteTargetV1(
+          asNodeV1(property.type === "RestElement" ? property.argument : property.value),
+          scope,
+        );
+      }
+    }
   };
 
   const visitPatternRuntimeV1 = (pattern: AstNodeV1 | null, scope: ScopeV1): void => {
+    pattern = unwrapExpressionV1(pattern);
     if (pattern === null) return;
     for (const decorator of asNodesV1(pattern.decorators)) {
       const expression = asNodeV1(decorator.expression);
@@ -892,8 +1727,7 @@ export function analyzeDeterminismSourceV1(
           continue;
         }
         if (property.computed === true) {
-          const key = asNodeV1(property.key);
-          if (key !== null) visitV1(key, scope);
+          visitPropertyKeyV1(asNodeV1(property.key), scope);
         }
         visitPatternRuntimeV1(asNodeV1(property.value), scope);
       }
@@ -907,10 +1741,12 @@ export function analyzeDeterminismSourceV1(
   const reportPatternCapabilitiesV1 = (
     pattern: AstNodeV1 | null,
     resolved: ResolvedExpressionV1,
+    scope: ScopeV1,
   ): void => {
+    pattern = unwrapExpressionV1(pattern);
     if (pattern === null) return;
     if (pattern.type === "AssignmentPattern") {
-      reportPatternCapabilitiesV1(asNodeV1(pattern.left), resolved);
+      reportPatternCapabilitiesV1(asNodeV1(pattern.left), resolved, scope);
       return;
     }
     if (pattern.type !== "ObjectPattern") return;
@@ -938,7 +1774,7 @@ export function analyzeDeterminismSourceV1(
       if (derived.bootstrap !== null) {
         reportNodeV1("determinism.bootstrap_entropy_escape", property);
       } else {
-        const code = classifyProvenanceV1(derived.provenance, property, "member");
+        const code = classifyProvenanceV1(derived.provenance, property, "member", scope);
         if (code !== null) reportNodeV1(code, property);
         else if (
           derived.provenance?.length === 1 &&
@@ -949,15 +1785,268 @@ export function analyzeDeterminismSourceV1(
           ambientCapabilityRootsV1.has(resolved.provenance[0] ?? "")
         ) reportNodeV1("determinism.ambient_capability_escape", property);
       }
-      reportPatternCapabilitiesV1(asNodeV1(property.value), derived);
+      reportPatternCapabilitiesV1(asNodeV1(property.value), derived, scope);
     }
+  };
+
+  const stringRawCarrierValuesV1 = (
+    carrierNode: AstNodeV1 | null,
+    scope: ScopeV1,
+  ): Readonly<{
+    values: readonly AstNodeV1[];
+    substitutionLimit: number;
+    uncertain: boolean;
+  }> => {
+    const isStaticallyPrimitiveOrNullV1 = (node: AstNodeV1 | null): boolean => {
+      const value = unwrapExpressionV1(node);
+      if (value === null || value.type === "NullLiteral") return true;
+      if (
+        value.type === "Identifier" && identifierNameV1(value) === "undefined" &&
+        lookupBindingV1(scope, "undefined") === null
+      ) return true;
+      if (
+        value.type === "StringLiteral" || value.type === "NumericLiteral" ||
+        value.type === "BooleanLiteral" || value.type === "BigIntLiteral" ||
+        value.type === "DecimalLiteral" || value.type === "TemplateLiteral" ||
+        value.type === "UnaryExpression" || value.type === "BinaryExpression" ||
+        value.type === "UpdateExpression"
+      ) return true;
+      if (value.type === "SequenceExpression") {
+        const expressions = asNodesV1(value.expressions);
+        return isStaticallyPrimitiveOrNullV1(expressions.at(-1) ?? null);
+      }
+      if (value.type === "ConditionalExpression") {
+        return isStaticallyPrimitiveOrNullV1(asNodeV1(value.consequent)) &&
+          isStaticallyPrimitiveOrNullV1(asNodeV1(value.alternate));
+      }
+      if (value.type === "LogicalExpression") {
+        return isStaticallyPrimitiveOrNullV1(asNodeV1(value.left)) &&
+          isStaticallyPrimitiveOrNullV1(asNodeV1(value.right));
+      }
+      return false;
+    };
+    const prototypeSetterMaySupplyPropertiesV1 = (property: AstNodeV1): boolean => {
+      if (
+        property.type !== "ObjectProperty" || property.computed === true ||
+        property.shorthand === true || staticKeyNameV1(property) !== "__proto__"
+      ) return false;
+      return !isStaticallyPrimitiveOrNullV1(asNodeV1(property.value));
+    };
+    const carrier = unwrapExpressionV1(carrierNode);
+    const unshadowedUndefined = carrier?.type === "Identifier" &&
+      identifierNameV1(carrier) === "undefined" && lookupBindingV1(scope, "undefined") === null;
+    if (
+      carrierNode === null || carrier?.type === "NullLiteral" ||
+      carrier?.type === "UnaryExpression" && carrier.operator === "void" || unshadowedUndefined
+    ) {
+      return { values: Object.freeze([]), substitutionLimit: 0, uncertain: false };
+    }
+    if (carrier?.type !== "ObjectExpression") {
+      return { values: Object.freeze([]), substitutionLimit: 0, uncertain: true };
+    }
+    let rawNode: AstNodeV1 | null = null;
+    let uncertain = false;
+    let inheritedRaw = false;
+    for (const property of asNodesV1(carrier.properties)) {
+      if (property.type === "SpreadElement") {
+        uncertain = true;
+        continue;
+      }
+      const key = staticKeyNameV1(property);
+      if (key === null) {
+        uncertain = true;
+        continue;
+      }
+      if (key === "__proto__" && property.computed !== true) {
+        inheritedRaw ||= prototypeSetterMaySupplyPropertiesV1(property);
+        continue;
+      }
+      if (key !== "raw") continue;
+      if (property.type !== "ObjectProperty") {
+        uncertain = true;
+        continue;
+      }
+      rawNode = asNodeV1(property.value);
+    }
+    if (rawNode === null) {
+      return {
+        values: Object.freeze([]),
+        substitutionLimit: 0,
+        uncertain: uncertain || inheritedRaw,
+      };
+    }
+    const raw = unwrapExpressionV1(rawNode);
+    if (raw?.type === "StringLiteral" && typeof raw.value === "string") {
+      return {
+        values: Object.freeze([]),
+        substitutionLimit: Math.max(0, raw.value.length - 1),
+        uncertain,
+      };
+    }
+    if (raw?.type === "ArrayExpression") {
+      const expanded = expandStaticArgumentItemsV1(raw.elements);
+      return {
+        values: Object.freeze(expanded.prefix.filter(isNodeV1)),
+        substitutionLimit: Math.max(0, expanded.prefix.length - 1),
+        uncertain: uncertain || expanded.hasUnknownTail,
+      };
+    }
+    if (raw?.type !== "ObjectExpression") {
+      return { values: Object.freeze([]), substitutionLimit: 0, uncertain: true };
+    }
+
+    let length: number | null = null;
+    const indexed = new Map<number, AstNodeV1>();
+    let inheritedIndex = false;
+    for (const property of asNodesV1(raw.properties)) {
+      if (property.type === "SpreadElement") {
+        uncertain = true;
+        continue;
+      }
+      const key = staticKeyNameV1(property);
+      if (key === null) {
+        uncertain = true;
+        continue;
+      }
+      if (key === "__proto__" && property.computed !== true) {
+        inheritedIndex ||= prototypeSetterMaySupplyPropertiesV1(property);
+        continue;
+      }
+      if (property.type !== "ObjectProperty") {
+        if (key === "length" || /^(?:0|[1-9]\d*)$/u.test(key)) uncertain = true;
+        continue;
+      }
+      const value = asNodeV1(property.value);
+      if (key === "length") {
+        const resolvedLength = unwrapExpressionV1(value);
+        length = resolvedLength?.type === "NumericLiteral" &&
+            typeof resolvedLength.value === "number" &&
+            Number.isSafeInteger(resolvedLength.value) && resolvedLength.value >= 0
+          ? resolvedLength.value
+          : null;
+        if (length === null) uncertain = true;
+        continue;
+      }
+      if (!/^(?:0|[1-9]\d*)$/u.test(key) || value === null) continue;
+      const index = Number(key);
+      if (Number.isSafeInteger(index)) indexed.set(index, value);
+    }
+    if (length === null) {
+      return { values: Object.freeze([]), substitutionLimit: 0, uncertain: true };
+    }
+    return {
+      values: Object.freeze(
+        [...indexed.entries()]
+          .filter(([index]) => index < length!)
+          .sort(([left], [right]) => left - right)
+          .map(([, value]) => value),
+      ),
+      substitutionLimit: Math.max(0, length - 1),
+      uncertain: uncertain || inheritedIndex,
+    };
+  };
+
+  const inspectStringEffectiveArgumentsV1 = (
+    effective: StaticArgumentVectorV1,
+    callable: StringCallableV1,
+    scope: ScopeV1,
+  ): Readonly<{ values: readonly AstNodeV1[]; uncertain: boolean }> => {
+    if (callable.kind === "constructor") {
+      const first = effective.prefix[0];
+      return {
+        values: first === undefined || first === null ? Object.freeze([]) : Object.freeze([first]),
+        uncertain: first === undefined && effective.hasUnknownTail,
+      };
+    }
+    if (effective.hasUnknownTail) {
+      return { values: Object.freeze([]), uncertain: true };
+    }
+    const first = effective.prefix[0] ?? null;
+    const carrier = stringRawCarrierValuesV1(first, scope);
+    return {
+      values: Object.freeze([
+        ...carrier.values,
+        ...effective.prefix.slice(1, carrier.substitutionLimit + 1).filter(isNodeV1),
+      ]),
+      uncertain: carrier.uncertain,
+    };
+  };
+
+  const inspectStringCoercionV1 = (
+    node: AstNodeV1,
+    callable: StringCallableV1,
+    scope: ScopeV1,
+  ): Readonly<{ values: readonly AstNodeV1[]; uncertain: boolean }> =>
+    inspectStringEffectiveArgumentsV1(
+      stringEffectiveArgumentsV1(node, callable, scope),
+      callable,
+      scope,
+    );
+
+  const taggedEffectiveArgumentsV1 = (
+    expressions: readonly AstNodeV1[],
+    wrapper: "call" | "apply" | "bind" | null,
+    scope: ScopeV1,
+  ): StaticArgumentVectorV1 => {
+    const taggedArguments: StaticArgumentVectorV1 = {
+      prefix: Object.freeze([null, ...expressions]),
+      hasUnknownTail: false,
+    };
+    if (wrapper === null) return taggedArguments;
+    if (wrapper === "bind") {
+      return { prefix: Object.freeze([]), hasUnknownTail: true };
+    }
+    if (wrapper === "call") {
+      return {
+        prefix: Object.freeze(taggedArguments.prefix.slice(1)),
+        hasUnknownTail: false,
+      };
+    }
+    const carrierNode = taggedArguments.prefix[1] ?? null;
+    const carrier = unwrapExpressionV1(carrierNode);
+    const unshadowedUndefined = carrier?.type === "Identifier" &&
+      identifierNameV1(carrier) === "undefined" && lookupBindingV1(scope, "undefined") === null;
+    if (
+      carrierNode === null || carrier?.type === "NullLiteral" ||
+      carrier?.type === "UnaryExpression" && carrier.operator === "void" || unshadowedUndefined
+    ) return { prefix: Object.freeze([]), hasUnknownTail: false };
+    return carrier?.type === "ArrayExpression"
+      ? expandStaticArgumentItemsV1(carrier.elements)
+      : { prefix: Object.freeze([]), hasUnknownTail: true };
   };
 
   const visitCallLikeV1 = (node: AstNodeV1, scope: ScopeV1, mode: "call" | "new"): void => {
     const callee = asNodeV1(node.callee);
     const unwrappedCallee = unwrapExpressionV1(callee);
+    visitRuntimeValueProducerV1(callee, scope);
+    for (const argument of asNodesV1(node.arguments)) {
+      if (argument.type === "SpreadElement") {
+        const value = asNodeV1(argument.argument);
+        if (value !== null) visitV1(value, scope);
+      } else visitV1(argument, scope);
+    }
     const calleeResolved = resolveExpressionV1(unwrappedCallee, scope);
     let classified = false;
+
+    const stringCallable = stringCallableV1(calleeResolved.provenance);
+    if (stringCallable?.wrapper === "bind" && unwrappedCallee !== null) {
+      reportNodeV1("determinism.ambient_capability_escape", unwrappedCallee);
+      classified = true;
+    }
+    if (!classified && stringCallable !== null) {
+      const inspection = inspectStringCoercionV1(node, stringCallable, scope);
+      if (inspection.uncertain && unwrappedCallee !== null) {
+        reportNodeV1("determinism.ambient_capability_escape", unwrappedCallee);
+        classified = true;
+      }
+      for (const value of inspection.values) {
+        const code = dateCoercionDiagnosticV1(resolveExpressionV1(value, scope).provenance);
+        if (code !== null) {
+          reportNodeV1(code, value);
+          classified = true;
+        }
+      }
+    }
 
     if (unwrappedCallee?.type === "Import") {
       const sourceNode = asNodesV1(node.arguments)[0];
@@ -1002,6 +2091,13 @@ export function analyzeDeterminismSourceV1(
         reportNodeV1("determinism.bootstrap_entropy_escape", unwrappedCallee);
         classified = true;
       }
+      if (
+        !classified && property === null && objectResolved.provenance !== null &&
+        isTrackedAmbientCapabilityProvenanceV1(objectResolved.provenance)
+      ) {
+        reportNodeV1("determinism.ambient_capability_escape", unwrappedCallee);
+        classified = true;
+      }
     }
 
     if (
@@ -1025,20 +2121,41 @@ export function analyzeDeterminismSourceV1(
       }
     }
 
-    if (!classified && mode === "call" && calleeResolved.provenance?.[0] === "require") {
-      const sourceNode = asNodesV1(node.arguments)[0];
+    if (!classified && mode === "call") {
+      const provenance = calleeResolved.provenance;
+      const directLoader = (provenance?.[0] === "require" && provenance.length === 1) ||
+        (provenance?.[0] === "module" && provenance[1] === "require" && provenance.length === 2);
+      const wrapper = provenance?.[0] === "require"
+        ? provenance[1]
+        : provenance?.[0] === "module" && provenance[1] === "require"
+        ? provenance[2]
+        : undefined;
+      const argumentsV1 = asNodesV1(node.arguments);
+      const sourceNode = directLoader
+        ? argumentsV1[0]
+        : wrapper === "call" || wrapper === "bind"
+        ? argumentsV1[1]
+        : wrapper === "apply"
+        ? asNodesV1(asNodeV1(argumentsV1[1])?.elements)[0]
+        : undefined;
       const specifier = sourceNode?.type === "StringLiteral" && typeof sourceNode.value === "string"
         ? sourceNode.value
         : null;
-      if (sourceNode !== undefined && specifier !== null && isAmbientProviderV1(specifier)) {
-        const [start, end] = importSpecifierRangeV1(sourceNode, source, specifier);
-        reportV1("determinism.ambient_provider_import", start, end);
+      const recognizedLoader = directLoader || wrapper === "call" || wrapper === "apply" ||
+        wrapper === "bind";
+      if (recognizedLoader && unwrappedCallee !== null) {
+        if (sourceNode !== undefined && specifier !== null && isAmbientProviderV1(specifier)) {
+          const [start, end] = importSpecifierRangeV1(sourceNode, source, specifier);
+          reportV1("determinism.ambient_provider_import", start, end);
+        } else {
+          reportNodeV1("determinism.ambient_capability_escape", unwrappedCallee);
+        }
         classified = true;
       }
     }
 
     if (!classified && unwrappedCallee !== null) {
-      const code = classifyProvenanceV1(calleeResolved.provenance, node, mode);
+      const code = classifyProvenanceV1(calleeResolved.provenance, node, mode, scope);
       if (code !== null) {
         reportNodeV1(code, unwrappedCallee);
         classified = true;
@@ -1059,16 +2176,14 @@ export function analyzeDeterminismSourceV1(
       calleeResolved.provenance[0] === "Number"
     ) classified = true;
 
-    if (!classified && callee !== null) visitV1(callee, scope);
-    else if (
-      unwrappedCallee?.type === "MemberExpression" ||
-      unwrappedCallee?.type === "OptionalMemberExpression"
-    ) visitComputedPropertyV1(unwrappedCallee, scope);
-    for (const argument of asNodesV1(node.arguments)) {
-      if (argument.type === "SpreadElement") {
-        const value = asNodeV1(argument.argument);
-        if (value !== null) visitV1(value, scope);
-      } else visitV1(argument, scope);
+    if (!classified && unwrappedCallee?.type === "Identifier") {
+      visitV1(unwrappedCallee, scope);
+    } else if (
+      !classified && calleeResolved.provenance?.length === 1 &&
+      provenanceTrackedRootsV1.has(calleeResolved.provenance[0] ?? "") &&
+      unwrappedCallee !== null
+    ) {
+      reportNodeV1("determinism.ambient_capability_escape", unwrappedCallee);
     }
   };
 
@@ -1082,12 +2197,44 @@ export function analyzeDeterminismSourceV1(
     }
   };
 
+  type DeferredFunctionAnalysisV1 = Readonly<{
+    node: AstNodeV1;
+    parentScope: ScopeV1;
+    scope: ScopeV1;
+    fallbackName: string | null;
+  }>;
+  const deferredFunctionsV1 = new Map<AstNodeV1, DeferredFunctionAnalysisV1>();
+  const lexicalScopesV1 = new Map<AstNodeV1, ScopeV1>();
+  let deferredReplayDepthV1 = 0;
+  let provenanceReplayDepthV1 = 0;
+
+  const lexicalScopeV1 = (
+    node: AstNodeV1,
+    parent: ScopeV1,
+    functionBoundary = false,
+  ): ScopeV1 => {
+    const existing = lexicalScopesV1.get(node);
+    if (existing !== undefined) return existing;
+    const scope = createScopeV1(parent, functionBoundary);
+    lexicalScopesV1.set(node, scope);
+    return scope;
+  };
+
   const visitFunctionV1 = (
     node: AstNodeV1,
     parentScope: ScopeV1,
     fallbackName: string | null = null,
+    deferReanalysis = true,
+    replayScope: ScopeV1 | null = null,
   ): void => {
-    const scope = createScopeV1(parentScope, true);
+    if (deferReanalysis && deferredReplayDepthV1 > 0) return;
+    const scope = replayScope ?? createScopeV1(parentScope, true);
+    if (deferReanalysis) {
+      deferredFunctionsV1.set(node, { node, parentScope, scope, fallbackName });
+    } else {
+      deferredReplayDepthV1 += 1;
+      provenanceReplayDepthV1 += 1;
+    }
     const ownName = identifierNameV1(asNodeV1(node.id));
     if (ownName !== null) declareIdentifierV1(scope, ownName);
     shadowTypeParametersV1(node, scope);
@@ -1119,10 +2266,17 @@ export function analyzeDeterminismSourceV1(
     }
     for (const parameter of params) visitPatternRuntimeV1(parameter, scope);
     const body = asNodeV1(node.body);
-    if (body?.type === "BlockStatement") {
-      collectHoistedVarV1(body, scope);
-      visitStatementListV1(asNodesV1(body.body), scope);
-    } else if (body !== null) visitV1(body, scope);
+    try {
+      if (body?.type === "BlockStatement") {
+        if (provenanceReplayDepthV1 === 0) collectHoistedVarV1(body, scope);
+        visitStatementListV1(asNodesV1(body.body), scope);
+      } else if (body !== null) visitV1(body, scope);
+    } finally {
+      if (!deferReanalysis) {
+        deferredReplayDepthV1 -= 1;
+        provenanceReplayDepthV1 -= 1;
+      }
+    }
   };
 
   const visitClassV1 = (node: AstNodeV1, parentScope: ScopeV1): void => {
@@ -1133,7 +2287,7 @@ export function analyzeDeterminismSourceV1(
     const superClass = asNodeV1(node.superClass);
     if (superClass !== null) visitV1(superClass, parentScope);
 
-    const scope = createScopeV1(parentScope);
+    const scope = lexicalScopeV1(node, parentScope);
     const ownName = identifierNameV1(asNodeV1(node.id));
     if (ownName !== null) {
       declareIdentifierV1(scope, ownName);
@@ -1171,14 +2325,50 @@ export function analyzeDeterminismSourceV1(
         return;
       }
       case "BlockStatement": {
-        const blockScope = createScopeV1(scope);
+        const blockScope = lexicalScopeV1(node, scope);
         visitStatementListV1(asNodesV1(node.body), blockScope);
+        return;
+      }
+      case "StaticBlock": {
+        const blockScope = lexicalScopeV1(node, scope, true);
+        const statements = asNodesV1(node.body);
+        if (provenanceReplayDepthV1 === 0) {
+          for (const statement of statements) collectHoistedVarV1(statement, blockScope);
+        }
+        visitStatementListV1(statements, blockScope);
+        return;
+      }
+      case "SwitchStatement": {
+        const discriminant = asNodeV1(node.discriminant);
+        if (discriminant !== null) visitV1(discriminant, scope);
+        const switchScope = lexicalScopeV1(node, scope);
+        const cases = asNodesV1(node.cases);
+        for (const switchCase of cases) {
+          for (const statement of asNodesV1(switchCase.consequent)) {
+            predeclareStatementV1(statement, switchScope);
+          }
+        }
+        for (const switchCase of cases) {
+          const test = asNodeV1(switchCase.test);
+          if (test !== null) visitV1(test, switchScope);
+          for (const statement of asNodesV1(switchCase.consequent)) {
+            visitV1(statement, switchScope);
+          }
+        }
         return;
       }
       case "TSModuleDeclaration": {
         if (node.declare === true) return;
         const body = asNodeV1(node.body);
-        if (body !== null) visitV1(body, createScopeV1(scope));
+        if (body !== null) {
+          const moduleScope = lexicalScopeV1(node, scope, true);
+          if (provenanceReplayDepthV1 === 0) {
+            for (const statement of asNodesV1(body.body)) {
+              collectHoistedVarV1(statement, moduleScope);
+            }
+          }
+          visitV1(body, moduleScope);
+        }
         return;
       }
       case "TSModuleBlock":
@@ -1211,6 +2401,17 @@ export function analyzeDeterminismSourceV1(
           const [start, end] = importSpecifierRangeV1(expression, source, specifier);
           reportV1("determinism.ambient_provider_import", start, end);
         }
+        if (moduleReference?.type === "TSExternalModuleReference") {
+          if (expression !== null && (specifier === null || !isAmbientProviderV1(specifier))) {
+            reportNodeV1("determinism.ambient_capability_escape", expression);
+          }
+          const name = identifierNameV1(asNodeV1(node.id));
+          const binding = name === null ? null : lookupBindingV1(scope, name);
+          if (binding !== null) {
+            binding.provenance = Object.freeze([ambiguousCapabilityProvenanceV1]);
+            binding.bootstrap = null;
+          }
+        }
         if (moduleReference !== null && moduleReference.type !== "TSExternalModuleReference") {
           const resolved = resolveTsEntityNameV1(moduleReference, scope);
           const name = identifierNameV1(asNodeV1(node.id));
@@ -1219,7 +2420,7 @@ export function analyzeDeterminismSourceV1(
             binding.provenance = resolved.provenance;
             binding.bootstrap = resolved.bootstrap === null ? null : "forbidden";
           }
-          const code = classifyProvenanceV1(resolved.provenance, moduleReference, "member");
+          const code = classifyProvenanceV1(resolved.provenance, moduleReference, "member", scope);
           if (code !== null) reportNodeV1(code, moduleReference);
           if (
             resolved.provenance?.length === 1 &&
@@ -1282,6 +2483,7 @@ export function analyzeDeterminismSourceV1(
         return;
       }
       case "VariableDeclaration": {
+        if (node.declare === true) return;
         const target = node.kind === "var" ? scope.functionScope : scope;
         for (const declaration of asNodesV1(node.declarations)) {
           declarePatternV1(asNodeV1(declaration.id), target);
@@ -1302,12 +2504,25 @@ export function analyzeDeterminismSourceV1(
               scope,
               identifierNameV1(asNodeV1(declaration.id)),
             );
-          } else if (initializer !== null && !staticallyDestructuredAmbientRoot) {
-            visitV1(initializer, scope);
+          } else if (initializer !== null) {
+            if (staticallyDestructuredAmbientRoot) {
+              visitRuntimeValueProducerV1(initializer, scope);
+            } else visitV1(initializer, scope);
           }
           visitPatternRuntimeV1(pattern, scope);
-          reportPatternCapabilitiesV1(pattern, resolved);
-          assignPatternV1(pattern, resolved, target);
+          reportPatternCapabilitiesV1(pattern, resolved, scope);
+          if (initializer !== null) {
+            assignPatternV1(
+              pattern,
+              resolved,
+              target,
+              provenanceReplayDepthV1 > 0
+                ? node.kind === "const" ? "const_join" : "join"
+                : node.kind === "const"
+                ? "const"
+                : "mutable",
+            );
+          }
         }
         return;
       }
@@ -1317,9 +2532,9 @@ export function analyzeDeterminismSourceV1(
       case "ObjectMethod":
       case "ClassMethod":
       case "ClassPrivateMethod": {
+        if (node.declare === true) return;
         if (node.computed === true) {
-          const key = asNodeV1(node.key);
-          if (key !== null) visitV1(key, scope);
+          visitPropertyKeyV1(asNodeV1(node.key), scope);
         }
         for (const decorator of asNodesV1(node.decorators)) {
           const expression = asNodeV1(decorator.expression);
@@ -1330,14 +2545,15 @@ export function analyzeDeterminismSourceV1(
       }
       case "ClassDeclaration":
       case "ClassExpression":
+        if (node.declare === true) return;
         visitClassV1(node, scope);
         return;
       case "ObjectProperty":
       case "ClassProperty":
+      case "ClassAccessorProperty":
       case "ClassPrivateProperty": {
         if (node.computed === true) {
-          const key = asNodeV1(node.key);
-          if (key !== null) visitV1(key, scope);
+          visitPropertyKeyV1(asNodeV1(node.key), scope);
         }
         for (const decorator of asNodesV1(node.decorators)) {
           const expression = asNodeV1(decorator.expression);
@@ -1374,35 +2590,50 @@ export function analyzeDeterminismSourceV1(
       }
       case "MemberExpression":
       case "OptionalMemberExpression": {
+        const object = asNodeV1(node.object);
+        visitRuntimeValueProducerV1(object, scope);
+        visitComputedPropertyV1(node, scope);
         const resolved = resolveExpressionV1(node, scope);
         if (resolved.bootstrap !== null) {
           reportNodeV1("determinism.bootstrap_entropy_escape", node);
-          visitComputedPropertyV1(node, scope);
           return;
         }
         const property = staticPropertyNameV1(node);
-        if (property === "nextUuidV4" || property === "nextNonZeroUint32") {
-          reportNodeV1("determinism.bootstrap_entropy_escape", node);
-          visitComputedPropertyV1(node, scope);
+        if (
+          property === "constructor" && isAmbientConstructorEscapeProvenanceV1(resolved.provenance)
+        ) {
+          reportNodeV1("determinism.ambient_capability_escape", node);
           return;
         }
-        const code = classifyProvenanceV1(resolved.provenance, node, "member");
+        const objectResolved = resolveExpressionV1(object, scope);
+        if (
+          property === null &&
+          isTrackedAmbientCapabilityProvenanceV1(objectResolved.provenance)
+        ) {
+          reportNodeV1("determinism.ambient_capability_escape", node);
+          return;
+        }
+        if (property === "nextUuidV4" || property === "nextNonZeroUint32") {
+          reportNodeV1("determinism.bootstrap_entropy_escape", node);
+          return;
+        }
+        const code = classifyProvenanceV1(resolved.provenance, node, "member", scope);
         if (code !== null) {
           reportNodeV1(code, node);
-          visitComputedPropertyV1(node, scope);
           return;
         }
         if (
           resolved.provenance !== null && resolved.provenance.length > 1 &&
-          (resolved.provenance[0] === "Math" || resolved.provenance[0] === "Date" ||
-            resolved.provenance[0] === "Number")
+          intrinsicStaticRootsV1.has(resolved.provenance[0] ?? "")
         ) {
-          visitComputedPropertyV1(node, scope);
           return;
         }
-        const object = asNodeV1(node.object);
-        if (object !== null) visitV1(object, scope);
-        visitComputedPropertyV1(node, scope);
+        if (
+          (resolved.provenance?.length === 1 &&
+            provenanceTrackedRootsV1.has(resolved.provenance[0] ?? "")) ||
+          (objectResolved.provenance?.length === 1 &&
+            objectResolved.provenance[0] === "globalThis")
+        ) reportNodeV1("determinism.ambient_capability_escape", node);
         return;
       }
       case "Identifier": {
@@ -1410,6 +2641,10 @@ export function analyzeDeterminismSourceV1(
         const binding = name === null ? null : lookupBindingV1(scope, name);
         if (binding?.bootstrap !== null && binding !== null) {
           reportNodeV1("determinism.bootstrap_entropy_escape", node);
+        } else if (binding?.provenance?.[0] === ambiguousCapabilityProvenanceV1) {
+          reportNodeV1("determinism.ambient_capability_escape", node);
+        } else if (isAmbientLoaderProvenanceV1(resolveExpressionV1(node, scope).provenance)) {
+          reportNodeV1("determinism.ambient_capability_escape", node);
         } else if (
           (binding === null && ambientCapabilityRootsV1.has(name ?? "")) ||
           (binding?.provenance?.length === 1 &&
@@ -1450,6 +2685,15 @@ export function analyzeDeterminismSourceV1(
       case "UnaryExpression": {
         const argument = asNodeV1(node.argument);
         const unwrappedArgument = unwrapExpressionV1(argument);
+        if (node.operator === "delete") {
+          inspectWriteTargetV1(argument, scope);
+          if (
+            unwrappedArgument !== null && unwrappedArgument.type !== "Identifier" &&
+            unwrappedArgument.type !== "MemberExpression" &&
+            unwrappedArgument.type !== "OptionalMemberExpression"
+          ) visitV1(unwrappedArgument, scope);
+          return;
+        }
         if (node.operator === "-" && unwrappedArgument?.type === "NumericLiteral") {
           const raw = typeof asNodeV1(unwrappedArgument.extra)?.raw === "string"
             ? String(asNodeV1(unwrappedArgument.extra)?.raw)
@@ -1463,11 +2707,122 @@ export function analyzeDeterminismSourceV1(
         return;
       }
       case "BinaryExpression": {
-        if (node.operator === "**") reportNodeV1("determinism.numeric_approximate_math", node);
         const left = asNodeV1(node.left);
         const right = asNodeV1(node.right);
         if (left !== null) visitV1(left, scope);
         if (right !== null) visitV1(right, scope);
+        if (node.operator === "**") reportNodeV1("determinism.numeric_approximate_math", node);
+        if (node.operator === "+") {
+          const leftCode = dateCoercionDiagnosticV1(resolveExpressionV1(left, scope).provenance);
+          const rightCode = dateCoercionDiagnosticV1(resolveExpressionV1(right, scope).provenance);
+          const code = leftCode === "determinism.host_timezone" ||
+              rightCode === "determinism.host_timezone"
+            ? "determinism.host_timezone"
+            : leftCode ?? rightCode;
+          if (code !== null) reportNodeV1(code, node);
+        }
+        if (node.operator === "==" || node.operator === "!=") {
+          const leftCode = equalitySkipsObjectToPrimitiveV1(right, scope)
+            ? null
+            : dateCoercionDiagnosticV1(resolveExpressionV1(left, scope).provenance);
+          const rightCode = equalitySkipsObjectToPrimitiveV1(left, scope)
+            ? null
+            : dateCoercionDiagnosticV1(resolveExpressionV1(right, scope).provenance);
+          const code = leftCode === "determinism.host_timezone" ||
+              rightCode === "determinism.host_timezone"
+            ? "determinism.host_timezone"
+            : leftCode ?? rightCode;
+          if (code !== null) reportNodeV1(code, node);
+        }
+        if (node.operator === "in") {
+          const code = dateCoercionDiagnosticV1(resolveExpressionV1(left, scope).provenance);
+          if (code !== null) reportNodeV1(code, left ?? node);
+        }
+        return;
+      }
+      case "TaggedTemplateExpression": {
+        const tag = asNodeV1(node.tag);
+        const quasi = asNodeV1(node.quasi);
+        const expressions = asNodesV1(quasi?.expressions);
+        visitRuntimeValueProducerV1(tag, scope);
+        const tagProvenance = resolveExpressionV1(tag, scope).provenance;
+        for (const expression of expressions) visitV1(expression, scope);
+
+        let classified = false;
+        const stringCallable = stringCallableV1(tagProvenance);
+        if (tag !== null && isUnsupportedStringCallablePathV1(tagProvenance)) {
+          reportNodeV1("determinism.ambient_capability_escape", tag);
+          classified = true;
+        } else if (stringCallable !== null) {
+          classified = true;
+          if (stringCallable.wrapper === "bind") {
+            if (tag !== null) reportNodeV1("determinism.ambient_capability_escape", tag);
+          } else if (stringCallable.kind === "raw" && stringCallable.wrapper === null) {
+            for (const expression of expressions) {
+              const code = dateCoercionDiagnosticV1(
+                resolveExpressionV1(expression, scope).provenance,
+              );
+              if (code !== null) reportNodeV1(code, expression);
+            }
+          } else if (stringCallable.wrapper !== null) {
+            const inspection = inspectStringEffectiveArgumentsV1(
+              taggedEffectiveArgumentsV1(expressions, stringCallable.wrapper, scope),
+              stringCallable,
+              scope,
+            );
+            if (inspection.uncertain && tag !== null) {
+              reportNodeV1("determinism.ambient_capability_escape", tag);
+            }
+            for (const value of inspection.values) {
+              const code = dateCoercionDiagnosticV1(
+                resolveExpressionV1(value, scope).provenance,
+              );
+              if (code !== null) reportNodeV1(code, value);
+            }
+          }
+        }
+
+        const dateCallable = dateCallableKindV1(tagProvenance);
+        if (!classified && dateCallable !== null) {
+          classified = true;
+          if (isDateCallableBindV1(tagProvenance)) {
+            if (tag !== null) reportNodeV1("determinism.ambient_capability_escape", tag);
+          } else if (dateCallable === "constructor" || dateCallable === "now") {
+            if (tag !== null) reportNodeV1("determinism.ambient_clock", tag);
+          } else if (dateCallable === "parse") {
+            const members = normalizedConstructorMembersV1(tagProvenance, "Date") ?? [];
+            const wrapper = members[1] === "call" || members[1] === "apply" ? members[1] : null;
+            const effective = taggedEffectiveArgumentsV1(expressions, wrapper, scope);
+            const input = effective.prefix[0] ?? null;
+            const code = !effective.hasUnknownTail && effective.prefix.length === 1 &&
+                input !== null && isSafeDateParseInputV1(input, scope)
+              ? null
+              : !effective.hasUnknownTail && effective.prefix.length === 1 &&
+                  input !== null && isLocalZoneDateInputV1(input, scope)
+              ? "determinism.host_timezone"
+              : "determinism.date_input_unverified";
+            if (code !== null && tag !== null) reportNodeV1(code, tag);
+          } else if (dateCallable === "other" && tag !== null) {
+            reportNodeV1("determinism.ambient_capability_escape", tag);
+          }
+        }
+
+        if (!classified && tag !== null) {
+          const code = classifyProvenanceV1(tagProvenance, node, "call", scope);
+          if (code !== null) reportNodeV1(code, tag);
+          else if (
+            tagProvenance?.length === 1 &&
+            provenanceTrackedRootsV1.has(tagProvenance[0] ?? "")
+          ) reportNodeV1("determinism.ambient_capability_escape", tag);
+        }
+        return;
+      }
+      case "TemplateLiteral": {
+        for (const expression of asNodesV1(node.expressions)) {
+          visitV1(expression, scope);
+          const code = dateCoercionDiagnosticV1(resolveExpressionV1(expression, scope).provenance);
+          if (code !== null) reportNodeV1(code, expression);
+        }
         return;
       }
       case "AssignmentExpression": {
@@ -1476,24 +2831,57 @@ export function analyzeDeterminismSourceV1(
         }
         const right = asNodeV1(node.right);
         const left = asNodeV1(node.left);
-        const resolved = resolveExpressionV1(right, scope);
+        const assignmentTarget = unwrapExpressionV1(left);
+        inspectWriteTargetV1(left, scope);
+        const initialResolved = resolveExpressionV1(right, scope);
         const staticallyDestructuredAmbientRoot = left?.type === "ObjectPattern" &&
-          resolved.provenance?.length === 1 &&
-          ambientCapabilityRootsV1.has(resolved.provenance[0] ?? "");
-        if (right !== null && !staticallyDestructuredAmbientRoot) visitV1(right, scope);
+          initialResolved.provenance?.length === 1 &&
+          ambientCapabilityRootsV1.has(initialResolved.provenance[0] ?? "");
+        if (right !== null) {
+          if (staticallyDestructuredAmbientRoot) visitRuntimeValueProducerV1(right, scope);
+          else visitV1(right, scope);
+        }
+        if (node.operator === "+=") {
+          const leftCode = dateCoercionDiagnosticV1(resolveExpressionV1(left, scope).provenance);
+          const rightCode = dateCoercionDiagnosticV1(resolveExpressionV1(right, scope).provenance);
+          const code = leftCode === "determinism.host_timezone" ||
+              rightCode === "determinism.host_timezone"
+            ? "determinism.host_timezone"
+            : leftCode ?? rightCode;
+          if (code !== null) reportNodeV1(code, node);
+        }
+        const resolved = resolveExpressionV1(right, scope);
         if (
-          left?.type === "Identifier" || left?.type === "ObjectPattern" ||
-          left?.type === "ArrayPattern" || left?.type === "AssignmentPattern" ||
-          left?.type === "RestElement"
+          assignmentTarget?.type === "Identifier" || assignmentTarget?.type === "ObjectPattern" ||
+          assignmentTarget?.type === "ArrayPattern" ||
+          assignmentTarget?.type === "AssignmentPattern" ||
+          assignmentTarget?.type === "RestElement"
         ) {
-          visitPatternRuntimeV1(left, scope);
-          reportPatternCapabilitiesV1(left, resolved);
-          assignPatternV1(left, resolved, scope);
-        } else if (left !== null) visitV1(left, scope);
+          visitPatternRuntimeV1(assignmentTarget, scope);
+          reportPatternCapabilitiesV1(assignmentTarget, resolved, scope);
+          assignPatternV1(assignmentTarget, resolved, scope, "join");
+        } else if (
+          assignmentTarget !== null && assignmentTarget.type !== "MemberExpression" &&
+          assignmentTarget.type !== "OptionalMemberExpression"
+        ) visitV1(assignmentTarget, scope);
+        return;
+      }
+      case "UpdateExpression": {
+        const argument = asNodeV1(node.argument);
+        const assignmentTarget = unwrapExpressionV1(argument);
+        inspectWriteTargetV1(argument, scope);
+        if (assignmentTarget?.type === "Identifier") {
+          assignPatternV1(
+            assignmentTarget,
+            { provenance: null, bootstrap: null },
+            scope,
+            "join",
+          );
+        }
         return;
       }
       case "CatchClause": {
-        const catchScope = createScopeV1(scope);
+        const catchScope = lexicalScopeV1(node, scope);
         const parameter = asNodeV1(node.param);
         declarePatternV1(parameter, catchScope);
         visitPatternRuntimeV1(parameter, catchScope);
@@ -1503,11 +2891,62 @@ export function analyzeDeterminismSourceV1(
         }
         return;
       }
-      case "ForStatement":
+      case "ForStatement": {
+        const loopScope = lexicalScopeV1(node, scope);
+        visitGenericChildrenV1(node, loopScope);
+        return;
+      }
       case "ForInStatement":
       case "ForOfStatement": {
-        const loopScope = createScopeV1(scope);
-        visitGenericChildrenV1(node, loopScope);
+        const loopScope = lexicalScopeV1(node, scope);
+        const left = asNodeV1(node.left);
+        const assignmentTarget = unwrapExpressionV1(left);
+        const right = asNodeV1(node.right);
+        const body = asNodeV1(node.body);
+        if (left?.type === "VariableDeclaration") {
+          const target = left.kind === "var" ? loopScope.functionScope : loopScope;
+          const declarations = asNodesV1(left.declarations);
+          for (const declaration of declarations) {
+            declarePatternV1(asNodeV1(declaration.id), target);
+          }
+          if (right !== null) visitV1(right, loopScope);
+          for (const declaration of declarations) {
+            const pattern = asNodeV1(declaration.id);
+            visitPatternRuntimeV1(pattern, loopScope);
+            assignPatternV1(
+              pattern,
+              { provenance: null, bootstrap: null },
+              target,
+              provenanceReplayDepthV1 > 0
+                ? left.kind === "const" ? "const_join" : "join"
+                : left.kind === "const"
+                ? "const"
+                : "mutable",
+            );
+          }
+        } else {
+          if (right !== null) visitV1(right, loopScope);
+          inspectWriteTargetV1(left, loopScope);
+          if (
+            assignmentTarget?.type === "Identifier" ||
+            assignmentTarget?.type === "ObjectPattern" ||
+            assignmentTarget?.type === "ArrayPattern" ||
+            assignmentTarget?.type === "AssignmentPattern" ||
+            assignmentTarget?.type === "RestElement"
+          ) {
+            visitPatternRuntimeV1(assignmentTarget, loopScope);
+            assignPatternV1(
+              assignmentTarget,
+              { provenance: null, bootstrap: null },
+              loopScope,
+              "join",
+            );
+          } else if (
+            assignmentTarget !== null && assignmentTarget.type !== "MemberExpression" &&
+            assignmentTarget.type !== "OptionalMemberExpression"
+          ) visitV1(assignmentTarget, loopScope);
+        }
+        if (body !== null) visitV1(body, loopScope);
         return;
       }
       case "TSAsExpression":
@@ -1527,6 +2966,76 @@ export function analyzeDeterminismSourceV1(
 
   const rootScope = createRootScopeV1();
   visitV1(program, rootScope);
+
+  const analysisScopesV1 = (): readonly ScopeV1[] => {
+    const scopes = new Set<ScopeV1>([rootScope, ...lexicalScopesV1.values()]);
+    for (const deferred of deferredFunctionsV1.values()) scopes.add(deferred.scope);
+    return [...scopes];
+  };
+  const deferredBindingStateV1 = (): string =>
+    JSON.stringify(
+      analysisScopesV1().map((scope) =>
+        [...scope.bindings.entries()]
+          .sort(([left], [right]) => compareCodeUnitsV1(left, right))
+          .map(([name, binding]) => [name, binding.provenance, binding.bootstrap])
+      ),
+    );
+  const deferredBindingCountV1 = analysisScopesV1().reduce(
+    (count, scope) => count + scope.bindings.size,
+    0,
+  );
+  const deferredPassLimitV1 = Math.max(
+    8,
+    (deferredFunctionsV1.size + deferredBindingCountV1) * 4,
+  );
+  let deferredConvergedV1 = false;
+  for (let pass = 0; !deferredConvergedV1 && pass < deferredPassLimitV1; pass += 1) {
+    const before = deferredBindingStateV1();
+    deferredReplayDepthV1 += 1;
+    provenanceReplayDepthV1 += 1;
+    try {
+      const rootProgram = asNodeV1(program.program) ?? program;
+      visitStatementListV1(asNodesV1(rootProgram.body), rootScope);
+    } finally {
+      deferredReplayDepthV1 -= 1;
+      provenanceReplayDepthV1 -= 1;
+    }
+    for (const deferred of [...deferredFunctionsV1.values()]) {
+      visitFunctionV1(
+        deferred.node,
+        deferred.parentScope,
+        deferred.fallbackName,
+        false,
+        deferred.scope,
+      );
+    }
+    deferredConvergedV1 = before === deferredBindingStateV1();
+  }
+
+  traversalDiagnosticsEnabledV1 = true;
+  deferredReplayDepthV1 += 1;
+  provenanceReplayDepthV1 += 1;
+  try {
+    const rootProgram = asNodeV1(program.program) ?? program;
+    visitStatementListV1(asNodesV1(rootProgram.body), rootScope);
+  } finally {
+    deferredReplayDepthV1 -= 1;
+    provenanceReplayDepthV1 -= 1;
+  }
+  for (const deferred of [...deferredFunctionsV1.values()]) {
+    visitFunctionV1(
+      deferred.node,
+      deferred.parentScope,
+      deferred.fallbackName,
+      false,
+      deferred.scope,
+    );
+  }
+  if (!deferredConvergedV1) {
+    for (const deferred of deferredFunctionsV1.values()) {
+      reportNodeV1("determinism.ambient_capability_escape", deferred.node);
+    }
+  }
 
   const directivePrefix = "// sillymaker-determinism-allow-next-line ";
   const wholeFilePrefix = "// sillymaker-determinism-allow-file";

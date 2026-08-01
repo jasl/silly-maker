@@ -2,6 +2,7 @@
   "version": "5",
   "specifiers": {
     "npm:@axe-core/playwright@4.12.1": "4.12.1",
+    "npm:@babel/parser@*": "7.29.7",
     "npm:@babel/parser@7.29.7": "7.29.7",
     "npm:@playwright/test@*": "1.61.1",
     "npm:@playwright/test@1.61.1": "1.61.1",
@@ -4291,6 +4292,7 @@
       "engine/packages/tooling": {
         "packageJson": {
           "dependencies": [
+            "npm:@babel/parser@7.29.7",
             "npm:@types/node@24.13.3",
             "npm:@vitejs/plugin-react@6.0.3",
             "npm:import-meta-resolve@4.2.0",

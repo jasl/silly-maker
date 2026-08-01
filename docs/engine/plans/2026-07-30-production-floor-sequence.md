@@ -486,7 +486,8 @@ approximate Math/`**`；alias、destructure、computed/globalThis、lexical shad
 type-only/versioned provider、runtime-bearing TypeScript 与 standard decorator expression、
 exact-decimal spellings都有 fixed contracts。bare ambient roots 不得通过 capture/pass/
 return/export 绕过逐文件 provenance；Date constructor/now/parse/UTC 按 callable identity
-区分，wrapper 不把 deterministic parse/UTC 误报为 clock。`createBootstrapInput` 只有由 exact `@sillymaker/base`
+区分，`call`/`apply` 保留 parse/UTC identity，`bind` 按 capability capture 拒绝。
+`createBootstrapInput` 只有由 exact `@sillymaker/base`
 named import 验证的 `BootstrapEntropyV1` 参数可 direct 调用两个 capability 方法；local
 import alias 合法，其他 import 来源、lexical type shadow、未验证参数、capability
 alias/return/pass 与 closure escape 均失败。当前 closure 唯一需要的 `7` 个 numeric
@@ -508,6 +509,86 @@ rule-core scaffold red 为 `54/79`、runner red 为 `6/7`；多轮 adversarial r
 canonical check 已包含 Engine Lab production build。本批没有 runtime/public API、canonical/
 digest/Save/replay bytes、migration registry 或 browser bundle change；DET-B 尚需
 DET3b/DET4，当前线性 core 下一切片是 `DET3b`。
+
+**DET3a adversarial correction promotion（2026-08-02）：** promotion 后的
+独立 review 先以 `8/181`、`13/195`、String-wrapper `3/202`、`10/216` 与 `7/223`
+red 补出 source-local recorded Date Host-timezone/default-rendering、known-Date dynamic
+member、Deno `Temporal.Now`、bare Node provider subpath/loader wrapper、ambient constructor
+wrapper/destructure、`+=` 与 capability capture/use precedence，并移除 blanket
+`.constructor`/`Temporal` false positive。随后 syntax-aware import/callable/coercion 批次以
+`3 files / 22 failed / 249 passed` red 固定 comment/string import lookalike、literal 与
+nonliteral dynamic ESM import、全部 unshadowed CommonJS loader、Date constructor identity、
+exact callable target 和 String coercion；Date safe-set/provenance 批次再以
+`3 files / 12 failed / 271 passed` red 固定 input classification 与 conservative join。
+promotion self-review 再以 `2 files / 31 failed / 300 passed` red 固定 Date proof descendant/
+callable-unknown join、String static spread/dynamic apply/array-like raw、`.cjs/.cts` ESM closure、
+runtime TS import-equals、erased/no-init loader fake shadow 与 bare `module` escape。
+最终 adversarial 扩展继续固定 operation evaluation、Date implicit `ToPrimitive`、tagged
+wrapper、`String.raw` effective substitution/prototype carrier、tracked intrinsic write、
+order-independent root/closure provenance、stable lexical scopes、transparent TS wrappers 与
+`ClassAccessorProperty` computed key。
+
+修订后的 active contract 按 operation 区分 Date proof。`new Date(arg)` 只允许 TimeClip
+范围内 integer epoch literal/immutable `const` alias、recognized `Date.UTC` result、verified
+`Date.parse` result、exact known Date-instance value copy，以及经 Gregorian field/time/offset
+校验的 explicit-zone literal/immutable alias；explicit spelling 固定为
+`YYYY-MM-DDTHH:mm:ss` + optional exact `.sss` + `Z` / `±HH:mm`。`Date.parse`
+direct/call/apply 只允许 exactly one explicit-zone proof；`Date.UTC` direct/call/apply 是
+deterministic epoch producer。multi-argument local-field 或 validated zone-less date-time
+literal/immutable alias 报 Host timezone；dynamic、mutable、其他 spread、malformed、unsupported
+或 ambiguous input 报 `determinism.date_input_unverified`，`new Date(...[])` 是 zero-argument
+clock。runtime-producing receiver/callee、input/spread、template substitution 与 computed
+property key 先按求值语义检查，再分类 enclosing operation；`call`/`apply` 保持 recognized
+identity，`bind` 是 capability capture。known Date 的 local/default String rendering、需要
+object-to-primitive 的 abstract equality、computed property key 与 `in` 左 operand 报 Host
+timezone；known non-coercing equality 不新增 Host-timezone，operand 自身 diagnostic 仍保留。
+Host-dependent method 只有 exact Date receiver 的 terminal direct/call/apply 才报 Host timezone；
+`.bind`、Date member/ambiguous descendant 或同名 descendant 因无法证明该 Host operation 已执行，
+只报 capability escape，dynamic member 同样 fail closed。
+
+String effective vector 保留 holes、展开 static literal spread，dynamic spread/apply 按
+capability escape；recognized String/Date tagged-template direct/call/apply wrapper 静态模拟实际
+tag-call arguments，invalid/nested wrapper fail closed。`String.raw` 检查 static array-like raw
+elements，但只检查 `raw.length - 1` 个 effective substitutions；statically proven primitive/
+null `__proto__` setter 不提供 inheritance，可能继承 `raw`/index 的 carrier 则 fail closed。普通 custom tag 只
+接收 value。tracked ambient capability/intrinsic root/member 与 Date instance/prototype 的 direct assignment/
+destructuring/update/delete/`for in/of` write 直接 capability fail-closed；reflection mutation
+仍归 DET3b；non-reference `delete` operand 保留 ordinary expression evaluation，只有 identifier/
+member reference 进入 write-target classification，且不把旧 member value 当普通 read。lexical
+shadows 合法；`for in/of` 按 RHS/target/body 顺序检查并 conservative
+invalidate local target；准确顺序是 RHS、write-target/pattern runtime evaluation、local
+target unknown-provenance join、body，不能把 left 当作普通 read。transparent TS wrappers
+（包括 `as`、non-null 与 `satisfies`）与 `ClassAccessorProperty` initializer/computed key 进入
+同一 runtime traversal，Class StaticBlock/runtime namespace 保持独立 var boundary，整个 Switch
+共享一个 lexical scope。
+
+source-local conditional/logical expression 与 reassignment 使用 path-insensitive conservative
+provenance join；Date callable 与 different/unknown candidate 必须变成 ambiguity，不能晋升
+verified epoch。root 与已发现的 source-local closures 通过有界单调 central worklist 收敛到
+order-independent fixed point，只有 final conservative replay 发布 traversal diagnostics，不能
+收敛则 fail closed。function return/container/reflection 仍归 DET3b，不宣称 sound whole-program
+analysis 或 sandbox。
+
+closure collector 现在跨 `.ts/.tsx/.mts/.cts/.js/.jsx/.mjs/.cjs` 只认可 syntax-aware
+static ESM import/export 与 literal `import()`；nonliteral `import()` 令 low-level collector
+返回 error，authority/BuildIdentity admission 在 lint/record 前原子失败，不能发布 partial
+vector。当前没有 CommonJS dependency graph，因此所有 unshadowed CommonJS loader use、
+runtime TS import-equals 与 bare `module` escape 都直接拒绝；erased `declare`/no-init CommonJS
+var 不伪造 shadow，只有 actual runtime lexical shadow 合法。本 correction 还把
+Base persistence export filename 的 Date parsing/formatting 改为 package-internal pure integer/
+string helper，并用 fixed vectors 保持既有 filename normalization；它不改变 Save envelope、
+canonical/digest、CommandLog 或 replay bytes。
+
+focused green 为 `5 files / 573 tests`，Base 为 `75/958`，tooling 为 `23/193`，repository
+full unit 为 `222/2784`。首轮 full unit 只有两条 live repository scan 在全套并发负载下
+超过 Vitest 默认 5 秒；四条 checker scan 统一采用 30 秒通用 timeout 后，同一断言均通过。
+第二轮 adversarial correction 又令一条 authority-map transitive scan 超过原有 15 秒预算；
+把该 live repository scan 同样统一到 30 秒后全绿。timeout 调整没有改变断言，也不是性能
+验收门。新增 adversarial corpus 后的最终 `deno task check` 全绿，覆盖 format、lint/stylelint、
+typecheck、live determinism closure、`222/2784` full unit、assets、全部 Story admission 与 Engine
+Lab production build。本批修改 Base runtime persistence export filename 的 package-internal
+formatter，因此此前已追加 Engine Lab browser E2E，`103 tests` 全绿。DET-B/PF-DET 仍需
+DET3b/DET4；本 correction gate 已关闭，下一独立切片是 DET3b。
 
 ### PF3 — Save envelope and migration registry
 

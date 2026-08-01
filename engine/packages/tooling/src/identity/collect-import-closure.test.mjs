@@ -250,6 +250,88 @@ test("rejects unknown internal workspace package subpaths instead of treating th
   }
 });
 
+test("extracts ESM imports from syntax instead of comments or source-text prefixes", async () => {
+  const fixtureRoot = await mkdtemp(join(tmpdir(), "sillymaker-import-closure-"));
+  await writeFile(join(fixtureRoot, "dependency.ts"), "export const value = 1;\n");
+  const entry = join(fixtureRoot, "entry.ts");
+  try {
+    for (
+      const source of [
+        'const specifier = "./dependency.ts"; await import(specifier);\n',
+        'await import/*comment*/("./" + "dependency.ts");\n',
+        'await import("./" + dependencyName);\n',
+        'await import(new URL("./dependency.ts", import.meta.url).href);\n',
+      ]
+    ) {
+      await writeFile(entry, source);
+      const closure = await collectImportClosure(fixtureRoot, ["entry.ts"]);
+      assert.deepEqual(closure.paths, ["entry.ts"]);
+      assert.deepEqual(closure.errors, ["entry.ts: dynamic import path is not static"]);
+    }
+
+    await writeFile(
+      entry,
+      [
+        'const text = "import(dynamicSpecifier)";',
+        "// import(commentSpecifier)",
+        'await import("./dependency.ts", { with: { type: "json" } });',
+        "",
+      ].join("\n"),
+    );
+    const literalClosure = await collectImportClosure(fixtureRoot, ["entry.ts"]);
+    assert.deepEqual(literalClosure.errors, []);
+    assert.deepEqual(literalClosure.paths, ["dependency.ts", "entry.ts"]);
+  } finally {
+    await rm(fixtureRoot, { force: true, recursive: true });
+  }
+});
+
+test("analyzes ESM imports embedded in CommonJS and TypeScript CommonJS files", async () => {
+  const fixtureRoot = await mkdtemp(join(tmpdir(), "sillymaker-import-closure-commonjs-"));
+  try {
+    await writeFile(join(fixtureRoot, "dependency.mjs"), "export const value = Math.random();\n");
+    await writeFile(join(fixtureRoot, "dependency.ts"), "export const value = Math.random();\n");
+    await writeFile(
+      join(fixtureRoot, "entry.cjs"),
+      'void import("./dependency.mjs");\n',
+    );
+    await writeFile(
+      join(fixtureRoot, "entry.cts"),
+      'import { value } from "./dependency.ts"; export { value };\n',
+    );
+
+    assert.deepEqual(await collectImportClosure(fixtureRoot, ["entry.cjs"]), {
+      paths: ["dependency.mjs", "entry.cjs"],
+      errors: [],
+      externalImports: [],
+    });
+    assert.deepEqual(await collectImportClosure(fixtureRoot, ["entry.cts"]), {
+      paths: ["dependency.ts", "entry.cts"],
+      errors: [],
+      externalImports: [],
+    });
+
+    await writeFile(
+      join(fixtureRoot, "entry.cts"),
+      'import dependency = require("./dependency.ts"); export { dependency };\n',
+    );
+    assert.deepEqual(await collectImportClosure(fixtureRoot, ["entry.cts"]), {
+      paths: ["entry.cts"],
+      errors: [],
+      externalImports: [],
+    });
+
+    for (const entry of ["entry.cjs", "entry.cts"]) {
+      await writeFile(join(fixtureRoot, entry), "void import(dynamicSpecifier);\n");
+      const closure = await collectImportClosure(fixtureRoot, [entry]);
+      assert.deepEqual(closure.paths, [entry]);
+      assert.deepEqual(closure.errors, [`${entry}: dynamic import path is not static`]);
+    }
+  } finally {
+    await rm(fixtureRoot, { force: true, recursive: true });
+  }
+});
+
 test("keeps the default Story closure free of tooling and Web renderers", async () => {
   for (const entry of ["e2e/src/story.ts"]) {
     const closure = await collectImportClosure(root, [entry]);

@@ -113,24 +113,124 @@ migration extension on every execution; it does not read a cached file list.
 Collection/classification failures abort before linting. After collection, every
 unique exact path is read once; read, unsupported-extension, and parse failures
 use stable diagnostics, and all output is ordered by UTF-16 file/range/code.
-The checker uses an exact dev-only `@babel/parser` AST dependency under
-`scripts/determinism/**`; it does not enter browser bundles, replace Oxlint as
-the general linter, or expose an engine package API. Parser selection follows
-the source extension for TypeScript and JSX and accepts standard decorators.
+The checker and the Node-only tooling import-closure collector use the exact
+`@babel/parser` AST dependency already pinned by their owning package. The
+collector recognizes static ESM imports/exports and literal `import()` across
+`.ts/.tsx/.mts/.cts/.js/.jsx/.mjs/.cjs` without being fooled by comment or
+string lookalikes. A nonliteral `import()` makes authority/BuildIdentity
+admission fail before source lint; callers never consume or publish the
+low-level collector's diagnostic result as a partial path vector.
+The parser does not enter browser bundles, replace Oxlint as the general
+linter, or expose a gameplay runtime API. Parser selection follows the source
+extension for TypeScript and JSX and accepts standard decorators.
 Purely type-only syntax is not treated as runtime access; runtime-bearing
 TypeScript namespace/enum/`import =`/`export =`, parameter/pattern expressions,
-and decorator expressions enter the same rule traversal as JavaScript.
+decorator expressions, and `ClassAccessorProperty` initializers/computed keys
+enter the same rule traversal as JavaScript; TypeScript instantiation wrappers
+preserve the wrapped callable identity. Runtime-transparent TypeScript wrappers,
+including `as`, non-null, and `satisfies`, also preserve assignment/update
+targets and nested destructuring semantics.
+Block, Catch, and For nodes receive stable lexical scopes; all Switch cases share
+one scope; Class StaticBlock and runtime TypeScript namespace bodies are separate
+var/function boundaries that hoist collection cannot cross.
 
 Ambient entropy, clock, network/provider, environment, locale/ICU, and
 DOM/storage diagnostics cannot be disabled. Do not capture, pass, return, or
 export bare ambient capability roots such as `Math`, `Date`, `Number`,
-`globalThis`, `Deno`, or `process`; use a checked direct member operation or pass
-canonical recorded data. Explicit `Number(recordedText)`,
-`new Date(recordedInstant)`, and `Date.parse(recordedText)` remain allowed;
-`call`/`apply`/`bind` wrappers preserve the identity of `Date.parse`/`Date.UTC`
-rather than turning them into clock reads. The `Date` constructor identity,
-including `Date.prototype.constructor`, remains ambient when called as a function
-or constructed without an explicit non-spread argument. A reviewed fractional literal,
+`Temporal`, `globalThis`, `Deno`, or `process`; use a checked direct member
+operation or pass canonical recorded data. Explicit `Number(recordedText)`
+remains deterministic. Runtime-producing receivers/callees, inputs and spread
+values, template substitutions, and computed property keys are visited before
+the enclosing member/call/new/coercion operation is classified, so a safe or
+fail-closed outer operation cannot hide an ambient read performed while its
+inputs are evaluated. `new Date(arg)` accepts only an in-range integer epoch
+literal/immutable local `const` alias, a recognized `Date.UTC` or verified
+`Date.parse` result, an exact known Date-instance value copy, or a validated
+explicit-zone literal/immutable alias. The maintained explicit spelling is
+`YYYY-MM-DDTHH:mm:ss`, optional exact `.sss`, then `Z` or `±HH:mm`.
+`Date.parse` direct/call/apply accepts exactly one explicit-zone proof;
+`Date.UTC` direct/call/apply is a deterministic epoch producer without that
+parse admission. Multi-argument local-field construction and validated
+zone-less `YYYY-MM-DDTHH:mm` text (optional seconds/fraction), including an
+immutable alias, report `determinism.host_timezone`; dynamic, mutable,
+malformed, unsupported, ambiguous, or unverifiable spread/apply input reports
+`determinism.date_input_unverified`. `new Date(...[])` is the zero-argument
+clock case. `Date()` is always a clock read. `call`/`apply` preserve recognized
+callable identity; `bind` captures the callable and is therefore a capability
+escape. Statically resolved Date values may use
+UTC/value operations, but local-time getters/setters, timezone offsets,
+unresolved computed members, and default string rendering fail closed. That
+Host-timezone classification applies only to a terminal direct/call/apply Host
+method on an exact Date receiver; a same-named descendant or bound Host method
+is a capability escape. The
+rendering contract covers `String`, `new String`, the actual String prototype
+constructor, untagged templates, and `+`/`+=`. Abstract `==`/`!=` is included
+only when the other operand is not statically known to skip object-to-primitive
+conversion; strict equality, null/undefined, and known object-vs-object cases do
+not coerce the Date. A Date used as a computed property key or the left operand
+of `in` undergoes `ToPropertyKey` and is classified the same way. Exact or
+conservatively joined Date-instance values report Host timezone on those
+coercions; a Date member/ambiguous descendant reports capability escape instead
+of being mislabeled as Host rendering.
+
+String direct/new/call/apply uses an exact hole-preserving static
+effective-argument vector; an unresolved spread/apply vector is a capability
+escape. `String.raw` checks only in-range raw elements and the first
+`raw.length - 1` effective substitutions, so ignored extra substitutions are
+not treated as coercion. Static string/array/array-like carriers are supported;
+a statically proven primitive/null object-literal `__proto__` setter cannot contribute inherited
+`raw`/index values and is inert for carrier admission, while a carrier that may
+inherit either value fails closed. Its `__proto__` value expression is still
+visited normally. Recognized String/Date direct, call, and apply tagged-template
+forms statically simulate the tag call from
+`[templateObject, ...substitutions]`: call removes the template object as its
+`thisArg`, while apply requires a statically expandable first-substitution
+array. Bind, nested, or otherwise invalid wrapper paths report capability escape
+and do not guess a Host coercion from their substitutions. An ordinary custom
+tag only receives the Date value and is not itself coercion.
+
+Direct assignment, destructuring, update, delete, and `for in/of` writes to a
+tracked ambient capability/intrinsic root or member, or a Date instance/prototype member,
+fail closed as capability escapes; reflection-based mutation remains a DET3b
+runtime probe. Dynamic member production from any tracked ambient capability
+also fails closed. A non-reference `delete` operand is evaluated as an ordinary
+expression; only identifier/member references enter write-target classification,
+without reading their prior value as an ordinary member access.
+Lexical shadows remain ordinary code. `for in/of` visits the
+RHS, evaluates the write target/pattern without treating it as a normal read,
+joins unknown provenance into a local target, and only then visits the body.
+`Temporal.Now` is ambient; capturing that namespace is a capability
+escape and invoking it is a clock read. Deterministic named namespaces such as
+`Temporal.Instant` may be used directly or statically destructured, while the
+bare root cannot escape. A `.constructor` recovered from a known ambient member
+is rejected before downstream call/apply/bind classification, except for the
+explicitly recognized Date constructor identity.
+
+Bare and `node:` provider imports are subpath-aware, so `fs/promises` cannot
+bypass the filesystem boundary. The closure collector admits only supported
+ESM dependencies: static imports/exports and literal dynamic imports. There is
+currently no CommonJS dependency graph, so every unshadowed `require` or
+`module.require` call, wrapper, capture, computed use, partial application,
+runtime TS `import = require(...)`, or bare `module` escape fails closed;
+provider literals keep the more specific provider diagnostic and other uses
+report capability escape. `module` / `node:module` `createRequire` is also a
+provider import. Actual runtime lexical loader shadows remain ordinary code;
+erased `declare` and an uninitialized CommonJS `var require` / `var module` do
+not create an allowance.
+
+This static layer tracks direct expressions and applies a path-insensitive,
+conservative provenance join to source-local conditional/logical expressions
+and reassignment: a tracked candidate cannot be erased by a clean or unknown
+branch, and a Date callable joined with any different/unknown candidate becomes
+ambiguity rather than a trusted epoch producer. A bounded monotonic central
+worklist replays the root and discovered source-local closures to a fixed point,
+so reassignment diagnostics do not depend on declaration/use text order;
+non-convergence fails closed. Intermediate convergence passes do not publish
+traversal diagnostics; only the final conservative replay does. This is still
+not sound whole-program analysis of function returns, containers, reflection,
+or every implicit coercion. DET3b's
+isolated runtime tripwire owns those dynamic bypass probes. Neither layer is a
+sandbox or a security boundary. A reviewed fractional literal,
 `parseFloat`, or approximate-math node may use exactly one directive on the
 immediately preceding physical source line (blank or comment lines do not
 bridge it):

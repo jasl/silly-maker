@@ -16,6 +16,7 @@ import {
 import type { DeterminismAuthorityPolicyV1 } from "./authority-map.mts";
 
 const repositoryRootV1 = resolve(import.meta.dirname, "../..");
+const liveRepositoryScanTimeoutV1 = 30_000;
 const temporaryDirectoriesV1: string[] = [];
 
 afterEach(async () => {
@@ -156,7 +157,7 @@ describe("authoritative determinism authority map", () => {
         /authoritative closure includes negative control .*cat-cafe\/src\/simulation\.ts/u,
       );
     },
-    15_000,
+    liveRepositoryScanTimeoutV1,
   );
 
   it("rejects a noncanonical negative-control entry spelling", async () => {
@@ -194,6 +195,18 @@ describe("authoritative determinism authority map", () => {
 
     expect(before.paths).toEqual(["alpha.ts", "entry.ts"]);
     expect(after.paths).toEqual(["beta.ts", "entry.ts"]);
+  });
+
+  it("fails closure collection before source lint for a nonliteral ESM import", async () => {
+    const root = await mkdtemp(join(tmpdir(), "sillymaker-authority-map-"));
+    temporaryDirectoriesV1.push(root);
+    await writeFile(
+      join(root, "entry.ts"),
+      'const suffix = "dependency.ts"; await import("./" + suffix);\n',
+    );
+
+    await expect(collectAuthorityClosureV1(root, ["entry.ts"]))
+      .rejects.toThrow("entry.ts: dynamic import path is not static");
   });
 
   it("keeps managed-only cross-workspace paths in the authoritative union", () => {

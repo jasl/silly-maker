@@ -326,6 +326,14 @@ negative-control closure 的其他 deterministic dependency 可以合法重合�
 整段 closure 必须 disjoint。每次检查重新收集 live closure，不缓存 file list，也不能
 静默过滤、漏检或退化成全 engine 扫描。
 
+collector 对 `.ts/.tsx/.mts/.cts/.js/.jsx/.mjs/.cjs` 使用 syntax-aware ESM AST，收集
+static `import`、`export ... from` 与 string-literal `import()`；因此 `.cjs` 中合法的 ESM
+dynamic import 与 `.cts` 中的 ESM syntax 也进入 closure，comment/string lookalike 与
+`import.meta` 不形成 dependency。low-level tooling collector 在 identifier、concatenation、
+non-static template 或其他 nonliteral `import()` 时返回 frozen diagnostic result；authority/
+BuildIdentity caller 必须在 source lint/record admission 前因任一 error fail closed，不能消费或
+发布其中的 partial path vector。
+
 Save M2 及以后第一次注册 executable format/State migrator 时，其 entry 才加入
 上述 live recollection。DET-B 先用 synthetic extension seam 证明 collector 可追加
 entry；它不伪造尚不存在的 production migration registry。
@@ -333,15 +341,82 @@ entry；它不伪造尚不存在的 production migration registry。
 第一批 hard diagnostics 覆盖直接 ambient entropy、clock、network/LLM client、
 process environment、Host locale/ICU 与 DOM access；fractional literal、
 `parseFloat` 与 approximate math（包括 `Math.pow` 的 `**` 等价写法）在同一 authority
-scope 中只允许带算法合同的 node-local 豁免。函数形式 `Date()` 无论参数都会读取
-ambient current time，zero-argument `new Date()` 同样不合法；显式
-`new Date(recordedInstant)`、`Date.parse(recordedText)` 与
-`Number(recordedText)` 合法。Date rule 按 target function identity 分类：bare `Date`、
+scope 中只允许带算法合同的 node-local 豁免。AST rule 必须先遍历会实际求值的 receiver/
+callee、input/spread element、template substitution 与 computed property key，再分类外层
+member/call/new/coercion operation；外层 operation 合法或 fail-closed 都不能遮蔽其求值阶段
+已经发生的 ambient read。函数形式 `Date()` 无论参数都会读取 ambient current time，
+zero-argument `new Date()` 同样不合法；`Number(recordedText)` 保持 deterministic。
+`new Date(arg)` 只接受静态证明属于以下集合的 single input：TimeClip
+范围内 integer epoch literal/immutable local `const` alias、recognized `Date.UTC(...)`
+result、verified `Date.parse(...)` result、exact known Date-instance value copy，或通过
+Gregorian field/time/offset 校验的 explicit-zone literal/immutable alias。explicit-zone
+spelling 固定为 `YYYY-MM-DDTHH:mm:ss` + optional exact `.sss` + `Z` / `±HH:mm`；literal
+descendant member 不能继承 string/Date-value proof。`Date.parse` direct/`call`/`apply` 更窄，
+只接受恰好一个上述 explicit-zone proof；`Date.UTC` direct/`call`/`apply` 本身是 deterministic
+epoch producer，不执行 parse-style admission。multi-argument local-field construction 与已验证
+Gregorian/time 的 zone-less `YYYY-MM-DDTHH:mm`（optional seconds/fraction）direct literal 或
+immutable alias 属于 `determinism.host_timezone`；dynamic、其他 spread、mutable alias、
+malformed/unsupported spelling 或 provenance-ambiguous input 属于
+`determinism.date_input_unverified`。`new Date(...[])` 是静态 zero-argument clock，其他
+constructor/parse spread 与非 exact `apply` vector 均 unverifiable。Date rule 按 target function
+identity 分类：bare `Date`、
 `Date.prototype.constructor` 与 explicit Date instance 的 `.constructor` 都是 constructor
-identity，函数调用或 zero/spread-argument construction 读取 ambient time；`Date.now`
-仍是 clock，而 `Date.parse` / `Date.UTC` 即使经 `call` / `apply` / `bind` 包装仍保持
-deterministic。bare `Math` / `Date` / `Number` / `globalThis` / `Deno` /
-`process` capability root 不得通过 alias、argument、return 或 export 逃离逐文件
+identity，函数调用或 zero-argument construction 读取 ambient time；`Date.now`
+仍是 clock。`call` / `apply` 保留 `Date.parse` / `Date.UTC` 的 callable identity：parse
+继续执行 exact explicit-zone admission，UTC 直接产生 deterministic epoch；`bind` 只捕获
+callable、不执行 operation，因此在 capture site 报
+`determinism.ambient_capability_escape`。静态可解析的 explicit/local-binding recorded Date
+instance 只允许
+`getTime`、`valueOf`、`toISOString`、
+`toJSON` 与 UTC getter/setter 等 Host-timezone-independent operation；local-time getter/
+setter、`getTimezoneOffset` 与 default rendering 都以 `determinism.host_timezone` 拒绝。
+Host-dependent Date method 只有在 exact Date receiver 的 terminal direct/`call`/`apply`
+operation 才得到该 Host-timezone 分类；同名 descendant 或 `.bind` capture 都按 capability
+escape fail closed。
+default rendering 包含 `String(...)`、`new String(...)`、actual
+`String.prototype.constructor`、untagged template、`+` / `+=`，以及 `String.raw` carrier
+中实际会被读取的 raw elements 与 effective substitutions。抽象相等 `==` / `!=` 仅在另一
+operand 不能静态证明属于 null/undefined/non-coercing object 集合时，按 Date default
+`ToPrimitive` 分类；strict equality 不做该 coercion。Date 用作 computed property key
+或 `in` 左 operand 时执行 `ToPropertyKey`，因此同样属于 Host-timezone default rendering；
+receiver/input/key 自身的求值仍先独立检查。只有 exact Date-instance value 或其 conservative
+instance class 才能得到 Host-timezone coercion 分类；Date member descendant 或 ambiguous
+descendant 无法证明仍是 Date value，只报 capability escape，不误称 Host rendering。
+
+String direct/new/call/apply 只在 preserving holes 的 exact static effective-argument vector 上做
+operation classification；first argument 之前的 dynamic spread、unverifiable apply vector 或
+其他无法定位 effective argument 的形式按 capability escape fail closed。`String.raw` 同时检查
+static string/array 与带 exact non-negative integer `length` 的 static array-like `raw`
+carrier：raw element 只检查有效 index，substitution 只检查 `raw.length - 1` 个实际会被
+coerce 的位置，多余 substitution 不产生 Host-timezone diagnostic。object literal 中 statically
+proven primitive/null `__proto__` setter 不可能提供 inherited `raw`/index，carrier admission 将其视为 inert
+metadata，但 setter value expression 仍按正常求值检查；object-valued 或其他可能继承
+`raw`/index 的 carrier fail closed。dynamic/unverifiable carrier 同样是 capability escape。
+recognized String/Date callable 的 tagged-template direct/`call`/`apply` 形式按 JavaScript tag
+调用形状静态模拟 effective arguments：从 `[templateObject, ...substitutions]` 出发，direct
+保留该 vector，`call` 把 template object 当 `thisArg` 后传递 substitutions，`apply` 只接受可静态
+展开的首个 substitution array；随后复用相同 operation admission。`bind`、nested 或 invalid
+wrapper path 的 wrapper classification 报 capability escape，substitution 自身的求值 diagnostic
+仍保留，但不能仅因其中出现 Date value 就猜测 Host coercion。普通 custom tag 只传递 value，
+不因 Date substitution 被当成隐式 `ToString`。
+
+String callable 的 `bind` 同样按 capability capture 分类。tracked ambient capability 的动态
+computed member production 一律 fail closed；Date instance descendant 也因无法证明是 UTC/value
+operation 而按 capability escape 拒绝。对 tracked ambient capability/intrinsic root/member 与
+Date instance/prototype member 的 direct assignment、destructuring target、update、`delete` 或
+`for in/of` write 一律 capability fail-closed，不尝试模拟被改写后的内建
+identity；`Reflect.set`、`Object.defineProperty` 等 reflection mutation 仍由 DET3b runtime
+tripwire 覆盖。`delete` 的 non-reference operand 仍先按普通 expression 求值，只有 identifier/
+member reference 进入 write-target classification，且不会把旧 member value 再当作普通 read。
+latest-stable Deno 已暴露的
+`Temporal.Now` 属于 ambient clock；直接 member call 报 clock，静态 destructure 捕获
+`Now` namespace 时先报 capability escape，若仍继续调用 alias 则该 read 再报 clock。
+`Temporal.Instant` / `Temporal.PlainDate` 等明确 deterministic namespace 可直接调用或
+静态 destructure，但 bare `Temporal` root 不能逃逸。已知 ambient member provenance 上
+恢复的 `.constructor` 在 downstream `call` / `apply` / `bind` 分类前按 capability escape
+拒绝；唯一例外是上文明确识别的实际 Date constructor identity。bare
+`Math` / `Date` / `Number` / `Temporal` / `globalThis` / `Deno` / `process` 与 CommonJS
+`module` capability root 不得通过 alias、argument、return 或 export 逃离逐文件
 verification；已分类的 direct member operation 继续按其具体 rule 判断。即使显式给出 locale，
 `Intl` / `toLocale*` / `localeCompare` 仍依赖 Host ICU，因此不进入 authoritative
 algorithm；玩家可见的本地化格式化属于 Presentation。Host provider、Presentation、tooling、test timing 和 bench
@@ -355,8 +430,59 @@ alias 合法）。namespace/re-export/local/relative import 与 lexical shadow �
 parser 按 `.ts/.tsx/.mts/.cts/.js/.jsx/.mjs/.cjs` extension 选择 TypeScript/JSX
 grammar，并接受 standard decorator syntax。pure type-only AST 不作为 runtime access；
 runtime-bearing TypeScript namespace/enum/`import =`/`export =`、default/computed/catch
-pattern、class generic shadow 与 decorator expression 必须进入和 JavaScript 相同的
-traversal，不能因 node type 以 `TS` 开头而跳过。
+pattern、class generic shadow、decorator expression，以及 `ClassAccessorProperty` initializer/
+computed key 必须进入和 JavaScript 相同的 traversal；TypeScript instantiation wrapper 保留
+wrapped callable identity，不能因 node type 以 `TS` 开头而跳过。type-only `import =` 仍是
+erased syntax，runtime external-module
+`import = require(...)` 则按 CommonJS loader 拒绝。
+runtime-transparent TS expression/pattern wrappers（包括 `as`、non-null 与 `satisfies`）
+同样保留 write target、destructuring 与 provenance semantics。stable lexical scope model 为 Block/Catch/For 建独立 lexical scope、让整个
+Switch 共享一个 scope，并把 Class StaticBlock 与 runtime TS namespace 视为独立 var/function
+boundary；hoist collection 不得穿透后两者。`for in/of` 按 RHS、每轮 write-target/pattern
+runtime evaluation、local target unknown-provenance join、body 的顺序检查；ambient target
+fail closed，不能把 left 当作普通 read。
+
+Node ambient-provider matching 对 bare 与 `node:` specifier 都包含 subpath；例如
+`fs/promises` 与 `node:fs/promises` 必须得到相同拒绝，不能借 Deno 的 Node compatibility
+绕过 Host filesystem boundary；`require.call` / `require.apply` / `require.bind` 与
+unshadowed `module.require` 使用相同分类，`module` / `node:module` 的 `createRequire`
+入口本身属于 provider import。静态 provider specifier 报
+`determinism.ambient_provider_import`。当前没有 CommonJS dependency graph，因此所有
+unshadowed `require` / `module.require` direct call、`call` / `apply` / `bind` wrapper、capture、
+computed member 与 partial wrapper 都必须拒绝：provider literal 保留更具体的 provider
+diagnostic，其余 CommonJS loader use（包括 runtime TS `import = require(...)` 与 bare
+`module` escape）报 `determinism.ambient_capability_escape`。只有实际 runtime lexical local
+shadow 是 ordinary code；erased `declare` 与未初始化、不会覆盖 CommonJS wrapper binding 的
+`var require` / `var module` 不构成 shadow。“static relative import 合法”只指已被上文
+syntax-aware collector 纳入 closure 的 ESM dependency，不能外推到 CommonJS loader。
+
+static diagnostic precedence 先按 JavaScript runtime 顺序遍历 receiver/callee、input/template/
+property key 的求值，再以“先分类当前可证明的 capture/escape，再分类 downstream operation”
+为准：known ambient constructor recovery、`Temporal.Now` namespace capture 与无法静态验证的
+loader 都先报 capability escape；直接 clock/Host-timezone/provider operation 保留更具体的
+category，无法证明的 Date input 使用独立
+`determinism.date_input_unverified`。recognized callable 的 `.bind` 在 bind expression 处分类，
+不把预绑定参数误写成 operation 已执行；CommonJS bind 的 literal 已命中 ambient provider
+时仍由更具体的 provider diagnostic 优先。一次 source 可以因此在不同位置同时拥有 capture 与 use
+diagnostic；最终仍按 UTF-16 file/range/code 稳定排序。checker 只返回完整 frozen diagnostic
+vector 和 non-zero status，不发布 partial success receipt，也不写 authoritative State、Save、
+artifact 或 cached inventory。
+
+DET3a 对 direct expression、source-local conditional/logical expression 与 reassignment 做
+path-insensitive conservative provenance join：tracked candidate 不会被另一条 clean/unknown
+assignment 擦除，两个不同 tracked identity 合并为 capability ambiguity；Date callable 与任何
+different/unknown candidate 也必须降为 ambiguity，不能把调用结果升级成 verified epoch。
+所有 candidates 均为 proven Date-instance 时只保留 Date-instance class；Date instance 与
+unknown/non-Date、不同 Date-input proof 或 mutable input 均降为对应 ambiguity。root 与已发现的
+source-local closure 通过一个有界、单调的 central worklist 重放到 fixed point，使
+reassignment provenance 与 diagnostics 不依赖 declaration/use 的文本顺序；迭代上限由已发现
+function/binding 集合约束，不能收敛时 fail closed。中间 convergence pass 不发布 traversal
+diagnostic，只有 final conservative replay 进入输出。这个机制只在同一 source 的 bindings/
+closures 及上述 stable lexical scopes 内传播，不分析任意 function return、container、
+reflection 或 implicit coercion flow，
+也不声称 sound whole-program analysis；跨 function return/container 后才恢复的 Date method/
+constructor、`Reflect.get` 等动态路径由 DET3b isolated runtime tripwire 捕获。两层都不是第三方
+代码 sandbox 或 security boundary。
 
 numeric exemption 的 `allow-next-line` 是物理行合同：directive 与目标 node 必须位于
 相邻两行，blank line 或另一 comment 都不能跨越。它只抑制下一行第一处 matching
@@ -579,7 +705,7 @@ status + no-new-log 合同，或不能在零 candidate Snapshot traversal 下闭
 ### 6.4 Test-only isolated tripwire
 
 短命 Worker/realm 可以在 dynamic import authoritative driver 前，把 direct
-ambient entropy、clock、network、environment、locale-default 与 DOM access API
+ambient entropy、clock、Host timezone、network、environment、locale-default 与 DOM access API
 替换为 throwing guard。它必须：
 
 - 启动时逐项证明 guard 可安装，否则结构化失败 `tripwire_unavailable`；
