@@ -3,7 +3,8 @@
 状态：2026-07-31 接受执行；同日按 Save-metadata ownership、DET-A/DET-B join 与
 latest-stable Deno policy 重切片；2026-08-01 明确 DET2a command admission 与
 DET2b finalized evidence admission 的公开失败 surface、precedence、representability
-与原子性。目标合同见
+与原子性；2026-08-02 DET4 的同一 Session implementation 与修正后的 promotion
+verification 均已完成，DET-B 与 aggregate PF-DET guardrail 已关闭并进入 live。目标合同见
 [Authoritative simulation determinism boundary](../design/deterministic-simulation-boundary.md)；
 在 [Production-floor sequence](2026-07-30-production-floor-sequence.md) 中属于
 PF-DET，排在 PF2 Workspace Overlay pilot 之后，并与 PF3 按显式 DAG 汇合。本文只
@@ -1601,7 +1602,8 @@ Simulation lifecycle 与公开 automation bridge 均未 patch 或扩张。
 browser tripwire 或四-runtime parity gate。未新增 Playwright config/task、browser 安装或
 CI job，普通 `deno task check` 继续 browser-free。canonical JSON、digest、Snapshot、Save、
 CommandLog、replay 与公开 runtime semantics 均未改变；完整 DET-B/PF-DET 仍需 DET4，
-当前线性 core 下一独立切片是 `DET4`。
+该时点线性 core 的下一独立切片是 `DET4`。§13 的同一 Session implementation 与
+promotion verification 现已关闭该 gate。
 
 Promotion verification 使用 latest-stable Deno `2.9.4`：focused `5 files / 541 tests`、
 Base `75 / 959`、Engine Lab headless `21 / 118`、repository unit
@@ -1630,6 +1632,12 @@ transcript 至少包含：
 3. RNG committed command，包含 rejection-sampling evidence；
 4. faulted command；
 5. replay verification。
+
+四条 command 必须在同一个 Session 中按上述顺序执行，累计四条 retained CommandLog
+entries（ordinals `1..4`），sequence 为 `0 -> 1 -> 1 -> 2 -> 2`。逐 command trace 与一次完整
+authoritative replay 必须来自同一 run；replay 固定 `executedEntries = 4`，并验证相邻
+entry 的 digest、committed RNG 与 sequence continuity。四个 fresh one-command
+Sessions、另一组 run 的 trace/replay 或四个 single-entry replay 都不满足 acceptance。
 
 driver/comparator 还要提供可复用的 pure authoritative vector seam；PF-DET 用
 synthetic normalization callback 证明 shape，并直接消费 M0a 的 compact fixed
@@ -1692,6 +1700,52 @@ Snapshot、只比 V8 两端或只跑 Chromium 都不算完成。
 M0a/M0b/M1、shared Save byte corpus、`deno task test`、`deno task check` 与本节
 四 runtime matrix，并证明尚无 executable migrator、migration callback count 为
 `0`。两边各自绿但未完成该 join，不得开始 M2。
+
+**2026-08-02 DET4 / DET-B / PF-DET promotion：** `e2e/src/testing/**` 新增独立
+test-only matrix module 与 first-divergence comparator；DET0/DET3b tripwire driver
+继续只加载原来的窄 authoritative closure，aggregate matrix 不把 M0a persistence
+implementation、Web Host 或 Presentation authority 混入 guard receipt。Base 通过窄
+`@sillymaker/base/testkit/determinism-vectors` subpath 直接复用 DET2e 的 hand-written
+ordering expected 与 M0a 唯一的 compact Save-metadata expected；synthetic
+`summarizeSave` callback 接收 frozen State，并由 engine-owned normalization 产生同一
+fixed summary。没有复制、排序或从 implementation-under-test 重生成 expected，也没有
+复制 Save lifecycle corpus。
+
+matrix 的四类 command 在同一 Session 固定按 no-draw commit、rejection、RNG commit、
+fault 执行，累计四条 retained CommandLog entries（ordinals `1..4`），sequence 为
+`0 -> 1 -> 1 -> 2 -> 2`。逐 command trace 与一次完整 authoritative replay 来自同一
+run；replay 的 `executedEntries = 4`，matrix 同时比较相邻 entry 的 digest、committed
+RNG 与 sequence continuity。
+Session 固定 seed `1_236_431_772` 与 `exclusiveMax = 7`：rejection 与后续 RNG commit
+使用同一受控 vector，首 raw `4_294_967_292` 等于 rejection limit 并被拒绝，次 raw
+`1_015_932` 被接受；前者 rollback，后者 commit。comparator
+报告第一处 divergence 的 project、repeat、vector、command ordinal/identity、sequence、
+JSON pointer 与 expected/actual。promotion self-review 的 first-divergence P2 先以
+entry-scoped replay mismatch 缺少 command context 为 red；修正后 comparator 通过
+`logOrdinal` 回映 transcript command 的 ordinal/identity/sequence，而 global-scoped replay
+mismatch 继续返回 `null` command context。Deno、Chromium、Firefox、WebKit 各执行两个 repeat；
+tripwire pass 与 exact trace、四-command/replay matrix、DET2e Event Pool/Content
+Database/transaction/apply vectors、M0a normalized summary/unstamped/stamped vectors 都
+必须对各自唯一 expected 相等。
+
+root tasks 现在提供 `test:determinism:deno`、`test:determinism:browsers` 与 aggregate
+`test:determinism`；dedicated Playwright config 只声明 Chromium/Firefox/WebKit，并由
+独立 latest-stable CI job 在 `deno ci` 后安装 locked 三 browser 再运行 aggregate task。
+普通 `deno task check`、普通 Engine/UI suite 与 Player/main page 继续 browser-free、
+不含 Firefox，也不加载 guards；production Browser Agent 没有获得 raw
+Snapshot/RNG/CommandLog。
+
+此前 fresh one-command candidate 的 focused/Base/headless/full/browser 结果不作为本合同
+的 promotion evidence。修正后的 latest-stable Deno `2.9.4` evidence 为：focused Base
+workload + determinism-vectors + matrix `3 files / 21 tests`，Base `76/962`，Engine Lab
+headless `22/120`，repository full unit `225/2825`；dedicated aggregate 的 Deno matrix
+`3/3`，Chromium/Firefox/WebKit 各执行两个 repeat、browser 合计 `6/6`；普通 Engine/UI
+browser `101/101`；typecheck、`check:determinism` 与最终 `deno task check` 全绿。最终
+check 的 format phase 检查 `883 files`，aggregate 同时覆盖 lint/stylelint、typecheck、
+static determinism、unit、assets、Story checks 与 build。workflow 已定义 determinism job，
+但 repository 内容不能自证远端 branch-protection 已把该 status 配置为 required。DET4
+至此关闭 DET-B/aggregate PF-DET promotion，线性 core 下一独立切片为 Save `M0b`；随后是
+`M1`，而 M2 仍必须等待 DET-B 与 M1 在同一 merged HEAD 完成上述 join gate。
 
 ## 14. Deferred work
 

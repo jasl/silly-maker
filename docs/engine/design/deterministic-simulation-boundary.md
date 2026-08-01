@@ -3,14 +3,16 @@
 状态：2026-07-31 接受的目标设计；同日按 Save-corpus ownership 与 DET-A/DET-B
 promotion boundary 修订；2026-08-01 明确 DET2a command admission 与 DET2b
 finalized evidence admission 的公开失败 surface、precedence、representability 与
-原子性。具体
+原子性；2026-08-02 DET4 四 runtime 同一 Session matrix implementation 与修正后的
+promotion verification 均已完成，DET-B 与 aggregate PF-DET guardrail 已关闭并进入 live。具体
 落地顺序见
 [Authoritative determinism guardrails plan](../plans/2026-07-31-authoritative-determinism-guardrails.md)。
 当前 Snapshot、Save 与 Debug Bundle encoding 已有 integer-only canonical
-边界，事务 RNG 已进入 Snapshot，zero xorshift state、command/finalized-evidence
-canonical admission 与 Strict JSON number token 的精确数学整数检查也已 fail
-closed；bootstrap 尽早入场、ambient input 检查、隔离探针与多 JavaScript 引擎逐
-command parity 尚未实现。本文其余部分描述目标合同，不把未落地项写成当前能力。
+边界，事务 RNG 已进入 Snapshot；zero xorshift state、bootstrap 尽早入场、
+command/finalized-evidence canonical admission、Strict JSON number token 精确数学整数
+检查、ambient static guard、隔离探针与多 JavaScript 引擎逐 command parity 均已
+fail closed 或进入 maintained matrix。本文其余部分同时记录 live 合同与明确 deferred
+边界。
 
 ## 1. Guarantee and threat boundary
 
@@ -776,6 +778,27 @@ Snapshot。相同 runtime 也重复执行以区分普通 nondeterminism 和跨 e
 vectors 与 fixed expected bytes，不复制 lifecycle corpus或从待测 encoder 重生成
 expected。矩阵证明维护中的受支持路径，不认证任意第三方 JavaScript。
 
+Live DET4 使用独立的 test-only matrix module/comparator 组合这些证据；DET0/DET3b
+tripwire driver 保持只加载窄化的 authoritative workload closure，不为 aggregate
+matrix 引入 persistence 或 Browser/Presentation authority。矩阵通过
+`@sillymaker/base/testkit/determinism-vectors` 复用 DET2e hand-written ordering
+expected 与 M0a 唯一的 Save-metadata expected，并用 synthetic `summarizeSave`
+callback 证明 State-to-summary normalization；没有复制 expected 或 lifecycle corpus。
+
+四个 command 在同一个 Session 中按 no-draw commit、rejection、RNG commit、fault
+顺序执行，累计四条 retained CommandLog entries（ordinals `1..4`）；command sequence 固定为
+`0 -> 1 -> 1 -> 2 -> 2`。matrix 从该 run 的同一组 dispatch/log evidence 形成逐 command
+trace，随后对同一完整 log 执行一次 authoritative replay，`executedEntries = 4`，不能用
+另一组 run 或四个 single-entry replay 拼接。相邻 entry 的 pre/post digest、committed RNG
+before/after 与 sequence 必须连续；rejection/fault 继续证明 Snapshot/digest/RNG/sequence
+retention。Session 固定使用 seed `1_236_431_772` 与 `exclusiveMax = 7`：rejection 的
+candidate 与后续 RNG commit 都先得到等于 rejection limit 的 raw draw
+`4_294_967_292`，必须拒绝，再接受 `1_015_932`；前者 rollback，后者 commit。每个
+runtime 执行两次；comparator 返回第一处
+divergence 的 project、repeat、vector、command ordinal/identity、sequence、JSON
+pointer 与 expected/actual。matrix 不扩张 production Browser Agent，也不向其暴露
+Snapshot、RNG 或 CommandLog。
+
 ## 7. Decimal decision
 
 当前不把 `decimal.js` 作为 core runtime 依赖或“确定性解决方案”。仓库 lock
@@ -799,9 +822,8 @@ Save 中不保存 Decimal instance；若未来 runtime 真需 Decimal，也必�
 ## 8. Promotion and stop rules
 
 DET1–DET2e（DET-A）完成只允许 callback-free Save M0b/M1 分叉，不构成完整
-promotion。每个已完成子切片可以按准确的 partial status 同步 live
-features/development；只有 DET3a–DET4（DET-B）也完成、四 runtime matrix 全绿后，
-才能把 aggregate PF-DET guardrail 写成已完整实现：
+promotion。2026-08-02 DET3a–DET4（DET-B）已按以下合同完成并通过四 runtime matrix
+与 aggregate check；准确实测 evidence 由 active plan 的 promotion record 拥有：
 
 1. current-gap tests 先证明 raw/mutable bootstrap handoff、zero cursor、
    command/evidence late failure 与 replay admission 的旧行为；

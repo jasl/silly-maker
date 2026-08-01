@@ -2,9 +2,12 @@
 import {
   authoritativeDeterminismCommandClassesV1,
   prepareAuthoritativeDeterminismWorkloadV1,
+  runAuthoritativeDeterminismTranscriptV1,
 } from "@sillymaker/base/testkit/authoritative-determinism";
 import type {
   AuthoritativeDeterminismCommandClassV1,
+  AuthoritativeDeterminismCommandLogEntryV1,
+  AuthoritativeDeterminismDispatchResultV1,
 } from "@sillymaker/base/testkit/authoritative-determinism";
 
 export type AuthoritativeDeterminismTraceRngStateV1 = readonly [
@@ -302,6 +305,73 @@ export const authoritativeDeterminismTraceExpectedV1: AuthoritativeDeterminismTr
     ]),
   });
 
+function commandTraceV1(input: {
+  readonly commandClass: AuthoritativeDeterminismCommandClassV1;
+  readonly dispatchResult: AuthoritativeDeterminismDispatchResultV1;
+  readonly status: string;
+  readonly snapshotRetained: boolean;
+  readonly entry: AuthoritativeDeterminismCommandLogEntryV1;
+}): AuthoritativeDeterminismCommandTraceV1 {
+  if (input.dispatchResult.kind !== "executed") {
+    throw new TypeError(
+      `Authoritative determinism command was not executed: ${input.commandClass}`,
+    );
+  }
+  const entry = input.entry;
+  if (entry.candidateRngAfter === undefined) {
+    throw new TypeError(
+      `Authoritative determinism RNG candidate is missing: ${input.commandClass}`,
+    );
+  }
+  if (entry.command.kind !== input.commandClass) {
+    throw new TypeError(
+      `Authoritative determinism command identity changed: ${input.commandClass}`,
+    );
+  }
+  if (input.status !== "ready" && input.status !== "fault_paused") {
+    throw new TypeError(`Authoritative determinism Session status is invalid: ${input.status}`);
+  }
+  return Object.freeze({
+    command: Object.freeze({ kind: entry.command.kind }),
+    dispatch: "executed" as const,
+    outcome: traceOutcomeV1(input.dispatchResult.execution),
+    status: input.status,
+    snapshot: Object.freeze({
+      retained: input.snapshotRetained,
+      digests: Object.freeze({
+        before: entry.preStateDigest,
+        after: entry.postStateDigest,
+      }),
+      sequence: Object.freeze({
+        before: entry.commandSequence.before,
+        after: entry.commandSequence.after,
+      }),
+    }),
+    rng: Object.freeze({
+      committedBefore: traceRngStateV1(entry.committedRngBefore),
+      attemptedDraws: Object.freeze(
+        entry.attemptedDraws.map((draw) =>
+          Object.freeze({
+            ordinal: draw.ordinal,
+            purpose: draw.purpose,
+            exclusiveMax: draw.exclusiveMax,
+            result: draw.result,
+            before: traceRngStateV1(draw.before),
+            after: traceRngStateV1(draw.after),
+          })
+        ),
+      ),
+      candidateAfter: traceRngStateV1(entry.candidateRngAfter),
+      committedAfter: traceRngStateV1(entry.committedRngAfter),
+    }),
+    log: Object.freeze({
+      source: entry.source,
+      ordinal: entry.logOrdinal,
+      outcome: traceOutcomeV1(entry.outcome),
+    }),
+  });
+}
+
 /** Runs the same neutral per-command trace in Deno or a Vite-served browser realm. */
 export async function collectAuthoritativeDeterminismTraceV1(
   input: AuthoritativeDeterminismBootstrapInputV1,
@@ -316,62 +386,17 @@ export async function collectAuthoritativeDeterminismTraceV1(
       bootstrapInput,
     });
     const run = await prepared.runOnce();
-    if (run.dispatchResult.kind !== "executed") {
-      throw new TypeError(`Authoritative determinism command was not executed: ${commandClass}`);
-    }
     const entry = run.commandLog[0];
     if (entry === undefined || run.commandLog.length !== 1) {
       throw new TypeError(`Authoritative determinism command log is invalid: ${commandClass}`);
     }
-    if (entry.candidateRngAfter === undefined) {
-      throw new TypeError(`Authoritative determinism RNG candidate is missing: ${commandClass}`);
-    }
-    if (entry.command.kind !== commandClass) {
-      throw new TypeError(`Authoritative determinism command identity changed: ${commandClass}`);
-    }
-    const status = run.status;
-    if (status !== "ready" && status !== "fault_paused") {
-      throw new TypeError(`Authoritative determinism Session status is invalid: ${status}`);
-    }
     commands.push(
-      Object.freeze({
-        command: Object.freeze({ kind: entry.command.kind }),
-        dispatch: "executed" as const,
-        outcome: traceOutcomeV1(run.dispatchResult.execution),
-        status,
-        snapshot: Object.freeze({
-          retained: run.snapshotRetained,
-          digests: Object.freeze({
-            before: entry.preStateDigest,
-            after: entry.postStateDigest,
-          }),
-          sequence: Object.freeze({
-            before: entry.commandSequence.before,
-            after: entry.commandSequence.after,
-          }),
-        }),
-        rng: Object.freeze({
-          committedBefore: traceRngStateV1(entry.committedRngBefore),
-          attemptedDraws: Object.freeze(
-            entry.attemptedDraws.map((draw) =>
-              Object.freeze({
-                ordinal: draw.ordinal,
-                purpose: draw.purpose,
-                exclusiveMax: draw.exclusiveMax,
-                result: draw.result,
-                before: traceRngStateV1(draw.before),
-                after: traceRngStateV1(draw.after),
-              })
-            ),
-          ),
-          candidateAfter: traceRngStateV1(entry.candidateRngAfter),
-          committedAfter: traceRngStateV1(entry.committedRngAfter),
-        }),
-        log: Object.freeze({
-          source: entry.source,
-          ordinal: entry.logOrdinal,
-          outcome: traceOutcomeV1(entry.outcome),
-        }),
+      commandTraceV1({
+        commandClass,
+        dispatchResult: run.dispatchResult,
+        status: run.status,
+        snapshotRetained: run.snapshotRetained,
+        entry,
       }),
     );
   }
@@ -380,5 +405,27 @@ export async function collectAuthoritativeDeterminismTraceV1(
     workload: "authoritative-determinism-v1",
     rngAlgorithm: "xorshift32-v1",
     commands: Object.freeze(commands),
+  });
+}
+
+/** Collects the maintained four-command trace from one Session plus its full replay. */
+export async function collectAuthoritativeDeterminismTranscriptTraceV1(
+  input: AuthoritativeDeterminismBootstrapInputV1,
+) {
+  const bootstrapInput = parseAuthoritativeDeterminismBootstrapInputV1(input);
+  const run = await runAuthoritativeDeterminismTranscriptV1({ bootstrapInput });
+  return Object.freeze({
+    commands: Object.freeze(
+      run.steps.map((step) =>
+        commandTraceV1({
+          commandClass: step.commandClass,
+          dispatchResult: step.dispatchResult,
+          status: step.status,
+          snapshotRetained: step.snapshotRetained,
+          entry: step.commandLogEntry,
+        })
+      ),
+    ),
+    replay: run.replay,
   });
 }

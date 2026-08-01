@@ -5,10 +5,12 @@ import {
   rejectAttemptV1,
   type CommandExecutionAttemptEnvelopeV1,
 } from "../contracts/execution.ts";
+import { digestBytes } from "../contracts/digest.ts";
 import type {
   GameBootstrapInputV1,
   GameSimulationTypeMapV1,
 } from "../contracts/gameplay-module.ts";
+import type { BuildProvenanceV1 } from "../contracts/provenance.ts";
 import {
   createTransactionalRngV1,
   type RngDrawTraceV1,
@@ -25,7 +27,11 @@ import type {
   PositiveSafeInteger,
   RuntimeSchemaV1,
 } from "../contracts/values.ts";
-import { parseNonNegativeSafeInteger, parseNonZeroUint32 } from "../contracts/values.ts";
+import {
+  parseNonNegativeSafeInteger,
+  parseNonZeroUint32,
+  parsePositiveSafeInteger,
+} from "../contracts/values.ts";
 import {
   createPurposeTaggedSnapshotWorkCounterV1,
   createSnapshotWorkCounterV1,
@@ -38,6 +44,10 @@ import {
   createInstrumentedGameSessionV1,
   type GameSessionV1,
 } from "../runtime/session/game-session.ts";
+import {
+  replayAuthoritativelyFromAttemptsInternalV1,
+  type ReplayComparisonV1,
+} from "../runtime/diagnostics/replay.ts";
 
 export const authoritativeDeterminismCommandClassesV1 = Object.freeze(
   ["no_draw_committed", "rng_committed", "rejected", "faulted"] as const,
@@ -169,6 +179,31 @@ export interface PreparedAuthoritativeDeterminismWorkloadV1 {
   readonly descriptor: AuthoritativeDeterminismWorkloadDescriptorV1;
   readonly setupCounts: AuthoritativeDeterminismWorkCountsV1;
   runOnce(): Promise<AuthoritativeDeterminismWorkloadRunV1>;
+}
+
+export const authoritativeDeterminismTranscriptCommandClassesV1 = Object.freeze(
+  ["no_draw_committed", "rejected", "rng_committed", "faulted"] as const,
+);
+
+export interface AuthoritativeDeterminismTranscriptStepV1 {
+  readonly commandClass: AuthoritativeDeterminismCommandClassV1;
+  readonly dispatchResult: AuthoritativeDeterminismDispatchResultV1;
+  readonly status: RuntimeSessionStatusV1;
+  readonly snapshotRetained: boolean;
+  readonly commandLogEntry: AuthoritativeDeterminismCommandLogEntryV1;
+}
+
+export interface AuthoritativeDeterminismReplayWorkloadV1 {
+  readonly initialSnapshot: DeepReadonly<AuthoritativeDeterminismSnapshotV1>;
+  readonly currentSnapshot: DeepReadonly<AuthoritativeDeterminismSnapshotV1>;
+  readonly commandLog: readonly AuthoritativeDeterminismCommandLogEntryV1[];
+}
+
+export interface AuthoritativeDeterminismTranscriptRunV1
+  extends AuthoritativeDeterminismReplayWorkloadV1 {
+  readonly steps: readonly AuthoritativeDeterminismTranscriptStepV1[];
+  readonly status: RuntimeSessionStatusV1;
+  readonly replay: ReplayComparisonV1;
 }
 
 interface CompositeSnapshotWorkCounterV1 {
@@ -363,6 +398,101 @@ export function prepareAuthoritativeDeterminismWorkloadV1(input: {
         counts: counter.snapshot(),
       });
     },
+  });
+}
+
+const authoritativeDeterminismReplayDigestV1 = (label: string) =>
+  digestBytes(new TextEncoder().encode(`authoritative-determinism-replay-v1:${label}`));
+
+const authoritativeDeterminismReplayProvenanceV1: BuildProvenanceV1 = Object.freeze({
+  story: Object.freeze({
+    id: "story.authoritative-determinism-replay",
+    revision: parsePositiveSafeInteger(1),
+    digest: authoritativeDeterminismReplayDigestV1("story"),
+  }),
+  engine: Object.freeze({
+    version: "authoritative-determinism-replay-v1",
+    digest: authoritativeDeterminismReplayDigestV1("engine"),
+  }),
+  resolved: Object.freeze({
+    stateContractRevision: parsePositiveSafeInteger(1),
+    stateContractDigest: authoritativeDeterminismReplayDigestV1("state-contract"),
+    simulationDigest: authoritativeDeterminismReplayDigestV1("simulation"),
+    presentationDigest: authoritativeDeterminismReplayDigestV1("presentation"),
+    patchSet: Object.freeze({
+      digest: authoritativeDeterminismReplayDigestV1("patch-set"),
+      simulationDigest: authoritativeDeterminismReplayDigestV1("patch-set-simulation"),
+      presentationDigest: authoritativeDeterminismReplayDigestV1("patch-set-presentation"),
+      appliedHotfixes: Object.freeze([]),
+    }),
+  }),
+});
+
+/**
+ * Runs one prepared neutral workload through the production authoritative replay comparator.
+ *
+ * @internal Test-only parity seam; exported only from the narrow determinism testkit subpath.
+ */
+export async function replayAuthoritativeDeterminismWorkloadV1(
+  run: DeepReadonly<AuthoritativeDeterminismReplayWorkloadV1>,
+): Promise<ReplayComparisonV1> {
+  const entry = run.commandLog[0];
+  if (entry === undefined) {
+    throw new TypeError("Authoritative determinism replay requires a retained command");
+  }
+  return await replayAuthoritativelyFromAttemptsInternalV1({
+    identity: Object.freeze({ provenance: authoritativeDeterminismReplayProvenanceV1 }),
+    replayBase: run.initialSnapshot,
+    replayBaseStateDigest: entry.preStateDigest,
+    commandLog: run.commandLog,
+    currentSnapshot: run.currentSnapshot,
+    projectStableRejection: (rejection: AuthoritativeDeterminismRejectionV1) => rejection,
+    projectStableFault: (fault: AuthoritativeDeterminismFaultV1) => fault,
+    executeAttempt(snapshot, logged) {
+      if (logged.source !== "game") {
+        throw new TypeError("Authoritative determinism replay has no DebugCommand");
+      }
+      return executeAuthoritativeDeterminismAttemptV1(snapshot, logged.command);
+    },
+  });
+}
+
+/** Runs the maintained DET4 command order on one Session and replays its retained chain. */
+export async function runAuthoritativeDeterminismTranscriptV1(input: {
+  readonly bootstrapInput: { readonly rngSeed: number };
+}): Promise<AuthoritativeDeterminismTranscriptRunV1> {
+  const rngSeed = parseNonZeroUint32(input.bootstrapInput.rngSeed);
+  const counter = createCompositeSnapshotWorkCounterV1();
+  const workload = createAuthoritativeDeterminismWorkloadV1(counter, rngSeed);
+  const initialSnapshot = workload.snapshot();
+  const steps: AuthoritativeDeterminismTranscriptStepV1[] = [];
+  for (const commandClass of authoritativeDeterminismTranscriptCommandClassesV1) {
+    const beforeSnapshot = workload.snapshot();
+    const dispatchResult = await workload.dispatch(commandClass);
+    const currentSnapshot = workload.snapshot();
+    const commandLog = workload.commandLog();
+    const commandLogEntry = commandLog[steps.length];
+    if (commandLogEntry === undefined || commandLog.length !== steps.length + 1) {
+      throw new TypeError(`Authoritative determinism transcript log is invalid: ${commandClass}`);
+    }
+    steps.push(
+      Object.freeze({
+        commandClass,
+        dispatchResult,
+        status: workload.status(),
+        snapshotRetained: currentSnapshot === beforeSnapshot,
+        commandLogEntry: commandLogEntry as AuthoritativeDeterminismCommandLogEntryV1,
+      }),
+    );
+  }
+  const currentSnapshot = workload.snapshot();
+  const commandLog = workload.commandLog() as readonly AuthoritativeDeterminismCommandLogEntryV1[];
+  const replayInput = Object.freeze({ initialSnapshot, currentSnapshot, commandLog });
+  return Object.freeze({
+    ...replayInput,
+    steps: Object.freeze(steps),
+    status: workload.status(),
+    replay: await replayAuthoritativeDeterminismWorkloadV1(replayInput),
   });
 }
 

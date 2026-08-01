@@ -18,15 +18,18 @@ deno install
 deno task dev
 ```
 
-Pull requests targeting `main` and pushes to `main` run two ordered GitHub
-Actions jobs. `CI quality (Deno latest stable)` reports the actual Deno version,
-uses `deno ci` against the shared lockfile, and runs `deno task check` without
-installing or starting a browser. After it succeeds, `CI Engine Lab prebuilt
-smoke (Chromium)` installs only the lockfile-selected Playwright Chromium and
-runs the Engine Lab smoke cases against a production build. These stable job
-names are the branch-protection check identities; repository policy activation
-is separate from landing the workflow and must not be inferred from this file.
-`deno install` remains the normal interactive setup command.
+Pull requests targeting `main` and pushes to `main` run one quality job followed
+by two independent browser jobs. `CI quality (Deno latest stable)` reports the
+actual Deno version, uses `deno ci` against the shared lockfile, and runs
+`deno task check` without installing or starting a browser. After it succeeds,
+`CI Engine Lab prebuilt smoke (Chromium)` installs only the lockfile-selected
+Playwright Chromium and runs the Engine Lab smoke cases against a production
+build, while `CI authoritative determinism (Deno + Chromium + Firefox + WebKit)`
+installs the three locked browsers and runs `deno task test:determinism`. These
+stable job names are available as branch-protection check identities; repository
+policy activation is separate from landing the workflow and must be verified in
+the remote settings rather than inferred from this file. `deno install` remains
+the normal interactive setup command.
 
 The workspace is ESM, imports TypeScript sources with explicit `.ts`/`.tsx` extensions, and uses one shared `deno.lock` with exact dependency versions (npm packages resolve through Deno's Node compatibility).
 
@@ -61,6 +64,9 @@ Package manifests define supported cross-package entries. Do not bypass them wit
 | `deno task test`                                 | Run engine and game behavior tests.                                                                                                                        |
 | `deno task test:coverage`                        | Run unit tests with engine line-coverage reporting.                                                                                                        |
 | `deno task check:determinism`                    | Recollect and statically check the exact authoritative import closure (also part of `check`).                                                              |
+| `deno task test:determinism:deno`                | Run two Deno repeats of the guarded authoritative matrix.                                                                                                  |
+| `deno task test:determinism:browsers`            | Run the dedicated matrix twice in each locked Chromium, Firefox, and WebKit installation.                                                                  |
+| `deno task test:determinism`                     | Aggregate the Deno and three-browser determinism gates; requires all browser binaries to be installed.                                                     |
 | `deno task bench:snapshot`                       | Write a neutral Snapshot hot-path baseline JSON to a temporary path.                                                                                       |
 | `deno task bench:snapshot:memory`                | Sample retained memory for one long-lived neutral Snapshot Session.                                                                                        |
 | `deno task test:e2e:engine`                      | Engine browser suite against the Engine Lab Story.                                                                                                         |
@@ -252,13 +258,27 @@ globals.
 
 The fixed bootstrap value crosses the message boundary and is actually parsed into
 the neutral Session/RNG construction. Ordinary `deno task test` exercises the real
-Deno isolated realm, while the pure harness fixes browser descriptor/install behavior.
-There is intentionally no DET3b daily task, browser installation, or CI job: normal
-`deno task check` stays browser-free and the Player/main page never imports or applies
-the guards. DET4 will add the dedicated Chromium/Firefox/WebKit tripwire and parity
-task/config/CI gate. Existing browser trace coverage proves only that the neutral
-driver is browser-executable, not that the browser tripwire or four-runtime matrix is
-complete.
+Deno isolated realm. DET4 now adds an independent matrix module/comparator around the
+unchanged narrow tripwire driver: it runs the tripwire and aggregate parity vectors
+twice in Deno and twice in each dedicated Chromium, Firefox, and WebKit project. The
+matrix consumes the unique DET2e/M0a expected values through
+`@sillymaker/base/testkit/determinism-vectors`, and a synthetic `summarizeSave`
+callback exercises engine-owned summary normalization without copying the Save
+lifecycle corpus. One Session runs no-draw/rejection/RNG/fault in order, accumulating
+four retained CommandLog entries with ordinals `1..4` and sequence
+`0 -> 1 -> 1 -> 2 -> 2`; the compact
+per-command trace and one complete authoritative replay come from that same run.
+Replay executes all four entries, and the matrix checks adjacent digest, committed-RNG,
+and sequence continuity instead of stitching together one-command Sessions. The Session
+uses seed `1_236_431_772` and maximum `7`; rejection rolls back the controlled rejected raw
+`4_294_967_292`/accepted raw `1_015_932` pair, then the RNG commit repeats and commits it.
+First-divergence output includes project, repeat, vector, command
+ordinal/identity, sequence, JSON pointer, and expected/actual.
+
+The dedicated tasks/config/CI job are intentionally outside `deno task check` and
+the ordinary UI suite; those paths remain browser-free and do not acquire Firefox.
+The Player/main page never imports or applies the guards, and the production Browser
+Agent still cannot read raw Snapshot, RNG, or CommandLog state.
 
 A reviewed fractional literal,
 `parseFloat`, or approximate-math node may use exactly one directive on the
@@ -373,16 +393,16 @@ A checked-in fixture is justified when its bytes are themselves a maintained ext
 
 The reusable `@sillymaker/base/testkit` package is appropriate for compact behavior-level setup shared by real engine/Story tests. A “harness” is not a problem by name; a harness with no maintained product contract is. Its revisioned Save-metadata corpus is the shared byte authority for runtime/Host parity work: expected records use lossless base64 plus maintained lengths and SHA-256 values, while Host payload helpers return fresh byte copies. Update that corpus only with an intentional Save-contract change, record the old/new bytes in the active migration plan, and rerun the focused lifecycle matrix before aggregate checks; do not regenerate it from the implementation under test or duplicate it in Browser/Desktop fixtures.
 
-DET2e's browser-neutral ordering seam is intentionally direct-file-only under
+DET2e's browser-neutral ordering implementation remains direct-file-only under
 `engine/packages/base/src/testkit/`: `authoritative-ordering-vectors.ts` runs one
 Event Pool, Content Database, Session transaction, CommandLog, and authoritative
-replay vector; its focused Deno test executes that runner twice, while
-`authoritative-ordering-vector-expected.ts` owns the hand-written fixed expected.
-Neither file is a package-barrel API.
-Future DET4 browser runners must consume these exact files/expected rather than
-copying or sorting a new oracle. The expected module must never derive order
-from `localeCompare`, `Intl`, the implementation comparator, or current Host
-locale.
+replay vector, while `authoritative-ordering-vector-expected.ts` owns the hand-written
+fixed expected. Neither file is a package-barrel API. DET4 exposes only the narrow
+test-only `@sillymaker/base/testkit/determinism-vectors` facade, which re-exports those
+same values alongside M0a's unique compact corpus and the synthetic summary-normalization
+seam. Browser runners consume this facade rather than copying or sorting a new oracle.
+The expected module must never derive order from `localeCompare`, `Intl`, the
+implementation comparator, or current Host locale.
 
 ## Dependencies and toolchain
 

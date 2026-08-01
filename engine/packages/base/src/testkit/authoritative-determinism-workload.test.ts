@@ -12,7 +12,11 @@ import type {
   AuthoritativeDeterminismCommandClassV1,
   AuthoritativeDeterminismWorkCountsV1,
 } from "./index.ts";
-import { createUnsafeAuthoritativeDeterminismWorkloadV1 } from "./authoritative-determinism-workload.ts";
+import {
+  createUnsafeAuthoritativeDeterminismWorkloadV1,
+  replayAuthoritativeDeterminismWorkloadV1,
+  runAuthoritativeDeterminismTranscriptV1,
+} from "./authoritative-determinism-workload.ts";
 
 const initialRngV1 = Object.freeze({
   algorithm: "xorshift32-v1" as const,
@@ -305,6 +309,102 @@ describe("authoritative determinism workload", () => {
       rawDrawCount: 0,
     });
     expect(run.currentSnapshot.rng).toEqual(run.initialSnapshot.rng);
+  });
+
+  it("locks a guaranteed rejection-sampling commit and its authoritative replay", async () => {
+    const run = await prepareAuthoritativeDeterminismWorkloadV1({
+      commandClass: "rng_committed",
+      bootstrapInput: Object.freeze({ rngSeed: 1_236_431_772 }),
+    }).runOnce();
+
+    expect(run.commandLog[0]?.attemptedDraws).toEqual([
+      {
+        ordinal: 1,
+        purpose: authoritativeDeterminismDrawPurposeV1,
+        exclusiveMax: 7,
+        result: 0,
+        before: {
+          algorithm: "xorshift32-v1",
+          cursor: 1_236_431_772,
+          rawDrawCount: 0,
+        },
+        after: {
+          algorithm: "xorshift32-v1",
+          cursor: 4_294_967_292,
+          rawDrawCount: 1,
+        },
+      },
+      {
+        ordinal: 2,
+        purpose: authoritativeDeterminismDrawPurposeV1,
+        exclusiveMax: 7,
+        result: 1,
+        before: {
+          algorithm: "xorshift32-v1",
+          cursor: 4_294_967_292,
+          rawDrawCount: 1,
+        },
+        after: {
+          algorithm: "xorshift32-v1",
+          cursor: 1_015_932,
+          rawDrawCount: 2,
+        },
+      },
+    ]);
+    await expect(replayAuthoritativeDeterminismWorkloadV1(run)).resolves.toEqual({
+      authoritative: true,
+      identityMatch: true,
+      visualMatch: false,
+      matches: true,
+      executedEntries: 1,
+      mismatches: [],
+    });
+  });
+
+  it("retains and replays the four-command transcript on one Session", async () => {
+    const transcript = await runAuthoritativeDeterminismTranscriptV1({
+      bootstrapInput: Object.freeze({ rngSeed: 1_236_431_772 }),
+    });
+
+    expect(transcript.steps.map((step) => step.commandClass)).toEqual([
+      "no_draw_committed",
+      "rejected",
+      "rng_committed",
+      "faulted",
+    ]);
+    expect(transcript.steps.map((step) => step.commandLogEntry.logOrdinal)).toEqual([1, 2, 3, 4]);
+    expect(transcript.steps.map((step) => step.commandLogEntry.commandSequence)).toEqual([
+      { before: 0, after: 1 },
+      { before: 1, after: 1 },
+      { before: 1, after: 2 },
+      { before: 2, after: 2 },
+    ]);
+    expect(transcript.steps.map((step) => step.snapshotRetained)).toEqual([
+      false,
+      true,
+      false,
+      true,
+    ]);
+    for (let index = 1; index < transcript.commandLog.length; index += 1) {
+      expect(transcript.commandLog[index]?.preStateDigest).toBe(
+        transcript.commandLog[index - 1]?.postStateDigest,
+      );
+    }
+    expect(transcript.commandLog[1]?.postStateDigest).toBe(
+      transcript.commandLog[1]?.preStateDigest,
+    );
+    expect(transcript.commandLog[3]?.postStateDigest).toBe(
+      transcript.commandLog[3]?.preStateDigest,
+    );
+    expect(transcript.status).toBe("fault_paused");
+    expect(transcript.replay).toEqual({
+      authoritative: true,
+      identityMatch: true,
+      visualMatch: false,
+      matches: true,
+      executedEntries: 4,
+      mismatches: [],
+    });
   });
 });
 

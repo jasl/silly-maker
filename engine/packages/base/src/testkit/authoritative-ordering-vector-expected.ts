@@ -5,7 +5,8 @@
  * accepted UTF-16 code-unit order; this module must never sort or call a
  * comparator to derive its expected data.
  *
- * @internal Direct-file-only test oracle; intentionally absent from barrels.
+ * @internal Test oracle exposed only through the narrow DET4 determinism-vectors
+ * testkit subpath; intentionally absent from the broad testkit barrel.
  */
 export const authoritativeOrderingVectorExpectedV1 = {
   eventPool: {

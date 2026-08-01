@@ -452,9 +452,10 @@ async function runTransactionVectorV1() {
 }
 
 /**
- * Browser-neutral, direct-file-only DET2e vector seam. Its returned data is
- * suitable for running unchanged under Deno, Node-compatible Vitest, or a
- * browser harness; it intentionally has no package-barrel export.
+ * Browser-neutral DET2e vector seam. Its returned data is suitable for running
+ * unchanged under Deno, Node-compatible Vitest, or a browser harness. DET4
+ * exposes it only through the narrow determinism-vectors testkit subpath; it
+ * intentionally has no broad package-barrel export.
  */
 export async function runAuthoritativeOrderingVectorsV1() {
   return Object.freeze({

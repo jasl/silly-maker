@@ -4,7 +4,8 @@
 Agent parity 基线已实现并进入 [features](../features.md)。2026-07-30 接受的
 whole-canvas Managed Surface 与 Contract Harness 扩展尚未实现，见
 [Surface design](surface-contract-harness.md)。2026-07-31 接受的多 JavaScript
-引擎逐 command determinism matrix 尚未实现，见
+引擎逐 command determinism matrix 已于 2026-08-02 按同一 Session 合同实现、完成
+promotion verification 并进入 live，见
 [Deterministic simulation boundary](deterministic-simulation-boundary.md)。
 
 ## 1. Decision
@@ -21,14 +22,14 @@ gate、提交编排或机器证明。
 
 测试职责分为以下层级：
 
-| 层级                        | 验证对象                                                              | 主要位置                               |
-| --------------------------- | --------------------------------------------------------------------- | -------------------------------------- |
-| Package unit/type/property  | Base、UI、Web 的局部合同、恶意输入和边界                              | `engine/packages/*/src`、`type-tests`  |
-| Story authoring conformance | 公开 API 是否足够定义独立 Story、Module、Narrative、UI 和 diagnostics | `e2e/src`                              |
-| Headless integration        | Session、Module、Semantic、Save、Replay 和 Agent port                 | E2E Story + `@sillymaker/base/testkit` |
-| Browser conformance         | React/Web Host、输入、演出、可访问性和 Browser Agent adapter          | `engine/packages/web/e2e/conformance`  |
-| Prebuilt conformance        | Story-independent build、base path、manifest 和刷新恢复               | E2E Story 的测试 Artifact              |
-| Product Story E2E           | 具体游戏的玩法、内容、视觉路线和发行 Artifact                         | `examples/*` 自己的 E2E suite          |
+| 层级                        | 验证对象                                                              | 主要位置                                       |
+| --------------------------- | --------------------------------------------------------------------- | ---------------------------------------------- |
+| Package unit/type/property  | Base、UI、Web 的局部合同、恶意输入和边界                              | `engine/packages/*/src`、`type-tests`          |
+| Story authoring conformance | 公开 API 是否足够定义独立 Story、Module、Narrative、UI 和 diagnostics | `e2e/src`                                      |
+| Headless integration        | Session、Module、Semantic、Save、Replay 和 Agent port                 | E2E Story + `@sillymaker/base/testkit`         |
+| Browser conformance         | React/Web Host、输入、演出、可访问性、Browser Agent 与 DET4 matrix    | `engine/packages/web/e2e/{engine,determinism}` |
+| Prebuilt conformance        | Story-independent build、base path、manifest 和刷新恢复               | E2E Story 的测试 Artifact                      |
+| Product Story E2E           | 具体游戏的玩法、内容、视觉路线和发行 Artifact                         | `examples/*` 自己的 E2E suite                  |
 
 E2E Story 不承担每个 schema/parser 边界测试。它只覆盖必须跨 package、Host 或
 runtime 层才能证明的可观察行为。任何旗舰示例或商业验证实验都不替引擎承担通用
@@ -132,9 +133,9 @@ Node 与 Browser 执行同一份语义 transcript，运行时比较：
 
 比较结果在测试进程中生成，不提交 transcript golden。
 
-PF-DET 将增加一条**独立的 test-only admin parity driver**。它不扩张上图的
-player-safe Agent port，而是让同一中性 transcript 在 Deno、Chromium、Firefox 与
-WebKit 逐 command 比较：
+PF-DET 的**独立 test-only admin parity matrix**不扩张上图的 player-safe Agent
+port。它保留 DET0/DET3b tripwire driver 的窄 authority closure，在外层组合 Deno、
+Chromium、Firefox 与 WebKit 的中性逐 command 比较：
 
 - normalized command 与 outcome kind；
 - facts/reasons/fault；
@@ -142,32 +143,36 @@ WebKit 逐 command 比较：
 - pre/post Snapshot digest；
 - finalized CommandLog/replay evidence。
 
-报告必须定位第一处分歧的 command identity、sequence 与字段 path；只比较最终
-Snapshot 或只比较 Deno/Chromium 两个 V8 Host 不足以证明目标。该矩阵是 pending
-target，不是当前 Node/Browser semantic transcript parity 的既有能力。
+每个 runtime 重复两次。comparator 定位第一处分歧的 project、repeat、vector、
+command ordinal/identity、sequence、JSON pointer 与 expected/actual；只比较最终
+Snapshot 或只比较 Deno/Chromium 两个 V8 Host 仍不足以证明合同。DET2e ordering 与
+M0a Save-metadata vectors 通过窄化的
+`@sillymaker/base/testkit/determinism-vectors` 直接复用各自唯一 expected；production
+Browser Agent 仍不获得 raw Snapshot、RNG 或 CommandLog。
 
 ## 5. Scenario matrix
 
 ### 5.1 Live baseline matrix
 
-| 场景                                               |   Headless    |         Browser          |     Prebuilt      |
-| -------------------------------------------------- | :-----------: | :----------------------: | :---------------: |
-| 只通过 package exports resolve Story               |       ✓       |        boot 证明         |         ✓         |
-| 非空 typed capability dependency                   |       ✓       |         间接证明         |                   |
-| 跨 owner 原子 commit                               |       ✓       |   DOM/Agent 各执行一次   |                   |
-| rejection/fault 保持 State、RNG、sequence          |       ✓       |                          |                   |
-| 固定 seed transcript 一致                          |       ✓       |   Node/Browser parity    |                   |
-| preview 与 queue-front dispatch 重检               |       ✓       |     stale invocation     |                   |
-| Narrative 和 PendingInteraction                    |       ✓       |       可见、可操作       |     刷新恢复      |
-| Semantic Stage、角色与 Audio intent                |    可观察     |       可见 target        |  恢复稳定 target  |
-| Transition/asset/actual-audio lifecycle            |               |   Presentation observe   |   settled 恢复    |
-| Save/load/import                                   |       ✓       |         公共 UI          |    刷新连续性     |
-| Replay、DebugBundle                                | Harness admin | capability-gated DevDock | evidence/recovery |
-| Debug/Cheat/Automation capability 与撤销           |       ✓       |            ✓             |         ✓         |
-| Pointer、Touch、Keyboard、Gamepad、focus isolation |               |            ✓             |                   |
-| WCAG、平板、16:10 上限、reduced-motion             |               |            ✓             |                   |
-| 素材加载失败和 code-native fallback                |               |            ✓             |         ✓         |
-| nested base、manifest、无 Product Story closure    |               |                          |         ✓         |
+| 场景                                               |   Headless    |           Browser           |     Prebuilt      |
+| -------------------------------------------------- | :-----------: | :-------------------------: | :---------------: |
+| 只通过 package exports resolve Story               |       ✓       |          boot 证明          |         ✓         |
+| 非空 typed capability dependency                   |       ✓       |          间接证明           |                   |
+| 跨 owner 原子 commit                               |       ✓       |    DOM/Agent 各执行一次     |                   |
+| rejection/fault 保持 State、RNG、sequence          |       ✓       |                             |                   |
+| 固定 seed transcript 一致                          |       ✓       |     Node/Browser parity     |                   |
+| preview 与 queue-front dispatch 重检               |       ✓       |      stale invocation       |                   |
+| Narrative 和 PendingInteraction                    |       ✓       |        可见、可操作         |     刷新恢复      |
+| Semantic Stage、角色与 Audio intent                |    可观察     |         可见 target         |  恢复稳定 target  |
+| Transition/asset/actual-audio lifecycle            |               |    Presentation observe     |   settled 恢复    |
+| Save/load/import                                   |       ✓       |           公共 UI           |    刷新连续性     |
+| Replay、DebugBundle                                | Harness admin |  capability-gated DevDock   | evidence/recovery |
+| PF-DET authoritative matrix                        |   Deno × 2    | Chromium/Firefox/WebKit × 2 |                   |
+| Debug/Cheat/Automation capability 与撤销           |       ✓       |              ✓              |         ✓         |
+| Pointer、Touch、Keyboard、Gamepad、focus isolation |               |              ✓              |                   |
+| WCAG、平板、16:10 上限、reduced-motion             |               |              ✓              |                   |
+| 素材加载失败和 code-native fallback                |               |              ✓              |         ✓         |
+| nested base、manifest、无 Product Story closure    |               |                             |         ✓         |
 
 VN 能力按 [VN presentation design](vn-presentation-runtime.md)
 落地时，继续扩展同一个垂直路线，而不是为每项能力创建互不相干的测试游戏。
@@ -224,8 +229,7 @@ smoke route。前四项沿用 live baseline；最后一项属于 pending Surface
 
 ## 7. Target command surface
 
-实施后应形成可辨认的命令面；精确命名可在实现时根据 package scripts
-调整，但职责不能重新混合：
+当前命令面如下，普通 UI/build 与 dedicated determinism 职责保持分离：
 
 ```text
 deno task test:conformance:headless
@@ -233,6 +237,9 @@ deno task test:e2e:engine
 deno task test:e2e:examples
 deno task story build e2e
 deno task test:e2e:engine:prebuilt
+deno task test:determinism:deno
+deno task test:determinism:browsers
+deno task test:determinism
 ```
 
 聚合语义：
@@ -246,21 +253,13 @@ deno task test:e2e:engine:prebuilt
 
 浏览器 project 至少覆盖 Chromium 与 WebKit；pointer/touch/keyboard 和 responsive
 cases 使用明确可达的 project/tag，不保留配置中永远不会执行的分支。PF-DET 的专用
-determinism config 另覆盖 Chromium/Firefox/WebKit，但不把 Firefox 强塞进所有 UI
-cases。普通 `deno task check` 继续不隐式下载完整 browser matrix。DET3b 只建立
-isolated tripwire contract、browser-executable test driver 与 pure descriptor/install
-harness，并在真实 Deno isolated realm 验证；它不创建 Playwright config/task、安装
-browser 或修改 CI。DET4 才创建 dedicated determinism config/task 与
-production-check CI job，按 lock 中的 Playwright 版本显式安装并运行三种 browser 的
-tripwire 与 parity matrix。CI0 只提供 latest-stable、browser-free quality job 与其后
-的 locked Chromium prebuilt smoke；它不是 DET3b 的三浏览器 determinism gate。
-workflow 落地也不自动证明 branch-protection policy 已启用，二者的 promotion evidence
-必须分开记录。进入 DET4 后缺 browser 不得 silently skip。
-
-DET3b 的 partial promotion evidence 只包括真实 Deno isolated realm、pure
-descriptor/install harness，以及既有 browser trace 对同一 neutral driver 的可执行性证明；
-后者不是 browser tripwire。它不满足 §9.3 的 cross-runtime acceptance，也不能作为
-Chromium/Firefox/WebKit tripwire 或 aggregate PF-DET 已完成的证据。
+`playwright.determinism.config.ts` 另覆盖 Chromium/Firefox/WebKit，每个 project
+`repeatEach: 2`；它不把 Firefox 强塞进普通 UI suite。`deno task test:determinism`
+先运行 Deno matrix，再运行三 browser matrix。CI 的独立 latest-stable determinism job
+按 lock 中的 Playwright 版本显式安装三种 browser 后执行该 task；缺 browser 不得
+silently skip。普通 `deno task check` 与普通 UI suite 继续 browser-free/不含 Firefox，
+Player/main page 也不导入或安装 tripwire。workflow 文件能证明 job 已配置，不能自行
+证明远端 branch-protection 已把该 status 设为 required，后者必须在仓库设置中独立核验。
 
 ## 8. Fixture and artifact policy
 
@@ -324,13 +323,13 @@ Surface extension 只有在以下目标全部实现后才可标为 live：
 6. whole-canvas route 的 prebuilt refresh/recovery 从 stable target 创建新的
    runtime instance，不反序列化旧 Surface session。
 
-### 9.3 Pending cross-runtime determinism acceptance
+### 9.3 Live cross-runtime determinism acceptance
 
-PF-DET 只有在以下目标全部实现后才可标为 live：
+DET4 与 aggregate PF-DET promotion 已按以下合同进入 live：
 
 1. Deno、Chromium、Firefox、WebKit 使用同一个中性 test-only authoritative driver
    与 compact expected vector，不扩张 production automation bridge；
-2. transcript 至少覆盖 no-draw commit、RNG commit、rejection、fault 与 replay；
+2. transcript 依次覆盖 no-draw commit、rejection、RNG commit、fault 与 replay；
 3. driver 提供显式 deterministic fault，以及受控 seed/raw draw 与 `exclusiveMax`
    组成、必然进入 rejection-sampling region 的 vector；不得依赖普通 Engine Lab
    route 或低概率 draw 碰巧覆盖；
@@ -338,6 +337,17 @@ PF-DET 只有在以下目标全部实现后才可标为 live：
 5. 第一处差异报告 project、command identity/ordinal、sequence 与 JSON pointer；
 6. production Browser Agent 不获得 raw Snapshot、RNG 或 CommandLog；
 7. 本地 raw report、browser cache 与一次性 transcript JSON 不进入仓库。
+
+当前 transcript 在同一个 Session 顺序执行 no-draw commit、rejection、RNG commit、
+fault，累计四条 retained CommandLog entries（ordinals `1..4`），sequence 为
+`0 -> 1 -> 1 -> 2 -> 2`。逐 command trace 与一次完整 authoritative replay 必须来自
+同一 run；replay 固定 `executedEntries = 4`，并比较跨 entry digest/RNG/sequence
+continuity，不能拼接 fresh one-command Sessions 或 single-entry replay。RNG command
+所在 Session 使用 seed `1_236_431_772`、`exclusiveMax = 7`；rejection rollback 后，
+后续 RNG commit 重复同一受控 draw vector：首 raw `4_294_967_292` 等于 rejection
+limit，第二个 raw `1_015_932` 被接受，因此 rejection sampling 是确定覆盖而非概率
+事件。M0a 的 synthetic summary callback 先执行 engine-owned normalization，再与同一
+compact expected 比较。
 
 ## 10. Stop rules
 

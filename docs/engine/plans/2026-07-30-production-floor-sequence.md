@@ -1,7 +1,9 @@
 # Production-floor execution sequence
 
 状态：2026-07-30 接受执行，2026-08-01 根据 PF2 promotion、authoritative
-determinism/Save graph、CI 与 Desktop 审计修订。本文是当前唯一的跨计划排序入口；
+determinism/Save graph、CI 与 Desktop 审计修订；2026-08-02 DET4 的同一 Session
+implementation 与修正后的 promotion verification 均已完成，DET-B/aggregate PF-DET
+已关闭，线性 core 下一独立切片为 Save M0b。本文是当前唯一的跨计划排序入口；
 具体合同仍由各 design 文档拥有，主要任务由五个独立计划拥有：
 
 - [Desktop persistence durability](2026-07-30-desktop-persistence-durability.md)
@@ -608,8 +610,40 @@ composition 或 Presentation bootstrap，普通 Player/main page 与 production 
 lifecycle 不受影响。本批未改变 canonical/digest/Snapshot/Save/CommandLog/replay 或公开
 runtime semantics。真实 Deno isolated realm 与 pure browser descriptor/install harness 已
 覆盖 DET3b，但尚未建立真实 browser tripwire、dedicated Playwright config/task、三浏览器
-安装、CI job 或四-runtime parity；完整 DET-B/PF-DET 仍需 DET4，当前线性 core 下一独立
-切片是 `DET4`。
+安装、CI job 或四-runtime parity；紧随其后的 DET4 implementation 与 promotion
+verification 已补齐并关闭这些缺口。
+
+**2026-08-02 DET4 / DET-B / PF-DET promotion：** 独立 test-only matrix/comparator 在
+不扩张 DET0/DET3b 窄 tripwire closure 的前提下，组合一条四-command authoritative
+transcript/replay、DET2e ordering vectors 与 M0a Save-metadata pure vectors。Base 的窄
+`@sillymaker/base/testkit/determinism-vectors` subpath 复用原 owner 的唯一 expected；
+synthetic `summarizeSave` callback 证明 State-to-summary normalization，没有复制或重生成
+ordering/Save oracle。同一 Session 按 no-draw、rejection、RNG、fault 顺序执行，累计
+四条 retained CommandLog entries（ordinals `1..4`），sequence 为
+`0 -> 1 -> 1 -> 2 -> 2`；逐 command
+trace 与一次 `executedEntries = 4` 的完整 authoritative replay 来自同一 run，并比较
+跨 entry digest/RNG/sequence continuity。Session 的 RNG seed
+`1_236_431_772` / max `7` 令 rejection 与后续 RNG commit 使用同一受控 vector：首 raw
+`4_294_967_292` 等于 rejection limit，次 raw `1_015_932` 被接受；前者 rollback，后者
+commit。first-divergence evidence 固定 project、repeat、vector、command
+ordinal/identity、sequence、JSON pointer 与 expected/actual。self-review 的 P2 red 证明
+entry-scoped replay mismatch 丢失 command context；green 后 comparator 通过 `logOrdinal`
+回映 transcript command，global-scoped mismatch 的 command context 保持 `null`。
+
+Deno、Chromium、Firefox、WebKit 各执行两个 repeat。dedicated tasks、Playwright config
+与 latest-stable CI job 已落地；job 在 `deno ci` 后安装 lock 对应的 Chromium/Firefox/
+WebKit，再运行 aggregate matrix，普通 `deno task check` 与 UI suite 保持 browser-free/
+不含 Firefox。此前 fresh one-command candidate 的测试结果不构成本合同的 promotion
+evidence；修正后的 latest-stable Deno `2.9.4` evidence 为 focused `3 files / 21 tests`、
+Base `76/962`、Engine Lab headless `22/120`、full unit `225/2825`、dedicated Deno matrix
+`3/3`、三 browser 各两个 repeat 合计 `6/6`、普通 Engine/UI browser `101/101`，以及
+typecheck、`check:determinism`、最终 `deno task check` 全绿。最终 check 的 format phase
+检查 `883 files`，并覆盖 lint/stylelint、typecheck、static determinism、unit、assets、
+Story checks 与 build。workflow 已配置 determinism job，但不能自证远端 branch-protection
+已把该 status 设为 required。本批不改变 canonical/digest/Snapshot/Save/CommandLog/replay
+或 production Browser Agent surface。DET4/DET-B/aggregate PF-DET 至此关闭，当前线性 core
+下一独立切片为 Save `M0b`，随后是 `M1`；`M2` 仍必须等待 M1 与 DET-B 在同一 merged HEAD
+通过 join gate。
 
 ### PF3 — Save envelope and migration registry
 
