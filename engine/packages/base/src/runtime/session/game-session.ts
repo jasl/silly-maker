@@ -20,6 +20,11 @@ import type {
 } from "../../contracts/values.ts";
 import type { RunIntegrityReasonV1 } from "../../contracts/snapshot.ts";
 import { runIntegrityV1Schema } from "../../contracts/snapshot.ts";
+import {
+  admitCanonicalCommandInternalV1,
+  type CanonicalCommandAdmissionInternalV1,
+  withCanonicalCommandHandoffInternalV1,
+} from "../../internal/canonical-command-admission.ts";
 import type { SnapshotWorkInstrumentationV1 } from "../../internal/snapshot-work-instrumentation.ts";
 import { recordSnapshotWorkV1 } from "../../internal/snapshot-work-instrumentation.ts";
 import {
@@ -564,14 +569,29 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
 
   const debugControl: GameSessionDebugControlV1<TTypes> = Object.freeze({
     execute(command: DeepReadonly<TTypes["debugCommand"]>, isCapabilityEnabled: () => boolean) {
-      return enqueue(async () => {
+      const preflight = (): GameSessionDebugCommandResultV1<TTypes> | undefined => {
         if (!hasCapabilityV1(isCapabilityEnabled)) return capabilityDisabledV1;
         if (input.available === false) return sessionUnavailableV1;
         if (stableStatus === "fault_paused") return faultPausedV1;
         if (stableStatus === "hmr_invalidated") return hmrInvalidatedV1;
         if (input.debug === undefined) return sessionUnavailableV1;
+        return undefined;
+      };
+      const initialFence = preflight();
+      if (initialFence !== undefined) return Promise.resolve(initialFence);
 
-        const debug = input.debug;
+      let admission: CanonicalCommandAdmissionInternalV1<TTypes["debugCommand"]>;
+      try {
+        admission = admitCanonicalCommandInternalV1(command, instrumentation);
+      } catch (error) {
+        return Promise.reject(error);
+      }
+
+      return enqueue(async () => {
+        const queuedFence = preflight();
+        if (queuedFence !== undefined) return queuedFence;
+
+        const debug = input.debug as GameSessionDebugInputV1<TTypes>;
         const before = snapshot as DeepReadonly<TTypes["snapshot"]>;
         const normalizeFault = (error: unknown): AttemptFor<TTypes> => {
           const normalized = debug.normalizeUnexpectedFault(error, before);
@@ -586,7 +606,11 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
 
         let candidate: AttemptFor<TTypes>;
         try {
-          const validation = debug.validate(before, command, input.executionContext);
+          const validation = withCanonicalCommandHandoffInternalV1(
+            admission,
+            "simulation_debug_validate",
+            () => debug.validate(before, admission.value, input.executionContext),
+          );
           if (isThenable(validation)) {
             throw new TypeError("DebugCommand validation returned thenable");
           }
@@ -602,7 +626,11 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
           if (validation.kind !== "allowed") {
             throw new TypeError("DebugCommand validation returned an invalid result");
           }
-          candidate = await debug.executeAttempt(before, command, input.executionContext);
+          candidate = await withCanonicalCommandHandoffInternalV1(
+            admission,
+            "simulation_debug_execute",
+            () => debug.executeAttempt(before, admission.value, input.executionContext),
+          );
           if (candidate.result.kind === "rejected") {
             throw new TypeError("An admitted DebugCommand cannot be rejected");
           }
@@ -618,7 +646,7 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
               kind: "mark_modified",
               reason: {
                 kind: "debug_command",
-                commandKind: debugCommandKindV1(command),
+                commandKind: debugCommandKindV1(admission.value),
                 sequence: candidate.result.snapshot.commandSequence,
               },
             }
@@ -640,12 +668,17 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
           );
         }
 
-        commandLog.append(
-          Object.freeze({
-            source: "debug" as const,
-            command,
-          }),
-          finalizedAttempt,
+        withCanonicalCommandHandoffInternalV1(
+          admission,
+          "command_log_append",
+          () =>
+            commandLog.append(
+              Object.freeze({
+                source: "debug" as const,
+                command: admission.value,
+              }),
+              finalizedAttempt,
+            ),
         );
         try {
           input.onAttempt?.(finalizedAttempt);
@@ -755,6 +788,12 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
       } catch {
         return Promise.resolve(Object.freeze({ kind: "not_executed", code: "validation_failed" }));
       }
+      let admission: CanonicalCommandAdmissionInternalV1<TTypes["command"]>;
+      try {
+        admission = admitCanonicalCommandInternalV1(parsed, instrumentation);
+      } catch (error) {
+        return Promise.reject(error);
+      }
       return enqueue(async () => {
         if (stableStatus === "fault_paused" || stableStatus === "hmr_invalidated") {
           return Object.freeze({
@@ -765,10 +804,15 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
         const before = snapshot as DeepReadonly<TTypes["snapshot"]>;
         let candidate: AttemptFor<TTypes>;
         try {
-          candidate = await input.executeAttempt(
-            before,
-            parsed as DeepReadonly<TTypes["command"]>,
-            input.executionContext,
+          candidate = await withCanonicalCommandHandoffInternalV1(
+            admission,
+            "simulation_game_execute",
+            () =>
+              input.executeAttempt(
+                before,
+                admission.value,
+                input.executionContext,
+              ),
           );
         } catch (error) {
           candidate = input.normalizeUnexpectedDispatchFault(error, before);
@@ -791,12 +835,17 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
             instrumentation,
           );
         }
-        commandLog.append(
-          Object.freeze({
-            source: "game" as const,
-            command: parsed as DeepReadonly<TTypes["command"]>,
-          }),
-          finalizedAttempt,
+        withCanonicalCommandHandoffInternalV1(
+          admission,
+          "command_log_append",
+          () =>
+            commandLog.append(
+              Object.freeze({
+                source: "game" as const,
+                command: admission.value,
+              }),
+              finalizedAttempt,
+            ),
         );
         try {
           input.onAttempt?.(finalizedAttempt);

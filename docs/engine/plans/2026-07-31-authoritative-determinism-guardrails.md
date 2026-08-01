@@ -1,7 +1,9 @@
 # Authoritative determinism guardrails execution plan
 
 状态：2026-07-31 接受执行；同日按 Save-metadata ownership、DET-A/DET-B join 与
-latest-stable Deno policy 重切片。目标合同见
+latest-stable Deno policy 重切片；2026-08-01 明确 DET2a command admission 的
+公开失败 surface、command identity representability、Debug fence precedence 与
+原子性。目标合同见
 [Authoritative simulation determinism boundary](../design/deterministic-simulation-boundary.md)；
 在 [Production-floor sequence](2026-07-30-production-floor-sequence.md) 中属于
 PF-DET，排在 PF2 Workspace Overlay pilot 之后，并与 PF3 按显式 DAG 汇合。本文只
@@ -150,6 +152,7 @@ extension 只捕获并同步调用现有 `context.createInitialSnapshot`，不�
 - bootstrap admission canonical traversal；
 - bootstrap handoff freeze traversal；
 - command admission canonical traversal；
+- command handoff freeze traversal；
 - evidence admission canonical traversal；
 - replay comparison traversal；
 - total physical canonical traversal。
@@ -362,14 +365,67 @@ codec，没有浏览器交互变化，因此未机械追加独立 E2E lane。
 
 ## 6. DET2a — Canonical command admission
 
+**2026-08-01 contract decision：** Story schema/domain validation 保留既有 result
+classification；Strict Canonical Data violation 是 engine-owned contract/integrity
+failure。同步 Simulation/CommandLog entry throw、Promise entry reject 从
+`@sillymaker/base` root 公开的 `CanonicalJsonError`，root 同时公开
+`CanonicalJsonErrorCodeV1`；稳定兼容字段是 `code` 与 `path`，其中 `path` 使用 JSON
+Pointer、根路径为 `""`，message 不作兼容合同。
+Command-only representability failure 同样使用该 error surface：own symbol key
+与 array extra own string property 都使用 `value.unrepresented_property`，custom
+array prototype 复用 `value.custom_prototype`。symbol-key `path` 指向 container，
+array extra property 指向该 JSON-Pointer-escaped key，custom prototype 指向 array
+本身；新 code 加入 root-exported `CanonicalJsonErrorCodeV1` stable union。
+`GameSession.dispatch` 的 `commandSchema.parse`
+failure 继续 resolve 为既有 `not_executed/validation_failed`；Story-facing
+DebugTools 的 schema failure 与 Debug domain validation 继续使用既有 result，后者
+仍携带 Story-owned non-empty errors。schema 成功后的 canonical violation 一律按
+上述 throw/reject 合同失败；canonical admission 不得伪造/清空 Story errors，也不得
+进入 unexpected-fault normalizer。low-level Debug control 本身没有 Story schema，
+只执行 unconditional canonical shape gate。本决定不新增 command result branch 或
+universal command envelope。
+
 ### Changes
 
-- game/debug command 先走 Story schema normalization，再走 package-internal
-  Strict Canonical Data gate；
+- standard Core 与其他 schema-bearing game/debug ingress 先走 Story schema
+  normalization，再走 package-internal Strict Canonical Data gate；该 gate 的同一次
+  command-admission canonical traversal 在访问每个 container 时先做 command-only
+  representability shape check。没有 Story schema 的 low-level Debug control 直接
+  执行同一 unconditional admission；
+- representability shape check 拒绝 own symbol keys、array extra own string
+  properties 与 custom array prototype，并通过 descriptors 拒绝且不调用 represented
+  accessor。它使 executor 实际看到、
+  recursive freeze 实际封口、CommandLog/replay 实际记录的同一 command
+  identity 没有 canonical bytes 之外的 hidden member；不 clone/strip command；
+- command-admission traversal 使用稳定 depth-first ordering：每个已访问 container
+  依次检查 prototype、symbol keys 与 code-point 排序后的 array extra properties，再按
+  array index 升序或 plain-object key code-point order 递归。这三类 container-wide
+  shape failure 都先于该 container 的 child traversal；represented accessor 只在
+  traversal 到达对应 index/key 时以 `value.getter` 拒绝且不调用 getter，因此 earlier
+  child failure 可以先于 later accessor。不同 container 仍由既有 depth-first order
+  决定第一个 error；
 - executor 与 CommandLog 使用同一个 normalized frozen value；
-- invalid command 在 executor、RNG 与 Session queue mutation 前返回现有稳定
-  validation classification；
-- authoritative replay 在把 recorded command 交给 driver 前执行同一 admission；
+- game schema parse failure 在 executor、RNG 与 Session queue mutation 前返回既有
+  `not_executed/validation_failed`；schema 成功后的 game/debug command 以及 public
+  Simulation/CommandLog/authoritative replay 的 canonical violation 按上述同步
+  throw / Promise reject 合同失败；
+- Story-facing DebugTools 的 capability denial 先于 Story schema；schema 成功返回后，
+  下层 Session control 的 capability/session/HMR denial/stale preflight 先于
+  command-admission canonical traversal 与 queue。下层 fence 胜出时不枚举/读取
+  normalized command、不调用该 traversal 且不进入 queue，但不承诺上层 schema
+  尚未执行；command admitted 后，queue front 仍重新检查 capability 与 Session/HMR
+  状态；
+- canonical admission failure 不调用 unexpected-fault normalizer，且在 queue、
+  executor/authoritative replay driver、RNG、candidate Snapshot traversal/post-digest /
+  freeze、CommandLog continuity/append 前原子失败；
+- authoritative replay 先保留 blocking identity mismatch precedence；identity 匹配后
+  先同步、各一次地 capture 完整 recorded-command vector 的 source/command identity，
+  不枚举 command、不执行 canonical traversal 或 freeze；再按 entry 顺序 prepare
+  captured commands，每个 prepare 执行一次带上述 shape check 的 command-admission
+  canonical traversal。全部成功后才统一 freeze，且早于 Snapshot validation/digest
+  与 driver construction；driver 只接收 captured identity，不重新读取 entry slot。
+  第 `k` 个 entry 失败时 command canonical traversal 为 `k`，handoff freeze 与 driver
+  construction 为 `0/0`；best-effort inspection 保持 ungated；
 - 所有 public Session/Simulation/CommandLog 入口无条件执行 canonical shape
   gate；标准 Core composition 另外执行 Story command schema
   normalization。test/bench injection 只能观察/counter，不得替换或绕过
@@ -379,24 +435,101 @@ codec，没有浏览器交互变化，因此未机械追加独立 E2E lane。
 
 ### Required tests
 
-- fractional、non-finite、unsafe integer、`-0`、getter、custom prototype、
-  sparse/cycle command；
+- fractional、non-finite、unsafe integer、`-0`、getter、custom object/array
+  prototype、sparse/cycle command；
+- root/nested own symbol key、array extra own string property 与它们的稳定
+  `value.unrepresented_property` / `value.custom_prototype` `code/path`；array
+  index getter 与 extra-property getter 均不得被调用；
+- multi-failure command 按 command-admission traversal 的稳定 ordering 选择第一个
+  error：同一 container 的 prototype/symbol/array-extra shape failure 先于 children，
+  但 earlier child failure 先于 later represented accessor；representability failure
+  时 command canonical traversal/freeze 为 `1/0`；
+- authoritative replay 的 later-entry representability failure 也保持全向量 command
+  canonical traversal 等于走到失败 entry 的数量，handoff freeze/driver construction
+  为 `0/0`；
+- authoritative replay 在 prepare 前各一次 capture 全向量 source/command identity；
+  prepare 后修改 entry slot 不改变 driver submission，且 capture 本身不新增 command
+  canonical traversal；
+- public `canonicalJsonBytes` 对同一 symbol-keyed object、extra-property/custom-prototype
+  array 的 exact bytes 与既有行为不变；
 - schema 把 authoring shorthand 规范化为合法 integer command；
 - schema 产生非法 output；
-- game/debug/live replay 三条路径；
+- game dispatch、low-level Debug 与 authoritative replay 三条路径；
+- public `CanonicalJsonError` / `CanonicalJsonErrorCodeV1` root export 与稳定
+  `code/path`；同步 CommandLog/Simulation throw，异步 `GameSession.dispatch`、
+  low-level Debug 与 authoritative replay reject，且不进入 Story fault normalizer；
+- Story-facing DebugTools capability denial 的 schema=`0`；下层 capability disabled、
+  session unavailable、fault paused 与 HMR invalidated precedence。带 getter 的
+  malformed normalized command 在这些下层 fence 胜出时 getter/admission/queue 调用
+  均为 `0`，但上层 schema 可已执行；admitted command 在 queue front 仍有 live
+  recheck；
 - invalid command 的 Snapshot identity/digest、RNG、sequence、CommandLog
   全不变；
 - invalid command 的 candidate Snapshot traversal/post-digest/freeze 为
   `0/0/0`；
 - valid command 的 dispatch result、log bytes、replay 与 PF1 Snapshot
-  digest/freeze count 等价；command admission 自身的 canonical traversal 按 DET0-core
-  purpose tag 单独锁定。
+  digest/freeze purpose count 等价；command admission 的 canonical traversal 与
+  normalized handoff freeze traversal 按 DET0-core purpose tag 单独锁定。
 
 ### Acceptance
 
 - permissive schema 不再允许 invalid canonical command 执行或得到 replay match；
+- Story schema/domain validation result 与 non-empty Debug error invariant 保持不变；
+- canonical violation 的 error fields、precedence、零 normalizer/queue/executor/RNG /
+  Snapshot/CommandLog mutation 由确定性测试锁定；
 - 不新增 public universal command envelope；
-- 不改变 canonical JSON、digest algorithm 或合法 Save/replay bytes。
+- public `canonicalJsonBytes` 保持已有 symbol/array-member/prototype 行为；不改变
+  canonical JSON、digest algorithm 或合法 Save/replay bytes。
+
+**2026-08-01 DET2a promotion：** command schema 的既有 result classification 保持
+不变；schema 成功后的所有 public Session/Simulation/CommandLog command ingress 与
+authoritative replay 现在都执行 engine-owned canonical admission。root export 新增
+`CanonicalJsonError` 与 closed `CanonicalJsonErrorCodeV1`；同步入口 throw、Promise
+入口 reject，稳定字段是 `code/path`（root=`""`），message 不作合同。command-only
+container checks 以 prototype → symbol → code-point-sorted array extra property 的顺序
+拒绝 canonical bytes 无法表示的 own members；represented accessor 仍在普通
+index/key traversal 位置拒绝。public `canonicalJsonBytes` 的 permissive legacy projection
+没有改变。TDD red 实际证明了 array extra/symbol/prototype bypass、CommandLog 重复 getter
+读取、Replay post-preflight command replacement 与 target receipt 泛化复用；最小 green
+只增加 package-internal exact-target one-shot handoff、same-identity recursive freeze、
+source/command capture 与 admission-only representability mode，没有新增 universal
+command envelope 或第二份 authoritative command。
+
+Failure precedence 已由确定性测试固定为：Story-facing DebugTools capability → Story
+schema；lower Session capability/session/HMR fence → admission → queue-front recheck；
+authoritative replay blocking identity → 全向量 source/command 各一次 capture → 逐 entry
+prepare → 全成功后统一 freeze → Snapshot/driver。best-effort inspection 仍 ungated。invalid
+live command 的 queue/executor/normalizer/RNG/candidate Snapshot/continuity/log mutation 均为
+`0`，原 Snapshot identity/digest、sequence、status 与 replay base 不变；Replay 第 `k`
+条失败时 command canonical traversal=`k`、handoff freeze/driver=`0/0`，此前 command
+保持 unfrozen。driver 只使用 captured source 与 admitted command identity，异步期间替换
+slot 或追加 entry 都不会扩张本次 replay vector。operation receipt 只可由 exact target、
+same identity 消费一次；独立或不同 identity 的嵌套 ingress 必须重新 admission。
+
+确定性 before/after 计数为：committed command 的 Snapshot digest/freeze 仍为 `1/1`，
+另加 command admission/freeze `0/0 -> 1/1`，总 canonical/freeze `1/1 -> 2/2`；
+rejected/faulted command 的 Snapshot `0/0` 不变，总计 `0/0 -> 1/1`。三 entry replay
+为 canonical `60 -> 63`、command freeze `0 -> 3`，Snapshot digest `26` 与 replay
+comparison `34` 不变；256-command recording 为 canonical/freeze `170/170 ->
+426/426`、continuity `256` 不变；retained-200 replay 为 canonical `3409 -> 3609`、
+deep-freeze `0 -> 200`、digest `1405` 不变。persistence first/rotation 为
+canonical/deep-freeze `4/1 -> 5/2`、`7/1 -> 8/2`，Save serialization 与 Strict JSON
+counts 不变。合法 RNG commit 的 dispatch/Snapshot/CommandLog 仍分别为
+`351/202/900` bytes，SHA-256 仍为
+`4af2e55854e0b159e52e15d9d0746fb9f386326672802c04e49a3a6a4b307632`、
+`4dea43d8d13fc2c044a8c0e05dd2ba98ffb0f75506ca0e3d3b85cf02095e313a`、
+`d9d5f751b390c1b3ef5ec45b3ed0d1ffd2b7a54d4d03e9ced17b4d6a802100c5`；S0
+mixed/rollback/bootstrap/Save corpus 与 public canonical characterization 均保持
+byte-for-byte 相等。
+
+Promotion verification 使用 latest-stable Deno `2.9.4`：focused `6/137`、Base
+`72/803`、repository unit `217/2131` 全绿；`deno task check` 通过 format/lint/style/
+typecheck、同一完整 unit suite、asset/Story checks 与 Engine Lab production build。
+改动局限于 Host-neutral Base contracts/runtime/testkit counts 与 live docs，没有浏览器
+交互变化，因此未机械追加 Playwright E2E。DET2b finalized evidence、DET2c Strict JSON
+token、DET2d bootstrap、DET2e late boundary，以及 DET3/DET4/DET-A 仍 deferred；
+decimal package、RNG reseed/named streams、Worker/Mod/StateStore/IntegrityPolicy 仍不在本
+切片。下一独立切片是 DET2b，并继续服从其 public fault-contract stop condition。
 
 ## 7. DET2b — Canonical finalized evidence admission
 

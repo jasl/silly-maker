@@ -2,6 +2,7 @@
 export {
   canonicalPresentationJsonBytesV1,
   canonicalJsonBytes,
+  CanonicalJsonError,
   combineContentMaturityFlagsV1,
   commitAttemptV1,
   createDebugBundleEnvelopeSchemaV1,
@@ -141,7 +142,7 @@ export {
   readVersionStampV1,
   versionStampGlobalKeyV1,
 } from "./contracts/index.ts";
-export type { VersionStampV1 } from "./contracts/index.ts";
+export type { CanonicalJsonErrorCodeV1, VersionStampV1 } from "./contracts/index.ts";
 export {
   collectGamePackageDiagnosticsV1,
   createGameAuthoringKitV1,

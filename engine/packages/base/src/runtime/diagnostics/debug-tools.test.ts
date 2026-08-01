@@ -59,7 +59,9 @@ const debugCommandSchemaV1: RuntimeSchemaV1<DebugCommandV1> = Object.freeze({
   },
 });
 
-function createFixtureV1() {
+function createFixtureV1(
+  debugCommandSchema: RuntimeSchemaV1<DebugCommandV1> = debugCommandSchemaV1,
+) {
   const capabilities = createCapabilitySourceV1();
   const schemaFailure = Object.freeze({ kind: "validation_failed" as const });
   const calls: string[] = [];
@@ -115,7 +117,7 @@ function createFixtureV1() {
     DiagnosticQueryResultV1
   >({
     capabilities: capabilities.source,
-    debugCommandSchema: debugCommandSchemaV1,
+    debugCommandSchema,
     debugCommandSchemaFailure: () => schemaFailure,
     listFixtures,
     executeDebugCommand,
@@ -145,11 +147,26 @@ function createFixtureV1() {
 
 describe("capability-gated DebugTools", () => {
   it("returns one stable denial before schema, tooling, bytes, query, or FIFO work", async () => {
-    const fixture = createFixtureV1();
+    let schemaCalls = 0;
+    let getterCalls = 0;
+    const fixture = createFixtureV1(Object.freeze({
+      parse(value: unknown): DebugCommandV1 {
+        schemaCalls += 1;
+        return debugCommandSchemaV1.parse(value);
+      },
+    }));
+    const hostileCommand = { kind: "debug.synthetic.add" } as Record<string, unknown>;
+    Object.defineProperty(hostileCommand, "amount", {
+      enumerable: true,
+      get() {
+        getterCalls += 1;
+        return 0.5;
+      },
+    });
     const bytes = new Uint8Array([1, 2, 3]);
     const results = await Promise.all([
       fixture.port.listFixtures(),
-      fixture.port.executeDebugCommand({ kind: "debug.synthetic.add", amount: 1 }),
+      fixture.port.executeDebugCommand(hostileCommand as DebugCommandV1),
       fixture.port.anchorFixture("fixture.synthetic"),
       fixture.port.inspectDebugBundle(bytes),
       fixture.port.anchorDebugBundle(bytes),
@@ -159,6 +176,8 @@ describe("capability-gated DebugTools", () => {
     ]);
 
     expect(fixture.calls).toEqual([]);
+    expect(schemaCalls).toBe(0);
+    expect(getterCalls).toBe(0);
     expect(results.every((result) => result === results[0])).toBe(true);
     expect(results[0]).toEqual({ kind: "capability_disabled" });
     expect(Object.isFrozen(results[0])).toBe(true);

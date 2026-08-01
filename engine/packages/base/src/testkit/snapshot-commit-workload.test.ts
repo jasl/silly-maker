@@ -98,9 +98,9 @@ describe("Snapshot commit workload", () => {
     await expect(prepared.runOnce()).resolves.toMatchObject({
       outcome: "committed",
       counts: {
-        canonicalTraversals: 1,
+        canonicalTraversals: 2,
         canonicalDigests: 1,
-        deepFreezeTraversals: 1,
+        deepFreezeTraversals: 2,
         commandLogContinuityVerifications: 1,
       },
     });
@@ -132,16 +132,16 @@ describe("Snapshot commit workload", () => {
       expect(counts).toEqual({
         canonicalTraversals:
           commandClass === "single_field_committed" || commandClass === "multi_slice_committed"
-            ? 1
-            : 0,
+            ? 2
+            : 1,
         canonicalDigests:
           commandClass === "single_field_committed" || commandClass === "multi_slice_committed"
             ? 1
             : 0,
         deepFreezeTraversals:
           commandClass === "single_field_committed" || commandClass === "multi_slice_committed"
-            ? 1
-            : 0,
+            ? 2
+            : 1,
         commandLogContinuityVerifications: 1,
         saveCanonicalSerializations: 0,
         strictJsonParses: 0,
@@ -151,7 +151,7 @@ describe("Snapshot commit workload", () => {
   );
 
   it.each(commandClassesV1)(
-    "labels the current %s physical work without inventing admission traversals",
+    "labels the %s Snapshot and command-admission work separately",
     async (commandClass) => {
       const counter = createPurposeTaggedSnapshotWorkCounterV1();
       const workload = createSnapshotCommitWorkloadV1({
@@ -168,10 +168,11 @@ describe("Snapshot commit workload", () => {
         snapshotFreezeTraversals: committed ? 1 : 0,
         bootstrapAdmissionCanonicalTraversals: 0,
         bootstrapHandoffFreezeTraversals: 0,
-        commandAdmissionCanonicalTraversals: 0,
+        commandAdmissionCanonicalTraversals: 1,
+        commandHandoffFreezeTraversals: 1,
         evidenceAdmissionCanonicalTraversals: 0,
         replayComparisonTraversals: 0,
-        totalPhysicalCanonicalTraversals: committed ? 1 : 0,
+        totalPhysicalCanonicalTraversals: (committed ? 1 : 0) + 1,
       });
     },
   );

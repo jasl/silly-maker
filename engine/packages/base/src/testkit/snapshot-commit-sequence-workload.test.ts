@@ -58,9 +58,9 @@ describe("Snapshot sequence and replay workloads", () => {
       ],
     });
     expect(counter.snapshot()).toEqual({
-      canonicalTraversals: 1,
+      canonicalTraversals: 2,
       canonicalDigests: 1,
-      deepFreezeTraversals: 1,
+      deepFreezeTraversals: 2,
       commandLogContinuityVerifications: 1,
       saveCanonicalSerializations: 0,
       strictJsonParses: 0,
@@ -92,9 +92,9 @@ describe("Snapshot sequence and replay workloads", () => {
         "faulted",
       ],
       counts: {
-        canonicalTraversals: 170,
+        canonicalTraversals: 426,
         canonicalDigests: 170,
-        deepFreezeTraversals: 170,
+        deepFreezeTraversals: 426,
         commandLogContinuityVerifications: 256,
       },
       retainedCommandCount: 200,
@@ -151,9 +151,9 @@ describe("Snapshot sequence and replay workloads", () => {
       commandLogContinuityVerifications: 0,
     });
     expect(prepared.recordingCounts).toEqual({
-      canonicalTraversals: 170,
+      canonicalTraversals: 426,
       canonicalDigests: 170,
-      deepFreezeTraversals: 170,
+      deepFreezeTraversals: 426,
       commandLogContinuityVerifications: 256,
     });
     await expect(prepared.runOnce()).resolves.toEqual({
@@ -166,9 +166,9 @@ describe("Snapshot sequence and replay workloads", () => {
         mismatches: [],
       },
       counts: {
-        canonicalTraversals: 3409,
+        canonicalTraversals: 3609,
         canonicalDigests: 1405,
-        deepFreezeTraversals: 0,
+        deepFreezeTraversals: 200,
         commandLogContinuityVerifications: 0,
       },
     });

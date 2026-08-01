@@ -7,6 +7,12 @@ import type {
 } from "../../contracts/execution.ts";
 import type { BuildProvenanceV1 } from "../../contracts/provenance.ts";
 import type { RunIntegrityV1 } from "../../contracts/snapshot.ts";
+import {
+  commitCanonicalCommandAdmissionInternalV1,
+  type CanonicalCommandAdmissionInternalV1,
+  prepareCanonicalCommandAdmissionInternalV1,
+  withCanonicalCommandHandoffInternalV1,
+} from "../../internal/canonical-command-admission.ts";
 import type { SnapshotWorkInstrumentationV1 } from "../../internal/snapshot-work-instrumentation.ts";
 import type {
   DeepReadonly,
@@ -36,6 +42,34 @@ export interface ReplayLoggedCommandV1<TSource extends ReplayCommandSourceV1, TC
 }
 
 export type ReplayLoggedCommandShapeV1 = ReplayLoggedCommandV1<ReplayCommandSourceV1, unknown>;
+
+interface PreparedAuthoritativeCommandInternalV1 {
+  readonly source: ReplayCommandSourceV1;
+  readonly admission: CanonicalCommandAdmissionInternalV1<unknown>;
+}
+
+function prepareAuthoritativeCommandVectorV1(
+  commandLog: readonly {
+    readonly source: ReplayCommandSourceV1;
+    readonly command: unknown;
+  }[],
+  instrumentation?: SnapshotWorkInstrumentationV1,
+): readonly PreparedAuthoritativeCommandInternalV1[] {
+  const captured = commandLog.map((entry) => ({
+    source: entry.source,
+    command: entry.command,
+  }));
+  const prepared = captured.map(({ source, command }) => ({
+    source,
+    admission: prepareCanonicalCommandAdmissionInternalV1(command, instrumentation),
+  }));
+  for (const { admission } of prepared) {
+    commitCanonicalCommandAdmissionInternalV1(admission, instrumentation);
+  }
+  return Object.freeze(
+    prepared.map(({ source, admission }) => Object.freeze({ source, admission })),
+  );
+}
 
 export type ReplayRecordedOutcomeV1<TFact, TRejection, TFault> =
   | { readonly kind: "committed"; readonly facts: readonly TFact[] }
@@ -321,6 +355,7 @@ async function compareReplayV1<
   >,
   mode: "authoritative" | "best_effort",
   instrumentation?: SnapshotWorkInstrumentationV1,
+  preparedCommands?: readonly PreparedAuthoritativeCommandInternalV1[],
 ): Promise<ReplayComparisonV1> {
   const mismatches = identityMismatchesV1(input.recordedIdentity, input.runtimeIdentity);
   const identityMatch = mismatches.length === 0;
@@ -328,6 +363,19 @@ async function compareReplayV1<
     exactVisualIdentityV1(input.recordedIdentity, input.runtimeIdentity);
   if (mode === "authoritative" && !identityMatch) {
     return comparisonV1(false, false, false, 0, mismatches);
+  }
+  const commandLog = mode === "authoritative"
+    ? Object.freeze([...input.commandLog])
+    : input.commandLog;
+  const authoritativeCommands = mode === "authoritative"
+    ? preparedCommands ??
+      prepareAuthoritativeCommandVectorV1(commandLog, instrumentation)
+    : undefined;
+  if (
+    authoritativeCommands !== undefined &&
+    authoritativeCommands.length !== commandLog.length
+  ) {
+    throw new TypeError("Authoritative replay command admission vector length mismatch");
   }
 
   if (stateDigestV1(input.replayBase, instrumentation) !== input.replayBaseStateDigest) {
@@ -347,7 +395,9 @@ async function compareReplayV1<
   }
 
   let executedEntries = 0;
-  for (const entry of input.commandLog) {
+  for (let entryIndex = 0; entryIndex < commandLog.length; entryIndex += 1) {
+    const entry = commandLog[entryIndex];
+    if (entry === undefined) throw new TypeError("Replay command entry is missing");
     const before = driver.getCurrentSnapshot();
     if (stateDigestV1(before, instrumentation) !== entry.preStateDigest) {
       addMismatchV1(mismatches, {
@@ -356,11 +406,20 @@ async function compareReplayV1<
         field: "pre_state_digest",
       });
     }
+    const preparedCommand = authoritativeCommands?.[entryIndex];
     const command = Object.freeze({
-      source: entry.source,
-      command: entry.command,
+      source: preparedCommand?.source ?? entry.source,
+      command: preparedCommand?.admission.value ?? entry.command,
     }) as DeepReadonly<TLoggedCommand>;
-    const attempt = await driver.submit(command);
+    const admission = preparedCommand?.admission;
+    const attempt = await (admission === undefined
+      ? driver.submit(command)
+      : withCanonicalCommandHandoffInternalV1(
+        admission,
+        command.source === "debug" ? "simulation_debug_execute" : "simulation_game_execute",
+        () =>
+          driver.submit(command),
+      ));
     executedEntries += 1;
     const after = attempt.result.snapshot as DeepReadonly<TSnapshot>;
 
@@ -529,6 +588,10 @@ export async function replayAuthoritativelyFromAttemptsInternalV1<
   >,
   instrumentation?: SnapshotWorkInstrumentationV1,
 ): Promise<ReplayComparisonV1> {
+  const commandAdmissions = prepareAuthoritativeCommandVectorV1(
+    input.commandLog,
+    instrumentation,
+  );
   input.validateSnapshot?.(input.replayBase);
   input.validateSnapshot?.(input.currentSnapshot);
   const replayInput: ReplayInputV1<
@@ -580,7 +643,12 @@ export async function replayAuthoritativelyFromAttemptsInternalV1<
       });
     },
   };
-  return await compareReplayV1(replayInput, "authoritative", instrumentation);
+  return await compareReplayV1(
+    replayInput,
+    "authoritative",
+    instrumentation,
+    commandAdmissions,
+  );
 }
 
 export function replayAuthoritativelyV1<

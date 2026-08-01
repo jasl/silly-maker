@@ -16,6 +16,7 @@ export type SnapshotWorkPurposeV1 =
   | "bootstrap_admission"
   | "bootstrap_handoff_freeze"
   | "command_admission"
+  | "command_handoff_freeze"
   | "evidence_admission"
   | "replay_comparison";
 
@@ -29,6 +30,7 @@ export interface PurposeTaggedSnapshotWorkCountsV1 {
   readonly bootstrapAdmissionCanonicalTraversals: number;
   readonly bootstrapHandoffFreezeTraversals: number;
   readonly commandAdmissionCanonicalTraversals: number;
+  readonly commandHandoffFreezeTraversals: number;
   readonly evidenceAdmissionCanonicalTraversals: number;
   readonly replayComparisonTraversals: number;
   readonly totalPhysicalCanonicalTraversals: number;
@@ -94,6 +96,7 @@ function emptyPurposeTaggedCountsV1(): PurposeTaggedSnapshotWorkCountsV1 {
     bootstrapAdmissionCanonicalTraversals: 0,
     bootstrapHandoffFreezeTraversals: 0,
     commandAdmissionCanonicalTraversals: 0,
+    commandHandoffFreezeTraversals: 0,
     evidenceAdmissionCanonicalTraversals: 0,
     replayComparisonTraversals: 0,
     totalPhysicalCanonicalTraversals: 0,
@@ -148,6 +151,14 @@ export function createPurposeTaggedSnapshotWorkCounterV1(): {
             counts = {
               ...counts,
               commandAdmissionCanonicalTraversals: counts.commandAdmissionCanonicalTraversals + 1,
+            };
+          }
+          return;
+        case "command_handoff_freeze":
+          if (event === "deep_freeze_traversal") {
+            counts = {
+              ...counts,
+              commandHandoffFreezeTraversals: counts.commandHandoffFreezeTraversals + 1,
             };
           }
           return;

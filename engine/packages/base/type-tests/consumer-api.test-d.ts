@@ -406,6 +406,15 @@ export const inferredSyntheticPresentationKindV1: "synthetic-presentation" =
 export const inferredSyntheticGameProjectionV1 =
   inferredResolvedGameV1.gameSimulation.projectGameView;
 
+// Canonical admission failures are a stable engine-owned public contract.
+export { CanonicalJsonError } from "@sillymaker/base";
+export type { CanonicalJsonErrorCodeV1 } from "@sillymaker/base";
+export const canonicalAdmissionErrorCodeV1: import("@sillymaker/base").CanonicalJsonErrorCodeV1 =
+  "value.unrepresented_property";
+// @ts-expect-error Canonical admission error codes are a closed public union
+export const invalidCanonicalAdmissionErrorCodeV1:
+  import("@sillymaker/base").CanonicalJsonErrorCodeV1 = "value.not_a_real_code";
+
 // @ts-expect-error the public helper requires defineGameplayModule<TTypes>()(binding)
 export type ForbiddenOneStageGameplayModuleInputV1 = Parameters<typeof defineGameplayModule>[0];
 // @ts-expect-error the public helper requires defineGameSimulation<TTypes>()(simulation)

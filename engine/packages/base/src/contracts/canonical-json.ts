@@ -12,6 +12,7 @@ export type CanonicalJsonErrorCodeV1 =
   | "value.custom_prototype"
   | "value.function"
   | "value.getter"
+  | "value.unrepresented_property"
   | "number.non_finite"
   | "number.not_integer"
   | "number.unsafe_integer"
@@ -37,6 +38,11 @@ export interface CanonicalJsonTraversalObserverInternalV1 {
   enterObjectMember(index: number): void;
   observeString(value: string): void;
   observeObjectKey(key: string): void;
+}
+
+/** @internal Admission-only closure checks; public canonical bytes stay unchanged. */
+export interface CanonicalJsonInternalOptionsV1 {
+  readonly requireFullyRepresentedOwnData?: boolean;
 }
 
 function pointerSegment(value: string): string {
@@ -109,6 +115,7 @@ export function canonicalJsonBytesInternalV1(
   value: unknown,
   instrumentation?: SnapshotWorkInstrumentationV1,
   purpose?: SnapshotWorkPurposeV1,
+  options: CanonicalJsonInternalOptionsV1 = {},
 ): Uint8Array {
   recordSnapshotWorkV1(instrumentation, "canonical_traversal", purpose);
   const active = new Set<object>();
@@ -147,12 +154,50 @@ export function canonicalJsonBytesInternalV1(
     active.add(object);
     try {
       if (Array.isArray(object)) {
+        if (
+          options.requireFullyRepresentedOwnData === true &&
+          Object.getPrototypeOf(object) !== Array.prototype
+        ) {
+          throw new CanonicalJsonError("value.custom_prototype", path);
+        }
+        if (options.requireFullyRepresentedOwnData === true) {
+          if (Object.getOwnPropertySymbols(object).length !== 0) {
+            throw new CanonicalJsonError("value.unrepresented_property", path);
+          }
+          const extraKeys = Object.getOwnPropertyNames(object)
+            .filter((key) => {
+              if (key === "length") return false;
+              const index = Number(key);
+              return !(
+                Number.isInteger(index) &&
+                index >= 0 &&
+                index < object.length &&
+                String(index) === key
+              );
+            })
+            .sort(compareCodePoints);
+          const extraKey = extraKeys[0];
+          if (extraKey !== undefined) {
+            throw new CanonicalJsonError(
+              "value.unrepresented_property",
+              `${path}/${pointerSegment(extraKey)}`,
+            );
+          }
+        }
         const values = [];
         for (let index = 0; index < object.length; index += 1) {
           if (!Object.hasOwn(object, index)) {
             throw new CanonicalJsonError("value.sparse_array", `${path}/${index}`);
           }
-          values.push(encode(object[index], `${path}/${index}`));
+          if (options.requireFullyRepresentedOwnData === true) {
+            const descriptor = Object.getOwnPropertyDescriptor(object, index);
+            if (descriptor?.get !== undefined || descriptor?.set !== undefined) {
+              throw new CanonicalJsonError("value.getter", `${path}/${index}`);
+            }
+            values.push(encode(descriptor?.value, `${path}/${index}`));
+          } else {
+            values.push(encode(object[index], `${path}/${index}`));
+          }
         }
         return `[${values.join(",")}]`;
       }
@@ -161,6 +206,12 @@ export function canonicalJsonBytesInternalV1(
         throw new CanonicalJsonError("value.custom_prototype", path);
       }
       const descriptors = Object.getOwnPropertyDescriptors(object);
+      if (
+        options.requireFullyRepresentedOwnData === true &&
+        Object.getOwnPropertySymbols(object).length !== 0
+      ) {
+        throw new CanonicalJsonError("value.unrepresented_property", path);
+      }
       const keys = Object.keys(descriptors).sort(compareCodePoints);
       const members = [];
       for (const key of keys) {

@@ -54,6 +54,11 @@ describe("Snapshot work instrumentation", () => {
       "deep_freeze_traversal",
       "bootstrap_handoff_freeze",
     );
+    recordSnapshotWorkV1(
+      counter.instrumentation,
+      "deep_freeze_traversal",
+      "command_handoff_freeze",
+    );
 
     expect(counter.snapshot()).toEqual({
       snapshotDigestTraversals: 1,
@@ -61,6 +66,7 @@ describe("Snapshot work instrumentation", () => {
       bootstrapAdmissionCanonicalTraversals: 1,
       bootstrapHandoffFreezeTraversals: 1,
       commandAdmissionCanonicalTraversals: 0,
+      commandHandoffFreezeTraversals: 1,
       evidenceAdmissionCanonicalTraversals: 0,
       replayComparisonTraversals: 1,
       totalPhysicalCanonicalTraversals: 4,

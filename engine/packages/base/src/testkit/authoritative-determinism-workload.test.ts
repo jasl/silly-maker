@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import { canonicalJsonBytes } from "../contracts/canonical-json.ts";
+import { CanonicalJsonError, canonicalJsonBytes } from "../contracts/canonical-json.ts";
 import { digestBytes } from "../contracts/digest.ts";
 import {
   authoritativeDeterminismCommandClassesV1,
@@ -77,21 +77,24 @@ interface ExpectedRngDrawTraceV1 {
 function countsV1(input: {
   readonly committed: boolean;
   readonly log: boolean;
+  readonly commandAdmission?: boolean;
 }): AuthoritativeDeterminismWorkCountsV1 {
+  const commandAdmission = input.commandAdmission ?? true;
   return Object.freeze({
-    canonicalTraversals: input.committed ? 1 : 0,
+    canonicalTraversals: (input.committed ? 1 : 0) + (commandAdmission ? 1 : 0),
     canonicalDigests: input.committed ? 1 : 0,
-    deepFreezeTraversals: input.committed ? 1 : 0,
+    deepFreezeTraversals: (input.committed ? 1 : 0) + (commandAdmission ? 1 : 0),
     commandLogContinuityVerifications: input.log ? 1 : 0,
     purposes: Object.freeze({
       snapshotDigestTraversals: input.committed ? 1 : 0,
       snapshotFreezeTraversals: input.committed ? 1 : 0,
       bootstrapAdmissionCanonicalTraversals: 0,
       bootstrapHandoffFreezeTraversals: 0,
-      commandAdmissionCanonicalTraversals: 0,
+      commandAdmissionCanonicalTraversals: commandAdmission ? 1 : 0,
+      commandHandoffFreezeTraversals: commandAdmission ? 1 : 0,
       evidenceAdmissionCanonicalTraversals: 0,
       replayComparisonTraversals: 0,
-      totalPhysicalCanonicalTraversals: input.committed ? 1 : 0,
+      totalPhysicalCanonicalTraversals: (input.committed ? 1 : 0) + (commandAdmission ? 1 : 0),
     }),
   });
 }
@@ -215,7 +218,9 @@ describe("authoritative determinism workload", () => {
         exclusiveMax: 7,
         drawPurpose: authoritativeDeterminismDrawPurposeV1,
       });
-      expect(prepared.setupCounts).toEqual(countsV1({ committed: true, log: false }));
+      expect(prepared.setupCounts).toEqual(
+        countsV1({ committed: true, log: false, commandAdmission: false }),
+      );
 
       const run = await prepared.runOnce();
       expect(run.dispatchResult).toMatchObject({
@@ -271,9 +276,43 @@ describe("authoritative determinism workload", () => {
 });
 
 describe("authoritative determinism permissive baseline", () => {
+  it("rejects a fractional command at canonical admission before any authoritative work", async () => {
+    const workload = createUnsafeAuthoritativeDeterminismWorkloadV1("fractional_command");
+    const dispatch = workload.dispatch();
+
+    await expect(dispatch).rejects.toEqual(
+      expect.objectContaining({
+        name: "CanonicalJsonError",
+        code: "number.not_integer",
+        path: "/amount",
+      }),
+    );
+    await expect(dispatch).rejects.toBeInstanceOf(CanonicalJsonError);
+    expect(workload.status()).toBe("ready");
+    expect(workload.snapshot()).toBe(workload.initialSnapshot);
+    expect(workload.commandLog()).toEqual([]);
+    expect(workload.normalizerCalls()).toBe(0);
+    expect(workload.counts()).toEqual({
+      canonicalTraversals: 1,
+      canonicalDigests: 0,
+      deepFreezeTraversals: 0,
+      commandLogContinuityVerifications: 0,
+      purposes: {
+        snapshotDigestTraversals: 0,
+        snapshotFreezeTraversals: 0,
+        bootstrapAdmissionCanonicalTraversals: 0,
+        bootstrapHandoffFreezeTraversals: 0,
+        commandAdmissionCanonicalTraversals: 1,
+        commandHandoffFreezeTraversals: 0,
+        evidenceAdmissionCanonicalTraversals: 0,
+        replayComparisonTraversals: 0,
+        totalPhysicalCanonicalTraversals: 1,
+      },
+    });
+  });
+
   it.each(
     [
-      ["fractional_command", "committed", "ready", false, 0.25, undefined],
       ["fractional_fact", "committed", "ready", false, 1, 0.5],
       ["fractional_rejection", "rejected", "ready", true, 1, 0.75],
       ["fractional_fault", "faulted", "fault_paused", true, 1, 0.875],

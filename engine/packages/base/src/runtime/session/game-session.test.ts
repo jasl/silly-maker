@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
+import { CanonicalJsonError } from "../../contracts/canonical-json.ts";
 import { digestCanonical } from "../../contracts/digest.ts";
 import type { CommandExecutionAttemptEnvelopeV1 } from "../../contracts/execution.ts";
 import type {
@@ -10,7 +11,7 @@ import type {
 import type { IsoUtcInstant } from "../../contracts/host.ts";
 import type { GameSnapshotEnvelopeV1 } from "../../contracts/snapshot.ts";
 import { createPristineRunIntegrityV1, runIntegrityV1Schema } from "../../contracts/snapshot.ts";
-import type { RuntimeSchemaV1 } from "../../contracts/values.ts";
+import type { DeepReadonly, RuntimeSchemaV1 } from "../../contracts/values.ts";
 import { parseNonNegativeSafeInteger } from "../../contracts/values.ts";
 import {
   createRuntimeFailureBufferV1,
@@ -22,7 +23,12 @@ import {
   type GameSessionDebugInputV1,
   lookupInstalledSnapshotDigestInternalV1,
 } from "./game-session.ts";
-import { createSnapshotWorkCounterV1 } from "../../internal/snapshot-work-instrumentation.ts";
+import {
+  createPurposeTaggedSnapshotWorkCounterV1,
+  createSnapshotWorkCounterV1,
+  type SnapshotWorkEventV1,
+  type SnapshotWorkPurposeV1,
+} from "../../internal/snapshot-work-instrumentation.ts";
 
 interface State {
   readonly count: number;
@@ -201,7 +207,340 @@ function fixture(
   return { ...created, calls: () => calls, attempts };
 }
 
+function invalidCommandFixture(value: unknown): {
+  readonly value: unknown;
+  readonly getterCalls: () => number;
+} {
+  return Object.freeze({ value, getterCalls: () => 0 });
+}
+
 describe("GameSession FIFO", () => {
+  it.each(
+    [
+      [
+        "fractional",
+        "number.not_integer",
+        "/amount",
+        () => invalidCommandFixture({ kind: "increment", amount: 0.25 }),
+      ],
+      [
+        "non-finite",
+        "number.non_finite",
+        "/amount",
+        () => invalidCommandFixture({ kind: "increment", amount: Number.POSITIVE_INFINITY }),
+      ],
+      [
+        "unsafe integer",
+        "number.unsafe_integer",
+        "/amount",
+        () => invalidCommandFixture({ kind: "increment", amount: Number.MAX_SAFE_INTEGER + 1 }),
+      ],
+      [
+        "negative zero",
+        "number.negative_zero",
+        "/amount",
+        () => invalidCommandFixture({ kind: "increment", amount: -0 }),
+      ],
+      [
+        "plain-object getter",
+        "value.getter",
+        "/amount",
+        () => {
+          let getterCalls = 0;
+          const value = { kind: "increment" } as Record<string, unknown>;
+          Object.defineProperty(value, "amount", {
+            enumerable: true,
+            get() {
+              getterCalls += 1;
+              return 1;
+            },
+          });
+          return Object.freeze({ value, getterCalls: () => getterCalls });
+        },
+      ],
+      [
+        "custom prototype",
+        "value.custom_prototype",
+        "",
+        () =>
+          invalidCommandFixture(
+            Object.assign(Object.create(null) as Record<string, unknown>, { kind: "increment" }),
+          ),
+      ],
+      [
+        "sparse array",
+        "value.sparse_array",
+        "/values/0",
+        () => invalidCommandFixture({ kind: "increment", values: Array(1) }),
+      ],
+      [
+        "cycle",
+        "value.cycle",
+        "/self",
+        () => {
+          const value = { kind: "increment" } as Record<string, unknown>;
+          value.self = value;
+          return invalidCommandFixture(value);
+        },
+      ],
+    ] as const,
+  )(
+    "rejects %s schema output before queue, execution, normalization, or mutation",
+    async (_label, code, path, createInvalid) => {
+      const counter = createSnapshotWorkCounterV1();
+      const purposes = createPurposeTaggedSnapshotWorkCounterV1();
+      const instrumentation = Object.freeze({
+        record(event: SnapshotWorkEventV1, purpose?: SnapshotWorkPurposeV1) {
+          counter.instrumentation.record(event, purpose);
+          purposes.instrumentation.record(event, purpose);
+        },
+      });
+      let executeCalls = 0;
+      let normalizerCalls = 0;
+      let attemptObserverCalls = 0;
+      const created = createInstrumentedGameSessionV1<Types>(
+        {
+          initialSnapshot: createSnapshot(0),
+          commandSchema: Object.freeze({ parse: (value: unknown) => value as Command }),
+          executionContext: undefined,
+          executeAttempt(snapshot, command) {
+            executeCalls += 1;
+            return attempt(snapshot as Snapshot, command as Command);
+          },
+          normalizeUnexpectedDispatchFault(_error, snapshot) {
+            normalizerCalls += 1;
+            return attempt(snapshot as Snapshot, { kind: "fault" });
+          },
+          onAttempt() {
+            attemptObserverCalls += 1;
+          },
+        },
+        instrumentation,
+      );
+      counter.reset();
+      purposes.reset();
+      const snapshotBefore = created.session.getCurrentSnapshot();
+      const digestBefore = lookupInstalledSnapshotDigestInternalV1(
+        created.runtimeControl,
+        snapshotBefore,
+      );
+      const entriesBefore = created.commandLog.entries();
+      const { value: invalid, getterCalls } = createInvalid();
+      let publications = 0;
+      created.session.subscribe(() => {
+        publications += 1;
+      });
+      const dispatch = created.session.dispatch(invalid as never);
+
+      await expect(dispatch).rejects.toBeInstanceOf(CanonicalJsonError);
+      await expect(dispatch).rejects.toMatchObject({ code, path });
+      expect(getterCalls()).toBe(0);
+      expect(executeCalls).toBe(0);
+      expect(normalizerCalls).toBe(0);
+      expect(attemptObserverCalls).toBe(0);
+      expect(publications).toBe(0);
+      expect(created.session.getStatus()).toBe("ready");
+      expect(created.session.getCurrentSnapshot()).toBe(snapshotBefore);
+      expect(
+        lookupInstalledSnapshotDigestInternalV1(created.runtimeControl, snapshotBefore),
+      ).toBe(digestBefore);
+      expect(created.commandLog.entries()).toBe(entriesBefore);
+      expect(counter.snapshot()).toEqual({
+        canonicalTraversals: 1,
+        canonicalDigests: 0,
+        deepFreezeTraversals: 0,
+        commandLogContinuityVerifications: 0,
+        saveCanonicalSerializations: 0,
+        strictJsonParses: 0,
+        strictJsonPreflights: 0,
+      });
+      expect(purposes.snapshot()).toEqual({
+        snapshotDigestTraversals: 0,
+        snapshotFreezeTraversals: 0,
+        bootstrapAdmissionCanonicalTraversals: 0,
+        bootstrapHandoffFreezeTraversals: 0,
+        commandAdmissionCanonicalTraversals: 1,
+        commandHandoffFreezeTraversals: 0,
+        evidenceAdmissionCanonicalTraversals: 0,
+        replayComparisonTraversals: 0,
+        totalPhysicalCanonicalTraversals: 1,
+      });
+    },
+  );
+
+  it("enforces command admission through the public Session factory", async () => {
+    let executeCalls = 0;
+    const created = createGameSessionV1<Types>({
+      initialSnapshot: createSnapshot(0),
+      commandSchema: Object.freeze({ parse: (value: unknown) => value as Command }),
+      executionContext: undefined,
+      executeAttempt(snapshot, command) {
+        executeCalls += 1;
+        return attempt(snapshot as Snapshot, command as Command);
+      },
+      normalizeUnexpectedDispatchFault(_error, snapshot) {
+        return attempt(snapshot as Snapshot, { kind: "fault" });
+      },
+    });
+    const snapshotBefore = created.session.getCurrentSnapshot();
+    const entriesBefore = created.commandLog.entries();
+
+    await expect(
+      created.session.dispatch({ kind: "increment", amount: 0.25 } as never),
+    ).rejects.toMatchObject({
+      code: "number.not_integer",
+      path: "/amount",
+    });
+
+    expect(executeCalls).toBe(0);
+    expect(created.session.getStatus()).toBe("ready");
+    expect(created.session.getCurrentSnapshot()).toBe(snapshotBefore);
+    expect(created.commandLog.entries()).toBe(entriesBefore);
+  });
+
+  it("keeps command schema failure result-based without admission or queue work", async () => {
+    const counter = createSnapshotWorkCounterV1();
+    const purposes = createPurposeTaggedSnapshotWorkCounterV1();
+    const instrumentation = Object.freeze({
+      record(event: SnapshotWorkEventV1, purpose?: SnapshotWorkPurposeV1) {
+        counter.instrumentation.record(event, purpose);
+        purposes.instrumentation.record(event, purpose);
+      },
+    });
+    let schemaCalls = 0;
+    let executeCalls = 0;
+    const created = createInstrumentedGameSessionV1<Types>(
+      {
+        initialSnapshot: createSnapshot(0),
+        commandSchema: Object.freeze({
+          parse(): Command {
+            schemaCalls += 1;
+            throw new TypeError("Story schema rejected command");
+          },
+        }),
+        executionContext: undefined,
+        executeAttempt(snapshot, command) {
+          executeCalls += 1;
+          return attempt(snapshot as Snapshot, command as Command);
+        },
+        normalizeUnexpectedDispatchFault(_error, snapshot) {
+          return attempt(snapshot as Snapshot, { kind: "fault" });
+        },
+      },
+      instrumentation,
+    );
+    counter.reset();
+    purposes.reset();
+    let publications = 0;
+    created.session.subscribe(() => {
+      publications += 1;
+    });
+
+    await expect(
+      created.session.dispatch({ kind: "invalid", amount: 0.25 } as never),
+    ).resolves.toEqual({
+      kind: "not_executed",
+      code: "validation_failed",
+    });
+
+    expect(schemaCalls).toBe(1);
+    expect(executeCalls).toBe(0);
+    expect(publications).toBe(0);
+    expect(counter.snapshot()).toEqual({
+      canonicalTraversals: 0,
+      canonicalDigests: 0,
+      deepFreezeTraversals: 0,
+      commandLogContinuityVerifications: 0,
+      saveCanonicalSerializations: 0,
+      strictJsonParses: 0,
+      strictJsonPreflights: 0,
+    });
+    expect(purposes.snapshot()).toEqual({
+      snapshotDigestTraversals: 0,
+      snapshotFreezeTraversals: 0,
+      bootstrapAdmissionCanonicalTraversals: 0,
+      bootstrapHandoffFreezeTraversals: 0,
+      commandAdmissionCanonicalTraversals: 0,
+      commandHandoffFreezeTraversals: 0,
+      evidenceAdmissionCanonicalTraversals: 0,
+      replayComparisonTraversals: 0,
+      totalPhysicalCanonicalTraversals: 0,
+    });
+  });
+
+  it("re-admits a reused normalized identity and passes the frozen value to executor and log", async () => {
+    const counter = createSnapshotWorkCounterV1();
+    const purposes = createPurposeTaggedSnapshotWorkCounterV1();
+    const instrumentation = Object.freeze({
+      record(event: SnapshotWorkEventV1, purpose?: SnapshotWorkPurposeV1) {
+        counter.instrumentation.record(event, purpose);
+        purposes.instrumentation.record(event, purpose);
+      },
+    });
+    const normalized = {
+      kind: "increment" as const,
+      metadata: { ordinal: 1 },
+    } as unknown as Command;
+    let schemaCalls = 0;
+    let executedCommand: DeepReadonly<Command> | undefined;
+    const created = createInstrumentedGameSessionV1<Types>(
+      {
+        initialSnapshot: createSnapshot(0),
+        commandSchema: Object.freeze({
+          parse(value: unknown) {
+            schemaCalls += 1;
+            expect(value).toEqual({ operation: "increment", amount: 0.25 });
+            return normalized;
+          },
+        }),
+        executionContext: undefined,
+        executeAttempt(snapshot, command) {
+          executedCommand = command;
+          return attempt(snapshot as Snapshot, command as Command);
+        },
+        normalizeUnexpectedDispatchFault(_error, snapshot) {
+          return attempt(snapshot as Snapshot, { kind: "fault" });
+        },
+      },
+      instrumentation,
+    );
+    counter.reset();
+    purposes.reset();
+
+    for (let index = 0; index < 2; index += 1) {
+      await expect(
+        created.session.dispatch({ operation: "increment", amount: 0.25 } as never),
+      ).resolves.toMatchObject({ kind: "executed", execution: { kind: "committed" } });
+    }
+
+    expect(schemaCalls).toBe(2);
+    expect(executedCommand).toBe(normalized);
+    expect(created.commandLog.entries()).toHaveLength(2);
+    expect(created.commandLog.entries().every(({ command }) => command === normalized)).toBe(true);
+    expect(Object.isFrozen(normalized)).toBe(true);
+    expect(Object.isFrozen((normalized as unknown as { metadata: object }).metadata)).toBe(true);
+    expect(counter.snapshot()).toEqual({
+      canonicalTraversals: 4,
+      canonicalDigests: 2,
+      deepFreezeTraversals: 4,
+      commandLogContinuityVerifications: 2,
+      saveCanonicalSerializations: 0,
+      strictJsonParses: 0,
+      strictJsonPreflights: 0,
+    });
+    expect(purposes.snapshot()).toEqual({
+      snapshotDigestTraversals: 2,
+      snapshotFreezeTraversals: 2,
+      bootstrapAdmissionCanonicalTraversals: 0,
+      bootstrapHandoffFreezeTraversals: 0,
+      commandAdmissionCanonicalTraversals: 2,
+      commandHandoffFreezeTraversals: 2,
+      evidenceAdmissionCanonicalTraversals: 0,
+      replayComparisonTraversals: 0,
+      totalPhysicalCanonicalTraversals: 4,
+    });
+  });
+
   it("uses one finalized attempt for dispatch, live state, parsed command log, and observers", async () => {
     const initial = createSnapshot(0);
     let observed: Attempt | undefined;
@@ -342,9 +681,9 @@ describe("GameSession FIFO", () => {
       () => true,
     );
     expect(counter.snapshot()).toEqual({
-      canonicalTraversals: 1,
+      canonicalTraversals: 2,
       canonicalDigests: 1,
-      deepFreezeTraversals: 1,
+      deepFreezeTraversals: 2,
       commandLogContinuityVerifications: 1,
       saveCanonicalSerializations: 0,
       strictJsonParses: 0,
@@ -357,9 +696,9 @@ describe("GameSession FIFO", () => {
       () => true,
     );
     expect(counter.snapshot()).toEqual({
-      canonicalTraversals: 0,
+      canonicalTraversals: 1,
       canonicalDigests: 0,
-      deepFreezeTraversals: 0,
+      deepFreezeTraversals: 1,
       commandLogContinuityVerifications: 1,
       saveCanonicalSerializations: 0,
       strictJsonParses: 0,
@@ -422,6 +761,178 @@ describe("GameSession FIFO", () => {
     expect(created.session.getCurrentSnapshot().integrity).toBe(initial.integrity);
   });
 
+  it("rejects a non-canonical low-level DebugCommand before queue or fault normalization", async () => {
+    const counter = createSnapshotWorkCounterV1();
+    const purposes = createPurposeTaggedSnapshotWorkCounterV1();
+    const instrumentation = Object.freeze({
+      record(event: SnapshotWorkEventV1, purpose?: SnapshotWorkPurposeV1) {
+        counter.instrumentation.record(event, purpose);
+        purposes.instrumentation.record(event, purpose);
+      },
+    });
+    let validateCalls = 0;
+    let executeCalls = 0;
+    let normalizerCalls = 0;
+    const initial = createSnapshot(0);
+    const created = createInstrumentedGameSessionV1<Types>(
+      {
+        initialSnapshot: initial,
+        commandSchema,
+        executionContext: undefined,
+        executeAttempt(snapshot, command) {
+          return attempt(snapshot as Snapshot, command as Command);
+        },
+        normalizeUnexpectedDispatchFault(_error, snapshot) {
+          return attempt(snapshot as Snapshot, { kind: "fault" });
+        },
+        debug: defineDebugInputV1({
+          validate() {
+            validateCalls += 1;
+            return Object.freeze({ kind: "allowed" as const });
+          },
+          executeAttempt(snapshot) {
+            executeCalls += 1;
+            return attempt(snapshot as Snapshot, { kind: "increment" });
+          },
+          normalizeUnexpectedFault(_error, snapshot) {
+            normalizerCalls += 1;
+            return attempt(snapshot as Snapshot, { kind: "fault" });
+          },
+        }),
+      },
+      instrumentation,
+    );
+    counter.reset();
+    purposes.reset();
+    let publications = 0;
+    created.session.subscribe(() => {
+      publications += 1;
+    });
+    const entriesBefore = created.commandLog.entries();
+    const execution = created.debugControl.execute(
+      { kind: "debug.synthetic.add", amount: 0.5 },
+      () => true,
+    );
+
+    expect(created.session.getStatus()).toBe("ready");
+    await expect(execution).rejects.toBeInstanceOf(CanonicalJsonError);
+    await expect(execution).rejects.toMatchObject({
+      code: "number.not_integer",
+      path: "/amount",
+    });
+    expect(validateCalls).toBe(0);
+    expect(executeCalls).toBe(0);
+    expect(normalizerCalls).toBe(0);
+    expect(publications).toBe(0);
+    expect(created.session.getCurrentSnapshot()).toBe(initial);
+    expect(created.commandLog.entries()).toBe(entriesBefore);
+    expect(counter.snapshot()).toEqual({
+      canonicalTraversals: 1,
+      canonicalDigests: 0,
+      deepFreezeTraversals: 0,
+      commandLogContinuityVerifications: 0,
+      saveCanonicalSerializations: 0,
+      strictJsonParses: 0,
+      strictJsonPreflights: 0,
+    });
+    expect(purposes.snapshot().commandAdmissionCanonicalTraversals).toBe(1);
+  });
+
+  it.each(
+    ["capability_disabled", "session_unavailable", "fault_paused", "hmr_invalidated"] as const,
+  )(
+    "lets the %s fence win without observing or queueing a malformed DebugCommand",
+    async (fence) => {
+      const counter = createSnapshotWorkCounterV1();
+      const purposes = createPurposeTaggedSnapshotWorkCounterV1();
+      const instrumentation = Object.freeze({
+        record(event: SnapshotWorkEventV1, purpose?: SnapshotWorkPurposeV1) {
+          counter.instrumentation.record(event, purpose);
+          purposes.instrumentation.record(event, purpose);
+        },
+      });
+      let validateCalls = 0;
+      let executeCalls = 0;
+      let normalizerCalls = 0;
+      const created = createInstrumentedGameSessionV1<Types>(
+        {
+          initialSnapshot: createSnapshot(0),
+          commandSchema,
+          executionContext: undefined,
+          ...(fence === "session_unavailable" ? { available: false } : {}),
+          executeAttempt(snapshot, command) {
+            return attempt(snapshot as Snapshot, command as Command);
+          },
+          normalizeUnexpectedDispatchFault(_error, snapshot) {
+            return attempt(snapshot as Snapshot, { kind: "fault" });
+          },
+          debug: defineDebugInputV1({
+            validate() {
+              validateCalls += 1;
+              return Object.freeze({ kind: "allowed" as const });
+            },
+            executeAttempt(snapshot) {
+              executeCalls += 1;
+              return attempt(snapshot as Snapshot, { kind: "increment" });
+            },
+            normalizeUnexpectedFault(_error, snapshot) {
+              normalizerCalls += 1;
+              return attempt(snapshot as Snapshot, { kind: "fault" });
+            },
+          }),
+        },
+        instrumentation,
+      );
+      if (fence === "fault_paused") {
+        await created.session.dispatch({ kind: "fault" });
+      } else if (fence === "hmr_invalidated") {
+        created.invalidationController.invalidateForHmr();
+      }
+      counter.reset();
+      purposes.reset();
+      let getterCalls = 0;
+      const command = { kind: "debug.synthetic.add" } as Record<string, unknown>;
+      Object.defineProperty(command, "amount", {
+        enumerable: true,
+        get() {
+          getterCalls += 1;
+          return 0.5;
+        },
+      });
+      let publications = 0;
+      created.session.subscribe(() => {
+        publications += 1;
+      });
+      const statusBefore = created.session.getStatus();
+      const execution = created.debugControl.execute(
+        command as unknown as DebugCommand,
+        () => fence !== "capability_disabled",
+      );
+
+      expect(created.session.getStatus()).toBe(statusBefore);
+      await expect(execution).resolves.toEqual(
+        fence === "capability_disabled"
+          ? { kind: "capability_disabled" }
+          : { kind: "not_executed", code: fence },
+      );
+      expect(getterCalls).toBe(0);
+      expect(validateCalls).toBe(0);
+      expect(executeCalls).toBe(0);
+      expect(normalizerCalls).toBe(0);
+      expect(publications).toBe(0);
+      expect(counter.snapshot()).toEqual({
+        canonicalTraversals: 0,
+        canonicalDigests: 0,
+        deepFreezeTraversals: 0,
+        commandLogContinuityVerifications: 0,
+        saveCanonicalSerializations: 0,
+        strictJsonParses: 0,
+        strictJsonPreflights: 0,
+      });
+      expect(purposes.snapshot().commandAdmissionCanonicalTraversals).toBe(0);
+    },
+  );
+
   it("rechecks capability before Debug validation after waiting in the one FIFO", async () => {
     let releaseDispatch: (() => void) | undefined;
     const blocked = new Promise<void>((resolve) => {
@@ -430,33 +941,38 @@ describe("GameSession FIFO", () => {
     let enabled = true;
     let debugValidateCalls = 0;
     let debugExecuteCalls = 0;
-    const created = createGameSessionV1<Types>({
-      initialSnapshot: createSnapshot(0),
-      commandSchema,
-      executionContext: undefined,
-      async executeAttempt(snapshot, command) {
-        await blocked;
-        return attempt(snapshot as Snapshot, command as Command);
-      },
-      normalizeUnexpectedDispatchFault(_error, snapshot) {
-        return attempt(snapshot as Snapshot, { kind: "fault" });
-      },
-      debug: defineDebugInputV1({
-        validate() {
-          debugValidateCalls += 1;
-          return Object.freeze({ kind: "allowed" as const });
+    const purposes = createPurposeTaggedSnapshotWorkCounterV1();
+    const created = createInstrumentedGameSessionV1<Types>(
+      {
+        initialSnapshot: createSnapshot(0),
+        commandSchema,
+        executionContext: undefined,
+        async executeAttempt(snapshot, command) {
+          await blocked;
+          return attempt(snapshot as Snapshot, command as Command);
         },
-        executeAttempt(snapshot) {
-          debugExecuteCalls += 1;
-          return attempt(snapshot as Snapshot, { kind: "increment" });
-        },
-        normalizeUnexpectedFault(_error, snapshot) {
+        normalizeUnexpectedDispatchFault(_error, snapshot) {
           return attempt(snapshot as Snapshot, { kind: "fault" });
         },
-      }),
-    });
+        debug: defineDebugInputV1({
+          validate() {
+            debugValidateCalls += 1;
+            return Object.freeze({ kind: "allowed" as const });
+          },
+          executeAttempt(snapshot) {
+            debugExecuteCalls += 1;
+            return attempt(snapshot as Snapshot, { kind: "increment" });
+          },
+          normalizeUnexpectedFault(_error, snapshot) {
+            return attempt(snapshot as Snapshot, { kind: "fault" });
+          },
+        }),
+      },
+      purposes.instrumentation,
+    );
 
     const gameplay = created.session.dispatch({ kind: "increment" });
+    purposes.reset();
     const debug = created.debugControl.execute(
       Object.freeze({ kind: "debug.synthetic.add", amount: 1 }),
       () => enabled,
@@ -468,6 +984,8 @@ describe("GameSession FIFO", () => {
     await expect(debug).resolves.toEqual({ kind: "capability_disabled" });
     expect(debugValidateCalls).toBe(0);
     expect(debugExecuteCalls).toBe(0);
+    expect(purposes.snapshot().commandAdmissionCanonicalTraversals).toBe(1);
+    expect(purposes.snapshot().commandHandoffFreezeTraversals).toBe(1);
     expect(created.commandLog.entries()).toHaveLength(1);
     expect(created.commandLog.entries()[0]?.source).toBe("game");
     expect(created.session.getCurrentSnapshot().integrity).toEqual(createPristineRunIntegrityV1());
@@ -764,9 +1282,9 @@ describe("GameSession FIFO", () => {
       digestCanonical("sillymaker:state:v1", anchored),
     );
     expect(counter.snapshot()).toEqual({
-      canonicalTraversals: 1,
+      canonicalTraversals: 2,
       canonicalDigests: 1,
-      deepFreezeTraversals: 1,
+      deepFreezeTraversals: 2,
       commandLogContinuityVerifications: 1,
       saveCanonicalSerializations: 0,
       strictJsonParses: 0,
@@ -878,9 +1396,9 @@ describe("GameSession FIFO", () => {
       digestCanonical("sillymaker:state:v1", created.session.getCurrentSnapshot()),
     );
     expect(counter.snapshot()).toEqual({
-      canonicalTraversals: 3,
+      canonicalTraversals: 6,
       canonicalDigests: 3,
-      deepFreezeTraversals: 3,
+      deepFreezeTraversals: 6,
       commandLogContinuityVerifications: 3,
       saveCanonicalSerializations: 0,
       strictJsonParses: 0,
@@ -1529,9 +2047,9 @@ describe("GameSession FIFO", () => {
       digestCanonical("sillymaker:state:v1", created.session.getCurrentSnapshot()),
     );
     expect(counter.snapshot()).toEqual({
-      canonicalTraversals: 1,
+      canonicalTraversals: 2,
       canonicalDigests: 1,
-      deepFreezeTraversals: 1,
+      deepFreezeTraversals: 2,
       commandLogContinuityVerifications: 1,
       saveCanonicalSerializations: 0,
       strictJsonParses: 0,

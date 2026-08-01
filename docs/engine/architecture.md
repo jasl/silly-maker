@@ -113,6 +113,23 @@ and Story-owned behavior:
 - `createQueries(State)`;
 - immutable game ViewModel projection.
 
+Every public Simulation command callback has an engine-owned Strict Canonical
+Data gate. The command-admission canonical traversal adds package-internal
+container-shape checks that reject symbol-keyed members, extra own array
+properties, and custom array prototypes before encoding that container's
+children. A represented accessor is instead rejected without invocation when
+the ordinary index/key traversal reaches that member, so an earlier child
+failure can retain precedence over a later accessor. These values could
+otherwise be observed by an executor even though canonical command bytes,
+CommandLog, and replay do not represent them. The same traversal validates the
+remaining value, then the gate recursively freezes the original command
+identity before a Story executor or Debug domain validator sees it. A Session
+operation reuses one package-internal admission receipt through Simulation and
+CommandLog, so the same operation traverses the command once rather than
+creating a second normalized authority. Direct Simulation and CommandLog calls
+cannot bypass the gate. This stricter command traversal mode does not change
+public `canonicalJsonBytes`, digest, Save, or Debug Bundle encoding behavior.
+
 The current validator checks unique State ownership and an acyclic module
 dependency graph. A Story's aggregate State should reflect the modules it
 actually composes; unused modules should not force placeholder State.
@@ -144,6 +161,22 @@ One `GameSession` owns the current Snapshot. Its queue serializes authoritative
 dispatch, lifecycle replacement, validated load/import, debug mutation, and
 other operations that can replace State. A command attempt either installs one
 complete valid Snapshot or leaves the previous Snapshot authoritative.
+
+Gameplay dispatch first preserves the Story command-schema contract: schema
+failure resolves as `not_executed/validation_failed`. Once a schema returns,
+non-canonical output rejects with the root-exported `CanonicalJsonError` before
+queue/status publication, executor, RNG, Snapshot work, or CommandLog
+continuity. Low-level Debug control applies its capability/session/HMR preflight
+before admission and rechecks the live fence at queue front. Authoritative
+replay preflights its complete recorded-command vector before Snapshot digest
+or driver construction: it first captures every source/command identity once,
+then prepares each captured command and freezes none until all pass. The driver
+does not reread mutable entry slots. Best-effort inspection remains permissive. Stable
+canonical-error compatibility fields are `code` and JSON-Pointer `path` (root
+`""`), not the diagnostic message. A command-only unrepresented member uses
+`value.unrepresented_property`: its path identifies an extra array property or
+the containing value for a symbol key. A custom array prototype uses
+`value.custom_prototype` at the array path.
 
 Read and presentation flow:
 

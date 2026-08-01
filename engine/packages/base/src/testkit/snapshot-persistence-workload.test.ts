@@ -14,9 +14,9 @@ import {
 import { snapshotTransactionProvenanceV1 } from "./snapshot-transaction-workload.ts";
 
 const firstAutoSaveCountsV1 = Object.freeze({
-  canonicalTraversals: 4,
+  canonicalTraversals: 5,
   canonicalDigests: 3,
-  deepFreezeTraversals: 1,
+  deepFreezeTraversals: 2,
   commandLogContinuityVerifications: 1,
   saveCanonicalSerializations: 1,
   strictJsonParses: 1,
@@ -24,9 +24,9 @@ const firstAutoSaveCountsV1 = Object.freeze({
 });
 
 const rotationCountsV1 = Object.freeze({
-  canonicalTraversals: 7,
+  canonicalTraversals: 8,
   canonicalDigests: 5,
-  deepFreezeTraversals: 1,
+  deepFreezeTraversals: 2,
   commandLogContinuityVerifications: 1,
   saveCanonicalSerializations: 2,
   strictJsonParses: 2,
@@ -35,19 +35,19 @@ const rotationCountsV1 = Object.freeze({
 
 const digestFallbackFirstAutoSaveCountsV1 = Object.freeze({
   ...firstAutoSaveCountsV1,
-  canonicalTraversals: 5,
+  canonicalTraversals: 6,
   canonicalDigests: 4,
 });
 
 const digestFallbackRotationCountsV1 = Object.freeze({
   ...rotationCountsV1,
-  canonicalTraversals: 8,
+  canonicalTraversals: 9,
   canonicalDigests: 6,
 });
 
 const writeReceiptFallbackFirstAutoSaveCountsV1 = Object.freeze({
   ...firstAutoSaveCountsV1,
-  canonicalTraversals: 6,
+  canonicalTraversals: 7,
   canonicalDigests: 4,
   saveCanonicalSerializations: 2,
   strictJsonPreflights: 0,
@@ -55,7 +55,7 @@ const writeReceiptFallbackFirstAutoSaveCountsV1 = Object.freeze({
 
 const writeReceiptFallbackRotationCountsV1 = Object.freeze({
   ...rotationCountsV1,
-  canonicalTraversals: 9,
+  canonicalTraversals: 10,
   canonicalDigests: 6,
   saveCanonicalSerializations: 3,
   strictJsonPreflights: 0,
@@ -228,9 +228,9 @@ describe("Snapshot persistence workload", () => {
         previousRecordRevision: 1,
       },
       aggregateCounts: {
-        canonicalTraversals: 11,
+        canonicalTraversals: 13,
         canonicalDigests: 8,
-        deepFreezeTraversals: 2,
+        deepFreezeTraversals: 4,
         commandLogContinuityVerifications: 2,
         saveCanonicalSerializations: 3,
         strictJsonParses: 3,

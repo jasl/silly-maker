@@ -1,13 +1,15 @@
 # Authoritative simulation determinism boundary
 
 状态：2026-07-31 接受的目标设计；同日按 Save-corpus ownership 与 DET-A/DET-B
-promotion boundary 修订。具体落地顺序见
+promotion boundary 修订；2026-08-01 明确 DET2a command admission 的公开失败
+surface、command identity representability、Debug fence precedence 与原子性。具体
+落地顺序见
 [Authoritative determinism guardrails plan](../plans/2026-07-31-authoritative-determinism-guardrails.md)。
 当前 Snapshot、Save 与 Debug Bundle encoding 已有 integer-only canonical
-边界，事务 RNG 也已进入 Snapshot；Strict JSON number token 的精确数学整数检查、
-bootstrap/command/evidence 尽早入场、ambient input 检查、隔离探针与多
-JavaScript 引擎逐 command parity 尚未实现。本文描述目标合同，不把它们写成当前
-能力。
+边界，事务 RNG 已进入 Snapshot，zero xorshift state 与 command canonical
+admission 也已 fail closed；Strict JSON number token 的精确数学整数检查、
+bootstrap/evidence 尽早入场、ambient input 检查、隔离探针与多 JavaScript 引擎逐
+command parity 尚未实现。本文其余部分描述目标合同，不把未落地项写成当前能力。
 
 ## 1. Guarantee and threat boundary
 
@@ -302,12 +304,69 @@ fail-closed closure；checker 只对该函数中以已验证 `BootstrapEntropyV1
   Snapshot、Session 或 persistence anchor；各调用点保留既有 construction/anchor
   failure classification；
 - command schema normalization 后、进入 Session queue/executor 前做 canonical
-  gate；
+  admission；同一次 command-admission canonical traversal 在访问每个 container 时先做
+  command-only representability shape check，再按现有算法编码，成功后才做
+  same-identity deep-freeze。Story-facing DebugTools 的 capability denial 先于 Story
+  schema；schema 成功返回后，下层 Session control 的 capability/session/HMR
+  preflight 先于
+  command-admission canonical traversal 与 queue。下层 fence 胜出时不得枚举或读取
+  normalized command、调用该 traversal 或进入 queue，但不承诺上层 Story schema
+  尚未执行；admission 通过后，queue front 仍重新检查 capability 与 Session/HMR
+  状态，关闭 preparation 与 execution 之间的竞态；
+- Story schema/domain validation 保留既有 result classification：
+  `GameSession.dispatch` 的 `commandSchema.parse` failure 继续 resolve 为
+  `not_executed/validation_failed`，Story-facing DebugTools 的 schema failure 与
+  Debug domain validation 继续使用既有 result，后者仍携带 Story-owned non-empty
+  errors。schema 成功后发现的 Strict Canonical Data violation 不伪装成 Story
+  error，也不进入 unexpected-fault normalizer；同步 Simulation/CommandLog entry
+  throw、Promise entry reject 从 `@sillymaker/base` root 公开的
+  `CanonicalJsonError`；root 同时公开 `CanonicalJsonErrorCodeV1`，稳定兼容字段为
+  `code` 与 `path`。`path` 使用 JSON Pointer，根路径为空字符串 `""`，message 只作
+  diagnostics。low-level Debug control 本身没有 Story schema，只执行 unconditional
+  canonical shape gate；
+- command-only representability shape check 拒绝无法被 canonical bytes 表示、却仍能被
+  executor 从原始 identity 观察的 runtime members：任意 own symbol key 使用
+  `value.unrepresented_property`，任意 array own string key（除 `length` 与
+  `0..length-1` 的 canonical index）也使用 `value.unrepresented_property`，array
+  prototype 不是 `Array.prototype` 时复用 `value.custom_prototype`。symbol-key
+  failure 的 `path` 指向所在 container，因为 symbol 没有 JSON Pointer segment；
+  array extra property 的 `path` 指向按 JSON Pointer escaping 编码的 property，
+  custom array prototype 指向 array 本身。根 container 仍使用 `""`；新 code
+  进入 root export 的 `CanonicalJsonErrorCodeV1` stable union；
+- command-admission traversal 在每个已访问 container 先检查 prototype，再检查 symbol
+  keys，再按 Unicode code-point order 选择第一个 array extra property，随后才按既有
+  canonical depth-first order 继续编码：array index 升序、plain-object string key 按
+  Unicode code point 排序。这三类 container-wide shape failure 都先于该 container
+  的 child traversal。represented accessor 不属于 container-wide shape check；
+  traversal 到达对应 array index 或 plain-object key 时才使用现有 `value.getter`
+  拒绝且不调用 getter，因此 earlier child failure 可以先于 later accessor 胜出。
+  不同 container 之间仍由既有 depth-first traversal 决定第一个 error；
+- 这个更窄的 command rule 不改变 public `canonicalJsonBytes` 的既有行为：
+  公共 encoder 仍按原算法忽略 symbol-keyed members 与 array extra
+  properties，也不为 array prototype 新增拒绝。command admission 在 package-internal
+  traversal mode 拒绝它们，而不是修改 canonical JSON、digest、Save/Debug Bundle
+  bytes 或先 clone/strip 出第二份 command。这保证 executor、recursive freeze、
+  CommandLog 与 replay 观察的正好是 canonical bytes 所表示的同一 identity；
+- command admission failure 在任何 queue mutation、executor/authoritative replay
+  driver、fault normalizer、RNG、candidate Snapshot traversal/post-digest/freeze 或
+  CommandLog continuity/append 前原子失败；Snapshot identity/digest、RNG、command
+  sequence、Session status 与 CommandLog 保持不变；package-internal traversal 对
+  represented getter 通过 descriptor 检测拒绝且不调用。schema-bearing ingress 在
+  gate 前仍可按 Story 自有 schema 语义读取 raw input，本合同不把 getter-zero 保证
+  扩张到 schema；
 - attempt 的 facts/rejections/fault/RNG evidence 在安装 Snapshot/RNG、发布或
   append CommandLog 前、且在 candidate Snapshot whole-tree freeze/post-digest
   前完整验证；
-- authoritative replay 在执行 recorded command 前重新验证其 canonical
-  admission；
+- authoritative replay 保留 blocking identity mismatch 的最高 precedence；identity
+  匹配后先同步、各一次地 capture 完整 recorded-command vector 的 `source` 与
+  `command` identity；capture 不枚举 command、不执行 canonical traversal，也不
+  freeze。随后按 entry 顺序 prepare 每个 captured command；每个 prepare 执行一次
+  包含 representability check 的 command-admission canonical traversal。全部 entry
+  prepare 成功后才统一 freeze，并且仍早于 Snapshot digest/validation 与 driver
+  construction；driver 只接收 captured source/command identity，不重新读取可变 entry
+  slot。因此第 `k` 个 entry 失败时已有 `k` 次 command canonical traversal，但
+  handoff freeze 与 driver construction 均为 `0`；best-effort replay inspection 不
+  执行该 gate；
 - invalid evidence 原子失败：不安装 candidate Snapshot/RNG，不推进
   sequence，不写入 malformed CommandLog；
 - 所有 public Session/Simulation/CommandLog path 都执行无条件 canonical shape
@@ -316,12 +375,14 @@ fail-closed closure；checker 只对该函数中以已验证 `BootstrapEntropyV1
 - 有效输入不改变 canonical algorithm、digest、Save bytes 或 PF1 的 Snapshot
   digest/freeze contract。bootstrap/command/evidence admission 会产生新增物理
   traversal，instrumentation 必须按 Snapshot digest/freeze、bootstrap admission /
-  handoff freeze、command admission、evidence admission、replay comparison 与
-  total 分标签报告。
+  handoff freeze、command admission/handoff freeze、evidence admission、replay
+  comparison 与 total 分标签报告。
 
 当前 `factSchema` / `rejectionSchema` 存在但未接入 execution path，fault
-没有对应 simulation schema。实施若无法通过 package-internal composition 和现有
-stable fault policy 闭合，或必须改变任何 public
+没有对应 simulation schema。DET2a 只公开上述既有 canonical error class 与稳定
+fields，不新增 command result branch、universal command envelope 或 Story failure
+projector。后续 evidence admission 若无法通过 package-internal composition 和现有
+stable fault policy 闭合，或必须再改变任何 public
 Session/Simulation/CommandLog/fault contract，必须先修订设计；不得为此发明
 universal application receipt 或把 Surface envelope 扩张到所有 command。
 

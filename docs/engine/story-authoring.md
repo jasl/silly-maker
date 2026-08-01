@@ -31,6 +31,24 @@ Each stateful module declares its owned State slot(s), schema, initial State, pu
 
 Schemas can be hand-written parse functions or, preferably, built through `@sillymaker/base/authoring`: `createRuntimeSchemaV1` wraps a parse function and `fromStandardSchemaV1` adapts a Zod (or any Standard Schema V1) schema. Both enforce canonical-JSON output, deep-freeze the result, and report failures as stable `DiagnosticEnvelopeV1` values with JSON pointers instead of bare exceptions. `collectGamePackageDiagnosticsV1` aggregates definition/resolution failures for a whole package the same way.
 
+A hand-written permissive schema is still supported, but it cannot bypass the
+engine's command boundary. `GameSession.dispatch` keeps a thrown Story schema
+failure as `not_executed/validation_failed`; after the schema successfully
+returns, the engine validates and freezes that exact normalized identity before
+queueing it. A Strict Canonical Data violation instead rejects with
+`CanonicalJsonError` (`code` plus JSON-Pointer `path`) from `@sillymaker/base` and
+does not enter the Story fault normalizer. Direct low-level Simulation and
+CommandLog calls apply the same gate synchronously. Use integer, plain,
+cycle-free command data. Do not attach symbol-keyed members or extra own
+properties to arrays, and do not replace an array's prototype: those members
+are visible to JavaScript executors but are not represented by canonical command
+bytes or replay. Command admission rejects unrepresented members as
+`value.unrepresented_property` and a custom array prototype as
+`value.custom_prototype` without changing the public canonical encoder. Use data
+properties rather than accessors; admission rejects an accessor as
+`value.getter` without invoking it when traversal reaches that member. Do not
+rely on a later Snapshot or Save encode to catch an invalid command.
+
 For module wiring, `createGameAuthoringKitV1` captures the Game type family once and provides `defineCapability` (typed tokens), `defineStatefulModule`/`defineStatelessModule` helpers (omit absent command/query surfaces; proposal schemas derive from operation schemas), `provides` factories that build narrow read-only ports from the owner's own State slice, `requires` declarations that surface as typed dependency ports in `owner.propose`, and `initializesAfter` for startup order. `composeModules` validates both the capability DAG and the lifecycle DAG with stable diagnostic codes and emits ordinary low-level bindings for `defineGameSimulation`, so kit and hand-written modules never form two authorities.
 
 The aggregate State should align with the modules the Story actually composes. Avoid a universal object containing optional fields for every possible module. Stateless gameplay services can remain named pure capabilities rather than fake State.

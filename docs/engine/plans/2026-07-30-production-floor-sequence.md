@@ -374,7 +374,29 @@ annotation/summary/note、capture-origin `versionStamp`、unstamped/stamped raw 
 counts、receipt/fallback equality、round-trip、lease fence、stale rewrite 与
 post-commit failure/retry 已固定。该批没有改变生产 codec/canonical/load order 或
 公开 Save/replay semantics，也没有 migration callback/registry、browser/filesystem 或
-private-project dependency。默认 core 下一独立切片现在是 PF-DET `DET1`。
+private-project dependency。该批完成后 core 回到 PF-DET `DET1`。
+
+**2026-08-01 DET1 promotion：** xorshift32 的 zero absorbing state 已从 seed、
+restored Snapshot、Save/load/import、Debug Bundle，以及 standard Core 的
+authoritative replay / game/debug candidate admission 中 fail-closed 拒绝，稳定 code
+为 `rng.invalid_state`；未发现承诺维护的 zero-state compatibility corpus，因此没有
+静默 reseed 或 migration。合法 Snapshot/digest/Save/replay bytes、algorithm/draw
+order 与 PF1 traversal 合同保持不变。默认 core 下一独立切片现在是 PF-DET
+`DET2a`。
+
+**2026-08-01 DET2a promotion：** schema 成功后的 public
+Session/Simulation/CommandLog command ingress 与 authoritative replay 已有
+engine-owned canonical admission；root `CanonicalJsonError` 公开稳定 `code/path`，
+command-only mode 拒绝 canonical bytes 未表示的 symbol/array-extra/custom-array-
+prototype members，随后递归 freeze 同一 identity。exact-target one-shot internal receipt
+让一次 Session/replay operation 只做一次 command traversal，并阻断独立嵌套 ingress
+借用；authoritative replay 先 capture 全向量 source/command，再全部 prepare、统一
+freeze，失败不构造 driver，best-effort 仍 ungated。合法 canonical/digest/Save/replay
+bytes 与 PF1 Snapshot digest/freeze purpose counts 保持不变；新增成本已由 command
+admission/freeze purpose 独立计数，256-command recording 为 `170/170 -> 426/426`，
+retained-200 replay 为 canonical `3409 -> 3609`、freeze `0 -> 200`。latest-stable
+Deno `2.9.4` 的 focused/Base/full unit 与 `deno task check` 全绿；Host-neutral 改动没有
+追加浏览器 E2E。默认 core 下一独立切片现在是 PF-DET `DET2b`。
 
 ### PF3 — Save envelope and migration registry
 

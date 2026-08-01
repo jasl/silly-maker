@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
+import { CanonicalJsonError } from "../../contracts/canonical-json.ts";
 import { digestCanonical } from "../../contracts/digest.ts";
 import { rngStateV1Schema } from "../../contracts/rng.ts";
 import type { RngStateV1 } from "../../contracts/rng.ts";
@@ -8,7 +9,14 @@ import { createPristineRunIntegrityV1 } from "../../contracts/snapshot.ts";
 import type { GameSnapshotEnvelopeV1 } from "../../contracts/snapshot.ts";
 import { parseNonNegativeSafeInteger, parsePositiveSafeInteger } from "../../contracts/values.ts";
 import type { Digest, PositiveSafeInteger } from "../../contracts/values.ts";
-import { createSnapshotWorkCounterV1 } from "../../internal/snapshot-work-instrumentation.ts";
+import {
+  createPurposeTaggedSnapshotWorkCounterV1,
+  createSnapshotWorkCounterV1,
+} from "../../internal/snapshot-work-instrumentation.ts";
+import type {
+  SnapshotWorkEventV1,
+  SnapshotWorkPurposeV1,
+} from "../../internal/snapshot-work-instrumentation.ts";
 import {
   createCommandLogInternalV1,
   createCommandLogV1,
@@ -206,14 +214,224 @@ describe("CommandLog", () => {
     log.append(parsedCommand(1), finalizedAttempt(replayBase, 1));
 
     expect(counter.snapshot()).toEqual({
-      canonicalTraversals: 2,
+      canonicalTraversals: 3,
       canonicalDigests: 2,
-      deepFreezeTraversals: 0,
+      deepFreezeTraversals: 1,
       commandLogContinuityVerifications: 1,
       saveCanonicalSerializations: 0,
       strictJsonParses: 0,
       strictJsonPreflights: 0,
     });
+  });
+
+  it("throws CanonicalJsonError before continuity or log mutation", () => {
+    const replayBase = snapshotAtSequence(0);
+    const counter = createSnapshotWorkCounterV1();
+    const purposes = createPurposeTaggedSnapshotWorkCounterV1();
+    const instrumentation = Object.freeze({
+      record(event: SnapshotWorkEventV1, purpose?: SnapshotWorkPurposeV1) {
+        counter.instrumentation.record(event, purpose);
+        purposes.instrumentation.record(event, purpose);
+      },
+    });
+    const log = createCommandLogInternalV1<
+      FixtureSnapshotV1,
+      FixtureLoggedCommandV1,
+      FixtureFactV1,
+      FixtureRejectionV1,
+      FixtureFaultV1
+    >(
+      {
+        replayBase,
+        replayBaseStateDigest: stateDigest(replayBase),
+        limit: 200,
+        auditStateDigests: false,
+      },
+      instrumentation,
+    );
+    counter.reset();
+    purposes.reset();
+    const replayBaseBefore = log.replayBase();
+    const entriesBefore = log.entries();
+    const invalid = {
+      source: "game",
+      command: { kind: "fixture.command", ordinal: 0.25 },
+    } as never;
+
+    let failure: unknown;
+    try {
+      log.append(invalid, finalizedAttempt(replayBase, 1));
+    } catch (error) {
+      failure = error;
+    }
+    expect(failure).toBeInstanceOf(CanonicalJsonError);
+    expect(failure).toMatchObject({ code: "number.not_integer", path: "/ordinal" });
+
+    expect(log.replayBase()).toBe(replayBaseBefore);
+    expect(log.entries()).toBe(entriesBefore);
+    expect(counter.snapshot()).toEqual({
+      canonicalTraversals: 1,
+      canonicalDigests: 0,
+      deepFreezeTraversals: 0,
+      commandLogContinuityVerifications: 0,
+      saveCanonicalSerializations: 0,
+      strictJsonParses: 0,
+      strictJsonPreflights: 0,
+    });
+    expect(purposes.snapshot()).toMatchObject({
+      commandAdmissionCanonicalTraversals: 1,
+      commandHandoffFreezeTraversals: 0,
+      totalPhysicalCanonicalTraversals: 1,
+    });
+    expect(log.append(parsedCommand(1), finalizedAttempt(replayBase, 1)).logOrdinal).toBe(1);
+  });
+
+  it("admits and recursively freezes one direct command identity", () => {
+    const replayBase = snapshotAtSequence(0);
+    const counter = createSnapshotWorkCounterV1();
+    const purposes = createPurposeTaggedSnapshotWorkCounterV1();
+    const instrumentation = Object.freeze({
+      record(event: SnapshotWorkEventV1, purpose?: SnapshotWorkPurposeV1) {
+        counter.instrumentation.record(event, purpose);
+        purposes.instrumentation.record(event, purpose);
+      },
+    });
+    const log = createCommandLogInternalV1<
+      FixtureSnapshotV1,
+      FixtureLoggedCommandV1,
+      FixtureFactV1,
+      FixtureRejectionV1,
+      FixtureFaultV1
+    >(
+      {
+        replayBase,
+        replayBaseStateDigest: stateDigest(replayBase),
+        limit: 200,
+        auditStateDigests: false,
+      },
+      instrumentation,
+    );
+    counter.reset();
+    purposes.reset();
+    const nested = { note: "neutral" };
+    const command = {
+      kind: "fixture.command" as const,
+      ordinal: parsePositiveSafeInteger(1),
+      metadata: nested,
+    };
+    const logged = { source: "game" as const, command };
+
+    const entry = log.append(logged, finalizedAttempt(replayBase, 1));
+
+    expect(entry.command).toBe(command);
+    expect(Object.isFrozen(command)).toBe(true);
+    expect(Object.isFrozen(nested)).toBe(true);
+    expect(counter.snapshot()).toEqual({
+      canonicalTraversals: 1,
+      canonicalDigests: 0,
+      deepFreezeTraversals: 1,
+      commandLogContinuityVerifications: 1,
+      saveCanonicalSerializations: 0,
+      strictJsonParses: 0,
+      strictJsonPreflights: 0,
+    });
+    expect(purposes.snapshot()).toMatchObject({
+      commandAdmissionCanonicalTraversals: 1,
+      commandHandoffFreezeTraversals: 1,
+      totalPhysicalCanonicalTraversals: 1,
+    });
+  });
+
+  it("captures source and command once before recording the admitted identity", () => {
+    const replayBase = snapshotAtSequence(0);
+    const log = createFixtureLog(replayBase);
+    const nested = { note: "first value" };
+    const firstCommand = {
+      kind: "fixture.command" as const,
+      ordinal: parsePositiveSafeInteger(1),
+      metadata: nested,
+    };
+    const laterCommand = {
+      kind: "fixture.command" as const,
+      ordinal: 0.25,
+    };
+    let sourceReads = 0;
+    let commandReads = 0;
+    const loggedCommand = Object.defineProperties({}, {
+      source: {
+        enumerable: true,
+        get() {
+          sourceReads += 1;
+          return sourceReads === 1 ? "game" : "debug";
+        },
+      },
+      command: {
+        enumerable: true,
+        get() {
+          commandReads += 1;
+          return commandReads === 1 ? firstCommand : laterCommand;
+        },
+      },
+    }) as FixtureLoggedCommandV1;
+
+    const entry = log.append(loggedCommand, finalizedAttempt(replayBase, 1));
+
+    expect(sourceReads).toBe(1);
+    expect(commandReads).toBe(1);
+    expect(entry.source).toBe("game");
+    expect(entry.command).toBe(firstCommand);
+    expect(Object.isFrozen(firstCommand)).toBe(true);
+    expect(Object.isFrozen(nested)).toBe(true);
+  });
+
+  it("preserves additional enumerable logged-command fields exactly once", () => {
+    type ExtendedLoggedCommandV1 = {
+      readonly source: "game";
+      readonly command: FixtureCommandV1;
+      readonly label: string;
+      readonly __proto__: { readonly kind: "neutral.metadata" };
+    };
+    const replayBase = snapshotAtSequence(0);
+    const log = createCommandLogV1<
+      FixtureSnapshotV1,
+      ExtendedLoggedCommandV1,
+      FixtureFactV1,
+      FixtureRejectionV1,
+      FixtureFaultV1
+    >({ replayBase, limit: 200 });
+    const command = {
+      kind: "fixture.command" as const,
+      ordinal: parsePositiveSafeInteger(1),
+    };
+    const metadata = Object.freeze({ kind: "neutral.metadata" as const });
+    let labelReads = 0;
+    const loggedCommand = Object.create(null) as Record<PropertyKey, unknown>;
+    Object.defineProperties(loggedCommand, {
+      source: { enumerable: true, value: "game" },
+      command: { enumerable: true, value: command },
+      label: {
+        enumerable: true,
+        get() {
+          labelReads += 1;
+          return "neutral";
+        },
+      },
+    });
+    Object.defineProperty(loggedCommand, "__proto__", {
+      enumerable: true,
+      value: metadata,
+    });
+
+    const entry = log.append(
+      loggedCommand as unknown as ExtendedLoggedCommandV1,
+      finalizedAttempt(replayBase, 1),
+    );
+
+    expect(labelReads).toBe(1);
+    expect(entry.label).toBe("neutral");
+    expect(Object.hasOwn(entry, "__proto__")).toBe(true);
+    expect(entry.__proto__).toBe(metadata);
+    expect(Object.getPrototypeOf(entry)).toBe(Object.prototype);
   });
 
   it("keeps cheap identity and digest-chain checks when internal recomputation is off", () => {

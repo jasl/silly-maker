@@ -8,6 +8,9 @@ import type {
 } from "../contracts/gameplay-module.ts";
 import { canonicalJsonBytes } from "../contracts/canonical-json.ts";
 import { parseModuleId, parsePositiveSafeInteger, parseStateSlotId } from "../contracts/values.ts";
+import {
+  admitCanonicalCommandForTargetInternalV1,
+} from "../internal/canonical-command-admission.ts";
 import { deepFreezeAuthoringValueV1, moduleDefinitionErrorV1 } from "./define-gameplay-module.ts";
 
 interface DefineGameSimulationV1<TTypes extends GameSimulationTypeMapV1> {
@@ -338,8 +341,53 @@ function validateRuntimeSimulationV1(simulationValue: unknown): unknown {
   requireFunction(simulation.createQueries, "GameSimulation createQueries");
   requireFunction(simulation.projectGameView, "GameSimulation projectGameView");
 
+  const executeCommandAttempt = commandExecutor.executeAttempt as (...args: unknown[]) => unknown;
+  const validateDebugCommand = debugCommandExecutor.validate as (...args: unknown[]) => unknown;
+  const executeDebugCommandAttempt = debugCommandExecutor.executeAttempt as (
+    ...args: unknown[]
+  ) => unknown;
+
   const validated = {
     ...simulation,
+    commandExecutor: {
+      ...commandExecutor,
+      executeAttempt(snapshot: unknown, command: unknown, context: unknown): unknown {
+        const admission = admitCanonicalCommandForTargetInternalV1(
+          command,
+          "simulation_game_execute",
+        );
+        return Reflect.apply(executeCommandAttempt, commandExecutor, [
+          snapshot,
+          admission.value,
+          context,
+        ]);
+      },
+    },
+    debugCommandExecutor: {
+      ...debugCommandExecutor,
+      validate(snapshot: unknown, command: unknown, context: unknown): unknown {
+        const admission = admitCanonicalCommandForTargetInternalV1(
+          command,
+          "simulation_debug_validate",
+        );
+        return Reflect.apply(validateDebugCommand, debugCommandExecutor, [
+          snapshot,
+          admission.value,
+          context,
+        ]);
+      },
+      executeAttempt(snapshot: unknown, command: unknown, context: unknown): unknown {
+        const admission = admitCanonicalCommandForTargetInternalV1(
+          command,
+          "simulation_debug_execute",
+        );
+        return Reflect.apply(executeDebugCommandAttempt, debugCommandExecutor, [
+          snapshot,
+          admission.value,
+          context,
+        ]);
+      },
+    },
     createInitialState(bootstrap: unknown): unknown {
       const state = parseSchema(
         simulation.stateSchema,

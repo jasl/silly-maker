@@ -10,6 +10,7 @@ import type {
 import { parsePositiveSafeInteger } from "../../contracts/values.ts";
 import type { SnapshotWorkInstrumentationV1 } from "../../internal/snapshot-work-instrumentation.ts";
 import { recordSnapshotWorkV1 } from "../../internal/snapshot-work-instrumentation.ts";
+import { admitCanonicalCommandForTargetInternalV1 } from "../../internal/canonical-command-admission.ts";
 
 interface CommandLogSnapshotV1 {
   readonly rng: unknown;
@@ -123,6 +124,25 @@ export interface CommandLogV1<
 }
 
 const commandLogMaximumEntriesV1 = 200;
+
+function copyAdditionalLoggedCommandFieldsV1(
+  loggedCommand: object,
+): Record<PropertyKey, unknown> {
+  const fields = Object.create(null) as Record<PropertyKey, unknown>;
+  for (const key of Reflect.ownKeys(loggedCommand)) {
+    if (key === "source" || key === "command") continue;
+    const descriptor = Object.getOwnPropertyDescriptor(loggedCommand, key);
+    if (descriptor?.enumerable === true) {
+      Object.defineProperty(fields, key, {
+        configurable: true,
+        enumerable: true,
+        writable: true,
+        value: Reflect.get(loggedCommand, key),
+      });
+    }
+  }
+  return fields;
+}
 
 function createOutcomeV1<
   TSnapshot extends CommandLogSnapshotV1,
@@ -262,12 +282,19 @@ export function createCommandLogInternalV1<
     TRngDrawTrace
   > = {
     append(loggedCommand, finalizedAttempt) {
-      if (loggedCommand.source !== "game" && loggedCommand.source !== "debug") {
+      const source = loggedCommand.source;
+      if (source !== "game" && source !== "debug") {
         throw new TypeError("CommandLog source must be game or debug");
       }
-      if (loggedCommand.source === "debug" && finalizedAttempt.result.kind === "rejected") {
+      if (source === "debug" && finalizedAttempt.result.kind === "rejected") {
         throw new TypeError("Debug CommandLog entries cannot be rejected");
       }
+      const command = loggedCommand.command;
+      const admission = admitCanonicalCommandForTargetInternalV1(
+        command,
+        "command_log_append",
+        instrumentation,
+      );
       const preAttemptSnapshot = internalEntries.at(-1)?.postAttemptSnapshot ?? replayBase;
       const preAttemptStateDigest = internalEntries.at(-1)?.entry.postStateDigest ??
         replayBaseDigest;
@@ -279,10 +306,13 @@ export function createCommandLogInternalV1<
         instrumentation,
       );
 
+      const additionalLoggedCommandFields = copyAdditionalLoggedCommandFieldsV1(loggedCommand);
       const postAttemptSnapshot = finalizedAttempt.result.snapshot;
       const diagnostics = finalizedAttempt.diagnostics;
       const entry = Object.freeze({
-        ...loggedCommand,
+        source,
+        command: admission.value,
+        ...additionalLoggedCommandFields,
         logOrdinal: nextOrdinal,
         preStateDigest: finalizedAttempt.preStateDigest,
         postStateDigest: finalizedAttempt.postStateDigest,

@@ -8,6 +8,14 @@ import type {
   GameplayModuleBindingV1,
   RuntimeSchemaV1,
 } from "../contracts/index.ts";
+import { CanonicalJsonError } from "../contracts/canonical-json.ts";
+import { CanonicalJsonError as RootCanonicalJsonError } from "../index.ts";
+import {
+  admitCanonicalCommandInternalV1,
+  type CanonicalCommandHandoffTargetInternalV1,
+  withCanonicalCommandHandoffInternalV1,
+} from "../internal/canonical-command-admission.ts";
+import { createSnapshotWorkCounterV1 } from "../internal/snapshot-work-instrumentation.ts";
 import { createPristineRunIntegrityV1 } from "../contracts/snapshot.ts";
 import {
   parseModuleId,
@@ -132,11 +140,29 @@ function simulation(modules: readonly GameplayModuleBindingV1<SyntheticSimulatio
       SyntheticSimulationTypesV1["debugValidationError"]
     >(),
     commandExecutor: {
-      executeAttempt: () => Object.freeze({ kind: "not-exercised" as const }),
+      executeAttempt(
+        _snapshot: SyntheticSimulationTypesV1["snapshot"],
+        _command: SyntheticSimulationTypesV1["command"],
+        _context: undefined,
+      ) {
+        return Object.freeze({ kind: "not-exercised" as const });
+      },
     },
     debugCommandExecutor: {
-      validate: () => Object.freeze({ kind: "allowed" as const }),
-      executeAttempt: () => Object.freeze({ kind: "not-exercised" as const }),
+      validate(
+        _snapshot: SyntheticSimulationTypesV1["snapshot"],
+        _command: SyntheticSimulationTypesV1["debugCommand"],
+        _context: undefined,
+      ) {
+        return Object.freeze({ kind: "allowed" as const });
+      },
+      executeAttempt(
+        _snapshot: SyntheticSimulationTypesV1["snapshot"],
+        _command: SyntheticSimulationTypesV1["debugCommand"],
+        _context: undefined,
+      ) {
+        return Object.freeze({ kind: "not-exercised" as const });
+      },
     },
     createBootstrapInput: () => Object.freeze({ rngSeed: parseNonZeroUint32(1) }),
     createInitialState: () =>
@@ -220,6 +246,192 @@ describe("GameSimulation invariants", () => {
       parity: "even",
     });
     expect(resolved.projectGameView(queries)).toEqual({ countLabel: "0" });
+  });
+
+  it("gates every direct public Simulation command callback", () => {
+    expect(RootCanonicalJsonError).toBe(CanonicalJsonError);
+    const seed = defineSyntheticSimulation();
+    let executeGameCalls = 0;
+    let validateDebugCalls = 0;
+    let executeDebugCalls = 0;
+    const resolved = defineGameSimulation<SyntheticSimulationTypesV1>()({
+      ...seed,
+      commandExecutor: {
+        executeAttempt(
+          _snapshot: SyntheticSimulationTypesV1["snapshot"],
+          _command: SyntheticSimulationTypesV1["command"],
+          _context: undefined,
+        ) {
+          executeGameCalls += 1;
+          return Object.freeze({ kind: "not-exercised" as const });
+        },
+      },
+      debugCommandExecutor: {
+        validate(
+          _snapshot: SyntheticSimulationTypesV1["snapshot"],
+          _command: SyntheticSimulationTypesV1["debugCommand"],
+          _context: undefined,
+        ) {
+          validateDebugCalls += 1;
+          return Object.freeze({ kind: "allowed" as const });
+        },
+        executeAttempt(
+          _snapshot: SyntheticSimulationTypesV1["snapshot"],
+          _command: SyntheticSimulationTypesV1["debugCommand"],
+          _context: undefined,
+        ) {
+          executeDebugCalls += 1;
+          return Object.freeze({ kind: "not-exercised" as const });
+        },
+      },
+    });
+    const snapshot = syntheticSnapshot();
+
+    const expectFractionalFailure = (callback: () => unknown): void => {
+      try {
+        callback();
+        throw new TypeError("expected CanonicalJsonError");
+      } catch (error) {
+        expect(error).toBeInstanceOf(CanonicalJsonError);
+        expect(error).toMatchObject({
+          code: "number.not_integer",
+          path: "/amount",
+        });
+      }
+    };
+
+    expectFractionalFailure(() =>
+      resolved.commandExecutor.executeAttempt(
+        snapshot,
+        { kind: "synthetic.increment", amount: 0.25 } as never,
+        undefined,
+      )
+    );
+    expectFractionalFailure(() =>
+      resolved.debugCommandExecutor.validate(
+        snapshot,
+        { kind: "debug.synthetic.increment", amount: 0.25 } as never,
+        undefined,
+      )
+    );
+    expectFractionalFailure(() =>
+      resolved.debugCommandExecutor.executeAttempt(
+        snapshot,
+        { kind: "debug.synthetic.increment", amount: 0.25 } as never,
+        undefined,
+      )
+    );
+
+    expect(executeGameCalls).toBe(0);
+    expect(validateDebugCalls).toBe(0);
+    expect(executeDebugCalls).toBe(0);
+  });
+
+  it("rejects own command members that canonical bytes cannot represent", () => {
+    const seed = defineSyntheticSimulation();
+    let executeCalls = 0;
+    const resolved = defineGameSimulation<SyntheticSimulationTypesV1>()({
+      ...seed,
+      commandExecutor: {
+        executeAttempt(
+          _snapshot: SyntheticSimulationTypesV1["snapshot"],
+          _command: SyntheticSimulationTypesV1["command"],
+          _context: undefined,
+        ) {
+          executeCalls += 1;
+          return Object.freeze({ kind: "not-exercised" as const });
+        },
+      },
+    });
+    const payload = [Object.freeze({ ordinal: 1 })] as unknown[] & {
+      extra?: { ordinal: number };
+    };
+    payload.extra = { ordinal: 2 };
+
+    let failure: unknown;
+    try {
+      resolved.commandExecutor.executeAttempt(
+        syntheticSnapshot(),
+        { kind: "synthetic.increment", payload } as never,
+        undefined,
+      );
+    } catch (error) {
+      failure = error;
+    }
+
+    expect(failure).toBeInstanceOf(RootCanonicalJsonError);
+    expect(failure).toMatchObject({
+      code: "value.unrepresented_property",
+      path: "/payload/extra",
+    });
+    expect(executeCalls).toBe(0);
+    expect(Object.isFrozen(payload)).toBe(false);
+    expect(Object.isFrozen(payload.extra as object)).toBe(false);
+  });
+
+  it("passes one recursively frozen identity to a direct Simulation callback", () => {
+    const seed = defineSyntheticSimulation();
+    let receivedSnapshot: SyntheticSimulationTypesV1["snapshot"] | undefined;
+    let receivedCommand: SyntheticSimulationTypesV1["command"] | undefined;
+    const resolved = defineGameSimulation<SyntheticSimulationTypesV1>()({
+      ...seed,
+      commandExecutor: {
+        executeAttempt(snapshot, command, _context: undefined) {
+          receivedSnapshot = snapshot;
+          receivedCommand = command;
+          return Object.freeze({ kind: "not-exercised" as const });
+        },
+      },
+    });
+    const nested = { ordinal: 1 };
+    const command = { kind: "synthetic.increment" as const, metadata: nested };
+    const snapshot = syntheticSnapshot();
+
+    resolved.commandExecutor.executeAttempt(snapshot, command, undefined);
+
+    expect(receivedSnapshot).toBe(snapshot);
+    expect(receivedCommand).toBe(command);
+    expect(Object.isFrozen(command)).toBe(true);
+    expect(Object.isFrozen(nested)).toBe(true);
+  });
+
+  it("consumes the exact internal handoff target at every Simulation callback", () => {
+    const resolved = defineSyntheticSimulation();
+    const snapshot = syntheticSnapshot();
+    const counter = createSnapshotWorkCounterV1();
+    const expectNoFallback = (
+      command:
+        | SyntheticSimulationTypesV1["command"]
+        | SyntheticSimulationTypesV1["debugCommand"],
+      target: CanonicalCommandHandoffTargetInternalV1,
+      callback: () => unknown,
+    ): void => {
+      const admission = admitCanonicalCommandInternalV1(command, counter.instrumentation);
+      counter.reset();
+      withCanonicalCommandHandoffInternalV1(admission, target, callback);
+      expect(counter.snapshot()).toMatchObject({
+        canonicalTraversals: 0,
+        deepFreezeTraversals: 0,
+      });
+    };
+
+    const gameCommand = { kind: "synthetic.increment" as const };
+    expectNoFallback(
+      gameCommand,
+      "simulation_game_execute",
+      () => resolved.commandExecutor.executeAttempt(snapshot, gameCommand, undefined),
+    );
+    const debugCommand = { kind: "debug.synthetic.increment" as const };
+    expectNoFallback(
+      debugCommand,
+      "simulation_debug_validate",
+      () => resolved.debugCommandExecutor.validate(snapshot, debugCommand, undefined),
+    );
+    expectNoFallback(
+      debugCommand,
+      "simulation_debug_execute",
+      () => resolved.debugCommandExecutor.executeAttempt(snapshot, debugCommand, undefined),
+    );
   });
 
   it("rejects duplicate slots, missing dependencies, and dependency cycles", () => {
