@@ -252,7 +252,8 @@ Authoritative code 不直接调用：
 - `Math.random()`；
 - `crypto.getRandomValues()` / `crypto.randomUUID()`；
 - `Date.now()` / zero-argument `new Date()`；
-- `performance.now()`；
+- `performance` 的 Host clock API/metadata（包括 `now()`、`timeOrigin` 与
+  `toJSON()`）；
 - 其他隐式 Host entropy、clock 或 locale-dependent default。
 
 合法入口：
@@ -408,6 +409,10 @@ Date instance/prototype member 的 direct assignment、destructuring target、up
 identity；`Reflect.set`、`Object.defineProperty` 等 reflection mutation 仍由 DET3b runtime
 tripwire 覆盖。`delete` 的 non-reference operand 仍先按普通 expression 求值，只有 identifier/
 member reference 进入 write-target classification，且不会把旧 member value 再当作普通 read。
+bare `performance` root 及其任一 direct member read/call 都按 Host clock metadata 归
+`determinism.performance_clock`；`Deno` / `process` 的 direct member
+read/call（包括 env、filesystem 与 cwd）归 `determinism.environment`，bare root
+capture/escape 仍归 capability escape。
 latest-stable Deno 已暴露的
 `Temporal.Now` 属于 ambient clock；直接 member call 报 clock，静态 destructure 捕获
 `Now` namespace 时先报 capability escape，若仍继续调用 alias 则该 read 再报 clock。
@@ -714,8 +719,45 @@ ambient entropy、clock、Host timezone、network、environment、locale-default
 - test 结束直接 terminate，不在共享 realm 跨 `await` patch/restore；
 - 只作为错误探针，不作为 sandbox 或 production security boundary。
 
+clock registry 在已知 `performance.now` / `timeOrigin` / `toJSON` member guard 之后
+保护完整 `performance` root；environment registry 同样在已知 member 外保护完整
+`Deno` / `process` root，避免其他 Host runtime capability 从未枚举 member 穿透。Date runtime admission 与静态规则使用同一分类：经
+Gregorian 校验的 zone-less local spelling 是 Host-timezone violation，malformed、
+impossible 或其他 unverifiable input 是 `determinism.date_input_unverified`。
+
 每个 runtime 只需 patch 实际存在的 API；不存在的 global 由 probe
 证明访问稳定失败，不能把 absence 记成 silently skipped coverage。
+
+probe 的 package-internal result 是闭合 union：`passed`、
+`tripwire_unavailable`、`tripwire_violation` 与 `driver_failed`。realm 内
+`driver_failed.phase` 只有 `module_import | driver_run`；malformed request/receipt 或
+message transport validation 归 `protocol`，Worker error/timeout 归 `worker`。后两类没有
+valid guarded-driver result，因此必须使用空 coverage，不能携带或推断 realm evidence。安装阶段保持
+`armed = false`，按固定 registry 顺序逐项定位 descriptor、替换并执行 effective
+invocation/access self-test；self-test sentinel 本身不记 violation。任一既有 API
+不可替换、替换后不生效或 absence probe 不能证明固定失败，都以首个
+`tripwire_unavailable` 结束，且 driver import/run count 必须仍为零。全部 guard
+完成后才一次性 arm，再 dynamic import driver。
+
+armed 后 guard 在抛出 sentinel 前先 latch 首个 category/code/phase；即使被测代码
+捕获，最终结果仍为 `tripwire_violation`。已 latch violation 高于随后发生的 module 或
+driver error；只有没有 latch 的 import/run 异常才归 realm-side `driver_failed`。reflection 对已保护
+slot 的 `Object.defineProperty`、`Reflect.defineProperty`、`Reflect.set` 等 mutation
+同样 latch capability escape，而不是仅依赖平台 `TypeError`。`passed` 要求每个声明的
+guard 都有 `installed` 或经 probe 证明的 `native_absent` evidence，并且 driver 成功。
+结果不传输平台相关 stack/message 作为 parity 字段。
+
+parent receipt admission 还必须验证 exact guard registry order/categories、
+counts/coverage 关系、closed keys/enums 与四条 command 的 compact trace shape；任何
+forged 或 out-of-contract `passed` receipt 都降为带空 coverage 的
+`driver_failed.protocol`。这层只做 transport/shape admission，固定 expected 的
+exact value equality 仍由外层 determinism test 断言，不能把二者混成一个 receipt
+validator。
+
+realm 外输入不是装饰性 receipt：fixed canonical bootstrap value 经消息边界进入 realm
+后，必须由 neutral authoritative workload 实际读取来构造初始 RNG/Session。parent 对
+success、unavailable、violation、driver failure 与 malformed message 都在 `finally`
+exactly-once terminate；realm 内不 restore 部分安装的 global。
 
 ### 6.5 Cross-runtime parity
 
@@ -757,8 +799,9 @@ Save 中不保存 Decimal instance；若未来 runtime 真需 Decimal，也必�
 ## 8. Promotion and stop rules
 
 DET1–DET2e（DET-A）完成只允许 callback-free Save M0b/M1 分叉，不构成完整
-promotion。只有 DET3a–DET4（DET-B）也完成、四 runtime matrix 全绿后，guardrail
-才能写入 live features/development：
+promotion。每个已完成子切片可以按准确的 partial status 同步 live
+features/development；只有 DET3a–DET4（DET-B）也完成、四 runtime matrix 全绿后，
+才能把 aggregate PF-DET guardrail 写成已完整实现：
 
 1. current-gap tests 先证明 raw/mutable bootstrap handoff、zero cursor、
    command/evidence late failure 与 replay admission 的旧行为；

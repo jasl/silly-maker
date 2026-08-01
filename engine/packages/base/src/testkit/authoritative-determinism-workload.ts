@@ -21,6 +21,7 @@ import type {
   DeepReadonly,
   Digest,
   NonNegativeSafeInteger,
+  NonZeroUint32,
   PositiveSafeInteger,
   RuntimeSchemaV1,
 } from "../contracts/values.ts";
@@ -46,7 +47,7 @@ export type AuthoritativeDeterminismCommandClassV1 =
 
 export const authoritativeDeterminismDrawPurposeV1 = "check:determinism.workload" as const;
 
-const authoritativeDeterminismRngSeedV1 = 97;
+const unsafeAuthoritativeDeterminismRngSeedV1 = 97;
 const authoritativeDeterminismExclusiveMaxV1 = 7;
 
 export interface AuthoritativeDeterminismStateV1 {
@@ -118,7 +119,7 @@ export interface AuthoritativeDeterminismWorkCountsV1 {
 export interface AuthoritativeDeterminismWorkloadDescriptorV1 {
   readonly workloadId: string;
   readonly commandClass: AuthoritativeDeterminismCommandClassV1;
-  readonly rngSeed: 97;
+  readonly rngSeed: NonZeroUint32;
   readonly exclusiveMax: 7;
   readonly drawPurpose: typeof authoritativeDeterminismDrawPurposeV1;
 }
@@ -220,11 +221,12 @@ const commandSchemaV1: RuntimeSchemaV1<AuthoritativeDeterminismCommandV1> = Obje
   },
 });
 
-function createAuthoritativeDeterminismInitialSnapshotV1(): AuthoritativeDeterminismSnapshotV1 {
+function createAuthoritativeDeterminismInitialSnapshotV1(
+  rngSeed: NonZeroUint32,
+): AuthoritativeDeterminismSnapshotV1 {
   return {
     state: { value: parseNonNegativeSafeInteger(0) },
-    rng: createTransactionalRngV1(parseNonZeroUint32(authoritativeDeterminismRngSeedV1))
-      .candidateState(),
+    rng: createTransactionalRngV1(rngSeed).candidateState(),
     commandSequence: parseNonNegativeSafeInteger(0),
     integrity: createPristineRunIntegrityV1(),
   };
@@ -284,10 +286,11 @@ function executeAuthoritativeDeterminismAttemptV1(
 
 function createAuthoritativeDeterminismWorkloadV1(
   counter: CompositeSnapshotWorkCounterV1,
+  rngSeed: NonZeroUint32,
 ) {
   const created = createInstrumentedGameSessionV1<AuthoritativeDeterminismTypesV1>(
     {
-      initialSnapshot: createAuthoritativeDeterminismInitialSnapshotV1(),
+      initialSnapshot: createAuthoritativeDeterminismInitialSnapshotV1(rngSeed),
       commandSchema: commandSchemaV1,
       executionContext: undefined,
       executeAttempt: executeAuthoritativeDeterminismAttemptV1,
@@ -322,12 +325,14 @@ function createAuthoritativeDeterminismWorkloadV1(
 /** Prepares one neutral Session/evidence characterization and its deterministic work counts. */
 export function prepareAuthoritativeDeterminismWorkloadV1(input: {
   readonly commandClass: AuthoritativeDeterminismCommandClassV1;
+  readonly bootstrapInput: { readonly rngSeed: number };
 }): PreparedAuthoritativeDeterminismWorkloadV1 {
   if (!authoritativeDeterminismCommandClassesV1.includes(input.commandClass)) {
     throw new TypeError("unsupported authoritative determinism command class");
   }
+  const rngSeed = parseNonZeroUint32(input.bootstrapInput.rngSeed);
   const counter = createCompositeSnapshotWorkCounterV1();
-  const workload = createAuthoritativeDeterminismWorkloadV1(counter);
+  const workload = createAuthoritativeDeterminismWorkloadV1(counter, rngSeed);
   const setupCounts = counter.snapshot();
   counter.reset();
   const initialSnapshot = workload.snapshot();
@@ -336,7 +341,7 @@ export function prepareAuthoritativeDeterminismWorkloadV1(input: {
     descriptor: Object.freeze({
       workloadId: `authoritative-determinism-v1/${input.commandClass}`,
       commandClass: input.commandClass,
-      rngSeed: authoritativeDeterminismRngSeedV1,
+      rngSeed,
       exclusiveMax: authoritativeDeterminismExclusiveMaxV1,
       drawPurpose: authoritativeDeterminismDrawPurposeV1,
     }),
@@ -479,7 +484,7 @@ interface UnsafeAuthoritativeDeterminismCommandLogEntryV1 {
 function createUnsafeInitialSnapshotV1(): UnsafeAuthoritativeDeterminismSnapshotV1 {
   return {
     state: { value: 0 },
-    rng: createTransactionalRngV1(parseNonZeroUint32(authoritativeDeterminismRngSeedV1))
+    rng: createTransactionalRngV1(parseNonZeroUint32(unsafeAuthoritativeDeterminismRngSeedV1))
       .candidateState(),
     commandSequence: parseNonNegativeSafeInteger(0),
     integrity: createPristineRunIntegrityV1(),

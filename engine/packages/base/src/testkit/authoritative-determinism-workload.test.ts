@@ -24,6 +24,7 @@ const drawnRngV1 = Object.freeze({
   cursor: 25_701_511,
   rawDrawCount: 1,
 });
+const fixedBootstrapInputV1 = Object.freeze({ rngSeed: 97 });
 const drawTraceV1 = Object.freeze({
   ordinal: 1,
   purpose: authoritativeDeterminismDrawPurposeV1,
@@ -219,6 +220,7 @@ describe("authoritative determinism workload", () => {
     async (expected) => {
       const prepared = prepareAuthoritativeDeterminismWorkloadV1({
         commandClass: expected.commandClass,
+        bootstrapInput: fixedBootstrapInputV1,
       });
       expect(prepared.descriptor).toEqual({
         workloadId: `authoritative-determinism-v1/${expected.commandClass}`,
@@ -278,6 +280,7 @@ describe("authoritative determinism workload", () => {
   it("matches the independent S0-complete RNG-commit byte oracle", async () => {
     const run = await prepareAuthoritativeDeterminismWorkloadV1({
       commandClass: "rng_committed",
+      bootstrapInput: fixedBootstrapInputV1,
     }).runOnce();
 
     expect(byteEvidenceV1(run.dispatchResult)).toEqual(
@@ -286,6 +289,22 @@ describe("authoritative determinism workload", () => {
     expect(byteEvidenceV1(run.currentSnapshot)).toEqual(s0CompleteRngCommitGoldenV1.snapshot);
     expect(byteEvidenceV1(run.commandLog)).toEqual(s0CompleteRngCommitGoldenV1.commandLog);
     expect(run.commandLog[0]?.attemptedDraws).toEqual([drawTraceV1]);
+  });
+
+  it("consumes the injected fixed bootstrap seed when constructing the Session", async () => {
+    const prepared = prepareAuthoritativeDeterminismWorkloadV1({
+      commandClass: "no_draw_committed",
+      bootstrapInput: Object.freeze({ rngSeed: 101 }),
+    });
+
+    expect(prepared.descriptor.rngSeed).toBe(101);
+    const run = await prepared.runOnce();
+    expect(run.initialSnapshot.rng).toEqual({
+      algorithm: "xorshift32-v1",
+      cursor: 101,
+      rawDrawCount: 0,
+    });
+    expect(run.currentSnapshot.rng).toEqual(run.initialSnapshot.rng);
   });
 });
 

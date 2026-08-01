@@ -1539,17 +1539,16 @@ export function analyzeDeterminismSourceV1(
         ? "determinism.ambient_capability_escape"
         : "determinism.ambient_clock";
     }
-    if (root === "performance" && members.includes("now")) {
+    if (root === "performance" && members.length > 0) {
       return "determinism.performance_clock";
     }
     if (
       (root === "fetch" && provenance.length === 1) ||
       ((root === "XMLHttpRequest" || root === "WebSocket") && provenance.length === 1)
     ) return "determinism.network";
-    if (
-      (root === "Deno" && provenance[1] === "env") ||
-      (root === "process" && provenance[1] === "env")
-    ) return "determinism.environment";
+    if ((root === "Deno" || root === "process") && members.length > 0) {
+      return "determinism.environment";
+    }
     if (
       root === "Intl" ||
       (root === "navigator" && (provenance[1] === "language" || provenance[1] === "languages")) ||

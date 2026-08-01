@@ -10,7 +10,8 @@
     "./runtime": "./src/runtime/index.ts",
     "./runtime/internal": "./src/runtime/internal.ts",
     "./story": "./src/story/index.ts",
-    "./testkit": "./src/testkit/index.ts"
+    "./testkit": "./src/testkit/index.ts",
+    "./testkit/authoritative-determinism": "./src/testkit/authoritative-determinism.ts"
   },
   "scripts": {
     "test:runtime": "deno run -A npm:vitest run engine/packages/base/src/runtime"

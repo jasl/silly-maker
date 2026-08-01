@@ -138,8 +138,10 @@ Ambient entropy, clock, network/provider, environment, locale/ICU, and
 DOM/storage diagnostics cannot be disabled. Do not capture, pass, return, or
 export bare ambient capability roots such as `Math`, `Date`, `Number`,
 `Temporal`, `globalThis`, `Deno`, or `process`; use a checked direct member
-operation or pass canonical recorded data. Explicit `Number(recordedText)`
-remains deterministic. Runtime-producing receivers/callees, inputs and spread
+operation or pass canonical recorded data. Bare `performance` and any of its
+direct member reads/calls are clock metadata; any direct `Deno` / `process` member read or call is
+an environment capability, while bare-root capture remains a capability escape.
+Explicit `Number(recordedText)` remains deterministic. Runtime-producing receivers/callees, inputs and spread
 values, template substitutions, and computed property keys are visited before
 the enclosing member/call/new/coercion operation is classified, so a safe or
 fail-closed outer operation cannot hide an ambient read performed while its
@@ -191,8 +193,8 @@ tag only receives the Date value and is not itself coercion.
 
 Direct assignment, destructuring, update, delete, and `for in/of` writes to a
 tracked ambient capability/intrinsic root or member, or a Date instance/prototype member,
-fail closed as capability escapes; reflection-based mutation remains a DET3b
-runtime probe. Dynamic member production from any tracked ambient capability
+fail closed as capability escapes; DET3b's isolated runtime probe additionally
+guards reflection-based mutation of its protected slots. Dynamic member production from any tracked ambient capability
 also fails closed. A non-reference `delete` operand is evaluated as an ordinary
 expression; only identifier/member references enter write-target classification,
 without reading their prior value as an ordinary member access.
@@ -228,9 +230,37 @@ so reassignment diagnostics do not depend on declaration/use text order;
 non-convergence fails closed. Intermediate convergence passes do not publish
 traversal diagnostics; only the final conservative replay does. This is still
 not sound whole-program analysis of function returns, containers, reflection,
-or every implicit coercion. DET3b's
-isolated runtime tripwire owns those dynamic bypass probes. Neither layer is a
-sandbox or a security boundary. A reviewed fractional literal,
+or every implicit coercion. DET3b's test-only isolated runtime tripwire now owns
+those dynamic bypass probes. Neither layer is a sandbox or a security boundary.
+
+The pure installer and descriptor/absence harness live under
+`e2e/src/testing/ambient-tripwire.ts`; the sibling parent runner, short-lived module
+Worker, and neutral authoritative driver remain Engine Lab test infrastructure.
+The driver imports the narrow
+`@sillymaker/base/testkit/authoritative-determinism` subpath, and a live closure
+test rejects Web, UI, application Host, persistence-composition, or Presentation
+bootstrap dependencies. The Worker installs or proves native absence and self-tests
+the complete fixed registry while unarmed, arms once, then dynamically imports the
+driver. A caught guard sentinel still produces the first latched violation. Malformed
+requests/receipts or message transport validation use `driver_failed.protocol`; Worker
+errors/timeouts use `driver_failed.worker`. Both carry empty coverage and never invent
+realm evidence. Receipt admission checks the exact guard registry order/categories,
+count-to-coverage relations, closed result keys/enums, and all four compact command
+shapes; the outer test separately owns equality with the fixed expected trace. The parent terminates every
+created Worker exactly once, and the isolated realm never restores partially installed
+globals.
+
+The fixed bootstrap value crosses the message boundary and is actually parsed into
+the neutral Session/RNG construction. Ordinary `deno task test` exercises the real
+Deno isolated realm, while the pure harness fixes browser descriptor/install behavior.
+There is intentionally no DET3b daily task, browser installation, or CI job: normal
+`deno task check` stays browser-free and the Player/main page never imports or applies
+the guards. DET4 will add the dedicated Chromium/Firefox/WebKit tripwire and parity
+task/config/CI gate. Existing browser trace coverage proves only that the neutral
+driver is browser-executable, not that the browser tripwire or four-runtime matrix is
+complete.
+
+A reviewed fractional literal,
 `parseFloat`, or approximate-math node may use exactly one directive on the
 immediately preceding physical source line (blank or comment lines do not
 bridge it):

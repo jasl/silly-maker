@@ -11,14 +11,21 @@ test.describe("authoritative determinism browser trace", () => {
     const traces = await page.evaluate(async (specifier) => {
       const module = await import(specifier) as {
         readonly authoritativeDeterminismTraceExpectedV1: unknown;
-        collectAuthoritativeDeterminismTraceV1(): Promise<unknown>;
+        collectAuthoritativeDeterminismTraceV1(input: {
+          readonly schemaVersion: 1;
+          readonly rngSeed: number;
+        }): Promise<unknown>;
       };
       return {
-        actual: await module.collectAuthoritativeDeterminismTraceV1(),
+        actual: await module.collectAuthoritativeDeterminismTraceV1({
+          schemaVersion: 1,
+          rngSeed: 97,
+        }),
         expected: module.authoritativeDeterminismTraceExpectedV1,
       };
     }, "/src/tooling/authoritative-determinism-trace.ts");
 
     expect(traces.actual).toEqual(traces.expected);
+    expect(JSON.stringify(traces.actual)).toBe(JSON.stringify(traces.expected));
   });
 });

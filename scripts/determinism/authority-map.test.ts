@@ -37,6 +37,31 @@ function withApplicationsV1(
 }
 
 describe("authoritative determinism authority map", () => {
+  it("keeps the isolated Worker closure narrow and free of Host or Presentation bootstrap", async () => {
+    const closure = await collectAuthorityClosureV1(repositoryRootV1, [
+      "e2e/src/testing/ambient-tripwire-worker.ts",
+    ]);
+
+    expect(closure.paths).toContain("e2e/src/testing/authoritative-determinism-driver.ts");
+    expect(closure.paths).toContain(
+      "engine/packages/base/src/testkit/authoritative-determinism-workload.ts",
+    );
+    expect(closure.paths).toContain(
+      "engine/packages/base/src/runtime/session/game-session.ts",
+    );
+    expect(
+      closure.paths.filter((path) =>
+        path.startsWith("engine/packages/web/") ||
+        path.startsWith("engine/packages/ui/") ||
+        path.startsWith("e2e/src/application/") ||
+        path.includes("/runtime/application/") ||
+        path.includes("/runtime/persistence/") ||
+        path.includes("/contracts/presentation") ||
+        path.includes("/src/presentation")
+      ),
+    ).toEqual([]);
+  });
+
   it("fails closed when live registry coverage is missing or stale", async () => {
     const policies = determinismAuthorityPolicyV1.applications;
     await expect(

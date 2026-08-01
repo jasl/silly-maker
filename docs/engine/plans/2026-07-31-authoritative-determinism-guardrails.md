@@ -1235,9 +1235,11 @@ StaticBlock/namespace。
 - `Temporal.Now.*` direct method invocation 报 clock；捕获 `Now` namespace 先报
   capability escape，随后 alias method invocation 仍报 clock。明确的 deterministic
   namespace 可 direct/static destructure；
-- `performance.now()`；
+- bare `performance` root 及其任一 direct member read/call（包括 `now()`、`timeOrigin` 与
+  `toJSON()`）均归 Host clock metadata；
 - `fetch`、`XMLHttpRequest`、`WebSocket` 与直接 LLM/network client；
-- `Deno.env`、`process.env`；
+- `Deno` / `process` 的 direct member read/call（包括 `Deno.env`、`process.env`、filesystem
+  与 cwd 等 Host runtime capability）；bare root escape 仍按下一项分类；
 - `navigator.language` / `navigator.languages`、`Intl` / `toLocale*` /
   `String.prototype.localeCompare`；显式 locale 仍依赖 Host ICU，不是 authoritative
   exemption；
@@ -1502,11 +1504,43 @@ DET3b/DET4；本 correction gate 已关闭，下一独立切片是 DET3b。
 
 1. 在 dynamic import test-only authoritative driver 前安装 throwing guards；
 2. guards 至少覆盖 DET3a 的 entropy、clock、Host timezone、network、environment、
-   locale-default 与 DOM ambient categories；
+   locale-default 与 DOM ambient categories；clock registry 在已知
+   `performance.now` / `timeOrigin` / `toJSON` member guard 外阻断完整
+   `performance` root，environment registry 在 member guard 外阻断完整 `Deno` /
+   `process` root；
 3. 启动时逐项自检 descriptor/替换是否有效；
 4. realm 外构造 fixed canonical bootstrap input，执行 no-draw、RNG、
    rejected/faulted transcript；
 5. terminate realm 作为清理。
+
+test-only probe result 固定为闭合 union：`passed`、
+`tripwire_unavailable { guardId, reason, runtime }`、
+`tripwire_violation { guardId, code, category, phase }` 与
+`driver_failed { phase, runtime }`；realm-side phase 只允许
+`module_import | driver_run`，malformed request/receipt 或 message transport validation
+归 `protocol`，Worker error/timeout 归 `worker`。后两类没有 valid guarded-driver result，
+因此必须使用空 coverage，不能携带或推断 realm evidence。不把平台 stack/message
+作为等价字段。安装时先保持
+`armed = false`，按 registry 顺序逐项完成 descriptor replacement 与 effective
+invocation/access self-test；self-test sentinel 不 latch。任一安装、自检或 absence probe
+失败都以首个 `tripwire_unavailable` 结束，且 driver import/run count 必须为 `0/0`。
+全部 guard 完成后才一次性 arm，再 dynamic import driver。
+
+armed 后 guard 先 latch 首个 violation 再抛 sentinel，因此被测代码即使 catch 也不能
+吞掉违规；已 latch violation 高于随后发生的 import/driver error，未 latch 的普通
+module/driver error 才归 `driver_failed`。对已保护 slot 的
+`Object.defineProperty`、`Reflect.defineProperty`、`Reflect.set` 等 reflection mutation
+归 `determinism.ambient_capability_escape`。`passed` 只允许全部 guard 具有
+`installed | native_absent` evidence 且 driver 成功。parent 在全部 terminal path 的
+`finally` exactly-once terminate，realm 内不 restore global。
+
+parent receipt admission 固定验证 exact registry order/categories、counts/coverage
+关系、closed keys/enums 与四条 command 的 compact trace shape；forged 或
+out-of-contract `passed` receipt 一律降为带空 coverage 的 `driver_failed.protocol`。
+transport/shape admission 不替代外层对固定 expected 的 exact value equality 断言。
+
+realm 外 fixed canonical bootstrap input 必须被 neutral workload 实际读取并用于初始
+RNG/Session construction；只把未消费的 value 附在 request/result 上不构成验收。
 
 不得在正常 Player/main page realm patch global，不得跨共享 `await` 做
 patch/restore，也不得把 Simulation production runtime 重写为 Worker。每个
@@ -1528,6 +1562,57 @@ Playwright config/task、browser 安装与 production-check CI job，并在每�
   matrix 验证；
 - 普通 Host/bootstrap/browser E2E 不受影响；
 - 文档明确它是 test probe，不是 security boundary。
+
+**2026-08-02 DET3b promotion：** `e2e/src/testing/**` 现在拥有 test-only pure guard
+harness、parent runner、短命 module Worker 与 browser-executable neutral driver。固定顺序
+registry 在 `armed = false` 时逐项完成 descriptor replacement、effective self-test 或
+重复 absence probe；任一既有 API 不可替换、自检失败或 absence 不能证明时，首个
+`tripwire_unavailable` 在 driver import/run count `0/0` 时结束。全部 guard 通过后才
+arm 并 dynamic import driver；guard 先 latch 首个 violation 再抛 sentinel，因此 import
+或 driver 捕获异常、随后再失败也不能覆盖 `tripwire_violation`。protected slot 的
+`Object.defineProperty` / `Object.defineProperties` 与 `Reflect.defineProperty` /
+`Reflect.set` / `Reflect.deleteProperty` mutation 归
+`determinism.ambient_capability_escape`。malformed request/receipt 或 message transport
+validation 与 Worker error/timeout 分别只发布 `driver_failed.protocol` /
+`driver_failed.worker` 的空 coverage，所有 terminal
+path 都在 `finally` exactly-once terminate；realm 内不 restore global。
+parent 同时固定 exact registry order/categories、counts/coverage、closed result keys/enums
+与四条 command trace shape；任何 forged/out-of-contract pass 都按 protocol failure
+处理，而固定 expected equality 仍由外层 test 独立断言。
+
+registry 显式保护 `performance.now` / `timeOrigin` / `toJSON` member 和完整
+`performance` / `Deno` / `process` root；对应静态规则把任一 performance direct member
+与 Host runtime direct member
+访问分别归 `determinism.performance_clock` / `determinism.environment`。Date runtime
+admission 与 DET3a 使用同一类别边界：validated zone-less Gregorian input 是
+`determinism.host_timezone`，malformed、impossible 或其他 unverifiable input 是
+`determinism.date_input_unverified`。
+
+realm 外 frozen bootstrap value 通过消息边界进入 driver，并由 Base testkit neutral
+workload 实际读取为 Session/RNG seed；`no_draw_committed`、`rng_committed`、`rejected`
+与显式 `faulted` 的 compact trace 继续等于 DET0 固定 expected。driver 使用窄化的
+`@sillymaker/base/testkit/authoritative-determinism` subpath，其 live import closure 含 Base
+Session/execution/RNG/digest/CommandLog authorities，但不含 Web、UI、application Host、
+persistence composition 或 Presentation bootstrap。普通 Player/main page realm、production
+Simulation lifecycle 与公开 automation bridge 均未 patch 或扩张。
+
+本 promotion 只关闭 DET3b：真实 Deno isolated realm 与 pure descriptor/install harness
+提供当前证据，既有 Engine Lab browser trace 只证明同一 driver 可在 browser 执行；它不是
+browser tripwire 或四-runtime parity gate。未新增 Playwright config/task、browser 安装或
+CI job，普通 `deno task check` 继续 browser-free。canonical JSON、digest、Snapshot、Save、
+CommandLog、replay 与公开 runtime semantics 均未改变；完整 DET-B/PF-DET 仍需 DET4，
+当前线性 core 下一独立切片是 `DET4`。
+
+Promotion verification 使用 latest-stable Deno `2.9.4`：focused `5 files / 541 tests`、
+Base `75 / 959`、Engine Lab headless `21 / 118`、repository unit
+`223 / 2819`、完整 `deno task check` 与既有 source-served Chromium/WebKit neutral-driver
+trace 均通过。当前 Deno runtime observation 是 `65 declared = 60 installed + 5
+native_absent`、`65 selfTests`；pass 的 import/run/violation 为 `1/1/0`，intentional
+import violation 为 `1/0/1`，两者 parent termination 都是 `1`。其中
+installed/native-absent 的拆分只记录本次 runtime observation；长期合同仍是
+`installed + nativeAbsent = declared` 与 `selfTests = declared`，不固定 Deno patch 或
+browser descriptor inventory。真实 browser tripwire 结果仍不计入 promotion，留给 DET4
+的可重复 dedicated matrix。
 
 ## 13. DET4 — Four-runtime per-command parity
 

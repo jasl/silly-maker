@@ -590,6 +590,27 @@ Lab production build。本批修改 Base runtime persistence export filename 的
 formatter，因此此前已追加 Engine Lab browser E2E，`103 tests` 全绿。DET-B/PF-DET 仍需
 DET3b/DET4；本 correction gate 已关闭，下一独立切片是 DET3b。
 
+**2026-08-02 DET3b promotion：** Engine Lab 的 test-only `e2e/src/testing/**` 现在
+拥有 pure guard harness、parent runner、短命 module Worker 与 browser-executable neutral
+driver。guard registry 在 dynamic import 前按固定顺序完成 descriptor replacement、
+effective self-test 或重复 native-absence probe；失败以首个 `tripwire_unavailable` 且
+driver import/run `0/0` 结束。全部 guard 成功后才 arm；首个 violation 在抛 sentinel 前
+latch，优先于随后 import/run failure，被测代码 catch 不能吞掉。protected-slot reflection
+mutation 归 capability escape；malformed request/receipt 或 message transport validation
+与 Worker error/timeout 只发布 `driver_failed.protocol | driver_failed.worker` 的空 coverage。
+每个 terminal path exactly-once
+terminate，realm 内不 restore global。
+
+realm 外 fixed bootstrap input 被 Base neutral workload 实际用作 Session/RNG seed；
+no-draw、RNG、rejected 与显式 faulted 四类 compact trace 等于既有固定 expected。driver
+通过窄化的 Base testkit subpath 保持 closure 不含 Web、UI、application Host、persistence
+composition 或 Presentation bootstrap，普通 Player/main page 与 production Simulation
+lifecycle 不受影响。本批未改变 canonical/digest/Snapshot/Save/CommandLog/replay 或公开
+runtime semantics。真实 Deno isolated realm 与 pure browser descriptor/install harness 已
+覆盖 DET3b，但尚未建立真实 browser tripwire、dedicated Playwright config/task、三浏览器
+安装、CI job 或四-runtime parity；完整 DET-B/PF-DET 仍需 DET4，当前线性 core 下一独立
+切片是 `DET4`。
+
 ### PF3 — Save envelope and migration registry
 
 执行 [Save migration plan](2026-07-30-save-migration.md) 的分段 gate：

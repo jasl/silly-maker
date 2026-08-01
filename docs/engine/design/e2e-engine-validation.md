@@ -247,13 +247,20 @@ deno task test:e2e:engine:prebuilt
 浏览器 project 至少覆盖 Chromium 与 WebKit；pointer/touch/keyboard 和 responsive
 cases 使用明确可达的 project/tag，不保留配置中永远不会执行的分支。PF-DET 的专用
 determinism config 另覆盖 Chromium/Firefox/WebKit，但不把 Firefox 强塞进所有 UI
-cases。普通 `deno task check` 继续不隐式下载完整 browser matrix；DET3b 必须先创建
-shared config/task 与 production-check CI job，按 lock 中的 Playwright 版本显式
-安装并运行三种 browser 的 tripwire；DET4 再扩展同一 substrate 运行 parity。CI0
-只提供 latest-stable、browser-free quality job 与其后的 locked Chromium prebuilt
-smoke；它不是 DET3b 的三浏览器 determinism gate。workflow 落地也不自动证明
-branch-protection policy 已启用，二者的 promotion evidence 必须分开记录。缺 browser
-不得 silently skip。
+cases。普通 `deno task check` 继续不隐式下载完整 browser matrix。DET3b 只建立
+isolated tripwire contract、browser-executable test driver 与 pure descriptor/install
+harness，并在真实 Deno isolated realm 验证；它不创建 Playwright config/task、安装
+browser 或修改 CI。DET4 才创建 dedicated determinism config/task 与
+production-check CI job，按 lock 中的 Playwright 版本显式安装并运行三种 browser 的
+tripwire 与 parity matrix。CI0 只提供 latest-stable、browser-free quality job 与其后
+的 locked Chromium prebuilt smoke；它不是 DET3b 的三浏览器 determinism gate。
+workflow 落地也不自动证明 branch-protection policy 已启用，二者的 promotion evidence
+必须分开记录。进入 DET4 后缺 browser 不得 silently skip。
+
+DET3b 的 partial promotion evidence 只包括真实 Deno isolated realm、pure
+descriptor/install harness，以及既有 browser trace 对同一 neutral driver 的可执行性证明；
+后者不是 browser tripwire。它不满足 §9.3 的 cross-runtime acceptance，也不能作为
+Chromium/Firefox/WebKit tripwire 或 aggregate PF-DET 已完成的证据。
 
 ## 8. Fixture and artifact policy
 
