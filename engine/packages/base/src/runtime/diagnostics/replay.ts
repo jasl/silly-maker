@@ -485,6 +485,8 @@ export interface ReplayFromAttemptsInputV1<
     ReplayCommandLogEntryV1<TLoggedCommand, TFact, TRejection, TFault, TRngState, TRngDrawTrace>
   >[];
   readonly currentSnapshot: DeepReadonly<TSnapshot>;
+  /** @internal Standard compositions may inject their own Snapshot admission. */
+  validateSnapshot?(snapshot: DeepReadonly<TSnapshot>): void;
   projectStableRejection(rejection: DeepReadonly<TRejection>): unknown;
   projectStableFault(fault: DeepReadonly<TFault>): unknown;
   executeAttempt(
@@ -507,7 +509,7 @@ export interface ReplayFromAttemptsInputV1<
  *
  * @internal Intentionally absent from package barrels.
  */
-export function replayAuthoritativelyFromAttemptsInternalV1<
+export async function replayAuthoritativelyFromAttemptsInternalV1<
   TSnapshot extends ReplaySnapshotV1,
   TLoggedCommand extends ReplayLoggedCommandShapeV1,
   TFact,
@@ -527,6 +529,8 @@ export function replayAuthoritativelyFromAttemptsInternalV1<
   >,
   instrumentation?: SnapshotWorkInstrumentationV1,
 ): Promise<ReplayComparisonV1> {
+  input.validateSnapshot?.(input.replayBase);
+  input.validateSnapshot?.(input.currentSnapshot);
   const replayInput: ReplayInputV1<
     TSnapshot,
     TLoggedCommand,
@@ -562,6 +566,7 @@ export function replayAuthoritativelyFromAttemptsInternalV1<
         submit(command: DeepReadonly<TLoggedCommand>) {
           const preSnapshot = replaySnapshot;
           const attempt = input.executeAttempt(preSnapshot, command);
+          input.validateSnapshot?.(attempt.result.snapshot as DeepReadonly<TSnapshot>);
           if (attempt.result.kind === "committed") {
             replaySnapshot = attempt.result.snapshot as DeepReadonly<TSnapshot>;
           }
@@ -575,7 +580,7 @@ export function replayAuthoritativelyFromAttemptsInternalV1<
       });
     },
   };
-  return compareReplayV1(replayInput, "authoritative", instrumentation);
+  return await compareReplayV1(replayInput, "authoritative", instrumentation);
 }
 
 export function replayAuthoritativelyV1<

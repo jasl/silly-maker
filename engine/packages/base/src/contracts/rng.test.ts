@@ -1,19 +1,31 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
+import type { NonZeroUint32 } from "./values.ts";
 import { parseNonZeroUint32 } from "./values.ts";
 import { createTransactionalRngV1, rngStateV1Schema } from "./rng.ts";
+
+function captureFailureV1(operation: () => unknown): unknown {
+  try {
+    operation();
+  } catch (error) {
+    return error;
+  }
+  throw new TypeError("expected RNG admission to fail");
+}
 
 describe("xorshift32-v1", () => {
   it("matches the frozen vector and resumes exactly", () => {
     const rng = createTransactionalRngV1(parseNonZeroUint32(0x0002_3049));
     expect(
-      rngStateV1Schema.parse({
-        algorithm: "xorshift32-v1",
-        cursor: 0,
-        rawDrawCount: 0,
-      }),
-    ).toEqual({ algorithm: "xorshift32-v1", cursor: 0, rawDrawCount: 0 });
+      captureFailureV1(() =>
+        rngStateV1Schema.parse({
+          algorithm: "xorshift32-v1",
+          cursor: 0,
+          rawDrawCount: 0,
+        })
+      ),
+    ).toMatchObject({ code: "rng.invalid_state" });
     expect(() =>
       rngStateV1Schema.parse({
         algorithm: "xorshift32-v1",
@@ -50,33 +62,18 @@ describe("xorshift32-v1", () => {
     expect(resumed.candidateState()).toEqual(rng.candidateState());
   });
 
-  it("characterizes the currently accepted zero cursor as an absorbing draw state", () => {
-    const zero = rngStateV1Schema.parse({
-      algorithm: "xorshift32-v1",
-      cursor: 0,
-      rawDrawCount: 7,
-    });
-    const resumed = createTransactionalRngV1(zero);
-
-    expect(resumed.nextInt({ exclusiveMax: 17, purpose: "check:zero.characterization" })).toBe(0);
-    expect(resumed.candidateState()).toEqual({
-      algorithm: "xorshift32-v1",
-      cursor: 0,
-      rawDrawCount: 8,
-    });
-    expect(resumed.attemptedDraws()).toEqual([
-      {
-        ordinal: 1,
-        purpose: "check:zero.characterization",
-        exclusiveMax: 17,
-        result: 0,
-        before: zero,
-        after: {
+  it("rejects zero state through restored and branded numeric inputs", () => {
+    expect(
+      captureFailureV1(() =>
+        rngStateV1Schema.parse({
           algorithm: "xorshift32-v1",
           cursor: 0,
-          rawDrawCount: 8,
-        },
-      },
-    ]);
+          rawDrawCount: 7,
+        })
+      ),
+    ).toMatchObject({ code: "rng.invalid_state" });
+    expect(
+      captureFailureV1(() => createTransactionalRngV1(0 as NonZeroUint32)),
+    ).toMatchObject({ code: "rng.invalid_state" });
   });
 });

@@ -18,6 +18,7 @@ import {
   createPurposeTaggedSnapshotWorkCounterV1,
   createSnapshotWorkCounterV1,
 } from "../../internal/snapshot-work-instrumentation.ts";
+import { createRngZeroStateSnapshotBytesV1 } from "../../testkit/rng-zero-state-fixture.ts";
 import type {
   SnapshotWorkEventV1,
   SnapshotWorkPurposeV1,
@@ -405,6 +406,45 @@ function replaceEntryV1(
 }
 
 describe("authoritative replay", () => {
+  it("rejects a fixed zero RNG replay base before driver or digest work", async () => {
+    const zero = JSON.parse(
+      new TextDecoder().decode(createRngZeroStateSnapshotBytesV1()),
+    ) as SyntheticSnapshotV1;
+    const identity = identityV1(provenanceV1(), digestV1("app-build"));
+    const executeAttempt = vi.fn(executeAttemptV1);
+    const counter = createSnapshotWorkCounterV1();
+
+    await expect(
+      replayAuthoritativelyFromAttemptsInternalV1(
+        {
+          identity,
+          replayBase: zero,
+          replayBaseStateDigest:
+            "sha256:0b8ce31faf5875e7897e65ea40233d01e9a47942431b50ced208c7c9593772b6" as Digest,
+          commandLog: Object.freeze([]),
+          currentSnapshot: zero,
+          projectStableRejection: (rejection: SyntheticRejectionV1) => rejection,
+          projectStableFault: (fault: SyntheticFaultV1) => fault,
+          executeAttempt,
+          validateSnapshot: (snapshot: SyntheticSnapshotV1) => {
+            rngStateV1Schema.parse(snapshot.rng);
+          },
+        },
+        counter.instrumentation,
+      ),
+    ).rejects.toMatchObject({ code: "rng.invalid_state" });
+    expect(executeAttempt).not.toHaveBeenCalled();
+    expect(counter.snapshot()).toEqual({
+      canonicalTraversals: 0,
+      canonicalDigests: 0,
+      deepFreezeTraversals: 0,
+      commandLogContinuityVerifications: 0,
+      saveCanonicalSerializations: 0,
+      strictJsonParses: 0,
+      strictJsonPreflights: 0,
+    });
+  });
+
   it("counts current, driver, and comparison work on the real from-attempts path", async () => {
     const fixture = fixtureV1();
     const counter = createSnapshotWorkCounterV1();

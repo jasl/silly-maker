@@ -345,6 +345,7 @@ export type ImportCompatibilityWarningV1 =
 
 export type ImportRejectionCodeV1 =
   | StrictJsonErrorCodeV1
+  | "rng.invalid_state"
   | "envelope.schema_invalid"
   | "envelope.unsupported_revision"
   | "digest.invalid_format"
@@ -374,6 +375,7 @@ export type ImportCompatibilityOutcomeV1 =
 
 export type SaveRecordDecodeRejectionCodeV1 =
   | StrictJsonErrorCodeV1
+  | "rng.invalid_state"
   | "envelope.schema_invalid"
   | "envelope.unsupported_revision"
   | "digest.invalid_format"

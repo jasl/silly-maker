@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 import { digestCanonicalInternalV1 } from "../../contracts/digest.ts";
+import { RngStateSchemaFailureInternalV1 } from "../../contracts/rng.ts";
 import {
   SaveRecordEnvelopeSchemaFailureV1,
   saveJsonLimitsV1,
@@ -28,6 +29,7 @@ function parseRecordV1<
   | {
     readonly kind: "rejected";
     readonly code:
+      | "rng.invalid_state"
       | "envelope.schema_invalid"
       | "envelope.unsupported_revision"
       | "digest.invalid_format";
@@ -37,6 +39,9 @@ function parseRecordV1<
     record = context.recordSchema.parse(value) as DeepReadonly<TSaveRecord>;
     context.validateEnvelope(record);
   } catch (error) {
+    if (error instanceof RngStateSchemaFailureInternalV1) {
+      return Object.freeze({ kind: "rejected", code: error.code });
+    }
     if (error instanceof SaveRecordEnvelopeSchemaFailureV1) {
       return Object.freeze({ kind: "rejected", code: error.code });
     }

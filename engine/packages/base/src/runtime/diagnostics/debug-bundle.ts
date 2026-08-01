@@ -11,6 +11,7 @@ import type {
   RuntimeOperationFaultV1,
 } from "../../contracts/diagnostics.ts";
 import { digestBytes, digestCanonical } from "../../contracts/digest.ts";
+import { RngStateSchemaFailureInternalV1 } from "../../contracts/rng.ts";
 import type { IsoUtcInstant } from "../../contracts/host.ts";
 import { parseStrictJson } from "../../contracts/strict-json.ts";
 import type { StrictJsonErrorCodeV1 } from "../../contracts/strict-json.ts";
@@ -34,6 +35,7 @@ export interface DebugBundleCodecContextV1<
 
 export type DebugBundleDecodeRejectionCodeV1 =
   | StrictJsonErrorCodeV1
+  | "rng.invalid_state"
   | "envelope.schema_invalid"
   | "envelope.unsupported_revision"
   | "digest.invalid_format"
@@ -133,6 +135,7 @@ function parseBundleV1<TSnapshot, TBundle extends DebugBundleDigestEnvelopeV1<TS
   | {
     readonly kind: "rejected";
     readonly code:
+      | "rng.invalid_state"
       | "envelope.schema_invalid"
       | "envelope.unsupported_revision"
       | "digest.invalid_format";
@@ -142,6 +145,9 @@ function parseBundleV1<TSnapshot, TBundle extends DebugBundleDigestEnvelopeV1<TS
     context.validateEnvelope(bundle);
     return Object.freeze({ kind: "parsed" as const, bundle });
   } catch (error) {
+    if (error instanceof RngStateSchemaFailureInternalV1) {
+      return Object.freeze({ kind: "rejected" as const, code: error.code });
+    }
     if (error instanceof DebugBundleEnvelopeSchemaFailureV1) {
       return Object.freeze({ kind: "rejected" as const, code: error.code });
     }

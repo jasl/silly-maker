@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { RuntimeCapabilitiesV1 } from "../../contracts/application.ts";
 import { canonicalJsonBytes } from "../../contracts/canonical-json.ts";
@@ -14,13 +14,17 @@ import {
 } from "../../contracts/diagnostics.ts";
 import { digestBytes, digestCanonical } from "../../contracts/digest.ts";
 import { commitAttemptV1 } from "../../contracts/execution.ts";
-import type { HostAtomicRecordStoreV1, IsoUtcInstant } from "../../contracts/host.ts";
+import type {
+  HostAtomicRecordStoreV1,
+  HostRecordKeyV1,
+  IsoUtcInstant,
+} from "../../contracts/host.ts";
 import { createMemoryHostRecordStoreV1 } from "../../contracts/host.ts";
 import type { SessionLeaseOwnerId } from "../../contracts/application.ts";
 import { createTransactionalRngV1, rngStateV1Schema } from "../../contracts/rng.ts";
 import { createGameSnapshotEnvelopeSchemaV1 } from "../../contracts/snapshot.ts";
 import { parseStrictJson } from "../../contracts/strict-json.ts";
-import type { RuntimeSchemaV1 } from "../../contracts/values.ts";
+import type { NonZeroUint32, RuntimeSchemaV1 } from "../../contracts/values.ts";
 import {
   parseDigest,
   parseNonNegativeSafeInteger,
@@ -33,6 +37,10 @@ import {
   createSaveMetadataHostPayloadV1,
   saveMetadataCompactExpectedV1,
 } from "../../testkit/save-metadata-corpus.ts";
+import {
+  createRngZeroStateSaveBytesV1,
+  createRngZeroStateSnapshotBytesV1,
+} from "../../testkit/rng-zero-state-fixture.ts";
 import type {
   SyntheticCounterCommandV1,
   SyntheticSimulationTypesV1,
@@ -126,6 +134,10 @@ interface ExactBytesEvidenceV1 {
   readonly byteLength: number;
   readonly bytesDigest: ReturnType<typeof digestBytes>;
 }
+
+type RngAnchorAdmissionResultV1 =
+  | { readonly kind: "anchored" }
+  | { readonly kind: "rejected"; readonly code: string };
 
 interface RawSaveEvidenceV1 extends ExactBytesEvidenceV1 {
   readonly key: string;
@@ -540,6 +552,8 @@ const rollbackDefinitionV1 = defineCoreGameApplicationV1({
 function debugDefinitionFixtureV1() {
   const baseEntry = createSyntheticCounterGamePackageV1();
   let debugExecuteCalls = 0;
+  let injectZeroRngCandidate = false;
+  let normalizeFaultAsZeroRngCommit = false;
   const debugCommandSchemaV1 = Object.freeze({
     parse(value: unknown): DebugCounterCommandV1 {
       if (
@@ -565,8 +579,50 @@ function debugDefinitionFixtureV1() {
       ...simulation,
       createGameSimulation(program: Parameters<typeof simulation.createGameSimulation>[0]) {
         const gameSimulation = simulation.createGameSimulation(program);
+        const corruptCommittedAttemptV1 = <
+          TAttempt extends {
+            readonly result: {
+              readonly kind: string;
+              readonly snapshot: SyntheticSnapshotV1;
+            };
+            readonly diagnostics: object;
+          },
+        >(attempt: TAttempt): TAttempt => {
+          if (!injectZeroRngCandidate || attempt.result.kind !== "committed") return attempt;
+          const zeroRng = Object.freeze({
+            ...attempt.result.snapshot.rng,
+            cursor: 0,
+          });
+          return Object.freeze({
+            ...attempt,
+            result: Object.freeze({
+              ...attempt.result,
+              snapshot: Object.freeze({
+                ...attempt.result.snapshot,
+                rng: zeroRng,
+              }),
+            }),
+            diagnostics: Object.freeze({
+              ...attempt.diagnostics,
+              candidateRngAfter: zeroRng,
+              committedRngAfter: zeroRng,
+            }),
+          }) as TAttempt;
+        };
         return Object.freeze({
           ...gameSimulation,
+          commandExecutor: Object.freeze({
+            ...gameSimulation.commandExecutor,
+            executeAttempt(
+              snapshot: SyntheticSimulationTypesV1["snapshot"],
+              command: SyntheticCounterCommandV1,
+              context: SyntheticSimulationTypesV1["executionContext"],
+            ) {
+              return corruptCommittedAttemptV1(
+                gameSimulation.commandExecutor.executeAttempt(snapshot, command, context),
+              );
+            },
+          }),
           debugCommandSchema: debugCommandSchemaV1,
           debugCommandExecutor: Object.freeze({
             validate() {
@@ -591,12 +647,14 @@ function debugDefinitionFixtureV1() {
                 commandSequence: parseNonNegativeSafeInteger(snapshot.commandSequence + 1),
                 integrity: snapshot.integrity,
               });
-              return commitAttemptV1(snapshot, next, rng, [
-                Object.freeze({
-                  kind: "synthetic.incremented" as const,
-                  count,
-                }),
-              ]);
+              return corruptCommittedAttemptV1(
+                commitAttemptV1(snapshot, next, rng, [
+                  Object.freeze({
+                    kind: "synthetic.incremented" as const,
+                    count,
+                  }),
+                ]),
+              );
             },
           }),
         });
@@ -607,6 +665,25 @@ function debugDefinitionFixtureV1() {
     ...baseEntry,
     define: () => debugStory,
   });
+  const zeroRngCommittedAttemptV1 = (snapshot: SyntheticSnapshotV1) => {
+    const rng = createTransactionalRngV1(snapshot.rng);
+    const next = Object.freeze({
+      ...snapshot,
+      rng: Object.freeze({ ...snapshot.rng, cursor: 0 }),
+      commandSequence: parseNonNegativeSafeInteger(snapshot.commandSequence + 1),
+    }) as unknown as SyntheticSnapshotV1;
+    return commitAttemptV1(
+      snapshot,
+      next,
+      rng,
+      [
+        Object.freeze({
+          kind: "synthetic.incremented" as const,
+          count: snapshot.state.simulation.counter.count,
+        }),
+      ],
+    );
+  };
   const definition = defineCoreGameApplicationV1({
     entry,
     semantic: adapterV1 as unknown as CoreSemanticAdapterV1<
@@ -619,6 +696,14 @@ function debugDefinitionFixtureV1() {
       { readonly countBefore: number },
       SyntheticResultV1
     >,
+    normalizeUnexpectedDispatchFault(error, snapshot) {
+      if (!normalizeFaultAsZeroRngCommit) throw error;
+      return zeroRngCommittedAttemptV1(snapshot);
+    },
+    normalizeUnexpectedDebugFault(error, snapshot) {
+      if (!normalizeFaultAsZeroRngCommit) throw error;
+      return zeroRngCommittedAttemptV1(snapshot);
+    },
     createExtensions(context) {
       const resolvedGame = context.resolved as {
         readonly gameSimulation: {
@@ -767,6 +852,12 @@ function debugDefinitionFixtureV1() {
   return Object.freeze({
     definition,
     debugExecuteCalls: () => debugExecuteCalls,
+    injectZeroRngCandidate(value: boolean) {
+      injectZeroRngCandidate = value;
+    },
+    normalizeFaultAsZeroRngCommit(value: boolean) {
+      normalizeFaultAsZeroRngCommit = value;
+    },
   });
 }
 
@@ -906,6 +997,29 @@ function resolvedResumingApplicationV1() {
 
 const ownerIdV1 = "owner.sillymaker.test.core-application" as SessionLeaseOwnerId;
 const instantV1 = "2026-07-20T00:00:00.000Z" as IsoUtcInstant;
+const rngZeroAutoSaveKeyV1 =
+  "save-record.v1:story.synthetic-counter:auto.current" as HostRecordKeyV1;
+
+function readFixedRngZeroSnapshotV1(): SyntheticSnapshotV1 {
+  return JSON.parse(
+    new TextDecoder().decode(createRngZeroStateSnapshotBytesV1()),
+  ) as SyntheticSnapshotV1;
+}
+
+async function installFixedRngZeroAutoSaveV1(records: HostAtomicRecordStoreV1): Promise<void> {
+  const result = await records.commit([
+    Object.freeze({
+      kind: "put" as const,
+      namespace: "save",
+      key: rngZeroAutoSaveKeyV1,
+      expectedRevision: null,
+      bytes: createRngZeroStateSaveBytesV1(),
+    }),
+  ]);
+  if (result.kind !== "committed") {
+    throw new TypeError("failed to install fixed zero-state Save fixture");
+  }
+}
 
 function hostServicesV1(
   records: HostAtomicRecordStoreV1,
@@ -1338,6 +1452,37 @@ describe("resolveCoreGameApplicationV1", () => {
 });
 
 describe("createCoreGameApplicationInstanceV1", () => {
+  it("rejects a branded zero bootstrap seed before Story state construction", async () => {
+    const fixture = bootstrapCharacterizationFixtureV1();
+    const records = createMemoryHostRecordStoreV1();
+    const healthyHost = hostServicesV1(records, [97]);
+    const zeroSeedHost: CoreApplicationHostServicesV1 = Object.freeze({
+      ...healthyHost,
+      entropy: Object.freeze({
+        ...healthyHost.entropy,
+        nextNonZeroUint32: () => 0 as NonZeroUint32,
+      }),
+    });
+    const construction = createCoreGameApplicationInstanceV1(fixture.application, {
+      host: zeroSeedHost,
+    }).then(async (instance) => {
+      await instance.dispose();
+      return instance;
+    });
+
+    await expect(construction).rejects.toMatchObject({ code: "rng.invalid_state" });
+    expect(fixture.createInitialStateCalls()).toBe(0);
+    expect(await records.list("save")).toEqual([]);
+    expect(await records.list("lease")).toEqual([]);
+
+    const healthy = await createInstanceV1({ records });
+    await expect(healthy.persistence.save("quick")).resolves.toEqual({
+      kind: "saved",
+      slotId: "quick",
+    });
+    await healthy.dispose();
+  });
+
   it("observes construction and restart Snapshot work through a package-internal one-shot probe", async () => {
     const counter = createPurposeTaggedSnapshotWorkCounterV1();
     const options = instrumentCoreApplicationSnapshotWorkOptionsInternalV1(
@@ -1434,6 +1579,211 @@ describe("createCoreGameApplicationInstanceV1", () => {
     expect(await rawSaveEvidenceV1(records)).toEqual([]);
     await instance.dispose();
   });
+
+  it.each(["runtime", "debug"] as const)(
+    "rejects a fixed zero RNG %s anchor before replacement preparation",
+    async (surface) => {
+      const fixture = bootstrapCharacterizationFixtureV1();
+      const records = createMemoryHostRecordStoreV1();
+      const counter = createPurposeTaggedSnapshotWorkCounterV1();
+      const instance = await createCoreGameApplicationInstanceV1(
+        fixture.application,
+        instrumentCoreApplicationSnapshotWorkOptionsInternalV1(
+          Object.freeze({ host: hostServicesV1(records, [97]) }),
+          counter.instrumentation,
+        ),
+      );
+      const context = fixture.extensionContext();
+      if (context === undefined) throw new TypeError("bootstrap extension context missing");
+      const snapshotBefore = context.session.getCurrentSnapshot();
+      const digestBefore = instance.admin.stateDigest();
+      const logBefore = context.commandLog.entries();
+      const replayBaseBefore = context.commandLog.replayBase();
+      const anchorBefore = instance.presentationAnchor();
+      const savesBefore = await rawSaveEvidenceV1(records);
+      const prepareReplacement = vi.fn();
+      const normalize = vi.fn((error: unknown): RngAnchorAdmissionResultV1 => {
+        const code = (error as { readonly code?: unknown }).code;
+        return Object.freeze({
+          kind: "rejected" as const,
+          code: typeof code === "string" ? code : "unknown",
+        });
+      });
+      const zero = readFixedRngZeroSnapshotV1();
+      counter.reset();
+
+      const result = surface === "runtime"
+        ? await context.runtimeControl.enqueueAuthoritative<RngAnchorAdmissionResultV1>(
+          async () =>
+            Object.freeze({
+              kind: "replace" as const,
+              snapshot: zero,
+              result: Object.freeze({ kind: "anchored" as const }),
+              anchor: "replace_replay_base" as const,
+            }),
+          normalize,
+          prepareReplacement,
+        )
+        : await context.debugControl.anchorReplacement<RngAnchorAdmissionResultV1>(
+          Object.freeze({ kind: "debug_bundle" as const }),
+          async () =>
+            Object.freeze({
+              kind: "replace" as const,
+              snapshot: zero,
+              result: Object.freeze({ kind: "anchored" as const }),
+            }),
+          () => true,
+          normalize,
+          prepareReplacement,
+        );
+
+      expect(result).toEqual({ kind: "rejected", code: "rng.invalid_state" });
+      expect(normalize).toHaveBeenCalledTimes(1);
+      expect(normalize.mock.calls[0]?.[0]).toMatchObject({ code: "rng.invalid_state" });
+      expect(prepareReplacement).not.toHaveBeenCalled();
+      expect(counter.snapshot()).toMatchObject({
+        snapshotDigestTraversals: 0,
+        snapshotFreezeTraversals: 0,
+        totalPhysicalCanonicalTraversals: 0,
+      });
+      expect(context.session.getCurrentSnapshot()).toBe(snapshotBefore);
+      expect(instance.admin.stateDigest()).toBe(digestBefore);
+      expect(context.commandLog.entries()).toBe(logBefore);
+      expect(context.commandLog.replayBase()).toBe(replayBaseBefore);
+      expect(context.session.getStatus()).toBe("ready");
+      expect(instance.presentationAnchor()).toEqual(anchorBefore);
+      expect(await rawSaveEvidenceV1(records)).toEqual(savesBefore);
+      await expect(instance.semantic.dispatch(incrementV1)).resolves.toMatchObject({
+        kind: "committed",
+      });
+      await instance.dispose();
+    },
+  );
+
+  it("rolls back a zero RNG debug anchor when its existing fault normalizer throws", async () => {
+    const fixture = bootstrapCharacterizationFixtureV1();
+    const records = createMemoryHostRecordStoreV1();
+    const counter = createPurposeTaggedSnapshotWorkCounterV1();
+    const instance = await createCoreGameApplicationInstanceV1(
+      fixture.application,
+      instrumentCoreApplicationSnapshotWorkOptionsInternalV1(
+        Object.freeze({ host: hostServicesV1(records, [97]) }),
+        counter.instrumentation,
+      ),
+    );
+    const context = fixture.extensionContext();
+    if (context === undefined) throw new TypeError("bootstrap extension context missing");
+    const snapshotBefore = context.session.getCurrentSnapshot();
+    const digestBefore = instance.admin.stateDigest();
+    const logBefore = context.commandLog.entries();
+    const replayBaseBefore = context.commandLog.replayBase();
+    const savesBefore = await rawSaveEvidenceV1(records);
+    const prepareReplacement = vi.fn();
+    const normalizerFailure = new Error("synthetic anchor normalizer failure");
+    const normalize = vi.fn((): never => {
+      throw normalizerFailure;
+    });
+    counter.reset();
+
+    await expect(
+      context.debugControl.anchorReplacement(
+        Object.freeze({ kind: "debug_bundle" as const }),
+        async () =>
+          Object.freeze({
+            kind: "replace" as const,
+            snapshot: readFixedRngZeroSnapshotV1(),
+            result: Object.freeze({ kind: "anchored" as const }),
+          }),
+        () => true,
+        normalize,
+        prepareReplacement,
+      ),
+    ).rejects.toBe(normalizerFailure);
+    expect(normalize).toHaveBeenCalledTimes(1);
+    expect(prepareReplacement).not.toHaveBeenCalled();
+    expect(counter.snapshot()).toMatchObject({
+      snapshotDigestTraversals: 0,
+      snapshotFreezeTraversals: 0,
+      totalPhysicalCanonicalTraversals: 0,
+    });
+    expect(context.session.getCurrentSnapshot()).toBe(snapshotBefore);
+    expect(instance.admin.stateDigest()).toBe(digestBefore);
+    expect(context.commandLog.entries()).toBe(logBefore);
+    expect(context.commandLog.replayBase()).toBe(replayBaseBefore);
+    expect(context.session.getStatus()).toBe("fault_paused");
+    expect(await rawSaveEvidenceV1(records)).toEqual(savesBefore);
+    await instance.dispose();
+  });
+
+  it.each(["runtime", "debug"] as const)(
+    "preserves HMR invalidation precedence over zero RNG %s anchor admission",
+    async (surface) => {
+      const fixture = bootstrapCharacterizationFixtureV1();
+      const instance = await createCoreGameApplicationInstanceV1(
+        fixture.application,
+        Object.freeze({ host: hostServicesV1(createMemoryHostRecordStoreV1(), [97]) }),
+      );
+      const context = fixture.extensionContext();
+      if (context === undefined) throw new TypeError("bootstrap extension context missing");
+      const snapshotBefore = context.session.getCurrentSnapshot();
+      const digestBefore = instance.admin.stateDigest();
+      const logBefore = context.commandLog.entries();
+      const replayBaseBefore = context.commandLog.replayBase();
+      type HmrAnchorResultV1 =
+        | { readonly kind: "anchored" }
+        | { readonly kind: "normalized" }
+        | { readonly kind: "hmr" };
+      const normalize = vi.fn(
+        (): HmrAnchorResultV1 => Object.freeze({ kind: "normalized" as const }),
+      );
+      const zeroRng = readFixedRngZeroSnapshotV1().rng;
+      let staleRngReads = 0;
+      const staleSnapshot = { ...snapshotBefore };
+      Object.defineProperty(staleSnapshot, "rng", {
+        enumerable: true,
+        get() {
+          staleRngReads += 1;
+          return zeroRng;
+        },
+      });
+      Object.freeze(staleSnapshot);
+      const operation = async () => {
+        context.invalidationController.invalidateForHmr();
+        return Object.freeze({
+          kind: "replace" as const,
+          snapshot: staleSnapshot as SyntheticSnapshotV1,
+          result: Object.freeze({ kind: "anchored" as const }),
+          anchor: "replace_replay_base" as const,
+        });
+      };
+
+      const result = surface === "runtime"
+        ? await context.runtimeControl.enqueueAuthoritative<HmrAnchorResultV1>(
+          operation,
+          normalize,
+          undefined,
+          () => Object.freeze({ kind: "hmr" as const }),
+        )
+        : await context.debugControl.anchorReplacement<HmrAnchorResultV1>(
+          Object.freeze({ kind: "debug_bundle" as const }),
+          operation,
+          () => true,
+          normalize,
+        );
+
+      expect(result).toEqual(
+        surface === "runtime" ? { kind: "hmr" } : { kind: "not_executed", code: "hmr_invalidated" },
+      );
+      expect(normalize).not.toHaveBeenCalled();
+      expect(staleRngReads).toBe(0);
+      expect(context.session.getCurrentSnapshot()).toBe(snapshotBefore);
+      expect(instance.admin.stateDigest()).toBe(digestBefore);
+      expect(context.commandLog.entries()).toBe(logBefore);
+      expect(context.commandLog.replayBase()).toBe(replayBaseBefore);
+      expect(context.session.getStatus()).toBe("hmr_invalidated");
+      await instance.dispose();
+    },
+  );
 
   it("matches independent S0-complete bytes for all three valid bootstrap surfaces", async () => {
     const constructionFixture = bootstrapCharacterizationFixtureV1();
@@ -1795,6 +2145,153 @@ describe("createCoreGameApplicationInstanceV1", () => {
     });
     expect(instance.admin.stateDigest()).toBe(digest);
     await instance.dispose();
+  });
+
+  it.each(["game", "debug"] as const)(
+    "rejects a zero RNG candidate from the Core %s executor before Session finalization",
+    async (source) => {
+      const fixture = debugDefinitionFixtureV1();
+      const resolved = resolveCoreGameApplicationV1(fixture.definition, {
+        buildIdentityInput: deterministicBuildIdentityInputV1,
+      });
+      if (resolved.kind !== "resolved") throw new TypeError("debug synthetic story must resolve");
+      const instance = await createCoreGameApplicationInstanceV1(resolved.application, {
+        host: hostServicesV1(createMemoryHostRecordStoreV1()),
+        capabilities: { debugTools: true },
+      });
+      const snapshotBefore = instance.admin.inspectForTest().snapshot;
+      const digestBefore = instance.admin.stateDigest();
+      const logBefore = instance.admin.commandLog();
+      const statusBefore = instance.semantic.observe().status;
+      fixture.injectZeroRngCandidate(true);
+
+      try {
+        if (source === "game") {
+          await expect(instance.semantic.dispatch(incrementV1)).rejects.toMatchObject({
+            code: "rng.invalid_state",
+          });
+        } else {
+          const debugControl = instance.admin.debugControl;
+          if (debugControl === undefined) throw new TypeError("debug control must be enabled");
+          await expect(
+            debugControl.execute(
+              Object.freeze({ kind: "debug.synthetic.add", amount: 1 }),
+              () => true,
+            ),
+          ).rejects.toMatchObject({ code: "rng.invalid_state" });
+        }
+        expect(instance.admin.inspectForTest().snapshot).toBe(snapshotBefore);
+        expect(instance.admin.stateDigest()).toBe(digestBefore);
+        expect(instance.admin.commandLog()).toBe(logBefore);
+        expect(instance.semantic.observe().status).toBe(statusBefore);
+
+        fixture.injectZeroRngCandidate(false);
+        if (source === "game") {
+          await expect(instance.semantic.dispatch(incrementV1)).resolves.toMatchObject({
+            kind: "committed",
+          });
+        } else {
+          const debugControl = instance.admin.debugControl;
+          if (debugControl === undefined) throw new TypeError("debug control must be enabled");
+          await expect(
+            debugControl.execute(
+              Object.freeze({ kind: "debug.synthetic.add", amount: 1 }),
+              () => true,
+            ),
+          ).resolves.toMatchObject({
+            kind: "executed",
+            attempt: { result: { kind: "committed" } },
+          });
+        }
+      } finally {
+        fixture.injectZeroRngCandidate(false);
+        await instance.dispose();
+      }
+    },
+  );
+
+  it.each(["game", "debug"] as const)(
+    "rejects a zero RNG candidate returned by the Core %s fault normalizer",
+    async (source) => {
+      const fixture = debugDefinitionFixtureV1();
+      const resolved = resolveCoreGameApplicationV1(fixture.definition, {
+        buildIdentityInput: deterministicBuildIdentityInputV1,
+      });
+      if (resolved.kind !== "resolved") throw new TypeError("debug synthetic story must resolve");
+      const instance = await createCoreGameApplicationInstanceV1(resolved.application, {
+        host: hostServicesV1(createMemoryHostRecordStoreV1()),
+        capabilities: { debugTools: true },
+      });
+      const snapshotBefore = instance.admin.inspectForTest().snapshot;
+      const digestBefore = instance.admin.stateDigest();
+      const logBefore = instance.admin.commandLog();
+      const statusBefore = instance.semantic.observe().status;
+      fixture.injectZeroRngCandidate(true);
+      fixture.normalizeFaultAsZeroRngCommit(true);
+
+      try {
+        if (source === "game") {
+          await expect(instance.semantic.dispatch(incrementV1)).rejects.toMatchObject({
+            code: "rng.invalid_state",
+          });
+        } else {
+          const debugControl = instance.admin.debugControl;
+          if (debugControl === undefined) throw new TypeError("debug control must be enabled");
+          await expect(
+            debugControl.execute(
+              Object.freeze({ kind: "debug.synthetic.add", amount: 1 }),
+              () => true,
+            ),
+          ).rejects.toMatchObject({ code: "rng.invalid_state" });
+        }
+        expect(instance.admin.inspectForTest().snapshot).toBe(snapshotBefore);
+        expect(instance.admin.stateDigest()).toBe(digestBefore);
+        expect(instance.admin.commandLog()).toBe(logBefore);
+        expect(instance.semantic.observe().status).toBe(statusBefore);
+      } finally {
+        fixture.normalizeFaultAsZeroRngCommit(false);
+        fixture.injectZeroRngCandidate(false);
+        await instance.dispose();
+      }
+    },
+  );
+
+  it("rejects a zero RNG replay attempt without mutating the live Core Session", async () => {
+    const fixture = debugDefinitionFixtureV1();
+    const resolved = resolveCoreGameApplicationV1(fixture.definition, {
+      buildIdentityInput: deterministicBuildIdentityInputV1,
+    });
+    if (resolved.kind !== "resolved") throw new TypeError("debug synthetic story must resolve");
+    const instance = await createCoreGameApplicationInstanceV1(resolved.application, {
+      host: hostServicesV1(createMemoryHostRecordStoreV1()),
+      capabilities: { debugTools: true },
+    });
+    await instance.semantic.dispatch(incrementV1);
+    const snapshotBefore = instance.admin.inspectForTest().snapshot;
+    const digestBefore = instance.admin.stateDigest();
+    const commandLogBytesBefore = canonicalJsonBytes(instance.admin.commandLog());
+    const statusBefore = instance.semantic.observe().status;
+    fixture.injectZeroRngCandidate(true);
+
+    try {
+      await expect(instance.admin.replayAuthoritatively()).rejects.toMatchObject({
+        code: "rng.invalid_state",
+      });
+      expect(instance.admin.inspectForTest().snapshot).toBe(snapshotBefore);
+      expect(instance.admin.stateDigest()).toBe(digestBefore);
+      expect(canonicalJsonBytes(instance.admin.commandLog())).toEqual(commandLogBytesBefore);
+      expect(instance.semantic.observe().status).toBe(statusBefore);
+
+      fixture.injectZeroRngCandidate(false);
+      await expect(instance.admin.replayAuthoritatively()).resolves.toMatchObject({
+        authoritative: true,
+        matches: true,
+        executedEntries: 1,
+      });
+    } finally {
+      fixture.injectZeroRngCandidate(false);
+      await instance.dispose();
+    }
   });
 
   it("replays the Core command log authoritatively through isolated attempts", async () => {
@@ -2613,59 +3110,69 @@ describe("createCoreGameApplicationInstanceV1", () => {
     await fresh.dispose();
   });
 
-  it("currently resumes an internally consistent autosave whose RNG cursor is zero", async () => {
-    const records = createMemoryHostRecordStoreV1();
-    const first = await createCoreGameApplicationInstanceV1(resolvedResumingApplicationV1(), {
-      host: hostServicesV1(records),
-    });
-    await first.semantic.dispatch(incrementV1);
-    await first.semantic.dispatch(incrementV1);
-    await first.autoSaveIdle();
-    await first.dispose();
+  it.each(["load", "import"] as const)(
+    "rejects the fixed zero RNG Save through explicit %s without mutating the live Session",
+    async (operation) => {
+      const records = createMemoryHostRecordStoreV1();
+      if (operation === "load") await installFixedRngZeroAutoSaveV1(records);
+      const rawSavesBefore = await records.list("save");
+      const instance = await createInstanceV1({ records });
+      const snapshotBefore = instance.admin.inspectForTest().snapshot;
+      const digestBefore = instance.admin.stateDigest();
+      const snapshotBytesBefore = canonicalJsonBytes(snapshotBefore);
+      const commandLogBytesBefore = canonicalJsonBytes(instance.admin.commandLog());
+      const statusBefore = instance.semantic.observe().status;
+      const anchorBefore = instance.presentationAnchor();
 
-    const stored = await records.list("save");
-    const autoCurrent = stored.find(({ key }) => key.endsWith(":auto.current"));
-    if (autoCurrent === undefined) throw new TypeError("expected resumable Auto Save");
-    const record = JSON.parse(new TextDecoder().decode(autoCurrent.bytes)) as {
-      readonly snapshot: SyntheticSnapshotV1;
-      readonly stateDigest: string;
-      readonly [key: string]: unknown;
-    };
-    const zeroSnapshot: SyntheticSnapshotV1 = {
-      ...record.snapshot,
-      rng: rngStateV1Schema.parse({ ...record.snapshot.rng, cursor: 0 }),
-    };
-    const zeroDigest = digestCanonical("sillymaker:state:v1", zeroSnapshot);
-    await expect(
-      records.commit([
-        {
-          kind: "put",
-          namespace: "save",
-          key: autoCurrent.key,
-          expectedRevision: autoCurrent.revision,
-          bytes: canonicalJsonBytes({
-            ...record,
-            recordRevision: parsePositiveSafeInteger(autoCurrent.revision + 1),
-            snapshot: zeroSnapshot,
-            stateDigest: zeroDigest,
-          }),
-        },
-      ]),
-    ).resolves.toMatchObject({ kind: "committed" });
+      const result = operation === "load"
+        ? await instance.persistence.load("auto.current")
+        : await instance.persistence.importSave(createRngZeroStateSaveBytesV1());
+
+      expect(result).toEqual({ kind: "rejected", code: "invalid_record" });
+      expect((await instance.persistence.getStatus()).lastFailureCode).toBe("rng.invalid_state");
+      expect(instance.admin.inspectForTest().snapshot).toBe(snapshotBefore);
+      expect(instance.admin.stateDigest()).toBe(digestBefore);
+      expect(canonicalJsonBytes(instance.admin.inspectForTest().snapshot)).toEqual(
+        snapshotBytesBefore,
+      );
+      expect(canonicalJsonBytes(instance.admin.commandLog())).toEqual(commandLogBytesBefore);
+      expect(instance.semantic.observe().status).toBe(statusBefore);
+      expect(instance.presentationAnchor()).toEqual(anchorBefore);
+      expect(await records.list("save")).toEqual(rawSavesBefore);
+      await instance.dispose();
+    },
+  );
+
+  it("rejects a fixed zero RNG autosave at boot and retains a usable fresh session", async () => {
+    const records = createMemoryHostRecordStoreV1();
+    await installFixedRngZeroAutoSaveV1(records);
+    const rawSavesBefore = await records.list("save");
+    const fresh = await createInstanceV1({ seeds: [77] });
+    const freshSnapshotBytes = canonicalJsonBytes(fresh.admin.inspectForTest().snapshot);
+    const freshDigest = fresh.admin.stateDigest();
+    await fresh.dispose();
 
     const resumed = await createCoreGameApplicationInstanceV1(resolvedResumingApplicationV1(), {
-      host: hostServicesV1(records),
+      host: hostServicesV1(records, [77]),
     });
     const installed = resumed.admin.inspectForTest().snapshot;
     expect(installed).toMatchObject({
-      state: { simulation: { counter: { count: 2 } } },
-      rng: { algorithm: "xorshift32-v1", cursor: 0, rawDrawCount: 0 },
-      commandSequence: 2,
+      state: { simulation: { counter: { count: 0 } } },
+      rng: { algorithm: "xorshift32-v1", cursor: 77, rawDrawCount: 0 },
+      commandSequence: 0,
     });
-    expect(resumed.admin.stateDigest()).toBe(zeroDigest);
+    expect(canonicalJsonBytes(installed)).toEqual(freshSnapshotBytes);
+    expect(resumed.admin.stateDigest()).toBe(freshDigest);
     expect(resumed.semantic.observe().status).toBe("ready");
     expect(resumed.presentationAnchor()).toEqual({ epoch: 0, origin: "bootstrap" });
     expect(resumed.admin.commandLog()).toEqual([]);
+    expect(await resumed.persistence.getStatus()).toMatchObject({
+      available: true,
+      busy: false,
+      safelySavedCommandSequence: null,
+      lastFailureCode: "rng.invalid_state",
+    });
+    expect(await records.list("save")).toEqual(rawSavesBefore);
     await expect(resumed.admin.replayAuthoritatively()).resolves.toEqual({
       authoritative: true,
       identityMatch: true,
@@ -2676,13 +3183,15 @@ describe("createCoreGameApplicationInstanceV1", () => {
     });
     expect(resumed.admin.inspectForTest().snapshot).toBe(installed);
 
-    await resumed.semantic.dispatch(incrementV1);
-    expect(resumed.admin.commandLog()[0]).toMatchObject({
-      preStateDigest: zeroDigest,
-      commandSequence: { before: 2, after: 3 },
-      committedRngBefore: { cursor: 0, rawDrawCount: 0 },
-      committedRngAfter: { cursor: 0, rawDrawCount: 0 },
+    await expect(resumed.semantic.dispatch(incrementV1)).resolves.toEqual({
+      kind: "committed",
+      count: 1,
     });
+    await expect(resumed.persistence.save("quick")).resolves.toEqual({
+      kind: "saved",
+      slotId: "quick",
+    });
+    await expect(resumed.persistence.load("quick")).resolves.toMatchObject({ kind: "loaded" });
     await resumed.dispose();
   });
 

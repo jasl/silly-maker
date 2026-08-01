@@ -129,6 +129,15 @@ serializable and transaction-local so a rejected or faulted attempt cannot
 silently consume randomness. Command logs and emitted facts are diagnostic
 evidence, not a second source of State.
 
+The standard Core composition treats `xorshift32-v1` cursor zero as an invalid
+runtime state: numeric bootstrap seeds and restored Snapshot candidates are
+rejected before Story initial-state construction, command finalization, replay work, or
+authoritative replacement can install them. Save and DebugBundle decoding retain
+the stable `rng.invalid_state` classification. The generic low-level Session and
+replay constructors remain algorithm-agnostic escape hatches; the standard Core
+owns this xorshift admission without changing canonical JSON, digest, or Save
+envelope formats.
+
 ## 5. Session and semantic read/write flow
 
 One `GameSession` owns the current Snapshot. Its queue serializes authoritative

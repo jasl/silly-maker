@@ -582,6 +582,7 @@ const rejectionCodesV1 = new Set<ImportRejectionCodeV1>([
   "number.unsafe_integer",
   "number.negative_zero",
   "string.lone_surrogate",
+  "rng.invalid_state",
   "envelope.schema_invalid",
   "envelope.unsupported_revision",
   "digest.invalid_format",

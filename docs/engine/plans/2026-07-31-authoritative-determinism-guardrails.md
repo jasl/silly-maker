@@ -322,6 +322,44 @@ replay。由用户决定保留旧零流、声明不兼容或建立新的显式�
 - valid corpus 的 RNG/CommandLog/Snapshot/Save bytes 完全相等；
 - 不改变 algorithm ID、draw order、trace shape 或 Save envelope。
 
+**2026-08-01 DET1 promotion：** compatibility scan 未发现 maintained、承诺有效或
+migration corpus 中的 zero-state Save；本切片因此执行已经接受的 V1 schema 可观察
+收紧，不静默 reseed，也不建立 migration。`RngStateV1.cursor`、numeric bootstrap seed
+和标准 Core 的 restored/replacement Snapshot 统一拒绝 zero，稳定 classification 为
+`rng.invalid_state`。Save/import/load、boot autosave、DebugBundle、authoritative replay、
+game/debug executor candidate 与 extension/admin anchor 均在安装 candidate 前 fail
+closed；Story fault normalizer 返回的 attempt 走同一 admission，不能以 committed zero
+绕回 Session。显式 persistence 操作继续返回既有 player-facing `invalid_record`，同时
+在 diagnostics status 保留精确 failure code。通用低层 Session/replay 仍保持
+RNG-algorithm agnostic，没有新增 public validator 或第二套 state authority。
+
+固定 pre-green 输入不由当前 codec 重生成：correctly-digested `auto.current` Save 为
+`1451` bytes / `sha256:d9b01aa8...c67`，zero Snapshot/debug anchor 为 `222` bytes /
+`sha256:0b0cd453...1fd`，其 state digest 为 `sha256:0b8ce31f...2b6`。修复前 zero
+schema 与 branded numeric bypass 都被接受且 draw 永久保持 zero；修复后两者均在 draw
+前拒绝。固定 Save 的 production decode 从 Strict parse / Snapshot digest canonical
+traversal=`1/1` 且成功安装，变为 `1/0` 并拒绝；deep-freeze 始终为 `0`。空日志 zero
+replay 从 driver construction / Snapshot digest traversal / replay comparison traversal /
+total physical canonical traversal=`1/4/4/8`，变为 `0/0/0/0`。runtime/debug anchor 从
+replacement preparation / Snapshot freeze / Snapshot digest / install=`1/1/1/1`，变为
+`0/0/0/0`；bootstrap zero 也从调用 Story initial-state factory 变为调用次数 `0`。
+
+原子性测试逐入口固定旧 Snapshot identity/digest/RNG/sequence、CommandLog/replay base、
+Session status、presentation anchor、lease 与 raw slot bytes；boot-resume 保留 fixed seed
+`77` 的 fresh bootstrap，随后 dispatch/save/load/replay 继续可用且没有产生 boot-time
+physical write。DET0/S0 的非零 frozen vector、真实 draw、bootstrap、Snapshot、
+CommandLog 与 Save length+SHA golden 全部保持 byte-for-byte 相等；algorithm ID、draw
+order、purpose/trace shape、canonical JSON、digest 与 Save envelope 未改变。DET2a 及其后
+续 command/evidence/bootstrap admission、ambient tripwire 和 matrix 工作仍 deferred。
+in-flight anchor 被 HMR invalidation fence 后，stale candidate 的 RNG 读取和 caller
+normalizer 调用都为 `0`，继续由原 Session 返回 `hmr_invalidated`；不能把本记录解释为
+DET-A 或完整 PF-DET promotion。
+
+Promotion verification 使用 Deno `2.9.4`：focused `6/127`、Base `71/762`、repository
+unit `216/2090` 全绿，`deno task check` 同时通过 format/lint/style/typecheck、全部 Story
+checks 与 Engine Lab production build。改动局限于 Host-neutral Base contracts/runtime 与
+codec，没有浏览器交互变化，因此未机械追加独立 E2E lane。
+
 ## 6. DET2a — Canonical command admission
 
 ### Changes

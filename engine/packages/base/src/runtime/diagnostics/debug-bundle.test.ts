@@ -13,6 +13,8 @@ import type {
   RuntimeOperationFaultV1,
 } from "../../contracts/diagnostics.ts";
 import { digestBytes, digestCanonical } from "../../contracts/digest.ts";
+import type { RngStateV1 } from "../../contracts/rng.ts";
+import { rngStateV1Schema } from "../../contracts/rng.ts";
 import { parseIsoUtcInstantV1 } from "../../contracts/persistence.ts";
 import {
   createGameSnapshotEnvelopeSchemaV1,
@@ -22,6 +24,7 @@ import type { GameSnapshotEnvelopeV1 } from "../../contracts/snapshot.ts";
 import type { Digest, NonNegativeSafeInteger, RuntimeSchemaV1 } from "../../contracts/values.ts";
 import { parseNonNegativeSafeInteger } from "../../contracts/values.ts";
 import { createUnsafeAuthoritativeDeterminismWorkloadV1 } from "../../testkit/authoritative-determinism-workload.ts";
+import { createRngZeroStateSnapshotBytesV1 } from "../../testkit/rng-zero-state-fixture.ts";
 import {
   createGameDiagnosticsServiceV1,
   decodeDebugBundleV1,
@@ -212,6 +215,42 @@ const codecV1: DebugBundleCodecContextV1<SyntheticSnapshotV1, SyntheticBundleV1>
   },
 });
 
+type RngZeroDebugSnapshotV1 = GameSnapshotEnvelopeV1<unknown, RngStateV1>;
+type RngZeroDebugBundleV1 = DebugBundleEnvelopeV1<
+  SyntheticProvenanceV1,
+  RuntimeCapabilitiesV1,
+  readonly string[],
+  RngZeroDebugSnapshotV1,
+  string,
+  SyntheticDiagnosticsV1,
+  RuntimeOperationFaultV1,
+  SyntheticFailureV1,
+  SyntheticUiContextV1
+>;
+const passthroughStateSchemaV1: RuntimeSchemaV1<unknown> = Object.freeze({
+  parse: (value: unknown) => value,
+});
+const rngZeroDebugBundleCodecV1: DebugBundleCodecContextV1<
+  RngZeroDebugSnapshotV1,
+  RngZeroDebugBundleV1
+> = Object.freeze({
+  bundleSchema: createDebugBundleEnvelopeSchemaV1({
+    provenanceSchema: provenanceSchemaV1,
+    capabilitiesSchema: capabilitiesSchemaV1,
+    simulationLineageSchema: stringArraySchemaV1,
+    snapshotSchema: createGameSnapshotEnvelopeSchemaV1(
+      passthroughStateSchemaV1,
+      rngStateV1Schema,
+    ),
+    commandLogEntrySchema: stringSchemaV1,
+    diagnosticsSchema: diagnosticsSchemaV1,
+    runtimeFailureSchema: runtimeOperationFaultSchemaV1,
+    failureSchema: failureSchemaV1,
+    uiContextSchema: uiContextSchemaV1,
+  }),
+  validateEnvelope() {},
+});
+
 const permissiveCodecV1: DebugBundleCodecContextV1<
   SyntheticSnapshotV1,
   SyntheticPermissiveBundleV1
@@ -304,6 +343,33 @@ function permissiveDiagnosticsServiceV1(commandLog: readonly unknown[]) {
 }
 
 describe("Debug Bundle codec", () => {
+  it.each(["replayBase", "currentSnapshot"] as const)(
+    "classifies a fixed zero RNG %s before digest comparison",
+    (field) => {
+      const zero = JSON.parse(
+        new TextDecoder().decode(createRngZeroStateSnapshotBytesV1()),
+      ) as RngZeroDebugSnapshotV1;
+      const valid = Object.freeze({
+        ...zero,
+        rng: Object.freeze({ ...zero.rng, cursor: 77 }),
+      }) as RngZeroDebugSnapshotV1;
+      const zeroDigest =
+        "sha256:0b8ce31faf5875e7897e65ea40233d01e9a47942431b50ced208c7c9593772b6" as Digest;
+      const validDigest = digestCanonical("sillymaker:state:v1", valid);
+      const candidate = Object.freeze({
+        ...bundleV1(),
+        replayBase: field === "replayBase" ? zero : valid,
+        replayBaseStateDigest: field === "replayBase" ? zeroDigest : validDigest,
+        currentSnapshot: field === "currentSnapshot" ? zero : valid,
+        currentStateDigest: field === "currentSnapshot" ? zeroDigest : validDigest,
+      }) as RngZeroDebugBundleV1;
+
+      expect(
+        decodeDebugBundleV1(canonicalJsonBytes(candidate), rngZeroDebugBundleCodecV1),
+      ).toEqual({ kind: "rejected", code: "rng.invalid_state" });
+    },
+  );
+
   it("round-trips one strict bundle with capability state and RunIntegrity", () => {
     const bundle = bundleV1();
     const bytes = encodeDebugBundleV1(bundle, codecV1);

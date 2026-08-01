@@ -1,19 +1,20 @@
 // SPDX-License-Identifier: MIT
 import type {
-  Brand,
   DeepReadonly,
   NonNegativeSafeInteger,
   NonZeroUint32,
   PositiveSafeInteger,
   RuntimeSchemaV1,
 } from "./values.ts";
-import { parseNonNegativeSafeInteger, parsePositiveSafeInteger } from "./values.ts";
-
-type Uint32 = Brand<number, "Uint32">;
+import {
+  parseNonNegativeSafeInteger,
+  parseNonZeroUint32,
+  parsePositiveSafeInteger,
+} from "./values.ts";
 
 export interface RngStateV1 {
   readonly algorithm: "xorshift32-v1";
-  readonly cursor: Uint32;
+  readonly cursor: NonZeroUint32;
   readonly rawDrawCount: NonNegativeSafeInteger;
 }
 
@@ -37,47 +38,62 @@ export interface RuleRngV1 {
   attemptedDraws(): readonly RngDrawTraceV1[];
 }
 
-function parseUint32(value: unknown): Uint32 {
-  if (
-    Object.is(value, -0) ||
-    typeof value !== "number" ||
-    !Number.isInteger(value) ||
-    value < 0 ||
-    value > 0xffff_ffff
-  ) {
-    throw new TypeError("invalid Uint32");
+/** @internal Recognizable nested-schema failure; intentionally absent from package barrels. */
+export class RngStateSchemaFailureInternalV1 extends TypeError {
+  readonly code = "rng.invalid_state" as const;
+
+  constructor(message: string, cause?: unknown) {
+    super(message, cause === undefined ? undefined : { cause });
+    this.name = "RngStateSchemaFailureInternalV1";
   }
-  return value as Uint32;
+}
+
+function parseRngCursorV1(value: unknown): NonZeroUint32 {
+  try {
+    return parseNonZeroUint32(value);
+  } catch (error) {
+    throw new RngStateSchemaFailureInternalV1("invalid RngStateV1 cursor", error);
+  }
+}
+
+/** @internal Core bootstrap runtime guard; intentionally absent from package barrels. */
+export function parseRngSeedInternalV1(value: unknown): NonZeroUint32 {
+  return parseRngCursorV1(value);
 }
 
 export const rngStateV1Schema: RuntimeSchemaV1<RngStateV1> = Object.freeze({
   parse(value: unknown): RngStateV1 {
-    if (
-      value === null ||
-      typeof value !== "object" ||
-      Array.isArray(value) ||
-      Object.getPrototypeOf(value) !== Object.prototype ||
-      Object.getOwnPropertySymbols(value).length > 0
-    ) {
-      throw new TypeError("invalid RngStateV1");
-    }
-    const descriptors = Object.getOwnPropertyDescriptors(value);
-    if (Object.keys(descriptors).sort().join("\0") !== "algorithm\0cursor\0rawDrawCount") {
-      throw new TypeError("invalid RngStateV1 fields");
-    }
-    for (const descriptor of Object.values(descriptors)) {
-      if (descriptor.get !== undefined || descriptor.set !== undefined) {
-        throw new TypeError("RngStateV1 accessors are forbidden");
+    try {
+      if (
+        value === null ||
+        typeof value !== "object" ||
+        Array.isArray(value) ||
+        Object.getPrototypeOf(value) !== Object.prototype ||
+        Object.getOwnPropertySymbols(value).length > 0
+      ) {
+        throw new TypeError("invalid RngStateV1");
       }
+      const descriptors = Object.getOwnPropertyDescriptors(value);
+      if (Object.keys(descriptors).sort().join("\0") !== "algorithm\0cursor\0rawDrawCount") {
+        throw new TypeError("invalid RngStateV1 fields");
+      }
+      for (const descriptor of Object.values(descriptors)) {
+        if (descriptor.get !== undefined || descriptor.set !== undefined) {
+          throw new TypeError("RngStateV1 accessors are forbidden");
+        }
+      }
+      if (descriptors.algorithm?.value !== "xorshift32-v1") {
+        throw new TypeError("invalid RngStateV1 algorithm");
+      }
+      return Object.freeze({
+        algorithm: "xorshift32-v1",
+        cursor: parseRngCursorV1(descriptors.cursor?.value),
+        rawDrawCount: parseNonNegativeSafeInteger(descriptors.rawDrawCount?.value),
+      });
+    } catch (error) {
+      if (error instanceof RngStateSchemaFailureInternalV1) throw error;
+      throw new RngStateSchemaFailureInternalV1("invalid RngStateV1", error);
     }
-    if (descriptors.algorithm?.value !== "xorshift32-v1") {
-      throw new TypeError("invalid RngStateV1 algorithm");
-    }
-    return Object.freeze({
-      algorithm: "xorshift32-v1",
-      cursor: parseUint32(descriptors.cursor?.value),
-      rawDrawCount: parseNonNegativeSafeInteger(descriptors.rawDrawCount?.value),
-    });
   },
 });
 
@@ -96,7 +112,7 @@ function parsePurpose(value: unknown): string {
 function state(cursor: number, rawDrawCount: number): RngStateV1 {
   return Object.freeze({
     algorithm: "xorshift32-v1",
-    cursor: parseUint32(cursor),
+    cursor: parseRngCursorV1(cursor),
     rawDrawCount: parseNonNegativeSafeInteger(rawDrawCount),
   });
 }

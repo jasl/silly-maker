@@ -924,6 +924,9 @@ async function createPersistenceServiceWithDependenciesV1<
 
   const replacementOutcomeV1 = (bytes: Uint8Array, operation: "loaded" | "imported") => {
     const validation = validateSaveImportCandidateV1(bytes, options.validation);
+    if (validation.kind === "rejected" && validation.code === "rng.invalid_state") {
+      rememberFailureV1(validation.code);
+    }
     const rejection = validationRejectionV1(validation);
     if (rejection !== null) {
       return Object.freeze({ kind: "preserve" as const, result: rejection });
@@ -1368,6 +1371,7 @@ async function createPersistenceServiceWithDependenciesV1<
           });
         }
         if (read.health === "invalid") {
+          if (read.code === "rng.invalid_state") rememberFailureV1(read.code);
           return Object.freeze({
             kind: "preserve" as const,
             result: rejectedV1("invalid_record"),

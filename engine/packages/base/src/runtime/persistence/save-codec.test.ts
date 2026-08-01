@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 
 import { canonicalJsonBytes } from "../../contracts/canonical-json.ts";
 import { digestBytes, digestCanonical } from "../../contracts/digest.ts";
+import type { RngStateV1 } from "../../contracts/rng.ts";
+import { rngStateV1Schema } from "../../contracts/rng.ts";
 import {
   createSaveRecordEnvelopeSchemaV1,
   parseIsoUtcInstantV1,
@@ -25,6 +27,7 @@ import {
   parsePositiveSafeInteger,
 } from "../../contracts/values.ts";
 import { createSnapshotWorkCounterV1 } from "../../internal/snapshot-work-instrumentation.ts";
+import { createRngZeroStateSaveBytesV1 } from "../../testkit/rng-zero-state-fixture.ts";
 import {
   decodeSaveRecordInternalV1,
   decodeSaveRecordV1,
@@ -189,6 +192,31 @@ const codecV1: SaveCodecContextV1<SyntheticSnapshotV1, SyntheticSaveRecordV1> = 
   validateEnvelope: validateEnvelopeV1,
 });
 
+const passthroughSchemaV1: RuntimeSchemaV1<unknown> = Object.freeze({
+  parse: (value: unknown) => value,
+});
+type RngZeroSnapshotV1 = GameSnapshotEnvelopeV1<unknown, RngStateV1>;
+type RngZeroSaveRecordV1 = SaveRecordEnvelopeV1<
+  RngZeroSnapshotV1,
+  unknown,
+  unknown,
+  unknown
+>;
+const rngZeroSnapshotSchemaV1 = createGameSnapshotEnvelopeSchemaV1(
+  passthroughSchemaV1,
+  rngStateV1Schema,
+);
+const rngZeroSaveCodecV1: SaveCodecContextV1<RngZeroSnapshotV1, RngZeroSaveRecordV1> = Object
+  .freeze({
+    recordSchema: createSaveRecordEnvelopeSchemaV1(
+      rngZeroSnapshotSchemaV1,
+      passthroughSchemaV1,
+      passthroughSchemaV1,
+      passthroughSchemaV1,
+    ),
+    validateEnvelope() {},
+  });
+
 const digestV1 = (label: string): Digest =>
   digestBytes(new TextEncoder().encode(`save-codec:${label}`));
 
@@ -233,6 +261,27 @@ function bytesWithV1(record: SyntheticSaveRecordV1, overrides: Readonly<Record<s
 }
 
 describe("Save record codec", () => {
+  it("rejects the fixed correctly-digested zero RNG Save at schema admission", () => {
+    const counter = createSnapshotWorkCounterV1();
+
+    expect(
+      decodeSaveRecordInternalV1(
+        createRngZeroStateSaveBytesV1(),
+        rngZeroSaveCodecV1,
+        counter.instrumentation,
+      ),
+    ).toEqual({ kind: "rejected", code: "rng.invalid_state" });
+    expect(counter.snapshot()).toEqual({
+      canonicalTraversals: 0,
+      canonicalDigests: 0,
+      deepFreezeTraversals: 0,
+      commandLogContinuityVerifications: 0,
+      saveCanonicalSerializations: 0,
+      strictJsonParses: 1,
+      strictJsonPreflights: 0,
+    });
+  });
+
   it("counts Save serialization and Strict JSON work without changing codec bytes", () => {
     const record = makeRecordV1();
     const counter = createSnapshotWorkCounterV1();

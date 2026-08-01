@@ -12,7 +12,12 @@ import type {
   GameSimulationV1,
 } from "../../contracts/gameplay-module.ts";
 import type { HostAtomicRecordStoreV1, IsoUtcInstant } from "../../contracts/host.ts";
-import { createTransactionalRngV1, rngStateV1Schema } from "../../contracts/rng.ts";
+import {
+  createTransactionalRngV1,
+  parseRngSeedInternalV1,
+  RngStateSchemaFailureInternalV1,
+  rngStateV1Schema,
+} from "../../contracts/rng.ts";
 import type {
   RuntimeSessionStatusV1,
   SessionAnchorResultV1,
@@ -35,9 +40,13 @@ import {
   createRuntimeFailureReporterV1,
 } from "../diagnostics/runtime-failures.ts";
 import type {
+  AuthoritativeOutcomeV1,
+  GameSessionDebugAnchorV1,
   GameSessionCompositionV1,
+  GameSessionDebugControlV1,
   GameSessionDebugInputV1,
   GameSessionInputV1,
+  GameSessionRuntimeControlV1,
   GameSessionV1,
 } from "../session/game-session.ts";
 import { createGameSessionV1, createInstrumentedGameSessionV1 } from "../session/game-session.ts";
@@ -784,6 +793,10 @@ function readBootstrapRngSeedV1(
   return descriptor.value as Parameters<typeof createTransactionalRngV1>[0];
 }
 
+class CoreRngReplacementNormalizerFailureV1 {
+  constructor(readonly error: unknown) {}
+}
+
 export async function createCoreGameApplicationInstanceV1<
   TSimulationFacet,
   TPresentationFacet,
@@ -858,8 +871,21 @@ export async function createCoreGameApplicationInstanceV1<
     gameSimulation.stateSchema,
     rngStateV1Schema,
   );
+  const validateSnapshotRngV1 = (snapshot: DeepReadonly<TTypes["snapshot"]>): void => {
+    rngStateV1Schema.parse((snapshot as { readonly rng: unknown }).rng);
+  };
+  const validateAttemptSnapshotRngV1 = <TAttempt>(attempt: TAttempt): TAttempt => {
+    const snapshot = (attempt as {
+      readonly result: { readonly snapshot: DeepReadonly<TTypes["snapshot"]> };
+    }).result.snapshot;
+    validateSnapshotRngV1(snapshot);
+    return attempt;
+  };
   const createInitialSnapshotV1 = (): TTypes["snapshot"] => {
     const bootstrap = gameSimulation.createBootstrapInput(options.host.entropy);
+    // Validate the Host seed before Story code can mutate the raw bootstrap
+    // handoff. DET2d owns canonicalizing that handoff; DET1 only closes zero.
+    parseRngSeedInternalV1(readBootstrapRngSeedV1(bootstrap));
     return snapshotSchema.parse({
       state: gameSimulation.createInitialState(bootstrap as DeepReadonly<TTypes["bootstrapInput"]>),
       rng: createTransactionalRngV1(readBootstrapRngSeedV1(bootstrap)).candidateState(),
@@ -904,15 +930,19 @@ export async function createCoreGameApplicationInstanceV1<
         source: "game" as const,
         command,
       });
-      return gameSimulation.commandExecutor.executeAttempt(
-        snapshot,
-        command,
-        undefined as TTypes["executionContext"],
+      return validateAttemptSnapshotRngV1(
+        gameSimulation.commandExecutor.executeAttempt(
+          snapshot,
+          command,
+          undefined as TTypes["executionContext"],
+        ),
       );
     },
     normalizeUnexpectedDispatchFault(error, snapshot) {
       if (definition.normalizeUnexpectedDispatchFault !== undefined) {
-        return definition.normalizeUnexpectedDispatchFault(error, snapshot);
+        return validateAttemptSnapshotRngV1(
+          definition.normalizeUnexpectedDispatchFault(error, snapshot),
+        );
       }
       throw error;
     },
@@ -929,15 +959,19 @@ export async function createCoreGameApplicationInstanceV1<
             source: "debug" as const,
             command,
           });
-          return gameSimulation.debugCommandExecutor.executeAttempt(
-            snapshot,
-            command,
-            undefined as TTypes["executionContext"],
+          return validateAttemptSnapshotRngV1(
+            gameSimulation.debugCommandExecutor.executeAttempt(
+              snapshot,
+              command,
+              undefined as TTypes["executionContext"],
+            ),
           );
         },
         normalizeUnexpectedFault(error, snapshot) {
           if (definition.normalizeUnexpectedDebugFault !== undefined) {
-            return definition.normalizeUnexpectedDebugFault(error, snapshot);
+            return validateAttemptSnapshotRngV1(
+              definition.normalizeUnexpectedDebugFault(error, snapshot),
+            );
           }
           throw error;
         },
@@ -956,6 +990,105 @@ export async function createCoreGameApplicationInstanceV1<
   const created = snapshotWorkInstrumentation === undefined
     ? createGameSessionV1<TTypes>(sessionInput)
     : createInstrumentedGameSessionV1<TTypes>(sessionInput, snapshotWorkInstrumentation);
+
+  // The low-level Session controls stay generic. Standard Core wraps the
+  // replacement seams it exposes so xorshift admission remains Core-owned and
+  // invalid candidates never reach freeze, CommandLog preparation, or install.
+  const validatedRuntimeControl: GameSessionRuntimeControlV1<TTypes["snapshot"]> = Object.freeze({
+    ...created.runtimeControl,
+    enqueueAuthoritative<TAnchorResult>(
+      operation: (
+        current: DeepReadonly<TTypes["snapshot"]>,
+      ) => Promise<AuthoritativeOutcomeV1<TTypes["snapshot"], TAnchorResult>>,
+      normalizeUnexpectedFault: (error: unknown) => TAnchorResult,
+      prepareReplacementCommit?: (
+        snapshot: DeepReadonly<TTypes["snapshot"]>,
+        anchor: "preserve_log" | "replace_replay_base",
+      ) => void,
+      whenHmrInvalidated?: () => TAnchorResult,
+    ): Promise<TAnchorResult> {
+      return created.runtimeControl.enqueueAuthoritative(
+        async (current) => {
+          const outcome = await operation(current);
+          if (created.session.getStatus() === "hmr_invalidated") return outcome;
+          if (outcome.kind !== "replace") return outcome;
+          try {
+            validateSnapshotRngV1(outcome.snapshot as DeepReadonly<TTypes["snapshot"]>);
+            return outcome;
+          } catch (error) {
+            if (!(error instanceof RngStateSchemaFailureInternalV1)) throw error;
+            // Preserve the Session's pre-existing invalidation precedence: an
+            // operation invalidated during its await must not invoke a caller
+            // normalizer before the underlying control observes the fence.
+            if (created.session.getStatus() === "hmr_invalidated") throw error;
+            try {
+              return Object.freeze({
+                kind: "preserve" as const,
+                result: normalizeUnexpectedFault(error),
+              });
+            } catch (normalizerError) {
+              throw new CoreRngReplacementNormalizerFailureV1(normalizerError);
+            }
+          }
+        },
+        (error) => {
+          if (error instanceof CoreRngReplacementNormalizerFailureV1) throw error.error;
+          return normalizeUnexpectedFault(error);
+        },
+        prepareReplacementCommit,
+        whenHmrInvalidated,
+      );
+    },
+  });
+  const validatedDebugControl: GameSessionDebugControlV1<TTypes> = Object.freeze({
+    ...created.debugControl,
+    anchorReplacement<TAnchorResult>(
+      anchor: GameSessionDebugAnchorV1,
+      operation: (
+        current: DeepReadonly<TTypes["snapshot"]>,
+      ) => Promise<
+        | { readonly kind: "preserve"; readonly result: TAnchorResult }
+        | {
+          readonly kind: "replace";
+          readonly snapshot: TTypes["snapshot"];
+          readonly result: TAnchorResult;
+        }
+      >,
+      isCapabilityEnabled: () => boolean,
+      normalizeUnexpectedFault: (error: unknown) => TAnchorResult,
+      prepareReplacementCommit?: (snapshot: DeepReadonly<TTypes["snapshot"]>) => void,
+    ) {
+      return created.debugControl.anchorReplacement(
+        anchor,
+        async (current) => {
+          const outcome = await operation(current);
+          if (created.session.getStatus() === "hmr_invalidated") return outcome;
+          if (outcome.kind !== "replace") return outcome;
+          try {
+            validateSnapshotRngV1(outcome.snapshot as DeepReadonly<TTypes["snapshot"]>);
+            return outcome;
+          } catch (error) {
+            if (!(error instanceof RngStateSchemaFailureInternalV1)) throw error;
+            if (created.session.getStatus() === "hmr_invalidated") throw error;
+            try {
+              return Object.freeze({
+                kind: "preserve" as const,
+                result: normalizeUnexpectedFault(error),
+              });
+            } catch (normalizerError) {
+              throw new CoreRngReplacementNormalizerFailureV1(normalizerError);
+            }
+          }
+        },
+        isCapabilityEnabled,
+        (error) => {
+          if (error instanceof CoreRngReplacementNormalizerFailureV1) throw error.error;
+          return normalizeUnexpectedFault(error);
+        },
+        prepareReplacementCommit,
+      );
+    },
+  });
 
   let disposed = false;
   const cleanups: (() => void)[] = [];
@@ -1524,9 +1657,9 @@ export async function createCoreGameApplicationInstanceV1<
           getStatus: () => created.session.getStatus(),
           subscribe: (listener: () => void) => created.session.subscribe(listener),
         }),
-        runtimeControl: created.runtimeControl,
+        runtimeControl: validatedRuntimeControl,
         commandLog: created.commandLog,
-        debugControl: created.debugControl,
+        debugControl: validatedDebugControl,
         invalidationController: Object.freeze({
           invalidateForHmr: invalidateForHmrV1,
         }),
@@ -1559,13 +1692,16 @@ export async function createCoreGameApplicationInstanceV1<
       commandLog: () => created.commandLog.entries(),
       replayAuthoritatively: async () => {
         const identity = Object.freeze({ provenance: application.provenance });
+        const replayBase = created.commandLog.replayBase();
         const currentSnapshot = created.session.getCurrentSnapshot();
         return replayAuthoritativelyFromAttemptsInternalV1({
           identity,
-          replayBase: created.commandLog.replayBase(),
+          replayBase,
           replayBaseStateDigest: created.commandLog.replayBaseStateDigest(),
           commandLog: created.commandLog.entries() as never,
           currentSnapshot: currentSnapshot as never,
+          validateSnapshot: (snapshot: DeepReadonly<TTypes["snapshot"]>) =>
+            validateSnapshotRngV1(snapshot),
           projectStableRejection: (rejection: unknown) => rejection,
           projectStableFault: (fault: unknown) => fault,
           executeAttempt(
@@ -1592,6 +1728,7 @@ export async function createCoreGameApplicationInstanceV1<
                   };
                 };
               };
+              validateAttemptSnapshotRngV1(raw as never);
               return raw.result.kind === "committed"
                 ? ({
                   ...raw,
@@ -1615,11 +1752,11 @@ export async function createCoreGameApplicationInstanceV1<
                 } as never)
                 : (raw as never);
             }
-            return gameSimulation.commandExecutor.executeAttempt(
+            return validateAttemptSnapshotRngV1(gameSimulation.commandExecutor.executeAttempt(
               preSnapshot as never,
               logged.command,
               undefined as TTypes["executionContext"],
-            ) as never;
+            ) as never) as never;
           },
         } as never, snapshotWorkInstrumentation);
       },
@@ -1633,7 +1770,7 @@ export async function createCoreGameApplicationInstanceV1<
       ...(options.capabilities?.debugTools === true
         ? {
           debugControl: Object.freeze({
-            ...created.debugControl,
+            ...validatedDebugControl,
             // Committed debug commands raise the same commit-only
             // transient effects as gameplay: tuning previews (forced
             // encounters, SFX) render through one path.
@@ -1641,7 +1778,7 @@ export async function createCoreGameApplicationInstanceV1<
               command: DeepReadonly<TTypes["debugCommand"]>,
               isCapabilityEnabled: () => boolean,
             ) => {
-              const result = await created.debugControl.execute(command, isCapabilityEnabled);
+              const result = await validatedDebugControl.execute(command, isCapabilityEnabled);
               if (result.kind === "executed" && result.attempt.result.kind === "committed") {
                 emitTransientEffectsFromFactsV1(
                   result.attempt.result.facts as readonly DeepReadonly<TTypes["fact"]>[],
