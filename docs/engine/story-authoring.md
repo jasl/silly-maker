@@ -77,11 +77,17 @@ Story React contributions resolve stable renderer IDs inside the application clo
 
 ### Create the Story package
 
-Combine simulation and presentation facets with `defineGamePackage`. Define separate simulation and presentation patch surfaces only for reviewed bootstrap-time replacement points. Resolve the package before creating the Session so provenance describes the actual program in use.
+Keep the simulation facet and its materialization/construction callbacks in
+`src/simulation-definition.ts`, without Presentation or React imports. Compose
+that definition with the presentation facet in `src/story.ts` using
+`defineGamePackage`. Define separate simulation and presentation patch surfaces
+only for reviewed bootstrap-time replacement points. Resolve the package before
+creating the Session so provenance describes the actual program in use.
 
 The Engine Lab demonstrates this in:
 
 - `e2e/src/story.ts`
+- `e2e/src/simulation-definition.ts`
 - `e2e/src/gameplay/simulation.ts`
 - `e2e/src/application/semantic.ts`
 - `e2e/src/application/composition.tsx`

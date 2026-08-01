@@ -2,7 +2,10 @@
 import { describe, expect, it } from "vitest";
 
 import { canonicalJsonBytes } from "../contracts/canonical-json.ts";
-import { createSnapshotWorkCounterV1 } from "../internal/snapshot-work-instrumentation.ts";
+import {
+  createPurposeTaggedSnapshotWorkCounterV1,
+  createSnapshotWorkCounterV1,
+} from "../internal/snapshot-work-instrumentation.ts";
 import {
   createSnapshotCommitInitialSnapshotV1,
   createSnapshotCommitWorkloadV1,
@@ -143,6 +146,32 @@ describe("Snapshot commit workload", () => {
         saveCanonicalSerializations: 0,
         strictJsonParses: 0,
         strictJsonPreflights: 0,
+      });
+    },
+  );
+
+  it.each(commandClassesV1)(
+    "labels the current %s physical work without inventing admission traversals",
+    async (commandClass) => {
+      const counter = createPurposeTaggedSnapshotWorkCounterV1();
+      const workload = createSnapshotCommitWorkloadV1({
+        entityCount: 100,
+        instrumentation: counter.instrumentation,
+      });
+      counter.reset();
+
+      await workload.dispatch(commandClass);
+
+      const committed = commandClass.endsWith("committed");
+      expect(counter.snapshot()).toEqual({
+        snapshotDigestTraversals: committed ? 1 : 0,
+        snapshotFreezeTraversals: committed ? 1 : 0,
+        bootstrapAdmissionCanonicalTraversals: 0,
+        bootstrapHandoffFreezeTraversals: 0,
+        commandAdmissionCanonicalTraversals: 0,
+        evidenceAdmissionCanonicalTraversals: 0,
+        replayComparisonTraversals: 0,
+        totalPhysicalCanonicalTraversals: committed ? 1 : 0,
       });
     },
   );

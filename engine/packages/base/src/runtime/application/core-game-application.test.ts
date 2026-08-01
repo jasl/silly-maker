@@ -27,6 +27,7 @@ import {
   parsePositiveSafeInteger,
 } from "../../contracts/values.ts";
 import { createFixedBootstrapEntropyV1 } from "../../testkit/fixed-bootstrap-entropy.ts";
+import { createPurposeTaggedSnapshotWorkCounterV1 } from "../../internal/snapshot-work-instrumentation.ts";
 import { deterministicBuildIdentityInputV1 } from "../../testkit/resolver-fixtures.ts";
 import type {
   SyntheticCounterCommandV1,
@@ -42,6 +43,7 @@ import {
 import { decodeSessionLeaseRecordV1 } from "../persistence/session-lease.ts";
 import type {
   CoreApplicationConstructionEventInternalV1,
+  CoreApplicationExtensionContextV1,
   CoreApplicationHostServicesV1,
   CoreAutosavePolicyV1,
   CoreSchedulerV1,
@@ -52,6 +54,8 @@ import {
   createCoreGameApplicationInstanceV1,
   defineCoreGameApplicationV1,
   instrumentCoreApplicationConstructionOptionsInternalV1,
+  instrumentCoreApplicationSaveProjectionOptionsInternalV1,
+  instrumentCoreApplicationSnapshotWorkOptionsInternalV1,
   resolveCoreGameApplicationV1,
 } from "./core-game-application.ts";
 
@@ -301,6 +305,25 @@ const s0CompleteRollbackGoldenV1 = {
     },
   ],
 } as const;
+
+// Derived by running the neutral raw-bootstrap fixture against the
+// S0-complete production source at 96a0a93. Expected bytes are embedded and
+// never regenerated through the current canonical implementation.
+const s0CompleteBootstrapGoldenV1 = Object.freeze({
+  snapshot: Object.freeze({
+    byteLength: 224,
+    bytesDigest: "sha256:5a0f5dda819431423ed316d618fff0331194ef75fcf1fac201c0a47f2678e6e6",
+  }),
+  stateDigest: "sha256:c87eeea0469bd353df29a97b84e773fbffa5b0a661888342e4620353839379a5",
+  quickSave: Object.freeze([
+    Object.freeze({
+      key: "save-record.v1:story.synthetic-counter:quick",
+      revision: 1,
+      byteLength: 1_447,
+      bytesDigest: "sha256:c69e007af552917ce7207bbab2e3ff8c21a1ece6f34af0ff60a22375b4e0cd83",
+    }),
+  ]),
+});
 
 const recordSchemaV1: RuntimeSchemaV1<Record<string, unknown>> = Object.freeze({
   parse(value: unknown) {
@@ -751,6 +774,105 @@ function resolvedApplicationV1() {
     throw new Error("synthetic story must resolve");
   }
   return result.application;
+}
+
+function bootstrapCharacterizationFixtureV1() {
+  const baseEntry = createSyntheticCounterGamePackageV1();
+  const adapterFailure = new Error("synthetic bootstrap adapter failure");
+  let failNextBootstrap = false;
+  let createInitialStateCalls = 0;
+  let lastRawBootstrap: Record<string, unknown> | undefined;
+  let lastReceivedBootstrap: unknown;
+  let extensionContext:
+    | CoreApplicationExtensionContextV1<SyntheticSimulationTypesV1>
+    | undefined;
+  const baseStory = baseEntry.define();
+  const createGameSimulation = (
+    program: Parameters<typeof baseStory.simulation.createGameSimulation>[0],
+  ) => {
+    const simulation = baseStory.simulation.createGameSimulation(program);
+    return Object.freeze({
+      ...simulation,
+      createBootstrapInput(
+        entropy: Parameters<typeof simulation.createBootstrapInput>[0],
+      ) {
+        if (failNextBootstrap) {
+          failNextBootstrap = false;
+          throw adapterFailure;
+        }
+        const raw = {
+          rngSeed: entropy.nextNonZeroUint32(),
+          fractionalExtra: 0.25,
+          nested: { observedByInitialState: false },
+        };
+        lastRawBootstrap = raw;
+        return raw as never;
+      },
+      createInitialState(
+        bootstrap: Parameters<typeof simulation.createInitialState>[0],
+      ) {
+        createInitialStateCalls += 1;
+        lastReceivedBootstrap = bootstrap;
+        const mutable = bootstrap as unknown as {
+          rngSeed: number;
+          nested: { observedByInitialState: boolean };
+        };
+        mutable.rngSeed = 101;
+        mutable.nested.observedByInitialState = true;
+        return simulation.createInitialState(bootstrap);
+      },
+    });
+  };
+  const story = Object.freeze({
+    ...baseStory,
+    simulation: Object.freeze({
+      ...baseStory.simulation,
+      createGameSimulation,
+    }),
+  });
+  const entry = Object.freeze({
+    ...baseEntry,
+    define: () => story,
+  });
+  const definition = defineCoreGameApplicationV1({
+    ...definitionV1,
+    entry,
+    createExtensions(context) {
+      extensionContext = context;
+      return Object.freeze({ extensions: Object.freeze({}) });
+    },
+  });
+  const resolved = resolveCoreGameApplicationV1(definition, {
+    buildIdentityInput: deterministicBuildIdentityInputV1,
+  });
+  if (resolved.kind !== "resolved") {
+    throw new TypeError(`bootstrap fixture must resolve: ${JSON.stringify(resolved.failure)}`);
+  }
+  return Object.freeze({
+    application: resolved.application,
+    adapterFailure,
+    failNextBootstrap() {
+      failNextBootstrap = true;
+    },
+    createInitialStateCalls: () => createInitialStateCalls,
+    lastRawBootstrap: () => lastRawBootstrap,
+    lastReceivedBootstrap: () => lastReceivedBootstrap,
+    extensionContext: () => extensionContext,
+  });
+}
+
+function bootstrapWorkTupleV1(
+  counter: ReturnType<typeof createPurposeTaggedSnapshotWorkCounterV1>,
+  createInitialStateCalls: number,
+) {
+  const counts = counter.snapshot();
+  return Object.freeze([
+    counts.bootstrapAdmissionCanonicalTraversals,
+    counts.bootstrapHandoffFreezeTraversals,
+    createInitialStateCalls,
+    counts.snapshotFreezeTraversals,
+    counts.snapshotDigestTraversals,
+  ]);
 }
 
 function resolvedRollbackApplicationV1() {
@@ -1212,6 +1334,344 @@ describe("resolveCoreGameApplicationV1", () => {
 });
 
 describe("createCoreGameApplicationInstanceV1", () => {
+  it("observes construction and restart Snapshot work through a package-internal one-shot probe", async () => {
+    const counter = createPurposeTaggedSnapshotWorkCounterV1();
+    const options = instrumentCoreApplicationSnapshotWorkOptionsInternalV1(
+      Object.freeze({ host: hostServicesV1(createMemoryHostRecordStoreV1(), [97, 101]) }),
+      counter.instrumentation,
+    );
+    const instance = await createCoreGameApplicationInstanceV1(resolvedApplicationV1(), options);
+
+    expect(counter.snapshot()).toEqual({
+      snapshotDigestTraversals: 1,
+      snapshotFreezeTraversals: 1,
+      bootstrapAdmissionCanonicalTraversals: 0,
+      bootstrapHandoffFreezeTraversals: 0,
+      commandAdmissionCanonicalTraversals: 0,
+      evidenceAdmissionCanonicalTraversals: 0,
+      replayComparisonTraversals: 0,
+      totalPhysicalCanonicalTraversals: 1,
+    });
+
+    counter.reset();
+    await expect(instance.lifecycle.restart()).resolves.toMatchObject({ kind: "anchored" });
+    expect(counter.snapshot()).toEqual({
+      snapshotDigestTraversals: 1,
+      snapshotFreezeTraversals: 1,
+      bootstrapAdmissionCanonicalTraversals: 0,
+      bootstrapHandoffFreezeTraversals: 0,
+      commandAdmissionCanonicalTraversals: 0,
+      evidenceAdmissionCanonicalTraversals: 0,
+      replayComparisonTraversals: 0,
+      totalPhysicalCanonicalTraversals: 1,
+    });
+    await instance.dispose();
+  });
+
+  it("characterizes raw mutable bootstrap handoff across construction, restart, and extensions", async () => {
+    const fixture = bootstrapCharacterizationFixtureV1();
+    const records = createMemoryHostRecordStoreV1();
+    const counter = createPurposeTaggedSnapshotWorkCounterV1();
+    const instance = await createCoreGameApplicationInstanceV1(
+      fixture.application,
+      instrumentCoreApplicationSnapshotWorkOptionsInternalV1(
+        Object.freeze({ host: hostServicesV1(records, [97, 103, 107]) }),
+        counter.instrumentation,
+      ),
+    );
+    const context = fixture.extensionContext();
+    if (context === undefined) throw new TypeError("bootstrap extension context missing");
+
+    expect(bootstrapWorkTupleV1(counter, fixture.createInitialStateCalls())).toEqual([
+      0,
+      0,
+      1,
+      1,
+      1,
+    ]);
+    expect(fixture.lastReceivedBootstrap()).toBe(fixture.lastRawBootstrap());
+    expect(fixture.lastRawBootstrap()).toMatchObject({
+      rngSeed: 101,
+      fractionalExtra: 0.25,
+      nested: { observedByInitialState: true },
+    });
+    expect(Object.isFrozen(fixture.lastRawBootstrap())).toBe(false);
+    const constructed = context.session.getCurrentSnapshot();
+    expect(constructed.rng.cursor).toBe(101);
+    expect(context.commandLog.replayBase()).toBe(constructed);
+
+    counter.reset();
+    const callsBeforeRestart = fixture.createInitialStateCalls();
+    await expect(instance.lifecycle.restart()).resolves.toEqual({
+      kind: "anchored",
+      commandSequence: 0,
+    });
+    const restarted = context.session.getCurrentSnapshot();
+    expect(bootstrapWorkTupleV1(
+      counter,
+      fixture.createInitialStateCalls() - callsBeforeRestart,
+    )).toEqual([0, 0, 1, 1, 1]);
+    expect(restarted).not.toBe(constructed);
+    expect(restarted.rng.cursor).toBe(101);
+    expect(context.commandLog.replayBase()).toBe(restarted);
+    expect(context.commandLog.entries()).toEqual([]);
+
+    counter.reset();
+    const callsBeforeExtension = fixture.createInitialStateCalls();
+    const extensionCandidate = context.createInitialSnapshot();
+    expect(bootstrapWorkTupleV1(
+      counter,
+      fixture.createInitialStateCalls() - callsBeforeExtension,
+    )).toEqual([0, 0, 1, 0, 0]);
+    expect(extensionCandidate).not.toBe(restarted);
+    expect(extensionCandidate.rng.cursor).toBe(101);
+    expect(context.session.getCurrentSnapshot()).toBe(restarted);
+    expect(context.commandLog.replayBase()).toBe(restarted);
+    expect(await rawSaveEvidenceV1(records)).toEqual([]);
+    await instance.dispose();
+  });
+
+  it("matches independent S0-complete bytes for all three valid bootstrap surfaces", async () => {
+    const constructionFixture = bootstrapCharacterizationFixtureV1();
+    const constructionRecords = createMemoryHostRecordStoreV1();
+    const construction = await createCoreGameApplicationInstanceV1(
+      constructionFixture.application,
+      Object.freeze({ host: hostServicesV1(constructionRecords, [97]) }),
+    );
+    const constructionContext = constructionFixture.extensionContext();
+    if (constructionContext === undefined) throw new TypeError("construction context missing");
+    expect(exactBytesEvidenceV1(canonicalJsonBytes(
+      constructionContext.session.getCurrentSnapshot(),
+    ))).toEqual(s0CompleteBootstrapGoldenV1.snapshot);
+    expect(construction.admin.stateDigest()).toBe(s0CompleteBootstrapGoldenV1.stateDigest);
+    expect(exactBytesEvidenceV1(canonicalJsonBytes(
+      constructionContext.commandLog.replayBase(),
+    ))).toEqual(s0CompleteBootstrapGoldenV1.snapshot);
+    await expect(construction.persistence.save("quick")).resolves.toEqual({
+      kind: "saved",
+      slotId: "quick",
+    });
+    expect(await rawSaveEvidenceV1(constructionRecords)).toEqual(
+      s0CompleteBootstrapGoldenV1.quickSave,
+    );
+    await construction.dispose();
+
+    const restartFixture = bootstrapCharacterizationFixtureV1();
+    const restartRecords = createMemoryHostRecordStoreV1();
+    const restarting = await createCoreGameApplicationInstanceV1(
+      restartFixture.application,
+      Object.freeze({ host: hostServicesV1(restartRecords, [97, 103]) }),
+    );
+    await expect(restarting.lifecycle.restart()).resolves.toMatchObject({ kind: "anchored" });
+    const restartContext = restartFixture.extensionContext();
+    if (restartContext === undefined) throw new TypeError("restart context missing");
+    expect(exactBytesEvidenceV1(canonicalJsonBytes(
+      restartContext.session.getCurrentSnapshot(),
+    ))).toEqual(s0CompleteBootstrapGoldenV1.snapshot);
+    expect(restarting.admin.stateDigest()).toBe(s0CompleteBootstrapGoldenV1.stateDigest);
+    expect(exactBytesEvidenceV1(canonicalJsonBytes(
+      restartContext.commandLog.replayBase(),
+    ))).toEqual(s0CompleteBootstrapGoldenV1.snapshot);
+    await expect(restarting.persistence.save("quick")).resolves.toEqual({
+      kind: "saved",
+      slotId: "quick",
+    });
+    expect(await rawSaveEvidenceV1(restartRecords)).toEqual(
+      s0CompleteBootstrapGoldenV1.quickSave,
+    );
+    await restarting.dispose();
+
+    const extensionFixture = bootstrapCharacterizationFixtureV1();
+    const extensionRecords = createMemoryHostRecordStoreV1();
+    const extending = await createCoreGameApplicationInstanceV1(
+      extensionFixture.application,
+      Object.freeze({ host: hostServicesV1(extensionRecords, [97, 103]) }),
+    );
+    const extensionContext = extensionFixture.extensionContext();
+    if (extensionContext === undefined) throw new TypeError("extension context missing");
+    const live = extensionContext.session.getCurrentSnapshot();
+    const candidate = extensionContext.createInitialSnapshot();
+    expect(exactBytesEvidenceV1(canonicalJsonBytes(candidate))).toEqual(
+      s0CompleteBootstrapGoldenV1.snapshot,
+    );
+    expect(digestCanonical("sillymaker:state:v1", candidate)).toBe(
+      s0CompleteBootstrapGoldenV1.stateDigest,
+    );
+    expect(exactBytesEvidenceV1(canonicalJsonBytes(live))).toEqual(
+      s0CompleteBootstrapGoldenV1.snapshot,
+    );
+    expect(extensionContext.session.getCurrentSnapshot()).toBe(live);
+    expect(extensionContext.commandLog.replayBase()).toBe(live);
+    expect(await rawSaveEvidenceV1(extensionRecords)).toEqual([]);
+    await extending.dispose();
+  });
+
+  it("characterizes adapter throws before bootstrap admission on all three call surfaces", async () => {
+    const constructionFixture = bootstrapCharacterizationFixtureV1();
+    const constructionRecords = createMemoryHostRecordStoreV1();
+    const constructionCounter = createPurposeTaggedSnapshotWorkCounterV1();
+    const constructionEvents: CoreApplicationConstructionEventInternalV1[] = [];
+    const constructionOptions = instrumentCoreApplicationConstructionOptionsInternalV1(
+      Object.freeze({ host: hostServicesV1(constructionRecords, [97, 103]) }),
+      Object.freeze({
+        record(event: CoreApplicationConstructionEventInternalV1) {
+          constructionEvents.push(event);
+        },
+      }),
+    );
+    constructionFixture.failNextBootstrap();
+    await expect(
+      createCoreGameApplicationInstanceV1(
+        constructionFixture.application,
+        instrumentCoreApplicationSnapshotWorkOptionsInternalV1(
+          constructionOptions,
+          constructionCounter.instrumentation,
+        ),
+      ),
+    ).rejects.toBe(constructionFixture.adapterFailure);
+    expect(bootstrapWorkTupleV1(
+      constructionCounter,
+      constructionFixture.createInitialStateCalls(),
+    )).toEqual([0, 0, 0, 0, 0]);
+    expect(constructionEvents).toEqual([]);
+    expect(constructionFixture.extensionContext()).toBeUndefined();
+    expect(await constructionRecords.list("lease")).toEqual([]);
+    expect(await rawSaveEvidenceV1(constructionRecords)).toEqual([]);
+    const successor = await createCoreGameApplicationInstanceV1(
+      constructionFixture.application,
+      Object.freeze({ host: hostServicesV1(constructionRecords, [103]) }),
+    );
+    await successor.dispose();
+
+    const restartFixture = bootstrapCharacterizationFixtureV1();
+    const restartRecords = createMemoryHostRecordStoreV1();
+    const restartCounter = createPurposeTaggedSnapshotWorkCounterV1();
+    const restarting = await createCoreGameApplicationInstanceV1(
+      restartFixture.application,
+      instrumentCoreApplicationSnapshotWorkOptionsInternalV1(
+        Object.freeze({ host: hostServicesV1(restartRecords, [97, 103]) }),
+        restartCounter.instrumentation,
+      ),
+    );
+    const restartContext = restartFixture.extensionContext();
+    if (restartContext === undefined) throw new TypeError("restart context missing");
+    await expect(restarting.persistence.save("quick")).resolves.toEqual({
+      kind: "saved",
+      slotId: "quick",
+    });
+    const restartSnapshot = restartContext.session.getCurrentSnapshot();
+    const restartDigest = restarting.admin.stateDigest();
+    const restartReplayBase = restartContext.commandLog.replayBase();
+    const restartLog = restartContext.commandLog.entries();
+    const restartSaves = await rawSaveEvidenceV1(restartRecords);
+    expect(restartSaves).toHaveLength(1);
+    const callsBeforeRestart = restartFixture.createInitialStateCalls();
+    restartCounter.reset();
+    restartFixture.failNextBootstrap();
+    await expect(restarting.lifecycle.restart()).resolves.toEqual({
+      kind: "faulted",
+      code: "runtime.anchor_failed",
+    });
+    expect(bootstrapWorkTupleV1(
+      restartCounter,
+      restartFixture.createInitialStateCalls() - callsBeforeRestart,
+    )).toEqual([0, 0, 0, 0, 0]);
+    expect(restartContext.session.getStatus()).toBe("fault_paused");
+    expect(restartContext.session.getCurrentSnapshot()).toBe(restartSnapshot);
+    expect(restarting.admin.stateDigest()).toBe(restartDigest);
+    expect(restartContext.commandLog.entries()).toEqual(restartLog);
+    expect(restartContext.commandLog.replayBase()).toBe(restartReplayBase);
+    expect(await rawSaveEvidenceV1(restartRecords)).toEqual(restartSaves);
+    await restarting.dispose();
+
+    const extensionFixture = bootstrapCharacterizationFixtureV1();
+    const extensionRecords = createMemoryHostRecordStoreV1();
+    const extensionCounter = createPurposeTaggedSnapshotWorkCounterV1();
+    const extending = await createCoreGameApplicationInstanceV1(
+      extensionFixture.application,
+      instrumentCoreApplicationSnapshotWorkOptionsInternalV1(
+        Object.freeze({ host: hostServicesV1(extensionRecords, [97, 103]) }),
+        extensionCounter.instrumentation,
+      ),
+    );
+    const extensionContext = extensionFixture.extensionContext();
+    if (extensionContext === undefined) throw new TypeError("extension context missing");
+    await expect(extending.persistence.save("quick")).resolves.toEqual({
+      kind: "saved",
+      slotId: "quick",
+    });
+    const extensionSnapshot = extensionContext.session.getCurrentSnapshot();
+    const extensionDigest = extending.admin.stateDigest();
+    const extensionReplayBase = extensionContext.commandLog.replayBase();
+    const extensionLog = extensionContext.commandLog.entries();
+    const extensionSaves = await rawSaveEvidenceV1(extensionRecords);
+    expect(extensionSaves).toHaveLength(1);
+    const callsBeforeExtension = extensionFixture.createInitialStateCalls();
+    extensionCounter.reset();
+    extensionFixture.failNextBootstrap();
+    expect(() => extensionContext.createInitialSnapshot()).toThrow(
+      extensionFixture.adapterFailure,
+    );
+    expect(bootstrapWorkTupleV1(
+      extensionCounter,
+      extensionFixture.createInitialStateCalls() - callsBeforeExtension,
+    )).toEqual([0, 0, 0, 0, 0]);
+    expect(extensionContext.session.getStatus()).toBe("ready");
+    expect(extensionContext.session.getCurrentSnapshot()).toBe(extensionSnapshot);
+    expect(extending.admin.stateDigest()).toBe(extensionDigest);
+    expect(extensionContext.commandLog.entries()).toEqual(extensionLog);
+    expect(extensionContext.commandLog.replayBase()).toBe(extensionReplayBase);
+    expect(await rawSaveEvidenceV1(extensionRecords)).toEqual(extensionSaves);
+    await extending.dispose();
+  });
+
+  it("hands the configured Save projector to the Base invocation boundary exactly once", async () => {
+    const projectedStates: unknown[] = [];
+    const observed: {
+      readonly phase: string;
+      readonly state?: unknown;
+      readonly value?: unknown;
+    }[] = [];
+    const definition = defineCoreGameApplicationV1({
+      ...definitionV1,
+      summarizeSave(state) {
+        projectedStates.push(state);
+        return Object.freeze(["Synthetic count"]);
+      },
+    });
+    const resolved = resolveCoreGameApplicationV1(definition, {
+      buildIdentityInput: deterministicBuildIdentityInputV1,
+    });
+    if (resolved.kind !== "resolved") throw new TypeError("Save projection fixture must resolve");
+    const instance = await createCoreGameApplicationInstanceV1(
+      resolved.application,
+      instrumentCoreApplicationSaveProjectionOptionsInternalV1(
+        Object.freeze({ host: hostServicesV1(createMemoryHostRecordStoreV1()) }),
+        Object.freeze({
+          record(event: {
+            readonly phase: string;
+            readonly state?: unknown;
+            readonly value?: unknown;
+          }) {
+            observed.push(event);
+          },
+        }),
+      ),
+    );
+    const state = instance.admin.inspectForTest().snapshot.state;
+
+    await expect(instance.persistence.save("quick")).resolves.toEqual({
+      kind: "saved",
+      slotId: "quick",
+    });
+    expect(projectedStates).toEqual([state]);
+    expect(observed).toEqual([
+      expect.objectContaining({ phase: "before", state }),
+      expect.objectContaining({ phase: "returned", state, value: ["Synthetic count"] }),
+    ]);
+    await instance.dispose();
+  });
+
   it("calibrates the package-internal construction probe on a valid policy", async () => {
     const probe = constructionProbeV1({ mode: "every_commit" });
     const instance = await createCoreGameApplicationInstanceV1(
@@ -2141,6 +2601,79 @@ describe("createCoreGameApplicationInstanceV1", () => {
     });
     expect((fresh.semantic.observe().game as { readonly count: number }).count).toBe(0);
     await fresh.dispose();
+  });
+
+  it("currently resumes an internally consistent autosave whose RNG cursor is zero", async () => {
+    const records = createMemoryHostRecordStoreV1();
+    const first = await createCoreGameApplicationInstanceV1(resolvedResumingApplicationV1(), {
+      host: hostServicesV1(records),
+    });
+    await first.semantic.dispatch(incrementV1);
+    await first.semantic.dispatch(incrementV1);
+    await first.autoSaveIdle();
+    await first.dispose();
+
+    const stored = await records.list("save");
+    const autoCurrent = stored.find(({ key }) => key.endsWith(":auto.current"));
+    if (autoCurrent === undefined) throw new TypeError("expected resumable Auto Save");
+    const record = JSON.parse(new TextDecoder().decode(autoCurrent.bytes)) as {
+      readonly snapshot: SyntheticSnapshotV1;
+      readonly stateDigest: string;
+      readonly [key: string]: unknown;
+    };
+    const zeroSnapshot: SyntheticSnapshotV1 = {
+      ...record.snapshot,
+      rng: rngStateV1Schema.parse({ ...record.snapshot.rng, cursor: 0 }),
+    };
+    const zeroDigest = digestCanonical("sillymaker:state:v1", zeroSnapshot);
+    await expect(
+      records.commit([
+        {
+          kind: "put",
+          namespace: "save",
+          key: autoCurrent.key,
+          expectedRevision: autoCurrent.revision,
+          bytes: canonicalJsonBytes({
+            ...record,
+            recordRevision: parsePositiveSafeInteger(autoCurrent.revision + 1),
+            snapshot: zeroSnapshot,
+            stateDigest: zeroDigest,
+          }),
+        },
+      ]),
+    ).resolves.toMatchObject({ kind: "committed" });
+
+    const resumed = await createCoreGameApplicationInstanceV1(resolvedResumingApplicationV1(), {
+      host: hostServicesV1(records),
+    });
+    const installed = resumed.admin.inspectForTest().snapshot;
+    expect(installed).toMatchObject({
+      state: { simulation: { counter: { count: 2 } } },
+      rng: { algorithm: "xorshift32-v1", cursor: 0, rawDrawCount: 0 },
+      commandSequence: 2,
+    });
+    expect(resumed.admin.stateDigest()).toBe(zeroDigest);
+    expect(resumed.semantic.observe().status).toBe("ready");
+    expect(resumed.presentationAnchor()).toEqual({ epoch: 0, origin: "bootstrap" });
+    expect(resumed.admin.commandLog()).toEqual([]);
+    await expect(resumed.admin.replayAuthoritatively()).resolves.toEqual({
+      authoritative: true,
+      identityMatch: true,
+      visualMatch: false,
+      matches: true,
+      executedEntries: 0,
+      mismatches: [],
+    });
+    expect(resumed.admin.inspectForTest().snapshot).toBe(installed);
+
+    await resumed.semantic.dispatch(incrementV1);
+    expect(resumed.admin.commandLog()[0]).toMatchObject({
+      preStateDigest: zeroDigest,
+      commandSequence: { before: 2, after: 3 },
+      committedRngBefore: { cursor: 0, rawDrawCount: 0 },
+      committedRngAfter: { cursor: 0, rawDrawCount: 0 },
+    });
+    await resumed.dispose();
   });
 
   it("keeps the fresh bootstrap when the autosave slot is empty", async () => {

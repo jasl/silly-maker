@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { canonicalJsonBytes } from "../contracts/canonical-json.ts";
 import { AuthoringDiagnosticErrorV1 } from "../contracts/diagnostic-envelope.ts";
@@ -85,7 +85,7 @@ const bankStateSchemaV1: RuntimeSchemaV1<BankStateV1> = Object.freeze({
   },
 });
 
-function createBankFixtureV1() {
+function createBankFixtureV1(applyOrder?: string[]) {
   const kit = createGameAuthoringKitV1<BankTypesV1>();
   const vaultRead = kit.defineCapability<{ coinCount(): number }>("capability.vault.read");
   const vault = kit.defineStatefulModule({
@@ -125,6 +125,7 @@ function createBankFixtureV1() {
         });
       },
       apply(state, proposal) {
+        applyOrder?.push("bank.vault");
         return Object.freeze({ coins: state.coins + proposal.payload.amount });
       },
     },
@@ -163,6 +164,7 @@ function createBankFixtureV1() {
         });
       },
       apply(state, proposal) {
+        applyOrder?.push("bank.ledger");
         if (proposal.payload.kind === "corrupt") {
           return Object.freeze({ entries: -1 }) as never;
         }
@@ -256,6 +258,50 @@ describe("kit transaction runner", () => {
       return digestCanonical("sillymaker:state:v1", attempt.result.snapshot);
     });
     expect(digests[0]).toBe(digests[1]);
+  });
+
+  it("characterizes locale-controlled owner apply and fact ordering", () => {
+    const applyOrder: string[] = [];
+    const { vault, ledger, runner } = createBankFixtureV1(applyOrder);
+    const snapshot = bankSnapshotV1();
+    const comparisons: [string, string][] = [];
+    const ranks = new Map([
+      ["bank.vault", 0],
+      ["bank.ledger", 1],
+    ]);
+    const localeCompare = vi.spyOn(String.prototype, "localeCompare").mockImplementation(
+      function (this: string, right: string): number {
+        comparisons.push([this, right]);
+        return (ranks.get(this) ?? 0) - (ranks.get(right) ?? 0);
+      },
+    );
+
+    try {
+      const attempt = runner.execute(
+        snapshot,
+        createTransactionalRngV1(snapshot.rng),
+        (transaction) => {
+          transaction.propose(ledger, { kind: "record" });
+          transaction.propose(vault, { amount: -3 });
+          return transaction.complete();
+        },
+      );
+
+      expect(attempt.result.kind).toBe("committed");
+      if (attempt.result.kind !== "committed") return;
+      expect(applyOrder).toEqual(["bank.vault", "bank.ledger"]);
+      expect(attempt.result.facts).toEqual([
+        { kind: "bank.coins_moved", amount: -3 },
+        { kind: "bank.entry_recorded", entries: 1 },
+      ]);
+      expect(attempt.result.snapshot.state.simulation).toEqual({
+        vault: { coins: 7 },
+        ledger: { entries: 1 },
+      });
+      expect(comparisons).toContainEqual(["bank.vault", "bank.ledger"]);
+    } finally {
+      localeCompare.mockRestore();
+    }
   });
 
   it("rejects through transaction.reject and keeps the exact snapshot and RNG", () => {

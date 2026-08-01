@@ -227,6 +227,56 @@ ingress 误纳入 simulation closure。
   每个行为改变都必须先加入或翻转目标断言并观察 focused red；
 - `deno task test` 仍绿，且无 production behavior change。
 
+**2026-08-01 DET0-core promotion：** 本切片只增加 package-internal/test-only
+observation、authority collection 与 passing characterization，没有启用任何
+admission 或修改 canonical、digest、Save、CommandLog、replay 的公开合同。四类中性
+command 的 before/after production counts 相同：no-draw/RNG commit 各为 Snapshot
+digest/freeze/physical canonical=`1/1/1`，rejected/faulted 为 `0/0/0`；四类均只做
+一次既有 CommandLog continuity verification，command/evidence admission 均为 `0`。
+replay corpus 把 `26` 次 Snapshot digest traversal、`34` 次 replay-comparison
+traversal 与 `60` 次总 physical canonical traversal 分开计数。bootstrap
+construction/restart/extension-helper 的既有 tuple 分别固定为 `0/0/1/1/1`、
+`0/0/1/1/1`、`0/0/1/0/0`；三类受控 adapter throw 均为 `0/0/0/0/0`，且逐路径保留
+原 Session、Snapshot、RNG、sequence、CommandLog、replay base、persistence owner/
+slot bytes。
+
+独立 `96a0a93` oracle 继续固定 PF1 mixed/rollback bytes，并新增 raw-bootstrap
+Snapshot `224` bytes / `sha256:5a0f5dda...e6e6`、state digest
+`sha256:c87eeea0...9a5`、quick Save `1447` bytes /
+`sha256:c69e007a...cd83`，以及真实 RNG draw 的 dispatch/Snapshot/CommandLog
+`351/202/900` bytes 与各自固定 SHA；常规测试只消费嵌入的 length+SHA，不读取 Git
+history，也不从当前 canonical helper 重生成 expected。固定 seed `97` 的真实 draw
+为 cursor `97 -> 25701511`、result `3`。合法值因此保持 byte-for-byte 等价；非法
+fractional command/fact/rejection/fault、RNG draw/state 仍在现有 late phase 首次失败，
+zero cursor 仍可 parse/resume 且 draw 后保持 zero。这些是 DET1–DET2 的红测试基线，
+不是已修复能力。
+
+collector 从 root registry live recollect `5` 个应用；本次执行观察到 `61` 个 managed
+simulation records。callback owner 的 `470` 次 live barrel-closure path visit 只投影为
+`61` 个 Story-owned paths；`26` 个 explicit Base roots 按 bounded-closure 或 entry-only
+投影为 `41` 个 Base authoritative paths，合并后为 `102` 个 unique authoritative paths，
+未退化为 whole-Base
+scan。数字只记录本次 promotion，不作为冻结文件清单。closure 包含 Content Database、
+Event Pool、Base/Story Narrative 与 debug callback；`17` 个 Host/Presentation/tooling/
+Base non-authoritative negative controls 均在 closure 外。仓库 `9` 个
+`localeCompare` callsite 已全量分类：Game Authoring Kit `3` 个、simulation cycle
+diagnostic `1` 个、Content Database `1` 个进入 DET2e；Host memory record store、Desktop
+tooling、testkit 与 test helper `4` 个为 negative controls。当前 `5` 个应用都未配置
+production `summarizeSave`，所以 projector owner count 为 `0`；synthetic dedicated
+owner 已证明缺 owner、identity mismatch、UI/test closure 与 stale policy 都 fail
+closed，Base projector seam 则固定一次调用、相同 state identity、observer failure
+不可改变结果/bytes。
+
+Deno `2.9.4` 与 source-served Chromium/WebKit 对四类 command 的同一 exact trace
+全量相等；常规 engine/examples/prebuilt browser suites 继续验证现有产品路径。
+Firefox 专用
+authoritative trace、isolated ambient tripwire、hard determinism task/CI 与
+四-runtime matrix 仍属于 DET3a–DET4，不能把本记录解释为完整 PF-DET promotion。
+Story callback owner 为满足 fail-closed closure 从 `story.ts` 拆到 dedicated
+`simulation-definition.ts`；现有 exports/runtime composition 不变，BuildIdentity digest
+按新的真实 source topology 更新。仍 deferred：DET1–DET4、M0a/M0b/M1/M2、Decimal、
+named/keyed RNG、Mod sandbox、StateStore/integrity-policy/changed-set。
+
 ## 5. DET1 — RNG zero-state contract repair
 
 ### Target behavior

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { AuthoringDiagnosticErrorV1 } from "../contracts/diagnostic-envelope.ts";
 import type {
@@ -64,6 +64,22 @@ function diagnosticsOfV1(run: () => unknown) {
     throw error;
   }
   throw new Error("expected composition to throw");
+}
+
+function installControlledLocaleOrderV1(order: readonly string[]) {
+  const ranks = new Map(order.map((value, index) => [value, index]));
+  const comparisons: [string, string][] = [];
+  const spy = vi.spyOn(String.prototype, "localeCompare").mockImplementation(function (
+    this: string,
+    right: string,
+  ): number {
+    comparisons.push([this, right]);
+    const leftRank = ranks.get(this);
+    const rightRank = ranks.get(right);
+    if (leftRank !== undefined && rightRank !== undefined) return leftRank - rightRank;
+    return this < right ? -1 : this > right ? 1 : 0;
+  });
+  return { comparisons, spy };
 }
 
 function createFixtureV1() {
@@ -240,6 +256,97 @@ describe("createGameAuthoringKitV1", () => {
     ).map((diagnostic) => diagnostic.code);
     expect(codes).toContain("authoring.lifecycle.dependency_cycle");
     expect(codes).not.toContain("authoring.capability.dependency_cycle");
+  });
+
+  it("characterizes locale-controlled graph traversal in the first cycle diagnostic", () => {
+    const kit = createGameAuthoringKitV1<KitTestTypesV1>();
+    const moduleWith = (id: string, slot: string, after: string) =>
+      kit.defineStatefulModule({
+        id,
+        contractRevision: 1,
+        state: {
+          slot,
+          schema: numberStateSchemaV1<{ readonly items: number }>(["items"]),
+          initial: () => Object.freeze({ items: 0 }),
+        },
+        initializesAfter: [after],
+        owner: noopOwnerV1,
+      });
+    const storage = moduleWith("kit.storage", "simulation.storage", "kit.shop");
+    const shop = moduleWith("kit.shop", "simulation.shop", "kit.storage");
+    const { comparisons, spy } = installControlledLocaleOrderV1([
+      "kit.storage",
+      "kit.shop",
+    ]);
+
+    try {
+      const diagnostics = diagnosticsOfV1(() => kit.composeModules([shop, storage]));
+      const lifecycle = diagnostics.find(
+        (diagnostic) => diagnostic.code === "authoring.lifecycle.dependency_cycle",
+      );
+      expect(lifecycle).toMatchObject({
+        message: "lifecycle dependency cycle at kit.storage",
+        subject: { kind: "module", id: "kit.storage" },
+      });
+      expect(comparisons).toContainEqual(["kit.storage", "kit.shop"]);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("characterizes locale-controlled dependency vector ordering", () => {
+    const kit = createGameAuthoringKitV1<KitTestTypesV1>();
+    const dashRead = kit.defineCapability<StorageReadPortV1>("capability.dash.read");
+    const underscoreRead = kit.defineCapability<StorageReadPortV1>(
+      "capability.underscore.read",
+    );
+    const provider = (
+      id: string,
+      slot: string,
+      token: typeof dashRead,
+    ) =>
+      kit.defineStatefulModule({
+        id,
+        contractRevision: 1,
+        state: {
+          slot,
+          schema: numberStateSchemaV1<{ readonly items: number }>(["items"]),
+          initial: () => Object.freeze({ items: 0 }),
+        },
+        provides: (provide) => [
+          provide(token, ({ readOwnState }) => ({ itemCount: () => readOwnState().items })),
+        ],
+        owner: noopOwnerV1,
+      });
+    const dash = provider("kit.a-1", "simulation.storage", dashRead);
+    const underscore = provider("kit.a_1", "simulation.shop", underscoreRead);
+    const consumer = kit.defineStatefulModule({
+      id: "kit.consumer",
+      contractRevision: 1,
+      state: {
+        slot: "simulation.consumer",
+        schema: numberStateSchemaV1<{ readonly items: number }>(["items"]),
+        initial: () => Object.freeze({ items: 0 }),
+      },
+      requires: { dash: dashRead, underscore: underscoreRead },
+      owner: noopOwnerV1,
+    });
+    const { comparisons, spy } = installControlledLocaleOrderV1([
+      "kit.a_1",
+      "kit.a-1",
+      "kit.consumer",
+    ]);
+
+    try {
+      const composition = kit.composeModules([dash, underscore, consumer]);
+      const binding = composition.modules.find(
+        (module) => module.descriptor.id === "kit.consumer",
+      );
+      expect(binding?.descriptor.dependencies).toEqual(["kit.a_1", "kit.a-1"]);
+      expect(comparisons).toContainEqual(["kit.a_1", "kit.a-1"]);
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it("rejects undeclared token access with a stable code", () => {

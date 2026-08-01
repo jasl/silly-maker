@@ -11,7 +11,7 @@ const ownerV1 = createStoryBuildIdentityOwnerV1({
   label: "E2E",
   storySourceRoot: "e2e/src/",
   simulation: {
-    entry: "e2e/src/gameplay/simulation.ts",
+    entry: "e2e/src/simulation-definition.ts",
     forbiddenPrefixes: ["e2e/src/presentation"],
   },
   presentation: {

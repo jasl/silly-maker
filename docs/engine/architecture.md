@@ -62,6 +62,7 @@ Implementation anchors:
 - UI exports: `engine/packages/ui/src/index.ts`
 - Web exports: `engine/packages/web/src/index.ts`
 - current Story root: `e2e/src/story.ts`
+- current simulation callback owner: `e2e/src/simulation-definition.ts`
 
 ## 3. Story resolution
 
@@ -71,6 +72,14 @@ A Story package supplies a `GamePackageV1` with two facets:
   rule/value program, queries, and ViewModel projection.
 - **Presentation**: Semantic Stage/content, text and asset catalogs,
   presentation values, and renderer identifiers.
+
+Repository applications keep the simulation definition in a dedicated
+`src/simulation-definition.ts` module. That module owns the materialization and
+simulation-construction callbacks and does not import Presentation or React;
+`src/story.ts` composes it with the presentation facet. Configured BuildIdentity
+collectors, or an explicit dependency seed when an application has no collector,
+and the determinism authority collector all start the Story simulation closure
+at that dedicated owner.
 
 `defineGamePackage` creates the package entry. `resolveGamePackageV1` validates
 the definition, applies authorized simulation and presentation patches,

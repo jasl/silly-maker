@@ -175,8 +175,8 @@ function dataEqualV1(
   if (left === undefined || right === undefined) return left === right;
   try {
     return bytesEqualV1(
-      canonicalJsonBytesInternalV1(left, instrumentation),
-      canonicalJsonBytesInternalV1(right, instrumentation),
+      canonicalJsonBytesInternalV1(left, instrumentation, "replay_comparison"),
+      canonicalJsonBytesInternalV1(right, instrumentation, "replay_comparison"),
     );
   } catch {
     return false;

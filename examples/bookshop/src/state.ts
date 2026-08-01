@@ -22,7 +22,7 @@ import {
  * Authoritative Story state: three modules, all plain versioned data.
  * Adding a gameplay module means one interface + schema + initial value
  * here, one module in `simulation.ts`, and one manifest entry in
- * `story.ts` (module IDs sorted ascending).
+ * `simulation-definition.ts` (module IDs sorted ascending).
  */
 
 /** The empty-shell gameplay module: a coin purse. Rename or replace it. */

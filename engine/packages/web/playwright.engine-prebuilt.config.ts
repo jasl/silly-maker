@@ -9,6 +9,9 @@ import { defineConfig, devices } from "@playwright/test";
  */
 export default defineConfig({
   testDir: "./e2e/engine",
+  // DET0's source-served determinism probe intentionally stays outside the
+  // production Artifact and its BuildIdentity closure.
+  testIgnore: /authoritative-determinism\.spec\.ts/u,
   fullyParallel: false,
   workers: 1,
   retries: 0,

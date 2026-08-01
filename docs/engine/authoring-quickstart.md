@@ -41,7 +41,7 @@ A new module = four wiring points, all inside the Story package:
 1. `src/gameplay/state.ts`: state interface + zod schema + initial value, mounted into the aggregate state.
 2. `src/gameplay/simulation.ts`: `kit.defineStatefulModule` (the owner's propose/apply); commands into `LabCommandV1`, facts into `LabFactV1`, rejection codes into `LabRejectionCodeV1`; open a transaction in the executor (cross-module writes via `transaction.propose(otherModule, …)`, atomically committed with the same command).
 3. `src/application/semantic.ts`: action id into the catalog + the `blockedBy` availability rule (catalog/preview/dispatch share this one function).
-4. `src/story.ts`: add the module entry to the state-contract manifest (**module ids in lexicographic order**) and sync revisions per the table below.
+4. `src/simulation-definition.ts`: add the module entry to the state-contract manifest (**module ids in lexicographic order**) and sync its contract revisions; then bump the package identity in `src/story.ts` as required by the table below.
 
 Revision-sync rules (mistakes are rejected at startup by structured diagnostics; just follow them):
 

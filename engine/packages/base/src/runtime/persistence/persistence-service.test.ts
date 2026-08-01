@@ -54,6 +54,10 @@ import {
   createPersistenceServiceV1,
   fencePersistencePlayerMutationsInternalV1,
 } from "./persistence-service.ts";
+import type {
+  SaveSummaryProjectionEventInternalV1,
+  SaveSummaryProjectionInstrumentationInternalV1,
+} from "./persistence-service.ts";
 import { createSaveRepositoryV1 } from "./save-repository.ts";
 import type { SaveRepositorySlotMetadataV1, SaveRepositoryV1 } from "./save-repository.ts";
 import { createSessionLeaseV1 } from "./session-lease.ts";
@@ -2557,6 +2561,8 @@ describe("PersistenceService standard composition", () => {
       readonly exportFilename?: string;
       readonly metadataClock?: { now(): IsoUtcInstant };
       readonly instrumentation?: SnapshotWorkInstrumentationV1;
+      readonly saveSummaryProjectionInstrumentation?:
+        SaveSummaryProjectionInstrumentationInternalV1<SyntheticStateV1>;
       readonly wrapRepositoryForWriteReceiptFallback?: boolean;
     } = {},
   ) {
@@ -2586,14 +2592,21 @@ describe("PersistenceService standard composition", () => {
         ? {}
         : { collectVersionStamp: options.collectVersionStamp }),
     };
-    const service = options.instrumentation === undefined
+    const service = options.instrumentation === undefined &&
+        options.saveSummaryProjectionInstrumentation === undefined &&
+        options.wrapRepositoryForWriteReceiptFallback !== true
       ? await createPersistenceServiceV1(serviceOptions)
       : await createInstrumentedPersistenceServiceV1(
         serviceOptions,
         options.instrumentation,
-        options.wrapRepositoryForWriteReceiptFallback === true
-          ? { wrapRepositoryForWriteReceiptFallback: true }
-          : undefined,
+        {
+          ...(options.wrapRepositoryForWriteReceiptFallback === true
+            ? { wrapRepositoryForWriteReceiptFallback: true }
+            : {}),
+          ...(options.saveSummaryProjectionInstrumentation === undefined ? {} : {
+            saveSummaryProjectionInstrumentation: options.saveSummaryProjectionInstrumentation,
+          }),
+        },
       );
     return Object.freeze({ records, ...created, service });
   }
@@ -2788,6 +2801,103 @@ describe("PersistenceService standard composition", () => {
       (await fallback.records.read("save", key))?.bytes,
     );
     await Promise.all([optimized.service.autoSaveIdle(), fallback.service.autoSaveIdle()]);
+  });
+
+  it("keeps successful Save results and bytes unchanged when the summary observer throws", async () => {
+    const observerFailure = new Error("observer failed synchronously");
+    const phases: SaveSummaryProjectionEventInternalV1<SyntheticStateV1>["phase"][] = [];
+    const control = await standardFixtureV1(provenanceV1(), {
+      summarizeSave: () => ["summary"],
+    });
+    const observed = await standardFixtureV1(provenanceV1(), {
+      summarizeSave: () => ["summary"],
+      saveSummaryProjectionInstrumentation: Object.freeze({
+        record(event: SaveSummaryProjectionEventInternalV1<SyntheticStateV1>) {
+          phases.push(event.phase);
+          throw observerFailure;
+        },
+      }),
+    });
+
+    const [controlResult, observedResult] = await Promise.all([
+      control.service.port.save("quick"),
+      observed.service.port.save("quick"),
+    ]);
+
+    expect(observedResult).toEqual(controlResult);
+    expect(observedResult).toEqual({ kind: "saved", slotId: "quick" });
+    expect(phases).toEqual(["before", "returned"]);
+    expect(await saveRecordsV1(observed.records)).toEqual(
+      await saveRecordsV1(control.records),
+    );
+    await Promise.all([control.service.autoSaveIdle(), observed.service.autoSaveIdle()]);
+  });
+
+  it("keeps successful Save results and bytes unchanged when the summary observer rejects", async () => {
+    const observerFailure = new Error("observer rejected");
+    const phases: SaveSummaryProjectionEventInternalV1<SyntheticStateV1>["phase"][] = [];
+    const control = await standardFixtureV1(provenanceV1(), {
+      summarizeSave: () => ["summary"],
+    });
+    const observed = await standardFixtureV1(provenanceV1(), {
+      summarizeSave: () => ["summary"],
+      saveSummaryProjectionInstrumentation: Object.freeze({
+        record(event: SaveSummaryProjectionEventInternalV1<SyntheticStateV1>) {
+          phases.push(event.phase);
+          return Promise.reject(observerFailure);
+        },
+      }),
+    });
+
+    const [controlResult, observedResult] = await Promise.all([
+      control.service.port.save("quick"),
+      observed.service.port.save("quick"),
+    ]);
+
+    expect(observedResult).toEqual(controlResult);
+    expect(observedResult).toEqual({ kind: "saved", slotId: "quick" });
+    expect(phases).toEqual(["before", "returned"]);
+    expect(await saveRecordsV1(observed.records)).toEqual(
+      await saveRecordsV1(control.records),
+    );
+    await Promise.all([control.service.autoSaveIdle(), observed.service.autoSaveIdle()]);
+  });
+
+  it("reports the original summary projector error without changing Save failure semantics", async () => {
+    const projectionFailure = new Error("summary projection failed");
+    const observerFailure = new Error("observer failed while recording throw");
+    const events: SaveSummaryProjectionEventInternalV1<SyntheticStateV1>[] = [];
+    const summarizeSave = () => {
+      throw projectionFailure;
+    };
+    const control = await standardFixtureV1(provenanceV1(), { summarizeSave });
+    const observed = await standardFixtureV1(provenanceV1(), {
+      summarizeSave,
+      saveSummaryProjectionInstrumentation: Object.freeze({
+        record(event: SaveSummaryProjectionEventInternalV1<SyntheticStateV1>) {
+          events.push(event);
+          if (event.phase === "threw") throw observerFailure;
+        },
+      }),
+    });
+
+    const [controlResult, observedResult] = await Promise.all([
+      control.service.port.save("quick"),
+      observed.service.port.save("quick"),
+    ]);
+
+    expect(controlResult).toEqual({
+      kind: "faulted",
+      code: "persistence.capture_failed",
+    });
+    expect(observedResult).toEqual(controlResult);
+    expect(events.map((event) => event.phase)).toEqual(["before", "threw"]);
+    const threw = events[1];
+    expect(threw?.phase).toBe("threw");
+    if (threw?.phase === "threw") expect(threw.error).toBe(projectionFailure);
+    expect(await saveRecordsV1(control.records)).toEqual([]);
+    expect(await saveRecordsV1(observed.records)).toEqual([]);
+    await Promise.all([control.service.autoSaveIdle(), observed.service.autoSaveIdle()]);
   });
 
   it("keeps annotation bytes equivalent while measuring receipt and fallback work", async () => {

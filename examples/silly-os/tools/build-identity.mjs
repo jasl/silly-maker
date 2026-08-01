@@ -11,7 +11,7 @@ const ownerV1 = createStoryBuildIdentityOwnerV1({
   label: "ExampleSillyOS",
   storySourceRoot: "examples/silly-os/src/",
   simulation: {
-    entry: "examples/silly-os/src/simulation.ts",
+    entry: "examples/silly-os/src/simulation-definition.ts",
     forbiddenPrefixes: ["examples/silly-os/src/presentation"],
   },
   presentation: {

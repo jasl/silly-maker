@@ -28,7 +28,7 @@ Rules in brief:
 
 ## Module/state tasks
 
-Four wiring points: `state.ts` (interface + schema + initial value) → `simulation.ts` (module owner + commands) → `application/semantic.ts` (action catalog + blockedBy) → `story.ts` (manifest entry; module ids in lexicographic order). The revision-sync table and the diagnostics quick-reference are in `docs/engine/authoring-quickstart.md`; do not bump revisions from memory.
+Four wiring points: `state.ts` (interface + schema + initial value) → `simulation.ts` (module owner + commands) → `application/semantic.ts` (action catalog + blockedBy) → `simulation-definition.ts` (manifest entry; module ids in lexicographic order). Keep the package identity revision in `story.ts` synchronized. The revision-sync table and the diagnostics quick-reference are in `docs/engine/authoring-quickstart.md`; do not bump revisions from memory.
 
 ## Forbidden
 

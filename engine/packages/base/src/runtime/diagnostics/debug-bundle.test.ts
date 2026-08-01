@@ -21,6 +21,7 @@ import {
 import type { GameSnapshotEnvelopeV1 } from "../../contracts/snapshot.ts";
 import type { Digest, NonNegativeSafeInteger, RuntimeSchemaV1 } from "../../contracts/values.ts";
 import { parseNonNegativeSafeInteger } from "../../contracts/values.ts";
+import { createUnsafeAuthoritativeDeterminismWorkloadV1 } from "../../testkit/authoritative-determinism-workload.ts";
 import {
   createGameDiagnosticsServiceV1,
   decodeDebugBundleV1,
@@ -48,6 +49,17 @@ type SyntheticBundleV1 = DebugBundleEnvelopeV1<
   readonly string[],
   SyntheticSnapshotV1,
   string,
+  SyntheticDiagnosticsV1,
+  RuntimeOperationFaultV1,
+  SyntheticFailureV1,
+  SyntheticUiContextV1
+>;
+type SyntheticPermissiveBundleV1 = DebugBundleEnvelopeV1<
+  SyntheticProvenanceV1,
+  RuntimeCapabilitiesV1,
+  readonly string[],
+  SyntheticSnapshotV1,
+  unknown,
   SyntheticDiagnosticsV1,
   RuntimeOperationFaultV1,
   SyntheticFailureV1,
@@ -175,6 +187,22 @@ const bundleSchemaV1 = createDebugBundleEnvelopeSchemaV1({
   uiContextSchema: uiContextSchemaV1,
 });
 
+const permissiveCommandLogEntrySchemaV1: RuntimeSchemaV1<unknown> = Object.freeze({
+  parse: (value: unknown) => value,
+});
+
+const permissiveBundleSchemaV1 = createDebugBundleEnvelopeSchemaV1({
+  provenanceSchema: provenanceSchemaV1,
+  capabilitiesSchema: capabilitiesSchemaV1,
+  simulationLineageSchema: stringArraySchemaV1,
+  snapshotSchema: snapshotSchemaV1,
+  commandLogEntrySchema: permissiveCommandLogEntrySchemaV1,
+  diagnosticsSchema: diagnosticsSchemaV1,
+  runtimeFailureSchema: runtimeOperationFaultSchemaV1,
+  failureSchema: failureSchemaV1,
+  uiContextSchema: uiContextSchemaV1,
+});
+
 const codecV1: DebugBundleCodecContextV1<SyntheticSnapshotV1, SyntheticBundleV1> = Object.freeze({
   bundleSchema: bundleSchemaV1,
   validateEnvelope(bundle: SyntheticBundleV1) {
@@ -182,6 +210,14 @@ const codecV1: DebugBundleCodecContextV1<SyntheticSnapshotV1, SyntheticBundleV1>
       throw new TypeError("invalid lineage");
     }
   },
+});
+
+const permissiveCodecV1: DebugBundleCodecContextV1<
+  SyntheticSnapshotV1,
+  SyntheticPermissiveBundleV1
+> = Object.freeze({
+  bundleSchema: permissiveBundleSchemaV1,
+  validateEnvelope() {},
 });
 
 function snapshotV1(count = 4, note = "ready"): SyntheticSnapshotV1 {
@@ -222,6 +258,48 @@ function bundleV1(overrides: Partial<SyntheticBundleV1> = {}): SyntheticBundleV1
     diagnostics: { codes: [] },
     runtimeFailures: [],
     ...overrides,
+  });
+}
+
+function permissiveBundleV1(commandLog: readonly unknown[]): SyntheticPermissiveBundleV1 {
+  const snapshot = snapshotV1();
+  const stateDigest = digestCanonical("sillymaker:state:v1", snapshot);
+  return permissiveBundleSchemaV1.parse({
+    formatRevision: 1,
+    provenance: { id: "story.synthetic" },
+    capabilities: { debugTools: true, cheats: false, automationBridge: false },
+    simulationLineage: [],
+    generatedAt: "2026-07-14T00:00:00.000Z",
+    replayBase: snapshot,
+    replayBaseStateDigest: stateDigest,
+    commandLog,
+    currentSnapshot: snapshot,
+    currentStateDigest: stateDigest,
+    diagnostics: { codes: [] },
+    runtimeFailures: [],
+  });
+}
+
+function permissiveDiagnosticsServiceV1(commandLog: readonly unknown[]) {
+  const snapshot = snapshotV1();
+  const stateDigest = digestCanonical("sillymaker:state:v1", snapshot);
+  return createGameDiagnosticsServiceV1({
+    codec: permissiveCodecV1,
+    provenance: Object.freeze({ id: "story.synthetic" }),
+    getCapabilities: () =>
+      Object.freeze({ debugTools: true, cheats: false, automationBridge: false }),
+    getSimulationLineage: () => Object.freeze([]),
+    readAtQueueFront: async (reader) => reader(snapshot),
+    getReplayEvidence: () =>
+      Object.freeze({ replayBase: snapshot, replayBaseStateDigest: stateDigest, commandLog }),
+    getDiagnostics: () => Object.freeze({ codes: Object.freeze([]) }),
+    getRuntimeFailures: () => Object.freeze([]),
+    getFailure: () => undefined,
+    scrubFailure: (failure) => failure,
+    metadataClock: Object.freeze({
+      now: () => parseIsoUtcInstantV1("2026-07-14T00:00:00.000Z"),
+    }),
+    exportFilename: "synthetic.debug-bundle.json",
   });
 }
 
@@ -282,6 +360,90 @@ describe("Debug Bundle codec", () => {
     );
     expect(() => encodeDebugBundleV1(valid, codecV1)).toThrow(
       "Debug Bundle violates Strict JSON constraints: limit.bytes",
+    );
+  });
+
+  it.each(
+    [
+      [
+        "command",
+        { command: { amount: 0.25 }, outcome: { kind: "committed", facts: [] } },
+        "/commandLog/0/command/amount",
+      ],
+      [
+        "committed fact",
+        { command: { amount: 1 }, outcome: { kind: "committed", facts: [{ value: 0.5 }] } },
+        "/commandLog/0/outcome/facts/0/value",
+      ],
+      [
+        "rejection",
+        { command: { amount: 1 }, outcome: { kind: "rejected", reasons: [{ value: 0.75 }] } },
+        "/commandLog/0/outcome/reasons/0/value",
+      ],
+      [
+        "fault",
+        { command: { amount: 1 }, outcome: { kind: "faulted", fault: { value: 0.875 } } },
+        "/commandLog/0/outcome/fault/value",
+      ],
+    ] as const,
+  )("discovers a fractional %s only while encoding the Debug Bundle", async (_, entry, path) => {
+    const commandLog = Object.freeze([entry]);
+    const bundle = permissiveBundleV1(commandLog);
+
+    expect(() => encodeDebugBundleV1(bundle, permissiveCodecV1)).toThrowError(
+      expect.objectContaining({
+        name: "CanonicalJsonError",
+        code: "number.not_integer",
+        path,
+      }),
+    );
+    await expect(permissiveDiagnosticsServiceV1(commandLog).exportDebugBundle()).rejects.toEqual(
+      new TypeError("Debug Bundle export failed"),
+    );
+  });
+
+  it("reports the exact first pointer for fractional RNG evidence retained by Session", async () => {
+    const workload = createUnsafeAuthoritativeDeterminismWorkloadV1("fractional_rng_draw");
+    await expect(workload.dispatch()).resolves.toMatchObject({
+      kind: "executed",
+      execution: { kind: "rejected" },
+    });
+    const commandLog = workload.commandLog();
+    expect(commandLog[0]?.attemptedDraws[0]?.result).toBe(0.5);
+    const bundle = permissiveBundleV1(commandLog);
+
+    expect(() => encodeDebugBundleV1(bundle, permissiveCodecV1)).toThrowError(
+      expect.objectContaining({
+        name: "CanonicalJsonError",
+        code: "number.not_integer",
+        path: "/commandLog/0/attemptedDraws/0/result",
+      }),
+    );
+    await expect(permissiveDiagnosticsServiceV1(commandLog).exportDebugBundle()).rejects.toEqual(
+      new TypeError("Debug Bundle export failed"),
+    );
+  });
+
+  it("reports the exact first pointer for a fractional candidate RNG state", async () => {
+    const workload = createUnsafeAuthoritativeDeterminismWorkloadV1("fractional_rng_state");
+    await expect(workload.dispatch()).resolves.toMatchObject({
+      kind: "executed",
+      execution: { kind: "rejected" },
+    });
+    const commandLog = workload.commandLog();
+    expect(commandLog[0]?.attemptedDraws[0]?.result).toBe(3);
+    expect(commandLog[0]?.candidateRngAfter.rawDrawCount).toBe(0.5);
+    const bundle = permissiveBundleV1(commandLog);
+
+    expect(() => encodeDebugBundleV1(bundle, permissiveCodecV1)).toThrowError(
+      expect.objectContaining({
+        name: "CanonicalJsonError",
+        code: "number.not_integer",
+        path: "/commandLog/0/candidateRngAfter/rawDrawCount",
+      }),
+    );
+    await expect(permissiveDiagnosticsServiceV1(commandLog).exportDebugBundle()).rejects.toEqual(
+      new TypeError("Debug Bundle export failed"),
     );
   });
 });

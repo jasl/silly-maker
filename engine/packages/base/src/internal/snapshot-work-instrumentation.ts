@@ -9,8 +9,29 @@ export type SnapshotWorkEventV1 =
   | "strict_json_parse"
   | "strict_json_preflight";
 
+/** @internal Physical traversal purpose; intentionally absent from package barrels. */
+export type SnapshotWorkPurposeV1 =
+  | "snapshot_digest"
+  | "snapshot_freeze"
+  | "bootstrap_admission"
+  | "bootstrap_handoff_freeze"
+  | "command_admission"
+  | "evidence_admission"
+  | "replay_comparison";
+
 export interface SnapshotWorkInstrumentationV1 {
-  record(event: SnapshotWorkEventV1): unknown;
+  record(event: SnapshotWorkEventV1, purpose?: SnapshotWorkPurposeV1): unknown;
+}
+
+export interface PurposeTaggedSnapshotWorkCountsV1 {
+  readonly snapshotDigestTraversals: number;
+  readonly snapshotFreezeTraversals: number;
+  readonly bootstrapAdmissionCanonicalTraversals: number;
+  readonly bootstrapHandoffFreezeTraversals: number;
+  readonly commandAdmissionCanonicalTraversals: number;
+  readonly evidenceAdmissionCanonicalTraversals: number;
+  readonly replayComparisonTraversals: number;
+  readonly totalPhysicalCanonicalTraversals: number;
 }
 
 export interface SnapshotWorkCountsV1 {
@@ -54,15 +75,112 @@ function emptyCountsV1(): MutableSnapshotWorkCountsV1 {
 export function recordSnapshotWorkV1(
   instrumentation: SnapshotWorkInstrumentationV1 | undefined,
   event: SnapshotWorkEventV1,
+  purpose?: SnapshotWorkPurposeV1,
 ): void {
   try {
-    const result = instrumentation?.record(event);
+    const result = instrumentation?.record(event, purpose);
     if (result !== undefined) {
       void Promise.resolve(result).catch(() => undefined);
     }
   } catch {
     // Instrumentation is observational and must never affect authoritative work.
   }
+}
+
+function emptyPurposeTaggedCountsV1(): PurposeTaggedSnapshotWorkCountsV1 {
+  return {
+    snapshotDigestTraversals: 0,
+    snapshotFreezeTraversals: 0,
+    bootstrapAdmissionCanonicalTraversals: 0,
+    bootstrapHandoffFreezeTraversals: 0,
+    commandAdmissionCanonicalTraversals: 0,
+    evidenceAdmissionCanonicalTraversals: 0,
+    replayComparisonTraversals: 0,
+    totalPhysicalCanonicalTraversals: 0,
+  };
+}
+
+/** @internal Test/bench counter; intentionally absent from package barrels. */
+export function createPurposeTaggedSnapshotWorkCounterV1(): {
+  readonly instrumentation: SnapshotWorkInstrumentationV1;
+  reset(): void;
+  snapshot(): PurposeTaggedSnapshotWorkCountsV1;
+} {
+  let counts = emptyPurposeTaggedCountsV1();
+  const instrumentation: SnapshotWorkInstrumentationV1 = Object.freeze({
+    record(event: SnapshotWorkEventV1, purpose?: SnapshotWorkPurposeV1) {
+      if (event === "canonical_traversal") {
+        counts = {
+          ...counts,
+          totalPhysicalCanonicalTraversals: counts.totalPhysicalCanonicalTraversals + 1,
+        };
+      }
+      switch (purpose) {
+        case "snapshot_digest":
+          if (event === "canonical_traversal") {
+            counts = { ...counts, snapshotDigestTraversals: counts.snapshotDigestTraversals + 1 };
+          }
+          return;
+        case "snapshot_freeze":
+          if (event === "deep_freeze_traversal") {
+            counts = { ...counts, snapshotFreezeTraversals: counts.snapshotFreezeTraversals + 1 };
+          }
+          return;
+        case "bootstrap_admission":
+          if (event === "canonical_traversal") {
+            counts = {
+              ...counts,
+              bootstrapAdmissionCanonicalTraversals: counts.bootstrapAdmissionCanonicalTraversals +
+                1,
+            };
+          }
+          return;
+        case "bootstrap_handoff_freeze":
+          if (event === "deep_freeze_traversal") {
+            counts = {
+              ...counts,
+              bootstrapHandoffFreezeTraversals: counts.bootstrapHandoffFreezeTraversals + 1,
+            };
+          }
+          return;
+        case "command_admission":
+          if (event === "canonical_traversal") {
+            counts = {
+              ...counts,
+              commandAdmissionCanonicalTraversals: counts.commandAdmissionCanonicalTraversals + 1,
+            };
+          }
+          return;
+        case "evidence_admission":
+          if (event === "canonical_traversal") {
+            counts = {
+              ...counts,
+              evidenceAdmissionCanonicalTraversals: counts.evidenceAdmissionCanonicalTraversals + 1,
+            };
+          }
+          return;
+        case "replay_comparison":
+          if (event === "canonical_traversal") {
+            counts = {
+              ...counts,
+              replayComparisonTraversals: counts.replayComparisonTraversals + 1,
+            };
+          }
+          return;
+        case undefined:
+          return;
+      }
+    },
+  });
+  return Object.freeze({
+    instrumentation,
+    reset() {
+      counts = emptyPurposeTaggedCountsV1();
+    },
+    snapshot() {
+      return Object.freeze({ ...counts });
+    },
+  });
 }
 
 /** @internal Test/bench counter; intentionally absent from package barrels. */

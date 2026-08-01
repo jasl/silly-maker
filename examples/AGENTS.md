@@ -36,7 +36,7 @@ Rules in brief:
 
 cat-cafe is organized by **feature slices**: one gameplay feature per `src/features/<name>/` directory (`module.ts` module, `content.ts` content tables, `rules.ts` pure rules, `handlers.ts` command handlers, `index.tsx` UI), shared contracts in `src/kernel.ts`, and `src/simulation.ts`/`src/content.ts` doing aggregation and re-export only (outsiders still face just these two facades). A new feature = a new directory + one line at each aggregation point; a missed command kind fails to compile.
 
-Four wiring points: `state.ts` (interface + schema + initial value) → `features/<name>/module.ts` and `handlers.ts` (or `simulation.ts` in the simple packages) → `application/semantic.ts` (action catalog + blockedBy) → `story.ts` (manifest entry; module ids in lexicographic order). The revision-sync table and the diagnostics quick-reference are in `docs/engine/authoring-quickstart.md`; do not bump revisions from memory.
+Four wiring points: `state.ts` (interface + schema + initial value) → `features/<name>/module.ts` and `handlers.ts` (or `simulation.ts` in the simple packages) → `application/semantic.ts` (action catalog + blockedBy) → `simulation-definition.ts` (manifest entry; module ids in lexicographic order). Keep the package identity revision in `story.ts` synchronized. The revision-sync table and the diagnostics quick-reference are in `docs/engine/authoring-quickstart.md`; do not bump revisions from memory.
 
 ## Forbidden
 

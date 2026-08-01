@@ -369,7 +369,7 @@ function deepFreezeSnapshotV1<TSnapshot>(
   value: TSnapshot,
   instrumentation?: SnapshotWorkInstrumentationV1,
 ): TSnapshot {
-  recordSnapshotWorkV1(instrumentation, "deep_freeze_traversal");
+  recordSnapshotWorkV1(instrumentation, "deep_freeze_traversal", "snapshot_freeze");
   const visited = new Set<object>();
   const freeze = (current: unknown): void => {
     if (current === null || typeof current !== "object" || visited.has(current)) return;

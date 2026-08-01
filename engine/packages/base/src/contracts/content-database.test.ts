@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import type { RuntimeSchemaV1 } from "./values.ts";
@@ -67,6 +67,40 @@ const rewardSchemaV1: RuntimeSchemaV1<RewardRowV1> = fromStandardSchemaV1(
   { subject: { kind: "module", id: "test.rewards" } },
 );
 
+interface OrderedRowV1 extends Readonly<Record<string, unknown>> {
+  readonly id: string;
+  readonly label: string;
+  readonly score: number;
+}
+
+const orderedRowSchemaV1: RuntimeSchemaV1<OrderedRowV1> = Object.freeze({
+  parse(value: unknown): OrderedRowV1 {
+    if (value === null || typeof value !== "object" || Array.isArray(value)) {
+      throw new TypeError("invalid ordered row");
+    }
+    const record = value as Partial<OrderedRowV1>;
+    const score = record.score;
+    if (
+      typeof record.id !== "string" ||
+      typeof record.label !== "string" ||
+      typeof score !== "number" ||
+      !Number.isSafeInteger(score)
+    ) {
+      throw new TypeError("invalid ordered row");
+    }
+    return Object.freeze({ id: record.id, label: record.label, score });
+  },
+});
+
+function orderedTableV1(rows: readonly OrderedRowV1[]) {
+  return defineContentTableV1<OrderedRowV1>({
+    tableId: "table.test.ordering",
+    schema: orderedRowSchemaV1,
+    primaryKey: "id",
+    rows,
+  });
+}
+
 describe("content table definition", () => {
   it("validates rows, keys, and limits with structured codes", () => {
     expect(() =>
@@ -125,6 +159,55 @@ describe("content database queries", () => {
     // Results are frozen and stable.
     expect(Object.isFrozen(view.rows())).toBe(true);
     expect(db.collectTextIds()).toEqual(["text.t.clean", "text.t.play", "text.t.train"]);
+  });
+
+  it("characterizes locale-controlled authoritative string ordering", () => {
+    const labels = ["A", "a", "a-1", "a_1", "e\u0301", "\u00e9", "\u{1f600}", "\ue000"];
+    const table = orderedTableV1(
+      labels.map((label, index) => ({ id: `row.${String(index)}`, label, score: index })),
+    );
+    const view = createContentDatabaseV1({ tables: [table] }).table(table);
+    const controlledOrder = ["\u{1f600}", "a", "A", "a_1", "a-1", "e\u0301", "\u00e9", "\ue000"];
+    const ranks = new Map(controlledOrder.map((value, index) => [value, index]));
+    const comparisons: [string, string][] = [];
+    const localeCompare = vi.spyOn(String.prototype, "localeCompare").mockImplementation(
+      function (this: string, right: string): number {
+        comparisons.push([this, right]);
+        return (ranks.get(this) ?? 0) - (ranks.get(right) ?? 0);
+      },
+    );
+
+    try {
+      expect(view.findMany({ orderBy: "label" }).map((row) => row.label)).toEqual(
+        controlledOrder,
+      );
+      expect(comparisons.length).toBeGreaterThan(0);
+    } finally {
+      localeCompare.mockRestore();
+    }
+  });
+
+  it("characterizes safe-integer extremes without consulting the locale comparator", () => {
+    const table = orderedTableV1([
+      { id: "row.max", label: "maximum", score: Number.MAX_SAFE_INTEGER },
+      { id: "row.zero", label: "zero", score: 0 },
+      { id: "row.min", label: "minimum", score: Number.MIN_SAFE_INTEGER },
+    ]);
+    const view = createContentDatabaseV1({ tables: [table] }).table(table);
+    const localeCompare = vi.spyOn(String.prototype, "localeCompare").mockImplementation(() => {
+      throw new TypeError("numeric ordering consulted the locale comparator");
+    });
+
+    try {
+      expect(view.findMany({ orderBy: "score" }).map((row) => row.score)).toEqual([
+        Number.MIN_SAFE_INTEGER,
+        0,
+        Number.MAX_SAFE_INTEGER,
+      ]);
+      expect(localeCompare).not.toHaveBeenCalled();
+    } finally {
+      localeCompare.mockRestore();
+    }
   });
 
   it("validates cross-table references at construction", () => {

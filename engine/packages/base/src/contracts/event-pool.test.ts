@@ -22,6 +22,17 @@ function rngV1(seed = 7) {
   );
 }
 
+const invalidContextNumberCasesV1 = [
+  ["fractional", 1.5, "gt", 1],
+  ["positive infinity", Number.POSITIVE_INFINITY, "gt", 0],
+  ["negative infinity", Number.NEGATIVE_INFINITY, "lt", 0],
+  ["NaN", Number.NaN, "ne", 0],
+  ["unsafe integer", Number.MAX_SAFE_INTEGER + 1, "gt", 0],
+  ["negative zero", -0, "eq", 0],
+] as const satisfies readonly (
+  readonly [string, number, "eq" | "ne" | "lt" | "lte" | "gt" | "gte", number]
+)[];
+
 describe("event condition language", () => {
   it("parses, evaluates, and treats missing keys as false", () => {
     const condition = parseEventConditionV1({
@@ -73,6 +84,25 @@ describe("event condition language", () => {
       })
     ).toThrow(expect.objectContaining({ code: "event_pool.condition_branches" }));
   });
+
+  it.each(invalidContextNumberCasesV1)(
+    "characterizes an unchecked %s context number at evaluation time",
+    (_, value, op, operand) => {
+      const condition = parseEventConditionV1({
+        kind: "number",
+        key: "observed",
+        op,
+        value: operand,
+      });
+      const context = {
+        numbers: { observed: value },
+        flags: [],
+        labels: {},
+      } as const satisfies EventPoolContextV1;
+
+      expect(evaluateEventConditionV1(condition, context)).toBe(true);
+    },
+  );
 });
 
 describe("event pool draws", () => {
@@ -183,5 +213,102 @@ describe("event pool draws", () => {
         purpose: "check:test.pool",
       })
     ).toThrow(expect.objectContaining({ code: "event_pool.weight_invalid" }));
+  });
+
+  it("characterizes total-weight safe-integer overflow before any RNG draw", () => {
+    const rng = rngV1();
+    const before = rng.candidateState();
+
+    expect(() =>
+      drawFromEventPoolV1({
+        candidates: [
+          { eventId: "event.large-a", weight: Number.MAX_SAFE_INTEGER, condition: null },
+          { eventId: "event.large-b", weight: Number.MAX_SAFE_INTEGER, condition: null },
+        ],
+        context: contextV1,
+        rng,
+        purpose: "check:test.overflow",
+      })
+    ).toThrow("invalid PositiveSafeInteger");
+    expect(rng.candidateState()).toEqual(before);
+    expect(rng.attemptedDraws()).toEqual([]);
+  });
+
+  it.each(invalidContextNumberCasesV1)(
+    "characterizes a %s context number through ordinary and forced draws",
+    (_, value, op, operand) => {
+      const candidates = [
+        {
+          eventId: "event.invalid-context",
+          weight: 1,
+          condition: parseEventConditionV1({
+            kind: "number",
+            key: "observed",
+            op,
+            value: operand,
+          }),
+        },
+      ] as const;
+      const context = {
+        numbers: { observed: value },
+        flags: [],
+        labels: {},
+      } as const satisfies EventPoolContextV1;
+      const ordinaryRng = rngV1();
+      const forcedRng = rngV1();
+
+      expect(
+        drawFromEventPoolV1({
+          candidates,
+          context,
+          rng: ordinaryRng,
+          purpose: "check:test.invalid-context",
+        }),
+      ).toMatchObject({
+        kind: "drawn",
+        eventId: "event.invalid-context",
+        explanation: { totalWeight: 1, forced: false },
+      });
+      expect(ordinaryRng.attemptedDraws()).toHaveLength(1);
+      expect(
+        drawFromEventPoolV1({
+          candidates,
+          context,
+          rng: forcedRng,
+          purpose: "check:test.invalid-context",
+          force: "event.invalid-context",
+        }),
+      ).toMatchObject({
+        kind: "drawn",
+        eventId: "event.invalid-context",
+        explanation: { totalWeight: 1, roll: null, forced: true },
+      });
+      expect(forcedRng.attemptedDraws()).toEqual([]);
+    },
+  );
+
+  it("characterizes forced selection with an unsafe overflowed total weight", () => {
+    const rng = rngV1();
+    const result = drawFromEventPoolV1({
+      candidates: [
+        { eventId: "event.large-a", weight: Number.MAX_SAFE_INTEGER, condition: null },
+        { eventId: "event.large-b", weight: Number.MAX_SAFE_INTEGER, condition: null },
+      ],
+      context: contextV1,
+      rng,
+      purpose: "check:test.overflow",
+      force: "event.large-b",
+    });
+
+    expect(result).toMatchObject({
+      kind: "drawn",
+      eventId: "event.large-b",
+      explanation: {
+        totalWeight: 18_014_398_509_481_982,
+        roll: null,
+        forced: true,
+      },
+    });
+    expect(rng.attemptedDraws()).toEqual([]);
   });
 });

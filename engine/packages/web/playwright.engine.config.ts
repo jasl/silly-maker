@@ -35,6 +35,7 @@ export default defineConfig({
     {
       name: "chromium-touch",
       grep: /@responsive|@smoke/,
+      testIgnore: /authoritative-determinism\.spec\.ts/u,
       use: {
         browserName: "chromium",
         viewport: { width: 1024, height: 768 },
@@ -45,6 +46,7 @@ export default defineConfig({
     {
       name: "tablet-landscape",
       grep: /@responsive/,
+      testIgnore: /authoritative-determinism\.spec\.ts/u,
       use: {
         browserName: "chromium",
         viewport: { width: 1280, height: 800 },

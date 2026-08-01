@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type {
   GameBootstrapInputV1,
@@ -227,6 +227,29 @@ describe("GameSimulation invariants", () => {
     expect(() => defineSimulationWithDuplicateSlot()).toThrow("duplicate State slot");
     expect(() => defineSimulationWithMissingDependency()).toThrow("missing dependency");
     expect(() => defineSimulationWithCycle()).toThrow("dependency cycle");
+  });
+
+  it("characterizes locale-controlled dependency-cycle first failure", () => {
+    const comparisons: [string, string][] = [];
+    const ranks = new Map([
+      ["synthetic.right", 0],
+      ["synthetic.left", 1],
+    ]);
+    const localeCompare = vi.spyOn(String.prototype, "localeCompare").mockImplementation(
+      function (this: string, right: string): number {
+        comparisons.push([this, right]);
+        return (ranks.get(this) ?? 0) - (ranks.get(right) ?? 0);
+      },
+    );
+
+    try {
+      expect(() => defineSimulationWithCycle()).toThrow(
+        "dependency cycle at synthetic.right",
+      );
+      expect(comparisons).toContainEqual(["synthetic.right", "synthetic.left"]);
+    } finally {
+      localeCompare.mockRestore();
+    }
   });
 
   it("allows stateless capabilities but no state or owner surface", () => {

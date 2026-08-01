@@ -179,7 +179,7 @@ export function digestCanonicalInternalV1(
 ): Digest {
   recordSnapshotWorkV1(instrumentation, "canonical_digest");
   const domainBytes = ascii(domain);
-  const valueBytes = canonicalJsonBytesInternalV1(value, instrumentation);
+  const valueBytes = canonicalJsonBytesInternalV1(value, instrumentation, "snapshot_digest");
   const framed = new Uint8Array(domainBytes.length + 1 + valueBytes.length);
   framed.set(domainBytes);
   framed[domainBytes.length] = 0;

@@ -82,6 +82,38 @@ import {
 import type { SessionLeaseFenceV1, SessionLeaseV1 } from "./session-lease.ts";
 import { createSessionLeaseV1 } from "./session-lease.ts";
 
+export type SaveSummaryProjectionEventInternalV1<TState = unknown> =
+  | { readonly phase: "before"; readonly state: DeepReadonly<TState> }
+  | {
+    readonly phase: "returned";
+    readonly state: DeepReadonly<TState>;
+    readonly value: readonly string[] | null;
+  }
+  | { readonly phase: "threw"; readonly state: DeepReadonly<TState>; readonly error: unknown };
+
+export interface SaveSummaryProjectionInstrumentationInternalV1<TState = unknown> {
+  record(event: SaveSummaryProjectionEventInternalV1<TState>): unknown;
+}
+
+interface PersistenceServiceTestOptionsInternalV1<TState> {
+  readonly wrapRepositoryForWriteReceiptFallback?: boolean;
+  readonly saveSummaryProjectionInstrumentation?: SaveSummaryProjectionInstrumentationInternalV1<
+    TState
+  >;
+}
+
+function recordSaveSummaryProjectionInternalV1<TState>(
+  instrumentation: SaveSummaryProjectionInstrumentationInternalV1<TState> | undefined,
+  event: SaveSummaryProjectionEventInternalV1<TState>,
+): void {
+  try {
+    const result = instrumentation?.record(event);
+    if (result !== undefined) void Promise.resolve(result).catch(() => undefined);
+  } catch {
+    // Test instrumentation is observational and cannot affect Save capture.
+  }
+}
+
 type PersistenceSaveRecordV1<TSnapshot> = SaveRecordEnvelopeV1<
   TSnapshot,
   BuildProvenanceV1,
@@ -340,6 +372,7 @@ async function createPersistenceServiceWithDependenciesV1<
 >(
   options: CreatePersistenceServiceOptionsV1<TState, TSnapshot>,
   instrumentation?: SnapshotWorkInstrumentationV1,
+  testOptions?: PersistenceServiceTestOptionsInternalV1<TState>,
 ): Promise<PersistenceServiceV1<TSnapshot>> {
   if (typeof options.exportFilename !== "string" || options.exportFilename.length === 0) {
     throw new TypeError("Persistence service requires an export filename");
@@ -459,10 +492,28 @@ async function createPersistenceServiceWithDependenciesV1<
       instrumentation,
     );
 
-  const captureSummaryV1 = (snapshot: DeepReadonly<TSnapshot>): readonly string[] | null =>
-    options.summarizeSave === undefined ? null : normalizeSaveSummaryInternalV1(
-      options.summarizeSave((snapshot as { readonly state: DeepReadonly<TState> }).state),
+  const captureSummaryV1 = (snapshot: DeepReadonly<TSnapshot>): readonly string[] | null => {
+    if (options.summarizeSave === undefined) return null;
+    const state = (snapshot as { readonly state: DeepReadonly<TState> }).state;
+    recordSaveSummaryProjectionInternalV1(
+      testOptions?.saveSummaryProjectionInstrumentation,
+      Object.freeze({ phase: "before" as const, state }),
     );
+    try {
+      const value = normalizeSaveSummaryInternalV1(options.summarizeSave(state));
+      recordSaveSummaryProjectionInternalV1(
+        testOptions?.saveSummaryProjectionInstrumentation,
+        Object.freeze({ phase: "returned" as const, state, value }),
+      );
+      return value;
+    } catch (error) {
+      recordSaveSummaryProjectionInternalV1(
+        testOptions?.saveSummaryProjectionInstrumentation,
+        Object.freeze({ phase: "threw" as const, state, error }),
+      );
+      throw error;
+    }
+  };
 
   const captureV1 = (snapshot: DeepReadonly<TSnapshot>): SaveCandidateV1<TSnapshot> =>
     Object.freeze({
@@ -1939,9 +1990,7 @@ function createStandardPersistenceServiceInternalV1<
 >(
   options: CreateStandardPersistenceServiceOptionsV1<TState, TSnapshot>,
   instrumentation?: SnapshotWorkInstrumentationV1,
-  testOptions?: {
-    readonly wrapRepositoryForWriteReceiptFallback?: boolean;
-  },
+  testOptions?: PersistenceServiceTestOptionsInternalV1<TState>,
 ): Promise<PersistenceServiceV1<TSnapshot>> {
   const dependencies = createStandardPersistenceDependenciesV1(options, instrumentation);
   const repository = testOptions?.wrapRepositoryForWriteReceiptFallback === true
@@ -1973,6 +2022,7 @@ function createStandardPersistenceServiceInternalV1<
         : { collectVersionStamp: options.collectVersionStamp.bind(options) }),
     },
     instrumentation,
+    testOptions,
   );
 }
 
@@ -2023,10 +2073,8 @@ export function createInstrumentedPersistenceServiceV1<
   },
 >(
   options: CreateStandardPersistenceServiceOptionsV1<TState, TSnapshot>,
-  instrumentation: SnapshotWorkInstrumentationV1,
-  testOptions?: {
-    readonly wrapRepositoryForWriteReceiptFallback?: boolean;
-  },
+  instrumentation?: SnapshotWorkInstrumentationV1,
+  testOptions?: PersistenceServiceTestOptionsInternalV1<TState>,
 ): Promise<PersistenceServiceV1<TSnapshot>> {
   return createStandardPersistenceServiceInternalV1(options, instrumentation, testOptions);
 }

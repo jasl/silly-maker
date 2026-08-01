@@ -26,6 +26,7 @@ import type { RunIntegrityV1 } from "../../contracts/snapshot.ts";
 import { finalizeSnapshotIntegrityV1 } from "../session/run-integrity.ts";
 import type { DeepReadonly, Digest, NonNegativeSafeInteger } from "../../contracts/values.ts";
 import { parseNonNegativeSafeInteger, parsePositiveSafeInteger } from "../../contracts/values.ts";
+import type { SnapshotWorkInstrumentationV1 } from "../../internal/snapshot-work-instrumentation.ts";
 import type { ReplayComparisonV1 } from "../diagnostics/replay.ts";
 import { replayAuthoritativelyFromAttemptsInternalV1 } from "../diagnostics/replay.ts";
 import type { RuntimeOperationFaultV1 } from "../../contracts/diagnostics.ts";
@@ -36,15 +37,19 @@ import {
 import type {
   GameSessionCompositionV1,
   GameSessionDebugInputV1,
+  GameSessionInputV1,
   GameSessionV1,
 } from "../session/game-session.ts";
-import { createGameSessionV1 } from "../session/game-session.ts";
+import { createGameSessionV1, createInstrumentedGameSessionV1 } from "../session/game-session.ts";
 import type {
+  CreateStandardPersistenceServiceOptionsV1,
   PersistenceRebootstrapDisposalV1,
   PersistenceServiceV1,
+  SaveSummaryProjectionInstrumentationInternalV1,
 } from "../persistence/persistence-service.ts";
 import {
   captureAutoSaveWithReceiptInternalV1,
+  createInstrumentedPersistenceServiceV1,
   createPersistenceServiceV1,
   fencePersistencePlayerMutationsInternalV1,
 } from "../persistence/persistence-service.ts";
@@ -512,6 +517,14 @@ const constructionInstrumentationV1 = new WeakMap<
   CreateCoreGameApplicationInstanceOptionsV1,
   CoreApplicationConstructionInstrumentationInternalV1
 >();
+const snapshotWorkInstrumentationV1 = new WeakMap<
+  CreateCoreGameApplicationInstanceOptionsV1,
+  SnapshotWorkInstrumentationV1
+>();
+const saveProjectionInstrumentationV1 = new WeakMap<
+  CreateCoreGameApplicationInstanceOptionsV1,
+  SaveSummaryProjectionInstrumentationInternalV1
+>();
 
 /**
  * Attaches a one-shot, observational construction probe for same-package tests.
@@ -524,6 +537,30 @@ export function instrumentCoreApplicationConstructionOptionsInternalV1(
   instrumentation: CoreApplicationConstructionInstrumentationInternalV1,
 ): CreateCoreGameApplicationInstanceOptionsV1 {
   constructionInstrumentationV1.set(options, instrumentation);
+  return options;
+}
+
+/**
+ * Attaches one observational Snapshot-work probe to a Core composition for
+ * package tests. The attachment is consumed once and never enters a public
+ * application option or Story contract.
+ *
+ * @internal Intentionally absent from package barrels.
+ */
+export function instrumentCoreApplicationSnapshotWorkOptionsInternalV1(
+  options: CreateCoreGameApplicationInstanceOptionsV1,
+  instrumentation: SnapshotWorkInstrumentationV1,
+): CreateCoreGameApplicationInstanceOptionsV1 {
+  snapshotWorkInstrumentationV1.set(options, instrumentation);
+  return options;
+}
+
+/** @internal One-shot Base Save-projector observation for package tests. */
+export function instrumentCoreApplicationSaveProjectionOptionsInternalV1(
+  options: CreateCoreGameApplicationInstanceOptionsV1,
+  instrumentation: SaveSummaryProjectionInstrumentationInternalV1,
+): CreateCoreGameApplicationInstanceOptionsV1 {
+  saveProjectionInstrumentationV1.set(options, instrumentation);
   return options;
 }
 
@@ -785,6 +822,10 @@ export async function createCoreGameApplicationInstanceV1<
 > {
   const constructionInstrumentation = constructionInstrumentationV1.get(options);
   constructionInstrumentationV1.delete(options);
+  const snapshotWorkInstrumentation = snapshotWorkInstrumentationV1.get(options);
+  snapshotWorkInstrumentationV1.delete(options);
+  const saveProjectionInstrumentation = saveProjectionInstrumentationV1.get(options);
+  saveProjectionInstrumentationV1.delete(options);
   const autosave = normalizeCoreAutosavePolicyV1(options.autosave);
   const scheduler = options.scheduler ?? defaultSchedulerV1;
   const definition = application.definition;
@@ -854,8 +895,7 @@ export async function createCoreGameApplicationInstanceV1<
 
   // Steps below acquire live resources; anything after session creation is
   // failure-guarded so a failed construction leaves no owner or listener.
-  recordCoreApplicationConstructionV1(constructionInstrumentation, "session_factory");
-  const created = createGameSessionV1<TTypes>({
+  const sessionInput: GameSessionInputV1<TTypes> = {
     initialSnapshot: createInitialSnapshotV1(),
     commandSchema: gameSimulation.commandSchema,
     executionContext: undefined as TTypes["executionContext"],
@@ -911,7 +951,11 @@ export async function createCoreGameApplicationInstanceV1<
       latestAttemptFailure = Object.freeze({ ...pending, attempt });
     },
     onObserverFailure: reportObserverFailure,
-  });
+  };
+  recordCoreApplicationConstructionV1(constructionInstrumentation, "session_factory");
+  const created = snapshotWorkInstrumentation === undefined
+    ? createGameSessionV1<TTypes>(sessionInput)
+    : createInstrumentedGameSessionV1<TTypes>(sessionInput, snapshotWorkInstrumentation);
 
   let disposed = false;
   const cleanups: (() => void)[] = [];
@@ -974,7 +1018,10 @@ export async function createCoreGameApplicationInstanceV1<
     });
 
     recordCoreApplicationConstructionV1(constructionInstrumentation, "persistence_factory");
-    persistenceService = await createPersistenceServiceV1<TTypes["state"], TTypes["snapshot"]>({
+    const persistenceOptions: CreateStandardPersistenceServiceOptionsV1<
+      TTypes["state"],
+      TTypes["snapshot"]
+    > = {
       runtimeControl: created.runtimeControl,
       records: options.host.records,
       snapshotSchema: snapshotSchema as never,
@@ -1005,7 +1052,17 @@ export async function createCoreGameApplicationInstanceV1<
       leaseAcquisition: options.rebootstrapDisposition === undefined
         ? "acquire_initial"
         : "deferred_rebootstrap",
-    });
+    };
+    persistenceService = snapshotWorkInstrumentation === undefined &&
+        saveProjectionInstrumentation === undefined
+      ? await createPersistenceServiceV1<TTypes["state"], TTypes["snapshot"]>(persistenceOptions)
+      : await createInstrumentedPersistenceServiceV1<TTypes["state"], TTypes["snapshot"]>(
+        persistenceOptions,
+        snapshotWorkInstrumentation,
+        saveProjectionInstrumentation === undefined
+          ? undefined
+          : { saveSummaryProjectionInstrumentation: saveProjectionInstrumentation },
+      );
     const persistence = persistenceService;
     if (options.rebootstrapDisposition !== undefined) {
       // Dev rebootstrap: take over the predecessor's released lease through
@@ -1564,7 +1621,7 @@ export async function createCoreGameApplicationInstanceV1<
               undefined as TTypes["executionContext"],
             ) as never;
           },
-        } as never);
+        } as never, snapshotWorkInstrumentation);
       },
       inspectForTest: () =>
         Object.freeze({

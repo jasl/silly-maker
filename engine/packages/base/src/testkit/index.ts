@@ -3,6 +3,11 @@ export { strictJsonRoundTripV1, validateToolingFixturesV1 } from "./contract-sui
 export { createFixedBootstrapEntropyV1 } from "./fixed-bootstrap-entropy.ts";
 export { createMemoryHostRecordStoreV1 } from "../contracts/host.ts";
 export {
+  authoritativeDeterminismCommandClassesV1,
+  authoritativeDeterminismDrawPurposeV1,
+  prepareAuthoritativeDeterminismWorkloadV1,
+} from "./authoritative-determinism-workload.ts";
+export {
   prepareSnapshotCommitWorkloadV1,
   snapshotCommitCommandClassesV1,
   snapshotCommitEntityCountsV1,
@@ -18,6 +23,13 @@ export { prepareSnapshotPersistenceWorkloadV1 } from "./snapshot-persistence-wor
 export { createSyntheticCounterGamePackageV1 } from "./synthetic-counter.ts";
 export { resolveStoryForTestV1, validateStoryV1 } from "./story-contracts.ts";
 export { createGameHarnessV1 } from "./game-harness.ts";
+export type {
+  AuthoritativeDeterminismCommandClassV1,
+  AuthoritativeDeterminismWorkCountsV1,
+  AuthoritativeDeterminismWorkloadDescriptorV1,
+  AuthoritativeDeterminismWorkloadRunV1,
+  PreparedAuthoritativeDeterminismWorkloadV1,
+} from "./authoritative-determinism-workload.ts";
 export type {
   CreateGameHarnessInputV1,
   GameHarnessAdminV1,

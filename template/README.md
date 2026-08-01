@@ -27,7 +27,7 @@ deno task clean                                       # 清理 dist-web/ 与 dis
 | 玩法规则与命令           | `src/simulation.ts`（`template.inventory` 是可替换的空壳模块）                                                             |
 | 玩家可见的动作目录       | `src/application/semantic.ts`                                                                                              |
 | UI 布局与对话框样式      | `src/application/composition.tsx`                                                                                          |
-| 模块清单与版本           | `src/story.ts`（版本纪律写在文件头注释里）                                                                                 |
+| 模块清单与版本           | `src/simulation-definition.ts`（manifest/contract revision）+ `src/story.ts`（package identity revision）                  |
 | 网页标题与分享卡片       | `metadata.json`（标题/描述/语言/主题色/分享图/favicon，构建时注入 `<head>`）                                               |
 
 ## 剧本模型（不是 DSL，就是 TypeScript 数据）

@@ -49,4 +49,34 @@ describe("xorshift32-v1", () => {
     );
     expect(resumed.candidateState()).toEqual(rng.candidateState());
   });
+
+  it("characterizes the currently accepted zero cursor as an absorbing draw state", () => {
+    const zero = rngStateV1Schema.parse({
+      algorithm: "xorshift32-v1",
+      cursor: 0,
+      rawDrawCount: 7,
+    });
+    const resumed = createTransactionalRngV1(zero);
+
+    expect(resumed.nextInt({ exclusiveMax: 17, purpose: "check:zero.characterization" })).toBe(0);
+    expect(resumed.candidateState()).toEqual({
+      algorithm: "xorshift32-v1",
+      cursor: 0,
+      rawDrawCount: 8,
+    });
+    expect(resumed.attemptedDraws()).toEqual([
+      {
+        ordinal: 1,
+        purpose: "check:zero.characterization",
+        exclusiveMax: 17,
+        result: 0,
+        before: zero,
+        after: {
+          algorithm: "xorshift32-v1",
+          cursor: 0,
+          rawDrawCount: 8,
+        },
+      },
+    ]);
+  });
 });

@@ -14,7 +14,14 @@ import { digestCanonical } from "../../contracts/digest.ts";
 import { digestBytes } from "../../contracts/digest.ts";
 import { parseNonNegativeSafeInteger, parsePositiveSafeInteger } from "../../contracts/values.ts";
 import type { FinalizedCommandAttemptV1 } from "./command-log.ts";
-import { createSnapshotWorkCounterV1 } from "../../internal/snapshot-work-instrumentation.ts";
+import {
+  createPurposeTaggedSnapshotWorkCounterV1,
+  createSnapshotWorkCounterV1,
+} from "../../internal/snapshot-work-instrumentation.ts";
+import type {
+  SnapshotWorkEventV1,
+  SnapshotWorkPurposeV1,
+} from "../../internal/snapshot-work-instrumentation.ts";
 import { markRunModifiedV1 } from "../session/run-integrity.ts";
 import {
   inspectReplayBestEffortV1,
@@ -401,6 +408,13 @@ describe("authoritative replay", () => {
   it("counts current, driver, and comparison work on the real from-attempts path", async () => {
     const fixture = fixtureV1();
     const counter = createSnapshotWorkCounterV1();
+    const purposes = createPurposeTaggedSnapshotWorkCounterV1();
+    const instrumentation = Object.freeze({
+      record(event: SnapshotWorkEventV1, purpose?: SnapshotWorkPurposeV1) {
+        counter.instrumentation.record(event, purpose);
+        purposes.instrumentation.record(event, purpose);
+      },
+    });
 
     await expect(
       replayAuthoritativelyFromAttemptsInternalV1(
@@ -414,7 +428,7 @@ describe("authoritative replay", () => {
           projectStableFault: fixture.input.projectStableFault,
           executeAttempt: executeAttemptV1,
         },
-        counter.instrumentation,
+        instrumentation,
       ),
     ).resolves.toEqual({
       authoritative: true,
@@ -432,6 +446,72 @@ describe("authoritative replay", () => {
       saveCanonicalSerializations: 0,
       strictJsonParses: 0,
       strictJsonPreflights: 0,
+    });
+    expect(purposes.snapshot()).toEqual({
+      snapshotDigestTraversals: 26,
+      snapshotFreezeTraversals: 0,
+      bootstrapAdmissionCanonicalTraversals: 0,
+      bootstrapHandoffFreezeTraversals: 0,
+      commandAdmissionCanonicalTraversals: 0,
+      evidenceAdmissionCanonicalTraversals: 0,
+      replayComparisonTraversals: 34,
+      totalPhysicalCanonicalTraversals: 60,
+    });
+  });
+
+  it("passes a permissive fractional recorded command to the driver and can still match", async () => {
+    const fixture = fixtureV1();
+    const first = fixture.input.commandLog[0];
+    if (first?.source !== "game" || first.command.kind !== "add") {
+      throw new TypeError("expected the first replay command to be additive");
+    }
+    const commandLog = replaceEntryV1(
+      fixture.input.commandLog,
+      0,
+      Object.freeze({
+        ...first,
+        command: Object.freeze({
+          ...first.command,
+          amount: 0.25 as NonNegativeSafeInteger,
+        }),
+      }),
+    );
+    const submitted: SyntheticLoggedCommandV1[] = [];
+    const result = await replayAuthoritativelyV1({
+      ...fixture.input,
+      commandLog,
+      createDriver(base) {
+        const driver = createDriverV1(base, []);
+        return Object.freeze({
+          getCurrentSnapshot: driver.getCurrentSnapshot,
+          submit(command: SyntheticLoggedCommandV1) {
+            submitted.push(command);
+            const executable = command.source === "game" && command.command.kind === "add"
+              ? Object.freeze({
+                source: "game" as const,
+                command: Object.freeze({
+                  ...command.command,
+                  amount: parseNonNegativeSafeInteger(2),
+                }),
+              })
+              : command;
+            return driver.submit(executable);
+          },
+        });
+      },
+    });
+
+    expect(submitted[0]).toMatchObject({
+      source: "game",
+      command: { kind: "add", amount: 0.25 },
+    });
+    expect(result).toEqual({
+      authoritative: true,
+      identityMatch: true,
+      visualMatch: true,
+      matches: true,
+      executedEntries: 3,
+      mismatches: [],
     });
   });
 

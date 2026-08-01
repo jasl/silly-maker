@@ -59,7 +59,7 @@ Rules in brief:
 
 **A new gameplay feature = a new slice directory**: put the feature's whole contribution under `src/features/<name>/` (`module.ts` module owner, `content.ts` content tables, `rules.ts` pure rules, `handlers.ts` command handlers, UI components); aggregation points gain one line each (the handler map in `simulation.ts` and the table list in `content.ts`; a missed command kind fails to compile). Shared shapes (command/fact/verdict types, schema helpers, the kit) live in `src/kernel.ts`; this package's `features/inventory/` is the minimal sample, and `examples/cat-cafe/src/features/` shows the scaled-up form.
 
-Four wiring points: `state.ts` (interface + schema + initial value) → `features/<name>/module.ts` (module owner) and `features/<name>/handlers.ts` (commands) → `application/semantic.ts` (action catalog + blockedBy) → `story.ts` (manifest entry; module ids in lexicographic order). The revision-sync table and the diagnostics quick-reference are in `docs/engine/authoring-quickstart.md`; do not bump revisions from memory.
+Four wiring points: `state.ts` (interface + schema + initial value) → `features/<name>/module.ts` (module owner) and `features/<name>/handlers.ts` (commands) → `application/semantic.ts` (action catalog + blockedBy) → `simulation-definition.ts` (manifest entry; module ids in lexicographic order). Keep the package identity revision in `story.ts` synchronized. The revision-sync table and the diagnostics quick-reference are in `docs/engine/authoring-quickstart.md`; do not bump revisions from memory.
 
 ## Forbidden
 

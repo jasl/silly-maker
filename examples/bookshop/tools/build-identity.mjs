@@ -11,7 +11,7 @@ const ownerV1 = createStoryBuildIdentityOwnerV1({
   label: "ExampleBookshop",
   storySourceRoot: "examples/bookshop/src/",
   simulation: {
-    entry: "examples/bookshop/src/simulation.ts",
+    entry: "examples/bookshop/src/simulation-definition.ts",
     forbiddenPrefixes: ["examples/bookshop/src/presentation"],
   },
   presentation: {

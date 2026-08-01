@@ -356,6 +356,17 @@ DET-B 用 synthetic callback 冻结可追加 authority entry 与 pure-vector run
 时必须 live recollect、加入同一 static/tripwire scope 并扩展四 runtime matrix；
 以后每个新 migrator 也重复这项认证，不能把 PF-DET 当作一次性完成。
 
+**2026-08-01 DET0-core promotion：** root-registry authority collector、dedicated
+Story callback owners、bounded Base/Save projector entries、Host/Presentation negative
+controls、四类中性 command workload、bootstrap/late-admission/replay/zero-RNG/
+Strict-JSON/Event-Pool/locale-order characterization，以及 Deno/Chromium/WebKit exact trace
+已经完成。当前 observation 为 `5` 个应用、`61` 个 managed records、`102` 个去重
+authoritative paths、`0` 个 production Save projector；这些是 live recollection 的
+本次结果，不是冻结 inventory。DET0 只加 observation，没有修复已证明的 deterministic
+缺口，也没有改变公开 canonical/digest/Save/replay 语义。详细 counts、byte oracle、
+atomicity、exemption 与 deferred runtime matrix 见 determinism plan 的 DET0 promotion
+record。跨计划下一切片现为 Save `M0a`，不是 DET1；M0a 合并后才回到 DET1。
+
 ### PF3 — Save envelope and migration registry
 
 执行 [Save migration plan](2026-07-30-save-migration.md) 的分段 gate：
