@@ -1,10 +1,10 @@
 # Authoritative determinism guardrails execution plan
 
-状态：2026-07-31 接受执行；同日按 Save-metadata ownership、DET-A/DET-B join 与
-latest-stable Deno policy 重切片；2026-08-01 明确 DET2a command admission 与
-DET2b finalized evidence admission 的公开失败 surface、precedence、representability
-与原子性；2026-08-02 DET4 的同一 Session implementation 与修正后的 promotion
-verification 均已完成，DET-B 与 aggregate PF-DET guardrail 已关闭并进入 live。目标合同见
+状态：2026-08-02 接受 DET3a conservative-syntax corrective contract；此前
+DET3a–DET4/PF-DET closure 作为 superseded-contract 历史证据保留。当前 active gate 为
+DET3a corrective implementation → DET3b invariant revalidation → DET4 full
+re-promotion。新 static behavior 在实现前不得写入 live `development.md`，整套 guardrail
+在 re-promotion 前不得写入 `features.md`。目标合同见
 [Authoritative simulation determinism boundary](../design/deterministic-simulation-boundary.md)；
 在 [Production-floor sequence](2026-07-30-production-floor-sequence.md) 中属于
 PF-DET，排在 PF2 Workspace Overlay pilot 之后，并与 PF3 按显式 DAG 汇合。本文只
@@ -86,6 +86,16 @@ DET0-core
       └-> Save M0b -> M1 (strictly callback-free)
                     same-merged-HEAD join
                     -> Save M2
+```
+
+当前 corrective gate 不重做 DET0–DET2，也不扩张 DET3b production/runtime scope：
+
+```text
+historical DET3a -> DET3b -> DET4 promotion
+  -> DET3a-C conservative corrective
+  -> DET3b invariant revalidation
+  -> DET4 full re-promotion
+  -> corrective PF-DET closed
 ```
 
 PF2 不依赖 PF-DET。M0a 先拥有一份 shared Save metadata corpus；DET0-core 只映射
@@ -1106,10 +1116,14 @@ Story 依赖 locale-default ordering，合法 Snapshot/Save/replay/diagnostic co
 replay shape、browser config 或 executable migration change。
 
 DET-A 至此关闭，只表示 M0b/M1 的 callback-free 分叉已合法；完整 PF-DET 仍需
-DET3a–DET4。当前线性 core 下一独立切片选择 `DET3a`，不在本批预实现 static guard、
-realm tripwire 或 browser parity。
+DET3a–DET4。在该历史 checkpoint，线性 core 下一独立切片选择 `DET3a`，未在 DET2e
+预实现 static guard、realm tripwire 或 browser parity。
 
-## 11. DET3a — Import-closure-aware static guard
+## 11. Historical DET3a — Import-closure-aware broad static guard
+
+本节保留首次 DET3a 及其 adversarial correction 的原始 scope、acceptance 与 promotion
+evidence。其 broad Date/String/provenance/import/loader 规则已经 superseded；当前
+normative corrective contract 与执行顺序由第 14 节拥有。
 
 ### Implementation direction
 
@@ -1365,7 +1379,11 @@ vector test，不能 whole-file disable。
   conflict 都 fail closed；
 - no exact Deno patch/browser revision attestation。
 
-**2026-08-01 DET3a promotion：** root registry 的 `5` 个 applications 现在每次 live
+以下两段是 superseded broad contract 的历史 promotion record。它们仍证明当时的实现、
+测试规模与 byte-equivalence，但其 normative wording 已由本文第 14 节和 owning design
+替代；不得作为 corrective acceptance 或 aggregate closure evidence。
+
+**Historical DET3a promotion — superseded contract（2026-08-01）：** root registry 的 `5` 个 applications 现在每次 live
 recollect `61` 个 managed simulation records 与 `61` 个 callback-owner paths，再与
 `27` 个显式 Base authorities、`0` 个 production Save projector、`17` 个 negative
 controls 和一个 synthetic migration authority 合并；含 synthetic 的 exact
@@ -1412,7 +1430,7 @@ contract、canonical/digest/Save/replay bytes、production migrator、Deno plugi
 browser behavior change。DET3a 只关闭 static layer；完整 DET-B/PF-DET 仍需 DET3b 与
 DET4，下一独立切片为 DET3b。
 
-**DET3a adversarial correction promotion（2026-08-02）：** promotion 后的
+**Historical DET3a adversarial correction promotion — superseded contract（2026-08-02）：** promotion 后的
 独立 adversarial review 先以 `8/181` red 证明 recorded Date local-time/default-string、
 latest-stable Deno `2.9.4` 的 `Temporal.Now` 与 bare Node provider subpath 遗漏；随后
 `13/195`、String-wrapper `3/202`、`10/216` 与 `7/223` red 补出 known-Date dynamic
@@ -1432,7 +1450,8 @@ wrapper、`String.raw` effective substitution/prototype carrier、tracked intrin
 order-independent root/closure provenance、stable lexical scopes、transparent TS wrappers 与
 `ClassAccessorProperty` computed key。
 
-修订决定按 operation/failure kind 写入 active contract。`new Date(arg)` 仅接受 TimeClip
+当时 promoted、现已 superseded 的 contract 按 operation/failure kind 区分。
+`new Date(arg)` 仅接受 TimeClip
 范围内 integer epoch literal/immutable `const` alias、recognized `Date.UTC(...)` result、
 verified `Date.parse(...)` result、exact known Date-instance value copy，以及经 Gregorian
 field/time/offset 校验的 explicit-zone literal/immutable alias；exact spelling 是
@@ -1495,7 +1514,7 @@ scan 在全套并发负载下超过 Vitest 默认 5 秒；四条 checker scan �
 `222/2784` full unit、assets、全部 Story admission 与 Engine Lab production build。本批修改
 Base runtime persistence export filename 的 package-internal formatter，因此此前已追加 Engine
 Lab browser E2E，`103 tests` 全绿。DET3a 仍只关闭 static layer，完整 DET-B/PF-DET 尚需
-DET3b/DET4；本 correction gate 已关闭，下一独立切片是 DET3b。
+DET3b/DET4；该 broad-contract correction gate 在当时关闭，下一独立切片是 DET3b。
 
 ## 12. DET3b — Test-only isolated ambient tripwire
 
@@ -1701,7 +1720,12 @@ M0a/M0b/M1、shared Save byte corpus、`deno task test`、`deno task check` 与�
 四 runtime matrix，并证明尚无 executable migrator、migration callback count 为
 `0`。两边各自绿但未完成该 join，不得开始 M2。
 
-**2026-08-02 DET4 / DET-B / PF-DET promotion：** `e2e/src/testing/**` 新增独立
+DET3b/DET4 implementation 本身仍是 live test infrastructure；下列 record 证明
+superseded static contract 下的 aggregate promotion。DET3a target 改变后，旧 matrix
+不能自动满足 corrective promotion，必须完成 invariant revalidation 与 full rerun 后才能
+再次关闭 PF-DET。
+
+**Historical 2026-08-02 DET4 / DET-B / PF-DET promotion — superseded static contract：** `e2e/src/testing/**` 新增独立
 test-only matrix module 与 first-divergence comparator；DET0/DET3b tripwire driver
 继续只加载原来的窄 authoritative closure，aggregate matrix 不把 M0a persistence
 implementation、Web Host 或 Presentation authority 混入 guard receipt。Base 通过窄
@@ -1744,10 +1768,123 @@ browser `101/101`；typecheck、`check:determinism` 与最终 `deno task check` 
 check 的 format phase 检查 `883 files`，aggregate 同时覆盖 lint/stylelint、typecheck、
 static determinism、unit、assets、Story checks 与 build。workflow 已定义 determinism job，
 但 repository 内容不能自证远端 branch-protection 已把该 status 配置为 required。DET4
-至此关闭 DET-B/aggregate PF-DET promotion，线性 core 下一独立切片为 Save `M0b`；随后是
+在该历史合同下关闭 DET-B/aggregate PF-DET promotion，线性 core 下一独立切片为 Save `M0b`；随后是
 `M1`，而 M2 仍必须等待 DET-B 与 M1 在同一 merged HEAD 完成上述 join gate。
 
-## 14. Deferred work
+## 14. DET3a-C — Conservative safe-set corrective re-promotion
+
+本节 supersede 第 11 节中 Date/String provenance、dynamic import、CommonJS failure
+kind 与 constructor precedence 的 broad allowance；第 11–13 节的既有实现记录保留为
+历史。corrective work 每次只领取一个可独立合并的批次：
+
+1. **DET3a-C0 — contract reset**：design、active plan 与 cross-plan sequence 写明
+   conservative safe-set、failure precedence、atomicity、vectors 与 stop rules；不改
+   implementation，也不把目标写成 live capability。
+2. **DET3a-C1 — import/loader admission**：先以 focused red 固定 runtime-vs-type-only
+   import closure、唯一合法 direct literal `import()` grammar 与全部真实 CommonJS/
+   `createRequire` 的 `dynamic_require` ownership；再做最小 parser-backed implementation。
+3. **DET3a-C2 — Date/String/provenance kernel**：先翻转 broad allowance 并新增
+   conservative red vectors，再实现 direct Date safe-set、`StaticString`、constructor reducer/
+   precedence、KnownDate terminal policy、exact-singleton local join 与 budget fail-closed。
+4. **DET3a-C3 — Base UTC isolation**：先 characterization 当前 persistence parser、normal/
+   overflow-hour/invalid-clock export filename value 与 bytes；再切到 package-internal integer
+   UTC parser/formatter，不新增 public helper、不改变 acceptance 或 bytes。
+5. **DET3a-C4 — cleanup and re-promotion**：删除 superseded evaluator/provenance/dead
+   diagnostics paths，更新 live `development.md`，复核 DET3b guard inventory，重跑 DET4
+   Deno/Chromium/Firefox/WebKit full matrix；全部 promotion 后才更新 `features.md` 并再次
+   关闭 aggregate PF-DET。
+
+### Corrective normative contract
+
+- Date direct-safe 只包括 TimeClip exact static integer epoch、unshadowed direct
+  `Date.UTC` exactly seven static integer arguments、unshadowed direct `Date.parse` 或 direct
+  single-argument `new Date` 的 strict full-Z/offset `StaticString`，以及指向同一 exact
+  singleton value 的 immutable local `const` alias。`Date.UTC` 七项静态范围、Gregorian
+  real-day 与 no-overflow 合同，以及 full-zone literal 的 calendar/time/offset grammar 以
+  owning design 为准。
+- `Number(...)`、dynamic `IsoUtcInstant`、KnownDate copy、multi-argument `new Date`、
+  Date API alias/call/apply/bind、spread、wrapper、mutable binding、reassignment 与不同/
+  unknown provenance 均不产生 allowance。
+- `StaticString` 只来自 ordinary string literal、no-substitution ordinary template、direct
+  static `String(...)` over a foldable primitive，以及 no-substitution direct `String.raw` tag。
+  `new String`、substitution、custom tag、alias、call/apply/bind 或 nested wrapper 均不授予
+  proof；tagged template 按普通 call 处理。
+- exact KnownDate 只允许 `getTime`、`valueOf`、`toISOString` 与 UTC getters 的 terminal
+  direct use；setter（包括 UTC）、`toJSON`、copy/value escape、dynamic member、wrapper 与
+  mutation fail closed。
+- provenance allowance 只保留 exact singleton；risk detection 用 conservative source-local
+  join。相同 singleton 的 immutable `const` alias 可保留，其他 conditional/logical/
+  reassignment/different/unknown/mutable/cycle/budget path 均 fail closed。不要求完整 CFG/
+  interprocedural analysis，function return、container 与 reflection 不升级 proof。
+- `Date.prototype.constructor` 与 exact KnownDate `.constructor` 先归约为 Date；
+  `Date.now.constructor(...)`/Function-constructor chain 是 `dynamic_code`，`.now` 是
+  `date_now`，indirect `.parse`/`.UTC`/Date constructor 是 `indirect_intrinsic`，其余 unknown
+  `.constructor` 是 `constructor_escape`。
+- collector 只接受 static runtime ESM import/export 与 exactly-one ordinary quoted literal
+  的 direct `import()`；specifier 再走既有 path policy。其他 `import()` 只在 parser-backed
+  pre-lint 报一次 `dynamic_specifier`。type-only import/export 不扩张 runtime closure。
+- 全部真实 unshadowed `require`、`module.require`、runtime `import = require(...)`、
+  `createRequire` 及 wrapper/capture/computed/partial use，由 rule core 统一报
+  `dynamic_require`；真实 lexical shadow 保持 ordinary code。
+
+### Failure precedence and atomicity
+
+1. authority/registry/collector admission；unsupported `import()` 在这里唯一失败；
+2. file read、unsupported extension、parse；失败文件不产生 rule diagnostics；
+3. JavaScript runtime 顺序执行的 receiver/callee/input/substitution/property-key child
+   diagnostics；
+4. current maximal chain 的 exact winner：`dynamic_code` → `dynamic_require` →
+   `intrinsic_mutation` → `date_now` → `date_function_call` →
+   `date_zero_argument_constructor` → `indirect_intrinsic` → Date input/UTC/local-time/
+   mutable-instance → `constructor_escape` → `dynamic_member` → provenance unknown/budget →
+   numeric；
+5. 完整 diagnostic vector 按 UTF-16 file/range/code stable sort。
+
+同一 maximal chain 只有一个 current-node primary diagnostic；确实执行的 child expression
+仍可分别报告。collector failure 不运行 lint；unknown、cycle 与 budget exhaustion 均有 stable
+fail-closed diagnostic。任何失败都不发布 partial path vector、partial provenance、success
+receipt 或 cached inventory，也不写 authoritative State、Save 或 artifact。
+
+### Required vectors and acceptance
+
+- positive Date vectors：static integer epoch、direct exact-seven `Date.UTC`、direct full-zone
+  `Date.parse`、direct full-zone `new Date`，以及 same-singleton immutable alias；
+- negative Date vectors：`Number`、dynamic instant、KnownDate copy、UTC wrong arity/range/
+  overflow、multiarg Date、Date API alias/call/apply/bind/tag、spread、mutable/reassignment、
+  different singleton、unknown、cycle 与 injected budget exhaustion；
+- exact constructor-classification matrix 固定上述四类 winner，并证明 generic fallback 不重复；
+- StaticString 四组 positive 与 boxed/substitution/custom-tag/alias/wrapper negatives；
+- exactly-one ordinary quoted literal dynamic import positive；literal value 继续进入既有
+  relative/workspace/external path policy。template/concatenation/identifier/TS wrapper、
+  options/zero-or-multi-argument negatives 全部在 pre-lint 原子失败，type-only edges 不进入
+  runtime closure；
+- 所有真实 CommonJS/createRequire forms 使用 `dynamic_require`，lexical shadows clean；
+- Base persistence parser 保持当前 accepted/rejected corpus，返回原 spelling；normal、
+  overflow-hour 与 invalid-clock export filename value/bytes byte-for-byte 不变；
+- corrective implementation 不改 public API、Save envelope、canonical/digest、CommandLog、
+  replay 或 debug-bundle semantics；
+- focused red/green、affected package tests、`deno task test`、`deno task check` 全绿；
+- DET3b guard inventory/reachability 不回退；Deno、Chromium、Firefox、WebKit full DET4 matrix
+  重新通过后才关闭 DET-B/PF-DET。
+
+### Corrective stop rules
+
+遇到以下任一情况停止并先修订 design：safe-set 需要 general constant evaluation、执行 Story
+code 或跨 source/container dataflow；singleton allowance 需要 union/class widening；unknown/
+cycle/budget 不能 stable fail closed；maximal chain 无法得到唯一 stable winner；dynamic import
+只能靠 regex、lint 后 failure 或 partial closure；CommonJS 必须建设 dependency graph；integer
+UTC helper 无法保持当前 parser acceptance/原 spelling/export filename bytes；或实现要求 public
+instant helper、Save/canonical/digest/CommandLog/replay 语义变化。
+
+**DET3a-C0 acceptance（2026-08-02）：** owning design、本文与 production-floor sequence
+已同步 conservative safe-set、StaticString、exact-singleton join、constructor/dynamic-loader
+failure precedence、import admission atomicity、Base UTC byte-equivalence stop rule，以及
+`C1`–`C4` 顺序。旧 promotion 数字保留为 superseded-contract history；live
+`development.md`/`features.md` 未提前宣称目标已实现。三份文档通过 focused
+`deno fmt --check` 与 `git diff --check`；本批不改 implementation、public API、runtime、
+Save/canonical/digest/CommandLog/replay 或 browser graph。下一独立切片为 `DET3a-C1`。
+
+## 15. Deferred work
 
 本计划不实现：
 
@@ -1767,7 +1904,7 @@ static determinism、unit、assets、Story checks 与 build。workflow 已定义
 Decimal 只有在 design 的 activation gates 达到后才单独立项，首选 content
 compiler/authoring adapter。
 
-## 15. Validation and promotion record
+## 16. Validation and promotion record
 
 每个 slice 按顺序：
 
@@ -1790,6 +1927,11 @@ promotion record 必须列：
 - valid byte-equivalence；
 - invalid failure atomicity；
 - authority closure coverage 与 exemptions；
+- conservative safe-set before/after、classification code/precedence matrix、exact-singleton/
+  unknown/budget counts、import admission atomicity 与 `dynamic_require` vectors；
+- persistence parser/export filename byte corpus，以及 unchanged public API/runtime/Save/
+  digest/replay evidence；
+- DET3b guard inventory parity 与 corrective DET4 four-runtime rerun；
 - Deno/Chromium/Firefox/WebKit evidence；
 - public contract tightening；
 - 仍 deferred 的 Decimal/RNG/Mod/StateStore/integrity-policy work。
