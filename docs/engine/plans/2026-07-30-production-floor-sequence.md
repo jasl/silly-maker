@@ -4,8 +4,9 @@
 determinism/Save graph、CI 与 Desktop 审计修订；2026-08-02 旧 DET-B/PF-DET
 promotion 已完成，但其 broad static contract 随后被 DET3a conservative-syntax corrective
 target supersede。当前 linear core 先完成 DET3a corrective、DET3b invariant revalidation
-与 DET4 full re-promotion，再恢复后续依赖 aggregate PF-DET closure 的工作；旧 promotion
-数字保留为历史证据。本文是当前唯一的跨计划排序入口；
+与 DET4 full re-promotion，再恢复后续依赖 aggregate PF-DET closure 的工作；corrective C1
+import/loader admission 已完成，当前下一切片为 C2，随后为 C3/C4。旧 promotion 数字保留为
+历史证据。本文是当前唯一的跨计划排序入口；
 具体合同仍由各 design 文档拥有，主要任务由五个独立计划拥有：
 
 - [Desktop persistence durability](2026-07-30-desktop-persistence-durability.md)
@@ -299,9 +300,11 @@ DET0-core
 
 ```text
 historical DET3a -> DET3b -> DET4
-  -> DET3a corrective
-  -> DET3b invariant revalidation
-  -> DET4 full re-promotion
+  -> C0 contract reset
+  -> C1 import/loader admission
+  -> C2 Date/String/provenance
+  -> C3 Base UTC isolation
+  -> C4 cleanup + DET3b invariant revalidation + DET4 full re-promotion
   -> PF-DET corrective closure
 ```
 
@@ -356,7 +359,8 @@ DET0-core/DET-A/DET-B 负责：
     chain 选择唯一 primary winner，unknown/cycle/budget 均 fail closed；
 11. parser-backed collector 唯一拥有 unsupported dynamic `import()` pre-lint failure，
     type-only edges 不进入 runtime closure；rule core 唯一拥有真实 CommonJS/
-    `createRequire` 的 `dynamic_require` failure。任一 admission failure 不发布 partial
+    `createRequire` 的 `determinism.capability.dynamic_require` failure。任一 admission
+    failure 不发布 partial
     closure、provenance 或 success receipt；
 12. corrective DET3a 后必须复核 DET3b guard inventory 并完整重跑 DET4 四 runtime matrix，
     旧 aggregate record 不能自动关闭新合同。
@@ -617,7 +621,7 @@ Lab production build。本批修改 Base runtime persistence export filename 的
 formatter，因此此前已追加 Engine Lab browser E2E，`103 tests` 全绿。DET-B/PF-DET 仍需
 DET3b/DET4；本 correction gate 已关闭，下一独立切片是 DET3b。
 
-**2026-08-02 DET3b promotion：** Engine Lab 的 test-only `e2e/src/testing/**` 现在
+**Historical DET3b promotion record — runtime infrastructure remains live；corrective invariant revalidation pending（2026-08-02）：** Engine Lab 的 test-only `e2e/src/testing/**` 现在
 拥有 pure guard harness、parent runner、短命 module Worker 与 browser-executable neutral
 driver。guard registry 在 dynamic import 前按固定顺序完成 descriptor replacement、
 effective self-test 或重复 native-absence probe；失败以首个 `tripwire_unavailable` 且
@@ -679,9 +683,21 @@ binding 修复：red observation `["import", "replacement"]` 现在固定为
 `["load", "import"]`；package-internal WeakMap seam 未进入 barrel，原 runtime-control
 identity 与 PF1 digest cache 保持，restart 后 save traversal 固定为 `2`。focused
 `3/158`、Base `77/970`、full unit `226/2833` 全绿；canonical JSON/digest、Save bytes、
-Player load/import/replay semantics 与 browser config 均未改变。Save `M1` 继续保持暂停；
-DET3a corrective `C0` 已完成合同重置，当前线性 core 下一独立切片为 `C1`，随后依次
-执行 `C2`–`C4`。
+Player load/import/replay semantics 与 browser config 均未改变。该历史 checkpoint 的下一
+独立切片曾为 Save `M1`；corrective gate 接受后 M1 保持暂停。
+
+**DET3a-C0 acceptance（2026-08-02）：** owning design、active plan 与本文完成
+conservative contract reset；没有修改 implementation 或 live capability。
+
+**DET3a-C1 promotion（2026-08-02）：** runtime-vs-type-only import closure、exact
+direct-literal dynamic-import admission 与统一的
+`determinism.capability.dynamic_require` 已按 active plan 落地。collector/rule-core/checker
+focused 为 `4 files / 564 tests`，affected tooling + determinism suites 为 `26/747`，full unit
+为 `226/2880`，`deno task check` 全绿；独立审查补闭 parenthesized import、static
+createRequire-capable capture 与 computed/rest namespace provenance。`development.md` 已同步，
+`features.md` 保持到 C4。
+该批不改 public/runtime/Save/canonical/digest/CommandLog/replay 或 browser graph。当前下一
+独立切片为 `C2`，随后为 `C3`、`C4`。
 
 ### PF3 — Save envelope and migration registry
 

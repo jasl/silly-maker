@@ -4,9 +4,10 @@
 DET3a–DET4 promotion 证明的是当时的 broad static-analysis contract；其测试数字、
 byte-equivalence 与 runtime evidence 作为历史记录保留，但 Date/String provenance、
 dynamic-import 与 failure-classification 规则已由本次目标 supersede，不构成 corrective
-contract 的实现或 promotion evidence。`development.md` 与 `features.md` 在 corrective
-implementation/re-promotion 前继续描述当前 live implementation；目标与实现差距由本文及
-active plan 明示拥有。具体落地顺序见
+contract 的实现或 promotion evidence。DET3a-C1 import/loader admission 已按新合同落地；
+Date/String/provenance 与 Base UTC correction 仍待后续切片。`development.md` 随实际落地
+slice 描述当前 live implementation，`features.md` 在 aggregate re-promotion 前不宣称整套
+corrective guardrail 已完成；目标与实现差距由本文及 active plan 明示拥有。具体落地顺序见
 [Authoritative determinism guardrails plan](../plans/2026-07-31-authoritative-determinism-guardrails.md)。
 当前 Snapshot、Save 与 Debug Bundle encoding 已有 integer-only canonical
 边界，事务 RNG 已进入 Snapshot；zero xorshift state、bootstrap 尽早入场、
@@ -342,7 +343,7 @@ closure 收集 static value `import`、runtime-bearing `export ... from`，以�
 再按既有 relative/workspace/external path policy 解析。type-only import/export 不扩张
 runtime authority closure，comment/string lookalike 与 `import.meta` 不形成 dependency。
 template、concatenation、identifier、spread、options argument、零/多参数或其他
-`import()` shape 在 parser-backed collector 中只产生一次
+`import()` shape 在 parser-backed collector 中每个 source 只产生一次
 `determinism.import_closure.dynamic_specifier` pre-lint failure。authority/BuildIdentity
 caller 必须在 source lint/record admission 前因任一 error 原子 fail closed，不能消费或
 发布 partial path vector，也不能把同一 dynamic import 再交给 rule core 重复报告。
@@ -433,12 +434,15 @@ boundary；hoist collection 不得穿透后两者。`for in/of` 按 RHS、每轮
 runtime evaluation、local target unknown-provenance join、body 的顺序检查；ambient target
 fail closed，不能把 left 当作普通 read。
 
-所有真实 unshadowed `require`、`module.require`、runtime `import = require(...)`、
-`createRequire` 入口及其 direct/wrapper/capture/computed/partial use，由 parser-backed rule
-core 唯一分类为 `determinism.capability.dynamic_require`；provider specifier 不改变该
-failure kind。只有实际 runtime lexical local shadow 是 ordinary code；erased `declare` 与
-未初始化、不会覆盖 CommonJS wrapper binding 的 `var require` / `var module` 不构成
-shadow。type-only import/export 不形成 runtime dependency，也不能触发 loader rule。
+所有真实 unshadowed `require`、`module.require`、runtime `import = require(...)`，以及由
+static `module` / `node:module` provider binding 证明的 `createRequire` factory/returned loader
+及其 direct/wrapper/tag/capture/computed/partial use，由 parser-backed rule core 唯一分类为
+`determinism.capability.dynamic_require`；provider specifier 不改变 loader operation 的
+failure kind。static ESM provider acquisition 仍可独立报告 provider import，bare `module`
+escape 则保持 generic ambient-capability classification。只有实际 runtime lexical local
+shadow 是 ordinary code；erased `declare` 与未初始化、不会覆盖 CommonJS wrapper binding
+的 `var require` / `var module` 不构成 shadow。type-only import/export 不形成 runtime
+dependency，也不能触发 loader rule。
 
 static failure precedence 是：authority/collector admission；read/extension/parse；
 runtime-evaluated child diagnostics；current-node exact classification；最后按 UTF-16

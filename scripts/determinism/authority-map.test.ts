@@ -231,7 +231,7 @@ describe("authoritative determinism authority map", () => {
     );
 
     await expect(collectAuthorityClosureV1(root, ["entry.ts"]))
-      .rejects.toThrow("entry.ts: dynamic import path is not static");
+      .rejects.toThrow("entry.ts: determinism.import_closure.dynamic_specifier");
   });
 
   it("keeps managed-only cross-workspace paths in the authoritative union", () => {

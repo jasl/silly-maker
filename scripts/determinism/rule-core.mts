@@ -156,6 +156,9 @@ const localDateZoneProvenanceV1 = "\0local-date-zone";
 const ambiguousDateInputProvenanceV1 = "\0ambiguous-date-input";
 const ambiguousDateInstanceProvenanceV1 = "\0ambiguous-date-instance";
 const ambiguousCapabilityProvenanceV1 = "\0ambiguous-capability";
+const dynamicRequireLoaderProvenanceV1 = "\0dynamic-require-loader";
+const dynamicRequireRiskProvenanceV1 = "\0dynamic-require-risk";
+const nodeModuleProvenanceV1 = "\0node-module";
 
 const provenanceTrackedRootsV1 = new Set([
   ...constructorTrackedRootsV1,
@@ -179,6 +182,9 @@ const provenanceTrackedRootsV1 = new Set([
   ambiguousDateInputProvenanceV1,
   ambiguousDateInstanceProvenanceV1,
   ambiguousCapabilityProvenanceV1,
+  dynamicRequireLoaderProvenanceV1,
+  dynamicRequireRiskProvenanceV1,
+  nodeModuleProvenanceV1,
 ]);
 
 const dateHostDependentMembersV1 = new Set([
@@ -253,6 +259,10 @@ const diagnosticTextV1: Readonly<
     message: "Authoritative code imports an ambient provider.",
     hint: "Move the provider to the Host boundary and inject canonical recorded data.",
   }),
+  "determinism.capability.dynamic_require": Object.freeze({
+    message: "Authoritative code acquires or uses a dynamic module loader.",
+    hint: "Use a statically admitted ESM dependency instead of require/createRequire.",
+  }),
   "determinism.ambient_capability_escape": Object.freeze({
     message: "Authoritative code lets an ambient capability escape static verification.",
     hint: "Use a verified direct member operation or pass canonical recorded data instead.",
@@ -320,6 +330,14 @@ function nodeEndV1(node: AstNodeV1): number {
 
 function identifierNameV1(node: AstNodeV1 | null): string | null {
   return node?.type === "Identifier" && typeof node.name === "string" ? node.name : null;
+}
+
+function importedNameV1(specifier: AstNodeV1): string | null {
+  const imported = asNodeV1(specifier.imported);
+  return identifierNameV1(imported) ??
+    (imported?.type === "StringLiteral" && typeof imported.value === "string"
+      ? imported.value
+      : null);
 }
 
 function staticPropertyNameV1(node: AstNodeV1): string | null {
@@ -473,18 +491,19 @@ function predeclareStatementV1(statement: AstNodeV1, scope: ScopeV1): void {
     for (const specifier of asNodesV1(declaration.specifiers)) {
       const name = identifierNameV1(asNodeV1(specifier.local));
       if (name === null) continue;
-      const imported = asNodeV1(specifier.imported);
-      const importedName = identifierNameV1(imported) ??
-        (imported?.type === "StringLiteral" && typeof imported.value === "string"
-          ? imported.value
-          : null);
+      const importedName = importedNameV1(specifier);
       scope.bootstrapTypes.set(
         name,
         specifier.type === "ImportSpecifier" && sourceName === "@sillymaker/base" &&
           importedName === "BootstrapEntropyV1",
       );
       if (declaration.importKind === "type" || specifier.importKind === "type") continue;
-      declareIdentifierV1(scope, name);
+      const binding = declareIdentifierV1(scope, name);
+      if (isNodeModuleSpecifierV1(sourceName)) {
+        binding.provenance = specifier.type === "ImportSpecifier" && importedName !== null
+          ? Object.freeze([nodeModuleProvenanceV1, importedName])
+          : Object.freeze([nodeModuleProvenanceV1]);
+      }
     }
   }
 }
@@ -601,6 +620,9 @@ function conservativeProvenanceJoinV1(
   right: readonly string[] | null,
 ): readonly string[] | null {
   if (sameProvenanceV1(left, right)) return left;
+  if (isDynamicRequireProvenanceV1(left) || isDynamicRequireProvenanceV1(right)) {
+    return Object.freeze([dynamicRequireRiskProvenanceV1]);
+  }
   const leftDateInstance = isDateInstancePathV1(left) ||
     left?.[0] === ambiguousDateInstanceProvenanceV1;
   const rightDateInstance = isDateInstancePathV1(right) ||
@@ -768,9 +790,29 @@ function isAmbientConstructorEscapeProvenanceV1(
   return members.includes("constructor");
 }
 
-function isAmbientLoaderProvenanceV1(provenance: readonly string[] | null): boolean {
+function isNodeModuleSpecifierV1(specifier: string | null): boolean {
+  return specifier === "module" || specifier === "node:module";
+}
+
+function isCreateRequireFactoryProvenanceV1(
+  provenance: readonly string[] | null,
+): boolean {
+  return provenance?.[0] === nodeModuleProvenanceV1 &&
+    provenance.slice(1).includes("createRequire");
+}
+
+function isDynamicRequireProvenanceV1(provenance: readonly string[] | null): boolean {
   return provenance?.[0] === "require" ||
-    (provenance?.[0] === "module" && provenance[1] === "require");
+    (provenance?.[0] === "module" && provenance[1] === "require") ||
+    provenance?.[0] === dynamicRequireLoaderProvenanceV1 ||
+    provenance?.[0] === dynamicRequireRiskProvenanceV1 ||
+    isCreateRequireFactoryProvenanceV1(provenance);
+}
+
+function mayProduceDynamicRequireV1(provenance: readonly string[] | null): boolean {
+  return isDynamicRequireProvenanceV1(provenance) ||
+    provenance?.[0] === "module" ||
+    (provenance?.length === 1 && provenance[0] === nodeModuleProvenanceV1);
 }
 
 type StringCallableV1 = Readonly<{
@@ -1029,6 +1071,12 @@ function resolveExpressionV1(node: AstNodeV1 | null, scope: ScopeV1): ResolvedEx
 
   if (expression.type === "CallExpression" || expression.type === "OptionalCallExpression") {
     const callee = resolveExpressionV1(asNodeV1(expression.callee), scope);
+    if (isCreateRequireFactoryProvenanceV1(callee.provenance)) {
+      return {
+        provenance: Object.freeze([dynamicRequireLoaderProvenanceV1]),
+        bootstrap: null,
+      };
+    }
     const callable = dateCallableKindV1(callee.provenance);
     if (callable === "utc" && !isDateCallableBindV1(callee.provenance)) {
       return {
@@ -1155,9 +1203,12 @@ function assignPatternV1(
   if (pattern.type === "ObjectPattern") {
     for (const property of asNodesV1(pattern.properties)) {
       if (property.type === "RestElement") {
+        const provenance = mayProduceDynamicRequireV1(resolved.provenance)
+          ? Object.freeze([dynamicRequireRiskProvenanceV1])
+          : null;
         assignPatternV1(
           asNodeV1(property.argument),
-          { provenance: null, bootstrap: resolved.bootstrap },
+          { provenance, bootstrap: resolved.bootstrap },
           scope,
           mode,
         );
@@ -1172,6 +1223,8 @@ function assignPatternV1(
         ? resolved.provenance.length === 1 && resolved.provenance[0] === "globalThis"
           ? Object.freeze([propertyName])
           : Object.freeze([...resolved.provenance, propertyName])
+        : mayProduceDynamicRequireV1(resolved.provenance)
+        ? Object.freeze([dynamicRequireRiskProvenanceV1])
         : null;
       assignPatternV1(
         asNodeV1(property.value),
@@ -1249,6 +1302,7 @@ function parseDeterminismAstV1(file: string, source: string): AstNodeV1 {
     sourceType: "unambiguous",
     plugins: parserPluginsV1(file),
     allowAwaitOutsideFunction: true,
+    createImportExpressions: true,
     ranges: true,
     attachComment: true,
   }) as unknown as AstNodeV1;
@@ -1460,8 +1514,8 @@ export function analyzeDeterminismSourceV1(
       }
       return "determinism.ambient_capability_escape";
     }
-    if (isAmbientLoaderProvenanceV1(provenance)) {
-      return "determinism.ambient_capability_escape";
+    if (isDynamicRequireProvenanceV1(provenance)) {
+      return "determinism.capability.dynamic_require";
     }
     if (root === "module") return "determinism.ambient_capability_escape";
     if (isAmbientConstructorEscapeProvenanceV1(provenance)) {
@@ -1627,7 +1681,15 @@ export function analyzeDeterminismSourceV1(
       if (
         staticPropertyNameV1(expression) === null &&
         isTrackedAmbientCapabilityProvenanceV1(resolveExpressionV1(object, scope).provenance)
-      ) reportNodeV1("determinism.ambient_capability_escape", expression);
+      ) {
+        const objectProvenance = resolveExpressionV1(object, scope).provenance;
+        reportNodeV1(
+          mayProduceDynamicRequireV1(objectProvenance)
+            ? "determinism.capability.dynamic_require"
+            : "determinism.ambient_capability_escape",
+          expression,
+        );
+      }
       return;
     }
     if (expression.type === "SequenceExpression") {
@@ -1660,7 +1722,15 @@ export function analyzeDeterminismSourceV1(
       if (
         name !== null && lookupBindingV1(scope, name) === null &&
         isTrackedAmbientCapabilityProvenanceV1(Object.freeze([name]))
-      ) reportNodeV1("determinism.ambient_capability_escape", target);
+      ) {
+        const provenance = Object.freeze([name]);
+        reportNodeV1(
+          isDynamicRequireProvenanceV1(provenance)
+            ? "determinism.capability.dynamic_require"
+            : "determinism.ambient_capability_escape",
+          target,
+        );
+      }
       return;
     }
     if (target.type === "MemberExpression" || target.type === "OptionalMemberExpression") {
@@ -1673,7 +1743,14 @@ export function analyzeDeterminismSourceV1(
         isTrackedAmbientCapabilityProvenanceV1(provenance) ||
         isTrackedAmbientCapabilityProvenanceV1(objectProvenance)
       ) {
-        reportNodeV1("determinism.ambient_capability_escape", target);
+        reportNodeV1(
+          isDynamicRequireProvenanceV1(provenance) ||
+            (staticPropertyNameV1(target) === null &&
+              mayProduceDynamicRequireV1(objectProvenance))
+            ? "determinism.capability.dynamic_require"
+            : "determinism.ambient_capability_escape",
+          target,
+        );
       }
       return;
     }
@@ -1753,6 +1830,8 @@ export function analyzeDeterminismSourceV1(
       if (property.type === "RestElement") {
         if (resolved.bootstrap !== null) {
           reportNodeV1("determinism.bootstrap_entropy_escape", property);
+        } else if (mayProduceDynamicRequireV1(resolved.provenance)) {
+          reportNodeV1("determinism.capability.dynamic_require", property);
         } else if (
           resolved.provenance?.length === 1 &&
           ambientCapabilityRootsV1.has(resolved.provenance[0] ?? "")
@@ -1768,6 +1847,8 @@ export function analyzeDeterminismSourceV1(
         ? resolved.provenance.length === 1 && resolved.provenance[0] === "globalThis"
           ? Object.freeze([propertyName])
           : Object.freeze([...resolved.provenance, propertyName])
+        : mayProduceDynamicRequireV1(resolved.provenance)
+        ? Object.freeze([dynamicRequireRiskProvenanceV1])
         : null;
       const derived = { provenance, bootstrap: resolved.bootstrap };
       if (derived.bootstrap !== null) {
@@ -2047,18 +2128,6 @@ export function analyzeDeterminismSourceV1(
       }
     }
 
-    if (unwrappedCallee?.type === "Import") {
-      const sourceNode = asNodesV1(node.arguments)[0];
-      const specifier = sourceNode?.type === "StringLiteral" && typeof sourceNode.value === "string"
-        ? sourceNode.value
-        : null;
-      if (sourceNode !== undefined && specifier !== null && isAmbientProviderV1(specifier)) {
-        const [start, end] = importSpecifierRangeV1(sourceNode, source, specifier);
-        reportV1("determinism.ambient_provider_import", start, end);
-        classified = true;
-      }
-    }
-
     if (
       unwrappedCallee?.type === "MemberExpression" ||
       unwrappedCallee?.type === "OptionalMemberExpression"
@@ -2094,7 +2163,12 @@ export function analyzeDeterminismSourceV1(
         !classified && property === null && objectResolved.provenance !== null &&
         isTrackedAmbientCapabilityProvenanceV1(objectResolved.provenance)
       ) {
-        reportNodeV1("determinism.ambient_capability_escape", unwrappedCallee);
+        reportNodeV1(
+          mayProduceDynamicRequireV1(objectResolved.provenance)
+            ? "determinism.capability.dynamic_require"
+            : "determinism.ambient_capability_escape",
+          unwrappedCallee,
+        );
         classified = true;
       }
     }
@@ -2116,39 +2190,6 @@ export function analyzeDeterminismSourceV1(
       const binding = name === null ? null : lookupBindingV1(scope, name);
       if (binding?.bootstrap !== null && binding !== null) {
         reportNodeV1("determinism.bootstrap_entropy_escape", unwrappedCallee);
-        classified = true;
-      }
-    }
-
-    if (!classified && mode === "call") {
-      const provenance = calleeResolved.provenance;
-      const directLoader = (provenance?.[0] === "require" && provenance.length === 1) ||
-        (provenance?.[0] === "module" && provenance[1] === "require" && provenance.length === 2);
-      const wrapper = provenance?.[0] === "require"
-        ? provenance[1]
-        : provenance?.[0] === "module" && provenance[1] === "require"
-        ? provenance[2]
-        : undefined;
-      const argumentsV1 = asNodesV1(node.arguments);
-      const sourceNode = directLoader
-        ? argumentsV1[0]
-        : wrapper === "call" || wrapper === "bind"
-        ? argumentsV1[1]
-        : wrapper === "apply"
-        ? asNodesV1(asNodeV1(argumentsV1[1])?.elements)[0]
-        : undefined;
-      const specifier = sourceNode?.type === "StringLiteral" && typeof sourceNode.value === "string"
-        ? sourceNode.value
-        : null;
-      const recognizedLoader = directLoader || wrapper === "call" || wrapper === "apply" ||
-        wrapper === "bind";
-      if (recognizedLoader && unwrappedCallee !== null) {
-        if (sourceNode !== undefined && specifier !== null && isAmbientProviderV1(specifier)) {
-          const [start, end] = importSpecifierRangeV1(sourceNode, source, specifier);
-          reportV1("determinism.ambient_provider_import", start, end);
-        } else {
-          reportNodeV1("determinism.ambient_capability_escape", unwrappedCallee);
-        }
         classified = true;
       }
     }
@@ -2389,25 +2430,12 @@ export function analyzeDeterminismSourceV1(
       case "TSImportEqualsDeclaration": {
         if (node.importKind === "type" || node.isTypeOnly === true) return;
         const moduleReference = asNodeV1(node.moduleReference);
-        const expression = moduleReference?.type === "TSExternalModuleReference"
-          ? asNodeV1(moduleReference.expression)
-          : null;
-        const specifier = expression?.type === "StringLiteral" &&
-            typeof expression.value === "string"
-          ? expression.value
-          : null;
-        if (expression !== null && specifier !== null && isAmbientProviderV1(specifier)) {
-          const [start, end] = importSpecifierRangeV1(expression, source, specifier);
-          reportV1("determinism.ambient_provider_import", start, end);
-        }
         if (moduleReference?.type === "TSExternalModuleReference") {
-          if (expression !== null && (specifier === null || !isAmbientProviderV1(specifier))) {
-            reportNodeV1("determinism.ambient_capability_escape", expression);
-          }
+          reportNodeV1("determinism.capability.dynamic_require", moduleReference);
           const name = identifierNameV1(asNodeV1(node.id));
           const binding = name === null ? null : lookupBindingV1(scope, name);
           if (binding !== null) {
-            binding.provenance = Object.freeze([ambiguousCapabilityProvenanceV1]);
+            binding.provenance = null;
             binding.bootstrap = null;
           }
         }
@@ -2445,6 +2473,24 @@ export function analyzeDeterminismSourceV1(
         ) {
           const [start, end] = importSpecifierRangeV1(sourceNode, source, specifier);
           reportV1("determinism.ambient_provider_import", start, end);
+        }
+        if (
+          specifier !== null && isNodeModuleSpecifierV1(specifier) && !declarationTypeOnly
+        ) {
+          for (const importSpecifier of specifiers) {
+            if (importSpecifier.importKind === "type") continue;
+            const importedName = importSpecifier.type === "ImportSpecifier"
+              ? importedNameV1(importSpecifier)
+              : null;
+            if (
+              importSpecifier.type !== "ImportSpecifier" || importedName === "createRequire"
+            ) {
+              const local = asNodeV1(importSpecifier.local);
+              if (local !== null) {
+                reportNodeV1("determinism.capability.dynamic_require", local);
+              }
+            }
+          }
         }
         return;
       }
@@ -2609,7 +2655,12 @@ export function analyzeDeterminismSourceV1(
           property === null &&
           isTrackedAmbientCapabilityProvenanceV1(objectResolved.provenance)
         ) {
-          reportNodeV1("determinism.ambient_capability_escape", node);
+          reportNodeV1(
+            mayProduceDynamicRequireV1(objectResolved.provenance)
+              ? "determinism.capability.dynamic_require"
+              : "determinism.ambient_capability_escape",
+            node,
+          );
           return;
         }
         if (property === "nextUuidV4" || property === "nextNonZeroUint32") {
@@ -2642,8 +2693,8 @@ export function analyzeDeterminismSourceV1(
           reportNodeV1("determinism.bootstrap_entropy_escape", node);
         } else if (binding?.provenance?.[0] === ambiguousCapabilityProvenanceV1) {
           reportNodeV1("determinism.ambient_capability_escape", node);
-        } else if (isAmbientLoaderProvenanceV1(resolveExpressionV1(node, scope).provenance)) {
-          reportNodeV1("determinism.ambient_capability_escape", node);
+        } else if (isDynamicRequireProvenanceV1(resolveExpressionV1(node, scope).provenance)) {
+          reportNodeV1("determinism.capability.dynamic_require", node);
         } else if (
           (binding === null && ambientCapabilityRootsV1.has(name ?? "")) ||
           (binding?.provenance?.length === 1 &&

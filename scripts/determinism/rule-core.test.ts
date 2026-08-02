@@ -518,31 +518,31 @@ describe("authoritative determinism rule core", () => {
       "let target; new (target = Date)(0); target.now()",
       "determinism.ambient_capability_escape",
     ],
-    ["export const loader = require", "determinism.ambient_capability_escape"],
-    ["export const loader = module.require", "determinism.ambient_capability_escape"],
+    ["export const loader = require", "determinism.capability.dynamic_require"],
+    ["export const loader = module.require", "determinism.capability.dynamic_require"],
     ["export const loader = module", "determinism.ambient_capability_escape"],
     ["take(module)", "determinism.ambient_capability_escape"],
     ["const loader = module; take(loader)", "determinism.ambient_capability_escape"],
     [
       'import dependency = require("./fixed.ts"); dependency.run()',
-      "determinism.ambient_capability_escape",
+      "determinism.capability.dynamic_require",
     ],
     [
       'declare const require: (path: string) => unknown; require("./fixed.cjs")',
-      "determinism.ambient_capability_escape",
+      "determinism.capability.dynamic_require",
     ],
-    ['var require; require("./fixed.cjs")', "determinism.ambient_capability_escape"],
-    ['var module; module.require("./fixed.cjs")', "determinism.ambient_capability_escape"],
+    ['var require; require("./fixed.cjs")', "determinism.capability.dynamic_require"],
+    ['var module; module.require("./fixed.cjs")', "determinism.capability.dynamic_require"],
     ["declare const Math: Math; Math.random()", "determinism.ambient_random"],
-    ['require("./fixed.cjs")', "determinism.ambient_capability_escape"],
-    ['module.require("./fixed.cjs")', "determinism.ambient_capability_escape"],
+    ['require("./fixed.cjs")', "determinism.capability.dynamic_require"],
+    ['module.require("./fixed.cjs")', "determinism.capability.dynamic_require"],
     [
       'const load = require.bind(null, "./fixed.cjs"); load()',
-      "determinism.ambient_capability_escape",
+      "determinism.capability.dynamic_require",
     ],
     [
       'const member = "require"; module[member]("fs/promises")',
-      "determinism.ambient_capability_escape",
+      "determinism.capability.dynamic_require",
     ],
     ["import M = Math; M.random()", "determinism.ambient_random"],
     ["import R = Math.random; R()", "determinism.ambient_random"],
@@ -669,19 +669,15 @@ describe("authoritative determinism rule core", () => {
     ['import { request } from "node:https"', "node:https"],
     ['import { createRequire } from "node:module"', "node:module"],
     ['import { readFile } from "fs/promises"', "fs/promises"],
-    ['require.call(null, "fs/promises")', "fs/promises"],
-    ['require.apply(null, ["fs/promises"])', "fs/promises"],
-    ['module.require("fs/promises")', "fs/promises"],
-    ['require.bind(null, "fs/promises")', "fs/promises"],
-    ['module.require.call(null, "fs/promises")', "fs/promises"],
     ['const sdk = await import("@anthropic-ai/sdk")', "@anthropic-ai/sdk"],
     ['const sdk = await import("npm:openai")', "npm:openai"],
     ['import axios from "npm:axios@1.7.9"', "npm:axios@1.7.9"],
     ['import "npm:undici@7.4.0"', "npm:undici@7.4.0"],
     ['const socket = await import("npm:ws@8.18.0")', "npm:ws@8.18.0"],
-    ['const http = require("node:http")', "node:http"],
   ])("rejects ambient provider import %s", (source, provider) => {
-    const diagnostic = analyzeV1(source)[0];
+    const diagnostic = analyzeV1(source).find(({ code }) =>
+      code === "determinism.ambient_provider_import"
+    );
     expect(diagnostic?.code).toBe("determinism.ambient_provider_import");
     expect(source.slice(...(diagnostic?.range ?? [0, 0]))).toBe(provider);
   });
@@ -691,8 +687,258 @@ describe("authoritative determinism rule core", () => {
     'module.require.bind(module)("fs/promises")',
     "require(dynamicSpecifier)",
     "module.require.call(module, dynamicSpecifier)",
-  ])("rejects a provider loader that escapes static specifier verification: %s", (source) => {
-    expect(codesV1(source)).toContain("determinism.ambient_capability_escape");
+  ])("rejects every dynamic loader shape independently of its specifier: %s", (source) => {
+    expect(codesV1(source)).toContain("determinism.capability.dynamic_require");
+  });
+
+  describe("DET3a-C1 dynamic loader admission", () => {
+    const dynamicRequireCodeV1 = "determinism.capability.dynamic_require";
+
+    it.each([
+      ['import { createRequire } from "node:module"', "createRequire"],
+      ['import { createRequire as makeRequire } from "module"', "makeRequire"],
+      ['import { "createRequire" as cr } from "node:module"', "cr"],
+      ['import * as nodeModule from "node:module"', "nodeModule"],
+      ['import nodeModule from "module"', "nodeModule"],
+    ])("classifies a static createRequire-capable capture: %s", (source, expectedSlice) => {
+      const diagnostics = analyzeV1(source);
+      expect(diagnostics.map(({ code, range }) => ({
+        code,
+        source: source.slice(...range),
+      }))).toEqual([
+        {
+          code: dynamicRequireCodeV1,
+          source: expectedSlice,
+        },
+        {
+          code: "determinism.ambient_provider_import",
+          source: source.includes("node:module") ? "node:module" : "module",
+        },
+      ]);
+    });
+
+    it.each([
+      'import { builtinModules } from "node:module"',
+      'import type { createRequire } from "node:module"',
+      'import { type createRequire } from "node:module"',
+    ])("does not assign loader ownership to a non-runtime createRequire capture: %s", (source) => {
+      expect(codesV1(source)).not.toContain(dynamicRequireCodeV1);
+    });
+
+    it.each([
+      ['require("./fixed.cjs")', ["require"]],
+      ['require("node:fs")', ["require"]],
+      ['require.call(null, "./fixed.cjs")', ["require.call"]],
+      ['require.apply(null, ["./fixed.cjs"])', ["require.apply"]],
+      ['require.bind(null, "./fixed.cjs")', ["require.bind"]],
+      ['require?.("./fixed.cjs")', ["require"]],
+      ["require`./fixed.cjs`", ["require"]],
+      ['module.require("./fixed.cjs")', ["module.require"]],
+      ["module.require`./fixed.cjs`", ["module.require"]],
+      ['module["require"]("./fixed.cjs")', ['module["require"]']],
+      ['require[member]("./fixed.cjs")', ["require[member]"]],
+      ["export const loader = require", ["require"]],
+      ["void module.require.call", ["module.require.call"]],
+      ["require = local", ["require"]],
+      ["require.call = local", ["require.call"]],
+      ["require[key] = local", ["require[key]"]],
+      [
+        'const loader = require; loader("./fixed.cjs")',
+        ["require", "loader"],
+      ],
+      [
+        'declare const require: (path: string) => unknown; require("./fixed.cjs")',
+        ["require"],
+      ],
+      ['var require; require("./fixed.cjs")', ["require"]],
+      ['var module; module.require("./fixed.cjs")', ["module.require"]],
+    ])("uses one exact dynamic-require diagnostic for %s", (source, expectedSlices) => {
+      const diagnostics = analyzeV1(source);
+      expect(
+        diagnostics
+          .filter(({ code }) => code === dynamicRequireCodeV1)
+          .map(({ range }) => source.slice(...range)),
+      ).toEqual(expectedSlices);
+      expect(diagnostics.map(({ code }) => code)).not.toContain(
+        "determinism.ambient_capability_escape",
+      );
+      expect(diagnostics.map(({ code }) => code)).not.toContain(
+        "determinism.ambient_provider_import",
+      );
+    });
+
+    it.each([
+      ["take(module)", ["module"]],
+      ["export const host = module", ["module"]],
+      ["module = local", ["module"]],
+      ["module.exports = local", ["module.exports"]],
+      ["const value = flag ? module : local; take(value)", ["module", "value"]],
+    ])("keeps bare module outside dynamic-require ownership: %s", (source, expectedSlices) => {
+      const diagnostics = analyzeV1(source);
+      expect(diagnostics.map(({ code, range }) => ({
+        code,
+        source: source.slice(...range),
+      }))).toEqual(expectedSlices.map((expectedSource) => ({
+        code: "determinism.ambient_capability_escape",
+        source: expectedSource,
+      })));
+      expect(diagnostics.map(({ code }) => code)).not.toContain(dynamicRequireCodeV1);
+    });
+
+    it.each([
+      "const loader = flag ? require : module.require; take(loader)",
+      "const loader = require || module.require; take(loader)",
+      "let loader = require; loader = module.require; take(loader)",
+    ])("retains dynamic-require risk across loader joins: %s", (source) => {
+      const diagnostics = analyzeV1(source);
+      expect(
+        diagnostics
+          .filter(({ code }) => code === dynamicRequireCodeV1)
+          .map(({ range }) => source.slice(...range)),
+      ).toEqual(["require", "module.require", "loader"]);
+      expect(diagnostics.map(({ code }) => code)).not.toContain(
+        "determinism.ambient_capability_escape",
+      );
+    });
+
+    it("retains dynamic-require risk when a createRequire factory joins another loader", () => {
+      const source = 'import { createRequire } from "node:module"; ' +
+        "const factory = flag ? createRequire : require; take(factory)";
+      const diagnostics = analyzeV1(source);
+      expect(
+        diagnostics
+          .filter(({ code }) => code === dynamicRequireCodeV1)
+          .map(({ range }) => source.slice(...range)),
+      ).toEqual(["createRequire", "createRequire", "require", "factory"]);
+      expect(diagnostics.map(({ code }) => code)).not.toContain(
+        "determinism.ambient_capability_escape",
+      );
+    });
+
+    it.each([
+      [
+        'import * as nm from "node:module"; const { [key]: loader } = nm; loader(import.meta.url)',
+        "loader",
+      ],
+      [
+        'import * as nm from "node:module"; let loader; ({ [key]: loader } = nm); loader(import.meta.url)',
+        "loader",
+      ],
+      [
+        'import * as nm from "node:module"; const { ...rest } = nm; rest.createRequire(import.meta.url)',
+        "rest.createRequire",
+      ],
+      [
+        'import * as nm from "node:module"; let rest; ({ ...rest } = nm); rest.createRequire(import.meta.url)',
+        "rest.createRequire",
+      ],
+    ])("fails closed for computed/rest node-module destructuring: %s", (source, expectedUse) => {
+      const dynamicSlices = analyzeV1(source)
+        .filter(({ code }) => code === dynamicRequireCodeV1)
+        .map(({ range }) => source.slice(...range));
+      expect(dynamicSlices).toContain("nm");
+      expect(dynamicSlices).toContain(expectedUse);
+      expect(codesV1(source)).not.toContain("determinism.ambient_capability_escape");
+    });
+
+    it("owns runtime TypeScript import-equals at the complete require reference", () => {
+      const source = 'import dependency = require("node:fs"); dependency.run()';
+      const diagnostics = analyzeV1(source);
+      expect(diagnostics.map(({ code, range }) => ({
+        code,
+        source: source.slice(...range),
+      }))).toEqual([{
+        code: dynamicRequireCodeV1,
+        source: 'require("node:fs")',
+      }]);
+    });
+
+    it("tracks createRequire factories and their returned loaders without generic fallback", () => {
+      const source = 'import { createRequire as makeRequire } from "node:module"; ' +
+        "const load = makeRequire(import.meta.url); " +
+        'load.call(null, "./fixed.cjs")';
+      const diagnostics = analyzeV1(source);
+      expect(diagnostics.map(({ code, range }) => ({
+        code,
+        source: source.slice(...range),
+      }))).toEqual([
+        {
+          code: dynamicRequireCodeV1,
+          source: "makeRequire",
+        },
+        {
+          code: "determinism.ambient_provider_import",
+          source: "node:module",
+        },
+        {
+          code: dynamicRequireCodeV1,
+          source: "makeRequire",
+        },
+        {
+          code: dynamicRequireCodeV1,
+          source: "load.call",
+        },
+      ]);
+    });
+
+    it.each([
+      ['load("./fixed.cjs")', "load"],
+      ['load.call(null, "./fixed.cjs")', "load.call"],
+      ['load.apply(null, ["./fixed.cjs"])', "load.apply"],
+      ['load.bind(null, "./fixed.cjs")', "load.bind"],
+      ["take(load)", "load"],
+      ["load[member]", "load[member]"],
+    ])("tracks each returned createRequire loader use: %s", (operation, expectedSlice) => {
+      const source = 'import { createRequire } from "node:module"; ' +
+        "const load = createRequire(import.meta.url); " + operation;
+      const diagnostics = analyzeV1(source);
+      expect(
+        diagnostics
+          .filter(({ code }) => code === dynamicRequireCodeV1)
+          .map(({ range }) => source.slice(...range)),
+      ).toEqual(["createRequire", "createRequire", expectedSlice]);
+      expect(diagnostics.map(({ code }) => code)).not.toContain(
+        "determinism.ambient_capability_escape",
+      );
+    });
+
+    it.each([
+      'import { createRequire } from "node:module"; createRequire.call(null, import.meta.url)',
+      'import { createRequire } from "node:module"; createRequire.apply(null, [import.meta.url])',
+      'import { createRequire } from "node:module"; createRequire.bind(null, import.meta.url)',
+      'import { createRequire } from "node:module"; createRequire[member]',
+      'import * as nodeModule from "node:module"; nodeModule.createRequire(import.meta.url)',
+    ])("classifies every createRequire wrapper or partial use: %s", (source) => {
+      const diagnostics = analyzeV1(source);
+      expect(diagnostics.map(({ code }) => code)).toContain(dynamicRequireCodeV1);
+      expect(diagnostics.map(({ code }) => code)).not.toContain(
+        "determinism.ambient_capability_escape",
+      );
+    });
+
+    it.each([
+      'const require = (path: string) => path; require("./fixed.cjs")',
+      'let require; require = (path: string) => path; require("./fixed.cjs")',
+      'const module = { require: (path: string) => path }; module.require("./fixed.cjs")',
+      'function load(require: (path: string) => string) { return require("./fixed.cjs"); }',
+      'const createRequire = () => (path: string) => path; createRequire()("./fixed.cjs")',
+    ])("keeps a real lexical loader shadow ordinary: %s", (source) => {
+      expect(analyzeV1(source)).toEqual([]);
+    });
+
+    it("leaves unsupported ESM import ownership to the collector", () => {
+      expect(analyzeV1("import(dynamicSpecifier)")).toEqual([]);
+      const providerSource = 'import("node:fs")';
+      expect(
+        analyzeV1(providerSource).map(({ code, range }) => ({
+          code,
+          source: providerSource.slice(...range),
+        })),
+      ).toEqual([{
+        code: "determinism.ambient_provider_import",
+        source: "node:fs",
+      }]);
+    });
   });
 
   it("preserves actual Date constructor member identity before later admission rules", () => {
@@ -895,15 +1141,12 @@ describe("authoritative determinism rule core", () => {
     "Math[member].call(null)",
     "String[member].call(null, new Date(0))",
     "Temporal[member].call(null)",
-    'module[member].call(null, "./fixed.cjs")',
-    'require[member]("./fixed.cjs")',
     "new Date(0)[member].call(new Date(0))",
     "Deno[member]",
     "process[member]",
     "crypto[member]",
     "performance[member]",
     "window[member]",
-    "require[member]",
   ])("fails closed for dynamic ambient member production: %s", (source) => {
     expect(codesV1(source)).toContain("determinism.ambient_capability_escape");
   });
@@ -912,17 +1155,12 @@ describe("authoritative determinism rule core", () => {
     "Deno = local",
     "process = local",
     "crypto = local",
-    "require = local",
-    "module = local",
     "Deno.env = local",
     "Deno[key] = local",
     "process.env = local",
     "crypto.getRandomValues = local",
     "performance.now = local",
     "window.fetch = local",
-    "require.call = local",
-    "require[key] = local",
-    "module.exports = local",
     "Intl.Collator = local",
     "fetch.call = local",
     "const date = flag ? new Date(0) : projection; date.getTime = local",

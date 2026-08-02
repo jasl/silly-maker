@@ -9,6 +9,10 @@ import { moduleResolve } from "import-meta-resolve";
 const posix = (root, path) => relative(root, path).split(sep).join("/");
 const internalWorkspaceSpecifierPattern = /^@(?:silly-maker|sillymaker)\//u;
 const esmImportConditions = new Set(["deno", "node", "import", "module-sync"]);
+const invalidDynamicImportReasonCodes = new Set([
+  "ImportCallArity",
+  "ImportCallSpreadArgument",
+]);
 const buildIdentityFacetsV1 = new Set([
   "engine",
   "story_simulation",
@@ -27,35 +31,81 @@ function stringLiteralValue(node) {
   return node?.type === "StringLiteral" && typeof node.value === "string" ? node.value : null;
 }
 
-function collectEsmSpecifiers(source, relativePath) {
-  const program = parse(source, {
+function parserOptions(relativePath, createImportExpressions) {
+  return {
     sourceType: "unambiguous",
     plugins: parserPlugins(relativePath),
     allowAwaitOutsideFunction: true,
-    createImportExpressions: true,
-  });
+    createImportExpressions,
+    errorRecovery: true,
+  };
+}
+
+function hasInvalidDynamicImportReason(error) {
+  return invalidDynamicImportReasonCodes.has(error?.reasonCode);
+}
+
+function parseEsmSource(source, relativePath) {
+  try {
+    const program = parse(source, parserOptions(relativePath, true));
+    const invalidDynamicImport = program.errors.some(hasInvalidDynamicImportReason);
+    const otherError = program.errors.find((error) => !hasInvalidDynamicImportReason(error));
+    if (otherError !== undefined) throw otherError;
+    return Object.freeze({ program, invalidDynamicImport });
+  } catch (error) {
+    try {
+      // Babel cannot build an ImportExpression for zero-argument or spread import() calls.
+      // Its recovery parser still assigns those failures import-specific reason codes. The
+      // recovered CallExpression tree is deliberately not used for dependency discovery.
+      const recovery = parse(source, parserOptions(relativePath, false));
+      if (
+        recovery.errors.length > 0 &&
+        recovery.errors.every(hasInvalidDynamicImportReason)
+      ) {
+        return Object.freeze({ program: null, invalidDynamicImport: true });
+      }
+    } catch {
+      // Preserve the primary parser failure below.
+    }
+    throw error;
+  }
+}
+
+function hasRuntimeImportEdge(node) {
+  if (node.importKind === "type") return false;
+  return node.specifiers.length === 0 ||
+    node.specifiers.some((specifier) => specifier.importKind !== "type");
+}
+
+function hasRuntimeExportEdge(node) {
+  if (node.exportKind === "type") return false;
+  if (node.type === "ExportAllDeclaration") return true;
+  return node.specifiers.length === 0 ||
+    node.specifiers.some((specifier) => specifier.exportKind !== "type");
+}
+
+function collectEsmSpecifiers(source, relativePath) {
+  const parsed = parseEsmSource(source, relativePath);
   const specifiers = [];
-  let hasNonStaticDynamicImport = false;
+  let hasInvalidDynamicImport = parsed.invalidDynamicImport;
 
   const visit = (node) => {
     if (node === null || typeof node !== "object") return;
-    if (
-      node.type === "ImportDeclaration" || node.type === "ExportNamedDeclaration" ||
-      node.type === "ExportAllDeclaration"
+    if (node.type === "ImportDeclaration" && hasRuntimeImportEdge(node)) {
+      const specifier = stringLiteralValue(node.source);
+      if (specifier !== null) specifiers.push(specifier);
+    } else if (
+      (node.type === "ExportNamedDeclaration" || node.type === "ExportAllDeclaration") &&
+      hasRuntimeExportEdge(node)
     ) {
       const specifier = stringLiteralValue(node.source);
       if (specifier !== null) specifiers.push(specifier);
     } else if (node.type === "ImportExpression") {
-      const specifier = stringLiteralValue(node.source);
-      if (specifier === null) hasNonStaticDynamicImport = true;
+      const specifier = node.source?.extra?.parenthesized === true
+        ? null
+        : stringLiteralValue(node.source);
+      if (specifier === null || node.options !== null) hasInvalidDynamicImport = true;
       else specifiers.push(specifier);
-    } else if (node.type === "CallExpression" && node.callee?.type === "Import") {
-      const specifier = stringLiteralValue(node.arguments?.[0]);
-      if (specifier === null) hasNonStaticDynamicImport = true;
-      else specifiers.push(specifier);
-    } else if (node.type === "TSImportType") {
-      const specifier = stringLiteralValue(node.argument);
-      if (specifier !== null) specifiers.push(specifier);
     }
 
     for (const [key, value] of Object.entries(node)) {
@@ -69,10 +119,10 @@ function collectEsmSpecifiers(source, relativePath) {
     }
   };
 
-  visit(program);
+  visit(parsed.program);
   return Object.freeze({
     specifiers: Object.freeze(specifiers),
-    hasNonStaticDynamicImport,
+    hasInvalidDynamicImport,
   });
 }
 
@@ -193,8 +243,8 @@ export async function collectImportClosure(root, entries) {
       errors.push(`${relativePath}: import syntax cannot be analyzed`);
       continue;
     }
-    if (imports.hasNonStaticDynamicImport) {
-      errors.push(`${relativePath}: dynamic import path is not static`);
+    if (imports.hasInvalidDynamicImport) {
+      errors.push(`${relativePath}: determinism.import_closure.dynamic_specifier`);
     }
     for (const specifier of imports.specifiers) {
       if (specifier.startsWith(".")) {

@@ -254,6 +254,7 @@ test("extracts ESM imports from syntax instead of comments or source-text prefix
   const fixtureRoot = await mkdtemp(join(tmpdir(), "sillymaker-import-closure-"));
   await writeFile(join(fixtureRoot, "dependency.ts"), "export const value = 1;\n");
   const entry = join(fixtureRoot, "entry.ts");
+  const dynamicSpecifierError = "entry.ts: determinism.import_closure.dynamic_specifier";
   try {
     for (
       const source of [
@@ -261,12 +262,20 @@ test("extracts ESM imports from syntax instead of comments or source-text prefix
         'await import/*comment*/("./" + "dependency.ts");\n',
         'await import("./" + dependencyName);\n',
         'await import(new URL("./dependency.ts", import.meta.url).href);\n',
+        "await import(`./dependency.ts`);\n",
+        "await import(`./${dependencyName}.ts`);\n",
+        'await import("./dependency.ts" as string);\n',
+        'await import((("./dependency.ts")));\n',
+        'await import("./dependency.ts", { with: { type: "json" } });\n',
+        "await import();\n",
+        'await import("./dependency.ts", {}, 1);\n',
+        "await import(...specifiers);\n",
       ]
     ) {
       await writeFile(entry, source);
       const closure = await collectImportClosure(fixtureRoot, ["entry.ts"]);
       assert.deepEqual(closure.paths, ["entry.ts"]);
-      assert.deepEqual(closure.errors, ["entry.ts: dynamic import path is not static"]);
+      assert.deepEqual(closure.errors, [dynamicSpecifierError]);
     }
 
     await writeFile(
@@ -274,13 +283,79 @@ test("extracts ESM imports from syntax instead of comments or source-text prefix
       [
         'const text = "import(dynamicSpecifier)";',
         "// import(commentSpecifier)",
-        'await import("./dependency.ts", { with: { type: "json" } });',
+        'await import("./dependency.ts");',
         "",
       ].join("\n"),
     );
     const literalClosure = await collectImportClosure(fixtureRoot, ["entry.ts"]);
     assert.deepEqual(literalClosure.errors, []);
     assert.deepEqual(literalClosure.paths, ["dependency.ts", "entry.ts"]);
+
+    await writeFile(
+      entry,
+      [
+        'const specifier = "./dependency.ts";',
+        "await import(specifier);",
+        "await import(`./dependency.ts`);",
+        "",
+      ].join("\n"),
+    );
+    const repeatedUnsupportedClosure = await collectImportClosure(fixtureRoot, ["entry.ts"]);
+    assert.deepEqual(repeatedUnsupportedClosure.paths, ["entry.ts"]);
+    assert.deepEqual(repeatedUnsupportedClosure.errors, [dynamicSpecifierError]);
+
+    await writeFile(entry, 'await import("./dependency.js");\n');
+    const resolvedLiteralClosure = await collectImportClosure(fixtureRoot, ["entry.ts"]);
+    assert.deepEqual(resolvedLiteralClosure.errors, []);
+    assert.deepEqual(resolvedLiteralClosure.paths, ["dependency.ts", "entry.ts"]);
+  } finally {
+    await rm(fixtureRoot, { force: true, recursive: true });
+  }
+});
+
+test("excludes type-only ESM edges while retaining runtime-bearing ESM edges", async () => {
+  const fixtureRoot = await mkdtemp(join(tmpdir(), "sillymaker-import-closure-types-"));
+  await writeFile(
+    join(fixtureRoot, "dependency.ts"),
+    "export interface TypeOnly {}\nexport const value = 1;\n",
+  );
+  const entry = join(fixtureRoot, "entry.ts");
+  try {
+    for (
+      const source of [
+        'import type { TypeOnly } from "./dependency.ts";\n',
+        'import { type TypeOnly } from "./dependency.ts";\n',
+        'export type { TypeOnly } from "./dependency.ts";\n',
+        'export { type TypeOnly } from "./dependency.ts";\n',
+        'export type * from "./dependency.ts";\n',
+        'type Imported = import("./dependency.ts").TypeOnly;\n',
+        'import type Dependency = require("./dependency.ts");\n',
+      ]
+    ) {
+      await writeFile(entry, source);
+      assert.deepEqual(await collectImportClosure(fixtureRoot, ["entry.ts"]), {
+        paths: ["entry.ts"],
+        errors: [],
+        externalImports: [],
+      });
+    }
+
+    for (
+      const source of [
+        'import "./dependency.ts";\n',
+        'import {} from "./dependency.ts";\n',
+        'export {} from "./dependency.ts";\n',
+        'import { type TypeOnly, value } from "./dependency.ts"; void value;\n',
+        'export { type TypeOnly, value } from "./dependency.ts";\n',
+      ]
+    ) {
+      await writeFile(entry, source);
+      assert.deepEqual(await collectImportClosure(fixtureRoot, ["entry.ts"]), {
+        paths: ["dependency.ts", "entry.ts"],
+        errors: [],
+        externalImports: [],
+      });
+    }
   } finally {
     await rm(fixtureRoot, { force: true, recursive: true });
   }
@@ -325,7 +400,9 @@ test("analyzes ESM imports embedded in CommonJS and TypeScript CommonJS files", 
       await writeFile(join(fixtureRoot, entry), "void import(dynamicSpecifier);\n");
       const closure = await collectImportClosure(fixtureRoot, [entry]);
       assert.deepEqual(closure.paths, [entry]);
-      assert.deepEqual(closure.errors, [`${entry}: dynamic import path is not static`]);
+      assert.deepEqual(closure.errors, [
+        `${entry}: determinism.import_closure.dynamic_specifier`,
+      ]);
     }
   } finally {
     await rm(fixtureRoot, { force: true, recursive: true });

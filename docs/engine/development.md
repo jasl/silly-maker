@@ -120,12 +120,19 @@ Collection/classification failures abort before linting. After collection, every
 unique exact path is read once; read, unsupported-extension, and parse failures
 use stable diagnostics, and all output is ordered by UTF-16 file/range/code.
 The checker and the Node-only tooling import-closure collector use the exact
-`@babel/parser` AST dependency already pinned by their owning package. The
-collector recognizes static ESM imports/exports and literal `import()` across
-`.ts/.tsx/.mts/.cts/.js/.jsx/.mjs/.cjs` without being fooled by comment or
-string lookalikes. A nonliteral `import()` makes authority/BuildIdentity
-admission fail before source lint; callers never consume or publish the
-low-level collector's diagnostic result as a partial path vector.
+`@babel/parser` AST dependency already pinned by their owning package. Across
+`.ts/.tsx/.mts/.cts/.js/.jsx/.mjs/.cjs`, the collector follows runtime-bearing
+static ESM imports/exports. Fully type-only declarations/specifiers and
+TypeScript import types do not expand the runtime authority closure;
+side-effect imports, empty runtime imports/exports, and mixed type/value
+declarations remain runtime edges. A direct `import()` is admitted only when it
+has exactly one ordinary quoted string literal argument and no options, spread,
+or wrapper. The literal then follows the existing relative/workspace/external
+resolution policy. Template literals, concatenation, identifiers, TypeScript
+expression wrappers, options arguments, spreads, and zero/multiple arguments
+produce one `determinism.import_closure.dynamic_specifier` collector failure per
+source before source lint. Callers never consume or publish a partial path
+vector.
 The parser does not enter browser bundles, replace Oxlint as the general
 linter, or expose a gameplay runtime API. Parser selection follows the source
 extension for TypeScript and JSX and accepts standard decorators.
@@ -136,6 +143,9 @@ enter the same rule traversal as JavaScript; TypeScript instantiation wrappers
 preserve the wrapped callable identity. Runtime-transparent TypeScript wrappers,
 including `as`, non-null, and `satisfies`, also preserve assignment/update
 targets and nested destructuring semantics.
+Type-only exclusion applies only to erased dependency edges. Runtime
+`import = require(...)` remains executable loader syntax and is rejected by the
+rule core; `import type = ...` remains erased.
 Block, Catch, and For nodes receive stable lexical scopes; all Switch cases share
 one scope; Class StaticBlock and runtime TypeScript namespace bodies are separate
 var/function boundaries that hoist collection cannot cross.
@@ -215,16 +225,21 @@ is rejected before downstream call/apply/bind classification, except for the
 explicitly recognized Date constructor identity.
 
 Bare and `node:` provider imports are subpath-aware, so `fs/promises` cannot
-bypass the filesystem boundary. The closure collector admits only supported
-ESM dependencies: static imports/exports and literal dynamic imports. There is
-currently no CommonJS dependency graph, so every unshadowed `require` or
-`module.require` call, wrapper, capture, computed use, partial application,
-runtime TS `import = require(...)`, or bare `module` escape fails closed;
-provider literals keep the more specific provider diagnostic and other uses
-report capability escape. `module` / `node:module` `createRequire` is also a
-provider import. Actual runtime lexical loader shadows remain ordinary code;
-erased `declare` and an uninitialized CommonJS `var require` / `var module` do
-not create an allowance.
+bypass the filesystem boundary. Static runtime ESM imports of ambient providers
+remain provider violations, but an exact CommonJS loader or recognized
+`createRequire` capability uses the more specific
+`determinism.capability.dynamic_require` classification. Every real unshadowed
+`require`, `module.require`, runtime `import = require(...)`, and recognized
+`createRequire` use—including direct calls, aliases proven from a static
+`module`/`node:module` provider binding, call/apply/bind/tag wrappers, capture,
+computed access, and partial use—fails with that code; a provider literal does
+not change the failure kind. Bare `module` escape remains the ordinary ambient
+capability rule unless the path identifies `module.require`.
+
+Actual runtime lexical loader shadows remain ordinary code. Erased declarations
+and an uninitialized `var require` / `var module` that does not replace the
+CommonJS wrapper binding do not create an allowance. The guard does not
+construct a CommonJS dependency graph.
 
 This static layer tracks direct expressions and applies a path-insensitive,
 conservative provenance join to source-local conditional/logical expressions

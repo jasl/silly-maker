@@ -3,7 +3,8 @@
 状态：2026-08-02 接受 DET3a conservative-syntax corrective contract；此前
 DET3a–DET4/PF-DET closure 作为 superseded-contract 历史证据保留。当前 active gate 为
 DET3a corrective implementation → DET3b invariant revalidation → DET4 full
-re-promotion。新 static behavior 在实现前不得写入 live `development.md`，整套 guardrail
+re-promotion。DET3a-C1 import/loader admission 已完成；当前下一独立切片为 DET3a-C2
+Date/String/provenance kernel。`development.md` 已同步 C1 live behavior，整套 guardrail
 在 re-promotion 前不得写入 `features.md`。目标合同见
 [Authoritative simulation determinism boundary](../design/deterministic-simulation-boundary.md)；
 在 [Production-floor sequence](2026-07-30-production-floor-sequence.md) 中属于
@@ -1786,9 +1787,10 @@ kind 与 constructor precedence 的 broad allowance；第 11–13 节的既有�
 3. **DET3a-C2 — Date/String/provenance kernel**：先翻转 broad allowance 并新增
    conservative red vectors，再实现 direct Date safe-set、`StaticString`、constructor reducer/
    precedence、KnownDate terminal policy、exact-singleton local join 与 budget fail-closed。
-4. **DET3a-C3 — Base UTC isolation**：先 characterization 当前 persistence parser、normal/
-   overflow-hour/invalid-clock export filename value 与 bytes；再切到 package-internal integer
-   UTC parser/formatter，不新增 public helper、不改变 acceptance 或 bytes。
+4. **DET3a-C3 — Base UTC isolation**：先 characterization 当前 persistence parser 与既有
+   package-internal integer export formatter，包括 normal/overflow-hour/invalid-clock filename
+   value/bytes；再替换剩余的 Date-based parser 并共享/保留内部 integer UTC logic，不新增
+   public helper、不改变 parser acceptance、原 spelling 或 bytes。
 5. **DET3a-C4 — cleanup and re-promotion**：删除 superseded evaluator/provenance/dead
    diagnostics paths，更新 live `development.md`，复核 DET3b guard inventory，重跑 DET4
    Deno/Chromium/Firefox/WebKit full matrix；全部 promotion 后才更新 `features.md` 并再次
@@ -1822,10 +1824,14 @@ kind 与 constructor precedence 的 broad allowance；第 11–13 节的既有�
   `.constructor` 是 `constructor_escape`。
 - collector 只接受 static runtime ESM import/export 与 exactly-one ordinary quoted literal
   的 direct `import()`；specifier 再走既有 path policy。其他 `import()` 只在 parser-backed
-  pre-lint 报一次 `dynamic_specifier`。type-only import/export 不扩张 runtime closure。
-- 全部真实 unshadowed `require`、`module.require`、runtime `import = require(...)`、
-  `createRequire` 及 wrapper/capture/computed/partial use，由 rule core 统一报
-  `dynamic_require`；真实 lexical shadow 保持 ordinary code。
+  pre-lint 每个 source 报一次 `determinism.import_closure.dynamic_specifier`。type-only
+  import/export 不扩张 runtime closure，side-effect/empty/mixed value edge 仍进入。
+- 全部真实 unshadowed `require`、`module.require`、runtime `import = require(...)`，以及由
+  static `module` / `node:module` provider binding 证明的 `createRequire` factory/returned loader
+  及 wrapper/tag/capture/computed/partial use，由 rule core 统一报
+  `determinism.capability.dynamic_require`。static ESM provider acquisition 可独立报告
+  provider import，bare `module` escape 保持 generic ambient-capability classification；真实
+  lexical shadow 保持 ordinary code。
 
 ### Failure precedence and atomicity
 
@@ -1883,6 +1889,32 @@ failure precedence、import admission atomicity、Base UTC byte-equivalence stop
 `development.md`/`features.md` 未提前宣称目标已实现。三份文档通过 focused
 `deno fmt --check` 与 `git diff --check`；本批不改 implementation、public API、runtime、
 Save/canonical/digest/CommandLog/replay 或 browser graph。下一独立切片为 `DET3a-C1`。
+
+**DET3a-C1 promotion（2026-08-02）：** parser-backed import closure 现在只收集
+runtime-bearing static ESM edges；fully type-only declaration/specifier、`TSImportType` 与
+type-only import-equals 不扩张 authority closure，side-effect/empty/mixed value edges 仍被
+收集。direct `import()` 只接受 exactly-one ordinary quoted literal/no-options grammar，
+literal 继续进入既有 relative/workspace/external path policy；其余 shape 每个 source 只产生
+一次 `determinism.import_closure.dynamic_specifier`，authority/BuildIdentity 在 source lint 前
+原子失败且不发布 partial vector。正常遍历已删除旧 `CallExpression(callee: Import)` 与
+`TSImportType` dependency-discovery paths。
+
+rule core 现在以 `determinism.capability.dynamic_require` 唯一拥有真实 unshadowed
+`require`、`module.require`、runtime `import = require(...)`，以及从 static
+`module`/`node:module` binding 证明的 `createRequire` factory/returned-loader use；provider
+literal 不覆盖 loader failure kind，bare `module` 保持 generic capability，真实 runtime
+lexical shadows clean。loader/factory join 保留 dedicated risk provenance，不降回 generic
+success 或 generic diagnostic。collector first red 为 `3 failed / 8 passed`，rule-core first
+red 为 `22 failed / 6 passed`，self-review bare-module/join red 为
+`8 failed / 36 passed`；独立审查随后以 `9 failed / 51 passed / 482 skipped` 与 string-named
+capture 的 `1 failed / 4 passed / 527 skipped` 补闭 parenthesized import、static
+createRequire-capable capture、computed/rest namespace provenance 及 StringLiteral imported name。
+最终 focused 为 `4 files / 564 tests`，affected tooling + determinism suites 为 `26/747`，
+repository full unit 为 `226/2880`，
+`deno task check` 全绿并完成 Engine Lab production build。该 static/tooling-only slice 不改
+Date/String/provenance、public API、runtime、Save/canonical/digest/CommandLog/replay 或 browser
+graph；没有机械追加 browser E2E。`development.md` 已同步，`features.md` 按 C4 gate 未修改。
+下一独立切片为 `DET3a-C2`。
 
 ## 15. Deferred work
 

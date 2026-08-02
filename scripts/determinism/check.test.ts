@@ -116,7 +116,7 @@ describe("authoritative determinism runner", () => {
       }),
     ).toEqual([
       expect.objectContaining({
-        code: "determinism.ambient_capability_escape",
+        code: "determinism.capability.dynamic_require",
         file: "entry.ts",
       }),
     ]);
@@ -179,7 +179,7 @@ describe("authoritative determinism runner", () => {
 
     expect(diagnostics).toContainEqual(expect.objectContaining({
       code: "determinism.locale",
-      file: "engine/packages/base/src/contracts/host.ts",
+      file: "engine/packages/base/src/contracts/presentation-ids.ts",
     }));
   }, liveRepositoryScanTimeoutV1);
 
