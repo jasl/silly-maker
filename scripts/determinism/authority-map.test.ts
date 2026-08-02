@@ -477,5 +477,5 @@ describe("authoritative determinism authority map", () => {
     });
     expect(map.diagnostics.authoritativePathCount).toBeGreaterThan(0);
     expect(map.diagnostics.managedSimulationRecordCount).toBeGreaterThan(0);
-  });
+  }, liveRepositoryScanTimeoutV1);
 });
