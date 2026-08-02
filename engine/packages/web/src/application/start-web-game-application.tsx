@@ -27,6 +27,7 @@ import type {
   GameUiProjectorV1,
   KeyboardActionMapV1,
   NativeBehaviorResetConfigV1,
+  PointerActionMapV1,
   RuntimeAssetLoaderV1,
   RuntimePresentationPublicationV1,
   SaveOverlayLabelsV1,
@@ -127,9 +128,10 @@ export interface WebGameUiDefinitionV1<
    * demand and never enters the player bundle.
    */
   readonly loadDevDockContributions?: () => Promise<DevDockContributionSetV1>;
-  /** Optional keyboard/gamepad action maps installed by the root. */
+  /** Optional keyboard/pointer/gamepad action maps installed by the root. */
   readonly inputMaps?: {
     readonly keyboard?: KeyboardActionMapV1;
+    readonly pointer?: PointerActionMapV1;
     readonly gamepad?: GamepadActionMapV1;
   };
   /** Install the pointer adapter on the application root element. */
