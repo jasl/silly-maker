@@ -4,8 +4,9 @@
 determinism/Save graph、CI 与 Desktop 审计修订；2026-08-02 旧 DET-B/PF-DET
 promotion 已完成，但其 broad static contract 随后被 DET3a conservative-syntax corrective
 target supersede。当前 linear core 先完成 DET3a corrective、DET3b invariant revalidation
-与 DET4 full re-promotion，再恢复后续依赖 aggregate PF-DET closure 的工作；corrective C1
-import/loader admission 已完成，当前下一切片为 C2，随后为 C3/C4。旧 promotion 数字保留为
+与 DET4 full re-promotion，再恢复后续依赖 aggregate PF-DET closure 的工作；corrective
+C1 import/loader admission 与 C2 Date/String/provenance kernel 已完成，当前下一切片为 C3，
+随后为 C4。旧 promotion 数字保留为
 历史证据。本文是当前唯一的跨计划排序入口；
 具体合同仍由各 design 文档拥有，主要任务由五个独立计划拥有：
 
@@ -698,6 +699,15 @@ createRequire-capable capture 与 computed/rest namespace provenance。`developm
 `features.md` 保持到 C4。
 该批不改 public/runtime/Save/canonical/digest/CommandLog/replay 或 browser graph。当前下一
 独立切片为 `C2`，随后为 `C3`、`C4`。
+
+**DET3a-C2 promotion（2026-08-02）：** conservative Date/StaticString safe-set、exact
+KnownDate terminals、constructor/dynamic failure precedence、exact-singleton alias 与 atomic
+cycle/budget failure 已按 owning design 落地；risk-only callable proof 不会扩大 safe allowance，
+exact-alias invalidation 的 adversarial traversal 保持 deterministic linear step count。最终
+rule-core 为 `1/839`，determinism suites 为 `3/860`，full unit 为 `226/3187`，
+`deno task check` 全绿并完成 Engine Lab production build。`development.md` 已同步，
+`features.md` 保持到 C4；该批不改 public/runtime/Save/canonical/digest/CommandLog/replay 或
+browser graph。当前下一独立切片为 `C3`，随后为 `C4`。
 
 ### PF3 — Save envelope and migration registry
 

@@ -3,8 +3,9 @@
 状态：2026-08-02 接受 DET3a conservative-syntax corrective contract；此前
 DET3a–DET4/PF-DET closure 作为 superseded-contract 历史证据保留。当前 active gate 为
 DET3a corrective implementation → DET3b invariant revalidation → DET4 full
-re-promotion。DET3a-C1 import/loader admission 已完成；当前下一独立切片为 DET3a-C2
-Date/String/provenance kernel。`development.md` 已同步 C1 live behavior，整套 guardrail
+re-promotion。DET3a-C1 import/loader admission 与 C2 Date/String/provenance kernel 已完成；
+当前下一独立切片为 DET3a-C3 Base UTC correction。`development.md` 已同步 C1/C2 live
+behavior，整套 guardrail
 在 re-promotion 前不得写入 `features.md`。目标合同见
 [Authoritative simulation determinism boundary](../design/deterministic-simulation-boundary.md)；
 在 [Production-floor sequence](2026-07-30-production-floor-sequence.md) 中属于
@@ -1810,18 +1811,43 @@ kind 与 constructor precedence 的 broad allowance；第 11–13 节的既有�
 - `StaticString` 只来自 ordinary string literal、no-substitution ordinary template、direct
   static `String(...)` over a foldable primitive，以及 no-substitution direct `String.raw` tag。
   `new String`、substitution、custom tag、alias、call/apply/bind 或 nested wrapper 均不授予
-  proof；tagged template 按普通 call 处理。
+  proof；附着在 Call/New/TaggedTemplate runtime node 上的 TypeScript type arguments 也不
+  构成 direct producer；tagged template 按普通 call 处理。
 - exact KnownDate 只允许 `getTime`、`valueOf`、`toISOString` 与 UTC getters 的 terminal
   direct use；setter（包括 UTC）、`toJSON`、copy/value escape、dynamic member、wrapper 与
-  mutation fail closed。
-- provenance allowance 只保留 exact singleton；risk detection 用 conservative source-local
+  mutation fail closed；call/new/tag、class heritage、`instanceof` RHS、sync/async iterator、
+  runtime pattern/default/enum sink 也是 non-terminal value use。
+- Date-input/StaticString/KnownDate allowance 只保留 exact singleton；risk detection 用
+  conservative source-local
   join。相同 singleton 的 immutable `const` alias 可保留，其他 conditional/logical/
   reassignment/different/unknown/mutable/cycle/budget path 均 fail closed。不要求完整 CFG/
   interprocedural analysis，function return、container 与 reflection 不升级 proof。
-- `Date.prototype.constructor` 与 exact KnownDate `.constructor` 先归约为 Date；
+- direct `Date.prototype.constructor` 与 direct exact KnownDate `.constructor` 先归约为 Date；
+  computed/optional selector 使用 `dynamic_member`，不获得 recovered identity；
+  该风险必须穿过 descendant member/call/new/tag 与 computed destructuring；
   `Date.now.constructor(...)`/Function-constructor chain 是 `dynamic_code`，`.now` 是
   `date_now`，indirect `.parse`/`.UTC`/Date constructor 是 `indirect_intrinsic`，其余 unknown
-  `.constructor` 是 `constructor_escape`。
+  `.constructor` 是 `constructor_escape`。callable proof 只来自 maintained exact callable
+  table（包括 direct intrinsic、`Function.prototype` 与 exact loader function base），不从任意
+  local/user function object 或 loader arbitrary descendant 恢复全局 `Function` identity。
+  callable proof 只服务于 risk classification：可以穿过 immutable local `const` alias、static
+  destructure、runtime-transparent parenthesis/TypeScript wrapper/type arguments 与
+  runtime-value-preserving sequence/assignment result、exact callable `.bind(...)` result；
+  conditional、binding reassignment 与 unknown join 必须丢弃。exact callable 是已知 truthy/
+  non-null value，logical `||`/`??` 选择 lhs、`&&` 选择 rhs；lhs producer 始终求值，只有
+  实际选择的 rhs 才遍历，discarded lhs operation 仍保留具体 diagnostic。C1 dynamic-loader
+  provenance 不参与该 short-circuit proof，继续 conservative join；未被 enclosing exact
+  immediate execution 拥有的 selected bound constructor capture 仍 fail closed。
+  conditional callee 不保留 exact callable proof，并遍历两个可能执行 branch；outer unknown/
+  loader join 不得吞掉 branch 的具体 clock/random/capability failure。static
+  `module`/`node:module` binding 只为 exact `createRequire` binding/namespace member 与其 proven
+  factory/call/apply/bound-factory invocation 的 returned loader 提供 risk-only callable proof，
+  不扩张 arbitrary provider/loader descendant 或 Function-constructor result。
+- 只有 current node 的 direct `new Date(...)`、`Date.parse(...)`、`Date.UTC(...)` 拥有专用
+  input failure；alias/recovered/wrapper 的 `indirect_intrinsic` 不吞掉实际求值的 KnownDate
+  argument 或 `thisArg` escape；SpreadElement operand 先执行 iterator protocol，因此 direct
+  Date spread 仍保留 KnownDate child failure。static destructured Date callable 在 capture site
+  使用与 direct member capture 相同的具体 failure。
 - collector 只接受 static runtime ESM import/export 与 exactly-one ordinary quoted literal
   的 direct `import()`；specifier 再走既有 path policy。其他 `import()` 只在 parser-backed
   pre-lint 每个 source 报一次 `determinism.import_closure.dynamic_specifier`。type-only
@@ -1842,13 +1868,25 @@ kind 与 constructor precedence 的 broad allowance；第 11–13 节的既有�
 4. current maximal chain 的 exact winner：`dynamic_code` → `dynamic_require` →
    `intrinsic_mutation` → `date_now` → `date_function_call` →
    `date_zero_argument_constructor` → `indirect_intrinsic` → Date input/UTC/local-time/
-   mutable-instance → `constructor_escape` → `dynamic_member` → provenance unknown/budget →
-   numeric；
+   mutable-instance → `constructor_escape` → `dynamic_member` → provenance cycle/budget →
+   numeric；普通 unknown/non-exact proof 使用 owning operation 的最具体 failure；
 5. 完整 diagnostic vector 按 UTF-16 file/range/code stable sort。
 
+corrective category 的完整 stable code 由 owning design 固定为
+`determinism.capability.dynamic_code`、`determinism.capability.dynamic_require`、
+`determinism.capability.intrinsic_mutation`、`determinism.clock.date_now`、
+`determinism.clock.date_function_call`、
+`determinism.clock.date_zero_argument_constructor`、
+`determinism.capability.indirect_intrinsic`、`determinism.date_input_unverified`、
+`determinism.date_utc_unverified`、`determinism.host_timezone`、
+`determinism.date_instance_unverified`、`determinism.date_instance_mutation`、
+`determinism.capability.constructor_escape`、`determinism.capability.dynamic_member`、
+`determinism.provenance.cycle` 与
+`determinism.provenance.budget_exhausted`。
+
 同一 maximal chain 只有一个 current-node primary diagnostic；确实执行的 child expression
-仍可分别报告。collector failure 不运行 lint；unknown、cycle 与 budget exhaustion 均有 stable
-fail-closed diagnostic。任何失败都不发布 partial path vector、partial provenance、success
+仍可分别报告。collector failure 不运行 lint；unknown/non-exact proof 由 owning operation
+fail closed，cycle 与 budget exhaustion 使用 dedicated stable diagnostic。任何失败都不发布 partial path vector、partial provenance、success
 receipt 或 cached inventory，也不写 authoritative State、Save 或 artifact。
 
 ### Required vectors and acceptance
@@ -1859,7 +1897,15 @@ receipt 或 cached inventory，也不写 authoritative State、Save 或 artifact
   overflow、multiarg Date、Date API alias/call/apply/bind/tag、spread、mutable/reassignment、
   different singleton、unknown、cycle 与 injected budget exhaustion；
 - exact constructor-classification matrix 固定上述四类 winner，并证明 generic fallback 不重复；
-- StaticString 四组 positive 与 boxed/substitution/custom-tag/alias/wrapper negatives；
+- callable-risk vectors 覆盖 immutable alias/static destructure、sequence/assignment result、
+  runtime-transparent wrapper/type arguments、conditional/reassignment/unknown join、logical
+  short-circuit、nested bind、exact loader base/arbitrary descendant 与 unproved descendant；
+- direct Date input-owner vectors 与 alias/recovered/call/apply/bind negatives 证明 KnownDate
+  argument/`thisArg`/spread-iterator child diagnostics 不被 outer winner 吞掉；
+- StaticString 四组 positive 与 boxed/substitution/custom-tag/alias/wrapper/type-argument
+  negatives；KnownDate terminal 的 call-level type arguments 同样 fail closed；
+- exact-alias memo 只因真实 dependency state 变化失效；无关 exact declaration 的 adversarial
+  traversal 保持 deterministic linear step count；
 - exactly-one ordinary quoted literal dynamic import positive；literal value 继续进入既有
   relative/workspace/external path policy。template/concatenation/identifier/TS wrapper、
   options/zero-or-multi-argument negatives 全部在 pre-lint 原子失败，type-only edges 不进入
@@ -1915,6 +1961,28 @@ repository full unit 为 `226/2880`，
 Date/String/provenance、public API、runtime、Save/canonical/digest/CommandLog/replay 或 browser
 graph；没有机械追加 browser E2E。`development.md` 已同步，`features.md` 按 C4 gate 未修改。
 下一独立切片为 `DET3a-C2`。
+
+**DET3a-C2 promotion（2026-08-02）：** rule core 现在以独立 exact-proof lattice 实现
+conservative Date safe-set、四种 StaticString producer、exact KnownDate terminal policy、
+constructor reducer/precedence、exact-singleton alias 与 atomic cycle/budget failure。Date
+allowance 不再接受 `Number(...)`、dynamic instant、KnownDate copy、multi-argument
+constructor、Date API aliases、`call`/`apply`/`bind`、wrapper、spread、mutable binding 或
+conditional/join；严格 UTC/offset literal 与 strict seven-argument `Date.UTC` 在 syntax gate
+完成 calendar/range 验证。风险分类所需 callable proof 与 safe allowance 已分离，
+runtime-transparent wrapper/type arguments、logical short-circuit、conditional callee、
+recovered constructor、Function constructor、exact loader base、returned-loader 与 arbitrary
+descendant 均按 stable precedence fail closed；actual child diagnostics 不被 maximal-chain winner
+吞掉。exact-alias reverse dependency invalidation 在 adversarial 规模上保持 deterministic linear
+step count。
+
+首次 safe-set flip red 为 `51 failed / 35 passed / 532 skipped`；后续 red/green 与独立对抗审查
+补闭 Date input ownership、spread iterator、destructuring、nested logical、bound Function、
+createRequire descendant、type arguments 与 stale memo。最终 rule-core 为 `1 file / 839 tests`，
+determinism suites 为 `3 files / 860 tests`，repository full unit 为 `226 files / 3187 tests`，
+`deno task check` 全绿并完成 Engine Lab production build。该 static/tooling-only slice 不改
+public API、runtime、Save/canonical/digest/CommandLog/replay 或 browser graph；没有机械追加
+browser E2E。`development.md` 已同步，`features.md` 按 C4 gate 未修改。下一独立切片为
+`DET3a-C3`。
 
 ## 15. Deferred work
 

@@ -157,72 +157,118 @@ export bare ambient capability roots such as `Math`, `Date`, `Number`,
 operation or pass canonical recorded data. Bare `performance` and any of its
 direct member reads/calls are clock metadata; any direct `Deno` / `process` member read or call is
 an environment capability, while bare-root capture remains a capability escape.
-Explicit `Number(recordedText)` remains deterministic. Runtime-producing receivers/callees, inputs and spread
-values, template substitutions, and computed property keys are visited before
-the enclosing member/call/new/coercion operation is classified, so a safe or
-fail-closed outer operation cannot hide an ambient read performed while its
-inputs are evaluated. `new Date(arg)` accepts only an in-range integer epoch
-literal/immutable local `const` alias, a recognized `Date.UTC` or verified
-`Date.parse` result, an exact known Date-instance value copy, or a validated
-explicit-zone literal/immutable alias. The maintained explicit spelling is
-`YYYY-MM-DDTHH:mm:ss`, optional exact `.sss`, then `Z` or `±HH:mm`.
-`Date.parse` direct/call/apply accepts exactly one explicit-zone proof;
-`Date.UTC` direct/call/apply is a deterministic epoch producer without that
-parse admission. Multi-argument local-field construction and validated
-zone-less `YYYY-MM-DDTHH:mm` text (optional seconds/fraction), including an
-immutable alias, report `determinism.host_timezone`; dynamic, mutable,
-malformed, unsupported, ambiguous, or unverifiable spread/apply input reports
-`determinism.date_input_unverified`. `new Date(...[])` is the zero-argument
-clock case. `Date()` is always a clock read. `call`/`apply` preserve recognized
-callable identity; `bind` captures the callable and is therefore a capability
-escape. Statically resolved Date values may use
-UTC/value operations, but local-time getters/setters, timezone offsets,
-unresolved computed members, and default string rendering fail closed. That
-Host-timezone classification applies only to a terminal direct/call/apply Host
-method on an exact Date receiver; a same-named descendant or bound Host method
-is a capability escape. The
-rendering contract covers `String`, `new String`, the actual String prototype
-constructor, untagged templates, and `+`/`+=`. Abstract `==`/`!=` is included
-only when the other operand is not statically known to skip object-to-primitive
-conversion; strict equality, null/undefined, and known object-vs-object cases do
-not coerce the Date. A Date used as a computed property key or the left operand
-of `in` undergoes `ToPropertyKey` and is classified the same way. Exact or
-conservatively joined Date-instance values report Host timezone on those
-coercions; a Date member/ambiguous descendant reports capability escape instead
-of being mislabeled as Host rendering.
+Explicit `Number(recordedText)` remains deterministic. Runtime-producing
+receivers/callees, inputs and spread values, template substitutions, and
+computed property keys are visited before the enclosing operation is
+classified, so a safe or fail-closed outer operation cannot hide an ambient
+read performed by an evaluated child.
 
-String direct/new/call/apply uses an exact hole-preserving static
-effective-argument vector; an unresolved spread/apply vector is a capability
-escape. `String.raw` checks only in-range raw elements and the first
-`raw.length - 1` effective substitutions, so ignored extra substitutions are
-not treated as coercion. Static string/array/array-like carriers are supported;
-a statically proven primitive/null object-literal `__proto__` setter cannot contribute inherited
-`raw`/index values and is inert for carrier admission, while a carrier that may
-inherit either value fails closed. Its `__proto__` value expression is still
-visited normally. Recognized String/Date direct, call, and apply tagged-template
-forms statically simulate the tag call from
-`[templateObject, ...substitutions]`: call removes the template object as its
-`thisArg`, while apply requires a statically expandable first-substitution
-array. Bind, nested, or otherwise invalid wrapper paths report capability escape
-and do not guess a Host coercion from their substitutions. An ordinary custom
-tag only receives the Date value and is not itself coercion.
+Date admission uses a conservative syntactic proof, not general constant
+evaluation. The only direct-safe inputs are:
 
-Direct assignment, destructuring, update, delete, and `for in/of` writes to a
-tracked ambient capability/intrinsic root or member, or a Date instance/prototype member,
-fail closed as capability escapes; DET3b's isolated runtime probe additionally
-guards reflection-based mutation of its protected slots. Dynamic member production from any tracked ambient capability
-also fails closed. A non-reference `delete` operand is evaluated as an ordinary
-expression; only identifier/member references enter write-target classification,
-without reading their prior value as an ordinary member access.
+- an exact static integer epoch inside the TimeClip range;
+- an unshadowed direct `Date.UTC` call with exactly seven exact integer
+  arguments, validated ranges, a real Gregorian day, and no overflow
+  normalization;
+- an unshadowed direct `Date.parse` call or direct one-argument `new Date` over
+  a strict full-zone `StaticString`; and
+- an immutable local `const` alias of one exact singleton above.
+
+The strict full-zone spelling is `YYYY-MM-DDTHH:mm:ss`, optionally followed by
+one to three fraction digits, then `Z` or `±HH:mm`; real calendar/time/offset
+values are required. Date-only text, whitespace, expanded years, `24:00`, leap
+seconds, malformed or local-zone input do not become deterministic proof.
+`Number(...)`, dynamic instant text, a KnownDate copy, multi-argument
+construction, spread, expression wrappers, mutable or joined values, Date
+callable aliases, and Date/parse/UTC `call`/`apply`/`bind` routes do not grant
+admission. `Date()` always reads the clock; zero-argument `new Date()` has its
+own clock diagnostic. Unsupported direct Date input fails with
+`determinism.date_input_unverified` or
+`determinism.date_utc_unverified`; a statically recognized local-zone operation
+uses `determinism.host_timezone`. Only the current node's direct `new Date`,
+`Date.parse`, or `Date.UTC` operation owns that dedicated input failure. An
+alias, recovered constructor, or call/apply/bind route retains its
+`determinism.capability.indirect_intrinsic` winner and separately reports any
+evaluated KnownDate argument or `thisArg` as
+`determinism.date_instance_unverified`. A spread operand executes its iterator
+protocol before effective arguments exist, so a KnownDate spread keeps that
+child diagnostic even for a direct Date operation. Static destructuring of
+`Date.now`, `Date.parse`, or `Date.UTC` is classified at the capture site just
+like the corresponding direct member capture.
+
+`StaticString` proof is limited to an ordinary string literal, a
+no-substitution ordinary template, direct unshadowed `String(...)` over one
+statically foldable primitive, or a no-substitution direct unshadowed
+`String.raw` tag. `new String`, substitutions, aliases, custom tags,
+`call`/`apply`/`bind`, nested wrappers, and other tagged-template shapes do not
+produce proof. TypeScript type arguments attached to the producer
+Call/New/TaggedTemplate runtime node are also wrapper syntax and do not produce
+proof. Except for that one `String.raw` form, a tagged template is
+checked as an ordinary function call and every evaluated substitution remains
+independently visible to the checker.
+
+An exact KnownDate may only receive a direct, non-optional terminal call to
+`getTime`, `valueOf`, `toISOString`, or one of the UTC getters. Local getters and
+rendering, `getTimezoneOffset`, `toJSON`, every setter including UTC setters,
+method capture/wrappers, optional or computed members, callable/tag/protocol
+use, containers, return/export, and other value escape fail closed. Direct
+terminal calls carrying TypeScript type arguments are wrappers and fail closed. Direct
+Date-to-string/default-rendering operations are still identified as
+`determinism.host_timezone`; ambiguous descendants use
+`determinism.date_instance_unverified` rather than claiming a known Host
+rendering operation. Strict equality and statically known object/nullish
+comparisons do not invoke Date coercion.
+
+Direct assignment, destructuring, update, delete, and `for in/of` writes to an
+ECMAScript intrinsic root/member use
+`determinism.capability.intrinsic_mutation`; Date-instance/prototype mutation
+uses `determinism.date_instance_mutation`. DET3b's isolated runtime probe
+additionally guards reflection-based mutation of its protected slots. Dynamic
+member production from a tracked capability uses
+`determinism.capability.dynamic_member`. A non-reference `delete` operand is
+evaluated as an ordinary expression; only identifier/member references enter
+write-target classification, without reading their prior value as an ordinary
+member access. One maximal operation gets one current-node winner, while an
+actually evaluated receiver, key, argument, or substitution keeps its own child
+diagnostic.
 Lexical shadows remain ordinary code. `for in/of` visits the
 RHS, evaluates the write target/pattern without treating it as a normal read,
 joins unknown provenance into a local target, and only then visits the body.
 `Temporal.Now` is ambient; capturing that namespace is a capability
 escape and invoking it is a clock read. Deterministic named namespaces such as
 `Temporal.Instant` may be used directly or statically destructured, while the
-bare root cannot escape. A `.constructor` recovered from a known ambient member
-is rejected before downstream call/apply/bind classification, except for the
-explicitly recognized Date constructor identity.
+bare root cannot escape. Direct `Date.prototype.constructor` and direct
+`.constructor` on an exact KnownDate retain recovered Date identity. `.now` is
+`determinism.clock.date_now`; recovered Date construction and recovered
+`.parse`/`.UTC` are `determinism.capability.indirect_intrinsic`;
+`Date.now.constructor(...)` and a proven Function-constructor route are
+`determinism.capability.dynamic_code`. Any other unproved `.constructor` route
+uses `determinism.capability.constructor_escape`. Computed or optional Date
+constructor selection is a dynamic member, not a direct recovered identity;
+that risk remains attached through descendant member/call/new/tag and computed
+destructuring paths. Callable proof comes only from the maintained exact table:
+direct intrinsics, `Function.prototype`, and exact loader function bases. A
+local/user function object or arbitrary loader descendant does not prove the
+global `Function` constructor identity. This proof is only for risk
+classification and never grants Date/StaticString/KnownDate allowance. It can
+survive an immutable local alias, static destructure, runtime-transparent
+parentheses/TypeScript wrappers/type arguments, or a sequence/assignment
+expression/exact `.bind(...)` whose runtime value is the exact callable;
+conditional, binding
+reassignment, and unknown joins drop it. Because an exact callable is
+truthy and non-null, `lhs || rhs` and `lhs ?? rhs` select that lhs while
+`lhs && rhs` selects the rhs. The lhs producer is always evaluated; an
+unreachable rhs is not reported, and a discarded lhs operation keeps its own
+specific diagnostic. Dynamic-loader provenance remains a conservative join and
+does not use this short-circuit proof. An exact immediate constructor execution
+owns its inline bound producer, but an unproved descendant still reports the
+selected bound-constructor capture. A conditional callee drops exact callable
+proof and checks both potentially executed branches, so an outer unknown/loader
+join cannot hide a branch-specific clock, random, or capability diagnostic.
+Static `module`/`node:module` imports provide risk-only callable identity only
+for an exact `createRequire` binding/namespace member and the returned loader
+from a proven factory/call/apply/bound-factory invocation, never for an arbitrary
+provider/loader descendant or Function-constructor result.
 
 Bare and `node:` provider imports are subpath-aware, so `fs/promises` cannot
 bypass the filesystem boundary. Static runtime ESM imports of ambient providers
@@ -241,18 +287,21 @@ and an uninitialized `var require` / `var module` that does not replace the
 CommonJS wrapper binding do not create an allowance. The guard does not
 construct a CommonJS dependency graph.
 
-This static layer tracks direct expressions and applies a path-insensitive,
-conservative provenance join to source-local conditional/logical expressions
-and reassignment: a tracked candidate cannot be erased by a clean or unknown
-branch, and a Date callable joined with any different/unknown candidate becomes
-ambiguity rather than a trusted epoch producer. A bounded monotonic central
-worklist replays the root and discovered source-local closures to a fixed point,
-so reassignment diagnostics do not depend on declaration/use text order;
-non-convergence fails closed. Intermediate convergence passes do not publish
-traversal diagnostics; only the final conservative replay does. This is still
-not sound whole-program analysis of function returns, containers, reflection,
-or every implicit coercion. DET3b's test-only isolated runtime tripwire now owns
-those dynamic bypass probes. Neither layer is a sandbox or a security boundary.
+Date-input/StaticString/KnownDate allowance proof survives only an immutable
+local `const` alias of one exact singleton. Conditional/logical expressions, reassignment, mutable bindings,
+different or unknown candidates, wrappers, containers, cycles, and analysis
+budget exhaustion cannot preserve it. Separately, risk detection applies a
+path-insensitive conservative source-local join, so a tracked candidate cannot
+be erased by a clean or unknown branch. A bounded monotonic worklist replays the
+root and discovered local closures to a fixed point, so classification does not
+depend on declaration/use text order. Cycles fail closed; budget exhaustion
+returns only `determinism.provenance.budget_exhausted`, never diagnostics or
+proofs from a partial pass. Exact-proof memoization is invalidated through real
+alias dependencies; an unrelated exact declaration does not invalidate a stable
+alias graph. This is intentionally not CFG-complete or
+interprocedural analysis. DET3b's test-only isolated runtime tripwire owns the
+remaining dynamic bypass probes. Neither layer is a sandbox or a security
+boundary.
 
 The pure installer and descriptor/absence harness live under
 `e2e/src/testing/ambient-tripwire.ts`; the sibling parent runner, short-lived module

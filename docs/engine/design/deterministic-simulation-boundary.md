@@ -4,8 +4,9 @@
 DET3a–DET4 promotion 证明的是当时的 broad static-analysis contract；其测试数字、
 byte-equivalence 与 runtime evidence 作为历史记录保留，但 Date/String provenance、
 dynamic-import 与 failure-classification 规则已由本次目标 supersede，不构成 corrective
-contract 的实现或 promotion evidence。DET3a-C1 import/loader admission 已按新合同落地；
-Date/String/provenance 与 Base UTC correction 仍待后续切片。`development.md` 随实际落地
+contract 的实现或 promotion evidence。DET3a-C1 import/loader admission 与 C2
+Date/String/provenance kernel 已按新合同落地；Base UTC correction 与 aggregate
+re-promotion 仍待后续切片。`development.md` 随实际落地
 slice 描述当前 live implementation，`features.md` 在 aggregate re-promotion 前不宣称整套
 corrective guardrail 已完成；目标与实现差距由本文及 active plan 明示拥有。具体落地顺序见
 [Authoritative determinism guardrails plan](../plans/2026-07-31-authoritative-determinism-guardrails.md)。
@@ -382,15 +383,20 @@ unshadowed `String(...)` over a statically foldable primitive（string/boolean/n
 exact number），以及 no-substitution direct unshadowed `String.raw` tag 产生。
 `new String` 是 boxed object；有 substitution 的 template、自定义 tag、alias、
 `call`/`apply`/`bind`、nested wrapper 或其他 tagged-template shape 都不授予
-`StaticString`。除唯一的 no-substitution direct `String.raw` form 外，tagged template
+`StaticString`。附着在 producer Call/New/TaggedTemplate runtime node 上的 TypeScript
+type arguments 同样属于 runtime-erased wrapper syntax，不得绕过 direct-form 检查。除唯一的
+no-substitution direct `String.raw` form 外，tagged template
 按普通函数调用处理；其 runtime-evaluated substitutions 仍独立遍历。
 
 exact known Date instance 只允许 terminal direct `getTime`、`valueOf`、`toISOString`
 与 UTC getters；所有 local getters/rendering、`getTimezoneOffset`、`toJSON`、全部 setters
 （包括 UTC setters）、method wrapper/capture、value escape、dynamic member 与 mutation
-都 fail closed。Date 的 coercion/default-rendering detection 仍用于识别风险，不作为
+都 fail closed。call/new/tag、class heritage、`instanceof` RHS、sync/async iterator 与
+runtime pattern/default/enum sink 等 non-terminal use 同样 fail closed。Date 的
+coercion/default-rendering detection 仍用于识别风险，不作为
 `StaticString` 或 Date-input proof producer。`Reflect.set`、`Object.defineProperty` 等
 reflection mutation 继续由 DET3b isolated tripwire 覆盖。
+附着在 terminal CallExpression 上的 TypeScript type arguments 不属于 direct terminal。
 bare `performance` root 及其任一 direct member read/call 都按 Host clock metadata 归
 `determinism.performance_clock`；`Deno` / `process` 的 direct member
 read/call（包括 env、filesystem 与 cwd）归 `determinism.environment`，bare root
@@ -399,12 +405,42 @@ latest-stable Deno 已暴露的
 `Temporal.Now` 属于 ambient clock；直接 member call 报 clock，静态 destructure 捕获
 `Now` namespace 时先报 capability escape，若仍继续调用 alias 则该 read 再报 clock。
 `Temporal.Instant` / `Temporal.PlainDate` 等明确 deterministic namespace 可直接调用或
-静态 destructure，但 bare `Temporal` root 不能逃逸。`Date.prototype.constructor` 与
-exact KnownDate `.constructor` 先归约为 Date target identity；随后 `.now` 使用
+静态 destructure，但 bare `Temporal` root 不能逃逸。direct
+`Date.prototype.constructor` 与 direct exact KnownDate `.constructor` 先归约为 Date target
+identity；computed/optional selector 使用 dynamic-member failure，不获得 recovered identity。
+该 non-direct-selector risk 必须穿过后续 member/call/new/tag 与 computed destructuring，
+不能因 descendant path 或 pattern-derived alias 再次归约为 Date。
+随后 `.now` 使用
 `determinism.clock.date_now`，`.parse` / `.UTC` / recovered Date constructor use 使用
 `determinism.capability.indirect_intrinsic`，`Date.now.constructor(...)` 或等价 Function
-constructor chain 使用 `determinism.capability.dynamic_code`，其他 unknown
-`.constructor` 使用 `determinism.capability.constructor_escape`。exact winner 在 generic
+constructor chain 使用 `determinism.capability.dynamic_code`；等价链必须先证明 owner callable，
+证明范围是 maintained exact callable table（包括 direct intrinsic、`Function.prototype` 及
+exact `require` / `module.require` / returned-loader / `createRequire` function base），不从任意
+local/user function object 或 loader arbitrary descendant 推断全局 `Function` identity；primitive
+owner 或其他 unknown
+`.constructor` 使用 `determinism.capability.constructor_escape`。该 callable identity 只服务于
+risk classification，不是 Date/StaticString/KnownDate allowance：immutable local `const` alias、
+static destructure、runtime-transparent parenthesis/TypeScript wrapper/type arguments，以及
+runtime-value-preserving sequence/assignment result 与 exact callable `.bind(...)` result 可以
+保留 exact callable；conditional、
+binding reassignment 与 unknown join 不保留。exact callable 是已知
+truthy/non-null value，因此 logical `lhs || rhs` / `lhs ?? rhs` 选择 lhs，`lhs && rhs` 选择
+rhs；lhs producer 始终按 runtime semantics 求值，只有实际选择的 rhs 才遍历，discarded lhs
+operation 仍保留具体 diagnostic。C1 的 dynamic-loader provenance 不参加该 short-circuit
+proof，继续 conservative join。selected bound constructor 只有在 enclosing exact immediate
+execution 已拥有 winner 时才抑制 capture，未证明 descendant 仍报 escape。
+conditional callee 不保留 exact callable proof，并遍历两个可能执行的 branch；outer unknown/
+loader join 不能吞掉 branch 自身的 clock/random/capability diagnostic。static
+`module`/`node:module` import 只为 exact `createRequire` binding/namespace member 和其 proven
+factory/call/apply/bound-factory invocation 的 returned loader 提供 risk-only callable proof，
+不为 arbitrary provider/loader descendant 或 Function-constructor result 提供 loader identity。
+
+只有 current node 本身是 direct `new Date(...)`、`Date.parse(...)` 或 `Date.UTC(...)` 时，
+其专用 input failure 才拥有对应参数。alias/recovered/wrapper 路径的 outer
+`indirect_intrinsic` 不吞掉实际求值的 KnownDate argument 或 `thisArg` escape；SpreadElement
+operand 会先执行 iterator protocol，因此 direct Date spread 也必须保留 KnownDate child
+failure。static destructured `Date.now` / `.parse` / `.UTC` 在 capture site 分别使用
+`date_now` / `indirect_intrinsic`，不能通过 pattern 变成 clean alias。exact winner 在 generic
 capability/wrapper classification 前决定，同一 maximal chain 只产生一个 current-node primary
 diagnostic；receiver/callee/input 中确实执行的 child expression diagnostic 仍保留。bare
 `Math` / `Date` / `Number` / `Temporal` / `globalThis` / `Deno` / `process` 与 CommonJS
@@ -450,13 +486,33 @@ file/range/code stable sort。collector failure 不运行 source lint。current-
 顺序固定为 `dynamic_code`、`dynamic_require`、`intrinsic_mutation`、`date_now`、
 `date_function_call`、`date_zero_argument_constructor`、`indirect_intrinsic`、Date input/UTC/
 local-time/mutable-instance diagnostics、`constructor_escape`、`dynamic_member`、provenance
-unknown/budget、numeric diagnostics。一个 maximal chain 不因 generic fallback 重复报告；
+cycle/budget、numeric diagnostics。普通 unknown/non-exact proof 使用 owning operation 的最具体
+failure code。一个 maximal chain 不因 generic fallback 重复报告；
 child runtime evaluation 仍可在不同 range 拥有独立 diagnostic。checker 只返回完整 frozen
 diagnostic vector 和 non-zero status，不发布 partial success receipt，也不写 authoritative
 State、Save、artifact 或 cached inventory。
 
-provenance allowance 只接受 exact singleton。相同 exact singleton 的 immutable local
-`const` value alias 可以保留；conditional/logical expression、reassignment、不同 singleton、
+上述 corrective category 的 stable code 固定为
+`determinism.capability.dynamic_code`、
+`determinism.capability.dynamic_require`、
+`determinism.capability.intrinsic_mutation`、
+`determinism.clock.date_now`、
+`determinism.clock.date_function_call`、
+`determinism.clock.date_zero_argument_constructor`、
+`determinism.capability.indirect_intrinsic`、
+`determinism.date_input_unverified`、
+`determinism.date_utc_unverified`、
+`determinism.host_timezone`、
+`determinism.date_instance_unverified`、
+`determinism.date_instance_mutation`、
+`determinism.capability.constructor_escape`、
+`determinism.capability.dynamic_member`、
+`determinism.provenance.cycle` 与
+`determinism.provenance.budget_exhausted`。budget exhaustion 是 admission-level atomic
+failure：不得把耗尽前的 traversal diagnostic 或 partial proof vector 一并返回。
+
+Date-input、StaticString 与 KnownDate provenance allowance 只接受 exact singleton。相同 exact
+singleton 的 immutable local `const` value alias 可以保留；conditional/logical expression、reassignment、不同 singleton、
 clean/unknown branch、mutable binding、cycle 或 budget exhaustion 一律降为 unknown 并
 fail closed，不产生 union、semantic candidate class 或 Date-instance class。risk detection
 使用 source-local conservative join；不要求完整 CFG 或 interprocedural analysis，任意 function
