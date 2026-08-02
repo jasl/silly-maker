@@ -16,7 +16,9 @@ import {
 import type { DeterminismAuthorityPolicyV1 } from "./authority-map.mts";
 
 const repositoryRootV1 = resolve(import.meta.dirname, "../..");
-const liveRepositoryScanTimeoutV1 = 30_000;
+// This is a liveness ceiling for repository-integration scans under parallel test load,
+// not a wall-clock performance assertion.
+const liveRepositoryIntegrationTimeoutV1 = 120_000;
 const temporaryDirectoriesV1: string[] = [];
 
 afterEach(async () => {
@@ -182,7 +184,7 @@ describe("authoritative determinism authority map", () => {
         /authoritative closure includes negative control .*cat-cafe\/src\/simulation\.ts/u,
       );
     },
-    liveRepositoryScanTimeoutV1,
+    liveRepositoryIntegrationTimeoutV1,
   );
 
   it("rejects a noncanonical negative-control entry spelling", async () => {
@@ -477,5 +479,5 @@ describe("authoritative determinism authority map", () => {
     });
     expect(map.diagnostics.authoritativePathCount).toBeGreaterThan(0);
     expect(map.diagnostics.managedSimulationRecordCount).toBeGreaterThan(0);
-  }, liveRepositoryScanTimeoutV1);
+  }, liveRepositoryIntegrationTimeoutV1);
 });
