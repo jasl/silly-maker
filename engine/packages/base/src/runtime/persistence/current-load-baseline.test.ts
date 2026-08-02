@@ -24,7 +24,7 @@ import type {
   SimulationAdoptionV1,
 } from "../../contracts/persistence.ts";
 import type { DeepReadonly, Digest, RuntimeSchemaV1 } from "../../contracts/values.ts";
-import { parseNonNegativeSafeInteger } from "../../contracts/values.ts";
+import { parseNonNegativeSafeInteger, parsePositiveSafeInteger } from "../../contracts/values.ts";
 import { createSaveMetadataHostPayloadV1 } from "../../testkit/save-metadata-corpus.ts";
 import {
   persistenceUtcAcceptedCorpusV1,
@@ -39,7 +39,11 @@ import {
 } from "../../testkit/snapshot-transaction-workload.ts";
 import { validateSaveImportCandidateV1 } from "./compatibility.ts";
 import { decodeSaveRecordV1, encodeSaveRecordV1 } from "./save-codec.ts";
-import { createPersistenceServiceV1 } from "./persistence-service.ts";
+import {
+  createPersistenceServiceV1,
+  importWithReplacementCommitInternalV1,
+  loadWithReplacementCommitInternalV1,
+} from "./persistence-service.ts";
 import type { SaveRepositorySlotMetadataV1 } from "./save-repository.ts";
 import { createSaveSlotRecordKeyV1 } from "./slot-keys.ts";
 
@@ -247,6 +251,7 @@ let fixtureOrdinalV1 = 0;
 async function fixtureV1(input: {
   readonly slots?: readonly SeededSlotV1[];
   readonly provenance?: BuildProvenanceV1;
+  readonly snapshotSchema?: RuntimeSchemaV1<NeutralSnapshotV1>;
   readonly adoptionDeclaration?: PatchSetAdoptionDeclarationV1 | null;
   readonly referenceErrors?: readonly string[];
   readonly invariantErrors?: readonly string[];
@@ -260,7 +265,7 @@ async function fixtureV1(input: {
   const service = await createPersistenceServiceV1<SnapshotTransactionStateV1, NeutralSnapshotV1>({
     runtimeControl: session.runtimeControl,
     records: store.records,
-    snapshotSchema: snapshotTransactionSnapshotSchemaV1,
+    snapshotSchema: input.snapshotSchema ?? snapshotTransactionSnapshotSchemaV1,
     provenance: input.provenance ?? snapshotTransactionProvenanceV1,
     adoptionDeclaration: input.adoptionDeclaration ?? null,
     ownerId: `owner.current-load-baseline.${String(fixtureOrdinalV1)}` as SessionLeaseOwnerId,
@@ -312,19 +317,31 @@ async function expectRejectedImportV1(
   bytes: Uint8Array,
   expected: {
     readonly kind: "rejected";
-    readonly code: "invalid_record" | "incompatible" | "lineage_limit";
+    readonly code:
+      | "invalid_record"
+      | "incompatible"
+      | "lineage_limit"
+      | "migration_unavailable";
   },
   options: Parameters<typeof fixtureV1>[0] = {},
 ) {
   const fixture = await fixtureV1(options);
   try {
+    const sourceBefore = Uint8Array.from(bytes);
+    let replacementCommits = 0;
     await fixture.session.dispatch("cross_owner_atomic_committed");
     const authorityBefore = authorityEvidenceV1(fixture);
     const recordsBefore = await rawSaveRecordsV1(fixture.store.records);
 
-    await expect(fixture.service.port.importSave(bytes)).resolves.toEqual(expected);
+    await expect(
+      importWithReplacementCommitInternalV1(fixture.service, bytes, () => {
+        replacementCommits += 1;
+      }),
+    ).resolves.toEqual(expected);
 
     const authorityAfter = authorityEvidenceV1(fixture);
+    expect(bytes).toEqual(sourceBefore);
+    expect(replacementCommits).toBe(0);
     expect(authorityAfter.snapshot).toBe(authorityBefore.snapshot);
     expect(authorityAfter.rng).toBe(authorityBefore.rng);
     expect(authorityAfter.replayBase).toBe(authorityBefore.replayBase);
@@ -347,16 +364,26 @@ async function expectRejectedLoadPreservesAuthorityV1(
   slot: SaveSlotIdV1,
   expected: {
     readonly kind: "rejected";
-    readonly code: "invalid_record" | "incompatible" | "lineage_limit";
+    readonly code:
+      | "invalid_record"
+      | "incompatible"
+      | "lineage_limit"
+      | "migration_unavailable";
   },
 ) {
+  let replacementCommits = 0;
   await fixture.session.dispatch("cross_owner_atomic_committed");
   const authorityBefore = authorityEvidenceV1(fixture);
   const recordsBefore = await rawSaveRecordsV1(fixture.store.records);
 
-  await expect(fixture.service.port.load(slot)).resolves.toEqual(expected);
+  await expect(
+    loadWithReplacementCommitInternalV1(fixture.service, slot, () => {
+      replacementCommits += 1;
+    }),
+  ).resolves.toEqual(expected);
 
   const authorityAfter = authorityEvidenceV1(fixture);
+  expect(replacementCommits).toBe(0);
   expect(authorityAfter.snapshot).toBe(authorityBefore.snapshot);
   expect(authorityAfter.rng).toBe(authorityBefore.rng);
   expect(authorityAfter.replayBase).toBe(authorityBefore.replayBase);
@@ -461,7 +488,7 @@ describe("post-DET-A current Save load baseline", () => {
     });
     expect(decodeSaveRecordV1(invalidSnapshotAndWrongDigest, neutralCodecV1)).toEqual({
       kind: "rejected",
-      code: "envelope.schema_invalid",
+      code: "digest.state_mismatch",
     });
 
     const zeroRngAndWrongDigest = currentRecordBytesV1({
@@ -474,7 +501,7 @@ describe("post-DET-A current Save load baseline", () => {
     });
     expect(decodeSaveRecordV1(zeroRngAndWrongDigest, neutralCodecV1)).toEqual({
       kind: "rejected",
-      code: "rng.invalid_state",
+      code: "digest.state_mismatch",
     });
 
     const zeroRngAndInvalidLineage = currentRecordBytesV1({
@@ -488,7 +515,7 @@ describe("post-DET-A current Save load baseline", () => {
     });
     expect(decodeSaveRecordV1(zeroRngAndInvalidLineage, neutralCodecV1)).toEqual({
       kind: "rejected",
-      code: "rng.invalid_state",
+      code: "envelope.schema_invalid",
     });
 
     const crossFieldAndWrongDigest = currentRecordBytesV1({
@@ -500,7 +527,7 @@ describe("post-DET-A current Save load baseline", () => {
     });
     expect(decodeSaveRecordV1(crossFieldAndWrongDigest, neutralCodecV1)).toEqual({
       kind: "rejected",
-      code: "envelope.schema_invalid",
+      code: "digest.state_mismatch",
     });
 
     const validSnapshotAndWrongDigest = currentRecordBytesV1({
@@ -516,6 +543,7 @@ describe("post-DET-A current Save load baseline", () => {
     let compatibilityCalls = 0;
     const validation = Object.freeze({
       codec: neutralCodecV1,
+      currentStateContractRevision: snapshotTransactionProvenanceV1.resolved.stateContractRevision,
       classifyCompatibility(): SaveCompatibilityClassificationV1 {
         compatibilityCalls += 1;
         return Object.freeze({
@@ -543,6 +571,371 @@ describe("post-DET-A current Save load baseline", () => {
         neutralCodecV1,
       ),
     ).toEqual({ kind: "rejected", code: "limit.bytes" });
+  });
+
+  it("separates raw and normalized-current digest admission before Story callbacks", async () => {
+    let snapshotSchemaCalls = 0;
+    const normalizingSnapshotSchemaV1: RuntimeSchemaV1<NeutralSnapshotV1> = Object.freeze({
+      parse(value: unknown) {
+        snapshotSchemaCalls += 1;
+        const parsed = snapshotTransactionSnapshotSchemaV1.parse(value);
+        return Object.freeze({
+          ...parsed,
+          state: Object.freeze({
+            ...parsed.state,
+            normalizedMarker: 1,
+          }),
+        }) as NeutralSnapshotV1;
+      },
+    });
+    const normalizingRecordSchemaV1 = createSaveRecordEnvelopeSchemaV1(
+      normalizingSnapshotSchemaV1,
+      passthroughProvenanceSchemaV1,
+      passthroughSlotSchemaV1,
+      passthroughLineageSchemaV1,
+    );
+    const normalizingCodecV1: SaveCodecContextV1<NeutralSnapshotV1, NeutralSaveRecordV1> = Object
+      .freeze({
+        recordSchema: normalizingRecordSchemaV1,
+        validateEnvelope: neutralCodecV1.validateEnvelope,
+      });
+    let compatibilityCalls = 0;
+    let referenceCalls = 0;
+    let invariantCalls = 0;
+    const bytes = currentRecordBytesV1();
+    const validation = Object.freeze({
+      codec: normalizingCodecV1,
+      currentStateContractRevision: snapshotTransactionProvenanceV1.resolved.stateContractRevision,
+      classifyCompatibility(): SaveCompatibilityClassificationV1 {
+        compatibilityCalls += 1;
+        return Object.freeze({
+          kind: "exact" as const,
+          mismatches: Object.freeze([] as const),
+          warnings: Object.freeze([]),
+        });
+      },
+      validateReferences: () => {
+        referenceCalls += 1;
+        return Object.freeze([]);
+      },
+      validateInvariants: () => {
+        invariantCalls += 1;
+        return Object.freeze([]);
+      },
+    });
+
+    expect(decodeSaveRecordV1(bytes, normalizingCodecV1)).toEqual({
+      kind: "rejected",
+      code: "digest.normalized_state_mismatch",
+    });
+    snapshotSchemaCalls = 0;
+    expect(validateSaveImportCandidateV1(bytes, validation)).toEqual({
+      kind: "rejected",
+      code: "digest.normalized_state_mismatch",
+    });
+    expect(snapshotSchemaCalls).toBe(1);
+    expect(compatibilityCalls).toBe(0);
+    expect(referenceCalls).toBe(0);
+    expect(invariantCalls).toBe(0);
+
+    const wrongRawDigest = currentRecordBytesV1({
+      mutate(record) {
+        record.stateDigest = digestV1("wrong.before-normalization");
+      },
+    });
+    snapshotSchemaCalls = 0;
+    expect(validateSaveImportCandidateV1(wrongRawDigest, validation)).toEqual({
+      kind: "rejected",
+      code: "digest.state_mismatch",
+    });
+    expect(snapshotSchemaCalls).toBe(0);
+    expect(compatibilityCalls).toBe(0);
+    expect(referenceCalls).toBe(0);
+    expect(invariantCalls).toBe(0);
+
+    snapshotSchemaCalls = 0;
+    await expectRejectedImportV1(
+      bytes,
+      { kind: "rejected", code: "invalid_record" },
+      {
+        snapshotSchema: normalizingSnapshotSchemaV1,
+        onValidateReferences: () => {
+          referenceCalls += 1;
+        },
+        onValidateInvariants: () => {
+          invariantCalls += 1;
+        },
+      },
+    );
+    expect(snapshotSchemaCalls).toBe(1);
+
+    snapshotSchemaCalls = 0;
+    const stored = await fixtureV1({
+      slots: Object.freeze([{ slotId: "quick", bytes }]),
+      snapshotSchema: normalizingSnapshotSchemaV1,
+      onValidateReferences: () => {
+        referenceCalls += 1;
+      },
+      onValidateInvariants: () => {
+        invariantCalls += 1;
+      },
+    });
+    try {
+      const recordsBefore = await rawSaveRecordsV1(stored.store.records);
+      const listed = await stored.service.port.listSlots();
+      expect(listed.find(({ slotId }) => slotId === "quick")).toMatchObject({
+        slotId: "quick",
+        health: "invalid",
+        warningCodes: ["digest.normalized_state_mismatch"],
+      });
+      expect(snapshotSchemaCalls).toBe(1);
+      expect(referenceCalls).toBe(0);
+      expect(invariantCalls).toBe(0);
+      expect(referenceCalls).toBe(0);
+      expect(invariantCalls).toBe(0);
+      await expect(stored.service.port.exportSave("quick")).resolves.toEqual({
+        kind: "rejected",
+        code: "invalid_record",
+      });
+      expect(snapshotSchemaCalls).toBe(2);
+      await expect(stored.service.port.annotateSave("quick", "must not rewrite")).resolves.toEqual({
+        kind: "rejected",
+        code: "invalid_record",
+      });
+      expect(snapshotSchemaCalls).toBe(3);
+      expect(await rawSaveRecordsV1(stored.store.records)).toEqual(recordsBefore);
+      expect(stored.store.saveCommitCount()).toBe(0);
+
+      snapshotSchemaCalls = 0;
+      await expectRejectedLoadPreservesAuthorityV1(stored, "quick", {
+        kind: "rejected",
+        code: "invalid_record",
+      });
+      expect(snapshotSchemaCalls).toBe(1);
+    } finally {
+      await stored.service.disposeForRebootstrap();
+    }
+  });
+
+  it("reports unavailable migration before current Snapshot or compatibility admission", async () => {
+    const storedRevision = parsePositiveSafeInteger(
+      Number(snapshotTransactionProvenanceV1.resolved.stateContractRevision) + 1,
+    );
+    const legacyProvenance = Object.freeze({
+      ...snapshotTransactionProvenanceV1,
+      story: Object.freeze({
+        ...snapshotTransactionProvenanceV1.story,
+        id: "story.m1.legacy",
+      }),
+      resolved: Object.freeze({
+        ...snapshotTransactionProvenanceV1.resolved,
+        stateContractRevision: storedRevision,
+      }),
+    });
+    const bytes = currentRecordBytesV1({
+      provenance: legacyProvenance,
+      mutate(record) {
+        const snapshot = mutableObjectV1(record.snapshot, "legacy Snapshot");
+        snapshot.state = Object.freeze({ legacyOnly: true });
+        record.stateDigest = digestCanonical("sillymaker:state:v1", snapshot);
+        const slot = mutableObjectV1(record.slot, "legacy slot");
+        record.slot = Object.freeze({
+          ...slot,
+          storyId: snapshotTransactionProvenanceV1.story.id,
+        });
+      },
+    });
+    let snapshotSchemaCalls = 0;
+    const countingSnapshotSchemaV1: RuntimeSchemaV1<NeutralSnapshotV1> = Object.freeze({
+      parse(value: unknown) {
+        snapshotSchemaCalls += 1;
+        return snapshotTransactionSnapshotSchemaV1.parse(value);
+      },
+    });
+    const countingCodecV1: SaveCodecContextV1<NeutralSnapshotV1, NeutralSaveRecordV1> = Object
+      .freeze({
+        recordSchema: createSaveRecordEnvelopeSchemaV1(
+          countingSnapshotSchemaV1,
+          passthroughProvenanceSchemaV1,
+          passthroughSlotSchemaV1,
+          passthroughLineageSchemaV1,
+        ),
+        validateEnvelope: neutralCodecV1.validateEnvelope,
+      });
+    let compatibilityCalls = 0;
+    let referenceCalls = 0;
+    let invariantCalls = 0;
+    const validation = Object.freeze({
+      codec: countingCodecV1,
+      currentStateContractRevision: snapshotTransactionProvenanceV1.resolved.stateContractRevision,
+      classifyCompatibility(): SaveCompatibilityClassificationV1 {
+        compatibilityCalls += 1;
+        throw new TypeError("compatibility must not run");
+      },
+      validateReferences: () => {
+        referenceCalls += 1;
+        return Object.freeze([]);
+      },
+      validateInvariants: () => {
+        invariantCalls += 1;
+        return Object.freeze([]);
+      },
+    });
+
+    const unavailable = validateSaveImportCandidateV1(bytes, validation);
+    expect(unavailable).toEqual({
+      kind: "inspect_only",
+      code: "migration.unavailable",
+      storedStateContractRevision: storedRevision,
+      currentStateContractRevision: snapshotTransactionProvenanceV1.resolved.stateContractRevision,
+    });
+    expect(Object.isFrozen(unavailable)).toBe(true);
+    expect(snapshotSchemaCalls).toBe(0);
+    expect(compatibilityCalls).toBe(0);
+    expect(referenceCalls).toBe(0);
+    expect(invariantCalls).toBe(0);
+
+    const newerCurrentRevision = parsePositiveSafeInteger(Number(storedRevision) + 1);
+    snapshotSchemaCalls = 0;
+    expect(
+      validateSaveImportCandidateV1(
+        bytes,
+        Object.freeze({
+          ...validation,
+          currentStateContractRevision: newerCurrentRevision,
+        }),
+      ),
+    ).toEqual({
+      kind: "inspect_only",
+      code: "migration.unavailable",
+      storedStateContractRevision: storedRevision,
+      currentStateContractRevision: newerCurrentRevision,
+    });
+    expect(snapshotSchemaCalls).toBe(0);
+    expect(compatibilityCalls).toBe(0);
+    expect(referenceCalls).toBe(0);
+    expect(invariantCalls).toBe(0);
+
+    snapshotSchemaCalls = 0;
+    await expectRejectedImportV1(
+      bytes,
+      { kind: "rejected", code: "migration_unavailable" },
+      {
+        snapshotSchema: countingSnapshotSchemaV1,
+        onValidateReferences: () => {
+          referenceCalls += 1;
+        },
+        onValidateInvariants: () => {
+          invariantCalls += 1;
+        },
+      },
+    );
+    expect(snapshotSchemaCalls).toBe(0);
+    expect(referenceCalls).toBe(0);
+    expect(invariantCalls).toBe(0);
+
+    snapshotSchemaCalls = 0;
+    const stored = await fixtureV1({
+      slots: Object.freeze([{ slotId: "quick", bytes }]),
+      snapshotSchema: countingSnapshotSchemaV1,
+      onValidateReferences: () => {
+        referenceCalls += 1;
+      },
+      onValidateInvariants: () => {
+        invariantCalls += 1;
+      },
+    });
+    try {
+      const recordsBefore = await rawSaveRecordsV1(stored.store.records);
+      const listed = await stored.service.port.listSlots();
+      expect(listed.find(({ slotId }) => slotId === "quick")).toEqual({
+        slotId: "quick",
+        health: "valid",
+        recordRevision: 1,
+        capturedCommandSequence: 0,
+        savedAt: fixedInstantV1,
+        annotation: null,
+        warningCodes: Object.freeze(["migration.unavailable"]),
+      });
+      expect(snapshotSchemaCalls).toBe(0);
+      expect(referenceCalls).toBe(0);
+      expect(invariantCalls).toBe(0);
+      expect(referenceCalls).toBe(0);
+      expect(invariantCalls).toBe(0);
+
+      const exported = await stored.service.port.exportSave("quick");
+      expect(exported).toMatchObject({ kind: "exported", slotId: "quick" });
+      if (exported.kind !== "exported") throw new TypeError("expected unavailable export");
+      expect(exported.file.bytes).toEqual(bytes);
+      expect(snapshotSchemaCalls).toBe(0);
+
+      await expect(stored.service.port.annotateSave("quick", "must not rewrite")).resolves.toEqual({
+        kind: "rejected",
+        code: "migration_unavailable",
+      });
+      expect(snapshotSchemaCalls).toBe(0);
+      expect(await rawSaveRecordsV1(stored.store.records)).toEqual(recordsBefore);
+      expect(stored.store.saveCommitCount()).toBe(0);
+
+      snapshotSchemaCalls = 0;
+      await expectRejectedLoadPreservesAuthorityV1(stored, "quick", {
+        kind: "rejected",
+        code: "migration_unavailable",
+      });
+      expect(snapshotSchemaCalls).toBe(0);
+    } finally {
+      await stored.service.disposeForRebootstrap();
+    }
+
+    const currentShapeProvenance = Object.freeze({
+      ...snapshotTransactionProvenanceV1,
+      resolved: Object.freeze({
+        ...snapshotTransactionProvenanceV1.resolved,
+        stateContractRevision: storedRevision,
+      }),
+    });
+    const currentShapeBytes = currentRecordBytesV1({ provenance: currentShapeProvenance });
+    snapshotSchemaCalls = 0;
+    const rewritable = await fixtureV1({
+      slots: Object.freeze([{ slotId: "quick", bytes: currentShapeBytes }]),
+      snapshotSchema: countingSnapshotSchemaV1,
+      onValidateReferences: () => {
+        referenceCalls += 1;
+      },
+      onValidateInvariants: () => {
+        invariantCalls += 1;
+      },
+    });
+    try {
+      const recordsBefore = await rawSaveRecordsV1(rewritable.store.records);
+      const listed = await rewritable.service.port.listSlots();
+      expect(listed.find(({ slotId }) => slotId === "quick")).toMatchObject({
+        slotId: "quick",
+        health: "valid",
+        warningCodes: ["migration.unavailable"],
+      });
+      const exported = await rewritable.service.port.exportSave("quick");
+      expect(exported).toMatchObject({ kind: "exported", slotId: "quick" });
+      if (exported.kind !== "exported") throw new TypeError("expected unavailable export");
+      expect(exported.file.bytes).toEqual(currentShapeBytes);
+      expect(snapshotSchemaCalls).toBe(0);
+      expect(referenceCalls).toBe(0);
+      expect(invariantCalls).toBe(0);
+
+      await expect(
+        rewritable.service.port.annotateSave("quick", "must not rewrite"),
+      ).resolves.toEqual({
+        kind: "rejected",
+        code: "migration_unavailable",
+      });
+      expect(snapshotSchemaCalls).toBe(0);
+      expect(referenceCalls).toBe(0);
+      expect(invariantCalls).toBe(0);
+      expect(await rawSaveRecordsV1(rewritable.store.records)).toEqual(recordsBefore);
+      expect(rewritable.store.saveCommitCount()).toBe(0);
+    } finally {
+      await rewritable.service.disposeForRebootstrap();
+    }
   });
 
   it("loads and imports current records, including M0a metadata, through one atomic replay-base install without writes", async () => {

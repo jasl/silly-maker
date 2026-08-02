@@ -1,7 +1,9 @@
 # Save migration and load compatibility
 
 状态：2026-07-29 接受的目标设计，2026-07-31 按 callback-free shell、shared
-metadata corpus 与 determinism join 修订；尚未实现。本文把 Save
+metadata corpus 与 determinism join 修订；2026-08-03 M1 callback-free
+shell/load-order floor 已实现。M2 executable registry/migrator 与 M3 产品发布
+语料仍未实现。本文把 Save
 兼容从“分类与拒绝”升级为“一等迁移能力”：固定 migration registry 合同、load
 阶段顺序与发布验收。它独立于 Mod 系统并先于其落地；[Mod design](mod-system.md)
 第 8 节的 per-namespace migration 建立在本文的引擎级合同之上。当前实现状态见
@@ -24,17 +26,22 @@ metadata corpus 与 determinism join 修订；尚未实现。本文把 Save
   inspect_only / rejected；adoption 有显式声明与 lineage 上限；
 - load 后仍执行 reference 与 invariant 验证。
 
-缺口是没有迁移路径，而且当前顺序阻止未来补上：
+M1 已把 current-format admission 拆为 bounded shell/raw digest、State revision
+fence、current Snapshot schema/normalized digest，再进入 compatibility、reference 与
+invariant；stored load 在 Story validation 前另做 Host revision 与 slot identity
+检查。State revision 不同时会在 current Snapshot schema 与 Story callback 前返回
+`migration.unavailable`，保留来源 bytes 与 live Session。
 
-1. `decodeSaveRecordV1` 在解码时就用 current `snapshotSchema` 解析整个
-   envelope。旧 schema 的 Snapshot 在任何 compatibility/migration
-   逻辑运行之前，即以 `envelope.schema_invalid` 被拒绝；
-2. state contract revision 变化被分类为
-   inspect_only，没有“迁移后正常加载”这条腿；
-3. 没有 migration registry、历史 fixture corpus，也没有“任意受支持旧 Save
+剩余缺口是没有 executable migration 路径：
+
+1. 没有 namespace-keyed registry 或 engine/Story migrator，revision 不同的 Save
+   只能检查和导出，不能迁移后加载；
+2. 没有 migration 后的新 replay-anchor/lineage 执行路径；
+3. 没有历史 fixture corpus，也没有“任意受支持旧 Save
    可迁移、可加载”的发布验收。
 
-对长期维护的产品，这意味着每次 State schema 演进都默默放弃旧存档。
+在 M2/M3 之前，产品仍无法兑现旧存档迁移与加载承诺；M1 只是把此前泛化的
+schema rejection 收敛为显式 `migration.unavailable`，不会静默安装或改写旧数据。
 
 ## 2. Target load order
 
@@ -59,11 +66,12 @@ bounded strict JSON decode        （现有 saveJsonLimitsV1 限额保持不变�
 
 outer field set validation 必须先于 format decision；合法但不受支持的
 `formatRevision` 必须先于任何 current-format-only shell field validation 被拒绝，不能
-拿当前 schema 解释未知 format。与现状的差异是：current snapshot schema 验证从解码期
-移到迁移之后；解码期只解析 current-format envelope 外壳字段，snapshot 保持为受限 raw
-数据。
+拿当前 schema 解释未知 format。M1 已把 current snapshot schema 验证从原 M0b
+full-decoder 前置位置移到 raw digest 与 State revision fence 之后；解码的第一阶段只解析
+current-format envelope 外壳字段，snapshot 保持为受限 raw 数据。M2 才会在这两个阶段间
+启用图中的 migration node。
 
-这也明确改变一组 compound-failure precedence：现实现先解析完整 current Snapshot
+这也明确改变一组 compound-failure precedence：M0b baseline 先解析完整 current Snapshot
 schema、trailing envelope fields 与 cross-field identity，再验证 digest；目标顺序在
 shell 成功后先验证 raw snapshot digest，并把 current Snapshot admission 移到其后。
 因此所有实际跨越这些 phase 的双缺陷输入都按目标 phase 顺序裁决，而不是只豁免一个
@@ -187,7 +195,7 @@ interface SaveStateMigrationV1 {
 
 ## 4. Product surface
 
-- **M1 unavailable contract**：shell/digest valid、State revision 不同但没有完整
+- **M1 unavailable contract（已实现）**：shell/digest valid、State revision 不同但没有完整
   forward chain 时，inspection 返回
   `{ kind: "inspect_only", code: "migration.unavailable", storedStateContractRevision,
   currentStateContractRevision }`，Player persistence 返回
@@ -197,6 +205,8 @@ interface SaveStateMigrationV1 {
   State revision mismatch 同时存在时仍为 `migration.unavailable`，相同 State revision
   的 Story mismatch 才保留既有 `inspect_only`/player `incompatible`。此结果不写
   record、不安装 Session、不替换 replay anchor；
+  以下 product surface 仍是 M3 目标，不是当前能力：
+
 - **dry-run / forward inspection**：只检查、不写入；输出结构化
   diagnostics（哪些槽位可直迁、哪些需要 adoption、哪些会被拒绝及原因）；
 - **写入前备份**：迁移写入前保留原记录（复用现有 lineage/slot
@@ -257,5 +267,5 @@ interface SaveStateMigrationV1 {
   的 M3 以本文为前置；
 - [Mod design](mod-system.md)：其 per-namespace migration 复用本文的解码顺序与
   registry；单应用（无 Mod）Save 是单 namespace 的特例；
-- [build and release](../build-and-release.md)：fixture corpus
-  进入发布流程后更新该文档；实现前不修改其现状声明。
+- [build and release](../build-and-release.md)：M3 fixture corpus
+  进入发布流程后再更新该文档；M1/M2 不把机制验收写成发布兼容承诺。

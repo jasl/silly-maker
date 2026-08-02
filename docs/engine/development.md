@@ -433,6 +433,20 @@ using wall-clock timing.
 
 Save encoding performs canonical serialization and the Strict depth/node/collection/string/dangerous-key checks in the same package-internal traversal. The benchmark's `strictJsonPreflights` counter therefore means a separate post-encoding Strict parse traversal and is zero for each encode; `strictJsonParses` still counts decoder/readback parsing of untrusted bytes.
 
+The public current-format decoder deliberately performs two canonical digest
+traversals on success: one over the bounded raw Snapshot, then one over the
+schema-normalized current Snapshot. Import validation and stored operations add
+the State-revision fence between those phases, before current Snapshot parsing.
+A raw-digest mismatch stops after the first traversal without current Snapshot
+parsing; a current-schema or RNG failure after a valid raw digest records only
+that first digest; a differing State revision on validation/service paths also
+stops before current Snapshot and Story callbacks. Stored load/list/export
+finish compatibility/reference/invariant validation after staged preparation
+and Host revision/slot identity checks. Annotation shares preparation and the
+physical checks but intentionally performs no Story validation callback before
+its revision-aware rewrite. These are deterministic package-internal counts,
+not wall-clock gates; executable Save migration remains a later plan slice.
+
 Strict JSON numeric regression tests use exact decimal token vectors rather
 than wall-clock timing: rounded fractions, safe boundaries, negative-zero
 spellings, long coefficient/exponent inputs, and legacy parser-error precedence.

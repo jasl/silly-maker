@@ -272,8 +272,8 @@ describe("Save record codec", () => {
       ),
     ).toEqual({ kind: "rejected", code: "rng.invalid_state" });
     expect(counter.snapshot()).toEqual({
-      canonicalTraversals: 0,
-      canonicalDigests: 0,
+      canonicalTraversals: 1,
+      canonicalDigests: 1,
       deepFreezeTraversals: 0,
       commandLogContinuityVerifications: 0,
       saveCanonicalSerializations: 0,
@@ -304,8 +304,8 @@ describe("Save record codec", () => {
       decodeSaveRecordV1(bytes, codecV1),
     );
     expect(counter.snapshot()).toEqual({
-      canonicalTraversals: 1,
-      canonicalDigests: 1,
+      canonicalTraversals: 2,
+      canonicalDigests: 2,
       deepFreezeTraversals: 0,
       commandLogContinuityVerifications: 0,
       saveCanonicalSerializations: 0,
@@ -337,6 +337,32 @@ describe("Save record codec", () => {
     expect(Object.isFrozen(decoded.record)).toBe(true);
     expect(Object.isFrozen(decoded.record.snapshot)).toBe(true);
     expect(Object.isFrozen(decoded.record.snapshot.integrity)).toBe(true);
+  });
+
+  it("rejects decorated schemas instead of splitting encode and decode authority", () => {
+    const record = makeRecordV1();
+    const bytes = encodeSaveRecordV1(record, codecV1);
+    let decoratedParseCalls = 0;
+    const decoratedSchema = Object.freeze({
+      ...recordSchemaV1,
+      parse() {
+        decoratedParseCalls += 1;
+        return record;
+      },
+    });
+    const decoratedCodec = Object.freeze({
+      recordSchema: decoratedSchema,
+      validateEnvelope: validateEnvelopeV1,
+    }) satisfies SaveCodecContextV1<SyntheticSnapshotV1, SyntheticSaveRecordV1>;
+
+    expect(() => encodeSaveRecordV1(record, decoratedCodec)).toThrow(
+      "Save envelope schema was not created by the official factory",
+    );
+    expect(decodeSaveRecordV1(bytes, decoratedCodec)).toEqual({
+      kind: "rejected",
+      code: "envelope.schema_invalid",
+    });
+    expect(decoratedParseCalls).toBe(0);
   });
 
   it("normalizes exact-integer JSON spellings and atomically rejects exact fractions", () => {

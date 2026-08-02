@@ -4,7 +4,7 @@ import type {
   GameSnapshotEnvelopeV1,
   NonNegativeSafeInteger,
   PatchSetAdoptionDeclarationV1,
-  RuntimeSchemaV1,
+  PersistenceOperationResultV1,
   SaveAnnotationV1,
   SaveCodecContextV1,
   SaveCompatibilityClassificationV1,
@@ -12,9 +12,15 @@ import type {
   SaveImportValidationContextV1,
   SaveImportValidationResultV1,
   SaveRecordEnvelopeV1,
+  SaveRecordDecodeResultV1,
   SimulationAdoptionV1,
 } from "@sillymaker/base";
-import { parseSaveAnnotationV1, parseSaveNoteV1, saveAnnotationLimitsV1 } from "@sillymaker/base";
+import {
+  createSaveRecordEnvelopeSchemaV1,
+  parseSaveAnnotationV1,
+  parseSaveNoteV1,
+  saveAnnotationLimitsV1,
+} from "@sillymaker/base";
 import {
   classifySaveCompatibilityV1,
   decodeSaveRecordV1,
@@ -44,7 +50,14 @@ type SyntheticSaveRecordV1 = SaveRecordEnvelopeV1<
   readonly SimulationAdoptionV1[]
 >;
 
-declare const recordSchema: RuntimeSchemaV1<SyntheticSaveRecordV1>;
+declare const recordSchema: ReturnType<
+  typeof createSaveRecordEnvelopeSchemaV1<
+    SyntheticSnapshotV1,
+    BuildProvenanceV1,
+    SyntheticSlotV1,
+    readonly SimulationAdoptionV1[]
+  >
+>;
 declare const record: SyntheticSaveRecordV1;
 declare const classification: SaveCompatibilityClassificationV1;
 
@@ -65,6 +78,7 @@ export const codec = {
 
 export const validationContext = {
   codec,
+  currentStateContractRevision: record.provenance.resolved.stateContractRevision,
   classifyCompatibility() {
     return classification;
   },
@@ -112,6 +126,14 @@ invariantView.commandSequence = 2;
 export const encoded: Uint8Array = encodeSaveRecordV1(record, codec);
 export const decoded = decodeSaveRecordV1(encoded, codec);
 export const validated = validateSaveImportCandidateV1(encoded, validationContext);
+export const normalizedDigestRejection = {
+  kind: "rejected",
+  code: "digest.normalized_state_mismatch",
+} satisfies SaveRecordDecodeResultV1<SyntheticSaveRecordV1>;
+export const migrationUnavailablePlayerResult = {
+  kind: "rejected",
+  code: "migration_unavailable",
+} satisfies PersistenceOperationResultV1;
 
 declare const validationResult: SaveImportValidationResultV1<SyntheticSaveRecordV1>;
 if (validationResult.kind === "exact" || validationResult.kind === "adopted") {
@@ -127,7 +149,12 @@ if (validationResult.kind === "adopted") {
   validationResult.adoption;
 }
 if (validationResult.kind === "inspect_only") {
-  validationResult.mismatches[0].field;
+  if ("code" in validationResult) {
+    validationResult.storedStateContractRevision;
+    validationResult.currentStateContractRevision;
+  } else {
+    validationResult.mismatches[0].field;
+  }
 }
 
 // @ts-expect-error codec has no Session or storage operation

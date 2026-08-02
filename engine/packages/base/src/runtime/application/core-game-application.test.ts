@@ -2194,9 +2194,10 @@ describe("createCoreGameApplicationInstanceV1", () => {
       kind: "saved",
       slotId: "quick",
     });
-    // Encoding and committed readback each verify once; capture must reuse the
-    // digest installed under the exact Session runtime-control identity.
-    expect(counter.snapshot().snapshotDigestTraversals).toBe(2);
+    // Encoding verifies once; committed readback verifies both raw and
+    // normalized-current identity. Capture must still reuse the digest
+    // installed under the exact Session runtime-control identity.
+    expect(counter.snapshot().snapshotDigestTraversals).toBe(3);
     await instance.dispose();
   });
 

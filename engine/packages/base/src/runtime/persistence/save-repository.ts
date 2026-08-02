@@ -61,6 +61,25 @@ export type SaveRepositoryReadResultV1<TSaveRecord> =
     readonly code: string;
   };
 
+export type SaveRepositoryRawReadResultV1 =
+  | {
+    readonly health: "empty";
+    readonly slotId: SaveSlotIdV1;
+    readonly hostRevision: null;
+  }
+  | {
+    readonly health: "stored";
+    readonly slotId: SaveSlotIdV1;
+    readonly hostRevision: HostRecordRevisionV1;
+    readonly bytes: Uint8Array;
+  }
+  | {
+    readonly health: "unavailable";
+    readonly slotId: SaveSlotIdV1;
+    readonly hostRevision: null;
+    readonly code: string;
+  };
+
 export type SaveRepositoryWriteResultV1 =
   | {
     readonly kind: "saved";
@@ -119,8 +138,23 @@ export interface SaveRepositoryRewriteExpectationV1 {
   readonly bytes: Uint8Array;
 }
 
-export interface SaveRepositoryV1<TSaveRecord> {
+interface SaveRepositoryPhysicalEnvelopeV1 {
+  readonly recordRevision: PositiveSafeInteger;
+  readonly slot: DeepReadonly<SaveRepositorySlotMetadataV1>;
+}
+
+export interface SaveRepositoryV1<
+  TSaveRecord extends SaveRecordEnvelopeV1<unknown, unknown, unknown, unknown>,
+> {
   read(slotId: SaveSlotIdV1): Promise<SaveRepositoryReadResultV1<TSaveRecord>>;
+  /** Package-internal source read used before staged Save admission. */
+  readRaw(slotId: SaveSlotIdV1): Promise<SaveRepositoryRawReadResultV1>;
+  /** Package-internal Host revision and slot-identity admission. */
+  validatePhysical(
+    slotId: SaveSlotIdV1,
+    hostRevision: HostRecordRevisionV1,
+    envelope: SaveRepositoryPhysicalEnvelopeV1,
+  ): string | null;
   writeAuto(
     record: DeepReadonly<TSaveRecord>,
     fence: DeepReadonly<SessionLeaseFenceV1>,
@@ -282,20 +316,33 @@ export function createSaveRepositoryInternalV1<
     if (decoded.kind === "rejected") {
       return Object.freeze({ kind: "invalid", code: decoded.code });
     }
-    if (Number(decoded.record.recordRevision) !== Number(stored.revision)) {
-      return Object.freeze({
-        kind: "invalid",
-        code: "persistence.record_revision_mismatch",
-      });
-    }
-    if (
-      decoded.record.slot.storyId !== options.storyId ||
-      decoded.record.slot.slotId !== slotId ||
-      decoded.record.slot.writeReason !== expectedWriteReasonV1(slotId)
-    ) {
-      return Object.freeze({ kind: "invalid", code: "persistence.slot_identity_mismatch" });
+    const physicalFailure = physicalFailureV1(
+      slotId,
+      stored.revision,
+      decoded.record,
+    );
+    if (physicalFailure !== null) {
+      return Object.freeze({ kind: "invalid", code: physicalFailure });
     }
     return Object.freeze({ kind: "valid", record: decoded.record });
+  };
+
+  const physicalFailureV1 = (
+    slotId: SaveSlotIdV1,
+    hostRevision: HostRecordRevisionV1,
+    envelope: SaveRepositoryPhysicalEnvelopeV1,
+  ): string | null => {
+    if (Number(envelope.recordRevision) !== Number(hostRevision)) {
+      return "persistence.record_revision_mismatch";
+    }
+    if (
+      envelope.slot.storyId !== options.storyId ||
+      envelope.slot.slotId !== slotId ||
+      envelope.slot.writeReason !== expectedWriteReasonV1(slotId)
+    ) {
+      return "persistence.slot_identity_mismatch";
+    }
+    return null;
   };
 
   const encodeForSlotV1 = (
@@ -463,6 +510,39 @@ export function createSaveRepositoryInternalV1<
   };
 
   repository = {
+    async readRaw(slotId) {
+      try {
+        const stored = await callHostRecordStoreV1(() =>
+          options.records.read("save", createSaveSlotRecordKeyV1(options.storyId, slotId))
+        );
+        if (stored === null) {
+          return Object.freeze({
+            health: "empty" as const,
+            slotId,
+            hostRevision: null,
+          });
+        }
+        return Object.freeze({
+          health: "stored" as const,
+          slotId,
+          hostRevision: stored.revision,
+          bytes: Uint8Array.from(stored.bytes),
+        });
+      } catch (error) {
+        if (!(error instanceof HostRecordStoreUnavailableV1)) throw error;
+        return Object.freeze({
+          health: "unavailable" as const,
+          slotId,
+          hostRevision: null,
+          code: error.code,
+        });
+      }
+    },
+
+    validatePhysical(slotId, hostRevision, envelope) {
+      return physicalFailureV1(slotId, hostRevision, envelope);
+    },
+
     async read(slotId) {
       try {
         const stored = await callHostRecordStoreV1(() =>

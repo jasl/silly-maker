@@ -343,9 +343,17 @@ reopen. The two axes promote independently; only a combined claim that a
 packaged app uses atomic persistence requires both sets of evidence.
 
 A Save carries its Snapshot, state digest, provenance, and simulation lineage.
-Import/load validates bytes, schema, identity, references, and invariants before
-replacing the live replay anchor. Internal indexes, clients, closures, React
-values, and database handles must not enter a Save.
+Current-format import/load first admits bounded Strict JSON and an exact envelope
+shell while keeping Snapshot as raw data, verifies its raw canonical digest, and
+then applies an engine-owned State-revision fence. A matching revision proceeds
+through current Snapshot schema/cross-field validation and a second normalized-
+Snapshot digest check before compatibility, references, invariants, and one
+atomic replay-anchor replacement. Stored load additionally checks Host record
+revision and slot identity between staged admission and Story validation. A
+different State revision returns `migration.unavailable` without current-Snapshot
+admission or mutation; no executable migration registry or migrator exists yet.
+Internal indexes, clients, closures, React values, and database handles must not
+enter a Save.
 
 Untrusted Save, Debug Bundle, lease, preference, and related JSON bytes share
 the bounded Strict JSON parser before schema or digest work. Numeric tokens are

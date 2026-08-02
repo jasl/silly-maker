@@ -115,6 +115,7 @@ const labelsV1 = Object.freeze({
       invalid_record: "存档记录无效",
       invalid_note: "备注不合法",
       lineage_limit: "存档兼容链超过限制",
+      migration_unavailable: "当前版本尚未提供此存档所需的迁移",
       incompatible: "存档与当前游戏不兼容",
     }),
     exportRejected: Object.freeze({
@@ -487,6 +488,19 @@ describe("SaveOverlayV1", () => {
 
     expect(await screen.findByText("存档与当前游戏不兼容")).toBeVisible();
     expect(screen.getByTestId("semantic-publication")).toHaveTextContent("revision:7");
+  });
+
+  it("projects migration-unavailable as its distinct Player-facing outcome", async () => {
+    const fixture = fixtureV1({
+      importResult: Object.freeze({ kind: "rejected", code: "migration_unavailable" }),
+    });
+    renderFixtureV1(fixture);
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole("button", { name: "导入存档" }));
+    await user.click(screen.getByRole("button", { name: "确认操作" }));
+
+    expect(await screen.findByText("当前版本尚未提供此存档所需的迁移")).toBeVisible();
   });
 
   it("bounds thrown export failures instead of leaking an unhandled rejection", async () => {

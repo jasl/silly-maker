@@ -68,8 +68,9 @@ workload 证据；仓库外私有实验只能提供匿名需求反馈，正式 p
 5. authoritative determinism guardrails：zero RNG、canonical command/evidence
    admission、simulation-closure lint/tripwire、conservative Date/import proof 与四 runtime
    逐 command parity（PF-DET corrective promotion 已完成）；
-6. Save metadata floor 已完成；当前进入 callback-free envelope/load order（M1），与
-   determinism 以 same-HEAD join 汇合后再建立 executable migration registry；
+6. Save metadata floor 与 callback-free envelope/load order（M1）已完成，并与
+   determinism 在 same-HEAD join 汇合；下一步建立 executable migration registry（M2），
+   但尚无历史 Save migration 产品能力；
 7. System/Narrative/History/whole-canvas primary-detail 的逐 family migration；
 8. Save dry-run/backup/fixture corpus；
 9. Surface structural/model/browser harness 与作者 API promotion；
@@ -145,7 +146,8 @@ inventory、重跑四 runtime matrix。该边界不定义 gameplay calendar，�
 
 PF-DET 排在 Workspace Overlay pilot 后，并与 Save 按
 `DET0-core -> M0a -> DET-A -> (DET-B || callback-free M0b/M1) -> same-HEAD join -> M2`
-执行。DET-A 不是完整 promotion，M2 必须等待 DET-B。它不引入
+执行。DET-A 单独不是完整 promotion；DET-B/M1 same-HEAD join 已关闭，M2 从该 joined
+baseline 继续。该 track 不引入
 `decimal.js`、通用 FixedPoint package、named/keyed RNG、production Worker 或 Mod
 sandbox；这些仍须真实需求、版本化 wire 与 migration 证据后另行激活。
 

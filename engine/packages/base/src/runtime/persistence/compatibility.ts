@@ -6,6 +6,7 @@ import type {
   PatchSetAdoptionDeclarationV1,
   PatchSetIdentityV1,
 } from "../../contracts/hotfix.ts";
+import type { BuildProvenanceV1 } from "../../contracts/provenance.ts";
 import { exactEnvelopeDescriptorsV1 } from "../../contracts/persistence.ts";
 import type {
   ImportCompatibilityWarningV1,
@@ -15,7 +16,9 @@ import type {
   SaveCompatibilityMismatchV1,
   SaveImportValidationContextV1,
   SaveImportValidationResultV1,
+  SaveMigrationUnavailableInspectionV1,
   SaveRecordEnvelopeV1,
+  SaveRecordEnvelopeShellInternalV1,
   SimulationAdoptionV1,
 } from "../../contracts/persistence.ts";
 import type { DeepReadonly, NonNegativeSafeInteger } from "../../contracts/values.ts";
@@ -24,7 +27,11 @@ import {
   parseNonNegativeSafeInteger,
   parsePositiveSafeInteger,
 } from "../../contracts/values.ts";
-import { decodeSaveRecordV1 } from "./save-codec.ts";
+import type { SnapshotWorkInstrumentationV1 } from "../../internal/snapshot-work-instrumentation.ts";
+import {
+  decodeCurrentSaveRecordEnvelopeInternalV1,
+  decodeSaveRecordEnvelopeShellInternalV1,
+} from "./save-codec.ts";
 
 const emptyTupleV1 = (): readonly [] => Object.freeze([]) as readonly [];
 
@@ -587,6 +594,7 @@ const rejectionCodesV1 = new Set<ImportRejectionCodeV1>([
   "envelope.unsupported_revision",
   "digest.invalid_format",
   "digest.state_mismatch",
+  "digest.normalized_state_mismatch",
   "compatibility.lineage_limit",
   "reference.unknown_id",
   "invariant.failed",
@@ -669,21 +677,79 @@ function normalizeCompatibilityClassificationV1(value: unknown): SaveCompatibili
   throw new TypeError("invalid compatibility classification kind");
 }
 
-export function validateSaveImportCandidateV1<
+export type SaveImportPreparationInternalV1<
+  TSaveRecord extends SaveRecordEnvelopeV1<unknown, unknown, unknown, unknown>,
+> =
+  | { readonly kind: "rejected"; readonly code: ImportRejectionCodeV1 }
+  | {
+    readonly kind: "migration_unavailable";
+    readonly envelope: SaveRecordEnvelopeShellInternalV1<TSaveRecord>;
+    readonly result: SaveMigrationUnavailableInspectionV1;
+  }
+  | {
+    readonly kind: "prepared";
+    readonly envelope: SaveRecordEnvelopeShellInternalV1<TSaveRecord>;
+    readonly record: DeepReadonly<TSaveRecord>;
+  };
+
+/** @internal Pre-compatibility Save admission; intentionally absent from runtime barrels. */
+export function prepareSaveImportCandidateInternalV1<
   TState,
   TSnapshot extends {
     readonly state: TState;
     readonly commandSequence: NonNegativeSafeInteger;
   },
-  TSaveRecord extends SaveRecordEnvelopeV1<TSnapshot, unknown, unknown, unknown>,
+  TSaveRecord extends SaveRecordEnvelopeV1<TSnapshot, BuildProvenanceV1, unknown, unknown>,
 >(
   bytes: Uint8Array,
   context: SaveImportValidationContextV1<TState, TSnapshot, TSaveRecord>,
-): SaveImportValidationResultV1<TSaveRecord> {
-  const decoded = decodeSaveRecordV1(bytes, context.codec);
+  instrumentation?: SnapshotWorkInstrumentationV1,
+): SaveImportPreparationInternalV1<TSaveRecord> {
+  const shell = decodeSaveRecordEnvelopeShellInternalV1(bytes, context.codec, instrumentation);
+  if (shell.kind === "rejected") return shell;
+  const storedStateContractRevision = shell.record.provenance.resolved.stateContractRevision;
+  const currentStateContractRevision = parsePositiveSafeInteger(
+    context.currentStateContractRevision,
+  );
+  if (storedStateContractRevision !== currentStateContractRevision) {
+    return Object.freeze({
+      kind: "migration_unavailable",
+      envelope: shell.record,
+      result: Object.freeze({
+        kind: "inspect_only",
+        code: "migration.unavailable",
+        storedStateContractRevision,
+        currentStateContractRevision,
+      }),
+    });
+  }
+  const decoded = decodeCurrentSaveRecordEnvelopeInternalV1(
+    shell.record,
+    context.codec,
+    instrumentation,
+  );
   if (decoded.kind === "rejected") return decoded;
+  return Object.freeze({
+    kind: "prepared",
+    envelope: shell.record,
+    record: decoded.record,
+  });
+}
+
+/** @internal Story-facing validation after physical admission; absent from runtime barrels. */
+export function finishSaveImportCandidateInternalV1<
+  TState,
+  TSnapshot extends {
+    readonly state: TState;
+    readonly commandSequence: NonNegativeSafeInteger;
+  },
+  TSaveRecord extends SaveRecordEnvelopeV1<TSnapshot, BuildProvenanceV1, unknown, unknown>,
+>(
+  prepared: Extract<SaveImportPreparationInternalV1<TSaveRecord>, { readonly kind: "prepared" }>,
+  context: SaveImportValidationContextV1<TState, TSnapshot, TSaveRecord>,
+): SaveImportValidationResultV1<TSaveRecord> {
   const classification = normalizeCompatibilityClassificationV1(
-    context.classifyCompatibility(decoded.record),
+    context.classifyCompatibility(prepared.record),
   );
   if (classification.kind === "rejected") {
     return Object.freeze({ kind: "rejected", code: classification.code });
@@ -696,15 +762,15 @@ export function validateSaveImportCandidateV1<
     });
   }
   const referenceErrors = validateStoryErrorsV1(
-    context.validateReferences(decoded.record.snapshot.state),
+    context.validateReferences(prepared.record.snapshot.state),
     "reference validation",
   );
   if (referenceErrors.length > 0) {
     return Object.freeze({ kind: "rejected", code: "reference.unknown_id" });
   }
   const invariantView = Object.freeze({
-    state: decoded.record.snapshot.state,
-    commandSequence: decoded.record.snapshot.commandSequence,
+    state: prepared.record.snapshot.state,
+    commandSequence: prepared.record.snapshot.commandSequence,
   });
   const invariantErrors = validateStoryErrorsV1(
     context.validateInvariants(invariantView),
@@ -719,13 +785,30 @@ export function validateSaveImportCandidateV1<
       mismatches: emptyTupleV1(),
       warnings: classification.warnings,
       adoption: classification.adoption,
-      candidate: decoded.record,
+      candidate: prepared.record,
     });
   }
   return Object.freeze({
     kind: "exact",
     mismatches: emptyTupleV1(),
     warnings: classification.warnings,
-    candidate: decoded.record,
+    candidate: prepared.record,
   });
+}
+
+export function validateSaveImportCandidateV1<
+  TState,
+  TSnapshot extends {
+    readonly state: TState;
+    readonly commandSequence: NonNegativeSafeInteger;
+  },
+  TSaveRecord extends SaveRecordEnvelopeV1<TSnapshot, BuildProvenanceV1, unknown, unknown>,
+>(
+  bytes: Uint8Array,
+  context: SaveImportValidationContextV1<TState, TSnapshot, TSaveRecord>,
+): SaveImportValidationResultV1<TSaveRecord> {
+  const prepared = prepareSaveImportCandidateInternalV1(bytes, context);
+  if (prepared.kind === "rejected") return prepared;
+  if (prepared.kind === "migration_unavailable") return prepared.result;
+  return finishSaveImportCandidateInternalV1(prepared, context);
 }

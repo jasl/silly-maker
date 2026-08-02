@@ -1,8 +1,8 @@
 # Save migration execution plan
 
 状态：2026-07-30 接受执行，审查后从 Snapshot 性能计划拆分；2026-07-31 按
-M0a/M0b metadata ownership 与 PF-DET same-HEAD join 重切片；2026-08-02 M0b 已
-promotion，下一独立切片为 M1。目标合同见
+M0a/M0b metadata ownership 与 PF-DET same-HEAD join 重切片；2026-08-03 M1 已
+promotion，same-HEAD join 已关闭，下一独立切片为 M2。目标合同见
 [Save migration design](../design/save-migration.md)；在
 [production-floor sequence](2026-07-30-production-floor-sequence.md) 中分为 PF3
 与 PF5，并与 PF-DET 按显式 DAG 汇合；不是“完整 PF-DET 后才开始全部 M0–M2”。
@@ -112,7 +112,7 @@ authoritative ordering/State bytes。它在改 load order 前冻结此时的合�
 locale-default ordering 重新冻结成兼容基线。fixture 只为已发布或明确承诺维护的
 格式建立；临时对象继续由 test factory 生成。
 
-M0b 明确记录现实现的 failure precedence：Strict JSON → exact outer field set →
+M0b 明确记录当时实现的 failure precedence：Strict JSON → exact outer field set →
 `formatRevision` validation/support decision → remaining current envelope/Snapshot schema →
 envelope cross-field validation → parsed Snapshot digest → compatibility → references →
 invariants。因而 unknown/missing outer field 与 future `formatRevision` 同时存在时先得到
@@ -121,9 +121,9 @@ current-format `recordRevision`/provenance 等字段，也先得到
 `envelope.unsupported_revision`。同一 record 同时具有 current Snapshot schema failure 与
 digest mismatch 时先得到
 `envelope.schema_invalid`；zero RNG + digest mismatch 则先得到
-`rng.invalid_state`。这些是 current baseline，不是 M1 的目标 load order。
+`rng.invalid_state`。这些是 M0b 当时的 baseline，不是 M1 的目标 load order。
 
-stored load 在上述 decode/digest 后还先执行 physical Host revision equality 与
+M0b 当时的 stored-load path 在上述 decode/digest 后还先执行 physical Host revision equality 与
 story/slot/write-reason identity，再进入第二次 import validation；对应内部 code 分别是
 `persistence.record_revision_mismatch` 与 `persistence.slot_identity_mismatch`。import
 没有这段 physical phase。`recordRevision` 是每槽 Host CAS/write revision，不是格式或
@@ -170,7 +170,7 @@ Core 继续持有原 `runtimeControl` identity；restart 后 save 的
 capture 仍命中 PF1 digest cache。focused `3 files / 158 tests`、Base `77/970`、full unit
 `226/2833` 全绿。该批没有修改 canonical JSON/digest、Save bytes、公开 Player
 load/import/replay semantics，也没有建立 shell、migration callback/registry 或 browser
-config；下一独立切片为 M1。
+config；该 promotion 当时的下一独立切片为 M1。
 
 ### M0c — Explicit invalid player-slot replacement corrective
 
@@ -198,9 +198,9 @@ concurrency、candidate encode failure 与 standard receipt/fallback service flo
 result、Host revision `3` 与 raw bytes 相等。M0b/PF1 focused regression 为 `2/15`，Base
 为 `78/978`；Save Overlay 的 invalid Quick/manual enabled + dispatch baseline 为 `1/16`，
 full unit 为 `227/3196`，`deno task check` 全绿并完成 Engine Lab production build。旧实验
-仓库没有成为 source、fixture、dependency 或 validation authority；linear core 下一切片仍为
-DET3a-C4。该 corrective gate 已于 2026-08-03 完成并重新关闭 PF-DET，因此当前 linear core
-恢复 M1；M2 仍等待 M1 的 same-merged-HEAD join。
+仓库没有成为 source、fixture、dependency 或 validation authority；该 corrective
+promotion 当时的 linear-core 下一切片仍为 DET3a-C4，并在 C4 关闭 PF-DET 后恢复 M1；
+后续 M1 promotion 已关闭 same-merged-HEAD join。
 
 ## 4. M1 — Bounded envelope shell and load order
 
@@ -281,12 +281,48 @@ callback count 精确为 `0`，没有 executable registry/export；
 validation/Player unavailable mapping、failure precedence 与 no-install/no-write
 atomicity 有 focused tests。
 
+**2026-08-03 M1 promotion：** current-format codec/load 已按唯一 staged authority
+拆为 Strict JSON + exact shell、raw Snapshot digest、State revision fence、current
+Snapshot/cross-field admission、normalized-current digest，再进入 compatibility、reference、
+invariant 与 atomic replay-anchor install。stored load/list/export/annotation 共享 staged
+preparation 与 Host revision/slot identity admission；load/list/export 随后完成 Story
+validation，annotation 则不调用 compatibility/reference/invariant callback。revision 不同的
+current-shape-valid 与 old-shape Snapshot 都在 current schema 前返回 engine-owned
+`migration.unavailable`，annotation 不再可能把它重写成 current record。import/load 的
+source bytes、Snapshot/RNG、CommandLog、replay base/digest、lineage、autosave anchor、Host
+record/revision 与 replacement-commit callback 均保持不变；stored export 返回 exact source
+bytes。
+
+公开低层合同同步增加 `SaveRecordEnvelopeSchemaV1`、factory-produced exact schema
+identity、`SaveImportValidationContextV1.currentStateContractRevision`、
+`SaveMigrationUnavailableInspectionV1`、`digest.normalized_state_mismatch` 与 Player
+`migration_unavailable`；built-in Save UI/所有 maintained Story composition 均提供该结果
+文案。schema stage metadata 由 package-owned `WeakMap` 绑定 factory 返回对象 identity；
+spread/decorated schema 的 encode/decode fail closed，不能形成两套 schema authority。
+`SaveCompatibilityClassificationV1` 不包含 unavailable 分支，Story callback 不能伪造它。
+
+确定性 work baseline 有意反映双 digest：successful public decode 的 digest traversal
+从 `1` 变为 raw + normalized `2`，correctly-digested zero RNG 从 `0` 变为 raw `1`；
+PF1 every-commit workload 的 canonical traversal/digest 从 first auto `6/3` 到 `7/4`、
+rotation `9/5` 到 `11/7`、aggregate `15/8` 到 `18/11`。standard player Save optimized
+从 `3/2` 到 `4/3`、opaque receipt fallback 从 `5/3` 到 `6/4`；annotation optimized
+从 `4/3` 到 `6/5`、fallback 从 `6/4` 到 `8/6`。所有路径继续使用同一 package-internal
+instrumentation；没有把 staged work 从 PF1 计数中隐藏。
+
+accepted B-prime spelling、current Save decode/encode bytes、M0a metadata corpus、PF1
+unstamped oracle、canonical JSON/digest 算法与 Strict JSON 限额均未改变。focused 为
+`8 files / 259 tests`，affected Base + Save UI 为 `79/999`，full unit 为
+`227/3329`；Deno `2.9.4` determinism `1/3`、Chromium/Firefox/WebKit repeat matrix `6/6` 与
+`deno task check` 全绿。仓库没有 executable registry、migrator injection/callback/export、
+历史 Save install 或 M2 placeholder；M1/DET-B same-HEAD join 据此关闭，下一独立切片为 M2。
+
 ## 5. M2 — Migration registry and new replay anchor
 
-M2 必须等待 DET-B 与 M1 的 same-merged-HEAD join。两边各自绿不算完成；join HEAD
-必须同时通过 focused M0a/M0b/M1、shared Save bytes、`deno task test`、
-`deno task check` 与 dedicated Deno/Chromium/Firefox/WebKit matrix，并证明尚无
-executable migrator、callback count 为 `0`。
+M2 的 DET-B/M1 same-merged-HEAD 前置 gate 已由上述 promotion 关闭；两边各自绿本来
+不算完成，关闭证据同时覆盖 focused M0a/M0b/M1、shared Save bytes、
+`deno task test`、`deno task check` 与 dedicated Deno/Chromium/Firefox/WebKit matrix，
+并证明 executable migrator 不存在、callback count 为 `0`。M2 从该 joined baseline
+首次引入下述执行能力。
 
 ### Registry contract
 

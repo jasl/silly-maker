@@ -172,6 +172,7 @@ export type PersistenceOperationResultV1 =
       | "invalid_record"
       | "invalid_note"
       | "lineage_limit"
+      | "migration_unavailable"
       | "incompatible";
   }
   | { readonly kind: "faulted"; readonly code: string };
@@ -280,6 +281,7 @@ export type ImportValidationErrorCodeV1 =
   | "envelope.unsupported_revision"
   | "digest.invalid_format"
   | "digest.state_mismatch"
+  | "digest.normalized_state_mismatch"
   | "identity.story_id_mismatch"
   | "identity.story_revision_mismatch"
   | "identity.state_contract_revision_mismatch"
@@ -354,6 +356,7 @@ export type ImportRejectionCodeV1 =
   | "envelope.unsupported_revision"
   | "digest.invalid_format"
   | "digest.state_mismatch"
+  | "digest.normalized_state_mismatch"
   | "compatibility.lineage_limit"
   | "reference.unknown_id"
   | "invariant.failed";
@@ -383,17 +386,51 @@ export type SaveRecordDecodeRejectionCodeV1 =
   | "envelope.schema_invalid"
   | "envelope.unsupported_revision"
   | "digest.invalid_format"
-  | "digest.state_mismatch";
+  | "digest.state_mismatch"
+  | "digest.normalized_state_mismatch";
 
 export type SaveRecordDecodeResultV1<TSaveRecord> =
   | { readonly kind: "decoded"; readonly record: DeepReadonly<TSaveRecord> }
   | { readonly kind: "rejected"; readonly code: SaveRecordDecodeRejectionCodeV1 };
 
+declare const saveRecordEnvelopeSchemaBrandV1: unique symbol;
+
+interface SaveRecordEnvelopeSchemaStagesInternalV1 {
+  readonly snapshotSchema: RuntimeSchemaV1<unknown>;
+  readonly provenanceSchema: RuntimeSchemaV1<unknown>;
+  readonly slotMetadataSchema: RuntimeSchemaV1<unknown>;
+  readonly simulationLineageSchema: RuntimeSchemaV1<unknown>;
+}
+
+/**
+ * The official staged Save-envelope schema. Codecs require the value returned
+ * by `createSaveRecordEnvelopeSchemaV1` so shell and current-Snapshot admission
+ * cannot silently fall back to different phase ordering.
+ */
+export interface SaveRecordEnvelopeSchemaV1<TSaveRecord> extends RuntimeSchemaV1<TSaveRecord> {
+  readonly [saveRecordEnvelopeSchemaBrandV1]: true;
+}
+
+const saveRecordEnvelopeSchemaStagesByIdentityV1 = new WeakMap<
+  object,
+  SaveRecordEnvelopeSchemaStagesInternalV1
+>();
+
+function saveRecordEnvelopeSchemaStagesForV1<TSaveRecord>(
+  schema: SaveRecordEnvelopeSchemaV1<TSaveRecord>,
+): SaveRecordEnvelopeSchemaStagesInternalV1 {
+  const stages = saveRecordEnvelopeSchemaStagesByIdentityV1.get(schema);
+  if (stages === undefined) {
+    throw new TypeError("Save envelope schema was not created by the official factory");
+  }
+  return stages;
+}
+
 export interface SaveCodecContextV1<
   TSnapshot,
   TSaveRecord extends SaveRecordEnvelopeV1<TSnapshot, unknown, unknown, unknown>,
 > {
-  readonly recordSchema: RuntimeSchemaV1<TSaveRecord>;
+  readonly recordSchema: SaveRecordEnvelopeSchemaV1<TSaveRecord>;
   validateEnvelope(record: DeepReadonly<TSaveRecord>): void;
 }
 
@@ -415,11 +452,19 @@ export type SaveCompatibilityClassificationV1 =
   }
   | Extract<ImportCompatibilityOutcomeV1, { readonly kind: "inspect_only" | "rejected" }>;
 
+export interface SaveMigrationUnavailableInspectionV1 {
+  readonly kind: "inspect_only";
+  readonly code: "migration.unavailable";
+  readonly storedStateContractRevision: PositiveSafeInteger;
+  readonly currentStateContractRevision: PositiveSafeInteger;
+}
+
 export type SaveImportValidationResultV1<TSaveRecord> =
   | (Extract<ImportCompatibilityOutcomeV1, { readonly kind: "exact" | "adopted" }> & {
     readonly candidate: DeepReadonly<TSaveRecord>;
   })
-  | Extract<ImportCompatibilityOutcomeV1, { readonly kind: "inspect_only" | "rejected" }>;
+  | Extract<ImportCompatibilityOutcomeV1, { readonly kind: "inspect_only" | "rejected" }>
+  | SaveMigrationUnavailableInspectionV1;
 
 export interface SaveImportInvariantViewV1<TState> {
   readonly state: TState;
@@ -432,9 +477,10 @@ export interface SaveImportValidationContextV1<
     readonly state: TState;
     readonly commandSequence: NonNegativeSafeInteger;
   },
-  TSaveRecord extends SaveRecordEnvelopeV1<TSnapshot, unknown, unknown, unknown>,
+  TSaveRecord extends SaveRecordEnvelopeV1<TSnapshot, BuildProvenanceV1, unknown, unknown>,
 > {
   readonly codec: SaveCodecContextV1<TSnapshot, TSaveRecord>;
+  readonly currentStateContractRevision: PositiveSafeInteger;
   classifyCompatibility(record: DeepReadonly<TSaveRecord>): SaveCompatibilityClassificationV1;
   validateReferences(state: DeepReadonly<TState>): readonly string[];
   validateInvariants(view: DeepReadonly<SaveImportInvariantViewV1<TState>>): readonly string[];
@@ -587,6 +633,128 @@ export const sessionLeaseStatusSchemaV1: RuntimeSchemaV1<SessionLeaseStatusV1> =
   },
 });
 
+export type SaveRecordEnvelopeShellInternalV1<
+  TSaveRecord extends SaveRecordEnvelopeV1<unknown, unknown, unknown, unknown>,
+> = {
+  readonly formatRevision: 1;
+  readonly recordRevision: PositiveSafeInteger;
+  readonly provenance: DeepReadonly<TSaveRecord["provenance"]>;
+  readonly slot: DeepReadonly<TSaveRecord["slot"]>;
+  readonly savedAt: IsoUtcInstant;
+  readonly stateDigest: Digest;
+  readonly snapshot: unknown;
+  readonly simulationLineage: DeepReadonly<TSaveRecord["simulationLineage"]>;
+  readonly annotation?: SaveAnnotationV1;
+  readonly versionStamp?: VersionStampV1;
+};
+
+function parseSaveRecordEnvelopeShellWithStagesV1(
+  value: unknown,
+  stages: SaveRecordEnvelopeSchemaStagesInternalV1,
+): SaveRecordEnvelopeV1<unknown, unknown, unknown, unknown> {
+  // `annotation` and `versionStamp` are additive-optional: records written
+  // before either field existed must keep parsing, so the exact-field list
+  // admits every shape combination.
+  const hasAnnotation = value !== null &&
+    typeof value === "object" &&
+    Object.prototype.hasOwnProperty.call(value, "annotation");
+  const hasVersionStamp = value !== null &&
+    typeof value === "object" &&
+    Object.prototype.hasOwnProperty.call(value, "versionStamp");
+  const fields = exactDescriptors(
+    value,
+    [
+      "formatRevision",
+      "recordRevision",
+      "provenance",
+      "slot",
+      "savedAt",
+      "stateDigest",
+      "snapshot",
+      "simulationLineage",
+      ...(hasAnnotation ? (["annotation"] as const) : []),
+      ...(hasVersionStamp ? (["versionStamp"] as const) : []),
+    ],
+    "SaveRecordEnvelopeV1",
+  );
+  const formatRevision = fields.formatRevision?.value;
+  if (formatRevision !== 1) {
+    if (
+      typeof formatRevision === "number" &&
+      Number.isSafeInteger(formatRevision) &&
+      !Object.is(formatRevision, -0) &&
+      formatRevision > 0
+    ) {
+      throw new SaveRecordEnvelopeSchemaFailureV1("envelope.unsupported_revision");
+    }
+    throw new TypeError("invalid Save formatRevision");
+  }
+  const recordRevision = parsePositiveSafeInteger(fields.recordRevision?.value);
+  const provenance = stages.provenanceSchema.parse(fields.provenance?.value);
+  const slot = stages.slotMetadataSchema.parse(fields.slot?.value);
+  const savedAt = parseIsoUtcInstantV1(fields.savedAt?.value);
+  let stateDigest: Digest;
+  try {
+    stateDigest = parseDigest(fields.stateDigest?.value);
+  } catch {
+    throw new SaveRecordEnvelopeSchemaFailureV1("digest.invalid_format");
+  }
+  const simulationLineage = stages.simulationLineageSchema.parse(
+    fields.simulationLineage?.value,
+  );
+  const annotation = hasAnnotation ? parseSaveAnnotationV1(fields.annotation?.value) : null;
+  const versionStamp = hasVersionStamp
+    ? normalizeVersionStampInternalV1(fields.versionStamp?.value)
+    : null;
+  return Object.freeze({
+    formatRevision: 1 as const,
+    recordRevision,
+    provenance,
+    slot,
+    savedAt,
+    stateDigest,
+    snapshot: fields.snapshot?.value,
+    simulationLineage,
+    ...(annotation === null ? {} : { annotation }),
+    // Diagnostic-only: normalize/omit instead of reject (see the field doc).
+    ...(versionStamp === null ? {} : { versionStamp }),
+  });
+}
+
+export function parseSaveRecordEnvelopeShellInternalV1<
+  TSaveRecord extends SaveRecordEnvelopeV1<unknown, unknown, unknown, unknown>,
+>(
+  value: unknown,
+  schema: SaveRecordEnvelopeSchemaV1<TSaveRecord>,
+): SaveRecordEnvelopeShellInternalV1<TSaveRecord> {
+  return parseSaveRecordEnvelopeShellWithStagesV1(
+    value,
+    saveRecordEnvelopeSchemaStagesForV1(schema),
+  ) as unknown as SaveRecordEnvelopeShellInternalV1<TSaveRecord>;
+}
+
+export function parseCurrentSaveRecordEnvelopeInternalV1<
+  TSaveRecord extends SaveRecordEnvelopeV1<unknown, unknown, unknown, unknown>,
+>(
+  shell: SaveRecordEnvelopeShellInternalV1<TSaveRecord>,
+  schema: SaveRecordEnvelopeSchemaV1<TSaveRecord>,
+): DeepReadonly<TSaveRecord> {
+  const snapshot = saveRecordEnvelopeSchemaStagesForV1(schema).snapshotSchema.parse(
+    shell.snapshot,
+  );
+  return Object.freeze({ ...shell, snapshot }) as DeepReadonly<TSaveRecord>;
+}
+
+export function parseSaveRecordEnvelopeInternalV1<
+  TSaveRecord extends SaveRecordEnvelopeV1<unknown, unknown, unknown, unknown>,
+>(
+  value: unknown,
+  schema: SaveRecordEnvelopeSchemaV1<TSaveRecord>,
+): DeepReadonly<TSaveRecord> {
+  const shell = parseSaveRecordEnvelopeShellInternalV1(value, schema);
+  return parseCurrentSaveRecordEnvelopeInternalV1(shell, schema);
+}
+
 export function createSaveRecordEnvelopeSchemaV1<
   TSnapshot,
   TProvenance,
@@ -597,76 +765,26 @@ export function createSaveRecordEnvelopeSchemaV1<
   provenanceSchema: RuntimeSchemaV1<TProvenance>,
   slotMetadataSchema: RuntimeSchemaV1<TSlotMetadata>,
   simulationLineageSchema: RuntimeSchemaV1<TSimulationLineage>,
-): RuntimeSchemaV1<
+): SaveRecordEnvelopeSchemaV1<
   SaveRecordEnvelopeV1<TSnapshot, TProvenance, TSlotMetadata, TSimulationLineage>
 > {
-  return Object.freeze({
-    parse(value: unknown) {
-      // `annotation` and `versionStamp` are additive-optional: records
-      // written before either field existed must keep parsing, so the
-      // exact-field list admits every shape combination.
-      const hasAnnotation = value !== null &&
-        typeof value === "object" &&
-        Object.prototype.hasOwnProperty.call(value, "annotation");
-      const hasVersionStamp = value !== null &&
-        typeof value === "object" &&
-        Object.prototype.hasOwnProperty.call(value, "versionStamp");
-      const fields = exactDescriptors(
-        value,
-        [
-          "formatRevision",
-          "recordRevision",
-          "provenance",
-          "slot",
-          "savedAt",
-          "stateDigest",
-          "snapshot",
-          "simulationLineage",
-          ...(hasAnnotation ? (["annotation"] as const) : []),
-          ...(hasVersionStamp ? (["versionStamp"] as const) : []),
-        ],
-        "SaveRecordEnvelopeV1",
-      );
-      const formatRevision = fields.formatRevision?.value;
-      if (formatRevision !== 1) {
-        if (
-          typeof formatRevision === "number" &&
-          Number.isSafeInteger(formatRevision) &&
-          !Object.is(formatRevision, -0) &&
-          formatRevision > 0
-        ) {
-          throw new SaveRecordEnvelopeSchemaFailureV1("envelope.unsupported_revision");
-        }
-        throw new TypeError("invalid Save formatRevision");
-      }
-      const recordRevision = parsePositiveSafeInteger(fields.recordRevision?.value);
-      const provenance = provenanceSchema.parse(fields.provenance?.value);
-      const slot = slotMetadataSchema.parse(fields.slot?.value);
-      const savedAt = parseIsoUtcInstantV1(fields.savedAt?.value);
-      let stateDigest: Digest;
-      try {
-        stateDigest = parseDigest(fields.stateDigest?.value);
-      } catch {
-        throw new SaveRecordEnvelopeSchemaFailureV1("digest.invalid_format");
-      }
-      const versionStamp = hasVersionStamp
-        ? normalizeVersionStampInternalV1(fields.versionStamp?.value)
-        : null;
-      return Object.freeze({
-        formatRevision: 1 as const,
-        recordRevision,
-        provenance,
-        slot,
-        savedAt,
-        stateDigest,
-        snapshot: snapshotSchema.parse(fields.snapshot?.value),
-        simulationLineage: simulationLineageSchema.parse(fields.simulationLineage?.value),
-        ...(hasAnnotation ? { annotation: parseSaveAnnotationV1(fields.annotation?.value) } : {}),
-        // Diagnostic-only: normalize/omit instead of reject (see the field doc).
-        ...(versionStamp === null ? {} : { versionStamp }),
-      });
-    },
+  const stages: SaveRecordEnvelopeSchemaStagesInternalV1 = Object.freeze({
+    snapshotSchema,
+    provenanceSchema,
+    slotMetadataSchema,
+    simulationLineageSchema,
   });
+  const schema = Object.freeze({
+    parse(value: unknown) {
+      const shell = parseSaveRecordEnvelopeShellWithStagesV1(value, stages);
+      const snapshot = snapshotSchema.parse(shell.snapshot);
+      return Object.freeze({ ...shell, snapshot });
+    },
+  }) as unknown as SaveRecordEnvelopeSchemaV1<
+    SaveRecordEnvelopeV1<TSnapshot, TProvenance, TSlotMetadata, TSimulationLineage>
+  >;
+  saveRecordEnvelopeSchemaStagesByIdentityV1.set(schema, stages);
+  return schema;
 }
 
 export const saveJsonLimitsV1 = parseStrictJsonLimitsV1({

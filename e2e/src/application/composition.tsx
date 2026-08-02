@@ -389,6 +389,7 @@ export const labSaveOverlayLabelsV1: SaveOverlayLabelsV1 = Object.freeze({
       invalid_record: "存档无效",
       invalid_note: "备注不合法",
       lineage_limit: "存档兼容链过长",
+      migration_unavailable: "当前版本尚未提供此存档所需的迁移",
       incompatible: "存档不兼容",
     }),
     exportRejected: Object.freeze({

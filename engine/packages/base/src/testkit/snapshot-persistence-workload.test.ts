@@ -17,8 +17,8 @@ import {
 import { snapshotTransactionProvenanceV1 } from "./snapshot-transaction-workload.ts";
 
 const firstAutoSaveCountsV1 = Object.freeze({
-  canonicalTraversals: 6,
-  canonicalDigests: 3,
+  canonicalTraversals: 7,
+  canonicalDigests: 4,
   deepFreezeTraversals: 3,
   commandLogContinuityVerifications: 1,
   saveCanonicalSerializations: 1,
@@ -27,8 +27,8 @@ const firstAutoSaveCountsV1 = Object.freeze({
 });
 
 const rotationCountsV1 = Object.freeze({
-  canonicalTraversals: 9,
-  canonicalDigests: 5,
+  canonicalTraversals: 11,
+  canonicalDigests: 7,
   deepFreezeTraversals: 3,
   commandLogContinuityVerifications: 1,
   saveCanonicalSerializations: 2,
@@ -38,28 +38,28 @@ const rotationCountsV1 = Object.freeze({
 
 const digestFallbackFirstAutoSaveCountsV1 = Object.freeze({
   ...firstAutoSaveCountsV1,
-  canonicalTraversals: 7,
-  canonicalDigests: 4,
+  canonicalTraversals: 8,
+  canonicalDigests: 5,
 });
 
 const digestFallbackRotationCountsV1 = Object.freeze({
   ...rotationCountsV1,
-  canonicalTraversals: 10,
-  canonicalDigests: 6,
+  canonicalTraversals: 12,
+  canonicalDigests: 8,
 });
 
 const writeReceiptFallbackFirstAutoSaveCountsV1 = Object.freeze({
   ...firstAutoSaveCountsV1,
-  canonicalTraversals: 8,
-  canonicalDigests: 4,
+  canonicalTraversals: 9,
+  canonicalDigests: 5,
   saveCanonicalSerializations: 2,
   strictJsonPreflights: 0,
 });
 
 const writeReceiptFallbackRotationCountsV1 = Object.freeze({
   ...rotationCountsV1,
-  canonicalTraversals: 11,
-  canonicalDigests: 6,
+  canonicalTraversals: 13,
+  canonicalDigests: 8,
   saveCanonicalSerializations: 3,
   strictJsonPreflights: 0,
 });
@@ -231,8 +231,8 @@ describe("Snapshot persistence workload", () => {
         previousRecordRevision: 1,
       },
       aggregateCounts: {
-        canonicalTraversals: 15,
-        canonicalDigests: 8,
+        canonicalTraversals: 18,
+        canonicalDigests: 11,
         deepFreezeTraversals: 6,
         commandLogContinuityVerifications: 2,
         saveCanonicalSerializations: 3,

@@ -13,6 +13,7 @@ import type {
   SaveRecordEnvelopeV1,
   SimulationAdoptionV1,
 } from "../../contracts/persistence.ts";
+import { createSaveRecordEnvelopeSchemaV1 } from "../../contracts/persistence.ts";
 import type { Digest, NonNegativeSafeInteger, RuntimeSchemaV1 } from "../../contracts/values.ts";
 import { parseNonNegativeSafeInteger, parsePositiveSafeInteger } from "../../contracts/values.ts";
 import { classifySaveCompatibilityV1, validateSaveImportCandidateV1 } from "./compatibility.ts";
@@ -287,35 +288,51 @@ type ValidationRecordV1 = SaveRecordEnvelopeV1<
   readonly SimulationAdoptionV1[]
 >;
 
-const validationRecordSchemaV1: RuntimeSchemaV1<ValidationRecordV1> = Object.freeze({
+const validationSnapshotSchemaV1: RuntimeSchemaV1<ValidationSnapshotV1> = Object.freeze({
   parse(value: unknown) {
     if (value === null || typeof value !== "object" || Array.isArray(value)) {
-      throw new TypeError("invalid validation record");
+      throw new TypeError("invalid validation Snapshot");
     }
-    const record = value as ValidationRecordV1;
+    const snapshot = value as ValidationSnapshotV1;
     return Object.freeze({
-      ...record,
-      provenance: makeProvenanceV1({
-        storyId: record.provenance.story.id,
-        storyRevision: record.provenance.story.revision,
-        storyDigest: record.provenance.story.digest,
-        engineVersion: record.provenance.engine.version,
-        engineDigest: record.provenance.engine.digest,
-        stateContractRevision: record.provenance.resolved.stateContractRevision,
-        stateContractDigest: record.provenance.resolved.stateContractDigest,
-        simulationDigest: record.provenance.resolved.simulationDigest,
-        presentationDigest: record.provenance.resolved.presentationDigest,
-        patchSet: record.provenance.resolved.patchSet,
-      }),
-      slot: Object.freeze({ storyId: record.slot.storyId }),
-      snapshot: Object.freeze({
-        state: Object.freeze({ referenceId: record.snapshot.state.referenceId }),
-        commandSequence: parseNonNegativeSafeInteger(record.snapshot.commandSequence),
-      }),
-      simulationLineage: Object.freeze([...record.simulationLineage]),
+      state: Object.freeze({ referenceId: snapshot.state.referenceId }),
+      commandSequence: parseNonNegativeSafeInteger(snapshot.commandSequence),
     });
   },
 });
+const validationProvenanceSchemaV1: RuntimeSchemaV1<BuildProvenanceV1> = Object.freeze({
+  parse(value: unknown) {
+    const provenance = value as BuildProvenanceV1;
+    return makeProvenanceV1({
+      storyId: provenance.story.id,
+      storyRevision: provenance.story.revision,
+      storyDigest: provenance.story.digest,
+      engineVersion: provenance.engine.version,
+      engineDigest: provenance.engine.digest,
+      stateContractRevision: provenance.resolved.stateContractRevision,
+      stateContractDigest: provenance.resolved.stateContractDigest,
+      simulationDigest: provenance.resolved.simulationDigest,
+      presentationDigest: provenance.resolved.presentationDigest,
+      patchSet: provenance.resolved.patchSet,
+    });
+  },
+});
+const validationSlotSchemaV1: RuntimeSchemaV1<ValidationSlotV1> = Object.freeze({
+  parse(value: unknown) {
+    return Object.freeze({ storyId: (value as ValidationSlotV1).storyId });
+  },
+});
+const validationLineageSchemaV1: RuntimeSchemaV1<readonly SimulationAdoptionV1[]> = Object.freeze({
+  parse(value: unknown) {
+    return Object.freeze([...(value as readonly SimulationAdoptionV1[])]);
+  },
+});
+const validationRecordSchemaV1 = createSaveRecordEnvelopeSchemaV1(
+  validationSnapshotSchemaV1,
+  validationProvenanceSchemaV1,
+  validationSlotSchemaV1,
+  validationLineageSchemaV1,
+);
 
 const validationCodecV1: SaveCodecContextV1<ValidationSnapshotV1, ValidationRecordV1> = Object
   .freeze({
@@ -367,6 +384,7 @@ function validationContextV1(input: {
     ValidationRecordV1
   > = Object.freeze({
     codec: validationCodecV1,
+    currentStateContractRevision: makeProvenanceV1().resolved.stateContractRevision,
     classifyCompatibility,
     validateReferences,
     validateInvariants,
@@ -524,6 +542,15 @@ describe("Save import candidate validation", () => {
       [
         "malformed inspect-only mismatches",
         { kind: "inspect_only", mismatches: [null], warnings: [] },
+      ],
+      [
+        "an engine-owned migration-unavailable result",
+        {
+          kind: "inspect_only",
+          code: "migration.unavailable",
+          storedStateContractRevision: parsePositiveSafeInteger(1),
+          currentStateContractRevision: parsePositiveSafeInteger(2),
+        },
       ],
       [
         "missing adoption receipt",

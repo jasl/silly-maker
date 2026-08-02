@@ -6,8 +6,9 @@ promotion 已完成，但其 broad static contract 随后被 DET3a conservative-
 target supersede。corrective C1 import/loader admission、C2 Date/String/provenance kernel、C3
 B-prime Base UTC isolation、C4 cleanup、DET3b invariant revalidation 与 DET4 full
 re-promotion 现已完成，aggregate PF-DET corrective gate 再次关闭；2026-08-03 接受的
-time-boundary clarification 只闭合 C3 metadata scope，不改变 B-prime 或 C2。linear core
-当前恢复 callback-free Save M1；M2 仍等待 M1 在同一 merged HEAD 完成 join。旧 promotion 数字保留为
+time-boundary clarification 只闭合 C3 metadata scope，不改变 B-prime 或 C2。callback-free
+Save M1 与 DET-B same-HEAD join 已于 2026-08-03 完成；linear core 下一独立切片为 M2。
+旧 promotion 数字保留为
 历史证据。本文是当前唯一的跨计划排序入口；
 具体合同仍由各 design 文档拥有，主要任务由五个独立计划拥有：
 
@@ -678,8 +679,8 @@ typecheck、`check:determinism`、最终 `deno task check` 全绿。最终 check
 Story checks 与 build。workflow 已配置 determinism job，但不能自证远端 branch-protection
 已把该 status 设为 required。本批不改变 canonical/digest/Snapshot/Save/CommandLog/replay
 或 production Browser Agent surface。DET4/DET-B/aggregate PF-DET 在当时合同下关闭，并使
-Save `M0b` 可领取；M0b promotion 见下，`M2` 仍必须等待 M1 与 DET-B 在同一 merged HEAD
-通过 join gate。本 closure 随 corrective target 接受而 reopen；下方 C4 record 已按新
+Save `M0b` 可领取；M0b promotion 见下。在该 promotion 时，`M2` 仍必须等待 M1 与 DET-B
+在同一 merged HEAD 通过 join gate。本 closure 随 corrective target 接受而 reopen；下方 C4 record 已按新
 acceptance vectors 重跑 DET3a–DET4 并恢复 aggregate closure。
 
 **2026-08-02 Save M0b promotion：** 中性 generated current-load matrix 已冻结
@@ -761,8 +762,23 @@ final static determinism 为 `3/984`、aggregate focused 为 `8/1018`、DET3b fo
 `65` 个唯一定义、`8` 个类别；latest-stable Deno `2.9.4` matrix `3/3`，Chromium、Firefox、
 WebKit 各两次、browser `6/6`，repository full unit `227/3324` 与 `deno task check` 全绿。
 public API、Save/canonical/digest、Snapshot/RNG/CommandLog/replay、Debug Bundle 与
-gameplay-time contract 不变。corrective PF-DET 据此关闭；linear core 现恢复 callback-free
-Save `M1`；随后 `M2` 仍须在同一 merged HEAD 通过 DET-B/M1 join。
+gameplay-time contract 不变。corrective PF-DET 据此关闭；在该 promotion 时 linear core
+恢复 callback-free Save `M1`，其 DET-B/M1 join 随后由下方 M1 promotion 关闭。
+
+**2026-08-03 Save M1 / DET-B join promotion：** Base Save admission 现在以唯一
+factory-bound staged schema 执行 exact shell、raw digest、State revision fence、current
+Snapshot/normalized digest、Story validation 与 atomic install；stored operations 共享 staged
+preparation 与 physical Host/slot identity，load/list/export 随后完成 Story validation，
+annotation 不调用 Story callback。different revision 返回 engine-owned
+`migration.unavailable`，normalized identity failure 返回
+`digest.normalized_state_mismatch`，二者的 load/import/list/export/annotation、来源 bytes 与
+authoritative no-mutation 已由中性 corpus 固定。successful decode 的 digest traversal 从 `1`
+变为 raw + normalized `2`；PF1 persistence aggregate traversal/digest 从 `15/8` 变为
+`18/11`，bytes/canonical/digest algorithm/Strict limits 不变。focused `8/259`、affected Base +
+Save UI `79/999`、full unit `227/3329`、latest-stable Deno `2.9.4` matrix `1/3` 与
+Chromium/Firefox/WebKit repeat matrix `6/6`、`deno task check` 全绿。没有 executable
+registry/migrator/callback、历史 Save install 或 M2 placeholder；join gate 已关闭，linear core
+下一独立切片为 `M2`。
 
 ### PF3 — Save envelope and migration registry
 
@@ -784,13 +800,14 @@ Save `M1`；随后 `M2` 仍须在同一 merged HEAD 通过 DET-B/M1 join。
    collector、determinism task、test-only driver、Playwright config 与 CI；M0b/M1
    独占 Base Save codec/load order/public persistence result type 及其 tests；双方共同
    需要的 testkit seam/public export 必须在分叉前单独合并；
-4. DET-B 与 M1 必须在**同一个 merged HEAD** 汇合；该 HEAD 同时通过 focused
+4. DET-B 与 M1 必须在**同一个 merged HEAD** 汇合（该 gate 已于上述 M1 promotion
+   关闭）；该 HEAD 同时通过 focused
    M0a/M0b/M1、`deno task test`、`deno task check`、shared Save byte corpus 与
    dedicated Deno/Chromium/Firefox/WebKit matrix，并证明 migration callback count
    为 `0`；
 5. 只有该 join 通过，**M2** 才建立 namespace-keyed adjacent-revision executable
    registry、一步/两步 migration、失败原子性与新 replay anchor；migration 与
-   same-schema adoption 保持不同语义。
+   same-schema adoption 保持不同语义。当前下一独立切片即 M2。
 
 PF3 完成后，State schema 才允许进入第一个需要跨版本迁移的正式发布周期。
 

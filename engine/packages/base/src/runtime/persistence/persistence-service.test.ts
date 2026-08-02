@@ -464,6 +464,7 @@ async function fixtureV1(options: FixtureOptionsV1 = {}) {
     SyntheticSaveRecordV1
   > = Object.freeze({
     codec: codecV1,
+    currentStateContractRevision: provenance.resolved.stateContractRevision,
     classifyCompatibility(record: DeepReadonly<SyntheticSaveRecordV1>) {
       return classifySaveCompatibilityV1({
         stored: record.provenance,
@@ -2811,8 +2812,8 @@ describe("PersistenceService standard composition", () => {
     expect(optimizedCalls).toBe(1);
     expect(fallbackCalls).toBe(1);
     expect(optimizedCounter.snapshot()).toEqual({
-      canonicalTraversals: 3,
-      canonicalDigests: 2,
+      canonicalTraversals: 4,
+      canonicalDigests: 3,
       deepFreezeTraversals: 0,
       commandLogContinuityVerifications: 0,
       saveCanonicalSerializations: 1,
@@ -2820,8 +2821,8 @@ describe("PersistenceService standard composition", () => {
       strictJsonPreflights: 0,
     });
     expect(fallbackCounter.snapshot()).toEqual({
-      canonicalTraversals: 5,
-      canonicalDigests: 3,
+      canonicalTraversals: 6,
+      canonicalDigests: 4,
       deepFreezeTraversals: 0,
       commandLogContinuityVerifications: 0,
       saveCanonicalSerializations: 2,
@@ -2887,8 +2888,8 @@ describe("PersistenceService standard composition", () => {
       slotId: "quick",
     });
     expect(optimizedCounter.snapshot()).toEqual({
-      canonicalTraversals: 3,
-      canonicalDigests: 2,
+      canonicalTraversals: 4,
+      canonicalDigests: 3,
       deepFreezeTraversals: 0,
       commandLogContinuityVerifications: 0,
       saveCanonicalSerializations: 1,
@@ -2896,8 +2897,8 @@ describe("PersistenceService standard composition", () => {
       strictJsonPreflights: 0,
     });
     expect(fallbackCounter.snapshot()).toEqual({
-      canonicalTraversals: 5,
-      canonicalDigests: 3,
+      canonicalTraversals: 6,
+      canonicalDigests: 4,
       deepFreezeTraversals: 0,
       commandLogContinuityVerifications: 0,
       saveCanonicalSerializations: 2,
@@ -3056,8 +3057,8 @@ describe("PersistenceService standard composition", () => {
     expect(optimizedSummaryCalls).toBe(1);
     expect(fallbackSummaryCalls).toBe(1);
     expect(optimizedCounter.snapshot()).toEqual({
-      canonicalTraversals: 4,
-      canonicalDigests: 3,
+      canonicalTraversals: 6,
+      canonicalDigests: 5,
       deepFreezeTraversals: 0,
       commandLogContinuityVerifications: 0,
       saveCanonicalSerializations: 1,
@@ -3065,8 +3066,8 @@ describe("PersistenceService standard composition", () => {
       strictJsonPreflights: 0,
     });
     expect(fallbackCounter.snapshot()).toEqual({
-      canonicalTraversals: 6,
-      canonicalDigests: 4,
+      canonicalTraversals: 8,
+      canonicalDigests: 6,
       deepFreezeTraversals: 0,
       commandLogContinuityVerifications: 0,
       saveCanonicalSerializations: 2,
