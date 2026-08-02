@@ -1,6 +1,6 @@
 # SillyMaker engine roadmap
 
-状态：2026-07-19 接受，最近审查修订 2026-08-01。已实现能力以
+状态：2026-07-19 接受，最近审查修订 2026-08-03。已实现能力以
 [features](features.md) 为准；历史交付见
 [roadmap archive](roadmap-archive.md)。当前执行入口只有
 [Production-floor execution sequence](plans/2026-07-30-production-floor-sequence.md)，它再引用五个独立计划；design/roadmap
@@ -66,9 +66,10 @@ workload 证据；仓库外私有实验只能提供匿名需求反馈，正式 p
 4. Managed Surface dormant-kernel action provenance/boundedness 修正 + Workspace
    Overlay pilot（PF2 已完成）；
 5. authoritative determinism guardrails：zero RNG、canonical command/evidence
-   admission、simulation-closure lint/tripwire 与四 runtime 逐 command parity；
-6. Save metadata floor、callback-free envelope/load order 与 determinism 以
-   same-HEAD join 汇合后，再建立 executable migration registry；
+   admission、simulation-closure lint/tripwire、conservative Date/import proof 与四 runtime
+   逐 command parity（PF-DET corrective promotion 已完成）；
+6. Save metadata floor 已完成；当前进入 callback-free envelope/load order（M1），与
+   determinism 以 same-HEAD join 汇合后再建立 executable migration registry；
 7. System/Narrative/History/whole-canvas primary-detail 的逐 family migration；
 8. Save dry-run/backup/fixture corpus；
 9. Surface structural/model/browser harness 与作者 API promotion；
@@ -116,7 +117,7 @@ commit。
 激活 A2。该 evidence limitation 不阻塞 production-floor 核心顺序进入 Managed
 Surface pilot。
 
-### A1b — accepted target: authoritative determinism guardrails
+### A1b — completed: authoritative determinism guardrails
 
 [Deterministic simulation boundary](design/deterministic-simulation-boundary.md)
 把保证收窄到受支持的 authoritative transition，而不是任意 JavaScript：
@@ -136,6 +137,11 @@ Surface pilot。
   BuildIdentity managed simulation records 为 dependency seed，并补齐 simulation
   callback owner 与显式 authority entry；再用 path-aware static guard、isolated
   test tripwire 与 Deno/Chromium/Firefox/WebKit 逐 command matrix 提供纵深证据。
+
+Corrective promotion 又把 Date allowance 收窄为 conservative syntactic safe-set，统一
+parser-backed dynamic import/CommonJS ownership，以 package-internal integer UTC parser 隔离
+wall-clock metadata，并在删除 superseded broad provenance/evaluator 后复核完整 DET3b guard
+inventory、重跑四 runtime matrix。该边界不定义 gameplay calendar，也不是不可信代码 sandbox。
 
 PF-DET 排在 Workspace Overlay pilot 后，并与 Save 按
 `DET0-core -> M0a -> DET-A -> (DET-B || callback-free M0b/M1) -> same-HEAD join -> M2`

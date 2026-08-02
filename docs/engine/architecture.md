@@ -109,8 +109,10 @@ closure reaches Base Session/execution/RNG/digest/CommandLog authorities but no
 Web, UI, application Host, persistence composition, or Presentation bootstrap.
 The Worker is created and terminated by the test parent, and neither the normal
 Player realm nor production Simulation runtime imports or restores its guards.
-This is a determinism error probe, not a sandbox or security boundary. Real
-browser tripwire execution and the four-runtime parity gate remain DET4 work.
+This is a determinism error probe, not a sandbox or security boundary. The
+dedicated DET4 path executes that guarded driver twice in Deno and twice in each
+of Chromium, Firefox, and WebKit, then compares the same authoritative trace,
+replay, ordering, and Save-metadata vectors across runtimes.
 
 `defineGamePackage` creates the package entry. `resolveGamePackageV1` validates
 the definition, applies authorized simulation and presentation patches,

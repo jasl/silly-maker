@@ -157,6 +157,12 @@ export bare ambient capability roots such as `Math`, `Date`, `Number`,
 operation or pass canonical recorded data. Bare `performance` and any of its
 direct member reads/calls are clock metadata; any direct `Deno` / `process` member read or call is
 an environment capability, while bare-root capture remains a capability escape.
+Static `globalThis.<root>` syntax recovers only an existing classified root: a
+specific diagnostic wins first, a checked deterministic intrinsic operation may
+remain clean, and an unknown first hop or unclassified tracked-ambient descendant
+fails with capability escape. Dynamic selection remains `dynamic_member`; the same
+risk survives sequence last-values, runtime `import =`, object patterns, aliases,
+and write targets. This recovery never makes a qualified Date operation direct-safe.
 Explicit `Number(recordedText)` remains deterministic. Runtime-producing
 receivers/callees, inputs and spread values, template substitutions, and
 computed property keys are visited before the enclosing operation is
@@ -194,7 +200,10 @@ evaluated KnownDate argument or `thisArg` as
 protocol before effective arguments exist, so a KnownDate spread keeps that
 child diagnostic even for a direct Date operation. Static destructuring of
 `Date.now`, `Date.parse`, or `Date.UTC` is classified at the capture site just
-like the corresponding direct member capture.
+like the corresponding direct member capture. A runtime TypeScript internal
+`import Alias = Date.member` uses the same concrete capture code and source range;
+bare `Date` remains one capability escape and bare `Date.prototype` remains a
+risk-only local alias until an unsupported member/use escapes.
 
 `StaticString` proof is limited to an ordinary string literal, a
 no-substitution ordinary template, direct unshadowed `String(...)` over one
@@ -335,6 +344,11 @@ count-to-coverage relations, closed result keys/enums, and all four compact comm
 shapes; the outer test separately owns equality with the fixed expected trace. The parent terminates every
 created Worker exactly once, and the isolated realm never restores partially installed
 globals.
+
+The guarded `Date.parse` and single-argument `new Date` runtime paths use the same
+optional one-to-three-digit explicit-zone fraction boundary as C2. The neutral driver
+executes `.1` and `.12` positive spellings, while guard installation self-tests that
+`.1234` remains `determinism.date_input_unverified` in every matrix runtime.
 
 The fixed bootstrap value crosses the message boundary and is actually parsed into
 the neutral Session/RNG construction. Ordinary `deno task test` exercises the real

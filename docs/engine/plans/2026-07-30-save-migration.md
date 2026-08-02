@@ -199,7 +199,8 @@ result、Host revision `3` 与 raw bytes 相等。M0b/PF1 focused regression 为
 为 `78/978`；Save Overlay 的 invalid Quick/manual enabled + dispatch baseline 为 `1/16`，
 full unit 为 `227/3196`，`deno task check` 全绿并完成 Engine Lab production build。旧实验
 仓库没有成为 source、fixture、dependency 或 validation authority；linear core 下一切片仍为
-DET3a-C4，之后才恢复 M1。
+DET3a-C4。该 corrective gate 已于 2026-08-03 完成并重新关闭 PF-DET，因此当前 linear core
+恢复 M1；M2 仍等待 M1 的 same-merged-HEAD join。
 
 ## 4. M1 — Bounded envelope shell and load order
 

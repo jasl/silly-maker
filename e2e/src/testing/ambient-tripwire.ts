@@ -272,7 +272,7 @@ function validDateTimeFieldsV1(
 
 function explicitZoneDateStringV1(value: string): boolean {
   const match =
-    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{3})?(?:Z|[+-](\d{2}):(\d{2}))$/u
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,3})?(?:Z|[+-](\d{2}):(\d{2}))$/u
       .exec(value);
   return match !== null && validDateTimeFieldsV1(match, {
     secondIndex: 6,
@@ -575,6 +575,12 @@ function installDateConstructorGuardV1(
   if (!(epoch instanceof OriginalDate) || epoch.toISOString() !== "1970-01-01T00:00:00.000Z") {
     return "self_test_failed";
   }
+  if (
+    !expectSentinelV1(
+      () => intrinsicReflectConstructV1(guarded, ["1970-01-01T00:00:00.1234Z"]),
+      context.sentinel,
+    )
+  ) return "self_test_failed";
   return null;
 }
 
@@ -602,6 +608,9 @@ function installDateParseGuardV1(
     return "replacement_ineffective";
   }
   if (!expectSentinelV1(() => guarded("2026-08-02T00:00:00"), context.sentinel)) {
+    return "self_test_failed";
+  }
+  if (!expectSentinelV1(() => guarded("2026-08-02T00:00:00.1234Z"), context.sentinel)) {
     return "self_test_failed";
   }
   if (!Number.isFinite(guarded("2026-08-02T00:00:00Z"))) return "self_test_failed";

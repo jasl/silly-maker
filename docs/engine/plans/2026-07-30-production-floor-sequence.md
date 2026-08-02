@@ -3,11 +3,11 @@
 状态：2026-07-30 接受执行，2026-08-01 根据 PF2 promotion、authoritative
 determinism/Save graph、CI 与 Desktop 审计修订；2026-08-02 旧 DET-B/PF-DET
 promotion 已完成，但其 broad static contract 随后被 DET3a conservative-syntax corrective
-target supersede。当前 linear core 先完成 DET3a corrective、DET3b invariant revalidation
-与 DET4 full re-promotion，再恢复后续依赖 aggregate PF-DET closure 的工作；corrective
-C1 import/loader admission、C2 Date/String/provenance kernel 与 C3 B-prime Base UTC isolation 已
-完成；2026-08-03 接受的 time-boundary clarification 只闭合 C3 metadata scope，不改变
-B-prime、C2 或执行顺序。当前下一切片为 C4。旧 promotion 数字保留为
+target supersede。corrective C1 import/loader admission、C2 Date/String/provenance kernel、C3
+B-prime Base UTC isolation、C4 cleanup、DET3b invariant revalidation 与 DET4 full
+re-promotion 现已完成，aggregate PF-DET corrective gate 再次关闭；2026-08-03 接受的
+time-boundary clarification 只闭合 C3 metadata scope，不改变 B-prime 或 C2。linear core
+当前恢复 callback-free Save M1；M2 仍等待 M1 在同一 merged HEAD 完成 join。旧 promotion 数字保留为
 历史证据。本文是当前唯一的跨计划排序入口；
 具体合同仍由各 design 文档拥有，主要任务由五个独立计划拥有：
 
@@ -628,7 +628,7 @@ Lab production build。本批修改 Base runtime persistence export filename 的
 formatter，因此此前已追加 Engine Lab browser E2E，`103 tests` 全绿。DET-B/PF-DET 仍需
 DET3b/DET4；本 correction gate 已关闭，下一独立切片是 DET3b。
 
-**Historical DET3b promotion record — runtime infrastructure remains live；corrective invariant revalidation pending（2026-08-02）：** Engine Lab 的 test-only `e2e/src/testing/**` 现在
+**Historical DET3b promotion record — runtime infrastructure remains live；corrective invariant revalidation completed by C4（2026-08-02）：** Engine Lab 的 test-only `e2e/src/testing/**` 现在
 拥有 pure guard harness、parent runner、短命 module Worker 与 browser-executable neutral
 driver。guard registry 在 dynamic import 前按固定顺序完成 descriptor replacement、
 effective self-test 或重复 native-absence probe；失败以首个 `tripwire_unavailable` 且
@@ -679,8 +679,8 @@ Story checks 与 build。workflow 已配置 determinism job，但不能自证远
 已把该 status 设为 required。本批不改变 canonical/digest/Snapshot/Save/CommandLog/replay
 或 production Browser Agent surface。DET4/DET-B/aggregate PF-DET 在当时合同下关闭，并使
 Save `M0b` 可领取；M0b promotion 见下，`M2` 仍必须等待 M1 与 DET-B 在同一 merged HEAD
-通过 join gate。本 closure 随 corrective target 接受而 reopen；必须按新 acceptance vectors
-重跑 DET3a–DET4 后才能恢复 aggregate closure。
+通过 join gate。本 closure 随 corrective target 接受而 reopen；下方 C4 record 已按新
+acceptance vectors 重跑 DET3a–DET4 并恢复 aggregate closure。
 
 **2026-08-02 Save M0b promotion：** 中性 generated current-load matrix 已冻结
 post-DET-A current codec/validation/repository/Player 结果、stored/import 分叉、atomic
@@ -750,6 +750,19 @@ Quick/manual、malformed/future-format、CAS/lease/failure 与 PF1 receipt/fallb
 candidate，也不被迁移或备份。load/export/annotation、M0b no-authoritative-mutation、Save
 schema/format/canonical/digest/CommandLog/replay 与 M1 callback-free scope 均不变。该独立 bugfix
 不恢复已暂停 Goal、也不推进 linear core；下一 production-floor 切片仍是 `C4`。
+
+**2026-08-03 DET3a-C4 / corrective PF-DET promotion：** C2 exact classifier 取代后的 broad
+Date provenance、argument evaluator 与 unreachable fallback 已删除，同一 cleanup baseline
+前后保持 `8 files / 894 tests`。TDD 补闭 DET3b optional `1..3` explicit-zone fraction、
+runtime TypeScript internal `import =` Date capture precedence，以及 unknown `globalThis` /
+tracked-ambient descendant 在 sequence、pattern、alias、operation 与 write target 间丢失
+fail-closed provenance 的缺口；specific diagnostic 与 checked intrinsic clean winner 保持优先。
+final static determinism 为 `3/984`、aggregate focused 为 `8/1018`、DET3b focused 为 `3/32`。live guard recollection 为
+`65` 个唯一定义、`8` 个类别；latest-stable Deno `2.9.4` matrix `3/3`，Chromium、Firefox、
+WebKit 各两次、browser `6/6`，repository full unit `227/3324` 与 `deno task check` 全绿。
+public API、Save/canonical/digest、Snapshot/RNG/CommandLog/replay、Debug Bundle 与
+gameplay-time contract 不变。corrective PF-DET 据此关闭；linear core 现恢复 callback-free
+Save `M1`；随后 `M2` 仍须在同一 merged HEAD 通过 DET-B/M1 join。
 
 ### PF3 — Save envelope and migration registry
 

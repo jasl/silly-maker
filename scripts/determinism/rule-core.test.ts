@@ -2367,6 +2367,583 @@ describe("authoritative determinism rule core", () => {
     expect(codesV1("(String<string>)(0)")).toEqual([]);
   });
 
+  it.each([
+    ["import DateAlias = Date;", "determinism.ambient_capability_escape", "Date"],
+    ["import Call = Date.call;", "determinism.ambient_capability_escape", "Date.call"],
+    ["import Clock = performance;", "determinism.performance_clock", "performance"],
+    ["import Crypto = crypto;", "determinism.crypto_random", "crypto"],
+    ["import Locale = navigator;", "determinism.locale", "navigator"],
+    [
+      "import Root = globalThis.performance;",
+      "determinism.ambient_capability_escape",
+      "globalThis.performance",
+    ],
+    [
+      "import Root = globalThis.crypto;",
+      "determinism.ambient_capability_escape",
+      "globalThis.crypto",
+    ],
+    [
+      "import Root = globalThis.navigator;",
+      "determinism.ambient_capability_escape",
+      "globalThis.navigator",
+    ],
+    [
+      "import Root = globalThis.foo;",
+      "determinism.ambient_capability_escape",
+      "globalThis.foo",
+    ],
+    [
+      "import Root = globalThis.foo.bar;",
+      "determinism.ambient_capability_escape",
+      "globalThis.foo.bar",
+    ],
+    ["import Now = Date.now;", "determinism.clock.date_now", "Date.now"],
+    [
+      "import Parse = Date.parse;",
+      "determinism.capability.indirect_intrinsic",
+      "Date.parse",
+    ],
+    ["import Utc = Date.UTC;", "determinism.capability.indirect_intrinsic", "Date.UTC"],
+    [
+      "import Constructor = Date.prototype.constructor;",
+      "determinism.capability.indirect_intrinsic",
+      "Date.prototype.constructor",
+    ],
+    [
+      "import Call = Date.prototype.constructor.call;",
+      "determinism.ambient_capability_escape",
+      "Date.prototype.constructor.call",
+    ],
+    [
+      "import Constructor = Date.parse.constructor;",
+      "determinism.capability.constructor_escape",
+      "Date.parse.constructor",
+    ],
+    [
+      "import Constructor = Unknown.constructor;",
+      "determinism.capability.constructor_escape",
+      "Unknown.constructor",
+    ],
+    [
+      "import Constructor = Unknown.member.constructor;",
+      "determinism.capability.constructor_escape",
+      "Unknown.member.constructor",
+    ],
+    [
+      "import Constructor = globalThis.constructor;",
+      "determinism.capability.constructor_escape",
+      "globalThis.constructor",
+    ],
+    [
+      "import Constructor = Object.constructor;",
+      "determinism.capability.constructor_escape",
+      "Object.constructor",
+    ],
+    [
+      "import Constructor = JSON.stringify.constructor;",
+      "determinism.capability.constructor_escape",
+      "JSON.stringify.constructor",
+    ],
+    [
+      "import Constructor = Math.constructor;",
+      "determinism.capability.constructor_escape",
+      "Math.constructor",
+    ],
+    [
+      "import Constructor = Date.foo.constructor;",
+      "determinism.capability.constructor_escape",
+      "Date.foo.constructor",
+    ],
+    [
+      "import Constructor = Date.instance.constructor;",
+      "determinism.capability.constructor_escape",
+      "Date.instance.constructor",
+    ],
+    [
+      "import Now = Date.instance.constructor.now;",
+      "determinism.capability.constructor_escape",
+      "Date.instance.constructor.now",
+    ],
+    [
+      "import Constructor = String.foo.constructor;",
+      "determinism.capability.constructor_escape",
+      "String.foo.constructor",
+    ],
+    [
+      "import Call = Date.constructor.call;",
+      "determinism.ambient_capability_escape",
+      "Date.constructor.call",
+    ],
+    [
+      "import Apply = Date.now.constructor.apply;",
+      "determinism.ambient_capability_escape",
+      "Date.now.constructor.apply",
+    ],
+    [
+      "import Call = Date.parse.constructor.call;",
+      "determinism.ambient_capability_escape",
+      "Date.parse.constructor.call",
+    ],
+    [
+      "import Call = Number.constructor.call;",
+      "determinism.ambient_capability_escape",
+      "Number.constructor.call",
+    ],
+    [
+      "import Apply = String.constructor.apply;",
+      "determinism.ambient_capability_escape",
+      "String.constructor.apply",
+    ],
+    [
+      "import Call = Math.max.constructor.call;",
+      "determinism.ambient_capability_escape",
+      "Math.max.constructor.call",
+    ],
+    [
+      "import GetTime = Date.prototype.getTime;",
+      "determinism.date_instance_unverified",
+      "Date.prototype.getTime",
+    ],
+    [
+      "import GetHours = Date.prototype.getHours;",
+      "determinism.date_instance_unverified",
+      "Date.prototype.getHours",
+    ],
+    [
+      "import ToIso = Date.prototype.toISOString;",
+      "determinism.date_instance_unverified",
+      "Date.prototype.toISOString",
+    ],
+    [
+      "import SetTime = Date.prototype.setTime;",
+      "determinism.date_instance_unverified",
+      "Date.prototype.setTime",
+    ],
+  ])("classifies a runtime import-equals alias at its capture site: %s", (
+    source,
+    expectedCode,
+    expectedSource,
+  ) => {
+    expect(
+      analyzeV1(source).map(({ code, range }) => ({
+        code,
+        source: source.slice(...range),
+      })),
+    ).toEqual([{ code: expectedCode, source: expectedSource }]);
+  });
+
+  it("keeps a runtime import-equals alias of Date.prototype as a risk-only value", () => {
+    expect(analyzeV1("import Prototype = Date.prototype;")).toEqual([]);
+  });
+
+  it.each([
+    [
+      "const Value = globalThis.foo.bar;",
+      "determinism.ambient_capability_escape",
+      "globalThis.foo.bar",
+    ],
+    [
+      "const Prototype = Date.prototype; const Constructor = Prototype.constructor;",
+      "determinism.capability.constructor_escape",
+      "Prototype.constructor",
+    ],
+    [
+      "const Prototype = Date.prototype; const Now = Prototype.constructor.now;",
+      "determinism.capability.constructor_escape",
+      "Prototype.constructor.now",
+    ],
+    [
+      "const Prototype = Date.prototype; import Constructor = Prototype.constructor;",
+      "determinism.capability.constructor_escape",
+      "Prototype.constructor",
+    ],
+    [
+      "const Prototype = Date.prototype; import Now = Prototype.constructor.now;",
+      "determinism.capability.constructor_escape",
+      "Prototype.constructor.now",
+    ],
+  ])("preserves fail-closed capability risk through a static descendant: %s", (
+    source,
+    expectedCode,
+    expectedSource,
+  ) => {
+    expect(
+      analyzeV1(source).map(({ code, range }) => ({
+        code,
+        source: source.slice(...range),
+      })),
+    ).toEqual([{ code: expectedCode, source: expectedSource }]);
+  });
+
+  it.each([
+    [
+      'const Value = globalThis["foo"].bar;',
+      "determinism.ambient_capability_escape",
+      'globalThis["foo"].bar',
+    ],
+    [
+      'const Value = globalThis.foo["bar"];',
+      "determinism.ambient_capability_escape",
+      'globalThis.foo["bar"]',
+    ],
+    [
+      "const Value = globalThis?.foo.bar;",
+      "determinism.ambient_capability_escape",
+      "globalThis?.foo.bar",
+    ],
+    [
+      "const Value = globalThis.foo?.bar;",
+      "determinism.ambient_capability_escape",
+      "globalThis.foo?.bar",
+    ],
+    [
+      "globalThis.foo()",
+      "determinism.ambient_capability_escape",
+      "globalThis.foo",
+    ],
+    [
+      "globalThis.foo?.()",
+      "determinism.ambient_capability_escape",
+      "globalThis.foo",
+    ],
+    [
+      'globalThis["foo"]()',
+      "determinism.ambient_capability_escape",
+      'globalThis["foo"]',
+    ],
+    [
+      "globalThis.foo.bar()",
+      "determinism.ambient_capability_escape",
+      "globalThis.foo.bar",
+    ],
+    [
+      "globalThis.foo.bar.baz()",
+      "determinism.ambient_capability_escape",
+      "globalThis.foo.bar.baz",
+    ],
+    [
+      "globalThis.foo.call(null)",
+      "determinism.ambient_capability_escape",
+      "globalThis.foo.call",
+    ],
+    [
+      "new globalThis.foo()",
+      "determinism.ambient_capability_escape",
+      "globalThis.foo",
+    ],
+    [
+      "new globalThis.foo.Bar()",
+      "determinism.ambient_capability_escape",
+      "globalThis.foo.Bar",
+    ],
+    [
+      "globalThis.foo`fixed`",
+      "determinism.ambient_capability_escape",
+      "globalThis.foo",
+    ],
+    [
+      "globalThis.foo.bar`fixed`",
+      "determinism.ambient_capability_escape",
+      "globalThis.foo.bar",
+    ],
+  ])("retains static globalThis descendant risk at the maximal use: %s", (
+    source,
+    expectedCode,
+    expectedSource,
+  ) => {
+    expect(
+      analyzeV1(source).map(({ code, range }) => ({
+        code,
+        source: source.slice(...range),
+      })),
+    ).toEqual([{ code: expectedCode, source: expectedSource }]);
+  });
+
+  it.each([
+    ["const Value = globalThis.foo[key];", "globalThis.foo[key]"],
+    ["const Value = globalThis[key].bar;", "globalThis[key]"],
+    ["globalThis.foo[key]()", "globalThis.foo[key]"],
+    ["new globalThis.foo[key]()", "globalThis.foo[key]"],
+    ["globalThis.foo[key]`fixed`", "globalThis.foo[key]"],
+  ])("keeps dynamic_member precedence for a globalThis descendant: %s", (
+    source,
+    expectedSource,
+  ) => {
+    expect(
+      analyzeV1(source).map(({ code, range }) => ({
+        code,
+        source: source.slice(...range),
+      })),
+    ).toEqual([{
+      code: "determinism.capability.dynamic_member",
+      source: expectedSource,
+    }]);
+  });
+
+  it.each([
+    "globalThis.Math.trunc(1)",
+    "globalThis.Number.isSafeInteger(1)",
+    'globalThis.Number.parseInt("1", 10)',
+    "globalThis.String.fromCharCode(65)",
+    'globalThis.Temporal.Instant.from("2026-08-01T00:00:00Z")',
+  ])("preserves a checked deterministic globalThis operation: %s", (source) => {
+    expect(analyzeV1(source)).toEqual([]);
+  });
+
+  it.each([
+    ["globalThis.Math.random()", "determinism.ambient_random"],
+    ["globalThis.crypto.randomUUID()", "determinism.crypto_random"],
+    ["globalThis.performance.now()", "determinism.performance_clock"],
+    ["globalThis.fetch(url)", "determinism.network"],
+    ["globalThis.navigator.language", "determinism.locale"],
+    ["globalThis.Deno.cwd()", "determinism.environment"],
+    [
+      'globalThis.fetch.constructor("return 1")()',
+      "determinism.capability.dynamic_code",
+    ],
+    [
+      'globalThis.performance.now.constructor("return 1")()',
+      "determinism.capability.dynamic_code",
+    ],
+    ['globalThis.require("./fixed.ts")', "determinism.capability.dynamic_require"],
+  ])("preserves a specific globalThis operation winner: %s", (source, expectedCode) => {
+    expect(codesV1(source)).toEqual([expectedCode]);
+  });
+
+  it.each([
+    ["performance()", "determinism.performance_clock"],
+    ["performance?.()", "determinism.performance_clock"],
+    ["new performance()", "determinism.performance_clock"],
+    ["crypto()", "determinism.crypto_random"],
+    ["crypto?.()", "determinism.crypto_random"],
+    ["new crypto()", "determinism.crypto_random"],
+    ["navigator()", "determinism.locale"],
+    ["navigator?.()", "determinism.locale"],
+    ["new navigator()", "determinism.locale"],
+  ])("keeps a bare Host root's specific call/new winner: %s", (source, expectedCode) => {
+    expect(codesV1(source)).toEqual([expectedCode]);
+  });
+
+  it.each([
+    ["crypto.subtle", "crypto.subtle"],
+    ["navigator.userAgent", "navigator.userAgent"],
+    ["fetch.prototype", "fetch.prototype"],
+    ["WebSocket.prototype", "WebSocket.prototype"],
+    ["XMLHttpRequest.prototype", "XMLHttpRequest.prototype"],
+    ["parseFloat.foo", "parseFloat.foo"],
+    ["crypto.subtle.digest()", "crypto.subtle.digest"],
+    ["fetch.extension()", "fetch.extension"],
+    ["globalThis.crypto.subtle", "globalThis.crypto.subtle"],
+    ["globalThis.navigator.userAgent", "globalThis.navigator.userAgent"],
+    ["globalThis.fetch.extension()", "globalThis.fetch.extension"],
+    ["globalThis.JSON.stringify({})", "globalThis.JSON.stringify"],
+    ["globalThis.Promise.resolve(1)", "globalThis.Promise.resolve"],
+  ])("fails closed for an unclassified tracked ambient operation: %s", (
+    source,
+    expectedSource,
+  ) => {
+    expect(
+      analyzeV1(source).map(({ code, range }) => ({
+        code,
+        source: source.slice(...range),
+      })),
+    ).toEqual([{
+      code: "determinism.ambient_capability_escape",
+      source: expectedSource,
+    }]);
+  });
+
+  it.each([
+    [
+      "const { subtle } = crypto;",
+      [
+        ["determinism.ambient_capability_escape", "subtle"],
+        ["determinism.crypto_random", "crypto"],
+      ],
+    ],
+    [
+      "import Subtle = crypto.subtle;",
+      [["determinism.ambient_capability_escape", "crypto.subtle"]],
+    ],
+  ])("fails closed when an unclassified ambient descendant is captured: %s", (
+    source,
+    expected,
+  ) => {
+    expect(
+      analyzeV1(source).map(({ code, range }) => ({
+        code,
+        source: source.slice(...range),
+      })),
+    ).toEqual(expected.map(([code, expectedSource]) => ({
+      code,
+      source: expectedSource,
+    })));
+  });
+
+  it.each([
+    ["const Value = (0, globalThis).foo;", "(0, globalThis).foo"],
+    ["(0, globalThis).foo()", "(0, globalThis).foo"],
+    ["(0, globalThis.foo).bar()", "(0, globalThis.foo).bar"],
+  ])("retains globalThis risk through a last-value sequence: %s", (
+    source,
+    expectedSource,
+  ) => {
+    expect(
+      analyzeV1(source).map(({ code, range }) => ({
+        code,
+        source: source.slice(...range),
+      })),
+    ).toEqual([{
+      code: "determinism.ambient_capability_escape",
+      source: expectedSource,
+    }]);
+  });
+
+  it.each([
+    [
+      "const { foo } = globalThis; foo()",
+      ["foo", "foo"],
+    ],
+    [
+      "const { foo: alias } = globalThis; alias.bar()",
+      ["foo: alias", "alias.bar"],
+    ],
+    [
+      'const { ["foo"]: alias } = globalThis; alias.bar()',
+      ['["foo"]: alias', "alias.bar"],
+    ],
+    [
+      "const { foo = fallback } = globalThis; foo()",
+      ["foo = fallback", "foo"],
+    ],
+    [
+      "const { foo: { bar } } = globalThis; bar()",
+      ["foo: { bar }", "bar", "bar"],
+    ],
+    [
+      "let foo; ({ foo } = globalThis); foo()",
+      ["foo", "foo"],
+    ],
+  ])("retains globalThis risk through a static object pattern: %s", (
+    source,
+    expectedSources,
+  ) => {
+    expect(
+      analyzeV1(source).map(({ code, range }) => ({
+        code,
+        source: source.slice(...range),
+      })),
+    ).toEqual(expectedSources.map((expectedSource) => ({
+      code: "determinism.ambient_capability_escape",
+      source: expectedSource,
+    })));
+  });
+
+  it("keeps dynamic_member precedence through a computed globalThis pattern", () => {
+    const source = "const { [key]: alias } = globalThis; alias()";
+    expect(
+      analyzeV1(source).map(({ code, range }) => ({
+        code,
+        source: source.slice(...range),
+      })),
+    ).toEqual([
+      { code: "determinism.capability.dynamic_member", source: "[key]: alias" },
+      { code: "determinism.capability.dynamic_member", source: "alias" },
+    ]);
+  });
+
+  it("rejects a globalThis rest pattern at its capture site", () => {
+    const source = "const { ...rest } = globalThis; rest.foo()";
+    expect(
+      analyzeV1(source).map(({ code, range }) => ({
+        code,
+        source: source.slice(...range),
+      })),
+    ).toEqual([{
+      code: "determinism.ambient_capability_escape",
+      source: "...rest",
+    }]);
+  });
+
+  it.each([
+    [
+      "globalThis.foo.bar = value",
+      "determinism.ambient_capability_escape",
+      "globalThis.foo.bar",
+    ],
+    [
+      "globalThis.foo[key] = value",
+      "determinism.capability.dynamic_member",
+      "globalThis.foo[key]",
+    ],
+    [
+      "globalThis[key] = value",
+      "determinism.capability.dynamic_member",
+      "globalThis[key]",
+    ],
+    [
+      "globalThis.foo.bar++",
+      "determinism.ambient_capability_escape",
+      "globalThis.foo.bar",
+    ],
+    [
+      "globalThis.foo[key]++",
+      "determinism.capability.dynamic_member",
+      "globalThis.foo[key]",
+    ],
+    [
+      "delete globalThis.foo.bar",
+      "determinism.ambient_capability_escape",
+      "globalThis.foo.bar",
+    ],
+    [
+      "delete globalThis.foo[key]",
+      "determinism.capability.dynamic_member",
+      "globalThis.foo[key]",
+    ],
+    [
+      "for (globalThis.foo.bar of values) {}",
+      "determinism.ambient_capability_escape",
+      "globalThis.foo.bar",
+    ],
+    [
+      "for (globalThis.foo[key] of values) {}",
+      "determinism.capability.dynamic_member",
+      "globalThis.foo[key]",
+    ],
+  ])("retains globalThis risk through a write target: %s", (
+    source,
+    expectedCode,
+    expectedSource,
+  ) => {
+    expect(
+      analyzeV1(source).map(({ code, range }) => ({
+        code,
+        source: source.slice(...range),
+      })),
+    ).toEqual([{ code: expectedCode, source: expectedSource }]);
+  });
+
+  it("retains an exact KnownDate constructor recovery in runtime import-equals", () => {
+    const source = "const date = new Date(0); import Now = date.constructor.now;";
+    expect(
+      analyzeV1(source).map(({ code, range }) => ({
+        code,
+        source: source.slice(...range),
+      })),
+    ).toEqual([{ code: "determinism.clock.date_now", source: "date.constructor.now" }]);
+  });
+
+  it.each([
+    "const performance = source; import Value = performance;",
+    "const crypto = source; import Value = crypto;",
+    "const navigator = source; import Value = navigator;",
+    "const globalThis = source; import Value = globalThis.foo;",
+  ])("keeps a lexical Host-root shadow ordinary in runtime import-equals: %s", (source) => {
+    expect(analyzeV1(source)).toEqual([]);
+  });
+
   it("treats for-in/of left sides as writes and invalidates local provenance", () => {
     for (
       const source of [

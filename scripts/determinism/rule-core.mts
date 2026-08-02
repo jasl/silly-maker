@@ -234,10 +234,6 @@ const constructorTrackedRootsV1 = new Set([
   "String",
 ]);
 
-const deterministicDateEpochProvenanceV1 = "\0deterministic-date-epoch";
-const deterministicDateZoneProvenanceV1 = "\0deterministic-date-zone";
-const localDateZoneProvenanceV1 = "\0local-date-zone";
-const ambiguousDateInputProvenanceV1 = "\0ambiguous-date-input";
 const ambiguousDateInstanceProvenanceV1 = "\0ambiguous-date-instance";
 const ambiguousCapabilityProvenanceV1 = "\0ambiguous-capability";
 const constructorEscapeRiskProvenanceV1 = "\0constructor-escape-risk";
@@ -263,18 +259,44 @@ const provenanceTrackedRootsV1 = new Set([
   "require",
   "sessionStorage",
   "window",
-  deterministicDateEpochProvenanceV1,
-  deterministicDateZoneProvenanceV1,
-  localDateZoneProvenanceV1,
-  ambiguousDateInputProvenanceV1,
   ambiguousDateInstanceProvenanceV1,
   ambiguousCapabilityProvenanceV1,
+  constructorEscapeRiskProvenanceV1,
   dynamicCodeConstructorProvenanceV1,
   dynamicMemberRiskProvenanceV1,
   dynamicRequireLoaderProvenanceV1,
   dynamicRequireRiskProvenanceV1,
   nodeModuleProvenanceV1,
 ]);
+
+const genericAmbientFallbackRootsV1 = new Set([
+  ...ambientCapabilityRootsV1,
+  "Intl",
+  "WebSocket",
+  "XMLHttpRequest",
+  "crypto",
+  "document",
+  "fetch",
+  "localStorage",
+  "navigator",
+  "parseFloat",
+  "performance",
+  "require",
+  "sessionStorage",
+  "window",
+]);
+
+function extendStaticProvenanceV1(
+  provenance: readonly string[],
+  property: string,
+): readonly string[] {
+  if (provenance.length !== 1 || provenance[0] !== "globalThis") {
+    return Object.freeze([...provenance, property]);
+  }
+  return provenanceTrackedRootsV1.has(property)
+    ? Object.freeze([property])
+    : Object.freeze([ambiguousCapabilityProvenanceV1, property]);
+}
 
 const dateHostDependentMembersV1 = new Set([
   "getDate",
@@ -766,30 +788,12 @@ function sameProvenanceV1(
       left.every((member, index) => member === right[index]));
 }
 
-function isDeterministicDateInputProvenanceV1(
-  provenance: readonly string[] | null,
-): boolean {
-  return provenance?.length === 1 &&
-    (provenance[0] === deterministicDateEpochProvenanceV1 ||
-      provenance[0] === deterministicDateZoneProvenanceV1);
-}
-
-function isAnyDateInputProvenanceV1(
-  provenance: readonly string[] | null,
-): boolean {
-  return isDeterministicDateInputProvenanceV1(provenance) ||
-    (provenance?.length === 1 && provenance[0] === localDateZoneProvenanceV1);
-}
-
 function isTrackedAmbientCapabilityProvenanceV1(
   provenance: readonly string[] | null,
 ): boolean {
   if (provenance === null || provenance.length === 0) return false;
   const root = provenance[0] ?? "";
-  return provenanceTrackedRootsV1.has(root) &&
-    root !== deterministicDateEpochProvenanceV1 &&
-    root !== deterministicDateZoneProvenanceV1 && root !== localDateZoneProvenanceV1 &&
-    root !== ambiguousDateInputProvenanceV1;
+  return provenanceTrackedRootsV1.has(root);
 }
 
 function isKnownNonCoercingIntrinsicValueV1(
@@ -836,13 +840,6 @@ function conservativeProvenanceJoinV1(
     right?.[0] === ambiguousDateInstanceProvenanceV1;
   if (leftDateInstance || rightDateInstance) {
     return Object.freeze([ambiguousDateInstanceProvenanceV1]);
-  }
-  const leftDateInput = isAnyDateInputProvenanceV1(left) ||
-    left?.[0] === ambiguousDateInputProvenanceV1;
-  const rightDateInput = isAnyDateInputProvenanceV1(right) ||
-    right?.[0] === ambiguousDateInputProvenanceV1;
-  if (leftDateInput || rightDateInput) {
-    return Object.freeze([ambiguousDateInputProvenanceV1]);
   }
   const leftDateCapability = left?.[0] === "Date";
   const rightDateCapability = right?.[0] === "Date";
@@ -1017,9 +1014,7 @@ function directStaticProvenancePathV1(
   const objectPath = directStaticProvenancePathV1(asNodeV1(node.object), scope);
   const property = staticPropertyNameV1(node);
   if (objectPath === null || property === null) return null;
-  return objectPath.length === 1 && objectPath[0] === "globalThis"
-    ? Object.freeze([property])
-    : Object.freeze([...objectPath, property]);
+  return extendStaticProvenanceV1(objectPath, property);
 }
 
 function exactPrimitiveProofV1(
@@ -1374,24 +1369,6 @@ function dateCoercionDiagnosticV1(
     : null;
 }
 
-function isExactHostDependentDateOperationV1(
-  provenance: readonly string[] | null,
-): boolean {
-  let members: readonly string[];
-  if (
-    provenance?.[0] === "Date" &&
-    (provenance[1] === "instance" || provenance[1] === "prototype")
-  ) {
-    members = provenance.slice(2);
-  } else if (provenance?.[0] === ambiguousDateInstanceProvenanceV1) {
-    members = provenance.slice(1);
-  } else return false;
-  return dateHostDependentMembersV1.has(members[0] ?? "") &&
-    (members.length === 1 ||
-      (members.length === 2 &&
-        (members[1] === "call" || members[1] === "apply")));
-}
-
 function expandStaticArgumentItemsV1(items: unknown): StaticArgumentVectorV1 {
   if (!Array.isArray(items)) return { prefix: Object.freeze([]), hasUnknownTail: true };
   const prefix: (AstNodeV1 | null)[] = [];
@@ -1463,46 +1440,6 @@ function stringEffectiveArgumentsV1(
     return { prefix: Object.freeze([]), hasUnknownTail: true };
   }
   return expandStaticArgumentItemsV1(carrier.elements);
-}
-
-function dateInvocationArgumentsV1(
-  node: AstNodeV1,
-  provenance: readonly string[] | null,
-): readonly AstNodeV1[] | null {
-  const members = normalizedConstructorMembersV1(provenance, "Date");
-  if (members === null) return null;
-  const target = members[0];
-  const wrapper = target === "parse" || target === "UTC" ? members[1] : target;
-  const argumentsV1 = asNodesV1(node.arguments);
-  if (wrapper === undefined) return argumentsV1;
-  if (wrapper === "call") return argumentsV1.slice(1);
-  if (wrapper !== "apply" || argumentsV1.length !== 2) return null;
-  const argumentArray = unwrapExpressionV1(argumentsV1[1] ?? null);
-  if (argumentArray?.type !== "ArrayExpression" || !Array.isArray(argumentArray.elements)) {
-    return null;
-  }
-  const elements: AstNodeV1[] = [];
-  for (const element of argumentArray.elements) {
-    if (!isNodeV1(element) || element.type === "SpreadElement") return null;
-    elements.push(element);
-  }
-  return elements;
-}
-
-function isSafeDateParseInputV1(node: AstNodeV1 | null, scope: ScopeV1): boolean {
-  const provenance = resolveExpressionV1(node, scope).provenance;
-  return provenance?.length === 1 && provenance[0] === deterministicDateZoneProvenanceV1;
-}
-
-function isSafeDateConstructorInputV1(node: AstNodeV1 | null, scope: ScopeV1): boolean {
-  const provenance = resolveExpressionV1(node, scope).provenance;
-  return isDeterministicDateInputProvenanceV1(provenance) ||
-    isDateInstanceValueV1(provenance);
-}
-
-function isLocalZoneDateInputV1(node: AstNodeV1 | null, scope: ScopeV1): boolean {
-  const provenance = resolveExpressionV1(node, scope).provenance;
-  return provenance?.length === 1 && provenance[0] === localDateZoneProvenanceV1;
 }
 
 function resolveExpressionV1(node: AstNodeV1 | null, scope: ScopeV1): ResolvedExpressionV1 {
@@ -1639,9 +1576,7 @@ function resolveExpressionV1(node: AstNodeV1 | null, scope: ScopeV1): ResolvedEx
       }
       recoveredDateConstructor = true;
     }
-    const provenance = object.provenance.length === 1 && object.provenance[0] === "globalThis"
-      ? Object.freeze([property])
-      : Object.freeze([...object.provenance, property]);
+    const provenance = extendStaticProvenanceV1(object.provenance, property);
     let exactProof: ExactProofV1 | null = null;
     const directMember = expression.computed !== true && expression.optional !== true;
     if (directMember) {
@@ -1956,9 +1891,7 @@ function resolveTsEntityNameV1(
   if (left.provenance === null || right === null) {
     return { provenance: null, bootstrap: left.bootstrap };
   }
-  const provenance = left.provenance.length === 1 && left.provenance[0] === "globalThis"
-    ? Object.freeze([right])
-    : Object.freeze([...left.provenance, right]);
+  const provenance = extendStaticProvenanceV1(left.provenance, right);
   return { provenance, bootstrap: left.bootstrap };
 }
 
@@ -2035,9 +1968,7 @@ function derivePatternPropertyV1(
   const provenance = propertyName === "constructor" && resolved.provenance === null
     ? Object.freeze([constructorEscapeRiskProvenanceV1, "constructor"])
     : resolved.provenance !== null && propertyName !== null
-    ? resolved.provenance.length === 1 && resolved.provenance[0] === "globalThis"
-      ? Object.freeze([propertyName])
-      : Object.freeze([...resolved.provenance, propertyName])
+    ? extendStaticProvenanceV1(resolved.provenance, propertyName)
     : null;
   let exactProof: ExactProofV1 | null = null;
   if (
@@ -2071,13 +2002,9 @@ function assignPatternV1(
     const name = identifierNameV1(pattern);
     const binding = name === null ? null : lookupBindingV1(scope, name);
     if (binding !== null) {
-      const provenance = mode === "const" || mode === "const_join" ||
-          !isAnyDateInputProvenanceV1(resolved.provenance)
-        ? resolved.provenance
-        : Object.freeze([ambiguousDateInputProvenanceV1]);
       binding.provenance = mode === "join" || mode === "const_join"
-        ? conservativeProvenanceJoinV1(binding.provenance, provenance)
-        : provenance;
+        ? conservativeProvenanceJoinV1(binding.provenance, resolved.provenance)
+        : resolved.provenance;
       binding.bootstrap = resolved.bootstrap === null ? null : "forbidden";
       if (mode === "const") {
         setBindingExactStateV1(
@@ -2423,25 +2350,53 @@ export function analyzeDeterminismSourceV1(
     }
   };
 
+  const hasProvenStaticDateConstructorRecoveryV1 = (
+    node: AstNodeV1,
+    scope: ScopeV1,
+  ): boolean => {
+    const members: string[] = [];
+    let current: AstNodeV1 | null = node;
+    while (current?.type === "TSQualifiedName") {
+      const member = identifierNameV1(asNodeV1(current.right));
+      if (member === null) return false;
+      members.unshift(member);
+      current = asNodeV1(current.left);
+    }
+    const rootName = identifierNameV1(current);
+    if (rootName === null || current === null) return false;
+    if (
+      rootName === "Date" && lookupBindingV1(scope, "Date") === null &&
+      members[0] === "prototype" && members[1] === "constructor"
+    ) return true;
+    return members[0] === "constructor" &&
+      resolveExpressionV1(current, scope).exactProof?.kind === "known_date";
+  };
+
+  const hasUnshadowedGlobalThisEntityRootV1 = (
+    node: AstNodeV1,
+    scope: ScopeV1,
+  ): boolean => {
+    let current: AstNodeV1 | null = node;
+    while (current?.type === "TSQualifiedName") current = asNodeV1(current.left);
+    return identifierNameV1(current) === "globalThis" &&
+      lookupBindingV1(scope, "globalThis") === null;
+  };
+
   const classifyProvenanceV1 = (
     provenance: readonly string[] | null,
-    node: AstNodeV1,
     mode: "call" | "new" | "member",
-    scope: ScopeV1,
   ): string | null => {
     if (provenance === null || provenance.length === 0) return null;
-    const root = provenance[0];
+    const root = provenance[0] ?? "";
     const members = provenance.slice(1);
     if (
       root === ambiguousCapabilityProvenanceV1 ||
       root === ambiguousDateInstanceProvenanceV1
     ) {
-      if (members.some((name) => dateHostDependentMembersV1.has(name))) {
-        return mode === "call" && isExactHostDependentDateOperationV1(provenance)
-          ? "determinism.host_timezone"
-          : "determinism.ambient_capability_escape";
-      }
       return "determinism.ambient_capability_escape";
+    }
+    if (root === constructorEscapeRiskProvenanceV1) {
+      return "determinism.capability.constructor_escape";
     }
     if (isDynamicRequireProvenanceV1(provenance)) {
       return "determinism.capability.dynamic_require";
@@ -2465,52 +2420,14 @@ export function analyzeDeterminismSourceV1(
         isDateInstanceProvenanceV1(provenance) &&
         members.some((name) => dateHostDependentMembersV1.has(name))
       ) {
-        return mode === "call" && isExactHostDependentDateOperationV1(provenance)
-          ? "determinism.host_timezone"
-          : "determinism.ambient_capability_escape";
+        return "determinism.ambient_capability_escape";
       }
       const callableKind = dateCallableKindV1(provenance);
       if (isDateCallableBindV1(provenance)) {
         return "determinism.ambient_capability_escape";
       }
-      if (callableKind === "constructor" && mode === "call") {
-        return "determinism.ambient_clock";
-      }
-      if (callableKind === "constructor" && mode === "new") {
-        const argumentsV1 = asNodesV1(node.arguments);
-        if (argumentsV1.length === 0) {
-          return "determinism.ambient_clock";
-        }
-        if (argumentsV1.some(({ type }) => type === "SpreadElement")) {
-          const onlyArgument = argumentsV1.length === 1 ? argumentsV1[0] : undefined;
-          const spreadValue = onlyArgument?.type === "SpreadElement"
-            ? unwrapExpressionV1(asNodeV1(onlyArgument.argument))
-            : null;
-          return spreadValue?.type === "ArrayExpression" &&
-              Array.isArray(spreadValue.elements) && spreadValue.elements.length === 0
-            ? "determinism.ambient_clock"
-            : "determinism.date_input_unverified";
-        }
-        if (argumentsV1.length > 1) return "determinism.host_timezone";
-        if (!isSafeDateConstructorInputV1(argumentsV1[0] ?? null, scope)) {
-          return isLocalZoneDateInputV1(argumentsV1[0] ?? null, scope)
-            ? "determinism.host_timezone"
-            : "determinism.date_input_unverified";
-        }
-      }
       if (callableKind === "constructor" && mode === "member") {
         return "determinism.ambient_capability_escape";
-      }
-      if (callableKind === "now") return "determinism.ambient_clock";
-      if (callableKind === "parse" && mode === "call") {
-        const argumentsV1 = dateInvocationArgumentsV1(node, provenance);
-        if (argumentsV1?.length === 1 && isSafeDateParseInputV1(argumentsV1[0] ?? null, scope)) {
-          return null;
-        }
-        return argumentsV1?.length === 1 &&
-            isLocalZoneDateInputV1(argumentsV1[0] ?? null, scope)
-          ? "determinism.host_timezone"
-          : "determinism.date_input_unverified";
       }
       if (callableKind === "other") return "determinism.ambient_capability_escape";
     }
@@ -2553,7 +2470,51 @@ export function analyzeDeterminismSourceV1(
     if (root === "Math" && members.some((name) => approximateMathMembersV1.has(name))) {
       return "determinism.numeric_approximate_math";
     }
+    if (genericAmbientFallbackRootsV1.has(root) && !intrinsicStaticRootsV1.has(root)) {
+      return "determinism.ambient_capability_escape";
+    }
     return null;
+  };
+
+  const classifyStaticCaptureV1 = (
+    node: AstNodeV1,
+    provenance: readonly string[] | null,
+    scope: ScopeV1,
+  ): string | null => {
+    const hasDateConstructorRecoveryPrefix = provenance?.[0] === "Date" &&
+      (provenance[1] === "instance" || provenance[1] === "prototype") &&
+      provenance[2] === "constructor";
+    if (
+      hasDateConstructorRecoveryPrefix &&
+      !hasProvenStaticDateConstructorRecoveryV1(node, scope)
+    ) return "determinism.capability.constructor_escape";
+    const dateCallable = dateCallableKindV1(provenance);
+    if (dateCallable === "now") return "determinism.clock.date_now";
+    if (dateCallable === "parse" || dateCallable === "utc") {
+      return "determinism.capability.indirect_intrinsic";
+    }
+    if (dateCallable === "constructor" && provenance?.at(-1) === "constructor") {
+      return "determinism.capability.indirect_intrinsic";
+    }
+    if (provenance?.at(-1) === "constructor") {
+      return "determinism.capability.constructor_escape";
+    }
+    if (isDateInstanceProvenanceV1(provenance) && (provenance?.length ?? 0) > 2) {
+      return "determinism.date_instance_unverified";
+    }
+    const name = identifierNameV1(node);
+    if (
+      provenance?.length === 1 && name !== null && lookupBindingV1(scope, name) === null
+    ) {
+      if (name === "performance") return "determinism.performance_clock";
+      if (name === "crypto") return "determinism.crypto_random";
+      if (name === "navigator") return "determinism.locale";
+    }
+    const code = classifyProvenanceV1(provenance, "member");
+    if (code !== null) return code;
+    return provenance?.length === 1 && hasUnshadowedGlobalThisEntityRootV1(node, scope)
+      ? "determinism.ambient_capability_escape"
+      : null;
   };
 
   const visitPropertyKeyV1 = (key: AstNodeV1 | null, scope: ScopeV1): void => {
@@ -2749,6 +2710,14 @@ export function analyzeDeterminismSourceV1(
         return true;
       }
       if (
+        staticPropertyNameV1(target) === null &&
+        (objectProvenance?.[0] === "globalThis" ||
+          objectProvenance?.[0] === ambiguousCapabilityProvenanceV1)
+      ) {
+        reportNodeV1("determinism.capability.dynamic_member", target);
+        return true;
+      }
+      if (
         isTrackedAmbientCapabilityProvenanceV1(provenance) ||
         isTrackedAmbientCapabilityProvenanceV1(objectProvenance)
       ) {
@@ -2838,12 +2807,11 @@ export function analyzeDeterminismSourceV1(
   const reportPatternCapabilitiesV1 = (
     pattern: AstNodeV1 | null,
     resolved: ResolvedExpressionV1,
-    scope: ScopeV1,
   ): void => {
     pattern = unwrapExpressionV1(pattern);
     if (pattern === null) return;
     if (pattern.type === "AssignmentPattern") {
-      reportPatternCapabilitiesV1(asNodeV1(pattern.left), resolved, scope);
+      reportPatternCapabilitiesV1(asNodeV1(pattern.left), resolved);
       return;
     }
     if (pattern.type !== "ObjectPattern") return;
@@ -2878,14 +2846,14 @@ export function analyzeDeterminismSourceV1(
           property,
         );
       } else {
-        const code = classifyProvenanceV1(derived.provenance, property, "member", scope);
+        const code = classifyProvenanceV1(derived.provenance, "member");
         if (code !== null) reportNodeV1(code, property);
         else if (
           derived.provenance?.length === 1 &&
           ambientCapabilityRootsV1.has(derived.provenance[0] ?? "")
         ) reportNodeV1("determinism.ambient_capability_escape", property);
       }
-      reportPatternCapabilitiesV1(asNodeV1(property.value), derived, scope);
+      reportPatternCapabilitiesV1(asNodeV1(property.value), derived);
     }
   };
 
@@ -3457,26 +3425,29 @@ export function analyzeDeterminismSourceV1(
       if (binding?.bootstrap !== null && binding !== null) {
         reportNodeV1("determinism.bootstrap_entropy_escape", unwrappedCallee);
         classified = true;
+      } else if (binding === null && name !== null) {
+        const code = name === "performance"
+          ? "determinism.performance_clock"
+          : name === "crypto"
+          ? "determinism.crypto_random"
+          : name === "navigator"
+          ? "determinism.locale"
+          : null;
+        if (code !== null) {
+          reportNodeV1(code, unwrappedCallee);
+          classified = true;
+        }
       }
     }
 
     if (!classified && unwrappedCallee !== null) {
-      const code = classifyProvenanceV1(calleeResolved.provenance, node, mode, scope);
+      const code = classifyProvenanceV1(calleeResolved.provenance, mode);
       if (code !== null) {
         reportNodeV1(code, unwrappedCallee);
         classified = true;
       }
     }
 
-    if (
-      !classified && mode === "new" &&
-      dateCallableKindV1(calleeResolved.provenance) === "constructor"
-    ) {
-      const argumentsV1 = asNodesV1(node.arguments);
-      if (argumentsV1.length > 0 && argumentsV1.every(({ type }) => type !== "SpreadElement")) {
-        classified = true;
-      }
-    }
     if (
       !classified && mode === "call" && calleeResolved.provenance?.length === 1 &&
       calleeResolved.provenance[0] === "Number"
@@ -3712,7 +3683,7 @@ export function analyzeDeterminismSourceV1(
       assignmentTarget?.type === "RestElement"
     ) {
       visitPatternRuntimeV1(assignmentTarget, scope);
-      reportPatternCapabilitiesV1(assignmentTarget, resolved, scope);
+      reportPatternCapabilitiesV1(assignmentTarget, resolved);
       assignPatternV1(assignmentTarget, resolved, scope, "join");
     } else if (
       assignmentTarget !== null && assignmentTarget.type !== "MemberExpression" &&
@@ -3830,7 +3801,7 @@ export function analyzeDeterminismSourceV1(
             binding.provenance = resolved.provenance;
             binding.bootstrap = resolved.bootstrap === null ? null : "forbidden";
           }
-          const code = classifyProvenanceV1(resolved.provenance, moduleReference, "member", scope);
+          const code = classifyStaticCaptureV1(moduleReference, resolved.provenance, scope);
           if (code !== null) reportNodeV1(code, moduleReference);
           if (
             resolved.provenance?.length === 1 &&
@@ -3954,7 +3925,7 @@ export function analyzeDeterminismSourceV1(
             }
           }
           visitPatternRuntimeV1(pattern, scope);
-          reportPatternCapabilitiesV1(pattern, resolved, scope);
+          reportPatternCapabilitiesV1(pattern, resolved);
           if (initializer !== null) {
             assignPatternV1(
               pattern,
@@ -4159,7 +4130,7 @@ export function analyzeDeterminismSourceV1(
           reportNodeV1("determinism.bootstrap_entropy_escape", node);
           return;
         }
-        const code = classifyProvenanceV1(resolved.provenance, node, "member", scope);
+        const code = classifyProvenanceV1(resolved.provenance, "member");
         if (code !== null) {
           reportNodeV1(code, node);
           return;
@@ -4432,9 +4403,10 @@ export function analyzeDeterminismSourceV1(
         }
 
         if (!classified && tag !== null) {
-          const code = classifyProvenanceV1(tagProvenance, node, "call", scope);
-          if (code !== null) reportNodeV1(code, tag);
-          else if (
+          const code = classifyProvenanceV1(tagProvenance, "call");
+          if (code !== null) {
+            reportNodeV1(code, tag);
+          } else if (
             tagProvenance?.length === 1 &&
             provenanceTrackedRootsV1.has(tagProvenance[0] ?? "")
           ) reportNodeV1("determinism.ambient_capability_escape", tag);

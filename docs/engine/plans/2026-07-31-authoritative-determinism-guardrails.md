@@ -1,12 +1,12 @@
 # Authoritative determinism guardrails execution plan
 
 状态：2026-08-02 接受 DET3a conservative-syntax corrective contract；此前
-DET3a–DET4/PF-DET closure 作为 superseded-contract 历史证据保留。当前 active gate 为
-DET3a corrective implementation → DET3b invariant revalidation → DET4 full
-re-promotion。DET3a-C1 import/loader admission、C2 Date/String/provenance kernel 与 C3
-B-prime Base UTC isolation 已完成；当前下一独立切片为 DET3a-C4 cleanup and re-promotion。
-`development.md` 已同步 C1–C3 live behavior，`features.md`
-已降格为 reopened gate，在 re-promotion 前不得宣称整套 guardrail 完成。目标合同见
+DET3a–DET4/PF-DET closure 作为 superseded-contract 历史证据保留。corrective sequence 为
+DET3a corrective implementation → DET3b invariant revalidation → DET4 full re-promotion，
+现已完成。DET3a-C1 import/loader admission、C2 Date/String/provenance kernel、C3
+B-prime Base UTC isolation 与 C4 cleanup/re-promotion 已完成；corrective aggregate PF-DET
+现已关闭，linear core 下一独立切片恢复为 Save M1。`development.md` 与 `features.md` 已同步
+当前 live behavior。目标合同见
 [Authoritative simulation determinism boundary](../design/deterministic-simulation-boundary.md)；
 在 [Production-floor sequence](2026-07-30-production-floor-sequence.md) 中属于
 PF-DET，排在 PF2 Workspace Overlay pilot 之后，并与 PF3 按显式 DAG 汇合。本文只
@@ -2068,6 +2068,32 @@ recording 后才能影响玩法，replay 不重读 wall clock。B-prime 与 C2 s
 出现前不提升 reusable engine capability。该 amendment 只修订 owning design/active plans，
 不改 implementation、public API 或 tests；既有 C3 evidence 继续拥有三个 strict
 `IsoUtcInstant` consumer 与独立 filename policy 的 equivalence。下一切片仍为 `DET3a-C4`。
+
+**DET3a-C4 promotion（2026-08-03）：** rule core 删除了已被 C2 exact classifier 完全取代的
+四个 broad Date-input provenance sentinel、旧 argument evaluator 与 unreachable generic
+Date constructor/parse/clock fallback；cleanup 前后同一 focused baseline 都是
+`8 files / 894 tests`，因此删除本身没有改变已有 diagnostic vector。TDD 又发现并闭合三类
+仍可达的 corrective mismatch：DET3b explicit-zone runtime grammar 从 only-three fraction
+修正为 C2 的 optional `1..3`，`.1` / `.12` 首轮令 Deno matrix `1 failed / 2 passed`，green
+后 `3/3`；runtime TypeScript internal `import =` 现在与 direct member capture 使用同一 Date
+precedence，覆盖 bare/recovered constructor、`.now`、`.parse`、`.UTC`、Function-constructor
+escape、unknown terminal `.constructor` 与 Date prototype method capture，并固定 exact
+diagnostic source range；unknown `globalThis` / tracked-ambient descendant 不再因 sequence
+last-value、pattern/alias、operation 或 write target 丢失 fail-closed provenance，同时保留
+specific diagnostic 与 checked intrinsic clean winner 的 precedence。`.1234` 继续由 Date
+parse/constructor guard self-test 以 `date_input_unverified` 拒绝。
+
+最终 static determinism 为 `3 files / 984 tests`，C4 aggregate focused 为
+`8 files / 1018 tests`，DET3b focused 为 `3 files / 32 tests`。guard inventory live recollection
+得到 `65` 个定义、`65` 个唯一 ID 与 `8` 个类别；不固定各 runtime 的 installed/native-absent
+分布。DET4 在 latest-stable Deno `2.9.4` 为 `3/3`，Chromium、Firefox、WebKit 各执行两个
+repeat，browser 合计 `6/6`。repository full unit 为 `227 files / 3324 tests`，最终
+`deno task check` 全绿并完成 Engine Lab production build；corrective implementation 没有新增
+production public API，也没有改变 Save envelope/bytes、canonical
+JSON/digest、Snapshot、RNG、CommandLog、replay、Debug Bundle 或 gameplay time/calendar
+语义。DET3a-C4、DET3b revalidation、DET4 re-promotion 与 aggregate PF-DET corrective gate
+据此关闭；linear core 下一独立切片为 callback-free Save `M1`，`M2` 仍须在同一 merged HEAD
+通过 DET-B/M1 join。
 
 ## 15. Deferred work
 

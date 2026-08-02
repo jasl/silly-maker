@@ -5,10 +5,11 @@ DET3a–DET4 promotion 证明的是当时的 broad static-analysis contract；�
 byte-equivalence 与 runtime evidence 作为历史记录保留，但 Date/String provenance、
 dynamic-import 与 failure-classification 规则已由本次目标 supersede，不构成 corrective
 contract 的实现或 promotion evidence。DET3a-C1 import/loader admission、C2
-Date/String/provenance kernel 与 C3 B-prime Base UTC isolation 已按新合同落地；C4 cleanup、
-DET3b revalidation 与 aggregate re-promotion 仍待后续切片。`development.md` 随实际落地
-slice 描述当前 live implementation，`features.md` 在 aggregate re-promotion 前不宣称整套
-corrective guardrail 已完成；目标与实现差距由本文及 active plan 明示拥有。具体落地顺序见
+Date/String/provenance kernel、C3 B-prime Base UTC isolation 与 C4 dead-path cleanup 已按新
+合同落地；DET3b inventory/reachability 已复核，DET4 Deno、Chromium、Firefox、WebKit
+full matrix 已重新通过，corrective aggregate PF-DET 现已关闭。`development.md` 与
+`features.md` 描述当前 live implementation；准确实测 evidence 由 active plan 的 corrective
+promotion record 拥有。具体落地顺序见
 [Authoritative determinism guardrails plan](../plans/2026-07-31-authoritative-determinism-guardrails.md)。
 当前 Snapshot、Save 与 Debug Bundle encoding 已有 integer-only canonical
 边界，事务 RNG 已进入 Snapshot；zero xorshift state、bootstrap 尽早入场、
@@ -497,7 +498,12 @@ capability/wrapper classification 前决定，同一 maximal chain 只产生一�
 diagnostic；receiver/callee/input 中确实执行的 child expression diagnostic 仍保留。bare
 `Math` / `Date` / `Number` / `Temporal` / `globalThis` / `Deno` / `process` 与 CommonJS
 `module` capability root 不得通过 alias、argument、return 或 export 逃离逐文件
-verification；已分类的 direct member operation 继续按其具体 rule 判断。即使显式给出 locale，
+verification；已分类的 direct member operation 继续按其具体 rule 判断。unshadowed static
+`globalThis.<root>...` 只恢复现有 classifier 的 root identity，不授予 Date/StaticString direct
+allowance：exact/specific winner 先行，既有 intrinsic root 在 classifier 返回 clean 时保持
+clean，tracked ambient 或未分类 first hop/descendant 则 generic fail closed，dynamic selector
+仍使用 `dynamic_member`。该 provenance 必须穿过 sequence last-value、runtime `import =`、
+destructure/alias 与 write target，不能因语法换形丢失 root。即使显式给出 locale，
 `Intl` / `toLocale*` / `localeCompare` 仍依赖 Host ICU，因此不进入 authoritative
 algorithm；玩家可见的本地化格式化属于 Presentation。Host provider、Presentation、tooling、test timing 和 bench
 不在 authority closure 中。`createBootstrapInput` 的 callback owner 仍在
@@ -807,7 +813,10 @@ clock registry 在已知 `performance.now` / `timeOrigin` / `toJSON` member guar
 保护完整 `performance` root；environment registry 同样在已知 member 外保护完整
 `Deno` / `process` root，避免其他 Host runtime capability 从未枚举 member 穿透。Date runtime admission 与静态规则使用同一分类：经
 Gregorian 校验的 zone-less local spelling 是 Host-timezone violation，malformed、
-impossible 或其他 unverifiable input 是 `determinism.date_input_unverified`。
+impossible 或其他 unverifiable input 是 `determinism.date_input_unverified`。direct
+`Date.parse` / single-argument `new Date` 的 explicit-zone runtime proof 与 C2 一致，只接受
+`1..3` 位 optional fraction；neutral driver 固定 `.1` / `.12` 正向路径，guard self-test
+固定 `.1234` 拒绝边界。
 
 每个 runtime 只需 patch 实际存在的 API；不存在的 global 由 probe
 证明访问稳定失败，不能把 absence 记成 silently skipped coverage。
@@ -904,10 +913,10 @@ Save 中不保存 Decimal instance；若未来 runtime 真需 Decimal，也必�
 ## 8. Promotion and stop rules
 
 DET1–DET2e（DET-A）完成只允许 callback-free Save M0b/M1 分叉，不构成完整
-promotion。旧 DET3a–DET4 promotion evidence 仍证明 superseded broad contract，但不证明
-本次 conservative-syntax corrective target。corrective DET3a 落地、DET3b invariant
-revalidation 与 DET4 full matrix re-promotion 前，aggregate PF-DET 对新合同保持 reopen。
-准确实测 evidence 由 active plan 的 historical 与 corrective promotion record 分别拥有：
+promotion。旧 DET3a–DET4 promotion evidence 仍只证明 superseded broad contract；随后完成的
+corrective DET3a、DET3b invariant revalidation 与 DET4 full matrix re-promotion 已按
+conservative-syntax contract 再次关闭 aggregate PF-DET。准确实测 evidence 由 active plan 的
+historical 与 corrective promotion record 分别拥有：
 
 1. current-gap tests 先证明 raw/mutable bootstrap handoff、zero cursor、
    command/evidence late failure 与 replay admission 的旧行为；

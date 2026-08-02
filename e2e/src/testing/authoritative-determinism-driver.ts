@@ -80,11 +80,17 @@ export interface AuthoritativeDeterminismBootstrapInputV1 {
 export function verifyTripwireDeterministicDateOperationsV1(): void {
   const epoch = new Date(0);
   const parsedEpoch = Date.parse("1970-01-01T00:00:00Z");
+  const parsedTenths = Date.parse("1970-01-01T00:00:00.1Z");
+  const parsedHundredths = Date.parse("1970-01-01T00:00:00.12+00:00");
   const constructedEpoch = new Date("1970-01-01T00:00:00Z");
+  const constructedTenths = new Date("1970-01-01T00:00:00.1Z");
+  const constructedHundredths = new Date("1970-01-01T00:00:00.12+00:00");
   const utcEpoch = Date.UTC(1970, 0, 1, 0, 0, 0, 0);
   if (
     epoch.toISOString() !== "1970-01-01T00:00:00.000Z" || parsedEpoch !== 0 ||
-    constructedEpoch.getTime() !== 0 || utcEpoch !== 0
+    parsedTenths !== 100 || parsedHundredths !== 120 ||
+    constructedEpoch.getTime() !== 0 || constructedTenths.getTime() !== 100 ||
+    constructedHundredths.getTime() !== 120 || utcEpoch !== 0
   ) {
     throw new TypeError("deterministic Date operations changed inside the tripwire realm");
   }
