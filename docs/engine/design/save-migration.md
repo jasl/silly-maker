@@ -40,7 +40,9 @@ metadata corpus 与 determinism join 修订；尚未实现。本文把 Save
 
 ```text
 bounded strict JSON decode        （现有 saveJsonLimitsV1 限额保持不变）
-  -> envelope shell parse         （formatRevision、recordRevision、provenance、
+  -> exact outer fields + format decision
+  -> current-format envelope shell parse
+                                   （recordRevision、provenance、
                                     slot、savedAt、stateDigest、simulationLineage、
                                     bounded annotation、bounded versionStamp；
                                     snapshot 保持受限 raw 结构）
@@ -49,13 +51,25 @@ bounded strict JSON decode        （现有 saveJsonLimitsV1 限额保持不变�
   -> identify stored provenance and schema revisions
   -> ordered pure State migrations （state contract revision N -> N+1，M2 起启用）
   -> current snapshot schema validation
+  -> normalized current snapshot digest derivation/admission
   -> compatibility classification  （exact / adoption / inspect_only / rejected）
-  -> reference and invariant validation, current digest checks
+  -> reference and invariant validation
   -> atomically install one new replay anchor
 ```
 
-与现状的差异是：current snapshot schema 验证从解码期移到迁移之后；解码期只解析
-envelope 外壳字段，snapshot 保持为受限 raw 数据。
+outer field set validation 必须先于 format decision；合法但不受支持的
+`formatRevision` 必须先于任何 current-format-only shell field validation 被拒绝，不能
+拿当前 schema 解释未知 format。与现状的差异是：current snapshot schema 验证从解码期
+移到迁移之后；解码期只解析 current-format envelope 外壳字段，snapshot 保持为受限 raw
+数据。
+
+这也明确改变一组 compound-failure precedence：现实现先解析完整 current Snapshot
+schema、trailing envelope fields 与 cross-field identity，再验证 digest；目标顺序在
+shell 成功后先验证 raw snapshot digest，并把 current Snapshot admission 移到其后。
+因此所有实际跨越这些 phase 的双缺陷输入都按目标 phase 顺序裁决，而不是只豁免一个
+schema 例子。至少维护 Snapshot-schema + digest、zero-RNG + digest、zero-RNG + invalid
+trailing shell field、cross-field + digest 四类代表 vector；合法、单缺陷及未受 phase
+移动影响的 current-format 结果仍须逐字段回归 M0b。
 
 M1 只交付 callback-free shell、raw-digest verification 与上述 phase ordering；当
 shell/digest 合法但 State revision 不同，它返回 `migration.unavailable`，不执行
@@ -89,8 +103,32 @@ shell/digest 合法但 State revision 不同，它返回 `migration.unavailable`
   stored `formatRevision` 选择。Envelope format migration 默认只能改外壳；若历史格式
   必须转换 snapshot 表示，它只能在原始 digest 已验证后执行，并同时产生新的 Snapshot、
   digest 与 lineage 记录。迁移绝不在完整性未证实的数据上运行；
-- 任何一步失败留下原 Save 数据不变，结果是结构化 rejection 或
-  inspect_only，不存在半迁移状态。
+- current State revision 的 raw digest 通过后，current Snapshot schema 仍可能通过
+  default/normalization 产生不同 canonical candidate；安装前必须再次验证 normalized
+  current Snapshot 的 digest 等于 stored `stateDigest`。该失败使用独立、公开的
+  codec/validation-layer rejection code `digest.normalized_state_mismatch`，Player-facing
+  mapping 仍为 `invalid_record`，且发生在 compatibility 与任何 Story
+  reference/invariant callback 前，因此这些 callback count 精确为 `0`。raw
+  verification 保护 migration 输入，normalized-current verification
+  保护最终 authoritative identity，二者不能互相替代。真正执行 State migration 的后续
+  路径不拿迁移后的 candidate 与 pre-migration stored digest 比较，而是由 engine 对
+  normalized migration output 派生新 digest，作为新 replay/Save anchor 的 identity；
+- 可预期的 candidate validation/migration failure 留下原 Save 数据不变，结果是结构化
+  rejection 或 inspect_only，不存在半迁移状态；operational/unexpected failure 返回
+  faulted，prepare-commit fault 可把 Session 置为 `fault_paused`。失败不得安装部分
+  Session、替换 replay anchor、
+  推进 lineage 或 autosave anchor；成功结果只能在完整 current candidate 通过
+  schema、compatibility、reference 与 invariant 后一次性发布。短暂 busy、结构化
+  diagnostics/failure status 以及 unexpected internal fault 的 `fault_paused` 不属于
+  authoritative State mutation；
+- stored load 在 codec/digest 后还验证 physical Host revision equality 与
+  story/slot/write-reason identity；import 没有 physical Host identity。结构化失败指该
+  操作不发起或提交 Save write 并保留来源 record，不能据此禁止先前已在途的 autosave
+  合法完成；
+- `recordRevision` 是 Host 每槽 CAS/write revision，不是 envelope-format 或 State
+  migration revision。非法值属于 schema failure；stored Host revision 与合法 envelope
+  值不一致属于 repository integrity failure；无 physical revision 的 import 接受任意
+  positive-safe 值且不执行该比较。
 
 ### Phase and corpus ownership
 
@@ -145,7 +183,10 @@ interface SaveStateMigrationV1 {
   currentStateContractRevision }`，Player persistence 返回
   `{ kind: "rejected", code: "migration_unavailable" }`。Unsupported envelope
   format、raw digest mismatch 与 current-revision schema invalid 保持各自更早的
-  rejection；此结果不写 record、不安装 Session、不替换 replay anchor；
+  rejection；State revision decision 先于 compatibility，因此 Story ID mismatch 与
+  State revision mismatch 同时存在时仍为 `migration.unavailable`，相同 State revision
+  的 Story mismatch 才保留既有 `inspect_only`/player `incompatible`。此结果不写
+  record、不安装 Session、不替换 replay anchor；
 - **dry-run / forward inspection**：只检查、不写入；输出结构化
   diagnostics（哪些槽位可直迁、哪些需要 adoption、哪些会被拒绝及原因）；
 - **写入前备份**：迁移写入前保留原记录（复用现有 lineage/slot

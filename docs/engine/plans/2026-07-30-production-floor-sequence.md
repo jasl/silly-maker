@@ -3,7 +3,7 @@
 状态：2026-07-30 接受执行，2026-08-01 根据 PF2 promotion、authoritative
 determinism/Save graph、CI 与 Desktop 审计修订；2026-08-02 DET4 的同一 Session
 implementation 与修正后的 promotion verification 均已完成，DET-B/aggregate PF-DET
-已关闭，线性 core 下一独立切片为 Save M0b。本文是当前唯一的跨计划排序入口；
+已关闭；Save M0b 随后完成，线性 core 下一独立切片为 Save M1。本文是当前唯一的跨计划排序入口；
 具体合同仍由各 design 文档拥有，主要任务由五个独立计划拥有：
 
 - [Desktop persistence durability](2026-07-30-desktop-persistence-durability.md)
@@ -641,9 +641,20 @@ typecheck、`check:determinism`、最终 `deno task check` 全绿。最终 check
 检查 `883 files`，并覆盖 lint/stylelint、typecheck、static determinism、unit、assets、
 Story checks 与 build。workflow 已配置 determinism job，但不能自证远端 branch-protection
 已把该 status 设为 required。本批不改变 canonical/digest/Snapshot/Save/CommandLog/replay
-或 production Browser Agent surface。DET4/DET-B/aggregate PF-DET 至此关闭，当前线性 core
-下一独立切片为 Save `M0b`，随后是 `M1`；`M2` 仍必须等待 M1 与 DET-B 在同一 merged HEAD
+或 production Browser Agent surface。DET4/DET-B/aggregate PF-DET 至此关闭，并使 Save
+`M0b` 可领取；M0b promotion 见下，`M2` 仍必须等待 M1 与 DET-B 在同一 merged HEAD
 通过 join gate。
+
+**2026-08-02 Save M0b promotion：** 中性 generated current-load matrix 已冻结
+post-DET-A current codec/validation/repository/Player 结果、stored/import 分叉、atomic
+install/no-write、recovery/export 与 M0a metadata preservation。它没有增加第二份 byte
+golden。并发 Core load/import 的旧标量 origin race 由 exact queued replacement-commit
+binding 修复：red observation `["import", "replacement"]` 现在固定为
+`["load", "import"]`；package-internal WeakMap seam 未进入 barrel，原 runtime-control
+identity 与 PF1 digest cache 保持，restart 后 save traversal 固定为 `2`。focused
+`3/158`、Base `77/970`、full unit `226/2833` 全绿；canonical JSON/digest、Save bytes、
+Player load/import/replay semantics 与 browser config 均未改变。当前线性 core 下一独立
+切片为 Save `M1`。
 
 ### PF3 — Save envelope and migration registry
 
@@ -654,7 +665,13 @@ Story checks 与 build。workflow 已配置 determinism job，但不能自证远
    unstamped/stamped bytes 与 fixed-clock filename payload independence；
 2. **DET-A** 完成后，**M0b** 冻结 post-DET-A current load baseline；随后 **M1**
    只实现 bounded envelope shell、raw digest verification、load-order 与明确的
-   `migration_unavailable` public rejection，不注册、不注入、不执行任何 migrator；
+   `migration_unavailable` public rejection，不注册、不注入、不执行任何 migrator。
+   M0b 同时记录 current full-schema-before-digest precedence；M1 把
+   所有受 Snapshot-admission 后移影响的 compound case 有意切换为 shell/raw-digest-first
+   phase precedence（包括 schema/RNG/cross-field 与 digest 的代表组合），除此之外
+   current-format regression 逐字段保持不变；current schema normalization 若改变
+   canonical identity，则在任何 Story callback 前以公开 codec/validation-layer
+   `digest.normalized_state_mismatch` 拒绝并映射为 Player `invalid_record`；
 3. M0b/M1 可以与 DET-B 并行，但文件 ownership 必须分离：DET-B 独占 authority
    collector、determinism task、test-only driver、Playwright config 与 CI；M0b/M1
    独占 Base Save codec/load order/public persistence result type 及其 tests；双方共同

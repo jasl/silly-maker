@@ -2188,6 +2188,15 @@ describe("createCoreGameApplicationInstanceV1", () => {
       replayComparisonTraversals: 0,
       totalPhysicalCanonicalTraversals: 2,
     });
+
+    counter.reset();
+    await expect(instance.persistence.save("quick")).resolves.toEqual({
+      kind: "saved",
+      slotId: "quick",
+    });
+    // Encoding and committed readback each verify once; capture must reuse the
+    // digest installed under the exact Session runtime-control identity.
+    expect(counter.snapshot().snapshotDigestTraversals).toBe(2);
     await instance.dispose();
   });
 
@@ -4437,6 +4446,47 @@ describe("createCoreGameApplicationInstanceV1", () => {
     await instance.dispose();
   });
 
+  it("attributes concurrent queued load and import replacements to their own presentation origins", async () => {
+    const instance = await createInstanceV1();
+    await expect(instance.persistence.save("manual.1")).resolves.toEqual({
+      kind: "saved",
+      slotId: "manual.1",
+    });
+    await instance.semantic.dispatch(incrementV1);
+    const exported = await instance.persistence.exportCurrentSave();
+    const bytes = (exported as { readonly bytes: Uint8Array }).bytes;
+    const anchors: unknown[] = [];
+    const unsubscribe = instance.subscribePresentationAnchor((anchor) => anchors.push(anchor));
+
+    const load = instance.persistence.load("manual.1");
+    const imported = instance.persistence.importSave(bytes);
+    await expect(Promise.all([load, imported])).resolves.toEqual([
+      { kind: "loaded", compatibility: "exact", commandSequence: 0 },
+      { kind: "imported", compatibility: "exact", commandSequence: 1 },
+    ]);
+    expect(anchors).toEqual([
+      { epoch: 1, origin: "load" },
+      { epoch: 2, origin: "import" },
+    ]);
+    expect(instance.presentationAnchor()).toEqual({ epoch: 2, origin: "import" });
+
+    const emptyLoad = instance.persistence.load("quick");
+    const importAfterRejection = instance.persistence.importSave(bytes);
+    await expect(Promise.all([emptyLoad, importAfterRejection])).resolves.toEqual([
+      { kind: "rejected", code: "empty_slot" },
+      { kind: "imported", compatibility: "exact", commandSequence: 1 },
+    ]);
+    expect(anchors).toEqual([
+      { epoch: 1, origin: "load" },
+      { epoch: 2, origin: "import" },
+      { epoch: 3, origin: "import" },
+    ]);
+    expect(instance.presentationAnchor()).toEqual({ epoch: 3, origin: "import" });
+
+    unsubscribe();
+    await instance.dispose();
+  });
+
   it("verifies the debounced autosave policy with a deterministic scheduler", async () => {
     const { counting, autoWrites } = countingRecordsV1();
     const { scheduler, scheduled, runLast } = manualSchedulerV1();
@@ -4844,6 +4894,53 @@ describe("createCoreGameApplicationInstanceV1", () => {
       slotId: "quick",
     });
     await expect(resumed.persistence.load("quick")).resolves.toMatchObject({ kind: "loaded" });
+    await resumed.dispose();
+  });
+
+  it("keeps a fresh bootstrap when current autosave is corrupt instead of auto-loading previous", async () => {
+    const records = createMemoryHostRecordStoreV1();
+    const source = await createCoreGameApplicationInstanceV1(resolvedResumingApplicationV1(), {
+      host: hostServicesV1(records),
+    });
+    await source.semantic.dispatch(incrementV1);
+    await source.semantic.dispatch(incrementV1);
+    await source.autoSaveIdle();
+    await source.dispose();
+
+    const current = await records.read("save", rngZeroAutoSaveKeyV1);
+    if (current === null) throw new TypeError("missing current autosave");
+    const corrupted = await records.commit([
+      Object.freeze({
+        kind: "put" as const,
+        namespace: "save",
+        key: rngZeroAutoSaveKeyV1,
+        expectedRevision: current.revision,
+        bytes: new TextEncoder().encode("corrupt"),
+      }),
+    ]);
+    if (corrupted.kind !== "committed") throw new TypeError("failed to corrupt current autosave");
+    const savesBeforeResume = await records.list("save");
+
+    const resumed = await createCoreGameApplicationInstanceV1(resolvedResumingApplicationV1(), {
+      host: hostServicesV1(records, [78]),
+    });
+    expect((resumed.semantic.observe().game as { readonly count: number }).count).toBe(0);
+    expect(resumed.presentationAnchor()).toEqual({ epoch: 0, origin: "bootstrap" });
+    expect(resumed.admin.commandLog()).toEqual([]);
+    await expect(resumed.persistence.listSlots()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          slotId: "auto.current",
+          health: "invalid",
+          warningCodes: ["syntax.invalid"],
+        }),
+        expect.objectContaining({
+          slotId: "auto.previous",
+          health: "recovery_candidate",
+        }),
+      ]),
+    );
+    expect(await records.list("save")).toEqual(savesBeforeResume);
     await resumed.dispose();
   });
 

@@ -191,6 +191,14 @@ interface PersistenceServiceControlInternalV1 {
   captureAutoSaveWithReceipt(
     snapshot: unknown,
   ): Promise<PersistenceAutoSaveAttemptReceiptInternalV1>;
+  loadWithReplacementCommit(
+    slot: SaveSlotIdV1,
+    onReplacementCommit: () => void,
+  ): Promise<PersistenceOperationResultV1>;
+  importWithReplacementCommit(
+    bytes: Uint8Array,
+    onReplacementCommit: () => void,
+  ): Promise<PersistenceOperationResultV1>;
   fencePlayerMutations(): void;
 }
 
@@ -218,6 +226,32 @@ export function fencePersistencePlayerMutationsInternalV1<TSnapshot>(
     throw new TypeError("Persistence service does not support mutation fencing");
   }
   control.fencePlayerMutations();
+}
+
+/** @internal Binds application presentation attribution to one queued load commit. */
+export function loadWithReplacementCommitInternalV1<TSnapshot>(
+  service: PersistenceServiceV1<TSnapshot>,
+  slot: SaveSlotIdV1,
+  onReplacementCommit: () => void,
+): Promise<PersistenceOperationResultV1> {
+  const control = persistenceServiceControlsInternalV1.get(service);
+  if (control === undefined) {
+    throw new TypeError("Persistence service does not support replacement commit binding");
+  }
+  return control.loadWithReplacementCommit(slot, onReplacementCommit);
+}
+
+/** @internal Binds application presentation attribution to one queued import commit. */
+export function importWithReplacementCommitInternalV1<TSnapshot>(
+  service: PersistenceServiceV1<TSnapshot>,
+  bytes: Uint8Array,
+  onReplacementCommit: () => void,
+): Promise<PersistenceOperationResultV1> {
+  const control = persistenceServiceControlsInternalV1.get(service);
+  if (control === undefined) {
+    throw new TypeError("Persistence service does not support replacement commit binding");
+  }
+  return control.importWithReplacementCommit(bytes, onReplacementCommit);
 }
 
 export type PersistenceLeaseAcquisitionV1 = "acquire_initial" | "deferred_rebootstrap";
@@ -987,6 +1021,7 @@ async function createPersistenceServiceWithDependenciesV1<
     operation: (
       current: DeepReadonly<TSnapshot>,
     ) => Promise<ReturnType<typeof replacementOutcomeV1>>,
+    onReplacementCommit?: () => void,
   ): Promise<PersistenceOperationResultV1> => {
     if (lifecycle !== "active" || playerMutationsFenced) {
       return Promise.resolve(faultedV1("runtime_disposed"));
@@ -1035,6 +1070,12 @@ async function createPersistenceServiceWithDependenciesV1<
           throw new TypeError("missing committed persistence lineage");
         }
         establishAnchorV1(committedSnapshot, preparedLineage);
+        try {
+          onReplacementCommit?.();
+        } catch {
+          // Package-internal presentation attribution is observational and
+          // cannot turn a valid authoritative replacement into a fault.
+        }
         lastFailureCode = null;
       },
       () => faultedV1("runtime_disposed"),
@@ -1115,6 +1156,50 @@ async function createPersistenceServiceWithDependenciesV1<
     });
     leaseMutationTail = Promise.all([leaseMutationTail, tracked]).then(() => undefined);
     return result;
+  };
+
+  const loadV1 = (
+    slot: SaveSlotIdV1,
+    onReplacementCommit?: () => void,
+  ): Promise<PersistenceOperationResultV1> => {
+    if (!slotWithinCountV1(slot)) {
+      return Promise.resolve(faultedV1("persistence.invalid_slot"));
+    }
+    return enqueueReplacementV1(async () => {
+      const read = await options.repository.read(slot);
+      if (read.health === "empty") {
+        return Object.freeze({
+          kind: "preserve" as const,
+          result: rejectedV1("empty_slot"),
+        });
+      }
+      if (read.health === "unavailable") {
+        rememberFailureV1(read.code);
+        return Object.freeze({
+          kind: "preserve" as const,
+          result: rejectedV1("unavailable"),
+        });
+      }
+      if (read.health === "invalid") {
+        if (read.code === "rng.invalid_state") rememberFailureV1(read.code);
+        return Object.freeze({
+          kind: "preserve" as const,
+          result: rejectedV1("invalid_record"),
+        });
+      }
+      return replacementOutcomeV1(read.bytes, "loaded");
+    }, onReplacementCommit);
+  };
+
+  const importSaveV1 = (
+    bytes: Uint8Array,
+    onReplacementCommit?: () => void,
+  ): Promise<PersistenceOperationResultV1> => {
+    const accepted = Uint8Array.from(bytes);
+    return enqueueReplacementV1(
+      async () => replacementOutcomeV1(accepted, "imported"),
+      onReplacementCommit,
+    );
   };
 
   const port: PersistencePortV1 = Object.freeze({
@@ -1383,35 +1468,7 @@ async function createPersistenceServiceWithDependenciesV1<
         });
     },
 
-    load(slot: SaveSlotIdV1) {
-      if (!slotWithinCountV1(slot)) {
-        return Promise.resolve(faultedV1("persistence.invalid_slot"));
-      }
-      return enqueueReplacementV1(async () => {
-        const read = await options.repository.read(slot);
-        if (read.health === "empty") {
-          return Object.freeze({
-            kind: "preserve" as const,
-            result: rejectedV1("empty_slot"),
-          });
-        }
-        if (read.health === "unavailable") {
-          rememberFailureV1(read.code);
-          return Object.freeze({
-            kind: "preserve" as const,
-            result: rejectedV1("unavailable"),
-          });
-        }
-        if (read.health === "invalid") {
-          if (read.code === "rng.invalid_state") rememberFailureV1(read.code);
-          return Object.freeze({
-            kind: "preserve" as const,
-            result: rejectedV1("invalid_record"),
-          });
-        }
-        return replacementOutcomeV1(read.bytes, "loaded");
-      });
-    },
+    load: loadV1,
 
     clear(slot: SaveSlotIdV1) {
       if (lifecycle !== "active" || playerMutationsFenced) {
@@ -1517,10 +1574,7 @@ async function createPersistenceServiceWithDependenciesV1<
       }
     },
 
-    importSave(bytes: Uint8Array) {
-      const accepted = Uint8Array.from(bytes);
-      return enqueueReplacementV1(async () => replacementOutcomeV1(accepted, "imported"));
-    },
+    importSave: importSaveV1,
   });
 
   const disposeForRebootstrapV1 = (): Promise<PersistenceRebootstrapDisposalV1> => {
@@ -1663,6 +1717,14 @@ async function createPersistenceServiceWithDependenciesV1<
     Object.freeze({
       captureAutoSaveWithReceipt: (snapshot: unknown) =>
         captureAutoSaveWithReceiptV1(snapshot as DeepReadonly<TSnapshot>),
+      loadWithReplacementCommit: (
+        slot: SaveSlotIdV1,
+        onReplacementCommit: () => void,
+      ) => loadV1(slot, onReplacementCommit),
+      importWithReplacementCommit: (
+        bytes: Uint8Array,
+        onReplacementCommit: () => void,
+      ) => importSaveV1(bytes, onReplacementCommit),
       fencePlayerMutations: () => {
         playerMutationsFenced = true;
       },

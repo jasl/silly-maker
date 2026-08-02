@@ -72,6 +72,8 @@ import {
   createInstrumentedPersistenceServiceV1,
   createPersistenceServiceV1,
   fencePersistencePlayerMutationsInternalV1,
+  importWithReplacementCommitInternalV1,
+  loadWithReplacementCommitInternalV1,
 } from "../persistence/persistence-service.ts";
 import { createSemanticGamePortV1 } from "./semantic-game-port.ts";
 
@@ -1145,6 +1147,10 @@ export async function createCoreGameApplicationInstanceV1<
   let disposed = false;
   const cleanups: (() => void)[] = [];
   let persistenceService: PersistenceServiceV1<TTypes["snapshot"]> | undefined;
+  interface PendingPresentationOriginV1 {
+    readonly origin: CorePresentationAnchorOriginV1;
+  }
+  let pendingPresentationOrigin: PendingPresentationOriginV1 | undefined;
 
   try {
     const stateOfSnapshotV1 = (
@@ -1264,7 +1270,6 @@ export async function createCoreGameApplicationInstanceV1<
     // base is replaced. Instance-local only.
     let epoch = parseNonNegativeSafeInteger(0);
     let origin: CorePresentationAnchorOriginV1 = "bootstrap";
-    let pendingOrigin: CorePresentationAnchorOriginV1 | undefined;
     let lastReplayBase: unknown = created.commandLog.replayBase();
     let clearPendingAutoSaveForAnchorV1: () => void = () => {};
     const anchorListeners = new Set<(anchor: CorePresentationAnchorV1) => void>();
@@ -1275,8 +1280,8 @@ export async function createCoreGameApplicationInstanceV1<
         if (replayBase === lastReplayBase) return;
         lastReplayBase = replayBase;
         epoch = parseNonNegativeSafeInteger(epoch + 1);
-        origin = pendingOrigin ?? "replacement";
-        pendingOrigin = undefined;
+        origin = pendingPresentationOrigin?.origin ?? "replacement";
+        pendingPresentationOrigin = undefined;
         // A debounce candidate belongs to the replay base that produced it.
         // Never let an old-base timer write back over a load/import/restart/
         // rollback replacement.
@@ -1422,22 +1427,34 @@ export async function createCoreGameApplicationInstanceV1<
 
     const withOriginV1 = async <TOperationResult>(
       nextOrigin: CorePresentationAnchorOriginV1,
-      operation: () => Promise<TOperationResult>,
+      operation: (onReplacementCommit: () => void) => Promise<TOperationResult>,
     ): Promise<TOperationResult> => {
-      pendingOrigin = nextOrigin;
+      const operationOrigin = Object.freeze({ origin: nextOrigin });
       try {
-        return await operation();
+        return await operation(() => {
+          pendingPresentationOrigin = operationOrigin;
+        });
       } finally {
-        if (pendingOrigin === nextOrigin) pendingOrigin = undefined;
+        if (pendingPresentationOrigin === operationOrigin) {
+          pendingPresentationOrigin = undefined;
+        }
       }
     };
 
     const persistencePort = Object.freeze({
       ...persistence.port,
       load: (slot: Parameters<typeof persistence.port.load>[0]) =>
-        withOriginV1("load", () => persistence.port.load(slot)),
+        withOriginV1(
+          "load",
+          (onReplacementCommit) =>
+            loadWithReplacementCommitInternalV1(persistence, slot, onReplacementCommit),
+        ),
       importSave: (bytes: Uint8Array) =>
-        withOriginV1("import", () => persistence.port.importSave(bytes)),
+        withOriginV1(
+          "import",
+          (onReplacementCommit) =>
+            importWithReplacementCommitInternalV1(persistence, bytes, onReplacementCommit),
+        ),
     });
 
     const maintenanceFailureMessageV1 = (error: unknown): string =>
@@ -1502,7 +1519,7 @@ export async function createCoreGameApplicationInstanceV1<
     const restartV1 = (): Promise<SessionAnchorResultV1> =>
       withOriginV1(
         "restart",
-        () =>
+        (onReplacementCommit) =>
           created.runtimeControl.enqueueAuthoritative<SessionAnchorResultV1>(
             async () => {
               const snapshot = createInitialSnapshotV1();
@@ -1521,7 +1538,10 @@ export async function createCoreGameApplicationInstanceV1<
                 kind: "faulted" as const,
                 code: "runtime.anchor_failed" as const,
               }),
-            (snapshot) => persistence.establishAnchor(snapshot, []),
+            (snapshot) => {
+              persistence.establishAnchor(snapshot, []);
+              onReplacementCommit();
+            },
             () =>
               Object.freeze({
                 kind: "rejected" as const,
@@ -1631,7 +1651,7 @@ export async function createCoreGameApplicationInstanceV1<
         try {
           const anchored = await withOriginV1(
             "rollback",
-            () =>
+            (onReplacementCommit) =>
               created.runtimeControl.enqueueAuthoritative<SessionAnchorResultV1>(
                 async () =>
                   Object.freeze({
@@ -1648,7 +1668,10 @@ export async function createCoreGameApplicationInstanceV1<
                     kind: "faulted" as const,
                     code: "runtime.anchor_failed" as const,
                   }),
-                (snapshot) => persistence.establishAnchor(snapshot, []),
+                (snapshot) => {
+                  persistence.establishAnchor(snapshot, []);
+                  onReplacementCommit();
+                },
                 () =>
                   Object.freeze({
                     kind: "rejected" as const,
