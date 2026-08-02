@@ -129,6 +129,16 @@ shell/digest 合法但 State revision 不同，它返回 `migration.unavailable`
   migration revision。非法值属于 schema failure；stored Host revision 与合法 envelope
   值不一致属于 repository integrity failure；无 physical revision 的 import 接受任意
   positive-safe 值且不执行该比较。
+- 上述 load/import/inspection/migration rejection 的来源保留合同不把显式 fresh player
+  Save 变成 migration。玩家选择 `quick` 或 numbered manual slot 保存时，旧 Save payload
+  不是新 candidate 的输入；只要 Host record 与 revision 可读、下一 revision 合法，写入就以
+  observed Host revision 和同一 session lease touch 做原子 CAS replacement。该 destructive
+  replacement 同样适用于当前 decoder 分类为 malformed、identity/revision invalid 或
+  unsupported/future format 的 payload；它不备份、迁移或采用旧 bytes。candidate encoding、
+  lease/fence 或 CAS loser 等 pre-commit failure 必须保留旧 raw record；CAS 已提交后的
+  readback failure 沿用既有 non-success/repair 语义，不伪装成已回滚。load、stored export 与
+  annotation rewrite 继续 fail closed，clear 仍是独立的显式 recovery action；Host backing
+  自身不可读不在此 allowance 内。
 
 ### Phase and corpus ownership
 

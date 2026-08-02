@@ -172,6 +172,35 @@ capture 仍命中 PF1 digest cache。focused `3 files / 158 tests`、Base `77/97
 load/import/replay semantics，也没有建立 shell、migration callback/registry 或 browser
 config；下一独立切片为 M1。
 
+### M0c — Explicit invalid player-slot replacement corrective
+
+实验应用暴露出标准 Save UI 与 repository 的可达合同错位：UI 对 `invalid` 的 Quick/manual
+槽仍允许显式 Save，但 repository 在 fresh candidate 写入前解码旧 payload 并固定返回
+`invalid_record`。M0c 只移除这项旧-payload gate：fresh player Save 继续从 Host revision
+派生下一 `recordRevision`，与 lease touch 在同一 CAS batch 提交，并在成功后执行完整 physical
+readback、Strict decode、digest/revision/fence/raw-byte verification。旧 payload 不参与 candidate，
+因此 allowance 明确覆盖 malformed、unsupported/future format、schema/digest 与
+slot/revision identity invalid；Host read unavailable、revision exhaustion、candidate encoding、
+stale fence、CAS loser 与 readback failure 仍 fail closed。
+
+验收必须以中性 generated data 固定 Quick + manual、malformed + structurally valid invalid、
+并发 CAS winner、失败 candidate 原 bytes 保留，以及 standard one-shot receipt 与 opaque
+fallback 的结果、Host revision、raw bytes 和确定性 work counts 等价。corrupt load、stored
+export、annotation rewrite、clear、autosave rotation、M0b authoritative no-mutation 与来源 bytes
+合同不变。本 corrective 不增加 backup/quarantine/migration/adoption，不改 Save schema、
+`formatRevision`、canonical/digest、公开 result union、CommandLog 或 replay；它是独立 fresh
+write behavior，M1 仍保持 callback-free load-order scope。
+
+**2026-08-03 M0c promotion：** TDD red 在 repository malformed/future、invalid-slot
+concurrency、candidate encode failure 与 standard receipt/fallback service flow 得到 `4` 个
+预期失败；删除旧 payload decode gate 后 focused 为 `2 files / 82 tests`。optimized replacement
+计数固定为 `T/D/S/P/F = 3/2/1/1/0`，opaque receipt fallback 为 `5/3/2/1/0`；两路
+result、Host revision `3` 与 raw bytes 相等。M0b/PF1 focused regression 为 `2/15`，Base
+为 `78/978`；Save Overlay 的 invalid Quick/manual enabled + dispatch baseline 为 `1/16`，
+full unit 为 `227/3196`，`deno task check` 全绿并完成 Engine Lab production build。旧实验
+仓库没有成为 source、fixture、dependency 或 validation authority；linear core 下一切片仍为
+DET3a-C4，之后才恢复 M1。
+
 ## 4. M1 — Bounded envelope shell and load order
 
 实现 design 的目标顺序：

@@ -295,6 +295,28 @@ describe("SaveOverlayV1", () => {
     ]);
   });
 
+  it("keeps invalid Quick and Manual slots explicitly writable", async () => {
+    const fixture = fixtureV1({
+      slots: Object.freeze([
+        slotV1("auto.current", "empty"),
+        slotV1("auto.previous", "empty"),
+        slotV1("quick", "invalid"),
+        slotV1("manual.1", "invalid"),
+      ]),
+    });
+    renderFixtureV1(fixture);
+    const user = userEvent.setup();
+    const quickSave = await screen.findByRole("button", { name: "快速保存" });
+    const manualSave = screen.getByRole("button", { name: "手动保存" });
+
+    expect(quickSave).toBeEnabled();
+    expect(manualSave).toBeEnabled();
+    await user.click(quickSave);
+    await waitFor(() => expect(fixture.save).toHaveBeenCalledWith("quick"));
+    await user.click(manualSave);
+    await waitFor(() => expect(fixture.save).toHaveBeenCalledWith("manual.1"));
+  });
+
   it("does not report success before the persistence operation commits", async () => {
     let resolveSave!: (result: PersistenceOperationResultV1) => void;
     const pending = new Promise<PersistenceOperationResultV1>((resolve) => {

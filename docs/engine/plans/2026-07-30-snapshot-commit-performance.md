@@ -445,3 +445,15 @@ validation 约 `9%`。剩余随 Snapshot 总大小线性增长的工作包括：
 workload 保持 100 entities；PF1 不改变该公开限制。未来只有 activation gate 出现
 新证据时才新建 A2 design，且仍须比较 changed-set、module revision、persistent
 data structure 与 typed StateStore，不预设 ECS。
+
+### 2026-08-03 — Post-promotion invalid-slot replacement maintenance
+
+Save M0c 允许显式 Quick/manual fresh Save 以 Host revision CAS 替换 Host-readable invalid
+payload；这没有重开 PF1 或把旧 payload 变成 cache input。中性 standard composition 在
+invalid Quick replacement 上继续固定 optimized `T/D/S/P/F = 3/2/1/1/0`、opaque
+write-receipt fallback `5/3/2/1/0`，两路 saved result、Host revision 与完整 raw bytes
+相等。成功路径仍只消费 exact one-shot receipt；fallback 仍独立 re-encode；candidate
+encoding、lease 或 CAS loser 等 pre-commit failure 不产生 receipt、也不修改旧 record。
+post-commit readback failure 沿用既有 non-success/repair 语义，不扩张 receipt lifetime 或伪装
+成 rollback。没有新增 public seam、第二份 authoritative state、digest/canonical/Save
+bytes/replay 变化或 wall-clock benchmark gate。

@@ -388,6 +388,94 @@ describe("Save repository", () => {
     expect([4, 5]).toContain(final.health === "valid" ? final.record.snapshot.commandSequence : -1);
   });
 
+  it("CAS-replaces Host-readable invalid Quick and Manual payloads with fresh Saves", async () => {
+    const cases = [
+      Object.freeze({ slotId: "quick" as const, kind: "malformed" as const, sequence: 2 }),
+      Object.freeze({ slotId: "manual.1" as const, kind: "future" as const, sequence: 3 }),
+    ];
+
+    for (const testCase of cases) {
+      const fixture = await createFixtureV1();
+      await fixture.repository.writePlayer(testCase.slotId, makeRecordV1(1), fixture.fence);
+      const original = await physicalRecordV1(fixture.records, testCase.slotId);
+      if (original === null) throw new TypeError("missing player Save record");
+      const invalidBytes = testCase.kind === "malformed"
+        ? new TextEncoder().encode('{"corrupt":')
+        : canonicalJsonBytes({
+          ...(JSON.parse(new TextDecoder().decode(original.bytes)) as Record<string, unknown>),
+          formatRevision: 2,
+        });
+      await overwritePhysicalV1(fixture.records, original, invalidBytes);
+      await expect(fixture.repository.read(testCase.slotId)).resolves.toMatchObject({
+        health: "invalid",
+        slotId: testCase.slotId,
+        hostRevision: 2,
+      });
+      fixture.batches.length = 0;
+
+      await expect(
+        fixture.repository.writePlayer(
+          testCase.slotId,
+          makeRecordV1(testCase.sequence),
+          fixture.fence,
+        ),
+      ).resolves.toEqual({
+        kind: "saved",
+        slotId: testCase.slotId,
+        recordRevision: 3,
+      });
+      expect(fixture.batches).toHaveLength(1);
+      expect(fixture.batches[0]).toMatchObject([
+        {
+          kind: "put",
+          namespace: "save",
+          key: createSaveSlotRecordKeyV1(storyIdV1, testCase.slotId),
+          expectedRevision: 2,
+        },
+        {
+          kind: "put",
+          namespace: "lease",
+        },
+      ]);
+      const replaced = await fixture.repository.read(testCase.slotId);
+      expect(replaced).toMatchObject({
+        health: "valid",
+        hostRevision: 3,
+        record: { recordRevision: 3 },
+      });
+      expectValidSequenceV1(replaced, testCase.sequence);
+    }
+  });
+
+  it("keeps one CAS winner when concurrent fresh Saves replace an invalid player slot", async () => {
+    const fixture = await createFixtureV1();
+    await fixture.repository.writePlayer("quick", makeRecordV1(1), fixture.fence);
+    const original = await physicalRecordV1(fixture.records, "quick");
+    if (original === null) throw new TypeError("missing Quick Save record");
+    await overwritePhysicalV1(
+      fixture.records,
+      original,
+      new TextEncoder().encode('{"corrupt":'),
+    );
+
+    const outcomes = await Promise.all([
+      fixture.repository.writePlayer("quick", makeRecordV1(4), fixture.fence),
+      fixture.repository.writePlayer("quick", makeRecordV1(5), fixture.fence),
+    ]);
+    expect(outcomes.map(({ kind }) => kind).toSorted()).toEqual(["rejected", "saved"]);
+    expect(outcomes.find(({ kind }) => kind === "rejected")).toEqual({
+      kind: "rejected",
+      code: "conflict",
+    });
+    const final = await fixture.repository.read("quick");
+    expect(final).toMatchObject({
+      health: "valid",
+      hostRevision: 3,
+      record: { recordRevision: 3 },
+    });
+    expect([4, 5]).toContain(final.health === "valid" ? final.record.snapshot.commandSequence : -1);
+  });
+
   it("conditionally rewrites only the exact Save record that was read", async () => {
     const fixture = await createFixtureV1();
     await fixture.repository.writePlayer("quick", makeRecordV1(1), fixture.fence);
@@ -805,8 +893,18 @@ describe("Save repository", () => {
     );
   });
 
-  it("does not misclassify a coded Save encoding bug as Host unavailability", async () => {
+  it("preserves an invalid player payload when fresh Save encoding fails", async () => {
     const fixture = await createFixtureV1();
+    await fixture.repository.writePlayer("quick", makeRecordV1(1), fixture.fence);
+    const original = await physicalRecordV1(fixture.records, "quick");
+    if (original === null) throw new TypeError("missing Quick Save record");
+    await overwritePhysicalV1(
+      fixture.records,
+      original,
+      new TextEncoder().encode('{"corrupt":'),
+    );
+    const invalidPhysical = await physicalRecordV1(fixture.records, "quick");
+    if (invalidPhysical === null) throw new TypeError("missing invalid Quick Save record");
     const valid = makeRecordV1(1);
     const invalid = Object.freeze({
       ...valid,
@@ -818,6 +916,6 @@ describe("Save repository", () => {
     ).rejects.toMatchObject({
       code: "string.lone_surrogate",
     });
-    expect(await physicalRecordV1(fixture.records, "quick")).toBeNull();
+    expect(await physicalRecordV1(fixture.records, "quick")).toEqual(invalidPhysical);
   });
 });

@@ -743,6 +743,14 @@ capability，未来优先提取最小公共 deterministic arithmetic/scheduling 
 calendar。该 amendment 只改 design/active plans，不新增 implementation 或 tests；下一切片仍为
 `C4`。
 
+**2026-08-03 Save M0c corrective：** 外部实验只作为缺口发现来源；正式仓库以中性
+Quick/manual、malformed/future-format、CAS/lease/failure 与 PF1 receipt/fallback vectors
+独立复现并修复 standard Save UI 可达的 invalid-slot overwrite failure。显式 fresh player Save
+现在以 Host revision CAS replacement 覆盖 Host-readable invalid payload；旧 bytes 不参与
+candidate，也不被迁移或备份。load/export/annotation、M0b no-authoritative-mutation、Save
+schema/format/canonical/digest/CommandLog/replay 与 M1 callback-free scope 均不变。该独立 bugfix
+不恢复已暂停 Goal、也不推进 linear core；下一 production-floor 切片仍是 `C4`。
+
 ### PF3 — Save envelope and migration registry
 
 执行 [Save migration plan](2026-07-30-save-migration.md) 的分段 gate：

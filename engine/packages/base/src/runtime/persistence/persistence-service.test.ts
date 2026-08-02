@@ -2835,6 +2835,95 @@ describe("PersistenceService standard composition", () => {
     await Promise.all([optimized.service.autoSaveIdle(), fallback.service.autoSaveIdle()]);
   });
 
+  it("keeps receipt and fallback work equivalent when a fresh Save replaces an invalid Quick slot", async () => {
+    const optimizedCounter = createSnapshotWorkCounterV1();
+    const fallbackCounter = createSnapshotWorkCounterV1();
+    const optimized = await standardFixtureV1(provenanceV1(), {
+      instrumentation: optimizedCounter.instrumentation,
+    });
+    const fallback = await standardFixtureV1(provenanceV1(), {
+      instrumentation: fallbackCounter.instrumentation,
+      wrapRepositoryForWriteReceiptFallback: true,
+    });
+    const fixtures = [optimized, fallback] as const;
+    const key = createSaveSlotRecordKeyV1(storyIdV1, "quick");
+
+    for (const fixture of fixtures) {
+      await expect(fixture.service.port.save("quick")).resolves.toEqual({
+        kind: "saved",
+        slotId: "quick",
+      });
+      await tamperStoredQuickV1(fixture.records, (record) => {
+        record.slot.storyId = "story.invalid-slot-owner";
+      });
+      await expect(fixture.service.port.listSlots()).resolves.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            slotId: "quick",
+            health: "invalid",
+            capturedCommandSequence: null,
+          }),
+        ]),
+      );
+      const source = await fixture.records.read("save", key);
+      if (source === null) throw new TypeError("missing invalid Quick Save record");
+      const snapshotBefore = fixture.session.getCurrentSnapshot();
+      await expect(fixture.service.port.load("quick")).resolves.toEqual({
+        kind: "rejected",
+        code: "invalid_record",
+      });
+      expect(fixture.session.getCurrentSnapshot()).toBe(snapshotBefore);
+      expect(await fixture.records.read("save", key)).toEqual(source);
+    }
+    optimizedCounter.reset();
+    fallbackCounter.reset();
+
+    await expect(optimized.service.port.save("quick")).resolves.toEqual({
+      kind: "saved",
+      slotId: "quick",
+    });
+    await expect(fallback.service.port.save("quick")).resolves.toEqual({
+      kind: "saved",
+      slotId: "quick",
+    });
+    expect(optimizedCounter.snapshot()).toEqual({
+      canonicalTraversals: 3,
+      canonicalDigests: 2,
+      deepFreezeTraversals: 0,
+      commandLogContinuityVerifications: 0,
+      saveCanonicalSerializations: 1,
+      strictJsonParses: 1,
+      strictJsonPreflights: 0,
+    });
+    expect(fallbackCounter.snapshot()).toEqual({
+      canonicalTraversals: 5,
+      canonicalDigests: 3,
+      deepFreezeTraversals: 0,
+      commandLogContinuityVerifications: 0,
+      saveCanonicalSerializations: 2,
+      strictJsonParses: 1,
+      strictJsonPreflights: 0,
+    });
+    const optimizedPhysical = await optimized.records.read("save", key);
+    const fallbackPhysical = await fallback.records.read("save", key);
+    expect(optimizedPhysical).toMatchObject({ revision: 3 });
+    expect(fallbackPhysical).toMatchObject({ revision: 3 });
+    expect(optimizedPhysical?.bytes).toEqual(fallbackPhysical?.bytes);
+    for (const fixture of fixtures) {
+      await expect(fixture.service.port.listSlots()).resolves.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            slotId: "quick",
+            health: "valid",
+            recordRevision: 3,
+            capturedCommandSequence: 0,
+          }),
+        ]),
+      );
+    }
+    await Promise.all([optimized.service.autoSaveIdle(), fallback.service.autoSaveIdle()]);
+  });
+
   it("keeps successful Save results and bytes unchanged when the summary observer throws", async () => {
     const observerFailure = new Error("observer failed synchronously");
     const phases: SaveSummaryProjectionEventInternalV1<SyntheticStateV1>["phase"][] = [];

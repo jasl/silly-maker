@@ -391,9 +391,8 @@ export function createSaveRepositoryInternalV1<
         readLeaseTouchV1(fence),
       ]);
       if (lease.kind === "rejected") return rejectedV1(lease.code);
-      if (current !== null && decodePhysicalV1(current, slotId).kind === "invalid") {
-        return rejectedV1("invalid_record");
-      }
+      // A fresh player Save replaces the selected slot; the previous Save
+      // payload is not an input. Its Host revision remains the CAS authority.
       const recordRevision = nextRecordRevisionV1(current?.revision ?? null);
       if (recordRevision === null) return rejectedV1("invalid_record");
       const bytes = encodeForSlotV1(candidate, slotId, recordRevision);
