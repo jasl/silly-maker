@@ -388,6 +388,32 @@ describe("Debug Bundle codec", () => {
     expect(Object.isFrozen(decoded.bundle.runtimeFailures)).toBe(true);
   });
 
+  it("preserves valid diagnostic timestamp bytes and rejects malformed timestamps", () => {
+    const valid = bundleV1({
+      generatedAt: parseIsoUtcInstantV1("9999-12-31T24:00:00.0000Z"),
+    });
+    const bytes = encodeDebugBundleV1(valid, codecV1);
+    expect(decodeDebugBundleV1(bytes, codecV1)).toEqual({ kind: "decoded", bundle: valid });
+    expect(encodeDebugBundleV1(valid, codecV1)).toEqual(bytes);
+    expect(digestBytes(encodeDebugBundleV1(valid, codecV1))).toBe(digestBytes(bytes));
+
+    expect(
+      decodeDebugBundleV1(
+        canonicalJsonBytes({ ...valid, generatedAt: "2026-02-30T00:00:00Z" }),
+        codecV1,
+      ),
+    ).toEqual({ kind: "rejected", code: "envelope.schema_invalid" });
+    expect(
+      decodeDebugBundleV1(
+        canonicalJsonBytes({
+          ...valid,
+          runtimeFailures: [{ ...runtimeFailureV1(), occurredAt: "2026-04-31T00:00:00Z" }],
+        }),
+        codecV1,
+      ),
+    ).toEqual({ kind: "rejected", code: "envelope.schema_invalid" });
+  });
+
   it("normalizes exact-integer JSON spellings and atomically rejects exact fractions", () => {
     const bundle = bundleV1();
     const canonicalBytes = encodeDebugBundleV1(bundle, codecV1);

@@ -2738,21 +2738,43 @@ describe("PersistenceService standard composition", () => {
       metadataClock: Object.freeze({ now: () => now as IsoUtcInstant }),
     });
     await expect(invalidClock.service.port.save("quick")).resolves.toMatchObject({ kind: "saved" });
-    now = "2026-02-30T12:00:00.000Z";
-    await expect(invalidClock.service.port.exportSave("quick")).resolves.toMatchObject({
-      kind: "exported",
-      file: { filename: "standard-save-20260302120000.json" },
-    });
-    now = "2026-12-31T24:00:00.000Z";
-    await expect(invalidClock.service.port.exportSave("quick")).resolves.toMatchObject({
-      kind: "exported",
-      file: { filename: "standard-save-20270101000000.json" },
-    });
-    now = "not-an-instant";
-    await expect(invalidClock.service.port.exportSave("quick")).resolves.toMatchObject({
-      kind: "exported",
-      file: { filename: "standard-save.json" },
-    });
+    const baseline = await invalidClock.service.port.exportSave("quick");
+    if (baseline.kind !== "exported") throw new TypeError("expected baseline export");
+    const expectDatedExportV1 = async (instant: string, filename: string) => {
+      now = instant;
+      const exported = await invalidClock.service.port.exportSave("quick");
+      expect(exported).toMatchObject({ kind: "exported", file: { filename } });
+      if (exported.kind !== "exported") throw new TypeError("expected dated export");
+      expect(exported.file.bytes).toEqual(baseline.file.bytes);
+      expect(exported.file.digest).toBe(baseline.file.digest);
+    };
+    await expectDatedExportV1(
+      "2026-02-30T12:00:00.000Z",
+      "standard-save-20260302120000.json",
+    );
+    await expectDatedExportV1(
+      "2026-02-30T24:00:00.000Z",
+      "standard-save-20260303000000.json",
+    );
+    await expectDatedExportV1(
+      "2026-04-31T12:00:00.000Z",
+      "standard-save-20260501120000.json",
+    );
+    await expectDatedExportV1(
+      "2026-12-31T24:00:00.000Z",
+      "standard-save-20270101000000.json",
+    );
+    await expectDatedExportV1(
+      "2026-12-31T24:00:00.000001Z",
+      "standard-save.json",
+    );
+    await expectDatedExportV1("0000-01-01T00:00:00Z", "standard-save-00101000000.json");
+    await expectDatedExportV1("0001-01-01T00:00:00Z", "standard-save-10101000000.json");
+    await expectDatedExportV1(
+      "9999-12-31T24:00:00Z",
+      "standard-save-100000101000000.json",
+    );
+    await expectDatedExportV1("not-an-instant", "standard-save.json");
   });
 
   it("passes one normalized summary through optimized and receipt-fallback standard paths", async () => {

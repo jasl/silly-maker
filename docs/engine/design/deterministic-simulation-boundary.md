@@ -4,9 +4,9 @@
 DET3a–DET4 promotion 证明的是当时的 broad static-analysis contract；其测试数字、
 byte-equivalence 与 runtime evidence 作为历史记录保留，但 Date/String provenance、
 dynamic-import 与 failure-classification 规则已由本次目标 supersede，不构成 corrective
-contract 的实现或 promotion evidence。DET3a-C1 import/loader admission 与 C2
-Date/String/provenance kernel 已按新合同落地；Base UTC correction 与 aggregate
-re-promotion 仍待后续切片。`development.md` 随实际落地
+contract 的实现或 promotion evidence。DET3a-C1 import/loader admission、C2
+Date/String/provenance kernel 与 C3 B-prime Base UTC isolation 已按新合同落地；C4 cleanup、
+DET3b revalidation 与 aggregate re-promotion 仍待后续切片。`development.md` 随实际落地
 slice 描述当前 live implementation，`features.md` 在 aggregate re-promotion 前不宣称整套
 corrective guardrail 已完成；目标与实现差距由本文及 active plan 明示拥有。具体落地顺序见
 [Authoritative determinism guardrails plan](../plans/2026-07-31-authoritative-determinism-guardrails.md)。
@@ -274,11 +274,32 @@ Authoritative code 不直接调用：
   metadata，不能成为未记录的规则输入；
 - Save migration 禁网络、clock、random 与 live Session。
 
-Base authoritative persistence filename path 只能使用 package-internal、integer-based
-UTC parser/formatter；不得导出通用 instant/Date helper，也不得改变 Save envelope、
-canonical bytes、digest、CommandLog、replay 或既有 export filename bytes。正常、
-overflow-hour 与 invalid-clock normalization 必须先由 characterization vectors 固定；
-若不能 byte-for-byte 保持，停止该切片并提交合同决定。
+Base 的 `IsoUtcInstant` admission 与 persistence export filename path 只能使用
+repository-owned、package-internal 的 ASCII/integer UTC primitives；不得导出通用
+instant/Date helper。两条 policy 必须分离，只共享 lexical scanning、decimal fields、
+Gregorian leap-year/days-in-month 与 day-increment primitives：
+
+- strict persistence admission 接受
+  `YYYY-MM-DDTHH:mm:ss(?:.digits+)?Z`，year 为 `0000..9999` 的 proleptic Gregorian，
+  month/day 必须构成真实日期，minute/second 为 `00..59`；hour 通常为 `00..23`，只有
+  minute/second 全零且 fraction 缺省或全部为零时才接受 `24`。不接受 leap second、offset、
+  lowercase `z`、whitespace、expanded year、date-only 或非 ASCII digit；accepted value 原样
+  返回，不规范化 spelling，fraction 在本切片不设最大长度；
+- Debug Bundle `generatedAt` 与 runtime fault `occurredAt` 复用同一 package-internal
+  `IsoUtcInstant` admission：maintained-valid spelling/bytes 不变，malformed value 经现有
+  schema failure 拒绝；位于 Debug Bundle decode 时维持 `envelope.schema_invalid` mapping，
+  不新增 revision 或 error family；
+- legacy export filename formatter 保持独立 loose policy：month `1..12`、day `1..31`
+  先 admission 再做 forward Gregorian overflow normalization，exact-zero `24:00` rollover，
+  invalid clock 回退 bare configured filename。其现有 year padding/overflow output 在 C3
+  只 characterization，不修正。
+
+这是对此前 runtime-dependent validator 的 deterministic convergence，并明确收紧 malformed
+input；它不改变 Save envelope shape 或 `formatRevision`，maintained-valid Save/Debug Bundle
+无需迁移且 bytes/digest 不变。若维护 fixture 或真实 released Save 含 newly rejected malformed
+timestamp，必须停止并设计显式 legacy recovery/migration。C2 authoritative Date syntax proof
+仍是独立合同：real Gregorian、hour `00..23`、fraction `1..3`、`Z` 或 explicit offset；不得把
+persistence 的 arbitrary fraction 或 `24:00`、filename overflow policy 注入 C2 safe-set。
 
 如果现实时间本身是玩法输入，Host 必须按产品 policy 采样并提交带单位、范围和
 provenance 的 canonical command。重放使用该已记录值，而不是再次读取时钟。
@@ -895,8 +916,9 @@ revalidation 与 DET4 full matrix re-promotion 前，aggregate PF-DET 对新合�
 - classification precedence 无法为 maximal chain 选出唯一 stable winner；
 - dynamic import 只能通过发布 partial closure、lint 后失败或 regex discovery 才能处理；
 - CommonJS 需要建设 dependency graph 才能继续；
-- package-internal UTC helper 无法保持已有 persistence acceptance、normalization 与 export
-  filename bytes；
+- package-internal UTC helper 无法保持 B-prime accepted corpus 的原 spelling、maintained-valid
+  Save/Debug Bundle bytes 或 legacy export filename normalization，或发现 maintained fixture / real
+  released Save 含 newly rejected malformed timestamp；
 - 修复要求新增 public instant/Date helper，或改变 Save/canonical/digest/CommandLog/replay
   语义；
 - 工作扩张到 Save migration、Surface、Mod sandbox、StateStore 或 Decimal

@@ -219,6 +219,22 @@ Date-to-string/default-rendering operations are still identified as
 rendering operation. Strict equality and statically known object/nullish
 comparisons do not invoke Date coercion.
 
+Base persistence and diagnostic timestamp admission is a separate runtime data
+contract, not an extension of that authoritative syntax proof.
+`parseIsoUtcInstantV1` uses package-internal ASCII/integer Gregorian logic and
+accepts `YYYY-MM-DDTHH:mm:ss(?:.digits+)?Z` with a real date; exact-zero
+`24:00` is accepted, accepted spelling is retained verbatim, and no Host
+`Date.parse` participates. Save `savedAt`, Debug Bundle `generatedAt`, and
+runtime-fault `occurredAt` share this strict admission. The persistence export
+filename path deliberately uses a separate legacy loose formatter: day values
+through 31 normalize forward, exact-zero `24:00` rolls over, and invalid clock
+text returns the configured bare filename. Do not reuse either runtime policy
+as DET3a `StaticString` proof, export the internal scanner/calendar helpers, or
+"fix" legacy year padding/overflow without a separate compatibility decision.
+When changing this area, run the focused Base codec/Player/diagnostic tests and
+`deno task test:determinism`; the latter executes the fixed admission corpus in
+Deno, Chromium, Firefox, and WebKit.
+
 Direct assignment, destructuring, update, delete, and `for in/of` writes to an
 ECMAScript intrinsic root/member use
 `determinism.capability.intrinsic_mutation`; Date-instance/prototype mutation

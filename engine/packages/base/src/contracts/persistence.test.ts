@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { digestBytes } from "./digest.ts";
 import { versionStampGlobalKeyV1 } from "./version-stamp.ts";
@@ -8,6 +8,7 @@ import {
   exportedSaveSchemaV1,
   parseSaveAnnotationV1,
   parseSaveNoteV1,
+  parseIsoUtcInstantV1,
   SaveRecordEnvelopeSchemaFailureV1,
   saveAnnotationLimitsV1,
   saveJsonLimitsV1,
@@ -31,6 +32,54 @@ const exactValueSchema = <T>(key: string): RuntimeSchemaV1<T> => ({
 });
 
 describe("persistence contracts", () => {
+  it("owns B-prime UTC admission and preserves every accepted spelling", () => {
+    const accepted = [
+      "0000-02-29T00:00:00Z",
+      "2000-02-29T00:00:00.123456789Z",
+      "2026-12-31T24:00:00Z",
+      "2026-12-31T24:00:00.0000Z",
+      "9999-12-31T24:00:00Z",
+    ];
+    for (const value of accepted) expect(parseIsoUtcInstantV1(value)).toBe(value);
+
+    const rejected = [
+      "2023-02-29T00:00:00Z",
+      "1900-02-29T00:00:00Z",
+      "2026-02-30T00:00:00Z",
+      "2026-02-30T24:00:00Z",
+      "2026-04-31T00:00:00Z",
+      "2026-12-31T24:00:00.000001Z",
+      "2026-12-31T24:00:01Z",
+      "2026-12-31T25:00:00Z",
+      "2026-12-31T23:59:60Z",
+      "2026-12-31T23:59:59.Z",
+      "2026-12-31T23:59:59z",
+      "2026-12-31T23:59:59+00:00",
+      "+02026-12-31T23:59:59Z",
+      "２０２６-12-31T23:59:59Z",
+    ];
+    for (const value of rejected) {
+      expect(() => parseIsoUtcInstantV1(value), value).toThrowError("invalid IsoUtcInstant");
+    }
+    for (const value of [null, 0, new String("2026-07-12T01:02:03Z")]) {
+      expect(() => parseIsoUtcInstantV1(value)).toThrowError("invalid IsoUtcInstant");
+    }
+  });
+
+  it("does not consult the ambient Date parser", () => {
+    const parse = vi.spyOn(Date, "parse").mockImplementation(() => {
+      throw new Error("ambient Date.parse reached");
+    });
+    try {
+      expect(parseIsoUtcInstantV1("2026-07-12T01:02:03.123456789Z")).toBe(
+        "2026-07-12T01:02:03.123456789Z",
+      );
+      expect(parse).not.toHaveBeenCalled();
+    } finally {
+      parse.mockRestore();
+    }
+  });
+
   it("keeps Save exports closed and binds the exact bytes", () => {
     const bytes = Uint8Array.of(1);
     const valid = {

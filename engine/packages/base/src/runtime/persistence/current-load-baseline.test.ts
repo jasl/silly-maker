@@ -26,6 +26,10 @@ import type {
 import type { DeepReadonly, Digest, RuntimeSchemaV1 } from "../../contracts/values.ts";
 import { parseNonNegativeSafeInteger } from "../../contracts/values.ts";
 import { createSaveMetadataHostPayloadV1 } from "../../testkit/save-metadata-corpus.ts";
+import {
+  persistenceUtcAcceptedCorpusV1,
+  persistenceUtcRejectedCorpusV1,
+} from "../../testkit/persistence-utc-vectors.ts";
 import type { SnapshotTransactionStateV1 } from "../../testkit/snapshot-transaction-workload.ts";
 import {
   createSnapshotTransactionInitialSnapshotV1,
@@ -34,7 +38,7 @@ import {
   snapshotTransactionSnapshotSchemaV1,
 } from "../../testkit/snapshot-transaction-workload.ts";
 import { validateSaveImportCandidateV1 } from "./compatibility.ts";
-import { decodeSaveRecordV1 } from "./save-codec.ts";
+import { decodeSaveRecordV1, encodeSaveRecordV1 } from "./save-codec.ts";
 import { createPersistenceServiceV1 } from "./persistence-service.ts";
 import type { SaveRepositorySlotMetadataV1 } from "./save-repository.ts";
 import { createSaveSlotRecordKeyV1 } from "./slot-keys.ts";
@@ -293,8 +297,10 @@ async function rawSaveRecordsV1(records: HostAtomicRecordStoreV1) {
 }
 
 function authorityEvidenceV1(fixture: Awaited<ReturnType<typeof fixtureV1>>) {
+  const snapshot = fixture.session.snapshot();
   return Object.freeze({
-    snapshot: fixture.session.snapshot(),
+    snapshot,
+    rng: snapshot.rng,
     replayBase: fixture.session.replayBase(),
     replayBaseStateDigest: fixture.session.replayBaseStateDigest(),
     commandLog: fixture.session.commandLog(),
@@ -320,6 +326,7 @@ async function expectRejectedImportV1(
 
     const authorityAfter = authorityEvidenceV1(fixture);
     expect(authorityAfter.snapshot).toBe(authorityBefore.snapshot);
+    expect(authorityAfter.rng).toBe(authorityBefore.rng);
     expect(authorityAfter.replayBase).toBe(authorityBefore.replayBase);
     expect(authorityAfter.replayBaseStateDigest).toBe(authorityBefore.replayBaseStateDigest);
     expect(authorityAfter.commandLog).toBe(authorityBefore.commandLog);
@@ -351,6 +358,7 @@ async function expectRejectedLoadPreservesAuthorityV1(
 
   const authorityAfter = authorityEvidenceV1(fixture);
   expect(authorityAfter.snapshot).toBe(authorityBefore.snapshot);
+  expect(authorityAfter.rng).toBe(authorityBefore.rng);
   expect(authorityAfter.replayBase).toBe(authorityBefore.replayBase);
   expect(authorityAfter.replayBaseStateDigest).toBe(authorityBefore.replayBaseStateDigest);
   expect(authorityAfter.commandLog).toBe(authorityBefore.commandLog);
@@ -364,6 +372,36 @@ async function expectRejectedLoadPreservesAuthorityV1(
 }
 
 describe("post-DET-A current Save load baseline", () => {
+  it("preserves accepted B-prime timestamp spellings and every maintained Save byte", () => {
+    for (const savedAt of persistenceUtcAcceptedCorpusV1) {
+      const bytes = currentRecordBytesV1({
+        recordRevision: 99,
+        metadataRecordId: "summaryAndFullDirtyStamp",
+        mutate(record) {
+          record.savedAt = savedAt;
+        },
+      });
+      const source = JSON.parse(textDecoderV1.decode(bytes)) as Record<string, unknown>;
+      const decoded = decodeSaveRecordV1(bytes, neutralCodecV1);
+      expect(decoded).toMatchObject({
+        kind: "decoded",
+        record: {
+          formatRevision: 1,
+          recordRevision: 99,
+          savedAt,
+          stateDigest: source.stateDigest,
+          annotation: source.annotation,
+          versionStamp: source.versionStamp,
+          simulationLineage: source.simulationLineage,
+        },
+      });
+      if (decoded.kind !== "decoded") throw new TypeError("expected accepted B-prime Save");
+      const reencoded = encodeSaveRecordV1(decoded.record, neutralCodecV1);
+      expect(reencoded).toEqual(bytes);
+      expect(digestBytes(reencoded)).toBe(digestBytes(bytes));
+    }
+  });
+
   it("pins current codec and revision precedence without treating recordRevision as a format axis", () => {
     const m0a = createSaveMetadataHostPayloadV1("summaryAndFullDirtyStamp");
     expect(digestBytes(m0a.bytes)).toBe(m0a.digest);
@@ -613,6 +651,13 @@ describe("post-DET-A current Save load baseline", () => {
         record.stateDigest = digestV1("wrong.public");
       },
     });
+    const malformedTimestamps = persistenceUtcRejectedCorpusV1.map((savedAt) =>
+      currentRecordBytesV1({
+        mutate(record) {
+          record.savedAt = savedAt;
+        },
+      })
+    );
     const incompatible = currentRecordBytesV1({
       provenance: Object.freeze({
         ...snapshotTransactionProvenanceV1,
@@ -639,6 +684,29 @@ describe("post-DET-A current Save load baseline", () => {
       kind: "rejected",
       code: "invalid_record",
     });
+    for (const bytes of malformedTimestamps) {
+      expect(decodeSaveRecordV1(bytes, neutralCodecV1)).toEqual({
+        kind: "rejected",
+        code: "envelope.schema_invalid",
+      });
+      await expectRejectedImportV1(bytes, {
+        kind: "rejected",
+        code: "invalid_record",
+      });
+    }
+    const malformedStoredBytes = malformedTimestamps[0];
+    if (malformedStoredBytes === undefined) throw new TypeError("missing malformed timestamp");
+    const malformedStored = await fixtureV1({
+      slots: Object.freeze([{ slotId: "quick", bytes: malformedStoredBytes }]),
+    });
+    try {
+      await expectRejectedLoadPreservesAuthorityV1(malformedStored, "quick", {
+        kind: "rejected",
+        code: "invalid_record",
+      });
+    } finally {
+      await malformedStored.service.disposeForRebootstrap();
+    }
     let referenceCalls = 0;
     let invariantCalls = 0;
     await expectRejectedImportV1(

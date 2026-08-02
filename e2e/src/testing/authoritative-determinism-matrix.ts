@@ -8,7 +8,9 @@ import type {
 import {
   authoritativeOrderingVectorExpectedV1,
   evaluateDeterminismSaveSummaryProjectionV1,
+  evaluatePersistenceUtcAdmissionVectorsV1,
   evaluateSaveMetadataCompactVectorsV1,
+  persistenceUtcAdmissionExpectedV1,
   runAuthoritativeOrderingVectorsV1,
   saveMetadataCompactExpectedV1,
 } from "@sillymaker/base/testkit/determinism-vectors";
@@ -48,6 +50,7 @@ export interface AuthoritativeDeterminismMatrixV1 {
     readonly replay: AuthoritativeDeterminismReplayTraceV1;
   };
   readonly authoritativeOrdering: unknown;
+  readonly persistenceUtcAdmission: unknown;
   readonly saveMetadata: {
     readonly summaryProjection: readonly string[] | null;
     readonly compact: unknown;
@@ -248,6 +251,7 @@ export const authoritativeDeterminismMatrixExpectedV1: AuthoritativeDeterminismM
       replay: replayExpectedV1,
     }),
     authoritativeOrdering: authoritativeOrderingVectorExpectedV1,
+    persistenceUtcAdmission: persistenceUtcAdmissionExpectedV1,
     saveMetadata: Object.freeze({
       summaryProjection: saveMetadataCompactExpectedV1.summaries.valid,
       compact: saveMetadataCompactExpectedV1,
@@ -297,6 +301,7 @@ export async function collectAuthoritativeDeterminismMatrixV1(): Promise<
       replay: compactReplayV1(transcript.replay),
     }),
     authoritativeOrdering: await runAuthoritativeOrderingVectorsV1(),
+    persistenceUtcAdmission: evaluatePersistenceUtcAdmissionVectorsV1(),
     saveMetadata: Object.freeze({
       summaryProjection,
       compact: evaluateSaveMetadataCompactVectorsV1(),

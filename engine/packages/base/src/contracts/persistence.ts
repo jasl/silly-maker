@@ -21,6 +21,10 @@ import type {
   RuntimeSchemaV1,
 } from "./values.ts";
 import { parseDigest, parsePositiveSafeInteger } from "./values.ts";
+import {
+  isPersistedIsoUtcInstantInternalV1,
+  scanUtcInstantFieldsInternalV1,
+} from "../internal/utc-instant.ts";
 
 export type SaveSlotHealthV1 = "empty" | "valid" | "invalid" | "recovery_candidate" | "unavailable";
 
@@ -478,11 +482,8 @@ function requiredString(value: unknown, label: string): string {
 }
 
 export function parseIsoUtcInstantV1(value: unknown): IsoUtcInstant {
-  if (
-    typeof value !== "string" ||
-    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/u.test(value) ||
-    !Number.isFinite(Date.parse(value))
-  ) {
+  const fields = scanUtcInstantFieldsInternalV1(value);
+  if (fields === null || !isPersistedIsoUtcInstantInternalV1(fields)) {
     throw new TypeError("invalid IsoUtcInstant");
   }
   return value as IsoUtcInstant;

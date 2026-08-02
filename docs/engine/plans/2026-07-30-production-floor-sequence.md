@@ -5,8 +5,8 @@ determinism/Save graph、CI 与 Desktop 审计修订；2026-08-02 旧 DET-B/PF-D
 promotion 已完成，但其 broad static contract 随后被 DET3a conservative-syntax corrective
 target supersede。当前 linear core 先完成 DET3a corrective、DET3b invariant revalidation
 与 DET4 full re-promotion，再恢复后续依赖 aggregate PF-DET closure 的工作；corrective
-C1 import/loader admission 与 C2 Date/String/provenance kernel 已完成，当前下一切片为 C3，
-随后为 C4。旧 promotion 数字保留为
+C1 import/loader admission、C2 Date/String/provenance kernel 与 C3 B-prime Base UTC isolation 已
+完成，当前下一切片为 C4。旧 promotion 数字保留为
 历史证据。本文是当前唯一的跨计划排序入口；
 具体合同仍由各 design 文档拥有，主要任务由五个独立计划拥有：
 
@@ -709,6 +709,23 @@ rule-core 为 `1/839`，determinism suites 为 `3/860`，full unit 为 `226/3187
 `features.md` 保持到 C4；该批不改 public/runtime/Save/canonical/digest/CommandLog/replay 或
 browser graph。当前下一独立切片为 `C3`，随后为 `C4`。
 
+**DET3a-C3 B-prime contract amendment（2026-08-02）：** C3 以 repository-owned strict
+persistence/diagnostic `IsoUtcInstant` corpus 收敛 runtime-dependent validation，同时保留 accepted
+原 spelling、maintained-valid bytes、现有 rejection/atomicity 与独立 loose filename overflow
+policy。两条 policy 只共享 internal lexical/calendar primitives；persistence 的 arbitrary fraction、
+exact-zero `24:00` 和 filename normalization 不进入 C2 authoritative Date proof。maintained Save
+fixture 扫描未发现 newly rejected malformed timestamp，migration stop 未触发；C3 尚未因此
+amendment 被宣称完成。
+
+**DET3a-C3 promotion（2026-08-02）：** Base strict timestamp admission 与 loose legacy filename
+policy 已分离到 package-internal integer primitives，Host `Date.parse` 从 Base 路径移除；valid
+Save/Debug Bundle bytes、公开 rejection mapping、Player atomicity、filename overflow/year-edge 与
+C2 safe-set 均由 focused evidence 保持。最终 focused `7/135`、Base `78/975`、full unit
+`227/3192`、Chromium/Firefox/WebKit `6` 个 repeat cases 及 Deno matrix 全绿；maintained Save
+corpus 未触发 migration stop。无 production public helper、format revision、canonical/digest、
+CommandLog 或 replay change；existing testkit vector seam 只追加固定 corpus evaluator。当前下一
+独立切片为 `C4` cleanup、DET3b invariant revalidation 与 DET4 aggregate re-promotion。
+
 ### PF3 — Save envelope and migration registry
 
 执行 [Save migration plan](2026-07-30-save-migration.md) 的分段 gate：
@@ -897,8 +914,9 @@ Story import-closure tooling、browser parity config 或 public export 的工作
 - static diagnostic precedence 无法为 maximal chain 选出唯一 stable winner；
 - dynamic import 只能靠 regex、lint 后 failure 或 partial closure，或 CommonJS 必须建设
   dependency graph 才能继续；
-- package-internal integer UTC parser/formatter 无法保持当前 persistence acceptance、返回原
-  spelling 与 export filename bytes；
+- package-internal integer UTC parser/formatter 无法保持 B-prime accepted spelling、
+  maintained-valid Save/Debug Bundle bytes 或 legacy export filename policy，或发现 maintained
+  fixture / real released Save 含 newly rejected malformed timestamp；
 - corrective work 要求新增 public instant helper，或改变 Save/canonical/digest/CommandLog/
   replay 语义；
 - 实现必须依赖 `tmp/**`、`references/**` 或私有复刻工程；

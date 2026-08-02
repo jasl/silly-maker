@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { canonicalJsonBytes } from "../contracts/canonical-json.ts";
 import { digestBytes, digestCanonical } from "../contracts/digest.ts";
-import { saveJsonLimitsV1 } from "../contracts/persistence.ts";
+import { parseIsoUtcInstantV1, saveJsonLimitsV1 } from "../contracts/persistence.ts";
 import { parseStrictJson } from "../contracts/strict-json.ts";
 import {
   createSaveMetadataHostPayloadV1,
@@ -44,9 +44,12 @@ describe("shared Save metadata corpus", () => {
       expect(canonicalJsonBytes(decoded.value), id).toEqual(bytes);
       expect(digestBytes(bytes), id).toBe(vector.bytesDigest);
       const record = decoded.value as {
+        readonly savedAt: unknown;
         readonly snapshot: unknown;
         readonly stateDigest: unknown;
       };
+      expect(record.savedAt, id).toBe("2026-07-20T00:00:00.000Z");
+      expect(parseIsoUtcInstantV1(record.savedAt), id).toBe(record.savedAt);
       expect(record.stateDigest, id).toBe(saveMetadataCompactExpectedV1.stateDigest);
       expect(digestCanonical("sillymaker:state:v1", record.snapshot), id).toBe(
         saveMetadataCompactExpectedV1.stateDigest,

@@ -3,10 +3,10 @@
 状态：2026-08-02 接受 DET3a conservative-syntax corrective contract；此前
 DET3a–DET4/PF-DET closure 作为 superseded-contract 历史证据保留。当前 active gate 为
 DET3a corrective implementation → DET3b invariant revalidation → DET4 full
-re-promotion。DET3a-C1 import/loader admission 与 C2 Date/String/provenance kernel 已完成；
-当前下一独立切片为 DET3a-C3 Base UTC correction。`development.md` 已同步 C1/C2 live
-behavior，整套 guardrail
-在 re-promotion 前不得写入 `features.md`。目标合同见
+re-promotion。DET3a-C1 import/loader admission、C2 Date/String/provenance kernel 与 C3
+B-prime Base UTC isolation 已完成；当前下一独立切片为 DET3a-C4 cleanup and re-promotion。
+`development.md` 已同步 C1–C3 live behavior，`features.md`
+已降格为 reopened gate，在 re-promotion 前不得宣称整套 guardrail 完成。目标合同见
 [Authoritative simulation determinism boundary](../design/deterministic-simulation-boundary.md)；
 在 [Production-floor sequence](2026-07-30-production-floor-sequence.md) 中属于
 PF-DET，排在 PF2 Workspace Overlay pilot 之后，并与 PF3 按显式 DAG 汇合。本文只
@@ -1788,10 +1788,13 @@ kind 与 constructor precedence 的 broad allowance；第 11–13 节的既有�
 3. **DET3a-C2 — Date/String/provenance kernel**：先翻转 broad allowance 并新增
    conservative red vectors，再实现 direct Date safe-set、`StaticString`、constructor reducer/
    precedence、KnownDate terminal policy、exact-singleton local join 与 budget fail-closed。
-4. **DET3a-C3 — Base UTC isolation**：先 characterization 当前 persistence parser 与既有
-   package-internal integer export formatter，包括 normal/overflow-hour/invalid-clock filename
-   value/bytes；再替换剩余的 Date-based parser 并共享/保留内部 integer UTC logic，不新增
-   public helper、不改变 parser acceptance、原 spelling 或 bytes。
+4. **DET3a-C3 — Base UTC isolation**：先 characterization Deno/Chromium/Firefox/WebKit 的
+   `Date.parse` divergence、maintained-valid Save/Debug Bundle bytes 与既有 loose export filename
+   policy；再以 repository-owned integer parser 实现 B-prime strict `IsoUtcInstant` admission，
+   明确收紧 malformed Gregorian input，同时保留 accepted raw spelling、现有 rejection mapping
+   与全部 maintained-valid bytes。filename 使用独立 legacy policy；两者只共享 lexical/calendar
+   primitives。不新增 public helper、不改变 Save `formatRevision`、canonical/digest 或
+   authoritative runtime semantics。
 5. **DET3a-C4 — cleanup and re-promotion**：删除 superseded evaluator/provenance/dead
    diagnostics paths，更新 live `development.md`，复核 DET3b guard inventory，重跑 DET4
    Deno/Chromium/Firefox/WebKit full matrix；全部 promotion 后才更新 `features.md` 并再次
@@ -1911,10 +1914,21 @@ receipt 或 cached inventory，也不写 authoritative State、Save 或 artifact
   options/zero-or-multi-argument negatives 全部在 pre-lint 原子失败，type-only edges 不进入
   runtime closure；
 - 所有真实 CommonJS/createRequire forms 使用 `dynamic_require`，lexical shadows clean；
-- Base persistence parser 保持当前 accepted/rejected corpus，返回原 spelling；normal、
-  overflow-hour 与 invalid-clock export filename value/bytes byte-for-byte 不变；
-- corrective implementation 不改 public API、Save envelope、canonical/digest、CommandLog、
-  replay 或 debug-bundle semantics；
+- B-prime accepted corpus 返回原 spelling；decode→encode bytes 与 Save digest exact，
+  `stateDigest`、annotation、versionStamp、`recordRevision` 与 simulation lineage 均不变；
+- rejected corpus 维持 codec `envelope.schema_invalid` 与 Player `invalid_record` mapping；
+  Snapshot/replay base/RNG/CommandLog/lineage/store bytes、revision 与 write count 全部不变；
+- Debug Bundle `generatedAt` 与 runtime fault `occurredAt` 复用相同 strict admission；valid
+  diagnostic spelling/bytes 不变，newly rejected malformed input 保持既有 schema failure；
+  Debug Bundle decode 仍映射为 `envelope.schema_invalid`；
+- Deno、Chromium、Firefox、WebKit 跑同一 accepted/rejected corpus；C2 strict full-zone safe-set
+  保持原合同，不接受 persistence-only `24:00` 或任意长度 fraction；
+- legacy filename 固定 Feb-30/Apr-31 forward overflow、exact-zero `24:00` rollover、invalid bare
+  fallback 与 payload-byte independence；`0000`/`0001` 当前未补齐 year output 和
+  `9999-12-31T24:00:00Z` rollover 到 `10000` 只 characterization，不在 C3 修正；
+- corrective implementation 不新增 production public instant helper；existing testkit vector seam
+  可承载四-runtime corpus，但不改 Save envelope/format revision、canonical/digest、CommandLog 或
+  replay semantics；
 - focused red/green、affected package tests、`deno task test`、`deno task check` 全绿；
 - DET3b guard inventory/reachability 不回退；Deno、Chromium、Firefox、WebKit full DET4 matrix
   重新通过后才关闭 DET-B/PF-DET。
@@ -1925,8 +1939,10 @@ receipt 或 cached inventory，也不写 authoritative State、Save 或 artifact
 code 或跨 source/container dataflow；singleton allowance 需要 union/class widening；unknown/
 cycle/budget 不能 stable fail closed；maximal chain 无法得到唯一 stable winner；dynamic import
 只能靠 regex、lint 后 failure 或 partial closure；CommonJS 必须建设 dependency graph；integer
-UTC helper 无法保持当前 parser acceptance/原 spelling/export filename bytes；或实现要求 public
-instant helper、Save/canonical/digest/CommandLog/replay 语义变化。
+UTC helper 无法保持 B-prime accepted spelling、maintained-valid Save/Debug Bundle bytes 或 legacy
+filename policy；发现 maintained fixture / real released Save 含 newly rejected malformed timestamp；
+或实现要求 public instant helper、Save envelope/format revision/canonical/digest/CommandLog/replay
+语义变化。
 
 **DET3a-C0 acceptance（2026-08-02）：** owning design、本文与 production-floor sequence
 已同步 conservative safe-set、StaticString、exact-singleton join、constructor/dynamic-loader
@@ -1983,6 +1999,42 @@ determinism suites 为 `3 files / 860 tests`，repository full unit 为 `226 fil
 public API、runtime、Save/canonical/digest/CommandLog/replay 或 browser graph；没有机械追加
 browser E2E。`development.md` 已同步，`features.md` 按 C4 gate 未修改。下一独立切片为
 `DET3a-C3`。
+
+**DET3a-C3 B-prime contract amendment（2026-08-02）：** repository evidence 证明当前
+maintained Save corpus 全部使用 strict-valid `savedAt`，没有 tracked/released malformed Save
+触发 migration stop。C3 因此采用 B-prime：strict persistence/diagnostic `IsoUtcInstant`
+admission 与 loose legacy filename normalization 分离，只共享 internal lexical/calendar
+primitives。该决定 supersede C0 的“保持 current parser acceptance”措辞；它属于
+runtime-dependent validation 的 deterministic convergence 加 explicit malformed-input tightening，
+不是 `formatRevision` 变化。C2 authoritative Date safe-set 保持不变。实现与 promotion evidence
+仍由本切片后续 red/green、byte/atomicity 与 four-runtime matrix 拥有，不能把本 amendment 写成
+已落地能力。
+
+**DET3a-C3 promotion（2026-08-02）：** Base 新增单一 package-internal ASCII field scanner、
+Gregorian leap-year/days-in-month/day-increment primitives、strict B-prime `IsoUtcInstant`
+admission 与独立 legacy export filename policy；`parseIsoUtcInstantV1` 不再调用 Host
+`Date.parse`，新 helper 未进入 production barrel；existing testkit determinism-vector seam 仅新增
+固定 corpus evaluator。Save、Debug Bundle 与 runtime fault 的 valid
+timestamp spelling/bytes 保持，malformed timestamp 分别保留 Save codec
+`envelope.schema_invalid`、Player `invalid_record`、runtime-fault schema failure 与 Debug Bundle
+decode `envelope.schema_invalid` mapping。
+
+首次 focused red 为 `7 failed / 128 passed`，证明 Deno 当前把 invalid Gregorian 日期规范化
+接受且 parser 依赖 `Date.parse`；formatter self-review 又以独立 `1 failed / 61 skipped` 固定
+Feb-30 + `24:00` 的旧 rollover 顺序。最终 focused 为 `7 files / 135 tests`，Base 为
+`78 files / 975 tests`，repository full unit 为 `227 files / 3192 tests`。DET4 seam 已加入固定
+B-prime corpus；Deno matrix 与 Chromium/Firefox/WebKit 的 `6` 个 browser repeat cases 全绿。
+accepted Save vectors 证明原 spelling、decode→encode bytes、Save digest、`stateDigest`、annotation、
+versionStamp、record revision 与 lineage exact；rejected import/load 证明 Snapshot/replay base/RNG/
+CommandLog/lineage/store bytes/revision/write count 不变。legacy filename 固定 Feb/Apr overflow、
+combined invalid-day + `24:00`、exact-zero `24:00`、invalid bare fallback、payload-byte independence
+及 `0000`/`0001`/`10000` year output。maintained Save corpus 未发现 newly rejected malformed
+timestamp，migration stop 未触发。
+
+本批不改 production public API、Save envelope/format revision、canonical/digest、CommandLog、
+replay 或 C2 safe-set；`development.md` 已同步，`features.md` 只更新为 C3 live + aggregate gate
+reopened。
+`deno task check` 与 final diff audit 全绿；本批关闭，下一独立切片为 `DET3a-C4`。
 
 ## 15. Deferred work
 

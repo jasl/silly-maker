@@ -460,6 +460,12 @@ export { markRunModifiedV1 as runtimeMarkRunModifiedV1 } from "@sillymaker/base/
 export type { IntegrityDirectiveV1 } from "@sillymaker/base/runtime";
 // @ts-expect-error import closure belongs to scripts, never Base/testkit
 export { buildImportClosureV1 } from "@sillymaker/base/testkit";
+// @ts-expect-error UTC admission remains package-internal
+export { parseIsoUtcInstantV1 } from "@sillymaker/base";
+// @ts-expect-error UTC lexical scanning remains package-internal
+export { scanUtcInstantFieldsInternalV1 } from "@sillymaker/base";
+// @ts-expect-error legacy filename policy remains package-internal
+export { formatLegacyExportTimestampInternalV1 } from "@sillymaker/base/runtime";
 // @ts-expect-error memory record stores are testkit-only, never Base root
 export { createMemoryHostRecordStoreV1 as ForbiddenRootMemoryRecordStoreV1 } from "@sillymaker/base";
 // @ts-expect-error raw Snapshot instrumentation stays package-internal

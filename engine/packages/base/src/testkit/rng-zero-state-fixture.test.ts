@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { canonicalJsonBytes } from "../contracts/canonical-json.ts";
 import { digestBytes, digestCanonical } from "../contracts/digest.ts";
+import { parseIsoUtcInstantV1 } from "../contracts/persistence.ts";
 import {
   createRngZeroStateSaveBytesV1,
   createRngZeroStateSnapshotBytesV1,
@@ -25,6 +26,7 @@ describe("DET1 fixed zero-state inputs", () => {
     expectExactOracleV1(bytes, rngZeroStateSaveOracleV1);
     const record = JSON.parse(new TextDecoder().decode(bytes));
     expect(record).toMatchObject({
+      savedAt: "2026-07-20T00:00:00.000Z",
       slot: { slotId: "auto.current", writeReason: "auto" },
       snapshot: {
         commandSequence: 0,
@@ -32,6 +34,7 @@ describe("DET1 fixed zero-state inputs", () => {
       },
       stateDigest: "sha256:0b8ce31faf5875e7897e65ea40233d01e9a47942431b50ced208c7c9593772b6",
     });
+    expect(parseIsoUtcInstantV1(record.savedAt)).toBe(record.savedAt);
     expect(canonicalJsonBytes(record.snapshot)).toEqual(snapshotBytes);
     expect(digestCanonical("sillymaker:state:v1", record.snapshot)).toBe(record.stateDigest);
   });

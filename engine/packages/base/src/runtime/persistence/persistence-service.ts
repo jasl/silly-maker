@@ -60,6 +60,10 @@ import {
   parsePositiveSafeInteger,
 } from "../../contracts/values.ts";
 import type { SnapshotWorkInstrumentationV1 } from "../../internal/snapshot-work-instrumentation.ts";
+import {
+  formatLegacyExportTimestampInternalV1,
+  scanUtcInstantFieldsInternalV1,
+} from "../../internal/utc-instant.ts";
 import type { GameSessionRuntimeControlV1 } from "../session/game-session.ts";
 import { lookupInstalledSnapshotDigestInternalV1 } from "../session/game-session.ts";
 import type { AutoSaveAttemptReceiptInternalV1 } from "./auto-save-queue.ts";
@@ -263,47 +267,10 @@ export type PersistenceLeaseAcquisitionV1 = "acquire_initial" | "deferred_reboot
  */
 export type PersistenceAutoSaveCaptureV1 = "committed_snapshots" | "external";
 
-function utcDaysInMonthV1(year: number, month: number): number {
-  if (month === 2) {
-    return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0) ? 29 : 28;
-  }
-  return month === 4 || month === 6 || month === 9 || month === 11 ? 30 : 31;
-}
-
 /** Stable UTC `yyyyMMddHHmmss` used only in suggested export filenames. */
 function formatExportTimestampV1(instant: IsoUtcInstant): string | null {
-  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?Z$/u.exec(
-    instant,
-  );
-  if (match === null) return null;
-  let year = Number(match[1]);
-  let month = Number(match[2]);
-  let day = Number(match[3]);
-  let hour = Number(match[4]);
-  const minute = Number(match[5]);
-  const second = Number(match[6]);
-  const fractional = match[7] ?? "";
-  if (
-    month < 1 || month > 12 || day < 1 || day > 31 || hour > 24 || minute > 59 ||
-    second > 59 || (hour === 24 && (minute !== 0 || second !== 0 || /[1-9]/u.test(fractional)))
-  ) return null;
-  if (hour === 24) {
-    hour = 0;
-    day += 1;
-  }
-  while (day > utcDaysInMonthV1(year, month)) {
-    day -= utcDaysInMonthV1(year, month);
-    month += 1;
-    if (month > 12) {
-      month = 1;
-      year += 1;
-    }
-  }
-  const pad = (value: number): string => String(value).padStart(2, "0");
-  return (
-    `${String(year)}${pad(month)}${pad(day)}` +
-    `${pad(hour)}${pad(minute)}${pad(second)}`
-  );
+  const fields = scanUtcInstantFieldsInternalV1(instant);
+  return fields === null ? null : formatLegacyExportTimestampInternalV1(fields);
 }
 
 export interface CreatePersistenceServiceOptionsV1<

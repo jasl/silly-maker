@@ -82,6 +82,18 @@ describe("diagnostic contracts", () => {
     };
     expect(runtimeOperationFaultSchemaV1.parse(valid)).toEqual(valid);
     expect(() => runtimeOperationFaultSchemaV1.parse({ ...valid, extra: true })).toThrow();
+    expect(
+      runtimeOperationFaultSchemaV1.parse({
+        ...valid,
+        occurredAt: "9999-12-31T24:00:00.0000Z",
+      }).occurredAt,
+    ).toBe("9999-12-31T24:00:00.0000Z");
+    expect(() =>
+      runtimeOperationFaultSchemaV1.parse({
+        ...valid,
+        occurredAt: "2026-02-30T01:02:03Z",
+      })
+    ).toThrowError("invalid IsoUtcInstant");
   });
 
   it("freezes capability state into every Debug Bundle envelope", () => {
