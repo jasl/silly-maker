@@ -269,17 +269,49 @@ Authoritative code 不直接调用：
 - Core 对 adapter 输出做一次 canonical projection admission 和 immutable handoff；
   `createInitialState` 才是消费 bootstrap 的 authoritative callback；
 - gameplay randomness 只经 Snapshot-owned transactional RNG；
-- logical time 是 State/command 中的整数 tick、turn、day 或 sequence；
+- gameplay-authoritative time 是 Story-owned canonical State/Command data，通常使用有界整数
+  tick、turn、day、duration、sequence 或 closed phase；其中 `day` 等字段只表达 Story
+  domain，不承诺 Gregorian 语义；
 - wall-clock 仅作 Host/presentation/diagnostic
   metadata，不能成为未记录的规则输入；
 - Save migration 禁网络、clock、random 与 live Session。
 
-Base 的 `IsoUtcInstant` admission 与 persistence export filename path 只能使用
+### 4.1 Wall-clock metadata 与 authoritative gameplay time
+
+C3 的 Gregorian/UTC 语义只治理 durable wall-clock metadata：Save `savedAt`、Debug Bundle
+`generatedAt`、runtime-fault `occurredAt`，以及 Host-facing export filename timestamp。前三者
+共用 strict `IsoUtcInstant` admission；filename 使用独立 loose Host normalization。这些值可
+进入 persistence/diagnostic artifact bytes，但不得成为 Snapshot、`stateDigest`、RNG、
+CommandLog 或 replay rule decision 的未记录输入。
+
+这里的 determinism 是指同一 metadata string 在所有 maintained runtime 得到相同的 admission/
+rejection，不要求 Host metadata clock 在不同运行或不同 artifact 中产生相同 timestamp。
+
+这不是 gameplay calendar、scheduler、`WorldTime` model 或 genre contract，也不蕴含 Story
+使用 Gregorian year/month/leap day、wall-clock progression 或 Unix epoch gameplay wire。
+每个 Story 继续自行选择 scalar elapsed time、day/slot、duration、sequence 或其他 canonical
+deterministic representation；calendar 可以只是该 State 的 policy/projection，也可以由 Story
+明确选择为 authoritative fields，但不得产生第二份可独立变化的 time authority。
+
+如果现实时间影响玩法，Host 必须在 authoritative transition 外按产品 policy 采样，再提交带
+单位、范围与 revision 的 bounded canonical command 或 immutable resource identity。replay 只
+消费已记录值，永不重新读取 wall clock。
+
+C3 package-internal UTC parser/formatter 只是 metadata infrastructure，不得被导出或复用为
+engine-level `CalendarPolicy`、`WorldTime`、gameplay scheduler、genre package、Unix timestamp
+wire 或 Story-facing date helper，也不修改 Cat Cafe gameplay。Cat Cafe 只是第一个
+Story-local calendar/time-economy consumer；出现 behaviorally independent 的第二消费者前，
+不设计 reusable engine capability。若未来满足 promotion gate，应优先提取两个消费者共同需要
+的最小 deterministic arithmetic/scheduling operation，而不是 universal calendar model。
+
+### 4.2 Package-internal wall-clock metadata policies
+
+Base 的 `IsoUtcInstant` admission 与 Host-facing export filename timestamp path 只能使用
 repository-owned、package-internal 的 ASCII/integer UTC primitives；不得导出通用
 instant/Date helper。两条 policy 必须分离，只共享 lexical scanning、decimal fields、
 Gregorian leap-year/days-in-month 与 day-increment primitives：
 
-- strict persistence admission 接受
+- strict wall-clock metadata admission 接受
   `YYYY-MM-DDTHH:mm:ss(?:.digits+)?Z`，year 为 `0000..9999` 的 proleptic Gregorian，
   month/day 必须构成真实日期，minute/second 为 `00..59`；hour 通常为 `00..23`，只有
   minute/second 全零且 fraction 缺省或全部为零时才接受 `24`。不接受 leap second、offset、
@@ -299,10 +331,9 @@ input；它不改变 Save envelope shape 或 `formatRevision`，maintained-valid
 无需迁移且 bytes/digest 不变。若维护 fixture 或真实 released Save 含 newly rejected malformed
 timestamp，必须停止并设计显式 legacy recovery/migration。C2 authoritative Date syntax proof
 仍是独立合同：real Gregorian、hour `00..23`、fraction `1..3`、`Z` 或 explicit offset；不得把
-persistence 的 arbitrary fraction 或 `24:00`、filename overflow policy 注入 C2 safe-set。
-
-如果现实时间本身是玩法输入，Host 必须按产品 policy 采样并提交带单位、范围和
-provenance 的 canonical command。重放使用该已记录值，而不是再次读取时钟。
+metadata admission 的 arbitrary fraction 或 `24:00`、filename overflow policy 注入 C2
+safe-set。C2 只是 authoritative source 对显式记录 instant 的 conservative static syntax proof，
+不定义 gameplay calendar、time progression 或 scheduler semantics。
 
 ## 5. RNG invariants
 
@@ -919,6 +950,10 @@ revalidation 与 DET4 full matrix re-promotion 前，aggregate PF-DET 对新合�
 - package-internal UTC helper 无法保持 B-prime accepted corpus 的原 spelling、maintained-valid
   Save/Debug Bundle bytes 或 legacy export filename normalization，或发现 maintained fixture / real
   released Save 含 newly rejected malformed timestamp；
+- C3/C4 必须新增 `CalendarPolicy`、`WorldTime`、gameplay scheduler、genre package、Unix
+  timestamp wire、Story-facing date helper 或 Cat Cafe gameplay change，authoritative replay 必须
+  重读 wall clock，或在第二个 behaviorally independent Story consumer 出现前必须提升 reusable
+  time/calendar capability；
 - 修复要求新增 public instant/Date helper，或改变 Save/canonical/digest/CommandLog/replay
   语义；
 - 工作扩张到 Save migration、Surface、Mod sandbox、StateStore 或 Decimal

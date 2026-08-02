@@ -6,7 +6,8 @@ promotion 已完成，但其 broad static contract 随后被 DET3a conservative-
 target supersede。当前 linear core 先完成 DET3a corrective、DET3b invariant revalidation
 与 DET4 full re-promotion，再恢复后续依赖 aggregate PF-DET closure 的工作；corrective
 C1 import/loader admission、C2 Date/String/provenance kernel 与 C3 B-prime Base UTC isolation 已
-完成，当前下一切片为 C4。旧 promotion 数字保留为
+完成；2026-08-03 接受的 time-boundary clarification 只闭合 C3 metadata scope，不改变
+B-prime、C2 或执行顺序。当前下一切片为 C4。旧 promotion 数字保留为
 历史证据。本文是当前唯一的跨计划排序入口；
 具体合同仍由各 design 文档拥有，主要任务由五个独立计划拥有：
 
@@ -363,7 +364,12 @@ DET0-core/DET-A/DET-B 负责：
     `createRequire` 的 `determinism.capability.dynamic_require` failure。任一 admission
     failure 不发布 partial
     closure、provenance 或 success receipt；
-12. corrective DET3a 后必须复核 DET3b guard inventory 并完整重跑 DET4 四 runtime matrix，
+12. C3 Gregorian/UTC semantics 只治理 Save `savedAt`、Debug Bundle `generatedAt`、
+    runtime-fault `occurredAt` 与 Host-facing export filename timestamp 这一 wall-clock metadata
+    family；gameplay time 保持 Story-owned canonical State/Command，现实时间只有经 Host 在
+    authoritative transition 外采样为 bounded/versioned canonical command/resource 后才能影响
+    玩法，replay 不重读 wall clock。C2 static Date proof 不因此成为 gameplay calendar；
+13. corrective DET3a 后必须复核 DET3b guard inventory 并完整重跑 DET4 四 runtime matrix，
     旧 aggregate record 不能自动关闭新合同。
 
 PF-DET 不引入 `decimal.js`、通用 numeric package、named/keyed RNG、trace V2、
@@ -726,6 +732,17 @@ corpus 未触发 migration stop。无 production public helper、format revision
 CommandLog 或 replay change；existing testkit vector seam 只追加固定 corpus evaluator。当前下一
 独立切片为 `C4` cleanup、DET3b invariant revalidation 与 DET4 aggregate re-promotion。
 
+**DET3a-C3 time-boundary clarification（2026-08-03）：** C3 的 Gregorian/UTC semantics 仅属于
+durable wall-clock metadata，不定义 gameplay calendar、scheduler、`WorldTime`、Unix epoch wire
+或 genre contract。Story 自行选择 scalar elapsed time、day/slot、duration、sequence 或 closed
+phase 等 canonical representation；现实时间只有记录后才进入 authoritative command/resource，
+replay 永不重采样。B-prime 与 C2 不变，既有 C3 equivalence evidence 仍覆盖三个 strict
+`IsoUtcInstant` consumer 与独立 filename policy。Cat Cafe 是首个 Story-local calendar/
+time-economy consumer；第二个 behaviorally independent consumer 出现前不提升 reusable
+capability，未来优先提取最小公共 deterministic arithmetic/scheduling operation，而非 universal
+calendar。该 amendment 只改 design/active plans，不新增 implementation 或 tests；下一切片仍为
+`C4`。
+
 ### PF3 — Save envelope and migration registry
 
 执行 [Save migration plan](2026-07-30-save-migration.md) 的分段 gate：
@@ -883,6 +900,8 @@ Story import-closure tooling、browser parity config 或 public export 的工作
 - `IntegrityPolicy`、module-root digest、changed-subtree freeze；
 - Mod resolver/distribution/third-party package SDK；
 - engine-level 通用 combat core 与 genre packs（Story-local SLG/VN/卡牌玩法可并行）；
+- engine-level gameplay `CalendarPolicy`、`WorldTime`、scheduler 或 genre-time package；Cat Cafe
+  只是首个 Story-local consumer，须等待第二个 behaviorally independent consumer；
 - Pixi/WebGL/Live2D 等高级 renderer adapter；
 - OpenUI/GenUI workspace；
 - 可视化 editor shell；
@@ -917,6 +936,10 @@ Story import-closure tooling、browser parity config 或 public export 的工作
 - package-internal integer UTC parser/formatter 无法保持 B-prime accepted spelling、
   maintained-valid Save/Debug Bundle bytes 或 legacy export filename policy，或发现 maintained
   fixture / real released Save 含 newly rejected malformed timestamp；
+- C3/C4 要求新增 gameplay `CalendarPolicy`、`WorldTime`、scheduler、genre package、Unix
+  timestamp wire、Story-facing date helper 或 Cat Cafe gameplay change，authoritative replay 必须
+  重读 wall clock，或在第二个 behaviorally independent Story consumer 前必须提升 reusable
+  time/calendar capability；
 - corrective work 要求新增 public instant helper，或改变 Save/canonical/digest/CommandLog/
   replay 语义；
 - 实现必须依赖 `tmp/**`、`references/**` 或私有复刻工程；

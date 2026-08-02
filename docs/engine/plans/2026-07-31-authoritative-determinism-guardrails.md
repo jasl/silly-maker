@@ -1790,11 +1790,14 @@ kind 与 constructor precedence 的 broad allowance；第 11–13 节的既有�
    precedence、KnownDate terminal policy、exact-singleton local join 与 budget fail-closed。
 4. **DET3a-C3 — Base UTC isolation**：先 characterization Deno/Chromium/Firefox/WebKit 的
    `Date.parse` divergence、maintained-valid Save/Debug Bundle bytes 与既有 loose export filename
-   policy；再以 repository-owned integer parser 实现 B-prime strict `IsoUtcInstant` admission，
-   明确收紧 malformed Gregorian input，同时保留 accepted raw spelling、现有 rejection mapping
-   与全部 maintained-valid bytes。filename 使用独立 legacy policy；两者只共享 lexical/calendar
-   primitives。不新增 public helper、不改变 Save `formatRevision`、canonical/digest 或
-   authoritative runtime semantics。
+   policy；再以 repository-owned integer parser 实现 B-prime strict wall-clock metadata
+   `IsoUtcInstant` admission，明确收紧 malformed Gregorian input，同时保留 accepted raw
+   spelling、现有 rejection mapping 与全部 maintained-valid bytes。strict scope 只含 Save
+   `savedAt`、Debug Bundle `generatedAt` 与 runtime-fault `occurredAt`；filename 使用独立
+   Host-facing legacy policy，两者只共享 lexical/calendar primitives。C3 不定义或修改
+   gameplay logical time、Story calendar、scheduler、offline progression 或 genre API；不新增
+   public helper、不改变 Save `formatRevision`、canonical/digest 或 authoritative runtime
+   semantics。
 5. **DET3a-C4 — cleanup and re-promotion**：删除 superseded evaluator/provenance/dead
    diagnostics paths，更新 live `development.md`，复核 DET3b guard inventory，重跑 DET4
    Deno/Chromium/Firefox/WebKit full matrix；全部 promotion 后才更新 `features.md` 并再次
@@ -1802,6 +1805,17 @@ kind 与 constructor precedence 的 broad allowance；第 11–13 节的既有�
 
 ### Corrective normative contract
 
+- C3 Gregorian/UTC semantics 只治理 wall-clock metadata：Save `savedAt`、Debug Bundle
+  `generatedAt`、runtime-fault `occurredAt` 与独立的 Host-facing export filename timestamp。
+  strict `IsoUtcInstant` admission 和 loose filename normalization 是不同 policy；它们不是
+  gameplay calendar、scheduler、`WorldTime`、genre contract 或 Unix epoch gameplay wire。
+- gameplay-authoritative time 继续由 Story-owned canonical State/Command 表达，通常是 bounded
+  integer tick/turn/day/duration/sequence 或 closed phase。若现实时间影响玩法，Host 必须在
+  authoritative transition 外采样，并提交 bounded、versioned canonical command/resource；
+  replay 只消费记录值，永不重读 wall clock。
+- C2 strict Date grammar 只是 authoritative source 对 explicit recorded instant 的 conservative
+  static syntax proof，不定义 gameplay calendar 或 time progression，也不因 C3 metadata/
+  filename policy 扩张。
 - Date direct-safe 只包括 TimeClip exact static integer epoch、unshadowed direct
   `Date.UTC` exactly seven static integer arguments、unshadowed direct `Date.parse` 或 direct
   single-argument `new Date` 的 strict full-Z/offset `StaticString`，以及指向同一 exact
@@ -1929,6 +1943,9 @@ receipt 或 cached inventory，也不写 authoritative State、Save 或 artifact
 - corrective implementation 不新增 production public instant helper；existing testkit vector seam
   可承载四-runtime corpus，但不改 Save envelope/format revision、canonical/digest、CommandLog 或
   replay semantics；
+- time-boundary clarification 本身不新增 gameplay implementation、Cat Cafe fixture 或 gameplay
+  time test；既有 C3 metadata equivalence evidence 仍必须覆盖 `savedAt`、`generatedAt`、
+  `occurredAt` 与独立 filename policy；
 - focused red/green、affected package tests、`deno task test`、`deno task check` 全绿；
 - DET3b guard inventory/reachability 不回退；Deno、Chromium、Firefox、WebKit full DET4 matrix
   重新通过后才关闭 DET-B/PF-DET。
@@ -1942,7 +1959,12 @@ cycle/budget 不能 stable fail closed；maximal chain 无法得到唯一 stable
 UTC helper 无法保持 B-prime accepted spelling、maintained-valid Save/Debug Bundle bytes 或 legacy
 filename policy；发现 maintained fixture / real released Save 含 newly rejected malformed timestamp；
 或实现要求 public instant helper、Save envelope/format revision/canonical/digest/CommandLog/replay
-语义变化。
+语义变化；C3/C4 必须新增 `CalendarPolicy`、`WorldTime`、gameplay scheduler、genre package、
+Unix timestamp wire、Story-facing date helper 或 Cat Cafe gameplay change；authoritative replay
+必须重读 wall clock；在第二个 behaviorally independent Story consumer 出现前必须提升 reusable
+time/calendar capability；或 live callsite audit 发现既有 equivalence corpus 未覆盖的
+`IsoUtcInstant` consumer。最后一种情况必须另开 test corrective slice，不得把 docs-only
+clarification 写成已覆盖证据。
 
 **DET3a-C0 acceptance（2026-08-02）：** owning design、本文与 production-floor sequence
 已同步 conservative safe-set、StaticString、exact-singleton join、constructor/dynamic-loader
@@ -2036,6 +2058,17 @@ replay 或 C2 safe-set；`development.md` 已同步，`features.md` 只更新为
 reopened。
 `deno task check` 与 final diff audit 全绿；本批关闭，下一独立切片为 `DET3a-C4`。
 
+**DET3a-C3 time-boundary clarification（2026-08-03）：** C3 Gregorian/UTC grammar 只属于
+durable wall-clock metadata：Save `savedAt`、Debug Bundle `generatedAt`、runtime-fault
+`occurredAt`，以及独立 loose policy 处理的 Host-facing export filename timestamp。它不是
+gameplay calendar、scheduler、`WorldTime` 或 genre contract；Story authoritative time 继续由
+canonical State/Command 表达，现实时间只有经 Host 外部采样、bounded/versioned canonical
+recording 后才能影响玩法，replay 不重读 wall clock。B-prime 与 C2 safe-set 均未改变；Cat Cafe
+仍是首个 Story-local calendar/time-economy consumer，第二个 behaviorally independent consumer
+出现前不提升 reusable engine capability。该 amendment 只修订 owning design/active plans，
+不改 implementation、public API 或 tests；既有 C3 evidence 继续拥有三个 strict
+`IsoUtcInstant` consumer 与独立 filename policy 的 equivalence。下一切片仍为 `DET3a-C4`。
+
 ## 15. Deferred work
 
 本计划不实现：
@@ -2045,6 +2078,8 @@ reopened。
 - named/keyed RNG streams、RNG V2、trace V2；
 - RNG reseed wall-clock lineage；
 - async authority schedule perturbation（等待真实 async workload）；
+- engine-level gameplay `CalendarPolicy`、`WorldTime`、scheduler、Unix timestamp wire 或
+  genre-time package（等待 behaviorally independent 的第二个 Story consumer）；
 - untrusted Mod sandbox/certification/taint；
 - production Simulation Worker；
 - canonical/digest algorithm 变化；
