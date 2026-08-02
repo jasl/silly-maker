@@ -67,9 +67,12 @@ describe("shell window adoption", () => {
           : "bad_script";
         operations.push(operation);
         return Promise.resolve({
-          kind: rendererStatus,
-          protocolRevision: 1,
-          requestId: 1,
+          ok: true,
+          value: {
+            kind: rendererStatus,
+            protocolRevision: 1,
+            requestId: 1,
+          },
         });
       }
     }
@@ -199,14 +202,94 @@ describe("shell window adoption", () => {
     ).resolves.toBe(false);
   });
 
-  it("rejects a stale renderer receipt from another close request", async () => {
+  it("keeps documented bare executeJs receipts compatible", async () => {
     const window = {
       addEventListener() {},
       executeJs: () =>
         Promise.resolve({
           kind: "flushed",
           protocolRevision: 1,
-          requestId: 8,
+          requestId: 9,
+        }),
+    } satisfies ShellWindowLikeV1;
+
+    await expect(
+      requestShellRendererFlushV1(window, {
+        waitForPoll: () => Promise.resolve(),
+        requestId: 9,
+      }),
+    ).resolves.toBe(true);
+  });
+
+  it("rejects a failed executeJs envelope even when its value looks successful", async () => {
+    const window = {
+      addEventListener() {},
+      executeJs: () =>
+        Promise.resolve({
+          ok: false,
+          value: {
+            kind: "flushed",
+            protocolRevision: 1,
+            requestId: 9,
+          },
+        }),
+    } satisfies ShellWindowLikeV1;
+
+    await expect(
+      requestShellRendererFlushV1(window, {
+        waitForPoll: () => Promise.resolve(),
+        requestId: 9,
+      }),
+    ).resolves.toBe(false);
+  });
+
+  it("rejects a malformed successful executeJs envelope", async () => {
+    const window = {
+      addEventListener() {},
+      executeJs: () => Promise.resolve({ ok: true }),
+    } satisfies ShellWindowLikeV1;
+
+    await expect(
+      requestShellRendererFlushV1(window, {
+        waitForPoll: () => Promise.resolve(),
+        requestId: 9,
+      }),
+    ).resolves.toBe(false);
+  });
+
+  it("rejects executeJs envelope accessors without invoking them", async () => {
+    let accessorCalls = 0;
+    const envelope = Object.defineProperty({}, "ok", {
+      get() {
+        accessorCalls += 1;
+        return true;
+      },
+    });
+    const window = {
+      addEventListener() {},
+      executeJs: () => Promise.resolve(envelope),
+    } satisfies ShellWindowLikeV1;
+
+    await expect(
+      requestShellRendererFlushV1(window, {
+        waitForPoll: () => Promise.resolve(),
+        requestId: 9,
+      }),
+    ).resolves.toBe(false);
+    expect(accessorCalls).toBe(0);
+  });
+
+  it("rejects a stale renderer receipt from another close request", async () => {
+    const window = {
+      addEventListener() {},
+      executeJs: () =>
+        Promise.resolve({
+          ok: true,
+          value: {
+            kind: "flushed",
+            protocolRevision: 1,
+            requestId: 8,
+          },
         }),
     } satisfies ShellWindowLikeV1;
 

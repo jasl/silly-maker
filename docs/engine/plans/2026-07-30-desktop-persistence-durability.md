@@ -968,6 +968,23 @@ surface：
   创建前拒绝，timeout/close 删除 partial temp；完整 body 已进入原子 publication
   后继续完成。该 deadline 不得用于 records/autosave。
 
+### 2026-08-03 D4 preview maintenance — `executeJs` result envelope
+
+Deno Desktop 2.9.4 的 [runtime implementation](https://github.com/denoland/deno/blob/v2.9.4/runtime/ops/desktop.rs#L80-L106) 把 `BrowserWindow.executeJs()` 结果转换为
+`{ ok: true, value }` / `{ ok: false, value }`，而同版本声明的 API 仍把返回值写成 bare
+`BrowserWindowValue`。package-internal close bridge 因此同时接受 implementation envelope
+与 documented bare receipt：只解包 own-data `{ ok: true, value }`，`ok: false`、malformed/
+accessor envelope、stale request ID 与 execution rejection 一律视为 missing acknowledgement。
+这不扩张 `ShellWindowLikeV1`、records/Save wire 或 Story API，也不把 preview 提升为 D4
+promotion；未来上游收敛到 bare value 时无需另一次合同迁移。
+
+TDD red 精确复现 wrapped success 无法进入 shutdown；green 后 fixed Deno 2.9.4
+implementation envelope、failure envelope 内伪造的 valid-looking receipt、documented bare
+value、malformed/accessor 与 stale request vectors 为 focused `1 file / 13 tests`，Tooling
+Desktop 为 `13/87`，full unit 为 `227/3200`，`deno task typecheck` 与最终
+`deno task check` 全绿并完成 Engine Lab production build。真实 platform package
+close/reopen 仍属于 D4 promotion evidence，本地 unit/build 不冒充该 gate。
+
 这些只建立 preview wrapper、output naming 与 close-lifetime floor；macOS、
 Windows、Linux 当前都**没有**通过 D4 promotion。
 

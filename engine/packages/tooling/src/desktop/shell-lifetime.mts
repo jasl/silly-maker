@@ -39,19 +39,29 @@ function readOwnDataPropertyV1(value: object, key: string): unknown {
   return descriptor !== undefined && "value" in descriptor ? descriptor.value : undefined;
 }
 
+function unwrapExecuteJsResultV1(value: unknown): unknown {
+  if (value === null || typeof value !== "object") return value;
+  const okDescriptor = Object.getOwnPropertyDescriptor(value, "ok");
+  if (okDescriptor === undefined) return value;
+  if (!("value" in okDescriptor) || okDescriptor.value !== true) return null;
+  const valueDescriptor = Object.getOwnPropertyDescriptor(value, "value");
+  return valueDescriptor !== undefined && "value" in valueDescriptor ? valueDescriptor.value : null;
+}
+
 function rendererFlushStatusV1(
   value: unknown,
   requestId: number,
 ): "preparing" | "flushed" | "failed" | null {
-  if (value === null || typeof value !== "object") return null;
   try {
+    const receipt = unwrapExecuteJsResultV1(value);
+    if (receipt === null || typeof receipt !== "object") return null;
     if (
-      readOwnDataPropertyV1(value, "protocolRevision") !== 1 ||
-      readOwnDataPropertyV1(value, "requestId") !== requestId
+      readOwnDataPropertyV1(receipt, "protocolRevision") !== 1 ||
+      readOwnDataPropertyV1(receipt, "requestId") !== requestId
     ) {
       return null;
     }
-    const kind = readOwnDataPropertyV1(value, "kind");
+    const kind = readOwnDataPropertyV1(receipt, "kind");
     return kind === "preparing" || kind === "flushed" || kind === "failed" ? kind : null;
   } catch {
     return null;
@@ -77,11 +87,14 @@ function allocateRendererFlushRequestIdV1(): number {
 
 /**
  * Asks the adopted renderer to verify the exact current authoritative
- * Snapshot in `auto.current`. `executeJs()` only transports synchronous JSON values, so the
- * first call starts preparation and close-scoped reads wait for its terminal
- * receipt. This is not a page heartbeat: polling exists only while a native
- * close is pending, and no timeout converts a missing receipt into process
- * exit.
+ * Snapshot in `auto.current`. Deno Desktop 2.9.x currently wraps an
+ * `executeJs()` value in `{ ok, value }`, while its declared API returns the
+ * value directly; this internal bridge accepts both shapes and fails closed on
+ * an execution-failure envelope. `executeJs()` only transports synchronous JSON
+ * values, so the first call starts preparation and close-scoped reads wait for
+ * its terminal receipt. This is not a page heartbeat: polling exists only while
+ * a native close is pending, and no timeout converts a missing receipt into
+ * process exit.
  */
 export async function requestShellRendererFlushV1(
   window: ShellWindowLikeV1 | null,
