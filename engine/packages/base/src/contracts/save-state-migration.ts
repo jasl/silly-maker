@@ -24,6 +24,51 @@ export interface SaveStateMigrationStepIdentityV1 {
   readonly to: SaveStateContractIdentityV1;
 }
 
+/**
+ * Immutable provenance for one successful migrated replacement.
+ *
+ * `sourceStateDigest` identifies the admitted source raw Snapshot;
+ * `migratedStateDigest` identifies the final normalized migrated Snapshot.
+ * Neither field is a digest of the State subtree alone.
+ */
+export interface SaveStateMigrationReceiptV1 {
+  readonly namespace: SaveStateMigrationNamespaceV1;
+  readonly source: SaveStateContractIdentityV1;
+  readonly target: SaveStateContractIdentityV1;
+  readonly steps: readonly [
+    SaveStateMigrationStepIdentityV1,
+    ...SaveStateMigrationStepIdentityV1[],
+  ];
+  readonly sourceStateDigest: Digest;
+  readonly migratedStateDigest: Digest;
+}
+
+export type SaveStateMigrationFailurePhaseV1 =
+  | "snapshot_shell"
+  | "callback"
+  | "callback_rejected"
+  | "result_envelope"
+  | "output_admission"
+  | "current_snapshot_schema"
+  | "compatibility"
+  | "references"
+  | "invariants"
+  | "replacement_prepare"
+  | "replacement_commit";
+
+/** Immutable diagnostics for one failed migration attempt. */
+export interface SaveStateMigrationAttemptV1 {
+  readonly namespace: SaveStateMigrationNamespaceV1;
+  readonly source: SaveStateContractIdentityV1;
+  readonly target: SaveStateContractIdentityV1;
+  readonly sourceStateDigest: Digest;
+  readonly completedSteps: readonly SaveStateMigrationStepIdentityV1[];
+  readonly failingStep: SaveStateMigrationStepIdentityV1 | null;
+  readonly failingPhase: SaveStateMigrationFailurePhaseV1;
+  /** A complete normalized Snapshot digest, or null before one exists. */
+  readonly migratedStateDigest: Digest | null;
+}
+
 export interface SaveStateMigrationReferenceRenameV1 {
   readonly referenceSetId: string;
   readonly fromId: string;
@@ -98,44 +143,87 @@ const maximumSaveStateMigrationStepsV1 = 16;
 const maximumSaveStateMigrationIdentifierBytesV1 = 128;
 const stableMigrationIdentifierPatternV1 = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/u;
 
-type ExactDataDescriptorsV1 = Readonly<Record<string, PropertyDescriptor>>;
+/** @internal One captured exact own-data field vector. */
+export type ExactDataDescriptorsInternalV1 = Readonly<
+  Record<string, PropertyDescriptor>
+>;
 
-function exactDataDescriptorsV1(
+function sameExactFieldVectorV1(
+  fields: readonly string[],
+  expected: readonly string[],
+): boolean {
+  if (fields.length !== expected.length) return false;
+  return fields.every((field) =>
+    expected.some((candidate) => candidate.length === field.length && candidate === field)
+  );
+}
+
+function isCanonicalArrayIndexKeyV1(value: string): boolean {
+  if (value.length === 0 || value.length > 10) return false;
+  if (value.length > 1 && value.charCodeAt(0) === 0x30) return false;
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code < 0x30 || code > 0x39) return false;
+  }
+  return true;
+}
+
+/** @internal Captures one own-key snapshot without rereading accessors or key vectors. */
+export function captureExactDataDescriptorsInternalV1(
   value: unknown,
-  expectedFields: readonly string[],
+  expectedFieldVectors: readonly (readonly string[])[],
   label: string,
-): ExactDataDescriptorsV1 {
+  observedPrototype?: { readonly value: object | null },
+): ExactDataDescriptorsInternalV1 {
   try {
     if (
       value === null ||
       typeof value !== "object" ||
       Array.isArray(value) ||
-      Object.getPrototypeOf(value) !== Object.prototype ||
-      Object.getOwnPropertySymbols(value).length !== 0
+      (observedPrototype === undefined ? Object.getPrototypeOf(value) : observedPrototype.value) !==
+        Object.prototype
     ) {
       throw new TypeError(`invalid ${label}`);
     }
-    const descriptors = Object.getOwnPropertyDescriptors(value) as Record<
-      string,
-      PropertyDescriptor
-    >;
-    if (Object.keys(descriptors).sort().join("\0") !== [...expectedFields].sort().join("\0")) {
+    const keys = Reflect.ownKeys(value);
+    if (keys.some((key) => typeof key === "symbol")) {
       throw new TypeError(`invalid ${label} fields`);
     }
-    for (const descriptor of Object.values(descriptors)) {
+    const fields = keys as string[];
+    if (!expectedFieldVectors.some((expected) => sameExactFieldVectorV1(fields, expected))) {
+      throw new TypeError(`invalid ${label} fields`);
+    }
+    const descriptors = Object.create(null) as Record<string, PropertyDescriptor>;
+    for (const field of fields) {
+      const descriptor = Object.getOwnPropertyDescriptor(value, field);
       if (
+        descriptor === undefined ||
         descriptor.get !== undefined ||
         descriptor.set !== undefined ||
         !("value" in descriptor)
       ) {
         throw new TypeError(`${label} accessors are forbidden`);
       }
+      Object.defineProperty(descriptors, field, {
+        configurable: false,
+        enumerable: true,
+        writable: false,
+        value: descriptor,
+      });
     }
-    return descriptors;
+    return Object.freeze(descriptors);
   } catch (error) {
     if (error instanceof TypeError) throw error;
     throw new TypeError(`invalid ${label}`, { cause: error });
   }
+}
+
+function exactDataDescriptorsV1(
+  value: unknown,
+  expectedFields: readonly string[],
+  label: string,
+): ExactDataDescriptorsInternalV1 {
+  return captureExactDataDescriptorsInternalV1(value, [expectedFields], label);
 }
 
 function exactArrayValuesV1(
@@ -146,16 +234,11 @@ function exactArrayValuesV1(
   try {
     if (
       !Array.isArray(value) ||
-      Object.getPrototypeOf(value) !== Array.prototype ||
-      Object.getOwnPropertySymbols(value).length !== 0
+      Object.getPrototypeOf(value) !== Array.prototype
     ) {
       throw new TypeError(`invalid ${label}`);
     }
-    const descriptors = Object.getOwnPropertyDescriptors(value) as Record<
-      string,
-      PropertyDescriptor
-    >;
-    const lengthDescriptor = descriptors.length;
+    const lengthDescriptor = Object.getOwnPropertyDescriptor(value, "length");
     if (
       lengthDescriptor === undefined ||
       lengthDescriptor.get !== undefined ||
@@ -173,13 +256,37 @@ function exactArrayValuesV1(
     ) {
       throw new TypeError(`invalid ${label} length`);
     }
-    const descriptorKeys = Object.keys(descriptors);
-    if (descriptorKeys.length !== length + 1) {
+    const keys = Reflect.ownKeys(value);
+    if (keys.some((key) => typeof key === "symbol")) {
       throw new TypeError(`${label} must be dense and exact`);
     }
+    const stringKeys = keys as string[];
+    if (stringKeys.length !== length + 1) {
+      throw new TypeError(`${label} must be dense and exact`);
+    }
+    let hasLength = false;
+    for (const key of stringKeys) {
+      if (key.length === 6 && key === "length") {
+        hasLength = true;
+        continue;
+      }
+      if (!isCanonicalArrayIndexKeyV1(key)) {
+        throw new TypeError(`${label} must be dense and exact`);
+      }
+      const index = Number(key);
+      if (
+        !Number.isInteger(index) ||
+        index < 0 ||
+        index >= length ||
+        String(index) !== key
+      ) {
+        throw new TypeError(`${label} must be dense and exact`);
+      }
+    }
+    if (!hasLength) throw new TypeError(`${label} must be dense and exact`);
     const normalized: unknown[] = [];
     for (let index = 0; index < length; index += 1) {
-      const descriptor = descriptors[String(index)];
+      const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
       if (
         descriptor === undefined ||
         descriptor.get !== undefined ||
@@ -296,38 +403,15 @@ function parseReferenceDeletionResolutionV1(
   value: unknown,
   deletedId: string,
 ): SaveStateMigrationReferenceDeletionV1["resolution"] {
-  let kind: unknown;
-  try {
-    if (
-      value === null ||
-      typeof value !== "object" ||
-      Array.isArray(value) ||
-      Object.getPrototypeOf(value) !== Object.prototype ||
-      Object.getOwnPropertySymbols(value).length !== 0
-    ) {
-      throw new TypeError("invalid Save State migration reference deletion resolution");
-    }
-    const descriptor = Object.getOwnPropertyDescriptor(value, "kind");
-    if (
-      descriptor === undefined ||
-      descriptor.get !== undefined ||
-      descriptor.set !== undefined ||
-      !("value" in descriptor)
-    ) {
-      throw new TypeError("invalid Save State migration reference deletion resolution kind");
-    }
-    kind = descriptor.value;
-  } catch (error) {
-    if (error instanceof TypeError) throw error;
-    throw new TypeError("invalid Save State migration reference deletion resolution", {
-      cause: error,
-    });
-  }
-  const kindFields = exactDataDescriptorsV1(
+  const kindFields = captureExactDataDescriptorsInternalV1(
     value,
-    kind === "fallback" ? ["kind", "toId"] : ["kind", "reasonCode"],
+    [
+      ["kind", "toId"],
+      ["kind", "reasonCode"],
+    ],
     "Save State migration reference deletion resolution",
   );
+  const kind = kindFields.kind?.value;
   if (kind === "fallback") {
     const toId = parseStableReferenceIdV1(
       kindFields.toId?.value,
@@ -441,6 +525,22 @@ function sameStateContractIdentityV1(
 ): boolean {
   return left.stateContractRevision === right.stateContractRevision &&
     left.stateContractDigest === right.stateContractDigest;
+}
+
+/** @internal Descriptor-safe identity admission for Base runtime/tooling. */
+export function parseSaveStateContractIdentityInternalV1(
+  value: unknown,
+  label = "Save State contract identity",
+): SaveStateContractIdentityV1 {
+  return parseStateContractIdentityV1(value, label);
+}
+
+/** @internal Exact State-contract identity comparison for Base runtime/tooling. */
+export function sameSaveStateContractIdentityInternalV1(
+  left: SaveStateContractIdentityV1,
+  right: SaveStateContractIdentityV1,
+): boolean {
+  return sameStateContractIdentityV1(left, right);
 }
 
 function validateCompleteAdjacentChainV1(

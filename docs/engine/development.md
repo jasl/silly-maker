@@ -116,10 +116,12 @@ Use a focused package or test-file command while iterating when that is faster. 
 It recollects the root application registry, managed simulation dependencies,
 declared callback owners, bounded Base authorities, and the maintained synthetic
 migration extension on every execution; it does not read a cached file list.
-The M2a State-migration registry factory/normalizer is one such bounded Base
-authority, but it is declaration-only: maintained applications do not publish a
-real migration owner and Persistence does not execute callbacks until the later
-M2 integration/promotion slices.
+The M2a State-migration registry factory/normalizer and M2b pure execution
+kernel are bounded Base authorities. The kernel is package-internal, resolves
+only exact non-empty paths, and returns immutable attempt/completion data; it is
+not a Story workflow or load path. Maintained applications do not publish a real
+migration owner and Persistence does not execute callbacks until the later M2
+integration/promotion slices.
 Collection/classification failures abort before linting. After collection, every
 unique exact path is read once; read, unsupported-extension, and parse failures
 use stable diagnostics, and all output is ordered by UTF-16 file/range/code.
@@ -449,7 +451,9 @@ finish compatibility/reference/invariant validation after staged preparation
 and Host revision/slot identity checks. Annotation shares preparation and the
 physical checks but intentionally performs no Story validation callback before
 its revision-aware rewrite. These are deterministic package-internal counts,
-not wall-clock gates; executable Save migration remains a later plan slice.
+not wall-clock gates. The M2b pure callback kernel now exists, but staged
+Persistence integration and any historical Save replacement remain later plan
+slices.
 
 Strict JSON numeric regression tests use exact decimal token vectors rather
 than wall-clock timing: rounded fractions, safe boundaries, negative-zero

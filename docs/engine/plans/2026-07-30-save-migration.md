@@ -3,7 +3,7 @@
 状态：2026-07-30 接受执行，审查后从 Snapshot 性能计划拆分；2026-07-31 按
 M0a/M0b metadata ownership 与 PF-DET same-HEAD join 重切片；2026-08-03 M1 已
 promotion，same-HEAD join 已关闭，并按接受的 State-only contract 把 M2 拆为
-M2a–M2e；M2a 已 promotion，下一独立切片为 M2b。目标合同见
+M2a–M2e；M2a/M2b 已 promotion，下一独立切片为 M2c。目标合同见
 [Save migration design](../design/save-migration.md)；在
 [production-floor sequence](2026-07-30-production-floor-sequence.md) 中分为 PF3
 与 PF5，并与 PF-DET 按显式 DAG 汇合；不是“完整 PF-DET 后才开始全部 M0–M2”。
@@ -368,12 +368,17 @@ preallocation；修复后 focused M2a + M1 regression为 `5 files / 161 tests`�
 bytes、canonical/digest、M1 load order/result、Persistence/Session/CommandLog/replay与 Debug Bundle
 均未改变。下一独立切片为 M2b pure execution kernel。
 
-### M2b — Pure one-step/two-step execution kernel
+### M2b — Pure one-step/two-step execution kernel（已实现）
 
 **目标：** 在 bounded Base authority 内解析 complete chain，并在 detached、deep-frozen
 Strict Canonical Data 上同步执行每一步。每步只返回 exact migrated/rejected union；每个
 migrated output重新 descriptor-safe capture、canonical/limit admission、copy/freeze，再交给
-下一步；本切片新增并构造 immutable receipt或 failure attempt。
+下一步；本切片新增 immutable failure attempt、opaque successful completion与 pure receipt
+finalizer。executor不计算 receipt 的 `migratedStateDigest`；M2c完成 whole-Snapshot
+reconstruction/schema/digest后把 final normalized Snapshot digest交给 finalizer。
+
+为保持 chain-before-shell precedence，package-internal protocol拆为 chain resolve与 callback
+execution两步；M2c必须在二者之间完成 historical engine-owned Snapshot shell admission。
 
 **非目标：** 不接 load/import、Session、Persistence、Host、Core production owner或
 browser matrix；不处理 format migration、RNG、command sequence、integrity、annotation、
@@ -383,7 +388,21 @@ lineage 或 arbitrary context。
 counts、input/output alias mutation、thenable、non-exact/extra/symbol/accessor result、custom
 prototype、cycle、fractional/non-finite/unsafe number与over-limit output。missing/incomplete chain
 callback count 为 `0`；explicit reject=`migration.rejected`，illegal output=
-`migration.output_invalid`，throw=`migration.callback_threw`且不暴露 message/stack。
+`migration.output_invalid`，throw=`migration.callback_threw`且不暴露 message/stack。所有 M2b
+failure attempt的 `migratedStateDigest`为 `null`；receipt finalizer只接受 exact successful
+completion与调用者提供的 whole-Snapshot digest，不能接受 failure/fake/spread token。
+
+**2026-08-03 M2b promotion：** Base 现已在 bounded authority 内提供 exact non-empty suffix
+resolution、detached/deep-frozen Strict State admission、同步 one/two-step execution、immutable
+failure attempt、opaque completion与 whole-Snapshot receipt finalizer。capture-time limits 在
+排序或 descriptor traversal 前约束 collection、key/string、node/depth与 canonical bytes；每个
+own-key vector只捕获一次，Promise/thenable同步 fail closed且不读取 `.then`。TDD red先证明缺失
+module/public data type/authority registration；对抗 red随后捕获 post-hoc over-limit traversal、
+双 own-key snapshot、超长 key preflight与合同外 Promise sink，均已收紧。focused为
+`2 files / 49 tests`，affected Base为 `80/1032`，full unit为 `229/3379`，typecheck、
+determinism guard与 `deno task check`全绿。Persistence/load/import、maintained migration owner、
+Save bytes、canonical/digest、Session/CommandLog/replay与 Debug Bundle均未改变。下一独立切片为
+M2c staged integration。
 
 ### M2c — Staged load/import integration and failure mapping
 
@@ -400,6 +419,10 @@ identity先于 chain；chain/source mismatch=`migration.unavailable`且 callback
 Snapshot shell=`envelope.schema_invalid`；callback reject/throw/output invalid先于所有后续
 validation；current schema/RNG/reference/invariant与compatibility/adoption沿用既有 code。
 partial attempt只出现在失败/diagnostic，不安装 receipt。
+
+上述 engine-owned migration failure作为 `SaveImportValidationResultV1` 的正交 branches加入；
+不得扩张 Story compatibility callback可返回的 `ImportRejectionCodeV1`，避免 Story伪造
+migration phase/code。
 
 **Red/acceptance：** current exact/adopted携带 `migration: null`且 M1结果/bytes保持；一步/
 两步 migration exact、migration+adoption allow；Story/engine mismatch、adoption deny/lineage

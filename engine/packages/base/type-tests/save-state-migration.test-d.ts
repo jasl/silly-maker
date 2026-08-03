@@ -11,7 +11,10 @@ import type {
   DeepReadonly,
   GameSimulationTypeMapV1,
   SaveStateMigrationIdV1,
+  SaveStateMigrationAttemptV1,
+  SaveStateMigrationFailurePhaseV1,
   SaveStateMigrationReasonCodeV1,
+  SaveStateMigrationReceiptV1,
   SaveStateMigrationRegistryV1,
   SaveStateMigrationStepResultV1,
   StrictJsonValueV1,
@@ -31,6 +34,8 @@ const second = {
   stateContractRevision: parsePositiveSafeInteger(2),
   stateContractDigest: parseDigest(`sha256:${"2".repeat(64)}`),
 };
+const sourceSnapshotDigest = parseDigest(`sha256:${"3".repeat(64)}`);
+const migratedSnapshotDigest = parseDigest(`sha256:${"4".repeat(64)}`);
 
 const migrate = (
   state: DeepReadonly<StrictJsonValueV1>,
@@ -91,6 +96,35 @@ type NeutralCoreDefinitionV1 = CoreGameApplicationDefinitionV1<
   unknown
 >;
 export const coreRegistry: NonNullable<NeutralCoreDefinitionV1["saveStateMigrations"]> = registry;
+
+export const migrationFailurePhase: SaveStateMigrationFailurePhaseV1 = "output_admission";
+export const migrationReceipt: SaveStateMigrationReceiptV1 = {
+  namespace,
+  source: first,
+  target: second,
+  steps: [{ migrationId, from: first, to: second }],
+  sourceStateDigest: sourceSnapshotDigest,
+  migratedStateDigest: migratedSnapshotDigest,
+};
+export const invalidEmptyMigrationReceipt: SaveStateMigrationReceiptV1 = {
+  namespace,
+  source: first,
+  target: second,
+  // @ts-expect-error successful migration receipts require a non-empty path
+  steps: [],
+  sourceStateDigest: sourceSnapshotDigest,
+  migratedStateDigest: migratedSnapshotDigest,
+};
+export const migrationAttempt: SaveStateMigrationAttemptV1 = {
+  namespace,
+  source: first,
+  target: second,
+  sourceStateDigest: sourceSnapshotDigest,
+  completedSteps: [],
+  failingStep: { migrationId, from: first, to: second },
+  failingPhase: migrationFailurePhase,
+  migratedStateDigest: null,
+};
 
 // @ts-expect-error branded migration IDs require package admission
 const invalidMigrationId: SaveStateMigrationIdV1 = "migration.synthetic.1-to-2";

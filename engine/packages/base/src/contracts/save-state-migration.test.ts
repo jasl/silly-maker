@@ -463,6 +463,73 @@ describe("Save State migration registry contracts", () => {
     }
   });
 
+  it("captures each exact declaration key vector once", () => {
+    const current = identityV1(1);
+    const symbol = Symbol("configurable-extra");
+    const target = {
+      namespace: namespaceV1,
+      minimumSupported: current,
+      current,
+      steps: [],
+      [symbol]: true,
+    };
+    let ownKeysCalls = 0;
+    const declaration = new Proxy(target, {
+      ownKeys() {
+        ownKeysCalls += 1;
+        return ownKeysCalls === 1
+          ? ["namespace", "minimumSupported", "current", "steps"]
+          : Reflect.ownKeys(target);
+      },
+    });
+
+    const registry = defineSaveStateMigrationRegistryV1(declaration as never);
+    expect(readSaveStateMigrationRegistryInternalV1(registry).current).toEqual(current);
+    expect(ownKeysCalls).toBe(1);
+
+    const stepsSymbol = Symbol("configurable-array-extra");
+    const stepsTarget = Object.assign([], { [stepsSymbol]: true });
+    let stepOwnKeysCalls = 0;
+    const steps = new Proxy(stepsTarget, {
+      ownKeys() {
+        stepOwnKeysCalls += 1;
+        return stepOwnKeysCalls === 1 ? ["length"] : Reflect.ownKeys(stepsTarget);
+      },
+    });
+    expect(() =>
+      defineSaveStateMigrationRegistryV1({
+        namespace: namespaceV1,
+        minimumSupported: current,
+        current,
+        steps,
+      })
+    ).not.toThrow();
+    expect(stepOwnKeysCalls).toBe(1);
+  });
+
+  it("rejects a hostile oversized array-index spelling before reading an item descriptor", () => {
+    const current = identityV1(1);
+    const inspectedProperties: PropertyKey[] = [];
+    const stepsTarget = [stepV1(current, identityV1(2), "unreachable")];
+    const steps = new Proxy(stepsTarget, {
+      ownKeys: () => ["length", "9".repeat(1_024)],
+      getOwnPropertyDescriptor(target, property) {
+        if (property !== "length") inspectedProperties.push(property);
+        return Reflect.getOwnPropertyDescriptor(target, property);
+      },
+    });
+
+    expect(() =>
+      defineSaveStateMigrationRegistryV1({
+        namespace: namespaceV1,
+        minimumSupported: current,
+        current: identityV1(2),
+        steps,
+      })
+    ).toThrow(TypeError);
+    expect(inspectedProperties).toEqual([]);
+  });
+
   it("normalizes valid rename/deletion declarations and rejects conflicts or missing resolution", () => {
     const first = identityV1(1);
     const second = identityV1(2);

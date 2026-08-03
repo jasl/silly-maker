@@ -8,8 +8,8 @@ B-prime Base UTC isolation、C4 cleanup、DET3b invariant revalidation 与 DET4 
 re-promotion 现已完成，aggregate PF-DET corrective gate 再次关闭；2026-08-03 接受的
 time-boundary clarification 只闭合 C3 metadata scope，不改变 B-prime 或 C2。callback-free
 Save M1 与 DET-B same-HEAD join 已于 2026-08-03 完成；M2 已冻结为 State-only 的
-M2a–M2e；M2a exact registry/Core-admission floor 已 promotion，linear core
-下一独立切片为 M2b。
+M2a–M2e；M2a exact registry/Core-admission floor 与 M2b bounded pure execution kernel 已
+promotion，linear core下一独立切片为 M2c。
 旧 promotion 数字保留为
 历史证据。本文是当前唯一的跨计划排序入口；
 具体合同仍由各 design 文档拥有，主要任务由五个独立计划拥有：
@@ -791,6 +791,15 @@ format、canonical/digest、Session/CommandLog/replay和 Debug Bundle不变。fo
 `5/161`、affected Base `79/999`、full unit `228/3346`，typecheck、determinism guard与
 `deno task check`全绿。linear core下一独立切片为 `M2b`。
 
+**2026-08-03 Save M2b promotion：** Base bounded authority现已提供 exact chain suffix
+resolution、capture-time bounded detached/frozen State projection、同步 one/two-step callback
+execution、immutable failure attempt、opaque completion与 whole-Snapshot receipt finalizer。
+executor不读取 Snapshot其他字段、不计算 State-only伪 digest，也不接 Persistence；Promise/
+thenable与非法 result同步 fail closed且不读取 arbitrary `.then`。focused为 `2/49`、affected
+Base为 `80/1032`、full unit为 `229/3379`，typecheck、determinism guard与 `deno task check`
+全绿。Save bytes、canonical/digest、Session/CommandLog/replay、Debug Bundle与 maintained
+application owner均未改变。linear core下一独立切片为 `M2c`。
+
 ### PF3 — Save envelope and migration registry
 
 执行 [Save migration plan](2026-07-30-save-migration.md) 的分段 gate：
@@ -819,7 +828,7 @@ format、canonical/digest、Session/CommandLog/replay和 Debug Bundle不变。fo
 5. 只有该 join 通过，**M2** 才按 M2a contracts/factory、M2b pure kernel、M2c staged
    integration、M2d atomic anchor、M2e real determinism promotion依次建立
    namespace-keyed adjacent-revision executable State migration；migration 与 same-schema
-   adoption 保持不同语义。M2a 已关闭，当前下一独立切片为 M2b。
+   adoption 保持不同语义。M2a/M2b 已关闭，当前下一独立切片为 M2c。
 
 M2 只治理 `formatRevision: 1` 中的 aggregate State：它安装 non-durable
 replacement-origin receipt，但不写回 source Save。Envelope format migration、产品

@@ -152,6 +152,13 @@
 
 The engine does not currently provide a backend/account service, networked multiplayer authority, runtime LLM, ECS, SQL query layer, or a general-purpose database client for UI. These are descriptions of the present implementation, not permanent bans.
 
+Save migration currently has exact registry authoring contracts and a bounded
+package-internal pure callback kernel. Persistence does not yet invoke that
+kernel, no maintained application publishes a real migration owner, and no
+historical Save is currently migrated; staged load/import integration, atomic
+replacement provenance, cross-runtime promotion, and player workflows remain
+planned.
+
 The script-language decision is durable: Story, Module, Narrative, UI, and official Hotfix code use TypeScript/JavaScript. SillyMaker does not plan Ren'Py DSL/Save compatibility, a custom script interpreter, or an untrusted-code security sandbox. Direct Host-global access remains possible JavaScript but is outside the supported engine API.
 
 The Semantic Stage family (contracts, reducer, projection, transitions, reconciler, components), PendingInteraction, audio intent/presentation, the typed Timeline, the DevTools data plane (runtime inspector and Narrative graph), Player rollback, the VN player systems, the capability-gated debug-command channel, and named-scenario `story simulate --trace` plus `story diff` tooling above are implemented. The bounded Presentation Scene Graph, the remaining DevTools steps (arbitrary-boundary Stage preview, Timeline scrubber and audio/transition inspection, editors), and advanced media/renderer adapters beyond the delivered audio intent stack remain planned in the [engine roadmap](roadmap.md); the retired V1 scene-graph stage system (StageSceneGraph, hit maps, spatial interaction surfaces, character rigs) was deleted with the first PoC rather than ported.

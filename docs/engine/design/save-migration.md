@@ -3,8 +3,8 @@
 状态：2026-07-29 接受的目标设计，2026-07-31 按 callback-free shell、shared
 metadata corpus 与 determinism join 修订；2026-08-03 M1 callback-free
 shell/load-order floor 已实现，并冻结 M2 为 single-namespace、State-only executable
-migration；M2a exact registry factory 与 Core current-identity admission 已实现，
-Persistence execution、M2b–M2e 与 M3 产品发布语料仍未实现。本文把 Save
+migration；M2a exact registry/Core current-identity admission 与 M2b bounded pure
+execution kernel 已实现，Persistence integration、M2c–M2e 与 M3 产品发布语料仍未实现。本文把 Save
 兼容从“分类与拒绝”升级为“一等迁移能力”：固定 migration registry 合同、load
 阶段顺序与发布验收。它独立于 Mod 系统并先于其落地；[Mod design](mod-system.md)
 第 8 节的 per-namespace migration 建立在本文的引擎级合同之上。当前实现状态见
@@ -35,9 +35,10 @@ invariant；stored load 在 Story validation 前另做 Host revision 与 slot id
 
 剩余缺口是没有 executable migration 路径：
 
-1. M2a 已提供 single-namespace exact registry declaration 与 Core admission，但没有
-   maintained application owner、chain execution 或 Persistence wiring；revision 不同的 Save
-   仍只能检查和导出，不能迁移后加载；
+1. M2a 已提供 single-namespace exact registry declaration 与 Core admission，M2b 已提供
+   package-internal exact chain resolution 与 bounded pure execution；但没有 maintained
+   application owner 或 Persistence wiring，revision 不同的 Save 仍只能检查和导出，不能
+   迁移后加载；
 2. 没有 migration 后的新 replay anchor 与 replacement-origin receipt 执行路径；
 3. 没有历史 fixture corpus，也没有“任意受支持旧 Save
    可迁移、可加载”的发布验收。
@@ -202,6 +203,13 @@ missing chain 优先于 historical State/body interpretation；callback reject/t
 优先于所有后续 validation；migration success 后才允许产生 compatibility exact/adopted/
 inspect-only 结果。
 
+上述 precedence 要求 package-internal protocol 显式拆为：resolve exact non-empty chain →
+M2c historical Snapshot shell admission → execute State callbacks → M2c reconstruct/validate final
+Snapshot并派生其 digest → finalize receipt。M2b executor只返回 detached/frozen migrated State与
+opaque completed path；它不能读取 RNG/commandSequence/integrity，也不能把 State-only digest
+冒充 receipt 的 `migratedStateDigest`。M2b 提供的 pure receipt finalizer必须由 M2c 传入最终
+normalized whole-Snapshot digest。
+
 ## 3. Migration registry contract
 
 Executable registry 从 M2 才存在。M2 的标准 Core 只允许零或一个 factory-produced exact
@@ -280,7 +288,9 @@ interface SaveStateMigrationStepV1 {
 - migrator 只接收 raw-digest-verified historical Snapshot 的 `state`，经 package-owned
   detached canonical projection 与 deep-freeze 后交付；每步 migrated output 再执行
   descriptor-safe capture、canonical/limits admission、detached projection 与 deep-freeze；
-  Promise/thenable、accessor、custom prototype、alias mutation 与非 exact result 均不能穿透；
+  limits 在 capture 时 fail fast，不得先复制/编码完整 over-limit tree；exact own-key vector
+  只捕获一次。Promise/thenable、accessor、custom prototype、alias mutation 与非 exact result
+  均不能穿透；kernel不 await、不继续 migration，也不读取或调用 arbitrary `.then`；
 - callback 不接收整个 Save、arbitrary context、Host、Session、clock、RNG、network、
   renderer、database 或 mutable resource client；
 - content/reference rename/delete 是显式、可验证的 declaration 与诊断义务，不是 engine
@@ -347,6 +357,11 @@ receipt 不进入 Save、Snapshot、`stateDigest`、CommandLog、replay comparis
 `migration: SaveStateMigrationReceiptV1 | null`；migration 后再 adoption 是合法组合。
 Player `PersistenceOperationResultV1` 的 success shape 不暴露 receipt，`compatibility` 表示
 migration 后的 compatibility outcome。
+
+M2c 的 `migration.rejected`、`migration.output_invalid` 与
+`migration.callback_threw` 是 engine-owned orthogonal result branches，不加入 Story
+compatibility callback可返回的 `ImportRejectionCodeV1`；否则 Story可以伪造 migration
+failure并破坏 phase authority。
 
 成功 migrated replacement 原子安装 receipt；ordinary command、Save capture、CommandLog
 eviction 与 presentation epoch 不清除它。fresh construction/restart、current-revision

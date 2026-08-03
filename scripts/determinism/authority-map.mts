@@ -259,6 +259,12 @@ const baseAuthorityPoliciesV1 = Object.freeze(
       projection: "bounded_closure" as const,
     }),
     Object.freeze({
+      id: "save-state-migration-execution",
+      entry: "engine/packages/base/src/internal/save-state-migration-execution.ts",
+      classification: "authoritative_runtime" as const,
+      projection: "bounded_closure" as const,
+    }),
+    Object.freeze({
       id: "debug-bundle",
       entry: "engine/packages/base/src/runtime/diagnostics/debug-bundle.ts",
       classification: "authoritative_runtime" as const,

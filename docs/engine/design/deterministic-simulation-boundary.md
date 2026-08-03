@@ -595,7 +595,15 @@ M2 State migrator 是 Authoritative Simulation callback，但只接收 raw-diges
 historical Snapshot 的 `state` 经 package-owned detached canonical projection与 deep-freeze
 后的值。callback同步返回 exact migrated/rejected union，不取得 Save envelope、Host、clock、
 random、network、Session、renderer、database或 arbitrary context；每步 output在下一 callback
-前重新执行 descriptor-safe canonical/limit admission、copy与freeze。
+前重新执行 descriptor-safe canonical/limit admission、copy与freeze。该 admission在 capture
+过程中按 depth/node/collection/string/canonical-byte limits fail fast，不得先构造完整的
+over-limit projection/encoding再分类。exact wrapper/array只捕获一次 own-key vector，随后按该
+snapshot读取 data descriptors；不得用两个可变化的 Proxy key snapshots 拼接一个 accepted
+结果。
+
+Promise/thenable一律不是同步 callback result，并分类为 `result_envelope` failure。kernel不
+await、不继续 migration，也不读取或调用 arbitrary `.then`/thenable accessor；opaque
+thenable直接 fail closed且不触碰其 continuation。
 
 Core中配置的 factory-produced exact registry必须与
 `ApplicationAuthorityPolicyV1.saveStateMigrationOwner` 指定 module/export是同一对象；collector

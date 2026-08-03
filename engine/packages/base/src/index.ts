@@ -479,6 +479,8 @@ export {
 } from "./contracts/save-state-migration.ts";
 export type {
   DefineSaveStateMigrationRegistryInputV1,
+  SaveStateMigrationAttemptV1,
+  SaveStateMigrationFailurePhaseV1,
   SaveStateContractIdentityV1,
   SaveStateMigrationIdV1,
   SaveStateMigrationNamespaceV1,
@@ -487,6 +489,7 @@ export type {
   SaveStateMigrationReferenceDeletionV1,
   SaveStateMigrationReferenceRenameV1,
   SaveStateMigrationRegistryV1,
+  SaveStateMigrationReceiptV1,
   SaveStateMigrationStepIdentityV1,
   SaveStateMigrationStepResultV1,
   SaveStateMigrationStepV1,
