@@ -18,7 +18,6 @@ export {
   evaluatePersistenceUtcAdmissionVectorsV1,
   persistenceUtcAdmissionExpectedV1,
 } from "./persistence-utc-vectors.ts";
-
 export interface DeterminismSaveSummaryProjectionInputV1<TState> {
   readonly state: DeepReadonly<TState>;
   readonly summarizeSave: (state: DeepReadonly<TState>) => readonly string[] | null;

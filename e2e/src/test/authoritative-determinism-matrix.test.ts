@@ -8,6 +8,7 @@ import {
   collectAuthoritativeDeterminismMatrixV1,
   compareAuthoritativeDeterminismMatrixV1,
 } from "../testing/authoritative-determinism-matrix.ts";
+import { saveStateMigrationVectorExpectedV1 } from "../testing/save-state-migration-driver.ts";
 
 const fixedBootstrapInputV1 = Object.freeze({ schemaVersion: 1 as const, rngSeed: 97 });
 
@@ -43,6 +44,9 @@ describe("authoritative determinism four-runtime matrix", () => {
       expect(JSON.stringify(matrix)).toBe(JSON.stringify(authoritativeDeterminismMatrixExpectedV1));
     }
     expect(matrixRepeats[1]).toEqual(matrixRepeats[0]);
+    expect(matrixRepeats[0]?.saveStateMigration).toEqual(
+      saveStateMigrationVectorExpectedV1,
+    );
 
     const rejectionSampling = matrixRepeats[0]?.transcript.commands[2];
     expect(rejectionSampling?.input).toEqual({

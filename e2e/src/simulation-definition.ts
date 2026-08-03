@@ -10,6 +10,8 @@ import {
 import type { LabGameSimulationV1 } from "./gameplay/simulation.ts";
 import { createLabGameSimulationV1 } from "./gameplay/simulation.ts";
 
+export { labSaveStateMigrationRegistryV1 } from "./save-state-migrations.ts";
+
 export const labStateContractManifestV1 = Object.freeze({
   contractRevision: 1 as const,
   aggregateStateSchema: Object.freeze({

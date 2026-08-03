@@ -121,8 +121,10 @@ kernel are bounded Base authorities. M2c connects an exact registry supplied by
 Core to staged import/load: the package-internal kernel resolves only exact
 non-empty paths and returns immutable attempt/completion data, while Persistence
 owns historical Snapshot admission, final whole-Snapshot digest, and failure
-mapping. Maintained applications still do not publish a real migration owner;
-that authority/tripwire promotion remains M2e.
+mapping. Engine Lab publishes the first real migration owner. The collector
+requires its Core registry and policy export to be exact-identical, live-enumerates
+the callback closure, and verifies that every app-local path is covered by the
+managed Simulation BuildIdentity before linting.
 Collection/classification failures abort before linting. After collection, every
 unique exact path is read once; read, unsupported-extension, and parse failures
 use stable diagnostics, and all output is ordered by UTF-16 file/range/code.
@@ -467,7 +469,16 @@ preserve the exact replacement outcome or exact prepare callback; a custom
 low-level control that strips both keeps only the legacy current-revision path
 and cannot install a migrated candidate. Supplying the legacy replacement-
 prepare callback explicitly selects that same non-composite escape hatch. A real
-maintained registry and its four-runtime promotion remain M2e work.
+maintained Engine Lab registry now exercises one/two-step, rejection, throw,
+invalid-output, and migration-plus-adoption cases in a separate short-lived
+Worker. `deno task test:determinism` compares its exact callback counts,
+attempt/receipt, whole-Snapshot digests, adoption, and source-byte preservation
+twice in Deno and twice in Chromium, Firefox, and WebKit. This is M2 mechanism
+promotion, not the M3 release fixture/backup/recovery workflow.
+Registry inspection and callback counting use the repository-only
+`@sillymaker/base/testkit/save-state-migration-determinism` subpath. Production
+Story code must use the ordinary authoring/runtime contracts and must not depend
+on this instrumentation seam.
 
 Strict JSON numeric regression tests use exact decimal token vectors rather
 than wall-clock timing: rounded fractions, safe boundaries, negative-zero

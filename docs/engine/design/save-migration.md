@@ -5,7 +5,9 @@ metadata corpus 与 determinism join 修订；2026-08-03 M1 callback-free
 shell/load-order floor 已实现，并冻结 M2 为 single-namespace、State-only executable
 migration；M2a exact registry/Core current-identity admission、M2b bounded pure
 execution kernel、M2c staged Persistence integration 与 M2d atomic replacement/
-Session receipt lifecycle 已实现，M2e 与 M3 产品发布语料仍未实现。本文把 Save
+Session receipt lifecycle 已实现；2026-08-04 M2e real-owner/four-runtime promotion
+已实现，M3 产品发布
+语料与恢复面仍未实现。本文把 Save
 兼容从“分类与拒绝”升级为“一等迁移能力”：固定 migration registry 合同、load
 阶段顺序与发布验收。它独立于 Mod 系统并先于其落地；[Mod design](mod-system.md)
 第 8 节的 per-namespace migration 建立在本文的引擎级合同之上。当前实现状态见
@@ -36,22 +38,28 @@ invariant；stored load 在 Story validation 前另做 Host revision 与 slot id
 exact configured chain 执行迁移；缺失或不完整 chain 才在 current Snapshot schema 与 Story
 callback 前返回 `migration.unavailable`。两条分支都保留来源 bytes，失败不修改 live Session。
 
-M2d 已闭合 executable migration 的 in-memory atomic replacement；剩余缺口是 real-owner
-promotion 与产品恢复面：
+M2e 已闭合 executable migration 的 maintained conformance owner 与跨运行时 promotion；
+剩余缺口是产品发布语料与恢复面：
 
 1. M2c 已把 exact registry 接入 import/load staged admission，能够迁移后经 current
    schema/digest/compatibility/reference/invariant validation，并使用既有 replay-anchor
-   replacement；但没有 maintained application owner，list/export/annotation 也有意不执行
-   callback；
+   replacement；Engine Lab 现维护 revision 3/4 到 current revision 5 的相邻迁移 owner，
+   list/export/annotation 仍有意不执行 callback；
 2. successful migrated replacement 已由 Session 安装 non-durable receipt；ordinary command、
    Save capture 与 CommandLog eviction 保留 exact receipt，无 receipt replay-base replacement
    清除它。Session/Persistence/CommandLog/autosave 通过 package-internal prepare/no-throw
    commit/post-commit token 原子换锚，不把 transaction API 或 receipt accessor 暴露给 Story；
-3. 没有历史 fixture corpus，也没有“任意受支持旧 Save
+3. Engine Lab 的中性构造 workload 不是发布级历史 Save byte fixture；仍没有产品历史
+   fixture corpus，也没有“任意受支持旧 Save
    可迁移、可加载”的发布验收。
 
-在 M2e/M3 之前，maintained product 仍不能兑现旧存档迁移与加载承诺；当前 engine
-能力只在 application 显式提供 exact registry 时启用，且不会写回来源数据。
+在 M3 之前，maintained product 仍不能兑现旧存档迁移与加载承诺；当前 engine
+能力只在 application 显式提供 exact registry 时启用，且不会写回来源数据。Engine Lab
+owner 是机制的 conformance consumer，不把其历史 identity 自动提升为产品支持策略。
+Engine Lab 历史中曾存在一个与 current 同为 State revision 5、但早于 placement opacity
+字段的不同 digest；它不在当前 maintained corpus。M2 的相邻 revision chain 不得把这个
+same-revision identity伪装成 migration edge或 adoption。若 M3 发现真实 released fixture
+需要支持它，必须停止并定义显式 recovery/migration 决策。
 
 ## 2. Target load order
 

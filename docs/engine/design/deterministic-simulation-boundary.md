@@ -402,9 +402,10 @@ template、concatenation、identifier、spread、options argument、零/多参�
 caller 必须在 source lint/record admission 前因任一 error 原子 fail closed，不能消费或
 发布 partial path vector，也不能把同一 dynamic import 再交给 rule core 重复报告。
 
-Save M2e 及以后第一次注册 executable State migrator 时，其 real app-local owner entry
-才加入上述 live recollection。DET-B 先用 synthetic extension seam 证明 collector 可追加
-entry；它不伪造尚不存在的 production migration registry。Envelope format migration在
+Save M2e 已把 Engine Lab 的 real app-local State-migration owner entry 加入上述 live
+recollection；collector 从 Core 配置与 owner export 验证 exact registry identity，并检查
+app-local closure 被 managed BuildIdentity 完整覆盖。DET-B 的 synthetic extension seam 继续
+作为独立 collector regression，不计作 real-owner evidence。Envelope format migration在
 M2中仍未激活，不能用空 registry 或 test-only format callback代替真实历史格式合同。
 
 第一批 hard diagnostics 覆盖直接 ambient entropy、clock、network/LLM client、
@@ -616,6 +617,11 @@ isolated Worker必须真实执行 Engine Lab one/two-step、explicit rejection�
 vectors；只 import或只静态 lint source不算 tripwire evidence。现有 Deno/Chromium/Firefox/
 WebKit matrix比较 normalized output、path/phase/code、source/migrated digest、receipt/attempt、
 callback count、adoption组合与same-runtime repeat，缺 browser不得 skip。
+
+该 migration Worker 与 DET3b ambient-tripwire Worker 分离：前者允许进入 staged
+Persistence/schema integration，后者继续保持不含 Persistence composition 的窄 authoritative
+transition closure。aggregate matrix 同时运行二者；分离不能把真实 migration owner 从 static
+authority recollection 移除，也不能用父 realm 直接执行 callback 冒充 Worker evidence。
 
 `SaveStateMigrationReceiptV1` 是非持久化 replacement-origin diagnostic package data，不进入
 Snapshot、State digest、CommandLog、Save、Debug Bundle或 authoritative replay comparison；
@@ -904,7 +910,9 @@ expected。矩阵证明维护中的受支持路径，不认证任意第三方 Ja
 
 Live DET4 使用独立的 test-only matrix module/comparator 组合这些证据；DET0/DET3b
 tripwire driver 保持只加载窄化的 authoritative workload closure，不为 aggregate
-matrix 引入 persistence 或 Browser/Presentation authority。矩阵通过
+matrix 引入 persistence 或 Browser/Presentation authority。M2e 在同一 matrix 中增加唯一的
+`saveStateMigration` vector，但由第二个短命 Worker 进入 staged Persistence migration
+closure；migration callback 不在 patched ambient-tripwire realm 中执行。矩阵通过
 `@sillymaker/base/testkit/determinism-vectors` 复用 DET2e hand-written ordering
 expected 与 M0a 唯一的 Save-metadata expected，并用 synthetic `summarizeSave`
 callback 证明 State-to-summary normalization；没有复制 expected 或 lifecycle corpus。

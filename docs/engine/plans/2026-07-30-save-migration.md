@@ -3,7 +3,9 @@
 状态：2026-07-30 接受执行，审查后从 Snapshot 性能计划拆分；2026-07-31 按
 M0a/M0b metadata ownership 与 PF-DET same-HEAD join 重切片；2026-08-03 M1 已
 promotion，same-HEAD join 已关闭，并按接受的 State-only contract 把 M2 拆为
-M2a–M2e；M2a/M2b/M2c/M2d 已 promotion，下一独立切片为 M2e。目标合同见
+M2a–M2e；2026-08-04 M2e 已完成 real-owner/four-runtime promotion，M2 aggregate
+已关闭。M3 仍按
+production-floor sequence 排在 PF4 后。目标合同见
 [Save migration design](../design/save-migration.md)；在
 [production-floor sequence](2026-07-30-production-floor-sequence.md) 中分为 PF3
 与 PF5，并与 PF-DET 按显式 DAG 汇合；不是“完整 PF-DET 后才开始全部 M0–M2”。
@@ -496,7 +498,7 @@ success。公开 Save/replay/debug wire、digest/canonical算法与 barrel API�
 Deno `2.9.4`上的 typecheck、determinism guard、Story checks、Engine Lab build与
 `deno task check`全绿。四 runtime migration matrix仍按合同保留给 M2e，下一独立切片为 M2e。
 
-### M2e — Real authority, tripwire and four-runtime promotion
+### M2e — Real authority, tripwire and four-runtime promotion（已实现）
 
 **目标：** Engine Lab 配置一个真实 app-local registry/owner。Core registry与
 `ApplicationAuthorityPolicyV1.saveStateMigrationOwner` module/export必须 exact identical；
@@ -513,6 +515,44 @@ diagnostic phase/code、source/migrated digest、callback counts、adoption组�
 **M2 aggregate acceptance：** 所有失败原子；同输入重复迁移得到同 output/receipt/digest；
 新 anchor replay自洽；Save/canonical/digest algorithm、metadata corpus、format revision与 source
 bytes不变；real registry/source进入 static/tripwire guard，四 runtime matrix全绿。
+
+**2026-08-04 M2e / M2 aggregate promotion：** Engine Lab 现配置唯一 real app-local
+registry/owner；Core 与 authority policy 指向同一个 factory-produced object，live map 记录 `1`
+个 `save_state_migration` owner、`2` 个 callback，并在 source lint 前验证 owner closure 的
+managed BuildIdentity 完整性。maintained conformance chain 为 revision 3 → 4 增加空 Narrative
+history，revision 4 → current 5 把 Stage contract `2 → 3`、为每个 placement 增加
+`opacityPermille: 1000`，并增加 `rapport: 0` 与 `wallet.credits: 0`。State contract identity
+依次为：
+
+- revision 3：`sha256:15b2ba494428229ab0354ed2e3668b56046a6c3f340569872d07f78db7193f64`；
+- revision 4：`sha256:42d426e6fb95566cf38787ee1de8c32f853b1e3eb4a16003c05fbfb109408667`；
+- current revision 5：`sha256:c6407d9e0b5bd4d93fbe6e54d61fc62f59d209892d71a663a70190a4970735e3`。
+
+单独的 migration Worker 通过真实 staged validation 执行 one-step、two-step、explicit reject、
+callback throw、invalid output 与 migration + adoption；callback count 固定为
+`1/2/1/1/1/2`。三个失败分别固定为
+`migration.rejected/callback_rejected`、`migration.callback_threw/callback` 与
+`migration.output_invalid/result_envelope`，migration 与 adoption 保持正交。revision 3/4
+source whole-Snapshot digest 分别为
+`sha256:f01859baf1688d2ea613ec3e72de6e817f8202cbf4dcbabef73ef26f13ecc1a2` 与
+`sha256:b3ed32df507c0cb29f22da0260a0bd67a4bdcc8ba38a8df4bb061f27304c6258`；两条成功
+路径得到同一 current whole-Snapshot digest
+`sha256:b26574952975aaa002cb03990f439d6594e46f1435fd7a025c7ef86ba1576d58`。
+该 Worker 与 DET3b ambient-tripwire Worker 分离，后者的窄 closure 未扩张；aggregate matrix
+在 Deno 与 Chromium/Firefox/WebKit 各执行两次并逐字段比较 output、attempt/receipt、digest、
+callback count、adoption 与 source-byte preservation。
+
+M2 aggregate 的 Session/Persistence/CommandLog/autosave 原子安装与 replay-anchor 证据来自
+M2c/M2d 回归，不由 Worker vector 冒充。focused 为 `6 files / 23 tests`，affected Base +
+Engine Lab 为 `105/1213`，full unit 为 `232/3443`；latest-stable Deno `2.9.4` 的 Deno matrix
+`1/3`、Chromium/Firefox/WebKit repeat matrix `6/6`、determinism guard、typecheck 与
+`deno task check` 全绿。Save/canonical/digest algorithm、metadata corpus、format revision、
+source bytes、公开 replay/Debug Bundle wire 均未改变。
+
+Engine Lab 历史中 pre-opacity、同为 revision 5 但 digest 不同的 State 不在 maintained/released
+corpus；M2 不增加 same-revision edge，也不以 adoption 伪装 State 转换。若 M3 的真实 fixture
+要求支持它，必须停止并设计 recovery/migration。M2 机制 gate 据此关闭；下一 Save slice 是
+PF5/M3，而全局 linear core 下一切片是 `PF4/S3 System dialogs`。
 
 ## 6. M3 — Product surface and release corpus
 

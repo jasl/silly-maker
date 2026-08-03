@@ -8,9 +8,9 @@ B-prime Base UTC isolation、C4 cleanup、DET3b invariant revalidation 与 DET4 
 re-promotion 现已完成，aggregate PF-DET corrective gate 再次关闭；2026-08-03 接受的
 time-boundary clarification 只闭合 C3 metadata scope，不改变 B-prime 或 C2。callback-free
 Save M1 与 DET-B same-HEAD join 已于 2026-08-03 完成；M2 已冻结为 State-only 的
-M2a–M2e；M2a exact registry/Core-admission floor、M2b bounded pure execution kernel 与
-M2c staged Persistence integration 与 M2d atomic replacement 已 promotion，linear core下一独立
-切片为 M2e。
+M2a–M2e；M2a exact registry/Core-admission floor、M2b bounded pure execution kernel、
+M2c staged Persistence integration、M2d atomic replacement 与 M2e real-owner/four-runtime
+promotion 均已关闭，linear core 下一独立切片为 `PF4/S3 System dialogs`。
 旧 promotion 数字保留为
 历史证据。本文是当前唯一的跨计划排序入口；
 具体合同仍由各 design 文档拥有，主要任务由五个独立计划拥有：
@@ -391,9 +391,9 @@ DET-B 通过后才能更新 live capability 或 PF7 promotion。PF2 不依赖 PF
 Base/tooling/browser determinism 改造。
 
 DET-B 用 synthetic callback 冻结可追加 authority entry 与 pure-vector runner，
-不伪造 production migration registry。M2e 首次注册真实 State migration
-时必须 live recollect、加入同一 static/tripwire scope 并扩展四 runtime matrix；
-以后每个新 migrator 也重复这项认证，不能把 PF-DET 当作一次性完成。
+不伪造 production migration registry。M2e 首次注册真实 State migration时已完成
+live recollection、加入同一 static/tripwire scope并扩展四 runtime matrix；以后每个新
+migrator 也重复这项认证，不能把 PF-DET 当作一次性完成。
 
 **2026-08-01 DET0-core promotion：** root-registry authority collector、dedicated
 Story callback owners、bounded Base/Save projector entries、Host/Presentation negative
@@ -827,6 +827,20 @@ composite guarantee。公开 Save/replay/debug wire、canonical/digest与 barrel
 上的 typecheck、determinism guard、Story checks、Engine Lab build与 `deno task check`全绿。四
 runtime/real owner仍归 M2e，linear core下一独立切片为 `M2e`。
 
+**2026-08-04 Save M2e / M2 aggregate promotion：** Engine Lab 配置 real app-local
+revision 3/4 → current 5 registry；Core 与 policy owner exact-identical，live authority map
+枚举 `1` 个 owner、`2` 个 callback，并在 lint 前验证 app-local closure/BuildIdentity 完整性。
+单独 migration Worker 执行 one/two-step、reject、throw、invalid-output 与
+migration-plus-adoption，保留 DET3b ambient-tripwire Worker 的窄 closure；Deno 与
+Chromium/Firefox/WebKit 各两次比较 exact output、attempt/receipt、whole-Snapshot digest、
+callback count、adoption 与 source bytes。focused `6/23`、affected Base + Engine Lab
+`105/1213`、full unit `232/3443`、Deno matrix `1/3`、browser repeat matrix `6/6`，latest-stable
+Deno `2.9.4` 的 determinism guard、typecheck 与 `deno task check` 全绿。M2c/M2d 的原子
+install/replay-anchor 回归共同关闭 M2 aggregate；Save/canonical/digest/format/source bytes 与
+公开 replay/Debug Bundle wire 不变。pre-opacity same-revision-5 State不在 maintained corpus，
+若未来 released fixture要求支持则触发 Save stop。M2 是机制 promotion而非产品历史 Save
+承诺；linear core下一切片为 `PF4/S3 System dialogs`，Save PF5/M3仍在其后。
+
 ### PF3 — Save envelope and migration registry
 
 执行 [Save migration plan](2026-07-30-save-migration.md) 的分段 gate：
@@ -855,7 +869,7 @@ runtime/real owner仍归 M2e，linear core下一独立切片为 `M2e`。
 5. 只有该 join 通过，**M2** 才按 M2a contracts/factory、M2b pure kernel、M2c staged
    integration、M2d atomic anchor、M2e real determinism promotion依次建立
    namespace-keyed adjacent-revision executable State migration；migration 与 same-schema
-   adoption 保持不同语义。M2a/M2b/M2c/M2d 已关闭，当前下一独立切片为 M2e。
+   adoption 保持不同语义。M2a/M2b/M2c/M2d/M2e 均已关闭，M2 aggregate 已完成。
 
 M2 只治理 `formatRevision: 1` 中的 aggregate State：它安装 non-durable
 replacement-origin receipt，但不写回 source Save。Envelope format migration、产品

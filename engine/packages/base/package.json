@@ -12,7 +12,8 @@
     "./story": "./src/story/index.ts",
     "./testkit": "./src/testkit/index.ts",
     "./testkit/authoritative-determinism": "./src/testkit/authoritative-determinism.ts",
-    "./testkit/determinism-vectors": "./src/testkit/determinism-vectors.ts"
+    "./testkit/determinism-vectors": "./src/testkit/determinism-vectors.ts",
+    "./testkit/save-state-migration-determinism": "./src/testkit/save-state-migration-determinism.ts"
   },
   "scripts": {
     "test:runtime": "deno run -A npm:vitest run engine/packages/base/src/runtime"

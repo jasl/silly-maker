@@ -1,6 +1,6 @@
 # SillyMaker engine roadmap
 
-状态：2026-07-19 接受，最近审查修订 2026-08-03。已实现能力以
+状态：2026-07-19 接受，最近审查修订 2026-08-04。已实现能力以
 [features](features.md) 为准；历史交付见
 [roadmap archive](roadmap-archive.md)。当前执行入口只有
 [Production-floor execution sequence](plans/2026-07-30-production-floor-sequence.md)，它再引用五个独立计划；design/roadmap
@@ -69,13 +69,16 @@ workload 证据；仓库外私有实验只能提供匿名需求反馈，正式 p
    admission、simulation-closure lint/tripwire、conservative Date/import proof 与四 runtime
    逐 command parity（PF-DET corrective promotion 已完成）；
 6. Save metadata floor 与 callback-free envelope/load order（M1）已完成，并与
-   determinism 在 same-HEAD join 汇合；M2a exact registry、M2b bounded pure kernel 与
-   M2c staged load/import integration 与 M2d atomic receipt/anchor commit 已完成，下一步为
-   maintained owner 与 four-runtime promotion（M2e）；M2e 前仍无历史 Save migration 产品承诺；
+   determinism 在 same-HEAD join 汇合；M2a–M2e 已依次完成 exact registry、bounded pure
+   kernel、staged load/import、atomic receipt/anchor commit，以及 Engine Lab real owner 的
+   four-runtime promotion；M2 证明机制但不构成历史 Save 产品承诺；
 7. System/Narrative/History/whole-canvas primary-detail 的逐 family migration；
 8. Save dry-run/backup/fixture corpus；
 9. Surface structural/model/browser harness 与作者 API promotion；
 10. release stabilization。
+
+当前默认 linear-core 入口是第 7 项的 `PF4/S3 System dialogs`；Save 的产品级
+dry-run/backup/release fixture corpus 属于其后的 PF5/M3。
 
 Desktop Host persistence 是独立、条件性的 promotion lane：目标平台是
 macOS、Windows 与 Linux，当前 live wrapper/file channel 已是可用 preview，真实

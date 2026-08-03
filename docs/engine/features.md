@@ -100,8 +100,12 @@
   exact outcome or prepare callback; opaque custom runtime controls retain only
   the legacy current-revision path, as do callers that explicitly choose the
   legacy replacement-prepare callback; migrated replacement fails closed.
-  Real maintained migration ownership remains pending M2e, so this is not yet a
-  released historical-Save compatibility promise.
+  Engine Lab publishes the first real app-local registry/owner and maintains a
+  neutral revision 3/4-to-current conformance chain. Its one/two-step, failure,
+  and adoption vectors run in Deno, Chromium, Firefox, and WebKit through an
+  isolated Worker. This proves the engine mechanism; without M3 product fixtures,
+  backup, inspection, and recovery UX it is not a released historical-Save
+  compatibility promise.
 - Story, state-contract, engine, simulation, and patch-lineage compatibility information.
 - Validated managed adoption for compatible simulation changes.
 - Atomic record revisions, session lease/fencing, and HMR persistence handoff on conforming Host stores; browser IndexedDB is the production implementation, while the current desktop file backend is explicitly preview until its batch durability gate passes.
@@ -171,11 +175,11 @@ The engine does not currently provide a backend/account service, networked multi
 Save migration has exact registry authoring contracts, a bounded
 package-internal pure callback kernel, staged load/import integration for an
 application-provided exact chain, and atomic Session/Persistence/CommandLog/
-autosave replacement with Session-owned non-durable provenance. No maintained
-application publishes a real migration owner. Opaque low-level custom runtime
-controls and explicit legacy prepare-callback callers are outside the composite
-migration guarantee; cross-runtime promotion, release fixtures, and player
-inspection/backup workflows remain planned.
+autosave replacement with Session-owned non-durable provenance. Engine Lab now
+publishes the first real owner and its exact vectors have four-runtime promotion.
+Opaque low-level custom runtime controls and explicit legacy prepare-callback
+callers are outside the composite migration guarantee; release fixtures and
+player inspection/backup/recovery workflows remain planned.
 
 The script-language decision is durable: Story, Module, Narrative, UI, and official Hotfix code use TypeScript/JavaScript. SillyMaker does not plan Ren'Py DSL/Save compatibility, a custom script interpreter, or an untrusted-code security sandbox. Direct Host-global access remains possible JavaScript but is outside the supported engine API.
 

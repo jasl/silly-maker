@@ -1,6 +1,6 @@
 # SillyMaker architecture
 
-状态：持续维护的现状文档。最后结构性复核：2026-08-01。
+状态：持续维护的现状文档。最后结构性复核：2026-08-04。
 
 本文描述当前实现的主要边界和数据流。它不是冻结 ABI；修改包职责、权威状态、Story
 组合、持久化格式或公开入口时，应同时更新本文、相应类型和行为测试。
@@ -63,6 +63,7 @@ Implementation anchors:
 - Web exports: `engine/packages/web/src/index.ts`
 - current Story root: `e2e/src/story.ts`
 - current simulation callback owner: `e2e/src/simulation-definition.ts`
+- Engine Lab State-migration owner: `e2e/src/save-state-migrations.ts`
 
 ## 3. Story resolution
 
@@ -96,8 +97,14 @@ entry must use its canonical repo-relative spelling and appear exactly in its
 own live closure. The resulting
 exact path vector is read once and passed to one AST rule core; no generated
 inventory or second rule authority is retained.
-The maintained synthetic migration entry proves that executable migrators can
-join this same collection seam without creating a production migration owner.
+The maintained synthetic migration entry remains an independent collector
+regression. Engine Lab now contributes the real app-local migration owner: its
+Core registry and policy export must be the same factory-produced object, and
+the collector live-enumerates every callback plus the app-local owner closure
+before source lint.
+Repository tooling and the parity driver inspect/wrap that opaque registry only
+through `@sillymaker/base/testkit/save-state-migration-determinism`; this
+test-only subpath is not a Story or production runtime API.
 Base owns the M2a exact aggregate-State registry factory, the M2b bounded pure
 execution authority, the M2c staged Persistence integration, and the M2d
 package-internal atomic replacement protocol.
@@ -110,8 +117,9 @@ derives its whole-Snapshot digest, and returns immutable attempts or a low-level
 receipt. A successful migrated replacement installs that non-durable receipt in
 the Session while one prepared commit updates Persistence/autosave, CommandLog,
 and Session before publication; failures preserve the prior authorities and
-receipt. No maintained application configures that declaration before the
-real-owner M2e promotion slice.
+receipt. Engine Lab configures the maintained revision 3/4-to-current
+conformance chain; this proves the mechanism and does not establish a released
+historical-Save compatibility range.
 
 The runtime complement remains outside production package lifecycles.
 `e2e/src/testing/**` owns the pure ambient-guard harness, parent runner,
@@ -126,6 +134,15 @@ This is a determinism error probe, not a sandbox or security boundary. The
 dedicated DET4 path executes that guarded driver twice in Deno and twice in each
 of Chromium, Firefox, and WebKit, then compares the same authoritative trace,
 replay, ordering, and Save-metadata vectors across runtimes.
+
+Save migration uses a second short-lived module Worker so its broader
+Persistence/schema closure does not widen the ambient-tripwire Worker. It runs
+one-step, two-step, rejection, callback-throw, invalid-result, and
+migration-plus-adoption cases through the real validation path. The shared
+matrix compares exact normalized State output, callback counts, attempt/receipt,
+whole-Snapshot digests, adoption, and source-byte preservation in Deno and the
+same three browser engines; conformance-only failing registries never replace
+the real Core owner.
 
 `defineGamePackage` creates the package entry. `resolveGamePackageV1` validates
 the definition, applies authorized simulation and presentation patches,

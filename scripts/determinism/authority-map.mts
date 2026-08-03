@@ -15,6 +15,8 @@ import type {
   ImportClosureRecordV1,
   ImportClosureResultV1,
 } from "@sillymaker/tooling/identity/collect-import-closure";
+import { inspectDeterminismSaveStateMigrationRegistryV1 } from "@sillymaker/base/testkit/save-state-migration-determinism";
+import type { SaveStateMigrationRegistryV1 } from "@sillymaker/base";
 
 interface AuthorityModuleRefV1 {
   readonly module: string;
@@ -27,6 +29,8 @@ export interface ApplicationAuthorityPolicyV1 {
   readonly coreDefinition: AuthorityModuleRefV1;
   /** Required when the core definition configures `summarizeSave`. */
   readonly saveProjectorOwner?: AuthorityModuleRefV1;
+  /** Required when the core definition configures `saveStateMigrations`. */
+  readonly saveStateMigrationOwner?: AuthorityModuleRefV1;
   /** Used only when an application intentionally has no BuildIdentity collector. */
   readonly dependencySeedEntries: readonly string[];
 }
@@ -76,6 +80,10 @@ const applicationPoliciesV1 = Object.freeze(
       coreDefinition: Object.freeze({
         module: "e2e/src/application/core-definition.ts",
         exportName: "labCoreApplicationDefinitionV1",
+      }),
+      saveStateMigrationOwner: Object.freeze({
+        module: "e2e/src/save-state-migrations.ts",
+        exportName: "labSaveStateMigrationRegistryV1",
       }),
       dependencySeedEntries: Object.freeze([]),
     }),
@@ -642,6 +650,88 @@ export async function inspectConfiguredSaveProjectorV1(options: {
   });
 }
 
+export async function inspectConfiguredSaveStateMigrationV1(options: {
+  readonly repositoryRoot: string;
+  readonly applicationId: string;
+  readonly applicationDirectory: string;
+  readonly definition: AuthorityModuleRefV1;
+  readonly owner?: AuthorityModuleRefV1;
+  readonly managedSimulationPaths: readonly string[];
+}) {
+  const loader = createImportProjectModuleLoaderV1(options.repositoryRoot);
+  const module = await loader.loadModule(options.definition.module);
+  const definition = Reflect.get(module, options.definition.exportName);
+  if (typeof definition !== "object" || definition === null) {
+    throw new TypeError(`${options.applicationId} core definition is missing`);
+  }
+  const descriptor = Object.getOwnPropertyDescriptor(definition, "saveStateMigrations");
+  if (
+    descriptor === undefined ||
+    (Object.prototype.hasOwnProperty.call(descriptor, "value") && descriptor.value === undefined)
+  ) {
+    if (options.owner !== undefined) {
+      throw new TypeError(`${options.applicationId} Save State migration owner policy is stale`);
+    }
+    return null;
+  }
+  if (!Object.prototype.hasOwnProperty.call(descriptor, "value")) {
+    throw new TypeError(`${options.applicationId} saveStateMigrations is invalid`);
+  }
+  let inspection: ReturnType<typeof inspectDeterminismSaveStateMigrationRegistryV1>;
+  try {
+    inspection = inspectDeterminismSaveStateMigrationRegistryV1(
+      descriptor.value as SaveStateMigrationRegistryV1,
+    );
+  } catch {
+    throw new TypeError(`${options.applicationId} saveStateMigrations is invalid`);
+  }
+  if (options.owner === undefined) {
+    throw new TypeError(
+      `${options.applicationId} saveStateMigrations requires an explicit Save State migration owner`,
+    );
+  }
+  const ownerModule = await loader.loadModule(options.owner.module);
+  const owner = Reflect.get(ownerModule, options.owner.exportName);
+  if (owner !== descriptor.value) {
+    throw new TypeError(
+      `${options.applicationId} Save State migration owner does not match configured saveStateMigrations`,
+    );
+  }
+  const closure = await collectAuthorityClosureV1(options.repositoryRoot, [options.owner.module]);
+  assertProductionClosureV1(
+    `${options.applicationId} Save State migration owner`,
+    closure,
+    options.applicationDirectory,
+  );
+  const appLocalPaths = Object.freeze(
+    closure.paths.filter((path) => path.startsWith(`${options.applicationDirectory}/`)),
+  );
+  if (!appLocalPaths.includes(options.owner.module)) {
+    throw new TypeError(`${options.applicationId} Save State migration owner is not app-local`);
+  }
+  const managedPaths = new Set(options.managedSimulationPaths);
+  const uncovered = appLocalPaths.filter((path) => !managedPaths.has(path));
+  if (uncovered.length > 0) {
+    throw new TypeError(
+      `${options.applicationId} BuildIdentity misses Save State migration owner closure: ${
+        uncovered.join(", ")
+      }`,
+    );
+  }
+  return Object.freeze({
+    applicationId: options.applicationId,
+    entry: options.owner.module,
+    exportName: options.owner.exportName,
+    classification: "save_state_migration" as const,
+    namespace: inspection.namespace,
+    callbackCount: inspection.steps.length,
+    migrationIds: Object.freeze(inspection.steps.map(({ migrationId }) => migrationId)),
+    callbacks: Object.freeze(inspection.steps.map(({ migrate }) => migrate)),
+    paths: closure.paths,
+    appLocalPaths,
+  });
+}
+
 async function collectApplicationAuthorityV1(
   repositoryRoot: string,
   application: Awaited<ReturnType<typeof loadWorkspaceAppsV1>>[number],
@@ -700,9 +790,20 @@ async function collectApplicationAuthorityV1(
     definition: policy.coreDefinition,
     ...(policy.saveProjectorOwner === undefined ? {} : { owner: policy.saveProjectorOwner }),
   });
+  const saveStateMigration = await inspectConfiguredSaveStateMigrationV1({
+    repositoryRoot,
+    applicationId: application.config.applicationId,
+    applicationDirectory: application.directory,
+    definition: policy.coreDefinition,
+    ...(policy.saveStateMigrationOwner === undefined
+      ? {}
+      : { owner: policy.saveStateMigrationOwner }),
+    managedSimulationPaths: managed.records.map(({ path }) => path),
+  });
   const authorityPaths = mergeAuthorityPathsV1(
     appLocalCallbackPaths,
     managed.records.map(({ path }) => path),
+    saveStateMigration?.appLocalPaths ?? Object.freeze([]),
   );
   return Object.freeze({
     applicationId: application.config.applicationId,
@@ -719,6 +820,7 @@ async function collectApplicationAuthorityV1(
     }),
     authorityPaths,
     saveProjector,
+    saveStateMigration,
   });
 }
 
@@ -801,6 +903,9 @@ export async function collectDeterminismAuthorityMapV1(options: {
     ...policy.applications.flatMap(({ saveProjectorOwner }) =>
       saveProjectorOwner === undefined ? [] : [saveProjectorOwner.module]
     ),
+    ...policy.applications.flatMap(({ saveStateMigrationOwner }) =>
+      saveStateMigrationOwner === undefined ? [] : [saveStateMigrationOwner.module]
+    ),
     ...policy.baseAuthorities.map(({ entry }) => entry),
     ...additionalPolicies.map(({ entry }) => entry),
   ];
@@ -841,6 +946,11 @@ export async function collectDeterminismAuthorityMapV1(options: {
   const saveProjectors = Object.freeze(
     applications.flatMap(({ saveProjector }) => saveProjector === null ? [] : [saveProjector]),
   );
+  const saveStateMigrations = Object.freeze(
+    applications.flatMap(({ saveStateMigration }) =>
+      saveStateMigration === null ? [] : [saveStateMigration]
+    ),
+  );
   const presentationNegativeControls = await Promise.all(
     registry.applications.map((application) =>
       collectNegativeControlV1(repositoryRoot, {
@@ -857,6 +967,7 @@ export async function collectDeterminismAuthorityMapV1(options: {
   const authoritativeEntryPaths = Object.freeze([
     ...applications.map(({ callbackOwner }) => callbackOwner.entry),
     ...saveProjectors.map(({ entry }) => entry),
+    ...saveStateMigrations.map(({ entry }) => entry),
     ...baseAuthorities.map(({ entry }) => entry),
     ...additionalAuthorities.map(({ entry }) => entry),
   ]);
@@ -873,6 +984,9 @@ export async function collectDeterminismAuthorityMapV1(options: {
   }
   for (const authority of [...baseAuthorities, ...additionalAuthorities, ...saveProjectors]) {
     for (const path of authority.paths) authoritativePaths.add(path);
+  }
+  for (const authority of saveStateMigrations) {
+    for (const path of authority.appLocalPaths) authoritativePaths.add(path);
   }
   const overlappingClosurePath = negativeControls
     .map(({ entry }) => entry)
@@ -895,6 +1009,11 @@ export async function collectDeterminismAuthorityMapV1(options: {
     ),
     baseAuthorityEntryCount: baseAuthorities.length,
     saveProjectorCount: saveProjectors.length,
+    saveStateMigrationCount: saveStateMigrations.length,
+    saveStateMigrationCallbackCount: saveStateMigrations.reduce(
+      (total, migration) => total + migration.callbackCount,
+      0,
+    ),
     negativeControlCount: negativeControls.length,
     additionalAuthorityCount: additionalAuthorities.length,
     authoritativePathCount: authoritativePaths.size,
@@ -905,6 +1024,7 @@ export async function collectDeterminismAuthorityMapV1(options: {
     applications: Object.freeze(applications),
     baseAuthorities: Object.freeze(baseAuthorities),
     saveProjectors,
+    saveStateMigrations,
     negativeControls,
     additionalAuthorities: Object.freeze(additionalAuthorities),
     authoritativeEntryPaths,

@@ -19,6 +19,11 @@ import {
   collectAuthoritativeDeterminismTranscriptTraceV1,
 } from "./authoritative-determinism-driver.ts";
 import type { AuthoritativeDeterminismCommandTraceV1 } from "./authoritative-determinism-driver.ts";
+import {
+  saveStateMigrationVectorExpectedV1,
+  type SaveStateMigrationDeterminismVectorV1,
+} from "./save-state-migration-driver.ts";
+import { runSaveStateMigrationWorkerV1 } from "./save-state-migration-runner.ts";
 
 const transcriptRngSeedV1 = 1_236_431_772;
 const exclusiveMaxV1 = 7 as const;
@@ -51,6 +56,7 @@ export interface AuthoritativeDeterminismMatrixV1 {
   };
   readonly authoritativeOrdering: unknown;
   readonly persistenceUtcAdmission: unknown;
+  readonly saveStateMigration: SaveStateMigrationDeterminismVectorV1;
   readonly saveMetadata: {
     readonly summaryProjection: readonly string[] | null;
     readonly compact: unknown;
@@ -252,6 +258,7 @@ export const authoritativeDeterminismMatrixExpectedV1: AuthoritativeDeterminismM
     }),
     authoritativeOrdering: authoritativeOrderingVectorExpectedV1,
     persistenceUtcAdmission: persistenceUtcAdmissionExpectedV1,
+    saveStateMigration: saveStateMigrationVectorExpectedV1,
     saveMetadata: Object.freeze({
       summaryProjection: saveMetadataCompactExpectedV1.summaries.valid,
       compact: saveMetadataCompactExpectedV1,
@@ -293,6 +300,10 @@ export async function collectAuthoritativeDeterminismMatrixV1(): Promise<
       return Object.freeze([`Checkpoint ${String(state.checkpoint)}`, state.scene]);
     },
   });
+  const migration = await runSaveStateMigrationWorkerV1();
+  if (migration.result.kind !== "passed") {
+    throw new TypeError(`Save State migration Worker failed: ${migration.result.phase}`);
+  }
   return Object.freeze({
     schemaVersion: 1,
     transcript: Object.freeze({
@@ -302,6 +313,7 @@ export async function collectAuthoritativeDeterminismMatrixV1(): Promise<
     }),
     authoritativeOrdering: await runAuthoritativeOrderingVectorsV1(),
     persistenceUtcAdmission: evaluatePersistenceUtcAdmissionVectorsV1(),
+    saveStateMigration: migration.result.value,
     saveMetadata: Object.freeze({
       summaryProjection,
       compact: evaluateSaveMetadataCompactVectorsV1(),

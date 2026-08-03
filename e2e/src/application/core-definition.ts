@@ -16,6 +16,7 @@ import type {
   LabSimulationTypesV1,
 } from "../gameplay/simulation.ts";
 import { labStoryEntryV1 } from "../story.ts";
+import { labSaveStateMigrationRegistryV1 } from "../save-state-migrations.ts";
 
 /**
  * The Engine Lab core application definition: the whole application is the
@@ -37,6 +38,7 @@ export const labCoreApplicationDefinitionV1 = defineCoreGameApplicationV1<
 >({
   entry: labStoryEntryV1,
   semantic: labSemanticAdapterV1,
+  saveStateMigrations: labSaveStateMigrationRegistryV1,
   exportFilename: "engine-lab-save.json",
   // Player rollback (R7): experiments settle results — a hard barrier the
   // player cannot roll back across; everything else is checkpointed.
