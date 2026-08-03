@@ -5,10 +5,13 @@ kernel 审计修订 readiness、application epoch、stable-target reconcile、sl
 identity boundedness 与 action admission 合同；2026-08-04 冻结 PF4/S3 System
 transient topology、initial supersede/retained-active cancellation、exact result/delta
 matrix、Host-commit readiness、StrictMode fence 与 public API cutover。
+同日 S3a 已建立 dormant System definition/slot/result target、root-candidate
+resolution snapshot 与 package-internal initial-supersede/retained-active cancellation
+floor；S3b–S3e 及 live System cutover 仍待实施。
 本文固定
 影响输入与焦点的 UI Surface 的权威边界、生命周期、输入代际与验证分层，并把“弱模型
-能够写出正确代码”提升为作者 API 的验收条件。S1-T 与 S2 已实现，S3 仍是待实施
-目标；当前 live 能力仍以 [architecture](../architecture.md) 与
+能够写出正确代码”提升为作者 API 的验收条件。S1-T 与 S2 已实现，S3a 只完成
+dormant floor，S3 仍未 promotion；当前 live 能力仍以 [architecture](../architecture.md) 与
 [features](../features.md) 为准；执行顺序见
 [Surface Contract Harness plan](../plans/2026-07-30-surface-contract-harness.md)。
 

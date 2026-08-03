@@ -832,6 +832,355 @@ describe("Managed Surface transition-kind readiness", () => {
     });
   });
 
+  it("atomically supersedes an initial pending candidate without a fallback gap", () => {
+    const coordinator = createCoordinatorV1();
+    const first = coordinator.openTransientPrimary({
+      definition: definitionV1(),
+      semanticOccurrenceId: null,
+    });
+    const before = coordinator.getSnapshot();
+    const observed: ManagedSurfacePublicationV1[] = [];
+    coordinator.subscribe(() => observed.push(coordinator.getSnapshot()));
+
+    const second = coordinator.supersedeTransientInitialPreparation({
+      definition: definitionV1({
+        definitionId: parseManagedSurfaceDefinitionIdV1("surface.workspace.second"),
+      }),
+      semanticOccurrenceId: null,
+      expected: first.readiness!.evidence,
+    });
+    const after = coordinator.getSnapshot();
+
+    expect(second.receipt).toMatchObject({
+      kind: "applied",
+      code: "surface.preparation_started",
+      surfaceInstanceId: "surface-instance.e23.n2",
+    });
+    expectRevisionDeltaV1(before, after, 1, 1);
+    expect(observed).toHaveLength(1);
+    expect(observed[0]).toBe(after);
+    expect(after.orderedInstances.map((instance) => instance.surfaceInstanceId)).toEqual([
+      second.receipt.surfaceInstanceId,
+    ]);
+    expect(after.orderedInstances[0]).toMatchObject({
+      target: { occurrenceId: "surface-occurrence.e23.n2" },
+      surfaceInstanceId: "surface-instance.e23.n2",
+      routingLeaseId: "surface-lease.e23.n2",
+    });
+    expect(after.preparationFallbacks).toEqual([
+      {
+        kind: "blocking_fallback",
+        candidateInstanceId: second.receipt.surfaceInstanceId,
+      },
+    ]);
+    expect(first.readiness!.ready().receipt).toMatchObject({
+      kind: "stale",
+      code: "surface.stale_readiness",
+    });
+    expect(first.readiness!.fail()).toMatchObject({
+      kind: "stale",
+      code: "surface.stale_readiness",
+    });
+    expect(
+      coordinator.routeFallbackDismissWithOwnerPreparationCancel(
+        first.readiness!.evidence,
+        ownerIdV1,
+        "escape",
+      ),
+    ).toMatchObject({
+      kind: "stale",
+      code: "surface.stale_readiness",
+    });
+    expect(coordinator.getSnapshot()).toBe(after);
+    expect(observed).toHaveLength(1);
+
+    const third = coordinator.supersedeTransientInitialPreparation({
+      definition: definitionV1({
+        definitionId: parseManagedSurfaceDefinitionIdV1("surface.workspace.third"),
+      }),
+      semanticOccurrenceId: null,
+      expected: second.readiness!.evidence,
+    });
+    expect(third.receipt.surfaceInstanceId).toBe("surface-instance.e23.n3");
+  });
+
+  it("keeps the initial candidate and identity cursor when supersede admission fails", () => {
+    const coordinator = createCoordinatorV1();
+    const first = coordinator.openTransientPrimary({
+      definition: definitionV1(),
+      semanticOccurrenceId: null,
+    });
+    const before = coordinator.getSnapshot();
+    let notifications = 0;
+    coordinator.subscribe(() => notifications += 1);
+
+    const malformed = coordinator.supersedeTransientInitialPreparation({
+      definition: {
+        ...definitionV1(),
+        sourcePublicationRevision: 1,
+      } as unknown as ManagedSurfaceResolvedDefinitionV1,
+      semanticOccurrenceId: null,
+      expected: first.readiness!.evidence,
+    });
+    const wrongSlot = coordinator.supersedeTransientInitialPreparation({
+      definition: definitionV1({ slotId: otherSlotIdV1 }),
+      semanticOccurrenceId: null,
+      expected: first.readiness!.evidence,
+    });
+
+    expect(malformed.receipt).toMatchObject({
+      kind: "rejected",
+      code: "surface.invalid_definition",
+    });
+    expect(wrongSlot.receipt).toMatchObject({
+      kind: "rejected",
+      code: "surface.invalid_transition",
+    });
+    expect(coordinator.getSnapshot()).toBe(before);
+    expect(notifications).toBe(0);
+
+    const valid = coordinator.supersedeTransientInitialPreparation({
+      definition: definitionV1({
+        definitionId: parseManagedSurfaceDefinitionIdV1("surface.workspace.valid"),
+      }),
+      semanticOccurrenceId: null,
+      expected: first.readiness!.evidence,
+    });
+    expect(valid.receipt.surfaceInstanceId).toBe("surface-instance.e23.n2");
+  });
+
+  it("rejects replacement readiness as an initial supersede fence without allocation", () => {
+    const coordinator = createCoordinatorV1();
+    const otherRoot = requireHandleV1(coordinator.openTransientPrimary({
+      definition: definitionV1({
+        definitionId: parseManagedSurfaceDefinitionIdV1("surface.other"),
+        slotId: otherSlotIdV1,
+      }),
+      semanticOccurrenceId: null,
+    }));
+    const replacement = coordinator.replaceTransientPrimary({
+      definition: definitionV1({
+        definitionId: parseManagedSurfaceDefinitionIdV1("surface.other.replacement"),
+        slotId: otherSlotIdV1,
+      }),
+      semanticOccurrenceId: null,
+      expected: otherRoot,
+    });
+    const initial = coordinator.openTransientPrimary({
+      definition: definitionV1(),
+      semanticOccurrenceId: null,
+    });
+    const before = coordinator.getSnapshot();
+    let notifications = 0;
+    coordinator.subscribe(() => notifications += 1);
+
+    const invalid = coordinator.supersedeTransientInitialPreparation({
+      definition: definitionV1({
+        definitionId: parseManagedSurfaceDefinitionIdV1("surface.workspace.invalid"),
+      }),
+      semanticOccurrenceId: null,
+      expected: replacement.readiness!.evidence,
+    });
+
+    expect(invalid.receipt).toMatchObject({
+      kind: "rejected",
+      code: "surface.invalid_transition",
+    });
+    expect(coordinator.getSnapshot()).toBe(before);
+    expect(notifications).toBe(0);
+    const valid = coordinator.supersedeTransientInitialPreparation({
+      definition: definitionV1({
+        definitionId: parseManagedSurfaceDefinitionIdV1("surface.workspace.valid"),
+      }),
+      semanticOccurrenceId: null,
+      expected: initial.readiness!.evidence,
+    });
+    expect(valid.receipt.surfaceInstanceId).toBe("surface-instance.e23.n4");
+  });
+
+  it("cancels a pending replacement while retaining the exact active subtree", () => {
+    const coordinator = createCoordinatorV1();
+    const initial = coordinator.openTransientPrimary({
+      definition: definitionV1(),
+      semanticOccurrenceId: null,
+    });
+    const root = initial.readiness!.ready().handle!;
+    const childPreparation = coordinator.pushTransientChild({
+      definition: definitionV1({
+        definitionId: parseManagedSurfaceDefinitionIdV1("surface.workspace.detail"),
+        slotId: detailSlotIdV1,
+        layerId: parseManagedSurfaceLayerIdV1("surface-layer.workspace-detail"),
+        layerOrder: parseNonNegativeSafeInteger(30),
+        placement: "child",
+      }),
+      semanticOccurrenceId: null,
+      parent: root,
+    });
+    const child = childPreparation.readiness!.ready().handle!;
+    const currentRoot = coordinator.getHandle(root.surfaceInstanceId)!;
+    const replacement = coordinator.replaceTransientPrimary({
+      definition: definitionV1({
+        definitionId: parseManagedSurfaceDefinitionIdV1("surface.workspace.replacement"),
+      }),
+      semanticOccurrenceId: null,
+      expected: currentRoot,
+    });
+    const before = coordinator.getSnapshot();
+    const retainedRoot = before.orderedInstances.find(
+      (instance) => instance.surfaceInstanceId === root.surfaceInstanceId,
+    )!;
+    const retainedChild = before.orderedInstances.find(
+      (instance) => instance.surfaceInstanceId === child.surfaceInstanceId,
+    )!;
+    let notifications = 0;
+    coordinator.subscribe(() => notifications += 1);
+
+    const wrongRetained = coordinator.cancelTransientPrimaryReplacement({
+      retained: child,
+      pending: replacement.readiness!.evidence,
+    });
+    expect(wrongRetained).toMatchObject({
+      kind: "rejected",
+      code: "surface.invalid_transition",
+    });
+    expect(coordinator.getSnapshot()).toBe(before);
+    expect(notifications).toBe(0);
+
+    const cancelled = coordinator.cancelTransientPrimaryReplacement({
+      retained: currentRoot,
+      pending: replacement.readiness!.evidence,
+    });
+    const after = coordinator.getSnapshot();
+
+    expect(cancelled).toMatchObject({
+      kind: "applied",
+      code: "surface.preparation_cancelled",
+      surfaceInstanceId: replacement.receipt.surfaceInstanceId,
+    });
+    expectRevisionDeltaV1(before, after, 1, 0);
+    expect(notifications).toBe(1);
+    expect(after.orderedInstances).toHaveLength(2);
+    expect(after.orderedInstances[0]).toBe(retainedRoot);
+    expect(after.orderedInstances[1]).toBe(retainedChild);
+    expect(after.inputOwner).toEqual(before.inputOwner);
+    expect(after.focusOwner).toEqual(before.focusOwner);
+    expect(after.navigationTargetInstanceId).toBe(before.navigationTargetInstanceId);
+    expect(coordinator.getHandle(root.surfaceInstanceId)).toEqual(currentRoot);
+    expect(replacement.readiness!.ready().receipt).toMatchObject({
+      kind: "stale",
+      code: "surface.stale_readiness",
+    });
+    expect(replacement.readiness!.fail()).toMatchObject({
+      kind: "stale",
+      code: "surface.stale_readiness",
+    });
+    expect(coordinator.getSnapshot()).toBe(after);
+    expect(notifications).toBe(1);
+
+    const next = coordinator.replaceTransientPrimary({
+      definition: definitionV1({
+        definitionId: parseManagedSurfaceDefinitionIdV1("surface.workspace.next"),
+      }),
+      semanticOccurrenceId: null,
+      expected: currentRoot,
+    });
+    expect(next.receipt.surfaceInstanceId).toBe("surface-instance.e23.n4");
+  });
+
+  it("rejects child and cross-root readiness as a replacement cancellation fence", () => {
+    const childCoordinator = createCoordinatorV1();
+    const childRoot = requireHandleV1(childCoordinator.openTransientPrimary({
+      definition: definitionV1(),
+      semanticOccurrenceId: null,
+    }));
+    const childPreparation = childCoordinator.pushTransientChild({
+      definition: definitionV1({
+        definitionId: parseManagedSurfaceDefinitionIdV1("surface.workspace.pending-detail"),
+        slotId: detailSlotIdV1,
+        layerId: parseManagedSurfaceLayerIdV1("surface-layer.workspace-detail"),
+        layerOrder: parseNonNegativeSafeInteger(30),
+        placement: "child",
+      }),
+      semanticOccurrenceId: null,
+      parent: childRoot,
+    });
+    const currentChildRoot = childCoordinator.getHandle(childRoot.surfaceInstanceId)!;
+    const childBefore = childCoordinator.getSnapshot();
+    let childNotifications = 0;
+    childCoordinator.subscribe(() => childNotifications += 1);
+
+    const childAsPending = childCoordinator.cancelTransientPrimaryReplacement({
+      retained: currentChildRoot,
+      pending: childPreparation.readiness!.evidence,
+    });
+    expect(childAsPending).toMatchObject({
+      kind: "rejected",
+      code: "surface.invalid_transition",
+    });
+    expect(childCoordinator.getSnapshot()).toBe(childBefore);
+    expect(childNotifications).toBe(0);
+
+    const crossCoordinator = createCoordinatorV1();
+    const firstRoot = requireHandleV1(crossCoordinator.openTransientPrimary({
+      definition: definitionV1(),
+      semanticOccurrenceId: null,
+    }));
+    const secondRoot = requireHandleV1(crossCoordinator.openTransientPrimary({
+      definition: definitionV1({
+        definitionId: parseManagedSurfaceDefinitionIdV1("surface.other"),
+        slotId: otherSlotIdV1,
+      }),
+      semanticOccurrenceId: null,
+    }));
+    const currentSecondRoot = crossCoordinator.getHandle(secondRoot.surfaceInstanceId)!;
+    const replacement = crossCoordinator.replaceTransientPrimary({
+      definition: definitionV1({
+        definitionId: parseManagedSurfaceDefinitionIdV1("surface.other.replacement"),
+        slotId: otherSlotIdV1,
+      }),
+      semanticOccurrenceId: null,
+      expected: currentSecondRoot,
+    });
+    const currentFirstRoot = crossCoordinator.getHandle(firstRoot.surfaceInstanceId)!;
+    const before = crossCoordinator.getSnapshot();
+    let notifications = 0;
+    crossCoordinator.subscribe(() => notifications += 1);
+
+    const crossRoot = crossCoordinator.cancelTransientPrimaryReplacement({
+      retained: currentFirstRoot,
+      pending: replacement.readiness!.evidence,
+    });
+    expect(crossRoot).toMatchObject({
+      kind: "rejected",
+      code: "surface.invalid_transition",
+    });
+    expect(crossCoordinator.getSnapshot()).toBe(before);
+    expect(notifications).toBe(0);
+
+    const cancelled = crossCoordinator.cancelTransientPrimaryReplacement({
+      retained: currentSecondRoot,
+      pending: replacement.readiness!.evidence,
+    });
+    expect(cancelled).toMatchObject({
+      kind: "applied",
+      code: "surface.preparation_cancelled",
+    });
+    const after = crossCoordinator.getSnapshot();
+    expectRevisionDeltaV1(before, after, 1, 0);
+    expect(notifications).toBe(1);
+
+    const duplicate = crossCoordinator.cancelTransientPrimaryReplacement({
+      retained: currentSecondRoot,
+      pending: replacement.readiness!.evidence,
+    });
+    expect(duplicate).toMatchObject({
+      kind: "stale",
+      code: "surface.stale_readiness",
+    });
+    expect(crossCoordinator.getSnapshot()).toBe(after);
+    expect(notifications).toBe(1);
+  });
+
   it("does not cancel a live replacement when a second request fails preflight", () => {
     const scenario = preparedScenarioV1("primary_replacement");
     const retainedHandle = scenario.coordinator.getHandle(scenario.retainedInstanceId!)!;

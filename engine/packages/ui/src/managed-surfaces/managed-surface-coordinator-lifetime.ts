@@ -209,7 +209,13 @@ function createRuntimeCoordinatorPortV1(
     getOwnerHandle: gated(coordinator.getOwnerHandle),
     subscribe: gated(coordinator.subscribe),
     openTransientPrimary: gatedPreparation(coordinator.openTransientPrimary),
+    supersedeTransientInitialPreparation: gatedPreparation(
+      coordinator.supersedeTransientInitialPreparation,
+    ),
     replaceTransientPrimary: gatedPreparation(coordinator.replaceTransientPrimary),
+    cancelTransientPrimaryReplacement: gated(
+      coordinator.cancelTransientPrimaryReplacement,
+    ),
     pushTransientChild: gatedPreparation(coordinator.pushTransientChild),
     closeExpected: gated(coordinator.closeExpected),
     closeExpectedWithOwnerPreparationCancel: gated(

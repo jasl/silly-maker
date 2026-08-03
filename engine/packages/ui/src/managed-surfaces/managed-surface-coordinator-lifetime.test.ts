@@ -470,6 +470,63 @@ describe("Managed Surface application lifetime", () => {
     lifetime.dispose();
   });
 
+  it("keeps the exact binding and gesture when a pending replacement is cancelled", () => {
+    const router = createInputRouterV1();
+    router.register({ context: "overlay", handle: () => inputHandledV1 });
+    const registrations = countingManagedInputRegistrationV1();
+    const lifetime = createManagedSurfaceCoordinatorLifetimeV1({
+      epochAllocator: deterministicAllocatorV1([22]),
+      inputRouter: router,
+      initialRecipe: recipeV1,
+      registerManagedInputHandler: registrations.register,
+    });
+    const runtime = lifetime.getCurrent()!;
+    const retainedHandle = openV1(runtime);
+    const retainedGesture = runtime.gestureLease.begin();
+    const retainedBinding = runtime.bindCurrentInput();
+    const retainedEnvelope = retainedBinding.createEnvelope({
+      actionId: parseManagedSurfaceActionIdV1("surface-action.activate"),
+      gestureId: retainedGesture,
+    });
+    const replacement = runtime.coordinator.replaceTransientPrimary({
+      definition: definitionV1({
+        definitionId: parseManagedSurfaceDefinitionIdV1("surface.workspace.replacement"),
+      }),
+      semanticOccurrenceId: null,
+      expected: retainedHandle,
+    });
+    const before = runtime.coordinator.getSnapshot();
+
+    const cancelled = runtime.coordinator.cancelTransientPrimaryReplacement({
+      retained: retainedHandle,
+      pending: replacement.readiness!.evidence,
+    });
+    const after = runtime.coordinator.getSnapshot();
+
+    expect(cancelled).toMatchObject({
+      kind: "applied",
+      code: "surface.preparation_cancelled",
+    });
+    expect(after.publicationRevision - before.publicationRevision).toBe(1);
+    expect(after.topologyRevision).toBe(before.topologyRevision);
+    expect(after.inputOwner).toEqual(before.inputOwner);
+    expect(after.focusOwner).toEqual(before.focusOwner);
+    expect(runtime.bindCurrentInput()).toBe(retainedBinding);
+    expect(registrations.registered()).toBe(1);
+    expect(registrations.unregistered()).toBe(0);
+    expect(runtime.gestureLease.isCurrent(retainedGesture)).toBe(true);
+    expect(retainedBinding.route(retainedEnvelope)).toMatchObject({
+      input: { kind: "consumed", code: "input.managed_surface_consumed" },
+      surface: { kind: "unchanged", code: "surface.action_routed" },
+    });
+    expect(replacement.readiness!.ready().receipt).toMatchObject({
+      kind: "stale",
+      code: "surface.stale_readiness",
+    });
+
+    lifetime.dispose();
+  });
+
   it("revokes ordinary input before publishing a child blocking fallback", () => {
     const router = createInputRouterV1();
     router.register({ context: "overlay", handle: () => inputHandledV1 });
@@ -815,12 +872,35 @@ describe("Managed Surface application lifetime", () => {
           }),
       ],
       [
+        "supersedeTransientInitialPreparation",
+        () =>
+          predecessor.coordinator.supersedeTransientInitialPreparation({
+            definition: definitionV1(),
+            semanticOccurrenceId: null,
+            expected: {
+              applicationEpoch: predecessorHandle.applicationEpoch,
+              surfaceInstanceId: predecessorHandle.surfaceInstanceId,
+            },
+          }),
+      ],
+      [
         "replaceTransientPrimary",
         () =>
           predecessor.coordinator.replaceTransientPrimary({
             definition: definitionV1(),
             semanticOccurrenceId: null,
             expected: predecessorHandle,
+          }),
+      ],
+      [
+        "cancelTransientPrimaryReplacement",
+        () =>
+          predecessor.coordinator.cancelTransientPrimaryReplacement({
+            retained: predecessorHandle,
+            pending: {
+              applicationEpoch: predecessorHandle.applicationEpoch,
+              surfaceInstanceId: predecessorHandle.surfaceInstanceId,
+            },
           }),
       ],
       [

@@ -5,7 +5,9 @@ reconcile、dormant-kernel boundedness/action provenance 与 Overlay cutover
 决策重切片；2026-08-01 PF2 的 S1-T 与 S2 Workspace Overlay pilot 已 promotion；
 2026-08-04 冻结 PF4/S3 System topology、atomic initial-candidate supersede、
 retained-active pending cancellation、exact result/delta matrix、Host-commit readiness、
-StrictMode、API cutover 与 stop conditions，下一独立实施切片为 S3a。
+StrictMode、API cutover 与 stop conditions。
+同日 S3a dormant definition/slot/result/snapshot floor 与两个 package-internal
+atomic composite operations 已完成，下一独立实施切片为 S3b。
 目标合同见
 [Managed Surface lifecycle and contract harness](../design/surface-contract-harness.md)。
 本文只规定可独立交付的实施顺序；不要求一次实现 design
@@ -13,7 +15,7 @@ StrictMode、API cutover 与 stop conditions，下一独立实施切片为 S3a�
 
 在 [production-floor sequence](2026-07-30-production-floor-sequence.md)
 中：PF2 的 `S0 -> S1-T -> S2`、PF-DET 与 PF3/M2 已完成；当前 core
-节点是 PF4/S3a。PF4 的顺序是 `S3 -> S1-R -> S4 -> S4b`；S5–S6
+节点是 PF4/S3b。PF4 的顺序是 `S3 -> S1-R -> S4 -> S4b`；S5–S6
 属于 PF6。S1-R
 延后到第一个真实 externally published stable-target family 前完成；按 accepted
 target ownership，S4 Narrative 计划成为该 family，因此 S1-R 位于 S3 与 S4
@@ -1143,6 +1145,29 @@ close/result 只能 stale，不能写入 later Saves。Save guard 与 Persistenc
    `SaveOverlayPropsV1` 与全部 dead path，只保留 public persistence configuration/value
    types；完成 successor、Engine Lab、Cat Cafe、prebuilt browser matrix及 live docs
    promotion。
+
+**2026-08-04 S3a delivery：** 本切片只建立 dormant、package-internal System
+合同与 S1-T composite kernel floor。settings/saves definitions 共用一个 single root
+slot，load/clear/import confirmation definition 只解析为 current Saves 的 exact-parent
+single child；standard/custom 仍是同一 Saves definition 的 renderer variant，import
+仍只是 operation。target opaque session/result union、root request/delta matrix 与 one
+logical Host/catalog/portal lease 只形成未导出合同；没有创建 live session、Host lease
+或第二个 ingress。
+
+generic Coordinator/reducer 新增两个未进 package barrel 的原子操作：initial pending
+A -> B 在一次 publication commit 中分配 fresh identity、连续重绑 blocking fallback，
+exact delta 为 `+1/+1/+1/1`；active A + pending B -> request A 只取消 B，保留 exact A
+subtree/input/focus/gesture，delta 为 `+1/0/0/1`。错误 evidence、admission failure、
+重复或 late callback 都保持 publication identity、不通知且不消耗 identity；关闭的
+lifetime ingress fail closed。
+
+root-candidate admission snapshot 从 normalized root request 内部选择 canonical
+definition，复制并冻结 required-port binding vector，捕获 renderer/accessibility identity，
+并只接受 package-internal opaque normalized-config token。S3a 不递归遍历 React content
+graph；S3b 必须实现 Settings/Saves known-field copier/catalog facade并实际消费这些 dormant
+合同（未消费的 metadata 届时删除），S3c 才实现 Host-commit readiness、StrictMode lease
+与 error boundary。旧 System store、fallback Host 与 public lifecycle API 完全未改；
+Save/Persistence/M2/canonical/digest/replay/wire 均未变化。
 
 每个 dormant slice 必须 package-internal、不可由 live System 与旧 store同时写入；若
 为了独立合并必须双写、mirror 或提前开放第二个 lifecycle ingress，停止并重切片。

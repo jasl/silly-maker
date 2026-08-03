@@ -801,6 +801,70 @@ export function reduceManagedSurfaceV1(
       );
     }
 
+    case "supersede_initial_preparation": {
+      if (operation.expected.applicationEpoch !== state.publication.applicationEpoch) {
+        return unchangedResultV1(
+          state,
+          "stale",
+          "surface.stale_application_epoch",
+          operation.expected.surfaceInstanceId,
+        );
+      }
+      const failure = openPreconditionFailureV1(state, operation.candidate);
+      if (failure !== null) return failure;
+      const expectedCandidate = state.publication.orderedInstances.find(
+        (instance) =>
+          instance.surfaceInstanceId === operation.expected.surfaceInstanceId &&
+          instance.parentInstanceId === null &&
+          instance.readiness.kind === "preparing" &&
+          instance.readiness.transition === "initial_open",
+      );
+      if (expectedCandidate === undefined) {
+        return unchangedResultV1(
+          state,
+          "stale",
+          "surface.stale_readiness",
+          operation.expected.surfaceInstanceId,
+        );
+      }
+      const slotDescriptor = rootSlotDescriptorV1(state, operation.candidate.definition.slotId);
+      if (
+        slotDescriptor?.cardinality !== "single" ||
+        expectedCandidate.definition.ownerId !== operation.candidate.definition.ownerId ||
+        expectedCandidate.definition.slotId !== operation.candidate.definition.slotId ||
+        state.publication.orderedInstances.some(
+          (instance) =>
+            instance.surfaceInstanceId !== expectedCandidate.surfaceInstanceId &&
+            instance.parentInstanceId === null &&
+            instance.definition.slotId === operation.candidate.definition.slotId,
+        )
+      ) {
+        return unchangedResultV1(
+          state,
+          "rejected",
+          "surface.invalid_transition",
+          operation.candidate.surfaceInstanceId,
+        );
+      }
+      state = withAdmittedCandidateIdentityV1(state, operation.candidate);
+      const instance = freezePublishedInstanceV1(
+        operation.candidate,
+        null,
+        Object.freeze({ kind: "preparing", transition: "initial_open" }),
+      );
+      return appliedResultV1(
+        state,
+        "surface.preparation_started",
+        state.publication.orderedInstances.map((current) =>
+          current.surfaceInstanceId === expectedCandidate.surfaceInstanceId ? instance : current
+        ),
+        state.disposedOwnerIds,
+        false,
+        instance.surfaceInstanceId,
+        true,
+      );
+    }
+
     case "prepare_replacement": {
       const evidenceFailure = evidenceFailureV1(state, operation.expected);
       if (evidenceFailure !== null) return evidenceFailure;
@@ -848,6 +912,66 @@ export function reduceManagedSurfaceV1(
         state.disposedOwnerIds,
         false,
         instance.surfaceInstanceId,
+        false,
+      );
+    }
+
+    case "cancel_primary_replacement": {
+      const retainedFailure = evidenceFailureV1(state, operation.retained);
+      if (retainedFailure !== null) return retainedFailure;
+      if (operation.pending.applicationEpoch !== state.publication.applicationEpoch) {
+        return unchangedResultV1(
+          state,
+          "stale",
+          "surface.stale_application_epoch",
+          operation.pending.surfaceInstanceId,
+        );
+      }
+      const retainedRoot = state.publication.orderedInstances.find(
+        (instance) =>
+          instance.surfaceInstanceId === operation.retained.surfaceInstanceId &&
+          instance.parentInstanceId === null &&
+          instance.readiness.kind === "ready",
+      );
+      const pendingCandidate = state.publication.orderedInstances.find(
+        (instance) =>
+          instance.surfaceInstanceId === operation.pending.surfaceInstanceId &&
+          instance.parentInstanceId === null &&
+          instance.readiness.kind === "preparing" &&
+          instance.readiness.transition === "primary_replacement",
+      );
+      if (pendingCandidate === undefined) {
+        return unchangedResultV1(
+          state,
+          "stale",
+          "surface.stale_readiness",
+          operation.pending.surfaceInstanceId,
+        );
+      }
+      if (
+        retainedRoot === undefined ||
+        pendingCandidate.readiness.kind !== "preparing" ||
+        pendingCandidate.readiness.transition !== "primary_replacement" ||
+        pendingCandidate.readiness.retainedInstanceId !== retainedRoot.surfaceInstanceId ||
+        pendingCandidate.definition.ownerId !== retainedRoot.definition.ownerId ||
+        pendingCandidate.definition.slotId !== retainedRoot.definition.slotId
+      ) {
+        return unchangedResultV1(
+          state,
+          "rejected",
+          "surface.invalid_transition",
+          pendingCandidate.surfaceInstanceId,
+        );
+      }
+      return appliedResultV1(
+        state,
+        "surface.preparation_cancelled",
+        state.publication.orderedInstances.filter(
+          (instance) => instance.surfaceInstanceId !== pendingCandidate.surfaceInstanceId,
+        ),
+        state.disposedOwnerIds,
+        false,
+        pendingCandidate.surfaceInstanceId,
         false,
       );
     }

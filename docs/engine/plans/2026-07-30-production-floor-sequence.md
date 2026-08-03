@@ -14,7 +14,9 @@ promotion 均已关闭，linear core 下一独立切片为 `PF4/S3 System dialog
 2026-08-04 已冻结 S3 的 shared-Coordinator transient topology、atomic initial-candidate
 supersede、retained-active pending cancellation、exact result/delta matrix、Host-commit
 readiness、StrictMode terminal-once fence 与 public API cutover；能力尚未 promotion，
-下一独立实施切片为 S3a。
+并已重切为 S3a–S3e。
+同日 S3a dormant System contract/snapshot floor 与 package-internal atomic initial
+supersede/retained-active cancellation 已完成；S3 尚未 promotion，下一独立切片为 S3b。
 旧 promotion 数字保留为
 历史证据。本文是当前唯一的跨计划排序入口；
 具体合同仍由各 design 文档拥有，主要任务由五个独立计划拥有：
@@ -904,6 +906,12 @@ dormant，S3e 才同时切换 live ingress并删除旧 writable store、Host fal
 confirmation lifecycle、standalone public lifecycle APIs 与 public `SaveOverlayV1`
 component；initial pending supersede 和 retained-active pending cancellation 遵守 exact
 result/delta matrix；任何中间态不得双写或建立 writable mirror。
+
+S3a 已关闭 dormant definition/slot/result/root-candidate snapshot 与 composite-kernel
+floor；它没有接入 live System Host、创建 Host lease或删除旧 writer。S3b 下一步抽取并
+共享 composition-owned Coordinator lifetime/publication，注入 dormant System facade，
+实现 Settings/Saves known-field config snapshot/catalog，并证明 Overlay 行为不变；S3c
+随后实现 Host-commit readiness 与 StrictMode/error-boundary fence。
 
 S1-R 在第一个真实 externally published stable-target family 前完成。按 accepted
 target ownership，S4 Narrative 计划从 semantic publication 派生 stable target，

@@ -276,9 +276,19 @@ export type ManagedSurfaceOperationV1 =
     readonly candidate: ManagedSurfaceCandidateV1;
   }
   | {
+    readonly kind: "supersede_initial_preparation";
+    readonly expected: ManagedSurfaceReadinessEvidenceV1;
+    readonly candidate: ManagedSurfaceCandidateV1;
+  }
+  | {
     readonly kind: "prepare_replacement";
     readonly expected: ManagedSurfaceTransitionEvidenceV1;
     readonly candidate: ManagedSurfaceCandidateV1;
+  }
+  | {
+    readonly kind: "cancel_primary_replacement";
+    readonly retained: ManagedSurfaceTransitionEvidenceV1;
+    readonly pending: ManagedSurfaceReadinessEvidenceV1;
   }
   | {
     readonly kind: "prepare_child";
@@ -353,6 +363,7 @@ export type ManagedSurfaceTransitionOutcomeV1 =
 
 export type ManagedSurfaceTransitionCodeV1 =
   | "surface.preparation_started"
+  | "surface.preparation_cancelled"
   | "surface.readiness_ready"
   | "surface.readiness_failed"
   | "surface.closed"
