@@ -11,6 +11,10 @@ Save M1 与 DET-B same-HEAD join 已于 2026-08-03 完成；M2 已冻结为 Stat
 M2a–M2e；M2a exact registry/Core-admission floor、M2b bounded pure execution kernel、
 M2c staged Persistence integration、M2d atomic replacement 与 M2e real-owner/four-runtime
 promotion 均已关闭，linear core 下一独立切片为 `PF4/S3 System dialogs`。
+2026-08-04 已冻结 S3 的 shared-Coordinator transient topology、atomic initial-candidate
+supersede、retained-active pending cancellation、exact result/delta matrix、Host-commit
+readiness、StrictMode terminal-once fence 与 public API cutover；能力尚未 promotion，
+下一独立实施切片为 S3a。
 旧 promotion 数字保留为
 历史证据。本文是当前唯一的跨计划排序入口；
 具体合同仍由各 design 文档拥有，主要任务由五个独立计划拥有：
@@ -888,6 +892,18 @@ Surface pilot 通过后按 family 分开合并：
 4. S4b：whole-canvas primary/detail 独立 family；
 5. input/gesture reset（pointercancel、focus loss、visibility change）与 Browser
    Agent observation。
+
+S3 是 Coordinator-owned transient family，与 Workspace Overlay 共用同一个
+composition-owned Coordinator、application epoch、immutable publication 与 successor
+lifetime，不等待 S1-R。settings/saves 共用 single root slot；load/clear/import
+confirmation 是 current Saves 的 exact-parent single child。initial root 与 child 使用
+blocking fallback，root replacement retain current subtree；没有 synchronous
+intent-time settle，candidate 只在正确 System portal 内完成成功 React Host commit 后
+ready，StrictMode probe 不得产生额外 receipt/revision/allocation。S3a–S3d 保持新路径
+dormant，S3e 才同时切换 live ingress并删除旧 writable store、Host fallback、React-local
+confirmation lifecycle、standalone public lifecycle APIs 与 public `SaveOverlayV1`
+component；initial pending supersede 和 retained-active pending cancellation 遵守 exact
+result/delta matrix；任何中间态不得双写或建立 writable mirror。
 
 S1-R 在第一个真实 externally published stable-target family 前完成。按 accepted
 target ownership，S4 Narrative 计划从 semantic publication 派生 stable target，

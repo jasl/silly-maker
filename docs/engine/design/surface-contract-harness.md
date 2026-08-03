@@ -2,10 +2,14 @@
 
 状态：2026-07-30 接受的目标设计，2026-07-31 根据 PF2 pilot 决策与 dormant
 kernel 审计修订 readiness、application epoch、stable-target reconcile、slot、
-identity boundedness 与 action admission 合同。本文固定
+identity boundedness 与 action admission 合同；2026-08-04 冻结 PF4/S3 System
+transient topology、initial supersede/retained-active cancellation、exact result/delta
+matrix、Host-commit readiness、StrictMode fence 与 public API cutover。
+本文固定
 影响输入与焦点的 UI Surface 的权威边界、生命周期、输入代际与验证分层，并把“弱模型
-能够写出正确代码”提升为作者 API 的验收条件。上述新增合同尚未实现；当前实现仍以
-[architecture](../architecture.md) 与 [features](../features.md) 为准；执行顺序见
+能够写出正确代码”提升为作者 API 的验收条件。S1-T 与 S2 已实现，S3 仍是待实施
+目标；当前 live 能力仍以 [architecture](../architecture.md) 与
+[features](../features.md) 为准；执行顺序见
 [Surface Contract Harness plan](../plans/2026-07-30-surface-contract-harness.md)。
 
 本文的 **Managed Surface** 专指会改变导航、输入所有权、焦点、模态或 Back
@@ -364,6 +368,125 @@ Fallback 是 preparation phase 的 code-native projection，不是另一个普�
 Surface，也不依赖 Story renderer resolver 或 required port。它不能成为第二个
 lifecycle authority、普通 action owner 或 stable target。
 
+#### PF4/S3 System transient recipe
+
+System 是 Coordinator-owned transient family，与 Workspace Overlay 共用同一个
+composition-owned Coordinator、application epoch、immutable publication、managed
+input binding 与 successor lifetime；它不依赖 S1-R，也不携带 source revision、
+publisher lease、canonical stable-target vector 或 reconcile cursor。
+
+System topology 固定为：
+
+```text
+System owner
+└── system.root                         cardinality: single
+    ├── settings
+    └── saves                           replacement relationship
+        └── system.confirmation         exact-parent child, cardinality: single
+            └── action_confirmation(load | clear | import)
+```
+
+- `settings` 与 `saves` 是两个 definition，共用一个全局 single root slot；standard
+  与 custom Saves 只是同一个 `saves` definition 的 renderer variant；
+- import 是 Persistence operation，不是另一个 root Surface；load、clear、import
+  共用一个 confirmation definition 与封闭、规范化的 invocation 参数；
+- confirmation 的 exact parent 必须是当前 Saves root instance。关闭 child 保留
+  完全相同的 Saves root、renderer local state、slot-read/result state，并优先恢复
+  exact opener；opener 已断开时退回 surviving Saves root 的 initial focus target；
+- root close 在一个 commit 中退休 root、child subtree 与相关 pending preparation；
+  root replacement preparation 保留完整旧 subtree，ready commit 才原子退休它，
+  failure 则保留它；replacement cutover 不先恢复旧 root 的外部 opener，新 root
+  继承该 return-focus target；
+- root request 遵守下方 exact matrix；相同 pending request 或无 pending 时相同 active
+  request 返回 unchanged，不重跑 resolver、不改变 opener；取消不同的 pending
+  replacement 时保留 exact active instance/subtree，不重新 preparation；confirmation
+  每次重新打开使用 fresh occurrence/instance；
+- settings、saves 与 confirmation 的 Back、Escape、backdrop 和 routed cancel 当前
+  都允许，所有入口仍经过 exact current handle 与 Coordinator dismiss policy。
+
+Root request matrix 固定为：
+
+| Active | Pending | Requested | Public outcome                            | ΔP | ΔT | Allocation | Notify |
+| ------ | ------- | --------- | ----------------------------------------- | -: | -: | ---------: | -----: |
+| none   | none    | A         | `preparing / preparation_started`         | +1 | +1 |         +1 |      1 |
+| none   | A       | A         | `unchanged / already_requested`           |  0 |  0 |          0 |      0 |
+| none   | A       | B         | `preparing / preparation_started`         | +1 | +1 |         +1 |      1 |
+| A      | none    | A         | `unchanged / already_requested`           |  0 |  0 |          0 |      0 |
+| A      | none    | B         | `preparing / preparation_started`         | +1 |  0 |         +1 |      1 |
+| A      | B       | B         | `unchanged / already_requested`           |  0 |  0 |          0 |      0 |
+| A      | B       | A         | `applied / pending_replacement_cancelled` | +1 |  0 |          0 |      1 |
+| A      | B       | C         | `preparing / preparation_started`         | +1 |  0 |         +1 |      1 |
+
+其中 A/B/C 表示不同 logical root request；System V1 只有 settings/saves，但 C vector
+仍作为 generic kernel 完整性合同。需要新 candidate 时先完成全部 preflight；reject/fault
+时保留原 pending candidate 与 publication identity，delta 全零。initial A -> B
+成功后在一个 commit 中退休 A、分配 fresh B identity bundle，并把同一个 logical
+blocking-fallback slot 重新绑定 B；fallback/isolation 连续，但 candidate-bound fence
+改变，所以 topology revision 推进。active A + pending B -> request A 则只取消 B，
+保留 exact A instance、child subtree、renderer DOM/local state、input binding、focus、
+external return-focus target 与 gesture；不调用 A resolver、不分配 identity，且不推进
+topology。所有被取消 candidate 的 late callback 均 stale 且零 mutation。
+
+System 沿用 S1-T 的 transition-kind readiness：initial root 与 confirmation child
+使用 code-native blocking fallback，root replacement retain current subtree。没有
+intent-time synchronous settle 旁路。没有显式异步 `prepare()` 的 renderer 只有在：
+
+> candidate renderer subtree 已在正确的 System portal 完成一次成功 React Host
+> commit，candidate root DOM 已存在，且截至该 commit 的 render、constructor 与
+> layout-effect 阶段未被 candidate error boundary 判定失败
+
+之后才成为 `host_commit_ready`。它不承诺 browser paint、图片/数据加载或未来 passive
+effect 永不失败。
+
+Preparation 与 active 共用以 `surfaceInstanceId` 为 key 的同一个 renderer subtree，
+cutover 不重新 mount 或重新调用 renderer。candidate preparation shell 位于同一个
+System portal，必须 `inert`、`aria-hidden="true"`、`pointer-events: none`，并以
+`visibility: hidden` 或等价方式视觉隐藏但保留 layout；不得使用 HTML `hidden` 或
+`display: none`。candidate 不注册普通 InputRouter handler、managed input/focus、
+DevDock/System portal target、autofocus、focus restore 或 lifecycle navigation。
+initial/child 同时显示 code-native fallback；replacement 则让旧 subtree 保持 visible、
+interactive 与 focus-owned。
+
+每个 candidate instance 有 terminal-once settlement gate：`pending -> ready` 或
+`pending -> failed`，先到者胜出。ready acknowledgment 由 layout-effect setup 记录
+mount generation 后排入 microtask；cleanup 只使该 generation 失效，不发送 failure。
+只有 generation 仍 current 且 candidate 仍 pending 的 microtask 可以提交 ready。
+因此 React StrictMode 的首次 setup/cleanup probe 不产生 receipt，真实 setup 只提交
+一次。close、replace 或 unmount 先取消 candidate；其后的 duplicate/late ready 或
+failure 在 Host gate 被抑制，或由 Coordinator 返回 stale 且零 mutation。
+
+ready 前的 render、constructor、layout-effect 或 candidate preparation callback failure
+提交 candidate-bound terminal failure：initial/child 撤销 fallback，replacement 保留旧
+subtree。candidate-bound failure authority 只在 Coordinator **接受**
+`host_commit_ready` receipt 后终止，而不是在 layout callback 排队时终止。accepted ready
+之后不再允许 `readiness.fail()`，不复活 retained predecessor，也不追溯修改 open
+result；后续 render/lifecycle fault 服从现有 application/root runtime-fault policy。若
+candidate boundary 仍包裹 active subtree，它必须向外层重新抛出/委托，不能吞错后渲染
+`null`。S3 不承诺捕获 event-handler、passive-effect、timer/Promise、async callback 或
+Persistence operation fault，也不建设新的 active-runtime fault taxonomy 或通用 fault
+Surface。
+
+一个 `SystemDialogSessionV1` 同时只允许一个 logical Host attachment、一个 System
+portal container 与一份 renderer/port catalog authority。System Host attachment 使用
+generation/ref-counted lease：StrictMode setup -> cleanup -> setup 是同一 logical lease，
+probe cleanup 安排 microtask detach，同一 logical Host 重挂会取消它，且零额外
+publication/allocation/settlement/notification。真正 concurrent 的 distinct Host 必须在
+subscription/renderer publication、resolver/catalog attachment、portal/input/focus
+mutation 前以 package-internal `ui.system_dialog_host_lease_conflict` fail closed；losing
+Host 不获得可用 controller、第二 resolver/catalog，也不改变原 Host/session。
+
+每次成功 preflight 把 renderer component identity、accessible metadata、normalized
+request、required port identity/bindings、definition contract revision 与 content/config
+snapshot 冻结并绑定 candidate instance。Host catalog/props 更新只影响未来 candidate，
+不能原地改写 active/pending instance 或 standard/custom Saves variant；相同 active/
+pending request 仍按 root matrix 处理，新配置只有 fresh occurrence/replacement 或
+application successor 才能生效。真实 unmount 立即关闭该 lease 的新 intent ingress、
+ordinary input/focus acquisition 与 terminal readiness acknowledgment；若 microtask
+grace 内没有同 logical Host 重挂，则撤销 resolver 并原子关闭/cancel System owner，
+但不 dispose 共享 Coordinator。composition
+successor 或整体 dispose 才关闭 ingress、dispose 整个共享 Coordinator并按 3.3 的顺序
+建立 fresh epoch successor。
+
 ### 4.2 Renderer and port admission
 
 Managed Surface 的 topology mutation 或 preparation 开始前，Coordinator 必须完成
@@ -383,6 +506,104 @@ state/publication identity、topology、input 与 focus 保持不变，不创建
 instance。Overlay pilot 不允许 `active-but-invisible`，也不建设通用 fault
 surface。Code-native preparation fallback 不经过 Story renderer resolver，也不依赖
 candidate required port。
+
+### 4.3 System public facade and admission
+
+公开 System API 是 composition-created、opaque、Coordinator-backed 的
+`SystemDialogSessionV1`：它只提供 immutable view 与 typed intents，没有 public
+constructor/factory。`SystemDialogHostV1` 必须接收该 session，不能创建 fallback store。
+`openSettings` / `openSaves` 返回：
+
+```ts
+export type SystemDialogOpenResultV1 =
+  | {
+    readonly kind: "preparing";
+    readonly code: "system_dialog.preparation_started";
+  }
+  | {
+    readonly kind: "applied";
+    readonly code: "system_dialog.pending_replacement_cancelled";
+  }
+  | {
+    readonly kind: "unchanged";
+    readonly code: "system_dialog.already_requested";
+  }
+  | {
+    readonly kind: "rejected";
+    readonly code:
+      | "system_dialog.renderer_unavailable"
+      | "system_dialog.renderer_missing"
+      | "system_dialog.required_port_missing"
+      | "system_dialog.disposed";
+    readonly portId?: string;
+  }
+  | {
+    readonly kind: "faulted";
+    readonly code:
+      | "system_dialog.renderer_faulted"
+      | "system_dialog.transition_faulted";
+  };
+```
+
+普通 Story API 不暴露 epoch、instance/occurrence ID、publication/topology revision、
+readiness evidence 或 parent handle。
+Root admission precedence 固定为：
+
+| Order | Condition                                                   | Public result                             | Resolver | Delta        |
+| ----: | ----------------------------------------------------------- | ----------------------------------------- | -------: | ------------ |
+|     1 | session disposed / ingress closed                           | `rejected / disposed`                     |       no | `0/0/0/0`    |
+|     2 | 无有效 logical Host lease / resolver attachment             | `rejected / renderer_unavailable`         |       no | `0/0/0/0`    |
+|     3 | request 等于 current pending request                        | `unchanged / already_requested`           |       no | `0/0/0/0`    |
+|     4 | 无 pending，request 等于 active root                        | `unchanged / already_requested`           |       no | `0/0/0/0`    |
+|     5 | pending replacement 存在，request 等于 retained active root | `applied / pending_replacement_cancelled` |       no | `+1/0/0/1`   |
+|     6 | 新 candidate resolver 抛错                                  | `faulted / renderer_faulted`              |      yes | `0/0/0/0`    |
+|     7 | resolver 对该 root 返回缺失                                 | `rejected / renderer_missing`             |      yes | `0/0/0/0`    |
+|     8 | required port 缺失                                          | `rejected / required_port_missing`        |      yes | `0/0/0/0`    |
+|     9 | package-internal slot/owner invariant 意外不成立            | `faulted / transition_faulted`            | complete | `0/0/0/0`    |
+|    10 | 无 active、无 pending                                       | initial preparation                       |      yes | `+1/+1/+1/1` |
+|    11 | 无 active、有不同 initial pending                           | initial supersede                         |      yes | `+1/+1/+1/1` |
+|    12 | 有 active、无 pending、request 不同                         | replacement preparation                   |      yes | `+1/0/+1/1`  |
+|    13 | 有 active、有 pending、request 与二者均不同                 | second replacement                        |      yes | `+1/0/+1/1`  |
+
+Delta 顺序是 publication/topology/identity-allocation/notification。generic S1-T
+`surface.slot_occupied` 可以保留为 low-level rejection，但经过 System session state
+machine 的合法 root intent 不可达该结果，也不进入 public union。
+
+`renderer_faulted` 在同步 open result 中只表示 resolver/preflight fault。candidate
+真正 render 失败发生在 open 已返回 `preparing` 后，由 package-internal readiness
+failure 与 diagnostics 表达，不追溯改变 open result。definition、contract revision、
+schema declaration 与 root slot recipe 的 registration 是 composition-construction
+invariant，非法配置应使 composition construction fail closed；每个 request 的 schema
+validation/normalization 仍属于 intent preflight，不扩大普通 root open union。
+
+S3e 的 public barrel cutover 删除 standalone writable
+`createSystemDialogSessionStoreV1`、旧 `SystemDialogSessionStoreV1` 名称，以及自行拥有
+lifecycle 的 `SettingsDialogV1`、`ActionConfirmationDialogV1`、`SaveOverlayV1` 与对应
+public props/confirmation dispatch port。package-internal `SettingsDialogContentV1`、
+`ActionConfirmationContentV1`、`SaveOverlayContentV1`（或等价内部名称）只能由 managed
+System Host 渲染内容与发送注入 intent；不得创建 Dialog root/portal authority、注册
+InputRouter/focus/inert、恢复 opener 或拥有 confirmation existence。custom Saves 改为由
+Host 以 React component identity 挂载，不能把可能使用 hooks 的 `render()` callback 当
+普通函数调用。
+
+`SaveOverlayPortV1`、labels、slot-name、guard、Save slot/result/import 与 System Saves
+configuration 等业务/配置类型可以继续公开；parent Surface handle、confirmation
+instance/close port、raw Coordinator、readiness adapter 与 opener lifecycle port 不得
+公开。custom Saves 只获得内容与业务 intents；confirmation intent 由 package-internal
+System context 绑定 exact parent。
+
+### 4.4 Confirmation operation lifetime
+
+每个 confirmation child instance 至多 dispatch 一次 Persistence operation。pending
+期间 cancel 仍可用；它只关闭 exact child，不取消已 dispatch 的 operation。delayed
+completion 使用 captured child/root handles：child 已关闭、root 已退休或 successor
+已建立时，任何 close/result callback 只能 stale，不能修改 later instance。
+
+clear 的 success/rejection/fault 与 load/import rejection/fault 都保留同一个 Saves
+root。successful load/import 由 application anchor successor 清理旧共享 Coordinator，
+不依赖旧 root 的额外 `close()`；operation result 只写入仍存活的同一 Saves root，
+不得写入后来新开的 Saves。Save safepoint/guard 与 Persistence pending/result state
+变化不产生 Surface commit。
 
 ## 5. Input, gesture and action outcomes
 
@@ -732,9 +953,13 @@ tooling 需要读取 UI definition，应增加无 CSS/React side effect 的 UI
    revision/reconcile 占位字段；
 3. S2 只以 Coordinator-owned transient target 迁移 Overlay；同一 cutover slice
    删除或只读化旧 Overlay store 的 open/detail/back/close 写权；
-4. S3 单独迁移 SystemDialog；在第一个真正 externally published stable-target
-   family 前完成 S1-R canonical equivalence/source-revision reconcile。按当前 target
-   ownership，S1-R 位于 S3 与 Narrative/history 之间；
+4. S3 单独迁移 SystemDialog：S3a–S3d 只建立 dormant/test-only path，S3e 在同一
+   cutover 删除 standalone writable store、Host fallback、React-local confirmation
+   lifecycle 与 standalone public lifecycle hosts；System 与 Overlay 必须共用一个
+   composition-owned Coordinator，不得出现双写或 writable mirror。在第一个真正
+   externally published stable-target family 前完成 S1-R canonical
+   equivalence/source-revision reconcile。按当前 target ownership，S1-R 位于 S3 与
+   Narrative/history 之间；
 5. 随后迁移 Narrative/history、whole-canvas primary/detail 与 stage
    interaction；whole-canvas 是独立 family，必须在 structural tooling/harness
    前完成；迁移一项就删除它的平行 lifecycle authority；
@@ -792,6 +1017,34 @@ definitions、创建新 instance/topology revision；不得反序列化旧 live 
 - 实现只是在 OverlaySession、SystemDialogSession、Narrative/History
   lifecycle、whole-canvas Story UI route state 与 InputRouter
   旁新增一个 Coordinator，而没有逐项迁移并删除旧 authority。
+- System 需要第二个 Coordinator、System-specific writable store、dual write、异步
+  writable mirror 或 compatibility view 反向写入；
+- transient System 必须携带 source revision/reconcile 字段，或 preparation candidate
+  必须取得普通 input、focus、portal target、semantic action 或 navigation authority；
+- custom Saves renderer 必须在 React 外被当作普通 callback 调用，或
+  preparation-to-active cutover 必须 remount/reinvoke renderer；
+- System render/layout failure 会先退休旧 root、留下 active-but-invisible instance，
+  或 StrictMode probe 会额外 settlement、分配 instance、推进 revision、关闭 owner；
+- root、confirmation subtree 与 related pending candidate 无法在一个 Coordinator
+  commit 中成组退休，或 successful load/import 必须依赖 stale predecessor root 的
+  `close()`；
+- System migration 必须扩大 public generic Coordinator/Surface API、改变
+  Save/Persistence/M2/canonical/digest/replay/wire 语义，或 headless 与 browser 需要
+  不同 admission/transition rules；
+- `host_commit_ready` 不足以表达现有 renderer，必须引入真实异步 renderer
+  preparation contract，或发现真实外部下游必须保留被删除的 standalone writable/raw
+  lifecycle API。
+- initial A -> B supersede 无法在一个 commit 中保持 continuous blocking fallback/
+  isolation，或只能先恢复 external focus；
+- 取消 pending B、保留 active A 必须 fresh-remount A、推进 topology revision 或轮换
+  A input binding；
+- distinct concurrent Host 无法在任何 subscription/renderer/input/portal mutation 前
+  fail closed，或 candidate resolution 必须随 React props/catalog 原地变化；
+- accepted-ready 后 candidate boundary 只能吞错并渲染 `null`，无法委托 existing root
+  runtime-fault policy；
+- 删除 public `SaveOverlayV1` 发现真实受支持的仓库外下游；
+- initial supersede 或 retained-active cancellation 要求公开 generic Coordinator/
+  cancel-preparation API。
 
 ## 15. Acceptance
 
@@ -839,5 +1092,13 @@ definitions、创建新 instance/topology revision；不得反序列化旧 live 
 12. 已迁移 subsystem 的旧 lifecycle store/listener/boolean truth
     被删除或只读化；compatibility adapter 只允许 intent translation 或 immutable
     read-only projection；
-13. [architecture](../architecture.md)、[features](../features.md)、[story authoring](../story-authoring.md)
+13. System 与 Overlay 共用同一个 composition-owned Coordinator/application epoch/
+    publication/successor lifetime；settings/saves single root、Saves exact-parent
+    confirmation child、initial supersede、retained-active pending cancellation、
+    initial/child fallback、replacement retain-current、one logical Host、candidate snapshot、
+    same-key Host-commit cutover、accepted-ready fault boundary、StrictMode terminal-once 与
+    exact async operation handle 均通过 deterministic counts 与 browser evidence；S3e
+    同一 cutover 删除旧 System writer/fallback/raw lifecycle public API 与 public
+    `SaveOverlayV1` component，且 Save/Persistence/M2/canonical/digest/replay/wire 不变；
+14. [architecture](../architecture.md)、[features](../features.md)、[story authoring](../story-authoring.md)
     与 public exports 在实现落地时同步更新。
