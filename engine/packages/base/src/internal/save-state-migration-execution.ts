@@ -20,7 +20,7 @@ import { canonicalJsonBytesWithStrictLimitsInternalV1 } from "../contracts/stric
 import type { StrictJsonLimitsV1, StrictJsonValueV1 } from "../contracts/strict-json.ts";
 import type { DeepReadonly, Digest } from "../contracts/values.ts";
 import { parseDigest } from "../contracts/values.ts";
-import { projectStrictCanonicalJsonInternalV1 } from "./strict-canonical-projection.ts";
+import { projectFrozenStrictCanonicalJsonInternalV1 } from "./strict-canonical-projection.ts";
 
 declare const resolvedSaveStateMigrationChainBrandInternalV1: unique symbol;
 
@@ -156,26 +156,15 @@ function cloneNonEmptyStepIdentitiesInternalV1(
   ];
 }
 
-function freezeCanonicalTreeInternalV1(value: unknown): void {
-  if (value === null || typeof value !== "object") return;
-  for (const descriptor of Object.values(Object.getOwnPropertyDescriptors(value))) {
-    if (descriptor.get === undefined && descriptor.set === undefined) {
-      freezeCanonicalTreeInternalV1(descriptor.value);
-    }
-  }
-  Object.freeze(value);
-}
-
 function admitMigrationStateInternalV1(
   value: unknown,
   limits: DeepReadonly<StrictJsonLimitsV1>,
 ): DeepReadonly<StrictJsonValueV1> {
-  const projection = projectStrictCanonicalJsonInternalV1(value, limits);
+  const projection = projectFrozenStrictCanonicalJsonInternalV1(value, limits);
   const strict = canonicalJsonBytesWithStrictLimitsInternalV1(projection, limits);
   if (!strict.ok) {
     throw new TypeError(`Save State migration State exceeds ${strict.error.code}`);
   }
-  freezeCanonicalTreeInternalV1(projection);
   return projection;
 }
 
@@ -304,6 +293,27 @@ export function resolveSaveStateMigrationChainInternalV1(
   const chain = Object.freeze({}) as ResolvedSaveStateMigrationChainInternalV1;
   resolvedChainMetadataInternalV1.set(chain, metadata);
   return Object.freeze({ kind: "resolved", chain });
+}
+
+/** @internal Constructs diagnostics when the historical Snapshot shell is invalid. */
+export function createSaveStateMigrationSnapshotShellAttemptInternalV1(
+  chain: ResolvedSaveStateMigrationChainInternalV1,
+  sourceStateDigest: Digest,
+): SaveStateMigrationAttemptV1 {
+  const metadata = readResolvedChainMetadataInternalV1(chain);
+  return createAttemptInternalV1(
+    Object.freeze({
+      namespace: metadata.namespace,
+      source: cloneStateContractIdentityInternalV1(metadata.source),
+      target: cloneStateContractIdentityInternalV1(metadata.target),
+      steps: cloneNonEmptyStepIdentitiesInternalV1(metadata.stepIdentities),
+      sourceStateDigest: parseDigest(sourceStateDigest),
+    }),
+    Object.freeze([]),
+    null,
+    "snapshot_shell",
+    null,
+  );
 }
 
 /**

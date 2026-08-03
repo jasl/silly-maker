@@ -261,6 +261,7 @@ export const templateSaveOverlayLabelsV1: SaveOverlayLabelsV1 = Object.freeze({
       invalid_note: "备注不合法",
       lineage_limit: "存档兼容链过长",
       migration_unavailable: "当前版本尚未提供此存档所需的迁移",
+      migration_rejected: "存档迁移失败",
       incompatible: "存档不兼容",
     }),
     exportRejected: Object.freeze({

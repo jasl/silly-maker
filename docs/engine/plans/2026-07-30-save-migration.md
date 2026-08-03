@@ -3,7 +3,7 @@
 状态：2026-07-30 接受执行，审查后从 Snapshot 性能计划拆分；2026-07-31 按
 M0a/M0b metadata ownership 与 PF-DET same-HEAD join 重切片；2026-08-03 M1 已
 promotion，same-HEAD join 已关闭，并按接受的 State-only contract 把 M2 拆为
-M2a–M2e；M2a/M2b 已 promotion，下一独立切片为 M2c。目标合同见
+M2a–M2e；M2a/M2b/M2c 已 promotion，下一独立切片为 M2d。目标合同见
 [Save migration design](../design/save-migration.md)；在
 [production-floor sequence](2026-07-30-production-floor-sequence.md) 中分为 PF3
 与 PF5，并与 PF-DET 按显式 DAG 汇合；不是“完整 PF-DET 后才开始全部 M0–M2”。
@@ -404,7 +404,7 @@ determinism guard与 `deno task check`全绿。Persistence/load/import、maintai
 Save bytes、canonical/digest、Session/CommandLog/replay与 Debug Bundle均未改变。下一独立切片为
 M2c staged integration。
 
-### M2c — Staged load/import integration and failure mapping
+### M2c — Staged load/import integration and failure mapping（已实现）
 
 **目标：** 把 exact registry 接入 Core/Persistence staged admission。Core/application resolution
 验证 registry current identity 等于 resolved State contract；load/import在 raw digest与
@@ -429,6 +429,23 @@ migration phase/code。
 limit、current schema/RNG/reference/invariant failure。每个失败逐项保持 source bytes、Host/
 record revision、live Snapshot/RNG/CommandLog/replay digest、lineage、receipt、autosave与Host
 write count；load/import不写回 source Save，fresh Save自然使用 current provenance/digest。
+
+**2026-08-03 M2c promotion：** Core把 exact registry identity原样传入 Persistence；import与
+stored load在 raw digest/State branch（以及 stored physical identity）之后解析完整 chain，
+admit exact historical Snapshot shell并同步迁移 State。schema前 shell与 schema输出 full record
+都经 bounded descriptor-safe detached/deep-frozen canonical capture，因此 permissive schema或
+cross-field validator不能通过 alias改写非 State字段、绕过 limits或造成 stale digest。candidate
+只更新 State及其 provenance identity/whole-Snapshot digest；RNG、command sequence、integrity、
+annotation、versionStamp、slot、savedAt、record revision与lineage保持。current revision callback
+为 `0`；list/stored export/annotation保持 callback-free。缺 chain产生合同规定的 unavailable，
+callback reject/invalid/throw保留 execution attempt，所有结构化返回的 post-chain validation
+failure均附 phase attempt；这些路径都不修改 source、Host或 authoritative authorities。既有
+Story callback bug/throw仍沿用 unexpected fault语义。低层 success携带
+`migration: receipt | null`，Player success shape不变；
+Session receipt lifecycle和 composite prepare/no-throw commit保留给 M2d，maintained owner保留给
+M2e。focused为 `6 files / 271 tests`，affected Base + UI为 `142/1661`，full unit为
+`229/3405`；latest-stable Deno `2.9.4`上的 typecheck、determinism guard与
+`deno task check`全绿。browser matrix按合同保留给 M2e。
 
 ### M2d — Atomic Session/Persistence/CommandLog/autosave anchor commit
 

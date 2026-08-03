@@ -53,7 +53,7 @@ function parseRecordShellV1<
   return Object.freeze({ kind: "parsed", record });
 }
 
-function parseCurrentRecordV1<
+function parseCurrentRecordSchemaV1<
   TSnapshot,
   TSaveRecord extends SaveRecordEnvelopeV1<TSnapshot, unknown, unknown, unknown>,
 >(
@@ -67,7 +67,6 @@ function parseCurrentRecordV1<
   } {
   try {
     const record = parseCurrentSaveRecordEnvelopeInternalV1(shell, context.recordSchema);
-    context.validateEnvelope(record);
     return Object.freeze({ kind: "parsed", record });
   } catch (error) {
     if (error instanceof RngStateSchemaFailureInternalV1) {
@@ -75,6 +74,75 @@ function parseCurrentRecordV1<
     }
     return Object.freeze({ kind: "rejected", code: "envelope.schema_invalid" });
   }
+}
+
+function validateCurrentRecordCrossFieldsV1<
+  TSnapshot,
+  TSaveRecord extends SaveRecordEnvelopeV1<TSnapshot, unknown, unknown, unknown>,
+>(
+  record: DeepReadonly<TSaveRecord>,
+  context: SaveCodecContextV1<TSnapshot, TSaveRecord>,
+):
+  | { readonly kind: "validated"; readonly record: DeepReadonly<TSaveRecord> }
+  | {
+    readonly kind: "rejected";
+    readonly code: "rng.invalid_state" | "envelope.schema_invalid";
+  } {
+  try {
+    context.validateEnvelope(record);
+    return Object.freeze({ kind: "validated", record });
+  } catch (error) {
+    if (error instanceof RngStateSchemaFailureInternalV1) {
+      return Object.freeze({ kind: "rejected", code: error.code });
+    }
+    return Object.freeze({ kind: "rejected", code: "envelope.schema_invalid" });
+  }
+}
+
+export type CurrentSaveRecordAdmissionInternalV1<TSaveRecord> =
+  | { readonly kind: "admitted"; readonly record: DeepReadonly<TSaveRecord> }
+  | {
+    readonly kind: "rejected";
+    readonly code: "rng.invalid_state" | "envelope.schema_invalid";
+  };
+
+/** @internal Current-Snapshot schema admission without cross-field or digest work. */
+export function parseCurrentSaveRecordEnvelopeSchemaInternalV1<
+  TSnapshot,
+  TSaveRecord extends SaveRecordEnvelopeV1<TSnapshot, unknown, unknown, unknown>,
+>(
+  shell: SaveRecordEnvelopeShellInternalV1<TSaveRecord>,
+  context: SaveCodecContextV1<TSnapshot, TSaveRecord>,
+): CurrentSaveRecordAdmissionInternalV1<TSaveRecord> {
+  const parsed = parseCurrentRecordSchemaV1(shell, context);
+  if (parsed.kind === "rejected") return parsed;
+  return Object.freeze({ kind: "admitted", record: parsed.record });
+}
+
+/** @internal Cross-field admission for an already normalized current record. */
+export function validateCurrentSaveRecordEnvelopeCrossFieldsInternalV1<
+  TSnapshot,
+  TSaveRecord extends SaveRecordEnvelopeV1<TSnapshot, unknown, unknown, unknown>,
+>(
+  record: DeepReadonly<TSaveRecord>,
+  context: SaveCodecContextV1<TSnapshot, TSaveRecord>,
+): CurrentSaveRecordAdmissionInternalV1<TSaveRecord> {
+  const validated = validateCurrentRecordCrossFieldsV1(record, context);
+  if (validated.kind === "rejected") return validated;
+  return Object.freeze({ kind: "admitted", record: validated.record });
+}
+
+/** @internal Current-Snapshot + cross-field admission without digest comparison. */
+export function admitCurrentSaveRecordEnvelopeInternalV1<
+  TSnapshot,
+  TSaveRecord extends SaveRecordEnvelopeV1<TSnapshot, unknown, unknown, unknown>,
+>(
+  shell: SaveRecordEnvelopeShellInternalV1<TSaveRecord>,
+  context: SaveCodecContextV1<TSnapshot, TSaveRecord>,
+): CurrentSaveRecordAdmissionInternalV1<TSaveRecord> {
+  const parsed = parseCurrentSaveRecordEnvelopeSchemaInternalV1(shell, context);
+  if (parsed.kind === "rejected") return parsed;
+  return validateCurrentSaveRecordEnvelopeCrossFieldsInternalV1(parsed.record, context);
 }
 
 function hasMatchingStateDigestV1(
@@ -191,7 +259,7 @@ export function decodeCurrentSaveRecordEnvelopeInternalV1<
   context: SaveCodecContextV1<TSnapshot, TSaveRecord>,
   instrumentation?: SnapshotWorkInstrumentationV1,
 ): SaveRecordDecodeResultV1<TSaveRecord> {
-  const parsed = parseCurrentRecordV1(shell, context);
+  const parsed = admitCurrentSaveRecordEnvelopeInternalV1(shell, context);
   if (parsed.kind === "rejected") return parsed;
   if (
     !hasMatchingStateDigestV1(parsed.record.stateDigest, parsed.record.snapshot, instrumentation)

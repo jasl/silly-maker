@@ -29,6 +29,7 @@ import type {
   PatchSetIdentityV1,
 } from "../../contracts/hotfix.ts";
 import type { BuildProvenanceV1 } from "../../contracts/provenance.ts";
+import type { SaveStateMigrationRegistryV1 } from "../../contracts/save-state-migration.ts";
 import type {
   ExportedSaveV1,
   PersistenceOperationResultV1,
@@ -77,6 +78,7 @@ import {
   classifySaveCompatibilityV1,
   finishSaveImportCandidateInternalV1,
   prepareSaveImportCandidateInternalV1,
+  resumeSaveImportCandidateInternalV1,
   validateSaveImportCandidateV1,
 } from "./compatibility.ts";
 import { encodeSaveRecordInternalV1 } from "./save-codec.ts";
@@ -330,6 +332,7 @@ export interface CreateStandardPersistenceServiceOptionsV1<
   readonly snapshotSchema: RuntimeSchemaV1<TSnapshot>;
   readonly provenance: DeepReadonly<BuildProvenanceV1>;
   readonly adoptionDeclaration: DeepReadonly<PatchSetAdoptionDeclarationV1> | null;
+  readonly saveStateMigrations: SaveStateMigrationRegistryV1 | null;
   readonly ownerId: SessionLeaseOwnerId;
   nextHandoffRequestId(): LeaseHandoffRequestId;
   validateReferences(state: DeepReadonly<TState>): readonly string[];
@@ -955,10 +958,14 @@ async function createPersistenceServiceWithDependenciesV1<
   const validationRejectionV1 = (
     result: SaveImportValidationResultV1<PersistenceSaveRecordV1<TSnapshot>>,
   ): PersistenceOperationResultV1 | null => {
+    if (result.kind === "faulted") return faultedV1(result.code);
     if (result.kind === "inspect_only") {
       return rejectedV1("code" in result ? "migration_unavailable" : "incompatible");
     }
     if (result.kind !== "rejected") return null;
+    if (result.code === "migration.rejected" || result.code === "migration.output_invalid") {
+      return rejectedV1("migration_rejected");
+    }
     return rejectedV1(
       result.code === "compatibility.lineage_limit" ? "lineage_limit" : "invalid_record",
     );
@@ -1038,12 +1045,29 @@ async function createPersistenceServiceWithDependenciesV1<
     });
   };
 
-  const validateStoredSlotV1 = async (slotId: SaveSlotIdV1) => {
+  const validateStoredSlotInternalV1 = async (
+    slotId: SaveSlotIdV1,
+    executeMigration: boolean,
+  ) => {
     const read = await prepareStoredSlotV1(slotId);
     if (read.health !== "prepared") return read;
-    const validation = read.preparation.kind === "migration_unavailable"
-      ? read.preparation.result
-      : finishSaveImportCandidateInternalV1(read.preparation, options.validation);
+    let validation: SaveImportValidationResultV1<PersistenceSaveRecordV1<TSnapshot>>;
+    if (read.preparation.kind === "migration_pending") {
+      if (!executeMigration) {
+        validation = read.preparation.result;
+      } else {
+        const resumed = resumeSaveImportCandidateInternalV1(
+          read.preparation,
+          options.validation,
+          instrumentation,
+        );
+        validation = resumed.kind === "prepared"
+          ? finishSaveImportCandidateInternalV1(resumed, options.validation)
+          : resumed;
+      }
+    } else {
+      validation = finishSaveImportCandidateInternalV1(read.preparation, options.validation);
+    }
     return Object.freeze({
       health: "validated" as const,
       slotId,
@@ -1053,6 +1077,10 @@ async function createPersistenceServiceWithDependenciesV1<
       validation,
     });
   };
+  const validateStoredSlotForInspectionV1 = (slotId: SaveSlotIdV1) =>
+    validateStoredSlotInternalV1(slotId, false);
+  const validateStoredSlotForLoadV1 = (slotId: SaveSlotIdV1) =>
+    validateStoredSlotInternalV1(slotId, true);
 
   const enqueueReplacementV1 = (
     operation: (
@@ -1203,7 +1231,7 @@ async function createPersistenceServiceWithDependenciesV1<
       return Promise.resolve(faultedV1("persistence.invalid_slot"));
     }
     return enqueueReplacementV1(async () => {
-      const read = await validateStoredSlotV1(slot);
+      const read = await validateStoredSlotForLoadV1(slot);
       if (read.health === "empty") {
         return Object.freeze({
           kind: "preserve" as const,
@@ -1264,7 +1292,7 @@ async function createPersistenceServiceWithDependenciesV1<
 
     async listSlots() {
       try {
-        const reads = await Promise.all(slotIds.map(validateStoredSlotV1));
+        const reads = await Promise.all(slotIds.map(validateStoredSlotForInspectionV1));
         const dispositions: Array<{
           readonly runnable: boolean;
           readonly summary: SaveSlotSummaryV1;
@@ -1286,7 +1314,7 @@ async function createPersistenceServiceWithDependenciesV1<
             });
           }
           const validation = read.validation;
-          const warningCodes = validation.kind === "rejected"
+          const warningCodes = validation.kind === "rejected" || validation.kind === "faulted"
             ? [validation.code]
             : validation.kind === "inspect_only"
             ? "code" in validation ? [validation.code] : [
@@ -1300,7 +1328,8 @@ async function createPersistenceServiceWithDependenciesV1<
             runnable: validation.kind === "exact" || validation.kind === "adopted",
             summary: Object.freeze({
               slotId: read.slotId,
-              health: validation.kind === "rejected" && !lineageLimited
+              health: (validation.kind === "rejected" && !lineageLimited) ||
+                  validation.kind === "faulted"
                 ? ("invalid" as const)
                 : ("valid" as const),
               recordRevision: read.envelope.recordRevision,
@@ -1445,7 +1474,7 @@ async function createPersistenceServiceWithDependenciesV1<
             return rejectedV1("unavailable");
           }
           if (read.health === "invalid") return rejectedV1("invalid_record");
-          if (read.preparation.kind === "migration_unavailable") {
+          if (read.preparation.kind === "migration_pending") {
             return rejectedV1("migration_unavailable");
           }
           const stored = read.preparation.record as PersistenceSaveRecordV1<TSnapshot>;
@@ -1565,7 +1594,7 @@ async function createPersistenceServiceWithDependenciesV1<
         });
       }
       try {
-        const first = await validateStoredSlotV1(slot);
+        const first = await validateStoredSlotForInspectionV1(slot);
         if (first.health === "empty") return exportRejectedV1("empty_slot");
         if (first.health === "unavailable") {
           rememberFailureV1(first.code);
@@ -2105,6 +2134,7 @@ function createStandardPersistenceDependenciesV1<
   > = Object.freeze({
     codec,
     currentStateContractRevision: options.provenance.resolved.stateContractRevision,
+    saveStateMigrations: options.saveStateMigrations,
     classifyCompatibility(record: DeepReadonly<PersistenceSaveRecordV1<TSnapshot>>) {
       return classifySaveCompatibilityV1({
         stored: record.provenance,

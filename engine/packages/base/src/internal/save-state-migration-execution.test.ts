@@ -20,6 +20,7 @@ import { parsePositiveSafeInteger } from "../contracts/values.ts";
 import {
   createSaveStateMigrationAttemptInternalV1,
   createSaveStateMigrationReceiptInternalV1,
+  createSaveStateMigrationSnapshotShellAttemptInternalV1,
   executeResolvedSaveStateMigrationInternalV1,
   resolveSaveStateMigrationChainInternalV1,
 } from "./save-state-migration-execution.ts";
@@ -985,6 +986,43 @@ describe("Save State migration pure execution", () => {
         result.completion,
         "compatibility",
         null,
+      )
+    ).toThrow(TypeError);
+  });
+
+  it("constructs snapshot-shell evidence only from an exact resolved chain", () => {
+    const first = identityV1(1);
+    const second = identityV1(2);
+    const registry = defineSaveStateMigrationRegistryV1({
+      namespace: namespaceV1,
+      minimumSupported: first,
+      current: second,
+      steps: [
+        stepV1(first, second, "snapshot-shell", (state) => ({ kind: "migrated", state })),
+      ],
+    });
+    const chain = resolveV1(registry, first);
+
+    const attempt = createSaveStateMigrationSnapshotShellAttemptInternalV1(
+      chain,
+      sourceStateDigestV1,
+    );
+
+    expect(attempt).toMatchObject({
+      namespace: namespaceV1,
+      source: first,
+      target: second,
+      sourceStateDigest: sourceStateDigestV1,
+      completedSteps: [],
+      failingStep: null,
+      failingPhase: "snapshot_shell",
+      migratedStateDigest: null,
+    });
+    expectFrozenTreeV1(attempt);
+    expect(() =>
+      createSaveStateMigrationSnapshotShellAttemptInternalV1(
+        { ...chain } as ResolvedSaveStateMigrationChainInternalV1,
+        sourceStateDigestV1,
       )
     ).toThrow(TypeError);
   });

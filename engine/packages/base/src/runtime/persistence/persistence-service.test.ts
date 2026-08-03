@@ -465,6 +465,7 @@ async function fixtureV1(options: FixtureOptionsV1 = {}) {
   > = Object.freeze({
     codec: codecV1,
     currentStateContractRevision: provenance.resolved.stateContractRevision,
+    saveStateMigrations: null,
     classifyCompatibility(record: DeepReadonly<SyntheticSaveRecordV1>) {
       return classifySaveCompatibilityV1({
         stored: record.provenance,
@@ -2575,6 +2576,7 @@ describe("PersistenceService standard composition", () => {
       snapshotSchema: snapshotSchemaV1,
       provenance,
       adoptionDeclaration: null,
+      saveStateMigrations: null,
       ownerId: ownerIdV1,
       nextHandoffRequestId: () => "handoff.standard" as never,
       validateReferences: (state: DeepReadonly<SyntheticStateV1>) =>

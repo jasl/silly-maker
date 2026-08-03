@@ -281,3 +281,23 @@ export function projectStrictCanonicalJsonInternalV1(
 
   return project(value, 1) as DeepReadonly<StrictJsonValueV1>;
 }
+
+function freezeStrictCanonicalTreeInternalV1(value: StrictJsonValueV1): void {
+  if (value === null || typeof value !== "object") return;
+  for (const descriptor of Object.values(Object.getOwnPropertyDescriptors(value))) {
+    if (descriptor.get === undefined && descriptor.set === undefined && "value" in descriptor) {
+      freezeStrictCanonicalTreeInternalV1(descriptor.value as StrictJsonValueV1);
+    }
+  }
+  Object.freeze(value);
+}
+
+/** @internal Descriptor-safe detached capture that is immutable before downstream admission. */
+export function projectFrozenStrictCanonicalJsonInternalV1(
+  value: unknown,
+  limits: DeepReadonly<StrictJsonLimitsV1>,
+): DeepReadonly<StrictJsonValueV1> {
+  const projection = projectStrictCanonicalJsonInternalV1(value, limits);
+  freezeStrictCanonicalTreeInternalV1(projection as StrictJsonValueV1);
+  return projection;
+}

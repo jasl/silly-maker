@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 import { canonicalJsonBytes } from "../../contracts/canonical-json.ts";
+import { digestCanonicalInternalV1 } from "../../contracts/digest.ts";
 import type {
   AppliedHotfixV1,
   PatchReplacementTraceV1,
@@ -7,7 +8,7 @@ import type {
   PatchSetIdentityV1,
 } from "../../contracts/hotfix.ts";
 import type { BuildProvenanceV1 } from "../../contracts/provenance.ts";
-import { exactEnvelopeDescriptorsV1 } from "../../contracts/persistence.ts";
+import { exactEnvelopeDescriptorsV1, saveJsonLimitsV1 } from "../../contracts/persistence.ts";
 import type {
   ImportCompatibilityWarningV1,
   ImportRejectionCodeV1,
@@ -21,16 +22,33 @@ import type {
   SaveRecordEnvelopeShellInternalV1,
   SimulationAdoptionV1,
 } from "../../contracts/persistence.ts";
-import type { DeepReadonly, NonNegativeSafeInteger } from "../../contracts/values.ts";
+import { readSaveStateMigrationRegistryInternalV1 } from "../../contracts/save-state-migration.ts";
+import type {
+  SaveStateMigrationReceiptV1,
+  SaveStateMigrationRegistryV1,
+} from "../../contracts/save-state-migration.ts";
+import type { StrictJsonValueV1 } from "../../contracts/strict-json.ts";
+import type { DeepReadonly, Digest, NonNegativeSafeInteger } from "../../contracts/values.ts";
 import {
   parseDigest,
   parseNonNegativeSafeInteger,
   parsePositiveSafeInteger,
 } from "../../contracts/values.ts";
 import type { SnapshotWorkInstrumentationV1 } from "../../internal/snapshot-work-instrumentation.ts";
+import { projectFrozenStrictCanonicalJsonInternalV1 } from "../../internal/strict-canonical-projection.ts";
+import {
+  createSaveStateMigrationAttemptInternalV1,
+  createSaveStateMigrationReceiptInternalV1,
+  createSaveStateMigrationSnapshotShellAttemptInternalV1,
+  executeResolvedSaveStateMigrationInternalV1,
+  resolveSaveStateMigrationChainInternalV1,
+} from "../../internal/save-state-migration-execution.ts";
+import type { CompletedSaveStateMigrationInternalV1 } from "../../internal/save-state-migration-execution.ts";
 import {
   decodeCurrentSaveRecordEnvelopeInternalV1,
   decodeSaveRecordEnvelopeShellInternalV1,
+  parseCurrentSaveRecordEnvelopeSchemaInternalV1,
+  validateCurrentSaveRecordEnvelopeCrossFieldsInternalV1,
 } from "./save-codec.ts";
 
 const emptyTupleV1 = (): readonly [] => Object.freeze([]) as readonly [];
@@ -677,20 +695,31 @@ function normalizeCompatibilityClassificationV1(value: unknown): SaveCompatibili
   throw new TypeError("invalid compatibility classification kind");
 }
 
+interface SaveImportMigrationEvidenceInternalV1 {
+  readonly receipt: SaveStateMigrationReceiptV1;
+  readonly completion: CompletedSaveStateMigrationInternalV1;
+  readonly migratedStateDigest: Digest;
+}
+
+export interface SaveImportPreparedCandidateInternalV1<
+  TSaveRecord extends SaveRecordEnvelopeV1<unknown, unknown, unknown, unknown>,
+> {
+  readonly kind: "prepared";
+  readonly envelope: SaveRecordEnvelopeShellInternalV1<TSaveRecord>;
+  readonly record: DeepReadonly<TSaveRecord>;
+  readonly migration: SaveImportMigrationEvidenceInternalV1 | null;
+}
+
 export type SaveImportPreparationInternalV1<
   TSaveRecord extends SaveRecordEnvelopeV1<unknown, unknown, unknown, unknown>,
 > =
   | { readonly kind: "rejected"; readonly code: ImportRejectionCodeV1 }
   | {
-    readonly kind: "migration_unavailable";
+    readonly kind: "migration_pending";
     readonly envelope: SaveRecordEnvelopeShellInternalV1<TSaveRecord>;
     readonly result: SaveMigrationUnavailableInspectionV1;
   }
-  | {
-    readonly kind: "prepared";
-    readonly envelope: SaveRecordEnvelopeShellInternalV1<TSaveRecord>;
-    readonly record: DeepReadonly<TSaveRecord>;
-  };
+  | SaveImportPreparedCandidateInternalV1<TSaveRecord>;
 
 /** @internal Pre-compatibility Save admission; intentionally absent from runtime barrels. */
 export function prepareSaveImportCandidateInternalV1<
@@ -713,7 +742,7 @@ export function prepareSaveImportCandidateInternalV1<
   );
   if (storedStateContractRevision !== currentStateContractRevision) {
     return Object.freeze({
-      kind: "migration_unavailable",
+      kind: "migration_pending",
       envelope: shell.record,
       result: Object.freeze({
         kind: "inspect_only",
@@ -733,6 +762,207 @@ export function prepareSaveImportCandidateInternalV1<
     kind: "prepared",
     envelope: shell.record,
     record: decoded.record,
+    migration: null,
+  });
+}
+
+interface HistoricalSnapshotShellInternalV1 {
+  readonly state: StrictJsonValueV1;
+  readonly rng: unknown;
+  readonly commandSequence: unknown;
+  readonly integrity: unknown;
+}
+
+function parseHistoricalSnapshotShellInternalV1(
+  value: unknown,
+): HistoricalSnapshotShellInternalV1 {
+  const fields = exactEnvelopeDescriptorsV1(
+    value,
+    ["state", "rng", "commandSequence", "integrity"],
+    "historical GameSnapshot",
+  );
+  return Object.freeze({
+    state: fields.state?.value as StrictJsonValueV1,
+    rng: fields.rng?.value,
+    commandSequence: fields.commandSequence?.value,
+    integrity: fields.integrity?.value,
+  });
+}
+
+function preservesHistoricalSnapshotAxesInternalV1(
+  historical: HistoricalSnapshotShellInternalV1,
+  current: unknown,
+): boolean {
+  try {
+    const fields = exactEnvelopeDescriptorsV1(
+      current,
+      ["state", "rng", "commandSequence", "integrity"],
+      "current GameSnapshot",
+    );
+    return canonicalBytesEqualV1(historical.rng, fields.rng?.value) &&
+      canonicalBytesEqualV1(historical.commandSequence, fields.commandSequence?.value) &&
+      canonicalBytesEqualV1(historical.integrity, fields.integrity?.value);
+  } catch {
+    return false;
+  }
+}
+
+function migratedProvenanceInternalV1(
+  stored: DeepReadonly<BuildProvenanceV1>,
+  registry: SaveStateMigrationRegistryV1,
+): DeepReadonly<BuildProvenanceV1> {
+  const target = readSaveStateMigrationRegistryInternalV1(registry).current;
+  return Object.freeze({
+    ...stored,
+    resolved: Object.freeze({
+      ...stored.resolved,
+      stateContractRevision: target.stateContractRevision,
+      stateContractDigest: target.stateContractDigest,
+    }),
+  });
+}
+
+/** @internal Continues a historical branch only after stored physical admission. */
+export function resumeSaveImportCandidateInternalV1<
+  TState,
+  TSnapshot extends {
+    readonly state: TState;
+    readonly commandSequence: NonNegativeSafeInteger;
+  },
+  TSaveRecord extends SaveRecordEnvelopeV1<TSnapshot, BuildProvenanceV1, unknown, unknown>,
+>(
+  pending: Extract<
+    SaveImportPreparationInternalV1<TSaveRecord>,
+    { readonly kind: "migration_pending" }
+  >,
+  context: SaveImportValidationContextV1<TState, TSnapshot, TSaveRecord>,
+  instrumentation?: SnapshotWorkInstrumentationV1,
+): SaveImportPreparedCandidateInternalV1<TSaveRecord> | SaveImportValidationResultV1<TSaveRecord> {
+  const registry = context.saveStateMigrations;
+  if (registry === null) return pending.result;
+  const target = readSaveStateMigrationRegistryInternalV1(registry).current;
+  if (target.stateContractRevision !== pending.result.currentStateContractRevision) {
+    throw new TypeError("Save State migration registry target does not match validation context");
+  }
+  const source = Object.freeze({
+    stateContractRevision: pending.envelope.provenance.resolved.stateContractRevision,
+    stateContractDigest: pending.envelope.provenance.resolved.stateContractDigest,
+  });
+  const resolution = resolveSaveStateMigrationChainInternalV1(registry, source);
+  if (resolution.kind === "unavailable") return pending.result;
+
+  let snapshot: HistoricalSnapshotShellInternalV1;
+  try {
+    snapshot = parseHistoricalSnapshotShellInternalV1(pending.envelope.snapshot);
+  } catch {
+    return Object.freeze({
+      kind: "rejected",
+      code: "envelope.schema_invalid",
+      migrationAttempt: createSaveStateMigrationSnapshotShellAttemptInternalV1(
+        resolution.chain,
+        pending.envelope.stateDigest,
+      ),
+    });
+  }
+
+  const execution = executeResolvedSaveStateMigrationInternalV1({
+    chain: resolution.chain,
+    sourceStateDigest: pending.envelope.stateDigest,
+    state: snapshot.state,
+    limits: saveJsonLimitsV1,
+  });
+  if (execution.kind !== "migrated") return execution;
+
+  const migratedShell = Object.freeze({
+    ...pending.envelope,
+    provenance: migratedProvenanceInternalV1(pending.envelope.provenance, registry),
+    snapshot: Object.freeze({
+      state: execution.state,
+      rng: snapshot.rng,
+      commandSequence: snapshot.commandSequence,
+      integrity: snapshot.integrity,
+    }),
+  }) as SaveRecordEnvelopeShellInternalV1<TSaveRecord>;
+  let schemaInput: SaveRecordEnvelopeShellInternalV1<TSaveRecord>;
+  try {
+    schemaInput = projectFrozenStrictCanonicalJsonInternalV1(
+      migratedShell,
+      saveJsonLimitsV1,
+    ) as unknown as SaveRecordEnvelopeShellInternalV1<TSaveRecord>;
+  } catch {
+    return Object.freeze({
+      kind: "rejected",
+      code: "envelope.schema_invalid",
+      migrationAttempt: createSaveStateMigrationAttemptInternalV1(
+        execution.completion,
+        "current_snapshot_schema",
+        null,
+      ),
+    });
+  }
+  const parsed = parseCurrentSaveRecordEnvelopeSchemaInternalV1(schemaInput, context.codec);
+  let normalizedRecord: DeepReadonly<TSaveRecord> | null = null;
+  if (parsed.kind !== "rejected") {
+    try {
+      normalizedRecord = projectFrozenStrictCanonicalJsonInternalV1(
+        parsed.record,
+        saveJsonLimitsV1,
+      ) as unknown as DeepReadonly<TSaveRecord>;
+    } catch {
+      normalizedRecord = null;
+    }
+  }
+  if (
+    parsed.kind === "rejected" ||
+    normalizedRecord === null ||
+    !preservesHistoricalSnapshotAxesInternalV1(snapshot, normalizedRecord.snapshot)
+  ) {
+    return Object.freeze({
+      kind: "rejected",
+      code: parsed.kind === "rejected" ? parsed.code : "envelope.schema_invalid",
+      migrationAttempt: createSaveStateMigrationAttemptInternalV1(
+        execution.completion,
+        "current_snapshot_schema",
+        null,
+      ),
+    });
+  }
+  const migratedStateDigest = digestCanonicalInternalV1(
+    "sillymaker:state:v1",
+    normalizedRecord.snapshot,
+    instrumentation,
+  );
+  const candidate = Object.freeze({
+    ...normalizedRecord,
+    stateDigest: migratedStateDigest,
+  }) as DeepReadonly<TSaveRecord>;
+  const admitted = validateCurrentSaveRecordEnvelopeCrossFieldsInternalV1(
+    candidate,
+    context.codec,
+  );
+  if (admitted.kind === "rejected") {
+    return Object.freeze({
+      ...admitted,
+      migrationAttempt: createSaveStateMigrationAttemptInternalV1(
+        execution.completion,
+        "current_snapshot_schema",
+        null,
+      ),
+    });
+  }
+  const receipt = createSaveStateMigrationReceiptInternalV1(
+    execution.completion,
+    migratedStateDigest,
+  );
+  return Object.freeze({
+    kind: "prepared",
+    envelope: pending.envelope,
+    record: admitted.record,
+    migration: Object.freeze({
+      receipt,
+      completion: execution.completion,
+      migratedStateDigest,
+    }),
   });
 }
 
@@ -745,20 +975,37 @@ export function finishSaveImportCandidateInternalV1<
   },
   TSaveRecord extends SaveRecordEnvelopeV1<TSnapshot, BuildProvenanceV1, unknown, unknown>,
 >(
-  prepared: Extract<SaveImportPreparationInternalV1<TSaveRecord>, { readonly kind: "prepared" }>,
+  prepared: SaveImportPreparedCandidateInternalV1<TSaveRecord>,
   context: SaveImportValidationContextV1<TState, TSnapshot, TSaveRecord>,
 ): SaveImportValidationResultV1<TSaveRecord> {
   const classification = normalizeCompatibilityClassificationV1(
     context.classifyCompatibility(prepared.record),
   );
   if (classification.kind === "rejected") {
-    return Object.freeze({ kind: "rejected", code: classification.code });
+    return Object.freeze({
+      kind: "rejected",
+      code: classification.code,
+      ...(prepared.migration === null ? {} : {
+        migrationAttempt: createSaveStateMigrationAttemptInternalV1(
+          prepared.migration.completion,
+          "compatibility",
+          prepared.migration.migratedStateDigest,
+        ),
+      }),
+    });
   }
   if (classification.kind === "inspect_only") {
     return Object.freeze({
       kind: "inspect_only",
       mismatches: classification.mismatches,
       warnings: classification.warnings,
+      ...(prepared.migration === null ? {} : {
+        migrationAttempt: createSaveStateMigrationAttemptInternalV1(
+          prepared.migration.completion,
+          "compatibility",
+          prepared.migration.migratedStateDigest,
+        ),
+      }),
     });
   }
   const referenceErrors = validateStoryErrorsV1(
@@ -766,7 +1013,17 @@ export function finishSaveImportCandidateInternalV1<
     "reference validation",
   );
   if (referenceErrors.length > 0) {
-    return Object.freeze({ kind: "rejected", code: "reference.unknown_id" });
+    return Object.freeze({
+      kind: "rejected",
+      code: "reference.unknown_id",
+      ...(prepared.migration === null ? {} : {
+        migrationAttempt: createSaveStateMigrationAttemptInternalV1(
+          prepared.migration.completion,
+          "references",
+          prepared.migration.migratedStateDigest,
+        ),
+      }),
+    });
   }
   const invariantView = Object.freeze({
     state: prepared.record.snapshot.state,
@@ -777,7 +1034,17 @@ export function finishSaveImportCandidateInternalV1<
     "invariant validation",
   );
   if (invariantErrors.length > 0) {
-    return Object.freeze({ kind: "rejected", code: "invariant.failed" });
+    return Object.freeze({
+      kind: "rejected",
+      code: "invariant.failed",
+      ...(prepared.migration === null ? {} : {
+        migrationAttempt: createSaveStateMigrationAttemptInternalV1(
+          prepared.migration.completion,
+          "invariants",
+          prepared.migration.migratedStateDigest,
+        ),
+      }),
+    });
   }
   if (classification.kind === "adoption_candidate") {
     return Object.freeze({
@@ -786,6 +1053,7 @@ export function finishSaveImportCandidateInternalV1<
       warnings: classification.warnings,
       adoption: classification.adoption,
       candidate: prepared.record,
+      migration: prepared.migration?.receipt ?? null,
     });
   }
   return Object.freeze({
@@ -793,6 +1061,7 @@ export function finishSaveImportCandidateInternalV1<
     mismatches: emptyTupleV1(),
     warnings: classification.warnings,
     candidate: prepared.record,
+    migration: prepared.migration?.receipt ?? null,
   });
 }
 
@@ -809,6 +1078,10 @@ export function validateSaveImportCandidateV1<
 ): SaveImportValidationResultV1<TSaveRecord> {
   const prepared = prepareSaveImportCandidateInternalV1(bytes, context);
   if (prepared.kind === "rejected") return prepared;
-  if (prepared.kind === "migration_unavailable") return prepared.result;
-  return finishSaveImportCandidateInternalV1(prepared, context);
+  if (prepared.kind === "prepared") {
+    return finishSaveImportCandidateInternalV1(prepared, context);
+  }
+  const resumed = resumeSaveImportCandidateInternalV1(prepared, context);
+  if (resumed.kind !== "prepared") return resumed;
+  return finishSaveImportCandidateInternalV1(resumed, context);
 }

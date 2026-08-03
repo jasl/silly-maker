@@ -82,10 +82,17 @@
 - Canonical Save envelope encoding/decoding and staged strict import validation:
   bounded shell plus raw Snapshot digest, an explicit State-revision fence, then
   current Snapshot normalization plus a second digest before Story validation.
-  A different revision is inspectable/exportable and maps to the distinct Player
-  result `migration_unavailable` without rewriting the record or Session. This
-  floor does not migrate or load historical revisions; there is no executable
-  migration registry yet.
+  An application may declare one exact adjacent-revision aggregate-State migration
+  registry. Import/load with a complete chain synchronously migrates only State,
+  validates the reconstructed current Snapshot, derives a new whole-Snapshot
+  digest, and then applies compatibility/reference/invariant validation without
+  writing back the source Save. Missing chains map to `migration_unavailable`;
+  callback rejection/invalid output maps to `migration_rejected`, while callback
+  throws remain faulted. List, stored export, and annotation never execute a
+  migrator and preserve their inspection/source-byte behavior. Low-level success
+  carries a receipt, but Session receipt lifecycle and real maintained migration
+  ownership remain pending M2d/M2e, so this is not yet a released historical-Save
+  compatibility promise.
 - Story, state-contract, engine, simulation, and patch-lineage compatibility information.
 - Validated managed adoption for compatible simulation changes.
 - Atomic record revisions, session lease/fencing, and HMR persistence handoff on conforming Host stores; browser IndexedDB is the production implementation, while the current desktop file backend is explicitly preview until its batch durability gate passes.
@@ -152,12 +159,12 @@
 
 The engine does not currently provide a backend/account service, networked multiplayer authority, runtime LLM, ECS, SQL query layer, or a general-purpose database client for UI. These are descriptions of the present implementation, not permanent bans.
 
-Save migration currently has exact registry authoring contracts and a bounded
-package-internal pure callback kernel. Persistence does not yet invoke that
-kernel, no maintained application publishes a real migration owner, and no
-historical Save is currently migrated; staged load/import integration, atomic
-replacement provenance, cross-runtime promotion, and player workflows remain
-planned.
+Save migration has exact registry authoring contracts, a bounded
+package-internal pure callback kernel, and staged load/import integration for an
+application-provided exact chain. No maintained application publishes a real
+migration owner, and Session-owned replacement provenance is not yet installed;
+atomic receipt/anchor commit, cross-runtime promotion, release fixtures, and
+player inspection/backup workflows remain planned.
 
 The script-language decision is durable: Story, Module, Narrative, UI, and official Hotfix code use TypeScript/JavaScript. SillyMaker does not plan Ren'Py DSL/Save compatibility, a custom script interpreter, or an untrusted-code security sandbox. Direct Host-global access remains possible JavaScript but is outside the supported engine API.
 

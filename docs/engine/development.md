@@ -117,11 +117,12 @@ It recollects the root application registry, managed simulation dependencies,
 declared callback owners, bounded Base authorities, and the maintained synthetic
 migration extension on every execution; it does not read a cached file list.
 The M2a State-migration registry factory/normalizer and M2b pure execution
-kernel are bounded Base authorities. The kernel is package-internal, resolves
-only exact non-empty paths, and returns immutable attempt/completion data; it is
-not a Story workflow or load path. Maintained applications do not publish a real
-migration owner and Persistence does not execute callbacks until the later M2
-integration/promotion slices.
+kernel are bounded Base authorities. M2c connects an exact registry supplied by
+Core to staged import/load: the package-internal kernel resolves only exact
+non-empty paths and returns immutable attempt/completion data, while Persistence
+owns historical Snapshot admission, final whole-Snapshot digest, and failure
+mapping. Maintained applications still do not publish a real migration owner;
+that authority/tripwire promotion remains M2e.
 Collection/classification failures abort before linting. After collection, every
 unique exact path is read once; read, unsupported-extension, and parse failures
 use stable diagnostics, and all output is ordered by UTF-16 file/range/code.
@@ -445,15 +446,21 @@ schema-normalized current Snapshot. Import validation and stored operations add
 the State-revision fence between those phases, before current Snapshot parsing.
 A raw-digest mismatch stops after the first traversal without current Snapshot
 parsing; a current-schema or RNG failure after a valid raw digest records only
-that first digest; a differing State revision on validation/service paths also
-stops before current Snapshot and Story callbacks. Stored load/list/export
-finish compatibility/reference/invariant validation after staged preparation
-and Host revision/slot identity checks. Annotation shares preparation and the
-physical checks but intentionally performs no Story validation callback before
-its revision-aware rewrite. These are deterministic package-internal counts,
-not wall-clock gates. The M2b pure callback kernel now exists, but staged
-Persistence integration and any historical Save replacement remain later plan
-slices.
+that first digest; a differing State revision first enters a callback-free
+pending branch. Stored load/list/export finish current-record compatibility/
+reference/invariant validation after staged preparation and Host revision/slot
+identity checks. For a historical revision, only load continues from that
+physical check into exact-chain resolution and synchronous migration; list and
+stored export retain unavailable inspection/source bytes. Annotation shares
+preparation and the physical checks but executes neither migration nor Story
+validation callbacks. Public import has no physical Host phase and continues
+directly. Authors construct a registry with `defineSaveStateMigrationRegistryV1`
+and pass it as `saveStateMigrations` on the Core definition; callbacks must stay
+synchronous, deterministic, State-only, and inside the registered authoritative
+source closure. Focused tests should assert exact callback counts,
+whole-Snapshot digest/receipt identity, and zero mutation/write on every failure.
+These are deterministic package-internal counts, not wall-clock gates. Session
+receipt lifecycle and the composite M2d commit protocol are not implemented yet.
 
 Strict JSON numeric regression tests use exact decimal token vectors rather
 than wall-clock timing: rounded fractions, safe boundaries, negative-zero

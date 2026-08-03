@@ -161,6 +161,7 @@ export const catcafeSaveOverlayLabelsV1: SaveOverlayLabelsV1 = Object.freeze({
       invalid_note: "备注不合法",
       lineage_limit: "存档兼容链过长",
       migration_unavailable: "当前版本尚未提供此存档所需的迁移",
+      migration_rejected: "存档迁移失败",
       incompatible: "存档不兼容",
     }),
     exportRejected: Object.freeze({
@@ -248,6 +249,7 @@ const catcafeSaveOverlayLabelsEnV1: SaveOverlayLabelsV1 = Object.freeze({
       invalid_note: "The note is not valid",
       lineage_limit: "The save compatibility chain is too long",
       migration_unavailable: "This version cannot migrate that save yet",
+      migration_rejected: "The save migration failed",
       incompatible: "The save is incompatible",
     }),
     exportRejected: Object.freeze({

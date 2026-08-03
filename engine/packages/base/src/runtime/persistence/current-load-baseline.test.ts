@@ -16,10 +16,22 @@ import type {
 import { createMemoryHostRecordStoreV1 } from "../../contracts/host.ts";
 import type { PatchSetAdoptionDeclarationV1 } from "../../contracts/hotfix.ts";
 import type { BuildProvenanceV1 } from "../../contracts/provenance.ts";
+import {
+  defineSaveStateMigrationRegistryV1,
+  parseSaveStateMigrationIdV1,
+  parseSaveStateMigrationNamespaceV1,
+  parseSaveStateMigrationReasonCodeV1,
+} from "../../contracts/save-state-migration.ts";
+import type {
+  SaveStateContractIdentityV1,
+  SaveStateMigrationRegistryV1,
+  SaveStateMigrationStepV1,
+} from "../../contracts/save-state-migration.ts";
 import { createSaveRecordEnvelopeSchemaV1, saveJsonLimitsV1 } from "../../contracts/persistence.ts";
 import type {
   SaveCodecContextV1,
   SaveCompatibilityClassificationV1,
+  SaveImportValidationContextV1,
   SaveRecordEnvelopeV1,
   SimulationAdoptionV1,
 } from "../../contracts/persistence.ts";
@@ -168,6 +180,53 @@ function currentProvenanceV1(): BuildProvenanceV1 {
   });
 }
 
+function migrationTargetProvenanceV1(): BuildProvenanceV1 {
+  const source = snapshotTransactionProvenanceV1;
+  return Object.freeze({
+    ...source,
+    resolved: Object.freeze({
+      ...source.resolved,
+      stateContractRevision: parsePositiveSafeInteger(
+        Number(source.resolved.stateContractRevision) + 1,
+      ),
+      stateContractDigest: digestV1("state-contract.migrated-current"),
+    }),
+  });
+}
+
+function stateContractIdentityV1(
+  provenance: DeepReadonly<BuildProvenanceV1>,
+): SaveStateContractIdentityV1 {
+  return Object.freeze({
+    stateContractRevision: provenance.resolved.stateContractRevision,
+    stateContractDigest: provenance.resolved.stateContractDigest,
+  });
+}
+
+function migrationRegistryV1(
+  target: DeepReadonly<BuildProvenanceV1>,
+  migrate: SaveStateMigrationStepV1["migrate"],
+): SaveStateMigrationRegistryV1 {
+  const namespace = parseSaveStateMigrationNamespaceV1("state.current-load-baseline");
+  const sourceIdentity = stateContractIdentityV1(snapshotTransactionProvenanceV1);
+  const targetIdentity = stateContractIdentityV1(target);
+  return defineSaveStateMigrationRegistryV1({
+    namespace,
+    minimumSupported: sourceIdentity,
+    current: targetIdentity,
+    steps: [
+      {
+        migrationId: parseSaveStateMigrationIdV1("migration.current-load-baseline.one"),
+        namespace,
+        from: sourceIdentity,
+        to: targetIdentity,
+        references: { renames: [], deletions: [] },
+        migrate,
+      },
+    ],
+  });
+}
+
 function adoptionDeclarationV1(
   stored: DeepReadonly<BuildProvenanceV1>,
   current: DeepReadonly<BuildProvenanceV1>,
@@ -253,6 +312,7 @@ async function fixtureV1(input: {
   readonly provenance?: BuildProvenanceV1;
   readonly snapshotSchema?: RuntimeSchemaV1<NeutralSnapshotV1>;
   readonly adoptionDeclaration?: PatchSetAdoptionDeclarationV1 | null;
+  readonly saveStateMigrations?: SaveStateMigrationRegistryV1 | null;
   readonly referenceErrors?: readonly string[];
   readonly invariantErrors?: readonly string[];
   readonly onValidateReferences?: () => void;
@@ -268,6 +328,7 @@ async function fixtureV1(input: {
     snapshotSchema: input.snapshotSchema ?? snapshotTransactionSnapshotSchemaV1,
     provenance: input.provenance ?? snapshotTransactionProvenanceV1,
     adoptionDeclaration: input.adoptionDeclaration ?? null,
+    saveStateMigrations: input.saveStateMigrations ?? null,
     ownerId: `owner.current-load-baseline.${String(fixtureOrdinalV1)}` as SessionLeaseOwnerId,
     nextHandoffRequestId: () =>
       `handoff.current-load-baseline.${String(fixtureOrdinalV1)}` as LeaseHandoffRequestId,
@@ -321,6 +382,7 @@ async function expectRejectedImportV1(
       | "invalid_record"
       | "incompatible"
       | "lineage_limit"
+      | "migration_rejected"
       | "migration_unavailable";
   },
   options: Parameters<typeof fixtureV1>[0] = {},
@@ -368,6 +430,7 @@ async function expectRejectedLoadPreservesAuthorityV1(
       | "invalid_record"
       | "incompatible"
       | "lineage_limit"
+      | "migration_rejected"
       | "migration_unavailable";
   },
 ) {
@@ -544,6 +607,7 @@ describe("post-DET-A current Save load baseline", () => {
     const validation = Object.freeze({
       codec: neutralCodecV1,
       currentStateContractRevision: snapshotTransactionProvenanceV1.resolved.stateContractRevision,
+      saveStateMigrations: null,
       classifyCompatibility(): SaveCompatibilityClassificationV1 {
         compatibilityCalls += 1;
         return Object.freeze({
@@ -606,6 +670,7 @@ describe("post-DET-A current Save load baseline", () => {
     const validation = Object.freeze({
       codec: normalizingCodecV1,
       currentStateContractRevision: snapshotTransactionProvenanceV1.resolved.stateContractRevision,
+      saveStateMigrations: null,
       classifyCompatibility(): SaveCompatibilityClassificationV1 {
         compatibilityCalls += 1;
         return Object.freeze({
@@ -768,6 +833,7 @@ describe("post-DET-A current Save load baseline", () => {
     const validation = Object.freeze({
       codec: countingCodecV1,
       currentStateContractRevision: snapshotTransactionProvenanceV1.resolved.stateContractRevision,
+      saveStateMigrations: null,
       classifyCompatibility(): SaveCompatibilityClassificationV1 {
         compatibilityCalls += 1;
         throw new TypeError("compatibility must not run");
@@ -803,6 +869,7 @@ describe("post-DET-A current Save load baseline", () => {
         Object.freeze({
           ...validation,
           currentStateContractRevision: newerCurrentRevision,
+          saveStateMigrations: null,
         }),
       ),
     ).toEqual({
@@ -1283,6 +1350,292 @@ describe("post-DET-A current Save load baseline", () => {
       expect(limited.store.saveCommitCount()).toBe(0);
     } finally {
       await limited.service.disposeForRebootstrap();
+    }
+  });
+});
+
+describe("M2c staged Save State migration integration", () => {
+  it("runs one exact callback for load/import, installs the migrated Snapshot, and never writes back", async () => {
+    const target = migrationTargetProvenanceV1();
+    let migrationCalls = 0;
+    const registry = migrationRegistryV1(target, (state) => {
+      migrationCalls += 1;
+      return Object.freeze({ kind: "migrated" as const, state });
+    });
+    const sourceBytes = currentRecordBytesV1();
+    const sourceBefore = Uint8Array.from(sourceBytes);
+    const loaded = await fixtureV1({
+      slots: Object.freeze([{ slotId: "quick", bytes: sourceBytes }]),
+      provenance: target,
+      saveStateMigrations: registry,
+    });
+    try {
+      await loaded.session.dispatch("cross_owner_atomic_committed");
+      const recordsBefore = await rawSaveRecordsV1(loaded.store.records);
+
+      await expect(loaded.service.port.load("quick")).resolves.toEqual({
+        kind: "loaded",
+        compatibility: "exact",
+        commandSequence: 0,
+      });
+
+      expect(migrationCalls).toBe(1);
+      expect(loaded.session.commandLog()).toEqual([]);
+      expect(loaded.session.replayBase()).toBe(loaded.session.snapshot());
+      expect(await rawSaveRecordsV1(loaded.store.records)).toEqual(recordsBefore);
+      expect(loaded.store.saveCommitCount()).toBe(0);
+      const fresh = await loaded.service.port.exportCurrentSave();
+      const freshRecord = JSON.parse(textDecoderV1.decode(fresh.bytes)) as Record<string, unknown>;
+      expect(freshRecord.provenance).toMatchObject({
+        resolved: {
+          stateContractRevision: target.resolved.stateContractRevision,
+          stateContractDigest: target.resolved.stateContractDigest,
+        },
+      });
+      expect(freshRecord.stateDigest).toBe(
+        digestCanonical("sillymaker:state:v1", freshRecord.snapshot),
+      );
+    } finally {
+      await loaded.service.disposeForRebootstrap();
+    }
+
+    const imported = await fixtureV1({
+      provenance: target,
+      saveStateMigrations: registry,
+    });
+    try {
+      const recordsBefore = await rawSaveRecordsV1(imported.store.records);
+      await expect(imported.service.port.importSave(sourceBytes)).resolves.toEqual({
+        kind: "imported",
+        compatibility: "exact",
+        commandSequence: 0,
+      });
+      expect(migrationCalls).toBe(2);
+      expect(sourceBytes).toEqual(sourceBefore);
+      expect(await rawSaveRecordsV1(imported.store.records)).toEqual(recordsBefore);
+      expect(imported.store.saveCommitCount()).toBe(0);
+    } finally {
+      await imported.service.disposeForRebootstrap();
+    }
+  });
+
+  it("keeps list, stored export, and annotation callback-free over a migratable record", async () => {
+    const target = migrationTargetProvenanceV1();
+    let migrationCalls = 0;
+    const registry = migrationRegistryV1(target, (state) => {
+      migrationCalls += 1;
+      return Object.freeze({ kind: "migrated" as const, state });
+    });
+    const sourceBytes = currentRecordBytesV1();
+    const fixture = await fixtureV1({
+      slots: Object.freeze([{ slotId: "quick", bytes: sourceBytes }]),
+      provenance: target,
+      saveStateMigrations: registry,
+    });
+    try {
+      const recordsBefore = await rawSaveRecordsV1(fixture.store.records);
+      const listed = await fixture.service.port.listSlots();
+      expect(listed.find(({ slotId }) => slotId === "quick")).toMatchObject({
+        health: "valid",
+        warningCodes: ["migration.unavailable"],
+      });
+      const exported = await fixture.service.port.exportSave("quick");
+      expect(exported).toMatchObject({ kind: "exported", slotId: "quick" });
+      if (exported.kind !== "exported") throw new TypeError("expected historical export");
+      expect(exported.file.bytes).toEqual(sourceBytes);
+      await expect(fixture.service.port.annotateSave("quick", "not a dry run")).resolves.toEqual({
+        kind: "rejected",
+        code: "migration_unavailable",
+      });
+      expect(migrationCalls).toBe(0);
+      expect(await rawSaveRecordsV1(fixture.store.records)).toEqual(recordsBefore);
+      expect(fixture.store.saveCommitCount()).toBe(0);
+
+      await expect(fixture.service.port.load("quick")).resolves.toMatchObject({
+        kind: "loaded",
+        compatibility: "exact",
+      });
+      expect(migrationCalls).toBe(1);
+    } finally {
+      await fixture.service.disposeForRebootstrap();
+    }
+  });
+
+  it.each(
+    [
+      ["slot identity", currentRecordBytesV1({ slotId: "manual.1" })],
+      ["Host revision", currentRecordBytesV1({ recordRevision: 2 })],
+    ] as const,
+  )("rejects stored %s mismatch before chain execution", async (_label, bytes) => {
+    const target = migrationTargetProvenanceV1();
+    let migrationCalls = 0;
+    const registry = migrationRegistryV1(target, (state) => {
+      migrationCalls += 1;
+      return Object.freeze({ kind: "migrated" as const, state });
+    });
+    const fixture = await fixtureV1({
+      slots: Object.freeze([{ slotId: "quick", bytes }]),
+      provenance: target,
+      saveStateMigrations: registry,
+    });
+    try {
+      await expectRejectedLoadPreservesAuthorityV1(fixture, "quick", {
+        kind: "rejected",
+        code: "invalid_record",
+      });
+      expect(migrationCalls).toBe(0);
+    } finally {
+      await fixture.service.disposeForRebootstrap();
+    }
+  });
+
+  it("maps migration reject and invalid output to one Player rejection without mutation", async () => {
+    const target = migrationTargetProvenanceV1();
+    const sourceBytes = currentRecordBytesV1();
+    let rejectedCalls = 0;
+    const rejectedRegistry = migrationRegistryV1(target, (_state) => {
+      rejectedCalls += 1;
+      return Object.freeze({
+        kind: "rejected" as const,
+        reasonCode: parseSaveStateMigrationReasonCodeV1("migration.synthetic.rejected"),
+      });
+    });
+    await expectRejectedImportV1(
+      sourceBytes,
+      { kind: "rejected", code: "migration_rejected" },
+      { provenance: target, saveStateMigrations: rejectedRegistry },
+    );
+    expect(rejectedCalls).toBe(1);
+
+    let invalidCalls = 0;
+    const invalidRegistry = migrationRegistryV1(target, (_state) => {
+      invalidCalls += 1;
+      return Object.freeze({
+        kind: "migrated",
+        state: Object.freeze({ invalid: undefined }),
+      }) as never;
+    });
+    await expectRejectedImportV1(
+      sourceBytes,
+      { kind: "rejected", code: "migration_rejected" },
+      { provenance: target, saveStateMigrations: invalidRegistry },
+    );
+    expect(invalidCalls).toBe(1);
+  });
+
+  it("preserves authority for migrated current-RNG, compatibility, reference, and invariant failures", async () => {
+    const target = migrationTargetProvenanceV1();
+    let migrationCalls = 0;
+    const registry = migrationRegistryV1(target, (state) => {
+      migrationCalls += 1;
+      return Object.freeze({ kind: "migrated" as const, state });
+    });
+    const invalidRngBytes = currentRecordBytesV1({
+      mutate(record) {
+        const snapshot = mutableObjectV1(record.snapshot, "migration RNG Snapshot");
+        const rng = mutableObjectV1(snapshot.rng, "migration RNG");
+        snapshot.rng = { ...rng, cursor: 0 };
+        record.stateDigest = digestCanonical("sillymaker:state:v1", snapshot);
+      },
+    });
+    const lowLevelContext: SaveImportValidationContextV1<
+      SnapshotTransactionStateV1,
+      NeutralSnapshotV1,
+      NeutralSaveRecordV1
+    > = Object.freeze({
+      codec: neutralCodecV1,
+      currentStateContractRevision: target.resolved.stateContractRevision,
+      saveStateMigrations: registry,
+      classifyCompatibility: () =>
+        Object.freeze({
+          kind: "exact" as const,
+          mismatches: Object.freeze([] as const),
+          warnings: Object.freeze([]),
+        }),
+      validateReferences: () => Object.freeze([]),
+      validateInvariants: () => Object.freeze([]),
+    });
+    expect(validateSaveImportCandidateV1(invalidRngBytes, lowLevelContext)).toMatchObject({
+      kind: "rejected",
+      code: "rng.invalid_state",
+      migrationAttempt: {
+        failingPhase: "current_snapshot_schema",
+        migratedStateDigest: null,
+      },
+    });
+    await expectRejectedImportV1(
+      invalidRngBytes,
+      { kind: "rejected", code: "invalid_record" },
+      { provenance: target, saveStateMigrations: registry },
+    );
+
+    const incompatibleProvenance = Object.freeze({
+      ...snapshotTransactionProvenanceV1,
+      engine: Object.freeze({
+        ...snapshotTransactionProvenanceV1.engine,
+        digest: digestV1("migration.engine-mismatch"),
+      }),
+    });
+    await expectRejectedImportV1(
+      currentRecordBytesV1({ provenance: incompatibleProvenance }),
+      { kind: "rejected", code: "incompatible" },
+      { provenance: target, saveStateMigrations: registry },
+    );
+    await expectRejectedImportV1(
+      currentRecordBytesV1(),
+      { kind: "rejected", code: "invalid_record" },
+      {
+        provenance: target,
+        saveStateMigrations: registry,
+        referenceErrors: Object.freeze(["reference.missing"]),
+      },
+    );
+    await expectRejectedImportV1(
+      currentRecordBytesV1(),
+      { kind: "rejected", code: "invalid_record" },
+      {
+        provenance: target,
+        saveStateMigrations: registry,
+        invariantErrors: Object.freeze(["invariant.failed"]),
+      },
+    );
+    expect(migrationCalls).toBe(5);
+  });
+
+  it("maps callback throws to the stable fault code and preserves every authority", async () => {
+    const target = migrationTargetProvenanceV1();
+    let migrationCalls = 0;
+    const registry = migrationRegistryV1(target, (_state) => {
+      migrationCalls += 1;
+      throw new Error("private migration failure");
+    });
+    const sourceBytes = currentRecordBytesV1();
+    const fixture = await fixtureV1({ provenance: target, saveStateMigrations: registry });
+    try {
+      await fixture.session.dispatch("cross_owner_atomic_committed");
+      const authorityBefore = authorityEvidenceV1(fixture);
+      const recordsBefore = await rawSaveRecordsV1(fixture.store.records);
+      let replacementCommits = 0;
+
+      await expect(
+        importWithReplacementCommitInternalV1(fixture.service, sourceBytes, () => {
+          replacementCommits += 1;
+        }),
+      ).resolves.toEqual({ kind: "faulted", code: "migration.callback_threw" });
+
+      const authorityAfter = authorityEvidenceV1(fixture);
+      expect(migrationCalls).toBe(1);
+      expect(replacementCommits).toBe(0);
+      expect(authorityAfter.snapshot).toBe(authorityBefore.snapshot);
+      expect(authorityAfter.rng).toBe(authorityBefore.rng);
+      expect(authorityAfter.replayBase).toBe(authorityBefore.replayBase);
+      expect(authorityAfter.replayBaseStateDigest).toBe(authorityBefore.replayBaseStateDigest);
+      expect(authorityAfter.commandLog).toBe(authorityBefore.commandLog);
+      expect(authorityAfter.lineage).toBe(authorityBefore.lineage);
+      expect(await rawSaveRecordsV1(fixture.store.records)).toEqual(recordsBefore);
+      expect(fixture.store.saveCommitCount()).toBe(0);
+    } finally {
+      await fixture.service.disposeForRebootstrap();
     }
   });
 });

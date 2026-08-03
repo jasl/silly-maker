@@ -137,6 +137,7 @@ export async function createSnapshotPersistenceWorkloadV1(input: {
     snapshotSchema: snapshotTransactionSnapshotSchemaV1,
     provenance: snapshotTransactionProvenanceV1,
     adoptionDeclaration: null,
+    saveStateMigrations: null,
     ownerId: persistenceOwnerIdV1,
     nextHandoffRequestId: () => persistenceHandoffRequestIdV1,
     validateReferences: () => Object.freeze([]),

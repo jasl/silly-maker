@@ -3,12 +3,14 @@
 状态：2026-07-29 接受的目标设计，2026-07-31 按 callback-free shell、shared
 metadata corpus 与 determinism join 修订；2026-08-03 M1 callback-free
 shell/load-order floor 已实现，并冻结 M2 为 single-namespace、State-only executable
-migration；M2a exact registry/Core current-identity admission 与 M2b bounded pure
-execution kernel 已实现，Persistence integration、M2c–M2e 与 M3 产品发布语料仍未实现。本文把 Save
+migration；M2a exact registry/Core current-identity admission、M2b bounded pure
+execution kernel 与 M2c staged Persistence integration 已实现，M2d–M2e 与 M3
+产品发布语料仍未实现。本文把 Save
 兼容从“分类与拒绝”升级为“一等迁移能力”：固定 migration registry 合同、load
 阶段顺序与发布验收。它独立于 Mod 系统并先于其落地；[Mod design](mod-system.md)
 第 8 节的 per-namespace migration 建立在本文的引擎级合同之上。当前实现状态见
-[features](../features.md)；本文不把现状描述成已有 migration。迁移函数属于
+[features](../features.md)；本文区分 staged engine capability 与尚未 promotion 的产品
+兼容承诺。迁移函数属于
 [authoritative simulation determinism boundary](deterministic-simulation-boundary.md)
 定义的 Authoritative Simulation。
 
@@ -30,21 +32,23 @@ execution kernel 已实现，Persistence integration、M2c–M2e 与 M3 产品�
 M1 已把 current-format admission 拆为 bounded shell/raw digest、State revision
 fence、current Snapshot schema/normalized digest，再进入 compatibility、reference 与
 invariant；stored load 在 Story validation 前另做 Host revision 与 slot identity
-检查。State revision 不同时会在 current Snapshot schema 与 Story callback 前返回
-`migration.unavailable`，保留来源 bytes 与 live Session。
+检查。State revision 不同时先进入 callback-free pending branch：M2c 对 import/load 的
+exact configured chain 执行迁移；缺失或不完整 chain 才在 current Snapshot schema 与 Story
+callback 前返回 `migration.unavailable`。两条分支都保留来源 bytes，失败不修改 live Session。
 
-剩余缺口是没有 executable migration 路径：
+M2c 已建立 executable migration 路径，剩余缺口是 promotion 与完整原子 provenance：
 
-1. M2a 已提供 single-namespace exact registry declaration 与 Core admission，M2b 已提供
-   package-internal exact chain resolution 与 bounded pure execution；但没有 maintained
-   application owner 或 Persistence wiring，revision 不同的 Save 仍只能检查和导出，不能
-   迁移后加载；
-2. 没有 migration 后的新 replay anchor 与 replacement-origin receipt 执行路径；
+1. M2c 已把 exact registry 接入 import/load staged admission，能够迁移后经 current
+   schema/digest/compatibility/reference/invariant validation，并使用既有 replay-anchor
+   replacement；但没有 maintained application owner，list/export/annotation 也有意不执行
+   callback；
+2. 低层 success 已产生 replacement-origin receipt，但 Session/Persistence 尚未安装或管理
+   receipt lifecycle，也没有 M2d composite prepare/no-throw commit token；
 3. 没有历史 fixture corpus，也没有“任意受支持旧 Save
    可迁移、可加载”的发布验收。
 
-在 M2/M3 之前，产品仍无法兑现旧存档迁移与加载承诺；M1 只是把此前泛化的
-schema rejection 收敛为显式 `migration.unavailable`，不会静默安装或改写旧数据。
+在 M2e/M3 之前，maintained product 仍不能兑现旧存档迁移与加载承诺；当前 staged
+能力只在 application 显式提供 exact registry 时启用，且不会写回来源数据。
 
 ## 2. Target load order
 

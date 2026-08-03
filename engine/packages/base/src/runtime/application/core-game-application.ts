@@ -173,8 +173,9 @@ export interface CoreGameApplicationDefinitionV1<
   readonly entry: GamePackageV1<TSimulationFacet, TPresentationFacet>;
   /**
    * Optional factory-produced aggregate-State migration declaration.
-   * Resolution validates its exact identity and current State target. The
-   * current persistence path does not execute it yet.
+   * Resolution validates its exact identity and current State target. Import
+   * and load execute an available exact suffix through staged persistence;
+   * inspection, stored export, and annotation never execute callbacks.
    */
   readonly saveStateMigrations?: SaveStateMigrationRegistryV1;
   readonly semantic: CoreSemanticAdapterV1<
@@ -1256,6 +1257,7 @@ export async function createCoreGameApplicationInstanceV1<
       snapshotSchema: snapshotSchema as never,
       provenance: application.provenance as never,
       adoptionDeclaration: null,
+      saveStateMigrations: definition.saveStateMigrations ?? null,
       ownerId: options.host.ownerId,
       nextHandoffRequestId: () => options.host.nextHandoffRequestId() as never,
       validateReferences: (state) =>

@@ -9,6 +9,12 @@ import { digestBytes } from "./digest.ts";
 import type { IsoUtcInstant } from "./host.ts";
 import type { PatchSetAdoptionDeclarationV1, PatchSetIdentityV1 } from "./hotfix.ts";
 import type { BuildProvenanceV1 } from "./provenance.ts";
+import type {
+  SaveStateMigrationAttemptV1,
+  SaveStateMigrationReasonCodeV1,
+  SaveStateMigrationReceiptV1,
+  SaveStateMigrationRegistryV1,
+} from "./save-state-migration.ts";
 import { parseStrictJsonLimitsV1 } from "./strict-json.ts";
 import type { StrictJsonErrorCodeV1 } from "./strict-json.ts";
 import { normalizeVersionStampInternalV1 } from "./version-stamp.ts";
@@ -173,6 +179,7 @@ export type PersistenceOperationResultV1 =
       | "invalid_note"
       | "lineage_limit"
       | "migration_unavailable"
+      | "migration_rejected"
       | "incompatible";
   }
   | { readonly kind: "faulted"; readonly code: string };
@@ -459,12 +466,41 @@ export interface SaveMigrationUnavailableInspectionV1 {
   readonly currentStateContractRevision: PositiveSafeInteger;
 }
 
+export type SaveImportMigrationExecutionFailureV1 =
+  | {
+    readonly kind: "rejected";
+    readonly code: "migration.rejected";
+    readonly reasonCode: SaveStateMigrationReasonCodeV1;
+    readonly migrationAttempt: SaveStateMigrationAttemptV1;
+  }
+  | {
+    readonly kind: "rejected";
+    readonly code: "migration.output_invalid";
+    readonly migrationAttempt: SaveStateMigrationAttemptV1;
+  }
+  | {
+    readonly kind: "faulted";
+    readonly code: "migration.callback_threw";
+    readonly migrationAttempt: SaveStateMigrationAttemptV1;
+  };
+
+export type SaveImportPostMigrationValidationFailureV1 =
+  | ({ readonly kind: "rejected"; readonly code: ImportRejectionCodeV1 } & {
+    readonly migrationAttempt: SaveStateMigrationAttemptV1;
+  })
+  | (Extract<ImportCompatibilityOutcomeV1, { readonly kind: "inspect_only" }> & {
+    readonly migrationAttempt: SaveStateMigrationAttemptV1;
+  });
+
 export type SaveImportValidationResultV1<TSaveRecord> =
   | (Extract<ImportCompatibilityOutcomeV1, { readonly kind: "exact" | "adopted" }> & {
     readonly candidate: DeepReadonly<TSaveRecord>;
+    readonly migration: SaveStateMigrationReceiptV1 | null;
   })
   | Extract<ImportCompatibilityOutcomeV1, { readonly kind: "inspect_only" | "rejected" }>
-  | SaveMigrationUnavailableInspectionV1;
+  | SaveMigrationUnavailableInspectionV1
+  | SaveImportMigrationExecutionFailureV1
+  | SaveImportPostMigrationValidationFailureV1;
 
 export interface SaveImportInvariantViewV1<TState> {
   readonly state: TState;
@@ -481,6 +517,7 @@ export interface SaveImportValidationContextV1<
 > {
   readonly codec: SaveCodecContextV1<TSnapshot, TSaveRecord>;
   readonly currentStateContractRevision: PositiveSafeInteger;
+  readonly saveStateMigrations: SaveStateMigrationRegistryV1 | null;
   classifyCompatibility(record: DeepReadonly<TSaveRecord>): SaveCompatibilityClassificationV1;
   validateReferences(state: DeepReadonly<TState>): readonly string[];
   validateInvariants(view: DeepReadonly<SaveImportInvariantViewV1<TState>>): readonly string[];

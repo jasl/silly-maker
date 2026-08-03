@@ -265,6 +265,8 @@ function persistenceRejectedTextV1(
       return labels.operation.rejected.lineage_limit;
     case "migration_unavailable":
       return labels.operation.rejected.migration_unavailable;
+    case "migration_rejected":
+      return labels.operation.rejected.migration_rejected;
     case "incompatible":
       return labels.operation.rejected.incompatible;
     default:

@@ -96,17 +96,18 @@ entry must use its canonical repo-relative spelling and appear exactly in its
 own live closure. The resulting
 exact path vector is read once and passed to one AST rule core; no generated
 inventory or second rule authority is retained.
-The maintained synthetic migration entry proves that later executable
-migrators can join this same collection seam without creating a production
-migration owner or load-time execution path early. Base now owns the M2a exact
-aggregate-State registry factory plus the M2b bounded pure execution authority.
+The maintained synthetic migration entry proves that executable migrators can
+join this same collection seam without creating a production migration owner.
+Base owns the M2a exact aggregate-State registry factory, the M2b bounded pure
+execution authority, and the M2c staged Persistence integration.
 Core captures only a factory-produced registry and verifies its declared current
-State identity during application resolution. The internal kernel resolves an
-exact non-empty suffix, admits detached State within Strict limits while
-capturing, executes synchronous callbacks, and returns immutable attempts or an
-opaque successful completion; only a later whole-Snapshot stage may finalize a
-receipt digest. No maintained application configures that declaration before
-the real-owner promotion slice.
+State identity during application resolution, then passes that exact registry
+to Persistence. The internal kernel resolves an exact non-empty suffix, admits
+detached State within Strict limits while capturing, and executes synchronous
+callbacks. Staged import/load reconstructs and validates the current Snapshot,
+derives its whole-Snapshot digest, and returns immutable attempts or a low-level
+receipt. No maintained application configures that declaration before the
+real-owner promotion slice, and Session receipt ownership remains an M2d task.
 
 The runtime complement remains outside production package lifecycles.
 `e2e/src/testing/**` owns the pure ambient-guard harness, parent runner,
@@ -358,10 +359,18 @@ through current Snapshot schema/cross-field validation and a second normalized-
 Snapshot digest check before compatibility, references, invariants, and one
 atomic replay-anchor replacement. Stored load additionally checks Host record
 revision and slot identity between staged admission and Story validation. A
-different State revision returns `migration.unavailable` without current-Snapshot
-admission or mutation. The M2a declaration/Core-admission and M2b pure-kernel
-floors exist, but Persistence does not read the registry or invoke the kernel,
-so no historical State is migrated or loaded yet.
+different State revision remains callback-free for list, stored export, and
+annotation: list reports `migration.unavailable`, stored export preserves exact
+source bytes, and annotation rejects with `migration_unavailable`. Import/load
+without a complete chain also maps unavailable. Import and stored load with an
+exact configured chain admit the historical engine-owned Snapshot shell, migrate
+only `snapshot.state`, preserve
+the other Snapshot/envelope fields, advance only the State identity in candidate
+provenance, validate the current Snapshot, derive its new whole-Snapshot digest,
+and then run compatibility, references, and invariants. Stored physical identity
+is checked before chain resolution. Successful candidates use the existing
+atomic replay-anchor replacement and never write back the source Save; M2d will
+add Session-owned receipt lifecycle and the composite no-throw commit token.
 Internal indexes, clients, closures, React values, and database handles must not
 enter a Save.
 

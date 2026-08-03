@@ -428,6 +428,8 @@ export type {
   SaveCompatibilityMismatchV1,
   SaveExportOperationResultV1,
   SaveImportInvariantViewV1,
+  SaveImportMigrationExecutionFailureV1,
+  SaveImportPostMigrationValidationFailureV1,
   SaveImportValidationContextV1,
   SaveImportValidationResultV1,
   SaveMigrationUnavailableInspectionV1,

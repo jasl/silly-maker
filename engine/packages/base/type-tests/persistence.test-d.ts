@@ -2,6 +2,7 @@
 import type {
   BuildProvenanceV1,
   GameSnapshotEnvelopeV1,
+  ImportRejectionCodeV1,
   NonNegativeSafeInteger,
   PatchSetAdoptionDeclarationV1,
   PersistenceOperationResultV1,
@@ -10,9 +11,12 @@ import type {
   SaveCompatibilityClassificationV1,
   SaveImportInvariantViewV1,
   SaveImportValidationContextV1,
+  SaveImportMigrationExecutionFailureV1,
+  SaveImportPostMigrationValidationFailureV1,
   SaveImportValidationResultV1,
   SaveRecordEnvelopeV1,
   SaveRecordDecodeResultV1,
+  SaveStateMigrationReceiptV1,
   SimulationAdoptionV1,
 } from "@sillymaker/base";
 import {
@@ -79,6 +83,7 @@ export const codec = {
 export const validationContext = {
   codec,
   currentStateContractRevision: record.provenance.resolved.stateContractRevision,
+  saveStateMigrations: null,
   classifyCompatibility() {
     return classification;
   },
@@ -134,13 +139,43 @@ export const migrationUnavailablePlayerResult = {
   kind: "rejected",
   code: "migration_unavailable",
 } satisfies PersistenceOperationResultV1;
+export const migrationRejectedPlayerResult = {
+  kind: "rejected",
+  code: "migration_rejected",
+} satisfies PersistenceOperationResultV1;
+
+// @ts-expect-error Story compatibility callbacks cannot forge engine migration failures
+export const forgedMigrationRejection: ImportRejectionCodeV1 = "migration.rejected";
 
 declare const validationResult: SaveImportValidationResultV1<SyntheticSaveRecordV1>;
+declare const migrationExecutionFailure: SaveImportMigrationExecutionFailureV1;
+declare const postMigrationFailure: SaveImportPostMigrationValidationFailureV1;
+migrationExecutionFailure.migrationAttempt.failingPhase;
+postMigrationFailure.migrationAttempt.migratedStateDigest;
 if (validationResult.kind === "exact" || validationResult.kind === "adopted") {
   validationResult.candidate.snapshot.state.referenceId;
+  const receipt: SaveStateMigrationReceiptV1 | null = validationResult.migration;
+  receipt?.migratedStateDigest;
 } else {
   // @ts-expect-error inspect-only and rejected results never expose a runnable candidate
   validationResult.candidate;
+}
+if (validationResult.kind === "rejected" && validationResult.code === "migration.rejected") {
+  validationResult.reasonCode;
+  validationResult.migrationAttempt.failingPhase;
+}
+if (validationResult.kind === "rejected" && validationResult.code === "migration.output_invalid") {
+  validationResult.migrationAttempt.completedSteps;
+}
+if (validationResult.kind === "faulted") {
+  validationResult.code satisfies "migration.callback_threw";
+  validationResult.migrationAttempt.failingStep;
+}
+
+declare const playerResult: PersistenceOperationResultV1;
+if (playerResult.kind === "loaded" || playerResult.kind === "imported") {
+  // @ts-expect-error Player success shape does not expose migration receipts
+  playerResult.migration;
 }
 if (validationResult.kind === "adopted") {
   validationResult.adoption.viaSimulationPatchSetDigest;

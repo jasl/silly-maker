@@ -2167,6 +2167,101 @@ describe("resolveCoreGameApplicationV1", () => {
 });
 
 describe("createCoreGameApplicationInstanceV1", () => {
+  it("forwards the exact resolved migration registry into Persistence", async () => {
+    const baseEntry = createSyntheticCounterGamePackageV1();
+    const baseStory = baseEntry.define();
+    const currentEntry = Object.freeze({
+      ...baseEntry,
+      define: () =>
+        Object.freeze({
+          ...baseStory,
+          simulation: Object.freeze({
+            ...baseStory.simulation,
+            stateContractRevision: parsePositiveSafeInteger(2),
+          }),
+        }),
+    });
+    const currentDefinition = defineCoreGameApplicationV1({
+      ...definitionV1,
+      entry: currentEntry,
+    });
+    const currentResolution = resolveCoreGameApplicationV1(currentDefinition, {
+      buildIdentityInput: deterministicBuildIdentityInputV1,
+    });
+    expect(currentResolution.kind).toBe("resolved");
+    if (currentResolution.kind !== "resolved") return;
+    const resolvedState = (
+      currentResolution.application.resolved as {
+        readonly provenance: {
+          readonly resolved: {
+            readonly stateContractRevision: ReturnType<typeof parsePositiveSafeInteger>;
+            readonly stateContractDigest: ReturnType<typeof parseDigest>;
+          };
+        };
+      }
+    ).provenance.resolved;
+    const sourceIdentity = Object.freeze({
+      stateContractRevision: parsePositiveSafeInteger(1),
+      stateContractDigest: resolvedState.stateContractDigest,
+    });
+    const targetIdentity = Object.freeze({
+      stateContractRevision: resolvedState.stateContractRevision,
+      stateContractDigest: resolvedState.stateContractDigest,
+    });
+    const migrate = vi.fn((state) => Object.freeze({ kind: "migrated" as const, state }));
+    const namespace = parseSaveStateMigrationNamespaceV1("state.synthetic.core-wiring");
+    const registry = defineSaveStateMigrationRegistryV1({
+      namespace,
+      minimumSupported: sourceIdentity,
+      current: targetIdentity,
+      steps: [
+        {
+          migrationId: parseSaveStateMigrationIdV1("migration.synthetic.core-wiring"),
+          namespace,
+          from: sourceIdentity,
+          to: targetIdentity,
+          references: { renames: [], deletions: [] },
+          migrate,
+        },
+      ],
+    });
+    const resolution = resolveCoreGameApplicationV1(
+      defineCoreGameApplicationV1({
+        ...definitionV1,
+        entry: currentEntry,
+        saveStateMigrations: registry,
+      }),
+      { buildIdentityInput: deterministicBuildIdentityInputV1 },
+    );
+    expect(resolution.kind).toBe("resolved");
+    if (resolution.kind !== "resolved") return;
+    const instance = await createCoreGameApplicationInstanceV1(resolution.application, {
+      host: hostServicesV1(createMemoryHostRecordStoreV1()),
+    });
+    try {
+      const exported = await instance.persistence.exportCurrentSave();
+      const sourceBytes = Uint8Array.from(exported.bytes);
+      const sourceRecord = JSON.parse(new TextDecoder().decode(sourceBytes)) as Record<
+        string,
+        unknown
+      >;
+      const provenance = sourceRecord.provenance as Record<string, unknown>;
+      const resolved = provenance.resolved as Record<string, unknown>;
+      resolved.stateContractRevision = sourceIdentity.stateContractRevision;
+      const historicalBytes = canonicalJsonBytes(sourceRecord);
+
+      await expect(instance.persistence.importSave(historicalBytes)).resolves.toEqual({
+        kind: "imported",
+        compatibility: "exact",
+        commandSequence: 0,
+      });
+      expect(migrate).toHaveBeenCalledOnce();
+      expect(instance.admin.commandLog()).toEqual([]);
+    } finally {
+      await instance.dispose();
+    }
+  });
+
   it("projects and freezes a canonical zero seed before preserving its RNG failure on all surfaces", async () => {
     const zeroBootstrapV1: BootstrapCandidateFactoryV1 = () => ({
       rngSeed: 0 as NonZeroUint32,
