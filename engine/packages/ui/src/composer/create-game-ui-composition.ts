@@ -23,12 +23,21 @@ import type {
   WorkspaceOverlayPortBindingV1,
 } from "../overlays/workspace-overlay-session.ts";
 import {
-  createLocalWorkspaceOverlayEpochAllocatorInternalV1,
   createWorkspaceOverlayPublicSessionInternalV1,
+  createWorkspaceOverlaySessionConfigurationInternalV1,
   createWorkspaceOverlaySessionInternalV1,
   snapshotWorkspaceOverlayDefinitionsInternalV1,
 } from "../overlays/workspace-overlay-session.ts";
-import type { ManagedSurfaceApplicationEpochAllocatorV1 } from "../managed-surfaces/managed-surface-coordinator-lifetime.ts";
+import {
+  createLocalManagedSurfaceEpochAllocatorInternalV1,
+  createManagedSurfaceCompositionRuntimeInternalV1,
+  type ManagedSurfaceCompositionRuntimeInternalV1,
+} from "../managed-surfaces/managed-surface-composition-runtime.ts";
+import type {
+  ManagedSurfaceApplicationEpochAllocatorV1,
+  ManagedSurfaceCoordinatorRecipeV1,
+  ManagedSurfaceCoordinatorSuccessorKindV1,
+} from "../managed-surfaces/managed-surface-coordinator-lifetime.ts";
 import { createViewSourceV1 } from "../runtime/create-view-bridge.ts";
 import type {
   PresentationRuntimeFailureV1,
@@ -41,6 +50,14 @@ import { createRuntimePresentationStoreV1 } from "../runtime/runtime-presentatio
 import { createSemanticPublicationBridgeV1 } from "../runtime/semantic-publication-bridge.ts";
 import type { SystemDialogSessionStoreV1 } from "../system/system-dialog-session-store.ts";
 import { createSystemDialogSessionStoreV1 } from "../system/system-dialog-session-store.ts";
+import {
+  systemDialogManagedContractInternalV1,
+  type SystemDialogSessionV1,
+} from "../system/system-dialog-managed-contract.ts";
+import {
+  createSystemDialogManagedSessionInternalV1,
+  createSystemDialogSessionFacadeInternalV1,
+} from "../system/system-dialog-managed-session.ts";
 
 /**
  * The instance-local presentation anchor as the UI consumes it. It mirrors
@@ -155,6 +172,46 @@ export interface GameUiCompositionV1<
   dispose(): void;
 }
 
+/** @internal Dormant S3b state; deliberately absent from package barrels and the public composition. */
+export interface GameUiManagedSurfaceCompositionInternalV1 {
+  readonly runtime: ManagedSurfaceCompositionRuntimeInternalV1;
+  readonly systemDialogSession: SystemDialogSessionV1;
+}
+
+const gameUiManagedSurfaceCompositionInternalsV1 = new WeakMap<
+  object,
+  GameUiManagedSurfaceCompositionInternalV1
+>();
+
+/** @internal Relative-source composition/test seam for the dormant managed System family. */
+export function resolveGameUiManagedSurfaceCompositionInternalV1(
+  composition: object,
+): GameUiManagedSurfaceCompositionInternalV1 {
+  const internal = gameUiManagedSurfaceCompositionInternalsV1.get(composition);
+  if (internal === undefined) {
+    throw new TypeError("ui.game_ui_managed_surface_composition_required");
+  }
+  return internal;
+}
+
+function combineManagedSurfaceRecipeInternalV1(
+  overlay: ManagedSurfaceCoordinatorRecipeV1,
+): ManagedSurfaceCoordinatorRecipeV1 {
+  return Object.freeze({
+    resolvedOwnerIds: Object.freeze([
+      ...overlay.resolvedOwnerIds,
+      ...systemDialogManagedContractInternalV1.resolvedOwnerIds,
+    ]),
+    resolvedSlotDescriptors: Object.freeze([
+      ...overlay.resolvedSlotDescriptors,
+      ...systemDialogManagedContractInternalV1.resolvedSlotDescriptors,
+    ]),
+    ...(overlay.reportSubscriberFailure === undefined
+      ? {}
+      : { reportSubscriberFailure: overlay.reportSubscriberFailure }),
+  });
+}
+
 const bootstrapAnchorV1: GameUiPresentationAnchorV1 = Object.freeze({
   epoch: 0,
   origin: "bootstrap",
@@ -215,16 +272,33 @@ function createGameUiCompositionWithEpochAllocatorInternalV1<
   // Admit the complete Overlay configuration before establishing any
   // upstream presentation subscription. A rejected composition must not
   // leave a partially constructed semantic bridge behind.
-  const overlayInternal = createWorkspaceOverlaySessionInternalV1<OverlayIdV1>({
-    inputRouter,
-    epochAllocator: managedSurfaceEpochAllocator,
+  const overlayConfiguration = createWorkspaceOverlaySessionConfigurationInternalV1<OverlayIdV1>({
     definitions: overlayDefinitions as readonly WorkspaceOverlayDefinitionV1<OverlayIdV1>[],
     ...(input.overlayPorts === undefined ? {} : { availablePorts: input.overlayPorts }),
     ...(managedSurfaceReportFailure === undefined
       ? {}
       : { reportFailure: managedSurfaceReportFailure }),
   });
+  const managedSurfaceRuntime = createManagedSurfaceCompositionRuntimeInternalV1({
+    epochAllocator: managedSurfaceEpochAllocator,
+    inputRouter,
+    recipe: combineManagedSurfaceRecipeInternalV1(
+      overlayConfiguration.recipeContribution,
+    ),
+  });
+  const initialManagedSurfaceRuntime = managedSurfaceRuntime.getCurrent();
+  const overlayInternal = createWorkspaceOverlaySessionInternalV1<OverlayIdV1>({
+    runtime: initialManagedSurfaceRuntime,
+    configuration: overlayConfiguration,
+  });
   const overlaySession = createWorkspaceOverlayPublicSessionInternalV1(overlayInternal);
+  const managedSystemDialogInternal = createSystemDialogManagedSessionInternalV1({
+    runtime: initialManagedSurfaceRuntime,
+    catalog: null,
+  });
+  const managedSystemDialogSession = createSystemDialogSessionFacadeInternalV1(
+    managedSystemDialogInternal,
+  );
 
   const uiState = createViewSourceV1<GameUiStateV1<TStoryUiState>>(
     Object.freeze({
@@ -255,13 +329,18 @@ function createGameUiCompositionWithEpochAllocatorInternalV1<
   const systemDialogSession = createSystemDialogSessionStoreV1();
   const unsubscribeAnchor = anchorSource.subscribe(() => {
     const anchor = anchorSource.current();
-    overlayInternal.rotateEpochInternalV1(
-      anchor.origin === "load"
-        ? "load_rebootstrap"
-        : anchor.origin === "import"
-        ? "import_rebootstrap"
-        : "coordinator_successor",
-    );
+    const successorKind: ManagedSurfaceCoordinatorSuccessorKindV1 = anchor.origin === "load"
+      ? "load_rebootstrap"
+      : anchor.origin === "import"
+      ? "import_rebootstrap"
+      : "coordinator_successor";
+    // Revoke both family adapters before the one shared authority seals its
+    // predecessor. Neither family can observe or mutate a half-rotated epoch.
+    overlayInternal.detachRuntimeInternalV1();
+    managedSystemDialogInternal.detachRuntimeInternalV1();
+    const successor = managedSurfaceRuntime.replace(successorKind);
+    overlayInternal.attachRuntimeInternalV1(successor);
+    managedSystemDialogInternal.attachRuntimeInternalV1(successor);
     uiState.publish(
       Object.freeze({
         anchor,
@@ -313,7 +392,13 @@ function createGameUiCompositionWithEpochAllocatorInternalV1<
   });
 
   let disposed = false;
-  return Object.freeze({
+  const composition: GameUiCompositionV1<
+    TSemanticPublication,
+    TStoryUiState,
+    TView,
+    TAssetId,
+    TOverlayId
+  > = Object.freeze({
     presentation,
     anchor: anchorView,
     input: inputRouter,
@@ -344,11 +429,23 @@ function createGameUiCompositionWithEpochAllocatorInternalV1<
       if (disposed) return;
       disposed = true;
       unsubscribeAnchor();
+      overlayInternal.detachRuntimeInternalV1();
+      managedSystemDialogInternal.detachRuntimeInternalV1();
+      managedSurfaceRuntime.dispose();
       overlayInternal.disposeInternalV1();
+      managedSystemDialogInternal.disposeInternalV1();
       presentation.dispose();
       semanticBridge.dispose();
     },
   });
+  gameUiManagedSurfaceCompositionInternalsV1.set(
+    composition,
+    Object.freeze({
+      runtime: managedSurfaceRuntime,
+      systemDialogSession: managedSystemDialogSession,
+    }),
+  );
+  return composition;
 }
 
 export function createGameUiCompositionV1<
@@ -370,7 +467,7 @@ export function createGameUiCompositionV1<
 ): GameUiCompositionV1<TSemanticPublication, TStoryUiState, TView, TAssetId, TOverlayId> {
   return createGameUiCompositionWithEpochAllocatorInternalV1(
     input,
-    createLocalWorkspaceOverlayEpochAllocatorInternalV1(),
+    createLocalManagedSurfaceEpochAllocatorInternalV1(),
   );
 }
 

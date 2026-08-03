@@ -473,7 +473,10 @@ export function OverlayHostV1<TOverlayId extends string>(
       removedSubtreeRootV1(removedFallbackCandidate?.surfaceInstanceId ?? null);
     if (previousFocusOwnerId !== nextFocusOwnerId) {
       if (nextFocusOwnerId === null && previousFocusOwnerId !== null) {
-        if (snapshot.publication.preparationFallbacks.length === 0) {
+        if (
+          removedFocusSubtreeRootId !== null &&
+          snapshot.publication.preparationFallbacks.length === 0
+        ) {
           restoreOwnedFocusV1(
             returnFocusTargetsRef.current.get(
               removedFocusSubtreeRootId ?? previousFocusOwnerId,

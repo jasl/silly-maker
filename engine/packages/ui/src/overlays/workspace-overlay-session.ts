@@ -1,14 +1,12 @@
 // SPDX-License-Identifier: MIT
 import {
   type DeepReadonly,
-  type NonNegativeSafeInteger,
   parseModuleId,
   parseNonNegativeSafeInteger,
   parsePositiveSafeInteger,
 } from "@sillymaker/base";
 import type { ReactNode } from "react";
 
-import type { InputRouterV1 } from "../input/contracts.ts";
 import { systemInputActionIdsV1 } from "../input/contracts.ts";
 import {
   parseManagedSurfaceActionIdV1,
@@ -29,10 +27,8 @@ import type {
   ManagedSurfaceReadinessAdapterV1,
 } from "../managed-surfaces/managed-surface-coordinator.ts";
 import {
-  createManagedSurfaceCoordinatorLifetimeV1,
-  type ManagedSurfaceApplicationEpochAllocatorV1,
+  type ManagedSurfaceCoordinatorRecipeV1,
   type ManagedSurfaceCoordinatorRuntimeV1,
-  type ManagedSurfaceCoordinatorSuccessorKindV1,
 } from "../managed-surfaces/managed-surface-coordinator-lifetime.ts";
 
 export const maximumOverlayDetailDepthV1 = 4 as const;
@@ -174,16 +170,29 @@ export interface WorkspaceOverlaySessionInternalV1<TOverlayId extends string>
     kind: ManagedSurfaceDismissKindV1,
   ): void;
   getHandleInternalV1(surfaceInstanceId: ManagedSurfaceInstanceIdV1): ManagedSurfaceHandleV1 | null;
-  rotateEpochInternalV1(kind: ManagedSurfaceCoordinatorSuccessorKindV1): void;
+  detachRuntimeInternalV1(): void;
+  attachRuntimeInternalV1(runtime: ManagedSurfaceCoordinatorRuntimeV1): void;
   disposeInternalV1(): void;
 }
 
-export interface CreateWorkspaceOverlaySessionInternalInputV1<TOverlayId extends string> {
-  readonly inputRouter: InputRouterV1;
-  readonly epochAllocator: ManagedSurfaceApplicationEpochAllocatorV1;
+export interface CreateWorkspaceOverlaySessionConfigurationInternalInputV1<
+  TOverlayId extends string,
+> {
   readonly definitions: readonly WorkspaceOverlayDefinitionV1<TOverlayId>[];
   readonly availablePorts?: readonly WorkspaceOverlayPortBindingV1[];
   readonly reportFailure?: (code: string, error: unknown) => void;
+}
+
+declare const workspaceOverlaySessionConfigurationBrandV1: unique symbol;
+
+export interface WorkspaceOverlaySessionConfigurationInternalV1<TOverlayId extends string> {
+  readonly [workspaceOverlaySessionConfigurationBrandV1]: TOverlayId;
+  readonly recipeContribution: ManagedSurfaceCoordinatorRecipeV1;
+}
+
+export interface CreateWorkspaceOverlaySessionInternalInputV1<TOverlayId extends string> {
+  readonly runtime: ManagedSurfaceCoordinatorRuntimeV1;
+  readonly configuration: WorkspaceOverlaySessionConfigurationInternalV1<TOverlayId>;
 }
 
 const workspaceOverlaySessionInternalsV1 = new WeakMap<
@@ -478,9 +487,71 @@ function frozenCompatibilityStateV1<TOverlayId extends string>(
   >;
 }
 
-export function createWorkspaceOverlaySessionInternalV1<TOverlayId extends string>(
-  input: CreateWorkspaceOverlaySessionInternalInputV1<TOverlayId>,
-): WorkspaceOverlaySessionInternalV1<TOverlayId> {
+function overlayHostPublicationV1(
+  publication: DeepReadonly<ManagedSurfacePublicationV1>,
+): DeepReadonly<ManagedSurfacePublicationV1> {
+  const orderedInstances = Object.freeze(
+    publication.orderedInstances.filter((instance) => instance.definition.ownerId === ownerIdV1),
+  );
+  const instanceIds = new Set(
+    orderedInstances.map((instance) => instance.surfaceInstanceId),
+  );
+  const topmostBlockingFence = publication.orderedInstances.toReversed().find((instance) =>
+    (instance.readiness.kind === "ready" && instance.definition.modality === "blocking") ||
+    (instance.readiness.kind === "preparing" &&
+      instance.readiness.transition !== "primary_replacement")
+  );
+  const ownsTopmostBlockingFence = topmostBlockingFence?.definition.ownerId === ownerIdV1;
+  const ownsInstance = (surfaceInstanceId: ManagedSurfaceInstanceIdV1 | null): boolean =>
+    surfaceInstanceId !== null && instanceIds.has(surfaceInstanceId);
+  return Object.freeze({
+    applicationEpoch: publication.applicationEpoch,
+    publicationRevision: publication.publicationRevision,
+    topologyRevision: publication.topologyRevision,
+    orderedInstances,
+    preparationFallbacks: ownsTopmostBlockingFence
+      ? Object.freeze(
+        publication.preparationFallbacks.filter((fallback) =>
+          instanceIds.has(fallback.candidateInstanceId)
+        ),
+      )
+      : Object.freeze([]),
+    topmostBlockingInstanceId:
+      ownsTopmostBlockingFence && ownsInstance(publication.topmostBlockingInstanceId)
+        ? publication.topmostBlockingInstanceId
+        : null,
+    inputOwner: ownsInstance(publication.inputOwner?.surfaceInstanceId ?? null)
+      ? publication.inputOwner
+      : null,
+    focusOwner: ownsInstance(publication.focusOwner?.surfaceInstanceId ?? null)
+      ? publication.focusOwner
+      : null,
+    navigationTargetInstanceId: ownsInstance(publication.navigationTargetInstanceId)
+      ? publication.navigationTargetInstanceId
+      : null,
+    ownerTrace: Object.freeze(
+      publication.ownerTrace.filter((trace) => trace.ownerId === ownerIdV1),
+    ),
+    coordinatorDisposed: publication.coordinatorDisposed,
+  }) as DeepReadonly<ManagedSurfacePublicationV1>;
+}
+
+interface WorkspaceOverlaySessionConfigurationRecordV1 {
+  readonly rawById: ReadonlyMap<string, readonly unknown[]>;
+  readonly availablePortIds: ReadonlySet<string>;
+  readonly reportFailure: (code: string, error: unknown) => void;
+}
+
+const workspaceOverlaySessionConfigurationsV1 = new WeakMap<
+  WorkspaceOverlaySessionConfigurationInternalV1<string>,
+  WorkspaceOverlaySessionConfigurationRecordV1
+>();
+
+export function createWorkspaceOverlaySessionConfigurationInternalV1<
+  TOverlayId extends string,
+>(
+  input: CreateWorkspaceOverlaySessionConfigurationInternalInputV1<TOverlayId>,
+): WorkspaceOverlaySessionConfigurationInternalV1<TOverlayId> {
   const rawDefinitions = snapshotWorkspaceOverlayDefinitionsInternalV1(
     input.definitions,
   ) as readonly unknown[];
@@ -522,21 +593,44 @@ export function createWorkspaceOverlaySessionInternalV1<TOverlayId extends strin
       )
     ),
   ];
-  const recipe = Object.freeze({
+  const recipeContribution = Object.freeze({
     resolvedOwnerIds: Object.freeze([ownerIdV1]),
     resolvedSlotDescriptors: Object.freeze(slotDescriptors),
-    reportSubscriberFailure: input.reportFailure === undefined ? undefined : () =>
-      reportFailure(
-        "ui.workspace_overlay_managed_subscriber_failed",
-        new Error("Managed Surface subscriber failed."),
-      ),
+    ...(input.reportFailure === undefined ? {} : {
+      reportSubscriberFailure: () =>
+        reportFailure(
+          "ui.workspace_overlay_managed_subscriber_failed",
+          new Error("Managed Surface subscriber failed."),
+        ),
+    }),
   });
-  const lifetime = createManagedSurfaceCoordinatorLifetimeV1({
-    epochAllocator: input.epochAllocator,
-    inputRouter: input.inputRouter,
-    initialRecipe: recipe,
-  });
-  let runtime = lifetime.getCurrent()!;
+  const configuration = Object.freeze({
+    recipeContribution,
+  }) as unknown as WorkspaceOverlaySessionConfigurationInternalV1<TOverlayId>;
+  workspaceOverlaySessionConfigurationsV1.set(
+    configuration as WorkspaceOverlaySessionConfigurationInternalV1<string>,
+    {
+      rawById,
+      availablePortIds,
+      reportFailure,
+    },
+  );
+  return configuration;
+}
+
+export function createWorkspaceOverlaySessionInternalV1<TOverlayId extends string>(
+  input: CreateWorkspaceOverlaySessionInternalInputV1<TOverlayId>,
+): WorkspaceOverlaySessionInternalV1<TOverlayId> {
+  const configuration = workspaceOverlaySessionConfigurationsV1.get(
+    input.configuration as WorkspaceOverlaySessionConfigurationInternalV1<string>,
+  );
+  if (configuration === undefined) {
+    throw new TypeError("ui.workspace_overlay_session_configuration_required");
+  }
+  const rawById = configuration.rawById;
+  const availablePortIds = configuration.availablePortIds;
+  const reportFailure = configuration.reportFailure;
+  let runtime = input.runtime;
   let resolver: OverlayRendererResolverV1<TOverlayId> | null = null;
   const listeners = new Set<() => void>();
   const renderRecords = new Map<
@@ -546,10 +640,11 @@ export function createWorkspaceOverlaySessionInternalV1<TOverlayId extends strin
   let mutationDepth = 0;
   let dirty = false;
   let disposed = false;
+  let detached = false;
   let unsubscribeCoordinator: (() => void) | null = null;
   let compatibilityPublication: DeepReadonly<ManagedSurfacePublicationV1> | null = null;
   let compatibilitySnapshot = frozenCompatibilityStateV1<TOverlayId>(null, []);
-  let renderPublication: DeepReadonly<ManagedSurfacePublicationV1> | null = null;
+  let renderSourcePublication: DeepReadonly<ManagedSurfacePublicationV1> | null = null;
   let renderSnapshot: WorkspaceOverlayRenderSnapshotInternalV1<TOverlayId> | null = null;
 
   const managedSnapshot = (): DeepReadonly<ManagedSurfacePublicationV1> =>
@@ -583,19 +678,13 @@ export function createWorkspaceOverlaySessionInternalV1<TOverlayId extends strin
     if (compatibilityPublication !== publication) {
       compatibilityPublication = null;
     }
-    if (renderPublication !== publication || removedRecord) {
-      renderPublication = null;
+    if (renderSourcePublication !== publication || removedRecord) {
+      renderSourcePublication = null;
       renderSnapshot = null;
     }
   };
 
-  const syncManagedInput = (): void => {
-    if (!runtime.isIngressOpen()) return;
-    if (managedSnapshot().inputOwner !== null) runtime.bindCurrentInput();
-  };
-
   const onCoordinatorPublication = (): void => {
-    syncManagedInput();
     reconcileRenderRecords();
     dirty = true;
     if (mutationDepth === 0) {
@@ -615,7 +704,6 @@ export function createWorkspaceOverlaySessionInternalV1<TOverlayId extends strin
       const result = operation();
       after?.(result);
       reconcileRenderRecords();
-      syncManagedInput();
       return result;
     } finally {
       mutationDepth -= 1;
@@ -630,7 +718,7 @@ export function createWorkspaceOverlaySessionInternalV1<TOverlayId extends strin
     const publication = managedSnapshot();
     if (compatibilityPublication === publication) return compatibilitySnapshot;
     const ready = publication.orderedInstances.filter((instance) =>
-      instance.readiness.kind === "ready"
+      instance.definition.ownerId === ownerIdV1 && instance.readiness.kind === "ready"
     );
     const primary = ready.find((instance) => instance.parentInstanceId === null);
     if (primary === undefined) {
@@ -659,7 +747,8 @@ export function createWorkspaceOverlaySessionInternalV1<TOverlayId extends strin
   const currentTopReady = () => {
     const publication = managedSnapshot();
     return publication.orderedInstances.toReversed().find(
-      (instance) => instance.readiness.kind === "ready",
+      (instance) =>
+        instance.definition.ownerId === ownerIdV1 && instance.readiness.kind === "ready",
     );
   };
 
@@ -672,7 +761,9 @@ export function createWorkspaceOverlaySessionInternalV1<TOverlayId extends strin
     }
     | OverlayAdmissionRejectionV1
     | { readonly kind: "faulted"; readonly code: "overlay.renderer_faulted" } => {
-    if (disposed) return rejectionV1("overlay.disposed");
+    if (disposed || detached || !runtime.isIngressOpen()) {
+      return rejectionV1("overlay.disposed");
+    }
     const matches = rawById.get(id);
     if (matches === undefined) return rejectionV1("overlay.definition_missing");
     if (matches.length !== 1) return rejectionV1("overlay.definition_ambiguous");
@@ -722,14 +813,15 @@ export function createWorkspaceOverlaySessionInternalV1<TOverlayId extends strin
       readiness: result.readiness,
       preparation: null,
     });
-    renderPublication = null;
+    renderSourcePublication = null;
     renderSnapshot = null;
   };
 
   const openPrimary = (id: TOverlayId): OverlayOpenResultV1 => {
     const current = compatibility();
     const hasPreparing = managedSnapshot().orderedInstances.some(
-      (instance) => instance.readiness.kind === "preparing",
+      (instance) =>
+        instance.definition.ownerId === ownerIdV1 && instance.readiness.kind === "preparing",
     );
     if (current.primaryId === id && current.detailIds.length === 0 && !hasPreparing) {
       return alreadyOpenResultV1;
@@ -737,7 +829,10 @@ export function createWorkspaceOverlaySessionInternalV1<TOverlayId extends strin
     const admission = preflight(id);
     if ("kind" in admission) return admission;
     const root = managedSnapshot().orderedInstances.find(
-      (instance) => instance.parentInstanceId === null && instance.readiness.kind === "ready",
+      (instance) =>
+        instance.definition.ownerId === ownerIdV1 &&
+        instance.parentInstanceId === null &&
+        instance.readiness.kind === "ready",
     );
     if (root === undefined) {
       const result = mutate(
@@ -793,7 +888,7 @@ export function createWorkspaceOverlaySessionInternalV1<TOverlayId extends strin
   };
 
   const closeTop = (): OverlayCloseTopResultV1 => {
-    if (disposed) return "already_closed";
+    if (disposed || detached || !runtime.isIngressOpen()) return "already_closed";
     const before = managedSnapshot();
     const receipt = mutate(() => runtime.coordinator.closeTopWithOwnerPreparationCancel(ownerIdV1));
     if (receipt.kind !== "applied") return "already_closed";
@@ -805,13 +900,13 @@ export function createWorkspaceOverlaySessionInternalV1<TOverlayId extends strin
   };
 
   const closeAll = (): void => {
-    if (disposed || managedSnapshot().orderedInstances.length === 0) return;
+    if (disposed || detached || !runtime.isIngressOpen()) return;
     const ownerHandle = runtime.coordinator.getOwnerHandle(ownerIdV1);
     if (ownerHandle !== null) {
       mutate(() => runtime.coordinator.closeOwner(ownerHandle));
       return;
     }
-    mutate(() => runtime.coordinator.closeTop());
+    mutate(() => runtime.coordinator.closeTopWithOwnerPreparationCancel(ownerIdV1));
   };
 
   const session: WorkspaceOverlaySessionInternalV1<TOverlayId> = {
@@ -832,9 +927,11 @@ export function createWorkspaceOverlaySessionInternalV1<TOverlayId extends strin
     closeAll,
     getManagedSnapshotInternalV1: managedSnapshot,
     getRenderSnapshotInternalV1() {
-      const publication = managedSnapshot();
-      if (renderPublication === publication && renderSnapshot !== null) return renderSnapshot;
-      const entries = publication.orderedInstances.flatMap((instance) => {
+      const sourcePublication = managedSnapshot();
+      if (renderSourcePublication === sourcePublication && renderSnapshot !== null) {
+        return renderSnapshot;
+      }
+      const entries = sourcePublication.orderedInstances.flatMap((instance) => {
         const record = renderRecords.get(instance.surfaceInstanceId);
         return record === undefined ? [] : [Object.freeze({
           surfaceInstanceId: instance.surfaceInstanceId,
@@ -846,10 +943,10 @@ export function createWorkspaceOverlaySessionInternalV1<TOverlayId extends strin
         })];
       });
       renderSnapshot = Object.freeze({
-        publication,
+        publication: overlayHostPublicationV1(sourcePublication),
         entries: Object.freeze(entries),
       });
-      renderPublication = publication;
+      renderSourcePublication = sourcePublication;
       return renderSnapshot;
     },
     attachRendererResolverInternalV1(nextResolver) {
@@ -924,36 +1021,43 @@ export function createWorkspaceOverlaySessionInternalV1<TOverlayId extends strin
     getHandleInternalV1(surfaceInstanceId) {
       return runtime.coordinator.getHandle(surfaceInstanceId);
     },
-    rotateEpochInternalV1(kind) {
-      if (disposed) return;
-      mutationDepth += 1;
-      try {
-        unsubscribeCoordinator?.();
-        unsubscribeCoordinator = null;
-        renderRecords.clear();
-        runtime = lifetime.replace({ kind, recipe });
-        subscribeCoordinator();
-        reconcileRenderRecords();
-        dirty = true;
-      } finally {
-        mutationDepth -= 1;
-        if (mutationDepth === 0 && dirty) {
-          dirty = false;
-          notify();
-        }
+    detachRuntimeInternalV1() {
+      if (disposed || detached) return;
+      detached = true;
+      unsubscribeCoordinator?.();
+      unsubscribeCoordinator = null;
+      renderRecords.clear();
+      compatibilityPublication = null;
+      renderSourcePublication = null;
+      renderSnapshot = null;
+      dirty = true;
+    },
+    attachRuntimeInternalV1(nextRuntime) {
+      if (disposed) throw new TypeError("ui.workspace_overlay_session_disposed");
+      if (!detached) throw new TypeError("ui.workspace_overlay_runtime_already_attached");
+      runtime = nextRuntime;
+      detached = false;
+      subscribeCoordinator();
+      reconcileRenderRecords();
+      dirty = true;
+      if (mutationDepth === 0) {
+        dirty = false;
+        notify();
       }
     },
     disposeInternalV1() {
       if (disposed) return;
       mutationDepth += 1;
       try {
-        lifetime.dispose();
         disposed = true;
+        detached = true;
         unsubscribeCoordinator?.();
         unsubscribeCoordinator = null;
         renderRecords.clear();
         resolver = null;
-        reconcileRenderRecords();
+        compatibilityPublication = null;
+        renderSourcePublication = null;
+        renderSnapshot = null;
         dirty = true;
       } finally {
         mutationDepth -= 1;
@@ -967,14 +1071,4 @@ export function createWorkspaceOverlaySessionInternalV1<TOverlayId extends strin
   };
 
   return Object.freeze(session);
-}
-
-export function createLocalWorkspaceOverlayEpochAllocatorInternalV1(): ManagedSurfaceApplicationEpochAllocatorV1 {
-  let cursor: NonNegativeSafeInteger = parseNonNegativeSafeInteger(0);
-  return Object.freeze({
-    allocate(): NonNegativeSafeInteger {
-      cursor = parseNonNegativeSafeInteger(cursor + 1);
-      return cursor;
-    },
-  });
 }

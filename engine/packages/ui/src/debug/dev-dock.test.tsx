@@ -23,7 +23,11 @@ import {
 } from "./dev-dock-portal-coordinator.tsx";
 import { OverlayHostV1 } from "../overlays/overlay-host.tsx";
 import {
-  createLocalWorkspaceOverlayEpochAllocatorInternalV1,
+  createLocalManagedSurfaceEpochAllocatorInternalV1,
+  createManagedSurfaceCompositionRuntimeInternalV1,
+} from "../managed-surfaces/managed-surface-composition-runtime.ts";
+import {
+  createWorkspaceOverlaySessionConfigurationInternalV1,
   createWorkspaceOverlaySessionInternalV1,
   defineWorkspaceOverlayV1,
 } from "../overlays/workspace-overlay-session.ts";
@@ -262,8 +266,15 @@ function RealOverlayEscapeHarnessV1(props: {
     overlayFixtureRef.current = createRealOverlayFixtureV1(inputRouterRef.current);
   }
   const [dockState, setDockState] = useState<DevDockOpenStateV1>(closedDockStateV1);
-  const { rendererResolver, session } = overlayFixtureRef.current;
-  useLayoutEffect(() => () => session.disposeInternalV1(), [session]);
+  const { rendererResolver, runtimeOwner, session } = overlayFixtureRef.current;
+  useLayoutEffect(
+    () => () => {
+      session.detachRuntimeInternalV1();
+      runtimeOwner.dispose();
+      session.disposeInternalV1();
+    },
+    [runtimeOwner, session],
+  );
   return (
     <GameShell
       accessibleName="真实 Overlay Escape 测试舞台"
@@ -309,14 +320,21 @@ function createRealOverlayFixtureV1(inputRouter: ReturnType<typeof createInputRo
         })
         : null,
   });
-  const session = createWorkspaceOverlaySessionInternalV1<OverlayIdV1>({
-    inputRouter,
-    epochAllocator: createLocalWorkspaceOverlayEpochAllocatorInternalV1(),
+  const configuration = createWorkspaceOverlaySessionConfigurationInternalV1<OverlayIdV1>({
     definitions: Object.freeze([
       defineWorkspaceOverlayV1({ id: "overlay.test.devdock", contractRevision: 1 }),
     ]),
   });
-  return Object.freeze({ rendererResolver, session });
+  const runtimeOwner = createManagedSurfaceCompositionRuntimeInternalV1({
+    inputRouter,
+    epochAllocator: createLocalManagedSurfaceEpochAllocatorInternalV1(),
+    recipe: configuration.recipeContribution,
+  });
+  const session = createWorkspaceOverlaySessionInternalV1<OverlayIdV1>({
+    runtime: runtimeOwner.getCurrent(),
+    configuration,
+  });
+  return Object.freeze({ rendererResolver, runtimeOwner, session });
 }
 
 function RealSystemEscapeHarnessV1(props: {

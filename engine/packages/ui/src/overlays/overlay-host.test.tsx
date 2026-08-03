@@ -18,13 +18,24 @@ import {
   systemInputActionIdsV1,
 } from "../input/contracts.ts";
 import { createInputRouterV1 } from "../input/input-router.ts";
+import {
+  createLocalManagedSurfaceEpochAllocatorInternalV1,
+  createManagedSurfaceCompositionRuntimeInternalV1,
+  type ManagedSurfaceCompositionRuntimeInternalV1,
+} from "../managed-surfaces/managed-surface-composition-runtime.ts";
 import { GameStageV1 } from "../shell/game-stage.tsx";
+import { systemDialogManagedContractInternalV1 } from "../system/system-dialog-managed-contract.ts";
+import {
+  createSystemDialogManagedSessionInternalV1,
+  createSystemDialogRootCatalogSnapshotInternalV1,
+} from "../system/system-dialog-managed-session.ts";
 import type { OverlayRendererResolverV1, OverlayRendererResolutionV1 } from "./overlay-host.tsx";
 import { OverlayHostV1 } from "./overlay-host.tsx";
 import {
-  createLocalWorkspaceOverlayEpochAllocatorInternalV1,
-  createWorkspaceOverlaySessionInternalV1,
+  createWorkspaceOverlaySessionConfigurationInternalV1,
+  createWorkspaceOverlaySessionInternalV1 as createWorkspaceOverlaySessionWithRuntimeInternalV1,
   defineWorkspaceOverlayV1,
+  type CreateWorkspaceOverlaySessionConfigurationInternalInputV1,
   type WorkspaceOverlaySessionInternalV1,
 } from "./workspace-overlay-session.ts";
 
@@ -48,6 +59,40 @@ const overlayDefinitionsV1 = Object.freeze([
     dismissible: false,
   }),
 ]);
+
+interface CreateWorkspaceOverlayTestSessionInputV1<TOverlayId extends string>
+  extends CreateWorkspaceOverlaySessionConfigurationInternalInputV1<TOverlayId> {
+  readonly inputRouter: ReturnType<typeof createInputRouterV1>;
+  readonly epochAllocator: Parameters<
+    typeof createManagedSurfaceCompositionRuntimeInternalV1
+  >[0]["epochAllocator"];
+}
+
+const workspaceOverlayRuntimeOwnersV1 = new WeakMap<
+  object,
+  ManagedSurfaceCompositionRuntimeInternalV1
+>();
+
+function createWorkspaceOverlaySessionInternalV1<TOverlayId extends string>(
+  input: CreateWorkspaceOverlayTestSessionInputV1<TOverlayId>,
+): WorkspaceOverlaySessionInternalV1<TOverlayId> {
+  const configuration = createWorkspaceOverlaySessionConfigurationInternalV1({
+    definitions: input.definitions,
+    ...(input.availablePorts === undefined ? {} : { availablePorts: input.availablePorts }),
+    ...(input.reportFailure === undefined ? {} : { reportFailure: input.reportFailure }),
+  });
+  const runtimeOwner = createManagedSurfaceCompositionRuntimeInternalV1({
+    inputRouter: input.inputRouter,
+    epochAllocator: input.epochAllocator,
+    recipe: configuration.recipeContribution,
+  });
+  const session = createWorkspaceOverlaySessionWithRuntimeInternalV1({
+    runtime: runtimeOwner.getCurrent(),
+    configuration,
+  });
+  workspaceOverlayRuntimeOwnersV1.set(session, runtimeOwner);
+  return session;
+}
 
 function resolutionV1(accessibleName: string, content: OverlayRendererResolutionV1["content"]) {
   return Object.freeze({ accessibleName, content });
@@ -105,11 +150,68 @@ function createOverlaySessionStoreV1(
 ): WorkspaceOverlaySessionInternalV1<OverlayIdV1> {
   const session = createWorkspaceOverlaySessionInternalV1({
     inputRouter,
-    epochAllocator: createLocalWorkspaceOverlayEpochAllocatorInternalV1(),
+    epochAllocator: createLocalManagedSurfaceEpochAllocatorInternalV1(),
     definitions: overlayDefinitionsV1,
   });
   session.attachRendererResolverInternalV1(createResolverV1(session));
   return session;
+}
+
+function createSharedSystemOverlayFixtureV1() {
+  const inputRouter = createInputRouterV1();
+  const configuration = createWorkspaceOverlaySessionConfigurationInternalV1({
+    definitions: overlayDefinitionsV1,
+  });
+  const runtimeOwner = createManagedSurfaceCompositionRuntimeInternalV1({
+    inputRouter,
+    epochAllocator: createLocalManagedSurfaceEpochAllocatorInternalV1(),
+    recipe: Object.freeze({
+      resolvedOwnerIds: Object.freeze([
+        ...configuration.recipeContribution.resolvedOwnerIds,
+        ...systemDialogManagedContractInternalV1.resolvedOwnerIds,
+      ]),
+      resolvedSlotDescriptors: Object.freeze([
+        ...configuration.recipeContribution.resolvedSlotDescriptors,
+        ...systemDialogManagedContractInternalV1.resolvedSlotDescriptors,
+      ]),
+    }),
+  });
+  const overlay = createWorkspaceOverlaySessionWithRuntimeInternalV1({
+    runtime: runtimeOwner.getCurrent(),
+    configuration,
+  });
+  const system = createSystemDialogManagedSessionInternalV1({
+    runtime: runtimeOwner.getCurrent(),
+    catalog: createSystemDialogRootCatalogSnapshotInternalV1({
+      entries: Object.freeze([
+        Object.freeze({
+          rootRequest: "settings" as const,
+          rendererComponent: Object.freeze({ kind: "settings-renderer" }),
+          accessibleName: "Settings",
+          requiredPortIds: Object.freeze([]),
+          contentConfig: Object.freeze({
+            title: "Settings",
+            closeLabel: "Close",
+            emptyText: "Empty",
+            sections: Object.freeze([]),
+          }),
+        }),
+      ]),
+      portBindings: Object.freeze([]),
+    }),
+  });
+  return Object.freeze({
+    inputRouter,
+    overlay,
+    system,
+    dispose(): void {
+      overlay.detachRuntimeInternalV1();
+      system.detachRuntimeInternalV1();
+      runtimeOwner.dispose();
+      overlay.disposeInternalV1();
+      system.disposeInternalV1();
+    },
+  });
 }
 
 async function openReadyV1(
@@ -203,7 +305,7 @@ describe("OverlayHostV1", () => {
     const inputRouter = createInputRouterV1();
     const session = createWorkspaceOverlaySessionInternalV1<EditorOverlayIdV1>({
       inputRouter,
-      epochAllocator: createLocalWorkspaceOverlayEpochAllocatorInternalV1(),
+      epochAllocator: createLocalManagedSurfaceEpochAllocatorInternalV1(),
       definitions: Object.freeze([
         defineWorkspaceOverlayV1({ id: "overlay.test.editor-a", contractRevision: 1 }),
         defineWorkspaceOverlayV1({ id: "overlay.test.editor-b", contractRevision: 1 }),
@@ -250,7 +352,7 @@ describe("OverlayHostV1", () => {
     const inputRouter = createInputRouterV1();
     const session = createWorkspaceOverlaySessionInternalV1({
       inputRouter,
-      epochAllocator: createLocalWorkspaceOverlayEpochAllocatorInternalV1(),
+      epochAllocator: createLocalManagedSurfaceEpochAllocatorInternalV1(),
       definitions: Object.freeze([
         defineWorkspaceOverlayV1({ id: "overlay.test.initial-failure", contractRevision: 1 }),
       ]),
@@ -303,13 +405,108 @@ describe("OverlayHostV1", () => {
     expect(opener).toHaveFocus();
   });
 
+  it("does not restore external focus when a higher System candidate occludes a live Overlay", async () => {
+    const fixture = createSharedSystemOverlayFixtureV1();
+    const rendered = render(
+      <>
+        <button
+          type="button"
+          onClick={() => fixture.overlay.openPrimary("overlay.test.inventory")}
+        >
+          open shared overlay
+        </button>
+        <OverlayHostV1
+          session={fixture.overlay}
+          rendererResolver={createResolverV1(fixture.overlay)}
+          inputRouter={fixture.inputRouter}
+          closeLabel="close"
+        />
+      </>,
+    );
+    const user = userEvent.setup();
+    const opener = screen.getByRole("button", { name: "open shared overlay" });
+
+    try {
+      await user.click(opener);
+      const overlayFocus = await screen.findByRole("button", { name: "食材详情" });
+      expect(overlayFocus).toHaveFocus();
+
+      act(() => {
+        expect(fixture.system.openRootInternalV1("settings")).toMatchObject({
+          kind: "preparing",
+        });
+      });
+
+      await waitFor(() => expect(overlayFocus).toHaveFocus());
+      expect(opener).not.toHaveFocus();
+      expect(document.querySelector("[data-overlay-fallback]")).toBeNull();
+    } finally {
+      rendered.unmount();
+      fixture.dispose();
+    }
+  });
+
+  it("withdraws an Overlay fallback when a higher System fallback becomes the global fence", async () => {
+    const fixture = createSharedSystemOverlayFixtureV1();
+    const preparation = pendingPreparationV1();
+    const resolver = Object.freeze({
+      resolve: (id: OverlayIdV1) =>
+        Object.freeze({
+          accessibleName: id,
+          content: <p>candidate</p>,
+          prepare: () => preparation.promise,
+        }),
+    });
+    const rendered = render(
+      <>
+        <button
+          type="button"
+          onClick={() => fixture.overlay.openPrimary("overlay.test.inventory")}
+        >
+          open pending shared overlay
+        </button>
+        <OverlayHostV1
+          session={fixture.overlay}
+          rendererResolver={resolver}
+          inputRouter={fixture.inputRouter}
+          closeLabel="close"
+        />
+      </>,
+    );
+    const user = userEvent.setup();
+    const opener = screen.getByRole("button", { name: "open pending shared overlay" });
+
+    try {
+      await user.click(opener);
+      const overlayFallback = await waitFor(() => {
+        const element = document.querySelector<HTMLElement>("[data-overlay-fallback]");
+        expect(element).not.toBeNull();
+        return element!;
+      });
+      expect(overlayFallback).toHaveFocus();
+
+      act(() => {
+        expect(fixture.system.openRootInternalV1("settings")).toMatchObject({
+          kind: "preparing",
+        });
+      });
+
+      await waitFor(() => expect(document.querySelector("[data-overlay-fallback]")).toBeNull());
+      expect(opener).not.toHaveFocus();
+    } finally {
+      rendered.unmount();
+      fixture.dispose();
+      preparation.resolve();
+    }
+  });
+
   it("restores the parent focus after a child fallback fails", async () => {
     type ChildOverlayIdV1 = "overlay.test.parent" | "overlay.test.child-failure";
     const preparation = rejectedPreparationV1();
     const inputRouter = createInputRouterV1();
     const session = createWorkspaceOverlaySessionInternalV1<ChildOverlayIdV1>({
       inputRouter,
-      epochAllocator: createLocalWorkspaceOverlayEpochAllocatorInternalV1(),
+      epochAllocator: createLocalManagedSurfaceEpochAllocatorInternalV1(),
       definitions: Object.freeze([
         defineWorkspaceOverlayV1({ id: "overlay.test.parent", contractRevision: 1 }),
         defineWorkspaceOverlayV1({ id: "overlay.test.child-failure", contractRevision: 1 }),
@@ -377,7 +574,7 @@ describe("OverlayHostV1", () => {
     const inputRouter = createInputRouterV1();
     const session = createWorkspaceOverlaySessionInternalV1<ReplacementOverlayIdV1>({
       inputRouter,
-      epochAllocator: createLocalWorkspaceOverlayEpochAllocatorInternalV1(),
+      epochAllocator: createLocalManagedSurfaceEpochAllocatorInternalV1(),
       definitions: Object.freeze([
         defineWorkspaceOverlayV1({ id: "overlay.test.retained", contractRevision: 1 }),
         defineWorkspaceOverlayV1({
@@ -450,7 +647,7 @@ describe("OverlayHostV1", () => {
     const inputRouter = createInputRouterV1();
     const session = createWorkspaceOverlaySessionInternalV1({
       inputRouter,
-      epochAllocator: createLocalWorkspaceOverlayEpochAllocatorInternalV1(),
+      epochAllocator: createLocalManagedSurfaceEpochAllocatorInternalV1(),
       definitions: Object.freeze([
         defineWorkspaceOverlayV1({ id: "overlay.test.render-failure", contractRevision: 1 }),
       ]),
@@ -501,7 +698,7 @@ describe("OverlayHostV1", () => {
     const inputRouter = createInputRouterV1();
     const session = createWorkspaceOverlaySessionInternalV1({
       inputRouter,
-      epochAllocator: createLocalWorkspaceOverlayEpochAllocatorInternalV1(),
+      epochAllocator: createLocalManagedSurfaceEpochAllocatorInternalV1(),
       definitions: Object.freeze([
         defineWorkspaceOverlayV1({ id: "overlay.test.effectful", contractRevision: 1 }),
       ]),
@@ -546,7 +743,7 @@ describe("OverlayHostV1", () => {
     const inputRouter = createInputRouterV1();
     const session = createWorkspaceOverlaySessionInternalV1({
       inputRouter,
-      epochAllocator: createLocalWorkspaceOverlayEpochAllocatorInternalV1(),
+      epochAllocator: createLocalManagedSurfaceEpochAllocatorInternalV1(),
       definitions: Object.freeze([
         defineWorkspaceOverlayV1({ id: "overlay.test.unmount", contractRevision: 1 }),
       ]),
@@ -587,7 +784,7 @@ describe("OverlayHostV1", () => {
     const inputRouter = createInputRouterV1();
     const session = createWorkspaceOverlaySessionInternalV1({
       inputRouter,
-      epochAllocator: createLocalWorkspaceOverlayEpochAllocatorInternalV1(),
+      epochAllocator: createLocalManagedSurfaceEpochAllocatorInternalV1(),
       definitions: Object.freeze([
         defineWorkspaceOverlayV1({
           id: "overlay.test.locked-delayed",
@@ -960,7 +1157,7 @@ describe("OverlayHostV1", () => {
     const inputRouter = createInputRouterV1();
     const store = createWorkspaceOverlaySessionInternalV1<OverlayIdV1>({
       inputRouter,
-      epochAllocator: createLocalWorkspaceOverlayEpochAllocatorInternalV1(),
+      epochAllocator: createLocalManagedSurfaceEpochAllocatorInternalV1(),
       definitions: overlayDefinitionsV1,
     });
     const resolver = Object.freeze({
@@ -1025,7 +1222,7 @@ describe("OverlayHostV1", () => {
     const inputRouter = createInputRouterV1();
     const store = createWorkspaceOverlaySessionInternalV1<OverlayIdV1>({
       inputRouter,
-      epochAllocator: createLocalWorkspaceOverlayEpochAllocatorInternalV1(),
+      epochAllocator: createLocalManagedSurfaceEpochAllocatorInternalV1(),
       definitions: overlayDefinitionsV1,
     });
     function FaultableIngredientV1() {

@@ -13,8 +13,12 @@ import { createMemoryHostRecordStoreV1 } from "@sillymaker/base/testkit";
 
 import { createInputRouterV1 } from "../input/input-router.ts";
 import {
-  createLocalWorkspaceOverlayEpochAllocatorInternalV1,
+  createLocalManagedSurfaceEpochAllocatorInternalV1,
+  createManagedSurfaceCompositionRuntimeInternalV1,
+} from "../managed-surfaces/managed-surface-composition-runtime.ts";
+import {
   createWorkspaceOverlayPublicSessionInternalV1,
+  createWorkspaceOverlaySessionConfigurationInternalV1,
   createWorkspaceOverlaySessionInternalV1,
   defineWorkspaceOverlayV1,
 } from "../overlays/workspace-overlay-session.ts";
@@ -75,11 +79,18 @@ function renderLifecycleRootV1(input: {
     ["lifecycle.primary", deferredV1()],
     ["lifecycle.detail", deferredV1()],
   ]);
-  const overlayInternal = createWorkspaceOverlaySessionInternalV1<LifecycleOverlayIdV1>({
-    inputRouter,
-    epochAllocator: createLocalWorkspaceOverlayEpochAllocatorInternalV1(),
+  const overlayConfiguration = createWorkspaceOverlaySessionConfigurationInternalV1({
     definitions: lifecycleOverlayDefinitionsV1,
     reportFailure: (code, error) => overlayFailures.push(Object.freeze({ code, error })),
+  });
+  const managedSurfaceRuntimeOwner = createManagedSurfaceCompositionRuntimeInternalV1({
+    inputRouter,
+    epochAllocator: createLocalManagedSurfaceEpochAllocatorInternalV1(),
+    recipe: overlayConfiguration.recipeContribution,
+  });
+  const overlayInternal = createWorkspaceOverlaySessionInternalV1<LifecycleOverlayIdV1>({
+    runtime: managedSurfaceRuntimeOwner.getCurrent(),
+    configuration: overlayConfiguration,
   });
   const overlaySession = createWorkspaceOverlayPublicSessionInternalV1(overlayInternal);
   const overlayResolver = Object.freeze({
@@ -136,6 +147,7 @@ function renderLifecycleRootV1(input: {
   );
 
   return Object.freeze({
+    managedSurfaceRuntimeOwner,
     overlayInternal,
     overlaySession,
     overlayFailures,

@@ -7,8 +7,13 @@ import {
   resolveWorkspaceOverlaySessionInternalV1,
 } from "../overlays/workspace-overlay-session.ts";
 import {
+  createSystemDialogRootCatalogSnapshotInternalV1,
+  resolveSystemDialogSessionInternalV1,
+} from "../system/system-dialog-managed-session.ts";
+import {
   createGameUiCompositionV1,
   createHostedGameUiCompositionInternalV1,
+  resolveGameUiManagedSurfaceCompositionInternalV1,
   type GameUiAnchorSourceV1,
   type GameUiPresentationAnchorV1,
 } from "./create-game-ui-composition.ts";
@@ -118,6 +123,110 @@ describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () 
     expect(subscriptions).toBe(0);
   });
 
+  it("keeps Overlay intent and closure owner-scoped while dormant System prepares", async () => {
+    const semanticPublication = Object.freeze({ revision: 0 });
+    const composition = createGameUiCompositionV1({
+      semantic: Object.freeze({
+        observe: () => semanticPublication,
+        subscribe: () => () => undefined,
+      }),
+      projector: Object.freeze({
+        resolvedCatalog: Object.freeze({}),
+        initialUiState: Object.freeze({}),
+        project: () =>
+          Object.freeze({
+            view: Object.freeze({}),
+            requiredAssetIds: Object.freeze([]),
+          }),
+      }),
+      overlayDefinitions: Object.freeze([overlayDefinitionV1]),
+    });
+
+    try {
+      const overlayInternal = resolveWorkspaceOverlaySessionInternalV1(composition.overlaySession);
+      overlayInternal.attachRendererResolverInternalV1(Object.freeze({
+        resolve: (id: "overlay.epoch-fixture") =>
+          Object.freeze({ accessibleName: id, content: id }),
+      }));
+      const managedComposition = resolveGameUiManagedSurfaceCompositionInternalV1(composition);
+      const systemInternal = resolveSystemDialogSessionInternalV1(
+        managedComposition.systemDialogSession,
+      );
+      systemInternal.setCatalogInternalV1(
+        createSystemDialogRootCatalogSnapshotInternalV1({
+          entries: Object.freeze([
+            Object.freeze({
+              rootRequest: "settings" as const,
+              rendererComponent: Object.freeze({ kind: "settings-renderer" }),
+              accessibleName: "Settings",
+              requiredPortIds: Object.freeze([]),
+              contentConfig: Object.freeze({
+                title: "Settings",
+                closeLabel: "Close",
+                emptyText: "Empty",
+                sections: Object.freeze([]),
+              }),
+            }),
+          ]),
+          portBindings: Object.freeze([]),
+        }),
+      );
+
+      expect(composition.overlaySession.openPrimary("overlay.epoch-fixture")).toMatchObject({
+        kind: "preparing",
+      });
+      const overlayRoot = overlayInternal.getRenderSnapshotInternalV1().entries[0]!;
+      await expect(
+        overlayInternal.beginCandidatePreparationInternalV1(overlayRoot.surfaceInstanceId),
+      ).resolves.toEqual({ kind: "ready" });
+      expect(systemInternal.openRootInternalV1("settings")).toMatchObject({ kind: "preparing" });
+      const systemRoot = systemInternal.getRootCandidateRecordsInternalV1()[0]!;
+      const beforeSameOverlay = systemInternal.getManagedSnapshotInternalV1();
+      const overlayHostWhileSystemPrepares = overlayInternal.getRenderSnapshotInternalV1()
+        .publication;
+      expect(
+        overlayHostWhileSystemPrepares.orderedInstances.map((instance) =>
+          instance.surfaceInstanceId
+        ),
+      ).toEqual([overlayRoot.surfaceInstanceId]);
+      expect(overlayHostWhileSystemPrepares.preparationFallbacks).toEqual([]);
+      expect(overlayHostWhileSystemPrepares.inputOwner).toBeNull();
+      expect(overlayHostWhileSystemPrepares.focusOwner).toBeNull();
+      expect(composition.overlaySession.openPrimary("overlay.epoch-fixture")).toEqual({
+        kind: "unchanged",
+        code: "overlay.already_open",
+      });
+      expect(systemInternal.getManagedSnapshotInternalV1()).toBe(beforeSameOverlay);
+      expect(systemInternal.readyCandidateInternalV1(systemRoot.surfaceInstanceId)).toMatchObject({
+        kind: "applied",
+        code: "surface.readiness_ready",
+      });
+      expect(composition.overlaySession.getSnapshot()).toEqual({
+        primaryId: "overlay.epoch-fixture",
+        detailIds: [],
+      });
+      expect(overlayInternal.getRenderSnapshotInternalV1().publication).toMatchObject({
+        topmostBlockingInstanceId: null,
+        inputOwner: null,
+        focusOwner: null,
+        preparationFallbacks: [],
+      });
+
+      composition.overlaySession.closeAll();
+      expect(composition.overlaySession.getSnapshot()).toEqual({ primaryId: null, detailIds: [] });
+      expect(overlayInternal.getRenderSnapshotInternalV1().publication.orderedInstances).toEqual(
+        [],
+      );
+      expect(
+        systemInternal.getManagedSnapshotInternalV1().orderedInstances.filter((instance) =>
+          instance.definition.ownerId === systemRoot.resolution.definition.ownerId
+        ),
+      ).toHaveLength(1);
+    } finally {
+      composition.dispose();
+    }
+  });
+
   it("rotates every anchor successor behind the private facade and fences old readiness", async () => {
     const anchor = createAnchorSourceV1();
     const epochSequence = [11, 17, 23, 31] as const;
@@ -163,6 +272,49 @@ describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () 
 
     try {
       overlayInternal = resolveWorkspaceOverlaySessionInternalV1(composition.overlaySession);
+      const managedComposition = resolveGameUiManagedSurfaceCompositionInternalV1(composition);
+      const managedSystemInternal = resolveSystemDialogSessionInternalV1(
+        managedComposition.systemDialogSession,
+      );
+      const initialRuntime = managedComposition.runtime.getCurrent();
+      const initialPublication = initialRuntime.coordinator.getSnapshot();
+      expect(overlayInternal.getManagedSnapshotInternalV1()).toBe(initialPublication);
+      expect(managedSystemInternal.getManagedSnapshotInternalV1()).toBe(initialPublication);
+      expect(initialRuntime.applicationEpoch).toBe(11);
+      expect(Reflect.ownKeys(managedComposition.systemDialogSession)).toEqual([]);
+      expect(Object.isFrozen(managedComposition.systemDialogSession)).toBe(true);
+
+      let unavailableNotifications = 0;
+      const unsubscribeUnavailable = initialRuntime.coordinator.subscribe(() => {
+        unavailableNotifications += 1;
+      });
+      expect(managedSystemInternal.openRootInternalV1("settings")).toEqual({
+        kind: "rejected",
+        code: "system_dialog.renderer_unavailable",
+      });
+      expect(initialRuntime.coordinator.getSnapshot()).toBe(initialPublication);
+      expect(unavailableNotifications).toBe(0);
+      unsubscribeUnavailable();
+
+      managedSystemInternal.setCatalogInternalV1(
+        createSystemDialogRootCatalogSnapshotInternalV1({
+          entries: Object.freeze([
+            Object.freeze({
+              rootRequest: "settings" as const,
+              rendererComponent: Object.freeze({ kind: "settings-renderer" }),
+              accessibleName: "Settings",
+              requiredPortIds: Object.freeze([]),
+              contentConfig: Object.freeze({
+                title: "Settings",
+                closeLabel: "Close",
+                emptyText: "Empty",
+                sections: Object.freeze([]),
+              }),
+            }),
+          ]),
+          portBindings: Object.freeze([]),
+        }),
+      );
       const preparation = deferredV1();
       overlayInternal.attachRendererResolverInternalV1(Object.freeze({
         resolve: (id: "overlay.epoch-fixture") =>
@@ -194,6 +346,15 @@ describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () 
       const lateReadiness = overlayInternal.beginCandidatePreparationInternalV1(
         predecessorCandidate.surfaceInstanceId,
       );
+      expect(managedSystemInternal.openRootInternalV1("settings")).toEqual({
+        kind: "preparing",
+        code: "system_dialog.preparation_started",
+      });
+      const systemPredecessorCandidate = managedSystemInternal
+        .getRootCandidateRecordsInternalV1()[0]!;
+      expect(managedSystemInternal.getManagedSnapshotInternalV1()).toBe(
+        overlayInternal.getManagedSnapshotInternalV1(),
+      );
 
       anchor.publish(Object.freeze({ epoch: 1, origin: "load" }));
 
@@ -206,12 +367,20 @@ describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () 
         coordinatorDisposed: true,
       });
       const afterLoad = overlayInternal.getManagedSnapshotInternalV1();
+      expect(managedComposition.runtime.getCurrent().applicationEpoch).toBe(17);
+      expect(managedSystemInternal.getManagedSnapshotInternalV1()).toBe(afterLoad);
+      expect(managedComposition.runtime.getCurrent().coordinator.getSnapshot()).toBe(afterLoad);
       expect(afterLoad).toMatchObject({
         applicationEpoch: 17,
         publicationRevision: 0,
         topologyRevision: 0,
         orderedInstances: [],
         coordinatorDisposed: false,
+      });
+      expect(systemPredecessorCandidate.readiness.ready().receipt).toMatchObject({
+        kind: "stale",
+        code: "surface.stale_readiness",
+        surfaceInstanceId: systemPredecessorCandidate.surfaceInstanceId,
       });
 
       preparation.resolve();

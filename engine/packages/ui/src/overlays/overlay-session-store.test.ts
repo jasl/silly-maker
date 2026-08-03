@@ -2,10 +2,15 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { createInputRouterV1 } from "../input/input-router.ts";
+import {
+  createLocalManagedSurfaceEpochAllocatorInternalV1,
+  createManagedSurfaceCompositionRuntimeInternalV1,
+  type ManagedSurfaceCompositionRuntimeInternalV1,
+} from "../managed-surfaces/managed-surface-composition-runtime.ts";
 import { defineWorkspaceOverlayV1, maximumOverlayDetailDepthV1 } from "./overlay-session-store.ts";
 import {
-  createLocalWorkspaceOverlayEpochAllocatorInternalV1,
   createWorkspaceOverlayPublicSessionInternalV1,
+  createWorkspaceOverlaySessionConfigurationInternalV1,
   createWorkspaceOverlaySessionInternalV1,
   type OverlaySessionStoreV1,
   type WorkspaceOverlaySessionInternalV1,
@@ -37,19 +42,28 @@ const definitionsV1 = Object.freeze(
 interface OverlayFixtureV1 {
   readonly session: OverlaySessionStoreV1<OverlayIdV1>;
   readonly internal: WorkspaceOverlaySessionInternalV1<OverlayIdV1>;
+  readonly runtimeOwner: ManagedSurfaceCompositionRuntimeInternalV1;
 }
 
 function createOverlayFixtureV1(): OverlayFixtureV1 {
-  const internal = createWorkspaceOverlaySessionInternalV1({
-    inputRouter: createInputRouterV1(),
-    epochAllocator: createLocalWorkspaceOverlayEpochAllocatorInternalV1(),
+  const configuration = createWorkspaceOverlaySessionConfigurationInternalV1({
     definitions: definitionsV1,
+  });
+  const runtimeOwner = createManagedSurfaceCompositionRuntimeInternalV1({
+    inputRouter: createInputRouterV1(),
+    epochAllocator: createLocalManagedSurfaceEpochAllocatorInternalV1(),
+    recipe: configuration.recipeContribution,
+  });
+  const internal = createWorkspaceOverlaySessionInternalV1({
+    runtime: runtimeOwner.getCurrent(),
+    configuration,
   });
   internal.attachRendererResolverInternalV1(Object.freeze({
     resolve: (id: OverlayIdV1) => Object.freeze({ accessibleName: id, content: id }),
   }));
   return Object.freeze({
     internal,
+    runtimeOwner,
     session: createWorkspaceOverlayPublicSessionInternalV1(internal),
   });
 }

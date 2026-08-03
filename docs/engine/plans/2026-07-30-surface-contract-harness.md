@@ -7,7 +7,8 @@ reconcile、dormant-kernel boundedness/action provenance 与 Overlay cutover
 retained-active pending cancellation、exact result/delta matrix、Host-commit readiness、
 StrictMode、API cutover 与 stop conditions。
 同日 S3a dormant definition/slot/result/snapshot floor 与两个 package-internal
-atomic composite operations 已完成，下一独立实施切片为 S3b。
+atomic composite operations、S3b composition-owned shared Coordinator 与 dormant System
+session/config catalog 已完成，下一独立实施切片为 S3c。
 目标合同见
 [Managed Surface lifecycle and contract harness](../design/surface-contract-harness.md)。
 本文只规定可独立交付的实施顺序；不要求一次实现 design
@@ -15,7 +16,7 @@ atomic composite operations 已完成，下一独立实施切片为 S3b。
 
 在 [production-floor sequence](2026-07-30-production-floor-sequence.md)
 中：PF2 的 `S0 -> S1-T -> S2`、PF-DET 与 PF3/M2 已完成；当前 core
-节点是 PF4/S3b。PF4 的顺序是 `S3 -> S1-R -> S4 -> S4b`；S5–S6
+节点是 PF4/S3c。PF4 的顺序是 `S3 -> S1-R -> S4 -> S4b`；S5–S6
 属于 PF6。S1-R
 延后到第一个真实 externally published stable-target family 前完成；按 accepted
 target ownership，S4 Narrative 计划成为该 family，因此 S1-R 位于 S3 与 S4
@@ -1168,6 +1169,26 @@ graph；S3b 必须实现 Settings/Saves known-field copier/catalog facade并实�
 合同（未消费的 metadata 届时删除），S3c 才实现 Host-commit readiness、StrictMode lease
 与 error boundary。旧 System store、fallback Host 与 public lifecycle API 完全未改；
 Save/Persistence/M2/canonical/digest/replay/wire 均未变化。
+
+**2026-08-04 S3b delivery：** composition 现在只创建一个 family-neutral Managed
+Surface runtime；它唯一拥有 Coordinator lifetime、application epoch、successor/dispose
+与 managed-input rebinding。Workspace Overlay adapter 改为消费该 runtime，并按 owner
+读取/关闭 topology；传给 Overlay Host 的 publication 也只投影 Overlay instances、
+fallback、input/focus/navigation evidence，不能误消费 dormant System evidence。其 public
+facade、admission、readiness、render-record batching 与既有 browser behavior 保持不变。
+每次 load/import/Coordinator successor 都先撤销 Overlay 与
+dormant System adapter ingress，再只分配一个 successor epoch，最后把两者附着到同一份
+fresh publication；predecessor readiness 对两个 family 同时 stale。
+
+同一 composition 已注入 package-internal opaque System facade，但正式 catalog 仍为
+`null`，所以 dormant ingress 只返回 `renderer_unavailable` 且 `0/0/0/0`。System root
+state machine 消费 S3a exact request/preflight/composite operations；Settings 与
+standard/custom Saves 使用 descriptor-safe known-field copier，candidate 捕获 renderer、
+port、React content/component 与 guard evaluator identity，并隔离 future catalog R2。
+legacy public System store/Host 仍是唯一 live System writer；新 facade 未进入任何 barrel、
+Host 或 Story path。S3b 没有实现 Host/portal lease、React Host-commit readiness、
+confirmation child 或 live cutover，也没有改变 Save/Persistence/M2/canonical/digest/
+replay/wire。下一独立切片为 S3c。
 
 每个 dormant slice 必须 package-internal、不可由 live System 与旧 store同时写入；若
 为了独立合并必须双写、mirror 或提前开放第二个 lifecycle ingress，停止并重切片。

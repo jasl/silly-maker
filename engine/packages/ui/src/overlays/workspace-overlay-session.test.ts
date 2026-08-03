@@ -4,11 +4,70 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createInputRouterV1 } from "../input/input-router.ts";
 import {
-  createLocalWorkspaceOverlayEpochAllocatorInternalV1,
-  createWorkspaceOverlaySessionInternalV1,
+  createLocalManagedSurfaceEpochAllocatorInternalV1,
+  createManagedSurfaceCompositionRuntimeInternalV1,
+  type ManagedSurfaceCompositionRuntimeInternalV1,
+} from "../managed-surfaces/managed-surface-composition-runtime.ts";
+import type {
+  ManagedSurfaceApplicationEpochAllocatorV1,
+  ManagedSurfaceCoordinatorSuccessorKindV1,
+} from "../managed-surfaces/managed-surface-coordinator-lifetime.ts";
+import {
+  createWorkspaceOverlaySessionConfigurationInternalV1,
+  createWorkspaceOverlaySessionInternalV1 as createWorkspaceOverlaySessionWithRuntimeInternalV1,
   defineWorkspaceOverlayV1,
+  type CreateWorkspaceOverlaySessionConfigurationInternalInputV1,
   type WorkspaceOverlaySessionInternalV1,
 } from "./workspace-overlay-session.ts";
+
+interface CreateWorkspaceOverlayTestSessionInputV1<TOverlayId extends string>
+  extends CreateWorkspaceOverlaySessionConfigurationInternalInputV1<TOverlayId> {
+  readonly inputRouter: ReturnType<typeof createInputRouterV1>;
+  readonly epochAllocator: ManagedSurfaceApplicationEpochAllocatorV1;
+}
+
+interface WorkspaceOverlayTestFixtureV1<TOverlayId extends string> {
+  readonly runtimeOwner: ManagedSurfaceCompositionRuntimeInternalV1;
+  readonly session: WorkspaceOverlaySessionInternalV1<TOverlayId>;
+}
+
+function createWorkspaceOverlayTestFixtureV1<TOverlayId extends string>(
+  input: CreateWorkspaceOverlayTestSessionInputV1<TOverlayId>,
+): WorkspaceOverlayTestFixtureV1<TOverlayId> {
+  const configuration = createWorkspaceOverlaySessionConfigurationInternalV1({
+    definitions: input.definitions,
+    ...(input.availablePorts === undefined ? {} : { availablePorts: input.availablePorts }),
+    ...(input.reportFailure === undefined ? {} : { reportFailure: input.reportFailure }),
+  });
+  const runtimeOwner = createManagedSurfaceCompositionRuntimeInternalV1({
+    inputRouter: input.inputRouter,
+    epochAllocator: input.epochAllocator,
+    recipe: configuration.recipeContribution,
+  });
+  const session = createWorkspaceOverlaySessionWithRuntimeInternalV1({
+    runtime: runtimeOwner.getCurrent(),
+    configuration,
+  });
+  return Object.freeze({ runtimeOwner, session });
+}
+
+function replaceWorkspaceOverlayRuntimeInternalV1<TOverlayId extends string>(
+  runtimeOwner: ManagedSurfaceCompositionRuntimeInternalV1,
+  session: WorkspaceOverlaySessionInternalV1<TOverlayId>,
+  kind: ManagedSurfaceCoordinatorSuccessorKindV1,
+): void {
+  session.detachRuntimeInternalV1();
+  session.attachRuntimeInternalV1(runtimeOwner.replace(kind));
+}
+
+function disposeWorkspaceOverlaySessionInternalV1<TOverlayId extends string>(
+  runtimeOwner: ManagedSurfaceCompositionRuntimeInternalV1,
+  session: WorkspaceOverlaySessionInternalV1<TOverlayId>,
+): void {
+  session.detachRuntimeInternalV1();
+  runtimeOwner.dispose();
+  session.disposeInternalV1();
+}
 
 function deferredV1() {
   let resolve!: () => void;
@@ -61,9 +120,9 @@ const definitionsV1 = Object.freeze([
 describe("Workspace Overlay Coordinator facade", () => {
   it("closes a pending-only initial fallback and fences its late readiness", async () => {
     const delayed = deferredV1();
-    const session = createWorkspaceOverlaySessionInternalV1({
+    const { session } = createWorkspaceOverlayTestFixtureV1({
       inputRouter: createInputRouterV1(),
-      epochAllocator: createLocalWorkspaceOverlayEpochAllocatorInternalV1(),
+      epochAllocator: createLocalManagedSurfaceEpochAllocatorInternalV1(),
       definitions: definitionsV1,
     });
     session.attachRendererResolverInternalV1(Object.freeze({
@@ -99,7 +158,7 @@ describe("Workspace Overlay Coordinator facade", () => {
 
   it("rejects renderer and required-port gaps before mutation, then fences late readiness", async () => {
     const delayed = deferredV1();
-    const session = createWorkspaceOverlaySessionInternalV1<string>({
+    const { session } = createWorkspaceOverlayTestFixtureV1<string>({
       inputRouter: createInputRouterV1(),
       epochAllocator: Object.freeze({
         allocate: () => parseNonNegativeSafeInteger(7),
@@ -182,7 +241,7 @@ describe("Workspace Overlay Coordinator facade", () => {
   });
 
   it("rejects malformed contract revision and target schema without allocating an instance", () => {
-    const session = createWorkspaceOverlaySessionInternalV1({
+    const { session } = createWorkspaceOverlayTestFixtureV1({
       inputRouter: createInputRouterV1(),
       epochAllocator: Object.freeze({
         allocate: () => parseNonNegativeSafeInteger(9),
@@ -247,9 +306,9 @@ describe("Workspace Overlay Coordinator facade", () => {
 
   it("admits required ports only from concrete composition bindings", async () => {
     const inventoryPort = Object.freeze({ observe: () => Object.freeze([]) });
-    const session = createWorkspaceOverlaySessionInternalV1({
+    const { session } = createWorkspaceOverlayTestFixtureV1({
       inputRouter: createInputRouterV1(),
-      epochAllocator: createLocalWorkspaceOverlayEpochAllocatorInternalV1(),
+      epochAllocator: createLocalManagedSurfaceEpochAllocatorInternalV1(),
       definitions: [definitionsV1[3]!],
       availablePorts: [Object.freeze({ id: "port.test.inventory", port: inventoryPort })],
     });
@@ -268,9 +327,9 @@ describe("Workspace Overlay Coordinator facade", () => {
     });
 
     expect(() =>
-      createWorkspaceOverlaySessionInternalV1({
+      createWorkspaceOverlayTestFixtureV1({
         inputRouter: createInputRouterV1(),
-        epochAllocator: createLocalWorkspaceOverlayEpochAllocatorInternalV1(),
+        epochAllocator: createLocalManagedSurfaceEpochAllocatorInternalV1(),
         definitions: [],
         availablePorts: [{ id: "port.test.invalid", port: null }] as never,
       })
@@ -279,9 +338,9 @@ describe("Workspace Overlay Coordinator facade", () => {
 
   it("isolates diagnostic sink failures before admission and while failing preparation", async () => {
     const preparationFailure = new Error("synthetic preparation failure");
-    const session = createWorkspaceOverlaySessionInternalV1({
+    const { session } = createWorkspaceOverlayTestFixtureV1({
       inputRouter: createInputRouterV1(),
-      epochAllocator: createLocalWorkspaceOverlayEpochAllocatorInternalV1(),
+      epochAllocator: createLocalManagedSurfaceEpochAllocatorInternalV1(),
       definitions: [
         defineWorkspaceOverlayV1({
           id: "overlay.test.renderer-fault",
@@ -331,9 +390,9 @@ describe("Workspace Overlay Coordinator facade", () => {
   it("maps initial, replacement, and child preparation to the fixed Overlay policy", async () => {
     const replacementFailure = new Error("synthetic replacement failure");
     const childFailure = new Error("synthetic child failure");
-    const session = createWorkspaceOverlaySessionInternalV1({
+    const { session } = createWorkspaceOverlayTestFixtureV1({
       inputRouter: createInputRouterV1(),
-      epochAllocator: createLocalWorkspaceOverlayEpochAllocatorInternalV1(),
+      epochAllocator: createLocalManagedSurfaceEpochAllocatorInternalV1(),
       definitions: [
         defineWorkspaceOverlayV1({ id: "overlay.test.root", contractRevision: 1 }),
         defineWorkspaceOverlayV1({ id: "overlay.test.replacement", contractRevision: 1 }),
@@ -403,9 +462,9 @@ describe("Workspace Overlay Coordinator facade", () => {
 
   it("never reuses an instance after initial failure and makes repeated receipts stale", async () => {
     let rejectPreparation = true;
-    const session = createWorkspaceOverlaySessionInternalV1({
+    const { session } = createWorkspaceOverlayTestFixtureV1({
       inputRouter: createInputRouterV1(),
-      epochAllocator: createLocalWorkspaceOverlayEpochAllocatorInternalV1(),
+      epochAllocator: createLocalManagedSurfaceEpochAllocatorInternalV1(),
       definitions: [
         defineWorkspaceOverlayV1({ id: "overlay.test.retry", contractRevision: 1 }),
       ],
@@ -448,9 +507,9 @@ describe("Workspace Overlay Coordinator facade", () => {
   it("cancels an older replacement before a second replacement and fences its late readiness", async () => {
     const first = deferredV1();
     const second = deferredV1();
-    const session = createWorkspaceOverlaySessionInternalV1({
+    const { session } = createWorkspaceOverlayTestFixtureV1({
       inputRouter: createInputRouterV1(),
-      epochAllocator: createLocalWorkspaceOverlayEpochAllocatorInternalV1(),
+      epochAllocator: createLocalManagedSurfaceEpochAllocatorInternalV1(),
       definitions: [
         defineWorkspaceOverlayV1({ id: "overlay.test.base", contractRevision: 1 }),
         defineWorkspaceOverlayV1({ id: "overlay.test.first", contractRevision: 1 }),
@@ -508,9 +567,9 @@ describe("Workspace Overlay Coordinator facade", () => {
 
   it("classifies the actual top detail while a primary replacement is preparing", async () => {
     const delayed = deferredV1();
-    const session = createWorkspaceOverlaySessionInternalV1({
+    const { session } = createWorkspaceOverlayTestFixtureV1({
       inputRouter: createInputRouterV1(),
-      epochAllocator: createLocalWorkspaceOverlayEpochAllocatorInternalV1(),
+      epochAllocator: createLocalManagedSurfaceEpochAllocatorInternalV1(),
       definitions: definitionsV1,
     });
     session.attachRendererResolverInternalV1(Object.freeze({
@@ -566,9 +625,9 @@ describe("Workspace Overlay Coordinator facade", () => {
   it("cancels owner preparation atomically through explicit close and routed dismiss", async () => {
     for (const mode of ["explicit_close", "routed_dismiss"] as const) {
       const delayed = deferredV1();
-      const session = createWorkspaceOverlaySessionInternalV1({
+      const { session } = createWorkspaceOverlayTestFixtureV1({
         inputRouter: createInputRouterV1(),
-        epochAllocator: createLocalWorkspaceOverlayEpochAllocatorInternalV1(),
+        epochAllocator: createLocalManagedSurfaceEpochAllocatorInternalV1(),
         definitions: definitionsV1,
       });
       session.attachRendererResolverInternalV1(Object.freeze({
@@ -631,9 +690,9 @@ describe("Workspace Overlay Coordinator facade", () => {
     const closePreparation = deferredV1();
     const epochPreparation = deferredV1();
     const disposePreparation = deferredV1();
-    const session = createWorkspaceOverlaySessionInternalV1({
+    const { runtimeOwner, session } = createWorkspaceOverlayTestFixtureV1({
       inputRouter: createInputRouterV1(),
-      epochAllocator: createLocalWorkspaceOverlayEpochAllocatorInternalV1(),
+      epochAllocator: createLocalManagedSurfaceEpochAllocatorInternalV1(),
       definitions: [
         defineWorkspaceOverlayV1({ id: "overlay.test.close", contractRevision: 1 }),
         defineWorkspaceOverlayV1({ id: "overlay.test.epoch", contractRevision: 1 }),
@@ -675,7 +734,7 @@ describe("Workspace Overlay Coordinator facade", () => {
     const epochReadiness = session.beginCandidatePreparationInternalV1(
       epochCandidate.surfaceInstanceId,
     );
-    session.rotateEpochInternalV1("hmr_successor");
+    replaceWorkspaceOverlayRuntimeInternalV1(runtimeOwner, session, "hmr_successor");
     const afterEpoch = session.getManagedSnapshotInternalV1();
     expect(afterEpoch.applicationEpoch).toBeGreaterThan(oldEpoch);
     expect(afterEpoch.orderedInstances).toEqual([]);
@@ -691,7 +750,7 @@ describe("Workspace Overlay Coordinator facade", () => {
     const disposeReadiness = session.beginCandidatePreparationInternalV1(
       disposeCandidate.surfaceInstanceId,
     );
-    session.disposeInternalV1();
+    disposeWorkspaceOverlaySessionInternalV1(runtimeOwner, session);
     const afterDispose = session.getManagedSnapshotInternalV1();
     expect(afterDispose.orderedInstances).toEqual([]);
     expect(afterDispose.coordinatorDisposed).toBe(true);
@@ -708,9 +767,9 @@ describe("Workspace Overlay Coordinator facade", () => {
       id: "overlay.test.duplicate-definition",
       contractRevision: 1,
     });
-    const session = createWorkspaceOverlaySessionInternalV1<string>({
+    const { session } = createWorkspaceOverlayTestFixtureV1<string>({
       inputRouter: createInputRouterV1(),
-      epochAllocator: createLocalWorkspaceOverlayEpochAllocatorInternalV1(),
+      epochAllocator: createLocalManagedSurfaceEpochAllocatorInternalV1(),
       definitions: [
         defineWorkspaceOverlayV1({ id: "overlay.test.known", contractRevision: 1 }),
         defineWorkspaceOverlayV1({ id: "overlay.test.renderer-fault", contractRevision: 1 }),
@@ -753,9 +812,9 @@ describe("Workspace Overlay Coordinator facade", () => {
     expect(() => defineWorkspaceOverlayV1({ id: longId, contractRevision: 1 })).toThrowError(
       "invalid ModuleId",
     );
-    const session = createWorkspaceOverlaySessionInternalV1({
+    const { session } = createWorkspaceOverlayTestFixtureV1({
       inputRouter: createInputRouterV1(),
-      epochAllocator: createLocalWorkspaceOverlayEpochAllocatorInternalV1(),
+      epochAllocator: createLocalManagedSurfaceEpochAllocatorInternalV1(),
       definitions: [{
         id: longId,
         contractRevision: 1,
