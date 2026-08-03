@@ -39,6 +39,14 @@ import {
   parseRunIntegrityReasonV1,
 } from "../../contracts/snapshot.ts";
 import type { RunIntegrityV1 } from "../../contracts/snapshot.ts";
+import type {
+  SaveStateContractIdentityV1,
+  SaveStateMigrationRegistryV1,
+} from "../../contracts/save-state-migration.ts";
+import {
+  assertSaveStateMigrationRegistryCurrentIdentityInternalV1,
+  readSaveStateMigrationRegistryInternalV1,
+} from "../../contracts/save-state-migration.ts";
 import { finalizeSnapshotIntegrityV1 } from "../session/run-integrity.ts";
 import type { DeepReadonly, Digest, NonNegativeSafeInteger } from "../../contracts/values.ts";
 import { parseNonNegativeSafeInteger, parsePositiveSafeInteger } from "../../contracts/values.ts";
@@ -163,6 +171,12 @@ export interface CoreGameApplicationDefinitionV1<
   TResult,
 > {
   readonly entry: GamePackageV1<TSimulationFacet, TPresentationFacet>;
+  /**
+   * Optional factory-produced aggregate-State migration declaration.
+   * Resolution validates its exact identity and current State target. The
+   * current persistence path does not execute it yet.
+   */
+  readonly saveStateMigrations?: SaveStateMigrationRegistryV1;
   readonly semantic: CoreSemanticAdapterV1<
     TTypes,
     TQueries,
@@ -313,13 +327,17 @@ export function defineCoreGameApplicationV1<
   TPreview,
   TResult
 > {
-  if (typeof definition.entry?.define !== "function") {
+  const captured = { ...definition };
+  if (typeof captured.entry?.define !== "function") {
     throw new TypeError("core application definition requires a GamePackage entry");
   }
-  if (typeof definition.semantic?.parseInvocation !== "function") {
+  if (typeof captured.semantic?.parseInvocation !== "function") {
     throw new TypeError("core application definition requires a semantic adapter");
   }
-  return Object.freeze({ ...definition });
+  if (captured.saveStateMigrations !== undefined) {
+    readSaveStateMigrationRegistryInternalV1(captured.saveStateMigrations);
+  }
+  return Object.freeze(captured);
 }
 
 interface ResolvedGamePackageSliceV1 {
@@ -329,6 +347,7 @@ interface ResolvedGamePackageSliceV1 {
       readonly revision: number;
       readonly digest: Digest;
     };
+    readonly resolved: SaveStateContractIdentityV1;
   };
 }
 
@@ -465,6 +484,25 @@ export function resolveCoreGameApplicationV1<
     });
   }
   const resolved = result.resolved as unknown as ResolvedGamePackageSliceV1;
+  if (definition.saveStateMigrations !== undefined) {
+    try {
+      assertSaveStateMigrationRegistryCurrentIdentityInternalV1(
+        definition.saveStateMigrations,
+        {
+          stateContractRevision: resolved.provenance.resolved.stateContractRevision,
+          stateContractDigest: resolved.provenance.resolved.stateContractDigest,
+        },
+      );
+    } catch {
+      return Object.freeze({
+        kind: "failed" as const,
+        failure: Object.freeze({
+          code: "save_state_migration.current_identity_mismatch",
+          details: Object.freeze({}),
+        }),
+      });
+    }
+  }
   return Object.freeze({
     kind: "resolved" as const,
     application: Object.freeze({

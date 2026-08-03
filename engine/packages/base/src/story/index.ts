@@ -23,11 +23,21 @@ export {
   resolveGamePackageV1 as resolveGamePackage,
 } from "../index.ts";
 export { createGameAuthoringKitV1 as createGameAuthoringKit } from "../index.ts";
+export {
+  defineSaveStateMigrationRegistryV1 as defineSaveStateMigrationRegistry,
+  parseSaveStateMigrationIdV1 as parseSaveStateMigrationId,
+  parseSaveStateMigrationNamespaceV1 as parseSaveStateMigrationNamespace,
+  parseSaveStateMigrationReasonCodeV1 as parseSaveStateMigrationReasonCode,
+} from "../index.ts";
 export type {
   GamePackageV1 as GamePackage,
   GameSimulationV1 as GameSimulation,
   GameSimulationTypeMapV1 as GameSimulationTypeMap,
   StateContractManifestV1 as StateContractManifest,
+  SaveStateContractIdentityV1 as SaveStateContractIdentity,
+  SaveStateMigrationRegistryV1 as SaveStateMigrationRegistry,
+  SaveStateMigrationStepResultV1 as SaveStateMigrationStepResult,
+  SaveStateMigrationStepV1 as SaveStateMigrationStep,
 } from "../index.ts";
 
 // ---------------------------------------------------------------------------

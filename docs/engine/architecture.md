@@ -98,7 +98,11 @@ exact path vector is read once and passed to one AST rule core; no generated
 inventory or second rule authority is retained.
 The maintained synthetic migration entry proves that later executable
 migrators can join this same collection seam without creating a production
-migration registry early.
+migration owner or load-time execution path early. Base now owns the M2a exact
+aggregate-State registry factory and its bounded declaration authority; Core
+captures only a factory-produced registry and verifies its declared current
+State identity during application resolution. No maintained application
+configures that declaration before the real-owner promotion slice.
 
 The runtime complement remains outside production package lifecycles.
 `e2e/src/testing/**` owns the pure ambient-guard harness, parent runner,
@@ -351,7 +355,9 @@ Snapshot digest check before compatibility, references, invariants, and one
 atomic replay-anchor replacement. Stored load additionally checks Host record
 revision and slot identity between staged admission and Story validation. A
 different State revision returns `migration.unavailable` without current-Snapshot
-admission or mutation; no executable migration registry or migrator exists yet.
+admission or mutation. The M2a registry declaration/Core-admission floor exists,
+but Persistence does not read or execute it, so no historical State is migrated
+or loaded yet.
 Internal indexes, clients, closures, React values, and database handles must not
 enter a Save.
 

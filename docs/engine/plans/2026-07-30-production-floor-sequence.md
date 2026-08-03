@@ -7,7 +7,9 @@ target supersede。corrective C1 import/loader admission、C2 Date/String/proven
 B-prime Base UTC isolation、C4 cleanup、DET3b invariant revalidation 与 DET4 full
 re-promotion 现已完成，aggregate PF-DET corrective gate 再次关闭；2026-08-03 接受的
 time-boundary clarification 只闭合 C3 metadata scope，不改变 B-prime 或 C2。callback-free
-Save M1 与 DET-B same-HEAD join 已于 2026-08-03 完成；linear core 下一独立切片为 M2。
+Save M1 与 DET-B same-HEAD join 已于 2026-08-03 完成；M2 已冻结为 State-only 的
+M2a–M2e；M2a exact registry/Core-admission floor 已 promotion，linear core
+下一独立切片为 M2b。
 旧 promotion 数字保留为
 历史证据。本文是当前唯一的跨计划排序入口；
 具体合同仍由各 design 文档拥有，主要任务由五个独立计划拥有：
@@ -388,7 +390,7 @@ DET-B 通过后才能更新 live capability 或 PF7 promotion。PF2 不依赖 PF
 Base/tooling/browser determinism 改造。
 
 DET-B 用 synthetic callback 冻结可追加 authority entry 与 pure-vector runner，
-不伪造 production migration registry。M2 首次注册真实 format/State migration
+不伪造 production migration registry。M2e 首次注册真实 State migration
 时必须 live recollect、加入同一 static/tripwire scope 并扩展四 runtime matrix；
 以后每个新 migrator 也重复这项认证，不能把 PF-DET 当作一次性完成。
 
@@ -780,6 +782,15 @@ Chromium/Firefox/WebKit repeat matrix `6/6`、`deno task check` 全绿。没有 
 registry/migrator/callback、历史 Save install 或 M2 placeholder；join gate 已关闭，linear core
 下一独立切片为 `M2`。
 
+**2026-08-03 Save M2a promotion：** Base 已建立 single explicit aggregate-State namespace、
+stable IDs、synchronous adjacent steps、reference declarations与 factory/`WeakMap`-owned exact
+registry。Core definition捕获 official identity，application resolution验证 registry current
+identity；两处 callback count均为 `0`。该 bounded Base authority已进入 live determinism map，
+但 maintained applications、Persistence/load/import与 real migration owner均未接入，Save bytes、
+format、canonical/digest、Session/CommandLog/replay和 Debug Bundle不变。focused M2a + M1为
+`5/161`、affected Base `79/999`、full unit `228/3346`，typecheck、determinism guard与
+`deno task check`全绿。linear core下一独立切片为 `M2b`。
+
 ### PF3 — Save envelope and migration registry
 
 执行 [Save migration plan](2026-07-30-save-migration.md) 的分段 gate：
@@ -805,9 +816,15 @@ registry/migrator/callback、历史 Save install 或 M2 placeholder；join gate 
    M0a/M0b/M1、`deno task test`、`deno task check`、shared Save byte corpus 与
    dedicated Deno/Chromium/Firefox/WebKit matrix，并证明 migration callback count
    为 `0`；
-5. 只有该 join 通过，**M2** 才建立 namespace-keyed adjacent-revision executable
-   registry、一步/两步 migration、失败原子性与新 replay anchor；migration 与
-   same-schema adoption 保持不同语义。当前下一独立切片即 M2。
+5. 只有该 join 通过，**M2** 才按 M2a contracts/factory、M2b pure kernel、M2c staged
+   integration、M2d atomic anchor、M2e real determinism promotion依次建立
+   namespace-keyed adjacent-revision executable State migration；migration 与 same-schema
+   adoption 保持不同语义。M2a 已关闭，当前下一独立切片为 M2b。
+
+M2 只治理 `formatRevision: 1` 中的 aggregate State：它安装 non-durable
+replacement-origin receipt，但不写回 source Save。Envelope format migration、产品
+inspection/backup、durable history 与 Mod namespaces继续 deferred；不得用空 format registry
+或 synthetic-only authority evidence冒充已实现能力。
 
 PF3 完成后，State schema 才允许进入第一个需要跨版本迁移的正式发布周期。
 

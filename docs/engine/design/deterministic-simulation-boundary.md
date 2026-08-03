@@ -402,9 +402,10 @@ template、concatenation、identifier、spread、options argument、零/多参�
 caller 必须在 source lint/record admission 前因任一 error 原子 fail closed，不能消费或
 发布 partial path vector，也不能把同一 dynamic import 再交给 rule core 重复报告。
 
-Save M2 及以后第一次注册 executable format/State migrator 时，其 entry 才加入
-上述 live recollection。DET-B 先用 synthetic extension seam 证明 collector 可追加
-entry；它不伪造尚不存在的 production migration registry。
+Save M2e 及以后第一次注册 executable State migrator 时，其 real app-local owner entry
+才加入上述 live recollection。DET-B 先用 synthetic extension seam 证明 collector 可追加
+entry；它不伪造尚不存在的 production migration registry。Envelope format migration在
+M2中仍未激活，不能用空 registry 或 test-only format callback代替真实历史格式合同。
 
 第一批 hard diagnostics 覆盖直接 ambient entropy、clock、network/LLM client、
 process environment、Host locale/ICU 与 DOM access；fractional literal、
@@ -588,7 +589,31 @@ numeric diagnostic；同一 node 的 ambient diagnostic 仍保留。metadata 固
 closure。missing file/marker、ambiguous duplicate marker、malformed、duplicate、stale、
 wrong-code 与 whole-file directive 全部 fail closed，numeric diagnostic 不被抑制。
 
-### 6.3 Runtime admission
+### 6.3 State migration callback boundary
+
+M2 State migrator 是 Authoritative Simulation callback，但只接收 raw-digest-verified
+historical Snapshot 的 `state` 经 package-owned detached canonical projection与 deep-freeze
+后的值。callback同步返回 exact migrated/rejected union，不取得 Save envelope、Host、clock、
+random、network、Session、renderer、database或 arbitrary context；每步 output在下一 callback
+前重新执行 descriptor-safe canonical/limit admission、copy与freeze。
+
+Core中配置的 factory-produced exact registry必须与
+`ApplicationAuthorityPolicyV1.saveStateMigrationOwner` 指定 module/export是同一对象；collector
+从 live registry枚举全部 callback identity和owner import closure，缺 owner、stale owner、
+identity/completeness mismatch均在 source lint前 fail closed。registry factory、chain resolver、
+execution/admission kernel与receipt/attempt construction属于 bounded Base authority；若其 closure
+吸入 Host、Presentation或broad persistence composition，应拆出pure kernel而不是扩大 authority。
+
+isolated Worker必须真实执行 Engine Lab one/two-step、explicit rejection、throw与illegal-output
+vectors；只 import或只静态 lint source不算 tripwire evidence。现有 Deno/Chromium/Firefox/
+WebKit matrix比较 normalized output、path/phase/code、source/migrated digest、receipt/attempt、
+callback count、adoption组合与same-runtime repeat，缺 browser不得 skip。
+
+`SaveStateMigrationReceiptV1` 是非持久化 replacement-origin diagnostic package data，不进入
+Snapshot、State digest、CommandLog、Save、Debug Bundle或 authoritative replay comparison；
+receipt的跨 runtime equality仍须验证，以证明 migration结果和新 anchor identity一致。
+
+### 6.4 Runtime admission
 
 - `createBootstrapInput` 输出在任何 seed read / `createInitialState` 调用前做
   package-internal canonical projection gate，并 deep-freeze engine-owned ordinary
@@ -797,7 +822,7 @@ DET1 zero-RNG precedence、fallback-invalid 的 rejected-Promise + original stab
 status + no-new-log 合同，或不能在零 candidate Snapshot traversal 下闭合，必须先
 停止并修订设计。
 
-### 6.4 Test-only isolated tripwire
+### 6.5 Test-only isolated tripwire
 
 短命 Worker/realm 可以在 dynamic import authoritative driver 前，把 direct
 ambient entropy、clock、Host timezone、network、environment、locale-default 与 DOM access API
@@ -852,7 +877,7 @@ realm 外输入不是装饰性 receipt：fixed canonical bootstrap value 经消�
 success、unavailable、violation、driver failure 与 malformed message 都在 `finally`
 exactly-once terminate；realm 内不 restore 部分安装的 global。
 
-### 6.5 Cross-runtime parity
+### 6.6 Cross-runtime parity
 
 一个中性、短小的 transcript 在 Deno、Chromium、Firefox 与 WebKit 使用同一
 test-only driver 执行。每个 command 比较：

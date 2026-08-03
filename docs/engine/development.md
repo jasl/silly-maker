@@ -116,6 +116,10 @@ Use a focused package or test-file command while iterating when that is faster. 
 It recollects the root application registry, managed simulation dependencies,
 declared callback owners, bounded Base authorities, and the maintained synthetic
 migration extension on every execution; it does not read a cached file list.
+The M2a State-migration registry factory/normalizer is one such bounded Base
+authority, but it is declaration-only: maintained applications do not publish a
+real migration owner and Persistence does not execute callbacks until the later
+M2 integration/promotion slices.
 Collection/classification failures abort before linting. After collection, every
 unique exact path is read once; read, unsupported-extension, and parse failures
 use stable diagnostics, and all output is ordered by UTF-16 file/range/code.

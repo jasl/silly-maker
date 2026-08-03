@@ -411,6 +411,7 @@ describe("authoritative determinism authority map", () => {
       "engine/packages/base/src/contracts/narrative-history.ts",
       "engine/packages/base/src/contracts/pending-interaction.ts",
       "engine/packages/base/src/contracts/presentation-data.ts",
+      "engine/packages/base/src/contracts/save-state-migration.ts",
       "engine/packages/base/src/contracts/semantic-stage.ts",
       "engine/packages/base/src/contracts/semantic-stage-reducer.ts",
       "engine/packages/base/src/contracts/values.ts",

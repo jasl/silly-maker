@@ -23,6 +23,12 @@ import { createMemoryHostRecordStoreV1 } from "../../contracts/host.ts";
 import type { SessionLeaseOwnerId } from "../../contracts/application.ts";
 import { createTransactionalRngV1, rngStateV1Schema } from "../../contracts/rng.ts";
 import { createGameSnapshotEnvelopeSchemaV1 } from "../../contracts/snapshot.ts";
+import {
+  defineSaveStateMigrationRegistryV1,
+  parseSaveStateMigrationIdV1,
+  parseSaveStateMigrationNamespaceV1,
+} from "../../contracts/save-state-migration.ts";
+import type { SaveStateMigrationRegistryV1 } from "../../contracts/save-state-migration.ts";
 import { parseStrictJson } from "../../contracts/strict-json.ts";
 import type { NonZeroUint32, RuntimeSchemaV1 } from "../../contracts/values.ts";
 import {
@@ -2038,6 +2044,125 @@ describe("resolveCoreGameApplicationV1", () => {
     if (result.kind === "failed") {
       expect(result.failure.code.length).toBeGreaterThan(0);
     }
+  });
+
+  it("admits only an exact registry whose current State identity matches resolution", () => {
+    const baseline = resolveCoreGameApplicationV1(definitionV1);
+    expect(baseline.kind).toBe("resolved");
+    if (baseline.kind !== "resolved") return;
+    const resolvedProvenance = (
+      baseline.application.resolved as {
+        readonly provenance: {
+          readonly resolved: {
+            readonly stateContractRevision: ReturnType<typeof parsePositiveSafeInteger>;
+            readonly stateContractDigest: ReturnType<typeof parseDigest>;
+          };
+        };
+      }
+    ).provenance.resolved;
+    const resolvedIdentity = {
+      stateContractRevision: resolvedProvenance.stateContractRevision,
+      stateContractDigest: resolvedProvenance.stateContractDigest,
+    };
+    const registry = defineSaveStateMigrationRegistryV1({
+      namespace: parseSaveStateMigrationNamespaceV1("state.synthetic.aggregate"),
+      minimumSupported: resolvedIdentity,
+      current: resolvedIdentity,
+      steps: [],
+    });
+    const definition = defineCoreGameApplicationV1({
+      ...definitionV1,
+      saveStateMigrations: registry,
+    });
+    const resolved = resolveCoreGameApplicationV1(definition);
+    expect(resolved.kind).toBe("resolved");
+    if (resolved.kind === "resolved") {
+      expect(resolved.application.definition.saveStateMigrations).toBe(registry);
+    }
+
+    const registryReads = vi.fn()
+      .mockReturnValueOnce(registry)
+      .mockReturnValueOnce(registry)
+      .mockReturnValue({ ...registry } as SaveStateMigrationRegistryV1);
+    const definitionWithGetter = { ...definitionV1 } as typeof definitionV1 & {
+      readonly saveStateMigrations?: SaveStateMigrationRegistryV1;
+    };
+    Object.defineProperty(definitionWithGetter, "saveStateMigrations", {
+      enumerable: true,
+      configurable: true,
+      get: registryReads,
+    });
+    const capturedDefinition = defineCoreGameApplicationV1(definitionWithGetter);
+    expect(capturedDefinition.saveStateMigrations).toBe(registry);
+    expect(registryReads).toHaveBeenCalledTimes(1);
+
+    expect(() =>
+      defineCoreGameApplicationV1({
+        ...definitionV1,
+        saveStateMigrations: { ...registry } as SaveStateMigrationRegistryV1,
+      })
+    ).toThrow(TypeError);
+
+    const mismatched = defineSaveStateMigrationRegistryV1({
+      namespace: parseSaveStateMigrationNamespaceV1("state.synthetic.aggregate"),
+      minimumSupported: {
+        ...resolvedIdentity,
+        stateContractDigest: digestBytes(new TextEncoder().encode("mismatched state contract")),
+      },
+      current: {
+        ...resolvedIdentity,
+        stateContractDigest: digestBytes(new TextEncoder().encode("mismatched state contract")),
+      },
+      steps: [],
+    });
+    const mismatchResult = resolveCoreGameApplicationV1(
+      defineCoreGameApplicationV1({
+        ...definitionV1,
+        saveStateMigrations: mismatched,
+      }),
+    );
+    expect(mismatchResult).toMatchObject({
+      kind: "failed",
+      failure: { code: "save_state_migration.current_identity_mismatch" },
+    });
+
+    const migrationCallback = vi.fn((state) => ({
+      kind: "migrated" as const,
+      state,
+    }));
+    const revisionMismatchedIdentity = {
+      stateContractRevision: parsePositiveSafeInteger(
+        resolvedIdentity.stateContractRevision + 1,
+      ),
+      stateContractDigest: resolvedIdentity.stateContractDigest,
+    };
+    const revisionMismatched = defineSaveStateMigrationRegistryV1({
+      namespace: parseSaveStateMigrationNamespaceV1("state.synthetic.aggregate"),
+      minimumSupported: resolvedIdentity,
+      current: revisionMismatchedIdentity,
+      steps: [
+        {
+          migrationId: parseSaveStateMigrationIdV1("migration.synthetic.revision-mismatch"),
+          namespace: parseSaveStateMigrationNamespaceV1("state.synthetic.aggregate"),
+          from: resolvedIdentity,
+          to: revisionMismatchedIdentity,
+          references: { renames: [], deletions: [] },
+          migrate: migrationCallback,
+        },
+      ],
+    });
+    expect(
+      resolveCoreGameApplicationV1(
+        defineCoreGameApplicationV1({
+          ...definitionV1,
+          saveStateMigrations: revisionMismatched,
+        }),
+      ),
+    ).toMatchObject({
+      kind: "failed",
+      failure: { code: "save_state_migration.current_identity_mismatch" },
+    });
+    expect(migrationCallback).not.toHaveBeenCalled();
   });
 });
 

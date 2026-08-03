@@ -4,6 +4,26 @@ export { defineGameSimulation } from "./define-game-simulation.ts";
 export { defineGameplayModule } from "./define-gameplay-module.ts";
 export { defineStoryToolingEntry } from "./define-story-tooling-entry.ts";
 export {
+  defineSaveStateMigrationRegistryV1,
+  parseSaveStateMigrationIdV1,
+  parseSaveStateMigrationNamespaceV1,
+  parseSaveStateMigrationReasonCodeV1,
+} from "../contracts/save-state-migration.ts";
+export type {
+  DefineSaveStateMigrationRegistryInputV1,
+  SaveStateContractIdentityV1,
+  SaveStateMigrationIdV1,
+  SaveStateMigrationNamespaceV1,
+  SaveStateMigrationReasonCodeV1,
+  SaveStateMigrationReferenceChangesV1,
+  SaveStateMigrationReferenceDeletionV1,
+  SaveStateMigrationReferenceRenameV1,
+  SaveStateMigrationRegistryV1,
+  SaveStateMigrationStepIdentityV1,
+  SaveStateMigrationStepResultV1,
+  SaveStateMigrationStepV1,
+} from "../contracts/save-state-migration.ts";
+export {
   definePatchSlot,
   definePresentationPatchSurface,
   defineSimulationPatchSurface,

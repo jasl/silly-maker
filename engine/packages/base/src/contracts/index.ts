@@ -250,6 +250,26 @@ export type {
   SimulationAdoptionV1,
 } from "./persistence.ts";
 export {
+  defineSaveStateMigrationRegistryV1,
+  parseSaveStateMigrationIdV1,
+  parseSaveStateMigrationNamespaceV1,
+  parseSaveStateMigrationReasonCodeV1,
+} from "./save-state-migration.ts";
+export type {
+  DefineSaveStateMigrationRegistryInputV1,
+  SaveStateContractIdentityV1,
+  SaveStateMigrationIdV1,
+  SaveStateMigrationNamespaceV1,
+  SaveStateMigrationReasonCodeV1,
+  SaveStateMigrationReferenceChangesV1,
+  SaveStateMigrationReferenceDeletionV1,
+  SaveStateMigrationReferenceRenameV1,
+  SaveStateMigrationRegistryV1,
+  SaveStateMigrationStepIdentityV1,
+  SaveStateMigrationStepResultV1,
+  SaveStateMigrationStepV1,
+} from "./save-state-migration.ts";
+export {
   createDebugBundleEnvelopeSchemaV1,
   createDebugUiContextSchemaV1,
   DebugBundleEnvelopeSchemaFailureV1,

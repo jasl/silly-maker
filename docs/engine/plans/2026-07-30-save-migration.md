@@ -2,7 +2,8 @@
 
 状态：2026-07-30 接受执行，审查后从 Snapshot 性能计划拆分；2026-07-31 按
 M0a/M0b metadata ownership 与 PF-DET same-HEAD join 重切片；2026-08-03 M1 已
-promotion，same-HEAD join 已关闭，下一独立切片为 M2。目标合同见
+promotion，same-HEAD join 已关闭，并按接受的 State-only contract 把 M2 拆为
+M2a–M2e；M2a 已 promotion，下一独立切片为 M2b。目标合同见
 [Save migration design](../design/save-migration.md)；在
 [production-floor sequence](2026-07-30-production-floor-sequence.md) 中分为 PF3
 与 PF5，并与 PF-DET 按显式 DAG 汇合；不是“完整 PF-DET 后才开始全部 M0–M2”。
@@ -210,8 +211,8 @@ promotion 当时的 linear-core 下一切片仍为 DET3a-C4，并在 C4 关闭 P
 2. 只解析 format/record revision、provenance、slot、savedAt、stateDigest、lineage、
    bounded annotation 与 bounded `versionStamp` 等外壳；
 3. `snapshot` 保持 bounded raw JSON；
-4. 按 stored format 验证 raw snapshot digest；未来任何会改写 snapshot 的
-   format/State migration 都不得先于此步骤；
+4. 按 stored format 验证 raw snapshot digest；未来任何 envelope-format migration 或 M2
+   State migration 都不得先于此步骤；
 5. shell/digest 合法但 State revision 不同且尚无 executable chain 时返回明确
    unavailable；
 6. current format + current State revision 才进入 current Snapshot schema parse，并对
@@ -222,7 +223,8 @@ promotion 当时的 linear-core 下一切片仍为 DET3a-C4，并在 C4 关闭 P
 
 M1 **严格 callback-free**：不创建 executable registry，不接受 migrator injection，
 不执行 Story/engine migration callback，也没有“顺手注册一个 format migrator”的
-逃生口。它只建立未来 M2 插入 format/State migration 的阶段边界。
+逃生口。它只建立后续 migration phase 边界；M2 只接入 State migration，format node
+继续 deferred。
 
 本切片冻结两层公开可观察合同：
 
@@ -314,56 +316,133 @@ unstamped oracle、canonical JSON/digest 算法与 Strict JSON 限额均未改�
 `8 files / 259 tests`，affected Base + Save UI 为 `79/999`，full unit 为
 `227/3329`；Deno `2.9.4` determinism `1/3`、Chromium/Firefox/WebKit repeat matrix `6/6` 与
 `deno task check` 全绿。仓库没有 executable registry、migrator injection/callback/export、
-历史 Save install 或 M2 placeholder；M1/DET-B same-HEAD join 据此关闭，下一独立切片为 M2。
+历史 Save install 或 M2 placeholder；M1/DET-B same-HEAD join 据此关闭，当时的下一独立切片为
+M2a。
 
-## 5. M2 — Migration registry and new replay anchor
+## 5. M2 — State migration registry and new replay anchor
 
 M2 的 DET-B/M1 same-merged-HEAD 前置 gate 已由上述 promotion 关闭；两边各自绿本来
 不算完成，关闭证据同时覆盖 focused M0a/M0b/M1、shared Save bytes、
 `deno task test`、`deno task check` 与 dedicated Deno/Chromium/Firefox/WebKit matrix，
 并证明 executable migrator 不存在、callback count 为 `0`。M2 从该 joined baseline
-首次引入下述执行能力。
+首次引入执行能力，但只实现 `formatRevision: 1` 的 aggregate State migration；不实现
+envelope format migration。M2 的完整边界是 single application、single explicit
+namespace、synchronous adjacent chain、non-durable replacement-origin receipt、source Save
+no-writeback；M3 dry-run/backup/UX、durable history 与 Mod namespaces 均不在本阶段。
 
-### Registry contract
+### M2a — Public authoring contracts and exact registry factory（已实现）
 
-- 本切片首次建立 executable registry；M1 shell 没有隐藏 callback path；
-- namespace-keyed；单应用使用 engine/application namespace，未来 Mod 可复用而不改管线；
-- 每条 migration 只处理 `N -> N+1`；跨版本由 runtime 组合；
-- 输入/输出是 plain bounded data；
-- 禁网络、Host clock、随机、live Session 与 renderer；
-- migration ID、from/to revision 和 content/reference rename map 可诊断；
-- duplicate、gap、cycle、反向或歧义链在 authoring/build 阶段失败；
-- registered migration source entry 进入 PF-DET 已建立的 authoritative
-  import-closure lint 与 isolated tripwire，不靠文件名猜测或作者自觉；
-- 每个真实 entry 在包含它的同一 HEAD 上 live recollect，并扩展四 runtime matrix；
-  missing/gapped chain 保留 M1 的 `migration_unavailable` mapping；
+**目标：** 新增 State contract identity、namespace/migration/reason IDs、step result、
+reference rename/delete declaration与 factory-produced exact registry合同。factory 规范化、
+复制、冻结 declaration，用 private brand/`WeakMap` 保留 callback identity；只接受零步
+current registry或完整的相邻链，maximum chain length 为 `16`。Core definition增加可选 exact
+registry，definition-time admission拒绝伪造 identity，application resolution验证 registry
+current identity等于 resolved State contract；两处都不执行 callback。factory/normalization与
+pure Core identity admission在同一切片进入 bounded Base authority。
 
-### Execution
+**非目标：** 不把 registry 接入 Persistence/load execution，不执行 callback，不改变
+`SaveImportValidationResultV1`/Player result，不安装 receipt/replay/autosave anchor，不注册
+Engine Lab production owner，也不改变 Save bytes、format、canonical/digest 或 M1 load order。
+任何 maintained/root-registry application在 M2e 前都不得配置真实 registry；后续 wiring不得
+把 M2a 的 declaration/resolution API描述成 live migration capability。
 
-- 在隔离数据上执行完整链；
-- current schema/reference/invariant 全部通过后才构造 candidate Snapshot；
-- success 安装新的 replay anchor、current digest 与 migration lineage；旧 CommandLog 不跨 anchor 重放；
-- failure 返回结构化 inspect/rejection，原 Save bytes 与 live Session 不变；
-- migration 与 adoption 可依次出现，但诊断和授权分开。
+**Red/acceptance：** valid empty/one-step/two-step declarations成功且 callback count 为 `0`；
+输入后续 mutation 不影响 normalized registry；所有 retained metadata frozen。fake/spread/
+decorated registry fail closed。duplicate migration ID/from identity、non-adjacent、reverse、gap、
+ambiguous/disconnected path、identity digest discontinuity、target mismatch、invalid rename/delete
+resolution 与 `>16` steps均在 factory/package-internal admission失败。reference delete 必须有
+fallback target 或 stable rejection reason；declaration不是自动 State string rewrite。
+Core current target mismatch在 application resolution结构化失败。focused/type/public-export tests
+先 red 后 green，M1 callback-free regression不变。
 
-### Required examples
+**2026-08-03 M2a promotion：** Base 现在公开 State identity、stable
+namespace/migration/reason IDs、reference declaration、同步 readonly callback与 opaque exact
+registry factory；package-owned `WeakMap` 保存 detached/frozen normalized declaration与 callback
+identity。factory 固定 single namespace、完整相邻 identity chain、16-step bound和 reference tuple
+normalization；Core definition只捕获 official registry，resolution只验证 current State identity。
+Persistence/load/import 未读取 registry，所有 maintained application 均未配置 registry，callback
+count保持 `0`，因此这不是 live migration capability。TDD red覆盖缺模块/公共导出/authority policy，
+并在审查中捕获 callback method bivariance、Core getter identity TOCTOU与巨大 sparse-array
+preallocation；修复后 focused M2a + M1 regression为 `5 files / 161 tests`，affected Base为
+`79/999`，full unit为 `228/3346`，typecheck、determinism guard与 `deno task check`全绿。Save
+bytes、canonical/digest、M1 load order/result、Persistence/Session/CommandLog/replay与 Debug Bundle
+均未改变。下一独立切片为 M2b pure execution kernel。
 
-Engine Lab 提供：
+### M2b — Pure one-step/two-step execution kernel
 
-- N → N+1；
-- N → N+1 → N+2；
-- content ID rename；
-- deleted ID 的显式 fallback/rejection；
-- migration throw；
-- illegal output；
-- reference/invariant failure；
-- migration success + adoption deny/allow；
-- 同一一步/两步 migration vector 在 Deno、Chromium、Firefox、WebKit 使用 PF-DET
-  test-only driver 得到相同 normalized output、diagnostic 与 digest。
+**目标：** 在 bounded Base authority 内解析 complete chain，并在 detached、deep-frozen
+Strict Canonical Data 上同步执行每一步。每步只返回 exact migrated/rejected union；每个
+migrated output重新 descriptor-safe capture、canonical/limit admission、copy/freeze，再交给
+下一步；本切片新增并构造 immutable receipt或 failure attempt。
 
-**M2 acceptance：** 所有失败原子；同输入重复迁移得到同 bytes/digest；新 anchor
-replay 自洽；migration registry/source 已进入 determinism static/tripwire
-guard，四 runtime vector 全绿且缺 browser 不得 silently skip。
+**非目标：** 不接 load/import、Session、Persistence、Host、Core production owner或
+browser matrix；不处理 format migration、RNG、command sequence、integrity、annotation、
+lineage 或 arbitrary context。
+
+**Red/acceptance：** one/two-step、rename、delete fallback/reject、repeat equality、exact callback
+counts、input/output alias mutation、thenable、non-exact/extra/symbol/accessor result、custom
+prototype、cycle、fractional/non-finite/unsafe number与over-limit output。missing/incomplete chain
+callback count 为 `0`；explicit reject=`migration.rejected`，illegal output=
+`migration.output_invalid`，throw=`migration.callback_threw`且不暴露 message/stack。
+
+### M2c — Staged load/import integration and failure mapping
+
+**目标：** 把 exact registry 接入 Core/Persistence staged admission。Core/application resolution
+验证 registry current identity 等于 resolved State contract；load/import在 raw digest与
+State branch后执行 M2b，只替换 candidate `snapshot.state`，保留其他 Snapshot/envelope字段；
+只更新 candidate provenance 的 State revision/digest，再执行 current schema/RNG、migrated
+digest、compatibility/adoption、references 与 invariants。低层 success增加正交
+`migration: receipt | null`；Player success shape不变，新增 failure mapping
+`migration_rejected`。
+
+**失败 precedence：** Strict/outer/format/shell/raw digest先于 branch；stored Host/slot
+identity先于 chain；chain/source mismatch=`migration.unavailable`且 callback `0`；historical
+Snapshot shell=`envelope.schema_invalid`；callback reject/throw/output invalid先于所有后续
+validation；current schema/RNG/reference/invariant与compatibility/adoption沿用既有 code。
+partial attempt只出现在失败/diagnostic，不安装 receipt。
+
+**Red/acceptance：** current exact/adopted携带 `migration: null`且 M1结果/bytes保持；一步/
+两步 migration exact、migration+adoption allow；Story/engine mismatch、adoption deny/lineage
+limit、current schema/RNG/reference/invariant failure。每个失败逐项保持 source bytes、Host/
+record revision、live Snapshot/RNG/CommandLog/replay digest、lineage、receipt、autosave与Host
+write count；load/import不写回 source Save，fresh Save自然使用 current provenance/digest。
+
+### M2d — Atomic Session/Persistence/CommandLog/autosave anchor commit
+
+**目标：** 建立 package-internal prepare/commit token。任何可能失败的 validation、freeze、
+digest、allocation、safe-integer admission、autosave/repair/bookkeeping与lease plan都在 mutation
+前完成；commit只安装预计算值，不做 validation/digest/increment/allocation/callback/Host I/O/
+Promise/observer publication。全部 owner commit后才发布 Session并排 post-commit autosave。
+
+**Receipt lifecycle：** successful migrated replacement安装 receipt；ordinary command、Save
+capture与CommandLog eviction保留。fresh/restart/current-revision load/import、debug replacement、
+rebootstrap/new service或无 receipt replacement清零；failed operation保留旧 receipt exact
+identity/value。Debug Bundle wire在 M2不变。
+
+**Red/acceptance：** autosave epoch exhaustion、prepare allocation/fault与每个 M2c failure均
+证明零 partial mutation；validated commit token的 commit path不抛错。成功后 replay base===
+current Snapshot、digest===receipt migrated digest、CommandLog空、immediate replay执行 `0`
+entries、next ordinal `1` 且 next `preStateDigest` 等于 migrated anchor。callback/invalid output/
+prepare fault保持 Session `ready`；只有 unexpected commit-protocol invariant failure允许
+`fault_paused`。若只能扩张公开 universal transaction API，停止。
+
+### M2e — Real authority, tripwire and four-runtime promotion
+
+**目标：** Engine Lab 配置一个真实 app-local registry/owner。Core registry与
+`ApplicationAuthorityPolicyV1.saveStateMigrationOwner` module/export必须 exact identical；
+collector live枚举全部 callbacks/import closure并分类 `save_state_migration`。M2e 复验 M2a–M2d
+逐片加入的 bounded Base authority；isolated Worker真实执行 one/two-step/reject/throw/invalid-output；
+现有 determinism matrix增加单一 `saveStateMigration` vector。
+
+**Red/acceptance：** registry无 owner、stale owner、owner export不等于 Core registry或closure
+不完整均在 source lint前 fail closed；不能只靠 synthetic additional-authority或硬编码 file
+list。Deno、Chromium、Firefox、WebKit真实执行并比较 normalized output、attempt/receipt、
+diagnostic phase/code、source/migrated digest、callback counts、adoption组合与repeat equality；
+缺 browser不得 skip。现有 synthetic seam可保留，但不算 M2 evidence。
+
+**M2 aggregate acceptance：** 所有失败原子；同输入重复迁移得到同 output/receipt/digest；
+新 anchor replay自洽；Save/canonical/digest algorithm、metadata corpus、format revision与 source
+bytes不变；real registry/source进入 static/tripwire guard，四 runtime matrix全绿。
 
 ## 6. M3 — Product surface and release corpus
 
@@ -389,7 +468,8 @@ guard，四 runtime vector 全绿且缺 browser 不得 silently skip。
 ## 7. API discipline
 
 - migration registry 是 authoring/runtime contract，不把 raw storage adapter 暴露给 Story；
-- migration function 不取得 arbitrary context；确需静态内容时只取得已 digest 的 read-only migration resources，并由设计先批准；
+- migration function 不取得 arbitrary context；M2 不注入 read-only resource client，owner
+  只可闭包引用同一 authoritative import closure 中的 module-level immutable constants；
 - 不自动推断 schema diff；作者显式写语义转换；
 - 不把 Mod 安装/卸载、content patch、adoption 与 State migration 合并为一个万能 hook；
 - diagnostics 包含稳定 code、revision path、migration ID 与 failing validation phase。
@@ -403,6 +483,10 @@ guard，四 runtime vector 全绿且缺 browser 不得 silently skip。
 - Mod distribution；
 - renderer/workspace/conversation 数据迁入 gameplay Save；
 - CommandLog 跨新 anchor 重放。
+- envelope format migration；
+- durable migration receipt/history 与 Debug Bundle wire；
+- multi-namespace/Mod migration order；
+- 自动扫描并重写任意 State string reference。
 
 ## 9. Stop conditions
 
@@ -414,7 +498,18 @@ guard，四 runtime vector 全绿且缺 browser 不得 silently skip。
 - current schema validation 仍在 migration 之前执行；
 - M1 必须接受或执行 executable migrator 才能建立 shell/load order，或 M2 想在
   DET-B/M1 same-HEAD join 前开始；
-- 实现需要静默改变已接受 design。
+- 实现需要静默改变已接受 design；
+- 迁移需要改变 `formatRevision`、outer envelope shape 或 engine-owned Snapshot shell；
+- migrator 必须修改 RNG、commandSequence 或 integrity，或必须 async/Promise；
+- migration 需要多个 runtime namespace/Mod ordering、skipped-revision shortcut、自动 State
+  string rewrite、M3 backup/dry-run/durable history或产品 UI；
+- receipt 必须进入 Save、Snapshot、CommandLog、replay identity、`simulationLineage` 或 M2
+  Debug Bundle；
+- 16-step mechanism bound不足以承载真实已承诺历史版本；
+- package-internal prepare/no-throw commit无法实现，必须新增公开 universal transaction API；
+- callback/invalid output只能通过让 Session进入 `fault_paused` 才能表达；
+- maintained/released fixture要求不同 failure/migration semantics；
+- real migration owner无法与 Host/Presentation closure分离，或只能靠 hard-coded path进入 lint。
 
 ## 10. Promotion record
 

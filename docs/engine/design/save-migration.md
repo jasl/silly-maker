@@ -2,8 +2,9 @@
 
 状态：2026-07-29 接受的目标设计，2026-07-31 按 callback-free shell、shared
 metadata corpus 与 determinism join 修订；2026-08-03 M1 callback-free
-shell/load-order floor 已实现。M2 executable registry/migrator 与 M3 产品发布
-语料仍未实现。本文把 Save
+shell/load-order floor 已实现，并冻结 M2 为 single-namespace、State-only executable
+migration；M2a exact registry factory 与 Core current-identity admission 已实现，
+Persistence execution、M2b–M2e 与 M3 产品发布语料仍未实现。本文把 Save
 兼容从“分类与拒绝”升级为“一等迁移能力”：固定 migration registry 合同、load
 阶段顺序与发布验收。它独立于 Mod 系统并先于其落地；[Mod design](mod-system.md)
 第 8 节的 per-namespace migration 建立在本文的引擎级合同之上。当前实现状态见
@@ -34,9 +35,10 @@ invariant；stored load 在 Story validation 前另做 Host revision 与 slot id
 
 剩余缺口是没有 executable migration 路径：
 
-1. 没有 namespace-keyed registry 或 engine/Story migrator，revision 不同的 Save
-   只能检查和导出，不能迁移后加载；
-2. 没有 migration 后的新 replay-anchor/lineage 执行路径；
+1. M2a 已提供 single-namespace exact registry declaration 与 Core admission，但没有
+   maintained application owner、chain execution 或 Persistence wiring；revision 不同的 Save
+   仍只能检查和导出，不能迁移后加载；
+2. 没有 migration 后的新 replay anchor 与 replacement-origin receipt 执行路径；
 3. 没有历史 fixture corpus，也没有“任意受支持旧 Save
    可迁移、可加载”的发布验收。
 
@@ -54,7 +56,7 @@ bounded strict JSON decode        （现有 saveJsonLimitsV1 限额保持不变�
                                     bounded annotation、bounded versionStamp；
                                     snapshot 保持受限 raw 结构）
   -> format-specific raw snapshot digest verification
-  -> engine-owned envelope format migration （formatRevision N -> N+1；M2 起启用）
+  -> engine-owned envelope format migration （reserved/deferred；M2 不启用）
   -> identify stored provenance and schema revisions
   -> ordered pure State migrations （state contract revision N -> N+1，M2 起启用）
   -> current snapshot schema validation
@@ -81,16 +83,21 @@ trailing shell field、cross-field + digest 四类代表 vector；合法、单�
 
 M1 只交付 callback-free shell、raw-digest verification 与上述 phase ordering；当
 shell/digest 合法但 State revision 不同，它返回 `migration.unavailable`，不执行
-图中的 migration node。M2 在完整 determinism guard 与 M1 same-HEAD join 后才首次
-建立 executable registry/启用这些 node。
+图中的 migration node。M2 在完整 determinism guard 与 M1 same-HEAD join 后只建立
+State migration registry 并启用 State node。Envelope-format node 保留其目标顺序但在
+M2 中不活跃；`formatRevision !== 1` 继续由 format decision 返回
+`envelope.unsupported_revision`。
 
 要点：
 
 - raw snapshot
   在迁移前只是受限结构数据，不被信任；既有字节/深度/节点/字段限额继续适用，不为迁移放开输入；
 - envelope format（`formatRevision`）与 State schema（state contract
-  revision）是两条独立迁移轴：前者由 engine-owned migration
-  处理，后者由应用（未来由 Mod namespace）声明；二者不共享一个模糊 registry；
+  revision）是两条独立迁移轴：前者未来由 engine-owned migration 处理，后者由应用
+  声明；二者不共享一个模糊 registry。M2 只实现后者，且只接受当前 revision-1 outer
+  envelope 与 engine-owned `{ state, rng, commandSequence, integrity }` Snapshot shell。
+  第一次真实 envelope 演进必须另开切片，先定义 historical shell、raw-digest domain、
+  metadata shape、output format、byte corpus 与 revision progression；
 - `annotation` 是 envelope persistence metadata，不是 authoritative State。
   State migration 默认原样保留且不得读取、生成或改写它；只有明确的
   engine-owned envelope format migration 可以转换 annotation shape，并必须为
@@ -122,8 +129,9 @@ shell/digest 合法但 State revision 不同，它返回 `migration.unavailable`
   路径不拿迁移后的 candidate 与 pre-migration stored digest 比较，而是由 engine 对
   normalized migration output 派生新 digest，作为新 replay/Save anchor 的 identity；
 - 可预期的 candidate validation/migration failure 留下原 Save 数据不变，结果是结构化
-  rejection 或 inspect_only，不存在半迁移状态；operational/unexpected failure 返回
-  faulted，prepare-commit fault 可把 Session 置为 `fault_paused`。失败不得安装部分
+  rejection 或 inspect_only，不存在半迁移状态；callback throw 与可预见的 replacement
+  prepare failure 返回 faulted/preserve 且 Session 保持 `ready`。只有 package-internal
+  no-throw commit protocol 的意外 invariant failure 才允许进入 `fault_paused`。失败不得安装部分
   Session、替换 replay anchor、
   推进 lineage 或 autosave anchor；成功结果只能在完整 current candidate 通过
   schema、compatibility、reference 与 invariant 后一次性发布。短暂 busy、结构化
@@ -160,38 +168,212 @@ shell/digest 合法但 State revision 不同，它返回 `migration.unavailable`
 - 两个执行 lane 共用的 testkit seam/public export 必须在 fork 前合并；M0b/M1 只改
   Base Save codec/load order/result contracts，DET-B 只改 collector/driver/browser/CI。
 
+### M2 scope and precedence
+
+M2 的完整范围固定为：一个 application、一个显式 aggregate-State namespace、同步相邻
+State migration、非持久化 replacement-origin receipt；不做 Save 写回、format migration、
+M3 产品 UX、durable history 或 Mod migration。State migration 只替换
+`snapshot.state`，保留 RNG、command sequence、integrity、annotation、`versionStamp`、
+`savedAt`、record revision 与 slot metadata。
+
+共同 admission 先后为 Strict JSON/limits、exact outer fields/format decision、revision-1
+shell、raw Snapshot digest、State-revision branch selection。current-revision branch 保持 M1
+顺序。migration branch 对 stored load 先验证 Host revision/slot identity（import 无此
+phase），随后按下列顺序裁决；更晚阶段不得覆盖更早失败：
+
+1. complete chain/source identity；缺失或不完整返回 `migration.unavailable`，callback 为 `0`；
+2. historical engine-owned Snapshot shell；非法返回 `envelope.schema_invalid`；
+3. each synchronous callback；显式拒绝为 `migration.rejected`，throw 为
+   `migration.callback_threw`；
+4. exact result envelope 与 per-step canonical/limit admission；thenable、非法 union、
+   non-canonical 或 over-limit output 均为 `migration.output_invalid`；
+5. final current Snapshot/RNG/schema 与 migrated digest derivation；
+6. compatibility/adoption、references、invariants；
+7. replacement prepare，然后执行不可抛错、无 publication 中间态的 logical commit。
+
+`migration.rejected` 与 `migration.output_invalid` 在 Player 层统一映射
+`migration_rejected`；`migration.callback_threw` 保持 faulted code，不暴露 callback
+message、stack 或 cause。post-migration current schema/RNG/reference/invariant 与 adoption
+failure 沿用既有 code/mapping。失败结果可以携带 immutable migration attempt（已完成 steps、
+failing step/phase、可用时的 final migrated digest），但 partial attempt 永不安装。
+
+raw digest mismatch 优先于 missing chain；stored Host/slot identity mismatch 优先于 chain；
+missing chain 优先于 historical State/body interpretation；callback reject/throw/illegal output
+优先于所有后续 validation；migration success 后才允许产生 compatibility exact/adopted/
+inspect-only 结果。
+
 ## 3. Migration registry contract
 
-Executable registry 从 M2 才存在。概念合同（名字可在实现原型中调整）：
+Executable registry 从 M2 才存在。M2 的标准 Core 只允许零或一个 factory-produced exact
+registry；namespace 由 application/Story 显式声明，不能从 Story ID 推导。它只表示一个
+aggregate gameplay-State namespace，不建立多 namespace execution order、Mod namespace、
+per-module revision 或 partial State installation。
+
+概念合同（字段语义固定，文件拆分可以调整）：
 
 ```ts
-interface SaveStateMigrationV1 {
-  readonly fromStateContractRevision: number; // N
-  readonly toStateContractRevision: number; // 恒为 N + 1
-  migrate(state: BoundedRawStateV1): MigrationStepResultV1;
+interface SaveStateContractIdentityV1 {
+  readonly stateContractRevision: PositiveSafeInteger;
+  readonly stateContractDigest: Digest;
+}
+
+interface SaveStateMigrationStepIdentityV1 {
+  readonly migrationId: SaveStateMigrationIdV1;
+  readonly from: SaveStateContractIdentityV1;
+  readonly to: SaveStateContractIdentityV1;
+}
+
+type SaveStateMigrationStepResultV1 =
+  | { readonly kind: "migrated"; readonly state: StrictJsonValueV1 }
+  | { readonly kind: "rejected"; readonly reasonCode: SaveStateMigrationReasonCodeV1 };
+
+interface SaveStateMigrationReferenceChangesV1 {
+  readonly renames: readonly {
+    readonly referenceSetId: string;
+    readonly fromId: string;
+    readonly toId: string;
+  }[];
+  readonly deletions: readonly {
+    readonly referenceSetId: string;
+    readonly id: string;
+    readonly resolution:
+      | { readonly kind: "fallback"; readonly toId: string }
+      | { readonly kind: "reject"; readonly reasonCode: SaveStateMigrationReasonCodeV1 };
+  }[];
+}
+
+interface SaveStateMigrationStepV1 {
+  readonly migrationId: SaveStateMigrationIdV1;
+  readonly namespace: SaveStateMigrationNamespaceV1;
+  readonly from: SaveStateContractIdentityV1;
+  readonly to: SaveStateContractIdentityV1;
+  readonly references: SaveStateMigrationReferenceChangesV1;
+  readonly migrate: (
+    state: DeepReadonly<StrictJsonValueV1>,
+  ) => SaveStateMigrationStepResultV1;
 }
 ```
 
 要求：
 
-- 每步迁移是纯函数、确定性、禁网络、禁时钟、禁随机；
+- registry 由唯一 public factory 构造，规范化 declaration 存于 package-owned private
+  brand/`WeakMap`；spread、decorate 或手写伪对象 fail closed；Core 配置的 registry 与
+  determinism authority owner export 必须是同一个 exact object；
+- registry 声明 namespace、minimum/current State contract identity 与相邻 steps；单次
+  chain 最多 16 steps，identifier/reason code 最多 128 UTF-8 bytes；
+- namespace、migration ID 与 reason code 使用 ASCII lowercase stable-token grammar：首字符
+  为 `a-z`，后续只允许 `a-z`、`0-9`，或由 `.`/`_`/`-` 分隔的非空 segment；长度为
+  1..128 UTF-8 bytes。reference set/source/target ID复用现有 State-contract stable-ID
+  admission。factory按 `(referenceSetId, sourceId)` 的 code-unit order规范化映射，拒绝同源
+  rename/delete冲突、duplicate source、self rename、delete无 exact fallback/reject resolution；
+  target是否存在于 current manifest留到 Core/runtime binding验证，不在 M2a猜测；
+- 每步严格 `N -> N+1`；首步等于 minimum、末步等于 current、相邻 identity 完整衔接，
+  migration ID/from identity 唯一。duplicate、gap、reverse、cycle、shortcut、ambiguity、
+  current target mismatch 或超限在 factory/application resolution 阶段失败；
+- valid `minimum === current` 使用空 steps；runtime 在第一个 callback 前解析出完整、唯一、
+  bounded chain；stored identity 低于 minimum或不匹配声明 source identity仍返回
+  `migration.unavailable`；
+- 每步迁移是同步纯函数、确定性、禁网络、禁时钟、禁随机；
 - migration registration 的 source entry 必须进入已经落地的 authoritative
   import-closure static guard 与 isolated test tripwire；“文档写着 pure”不能替代
   可执行 evidence；
-- engine-owned envelope-format migrator 与 State migrator 受同一要求约束；
-  callback-free shell/order 可以先落地，但不能因此宣称已有 format migration；
-- 只允许相邻 revision `N -> N+1`；跨版本由 runtime
-  组合迁移链完成，不承诺跳版本直迁；
-- registry 以 State namespace 为组织维度：engine-owned envelope format
-  迁移之外，每条 State 迁移链隶属一个 namespace；单应用（无 Mod）是单 namespace
-  特例，Mod 的 per-namespace migration（[Mod design](mod-system.md) 第 8
-  节）复用同一 registry 而不是另建；跨 namespace 的执行顺序由 resolved
-  provenance 的 namespace 集合确定性派生；
-- content/reference ID rename 或 delete 必须有显式映射表，不依赖偶然 fallback；
+- migrator 只接收 raw-digest-verified historical Snapshot 的 `state`，经 package-owned
+  detached canonical projection 与 deep-freeze 后交付；每步 migrated output 再执行
+  descriptor-safe capture、canonical/limits admission、detached projection 与 deep-freeze；
+  Promise/thenable、accessor、custom prototype、alias mutation 与非 exact result 均不能穿透；
+- callback 不接收整个 Save、arbitrary context、Host、Session、clock、RNG、network、
+  renderer、database 或 mutable resource client；
+- content/reference rename/delete 是显式、可验证的 declaration 与诊断义务，不是 engine
+  对任意 State string 的自动替换。delete 必须声明 fallback target 或 stable rejection
+  reason；callback 负责语义转换，最终 reference validator 负责证明结果；
 - migration 与 adoption 是不同物：migration 转换 State；adoption 声明“旧 State
   无需转换即可被新 Simulation 接管”。二者都不能用宽泛 semver 猜测（与
   [Mod design](mod-system.md) 第 8 节一致）；
 - CommandLog 兼容轴独立管理：迁移安装新 replay anchor，旧命令日志不跨迁移重放。
+
+### State migration receipt and provenance
+
+`SaveStateMigrationReceiptV1` 描述“当前 Session 由哪一次显式 migrated load/import
+replacement 建立”，包含 namespace、source/target State identity、ordered step identities、
+source raw-Snapshot digest 与 final migrated-Snapshot digest。它是 immutable package data，
+只记录本次完整 path，不是累计 history，也不声称跟随 CommandLog retention 推进的
+`replayBase()`。
+
+```ts
+interface SaveStateMigrationReceiptV1 {
+  readonly namespace: SaveStateMigrationNamespaceV1;
+  readonly source: SaveStateContractIdentityV1;
+  readonly target: SaveStateContractIdentityV1;
+  readonly steps: readonly [
+    SaveStateMigrationStepIdentityV1,
+    ...SaveStateMigrationStepIdentityV1[],
+  ];
+  readonly sourceStateDigest: Digest;
+  readonly migratedStateDigest: Digest;
+}
+
+type SaveStateMigrationFailurePhaseV1 =
+  | "snapshot_shell"
+  | "callback"
+  | "callback_rejected"
+  | "result_envelope"
+  | "output_admission"
+  | "current_snapshot_schema"
+  | "compatibility"
+  | "references"
+  | "invariants"
+  | "replacement_prepare"
+  | "replacement_commit";
+
+interface SaveStateMigrationAttemptV1 {
+  readonly namespace: SaveStateMigrationNamespaceV1;
+  readonly source: SaveStateContractIdentityV1;
+  readonly target: SaveStateContractIdentityV1;
+  readonly sourceStateDigest: Digest;
+  readonly completedSteps: readonly SaveStateMigrationStepIdentityV1[];
+  readonly failingStep: SaveStateMigrationStepIdentityV1 | null;
+  readonly failingPhase: SaveStateMigrationFailurePhaseV1;
+  readonly migratedStateDigest: Digest | null;
+}
+```
+
+`migratedStateDigest` 在 failure attempt 中只有完整 chain 已产生、且 current schema 已把
+final Snapshot 规范化后才非空。attempt 只描述失败操作的已完成 path，不安装为 Session
+receipt，也不改变之前已安装的 receipt。
+
+receipt 不进入 Save、Snapshot、`stateDigest`、CommandLog、replay comparison、
+`simulationLineage`、BuildIdentity、compatibility identity 或 M2 Debug Bundle wire。低层 runnable
+`SaveImportValidationResultV1` 的 exact/adopted success 携带正交的
+`migration: SaveStateMigrationReceiptV1 | null`；migration 后再 adoption 是合法组合。
+Player `PersistenceOperationResultV1` 的 success shape 不暴露 receipt，`compatibility` 表示
+migration 后的 compatibility outcome。
+
+成功 migrated replacement 原子安装 receipt；ordinary command、Save capture、CommandLog
+eviction 与 presentation epoch 不清除它。fresh construction/restart、current-revision
+load/import、debug fixture/debug-bundle replacement、rebootstrap/new Persistence service，以及
+任何不携带 receipt 的显式 replay-base replacement把它清为 `null`。失败保留此前 receipt
+identity/value。
+
+State migration 只把 candidate provenance 的 `resolved.stateContractRevision` 与
+`resolved.stateContractDigest` 提升到 current identity；Story、engine、simulation、
+presentation、patch-set axes、existing `simulationLineage` 与 persistence metadata全部保留
+stored 值，再执行既有 compatibility/adoption。因此 migration 不得以 current provenance
+整对象覆盖绕过 Story/engine/simulation mismatch。
+
+### Atomic replacement
+
+M2 使用 package-internal prepare/commit，不把公开 `GameSessionRuntimeControlV1` 扩张成
+通用 transaction-participant framework。prepare 在任何 mutation 前完成 final validation/
+freeze/digest、empty CommandLog/replay anchor、next ordinal、lineage/receipt copy、autosave
+next-epoch admission、repair/bookkeeping plan、lease fence 与所有 allocation；不得清 map、
+推进 epoch、调用 Host write/observer/Story callback 或发布 Snapshot。
+
+commit 只安装预计算值：Persistence lineage/receipt、autosave anchor bookkeeping、CommandLog
+replay base/digest/empty entries/next ordinal、Session Snapshot/digest/status 与 safely-saved
+anchor。commit 不做 validation、digest、integer increment、allocation、callback、Host I/O、
+Promise creation 或 observer publication；autosave repair/write 只在 composite commit 后排队。
+JS 单线程下的 atomic 指同一 queue turn 中无可观察中间 publication，且 validated token 的
+commit path 结构上不抛错。
 
 ## 4. Product surface
 
@@ -221,7 +403,8 @@ interface SaveStateMigrationV1 {
   re-anchor/导出/回滚），不把触限留成静默拒绝；
 - **玩家可读结果**：rejected / inspect_only
   必须映射为用户可读文案与可行动选项（回滚版本、导出存档、放弃迁移），诊断码不是最终用户界面；
-- 迁移过程与结果进入现有结构化 diagnostics 与 debug bundle。
+- migration failure/attempt 进入结构化 diagnostics；M2 不改变 Debug Bundle wire。若 M3
+  要导出 durable receipt/history，必须另行定义 revision、limits 与 privacy contract；
 - **导出文件名**：Host 可使用显式 metadata clock 生成 UTC `yyyyMMddHHmmss`
   suggested filename，但它不进入 Save bytes/identity，也不保证同一秒唯一。实际
   Desktop/Browser 下载必须以 no-clobber suffix、浏览器下载策略或等价的原子
@@ -260,6 +443,8 @@ interface SaveStateMigrationV1 {
 - 不承诺跳版本直迁或降级迁移；
 - 不引入外部数据库或异步迁移服务；迁移在 load 路径内同步完成；
 - 不改变“Save 只存 plain data”的边界；迁移代码不进入存档。
+- M2 不实现 envelope format migration、durable migration history、dry-run/backup UX、
+  multi-namespace/Mod migration、自动 reference rewrite 或公开通用 transaction API。
 
 ## 7. Relationship to existing documents
 
