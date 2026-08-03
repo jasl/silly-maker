@@ -4,8 +4,8 @@
 metadata corpus 与 determinism join 修订；2026-08-03 M1 callback-free
 shell/load-order floor 已实现，并冻结 M2 为 single-namespace、State-only executable
 migration；M2a exact registry/Core current-identity admission、M2b bounded pure
-execution kernel 与 M2c staged Persistence integration 已实现，M2d–M2e 与 M3
-产品发布语料仍未实现。本文把 Save
+execution kernel、M2c staged Persistence integration 与 M2d atomic replacement/
+Session receipt lifecycle 已实现，M2e 与 M3 产品发布语料仍未实现。本文把 Save
 兼容从“分类与拒绝”升级为“一等迁移能力”：固定 migration registry 合同、load
 阶段顺序与发布验收。它独立于 Mod 系统并先于其落地；[Mod design](mod-system.md)
 第 8 节的 per-namespace migration 建立在本文的引擎级合同之上。当前实现状态见
@@ -36,18 +36,21 @@ invariant；stored load 在 Story validation 前另做 Host revision 与 slot id
 exact configured chain 执行迁移；缺失或不完整 chain 才在 current Snapshot schema 与 Story
 callback 前返回 `migration.unavailable`。两条分支都保留来源 bytes，失败不修改 live Session。
 
-M2c 已建立 executable migration 路径，剩余缺口是 promotion 与完整原子 provenance：
+M2d 已闭合 executable migration 的 in-memory atomic replacement；剩余缺口是 real-owner
+promotion 与产品恢复面：
 
 1. M2c 已把 exact registry 接入 import/load staged admission，能够迁移后经 current
    schema/digest/compatibility/reference/invariant validation，并使用既有 replay-anchor
    replacement；但没有 maintained application owner，list/export/annotation 也有意不执行
    callback；
-2. 低层 success 已产生 replacement-origin receipt，但 Session/Persistence 尚未安装或管理
-   receipt lifecycle，也没有 M2d composite prepare/no-throw commit token；
+2. successful migrated replacement 已由 Session 安装 non-durable receipt；ordinary command、
+   Save capture 与 CommandLog eviction 保留 exact receipt，无 receipt replay-base replacement
+   清除它。Session/Persistence/CommandLog/autosave 通过 package-internal prepare/no-throw
+   commit/post-commit token 原子换锚，不把 transaction API 或 receipt accessor 暴露给 Story；
 3. 没有历史 fixture corpus，也没有“任意受支持旧 Save
    可迁移、可加载”的发布验收。
 
-在 M2e/M3 之前，maintained product 仍不能兑现旧存档迁移与加载承诺；当前 staged
+在 M2e/M3 之前，maintained product 仍不能兑现旧存档迁移与加载承诺；当前 engine
 能力只在 application 显式提供 exact registry 时启用，且不会写回来源数据。
 
 ## 2. Target load order
@@ -369,9 +372,10 @@ failure并破坏 phase authority。
 
 成功 migrated replacement 原子安装 receipt；ordinary command、Save capture、CommandLog
 eviction 与 presentation epoch 不清除它。fresh construction/restart、current-revision
-load/import、debug fixture/debug-bundle replacement、rebootstrap/new Persistence service，以及
-任何不携带 receipt 的显式 replay-base replacement把它清为 `null`。失败保留此前 receipt
-identity/value。
+load/import、debug fixture/debug-bundle replacement、fresh paired Session/Persistence
+composition（包括 Core rebootstrap successor），以及任何不携带 receipt 的显式 replay-base
+replacement 把它清为 `null`。在同一 Session 上单独构造另一个 Persistence service 不是
+successor，也不改变 Session-owned receipt。失败保留此前 receipt identity/value。
 
 State migration 只把 candidate provenance 的 `resolved.stateContractRevision` 与
 `resolved.stateContractDigest` 提升到 current identity；Story、engine、simulation、
@@ -383,16 +387,34 @@ stored 值，再执行既有 compatibility/adoption。因此 migration 不得以
 
 M2 使用 package-internal prepare/commit，不把公开 `GameSessionRuntimeControlV1` 扩张成
 通用 transaction-participant framework。prepare 在任何 mutation 前完成 final validation/
-freeze/digest、empty CommandLog/replay anchor、next ordinal、lineage/receipt copy、autosave
-next-epoch admission、repair/bookkeeping plan、lease fence 与所有 allocation；不得清 map、
-推进 epoch、调用 Host write/observer/Story callback 或发布 Snapshot。
+freeze/digest、empty CommandLog/replay anchor、next ordinal、lineage copy/freeze、exact immutable
+receipt admission/capture、autosave next-epoch admission、repair/bookkeeping plan、lease fence 与
+所有 allocation；不得清 map、推进 epoch、调用 Host write/observer/Story callback 或发布
+Snapshot。
 
-commit 只安装预计算值：Persistence lineage/receipt、autosave anchor bookkeeping、CommandLog
-replay base/digest/empty entries/next ordinal、Session Snapshot/digest/status 与 safely-saved
-anchor。commit 不做 validation、digest、integer increment、allocation、callback、Host I/O、
-Promise creation 或 observer publication；autosave repair/write 只在 composite commit 后排队。
-JS 单线程下的 atomic 指同一 queue turn 中无可观察中间 publication，且 validated token 的
-commit path 结构上不抛错。
+commit 只安装预计算值：Persistence lineage/autosave anchor bookkeeping/safely-saved anchor、
+CommandLog replay base/digest/empty entries/next ordinal，以及 Session Snapshot/digest/status/
+Session-owned receipt。commit 不做 validation、digest、integer increment、allocation、callback、
+Host I/O、Promise creation 或 observer publication。
+
+全部 authoritative owner commit 完成后，Session 只在 listener notification 窗口暴露预分配、
+Session-bound 的 opaque publication context，发布 Session listener并立即撤销 context；随后调用
+throw-isolated observational `onReplacementCommit`，最后安排 post-commit autosave repair/write。
+publication context 是 origin attribution，不是另一个 authority、callback或 durable state。
+JS 单线程下的 atomic 指同一 queue turn 中无可观察中间 authoritative publication，且 validated
+token 的 commit path 结构上不抛错。
+
+该 composite guarantee 的边界是 repository-owned GameSession/Core/Persistence composition，
+以及保留 exact replacement outcome identity 或 exact package prepare-callback identity 的透明
+wrapper。公开的低层 `GameSessionRuntimeControlV1` 仍允许自定义实现；若 wrapper 同时重建
+outcome 并替换 prepare callback，使所有 package-internal attempt carrier 都丢失，它只保留
+既有 current-revision、`migration: null` 的 legacy callback path，不获得 M2 composite
+atomicity 承诺。extension/custom caller显式提供 legacy `prepareReplacementCommit` 时同样主动
+离开 composite path；该 escape hatch只支持 current-revision、`migration: null` 语义。
+migrated replacement 在这些路径必须于 authoritative Snapshot/replay/Persistence mutation 前
+fail closed，不能伪造 success；由于它已越过 package-owned protocol admission，Session status
+可以转为 `fault_paused`，不得表述为普通 package prepare failure 会保持 `ready`。不得用
+public universal participant API 扩张这个边界。
 
 ## 4. Product surface
 

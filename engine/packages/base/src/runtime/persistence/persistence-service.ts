@@ -30,6 +30,7 @@ import type {
 } from "../../contracts/hotfix.ts";
 import type { BuildProvenanceV1 } from "../../contracts/provenance.ts";
 import type { SaveStateMigrationRegistryV1 } from "../../contracts/save-state-migration.ts";
+import type { SaveStateMigrationReceiptV1 } from "../../contracts/save-state-migration.ts";
 import type {
   ExportedSaveV1,
   PersistenceOperationResultV1,
@@ -66,13 +67,25 @@ import {
   formatLegacyExportTimestampInternalV1,
   scanUtcInstantFieldsInternalV1,
 } from "../../internal/utc-instant.ts";
-import type { GameSessionRuntimeControlV1 } from "../session/game-session.ts";
-import { lookupInstalledSnapshotDigestInternalV1 } from "../session/game-session.ts";
+import type {
+  AuthoritativeReplacementOwnerInternalV1,
+  AuthoritativeReplacementPublicationContextInternalV1,
+  GameSessionRuntimeControlV1,
+} from "../session/game-session.ts";
+import {
+  bindAuthoritativeReplacementCommitInternalV1,
+  bindAuthoritativeReplacementPrepareCallbackInternalV1,
+  createPreparedAuthoritativeReplacementCommitInternalV1,
+  lookupAuthoritativeReplacementOwnerInternalV1,
+  lookupInstalledSnapshotDigestInternalV1,
+} from "../session/game-session.ts";
 import type { AutoSaveAttemptReceiptInternalV1 } from "./auto-save-queue.ts";
 import {
-  createAutoSaveQueueV1,
+  commitPreparedAutoSaveAnchorInternalV1,
+  createAutoSaveQueueInternalV1,
   enqueueAutoSaveWithReceiptInternalV1,
-  establishAutoSaveAnchorWithReceiptInternalV1,
+  prepareAutoSaveAnchorWithReceiptInternalV1,
+  runPreparedAutoSaveAnchorPostCommitInternalV1,
 } from "./auto-save-queue.ts";
 import {
   classifySaveCompatibilityV1,
@@ -109,6 +122,7 @@ export interface SaveSummaryProjectionInstrumentationInternalV1<TState = unknown
 
 interface PersistenceServiceTestOptionsInternalV1<TState> {
   readonly wrapRepositoryForWriteReceiptFallback?: boolean;
+  readonly autoSaveInitialAnchorEpoch?: NonNegativeSafeInteger;
   readonly saveSummaryProjectionInstrumentation?: SaveSummaryProjectionInstrumentationInternalV1<
     TState
   >;
@@ -206,11 +220,20 @@ interface PersistenceServiceControlInternalV1 {
   loadWithReplacementCommit(
     slot: SaveSlotIdV1,
     onReplacementCommit: () => void,
+    publicationContext?: AuthoritativeReplacementPublicationContextInternalV1,
   ): Promise<PersistenceOperationResultV1>;
   importWithReplacementCommit(
     bytes: Uint8Array,
     onReplacementCommit: () => void,
+    publicationContext?: AuthoritativeReplacementPublicationContextInternalV1,
   ): Promise<PersistenceOperationResultV1>;
+  bindAnchorReplacement<TResult>(
+    outcome: object,
+    simulationLineage: readonly DeepReadonly<SimulationAdoptionV1>[],
+    onReplacementCommit: () => void,
+    normalizePrepareFailure: (error: unknown) => TResult,
+    publicationContext?: AuthoritativeReplacementPublicationContextInternalV1,
+  ): void;
   fencePlayerMutations(): void;
 }
 
@@ -245,12 +268,13 @@ export function loadWithReplacementCommitInternalV1<TSnapshot>(
   service: PersistenceServiceV1<TSnapshot>,
   slot: SaveSlotIdV1,
   onReplacementCommit: () => void,
+  publicationContext?: AuthoritativeReplacementPublicationContextInternalV1,
 ): Promise<PersistenceOperationResultV1> {
   const control = persistenceServiceControlsInternalV1.get(service);
   if (control === undefined) {
     throw new TypeError("Persistence service does not support replacement commit binding");
   }
-  return control.loadWithReplacementCommit(slot, onReplacementCommit);
+  return control.loadWithReplacementCommit(slot, onReplacementCommit, publicationContext);
 }
 
 /** @internal Binds application presentation attribution to one queued import commit. */
@@ -258,12 +282,35 @@ export function importWithReplacementCommitInternalV1<TSnapshot>(
   service: PersistenceServiceV1<TSnapshot>,
   bytes: Uint8Array,
   onReplacementCommit: () => void,
+  publicationContext?: AuthoritativeReplacementPublicationContextInternalV1,
 ): Promise<PersistenceOperationResultV1> {
   const control = persistenceServiceControlsInternalV1.get(service);
   if (control === undefined) {
     throw new TypeError("Persistence service does not support replacement commit binding");
   }
-  return control.importWithReplacementCommit(bytes, onReplacementCommit);
+  return control.importWithReplacementCommit(bytes, onReplacementCommit, publicationContext);
+}
+
+/** @internal Atomically joins a package-owned non-migration replay-base replacement. */
+export function bindPersistenceAnchorReplacementInternalV1<TSnapshot, TResult>(
+  service: PersistenceServiceV1<TSnapshot>,
+  outcome: object,
+  simulationLineage: readonly DeepReadonly<SimulationAdoptionV1>[],
+  onReplacementCommit: () => void,
+  normalizePrepareFailure: (error: unknown) => TResult,
+  publicationContext?: AuthoritativeReplacementPublicationContextInternalV1,
+): void {
+  const control = persistenceServiceControlsInternalV1.get(service);
+  if (control === undefined) {
+    throw new TypeError("Persistence service does not support atomic anchor replacement");
+  }
+  control.bindAnchorReplacement(
+    outcome,
+    simulationLineage,
+    onReplacementCommit,
+    normalizePrepareFailure,
+    publicationContext,
+  );
 }
 
 export type PersistenceLeaseAcquisitionV1 = "acquire_initial" | "deferred_rebootstrap";
@@ -447,6 +494,9 @@ async function createPersistenceServiceWithDependenciesV1<
   })();
 
   let currentLineage = copyLineageV1(options.initialSimulationLineage);
+  const authoritativeReplacementOwner = lookupAuthoritativeReplacementOwnerInternalV1(
+    options.runtimeControl,
+  );
   let safelySavedCommandSequence: NonNegativeSafeInteger | null = null;
   let lastFailureCode: string | null = null;
   let rebootstrapFailureCode: "lease_release_failed" | "lease_takeover_failed" | null = null;
@@ -704,7 +754,10 @@ async function createPersistenceServiceWithDependenciesV1<
       readonly settled: Promise<PersistenceAutoSaveAttemptReceiptInternalV1>;
     }
   >();
-  const autoQueue = createAutoSaveQueueV1<AutoCandidateV1<TSnapshot>, PersistenceOperationResultV1>(
+  const autoQueue = createAutoSaveQueueInternalV1<
+    AutoCandidateV1<TSnapshot>,
+    PersistenceOperationResultV1
+  >(
     {
       async write(candidate) {
         autoWrites += 1;
@@ -745,6 +798,11 @@ async function createPersistenceServiceWithDependenciesV1<
         rememberFailureV1("persistence.unexpected");
       },
     },
+    {
+      ...(testOptions?.autoSaveInitialAnchorEpoch === undefined
+        ? {}
+        : { initialAnchorEpoch: testOptions.autoSaveInitialAnchorEpoch }),
+    },
   );
 
   const sameAutoSaveFenceV1 = (
@@ -755,7 +813,8 @@ async function createPersistenceServiceWithDependenciesV1<
       ? left === right
       : left.ownerId === right.ownerId && left.fencingToken === right.fencingToken;
 
-  const trackAutoSaveAttemptV1 = (
+  const createTrackedAutoSaveAttemptV1 = (
+    attemptMap: typeof autoSaveAttemptsBySnapshot,
     snapshot: DeepReadonly<TSnapshot>,
     fence: DeepReadonly<SessionLeaseFenceV1> | null,
     anchorEpoch: NonNegativeSafeInteger,
@@ -763,7 +822,6 @@ async function createPersistenceServiceWithDependenciesV1<
     receipt: Promise<AutoSaveAttemptReceiptInternalV1<PersistenceOperationResultV1>>,
   ): Promise<PersistenceAutoSaveAttemptReceiptInternalV1> => {
     const snapshotKey = snapshot as object;
-    const attemptMap = autoSaveAttemptsBySnapshot;
     const settled = receipt
       .then((attemptReceipt): PersistenceAutoSaveAttemptReceiptInternalV1 => {
         if (attemptReceipt.kind === "superseded") {
@@ -800,33 +858,98 @@ async function createPersistenceServiceWithDependenciesV1<
     return settled;
   };
 
+  const trackAutoSaveAttemptV1 = (
+    snapshot: DeepReadonly<TSnapshot>,
+    fence: DeepReadonly<SessionLeaseFenceV1> | null,
+    anchorEpoch: NonNegativeSafeInteger,
+    attemptIdentity: object,
+    receipt: Promise<AutoSaveAttemptReceiptInternalV1<PersistenceOperationResultV1>>,
+  ): Promise<PersistenceAutoSaveAttemptReceiptInternalV1> =>
+    createTrackedAutoSaveAttemptV1(
+      autoSaveAttemptsBySnapshot,
+      snapshot,
+      fence,
+      anchorEpoch,
+      attemptIdentity,
+      receipt,
+    );
+
+  const prepareAnchorCommitV1 = (
+    snapshot: DeepReadonly<TSnapshot>,
+    simulationLineage: readonly DeepReadonly<SimulationAdoptionV1>[],
+    clearLastFailure: boolean,
+    onReplacementCommit?: () => void,
+  ) => {
+    if (lifecycle !== "active" || playerMutationsFenced) {
+      throw new TypeError("Persistence service cannot prepare an anchor");
+    }
+    const nextLineage = copyLineageV1(simulationLineage);
+    const nextAttemptsBySnapshot = new WeakMap<
+      object,
+      {
+        readonly anchorEpoch: NonNegativeSafeInteger;
+        readonly fence: DeepReadonly<SessionLeaseFenceV1> | null;
+        readonly attemptIdentity: object;
+        readonly settled: Promise<PersistenceAutoSaveAttemptReceiptInternalV1>;
+      }
+    >();
+    const fence = options.lease.captureFence();
+    if (lifecycle !== "active" || playerMutationsFenced) {
+      throw new TypeError("Persistence service changed lifecycle during anchor preparation");
+    }
+    const attemptIdentity = Object.freeze({});
+    const candidate = Object.freeze({
+      snapshot,
+      simulationLineage: nextLineage,
+      fence,
+      attemptIdentity,
+    });
+    const autoPlan = prepareAutoSaveAnchorWithReceiptInternalV1<
+      AutoCandidateV1<TSnapshot>,
+      PersistenceOperationResultV1
+    >(autoQueue, candidate);
+    void createTrackedAutoSaveAttemptV1(
+      nextAttemptsBySnapshot,
+      snapshot,
+      fence,
+      autoPlan.anchorEpoch,
+      attemptIdentity,
+      autoPlan.receipt,
+    );
+    return Object.freeze({
+      commit() {
+        // Auto Save token admission happens before any other live authority
+        // assignment, so an invalid/stale token cannot partially install the
+        // Persistence participant.
+        commitPreparedAutoSaveAnchorInternalV1(autoPlan.prepared);
+        lastSuccessfulAutoSnapshot = null;
+        lastSuccessfulAutoFence = null;
+        lastSuccessfulAutoPhysicalOrder = null;
+        autoSaveAttemptsBySnapshot = nextAttemptsBySnapshot;
+        currentLineage = nextLineage;
+        safelySavedCommandSequence = null;
+        if (clearLastFailure) lastFailureCode = null;
+      },
+      afterPublication() {
+        try {
+          onReplacementCommit?.();
+        } catch {
+          // Package-internal presentation attribution is observational and
+          // cannot turn a valid authoritative replacement into a fault.
+        }
+        runPreparedAutoSaveAnchorPostCommitInternalV1(autoPlan.prepared);
+      },
+    });
+  };
+
   const establishAnchorV1 = (
     snapshot: DeepReadonly<TSnapshot>,
     simulationLineage: readonly DeepReadonly<SimulationAdoptionV1>[],
   ): void => {
     if (lifecycle !== "active" || playerMutationsFenced) return;
-    const nextLineage = copyLineageV1(simulationLineage);
-    lastSuccessfulAutoSnapshot = null;
-    lastSuccessfulAutoFence = null;
-    lastSuccessfulAutoPhysicalOrder = null;
-    autoSaveAttemptsBySnapshot = new WeakMap();
-    const fence = options.lease.captureFence();
-    const attemptIdentity = Object.freeze({});
-    const receipt = establishAutoSaveAnchorWithReceiptInternalV1<
-      AutoCandidateV1<TSnapshot>,
-      PersistenceOperationResultV1
-    >(
-      autoQueue,
-      Object.freeze({
-        snapshot,
-        simulationLineage: nextLineage,
-        fence,
-        attemptIdentity,
-      }),
-    );
-    void trackAutoSaveAttemptV1(snapshot, fence, autoQueue.anchorEpoch(), attemptIdentity, receipt);
-    currentLineage = nextLineage;
-    safelySavedCommandSequence = null;
+    const prepared = prepareAnchorCommitV1(snapshot, simulationLineage, false);
+    prepared.commit();
+    prepared.afterPublication();
   };
 
   const captureTrackedAutoSaveV1 = (
@@ -998,6 +1121,7 @@ async function createPersistenceServiceWithDependenciesV1<
       }) as PersistenceOperationResultV1,
       anchor: "replace_replay_base" as const,
       simulationLineage: lineage,
+      migration: validation.migration,
     });
   };
 
@@ -1082,16 +1206,87 @@ async function createPersistenceServiceWithDependenciesV1<
   const validateStoredSlotForLoadV1 = (slotId: SaveSlotIdV1) =>
     validateStoredSlotInternalV1(slotId, true);
 
+  const bindReplacementCommitV1 = <TResult>(
+    outcome: object,
+    simulationLineage: readonly DeepReadonly<SimulationAdoptionV1>[],
+    migrationReceipt: DeepReadonly<SaveStateMigrationReceiptV1> | null,
+    expectedSessionOwner: AuthoritativeReplacementOwnerInternalV1 | null | undefined,
+    clearLastFailure: boolean,
+    normalizePrepareFailure: (error: unknown) => TResult,
+    onReplacementCommit?: () => void,
+    publicationContext?: AuthoritativeReplacementPublicationContextInternalV1,
+  ): void => {
+    bindAuthoritativeReplacementCommitInternalV1<TSnapshot, TResult>(
+      outcome,
+      {
+        prepare: (snapshot, anchor, owner, preparation) => {
+          if (anchor !== "replace_replay_base") {
+            throw new TypeError("Persistence replacement requires a replay-base anchor");
+          }
+          if (
+            expectedSessionOwner !== null &&
+            (expectedSessionOwner === undefined || owner !== expectedSessionOwner)
+          ) {
+            throw new TypeError("Persistence replacement reached a different Session owner");
+          }
+          const prepared = prepareAnchorCommitV1(
+            snapshot,
+            simulationLineage,
+            clearLastFailure,
+            onReplacementCommit,
+          );
+          return createPreparedAuthoritativeReplacementCommitInternalV1({
+            owner,
+            preparation,
+            migrationReceipt,
+            ...(publicationContext === undefined ? {} : { publicationContext }),
+            commit: prepared.commit,
+            afterPublication: prepared.afterPublication,
+          });
+        },
+        normalizePrepareFailure,
+      },
+    );
+  };
+
   const enqueueReplacementV1 = (
     operation: (
       current: DeepReadonly<TSnapshot>,
     ) => Promise<ReturnType<typeof replacementOutcomeV1>>,
     onReplacementCommit?: () => void,
+    publicationContext?: AuthoritativeReplacementPublicationContextInternalV1,
   ): Promise<PersistenceOperationResultV1> => {
     if (lifecycle !== "active" || playerMutationsFenced) {
       return Promise.resolve(faultedV1("runtime_disposed"));
     }
-    let preparedLineage: readonly DeepReadonly<SimulationAdoptionV1>[] | null = null;
+    let legacyReplacement:
+      | {
+        readonly simulationLineage: readonly DeepReadonly<SimulationAdoptionV1>[];
+        readonly migration: DeepReadonly<SaveStateMigrationReceiptV1> | null;
+      }
+      | null = null;
+    const prepareReplacementV1 = (
+      snapshot: DeepReadonly<TSnapshot>,
+      anchor: "preserve_log" | "replace_replay_base",
+    ): void => {
+      const replacement = legacyReplacement;
+      legacyReplacement = null;
+      if (
+        replacement === null ||
+        anchor !== "replace_replay_base" ||
+        replacement.migration !== null
+      ) {
+        throw new TypeError("Persistence replacement requires the atomic Session participant");
+      }
+      const prepared = prepareAnchorCommitV1(
+        snapshot,
+        replacement.simulationLineage,
+        true,
+        onReplacementCommit,
+      );
+      prepared.commit();
+      prepared.afterPublication();
+    };
     return options.runtimeControl.enqueueAuthoritative<PersistenceOperationResultV1>(
       async (current) => {
         if (lifecycle !== "active") {
@@ -1109,13 +1304,34 @@ async function createPersistenceServiceWithDependenciesV1<
             });
           }
           if (outcome.kind === "replace") {
-            preparedLineage = outcome.simulationLineage;
-            return Object.freeze({
+            legacyReplacement = Object.freeze({
+              simulationLineage: outcome.simulationLineage,
+              migration: outcome.migration,
+            });
+            const replacement = Object.freeze({
               kind: outcome.kind,
               snapshot: outcome.snapshot,
               result: outcome.result,
               anchor: outcome.anchor,
             });
+            bindReplacementCommitV1(
+              replacement,
+              outcome.simulationLineage,
+              outcome.migration,
+              authoritativeReplacementOwner ?? null,
+              true,
+              () => {
+                rememberFailureV1("persistence.unexpected");
+                return faultedV1();
+              },
+              onReplacementCommit,
+              publicationContext,
+            );
+            bindAuthoritativeReplacementPrepareCallbackInternalV1(
+              prepareReplacementV1,
+              replacement,
+            );
+            return replacement;
           }
           return outcome;
         } catch {
@@ -1130,19 +1346,7 @@ async function createPersistenceServiceWithDependenciesV1<
         rememberFailureV1("persistence.unexpected");
         return faultedV1();
       },
-      (committedSnapshot) => {
-        if (preparedLineage === null) {
-          throw new TypeError("missing committed persistence lineage");
-        }
-        establishAnchorV1(committedSnapshot, preparedLineage);
-        try {
-          onReplacementCommit?.();
-        } catch {
-          // Package-internal presentation attribution is observational and
-          // cannot turn a valid authoritative replacement into a fault.
-        }
-        lastFailureCode = null;
-      },
+      prepareReplacementV1,
       () => faultedV1("runtime_disposed"),
     );
   };
@@ -1226,44 +1430,51 @@ async function createPersistenceServiceWithDependenciesV1<
   const loadV1 = (
     slot: SaveSlotIdV1,
     onReplacementCommit?: () => void,
+    publicationContext?: AuthoritativeReplacementPublicationContextInternalV1,
   ): Promise<PersistenceOperationResultV1> => {
     if (!slotWithinCountV1(slot)) {
       return Promise.resolve(faultedV1("persistence.invalid_slot"));
     }
-    return enqueueReplacementV1(async () => {
-      const read = await validateStoredSlotForLoadV1(slot);
-      if (read.health === "empty") {
-        return Object.freeze({
-          kind: "preserve" as const,
-          result: rejectedV1("empty_slot"),
-        });
-      }
-      if (read.health === "unavailable") {
-        rememberFailureV1(read.code);
-        return Object.freeze({
-          kind: "preserve" as const,
-          result: rejectedV1("unavailable"),
-        });
-      }
-      if (read.health === "invalid") {
-        if (read.code === "rng.invalid_state") rememberFailureV1(read.code);
-        return Object.freeze({
-          kind: "preserve" as const,
-          result: rejectedV1("invalid_record"),
-        });
-      }
-      return replacementOutcomeFromValidationV1(read.validation, "loaded");
-    }, onReplacementCommit);
+    return enqueueReplacementV1(
+      async () => {
+        const read = await validateStoredSlotForLoadV1(slot);
+        if (read.health === "empty") {
+          return Object.freeze({
+            kind: "preserve" as const,
+            result: rejectedV1("empty_slot"),
+          });
+        }
+        if (read.health === "unavailable") {
+          rememberFailureV1(read.code);
+          return Object.freeze({
+            kind: "preserve" as const,
+            result: rejectedV1("unavailable"),
+          });
+        }
+        if (read.health === "invalid") {
+          if (read.code === "rng.invalid_state") rememberFailureV1(read.code);
+          return Object.freeze({
+            kind: "preserve" as const,
+            result: rejectedV1("invalid_record"),
+          });
+        }
+        return replacementOutcomeFromValidationV1(read.validation, "loaded");
+      },
+      onReplacementCommit,
+      publicationContext,
+    );
   };
 
   const importSaveV1 = (
     bytes: Uint8Array,
     onReplacementCommit?: () => void,
+    publicationContext?: AuthoritativeReplacementPublicationContextInternalV1,
   ): Promise<PersistenceOperationResultV1> => {
     const accepted = Uint8Array.from(bytes);
     return enqueueReplacementV1(
       async () => replacementOutcomeV1(accepted, "imported"),
       onReplacementCommit,
+      publicationContext,
     );
   };
 
@@ -1789,11 +2000,33 @@ async function createPersistenceServiceWithDependenciesV1<
       loadWithReplacementCommit: (
         slot: SaveSlotIdV1,
         onReplacementCommit: () => void,
-      ) => loadV1(slot, onReplacementCommit),
+        publicationContext?: AuthoritativeReplacementPublicationContextInternalV1,
+      ) => loadV1(slot, onReplacementCommit, publicationContext),
       importWithReplacementCommit: (
         bytes: Uint8Array,
         onReplacementCommit: () => void,
-      ) => importSaveV1(bytes, onReplacementCommit),
+        publicationContext?: AuthoritativeReplacementPublicationContextInternalV1,
+      ) => importSaveV1(bytes, onReplacementCommit, publicationContext),
+      bindAnchorReplacement: <TResult>(
+        outcome: object,
+        simulationLineage: readonly DeepReadonly<SimulationAdoptionV1>[],
+        onReplacementCommit: () => void,
+        normalizePrepareFailure: (error: unknown) => TResult,
+        publicationContext?: AuthoritativeReplacementPublicationContextInternalV1,
+      ) =>
+        bindReplacementCommitV1(
+          outcome,
+          simulationLineage,
+          null,
+          authoritativeReplacementOwner,
+          false,
+          (error) => {
+            rememberFailureV1("persistence.unexpected");
+            return normalizePrepareFailure(error);
+          },
+          onReplacementCommit,
+          publicationContext,
+        ),
       fencePlayerMutations: () => {
         playerMutationsFenced = true;
       },

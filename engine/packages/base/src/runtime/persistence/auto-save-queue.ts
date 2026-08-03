@@ -43,9 +43,29 @@ type WriteSettlementV1<TResult> =
 interface AutoSaveReceiptControlInternalV1 {
   enqueue(candidate: unknown): Promise<AutoSaveAttemptReceiptInternalV1<unknown>>;
   establishAnchor(candidate: unknown): Promise<AutoSaveAttemptReceiptInternalV1<unknown>>;
+  prepareAnchor(candidate: unknown): {
+    readonly prepared: PreparedAutoSaveAnchorInternalV1;
+    readonly receipt: Promise<AutoSaveAttemptReceiptInternalV1<unknown>>;
+    readonly anchorEpoch: NonNegativeSafeInteger;
+  };
 }
 
 const receiptControlsInternalV1 = new WeakMap<object, AutoSaveReceiptControlInternalV1>();
+
+export interface PreparedAutoSaveAnchorInternalV1 {
+  readonly _preparedAutoSaveAnchor?: never;
+}
+
+interface PreparedAutoSaveAnchorControlInternalV1 {
+  status: "prepared" | "committing" | "committed" | "completed";
+  commit(): void;
+  runPostCommit(): void;
+}
+
+const preparedAnchorControlsInternalV1 = new WeakMap<
+  object,
+  PreparedAutoSaveAnchorControlInternalV1
+>();
 
 export function enqueueAutoSaveWithReceiptInternalV1<TCandidate, TResult>(
   queue: AutoSaveQueueV1<TCandidate>,
@@ -69,8 +89,62 @@ export function establishAutoSaveAnchorWithReceiptInternalV1<TCandidate, TResult
   return control.establishAnchor(candidate) as Promise<AutoSaveAttemptReceiptInternalV1<TResult>>;
 }
 
+export function prepareAutoSaveAnchorWithReceiptInternalV1<TCandidate, TResult>(
+  queue: AutoSaveQueueV1<TCandidate>,
+  candidate: DeepReadonly<TCandidate>,
+): {
+  readonly prepared: PreparedAutoSaveAnchorInternalV1;
+  readonly receipt: Promise<AutoSaveAttemptReceiptInternalV1<TResult>>;
+  readonly anchorEpoch: NonNegativeSafeInteger;
+} {
+  const control = receiptControlsInternalV1.get(queue);
+  if (control === undefined) {
+    throw new TypeError("Auto Save queue does not support prepared anchors");
+  }
+  return control.prepareAnchor(candidate) as {
+    readonly prepared: PreparedAutoSaveAnchorInternalV1;
+    readonly receipt: Promise<AutoSaveAttemptReceiptInternalV1<TResult>>;
+    readonly anchorEpoch: NonNegativeSafeInteger;
+  };
+}
+
+export function commitPreparedAutoSaveAnchorInternalV1(
+  prepared: PreparedAutoSaveAnchorInternalV1,
+): void {
+  const control = preparedAnchorControlsInternalV1.get(prepared);
+  if (control === undefined || control.status !== "prepared") {
+    throw new TypeError("invalid prepared Auto Save anchor");
+  }
+  control.status = "committing";
+  control.commit();
+  control.status = "committed";
+}
+
+export function runPreparedAutoSaveAnchorPostCommitInternalV1(
+  prepared: PreparedAutoSaveAnchorInternalV1,
+): void {
+  const control = preparedAnchorControlsInternalV1.get(prepared);
+  if (control === undefined || control.status !== "committed") {
+    throw new TypeError("invalid committed Auto Save anchor");
+  }
+  control.status = "completed";
+  control.runPostCommit();
+}
+
+interface CreateAutoSaveQueueOptionsInternalV1 {
+  readonly initialAnchorEpoch?: NonNegativeSafeInteger;
+}
+
 export function createAutoSaveQueueV1<TCandidate, TResult>(
   options: CreateAutoSaveQueueOptionsV1<TCandidate, TResult>,
+): AutoSaveQueueV1<TCandidate> {
+  return createAutoSaveQueueInternalV1(options, {});
+}
+
+/** @internal Deterministic construction seam; intentionally absent from barrels. */
+export function createAutoSaveQueueInternalV1<TCandidate, TResult>(
+  options: CreateAutoSaveQueueOptionsV1<TCandidate, TResult>,
+  internalOptions: CreateAutoSaveQueueOptionsInternalV1,
 ): AutoSaveQueueV1<TCandidate> {
   if (typeof options.write !== "function") {
     throw new TypeError("Auto Save queue requires a writer");
@@ -88,7 +162,8 @@ export function createAutoSaveQueueV1<TCandidate, TResult>(
     throw new TypeError("invalid Auto Save failure callback");
   }
 
-  let epoch = parseNonNegativeSafeInteger(0);
+  let epoch = parseNonNegativeSafeInteger(internalOptions.initialAnchorEpoch ?? 0);
+  let mutationRevision = 0n;
   let running: AutoSaveCandidateV1<TCandidate, TResult> | null = null;
   let pending: AutoSaveCandidateV1<TCandidate, TResult> | null = null;
   let requiredRepair: AutoSaveCandidateV1<TCandidate, TResult> | null = null;
@@ -155,6 +230,7 @@ export function createAutoSaveQueueV1<TCandidate, TResult>(
     entry: AutoSaveCandidateV1<TCandidate, TResult>,
     settlement: WriteSettlementV1<TResult>,
   ): void => {
+    mutationRevision += 1n;
     if (running !== entry) {
       const error = new TypeError("Auto Save queue settled an inactive write");
       reportFailureV1(error);
@@ -196,6 +272,10 @@ export function createAutoSaveQueueV1<TCandidate, TResult>(
       );
     }
 
+    // A result/failure callback may synchronously prepare an anchor while the
+    // settlement is still in progress. Fence that half-observed plan before
+    // the settlement tail mutates running/pending/repair state.
+    mutationRevision += 1n;
     running = null;
     const next = requiredRepair ?? pending;
     if (requiredRepair !== null) requiredRepair = null;
@@ -215,6 +295,7 @@ export function createAutoSaveQueueV1<TCandidate, TResult>(
     candidate: DeepReadonly<TCandidate>,
     settleReceipt?: (receipt: AutoSaveAttemptReceiptInternalV1<TResult>) => void,
   ): void => {
+    mutationRevision += 1n;
     const entry = Object.freeze({
       candidate,
       epoch,
@@ -234,6 +315,7 @@ export function createAutoSaveQueueV1<TCandidate, TResult>(
     settleReceipt?: (receipt: AutoSaveAttemptReceiptInternalV1<TResult>) => void,
   ): void => {
     const nextEpoch = parseNonNegativeSafeInteger(epoch + 1);
+    mutationRevision += 1n;
     epoch = nextEpoch;
     if (pending !== null) supersedeV1(pending);
     pending = null;
@@ -289,6 +371,75 @@ export function createAutoSaveQueueV1<TCandidate, TResult>(
       });
     }) as Promise<AutoSaveAttemptReceiptInternalV1<unknown>>;
 
+  const prepareAnchorV1 = (
+    candidate: DeepReadonly<TCandidate>,
+  ): {
+    readonly prepared: PreparedAutoSaveAnchorInternalV1;
+    readonly receipt: Promise<AutoSaveAttemptReceiptInternalV1<unknown>>;
+    readonly anchorEpoch: NonNegativeSafeInteger;
+  } => {
+    const expectedRevision = mutationRevision;
+    const committedRevision = expectedRevision + 1n;
+    const nextEpoch = parseNonNegativeSafeInteger(epoch + 1);
+    const oldPending = pending;
+    const oldRequiredRepair = requiredRepair;
+    const shouldStartRepair = running === null && repairOutstanding;
+    const shouldSupersedeRepair = running === null && !repairOutstanding;
+    let settleReceipt!: (receipt: AutoSaveAttemptReceiptInternalV1<TResult>) => void;
+    const receipt = new Promise<AutoSaveAttemptReceiptInternalV1<TResult>>((resolve) => {
+      let settled = false;
+      settleReceipt = (value) => {
+        if (settled) return;
+        settled = true;
+        resolve(value);
+      };
+    });
+    const repair = Object.freeze({
+      candidate,
+      epoch: nextEpoch,
+      settleReceipt,
+    });
+    const prepared = Object.freeze({}) as PreparedAutoSaveAnchorInternalV1;
+    const control: PreparedAutoSaveAnchorControlInternalV1 = {
+      status: "prepared",
+      commit() {
+        if (mutationRevision !== expectedRevision) {
+          throw new TypeError("stale prepared Auto Save anchor");
+        }
+        epoch = nextEpoch;
+        pending = null;
+        if (running === null) {
+          requiredRepair = shouldStartRepair ? repair : null;
+        } else {
+          repairOutstanding = true;
+          requiredRepair = repair;
+        }
+        mutationRevision = committedRevision;
+      },
+      runPostCommit() {
+        mutationRevision += 1n;
+        if (oldPending !== null) supersedeV1(oldPending);
+        if (oldRequiredRepair !== null) supersedeV1(oldRequiredRepair);
+        if (shouldStartRepair) {
+          if (running === null && requiredRepair === repair) {
+            requiredRepair = null;
+            startV1(repair);
+          } else if (running !== repair && pending !== repair && requiredRepair !== repair) {
+            supersedeV1(repair);
+          }
+        } else if (shouldSupersedeRepair) {
+          supersedeV1(repair);
+        }
+      },
+    };
+    preparedAnchorControlsInternalV1.set(prepared, control);
+    return Object.freeze({
+      prepared,
+      receipt: receipt as Promise<AutoSaveAttemptReceiptInternalV1<unknown>>,
+      anchorEpoch: nextEpoch,
+    });
+  };
+
   receiptControlsInternalV1.set(
     queue,
     Object.freeze({
@@ -298,6 +449,7 @@ export function createAutoSaveQueueV1<TCandidate, TResult>(
         createReceiptV1((settle) =>
           establishAnchorV1(candidate as DeepReadonly<TCandidate>, settle)
         ),
+      prepareAnchor: (candidate: unknown) => prepareAnchorV1(candidate as DeepReadonly<TCandidate>),
     }),
   );
 

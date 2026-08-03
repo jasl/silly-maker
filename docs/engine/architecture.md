@@ -99,15 +99,19 @@ inventory or second rule authority is retained.
 The maintained synthetic migration entry proves that executable migrators can
 join this same collection seam without creating a production migration owner.
 Base owns the M2a exact aggregate-State registry factory, the M2b bounded pure
-execution authority, and the M2c staged Persistence integration.
+execution authority, the M2c staged Persistence integration, and the M2d
+package-internal atomic replacement protocol.
 Core captures only a factory-produced registry and verifies its declared current
 State identity during application resolution, then passes that exact registry
 to Persistence. The internal kernel resolves an exact non-empty suffix, admits
 detached State within Strict limits while capturing, and executes synchronous
 callbacks. Staged import/load reconstructs and validates the current Snapshot,
 derives its whole-Snapshot digest, and returns immutable attempts or a low-level
+receipt. A successful migrated replacement installs that non-durable receipt in
+the Session while one prepared commit updates Persistence/autosave, CommandLog,
+and Session before publication; failures preserve the prior authorities and
 receipt. No maintained application configures that declaration before the
-real-owner promotion slice, and Session receipt ownership remains an M2d task.
+real-owner M2e promotion slice.
 
 The runtime complement remains outside production package lifecycles.
 `e2e/src/testing/**` owns the pure ambient-guard harness, parent runner,
@@ -368,9 +372,22 @@ only `snapshot.state`, preserve
 the other Snapshot/envelope fields, advance only the State identity in candidate
 provenance, validate the current Snapshot, derive its new whole-Snapshot digest,
 and then run compatibility, references, and invariants. Stored physical identity
-is checked before chain resolution. Successful candidates use the existing
-atomic replay-anchor replacement and never write back the source Save; M2d will
-add Session-owned receipt lifecycle and the composite no-throw commit token.
+is checked before chain resolution. Successful candidates use a package-internal
+composite prepare/no-throw commit: Persistence/autosave, CommandLog, the Session
+Snapshot/digest, and the Session-owned non-durable migration receipt change
+before Session publication. A preallocated Session-bound context is visible
+only while listeners receive that publication, then clears; the observational
+replacement callback runs next, and autosave receipt settlement/repair I/O runs
+last. Prepare failure preserves every prior authority and leaves the
+Session ready. This composite guarantee covers the repository-owned
+GameSession/Core/Persistence composition and transparent wrappers that preserve
+the exact outcome or package prepare-callback identity. A low-level custom
+`GameSessionRuntimeControlV1` wrapper that destroys both identities retains only
+the legacy current-revision (`migration: null`) callback path, as does a caller
+that explicitly supplies the legacy replacement-prepare callback; migrated
+replacement fails closed before authoritative Snapshot/replay/Persistence
+mutation and is outside the M2 composite guarantee. The source Save is never
+written back.
 Internal indexes, clients, closures, React values, and database handles must not
 enter a Save.
 

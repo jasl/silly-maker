@@ -18,10 +18,18 @@ import {
   createRuntimeFailureReporterV1,
 } from "../diagnostics/runtime-failures.ts";
 import {
+  type AuthoritativeReplacementOwnerInternalV1,
+  type AuthoritativeReplacementPreparationInternalV1,
+  bindAuthoritativeReplacementCommitInternalV1,
+  bindAuthoritativeReplacementPrepareCallbackInternalV1,
+  createAuthoritativeReplacementPublicationContextInternalV1,
+  createPreparedAuthoritativeReplacementCommitInternalV1,
   createGameSessionV1,
   createInstrumentedGameSessionV1,
   type GameSessionDebugInputV1,
   lookupInstalledSnapshotDigestInternalV1,
+  readActiveAuthoritativeReplacementPublicationContextInternalV1,
+  readInstalledSaveStateMigrationReceiptInternalV1,
 } from "./game-session.ts";
 import {
   createPurposeTaggedSnapshotWorkCounterV1,
@@ -2144,6 +2152,697 @@ describe("GameSession FIFO", () => {
     expect(commandLog.entries()).toEqual([]);
     expect(commandLog.replayBase()).toBe(replacement);
   });
+
+  it("publishes a bound replacement only after every owner and receipt commit", async () => {
+    const { session, runtimeControl, commandLog, debugControl } = fixture();
+    await session.dispatch({ kind: "increment" });
+    const replacement = createSnapshot(10);
+    const receipt = Object.freeze({
+      migratedStateDigest: digestCanonical("sillymaker:state:v1", replacement),
+    }) as never;
+    const outcome = Object.freeze({
+      kind: "replace" as const,
+      snapshot: replacement,
+      result: "anchored" as const,
+      anchor: "replace_replay_base" as const,
+    });
+    const publicationContext = createAuthoritativeReplacementPublicationContextInternalV1(
+      runtimeControl,
+    );
+    const phases: string[] = [];
+    let firstOwner: AuthoritativeReplacementOwnerInternalV1 | undefined;
+    let firstPreparation: AuthoritativeReplacementPreparationInternalV1 | undefined;
+    bindAuthoritativeReplacementCommitInternalV1(outcome, {
+      prepare: (_snapshot, _anchor, owner, preparation) => {
+        firstOwner = owner;
+        firstPreparation = preparation;
+        return createPreparedAuthoritativeReplacementCommitInternalV1({
+          owner,
+          preparation,
+          migrationReceipt: receipt,
+          publicationContext,
+          commit: () => phases.push("owner_commit"),
+          afterPublication: () => {
+            expect(readActiveAuthoritativeReplacementPublicationContextInternalV1(runtimeControl))
+              .toBeNull();
+            phases.push("after_publication");
+          },
+        });
+      },
+      normalizePrepareFailure: () => "prepare_failed" as const,
+    });
+    session.subscribe(() => {
+      if (session.getCurrentSnapshot() !== replacement || phases.includes("publication")) return;
+      expect(commandLog.replayBase()).toBe(replacement);
+      expect(commandLog.entries()).toEqual([]);
+      expect(readInstalledSaveStateMigrationReceiptInternalV1(runtimeControl)).toBe(receipt);
+      expect(readActiveAuthoritativeReplacementPublicationContextInternalV1(runtimeControl)).toBe(
+        publicationContext,
+      );
+      phases.push("publication");
+    });
+
+    await expect(
+      runtimeControl.enqueueAuthoritative(async () => outcome, () => "faulted" as const),
+    ).resolves.toBe("anchored");
+    expect(phases).toEqual(["owner_commit", "publication", "after_publication"]);
+    expect(readActiveAuthoritativeReplacementPublicationContextInternalV1(runtimeControl))
+      .toBeNull();
+    expect(readInstalledSaveStateMigrationReceiptInternalV1(runtimeControl)).toBe(receipt);
+    if (firstOwner === undefined) throw new TypeError("missing first replacement owner");
+    if (firstPreparation === undefined) {
+      throw new TypeError("missing first replacement preparation");
+    }
+
+    const other = fixture();
+    const foreignToken = createPreparedAuthoritativeReplacementCommitInternalV1({
+      owner: firstOwner,
+      preparation: firstPreparation,
+      migrationReceipt: null,
+      commit: () => phases.push("foreign_commit"),
+    });
+    const foreignOutcome = Object.freeze({
+      kind: "replace" as const,
+      snapshot: createSnapshot(11),
+      result: "should_not_commit" as const,
+      anchor: "replace_replay_base" as const,
+    });
+    bindAuthoritativeReplacementCommitInternalV1(foreignOutcome, {
+      prepare: () => foreignToken,
+      normalizePrepareFailure: () => "prepare_failed" as const,
+    });
+    const otherSnapshot = other.session.getCurrentSnapshot();
+    await expect(
+      other.runtimeControl.enqueueAuthoritative(
+        async () => foreignOutcome,
+        () => "faulted" as const,
+      ),
+    ).resolves.toBe("prepare_failed");
+    expect(other.session.getCurrentSnapshot()).toBe(otherSnapshot);
+    expect(other.session.getStatus()).toBe("ready");
+    expect(phases).not.toContain("foreign_commit");
+
+    const crossOwnerPublicationContext = createAuthoritativeReplacementPublicationContextInternalV1(
+      runtimeControl,
+    );
+    let crossOwnerContextPublications = 0;
+    other.session.subscribe(() => {
+      if (other.session.getCurrentSnapshot() !== otherSnapshot) {
+        crossOwnerContextPublications += 1;
+      }
+    });
+    const crossOwnerContextOutcome = Object.freeze({
+      kind: "replace" as const,
+      snapshot: createSnapshot(12),
+      result: "should_not_commit" as const,
+      anchor: "replace_replay_base" as const,
+    });
+    bindAuthoritativeReplacementCommitInternalV1(crossOwnerContextOutcome, {
+      prepare: (_snapshot, _anchor, owner, preparation) =>
+        createPreparedAuthoritativeReplacementCommitInternalV1({
+          owner,
+          preparation,
+          migrationReceipt: null,
+          publicationContext: crossOwnerPublicationContext,
+          commit: () => phases.push("foreign_context_commit"),
+        }),
+      normalizePrepareFailure: () => "prepare_failed" as const,
+    });
+    await expect(
+      other.runtimeControl.enqueueAuthoritative(
+        async () => crossOwnerContextOutcome,
+        () => "faulted" as const,
+      ),
+    ).resolves.toBe("prepare_failed");
+    expect(other.session.getCurrentSnapshot()).toBe(otherSnapshot);
+    expect(other.session.getStatus()).toBe("ready");
+    expect(crossOwnerContextPublications).toBe(0);
+    expect(phases).not.toContain("foreign_context_commit");
+
+    await session.dispatch({ kind: "increment" });
+    expect(readInstalledSaveStateMigrationReceiptInternalV1(runtimeControl)).toBe(receipt);
+
+    const snapshotBeforeFailure = session.getCurrentSnapshot();
+    const logBeforeFailure = commandLog.entries();
+    let mismatchedCommits = 0;
+    const mismatchedOutcome = Object.freeze({
+      kind: "replace" as const,
+      snapshot: createSnapshot(19),
+      result: "should_not_commit" as const,
+      anchor: "replace_replay_base" as const,
+    });
+    bindAuthoritativeReplacementCommitInternalV1(mismatchedOutcome, {
+      prepare: (_snapshot, _anchor, owner, preparation) =>
+        createPreparedAuthoritativeReplacementCommitInternalV1({
+          owner,
+          preparation,
+          migrationReceipt: Object.freeze({
+            migratedStateDigest: digestCanonical("sillymaker:state:v1", createSnapshot(999)),
+          }) as never,
+          commit: () => {
+            mismatchedCommits += 1;
+          },
+        }),
+      normalizePrepareFailure: () => "prepare_failed" as const,
+    });
+    await expect(
+      runtimeControl.enqueueAuthoritative(
+        async () => mismatchedOutcome,
+        () => "faulted" as const,
+      ),
+    ).resolves.toBe("prepare_failed");
+    expect(mismatchedCommits).toBe(0);
+
+    const rejectedOutcome = Object.freeze({
+      kind: "replace" as const,
+      snapshot: createSnapshot(20),
+      result: "should_not_commit" as const,
+      anchor: "replace_replay_base" as const,
+    });
+    bindAuthoritativeReplacementCommitInternalV1(rejectedOutcome, {
+      prepare: () => Object.freeze({}) as never,
+      normalizePrepareFailure: () => "prepare_failed" as const,
+    });
+    await expect(
+      runtimeControl.enqueueAuthoritative(
+        async () => rejectedOutcome,
+        () => "faulted" as const,
+      ),
+    ).resolves.toBe("prepare_failed");
+    expect(session.getCurrentSnapshot()).toBe(snapshotBeforeFailure);
+    expect(commandLog.entries()).toBe(logBeforeFailure);
+    expect(readInstalledSaveStateMigrationReceiptInternalV1(runtimeControl)).toBe(receipt);
+    expect(session.getStatus()).toBe("ready");
+
+    await expect(
+      debugControl.anchorReplacement(
+        { kind: "fixture", fixtureId: "fixture.receipt-clear" },
+        async () =>
+          Object.freeze({
+            kind: "replace" as const,
+            snapshot: createSnapshot(30),
+            result: "debug_anchor" as const,
+          }),
+        () => true,
+        () => "faulted" as const,
+      ),
+    ).resolves.toBe("debug_anchor");
+    expect(readInstalledSaveStateMigrationReceiptInternalV1(runtimeControl)).toBeNull();
+  });
+
+  it("classifies bound candidate admission as a prepare failure without fault-pausing", async () => {
+    const { session, runtimeControl, commandLog } = fixture();
+    await session.dispatch({ kind: "increment" });
+    const snapshotBefore = session.getCurrentSnapshot();
+    const replayBaseBefore = commandLog.replayBase();
+    const entriesBefore = commandLog.entries();
+    let participantPrepareCalls = 0;
+    const invalidOutcome = Object.freeze({
+      kind: "replace" as const,
+      snapshot: Object.freeze({
+        ...createSnapshot(12),
+        integrity: Object.freeze({}),
+      }) as never,
+      result: "should_not_commit" as const,
+      anchor: "replace_replay_base" as const,
+    });
+    bindAuthoritativeReplacementCommitInternalV1(invalidOutcome, {
+      prepare: (_snapshot, _anchor, owner, preparation) => {
+        participantPrepareCalls += 1;
+        return createPreparedAuthoritativeReplacementCommitInternalV1({
+          owner,
+          preparation,
+          migrationReceipt: null,
+          commit: () => undefined,
+        });
+      },
+      normalizePrepareFailure: () => "prepare_failed" as const,
+    });
+
+    await expect(
+      runtimeControl.enqueueAuthoritative(
+        async () => invalidOutcome,
+        () => "outer_fault" as const,
+      ),
+    ).resolves.toBe("prepare_failed");
+    expect(participantPrepareCalls).toBe(0);
+    expect(session.getCurrentSnapshot()).toBe(snapshotBefore);
+    expect(commandLog.replayBase()).toBe(replayBaseBefore);
+    expect(commandLog.entries()).toBe(entriesBefore);
+    expect(session.getStatus()).toBe("ready");
+  });
+
+  it("rejects a prepared participant captured by an earlier replacement attempt", async () => {
+    const { session, runtimeControl, commandLog } = fixture();
+    const snapshotBefore = session.getCurrentSnapshot();
+    const replayBaseBefore = commandLog.replayBase();
+    const entriesBefore = commandLog.entries();
+    let stashed:
+      | ReturnType<typeof createPreparedAuthoritativeReplacementCommitInternalV1>
+      | undefined;
+    let commits = 0;
+    const firstOutcome = Object.freeze({
+      kind: "replace" as const,
+      snapshot: createSnapshot(13),
+      result: "first" as const,
+      anchor: "replace_replay_base" as const,
+    });
+    bindAuthoritativeReplacementCommitInternalV1(firstOutcome, {
+      prepare: (_snapshot, _anchor, owner, preparation) => {
+        stashed = createPreparedAuthoritativeReplacementCommitInternalV1({
+          owner,
+          preparation,
+          migrationReceipt: null,
+          commit: () => {
+            commits += 1;
+          },
+        });
+        throw new Error("synthetic prepare failure after token allocation");
+      },
+      normalizePrepareFailure: () => "prepare_failed" as const,
+    });
+    await expect(
+      runtimeControl.enqueueAuthoritative(async () => firstOutcome, () => "outer_fault" as const),
+    ).resolves.toBe("prepare_failed");
+    if (stashed === undefined) throw new TypeError("missing stashed participant");
+    const stashedPrepared = stashed;
+
+    const secondOutcome = Object.freeze({
+      kind: "replace" as const,
+      snapshot: createSnapshot(14),
+      result: "second" as const,
+      anchor: "replace_replay_base" as const,
+    });
+    bindAuthoritativeReplacementCommitInternalV1(secondOutcome, {
+      prepare: () => stashedPrepared,
+      normalizePrepareFailure: () => "prepare_failed" as const,
+    });
+    await expect(
+      runtimeControl.enqueueAuthoritative(async () => secondOutcome, () => "outer_fault" as const),
+    ).resolves.toBe("prepare_failed");
+
+    expect(commits).toBe(0);
+    expect(session.getCurrentSnapshot()).toBe(snapshotBefore);
+    expect(commandLog.replayBase()).toBe(replayBaseBefore);
+    expect(commandLog.entries()).toBe(entriesBefore);
+    expect(session.getStatus()).toBe("ready");
+  });
+
+  it("consumes a prepared participant before an unexpected commit throw", async () => {
+    const { session, runtimeControl, commandLog } = fixture();
+    const snapshotBefore = session.getCurrentSnapshot();
+    const replayBaseBefore = commandLog.replayBase();
+    const entriesBefore = commandLog.entries();
+    let prepared:
+      | ReturnType<typeof createPreparedAuthoritativeReplacementCommitInternalV1>
+      | undefined;
+    let commitCalls = 0;
+    const outcome = Object.freeze({
+      kind: "replace" as const,
+      snapshot: createSnapshot(15),
+      result: "should_not_commit" as const,
+      anchor: "replace_replay_base" as const,
+    });
+    bindAuthoritativeReplacementCommitInternalV1(outcome, {
+      prepare: (_snapshot, _anchor, owner, preparation) => {
+        prepared ??= createPreparedAuthoritativeReplacementCommitInternalV1({
+          owner,
+          preparation,
+          migrationReceipt: null,
+          commit: () => {
+            commitCalls += 1;
+            throw new Error("synthetic participant commit failure");
+          },
+        });
+        return prepared;
+      },
+      normalizePrepareFailure: () => "prepare_failed" as const,
+    });
+
+    await expect(
+      runtimeControl.enqueueAuthoritative(async () => outcome, () => "outer_fault" as const),
+    ).resolves.toBe("outer_fault");
+    expect(session.getStatus()).toBe("fault_paused");
+    await expect(
+      runtimeControl.enqueueAuthoritative(async () => outcome, () => "outer_fault" as const),
+    ).resolves.toBe("prepare_failed");
+
+    expect(commitCalls).toBe(1);
+    expect(session.getCurrentSnapshot()).toBe(snapshotBefore);
+    expect(commandLog.replayBase()).toBe(replayBaseBefore);
+    expect(commandLog.entries()).toBe(entriesBefore);
+    expect(session.getStatus()).toBe("fault_paused");
+  });
+
+  it("atomically commits a package-bound debug anchor and rejects a non-null receipt", async () => {
+    const { session, runtimeControl, commandLog, debugControl } = fixture();
+    const migratedSnapshot = createSnapshot(16);
+    const migratedReceipt = Object.freeze({
+      migratedStateDigest: digestCanonical("sillymaker:state:v1", migratedSnapshot),
+    }) as never;
+    const migratedOutcome = Object.freeze({
+      kind: "replace" as const,
+      snapshot: migratedSnapshot,
+      result: "migrated" as const,
+      anchor: "replace_replay_base" as const,
+    });
+    bindAuthoritativeReplacementCommitInternalV1(migratedOutcome, {
+      prepare: (_snapshot, _anchor, owner, preparation) =>
+        createPreparedAuthoritativeReplacementCommitInternalV1({
+          owner,
+          preparation,
+          migrationReceipt: migratedReceipt,
+          commit: () => undefined,
+        }),
+      normalizePrepareFailure: () => "prepare_failed" as const,
+    });
+    await expect(
+      runtimeControl.enqueueAuthoritative(
+        async () => migratedOutcome,
+        () => "outer_fault" as const,
+      ),
+    ).resolves.toBe("migrated");
+    expect(readInstalledSaveStateMigrationReceiptInternalV1(runtimeControl)).toBe(migratedReceipt);
+
+    const rejectedBeforeClear = Object.freeze({
+      kind: "replace" as const,
+      snapshot: createSnapshot(160),
+      result: "should_not_commit" as const,
+    });
+    bindAuthoritativeReplacementCommitInternalV1(rejectedBeforeClear, {
+      prepare: (_snapshot, _anchor, owner, preparation) =>
+        createPreparedAuthoritativeReplacementCommitInternalV1({
+          owner,
+          preparation,
+          migrationReceipt: migratedReceipt,
+          commit: () => undefined,
+        }),
+      normalizePrepareFailure: () => "prepare_failed" as const,
+    });
+    await expect(
+      debugControl.anchorReplacement(
+        { kind: "fixture", fixtureId: "fixture.failed-debug-preserves-receipt" },
+        async () => rejectedBeforeClear,
+        () => true,
+        () => "outer_fault" as const,
+      ),
+    ).resolves.toBe("prepare_failed");
+    expect(readInstalledSaveStateMigrationReceiptInternalV1(runtimeControl)).toBe(migratedReceipt);
+    expect(session.getCurrentSnapshot()).toBe(migratedSnapshot);
+    expect(session.getStatus()).toBe("ready");
+
+    const phases: string[] = [];
+    const publicationContext = createAuthoritativeReplacementPublicationContextInternalV1(
+      runtimeControl,
+    );
+    const debugOutcome = Object.freeze({
+      kind: "replace" as const,
+      snapshot: createSnapshot(17),
+      result: "debug_anchored" as const,
+    });
+    bindAuthoritativeReplacementCommitInternalV1(debugOutcome, {
+      prepare: (_snapshot, anchor, owner, preparation) => {
+        expect(anchor).toBe("replace_replay_base");
+        return createPreparedAuthoritativeReplacementCommitInternalV1({
+          owner,
+          preparation,
+          migrationReceipt: null,
+          publicationContext,
+          commit: () => phases.push("owner_commit"),
+          afterPublication: () => phases.push("after_publication"),
+        });
+      },
+      normalizePrepareFailure: () => "prepare_failed" as const,
+    });
+    session.subscribe(() => {
+      if (session.getCurrentSnapshot().state.count !== 17 || phases.includes("publication")) return;
+      expect(commandLog.entries()).toEqual([]);
+      expect(commandLog.replayBase()).toBe(session.getCurrentSnapshot());
+      expect(readInstalledSaveStateMigrationReceiptInternalV1(runtimeControl)).toBeNull();
+      expect(readActiveAuthoritativeReplacementPublicationContextInternalV1(runtimeControl)).toBe(
+        publicationContext,
+      );
+      phases.push("publication");
+    });
+    await expect(
+      debugControl.anchorReplacement(
+        { kind: "fixture", fixtureId: "fixture.atomic-debug" },
+        async () => debugOutcome,
+        () => true,
+        () => "outer_fault" as const,
+      ),
+    ).resolves.toBe("debug_anchored");
+    expect(phases).toEqual(["owner_commit", "publication", "after_publication"]);
+
+    const snapshotBeforeRejection = session.getCurrentSnapshot();
+    const logBeforeRejection = commandLog.entries();
+    const rejectedDebugOutcome = Object.freeze({
+      kind: "replace" as const,
+      snapshot: createSnapshot(18),
+      result: "should_not_commit" as const,
+    });
+    bindAuthoritativeReplacementCommitInternalV1(rejectedDebugOutcome, {
+      prepare: (_snapshot, _anchor, owner, preparation) =>
+        createPreparedAuthoritativeReplacementCommitInternalV1({
+          owner,
+          preparation,
+          migrationReceipt: migratedReceipt,
+          commit: () => phases.push("invalid_receipt_commit"),
+        }),
+      normalizePrepareFailure: () => "prepare_failed" as const,
+    });
+    await expect(
+      debugControl.anchorReplacement(
+        { kind: "fixture", fixtureId: "fixture.invalid-debug-receipt" },
+        async () => rejectedDebugOutcome,
+        () => true,
+        () => "outer_fault" as const,
+      ),
+    ).resolves.toBe("prepare_failed");
+    expect(session.getCurrentSnapshot()).toBe(snapshotBeforeRejection);
+    expect(commandLog.entries()).toBe(logBeforeRejection);
+    expect(session.getStatus()).toBe("ready");
+    expect(phases).not.toContain("invalid_receipt_commit");
+  });
+
+  it("normalizes a conflicting exact outcome and callback through the outcome result type", async () => {
+    const { session, runtimeControl } = fixture();
+    const initial = session.getCurrentSnapshot();
+    type DirectResult =
+      | { readonly kind: "direct_success" }
+      | { readonly kind: "direct_prepare_failed" }
+      | { readonly kind: "outer_fault" };
+    const directFailure = Object.freeze({ kind: "direct_prepare_failed" as const });
+    const directOutcome = Object.freeze({
+      kind: "replace" as const,
+      snapshot: createSnapshot(18),
+      result: Object.freeze({ kind: "direct_success" as const }),
+      anchor: "replace_replay_base" as const,
+    });
+    const callbackOutcome = Object.freeze({
+      kind: "replace" as const,
+      snapshot: createSnapshot(19),
+      result: "callback_success" as const,
+      anchor: "replace_replay_base" as const,
+    });
+    let commits = 0;
+    bindAuthoritativeReplacementCommitInternalV1(directOutcome, {
+      prepare: (_snapshot, _anchor, owner, preparation) =>
+        createPreparedAuthoritativeReplacementCommitInternalV1({
+          owner,
+          preparation,
+          migrationReceipt: null,
+          commit: () => {
+            commits += 1;
+          },
+        }),
+      normalizePrepareFailure: () => directFailure,
+    });
+    bindAuthoritativeReplacementCommitInternalV1(callbackOutcome, {
+      prepare: (_snapshot, _anchor, owner, preparation) =>
+        createPreparedAuthoritativeReplacementCommitInternalV1({
+          owner,
+          preparation,
+          migrationReceipt: null,
+          commit: () => {
+            commits += 1;
+          },
+        }),
+      normalizePrepareFailure: () => "callback_prepare_failed" as const,
+    });
+    const foreignCallback = () => undefined;
+    bindAuthoritativeReplacementPrepareCallbackInternalV1(foreignCallback, callbackOutcome);
+
+    await expect(
+      runtimeControl.enqueueAuthoritative<DirectResult>(
+        async () => directOutcome,
+        () => Object.freeze({ kind: "outer_fault" as const }),
+        foreignCallback,
+      ),
+    ).resolves.toBe(directFailure);
+    expect(session.getCurrentSnapshot()).toBe(initial);
+    expect(session.getStatus()).toBe("ready");
+    expect(commits).toBe(0);
+  });
+
+  it("does not let a reused result identity carry replacement authority", async () => {
+    const { session, runtimeControl } = fixture();
+    const sharedResult = Object.freeze({ kind: "anchored" as const });
+    const sharedSnapshot = createSnapshot(19);
+    let commits = 0;
+    const firstOutcome = Object.freeze({
+      kind: "replace" as const,
+      snapshot: sharedSnapshot,
+      result: sharedResult,
+      anchor: "replace_replay_base" as const,
+    });
+    bindAuthoritativeReplacementCommitInternalV1(firstOutcome, {
+      prepare: (_snapshot, _anchor, owner, preparation) =>
+        createPreparedAuthoritativeReplacementCommitInternalV1({
+          owner,
+          preparation,
+          migrationReceipt: null,
+          commit: () => {
+            commits += 1;
+          },
+        }),
+      normalizePrepareFailure: () => Object.freeze({ kind: "prepare_failed" as const }),
+    });
+    await expect(
+      runtimeControl.enqueueAuthoritative(async () => firstOutcome, () => sharedResult),
+    ).resolves.toBe(sharedResult);
+
+    await expect(
+      runtimeControl.enqueueAuthoritative(
+        async () =>
+          Object.freeze({
+            kind: "replace" as const,
+            snapshot: sharedSnapshot,
+            result: "unbound_same_snapshot" as const,
+            anchor: "preserve_log" as const,
+          }),
+        () => "outer_fault" as const,
+      ),
+    ).resolves.toBe("unbound_same_snapshot");
+
+    const reusedResultOutcome = Object.freeze({
+      kind: "replace" as const,
+      snapshot: createSnapshot(20),
+      result: sharedResult,
+      anchor: "replace_replay_base" as const,
+    });
+    await expect(
+      runtimeControl.enqueueAuthoritative(async () => reusedResultOutcome, () => sharedResult),
+    ).resolves.toBe(sharedResult);
+    expect(session.getCurrentSnapshot()).toBe(reusedResultOutcome.snapshot);
+    expect(commits).toBe(1);
+
+    const secondOutcome = Object.freeze({
+      kind: "replace" as const,
+      snapshot: sharedSnapshot,
+      result: sharedResult,
+      anchor: "replace_replay_base" as const,
+    });
+    bindAuthoritativeReplacementCommitInternalV1(secondOutcome, {
+      prepare: (_snapshot, _anchor, owner, preparation) =>
+        createPreparedAuthoritativeReplacementCommitInternalV1({
+          owner,
+          preparation,
+          migrationReceipt: null,
+          commit: () => {
+            commits += 1;
+          },
+        }),
+      normalizePrepareFailure: () => Object.freeze({ kind: "prepare_failed" as const }),
+    });
+    await expect(
+      runtimeControl.enqueueAuthoritative(async () => secondOutcome, () => sharedResult),
+    ).resolves.toBe(sharedResult);
+    expect(session.getCurrentSnapshot()).toBe(sharedSnapshot);
+    expect(commits).toBe(2);
+    expect(session.getStatus()).toBe("ready");
+  });
+
+  it.each(
+    [
+      ["runtime", "returns"],
+      ["runtime", "throws"],
+      ["debug", "returns"],
+      ["debug", "throws"],
+    ] as const,
+  )(
+    "rechecks HMR after a bound %s prepare that %s and before every owner commit",
+    async (kind, preparationOutcome) => {
+      const created = fixture();
+      const snapshotBefore = created.session.getCurrentSnapshot();
+      const replayBaseBefore = created.commandLog.replayBase();
+      const entriesBefore = created.commandLog.entries();
+      let commits = 0;
+      type HmrPrepareResult =
+        | { readonly kind: "anchored" }
+        | { readonly kind: "prepare_failed" }
+        | { readonly kind: "outer_fault" }
+        | { readonly kind: "hmr_invalidated" };
+      const result: HmrPrepareResult = Object.freeze({ kind: "anchored" as const });
+      const bind = (outcome: object): void => {
+        bindAuthoritativeReplacementCommitInternalV1<Snapshot, HmrPrepareResult>(outcome, {
+          prepare: (_snapshot, _anchor, owner, preparation) => {
+            created.invalidationController.invalidateForHmr();
+            if (preparationOutcome === "throws") {
+              throw new Error("synthetic prepare failure after HMR invalidation");
+            }
+            return createPreparedAuthoritativeReplacementCommitInternalV1({
+              owner,
+              preparation,
+              migrationReceipt: null,
+              commit: () => {
+                commits += 1;
+              },
+            });
+          },
+          normalizePrepareFailure: () => Object.freeze({ kind: "prepare_failed" as const }),
+        });
+      };
+
+      if (kind === "runtime") {
+        const outcome = Object.freeze({
+          kind: "replace" as const,
+          snapshot: createSnapshot(21),
+          result,
+          anchor: "replace_replay_base" as const,
+        });
+        bind(outcome);
+        await expect(
+          created.runtimeControl.enqueueAuthoritative<HmrPrepareResult>(
+            async () => outcome,
+            () => Object.freeze({ kind: "outer_fault" as const }),
+            undefined,
+            () => Object.freeze({ kind: "hmr_invalidated" as const }),
+          ),
+        ).resolves.toEqual({ kind: "hmr_invalidated" });
+      } else {
+        const outcome = Object.freeze({
+          kind: "replace" as const,
+          snapshot: createSnapshot(21),
+          result,
+        });
+        bind(outcome);
+        await expect(
+          created.debugControl.anchorReplacement<HmrPrepareResult>(
+            { kind: "fixture", fixtureId: "fixture.hmr-during-prepare" },
+            async () => outcome,
+            () => true,
+            () => Object.freeze({ kind: "outer_fault" as const }),
+          ),
+        ).resolves.toEqual({ kind: "not_executed", code: "hmr_invalidated" });
+      }
+      expect(commits).toBe(0);
+      expect(created.session.getCurrentSnapshot()).toBe(snapshotBefore);
+      expect(created.commandLog.replayBase()).toBe(replayBaseBefore);
+      expect(created.commandLog.entries()).toBe(entriesBefore);
+      expect(created.session.getStatus()).toBe("hmr_invalidated");
+    },
+  );
 
   it("refreshes the private digest after a runtime replay-base replacement", async () => {
     const counter = createSnapshotWorkCounterV1();

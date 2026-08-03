@@ -3,7 +3,7 @@
 状态：2026-07-30 接受执行，审查后从 Snapshot 性能计划拆分；2026-07-31 按
 M0a/M0b metadata ownership 与 PF-DET same-HEAD join 重切片；2026-08-03 M1 已
 promotion，same-HEAD join 已关闭，并按接受的 State-only contract 把 M2 拆为
-M2a–M2e；M2a/M2b/M2c 已 promotion，下一独立切片为 M2d。目标合同见
+M2a–M2e；M2a/M2b/M2c/M2d 已 promotion，下一独立切片为 M2e。目标合同见
 [Save migration design](../design/save-migration.md)；在
 [production-floor sequence](2026-07-30-production-floor-sequence.md) 中分为 PF3
 与 PF5，并与 PF-DET 按显式 DAG 汇合；不是“完整 PF-DET 后才开始全部 M0–M2”。
@@ -456,15 +456,45 @@ Promise/observer publication。全部 owner commit后才发布 Session并排 pos
 
 **Receipt lifecycle：** successful migrated replacement安装 receipt；ordinary command、Save
 capture与CommandLog eviction保留。fresh/restart/current-revision load/import、debug replacement、
-rebootstrap/new service或无 receipt replacement清零；failed operation保留旧 receipt exact
-identity/value。Debug Bundle wire在 M2不变。
+fresh paired Session/Persistence composition（包括 Core rebootstrap successor）或无 receipt
+replay-base replacement清零；同一 Session 上新建 service 不清 Session-owned receipt；failed
+operation保留旧 receipt exact identity/value。Debug Bundle wire在 M2不变。
+
+**Composition boundary：** composite guarantee覆盖 package-owned GameSession/Core/Persistence，
+以及保留 exact outcome或 exact package prepare callback的透明 wrapper。若 public low-level
+custom runtime control同时重建两者，它只保留 current-revision、`migration: null` legacy callback
+path，不获得 M2 composite guarantee；extension/custom caller显式传入 legacy
+`prepareReplacementCommit`也属于同一 escape hatch。migrated replacement必须在 authoritative
+Snapshot/replay/Persistence mutation前 fail closed，允许进入 `fault_paused`，不得把它归为
+package prepare failure/`ready`。
+
+**Post-commit order：** authoritative owners全部安装后，Session只在 listener publication窗口
+暴露预分配的 Session-bound opaque context供 Core归因；随后撤销 context、调用 throw-isolated
+observational `onReplacementCommit`，最后安排 autosave repair/write。context不是 callback、第二
+authority或 durable state。
 
 **Red/acceptance：** autosave epoch exhaustion、prepare allocation/fault与每个 M2c failure均
 证明零 partial mutation；validated commit token的 commit path不抛错。成功后 replay base===
 current Snapshot、digest===receipt migrated digest、CommandLog空、immediate replay执行 `0`
 entries、next ordinal `1` 且 next `preStateDigest` 等于 migrated anchor。callback/invalid output/
-prepare fault保持 Session `ready`；只有 unexpected commit-protocol invariant failure允许
-`fault_paused`。若只能扩张公开 universal transaction API，停止。
+prepare fault在 composite boundary内保持 Session `ready`；只有 unexpected commit-protocol
+invariant failure与上述 opaque low-level escape exception允许 `fault_paused`。若只能扩张公开
+universal transaction API，停止。
+
+**2026-08-03 M2d promotion：** repository-owned Session/Core/Persistence现以 exact outcome或
+exact prepare-callback identity领取一次性 package-internal participant；prepare完成 final
+Snapshot freeze/digest、CommandLog anchor、lineage/autosave/fence/bookkeeping与全部 allocation，
+validated commit只安装预计算 authority。全部 owner安装后，Session-bound opaque context只在
+listener publication窗口提供 Core origin，随后才执行 observational callback并安排 autosave
+post-commit。migrated replacement安装 Session-owned non-durable receipt；command/Save/log eviction
+保留，current/restart/debug/rollback与 fresh paired successor清除，失败保留 exact prior receipt。
+cross-owner/reused token、epoch exhaustion、reentrant fence/HMR、migration+adoption、immediate replay
+与 next ordinal均有 mutation-sensitive evidence。opaque custom control与显式 legacy prepare
+callback保留 current-revision escape hatch，migrated candidate fail closed且不伪造 composite
+success。公开 Save/replay/debug wire、digest/canonical算法与 barrel API均未扩张。focused为
+`5 files / 282 tests`、affected Base + UI为 `142/1691`、full unit为 `229/3435`；latest-stable
+Deno `2.9.4`上的 typecheck、determinism guard、Story checks、Engine Lab build与
+`deno task check`全绿。四 runtime migration matrix仍按合同保留给 M2e，下一独立切片为 M2e。
 
 ### M2e — Real authority, tripwire and four-runtime promotion
 

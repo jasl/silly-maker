@@ -52,10 +52,16 @@ import {
 import { validateSaveImportCandidateV1 } from "./compatibility.ts";
 import { decodeSaveRecordV1, encodeSaveRecordV1 } from "./save-codec.ts";
 import {
-  createPersistenceServiceV1,
+  createInstrumentedPersistenceServiceV1,
   importWithReplacementCommitInternalV1,
   loadWithReplacementCommitInternalV1,
 } from "./persistence-service.ts";
+import { replayAuthoritativelyFromAttemptsInternalV1 } from "../diagnostics/replay.ts";
+import type {
+  AuthoritativeOutcomeV1,
+  GameSessionRuntimeControlV1,
+} from "../session/game-session.ts";
+import { readInstalledSaveStateMigrationReceiptInternalV1 } from "../session/game-session.ts";
 import type { SaveRepositorySlotMetadataV1 } from "./save-repository.ts";
 import { createSaveSlotRecordKeyV1 } from "./slot-keys.ts";
 
@@ -307,6 +313,50 @@ async function seedSlotsV1(records: HostAtomicRecordStoreV1, slots: readonly See
 
 let fixtureOrdinalV1 = 0;
 
+function cloneWrappingRuntimeControlV1<TSnapshot>(
+  delegate: GameSessionRuntimeControlV1<TSnapshot>,
+  wrapPrepareCallback = false,
+): GameSessionRuntimeControlV1<TSnapshot> {
+  return Object.freeze({
+    enqueueAuthoritative<TResult>(
+      operation: (
+        current: DeepReadonly<TSnapshot>,
+      ) => Promise<AuthoritativeOutcomeV1<TSnapshot, TResult>>,
+      normalizeUnexpectedFault: (error: unknown) => TResult,
+      prepareReplacementCommit?: (
+        snapshot: DeepReadonly<TSnapshot>,
+        anchor: "preserve_log" | "replace_replay_base",
+      ) => void,
+      whenHmrInvalidated?: () => TResult,
+    ) {
+      return delegate.enqueueAuthoritative(
+        async (current) => {
+          const outcome = await operation(current);
+          return outcome.kind === "replace"
+            ? Object.freeze({
+              ...outcome,
+              result: typeof outcome.result === "object" && outcome.result !== null
+                ? Object.freeze({ ...outcome.result })
+                : outcome.result,
+            })
+            : outcome;
+        },
+        normalizeUnexpectedFault,
+        wrapPrepareCallback && prepareReplacementCommit !== undefined
+          ? (snapshot, anchor) => prepareReplacementCommit(snapshot, anchor)
+          : prepareReplacementCommit,
+        whenHmrInvalidated,
+      );
+    },
+    readAtQueueFront<TResult>(reader: (snapshot: DeepReadonly<TSnapshot>) => TResult) {
+      return delegate.readAtQueueFront(reader);
+    },
+    inspectForRuntime: () => delegate.inspectForRuntime(),
+    subscribeCommittedSnapshots: (listener: (snapshot: DeepReadonly<TSnapshot>) => void) =>
+      delegate.subscribeCommittedSnapshots(listener),
+  });
+}
+
 async function fixtureV1(input: {
   readonly slots?: readonly SeededSlotV1[];
   readonly provenance?: BuildProvenanceV1;
@@ -317,35 +367,54 @@ async function fixtureV1(input: {
   readonly invariantErrors?: readonly string[];
   readonly onValidateReferences?: () => void;
   readonly onValidateInvariants?: () => void;
+  readonly autoSaveInitialAnchorEpoch?: number;
+  readonly wrapRuntimeControlWithOutcomeClone?: boolean;
+  readonly wrapReplacementPrepareCallback?: boolean;
 } = {}) {
   fixtureOrdinalV1 += 1;
   const store = observedStoreV1();
   await seedSlotsV1(store.records, input.slots ?? Object.freeze([]));
   const session = createSnapshotTransactionWorkloadV1({ entityCount: 100 });
-  const service = await createPersistenceServiceV1<SnapshotTransactionStateV1, NeutralSnapshotV1>({
-    runtimeControl: session.runtimeControl,
-    records: store.records,
-    snapshotSchema: input.snapshotSchema ?? snapshotTransactionSnapshotSchemaV1,
-    provenance: input.provenance ?? snapshotTransactionProvenanceV1,
-    adoptionDeclaration: input.adoptionDeclaration ?? null,
-    saveStateMigrations: input.saveStateMigrations ?? null,
-    ownerId: `owner.current-load-baseline.${String(fixtureOrdinalV1)}` as SessionLeaseOwnerId,
-    nextHandoffRequestId: () =>
-      `handoff.current-load-baseline.${String(fixtureOrdinalV1)}` as LeaseHandoffRequestId,
-    validateReferences: () => {
-      input.onValidateReferences?.();
-      return input.referenceErrors ?? Object.freeze([]);
+  const service = await createInstrumentedPersistenceServiceV1<
+    SnapshotTransactionStateV1,
+    NeutralSnapshotV1
+  >(
+    {
+      runtimeControl: input.wrapRuntimeControlWithOutcomeClone === true
+        ? cloneWrappingRuntimeControlV1(
+          session.runtimeControl,
+          input.wrapReplacementPrepareCallback === true,
+        )
+        : session.runtimeControl,
+      records: store.records,
+      snapshotSchema: input.snapshotSchema ?? snapshotTransactionSnapshotSchemaV1,
+      provenance: input.provenance ?? snapshotTransactionProvenanceV1,
+      adoptionDeclaration: input.adoptionDeclaration ?? null,
+      saveStateMigrations: input.saveStateMigrations ?? null,
+      ownerId: `owner.current-load-baseline.${String(fixtureOrdinalV1)}` as SessionLeaseOwnerId,
+      nextHandoffRequestId: () =>
+        `handoff.current-load-baseline.${String(fixtureOrdinalV1)}` as LeaseHandoffRequestId,
+      validateReferences: () => {
+        input.onValidateReferences?.();
+        return input.referenceErrors ?? Object.freeze([]);
+      },
+      validateInvariants: () => {
+        input.onValidateInvariants?.();
+        return input.invariantErrors ?? Object.freeze([]);
+      },
+      initialSimulationLineage: Object.freeze([]),
+      metadataClock: Object.freeze({ now: () => fixedInstantV1 }),
+      exportFilename: "current-load-baseline.json",
+      manualSaveSlotCount: 0,
+      autoSaveCapture: "external",
     },
-    validateInvariants: () => {
-      input.onValidateInvariants?.();
-      return input.invariantErrors ?? Object.freeze([]);
+    undefined,
+    input.autoSaveInitialAnchorEpoch === undefined ? undefined : {
+      autoSaveInitialAnchorEpoch: parseNonNegativeSafeInteger(
+        input.autoSaveInitialAnchorEpoch,
+      ),
     },
-    initialSimulationLineage: Object.freeze([]),
-    metadataClock: Object.freeze({ now: () => fixedInstantV1 }),
-    exportFilename: "current-load-baseline.json",
-    manualSaveSlotCount: 0,
-    autoSaveCapture: "external",
-  });
+  );
   store.resetSaveCommitCount();
   return Object.freeze({ session, service, store });
 }
@@ -1416,6 +1485,326 @@ describe("M2c staged Save State migration integration", () => {
       expect(imported.store.saveCommitCount()).toBe(0);
     } finally {
       await imported.service.disposeForRebootstrap();
+    }
+  });
+
+  it("installs one Session-owned migration receipt and preserves or clears it by anchor lifecycle", async () => {
+    const target = migrationTargetProvenanceV1();
+    let rejectNext = false;
+    const registry = migrationRegistryV1(target, (state) =>
+      rejectNext
+        ? Object.freeze({
+          kind: "rejected" as const,
+          reasonCode: parseSaveStateMigrationReasonCodeV1("migration.synthetic.rejected"),
+        })
+        : Object.freeze({ kind: "migrated" as const, state }));
+    const fixture = await fixtureV1({ provenance: target, saveStateMigrations: registry });
+    try {
+      expect(readInstalledSaveStateMigrationReceiptInternalV1(fixture.session.runtimeControl))
+        .toBeNull();
+
+      let atomicObservation = false;
+      await expect(
+        importWithReplacementCommitInternalV1(
+          fixture.service,
+          currentRecordBytesV1(),
+          () => {
+            const installed = readInstalledSaveStateMigrationReceiptInternalV1(
+              fixture.session.runtimeControl,
+            );
+            expect(installed).not.toBeNull();
+            expect(fixture.session.replayBase()).toBe(fixture.session.snapshot());
+            expect(fixture.session.replayBaseStateDigest()).toBe(installed?.migratedStateDigest);
+            expect(fixture.session.commandLog()).toEqual([]);
+            atomicObservation = true;
+          },
+        ),
+      ).resolves.toMatchObject({ kind: "imported", compatibility: "exact" });
+      expect(atomicObservation).toBe(true);
+      const receipt = readInstalledSaveStateMigrationReceiptInternalV1(
+        fixture.session.runtimeControl,
+      );
+      expect(receipt).not.toBeNull();
+      expect(fixture.session.replayBase()).toBe(fixture.session.snapshot());
+      expect(fixture.session.replayBaseStateDigest()).toBe(receipt?.migratedStateDigest);
+      expect(fixture.session.commandLog()).toEqual([]);
+
+      let replayCalls = 0;
+      const replay = await replayAuthoritativelyFromAttemptsInternalV1<
+        NeutralSnapshotV1,
+        { readonly source: "game"; readonly command: string },
+        never,
+        never,
+        never,
+        NeutralSnapshotV1["rng"],
+        never
+      >({
+        identity: Object.freeze({ provenance: target }),
+        replayBase: fixture.session.replayBase(),
+        replayBaseStateDigest: fixture.session.replayBaseStateDigest(),
+        commandLog: fixture.session.commandLog() as never,
+        currentSnapshot: fixture.session.snapshot(),
+        projectStableRejection: (rejection) => rejection,
+        projectStableFault: (fault) => fault,
+        executeAttempt() {
+          replayCalls += 1;
+          throw new TypeError("empty migrated replay must not execute a command");
+        },
+      });
+      expect(replay).toMatchObject({ matches: true, executedEntries: 0 });
+      expect(replayCalls).toBe(0);
+
+      await fixture.session.dispatch("cross_owner_atomic_committed");
+      expect(readInstalledSaveStateMigrationReceiptInternalV1(fixture.session.runtimeControl)).toBe(
+        receipt,
+      );
+      expect(fixture.session.commandLog()[0]).toMatchObject({
+        logOrdinal: 1,
+        preStateDigest: receipt?.migratedStateDigest,
+      });
+
+      await expect(fixture.service.port.importSave(currentRecordBytesV1())).resolves.toMatchObject({
+        kind: "imported",
+        compatibility: "exact",
+      });
+      const replacementReceipt = readInstalledSaveStateMigrationReceiptInternalV1(
+        fixture.session.runtimeControl,
+      );
+      expect(replacementReceipt).not.toBe(receipt);
+      expect(replacementReceipt).toEqual(receipt);
+      for (let index = 0; index < 201; index += 1) {
+        await fixture.session.dispatch("cross_owner_atomic_committed");
+      }
+      expect(fixture.session.commandLog()).toHaveLength(200);
+      expect(readInstalledSaveStateMigrationReceiptInternalV1(fixture.session.runtimeControl)).toBe(
+        replacementReceipt,
+      );
+      await expect(fixture.service.port.save("quick")).resolves.toMatchObject({ kind: "saved" });
+      await fixture.service.port.exportCurrentSave();
+      expect(readInstalledSaveStateMigrationReceiptInternalV1(fixture.session.runtimeControl)).toBe(
+        replacementReceipt,
+      );
+
+      await expect(fixture.service.port.load("quick")).resolves.toMatchObject({
+        kind: "loaded",
+        compatibility: "exact",
+      });
+      expect(readInstalledSaveStateMigrationReceiptInternalV1(fixture.session.runtimeControl))
+        .toBeNull();
+      await expect(fixture.service.port.importSave(currentRecordBytesV1())).resolves.toMatchObject({
+        kind: "imported",
+        compatibility: "exact",
+      });
+      const receiptAfterCurrentLoad = readInstalledSaveStateMigrationReceiptInternalV1(
+        fixture.session.runtimeControl,
+      );
+      expect(receiptAfterCurrentLoad).not.toBeNull();
+
+      rejectNext = true;
+      await expect(fixture.service.port.importSave(currentRecordBytesV1())).resolves.toEqual({
+        kind: "rejected",
+        code: "migration_rejected",
+      });
+      expect(readInstalledSaveStateMigrationReceiptInternalV1(fixture.session.runtimeControl)).toBe(
+        receiptAfterCurrentLoad,
+      );
+      expect(fixture.session.status()).toBe("ready");
+
+      await expect(
+        fixture.service.port.importSave(currentRecordBytesV1({ provenance: target })),
+      ).resolves.toMatchObject({ kind: "imported", compatibility: "exact" });
+      expect(readInstalledSaveStateMigrationReceiptInternalV1(fixture.session.runtimeControl))
+        .toBeNull();
+    } finally {
+      await fixture.service.disposeForRebootstrap();
+    }
+  });
+
+  it("atomically installs one migrated receipt with the same replacement's adoption lineage", async () => {
+    const stateTarget = migrationTargetProvenanceV1();
+    const simulationTarget = currentProvenanceV1();
+    const target = Object.freeze({
+      ...simulationTarget,
+      resolved: Object.freeze({
+        ...simulationTarget.resolved,
+        stateContractRevision: stateTarget.resolved.stateContractRevision,
+        stateContractDigest: stateTarget.resolved.stateContractDigest,
+      }),
+    });
+    let migrationCalls = 0;
+    const registry = migrationRegistryV1(target, (state) => {
+      migrationCalls += 1;
+      return Object.freeze({ kind: "migrated" as const, state });
+    });
+    const declaration = adoptionDeclarationV1(snapshotTransactionProvenanceV1, target);
+    const fixture = await fixtureV1({
+      provenance: target,
+      adoptionDeclaration: declaration,
+      saveStateMigrations: registry,
+    });
+    try {
+      let observedReceipt: ReturnType<
+        typeof readInstalledSaveStateMigrationReceiptInternalV1
+      > = null;
+      let observedLineage: readonly DeepReadonly<SimulationAdoptionV1>[] = Object.freeze([]);
+      await expect(
+        importWithReplacementCommitInternalV1(
+          fixture.service,
+          currentRecordBytesV1(),
+          () => {
+            observedReceipt = readInstalledSaveStateMigrationReceiptInternalV1(
+              fixture.session.runtimeControl,
+            );
+            observedLineage = fixture.service.getSimulationLineage();
+            expect(observedReceipt).toMatchObject({
+              source: stateContractIdentityV1(snapshotTransactionProvenanceV1),
+              target: stateContractIdentityV1(target),
+            });
+            expect(observedLineage).toEqual([
+              {
+                fromSimulationDigest: snapshotTransactionProvenanceV1.resolved.simulationDigest,
+                toSimulationDigest: target.resolved.simulationDigest,
+                viaSimulationPatchSetDigest: target.resolved.patchSet.simulationDigest,
+                adoptedAtCommandSequence: 0,
+              },
+            ]);
+            expect(fixture.session.replayBase()).toBe(fixture.session.snapshot());
+            expect(fixture.session.commandLog()).toEqual([]);
+          },
+        ),
+      ).resolves.toEqual({
+        kind: "imported",
+        compatibility: "adopted",
+        commandSequence: 0,
+      });
+      expect(migrationCalls).toBe(1);
+      expect(readInstalledSaveStateMigrationReceiptInternalV1(fixture.session.runtimeControl)).toBe(
+        observedReceipt,
+      );
+      expect(fixture.service.getSimulationLineage()).toBe(observedLineage);
+      expect(fixture.store.saveCommitCount()).toBe(0);
+    } finally {
+      await fixture.service.disposeForRebootstrap();
+    }
+  });
+
+  it("retains the exact migration participant through a structural outcome wrapper", async () => {
+    const target = migrationTargetProvenanceV1();
+    const registry = migrationRegistryV1(
+      target,
+      (state) => Object.freeze({ kind: "migrated" as const, state }),
+    );
+    const fixture = await fixtureV1({
+      provenance: target,
+      saveStateMigrations: registry,
+      wrapRuntimeControlWithOutcomeClone: true,
+    });
+    try {
+      await expect(fixture.service.port.importSave(currentRecordBytesV1())).resolves.toMatchObject({
+        kind: "imported",
+        compatibility: "exact",
+      });
+      const receipt = readInstalledSaveStateMigrationReceiptInternalV1(
+        fixture.session.runtimeControl,
+      );
+      expect(receipt).not.toBeNull();
+      expect(fixture.session.replayBase()).toBe(fixture.session.snapshot());
+      expect(fixture.session.replayBaseStateDigest()).toBe(receipt?.migratedStateDigest);
+      expect(fixture.session.commandLog()).toEqual([]);
+      expect(fixture.session.status()).toBe("ready");
+    } finally {
+      await fixture.service.disposeForRebootstrap();
+    }
+  });
+
+  it("fails migrated replacement closed when an opaque wrapper strips every internal carrier", async () => {
+    const target = migrationTargetProvenanceV1();
+    const registry = migrationRegistryV1(
+      target,
+      (state) => Object.freeze({ kind: "migrated" as const, state }),
+    );
+    const sourceBytes = currentRecordBytesV1();
+    const fixture = await fixtureV1({
+      provenance: target,
+      saveStateMigrations: registry,
+      wrapRuntimeControlWithOutcomeClone: true,
+      wrapReplacementPrepareCallback: true,
+    });
+    try {
+      const authorityBefore = authorityEvidenceV1(fixture);
+      const recordsBefore = await rawSaveRecordsV1(fixture.store.records);
+
+      await expect(fixture.service.port.importSave(sourceBytes)).resolves.toEqual({
+        kind: "faulted",
+        code: "persistence.unexpected",
+      });
+
+      const authorityAfter = authorityEvidenceV1(fixture);
+      expect(authorityAfter.snapshot).toBe(authorityBefore.snapshot);
+      expect(authorityAfter.rng).toBe(authorityBefore.rng);
+      expect(authorityAfter.replayBase).toBe(authorityBefore.replayBase);
+      expect(authorityAfter.replayBaseStateDigest).toBe(authorityBefore.replayBaseStateDigest);
+      expect(authorityAfter.commandLog).toBe(authorityBefore.commandLog);
+      expect(authorityAfter.lineage).toBe(authorityBefore.lineage);
+      expect(readInstalledSaveStateMigrationReceiptInternalV1(fixture.session.runtimeControl))
+        .toBeNull();
+      expect(await rawSaveRecordsV1(fixture.store.records)).toEqual(recordsBefore);
+      expect(fixture.store.saveCommitCount()).toBe(0);
+      expect(fixture.session.status()).toBe("fault_paused");
+    } finally {
+      await fixture.service.disposeForRebootstrap();
+    }
+  });
+
+  it("fails autosave epoch exhaustion in prepare with zero cross-owner mutation", async () => {
+    const target = migrationTargetProvenanceV1();
+    const registry = migrationRegistryV1(
+      target,
+      (state) => Object.freeze({ kind: "migrated" as const, state }),
+    );
+    const sourceBytes = currentRecordBytesV1();
+    const fixture = await fixtureV1({
+      provenance: target,
+      saveStateMigrations: registry,
+      autoSaveInitialAnchorEpoch: Number.MAX_SAFE_INTEGER - 1,
+    });
+    try {
+      await expect(fixture.service.port.importSave(sourceBytes)).resolves.toMatchObject({
+        kind: "imported",
+        compatibility: "exact",
+      });
+      await fixture.session.dispatch("cross_owner_atomic_committed");
+      const receiptBefore = readInstalledSaveStateMigrationReceiptInternalV1(
+        fixture.session.runtimeControl,
+      );
+      const authorityBefore = authorityEvidenceV1(fixture);
+      const recordsBefore = await rawSaveRecordsV1(fixture.store.records);
+      const sourceBefore = Uint8Array.from(sourceBytes);
+      let replacementCommits = 0;
+
+      await expect(
+        importWithReplacementCommitInternalV1(fixture.service, sourceBytes, () => {
+          replacementCommits += 1;
+        }),
+      ).resolves.toEqual({ kind: "faulted", code: "persistence.unexpected" });
+
+      const authorityAfter = authorityEvidenceV1(fixture);
+      expect(replacementCommits).toBe(0);
+      expect(sourceBytes).toEqual(sourceBefore);
+      expect(authorityAfter.snapshot).toBe(authorityBefore.snapshot);
+      expect(authorityAfter.rng).toBe(authorityBefore.rng);
+      expect(authorityAfter.replayBase).toBe(authorityBefore.replayBase);
+      expect(authorityAfter.replayBaseStateDigest).toBe(authorityBefore.replayBaseStateDigest);
+      expect(authorityAfter.commandLog).toBe(authorityBefore.commandLog);
+      expect(authorityAfter.lineage).toBe(authorityBefore.lineage);
+      expect(readInstalledSaveStateMigrationReceiptInternalV1(fixture.session.runtimeControl)).toBe(
+        receiptBefore,
+      );
+      expect(await rawSaveRecordsV1(fixture.store.records)).toEqual(recordsBefore);
+      expect(fixture.store.saveCommitCount()).toBe(0);
+      expect(fixture.session.status()).toBe("ready");
+    } finally {
+      await fixture.service.disposeForRebootstrap();
     }
   });
 

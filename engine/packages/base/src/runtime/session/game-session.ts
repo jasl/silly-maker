@@ -12,6 +12,7 @@ import type {
   RuntimeSessionStatusV1,
   SessionDispatchOperationResultV1,
 } from "../../contracts/session-status.ts";
+import type { SaveStateMigrationReceiptV1 } from "../../contracts/save-state-migration.ts";
 import type {
   DeepReadonly,
   Digest,
@@ -47,6 +48,272 @@ import {
 } from "./runtime-invalidation.ts";
 
 const installedSnapshotDigestsV1 = new WeakMap<object, WeakMap<object, Digest>>();
+const installedMigrationReceiptReadersInternalV1 = new WeakMap<
+  object,
+  () => DeepReadonly<SaveStateMigrationReceiptV1> | null
+>();
+const authoritativeReplacementOwnerByRuntimeMemberInternalV1 = new WeakMap<
+  object,
+  AuthoritativeReplacementOwnerInternalV1
+>();
+
+type ReplacementAnchorInternalV1 = "preserve_log" | "replace_replay_base";
+
+export interface AuthoritativeReplacementOwnerInternalV1 {
+  readonly _authoritativeReplacementOwner?: never;
+}
+
+export interface AuthoritativeReplacementPreparationInternalV1 {
+  readonly _authoritativeReplacementPreparation?: never;
+}
+
+export interface AuthoritativeReplacementPublicationContextInternalV1 {
+  readonly _authoritativeReplacementPublicationContext?: never;
+}
+
+/** @internal Resolves one exact Session owner through a control or retained member identity. */
+export function lookupAuthoritativeReplacementOwnerInternalV1(
+  runtimeControl: object,
+): AuthoritativeReplacementOwnerInternalV1 | undefined {
+  const candidates = [
+    runtimeControl,
+    (runtimeControl as { readonly enqueueAuthoritative?: unknown }).enqueueAuthoritative,
+    (runtimeControl as { readonly readAtQueueFront?: unknown }).readAtQueueFront,
+    (runtimeControl as { readonly inspectForRuntime?: unknown }).inspectForRuntime,
+    (runtimeControl as { readonly subscribeCommittedSnapshots?: unknown })
+      .subscribeCommittedSnapshots,
+  ];
+  let owner: AuthoritativeReplacementOwnerInternalV1 | undefined;
+  for (const candidate of candidates) {
+    if ((typeof candidate !== "object" || candidate === null) && typeof candidate !== "function") {
+      continue;
+    }
+    const candidateOwner = authoritativeReplacementOwnerByRuntimeMemberInternalV1.get(candidate);
+    if (candidateOwner === undefined) continue;
+    if (owner !== undefined && owner !== candidateOwner) {
+      throw new TypeError("runtime control resolves multiple authoritative Session owners");
+    }
+    owner = candidateOwner;
+  }
+  return owner;
+}
+
+const authoritativeReplacementPublicationContextOwnersInternalV1 = new WeakMap<
+  object,
+  AuthoritativeReplacementOwnerInternalV1
+>();
+const activeAuthoritativeReplacementPublicationContextReadersInternalV1 = new WeakMap<
+  object,
+  () => AuthoritativeReplacementPublicationContextInternalV1 | null
+>();
+
+/** @internal Creates a Session-bound context visible only during replacement publication. */
+export function createAuthoritativeReplacementPublicationContextInternalV1(
+  runtimeControl: object,
+): AuthoritativeReplacementPublicationContextInternalV1 {
+  const owner = lookupAuthoritativeReplacementOwnerInternalV1(runtimeControl);
+  if (owner === undefined) throw new TypeError("unknown GameSession runtime control");
+  const context = Object.freeze({}) as AuthoritativeReplacementPublicationContextInternalV1;
+  authoritativeReplacementPublicationContextOwnersInternalV1.set(context, owner);
+  return context;
+}
+
+/** @internal Reads the context only while this Session notifies replacement listeners. */
+export function readActiveAuthoritativeReplacementPublicationContextInternalV1(
+  runtimeControl: object,
+): AuthoritativeReplacementPublicationContextInternalV1 | null {
+  const read = activeAuthoritativeReplacementPublicationContextReadersInternalV1.get(
+    runtimeControl,
+  );
+  if (read === undefined) throw new TypeError("unknown GameSession runtime control");
+  return read();
+}
+
+export interface PreparedAuthoritativeReplacementCommitInternalV1 {
+  readonly _preparedAuthoritativeReplacementCommit?: never;
+}
+
+interface PreparedAuthoritativeReplacementCommitControlInternalV1 {
+  status: "prepared" | "committing" | "committed" | "published" | "completed";
+  readonly migrationReceipt: DeepReadonly<SaveStateMigrationReceiptV1> | null;
+  readonly owner: AuthoritativeReplacementOwnerInternalV1;
+  readonly preparation: AuthoritativeReplacementPreparationInternalV1;
+  readonly publicationContext: AuthoritativeReplacementPublicationContextInternalV1 | null;
+  readonly commit: () => void;
+  readonly afterPublication: () => void;
+}
+
+interface AuthoritativeReplacementBindingInternalV1<TSnapshot, TResult> {
+  readonly prepare: (
+    snapshot: DeepReadonly<TSnapshot>,
+    anchor: ReplacementAnchorInternalV1,
+    owner: AuthoritativeReplacementOwnerInternalV1,
+    preparation: AuthoritativeReplacementPreparationInternalV1,
+  ) => PreparedAuthoritativeReplacementCommitInternalV1;
+  readonly normalizePrepareFailure: (error: unknown) => TResult;
+}
+
+const preparedAuthoritativeReplacementControlsInternalV1 = new WeakMap<
+  object,
+  PreparedAuthoritativeReplacementCommitControlInternalV1
+>();
+const authoritativeReplacementBindingsInternalV1 = new WeakMap<
+  object,
+  AuthoritativeReplacementBindingRecordInternalV1
+>();
+const authoritativeReplacementBindingsByPrepareCallbackInternalV1 = new WeakMap<
+  object,
+  AuthoritativeReplacementBindingRecordInternalV1
+>();
+
+interface AuthoritativeReplacementBindingRecordInternalV1 {
+  status: "available" | "claimed";
+  binding: AuthoritativeReplacementBindingInternalV1<unknown, unknown> | null;
+  readonly normalizePrepareFailure: (error: unknown) => unknown;
+}
+
+function objectIdentityInternalV1(value: unknown): object | null {
+  return (typeof value === "object" && value !== null) || typeof value === "function"
+    ? value
+    : null;
+}
+
+function claimAuthoritativeReplacementBindingInternalV1<TSnapshot, TResult>(
+  outcome: object,
+  prepareReplacementCommit?: unknown,
+):
+  | ({
+    readonly binding: AuthoritativeReplacementBindingInternalV1<TSnapshot, TResult>;
+    readonly available: true;
+  } | {
+    readonly binding: null;
+    readonly available: false;
+    normalizePrepareFailure(error: unknown): TResult;
+  })
+  | undefined {
+  const direct = authoritativeReplacementBindingsInternalV1.get(outcome);
+  const callbackIdentity = objectIdentityInternalV1(prepareReplacementCommit);
+  const callbackRecord = callbackIdentity === null
+    ? undefined
+    : authoritativeReplacementBindingsByPrepareCallbackInternalV1.get(callbackIdentity);
+  if (direct !== undefined && callbackRecord !== undefined && direct !== callbackRecord) {
+    direct.status = "claimed";
+    direct.binding = null;
+    callbackRecord.status = "claimed";
+    callbackRecord.binding = null;
+    return Object.freeze({
+      binding: null,
+      available: false as const,
+      normalizePrepareFailure: direct.normalizePrepareFailure as (
+        error: unknown,
+      ) => TResult,
+    });
+  }
+  const resolved = direct ?? callbackRecord;
+  if (resolved === undefined) return undefined;
+  if (resolved.status !== "available" || resolved.binding === null) {
+    return Object.freeze({
+      binding: null,
+      available: false as const,
+      normalizePrepareFailure: resolved.normalizePrepareFailure as (error: unknown) => TResult,
+    });
+  }
+  const binding = resolved.binding as AuthoritativeReplacementBindingInternalV1<
+    TSnapshot,
+    TResult
+  >;
+  resolved.status = "claimed";
+  resolved.binding = null;
+  return Object.freeze({ binding, available: true as const });
+}
+
+/** @internal Exact Session-lifecycle receipt lookup; intentionally absent from barrels. */
+export function readInstalledSaveStateMigrationReceiptInternalV1(
+  runtimeControl: object,
+): DeepReadonly<SaveStateMigrationReceiptV1> | null {
+  const read = installedMigrationReceiptReadersInternalV1.get(runtimeControl);
+  if (read === undefined) throw new TypeError("unknown GameSession runtime control");
+  return read();
+}
+
+/** @internal Creates an exact package-owned replacement participant token. */
+export function createPreparedAuthoritativeReplacementCommitInternalV1(options: {
+  readonly owner: AuthoritativeReplacementOwnerInternalV1;
+  readonly preparation: AuthoritativeReplacementPreparationInternalV1;
+  readonly migrationReceipt: DeepReadonly<SaveStateMigrationReceiptV1> | null;
+  readonly publicationContext?: AuthoritativeReplacementPublicationContextInternalV1 | null;
+  readonly commit: () => void;
+  readonly afterPublication?: () => void;
+}): PreparedAuthoritativeReplacementCommitInternalV1 {
+  const publicationContext = options.publicationContext ?? null;
+  if (
+    typeof options.commit !== "function" ||
+    (options.afterPublication !== undefined && typeof options.afterPublication !== "function") ||
+    (publicationContext !== null &&
+      authoritativeReplacementPublicationContextOwnersInternalV1.get(publicationContext) !==
+        options.owner)
+  ) {
+    throw new TypeError("invalid authoritative replacement participant");
+  }
+  const prepared = Object.freeze({}) as PreparedAuthoritativeReplacementCommitInternalV1;
+  preparedAuthoritativeReplacementControlsInternalV1.set(prepared, {
+    status: "prepared",
+    owner: options.owner,
+    preparation: options.preparation,
+    migrationReceipt: options.migrationReceipt,
+    publicationContext,
+    commit: options.commit,
+    afterPublication: options.afterPublication ?? (() => undefined),
+  });
+  return prepared;
+}
+
+/** @internal Binds one exact replacement outcome to its package participant. */
+export function bindAuthoritativeReplacementCommitInternalV1<TSnapshot, TResult>(
+  outcome: object,
+  binding: AuthoritativeReplacementBindingInternalV1<TSnapshot, TResult>,
+): void {
+  if (
+    authoritativeReplacementBindingsInternalV1.has(outcome) ||
+    typeof binding.prepare !== "function" ||
+    typeof binding.normalizePrepareFailure !== "function"
+  ) {
+    throw new TypeError("invalid authoritative replacement binding");
+  }
+  const capturedBinding = Object.freeze({
+    prepare: binding.prepare,
+    normalizePrepareFailure: binding.normalizePrepareFailure,
+  }) as AuthoritativeReplacementBindingInternalV1<unknown, unknown>;
+  const record: AuthoritativeReplacementBindingRecordInternalV1 = {
+    status: "available",
+    binding: capturedBinding,
+    normalizePrepareFailure: capturedBinding.normalizePrepareFailure,
+  };
+  authoritativeReplacementBindingsInternalV1.set(outcome, record);
+}
+
+/** @internal Carries one exact package binding through structural runtime wrappers. */
+export function bindAuthoritativeReplacementPrepareCallbackInternalV1(
+  callback: object,
+  outcome: object,
+): void {
+  const record = authoritativeReplacementBindingsInternalV1.get(outcome);
+  if (
+    record === undefined ||
+    authoritativeReplacementBindingsByPrepareCallbackInternalV1.has(callback)
+  ) {
+    throw new TypeError("invalid authoritative replacement callback binding");
+  }
+  authoritativeReplacementBindingsByPrepareCallbackInternalV1.set(callback, record);
+}
+
+function preparedReplacementControlInternalV1(
+  prepared: PreparedAuthoritativeReplacementCommitInternalV1,
+): PreparedAuthoritativeReplacementCommitControlInternalV1 {
+  const control = preparedAuthoritativeReplacementControlsInternalV1.get(prepared);
+  if (control === undefined) throw new TypeError("invalid authoritative replacement token");
+  return control;
+}
 
 function installSnapshotDigestV1(runtimeControl: object, snapshot: object, digest: Digest): void {
   let digests = installedSnapshotDigestsV1.get(runtimeControl);
@@ -440,6 +707,13 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
     snapshot,
     instrumentation,
   );
+  let installedMigrationReceipt: DeepReadonly<SaveStateMigrationReceiptV1> | null = null;
+  let activeReplacementPublicationContext:
+    | AuthoritativeReplacementPublicationContextInternalV1
+    | null = null;
+  const authoritativeReplacementOwner = Object.freeze(
+    {},
+  ) as AuthoritativeReplacementOwnerInternalV1;
   let stableStatus: Exclude<RuntimeSessionStatusV1, "busy"> = "ready";
   let pending = 0;
   let tail: Promise<void> = Promise.resolve();
@@ -488,6 +762,24 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
         reportObserverFailure(error);
       }
     }
+  };
+  const publishReplacementV1 = (
+    prepared: PreparedAuthoritativeReplacementCommitControlInternalV1 | null,
+  ): void => {
+    activeReplacementPublicationContext = prepared?.publicationContext ?? null;
+    try {
+      publish();
+    } finally {
+      activeReplacementPublicationContext = null;
+    }
+    if (prepared === null) return;
+    prepared.status = "published";
+    try {
+      prepared.afterPublication();
+    } catch (error) {
+      reportObserverFailure(error);
+    }
+    prepared.status = "completed";
   };
   const publishCommittedSnapshot = (): void => {
     const committed = snapshot as DeepReadonly<TTypes["snapshot"]>;
@@ -544,32 +836,100 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
           const outcome = await operation(snapshot as DeepReadonly<TTypes["snapshot"]>);
           if (isHmrInvalidated()) return invalidatedResult();
           if (outcome.kind === "replace") {
-            const finalized = deepFreezeSnapshotV1(
-              finalizeSnapshotIntegrityV1<TTypes["snapshot"]>(
-                snapshot as DeepReadonly<TTypes["snapshot"]>,
-                outcome.snapshot,
-                { kind: "accept_replacement" },
-              ),
-              instrumentation,
-            );
-            if (outcome.anchor === "preserve_log" && finalized !== snapshot) {
-              throw new TypeError("preserve_log replacement changed the Snapshot");
+            const replacementClaim = claimAuthoritativeReplacementBindingInternalV1<
+              TTypes["snapshot"],
+              TResult
+            >(outcome as object, prepareReplacementCommit);
+            const prepareSessionReplacementV1 = () => {
+              const finalized = deepFreezeSnapshotV1(
+                finalizeSnapshotIntegrityV1<TTypes["snapshot"]>(
+                  snapshot as DeepReadonly<TTypes["snapshot"]>,
+                  outcome.snapshot,
+                  { kind: "accept_replacement" },
+                ),
+                instrumentation,
+              ) as DeepReadonly<TTypes["snapshot"]>;
+              if (outcome.anchor === "preserve_log" && finalized !== snapshot) {
+                throw new TypeError("preserve_log replacement changed the Snapshot");
+              }
+              const preparedCommandLogAnchor = outcome.anchor === "replace_replay_base"
+                ? commandLog.prepareAnchor(finalized as DeepReadonly<TTypes["snapshot"]>)
+                : null;
+              return Object.freeze({ finalized, preparedCommandLogAnchor });
+            };
+            let finalized: DeepReadonly<TTypes["snapshot"]>;
+            let preparedCommandLogAnchor: ReturnType<typeof commandLog.prepareAnchor> | null;
+            let preparedReplacement:
+              | PreparedAuthoritativeReplacementCommitControlInternalV1
+              | null = null;
+            if (replacementClaim !== undefined) {
+              const normalizePrepareFailure = replacementClaim.available
+                ? replacementClaim.binding.normalizePrepareFailure
+                : replacementClaim.normalizePrepareFailure;
+              try {
+                if (!replacementClaim.available) {
+                  throw new TypeError("reused authoritative replacement binding");
+                }
+                const replacementBinding = replacementClaim.binding;
+                const preparedSession = prepareSessionReplacementV1();
+                finalized = preparedSession.finalized;
+                preparedCommandLogAnchor = preparedSession.preparedCommandLogAnchor;
+                const preparation = Object.freeze(
+                  {},
+                ) as AuthoritativeReplacementPreparationInternalV1;
+                const prepared = replacementBinding.prepare(
+                  finalized,
+                  outcome.anchor,
+                  authoritativeReplacementOwner,
+                  preparation,
+                );
+                preparedReplacement = preparedReplacementControlInternalV1(prepared);
+                if (
+                  preparedReplacement.status !== "prepared" ||
+                  preparedReplacement.owner !== authoritativeReplacementOwner ||
+                  preparedReplacement.preparation !== preparation
+                ) {
+                  throw new TypeError("reused authoritative replacement token");
+                }
+                if (
+                  preparedReplacement.migrationReceipt !== null &&
+                  (preparedCommandLogAnchor === null ||
+                    preparedReplacement.migrationReceipt.migratedStateDigest !==
+                      preparedCommandLogAnchor.stateDigest)
+                ) {
+                  throw new TypeError("migration receipt does not match the replacement anchor");
+                }
+              } catch (error) {
+                if (isHmrInvalidated()) return invalidatedResult();
+                const normalized = normalizePrepareFailure(error);
+                return isHmrInvalidated() ? invalidatedResult() : normalized;
+              }
+            } else {
+              const preparedSession = prepareSessionReplacementV1();
+              finalized = preparedSession.finalized;
+              preparedCommandLogAnchor = preparedSession.preparedCommandLogAnchor;
+              prepareReplacementCommit?.(
+                finalized,
+                outcome.anchor,
+              );
             }
-            const preparedCommandLogAnchor = outcome.anchor === "replace_replay_base"
-              ? commandLog.prepareAnchor(finalized as DeepReadonly<TTypes["snapshot"]>)
-              : null;
-            prepareReplacementCommit?.(
-              finalized as DeepReadonly<TTypes["snapshot"]>,
-              outcome.anchor,
-            );
+            if (isHmrInvalidated()) return invalidatedResult();
+            if (preparedReplacement !== null) {
+              preparedReplacement.status = "committing";
+              preparedReplacement.commit();
+              preparedReplacement.status = "committed";
+            }
             if (preparedCommandLogAnchor !== null) {
               commandLog.establishPreparedAnchor(preparedCommandLogAnchor);
               currentStateDigest = preparedCommandLogAnchor.stateDigest;
             }
             snapshot = finalized;
             installSnapshotDigestV1(runtimeControl, snapshot, currentStateDigest);
-            if (outcome.anchor === "replace_replay_base") stableStatus = "ready";
-            publish();
+            if (outcome.anchor === "replace_replay_base") {
+              stableStatus = "ready";
+              installedMigrationReceipt = preparedReplacement?.migrationReceipt ?? null;
+            }
+            publishReplacementV1(preparedReplacement);
           }
           return outcome.result;
         } catch (error) {
@@ -603,6 +963,25 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
     },
   });
   installSnapshotDigestV1(runtimeControl, snapshot, currentStateDigest);
+  installedMigrationReceiptReadersInternalV1.set(runtimeControl, () => installedMigrationReceipt);
+  activeAuthoritativeReplacementPublicationContextReadersInternalV1.set(
+    runtimeControl,
+    () => activeReplacementPublicationContext,
+  );
+  for (
+    const member of [
+      runtimeControl,
+      runtimeControl.enqueueAuthoritative,
+      runtimeControl.readAtQueueFront,
+      runtimeControl.inspectForRuntime,
+      runtimeControl.subscribeCommittedSnapshots,
+    ]
+  ) {
+    authoritativeReplacementOwnerByRuntimeMemberInternalV1.set(
+      member,
+      authoritativeReplacementOwner,
+    );
+  }
 
   const debugControl: GameSessionDebugControlV1<TTypes> = Object.freeze({
     execute(command: DeepReadonly<TTypes["debugCommand"]>, isCapabilityEnabled: () => boolean) {
@@ -821,32 +1200,91 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
           if (outcome.kind !== "replace") {
             throw new TypeError("Debug anchor operation returned an invalid outcome");
           }
-          const accepted = finalizeSnapshotIntegrityV1<TTypes["snapshot"]>(
-            current,
-            outcome.snapshot,
-            { kind: "accept_replacement" },
-          );
-          const finalized = deepFreezeSnapshotV1(
-            {
-              ...accepted,
-              integrity: markRunModifiedV1(
-                accepted.integrity,
-                debugAnchorReasonV1(anchor, accepted),
-              ),
-            },
-            instrumentation,
-          ) as TTypes["snapshot"];
-          runIntegrityV1Schema.parse(finalized.integrity);
-          const preparedCommandLogAnchor = commandLog.prepareAnchor(
-            finalized as DeepReadonly<TTypes["snapshot"]>,
-          );
-          prepareReplacementCommit?.(finalized as DeepReadonly<TTypes["snapshot"]>);
+          const replacementClaim = claimAuthoritativeReplacementBindingInternalV1<
+            TTypes["snapshot"],
+            TResult
+          >(outcome as object, prepareReplacementCommit);
+          const prepareDebugReplacementV1 = () => {
+            const accepted = finalizeSnapshotIntegrityV1<TTypes["snapshot"]>(
+              current,
+              outcome.snapshot,
+              { kind: "accept_replacement" },
+            );
+            const finalized = deepFreezeSnapshotV1(
+              {
+                ...accepted,
+                integrity: markRunModifiedV1(
+                  accepted.integrity,
+                  debugAnchorReasonV1(anchor, accepted),
+                ),
+              },
+              instrumentation,
+            ) as DeepReadonly<TTypes["snapshot"]>;
+            runIntegrityV1Schema.parse(finalized.integrity);
+            const preparedCommandLogAnchor = commandLog.prepareAnchor(finalized);
+            return Object.freeze({ finalized, preparedCommandLogAnchor });
+          };
+          let finalized: DeepReadonly<TTypes["snapshot"]>;
+          let preparedCommandLogAnchor: ReturnType<typeof commandLog.prepareAnchor>;
+          let preparedReplacement:
+            | PreparedAuthoritativeReplacementCommitControlInternalV1
+            | null = null;
+          if (replacementClaim !== undefined) {
+            const normalizePrepareFailure = replacementClaim.available
+              ? replacementClaim.binding.normalizePrepareFailure
+              : replacementClaim.normalizePrepareFailure;
+            try {
+              if (!replacementClaim.available) {
+                throw new TypeError("reused authoritative replacement binding");
+              }
+              const replacementBinding = replacementClaim.binding;
+              const preparedSession = prepareDebugReplacementV1();
+              finalized = preparedSession.finalized;
+              preparedCommandLogAnchor = preparedSession.preparedCommandLogAnchor;
+              const preparation = Object.freeze(
+                {},
+              ) as AuthoritativeReplacementPreparationInternalV1;
+              const prepared = replacementBinding.prepare(
+                finalized,
+                "replace_replay_base",
+                authoritativeReplacementOwner,
+                preparation,
+              );
+              preparedReplacement = preparedReplacementControlInternalV1(prepared);
+              if (
+                preparedReplacement.status !== "prepared" ||
+                preparedReplacement.owner !== authoritativeReplacementOwner ||
+                preparedReplacement.preparation !== preparation
+              ) {
+                throw new TypeError("reused authoritative replacement token");
+              }
+              if (preparedReplacement.migrationReceipt !== null) {
+                throw new TypeError("debug replacement cannot install a migration receipt");
+              }
+            } catch (error) {
+              if (isHmrInvalidated()) return hmrInvalidatedV1;
+              const normalized = normalizePrepareFailure(error);
+              return isHmrInvalidated() ? hmrInvalidatedV1 : normalized;
+            }
+          } else {
+            const preparedSession = prepareDebugReplacementV1();
+            finalized = preparedSession.finalized;
+            preparedCommandLogAnchor = preparedSession.preparedCommandLogAnchor;
+            prepareReplacementCommit?.(finalized);
+          }
+          if (isHmrInvalidated()) return hmrInvalidatedV1;
+          if (preparedReplacement !== null) {
+            preparedReplacement.status = "committing";
+            preparedReplacement.commit();
+            preparedReplacement.status = "committed";
+          }
           commandLog.establishPreparedAnchor(preparedCommandLogAnchor);
           snapshot = finalized;
           currentStateDigest = preparedCommandLogAnchor.stateDigest;
           installSnapshotDigestV1(runtimeControl, snapshot, currentStateDigest);
+          installedMigrationReceipt = null;
           stableStatus = "ready";
-          publish();
+          publishReplacementV1(preparedReplacement);
           return outcome.result;
         } catch (error) {
           if (isHmrInvalidated()) return hmrInvalidatedV1;

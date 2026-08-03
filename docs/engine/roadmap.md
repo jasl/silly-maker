@@ -70,8 +70,8 @@ workload 证据；仓库外私有实验只能提供匿名需求反馈，正式 p
    逐 command parity（PF-DET corrective promotion 已完成）；
 6. Save metadata floor 与 callback-free envelope/load order（M1）已完成，并与
    determinism 在 same-HEAD join 汇合；M2a exact registry、M2b bounded pure kernel 与
-   M2c staged load/import integration 已完成，下一步为 atomic receipt/anchor commit（M2d），
-   maintained owner/M2e 前仍无历史 Save migration 产品承诺；
+   M2c staged load/import integration 与 M2d atomic receipt/anchor commit 已完成，下一步为
+   maintained owner 与 four-runtime promotion（M2e）；M2e 前仍无历史 Save migration 产品承诺；
 7. System/Narrative/History/whole-canvas primary-detail 的逐 family migration；
 8. Save dry-run/backup/fixture corpus；
 9. Surface structural/model/browser harness 与作者 API promotion；

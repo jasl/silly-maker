@@ -90,9 +90,18 @@
   callback rejection/invalid output maps to `migration_rejected`, while callback
   throws remain faulted. List, stored export, and annotation never execute a
   migrator and preserve their inspection/source-byte behavior. Low-level success
-  carries a receipt, but Session receipt lifecycle and real maintained migration
-  ownership remain pending M2d/M2e, so this is not yet a released historical-Save
-  compatibility promise.
+  carries a receipt; a migrated replacement installs it as Session-owned,
+  non-durable provenance in the same package-internal prepared commit that
+  re-anchors Persistence/autosave and CommandLog before Session publication.
+  Ordinary commands, Save capture, and log eviction retain it; current/restart/
+  debug/rollback anchors clear it; failed operations retain the prior exact
+  receipt. The composite guarantee applies to the standard package-owned
+  Session/Core/Persistence composition and transparent wrappers that retain its
+  exact outcome or prepare callback; opaque custom runtime controls retain only
+  the legacy current-revision path, as do callers that explicitly choose the
+  legacy replacement-prepare callback; migrated replacement fails closed.
+  Real maintained migration ownership remains pending M2e, so this is not yet a
+  released historical-Save compatibility promise.
 - Story, state-contract, engine, simulation, and patch-lineage compatibility information.
 - Validated managed adoption for compatible simulation changes.
 - Atomic record revisions, session lease/fencing, and HMR persistence handoff on conforming Host stores; browser IndexedDB is the production implementation, while the current desktop file backend is explicitly preview until its batch durability gate passes.
@@ -160,11 +169,13 @@
 The engine does not currently provide a backend/account service, networked multiplayer authority, runtime LLM, ECS, SQL query layer, or a general-purpose database client for UI. These are descriptions of the present implementation, not permanent bans.
 
 Save migration has exact registry authoring contracts, a bounded
-package-internal pure callback kernel, and staged load/import integration for an
-application-provided exact chain. No maintained application publishes a real
-migration owner, and Session-owned replacement provenance is not yet installed;
-atomic receipt/anchor commit, cross-runtime promotion, release fixtures, and
-player inspection/backup workflows remain planned.
+package-internal pure callback kernel, staged load/import integration for an
+application-provided exact chain, and atomic Session/Persistence/CommandLog/
+autosave replacement with Session-owned non-durable provenance. No maintained
+application publishes a real migration owner. Opaque low-level custom runtime
+controls and explicit legacy prepare-callback callers are outside the composite
+migration guarantee; cross-runtime promotion, release fixtures, and player
+inspection/backup workflows remain planned.
 
 The script-language decision is durable: Story, Module, Narrative, UI, and official Hotfix code use TypeScript/JavaScript. SillyMaker does not plan Ren'Py DSL/Save compatibility, a custom script interpreter, or an untrusted-code security sandbox. Direct Host-global access remains possible JavaScript but is outside the supported engine API.
 

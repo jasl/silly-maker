@@ -9,7 +9,8 @@ re-promotion 现已完成，aggregate PF-DET corrective gate 再次关闭；2026
 time-boundary clarification 只闭合 C3 metadata scope，不改变 B-prime 或 C2。callback-free
 Save M1 与 DET-B same-HEAD join 已于 2026-08-03 完成；M2 已冻结为 State-only 的
 M2a–M2e；M2a exact registry/Core-admission floor、M2b bounded pure execution kernel 与
-M2c staged Persistence integration 已 promotion，linear core下一独立切片为 M2d。
+M2c staged Persistence integration 与 M2d atomic replacement 已 promotion，linear core下一独立
+切片为 M2e。
 旧 promotion 数字保留为
 历史证据。本文是当前唯一的跨计划排序入口；
 具体合同仍由各 design 文档拥有，主要任务由五个独立计划拥有：
@@ -814,6 +815,18 @@ Session receipt lifecycle/composite no-throw commit仍归 M2d，maintained owner
 `229/3405`；latest-stable Deno `2.9.4`上的 typecheck、determinism guard与
 `deno task check`全绿，browser matrix按合同保留给 M2e。linear core下一独立切片为 `M2d`。
 
+**2026-08-03 Save M2d promotion：** package-owned Session/Core/Persistence现通过一次性 exact
+outcome/prepare-callback participant执行 prepare/no-throw commit；Persistence/autosave、CommandLog、
+Session Snapshot/digest/status与 Session-owned migration receipt在 listener publication前全部安装。
+预分配 Session-bound context只在 publication窗口提供 Core origin，之后才调用 observational
+replacement callback并安排 autosave post-commit。receipt lifecycle、failed exact preservation、
+cross-owner/reuse/HMR/fence/epoch failures、migration+adoption组合、zero-entry replay与 next ordinal
+均由确定性测试锁定；opaque control与显式 legacy callback的 current-revision escape不冒充
+composite guarantee。公开 Save/replay/debug wire、canonical/digest与 barrel API不变。focused为
+`5/282`、affected Base + UI为 `142/1691`、full unit为 `229/3435`；latest-stable Deno `2.9.4`
+上的 typecheck、determinism guard、Story checks、Engine Lab build与 `deno task check`全绿。四
+runtime/real owner仍归 M2e，linear core下一独立切片为 `M2e`。
+
 ### PF3 — Save envelope and migration registry
 
 执行 [Save migration plan](2026-07-30-save-migration.md) 的分段 gate：
@@ -842,7 +855,7 @@ Session receipt lifecycle/composite no-throw commit仍归 M2d，maintained owner
 5. 只有该 join 通过，**M2** 才按 M2a contracts/factory、M2b pure kernel、M2c staged
    integration、M2d atomic anchor、M2e real determinism promotion依次建立
    namespace-keyed adjacent-revision executable State migration；migration 与 same-schema
-   adoption 保持不同语义。M2a/M2b/M2c 已关闭，当前下一独立切片为 M2d。
+   adoption 保持不同语义。M2a/M2b/M2c/M2d 已关闭，当前下一独立切片为 M2e。
 
 M2 只治理 `formatRevision: 1` 中的 aggregate State：它安装 non-durable
 replacement-origin receipt，但不写回 source Save。Envelope format migration、产品

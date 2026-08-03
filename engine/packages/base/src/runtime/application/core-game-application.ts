@@ -59,6 +59,7 @@ import {
   createRuntimeFailureReporterV1,
 } from "../diagnostics/runtime-failures.ts";
 import type {
+  AuthoritativeReplacementPublicationContextInternalV1,
   AuthoritativeOutcomeV1,
   GameSessionDebugAnchorV1,
   GameSessionCompositionV1,
@@ -68,7 +69,11 @@ import type {
   GameSessionRuntimeControlV1,
   GameSessionV1,
 } from "../session/game-session.ts";
-import { createCoreGameSessionInternalV1 } from "../session/game-session.ts";
+import {
+  createAuthoritativeReplacementPublicationContextInternalV1,
+  createCoreGameSessionInternalV1,
+  readActiveAuthoritativeReplacementPublicationContextInternalV1,
+} from "../session/game-session.ts";
 import type {
   CreateStandardPersistenceServiceOptionsV1,
   PersistenceRebootstrapDisposalV1,
@@ -76,6 +81,7 @@ import type {
   SaveSummaryProjectionInstrumentationInternalV1,
 } from "../persistence/persistence-service.ts";
 import {
+  bindPersistenceAnchorReplacementInternalV1,
   captureAutoSaveWithReceiptInternalV1,
   createInstrumentedPersistenceServiceV1,
   createPersistenceServiceV1,
@@ -1133,6 +1139,7 @@ export async function createCoreGameApplicationInstanceV1<
       );
     },
   });
+  let persistenceService: PersistenceServiceV1<TTypes["snapshot"]> | undefined;
   const validatedDebugControl: GameSessionDebugControlV1<TTypes> = Object.freeze({
     ...created.debugControl,
     anchorReplacement<TAnchorResult>(
@@ -1159,7 +1166,24 @@ export async function createCoreGameApplicationInstanceV1<
           if (outcome.kind !== "replace") return outcome;
           try {
             validateSnapshotRngV1(outcome.snapshot as DeepReadonly<TTypes["snapshot"]>);
-            return outcome;
+            if (prepareReplacementCommit !== undefined) return outcome;
+            const persistence = persistenceService;
+            if (persistence === undefined) {
+              throw new TypeError("Core Persistence is unavailable for a debug replacement");
+            }
+            const replacement = Object.freeze({
+              kind: outcome.kind,
+              snapshot: outcome.snapshot,
+              result: outcome.result,
+            });
+            bindPersistenceAnchorReplacementInternalV1(
+              persistence,
+              replacement,
+              persistence.getSimulationLineage(),
+              () => undefined,
+              normalizeUnexpectedFault,
+            );
+            return replacement;
           } catch (error) {
             if (!(error instanceof RngStateSchemaFailureInternalV1)) throw error;
             if (created.session.getStatus() === "hmr_invalidated") throw error;
@@ -1185,11 +1209,14 @@ export async function createCoreGameApplicationInstanceV1<
 
   let disposed = false;
   const cleanups: (() => void)[] = [];
-  let persistenceService: PersistenceServiceV1<TTypes["snapshot"]> | undefined;
-  interface PendingPresentationOriginV1 {
+  const presentationOriginsByPublicationContext = new WeakMap<
+    object,
+    CorePresentationAnchorOriginV1
+  >();
+  interface PendingLegacyPresentationOriginV1 {
     readonly origin: CorePresentationAnchorOriginV1;
   }
-  let pendingPresentationOrigin: PendingPresentationOriginV1 | undefined;
+  let pendingLegacyPresentationOrigin: PendingLegacyPresentationOriginV1 | undefined;
 
   try {
     const stateOfSnapshotV1 = (
@@ -1320,8 +1347,16 @@ export async function createCoreGameApplicationInstanceV1<
         if (replayBase === lastReplayBase) return;
         lastReplayBase = replayBase;
         epoch = parseNonNegativeSafeInteger(epoch + 1);
-        origin = pendingPresentationOrigin?.origin ?? "replacement";
-        pendingPresentationOrigin = undefined;
+        const publicationContext = readActiveAuthoritativeReplacementPublicationContextInternalV1(
+          created.runtimeControl,
+        );
+        if (publicationContext === null) {
+          origin = pendingLegacyPresentationOrigin?.origin ?? "replacement";
+        } else {
+          origin = presentationOriginsByPublicationContext.get(publicationContext) ?? "replacement";
+          presentationOriginsByPublicationContext.delete(publicationContext);
+        }
+        pendingLegacyPresentationOrigin = undefined;
         // A debounce candidate belongs to the replay base that produced it.
         // Never let an old-base timer write back over a load/import/restart/
         // rollback replacement.
@@ -1467,16 +1502,29 @@ export async function createCoreGameApplicationInstanceV1<
 
     const withOriginV1 = async <TOperationResult>(
       nextOrigin: CorePresentationAnchorOriginV1,
-      operation: (onReplacementCommit: () => void) => Promise<TOperationResult>,
+      operation: (
+        onReplacementCommit: () => void,
+        publicationContext: AuthoritativeReplacementPublicationContextInternalV1,
+      ) => Promise<TOperationResult>,
     ): Promise<TOperationResult> => {
+      const publicationContext = createAuthoritativeReplacementPublicationContextInternalV1(
+        created.runtimeControl,
+      );
       const operationOrigin = Object.freeze({ origin: nextOrigin });
+      presentationOriginsByPublicationContext.set(publicationContext, nextOrigin);
       try {
-        return await operation(() => {
-          pendingPresentationOrigin = operationOrigin;
-        });
+        return await operation(
+          () => {
+            if (presentationOriginsByPublicationContext.delete(publicationContext)) {
+              pendingLegacyPresentationOrigin = operationOrigin;
+            }
+          },
+          publicationContext,
+        );
       } finally {
-        if (pendingPresentationOrigin === operationOrigin) {
-          pendingPresentationOrigin = undefined;
+        presentationOriginsByPublicationContext.delete(publicationContext);
+        if (pendingLegacyPresentationOrigin === operationOrigin) {
+          pendingLegacyPresentationOrigin = undefined;
         }
       }
     };
@@ -1486,14 +1534,24 @@ export async function createCoreGameApplicationInstanceV1<
       load: (slot: Parameters<typeof persistence.port.load>[0]) =>
         withOriginV1(
           "load",
-          (onReplacementCommit) =>
-            loadWithReplacementCommitInternalV1(persistence, slot, onReplacementCommit),
+          (onReplacementCommit, publicationContext) =>
+            loadWithReplacementCommitInternalV1(
+              persistence,
+              slot,
+              onReplacementCommit,
+              publicationContext,
+            ),
         ),
       importSave: (bytes: Uint8Array) =>
         withOriginV1(
           "import",
-          (onReplacementCommit) =>
-            importWithReplacementCommitInternalV1(persistence, bytes, onReplacementCommit),
+          (onReplacementCommit, publicationContext) =>
+            importWithReplacementCommitInternalV1(
+              persistence,
+              bytes,
+              onReplacementCommit,
+              publicationContext,
+            ),
         ),
     });
 
@@ -1559,11 +1617,11 @@ export async function createCoreGameApplicationInstanceV1<
     const restartV1 = (): Promise<SessionAnchorResultV1> =>
       withOriginV1(
         "restart",
-        (onReplacementCommit) =>
+        (onReplacementCommit, publicationContext) =>
           created.runtimeControl.enqueueAuthoritative<SessionAnchorResultV1>(
             async () => {
               const snapshot = createInitialSnapshotV1();
-              return Object.freeze({
+              const outcome = Object.freeze({
                 kind: "replace" as const,
                 snapshot,
                 result: Object.freeze({
@@ -1572,16 +1630,26 @@ export async function createCoreGameApplicationInstanceV1<
                 }),
                 anchor: "replace_replay_base" as const,
               });
+              bindPersistenceAnchorReplacementInternalV1(
+                persistence,
+                outcome,
+                [],
+                onReplacementCommit,
+                () =>
+                  Object.freeze({
+                    kind: "faulted" as const,
+                    code: "runtime.anchor_failed" as const,
+                  }),
+                publicationContext,
+              );
+              return outcome;
             },
             () =>
               Object.freeze({
                 kind: "faulted" as const,
                 code: "runtime.anchor_failed" as const,
               }),
-            (snapshot) => {
-              persistence.establishAnchor(snapshot, []);
-              onReplacementCommit();
-            },
+            undefined,
             () =>
               Object.freeze({
                 kind: "rejected" as const,
@@ -1691,10 +1759,10 @@ export async function createCoreGameApplicationInstanceV1<
         try {
           const anchored = await withOriginV1(
             "rollback",
-            (onReplacementCommit) =>
+            (onReplacementCommit, publicationContext) =>
               created.runtimeControl.enqueueAuthoritative<SessionAnchorResultV1>(
-                async () =>
-                  Object.freeze({
+                async () => {
+                  const outcome = Object.freeze({
                     kind: "replace" as const,
                     snapshot: target.snapshot as TTypes["snapshot"],
                     result: Object.freeze({
@@ -1702,16 +1770,27 @@ export async function createCoreGameApplicationInstanceV1<
                       commandSequence: target.commandSequence,
                     }),
                     anchor: "replace_replay_base" as const,
-                  }),
+                  });
+                  bindPersistenceAnchorReplacementInternalV1(
+                    persistence,
+                    outcome,
+                    [],
+                    onReplacementCommit,
+                    () =>
+                      Object.freeze({
+                        kind: "faulted" as const,
+                        code: "runtime.anchor_failed" as const,
+                      }),
+                    publicationContext,
+                  );
+                  return outcome;
+                },
                 () =>
                   Object.freeze({
                     kind: "faulted" as const,
                     code: "runtime.anchor_failed" as const,
                   }),
-                (snapshot) => {
-                  persistence.establishAnchor(snapshot, []);
-                  onReplacementCommit();
-                },
+                undefined,
                 () =>
                   Object.freeze({
                     kind: "rejected" as const,

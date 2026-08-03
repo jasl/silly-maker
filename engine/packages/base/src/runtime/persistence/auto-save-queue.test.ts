@@ -2,10 +2,15 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  commitPreparedAutoSaveAnchorInternalV1,
+  createAutoSaveQueueInternalV1,
   createAutoSaveQueueV1,
   enqueueAutoSaveWithReceiptInternalV1,
   establishAutoSaveAnchorWithReceiptInternalV1,
+  prepareAutoSaveAnchorWithReceiptInternalV1,
+  runPreparedAutoSaveAnchorPostCommitInternalV1,
 } from "./auto-save-queue.ts";
+import { parseNonNegativeSafeInteger } from "../../contracts/values.ts";
 
 interface DeferredV1<T> {
   readonly promise: Promise<T>;
@@ -37,6 +42,157 @@ async function flushV1(): Promise<void> {
 }
 
 describe("Auto Save queue", () => {
+  it("prepares an anchor epoch and receipt without mutation, I/O, or publication", async () => {
+    const written: number[] = [];
+    const visible: Array<readonly [number, string]> = [];
+    const queue = createAutoSaveQueueV1<number, string>({
+      write(candidate) {
+        written.push(candidate);
+        return Promise.resolve(`saved:${candidate}`);
+      },
+      onCurrentResult(candidate, result) {
+        visible.push([candidate, result]);
+      },
+    });
+
+    const plan = prepareAutoSaveAnchorWithReceiptInternalV1<number, string>(queue, 7);
+
+    expect(queue.anchorEpoch()).toBe(0);
+    expect(queue.isIdle()).toBe(true);
+    expect(written).toEqual([]);
+    expect(visible).toEqual([]);
+    expect(() => commitPreparedAutoSaveAnchorInternalV1(plan.prepared)).not.toThrow();
+    expect(queue.anchorEpoch()).toBe(1);
+    expect(written).toEqual([]);
+    expect(visible).toEqual([]);
+    expect(() => runPreparedAutoSaveAnchorPostCommitInternalV1(plan.prepared)).not.toThrow();
+    await expect(plan.receipt).resolves.toEqual({ kind: "superseded" });
+    expect(written).toEqual([]);
+    expect(visible).toEqual([]);
+  });
+
+  it("fails epoch exhaustion during prepare without mutating queue state", () => {
+    const write = vi.fn((_candidate: number) => Promise.resolve("saved"));
+    const queue = createAutoSaveQueueInternalV1<number, string>(
+      { write },
+      { initialAnchorEpoch: parseNonNegativeSafeInteger(Number.MAX_SAFE_INTEGER) },
+    );
+
+    expect(() => prepareAutoSaveAnchorWithReceiptInternalV1(queue, 7)).toThrow(TypeError);
+    expect(queue.anchorEpoch()).toBe(Number.MAX_SAFE_INTEGER);
+    expect(queue.isIdle()).toBe(true);
+    expect(write).not.toHaveBeenCalled();
+  });
+
+  it("rejects fake, spread, stale, and reused prepared anchor tokens before mutation", () => {
+    const first = createAutoSaveQueueV1<number, string>({
+      write: (candidate) => Promise.resolve(`saved:${candidate}`),
+    });
+    const second = createAutoSaveQueueV1<number, string>({
+      write: (candidate) => Promise.resolve(`saved:${candidate}`),
+    });
+    const plan = prepareAutoSaveAnchorWithReceiptInternalV1<number, string>(first, 7);
+    const stale = prepareAutoSaveAnchorWithReceiptInternalV1<number, string>(first, 8);
+    const independent = prepareAutoSaveAnchorWithReceiptInternalV1<number, string>(second, 1);
+
+    expect(() => commitPreparedAutoSaveAnchorInternalV1({} as never)).toThrow(TypeError);
+    expect(() => commitPreparedAutoSaveAnchorInternalV1({ ...plan.prepared } as never)).toThrow(
+      TypeError,
+    );
+    expect(() => commitPreparedAutoSaveAnchorInternalV1(plan.prepared)).not.toThrow();
+    expect(() => commitPreparedAutoSaveAnchorInternalV1(stale.prepared)).toThrow(TypeError);
+    expect(() => commitPreparedAutoSaveAnchorInternalV1(plan.prepared)).toThrow(TypeError);
+    expect(first.anchorEpoch()).toBe(1);
+    expect(() => commitPreparedAutoSaveAnchorInternalV1(independent.prepared)).not.toThrow();
+    expect(second.anchorEpoch()).toBe(1);
+  });
+
+  it("defers pending settlement and repair I/O until prepared-anchor post-commit", async () => {
+    const running = deferredV1<string>();
+    const written: number[] = [];
+    const queue = createAutoSaveQueueV1<number, string>({
+      write(candidate) {
+        written.push(candidate);
+        return candidate === 1 ? running.promise : Promise.resolve(`saved:${candidate}`);
+      },
+    });
+    queue.enqueue(1);
+    let pendingSettled = false;
+    const pending = enqueueAutoSaveWithReceiptInternalV1<number, string>(queue, 2).then(
+      (receipt) => {
+        pendingSettled = true;
+        return receipt;
+      },
+    );
+    const plan = prepareAutoSaveAnchorWithReceiptInternalV1<number, string>(queue, 7);
+
+    commitPreparedAutoSaveAnchorInternalV1(plan.prepared);
+    await flushV1();
+    expect(written).toEqual([1]);
+    expect(pendingSettled).toBe(false);
+
+    runPreparedAutoSaveAnchorPostCommitInternalV1(plan.prepared);
+    await expect(pending).resolves.toEqual({ kind: "superseded" });
+    expect(written).toEqual([1]);
+
+    running.resolve("saved:1");
+    await expect(plan.receipt).resolves.toEqual({ kind: "fulfilled", result: "saved:7" });
+    await queue.idle();
+    expect(written).toEqual([1, 7]);
+  });
+
+  it("invalidates a prepared anchor created reentrantly by a settlement callback", async () => {
+    let prepared:
+      | ReturnType<typeof prepareAutoSaveAnchorWithReceiptInternalV1<number, string>>
+      | undefined;
+    let queue!: ReturnType<typeof createAutoSaveQueueV1<number, string>>;
+    queue = createAutoSaveQueueV1<number, string>({
+      write: (candidate) => Promise.resolve(`saved:${candidate}`),
+      onCurrentResult(candidate) {
+        if (candidate === 1) {
+          prepared = prepareAutoSaveAnchorWithReceiptInternalV1<number, string>(queue, 7);
+        }
+      },
+    });
+
+    queue.enqueue(1);
+    await queue.idle();
+    if (prepared === undefined) throw new TypeError("missing reentrant prepared anchor");
+    const reentrantPlan = prepared;
+    expect(() => commitPreparedAutoSaveAnchorInternalV1(reentrantPlan.prepared)).toThrow(TypeError);
+    expect(queue.anchorEpoch()).toBe(0);
+  });
+
+  it("does not start a displaced repair when the queue changes between commit and post-commit", async () => {
+    const latest = deferredV1<string>();
+    const written: number[] = [];
+    const queue = createAutoSaveQueueV1<number, string>({
+      write(candidate) {
+        written.push(candidate);
+        if (candidate === 0) return Promise.resolve("failed");
+        if (candidate === 9) return latest.promise;
+        return Promise.resolve(`saved:${candidate}`);
+      },
+      isSuccessfulResult: (result) => result !== "failed",
+    });
+    queue.enqueue(1);
+    queue.establishAnchor(0);
+    await flushV1();
+    await flushV1();
+    expect(written).toEqual([1, 0]);
+    expect(queue.isIdle()).toBe(false);
+
+    const plan = prepareAutoSaveAnchorWithReceiptInternalV1<number, string>(queue, 7);
+    commitPreparedAutoSaveAnchorInternalV1(plan.prepared);
+    queue.enqueue(9);
+    runPreparedAutoSaveAnchorPostCommitInternalV1(plan.prepared);
+
+    await expect(plan.receipt).resolves.toEqual({ kind: "superseded" });
+    expect(written).toEqual([1, 0, 9]);
+    latest.resolve("saved:9");
+    await queue.idle();
+    expect(written).toEqual([1, 0, 9]);
+  });
   it("coalesces only candidates that have not started", async () => {
     const first = deferredV1<string>();
     const written: number[] = [];

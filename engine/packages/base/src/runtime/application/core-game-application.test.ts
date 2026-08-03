@@ -886,11 +886,6 @@ function debugDefinitionFixtureV1() {
             }),
           () => context.capabilityState.getCurrent().debugTools,
           () => Object.freeze({ kind: "faulted" as const }),
-          (prepared) =>
-            context.persistence.establishAnchor(
-              prepared,
-              context.persistence.getSimulationLineage(),
-            ),
         );
       return Object.freeze({
         extensions: Object.freeze({
@@ -4706,6 +4701,47 @@ describe("createCoreGameApplicationInstanceV1", () => {
 
     unsubscribe();
     await instance.dispose();
+  });
+
+  it("does not leak a tagged replacement origin into the next generic queue entry", async () => {
+    const fixture = bootstrapCharacterizationFixtureV1();
+    const instance = await createCoreGameApplicationInstanceV1(fixture.application, {
+      host: hostServicesV1(createMemoryHostRecordStoreV1(), [91]),
+    });
+    try {
+      const context = fixture.extensionContext();
+      if (context === undefined) throw new TypeError("extension context missing");
+      await expect(instance.persistence.save("manual.1")).resolves.toMatchObject({
+        kind: "saved",
+      });
+      await instance.semantic.dispatch(incrementV1);
+      const anchors: unknown[] = [];
+      const unsubscribe = instance.subscribePresentationAnchor((anchor) => anchors.push(anchor));
+
+      const load = instance.persistence.load("manual.1");
+      const generic = context.runtimeControl.enqueueAuthoritative(
+        async (current) =>
+          Object.freeze({
+            kind: "replace" as const,
+            snapshot: Object.freeze({ ...current }),
+            result: "generic_anchored" as const,
+            anchor: "replace_replay_base" as const,
+          }),
+        () => "outer_fault" as const,
+      );
+      await expect(Promise.all([load, generic])).resolves.toEqual([
+        { kind: "loaded", compatibility: "exact", commandSequence: 0 },
+        "generic_anchored",
+      ]);
+      expect(anchors).toEqual([
+        { epoch: 1, origin: "load" },
+        { epoch: 2, origin: "replacement" },
+      ]);
+
+      unsubscribe();
+    } finally {
+      await instance.dispose();
+    }
   });
 
   it("verifies the debounced autosave policy with a deterministic scheduler", async () => {

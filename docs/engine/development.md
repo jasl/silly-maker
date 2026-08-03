@@ -460,7 +460,14 @@ synchronous, deterministic, State-only, and inside the registered authoritative
 source closure. Focused tests should assert exact callback counts,
 whole-Snapshot digest/receipt identity, and zero mutation/write on every failure.
 These are deterministic package-internal counts, not wall-clock gates. Session
-receipt lifecycle and the composite M2d commit protocol are not implemented yet.
+receipt lifecycle and the composite M2d commit protocol are implemented through
+direct-module internal seams: Story code does not read/install receipts or join
+replacement participants. Package-owned controls and transparent wrappers must
+preserve the exact replacement outcome or exact prepare callback; a custom
+low-level control that strips both keeps only the legacy current-revision path
+and cannot install a migrated candidate. Supplying the legacy replacement-
+prepare callback explicitly selects that same non-composite escape hatch. A real
+maintained registry and its four-runtime promotion remain M2e work.
 
 Strict JSON numeric regression tests use exact decimal token vectors rather
 than wall-clock timing: rounded fractions, safe boundaries, negative-zero

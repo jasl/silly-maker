@@ -514,6 +514,28 @@ export { establishAutoSaveAnchorWithReceiptInternalV1 } from "@sillymaker/base/r
 export type { PersistenceAutoSaveAttemptReceiptInternalV1 } from "@sillymaker/base/runtime";
 // @ts-expect-error exact persistence autosave capture stays package-internal
 export { captureAutoSaveWithReceiptInternalV1 } from "@sillymaker/base/runtime";
+// @ts-expect-error prepared autosave anchors stay package-internal
+export { prepareAutoSaveAnchorWithReceiptInternalV1 } from "@sillymaker/base/runtime";
+// @ts-expect-error prepared autosave commit stays package-internal
+export { commitPreparedAutoSaveAnchorInternalV1 } from "@sillymaker/base/runtime";
+// @ts-expect-error prepared autosave post-commit stays package-internal
+export { runPreparedAutoSaveAnchorPostCommitInternalV1 } from "@sillymaker/base/runtime";
+// @ts-expect-error Session migration receipts have no public accessor
+export { readInstalledSaveStateMigrationReceiptInternalV1 } from "@sillymaker/base/runtime";
+// @ts-expect-error authoritative replacement binding stays package-internal
+export { bindAuthoritativeReplacementCommitInternalV1 } from "@sillymaker/base/runtime";
+// @ts-expect-error authoritative replacement callback carriers stay package-internal
+export { bindAuthoritativeReplacementPrepareCallbackInternalV1 } from "@sillymaker/base/runtime";
+// @ts-expect-error prepared authoritative replacement tokens stay package-internal
+export { createPreparedAuthoritativeReplacementCommitInternalV1 } from "@sillymaker/base/runtime";
+// @ts-expect-error replacement publication contexts stay package-internal
+export type { AuthoritativeReplacementPublicationContextInternalV1 } from "@sillymaker/base/runtime";
+// @ts-expect-error replacement publication context creation stays package-internal
+export { createAuthoritativeReplacementPublicationContextInternalV1 } from "@sillymaker/base/runtime";
+// @ts-expect-error active replacement publication context reads stay package-internal
+export { readActiveAuthoritativeReplacementPublicationContextInternalV1 } from "@sillymaker/base/runtime";
+// @ts-expect-error Persistence anchor participants stay package-internal
+export { bindPersistenceAnchorReplacementInternalV1 } from "@sillymaker/base/runtime";
 // @ts-expect-error player-persistence close fencing stays package-internal
 export { fencePersistencePlayerMutationsInternalV1 } from "@sillymaker/base/runtime";
 // @ts-expect-error save maintenance authority stays out of the ordinary Base barrel

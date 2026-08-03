@@ -49,6 +49,7 @@ import { createGameSessionV1 } from "../session/game-session.ts";
 import { classifySaveCompatibilityV1 } from "./compatibility.ts";
 import { decodeSaveRecordV1, encodeSaveRecordV1 } from "./save-codec.ts";
 import {
+  bindPersistenceAnchorReplacementInternalV1,
   captureAutoSaveWithReceiptInternalV1,
   createInstrumentedPersistenceServiceV1,
   createPersistenceServiceV1,
@@ -395,32 +396,6 @@ function createSessionV1(initial: SyntheticSnapshotV1) {
   });
 }
 
-function failReplacementCommitV1(
-  control: GameSessionRuntimeControlV1<SyntheticSnapshotV1>,
-): GameSessionRuntimeControlV1<SyntheticSnapshotV1> {
-  return Object.freeze({
-    ...control,
-    enqueueAuthoritative<TResult>(
-      operation: (
-        current: DeepReadonly<SyntheticSnapshotV1>,
-      ) => Promise<AuthoritativeOutcomeV1<SyntheticSnapshotV1, TResult>>,
-      normalizeUnexpectedFault: (error: unknown) => TResult,
-      prepareReplacementCommit?: (
-        snapshot: DeepReadonly<SyntheticSnapshotV1>,
-        anchor: "preserve_log" | "replace_replay_base",
-      ) => void,
-    ): Promise<TResult> {
-      return control.enqueueAuthoritative(
-        operation,
-        normalizeUnexpectedFault,
-        prepareReplacementCommit === undefined ? undefined : () => {
-          throw new Error("replacement callback failed");
-        },
-      );
-    },
-  });
-}
-
 interface FixtureOptionsV1 {
   readonly collectVersionStamp?: () => VersionStampV1;
   readonly records?: HostAtomicRecordStoreV1;
@@ -431,7 +406,9 @@ interface FixtureOptionsV1 {
   readonly provenance?: BuildProvenanceV1;
   readonly adoptionDeclaration?: PatchSetAdoptionDeclarationV1 | null;
   readonly initialLineage?: readonly SimulationAdoptionV1[];
-  readonly failReplacementCommit?: boolean;
+  decorateRuntimeControl?(
+    runtimeControl: GameSessionRuntimeControlV1<SyntheticSnapshotV1>,
+  ): GameSessionRuntimeControlV1<SyntheticSnapshotV1>;
   summarizeSave?(state: DeepReadonly<SyntheticStateV1>): readonly string[] | null;
   decorateRepository?(
     repository: SaveRepositoryV1<SyntheticSaveRecordV1>,
@@ -439,6 +416,54 @@ interface FixtureOptionsV1 {
     records: HostAtomicRecordStoreV1,
   ): SaveRepositoryV1<SyntheticSaveRecordV1>;
   decorateLease?(lease: SessionLeaseV1, records: HostAtomicRecordStoreV1): SessionLeaseV1;
+}
+
+function wrapRuntimeControlV1<TSnapshot>(
+  delegate: GameSessionRuntimeControlV1<TSnapshot>,
+  cloneReplacementOutcome = false,
+  cloneReplacementResult = false,
+  wrapPrepareCallback = false,
+): GameSessionRuntimeControlV1<TSnapshot> {
+  return Object.freeze({
+    enqueueAuthoritative<TResult>(
+      operation: (
+        current: DeepReadonly<TSnapshot>,
+      ) => Promise<AuthoritativeOutcomeV1<TSnapshot, TResult>>,
+      normalizeUnexpectedFault: (error: unknown) => TResult,
+      prepareReplacementCommit?: (
+        snapshot: DeepReadonly<TSnapshot>,
+        anchor: "preserve_log" | "replace_replay_base",
+      ) => void,
+      whenHmrInvalidated?: () => TResult,
+    ) {
+      return delegate.enqueueAuthoritative(
+        async (current) => {
+          const outcome = await operation(current);
+          return cloneReplacementOutcome && outcome.kind === "replace"
+            ? Object.freeze({
+              ...outcome,
+              result: cloneReplacementResult &&
+                  typeof outcome.result === "object" &&
+                  outcome.result !== null
+                ? Object.freeze({ ...outcome.result })
+                : outcome.result,
+            })
+            : outcome;
+        },
+        normalizeUnexpectedFault,
+        wrapPrepareCallback && prepareReplacementCommit !== undefined
+          ? (snapshot, anchor) => prepareReplacementCommit(snapshot, anchor)
+          : prepareReplacementCommit,
+        whenHmrInvalidated,
+      );
+    },
+    readAtQueueFront<TResult>(reader: (snapshot: DeepReadonly<TSnapshot>) => TResult) {
+      return delegate.readAtQueueFront(reader);
+    },
+    inspectForRuntime: () => delegate.inspectForRuntime(),
+    subscribeCommittedSnapshots: (listener: (snapshot: DeepReadonly<TSnapshot>) => void) =>
+      delegate.subscribeCommittedSnapshots(listener),
+  });
 }
 
 async function fixtureV1(options: FixtureOptionsV1 = {}) {
@@ -486,9 +511,8 @@ async function fixtureV1(options: FixtureOptionsV1 = {}) {
     now: () => "2026-07-14T12:00:00.000Z" as IsoUtcInstant,
   });
   const service = await createPersistenceServiceV1({
-    runtimeControl: options.failReplacementCommit === true
-      ? failReplacementCommitV1(created.runtimeControl)
-      : created.runtimeControl,
+    runtimeControl: options.decorateRuntimeControl?.(created.runtimeControl) ??
+      created.runtimeControl,
     repository,
     lease: serviceLease,
     validation,
@@ -2321,8 +2345,19 @@ describe("PersistenceServiceV1", () => {
     expect(fixture.commandLog.entries()).toBe(entriesBefore);
   });
 
-  it("preserves the CommandLog anchor when the replacement callback fails", async () => {
-    const fixture = await fixtureV1({ failReplacementCommit: true });
+  it("preserves every authority when Persistence replacement prepare fails", async () => {
+    let failPrepare = false;
+    const fixture = await fixtureV1({
+      decorateLease(lease) {
+        return Object.freeze({
+          ...lease,
+          captureFence() {
+            if (failPrepare) throw new Error("synthetic replacement prepare failure");
+            return lease.captureFence();
+          },
+        });
+      },
+    });
     await expect(fixture.session.dispatch({ kind: "increment" })).resolves.toMatchObject({
       kind: "executed",
       execution: { kind: "committed" },
@@ -2331,8 +2366,10 @@ describe("PersistenceServiceV1", () => {
     const snapshotBefore = fixture.session.getCurrentSnapshot();
     const replayBaseBefore = fixture.commandLog.replayBase();
     const entriesBefore = fixture.commandLog.entries();
+    const lineageBefore = fixture.service.getSimulationLineage();
     expect(entriesBefore).toHaveLength(1);
     const replacement = recordV1({ snapshot: snapshotV1(9) });
+    failPrepare = true;
 
     await expect(
       fixture.service.port.importSave(encodeSaveRecordV1(replacement, codecV1)),
@@ -2341,6 +2378,225 @@ describe("PersistenceServiceV1", () => {
     expect(fixture.session.getCurrentSnapshot()).toBe(snapshotBefore);
     expect(fixture.commandLog.replayBase()).toBe(replayBaseBefore);
     expect(fixture.commandLog.entries()).toBe(entriesBefore);
+    expect(fixture.service.getSimulationLineage()).toBe(lineageBefore);
+    expect(fixture.session.getStatus()).toBe("ready");
+  });
+
+  it("fails prepare when lease capture reentrantly fences Persistence", async () => {
+    let reentrantFence: (() => void) | undefined;
+    const fixture = await fixtureV1({
+      decorateLease(lease) {
+        return Object.freeze({
+          ...lease,
+          captureFence() {
+            reentrantFence?.();
+            return lease.captureFence();
+          },
+        });
+      },
+    });
+    await fixture.session.dispatch({ kind: "increment" });
+    const snapshotBefore = fixture.session.getCurrentSnapshot();
+    const replayBaseBefore = fixture.commandLog.replayBase();
+    const entriesBefore = fixture.commandLog.entries();
+    const lineageBefore = fixture.service.getSimulationLineage();
+    reentrantFence = () => fencePersistencePlayerMutationsInternalV1(fixture.service);
+
+    await expect(
+      fixture.service.port.importSave(
+        encodeSaveRecordV1(recordV1({ snapshot: snapshotV1(9) }), codecV1),
+      ),
+    ).resolves.toEqual({ kind: "faulted", code: "persistence.unexpected" });
+    expect(fixture.session.getCurrentSnapshot()).toBe(snapshotBefore);
+    expect(fixture.commandLog.replayBase()).toBe(replayBaseBefore);
+    expect(fixture.commandLog.entries()).toBe(entriesBefore);
+    expect(fixture.service.getSimulationLineage()).toBe(lineageBefore);
+    expect(fixture.session.getStatus()).toBe("ready");
+  });
+
+  it("rejects a Persistence participant on a different Session before mutation", async () => {
+    const first = await fixtureV1();
+    const second = await fixtureV1();
+    const outcome = Object.freeze({
+      kind: "replace" as const,
+      snapshot: snapshotV1(9),
+      result: "anchored" as const,
+      anchor: "replace_replay_base" as const,
+    });
+    let replacementCommits = 0;
+    bindPersistenceAnchorReplacementInternalV1(
+      first.service,
+      outcome,
+      [],
+      () => {
+        replacementCommits += 1;
+      },
+      () => "prepare_failed" as const,
+    );
+    const firstBefore = first.session.getCurrentSnapshot();
+    const secondBefore = second.session.getCurrentSnapshot();
+
+    await expect(
+      second.runtimeControl.enqueueAuthoritative(
+        async () => outcome,
+        () => "faulted" as const,
+      ),
+    ).resolves.toBe("prepare_failed");
+    expect(first.session.getCurrentSnapshot()).toBe(firstBefore);
+    expect(second.session.getCurrentSnapshot()).toBe(secondBefore);
+    expect(first.session.getStatus()).toBe("ready");
+    expect(second.session.getStatus()).toBe("ready");
+    expect(replacementCommits).toBe(0);
+
+    const retryOutcome = Object.freeze({ ...outcome });
+    bindPersistenceAnchorReplacementInternalV1(
+      first.service,
+      retryOutcome,
+      [],
+      () => {
+        replacementCommits += 1;
+      },
+      () => "prepare_failed" as const,
+    );
+    await expect(
+      first.runtimeControl.enqueueAuthoritative(
+        async () => retryOutcome,
+        () => "faulted" as const,
+      ),
+    ).resolves.toBe("anchored");
+    expect(first.session.getCurrentSnapshot().state.count).toBe(9);
+    expect(second.session.getCurrentSnapshot()).toBe(secondBefore);
+    expect(replacementCommits).toBe(1);
+  });
+
+  it("preserves a prior Persistence failure across a package-owned non-load anchor", async () => {
+    let verificationUnavailable = false;
+    const fixture = await fixtureV1({
+      decorateRepository(repository) {
+        return Object.freeze({
+          ...repository,
+          async read(slotId: Parameters<typeof repository.read>[0]) {
+            if (verificationUnavailable) {
+              return Object.freeze({
+                health: "unavailable" as const,
+                slotId,
+                hostRevision: null,
+                record: null,
+                code: "indexeddb.quota_exceeded",
+              });
+            }
+            return repository.read(slotId);
+          },
+          async writePlayer(
+            slotId: Parameters<typeof repository.writePlayer>[0],
+            record: Parameters<typeof repository.writePlayer>[1],
+            fence: Parameters<typeof repository.writePlayer>[2],
+          ) {
+            const result = await repository.writePlayer(slotId, record, fence);
+            verificationUnavailable = true;
+            return result;
+          },
+        });
+      },
+    });
+    await expect(fixture.service.port.save("quick")).resolves.toEqual({
+      kind: "rejected",
+      code: "unavailable",
+    });
+    await expect(fixture.service.port.getStatus()).resolves.toMatchObject({
+      lastFailureCode: "indexeddb.quota_exceeded",
+    });
+    const outcome = Object.freeze({
+      kind: "replace" as const,
+      snapshot: snapshotV1(9),
+      result: "anchored" as const,
+      anchor: "replace_replay_base" as const,
+    });
+    bindPersistenceAnchorReplacementInternalV1(
+      fixture.service,
+      outcome,
+      Object.freeze([]),
+      () => undefined,
+      () => "prepare_failed" as const,
+    );
+
+    await expect(
+      fixture.runtimeControl.enqueueAuthoritative(
+        async () => outcome,
+        () => "outer_fault" as const,
+      ),
+    ).resolves.toBe("anchored");
+    await expect(fixture.service.port.getStatus()).resolves.toMatchObject({
+      lastFailureCode: "indexeddb.quota_exceeded",
+    });
+    expect(fixture.session.getStatus()).toBe("ready");
+  });
+
+  it("preserves atomic replacement through a fully delegated runtime control", async () => {
+    const fixture = await fixtureV1({
+      decorateRuntimeControl: (runtimeControl) => wrapRuntimeControlV1(runtimeControl),
+    });
+    const replacement = recordV1({ snapshot: snapshotV1(9) });
+
+    await expect(
+      fixture.service.port.importSave(encodeSaveRecordV1(replacement, codecV1)),
+    ).resolves.toMatchObject({ kind: "imported", compatibility: "exact" });
+    expect(fixture.session.getCurrentSnapshot().state.count).toBe(9);
+    expect(fixture.service.getSimulationLineage()).toEqual([]);
+    expect(fixture.session.getStatus()).toBe("ready");
+  });
+
+  it("rejects a mixed-owner runtime wrapper before either Session mutates", async () => {
+    const foreign = createSessionV1(snapshotV1(40));
+    let localControl: GameSessionRuntimeControlV1<SyntheticSnapshotV1> | undefined;
+    const foreignBefore = foreign.session.getCurrentSnapshot();
+
+    await expect(
+      fixtureV1({
+        decorateRuntimeControl(runtimeControl) {
+          localControl = runtimeControl;
+          return Object.freeze({
+            ...runtimeControl,
+            enqueueAuthoritative: foreign.runtimeControl.enqueueAuthoritative,
+          });
+        },
+      }),
+    ).rejects.toThrow("runtime control resolves multiple authoritative Session owners");
+    expect(localControl?.inspectForRuntime().snapshot.state.count).toBe(0);
+    expect(foreign.session.getCurrentSnapshot()).toBe(foreignBefore);
+    expect(foreign.session.getStatus()).toBe("ready");
+  });
+
+  it("retains the atomic participant when a wrapper reconstructs outcome and result", async () => {
+    const initialLineage = lineageV1(1, provenanceV1().resolved.simulationDigest);
+    const fixture = await fixtureV1({
+      initialLineage,
+      decorateRuntimeControl: (runtimeControl) => wrapRuntimeControlV1(runtimeControl, true, true),
+    });
+    const replacement = recordV1({ snapshot: snapshotV1(9), lineage: Object.freeze([]) });
+
+    await expect(
+      fixture.service.port.importSave(encodeSaveRecordV1(replacement, codecV1)),
+    ).resolves.toMatchObject({ kind: "imported", compatibility: "exact" });
+    expect(fixture.session.getCurrentSnapshot().state.count).toBe(9);
+    expect(fixture.service.getSimulationLineage()).toEqual([]);
+    expect(fixture.session.getStatus()).toBe("ready");
+  });
+
+  it("retains the legacy current-revision path for an opaque custom runtime wrapper", async () => {
+    const initialLineage = lineageV1(1, provenanceV1().resolved.simulationDigest);
+    const fixture = await fixtureV1({
+      initialLineage,
+      decorateRuntimeControl: (runtimeControl) =>
+        wrapRuntimeControlV1(runtimeControl, true, true, true),
+    });
+    const replacement = recordV1({ snapshot: snapshotV1(9), lineage: Object.freeze([]) });
+
+    await expect(
+      fixture.service.port.importSave(encodeSaveRecordV1(replacement, codecV1)),
+    ).resolves.toMatchObject({ kind: "imported", compatibility: "exact" });
+    expect(fixture.session.getCurrentSnapshot().state.count).toBe(9);
+    expect(fixture.service.getSimulationLineage()).toEqual([]);
   });
 
   it("keeps a lineage-limited physical Save available for inspection and export", async () => {
