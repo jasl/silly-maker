@@ -8,7 +8,8 @@ matrix、Host-commit readiness、StrictMode fence 与 public API cutover。
 同日 S3a 已建立 dormant System definition/slot/result target、root-candidate
 resolution snapshot 与 package-internal initial-supersede/retained-active cancellation
 floor；S3b 已把 Overlay lifetime 提升为 composition-owned shared Coordinator，并注入
-dormant System session/catalog/config snapshot。S3c–S3e 及 live System cutover 仍待实施。
+dormant System session/catalog/config snapshot；S3c.0 已闭合 composition-wide successor
+activation barrier。S3c.1–S3e 及 live System cutover 仍待实施。
 本文固定
 影响输入与焦点的 UI Surface 的权威边界、生命周期、输入代际与验证分层，并把“弱模型
 能够写出正确代码”提升为作者 API 的验收条件。S1-T 与 S2 已实现，S3a–S3b 只完成
@@ -266,6 +267,31 @@ security proof，本合同只封闭 package-internal production construction pat
 - successor 开放任何 ingress 前，旧 Coordinator 必须 dispose，并撤销 pending
   readiness、input/focus ownership 与 gesture lease。
 
+Successor construction/binding 与 family activation 是两个 phase。composition root
+必须先关闭所有 predecessor family ingress，再让全部 registered family adapter 静默绑定
+同一个 successor runtime 与 underlying Coordinator publication；在全部 binding 成功前，
+任何 successor family 都不得开放 intent ingress 或发送 family subscriber notification。
+随后必须让全部 family 在同一 composition-owned closed gate 后完成可失败的 activation
+arming，再以一次不可失败的 gate release 同时开放全部 ingress，才允许第一条 family
+notification，最后才发布新的 presentation anchor。第一个 successor family callback
+因而已能观察到所有 family 共享相同 `applicationEpoch` 与 underlying publication
+identity；第二 family activation 中对第一 family 的同步重入仍被 closed gate 拒绝，不能
+看到 partially attached generation。
+
+family activation notification 中发生的 reentrant application-anchor publication 必须由
+composition bridge 排队，不能嵌套执行 successor transaction。当前 generation 的全部
+family notification 与 presentation anchor 发布完成后，才按最新 queued anchor 进入下一
+generation；旧 transaction 不得在较新 successor 后回写旧 anchor或漏掉其余 family
+notification。直接绕过 anchor bridge 的 package-internal nested replacement 必须以
+transition-in-progress fail closed，且不分配 epoch/Coordinator。
+
+任一 family binding/activation 失败都不得通知 family subscriber、开放 family ingress
+或推进 presentation anchor；全部 adapter 必须 abort，fresh successor 必须 seal/dispose，
+predecessor callback 继续 stale，且不得 rollback 到已经 disposed 的 predecessor或额外
+分配 recovery successor。正常 activation barrier 自身不提交 Coordinator publication、
+不推进 topology revision，也不分配 Managed Surface identity；失败后的 successor dispose
+只允许现有 terminal publication。
+
 Coordinator 接收一个已经分配的 epoch，并在自身生命周期内保持不变；epoch rotation
 通过 successor replacement 完成，而不是原地改写 live Coordinator。
 
@@ -489,7 +515,8 @@ ordinary input/focus acquisition 与 terminal readiness acknowledgment；若 mic
 grace 内没有同 logical Host 重挂，则撤销 resolver 并原子关闭/cancel System owner，
 但不 dispose 共享 Coordinator。composition
 successor 或整体 dispose 才关闭 ingress、dispose 整个共享 Coordinator并按 3.3 的顺序
-建立 fresh epoch successor。
+建立 fresh epoch successor；System live 前必须经过 3.3 的 all-family
+bind-before-activation barrier。
 
 ### 4.2 Renderer and port admission
 
@@ -1044,6 +1071,10 @@ definitions、创建新 instance/topology revision；不得反序列化旧 live 
   A input binding；
 - distinct concurrent Host 无法在任何 subscription/renderer/input/portal mutation 前
   fail closed，或 candidate resolution 必须随 React props/catalog 原地变化；
+- successor 只能逐 family attach 后立即开放 ingress/notify，第二 family activation 中可
+  重入第一 family，attachment failure 后留下任一 successor family active、已产生
+  pre-terminal mutation/identity/notification/anchor或仍可写入，reentrant successor 可让旧
+  anchor回写，或 activation callback 中的 composition dispose 后仍发布/继续 drain anchor；
 - accepted-ready 后 candidate boundary 只能吞错并渲染 `null`，无法委托 existing root
   runtime-fault policy；
 - 删除 public `SaveOverlayV1` 发现真实受支持的仓库外下游；
@@ -1101,7 +1132,12 @@ definitions、创建新 instance/topology revision；不得反序列化旧 live 
     confirmation child、initial supersede、retained-active pending cancellation、
     initial/child fallback、replacement retain-current、one logical Host、candidate snapshot、
     same-key Host-commit cutover、accepted-ready fault boundary、StrictMode terminal-once 与
-    exact async operation handle 均通过 deterministic counts 与 browser evidence；S3e
+    exact async operation handle 均通过 deterministic counts 与 browser evidence；每次
+    successor 的第一个 family callback 已证明全部 family 绑定同一 epoch/publication 且
+    ingress 一致，第二 family binding/activation failure（含 closed-gate reentry）则零
+    pre-terminal Surface mutation/identity/family notification/anchor publication，seal 只产生
+    既有 terminal `+1/+1`；reentrant anchor按代完整通知/发布且最终 runtime/anchor一致，
+    activation callback 中 dispose 后不发布或继续 drain anchor；S3e
     同一 cutover 删除旧 System writer/fallback/raw lifecycle public API 与 public
     `SaveOverlayV1` component，且 Save/Persistence/M2/canonical/digest/replay/wire 不变；
 14. [architecture](../architecture.md)、[features](../features.md)、[story authoring](../story-authoring.md)

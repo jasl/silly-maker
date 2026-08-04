@@ -26,6 +26,10 @@ import type {
   ManagedSurfaceHandleV1,
   ManagedSurfaceReadinessAdapterV1,
 } from "../managed-surfaces/managed-surface-coordinator.ts";
+import type {
+  ManagedSurfaceFamilyActivationGateInternalV1,
+  ManagedSurfaceFamilyRuntimeAdapterInternalV1,
+} from "../managed-surfaces/managed-surface-composition-runtime.ts";
 import {
   type ManagedSurfaceCoordinatorRecipeV1,
   type ManagedSurfaceCoordinatorRuntimeV1,
@@ -145,7 +149,7 @@ export type WorkspaceOverlayReadinessOutcomeInternalV1 =
   | { readonly kind: "stale"; readonly code: "overlay.stale_readiness" };
 
 export interface WorkspaceOverlaySessionInternalV1<TOverlayId extends string>
-  extends OverlaySessionStoreV1<TOverlayId> {
+  extends OverlaySessionStoreV1<TOverlayId>, ManagedSurfaceFamilyRuntimeAdapterInternalV1 {
   getManagedSnapshotInternalV1(): DeepReadonly<ManagedSurfacePublicationV1>;
   getRenderSnapshotInternalV1(): WorkspaceOverlayRenderSnapshotInternalV1<TOverlayId>;
   attachRendererResolverInternalV1(resolver: OverlayRendererResolverV1<TOverlayId>): () => void;
@@ -170,8 +174,6 @@ export interface WorkspaceOverlaySessionInternalV1<TOverlayId extends string>
     kind: ManagedSurfaceDismissKindV1,
   ): void;
   getHandleInternalV1(surfaceInstanceId: ManagedSurfaceInstanceIdV1): ManagedSurfaceHandleV1 | null;
-  detachRuntimeInternalV1(): void;
-  attachRuntimeInternalV1(runtime: ManagedSurfaceCoordinatorRuntimeV1): void;
   disposeInternalV1(): void;
 }
 
@@ -641,6 +643,8 @@ export function createWorkspaceOverlaySessionInternalV1<TOverlayId extends strin
   let dirty = false;
   let disposed = false;
   let detached = false;
+  let preparedRuntime: ManagedSurfaceCoordinatorRuntimeV1 | null = null;
+  let activationGate: ManagedSurfaceFamilyActivationGateInternalV1 | null = null;
   let unsubscribeCoordinator: (() => void) | null = null;
   let compatibilityPublication: DeepReadonly<ManagedSurfacePublicationV1> | null = null;
   let compatibilitySnapshot = frozenCompatibilityStateV1<TOverlayId>(null, []);
@@ -687,6 +691,7 @@ export function createWorkspaceOverlaySessionInternalV1<TOverlayId extends strin
   const onCoordinatorPublication = (): void => {
     reconcileRenderRecords();
     dirty = true;
+    if (detached || activationGate?.isOpen() === false) return;
     if (mutationDepth === 0) {
       dirty = false;
       notify();
@@ -707,7 +712,9 @@ export function createWorkspaceOverlaySessionInternalV1<TOverlayId extends strin
       return result;
     } finally {
       mutationDepth -= 1;
-      if (mutationDepth === 0 && dirty) {
+      if (
+        mutationDepth === 0 && dirty && !detached && activationGate?.isOpen() !== false
+      ) {
         dirty = false;
         notify();
       }
@@ -761,7 +768,9 @@ export function createWorkspaceOverlaySessionInternalV1<TOverlayId extends strin
     }
     | OverlayAdmissionRejectionV1
     | { readonly kind: "faulted"; readonly code: "overlay.renderer_faulted" } => {
-    if (disposed || detached || !runtime.isIngressOpen()) {
+    if (
+      disposed || detached || activationGate?.isOpen() === false || !runtime.isIngressOpen()
+    ) {
       return rejectionV1("overlay.disposed");
     }
     const matches = rawById.get(id);
@@ -888,7 +897,9 @@ export function createWorkspaceOverlaySessionInternalV1<TOverlayId extends strin
   };
 
   const closeTop = (): OverlayCloseTopResultV1 => {
-    if (disposed || detached || !runtime.isIngressOpen()) return "already_closed";
+    if (
+      disposed || detached || activationGate?.isOpen() === false || !runtime.isIngressOpen()
+    ) return "already_closed";
     const before = managedSnapshot();
     const receipt = mutate(() => runtime.coordinator.closeTopWithOwnerPreparationCancel(ownerIdV1));
     if (receipt.kind !== "applied") return "already_closed";
@@ -900,7 +911,9 @@ export function createWorkspaceOverlaySessionInternalV1<TOverlayId extends strin
   };
 
   const closeAll = (): void => {
-    if (disposed || detached || !runtime.isIngressOpen()) return;
+    if (
+      disposed || detached || activationGate?.isOpen() === false || !runtime.isIngressOpen()
+    ) return;
     const ownerHandle = runtime.coordinator.getOwnerHandle(ownerIdV1);
     if (ownerHandle !== null) {
       mutate(() => runtime.coordinator.closeOwner(ownerHandle));
@@ -1024,6 +1037,8 @@ export function createWorkspaceOverlaySessionInternalV1<TOverlayId extends strin
     detachRuntimeInternalV1() {
       if (disposed || detached) return;
       detached = true;
+      preparedRuntime = null;
+      activationGate = null;
       unsubscribeCoordinator?.();
       unsubscribeCoordinator = null;
       renderRecords.clear();
@@ -1032,18 +1047,48 @@ export function createWorkspaceOverlaySessionInternalV1<TOverlayId extends strin
       renderSnapshot = null;
       dirty = true;
     },
-    attachRuntimeInternalV1(nextRuntime) {
+    prepareRuntimeAttachmentInternalV1(nextRuntime, nextActivationGate) {
       if (disposed) throw new TypeError("ui.workspace_overlay_session_disposed");
       if (!detached) throw new TypeError("ui.workspace_overlay_runtime_already_attached");
+      if (preparedRuntime !== null) {
+        throw new TypeError("ui.workspace_overlay_runtime_attachment_already_prepared");
+      }
       runtime = nextRuntime;
-      detached = false;
+      preparedRuntime = nextRuntime;
+      activationGate = nextActivationGate;
       subscribeCoordinator();
       reconcileRenderRecords();
       dirty = true;
-      if (mutationDepth === 0) {
+    },
+    activateRuntimeAttachmentInternalV1() {
+      if (disposed) throw new TypeError("ui.workspace_overlay_session_disposed");
+      const attachmentRuntime = preparedRuntime;
+      if (!detached || attachmentRuntime === null || runtime !== attachmentRuntime) {
+        throw new TypeError("ui.workspace_overlay_runtime_attachment_not_prepared");
+      }
+      preparedRuntime = null;
+      detached = false;
+      return (): void => {
+        if (
+          disposed || detached || runtime !== attachmentRuntime ||
+          activationGate?.isOpen() !== true || !dirty
+        ) return;
         dirty = false;
         notify();
-      }
+      };
+    },
+    abortRuntimeAttachmentInternalV1() {
+      if (disposed) return;
+      detached = true;
+      preparedRuntime = null;
+      activationGate = null;
+      unsubscribeCoordinator?.();
+      unsubscribeCoordinator = null;
+      renderRecords.clear();
+      compatibilityPublication = null;
+      renderSourcePublication = null;
+      renderSnapshot = null;
+      dirty = false;
     },
     disposeInternalV1() {
       if (disposed) return;
@@ -1051,6 +1096,8 @@ export function createWorkspaceOverlaySessionInternalV1<TOverlayId extends strin
       try {
         disposed = true;
         detached = true;
+        preparedRuntime = null;
+        activationGate = null;
         unsubscribeCoordinator?.();
         unsubscribeCoordinator = null;
         renderRecords.clear();

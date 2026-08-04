@@ -12,6 +12,10 @@ import type {
 } from "../managed-surfaces/managed-surface-coordinator-lifetime.ts";
 import type { ManagedSurfaceReadinessAdapterV1 } from "../managed-surfaces/managed-surface-coordinator.ts";
 import type {
+  ManagedSurfaceFamilyActivationGateInternalV1,
+  ManagedSurfaceFamilyRuntimeAdapterInternalV1,
+} from "../managed-surfaces/managed-surface-composition-runtime.ts";
+import type {
   SaveOverlayGuardV1,
   SaveOverlayLabelsV1,
   SaveOverlayPortV1,
@@ -90,7 +94,8 @@ export interface SystemDialogRootCandidateRecordInternalV1 {
   readonly readiness: ManagedSurfaceReadinessAdapterV1;
 }
 
-export interface SystemDialogManagedSessionInternalV1 {
+export interface SystemDialogManagedSessionInternalV1
+  extends ManagedSurfaceFamilyRuntimeAdapterInternalV1 {
   getManagedSnapshotInternalV1(): ManagedSurfacePublicationV1;
   getRootCandidateRecordsInternalV1(): readonly SystemDialogRootCandidateRecordInternalV1[];
   subscribeInternalV1(listener: () => void): () => void;
@@ -102,8 +107,6 @@ export interface SystemDialogManagedSessionInternalV1 {
     surfaceInstanceId: ManagedSurfaceInstanceIdV1,
   ): ManagedSurfaceTransitionReceiptV1;
   setCatalogInternalV1(catalog: SystemDialogRootCatalogInternalV1 | null): void;
-  detachRuntimeInternalV1(): void;
-  attachRuntimeInternalV1(runtime: ManagedSurfaceCoordinatorRuntimeV1): void;
   disposeInternalV1(): void;
 }
 
@@ -507,6 +510,8 @@ export function createSystemDialogManagedSessionInternalV1(input: {
   let catalog = input.catalog;
   let disposed = false;
   let detached = false;
+  let preparedRuntime: ManagedSurfaceCoordinatorRuntimeV1 | null = null;
+  let activationGate: ManagedSurfaceFamilyActivationGateInternalV1 | null = null;
   const records = new Map<ManagedSurfaceInstanceIdV1, SystemDialogRootCandidateRecordInternalV1>();
   const listeners = new Set<() => void>();
   let mutationDepth = 0;
@@ -531,6 +536,7 @@ export function createSystemDialogManagedSessionInternalV1(input: {
   const onCoordinatorPublication = (): void => {
     reconcileRecords();
     dirty = true;
+    if (detached || activationGate?.isOpen() === false) return;
     if (mutationDepth === 0) {
       dirty = false;
       notify();
@@ -550,7 +556,9 @@ export function createSystemDialogManagedSessionInternalV1(input: {
       return result;
     } finally {
       mutationDepth -= 1;
-      if (mutationDepth === 0 && dirty) {
+      if (
+        mutationDepth === 0 && dirty && !detached && activationGate?.isOpen() !== false
+      ) {
         dirty = false;
         notify();
       }
@@ -664,7 +672,9 @@ export function createSystemDialogManagedSessionInternalV1(input: {
       };
     },
     openRootInternalV1(request) {
-      if (disposed || detached || !runtime.isIngressOpen()) return disposedResultV1;
+      if (
+        disposed || detached || activationGate?.isOpen() === false || !runtime.isIngressOpen()
+      ) return disposedResultV1;
       if (catalog === null) return unavailableResultV1;
       reconcileRecords();
       const roots = systemRoots();
@@ -770,27 +780,58 @@ export function createSystemDialogManagedSessionInternalV1(input: {
     detachRuntimeInternalV1() {
       if (disposed || detached) return;
       detached = true;
+      preparedRuntime = null;
+      activationGate = null;
       unsubscribeCoordinator?.();
       unsubscribeCoordinator = null;
       records.clear();
       dirty = true;
     },
-    attachRuntimeInternalV1(nextRuntime) {
+    prepareRuntimeAttachmentInternalV1(nextRuntime, nextActivationGate) {
       if (disposed) throw new TypeError("ui.system_dialog_session_disposed");
       if (!detached) throw new TypeError("ui.system_dialog_runtime_already_attached");
+      if (preparedRuntime !== null) {
+        throw new TypeError("ui.system_dialog_runtime_attachment_already_prepared");
+      }
       runtime = nextRuntime;
-      detached = false;
+      preparedRuntime = nextRuntime;
+      activationGate = nextActivationGate;
       subscribeCoordinator();
       dirty = true;
-      if (mutationDepth === 0) {
+    },
+    activateRuntimeAttachmentInternalV1() {
+      if (disposed) throw new TypeError("ui.system_dialog_session_disposed");
+      const attachmentRuntime = preparedRuntime;
+      if (!detached || attachmentRuntime === null || runtime !== attachmentRuntime) {
+        throw new TypeError("ui.system_dialog_runtime_attachment_not_prepared");
+      }
+      preparedRuntime = null;
+      detached = false;
+      return (): void => {
+        if (
+          disposed || detached || runtime !== attachmentRuntime ||
+          activationGate?.isOpen() !== true || !dirty
+        ) return;
         dirty = false;
         notify();
-      }
+      };
+    },
+    abortRuntimeAttachmentInternalV1() {
+      if (disposed) return;
+      detached = true;
+      preparedRuntime = null;
+      activationGate = null;
+      unsubscribeCoordinator?.();
+      unsubscribeCoordinator = null;
+      records.clear();
+      dirty = false;
     },
     disposeInternalV1() {
       if (disposed) return;
       disposed = true;
       detached = true;
+      preparedRuntime = null;
+      activationGate = null;
       unsubscribeCoordinator?.();
       unsubscribeCoordinator = null;
       records.clear();

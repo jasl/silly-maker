@@ -31,6 +31,7 @@ import {
 import {
   createLocalManagedSurfaceEpochAllocatorInternalV1,
   createManagedSurfaceCompositionRuntimeInternalV1,
+  type CreateManagedSurfaceCompositionRuntimeInternalInputV1,
   type ManagedSurfaceCompositionRuntimeInternalV1,
 } from "../managed-surfaces/managed-surface-composition-runtime.ts";
 import type {
@@ -240,7 +241,7 @@ function createStaticContentPreferencePortV1(): ContentPreferencePortV1 {
  * Story UI state), input router, intent router, and overlay/system dialog
  * sessions. Disposal revokes every subscription the composition created.
  */
-function createGameUiCompositionWithEpochAllocatorInternalV1<
+export function createGameUiCompositionWithEpochAllocatorInternalV1<
   TSemanticPublication,
   TResolvedCatalog,
   TStoryUiState,
@@ -258,6 +259,9 @@ function createGameUiCompositionWithEpochAllocatorInternalV1<
   >,
   managedSurfaceEpochAllocator: ManagedSurfaceApplicationEpochAllocatorV1,
   managedSurfaceReportFailure?: (code: string, error: unknown) => void,
+  managedSurfaceRegisterManagedInputHandler?: CreateManagedSurfaceCompositionRuntimeInternalInputV1[
+    "registerManagedInputHandler"
+  ],
 ): GameUiCompositionV1<TSemanticPublication, TStoryUiState, TView, TAssetId, TOverlayId> {
   type OverlayIdV1 = GameUiOverlayIdV1<TOverlayId>;
   const anchorSource = input.anchor ?? staticAnchorSourceV1;
@@ -285,6 +289,9 @@ function createGameUiCompositionWithEpochAllocatorInternalV1<
     recipe: combineManagedSurfaceRecipeInternalV1(
       overlayConfiguration.recipeContribution,
     ),
+    ...(managedSurfaceRegisterManagedInputHandler === undefined
+      ? {}
+      : { registerManagedInputHandler: managedSurfaceRegisterManagedInputHandler }),
   });
   const initialManagedSurfaceRuntime = managedSurfaceRuntime.getCurrent();
   const overlayInternal = createWorkspaceOverlaySessionInternalV1<OverlayIdV1>({
@@ -327,26 +334,48 @@ function createGameUiCompositionWithEpochAllocatorInternalV1<
   });
 
   const systemDialogSession = createSystemDialogSessionStoreV1();
+  let disposed = false;
+  let anchorTransitionActive = false;
+  let anchorTransitionPending = false;
   const unsubscribeAnchor = anchorSource.subscribe(() => {
-    const anchor = anchorSource.current();
-    const successorKind: ManagedSurfaceCoordinatorSuccessorKindV1 = anchor.origin === "load"
-      ? "load_rebootstrap"
-      : anchor.origin === "import"
-      ? "import_rebootstrap"
-      : "coordinator_successor";
-    // Revoke both family adapters before the one shared authority seals its
-    // predecessor. Neither family can observe or mutate a half-rotated epoch.
-    overlayInternal.detachRuntimeInternalV1();
-    managedSystemDialogInternal.detachRuntimeInternalV1();
-    const successor = managedSurfaceRuntime.replace(successorKind);
-    overlayInternal.attachRuntimeInternalV1(successor);
-    managedSystemDialogInternal.attachRuntimeInternalV1(successor);
-    uiState.publish(
-      Object.freeze({
-        anchor,
-        story: uiState.getCurrent().story,
-      }) as DeepReadonly<GameUiStateV1<TStoryUiState>>,
-    );
+    if (disposed) return;
+    anchorTransitionPending = true;
+    if (anchorTransitionActive) return;
+    anchorTransitionActive = true;
+    try {
+      while (anchorTransitionPending) {
+        if (disposed) {
+          anchorTransitionPending = false;
+          break;
+        }
+        anchorTransitionPending = false;
+        const anchor = anchorSource.current();
+        const successorKind: ManagedSurfaceCoordinatorSuccessorKindV1 = anchor.origin === "load"
+          ? "load_rebootstrap"
+          : anchor.origin === "import"
+          ? "import_rebootstrap"
+          : "coordinator_successor";
+        // The shared authority closes both predecessor adapters, binds both to one
+        // successor, activates both, and only then flushes family notifications.
+        managedSurfaceRuntime.replace(successorKind, [
+          overlayInternal,
+          managedSystemDialogInternal,
+        ]);
+        if (disposed) {
+          anchorTransitionPending = false;
+          break;
+        }
+        uiState.publish(
+          Object.freeze({
+            anchor,
+            story: uiState.getCurrent().story,
+          }) as DeepReadonly<GameUiStateV1<TStoryUiState>>,
+        );
+      }
+    } finally {
+      if (disposed) anchorTransitionPending = false;
+      anchorTransitionActive = false;
+    }
   });
 
   // Composition-owned spatial interaction session: UI transient state that
@@ -391,7 +420,6 @@ function createGameUiCompositionWithEpochAllocatorInternalV1<
     subscribe: (listener: () => void) => uiState.subscribe(listener),
   });
 
-  let disposed = false;
   const composition: GameUiCompositionV1<
     TSemanticPublication,
     TStoryUiState,

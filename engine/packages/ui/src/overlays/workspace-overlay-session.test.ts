@@ -7,6 +7,7 @@ import {
   createLocalManagedSurfaceEpochAllocatorInternalV1,
   createManagedSurfaceCompositionRuntimeInternalV1,
   type ManagedSurfaceCompositionRuntimeInternalV1,
+  type ManagedSurfaceFamilyActivationGateInternalV1,
 } from "../managed-surfaces/managed-surface-composition-runtime.ts";
 import type {
   ManagedSurfaceApplicationEpochAllocatorV1,
@@ -56,8 +57,7 @@ function replaceWorkspaceOverlayRuntimeInternalV1<TOverlayId extends string>(
   session: WorkspaceOverlaySessionInternalV1<TOverlayId>,
   kind: ManagedSurfaceCoordinatorSuccessorKindV1,
 ): void {
-  session.detachRuntimeInternalV1();
-  session.attachRuntimeInternalV1(runtimeOwner.replace(kind));
+  runtimeOwner.replace(kind, [session]);
 }
 
 function disposeWorkspaceOverlaySessionInternalV1<TOverlayId extends string>(
@@ -118,6 +118,67 @@ const definitionsV1 = Object.freeze([
 ]);
 
 describe("Workspace Overlay Coordinator facade", () => {
+  it("keeps an armed successor detached until the composition activation gate opens", async () => {
+    const first = createWorkspaceOverlayTestFixtureV1({
+      inputRouter: createInputRouterV1(),
+      epochAllocator: createLocalManagedSurfaceEpochAllocatorInternalV1(),
+      definitions: definitionsV1,
+    });
+    const configuration = createWorkspaceOverlaySessionConfigurationInternalV1({
+      definitions: definitionsV1,
+    });
+    const successor = createManagedSurfaceCompositionRuntimeInternalV1({
+      inputRouter: createInputRouterV1(),
+      epochAllocator: createLocalManagedSurfaceEpochAllocatorInternalV1(),
+      recipe: configuration.recipeContribution,
+    });
+    const gateState = { open: false };
+    const gate: ManagedSurfaceFamilyActivationGateInternalV1 = Object.freeze({
+      isOpen: () => gateState.open,
+    });
+    first.session.attachRendererResolverInternalV1(Object.freeze({
+      resolve: (id: string) => Object.freeze({ accessibleName: id, content: id }),
+    }));
+    expect(first.session.openPrimary("overlay.test.current")).toMatchObject({
+      kind: "preparing",
+    });
+    await readyOnlyCandidateV1(first.session);
+    const predecessorInstanceId = first.session.getRenderSnapshotInternalV1().entries[0]!
+      .surfaceInstanceId;
+    const predecessorHandle = first.session.getHandleInternalV1(predecessorInstanceId)!;
+    let notifications = 0;
+    const unsubscribe = first.session.subscribe(() => {
+      notifications += 1;
+    });
+
+    first.session.detachRuntimeInternalV1();
+    first.session.prepareRuntimeAttachmentInternalV1(successor.getCurrent(), gate);
+    const notifyActivation = first.session.activateRuntimeAttachmentInternalV1();
+    const before = first.session.getManagedSnapshotInternalV1();
+    expect(first.session.closeExpectedInternalV1(predecessorHandle)).toMatchObject({
+      kind: "stale",
+      code: "surface.stale_topology_revision",
+    });
+    expect(first.session.openPrimary("overlay.test.current")).toEqual({
+      kind: "rejected",
+      code: "overlay.disposed",
+    });
+    expect(first.session.getManagedSnapshotInternalV1()).toBe(before);
+    expect(notifications).toBe(0);
+
+    gateState.open = true;
+    notifyActivation();
+    expect(notifications).toBe(1);
+    expect(first.session.openPrimary("overlay.test.current")).toMatchObject({
+      kind: "preparing",
+    });
+
+    unsubscribe();
+    first.session.disposeInternalV1();
+    first.runtimeOwner.dispose();
+    successor.dispose();
+  });
+
   it("closes a pending-only initial fallback and fences its late readiness", async () => {
     const delayed = deferredV1();
     const { session } = createWorkspaceOverlayTestFixtureV1({

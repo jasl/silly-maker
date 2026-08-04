@@ -8,7 +8,8 @@ retained-active pending cancellation、exact result/delta matrix、Host-commit r
 StrictMode、API cutover 与 stop conditions。
 同日 S3a dormant definition/slot/result/snapshot floor 与两个 package-internal
 atomic composite operations、S3b composition-owned shared Coordinator 与 dormant System
-session/config catalog 已完成，下一独立实施切片为 S3c。
+session/config catalog、S3c.0 composition-wide successor activation barrier 已完成，下一
+独立实施切片为 S3c.1 Host-commit readiness。
 目标合同见
 [Managed Surface lifecycle and contract harness](../design/surface-contract-harness.md)。
 本文只规定可独立交付的实施顺序；不要求一次实现 design
@@ -16,7 +17,7 @@ session/config catalog 已完成，下一独立实施切片为 S3c。
 
 在 [production-floor sequence](2026-07-30-production-floor-sequence.md)
 中：PF2 的 `S0 -> S1-T -> S2`、PF-DET 与 PF3/M2 已完成；当前 core
-节点是 PF4/S3c。PF4 的顺序是 `S3 -> S1-R -> S4 -> S4b`；S5–S6
+节点是 PF4/S3c.1。PF4 的顺序是 `S3 -> S1-R -> S4 -> S4b`；S5–S6
 属于 PF6。S1-R
 延后到第一个真实 externally published stable-target family 前完成；按 accepted
 target ownership，S4 Narrative 计划成为该 family，因此 S1-R 位于 S3 与 S4
@@ -1111,6 +1112,46 @@ concurrent Host 在 mutation 前 fail closed；R1 candidate 不被 future R2 cat
 fault 进入 readiness failure，accepted-ready 后 fault 不产生 readiness receipt并委托
 现有 root policy，event/passive/async fault 不作 S3 candidate-failure claim。
 
+### S3c.0 composition-wide successor activation barrier
+
+S3c 的第一独立切片先补全 3.3 successor 顺序，不进入 React Host。composition-owned
+runtime 按固定 transaction 执行：关闭全部 predecessor family ingress → dispose
+predecessor/create one successor → 所有 family adapter 静默 bind 同一 runtime/publication
+→ 所有 family 在 shared closed gate 后完成 activation arming → 一次 gate release 同时开放
+全部 ingress → 逐 family flush activation notification → publish presentation anchor。任何
+family notification 开始前，所有 family 已同时 active；barrier 本身不提交 Coordinator
+publication、不推进 topology revision，也不分配 Managed Surface identity。
+
+成功向量在第一个 Overlay notification 内同步读取 Overlay、System 与 runtime underlying
+publication，三者必须是相同 identity/application epoch；两个零 mutation intent 分别返回
+`overlay.renderer_unavailable` 与 `system_dialog.renderer_unavailable`，不能有一方返回
+disposed。callback 内 presentation anchor 仍为 predecessor，callback 返回后才推进；每个
+family 恰有一次 activation notification。successor 仍为 `0/0/[]`，第一个后续 Surface
+candidate 使用该 epoch 的 `n1`。
+
+failure table 分别注入第二 family bind 与 activate failure：第二 activation 在抛错前同步
+重入第一 family intent仍被 shared closed gate 拒绝，第一 family 即使已 armed也不得产生
+mutation/identity/notification；两边 abort 后 ingress 全关，composition runtime sealed，
+presentation anchor 不推进，predecessor readiness callback稳定 stale，且只分配 initial 与
+failed successor 两个 epoch/Coordinator。fresh successor 在 failure 前保持 `0/0/[]`；
+dispose 只产生现有 terminal `+1/+1` publication，不允许第三代 recovery、Surface identity
+或额外 commit。实际 composition 还以 disposed dormant System 注入第二 bind failure，证明
+Overlay 零通知且 successor fail closed。
+
+shared-composition input integration 另证 active A → retain-current B prepare/fail 始终只有
+一份 registration，binding identity、`inputPublicationRevision` 与 current gesture 不变；
+B ready 后 old binding只 unregister 一次、new binding只 register 一次，family activation
+notification 不参与 input registration。
+
+reentrant vector 在第一 family activation notification 内发布下一 application anchor；
+composition bridge 必须先完成当前 generation 的其余 family notification与旧→当前 anchor
+发布，再 drain queued successor。最终 Managed Surface runtime 与 presentation anchor 都是
+最新 generation，每代两个 family各恰有一次 notification；package-internal direct nested
+replacement 则稳定 `transition_in_progress` 且零额外 epoch/Coordinator。
+若 activation notification 同步 dispose whole composition（即使此前已 queue 下一 anchor），
+当前/queued anchor 都不再发布或 drain，presentation anchor 保持 predecessor，shared runtime
+sealed，且不得分配下一 epoch。
+
 ### S3 asynchronous Persistence boundary
 
 每个 confirmation instance 至多 dispatch 一次。pending cancel 只关闭 exact child，
@@ -1133,15 +1174,19 @@ close/result 只能 stale，不能写入 later Saves。Save guard 与 Persistenc
 2. **S3b — composition-owned shared Coordinator：** 从 Overlay-specific session
    抽出 composition-owned lifetime/publication，Overlay 无行为变化；注入 dormant System
    facade，证明两个 family 只能共享一个 Coordinator/input binding；
-3. **S3c — Host-commit readiness：** 实现 preparation shell、same-key cutover、
+3. **S3c.0 — successor activation barrier：** 先让全部 family 静默 bind 同一个
+   successor，在 shared closed gate 后完成 activation arming，再一次 release并发送 family
+   notification；任一 attachment failure abort 全部 adapter、seal successor且不推进
+   presentation anchor；reentrant anchor rotation 由 composition bridge 串行 drain；
+4. **S3c.1 — Host-commit readiness：** 实现 preparation shell、same-key cutover、
    terminal-once error boundary、StrictMode generation 与 Host attachment lease；candidate
    failure authority 以 Coordinator accepted `host_commit_ready` 为界，post-activation
    fault 委托 existing root policy；仍不切换 production System ingress；
-4. **S3d — Saves confirmation child：** 把 confirmation renderer/operation 接到 exact
+5. **S3d — Saves confirmation child：** 把 confirmation renderer/operation 接到 exact
    parent child intent，证明 cancel/async completion/exact-handle/focus semantics；dormant
    new path 自身不新增 React-local lifecycle writer，legacy live writer 只留在未切换路径
    并在 S3e 同批删除；
-5. **S3e — live cutover and promotion：** 在同一 slice 切换 DefaultGameRoot/Web/Story
+6. **S3e — live cutover and promotion：** 在同一 slice 切换 DefaultGameRoot/Web/Story
    paths，删除旧 store/fallback/raw lifecycle public exports、public `SaveOverlayV1` /
    `SaveOverlayPropsV1` 与全部 dead path，只保留 public persistence configuration/value
    types；完成 successor、Engine Lab、Cat Cafe、prebuilt browser matrix及 live docs
@@ -1166,7 +1211,7 @@ root-candidate admission snapshot 从 normalized root request 内部选择 canon
 definition，复制并冻结 required-port binding vector，捕获 renderer/accessibility identity，
 并只接受 package-internal opaque normalized-config token。S3a 不递归遍历 React content
 graph；S3b 必须实现 Settings/Saves known-field copier/catalog facade并实际消费这些 dormant
-合同（未消费的 metadata 届时删除），S3c 才实现 Host-commit readiness、StrictMode lease
+合同（未消费的 metadata 届时删除），S3c.1 才实现 Host-commit readiness、StrictMode lease
 与 error boundary。旧 System store、fallback Host 与 public lifecycle API 完全未改；
 Save/Persistence/M2/canonical/digest/replay/wire 均未变化。
 
@@ -1188,7 +1233,25 @@ port、React content/component 与 guard evaluator identity，并隔离 future c
 legacy public System store/Host 仍是唯一 live System writer；新 facade 未进入任何 barrel、
 Host 或 Story path。S3b 没有实现 Host/portal lease、React Host-commit readiness、
 confirmation child 或 live cutover，也没有改变 Save/Persistence/M2/canonical/digest/
-replay/wire。下一独立切片为 S3c。
+replay/wire。其逐 family reattach 后立即通知的顺序因 System dormant 可接受，但不能作为
+live-family activation proof。
+
+**2026-08-04 S3c.0 delivery：** composition runtime 现在拥有 fenced family handoff：
+全部 adapter 先 detach并静默 bind 同一个 fresh successor，再在 shared closed gate 后完成
+activation arming；单次 gate release 才整体开放 ingress，最后才 flush family
+notification；presentation anchor 仍在所有 activation notification 后发布。第一个
+family callback 内 Overlay、System 与 runtime 已共享同一 underlying publication/epoch，
+两个 family intent 都不会观察到 partial detached generation。第二 family bind/activate
+failure（包括 activate 中同步重入第一 family）会 abort 全部 adapter、撤销 successor
+subscriptions、dispose/seal successor且零 pre-terminal Surface mutation/identity/family
+notification；seal 只产生既有 terminal `+1/+1`。不回接 predecessor、不发布 anchor、
+不创建 recovery generation。activation notification 内的
+reentrant anchor rotation 由 composition bridge 排队；当前 generation 完整通知并发布
+anchor 后才 drain 下一 generation，不能让旧 anchor覆盖新 runtime或漏发另一 family。
+shared-composition input integration 同时证明 retain-current prepare/fail 不更换 binding、
+registration、`inputPublicationRevision` 或 gesture，ready cutover只更换一次 binding。
+S3c.0 未接入 React Host、catalog/portal lease 或 production System ingress；下一独立切片为
+S3c.1。
 
 每个 dormant slice 必须 package-internal、不可由 live System 与旧 store同时写入；若
 为了独立合并必须双写、mirror 或提前开放第二个 lifecycle ingress，停止并重切片。
@@ -1223,6 +1286,9 @@ canonical/digest/replay/wire 语义。
   A input binding；
 - distinct concurrent Host 无法在任何 subscription/renderer/input/portal mutation 前
   fail closed，或 candidate resolution 必须随 React props/catalog 原地变化；
+- successor 只能按 family 逐个开放 ingress/notify，第二 family activation 中可重入第一
+  family，attachment failure 后第一 family 已产生 mutation/identity/notification、仍 active、
+  发布 anchor或需要回接 disposed predecessor，或 reentrant successor 可让旧 anchor回写；
 - accepted-ready 后 candidate boundary 只能吞错并渲染 `null`，无法委托 existing root
   runtime-fault policy；
 - 删除 public `SaveOverlayV1` 发现真实受支持的仓库外下游；
@@ -1233,7 +1299,11 @@ canonical/digest/replay/wire 语义。
 store/fallback/local confirmation/raw lifecycle public API 全部删除且没有 mirror；
 unavailable dialog 在 allocation 前结构化拒绝；root/child readiness、failure、dismiss、
 focus/inert/portal 与 exact deltas 全绿；load/import successor fence 与 stale callback
-通过；Engine Lab 中性 browser、Cat Cafe regression、prebuilt Player、`deno task test`
+通过；successor 第一个 family callback 已观察到 all-family active/same publication，
+attachment failure 零 pre-terminal Surface mutation/identity/family notification/anchor，
+seal 只产生既有 terminal `+1/+1`，
+reentrant anchor rotation最终保持最新 runtime/anchor且每代完整通知；Engine Lab 中性
+browser、Cat Cafe regression、prebuilt Player、`deno task test`
 和 `deno task check` 全绿。Save/Persistence/M2/canonical/digest/replay/wire 行为不变。
 
 ## 7. S1-R — External stable-target reconcile
@@ -1553,6 +1623,8 @@ action 可组合分层 evidence，并在目标未成立时稳定返回
   writable mirror；
 - stale work 无法凭明确 identity/revision 拒绝；
 - application/Coordinator successor 在旧 Coordinator dispose 前开放 ingress；
+- successor family adapter 无法 all-bind-before-activation，或 attachment failure 泄漏
+  family notification/ingress/anchor publication；
 - Story/React component 必须手写 application epoch，或以 local state 管理 stable
   source revision；
 - transient pilot 必须预埋 source revision/reconcile 字段才能继续；

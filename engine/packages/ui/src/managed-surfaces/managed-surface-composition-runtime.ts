@@ -12,9 +12,36 @@ import {
   type ManagedSurfaceCoordinatorSuccessorKindV1,
 } from "./managed-surface-coordinator-lifetime.ts";
 
+export interface ManagedSurfaceFamilyActivationGateInternalV1 {
+  /** Opens every prepared family ingress at one composition-owned commit point. */
+  isOpen(): boolean;
+}
+
+export interface ManagedSurfaceFamilyRuntimeAdapterInternalV1 {
+  /** Closes family ingress and subscriptions without notifying family observers. */
+  detachRuntimeInternalV1(): void;
+  /** Silently binds the detached adapter to one successor runtime. */
+  prepareRuntimeAttachmentInternalV1(
+    runtime: ManagedSurfaceCoordinatorRuntimeV1,
+    activationGate: ManagedSurfaceFamilyActivationGateInternalV1,
+  ): void;
+  /** Arms ingress behind the shared gate and returns a no-throw notification closure. */
+  activateRuntimeAttachmentInternalV1(): () => void;
+  /** Cancels either a prepared or activated attachment without family notification. */
+  abortRuntimeAttachmentInternalV1(): void;
+}
+
+export type ManagedSurfaceFamilyRuntimeAdaptersInternalV1 = readonly [
+  ManagedSurfaceFamilyRuntimeAdapterInternalV1,
+  ...ManagedSurfaceFamilyRuntimeAdapterInternalV1[],
+];
+
 export interface ManagedSurfaceCompositionRuntimeInternalV1 {
   getCurrent(): ManagedSurfaceCoordinatorRuntimeV1;
-  replace(kind: ManagedSurfaceCoordinatorSuccessorKindV1): ManagedSurfaceCoordinatorRuntimeV1;
+  replace(
+    kind: ManagedSurfaceCoordinatorSuccessorKindV1,
+    familyAdapters: ManagedSurfaceFamilyRuntimeAdaptersInternalV1,
+  ): ManagedSurfaceCoordinatorRuntimeV1;
   dispose(): void;
 }
 
@@ -53,6 +80,7 @@ export function createManagedSurfaceCompositionRuntimeInternalV1(
   let current = lifetime.getCurrent()!;
   let unsubscribePublication: (() => void) | null = null;
   let disposed = false;
+  let transitioning = false;
 
   const attachCurrent = (): void => {
     const captured = current;
@@ -70,18 +98,74 @@ export function createManagedSurfaceCompositionRuntimeInternalV1(
       if (disposed) throw new TypeError("ui.managed_surface_composition_runtime_disposed");
       return current;
     },
-    replace(kind: ManagedSurfaceCoordinatorSuccessorKindV1): ManagedSurfaceCoordinatorRuntimeV1 {
+    replace(
+      kind: ManagedSurfaceCoordinatorSuccessorKindV1,
+      familyAdapters: ManagedSurfaceFamilyRuntimeAdaptersInternalV1,
+    ): ManagedSurfaceCoordinatorRuntimeV1 {
       if (disposed) throw new TypeError("ui.managed_surface_composition_runtime_disposed");
-      unsubscribePublication?.();
-      unsubscribePublication = null;
-      try {
-        current = lifetime.replace({ kind, recipe: input.recipe });
-      } catch (error) {
-        disposed = true;
-        throw error;
+      if (transitioning) {
+        throw new TypeError("ui.managed_surface_composition_transition_in_progress");
       }
-      attachCurrent();
-      return current;
+      transitioning = true;
+      const activationState = { open: false };
+      const activationGate: ManagedSurfaceFamilyActivationGateInternalV1 = Object.freeze({
+        isOpen: (): boolean => activationState.open,
+      });
+      try {
+        const activationNotifications: (() => void)[] = [];
+        try {
+          for (const adapter of familyAdapters) adapter.detachRuntimeInternalV1();
+          unsubscribePublication?.();
+          unsubscribePublication = null;
+          current = lifetime.replace({ kind, recipe: input.recipe });
+          attachCurrent();
+          for (const adapter of familyAdapters) {
+            adapter.prepareRuntimeAttachmentInternalV1(current, activationGate);
+          }
+          for (const adapter of familyAdapters) {
+            activationNotifications.push(adapter.activateRuntimeAttachmentInternalV1());
+          }
+        } catch (error) {
+          disposed = true;
+          const cleanupErrors: unknown[] = [];
+          for (const adapter of familyAdapters) {
+            try {
+              adapter.abortRuntimeAttachmentInternalV1();
+            } catch (cleanupError) {
+              cleanupErrors.push(cleanupError);
+            }
+          }
+          try {
+            unsubscribePublication?.();
+            unsubscribePublication = null;
+          } catch (cleanupError) {
+            cleanupErrors.push(cleanupError);
+          }
+          try {
+            lifetime.dispose();
+          } catch (cleanupError) {
+            cleanupErrors.push(cleanupError);
+          }
+          if (cleanupErrors.length > 0) {
+            const cleanupFailure = new Error(
+              "ui.managed_surface_family_activation_cleanup_failed",
+              { cause: error },
+            );
+            Object.defineProperty(cleanupFailure, "cleanupErrors", {
+              value: Object.freeze([...cleanupErrors]),
+            });
+            throw cleanupFailure;
+          }
+          throw error;
+        }
+        // One shared flag opens every armed adapter before the first no-throw
+        // family notification can synchronously re-enter composition code.
+        activationState.open = true;
+        for (const notifyActivation of activationNotifications) notifyActivation();
+        return current;
+      } finally {
+        transitioning = false;
+      }
     },
     dispose(): void {
       if (disposed) return;
