@@ -176,8 +176,8 @@ function renderLifecycleRootV1(input: {
   readonly capabilities?: RuntimeCapabilityPortV1;
   readonly labels?: Partial<DefaultGameRootLabelsV1>;
 }) {
-  let returnToTitle:
-    | DefaultGameRootSlotContextV1<unknown, unknown>["systemDialogs"]["returnToTitle"]
+  let systemDialogs:
+    | DefaultGameRootSlotContextV1<unknown, unknown>["systemDialogs"]
     | undefined;
   const inputRouter = createInputRouterV1();
   const overlayFailures: Array<{ readonly code: string; readonly error: unknown }> = [];
@@ -258,7 +258,7 @@ function renderLifecycleRootV1(input: {
       })}
       slots={Object.freeze({
         hud: (context: DefaultGameRootSlotContextV1<unknown, unknown>) => {
-          returnToTitle = context.systemDialogs.returnToTitle;
+          systemDialogs = context.systemDialogs;
           return null;
         },
         overlayResolver: () => overlayResolver,
@@ -276,11 +276,19 @@ function renderLifecycleRootV1(input: {
     },
     systemDialogSession,
     systemDialogInternal,
+    openSettings: () => {
+      if (systemDialogs === undefined) throw new TypeError("missing System dialog fixture");
+      return systemDialogs.openSettings();
+    },
+    openSaves: () => {
+      if (systemDialogs === undefined) throw new TypeError("missing System dialog fixture");
+      return systemDialogs.openSaves();
+    },
     returnToTitle: () => {
-      if (returnToTitle === undefined) {
+      if (systemDialogs === undefined) {
         throw new TypeError("missing returnToTitle fixture");
       }
-      return returnToTitle();
+      return systemDialogs.returnToTitle();
     },
   });
 }
@@ -538,6 +546,35 @@ function renderHostedLifecycleRootV1(
 }
 
 describe("DefaultGameRootV1 lifecycle result handling", () => {
+  it("returns managed structured System results through the Story slot context", async () => {
+    const fixture = renderLifecycleRootV1({ restart: async () => anchoredV1 });
+    let settingsResult: ReturnType<typeof fixture.openSettings> | undefined;
+
+    act(() => {
+      settingsResult = fixture.openSettings();
+    });
+
+    expect(settingsResult).toEqual({
+      kind: "preparing",
+      code: "system_dialog.preparation_started",
+    });
+    expect(Object.isFrozen(settingsResult)).toBe(true);
+    expect(fixture.systemDialogSession.getSnapshot()).toEqual({ active: null });
+    expect(fixture.openSettings()).toEqual({
+      kind: "unchanged",
+      code: "system_dialog.already_requested",
+    });
+    expect(fixture.openSaves()).toEqual({
+      kind: "rejected",
+      code: "system_dialog.renderer_missing",
+    });
+
+    await act(async () => {
+      await new Promise<void>((complete) => queueMicrotask(complete));
+    });
+    expect(fixture.systemDialogSession.getSnapshot()).toEqual({ active: "settings" });
+  });
+
   it("keeps New game unavailable without lifecycle and never calls the opening hook", async () => {
     const beginNewGame = vi.fn();
     renderLifecycleRootV1({ beginNewGame });

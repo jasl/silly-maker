@@ -34,8 +34,9 @@ describe("SettingsLauncherV1", () => {
   it("uses a native button, forwards its ref, and opens only the reserved settings surface", async () => {
     const ref = createRef<HTMLButtonElement>();
     const openSettings = vi.fn(() => preparationStartedV1);
+    const openSaves = vi.fn(() => preparationStartedV1);
     render(
-      <SystemDialogControllerProviderInternalV1 session={sessionV1({ openSettings })}>
+      <SystemDialogControllerProviderInternalV1 session={sessionV1({ openSettings, openSaves })}>
         <SettingsLauncherV1 ref={ref} label="设置" className="fixture-launcher" />
       </SystemDialogControllerProviderInternalV1>,
     );
@@ -49,6 +50,7 @@ describe("SettingsLauncherV1", () => {
     await userEvent.setup().click(launcher);
     expect(openSettings).toHaveBeenCalledOnce();
     expect(openSettings).toHaveBeenCalledWith();
+    expect(openSaves).not.toHaveBeenCalled();
   });
 
   it("fails with a stable code when no SystemDialogHost owns the launcher", () => {

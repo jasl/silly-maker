@@ -379,6 +379,56 @@ describe("SaveOverlayContentInternalV1", () => {
     expect(fixture.getStatus).toHaveBeenCalledOnce();
   });
 
+  it("subscribes to the live read-only guard projection", async () => {
+    const fixture = fixtureV1();
+    const allowedPublication = Object.freeze({ allowed: true });
+    const blockedPublication = Object.freeze({ allowed: false });
+    let publication: Readonly<{ allowed: boolean }> = allowedPublication;
+    let listener: (() => void) | null = null;
+    const guardProjection = Object.freeze({
+      getSnapshot: () => publication,
+      subscribe(nextListener: () => void) {
+        listener = nextListener;
+        return () => {
+          listener = null;
+        };
+      },
+      evaluate(value: unknown) {
+        return value === blockedPublication
+          ? Object.freeze({ allowed: false, reasonText: "剧情进行中不可保存" })
+          : Object.freeze({ allowed: true });
+      },
+    });
+
+    render(
+      <SaveOverlayContentInternalV1
+        port={fixture.port}
+        labels={labelsV1}
+        closeLabel="关闭"
+        guardProjection={guardProjection}
+        confirmationIntent={Object.freeze({
+          requestConfirmationInternalV1: vi.fn(() =>
+            Object.freeze({
+              kind: "unchanged" as const,
+              code: "system_dialog.confirmation_already_requested" as const,
+            })
+          ),
+        })}
+        onCloseInternalV1={vi.fn()}
+      />,
+    );
+
+    const quickSave = await screen.findByRole("button", { name: "快速保存" });
+    expect(quickSave).toBeEnabled();
+
+    publication = blockedPublication;
+    act(() => listener?.());
+
+    expect(quickSave).toBeDisabled();
+    expect(screen.getByText("剧情进行中不可保存")).toBeVisible();
+    expect(fixture.save).not.toHaveBeenCalled();
+  });
+
   it("remains live across the StrictMode setup-cleanup-setup probe", async () => {
     const fixture = fixtureV1({ status: Promise.resolve(statusV1()) });
     render(

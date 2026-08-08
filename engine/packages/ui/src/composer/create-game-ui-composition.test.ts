@@ -231,7 +231,10 @@ describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () 
 
     try {
       const managed = resolveGameUiManagedSurfaceCompositionInternalV1(composition);
-      const before = managed.runtime.getCurrent().coordinator.getSnapshot();
+      const runtime = managed.runtime.getCurrent();
+      const internal = resolveSystemDialogSessionInternalV1(managed.systemDialogSession);
+      const beforeCoordinatorPublication = runtime.coordinator.getSnapshot();
+      const beforeSystemPublication = internal.getManagedSnapshotInternalV1();
 
       expect(composition.systemDialogSession).toBe(managed.systemDialogSession);
       expect(Reflect.ownKeys(composition.systemDialogSession)).toEqual([
@@ -245,7 +248,13 @@ describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () 
         kind: "rejected",
         code: "system_dialog.renderer_unavailable",
       });
-      expect(managed.runtime.getCurrent().coordinator.getSnapshot()).toBe(before);
+      expect(composition.systemDialogSession.openSaves()).toEqual({
+        kind: "rejected",
+        code: "system_dialog.renderer_unavailable",
+      });
+      expect(runtime.coordinator.getSnapshot()).toBe(beforeCoordinatorPublication);
+      expect(internal.getManagedSnapshotInternalV1()).toBe(beforeSystemPublication);
+      expect(beforeSystemPublication).toBe(beforeCoordinatorPublication);
       expect("open" in composition.systemDialogSession).toBe(false);
       expect("close" in composition.systemDialogSession).toBe(false);
       expect("subscribe" in composition.systemDialogSession).toBe(false);

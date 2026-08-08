@@ -19,19 +19,23 @@ const preparationStartedV1 = Object.freeze({
   code: "system_dialog.preparation_started" as const,
 });
 
-function sessionV1(openSaves: () => SystemDialogOpenResultV1): SystemDialogSessionV1 {
+function sessionV1(input: {
+  readonly openSettings?: () => SystemDialogOpenResultV1;
+  readonly openSaves: () => SystemDialogOpenResultV1;
+}): SystemDialogSessionV1 {
   return Object.freeze({
     getSnapshot: () => Object.freeze({ active: null }),
-    openSettings: () => preparationStartedV1,
-    openSaves,
+    openSettings: input.openSettings ?? (() => preparationStartedV1),
+    openSaves: input.openSaves,
   }) as SystemDialogSessionV1;
 }
 
 describe("SavesLauncherV1", () => {
   it("opens only the reserved Saves surface through the structured controller", async () => {
     const openSaves = vi.fn(() => preparationStartedV1);
+    const openSettings = vi.fn(() => preparationStartedV1);
     render(
-      <SystemDialogControllerProviderInternalV1 session={sessionV1(openSaves)}>
+      <SystemDialogControllerProviderInternalV1 session={sessionV1({ openSettings, openSaves })}>
         <SavesLauncherV1 label="存档" />
       </SystemDialogControllerProviderInternalV1>,
     );
@@ -40,6 +44,7 @@ describe("SavesLauncherV1", () => {
 
     expect(openSaves).toHaveBeenCalledOnce();
     expect(openSaves).toHaveBeenCalledWith();
+    expect(openSettings).not.toHaveBeenCalled();
   });
 
   it("fails with a stable code when no SystemDialogHost owns the launcher", () => {
