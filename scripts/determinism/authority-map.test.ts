@@ -168,7 +168,7 @@ describe("authoritative determinism authority map", () => {
         }),
       }),
     ).rejects.toThrow(/bounded Base authority .* includes negative control/u);
-  });
+  }, liveRepositoryIntegrationTimeoutV1);
 
   it("fails closed when an authoritative entry is also a negative-control entry", async () => {
     const rngAuthority = determinismAuthorityPolicyV1.baseAuthorities.find(
@@ -218,27 +218,31 @@ describe("authoritative determinism authority map", () => {
     liveRepositoryIntegrationTimeoutV1,
   );
 
-  it("rejects a noncanonical negative-control entry spelling", async () => {
-    const negativeControls = determinismAuthorityPolicyV1.negativeControls.map(
-      (control, index) =>
-        index === 0
-          ? Object.freeze({
-            ...control,
-            entry: "./examples/cat-cafe/src/simulation.ts",
-          })
-          : control,
-    );
+  it(
+    "rejects a noncanonical negative-control entry spelling",
+    async () => {
+      const negativeControls = determinismAuthorityPolicyV1.negativeControls.map(
+        (control, index) =>
+          index === 0
+            ? Object.freeze({
+              ...control,
+              entry: "./examples/cat-cafe/src/simulation.ts",
+            })
+            : control,
+      );
 
-    await expect(
-      collectDeterminismAuthorityMapV1({
-        repositoryRoot: repositoryRootV1,
-        policy: Object.freeze({
-          ...determinismAuthorityPolicyV1,
-          negativeControls: Object.freeze(negativeControls),
+      await expect(
+        collectDeterminismAuthorityMapV1({
+          repositoryRoot: repositoryRootV1,
+          policy: Object.freeze({
+            ...determinismAuthorityPolicyV1,
+            negativeControls: Object.freeze(negativeControls),
+          }),
         }),
-      }),
-    ).rejects.toThrow(/negative control .* entry is absent from its live closure/u);
-  });
+      ).rejects.toThrow(/negative control .* entry is absent from its live closure/u);
+    },
+    liveRepositoryIntegrationTimeoutV1,
+  );
 
   it("recollects closure paths from live source instead of caching an inventory", async () => {
     const root = await mkdtemp(join(tmpdir(), "sillymaker-authority-map-"));
