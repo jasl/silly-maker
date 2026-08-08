@@ -12,10 +12,11 @@ session/config catalog、S3c.0 composition-wide successor activation barrier、d
 S3c.1 Host-commit readiness/one logical Host lease、S3d exact-parent confirmation child 与
 S3e.0 successor-acknowledgment/terminal-teardown 准备切片均已完成；2026-08-09 S3e live
 cutover and promotion 已关闭；同日 S1-R.0 stable publication/identity/failure contract
-floor 已关闭，下一独立切片为 S1-R.1 publisher lease + source/occurrence allocators。
+floor 与 S1-R.1 publisher lease/source/occurrence allocator 已关闭，下一独立切片为
+S1-R.2 schema normalization + canonical vector admission。
 同日 S1-R pre-implementation review 将 aggregate 重切为 S1-R.0–S1-R.5，并冻结
 parent/order、专用 revision、failure divergence、empty/dispose、cross-owner、bounded
-admission 与 exact delta；S1-R.0 已实现 pure internal floor，R1–R5 尚未实现。
+admission 与 exact delta；S1-R.0–R1 已实现 dormant internal floor，R2–R5 尚未实现。
 目标合同见
 [Managed Surface lifecycle and contract harness](../design/surface-contract-harness.md)。
 本文只规定可独立交付的实施顺序；不要求一次实现 design
@@ -23,7 +24,7 @@ admission 与 exact delta；S1-R.0 已实现 pure internal floor，R1–R5 尚�
 
 在 [production-floor sequence](2026-07-30-production-floor-sequence.md)
 中：PF2 的 `S0 -> S1-T -> S2`、PF-DET、PF3/M2 与 PF4/S3 已完成；当前 core
-节点是 PF4/S1-R.1。PF4 的顺序是 `S3 -> S1-R.0 -> S1-R.1–S1-R.5 -> S4 -> S4b`；
+节点是 PF4/S1-R.2。PF4 的顺序是 `S3 -> S1-R.0 -> S1-R.1–S1-R.5 -> S4 -> S4b`；
 S5–S6 属于 PF6。S1-R
 延后到第一个真实 externally published stable-target family 前完成；按 accepted
 target ownership，S4 Narrative 计划成为该 family，因此 S1-R 位于 S3 与 S4
@@ -1618,7 +1619,7 @@ S1-R 按以下可独立合并切片推进，每次只领取一个：
    的 normative closure 为 authority，建立 package-internal pure publication/target/
    result types 与 exact contract tests，并在代码中固定 bounds、stable codes 与
    precedence；不调用 live Coordinator；
-2. **S1-R.1 publisher lease + source/occurrence allocators**：deterministic injected
+2. **S1-R.1 publisher lease + source/occurrence allocators（已完成）**：deterministic injected
    lease、revision/occurrence issuance cursor、accepted high-water、fresh domain、
    dispose/ABA 与 bounded churn；
 3. **S1-R.2 schema normalization + canonical vector admission**：descriptor-safe exact
@@ -1634,7 +1635,7 @@ S1-R 按以下可独立合并切片推进，每次只领取一个：
    10k churn、pure/model equivalence 与 public/transient export audit，汇总 dormant
    promotion evidence。
 
-当前只允许从 **S1-R.1** 开始；R1 完成前不得进入 R2 admission。上述切片都保持
+当前只允许从 **S1-R.2** 开始；上述切片都保持
 dormant/package-internal，不接 Narrative/React/Web，不更新 live feature 文档。
 
 **S1-R.0 acceptance：** 只交付 internal shapes、fixed constants、result taxonomy、
@@ -1655,6 +1656,25 @@ schema/canonical admission、state/reducer、Coordinator/readiness调用，也�
 不更新，因为尚无 live stable-target family。验证通过 focused contract `1 file / 7 tests`、
 UI package `70 / 754`、`deno task test`（`243 / 3640`）与完整 `deno task check`；三路
 adversarial review 最终无 finding。
+
+**S1-R.1 acceptance：** 只交付 epoch-scoped package-internal publisher registry、一次性
+claim 的 injected lease-domain allocator、opaque current lease、exact-next source/
+occurrence issuance、immutable accepted-occurrence high-water transition/read-only classifier、
+exact-token ingress dispose与 exhaustion/ABA/churn tests。Registry 同一 owner最多一个
+current lease；issuance 不因 abandoned/rejected publication回滚；accepted high-water
+采用 conservative gap-burn且不包含 source revision/vector/runtime。R1 不执行 descriptor/
+schema/canonical admission（R2）、Coordinator/composite reconcile（R3）或 readiness（R4）。
+
+**2026-08-09 S1-R.1 delivery：** 新增 source-relative
+`managed-surface-stable-publisher-lease.ts`，以 frozen zero-key token + WeakMap exact identity
+实现 finite-owner registry；lease-domain allocator只能被一个 registry claim，source 与
+occurrence 从 `1` exact-next，stable occurrence spelling绑定 epoch/lease/occurrence sequence。
+Publisher handle不能直接 dispose；只有 registry/composite owner可对 exact token封闭
+issuance。Accepted occurrence high-water为 immutable value，read-only classifier固定
+retained/reused/fresh/unissued/foreign 与 conservative gap-burn，不写 accepted source/vector
+或 runtime state。下一切片 R2 才执行 full-vector admission。验证通过 R0+R1 focused
+`2 files / 22 tests`、UI package `71 / 769`、`deno task test`（`244 / 3655`）与完整
+`deno task check`；三路 adversarial review 最终无 finding。
 
 ### Canonical target equivalence
 
@@ -1705,6 +1725,13 @@ occurrence 可保持 identity。同一 application epoch 内结束的 occurrence
 - 同一 lease 还分配 monotonic target occurrence（或 S1-R 明确证明的等价 bounded
   cursor）；作者不手写可任意复用的 opaque occurrence，Coordinator 不维护无界
   retired-occurrence tombstone；
+- R1 source 与 occurrence issuer 都是 exact-next scalar cursor；legal source revision gap
+  通过签发但不交付中间 revision形成。Lease-domain allocator可单调跳号，但 exact allocator
+  object只能被一个 epoch registry claim；unknown/duplicate current owner在调用allocator前
+  fail closed；
+- accepted occurrence high-water 与 issuance分离并由 future R3 composite state持有。
+  接受 `n3` 会 conservative burn 未保留的 `n1/n2`；classifier必须区分 retained `n3`、
+  reused lower ID、fresh `n4`、unissued future ID 与 foreign lease domain；
 - lower revision 返回 stale；
 - equal revision + same canonical vector 返回 idempotent unchanged；
 - equal revision + different canonical vector 返回 invalid；

@@ -14,8 +14,9 @@ promotion 均已关闭。2026-08-08 dormant `PF4/S3c.1 Host-commit readiness`、
 `PF4/S3d Saves confirmation child` 与
 `PF4/S3e.0 composition successor acknowledgment and terminal teardown` 已关闭；
 2026-08-09 `PF4/S3e live cutover and promotion` 与
-`PF4/S1-R.0 stable publication/identity/failure contract floor` 已关闭，linear core下一独立
-切片为 `PF4/S1-R.1 publisher lease + source/occurrence allocators`。
+`PF4/S1-R.0 stable publication/identity/failure contract floor` 与
+`PF4/S1-R.1 publisher lease + source/occurrence allocators` 已关闭，linear core下一独立
+切片为 `PF4/S1-R.2 schema normalization + canonical vector admission`。
 同日 S1-R pre-implementation review 将 external reconcile gate 重切为 S1-R.0–S1-R.5；
 顺序变化不把任何 planned stable-target contract写成 live capability。
 2026-08-04 已冻结 S3 的 shared-Coordinator transient topology、atomic initial-candidate
@@ -26,7 +27,7 @@ supersede/retained-active cancellation、S3b composition-owned shared Coordinato
 dormant System session/catalog、S3c.0 all-family successor activation barrier 已完成；S3
 的 S3c.1 Host-commit readiness/Host lease、S3d exact-parent confirmation child 与
 S3e.0 composition successor acknowledgment/terminal teardown、S3e live cutover与
-promotion与 S1-R.0 pure internal contract floor均已完成；下一独立切片为 S1-R.1。
+promotion与 S1-R.0–R1 dormant internal floor均已完成；下一独立切片为 S1-R.2。
 旧 promotion 数字保留为
 历史证据。本文是当前唯一的跨计划排序入口；
 具体合同仍由各 design 文档拥有，主要任务由五个独立计划拥有：
@@ -1027,8 +1028,8 @@ Save/Persistence/M2/canonical/digest/replay/wire不变，transient System未引�
 验证通过 focused cutover（14 files / 170 tests）、UI package（69 / 745）、
 `deno task test`（242 / 3631）、`deno task check`、Engine browser（101 / 101）、examples
 browser（45 passed / 2 skipped）与 prebuilt Player（38 / 38）；最终 adversarial review无
-finding。S3 promotion与 S1-R.0完成，linear core当前节点与下一独立切片均为 S1-R.1；S4仍受
-S1-R aggregate gate约束。
+finding。S3 promotion与 S1-R.0–R1完成，linear core当前节点与下一独立切片均为
+S1-R.2；S4仍受 S1-R aggregate gate约束。
 
 S1-R 在第一个真实 externally published stable-target family 前完成。按 accepted
 target ownership，S4 Narrative 计划从 semantic publication 派生 stable target，
@@ -1057,6 +1058,15 @@ architecture/features 与 Save/Persistence/canonical/digest/replay/wire均未改
 只实现 deterministic injected publisher lease 与 source/occurrence issuance domains。验证通过
 focused `1 / 7`、UI package `70 / 754`、`deno task test`（`243 / 3640`）与完整
 `deno task check`；三路 adversarial review 无 finding。
+
+**2026-08-09 S1-R.1 delivery：** package-internal publisher registry以一次性 claimed、
+composition-owned epoch-local allocator签发 opaque lease；同一 resolved owner最多一个
+current lease，source/occurrence exact-next issuance、immutable accepted-occurrence
+high-water、conservative gap-burn、exact-token dispose、exhaustion/ABA与10k bounded churn
+均已闭合。R1没有 accepted source/vector、admission、Coordinator/reconcile/readiness或live
+family wiring；下一切片 R2 只领取 schema/canonical/full-vector admission。验证通过
+R0+R1 focused `2 / 22`、UI package `71 / 769`、`deno task test`（`244 / 3655`）与完整
+`deno task check`；三路 adversarial review 最终无 finding。
 
 每个 family 的迁移提交必须删除旧 owner；禁止长期 adapter 双写。
 `DialoguePanelV1` / `VnLayerV1` 的 controller/view/host 拆分在 Narrative family

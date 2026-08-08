@@ -23,13 +23,15 @@ standalone lifecycle exports；full/browser/prebuilt 回归与最终 adversarial
 revision、readiness failure desired/runtime divergence、empty/dispose、cross-owner 与
 bounded exact admission 边界；同日 S1-R.0 已把 pure publication/target/identity/result
 shapes、fixed bounds、stable code precedence 与 exact source/runtime delta table 固定为
-package-internal dormant contract。它仍不是 live capability。
+package-internal dormant contract；S1-R.1 已进一步固定 composition-owned publisher
+registry、opaque lease、source/occurrence issuance、immutable accepted-occurrence high-water、
+dispose/ABA 与 bounded churn。它们仍不是 live capability。
 本文固定
 影响输入与焦点的 UI Surface 的权威边界、生命周期、输入代际与验证分层，并把“弱模型
 能够写出正确代码”提升为作者 API 的验收条件。S1-T 与 S2 已实现，S3a–S3e
 已完成并 promotion System 的 shared composition authority、Host readiness、confirmation
-child 与 single-writer cutover；下一独立切片为 S1-R.1 publisher lease +
-source/occurrence allocators。当前 live 能力仍以
+child 与 single-writer cutover；下一独立切片为 S1-R.2 schema normalization +
+canonical vector admission。当前 live 能力仍以
 [architecture](../architecture.md) 与
 [features](../features.md) 为准；执行顺序见
 [Surface Contract Harness plan](../plans/2026-07-30-surface-contract-harness.md)。
@@ -234,6 +236,29 @@ stable occurrence 由该 owner/publisher lease allocator（或在 S1-R
 冻结的等价 bounded cursor proof）生成，而不是作者任意复用 opaque string。Runtime
 只保存 live/pending identity 与
 bounded allocator/source cursors，不保存随 open/close 历史增长的 tombstone set。
+
+S1-R.1 将 publisher issuance 固定为 application-epoch-scoped、composition-owned 的
+单一 registry。Registry 必须覆盖 frozen resolved-owner domain，并以一次性 claim 的
+injected monotonic lease-domain allocator 为 authority；同一个 allocator 不能创建第二个
+registry，同一 owner 在 exact registry 中同时最多有一个 current lease。Lease token 是
+frozen zero-key capability，current/stale 判断只认 exact object identity 与 package-private
+WeakMap，不认 diagnostic string。每个 lease 的 source revision 与 occurrence 都从 `1`
+exact-next 签发；legal source gap 通过签发但不交付中间 revision 形成，签发/放弃/invalid
+publication 都不回滚 issuance high-water。Stable occurrence diagnostic spelling绑定
+`applicationEpoch + leaseSequence + occurrenceSequence`，但字符串本身不替代 lease
+capability。
+
+Accepted occurrence high-water 是未来 R3 composite source state 中的 immutable scalar，
+不是 publisher WeakMap 的第二份 mutable state。R1 immutable transition只能在 exact current
+lease、已签发上界内单调推进；equal 保持同一 value，lower/unissued/foreign/disposed
+fail closed。V1 采用 conservative gap-burn：若先接受 `n3`，不在当前 accepted vector
+中保留的 `n1/n2` 此后视为 reused，不能首次引入；`n3` 可 retained，`n4` 可 fresh，
+`n>issuanceHighWater` 是 unissued。若真实 consumer 要求乱序预签发后再首次引入较低
+occurrence，必须停止并选择另一种 bounded proof，不能增加 unbounded issued/retired set。
+Accepted source revision/vector仍只属于 R3 composite reconcile state。R1 registry 的
+exact-token dispose 只封闭 dormant issuance ingress并证明 stale/ABA；R0 的
+`publisher_disposed` source/runtime result、notification与 target retirement仍由 R3 在
+同一 composite commit 产生。
 
 Stable publication 在任何 identity allocation 或 Coordinator mutation 前完成 bounded
 exact admission，且 precedence 固定为：
