@@ -931,7 +931,7 @@ S3 是 Coordinator-owned transient family，与 Workspace Overlay 共用唯一�
 composition-owned Coordinator、application epoch、immutable publication、managed
 input binding 与 successor lifetime；不依赖 S1-R，也不向 transient contract 加入
 source publication revision、publisher lease、stable canonical vector 或 reconcile
-cursor。S3 的实现分为五个独立批次；S3a–S3d 新路径保持 dormant/test-only，S3e
+cursor。S3 的实现采用下列独立交付批次；S3a–S3d 新路径保持 dormant/test-only，S3e
 才原子切换 live family 并删除旧 owner，任何中间提交都不得双写。
 
 ### S3 topology and policy
@@ -1473,6 +1473,39 @@ Persistence/M2/canonical/digest/replay/wire无 diff。
 UI（67 / 737）、Web（26 / 286）package tests，`deno task test`（240 / 3622）、
 `deno task check`、Engine E2E（101）、examples E2E（45 passed / 2 skipped）和 prebuilt Player
 （38）。S3e.0 完成但 System尚未 promotion；下一独立切片为 S3e live cutover and promotion。
+
+### S3e live-cutover entry gate
+
+S3e.0 → S3e 是一个有意受限的 preparation bridge，不是 release/promotion 稳定点，也不能在
+两者之间插入无关功能工作。标准 Web 保留 composed lifecycle；退回 raw Core lifecycle
+**不是**缓解方案，因为 raw restart 同样在 Promise settle 前同步发布 application anchor并安装
+presentation successor，旧 Root cleanup仍可能命中 fresh successor，而 positive acknowledgment
+反而会丢失。若 S3e 不能继续，保持当前 checkpoint 非发布状态并重新审查，不增加临时 raw
+fallback 提交。
+
+S3e 的第一组 RED 必须在真实 hosted composition、已附着 renderer resolver与公开 family intent
+上固定以下两个 mutation-sensitive bridge vectors：
+
+1. `returnToTitle` 的 exact successor activation subscriber同步打开 fresh Overlay（最终 managed
+   System path也执行同类向量）；composed anchored完成后，Root只推进 title-local foreground
+   state，不调用 System `close`、Overlay `closeAll` 或任何 cross-family reset。fresh epoch的
+   instance/publication保持 current，且 ack 后没有第二次 topology/publication revision、identity
+   allocation、family notification、input/focus/gesture mutation；
+2. successful load/import 建立 successor时，subscriber同步打开 fresh System Surface；predecessor
+   Saves/confirmation completion不得调用旧 `onClose`、current-session `close` 或向 fresh root
+   投递 result/finalizer。predecessor topology只由 exact successor retirement收敛，operation可
+   自然 settle但不得关闭、刷新或改写 successor中的实例。
+
+public cutover RED 先从真实 composition、DefaultGameRoot、Web/debug与 Story consumer冻结满足
+design 4.3 的最小 facade member set；本计划不预先冻结 immutable view accessor的具体名称或
+object shape。任何 public `close`、raw `open(kind)`、Coordinator/readiness/epoch/instance/topology
+evidence都继续禁止。删除 legacy exports的证据使用 package-export consumer与真实 runtime
+single-writer行为测试；`rg`/reference count只作为提交前自审，不把 exact source inventory或
+阶段性调用次数建成常规 CI 合同。
+
+S3e promotion完成后再同步 `architecture.md`、`features.md`、`story-authoring.md` 与中英文网站中
+仍描述 legacy System或“只有 Overlay managed”的内容；`development.md` 只在作者/维护工作流
+实际改变时更新。live cutover完成前不得把这些目标写成已实现能力。
 
 每个 dormant slice 必须 package-internal、不可由 live System 与旧 store同时写入；若
 为了独立合并必须双写、mirror 或提前开放第二个 lifecycle ingress，停止并重切片。
