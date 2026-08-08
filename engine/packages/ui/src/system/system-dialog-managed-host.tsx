@@ -509,6 +509,10 @@ function SystemDialogBlockingFallbackInternalV1(props: {
     focusElement.focus({ preventScroll: true });
     return () => {
       ownerDocument.removeEventListener("focusin", containFocus, true);
+      if (props.session.isTerminalDisposalInternalV1()) {
+        previousFocusOwnerRef.current = null;
+        return;
+      }
       if (props.confirmationEntry !== null) return;
       const candidate = props.session.getHostRenderSnapshotInternalV1().entries.find(
         (entry) => entry.surfaceInstanceId === latestCandidateInstanceIdRef.current,
@@ -649,6 +653,10 @@ function SystemDialogAttachedHostInternalV1(props: {
   }, [activeConfirmation, props.inputRouter]);
 
   useLayoutEffect(() => {
+    if (props.session.isTerminalDisposalInternalV1()) {
+      childFocusLedgerRef.current.clear();
+      return;
+    }
     const currentEntryIds = new Set(
       snapshot.entries.map((entry) => entry.surfaceInstanceId),
     );
@@ -661,6 +669,7 @@ function SystemDialogAttachedHostInternalV1(props: {
       );
       if (!parentSurvives) continue;
       queueMicrotask(() => {
+        if (props.session.isTerminalDisposalInternalV1()) return;
         const latest = props.session.getHostRenderSnapshotInternalV1();
         const exactParentStillSurvives = latest.entries.some((entry) =>
           entry.kind === "root" &&

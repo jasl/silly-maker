@@ -35,7 +35,10 @@ import {
 } from "../shell/game-stage.tsx";
 import { SettingsDialogContentV1 } from "./settings-dialog.tsx";
 import type { SettingsDialogPropsV1 } from "./settings-dialog.tsx";
-import { createSystemDialogSessionStoreV1 } from "./system-dialog-session-store.ts";
+import {
+  createSystemDialogSessionStoreV1,
+  isSystemDialogSessionStoreTerminalInternalV1,
+} from "./system-dialog-session-store.ts";
 import type {
   SystemDialogSessionStoreV1,
   SystemDialogSurfaceV1,
@@ -99,10 +102,11 @@ export function useSystemDialogControllerV1(): SystemDialogControllerV1 {
 function focusConnectedElementV1(
   element: HTMLElement | null,
   ownedScope: HTMLElement | null,
+  isSuppressed: () => boolean,
 ): void {
-  if (element === null) return;
+  if (element === null || isSuppressed()) return;
   queueMicrotask(() => {
-    if (!element.isConnected) return;
+    if (isSuppressed() || !element.isConnected) return;
     const activeElement = document.activeElement;
     if (
       activeElement !== null &&
@@ -137,14 +141,23 @@ export function SystemDialogHostV1(props: SystemDialogHostPropsV1): ReactElement
   }, []);
 
   const closeDialog = useCallback((): void => {
+    if (isSystemDialogSessionStoreTerminalInternalV1(store)) {
+      openerRef.current = null;
+      return;
+    }
     store.close();
     const opener = openerRef.current;
     openerRef.current = null;
-    focusConnectedElementV1(opener, focusScopeRef.current);
+    focusConnectedElementV1(
+      opener,
+      focusScopeRef.current,
+      () => isSystemDialogSessionStoreTerminalInternalV1(store),
+    );
   }, [store]);
 
   const openSurface = useCallback(
     (nextSurface: SystemDialogSurfaceV1, opener: HTMLButtonElement | null): void => {
+      if (isSystemDialogSessionStoreTerminalInternalV1(store)) return;
       openerRef.current = opener;
       store.open(nextSurface);
     },
@@ -153,8 +166,16 @@ export function SystemDialogHostV1(props: SystemDialogHostPropsV1): ReactElement
 
   useLayoutEffect(
     () => () => {
+      if (isSystemDialogSessionStoreTerminalInternalV1(store)) {
+        openerRef.current = null;
+        return;
+      }
       store.close();
-      focusConnectedElementV1(openerRef.current, focusScopeRef.current);
+      focusConnectedElementV1(
+        openerRef.current,
+        focusScopeRef.current,
+        () => isSystemDialogSessionStoreTerminalInternalV1(store),
+      );
       openerRef.current = null;
     },
     [store],

@@ -10,9 +10,10 @@ time-boundary clarification 只闭合 C3 metadata scope，不改变 B-prime 或 
 Save M1 与 DET-B same-HEAD join 已于 2026-08-03 完成；M2 已冻结为 State-only 的
 M2a–M2e；M2a exact registry/Core-admission floor、M2b bounded pure execution kernel、
 M2c staged Persistence integration、M2d atomic replacement 与 M2e real-owner/four-runtime
-promotion 均已关闭。2026-08-08 dormant `PF4/S3c.1 Host-commit readiness` 与
-`PF4/S3d Saves confirmation child` 已关闭，linear core 下一独立切片为
-`PF4/S3e live cutover and promotion`。
+promotion 均已关闭。2026-08-08 dormant `PF4/S3c.1 Host-commit readiness`、
+`PF4/S3d Saves confirmation child` 与
+`PF4/S3e.0 composition successor acknowledgment and terminal teardown` 已关闭；
+linear core 下一独立切片为 `PF4/S3e live cutover and promotion`。
 2026-08-04 已冻结 S3 的 shared-Coordinator transient topology、atomic initial-candidate
 supersede、retained-active pending cancellation、exact result/delta matrix、Host-commit
 readiness、StrictMode terminal-once fence 与 public API cutover；能力尚未 promotion，
@@ -20,8 +21,9 @@ readiness、StrictMode terminal-once fence 与 public API cutover；能力尚未
 同日 S3a dormant System contract/snapshot floor 与 package-internal atomic initial
 supersede/retained-active cancellation、S3b composition-owned shared Coordinator 与
 dormant System session/catalog、S3c.0 all-family successor activation barrier 已完成；S3
-的 S3c.1 Host-commit readiness/Host lease 与 S3d exact-parent confirmation child 也已
-完成；S3 尚未 promotion，下一独立切片为 S3e。
+的 S3c.1 Host-commit readiness/Host lease、S3d exact-parent confirmation child 与
+S3e.0 composition successor acknowledgment/terminal teardown 也已完成；S3 尚未
+promotion，下一独立切片为 S3e live cutover。
 旧 promotion 数字保留为
 历史证据。本文是当前唯一的跨计划排序入口；
 具体合同仍由各 design 文档拥有，主要任务由五个独立计划拥有：
@@ -966,7 +968,47 @@ dismiss operation 在 policy lookup 前拒绝非 closed kind。同步 observer r
 port reentry、Proxy callback TOCTOU、Promise own-`then`/constructor 与 close-notify fresh-child
 交错均由 mutation-sensitive vectors固定。新 Host/catalog仍未接入 production composition、
 browser graph或 package barrel；legacy store/Host仍是唯一 live writer，且
-Save/Persistence/M2/canonical/digest/replay/wire无 diff。下一独立切片为 S3e。
+Save/Persistence/M2/canonical/digest/replay/wire无 diff。下一独立切片为 S3e.0。
+
+S3e 恢复前先执行 **S3e.0**。该准备批不切换 System live authority：standard
+tokenized Core operation 以既有 authoritative replacement publication context mint
+package-internal exact operation token；UI 在
+shared successor/all-family activation/UI anchor/post-liveness 完整成功后才按 token ack；Web 以
+per-token broker和 producer-side terminal supervisor区分 raw authoritative anchored与 composed
+anchored。不得用 latest/current anchor、call-time `before + 1`、origin-only或 timeout相关。
+successor activation failure不改写 public `SessionAnchorResultV1`，而是在 producer callback
+stack先 fence全部 application ingress，再用 deferred-first、reentrant、cleanup-failure-safe
+teardown始终释放 Core/Persistence，最终 reject
+`ui.presentation_successor_activation_failed`。settled lifecycle result按 exact descriptor shape
+admission，malformed在标准 Web path完成 terminal teardown后异步 reject
+`ui.lifecycle_restart_result_invalid`，bare Root只reject；Promise assimilation保留
+ECMAScript语义。S3e.0 不恢复 live cutover WIP、不改变 Save/Persistence/M2/canonical/digest/
+replay/wire，也不 promotion live System；通过独立审查后下一切片仍为 S3e。
+受控 legacy/generic replacement 保留 `null` context characterization，不参与 per-token
+composed-anchored 提升；其 activation failure 仍进入同一 terminal latch。
+bare Root 消费该 parser、lifecycle absence/New Game/return-to-title/DevDock admission 与
+anchored 后 legacy writer cleanup 删除仍属 S3e 原子 cutover，不是 S3e.0 delivery。
+
+**2026-08-08 S3e.0 delivery：** Core 现在能在 standard composed restart 启动前 mint
+fresh package-internal publication-context token，并以 one-shot prepared operation 将其绑定
+exact committed anchor event；公开 anchor 与 `SessionAnchorResultV1` 未改变。Hosted UI
+按 generation 串行完成 shared Coordinator successor、all-family activation notification、
+UI anchor publication 与 post-callback liveness 后才 ack exact token。Web broker在 UI drain
+前绑定 exact anchor identity；wrong anchor、conflicting bind、failed、missing、mismatched，
+以及 event/ack 与 rejected、faulted、raw throw/rejection 的 desynchronization 都 fail closed，
+其中 producer/event-stack failure 会先同步 terminal-fence 再交给 Core observer diagnostics。
+
+Web teardown 已收敛为 deferred-first、first-wins、可重入 state machine：automation、physical
+input、presentation/Managed Surface 与 Core/Persistence mutation ingress 全部完成 fence 后才
+unmount/cleanup，逐项 cleanup、Host logger与 release failure均不替换 terminal primary；
+pagehide 仍保持 flush-before-Core/Persistence-release barrier。UI-owned settled-result parser
+按 exact data descriptors/closed codes分类，且不把 token/ack扩入 public API。terminal focus
+restore 在 Overlay、legacy System 与 dormant managed System Host均被抑制。delivery audit确认
+legacy System仍是唯一 live writer，隔离的 S3e WIP stash未恢复，DefaultGameRoot live admission
+与 legacy cleanup仍留给下一批 S3e；Save/Persistence/M2/canonical/digest/replay/wire无 diff。
+验证通过 Base/UI/Web package tests、`deno task test`（240 files / 3622 tests）、
+`deno task check`、Engine E2E（101 tests）、examples E2E（45 passed / 2 skipped）与 prebuilt
+Player（38 tests）。下一独立切片为 S3e live cutover and promotion。
 
 S1-R 在第一个真实 externally published stable-target family 前完成。按 accepted
 target ownership，S4 Narrative 计划从 semantic publication 派生 stable target，
@@ -1128,3 +1170,9 @@ Story import-closure tooling、browser parity config 或 public export 的工作
   replay 语义；
 - 实现必须依赖 `tmp/**`、`references/**` 或私有复刻工程；
 - packaged desktop 只能检查目标平台产物存在，不能真实启动、写入并重开。
+- composed successor只能通过 current/latest anchor、call-time `before + 1`、origin-only/FIFO
+  或 timeout猜测，无法绑定 exact Core replacement operation；
+- successor activation failure只能等 raw Core Promise continuation才可 fence application
+  ingress，或 teardown cleanup throw/reentry会跳过 Core/Persistence release并替换 primary fault；
+- lifecycle result admission必须改变 public `SessionAnchorResultV1`/anchor/Save wire，或必须执行
+  accessor/Proxy getter才能分类 malformed settled value。

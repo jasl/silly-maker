@@ -174,6 +174,11 @@ export interface WorkspaceOverlaySessionInternalV1<TOverlayId extends string>
     kind: ManagedSurfaceDismissKindV1,
   ): void;
   getHandleInternalV1(surfaceInstanceId: ManagedSurfaceInstanceIdV1): ManagedSurfaceHandleV1 | null;
+  isRuntimeAttachmentCurrentInternalV1(
+    expectedRuntime: ManagedSurfaceCoordinatorRuntimeV1,
+  ): boolean;
+  sealTerminalDisposalInternalV1(): void;
+  isTerminalDisposalInternalV1(): boolean;
   disposeInternalV1(): void;
 }
 
@@ -642,6 +647,7 @@ export function createWorkspaceOverlaySessionInternalV1<TOverlayId extends strin
   let mutationDepth = 0;
   let dirty = false;
   let disposed = false;
+  let terminalDisposal = false;
   let detached = false;
   let preparedRuntime: ManagedSurfaceCoordinatorRuntimeV1 | null = null;
   let activationGate: ManagedSurfaceFamilyActivationGateInternalV1 | null = null;
@@ -1033,6 +1039,16 @@ export function createWorkspaceOverlaySessionInternalV1<TOverlayId extends strin
     },
     getHandleInternalV1(surfaceInstanceId) {
       return runtime.coordinator.getHandle(surfaceInstanceId);
+    },
+    isRuntimeAttachmentCurrentInternalV1(expectedRuntime) {
+      return !disposed && !detached && preparedRuntime === null && runtime === expectedRuntime &&
+        (activationGate === null || activationGate.isOpen()) && expectedRuntime.isIngressOpen();
+    },
+    sealTerminalDisposalInternalV1() {
+      terminalDisposal = true;
+    },
+    isTerminalDisposalInternalV1() {
+      return terminalDisposal;
     },
     detachRuntimeInternalV1() {
       if (disposed || detached) return;

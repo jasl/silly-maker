@@ -19,6 +19,22 @@ export interface SystemDialogSessionStoreV1 {
   close(): void;
 }
 
+const terminalSystemDialogSessionStoresInternalV1 = new WeakSet<object>();
+
+/** @internal Composition terminal fence for the legacy Host during S3e cutover. */
+export function sealSystemDialogSessionStoreTerminalInternalV1(
+  store: SystemDialogSessionStoreV1,
+): void {
+  terminalSystemDialogSessionStoresInternalV1.add(store);
+}
+
+/** @internal No-mutation Host cleanup predicate; absent from the public Store shape. */
+export function isSystemDialogSessionStoreTerminalInternalV1(
+  store: SystemDialogSessionStoreV1,
+): boolean {
+  return terminalSystemDialogSessionStoresInternalV1.has(store);
+}
+
 export function createSystemDialogSessionStoreV1(): SystemDialogSessionStoreV1 {
   let state: DeepReadonly<SystemDialogSessionStateV1> = Object.freeze({ active: null });
   const listeners = new Set<() => void>();

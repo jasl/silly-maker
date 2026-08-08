@@ -55,6 +55,11 @@ import {
   encodeDebugBundleV1,
 } from "../diagnostics/debug-bundle.ts";
 import { decodeSessionLeaseRecordV1 } from "../persistence/session-lease.ts";
+import {
+  prepareCoreApplicationRestartInternalV1,
+  subscribeCoreApplicationPresentationAnchorEventsInternalV1,
+  type CorePresentationAnchorEventInternalV1,
+} from "../internal.ts";
 import type {
   CoreApplicationConstructionEventInternalV1,
   CoreApplicationExtensionContextV1,
@@ -2007,6 +2012,45 @@ async function createInstanceV1(options?: {
     host: hostServicesV1(options?.records ?? createMemoryHostRecordStoreV1(), options?.seeds),
     ...(options?.autosave === undefined ? {} : { autosave: options.autosave }),
     ...(options?.scheduler === undefined ? {} : { scheduler: options.scheduler }),
+  });
+}
+
+function resolvedApplicationWithDisposeV1(dispose: () => void) {
+  const result = resolveCoreGameApplicationV1(
+    defineCoreGameApplicationV1({
+      ...definitionV1,
+      createExtensions: () => Object.freeze({ extensions: Object.freeze({}), dispose }),
+    }),
+    { buildIdentityInput: deterministicBuildIdentityInputV1 },
+  );
+  if (result.kind !== "resolved") {
+    throw new TypeError("disposal fixture must resolve");
+  }
+  return result.application;
+}
+
+function leaseReleaseRecordsV1(options: { readonly rejectRelease?: boolean } = {}) {
+  const delegate = createMemoryHostRecordStoreV1();
+  const releaseError = new Error("synthetic lease release failure");
+  let releaseAttempts = 0;
+  const records: HostAtomicRecordStoreV1 = {
+    read: delegate.read,
+    list: delegate.list,
+    commit(mutations) {
+      const releases = mutations.filter((mutation) => {
+        if (mutation.kind !== "put" || mutation.namespace !== "lease") return false;
+        const decoded = decodeSessionLeaseRecordV1(mutation.bytes);
+        return decoded.kind === "decoded" && decoded.record.ownerId === null;
+      });
+      releaseAttempts += releases.length;
+      return releases.length > 0 && options.rejectRelease === true
+        ? Promise.reject(releaseError)
+        : delegate.commit(mutations);
+    },
+  };
+  return Object.freeze({
+    records: Object.freeze(records),
+    releaseAttempts: () => releaseAttempts,
   });
 }
 
@@ -4703,6 +4747,152 @@ describe("createCoreGameApplicationInstanceV1", () => {
     await instance.dispose();
   });
 
+  it("correlates two prepared concurrent restarts with distinct exact publication contexts", async () => {
+    const instance = await createInstanceV1({ seeds: [77, 83, 89] });
+    const events: CorePresentationAnchorEventInternalV1[] = [];
+    const unsubscribe = subscribeCoreApplicationPresentationAnchorEventsInternalV1(
+      instance,
+      (event) => events.push(event),
+    );
+    const first = prepareCoreApplicationRestartInternalV1(instance);
+    const second = prepareCoreApplicationRestartInternalV1(instance);
+
+    expect(first.publicationContext).not.toBe(second.publicationContext);
+    expect(events).toEqual([]);
+
+    const firstRun = first.run();
+    expect(first.run()).toBe(firstRun);
+    const secondRun = second.run();
+    expect(second.run()).toBe(secondRun);
+    await expect(Promise.all([firstRun, secondRun])).resolves.toEqual([
+      { kind: "anchored", commandSequence: 0 },
+      { kind: "anchored", commandSequence: 0 },
+    ]);
+
+    expect(events.map((event) => event.anchor)).toEqual([
+      { epoch: 1, origin: "restart" },
+      { epoch: 2, origin: "restart" },
+    ]);
+    expect(events[0]?.publicationContext).toBe(first.publicationContext);
+    expect(events[1]?.publicationContext).toBe(second.publicationContext);
+    expect(Object.isFrozen(events[0])).toBe(true);
+    expect(Object.isFrozen(events[0]?.anchor)).toBe(true);
+
+    unsubscribe();
+    await instance.dispose();
+  });
+
+  it("keeps prepared restart correlation exact across queued load and import replacements", async () => {
+    const instance = await createInstanceV1({ seeds: [77, 83] });
+    await expect(instance.persistence.save("manual.1")).resolves.toMatchObject({ kind: "saved" });
+    await instance.semantic.dispatch(incrementV1);
+    const exported = await instance.persistence.exportCurrentSave();
+    const bytes = (exported as { readonly bytes: Uint8Array }).bytes;
+    const events: CorePresentationAnchorEventInternalV1[] = [];
+    const unsubscribe = subscribeCoreApplicationPresentationAnchorEventsInternalV1(
+      instance,
+      (event) => events.push(event),
+    );
+    const prepared = prepareCoreApplicationRestartInternalV1(instance);
+
+    const loaded = instance.persistence.load("manual.1");
+    const imported = instance.persistence.importSave(bytes);
+    const restarted = prepared.run();
+    await expect(Promise.all([loaded, imported, restarted])).resolves.toEqual([
+      { kind: "loaded", compatibility: "exact", commandSequence: 0 },
+      { kind: "imported", compatibility: "exact", commandSequence: 1 },
+      { kind: "anchored", commandSequence: 0 },
+    ]);
+
+    expect(events.map((event) => event.anchor)).toEqual([
+      { epoch: 1, origin: "load" },
+      { epoch: 2, origin: "import" },
+      { epoch: 3, origin: "restart" },
+    ]);
+    expect(events[0]?.publicationContext).not.toBeNull();
+    expect(events[1]?.publicationContext).not.toBeNull();
+    expect(events[0]?.publicationContext).not.toBe(events[1]?.publicationContext);
+    expect(events[0]?.publicationContext).not.toBe(prepared.publicationContext);
+    expect(events[1]?.publicationContext).not.toBe(prepared.publicationContext);
+    expect(events[2]?.publicationContext).toBe(prepared.publicationContext);
+
+    unsubscribe();
+    await instance.dispose();
+  });
+
+  it("preserves the public raw restart result and observer-isolated anchor contract", async () => {
+    const instance = await createInstanceV1({ seeds: [77, 83] });
+    const publicAnchors: unknown[] = [];
+    const exactEvents: CorePresentationAnchorEventInternalV1[] = [];
+    const unsubscribeThrowing = instance.subscribePresentationAnchor(() => {
+      throw new Error("synthetic public anchor observer failure");
+    });
+    const unsubscribePublic = instance.subscribePresentationAnchor((anchor) => {
+      publicAnchors.push(anchor);
+    });
+    const unsubscribeExactThrowing = subscribeCoreApplicationPresentationAnchorEventsInternalV1(
+      instance,
+      () => {
+        throw new Error("synthetic exact anchor observer failure");
+      },
+    );
+    const unsubscribeExact = subscribeCoreApplicationPresentationAnchorEventsInternalV1(
+      instance,
+      (event) => exactEvents.push(event),
+    );
+
+    await expect(instance.lifecycle.restart()).resolves.toEqual({
+      kind: "anchored",
+      commandSequence: 0,
+    });
+    expect(Object.keys(instance.lifecycle)).toEqual(["restart"]);
+    expect(publicAnchors).toEqual([{ epoch: 1, origin: "restart" }]);
+    expect(exactEvents).toHaveLength(1);
+    expect(exactEvents[0]).toMatchObject({
+      anchor: { epoch: 1, origin: "restart" },
+    });
+    expect(exactEvents[0]?.publicationContext).not.toBeNull();
+
+    unsubscribeThrowing();
+    unsubscribePublic();
+    unsubscribeExactThrowing();
+    unsubscribeExact();
+    await instance.dispose();
+  });
+
+  it("fails closed for foreign and disposed internal composition targets", async () => {
+    const foreign = Object.freeze({});
+    expect(() => prepareCoreApplicationRestartInternalV1(foreign)).toThrowError(
+      "core.application_internal_unavailable",
+    );
+    expect(() =>
+      subscribeCoreApplicationPresentationAnchorEventsInternalV1(foreign, () => undefined)
+    ).toThrowError("core.application_internal_unavailable");
+
+    const instance = await createInstanceV1({ seeds: [77, 83] });
+    const events: CorePresentationAnchorEventInternalV1[] = [];
+    subscribeCoreApplicationPresentationAnchorEventsInternalV1(
+      instance,
+      (event) => events.push(event),
+    );
+    const prepared = prepareCoreApplicationRestartInternalV1(instance);
+    await instance.disposeForRebootstrap();
+
+    expect(() => prepareCoreApplicationRestartInternalV1(instance)).toThrowError(
+      "core.application_internal_unavailable",
+    );
+    expect(() =>
+      subscribeCoreApplicationPresentationAnchorEventsInternalV1(instance, () => undefined)
+    ).toThrowError("core.application_internal_unavailable");
+    const lateRun = prepared.run();
+    expect(prepared.run()).toBe(lateRun);
+    await expect(lateRun).resolves.toEqual({
+      kind: "rejected",
+      code: "hmr_invalidated",
+    });
+    expect(events).toEqual([]);
+  });
+
   it("does not leak a tagged replacement origin into the next generic queue entry", async () => {
     const fixture = bootstrapCharacterizationFixtureV1();
     const instance = await createCoreGameApplicationInstanceV1(fixture.application, {
@@ -4716,7 +4906,12 @@ describe("createCoreGameApplicationInstanceV1", () => {
       });
       await instance.semantic.dispatch(incrementV1);
       const anchors: unknown[] = [];
+      const exactEvents: CorePresentationAnchorEventInternalV1[] = [];
       const unsubscribe = instance.subscribePresentationAnchor((anchor) => anchors.push(anchor));
+      const unsubscribeExact = subscribeCoreApplicationPresentationAnchorEventsInternalV1(
+        instance,
+        (event) => exactEvents.push(event),
+      );
 
       const load = instance.persistence.load("manual.1");
       const generic = context.runtimeControl.enqueueAuthoritative(
@@ -4737,8 +4932,11 @@ describe("createCoreGameApplicationInstanceV1", () => {
         { epoch: 1, origin: "load" },
         { epoch: 2, origin: "replacement" },
       ]);
+      expect(exactEvents[0]?.publicationContext).not.toBeNull();
+      expect(exactEvents[1]?.publicationContext).toBeNull();
 
       unsubscribe();
+      unsubscribeExact();
     } finally {
       await instance.dispose();
     }
@@ -5208,6 +5406,127 @@ describe("createCoreGameApplicationInstanceV1", () => {
     expect((instance.semantic.observe().game as { readonly count: number }).count).toBe(0);
     expect(instance.presentationAnchor().origin).toBe("bootstrap");
     await instance.dispose();
+  });
+
+  it("publishes one disposal Promise before cleanup reentry and still releases persistence", async () => {
+    const lease = leaseReleaseRecordsV1();
+    const cleanupError = new Error("synthetic extension cleanup failure");
+    let cleanupCalls = 0;
+    let reentrantDisposal:
+      | ReturnType<Awaited<ReturnType<typeof createInstanceV1>>["disposeForRebootstrap"]>
+      | undefined;
+    let instance: Awaited<ReturnType<typeof createInstanceV1>> | undefined;
+    const application = resolvedApplicationWithDisposeV1(() => {
+      cleanupCalls += 1;
+      if (instance === undefined) throw new TypeError("disposal fixture instance missing");
+      reentrantDisposal = instance.disposeForRebootstrap();
+      throw cleanupError;
+    });
+    instance = await createCoreGameApplicationInstanceV1(application, {
+      host: hostServicesV1(lease.records),
+    });
+
+    const disposal = instance.disposeForRebootstrap();
+    expect(reentrantDisposal).toBe(disposal);
+    expect(instance.disposeForRebootstrap()).toBe(disposal);
+    await expect(disposal).resolves.toMatchObject({
+      ownership: "released",
+      code: null,
+    });
+    expect(cleanupCalls).toBe(1);
+    expect(lease.releaseAttempts()).toBe(1);
+    expect(
+      instance.diagnostics.runtimeFailures().filter((failure) =>
+        failure.message === cleanupError.message
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("keeps the Persistence disposal result primary when cleanup and lease release both fail", async () => {
+    const lease = leaseReleaseRecordsV1({ rejectRelease: true });
+    const cleanupError = new Error("synthetic extension cleanup failure");
+    let cleanupCalls = 0;
+    const application = resolvedApplicationWithDisposeV1(() => {
+      cleanupCalls += 1;
+      throw cleanupError;
+    });
+    const instance = await createCoreGameApplicationInstanceV1(application, {
+      host: hostServicesV1(lease.records),
+    });
+
+    const disposal = instance.disposeForRebootstrap();
+    await expect(disposal).resolves.toEqual({
+      ownership: "read_only",
+      code: "lease_release_failed",
+      fence: null,
+    });
+    expect(instance.disposeForRebootstrap()).toBe(disposal);
+    expect(cleanupCalls).toBe(1);
+    expect(lease.releaseAttempts()).toBe(1);
+    expect(
+      instance.diagnostics.runtimeFailures().filter((failure) =>
+        failure.message === cleanupError.message
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("fences both mutation ingresses before a throwing timer cancellation and releases the lease", async () => {
+    const lease = leaseReleaseRecordsV1();
+    const cancellationError = new Error("synthetic autosave cancellation failure");
+    let cancellationCalls = 0;
+    let reentrantDispatch:
+      | ReturnType<Awaited<ReturnType<typeof createInstanceV1>>["semantic"]["dispatch"]>
+      | undefined;
+    let reentrantClear:
+      | ReturnType<Awaited<ReturnType<typeof createInstanceV1>>["persistence"]["clear"]>
+      | undefined;
+    let timerInstance: Awaited<ReturnType<typeof createInstanceV1>> | undefined;
+    const scheduler: CoreSchedulerV1 = Object.freeze({
+      schedule: () => () => {
+        cancellationCalls += 1;
+        if (timerInstance === undefined) throw new TypeError("timer fixture instance missing");
+        expect(timerInstance.semantic.observe().status).toBe("hmr_invalidated");
+        reentrantDispatch = timerInstance.semantic.dispatch(incrementV1);
+        reentrantClear = timerInstance.persistence.clear("auto.current");
+        throw cancellationError;
+      },
+    });
+    const instance = await createInstanceV1({
+      records: lease.records,
+      autosave: { mode: "debounced", delayMs: 1_000 },
+      scheduler,
+    });
+    timerInstance = instance;
+    await instance.semantic.dispatch(incrementV1);
+
+    expect(() => instance.invalidateForHmr()).not.toThrow();
+    await expect(reentrantDispatch).resolves.toEqual({
+      kind: "not_executed",
+      code: "hmr_invalidated",
+    });
+    await expect(reentrantClear).resolves.toEqual({
+      kind: "faulted",
+      code: "runtime_disposed",
+    });
+    await expect(instance.semantic.dispatch(incrementV1)).resolves.toEqual({
+      kind: "not_executed",
+      code: "hmr_invalidated",
+    });
+    await expect(instance.persistence.clear("auto.current")).resolves.toEqual({
+      kind: "faulted",
+      code: "runtime_disposed",
+    });
+    await expect(instance.disposeForRebootstrap()).resolves.toMatchObject({
+      ownership: "released",
+      code: null,
+    });
+    expect(cancellationCalls).toBe(1);
+    expect(lease.releaseAttempts()).toBe(1);
+    expect(
+      instance.diagnostics.runtimeFailures().filter((failure) =>
+        failure.message === cancellationError.message
+      ),
+    ).toHaveLength(1);
   });
 
   it("releases the lease and answers structurally after disposal", async () => {

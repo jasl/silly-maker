@@ -18,7 +18,11 @@ import {
   createPlayerProfileStoreV1,
   resolveCoreGameApplicationV1,
 } from "@sillymaker/base/runtime";
-import { clearAllCoreApplicationSavesForMaintenanceInternalV1 } from "@sillymaker/base/runtime/internal";
+import {
+  clearAllCoreApplicationSavesForMaintenanceInternalV1,
+  prepareCoreApplicationRestartInternalV1,
+  subscribeCoreApplicationPresentationAnchorEventsInternalV1,
+} from "@sillymaker/base/runtime/internal";
 import type {
   DefaultGameRootLabelsV1,
   DefaultGameRootSlotsV1,
@@ -37,7 +41,11 @@ import type {
 } from "@sillymaker/ui";
 import type { DevDockContributionSetV1, DevDockOpenStateV1 } from "@sillymaker/ui/debug";
 import { DefaultGameRootV1, installNativeBehaviorResetV1 } from "@sillymaker/ui";
-import { createHostedGameUiCompositionInternalV1 } from "@sillymaker/ui/internal";
+import {
+  createHostedGameUiCompositionInternalV1,
+  sealHostedGameUiCompositionTerminalInternalV1,
+} from "@sillymaker/ui/internal";
+import type { GameUiPresentationAnchorEventInternalV1 } from "@sillymaker/ui/internal";
 import type { ContentPreferencePortV1, SemanticPublicationV1 } from "@sillymaker/base";
 import type { RuntimeSessionStatusV1 } from "@sillymaker/base";
 
@@ -57,8 +65,14 @@ import { createHttpHostRecordStoreV1 } from "../host/http-record-store.ts";
 import { mountGameApplicationV1 } from "./mount-game-application.tsx";
 import type { MountedGameApplicationV1 } from "./mount-game-application.tsx";
 import { createPlayerSaveSurfacesV1 } from "./create-player-save-surfaces.ts";
+import { createWebApplicationTerminalSupervisorInternalV1 } from "./application-terminal-supervisor.ts";
+import { createCompositionBoundRestartLifecycleInternalV1 } from "./composition-bound-restart-lifecycle.ts";
 import { installDesktopCloseFlushV1 } from "./install-desktop-close-flush.ts";
 import { createManagedSurfaceApplicationEpochAllocatorInternalV1 } from "./managed-surface-application-epoch.ts";
+import {
+  createPresentationSuccessorAcknowledgmentBrokerInternalV1,
+  type PresentationSuccessorAcknowledgmentBrokerInternalV1,
+} from "./presentation-successor-acknowledgment.ts";
 import { resolveLocalRecordsHostModeV1 } from "./resolve-local-records-host-mode.ts";
 
 type WebSemanticPublicationV1<TGameView, TNarrativeView, TActionDescriptor> = SemanticPublicationV1<
@@ -397,9 +411,13 @@ export async function startWebGameApplicationV1<
         databaseName: options.databaseName ?? `sillymaker.${application.applicationId}`,
       }));
   const reportFailure = (code: string, error: unknown): void => {
-    host.log.write("warn", code, {
-      message: error instanceof Error ? error.message : String(error),
-    });
+    try {
+      host.log.write("warn", code, {
+        message: error instanceof Error ? error.message : String(error),
+      });
+    } catch {
+      // Host diagnostics are best-effort and never participate in runtime precedence.
+    }
   };
 
   const capabilitySearch = options.capabilitySearch ??
@@ -448,6 +466,9 @@ export async function startWebGameApplicationV1<
   let nativeBehaviorReset: { dispose(): void } | undefined;
   let unbindUiContext: (() => void) | undefined;
   let uiDisposer: (() => void) | undefined;
+  let successorAcknowledgments:
+    | PresentationSuccessorAcknowledgmentBrokerInternalV1
+    | undefined;
   let composition:
     | ReturnType<
       typeof createHostedGameUiCompositionInternalV1<
@@ -460,35 +481,67 @@ export async function startWebGameApplicationV1<
       >
     >
     | undefined;
-  let disposed = false;
   let removePageLifecycle: (() => void) | undefined;
   let removeDesktopCloseFlush: (() => void) | undefined;
 
-  let disposalPromise: Promise<DeepReadonly<PersistenceRebootstrapDisposalV1>> | undefined;
+  const terminalSupervisor = createWebApplicationTerminalSupervisorInternalV1({
+    fenceSteps: Object.freeze([
+      Object.freeze({ name: "automation", run: () => automation?.dispose() }),
+      Object.freeze({ name: "pointer", run: () => pointer?.dispose() }),
+      Object.freeze({
+        name: "presentation",
+        run: () => {
+          if (composition !== undefined) {
+            sealHostedGameUiCompositionTerminalInternalV1(composition);
+          }
+        },
+      }),
+      // Core invalidation can synchronously notify cancellation observers. It
+      // runs only after every held Host/UI ingress has become inert.
+      Object.freeze({ name: "core", run: () => instance.invalidateForHmr() }),
+    ]),
+    cleanupSteps: Object.freeze([
+      Object.freeze({ name: "page_lifecycle", run: () => removePageLifecycle?.() }),
+      Object.freeze({ name: "desktop_close_flush", run: () => removeDesktopCloseFlush?.() }),
+      Object.freeze({ name: "root", run: () => mounted?.unmount() }),
+      Object.freeze({ name: "debug_ui_context", run: () => unbindUiContext?.() }),
+      Object.freeze({ name: "native_behavior", run: () => nativeBehaviorReset?.dispose() }),
+      Object.freeze({ name: "composition", run: () => composition?.dispose() }),
+      Object.freeze({
+        name: "successor_acknowledgments",
+        run: () => successorAcknowledgments?.dispose(),
+      }),
+      Object.freeze({ name: "story_ui", run: () => uiDisposer?.() }),
+      Object.freeze({ name: "capabilities", run: () => capabilities.dispose() }),
+    ]),
+    releaseCorePersistence: () => instance.disposeForRebootstrap(),
+    reportFailure: (step, error) =>
+      reportFailure(
+        "web.application_disposal_step_failed",
+        new Error(step, { cause: error }),
+      ),
+  });
+  const signalTerminal = (error: Error): void => {
+    const first = terminalSupervisor.getTerminalError() === null;
+    terminalSupervisor.signalTerminal(error);
+    if (first) reportFailure(error.message, error);
+  };
+  successorAcknowledgments = createPresentationSuccessorAcknowledgmentBrokerInternalV1({
+    signalTerminal,
+  });
+  const composedLifecycle = createCompositionBoundRestartLifecycleInternalV1({
+    prepareRestart: () => prepareCoreApplicationRestartInternalV1(instance),
+    acknowledgments: successorAcknowledgments,
+    terminal: Object.freeze({
+      getTerminalError: terminalSupervisor.getTerminalError,
+      terminate(error: Error): Promise<never> {
+        signalTerminal(error);
+        return terminalSupervisor.terminate(error);
+      },
+    }),
+  });
   const disposeForRebootstrap = (): Promise<DeepReadonly<PersistenceRebootstrapDisposalV1>> => {
-    if (disposalPromise !== undefined) return disposalPromise;
-    disposed = true;
-    removePageLifecycle?.();
-    removeDesktopCloseFlush?.();
-    disposalPromise = (async () => {
-      try {
-        mounted?.unmount();
-      } finally {
-        unbindUiContext?.();
-        pointer?.dispose();
-        nativeBehaviorReset?.dispose();
-        composition?.dispose();
-        automation?.dispose();
-        try {
-          uiDisposer?.();
-        } catch {
-          // Story UI disposal failures never block the persistence release.
-        }
-        capabilities.dispose();
-      }
-      return await instance.disposeForRebootstrap();
-    })();
-    return disposalPromise;
+    return terminalSupervisor.disposeForRebootstrap();
   };
   const dispose = async (): Promise<void> => {
     await disposeForRebootstrap();
@@ -538,10 +591,6 @@ export async function startWebGameApplicationV1<
     >({
       semantic: instance.semantic,
       projector: uiDefinition.projector,
-      anchor: Object.freeze({
-        current: () => instance.presentationAnchor(),
-        subscribe: (listener: () => void) => instance.subscribePresentationAnchor(() => listener()),
-      }),
       ...(uiDefinition.contentPreference === undefined
         ? {}
         : { contentPreference: uiDefinition.contentPreference }),
@@ -560,6 +609,26 @@ export async function startWebGameApplicationV1<
       managedSurfaceEpochAllocator: createManagedSurfaceApplicationEpochAllocatorInternalV1({
         applicationId: application.applicationId,
       }),
+      anchorEvents: Object.freeze({
+        current: () => instance.presentationAnchor(),
+        subscribe: (listener: (event: GameUiPresentationAnchorEventInternalV1) => void) =>
+          subscribeCoreApplicationPresentationAnchorEventsInternalV1(
+            instance,
+            (event) => {
+              if (event.publicationContext !== null) {
+                successorAcknowledgments.bindExpected(
+                  event.publicationContext,
+                  event.anchor,
+                );
+              }
+              listener(Object.freeze({
+                anchor: event.anchor,
+                token: event.publicationContext,
+              }));
+            },
+          ),
+      }),
+      successorProducer: successorAcknowledgments.producer,
       reportFailure,
     });
 
@@ -583,9 +652,7 @@ export async function startWebGameApplicationV1<
         viewport={application.viewport}
         capabilities={capabilities}
         playerProfile={playerProfile}
-        lifecycle={Object.freeze({
-          restart: () => instance.lifecycle.restart(),
-        })}
+        lifecycle={composedLifecycle}
         {...(uiDefinition.titleScreen === undefined
           ? {}
           : { titleScreen: uiDefinition.titleScreen })}
@@ -653,19 +720,19 @@ export async function startWebGameApplicationV1<
         // Stop new authoritative and persistence mutations synchronously, then
         // best-effort register the exact current Snapshot before teardown
         // releases the persistence lease.
-        instance.invalidateForHmr();
-        void instance
-          .flushAutoSave()
-          .catch(() => undefined)
-          .finally(() => {
-            void dispose();
-          });
+        void terminalSupervisor
+          .disposeForPageHide(() => instance.flushAutoSave())
+          .catch(() => undefined);
       };
       globalThis.addEventListener("pagehide", onPageHide, { once: true });
       removePageLifecycle = () => globalThis.removeEventListener("pagehide", onPageHide);
     }
   } catch (error) {
-    await dispose();
+    try {
+      await dispose();
+    } catch {
+      // The construction failure remains primary over release noise.
+    }
     throw error;
   }
 
@@ -674,7 +741,7 @@ export async function startWebGameApplicationV1<
     host,
     provenance: resolved.application.provenance as DeepReadonly<BuildProvenanceV1>,
     capabilitySearch,
-    isDisposed: () => disposed,
+    isDisposed: terminalSupervisor.isDisposalStarted,
     dispose,
     invalidateForHmr: () => instance.invalidateForHmr(),
     disposeForRebootstrap,

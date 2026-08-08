@@ -439,6 +439,11 @@ export function OverlayHostV1<TOverlayId extends string>(
 
   useLayoutEffect(() => {
     const previous = previousSnapshotRef.current;
+    if (props.session.isTerminalDisposalInternalV1()) {
+      returnFocusTargetsRef.current.clear();
+      previousSnapshotRef.current = snapshot;
+      return;
+    }
     const previousFocusOwnerId = previous.publication.focusOwner?.surfaceInstanceId ?? null;
     const nextFocusOwnerId = snapshot.publication.focusOwner?.surfaceInstanceId ?? null;
     const live = new Set<string>(
@@ -520,10 +525,14 @@ export function OverlayHostV1<TOverlayId extends string>(
       if (!live.has(instanceId)) returnFocusTargetsRef.current.delete(instanceId);
     }
     previousSnapshotRef.current = snapshot;
-  }, [snapshot]);
+  }, [props.session, snapshot]);
 
   useLayoutEffect(
     () => () => {
+      if (props.session.isTerminalDisposalInternalV1()) {
+        returnFocusTargetsRef.current.clear();
+        return;
+      }
       const root = snapshotRef.current.publication.orderedInstances.find(
         (instance) => instance.parentInstanceId === null,
       );

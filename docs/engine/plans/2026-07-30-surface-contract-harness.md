@@ -9,8 +9,9 @@ StrictMode、API cutover 与 stop conditions。
 同日 S3a dormant definition/slot/result/snapshot floor 与两个 package-internal
 atomic composite operations、S3b composition-owned shared Coordinator 与 dormant System
 session/config catalog、S3c.0 composition-wide successor activation barrier、dormant
-S3c.1 Host-commit readiness/one logical Host lease 与 S3d exact-parent confirmation child
-均已完成；下一独立实施切片为 S3e live cutover and promotion。
+S3c.1 Host-commit readiness/one logical Host lease、S3d exact-parent confirmation child 与
+S3e.0 successor-acknowledgment/terminal-teardown 准备切片均已完成；下一独立切片为
+S3e live cutover and promotion。
 目标合同见
 [Managed Surface lifecycle and contract harness](../design/surface-contract-harness.md)。
 本文只规定可独立交付的实施顺序；不要求一次实现 design
@@ -1199,11 +1200,19 @@ later root，且 Surface delta为零。Save guard、Persistence local result/sta
    parent child intent，证明 cancel/async completion/strict child-bound sink/exact-handle/
    opener-first focus semantics；dormant new path 自身不新增 React-local lifecycle writer，
    legacy live writer 只留在未切换路径并在 S3e 同批删除；
-6. **S3e — live cutover and promotion：** 在同一 slice 切换 DefaultGameRoot/Web/Story
+6. **S3e.0 — composed successor acknowledgment and terminal teardown：** 在不切换
+   live System authority 的独立准备批中，以 Core-minted exact operation token建立
+   package-internal composition acknowledgment；收紧 settled lifecycle result admission，
+   并让 Web/Core teardown在 producer-side terminal fence、reentry 与 cleanup failure下始终
+   完成 ingress revoke和Persistence release。不得使用 current/latest anchor、`before + 1`、
+   origin-only 或 timeout猜测；
+7. **S3e — live cutover and promotion：** 在同一 slice 切换 DefaultGameRoot/Web/Story
    paths，删除旧 store/fallback/raw lifecycle public exports、public `SaveOverlayV1` /
    `SaveOverlayPropsV1` 与全部 dead path，只保留 public persistence configuration/value
-   types；完成 successor、Engine Lab、Cat Cafe、prebuilt browser matrix及 live docs
-   promotion。
+   types；同批把 optional lifecycle absence、descriptor-safe settled-result admission、New Game/
+   return-to-title/DevDock admission 与 composed anchored 接入 Root，并删除 anchored 后对旧
+   System/Overlay writer 的逐 family cleanup；完成 successor、Engine Lab、Cat Cafe、
+   prebuilt browser matrix及 live docs promotion。
 
 **2026-08-04 S3a delivery：** 本切片只建立 dormant、package-internal System
 合同与 S1-T composite kernel floor。settings/saves definitions 共用一个 single root
@@ -1361,15 +1370,120 @@ diagnostics。resolver/port reentry、prepare-notification retirement、Proxy ca
 Promise own-`then`/constructor与 close-notify fresh-child交错均有 mutation-sensitive tests。
 delivery/dead-path audit确认新 Host/catalog仍未进入 public/internal barrel、production
 composition或 browser graph，legacy store/Host仍是唯一 live writer；Save/Persistence/M2/
-canonical/digest/replay/wire与 live capability docs均未改变。下一独立切片为 S3e。
+canonical/digest/replay/wire与 live capability docs均未改变。下一独立切片为 S3e.0。
+
+### S3e.0 slice contract
+
+**目标：** 在恢复 S3e live authority cutover 前，先以一个独立可合并的内部基础批封闭
+authoritative anchored 与 composed anchored 的差异：Core 为每次 standard tokenized
+replacement preparation mint exact opaque token并提供 one-shot prepared restart；UI 只在
+shared successor、全部 family
+activation notification、UI anchor publication 与 post-publication liveness 全部成功后为该
+token确认 installed；Web 以 per-token broker、descriptor-safe result admission 与 first-wins
+terminal supervisor把 failure/missing/mismatch 收敛为完整 application teardown。Core public
+result/anchor、普通 UI composition、DefaultGameRoot/System public API 均不因本批扩张。
+
+**非目标：** 本批不恢复被隔离的 S3e live-cutover WIP，不把 dormant Managed System Host/
+catalog接入 production，不切换或删除 legacy System writer/Host/Save overlay，不改变 Title、
+Splash或DevDock topology authority，不完整包装 load/import positive result，不新增 public/general
+application receipt、fault Surface、timeout/recovery generation，也不改变 Save/Persistence/M2/
+canonical/digest/replay/wire。`architecture.md`、`features.md`、`story-authoring.md` 与 public site
+仍等完整 S3e promotion后更新；本批只记录真实生效的 internal runtime/teardown行为。
+`DefaultGameRootV1` 的 lifecycle-absence/New Game/return-to-title/DevDock 接线与 anchored 后
+legacy System/Overlay cleanup 删除必须留在 S3e 原子 cutover；本批只提供共享
+result parser 与 standard Web composed wrapper，不把旧 live writer留在无人退休的状态。
+
+**Exact correlation 与 acknowledgment：**
+
+1. standard tokenized package-internal prepared restart 在 raw operation前同步返回 fresh token + one-shot `run`；
+   caller先 arm exact token，再 `run`。两个并发 preparation token distinct，allocation不依赖
+   call-time presentation epoch；
+2. package-internal Core anchor event绑定 `{ exact token, committed anchor }`。public
+   `subscribePresentationAnchor`仍只发布原 anchor且隔离 observer error；token不进入公开 shape；
+3. UI anchor bridge按 exact event逐代 drain。第 N 代必须完成 shared runtime replace、family
+   notification、UI anchor publish与 post-callback liveness，并 settle N token，才 drain N+1；
+   later current anchor不能覆盖早先 token ack；
+4. unarmed load/import/raw restart成功不保留无界 ack history；受控 legacy/generic
+   replacement 可携带 `null` context，但不能据此猜测 token 或产生 composed
+   anchored；activation failure无论 origin或 token是否 armed，都在同一 producer
+   callback stack先 terminal-seal再报告 Core observer；
+5. raw anchored返回后，armed token只能是 installed/failed/missing/mismatched之一；没有
+   timeout。后三者均以 `ui.presentation_successor_activation_failed` terminal reject。
+
+**Lifecycle result admission：** exact accepted shape、closed rejected code与 primitive fault code
+以 design 4.5 为唯一权威。descriptor/accessor/extra/symbol/Proxy/unknown/malformed输入只产生
+异步 `ui.lifecycle_restart_result_invalid`；S3e.0 将同一 parser 接入标准 composed Web
+wrapper，由它先 terminal teardown。bare Root 在 S3e 原子 cutover中接入后只 reject且无
+UI/Surface mutation。普通 Promise assimilation
+保持 ECMAScript语义；getter-zero只断言最终 settled result descriptors，不声称阻止 Promise
+resolution此前对 fulfilled thenable `.then` 的访问。
+
+**Terminal fence/teardown：** producer callback一旦检测 activation failure，必须同步 first-wins
+latch并关闭 authoritative/Persistence、automation、input、presentation intent、Managed Surface
+与 title-generation ingress；随后 terminal cleanup使用 deferred-first shared disposal promise，
+禁止 predecessor focus restore，unmount Root并对每项 cleanup独立隔离，最后始终尝试 Core/
+Persistence release。cleanup reentry取得同一 promise；Story extension、UI disposer、unmount、
+adapter、capability或Host logger throw均不替换 primary error，也不跳过后续资源。
+
+**TDD/验收向量：**
+
+1. two prepared/concurrent restart、queued load/import before restart与 activation-callback reentrant
+   successor均按 exact token结算；故意删除 token check或改回 current/latest/before+1会失败；
+2. Base public raw restart/result/anchor bytes/shape不变；internal anchor event token exact，prepared
+   `run` terminal once，重复/foreign/cross-owner use fail closed；
+3. UI success trace固定 `replace -> all-family notifications -> ui-anchor publish -> post-liveness ->
+   ack`；第二 family activation throw、UI anchor listener throw/dispose、runtime detach或 anchor
+   mismatch在 ack前 terminal；ordinary isolated subscriber throw不terminal；
+4. installed、failed、missing、mismatched与 duplicate/late/unarmed token各有 bounded broker测试；
+   terminal后任何新 Core/Persistence/presentation/input/automation ingress均零 durable mutation；
+5. result corpus覆盖三个 exact valid variant、每个 rejected code、unsafe/negative sequence、
+   accessor/inherited/extra/symbol/revoked Proxy/unknown与 malformed known kind；sync restart throw、
+   Promise reject与 Promise-assimilated thenable作为语言边界 characterization；
+6. Web/Core cleanup覆盖每个 cleanup throw、cleanup内 reentry、pagehide/ordinary/terminal并发、
+   throwing logger、primary first-wins与 exact-once unmount/adapter/capability/Core/Persistence release；
+7. focused red/green后运行 Base/UI/Web affected tests、`deno task test`、`deno task check`及实际受
+   影响 browser/prebuilt path；staged/unstaged/untracked与 `git diff --check`全审计。本批提交前
+   legacy System仍是唯一 live writer，隔离的 S3e WIP stash不得混入。
+
+**Stop conditions：** 若无法从 Core exact replacement context取得 operation token而只能串行化/
+猜测 current epoch；ack必须进入 public `SessionAnchorResultV1`/anchor/Save；producer failure只能
+在 raw Promise continuation后才 fence；ordinary observer isolation必须改成 terminal；cleanup
+throw/reentry会跳过 Persistence release或替换 primary；terminal focus suppression只能通过新的
+public Root/DOM evidence；或本批必须提前双写/切换 System authority，立即停止并再修订设计。
+
+**2026-08-08 S3e.0 delivery：** Core 的 package-internal prepared restart在 raw operation前
+分配 fresh publication-context token，one-shot run 与 exact committed anchor event保持 identity
+correlation；public result/anchor shape不变。Hosted UI 只在 shared runtime replace、全部 family
+notification、UI anchor publish 与 post-liveness完整返回后 ack，并在 drain下一 generation 前
+结算当前 token。Web 在 UI callback前绑定 exact anchor identity；wrong anchor/conflicting bind、
+failed/missing/mismatched ack和 result/event desynchronization均由 mutation-sensitive vectors
+固定，producer/event-stack mismatch先同步 terminal-fence再抛给既有 Core observer diagnostics。
+
+Web/Core disposal 使用 deferred-first、first-wins、可重入 supervisor；全部 ingress fence先于
+Root cleanup，pagehide flush barrier只延后 Core/Persistence release，cleanup/reporter/release
+failure均不替换 terminal primary。descriptor-safe parser对 exact accepted variants、closed
+rejection codes、unsafe sequence、accessor/symbol/custom prototype/hostile Proxy 与 malformed
+shape完成覆盖。terminal focus suppression覆盖 Overlay、legacy System与 dormant managed System
+Host；ordinary non-hosted composition仍保持旧 observer-isolation语义。delivery/dead-path audit
+确认新增 seam只进入既有 package-internal subpath或 Web source-relative模块，legacy System仍是
+唯一 live writer，S3e stash未恢复，DefaultGameRoot与 legacy cleanup未提前切换；Save/
+Persistence/M2/canonical/digest/replay/wire无 diff。
+
+验证通过 focused Base（100）、UI（119）、Web（39）tests，Base（80 files / 1095 tests）、
+UI（67 / 737）、Web（26 / 286）package tests，`deno task test`（240 / 3622）、
+`deno task check`、Engine E2E（101）、examples E2E（45 passed / 2 skipped）和 prebuilt Player
+（38）。S3e.0 完成但 System尚未 promotion；下一独立切片为 S3e live cutover and promotion。
 
 每个 dormant slice 必须 package-internal、不可由 live System 与旧 store同时写入；若
 为了独立合并必须双写、mirror 或提前开放第二个 lifecycle ingress，停止并重切片。
 
 ### S3 non-goals and stop conditions
 
-不迁移 Narrative/History、whole-canvas、Title/Splash、runtime-fault 或 DevDock；不实现
-S1-R、通用 fault Surface、public generic Surface API 或 application-level receipt；不把
+不迁移 Narrative/History、whole-canvas、Title/Splash 或 DevDock 的 topology/lifecycle
+authority；S3e.0/S3e只允许收敛 lifecycle admission、terminal fence 与 DevDock
+Reinitialize contribution。不实现 S1-R、通用 fault Surface、public generic Surface API 或
+public/general application-level receipt；package-internal exact successor token/ack不构成该公开
+能力。不把
 React/DOM/epoch/instance 放进 Base、Snapshot 或 Save；不改变 Save/Persistence/M2/
 canonical/digest/replay/wire 语义。
 
@@ -1404,6 +1518,12 @@ canonical/digest/replay/wire 语义。
 - 删除 public `SaveOverlayV1` 发现真实受支持的仓库外下游；
 - initial supersede 或 retained-active cancellation 要求公开 generic Coordinator/
   cancel-preparation API。
+- composed anchored只能通过 current/latest anchor、call-time `before + 1`、origin-only/FIFO或
+  timeout猜测，不能绑定 exact Core replacement token；
+- successor activation failure必须等 raw Core Promise恢复后才可关闭 ingress，或 terminal
+  cleanup不能在任一 cleanup throw/reentry下始终到达 Core/Persistence release；
+- result admission必须执行 accessor/Proxy getter才能分类，或只能通过改变 public
+  `SessionAnchorResultV1` 才能拒绝 malformed result。
 
 **S3 acceptance：** System 与 Overlay 使用同一 Coordinator publication；旧 System
 store/fallback/local confirmation/raw lifecycle public API 全部删除且没有 mirror；
@@ -1415,6 +1535,9 @@ seal 只产生既有 terminal `+1/+1`，
 reentrant anchor rotation最终保持最新 runtime/anchor且每代完整通知；Engine Lab 中性
 browser、Cat Cafe regression、prebuilt Player、`deno task test`
 和 `deno task check` 全绿。Save/Persistence/M2/canonical/digest/replay/wire 行为不变。
+raw Core anchored 与 composed anchored必须由 exact operation token区分；ack只在 all-family
+notification、UI anchor publication与 post-liveness后成功，failed/missing/mismatched均在
+producer stack先 terminal-fence，并在 cleanup throw/reentry下仍完整释放 Core/Persistence。
 
 ## 7. S1-R — External stable-target reconcile
 

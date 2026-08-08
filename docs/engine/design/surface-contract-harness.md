@@ -13,7 +13,9 @@ activation barrier；2026-08-08 S3c.1 已闭合 dormant Host-commit readiness、
 Host lease、fallback isolation/input/focus rollback 与 StrictMode/error-boundary fence；
 同日 S3d 已闭合 dormant exact-parent confirmation child、strict child-bound completion、
 exact-root finalization 与 Host-owned focus/gesture lifecycle。S3e live System cutover仍待
-实施。
+实施。2026-08-08 进一步冻结 S3e 前置的 composition-bound successor
+acknowledgment、fail-closed lifecycle capability 与 terminal application teardown；这些
+package-internal 机制不改变 Core `SessionAnchorResultV1` 或任何 Save/Persistence wire。
 本文固定
 影响输入与焦点的 UI Surface 的权威边界、生命周期、输入代际与验证分层，并把“弱模型
 能够写出正确代码”提升为作者 API 的验收条件。S1-T 与 S2 已实现，S3a–S3d 只完成
@@ -296,6 +298,72 @@ predecessor callback 继续 stale，且不得 rollback 到已经 disposed 的 pr
 分配 recovery successor。正常 activation barrier 自身不提交 Coordinator publication、
 不推进 topology revision，也不分配 Managed Surface identity；失败后的 successor dispose
 只允许现有 terminal publication。
+
+#### Composition-bound successor acknowledgment
+
+Core 与 composed application 的 `anchored` 含义分层，不得混用：
+
+- **authoritative anchored** 只证明 Core 已提交 authoritative replay-base replacement；
+  公开 `SessionAnchorResultV1` 的 `anchored` 继续只表达这一层；
+- **presentation successor installed** 证明该次 replacement 对应的 exact UI successor
+  已通过本节规定的完整安装点；
+- **composed anchored** 同时要求 exact、descriptor-safe 的 Core anchored result 与同一
+  operation 的 presentation-successor-installed acknowledgment。
+
+每次进入 standard composed lifecycle 的 authoritative replacement preparation 由 Core mint
+一个 fresh、opaque、package-internal operation token。token 与 replacement publication context
+是同一 identity，
+经 package-internal anchor event 绑定 exact committed anchor；它不进入公开 anchor、
+`SessionAnchorResultV1`、Surface receipt、Save、Persistence、canonical、digest、replay 或
+wire。composed restart 必须先取得 prepared one-shot operation、以 exact token arm
+composition-bound broker，再启动 raw Core operation。不得用调用时的 `before + 1`、当前/
+latest anchor、origin-only/FIFO 猜测、wall-clock timeout 或历史扫描替代 token correlation；
+并发 restart、load/import 交错及 subscriber 内 reentrant successor 均按各自 token 独立结算。
+broker 只保留未消费的 in-flight entry，消费、失败或 terminal 后立即释放，不形成历史日志。
+受控的 legacy/generic replacement event 可以携带 `null` context，但它不得被猜测或
+提升为 per-token composed anchored；该 origin 的 activation failure 仍进入同一
+origin-independent terminal latch。
+
+只有下列顺序完整成功后，producer 才能为该 token 发布 installed acknowledgment：
+
+1. exact Core anchor event 已携带该 token；
+2. shared Coordinator successor 已安装，全部 family adapter 已 prepare/arm；
+3. shared ingress gate 已 release，全部 family activation notification 已返回；
+4. UI presentation anchor publication 已返回；
+5. publication callback 后重新验证 composition 未 disposed/terminal、captured successor
+   runtime 仍是 current 且 ingress open、全部 family 仍 attached 于该 runtime、UI anchor
+   仍与 exact event 相同。
+
+ack 必须在 drain 下一 queued generation 前结算并按 token 保留到 consumer 读取；因此后来
+generation 即使先于旧 caller continuation完成，也不能覆盖旧 generation 的结果。普通
+Coordinator/family subscriber failure仍按既有 observer-isolation合同只报告 diagnostics；
+只有 internal no-throw activation closure escape、successor bind/activation failure、UI anchor
+publication failure或上述 post-publication liveness failure属于 successor activation failure。
+
+若 raw Core 返回 anchored 时该 token 的 ack 为 failed、missing 或 mismatched，不把结果伪造为
+`SessionAnchorResultV1.faulted`，也不 rollback、创建 recovery successor或调用逐 family
+close/reset。标准 composed Web application 必须将其提升为 terminal runtime fault，并最终以
+`Error("ui.presentation_successor_activation_failed")` reject。producer 一旦在 anchor
+subscriber stack中检测到 activation failure，必须先同步 latch terminal state、封闭 application
+ingress并记录 token failure，再把原异常重新抛给 Core 的 observer diagnostics；不得等 raw
+Core Promise continuation 才开始 fence。
+
+#### Terminal application fence and teardown
+
+标准 Web composition 是 terminal fault 的唯一 owner；bare React Root 与 Core 不拥有 UI
+teardown policy。terminal primary error first-wins，cleanup/diagnostic failure不得替换它。
+terminal 与 ordinary rebootstrap 共用一个 deferred-first、可重入、幂等 teardown state
+machine：在执行任何 user/Story/Host callback 前先发布唯一 disposal promise并同步关闭 Core/
+Persistence mutation、automation、physical input、presentation intent、Managed Surface 与
+title lifecycle generation ingress；随后禁止 predecessor focus restore，unmount Root，并逐项
+best-effort cleanup UI/composition/input/automation/capabilities/Story extension，最后始终尝试
+现有 Core/Persistence release。每项 cleanup 单独隔离；Host logger 也只是可失败的
+best-effort diagnostic。terminal rejection 只能在上述 fence 与 disposal 完成后暴露。
+
+所有 origin 的 composition successor activation failure（restart、load、import、rollback或
+其他 authoritative replacement）进入同一 terminal latch；本合同只给 composed restart增加
+positive result gating，不改变 load/import/Persistence 的公开 result、completion、bytes 或
+operation ordering。
 
 Coordinator 接收一个已经分配的 epoch，并在自身生命周期内保持不变；epoch rotation
 通过 successor replacement 完成，而不是原地改写 live Coordinator。
@@ -660,6 +728,42 @@ confirmation 因 cancel、failure 或非-successor completion 关闭后，最终
 initial focus target。result summary 不得在同一 completion 后抢占 focus。若 root 与 child
 在同一 commit 中退休，则不得先把 focus 恢复到即将退休的 parent/opener；由 root/subtree
 transition 的既有 restore plan 一次完成最终恢复。
+
+### 4.5 Lifecycle restart admission
+
+`DefaultGameRootV1.lifecycle` 保持 optional，但 absence 不是隐式成功。programmatic
+`returnToTitle` 始终返回 Promise且不得同步抛错；没有 lifecycle 时，它在任何 title、System、
+Overlay、focus、input、gesture、revision、allocation或notification mutation前异步 reject
+`Error("ui.lifecycle_restart_unavailable")`。同步 restart throw 与异步 rejection都保持为
+Promise rejection。
+
+settled lifecycle result 必须由 UI-owned package-internal parser执行 descriptor-safe exact
+runtime admission，不以 TypeScript shape代替检查：
+
+- anchored 只有 exact own data fields `{ kind: "anchored", commandSequence }`，且 sequence
+  是 non-negative safe integer；
+- rejected 只有 exact own data fields `{ kind: "rejected", code }`，code 为 Base closed set
+  `busy | fault_paused | hmr_invalidated | validation_failed`；
+- faulted 只有 exact own data fields `{ kind: "faulted", code }`，code 是 primitive string；
+- accessor、inherited/extra string field、symbol、sparse/Proxy failure、unknown kind 与 malformed
+  known kind均 invalid，异步 reject `Error("ui.lifecycle_restart_result_invalid")`。
+
+descriptor getter-zero只约束最终 settled result 的 `kind/code/commandSequence` admission。
+JavaScript Promise resolution在 consumer观察前可能已 assimilate fulfilled thenable并访问其
+`.then`；本合同不声称能逆转该语言行为，也不新增 Promise-constructor identity 的公开
+约束。标准 composed Web path把 malformed/unknown result视为 terminal invariant fault：先按
+前节完成 fence/teardown，再以 `ui.lifecycle_restart_result_invalid` reject；合法 rejected/
+faulted与 raw Promise rejection不因此 terminal。bare Root 对注入 result使用同一 parser，但只负责 unavailable/invalid/rejected/faulted
+的异步映射：合法 rejected/faulted仍为既有
+`ui.lifecycle_restart_<kind>:<code>` error；它不拥有 terminal latch或 composition ack。
+
+只有标准 composed Web wrapper得到 exact composed anchored 后才能显示 title。successful
+restart已经由 application anchor安装 shared-Coordinator successor；Root 不得随后调用 System
+close或 Overlay `closeAll`。New Game使用相同 admission：没有 lifecycle时保留 title、不调用
+`beginNewGame`，沿用现有 failure UI code `unavailable`；DevDock 在 lifecycle缺失时不贡献
+Reinitialize。programmatic return-to-title入口为API shape稳定而保留并按上文 reject。本收敛不
+迁移 Title/Splash或DevDock topology/lifecycle authority，也不建设 UI-only cross-family reset
+transaction或 public/general application receipt。
 
 ## 5. Input, gesture and action outcomes
 
@@ -1105,6 +1209,17 @@ definitions、创建新 instance/topology revision；不得反序列化旧 live 
 - 删除 public `SaveOverlayV1` 发现真实受支持的仓库外下游；
 - initial supersede 或 retained-active cancellation 要求公开 generic Coordinator/
   cancel-preparation API。
+- composed anchored 只能依赖 current/latest anchor、call-time `before + 1`、origin-only/FIFO
+  或 timeout猜测，无法绑定 exact Core replacement token；
+- successor activation failure只能在 raw Core Promise continuation中发现，不能在 producer
+  callback stack先同步 terminal-fence ingress；
+- package-internal acknowledgment必须进入 public `SessionAnchorResultV1`、public anchor、
+  Save/Persistence/canonical/digest/replay/wire才能工作；
+- teardown promise无法在任一 cleanup callback前发布，cleanup throw/reentry会跳过其他资源或
+  Core/Persistence release、替换 terminal primary error，或 terminal unmount必然恢复 predecessor
+  focus且只能通过新增 public DOM/Root evidence阻止；
+- exact lifecycle result admission必须执行 accessor/Proxy getter才能分类，或必须改变 public
+  result union才能拒绝 malformed value。
 
 ## 15. Acceptance
 
@@ -1175,5 +1290,10 @@ definitions、创建新 instance/topology revision；不得反序列化旧 live 
     activation callback 中 dispose 后不发布或继续 drain anchor；S3e
     同一 cutover 删除旧 System writer/fallback/raw lifecycle public API 与 public
     `SaveOverlayV1` component，且 Save/Persistence/M2/canonical/digest/replay/wire 不变；
+    raw authoritative anchored 与 composed anchored 由 exact package-internal operation token
+    分层；per-token acknowledgment只能在 all-family notification、UI anchor publish 与
+    post-liveness后成功。failed/missing/mismatched ack在 producer stack先 terminal-fence，
+    teardown在 cleanup throw/reentry下仍 exact-once到达 Core/Persistence release，且 public
+    `SessionAnchorResultV1`/anchor与 Save wire均未扩张；
 14. [architecture](../architecture.md)、[features](../features.md)、[story authoring](../story-authoring.md)
     与 public exports 在实现落地时同步更新。

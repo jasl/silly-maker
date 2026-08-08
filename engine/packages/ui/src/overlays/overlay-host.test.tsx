@@ -1091,24 +1091,21 @@ describe("OverlayHostV1", () => {
     const store = createOverlaySessionStoreV1();
     const inputRouter = createInputRouterV1();
     const rendererResolver = createResolverV1(store);
-    const opener = (
+    render(
       <button
         type="button"
         onClick={() => store.openPrimary("overlay.test.inventory")}
       >
         打开背包
-      </button>
+      </button>,
     );
     const rendered = render(
-      <>
-        {opener}
-        <OverlayHostV1
-          session={store}
-          rendererResolver={rendererResolver}
-          inputRouter={inputRouter}
-          closeLabel="关闭"
-        />
-      </>,
+      <OverlayHostV1
+        session={store}
+        rendererResolver={rendererResolver}
+        inputRouter={inputRouter}
+        closeLabel="关闭"
+      />,
     );
     const user = userEvent.setup();
     const externalOpener = screen.getByRole("button", { name: "打开背包" });
@@ -1117,11 +1114,50 @@ describe("OverlayHostV1", () => {
     expect(await screen.findByRole("dialog", { name: "背包" })).toBeVisible();
     expect(screen.getByRole("button", { name: "食材详情" })).toHaveFocus();
 
-    rendered.rerender(opener);
+    rendered.unmount();
 
     expect(screen.queryByRole("dialog", { name: "背包" })).not.toBeInTheDocument();
     expect(store.getSnapshot()).toEqual({ primaryId: null, detailIds: [] });
     expect(externalOpener).toHaveFocus();
+  });
+
+  it("suppresses predecessor focus restore and family close during terminal unmount", async () => {
+    const store = createOverlaySessionStoreV1();
+    const inputRouter = createInputRouterV1();
+    const rendererResolver = createResolverV1(store);
+    render(
+      <button
+        type="button"
+        onClick={() => store.openPrimary("overlay.test.inventory")}
+      >
+        打开背包
+      </button>,
+    );
+    const rendered = render(
+      <OverlayHostV1
+        session={store}
+        rendererResolver={rendererResolver}
+        inputRouter={inputRouter}
+        closeLabel="关闭"
+      />,
+    );
+    const user = userEvent.setup();
+    const externalOpener = screen.getByRole("button", { name: "打开背包" });
+
+    await user.click(externalOpener);
+    expect(await screen.findByRole("dialog", { name: "背包" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "食材详情" })).toHaveFocus();
+
+    store.sealTerminalDisposalInternalV1();
+    rendered.unmount();
+
+    expect(screen.queryByRole("dialog", { name: "背包" })).not.toBeInTheDocument();
+    expect(store.getSnapshot()).toEqual({
+      primaryId: "overlay.test.inventory",
+      detailIds: [],
+    });
+    expect(externalOpener).not.toHaveFocus();
+    store.disposeInternalV1();
   });
 
   it("returns focus to the external root opener when closeAll removes a nested stack", async () => {

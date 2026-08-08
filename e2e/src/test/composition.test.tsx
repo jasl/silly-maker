@@ -242,10 +242,7 @@ describe("startWebGameApplicationV1 with the Engine Lab declaration", () => {
       globalThis.dispatchEvent(new Event("pagehide"));
       await expect(
         automation.dispatch({ kind: "invoke", actionId: "lab.collect_sample" }),
-      ).resolves.toMatchObject({
-        kind: "ok",
-        value: { kind: "not_executed", code: "hmr_invalidated" },
-      });
+      ).resolves.toEqual({ kind: "capability_disabled" });
       await waitFor(() => {
         expect(counter.autosaveWrites()).toBe(1);
       });

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { parseNonNegativeSafeInteger } from "@sillymaker/base";
+import { parseInteractionSurfaceId, parseNonNegativeSafeInteger } from "@sillymaker/base";
 import { describe, expect, it, vi } from "vitest";
 
 import { parseManagedSurfaceActionIdV1 } from "../managed-surfaces/managed-surface-contracts.ts";
@@ -16,6 +16,9 @@ import {
   createGameUiCompositionWithEpochAllocatorInternalV1,
   createHostedGameUiCompositionInternalV1,
   resolveGameUiManagedSurfaceCompositionInternalV1,
+  type GameUiPresentationAnchorEventInternalV1,
+  type GameUiPresentationAnchorEventSourceInternalV1,
+  type GameUiPresentationSuccessorProducerInternalV1,
   type GameUiAnchorSourceV1,
   type GameUiPresentationAnchorV1,
 } from "./create-game-ui-composition.ts";
@@ -36,6 +39,7 @@ function deferredV1() {
 function createAnchorSourceV1() {
   let current: GameUiPresentationAnchorV1 = Object.freeze({ epoch: 0, origin: "bootstrap" });
   const listeners = new Set<() => void>();
+  const eventListeners = new Set<(event: GameUiPresentationAnchorEventInternalV1) => void>();
   const source: GameUiAnchorSourceV1 = Object.freeze({
     current: () => current,
     subscribe(listener: () => void) {
@@ -45,10 +49,124 @@ function createAnchorSourceV1() {
   });
   return Object.freeze({
     source,
+    events: Object.freeze({
+      current: () => current,
+      subscribe(listener: (event: GameUiPresentationAnchorEventInternalV1) => void) {
+        eventListeners.add(listener);
+        return () => eventListeners.delete(listener);
+      },
+    }),
     publish(next: GameUiPresentationAnchorV1): void {
       current = Object.freeze({ ...next });
+      for (const listener of [...eventListeners]) {
+        listener(Object.freeze({ anchor: current, token: null }));
+      }
       for (const listener of [...listeners]) listener();
     },
+  });
+}
+
+function createExactAnchorEventSourceV1() {
+  let current: GameUiPresentationAnchorV1 = Object.freeze({ epoch: 0, origin: "bootstrap" });
+  const listeners = new Set<
+    (event: GameUiPresentationAnchorEventInternalV1) => void
+  >();
+  const source: GameUiPresentationAnchorEventSourceInternalV1 = Object.freeze({
+    current: () => current,
+    subscribe(listener: Parameters<GameUiPresentationAnchorEventSourceInternalV1["subscribe"]>[0]) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  });
+  return Object.freeze({
+    source,
+    publish(event: GameUiPresentationAnchorEventInternalV1): void {
+      current = event.anchor;
+      for (const listener of [...listeners]) listener(event);
+    },
+  });
+}
+
+function createSuccessorProducerFixtureV1(
+  onFailed?: (
+    outcome: Parameters<GameUiPresentationSuccessorProducerInternalV1["failed"]>[0],
+  ) => void,
+) {
+  const installed: Parameters<GameUiPresentationSuccessorProducerInternalV1["installed"]>[0][] = [];
+  const failed: Parameters<GameUiPresentationSuccessorProducerInternalV1["failed"]>[0][] = [];
+  const producer: GameUiPresentationSuccessorProducerInternalV1 = Object.freeze({
+    installed(outcome: Parameters<GameUiPresentationSuccessorProducerInternalV1["installed"]>[0]) {
+      installed.push(outcome);
+    },
+    failed(outcome: Parameters<GameUiPresentationSuccessorProducerInternalV1["failed"]>[0]) {
+      failed.push(outcome);
+      onFailed?.(outcome);
+    },
+  });
+  return Object.freeze({ producer, installed, failed });
+}
+
+function createExactHostedCompositionFixtureV1(
+  anchorEvents: ReturnType<typeof createExactAnchorEventSourceV1>,
+  producerFixture: ReturnType<typeof createSuccessorProducerFixtureV1>,
+  epochSequence: readonly number[] = [11, 17, 23],
+) {
+  let allocationCursor = 0;
+  const allocatedEpochs: number[] = [];
+  let semanticPublication: { readonly revision: number } = Object.freeze({ revision: 0 });
+  const semanticListeners = new Set<() => void>();
+  let semanticUnsubscriptions = 0;
+  const composition = createHostedGameUiCompositionInternalV1({
+    semantic: Object.freeze({
+      observe: () => semanticPublication,
+      subscribe(listener: () => void) {
+        semanticListeners.add(listener);
+        return () => {
+          if (!semanticListeners.delete(listener)) return;
+          semanticUnsubscriptions += 1;
+        };
+      },
+    }),
+    projector: Object.freeze({
+      resolvedCatalog: Object.freeze({}),
+      initialUiState: Object.freeze({ count: 0 as number }),
+      project: (input: {
+        readonly uiState: {
+          readonly anchor: GameUiPresentationAnchorV1;
+          readonly story: { readonly count: number };
+        };
+      }) =>
+        Object.freeze({
+          view: Object.freeze({
+            anchorEpoch: input.uiState.anchor.epoch,
+            count: input.uiState.story.count,
+          }),
+          requiredAssetIds: Object.freeze([]),
+        }),
+    }),
+    overlayDefinitions: Object.freeze([overlayDefinitionV1]),
+    interactionSurfaceIds: Object.freeze(["surface.e2e.fixture" as never]),
+    cueIds: Object.freeze(["cue.e2e.fixture"]),
+  }, {
+    managedSurfaceEpochAllocator: Object.freeze({
+      allocate() {
+        const epoch = parseNonNegativeSafeInteger(epochSequence[allocationCursor]);
+        allocationCursor += 1;
+        allocatedEpochs.push(epoch);
+        return epoch;
+      },
+    }),
+    anchorEvents: anchorEvents.source,
+    successorProducer: producerFixture.producer,
+  });
+  return Object.freeze({
+    composition,
+    allocatedEpochs,
+    publishSemantic(): void {
+      semanticPublication = Object.freeze({ revision: semanticPublication.revision + 1 });
+      for (const listener of [...semanticListeners]) listener();
+    },
+    semanticUnsubscriptions: () => semanticUnsubscriptions,
   });
 }
 
@@ -83,6 +201,11 @@ function createHostedCompositionFixtureV1(
         allocatedEpochs.push(epoch);
         return epoch;
       },
+    }),
+    anchorEvents: anchor.events,
+    successorProducer: Object.freeze({
+      installed: () => undefined,
+      failed: () => undefined,
     }),
   });
   return Object.freeze({ composition, allocatedEpochs });
@@ -159,6 +282,83 @@ describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () 
 
     expect(callerMap).not.toHaveBeenCalled();
     expect(subscriptions).toBe(0);
+  });
+
+  it("does not apply hosted terminal teardown to an ordinary composition failure", () => {
+    const anchor = createAnchorSourceV1();
+    const failure = new Error("fixture.ordinary_anchor_listener_failed");
+    const composition = createGameUiCompositionV1({
+      semantic: Object.freeze({
+        observe: () => Object.freeze({ revision: 0 }),
+        subscribe: () => () => undefined,
+      }),
+      anchor: anchor.source,
+      projector: Object.freeze({
+        resolvedCatalog: Object.freeze({}),
+        initialUiState: Object.freeze({ count: 0 }),
+        project: () =>
+          Object.freeze({
+            view: Object.freeze({}),
+            requiredAssetIds: Object.freeze([]),
+          }),
+      }),
+    });
+    const managed = resolveGameUiManagedSurfaceCompositionInternalV1(composition);
+    const unsubscribeFailure = composition.anchor.subscribe(() => {
+      throw failure;
+    });
+    let inputCalls = 0;
+
+    try {
+      expect(() => anchor.publish(Object.freeze({ epoch: 1, origin: "ordinary" }))).toThrow(
+        failure,
+      );
+      expect(managed.isTerminalInternalV1()).toBe(false);
+      const unregister = composition.input.register({
+        context: "gameplay",
+        handle: () => {
+          inputCalls += 1;
+          return Object.freeze({ kind: "handled" as const });
+        },
+      });
+      expect(composition.input.route({
+        kind: "action",
+        actionId: parseManagedSurfaceActionIdV1("ui.ordinary") as never,
+      })).toEqual({ kind: "handled", context: "gameplay" });
+      expect(inputCalls).toBe(1);
+      unregister();
+    } finally {
+      unsubscribeFailure();
+      composition.dispose();
+    }
+  });
+
+  it("stops an ordinary anchor replacement quietly when an activation callback disposes", () => {
+    const anchor = createAnchorSourceV1();
+    const composition = createGameUiCompositionV1({
+      semantic: Object.freeze({
+        observe: () => Object.freeze({ revision: 0 }),
+        subscribe: () => () => undefined,
+      }),
+      anchor: anchor.source,
+      projector: Object.freeze({
+        resolvedCatalog: Object.freeze({}),
+        initialUiState: Object.freeze({}),
+        project: () =>
+          Object.freeze({
+            view: Object.freeze({}),
+            requiredAssetIds: Object.freeze([]),
+          }),
+      }),
+      overlayDefinitions: Object.freeze([overlayDefinitionV1]),
+    });
+    const overlayInternal = resolveWorkspaceOverlaySessionInternalV1(composition.overlaySession);
+    const unsubscribeOverlay = overlayInternal.subscribe(() => composition.dispose());
+
+    expect(() => anchor.publish(Object.freeze({ epoch: 1, origin: "ordinary" }))).not.toThrow();
+    expect(composition.isDisposed()).toBe(true);
+    expect(composition.anchor.getCurrent()).toEqual({ epoch: 0, origin: "bootstrap" });
+    unsubscribeOverlay();
   });
 
   it("keeps Overlay intent and closure owner-scoped while dormant System prepares", async () => {
@@ -310,6 +510,11 @@ describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () 
       overlayDefinitions: Object.freeze([overlayDefinitionV1]),
     }, {
       managedSurfaceEpochAllocator: epochAllocator,
+      anchorEvents: anchor.events,
+      successorProducer: Object.freeze({
+        installed: () => undefined,
+        failed: () => undefined,
+      }),
     });
 
     try {
@@ -614,7 +819,7 @@ describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () 
     }
   });
 
-  it("does not publish an anchor after activation re-entry disposes the composition", () => {
+  it("does not publish and fails closed after activation re-entry disposes the composition", () => {
     const anchor = createAnchorSourceV1();
     const fixture = createHostedCompositionFixtureV1(anchor, [11, 17, 23]);
     const { composition } = fixture;
@@ -635,9 +840,12 @@ describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () 
       systemNotifications += 1;
     });
 
-    expect(() => anchor.publish(Object.freeze({ epoch: 1, origin: "load" }))).not.toThrow();
+    expect(() => anchor.publish(Object.freeze({ epoch: 1, origin: "load" }))).toThrowError(
+      "ui.presentation_successor_activation_failed",
+    );
 
     expect(composition.isDisposed()).toBe(true);
+    expect(managedComposition.isTerminalInternalV1()).toBe(true);
     expect(composition.anchor.getCurrent()).toEqual({ epoch: 0, origin: "bootstrap" });
     expect(fixture.allocatedEpochs).toEqual([11, 17]);
     expect({ overlayNotifications, systemNotifications }).toEqual({
@@ -884,5 +1092,291 @@ describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () 
       unregistrations: 2,
       activeRegistrations: 0,
     });
+  });
+});
+
+describe("hosted presentation successor acknowledgment", () => {
+  it("drains reentrant exact token events FIFO without consulting the latest anchor", () => {
+    const anchorEvents = createExactAnchorEventSourceV1();
+    const producer = createSuccessorProducerFixtureV1();
+    const fixture = createExactHostedCompositionFixtureV1(anchorEvents, producer);
+    const { composition } = fixture;
+    const tokenA = Object.freeze({ operation: "A" });
+    const tokenB = Object.freeze({ operation: "B" });
+    const anchorA = Object.freeze({ epoch: 1, origin: "restart" });
+    const anchorB = Object.freeze({ epoch: 2, origin: "import" });
+
+    try {
+      const overlayInternal = resolveWorkspaceOverlaySessionInternalV1(composition.overlaySession);
+      const observedAnchors: GameUiPresentationAnchorV1[] = [];
+      const unsubscribeOverlay = overlayInternal.subscribe(() => {
+        observedAnchors.push(composition.anchor.getCurrent());
+        if (observedAnchors.length === 1) {
+          anchorEvents.publish(Object.freeze({ anchor: anchorB, token: tokenB }));
+        }
+      });
+
+      anchorEvents.publish(Object.freeze({ anchor: anchorA, token: tokenA }));
+
+      expect(fixture.allocatedEpochs).toEqual([11, 17, 23]);
+      expect(observedAnchors).toEqual([
+        { epoch: 0, origin: "bootstrap" },
+        { epoch: 1, origin: "restart" },
+      ]);
+      expect(producer.failed).toEqual([]);
+      expect(producer.installed).toEqual([
+        { anchor: anchorA, token: tokenA, managedSurfaceApplicationEpoch: 17 },
+        { anchor: anchorB, token: tokenB, managedSurfaceApplicationEpoch: 23 },
+      ]);
+      expect(composition.anchor.getCurrent()).toBe(anchorB);
+      unsubscribeOverlay();
+    } finally {
+      composition.dispose();
+    }
+  });
+
+  it("installs an unarmed load/import event without retaining acknowledgment history", () => {
+    const anchorEvents = createExactAnchorEventSourceV1();
+    const producer = createSuccessorProducerFixtureV1();
+    const fixture = createExactHostedCompositionFixtureV1(anchorEvents, producer);
+    const { composition } = fixture;
+
+    try {
+      const anchor = Object.freeze({ epoch: 1, origin: "load" });
+      anchorEvents.publish(Object.freeze({ anchor, token: null }));
+
+      expect(composition.anchor.getCurrent()).toBe(anchor);
+      expect(producer.installed).toEqual([]);
+      expect(producer.failed).toEqual([]);
+    } finally {
+      composition.dispose();
+    }
+  });
+
+  it("isolates ordinary family subscriber failures without upgrading a successor", () => {
+    const anchorEvents = createExactAnchorEventSourceV1();
+    const producer = createSuccessorProducerFixtureV1();
+    const fixture = createExactHostedCompositionFixtureV1(anchorEvents, producer);
+    const { composition } = fixture;
+    const managed = resolveGameUiManagedSurfaceCompositionInternalV1(composition);
+    const overlay = resolveWorkspaceOverlaySessionInternalV1(composition.overlaySession);
+    const system = resolveSystemDialogSessionInternalV1(managed.systemDialogSession);
+    const token = Object.freeze({ operation: "subscriber-isolation" });
+    const anchor = Object.freeze({ epoch: 1, origin: "restart" });
+    overlay.subscribe(() => {
+      throw new Error("fixture.overlay_subscriber_failed");
+    });
+    system.subscribeInternalV1(() => {
+      throw new Error("fixture.system_subscriber_failed");
+    });
+
+    expect(() => anchorEvents.publish(Object.freeze({ anchor, token }))).not.toThrow();
+
+    expect(managed.isTerminalInternalV1()).toBe(false);
+    expect(producer.failed).toEqual([]);
+    expect(producer.installed).toEqual([
+      { anchor, token, managedSurfaceApplicationEpoch: 17 },
+    ]);
+    composition.dispose();
+  });
+
+  it("terminal-seals every held presentation ingress before reporting a publish failure", () => {
+    const anchorEvents = createExactAnchorEventSourceV1();
+    let terminalObservedByProducer = false;
+    let readTerminal = (): boolean => false;
+    const producer = createSuccessorProducerFixtureV1(() => {
+      terminalObservedByProducer = readTerminal();
+    });
+    const fixture = createExactHostedCompositionFixtureV1(anchorEvents, producer);
+    const { composition } = fixture;
+    const managed = resolveGameUiManagedSurfaceCompositionInternalV1(composition);
+    readTerminal = managed.isTerminalInternalV1;
+    const overlayInternal = resolveWorkspaceOverlaySessionInternalV1(composition.overlaySession);
+    const managedSystem = resolveSystemDialogSessionInternalV1(managed.systemDialogSession);
+    const token = Object.freeze({ operation: "terminal" });
+    const anchor = Object.freeze({ epoch: 1, origin: "restart" });
+    const failure = new Error("fixture.anchor_listener_failed");
+    let lowerInputWrites = 0;
+    let cueWrites = 0;
+    const unregister = composition.input.register({
+      context: "gameplay",
+      handle: () => {
+        lowerInputWrites += 1;
+        return Object.freeze({ kind: "handled" as const });
+      },
+    });
+    composition.cues.register(Object.freeze({
+      play: () => {
+        cueWrites += 1;
+        return true;
+      },
+    }));
+    composition.systemDialogSession.open("settings");
+    let systemNotifications = 0;
+    let interactionNotifications = 0;
+    const unsubscribeSystem = composition.systemDialogSession.subscribe(() => {
+      systemNotifications += 1;
+    });
+    const unsubscribeInteraction = composition.interactionSession.subscribe(() => {
+      interactionNotifications += 1;
+    });
+    let overlayNotifications = 0;
+    let managedSystemNotifications = 0;
+    const unsubscribeOverlay = overlayInternal.subscribe(() => {
+      overlayNotifications += 1;
+    });
+    const unsubscribeManagedSystem = managedSystem.subscribeInternalV1(() => {
+      managedSystemNotifications += 1;
+    });
+    let presentationNotifications = 0;
+    const unsubscribePresentation = composition.presentation.subscribe(() => {
+      presentationNotifications += 1;
+    });
+    const unsubscribeThrow = composition.anchor.subscribe(() => {
+      throw failure;
+    });
+
+    expect(() => anchorEvents.publish(Object.freeze({ anchor, token }))).toThrow(failure);
+    presentationNotifications = 0;
+
+    expect(managed.isTerminalInternalV1()).toBe(true);
+    expect(terminalObservedByProducer).toBe(true);
+    expect(producer.installed).toEqual([]);
+    expect(producer.failed).toEqual([{ anchor, token, error: failure }]);
+    expect(composition.systemDialogSession.getSnapshot()).toEqual({ active: "settings" });
+    const beforeInteraction = composition.interactionSession.getSnapshot();
+    const beforePresentation = composition.presentation.getSnapshot();
+    const beforeAnchor = composition.anchor.getCurrent();
+    fixture.publishSemantic();
+    anchorEvents.publish(Object.freeze({
+      anchor: Object.freeze({ epoch: 2, origin: "late" }),
+      token: Object.freeze({ operation: "late" }),
+    }));
+    composition.updateUiState((current) => Object.freeze({ count: current.count + 1 }));
+    composition.systemDialogSession.open("saves");
+    composition.systemDialogSession.close();
+    composition.interactionSession.open(
+      parseInteractionSurfaceId("surface.e2e.fixture"),
+      "control.e2e.fixture",
+    );
+    composition.interactionSession.leave();
+    composition.cues.register(Object.freeze({ play: () => true }));
+    expect(composition.cues.play("cue.e2e.fixture")).toBe(false);
+    expect(composition.intents.execute({
+      kind: "interaction.enter_surface",
+      surfaceId: parseInteractionSurfaceId("surface.e2e.fixture"),
+    })).toEqual({ kind: "rejected", code: "presentation.intent_unknown" });
+    expect(composition.input.route({
+      kind: "action",
+      actionId: parseManagedSurfaceActionIdV1("ui.confirm") as never,
+    })).toEqual({ kind: "ignored" });
+    expect(composition.overlaySession.openPrimary("overlay.epoch-fixture")).toEqual({
+      kind: "rejected",
+      code: "overlay.disposed",
+    });
+    expect(composition.interactionSession.getSnapshot()).toBe(beforeInteraction);
+    expect(composition.presentation.getSnapshot()).toBe(beforePresentation);
+    expect(composition.anchor.getCurrent()).toBe(beforeAnchor);
+    expect(fixture.semanticUnsubscriptions()).toBe(1);
+    expect(presentationNotifications).toBe(0);
+    expect(producer.installed).toEqual([]);
+    expect(producer.failed).toEqual([{ anchor, token, error: failure }]);
+    expect({ lowerInputWrites, cueWrites }).toEqual({ lowerInputWrites: 0, cueWrites: 0 });
+    expect({ systemNotifications, interactionNotifications }).toEqual({
+      systemNotifications: 0,
+      interactionNotifications: 0,
+    });
+    expect({ overlayNotifications, managedSystemNotifications }).toEqual({
+      overlayNotifications: 1,
+      managedSystemNotifications: 1,
+    });
+    expect(() => {
+      managed.sealTerminalInternalV1();
+      managed.sealTerminalInternalV1();
+    }).not.toThrow();
+    expect({ overlayNotifications, managedSystemNotifications }).toEqual({
+      overlayNotifications: 1,
+      managedSystemNotifications: 1,
+    });
+
+    unsubscribeThrow();
+    unsubscribeSystem();
+    unsubscribeInteraction();
+    unsubscribeOverlay();
+    unsubscribeManagedSystem();
+    unsubscribePresentation();
+    unregister();
+    composition.dispose();
+    expect(fixture.semanticUnsubscriptions()).toBe(1);
+  });
+
+  it("terminal-seals a second-family attachment failure in the producer stack", () => {
+    const anchorEvents = createExactAnchorEventSourceV1();
+    const producer = createSuccessorProducerFixtureV1();
+    const fixture = createExactHostedCompositionFixtureV1(anchorEvents, producer);
+    const { composition } = fixture;
+    const managed = resolveGameUiManagedSurfaceCompositionInternalV1(composition);
+    const system = resolveSystemDialogSessionInternalV1(managed.systemDialogSession);
+    const token = Object.freeze({ operation: "second-family" });
+    const anchor = Object.freeze({ epoch: 1, origin: "load" });
+    system.disposeInternalV1();
+
+    expect(() => anchorEvents.publish(Object.freeze({ anchor, token }))).toThrowError(
+      "ui.system_dialog_session_disposed",
+    );
+
+    expect(managed.isTerminalInternalV1()).toBe(true);
+    expect(producer.installed).toEqual([]);
+    expect(producer.failed).toHaveLength(1);
+    expect(producer.failed[0]).toMatchObject({ anchor, token });
+    expect(producer.failed[0]?.error).toBeInstanceOf(Error);
+    expect(() => managed.runtime.getCurrent()).toThrowError(
+      "ui.managed_surface_composition_runtime_disposed",
+    );
+    composition.dispose();
+  });
+
+  it("reports the exact token when a UI anchor listener disposes after publication", () => {
+    const anchorEvents = createExactAnchorEventSourceV1();
+    const producer = createSuccessorProducerFixtureV1();
+    const fixture = createExactHostedCompositionFixtureV1(anchorEvents, producer);
+    const { composition } = fixture;
+    const managed = resolveGameUiManagedSurfaceCompositionInternalV1(composition);
+    const token = Object.freeze({ operation: "post-publish-dispose" });
+    const anchor = Object.freeze({ epoch: 1, origin: "restart" });
+    composition.anchor.subscribe(() => composition.dispose());
+
+    expect(() => anchorEvents.publish(Object.freeze({ anchor, token }))).toThrowError(
+      "ui.managed_surface_composition_runtime_disposed",
+    );
+
+    expect(composition.isDisposed()).toBe(true);
+    expect(managed.isTerminalInternalV1()).toBe(true);
+    expect(producer.installed).toEqual([]);
+    expect(producer.failed).toHaveLength(1);
+    expect(producer.failed[0]).toMatchObject({ anchor, token });
+  });
+
+  it("fails after publication when a family attachment is no longer current", () => {
+    const anchorEvents = createExactAnchorEventSourceV1();
+    const producer = createSuccessorProducerFixtureV1();
+    const fixture = createExactHostedCompositionFixtureV1(anchorEvents, producer);
+    const { composition } = fixture;
+    const managed = resolveGameUiManagedSurfaceCompositionInternalV1(composition);
+    const overlay = resolveWorkspaceOverlaySessionInternalV1(composition.overlaySession);
+    const token = Object.freeze({ operation: "post-liveness" });
+    const anchor = Object.freeze({ epoch: 1, origin: "import" });
+    const unsubscribe = overlay.subscribe(() => overlay.detachRuntimeInternalV1());
+
+    expect(() => anchorEvents.publish(Object.freeze({ anchor, token }))).toThrowError(
+      "ui.presentation_successor_activation_failed",
+    );
+
+    expect(managed.isTerminalInternalV1()).toBe(true);
+    expect(producer.installed).toEqual([]);
+    expect(producer.failed).toHaveLength(1);
+    expect(producer.failed[0]).toMatchObject({ anchor, token });
+    unsubscribe();
+    composition.dispose();
   });
 });

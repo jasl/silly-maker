@@ -270,6 +270,11 @@ export interface SystemDialogManagedSessionInternalV1
     readonly portalContainer: object;
     readonly catalog: SystemDialogRootCatalogInternalV1 | null;
   }): SystemDialogHostAttachmentInternalV1;
+  isRuntimeAttachmentCurrentInternalV1(
+    expectedRuntime: ManagedSurfaceCoordinatorRuntimeV1,
+  ): boolean;
+  sealTerminalDisposalInternalV1(): void;
+  isTerminalDisposalInternalV1(): boolean;
   disposeInternalV1(): void;
 }
 
@@ -767,6 +772,7 @@ export function createSystemDialogManagedSessionInternalV1(input: {
   let runtime = input.runtime;
   let catalog: SystemDialogRootCatalogInternalV1 | null = null;
   let disposed = false;
+  let terminalDisposal = false;
   let detached = false;
   let preparedRuntime: ManagedSurfaceCoordinatorRuntimeV1 | null = null;
   let activationGate: ManagedSurfaceFamilyActivationGateInternalV1 | null = null;
@@ -1702,6 +1708,16 @@ export function createSystemDialogManagedSessionInternalV1(input: {
         },
       };
       return Object.freeze(attachment);
+    },
+    isRuntimeAttachmentCurrentInternalV1(expectedRuntime) {
+      return !disposed && !detached && preparedRuntime === null && runtime === expectedRuntime &&
+        (activationGate === null || activationGate.isOpen()) && expectedRuntime.isIngressOpen();
+    },
+    sealTerminalDisposalInternalV1() {
+      terminalDisposal = true;
+    },
+    isTerminalDisposalInternalV1() {
+      return terminalDisposal;
     },
     detachRuntimeInternalV1() {
       if (disposed || detached) return;

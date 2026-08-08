@@ -15,8 +15,11 @@ import { createInputRouterV1 } from "../input/input-router.ts";
 import { GameStageV1 } from "../shell/game-stage.tsx";
 import { SavesLauncherV1 } from "./saves-launcher.tsx";
 import { SettingsLauncherV1 } from "./settings-launcher.tsx";
-import { SystemDialogHostV1 } from "./system-dialog-host.tsx";
-import { createSystemDialogSessionStoreV1 } from "./system-dialog-session-store.ts";
+import { SystemDialogHostV1, useSystemDialogControllerV1 } from "./system-dialog-host.tsx";
+import {
+  createSystemDialogSessionStoreV1,
+  sealSystemDialogSessionStoreTerminalInternalV1,
+} from "./system-dialog-session-store.ts";
 
 afterEach(cleanup);
 
@@ -70,6 +73,16 @@ function DevDockPortalSelectionProbeV1() {
       data-target-scope={target?.dataset.blockingFocusScope ?? "none"}
     />
   );
+}
+
+function ExternalSystemOpenerBridgeV1(props: { readonly opener: HTMLButtonElement }) {
+  const controller = useSystemDialogControllerV1();
+  useEffect(() => {
+    const open = (): void => controller.openSettings(props.opener);
+    props.opener.addEventListener("click", open);
+    return () => props.opener.removeEventListener("click", open);
+  }, [controller, props.opener]);
+  return null;
 }
 
 describe("SystemDialogHostV1", () => {
@@ -381,5 +394,55 @@ describe("SystemDialogHostV1", () => {
       context: "gameplay",
     });
     expect(gameplay).toHaveBeenCalledOnce();
+  });
+
+  it("does not close or restore predecessor focus when a terminal store unmounts", async () => {
+    const store = createSystemDialogSessionStoreV1();
+    render(<button type="button">外部设置</button>);
+    const button = screen.getByRole("button", { name: "外部设置" }) as HTMLButtonElement;
+    const rendered = render(
+      <SystemDialogHostV1
+        store={store}
+        inputRouter={createInputRouterV1()}
+        settings={settingsV1}
+      >
+        <ExternalSystemOpenerBridgeV1 opener={button} />
+      </SystemDialogHostV1>,
+    );
+    await userEvent.setup().click(button);
+    expect(screen.getByRole("dialog", { name: "设置" })).toBeVisible();
+
+    sealSystemDialogSessionStoreTerminalInternalV1(store);
+    rendered.unmount();
+    await Promise.resolve();
+
+    expect(store.getSnapshot()).toEqual({ active: "settings" });
+    expect(button).not.toHaveFocus();
+  });
+
+  it("suppresses a queued exact-opener restore when close synchronously enters terminal", async () => {
+    const store = createSystemDialogSessionStoreV1();
+    const unsubscribe = store.subscribe(() => {
+      if (store.getSnapshot().active === null) {
+        sealSystemDialogSessionStoreTerminalInternalV1(store);
+      }
+    });
+    render(
+      <SystemDialogHostV1
+        store={store}
+        inputRouter={createInputRouterV1()}
+        settings={settingsV1}
+      >
+        <SettingsLauncherV1 label="设置" />
+      </SystemDialogHostV1>,
+    );
+    const button = screen.getByRole("button", { name: "设置" });
+    await userEvent.setup().click(button);
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "关闭设置" }));
+    await Promise.resolve();
+
+    expect(button).not.toHaveFocus();
+    unsubscribe();
   });
 });

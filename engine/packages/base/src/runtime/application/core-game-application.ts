@@ -103,6 +103,72 @@ type CoreSaveMaintenanceBarrierResultV1 = { readonly kind: "cleared" } | {
 
 const coreSaveMaintenanceOperationsV1 = new WeakMap<object, CoreSaveMaintenanceOperationV1>();
 
+export interface PreparedCoreApplicationRestartInternalV1 {
+  readonly publicationContext: AuthoritativeReplacementPublicationContextInternalV1;
+  run(): Promise<SessionAnchorResultV1>;
+}
+
+export interface CorePresentationAnchorEventInternalV1 {
+  readonly anchor: CorePresentationAnchorV1;
+  readonly publicationContext: AuthoritativeReplacementPublicationContextInternalV1 | null;
+}
+
+interface CoreApplicationCompositionControlInternalV1 {
+  prepareRestart(): PreparedCoreApplicationRestartInternalV1;
+  subscribePresentationAnchorEvents(
+    listener: (event: CorePresentationAnchorEventInternalV1) => void,
+  ): () => void;
+}
+
+const coreApplicationCompositionControlsInternalV1 = new WeakMap<
+  object,
+  CoreApplicationCompositionControlInternalV1
+>();
+
+function coreApplicationCompositionControlInternalV1(
+  instance: object,
+): CoreApplicationCompositionControlInternalV1 {
+  const control = coreApplicationCompositionControlsInternalV1.get(instance);
+  if (control === undefined) {
+    throw new TypeError("core.application_internal_unavailable");
+  }
+  return control;
+}
+
+/** @internal Allocates the exact replacement context before its one-shot restart begins. */
+export function prepareCoreApplicationRestartInternalV1(
+  instance: object,
+): PreparedCoreApplicationRestartInternalV1 {
+  return coreApplicationCompositionControlInternalV1(instance).prepareRestart();
+}
+
+/** @internal Observes committed anchors with their exact Session publication context. */
+export function subscribeCoreApplicationPresentationAnchorEventsInternalV1(
+  instance: object,
+  listener: (event: CorePresentationAnchorEventInternalV1) => void,
+): () => void {
+  if (typeof listener !== "function") {
+    throw new TypeError("core.presentation_anchor_event_listener_invalid");
+  }
+  return coreApplicationCompositionControlInternalV1(instance).subscribePresentationAnchorEvents(
+    listener,
+  );
+}
+
+function createDeferredV1<TValue>(): {
+  readonly promise: Promise<TValue>;
+  readonly resolve: (value: TValue | PromiseLike<TValue>) => void;
+  readonly reject: (reason?: unknown) => void;
+} {
+  let resolve!: (value: TValue | PromiseLike<TValue>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<TValue>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return Object.freeze({ promise, resolve, reject });
+}
+
 /**
  * Package-internal Web composition seam. The maintenance operation stays off
  * the ordinary Core instance and player persistence ports.
@@ -1340,6 +1406,9 @@ export async function createCoreGameApplicationInstanceV1<
     let lastReplayBase: unknown = created.commandLog.replayBase();
     let clearPendingAutoSaveForAnchorV1: () => void = () => {};
     const anchorListeners = new Set<(anchor: CorePresentationAnchorV1) => void>();
+    const anchorEventListeners = new Set<
+      (event: CorePresentationAnchorEventInternalV1) => void
+    >();
     const currentAnchorV1 = (): CorePresentationAnchorV1 => Object.freeze({ epoch, origin });
     cleanups.push(
       created.session.subscribe(() => {
@@ -1368,6 +1437,17 @@ export async function createCoreGameApplicationInstanceV1<
           notifyRollbackV1();
         }
         const anchor = currentAnchorV1();
+        const event: CorePresentationAnchorEventInternalV1 = Object.freeze({
+          anchor,
+          publicationContext,
+        });
+        for (const listener of [...anchorEventListeners]) {
+          try {
+            listener(event);
+          } catch (error) {
+            reportObserverFailure(error);
+          }
+        }
         for (const listener of [...anchorListeners]) {
           try {
             listener(anchor);
@@ -1377,7 +1457,10 @@ export async function createCoreGameApplicationInstanceV1<
         }
       }),
     );
-    cleanups.push(() => anchorListeners.clear());
+    cleanups.push(() => {
+      anchorEventListeners.clear();
+      anchorListeners.clear();
+    });
 
     // Commit-only transient effect stream: effects derive from committed
     // command facts, stamped with a monotonic sequence and the epoch at
@@ -1428,10 +1511,11 @@ export async function createCoreGameApplicationInstanceV1<
     let pendingAutoSnapshot: DeepReadonly<TTypes["snapshot"]> | undefined;
     let commandsSinceCapture = 0;
     const clearPendingAutoSaveV1 = (): void => {
-      cancelFlushTimer?.();
+      const cancel = cancelFlushTimer;
       cancelFlushTimer = undefined;
       pendingAutoSnapshot = undefined;
       commandsSinceCapture = 0;
+      cancel?.();
     };
     clearPendingAutoSaveForAnchorV1 = clearPendingAutoSaveV1;
     const captureNowV1 = (): void => {
@@ -1495,21 +1579,28 @@ export async function createCoreGameApplicationInstanceV1<
     };
 
     const invalidateForHmrV1 = (): void => {
-      clearPendingAutoSaveV1();
-      fencePersistencePlayerMutationsInternalV1(persistence);
-      created.invalidationController.invalidateForHmr();
+      const runInvalidationStepV1 = (step: () => void): void => {
+        try {
+          step();
+        } catch (error) {
+          reportObserverFailure(error);
+        }
+      };
+      // Host cleanup (including an injected timer cancellation) is allowed to
+      // throw, so close both mutation ingresses before touching it.
+      runInvalidationStepV1(() => fencePersistencePlayerMutationsInternalV1(persistence));
+      runInvalidationStepV1(() => created.invalidationController.invalidateForHmr());
+      runInvalidationStepV1(clearPendingAutoSaveV1);
     };
 
-    const withOriginV1 = async <TOperationResult>(
+    const runWithOriginV1 = async <TOperationResult>(
       nextOrigin: CorePresentationAnchorOriginV1,
+      publicationContext: AuthoritativeReplacementPublicationContextInternalV1,
       operation: (
         onReplacementCommit: () => void,
         publicationContext: AuthoritativeReplacementPublicationContextInternalV1,
       ) => Promise<TOperationResult>,
     ): Promise<TOperationResult> => {
-      const publicationContext = createAuthoritativeReplacementPublicationContextInternalV1(
-        created.runtimeControl,
-      );
       const operationOrigin = Object.freeze({ origin: nextOrigin });
       presentationOriginsByPublicationContext.set(publicationContext, nextOrigin);
       try {
@@ -1528,6 +1619,18 @@ export async function createCoreGameApplicationInstanceV1<
         }
       }
     };
+    const withOriginV1 = <TOperationResult>(
+      nextOrigin: CorePresentationAnchorOriginV1,
+      operation: (
+        onReplacementCommit: () => void,
+        publicationContext: AuthoritativeReplacementPublicationContextInternalV1,
+      ) => Promise<TOperationResult>,
+    ): Promise<TOperationResult> =>
+      runWithOriginV1(
+        nextOrigin,
+        createAuthoritativeReplacementPublicationContextInternalV1(created.runtimeControl),
+        operation,
+      );
 
     const persistencePort = Object.freeze({
       ...persistence.port,
@@ -1614,10 +1717,13 @@ export async function createCoreGameApplicationInstanceV1<
       if (outcome.kind === "failed") throw new Error(outcome.message);
     };
 
-    const restartV1 = (): Promise<SessionAnchorResultV1> =>
-      withOriginV1(
+    const runRestartWithPublicationContextV1 = (
+      publicationContext: AuthoritativeReplacementPublicationContextInternalV1,
+    ): Promise<SessionAnchorResultV1> =>
+      runWithOriginV1(
         "restart",
-        (onReplacementCommit, publicationContext) =>
+        publicationContext,
+        (onReplacementCommit, operationPublicationContext) =>
           created.runtimeControl.enqueueAuthoritative<SessionAnchorResultV1>(
             async () => {
               const snapshot = createInitialSnapshotV1();
@@ -1640,7 +1746,7 @@ export async function createCoreGameApplicationInstanceV1<
                     kind: "faulted" as const,
                     code: "runtime.anchor_failed" as const,
                   }),
-                publicationContext,
+                operationPublicationContext,
               );
               return outcome;
             },
@@ -1657,6 +1763,28 @@ export async function createCoreGameApplicationInstanceV1<
               }),
           ),
       );
+    const prepareRestartV1 = (): PreparedCoreApplicationRestartInternalV1 => {
+      const publicationContext = createAuthoritativeReplacementPublicationContextInternalV1(
+        created.runtimeControl,
+      );
+      let result: Promise<SessionAnchorResultV1> | undefined;
+      const run = (): Promise<SessionAnchorResultV1> => {
+        if (result !== undefined) return result;
+        const deferred = createDeferredV1<SessionAnchorResultV1>();
+        result = deferred.promise;
+        try {
+          void runRestartWithPublicationContextV1(publicationContext).then(
+            deferred.resolve,
+            deferred.reject,
+          );
+        } catch (error) {
+          deferred.reject(error);
+        }
+        return result;
+      };
+      return Object.freeze({ publicationContext, run });
+    };
+    const restartV1 = (): Promise<SessionAnchorResultV1> => prepareRestartV1().run();
 
     // Player rollback (R7): a bounded ring of committed Snapshots. The ring
     // is instance-local presentation-adjacent state — it never enters Saves
@@ -1875,10 +2003,25 @@ export async function createCoreGameApplicationInstanceV1<
     let disposalPromise: Promise<DeepReadonly<PersistenceRebootstrapDisposalV1>> | undefined;
     const disposeForRebootstrapV1 = (): Promise<DeepReadonly<PersistenceRebootstrapDisposalV1>> => {
       if (disposalPromise !== undefined) return disposalPromise;
+      const deferred = createDeferredV1<DeepReadonly<PersistenceRebootstrapDisposalV1>>();
+      disposalPromise = deferred.promise;
       disposed = true;
-      for (const cleanup of cleanups.splice(0)) cleanup();
+      const runDisposalStepV1 = (step: () => void): void => {
+        try {
+          step();
+        } catch (error) {
+          reportObserverFailure(error);
+        }
+      };
+      // Fence both authoritative and persistence mutation ingress before any
+      // owned cleanup can reenter disposal or throw.
       invalidateForHmrV1();
-      disposalPromise = Promise.resolve(persistence.disposeForRebootstrap());
+      for (const cleanup of cleanups.splice(0)) runDisposalStepV1(cleanup);
+      try {
+        void persistence.disposeForRebootstrap().then(deferred.resolve, deferred.reject);
+      } catch (error) {
+        deferred.reject(error);
+      }
       return disposalPromise;
     };
 
@@ -2045,9 +2188,10 @@ export async function createCoreGameApplicationInstanceV1<
     });
 
     let maintenanceInstance: object | undefined;
-    const unregisterSaveMaintenanceV1 = (): void => {
+    const unregisterInstanceInternalsV1 = (): void => {
       if (maintenanceInstance !== undefined) {
         coreSaveMaintenanceOperationsV1.delete(maintenanceInstance);
+        coreApplicationCompositionControlsInternalV1.delete(maintenanceInstance);
       }
     };
     const instance = Object.freeze({
@@ -2098,21 +2242,33 @@ export async function createCoreGameApplicationInstanceV1<
       admin,
       isDisposed: () => disposed,
       dispose: async () => {
-        unregisterSaveMaintenanceV1();
+        unregisterInstanceInternalsV1();
         await disposeForRebootstrapV1();
         return Object.freeze({ kind: "disposed" as const });
       },
       invalidateForHmr: () => {
-        unregisterSaveMaintenanceV1();
+        unregisterInstanceInternalsV1();
         invalidateForHmrV1();
       },
       disposeForRebootstrap: () => {
-        unregisterSaveMaintenanceV1();
+        unregisterInstanceInternalsV1();
         return disposeForRebootstrapV1();
       },
     });
     maintenanceInstance = instance;
     coreSaveMaintenanceOperationsV1.set(instance, clearAllSavesForMaintenanceV1);
+    coreApplicationCompositionControlsInternalV1.set(
+      instance,
+      Object.freeze({
+        prepareRestart: prepareRestartV1,
+        subscribePresentationAnchorEvents(
+          listener: (event: CorePresentationAnchorEventInternalV1) => void,
+        ): () => void {
+          anchorEventListeners.add(listener);
+          return () => anchorEventListeners.delete(listener);
+        },
+      }),
+    );
     return instance;
   } catch (error) {
     disposed = true;

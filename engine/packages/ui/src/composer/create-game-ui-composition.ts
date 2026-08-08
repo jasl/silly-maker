@@ -8,6 +8,7 @@ import type {
 } from "@sillymaker/base";
 import { parseContentMaturityFlagsV1 } from "@sillymaker/base";
 
+import { inputIgnoredV1 } from "../input/contracts.ts";
 import type { InputRouterV1 } from "../input/contracts.ts";
 import { createInputRouterV1 } from "../input/input-router.ts";
 import type { InteractionSessionStoreV1 } from "../interaction/interaction-session-store.ts";
@@ -50,7 +51,10 @@ import type {
 import { createRuntimePresentationStoreV1 } from "../runtime/runtime-presentation-store.ts";
 import { createSemanticPublicationBridgeV1 } from "../runtime/semantic-publication-bridge.ts";
 import type { SystemDialogSessionStoreV1 } from "../system/system-dialog-session-store.ts";
-import { createSystemDialogSessionStoreV1 } from "../system/system-dialog-session-store.ts";
+import {
+  createSystemDialogSessionStoreV1,
+  sealSystemDialogSessionStoreTerminalInternalV1,
+} from "../system/system-dialog-session-store.ts";
 import {
   systemDialogManagedContractInternalV1,
   type SystemDialogSessionV1,
@@ -73,6 +77,35 @@ export interface GameUiPresentationAnchorV1 {
 export interface GameUiAnchorSourceV1 {
   current(): GameUiPresentationAnchorV1;
   subscribe(listener: () => void): () => void;
+}
+
+/** @internal Opaque Core publication-context identity; compared only by object identity. */
+export type GameUiPresentationAnchorTokenInternalV1 = object;
+
+/** @internal Exact producer event; `null` marks a replacement with no armed consumer. */
+export interface GameUiPresentationAnchorEventInternalV1 {
+  readonly anchor: GameUiPresentationAnchorV1;
+  readonly token: GameUiPresentationAnchorTokenInternalV1 | null;
+}
+
+/** @internal Hosted-only exact event source. It never expands the public anchor source. */
+export interface GameUiPresentationAnchorEventSourceInternalV1 {
+  current(): GameUiPresentationAnchorV1;
+  subscribe(listener: (event: GameUiPresentationAnchorEventInternalV1) => void): () => void;
+}
+
+/** @internal Web-owned acknowledgment producer for exact application-operation tokens. */
+export interface GameUiPresentationSuccessorProducerInternalV1 {
+  installed(outcome: {
+    readonly anchor: GameUiPresentationAnchorV1;
+    readonly token: GameUiPresentationAnchorTokenInternalV1;
+    readonly managedSurfaceApplicationEpoch: number;
+  }): void;
+  failed(outcome: {
+    readonly anchor: GameUiPresentationAnchorV1;
+    readonly token: GameUiPresentationAnchorTokenInternalV1 | null;
+    readonly error: unknown;
+  }): void;
 }
 
 /** The combined UI state every projector receives. */
@@ -177,6 +210,8 @@ export interface GameUiCompositionV1<
 export interface GameUiManagedSurfaceCompositionInternalV1 {
   readonly runtime: ManagedSurfaceCompositionRuntimeInternalV1;
   readonly systemDialogSession: SystemDialogSessionV1;
+  sealTerminalInternalV1(): void;
+  isTerminalInternalV1(): boolean;
 }
 
 const gameUiManagedSurfaceCompositionInternalsV1 = new WeakMap<
@@ -193,6 +228,11 @@ export function resolveGameUiManagedSurfaceCompositionInternalV1(
     throw new TypeError("ui.game_ui_managed_surface_composition_required");
   }
   return internal;
+}
+
+/** @internal Narrow Host fence; it does not expose dormant managed-family authority. */
+export function sealHostedGameUiCompositionTerminalInternalV1(composition: object): void {
+  resolveGameUiManagedSurfaceCompositionInternalV1(composition).sealTerminalInternalV1();
 }
 
 function combineManagedSurfaceRecipeInternalV1(
@@ -262,9 +302,14 @@ export function createGameUiCompositionWithEpochAllocatorInternalV1<
   managedSurfaceRegisterManagedInputHandler?: CreateManagedSurfaceCompositionRuntimeInternalInputV1[
     "registerManagedInputHandler"
   ],
+  hostedSuccessor?: {
+    readonly anchorEvents: GameUiPresentationAnchorEventSourceInternalV1;
+    readonly producer: GameUiPresentationSuccessorProducerInternalV1;
+  },
 ): GameUiCompositionV1<TSemanticPublication, TStoryUiState, TView, TAssetId, TOverlayId> {
   type OverlayIdV1 = GameUiOverlayIdV1<TOverlayId>;
   const anchorSource = input.anchor ?? staticAnchorSourceV1;
+  const initialAnchor = hostedSuccessor?.anchorEvents.current() ?? anchorSource.current();
   const reportFailure = input.reportFailure ?? (() => undefined);
   const overlayDefinitions = snapshotWorkspaceOverlayDefinitionsInternalV1(
     input.overlayDefinitions ?? [],
@@ -308,16 +353,35 @@ export function createGameUiCompositionWithEpochAllocatorInternalV1<
   const managedSystemDialogSession = createSystemDialogSessionFacadeInternalV1(
     managedSystemDialogInternal,
   );
+  let disposed = false;
+  let terminal = false;
+  let unsubscribeAnchor = (): void => undefined;
+  const ingressOpen = (): boolean => !disposed && !terminal;
 
   const uiState = createViewSourceV1<GameUiStateV1<TStoryUiState>>(
     Object.freeze({
-      anchor: anchorSource.current(),
+      anchor: initialAnchor,
       story: input.projector.initialUiState,
     }) as DeepReadonly<GameUiStateV1<TStoryUiState>>,
   );
   const semanticBridge = createSemanticPublicationBridgeV1<TSemanticPublication>({
     observe: () => input.semantic.observe(),
-    subscribe: (listener) => input.semantic.subscribe(listener),
+    subscribe: (
+      listener: Parameters<GameUiSemanticSourceV1<TSemanticPublication>["subscribe"]>[0],
+    ) =>
+      input.semantic.subscribe(() => {
+        if (ingressOpen()) listener();
+      }),
+  });
+  const rawContentPreference = input.contentPreference ?? createStaticContentPreferencePortV1();
+  const presentationContentPreference: ContentPreferencePortV1 = Object.freeze({
+    observe: rawContentPreference.observe,
+    subscribe: (listener: Parameters<ContentPreferencePortV1["subscribe"]>[0]) =>
+      rawContentPreference.subscribe(() => {
+        if (ingressOpen()) listener();
+      }),
+    set: (preference: Parameters<ContentPreferencePortV1["set"]>[0]) =>
+      rawContentPreference.set(preference),
   });
 
   const presentation = createRuntimePresentationStoreV1<
@@ -329,65 +393,56 @@ export function createGameUiCompositionWithEpochAllocatorInternalV1<
   >({
     semantic: semanticBridge,
     resolvedCatalog: input.projector.resolvedCatalog,
-    contentPreference: input.contentPreference ?? createStaticContentPreferencePortV1(),
+    contentPreference: presentationContentPreference,
     uiState,
     project: (projectionInput) => input.projector.project(projectionInput),
     reportFailure,
   });
 
-  const systemDialogSession = createSystemDialogSessionStoreV1();
-  let disposed = false;
-  let anchorTransitionActive = false;
-  let anchorTransitionPending = false;
-  const unsubscribeAnchor = anchorSource.subscribe(() => {
-    if (disposed) return;
-    anchorTransitionPending = true;
-    if (anchorTransitionActive) return;
-    anchorTransitionActive = true;
-    try {
-      while (anchorTransitionPending) {
-        if (disposed) {
-          anchorTransitionPending = false;
-          break;
-        }
-        anchorTransitionPending = false;
-        const anchor = anchorSource.current();
-        const successorKind: ManagedSurfaceCoordinatorSuccessorKindV1 = anchor.origin === "load"
-          ? "load_rebootstrap"
-          : anchor.origin === "import"
-          ? "import_rebootstrap"
-          : "coordinator_successor";
-        // The shared authority closes both predecessor adapters, binds both to one
-        // successor, activates both, and only then flushes family notifications.
-        managedSurfaceRuntime.replace(successorKind, [
-          overlayInternal,
-          managedSystemDialogInternal,
-        ]);
-        if (disposed) {
-          anchorTransitionPending = false;
-          break;
-        }
-        uiState.publish(
-          Object.freeze({
-            anchor,
-            story: uiState.getCurrent().story,
-          }) as DeepReadonly<GameUiStateV1<TStoryUiState>>,
-        );
-      }
-    } finally {
-      if (disposed) anchorTransitionPending = false;
-      anchorTransitionActive = false;
-    }
+  const rawSystemDialogSession = createSystemDialogSessionStoreV1();
+
+  const systemDialogSession: SystemDialogSessionStoreV1 = Object.freeze({
+    getSnapshot: rawSystemDialogSession.getSnapshot,
+    subscribe: rawSystemDialogSession.subscribe,
+    open(surface: Parameters<SystemDialogSessionStoreV1["open"]>[0]): void {
+      if (ingressOpen()) rawSystemDialogSession.open(surface);
+    },
+    close(): void {
+      if (ingressOpen()) rawSystemDialogSession.close();
+    },
   });
 
   // Composition-owned spatial interaction session: UI transient state that
   // never enters the Story UI state, publications, or Saves.
   const interactionState = createViewSourceV1(initialInteractionSessionStateV1);
-  const interactionSession = createInteractionSessionStoreV1({
+  const rawInteractionSession = createInteractionSessionStoreV1({
     getSnapshot: () => interactionState.getCurrent(),
     subscribe: interactionState.subscribe,
     update(reducer) {
       interactionState.publish(reducer(interactionState.getCurrent()));
+    },
+  });
+  const interactionSession: InteractionSessionStoreV1 = Object.freeze({
+    getSnapshot: rawInteractionSession.getSnapshot,
+    subscribe: rawInteractionSession.subscribe,
+    open(
+      surfaceId: Parameters<InteractionSessionStoreV1["open"]>[0],
+      returnFocusId: Parameters<InteractionSessionStoreV1["open"]>[1],
+    ): void {
+      if (ingressOpen()) rawInteractionSession.open(surfaceId, returnFocusId);
+    },
+    openChoice(
+      surfaceId: Parameters<InteractionSessionStoreV1["openChoice"]>[0],
+      targetId: Parameters<InteractionSessionStoreV1["openChoice"]>[1],
+      returnFocusId: Parameters<InteractionSessionStoreV1["openChoice"]>[2],
+    ): void {
+      if (ingressOpen()) rawInteractionSession.openChoice(surfaceId, targetId, returnFocusId);
+    },
+    leave(): string | null {
+      return ingressOpen() ? rawInteractionSession.leave() : null;
+    },
+    cleanup(reason: Parameters<InteractionSessionStoreV1["cleanup"]>[0]): void {
+      if (ingressOpen()) rawInteractionSession.cleanup(reason);
     },
   });
 
@@ -397,12 +452,12 @@ export function createGameUiCompositionWithEpochAllocatorInternalV1<
   let cueController: GameUiCueControllerV1 | null = null;
   const cues: GameUiCueRegistryV1 = Object.freeze({
     register(controller: GameUiCueControllerV1 | null): void {
-      cueController = controller;
+      if (ingressOpen()) cueController = controller;
     },
-    play: (cueId: string) => cueController?.play(cueId) ?? false,
+    play: (cueId: string) => ingressOpen() && (cueController?.play(cueId) ?? false),
   });
 
-  const intents = createPresentationIntentRouterV1({
+  const rawIntents = createPresentationIntentRouterV1({
     knownOverlayIds,
     knownSurfaceIds: [...(input.interactionSurfaceIds ?? [])] as never,
     knownCueIds: [...(input.cueIds ?? [])],
@@ -416,6 +471,135 @@ export function createGameUiCompositionWithEpochAllocatorInternalV1<
       },
     }),
   });
+  const terminalIntentResultV1 = Object.freeze({
+    kind: "rejected" as const,
+    code: "presentation.intent_unknown" as const,
+  });
+  const intents: PresentationIntentRouterV1 = Object.freeze({
+    execute(
+      intent: Parameters<PresentationIntentRouterV1["execute"]>[0],
+      context?: Parameters<PresentationIntentRouterV1["execute"]>[1],
+    ) {
+      return ingressOpen() ? rawIntents.execute(intent, context) : terminalIntentResultV1;
+    },
+  });
+
+  const publicInputRouter: InputRouterV1 = Object.freeze({
+    register(registration: Parameters<InputRouterV1["register"]>[0]) {
+      return ingressOpen() ? inputRouter.register(registration) : () => undefined;
+    },
+    route(event: Parameters<InputRouterV1["route"]>[0]) {
+      return ingressOpen() ? inputRouter.route(event) : inputIgnoredV1;
+    },
+    clearTransientInput(): void {
+      if (ingressOpen()) inputRouter.clearTransientInput();
+    },
+  });
+
+  const anchorQueue: GameUiPresentationAnchorEventInternalV1[] = [];
+  let anchorTransitionActive = false;
+  const noThrowV1 = (operation: () => void): void => {
+    try {
+      operation();
+    } catch {
+      // Terminal fencing is best effort per resource but never abandons the
+      // remaining synchronous ingress fences.
+    }
+  };
+  const sealTerminalInternalV1 = (): void => {
+    if (terminal) return;
+    terminal = true;
+    anchorQueue.splice(0);
+    cueController = null;
+    noThrowV1(unsubscribeAnchor);
+    noThrowV1(() => presentation.dispose());
+    noThrowV1(() => semanticBridge.dispose());
+    noThrowV1(() => sealSystemDialogSessionStoreTerminalInternalV1(systemDialogSession));
+    noThrowV1(() => overlayInternal.sealTerminalDisposalInternalV1());
+    noThrowV1(() => managedSystemDialogInternal.sealTerminalDisposalInternalV1());
+    noThrowV1(() => overlayInternal.detachRuntimeInternalV1());
+    noThrowV1(() => managedSystemDialogInternal.detachRuntimeInternalV1());
+    noThrowV1(() => managedSurfaceRuntime.dispose());
+  };
+
+  const failSuccessorV1 = (
+    event: GameUiPresentationAnchorEventInternalV1,
+    error: unknown,
+  ): never => {
+    if (hostedSuccessor !== undefined) {
+      sealTerminalInternalV1();
+      noThrowV1(() =>
+        hostedSuccessor.producer.failed(Object.freeze({
+          anchor: event.anchor,
+          token: event.token,
+          error,
+        }))
+      );
+    }
+    throw error;
+  };
+
+  const processAnchorEventV1 = (event: GameUiPresentationAnchorEventInternalV1): void => {
+    const { anchor } = event;
+    const successorKind: ManagedSurfaceCoordinatorSuccessorKindV1 = anchor.origin === "load"
+      ? "load_rebootstrap"
+      : anchor.origin === "import"
+      ? "import_rebootstrap"
+      : "coordinator_successor";
+    try {
+      // The shared authority closes both predecessor adapters, binds both to one
+      // successor, activates both, and only then flushes family notifications.
+      const successorRuntime = managedSurfaceRuntime.replace(successorKind, [
+        overlayInternal,
+        managedSystemDialogInternal,
+      ]);
+      if (disposed || terminal) {
+        if (hostedSuccessor === undefined) return;
+        throw new TypeError("ui.presentation_successor_activation_failed");
+      }
+      uiState.publish(
+        Object.freeze({
+          anchor,
+          story: uiState.getCurrent().story,
+        }) as DeepReadonly<GameUiStateV1<TStoryUiState>>,
+      );
+      if (hostedSuccessor === undefined) return;
+      const currentRuntime = managedSurfaceRuntime.getCurrent();
+      if (
+        disposed || terminal || currentRuntime !== successorRuntime ||
+        !currentRuntime.isIngressOpen() ||
+        !overlayInternal.isRuntimeAttachmentCurrentInternalV1(successorRuntime) ||
+        !managedSystemDialogInternal.isRuntimeAttachmentCurrentInternalV1(successorRuntime) ||
+        uiState.getCurrent().anchor !== anchor
+      ) {
+        throw new TypeError("ui.presentation_successor_activation_failed");
+      }
+      if (event.token !== null) {
+        hostedSuccessor?.producer.installed(Object.freeze({
+          anchor,
+          token: event.token,
+          managedSurfaceApplicationEpoch: currentRuntime.applicationEpoch,
+        }));
+      }
+    } catch (error) {
+      failSuccessorV1(event, error);
+    }
+  };
+
+  const enqueueAnchorEventV1 = (event: GameUiPresentationAnchorEventInternalV1): void => {
+    if (!ingressOpen()) return;
+    anchorQueue.push(Object.freeze({ anchor: event.anchor, token: event.token }));
+    if (anchorTransitionActive) return;
+    anchorTransitionActive = true;
+    try {
+      while (ingressOpen() && anchorQueue.length > 0) {
+        processAnchorEventV1(anchorQueue.shift()!);
+      }
+    } finally {
+      if (!ingressOpen()) anchorQueue.splice(0);
+      anchorTransitionActive = false;
+    }
+  };
 
   const anchorView: ReadonlyViewSourceV1<GameUiPresentationAnchorV1> = Object.freeze({
     getCurrent: () => uiState.getCurrent().anchor,
@@ -431,7 +615,7 @@ export function createGameUiCompositionWithEpochAllocatorInternalV1<
   > = Object.freeze({
     presentation,
     anchor: anchorView,
-    input: inputRouter,
+    input: publicInputRouter,
     intents,
     cues,
     overlaySession,
@@ -440,7 +624,7 @@ export function createGameUiCompositionWithEpochAllocatorInternalV1<
     updateUiState: (
       updater: (current: DeepReadonly<TStoryUiState>) => DeepReadonly<TStoryUiState>,
     ) => {
-      if (disposed) return;
+      if (!ingressOpen()) return;
       const current = uiState.getCurrent();
       const nextStory = updater(current.story as DeepReadonly<TStoryUiState>);
       // Identity-stable story state never republishes: mirroring effects
@@ -458,10 +642,10 @@ export function createGameUiCompositionWithEpochAllocatorInternalV1<
     dispose: () => {
       if (disposed) return;
       disposed = true;
-      unsubscribeAnchor();
+      noThrowV1(unsubscribeAnchor);
       overlayInternal.detachRuntimeInternalV1();
       managedSystemDialogInternal.detachRuntimeInternalV1();
-      managedSurfaceRuntime.dispose();
+      noThrowV1(() => managedSurfaceRuntime.dispose());
       overlayInternal.disposeInternalV1();
       managedSystemDialogInternal.disposeInternalV1();
       presentation.dispose();
@@ -473,8 +657,21 @@ export function createGameUiCompositionWithEpochAllocatorInternalV1<
     Object.freeze({
       runtime: managedSurfaceRuntime,
       systemDialogSession: managedSystemDialogSession,
+      sealTerminalInternalV1,
+      isTerminalInternalV1: () => terminal,
     }),
   );
+  try {
+    unsubscribeAnchor = hostedSuccessor === undefined
+      ? anchorSource.subscribe(() =>
+        enqueueAnchorEventV1(Object.freeze({ anchor: anchorSource.current(), token: null }))
+      )
+      : hostedSuccessor.anchorEvents.subscribe(enqueueAnchorEventV1);
+    if (terminal) noThrowV1(unsubscribeAnchor);
+  } catch (error) {
+    composition.dispose();
+    throw error;
+  }
   return composition;
 }
 
@@ -521,11 +718,18 @@ export function createHostedGameUiCompositionInternalV1<
   host: {
     readonly managedSurfaceEpochAllocator: ManagedSurfaceApplicationEpochAllocatorV1;
     readonly reportFailure?: (code: string, error: unknown) => void;
+    readonly anchorEvents: GameUiPresentationAnchorEventSourceInternalV1;
+    readonly successorProducer: GameUiPresentationSuccessorProducerInternalV1;
   },
 ): GameUiCompositionV1<TSemanticPublication, TStoryUiState, TView, TAssetId, TOverlayId> {
   return createGameUiCompositionWithEpochAllocatorInternalV1(
     input,
     host.managedSurfaceEpochAllocator,
     host.reportFailure,
+    undefined,
+    Object.freeze({
+      anchorEvents: host.anchorEvents,
+      producer: host.successorProducer,
+    }),
   );
 }

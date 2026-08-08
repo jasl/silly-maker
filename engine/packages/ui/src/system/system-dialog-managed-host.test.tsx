@@ -547,6 +547,30 @@ describe("dormant managed System Host-commit readiness", () => {
     consoleError.mockRestore();
   });
 
+  it("does not restore a connected predecessor focus owner during terminal fallback disposal", async () => {
+    const fixture = fixtureV1();
+    render(<button type="button">External predecessor</button>);
+    const predecessor = screen.getByRole("button", {
+      name: "External predecessor",
+    }) as HTMLButtonElement;
+    predecessor.focus();
+    const restoreFocus = vi.spyOn(predecessor, "focus");
+    const rendered = await renderHostV1({ fixture, catalog: catalogV1(() => <div />) });
+
+    act(() => {
+      fixture.internal.openRootInternalV1("settings");
+    });
+    expect(document.activeElement).toBe(screen.getByTestId("system-dialog-fallback"));
+
+    fixture.internal.sealTerminalDisposalInternalV1();
+    rendered.unmount();
+    await drainMicrotaskV1();
+
+    expect(predecessor.isConnected).toBe(true);
+    expect(restoreFocus).not.toHaveBeenCalled();
+    expect(document.activeElement).not.toBe(predecessor);
+  });
+
   it("rejects a distinct concurrent Host before replacing the winning catalog", async () => {
     const fixture = fixtureV1();
     const firstCatalog = catalogV1(() => <div data-testid="winning-renderer" />);
@@ -1665,6 +1689,64 @@ describe("dormant managed System confirmation Host", () => {
       expect(dispatch).not.toHaveBeenCalled();
     },
   );
+
+  it("suppresses a queued exact-child focus restore after terminal disposal seals", async () => {
+    const fixture = fixtureV1();
+    const operationBinding = Object.freeze({
+      dispatch: vi.fn(() =>
+        Promise.resolve(Object.freeze({
+          kind: "retain_root" as const,
+          result: "unused",
+        }))
+      ),
+      resultSink: vi.fn(),
+      finalizeExactRoot: vi.fn(),
+    });
+    function SavesRendererV1(props: SystemDialogRootRendererPropsInternalV1): ReactElement {
+      return (
+        <button
+          type="button"
+          data-testid="terminal-child-opener"
+          onClick={() =>
+            props.confirmationIntent?.requestConfirmationInternalV1({
+              invocation: Object.freeze({ kind: "import" }),
+              operationBinding,
+            })}
+        >
+          Import
+        </button>
+      );
+    }
+    await renderHostV1({
+      fixture,
+      catalog: catalogV1(
+        () => <div />,
+        SavesRendererV1,
+        { confirmationRenderer: () => <div data-testid="terminal-child" /> },
+      ),
+    });
+    act(() => {
+      fixture.internal.openRootInternalV1("saves");
+    });
+    await drainMicrotaskV1();
+    const opener = screen.getByTestId("terminal-child-opener") as HTMLButtonElement;
+    opener.focus();
+    fireEvent.click(opener);
+    await drainMicrotaskV1();
+    const restoreFocus = vi.spyOn(opener, "focus");
+    const childShell = document.querySelector<HTMLDivElement>(
+      '[data-system-dialog-entry="confirmation"]',
+    )!;
+
+    fireEvent.keyDown(childShell, { key: "Escape" });
+    fixture.internal.sealTerminalDisposalInternalV1();
+    await drainMicrotaskV1();
+
+    expect(screen.queryByTestId("terminal-child")).not.toBeInTheDocument();
+    expect(opener.isConnected).toBe(true);
+    expect(restoreFocus).not.toHaveBeenCalled();
+    expect(document.activeElement).not.toBe(opener);
+  });
 
   it("fences a residual pointer click after backdrop dismissal without swallowing keyboard activation", async () => {
     const fixture = fixtureV1();
