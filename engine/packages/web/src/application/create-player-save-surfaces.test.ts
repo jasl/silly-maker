@@ -79,11 +79,12 @@ describe("createPlayerSaveSurfacesV1", () => {
     expect(surfaces.saveUi?.port).toBe(surfaces.maintenance.savePort);
   });
 
-  it("preserves one declarative custom saves renderer without creating the default Save UI", () => {
+  it("preserves one declarative custom Saves component without creating the default Save UI", () => {
+    const CustomSavesV1 = () => null;
     const customSaves = Object.freeze({
       kind: "custom" as const,
       accessibleName: "Synthetic saves",
-      render: vi.fn(),
+      component: CustomSavesV1,
     });
     const surfaces = createPlayerSaveSurfacesV1({
       files: Object.freeze({}) as never,
@@ -100,7 +101,7 @@ describe("createPlayerSaveSurfacesV1", () => {
     const customSaves = Object.freeze({
       kind: "custom" as const,
       accessibleName: "Synthetic saves",
-      render: vi.fn(),
+      component: () => null,
     });
 
     expect(() =>

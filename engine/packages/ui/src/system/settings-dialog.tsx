@@ -1,82 +1,36 @@
 // SPDX-License-Identifier: MIT
-import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { useState } from "react";
 import type { ReactElement, ReactNode } from "react";
-import {
-  isDevDockEscapeOwnerTargetV1,
-  useDevDockPortalTargetRegistrationV1,
-} from "../debug/dev-dock-portal-coordinator.tsx";
-import {
-  useStageSystemFocusScopeRegistrationV1,
-  useStageSystemPortalContainerV1,
-} from "../shell/game-stage.tsx";
-import { Button } from "../primitives/button.tsx";
-import styles from "../overlays/overlay-host.module.css";
 
-export interface SettingsDialogPropsV1 {
+import { Button } from "../primitives/button.tsx";
+
+/** @internal Content-only renderer; the managed System Host owns Dialog lifecycle. */
+export interface SettingsDialogContentPropsInternalV1 {
   readonly title: string;
   readonly closeLabel: string;
   readonly sections: readonly ReactNode[];
   readonly emptyText: string;
-  readonly onClose: () => void;
+  close(): void;
 }
 
+/** @internal Content-only renderer; it never owns portal, input, focus, or readiness. */
 export function SettingsDialogContentV1(
-  props: Omit<SettingsDialogPropsV1, "onClose">,
+  props: SettingsDialogContentPropsInternalV1,
 ): ReactElement {
   return (
     <div data-settings-dialog-content="true">
-      <DialogPrimitive.Title asChild>
-        <h2>{props.title}</h2>
-      </DialogPrimitive.Title>
+      <h2>{props.title}</h2>
       {props.sections.length === 0
         ? <p data-settings-empty="true">{props.emptyText}</p>
         : (
-          <div data-settings-sections="true">
+          <div data-settings-section-list="true">
             {props.sections.map((section, index) => (
-              <div key={index} data-settings-section={index} data-testid="settings-section">
+              <div key={index} data-testid="settings-section">
                 {section}
               </div>
             ))}
           </div>
         )}
-      <DialogPrimitive.Close asChild>
-        <Button autoFocus>{props.closeLabel}</Button>
-      </DialogPrimitive.Close>
+      <Button onClick={props.close}>{props.closeLabel}</Button>
     </div>
-  );
-}
-
-export function SettingsDialogV1(props: SettingsDialogPropsV1): ReactElement {
-  const portalContainer = useStageSystemPortalContainerV1();
-  const [focusScopeElement, setFocusScopeElement] = useState<HTMLDivElement | null>(null);
-  useStageSystemFocusScopeRegistrationV1(focusScopeElement);
-  useDevDockPortalTargetRegistrationV1("system", focusScopeElement);
-  const position = portalContainer === null ? "fixed" : "absolute";
-
-  return (
-    <DialogPrimitive.Root open onOpenChange={(open) => !open && props.onClose()}>
-      <DialogPrimitive.Portal container={portalContainer ?? undefined}>
-        <DialogPrimitive.Overlay
-          className={styles["blocking-dialog__backdrop"]}
-          data-system-dialog-backdrop="settings"
-          style={{ position }}
-        />
-        <DialogPrimitive.Content
-          ref={setFocusScopeElement}
-          className={styles["blocking-dialog__content"]}
-          data-blocking-focus-scope="system"
-          data-system-surface="settings"
-          aria-describedby={undefined}
-          style={{ position }}
-          onEscapeKeyDown={(event) => {
-            if (isDevDockEscapeOwnerTargetV1(event.target)) event.preventDefault();
-          }}
-          onPointerDownOutside={(event) => event.preventDefault()}
-        >
-          <SettingsDialogContentV1 {...props} />
-        </DialogPrimitive.Content>
-      </DialogPrimitive.Portal>
-    </DialogPrimitive.Root>
   );
 }

@@ -13,17 +13,17 @@ M2c staged Persistence integration、M2d atomic replacement 与 M2e real-owner/f
 promotion 均已关闭。2026-08-08 dormant `PF4/S3c.1 Host-commit readiness`、
 `PF4/S3d Saves confirmation child` 与
 `PF4/S3e.0 composition successor acknowledgment and terminal teardown` 已关闭；
-linear core 下一独立切片为 `PF4/S3e live cutover and promotion`。
+2026-08-09 `PF4/S3e live cutover and promotion` 已关闭，linear core下一独立切片为
+`PF4/S1-R external stable-target reconcile`。
 2026-08-04 已冻结 S3 的 shared-Coordinator transient topology、atomic initial-candidate
 supersede、retained-active pending cancellation、exact result/delta matrix、Host-commit
-readiness、StrictMode terminal-once fence 与 public API cutover；能力尚未 promotion，
-并已重切为 S3a–S3e。
+readiness、StrictMode terminal-once fence 与 public API cutover，并已重切为 S3a–S3e。
 同日 S3a dormant System contract/snapshot floor 与 package-internal atomic initial
 supersede/retained-active cancellation、S3b composition-owned shared Coordinator 与
 dormant System session/catalog、S3c.0 all-family successor activation barrier 已完成；S3
 的 S3c.1 Host-commit readiness/Host lease、S3d exact-parent confirmation child 与
-S3e.0 composition successor acknowledgment/terminal teardown 也已完成；S3 尚未
-promotion，下一独立切片为 S3e live cutover。
+S3e.0 composition successor acknowledgment/terminal teardown、S3e live cutover与
+promotion均已完成；下一独立切片为 S1-R。
 旧 promotion 数字保留为
 历史证据。本文是当前唯一的跨计划排序入口；
 具体合同仍由各 design 文档拥有，主要任务由五个独立计划拥有：
@@ -1009,6 +1009,23 @@ legacy System仍是唯一 live writer，隔离的 S3e WIP stash未恢复，Defau
 验证通过 Base/UI/Web package tests、`deno task test`（240 files / 3622 tests）、
 `deno task check`、Engine E2E（101 tests）、examples E2E（45 passed / 2 skipped）与 prebuilt
 Player（38 tests）。下一独立切片为 S3e live cutover and promotion。
+
+**2026-08-09 S3e delivery and promotion：** live System
+settings/saves ingress现已原子切到与 Overlay相同的 composition-owned Coordinator、application
+epoch、immutable publication与 successor lifetime。required managed Host接收 opaque
+composition-created session；其 public facade只提供 read snapshot与 typed settings/saves open
+intents。legacy writable store、fallback Host、standalone Settings/confirmation/Save lifecycle
+exports与 public `SaveOverlayV1`已删除；custom Saves改为由 Host挂载的 React component identity。
+successful load/import的 predecessor completion在 successor后 stale，不会 close、finalize或投递
+result到 fresh System root；composed return-to-title成功后 Root不再执行任何 family close/reset，
+因此 activation subscriber同步打开的 fresh Surface保持 current且没有第二次 publication delta。
+Save/Persistence/M2/canonical/digest/replay/wire不变，transient System未引入 S1-R字段。
+
+验证通过 focused cutover（14 files / 170 tests）、UI package（69 / 745）、
+`deno task test`（242 / 3631）、`deno task check`、Engine browser（101 / 101）、examples
+browser（45 passed / 2 skipped）与 prebuilt Player（38 / 38）；最终 adversarial review无
+finding。S3 promotion完成，linear core当前节点与下一独立切片均为 S1-R；S4仍受 S1-R gate
+约束。
 
 S1-R 在第一个真实 externally published stable-target family 前完成。按 accepted
 target ownership，S4 Narrative 计划从 semantic publication 派生 stable target，

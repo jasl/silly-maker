@@ -14,6 +14,7 @@ import {
 } from "./system-dialog-managed-contract.ts";
 import {
   createSystemDialogManagedSessionInternalV1,
+  createSystemDialogSessionFacadeInternalV1,
   createSystemDialogRootCatalogSnapshotInternalV1,
   snapshotSystemDialogSavesContentConfigInternalV1,
   snapshotSystemDialogSettingsContentConfigInternalV1,
@@ -148,7 +149,7 @@ function sessionFixtureV1(
       if (attachment === null) throw new TypeError("test.system_host_not_attached");
       return attachment.readyCandidateInternalV1(surfaceInstanceId);
     },
-    subscribeCoordinator: runtime.getCurrent().coordinator.subscribe,
+    subscribeCoordinator: (listener) => runtime.getCurrent().coordinator.subscribe(listener),
     dismissCurrentFallback(surfaceInstanceId) {
       const current = runtime.getCurrent();
       const snapshot = current.coordinator.getSnapshot();
@@ -644,15 +645,16 @@ describe("dormant managed System dialog session", () => {
     expect(Object.isFrozen(snapshot.value.sections)).toBe(true);
   });
 
-  it("copies every standard Saves label field but retains port, guard, and callback identity", () => {
+  it("copies every standard Saves label field and snapshots one live guard projection", () => {
     const formatter = (value: string | number) => String(value);
-    const port = Object.freeze({ kind: "port" });
-    const evaluateGuard = () => Object.freeze({ allowed: true });
+    const guardSnapshot = Object.freeze({ revision: 1 });
+    const getSnapshot = () => guardSnapshot;
+    const subscribe = () => () => undefined;
+    const evaluate = () => Object.freeze({ allowed: true });
     const source = {
       variant: "standard" as const,
-      port: port as never,
       closeLabel: "Close R1",
-      evaluateGuard,
+      guardProjection: { getSnapshot, subscribe, evaluate },
       labels: {
         accessibleName: "Saves R1",
         title: "Title R1",
@@ -748,14 +750,43 @@ describe("dormant managed System dialog session", () => {
 
     expect(snapshot.value.variant).toBe("standard");
     if (snapshot.value.variant !== "standard") throw new TypeError();
-    expect(snapshot.value.port).toBe(port);
-    expect(snapshot.value.evaluateGuard).toBe(evaluateGuard);
+    expect(snapshot.value.guardProjection).toEqual({ getSnapshot, subscribe, evaluate });
+    expect(snapshot.value.guardProjection).not.toBe(source.guardProjection);
+    expect(Object.isFrozen(snapshot.value.guardProjection)).toBe(true);
     expect(snapshot.value.closeLabel).toBe("Close R1");
     expect(snapshot.value.labels.title).toBe("Title R1");
     expect(snapshot.value.labels.slotNames.quick).toBe("quick");
     expect(snapshot.value.labels.operation.rejected.busy).toBe("busy");
     expect(snapshot.value.labels.savedAtText).toBe(formatter);
     expect(Object.isFrozen(snapshot.value.labels.operation.rejected)).toBe(true);
+
+    const evaluateGetter = vi.fn(() => evaluate);
+    const accessorProjection = { getSnapshot, subscribe } as Record<string, unknown>;
+    Object.defineProperty(accessorProjection, "evaluate", {
+      enumerable: true,
+      get: evaluateGetter,
+    });
+    expect(() =>
+      snapshotSystemDialogSavesContentConfigInternalV1({
+        ...source,
+        guardProjection: accessorProjection as never,
+      })
+    ).toThrowError("ui.system_dialog_saves_config_invalid");
+    expect(evaluateGetter).not.toHaveBeenCalled();
+
+    const inheritedProjection = Object.create({ getSnapshot, subscribe, evaluate });
+    expect(() =>
+      snapshotSystemDialogSavesContentConfigInternalV1({
+        ...source,
+        guardProjection: inheritedProjection,
+      })
+    ).toThrowError("ui.system_dialog_saves_config_invalid");
+    expect(() =>
+      snapshotSystemDialogSavesContentConfigInternalV1({
+        ...source,
+        guardProjection: { getSnapshot, subscribe, evaluate, extra: true } as never,
+      })
+    ).toThrowError("ui.system_dialog_saves_config_invalid");
   });
 
   it("captures custom Saves as a component identity without invoking it", () => {
@@ -1125,6 +1156,69 @@ describe("dormant managed System dialog session", () => {
       { kind: "root", surfaceInstanceId: "surface-instance.e31.n1" },
       { kind: "confirmation", surfaceInstanceId: "surface-instance.e31.n3" },
     ]);
+    fixture.dispose();
+  });
+
+  it("keeps a fresh successor root unchanged when the predecessor load settles as successor", async () => {
+    const fixture = sessionFixtureV1(catalogV1());
+    const { session } = fixture;
+    session.openRootInternalV1("saves");
+    fixture.readyCandidate("surface-instance.e31.n1" as never);
+    const predecessorRoot = session.getHostRenderSnapshotInternalV1().entries[0];
+    if (
+      predecessorRoot?.kind !== "root" ||
+      predecessorRoot.lifecycleIntents === null
+    ) {
+      throw new TypeError();
+    }
+
+    const completion = deferredV1<{ readonly kind: "successor" }>();
+    const resultSink = vi.fn();
+    const finalizeExactRoot = vi.fn();
+    predecessorRoot.lifecycleIntents.requestConfirmationInternalV1({
+      invocation: { kind: "load", slotId: "auto.current" },
+      operationBinding: Object.freeze({
+        dispatch: () => completion.promise,
+        resultSink,
+        finalizeExactRoot,
+      }),
+    });
+    fixture.readyCandidate("surface-instance.e31.n2" as never);
+    const predecessorChild = session.getHostRenderSnapshotInternalV1().entries[1];
+    if (predecessorChild?.kind !== "confirmation") throw new TypeError();
+    predecessorChild.controller.dispatchOnceInternalV1();
+
+    fixture.rotate("load_rebootstrap");
+    session.openRootInternalV1("settings");
+    fixture.readyCandidate("surface-instance.e32.n1" as never);
+    const freshPublication = session.getManagedSnapshotInternalV1();
+    const freshRenderSnapshot = session.getHostRenderSnapshotInternalV1();
+    expect(freshRenderSnapshot.entries).toMatchObject([
+      {
+        kind: "root",
+        rootRequest: "settings",
+        surfaceInstanceId: "surface-instance.e32.n1",
+      },
+    ]);
+    let sessionNotifications = 0;
+    let coordinatorNotifications = 0;
+    const unsubscribeSession = session.subscribeInternalV1(() => sessionNotifications += 1);
+    const unsubscribeCoordinator = fixture.subscribeCoordinator(
+      () => coordinatorNotifications += 1,
+    );
+
+    completion.resolve(Object.freeze({ kind: "successor" }));
+    await completion.promise;
+    await new Promise<void>((complete) => queueMicrotask(complete));
+
+    expect(resultSink).not.toHaveBeenCalled();
+    expect(finalizeExactRoot).not.toHaveBeenCalled();
+    expect(session.getManagedSnapshotInternalV1()).toBe(freshPublication);
+    expect(session.getHostRenderSnapshotInternalV1()).toBe(freshRenderSnapshot);
+    expect(sessionNotifications).toBe(0);
+    expect(coordinatorNotifications).toBe(0);
+    unsubscribeCoordinator();
+    unsubscribeSession();
     fixture.dispose();
   });
 
@@ -1677,6 +1771,158 @@ describe("dormant managed System dialog session", () => {
       { kind: "confirmation", surfaceInstanceId: "surface-instance.e31.n3" },
     ]);
     unsubscribe();
+    fixture.dispose();
+  });
+
+  it("projects only ready roots through the minimal identity-stable public facade", () => {
+    const fixture = sessionFixtureV1(catalogV1());
+    const facade = createSystemDialogSessionFacadeInternalV1(fixture.session);
+
+    expect(Reflect.ownKeys(facade)).toEqual(["getSnapshot", "openSettings", "openSaves"]);
+    expect(Object.isFrozen(facade)).toBe(true);
+    const closed = facade.getSnapshot();
+    expect(closed).toEqual({ active: null });
+    expect(Object.isFrozen(closed)).toBe(true);
+    expect(facade.getSnapshot()).toBe(closed);
+
+    expect(facade.openSettings()).toEqual({
+      kind: "preparing",
+      code: "system_dialog.preparation_started",
+    });
+    expect(facade.getSnapshot()).toBe(closed);
+
+    fixture.readyCandidate("surface-instance.e31.n1" as never);
+    const activeSettings = facade.getSnapshot();
+    expect(activeSettings).toEqual({ active: "settings" });
+    expect(activeSettings).not.toBe(closed);
+    expect(facade.getSnapshot()).toBe(activeSettings);
+
+    expect(facade.openSaves()).toEqual({
+      kind: "preparing",
+      code: "system_dialog.preparation_started",
+    });
+    expect(facade.getSnapshot()).toBe(activeSettings);
+
+    fixture.readyCandidate("surface-instance.e31.n2" as never);
+    const activeSaves = facade.getSnapshot();
+    expect(activeSaves).toEqual({ active: "saves" });
+    expect(activeSaves).not.toBe(activeSettings);
+    expect(facade.getSnapshot()).toBe(activeSaves);
+    fixture.dispose();
+  });
+
+  it("keeps initial preparation and supersede out of the public active view", () => {
+    const fixture = sessionFixtureV1(catalogV1());
+    const facade = createSystemDialogSessionFacadeInternalV1(fixture.session);
+    const closed = facade.getSnapshot();
+
+    facade.openSettings();
+    expect(facade.getSnapshot()).toBe(closed);
+    expect(facade.openSaves()).toEqual({
+      kind: "preparing",
+      code: "system_dialog.preparation_started",
+    });
+    expect(facade.getSnapshot()).toBe(closed);
+    expect(Reflect.ownKeys(closed)).toEqual(["active"]);
+
+    fixture.readyCandidate("surface-instance.e31.n2" as never);
+    expect(facade.getSnapshot()).toEqual({ active: "saves" });
+    fixture.dispose();
+  });
+
+  it("binds root close and dismiss to the exact runtime, instance, and owner preparation", () => {
+    const fixture = sessionFixtureV1(catalogV1());
+    const { session } = fixture;
+    session.openRootInternalV1("settings");
+    const initial = session.getHostRenderSnapshotInternalV1().entries[0];
+    if (initial?.kind !== "root") throw new TypeError();
+
+    expect(initial.controller.cancelInternalV1("escape")).toMatchObject({
+      kind: "applied",
+      code: "surface.dismissed",
+    });
+    expect(session.getHostRenderSnapshotInternalV1().entries).toEqual([]);
+
+    session.openRootInternalV1("settings");
+    fixture.readyCandidate("surface-instance.e31.n2" as never);
+    const retained = session.getHostRenderSnapshotInternalV1().entries[0];
+    if (retained?.kind !== "root") throw new TypeError();
+    session.openRootInternalV1("saves");
+    const beforeClose = session.getManagedSnapshotInternalV1();
+
+    expect(retained.controller.closeInternalV1()).toMatchObject({
+      kind: "applied",
+      code: "surface.closed",
+    });
+    expect(session.getHostRenderSnapshotInternalV1().entries).toEqual([]);
+    expect(revisionDeltaV1(beforeClose, session.getManagedSnapshotInternalV1())).toEqual([1, 1]);
+
+    const afterClose = session.getManagedSnapshotInternalV1();
+    expect(retained.controller.closeInternalV1()).toMatchObject({
+      kind: "stale",
+      code: "surface.stale_instance",
+    });
+    expect(retained.controller.cancelInternalV1("escape")).toMatchObject({
+      kind: "stale",
+      code: "surface.stale_instance",
+    });
+    expect(session.getManagedSnapshotInternalV1()).toBe(afterClose);
+    fixture.dispose();
+  });
+
+  it("revokes exact root controllers before Host release and successor callbacks can mutate", () => {
+    const fixture = sessionFixtureV1(catalogV1());
+    const { session } = fixture;
+    session.openRootInternalV1("saves");
+    fixture.readyCandidate("surface-instance.e31.n1" as never);
+    const predecessor = session.getHostRenderSnapshotInternalV1().entries[0];
+    if (predecessor?.kind !== "root") throw new TypeError();
+
+    fixture.rotate("load_rebootstrap");
+    const successorBefore = session.getManagedSnapshotInternalV1();
+    expect(predecessor.controller.closeInternalV1()).toMatchObject({
+      kind: "stale",
+      code: "surface.stale_instance",
+    });
+    expect(predecessor.controller.cancelInternalV1("backdrop")).toMatchObject({
+      kind: "stale",
+      code: "surface.stale_instance",
+    });
+    expect(session.getManagedSnapshotInternalV1()).toBe(successorBefore);
+
+    session.openRootInternalV1("settings");
+    fixture.readyCandidate("surface-instance.e32.n1" as never);
+    const attached = session.getHostRenderSnapshotInternalV1().entries[0];
+    if (attached?.kind !== "root") throw new TypeError();
+    fixture.releaseHost();
+    const releaseBefore = session.getManagedSnapshotInternalV1();
+    expect(attached.controller.closeInternalV1()).toMatchObject({
+      kind: "stale",
+      code: "surface.stale_instance",
+    });
+    expect(session.getManagedSnapshotInternalV1()).toBe(releaseBefore);
+    fixture.dispose();
+  });
+
+  it("fences public opens and exact root controllers as soon as terminal disposal seals", () => {
+    const fixture = sessionFixtureV1(catalogV1());
+    const facade = createSystemDialogSessionFacadeInternalV1(fixture.session);
+    facade.openSettings();
+    fixture.readyCandidate("surface-instance.e31.n1" as never);
+    const root = fixture.session.getHostRenderSnapshotInternalV1().entries[0];
+    if (root?.kind !== "root") throw new TypeError();
+    const before = fixture.session.getManagedSnapshotInternalV1();
+
+    fixture.session.sealTerminalDisposalInternalV1();
+    expect(facade.openSaves()).toEqual({
+      kind: "rejected",
+      code: "system_dialog.disposed",
+    });
+    expect(root.controller.closeInternalV1()).toMatchObject({
+      kind: "stale",
+      code: "surface.stale_instance",
+    });
+    expect(fixture.session.getManagedSnapshotInternalV1()).toBe(before);
     fixture.dispose();
   });
 });

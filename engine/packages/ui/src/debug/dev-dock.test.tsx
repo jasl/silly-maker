@@ -33,6 +33,11 @@ import {
 } from "../overlays/workspace-overlay-session.ts";
 import { SettingsLauncherV1 } from "../system/settings-launcher.tsx";
 import { SystemDialogHostV1 } from "../system/system-dialog-host.tsx";
+import { systemDialogManagedContractInternalV1 } from "../system/system-dialog-managed-contract.ts";
+import {
+  createSystemDialogManagedSessionInternalV1,
+  createSystemDialogSessionFacadeInternalV1,
+} from "../system/system-dialog-managed-session.ts";
 
 afterEach(cleanup);
 
@@ -337,11 +342,36 @@ function createRealOverlayFixtureV1(inputRouter: ReturnType<typeof createInputRo
   return Object.freeze({ rendererResolver, runtimeOwner, session });
 }
 
+function createRealSystemFixtureV1(inputRouter: ReturnType<typeof createInputRouterV1>) {
+  const runtimeOwner = createManagedSurfaceCompositionRuntimeInternalV1({
+    inputRouter,
+    epochAllocator: createLocalManagedSurfaceEpochAllocatorInternalV1(),
+    recipe: Object.freeze({
+      resolvedOwnerIds: systemDialogManagedContractInternalV1.resolvedOwnerIds,
+      resolvedSlotDescriptors: systemDialogManagedContractInternalV1.resolvedSlotDescriptors,
+    }),
+  });
+  const internal = createSystemDialogManagedSessionInternalV1({
+    runtime: runtimeOwner.getCurrent(),
+  });
+  return Object.freeze({
+    session: createSystemDialogSessionFacadeInternalV1(internal),
+    dispose(): void {
+      internal.disposeInternalV1();
+      runtimeOwner.dispose();
+    },
+  });
+}
+
 function RealSystemEscapeHarnessV1(props: {
   readonly capabilities: ReturnType<typeof createCapabilityFixtureV1>["port"];
 }): ReactElement {
   const inputRouterRef = useRef(createInputRouterV1());
+  const systemFixtureRef = useRef<ReturnType<typeof createRealSystemFixtureV1> | null>(null);
+  systemFixtureRef.current ??= createRealSystemFixtureV1(inputRouterRef.current);
+  const systemFixture = systemFixtureRef.current;
   const [dockState, setDockState] = useState<DevDockOpenStateV1>(closedDockStateV1);
+  useLayoutEffect(() => () => systemFixture.dispose(), [systemFixture]);
   return (
     <GameShell
       accessibleName="真实 System Escape 测试舞台"
@@ -350,6 +380,7 @@ function RealSystemEscapeHarnessV1(props: {
         ...emptyLayersV1(),
         system: (
           <SystemDialogHostV1
+            session={systemFixture.session}
             inputRouter={inputRouterRef.current}
             settings={Object.freeze({
               title: "真实设置",
@@ -433,13 +464,14 @@ describe("DevDockV1", () => {
     expect(opener).toHaveFocus();
   });
 
-  it("lets DevDock own the first Escape inside a real Radix System dialog", async () => {
+  it("lets DevDock own the first Escape inside a real managed System dialog", async () => {
     const capabilities = createCapabilityFixtureV1({ debugTools: true, cheats: false });
     const user = userEvent.setup();
     render(<RealSystemEscapeHarnessV1 capabilities={capabilities.port} />);
 
     const opener = screen.getByRole("button", { name: "打开真实设置" });
     await user.click(opener);
+    expect(await screen.findByRole("dialog", { name: "真实设置" })).toBeVisible();
     const launcher = await screen.findByRole("button", { name: "打开右侧开发工具" });
     await user.click(launcher);
     expect(screen.getByRole("complementary", { name: "右侧开发工具" })).toBeVisible();

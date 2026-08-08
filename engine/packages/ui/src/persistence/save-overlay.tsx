@@ -10,14 +10,21 @@ import type {
   SaveSlotSummaryV1,
 } from "@sillymaker/base";
 import { manualSaveSlotIndexV1 } from "@sillymaker/base";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { MouseEvent, ReactElement } from "react";
-import type { InputRouterV1 } from "../input/contracts.ts";
 import {
-  ActionConfirmationDialogV1,
-  type ActionConfirmationDispatchPortV1,
-} from "../overlays/action-confirmation-dialog.tsx";
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
+import type { ReactElement } from "react";
 import { Button } from "../primitives/button.tsx";
+import type { SystemDialogSavesConfirmationIntentInternalV1 } from "../system/system-dialog-managed-host.tsx";
+import type {
+  SystemDialogConfirmationOperationBindingInternalV1,
+  SystemDialogConfirmationResultDeliveryInternalV1,
+} from "../system/system-dialog-managed-session.ts";
 import styles from "./save-overlay.module.css";
 
 export type SaveUiWritableSlotIdV1 = "quick" | ManualSaveSlotIdV1;
@@ -132,14 +139,20 @@ export interface SaveOverlayGuardV1 {
   readonly reasonText?: string;
 }
 
-export interface SaveOverlayPropsV1 {
+export interface SaveOverlayGuardProjectionInternalV1 {
+  getSnapshot(): unknown;
+  subscribe(listener: () => void): () => void;
+  evaluate(publication: unknown): SaveOverlayGuardV1 | undefined;
+}
+
+export interface SaveOverlayContentPropsInternalV1 {
   readonly port: SaveOverlayPortV1;
   readonly labels: SaveOverlayLabelsV1;
-  readonly inputRouter: InputRouterV1;
   readonly guard?: SaveOverlayGuardV1;
-  /** Renders a dialog close button when hosted as a system dialog. */
-  readonly onClose?: () => void;
-  readonly closeLabel?: string;
+  readonly guardProjection?: SaveOverlayGuardProjectionInternalV1;
+  readonly confirmationIntent: SystemDialogSavesConfirmationIntentInternalV1;
+  readonly closeLabel: string;
+  onCloseInternalV1(): void;
 }
 
 function slotNameV1(labels: SaveOverlayLabelsV1, slotId: SaveUiReadableSlotIdV1): string {
@@ -217,11 +230,6 @@ type SaveOperationViewV1 =
 type ConfirmedSaveOperationV1 =
   | { readonly kind: "load" | "clear"; readonly slotId: SaveUiReadableSlotIdV1 }
   | { readonly kind: "import" };
-
-interface ConfirmationStateV1 {
-  readonly invocation: ConfirmedSaveOperationV1;
-  readonly opener: HTMLButtonElement;
-}
 
 function unreachableV1(value: never): never {
   throw new TypeError(`ui.save_overlay_unreachable:${String(value)}`);
@@ -452,32 +460,6 @@ function operationTextV1(state: SaveOperationViewV1, labels: SaveOverlayLabelsV1
   }
 }
 
-function operationNeedsResultFocusV1(state: SaveOperationViewV1): boolean {
-  switch (state.kind) {
-    case "persistence_result":
-      if (
-        state.context.kind === "load" ||
-        state.context.kind === "clear" ||
-        state.context.kind === "import"
-      ) {
-        return true;
-      }
-      return state.result.kind === "rejected" || state.result.kind === "faulted";
-    case "export_result":
-      return state.result.kind === "rejected" || state.result.kind === "faulted";
-    case "import_file_selection_result":
-      return true;
-    case "unexpected_failure":
-      return true;
-    case "idle":
-    case "pending":
-    case "current_exported":
-      return false;
-    default:
-      return unreachableV1(state);
-  }
-}
-
 function storageStatusTextV1(readState: SlotReadStateV1, labels: SaveOverlayLabelsV1): string {
   switch (readState.kind) {
     case "loading":
@@ -510,24 +492,45 @@ function canExportSlotV1(health: SaveSlotHealthV1 | null): boolean {
   return health === "valid" || health === "recovery_candidate";
 }
 
-export function SaveOverlayV1(props: SaveOverlayPropsV1): ReactElement {
+const staticGuardPublicationInternalV1 = Object.freeze({});
+
+function subscribeStaticGuardInternalV1(_listener: () => void): () => void {
+  return () => undefined;
+}
+
+function getStaticGuardPublicationInternalV1(): unknown {
+  return staticGuardPublicationInternalV1;
+}
+
+export function SaveOverlayContentInternalV1(
+  props: SaveOverlayContentPropsInternalV1,
+): ReactElement {
   const [readState, setReadState] = useState<SlotReadStateV1>(() =>
     Object.freeze({ kind: "loading", slots: null })
   );
   const [operationState, setOperationState] = useState<SaveOperationViewV1>(() =>
     Object.freeze({ kind: "idle" })
   );
-  const [confirmation, setConfirmation] = useState<ConfirmationStateV1 | null>(null);
   const mountedRef = useRef(true);
   const readGenerationRef = useRef(0);
   const operationActiveRef = useRef(false);
-  const resultSummaryRef = useRef<HTMLParagraphElement>(null);
+  const confirmedOperationTokenRef = useRef<object | null>(null);
+
+  const guardPublication = useSyncExternalStore(
+    props.guardProjection?.subscribe ?? subscribeStaticGuardInternalV1,
+    props.guardProjection?.getSnapshot ?? getStaticGuardPublicationInternalV1,
+    props.guardProjection?.getSnapshot ?? getStaticGuardPublicationInternalV1,
+  );
+  const guard = props.guardProjection === undefined
+    ? props.guard
+    : props.guardProjection.evaluate(guardPublication);
 
   useLayoutEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
       readGenerationRef.current += 1;
+      confirmedOperationTokenRef.current = null;
     };
   }, []);
 
@@ -628,23 +631,6 @@ export function SaveOverlayV1(props: SaveOverlayPropsV1): ReactElement {
     [finishOperationV1, props.port],
   );
 
-  const runImportOperationV1 = useCallback(async (): Promise<SaveUiImportResultV1 | null> => {
-    if (operationActiveRef.current) return null;
-    operationActiveRef.current = true;
-    const context = Object.freeze({ kind: "import" as const });
-    if (mountedRef.current) setOperationState(Object.freeze({ kind: "pending", context }));
-    try {
-      const result = await props.port.importSave();
-      if (mountedRef.current) setOperationState(projectImportResultV1(result));
-      return result;
-    } catch {
-      if (mountedRef.current) setOperationState(Object.freeze({ kind: "unexpected_failure" }));
-      throw new Error("ui.persistence_operation_threw");
-    } finally {
-      finishOperationV1();
-    }
-  }, [finishOperationV1, props.port]);
-
   const runCurrentExportV1 = useCallback(async (): Promise<void> => {
     if (operationActiveRef.current) return;
     operationActiveRef.current = true;
@@ -660,93 +646,124 @@ export function SaveOverlayV1(props: SaveOverlayPropsV1): ReactElement {
     }
   }, [finishOperationV1, props.port]);
 
-  const onClose = props.onClose;
-  const executeConfirmedOperationV1 = useCallback(
-    async (invocation: DeepReadonly<ConfirmedSaveOperationV1>): Promise<unknown> => {
-      try {
-        switch (invocation.kind) {
-          case "load": {
-            const result = await runPersistenceOperationV1(
-              invocation,
-              () => props.port.load(invocation.slotId),
-            );
-            // Convention: a successful load enters gameplay right away.
-            if (result?.kind === "loaded") onClose?.();
-            return result;
+  const requestConfirmedOperationV1 = useCallback(
+    (invocation: ConfirmedSaveOperationV1): void => {
+      const exactInvocation = Object.freeze(invocation);
+      const operationToken = Object.freeze({});
+      let resultDelivered = false;
+
+      const operationBinding = Object.freeze({
+        async dispatch(
+          dispatchedInvocation: DeepReadonly<ConfirmedSaveOperationV1>,
+        ) {
+          if (
+            dispatchedInvocation.kind !== exactInvocation.kind ||
+            ((exactInvocation.kind === "load" || exactInvocation.kind === "clear") &&
+              (dispatchedInvocation.kind === "import" ||
+                dispatchedInvocation.slotId !== exactInvocation.slotId))
+          ) {
+            throw new TypeError("ui.save_overlay_confirmation_invocation_mismatch");
           }
-          case "clear":
-            return await runPersistenceOperationV1(
-              invocation,
-              () => props.port.clear(invocation.slotId),
-            );
-          case "import": {
-            const result = await runImportOperationV1();
-            if (result?.kind === "imported") onClose?.();
-            return result;
+          if (operationActiveRef.current) {
+            throw new Error("ui.persistence_operation_busy");
           }
-          default:
-            return unreachableV1(invocation);
-        }
-      } finally {
-        if (mountedRef.current) setConfirmation(null);
-      }
+
+          operationActiveRef.current = true;
+          confirmedOperationTokenRef.current = operationToken;
+          if (mountedRef.current) {
+            setOperationState(Object.freeze({ kind: "pending", context: exactInvocation }));
+          }
+
+          switch (exactInvocation.kind) {
+            case "load": {
+              const result = await props.port.load(exactInvocation.slotId);
+              return result.kind === "loaded"
+                ? Object.freeze({ kind: "successor" as const })
+                : Object.freeze({ kind: "retain_root" as const, result });
+            }
+            case "clear": {
+              const result = await props.port.clear(exactInvocation.slotId);
+              return Object.freeze({ kind: "retain_root" as const, result });
+            }
+            case "import": {
+              const result = await props.port.importSave();
+              return result.kind === "imported"
+                ? Object.freeze({ kind: "successor" as const })
+                : Object.freeze({ kind: "retain_root" as const, result });
+            }
+            default:
+              return unreachableV1(exactInvocation);
+          }
+        },
+        resultSink(delivery: SystemDialogConfirmationResultDeliveryInternalV1): void {
+          if (
+            confirmedOperationTokenRef.current !== operationToken ||
+            !mountedRef.current
+          ) return;
+
+          if (delivery.kind === "faulted") {
+            resultDelivered = true;
+            setOperationState(Object.freeze({ kind: "unexpected_failure" }));
+            return;
+          }
+
+          try {
+            switch (exactInvocation.kind) {
+              case "load":
+              case "clear":
+                setOperationState(
+                  Object.freeze({
+                    kind: "persistence_result",
+                    context: exactInvocation,
+                    result: projectPersistenceResultV1(
+                      delivery.result as PersistenceOperationResultV1,
+                    ),
+                  }),
+                );
+                break;
+              case "import":
+                setOperationState(projectImportResultV1(delivery.result as SaveUiImportResultV1));
+                break;
+              default:
+                unreachableV1(exactInvocation);
+            }
+            resultDelivered = true;
+          } catch {
+            resultDelivered = true;
+            setOperationState(Object.freeze({ kind: "unexpected_failure" }));
+            throw new TypeError("ui.save_overlay_operation_result_invalid");
+          }
+        },
+        finalizeExactRoot(): void {
+          if (
+            confirmedOperationTokenRef.current !== operationToken ||
+            !mountedRef.current
+          ) return;
+          confirmedOperationTokenRef.current = null;
+          operationActiveRef.current = false;
+          if (!resultDelivered) {
+            setOperationState((previous) =>
+              previous.kind === "pending" && previous.context === exactInvocation
+                ? Object.freeze({ kind: "idle" })
+                : previous
+            );
+          }
+          void refresh();
+        },
+      }) satisfies SystemDialogConfirmationOperationBindingInternalV1;
+
+      props.confirmationIntent.requestConfirmationInternalV1(
+        Object.freeze({ invocation: exactInvocation, operationBinding }),
+      );
     },
-    [onClose, props.port, runImportOperationV1, runPersistenceOperationV1],
+    [props.confirmationIntent, props.port, refresh],
   );
-
-  const confirmationSemantic = useMemo(
-    () =>
-      Object.freeze({
-        dispatch: executeConfirmedOperationV1,
-      }) satisfies ActionConfirmationDispatchPortV1<ConfirmedSaveOperationV1, unknown>,
-    [executeConfirmedOperationV1],
-  );
-
-  useLayoutEffect(() => {
-    if (confirmation !== null || !operationNeedsResultFocusV1(operationState)) return undefined;
-    let active = true;
-    queueMicrotask(() => {
-      if (active) resultSummaryRef.current?.focus({ preventScroll: true });
-    });
-    return () => {
-      active = false;
-    };
-  }, [confirmation, operationState]);
 
   const status = readState.kind === "ready" ? readState.status : null;
   const operationPending = operationState.kind === "pending";
   const storageOperationsEnabled = status?.available === true && !status.busy && !operationPending;
-  const saveAllowed = props.guard?.allowed !== false;
+  const saveAllowed = guard?.allowed !== false;
   const writeOperationsEnabled = storageOperationsEnabled && saveAllowed;
-
-  const openConfirmationV1 = (
-    event: MouseEvent<HTMLButtonElement>,
-    invocation: ConfirmedSaveOperationV1,
-  ): void => {
-    setConfirmation(
-      Object.freeze({
-        invocation: Object.freeze(invocation),
-        opener: event.currentTarget,
-      }),
-    );
-  };
-
-  const confirmationSlotName =
-    confirmation?.invocation.kind === "load" || confirmation?.invocation.kind === "clear"
-      ? slotNameV1(props.labels, confirmation.invocation.slotId)
-      : null;
-  const confirmationTitle =
-    confirmation?.invocation.kind === "load" && confirmationSlotName !== null
-      ? props.labels.confirmation.loadTitle(confirmationSlotName)
-      : confirmation?.invocation.kind === "clear" && confirmationSlotName !== null
-      ? props.labels.confirmation.clearTitle(confirmationSlotName)
-      : props.labels.confirmation.importTitle;
-  const confirmationDescription =
-    confirmation?.invocation.kind === "load" && confirmationSlotName !== null
-      ? props.labels.confirmation.loadDescription(confirmationSlotName)
-      : confirmation?.invocation.kind === "clear" && confirmationSlotName !== null
-      ? props.labels.confirmation.clearDescription(confirmationSlotName)
-      : props.labels.confirmation.importDescription;
 
   return (
     <section
@@ -756,18 +773,14 @@ export function SaveOverlayV1(props: SaveOverlayPropsV1): ReactElement {
     >
       <header className={styles["save-overlay__header"]}>
         <h2>{props.labels.title}</h2>
-        {props.onClose === undefined
-          ? null
-          : (
-            <Button data-save-overlay-close="true" onClick={props.onClose}>
-              {props.closeLabel ?? "Close"}
-            </Button>
-          )}
-        {saveAllowed || props.guard?.reasonText === undefined
+        <Button data-save-overlay-close="true" onClick={props.onCloseInternalV1}>
+          {props.closeLabel}
+        </Button>
+        {saveAllowed || guard?.reasonText === undefined
           ? null
           : (
             <p role="status" data-save-guard="blocked">
-              {props.guard.reasonText}
+              {guard.reasonText}
             </p>
           )}
         <p role="status" aria-live="polite">
@@ -816,15 +829,15 @@ export function SaveOverlayV1(props: SaveOverlayPropsV1): ReactElement {
                 )}
                 <Button
                   disabled={!storageOperationsEnabled || !canLoadSlotV1(health)}
-                  onClick={(event) =>
-                    openConfirmationV1(event, Object.freeze({ kind: "load", slotId }))}
+                  onClick={() =>
+                    requestConfirmedOperationV1(Object.freeze({ kind: "load", slotId }))}
                 >
                   {props.labels.loadSlot(slotName)}
                 </Button>
                 <Button
                   disabled={!storageOperationsEnabled || !canClearSlotV1(health)}
-                  onClick={(event) =>
-                    openConfirmationV1(event, Object.freeze({ kind: "clear", slotId }))}
+                  onClick={() =>
+                    requestConfirmedOperationV1(Object.freeze({ kind: "clear", slotId }))}
                 >
                   {props.labels.clearSlot(slotName)}
                 </Button>
@@ -844,7 +857,7 @@ export function SaveOverlayV1(props: SaveOverlayPropsV1): ReactElement {
       <div className={styles["save-overlay__global-actions"]}>
         <Button
           disabled={!storageOperationsEnabled}
-          onClick={(event) => openConfirmationV1(event, Object.freeze({ kind: "import" }))}
+          onClick={() => requestConfirmedOperationV1(Object.freeze({ kind: "import" }))}
         >
           {props.labels.importSave}
         </Button>
@@ -854,33 +867,14 @@ export function SaveOverlayV1(props: SaveOverlayPropsV1): ReactElement {
       </div>
 
       <p
-        ref={resultSummaryRef}
         className={styles["save-overlay__result"]}
         data-testid="save-operation-result"
         role="status"
         aria-live="polite"
         aria-atomic="true"
-        tabIndex={-1}
       >
         {operationTextV1(operationState, props.labels)}
       </p>
-
-      {confirmation === null ? null : (
-        <ActionConfirmationDialogV1
-          title={confirmationTitle}
-          description={confirmationDescription}
-          confirmLabel={props.labels.confirmation.confirmLabel}
-          cancelLabel={props.labels.confirmation.cancelLabel}
-          pendingText={props.labels.confirmation.pendingText}
-          completedText={props.labels.confirmation.completedText}
-          failedText={props.labels.confirmation.failedText}
-          invocation={confirmation.invocation}
-          semantic={confirmationSemantic}
-          inputRouter={props.inputRouter}
-          opener={confirmation.opener}
-          onClose={() => setConfirmation(null)}
-        />
-      )}
     </section>
   );
 }

@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 // SPDX-License-Identifier: MIT
 import "@testing-library/jest-dom/vitest";
-import { parseNonNegativeSafeInteger } from "@sillymaker/base";
+import { parseNonNegativeSafeInteger, parsePositiveSafeInteger } from "@sillymaker/base";
+import { readFile } from "node:fs/promises";
+import { resolve as resolvePath } from "node:path";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import {
   Component,
@@ -19,7 +21,16 @@ import { createInputRouterV1 } from "../input/input-router.ts";
 import { inputHandledV1, systemInputActionIdsV1 } from "../input/contracts.ts";
 import { RootErrorBoundaryV1 } from "../errors/root-error-boundary.tsx";
 import { createManagedSurfaceCompositionRuntimeInternalV1 } from "../managed-surfaces/managed-surface-composition-runtime.ts";
-import type { ManagedSurfacePublicationV1 } from "../managed-surfaces/managed-surface-contracts.ts";
+import {
+  parseManagedSurfaceActionIdV1,
+  parseManagedSurfaceDefinitionIdV1,
+  parseManagedSurfaceFocusTargetIdV1,
+  parseManagedSurfaceLayerIdV1,
+  parseManagedSurfaceOwnerIdV1,
+  parseManagedSurfaceSlotIdV1,
+  type ManagedSurfacePublicationV1,
+  type ManagedSurfaceResolvedDefinitionV1,
+} from "../managed-surfaces/managed-surface-contracts.ts";
 import { GameStageV1 } from "../shell/game-stage.tsx";
 import { systemDialogManagedContractInternalV1 } from "./system-dialog-managed-contract.ts";
 import {
@@ -39,6 +50,38 @@ import {
 } from "./system-dialog-managed-host.tsx";
 
 const liveFixturesV1: Array<() => void> = [];
+const foreignOwnerIdV1 = parseManagedSurfaceOwnerIdV1("surface-owner.fixture-foreign");
+const foreignSlotIdV1 = parseManagedSurfaceSlotIdV1("surface-slot.fixture-foreign");
+const foreignDefinitionV1 = Object.freeze({
+  definitionId: parseManagedSurfaceDefinitionIdV1("surface.fixture.foreign"),
+  contractRevision: parsePositiveSafeInteger(1),
+  ownerId: foreignOwnerIdV1,
+  slotId: foreignSlotIdV1,
+  layerId: parseManagedSurfaceLayerIdV1("surface-layer.fixture-foreign"),
+  layerOrder: parseNonNegativeSafeInteger(50),
+  placement: "root",
+  modality: "blocking",
+  inputPolicy: Object.freeze({ kind: "managed", inputContextId: "overlay" }),
+  dismissPolicy: Object.freeze({
+    back: true,
+    escape: true,
+    backdrop: true,
+    routedCancel: true,
+  }),
+  focusPolicy: Object.freeze({
+    kind: "owns_focus",
+    initialTargetId: parseManagedSurfaceFocusTargetIdV1("surface-focus.fixture-foreign"),
+    trap: true,
+    restore: "opener",
+  }),
+  navigationPolicy: Object.freeze({ kind: "close" }),
+  actionIds: Object.freeze([parseManagedSurfaceActionIdV1("surface-action.cancel")]),
+  readiness: Object.freeze({
+    initialOpen: "blocking_fallback",
+    primaryReplacement: "retain_current",
+    childOpen: "blocking_fallback",
+  }),
+}) satisfies ManagedSurfaceResolvedDefinitionV1;
 
 afterEach(() => {
   cleanup();
@@ -101,7 +144,7 @@ function catalogV1(
   });
 }
 
-function fixtureV1() {
+function fixtureV1(options: { readonly foreignFamily?: boolean } = {}) {
   let nextEpoch = 39;
   const inputRouter = createInputRouterV1();
   const runtime = createManagedSurfaceCompositionRuntimeInternalV1({
@@ -110,8 +153,20 @@ function fixtureV1() {
     }),
     inputRouter,
     recipe: Object.freeze({
-      resolvedOwnerIds: systemDialogManagedContractInternalV1.resolvedOwnerIds,
-      resolvedSlotDescriptors: systemDialogManagedContractInternalV1.resolvedSlotDescriptors,
+      resolvedOwnerIds: Object.freeze([
+        ...systemDialogManagedContractInternalV1.resolvedOwnerIds,
+        ...(options.foreignFamily === true ? [foreignOwnerIdV1] : []),
+      ]),
+      resolvedSlotDescriptors: Object.freeze([
+        ...systemDialogManagedContractInternalV1.resolvedSlotDescriptors,
+        ...(options.foreignFamily === true
+          ? [Object.freeze({
+            kind: "root" as const,
+            slotId: foreignSlotIdV1,
+            cardinality: "single" as const,
+          })]
+          : []),
+      ]),
     }),
   });
   const failures: Array<{ readonly code: string; readonly error: unknown }> = [];
@@ -195,12 +250,13 @@ function deltaV1(before: ManagedSurfacePublicationV1, after: ManagedSurfacePubli
 
 function StageHarnessV1(props: {
   readonly host: ReactElement;
+  readonly onGameplayAction?: () => void;
 }): ReactElement {
   return (
     <GameStageV1
       accessibleName="Managed System test stage"
       layers={{
-        background: <button type="button">Gameplay</button>,
+        background: <button type="button" onClick={props.onGameplayAction}>Gameplay</button>,
         character: null,
         sceneInteraction: null,
         hud: null,
@@ -266,7 +322,7 @@ async function renderHostV1(input: {
   return rendered;
 }
 
-describe("dormant managed System Host-commit readiness", () => {
+describe("managed System Host-commit readiness", () => {
   it("mounts in the System portal and activates the same keyed renderer subtree", async () => {
     const fixture = fixtureV1();
     const gameplayInput = vi.fn(() => inputHandledV1);
@@ -354,6 +410,242 @@ describe("dormant managed System Host-commit readiness", () => {
     expect(unmounted).not.toHaveBeenCalled();
     expect(renderedCandidate).toHaveBeenCalledTimes(1);
     unregisterGameplay();
+  });
+
+  it("gives only the active root Dialog semantics and a closed focus trap", async () => {
+    const fixture = fixtureV1();
+    function SettingsRendererV1(): ReactElement {
+      return (
+        <div>
+          <button type="button" data-testid="root-tab-first">First</button>
+          <button type="button" data-testid="root-tab-second">Second</button>
+          <div data-devdock-surface="system">
+            <button type="button" data-testid="root-tab-devdock">DevDock</button>
+          </div>
+        </div>
+      );
+    }
+    await renderHostV1({ fixture, catalog: catalogV1(SettingsRendererV1) });
+    const gameplay = screen.getByRole("button", { name: "Gameplay" });
+    gameplay.focus();
+
+    act(() => {
+      fixture.internal.openRootInternalV1("settings");
+    });
+    const preparingShell = screen.getByTestId("system-dialog-surface");
+    expect(preparingShell).not.toHaveAttribute("role");
+    expect(document.activeElement).toBe(screen.getByTestId("system-dialog-fallback"));
+
+    await drainMicrotaskV1();
+
+    const dialog = screen.getByRole("dialog", { name: "Managed settings" });
+    const first = screen.getByTestId("root-tab-first");
+    const second = screen.getByTestId("root-tab-second");
+    expect(dialog).toBe(preparingShell);
+    expect(dialog).toHaveAttribute("aria-modal", "true");
+    expect(dialog).toHaveAttribute("data-blocking-focus-scope", "system");
+    expect(document.activeElement).toBe(first);
+
+    fireEvent.keyDown(first, { key: "Tab" });
+    expect(document.activeElement).toBe(second);
+    fireEvent.keyDown(second, { key: "Tab" });
+    expect(document.activeElement).toBe(first);
+    fireEvent.keyDown(first, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(second);
+
+    gameplay.focus();
+    expect(document.activeElement).toBe(first);
+    expect(screen.getByTestId("root-tab-devdock")).not.toHaveFocus();
+  });
+
+  it("lets content close the exact root and restores its original external focus owner", async () => {
+    const fixture = fixtureV1();
+    function SettingsRendererV1(props: SystemDialogRootRendererPropsInternalV1): ReactElement {
+      return (
+        <button
+          type="button"
+          data-testid="root-explicit-close"
+          onClick={() => props.rootIntent.close()}
+        >
+          Close
+        </button>
+      );
+    }
+    await renderHostV1({ fixture, catalog: catalogV1(SettingsRendererV1) });
+    const opener = screen.getByRole("button", { name: "Gameplay" });
+    opener.focus();
+    act(() => {
+      fixture.internal.openRootInternalV1("settings");
+    });
+    await drainMicrotaskV1();
+
+    fireEvent.click(screen.getByTestId("root-explicit-close"));
+    await drainMicrotaskV1();
+
+    expect(screen.queryByRole("dialog", { name: "Managed settings" })).not.toBeInTheDocument();
+    expect(fixture.internal.getManagedSnapshotInternalV1().orderedInstances).toEqual([]);
+    expect(screen.getByTestId("stage-workspace-overlay")).not.toHaveAttribute("inert");
+    expect(document.activeElement).toBe(opener);
+  });
+
+  it("does not claim System isolation for another managed family", async () => {
+    const fixture = fixtureV1({ foreignFamily: true });
+    await renderHostV1({ fixture, catalog: catalogV1(() => <div />) });
+
+    const foreign = fixture.runtime.getCurrent().coordinator.openTransientPrimary({
+      definition: foreignDefinitionV1,
+      semanticOccurrenceId: null,
+    });
+    act(() => {
+      foreign.readiness?.ready();
+    });
+    await drainMicrotaskV1();
+
+    expect(fixture.internal.getHostRenderSnapshotInternalV1().entries).toEqual([]);
+    expect(screen.getByTestId("stage-workspace-overlay")).not.toHaveAttribute("inert");
+  });
+
+  it("does not restore an active root return target during terminal disposal", async () => {
+    const fixture = fixtureV1();
+    render(<button type="button">External predecessor</button>);
+    const predecessor = screen.getByRole("button", { name: "External predecessor" });
+    predecessor.focus();
+    const rendered = await renderHostV1({
+      fixture,
+      catalog: catalogV1(() => <button type="button">Managed settings target</button>),
+    });
+    const restoreFocus = vi.spyOn(predecessor, "focus");
+    act(() => {
+      fixture.internal.openRootInternalV1("settings");
+    });
+    await drainMicrotaskV1();
+
+    fixture.internal.sealTerminalDisposalInternalV1();
+    rendered.unmount();
+    await drainMicrotaskV1();
+
+    expect(predecessor.isConnected).toBe(true);
+    expect(restoreFocus).not.toHaveBeenCalled();
+    expect(document.activeElement).not.toBe(predecessor);
+  });
+
+  it("restores an active root return target after a true Host detach", async () => {
+    const fixture = fixtureV1();
+    render(<button type="button">External return target</button>);
+    const returnTarget = screen.getByRole("button", { name: "External return target" });
+    returnTarget.focus();
+    const restoreFocus = vi.spyOn(returnTarget, "focus");
+    const rendered = await renderHostV1({
+      fixture,
+      catalog: catalogV1(() => <button type="button">Managed settings target</button>),
+    });
+    act(() => {
+      fixture.internal.openRootInternalV1("settings");
+    });
+    await drainMicrotaskV1();
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "Managed settings target" }),
+    );
+
+    rendered.unmount();
+    await drainMicrotaskV1();
+
+    expect(returnTarget.isConnected).toBe(true);
+    expect(restoreFocus).toHaveBeenCalledOnce();
+    expect(document.activeElement).toBe(returnTarget);
+  });
+
+  it("routes root fallback and active dismissals while fencing only pointer gestures", async () => {
+    const fixture = fixtureV1();
+    const gameplayAction = vi.fn();
+    function SettingsRendererV1(): ReactElement {
+      return <button type="button">Settings action</button>;
+    }
+    const host = (
+      <SystemDialogManagedHostInternalV1
+        session={fixture.session}
+        catalog={catalogV1(SettingsRendererV1)}
+        inputRouter={fixture.inputRouter}
+      />
+    );
+    render(<StageHarnessV1 host={host} onGameplayAction={gameplayAction} />);
+    await waitFor(() =>
+      expect(screen.getByTestId("system-dialog-managed-host")).toBeInTheDocument()
+    );
+    const opener = screen.getByRole("button", { name: "Gameplay" });
+    opener.focus();
+
+    act(() => {
+      fixture.internal.openRootInternalV1("settings");
+    });
+    const fallback = screen.getByTestId("system-dialog-fallback");
+    fireEvent.keyDown(fallback, { key: "Escape" });
+    await drainMicrotaskV1();
+    expect(screen.queryByTestId("system-dialog-fallback")).not.toBeInTheDocument();
+    expect(document.activeElement).toBe(opener);
+
+    act(() => {
+      fixture.internal.openRootInternalV1("settings");
+    });
+    await drainMicrotaskV1();
+    const dialog = screen.getByRole("dialog", { name: "Managed settings" });
+    const devDockTarget = document.createElement("button");
+    devDockTarget.dataset.devdockEscapeOwner = "true";
+    dialog.append(devDockTarget);
+    fireEvent.keyDown(devDockTarget, { key: "Escape" });
+    expect(dialog).toBeInTheDocument();
+
+    expect(fixture.inputRouter.route({
+      kind: "action",
+      actionId: systemInputActionIdsV1.cancel,
+    })).toEqual({ kind: "handled", context: "system" });
+    await drainMicrotaskV1();
+    expect(screen.queryByRole("dialog", { name: "Managed settings" })).not.toBeInTheDocument();
+    expect(document.activeElement).toBe(opener);
+
+    act(() => {
+      fixture.internal.openRootInternalV1("settings");
+    });
+    await drainMicrotaskV1();
+    const backdrop = screen.getByTestId("system-dialog-root-backdrop");
+    fireEvent.pointerDown(backdrop, { button: 0, pointerId: 9 });
+    fireEvent.pointerUp(backdrop, { button: 0, pointerId: 9 });
+    await drainMicrotaskV1();
+    expect(screen.queryByRole("dialog", { name: "Managed settings" })).not.toBeInTheDocument();
+
+    const residualPointerClick = new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+      detail: 1,
+    });
+    opener.dispatchEvent(residualPointerClick);
+    expect(residualPointerClick.defaultPrevented).toBe(true);
+    expect(gameplayAction).not.toHaveBeenCalled();
+
+    const keyboardClick = new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+      detail: 0,
+    });
+    opener.dispatchEvent(keyboardClick);
+    expect(keyboardClick.defaultPrevented).toBe(false);
+    expect(gameplayAction).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the managed root and confirmation shells stage-bounded and scrollable", async () => {
+    const css = await readFile(
+      resolvePath(import.meta.dirname, "../overlays/overlay-host.module.css"),
+      "utf8",
+    );
+
+    expect(css).toMatch(/\.blocking-dialog__backdrop\s*\{[^}]*inset:\s*0;/su);
+    expect(css).toMatch(/\.blocking-dialog__backdrop\s*\{[^}]*pointer-events:\s*auto;/su);
+    expect(css).toMatch(
+      /\.blocking-dialog__content\s*\{[^}]*max-block-size:\s*calc\(100% - 2 \* var\(--silly-space-3\)\);/su,
+    );
+    expect(css).toMatch(/\.blocking-dialog__content\s*\{[^}]*overflow:\s*auto;/su);
   });
 
   it.each(["render", "constructor", "layout-effect"] as const)(
@@ -734,6 +1026,50 @@ describe("dormant managed System Host-commit readiness", () => {
     expect(fixture.terminalCalls).toEqual({ ready: 2, fail: 0 });
   });
 
+  it("inherits the external return target across replacement without intermediate restore", async () => {
+    const fixture = fixtureV1();
+    function SettingsRendererV1(): ReactElement {
+      return <button type="button" data-testid="return-target-settings">Settings</button>;
+    }
+    function SavesRendererV1(props: SystemDialogRootRendererPropsInternalV1): ReactElement {
+      return (
+        <button
+          type="button"
+          data-testid="return-target-saves-close"
+          onClick={() => props.rootIntent.close()}
+        >
+          Close saves
+        </button>
+      );
+    }
+    await renderHostV1({
+      fixture,
+      catalog: catalogV1(SettingsRendererV1, SavesRendererV1),
+    });
+    const externalOpener = screen.getByRole("button", { name: "Gameplay" });
+    externalOpener.focus();
+    act(() => {
+      fixture.internal.openRootInternalV1("settings");
+    });
+    await drainMicrotaskV1();
+    const settingsTarget = screen.getByTestId("return-target-settings");
+    expect(document.activeElement).toBe(settingsTarget);
+    const restoreSpy = vi.spyOn(externalOpener, "focus");
+
+    act(() => {
+      fixture.internal.openRootInternalV1("saves");
+    });
+    expect(document.activeElement).toBe(settingsTarget);
+    expect(restoreSpy).not.toHaveBeenCalled();
+    await drainMicrotaskV1();
+    expect(document.activeElement).toBe(screen.getByTestId("return-target-saves-close"));
+    expect(restoreSpy).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId("return-target-saves-close"));
+    expect(restoreSpy).toHaveBeenCalledOnce();
+    expect(document.activeElement).toBe(externalOpener);
+  });
+
   it("closes Host ingress immediately and cancels a pending owner after the detach grace", async () => {
     const fixture = fixtureV1();
     const rendered = await renderHostV1({
@@ -848,6 +1184,36 @@ describe("dormant managed System Host-commit readiness", () => {
       "data-system-dialog-instance",
       "surface-instance.e43.n1",
     );
+  });
+
+  it("does not restore a predecessor return target across application-epoch rotation", async () => {
+    const fixture = fixtureV1();
+    await renderHostV1({
+      fixture,
+      catalog: catalogV1(() => <button type="button">Managed settings target</button>),
+    });
+    const predecessorTarget = screen.getByRole("button", { name: "Gameplay" });
+    predecessorTarget.focus();
+    act(() => {
+      fixture.internal.openRootInternalV1("settings");
+    });
+    await drainMicrotaskV1();
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "Managed settings target" }),
+    );
+    const predecessorFocus = vi.spyOn(predecessorTarget, "focus");
+
+    act(() => {
+      fixture.runtime.replace("coordinator_successor", [fixture.internal]);
+    });
+    await drainMicrotaskV1();
+
+    expect(fixture.internal.getManagedSnapshotInternalV1()).toMatchObject({
+      applicationEpoch: 43,
+      orderedInstances: [],
+    });
+    expect(predecessorFocus).not.toHaveBeenCalled();
+    expect(document.activeElement).not.toBe(predecessorTarget);
   });
 
   it("keeps an R1 candidate frozen while the Host catalog advances to R2", async () => {
@@ -993,7 +1359,7 @@ describe("dormant managed System Host-commit readiness", () => {
   });
 });
 
-describe("dormant managed System confirmation Host", () => {
+describe("managed System confirmation Host", () => {
   it("exposes only a typed confirmation intent and snapshots request data before transition", async () => {
     const fixture = fixtureV1();
     const operationBinding = Object.freeze({
@@ -1677,6 +2043,10 @@ describe("dormant managed System confirmation Host", () => {
         fireEvent.keyDown(childShell, { key: "Escape" });
       } else {
         const backdrop = screen.getByTestId("system-dialog-confirmation-backdrop");
+        expect(backdrop).toHaveAttribute(
+          "data-system-dialog-backdrop",
+          "action_confirmation",
+        );
         fireEvent.pointerDown(backdrop, { button: 0, pointerId: 1 });
         fireEvent.pointerUp(backdrop, { button: 0, pointerId: 1 });
       }

@@ -315,6 +315,21 @@ describe("dormant managed System dialog contract", () => {
     });
   });
 
+  it("exposes only the active view and the two consumer-required root intents", () => {
+    type PublicStringKeysV1 = Extract<keyof SystemDialogSessionV1, string>;
+    type ExactConsumerFacadeV1 = {
+      getSnapshot(): Readonly<{ readonly active: "settings" | "saves" | null }>;
+      openSettings(): SystemDialogOpenResultV1;
+      openSaves(): SystemDialogOpenResultV1;
+    };
+    type PublicMembersV1 = Pick<SystemDialogSessionV1, PublicStringKeysV1>;
+
+    expectTypeOf<PublicMembersV1>().toEqualTypeOf<ExactConsumerFacadeV1>();
+    expectTypeOf<PublicStringKeysV1>().toEqualTypeOf<
+      "getSnapshot" | "openSettings" | "openSaves"
+    >();
+  });
+
   it("declares one logical Host lease and per-root-candidate resolution snapshots", () => {
     expect(systemDialogManagedContractInternalV1.host).toEqual({
       logicalLeaseCardinality: "single",

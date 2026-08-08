@@ -144,7 +144,7 @@ describe("Engine Lab default UI", () => {
       Object.freeze({
         kind: "custom",
         accessibleName: "Custom saves",
-        render: ({ close }: { readonly close: () => void }) => (
+        component: ({ close }: { readonly close: () => void }) => (
           <button type="button" onClick={close}>
             Close custom saves
           </button>
@@ -154,9 +154,13 @@ describe("Engine Lab default UI", () => {
 
     const saveLauncher = screen.getByRole("button", { name: "保存" });
     await userEvent.setup().click(saveLauncher);
-    expect(screen.getByRole("dialog", { name: "Custom saves" })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole("dialog", { name: "Custom saves" })).toBeInTheDocument();
+    });
     await userEvent.setup().click(screen.getByRole("button", { name: "Close custom saves" }));
-    expect(screen.queryByRole("dialog", { name: "Custom saves" })).toBeNull();
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Custom saves" })).toBeNull();
+    });
 
     composition.dispose();
     await instance.dispose();

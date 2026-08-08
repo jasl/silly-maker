@@ -12,15 +12,19 @@ dormant System session/catalog/config snapshot；S3c.0 已闭合 composition-wid
 activation barrier；2026-08-08 S3c.1 已闭合 dormant Host-commit readiness、one logical
 Host lease、fallback isolation/input/focus rollback 与 StrictMode/error-boundary fence；
 同日 S3d 已闭合 dormant exact-parent confirmation child、strict child-bound completion、
-exact-root finalization 与 Host-owned focus/gesture lifecycle。S3e live System cutover仍待
-实施。2026-08-08 进一步冻结 S3e 前置的 composition-bound successor
-acknowledgment、fail-closed lifecycle capability 与 terminal application teardown；这些
-package-internal 机制不改变 Core `SessionAnchorResultV1` 或任何 Save/Persistence wire。
+exact-root finalization 与 Host-owned focus/gesture lifecycle。2026-08-08 进一步冻结 S3e
+前置的 composition-bound successor acknowledgment、fail-closed lifecycle capability 与
+terminal application teardown；这些 package-internal 机制不改变 Core
+`SessionAnchorResultV1` 或任何 Save/Persistence wire。2026-08-09 S3e live cutover
+与 promotion 已把 System ingress、Host、Settings/Saves content 与 exact-parent
+confirmation 接到 shared Coordinator，并删除旧 writable store、fallback Host 与
+standalone lifecycle exports；full/browser/prebuilt 回归与最终 adversarial review均通过。
 本文固定
 影响输入与焦点的 UI Surface 的权威边界、生命周期、输入代际与验证分层，并把“弱模型
-能够写出正确代码”提升为作者 API 的验收条件。S1-T 与 S2 已实现，S3a–S3d 只完成
-dormant System floor、shared composition authority、Host readiness 与 confirmation child，S3 仍未
-promotion；当前 live 能力仍以 [architecture](../architecture.md) 与
+能够写出正确代码”提升为作者 API 的验收条件。S1-T 与 S2 已实现，S3a–S3e
+已完成并 promotion System 的 shared composition authority、Host readiness、confirmation
+child 与 single-writer cutover；下一独立切片为 S1-R。当前 live 能力仍以
+[architecture](../architecture.md) 与
 [features](../features.md) 为准；执行顺序见
 [Surface Contract Harness plan](../plans/2026-07-30-surface-contract-harness.md)。
 

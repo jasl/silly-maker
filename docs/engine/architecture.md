@@ -457,18 +457,28 @@ Story presentation code maps its immutable semantic publication and catalogs
 into these generic surfaces. Missing assets or renderer contributions can
 degrade to a visible fallback without changing authoritative gameplay.
 
-Workspace Overlay is the first live Managed Surface family. A Story declares
-validated Overlay definitions and a renderer resolver, then sends
+Workspace Overlay and System dialogs are the live transient Managed Surface
+families. They share one composition-owned Coordinator, application epoch,
+immutable publication, input/focus ownership, and successor lifetime. A Story
+declares validated Overlay definitions and a renderer resolver, then sends
 `openPrimary`, `pushDetail`, `closeTop`, or `closeAll` intents through the
-composition facade. The UI-owned Coordinator is the sole writable topology,
-input, focus, instance, and readiness authority; the facade's snapshot is an
-immutable compatibility view, not a second store. Admission completes before
-topology mutation. Initial and child preparation use a code-native blocking
-fallback, replacement keeps the existing surface until the candidate is ready,
-and application-epoch rotation fences late readiness during load, import, HMR,
-or another successor. The epoch is presentation/runtime fencing only and never
-enters a Save. System dialogs and Narrative have not yet migrated to this
-lifecycle kernel.
+composition facade. System Settings and Saves share one root slot; a load,
+clear, or import confirmation is the exact-parent child of the current Saves
+root. The composition creates an opaque System session, and the required
+`SystemDialogHostV1` mounts the standard or custom Saves component without
+creating a fallback store. Neither facade exposes Coordinator, epoch, instance,
+readiness, or writable topology evidence.
+
+The UI-owned Coordinator is the sole writable topology, input, focus, instance,
+and readiness authority. Admission completes before topology mutation. Initial
+and child preparation use a code-native blocking fallback, replacement keeps
+the existing subtree until the candidate is ready, and application-epoch
+rotation fences late readiness during load, import, HMR, or another successor.
+After a composed successor acknowledgment, the predecessor Root performs no
+family close/reset; successful load/import also leaves its old Saves completion
+stale, so it cannot close or finalize a fresh System root. The epoch is
+presentation/runtime fencing only and never enters a Save. Stable-target
+reconcile and Narrative migration remain planned work.
 
 ## 9. Changing the architecture
 
@@ -491,8 +501,9 @@ described above and in [features](features.md). Further accepted evolution is
 tracked in the [engine roadmap](roadmap.md). The
 [Managed Surface lifecycle and contract harness](design/surface-contract-harness.md)
 has a package-internal S1-T kernel for transient topology, action provenance,
-application-epoch fencing, and transition-kind readiness. Workspace Overlay is
-its first live pilot and exposes only definitions, renderer resolution, intents,
-and an immutable compatibility view to Stories; stable-target reconcile and the
-System/Narrative migrations remain planned work. Target documents do not alter
-the current data flow until each migration and its behavior tests land.
+application-epoch fencing, and transition-kind readiness. Workspace Overlay and
+System dialogs are its live transient adopters: their public facades expose only
+definitions/configuration, structured intents, and read-only views while one
+composition authority owns lifecycle mutation. Stable-target reconcile and the
+Narrative migration remain planned work. Target documents do not alter the
+current data flow until each migration and its behavior tests land.

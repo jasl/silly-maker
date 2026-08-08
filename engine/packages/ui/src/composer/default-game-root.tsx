@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement, ReactNode } from "react";
 
 import type {
@@ -42,12 +42,14 @@ import { TitleScreenV1 } from "../system/title-screen.tsx";
 import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
 import { SystemDialogHostV1 } from "../system/system-dialog-host.tsx";
 import type { SystemDialogCustomSavesV1 } from "../system/system-dialog-host.tsx";
+import type { SystemDialogOpenResultV1 } from "../system/system-dialog-managed-contract.ts";
 import type { InteractionSessionStoreV1 } from "../interaction/interaction-session-store.ts";
 import type {
   GameUiCompositionV1,
   GameUiCueRegistryV1,
   GameUiOverlayIdV1,
 } from "./create-game-ui-composition.ts";
+import { admitSettledSessionAnchorResultInternalV1 } from "./session-anchor-result-admission-internal.ts";
 import styles from "./default-game-root.module.css";
 
 /** Player-facing labels of the default surfaces; Stories override per locale. */
@@ -109,8 +111,8 @@ export interface DefaultGameRootSlotContextV1<
   updateStoryUiState(updater: (current: unknown) => unknown): void;
   /** Opens the engine system dialogs (custom shells: Start menu, pause menu…). */
   readonly systemDialogs: {
-    openSettings(): void;
-    openSaves(): void;
+    openSettings(): SystemDialogOpenResultV1;
+    openSaves(): SystemDialogOpenResultV1;
     /**
      * Return to the title front door: `lifecycle.restart()` then re-show
      * `TitleScreenV1` (skips splash). Used by Stories that wire MV Return to
@@ -182,7 +184,7 @@ export interface DefaultGameRootPropsV1<
   /**
    * Hides the default floating system menu (Save/Settings/Mute). Fully
    * custom shells (e.g. a desktop metaphor) surface those entries in
-   * their own UI via useSystemDialogControllerV1 instead.
+   * their own UI through the slot context's `systemDialogs` intents instead.
    */
   readonly hideSystemMenu?: boolean;
   /** Optional live stage label (current scene name) for the shell main region. */
@@ -268,10 +270,24 @@ function lifecycleRestartFailureV1(
   return new Error(`ui.lifecycle_restart_${result.kind}:${result.code}`);
 }
 
-function rethrowReturnToTitleCleanupFailuresV1(failures: readonly unknown[]): void {
-  if (failures.length === 0) return;
-  if (failures.length === 1) throw failures[0];
-  throw new AggregateError(failures, "ui.return_to_title_topology_cleanup_failed");
+function restartLifecycleV1(
+  lifecycle: DefaultGameRootPropsV1<
+    unknown,
+    unknown,
+    unknown,
+    unknown,
+    string,
+    unknown
+  >["lifecycle"],
+): Promise<SessionAnchorResultV1> {
+  return Promise.resolve()
+    .then(() => {
+      if (lifecycle === undefined) {
+        throw new Error("ui.lifecycle_restart_unavailable");
+      }
+      return lifecycle.restart();
+    })
+    .then(admitSettledSessionAnchorResultInternalV1);
 }
 
 /** Continue is only available when the autosave slot can be loaded. */
@@ -391,13 +407,22 @@ export function DefaultGameRootV1<
     props.composition.presentation.getSnapshot,
   ) as DeepReadonly<PublicationV1>;
   const anchor = useReadonlyViewV1(props.composition.anchor);
-  const saveGuard = props.saveUi?.evaluateGuard?.(publication);
-  const systemSaves = props.customSaves ??
-    (props.saveUi === undefined ? undefined : Object.freeze({
+  const systemSaves = useMemo(() => {
+    if (props.customSaves !== undefined) return props.customSaves;
+    if (props.saveUi === undefined) return undefined;
+    const { evaluateGuard } = props.saveUi;
+    return Object.freeze({
       port: props.saveUi.port,
       labels: props.saveUi.labels,
-      ...(saveGuard === undefined ? {} : { guard: saveGuard }),
-    }));
+      ...(evaluateGuard === undefined ? {} : {
+        guardProjection: Object.freeze({
+          getSnapshot: props.composition.presentation.getSnapshot,
+          subscribe: props.composition.presentation.subscribe,
+          evaluate: evaluateGuard,
+        }),
+      }),
+    });
+  }, [props.composition.presentation, props.customSaves, props.saveUi]);
 
   // Loading (or importing) a save from the title screen's Load-game dialog
   // enters gameplay: the anchored epoch origin is the authoritative signal.
@@ -445,31 +470,18 @@ export function DefaultGameRootV1<
       input: props.composition.input,
       updateStoryUiState,
       systemDialogs: Object.freeze({
-        openSettings: () => props.composition.systemDialogSession.open("settings"),
-        openSaves: () => props.composition.systemDialogSession.open("saves"),
+        openSettings: () => props.composition.systemDialogSession.openSettings(),
+        openSaves: () => props.composition.systemDialogSession.openSaves(),
         returnToTitle: () => {
-          return Promise.resolve()
-            .then(() => props.lifecycle?.restart())
+          return restartLifecycleV1(props.lifecycle)
             .then((result) => {
-              if (result !== undefined && result.kind !== "anchored") {
+              if (result.kind !== "anchored") {
                 throw lifecycleRestartFailureV1(result);
-              }
-              const cleanupFailures: unknown[] = [];
-              try {
-                props.composition.systemDialogSession.close();
-              } catch (error) {
-                cleanupFailures.push(error);
-              }
-              try {
-                props.composition.overlaySession.closeAll();
-              } catch (error) {
-                cleanupFailures.push(error);
               }
               titleLifecycleGenerationRef.current += 1;
               setTitleLifecycleFailureCode(null);
               setSplashDismissed(true);
               setTitleDismissed(false);
-              rethrowReturnToTitleCleanupFailuresV1(cleanupFailures);
             });
         },
       }),
@@ -538,7 +550,7 @@ export function DefaultGameRootV1<
     system: (
       <SystemDialogHostV1
         inputRouter={props.composition.input}
-        store={props.composition.systemDialogSession}
+        session={props.composition.systemDialogSession}
         {...(systemSaves === undefined ? {} : { saves: systemSaves })}
         settings={Object.freeze({
           title: labels.settingsTitle,
@@ -595,13 +607,12 @@ export function DefaultGameRootV1<
                 titleLifecycleGenerationRef.current = generation;
                 setTitleLifecycleFailureCode(null);
                 const begin = props.titleScreen?.beginNewGame;
-                void Promise.resolve()
-                  .then(() => props.lifecycle?.restart())
+                void restartLifecycleV1(props.lifecycle)
                   .then(async (result) => {
                     if (titleLifecycleGenerationRef.current !== generation) {
                       return;
                     }
-                    if (result !== undefined && result.kind !== "anchored") {
+                    if (result.kind !== "anchored") {
                       setTitleLifecycleFailureCode(`${result.kind}:${result.code}`);
                       return;
                     }
@@ -610,9 +621,14 @@ export function DefaultGameRootV1<
                       setTitleDismissed(true);
                     }
                   })
-                  .catch(() => {
+                  .catch((error: unknown) => {
                     if (titleLifecycleGenerationRef.current === generation) {
-                      setTitleLifecycleFailureCode("unexpected");
+                      setTitleLifecycleFailureCode(
+                        error instanceof Error &&
+                          error.message === "ui.lifecycle_restart_unavailable"
+                          ? "unavailable"
+                          : "unexpected",
+                      );
                     }
                   });
               }}
@@ -695,7 +711,9 @@ export function DefaultGameRootV1<
               {...(props.sessionMaintenance?.clearAllSaves === undefined
                 ? {}
                 : { clearAllSaves: props.sessionMaintenance.clearAllSaves })}
-              onReinitialize={slotContext.systemDialogs.returnToTitle}
+              {...(props.lifecycle === undefined
+                ? {}
+                : { onReinitialize: slotContext.systemDialogs.returnToTitle })}
             />
           ),
         },

@@ -147,12 +147,32 @@ content does not mount while an initial or detail candidate is still behind the
 code-native fallback. The current pilot accepts exact-ID transient targets only;
 it has no source revision, parameter vector, or stable-target reconcile API.
 
+System dialogs use the same composition-owned transient lifecycle; a Story does
+not create a System store or standalone dialog Host. Slot code may call
+`context.systemDialogs.openSettings()` or `openSaves()` and handle the returned
+structured preparing/applied/unchanged/rejected/faulted result. It receives no
+raw close, Coordinator, epoch, instance, readiness, or topology evidence. The
+required `SystemDialogHostV1` receives the composition-created opaque session.
+When a Story replaces standard Saves through `customSaves`, it supplies a React
+component identity; the Host mounts that component inside React, so hooks remain
+valid and the Story does not invoke or own a render callback. Settings and Saves
+still replace each other in one root slot, and load/clear/import confirmation
+remains the exact-parent managed child of the current Saves root.
+
+`context.systemDialogs.returnToTitle()` always returns a Promise. Without an
+application lifecycle it rejects with `ui.lifecycle_restart_unavailable` before
+presentation mutation. In the composed Web path, success means the Core anchor
+and exact presentation successor are both installed; the old Root must not
+close System or Overlay afterward. Likewise, a successful load/import makes the
+old Saves continuation stale, so Story code must not add a post-load close or
+finalizer that could target the successor.
+
 `startWebGameApplicationV1` then:
 
 1. creates a `GameHostV1` (IndexedDB, files, clock, navigation, logging, entropy);
 2. builds the persisted capability session (Host records overlaid by the page query);
 3. resolves the Story and creates the core application instance (Session, semantic port, persistence lease, autosave, Story extensions);
-4. composes the UI (presentation store, input router, intent router, Coordinator-backed Workspace Overlay plus system/interaction sessions) and mounts the default GameRoot with the Story's slots;
+4. composes the UI (presentation store, input router, intent router, one Coordinator-backed Workspace Overlay/System lifecycle, plus the interaction session) and mounts the default GameRoot with the Story's slots;
 5. installs the automation bridge and optional pointer adapter, binds the DebugBundle UI context, and registers page-lifecycle teardown;
 6. owns disposal and — through `installWebGameApplicationHmrV1` — the dev HMR rebootstrap with persistence handoff.
 

@@ -112,14 +112,8 @@ export type {
 export { useLocaleTextV1 } from "./system/use-locale-text.ts";
 export { useReducedMotionV1 } from "./system/use-reduced-motion.ts";
 export type { VnChoiceV1, VnLayerPropsV1 } from "./narrative/index.ts";
-export {
-  ActionConfirmationDialogV1,
-  defineWorkspaceOverlayV1,
-  maximumOverlayDetailDepthV1,
-} from "./overlays/index.ts";
+export { defineWorkspaceOverlayV1, maximumOverlayDetailDepthV1 } from "./overlays/index.ts";
 export type {
-  ActionConfirmationDialogPropsV1,
-  ActionConfirmationDispatchPortV1,
   DefineWorkspaceOverlayInputV1,
   OverlayAdmissionRejectionV1,
   OverlayCloseTopResultV1,
@@ -132,11 +126,10 @@ export type {
   WorkspaceOverlayDefinitionV1,
   WorkspaceOverlayPortBindingV1,
 } from "./overlays/index.ts";
-export { SaveOverlayV1 } from "./persistence/index.ts";
 export type {
+  SaveOverlayGuardV1,
   SaveOverlayLabelsV1,
   SaveOverlayPortV1,
-  SaveOverlayPropsV1,
   SaveOverlaySlotNamesV1,
   SaveUiImportFileRejectionCodeV1,
   SaveUiImportResultV1,
@@ -272,19 +265,25 @@ export type {
   PresentationRunV1,
 } from "./presentation-run/index.ts";
 export {
-  SettingsDialogV1,
+  SavesLauncherV1,
   SettingsLauncherV1,
   SystemDialogHostV1,
-  createSystemDialogSessionStoreV1,
+  useSystemDialogControllerV1,
 } from "./system/index.ts";
 export type {
-  SettingsDialogPropsV1,
+  SavesLauncherPropsV1,
   SettingsLauncherPropsV1,
+  SystemDialogControllerV1,
+  SystemDialogCustomSavesComponentV1,
   SystemDialogCustomSavesRenderIntentsV1,
   SystemDialogCustomSavesV1,
-  SystemDialogSessionStateV1,
-  SystemDialogSessionStoreV1,
   SystemDialogHostPropsV1,
+  SystemDialogOpenResultV1,
+  SystemDialogSaveGuardProjectionV1,
+  SystemDialogSavesV1,
+  SystemDialogSessionActiveSurfaceV1,
+  SystemDialogSessionSnapshotV1,
+  SystemDialogSessionV1,
   SystemDialogSettingsV1,
 } from "./system/index.ts";
 export { GameSymbolV1, createGameSymbolRegistryV1, parseGameSymbolIdV1 } from "./symbols/index.ts";
@@ -324,5 +323,3 @@ export type {
   GameUiSemanticSourceV1,
   GameUiStateV1,
 } from "./composer/index.ts";
-export { useSystemDialogControllerV1 } from "./system/system-dialog-host.tsx";
-export type { SystemDialogControllerV1 } from "./system/system-dialog-host.tsx";

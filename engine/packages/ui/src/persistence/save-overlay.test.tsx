@@ -12,13 +12,13 @@ import {
   type SaveSlotIdV1,
   type SaveSlotSummaryV1,
 } from "@sillymaker/base";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { StrictMode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createInputRouterV1 } from "../input/input-router.ts";
+import type { SystemDialogHostConfirmationRequestInternalV1 } from "../system/system-dialog-managed-host.tsx";
 import {
-  SaveOverlayV1,
+  SaveOverlayContentInternalV1,
   type SaveOverlayLabelsV1,
   type SaveOverlayPortV1,
   type SaveUiImportResultV1,
@@ -229,12 +229,133 @@ function fixtureV1(options: FixtureOptionsV1 = {}) {
 }
 
 function renderFixtureV1(fixture = fixtureV1()) {
+  const confirmationIntent = Object.freeze({
+    requestConfirmationInternalV1(
+      input: SystemDialogHostConfirmationRequestInternalV1,
+    ) {
+      void input.operationBinding.dispatch(input.invocation).then(
+        (outcome) => {
+          if (outcome.kind === "retain_root") {
+            input.operationBinding.resultSink(
+              Object.freeze({ kind: "settled", result: outcome.result }),
+            );
+          }
+          input.operationBinding.finalizeExactRoot();
+        },
+        (error: unknown) => {
+          input.operationBinding.resultSink(Object.freeze({ kind: "faulted", error }));
+          input.operationBinding.finalizeExactRoot();
+        },
+      );
+      return Object.freeze({
+        kind: "preparing" as const,
+        code: "system_dialog.confirmation_preparation_started" as const,
+      });
+    },
+  });
   return render(
-    <SaveOverlayV1 port={fixture.port} labels={labelsV1} inputRouter={createInputRouterV1()} />,
+    <SaveOverlayContentInternalV1
+      port={fixture.port}
+      labels={labelsV1}
+      closeLabel="关闭"
+      guard={Object.freeze({ allowed: true })}
+      confirmationIntent={confirmationIntent}
+      onCloseInternalV1={vi.fn()}
+    />,
   );
 }
 
-describe("SaveOverlayV1", () => {
+describe("SaveOverlayContentInternalV1 managed confirmation boundary", () => {
+  it("maps a successful load to successor without calling the root close intent", async () => {
+    const fixture = fixtureV1();
+    const requests: SystemDialogHostConfirmationRequestInternalV1[] = [];
+    const onCloseInternalV1 = vi.fn();
+    render(
+      <SaveOverlayContentInternalV1
+        port={fixture.port}
+        labels={labelsV1}
+        closeLabel="关闭"
+        guard={Object.freeze({ allowed: true })}
+        confirmationIntent={Object.freeze({
+          requestConfirmationInternalV1(
+            input: SystemDialogHostConfirmationRequestInternalV1,
+          ) {
+            requests.push(input);
+            return Object.freeze({
+              kind: "preparing" as const,
+              code: "system_dialog.confirmation_preparation_started" as const,
+            });
+          },
+        })}
+        onCloseInternalV1={onCloseInternalV1}
+      />,
+    );
+
+    await userEvent.setup().click(
+      await screen.findByRole("button", { name: "读取快速存档" }),
+    );
+    const request = requests[0];
+    if (request === undefined) throw new Error("expected confirmation request");
+    expect(fixture.load).not.toHaveBeenCalled();
+    await expect(request.operationBinding.dispatch(request.invocation)).resolves.toEqual({
+      kind: "successor",
+    });
+    expect(fixture.load).toHaveBeenCalledExactlyOnceWith("quick");
+    expect(onCloseInternalV1).not.toHaveBeenCalled();
+  });
+
+  it("delivers a retained result only through the child-bound sink and exact-root finalizer", async () => {
+    const fixture = fixtureV1();
+    const requests: SystemDialogHostConfirmationRequestInternalV1[] = [];
+    render(
+      <SaveOverlayContentInternalV1
+        port={fixture.port}
+        labels={labelsV1}
+        closeLabel="关闭"
+        guard={Object.freeze({ allowed: true })}
+        confirmationIntent={Object.freeze({
+          requestConfirmationInternalV1(
+            input: SystemDialogHostConfirmationRequestInternalV1,
+          ) {
+            requests.push(input);
+            return Object.freeze({
+              kind: "preparing" as const,
+              code: "system_dialog.confirmation_preparation_started" as const,
+            });
+          },
+        })}
+        onCloseInternalV1={vi.fn()}
+      />,
+    );
+
+    await userEvent.setup().click(
+      await screen.findByRole("button", { name: "清除快速存档" }),
+    );
+    const request = requests[0];
+    if (request === undefined) throw new Error("expected confirmation request");
+    let outcome: Awaited<ReturnType<typeof request.operationBinding.dispatch>> | undefined;
+    await act(async () => {
+      outcome = await request.operationBinding.dispatch(request.invocation);
+    });
+    expect(screen.getByTestId("save-operation-result")).toHaveTextContent(
+      "正在清除快速存档…",
+    );
+    if (outcome?.kind !== "retain_root") throw new Error("expected retained result");
+    const retainedResult = outcome.result;
+
+    act(() => {
+      request.operationBinding.resultSink(
+        Object.freeze({ kind: "settled", result: retainedResult }),
+      );
+      request.operationBinding.finalizeExactRoot();
+    });
+    expect(screen.getByTestId("save-operation-result")).toHaveTextContent("快速存档已清除");
+    expect(screen.getByTestId("save-operation-result")).not.toHaveFocus();
+    await waitFor(() => expect(fixture.getStatus).toHaveBeenCalledTimes(2));
+  });
+});
+
+describe("SaveOverlayContentInternalV1", () => {
   it("shows every port slot in port order but writes only Quick and numbered Manual", async () => {
     renderFixtureV1();
 
@@ -262,7 +383,21 @@ describe("SaveOverlayV1", () => {
     const fixture = fixtureV1({ status: Promise.resolve(statusV1()) });
     render(
       <StrictMode>
-        <SaveOverlayV1 port={fixture.port} labels={labelsV1} inputRouter={createInputRouterV1()} />
+        <SaveOverlayContentInternalV1
+          port={fixture.port}
+          labels={labelsV1}
+          closeLabel="关闭"
+          guard={Object.freeze({ allowed: true })}
+          confirmationIntent={Object.freeze({
+            requestConfirmationInternalV1: vi.fn(() =>
+              Object.freeze({
+                kind: "unchanged" as const,
+                code: "system_dialog.confirmation_already_requested" as const,
+              })
+            ),
+          })}
+          onCloseInternalV1={vi.fn()}
+        />
       </StrictMode>,
     );
 
@@ -360,29 +495,45 @@ describe("SaveOverlayV1", () => {
         slotV1("manual.1", "valid"),
       ]),
     });
-    renderFixtureV1(fixture);
+    const requests: SystemDialogHostConfirmationRequestInternalV1[] = [];
+    render(
+      <SaveOverlayContentInternalV1
+        port={fixture.port}
+        labels={labelsV1}
+        closeLabel="关闭"
+        guard={Object.freeze({ allowed: true })}
+        confirmationIntent={Object.freeze({
+          requestConfirmationInternalV1(
+            input: SystemDialogHostConfirmationRequestInternalV1,
+          ) {
+            requests.push(input);
+            return Object.freeze({
+              kind: "preparing" as const,
+              code: "system_dialog.confirmation_preparation_started" as const,
+            });
+          },
+        })}
+        onCloseInternalV1={vi.fn()}
+      />,
+    );
     const user = userEvent.setup();
 
     const load = await screen.findByRole("button", { name: "读取当前自动存档" });
     await user.click(load);
     expect(fixture.load).not.toHaveBeenCalled();
-    expect(screen.getByRole("dialog", { name: "确认读取当前自动存档" })).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "确认操作" }));
-    await waitFor(() => expect(fixture.load).toHaveBeenCalledWith("auto.current"));
 
     const clear = await screen.findByRole("button", { name: "清除快速存档" });
     await user.click(clear);
     expect(fixture.clear).not.toHaveBeenCalled();
-    expect(screen.getByRole("dialog", { name: "确认清除快速存档" })).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "确认操作" }));
-    await waitFor(() => expect(fixture.clear).toHaveBeenCalledWith("quick"));
 
     const importSave = await screen.findByRole("button", { name: "导入存档" });
     await user.click(importSave);
     expect(fixture.importSave).not.toHaveBeenCalled();
-    expect(screen.getByRole("dialog", { name: "确认导入存档" })).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "确认操作" }));
-    await waitFor(() => expect(fixture.importSave).toHaveBeenCalledOnce());
+    expect(requests.map(({ invocation }) => invocation)).toEqual([
+      { kind: "load", slotId: "auto.current" },
+      { kind: "clear", slotId: "quick" },
+      { kind: "import" },
+    ]);
   });
 
   it("projects a cancelled Host file selection without inventing a persistence result", async () => {
@@ -391,7 +542,6 @@ describe("SaveOverlayV1", () => {
     const user = userEvent.setup();
 
     await user.click(await screen.findByRole("button", { name: "导入存档" }));
-    await user.click(screen.getByRole("button", { name: "确认操作" }));
 
     expect(await screen.findByText("已取消导入存档")).toBeVisible();
     expect(screen.queryByText("存档操作发生未预期错误")).not.toBeInTheDocument();
@@ -410,14 +560,13 @@ describe("SaveOverlayV1", () => {
     const user = userEvent.setup();
 
     await user.click(await screen.findByRole("button", { name: "导入存档" }));
-    await user.click(screen.getByRole("button", { name: "确认操作" }));
 
     const result = await screen.findByTestId("save-operation-result");
     await waitFor(() => expect(result).toHaveTextContent(expectedText));
-    await waitFor(() => expect(result).toHaveFocus());
+    expect(result).not.toHaveFocus();
   });
 
-  it("reports conflict and fault results truthfully and focuses the result summary", async () => {
+  it("reports conflict and fault results truthfully without stealing focus", async () => {
     const fixture = fixtureV1({
       slots: slotIdsV1.map((slotId) => slotV1(slotId, "valid")),
       loadResult: Object.freeze({ kind: "rejected", code: "conflict" }),
@@ -427,23 +576,23 @@ describe("SaveOverlayV1", () => {
     const user = userEvent.setup();
 
     await user.click(await screen.findByRole("button", { name: "读取当前自动存档" }));
-    await user.click(screen.getByRole("button", { name: "确认操作" }));
     const result = await screen.findByTestId("save-operation-result");
     await waitFor(() => expect(result).toHaveTextContent("存档已被其他页面更新"));
-    await waitFor(() => expect(result).toHaveFocus());
+    expect(result).not.toHaveFocus();
 
     await user.click(screen.getByRole("button", { name: "快速保存" }));
     expect(await screen.findByText("存档操作失败：persistence.write_failed")).toBeVisible();
-    await waitFor(() => expect(result).toHaveFocus());
+    expect(result).not.toHaveFocus();
   });
 
-  it("focuses a successful confirmed result while the opener is disabled by refresh", async () => {
+  it("refreshes after a retained result without focusing its summary", async () => {
     let resolvePostOperationStatus!: (status: PersistenceStatusV1) => void;
     const postOperationStatus = new Promise<PersistenceStatusV1>((resolve) => {
       resolvePostOperationStatus = resolve;
     });
     const fixture = fixtureV1({
       slots: slotIdsV1.map((slotId) => slotV1(slotId, "valid")),
+      loadResult: Object.freeze({ kind: "rejected", code: "conflict" }),
     });
     fixture.getStatus.mockReturnValueOnce(statusV1()).mockReturnValueOnce(postOperationStatus);
     renderFixtureV1(fixture);
@@ -451,25 +600,14 @@ describe("SaveOverlayV1", () => {
     const opener = await screen.findByRole("button", { name: "读取当前自动存档" });
 
     await user.click(opener);
-    await user.click(screen.getByRole("button", { name: "确认操作" }));
 
     const result = await screen.findByTestId("save-operation-result");
-    await waitFor(() => expect(result).toHaveTextContent("已读取完全兼容的存档"));
+    await waitFor(() => expect(result).toHaveTextContent("存档已被其他页面更新"));
     expect(opener).toBeDisabled();
-    await waitFor(() => expect(result).toHaveFocus());
+    expect(result).not.toHaveFocus();
 
     resolvePostOperationStatus(statusV1());
     await waitFor(() => expect(opener).toBeEnabled());
-  });
-
-  it("returns focus to the exact opener when a confirmation is cancelled", async () => {
-    renderFixtureV1(fixtureV1({ slots: slotIdsV1.map((slotId) => slotV1(slotId, "valid")) }));
-    const user = userEvent.setup();
-    const opener = await screen.findByRole("button", { name: "读取当前自动存档" });
-
-    await user.click(opener);
-    await user.click(screen.getByRole("button", { name: "取消操作" }));
-    await waitFor(() => expect(opener).toHaveFocus());
   });
 
   it("leaves the rendered semantic publication untouched when import is rejected", async () => {
@@ -479,13 +617,38 @@ describe("SaveOverlayV1", () => {
     render(
       <>
         <output data-testid="semantic-publication">revision:7</output>
-        <SaveOverlayV1 port={fixture.port} labels={labelsV1} inputRouter={createInputRouterV1()} />
+        <SaveOverlayContentInternalV1
+          port={fixture.port}
+          labels={labelsV1}
+          closeLabel="关闭"
+          guard={Object.freeze({ allowed: true })}
+          confirmationIntent={Object.freeze({
+            requestConfirmationInternalV1(
+              input: SystemDialogHostConfirmationRequestInternalV1,
+            ) {
+              void input.operationBinding.dispatch(input.invocation).then(
+                (outcome) => {
+                  if (outcome.kind === "retain_root") {
+                    input.operationBinding.resultSink(
+                      Object.freeze({ kind: "settled", result: outcome.result }),
+                    );
+                  }
+                  input.operationBinding.finalizeExactRoot();
+                },
+              );
+              return Object.freeze({
+                kind: "preparing" as const,
+                code: "system_dialog.confirmation_preparation_started" as const,
+              });
+            },
+          })}
+          onCloseInternalV1={vi.fn()}
+        />
       </>,
     );
     const user = userEvent.setup();
 
     await user.click(await screen.findByRole("button", { name: "导入存档" }));
-    await user.click(screen.getByRole("button", { name: "确认操作" }));
 
     expect(await screen.findByText("存档与当前游戏不兼容")).toBeVisible();
     expect(screen.getByTestId("semantic-publication")).toHaveTextContent("revision:7");
@@ -499,7 +662,6 @@ describe("SaveOverlayV1", () => {
     const user = userEvent.setup();
 
     await user.click(await screen.findByRole("button", { name: "导入存档" }));
-    await user.click(screen.getByRole("button", { name: "确认操作" }));
 
     expect(await screen.findByText("当前版本尚未提供此存档所需的迁移")).toBeVisible();
   });
@@ -512,7 +674,6 @@ describe("SaveOverlayV1", () => {
     const user = userEvent.setup();
 
     await user.click(await screen.findByRole("button", { name: "导入存档" }));
-    await user.click(screen.getByRole("button", { name: "确认操作" }));
 
     expect(await screen.findByText("存档迁移失败")).toBeVisible();
   });

@@ -81,7 +81,7 @@ describe("startWebGameApplicationV1 with the Engine Lab declaration", () => {
           customSaves: Object.freeze({
             kind: "custom" as const,
             accessibleName: "Synthetic saves",
-            render: () => null,
+            component: () => null,
           }),
           dispose: disposeUi,
         });
@@ -198,6 +198,63 @@ describe("startWebGameApplicationV1 with the Engine Lab declaration", () => {
         expect(screen.getByRole("application", { name: "引擎实验室" })).toBeInTheDocument();
       });
       expect(screen.getByRole("button", { name: "打开左侧开发工具" })).toBeInTheDocument();
+    } finally {
+      await started.dispose();
+    }
+  });
+
+  it("binds diagnostics to a frozen live System read view without lifecycle intents", async () => {
+    let systemDialogReadView:
+      | {
+        getSnapshot(): { readonly active: "settings" | "saves" | null };
+      }
+      | undefined;
+    const application = Object.freeze({
+      ...labGameApplicationV1,
+      ui(input: Parameters<typeof labGameApplicationV1.ui>[0]) {
+        return Object.freeze({
+          ...labGameApplicationV1.ui(input),
+          debugUiContext(context: {
+            readonly systemDialogSession: {
+              getSnapshot(): { readonly active: "settings" | "saves" | null };
+            };
+          }) {
+            systemDialogReadView = context.systemDialogSession;
+            return () =>
+              Object.freeze({
+                systemDialog: context.systemDialogSession.getSnapshot(),
+              });
+          },
+        });
+      },
+    });
+    const started = await startWebGameApplicationV1(application, {
+      rootElement: createTestRootV1(),
+      host: createWebHostV1({
+        records: createMemoryHostRecordStoreV1(),
+        seeds: [20260809],
+        uuids: ["f19bb6cb-7995-4598-9c05-160114017848"],
+      }),
+      registerPageLifecycle: false,
+    });
+
+    try {
+      await waitFor(() => {
+        expect(screen.getByRole("application", { name: "引擎实验室" })).toBeInTheDocument();
+      });
+      expect(systemDialogReadView).toBeDefined();
+      expect(Object.isFrozen(systemDialogReadView)).toBe(true);
+      expect(Reflect.ownKeys(systemDialogReadView!)).toEqual(["getSnapshot"]);
+      expect(systemDialogReadView!.getSnapshot()).toEqual({ active: null });
+
+      await userEvent.setup().click(screen.getByRole("button", { name: "设置" }));
+      await waitFor(() => {
+        expect(systemDialogReadView!.getSnapshot()).toEqual({ active: "settings" });
+      });
+      await userEvent.setup().click(screen.getByRole("button", { name: "关闭" }));
+      await waitFor(() => {
+        expect(systemDialogReadView!.getSnapshot()).toEqual({ active: null });
+      });
     } finally {
       await started.dispose();
     }

@@ -13,7 +13,10 @@ import type { ElementType, ErrorInfo, ReactElement } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 
-import { useDevDockPortalTargetRegistrationV1 } from "../debug/dev-dock-portal-coordinator.tsx";
+import {
+  isDevDockEscapeOwnerTargetV1,
+  useDevDockPortalTargetRegistrationV1,
+} from "../debug/dev-dock-portal-coordinator.tsx";
 import {
   inputHandledV1,
   inputIgnoredV1,
@@ -48,6 +51,7 @@ import {
   type SystemDialogManagedSessionInternalV1,
   type SystemDialogRootCatalogInternalV1,
 } from "./system-dialog-managed-session.ts";
+import styles from "../overlays/overlay-host.module.css";
 
 export type SystemDialogHostConfirmationRequestResultInternalV1 =
   | {
@@ -71,15 +75,22 @@ export interface SystemDialogSavesConfirmationIntentInternalV1 {
   ): SystemDialogHostConfirmationRequestResultInternalV1;
 }
 
+export interface SystemDialogRootIntentInternalV1 {
+  close(): void;
+}
+
 export interface SystemDialogRootRendererPropsInternalV1 {
   readonly rootRequest: SystemDialogRootRequestInternalV1;
   readonly contentConfig: unknown;
   readonly requiredPortBindings: readonly SystemDialogRequiredPortBindingInternalV1[];
   readonly confirmationIntent: SystemDialogSavesConfirmationIntentInternalV1 | null;
+  readonly rootIntent: SystemDialogRootIntentInternalV1;
 }
 
 export interface SystemDialogConfirmationRendererPropsInternalV1 {
   readonly invocation: SystemDialogConfirmationInvocationInternalV1;
+  readonly parentContentConfig: unknown;
+  readonly titleId: string;
   readonly requiredPortBindings: readonly SystemDialogRequiredPortBindingInternalV1[];
   readonly controller: {
     dispatchOnceInternalV1(): SystemDialogConfirmationIntentResultInternalV1;
@@ -153,6 +164,30 @@ function routeSystemDialogTrappedTabInternalV1(
 
 function focusFirstSystemDialogTargetInternalV1(root: HTMLElement): void {
   const target = systemDialogTabbableTargetsInternalV1(root)[0] ?? root;
+  target.focus({ preventScroll: true });
+}
+
+function readSystemDialogReturnFocusTargetInternalV1(): HTMLElement | null {
+  if (typeof document === "undefined" || typeof HTMLElement === "undefined") return null;
+  const activeElement = document.activeElement;
+  return activeElement instanceof HTMLElement && activeElement !== document.body
+    ? activeElement
+    : null;
+}
+
+function restoreSystemDialogOwnedFocusInternalV1(
+  target: HTMLElement | null | undefined,
+  host: HTMLElement | null,
+): void {
+  if (target?.isConnected !== true || typeof document === "undefined") return;
+  const activeElement = document.activeElement;
+  if (
+    activeElement !== null &&
+    activeElement !== document.body &&
+    (host === null || !host.contains(activeElement))
+  ) {
+    return;
+  }
   target.focus({ preventScroll: true });
 }
 
@@ -231,14 +266,23 @@ class SystemDialogCandidateBoundaryInternalV1 extends Component<
 function SystemDialogCandidateEntryInternalV1(props: {
   readonly attachment: SystemDialogHostAttachmentInternalV1;
   readonly entry: SystemDialogHostRenderEntryInternalV1;
+  readonly parentRootEntry:
+    | Extract<
+      SystemDialogHostRenderEntryInternalV1,
+      { readonly kind: "root" }
+    >
+    | null;
   readonly portalContainer: HTMLDivElement;
   readonly parentBlockedByChild: boolean;
+  readonly deferRootFocusRecovery: boolean;
   readonly childFocusLedger: Map<ManagedSurfaceInstanceIdV1, ChildFocusRecordInternalV1>;
 }): ReactElement {
   const gateRef = useRef<CandidateSettlementGateV1 | null>(null);
   gateRef.current ??= candidateGateV1();
   const gate = gateRef.current;
   const shellRef = useRef<HTMLDivElement | null>(null);
+  const deferRootFocusRecoveryRef = useRef(false);
+  if (props.deferRootFocusRecovery) deferRootFocusRecoveryRef.current = true;
   const [shellElement, setShellElement] = useState<HTMLDivElement | null>(null);
   const setShellRef = useCallback((element: HTMLDivElement | null): void => {
     shellRef.current = element;
@@ -247,15 +291,27 @@ function SystemDialogCandidateEntryInternalV1(props: {
   const preparing = props.entry.phase === "preparing";
   const activeConfirmation = props.entry.kind === "confirmation" && props.entry.phase === "active";
   const confirmationEntry = props.entry.kind === "confirmation" ? props.entry : null;
+  const readyRoot = props.entry.kind === "root" && props.entry.phase === "active";
+  const activeRoot = readyRoot && !props.parentBlockedByChild;
+  const activeFocusOwner = activeConfirmation || activeRoot;
   const armPointerFence = useStagePointerGestureFenceV1("system");
-  useStageSystemFocusScopeRegistrationV1(activeConfirmation ? shellElement : null);
+  useStageSystemFocusScopeRegistrationV1(activeFocusOwner ? shellElement : null);
   useDevDockPortalTargetRegistrationV1(
     "system",
-    activeConfirmation ? shellElement : null,
+    activeFocusOwner ? shellElement : null,
   );
   const rootEntry = props.entry.kind === "root" ? props.entry : null;
   const rootLifecycleIntents = rootEntry?.lifecycleIntents ?? null;
   const rootSurfaceInstanceId = rootEntry?.surfaceInstanceId ?? null;
+  const rootController = rootEntry?.controller ?? null;
+  const rootIntent = useMemo<SystemDialogRootIntentInternalV1 | null>(() => {
+    if (rootController === null) return null;
+    return Object.freeze({
+      close(): void {
+        rootController.closeInternalV1();
+      },
+    });
+  }, [rootController]);
   const confirmationIntent = useMemo<SystemDialogSavesConfirmationIntentInternalV1 | null>(() => {
     if (rootSurfaceInstanceId === null || rootLifecycleIntents === null) return null;
     return Object.freeze({
@@ -327,10 +383,14 @@ function SystemDialogCandidateEntryInternalV1(props: {
   const confirmationResolution = props.entry.kind === "confirmation"
     ? props.entry.resolution
     : null;
+  const parentContentConfig = props.parentRootEntry?.resolution.contentConfigSnapshot.value;
   const renderer = useMemo(() => {
     if (entryKind === "root") {
       if (rootRequest === null || rootResolution === null) {
         throw new TypeError("ui.system_dialog_root_render_entry_invalid");
+      }
+      if (rootIntent === null) {
+        throw new TypeError("ui.system_dialog_root_controller_missing");
       }
       const component = rootResolution.rendererComponent as ElementType<
         SystemDialogRootRendererPropsInternalV1
@@ -340,6 +400,7 @@ function SystemDialogCandidateEntryInternalV1(props: {
         contentConfig: rootResolution.contentConfigSnapshot.value,
         requiredPortBindings: rootResolution.requiredPortBindings,
         confirmationIntent,
+        rootIntent,
       });
     }
     if (
@@ -353,6 +414,8 @@ function SystemDialogCandidateEntryInternalV1(props: {
     >;
     return createElement(component, {
       invocation: confirmationInvocation,
+      parentContentConfig,
+      titleId: `${props.entry.surfaceInstanceId}-title`,
       requiredPortBindings: confirmationResolution.requiredPortBindings,
       controller: confirmationController,
     });
@@ -362,8 +425,11 @@ function SystemDialogCandidateEntryInternalV1(props: {
     confirmationResolution,
     entryKind,
     confirmationIntent,
+    props.entry.surfaceInstanceId,
+    parentContentConfig,
     rootRequest,
     rootResolution,
+    rootIntent,
   ]);
 
   useLayoutEffect(() => {
@@ -392,16 +458,29 @@ function SystemDialogCandidateEntryInternalV1(props: {
   }, [activeConfirmation, shellElement]);
 
   useLayoutEffect(() => {
-    if (!activeConfirmation || shellElement === null) return undefined;
+    if (!readyRoot || shellElement === null || deferRootFocusRecoveryRef.current) return;
+    focusFirstSystemDialogTargetInternalV1(shellElement);
+  }, [readyRoot, shellElement]);
+
+  useLayoutEffect(() => {
+    if (!props.deferRootFocusRecovery) return;
+    queueMicrotask(() => {
+      deferRootFocusRecoveryRef.current = false;
+    });
+  }, [props.deferRootFocusRecovery]);
+
+  useLayoutEffect(() => {
+    if (!activeFocusOwner || shellElement === null) return undefined;
     const ownerDocument = shellElement.ownerDocument;
     const containFocus = (event: FocusEvent): void => {
       const target = event.target;
       if (target instanceof Node && shellElement.contains(target)) return;
+      if (readyRoot && deferRootFocusRecoveryRef.current) return;
       focusFirstSystemDialogTargetInternalV1(shellElement);
     };
     ownerDocument.addEventListener("focusin", containFocus, true);
     return () => ownerDocument.removeEventListener("focusin", containFocus, true);
-  }, [activeConfirmation, shellElement]);
+  }, [activeFocusOwner, readyRoot, shellElement]);
 
   const blocked = props.entry.phase !== "active" || props.parentBlockedByChild;
 
@@ -416,11 +495,20 @@ function SystemDialogCandidateEntryInternalV1(props: {
       data-system-dialog-parent={props.entry.kind === "confirmation"
         ? props.entry.parentSurfaceInstanceId
         : undefined}
+      className={props.entry.kind === "confirmation"
+        ? `${styles["blocking-dialog__content"]} ${styles["blocking-dialog__content--confirm"]}`
+        : styles["blocking-dialog__content"]}
+      role={activeFocusOwner ? "dialog" : undefined}
+      aria-modal={activeFocusOwner ? "true" : undefined}
+      aria-labelledby={confirmationEntry === null
+        ? undefined
+        : `${props.entry.surfaceInstanceId}-title`}
       aria-label={props.entry.resolution.accessibleName}
       inert={blocked || undefined}
       aria-hidden={blocked ? "true" : undefined}
-      tabIndex={props.entry.kind === "confirmation" ? -1 : undefined}
-      style={preparing ? { pointerEvents: "none", visibility: "hidden" } : undefined}
+      tabIndex={-1}
+      data-blocking-focus-scope={activeFocusOwner ? "system" : undefined}
+      style={preparing ? { pointerEvents: "none", visibility: "hidden" } : { position: "absolute" }}
       onClick={props.entry.kind === "confirmation" ? (event) => event.stopPropagation() : undefined}
       onPointerDown={props.entry.kind === "confirmation"
         ? (event) => event.stopPropagation()
@@ -428,13 +516,17 @@ function SystemDialogCandidateEntryInternalV1(props: {
       onPointerUp={props.entry.kind === "confirmation"
         ? (event) => event.stopPropagation()
         : undefined}
-      onKeyDown={confirmationEntry !== null
+      onKeyDown={activeFocusOwner
         ? (event) => {
-          if (event.key === "Tab" && activeConfirmation) {
+          if (event.key === "Tab") {
             routeSystemDialogTrappedTabInternalV1(event);
-          } else if (event.key === "Escape" && activeConfirmation) {
+          } else if (event.key === "Escape" && !isDevDockEscapeOwnerTargetV1(event.target)) {
             event.preventDefault();
-            confirmationEntry.controller.cancelInternalV1("escape");
+            if (confirmationEntry !== null) {
+              confirmationEntry.controller.cancelInternalV1("escape");
+            } else {
+              rootController?.cancelInternalV1("escape");
+            }
           }
         }
         : undefined}
@@ -452,7 +544,11 @@ function SystemDialogCandidateEntryInternalV1(props: {
       {confirmationEntry !== null
         ? (
           <div
+            className={`${styles["blocking-dialog__backdrop"]} ${
+              styles["blocking-dialog__backdrop--confirm"]
+            }`}
             data-testid="system-dialog-confirmation-backdrop"
+            data-system-dialog-backdrop="action_confirmation"
             data-system-dialog-confirmation-phase={props.entry.phase}
             aria-hidden={!activeConfirmation ? "true" : undefined}
             style={!activeConfirmation
@@ -469,7 +565,30 @@ function SystemDialogCandidateEntryInternalV1(props: {
             {surface}
           </div>
         )
-        : surface}
+        : (
+          <div
+            data-system-dialog-root-layer={props.entry.surfaceInstanceId}
+            style={preparing
+              ? { pointerEvents: "none", visibility: "hidden" }
+              : { position: "absolute", inset: 0, pointerEvents: "auto" }}
+          >
+            <div
+              className={styles["blocking-dialog__backdrop"]}
+              data-testid={activeRoot ? "system-dialog-root-backdrop" : undefined}
+              data-system-dialog-backdrop={rootRequest ?? undefined}
+              aria-hidden="true"
+              style={{ position: "absolute" }}
+              onPointerDown={activeRoot ? (event) => event.preventDefault() : undefined}
+              onPointerUp={activeRoot
+                ? (event) => {
+                  armPointerFence(event);
+                  rootController?.cancelInternalV1("backdrop");
+                }
+                : undefined}
+            />
+            {surface}
+          </div>
+        )}
     </SystemDialogCandidateBoundaryInternalV1>
   );
 }
@@ -479,26 +598,58 @@ interface ChildFocusRecordInternalV1 {
   readonly opener: HTMLElement;
 }
 
+interface RootFocusRecordInternalV1 {
+  readonly returnTarget: HTMLElement | null;
+}
+
+interface MutableCellInternalV1<T> {
+  current: T;
+}
+
+function restoreDetachedSystemDialogHostFocusInternalV1(input: {
+  readonly generation: number;
+  readonly mountGeneration: MutableCellInternalV1<number>;
+  readonly session: SystemDialogManagedSessionInternalV1;
+  readonly rootFocusLedger: MutableCellInternalV1<
+    Map<ManagedSurfaceInstanceIdV1, RootFocusRecordInternalV1>
+  >;
+  readonly snapshot: MutableCellInternalV1<{
+    readonly entries: readonly SystemDialogHostRenderEntryInternalV1[];
+  }>;
+  readonly hostElement: MutableCellInternalV1<HTMLDivElement | null>;
+}): void {
+  const cleanupGeneration = input.generation + 1;
+  if (input.mountGeneration.current === input.generation) {
+    input.mountGeneration.current = cleanupGeneration;
+  }
+  if (input.session.isTerminalDisposalInternalV1()) {
+    input.rootFocusLedger.current.clear();
+    return;
+  }
+  queueMicrotask(() => {
+    if (
+      input.mountGeneration.current !== cleanupGeneration ||
+      input.session.isTerminalDisposalInternalV1()
+    ) return;
+    const root = input.snapshot.current.entries.find((entry) => entry.kind === "root");
+    if (root === undefined) return;
+    restoreSystemDialogOwnedFocusInternalV1(
+      input.rootFocusLedger.current.get(root.surfaceInstanceId)?.returnTarget,
+      input.hostElement.current,
+    );
+  });
+}
+
 function SystemDialogBlockingFallbackInternalV1(props: {
   readonly candidateInstanceId: ManagedSurfaceInstanceIdV1;
-  readonly session: SystemDialogManagedSessionInternalV1;
-  readonly confirmationEntry: SystemDialogConfirmationHostRenderEntryInternalV1 | null;
+  readonly entry: SystemDialogHostRenderEntryInternalV1;
 }): ReactElement {
   const [focusElement, setFocusElement] = useState<HTMLDivElement | null>(null);
   const armPointerFence = useStagePointerGestureFenceV1("system");
-  const previousFocusOwnerRef = useRef<HTMLElement | null>(null);
-  const latestCandidateInstanceIdRef = useRef(props.candidateInstanceId);
-  latestCandidateInstanceIdRef.current = props.candidateInstanceId;
   useStageSystemFocusScopeRegistrationV1(focusElement);
   useDevDockPortalTargetRegistrationV1("system", focusElement);
   useLayoutEffect(() => {
     if (focusElement === null) return undefined;
-    const previousFocusOwner = document.activeElement instanceof HTMLElement
-      ? document.activeElement
-      : null;
-    previousFocusOwnerRef.current = previousFocusOwner === focusElement
-      ? previousFocusOwnerRef.current
-      : previousFocusOwner;
     const ownerDocument = focusElement.ownerDocument;
     const containFocus = (event: FocusEvent): void => {
       const target = event.target;
@@ -509,24 +660,11 @@ function SystemDialogBlockingFallbackInternalV1(props: {
     focusElement.focus({ preventScroll: true });
     return () => {
       ownerDocument.removeEventListener("focusin", containFocus, true);
-      if (props.session.isTerminalDisposalInternalV1()) {
-        previousFocusOwnerRef.current = null;
-        return;
-      }
-      if (props.confirmationEntry !== null) return;
-      const candidate = props.session.getHostRenderSnapshotInternalV1().entries.find(
-        (entry) => entry.surfaceInstanceId === latestCandidateInstanceIdRef.current,
-      );
-      if (candidate !== undefined && candidate.phase !== "preparing") return;
-      const restoreTarget = previousFocusOwnerRef.current;
-      if (
-        restoreTarget?.isConnected === true &&
-        (document.activeElement === focusElement || document.activeElement === document.body)
-      ) {
-        restoreTarget.focus({ preventScroll: true });
-      }
     };
-  }, [focusElement, props.confirmationEntry, props.session]);
+  }, [focusElement]);
+  const cancel = (dismissKind: ManagedSurfaceDismissKindV1): void => {
+    props.entry.controller.cancelInternalV1(dismissKind);
+  };
   return (
     <div
       ref={setFocusElement}
@@ -539,14 +677,13 @@ function SystemDialogBlockingFallbackInternalV1(props: {
       style={{ position: "absolute", inset: 0, pointerEvents: "auto" }}
       onPointerDown={(event) => event.preventDefault()}
       onPointerUp={(event) => {
-        if (props.confirmationEntry === null) return;
         armPointerFence(event);
-        props.confirmationEntry.controller.cancelInternalV1("backdrop");
+        cancel("backdrop");
       }}
       onKeyDown={(event) => {
-        if (event.key === "Escape" && props.confirmationEntry !== null) {
+        if (event.key === "Escape" && !isDevDockEscapeOwnerTargetV1(event.target)) {
           event.preventDefault();
-          props.confirmationEntry.controller.cancelInternalV1("escape");
+          cancel("escape");
           return;
         }
         if (event.key !== "Tab") return;
@@ -586,12 +723,28 @@ function handleSystemConfirmationInputInternalV1(
   return inputHandledV1;
 }
 
+function handleSystemRootInputInternalV1(
+  entry: Extract<SystemDialogHostRenderEntryInternalV1, { readonly kind: "root" }>,
+  event: InputEventV1,
+) {
+  if (event.kind === "focus_loss" || event.kind === "pointer_cancel") {
+    return inputIgnoredV1;
+  }
+  if (event.kind === "action" && event.actionId === systemInputActionIdsV1.cancel) {
+    entry.controller.cancelInternalV1("routed_cancel");
+  }
+  return inputHandledV1;
+}
+
 function SystemDialogAttachedHostInternalV1(props: {
   readonly session: SystemDialogManagedSessionInternalV1;
   readonly attachment: SystemDialogHostAttachmentInternalV1;
   readonly portalContainer: HTMLDivElement;
   readonly inputRouter: InputRouterV1;
 }): ReactElement {
+  const rootFocusLedgerRef = useRef<
+    Map<ManagedSurfaceInstanceIdV1, RootFocusRecordInternalV1>
+  >(new Map());
   const childFocusLedgerRef = useRef<
     Map<ManagedSurfaceInstanceIdV1, ChildFocusRecordInternalV1>
   >(new Map());
@@ -604,17 +757,75 @@ function SystemDialogAttachedHostInternalV1(props: {
     [props.session],
   );
   const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  const snapshotRef = useRef(snapshot);
+  snapshotRef.current = snapshot;
+  const previousSnapshotRef = useRef(snapshot);
+  const hostElementRef = useRef<HTMLDivElement | null>(null);
+  const hostMountGenerationRef = useRef(0);
+  const currentRootEntries = snapshot.entries.filter(
+    (entry): entry is Extract<SystemDialogHostRenderEntryInternalV1, { readonly kind: "root" }> =>
+      entry.kind === "root",
+  );
+  const currentRootIds = new Set(
+    currentRootEntries.map((entry) => entry.surfaceInstanceId),
+  );
+  for (const entry of currentRootEntries) {
+    if (rootFocusLedgerRef.current.has(entry.surfaceInstanceId)) continue;
+    const publicationInstance = snapshot.publication.orderedInstances.find((instance) =>
+      instance.surfaceInstanceId === entry.surfaceInstanceId
+    );
+    let inheritedTarget: HTMLElement | null | undefined;
+    if (
+      publicationInstance?.readiness.kind === "preparing" &&
+      publicationInstance.readiness.transition === "primary_replacement"
+    ) {
+      inheritedTarget = rootFocusLedgerRef.current.get(
+        publicationInstance.readiness.retainedInstanceId,
+      )?.returnTarget;
+    } else {
+      const supersededInitial = previousSnapshotRef.current.entries.toReversed().find(
+        (previousEntry) =>
+          previousEntry.kind === "root" &&
+          previousEntry.phase === "preparing" &&
+          !currentRootIds.has(previousEntry.surfaceInstanceId),
+      );
+      if (supersededInitial !== undefined) {
+        inheritedTarget = rootFocusLedgerRef.current.get(
+          supersededInitial.surfaceInstanceId,
+        )?.returnTarget;
+      }
+    }
+    rootFocusLedgerRef.current.set(
+      entry.surfaceInstanceId,
+      Object.freeze({
+        returnTarget: inheritedTarget === undefined
+          ? readSystemDialogReturnFocusTargetInternalV1()
+          : inheritedTarget,
+      }),
+    );
+  }
   const entryIds = new Set(snapshot.entries.map((entry) => entry.surfaceInstanceId));
+  const deferredRootFocusIds = new Set(
+    [...childFocusLedgerRef.current]
+      .filter(([childInstanceId]) => !entryIds.has(childInstanceId))
+      .map(([, focusRecord]) => focusRecord.parentSurfaceInstanceId),
+  );
   const blockingConfirmation = snapshot.entries.toReversed().find(
     (entry): entry is SystemDialogConfirmationHostRenderEntryInternalV1 =>
       entry.kind === "confirmation",
   ) ?? null;
   const activeConfirmation = blockingConfirmation?.phase === "active" ? blockingConfirmation : null;
+  const activeRoot = snapshot.entries.toReversed().find(
+    (entry): entry is Extract<SystemDialogHostRenderEntryInternalV1, { readonly kind: "root" }> =>
+      entry.kind === "root" && entry.phase === "active",
+  ) ?? null;
   const blockedChildParentId = blockingConfirmation?.parentSurfaceInstanceId ?? null;
   const fallbacks = snapshot.publication.preparationFallbacks.filter((fallback) =>
     entryIds.has(fallback.candidateInstanceId)
   );
-  const blocking = snapshot.publication.topmostBlockingInstanceId !== null ||
+  const topmostBlockingInstanceId = snapshot.publication.topmostBlockingInstanceId;
+  const blocking =
+    (topmostBlockingInstanceId !== null && entryIds.has(topmostBlockingInstanceId)) ||
     fallbacks.length > 0;
   useStageInputIsolationV1("system", blocking);
   const fallbackBlocking = fallbacks.length > 0;
@@ -624,25 +835,18 @@ function SystemDialogAttachedHostInternalV1(props: {
     : snapshot.entries.find((entry) =>
       entry.surfaceInstanceId === topFallback.candidateInstanceId
     ) ?? null;
-  const topFallbackConfirmation = topFallbackEntry?.kind === "confirmation"
-    ? topFallbackEntry
-    : null;
   useLayoutEffect(() => {
     if (!fallbackBlocking) return undefined;
     return props.inputRouter.register({
       context: "system",
       handle(event) {
-        if (
-          topFallbackConfirmation !== null &&
-          event.kind === "action" &&
-          event.actionId === systemInputActionIdsV1.cancel
-        ) {
-          topFallbackConfirmation.controller.cancelInternalV1("routed_cancel");
+        if (event.kind === "action" && event.actionId === systemInputActionIdsV1.cancel) {
+          topFallbackEntry?.controller.cancelInternalV1("routed_cancel");
         }
         return handleSystemBlockingFallbackInputInternalV1(event);
       },
     });
-  }, [fallbackBlocking, props.inputRouter, topFallbackConfirmation]);
+  }, [fallbackBlocking, props.inputRouter, topFallbackEntry]);
 
   useLayoutEffect(() => {
     if (activeConfirmation === null) return undefined;
@@ -651,6 +855,40 @@ function SystemDialogAttachedHostInternalV1(props: {
       handle: (event) => handleSystemConfirmationInputInternalV1(activeConfirmation, event),
     });
   }, [activeConfirmation, props.inputRouter]);
+
+  useLayoutEffect(() => {
+    if (fallbackBlocking || activeConfirmation !== null || activeRoot === null) return undefined;
+    return props.inputRouter.register({
+      context: "system",
+      handle: (event) => handleSystemRootInputInternalV1(activeRoot, event),
+    });
+  }, [activeConfirmation, activeRoot, fallbackBlocking, props.inputRouter]);
+
+  useLayoutEffect(() => {
+    if (props.session.isTerminalDisposalInternalV1()) {
+      rootFocusLedgerRef.current.clear();
+      previousSnapshotRef.current = snapshot;
+      return;
+    }
+    const predecessorEpoch = previousSnapshotRef.current.publication.applicationEpoch;
+    const epochRotated = predecessorEpoch !== snapshot.publication.applicationEpoch;
+    const liveRootIds = new Set(
+      snapshot.entries.filter((entry) => entry.kind === "root").map((entry) =>
+        entry.surfaceInstanceId
+      ),
+    );
+    const removedRecords = [...rootFocusLedgerRef.current].filter(([surfaceInstanceId]) =>
+      !liveRootIds.has(surfaceInstanceId)
+    );
+    if (!epochRotated && liveRootIds.size === 0 && removedRecords.length > 0) {
+      const restoreTarget = removedRecords.at(-1)?.[1].returnTarget ?? null;
+      restoreSystemDialogOwnedFocusInternalV1(restoreTarget, hostElementRef.current);
+    }
+    for (const [surfaceInstanceId] of removedRecords) {
+      rootFocusLedgerRef.current.delete(surfaceInstanceId);
+    }
+    previousSnapshotRef.current = snapshot;
+  }, [props.session, snapshot]);
 
   useLayoutEffect(() => {
     if (props.session.isTerminalDisposalInternalV1()) {
@@ -696,8 +934,23 @@ function SystemDialogAttachedHostInternalV1(props: {
     }
   }, [props.portalContainer, props.session, snapshot]);
 
+  useLayoutEffect(() => {
+    const generation = hostMountGenerationRef.current + 1;
+    hostMountGenerationRef.current = generation;
+    return () =>
+      restoreDetachedSystemDialogHostFocusInternalV1({
+        generation,
+        mountGeneration: hostMountGenerationRef,
+        session: props.session,
+        rootFocusLedger: rootFocusLedgerRef,
+        snapshot: snapshotRef,
+        hostElement: hostElementRef,
+      });
+  }, [props.session]);
+
   return createPortal(
     <div
+      ref={hostElementRef}
       data-testid="system-dialog-managed-host"
       data-system-dialog-application-epoch={snapshot.publication.applicationEpoch}
       data-system-dialog-topology-revision={snapshot.publication.topologyRevision}
@@ -707,9 +960,21 @@ function SystemDialogAttachedHostInternalV1(props: {
           key={entry.surfaceInstanceId}
           attachment={props.attachment}
           entry={entry}
+          parentRootEntry={entry.kind === "confirmation"
+            ? snapshot.entries.find(
+              (candidate): candidate is Extract<
+                SystemDialogHostRenderEntryInternalV1,
+                { readonly kind: "root" }
+              > =>
+                candidate.kind === "root" &&
+                candidate.surfaceInstanceId === entry.parentSurfaceInstanceId,
+            ) ?? null
+            : null}
           portalContainer={props.portalContainer}
           parentBlockedByChild={entry.kind === "root" &&
             entry.surfaceInstanceId === blockedChildParentId}
+          deferRootFocusRecovery={entry.kind === "root" &&
+            deferredRootFocusIds.has(entry.surfaceInstanceId)}
           childFocusLedger={childFocusLedgerRef.current}
         />
       ))}
@@ -717,15 +982,14 @@ function SystemDialogAttachedHostInternalV1(props: {
         const candidateEntry = snapshot.entries.find((entry) =>
           entry.surfaceInstanceId === fallback.candidateInstanceId
         );
-        const confirmationEntry = candidateEntry?.kind === "confirmation" ? candidateEntry : null;
+        if (candidateEntry === undefined) return null;
         return (
           <SystemDialogBlockingFallbackInternalV1
-            key={confirmationEntry === null
+            key={candidateEntry.kind === "root"
               ? "system-dialog-root-fallback"
               : fallback.candidateInstanceId}
             candidateInstanceId={fallback.candidateInstanceId}
-            session={props.session}
-            confirmationEntry={confirmationEntry}
+            entry={candidateEntry}
           />
         );
       })}
@@ -734,7 +998,7 @@ function SystemDialogAttachedHostInternalV1(props: {
   );
 }
 
-/** @internal Dormant Managed System Host; absent from package barrels until S3e. */
+/** @internal Managed System Host implementation behind the public catalog wrapper. */
 export function SystemDialogManagedHostInternalV1(
   props: SystemDialogManagedHostPropsInternalV1,
 ): ReactElement | null {

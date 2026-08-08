@@ -120,7 +120,7 @@ export interface WebGameUiDefinitionV1<
   /** Story safepoint over the live publication (see SaveOverlayGuardV1). */
   readonly saveGuard?: (publication: unknown) => { allowed: boolean; reasonText?: string };
   /**
-   * Story Save renderer hosted by the existing System modal authority.
+   * Story Save component hosted by the managed System lifecycle authority.
    * Mutually exclusive with `saveLabels` / `saveGuard`.
    */
   readonly customSaves?: SystemDialogCustomSavesV1;
@@ -176,7 +176,7 @@ export interface WebGameUiDefinitionV1<
       };
     };
     readonly systemDialogSession: {
-      getSnapshot(): { readonly active: string | null };
+      getSnapshot(): { readonly active: "settings" | "saves" | null };
     };
   }) => () => unknown;
   /** Releases Story-owned UI resources (asset registries, caches). */
@@ -702,12 +702,16 @@ export async function startWebGameApplicationV1<
       nativeBehaviorReset = installNativeBehaviorResetV1(uiDefinition.nativeBehaviorReset);
     }
     if (uiDefinition.debugUiContext !== undefined) {
+      const systemDialogSession = composition.systemDialogSession;
+      const systemDialogReadView = Object.freeze({
+        getSnapshot: () => systemDialogSession.getSnapshot(),
+      });
       unbindUiContext = instance.bindDebugUiContext(
         uiDefinition.debugUiContext({
           devDockOpenState: () => devDockOpenState,
           presentation: composition.presentation,
           overlaySession: composition.overlaySession as never,
-          systemDialogSession: composition.systemDialogSession,
+          systemDialogSession: systemDialogReadView,
         }),
       );
     }

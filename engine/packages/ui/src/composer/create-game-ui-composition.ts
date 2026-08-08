@@ -50,11 +50,6 @@ import type {
 } from "../runtime/runtime-presentation-store.ts";
 import { createRuntimePresentationStoreV1 } from "../runtime/runtime-presentation-store.ts";
 import { createSemanticPublicationBridgeV1 } from "../runtime/semantic-publication-bridge.ts";
-import type { SystemDialogSessionStoreV1 } from "../system/system-dialog-session-store.ts";
-import {
-  createSystemDialogSessionStoreV1,
-  sealSystemDialogSessionStoreTerminalInternalV1,
-} from "../system/system-dialog-session-store.ts";
 import {
   systemDialogManagedContractInternalV1,
   type SystemDialogSessionV1,
@@ -196,7 +191,7 @@ export interface GameUiCompositionV1<
   /** The cue registry: the mounted stage registers its timeline controller. */
   readonly cues: GameUiCueRegistryV1;
   readonly overlaySession: OverlaySessionStoreV1<GameUiOverlayIdV1<TOverlayId>>;
-  readonly systemDialogSession: SystemDialogSessionStoreV1;
+  readonly systemDialogSession: SystemDialogSessionV1;
   /** The composition-owned spatial interaction session (UI transient). */
   readonly interactionSession: InteractionSessionStoreV1;
   updateUiState(
@@ -206,7 +201,7 @@ export interface GameUiCompositionV1<
   dispose(): void;
 }
 
-/** @internal Dormant S3b state; deliberately absent from package barrels and the public composition. */
+/** @internal Managed Surface authority shared by the public family facades. */
 export interface GameUiManagedSurfaceCompositionInternalV1 {
   readonly runtime: ManagedSurfaceCompositionRuntimeInternalV1;
   readonly systemDialogSession: SystemDialogSessionV1;
@@ -219,7 +214,7 @@ const gameUiManagedSurfaceCompositionInternalsV1 = new WeakMap<
   GameUiManagedSurfaceCompositionInternalV1
 >();
 
-/** @internal Relative-source composition/test seam for the dormant managed System family. */
+/** @internal Relative-source composition/test seam for managed-family Host integration. */
 export function resolveGameUiManagedSurfaceCompositionInternalV1(
   composition: object,
 ): GameUiManagedSurfaceCompositionInternalV1 {
@@ -230,7 +225,7 @@ export function resolveGameUiManagedSurfaceCompositionInternalV1(
   return internal;
 }
 
-/** @internal Narrow Host fence; it does not expose dormant managed-family authority. */
+/** @internal Narrow Host fence; it does not expose managed-family authority. */
 export function sealHostedGameUiCompositionTerminalInternalV1(composition: object): void {
   resolveGameUiManagedSurfaceCompositionInternalV1(composition).sealTerminalInternalV1();
 }
@@ -399,18 +394,7 @@ export function createGameUiCompositionWithEpochAllocatorInternalV1<
     reportFailure,
   });
 
-  const rawSystemDialogSession = createSystemDialogSessionStoreV1();
-
-  const systemDialogSession: SystemDialogSessionStoreV1 = Object.freeze({
-    getSnapshot: rawSystemDialogSession.getSnapshot,
-    subscribe: rawSystemDialogSession.subscribe,
-    open(surface: Parameters<SystemDialogSessionStoreV1["open"]>[0]): void {
-      if (ingressOpen()) rawSystemDialogSession.open(surface);
-    },
-    close(): void {
-      if (ingressOpen()) rawSystemDialogSession.close();
-    },
-  });
+  const systemDialogSession = managedSystemDialogSession;
 
   // Composition-owned spatial interaction session: UI transient state that
   // never enters the Story UI state, publications, or Saves.
@@ -514,7 +498,6 @@ export function createGameUiCompositionWithEpochAllocatorInternalV1<
     noThrowV1(unsubscribeAnchor);
     noThrowV1(() => presentation.dispose());
     noThrowV1(() => semanticBridge.dispose());
-    noThrowV1(() => sealSystemDialogSessionStoreTerminalInternalV1(systemDialogSession));
     noThrowV1(() => overlayInternal.sealTerminalDisposalInternalV1());
     noThrowV1(() => managedSystemDialogInternal.sealTerminalDisposalInternalV1());
     noThrowV1(() => overlayInternal.detachRuntimeInternalV1());

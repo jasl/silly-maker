@@ -16,11 +16,7 @@ import type {
   ManagedSurfaceFamilyActivationGateInternalV1,
   ManagedSurfaceFamilyRuntimeAdapterInternalV1,
 } from "../managed-surfaces/managed-surface-composition-runtime.ts";
-import type {
-  SaveOverlayGuardV1,
-  SaveOverlayLabelsV1,
-  SaveOverlayPortV1,
-} from "../persistence/save-overlay.tsx";
+import type { SaveOverlayGuardV1, SaveOverlayLabelsV1 } from "../persistence/save-overlay.tsx";
 import {
   createSystemDialogConfirmationCandidateResolutionSnapshotInternalV1,
   createSystemDialogRootCandidateResolutionSnapshotInternalV1,
@@ -33,6 +29,7 @@ import {
   type SystemDialogRequiredPortBindingInternalV1,
   type SystemDialogRootCandidateResolutionSnapshotInternalV1,
   type SystemDialogRootRequestInternalV1,
+  type SystemDialogSessionSnapshotV1,
   type SystemDialogSessionV1,
 } from "./system-dialog-managed-contract.ts";
 import { createSystemDialogContentConfigSnapshotInternalV1 } from "./system-dialog-managed-contract.ts";
@@ -48,11 +45,16 @@ export interface SystemDialogSettingsContentConfigInternalV1 {
 
 export interface SystemDialogStandardSavesContentConfigInternalV1 {
   readonly variant: "standard";
-  readonly port: SaveOverlayPortV1;
   readonly labels: SaveOverlayLabelsV1;
   readonly closeLabel: string;
-  /** Captures the live Story projection source, never one guard value. */
-  readonly evaluateGuard?: () => SaveOverlayGuardV1 | undefined;
+  /** Candidate-snapshotted live source; catalog updates never rewrite an active root. */
+  readonly guardProjection?: SystemDialogSaveGuardProjectionInternalV1;
+}
+
+export interface SystemDialogSaveGuardProjectionInternalV1 {
+  getSnapshot(): unknown;
+  subscribe(listener: () => void): () => void;
+  evaluate(publication: unknown): SaveOverlayGuardV1 | undefined;
 }
 
 export interface SystemDialogCustomSavesContentConfigInternalV1 {
@@ -189,6 +191,13 @@ export interface SystemDialogConfirmationControllerInternalV1 {
   ): SystemDialogConfirmationIntentResultInternalV1;
 }
 
+export interface SystemDialogRootControllerInternalV1 {
+  closeInternalV1(): ManagedSurfaceTransitionReceiptV1;
+  cancelInternalV1(
+    dismissKind: ManagedSurfaceDismissKindV1,
+  ): ManagedSurfaceTransitionReceiptV1;
+}
+
 export interface SystemDialogSavesLifecycleIntentsInternalV1 {
   requestConfirmationInternalV1(input: {
     readonly invocation: SystemDialogConfirmationInvocationInternalV1;
@@ -203,6 +212,7 @@ export interface SystemDialogRootCandidateRecordInternalV1 {
   readonly resolution: SystemDialogRootCandidateResolutionSnapshotInternalV1<unknown, unknown>;
   readonly readiness: ManagedSurfaceReadinessAdapterV1;
   readonly lifecycleIntents: SystemDialogSavesLifecycleIntentsInternalV1 | null;
+  readonly controller: SystemDialogRootControllerInternalV1;
 }
 
 export interface SystemDialogConfirmationCandidateRecordInternalV1 {
@@ -223,6 +233,7 @@ export interface SystemDialogRootHostRenderEntryInternalV1 {
   readonly rootRequest: SystemDialogRootRequestInternalV1;
   readonly resolution: SystemDialogRootCandidateResolutionSnapshotInternalV1<unknown, unknown>;
   readonly lifecycleIntents: SystemDialogSavesLifecycleIntentsInternalV1 | null;
+  readonly controller: SystemDialogRootControllerInternalV1;
 }
 
 export interface SystemDialogConfirmationHostRenderEntryInternalV1 {
@@ -333,6 +344,42 @@ function snapshotOptionalFunctionV1(
   if (descriptor === undefined) return undefined;
   if (!("value" in descriptor) || typeof descriptor.value !== "function") throw new TypeError();
   return descriptor.value as (...args: never[]) => unknown;
+}
+
+function snapshotSystemDialogSaveGuardProjectionInternalV1(
+  value: unknown,
+): SystemDialogSaveGuardProjectionInternalV1 {
+  if (!isRecordV1(value)) throw new TypeError();
+  const keys = Reflect.ownKeys(value);
+  if (
+    keys.length !== 3 || !keys.includes("getSnapshot") || !keys.includes("subscribe") ||
+    !keys.includes("evaluate")
+  ) {
+    throw new TypeError();
+  }
+  const getSnapshot = ownDataValueV1(value, "getSnapshot");
+  const subscribe = ownDataValueV1(value, "subscribe");
+  const evaluate = ownDataValueV1(value, "evaluate");
+  if (
+    typeof getSnapshot !== "function" || typeof subscribe !== "function" ||
+    typeof evaluate !== "function"
+  ) {
+    throw new TypeError();
+  }
+  return Object.freeze({
+    getSnapshot: getSnapshot as SystemDialogSaveGuardProjectionInternalV1["getSnapshot"],
+    subscribe: subscribe as SystemDialogSaveGuardProjectionInternalV1["subscribe"],
+    evaluate: evaluate as SystemDialogSaveGuardProjectionInternalV1["evaluate"],
+  });
+}
+
+function snapshotOptionalSystemDialogSaveGuardProjectionInternalV1(
+  value: Readonly<Record<string, unknown>>,
+): SystemDialogSaveGuardProjectionInternalV1 | undefined {
+  const descriptor = Object.getOwnPropertyDescriptor(value, "guardProjection");
+  if (descriptor === undefined) return undefined;
+  if (!("value" in descriptor)) throw new TypeError();
+  return snapshotSystemDialogSaveGuardProjectionInternalV1(descriptor.value);
 }
 
 const saveLabelScalarFieldsV1 = Object.freeze(
@@ -535,24 +582,16 @@ export function snapshotSystemDialogSavesContentConfigInternalV1(
       return snapshot;
     }
     if (variant !== "standard") throw new TypeError();
-    const port = ownDataValueV1(input, "port");
     const closeLabel = ownDataValueV1(input, "closeLabel");
-    if (
-      port === null ||
-      (typeof port !== "object" && typeof port !== "function") ||
-      typeof closeLabel !== "string"
-    ) {
+    if (typeof closeLabel !== "string") {
       throw new TypeError();
     }
-    const evaluateGuard = snapshotOptionalFunctionV1(input, "evaluateGuard") as
-      | (() => SaveOverlayGuardV1 | undefined)
-      | undefined;
+    const guardProjection = snapshotOptionalSystemDialogSaveGuardProjectionInternalV1(input);
     const snapshot = createSystemDialogContentConfigSnapshotInternalV1(Object.freeze({
       variant,
-      port: port as SaveOverlayPortV1,
       labels: snapshotSaveLabelsV1(ownDataValueV1(input, "labels")),
       closeLabel,
-      ...(evaluateGuard === undefined ? {} : { evaluateGuard }),
+      ...(guardProjection === undefined ? {} : { guardProjection }),
     }));
     systemDialogSavesConfigSnapshotsInternalV1.add(snapshot);
     return snapshot;
@@ -921,7 +960,8 @@ export function createSystemDialogManagedSessionInternalV1(input: {
 
   const closeSystemOwnerAfterHostDetach = (): void => {
     if (
-      disposed || detached || activationGate?.isOpen() === false || !runtime.isIngressOpen()
+      disposed || terminalDisposal || detached || activationGate?.isOpen() === false ||
+      !runtime.isIngressOpen()
     ) return;
     const ownerId = systemDialogManagedContractInternalV1.resolvedOwnerIds[0]!;
     const snapshot = managedSnapshot();
@@ -1077,6 +1117,111 @@ export function createSystemDialogManagedSessionInternalV1(input: {
       }) => requestConfirmation(parentSurfaceInstanceId, request),
     });
 
+  const staleRootIntentReceipt = (
+    surfaceInstanceId: ManagedSurfaceInstanceIdV1,
+    expectedRuntime: ManagedSurfaceCoordinatorRuntimeV1,
+  ): ManagedSurfaceTransitionReceiptV1 => {
+    const snapshot = expectedRuntime.coordinator.getSnapshot();
+    return Object.freeze({
+      kind: "stale" as const,
+      code: "surface.stale_instance" as const,
+      beforeTopologyRevision: snapshot.topologyRevision,
+      afterTopologyRevision: snapshot.topologyRevision,
+      surfaceInstanceId,
+    });
+  };
+
+  const currentExactRoot = (
+    record: SystemDialogRootCandidateRecordInternalV1,
+    expectedRuntime: ManagedSurfaceCoordinatorRuntimeV1,
+    allowPreparing: boolean,
+  ) => {
+    if (
+      disposed || terminalDisposal || detached || hostLease?.open !== true ||
+      activationGate?.isOpen() === false || !expectedRuntime.isIngressOpen() ||
+      runtime !== expectedRuntime || records.get(record.surfaceInstanceId) !== record
+    ) return null;
+    const expectedDefinition = requestDefinitionV1(record.rootRequest);
+    return expectedRuntime.coordinator.getSnapshot().orderedInstances.find((instance) =>
+      instance.surfaceInstanceId === record.surfaceInstanceId &&
+      instance.parentInstanceId === null &&
+      instance.definition.definitionId === expectedDefinition.definitionId &&
+      (instance.readiness.kind === "ready" ||
+        (allowPreparing && instance.readiness.kind === "preparing"))
+    ) ?? null;
+  };
+
+  const createRootRecord = (candidateInput: {
+    readonly surfaceInstanceId: ManagedSurfaceInstanceIdV1;
+    readonly request: SystemDialogRootRequestInternalV1;
+    readonly resolution: SystemDialogRootCandidateResolutionSnapshotInternalV1<unknown, unknown>;
+    readonly readiness: ManagedSurfaceReadinessAdapterV1;
+    readonly candidateRuntime: ManagedSurfaceCoordinatorRuntimeV1;
+  }): SystemDialogRootCandidateRecordInternalV1 => {
+    let record!: SystemDialogRootCandidateRecordInternalV1;
+    const ownerId = systemDialogManagedContractInternalV1.resolvedOwnerIds[0]!;
+    const controller: SystemDialogRootControllerInternalV1 = Object.freeze({
+      closeInternalV1() {
+        if (currentExactRoot(record, candidateInput.candidateRuntime, false) === null) {
+          return staleRootIntentReceipt(record.surfaceInstanceId, candidateInput.candidateRuntime);
+        }
+        const handle = candidateInput.candidateRuntime.coordinator.getHandle(
+          record.surfaceInstanceId,
+        );
+        if (handle === null) {
+          return staleRootIntentReceipt(record.surfaceInstanceId, candidateInput.candidateRuntime);
+        }
+        return mutate(() =>
+          candidateInput.candidateRuntime.coordinator.closeExpectedWithOwnerPreparationCancel(
+            handle,
+            ownerId,
+          )
+        );
+      },
+      cancelInternalV1(dismissKind: ManagedSurfaceDismissKindV1) {
+        const current = currentExactRoot(record, candidateInput.candidateRuntime, true);
+        if (current === null) {
+          return staleRootIntentReceipt(record.surfaceInstanceId, candidateInput.candidateRuntime);
+        }
+        if (current.readiness.kind === "preparing") {
+          return mutate(() =>
+            candidateInput.candidateRuntime.coordinator
+              .routeFallbackDismissWithOwnerPreparationCancel(
+                record.readiness.evidence,
+                ownerId,
+                dismissKind,
+              )
+          );
+        }
+        const handle = candidateInput.candidateRuntime.coordinator.getHandle(
+          record.surfaceInstanceId,
+        );
+        if (handle === null) {
+          return staleRootIntentReceipt(record.surfaceInstanceId, candidateInput.candidateRuntime);
+        }
+        return mutate(() =>
+          candidateInput.candidateRuntime.coordinator.routeDismissWithOwnerPreparationCancel(
+            handle,
+            ownerId,
+            dismissKind,
+          )
+        );
+      },
+    });
+    record = Object.freeze({
+      kind: "root" as const,
+      surfaceInstanceId: candidateInput.surfaceInstanceId,
+      rootRequest: candidateInput.request,
+      resolution: candidateInput.resolution,
+      readiness: candidateInput.readiness,
+      lifecycleIntents: candidateInput.request === "saves"
+        ? bindSavesLifecycleIntents(candidateInput.surfaceInstanceId)
+        : null,
+      controller,
+    });
+    return record;
+  };
+
   const preparationResult = (
     operation: () => ReturnType<
       ManagedSurfaceCoordinatorRuntimeV1["coordinator"]["openTransientPrimary"]
@@ -1096,15 +1241,12 @@ export function createSystemDialogManagedSessionInternalV1(input: {
       ) {
         return;
       }
-      preparedRecord = Object.freeze({
-        kind: "root" as const,
+      preparedRecord = createRootRecord({
         surfaceInstanceId: prepared.receipt.surfaceInstanceId,
-        rootRequest: request,
+        request,
         resolution,
         readiness: prepared.readiness,
-        lifecycleIntents: request === "saves"
-          ? bindSavesLifecycleIntents(prepared.receipt.surfaceInstanceId)
-          : null,
+        candidateRuntime,
       });
       records.set(prepared.receipt.surfaceInstanceId, preparedRecord);
       invalidateHostRenderSnapshot();
@@ -1122,7 +1264,7 @@ export function createSystemDialogManagedSessionInternalV1(input: {
       instance.readiness.kind === "preparing"
     );
     if (
-      disposed || detached || activationGate?.isOpen() === false ||
+      disposed || terminalDisposal || detached || activationGate?.isOpen() === false ||
       !candidateRuntime.isIngressOpen() || runtime !== candidateRuntime ||
       hostLease !== candidateHostLease || candidateHostLease?.open !== true ||
       current === undefined || preparedRecord === null ||
@@ -1137,8 +1279,9 @@ export function createSystemDialogManagedSessionInternalV1(input: {
     requireReady: boolean,
   ) => {
     if (
-      disposed || detached || hostLease?.open !== true || !expectedRuntime.isIngressOpen() ||
-      runtime !== expectedRuntime || records.get(record.surfaceInstanceId) !== record
+      disposed || terminalDisposal || detached || hostLease?.open !== true ||
+      !expectedRuntime.isIngressOpen() || runtime !== expectedRuntime ||
+      records.get(record.surfaceInstanceId) !== record
     ) return null;
     const publication = expectedRuntime.coordinator.getSnapshot();
     const child = publication.orderedInstances.find((instance) =>
@@ -1164,8 +1307,9 @@ export function createSystemDialogManagedSessionInternalV1(input: {
     expectedRuntime: ManagedSurfaceCoordinatorRuntimeV1,
   ): boolean => {
     if (
-      disposed || detached || hostLease?.open !== true || !expectedRuntime.isIngressOpen() ||
-      activationGate?.isOpen() === false || runtime !== expectedRuntime ||
+      disposed || terminalDisposal || detached || hostLease?.open !== true ||
+      !expectedRuntime.isIngressOpen() || activationGate?.isOpen() === false ||
+      runtime !== expectedRuntime ||
       records.get(parentSurfaceInstanceId) !== parentRecord
     ) return false;
     return expectedRuntime.coordinator.getSnapshot().orderedInstances.some((instance) =>
@@ -1356,7 +1500,8 @@ export function createSystemDialogManagedSessionInternalV1(input: {
 
   requestConfirmation = (parentSurfaceInstanceId, request) => {
     if (
-      disposed || detached || activationGate?.isOpen() === false || !runtime.isIngressOpen()
+      disposed || terminalDisposal || detached || activationGate?.isOpen() === false ||
+      !runtime.isIngressOpen()
     ) return disposedResultV1;
     if (hostLease?.open !== true || catalog === null) {
       return confirmationRendererUnavailableResultV1;
@@ -1393,7 +1538,7 @@ export function createSystemDialogManagedSessionInternalV1(input: {
     const admitted = confirmationPreflight(invocation);
     if ("kind" in admitted) return admitted;
     if (
-      disposed || detached || activationGate?.isOpen() === false ||
+      disposed || terminalDisposal || detached || activationGate?.isOpen() === false ||
       !candidateRuntime.isIngressOpen() || runtime !== candidateRuntime
     ) return disposedResultV1;
     if (hostLease !== candidateHostLease || !candidateHostLease.open || catalog === null) {
@@ -1526,6 +1671,7 @@ export function createSystemDialogManagedSessionInternalV1(input: {
               rootRequest: record.rootRequest,
               resolution: record.resolution,
               lifecycleIntents: record.lifecycleIntents,
+              controller: record.controller,
             })
             : Object.freeze({
               kind: "confirmation" as const,
@@ -1547,7 +1693,7 @@ export function createSystemDialogManagedSessionInternalV1(input: {
       return nextSnapshot;
     },
     subscribeInternalV1(listener) {
-      if (disposed) return () => undefined;
+      if (disposed || terminalDisposal) return () => undefined;
       listeners.add(listener);
       let subscribed = true;
       return (): void => {
@@ -1558,7 +1704,8 @@ export function createSystemDialogManagedSessionInternalV1(input: {
     },
     openRootInternalV1(request) {
       if (
-        disposed || detached || activationGate?.isOpen() === false || !runtime.isIngressOpen()
+        disposed || terminalDisposal || detached || activationGate?.isOpen() === false ||
+        !runtime.isIngressOpen()
       ) return disposedResultV1;
       if (hostLease?.open !== true || catalog === null) return unavailableResultV1;
       const candidateRuntime = runtime;
@@ -1596,7 +1743,7 @@ export function createSystemDialogManagedSessionInternalV1(input: {
       const admitted = preflight(request);
       if ("kind" in admitted) return admitted;
       if (
-        disposed || detached || activationGate?.isOpen() === false ||
+        disposed || terminalDisposal || detached || activationGate?.isOpen() === false ||
         !candidateRuntime.isIngressOpen() || runtime !== candidateRuntime
       ) return disposedResultV1;
       if (hostLease !== candidateHostLease || !candidateHostLease.open || catalog === null) {
@@ -1644,7 +1791,9 @@ export function createSystemDialogManagedSessionInternalV1(input: {
       );
     },
     attachHostInternalV1(attachmentInput) {
-      if (disposed) throw new TypeError("ui.system_dialog_session_disposed");
+      if (disposed || terminalDisposal) {
+        throw new TypeError("ui.system_dialog_session_disposed");
+      }
       if (
         attachmentInput.hostIdentity === null ||
         typeof attachmentInput.hostIdentity !== "object" ||
@@ -1672,20 +1821,21 @@ export function createSystemDialogManagedSessionInternalV1(input: {
       catalog = attachmentInput.catalog;
       let released = false;
       const attachment: SystemDialogHostAttachmentInternalV1 = {
-        isAcknowledgmentOpen: () => !released && !disposed && hostLease === lease && lease.open,
+        isAcknowledgmentOpen: () =>
+          !released && !disposed && !terminalDisposal && hostLease === lease && lease.open,
         updateCatalogInternalV1(nextCatalog) {
-          if (released || disposed || hostLease !== lease || !lease.open) {
+          if (released || disposed || terminalDisposal || hostLease !== lease || !lease.open) {
             throw new TypeError("ui.system_dialog_host_attachment_stale");
           }
           catalog = nextCatalog;
         },
         readyCandidateInternalV1(surfaceInstanceId) {
-          return !released && !disposed && hostLease === lease && lease.open
+          return !released && !disposed && !terminalDisposal && hostLease === lease && lease.open
             ? readyCandidate(surfaceInstanceId)
             : staleCandidateReceipt(surfaceInstanceId);
         },
         failCandidateInternalV1(surfaceInstanceId, error) {
-          if (!released && !disposed && hostLease === lease && lease.open) {
+          if (!released && !disposed && !terminalDisposal && hostLease === lease && lease.open) {
             const receipt = failCandidate(surfaceInstanceId);
             if (error !== undefined) {
               reportFailure("ui.system_dialog_render_preparation_failed", error);
@@ -1700,7 +1850,7 @@ export function createSystemDialogManagedSessionInternalV1(input: {
           if (hostLease !== lease) return;
           lease.open = false;
           queueMicrotask(() => {
-            if (disposed || hostLease !== lease || lease.open) return;
+            if (disposed || terminalDisposal || hostLease !== lease || lease.open) return;
             hostLease = null;
             catalog = null;
             closeSystemOwnerAfterHostDetach();
@@ -1710,8 +1860,9 @@ export function createSystemDialogManagedSessionInternalV1(input: {
       return Object.freeze(attachment);
     },
     isRuntimeAttachmentCurrentInternalV1(expectedRuntime) {
-      return !disposed && !detached && preparedRuntime === null && runtime === expectedRuntime &&
-        (activationGate === null || activationGate.isOpen()) && expectedRuntime.isIngressOpen();
+      return !disposed && !terminalDisposal && !detached && preparedRuntime === null &&
+        runtime === expectedRuntime && (activationGate === null || activationGate.isOpen()) &&
+        expectedRuntime.isIngressOpen();
     },
     sealTerminalDisposalInternalV1() {
       terminalDisposal = true;
@@ -1732,7 +1883,9 @@ export function createSystemDialogManagedSessionInternalV1(input: {
       dirty = true;
     },
     prepareRuntimeAttachmentInternalV1(nextRuntime, nextActivationGate) {
-      if (disposed) throw new TypeError("ui.system_dialog_session_disposed");
+      if (disposed || terminalDisposal) {
+        throw new TypeError("ui.system_dialog_session_disposed");
+      }
       if (!detached) throw new TypeError("ui.system_dialog_runtime_already_attached");
       if (preparedRuntime !== null) {
         throw new TypeError("ui.system_dialog_runtime_attachment_already_prepared");
@@ -1744,7 +1897,9 @@ export function createSystemDialogManagedSessionInternalV1(input: {
       dirty = true;
     },
     activateRuntimeAttachmentInternalV1() {
-      if (disposed) throw new TypeError("ui.system_dialog_session_disposed");
+      if (disposed || terminalDisposal) {
+        throw new TypeError("ui.system_dialog_session_disposed");
+      }
       const attachmentRuntime = preparedRuntime;
       if (!detached || attachmentRuntime === null || runtime !== attachmentRuntime) {
         throw new TypeError("ui.system_dialog_runtime_attachment_not_prepared");
@@ -1753,7 +1908,7 @@ export function createSystemDialogManagedSessionInternalV1(input: {
       detached = false;
       return (): void => {
         if (
-          disposed || detached || runtime !== attachmentRuntime ||
+          disposed || terminalDisposal || detached || runtime !== attachmentRuntime ||
           activationGate?.isOpen() !== true || !dirty
         ) return;
         dirty = false;
@@ -1799,7 +1954,21 @@ const systemDialogSessionInternalsV1 = new WeakMap<
 export function createSystemDialogSessionFacadeInternalV1(
   internal: SystemDialogManagedSessionInternalV1,
 ): SystemDialogSessionV1 {
-  const facade = Object.freeze({}) as SystemDialogSessionV1;
+  let snapshot: SystemDialogSessionSnapshotV1 = Object.freeze({ active: null });
+  const getSnapshot = (): SystemDialogSessionSnapshotV1 => {
+    const active = internal.getHostRenderSnapshotInternalV1().entries.find(
+      (entry): entry is SystemDialogRootHostRenderEntryInternalV1 =>
+        entry.kind === "root" && entry.phase === "active",
+    )?.rootRequest ?? null;
+    if (snapshot.active === active) return snapshot;
+    snapshot = Object.freeze({ active });
+    return snapshot;
+  };
+  const facade = Object.freeze({
+    getSnapshot,
+    openSettings: () => internal.openRootInternalV1("settings"),
+    openSaves: () => internal.openRootInternalV1("saves"),
+  }) as SystemDialogSessionV1;
   systemDialogSessionInternalsV1.set(facade, internal);
   return facade;
 }

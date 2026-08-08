@@ -1,84 +1,87 @@
 // SPDX-License-Identifier: MIT
-import * as DialogPrimitive from "@radix-ui/react-dialog";
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  useSyncExternalStore,
-} from "react";
-import type { ReactElement, ReactNode } from "react";
-import {
-  isDevDockEscapeOwnerTargetV1,
-  useDevDockPortalTargetRegistrationV1,
-} from "../debug/dev-dock-portal-coordinator.tsx";
-import {
-  inputHandledV1,
-  inputIgnoredV1,
-  systemInputActionIdsV1,
-  type InputRouterV1,
-} from "../input/contracts.ts";
-import styles from "../overlays/overlay-host.module.css";
-import type {
-  SaveOverlayGuardV1,
-  SaveOverlayLabelsV1,
-  SaveOverlayPortV1,
-} from "../persistence/save-overlay.tsx";
-import { SaveOverlayV1 } from "../persistence/save-overlay.tsx";
-import {
-  useStageInputIsolationV1,
-  useStageSystemFocusScopeRegistrationV1,
-  useStageSystemPortalContainerV1,
-} from "../shell/game-stage.tsx";
-import { SettingsDialogContentV1 } from "./settings-dialog.tsx";
-import type { SettingsDialogPropsV1 } from "./settings-dialog.tsx";
-import {
-  createSystemDialogSessionStoreV1,
-  isSystemDialogSessionStoreTerminalInternalV1,
-} from "./system-dialog-session-store.ts";
-import type {
-  SystemDialogSessionStoreV1,
-  SystemDialogSurfaceV1,
-} from "./system-dialog-session-store.ts";
+import { manualSaveSlotIndexV1 } from "@sillymaker/base";
+import { createElement, useMemo, useSyncExternalStore } from "react";
+import type { ComponentType, ElementType, ExoticComponent, ReactElement, ReactNode } from "react";
 
-export type SystemDialogSettingsV1 = Omit<SettingsDialogPropsV1, "onClose">;
+import type { InputRouterV1 } from "../input/contracts.ts";
+import { ActionConfirmationContentV1 } from "../overlays/action-confirmation-dialog.tsx";
+import {
+  SaveOverlayContentInternalV1,
+  type SaveOverlayGuardV1,
+  type SaveOverlayLabelsV1,
+  type SaveOverlayPortV1,
+  type SaveUiReadableSlotIdV1,
+} from "../persistence/save-overlay.tsx";
+import { SettingsDialogContentV1 } from "./settings-dialog.tsx";
+import type { SettingsDialogContentPropsInternalV1 } from "./settings-dialog.tsx";
+import type {
+  SystemDialogConfirmationInvocationInternalV1,
+  SystemDialogOpenResultV1,
+  SystemDialogRequiredPortBindingInternalV1,
+  SystemDialogSessionV1,
+} from "./system-dialog-managed-contract.ts";
+import {
+  SystemDialogManagedHostInternalV1,
+  type SystemDialogConfirmationRendererPropsInternalV1,
+  type SystemDialogRootRendererPropsInternalV1,
+} from "./system-dialog-managed-host.tsx";
+import {
+  createSystemDialogRootCatalogSnapshotInternalV1,
+  resolveSystemDialogSessionInternalV1,
+  type SystemDialogCustomSavesContentConfigInternalV1,
+  type SystemDialogRootCatalogInternalV1,
+  type SystemDialogSavesContentConfigInternalV1,
+  type SystemDialogSettingsContentConfigInternalV1,
+  type SystemDialogStandardSavesContentConfigInternalV1,
+} from "./system-dialog-managed-session.ts";
+import {
+  SystemDialogControllerProviderInternalV1,
+  useSystemDialogControllerV1,
+} from "./use-system-dialog-controller.tsx";
+import type { SystemDialogControllerV1 } from "./use-system-dialog-controller.tsx";
+
+export type SystemDialogSettingsV1 = Omit<SettingsDialogContentPropsInternalV1, "close">;
 
 export interface SystemDialogSavesV1 {
   readonly port: SaveOverlayPortV1;
   readonly labels: SaveOverlayLabelsV1;
-  /** Story-declared safepoint: manual writes are disabled when not allowed. */
-  readonly guard?: SaveOverlayGuardV1;
+  /** Live read-only Story safepoint projection; it is never another state writer. */
+  readonly guardProjection?: SystemDialogSaveGuardProjectionV1;
+}
+
+export interface SystemDialogSaveGuardProjectionV1 {
+  getSnapshot(): unknown;
+  subscribe(listener: () => void): () => void;
+  evaluate(publication: unknown): SaveOverlayGuardV1 | undefined;
 }
 
 export interface SystemDialogCustomSavesRenderIntentsV1 {
   close(): void;
 }
 
+export type SystemDialogCustomSavesComponentV1 =
+  | ComponentType<SystemDialogCustomSavesRenderIntentsV1>
+  | ExoticComponent<SystemDialogCustomSavesRenderIntentsV1>;
+
 export interface SystemDialogCustomSavesV1 {
   readonly kind: "custom";
   readonly accessibleName: string;
-  render(intents: SystemDialogCustomSavesRenderIntentsV1): ReactNode;
+  readonly component: SystemDialogCustomSavesComponentV1;
 }
 
 export interface SystemDialogHostPropsV1 {
-  readonly store?: SystemDialogSessionStoreV1;
+  readonly session: SystemDialogSessionV1;
   readonly inputRouter: InputRouterV1;
   readonly settings: SystemDialogSettingsV1;
-  /** Enables the system Save dialog; absent when the Host has no persistence. */
+  /** Enables the System Save root; absent means openSaves rejects before mutation. */
   readonly saves?: SystemDialogSavesV1 | SystemDialogCustomSavesV1;
   readonly children: ReactNode;
 }
 
-export interface SystemDialogControllerV1 {
-  /** `opener` restores focus on close; pass null for programmatic entry points. */
-  openSettings(opener: HTMLButtonElement | null): void;
-  openSaves(opener: HTMLButtonElement | null): void;
-}
+export type { SystemDialogControllerV1 };
+export { useSystemDialogControllerV1 };
 
-const SystemDialogContextV1 = createContext<SystemDialogControllerV1 | null>(null);
+const savesPortIdInternalV1 = "persistence.player-save";
 
 function isCustomSavesV1(
   saves: SystemDialogSavesV1 | SystemDialogCustomSavesV1,
@@ -86,189 +89,204 @@ function isCustomSavesV1(
   return "kind" in saves && saves.kind === "custom";
 }
 
-function SystemDialogCustomSavesContentV1(props: {
-  readonly saves: SystemDialogCustomSavesV1;
-  readonly intents: SystemDialogCustomSavesRenderIntentsV1;
-}): ReactElement {
-  return <>{props.saves.render(props.intents)}</>;
+function requiredSavePortInternalV1(
+  bindings: readonly SystemDialogRequiredPortBindingInternalV1[],
+): SaveOverlayPortV1 {
+  const binding = bindings.find(({ portId }) => portId === savesPortIdInternalV1);
+  if (binding === undefined) throw new TypeError("ui.system_dialog_required_save_port_missing");
+  return binding.port as SaveOverlayPortV1;
 }
 
-export function useSystemDialogControllerV1(): SystemDialogControllerV1 {
-  const controller = useContext(SystemDialogContextV1);
-  if (controller === null) throw new Error("ui.system_dialog_host_missing");
-  return controller;
+function SystemDialogSettingsRendererInternalV1(
+  props: SystemDialogRootRendererPropsInternalV1,
+): ReactElement {
+  const config = props.contentConfig as SystemDialogSettingsContentConfigInternalV1;
+  return (
+    <SettingsDialogContentV1
+      title={config.title}
+      closeLabel={config.closeLabel}
+      sections={config.sections}
+      emptyText={config.emptyText}
+      close={props.rootIntent.close}
+    />
+  );
 }
 
-function focusConnectedElementV1(
-  element: HTMLElement | null,
-  ownedScope: HTMLElement | null,
-  isSuppressed: () => boolean,
-): void {
-  if (element === null || isSuppressed()) return;
-  queueMicrotask(() => {
-    if (isSuppressed() || !element.isConnected) return;
-    const activeElement = document.activeElement;
-    if (
-      activeElement !== null &&
-      activeElement !== document.body &&
-      (ownedScope === null || !ownedScope.contains(activeElement))
-    ) {
-      return;
-    }
-    element.focus();
+function SystemDialogSavesRendererInternalV1(
+  props: SystemDialogRootRendererPropsInternalV1,
+): ReactElement {
+  const config = props.contentConfig as SystemDialogSavesContentConfigInternalV1;
+  if (config.variant === "custom") {
+    const component = config.component as ElementType<SystemDialogCustomSavesRenderIntentsV1>;
+    return createElement(component, { close: props.rootIntent.close });
+  }
+  if (props.confirmationIntent === null) {
+    throw new TypeError("ui.system_dialog_confirmation_intent_missing");
+  }
+  return (
+    <SaveOverlayContentInternalV1
+      port={requiredSavePortInternalV1(props.requiredPortBindings)}
+      labels={config.labels}
+      closeLabel={config.closeLabel}
+      {...(config.guardProjection === undefined ? {} : { guardProjection: config.guardProjection })}
+      confirmationIntent={props.confirmationIntent}
+      onCloseInternalV1={props.rootIntent.close}
+    />
+  );
+}
+
+function saveSlotNameInternalV1(
+  labels: SaveOverlayLabelsV1,
+  slotId: SaveUiReadableSlotIdV1,
+): string {
+  if (slotId === "auto.current" || slotId === "auto.previous" || slotId === "quick") {
+    return labels.slotNames[slotId];
+  }
+  const index = manualSaveSlotIndexV1(slotId);
+  if (index === null) throw new TypeError("ui.system_dialog_confirmation_slot_invalid");
+  return labels.slotNames.manualSlot(index);
+}
+
+function confirmationCopyInternalV1(
+  labels: SaveOverlayLabelsV1,
+  invocation: SystemDialogConfirmationInvocationInternalV1,
+): Readonly<{ readonly title: string; readonly description: string }> {
+  if (invocation.kind === "import") {
+    return Object.freeze({
+      title: labels.confirmation.importTitle,
+      description: labels.confirmation.importDescription,
+    });
+  }
+  const slotName = saveSlotNameInternalV1(labels, invocation.slotId as SaveUiReadableSlotIdV1);
+  return invocation.kind === "load"
+    ? Object.freeze({
+      title: labels.confirmation.loadTitle(slotName),
+      description: labels.confirmation.loadDescription(slotName),
+    })
+    : Object.freeze({
+      title: labels.confirmation.clearTitle(slotName),
+      description: labels.confirmation.clearDescription(slotName),
+    });
+}
+
+function SystemDialogConfirmationRendererInternalV1(
+  props: SystemDialogConfirmationRendererPropsInternalV1,
+): ReactElement {
+  const parentConfig = props.parentContentConfig as SystemDialogSavesContentConfigInternalV1;
+  if (parentConfig.variant !== "standard") {
+    throw new TypeError("ui.system_dialog_confirmation_parent_invalid");
+  }
+  const copy = confirmationCopyInternalV1(parentConfig.labels, props.invocation);
+  return (
+    <ActionConfirmationContentV1
+      title={copy.title}
+      titleId={props.titleId}
+      description={copy.description}
+      confirmLabel={parentConfig.labels.confirmation.confirmLabel}
+      cancelLabel={parentConfig.labels.confirmation.cancelLabel}
+      pendingText={parentConfig.labels.confirmation.pendingText}
+      confirm={() => props.controller.dispatchOnceInternalV1()}
+      cancel={() => props.controller.cancelInternalV1("back")}
+    />
+  );
+}
+
+function createCatalogInternalV1(input: {
+  readonly settings: SystemDialogSettingsV1;
+  readonly saves?: SystemDialogSavesV1 | SystemDialogCustomSavesV1;
+}): SystemDialogRootCatalogInternalV1 {
+  const saves = input.saves;
+  const standardSaves = saves !== undefined && !isCustomSavesV1(saves) ? saves : null;
+  const customSaves = saves !== undefined && isCustomSavesV1(saves) ? saves : null;
+  const entries = [
+    Object.freeze({
+      rootRequest: "settings" as const,
+      rendererComponent: SystemDialogSettingsRendererInternalV1,
+      accessibleName: input.settings.title,
+      requiredPortIds: Object.freeze([]),
+      contentConfig: Object.freeze({
+        title: input.settings.title,
+        closeLabel: input.settings.closeLabel,
+        sections: input.settings.sections,
+        emptyText: input.settings.emptyText,
+      }) satisfies SystemDialogSettingsContentConfigInternalV1,
+    }),
+    ...(standardSaves === null
+      ? customSaves === null ? [] : [Object.freeze({
+        rootRequest: "saves" as const,
+        rendererComponent: SystemDialogSavesRendererInternalV1,
+        accessibleName: customSaves.accessibleName,
+        requiredPortIds: Object.freeze([]),
+        contentConfig: Object.freeze({
+          variant: "custom" as const,
+          accessibleName: customSaves.accessibleName,
+          component: customSaves.component,
+        }) satisfies SystemDialogCustomSavesContentConfigInternalV1,
+      })]
+      : [Object.freeze({
+        rootRequest: "saves" as const,
+        rendererComponent: SystemDialogSavesRendererInternalV1,
+        accessibleName: standardSaves.labels.accessibleName,
+        requiredPortIds: Object.freeze([savesPortIdInternalV1]),
+        contentConfig: Object.freeze({
+          variant: "standard" as const,
+          labels: standardSaves.labels,
+          closeLabel: input.settings.closeLabel,
+          ...(standardSaves.guardProjection === undefined
+            ? {}
+            : { guardProjection: standardSaves.guardProjection }),
+        }) satisfies SystemDialogStandardSavesContentConfigInternalV1,
+      })]),
+  ];
+  return createSystemDialogRootCatalogSnapshotInternalV1({
+    entries: Object.freeze(entries),
+    portBindings: Object.freeze(
+      standardSaves === null
+        ? []
+        : [Object.freeze({ portId: savesPortIdInternalV1, port: standardSaves.port })],
+    ),
+    confirmationEntry: standardSaves === null ? null : Object.freeze({
+      rendererComponent: SystemDialogConfirmationRendererInternalV1,
+      accessibleName: standardSaves.labels.confirmation.importTitle,
+      requiredPortIds: Object.freeze([]),
+    }),
   });
 }
 
+/** Required managed System Host. It never creates a fallback lifecycle store. */
 export function SystemDialogHostV1(props: SystemDialogHostPropsV1): ReactElement {
-  const fallbackStoreRef = useRef<SystemDialogSessionStoreV1 | null>(null);
-  const store = props.store ?? (fallbackStoreRef.current ??= createSystemDialogSessionStoreV1());
-  const { active } = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
-  const [focusScopeElement, setFocusScopeElement] = useState<HTMLDivElement | null>(null);
-  const focusScopeRef = useRef<HTMLDivElement | null>(null);
-  const openerRef = useRef<HTMLButtonElement | null>(null);
-  const portalContainer = useStageSystemPortalContainerV1();
-  // With saves unconfigured, open("saves") renders no dialog — the isolation
-  // predicate must follow the actually rendered surface, or a programmatic open would lock input on a dialog that does not exist.
-  const surface = active === "saves" && props.saves === undefined ? null : active;
-  const dialogOpen = surface !== null;
-  useStageInputIsolationV1("system", dialogOpen);
-  useStageSystemFocusScopeRegistrationV1(focusScopeElement);
-  useDevDockPortalTargetRegistrationV1("system", dialogOpen ? focusScopeElement : null);
-
-  const setFocusScope = useCallback((element: HTMLDivElement | null): void => {
-    focusScopeRef.current = element;
-    setFocusScopeElement(element);
-  }, []);
-
-  const closeDialog = useCallback((): void => {
-    if (isSystemDialogSessionStoreTerminalInternalV1(store)) {
-      openerRef.current = null;
-      return;
-    }
-    store.close();
-    const opener = openerRef.current;
-    openerRef.current = null;
-    focusConnectedElementV1(
-      opener,
-      focusScopeRef.current,
-      () => isSystemDialogSessionStoreTerminalInternalV1(store),
-    );
-  }, [store]);
-
-  const openSurface = useCallback(
-    (nextSurface: SystemDialogSurfaceV1, opener: HTMLButtonElement | null): void => {
-      if (isSystemDialogSessionStoreTerminalInternalV1(store)) return;
-      openerRef.current = opener;
-      store.open(nextSurface);
-    },
-    [store],
+  const internalSession = resolveSystemDialogSessionInternalV1(props.session);
+  const snapshot = useSyncExternalStore(
+    internalSession.subscribeInternalV1,
+    internalSession.getHostRenderSnapshotInternalV1,
+    internalSession.getHostRenderSnapshotInternalV1,
   );
-
-  useLayoutEffect(
-    () => () => {
-      if (isSystemDialogSessionStoreTerminalInternalV1(store)) {
-        openerRef.current = null;
-        return;
-      }
-      store.close();
-      focusConnectedElementV1(
-        openerRef.current,
-        focusScopeRef.current,
-        () => isSystemDialogSessionStoreTerminalInternalV1(store),
-      );
-      openerRef.current = null;
-    },
-    [store],
-  );
-
-  useLayoutEffect(() => {
-    if (!dialogOpen) return undefined;
-    return props.inputRouter.register({
-      context: "system",
-      handle(event) {
-        if (event.kind === "focus_loss" || event.kind === "pointer_cancel") {
-          return inputIgnoredV1;
-        }
-        if (event.kind === "action" && event.actionId === systemInputActionIdsV1.cancel) {
-          closeDialog();
-        }
-        return inputHandledV1;
-      },
-    });
-  }, [closeDialog, props.inputRouter, dialogOpen]);
-
-  const controller = useMemo(
+  const catalog = useMemo(
     () =>
-      Object.freeze({
-        openSettings: (opener: HTMLButtonElement | null) => openSurface("settings", opener),
-        openSaves: (opener: HTMLButtonElement | null) => openSurface("saves", opener),
-      }) satisfies SystemDialogControllerV1,
-    [openSurface],
+      createCatalogInternalV1({
+        settings: props.settings,
+        ...(props.saves === undefined ? {} : { saves: props.saves }),
+      }),
+    [props.saves, props.settings],
   );
-  const position = portalContainer === null ? "fixed" : "absolute";
-  const saves = props.saves;
-  const customSaves = saves !== undefined && isCustomSavesV1(saves) ? saves : undefined;
-  const standardSaves = saves !== undefined && !isCustomSavesV1(saves) ? saves : undefined;
-  const customSavesIntents = useMemo(() => Object.freeze({ close: closeDialog }), [closeDialog]);
+  const blocking = snapshot.entries.length > 0;
 
   return (
-    <SystemDialogContextV1.Provider value={controller}>
-      <div data-system-dialog-host-content="true" inert={dialogOpen}>
+    <SystemDialogControllerProviderInternalV1 session={props.session}>
+      <div
+        data-system-dialog-host-content="true"
+        inert={blocking || undefined}
+        aria-hidden={blocking ? "true" : undefined}
+      >
         {props.children}
       </div>
-      {surface === null
-        ? null
-        : (
-          <DialogPrimitive.Root open onOpenChange={(open) => !open && closeDialog()}>
-            <DialogPrimitive.Portal container={portalContainer ?? undefined}>
-              <DialogPrimitive.Overlay
-                className={styles["blocking-dialog__backdrop"]}
-                data-system-dialog-backdrop={surface}
-                style={{ position }}
-                onClick={closeDialog}
-              />
-              <DialogPrimitive.Content
-                ref={setFocusScope}
-                className={styles["blocking-dialog__content"]}
-                data-blocking-focus-scope="system"
-                data-system-surface={surface}
-                {...(surface === "saves" && standardSaves !== undefined
-                  ? { "aria-label": standardSaves.labels.accessibleName }
-                  : surface === "saves" && customSaves !== undefined
-                  ? { "aria-label": customSaves.accessibleName }
-                  : {})}
-                aria-describedby={undefined}
-                style={{ position }}
-                onEscapeKeyDown={(event) => {
-                  if (isDevDockEscapeOwnerTargetV1(event.target)) event.preventDefault();
-                }}
-                onPointerDownOutside={(event) => event.preventDefault()}
-              >
-                {surface === "settings"
-                  ? <SettingsDialogContentV1 {...props.settings} />
-                  : customSaves !== undefined
-                  ? (
-                    <SystemDialogCustomSavesContentV1
-                      saves={customSaves}
-                      intents={customSavesIntents}
-                    />
-                  )
-                  : standardSaves === undefined
-                  ? null
-                  : (
-                    <SaveOverlayV1
-                      port={standardSaves.port}
-                      labels={standardSaves.labels}
-                      inputRouter={props.inputRouter}
-                      {...(standardSaves.guard === undefined ? {} : { guard: standardSaves.guard })}
-                      onClose={closeDialog}
-                      closeLabel={props.settings.closeLabel}
-                    />
-                  )}
-              </DialogPrimitive.Content>
-            </DialogPrimitive.Portal>
-          </DialogPrimitive.Root>
-        )}
-    </SystemDialogContextV1.Provider>
+      <SystemDialogManagedHostInternalV1
+        session={props.session}
+        catalog={catalog}
+        inputRouter={props.inputRouter}
+      />
+    </SystemDialogControllerProviderInternalV1>
   );
 }
+
+export type { SystemDialogOpenResultV1 };

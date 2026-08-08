@@ -33,7 +33,7 @@ export interface PlayerSaveSurfacesV1 {
   readonly maintenance: PlayerSaveMaintenanceV1;
   /** Present only when the Story opts into the default player Save dialog. */
   readonly saveUi?: PlayerSaveUiV1;
-  /** Declarative Story renderer hosted by the existing System saves authority. */
+  /** Declarative Story component hosted by the managed System saves authority. */
   readonly customSaves?: SystemDialogCustomSavesV1;
 }
 

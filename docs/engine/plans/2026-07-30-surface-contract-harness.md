@@ -10,16 +10,16 @@ StrictMode、API cutover 与 stop conditions。
 atomic composite operations、S3b composition-owned shared Coordinator 与 dormant System
 session/config catalog、S3c.0 composition-wide successor activation barrier、dormant
 S3c.1 Host-commit readiness/one logical Host lease、S3d exact-parent confirmation child 与
-S3e.0 successor-acknowledgment/terminal-teardown 准备切片均已完成；下一独立切片为
-S3e live cutover and promotion。
+S3e.0 successor-acknowledgment/terminal-teardown 准备切片均已完成；2026-08-09 S3e live
+cutover and promotion 已关闭，下一独立切片为 S1-R external stable-target reconcile。
 目标合同见
 [Managed Surface lifecycle and contract harness](../design/surface-contract-harness.md)。
 本文只规定可独立交付的实施顺序；不要求一次实现 design
 中所有可选字段，也不把作者能力评测绑进 runtime migration。
 
 在 [production-floor sequence](2026-07-30-production-floor-sequence.md)
-中：PF2 的 `S0 -> S1-T -> S2`、PF-DET 与 PF3/M2 已完成；当前 core
-节点是 PF4/S3e。PF4 的顺序是 `S3 -> S1-R -> S4 -> S4b`；S5–S6
+中：PF2 的 `S0 -> S1-T -> S2`、PF-DET、PF3/M2 与 PF4/S3 已完成；当前 core
+节点是 PF4/S1-R。PF4 的顺序是 `S3 -> S1-R -> S4 -> S4b`；S5–S6
 属于 PF6。S1-R
 延后到第一个真实 externally published stable-target family 前完成；按 accepted
 target ownership，S4 Narrative 计划成为该 family，因此 S1-R 位于 S3 与 S4
@@ -1503,9 +1503,31 @@ evidence都继续禁止。删除 legacy exports的证据使用 package-export co
 single-writer行为测试；`rg`/reference count只作为提交前自审，不把 exact source inventory或
 阶段性调用次数建成常规 CI 合同。
 
-S3e promotion完成后再同步 `architecture.md`、`features.md`、`story-authoring.md` 与中英文网站中
-仍描述 legacy System或“只有 Overlay managed”的内容；`development.md` 只在作者/维护工作流
-实际改变时更新。live cutover完成前不得把这些目标写成已实现能力。
+**2026-08-09 S3e delivery and promotion：** production
+composition 现已只把 System settings/saves ingress连接到 composition-owned managed session；
+`SystemDialogHostV1` 要求该 opaque session且不创建 fallback store，public facade只保留
+`getSnapshot`、`openSettings` 与 `openSaves`的 typed structured result。旧 writable store、
+standalone Settings/confirmation/Save lifecycle Host与 public `SaveOverlayV1`已删除；standard
+与 custom Saves 是同一 Saves definition的 renderer variants，custom variant以 React component
+identity挂载，不在 React外调用 render callback。Settings/Saves root共享 single slot，确认是
+current Saves的 exact-parent child，全部 topology/input/focus/gesture mutation继续只来自同一
+Coordinator。
+
+DefaultGameRoot 对 lifecycle absence保持 async `ui.lifecycle_restart_unavailable`；New Game不调用
+opening hook，DevDock不贡献 Reinitialize。standard composed path只在 exact Core anchor、shared
+successor安装、all-family activation/notification、UI anchor publication与 post-liveness完成后
+向 Root返回 anchored；Root随后只更新 title-local foreground，不调用 System close、Overlay
+`closeAll`或 cross-family reset。successful load/import使 predecessor Saves/confirmation
+completion stale：旧 continuation不再调用 close、result sink或 finalizer命中新 System root，
+predecessor topology只由 successor retirement收敛。Save/Persistence/M2/canonical/digest/replay/
+wire均未改变，S1-R字段也未进入 transient API。
+
+验证通过 focused cutover（14 files / 170 tests）、UI package（69 / 745）、
+`deno task test`（242 / 3631）、`deno task check`、Engine browser（101 / 101）、examples
+browser（45 passed / 2 skipped）与 prebuilt Player（38 / 38）；最终 adversarial review无
+finding。`architecture.md`、`features.md`、`story-authoring.md`与中英文网站已随 promotion
+对齐；`development.md`未改变，因为没有新的作者/维护命令或工作流。S3完成，下一独立切片为
+S1-R；S4在 S1-R前不得开始。
 
 每个 dormant slice 必须 package-internal、不可由 live System 与旧 store同时写入；若
 为了独立合并必须双写、mirror 或提前开放第二个 lifecycle ingress，停止并重切片。

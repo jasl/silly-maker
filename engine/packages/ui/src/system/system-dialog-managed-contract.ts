@@ -26,9 +26,18 @@ const systemDialogContentConfigSnapshotBrandInternalV1 = Symbol(
   "SystemDialogContentConfigSnapshotInternalV1",
 );
 
-/** Target opaque composition handle. It remains package-internal until the S3e cutover. */
+export type SystemDialogSessionActiveSurfaceV1 = "settings" | "saves";
+
+export interface SystemDialogSessionSnapshotV1 {
+  readonly active: SystemDialogSessionActiveSurfaceV1 | null;
+}
+
+/** Opaque composition-created System lifecycle facade. */
 export interface SystemDialogSessionV1 {
   readonly [systemDialogSessionBrandV1]: "SystemDialogSessionV1";
+  getSnapshot(): SystemDialogSessionSnapshotV1;
+  openSettings(): SystemDialogOpenResultV1;
+  openSaves(): SystemDialogOpenResultV1;
 }
 
 export type SystemDialogOpenResultV1 =
@@ -60,7 +69,7 @@ export type SystemDialogOpenResultV1 =
       | "system_dialog.transition_faulted";
   };
 
-export type SystemDialogRootRequestInternalV1 = "settings" | "saves";
+export type SystemDialogRootRequestInternalV1 = SystemDialogSessionActiveSurfaceV1;
 export type SystemDialogSavesRendererVariantInternalV1 = "standard" | "custom";
 export type SystemDialogConfirmationOperationInternalV1 = "load" | "clear" | "import";
 

@@ -212,6 +212,48 @@ function createHostedCompositionFixtureV1(
 }
 
 describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () => {
+  it("publishes the managed opaque System facade as the only composition lifecycle authority", () => {
+    const composition = createGameUiCompositionV1({
+      semantic: Object.freeze({
+        observe: () => Object.freeze({ revision: 0 }),
+        subscribe: () => () => undefined,
+      }),
+      projector: Object.freeze({
+        resolvedCatalog: Object.freeze({}),
+        initialUiState: Object.freeze({}),
+        project: () =>
+          Object.freeze({
+            view: Object.freeze({}),
+            requiredAssetIds: Object.freeze([]),
+          }),
+      }),
+    });
+
+    try {
+      const managed = resolveGameUiManagedSurfaceCompositionInternalV1(composition);
+      const before = managed.runtime.getCurrent().coordinator.getSnapshot();
+
+      expect(composition.systemDialogSession).toBe(managed.systemDialogSession);
+      expect(Reflect.ownKeys(composition.systemDialogSession)).toEqual([
+        "getSnapshot",
+        "openSettings",
+        "openSaves",
+      ]);
+      expect(Object.isFrozen(composition.systemDialogSession)).toBe(true);
+      expect(composition.systemDialogSession.getSnapshot()).toEqual({ active: null });
+      expect(composition.systemDialogSession.openSettings()).toEqual({
+        kind: "rejected",
+        code: "system_dialog.renderer_unavailable",
+      });
+      expect(managed.runtime.getCurrent().coordinator.getSnapshot()).toBe(before);
+      expect("open" in composition.systemDialogSession).toBe(false);
+      expect("close" in composition.systemDialogSession).toBe(false);
+      expect("subscribe" in composition.systemDialogSession).toBe(false);
+    } finally {
+      composition.dispose();
+    }
+  });
+
   it("does not leak semantic subscriptions when Overlay admission rejects construction", () => {
     let subscriptions = 0;
     let unsubscriptions = 0;
@@ -528,7 +570,11 @@ describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () 
       expect(overlayInternal.getManagedSnapshotInternalV1()).toBe(initialPublication);
       expect(managedSystemInternal.getManagedSnapshotInternalV1()).toBe(initialPublication);
       expect(initialRuntime.applicationEpoch).toBe(11);
-      expect(Reflect.ownKeys(managedComposition.systemDialogSession)).toEqual([]);
+      expect(Reflect.ownKeys(managedComposition.systemDialogSession)).toEqual([
+        "getSnapshot",
+        "openSettings",
+        "openSaves",
+      ]);
       expect(Object.isFrozen(managedComposition.systemDialogSession)).toBe(true);
 
       let unavailableNotifications = 0;
@@ -1211,12 +1257,36 @@ describe("hosted presentation successor acknowledgment", () => {
         return true;
       },
     }));
-    composition.systemDialogSession.open("settings");
-    let systemNotifications = 0;
-    let interactionNotifications = 0;
-    const unsubscribeSystem = composition.systemDialogSession.subscribe(() => {
-      systemNotifications += 1;
+    const systemHostAttachment = managedSystem.attachHostInternalV1({
+      hostIdentity: Object.freeze({ kind: "terminal-system-host" }),
+      portalContainer: Object.freeze({ kind: "terminal-system-portal" }),
+      catalog: createSystemDialogRootCatalogSnapshotInternalV1({
+        entries: Object.freeze([
+          Object.freeze({
+            rootRequest: "settings" as const,
+            rendererComponent: Object.freeze({ kind: "settings-renderer" }),
+            accessibleName: "Settings",
+            requiredPortIds: Object.freeze([]),
+            contentConfig: Object.freeze({
+              title: "Settings",
+              closeLabel: "Close",
+              emptyText: "Empty",
+              sections: Object.freeze([]),
+            }),
+          }),
+        ]),
+        portBindings: Object.freeze([]),
+      }),
     });
+    expect(composition.systemDialogSession.openSettings()).toEqual({
+      kind: "preparing",
+      code: "system_dialog.preparation_started",
+    });
+    const systemCandidate = managedSystem.getRootCandidateRecordsInternalV1()[0]!;
+    expect(systemHostAttachment.readyCandidateInternalV1(systemCandidate.surfaceInstanceId))
+      .toMatchObject({ kind: "applied", code: "surface.readiness_ready" });
+    expect(composition.systemDialogSession.getSnapshot()).toEqual({ active: "settings" });
+    let interactionNotifications = 0;
     const unsubscribeInteraction = composition.interactionSession.subscribe(() => {
       interactionNotifications += 1;
     });
@@ -1243,7 +1313,7 @@ describe("hosted presentation successor acknowledgment", () => {
     expect(terminalObservedByProducer).toBe(true);
     expect(producer.installed).toEqual([]);
     expect(producer.failed).toEqual([{ anchor, token, error: failure }]);
-    expect(composition.systemDialogSession.getSnapshot()).toEqual({ active: "settings" });
+    expect(composition.systemDialogSession.getSnapshot()).toEqual({ active: null });
     const beforeInteraction = composition.interactionSession.getSnapshot();
     const beforePresentation = composition.presentation.getSnapshot();
     const beforeAnchor = composition.anchor.getCurrent();
@@ -1253,8 +1323,14 @@ describe("hosted presentation successor acknowledgment", () => {
       token: Object.freeze({ operation: "late" }),
     }));
     composition.updateUiState((current) => Object.freeze({ count: current.count + 1 }));
-    composition.systemDialogSession.open("saves");
-    composition.systemDialogSession.close();
+    expect(composition.systemDialogSession.openSaves()).toEqual({
+      kind: "rejected",
+      code: "system_dialog.disposed",
+    });
+    expect(composition.systemDialogSession.openSettings()).toEqual({
+      kind: "rejected",
+      code: "system_dialog.disposed",
+    });
     composition.interactionSession.open(
       parseInteractionSurfaceId("surface.e2e.fixture"),
       "control.e2e.fixture",
@@ -1282,10 +1358,7 @@ describe("hosted presentation successor acknowledgment", () => {
     expect(producer.installed).toEqual([]);
     expect(producer.failed).toEqual([{ anchor, token, error: failure }]);
     expect({ lowerInputWrites, cueWrites }).toEqual({ lowerInputWrites: 0, cueWrites: 0 });
-    expect({ systemNotifications, interactionNotifications }).toEqual({
-      systemNotifications: 0,
-      interactionNotifications: 0,
-    });
+    expect(interactionNotifications).toBe(0);
     expect({ overlayNotifications, managedSystemNotifications }).toEqual({
       overlayNotifications: 1,
       managedSystemNotifications: 1,
@@ -1300,7 +1373,6 @@ describe("hosted presentation successor acknowledgment", () => {
     });
 
     unsubscribeThrow();
-    unsubscribeSystem();
     unsubscribeInteraction();
     unsubscribeOverlay();
     unsubscribeManagedSystem();

@@ -2,7 +2,7 @@
 import type { ButtonPropsV1 } from "../primitives/button.tsx";
 import { Button } from "../primitives/button.tsx";
 import type { ReactElement } from "react";
-import { useSystemDialogControllerV1 } from "./system-dialog-host.tsx";
+import { useSystemDialogControllerV1 } from "./use-system-dialog-controller.tsx";
 
 export type SettingsLauncherPropsV1 =
   & Omit<
@@ -16,7 +16,7 @@ export type SettingsLauncherPropsV1 =
 export function SettingsLauncherV1({ label, ...props }: SettingsLauncherPropsV1): ReactElement {
   const controller = useSystemDialogControllerV1();
   return (
-    <Button {...props} onClick={(event) => controller.openSettings(event.currentTarget)}>
+    <Button {...props} onClick={() => controller.openSettings()}>
       {label}
     </Button>
   );
