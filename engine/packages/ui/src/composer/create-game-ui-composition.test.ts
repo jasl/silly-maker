@@ -190,8 +190,10 @@ describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () 
       const systemInternal = resolveSystemDialogSessionInternalV1(
         managedComposition.systemDialogSession,
       );
-      systemInternal.setCatalogInternalV1(
-        createSystemDialogRootCatalogSnapshotInternalV1({
+      const systemHostAttachment = systemInternal.attachHostInternalV1({
+        hostIdentity: Object.freeze({ kind: "epoch-fixture-system-host" }),
+        portalContainer: Object.freeze({ kind: "epoch-fixture-system-portal" }),
+        catalog: createSystemDialogRootCatalogSnapshotInternalV1({
           entries: Object.freeze([
             Object.freeze({
               rootRequest: "settings" as const,
@@ -208,7 +210,7 @@ describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () 
           ]),
           portBindings: Object.freeze([]),
         }),
-      );
+      });
 
       expect(composition.overlaySession.openPrimary("overlay.epoch-fixture")).toMatchObject({
         kind: "preparing",
@@ -235,7 +237,9 @@ describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () 
         code: "overlay.already_open",
       });
       expect(systemInternal.getManagedSnapshotInternalV1()).toBe(beforeSameOverlay);
-      expect(systemInternal.readyCandidateInternalV1(systemRoot.surfaceInstanceId)).toMatchObject({
+      expect(
+        systemHostAttachment.readyCandidateInternalV1(systemRoot.surfaceInstanceId),
+      ).toMatchObject({
         kind: "applied",
         code: "surface.readiness_ready",
       });
@@ -334,8 +338,10 @@ describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () 
       expect(unavailableNotifications).toBe(0);
       unsubscribeUnavailable();
 
-      managedSystemInternal.setCatalogInternalV1(
-        createSystemDialogRootCatalogSnapshotInternalV1({
+      managedSystemInternal.attachHostInternalV1({
+        hostIdentity: Object.freeze({ kind: "managed-system-test-host" }),
+        portalContainer: Object.freeze({ kind: "managed-system-test-portal" }),
+        catalog: createSystemDialogRootCatalogSnapshotInternalV1({
           entries: Object.freeze([
             Object.freeze({
               rootRequest: "settings" as const,
@@ -352,7 +358,7 @@ describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () 
           ]),
           portBindings: Object.freeze([]),
         }),
-      );
+      });
       const preparation = deferredV1();
       overlayInternal.attachRendererResolverInternalV1(Object.freeze({
         resolve: (id: "overlay.epoch-fixture") =>

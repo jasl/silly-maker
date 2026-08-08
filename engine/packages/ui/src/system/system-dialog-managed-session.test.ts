@@ -15,6 +15,7 @@ import {
   createSystemDialogRootCatalogSnapshotInternalV1,
   snapshotSystemDialogSavesContentConfigInternalV1,
   snapshotSystemDialogSettingsContentConfigInternalV1,
+  type SystemDialogHostAttachmentInternalV1,
   type SystemDialogManagedSessionInternalV1,
   type SystemDialogRootCatalogInternalV1,
 } from "./system-dialog-managed-session.ts";
@@ -82,6 +83,8 @@ function sessionFixtureV1(
   catalog: SystemDialogRootCatalogInternalV1 | null,
 ): {
   readonly session: SystemDialogManagedSessionInternalV1;
+  readonly updateCatalog: (catalog: SystemDialogRootCatalogInternalV1 | null) => void;
+  readonly readyCandidate: SystemDialogHostAttachmentInternalV1["readyCandidateInternalV1"];
   readonly subscribeCoordinator: (listener: () => void) => () => void;
   readonly dispose: () => void;
 } {
@@ -95,12 +98,29 @@ function sessionFixtureV1(
       resolvedSlotDescriptors: systemDialogManagedContractInternalV1.resolvedSlotDescriptors,
     }),
   });
-  const session = createSystemDialogManagedSessionInternalV1({
-    runtime: runtime.getCurrent(),
-    catalog,
-  });
+  const session = createSystemDialogManagedSessionInternalV1({ runtime: runtime.getCurrent() });
+  const hostIdentity = Object.freeze({ kind: "session-fixture-host" });
+  const portalContainer = Object.freeze({ kind: "session-fixture-portal" });
+  let attachment = catalog === null
+    ? null
+    : session.attachHostInternalV1({ hostIdentity, portalContainer, catalog });
   return Object.freeze({
     session,
+    updateCatalog(nextCatalog) {
+      if (attachment === null) {
+        attachment = session.attachHostInternalV1({
+          hostIdentity,
+          portalContainer,
+          catalog: nextCatalog,
+        });
+      } else {
+        attachment.updateCatalogInternalV1(nextCatalog);
+      }
+    },
+    readyCandidate(surfaceInstanceId) {
+      if (attachment === null) throw new TypeError("test.system_host_not_attached");
+      return attachment.readyCandidateInternalV1(surfaceInstanceId);
+    },
     subscribeCoordinator: runtime.getCurrent().coordinator.subscribe,
     dispose: () => {
       session.disposeInternalV1();
@@ -110,6 +130,59 @@ function sessionFixtureV1(
 }
 
 describe("dormant managed System dialog session", () => {
+  it("grants one logical Host lease and rejects a distinct Host before mutation", async () => {
+    const fixture = sessionFixtureV1(null);
+    const { session } = fixture;
+    const firstHost = Object.freeze({ kind: "first-host" });
+    const secondHost = Object.freeze({ kind: "second-host" });
+    const portal = Object.freeze({ kind: "system-portal" });
+    const catalog = catalogV1();
+    const before = session.getManagedSnapshotInternalV1();
+    let notifications = 0;
+    const unsubscribe = session.subscribeInternalV1(() => notifications += 1);
+
+    const attachment = session.attachHostInternalV1({
+      hostIdentity: firstHost,
+      portalContainer: portal,
+      catalog,
+    });
+
+    expect(attachment.isAcknowledgmentOpen()).toBe(true);
+    expect(session.getManagedSnapshotInternalV1()).toBe(before);
+    expect(notifications).toBe(0);
+    expect(() =>
+      session.attachHostInternalV1({
+        hostIdentity: secondHost,
+        portalContainer: Object.freeze({ kind: "losing-portal" }),
+        catalog: catalogV1({ settingsName: "Losing catalog" }),
+      })
+    ).toThrowError("ui.system_dialog_host_lease_conflict");
+    expect(session.getManagedSnapshotInternalV1()).toBe(before);
+    expect(notifications).toBe(0);
+
+    attachment.release();
+    expect(attachment.isAcknowledgmentOpen()).toBe(false);
+    expect(session.openRootInternalV1("settings")).toEqual({
+      kind: "rejected",
+      code: "system_dialog.renderer_unavailable",
+    });
+    await new Promise<void>((complete) => queueMicrotask(complete));
+
+    const successorAttachment = session.attachHostInternalV1({
+      hostIdentity: secondHost,
+      portalContainer: portal,
+      catalog,
+    });
+    expect(successorAttachment.isAcknowledgmentOpen()).toBe(true);
+    expect(session.getManagedSnapshotInternalV1()).toBe(before);
+    expect(notifications).toBe(0);
+
+    successorAttachment.release();
+    await new Promise<void>((complete) => queueMicrotask(complete));
+    unsubscribe();
+    fixture.dispose();
+  });
+
   it("notifies session observers only after the candidate record is installed", () => {
     const fixture = sessionFixtureV1(catalogV1());
     const observedCandidateIds: string[][] = [];
@@ -136,6 +209,74 @@ describe("dormant managed System dialog session", () => {
     fixture.dispose();
   });
 
+  it("rejects a live logical Host portal change before remounting its candidate", async () => {
+    const fixture = sessionFixtureV1(null);
+    const hostIdentity = Object.freeze({ kind: "stable-portal-host" });
+    const portalR1 = Object.freeze({ kind: "portal-r1" });
+    const attachment = fixture.session.attachHostInternalV1({
+      hostIdentity,
+      portalContainer: portalR1,
+      catalog: catalogV1(),
+    });
+    fixture.session.openRootInternalV1("settings");
+    const preparing = fixture.session.getManagedSnapshotInternalV1();
+
+    expect(() =>
+      fixture.session.attachHostInternalV1({
+        hostIdentity,
+        portalContainer: Object.freeze({ kind: "portal-r2" }),
+        catalog: catalogV1({ settingsName: "Settings R2" }),
+      })
+    ).toThrowError("ui.system_dialog_host_portal_conflict");
+    expect(fixture.session.getManagedSnapshotInternalV1()).toBe(preparing);
+    expect(attachment.isAcknowledgmentOpen()).toBe(true);
+
+    const continuation = fixture.session.attachHostInternalV1({
+      hostIdentity,
+      portalContainer: portalR1,
+      catalog: catalogV1(),
+    });
+    expect(attachment.isAcknowledgmentOpen()).toBe(false);
+    expect(continuation.isAcknowledgmentOpen()).toBe(true);
+    expect(
+      continuation.readyCandidateInternalV1(
+        preparing.orderedInstances[0]!.surfaceInstanceId,
+      ),
+    ).toMatchObject({
+      kind: "applied",
+      code: "surface.readiness_ready",
+    });
+
+    continuation.release();
+    await new Promise<void>((complete) => queueMicrotask(complete));
+    fixture.dispose();
+  });
+
+  it("provides an identity-stable Host render snapshot with frozen candidate resolution", () => {
+    const fixture = sessionFixtureV1(catalogV1());
+    const { session } = fixture;
+    const initial = session.getHostRenderSnapshotInternalV1();
+
+    expect(session.getHostRenderSnapshotInternalV1()).toBe(initial);
+    expect(initial.entries).toEqual([]);
+    expect(session.openRootInternalV1("settings")).toMatchObject({ kind: "preparing" });
+
+    const preparing = session.getHostRenderSnapshotInternalV1();
+    expect(preparing).not.toBe(initial);
+    expect(session.getHostRenderSnapshotInternalV1()).toBe(preparing);
+    expect(preparing.entries).toHaveLength(1);
+    expect(preparing.entries[0]).toMatchObject({
+      surfaceInstanceId: "surface-instance.e31.n1",
+      phase: "preparing",
+      rootRequest: "settings",
+    });
+    expect(preparing.entries[0]?.resolution.rendererComponent).toBe(rendererSettingsR1);
+    expect(Object.isFrozen(preparing)).toBe(true);
+    expect(Object.isFrozen(preparing.entries)).toBe(true);
+
+    fixture.dispose();
+  });
+
   it("applies exact root precedence without resolver work or mutation on short circuits", () => {
     const fixture = sessionFixtureV1(null);
     const { session } = fixture;
@@ -153,7 +294,7 @@ describe("dormant managed System dialog session", () => {
     const baseCatalog = catalogV1();
     const resolveRoot = vi.fn(baseCatalog.resolveRoot);
     const resolvePort = vi.fn(baseCatalog.resolvePort);
-    session.setCatalogInternalV1(Object.freeze({ resolveRoot, resolvePort }));
+    fixture.updateCatalog(Object.freeze({ resolveRoot, resolvePort }));
     const beforeInitial = session.getManagedSnapshotInternalV1();
     expect(session.openRootInternalV1("settings")).toEqual({
       kind: "preparing",
@@ -176,7 +317,7 @@ describe("dormant managed System dialog session", () => {
     expect(resolvePort).not.toHaveBeenCalled();
     expect(notifications).toBe(1);
 
-    session.setCatalogInternalV1(null);
+    fixture.updateCatalog(null);
     expect(session.openRootInternalV1("settings")).toEqual({
       kind: "rejected",
       code: "system_dialog.renderer_unavailable",
@@ -184,8 +325,8 @@ describe("dormant managed System dialog session", () => {
     expect(session.getManagedSnapshotInternalV1()).toBe(afterInitial);
     expect(notifications).toBe(1);
 
-    session.setCatalogInternalV1(Object.freeze({ resolveRoot, resolvePort }));
-    session.readyCandidateInternalV1(afterInitial.orderedInstances[0]!.surfaceInstanceId);
+    fixture.updateCatalog(Object.freeze({ resolveRoot, resolvePort }));
+    fixture.readyCandidate(afterInitial.orderedInstances[0]!.surfaceInstanceId);
     const active = session.getManagedSnapshotInternalV1();
     expect(notifications).toBe(2);
     resolveRoot.mockClear();
@@ -231,7 +372,7 @@ describe("dormant managed System dialog session", () => {
     const fixture = sessionFixtureV1(null);
     const { session } = fixture;
     const before = session.getManagedSnapshotInternalV1();
-    session.setCatalogInternalV1(Object.freeze({
+    fixture.updateCatalog(Object.freeze({
       resolveRoot: () => {
         throw new Error("synthetic resolver fault");
       },
@@ -243,7 +384,7 @@ describe("dormant managed System dialog session", () => {
     });
     expect(session.getManagedSnapshotInternalV1()).toBe(before);
 
-    session.setCatalogInternalV1(Object.freeze({
+    fixture.updateCatalog(Object.freeze({
       resolveRoot: () => null,
       resolvePort: () => null,
     }));
@@ -253,7 +394,7 @@ describe("dormant managed System dialog session", () => {
     });
     expect(session.getManagedSnapshotInternalV1()).toBe(before);
 
-    session.setCatalogInternalV1(catalogV1({ includeSavePort: false }));
+    fixture.updateCatalog(catalogV1({ includeSavePort: false }));
     expect(session.openRootInternalV1("saves")).toEqual({
       kind: "rejected",
       code: "system_dialog.required_port_missing",
@@ -308,7 +449,7 @@ describe("dormant managed System dialog session", () => {
 
     const fixture = sessionFixtureV1(null);
     const before = fixture.session.getManagedSnapshotInternalV1();
-    fixture.session.setCatalogInternalV1(Object.freeze({
+    fixture.updateCatalog(Object.freeze({
       resolveRoot: () =>
         Object.freeze({
           rootRequest: "settings" as const,
@@ -336,7 +477,7 @@ describe("dormant managed System dialog session", () => {
     const firstRecord = session.getRootCandidateRecordsInternalV1()[0]!;
     const firstPublication = session.getManagedSnapshotInternalV1();
 
-    session.setCatalogInternalV1(catalogV1({
+    fixture.updateCatalog(catalogV1({
       settingsRenderer: rendererSettingsR2,
       settingsName: "Settings R2",
       savesName: "Saves R2",

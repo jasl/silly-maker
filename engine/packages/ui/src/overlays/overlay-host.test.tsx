@@ -182,6 +182,10 @@ function createSharedSystemOverlayFixtureV1() {
   });
   const system = createSystemDialogManagedSessionInternalV1({
     runtime: runtimeOwner.getCurrent(),
+  });
+  system.attachHostInternalV1({
+    hostIdentity: Object.freeze({ kind: "shared-system-test-host" }),
+    portalContainer: Object.freeze({ kind: "shared-system-test-portal" }),
     catalog: createSystemDialogRootCatalogSnapshotInternalV1({
       entries: Object.freeze([
         Object.freeze({

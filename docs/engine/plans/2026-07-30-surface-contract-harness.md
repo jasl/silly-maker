@@ -8,8 +8,9 @@ retained-active pending cancellation、exact result/delta matrix、Host-commit r
 StrictMode、API cutover 与 stop conditions。
 同日 S3a dormant definition/slot/result/snapshot floor 与两个 package-internal
 atomic composite operations、S3b composition-owned shared Coordinator 与 dormant System
-session/config catalog、S3c.0 composition-wide successor activation barrier 已完成，下一
-独立实施切片为 S3c.1 Host-commit readiness。
+session/config catalog、S3c.0 composition-wide successor activation barrier 与 dormant
+S3c.1 Host-commit readiness/one logical Host lease 均已完成；下一独立
+实施切片为 S3d Saves confirmation child。
 目标合同见
 [Managed Surface lifecycle and contract harness](../design/surface-contract-harness.md)。
 本文只规定可独立交付的实施顺序；不要求一次实现 design
@@ -17,7 +18,7 @@ session/config catalog、S3c.0 composition-wide successor activation barrier 已
 
 在 [production-floor sequence](2026-07-30-production-floor-sequence.md)
 中：PF2 的 `S0 -> S1-T -> S2`、PF-DET 与 PF3/M2 已完成；当前 core
-节点是 PF4/S3c.1。PF4 的顺序是 `S3 -> S1-R -> S4 -> S4b`；S5–S6
+节点是 PF4/S3d。PF4 的顺序是 `S3 -> S1-R -> S4 -> S4b`；S5–S6
 属于 PF6。S1-R
 延后到第一个真实 externally published stable-target family 前完成；按 accepted
 target ownership，S4 Narrative 计划成为该 family，因此 S1-R 位于 S3 与 S4
@@ -1252,6 +1253,36 @@ shared-composition input integration 同时证明 retain-current prepare/fail �
 registration、`inputPublicationRevision` 或 gesture，ready cutover只更换一次 binding。
 S3c.0 未接入 React Host、catalog/portal lease 或 production System ingress；下一独立切片为
 S3c.1。
+
+**2026-08-08 S3c.1 delivery：** 新的 dormant、package-internal Managed System Host
+现在只在正确 System portal 内渲染 frozen candidate resolution；candidate renderer 在
+preparation 与 active 间复用同一个 `surfaceInstanceId` key、DOM 与 React element，
+cutover不 remount或重新调用 renderer。preparing shell 保留 layout并使用 `inert`、
+`aria-hidden`、`pointer-events:none`、`visibility:hidden`，不用 HTML `hidden` 或
+`display:none`。initial code-native fallback 连续持有 System isolation、全层 pointer
+blocker、fallback-only ordinary input gate 与 focus scope；action/viewport不能穿透到下层
+context，reset类仍沿用既有 ignored routing。initial supersede不恢复旧 opener，
+pre-ready failure/cancel则恢复
+fallback取得 focus 前的 exact connected owner。active-ready 的具体 content initial-focus
+与 ordinary input/dismiss policy仍留给 S3e live content cutover，confirmation exact opener
+属于 S3d。
+
+每个 candidate 的 layout-effect generation + microtask gate 只在 successful Host commit 后
+提交一次 ready；render/constructor/layout failure 在 accepted ready 前只提交一次
+candidate failure，accepted ready 后则向 existing root runtime-fault policy重抛。合法的
+`throw null` 也按 failure处理。one logical Host attachment把 catalog、portal 与 terminal
+acknowledgment绑定同一 lease；distinct Host与 live-candidate portal change在任何
+Coordinator/catalog/subscription/renderer mutation前 fail closed，StrictMode probe重挂不
+产生额外 publication/allocation/settlement/notification。真实 unmount同步关闭 intent与
+ack ingress，microtask grace 到期后以一次 owner close 原子退休 active/pending subtree，
+不 dispose共享 Coordinator；composition successor 后 predecessor acknowledgment稳定
+stale，Host catalog只影响 future candidate，R1 resolution不会被R2原地改写。
+
+该 Host与opaque attachment只由 source-relative tests消费，未进入 root/system/internal
+barrel或 package exports；production composition仍不给 dormant session附着 catalog/Host，
+legacy System store/Host仍是唯一 live writer。Save/Persistence/M2/canonical/digest/replay/
+wire与 browser graph均未改变；architecture/features不作 live promotion。下一独立切片为
+S3d。
 
 每个 dormant slice 必须 package-internal、不可由 live System 与旧 store同时写入；若
 为了独立合并必须双写、mirror 或提前开放第二个 lifecycle ingress，停止并重切片。

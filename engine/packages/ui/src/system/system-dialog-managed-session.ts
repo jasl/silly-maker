@@ -94,19 +94,44 @@ export interface SystemDialogRootCandidateRecordInternalV1 {
   readonly readiness: ManagedSurfaceReadinessAdapterV1;
 }
 
-export interface SystemDialogManagedSessionInternalV1
-  extends ManagedSurfaceFamilyRuntimeAdapterInternalV1 {
-  getManagedSnapshotInternalV1(): ManagedSurfacePublicationV1;
-  getRootCandidateRecordsInternalV1(): readonly SystemDialogRootCandidateRecordInternalV1[];
-  subscribeInternalV1(listener: () => void): () => void;
-  openRootInternalV1(request: SystemDialogRootRequestInternalV1): SystemDialogOpenResultV1;
+export interface SystemDialogHostRenderEntryInternalV1 {
+  readonly surfaceInstanceId: ManagedSurfaceInstanceIdV1;
+  readonly phase: ManagedSurfacePublicationV1["orderedInstances"][number]["phase"];
+  readonly rootRequest: SystemDialogRootRequestInternalV1;
+  readonly resolution: SystemDialogRootCandidateResolutionSnapshotInternalV1<unknown, unknown>;
+}
+
+export interface SystemDialogHostRenderSnapshotInternalV1 {
+  readonly publication: ManagedSurfacePublicationV1;
+  readonly entries: readonly SystemDialogHostRenderEntryInternalV1[];
+}
+
+/** @internal One generation of the single logical React Host attachment. */
+export interface SystemDialogHostAttachmentInternalV1 {
+  isAcknowledgmentOpen(): boolean;
+  updateCatalogInternalV1(catalog: SystemDialogRootCatalogInternalV1 | null): void;
   readyCandidateInternalV1(
     surfaceInstanceId: ManagedSurfaceInstanceIdV1,
   ): ManagedSurfaceTransitionReceiptV1;
   failCandidateInternalV1(
     surfaceInstanceId: ManagedSurfaceInstanceIdV1,
+    error?: unknown,
   ): ManagedSurfaceTransitionReceiptV1;
-  setCatalogInternalV1(catalog: SystemDialogRootCatalogInternalV1 | null): void;
+  release(): void;
+}
+
+export interface SystemDialogManagedSessionInternalV1
+  extends ManagedSurfaceFamilyRuntimeAdapterInternalV1 {
+  getManagedSnapshotInternalV1(): ManagedSurfacePublicationV1;
+  getRootCandidateRecordsInternalV1(): readonly SystemDialogRootCandidateRecordInternalV1[];
+  getHostRenderSnapshotInternalV1(): SystemDialogHostRenderSnapshotInternalV1;
+  subscribeInternalV1(listener: () => void): () => void;
+  openRootInternalV1(request: SystemDialogRootRequestInternalV1): SystemDialogOpenResultV1;
+  attachHostInternalV1(input: {
+    readonly hostIdentity: object;
+    readonly portalContainer: object;
+    readonly catalog: SystemDialogRootCatalogInternalV1 | null;
+  }): SystemDialogHostAttachmentInternalV1;
   disposeInternalV1(): void;
 }
 
@@ -504,10 +529,10 @@ function requestDefinitionV1(request: SystemDialogRootRequestInternalV1) {
 
 export function createSystemDialogManagedSessionInternalV1(input: {
   readonly runtime: ManagedSurfaceCoordinatorRuntimeV1;
-  readonly catalog: SystemDialogRootCatalogInternalV1 | null;
+  readonly reportFailure?: (code: string, error: unknown) => void;
 }): SystemDialogManagedSessionInternalV1 {
   let runtime = input.runtime;
-  let catalog = input.catalog;
+  let catalog: SystemDialogRootCatalogInternalV1 | null = null;
   let disposed = false;
   let detached = false;
   let preparedRuntime: ManagedSurfaceCoordinatorRuntimeV1 | null = null;
@@ -517,12 +542,37 @@ export function createSystemDialogManagedSessionInternalV1(input: {
   let mutationDepth = 0;
   let dirty = false;
   let unsubscribeCoordinator: (() => void) | null = null;
+  let hostLease: {
+    readonly hostIdentity: object;
+    readonly portalContainer: object;
+    open: boolean;
+  } | null = null;
+  let hostRenderSourcePublication: ManagedSurfacePublicationV1 | null = null;
+  let hostRenderSnapshot: SystemDialogHostRenderSnapshotInternalV1 | null = null;
+  const reportFailure = (code: string, error: unknown): void => {
+    try {
+      input.reportFailure?.(code, error);
+    } catch {
+      // Candidate diagnostics cannot replace the readiness transition.
+    }
+  };
 
   const managedSnapshot = (): ManagedSurfacePublicationV1 =>
     runtime.coordinator.getSnapshot() as ManagedSurfacePublicationV1;
+  const invalidateHostRenderSnapshot = (): void => {
+    hostRenderSourcePublication = null;
+    hostRenderSnapshot = null;
+  };
   const reconcileRecords = (): void => {
     const live = new Set(managedSnapshot().orderedInstances.map((item) => item.surfaceInstanceId));
-    for (const id of records.keys()) if (!live.has(id)) records.delete(id);
+    let changed = false;
+    for (const id of records.keys()) {
+      if (!live.has(id)) {
+        records.delete(id);
+        changed = true;
+      }
+    }
+    if (changed) invalidateHostRenderSnapshot();
   };
   const notify = (): void => {
     for (const listener of [...listeners]) {
@@ -573,6 +623,55 @@ export function createSystemDialogManagedSessionInternalV1(input: {
     );
   const recordFor = (instanceId: ManagedSurfaceInstanceIdV1 | undefined) =>
     instanceId === undefined ? undefined : records.get(instanceId);
+
+  const staleCandidateReceipt = (
+    surfaceInstanceId: ManagedSurfaceInstanceIdV1,
+  ): ManagedSurfaceTransitionReceiptV1 => {
+    const snapshot = managedSnapshot();
+    return Object.freeze({
+      kind: "stale" as const,
+      code: "surface.stale_readiness" as const,
+      beforeTopologyRevision: snapshot.topologyRevision,
+      afterTopologyRevision: snapshot.topologyRevision,
+      surfaceInstanceId,
+    });
+  };
+
+  const readyCandidate = (
+    surfaceInstanceId: ManagedSurfaceInstanceIdV1,
+  ): ManagedSurfaceTransitionReceiptV1 => {
+    const record = records.get(surfaceInstanceId);
+    return record === undefined
+      ? staleCandidateReceipt(surfaceInstanceId)
+      : mutate(() => record.readiness.ready()).receipt;
+  };
+
+  const failCandidate = (
+    surfaceInstanceId: ManagedSurfaceInstanceIdV1,
+  ): ManagedSurfaceTransitionReceiptV1 => {
+    const record = records.get(surfaceInstanceId);
+    return record === undefined
+      ? staleCandidateReceipt(surfaceInstanceId)
+      : mutate(() => record.readiness.fail());
+  };
+
+  const closeSystemOwnerAfterHostDetach = (): void => {
+    if (
+      disposed || detached || activationGate?.isOpen() === false || !runtime.isIngressOpen()
+    ) return;
+    const ownerId = systemDialogManagedContractInternalV1.resolvedOwnerIds[0]!;
+    const snapshot = managedSnapshot();
+    if (!snapshot.orderedInstances.some((instance) => instance.definition.ownerId === ownerId)) {
+      return;
+    }
+    mutate(() =>
+      runtime.coordinator.closeOwner(Object.freeze({
+        applicationEpoch: snapshot.applicationEpoch,
+        topologyRevision: snapshot.topologyRevision,
+        ownerId,
+      }))
+    );
+  };
 
   const preflight = (
     request: SystemDialogRootRequestInternalV1,
@@ -643,6 +742,7 @@ export function createSystemDialogManagedSessionInternalV1(input: {
           readiness: prepared.readiness,
         }),
       );
+      invalidateHostRenderSnapshot();
     });
     if (
       result.receipt.kind !== "applied" ||
@@ -661,6 +761,28 @@ export function createSystemDialogManagedSessionInternalV1(input: {
       reconcileRecords();
       return Object.freeze([...records.values()]);
     },
+    getHostRenderSnapshotInternalV1() {
+      const publication = managedSnapshot();
+      if (hostRenderSourcePublication === publication && hostRenderSnapshot !== null) {
+        return hostRenderSnapshot;
+      }
+      const entries = publication.orderedInstances.flatMap((instance) => {
+        const record = records.get(instance.surfaceInstanceId);
+        return record === undefined ? [] : [Object.freeze({
+          surfaceInstanceId: instance.surfaceInstanceId,
+          phase: instance.phase,
+          rootRequest: record.rootRequest,
+          resolution: record.resolution,
+        })];
+      });
+      hostRenderSourcePublication = publication;
+      const nextSnapshot: SystemDialogHostRenderSnapshotInternalV1 = Object.freeze({
+        publication,
+        entries: Object.freeze(entries),
+      });
+      hostRenderSnapshot = nextSnapshot;
+      return nextSnapshot;
+    },
     subscribeInternalV1(listener) {
       if (disposed) return () => undefined;
       listeners.add(listener);
@@ -675,7 +797,7 @@ export function createSystemDialogManagedSessionInternalV1(input: {
       if (
         disposed || detached || activationGate?.isOpen() === false || !runtime.isIngressOpen()
       ) return disposedResultV1;
-      if (catalog === null) return unavailableResultV1;
+      if (hostLease?.open !== true || catalog === null) return unavailableResultV1;
       reconcileRecords();
       const roots = systemRoots();
       const pending = roots.find((instance) => instance.readiness.kind === "preparing");
@@ -745,37 +867,71 @@ export function createSystemDialogManagedSessionInternalV1(input: {
         admitted,
       );
     },
-    readyCandidateInternalV1(surfaceInstanceId) {
-      const record = records.get(surfaceInstanceId);
-      if (record === undefined) {
-        const snapshot = managedSnapshot();
-        return Object.freeze({
-          kind: "stale" as const,
-          code: "surface.stale_readiness" as const,
-          beforeTopologyRevision: snapshot.topologyRevision,
-          afterTopologyRevision: snapshot.topologyRevision,
-          surfaceInstanceId,
-        });
-      }
-      return mutate(() => record.readiness.ready()).receipt;
-    },
-    failCandidateInternalV1(surfaceInstanceId) {
-      const record = records.get(surfaceInstanceId);
-      if (record === undefined) {
-        const snapshot = managedSnapshot();
-        return Object.freeze({
-          kind: "stale" as const,
-          code: "surface.stale_readiness" as const,
-          beforeTopologyRevision: snapshot.topologyRevision,
-          afterTopologyRevision: snapshot.topologyRevision,
-          surfaceInstanceId,
-        });
-      }
-      return mutate(() => record.readiness.fail());
-    },
-    setCatalogInternalV1(nextCatalog) {
+    attachHostInternalV1(attachmentInput) {
       if (disposed) throw new TypeError("ui.system_dialog_session_disposed");
-      catalog = nextCatalog;
+      if (
+        attachmentInput.hostIdentity === null ||
+        typeof attachmentInput.hostIdentity !== "object" ||
+        attachmentInput.portalContainer === null ||
+        typeof attachmentInput.portalContainer !== "object"
+      ) {
+        throw new TypeError("ui.system_dialog_host_attachment_invalid");
+      }
+      if (hostLease !== null && hostLease.hostIdentity !== attachmentInput.hostIdentity) {
+        throw new TypeError("ui.system_dialog_host_lease_conflict");
+      }
+      if (
+        hostLease !== null &&
+        hostLease.portalContainer !== attachmentInput.portalContainer &&
+        systemRoots().length > 0
+      ) {
+        throw new TypeError("ui.system_dialog_host_portal_conflict");
+      }
+      const lease = {
+        hostIdentity: attachmentInput.hostIdentity,
+        portalContainer: attachmentInput.portalContainer,
+        open: true,
+      };
+      hostLease = lease;
+      catalog = attachmentInput.catalog;
+      let released = false;
+      const attachment: SystemDialogHostAttachmentInternalV1 = {
+        isAcknowledgmentOpen: () => !released && !disposed && hostLease === lease && lease.open,
+        updateCatalogInternalV1(nextCatalog) {
+          if (released || disposed || hostLease !== lease || !lease.open) {
+            throw new TypeError("ui.system_dialog_host_attachment_stale");
+          }
+          catalog = nextCatalog;
+        },
+        readyCandidateInternalV1(surfaceInstanceId) {
+          return !released && !disposed && hostLease === lease && lease.open
+            ? readyCandidate(surfaceInstanceId)
+            : staleCandidateReceipt(surfaceInstanceId);
+        },
+        failCandidateInternalV1(surfaceInstanceId, error) {
+          if (!released && !disposed && hostLease === lease && lease.open) {
+            const receipt = failCandidate(surfaceInstanceId);
+            if (error !== undefined) {
+              reportFailure("ui.system_dialog_render_preparation_failed", error);
+            }
+            return receipt;
+          }
+          return staleCandidateReceipt(surfaceInstanceId);
+        },
+        release() {
+          if (released) return;
+          released = true;
+          if (hostLease !== lease) return;
+          lease.open = false;
+          queueMicrotask(() => {
+            if (disposed || hostLease !== lease || lease.open) return;
+            hostLease = null;
+            catalog = null;
+            closeSystemOwnerAfterHostDetach();
+          });
+        },
+      };
+      return Object.freeze(attachment);
     },
     detachRuntimeInternalV1() {
       if (disposed || detached) return;
@@ -785,6 +941,7 @@ export function createSystemDialogManagedSessionInternalV1(input: {
       unsubscribeCoordinator?.();
       unsubscribeCoordinator = null;
       records.clear();
+      invalidateHostRenderSnapshot();
       dirty = true;
     },
     prepareRuntimeAttachmentInternalV1(nextRuntime, nextActivationGate) {
@@ -824,6 +981,7 @@ export function createSystemDialogManagedSessionInternalV1(input: {
       unsubscribeCoordinator?.();
       unsubscribeCoordinator = null;
       records.clear();
+      invalidateHostRenderSnapshot();
       dirty = false;
     },
     disposeInternalV1() {
@@ -835,7 +993,9 @@ export function createSystemDialogManagedSessionInternalV1(input: {
       unsubscribeCoordinator?.();
       unsubscribeCoordinator = null;
       records.clear();
+      invalidateHostRenderSnapshot();
       catalog = null;
+      hostLease = null;
       listeners.clear();
     },
   };

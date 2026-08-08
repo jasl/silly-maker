@@ -10,7 +10,8 @@ time-boundary clarification 只闭合 C3 metadata scope，不改变 B-prime 或 
 Save M1 与 DET-B same-HEAD join 已于 2026-08-03 完成；M2 已冻结为 State-only 的
 M2a–M2e；M2a exact registry/Core-admission floor、M2b bounded pure execution kernel、
 M2c staged Persistence integration、M2d atomic replacement 与 M2e real-owner/four-runtime
-promotion 均已关闭，linear core 下一独立切片为 `PF4/S3c.1 Host-commit readiness`。
+promotion 均已关闭。2026-08-08 dormant `PF4/S3c.1 Host-commit readiness` 已关闭，
+linear core 下一独立切片为 `PF4/S3d Saves confirmation child`。
 2026-08-04 已冻结 S3 的 shared-Coordinator transient topology、atomic initial-candidate
 supersede、retained-active pending cancellation、exact result/delta matrix、Host-commit
 readiness、StrictMode terminal-once fence 与 public API cutover；能力尚未 promotion，
@@ -18,7 +19,8 @@ readiness、StrictMode terminal-once fence 与 public API cutover；能力尚未
 同日 S3a dormant System contract/snapshot floor 与 package-internal atomic initial
 supersede/retained-active cancellation、S3b composition-owned shared Coordinator 与
 dormant System session/catalog、S3c.0 all-family successor activation barrier 已完成；S3
-尚未 promotion，下一独立切片为 S3c.1。
+的 S3c.1 Host-commit readiness/Host lease 也已完成；S3 尚未 promotion，下一独立
+切片为 S3d。
 旧 promotion 数字保留为
 历史证据。本文是当前唯一的跨计划排序入口；
 具体合同仍由各 design 文档拥有，主要任务由五个独立计划拥有：
@@ -915,8 +917,20 @@ floor；S3b 已抽取唯一 composition-owned Coordinator lifetime/publication/i
 Settings/Saves known-field config snapshot/catalog。新 System catalog 在正式 composition
 中仍未附着，legacy System store/Host 仍是唯一 live writer。S3c 已先以 S3c.0 闭合
 all-family bind/activation-arming/shared-gate-release barrier，并串行 drain notification 内
-reentrant application-anchor rotation；S3c.1 下一步实现
+reentrant application-anchor rotation；S3c.1 随后实现
 Host-commit readiness、one logical Host lease 与 StrictMode/error-boundary fence。
+S3c.1 已以 dormant、未导出的 React Host 闭合该边界：candidate 在正确 System portal
+完成 successful Host commit 后才通过 microtask acknowledgment ready，preparing shell
+保持同 key、`inert`/`aria-hidden`/不可交互且不使用 `hidden`/`display:none`；code-native
+fallback 独立持有 blocking isolation/focus，initial failure 恢复 fallback 之前的 exact
+connected focus owner，并以 fallback-only System InputRouter gate 截断 action/viewport
+向 gameplay 穿透。StrictMode probe、initial supersede、replacement fail/ready、Host
+unmount、successor stale receipt、catalog R1/R2 freeze 与 accepted-ready fault delegation
+均由 mutation-sensitive vectors 固定。one logical Host lease 在 distinct Host、live portal
+identity change 与 stale terminal acknowledgment 上 fail closed；真实 unmount 立即关闭
+ingress，grace 到期后一次 owner close 原子退休 active/pending subtree而不 dispose共享
+Coordinator。新 Host/catalog仍未接入 production root，legacy store/Host仍是唯一 live
+System writer；S3d 下一步实现 exact-parent confirmation child。
 
 S1-R 在第一个真实 externally published stable-target family 前完成。按 accepted
 target ownership，S4 Narrative 计划从 semantic publication 派生 stable target，

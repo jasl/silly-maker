@@ -301,7 +301,9 @@ export function createGameUiCompositionWithEpochAllocatorInternalV1<
   const overlaySession = createWorkspaceOverlayPublicSessionInternalV1(overlayInternal);
   const managedSystemDialogInternal = createSystemDialogManagedSessionInternalV1({
     runtime: initialManagedSurfaceRuntime,
-    catalog: null,
+    ...(managedSurfaceReportFailure === undefined
+      ? {}
+      : { reportFailure: managedSurfaceReportFailure }),
   });
   const managedSystemDialogSession = createSystemDialogSessionFacadeInternalV1(
     managedSystemDialogInternal,

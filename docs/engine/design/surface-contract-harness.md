@@ -9,11 +9,15 @@ matrix、Host-commit readiness、StrictMode fence 与 public API cutover。
 resolution snapshot 与 package-internal initial-supersede/retained-active cancellation
 floor；S3b 已把 Overlay lifetime 提升为 composition-owned shared Coordinator，并注入
 dormant System session/catalog/config snapshot；S3c.0 已闭合 composition-wide successor
-activation barrier。S3c.1–S3e 及 live System cutover 仍待实施。
+activation barrier；2026-08-08 S3c.1 已闭合 dormant Host-commit readiness、one logical
+Host lease、fallback isolation/input/focus rollback 与 StrictMode/error-boundary fence。
+S3d–S3e
+及 live System cutover仍待实施。
 本文固定
 影响输入与焦点的 UI Surface 的权威边界、生命周期、输入代际与验证分层，并把“弱模型
-能够写出正确代码”提升为作者 API 的验收条件。S1-T 与 S2 已实现，S3a–S3b 只完成
-dormant System floor 与 shared composition authority，S3 仍未 promotion；当前 live 能力仍以 [architecture](../architecture.md) 与
+能够写出正确代码”提升为作者 API 的验收条件。S1-T 与 S2 已实现，S3a–S3c.1 只完成
+dormant System floor、shared composition authority 与 Host readiness，S3 仍未
+promotion；当前 live 能力仍以 [architecture](../architecture.md) 与
 [features](../features.md) 为准；执行顺序见
 [Surface Contract Harness plan](../plans/2026-07-30-surface-contract-harness.md)。
 
