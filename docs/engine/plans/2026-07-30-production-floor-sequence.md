@@ -10,8 +10,9 @@ time-boundary clarification 只闭合 C3 metadata scope，不改变 B-prime 或 
 Save M1 与 DET-B same-HEAD join 已于 2026-08-03 完成；M2 已冻结为 State-only 的
 M2a–M2e；M2a exact registry/Core-admission floor、M2b bounded pure execution kernel、
 M2c staged Persistence integration、M2d atomic replacement 与 M2e real-owner/four-runtime
-promotion 均已关闭。2026-08-08 dormant `PF4/S3c.1 Host-commit readiness` 已关闭，
-linear core 下一独立切片为 `PF4/S3d Saves confirmation child`。
+promotion 均已关闭。2026-08-08 dormant `PF4/S3c.1 Host-commit readiness` 与
+`PF4/S3d Saves confirmation child` 已关闭，linear core 下一独立切片为
+`PF4/S3e live cutover and promotion`。
 2026-08-04 已冻结 S3 的 shared-Coordinator transient topology、atomic initial-candidate
 supersede、retained-active pending cancellation、exact result/delta matrix、Host-commit
 readiness、StrictMode terminal-once fence 与 public API cutover；能力尚未 promotion，
@@ -19,8 +20,8 @@ readiness、StrictMode terminal-once fence 与 public API cutover；能力尚未
 同日 S3a dormant System contract/snapshot floor 与 package-internal atomic initial
 supersede/retained-active cancellation、S3b composition-owned shared Coordinator 与
 dormant System session/catalog、S3c.0 all-family successor activation barrier 已完成；S3
-的 S3c.1 Host-commit readiness/Host lease 也已完成；S3 尚未 promotion，下一独立
-切片为 S3d。
+的 S3c.1 Host-commit readiness/Host lease 与 S3d exact-parent confirmation child 也已
+完成；S3 尚未 promotion，下一独立切片为 S3e。
 旧 promotion 数字保留为
 历史证据。本文是当前唯一的跨计划排序入口；
 具体合同仍由各 design 文档拥有，主要任务由五个独立计划拥有：
@@ -931,6 +932,41 @@ identity change 与 stale terminal acknowledgment 上 fail closed；真实 unmou
 ingress，grace 到期后一次 owner close 原子退休 active/pending subtree而不 dispose共享
 Coordinator。新 Host/catalog仍未接入 production root，legacy store/Host仍是唯一 live
 System writer；S3d 下一步实现 exact-parent confirmation child。
+
+S3d 的 completion 采用 strict child-bound：pending cancel 只关闭 exact child，不取消已
+dispatch operation；child 关闭同时撤销它的 confirmation-bound child/root result sink，
+因此 later settle 对已关闭 child、仍存活的原 Saves root 与后来 root 都是零
+confirmation-result mutation。operation binding 的 independent finally仍可清 busy并按
+现有 read/status source refresh仍存活的 exact原 root，但不得命中 retired/later root，且
+Surface delta为零。child 保持 current 才允许 result 投递到 exact parent并关闭 child。所有
+非-successor child close 最终恢复 connected exact opener，只有 opener 已断开才退回
+surviving exact Saves root initial focus target；result summary 不得抢焦。S3d 仍是 dormant、
+package-internal 切片，不接 production ingress、不删除 legacy live writer，也不改变
+Persistence/Save/canonical/digest/replay/wire 语义。该边界在交付时通过 reviewed full diff、
+bounded import/export/attachment reference search 与 worktree dead-path audit 复核并记录，
+不新增只为冻结 exact file/source inventory 或 provisional import graph 的常规 CI test。
+
+**2026-08-08 S3d delivery：** dormant Managed System session 现在只从 frozen、
+descriptor-snapshotted operation binding 与 normalized load/clear/import invocation，为
+current ready Saves root 创建一个 fresh exact-parent confirmation child。prepare/ready/
+failure/cancel 全部复用 S3c.1 Host-commit gate；child preparing 与 active 期间 exact parent
+均保持原 DOM/React state但被 `inert`/`aria-hidden` 阻断。typed content intent 不接收
+opener、focus registration、instance、handle 或 readiness evidence；Host 在 mutation 前
+捕获 exact connected opener，并在 child 关闭后优先恢复它，断开时才选择 exact parent 的
+首个合法 initial target。active confirmation 拥有 closed Tab trap、System input/focus 与
+pointer gesture fence，candidate preparing仍无普通 authority。
+
+每个 child 的 operation 只 dispatch 一次；completion 在 close notification 后重新验证
+exact child/root 与 parent generation，fresh child、root replacement、epoch successor、Host
+release、detach/dispose均使旧 result sink stale。cancel 后 operation 可自然 settle，但只在
+captured exact原 root仍存活时执行一次独立 `finalizeExactRoot`；该 finalizer 与 result sink
+的 sync/async fault只进入 diagnostics，不回滚 lifecycle，也不产生 Surface commit。kernel
+新增 exact-candidate fallback dismiss，关闭 child时保留 same-owner root replacement；四种
+dismiss operation 在 policy lookup 前拒绝非 closed kind。同步 observer retirement、resolver/
+port reentry、Proxy callback TOCTOU、Promise own-`then`/constructor 与 close-notify fresh-child
+交错均由 mutation-sensitive vectors固定。新 Host/catalog仍未接入 production composition、
+browser graph或 package barrel；legacy store/Host仍是唯一 live writer，且
+Save/Persistence/M2/canonical/digest/replay/wire无 diff。下一独立切片为 S3e。
 
 S1-R 在第一个真实 externally published stable-target family 前完成。按 accepted
 target ownership，S4 Narrative 计划从 semantic publication 派生 stable target，

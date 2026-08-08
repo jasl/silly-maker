@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: MIT
 import {
+  isSaveSlotIdShapeV1,
   parseModuleId,
   parseNonNegativeSafeInteger,
   parsePositiveSafeInteger,
+  type SaveSlotIdV1,
 } from "@sillymaker/base";
 
 import { systemInputActionIdsV1 } from "../input/contracts.ts";
@@ -62,6 +64,15 @@ export type SystemDialogRootRequestInternalV1 = "settings" | "saves";
 export type SystemDialogSavesRendererVariantInternalV1 = "standard" | "custom";
 export type SystemDialogConfirmationOperationInternalV1 = "load" | "clear" | "import";
 
+export type SystemDialogConfirmationInvocationInternalV1 =
+  | {
+    readonly kind: "load" | "clear";
+    readonly slotId: SaveSlotIdV1;
+  }
+  | {
+    readonly kind: "import";
+  };
+
 export interface SystemDialogRequiredPortBindingInternalV1 {
   readonly portId: string;
   readonly port: unknown;
@@ -84,6 +95,16 @@ export interface SystemDialogRootCandidateResolutionSnapshotInternalV1<
   readonly contentConfigSnapshot: SystemDialogContentConfigSnapshotInternalV1<
     TContentConfigSnapshot
   >;
+}
+
+export interface SystemDialogConfirmationCandidateResolutionSnapshotInternalV1<
+  TRendererComponent,
+> {
+  readonly invocation: SystemDialogConfirmationInvocationInternalV1;
+  readonly definition: ManagedSurfaceResolvedDefinitionV1;
+  readonly rendererComponent: TRendererComponent;
+  readonly accessibleName: string;
+  readonly requiredPortBindings: readonly SystemDialogRequiredPortBindingInternalV1[];
 }
 
 interface SystemDialogManagedContractInternalV1 {
@@ -320,6 +341,66 @@ export function createSystemDialogRootCandidateResolutionSnapshotInternalV1<
     });
   } catch {
     throw new TypeError("ui.system_dialog_candidate_resolution_invalid");
+  }
+}
+
+/** @internal Admits only the closed, data-property-only confirmation invocation union. */
+export function normalizeSystemDialogConfirmationInvocationInternalV1(
+  input: unknown,
+): SystemDialogConfirmationInvocationInternalV1 {
+  try {
+    if (!isRecordV1(input)) throw new TypeError();
+    const kindDescriptor = Object.getOwnPropertyDescriptor(input, "kind");
+    if (kindDescriptor === undefined || !("value" in kindDescriptor)) throw new TypeError();
+    const kind = kindDescriptor.value;
+    if (kind === "import") {
+      snapshotExactDataRecordV1(input, ["kind"]);
+      return Object.freeze({ kind });
+    }
+    if (kind !== "load" && kind !== "clear") throw new TypeError();
+    const source = snapshotExactDataRecordV1(input, ["kind", "slotId"]);
+    if (!isSaveSlotIdShapeV1(source.slotId)) throw new TypeError();
+    return Object.freeze({ kind, slotId: source.slotId });
+  } catch {
+    throw new TypeError("ui.system_dialog_confirmation_invocation_invalid");
+  }
+}
+
+/** @internal Captures one successful renderer/port admission for one fresh confirmation child. */
+export function createSystemDialogConfirmationCandidateResolutionSnapshotInternalV1<
+  TRendererComponent,
+>(input: {
+  readonly invocation: SystemDialogConfirmationInvocationInternalV1;
+  readonly rendererComponent: TRendererComponent;
+  readonly accessibleName: string;
+  readonly requiredPortBindings: readonly SystemDialogRequiredPortBindingInternalV1[];
+}): SystemDialogConfirmationCandidateResolutionSnapshotInternalV1<TRendererComponent> {
+  try {
+    const source = snapshotExactDataRecordV1(input, [
+      "invocation",
+      "rendererComponent",
+      "accessibleName",
+      "requiredPortBindings",
+    ]);
+    const invocation = normalizeSystemDialogConfirmationInvocationInternalV1(source.invocation);
+    if (
+      source.rendererComponent === null ||
+      (typeof source.rendererComponent !== "object" &&
+        typeof source.rendererComponent !== "function") ||
+      typeof source.accessibleName !== "string" ||
+      source.accessibleName.length === 0
+    ) {
+      throw new TypeError();
+    }
+    return Object.freeze({
+      invocation,
+      definition: confirmationDefinitionV1,
+      rendererComponent: source.rendererComponent as TRendererComponent,
+      accessibleName: source.accessibleName,
+      requiredPortBindings: snapshotRequiredPortBindingsV1(source.requiredPortBindings),
+    });
+  } catch {
+    throw new TypeError("ui.system_dialog_confirmation_candidate_resolution_invalid");
   }
 }
 

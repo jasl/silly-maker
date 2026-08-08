@@ -10,13 +10,14 @@ resolution snapshot 与 package-internal initial-supersede/retained-active cance
 floor；S3b 已把 Overlay lifetime 提升为 composition-owned shared Coordinator，并注入
 dormant System session/catalog/config snapshot；S3c.0 已闭合 composition-wide successor
 activation barrier；2026-08-08 S3c.1 已闭合 dormant Host-commit readiness、one logical
-Host lease、fallback isolation/input/focus rollback 与 StrictMode/error-boundary fence。
-S3d–S3e
-及 live System cutover仍待实施。
+Host lease、fallback isolation/input/focus rollback 与 StrictMode/error-boundary fence；
+同日 S3d 已闭合 dormant exact-parent confirmation child、strict child-bound completion、
+exact-root finalization 与 Host-owned focus/gesture lifecycle。S3e live System cutover仍待
+实施。
 本文固定
 影响输入与焦点的 UI Surface 的权威边界、生命周期、输入代际与验证分层，并把“弱模型
-能够写出正确代码”提升为作者 API 的验收条件。S1-T 与 S2 已实现，S3a–S3c.1 只完成
-dormant System floor、shared composition authority 与 Host readiness，S3 仍未
+能够写出正确代码”提升为作者 API 的验收条件。S1-T 与 S2 已实现，S3a–S3d 只完成
+dormant System floor、shared composition authority、Host readiness 与 confirmation child，S3 仍未
 promotion；当前 live 能力仍以 [architecture](../architecture.md) 与
 [features](../features.md) 为准；执行顺序见
 [Surface Contract Harness plan](../plans/2026-07-30-surface-contract-harness.md)。
@@ -629,16 +630,36 @@ System context 绑定 exact parent。
 
 ### 4.4 Confirmation operation lifetime
 
-每个 confirmation child instance 至多 dispatch 一次 Persistence operation。pending
-期间 cancel 仍可用；它只关闭 exact child，不取消已 dispatch 的 operation。delayed
-completion 使用 captured child/root handles：child 已关闭、root 已退休或 successor
-已建立时，任何 close/result callback 只能 stale，不能修改 later instance。
+每个 confirmation child instance 捕获一份 normalized immutable invocation，并且至多
+dispatch 一次 Persistence operation。pending 期间 cancel 仍可用；它只关闭 exact
+child，不取消已经 dispatch 的 operation。operation completion authority 是 **strict
+child-bound**：只有 captured child 与 captured Saves root 都仍是 current exact
+instances 时，completion 才能向该 child 的 confirmation result sink 或该 exact root 的
+local operation-result sink 投递，并关闭该 child。
 
-clear 的 success/rejection/fault 与 load/import rejection/fault 都保留同一个 Saves
+一旦 child 因 cancel、Back、Escape、backdrop、root close/replacement、owner dispose 或
+successor 而关闭，它的全部 completion sink 立即撤销。已经 dispatch 的 operation 仍可在
+Host/Persistence 层自然 settle，但 delayed success/rejection/fault 不得更新已关闭 child，
+也不得向仍存活的原 Saves root 投递 confirmation-bound result，或写入后来新开的 Saves；
+captured close/result callback 只能返回 stale 且 Surface delta 为零。operation binding 的
+independent `finally` 仍可清理自己的 busy lease，并在 captured exact root 仍存活时按现有
+read/status source 请求 refresh；该 cleanup/refresh 不是 confirmation result sink，必须以
+exact root fence 拒绝 retired/later root，且不产生 Surface commit。Persistence 自身独立
+发布的 status/busy evidence同样不属于被撤销的 confirmation result callback，本节不改变
+其公开语义。root 已退休或 successor 已建立时，confirmation callback 与 exact-root
+cleanup/refresh都只能 stale。
+
+child 保持 current 直到 completion 时，clear 的 success/rejection/fault 与 load/import
+rejection/fault 只关闭 exact child并保留同一个 Saves root；result 只能投递到该 exact
 root。successful load/import 由 application anchor successor 清理旧共享 Coordinator，
-不依赖旧 root 的额外 `close()`；operation result 只写入仍存活的同一 Saves root，
-不得写入后来新开的 Saves。Save safepoint/guard 与 Persistence pending/result state
+不依赖旧 root 的额外 `close()`。Save safepoint/guard 与 Persistence pending/result state
 变化不产生 Surface commit。
+
+confirmation 因 cancel、failure 或非-successor completion 关闭后，最终 focus 固定恢复
+到 captured exact opener；只有 opener 已断开时才退回 surviving exact Saves root 的
+initial focus target。result summary 不得在同一 completion 后抢占 focus。若 root 与 child
+在同一 commit 中退休，则不得先把 focus 恢复到即将退休的 parent/opener；由 root/subtree
+transition 的既有 restore plan 一次完成最终恢复。
 
 ## 5. Input, gesture and action outcomes
 
@@ -1136,7 +1157,17 @@ definitions、创建新 instance/topology revision；不得反序列化旧 live 
     confirmation child、initial supersede、retained-active pending cancellation、
     initial/child fallback、replacement retain-current、one logical Host、candidate snapshot、
     same-key Host-commit cutover、accepted-ready fault boundary、StrictMode terminal-once 与
-    exact async operation handle 均通过 deterministic counts 与 browser evidence；每次
+    exact async operation handle 均通过 deterministic counts 与 browser evidence；
+    confirmation cancel 后 operation 可自然 settle，但 strict child-bound completion sink
+    已撤销，对 child、原 root 与后来 root 均零 confirmation-result mutation；operation
+    binding 的 independent finally只可清 busy并 refresh仍存活的 exact原 root，不得命中
+    retired/later root，且 Surface delta为零；非-successor close
+    的最终 focus 为 connected exact opener，只有 opener 断开才退回 exact parent initial
+    target，result summary 不抢焦；dormant S3 delivery 以 reviewed full diff、bounded
+    import/export/attachment reference search 与 worktree audit 证明新 path 未进入 public
+    barrel、live composition/browser graph，且 legacy writer 仍是唯一 live authority；该
+    dead-path evidence 记录在 delivery record，不建立冻结 exact file/source inventory 的
+    常规 CI test；每次
     successor 的第一个 family callback 已证明全部 family 绑定同一 epoch/publication 且
     ingress 一致，第二 family binding/activation failure（含 closed-gate reentry）则零
     pre-terminal Surface mutation/identity/family notification/anchor publication，seal 只产生

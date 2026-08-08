@@ -8,9 +8,9 @@ retained-active pending cancellation、exact result/delta matrix、Host-commit r
 StrictMode、API cutover 与 stop conditions。
 同日 S3a dormant definition/slot/result/snapshot floor 与两个 package-internal
 atomic composite operations、S3b composition-owned shared Coordinator 与 dormant System
-session/config catalog、S3c.0 composition-wide successor activation barrier 与 dormant
-S3c.1 Host-commit readiness/one logical Host lease 均已完成；下一独立
-实施切片为 S3d Saves confirmation child。
+session/config catalog、S3c.0 composition-wide successor activation barrier、dormant
+S3c.1 Host-commit readiness/one logical Host lease 与 S3d exact-parent confirmation child
+均已完成；下一独立实施切片为 S3e live cutover and promotion。
 目标合同见
 [Managed Surface lifecycle and contract harness](../design/surface-contract-harness.md)。
 本文只规定可独立交付的实施顺序；不要求一次实现 design
@@ -18,7 +18,7 @@ S3c.1 Host-commit readiness/one logical Host lease 均已完成；下一独立
 
 在 [production-floor sequence](2026-07-30-production-floor-sequence.md)
 中：PF2 的 `S0 -> S1-T -> S2`、PF-DET 与 PF3/M2 已完成；当前 core
-节点是 PF4/S3d。PF4 的顺序是 `S3 -> S1-R -> S4 -> S4b`；S5–S6
+节点是 PF4/S3e。PF4 的顺序是 `S3 -> S1-R -> S4 -> S4b`；S5–S6
 属于 PF6。S1-R
 延后到第一个真实 externally published stable-target family 前完成；按 accepted
 target ownership，S4 Narrative 计划成为该 family，因此 S1-R 位于 S3 与 S4
@@ -1155,12 +1155,24 @@ sealed，且不得分配下一 epoch。
 
 ### S3 asynchronous Persistence boundary
 
-每个 confirmation instance 至多 dispatch 一次。pending cancel 只关闭 exact child，
-不取消已 dispatch operation；completion 捕获 exact child/root handles。clear 的所有结果
-以及 load/import reject/fault 保留同一 Saves root；successful load/import 由 anchor
-successor 清理旧 Coordinator，不依赖旧 root `close()`。child/root 已退休后，late
-close/result 只能 stale，不能写入 later Saves。Save guard 与 Persistence local result
-变化的 Surface delta 均为零。
+每个 confirmation instance 捕获 normalized immutable invocation并至多 dispatch 一次。
+pending cancel 只关闭 exact child，不取消已 dispatch operation；completion 捕获 exact
+child/root handles并采用 strict child-bound。child 保持 current 时，clear 的所有结果以及
+load/import reject/fault只向 exact parent投递 local result并关闭 exact child；successful
+load/import由 anchor successor清理旧 Coordinator，不依赖旧 root `close()`。
+
+child 一经 cancel/Back/Escape/backdrop、root subtree retirement、owner dispose 或 successor
+关闭，其 confirmation-bound child/root result sink 同时撤销。operation 可以自然 settle，
+但 late close/result 对已关闭 child、仍存活的原 root 与 later Saves 都必须 stale且零
+confirmation-result mutation；不得把“same surviving root”解释为 cancel 后仍可接收
+result。operation binding 的 independent finally仍可清理 busy并按现有 read/status source
+refresh仍存活的 exact原 root；该 cleanup/refresh以 exact root fenced，不得命中 retired/
+later root，且 Surface delta为零。Save guard、Persistence local result/status 与独立 refresh
+不因此改义。
+
+非-successor child close 的最终 focus 固定为 captured connected exact opener；只有 opener
+已断开才退回 surviving exact Saves root initial focus target。completion result summary 不得
+抢焦。root 与 child 同 commit退休时不产生 intermediate parent focus restore。
 
 ### S3 mergeable slices
 
@@ -1184,9 +1196,9 @@ close/result 只能 stale，不能写入 later Saves。Save guard 与 Persistenc
    failure authority 以 Coordinator accepted `host_commit_ready` 为界，post-activation
    fault 委托 existing root policy；仍不切换 production System ingress；
 5. **S3d — Saves confirmation child：** 把 confirmation renderer/operation 接到 exact
-   parent child intent，证明 cancel/async completion/exact-handle/focus semantics；dormant
-   new path 自身不新增 React-local lifecycle writer，legacy live writer 只留在未切换路径
-   并在 S3e 同批删除；
+   parent child intent，证明 cancel/async completion/strict child-bound sink/exact-handle/
+   opener-first focus semantics；dormant new path 自身不新增 React-local lifecycle writer，
+   legacy live writer 只留在未切换路径并在 S3e 同批删除；
 6. **S3e — live cutover and promotion：** 在同一 slice 切换 DefaultGameRoot/Web/Story
    paths，删除旧 store/fallback/raw lifecycle public exports、public `SaveOverlayV1` /
    `SaveOverlayPropsV1` 与全部 dead path，只保留 public persistence configuration/value
@@ -1283,6 +1295,73 @@ barrel或 package exports；production composition仍不给 dormant session附�
 legacy System store/Host仍是唯一 live writer。Save/Persistence/M2/canonical/digest/replay/
 wire与 browser graph均未改变；architecture/features不作 live promotion。下一独立切片为
 S3d。
+
+### S3d slice contract
+
+**目标：** 在 dormant Managed System path 中，把 load/clear/import 的 normalized frozen
+invocation 通过 package-internal Saves content intent 打开为 current ready Saves root 的
+exact-parent single confirmation child；让 confirmation renderer 使用 S3c.1 相同的
+Host-commit readiness/fallback/error-boundary gate，并把 dispatch-once、exact cancel、
+strict child-bound completion sink 与 opener restore 绑定该 child instance。root content
+只能获得注入的 typed confirmation intent；raw parent/child handle、Coordinator、readiness
+与 focus lifecycle 不进入 content props或 package exports。
+
+**非目标：** S3d 不接 DefaultGameRoot/Web/Story production ingress，不删除或改写仍是唯一
+live writer 的 legacy System store/Host/`SaveOverlayV1`/`ActionConfirmationDialogV1`；不建立
+mirror/dual write，不把 confirmation existence 或 operation result 变成第二份 writable
+store；不改变 Persistence operation、Save safepoint、M2、canonical/digest/replay/wire、
+successful load/import successor 或 public result/API。旧 live SaveOverlay 的 result-summary
+focus 是待 S3e cutover 删除的 legacy 行为，不得复制到 dormant managed path。
+
+**TDD/验收向量：**
+
+1. 非-Saves parent、stale parent、occupied exact-parent child slot、invalid invocation、
+   missing renderer/required port 在 allocation/topology mutation 前拒绝；parent/root DOM、
+   input/focus/gesture、publication identity与 resolver/dispatch count 保持确定性零变化；
+2. load/clear/import各至少一条 normalized invocation vector；successful child prepare 为
+   `+1/+1/+1/1`，fresh instance、one fallback、zero ordinary child input/focus/semantic
+   authority，Host commit ready再以`+1/+1/0/1`原子 cutover；StrictMode counts相同；
+3. 同一个 active/pending child 的 confirm double-click、routed confirm 与 re-render 组合仍
+   只 dispatch一次；每次重新打开分配 fresh child，前一 child controller/receipt稳定 stale；
+4. pending operation期间 cancel/Back/Escape/backdrop只以一次`+1/+1/0/1`关闭 exact child，
+   保留 exact Saves root/DOM/local state/input binding/gesture。operation promise之后 resolve、
+   reject或 throw均不向 confirmation、原 root或later root投递 confirmation result，也不
+   触发 close；operation binding 的 independent finally可确定性清 busy并 refresh仍存活的
+   exact原 root，root已退休/替换或 successor建立时则不得 refresh later root。两者的
+   Surface delta与notify均为零；
+5. child保持 current时，clear success/reject/fault与 load/import reject/fault只向 exact root
+   sink投递一次并关闭 exact child；duplicate/late completion零 mutation。successful
+   load/import只由 application-anchor successor退休旧 tree，旧 child/root callback不得
+   close successor；
+6. cancel、readiness failure和非-successor completion均最终恢复 captured exact opener；
+   opener断开才聚焦 surviving exact parent initial target。result summary、fallback cleanup
+   与 delayed completion均不得覆盖该最终 focus；root+child原子退休没有 intermediate
+   parent focus；
+7. delivery/dead-path audit 以 reviewed `git diff --name-status`、full diff、bounded `rg`
+   import/export/attachment reference search 与最终 staged/unstaged/untracked 状态，证明新
+   Host/content/session path 没有进入 root/system/internal barrel、package exports、production
+   composition 或 browser graph，legacy path 仍是唯一 live writer，Save/Persistence/M2/
+   canonical/digest/replay/wire 均无 diff；把命令与结论记录进 delivery record，不新增只为
+   冻结 exact file/source inventory 或 provisional import graph 的常规 CI test。
+
+**2026-08-08 S3d delivery：** dormant session 现在把 normalized frozen invocation、
+descriptor-snapshotted operation callbacks、frozen confirmation renderer/required ports与
+fresh exact-parent child绑定。新 exact-candidate fallback dismiss只关闭该 child，不会取消
+same-owner root replacement；invalid dismiss kind 在 policy lookup 前 fail closed。Host 使用
+与 root相同的 keyed commit/readiness gate，child preparing/active均阻断 retained exact parent
+而不 remount；typed content intent不暴露 opener/focus lifecycle，Host自行捕获/恢复 exact
+opener、选择 disconnected fallback target、执行 closed Tab trap并在 pointer-up close前 arm
+System gesture fence。
+
+operation dispatch-once 与 strict child-bound result sink 同步绑定 child/root/generation；
+cancel、fresh child、root retirement/replacement、epoch successor、Host release与 runtime
+detach/dispose均使旧 sink stable stale。独立 `finalizeExactRoot` 只在 captured原 root仍存活时
+terminal-once执行，cancel 后也不产生 Surface mutation；sync/async sink fault只报告
+diagnostics。resolver/port reentry、prepare-notification retirement、Proxy callback mutation、
+Promise own-`then`/constructor与 close-notify fresh-child交错均有 mutation-sensitive tests。
+delivery/dead-path audit确认新 Host/catalog仍未进入 public/internal barrel、production
+composition或 browser graph，legacy store/Host仍是唯一 live writer；Save/Persistence/M2/
+canonical/digest/replay/wire与 live capability docs均未改变。下一独立切片为 S3e。
 
 每个 dormant slice 必须 package-internal、不可由 live System 与旧 store同时写入；若
 为了独立合并必须双写、mirror 或提前开放第二个 lifecycle ingress，停止并重切片。

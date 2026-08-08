@@ -228,6 +228,9 @@ function createRuntimeCoordinatorPortV1(
     routeDismissWithOwnerPreparationCancel: gated(
       coordinator.routeDismissWithOwnerPreparationCancel,
     ),
+    routeFallbackDismissExactCandidate: gated(
+      coordinator.routeFallbackDismissExactCandidate,
+    ),
     routeFallbackDismissWithOwnerPreparationCancel: gated(
       coordinator.routeFallbackDismissWithOwnerPreparationCancel,
     ),

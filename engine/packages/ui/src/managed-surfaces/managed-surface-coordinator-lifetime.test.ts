@@ -941,6 +941,17 @@ describe("Managed Surface application lifetime", () => {
           ),
       ],
       [
+        "routeFallbackDismissExactCandidate",
+        () =>
+          predecessor.coordinator.routeFallbackDismissExactCandidate(
+            {
+              applicationEpoch: predecessorHandle.applicationEpoch,
+              surfaceInstanceId: predecessorHandle.surfaceInstanceId,
+            },
+            "back",
+          ),
+      ],
+      [
         "routeFallbackDismissWithOwnerPreparationCancel",
         () =>
           predecessor.coordinator.routeFallbackDismissWithOwnerPreparationCancel(

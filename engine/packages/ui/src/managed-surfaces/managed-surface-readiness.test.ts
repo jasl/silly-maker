@@ -661,6 +661,232 @@ describe("Managed Surface transition-kind readiness", () => {
     });
   });
 
+  it("dismisses one exact child fallback without cancelling a same-owner root replacement", () => {
+    const coordinator = createCoordinatorV1();
+    const root = requireHandleV1(coordinator.openTransientPrimary({
+      definition: definitionV1(),
+      semanticOccurrenceId: null,
+    }));
+    const replacement = coordinator.replaceTransientPrimary({
+      definition: definitionV1({
+        definitionId: parseManagedSurfaceDefinitionIdV1("surface.workspace.replacement"),
+      }),
+      semanticOccurrenceId: null,
+      expected: root,
+    });
+    const currentRoot = coordinator.getHandle(root.surfaceInstanceId)!;
+    const confirmation = coordinator.pushTransientChild({
+      definition: definitionV1({
+        definitionId: parseManagedSurfaceDefinitionIdV1("surface.workspace.confirmation"),
+        slotId: detailSlotIdV1,
+        layerId: parseManagedSurfaceLayerIdV1("surface-layer.workspace-confirmation"),
+        layerOrder: parseNonNegativeSafeInteger(30),
+        placement: "child",
+      }),
+      semanticOccurrenceId: null,
+      parent: currentRoot,
+    });
+    const before = coordinator.getSnapshot();
+    let notifications = 0;
+    coordinator.subscribe(() => notifications += 1);
+
+    expect(coordinator.routeFallbackDismissExactCandidate(
+      confirmation.readiness!.evidence,
+      "routed_cancel",
+    )).toMatchObject({
+      kind: "applied",
+      code: "surface.dismissed",
+      surfaceInstanceId: confirmation.receipt.surfaceInstanceId,
+    });
+
+    const after = coordinator.getSnapshot();
+    expectRevisionDeltaV1(before, after, 1, 1);
+    expect(notifications).toBe(1);
+    expect(after.orderedInstances.map((instance) => instance.surfaceInstanceId)).toEqual([
+      root.surfaceInstanceId,
+      replacement.receipt.surfaceInstanceId,
+    ]);
+    expect(after.orderedInstances.find(
+      (instance) => instance.surfaceInstanceId === root.surfaceInstanceId,
+    )).toMatchObject({ phase: "active", readiness: { kind: "ready" } });
+    expect(after.orderedInstances.find(
+      (instance) => instance.surfaceInstanceId === replacement.receipt.surfaceInstanceId,
+    )).toMatchObject({
+      phase: "preparing",
+      readiness: {
+        kind: "preparing",
+        transition: "primary_replacement",
+        retainedInstanceId: root.surfaceInstanceId,
+      },
+    });
+    expect(after.preparationFallbacks).toEqual([]);
+    expect(after.inputOwner?.surfaceInstanceId).toBe(root.surfaceInstanceId);
+    expect(after.focusOwner?.surfaceInstanceId).toBe(root.surfaceInstanceId);
+    expect(confirmation.readiness!.ready().receipt).toMatchObject({
+      kind: "stale",
+      code: "surface.stale_readiness",
+    });
+    expect(coordinator.routeFallbackDismissExactCandidate(
+      confirmation.readiness!.evidence,
+      "routed_cancel",
+    )).toMatchObject({
+      kind: "stale",
+      code: "surface.stale_readiness",
+      surfaceInstanceId: confirmation.receipt.surfaceInstanceId,
+    });
+    expect(coordinator.getSnapshot()).toBe(after);
+    expect(notifications).toBe(1);
+    expect(replacement.readiness!.ready().receipt).toMatchObject({
+      kind: "applied",
+      code: "surface.readiness_ready",
+    });
+  });
+
+  it.each(["__proto__", "unknown"] as const)(
+    "rejects the non-contract dismiss kind %s before exact-fallback or ready routing",
+    (dismissKind) => {
+      const fallbackCoordinator = createCoordinatorV1();
+      const fallback = fallbackCoordinator.openTransientPrimary({
+        definition: definitionV1(),
+        semanticOccurrenceId: null,
+      });
+      const beforeFallback = fallbackCoordinator.getSnapshot();
+      let fallbackNotifications = 0;
+      fallbackCoordinator.subscribe(() => fallbackNotifications += 1);
+
+      expect(fallbackCoordinator.routeFallbackDismissExactCandidate(
+        fallback.readiness!.evidence,
+        dismissKind as never,
+      )).toMatchObject({
+        kind: "rejected",
+        code: "surface.invalid_transition",
+        surfaceInstanceId: fallback.receipt.surfaceInstanceId,
+      });
+      const afterFallback = fallbackCoordinator.getSnapshot();
+      expect(afterFallback).toBe(beforeFallback);
+      expect(afterFallback.publicationRevision).toBe(beforeFallback.publicationRevision);
+      expect(afterFallback.topologyRevision).toBe(beforeFallback.topologyRevision);
+      expect(afterFallback.inputOwner).toBe(beforeFallback.inputOwner);
+      expect(afterFallback.focusOwner).toBe(beforeFallback.focusOwner);
+      expect(fallbackNotifications).toBe(0);
+
+      const readyCoordinator = createCoordinatorV1();
+      const handle = requireHandleV1(readyCoordinator.openTransientPrimary({
+        definition: definitionV1(),
+        semanticOccurrenceId: null,
+      }));
+      const beforeReady = readyCoordinator.getSnapshot();
+      let readyNotifications = 0;
+      readyCoordinator.subscribe(() => readyNotifications += 1);
+
+      expect(readyCoordinator.routeDismiss(handle, dismissKind as never)).toMatchObject({
+        kind: "rejected",
+        code: "surface.invalid_transition",
+        surfaceInstanceId: handle.surfaceInstanceId,
+      });
+      const afterReady = readyCoordinator.getSnapshot();
+      expect(afterReady).toBe(beforeReady);
+      expect(afterReady.publicationRevision).toBe(beforeReady.publicationRevision);
+      expect(afterReady.topologyRevision).toBe(beforeReady.topologyRevision);
+      expect(afterReady.inputOwner).toBe(beforeReady.inputOwner);
+      expect(afterReady.focusOwner).toBe(beforeReady.focusOwner);
+      expect(readyNotifications).toBe(0);
+    },
+  );
+
+  it("rejects a stale epoch for the current exact fallback without publishing", () => {
+    const scenario = preparedScenarioV1("child_open");
+    const before = scenario.coordinator.getSnapshot();
+    let notifications = 0;
+    scenario.coordinator.subscribe(() => notifications += 1);
+
+    expect(scenario.coordinator.routeFallbackDismissExactCandidate(
+      {
+        applicationEpoch: parseNonNegativeSafeInteger(applicationEpochV1 - 1),
+        surfaceInstanceId: scenario.candidateInstanceId,
+      },
+      "routed_cancel",
+    )).toMatchObject({
+      kind: "stale",
+      code: "surface.stale_application_epoch",
+      surfaceInstanceId: scenario.candidateInstanceId,
+    });
+
+    const after = scenario.coordinator.getSnapshot();
+    expect(after).toBe(before);
+    expect(after.inputOwner).toBe(before.inputOwner);
+    expect(after.focusOwner).toBe(before.focusOwner);
+    expect(notifications).toBe(0);
+  });
+
+  it("rejects a live exact fallback that is not the global current target", () => {
+    const coordinator = createCoordinatorV1();
+    const lower = coordinator.openTransientPrimary({
+      definition: definitionV1(),
+      semanticOccurrenceId: null,
+    });
+    const upper = coordinator.openTransientPrimary({
+      definition: definitionV1({
+        definitionId: parseManagedSurfaceDefinitionIdV1("surface.other"),
+        ownerId: otherOwnerIdV1,
+        slotId: otherSlotIdV1,
+        layerId: parseManagedSurfaceLayerIdV1("surface-layer.other"),
+        layerOrder: parseNonNegativeSafeInteger(40),
+      }),
+      semanticOccurrenceId: null,
+    });
+    const before = coordinator.getSnapshot();
+    let notifications = 0;
+    coordinator.subscribe(() => notifications += 1);
+
+    expect(coordinator.routeFallbackDismissExactCandidate(
+      lower.readiness!.evidence,
+      "routed_cancel",
+    )).toMatchObject({
+      kind: "rejected",
+      code: "surface.invalid_transition",
+      surfaceInstanceId: lower.receipt.surfaceInstanceId,
+    });
+
+    const after = coordinator.getSnapshot();
+    expect(after).toBe(before);
+    expect(after.inputOwner).toBe(before.inputOwner);
+    expect(after.focusOwner).toBe(before.focusOwner);
+    expect(after.preparationFallbacks).toEqual([
+      { kind: "blocking_fallback", candidateInstanceId: lower.receipt.surfaceInstanceId },
+      { kind: "blocking_fallback", candidateInstanceId: upper.receipt.surfaceInstanceId },
+    ]);
+    expect(notifications).toBe(0);
+  });
+
+  it("keeps a locked exact candidate fallback unchanged", () => {
+    const coordinator = createCoordinatorV1();
+    const preparation = coordinator.openTransientPrimary({
+      definition: definitionV1({
+        dismissPolicy: {
+          back: false,
+          escape: false,
+          backdrop: false,
+          routedCancel: false,
+        },
+      }),
+      semanticOccurrenceId: null,
+    });
+    const before = coordinator.getSnapshot();
+    let notifications = 0;
+    coordinator.subscribe(() => notifications += 1);
+    expect(coordinator.routeFallbackDismissExactCandidate(
+      preparation.readiness!.evidence,
+      "escape",
+    )).toMatchObject({
+      kind: "rejected",
+      code: "surface.dismiss_locked",
+      surfaceInstanceId: preparation.receipt.surfaceInstanceId,
+    });
+    expect(coordinator.getSnapshot()).toBe(before);
+    expect(notifications).toBe(0);
+  });
+
   it("keeps a locked candidate-bound fallback unchanged", () => {
     const coordinator = createCoordinatorV1();
     const preparation = coordinator.openTransientPrimary({

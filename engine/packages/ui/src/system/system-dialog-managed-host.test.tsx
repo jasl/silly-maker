@@ -2,8 +2,16 @@
 // SPDX-License-Identifier: MIT
 import "@testing-library/jest-dom/vitest";
 import { parseNonNegativeSafeInteger } from "@sillymaker/base";
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
-import { Component, StrictMode, useLayoutEffect, useSyncExternalStore } from "react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  Component,
+  StrictMode,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import type { ReactElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -18,12 +26,15 @@ import {
   createSystemDialogManagedSessionInternalV1,
   createSystemDialogRootCatalogSnapshotInternalV1,
   createSystemDialogSessionFacadeInternalV1,
+  type SystemDialogConfirmationOperationBindingInternalV1,
+  type SystemDialogConfirmationResultDeliveryInternalV1,
   type SystemDialogHostAttachmentInternalV1,
   type SystemDialogManagedSessionInternalV1,
   type SystemDialogRootCatalogInternalV1,
 } from "./system-dialog-managed-session.ts";
 import {
   SystemDialogManagedHostInternalV1,
+  type SystemDialogConfirmationRendererPropsInternalV1,
   type SystemDialogRootRendererPropsInternalV1,
 } from "./system-dialog-managed-host.tsx";
 
@@ -41,6 +52,7 @@ function catalogV1(
     readonly settingsTitle?: string;
     readonly savesAccessibleName?: string;
     readonly requiredPort?: object;
+    readonly confirmationRenderer?: object | ((...args: never[]) => unknown);
   },
 ): SystemDialogRootCatalogInternalV1 {
   const requiredPortId = "synthetic.system_dialog_port";
@@ -79,6 +91,13 @@ function catalogV1(
         portId: requiredPortId,
         port: options.requiredPort,
       })]),
+    ...(options?.confirmationRenderer === undefined ? {} : {
+      confirmationEntry: Object.freeze({
+        rendererComponent: options.confirmationRenderer,
+        accessibleName: "Managed action confirmation",
+        requiredPortIds,
+      }),
+    }),
   });
 }
 
@@ -216,6 +235,16 @@ async function drainMicrotaskV1(): Promise<void> {
   await act(async () => {
     await new Promise<void>((complete) => queueMicrotask(complete));
   });
+}
+
+function deferredV1<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
 }
 
 async function renderHostV1(input: {
@@ -937,5 +966,901 @@ describe("dormant managed System Host-commit readiness", () => {
     expect(fixture.terminalCalls.fail).toBe(0);
     expect(fixture.failures).toEqual([]);
     consoleError.mockRestore();
+  });
+});
+
+describe("dormant managed System confirmation Host", () => {
+  it("exposes only a typed confirmation intent and snapshots request data before transition", async () => {
+    const fixture = fixtureV1();
+    const operationBinding = Object.freeze({
+      dispatch: vi.fn(() =>
+        Promise.resolve(Object.freeze({
+          kind: "retain_root" as const,
+          result: "unused",
+        }))
+      ),
+      resultSink: vi.fn(),
+      finalizeExactRoot: vi.fn(),
+    });
+    let rootProps: SystemDialogRootRendererPropsInternalV1 | null = null;
+
+    function SavesRendererV1(props: SystemDialogRootRendererPropsInternalV1): ReactElement {
+      rootProps = props;
+      return <button type="button" data-testid="snapshot-intent-opener">Open</button>;
+    }
+
+    await renderHostV1({
+      fixture,
+      catalog: catalogV1(
+        () => <div />,
+        SavesRendererV1,
+        { confirmationRenderer: () => <div data-testid="snapshot-intent-child" /> },
+      ),
+    });
+    act(() => {
+      fixture.internal.openRootInternalV1("saves");
+    });
+    await drainMicrotaskV1();
+    const resolvedRootProps = rootProps as SystemDialogRootRendererPropsInternalV1 | null;
+    if (resolvedRootProps === null || resolvedRootProps.confirmationIntent === null) {
+      throw new TypeError("missing confirmation intent");
+    }
+    const intent = resolvedRootProps.confirmationIntent;
+    const opener = screen.getByTestId("snapshot-intent-opener");
+    opener.focus();
+    expect(resolvedRootProps).not.toHaveProperty("confirmationLifecycle");
+    expect(Object.keys(intent)).toEqual(["requestConfirmationInternalV1"]);
+
+    const beforeInvalid = fixture.internal.getManagedSnapshotInternalV1();
+    const throwingRequest = Object.defineProperties({}, {
+      invocation: {
+        enumerable: true,
+        get(): never {
+          throw new Error("synthetic request getter failure");
+        },
+      },
+      operationBinding: { enumerable: true, value: operationBinding },
+    }) as Parameters<typeof intent.requestConfirmationInternalV1>[0];
+    let invalidResult: ReturnType<typeof intent.requestConfirmationInternalV1> | undefined;
+    expect(() => {
+      act(() => {
+        invalidResult = intent.requestConfirmationInternalV1(throwingRequest);
+      });
+    }).not.toThrow();
+    expect(invalidResult).toEqual({
+      kind: "rejected",
+      code: "system_dialog.confirmation_invocation_invalid",
+    });
+    expect(fixture.internal.getManagedSnapshotInternalV1()).toBe(beforeInvalid);
+
+    let invocationReads = 0;
+    let operationBindingReads = 0;
+    const exactRequest = Object.defineProperties({}, {
+      invocation: {
+        enumerable: true,
+        get() {
+          invocationReads += 1;
+          return Object.freeze({ kind: "import" as const });
+        },
+      },
+      operationBinding: {
+        enumerable: true,
+        get() {
+          operationBindingReads += 1;
+          return operationBinding;
+        },
+      },
+    }) as Parameters<typeof intent.requestConfirmationInternalV1>[0];
+    let preparingResult: ReturnType<typeof intent.requestConfirmationInternalV1> | undefined;
+    act(() => {
+      preparingResult = intent.requestConfirmationInternalV1(exactRequest);
+    });
+
+    expect(preparingResult).toEqual({
+      kind: "preparing",
+      code: "system_dialog.confirmation_preparation_started",
+    });
+    expect(invocationReads).toBe(1);
+    expect(operationBindingReads).toBe(1);
+    expect(screen.getByTestId("snapshot-intent-child")).toBeInTheDocument();
+  });
+
+  it("keeps one child subtree through Host readiness and dispatches at most once", async () => {
+    const fixture = fixtureV1();
+    const operation = deferredV1<{ readonly kind: "retain_root"; readonly result: string }>();
+    const dispatch = vi.fn(() => operation.promise);
+    const resultSink = vi.fn();
+    const operationBinding: SystemDialogConfirmationOperationBindingInternalV1 = Object.freeze({
+      dispatch,
+      resultSink,
+      finalizeExactRoot: vi.fn(),
+    });
+    const confirmationRendered = vi.fn();
+    const confirmationProps: SystemDialogConfirmationRendererPropsInternalV1[] = [];
+    const contentOpenResults: unknown[] = [];
+
+    function SavesRendererV1(props: SystemDialogRootRendererPropsInternalV1): ReactElement {
+      return (
+        <div data-testid="managed-saves-content">
+          <button type="button">
+            Saves initial
+          </button>
+          <button
+            type="button"
+            data-testid="confirmation-opener"
+            onClick={() => {
+              const result = props.confirmationIntent?.requestConfirmationInternalV1({
+                invocation: Object.freeze({ kind: "import" }),
+                operationBinding,
+              });
+              contentOpenResults.push(result);
+            }}
+          >
+            Import
+          </button>
+        </div>
+      );
+    }
+    function ConfirmationRendererV1(
+      props: SystemDialogConfirmationRendererPropsInternalV1,
+    ): ReactElement {
+      confirmationRendered();
+      confirmationProps.push(props);
+      return (
+        <button
+          type="button"
+          data-testid="managed-confirmation-confirm"
+          onClick={() => props.controller.dispatchOnceInternalV1()}
+        >
+          Confirm
+        </button>
+      );
+    }
+
+    await renderHostV1({
+      fixture,
+      catalog: catalogV1(
+        () => <div />,
+        SavesRendererV1,
+        { confirmationRenderer: ConfirmationRendererV1 },
+      ),
+    });
+    act(() => {
+      fixture.internal.openRootInternalV1("saves");
+    });
+    await drainMicrotaskV1();
+    const rootShell = document.querySelector<HTMLDivElement>(
+      '[data-system-dialog-root="saves"]',
+    )!;
+    const rootContent = screen.getByTestId("managed-saves-content");
+    const opener = screen.getByTestId("confirmation-opener");
+    opener.focus();
+
+    fireEvent.click(opener);
+
+    const preparingChild = document.querySelector<HTMLDivElement>(
+      '[data-system-dialog-entry="confirmation"]',
+    )!;
+    const childRenderer = screen.getByTestId("managed-confirmation-confirm");
+    const fallback = screen.getByTestId("system-dialog-fallback");
+    const preparingSnapshot = fixture.internal.getManagedSnapshotInternalV1();
+    const childInstanceId = preparingChild.dataset.systemDialogInstance;
+    expect(rootShell).toHaveAttribute("inert");
+    expect(rootShell).toHaveAttribute("aria-hidden", "true");
+    expect(preparingChild).toHaveAttribute("inert");
+    expect(preparingChild).toHaveAttribute("aria-hidden", "true");
+    expect(preparingChild).toHaveStyle({ pointerEvents: "none", visibility: "hidden" });
+    expect(document.activeElement).toBe(fallback);
+    opener.focus();
+    expect(document.activeElement).toBe(fallback);
+    expect(preparingSnapshot.focusOwner?.surfaceInstanceId).not.toBe(childInstanceId);
+    expect(preparingSnapshot.inputOwner?.surfaceInstanceId).not.toBe(childInstanceId);
+    expect(fixture.inputRouter.route({
+      kind: "action",
+      actionId: systemInputActionIdsV1.confirm,
+    })).toEqual({ kind: "handled", context: "system" });
+    expect(dispatch).not.toHaveBeenCalled();
+    expect(confirmationRendered).toHaveBeenCalledTimes(1);
+    expect(contentOpenResults).toEqual([{
+      kind: "preparing",
+      code: "system_dialog.confirmation_preparation_started",
+    }]);
+    expect(contentOpenResults[0]).not.toHaveProperty("surfaceInstanceId");
+
+    await drainMicrotaskV1();
+
+    expect(screen.queryByTestId("system-dialog-fallback")).not.toBeInTheDocument();
+    expect(document.querySelector('[data-system-dialog-entry="confirmation"]')).toBe(
+      preparingChild,
+    );
+    expect(screen.getByTestId("managed-confirmation-confirm")).toBe(childRenderer);
+    expect(rootShell).toHaveAttribute("inert");
+    expect(rootShell).toHaveAttribute("aria-hidden", "true");
+    expect(preparingChild).not.toHaveAttribute("inert");
+    expect(document.activeElement).toBe(preparingChild);
+    expect(confirmationRendered).toHaveBeenCalledTimes(1);
+    expect(confirmationProps[0]?.invocation).toEqual({ kind: "import" });
+
+    expect(fixture.inputRouter.route({
+      kind: "action",
+      actionId: systemInputActionIdsV1.confirm,
+    })).toEqual({ kind: "handled", context: "system" });
+    fireEvent.click(childRenderer);
+    fireEvent.click(childRenderer);
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    expect(dispatch).toHaveBeenCalledWith({ kind: "import" });
+
+    expect(fixture.inputRouter.route({
+      kind: "action",
+      actionId: systemInputActionIdsV1.cancel,
+    })).toEqual({ kind: "handled", context: "system" });
+    await drainMicrotaskV1();
+    expect(document.querySelector('[data-system-dialog-entry="confirmation"]')).toBeNull();
+    expect(document.querySelector('[data-system-dialog-root="saves"]')).toBe(rootShell);
+    expect(screen.getByTestId("managed-saves-content")).toBe(rootContent);
+    expect(rootShell).not.toHaveAttribute("inert");
+    expect(document.activeElement).toBe(opener);
+
+    const afterCancel = fixture.internal.getManagedSnapshotInternalV1();
+    operation.resolve(Object.freeze({ kind: "retain_root", result: "imported" }));
+    await operation.promise;
+    await drainMicrotaskV1();
+    expect(resultSink).not.toHaveBeenCalled();
+    expect(fixture.internal.getManagedSnapshotInternalV1()).toBe(afterCancel);
+    expect(document.activeElement).toBe(opener);
+  });
+
+  it("cycles active confirmation Tab within content while excluding DevDock and external targets", async () => {
+    const fixture = fixtureV1();
+    const operationBinding = Object.freeze({
+      dispatch: vi.fn(() =>
+        Promise.resolve(Object.freeze({ kind: "retain_root" as const, result: "unused" }))
+      ),
+      resultSink: vi.fn(),
+      finalizeExactRoot: vi.fn(),
+    });
+
+    function SavesRendererV1(props: SystemDialogRootRendererPropsInternalV1): ReactElement {
+      return (
+        <button
+          type="button"
+          data-testid="tab-cycle-opener"
+          onClick={() =>
+            props.confirmationIntent?.requestConfirmationInternalV1({
+              invocation: Object.freeze({ kind: "clear", slotId: "quick" }),
+              operationBinding,
+            })}
+        >
+          Open
+        </button>
+      );
+    }
+    function ConfirmationRendererV1(): ReactElement {
+      return (
+        <div>
+          <button type="button" data-testid="tab-cycle-first">First</button>
+          <button type="button" data-testid="tab-cycle-second">Second</button>
+          <div data-devdock-surface="system">
+            <button type="button" data-testid="tab-cycle-devdock">DevDock</button>
+          </div>
+        </div>
+      );
+    }
+
+    await renderHostV1({
+      fixture,
+      catalog: catalogV1(
+        () => <div />,
+        SavesRendererV1,
+        { confirmationRenderer: ConfirmationRendererV1 },
+      ),
+    });
+    act(() => {
+      fixture.internal.openRootInternalV1("saves");
+    });
+    await drainMicrotaskV1();
+    const opener = screen.getByTestId("tab-cycle-opener");
+    opener.focus();
+    fireEvent.click(opener);
+    await drainMicrotaskV1();
+
+    const shell = document.querySelector<HTMLDivElement>(
+      '[data-system-dialog-entry="confirmation"]',
+    )!;
+    const first = screen.getByTestId("tab-cycle-first");
+    const second = screen.getByTestId("tab-cycle-second");
+    expect(document.activeElement).toBe(shell);
+
+    fireEvent.keyDown(shell, { key: "Tab" });
+    expect(document.activeElement).toBe(first);
+    fireEvent.keyDown(first, { key: "Tab" });
+    expect(document.activeElement).toBe(second);
+    fireEvent.keyDown(second, { key: "Tab" });
+    expect(document.activeElement).toBe(first);
+    fireEvent.keyDown(first, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(second);
+
+    screen.getByRole("button", { name: "Gameplay" }).focus();
+    expect(document.activeElement).toBe(first);
+    expect(screen.getByTestId("tab-cycle-devdock")).not.toHaveFocus();
+  });
+
+  it.each([0, 1] as const)(
+    "keeps bidirectional Tab inside an active confirmation with %i content targets",
+    async (targetCount) => {
+      const fixture = fixtureV1();
+      const operationBinding = Object.freeze({
+        dispatch: vi.fn(() =>
+          Promise.resolve(Object.freeze({ kind: "retain_root" as const, result: "unused" }))
+        ),
+        resultSink: vi.fn(),
+        finalizeExactRoot: vi.fn(),
+      });
+      function SavesRendererV1(props: SystemDialogRootRendererPropsInternalV1): ReactElement {
+        return (
+          <button
+            type="button"
+            data-testid="bounded-tab-opener"
+            onClick={() =>
+              props.confirmationIntent?.requestConfirmationInternalV1({
+                invocation: Object.freeze({ kind: "import" }),
+                operationBinding,
+              })}
+          >
+            Open
+          </button>
+        );
+      }
+      function ConfirmationRendererV1(): ReactElement {
+        return targetCount === 0
+          ? <div data-testid="bounded-tab-empty" />
+          : <button type="button" data-testid="bounded-tab-only">Only</button>;
+      }
+      await renderHostV1({
+        fixture,
+        catalog: catalogV1(
+          () => <div />,
+          SavesRendererV1,
+          { confirmationRenderer: ConfirmationRendererV1 },
+        ),
+      });
+      act(() => {
+        fixture.internal.openRootInternalV1("saves");
+      });
+      await drainMicrotaskV1();
+      const opener = screen.getByTestId("bounded-tab-opener");
+      opener.focus();
+      fireEvent.click(opener);
+      await drainMicrotaskV1();
+      const shell = document.querySelector<HTMLDivElement>(
+        '[data-system-dialog-entry="confirmation"]',
+      )!;
+      const expected = targetCount === 0 ? shell : screen.getByTestId("bounded-tab-only");
+
+      fireEvent.keyDown(shell, { key: "Tab" });
+      expect(document.activeElement).toBe(expected);
+      fireEvent.keyDown(expected, { key: "Tab", shiftKey: true });
+      expect(document.activeElement).toBe(expected);
+    },
+  );
+
+  it("restores the parent initial target when the exact opener disconnects", async () => {
+    const fixture = fixtureV1();
+    const dispatch = vi.fn(() =>
+      Promise.resolve(Object.freeze({
+        kind: "retain_root" as const,
+        result: "unused",
+      }))
+    );
+    const operationBinding = Object.freeze({
+      dispatch,
+      resultSink: vi.fn(),
+      finalizeExactRoot: vi.fn(),
+    });
+    let savesIntent: SystemDialogRootRendererPropsInternalV1["confirmationIntent"] = null;
+
+    function SavesRendererV1(props: SystemDialogRootRendererPropsInternalV1): ReactElement {
+      savesIntent = props.confirmationIntent;
+      return (
+        <div>
+          <button type="button" data-testid="saves-initial-target">
+            Initial
+          </button>
+          <button
+            type="button"
+            data-testid="disconnecting-opener"
+            onClick={() =>
+              props.confirmationIntent?.requestConfirmationInternalV1({
+                invocation: Object.freeze({ kind: "clear", slotId: "quick" }),
+                operationBinding,
+              })}
+          >
+            Clear
+          </button>
+        </div>
+      );
+    }
+
+    await renderHostV1({
+      fixture,
+      catalog: catalogV1(
+        () => <div />,
+        SavesRendererV1,
+        {
+          confirmationRenderer: () => <div data-testid="disconnecting-confirmation" />,
+        },
+      ),
+    });
+    act(() => {
+      fixture.internal.openRootInternalV1("saves");
+    });
+    await drainMicrotaskV1();
+    const rootShell = document.querySelector<HTMLDivElement>(
+      '[data-system-dialog-root="saves"]',
+    )!;
+    const initialTarget = screen.getByTestId("saves-initial-target");
+    const opener = screen.getByTestId("disconnecting-opener");
+    expect(savesIntent).not.toBeNull();
+    opener.focus();
+    fireEvent.click(opener);
+    expect(rootShell).toHaveAttribute("inert");
+    expect(rootShell).toHaveAttribute("aria-hidden", "true");
+    expect(document.activeElement).toBe(screen.getByTestId("system-dialog-fallback"));
+    opener.remove();
+
+    const fallback = screen.getByTestId("system-dialog-fallback");
+    fireEvent.pointerDown(fallback, { button: 0, pointerId: 1 });
+    fireEvent.pointerUp(fallback, { button: 0, pointerId: 1 });
+    await drainMicrotaskV1();
+
+    expect(screen.queryByTestId("disconnecting-confirmation")).not.toBeInTheDocument();
+    expect(rootShell).not.toHaveAttribute("inert");
+    expect(document.activeElement).toBe(initialTarget);
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it("lets the exact opener win over a same-root result-summary focus attempt", async () => {
+    const fixture = fixtureV1();
+    const operation = deferredV1<{ readonly kind: "retain_root"; readonly result: string }>();
+    const dispatch = vi.fn(() => operation.promise);
+    const resultSink = vi.fn();
+
+    function SavesRendererV1(props: SystemDialogRootRendererPropsInternalV1): ReactElement {
+      const [result, setResult] = useState("");
+      const summaryRef = useRef<HTMLParagraphElement>(null);
+      const operationBinding = useMemo<SystemDialogConfirmationOperationBindingInternalV1>(
+        () =>
+          Object.freeze({
+            dispatch,
+            resultSink(delivery: SystemDialogConfirmationResultDeliveryInternalV1) {
+              resultSink(delivery);
+              if (delivery.kind === "settled") setResult(String(delivery.result));
+            },
+            finalizeExactRoot: vi.fn(),
+          }),
+        [],
+      );
+      useLayoutEffect(() => {
+        if (result !== "") summaryRef.current?.focus({ preventScroll: true });
+      }, [result]);
+      return (
+        <div>
+          <button type="button">
+            Initial
+          </button>
+          <button
+            type="button"
+            data-testid="completion-opener"
+            onClick={() =>
+              props.confirmationIntent?.requestConfirmationInternalV1({
+                invocation: Object.freeze({ kind: "clear", slotId: "quick" }),
+                operationBinding,
+              })}
+          >
+            Load
+          </button>
+          <p ref={summaryRef} tabIndex={-1} data-testid="operation-result-summary">
+            {result}
+          </p>
+        </div>
+      );
+    }
+    function ConfirmationRendererV1(
+      props: SystemDialogConfirmationRendererPropsInternalV1,
+    ): ReactElement {
+      return (
+        <button
+          type="button"
+          data-testid="completion-confirm"
+          onClick={() => props.controller.dispatchOnceInternalV1()}
+        >
+          Confirm
+        </button>
+      );
+    }
+
+    await renderHostV1({
+      fixture,
+      catalog: catalogV1(
+        () => <div />,
+        SavesRendererV1,
+        { confirmationRenderer: ConfirmationRendererV1 },
+      ),
+    });
+    act(() => {
+      fixture.internal.openRootInternalV1("saves");
+    });
+    await drainMicrotaskV1();
+    const rootShell = document.querySelector<HTMLDivElement>(
+      '[data-system-dialog-root="saves"]',
+    )!;
+    const opener = screen.getByTestId("completion-opener");
+    opener.focus();
+    fireEvent.click(opener);
+    await drainMicrotaskV1();
+    fireEvent.click(screen.getByTestId("completion-confirm"));
+    operation.resolve(Object.freeze({ kind: "retain_root", result: "cleared" }));
+    await operation.promise;
+    await drainMicrotaskV1();
+
+    expect(resultSink).toHaveBeenCalledOnce();
+    expect(resultSink).toHaveBeenCalledWith({ kind: "settled", result: "cleared" });
+    expect(screen.getByTestId("operation-result-summary")).toHaveTextContent("cleared");
+    expect(document.querySelector('[data-system-dialog-root="saves"]')).toBe(rootShell);
+    expect(document.activeElement).toBe(opener);
+  });
+
+  it("fails a child layout commit once and restores its exact opener without replacing the root", async () => {
+    const fixture = fixtureV1();
+    const failure = new Error("synthetic confirmation layout failure");
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const operationBinding = Object.freeze({
+      dispatch: vi.fn(() =>
+        Promise.resolve(Object.freeze({
+          kind: "retain_root" as const,
+          result: "unused",
+        }))
+      ),
+      resultSink: vi.fn(),
+      finalizeExactRoot: vi.fn(),
+    });
+    function SavesRendererV1(props: SystemDialogRootRendererPropsInternalV1): ReactElement {
+      return (
+        <div>
+          <button type="button">
+            Initial
+          </button>
+          <input data-testid="failure-root-state" defaultValue="preserved" />
+          <button
+            type="button"
+            data-testid="failure-child-opener"
+            onClick={() =>
+              props.confirmationIntent?.requestConfirmationInternalV1({
+                invocation: Object.freeze({ kind: "clear", slotId: "quick" }),
+                operationBinding,
+              })}
+          >
+            Clear
+          </button>
+        </div>
+      );
+    }
+    function ThrowingConfirmationRendererV1(): ReactElement {
+      useLayoutEffect(() => {
+        throw failure;
+      }, []);
+      return <div data-testid="failing-confirmation" />;
+    }
+    await renderHostV1({
+      fixture,
+      catalog: catalogV1(
+        () => <div />,
+        SavesRendererV1,
+        { confirmationRenderer: ThrowingConfirmationRendererV1 },
+      ),
+    });
+    act(() => {
+      fixture.internal.openRootInternalV1("saves");
+    });
+    await drainMicrotaskV1();
+    const rootShell = document.querySelector<HTMLDivElement>(
+      '[data-system-dialog-root="saves"]',
+    )!;
+    const rootInstanceId = rootShell.dataset.systemDialogInstance;
+    const rootState = screen.getByTestId("failure-root-state") as HTMLInputElement;
+    rootState.value = "local state retained";
+    const opener = screen.getByTestId("failure-child-opener");
+    opener.focus();
+
+    fireEvent.click(opener);
+    await drainMicrotaskV1();
+
+    expect(screen.queryByTestId("failing-confirmation")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("system-dialog-fallback")).not.toBeInTheDocument();
+    expect(document.querySelector('[data-system-dialog-root="saves"]')).toBe(rootShell);
+    expect(rootShell).toHaveAttribute("data-system-dialog-instance", rootInstanceId);
+    expect(rootShell).not.toHaveAttribute("inert");
+    expect(screen.getByTestId("failure-root-state")).toBe(rootState);
+    expect(rootState.value).toBe("local state retained");
+    expect(document.activeElement).toBe(opener);
+    expect(fixture.terminalCalls).toEqual({ ready: 1, fail: 1 });
+    expect(fixture.failures).toEqual([{
+      code: "ui.system_dialog_render_preparation_failed",
+      error: failure,
+    }]);
+    consoleError.mockRestore();
+  });
+
+  it.each(["escape", "backdrop"] as const)(
+    "closes only the active child through DOM %s and restores its opener",
+    async (dismissKind) => {
+      const fixture = fixtureV1();
+      const dispatch = vi.fn(() =>
+        Promise.resolve(Object.freeze({
+          kind: "retain_root" as const,
+          result: "unused",
+        }))
+      );
+      const operationBinding = Object.freeze({
+        dispatch,
+        resultSink: vi.fn(),
+        finalizeExactRoot: vi.fn(),
+      });
+      function SavesRendererV1(props: SystemDialogRootRendererPropsInternalV1): ReactElement {
+        return (
+          <div>
+            <button type="button">
+              Initial
+            </button>
+            <button
+              type="button"
+              data-testid="dom-dismiss-opener"
+              onClick={() =>
+                props.confirmationIntent?.requestConfirmationInternalV1({
+                  invocation: Object.freeze({ kind: "import" }),
+                  operationBinding,
+                })}
+            >
+              Import
+            </button>
+          </div>
+        );
+      }
+      await renderHostV1({
+        fixture,
+        catalog: catalogV1(
+          () => <div />,
+          SavesRendererV1,
+          { confirmationRenderer: () => <div data-testid="dom-dismiss-child" /> },
+        ),
+      });
+      act(() => {
+        fixture.internal.openRootInternalV1("saves");
+      });
+      await drainMicrotaskV1();
+      const rootShell = document.querySelector<HTMLDivElement>(
+        '[data-system-dialog-root="saves"]',
+      )!;
+      const opener = screen.getByTestId("dom-dismiss-opener");
+      opener.focus();
+      fireEvent.click(opener);
+      await drainMicrotaskV1();
+      const childShell = document.querySelector<HTMLDivElement>(
+        '[data-system-dialog-entry="confirmation"]',
+      )!;
+
+      if (dismissKind === "escape") {
+        fireEvent.keyDown(childShell, { key: "Escape" });
+      } else {
+        const backdrop = screen.getByTestId("system-dialog-confirmation-backdrop");
+        fireEvent.pointerDown(backdrop, { button: 0, pointerId: 1 });
+        fireEvent.pointerUp(backdrop, { button: 0, pointerId: 1 });
+      }
+      await drainMicrotaskV1();
+
+      expect(screen.queryByTestId("dom-dismiss-child")).not.toBeInTheDocument();
+      expect(document.querySelector('[data-system-dialog-root="saves"]')).toBe(rootShell);
+      expect(rootShell).not.toHaveAttribute("inert");
+      expect(document.activeElement).toBe(opener);
+      expect(dispatch).not.toHaveBeenCalled();
+    },
+  );
+
+  it("fences a residual pointer click after backdrop dismissal without swallowing keyboard activation", async () => {
+    const fixture = fixtureV1();
+    const keyboardAction = vi.fn();
+    const openCount = vi.fn();
+    const operationBinding = Object.freeze({
+      dispatch: vi.fn(() =>
+        Promise.resolve(Object.freeze({ kind: "retain_root" as const, result: "unused" }))
+      ),
+      resultSink: vi.fn(),
+      finalizeExactRoot: vi.fn(),
+    });
+    function SavesRendererV1(props: SystemDialogRootRendererPropsInternalV1): ReactElement {
+      return (
+        <div>
+          <button
+            type="button"
+            data-testid="gesture-child-opener"
+            onClick={() => {
+              openCount();
+              props.confirmationIntent?.requestConfirmationInternalV1({
+                invocation: Object.freeze({ kind: "import" }),
+                operationBinding,
+              });
+            }}
+          >
+            Import
+          </button>
+          <button type="button" data-testid="gesture-keyboard-action" onClick={keyboardAction}>
+            Keyboard action
+          </button>
+        </div>
+      );
+    }
+    await renderHostV1({
+      fixture,
+      catalog: catalogV1(
+        () => <div />,
+        SavesRendererV1,
+        { confirmationRenderer: () => <div data-testid="gesture-confirmation" /> },
+      ),
+    });
+    act(() => {
+      fixture.internal.openRootInternalV1("saves");
+    });
+    await drainMicrotaskV1();
+    const opener = screen.getByTestId("gesture-child-opener");
+    opener.focus();
+    fireEvent.click(opener);
+    await drainMicrotaskV1();
+    expect(openCount).toHaveBeenCalledOnce();
+
+    const backdrop = screen.getByTestId("system-dialog-confirmation-backdrop");
+    fireEvent.pointerDown(backdrop, { button: 0, pointerId: 7 });
+    fireEvent.pointerUp(backdrop, { button: 0, pointerId: 7 });
+    await drainMicrotaskV1();
+    expect(screen.queryByTestId("gesture-confirmation")).not.toBeInTheDocument();
+
+    const keyboardClick = new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+      detail: 0,
+    });
+    screen.getByTestId("gesture-keyboard-action").dispatchEvent(keyboardClick);
+    expect(keyboardClick.defaultPrevented).toBe(false);
+    expect(keyboardAction).toHaveBeenCalledOnce();
+
+    const residualPointerClick = new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+      detail: 1,
+    });
+    opener.dispatchEvent(residualPointerClick);
+    expect(residualPointerClick.defaultPrevented).toBe(true);
+    expect(openCount).toHaveBeenCalledOnce();
+    expect(screen.queryByTestId("gesture-confirmation")).not.toBeInTheDocument();
+  });
+
+  it("does not restore a child opener while an exact root replacement retires the subtree", async () => {
+    const fixture = fixtureV1();
+    const operationBinding = Object.freeze({
+      dispatch: vi.fn(() =>
+        Promise.resolve(Object.freeze({
+          kind: "retain_root" as const,
+          result: "unused",
+        }))
+      ),
+      resultSink: vi.fn(),
+      finalizeExactRoot: vi.fn(),
+    });
+    function SavesRendererV1(props: SystemDialogRootRendererPropsInternalV1): ReactElement {
+      return (
+        <button
+          type="button"
+          data-testid="replacement-child-opener"
+          onClick={() =>
+            props.confirmationIntent?.requestConfirmationInternalV1({
+              invocation: Object.freeze({ kind: "import" }),
+              operationBinding,
+            })}
+        >
+          Import
+        </button>
+      );
+    }
+    await renderHostV1({
+      fixture,
+      catalog: catalogV1(
+        () => <div data-testid="replacement-settings-root" />,
+        SavesRendererV1,
+        { confirmationRenderer: () => <div data-testid="replacement-child" /> },
+      ),
+    });
+    act(() => {
+      fixture.internal.openRootInternalV1("saves");
+    });
+    await drainMicrotaskV1();
+    const opener = screen.getByTestId("replacement-child-opener") as HTMLButtonElement;
+    opener.focus();
+    fireEvent.click(opener);
+    await drainMicrotaskV1();
+    expect(screen.getByTestId("replacement-child")).toBeInTheDocument();
+    const focusOpener = vi.spyOn(opener, "focus");
+
+    act(() => {
+      fixture.internal.openRootInternalV1("settings");
+    });
+    expect(screen.getByTestId("replacement-child")).toBeInTheDocument();
+    await drainMicrotaskV1();
+
+    expect(screen.getByTestId("replacement-settings-root")).toBeInTheDocument();
+    expect(screen.queryByTestId("replacement-child")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("replacement-child-opener")).not.toBeInTheDocument();
+    expect(focusOpener).not.toHaveBeenCalled();
+  });
+
+  it("keeps child readiness and dispatch terminal-once under StrictMode", async () => {
+    const fixture = fixtureV1();
+    const dispatch = vi.fn(() =>
+      Promise.resolve(Object.freeze({
+        kind: "retain_root" as const,
+        result: "done",
+      }))
+    );
+    const operationBinding = Object.freeze({
+      dispatch,
+      resultSink: vi.fn(),
+      finalizeExactRoot: vi.fn(),
+    });
+    let confirmationIntent: SystemDialogRootRendererPropsInternalV1["confirmationIntent"] = null;
+    function SavesRendererV1(props: SystemDialogRootRendererPropsInternalV1): ReactElement {
+      confirmationIntent = props.confirmationIntent;
+      return <button type="button" data-testid="strict-child-opener">Open</button>;
+    }
+    function ConfirmationRendererV1(
+      props: SystemDialogConfirmationRendererPropsInternalV1,
+    ): ReactElement {
+      return (
+        <button
+          type="button"
+          data-testid="strict-child-confirm"
+          onClick={() => props.controller.dispatchOnceInternalV1()}
+        >
+          Confirm
+        </button>
+      );
+    }
+    await renderHostV1({
+      fixture,
+      strict: true,
+      catalog: catalogV1(
+        () => <div />,
+        SavesRendererV1,
+        { confirmationRenderer: ConfirmationRendererV1 },
+      ),
+    });
+    act(() => {
+      fixture.internal.openRootInternalV1("saves");
+    });
+    await drainMicrotaskV1();
+    const opener = screen.getByTestId("strict-child-opener");
+    opener.focus();
+    act(() => {
+      confirmationIntent?.requestConfirmationInternalV1({
+        invocation: Object.freeze({ kind: "import" }),
+        operationBinding,
+      });
+    });
+    await drainMicrotaskV1();
+    fireEvent.click(screen.getByTestId("strict-child-confirm"));
+    fireEvent.click(screen.getByTestId("strict-child-confirm"));
+    await drainMicrotaskV1();
+
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    expect(fixture.terminalCalls).toEqual({ ready: 2, fail: 0 });
   });
 });

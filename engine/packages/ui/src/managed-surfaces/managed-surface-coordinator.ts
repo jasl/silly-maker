@@ -122,6 +122,11 @@ export interface ManagedSurfaceCoordinatorV1 {
     ownerId: ManagedSurfaceOwnerIdV1,
     dismissKind: ManagedSurfaceDismissKindV1,
   ): ManagedSurfaceTransitionReceiptV1;
+  /** @internal Candidate-bound dismissal that preserves unrelated owner preparation. */
+  routeFallbackDismissExactCandidate(
+    evidence: ManagedSurfaceReadinessEvidenceV1,
+    dismissKind: ManagedSurfaceDismissKindV1,
+  ): ManagedSurfaceTransitionReceiptV1;
   /** @internal Candidate-bound dismissal for a code-native blocking fallback. */
   routeFallbackDismissWithOwnerPreparationCancel(
     evidence: ManagedSurfaceReadinessEvidenceV1,
@@ -713,6 +718,14 @@ export function createManagedSurfaceCoordinatorV1(
         kind: "route_dismiss_with_owner_preparation_cancel",
         evidence: handle,
         ownerId,
+        dismissKind,
+      });
+    },
+
+    routeFallbackDismissExactCandidate(evidence, dismissKind) {
+      return transition({
+        kind: "route_fallback_dismiss_exact_candidate",
+        evidence,
         dismissKind,
       });
     },

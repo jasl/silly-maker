@@ -4,9 +4,12 @@ import { describe, expect, expectTypeOf, it } from "vitest";
 
 import { createManagedSurfaceCoordinatorV1 } from "../managed-surfaces/managed-surface-coordinator.ts";
 import {
+  createSystemDialogConfirmationCandidateResolutionSnapshotInternalV1,
   createSystemDialogContentConfigSnapshotInternalV1,
   createSystemDialogRootCandidateResolutionSnapshotInternalV1,
+  normalizeSystemDialogConfirmationInvocationInternalV1,
   systemDialogManagedContractInternalV1,
+  type SystemDialogConfirmationInvocationInternalV1,
   type SystemDialogContentConfigSnapshotInternalV1,
   type SystemDialogRequiredPortBindingInternalV1,
   type SystemDialogOpenResultV1,
@@ -35,6 +38,74 @@ function snapshotFixtureContentConfigV1(input: {
 }
 
 describe("dormant managed System dialog contract", () => {
+  it("normalizes only the closed load, clear, and import confirmation invocation shapes", () => {
+    const accepted = [
+      { kind: "load", slotId: "auto.current" },
+      { kind: "clear", slotId: "manual.99" },
+      { kind: "import" },
+    ] as const;
+
+    expect(accepted.map(normalizeSystemDialogConfirmationInvocationInternalV1)).toEqual(accepted);
+    for (const invocation of accepted) {
+      const normalized = normalizeSystemDialogConfirmationInvocationInternalV1(invocation);
+      expect(Object.isFrozen(normalized)).toBe(true);
+      expectTypeOf(normalized).toMatchTypeOf<SystemDialogConfirmationInvocationInternalV1>();
+    }
+
+    for (
+      const rejected of [
+        { kind: "load" },
+        { kind: "import", slotId: "auto.current" },
+        { kind: "clear", slotId: "manual.0" },
+        { kind: "load", slotId: "manual.100" },
+        { kind: "save", slotId: "quick" },
+        { kind: "load", slotId: "quick", extra: true },
+        null,
+      ]
+    ) {
+      expect(() => normalizeSystemDialogConfirmationInvocationInternalV1(rejected)).toThrowError(
+        "ui.system_dialog_confirmation_invocation_invalid",
+      );
+    }
+
+    const accessor = { kind: "import" } as Record<string, unknown>;
+    Object.defineProperty(accessor, "kind", {
+      configurable: true,
+      enumerable: true,
+      get: () => "import",
+    });
+    expect(() => normalizeSystemDialogConfirmationInvocationInternalV1(accessor)).toThrowError(
+      "ui.system_dialog_confirmation_invocation_invalid",
+    );
+  });
+
+  it("freezes one confirmation renderer and required-port resolution per fresh child", () => {
+    const renderer = Object.freeze({ kind: "confirmation-renderer" });
+    const port = Object.freeze({ kind: "confirmation-port" });
+    const invocation = normalizeSystemDialogConfirmationInvocationInternalV1({
+      kind: "clear",
+      slotId: "manual.2",
+    });
+    const snapshot = createSystemDialogConfirmationCandidateResolutionSnapshotInternalV1({
+      invocation,
+      rendererComponent: renderer,
+      accessibleName: "Confirm clear",
+      requiredPortBindings: [{ portId: "persistence.player-save", port }],
+    });
+
+    expect(snapshot).toEqual({
+      invocation,
+      definition: systemDialogManagedContractInternalV1.definitions.confirmation,
+      rendererComponent: renderer,
+      accessibleName: "Confirm clear",
+      requiredPortBindings: [{ portId: "persistence.player-save", port }],
+    });
+    expect(snapshot.invocation).toEqual(invocation);
+    expect(Object.isFrozen(snapshot)).toBe(true);
+    expect(Object.isFrozen(snapshot.requiredPortBindings)).toBe(true);
+    expect(Object.isFrozen(snapshot.requiredPortBindings[0])).toBe(true);
+  });
+
   it("freezes one owner, one root slot, and one exact Saves confirmation child", () => {
     const contract = systemDialogManagedContractInternalV1;
 

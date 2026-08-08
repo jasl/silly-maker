@@ -5,6 +5,7 @@ import type { DeepReadonly, NonNegativeSafeInteger } from "@sillymaker/base";
 import type {
   ManagedSurfaceCandidateV1,
   ManagedSurfaceDefinitionIdV1,
+  ManagedSurfaceDismissKindV1,
   ManagedSurfaceInstanceIdV1,
   ManagedSurfaceOperationV1,
   ManagedSurfaceOwnerIdV1,
@@ -132,6 +133,29 @@ function isBlockingFallbackV1(
   return instance.readiness.kind === "preparing" &&
     (instance.readiness.transition === "initial_open" ||
       instance.readiness.transition === "child_open");
+}
+
+function isManagedSurfaceDismissKindV1(value: unknown): value is ManagedSurfaceDismissKindV1 {
+  return value === "back" || value === "escape" || value === "backdrop" ||
+    value === "routed_cancel";
+}
+
+function dismissAllowedV1(
+  policy: DeepReadonly<ManagedSurfaceResolvedDefinitionV1["dismissPolicy"]>,
+  dismissKind: ManagedSurfaceDismissKindV1,
+): boolean {
+  switch (dismissKind) {
+    case "back":
+      return policy.back;
+    case "escape":
+      return policy.escape;
+    case "backdrop":
+      return policy.backdrop;
+    case "routed_cancel":
+      return policy.routedCancel;
+    default:
+      return false;
+  }
 }
 
 function ownerTraceV1(
@@ -1131,6 +1155,14 @@ export function reduceManagedSurfaceV1(
     case "route_dismiss": {
       const failure = evidenceFailureV1(state, operation.evidence);
       if (failure !== null) return failure;
+      if (!isManagedSurfaceDismissKindV1(operation.dismissKind)) {
+        return unchangedResultV1(
+          state,
+          "rejected",
+          "surface.invalid_transition",
+          operation.evidence.surfaceInstanceId,
+        );
+      }
       const target = state.publication.orderedInstances.find(
         (instance) => instance.surfaceInstanceId === operation.evidence.surfaceInstanceId,
       );
@@ -1145,9 +1177,10 @@ export function reduceManagedSurfaceV1(
           operation.evidence.surfaceInstanceId,
         );
       }
-      const dismissAllowed = operation.dismissKind === "routed_cancel"
-        ? target.definition.dismissPolicy.routedCancel
-        : target.definition.dismissPolicy[operation.dismissKind];
+      const dismissAllowed = dismissAllowedV1(
+        target.definition.dismissPolicy,
+        operation.dismissKind,
+      );
       if (!dismissAllowed) {
         return unchangedResultV1(
           state,
@@ -1162,6 +1195,14 @@ export function reduceManagedSurfaceV1(
     case "route_dismiss_with_owner_preparation_cancel": {
       const failure = evidenceFailureV1(state, operation.evidence);
       if (failure !== null) return failure;
+      if (!isManagedSurfaceDismissKindV1(operation.dismissKind)) {
+        return unchangedResultV1(
+          state,
+          "rejected",
+          "surface.invalid_transition",
+          operation.evidence.surfaceInstanceId,
+        );
+      }
       const target = state.publication.orderedInstances.find(
         (instance) => instance.surfaceInstanceId === operation.evidence.surfaceInstanceId,
       );
@@ -1180,9 +1221,10 @@ export function reduceManagedSurfaceV1(
           operation.evidence.surfaceInstanceId,
         );
       }
-      const dismissAllowed = operation.dismissKind === "routed_cancel"
-        ? target.definition.dismissPolicy.routedCancel
-        : target.definition.dismissPolicy[operation.dismissKind];
+      const dismissAllowed = dismissAllowedV1(
+        target.definition.dismissPolicy,
+        operation.dismissKind,
+      );
       if (!dismissAllowed) {
         return unchangedResultV1(
           state,
@@ -1199,12 +1241,80 @@ export function reduceManagedSurfaceV1(
       );
     }
 
+    case "route_fallback_dismiss_exact_candidate": {
+      if (operation.evidence.applicationEpoch !== state.publication.applicationEpoch) {
+        return unchangedResultV1(
+          state,
+          "stale",
+          "surface.stale_application_epoch",
+          operation.evidence.surfaceInstanceId,
+        );
+      }
+      if (!isManagedSurfaceDismissKindV1(operation.dismissKind)) {
+        return unchangedResultV1(
+          state,
+          "rejected",
+          "surface.invalid_transition",
+          operation.evidence.surfaceInstanceId,
+        );
+      }
+      const candidate = state.publication.orderedInstances.find(
+        (instance) =>
+          instance.surfaceInstanceId === operation.evidence.surfaceInstanceId &&
+          instance.readiness.kind === "preparing",
+      );
+      if (candidate === undefined) {
+        return unchangedResultV1(
+          state,
+          "stale",
+          "surface.stale_readiness",
+          operation.evidence.surfaceInstanceId,
+        );
+      }
+      if (
+        !isBlockingFallbackV1(candidate) ||
+        currentCloseTargetIdV1(state) !== candidate.surfaceInstanceId
+      ) {
+        return unchangedResultV1(
+          state,
+          "rejected",
+          "surface.invalid_transition",
+          candidate.surfaceInstanceId,
+        );
+      }
+      const dismissAllowed = dismissAllowedV1(
+        candidate.definition.dismissPolicy,
+        operation.dismissKind,
+      );
+      if (!dismissAllowed) {
+        return unchangedResultV1(
+          state,
+          "rejected",
+          "surface.dismiss_locked",
+          candidate.surfaceInstanceId,
+        );
+      }
+      return closeInstanceV1(
+        state,
+        candidate.surfaceInstanceId,
+        "surface.dismissed",
+      );
+    }
+
     case "route_fallback_dismiss_with_owner_preparation_cancel": {
       if (operation.evidence.applicationEpoch !== state.publication.applicationEpoch) {
         return unchangedResultV1(
           state,
           "stale",
           "surface.stale_application_epoch",
+          operation.evidence.surfaceInstanceId,
+        );
+      }
+      if (!isManagedSurfaceDismissKindV1(operation.dismissKind)) {
+        return unchangedResultV1(
+          state,
+          "rejected",
+          "surface.invalid_transition",
           operation.evidence.surfaceInstanceId,
         );
       }
@@ -1233,9 +1343,10 @@ export function reduceManagedSurfaceV1(
           candidate.surfaceInstanceId,
         );
       }
-      const dismissAllowed = operation.dismissKind === "routed_cancel"
-        ? candidate.definition.dismissPolicy.routedCancel
-        : candidate.definition.dismissPolicy[operation.dismissKind];
+      const dismissAllowed = dismissAllowedV1(
+        candidate.definition.dismissPolicy,
+        operation.dismissKind,
+      );
       if (!dismissAllowed) {
         return unchangedResultV1(
           state,

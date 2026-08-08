@@ -3,6 +3,7 @@ import { parseModuleId } from "@sillymaker/base";
 import type { ReactNode } from "react";
 
 import type {
+  ManagedSurfaceDismissKindV1,
   ManagedSurfaceInstanceIdV1,
   ManagedSurfacePublicationV1,
   ManagedSurfaceTransitionReceiptV1,
@@ -21,8 +22,12 @@ import type {
   SaveOverlayPortV1,
 } from "../persistence/save-overlay.tsx";
 import {
+  createSystemDialogConfirmationCandidateResolutionSnapshotInternalV1,
   createSystemDialogRootCandidateResolutionSnapshotInternalV1,
+  normalizeSystemDialogConfirmationInvocationInternalV1,
   systemDialogManagedContractInternalV1,
+  type SystemDialogConfirmationCandidateResolutionSnapshotInternalV1,
+  type SystemDialogConfirmationInvocationInternalV1,
   type SystemDialogContentConfigSnapshotInternalV1,
   type SystemDialogOpenResultV1,
   type SystemDialogRequiredPortBindingInternalV1,
@@ -31,6 +36,8 @@ import {
   type SystemDialogSessionV1,
 } from "./system-dialog-managed-contract.ts";
 import { createSystemDialogContentConfigSnapshotInternalV1 } from "./system-dialog-managed-contract.ts";
+
+const promiseThenInternalV1 = Promise.prototype.then;
 
 export interface SystemDialogSettingsContentConfigInternalV1 {
   readonly title: string;
@@ -80,26 +87,157 @@ export interface SystemDialogResolvedRootCatalogEntryInternalV1
   readonly contentConfigSnapshot: SystemDialogContentConfigSnapshotInternalV1<unknown>;
 }
 
+export interface SystemDialogConfirmationCatalogEntryInternalV1
+  extends SystemDialogRootCatalogEntryBaseInternalV1 {}
+
+export interface SystemDialogResolvedConfirmationCatalogEntryInternalV1
+  extends SystemDialogRootCatalogEntryBaseInternalV1 {}
+
 export interface SystemDialogRootCatalogInternalV1 {
   resolveRoot(
     request: SystemDialogRootRequestInternalV1,
   ): SystemDialogResolvedRootCatalogEntryInternalV1 | null;
+  resolveConfirmation?(
+    invocation: SystemDialogConfirmationInvocationInternalV1,
+  ): SystemDialogResolvedConfirmationCatalogEntryInternalV1 | null;
   resolvePort(portId: string): object | ((...args: never[]) => unknown) | null;
 }
 
+export type SystemDialogConfirmationOperationOutcomeInternalV1 =
+  | {
+    readonly kind: "retain_root";
+    readonly result: unknown;
+  }
+  | {
+    readonly kind: "successor";
+  };
+
+export type SystemDialogConfirmationResultDeliveryInternalV1 =
+  | {
+    readonly kind: "settled";
+    readonly result: unknown;
+  }
+  | {
+    readonly kind: "faulted";
+    readonly error: unknown;
+  };
+
+export interface SystemDialogConfirmationOperationBindingInternalV1 {
+  dispatch(
+    invocation: SystemDialogConfirmationInvocationInternalV1,
+  ): Promise<SystemDialogConfirmationOperationOutcomeInternalV1>;
+  resultSink(delivery: SystemDialogConfirmationResultDeliveryInternalV1): void;
+  finalizeExactRoot(): void;
+}
+
+export type SystemDialogConfirmationOpenResultInternalV1 =
+  | {
+    readonly kind: "preparing";
+    readonly code: "system_dialog.confirmation_preparation_started";
+    readonly surfaceInstanceId: ManagedSurfaceInstanceIdV1;
+  }
+  | {
+    readonly kind: "unchanged";
+    readonly code: "system_dialog.confirmation_already_requested";
+  }
+  | {
+    readonly kind: "rejected";
+    readonly code:
+      | "system_dialog.confirmation_parent_stale"
+      | "system_dialog.confirmation_invocation_invalid"
+      | "system_dialog.confirmation_renderer_unavailable"
+      | "system_dialog.confirmation_renderer_missing"
+      | "system_dialog.confirmation_required_port_missing"
+      | "system_dialog.confirmation_operation_binding_invalid"
+      | "system_dialog.disposed";
+    readonly portId?: string;
+  }
+  | {
+    readonly kind: "faulted";
+    readonly code:
+      | "system_dialog.confirmation_renderer_faulted"
+      | "system_dialog.confirmation_transition_faulted";
+  };
+
+export type SystemDialogConfirmationIntentResultInternalV1 =
+  | {
+    readonly kind: "applied";
+    readonly code:
+      | "system_dialog.confirmation_closed"
+      | "system_dialog.confirmation_operation_dispatched";
+  }
+  | {
+    readonly kind: "unchanged";
+    readonly code: "system_dialog.confirmation_operation_already_dispatched";
+  }
+  | {
+    readonly kind: "rejected";
+    readonly code:
+      | "system_dialog.confirmation_stale"
+      | "system_dialog.confirmation_not_ready"
+      | "system_dialog.confirmation_dismiss_locked";
+  }
+  | {
+    readonly kind: "faulted";
+    readonly code: "system_dialog.confirmation_transition_faulted";
+  };
+
+export interface SystemDialogConfirmationControllerInternalV1 {
+  dispatchOnceInternalV1(): SystemDialogConfirmationIntentResultInternalV1;
+  cancelInternalV1(
+    dismissKind: ManagedSurfaceDismissKindV1,
+  ): SystemDialogConfirmationIntentResultInternalV1;
+}
+
+export interface SystemDialogSavesLifecycleIntentsInternalV1 {
+  requestConfirmationInternalV1(input: {
+    readonly invocation: SystemDialogConfirmationInvocationInternalV1;
+    readonly operationBinding: SystemDialogConfirmationOperationBindingInternalV1;
+  }): SystemDialogConfirmationOpenResultInternalV1;
+}
+
 export interface SystemDialogRootCandidateRecordInternalV1 {
+  readonly kind: "root";
   readonly surfaceInstanceId: ManagedSurfaceInstanceIdV1;
   readonly rootRequest: SystemDialogRootRequestInternalV1;
   readonly resolution: SystemDialogRootCandidateResolutionSnapshotInternalV1<unknown, unknown>;
   readonly readiness: ManagedSurfaceReadinessAdapterV1;
+  readonly lifecycleIntents: SystemDialogSavesLifecycleIntentsInternalV1 | null;
 }
 
-export interface SystemDialogHostRenderEntryInternalV1 {
+export interface SystemDialogConfirmationCandidateRecordInternalV1 {
+  readonly kind: "confirmation";
+  readonly surfaceInstanceId: ManagedSurfaceInstanceIdV1;
+  readonly parentSurfaceInstanceId: ManagedSurfaceInstanceIdV1;
+  readonly invocation: SystemDialogConfirmationInvocationInternalV1;
+  readonly resolution: SystemDialogConfirmationCandidateResolutionSnapshotInternalV1<unknown>;
+  readonly readiness: ManagedSurfaceReadinessAdapterV1;
+  readonly operationBinding: SystemDialogConfirmationOperationBindingInternalV1;
+  readonly controller: SystemDialogConfirmationControllerInternalV1;
+}
+
+export interface SystemDialogRootHostRenderEntryInternalV1 {
+  readonly kind: "root";
   readonly surfaceInstanceId: ManagedSurfaceInstanceIdV1;
   readonly phase: ManagedSurfacePublicationV1["orderedInstances"][number]["phase"];
   readonly rootRequest: SystemDialogRootRequestInternalV1;
   readonly resolution: SystemDialogRootCandidateResolutionSnapshotInternalV1<unknown, unknown>;
+  readonly lifecycleIntents: SystemDialogSavesLifecycleIntentsInternalV1 | null;
 }
+
+export interface SystemDialogConfirmationHostRenderEntryInternalV1 {
+  readonly kind: "confirmation";
+  readonly surfaceInstanceId: ManagedSurfaceInstanceIdV1;
+  readonly parentSurfaceInstanceId: ManagedSurfaceInstanceIdV1;
+  readonly phase: ManagedSurfacePublicationV1["orderedInstances"][number]["phase"];
+  readonly invocation: SystemDialogConfirmationInvocationInternalV1;
+  readonly resolution: SystemDialogConfirmationCandidateResolutionSnapshotInternalV1<unknown>;
+  readonly controller: SystemDialogConfirmationControllerInternalV1;
+}
+
+export type SystemDialogHostRenderEntryInternalV1 =
+  | SystemDialogRootHostRenderEntryInternalV1
+  | SystemDialogConfirmationHostRenderEntryInternalV1;
 
 export interface SystemDialogHostRenderSnapshotInternalV1 {
   readonly publication: ManagedSurfacePublicationV1;
@@ -139,6 +277,7 @@ interface CatalogEntryRecordV1 extends SystemDialogResolvedRootCatalogEntryInter
 
 const systemDialogSettingsConfigSnapshotsInternalV1 = new WeakSet<object>();
 const systemDialogSavesConfigSnapshotsInternalV1 = new WeakSet<object>();
+const systemDialogConfirmationCatalogEntriesInternalV1 = new WeakSet<object>();
 
 function isRecordV1(value: unknown): value is Readonly<Record<string, unknown>> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
@@ -451,9 +590,36 @@ function normalizeCatalogEntryV1(value: unknown): CatalogEntryRecordV1 {
   });
 }
 
+function normalizeConfirmationCatalogEntryV1(
+  value: unknown,
+): SystemDialogResolvedConfirmationCatalogEntryInternalV1 {
+  if (!isRecordV1(value)) throw new TypeError();
+  const rendererComponent = ownDataValueV1(value, "rendererComponent");
+  if (
+    rendererComponent === null ||
+    (typeof rendererComponent !== "object" && typeof rendererComponent !== "function")
+  ) {
+    throw new TypeError();
+  }
+  const accessibleName = ownDataValueV1(value, "accessibleName");
+  if (typeof accessibleName !== "string" || accessibleName.length === 0) throw new TypeError();
+  const requiredPortIds = denseOwnArraySnapshotV1(
+    ownDataValueV1(value, "requiredPortIds"),
+  ).map(parseModuleId);
+  if (new Set(requiredPortIds).size !== requiredPortIds.length) throw new TypeError();
+  const entry = Object.freeze({
+    rendererComponent,
+    accessibleName,
+    requiredPortIds: Object.freeze(requiredPortIds),
+  });
+  systemDialogConfirmationCatalogEntriesInternalV1.add(entry);
+  return entry;
+}
+
 export function createSystemDialogRootCatalogSnapshotInternalV1(input: {
   readonly entries: readonly SystemDialogRootCatalogEntryInternalV1[];
   readonly portBindings: readonly SystemDialogRequiredPortBindingInternalV1[];
+  readonly confirmationEntry?: SystemDialogConfirmationCatalogEntryInternalV1 | null;
 }): SystemDialogRootCatalogInternalV1 {
   try {
     if (!isRecordV1(input)) throw new TypeError();
@@ -464,6 +630,14 @@ export function createSystemDialogRootCatalogSnapshotInternalV1(input: {
       if (entries.has(entry.rootRequest)) throw new TypeError();
       entries.set(entry.rootRequest, entry);
     }
+    const confirmationDescriptor = Object.getOwnPropertyDescriptor(input, "confirmationEntry");
+    if (confirmationDescriptor !== undefined && !("value" in confirmationDescriptor)) {
+      throw new TypeError();
+    }
+    const confirmationEntry = confirmationDescriptor === undefined ||
+        confirmationDescriptor.value === null
+      ? null
+      : normalizeConfirmationCatalogEntryV1(confirmationDescriptor.value);
     const portsInput = denseOwnArraySnapshotV1(ownDataValueV1(input, "portBindings"));
     const ports = new Map<string, object | ((...args: never[]) => unknown)>();
     for (const value of portsInput) {
@@ -481,6 +655,8 @@ export function createSystemDialogRootCatalogSnapshotInternalV1(input: {
     }
     return Object.freeze({
       resolveRoot: (request: SystemDialogRootRequestInternalV1) => entries.get(request) ?? null,
+      resolveConfirmation: (_invocation: SystemDialogConfirmationInvocationInternalV1) =>
+        confirmationEntry,
       resolvePort: (portId: string) => ports.get(portId) ?? null,
     });
   } catch {
@@ -521,6 +697,63 @@ const transitionFaultResultV1 = Object.freeze({
   code: "system_dialog.transition_faulted" as const,
 });
 
+const confirmationAlreadyRequestedResultV1 = Object.freeze({
+  kind: "unchanged" as const,
+  code: "system_dialog.confirmation_already_requested" as const,
+});
+const confirmationParentStaleResultV1 = Object.freeze({
+  kind: "rejected" as const,
+  code: "system_dialog.confirmation_parent_stale" as const,
+});
+const confirmationInvocationInvalidResultV1 = Object.freeze({
+  kind: "rejected" as const,
+  code: "system_dialog.confirmation_invocation_invalid" as const,
+});
+const confirmationRendererUnavailableResultV1 = Object.freeze({
+  kind: "rejected" as const,
+  code: "system_dialog.confirmation_renderer_unavailable" as const,
+});
+const confirmationRendererMissingResultV1 = Object.freeze({
+  kind: "rejected" as const,
+  code: "system_dialog.confirmation_renderer_missing" as const,
+});
+const confirmationOperationBindingInvalidResultV1 = Object.freeze({
+  kind: "rejected" as const,
+  code: "system_dialog.confirmation_operation_binding_invalid" as const,
+});
+const confirmationRendererFaultResultV1 = Object.freeze({
+  kind: "faulted" as const,
+  code: "system_dialog.confirmation_renderer_faulted" as const,
+});
+const confirmationTransitionFaultResultV1 = Object.freeze({
+  kind: "faulted" as const,
+  code: "system_dialog.confirmation_transition_faulted" as const,
+});
+const confirmationStaleResultV1 = Object.freeze({
+  kind: "rejected" as const,
+  code: "system_dialog.confirmation_stale" as const,
+});
+const confirmationNotReadyResultV1 = Object.freeze({
+  kind: "rejected" as const,
+  code: "system_dialog.confirmation_not_ready" as const,
+});
+const confirmationDispatchedResultV1 = Object.freeze({
+  kind: "applied" as const,
+  code: "system_dialog.confirmation_operation_dispatched" as const,
+});
+const confirmationAlreadyDispatchedResultV1 = Object.freeze({
+  kind: "unchanged" as const,
+  code: "system_dialog.confirmation_operation_already_dispatched" as const,
+});
+const confirmationClosedResultV1 = Object.freeze({
+  kind: "applied" as const,
+  code: "system_dialog.confirmation_closed" as const,
+});
+const confirmationDismissLockedResultV1 = Object.freeze({
+  kind: "rejected" as const,
+  code: "system_dialog.confirmation_dismiss_locked" as const,
+});
+
 function requestDefinitionV1(request: SystemDialogRootRequestInternalV1) {
   return request === "settings"
     ? systemDialogManagedContractInternalV1.definitions.settings
@@ -537,7 +770,11 @@ export function createSystemDialogManagedSessionInternalV1(input: {
   let detached = false;
   let preparedRuntime: ManagedSurfaceCoordinatorRuntimeV1 | null = null;
   let activationGate: ManagedSurfaceFamilyActivationGateInternalV1 | null = null;
-  const records = new Map<ManagedSurfaceInstanceIdV1, SystemDialogRootCandidateRecordInternalV1>();
+  type CandidateRecordV1 =
+    | SystemDialogRootCandidateRecordInternalV1
+    | SystemDialogConfirmationCandidateRecordInternalV1;
+  const records = new Map<ManagedSurfaceInstanceIdV1, CandidateRecordV1>();
+  const confirmationResultGenerations = new Map<ManagedSurfaceInstanceIdV1, object>();
   const listeners = new Set<() => void>();
   let mutationDepth = 0;
   let dirty = false;
@@ -556,6 +793,21 @@ export function createSystemDialogManagedSessionInternalV1(input: {
       // Candidate diagnostics cannot replace the readiness transition.
     }
   };
+  const observeSinkCompletion = (code: string, value: unknown): void => {
+    if (
+      value === null ||
+      (typeof value !== "object" && typeof value !== "function")
+    ) return;
+    try {
+      void promiseThenInternalV1.call(
+        value,
+        undefined,
+        (error) => reportFailure(code, error),
+      );
+    } catch (error) {
+      reportFailure(code, error);
+    }
+  };
 
   const managedSnapshot = (): ManagedSurfacePublicationV1 =>
     runtime.coordinator.getSnapshot() as ManagedSurfacePublicationV1;
@@ -571,6 +823,9 @@ export function createSystemDialogManagedSessionInternalV1(input: {
         records.delete(id);
         changed = true;
       }
+    }
+    for (const parentId of confirmationResultGenerations.keys()) {
+      if (!live.has(parentId)) confirmationResultGenerations.delete(parentId);
     }
     if (changed) invalidateHostRenderSnapshot();
   };
@@ -621,8 +876,11 @@ export function createSystemDialogManagedSessionInternalV1(input: {
         instance.definition.ownerId === systemDialogManagedContractInternalV1.resolvedOwnerIds[0] &&
         instance.parentInstanceId === null,
     );
-  const recordFor = (instanceId: ManagedSurfaceInstanceIdV1 | undefined) =>
-    instanceId === undefined ? undefined : records.get(instanceId);
+  const rootRecordFor = (instanceId: ManagedSurfaceInstanceIdV1 | undefined) => {
+    if (instanceId === undefined) return undefined;
+    const record = records.get(instanceId);
+    return record?.kind === "root" ? record : undefined;
+  };
 
   const staleCandidateReceipt = (
     surfaceInstanceId: ManagedSurfaceInstanceIdV1,
@@ -717,6 +975,102 @@ export function createSystemDialogManagedSessionInternalV1(input: {
     }
   };
 
+  const confirmationPreflight = (
+    invocation: SystemDialogConfirmationInvocationInternalV1,
+  ):
+    | SystemDialogConfirmationCandidateResolutionSnapshotInternalV1<unknown>
+    | SystemDialogConfirmationOpenResultInternalV1 => {
+    const currentCatalog = catalog;
+    if (currentCatalog === null || currentCatalog.resolveConfirmation === undefined) {
+      return confirmationRendererUnavailableResultV1;
+    }
+    let entry: SystemDialogResolvedConfirmationCatalogEntryInternalV1 | null;
+    try {
+      entry = currentCatalog.resolveConfirmation(invocation);
+    } catch {
+      return confirmationRendererFaultResultV1;
+    }
+    if (entry === null || entry === undefined) return confirmationRendererMissingResultV1;
+    const bindings: SystemDialogRequiredPortBindingInternalV1[] = [];
+    try {
+      if (!systemDialogConfirmationCatalogEntriesInternalV1.has(entry)) {
+        return confirmationRendererFaultResultV1;
+      }
+      for (const rawPortId of entry.requiredPortIds) {
+        const portId = parseModuleId(rawPortId);
+        const port = currentCatalog.resolvePort(portId);
+        if (port === null || port === undefined) {
+          return Object.freeze({
+            kind: "rejected" as const,
+            code: "system_dialog.confirmation_required_port_missing" as const,
+            portId,
+          });
+        }
+        bindings.push(Object.freeze({ portId, port }));
+      }
+      return createSystemDialogConfirmationCandidateResolutionSnapshotInternalV1({
+        invocation,
+        rendererComponent: entry.rendererComponent,
+        accessibleName: entry.accessibleName,
+        requiredPortBindings: Object.freeze(bindings),
+      });
+    } catch {
+      return confirmationRendererFaultResultV1;
+    }
+  };
+
+  const normalizeOperationBinding = (
+    value: unknown,
+  ): SystemDialogConfirmationOperationBindingInternalV1 | null => {
+    try {
+      if (!isRecordV1(value) || !Object.isFrozen(value)) return null;
+      const keys = Reflect.ownKeys(value);
+      if (
+        keys.length !== 3 || !keys.includes("dispatch") || !keys.includes("resultSink") ||
+        !keys.includes("finalizeExactRoot")
+      ) return null;
+      const dispatchDescriptor = Object.getOwnPropertyDescriptor(value, "dispatch");
+      const resultSinkDescriptor = Object.getOwnPropertyDescriptor(value, "resultSink");
+      const finalizerDescriptor = Object.getOwnPropertyDescriptor(value, "finalizeExactRoot");
+      if (
+        dispatchDescriptor === undefined || !("value" in dispatchDescriptor) ||
+        typeof dispatchDescriptor.value !== "function" ||
+        resultSinkDescriptor === undefined || !("value" in resultSinkDescriptor) ||
+        typeof resultSinkDescriptor.value !== "function" ||
+        finalizerDescriptor === undefined || !("value" in finalizerDescriptor) ||
+        typeof finalizerDescriptor.value !== "function"
+      ) return null;
+      return Object.freeze({
+        dispatch: dispatchDescriptor
+          .value as SystemDialogConfirmationOperationBindingInternalV1["dispatch"],
+        resultSink: resultSinkDescriptor
+          .value as SystemDialogConfirmationOperationBindingInternalV1["resultSink"],
+        finalizeExactRoot: finalizerDescriptor
+          .value as SystemDialogConfirmationOperationBindingInternalV1["finalizeExactRoot"],
+      });
+    } catch {
+      return null;
+    }
+  };
+
+  let requestConfirmation: (
+    parentSurfaceInstanceId: ManagedSurfaceInstanceIdV1,
+    request: {
+      readonly invocation: SystemDialogConfirmationInvocationInternalV1;
+      readonly operationBinding: SystemDialogConfirmationOperationBindingInternalV1;
+    },
+  ) => SystemDialogConfirmationOpenResultInternalV1;
+
+  const bindSavesLifecycleIntents = (
+    parentSurfaceInstanceId: ManagedSurfaceInstanceIdV1,
+  ): SystemDialogSavesLifecycleIntentsInternalV1 =>
+    Object.freeze({
+      requestConfirmationInternalV1: (request: {
+        readonly invocation: SystemDialogConfirmationInvocationInternalV1;
+        readonly operationBinding: SystemDialogConfirmationOperationBindingInternalV1;
+      }) => requestConfirmation(parentSurfaceInstanceId, request),
+    });
+
   const preparationResult = (
     operation: () => ReturnType<
       ManagedSurfaceCoordinatorRuntimeV1["coordinator"]["openTransientPrimary"]
@@ -724,6 +1078,9 @@ export function createSystemDialogManagedSessionInternalV1(input: {
     request: SystemDialogRootRequestInternalV1,
     resolution: SystemDialogRootCandidateResolutionSnapshotInternalV1<unknown, unknown>,
   ): SystemDialogOpenResultV1 => {
+    const candidateRuntime = runtime;
+    const candidateHostLease = hostLease;
+    let preparedRecord: SystemDialogRootCandidateRecordInternalV1 | null = null;
     const result = mutate(operation, (prepared) => {
       if (
         prepared.receipt.kind !== "applied" ||
@@ -733,15 +1090,17 @@ export function createSystemDialogManagedSessionInternalV1(input: {
       ) {
         return;
       }
-      records.set(
-        prepared.receipt.surfaceInstanceId,
-        Object.freeze({
-          surfaceInstanceId: prepared.receipt.surfaceInstanceId,
-          rootRequest: request,
-          resolution,
-          readiness: prepared.readiness,
-        }),
-      );
+      preparedRecord = Object.freeze({
+        kind: "root" as const,
+        surfaceInstanceId: prepared.receipt.surfaceInstanceId,
+        rootRequest: request,
+        resolution,
+        readiness: prepared.readiness,
+        lifecycleIntents: request === "saves"
+          ? bindSavesLifecycleIntents(prepared.receipt.surfaceInstanceId)
+          : null,
+      });
+      records.set(prepared.receipt.surfaceInstanceId, preparedRecord);
       invalidateHostRenderSnapshot();
     });
     if (
@@ -752,29 +1111,427 @@ export function createSystemDialogManagedSessionInternalV1(input: {
     ) {
       return transitionFaultResultV1;
     }
+    const current = managedSnapshot().orderedInstances.find((instance) =>
+      instance.surfaceInstanceId === result.receipt.surfaceInstanceId &&
+      instance.readiness.kind === "preparing"
+    );
+    if (
+      disposed || detached || activationGate?.isOpen() === false ||
+      !candidateRuntime.isIngressOpen() || runtime !== candidateRuntime ||
+      hostLease !== candidateHostLease || candidateHostLease?.open !== true ||
+      current === undefined || preparedRecord === null ||
+      records.get(result.receipt.surfaceInstanceId) !== preparedRecord
+    ) return transitionFaultResultV1;
     return preparingResultV1;
+  };
+
+  const currentExactConfirmation = (
+    record: SystemDialogConfirmationCandidateRecordInternalV1,
+    expectedRuntime: ManagedSurfaceCoordinatorRuntimeV1,
+    requireReady: boolean,
+  ) => {
+    if (
+      disposed || detached || hostLease?.open !== true || !expectedRuntime.isIngressOpen() ||
+      runtime !== expectedRuntime || records.get(record.surfaceInstanceId) !== record
+    ) return null;
+    const publication = expectedRuntime.coordinator.getSnapshot();
+    const child = publication.orderedInstances.find((instance) =>
+      instance.surfaceInstanceId === record.surfaceInstanceId &&
+      instance.parentInstanceId === record.parentSurfaceInstanceId &&
+      instance.definition.definitionId ===
+        systemDialogManagedContractInternalV1.definitions.confirmation.definitionId &&
+      (!requireReady || instance.readiness.kind === "ready")
+    );
+    const parent = publication.orderedInstances.find((instance) =>
+      instance.surfaceInstanceId === record.parentSurfaceInstanceId &&
+      instance.parentInstanceId === null &&
+      instance.definition.definitionId ===
+        systemDialogManagedContractInternalV1.definitions.saves.definitionId &&
+      instance.readiness.kind === "ready"
+    );
+    return child === undefined || parent === undefined ? null : Object.freeze({ child, parent });
+  };
+
+  const exactRootSurvives = (
+    parentSurfaceInstanceId: ManagedSurfaceInstanceIdV1,
+    parentRecord: SystemDialogRootCandidateRecordInternalV1,
+    expectedRuntime: ManagedSurfaceCoordinatorRuntimeV1,
+  ): boolean => {
+    if (
+      disposed || detached || hostLease?.open !== true || !expectedRuntime.isIngressOpen() ||
+      activationGate?.isOpen() === false || runtime !== expectedRuntime ||
+      records.get(parentSurfaceInstanceId) !== parentRecord
+    ) return false;
+    return expectedRuntime.coordinator.getSnapshot().orderedInstances.some((instance) =>
+      instance.surfaceInstanceId === parentSurfaceInstanceId &&
+      instance.parentInstanceId === null &&
+      instance.definition.definitionId ===
+        systemDialogManagedContractInternalV1.definitions.saves.definitionId &&
+      instance.readiness.kind === "ready"
+    );
+  };
+
+  const deliverConfirmationResult = (
+    record: SystemDialogConfirmationCandidateRecordInternalV1,
+    parentRecord: SystemDialogRootCandidateRecordInternalV1,
+    resultGeneration: object,
+    expectedRuntime: ManagedSurfaceCoordinatorRuntimeV1,
+    delivery: SystemDialogConfirmationResultDeliveryInternalV1,
+  ): void => {
+    if (currentExactConfirmation(record, expectedRuntime, true) === null) return;
+    const currentHandle = expectedRuntime.coordinator.getHandle(record.surfaceInstanceId);
+    if (currentHandle === null) return;
+    const receipt = mutate(() => expectedRuntime.coordinator.closeExpected(currentHandle));
+    if (receipt.kind !== "applied" || receipt.code !== "surface.closed") return;
+    if (
+      !exactRootSurvives(record.parentSurfaceInstanceId, parentRecord, expectedRuntime) ||
+      confirmationResultGenerations.get(record.parentSurfaceInstanceId) !== resultGeneration
+    ) return;
+    try {
+      const sinkCompletion = record.operationBinding.resultSink(Object.freeze(delivery)) as unknown;
+      observeSinkCompletion(
+        "ui.system_dialog_confirmation_result_sink_failed",
+        sinkCompletion,
+      );
+    } catch (error) {
+      reportFailure("ui.system_dialog_confirmation_result_sink_failed", error);
+    }
+  };
+
+  const finalizeConfirmationOperation = (
+    record: SystemDialogConfirmationCandidateRecordInternalV1,
+    parentRecord: SystemDialogRootCandidateRecordInternalV1,
+    expectedRuntime: ManagedSurfaceCoordinatorRuntimeV1,
+  ): void => {
+    if (!exactRootSurvives(record.parentSurfaceInstanceId, parentRecord, expectedRuntime)) return;
+    try {
+      const sinkCompletion = record.operationBinding.finalizeExactRoot() as unknown;
+      observeSinkCompletion(
+        "ui.system_dialog_confirmation_finalization_sink_failed",
+        sinkCompletion,
+      );
+    } catch (error) {
+      reportFailure("ui.system_dialog_confirmation_finalization_sink_failed", error);
+    }
+  };
+
+  const createConfirmationRecord = (candidateInput: {
+    readonly surfaceInstanceId: ManagedSurfaceInstanceIdV1;
+    readonly parentSurfaceInstanceId: ManagedSurfaceInstanceIdV1;
+    readonly invocation: SystemDialogConfirmationInvocationInternalV1;
+    readonly resolution: SystemDialogConfirmationCandidateResolutionSnapshotInternalV1<unknown>;
+    readonly readiness: ManagedSurfaceReadinessAdapterV1;
+    readonly operationBinding: SystemDialogConfirmationOperationBindingInternalV1;
+    readonly candidateRuntime: ManagedSurfaceCoordinatorRuntimeV1;
+    readonly parentRecord: SystemDialogRootCandidateRecordInternalV1;
+    readonly resultGeneration: object;
+  }): SystemDialogConfirmationCandidateRecordInternalV1 => {
+    let dispatched = false;
+    let settled = false;
+    let record!: SystemDialogConfirmationCandidateRecordInternalV1;
+    const settle = (
+      delivery: SystemDialogConfirmationResultDeliveryInternalV1 | null,
+    ): void => {
+      if (settled) return;
+      settled = true;
+      try {
+        if (delivery !== null) {
+          deliverConfirmationResult(
+            record,
+            candidateInput.parentRecord,
+            candidateInput.resultGeneration,
+            candidateInput.candidateRuntime,
+            delivery,
+          );
+        }
+      } catch (error) {
+        reportFailure("ui.system_dialog_confirmation_completion_failed", error);
+      } finally {
+        finalizeConfirmationOperation(
+          record,
+          candidateInput.parentRecord,
+          candidateInput.candidateRuntime,
+        );
+      }
+    };
+    const settleFault = (error: unknown): void => {
+      settle(Object.freeze({ kind: "faulted" as const, error }));
+    };
+    const settleOutcome = (outcome: SystemDialogConfirmationOperationOutcomeInternalV1): void => {
+      if (settled) return;
+      try {
+        if (!isRecordV1(outcome)) throw new TypeError();
+        const kind = ownDataValueV1(outcome, "kind");
+        const keys = Reflect.ownKeys(outcome);
+        if (kind === "successor") {
+          if (
+            keys.length !== 1 || keys[0] !== "kind" || candidateInput.invocation.kind === "clear"
+          ) {
+            throw new TypeError();
+          }
+          settle(null);
+          return;
+        }
+        if (
+          kind !== "retain_root" || keys.length !== 2 || !keys.includes("kind") ||
+          !keys.includes("result")
+        ) throw new TypeError();
+        const result = ownDataValueV1(outcome, "result");
+        settle(Object.freeze({ kind: "settled" as const, result }));
+      } catch {
+        settleFault(new TypeError("ui.system_dialog_confirmation_operation_outcome_invalid"));
+      }
+    };
+    const controller: SystemDialogConfirmationControllerInternalV1 = Object.freeze({
+      dispatchOnceInternalV1() {
+        if (dispatched) return confirmationAlreadyDispatchedResultV1;
+        if (currentExactConfirmation(record, candidateInput.candidateRuntime, false) === null) {
+          return confirmationStaleResultV1;
+        }
+        if (
+          candidateInput.candidateRuntime.coordinator.getHandle(
+            candidateInput.surfaceInstanceId,
+          ) ===
+            null
+        ) {
+          return confirmationNotReadyResultV1;
+        }
+        dispatched = true;
+        try {
+          const operation = candidateInput.operationBinding.dispatch(candidateInput.invocation);
+          void promiseThenInternalV1.call(operation, settleOutcome, settleFault);
+        } catch (error) {
+          settleFault(error);
+        }
+        return confirmationDispatchedResultV1;
+      },
+      cancelInternalV1(dismissKind: ManagedSurfaceDismissKindV1) {
+        const current = currentExactConfirmation(record, candidateInput.candidateRuntime, false);
+        if (current === null) return confirmationStaleResultV1;
+        const publicationInstance = current.child;
+        const receipt = publicationInstance.readiness.kind === "preparing"
+          ? mutate(() =>
+            candidateInput.candidateRuntime.coordinator.routeFallbackDismissExactCandidate(
+              candidateInput.readiness.evidence,
+              dismissKind,
+            )
+          )
+          : (() => {
+            const handle = candidateInput.candidateRuntime.coordinator.getHandle(
+              candidateInput.surfaceInstanceId,
+            );
+            return handle === null
+              ? null
+              : mutate(() =>
+                candidateInput.candidateRuntime.coordinator.routeDismiss(handle, dismissKind)
+              );
+          })();
+        if (receipt === null) return confirmationStaleResultV1;
+        if (receipt.kind === "applied" && receipt.code === "surface.dismissed") {
+          return confirmationClosedResultV1;
+        }
+        if (receipt.code === "surface.dismiss_locked") return confirmationDismissLockedResultV1;
+        if (receipt.kind === "stale") return confirmationStaleResultV1;
+        return confirmationTransitionFaultResultV1;
+      },
+    });
+    record = Object.freeze({
+      kind: "confirmation" as const,
+      surfaceInstanceId: candidateInput.surfaceInstanceId,
+      parentSurfaceInstanceId: candidateInput.parentSurfaceInstanceId,
+      invocation: candidateInput.invocation,
+      resolution: candidateInput.resolution,
+      readiness: candidateInput.readiness,
+      operationBinding: candidateInput.operationBinding,
+      controller,
+    });
+    return record;
+  };
+
+  requestConfirmation = (parentSurfaceInstanceId, request) => {
+    if (
+      disposed || detached || activationGate?.isOpen() === false || !runtime.isIngressOpen()
+    ) return disposedResultV1;
+    if (hostLease?.open !== true || catalog === null) {
+      return confirmationRendererUnavailableResultV1;
+    }
+    const candidateRuntime = runtime;
+    const candidateHostLease = hostLease;
+    reconcileRecords();
+    const parentRecord = rootRecordFor(parentSurfaceInstanceId);
+    const parentInstance = managedSnapshot().orderedInstances.find((instance) =>
+      instance.surfaceInstanceId === parentSurfaceInstanceId &&
+      instance.parentInstanceId === null &&
+      instance.definition.definitionId ===
+        systemDialogManagedContractInternalV1.definitions.saves.definitionId &&
+      instance.readiness.kind === "ready"
+    );
+    if (parentRecord?.rootRequest !== "saves" || parentInstance === undefined) {
+      return confirmationParentStaleResultV1;
+    }
+    const existing = managedSnapshot().orderedInstances.find((instance) =>
+      instance.parentInstanceId === parentSurfaceInstanceId &&
+      instance.definition.slotId ===
+        systemDialogManagedContractInternalV1.definitions.confirmation.slotId
+    );
+    if (existing !== undefined) return confirmationAlreadyRequestedResultV1;
+    const admittedPublication = candidateRuntime.coordinator.getSnapshot();
+    let invocation: SystemDialogConfirmationInvocationInternalV1;
+    try {
+      invocation = normalizeSystemDialogConfirmationInvocationInternalV1(request.invocation);
+    } catch {
+      return confirmationInvocationInvalidResultV1;
+    }
+    const operationBinding = normalizeOperationBinding(request.operationBinding);
+    if (operationBinding === null) return confirmationOperationBindingInvalidResultV1;
+    const admitted = confirmationPreflight(invocation);
+    if ("kind" in admitted) return admitted;
+    if (
+      disposed || detached || activationGate?.isOpen() === false ||
+      !candidateRuntime.isIngressOpen() || runtime !== candidateRuntime
+    ) return disposedResultV1;
+    if (hostLease !== candidateHostLease || !candidateHostLease.open || catalog === null) {
+      return confirmationRendererUnavailableResultV1;
+    }
+    reconcileRecords();
+    const currentPublication = candidateRuntime.coordinator.getSnapshot();
+    const exactParent = currentPublication.orderedInstances.find((instance) =>
+      instance.surfaceInstanceId === parentSurfaceInstanceId &&
+      instance.parentInstanceId === null &&
+      instance.definition.definitionId ===
+        systemDialogManagedContractInternalV1.definitions.saves.definitionId &&
+      instance.readiness.kind === "ready"
+    );
+    if (records.get(parentSurfaceInstanceId) !== parentRecord || exactParent === undefined) {
+      return confirmationParentStaleResultV1;
+    }
+    const currentChild = currentPublication.orderedInstances.find((instance) =>
+      instance.parentInstanceId === parentSurfaceInstanceId &&
+      instance.definition.slotId ===
+        systemDialogManagedContractInternalV1.definitions.confirmation.slotId
+    );
+    if (currentChild !== undefined) return confirmationAlreadyRequestedResultV1;
+    if (currentPublication !== admittedPublication) {
+      return confirmationTransitionFaultResultV1;
+    }
+    const parent = candidateRuntime.coordinator.getHandle(parentSurfaceInstanceId);
+    if (parent === null) return confirmationParentStaleResultV1;
+    let preparedRecord: SystemDialogConfirmationCandidateRecordInternalV1 | null = null;
+    const previousResultGeneration = confirmationResultGenerations.get(parentSurfaceInstanceId);
+    const resultGeneration = Object.freeze({ kind: "confirmation-result-generation" });
+    confirmationResultGenerations.set(parentSurfaceInstanceId, resultGeneration);
+    let result: ReturnType<
+      ManagedSurfaceCoordinatorRuntimeV1["coordinator"]["pushTransientChild"]
+    >;
+    try {
+      result = mutate(
+        () =>
+          candidateRuntime.coordinator.pushTransientChild({
+            definition: systemDialogManagedContractInternalV1.definitions.confirmation,
+            semanticOccurrenceId: null,
+            parent,
+          }),
+        (prepared) => {
+          if (
+            prepared.receipt.kind !== "applied" ||
+            prepared.receipt.code !== "surface.preparation_started" ||
+            prepared.receipt.surfaceInstanceId === undefined ||
+            prepared.readiness === null
+          ) return;
+          preparedRecord = createConfirmationRecord({
+            surfaceInstanceId: prepared.receipt.surfaceInstanceId,
+            parentSurfaceInstanceId,
+            invocation,
+            resolution: admitted,
+            readiness: prepared.readiness,
+            operationBinding,
+            candidateRuntime,
+            parentRecord,
+            resultGeneration,
+          });
+          records.set(prepared.receipt.surfaceInstanceId, preparedRecord);
+          invalidateHostRenderSnapshot();
+        },
+      );
+    } catch {
+      if (confirmationResultGenerations.get(parentSurfaceInstanceId) === resultGeneration) {
+        if (previousResultGeneration === undefined) {
+          confirmationResultGenerations.delete(parentSurfaceInstanceId);
+        } else {
+          confirmationResultGenerations.set(parentSurfaceInstanceId, previousResultGeneration);
+        }
+      }
+      return confirmationTransitionFaultResultV1;
+    }
+    if (
+      result.receipt.kind !== "applied" ||
+      result.receipt.code !== "surface.preparation_started" ||
+      result.receipt.surfaceInstanceId === undefined ||
+      result.readiness === null
+    ) {
+      if (confirmationResultGenerations.get(parentSurfaceInstanceId) === resultGeneration) {
+        if (previousResultGeneration === undefined) {
+          confirmationResultGenerations.delete(parentSurfaceInstanceId);
+        } else {
+          confirmationResultGenerations.set(parentSurfaceInstanceId, previousResultGeneration);
+        }
+      }
+      return confirmationTransitionFaultResultV1;
+    }
+    const current = preparedRecord === null
+      ? null
+      : currentExactConfirmation(preparedRecord, candidateRuntime, false);
+    if (
+      current === null || current.child.readiness.kind !== "preparing" ||
+      records.get(result.receipt.surfaceInstanceId) !== preparedRecord
+    ) return confirmationTransitionFaultResultV1;
+    return Object.freeze({
+      kind: "preparing" as const,
+      code: "system_dialog.confirmation_preparation_started" as const,
+      surfaceInstanceId: result.receipt.surfaceInstanceId,
+    });
   };
 
   const session: SystemDialogManagedSessionInternalV1 = {
     getManagedSnapshotInternalV1: managedSnapshot,
     getRootCandidateRecordsInternalV1() {
       reconcileRecords();
-      return Object.freeze([...records.values()]);
+      return Object.freeze(
+        [...records.values()].filter(
+          (record): record is SystemDialogRootCandidateRecordInternalV1 => record.kind === "root",
+        ),
+      );
     },
     getHostRenderSnapshotInternalV1() {
       const publication = managedSnapshot();
       if (hostRenderSourcePublication === publication && hostRenderSnapshot !== null) {
         return hostRenderSnapshot;
       }
-      const entries = publication.orderedInstances.flatMap((instance) => {
+      const entries: SystemDialogHostRenderEntryInternalV1[] = [];
+      for (const instance of publication.orderedInstances) {
         const record = records.get(instance.surfaceInstanceId);
-        return record === undefined ? [] : [Object.freeze({
-          surfaceInstanceId: instance.surfaceInstanceId,
-          phase: instance.phase,
-          rootRequest: record.rootRequest,
-          resolution: record.resolution,
-        })];
-      });
+        if (record === undefined) continue;
+        entries.push(
+          record.kind === "root"
+            ? Object.freeze({
+              kind: "root" as const,
+              surfaceInstanceId: instance.surfaceInstanceId,
+              phase: instance.phase,
+              rootRequest: record.rootRequest,
+              resolution: record.resolution,
+              lifecycleIntents: record.lifecycleIntents,
+            })
+            : Object.freeze({
+              kind: "confirmation" as const,
+              surfaceInstanceId: instance.surfaceInstanceId,
+              parentSurfaceInstanceId: record.parentSurfaceInstanceId,
+              phase: instance.phase,
+              invocation: record.invocation,
+              resolution: record.resolution,
+              controller: record.controller,
+            }),
+        );
+      }
       hostRenderSourcePublication = publication;
       const nextSnapshot: SystemDialogHostRenderSnapshotInternalV1 = Object.freeze({
         publication,
@@ -798,12 +1555,15 @@ export function createSystemDialogManagedSessionInternalV1(input: {
         disposed || detached || activationGate?.isOpen() === false || !runtime.isIngressOpen()
       ) return disposedResultV1;
       if (hostLease?.open !== true || catalog === null) return unavailableResultV1;
+      const candidateRuntime = runtime;
+      const candidateHostLease = hostLease;
       reconcileRecords();
+      const admittedPublication = managedSnapshot();
       const roots = systemRoots();
       const pending = roots.find((instance) => instance.readiness.kind === "preparing");
       const active = roots.find((instance) => instance.readiness.kind === "ready");
-      const pendingRecord = recordFor(pending?.surfaceInstanceId);
-      const activeRecord = recordFor(active?.surfaceInstanceId);
+      const pendingRecord = rootRecordFor(pending?.surfaceInstanceId);
+      const activeRecord = rootRecordFor(active?.surfaceInstanceId);
       if (pendingRecord?.rootRequest === request) return alreadyRequestedResultV1;
       if (pending === undefined && activeRecord?.rootRequest === request) {
         return alreadyRequestedResultV1;
@@ -829,13 +1589,23 @@ export function createSystemDialogManagedSessionInternalV1(input: {
       }
       const admitted = preflight(request);
       if ("kind" in admitted) return admitted;
+      if (
+        disposed || detached || activationGate?.isOpen() === false ||
+        !candidateRuntime.isIngressOpen() || runtime !== candidateRuntime
+      ) return disposedResultV1;
+      if (hostLease !== candidateHostLease || !candidateHostLease.open || catalog === null) {
+        return unavailableResultV1;
+      }
+      if (managedSnapshot() !== admittedPublication) {
+        return transitionFaultResultV1;
+      }
       const definition = requestDefinitionV1(request);
       if (active === undefined) {
         if (pending !== undefined) {
           if (pendingRecord === undefined) return transitionFaultResultV1;
           return preparationResult(
             () =>
-              runtime.coordinator.supersedeTransientInitialPreparation({
+              candidateRuntime.coordinator.supersedeTransientInitialPreparation({
                 definition,
                 semanticOccurrenceId: null,
                 expected: pendingRecord.readiness.evidence,
@@ -846,7 +1616,7 @@ export function createSystemDialogManagedSessionInternalV1(input: {
         }
         return preparationResult(
           () =>
-            runtime.coordinator.openTransientPrimary({
+            candidateRuntime.coordinator.openTransientPrimary({
               definition,
               semanticOccurrenceId: null,
             }),
@@ -854,11 +1624,11 @@ export function createSystemDialogManagedSessionInternalV1(input: {
           admitted,
         );
       }
-      const retained = runtime.coordinator.getHandle(active.surfaceInstanceId);
+      const retained = candidateRuntime.coordinator.getHandle(active.surfaceInstanceId);
       if (retained === null) return transitionFaultResultV1;
       return preparationResult(
         () =>
-          runtime.coordinator.replaceTransientPrimary({
+          candidateRuntime.coordinator.replaceTransientPrimary({
             definition,
             semanticOccurrenceId: null,
             expected: retained,
@@ -941,6 +1711,7 @@ export function createSystemDialogManagedSessionInternalV1(input: {
       unsubscribeCoordinator?.();
       unsubscribeCoordinator = null;
       records.clear();
+      confirmationResultGenerations.clear();
       invalidateHostRenderSnapshot();
       dirty = true;
     },
@@ -981,6 +1752,7 @@ export function createSystemDialogManagedSessionInternalV1(input: {
       unsubscribeCoordinator?.();
       unsubscribeCoordinator = null;
       records.clear();
+      confirmationResultGenerations.clear();
       invalidateHostRenderSnapshot();
       dirty = false;
     },
@@ -993,6 +1765,7 @@ export function createSystemDialogManagedSessionInternalV1(input: {
       unsubscribeCoordinator?.();
       unsubscribeCoordinator = null;
       records.clear();
+      confirmationResultGenerations.clear();
       invalidateHostRenderSnapshot();
       catalog = null;
       hostLease = null;

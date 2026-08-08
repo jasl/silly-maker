@@ -337,6 +337,11 @@ export type ManagedSurfaceOperationV1 =
     readonly ownerId: ManagedSurfaceOwnerIdV1;
   }
   | {
+    readonly kind: "route_fallback_dismiss_exact_candidate";
+    readonly dismissKind: ManagedSurfaceDismissKindV1;
+    readonly evidence: ManagedSurfaceReadinessEvidenceV1;
+  }
+  | {
     readonly kind: "route_fallback_dismiss_with_owner_preparation_cancel";
     readonly dismissKind: ManagedSurfaceDismissKindV1;
     readonly evidence: ManagedSurfaceReadinessEvidenceV1;

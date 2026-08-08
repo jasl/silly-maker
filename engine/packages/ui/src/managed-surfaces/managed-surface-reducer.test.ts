@@ -807,6 +807,95 @@ describe("reduceManagedSurfaceV1", () => {
     ]);
   });
 
+  it("dismisses an exact child fallback without cancelling a same-owner root replacement", () => {
+    let state = createReducerStateV1(24);
+    const root = candidateV1(state, "saves-root");
+    state = openPrimaryV1(state, root).state;
+    const replacement = candidateV1(state, "settings-replacement", {
+      definition: definitionV1("settings-replacement", {
+        definitionId: parseManagedSurfaceDefinitionIdV1("surface.settings"),
+      }),
+    });
+    const replacementPreparation = reduceManagedSurfaceV1(state, {
+      kind: "prepare_replacement",
+      expected: {
+        applicationEpoch: state.publication.applicationEpoch,
+        topologyRevision: state.publication.topologyRevision,
+        surfaceInstanceId: root.surfaceInstanceId,
+      },
+      candidate: replacement,
+    });
+    expectRevisionDeltaV1(state.publication, replacementPreparation.state.publication, 1, 0);
+    state = replacementPreparation.state;
+
+    const confirmation = candidateV1(state, "confirmation", {
+      definition: definitionV1("confirmation", {
+        definitionId: parseManagedSurfaceDefinitionIdV1("surface.confirmation"),
+        slotId: parseManagedSurfaceSlotIdV1("surface-slot.detail"),
+        layerOrder: parseNonNegativeSafeInteger(30),
+        placement: "child",
+      }),
+    });
+    const confirmationPreparation = reduceManagedSurfaceV1(state, {
+      kind: "prepare_child",
+      parentEvidence: {
+        applicationEpoch: state.publication.applicationEpoch,
+        topologyRevision: state.publication.topologyRevision,
+        surfaceInstanceId: root.surfaceInstanceId,
+      },
+      candidate: confirmation,
+    });
+    state = confirmationPreparation.state;
+    const before = state.publication;
+
+    const dismissed = reduceManagedSurfaceV1(state, {
+      kind: "route_fallback_dismiss_exact_candidate",
+      dismissKind: "routed_cancel",
+      evidence: {
+        applicationEpoch: state.publication.applicationEpoch,
+        surfaceInstanceId: confirmation.surfaceInstanceId,
+      },
+    });
+
+    expect(dismissed.receipt).toMatchObject({
+      kind: "applied",
+      code: "surface.dismissed",
+      surfaceInstanceId: confirmation.surfaceInstanceId,
+    });
+    expectRevisionDeltaV1(before, dismissed.state.publication, 1, 1);
+    expect(
+      dismissed.state.publication.orderedInstances.map((instance) => instance.surfaceInstanceId),
+    ).toEqual([root.surfaceInstanceId, replacement.surfaceInstanceId]);
+    expect(dismissed.state.publication.orderedInstances[0]).toMatchObject({
+      surfaceInstanceId: root.surfaceInstanceId,
+      phase: "active",
+      readiness: { kind: "ready" },
+    });
+    expect(dismissed.state.publication.orderedInstances[1]).toMatchObject({
+      surfaceInstanceId: replacement.surfaceInstanceId,
+      readiness: {
+        kind: "preparing",
+        transition: "primary_replacement",
+        retainedInstanceId: root.surfaceInstanceId,
+      },
+    });
+
+    const late = reduceManagedSurfaceV1(dismissed.state, {
+      kind: "route_fallback_dismiss_exact_candidate",
+      dismissKind: "routed_cancel",
+      evidence: {
+        applicationEpoch: dismissed.state.publication.applicationEpoch,
+        surfaceInstanceId: confirmation.surfaceInstanceId,
+      },
+    });
+    expect(late.receipt).toMatchObject({
+      kind: "stale",
+      code: "surface.stale_readiness",
+      surfaceInstanceId: confirmation.surfaceInstanceId,
+    });
+    expect(late.state).toBe(dismissed.state);
+  });
+
   it("closes an expected parent and its subtree without guessing the current top", () => {
     let state = createReducerStateV1(2);
     const primary = candidateV1(state, "inventory");
