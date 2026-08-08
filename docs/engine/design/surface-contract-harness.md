@@ -21,13 +21,15 @@ confirmation 接到 shared Coordinator，并删除旧 writable store、fallback 
 standalone lifecycle exports；full/browser/prebuilt 回归与最终 adversarial review均通过。
 同日 S1-R pre-implementation review 冻结 parent/order identity、专用 per-lease source
 revision、readiness failure desired/runtime divergence、empty/dispose、cross-owner 与
-bounded exact admission 边界；这些仍是 planned dormant work，不是 live capability。
+bounded exact admission 边界；同日 S1-R.0 已把 pure publication/target/identity/result
+shapes、fixed bounds、stable code precedence 与 exact source/runtime delta table 固定为
+package-internal dormant contract。它仍不是 live capability。
 本文固定
 影响输入与焦点的 UI Surface 的权威边界、生命周期、输入代际与验证分层，并把“弱模型
 能够写出正确代码”提升为作者 API 的验收条件。S1-T 与 S2 已实现，S3a–S3e
 已完成并 promotion System 的 shared composition authority、Host readiness、confirmation
-child 与 single-writer cutover；下一独立切片为 S1-R.0 stable
-publication/identity/failure normative closure。当前 live 能力仍以
+child 与 single-writer cutover；下一独立切片为 S1-R.1 publisher lease +
+source/occurrence allocators。当前 live 能力仍以
 [architecture](../architecture.md) 与
 [features](../features.md) 为准；执行顺序见
 [Surface Contract Harness plan](../plans/2026-07-30-surface-contract-harness.md)。
@@ -246,6 +248,13 @@ exact admission，且 precedence 固定为：
    canonical-byte/depth/node bounds；
 5. same-owner publication scope以及与其他 owner live slot 的 conflict check。
 
+S1-R.0 将 exact internal bounds 固定为每份 publication 最多 `64` targets；每个
+normalized parameter snapshot 最多 `65,536` canonical bytes、depth `32`、nodes `4,096`。
+Canonical bytes只通过 opaque immutable snapshot进入 admitted identity，R2 必须以 private
+defensive copy + exact comparator实现，不能暴露 mutable `Uint8Array`。Identity-graph 内部
+code precedence与上述 stage顺序同样由 package-internal frozen table固定；parent-before-child
+已经证明 acyclic，cycle-shaped输入归入更早的 parent-order rejection，不另留不可达 cycle code。
+
 完成第 1 步后，lower revision 立即返回 stale，且不读取/traverse `targets` array 或调用
 definition schema/resolver；equal 与 greater revision 才继续第 2–5 步。这样 malformed-
 stale 的 precedence、getter side effect 与 validation budget 都是确定的。
@@ -275,17 +284,18 @@ failure 不回滚已经接受的 desired vector/revision：
 
 Composite reconcile 的 source/runtime delta 固定为：
 
-| Input                              | Accepted source state             | Runtime/Coordinator state                                             |
-| ---------------------------------- | --------------------------------- | --------------------------------------------------------------------- |
-| lower revision                     | unchanged                         | unchanged                                                             |
-| equal + same                       | unchanged                         | unchanged                                                             |
-| equal + different                  | invalid, unchanged                | unchanged                                                             |
-| greater + invalid vector           | unchanged                         | unchanged                                                             |
-| greater + same, all desired active | advance source cursor             | no allocation/rebuild/topology delta                                  |
-| greater + same, pending/failed gap | accept revision                   | cancel older pending; fresh candidate only for gaps                   |
-| greater + changed vector           | atomically replace desired vector | one readiness-policy-derived retain/retire/prepare composite commit   |
-| greater + empty vector             | accept revision and `targets: []` | atomically cancel/retire this lease's pending/active/retained targets |
-| publisher lease dispose            | remove lease source state         | atomically retire this lease's pending/active/retained targets        |
+| Input                              | Accepted source state             | Runtime/Coordinator state                                           |
+| ---------------------------------- | --------------------------------- | ------------------------------------------------------------------- |
+| lower revision                     | unchanged                         | unchanged                                                           |
+| equal + same                       | unchanged                         | unchanged                                                           |
+| equal + different                  | invalid, unchanged                | unchanged                                                           |
+| greater + invalid vector           | unchanged                         | unchanged                                                           |
+| greater + same, all desired active | advance source cursor             | no allocation/rebuild/topology delta                                |
+| greater + same, pending/failed gap | accept revision                   | cancel older pending; fresh candidate only for gaps                 |
+| greater + changed vector           | atomically replace desired vector | one readiness-policy-derived retain/retire/prepare composite commit |
+| greater + empty, runtime targets   | accept revision and `targets: []` | atomically cancel/retire this lease's owned targets                 |
+| greater + empty, runtime gap       | accept revision and `targets: []` | unchanged                                                           |
+| publisher lease dispose            | remove lease source state         | atomically retire this lease's pending/active/retained targets      |
 
 Accepted empty vector remains distinguishable from “lease has never published”, so equal-empty
 is idempotent and lower revisions stay stale。Lease dispose first closes publisher ingress, is

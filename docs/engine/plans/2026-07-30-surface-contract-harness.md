@@ -11,11 +11,11 @@ atomic composite operations、S3b composition-owned shared Coordinator 与 dorma
 session/config catalog、S3c.0 composition-wide successor activation barrier、dormant
 S3c.1 Host-commit readiness/one logical Host lease、S3d exact-parent confirmation child 与
 S3e.0 successor-acknowledgment/terminal-teardown 准备切片均已完成；2026-08-09 S3e live
-cutover and promotion 已关闭，下一独立切片为 S1-R.0 stable
-publication/identity/failure normative closure。
+cutover and promotion 已关闭；同日 S1-R.0 stable publication/identity/failure contract
+floor 已关闭，下一独立切片为 S1-R.1 publisher lease + source/occurrence allocators。
 同日 S1-R pre-implementation review 将 aggregate 重切为 S1-R.0–S1-R.5，并冻结
 parent/order、专用 revision、failure divergence、empty/dispose、cross-owner、bounded
-admission 与 exact delta；这些条目尚未实现。
+admission 与 exact delta；S1-R.0 已实现 pure internal floor，R1–R5 尚未实现。
 目标合同见
 [Managed Surface lifecycle and contract harness](../design/surface-contract-harness.md)。
 本文只规定可独立交付的实施顺序；不要求一次实现 design
@@ -23,7 +23,7 @@ admission 与 exact delta；这些条目尚未实现。
 
 在 [production-floor sequence](2026-07-30-production-floor-sequence.md)
 中：PF2 的 `S0 -> S1-T -> S2`、PF-DET、PF3/M2 与 PF4/S3 已完成；当前 core
-节点是 PF4/S1-R.0。PF4 的顺序是 `S3 -> S1-R.0 -> S1-R.1–S1-R.5 -> S4 -> S4b`；
+节点是 PF4/S1-R.1。PF4 的顺序是 `S3 -> S1-R.0 -> S1-R.1–S1-R.5 -> S4 -> S4b`；
 S5–S6 属于 PF6。S1-R
 延后到第一个真实 externally published stable-target family 前完成；按 accepted
 target ownership，S4 Narrative 计划成为该 family，因此 S1-R 位于 S3 与 S4
@@ -1614,7 +1614,7 @@ target owner；此处不声称 live Narrative 已经接入 Managed Surface recon
 
 S1-R 按以下可独立合并切片推进，每次只领取一个：
 
-1. **S1-R.0 stable publication/identity/failure contract floor**：以本节与 target design
+1. **S1-R.0 stable publication/identity/failure contract floor（已完成）**：以本节与 target design
    的 normative closure 为 authority，建立 package-internal pure publication/target/
    result types 与 exact contract tests，并在代码中固定 bounds、stable codes 与
    precedence；不调用 live Coordinator；
@@ -1634,12 +1634,27 @@ S1-R 按以下可独立合并切片推进，每次只领取一个：
    10k churn、pure/model equivalence 与 public/transient export audit，汇总 dormant
    promotion evidence。
 
-当前只允许从 **S1-R.0** 开始；S1-R.0 完成前不得进入 kernel mutation。上述切片都保持
+当前只允许从 **S1-R.1** 开始；R1 完成前不得进入 R2 admission。上述切片都保持
 dormant/package-internal，不接 Narrative/React/Web，不更新 live feature 文档。
 
 **S1-R.0 acceptance：** 只交付 internal shapes、fixed constants、result taxonomy、
 precedence/delta tables 与 pure fixture/table tests；不执行 definition schema/canonical
 admission（S1-R.2）、Coordinator mutation（S1-R.3）或 readiness settlement（S1-R.4）。
+
+**2026-08-09 S1-R.0 delivery：** 新增 source-relative
+`managed-surface-stable-contract.ts`，固定 opaque publisher lease、专用 positive-safe-integer
+source revision、raw publication/target、parent + exact stack-scope admitted identity、opaque
+canonical-byte snapshot、closed result/code union、stage + within-stage precedence 与 exact
+delta rows。Internal bounds 为 `64 targets`，每 target `65,536 canonical bytes / depth 32 /
+nodes 4,096`。Failure/stale/unchanged在类型上只能携带 exact zero delta；publication applied
+与 publisher dispose 使用不同 delta union；empty只退休 owned targets而不 dispose lease，且
+分别覆盖 observable targets、non-observable pending targets、readiness-failure runtime gap、
+first empty、accepted-empty cursor-only 与 equal-empty。该模块没有 allocator、descriptor/
+schema/canonical admission、state/reducer、Coordinator/readiness调用，也未进入 root barrel、
+`@sillymaker/ui/internal`、React/Web/Narrative或 transient contracts。Architecture/features
+不更新，因为尚无 live stable-target family。验证通过 focused contract `1 file / 7 tests`、
+UI package `70 / 754`、`deno task test`（`243 / 3640`）与完整 `deno task check`；三路
+adversarial review 最终无 finding。
 
 ### Canonical target equivalence
 
@@ -1721,7 +1736,7 @@ reconcile/readiness/publication/diagnostics 路径；普通 transient Surface �
 2. S1-R.0 以 package-internal constant 固定并由 exact boundary tests 锁定的 target
    count limit；
 3. duplicate/fresh occurrence high-water、definition existence/owner、root-null、
-   parent exists/before-child、cycle、slot/cardinality、canonical stack order；
+   parent exists/before-child（同时证明 acyclic）、slot/cardinality、canonical stack order；
 4. schema normalization、Strict Canonical Data 与 S1-R.0 固定的 canonical
    byte/depth/node bounds；
 5. same-owner scope 与 other-owner live slot conflict。
@@ -1776,7 +1791,8 @@ active vector 代替 accepted source：
 | greater + same, all desired active | advance cursor                   | no allocation/rebuild/topology delta                |
 | greater + same, pending/failed gap | accept revision                  | cancel older pending; fresh candidate only for gaps |
 | greater + changed                  | atomically replace desired       | one readiness-policy retain/retire/prepare commit   |
-| greater + empty                    | accept revision and empty vector | one composite owner-subtree retirement              |
+| greater + empty, runtime targets   | accept revision and empty vector | one composite owned-target retirement               |
+| greater + empty, runtime gap       | accept revision and empty vector | unchanged                                           |
 | lease dispose                      | remove lease source state        | one composite owner-subtree retirement              |
 
 Stale、equal-same、equal-different、greater-invalid 与 repeated dispose 精确产生 `0`
@@ -1808,7 +1824,7 @@ failure 不能留下二者撕裂。
   byte/depth/node exact boundaries；
 - canonical bytes 同值/异值、definition contract revision、lease/owner/occurrence、
   root-null/child-parent、exact root/child stack scope 与 retained sibling order；
-- missing/foreign/cross-owner/after-child parent、cycle、duplicate occurrence、slot/order
+- missing/foreign/cross-owner/after-child parent、cycle-shaped parent-order、duplicate occurrence、slot/order
   conflict，以及 same-occurrence reparent/retained-sibling reorder zero-delta rejection；
 - stack sibling insertion/removal造成 dense index平移时 retained occurrence/instance保持，
   只有新 occurrence 分配 fresh runtime identity；
