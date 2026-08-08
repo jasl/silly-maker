@@ -13,10 +13,11 @@ S3c.1 Host-commit readiness/one logical Host lease、S3d exact-parent confirmati
 S3e.0 successor-acknowledgment/terminal-teardown 准备切片均已完成；2026-08-09 S3e live
 cutover and promotion 已关闭；同日 S1-R.0 stable publication/identity/failure contract
 floor、S1-R.1 publisher lease/source/occurrence allocator 与 S1-R.2a corrective admission
-contract 已关闭，下一独立切片为 S1-R.2b Base bounded canonical projection seam。
+contract、S1-R.2b Base bounded canonical projection seam 已关闭，下一独立切片为
+S1-R.2c stable-vector admission。
 同日 S1-R pre-implementation review 将 aggregate 重切为 S1-R.0–S1-R.5，并冻结
 parent/order、专用 revision、failure divergence、empty/dispose、cross-owner、bounded
-admission 与 exact delta；S1-R.0–R2a 已实现 dormant internal floor，R2b–R5 尚未实现。
+admission 与 exact delta；S1-R.0–R2b 已实现 dormant internal floor，R2c–R5 尚未实现。
 目标合同见
 [Managed Surface lifecycle and contract harness](../design/surface-contract-harness.md)。
 本文只规定可独立交付的实施顺序；不要求一次实现 design
@@ -24,7 +25,7 @@ admission 与 exact delta；S1-R.0–R2a 已实现 dormant internal floor，R2b�
 
 在 [production-floor sequence](2026-07-30-production-floor-sequence.md)
 中：PF2 的 `S0 -> S1-T -> S2`、PF-DET、PF3/M2 与 PF4/S3 已完成；当前 core
-节点是 PF4/S1-R.2b。PF4 的顺序是 `S3 -> S1-R.0 -> S1-R.1–S1-R.5 -> S4 -> S4b`；
+节点是 PF4/S1-R.2c。PF4 的顺序是 `S3 -> S1-R.0 -> S1-R.1–S1-R.5 -> S4 -> S4b`；
 S5–S6 属于 PF6。S1-R
 延后到第一个真实 externally published stable-target family 前完成；按 accepted
 target ownership，S4 Narrative 计划成为该 family，因此 S1-R 位于 S3 与 S4
@@ -1625,7 +1626,7 @@ S1-R 按以下可独立合并切片推进，每次只领取一个：
 3. **S1-R.2a corrective admission contract（已完成）**：修正 R0 closed codes/check precedence，冻结
    exact accepted-baseline/proposal provenance、subject-bound reservation、scope-local order、
    per-target first-event hard-stop与 raw-schema boundary；不执行 canonical traversal；
-4. **S1-R.2b bounded canonical projection seam**：在既有
+4. **S1-R.2b bounded canonical projection seam（已完成）**：在既有
    `@sillymaker/base/runtime/internal` 建立 descriptor-safe、fully-represented、typed hard-stop
    projection + byte seam，accepted output与 public canonical bytes exact-equal；
 5. **S1-R.2c stable vector admission**：descriptor-safe exact envelope、definition schema
@@ -1641,7 +1642,7 @@ S1-R 按以下可独立合并切片推进，每次只领取一个：
    10k churn、pure/model equivalence 与 public/transient export audit，汇总 dormant
    promotion evidence。
 
-当前只允许从 **S1-R.2b** 开始；上述切片都保持
+当前只允许从 **S1-R.2c** 开始；上述切片都保持
 dormant/package-internal，不接 Narrative/React/Web，不更新 live feature 文档。
 
 **S1-R.0 acceptance：** 只交付 internal shapes、fixed constants、result taxonomy、
@@ -1917,6 +1918,21 @@ simultaneous precedence、hard-stop getter/descriptor zero-read、deep freeze及
 `CanonicalJsonError` Proxy spoof。若必须复制/改变canonical core或public/Save/Persistence
 precedence则stop。除focused/Base/full/check外，只要重构shared canonical core，就重跑维护的
 Deno + Chromium/Firefox/WebKit determinism matrix；不需要UI browser flow。
+
+**2026-08-09 S1-R.2b delivery：** Base新增无顶层可写authority的 bounded descriptor walker，
+调用方提供positive-safe `maxBytes/maxDepth/maxNodes`；typed result只允许
+`projected`或`canonical.invalid/limit.bytes/limit.depth/limit.nodes`。成功结果同次生成fresh
+canonical bytes与detached、递归frozen的fully-represented projection；known validation在
+package-owned site结构化拒绝，Proxy/reflection抛出的真实或伪装`CanonicalJsonError`保持exact
+identity逃逸。Public/unbounded walker只抽取共享number validation、incremental string escaping、
+UTF-8、code-point order与safe property-definition primitives，原container/property读取与失败
+precedence保持；Strict migration helper、Save/Persistence与public bytes不变。新seam只从既有
+`@sillymaker/base/runtime/internal`导出，root/runtime/authoring ordinary API以consumer type test
+证明不可达；UI、Coordinator、transient与live family仍无consumer。验证通过canonical/Strict/
+bounded focused `3 files / 82 tests`、Base `81 / 1,137`、`deno task test`
+（`245 / 3,698`）、完整`deno task check`，以及Deno authoritative matrix `3 / 3`和
+Chromium/Firefox/WebKit `6 / 6`；三路adversarial review最终无finding。下一独立切片为
+S1-R.2c。
 
 **S1-R.2c acceptance：** 新source-relative UI module/test建立finite definition + resolved-slot
 sidecar catalog、一次性parse callable/receiver snapshot、same-factory unpublished/accepted

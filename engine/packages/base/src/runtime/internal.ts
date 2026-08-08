@@ -12,3 +12,9 @@ export {
   subscribeCoreApplicationPresentationAnchorEventsInternalV1,
 } from "./application/core-game-application.ts";
 export type { AuthoritativeReplacementPublicationContextInternalV1 } from "./session/game-session.ts";
+export {
+  type BoundedCanonicalJsonLimitsInternalV1,
+  type BoundedCanonicalJsonProjectionResultInternalV1,
+  type BoundedCanonicalJsonRejectionCodeInternalV1,
+  projectBoundedCanonicalJsonInternalV1,
+} from "../internal/bounded-canonical-projection.ts";

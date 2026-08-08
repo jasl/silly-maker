@@ -4,6 +4,14 @@ import type {
   SnapshotWorkPurposeV1,
 } from "../internal/snapshot-work-instrumentation.ts";
 import { recordSnapshotWorkV1 } from "../internal/snapshot-work-instrumentation.ts";
+import {
+  canonicalJsonNumberFailureInternalV1,
+  compareCanonicalJsonCodePointsInternalV1,
+  defineCanonicalJsonProjectionMemberInternalV1,
+  encodeCanonicalJsonStringInternalV1,
+  encodeCanonicalJsonUtf8InternalV1,
+  visitCanonicalJsonStringSegmentsInternalV1,
+} from "../internal/canonical-json-primitives.ts";
 
 export type CanonicalJsonErrorCodeV1 =
   | "value.undefined"
@@ -55,78 +63,28 @@ function pointerSegment(value: string): string {
   return value.replaceAll("~", "~0").replaceAll("/", "~1");
 }
 
-function assertValidString(value: string, path: string): void {
-  for (let index = 0; index < value.length; index += 1) {
-    const code = value.charCodeAt(index);
-    if (code >= 0xd800 && code <= 0xdbff) {
-      const next = value.charCodeAt(index + 1);
-      if (index + 1 >= value.length || next < 0xdc00 || next > 0xdfff) {
-        throw new CanonicalJsonError("string.lone_surrogate", path);
-      }
-      index += 1;
-    } else if (code >= 0xdc00 && code <= 0xdfff) {
-      throw new CanonicalJsonError("string.lone_surrogate", path);
-    }
+function assertCanonicalStringV1(value: string, path: string): void {
+  if (visitCanonicalJsonStringSegmentsInternalV1(value, () => true) === "invalid") {
+    throw new CanonicalJsonError("string.lone_surrogate", path);
   }
 }
 
-function compareCodePoints(left: string, right: string): number {
-  const leftPoints = Array.from(left, (value) => value.codePointAt(0) ?? 0);
-  const rightPoints = Array.from(right, (value) => value.codePointAt(0) ?? 0);
-  const length = Math.min(leftPoints.length, rightPoints.length);
-  for (let index = 0; index < length; index += 1) {
-    const difference = (leftPoints[index] ?? 0) - (rightPoints[index] ?? 0);
-    if (difference !== 0) return difference;
+function encodeCanonicalStringV1(value: string): string {
+  const encoded = encodeCanonicalJsonStringInternalV1(value);
+  if (encoded === null) {
+    throw new TypeError("Validated canonical JSON string became invalid");
   }
-  return leftPoints.length - rightPoints.length;
+  return encoded;
 }
 
-function utf8(value: string): Uint8Array {
-  const bytes = [];
-  for (let index = 0; index < value.length; index += 1) {
-    const first = value.charCodeAt(index);
-    let codePoint = first;
-    if (first >= 0xd800 && first <= 0xdbff) {
-      const second = value.charCodeAt(index + 1);
-      codePoint = 0x1_0000 + ((first - 0xd800) << 10) + (second - 0xdc00);
-      index += 1;
-    }
-    if (codePoint <= 0x7f) bytes.push(codePoint);
-    else if (codePoint <= 0x7ff) {
-      bytes.push(0xc0 | (codePoint >> 6), 0x80 | (codePoint & 0x3f));
-    } else if (codePoint <= 0xffff) {
-      bytes.push(
-        0xe0 | (codePoint >> 12),
-        0x80 | ((codePoint >> 6) & 0x3f),
-        0x80 | (codePoint & 0x3f),
-      );
-    } else {
-      bytes.push(
-        0xf0 | (codePoint >> 18),
-        0x80 | ((codePoint >> 12) & 0x3f),
-        0x80 | ((codePoint >> 6) & 0x3f),
-        0x80 | (codePoint & 0x3f),
-      );
-    }
-  }
-  return Uint8Array.from(bytes);
+function encodeCanonicalNumberV1(value: number, path: string): string {
+  const failure = canonicalJsonNumberFailureInternalV1(value);
+  if (failure !== null) throw new CanonicalJsonError(failure, path);
+  return String(value);
 }
 
 export function canonicalJsonBytes(value: unknown): Uint8Array {
   return canonicalJsonBytesInternalV1(value);
-}
-
-function defineCanonicalProjectionMemberV1(
-  container: object,
-  key: PropertyKey,
-  value: unknown,
-): void {
-  Object.defineProperty(container, key, {
-    configurable: true,
-    enumerable: true,
-    writable: true,
-    value,
-  });
 }
 
 function encodeCanonicalJsonProjectionV1(
@@ -137,24 +95,11 @@ function encodeCanonicalJsonProjectionV1(
   if (current === null) return ["null", null];
   if (typeof current === "boolean") return [current ? "true" : "false", current];
   if (typeof current === "string") {
-    assertValidString(current, path);
-    return [JSON.stringify(current), current];
+    assertCanonicalStringV1(current, path);
+    return [encodeCanonicalStringV1(current), current];
   }
   if (typeof current === "number") {
-    if (!Number.isFinite(current)) {
-      throw new CanonicalJsonError("number.non_finite", path);
-    }
-    if (!Number.isInteger(current)) {
-      throw new CanonicalJsonError("number.not_integer", path);
-    }
-    if (!Number.isSafeInteger(current)) {
-      throw new CanonicalJsonError("number.unsafe_integer", path);
-    }
-    // sillymaker-determinism-allow-next-line {"code":"determinism.numeric_fractional_literal","reason":"recognize and reject negative-zero input","bounds":"binary64 zero representations only","rounding":"exact Object.is sentinel comparison; value is rejected before commit","test":"engine/packages/base/src/contracts/canonical-strict-json.test.ts#preserves-the-canonical-error-for-negative-zero"}
-    if (Object.is(current, -0)) {
-      throw new CanonicalJsonError("number.negative_zero", path);
-    }
-    return [String(current), current];
+    return [encodeCanonicalNumberV1(current, path), current];
   }
   if (typeof current === "undefined" || typeof current === "symbol") {
     throw new CanonicalJsonError("value.undefined", path);
@@ -200,7 +145,7 @@ function encodeCanonicalJsonProjectionV1(
             String(index) === key
           );
         })
-        .sort(compareCodePoints);
+        .sort(compareCanonicalJsonCodePointsInternalV1);
       const extraKey = extraKeys[0];
       if (extraKey !== undefined) {
         throw new CanonicalJsonError(
@@ -224,7 +169,11 @@ function encodeCanonicalJsonProjectionV1(
           active,
         );
         values.push(encoded);
-        defineCanonicalProjectionMemberV1(projected, String(index), childProjection);
+        defineCanonicalJsonProjectionMemberInternalV1(
+          projected,
+          String(index),
+          childProjection,
+        );
       }
       return [`[${values.join(",")}]`, projected];
     }
@@ -238,7 +187,7 @@ function encodeCanonicalJsonProjectionV1(
     }
     const keys = ownKeys
       .filter((key): key is string => typeof key === "string")
-      .sort(compareCodePoints);
+      .sort(compareCanonicalJsonCodePointsInternalV1);
     const projected = {};
     const members: string[] = [];
     for (const key of keys) {
@@ -249,14 +198,14 @@ function encodeCanonicalJsonProjectionV1(
       if (descriptor.get !== undefined || descriptor.set !== undefined) {
         throw new CanonicalJsonError("value.getter", `${path}/${pointerSegment(key)}`);
       }
-      assertValidString(key, path);
+      assertCanonicalStringV1(key, path);
       const [encoded, childProjection] = encodeCanonicalJsonProjectionV1(
         descriptor.value,
         `${path}/${pointerSegment(key)}`,
         active,
       );
-      members.push(`${JSON.stringify(key)}:${encoded}`);
-      defineCanonicalProjectionMemberV1(projected, key, childProjection);
+      members.push(`${encodeCanonicalStringV1(key)}:${encoded}`);
+      defineCanonicalJsonProjectionMemberInternalV1(projected, key, childProjection);
     }
     return [`{${members.join(",")}}`, projected];
   } finally {
@@ -272,7 +221,7 @@ export function projectCanonicalJsonInternalV1<TValue>(
 ): CanonicalJsonProjectionInternalV1<TValue> {
   recordSnapshotWorkV1(instrumentation, "canonical_traversal", purpose);
   const [encoded, projection] = encodeCanonicalJsonProjectionV1(value, "", new Set());
-  const bytes = utf8(encoded);
+  const bytes = encodeCanonicalJsonUtf8InternalV1(encoded);
   return Object.freeze({ bytes, value: projection as TValue });
 }
 
@@ -290,24 +239,11 @@ export function canonicalJsonBytesInternalV1(
     if (current === null) return "null";
     if (typeof current === "boolean") return current ? "true" : "false";
     if (typeof current === "string") {
-      assertValidString(current, path);
-      return JSON.stringify(current);
+      assertCanonicalStringV1(current, path);
+      return encodeCanonicalStringV1(current);
     }
     if (typeof current === "number") {
-      if (!Number.isFinite(current)) {
-        throw new CanonicalJsonError("number.non_finite", path);
-      }
-      if (!Number.isInteger(current)) {
-        throw new CanonicalJsonError("number.not_integer", path);
-      }
-      if (!Number.isSafeInteger(current)) {
-        throw new CanonicalJsonError("number.unsafe_integer", path);
-      }
-      // sillymaker-determinism-allow-next-line {"code":"determinism.numeric_fractional_literal","reason":"recognize and reject negative-zero input","bounds":"binary64 zero representations only","rounding":"exact Object.is sentinel comparison; value is rejected before commit","test":"engine/packages/base/src/contracts/canonical-strict-json.test.ts#preserves-the-canonical-error-for-negative-zero"}
-      if (Object.is(current, -0)) {
-        throw new CanonicalJsonError("number.negative_zero", path);
-      }
-      return String(current);
+      return encodeCanonicalNumberV1(current, path);
     }
     if (typeof current === "undefined" || typeof current === "symbol") {
       throw new CanonicalJsonError("value.undefined", path);
@@ -342,7 +278,7 @@ export function canonicalJsonBytesInternalV1(
                 String(index) === key
               );
             })
-            .sort(compareCodePoints);
+            .sort(compareCanonicalJsonCodePointsInternalV1);
           const extraKey = extraKeys[0];
           if (extraKey !== undefined) {
             throw new CanonicalJsonError(
@@ -379,16 +315,18 @@ export function canonicalJsonBytesInternalV1(
       ) {
         throw new CanonicalJsonError("value.unrepresented_property", path);
       }
-      const keys = Object.keys(descriptors).sort(compareCodePoints);
+      const keys = Object.keys(descriptors).sort(compareCanonicalJsonCodePointsInternalV1);
       const members = [];
       for (const key of keys) {
         const descriptor = descriptors[key];
         if (descriptor?.get !== undefined || descriptor?.set !== undefined) {
           throw new CanonicalJsonError("value.getter", `${path}/${pointerSegment(key)}`);
         }
-        assertValidString(key, path);
+        assertCanonicalStringV1(key, path);
         members.push(
-          `${JSON.stringify(key)}:${encode(descriptor?.value, `${path}/${pointerSegment(key)}`)}`,
+          `${encodeCanonicalStringV1(key)}:${
+            encode(descriptor?.value, `${path}/${pointerSegment(key)}`)
+          }`,
         );
       }
       return `{${members.join(",")}}`;
@@ -397,7 +335,7 @@ export function canonicalJsonBytesInternalV1(
     }
   }
 
-  return utf8(encode(value, ""));
+  return encodeCanonicalJsonUtf8InternalV1(encode(value, ""));
 }
 
 /**
@@ -419,25 +357,12 @@ export function canonicalJsonBytesObservedInternalV1(
     if (current === null) return "null";
     if (typeof current === "boolean") return current ? "true" : "false";
     if (typeof current === "string") {
-      assertValidString(current, path);
+      assertCanonicalStringV1(current, path);
       observer.observeString(current);
-      return JSON.stringify(current);
+      return encodeCanonicalStringV1(current);
     }
     if (typeof current === "number") {
-      if (!Number.isFinite(current)) {
-        throw new CanonicalJsonError("number.non_finite", path);
-      }
-      if (!Number.isInteger(current)) {
-        throw new CanonicalJsonError("number.not_integer", path);
-      }
-      if (!Number.isSafeInteger(current)) {
-        throw new CanonicalJsonError("number.unsafe_integer", path);
-      }
-      // sillymaker-determinism-allow-next-line {"code":"determinism.numeric_fractional_literal","reason":"recognize and reject negative-zero input","bounds":"binary64 zero representations only","rounding":"exact Object.is sentinel comparison; value is rejected before commit","test":"engine/packages/base/src/contracts/canonical-strict-json.test.ts#preserves-the-canonical-error-for-negative-zero"}
-      if (Object.is(current, -0)) {
-        throw new CanonicalJsonError("number.negative_zero", path);
-      }
-      return String(current);
+      return encodeCanonicalNumberV1(current, path);
     }
     if (typeof current === "undefined" || typeof current === "symbol") {
       throw new CanonicalJsonError("value.undefined", path);
@@ -466,7 +391,7 @@ export function canonicalJsonBytesObservedInternalV1(
         throw new CanonicalJsonError("value.custom_prototype", path);
       }
       const descriptors = Object.getOwnPropertyDescriptors(object);
-      const keys = Object.keys(descriptors).sort(compareCodePoints);
+      const keys = Object.keys(descriptors).sort(compareCanonicalJsonCodePointsInternalV1);
       const members = [];
       let memberIndex = 0;
       for (const key of keys) {
@@ -476,11 +401,11 @@ export function canonicalJsonBytesObservedInternalV1(
         if (descriptor?.get !== undefined || descriptor?.set !== undefined) {
           throw new CanonicalJsonError("value.getter", `${path}/${pointerSegment(key)}`);
         }
-        assertValidString(key, path);
+        assertCanonicalStringV1(key, path);
         observer.observeString(key);
         observer.observeObjectKey(key);
         members.push(
-          `${JSON.stringify(key)}:${
+          `${encodeCanonicalStringV1(key)}:${
             encode(
               descriptor?.value,
               `${path}/${pointerSegment(key)}`,
@@ -495,5 +420,5 @@ export function canonicalJsonBytesObservedInternalV1(
     }
   }
 
-  return utf8(encode(value, "", 1));
+  return encodeCanonicalJsonUtf8InternalV1(encode(value, "", 1));
 }

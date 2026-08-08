@@ -16,8 +16,9 @@ promotion 均已关闭。2026-08-08 dormant `PF4/S3c.1 Host-commit readiness`、
 2026-08-09 `PF4/S3e live cutover and promotion` 与
 `PF4/S1-R.0 stable publication/identity/failure contract floor` 与
 `PF4/S1-R.1 publisher lease + source/occurrence allocators`、
-`PF4/S1-R.2a corrective admission contract` 已关闭，linear core下一独立
-切片为 `PF4/S1-R.2b Base bounded canonical projection seam`。
+`PF4/S1-R.2a corrective admission contract` 与
+`PF4/S1-R.2b Base bounded canonical projection seam` 已关闭，linear core下一独立
+切片为 `PF4/S1-R.2c stable-vector admission`。
 同日 S1-R pre-implementation review 将 external reconcile gate 重切为 S1-R.0–S1-R.5；
 顺序变化不把任何 planned stable-target contract写成 live capability。
 2026-08-04 已冻结 S3 的 shared-Coordinator transient topology、atomic initial-candidate
@@ -28,7 +29,7 @@ supersede/retained-active cancellation、S3b composition-owned shared Coordinato
 dormant System session/catalog、S3c.0 all-family successor activation barrier 已完成；S3
 的 S3c.1 Host-commit readiness/Host lease、S3d exact-parent confirmation child 与
 S3e.0 composition successor acknowledgment/terminal teardown、S3e live cutover与
-promotion与 S1-R.0–R2a dormant internal floor均已完成；下一独立切片为 S1-R.2b。
+promotion与 S1-R.0–R2b dormant internal floor均已完成；下一独立切片为 S1-R.2c。
 旧 promotion 数字保留为
 历史证据。本文是当前唯一的跨计划排序入口；
 具体合同仍由各 design 文档拥有，主要任务由五个独立计划拥有：
@@ -1029,8 +1030,8 @@ Save/Persistence/M2/canonical/digest/replay/wire不变，transient System未引�
 验证通过 focused cutover（14 files / 170 tests）、UI package（69 / 745）、
 `deno task test`（242 / 3631）、`deno task check`、Engine browser（101 / 101）、examples
 browser（45 passed / 2 skipped）与 prebuilt Player（38 / 38）；最终 adversarial review无
-finding。S3 promotion与 S1-R.0–R2a完成，linear core当前节点与下一独立切片均为
-S1-R.2b；S4仍受 S1-R aggregate gate约束。
+finding。S3 promotion与 S1-R.0–R2b完成，linear core当前节点与下一独立切片均为
+S1-R.2c；S4仍受 S1-R aggregate gate约束。
 
 S1-R 在第一个真实 externally published stable-target family 前完成。按 accepted
 target ownership，S4 Narrative 计划从 semantic publication 派生 stable target，
@@ -1087,6 +1088,17 @@ non-admitted结果继续exact zero delta；R0 result不新增`admitted`。本批
 seam、stable admission evaluator、Coordinator/readiness、barrel/transient/live wiring。验证通过R0+R1
 focused `2 / 23`、UI package `71 / 770`、`deno task test`（`244 / 3656`）与完整
 `deno task check`；三路adversarial review无finding。下一独立切片为 R2b。
+
+**2026-08-09 S1-R.2b delivery：** Base在既有`@sillymaker/base/runtime/internal`交付
+caller-bounded、descriptor-safe、fully-represented canonical projection seam。它按first traversal
+event对bytes/depth/nodes hard-stop，同次生成fresh canonical bytes与detached deep-frozen value；
+known canonical/limit失败为closed typed outcome，任一reflection trap throw保持exact identity。
+共享scalar primitives经existing canonical regressions与跨运行时determinism证明byte-equivalent；
+public canonical、Strict migration、Save/Persistence、package export map/subpath inventory与live
+Surface均不变，ordinary root/runtime/authoring API没有该seam。验证通过focused `3 / 82`、Base
+`81 / 1,137`、全量
+`245 / 3,698`、`deno task check`、Deno matrix `3 / 3`及Chromium/Firefox/WebKit `6 / 6`；
+三路adversarial review无finding。下一独立切片为 R2c。
 
 每个 family 的迁移提交必须删除旧 owner；禁止长期 adapter 双写。
 `DialoguePanelV1` / `VnLayerV1` 的 controller/view/host 拆分在 Narrative family

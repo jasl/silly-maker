@@ -504,6 +504,32 @@ export type { CanonicalJsonTraversalObserverInternalV1 } from "@sillymaker/base"
 export { canonicalJsonBytesObservedInternalV1 } from "@sillymaker/base";
 // @ts-expect-error combined canonical/Strict encoding stays package-internal
 export { canonicalJsonBytesWithStrictLimitsInternalV1 } from "@sillymaker/base";
+export {
+  // @ts-expect-error bounded canonical projection stays workspace-internal
+  projectBoundedCanonicalJsonInternalV1 as ForbiddenRootBoundedCanonicalProjectionV1,
+} from "@sillymaker/base";
+export type {
+  // @ts-expect-error bounded canonical projection result stays workspace-internal
+  BoundedCanonicalJsonProjectionResultInternalV1 as ForbiddenRootBoundedCanonicalProjectionResultV1,
+} from "@sillymaker/base";
+export {
+  // @ts-expect-error bounded canonical projection stays off the ordinary runtime API
+  projectBoundedCanonicalJsonInternalV1 as ForbiddenRuntimeBoundedCanonicalProjectionV1,
+} from "@sillymaker/base/runtime";
+export type {
+  // @ts-expect-error bounded canonical projection result stays off the ordinary runtime API
+  BoundedCanonicalJsonProjectionResultInternalV1
+    as ForbiddenRuntimeBoundedCanonicalProjectionResultV1,
+} from "@sillymaker/base/runtime";
+export {
+  // @ts-expect-error bounded canonical projection stays off the authoring API
+  projectBoundedCanonicalJsonInternalV1 as ForbiddenAuthoringBoundedCanonicalProjectionV1,
+} from "@sillymaker/base/authoring";
+export type {
+  // @ts-expect-error bounded canonical projection result stays off the authoring API
+  BoundedCanonicalJsonProjectionResultInternalV1
+    as ForbiddenAuthoringBoundedCanonicalProjectionResultV1,
+} from "@sillymaker/base/authoring";
 // @ts-expect-error exact autosave attempt receipts stay package-internal
 export type { AutoSaveAttemptReceiptInternalV1 } from "@sillymaker/base/runtime";
 // @ts-expect-error exact autosave enqueue stays package-internal
