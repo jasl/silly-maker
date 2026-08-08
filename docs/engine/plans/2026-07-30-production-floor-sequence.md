@@ -14,7 +14,9 @@ promotion 均已关闭。2026-08-08 dormant `PF4/S3c.1 Host-commit readiness`、
 `PF4/S3d Saves confirmation child` 与
 `PF4/S3e.0 composition successor acknowledgment and terminal teardown` 已关闭；
 2026-08-09 `PF4/S3e live cutover and promotion` 已关闭，linear core下一独立切片为
-`PF4/S1-R external stable-target reconcile`。
+`PF4/S1-R.0 stable publication/identity/failure normative closure`。
+同日 S1-R pre-implementation review 将 external reconcile gate 重切为 S1-R.0–S1-R.5；
+顺序变化不把任何 planned stable-target contract写成 live capability。
 2026-08-04 已冻结 S3 的 shared-Coordinator transient topology、atomic initial-candidate
 supersede、retained-active pending cancellation、exact result/delta matrix、Host-commit
 readiness、StrictMode terminal-once fence 与 public API cutover，并已重切为 S3a–S3e。
@@ -23,7 +25,7 @@ supersede/retained-active cancellation、S3b composition-owned shared Coordinato
 dormant System session/catalog、S3c.0 all-family successor activation barrier 已完成；S3
 的 S3c.1 Host-commit readiness/Host lease、S3d exact-parent confirmation child 与
 S3e.0 composition successor acknowledgment/terminal teardown、S3e live cutover与
-promotion均已完成；下一独立切片为 S1-R。
+promotion均已完成；下一独立切片为 S1-R.0。
 旧 promotion 数字保留为
 历史证据。本文是当前唯一的跨计划排序入口；
 具体合同仍由各 design 文档拥有，主要任务由五个独立计划拥有：
@@ -1024,18 +1026,26 @@ Save/Persistence/M2/canonical/digest/replay/wire不变，transient System未引�
 验证通过 focused cutover（14 files / 170 tests）、UI package（69 / 745）、
 `deno task test`（242 / 3631）、`deno task check`、Engine browser（101 / 101）、examples
 browser（45 passed / 2 skipped）与 prebuilt Player（38 / 38）；最终 adversarial review无
-finding。S3 promotion完成，linear core当前节点与下一独立切片均为 S1-R；S4仍受 S1-R gate
-约束。
+finding。S3 promotion完成，linear core当前节点与下一独立切片均为 S1-R.0；S4仍受
+S1-R aggregate gate约束。
 
 S1-R 在第一个真实 externally published stable-target family 前完成。按 accepted
 target ownership，S4 Narrative 计划从 semantic publication 派生 stable target，
-因此顺序是 **S3 → S1-R → S4 → S4b**；若更早的 family 后续选择 external stable
+因此顺序是 **S3 → S1-R.0–S1-R.5 → S4 → S4b**；若更早的 family 后续选择 external stable
 target，S1-R 必须随 gate 前移，不能让该 family 自行发明 source revision
 或参数等价规则。
 S1-R 统一冻结 definition schema normalization → Strict Canonical Data →
-canonical bytes comparison、完整 target identity、per-owner monotonic source
-publication revision、atomic vector reconcile 与 stable readiness fence；hash 不作
-唯一等价依据。
+canonical bytes comparison、包含 parent/order 的完整 target identity、与普通 semantic
+revision 分离的 per-lease source domain、accepted desired/runtime divergence、empty/dispose、
+cross-owner rejection、atomic vector reconcile 与 lease/source-bound readiness fence；hash
+不作唯一等价依据。
+
+S1-R 依次领取六个独立批次：S1-R.0 normative/internal-contract floor；S1-R.1 publisher
+lease 与 revision/occurrence allocator；S1-R.2 schema/canonical/full-vector admission；
+S1-R.3 pure atomic reconcile；S1-R.4 readiness/retry fence；S1-R.5 neutral harness、bounded
+churn 与 dead-path audit。S1-R.0 本身不实现 kernel mutation；S1-R aggregate 完成前不接
+Narrative/React/Web，也不更新 live feature 文档。详细目标、delta与stop rules由
+[Managed Surface lifecycle focused plan](2026-07-30-surface-contract-harness.md)拥有。
 
 每个 family 的迁移提交必须删除旧 owner；禁止长期 adapter 双写。
 `DialoguePanelV1` / `VnLayerV1` 的 controller/view/host 拆分在 Narrative family

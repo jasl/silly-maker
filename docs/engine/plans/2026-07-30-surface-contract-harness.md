@@ -11,7 +11,11 @@ atomic composite operations、S3b composition-owned shared Coordinator 与 dorma
 session/config catalog、S3c.0 composition-wide successor activation barrier、dormant
 S3c.1 Host-commit readiness/one logical Host lease、S3d exact-parent confirmation child 与
 S3e.0 successor-acknowledgment/terminal-teardown 准备切片均已完成；2026-08-09 S3e live
-cutover and promotion 已关闭，下一独立切片为 S1-R external stable-target reconcile。
+cutover and promotion 已关闭，下一独立切片为 S1-R.0 stable
+publication/identity/failure normative closure。
+同日 S1-R pre-implementation review 将 aggregate 重切为 S1-R.0–S1-R.5，并冻结
+parent/order、专用 revision、failure divergence、empty/dispose、cross-owner、bounded
+admission 与 exact delta；这些条目尚未实现。
 目标合同见
 [Managed Surface lifecycle and contract harness](../design/surface-contract-harness.md)。
 本文只规定可独立交付的实施顺序；不要求一次实现 design
@@ -19,8 +23,8 @@ cutover and promotion 已关闭，下一独立切片为 S1-R external stable-tar
 
 在 [production-floor sequence](2026-07-30-production-floor-sequence.md)
 中：PF2 的 `S0 -> S1-T -> S2`、PF-DET、PF3/M2 与 PF4/S3 已完成；当前 core
-节点是 PF4/S1-R。PF4 的顺序是 `S3 -> S1-R -> S4 -> S4b`；S5–S6
-属于 PF6。S1-R
+节点是 PF4/S1-R.0。PF4 的顺序是 `S3 -> S1-R.0 -> S1-R.1–S1-R.5 -> S4 -> S4b`；
+S5–S6 属于 PF6。S1-R
 延后到第一个真实 externally published stable-target family 前完成；按 accepted
 target ownership，S4 Narrative 计划成为该 family，因此 S1-R 位于 S3 与 S4
 之间。若更早的 family 改为 externally published stable target，必须把 S1-R
@@ -83,12 +87,16 @@ S1-T/S2 的 transient target、handle、action/readiness envelope 与 publicatio
 第一个 externally published stable-target family 激活前，S1-R 另行冻结：
 
 - stable target owner 与 owner/publisher-lease-minted monotonic occurrence；
+- exact parent occurrence 与适用时 exact stack scope 内的 canonical relative order；
 - 复用 S1-T 已声明的 definition contract revision；
 - definition schema validation/normalization 后的 Strict Canonical Data 与
   canonical parameter bytes；
 - owner/publisher lease；
-- per-owner source publication revision；
-- stable readiness receipt 的 source revision fence。
+- 与 ordinary semantic/presentation revision 分离的 per-lease source publication
+  revision；
+- stable readiness receipt 的 publisher-lease + source-revision fence；
+- accepted desired 与 pending/failed/retained runtime presentation 的 composite state；
+- greater-empty、lease dispose、cross-owner conflict 与 bounded exact admission。
 
 ### Deferred until evidence
 
@@ -1527,7 +1535,7 @@ wire均未改变，S1-R字段也未进入 transient API。
 browser（45 passed / 2 skipped）与 prebuilt Player（38 / 38）；最终 adversarial review无
 finding。`architecture.md`、`features.md`、`story-authoring.md`与中英文网站已随 promotion
 对齐；`development.md`未改变，因为没有新的作者/维护命令或工作流。S3完成，下一独立切片为
-S1-R；S4在 S1-R前不得开始。
+S1-R.0；S4在 S1-R aggregate 完成前不得开始。
 
 每个 dormant slice 必须 package-internal、不可由 live System 与旧 store同时写入；若
 为了独立合并必须双写、mirror 或提前开放第二个 lifecycle ingress，停止并重切片。
@@ -1602,6 +1610,37 @@ publication 派生 Managed Surface target 的 family，因此 S1-R 必须在 S4
 之前完成。S1-R 不回填 S1-T/S2 transient API，也不把 Coordinator 变成 stable
 target owner；此处不声称 live Narrative 已经接入 Managed Surface reconcile。
 
+### S1-R slicing and current entry gate
+
+S1-R 按以下可独立合并切片推进，每次只领取一个：
+
+1. **S1-R.0 stable publication/identity/failure contract floor**：以本节与 target design
+   的 normative closure 为 authority，建立 package-internal pure publication/target/
+   result types 与 exact contract tests，并在代码中固定 bounds、stable codes 与
+   precedence；不调用 live Coordinator；
+2. **S1-R.1 publisher lease + source/occurrence allocators**：deterministic injected
+   lease、revision/occurrence issuance cursor、accepted high-water、fresh domain、
+   dispose/ABA 与 bounded churn；
+3. **S1-R.2 schema normalization + canonical vector admission**：descriptor-safe exact
+   envelope、definition schema normalization、Strict Canonical Data、canonical bytes 与
+   full graph/slot admission；
+4. **S1-R.3 pure atomic reconcile state/reducer**：同一 composite state 中原子提交
+   accepted desired source 与 Coordinator preparation/topology delta，不发布 per-target
+   intermediate state；
+5. **S1-R.4 source-bound readiness and retry**：lease + source revision + candidate
+   instance fence、failure gap、retained predecessor、greater-same explicit retry 与 stale
+   receipt；
+6. **S1-R.5 neutral harness/churn/dead-path audit**：two-owner、empty/dispose、conflict、
+   10k churn、pure/model equivalence 与 public/transient export audit，汇总 dormant
+   promotion evidence。
+
+当前只允许从 **S1-R.0** 开始；S1-R.0 完成前不得进入 kernel mutation。上述切片都保持
+dormant/package-internal，不接 Narrative/React/Web，不更新 live feature 文档。
+
+**S1-R.0 acceptance：** 只交付 internal shapes、fixed constants、result taxonomy、
+precedence/delta tables 与 pure fixture/table tests；不执行 definition schema/canonical
+admission（S1-R.2）、Coordinator mutation（S1-R.3）或 readiness settlement（S1-R.4）。
+
 ### Canonical target equivalence
 
 每个 definition 提供 stable schema 与 definition contract revision。比较前严格
@@ -1616,10 +1655,12 @@ definition schema validation / normalization
 stable target identity comparison 精确包含：
 
 ```text
-owner
+publisher lease / owner
 target occurrence
 surface definition ID
 surface definition contract revision
+parent target occurrence | null
+resolved stack scope + retained sibling relative order（stack slot 时）
 normalized parameter bytes
 ```
 
@@ -1627,15 +1668,25 @@ normalized parameter bytes
 决定。renderer 不提供 equality callback。hash 可以作为 diagnostics 或快速排除，
 但 canonical bytes comparison 是最终依据，hash 不得作为唯一等价证明。
 
-同一 occurrence 改变 definition ID、definition contract revision 或 normalized
-parameters 是非法 publication；close 后以相同 definition/parameters reopen
-也必须使用 fresh occurrence。同一 application epoch 内结束的 occurrence 不得复用。
+Root 的 parent 必须为 `null`；child parent 必须是同一 lease/owner/vector 中已经出现的
+occurrence。`targets` 是 exact dense array，parent 先于 child；exact stack scope 对 root
+是 resolved `slotId`，对 child 是 `parentOccurrenceId + slotId`，同一 scope 内 array 的
+relative order 是唯一 order authority，不依赖 object property、renderer 或 runtime
+insertion 顺序。同一 occurrence 改变 definition ID、definition contract revision、
+parent、resolved slot scope、与 retained sibling 的 relative order 或 normalized
+parameters 是非法 publication；reparent/reorder、close 后同定义参数 reopen 都必须使用
+fresh occurrence。Sibling 插入/删除导致的 dense index平移不算 reorder，retained
+occurrence 可保持 identity。同一 application epoch 内结束的 occurrence 不得复用。
 
 ### Source publication revision
 
-- 每个 stable owner 有自己的 monotonic safe-integer source revision，允许跳号；
-  当前 owner/publisher lease 管理该 revision，不得由 React component local state
-  管理；
+- 每个 stable owner/publisher lease 有自己的专用 positive-safe-integer source
+  revision domain，不能直接复用 global `SemanticPublication`、presentation、HUD、
+  reveal、audio 或其他 projection revision；fresh lease 尚未发布，首次合法 revision
+  必须为 `1`，后续严格增大且允许跳号；
+- 当前 owner/publisher lease 管理该 revision，不得由 React component local state
+  管理；只有显式 stable-vector publication、fresh retry 或 source fence 推进它，无关
+  semantic publication 不得隐式推进；
 - 同一 lease 还分配 monotonic target occurrence（或 S1-R 明确证明的等价 bounded
   cursor）；作者不手写可任意复用的 opaque occurrence，Coordinator 不维护无界
   retired-occurrence tombstone；
@@ -1655,11 +1706,88 @@ parameters 是非法 publication；close 后以相同 definition/parameters reop
   revision 和 fresh instance ID 重新开始；不得把旧 candidate receipt 改绑到新
   revision；
 - stable-target ready/failure receipt 在 S1-T 的 application
-  epoch/candidate instance 外，必须再绑定 source revision。
+  epoch/candidate instance 外，必须再绑定 exact publisher lease 与 source revision。
 
 Coordinator 只记录 owner lease 已接受的 source cursor 和 normalized vector，不直接
 写回、乐观镜像或另建 writable stable target。source revision 只存在于 stable
 reconcile/readiness/publication/diagnostics 路径；普通 transient Surface 不携带。
+
+### Bounded exact admission and precedence
+
+任何 allocation/Coordinator call 前，整份 publication 按以下顺序 admission：
+
+1. exact data-property-only envelope、无 accessor/symbol/extra member、current
+   publisher lease、positive-safe-integer revision；
+2. S1-R.0 以 package-internal constant 固定并由 exact boundary tests 锁定的 target
+   count limit；
+3. duplicate/fresh occurrence high-water、definition existence/owner、root-null、
+   parent exists/before-child、cycle、slot/cardinality、canonical stack order；
+4. schema normalization、Strict Canonical Data 与 S1-R.0 固定的 canonical
+   byte/depth/node bounds；
+5. same-owner scope 与 other-owner live slot conflict。
+
+第 1 步完成后，lower revision 立即 stale，且不得 traverse `targets`、调用 schema/
+resolver 或消费后续 validation budget；equal/greater 才继续第 2–5 步。
+
+任一失败都返回 S1-R.0 冻结的 structured result/code，且 accepted revision/vector、
+pending candidate、Coordinator publication/topology/input/focus、runtime instance/routing
+allocation、composite notification 全部 exact zero delta。Lease 已签发的 occurrence 与
+issuance high-water 不回滚、不复用、不重新签发；accepted occurrence/vector cursor另行
+保持不变。尤其 greater-invalid 不取消旧 pending。Precedence、
+result shape 与 codes 必须由 pure contract tests 固定，不能让 renderer/resolver throw
+或 property getter 决定分类。
+
+### Desired/runtime divergence and retry
+
+Accepted desired vector/revision 与 runtime presentation 是同一 package-internal
+composite reconcile state 的两个维度，不是第二份 writable target，也不能用 current
+active vector 代替 accepted source：
+
+- initial/child readiness failure 退休 candidate/撤销 fallback，但 accepted desired
+  保持；runtime 可暂时没有对应 active instance，不自动重试；
+- replacement failure 保留 predecessor 作为 availability fallback，但 accepted desired
+  已是 replacement；
+- equal-same 永远 unchanged，不因 failed gap 自动 retry；
+- greater-same 是 explicit retry/fence：active sibling 不重建，只取消 older pending并为
+  pending/failed/missing gap 分配 fresh candidate；
+- greater-different 从 retained predecessor（若存在）准备新的 desired；没有
+  predecessor 时按 initial/child readiness policy 准备，旧 receipt stale。
+
+### Empty vector, lease dispose, and owner boundary
+
+- `greater revision + targets: []` 是合法、已接受的 canonical empty vector；它推进
+  cursor，并在一个 composite commit 中取消/退休该 lease 的 pending/active/retained
+  targets。它不等于“未发布”，也不等于 lease dispose；equal-empty 仍 idempotent；
+- lease dispose 先关闭 ingress，原子退休该 lease 全部 runtime target，移除 accepted
+  cursor/vector，使旧 publication/readiness stale；重复 dispose zero delta，不影响其他
+  owner；fresh lease 是新的 capability/revision domain；
+- parent 必须属于同一 lease/owner/vector。Publication 不得 reparent、replace、close、
+  evict 另一 owner target；other-owner occupied-slot conflict 拒绝整份 vector，V1 不做
+  cross-owner graph 或 last-writer-wins。
+
+### Exact source/runtime delta table
+
+| Input                              | Accepted source state            | Runtime/Coordinator state                           |
+| ---------------------------------- | -------------------------------- | --------------------------------------------------- |
+| lower                              | unchanged                        | unchanged                                           |
+| equal + same                       | unchanged                        | unchanged                                           |
+| equal + different                  | invalid, unchanged               | unchanged                                           |
+| greater + invalid                  | unchanged                        | unchanged                                           |
+| greater + same, all desired active | advance cursor                   | no allocation/rebuild/topology delta                |
+| greater + same, pending/failed gap | accept revision                  | cancel older pending; fresh candidate only for gaps |
+| greater + changed                  | atomically replace desired       | one readiness-policy retain/retire/prepare commit   |
+| greater + empty                    | accept revision and empty vector | one composite owner-subtree retirement              |
+| lease dispose                      | remove lease source state        | one composite owner-subtree retirement              |
+
+Stale、equal-same、equal-different、greater-invalid 与 repeated dispose 精确产生 `0`
+composite notification；每次 accepted source change（包括 cursor-only、greater-empty）
+与首次 effective dispose 精确产生 `1` composite reconcile notification，不允许
+transient family duplicate notification或逐 target intermediate publication。Fresh
+runtime instance/routing allocation 数等于实际开始的 preparation 数。Topology revision
+按既有 observable fence（active topology、blocking fallback、action/input/focus/
+navigation ownership）推进；cursor-only commit 是 `0` transient Coordinator topology
+delta。Source state 与 Coordinator delta 必须在同一 pure composite result 中提交，
+failure 不能留下二者撕裂。
 
 ### Non-goals and merge boundary
 
@@ -1676,12 +1804,18 @@ reconcile/readiness/publication/diagnostics 路径；普通 transient Surface �
 
 - schema validation/default/normalization 对 `undefined`、missing、default、`null`
   的 exact cases；
-- canonical bytes 同值/异值、definition contract revision 与 owner/occurrence
-  identity；
+- descriptor-safe envelope、accessor/Proxy/symbol/extra-key、target-count 与 canonical
+  byte/depth/node exact boundaries；
+- canonical bytes 同值/异值、definition contract revision、lease/owner/occurrence、
+  root-null/child-parent、exact root/child stack scope 与 retained sibling order；
+- missing/foreign/cross-owner/after-child parent、cycle、duplicate occurrence、slot/order
+  conflict，以及 same-occurrence reparent/retained-sibling reorder zero-delta rejection；
+- stack sibling insertion/removal造成 dense index平移时 retained occurrence/instance保持，
+  只有新 occurrence 分配 fresh runtime identity；
 - lower、equal-same、equal-different、greater-same、greater-different revision
   table；
-- two-owner independent cursors、legal revision gap 与 non-safe-integer
-  rejection；
+- first revision `1`、two-owner independent domains、legal revision gap、non-safe-integer
+  rejection，以及 unrelated semantic publication 不推进 source revision；
 - publisher-lease occurrence allocation 单调、fresh reopen 不复用，长 churn 只保留
   bounded cursor/live/pending identity；
 - invalid vector 原子不应用且不推进 revision；greater-invalid 也不取消现有 pending
@@ -1690,15 +1824,26 @@ reconcile/readiness/publication/diagnostics 路径；普通 transient Surface �
   instance；fresh occurrence 仍创建 fresh instance；
 - newer accepted revision 取消 pending candidate，并以 fresh
   instance/source fence 重新 preparation；
-- stale source-revision ready/failure receipt 对 topology/input/focus/publication
-  零 mutation；
-- owner/publisher lease dispose 后旧 publisher 不能向 successor ingress。
+- initial/child failure 保持 accepted desired + runtime gap；replacement failure 保持
+  accepted replacement + retained predecessor；equal-same 不 retry，greater-same 只为
+  gap fresh retry；
+- greater-empty 与 lease dispose 的 exact source/runtime/notification delta、empty-vs-
+  unpublished/equal-empty、idempotent second dispose、other owner identity不变；
+- stale/wrong-lease/source-revision ready/failure receipt 对 topology/input/focus/
+  publication 零 mutation；
+- owner/publisher lease dispose 后旧 publisher 不能向 successor ingress；
+- stale/equal/invalid/repeat-dispose row 为 `0` composite notification；每个 accepted
+  source change/first dispose为 `1`，无 duplicate/intermediate vector；runtime
+  allocation count精确等于 fresh preparation count；10k churn只保留 issuance/
+  accepted cursors与live/pending/retained bounded state。
 
 **S1-R acceptance：** externally published stable target 可按 canonical
-identity 与 per-owner revision 确定性 reconcile；完整 vector 原子；active
-same-vector 不重建，fresh occurrence/pending successor 使用 fresh
-instance；renderer callback/hash 不是 equality authority；transient contracts
-没有 source placeholder；没有第二份 writable stable target，也没有提前接入 S4。
+identity（含 parent/order）与专用 per-lease revision 确定性 reconcile；完整 vector
+与 accepted desired/runtime delta 原子；active same-vector 不重建，failed gap只在
+greater-same显式 retry，fresh occurrence/pending successor使用 fresh instance；empty/
+dispose与cross-owner边界闭合；renderer callback/hash不是 equality authority；transient
+contracts没有 source placeholder；没有第二份 writable stable target，也没有提前接入
+S4。
 
 ## 8. S4 — Narrative and History family
 
@@ -1918,6 +2063,18 @@ action 可组合分层 evidence，并在目标未成立时稳定返回
 - transient pilot 必须预埋 source revision/reconcile 字段才能继续；
 - transient/non-reuse 只能靠随历史增长的 retired-ID tombstone，或 root slot
   cardinality 依赖 owner namespace；
+- S1-R 只能直接使用 global semantic/presentation revision，或 ordinary unrelated
+  publication 必须推进 stable source fence；
+- accepted desired target 无法与 pending/failed gap、retained runtime predecessor 分离；
+- greater-empty或publisher dispose 无法与该lease runtime retirement原子提交；
+- 同一 occurrence 必须合法 reparent/reorder，或真实 consumer 必须 cross-owner
+  parent/evict 才能工作；
+- S1-R bounded admission 必须复制/改变 canonical JSON、deep import Base internal，或
+  occurrence non-reuse 只能靠无界 tombstone；
+- stable source 字段必须加入现有 transient public contracts，或 dormant kernel 必须先
+  接入 Narrative/React Host 才能证明；
+- parent-dependent multi-target readiness 需要无法由现有 transition-kind policy 推导的
+  whole-vector simultaneous activation 语义；
 - binding-origin Surface action 必须绕过 stale/unpublished fence 才能复用普通
   InputRouter fallthrough；
 - readiness correctness 依赖全局 topology/publication revision 不发生无关变化，
@@ -1936,7 +2093,9 @@ action 可组合分层 evidence，并在目标未成立时稳定返回
 focused/aggregate/browser 命令、Engine Lab 证据、adapter removal gate、未激活的
 可选机制。S1-T 先记录 action-provenance closure、10k bounded-churn、slot scope、
 owner-dimension table，再记录 epoch allocator/successor handoff 与 readiness
-transition matrix；S1-R 记录 canonical equivalence、source revision table 与 vector
-atomicity；S2 只证明 transient Overlay pilot；S4 只证明 Narrative/History；S4b
+transition matrix；S1-R.0 先记录 parent/order identity、专用 revision、failure
+divergence、empty/dispose、admission precedence 与 stop conditions；S1-R aggregate再记录
+canonical equivalence、source revision table、desired/runtime delta与vector atomicity；S2
+只证明 transient Overlay pilot；S4 只证明 Narrative/History；S4b
 才证明 whole-canvas primary/detail family；S6 才证明 harness 与 authoring
 surface。
