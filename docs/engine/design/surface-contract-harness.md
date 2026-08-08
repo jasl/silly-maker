@@ -26,12 +26,17 @@ shapes、fixed bounds、stable code precedence 与 exact source/runtime delta ta
 package-internal dormant contract；S1-R.1 已进一步固定 composition-owned publisher
 registry、opaque lease、source/occurrence issuance、immutable accepted-occurrence high-water、
 dispose/ABA 与 bounded churn。它们仍不是 live capability。
+同日 S1-R.2 entry-gate review 进一步冻结 post-lower target capture、per-target
+hard-stop canonical traversal、scope-local vector equality、subject-bound root reservation
+与 exact accepted-baseline/proposal provenance；R2 按 corrective contract、Base bounded
+canonical seam、UI stable-vector admission 三个独立批次推进，仍不进入 Coordinator 或 live
+family。
 本文固定
 影响输入与焦点的 UI Surface 的权威边界、生命周期、输入代际与验证分层，并把“弱模型
 能够写出正确代码”提升为作者 API 的验收条件。S1-T 与 S2 已实现，S3a–S3e
 已完成并 promotion System 的 shared composition authority、Host readiness、confirmation
-child 与 single-writer cutover；下一独立切片为 S1-R.2 schema normalization +
-canonical vector admission。当前 live 能力仍以
+child 与 single-writer cutover；下一独立切片为 S1-R.2a corrective admission
+contract。当前 live 能力仍以
 [architecture](../architecture.md) 与
 [features](../features.md) 为准；执行顺序见
 [Surface Contract Harness plan](../plans/2026-07-30-surface-contract-harness.md)。
@@ -164,7 +169,9 @@ Publication 的 `targets` 是 exact、dense、只含 data property 的有序数�
 stack order，不依赖对象属性迭代、renderer 顺序或 runtime insertion 顺序。同一
 occurrence 不得 reparent，也不得与仍保留的 sibling 交换相对顺序；这些变化使用 fresh
 occurrence。插入或删除 sibling造成的 dense index平移不等于 reorder，retained
-occurrence 可保持 identity。
+occurrence 可保持 identity。不同 exact scope 的 raw-array interleaving 不进入 semantic
+vector identity；raw order 在 admission 中只负责 parent-before-child、同 scope order 与
+deterministic first-failure evaluation。
 
 Stable-target 参数等价性固定使用以下 pipeline，而不是 renderer callback 或任意
 对象深比较：
@@ -209,10 +216,12 @@ source revision。
 Coordinator-owned transient target 不携带伪造的 source revision、stable parameter
 vector 或 reconcile 字段。
 
-这里的 same canonical vector 是同一有序 target vector，且每项的
+这里的 same canonical vector 是同一 occurrence-keyed full-identity set 加上每个 exact
+stack scope 的 occurrence sequence，且每项的
 lease/owner/occurrence/definition ID/definition contract revision/parent occurrence/
 resolved slot scope/normalized parameter bytes 全部相同，stack order 也相同；fresh occurrence
-即使参数相同也不是 same vector。`greater + same
+即使参数相同也不是 same vector。两个独立 scope 的 raw-array interleaving 交换仍是 same
+vector；child 移到 parent 前仍是 invalid。`greater + same
 canonical vector` 对当前 active instance 只推进 accepted source revision，不重建
 instance；若该 owner 仍有 older pending preparation，则先取消旧 candidate。目标仍
 需 preparation 时，必须分配 fresh instance，旧 receipt 保持 stale。Greater
@@ -261,28 +270,107 @@ exact-token dispose 只封闭 dormant issuance ingress并证明 stale/ABA；R0 �
 同一 composite commit 产生。
 
 Stable publication 在任何 identity allocation 或 Coordinator mutation 前完成 bounded
-exact admission，且 precedence 固定为：
+exact admission。R2 evaluator 每次只消费三份 per-evaluation value input：untrusted raw
+publication、由同一 R2 factory 创建并以 private provenance 证明的 exact accepted
+baseline，以及同一 factory/application domain 创建的 subject-bound root-reservation
+snapshot；evaluator 还闭包 factory-captured immutable definition/slot catalogs 与 exact R1
+registry authority。Accepted baseline 精确区分
+unpublished 与 accepted empty：unpublished variant保存 exact publisher lease与同一 R1 registry
+创建的 zero accepted-occurrence cursor；accepted variant保存 exact publisher lease、owner-derived
+source domain、accepted source revision、admitted targets与同一registry签发的 immutable accepted-
+occurrence cursor。R2不保存哪个baseline当前；future R3 composite state只保存exact object，并在
+任何source/runtime mutation前对proposal捕获的lease、baseline与reservation precondition做exact
+CAS。Foreign/cloned/wrong-lease baseline或reservation到达其对应check时是package invariant fault，
+zero delta。
 
-1. exact data-property-only envelope、无 accessor/symbol/extra member、current
-   publisher lease 与正安全整数 revision；
-2. package-owned fixed target-count bound；该 exact bound 在 S1-R.0 由 internal
-   constant 与 boundary tests 固定，不成为 public authoring knob；
-3. occurrence non-duplicate/high-water proof、definition/owner、root/child parent、
-   parent-before-child、cycle、slot/cardinality 与 canonical stack order；
-4. definition schema validation/normalization、Strict Canonical Data 与 package-owned
-   canonical-byte/depth/node bounds；
-5. same-owner publication scope以及与其他 owner live slot 的 conflict check。
+Admission check precedence 固定为：
+
+1. outer publication 只 descriptor-capture exact own data fields
+   `{ publisherLease, sourceRevision, targets }`；prototype 只能是 `Object.prototype` 或
+   `null`，ordinary shape failure 为 `surface.stable_publication_envelope_invalid`，package-
+   owned reflection throw 为 `surface.stable_admission_faulted`；此时只捕获 `targets` value，
+   不对它调用 array/prototype/length/own-key operation；
+2. exact current publisher lease、positive-safe且不超过该 lease issuance high-water 的 source
+   revision，以及 exact baseline provenance；fresh unpublished baseline 的首次 revision 必须为
+   `1`；
+3. lower revision 立即 stale，且对 `targets`、definition/schema/canonical/reservation 保持
+   zero touch；
+4. equal/greater 才检查 target vector header。它必须是真 Array、exact
+   `Array.prototype` 与 ordinary own length descriptor；ordinary malformed vector 使用新增
+   `surface.stable_target_shape_invalid`，reflection throw 为 admission fault；
+5. 先比较 package-owned `64` target bound。Ordinary length `65` 在任何 ownKeys、item
+   descriptor 或 schema call 前返回 `surface.stable_target_limit_exceeded`；
+6. bounded capture exact dense vector 与 exact四字段 data-only target record。Sparse、
+   accessor、symbol、extra/missing field、custom prototype 使用
+   `surface.stable_target_shape_invalid`；
+7. full-vector identity graph：duplicate、R1 unissued/gap-burn、definition/owner、root-null、
+   parent exists/before-child、slot/cardinality、structural reuse 与 scope-local order。先计算
+   definition/revision/parent/scope 均未变化的 `structurallyStableRetained` set；retained
+   subsequence order只比较该 set。独立 stable siblings reorder先报
+   `surface.stable_order_invalid`；纯 structural drift随后报
+   `surface.stable_occurrence_reused`；
+8. 按 raw target order逐项执行 definition schema、bounded canonical projection、retained
+   normalized-byte comparison；每项完成这三步后才进入下一项，first failure停止其余工作。
+   Schema throw 为 `surface.stable_schema_invalid`；same occurrence 的 normalized bytes drift
+   复用 `surface.stable_occurrence_reused`；
+9. subject-bound root reservation conflict；
+10. equal revision semantic-vector comparison，或产生 initial/greater-same/greater-changed
+    admitted proposal。
+
+Master result-code inventory 保持每个 code 唯一；ordered admission evidence 使用 named
+`{ stage, check, code }` rows，因此 `surface.stable_target_shape_invalid` 与
+`surface.stable_occurrence_reused` 可在多个 check 位置出现而不复制 semantic code。
+Raw-model 中不可达的 `surface.stable_owner_scope_invalid` 删除，只保留 exact
+`surface.stable_owner_conflict`。
 
 S1-R.0 将 exact internal bounds 固定为每份 publication 最多 `64` targets；每个
 normalized parameter snapshot 最多 `65,536` canonical bytes、depth `32`、nodes `4,096`。
-Canonical bytes只通过 opaque immutable snapshot进入 admitted identity，R2 必须以 private
-defensive copy + exact comparator实现，不能暴露 mutable `Uint8Array`。Identity-graph 内部
-code precedence与上述 stage顺序同样由 package-internal frozen table固定；parent-before-child
-已经证明 acyclic，cycle-shaped输入归入更早的 parent-order rejection，不另留不可达 cycle code。
+Canonical admission 采用 deterministic first-traversal-event hard stop，而不是在超限后继续
+look-ahead 寻找另一类 canonical error。进入 value 前依次检查 depth、node，随后验证当前
+canonical kind/container representation。String先尝试写 opening quote，再从左到右逐 code
+point扫描：当前位置先验证 surrogate legality，再尝试写该 code point 的 escaped bytes；一旦
+byte cap触发就不扫描后续 code unit，最后尝试写 closing quote。Object先完成 prototype/
+own-key snapshot、key validation与canonical sort，再按 opening brace、每项
+`comma -> canonical key bytes -> colon -> child depth -> child node -> child descriptor -> child`
+推进；Array相应按 opening bracket、每项
+`comma -> child depth -> child node -> child descriptor -> child`推进。所有closing punctuation也
+按相同byte sink计数。Depth `32`、nodes `4,096`与bytes `65,536`均可接受，进入
+`33`/`4,097`/`65,537`分别返回对应limit code；flat code-array order不冒充全局precedence。
 
-完成第 1 步后，lower revision 立即返回 stale，且不读取/traverse `targets` array 或调用
-definition schema/resolver；equal 与 greater revision 才继续第 2–5 步。这样 malformed-
-stale 的 precedence、getter side effect 与 validation budget 都是确定的。
+Hard bound约束 R2 发起的 child descriptor/value reads、projected nodes 与 emitted byte
+storage；它不是对 Story schema、一次 `Reflect.ownKeys` snapshot、key sorting或 Proxy trap
+的 sandbox/绝对 CPU-memory证明。Schema只保证 `parameters`字段本身是 captured data
+property；nested raw value由 schema决定是否读取，schema throw（含其读取 getter/Proxy 的
+throw）归 `schema_invalid`。Schema parse callable与 exact receiver在 stable sidecar catalog
+construction时一次性 descriptor-capture，但不要求通用 `RuntimeSchemaV1` object frozen；
+schema purity/determinism仍是 author obligation，其主动 side effect 不属于 R2 delta。
+
+R2 canonical safe-set采用 fully-represented descriptor-safe projection；public
+`canonicalJsonBytes(detachedProjection)` 只作为该 safe-set 上的 byte oracle，不要求对任意
+accepted raw/Proxy value再次执行public encoder得到相同结果，也不把两者当作相同 acceptance set。Base
+通过既有 `@sillymaker/base/runtime/internal` 提供共享 canonical implementation 的 bounded
+typed seam：accepted bytes必须 exact-equal public bytes，不增加 dangerous-key 等新policy，
+也不改变 public canonical/Save/Persistence行为。Known canonical/limit branches在 package-
+owned validation site直接返回 typed outcome；任一 reflection trap 抛出的 value（即使伪装成
+public `CanonicalJsonError`）原样逃逸并由 R2 fault，不得用 wide `instanceof` catch重分类。
+
+Canonical bytes只通过 opaque immutable snapshot进入 admitted identity，R2 必须以 private
+defensive copy + exact comparator实现，不能暴露 mutable `Uint8Array`。Parent-before-child已经
+证明 acyclic，cycle-shaped parent输入归入更早的 parent-order rejection，不另留不可达 cycle
+code。
+
+R2 的 `admitted` 只是绑定 exact immutable precondition 的 proposal，不是 current-at-return 或
+`applied` receipt。Proposal逻辑形态为
+`{ relation, captured: { lease, acceptedBaseline, reservationSnapshot }, nextAcceptedBaseline }`；
+`nextAcceptedBaseline`由同一factory创建并private-brand，保存validated revision、admitted targets与
+同一R1 registry的unchanged/advanced immutable cursor。Future R3在CAS成功后只能把这个exact
+`nextAcceptedBaseline`存入composite state，不得重算或clone。Equal-same与任一non-admitted
+结果都没有proposal，也不得创建/暴露next cursor；next baseline只在全部checks成功后构造。
+Proposal/result与accepted-baseline provenance属于新的R2 module，不能回填已被R1 import的R0
+module形成反向依赖。R2自身不写accepted state、R1 issuance、Coordinator或notification；schema/
+Proxy callback自行执行的外部side effect不由R2回滚。Future R3必须在应用任何proposal前exact
+revalidate current lease + accepted baseline + reservation snapshot的opaque composite precondition
+token，失败则不产生source/runtime mutation。
 
 任一阶段失败都不推进 accepted revision/vector、不取消现有 pending、不分配 runtime
 instance/routing identity，也不改变 Coordinator publication/topology/input/focus 或产生
@@ -291,6 +379,18 @@ publication 回滚、复用或重新签发；issuance cursor 与 accepted occurr
 bounded state。一个 lease 的 vector 不得 parent、reparent、replace、close
 或隐式 evict 另一个 owner 的 target；cross-owner parent 或 occupied-slot conflict
 结构化拒绝整份 publication。V1 不提供“最后一个 publisher 获胜”的协调协议。
+
+Root reservation snapshot 以 exact subject publisher lease + R2 factory/composite-state
+precondition private-brand，并携带opaque composite-generation token。Future R3在任一相关stable
+accepted/runtime或transient reservation变化时安装fresh token，即使normalized reserved-slot set随后
+ABA回到同值也不能复用旧token。Snapshot先按 object identity排除 subject lease，再把其他 stable accepted
+desired（含 runtime gap）、pending/active/retained/suspended以及 transient candidate/active
+聚合为 resolved root-slot catalog内的 sorted unique reserved-slot set。它的大小受 finite root
+slot catalog限制，不保留 callback、Coordinator引用或逐 instance历史。Foreign authority 在
+同一 root `slotId` 上无论 `single` 或 `stack` 都返回
+`surface.stable_owner_conflict`；V1没有 cross-publisher stack order。不同 root slot可共存，
+同 owner transient authority仍不是 exact stable lease，不能被过滤。Reservation provenance、subject
+与generation token只在owner-conflict check首次读取；lower revision保持reservation zero touch。
 
 Accepted source state 与 runtime presentation state 是同一个 package-internal composite
 reconcile state 的两个只读维度，不是第二份 writable target。Renderer readiness
@@ -1307,8 +1407,13 @@ definitions、创建新 instance/topology revision；不得反序列化旧 live 
   composite commit 中完成；
 - 同一 occurrence 必须合法 reparent/reorder、publication 必须 cross-owner
   parent/evict，或 V1 只能靠“最后一个 publisher 获胜”解决 slot conflict；
-- stable exact admission 必须复制/改变 canonical JSON 算法、deep import Base internal，
-  或无法用 bounded cursor 证明 occurrence non-reuse；
+- stable exact admission 必须复制/改变 canonical JSON 算法、deep import Base `src/**`，
+  或无法通过 declared workspace-only internal seam共享 canonical implementation；
+- stable admission 必须对 Story schema、Proxy trap或 `Reflect.ownKeys` 提供 sandbox级绝对
+  CPU/memory bound，或必须让 nested raw parameters在 schema 前 getter-zero且又不增加新的
+  raw-admission contract；
+- V1 真实 consumer 必须让不同 publisher共享同一 root stack、需要 cross-owner canonical
+  order，或 subject-bound finite reservation snapshot无法表达 accepted runtime gap；
 - S1-R 必须向 transient public contracts 增加 source 字段，或必须先接入 Narrative/
   React Host 才能证明 dormant reconcile kernel；
 - 多 target parent-dependent readiness 需要一种无法由现有 transition-kind policy

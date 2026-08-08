@@ -16,7 +16,7 @@ promotion 均已关闭。2026-08-08 dormant `PF4/S3c.1 Host-commit readiness`、
 2026-08-09 `PF4/S3e live cutover and promotion` 与
 `PF4/S1-R.0 stable publication/identity/failure contract floor` 与
 `PF4/S1-R.1 publisher lease + source/occurrence allocators` 已关闭，linear core下一独立
-切片为 `PF4/S1-R.2 schema normalization + canonical vector admission`。
+切片为 `PF4/S1-R.2a corrective admission contract`。
 同日 S1-R pre-implementation review 将 external reconcile gate 重切为 S1-R.0–S1-R.5；
 顺序变化不把任何 planned stable-target contract写成 live capability。
 2026-08-04 已冻结 S3 的 shared-Coordinator transient topology、atomic initial-candidate
@@ -27,7 +27,7 @@ supersede/retained-active cancellation、S3b composition-owned shared Coordinato
 dormant System session/catalog、S3c.0 all-family successor activation barrier 已完成；S3
 的 S3c.1 Host-commit readiness/Host lease、S3d exact-parent confirmation child 与
 S3e.0 composition successor acknowledgment/terminal teardown、S3e live cutover与
-promotion与 S1-R.0–R1 dormant internal floor均已完成；下一独立切片为 S1-R.2。
+promotion与 S1-R.0–R1 dormant internal floor均已完成；下一独立切片为 S1-R.2a。
 旧 promotion 数字保留为
 历史证据。本文是当前唯一的跨计划排序入口；
 具体合同仍由各 design 文档拥有，主要任务由五个独立计划拥有：
@@ -1029,7 +1029,7 @@ Save/Persistence/M2/canonical/digest/replay/wire不变，transient System未引�
 `deno task test`（242 / 3631）、`deno task check`、Engine browser（101 / 101）、examples
 browser（45 passed / 2 skipped）与 prebuilt Player（38 / 38）；最终 adversarial review无
 finding。S3 promotion与 S1-R.0–R1完成，linear core当前节点与下一独立切片均为
-S1-R.2；S4仍受 S1-R aggregate gate约束。
+S1-R.2a；S4仍受 S1-R aggregate gate约束。
 
 S1-R 在第一个真实 externally published stable-target family 前完成。按 accepted
 target ownership，S4 Narrative 计划从 semantic publication 派生 stable target，
@@ -1042,8 +1042,9 @@ revision 分离的 per-lease source domain、accepted desired/runtime divergence
 cross-owner rejection、atomic vector reconcile 与 lease/source-bound readiness fence；hash
 不作唯一等价依据。
 
-S1-R 依次领取六个独立批次：S1-R.0 normative/internal-contract floor；S1-R.1 publisher
-lease 与 revision/occurrence allocator；S1-R.2 schema/canonical/full-vector admission；
+S1-R 按以下独立可合并切片推进：S1-R.0 normative/internal-contract floor；S1-R.1
+publisher lease 与 revision/occurrence allocator；S1-R.2a corrective admission contract；
+S1-R.2b Base bounded canonical projection seam；S1-R.2c UI stable-vector admission；
 S1-R.3 pure atomic reconcile；S1-R.4 readiness/retry fence；S1-R.5 neutral harness、bounded
 churn 与 dead-path audit。S1-R.0 本身不实现 kernel mutation；S1-R aggregate 完成前不接
 Narrative/React/Web，也不更新 live feature 文档。详细目标、delta与stop rules由
@@ -1064,9 +1065,18 @@ composition-owned epoch-local allocator签发 opaque lease；同一 resolved own
 current lease，source/occurrence exact-next issuance、immutable accepted-occurrence
 high-water、conservative gap-burn、exact-token dispose、exhaustion/ABA与10k bounded churn
 均已闭合。R1没有 accepted source/vector、admission、Coordinator/reconcile/readiness或live
-family wiring；下一切片 R2 只领取 schema/canonical/full-vector admission。验证通过
+family wiring；下一切片 R2a 只领取 corrective admission contract。验证通过
 R0+R1 focused `2 / 22`、UI package `71 / 769`、`deno task test`（`244 / 3655`）与完整
 `deno task check`；三路 adversarial review 最终无 finding。
+
+**2026-08-09 S1-R.2 entry-gate adjudication：** external review 的 hard-stop canonical、
+post-lower target capture、scope-local equality、foreign root reservation与 admitted proposal
+方向已接受；repository review进一步要求 exact accepted-baseline/reservation private provenance、
+per-target first-failure、R3 apply-time CAS、reflection-error spoof fencing与
+`structurallyStableRetained` order comparison。为保持独立可合并与 package layering，R2重切为
+R2a（docs + R0 corrective tables/tests）、R2b（Base runtime/internal bounded canonical seam）与
+R2c（UI stable-vector admission/proposal）。三批都保持 dormant；不改 public/transient contracts、
+Coordinator/live family、Save/Persistence canonical bytes或 live feature docs。
 
 每个 family 的迁移提交必须删除旧 owner；禁止长期 adapter 双写。
 `DialoguePanelV1` / `VnLayerV1` 的 controller/view/host 拆分在 Narrative family
