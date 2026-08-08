@@ -8,16 +8,20 @@ import type {
   ManagedSurfaceTransientTargetV1,
 } from "./managed-surface-contracts.ts";
 import {
-  managedSurfaceStableAdmissionPrecedenceInternalV1,
+  managedSurfaceStableAdmissionChecksInternalV1,
   managedSurfaceStableContractLimitsInternalV1,
   managedSurfaceStableDeltaContractInternalV1,
+  managedSurfaceStableParameterAdmissionPolicyInternalV1,
   managedSurfaceStableResultCodesInternalV1,
+  type ManagedSurfaceStableAdmissionCheckRowInternalV1,
+  type ManagedSurfaceStableAdmissionStageInternalV1,
   type ManagedSurfaceStableAdmittedTargetInternalV1,
   type ManagedSurfaceStableCanonicalParameterBytesInternalV1,
   type ManagedSurfaceStablePublicationInternalV1,
   type ManagedSurfaceStablePublicationAppliedDeltaInternalV1,
   type ManagedSurfaceStablePublisherDisposedDeltaInternalV1,
   type ManagedSurfaceStableReconcileResultInternalV1,
+  type ManagedSurfaceStableResultCodeInternalV1,
   type ManagedSurfaceStableSourceRevisionInternalV1,
   type ManagedSurfaceStableStackScopeInternalV1,
   type ManagedSurfaceStableTargetInternalV1,
@@ -98,7 +102,7 @@ describe("dormant managed stable Surface contract", () => {
       .toBe(true);
   });
 
-  it("freezes closed result codes by exact admission stage", () => {
+  it("freezes a globally unique semantic result-code inventory", () => {
     expect(managedSurfaceStableResultCodesInternalV1).toEqual({
       applied: [
         "surface.stable_publication_applied",
@@ -118,6 +122,7 @@ describe("dormant managed stable Surface contract", () => {
           "surface.stable_source_revision_invalid",
           "surface.stable_initial_revision_invalid",
         ],
+        target_shape: ["surface.stable_target_shape_invalid"],
         target_count: ["surface.stable_target_limit_exceeded"],
         identity_graph: [
           "surface.stable_occurrence_duplicate",
@@ -140,10 +145,7 @@ describe("dormant managed stable Surface contract", () => {
           "surface.stable_canonical_nodes_exceeded",
         ],
         equal_revision: ["surface.stable_source_revision_conflict"],
-        owner_conflict: [
-          "surface.stable_owner_scope_invalid",
-          "surface.stable_owner_conflict",
-        ],
+        owner_conflict: ["surface.stable_owner_conflict"],
       },
       faulted: ["surface.stable_admission_faulted"],
     });
@@ -156,6 +158,7 @@ describe("dormant managed stable Surface contract", () => {
       ...managedSurfaceStableResultCodesInternalV1.faulted,
     ];
     expect(new Set(codes).size).toBe(codes.length);
+    expect(codes).not.toContain("surface.stable_owner_scope_invalid");
     expect(Object.isFrozen(managedSurfaceStableResultCodesInternalV1)).toBe(true);
     for (const group of Object.values(managedSurfaceStableResultCodesInternalV1)) {
       expect(Object.isFrozen(group)).toBe(true);
@@ -165,75 +168,294 @@ describe("dormant managed stable Surface contract", () => {
     }
   });
 
-  it("records exact stage and within-stage admission precedence", () => {
-    expect(managedSurfaceStableAdmissionPrecedenceInternalV1).toEqual([
-      {
-        stage: "envelope_shape",
-        resultCodes: ["surface.stable_publication_envelope_invalid"],
-      },
-      {
-        stage: "publisher_lease",
-        resultCodes: ["surface.stable_publisher_lease_stale"],
-      },
-      {
-        stage: "source_revision_scalar",
-        resultCodes: ["surface.stable_source_revision_invalid"],
-      },
-      {
-        stage: "initial_revision",
-        resultCodes: ["surface.stable_initial_revision_invalid"],
-      },
-      {
-        stage: "lower_revision_short_circuit",
-        resultCodes: ["surface.stable_source_revision_stale"],
-      },
-      {
-        stage: "target_count",
-        resultCodes: ["surface.stable_target_limit_exceeded"],
-      },
-      {
-        stage: "identity_graph",
-        resultCodes: [
-          "surface.stable_occurrence_duplicate",
-          "surface.stable_occurrence_unissued",
-          "surface.stable_occurrence_reused",
-          "surface.stable_definition_missing",
-          "surface.stable_definition_owner_mismatch",
-          "surface.stable_root_parent_invalid",
-          "surface.stable_parent_missing",
-          "surface.stable_parent_order_invalid",
-          "surface.stable_slot_invalid",
-          "surface.stable_slot_occupied",
-          "surface.stable_order_invalid",
-        ],
-      },
-      {
-        stage: "canonical_parameters",
-        resultCodes: [
-          "surface.stable_schema_invalid",
+  it("records exact named-check precedence without ordering first-event outcomes", () => {
+    expectTypeOf<ExactKeysV1<ManagedSurfaceStableAdmissionCheckRowInternalV1>>()
+      .toEqualTypeOf<"stage" | "check" | "code">();
+    expectTypeOf<ManagedSurfaceStableAdmissionStageInternalV1>()
+      .toEqualTypeOf<ManagedSurfaceStableAdmissionCheckRowInternalV1["stage"]>();
+    expectTypeOf<
+      Extract<
+        ManagedSurfaceStableAdmissionCheckRowInternalV1,
+        { stage: "lower_revision_short_circuit"; check: "lower_revision" }
+      >["code"]
+    >().toEqualTypeOf<"surface.stable_source_revision_stale">();
+    expectTypeOf<
+      Extract<
+        ManagedSurfaceStableAdmissionCheckRowInternalV1,
+        { stage: "target_vector_header"; check: "capture_array_header" }
+      >["code"]
+    >().toEqualTypeOf<
+      "surface.stable_target_shape_invalid" | "surface.stable_admission_faulted"
+    >();
+    expectTypeOf<
+      Extract<
+        ManagedSurfaceStableAdmissionCheckRowInternalV1,
+        { stage: "parameter_admission"; check: "canonical_first_traversal_event" }
+      >["code"]
+    >().toEqualTypeOf<
+      | "surface.stable_canonical_invalid"
+      | "surface.stable_canonical_bytes_exceeded"
+      | "surface.stable_canonical_depth_exceeded"
+      | "surface.stable_canonical_nodes_exceeded"
+      | "surface.stable_admission_faulted"
+    >();
+    expectTypeOf<
+      Extract<
+        ManagedSurfaceStableAdmissionCheckRowInternalV1,
+        { stage: "parameter_admission"; check: "retained_normalized_bytes" }
+      >["code"]
+    >().toEqualTypeOf<"surface.stable_occurrence_reused">();
+    expectTypeOf<
+      Extract<
+        ManagedSurfaceStableAdmissionCheckRowInternalV1,
+        { stage: "target_count"; code: "surface.stable_occurrence_reused" }
+      >
+    >().toEqualTypeOf<never>();
+
+    const collapsedChecks = managedSurfaceStableAdmissionChecksInternalV1.filter(
+      (row, index, rows) =>
+        index === 0 ||
+        row.stage !== rows[index - 1]?.stage ||
+        row.check !== rows[index - 1]?.check,
+    ).map(({ stage, check }) => ({ stage, check }));
+
+    const outcomesFor = (stage: string, check: string) =>
+      new Set(
+        managedSurfaceStableAdmissionChecksInternalV1
+          .filter((row) => row.stage === stage && row.check === check)
+          .map((row) => row.code),
+      );
+    const outcomeSet = (...codes: ManagedSurfaceStableResultCodeInternalV1[]) => new Set(codes);
+    const expectedChecks = [
+      [
+        "outer_header",
+        "capture_exact_publication",
+        outcomeSet(
+          "surface.stable_publication_envelope_invalid",
+          "surface.stable_admission_faulted",
+        ),
+      ],
+      [
+        "lease_source_baseline",
+        "current_publisher_lease",
+        outcomeSet("surface.stable_publisher_lease_stale"),
+      ],
+      [
+        "lease_source_baseline",
+        "source_revision_scalar",
+        outcomeSet("surface.stable_source_revision_invalid"),
+      ],
+      [
+        "lease_source_baseline",
+        "source_revision_issuance",
+        outcomeSet("surface.stable_source_revision_invalid"),
+      ],
+      [
+        "lease_source_baseline",
+        "accepted_baseline_provenance",
+        outcomeSet("surface.stable_admission_faulted"),
+      ],
+      [
+        "lease_source_baseline",
+        "initial_revision",
+        outcomeSet("surface.stable_initial_revision_invalid"),
+      ],
+      [
+        "lower_revision_short_circuit",
+        "lower_revision",
+        outcomeSet("surface.stable_source_revision_stale"),
+      ],
+      [
+        "target_vector_header",
+        "capture_array_header",
+        outcomeSet(
+          "surface.stable_target_shape_invalid",
+          "surface.stable_admission_faulted",
+        ),
+      ],
+      [
+        "target_count",
+        "target_count_limit",
+        outcomeSet("surface.stable_target_limit_exceeded"),
+      ],
+      [
+        "target_shape",
+        "capture_exact_targets",
+        outcomeSet(
+          "surface.stable_target_shape_invalid",
+          "surface.stable_admission_faulted",
+        ),
+      ],
+      [
+        "identity_graph",
+        "occurrence_duplicate",
+        outcomeSet("surface.stable_occurrence_duplicate"),
+      ],
+      [
+        "identity_graph",
+        "occurrence_issuance",
+        outcomeSet("surface.stable_occurrence_unissued"),
+      ],
+      [
+        "identity_graph",
+        "occurrence_gap_burn",
+        outcomeSet("surface.stable_occurrence_reused"),
+      ],
+      [
+        "identity_graph",
+        "definition_exists",
+        outcomeSet("surface.stable_definition_missing"),
+      ],
+      [
+        "identity_graph",
+        "definition_owner",
+        outcomeSet("surface.stable_definition_owner_mismatch"),
+      ],
+      [
+        "identity_graph",
+        "root_parent",
+        outcomeSet("surface.stable_root_parent_invalid"),
+      ],
+      [
+        "identity_graph",
+        "parent_exists",
+        outcomeSet("surface.stable_parent_missing"),
+      ],
+      [
+        "identity_graph",
+        "parent_order",
+        outcomeSet("surface.stable_parent_order_invalid"),
+      ],
+      [
+        "identity_graph",
+        "slot_scope",
+        outcomeSet("surface.stable_slot_invalid"),
+      ],
+      [
+        "identity_graph",
+        "slot_cardinality",
+        outcomeSet("surface.stable_slot_occupied"),
+      ],
+      [
+        "identity_graph",
+        "retained_scope_order",
+        outcomeSet("surface.stable_order_invalid"),
+      ],
+      [
+        "identity_graph",
+        "retained_structural_identity",
+        outcomeSet("surface.stable_occurrence_reused"),
+      ],
+      [
+        "parameter_admission",
+        "schema_parse",
+        outcomeSet("surface.stable_schema_invalid"),
+      ],
+      [
+        "parameter_admission",
+        "canonical_first_traversal_event",
+        outcomeSet(
           "surface.stable_canonical_invalid",
           "surface.stable_canonical_bytes_exceeded",
           "surface.stable_canonical_depth_exceeded",
           "surface.stable_canonical_nodes_exceeded",
-        ],
-      },
-      {
-        stage: "owner_conflict",
-        resultCodes: [
-          "surface.stable_owner_scope_invalid",
-          "surface.stable_owner_conflict",
-        ],
-      },
-      {
-        stage: "equal_revision_comparison",
-        resultCodes: ["surface.stable_source_revision_conflict"],
-      },
-    ]);
-    expect(Object.isFrozen(managedSurfaceStableAdmissionPrecedenceInternalV1)).toBe(true);
-    for (const row of managedSurfaceStableAdmissionPrecedenceInternalV1) {
-      expect(Object.isFrozen(row)).toBe(true);
-      expect(Object.isFrozen(row.resultCodes)).toBe(true);
+          "surface.stable_admission_faulted",
+        ),
+      ],
+      [
+        "parameter_admission",
+        "retained_normalized_bytes",
+        outcomeSet("surface.stable_occurrence_reused"),
+      ],
+      [
+        "owner_conflict",
+        "reservation_provenance",
+        outcomeSet("surface.stable_admission_faulted"),
+      ],
+      [
+        "owner_conflict",
+        "root_slot_conflict",
+        outcomeSet("surface.stable_owner_conflict"),
+      ],
+      [
+        "equal_revision_comparison",
+        "semantic_vector_equality",
+        outcomeSet(
+          "surface.stable_publication_unchanged",
+          "surface.stable_source_revision_conflict",
+        ),
+      ],
+    ] as const;
+
+    expect(collapsedChecks).toEqual(
+      expectedChecks.map(([stage, check]) => ({ stage, check })),
+    );
+    for (const [stage, check, outcomes] of expectedChecks) {
+      expect(outcomesFor(stage, check)).toEqual(outcomes);
     }
+
+    const checksForCode = (code: ManagedSurfaceStableResultCodeInternalV1) =>
+      managedSurfaceStableAdmissionChecksInternalV1
+        .filter((row) => row.code === code)
+        .map((row) => row.check);
+    expect(checksForCode("surface.stable_source_revision_invalid")).toEqual([
+      "source_revision_scalar",
+      "source_revision_issuance",
+    ]);
+    expect(checksForCode("surface.stable_target_shape_invalid")).toEqual([
+      "capture_array_header",
+      "capture_exact_targets",
+    ]);
+    expect(checksForCode("surface.stable_occurrence_reused")).toEqual([
+      "occurrence_gap_burn",
+      "retained_structural_identity",
+      "retained_normalized_bytes",
+    ]);
+    expect(checksForCode("surface.stable_admission_faulted")).toEqual([
+      "capture_exact_publication",
+      "accepted_baseline_provenance",
+      "capture_array_header",
+      "capture_exact_targets",
+      "canonical_first_traversal_event",
+      "reservation_provenance",
+    ]);
+
+    const inventory = new Set<ManagedSurfaceStableResultCodeInternalV1>([
+      ...managedSurfaceStableResultCodesInternalV1.applied,
+      ...managedSurfaceStableResultCodesInternalV1.unchanged,
+      ...managedSurfaceStableResultCodesInternalV1.stale,
+      ...Object.values(managedSurfaceStableResultCodesInternalV1.rejected).flat(),
+      ...managedSurfaceStableResultCodesInternalV1.faulted,
+    ]);
+    expect(managedSurfaceStableAdmissionChecksInternalV1.every((row) => inventory.has(row.code)))
+      .toBe(true);
+    expect(
+      new Set(
+        managedSurfaceStableAdmissionChecksInternalV1.map((row) =>
+          `${row.stage}:${row.check}:${row.code}`
+        ),
+      ).size,
+    ).toBe(managedSurfaceStableAdmissionChecksInternalV1.length);
+    expect(Object.isFrozen(managedSurfaceStableAdmissionChecksInternalV1)).toBe(true);
+    for (const row of managedSurfaceStableAdmissionChecksInternalV1) {
+      expect(Object.keys(row)).toEqual(["stage", "check", "code"]);
+      expect(Object.isFrozen(row)).toBe(true);
+    }
+  });
+
+  it("freezes per-target parameter admission around first traversal events", () => {
+    expect(managedSurfaceStableParameterAdmissionPolicyInternalV1).toEqual({
+      targetIteration: "raw_target_order",
+      checksPerTarget: [
+        "schema_parse",
+        "canonical_first_traversal_event",
+        "retained_normalized_bytes",
+      ],
+      canonicalPrecedence: "first_traversal_event",
+    });
+    expect(Object.isFrozen(managedSurfaceStableParameterAdmissionPolicyInternalV1)).toBe(true);
+    expect(Object.isFrozen(managedSurfaceStableParameterAdmissionPolicyInternalV1.checksPerTarget))
+      .toBe(true);
   });
 
   it("freezes exact source and runtime deltas for every R0 decision row", () => {
@@ -286,6 +508,7 @@ describe("dormant managed stable Surface contract", () => {
         case: "equal_invalid",
         resultKind: "rejected",
         resultCodes: [
+          "surface.stable_target_shape_invalid",
           "surface.stable_target_limit_exceeded",
           "surface.stable_occurrence_duplicate",
           "surface.stable_occurrence_unissued",
@@ -303,7 +526,6 @@ describe("dormant managed stable Surface contract", () => {
           "surface.stable_canonical_bytes_exceeded",
           "surface.stable_canonical_depth_exceeded",
           "surface.stable_canonical_nodes_exceeded",
-          "surface.stable_owner_scope_invalid",
           "surface.stable_owner_conflict",
         ],
         source: "unchanged",
@@ -326,6 +548,7 @@ describe("dormant managed stable Surface contract", () => {
         case: "greater_invalid",
         resultKind: "rejected",
         resultCodes: [
+          "surface.stable_target_shape_invalid",
           "surface.stable_target_limit_exceeded",
           "surface.stable_occurrence_duplicate",
           "surface.stable_occurrence_unissued",
@@ -343,7 +566,6 @@ describe("dormant managed stable Surface contract", () => {
           "surface.stable_canonical_bytes_exceeded",
           "surface.stable_canonical_depth_exceeded",
           "surface.stable_canonical_nodes_exceeded",
-          "surface.stable_owner_scope_invalid",
           "surface.stable_owner_conflict",
         ],
         source: "unchanged",
@@ -500,9 +722,15 @@ describe("dormant managed stable Surface contract", () => {
     }
   });
 
-  it("binds failure and accepted result codes to compatible deltas", () => {
+  it("binds failure and applied result codes to compatible deltas without admitting", () => {
     expectTypeOf<ExactKeysV1<ManagedSurfaceStableReconcileResultInternalV1>>()
       .toEqualTypeOf<"kind" | "code" | "delta">();
+    expectTypeOf<
+      Extract<ManagedSurfaceStableReconcileResultInternalV1, { kind: "admitted" }>
+    >().toEqualTypeOf<never>();
+    expectTypeOf<
+      Extract<ManagedSurfaceStableReconcileResultInternalV1["kind"], "admitted">
+    >().toEqualTypeOf<never>();
     expectTypeOf<
       Extract<ManagedSurfaceStableReconcileResultInternalV1, { kind: "stale" }>["delta"]
     >().toEqualTypeOf<ManagedSurfaceStableZeroDeltaInternalV1>();

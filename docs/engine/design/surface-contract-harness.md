@@ -30,13 +30,15 @@ dispose/ABA 与 bounded churn。它们仍不是 live capability。
 hard-stop canonical traversal、scope-local vector equality、subject-bound root reservation
 与 exact accepted-baseline/proposal provenance；R2 按 corrective contract、Base bounded
 canonical seam、UI stable-vector admission 三个独立批次推进，仍不进入 Coordinator 或 live
-family。
+family。同日 S1-R.2a 已修正 R0 unique semantic code inventory、named ordered checks、
+per-target first-event policy 与 exact zero-delta rows；它仍是 dormant package-internal
+contract，不是 stable-vector admission capability。
 本文固定
 影响输入与焦点的 UI Surface 的权威边界、生命周期、输入代际与验证分层，并把“弱模型
 能够写出正确代码”提升为作者 API 的验收条件。S1-T 与 S2 已实现，S3a–S3e
 已完成并 promotion System 的 shared composition authority、Host readiness、confirmation
-child 与 single-writer cutover；下一独立切片为 S1-R.2a corrective admission
-contract。当前 live 能力仍以
+child 与 single-writer cutover；S1-R.2a 已完成，下一独立切片为 S1-R.2b Base bounded
+canonical projection seam。当前 live 能力仍以
 [architecture](../architecture.md) 与
 [features](../features.md) 为准；执行顺序见
 [Surface Contract Harness plan](../plans/2026-07-30-surface-contract-harness.md)。

@@ -57,7 +57,8 @@ export interface ManagedSurfaceStableCanonicalParameterBytesInternalV1 {
 
 /**
  * Identity snapshot produced only after S1-R.2 admission. Relative sibling
- * order remains the order of the admitted vector rather than a numeric field.
+ * order belongs to its exact admitted stack-scope sequence; cross-scope raw
+ * interleaving is not identity and no numeric position field is retained.
  */
 export interface ManagedSurfaceStableAdmittedTargetInternalV1 {
   readonly publisherLease: ManagedSurfaceStablePublisherLeaseInternalV1;
@@ -110,6 +111,11 @@ const rejectedCodesInternalV1 = Object.freeze({
       "surface.stable_initial_revision_invalid",
     ] as const,
   ),
+  target_shape: Object.freeze(
+    [
+      "surface.stable_target_shape_invalid",
+    ] as const,
+  ),
   target_count: Object.freeze(
     [
       "surface.stable_target_limit_exceeded",
@@ -146,7 +152,6 @@ const rejectedCodesInternalV1 = Object.freeze({
   ),
   owner_conflict: Object.freeze(
     [
-      "surface.stable_owner_scope_invalid",
       "surface.stable_owner_conflict",
     ] as const,
   ),
@@ -296,54 +301,228 @@ export type ManagedSurfaceStableReconcileResultInternalV1 =
   };
 
 export type ManagedSurfaceStableAdmissionStageInternalV1 =
-  | "envelope_shape"
-  | "publisher_lease"
-  | "source_revision_scalar"
-  | "initial_revision"
+  | "outer_header"
+  | "lease_source_baseline"
   | "lower_revision_short_circuit"
+  | "target_vector_header"
   | "target_count"
+  | "target_shape"
   | "identity_graph"
-  | "canonical_parameters"
+  | "parameter_admission"
   | "owner_conflict"
   | "equal_revision_comparison";
 
-export interface ManagedSurfaceStableAdmissionPrecedenceRowInternalV1 {
-  readonly stage: ManagedSurfaceStableAdmissionStageInternalV1;
-  readonly resultCodes: readonly ManagedSurfaceStableResultCodeInternalV1[];
+function freezeAdmissionCheckInternalV1<
+  const TStage extends ManagedSurfaceStableAdmissionStageInternalV1,
+  const TCheck extends string,
+  const TCode extends ManagedSurfaceStableResultCodeInternalV1,
+>(stage: TStage, check: TCheck, code: TCode) {
+  return Object.freeze({ stage, check, code });
 }
 
-function freezeAdmissionRowInternalV1(
-  stage: ManagedSurfaceStableAdmissionStageInternalV1,
-  resultCodes: readonly ManagedSurfaceStableResultCodeInternalV1[],
-): ManagedSurfaceStableAdmissionPrecedenceRowInternalV1 {
-  return Object.freeze({ stage, resultCodes: Object.freeze([...resultCodes]) });
-}
-
-export const managedSurfaceStableAdmissionPrecedenceInternalV1 = Object.freeze([
-  freezeAdmissionRowInternalV1("envelope_shape", rejectedCodesInternalV1.envelope_shape),
-  freezeAdmissionRowInternalV1("publisher_lease", [
-    "surface.stable_publisher_lease_stale",
-  ]),
-  freezeAdmissionRowInternalV1("source_revision_scalar", [
-    "surface.stable_source_revision_invalid",
-  ]),
-  freezeAdmissionRowInternalV1("initial_revision", [
-    "surface.stable_initial_revision_invalid",
-  ]),
-  freezeAdmissionRowInternalV1("lower_revision_short_circuit", [
-    "surface.stable_source_revision_stale",
-  ]),
-  freezeAdmissionRowInternalV1("target_count", rejectedCodesInternalV1.target_count),
-  freezeAdmissionRowInternalV1("identity_graph", rejectedCodesInternalV1.identity_graph),
-  freezeAdmissionRowInternalV1(
-    "canonical_parameters",
-    rejectedCodesInternalV1.canonical_parameters,
+/**
+ * Ordered named admission checks. Consecutive rows with the same stage/check
+ * are mutually exclusive outcomes of that single check, not code precedence.
+ * The parameter-admission checks repeat in raw target order before advancing
+ * to the next target.
+ */
+export const managedSurfaceStableAdmissionChecksInternalV1 = Object.freeze([
+  freezeAdmissionCheckInternalV1(
+    "outer_header",
+    "capture_exact_publication",
+    "surface.stable_publication_envelope_invalid",
   ),
-  freezeAdmissionRowInternalV1("owner_conflict", rejectedCodesInternalV1.owner_conflict),
-  freezeAdmissionRowInternalV1("equal_revision_comparison", [
+  freezeAdmissionCheckInternalV1(
+    "outer_header",
+    "capture_exact_publication",
+    "surface.stable_admission_faulted",
+  ),
+  freezeAdmissionCheckInternalV1(
+    "lease_source_baseline",
+    "current_publisher_lease",
+    "surface.stable_publisher_lease_stale",
+  ),
+  freezeAdmissionCheckInternalV1(
+    "lease_source_baseline",
+    "source_revision_scalar",
+    "surface.stable_source_revision_invalid",
+  ),
+  freezeAdmissionCheckInternalV1(
+    "lease_source_baseline",
+    "source_revision_issuance",
+    "surface.stable_source_revision_invalid",
+  ),
+  freezeAdmissionCheckInternalV1(
+    "lease_source_baseline",
+    "accepted_baseline_provenance",
+    "surface.stable_admission_faulted",
+  ),
+  freezeAdmissionCheckInternalV1(
+    "lease_source_baseline",
+    "initial_revision",
+    "surface.stable_initial_revision_invalid",
+  ),
+  freezeAdmissionCheckInternalV1(
+    "lower_revision_short_circuit",
+    "lower_revision",
+    "surface.stable_source_revision_stale",
+  ),
+  freezeAdmissionCheckInternalV1(
+    "target_vector_header",
+    "capture_array_header",
+    "surface.stable_target_shape_invalid",
+  ),
+  freezeAdmissionCheckInternalV1(
+    "target_vector_header",
+    "capture_array_header",
+    "surface.stable_admission_faulted",
+  ),
+  freezeAdmissionCheckInternalV1(
+    "target_count",
+    "target_count_limit",
+    "surface.stable_target_limit_exceeded",
+  ),
+  freezeAdmissionCheckInternalV1(
+    "target_shape",
+    "capture_exact_targets",
+    "surface.stable_target_shape_invalid",
+  ),
+  freezeAdmissionCheckInternalV1(
+    "target_shape",
+    "capture_exact_targets",
+    "surface.stable_admission_faulted",
+  ),
+  freezeAdmissionCheckInternalV1(
+    "identity_graph",
+    "occurrence_duplicate",
+    "surface.stable_occurrence_duplicate",
+  ),
+  freezeAdmissionCheckInternalV1(
+    "identity_graph",
+    "occurrence_issuance",
+    "surface.stable_occurrence_unissued",
+  ),
+  freezeAdmissionCheckInternalV1(
+    "identity_graph",
+    "occurrence_gap_burn",
+    "surface.stable_occurrence_reused",
+  ),
+  freezeAdmissionCheckInternalV1(
+    "identity_graph",
+    "definition_exists",
+    "surface.stable_definition_missing",
+  ),
+  freezeAdmissionCheckInternalV1(
+    "identity_graph",
+    "definition_owner",
+    "surface.stable_definition_owner_mismatch",
+  ),
+  freezeAdmissionCheckInternalV1(
+    "identity_graph",
+    "root_parent",
+    "surface.stable_root_parent_invalid",
+  ),
+  freezeAdmissionCheckInternalV1(
+    "identity_graph",
+    "parent_exists",
+    "surface.stable_parent_missing",
+  ),
+  freezeAdmissionCheckInternalV1(
+    "identity_graph",
+    "parent_order",
+    "surface.stable_parent_order_invalid",
+  ),
+  freezeAdmissionCheckInternalV1(
+    "identity_graph",
+    "slot_scope",
+    "surface.stable_slot_invalid",
+  ),
+  freezeAdmissionCheckInternalV1(
+    "identity_graph",
+    "slot_cardinality",
+    "surface.stable_slot_occupied",
+  ),
+  freezeAdmissionCheckInternalV1(
+    "identity_graph",
+    "retained_scope_order",
+    "surface.stable_order_invalid",
+  ),
+  freezeAdmissionCheckInternalV1(
+    "identity_graph",
+    "retained_structural_identity",
+    "surface.stable_occurrence_reused",
+  ),
+  freezeAdmissionCheckInternalV1(
+    "parameter_admission",
+    "schema_parse",
+    "surface.stable_schema_invalid",
+  ),
+  freezeAdmissionCheckInternalV1(
+    "parameter_admission",
+    "canonical_first_traversal_event",
+    "surface.stable_canonical_invalid",
+  ),
+  freezeAdmissionCheckInternalV1(
+    "parameter_admission",
+    "canonical_first_traversal_event",
+    "surface.stable_canonical_bytes_exceeded",
+  ),
+  freezeAdmissionCheckInternalV1(
+    "parameter_admission",
+    "canonical_first_traversal_event",
+    "surface.stable_canonical_depth_exceeded",
+  ),
+  freezeAdmissionCheckInternalV1(
+    "parameter_admission",
+    "canonical_first_traversal_event",
+    "surface.stable_canonical_nodes_exceeded",
+  ),
+  freezeAdmissionCheckInternalV1(
+    "parameter_admission",
+    "canonical_first_traversal_event",
+    "surface.stable_admission_faulted",
+  ),
+  freezeAdmissionCheckInternalV1(
+    "parameter_admission",
+    "retained_normalized_bytes",
+    "surface.stable_occurrence_reused",
+  ),
+  freezeAdmissionCheckInternalV1(
+    "owner_conflict",
+    "reservation_provenance",
+    "surface.stable_admission_faulted",
+  ),
+  freezeAdmissionCheckInternalV1(
+    "owner_conflict",
+    "root_slot_conflict",
+    "surface.stable_owner_conflict",
+  ),
+  freezeAdmissionCheckInternalV1(
+    "equal_revision_comparison",
+    "semantic_vector_equality",
+    "surface.stable_publication_unchanged",
+  ),
+  freezeAdmissionCheckInternalV1(
+    "equal_revision_comparison",
+    "semantic_vector_equality",
     "surface.stable_source_revision_conflict",
-  ]),
+  ),
 ]);
+
+export type ManagedSurfaceStableAdmissionCheckRowInternalV1 =
+  typeof managedSurfaceStableAdmissionChecksInternalV1[number];
+
+export const managedSurfaceStableParameterAdmissionPolicyInternalV1 = Object.freeze({
+  targetIteration: "raw_target_order" as const,
+  checksPerTarget: Object.freeze(
+    [
+      "schema_parse",
+      "canonical_first_traversal_event",
+      "retained_normalized_bytes",
+    ] as const,
+  ),
+  canonicalPrecedence: "first_traversal_event" as const,
+});
 
 export type ManagedSurfaceStableDeltaCaseInternalV1 =
   | "stale_publisher_lease"
@@ -396,6 +575,7 @@ const headerOrInitialInvalidCodesInternalV1 = Object.freeze([
 ]);
 
 const vectorInvalidCodesInternalV1 = Object.freeze([
+  ...rejectedCodesInternalV1.target_shape,
   ...rejectedCodesInternalV1.target_count,
   ...rejectedCodesInternalV1.identity_graph,
   ...rejectedCodesInternalV1.canonical_parameters,

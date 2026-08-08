@@ -12,11 +12,11 @@ session/config catalog、S3c.0 composition-wide successor activation barrier、d
 S3c.1 Host-commit readiness/one logical Host lease、S3d exact-parent confirmation child 与
 S3e.0 successor-acknowledgment/terminal-teardown 准备切片均已完成；2026-08-09 S3e live
 cutover and promotion 已关闭；同日 S1-R.0 stable publication/identity/failure contract
-floor 与 S1-R.1 publisher lease/source/occurrence allocator 已关闭，下一独立切片为
-S1-R.2a corrective admission contract。
+floor、S1-R.1 publisher lease/source/occurrence allocator 与 S1-R.2a corrective admission
+contract 已关闭，下一独立切片为 S1-R.2b Base bounded canonical projection seam。
 同日 S1-R pre-implementation review 将 aggregate 重切为 S1-R.0–S1-R.5，并冻结
 parent/order、专用 revision、failure divergence、empty/dispose、cross-owner、bounded
-admission 与 exact delta；S1-R.0–R1 已实现 dormant internal floor，R2a–R5 尚未实现。
+admission 与 exact delta；S1-R.0–R2a 已实现 dormant internal floor，R2b–R5 尚未实现。
 目标合同见
 [Managed Surface lifecycle and contract harness](../design/surface-contract-harness.md)。
 本文只规定可独立交付的实施顺序；不要求一次实现 design
@@ -24,7 +24,7 @@ admission 与 exact delta；S1-R.0–R1 已实现 dormant internal floor，R2a�
 
 在 [production-floor sequence](2026-07-30-production-floor-sequence.md)
 中：PF2 的 `S0 -> S1-T -> S2`、PF-DET、PF3/M2 与 PF4/S3 已完成；当前 core
-节点是 PF4/S1-R.2a。PF4 的顺序是 `S3 -> S1-R.0 -> S1-R.1–S1-R.5 -> S4 -> S4b`；
+节点是 PF4/S1-R.2b。PF4 的顺序是 `S3 -> S1-R.0 -> S1-R.1–S1-R.5 -> S4 -> S4b`；
 S5–S6 属于 PF6。S1-R
 延后到第一个真实 externally published stable-target family 前完成；按 accepted
 target ownership，S4 Narrative 计划成为该 family，因此 S1-R 位于 S3 与 S4
@@ -1622,7 +1622,7 @@ S1-R 按以下可独立合并切片推进，每次只领取一个：
 2. **S1-R.1 publisher lease + source/occurrence allocators（已完成）**：deterministic injected
    lease、revision/occurrence issuance cursor、accepted high-water、fresh domain、
    dispose/ABA 与 bounded churn；
-3. **S1-R.2a corrective admission contract**：修正 R0 closed codes/check precedence，冻结
+3. **S1-R.2a corrective admission contract（已完成）**：修正 R0 closed codes/check precedence，冻结
    exact accepted-baseline/proposal provenance、subject-bound reservation、scope-local order、
    per-target first-event hard-stop与 raw-schema boundary；不执行 canonical traversal；
 4. **S1-R.2b bounded canonical projection seam**：在既有
@@ -1641,7 +1641,7 @@ S1-R 按以下可独立合并切片推进，每次只领取一个：
    10k churn、pure/model equivalence 与 public/transient export audit，汇总 dormant
    promotion evidence。
 
-当前只允许从 **S1-R.2a** 开始；上述切片都保持
+当前只允许从 **S1-R.2b** 开始；上述切片都保持
 dormant/package-internal，不接 Narrative/React/Web，不更新 live feature 文档。
 
 **S1-R.0 acceptance：** 只交付 internal shapes、fixed constants、result taxonomy、
@@ -1895,6 +1895,19 @@ order与zero-delta；docs冻结`admitted != applied`边界，但R0只证明没�
 positive admitted proposal type/result tests归R2c。R0不新增R1 import、parser或canonical traversal。
 验证顺序为R0 focused → UI package → `deno task test` → `deno task check` → API/dead-path
 adversarial audit。
+
+**2026-08-09 S1-R.2a delivery：** R0 master inventory新增
+`surface.stable_target_shape_invalid`并删除不可达的
+`surface.stable_owner_scope_invalid`；旧flat `{stage, resultCodes}` rows已替换为literal-preserving
+`{stage, check, code}` named checks，同一check的互斥outcome使用Set语义而不冒充code precedence。
+Frozen parameter policy明确raw-target顺序与逐target
+`schema -> canonical first traversal event -> retained normalized bytes`；equal/greater-invalid
+继续携带exact zero delta，R0 reconcile result明确不含`admitted`。本批只改R0 contract/test与三份
+governing docs；没有R1 import、parser/schema/canonical traversal，也没有baseline/reservation/
+proposal authority、type或evaluator、Coordinator/readiness、public/internal barrel、transient或
+live family wiring。验证通过R0+R1 focused
+`2 files / 23 tests`、UI package `71 / 770`、`deno task test`（`244 / 3656`）与完整
+`deno task check`；三路 adversarial review最终无finding。下一独立切片为 S1-R.2b。
 
 **S1-R.2b acceptance：** Base只在既有`@sillymaker/base/runtime/internal`导出typed bounded
 projection seam；root/runtime/authoring public exports不变。Tests固定detached projection byte
