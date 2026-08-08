@@ -19,6 +19,8 @@ import type {
   ManagedSurfaceStableSourceRevisionInternalV1,
 } from "./managed-surface-stable-contract.ts";
 
+declare const managedSurfaceStableAcceptedOccurrenceAdmissionProofBrandInternalV1: unique symbol;
+
 export type ManagedSurfaceStablePublisherLeaseIdInternalV1 = Brand<
   string,
   "ManagedSurfaceStablePublisherLeaseIdInternalV1"
@@ -60,6 +62,23 @@ export interface ManagedSurfaceStableAcceptedOccurrenceHighWaterInternalV1 {
   readonly occurrenceSequenceHighWater: NonNegativeSafeInteger;
 }
 
+/**
+ * Opaque stage-2 proof for one exact accepted-occurrence cursor. The proof
+ * freezes occurrence issuance visibility for a single R2 admission attempt;
+ * future R3 still owns current-lease and composite-state CAS.
+ */
+export interface ManagedSurfaceStableAcceptedOccurrenceAdmissionProofInternalV1 {
+  readonly [managedSurfaceStableAcceptedOccurrenceAdmissionProofBrandInternalV1]: true;
+}
+
+export type ManagedSurfaceStableOccurrenceAdmissionClassificationInternalV1 =
+  | { readonly kind: "foreign" }
+  | { readonly kind: "unissued" }
+  | {
+    readonly kind: "retained" | "reused" | "fresh";
+    readonly occurrenceSequence: PositiveSafeInteger;
+  };
+
 export interface ManagedSurfaceStablePublisherInternalV1 {
   readonly lease: ManagedSurfaceStablePublisherLeaseInternalV1;
   getSnapshot(): ManagedSurfaceStablePublisherLeaseSnapshotInternalV1;
@@ -96,6 +115,18 @@ export interface ManagedSurfaceStablePublisherLeaseRegistryInternalV1 {
     current: ManagedSurfaceStableAcceptedOccurrenceHighWaterInternalV1,
     nextHighWater: NonNegativeSafeInteger,
   ): ManagedSurfaceStableAcceptedOccurrenceHighWaterInternalV1;
+  captureAcceptedOccurrenceAdmissionProof(
+    current: ManagedSurfaceStableAcceptedOccurrenceHighWaterInternalV1,
+  ): ManagedSurfaceStableAcceptedOccurrenceAdmissionProofInternalV1;
+  classifyOccurrenceAgainstAdmissionProof(
+    proof: ManagedSurfaceStableAcceptedOccurrenceAdmissionProofInternalV1,
+    occurrenceId: unknown,
+    isRetainedOccurrence: boolean,
+  ): ManagedSurfaceStableOccurrenceAdmissionClassificationInternalV1;
+  deriveAcceptedOccurrenceHighWaterFromAdmissionProof(
+    proof: ManagedSurfaceStableAcceptedOccurrenceAdmissionProofInternalV1,
+    nextHighWater: NonNegativeSafeInteger,
+  ): ManagedSurfaceStableAcceptedOccurrenceHighWaterInternalV1;
   disposePublisherLease(
     publisherLease: unknown,
   ): "disposed" | "already_disposed" | "stale";
@@ -129,6 +160,14 @@ interface AcceptedOccurrenceRecordInternalV1 {
   readonly highWater: NonNegativeSafeInteger;
 }
 
+interface AcceptedOccurrenceAdmissionProofRecordInternalV1 {
+  readonly registryIdentity: object;
+  readonly publisherRecord: PublisherRecordInternalV1;
+  readonly originalCursor: ManagedSurfaceStableAcceptedOccurrenceHighWaterInternalV1;
+  readonly acceptedHighWater: NonNegativeSafeInteger;
+  readonly capturedOccurrenceIssuanceHighWater: NonNegativeSafeInteger;
+}
+
 const publisherRecordsInternalV1 = new WeakMap<
   ManagedSurfaceStablePublisherLeaseInternalV1,
   PublisherRecordInternalV1
@@ -137,7 +176,18 @@ const acceptedOccurrenceRecordsInternalV1 = new WeakMap<
   ManagedSurfaceStableAcceptedOccurrenceHighWaterInternalV1,
   AcceptedOccurrenceRecordInternalV1
 >();
+const acceptedOccurrenceAdmissionProofRecordsInternalV1 = new WeakMap<
+  ManagedSurfaceStableAcceptedOccurrenceAdmissionProofInternalV1,
+  AcceptedOccurrenceAdmissionProofRecordInternalV1
+>();
 const claimedLeaseDomainAllocatorsInternalV1 = new WeakSet<object>();
+
+const foreignOccurrenceAdmissionClassificationInternalV1 = Object.freeze({
+  kind: "foreign" as const,
+});
+const unissuedOccurrenceAdmissionClassificationInternalV1 = Object.freeze({
+  kind: "unissued" as const,
+});
 
 function stableSequenceErrorInternalV1(
   kind: ManagedSurfaceStableSequenceKindInternalV1,
@@ -215,6 +265,7 @@ type InspectedOccurrenceInternalV1 =
 function inspectOccurrenceInternalV1(
   record: PublisherRecordInternalV1,
   occurrenceId: unknown,
+  issuanceHighWater: NonNegativeSafeInteger,
 ): InspectedOccurrenceInternalV1 {
   if (typeof occurrenceId !== "string" || occurrenceId.length > 96) {
     return { kind: "foreign" };
@@ -230,9 +281,7 @@ function inspectOccurrenceInternalV1(
   } catch {
     return { kind: "unissued" };
   }
-  return sequence <= record.occurrenceIssuanceHighWater
-    ? { kind: "issued", sequence }
-    : { kind: "unissued" };
+  return sequence <= issuanceHighWater ? { kind: "issued", sequence } : { kind: "unissued" };
 }
 
 /**
@@ -429,7 +478,11 @@ export function createManagedSurfaceStablePublisherLeaseRegistryInternalV1(
     ): PositiveSafeInteger | null {
       const record = inspectCurrentRecord(publisherLease);
       if (record === null) return null;
-      const inspected = inspectOccurrenceInternalV1(record, occurrenceId);
+      const inspected = inspectOccurrenceInternalV1(
+        record,
+        occurrenceId,
+        record.occurrenceIssuanceHighWater,
+      );
       return inspected.kind === "issued" ? inspected.sequence : null;
     },
     classifyOccurrenceAgainstAcceptedHighWater(
@@ -446,7 +499,11 @@ export function createManagedSurfaceStablePublisherLeaseRegistryInternalV1(
       if (!isCurrentRecord(cursorRecord.publisherRecord)) {
         throw new TypeError("ui.managed_surface_stable_publisher_lease_stale");
       }
-      const inspected = inspectOccurrenceInternalV1(cursorRecord.publisherRecord, occurrenceId);
+      const inspected = inspectOccurrenceInternalV1(
+        cursorRecord.publisherRecord,
+        occurrenceId,
+        cursorRecord.publisherRecord.occurrenceIssuanceHighWater,
+      );
       if (inspected.kind !== "issued") return inspected.kind;
       if (inspected.sequence > cursorRecord.highWater) return "fresh";
       return isRetainedOccurrence ? "retained" : "reused";
@@ -509,6 +566,112 @@ export function createManagedSurfaceStablePublisherLeaseRegistryInternalV1(
       acceptedOccurrenceRecordsInternalV1.set(next, {
         registryIdentity,
         publisherRecord,
+        highWater: nextHighWater,
+      });
+      return next;
+    },
+    captureAcceptedOccurrenceAdmissionProof(
+      current: ManagedSurfaceStableAcceptedOccurrenceHighWaterInternalV1,
+    ): ManagedSurfaceStableAcceptedOccurrenceAdmissionProofInternalV1 {
+      const cursorRecord = (typeof current === "object" && current !== null)
+        ? acceptedOccurrenceRecordsInternalV1.get(current)
+        : undefined;
+      if (cursorRecord === undefined || cursorRecord.registryIdentity !== registryIdentity) {
+        throw new TypeError("ui.managed_surface_stable_accepted_occurrence_cursor_invalid");
+      }
+      if (!isCurrentRecord(cursorRecord.publisherRecord)) {
+        throw new TypeError("ui.managed_surface_stable_publisher_lease_stale");
+      }
+
+      const proof = Object.freeze(
+        {},
+      ) as ManagedSurfaceStableAcceptedOccurrenceAdmissionProofInternalV1;
+      acceptedOccurrenceAdmissionProofRecordsInternalV1.set(proof, {
+        registryIdentity,
+        publisherRecord: cursorRecord.publisherRecord,
+        originalCursor: current,
+        acceptedHighWater: cursorRecord.highWater,
+        capturedOccurrenceIssuanceHighWater:
+          cursorRecord.publisherRecord.occurrenceIssuanceHighWater,
+      });
+      return proof;
+    },
+    classifyOccurrenceAgainstAdmissionProof(
+      proof: ManagedSurfaceStableAcceptedOccurrenceAdmissionProofInternalV1,
+      occurrenceId: unknown,
+      isRetainedOccurrence: boolean,
+    ): ManagedSurfaceStableOccurrenceAdmissionClassificationInternalV1 {
+      const proofRecord = (typeof proof === "object" && proof !== null)
+        ? acceptedOccurrenceAdmissionProofRecordsInternalV1.get(proof)
+        : undefined;
+      if (proofRecord === undefined || proofRecord.registryIdentity !== registryIdentity) {
+        throw new TypeError(
+          "ui.managed_surface_stable_accepted_occurrence_admission_proof_invalid",
+        );
+      }
+
+      const inspected = inspectOccurrenceInternalV1(
+        proofRecord.publisherRecord,
+        occurrenceId,
+        proofRecord.capturedOccurrenceIssuanceHighWater,
+      );
+      if (inspected.kind === "foreign") {
+        return foreignOccurrenceAdmissionClassificationInternalV1;
+      }
+      if (inspected.kind === "unissued") {
+        return unissuedOccurrenceAdmissionClassificationInternalV1;
+      }
+      const kind = inspected.sequence > proofRecord.acceptedHighWater
+        ? "fresh"
+        : isRetainedOccurrence
+        ? "retained"
+        : "reused";
+      return Object.freeze({
+        kind,
+        occurrenceSequence: inspected.sequence,
+      });
+    },
+    deriveAcceptedOccurrenceHighWaterFromAdmissionProof(
+      proof: ManagedSurfaceStableAcceptedOccurrenceAdmissionProofInternalV1,
+      nextInput: NonNegativeSafeInteger,
+    ): ManagedSurfaceStableAcceptedOccurrenceHighWaterInternalV1 {
+      const proofRecord = (typeof proof === "object" && proof !== null)
+        ? acceptedOccurrenceAdmissionProofRecordsInternalV1.get(proof)
+        : undefined;
+      if (proofRecord === undefined || proofRecord.registryIdentity !== registryIdentity) {
+        throw new TypeError(
+          "ui.managed_surface_stable_accepted_occurrence_admission_proof_invalid",
+        );
+      }
+
+      let nextHighWater: NonNegativeSafeInteger;
+      try {
+        nextHighWater = parseNonNegativeSafeInteger(nextInput);
+      } catch (error) {
+        throw new TypeError(
+          "ui.managed_surface_stable_accepted_occurrence_high_water_invalid",
+          { cause: error },
+        );
+      }
+      if (nextHighWater < proofRecord.acceptedHighWater) {
+        throw new TypeError(
+          "ui.managed_surface_stable_accepted_occurrence_high_water_regressed",
+        );
+      }
+      if (nextHighWater > proofRecord.capturedOccurrenceIssuanceHighWater) {
+        throw new TypeError("ui.managed_surface_stable_occurrence_unissued");
+      }
+      if (nextHighWater === proofRecord.acceptedHighWater) {
+        return proofRecord.originalCursor;
+      }
+
+      const next = Object.freeze({
+        publisherLease: proofRecord.publisherRecord.lease,
+        occurrenceSequenceHighWater: nextHighWater,
+      });
+      acceptedOccurrenceRecordsInternalV1.set(next, {
+        registryIdentity,
+        publisherRecord: proofRecord.publisherRecord,
         highWater: nextHighWater,
       });
       return next;

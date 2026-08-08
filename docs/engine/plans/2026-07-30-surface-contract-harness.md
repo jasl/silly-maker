@@ -12,12 +12,12 @@ session/config catalog、S3c.0 composition-wide successor activation barrier、d
 S3c.1 Host-commit readiness/one logical Host lease、S3d exact-parent confirmation child 与
 S3e.0 successor-acknowledgment/terminal-teardown 准备切片均已完成；2026-08-09 S3e live
 cutover and promotion 已关闭；同日 S1-R.0 stable publication/identity/failure contract
-floor、S1-R.1 publisher lease/source/occurrence allocator 与 S1-R.2a corrective admission
-contract、S1-R.2b Base bounded canonical projection seam 已关闭，下一独立切片为
+floor、S1-R.1 publisher lease/source/occurrence allocator、S1-R.1a captured occurrence
+admission proof corrective 与 S1-R.2a corrective admission contract、S1-R.2b Base bounded canonical projection seam 已关闭，下一独立切片为
 S1-R.2c stable-vector admission。
 同日 S1-R pre-implementation review 将 aggregate 重切为 S1-R.0–S1-R.5，并冻结
 parent/order、专用 revision、failure divergence、empty/dispose、cross-owner、bounded
-admission 与 exact delta；S1-R.0–R2b 已实现 dormant internal floor，R2c–R5 尚未实现。
+admission 与 exact delta；S1-R.0–R2b（含R1a corrective）已实现 dormant internal floor，R2c–R5 尚未实现。
 目标合同见
 [Managed Surface lifecycle and contract harness](../design/surface-contract-harness.md)。
 本文只规定可独立交付的实施顺序；不要求一次实现 design
@@ -1623,22 +1623,25 @@ S1-R 按以下可独立合并切片推进，每次只领取一个：
 2. **S1-R.1 publisher lease + source/occurrence allocators（已完成）**：deterministic injected
    lease、revision/occurrence issuance cursor、accepted high-water、fresh domain、
    dispose/ABA 与 bounded churn；
-3. **S1-R.2a corrective admission contract（已完成）**：修正 R0 closed codes/check precedence，冻结
+3. **S1-R.1a captured occurrence admission proof corrective（已完成）**：以exact accepted
+   cursor绑定stage-2 occurrence issuance snapshot；proof-bound classification/late derivation
+   不重新读取current lease，现有current-only R1 API保持不变；
+4. **S1-R.2a corrective admission contract（已完成）**：修正 R0 closed codes/check precedence，冻结
    exact accepted-baseline/proposal provenance、subject-bound reservation、scope-local order、
    per-target first-event hard-stop与 raw-schema boundary；不执行 canonical traversal；
-4. **S1-R.2b bounded canonical projection seam（已完成）**：在既有
+5. **S1-R.2b bounded canonical projection seam（已完成）**：在既有
    `@sillymaker/base/runtime/internal` 建立 descriptor-safe、fully-represented、typed hard-stop
    projection + byte seam，accepted output与 public canonical bytes exact-equal；
-5. **S1-R.2c stable vector admission**：descriptor-safe exact envelope、definition schema
+6. **S1-R.2c stable vector admission**：descriptor-safe exact envelope、definition schema
    normalization、opaque canonical bytes、full graph/slot/order/owner admission与 exact
    precondition-bound proposal；
-6. **S1-R.3 pure atomic reconcile state/reducer**：同一 composite state 中原子提交
+7. **S1-R.3 pure atomic reconcile state/reducer**：同一 composite state 中原子提交
    accepted desired source 与 Coordinator preparation/topology delta，不发布 per-target
    intermediate state；
-7. **S1-R.4 source-bound readiness and retry**：lease + source revision + candidate
+8. **S1-R.4 source-bound readiness and retry**：lease + source revision + candidate
    instance fence、failure gap、retained predecessor、greater-same explicit retry 与 stale
    receipt；
-8. **S1-R.5 neutral harness/churn/dead-path audit**：two-owner、empty/dispose、conflict、
+9. **S1-R.5 neutral harness/churn/dead-path audit**：two-owner、empty/dispose、conflict、
    10k churn、pure/model equivalence 与 public/transient export audit，汇总 dormant
    promotion evidence。
 
@@ -1684,6 +1687,27 @@ full-vector admission。验证通过 R0+R1 focused
 `2 files / 22 tests`、UI package `71 / 769`、`deno task test`（`244 / 3655`）与完整
 `deno task check`；三路 adversarial review 最终无 finding。
 
+**S1-R.1a acceptance：** 只在既有R1 registry内增加 frozen zero-key、WeakMap-authenticated
+accepted-occurrence admission proof。Capture必须绑定same-registry exact accepted cursor与capture-time
+occurrence issuance high-water；proof-bound classification/late derivation不得重读current/disposed/live
+issuance。Capture后新issue的occurrence对旧proof仍unissued；equal derivation返回original exact cursor，
+greater derivation只创建同一R1 provenance的immutable cursor。现有current-only inspect/classify/advance、
+dispose/ABA与publisher snapshots保持原语义；不新增R0 code、R2 evaluator、accepted source/vector、
+Coordinator/readiness、barrel或live wiring。
+
+**2026-08-09 S1-R.1a delivery：** R1 registry新增exact cursor-bound captured occurrence proof及
+proof-bound classify/late-derive seam。Proof作为WeakMap弱键；private record在proof存活期间只保留
+captured registry/publisher/original cursor、accepted high-water与capture-time occurrence issuance
+scalar，且没有strong proof collection/list；classification返回frozen
+`foreign/unissued/retained/reused/fresh + issued sequence`，derive在captured bound内equal复用original
+cursor、greater产生同一private provenance的新immutable cursor。Publisher或整个registry在callback中
+dispose、owner successor ABA或capture后继续issue都不会改写旧proof的classification；future R3仍必须以
+lease/baseline/reservation CAS拒绝stale proposal。旧current-only API继续在dispose后fail closed。本批只改
+R1 source/test与三份governing docs，没有R0/R2b/R2c、Coordinator/transient/barrel/live变更。验证通过
+R0+R1 focused `2 files / 28 tests`、UI package `71 / 775`、`deno task test`
+（`245 / 3703`）与完整`deno task check`；三路adversarial review最终无finding。下一独立切片仍为
+S1-R.2c。
+
 **2026-08-09 S1-R.2 entry-gate adjudication：** external review 的主体决定已采纳，但按
 repository/current-code review 做四项必要收口后才进入 RED：
 
@@ -1712,7 +1736,9 @@ R2 admitted proposal必须携带同factory private-provenance的exact `nextAccep
 validated revision/admitted targets与同一R1 registry的unchanged/advanced cursor。R3 CAS成功后
 只能存这个exact object，不能重算/clone；equal-same与任何reject/stale/fault不产生proposal或
 next cursor。Unpublished baseline持有同registry创建的zero cursor，以便initial proposal只从该
-exact provenance分支advance。
+exact provenance分支advance。R2 stage 2同时从该cursor捕获R1a proof；identity classification与
+全部checks成功后的late cursor derivation只使用proof-time occurrence issuance bound，不因中途
+Proxy/schema dispose、successor或additional issuance而改写本次evaluation。
 
 该裁决把 S1-R.2 重切为三个可独立合并批次：
 
@@ -1937,7 +1963,8 @@ S1-R.2c。
 **S1-R.2c acceptance：** 新source-relative UI module/test建立finite definition + resolved-slot
 sidecar catalog、一次性parse callable/receiver snapshot、same-factory unpublished/accepted
 baseline provenance、subject-bound reservation snapshot、private canonical-byte handles/comparator
-与precondition-bound admission evaluation。Proposal携带exact captured precondition与
+与precondition-bound admission evaluation。Stage 2从exact baseline cursor捕获R1a occurrence proof，
+后续classification/late derivation不重读current lease。Proposal携带exact captured precondition与
 same-factory `nextAcceptedBaseline`；R3只会存exact object，non-admitted/equal-same不产生next
 cursor。Tests覆盖outer/lower zero-touch、64/65、shape/
 Proxy、R1 issuance/gap-burn、graph/slot/cardinality、schema missing/undefined/default/null、

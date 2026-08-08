@@ -25,7 +25,9 @@ bounded exact admission 边界；同日 S1-R.0 已把 pure publication/target/id
 shapes、fixed bounds、stable code precedence 与 exact source/runtime delta table 固定为
 package-internal dormant contract；S1-R.1 已进一步固定 composition-owned publisher
 registry、opaque lease、source/occurrence issuance、immutable accepted-occurrence high-water、
-dispose/ABA 与 bounded churn。它们仍不是 live capability。
+dispose/ABA 与 bounded churn；S1-R.1a corrective 又补上 exact accepted-cursor-bound、
+capture-time occurrence issuance proof，使 R2 admission 在 Proxy/schema reentry 后仍只按
+stage-2 precondition分类并延迟派生 next cursor。它们仍不是 live capability。
 同日 S1-R.2 entry-gate review 进一步冻结 post-lower target capture、per-target
 hard-stop canonical traversal、scope-local vector equality、subject-bound root reservation
 与 exact accepted-baseline/proposal provenance；R2 按 corrective contract、Base bounded
@@ -40,7 +42,7 @@ public canonical、Save/Persistence 与 live Surface authority均未改变。
 影响输入与焦点的 UI Surface 的权威边界、生命周期、输入代际与验证分层，并把“弱模型
 能够写出正确代码”提升为作者 API 的验收条件。S1-T 与 S2 已实现，S3a–S3e
 已完成并 promotion System 的 shared composition authority、Host readiness、confirmation
-child 与 single-writer cutover；S1-R.2b 已完成，下一独立切片为 S1-R.2c stable-vector
+child 与 single-writer cutover；S1-R.1a corrective 与 S1-R.2b 已完成，下一独立切片为 S1-R.2c stable-vector
 admission。当前 live 能力仍以
 [architecture](../architecture.md) 与
 [features](../features.md) 为准；执行顺序见
@@ -274,6 +276,16 @@ exact-token dispose 只封闭 dormant issuance ingress并证明 stale/ABA；R0 �
 `publisher_disposed` source/runtime result、notification与 target retirement仍由 R3 在
 同一 composite commit 产生。
 
+S1-R.1a 为 R2 stage-2 admission 增加 exact accepted-cursor-bound occurrence proof。Proof 是
+frozen zero-key capability，真实 record只存在 package-private WeakMap，并捕获 exact registry、
+publisher record、original accepted cursor、accepted high-water与当时的 occurrence issuance
+high-water。Proof-bound classification与late cursor derivation只读取这些 captured scalar/identity，
+不重新检查 current lease、disposed state或live issuance；capture之后新签发的 occurrence 对旧proof
+仍为 unissued。Equal derivation返回 original exact cursor，greater derivation只创建同一R1 provenance
+的immutable cursor；它不写accepted authority。现有current-only inspect/classify/advance及dispose
+语义保持不变；若callback已dispose/replace lease，R2仍可形成相对captured precondition的proposal，
+但future R3必须由lease/baseline/reservation exact CAS阻止它apply。
+
 Stable publication 在任何 identity allocation 或 Coordinator mutation 前完成 bounded
 exact admission。R2 evaluator 每次只消费三份 per-evaluation value input：untrusted raw
 publication、由同一 R2 factory 创建并以 private provenance 证明的 exact accepted
@@ -297,7 +309,8 @@ Admission check precedence 固定为：
    不对它调用 array/prototype/length/own-key operation；
 2. exact current publisher lease、positive-safe且不超过该 lease issuance high-water 的 source
    revision，以及 exact baseline provenance；fresh unpublished baseline 的首次 revision 必须为
-   `1`；
+   `1`；随后从baseline的exact accepted cursor捕获R1 occurrence admission proof，后续不再读取
+   live occurrence issuance/currentness；
 3. lower revision 立即 stale，且对 `targets`、definition/schema/canonical/reservation 保持
    zero touch；
 4. equal/greater 才检查 target vector header。它必须是真 Array、exact
@@ -308,7 +321,7 @@ Admission check precedence 固定为：
 6. bounded capture exact dense vector 与 exact四字段 data-only target record。Sparse、
    accessor、symbol、extra/missing field、custom prototype 使用
    `surface.stable_target_shape_invalid`；
-7. full-vector identity graph：duplicate、R1 unissued/gap-burn、definition/owner、root-null、
+7. full-vector identity graph：duplicate、基于stage-2 R1 proof的unissued/gap-burn、definition/owner、root-null、
    parent exists/before-child、slot/cardinality、structural reuse 与 scope-local order。先计算
    definition/revision/parent/scope 均未变化的 `structurallyStableRetained` set；retained
    subsequence order只比较该 set。独立 stable siblings reorder先报
@@ -368,7 +381,7 @@ R2 的 `admitted` 只是绑定 exact immutable precondition 的 proposal，不�
 `applied` receipt。Proposal逻辑形态为
 `{ relation, captured: { lease, acceptedBaseline, reservationSnapshot }, nextAcceptedBaseline }`；
 `nextAcceptedBaseline`由同一factory创建并private-brand，保存validated revision、admitted targets与
-同一R1 registry的unchanged/advanced immutable cursor。Future R3在CAS成功后只能把这个exact
+仅在全部checks成功后从stage-2 proof unchanged/late-derived的同一R1 registry immutable cursor。Future R3在CAS成功后只能把这个exact
 `nextAcceptedBaseline`存入composite state，不得重算或clone。Equal-same与任一non-admitted
 结果都没有proposal，也不得创建/暴露next cursor；next baseline只在全部checks成功后构造。
 Proposal/result与accepted-baseline provenance属于新的R2 module，不能回填已被R1 import的R0

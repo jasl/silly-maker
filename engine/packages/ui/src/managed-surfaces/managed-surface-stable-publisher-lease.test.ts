@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 import {
+  type NonNegativeSafeInteger,
   parseNonNegativeSafeInteger,
   parsePositiveSafeInteger,
   type PositiveSafeInteger,
@@ -19,6 +20,7 @@ import {
   createLocalManagedSurfaceStableLeaseSequenceAllocatorInternalV1,
   createManagedSurfaceStablePublisherLeaseRegistryInternalV1,
   type ManagedSurfaceStableAcceptedOccurrenceHighWaterInternalV1,
+  type ManagedSurfaceStableAcceptedOccurrenceAdmissionProofInternalV1,
   type ManagedSurfaceStablePublisherInternalV1,
   type ManagedSurfaceStablePublisherLeaseRegistryInternalV1,
   type ManagedSurfaceStablePublisherLeaseRegistrySnapshotInternalV1,
@@ -278,6 +280,387 @@ describe("dormant managed stable publisher lease", () => {
     expect(accepted3.occurrenceSequenceHighWater).toBe(3);
     expect(accepted0.occurrenceSequenceHighWater).toBe(0);
     expect(publisher.getSnapshot().occurrenceIssuanceHighWater).toBe(4);
+  });
+
+  it("captures one frozen zero-key proof bound to the exact accepted cursor", () => {
+    expectTypeOf<
+      Extract<
+        keyof ManagedSurfaceStableAcceptedOccurrenceAdmissionProofInternalV1,
+        string | number
+      >
+    >().toEqualTypeOf<never>();
+
+    const registry = registryV1();
+    const publisher = registry.issuePublisher(workspaceOwnerIdV1);
+    const occurrence1 = publisher.issueOccurrence();
+    const occurrence2 = publisher.issueOccurrence();
+    const occurrence3 = publisher.issueOccurrence();
+    const accepted0 = registry.createAcceptedOccurrenceHighWater(publisher.lease);
+    const accepted1 = registry.advanceAcceptedOccurrenceHighWater(
+      accepted0,
+      parseNonNegativeSafeInteger(1),
+    );
+    const publisherSnapshot = publisher.getSnapshot();
+    const registrySnapshot = registry.getSnapshot();
+    const proof = registry.captureAcceptedOccurrenceAdmissionProof(accepted1);
+
+    expect(Object.isFrozen(proof)).toBe(true);
+    expect(Reflect.ownKeys(proof)).toEqual([]);
+    const classifications = [
+      registry.classifyOccurrenceAgainstAdmissionProof(proof, occurrence1, true),
+      registry.classifyOccurrenceAgainstAdmissionProof(proof, occurrence1, false),
+      registry.classifyOccurrenceAgainstAdmissionProof(proof, occurrence2, false),
+      registry.classifyOccurrenceAgainstAdmissionProof(proof, occurrence3, false),
+      registry.classifyOccurrenceAgainstAdmissionProof(
+        proof,
+        "surface-stable-occurrence.e23.l1.n4",
+        false,
+      ),
+      registry.classifyOccurrenceAgainstAdmissionProof(
+        proof,
+        "surface-stable-occurrence.e23.l2.n1",
+        false,
+      ),
+    ] as const;
+    expect(classifications).toEqual([
+      { kind: "retained", occurrenceSequence: 1 },
+      { kind: "reused", occurrenceSequence: 1 },
+      { kind: "fresh", occurrenceSequence: 2 },
+      { kind: "fresh", occurrenceSequence: 3 },
+      { kind: "unissued" },
+      { kind: "foreign" },
+    ]);
+    expect(classifications.every(Object.isFrozen)).toBe(true);
+    expect(
+      registry.deriveAcceptedOccurrenceHighWaterFromAdmissionProof(
+        proof,
+        parseNonNegativeSafeInteger(1),
+      ),
+    ).toBe(accepted1);
+    expect(accepted0.occurrenceSequenceHighWater).toBe(0);
+    expect(accepted1.occurrenceSequenceHighWater).toBe(1);
+    expect(publisher.getSnapshot()).toBe(publisherSnapshot);
+    expect(registry.getSnapshot()).toBe(registrySnapshot);
+  });
+
+  it("keeps captured proof usable after disposal while current-only APIs stay stale", () => {
+    const registry = registryV1();
+    const publisher = registry.issuePublisher(workspaceOwnerIdV1);
+    const occurrence1 = publisher.issueOccurrence();
+    const occurrence2 = publisher.issueOccurrence();
+    const occurrence3 = publisher.issueOccurrence();
+    const accepted0 = registry.createAcceptedOccurrenceHighWater(publisher.lease);
+    const accepted1 = registry.advanceAcceptedOccurrenceHighWater(
+      accepted0,
+      parseNonNegativeSafeInteger(1),
+    );
+    const proof = registry.captureAcceptedOccurrenceAdmissionProof(accepted1);
+    const registryBeforeDispose = registry.getSnapshot();
+
+    expect(registry.disposePublisherLease(publisher.lease)).toBe("disposed");
+    expect(registry.getSnapshot()).not.toBe(registryBeforeDispose);
+    const disposedRegistrySnapshot = registry.getSnapshot();
+    const disposedPublisherSnapshot = publisher.getSnapshot();
+
+    expect(
+      registry.classifyOccurrenceAgainstAdmissionProof(proof, occurrence1, true),
+    ).toEqual({ kind: "retained", occurrenceSequence: 1 });
+    expect(
+      registry.classifyOccurrenceAgainstAdmissionProof(proof, occurrence2, false),
+    ).toEqual({ kind: "fresh", occurrenceSequence: 2 });
+    expect(
+      registry.classifyOccurrenceAgainstAdmissionProof(proof, occurrence3, false),
+    ).toEqual({ kind: "fresh", occurrenceSequence: 3 });
+
+    const accepted3 = registry.deriveAcceptedOccurrenceHighWaterFromAdmissionProof(
+      proof,
+      parseNonNegativeSafeInteger(3),
+    );
+    expect(accepted3).toEqual({
+      publisherLease: publisher.lease,
+      occurrenceSequenceHighWater: 3,
+    });
+    expect(Object.isFrozen(accepted3)).toBe(true);
+    expect(accepted1.occurrenceSequenceHighWater).toBe(1);
+    expect(registry.getSnapshot()).toBe(disposedRegistrySnapshot);
+    expect(publisher.getSnapshot()).toBe(disposedPublisherSnapshot);
+    expect(() => registry.captureAcceptedOccurrenceAdmissionProof(accepted1)).toThrow(
+      "ui.managed_surface_stable_publisher_lease_stale",
+    );
+
+    expect(() => registry.classifyOccurrenceAgainstAcceptedHighWater(accepted1, occurrence1, true))
+      .toThrow("ui.managed_surface_stable_publisher_lease_stale");
+    expect(() =>
+      registry.advanceAcceptedOccurrenceHighWater(
+        accepted1,
+        parseNonNegativeSafeInteger(3),
+      )
+    ).toThrow("ui.managed_surface_stable_publisher_lease_stale");
+  });
+
+  it("keeps captured proof usable after registry-wide disposal", () => {
+    const registry = registryV1();
+    const publisher = registry.issuePublisher(workspaceOwnerIdV1);
+    const occurrence1 = publisher.issueOccurrence();
+    const occurrence2 = publisher.issueOccurrence();
+    const accepted0 = registry.createAcceptedOccurrenceHighWater(publisher.lease);
+    const proof = registry.captureAcceptedOccurrenceAdmissionProof(accepted0);
+
+    expect(registry.dispose()).toBe("disposed");
+    const disposedRegistrySnapshot = registry.getSnapshot();
+    const disposedPublisherSnapshot = publisher.getSnapshot();
+
+    expect(
+      registry.classifyOccurrenceAgainstAdmissionProof(proof, occurrence1, false),
+    ).toEqual({ kind: "fresh", occurrenceSequence: 1 });
+    expect(
+      registry.classifyOccurrenceAgainstAdmissionProof(proof, occurrence2, false),
+    ).toEqual({ kind: "fresh", occurrenceSequence: 2 });
+    const accepted2 = registry.deriveAcceptedOccurrenceHighWaterFromAdmissionProof(
+      proof,
+      parseNonNegativeSafeInteger(2),
+    );
+    expect(accepted2).toEqual({
+      publisherLease: publisher.lease,
+      occurrenceSequenceHighWater: 2,
+    });
+    expect(Object.isFrozen(accepted2)).toBe(true);
+    expect(accepted0.occurrenceSequenceHighWater).toBe(0);
+    expect(registry.getSnapshot()).toBe(disposedRegistrySnapshot);
+    expect(publisher.getSnapshot()).toBe(disposedPublisherSnapshot);
+    expect(() => registry.captureAcceptedOccurrenceAdmissionProof(accepted0)).toThrow(
+      "ui.managed_surface_stable_publisher_lease_stale",
+    );
+    expect(() => registry.classifyOccurrenceAgainstAcceptedHighWater(accepted0, occurrence1, false))
+      .toThrow("ui.managed_surface_stable_publisher_lease_stale");
+  });
+
+  it("bounds captured classification and cursor derivation to the proof-time issuance branch", () => {
+    const registry = registryV1();
+    const publisher = registry.issuePublisher(workspaceOwnerIdV1);
+    const accepted0 = registry.createAcceptedOccurrenceHighWater(publisher.lease);
+    const occurrence1 = publisher.issueOccurrence();
+    const oldProof = registry.captureAcceptedOccurrenceAdmissionProof(accepted0);
+    const occurrence2 = publisher.issueOccurrence();
+    const newProof = registry.captureAcceptedOccurrenceAdmissionProof(accepted0);
+    const publisherSnapshot = publisher.getSnapshot();
+    const registrySnapshot = registry.getSnapshot();
+
+    expect(
+      registry.classifyOccurrenceAgainstAdmissionProof(oldProof, occurrence1, false),
+    ).toEqual({ kind: "fresh", occurrenceSequence: 1 });
+    expect(
+      registry.classifyOccurrenceAgainstAdmissionProof(oldProof, occurrence2, false),
+    ).toEqual({ kind: "unissued" });
+    expect(
+      registry.classifyOccurrenceAgainstAdmissionProof(newProof, occurrence2, false),
+    ).toEqual({ kind: "fresh", occurrenceSequence: 2 });
+    expect(() =>
+      registry.deriveAcceptedOccurrenceHighWaterFromAdmissionProof(
+        oldProof,
+        parseNonNegativeSafeInteger(2),
+      )
+    ).toThrow("ui.managed_surface_stable_occurrence_unissued");
+
+    const accepted2 = registry.deriveAcceptedOccurrenceHighWaterFromAdmissionProof(
+      newProof,
+      parseNonNegativeSafeInteger(2),
+    );
+    expect(
+      registry.deriveAcceptedOccurrenceHighWaterFromAdmissionProof(
+        newProof,
+        parseNonNegativeSafeInteger(0),
+      ),
+    ).toBe(accepted0);
+    const accepted2Proof = registry.captureAcceptedOccurrenceAdmissionProof(accepted2);
+    expect(
+      registry.deriveAcceptedOccurrenceHighWaterFromAdmissionProof(
+        accepted2Proof,
+        parseNonNegativeSafeInteger(2),
+      ),
+    ).toBe(accepted2);
+    expect(() =>
+      registry.deriveAcceptedOccurrenceHighWaterFromAdmissionProof(
+        accepted2Proof,
+        parseNonNegativeSafeInteger(1),
+      )
+    ).toThrow("ui.managed_surface_stable_accepted_occurrence_high_water_regressed");
+    const invalidHighWaters: readonly unknown[] = [
+      -0,
+      -1,
+      1.5,
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+      Number.MAX_SAFE_INTEGER + 1,
+      "1",
+      null,
+    ];
+    for (
+      const invalid of invalidHighWaters
+    ) {
+      expect(() =>
+        registry.deriveAcceptedOccurrenceHighWaterFromAdmissionProof(
+          newProof,
+          invalid as NonNegativeSafeInteger,
+        )
+      ).toThrow("ui.managed_surface_stable_accepted_occurrence_high_water_invalid");
+    }
+
+    expect(accepted0.occurrenceSequenceHighWater).toBe(0);
+    expect(accepted2.occurrenceSequenceHighWater).toBe(2);
+    expect(publisher.getSnapshot()).toBe(publisherSnapshot);
+    expect(registry.getSnapshot()).toBe(registrySnapshot);
+  });
+
+  it("rejects forged, foreign, wrong-cursor, and ABA-successor admission proof evidence", () => {
+    const firstRegistry = registryV1({ owners: [workspaceOwnerIdV1] });
+    const foreignRegistry = registryV1({ owners: [narrativeOwnerIdV1] });
+    const predecessor = firstRegistry.issuePublisher(workspaceOwnerIdV1);
+    const foreign = foreignRegistry.issuePublisher(narrativeOwnerIdV1);
+    const predecessorOccurrence = predecessor.issueOccurrence();
+    const predecessorCursor = firstRegistry.createAcceptedOccurrenceHighWater(predecessor.lease);
+    const predecessorProof = firstRegistry.captureAcceptedOccurrenceAdmissionProof(
+      predecessorCursor,
+    );
+    const foreignCursor = foreignRegistry.createAcceptedOccurrenceHighWater(foreign.lease);
+    const foreignProof = foreignRegistry.captureAcceptedOccurrenceAdmissionProof(foreignCursor);
+    const firstSnapshot = firstRegistry.getSnapshot();
+    const foreignSnapshot = foreignRegistry.getSnapshot();
+
+    const forgedProof = Object.freeze(
+      {},
+    ) as ManagedSurfaceStableAcceptedOccurrenceAdmissionProofInternalV1;
+    const clonedProof = Object.freeze({
+      ...predecessorProof,
+    }) as ManagedSurfaceStableAcceptedOccurrenceAdmissionProofInternalV1;
+    const revokedProof = Proxy.revocable(Object.freeze({}), {});
+    revokedProof.revoke();
+    for (
+      const invalidProof of [
+        forgedProof,
+        clonedProof,
+        foreignProof,
+        revokedProof.proxy as ManagedSurfaceStableAcceptedOccurrenceAdmissionProofInternalV1,
+      ]
+    ) {
+      expect(() =>
+        firstRegistry.classifyOccurrenceAgainstAdmissionProof(
+          invalidProof,
+          predecessorOccurrence,
+          false,
+        )
+      ).toThrow("ui.managed_surface_stable_accepted_occurrence_admission_proof_invalid");
+      expect(() =>
+        firstRegistry.deriveAcceptedOccurrenceHighWaterFromAdmissionProof(
+          invalidProof,
+          parseNonNegativeSafeInteger(1),
+        )
+      ).toThrow("ui.managed_surface_stable_accepted_occurrence_admission_proof_invalid");
+    }
+    expect(() =>
+      firstRegistry.deriveAcceptedOccurrenceHighWaterFromAdmissionProof(
+        forgedProof,
+        -1 as NonNegativeSafeInteger,
+      )
+    ).toThrow("ui.managed_surface_stable_accepted_occurrence_admission_proof_invalid");
+    const forgedCursor = Object.freeze({
+      publisherLease: predecessor.lease,
+      occurrenceSequenceHighWater: parseNonNegativeSafeInteger(0),
+    });
+    const clonedCursor = Object.freeze({ ...predecessorCursor });
+    const revokedCursor = Proxy.revocable(Object.freeze({}), {});
+    revokedCursor.revoke();
+    for (
+      const invalidCursor of [
+        forgedCursor,
+        clonedCursor,
+        revokedCursor.proxy as ManagedSurfaceStableAcceptedOccurrenceHighWaterInternalV1,
+      ]
+    ) {
+      expect(() => firstRegistry.captureAcceptedOccurrenceAdmissionProof(invalidCursor)).toThrow(
+        "ui.managed_surface_stable_accepted_occurrence_cursor_invalid",
+      );
+    }
+    expect(() => firstRegistry.captureAcceptedOccurrenceAdmissionProof(foreignCursor)).toThrow(
+      "ui.managed_surface_stable_accepted_occurrence_cursor_invalid",
+    );
+    expect(() => foreignRegistry.captureAcceptedOccurrenceAdmissionProof(predecessorCursor))
+      .toThrow("ui.managed_surface_stable_accepted_occurrence_cursor_invalid");
+    expect(firstRegistry.getSnapshot()).toBe(firstSnapshot);
+    expect(foreignRegistry.getSnapshot()).toBe(foreignSnapshot);
+
+    expect(firstRegistry.disposePublisherLease(predecessor.lease)).toBe("disposed");
+    const successor = firstRegistry.issuePublisher(workspaceOwnerIdV1);
+    const successorOccurrence = successor.issueOccurrence();
+    const successorCursor = firstRegistry.createAcceptedOccurrenceHighWater(successor.lease);
+    const successorProof = firstRegistry.captureAcceptedOccurrenceAdmissionProof(successorCursor);
+    const successorSnapshot = successor.getSnapshot();
+    const successorRegistrySnapshot = firstRegistry.getSnapshot();
+
+    expect(
+      firstRegistry.classifyOccurrenceAgainstAdmissionProof(
+        predecessorProof,
+        predecessorOccurrence,
+        false,
+      ),
+    ).toEqual({ kind: "fresh", occurrenceSequence: 1 });
+    expect(
+      firstRegistry.classifyOccurrenceAgainstAdmissionProof(
+        predecessorProof,
+        successorOccurrence,
+        false,
+      ),
+    ).toEqual({ kind: "foreign" });
+    expect(
+      firstRegistry.classifyOccurrenceAgainstAdmissionProof(
+        successorProof,
+        predecessorOccurrence,
+        false,
+      ),
+    ).toEqual({ kind: "foreign" });
+    expect(
+      firstRegistry.deriveAcceptedOccurrenceHighWaterFromAdmissionProof(
+        predecessorProof,
+        parseNonNegativeSafeInteger(0),
+      ),
+    ).toBe(predecessorCursor);
+    const predecessorAccepted1 = firstRegistry
+      .deriveAcceptedOccurrenceHighWaterFromAdmissionProof(
+        predecessorProof,
+        parseNonNegativeSafeInteger(1),
+      );
+    expect(predecessorAccepted1).toEqual({
+      publisherLease: predecessor.lease,
+      occurrenceSequenceHighWater: 1,
+    });
+    expect(predecessorAccepted1.publisherLease).not.toBe(successor.lease);
+    expect(Object.isFrozen(predecessorAccepted1)).toBe(true);
+    expect(() => firstRegistry.captureAcceptedOccurrenceAdmissionProof(predecessorAccepted1))
+      .toThrow("ui.managed_surface_stable_publisher_lease_stale");
+    expect(() =>
+      firstRegistry.classifyOccurrenceAgainstAcceptedHighWater(
+        predecessorAccepted1,
+        predecessorOccurrence,
+        true,
+      )
+    ).toThrow("ui.managed_surface_stable_publisher_lease_stale");
+    expect(() =>
+      firstRegistry.advanceAcceptedOccurrenceHighWater(
+        predecessorAccepted1,
+        parseNonNegativeSafeInteger(1),
+      )
+    ).toThrow("ui.managed_surface_stable_publisher_lease_stale");
+    expect(
+      firstRegistry.deriveAcceptedOccurrenceHighWaterFromAdmissionProof(
+        successorProof,
+        parseNonNegativeSafeInteger(0),
+      ),
+    ).toBe(successorCursor);
+
+    expect(successor.getSnapshot()).toBe(successorSnapshot);
+    expect(firstRegistry.getSnapshot()).toBe(successorRegistrySnapshot);
+    expect(predecessorCursor.occurrenceSequenceHighWater).toBe(0);
+    expect(successorCursor.occurrenceSequenceHighWater).toBe(0);
   });
 
   it("rejects unknown and duplicate current owners before consuming a lease sequence", () => {
