@@ -52,6 +52,38 @@ import type { ManagedSurfaceStableApplyPreconditionCheckRowInternalV1 as Forbidd
 import type { ManagedSurfaceStableReadinessFenceCheckRowInternalV1 as ForbiddenPublicStableReadinessCheckV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose stable readiness rows.
 import type { ManagedSurfaceStableReadinessFenceCheckRowInternalV1 as ForbiddenInternalStableReadinessCheckV1 } from "./internal.ts";
+// @ts-expect-error The composition-owned runtime authority stays source-relative.
+import type { ManagedSurfaceRuntimeAuthorityInternalV1 as ForbiddenPublicRuntimeAuthorityV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose the runtime authority.
+import type { ManagedSurfaceRuntimeAuthorityInternalV1 as ForbiddenInternalRuntimeAuthorityV1 } from "./internal.ts";
+// @ts-expect-error Dormant stable composite state stays source-relative.
+import type { ManagedSurfaceStableCompositeStateInternalV1 as ForbiddenPublicStableCompositeStateV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose stable composite state.
+import type { ManagedSurfaceStableCompositeStateInternalV1 as ForbiddenInternalStableCompositeStateV1 } from "./internal.ts";
+// @ts-expect-error Dormant stable runtime bindings stay source-relative.
+import type { ManagedSurfaceStableRuntimeBindingInternalV1 as ForbiddenPublicStableRuntimeBindingV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose stable runtime bindings.
+import type { ManagedSurfaceStableRuntimeBindingInternalV1 as ForbiddenInternalStableRuntimeBindingV1 } from "./internal.ts";
+// @ts-expect-error Stable reservation contributors stay source-relative.
+import type { ManagedSurfaceStableRootReservationContributorInternalV1 as ForbiddenPublicStableContributorV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose stable reservation contributors.
+import type { ManagedSurfaceStableRootReservationContributorInternalV1 as ForbiddenInternalStableContributorV1 } from "./internal.ts";
+// @ts-expect-error The generic runtime kernel stays source-relative.
+import type { ManagedSurfaceRuntimeKernelInternalV1 as ForbiddenPublicRuntimeKernelV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose the generic runtime kernel.
+import type { ManagedSurfaceRuntimeKernelInternalV1 as ForbiddenInternalRuntimeKernelV1 } from "./internal.ts";
+// @ts-expect-error Runtime-attempt provenance stays source-relative.
+import type { ManagedSurfaceRuntimeAttemptIdentityInternalV1 as ForbiddenPublicRuntimeAttemptV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose runtime-attempt provenance.
+import type { ManagedSurfaceRuntimeAttemptIdentityInternalV1 as ForbiddenInternalRuntimeAttemptV1 } from "./internal.ts";
+// @ts-expect-error Stable desired-runtime provenance stays source-relative.
+import type { ManagedSurfaceStableDesiredRuntimeTargetInternalV1 as ForbiddenPublicStableDesiredRuntimeV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose stable desired-runtime provenance.
+import type { ManagedSurfaceStableDesiredRuntimeTargetInternalV1 as ForbiddenInternalStableDesiredRuntimeV1 } from "./internal.ts";
+// @ts-expect-error Stable runtime entries stay source-relative.
+import type { ManagedSurfaceStableRuntimeEntryInternalV1 as ForbiddenPublicStableRuntimeEntryV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose stable runtime entries.
+import type { ManagedSurfaceStableRuntimeEntryInternalV1 as ForbiddenInternalStableRuntimeEntryV1 } from "./internal.ts";
 /* oxlint-enable no-unused-vars */
 
 describe("@sillymaker/ui public managed System surface", () => {
@@ -81,6 +113,26 @@ describe("@sillymaker/ui public managed System surface", () => {
       const dormantContractExport of [
         "managedSurfaceStableApplyPreconditionChecksInternalV1",
         "managedSurfaceStableReadinessFenceChecksInternalV1",
+        "createManagedSurfaceRuntimeKernelInternalV1",
+        "createManagedSurfaceCoordinatorRuntimeBundleInternalV1",
+        "createManagedSurfaceStableCompositeStateInternalV1",
+        "reconcileManagedSurfaceStableRootReservationsInternalV1",
+        "createManagedSurfaceCoordinatorFacadeInternalV1",
+        "createManagedSurfaceRuntimeAuthorityInternalV1",
+        "createManagedSurfaceRuntimeAuthorityBundleInternalV1",
+        "createManagedSurfaceTransientRuntimeKernelInternalV1",
+        "createManagedSurfaceStableCompositeRuntimeKernelInternalV1",
+        "createManagedSurfaceStableReadyRuntimeBindingInternalV1",
+        "createManagedSurfaceStablePreparingRuntimeBindingInternalV1",
+        "createManagedSurfaceStableGapRuntimeBindingInternalV1",
+        "allocateManagedSurfaceStableRuntimeAttemptInternalV1",
+        "projectManagedSurfaceStableRootReservationSnapshotInternalV1",
+        "matchesManagedSurfaceStableAdmissionAuthorityConfigurationInternalV1",
+        "createManagedSurfaceRuntimeAttemptIdentityInternalV1",
+        "hasExpectedManagedSurfaceRuntimeAttemptIdentityInternalV1",
+        "recordManagedSurfaceRuntimeAttemptSequenceInternalV1",
+        "copyManagedSurfaceRuntimeAttemptSequenceInternalV1",
+        "inspectManagedSurfaceRuntimeAttemptSequenceInternalV1",
       ] as const
     ) {
       expect(publicUiV1).not.toHaveProperty(dormantContractExport);

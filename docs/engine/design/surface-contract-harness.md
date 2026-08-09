@@ -47,13 +47,16 @@ taxonomy与exact zero delta，以及stable-only readiness envelope/precedence固
 它不执行proposal、reservation phase aggregation、Coordinator mutation或readiness settlement。
 同日后续 R3 pre-implementation review 采用 A-prime：R3 拆为 R3a composition-owned
 composite runtime/identity/provenance seam 与 R3b pure plan + stateful atomic
-commit；该修订只冻结目标合同，尚未实现 kernel、proposal apply 或 dispose commit。
+commit；同日 S1-R.3a 已交付 generic runtime kernel、composition-owned composite
+state/authority、shared identity cursor、exact provenance/config admission 与 root contributor
+generation seam。Stable records 仍是 dormant authenticated storage/contributor seam，不驱动
+live topology；proposal apply、publisher dispose commit 与 stable readiness settlement 尚未实现。
 本文固定
 影响输入与焦点的 UI Surface 的权威边界、生命周期、输入代际与验证分层，并把“弱模型
 能够写出正确代码”提升为作者 API 的验收条件。S1-T 与 S2 已实现，S3a–S3e
 已完成并 promotion System 的 shared composition authority、Host readiness、confirmation
-child 与 single-writer cutover；S1-R.1a corrective 与 S1-R.3.0 已完成，下一独立切片为
-S1-R.3a composition-owned composite runtime/identity/provenance seam。当前 live 能力仍以
+child 与 single-writer cutover；S1-R.1a corrective、S1-R.3.0 与 S1-R.3a 已完成，下一独立切片为
+S1-R.3b pure plan + stateful atomic commit。当前 live 能力仍以
 [architecture](../architecture.md) 与
 [features](../features.md) 为准；执行顺序见
 [Surface Contract Harness plan](../plans/2026-07-30-surface-contract-harness.md)。
@@ -451,6 +454,11 @@ newly-constructed hybrid或wrong-factory target返回`null`。Authentic target�
 inspect，但proposal本身必须先由R2 proposal provenance拒绝。Inspector不重跑schema/canonical，不按
 definition ID/revision从第二份catalog猜definition。R3a generic kernel只接受该seam返回的definition，
 因此placement/readiness/modality/input/focus/renderer identity与R2 validation authority不能漂移。
+R3a composition factory还必须以object identity接收exact同一R2 admission authority与其绑定的R1
+publisher registry，并在读取registry、签发token或建立state前校验一份order-independent、exact
+resolved slot descriptor config（kind、slot ID、child-only parent definition ID与cardinality）。
+Foreign/mismatched authority、registry或slot config fail closed；该配对只保存在package-private
+provenance中，不公开registry、catalog或第二条construction path。
 
 每个 accepted desired target 的runtime binding 精确为：
 
@@ -479,6 +487,14 @@ preparation eligibility。Retained predecessor保留其原attempt/target identit
 candidate与一个retained predecessor root；retained subtree由kernel parent topology派生，因此不会
 复制一份subtree authority。
 
+Attempt role是单向的：已经绑定为ready或retained predecessor的attempt不得降级并复用为
+`preparing`；只有fresh pending attempt或exact current preparing attempt可以成为candidate。Ready
+attempt保存的source revision可以早于或等于current accepted desired revision，但不得高于它；
+preparing attempt必须绑定exact current accepted revision。任何non-null preparing predecessor或
+`readiness_failed` gap predecessor都必须是exact current ready/retained instance、属于同一lease与
+root single slot、具有不同occurrence且parent为`null`；candidate-as-predecessor、stale instance、
+wrong lease/slot或future revision都是package-owned invariant fault。
+
 Closed combination还要求：只有exact `single` root `primary_replacement` preparing或它失败后的
 `readiness_failed` gap可以携带non-null predecessor；`initial_open`、`child_open`与
 `parent_unavailable` gap的predecessor必须为`null`。任何其他cross-product是package-owned runtime
@@ -499,7 +515,9 @@ Runtime diff与predecessor pairing固定如下：
   转为active的同一transition中，只为刚解除阻塞的direct children开始preparation。Parent-eligible `readiness_failed` gap不自动retry，
   只由newer `greater_same`或`greater_changed`显式重试；`parent_unavailable`只能等待exact
   parent-ready transition，source revision变化本身不得为它分配identity。V1不要求whole-vector
-  simultaneous activation。
+  simultaneous activation。若child已经保存exact current `readiness_failed` gap，parent从active转为
+  suspended时保留该exact binding、reason与predecessor，仅暂停retry eligibility；suspended parent下的
+  fresh child不得伪造`readiness_failed`，只能得到`parent_unavailable` gap。
 
 Runtime planning与identity allocation不能受非语义cross-scope raw interleaving影响。Canonical
 planning order固定为：root scope按`slotId` lexical order；scope内使用R2 admitted sibling order；
@@ -626,6 +644,17 @@ composite reconcile notification，且不得再泄漏 transient family duplicate
 preparations actually started。Topology revision按既有 observable fence（active topology、
 blocking fallback、action/input/focus/navigation ownership）推进；source-cursor-only commit
 是 `0` transient Coordinator topology delta。
+
+S1-R.3a delivery已完成：现有transient reducer/Coordinator已通过同一generic kernel保持既有
+public shape、identity、同步nested-listener与notification语义；composition-owned authority已拥有
+single state/listener/cursor、prepared exact-current install fence与bounded lineage finalization，stable
+record/provenance、root contributor vector与generation token也已接入同一dormant state。Exact
+authority-registry-slot config、attempt/predecessor/revision invariant与suspended child failure-gap
+preservation均由mutation-sensitive tests覆盖。Stable records仍只作为authenticated dormant
+storage/contributor seam，不发布live stable topology、input/focus、renderer或readiness mutation；R3a
+没有apply proposal、关闭publisher ingress或settle readiness。验证：focused 5/67, UI 74/832, full
+248/3760, check green, engine browser 101/101, examples 45 pass/2 skip, prebuilt
+`38 / 38`。下一独立切片为S1-R.3b pure plan + stateful atomic commit。
 
 S1-R.3.0 同时冻结R4要消费的stable-only readiness envelope。它只在source-relative dormant
 stable layer组合既有 `ManagedSurfaceReadinessEvidenceV1` attempt evidence与exact

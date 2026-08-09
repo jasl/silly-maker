@@ -473,16 +473,27 @@ root. The composition creates an opaque System session, and the required
 creating a fallback store. Neither facade exposes Coordinator, epoch, instance,
 readiness, or writable topology evidence.
 
-The UI-owned Coordinator is the sole writable topology, input, focus, instance,
-and readiness authority. Admission completes before topology mutation. Initial
-and child preparation use a code-native blocking fallback, replacement keeps
-the existing subtree until the candidate is ready, and application-epoch
-rotation fences late readiness during load, import, HMR, or another successor.
-After a composed successor acknowledgment, the predecessor Root performs no
-family close/reset; successful load/import also leaves its old Saves completion
-stale, so it cannot close or finalize a fresh System root. The epoch is
-presentation/runtime fencing only and never enters a Save. Stable-target
-reconcile and Narrative migration remain planned work.
+The live transient Coordinator remains the sole lifecycle facade through which
+topology, input, focus, instance, and readiness are writable. Its only state
+owner is one composition-owned runtime authority and generic kernel: the exact
+reducer state, mutation/reentry fence, captured-listener delivery, and
+instance/routing identity cursor are shared rather than mirrored. Admission
+completes before topology mutation. Initial and child
+preparation use a code-native blocking fallback, replacement keeps the existing
+subtree until the candidate is ready, and application-epoch rotation fences
+late readiness during load, import, HMR, or another successor. After a composed
+successor acknowledgment, the predecessor Root performs no family close/reset;
+successful load/import also leaves its old Saves completion stale, so it cannot
+close or finalize a fresh System root. The epoch is presentation/runtime fencing
+only and never enters a Save.
+
+A dormant, source-relative stable composite seam now reuses that same internal
+kernel. It binds admitted targets to exact registry/configuration provenance and
+derives the stable root-contributor vector and its generation without exposing
+the registry, contributor evidence, or runtime identity. It does not apply a
+stable proposal, settle stable readiness, or connect stable ingress to a live
+family. The UI root and `./internal` barrels and package export map are
+unchanged. Stable-target reconcile and Narrative migration remain planned work.
 
 ## 9. Changing the architecture
 
@@ -508,6 +519,9 @@ has a package-internal S1-T kernel for transient topology, action provenance,
 application-epoch fencing, and transition-kind readiness. Workspace Overlay and
 System dialogs are its live transient adopters: their public facades expose only
 definitions/configuration, structured intents, and read-only views while one
-composition authority owns lifecycle mutation. Stable-target reconcile and the
-Narrative migration remain planned work. Target documents do not alter the
-current data flow until each migration and its behavior tests land.
+composition authority owns lifecycle mutation. A source-relative dormant seam
+now proves how future stable runtime state can share that authority and identity
+domain, but it performs no stable proposal apply/readiness settlement and is not
+available through a package barrel. Stable-target reconcile and the Narrative
+migration remain planned work. Target documents do not alter the current data
+flow until each migration and its behavior tests land.

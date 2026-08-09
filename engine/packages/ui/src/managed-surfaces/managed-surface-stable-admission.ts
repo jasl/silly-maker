@@ -104,6 +104,13 @@ type ManagedSurfaceStableAdmissionStaleResultInternalV1 =
       | "surface.stable_source_revision_stale";
   };
 
+type ManagedSurfaceStableAdmissionFaultedResultInternalV1 =
+  & Omit<
+    Extract<ManagedSurfaceStableReconcileResultInternalV1, { readonly kind: "faulted" }>,
+    "code"
+  >
+  & { readonly code: "surface.stable_admission_faulted" };
+
 type ManagedSurfaceStableAdmissionZeroResultInternalV1 =
   | Omit<
     Extract<ManagedSurfaceStableReconcileResultInternalV1, { readonly kind: "unchanged" }>,
@@ -111,9 +118,10 @@ type ManagedSurfaceStableAdmissionZeroResultInternalV1 =
   >
     & { readonly code: "surface.stable_publication_unchanged" }
   | ManagedSurfaceStableAdmissionStaleResultInternalV1
+  | ManagedSurfaceStableAdmissionFaultedResultInternalV1
   | Extract<
     ManagedSurfaceStableReconcileResultInternalV1,
-    { readonly kind: "rejected" | "faulted" }
+    { readonly kind: "rejected" }
   >;
 
 export type ManagedSurfaceStableAdmissionResultInternalV1 =
@@ -147,6 +155,9 @@ export interface ManagedSurfaceStableAdmissionAuthorityInternalV1 {
   inspectAdmissionProposal(
     proposal: unknown,
   ): ManagedSurfaceStableAdmissionProposalInternalV1 | null;
+  inspectAdmittedTargetDefinition(
+    target: unknown,
+  ): ManagedSurfaceResolvedDefinitionV1 | null;
   evaluate(
     input: EvaluateManagedSurfaceStablePublicationInputInternalV1,
   ): ManagedSurfaceStableAdmissionResultInternalV1;
@@ -177,6 +188,16 @@ interface ReservationRecordInternalV1 {
   readonly generationToken: ManagedSurfaceStableReservationGenerationTokenInternalV1;
   readonly reservedRootSlotIds: ReadonlySet<ManagedSurfaceSlotIdV1>;
 }
+
+interface AdmissionAuthorityConfigurationRecordInternalV1 {
+  readonly publisherLeaseRegistry: ManagedSurfaceStablePublisherLeaseRegistryInternalV1;
+  readonly slotDescriptorSignatures: readonly string[];
+}
+
+const admissionAuthorityConfigurationRecordsInternalV1 = new WeakMap<
+  ManagedSurfaceStableAdmissionAuthorityInternalV1,
+  AdmissionAuthorityConfigurationRecordInternalV1
+>();
 
 interface CapturedTargetInternalV1 extends ManagedSurfaceStableTargetInternalV1 {
   readonly rawIndex: number;
@@ -297,6 +318,41 @@ function slotDescriptorKeyInternalV1(
   return descriptor.kind === "root"
     ? `root:${descriptor.slotId}`
     : `child:${descriptor.parentDefinitionId}:${descriptor.slotId}`;
+}
+
+function slotDescriptorSignatureInternalV1(
+  descriptor: ManagedSurfaceResolvedSlotDescriptorV1,
+): string {
+  return `${slotDescriptorKeyInternalV1(descriptor)}:${descriptor.cardinality}`;
+}
+
+/** Source-relative composition proof; no registry or catalog authority is exposed. */
+export function matchesManagedSurfaceStableAdmissionAuthorityConfigurationInternalV1(
+  authority: unknown,
+  publisherLeaseRegistry: unknown,
+  resolvedSlotDescriptors: unknown,
+): boolean {
+  if ((typeof authority !== "object" && typeof authority !== "function") || authority === null) {
+    return false;
+  }
+  const record = admissionAuthorityConfigurationRecordsInternalV1.get(
+    authority as ManagedSurfaceStableAdmissionAuthorityInternalV1,
+  );
+  if (record === undefined || record.publisherLeaseRegistry !== publisherLeaseRegistry) {
+    return false;
+  }
+  try {
+    if (!Array.isArray(resolvedSlotDescriptors)) return false;
+    const signatures = resolvedSlotDescriptors.map((value) =>
+      slotDescriptorSignatureInternalV1(
+        freezeSlotDescriptorInternalV1(value as ManagedSurfaceResolvedSlotDescriptorV1),
+      )
+    ).sort();
+    return signatures.length === record.slotDescriptorSignatures.length &&
+      signatures.every((signature, index) => signature === record.slotDescriptorSignatures[index]);
+  } catch {
+    return false;
+  }
 }
 
 function stackScopeKeyInternalV1(scope: ManagedSurfaceStableStackScopeInternalV1): string {
@@ -457,6 +513,9 @@ export function createManagedSurfaceStableAdmissionAuthorityInternalV1(
     slotDescriptors.set(key, descriptor);
     if (descriptor.kind === "root") rootSlotIds.add(descriptor.slotId);
   }
+  const slotDescriptorSignatures = Object.freeze(
+    [...slotDescriptors.values()].map(slotDescriptorSignatureInternalV1).sort(),
+  );
 
   const baselineRecords = new WeakMap<
     ManagedSurfaceStableAcceptedBaselineInternalV1,
@@ -474,6 +533,10 @@ export function createManagedSurfaceStableAdmissionAuthorityInternalV1(
     Uint8Array
   >();
   const admissionProposals = new WeakSet<ManagedSurfaceStableAdmissionProposalInternalV1>();
+  const admittedTargetDefinitions = new WeakMap<
+    ManagedSurfaceStableAdmittedTargetInternalV1,
+    ManagedSurfaceResolvedDefinitionV1
+  >();
 
   const createCanonicalBytes = (
     bytes: Uint8Array,
@@ -597,6 +660,14 @@ export function createManagedSurfaceStableAdmissionAuthorityInternalV1(
       return admissionProposals.has(proposal as ManagedSurfaceStableAdmissionProposalInternalV1)
         ? proposal as ManagedSurfaceStableAdmissionProposalInternalV1
         : null;
+    },
+    inspectAdmittedTargetDefinition(target: unknown): ManagedSurfaceResolvedDefinitionV1 | null {
+      if ((typeof target !== "object" && typeof target !== "function") || target === null) {
+        return null;
+      }
+      return admittedTargetDefinitions.get(
+        target as ManagedSurfaceStableAdmittedTargetInternalV1,
+      ) ?? null;
     },
     evaluate(
       evaluationInput: EvaluateManagedSurfaceStablePublicationInputInternalV1,
@@ -1057,7 +1128,7 @@ export function createManagedSurfaceStableAdmissionAuthorityInternalV1(
           nextTargets.push(target.retainedTarget);
         } else {
           const canonicalParameterBytes = createCanonicalBytes(canonical.bytes);
-          nextTargets.push(Object.freeze({
+          const admittedTarget = Object.freeze({
             publisherLease: publisherLease as ManagedSurfaceStablePublisherLeaseInternalV1,
             ownerId: leaseSnapshot.ownerId,
             occurrenceId: target.occurrenceId,
@@ -1067,7 +1138,12 @@ export function createManagedSurfaceStableAdmissionAuthorityInternalV1(
             stackScope: target.stackScope,
             normalizedParameters: canonical.value as DeepReadonly<StrictJsonValueV1>,
             canonicalParameterBytes,
-          }));
+          });
+          admittedTargetDefinitions.set(
+            admittedTarget,
+            target.definitionRecord.definition,
+          );
+          nextTargets.push(admittedTarget);
         }
         if (
           "occurrenceSequence" in target.classification &&
@@ -1154,6 +1230,11 @@ export function createManagedSurfaceStableAdmissionAuthorityInternalV1(
       admissionProposals.add(proposal);
       return Object.freeze({ kind: "admitted", proposal });
     },
+  });
+
+  admissionAuthorityConfigurationRecordsInternalV1.set(authority, {
+    publisherLeaseRegistry,
+    slotDescriptorSignatures,
   });
 
   return authority;

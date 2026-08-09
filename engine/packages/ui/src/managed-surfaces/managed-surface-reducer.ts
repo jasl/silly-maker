@@ -24,7 +24,11 @@ import {
   parseManagedSurfaceOwnerIdV1,
   parseManagedSurfaceSlotIdV1,
 } from "./managed-surface-contracts.ts";
-import { hasExpectedManagedSurfaceTransientIdentityV1 } from "./managed-surface-identity.ts";
+import {
+  copyManagedSurfaceRuntimeAttemptSequenceInternalV1,
+  hasExpectedManagedSurfaceTransientIdentityV1,
+  recordManagedSurfaceRuntimeAttemptSequenceInternalV1,
+} from "./managed-surface-identity.ts";
 
 export interface ManagedSurfaceReducerStateV1 {
   readonly publication: DeepReadonly<ManagedSurfacePublicationV1>;
@@ -65,7 +69,7 @@ function freezePublishedInstanceV1(
   parentInstanceId: ManagedSurfaceInstanceIdV1 | null,
   readiness: ManagedSurfaceReadinessV1 = Object.freeze({ kind: "ready" }),
 ): DeepReadonly<ManagedSurfacePublishedInstanceV1> {
-  return Object.freeze({
+  const instance = Object.freeze({
     definition: freezeDefinitionV1(candidate.definition),
     target: Object.freeze({ ...candidate.target }),
     surfaceInstanceId: candidate.surfaceInstanceId,
@@ -75,6 +79,11 @@ function freezePublishedInstanceV1(
     readiness: Object.freeze({ ...readiness }),
     routingLeaseId: candidate.routingLeaseId,
   }) as DeepReadonly<ManagedSurfacePublishedInstanceV1>;
+  recordManagedSurfaceRuntimeAttemptSequenceInternalV1(
+    instance,
+    candidate.identityAllocation.sequence,
+  );
+  return instance;
 }
 
 function withPhaseV1(
@@ -82,17 +91,23 @@ function withPhaseV1(
   phase: "active" | "suspended",
 ): DeepReadonly<ManagedSurfacePublishedInstanceV1> {
   if (instance.phase === phase) return instance;
-  return Object.freeze({ ...instance, phase }) as DeepReadonly<ManagedSurfacePublishedInstanceV1>;
+  const next = Object.freeze({ ...instance, phase }) as DeepReadonly<
+    ManagedSurfacePublishedInstanceV1
+  >;
+  copyManagedSurfaceRuntimeAttemptSequenceInternalV1(instance, next);
+  return next;
 }
 
 function withReadyReadinessV1(
   instance: DeepReadonly<ManagedSurfacePublishedInstanceV1>,
 ): DeepReadonly<ManagedSurfacePublishedInstanceV1> {
-  return Object.freeze({
+  const next = Object.freeze({
     ...instance,
     phase: "active",
     readiness: Object.freeze({ kind: "ready" as const }),
   }) as DeepReadonly<ManagedSurfacePublishedInstanceV1>;
+  copyManagedSurfaceRuntimeAttemptSequenceInternalV1(instance, next);
+  return next;
 }
 
 function orderedWithDerivedPhasesV1(

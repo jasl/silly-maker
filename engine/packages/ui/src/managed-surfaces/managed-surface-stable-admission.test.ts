@@ -19,6 +19,7 @@ import {
   type ManagedSurfaceSlotIdV1,
 } from "./managed-surface-contracts.ts";
 import type {
+  ManagedSurfaceStableAdmittedTargetInternalV1,
   ManagedSurfaceStableReconcileResultInternalV1,
   ManagedSurfaceStableSourceRevisionInternalV1,
 } from "./managed-surface-stable-contract.ts";
@@ -331,6 +332,15 @@ describe("dormant managed stable vector admission", () => {
       "surface.stable_publisher_lease_stale" | "surface.stable_source_revision_stale"
     >();
     expectTypeOf<
+      Extract<ManagedSurfaceStableAdmissionResultInternalV1, { kind: "faulted" }>["code"]
+    >().toEqualTypeOf<"surface.stable_admission_faulted">();
+    expectTypeOf<
+      Extract<
+        Extract<ManagedSurfaceStableAdmissionResultInternalV1, { kind: "faulted" }>["code"],
+        "surface.stable_reconcile_faulted"
+      >
+    >().toEqualTypeOf<never>();
+    expectTypeOf<
       Extract<
         Extract<ManagedSurfaceStableAdmissionResultInternalV1, { kind: "stale" }>["code"],
         "surface.stable_reconcile_precondition_stale"
@@ -352,6 +362,7 @@ describe("dormant managed stable vector admission", () => {
         | "createUnpublishedBaseline"
         | "createReservationGenerationToken"
         | "createRootReservationSnapshot"
+        | "inspectAdmittedTargetDefinition"
         | "inspectAdmissionProposal"
         | "evaluate"
       >();
@@ -501,6 +512,85 @@ describe("dormant managed stable vector admission", () => {
     expect(Object.isFrozen(target.canonicalParameterBytes)).toBe(true);
     rawParameters.count = 99;
     expect(target.normalizedParameters).toEqual({ count: 1 });
+  });
+
+  it("inspects only exact same-factory admitted or retained targets without replacing proposal provenance", () => {
+    const sidecars = definitionSidecarsV1();
+    const expectedDefinition =
+      sidecars.find((sidecar) => sidecar.definition.definitionId === rootStackDefinitionIdV1)!
+        .definition;
+    const harness = harnessV1({ definitionSidecars: sidecars });
+    const occurrence = harness.workspace.issueOccurrence();
+    const revision1 = harness.workspace.issueSourceRevision();
+    const initial = admittedV1(
+      evaluateV1(
+        harness,
+        publicationV1(harness.workspace, revision1, [
+          targetV1({ occurrenceId: occurrence }),
+        ]),
+      ),
+    );
+    const initialBaseline = initial.proposal.nextAcceptedBaseline;
+    const exactTarget = initialBaseline.targets[0]!;
+
+    const capturedDefinition = harness.authority.inspectAdmittedTargetDefinition(exactTarget);
+    expect(capturedDefinition).toEqual(expectedDefinition);
+    expect(Object.isFrozen(capturedDefinition)).toBe(true);
+
+    const revision2 = harness.workspace.issueSourceRevision();
+    const greaterSame = admittedV1(
+      evaluateV1(
+        harness,
+        publicationV1(harness.workspace, revision2, [
+          targetV1({ occurrenceId: occurrence }),
+        ]),
+        { acceptedBaseline: initialBaseline },
+      ),
+    );
+    expect(greaterSame.proposal.relation).toBe("greater_same");
+    const retainedTarget = greaterSame.proposal.nextAcceptedBaseline.targets[0]!;
+    expect(retainedTarget).toBe(exactTarget);
+    expect(harness.authority.inspectAdmittedTargetDefinition(retainedTarget)).toBe(
+      capturedDefinition,
+    );
+
+    const clonedTarget = Object.freeze({
+      ...exactTarget,
+    }) satisfies ManagedSurfaceStableAdmittedTargetInternalV1;
+    expect(harness.authority.inspectAdmittedTargetDefinition(clonedTarget)).toBeNull();
+
+    const foreign = harnessV1();
+    const foreignOccurrence = foreign.workspace.issueOccurrence();
+    const foreignRevision = foreign.workspace.issueSourceRevision();
+    const foreignTarget = admittedV1(
+      evaluateV1(
+        foreign,
+        publicationV1(foreign.workspace, foreignRevision, [
+          targetV1({ occurrenceId: foreignOccurrence }),
+        ]),
+      ),
+    ).proposal.nextAcceptedBaseline.targets[0]!;
+    expect(harness.authority.inspectAdmittedTargetDefinition(foreignTarget)).toBeNull();
+
+    const matchingDefinitionHybrid = Object.freeze({
+      ...foreignTarget,
+      definitionId: exactTarget.definitionId,
+      definitionContractRevision: exactTarget.definitionContractRevision,
+    }) satisfies ManagedSurfaceStableAdmittedTargetInternalV1;
+    expect(harness.authority.inspectAdmittedTargetDefinition(matchingDefinitionHybrid))
+      .toBeNull();
+
+    const proposalSplice = Object.freeze({
+      ...initial.proposal,
+      nextAcceptedBaseline: Object.freeze({
+        ...initialBaseline,
+        targets: Object.freeze([exactTarget]),
+      }),
+    }) as ManagedSurfaceStableAdmissionProposalInternalV1;
+    expect(harness.authority.inspectAdmittedTargetDefinition(exactTarget)).toBe(
+      capturedDefinition,
+    );
+    expect(harness.authority.inspectAdmissionProposal(proposalSplice)).toBeNull();
   });
 
   it("enforces outer, source, and baseline precedence without touching target values", () => {

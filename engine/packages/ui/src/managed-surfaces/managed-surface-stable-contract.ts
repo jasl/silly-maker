@@ -169,6 +169,7 @@ const rejectedCodesInternalV1 = Object.freeze({
 const faultedCodesInternalV1 = Object.freeze(
   [
     "surface.stable_admission_faulted",
+    "surface.stable_reconcile_faulted",
   ] as const,
 );
 
@@ -543,7 +544,9 @@ export type ManagedSurfaceStableDeltaCaseInternalV1 =
   | "equal_invalid"
   | "equal_different"
   | "greater_invalid"
+  | "initial_nonempty"
   | "greater_same_all_active"
+  | "greater_same_parent_unavailable"
   | "greater_same_gap"
   | "greater_changed"
   | "greater_empty_with_observable_targets"
@@ -556,7 +559,8 @@ export type ManagedSurfaceStableDeltaCaseInternalV1 =
   | "effective_dispose_with_nonobservable_targets"
   | "effective_dispose_without_runtime"
   | "repeated_dispose"
-  | "admission_fault";
+  | "admission_fault"
+  | "reconcile_fault";
 
 export type ManagedSurfaceStableDeltaContractRowInternalV1 =
   & ManagedSurfaceStableDeltaInternalV1
@@ -719,7 +723,27 @@ export const managedSurfaceStableDeltaContractInternalV1 = Object.freeze([
     ...zeroDeltaInternalV1,
   }),
   freezeDeltaRowInternalV1({
+    case: "initial_nonempty",
+    resultKind: "applied",
+    resultCodes: Object.freeze(["surface.stable_publication_applied"]),
+    source: "replace_vector",
+    runtime: "retain_retire_prepare",
+    notificationCount: 1,
+    topology: "readiness_policy_derived",
+    runtimeAllocation: "preparation_count",
+  }),
+  freezeDeltaRowInternalV1({
     case: "greater_same_all_active",
+    resultKind: "applied",
+    resultCodes: Object.freeze(["surface.stable_publication_applied"]),
+    source: "advance_cursor",
+    runtime: "unchanged",
+    notificationCount: 1,
+    topology: "unchanged",
+    runtimeAllocation: "zero",
+  }),
+  freezeDeltaRowInternalV1({
+    case: "greater_same_parent_unavailable",
     resultKind: "applied",
     resultCodes: Object.freeze(["surface.stable_publication_applied"]),
     source: "advance_cursor",
@@ -844,6 +868,12 @@ export const managedSurfaceStableDeltaContractInternalV1 = Object.freeze([
     case: "admission_fault",
     resultKind: "faulted",
     resultCodes: Object.freeze(["surface.stable_admission_faulted"]),
+    ...zeroDeltaInternalV1,
+  }),
+  freezeDeltaRowInternalV1({
+    case: "reconcile_fault",
+    resultKind: "faulted",
+    resultCodes: Object.freeze(["surface.stable_reconcile_faulted"]),
     ...zeroDeltaInternalV1,
   }),
 ]);

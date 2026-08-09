@@ -14,12 +14,12 @@ S3e.0 successor-acknowledgment/terminal-teardown 准备切片均已完成；2026
 cutover and promotion 已关闭；同日 S1-R.0 stable publication/identity/failure contract
 floor、S1-R.1 publisher lease/source/occurrence allocator、S1-R.1a captured occurrence
 admission proof corrective、S1-R.2a corrective admission contract、S1-R.2b Base bounded canonical
-projection seam、S1-R.2c stable-vector admission 与 S1-R.3.0 apply/readiness contract closure已关闭，下一独立切片为
-S1-R.3a composition-owned composite runtime/identity/provenance seam，随后是 S1-R.3b pure atomic reconcile。
+projection seam、S1-R.2c stable-vector admission、S1-R.3.0 apply/readiness contract closure与
+S1-R.3a composition-owned composite runtime/identity/provenance seam 已关闭，下一独立切片为
+S1-R.3b pure atomic reconcile。
 同日 S1-R pre-implementation review 将 aggregate 重切为 S1-R.0–S1-R.5，并冻结
 parent/order、专用 revision、failure divergence、empty/dispose、cross-owner、bounded
-admission 与 exact delta；S1-R.0–R3.0（含R1a corrective）已实现 dormant internal floor，
-R3a–R5 尚未实现。
+admission 与 exact delta；S1-R.0–R3a（含R1a corrective）已实现，R3b–R5 尚未实现。
 目标合同见
 [Managed Surface lifecycle and contract harness](../design/surface-contract-harness.md)。
 本文只规定可独立交付的实施顺序；不要求一次实现 design
@@ -27,7 +27,7 @@ R3a–R5 尚未实现。
 
 在 [production-floor sequence](2026-07-30-production-floor-sequence.md)
 中：PF2 的 `S0 -> S1-T -> S2`、PF-DET、PF3/M2 与 PF4/S3 已完成；当前 core
-节点是 PF4/S1-R.3a。PF4 的顺序是 `S3 -> S1-R.0 -> S1-R.1–S1-R.5 -> S4 -> S4b`；
+节点是 PF4/S1-R.3b。PF4 的顺序是 `S3 -> S1-R.0 -> S1-R.1–S1-R.5 -> S4 -> S4b`；
 S5–S6 属于 PF6。S1-R
 延后到第一个真实 externally published stable-target family 前完成；按 accepted
 target ownership，S4 Narrative 计划成为该 family，因此 S1-R 位于 S3 与 S4
@@ -1640,7 +1640,7 @@ S1-R 按以下可独立合并切片推进，每次只领取一个：
 7. **S1-R.3.0 apply/readiness contract closure（已完成）**：补齐apply-time exact CAS stale taxonomy、
    zero-delta/notification/allocation rows与stable-only readiness envelope；不apply proposal、
    不settle readiness；
-8. **S1-R.3a composition-owned composite runtime/identity/provenance seam**：抽取 package-internal generic runtime
+8. **S1-R.3a composition-owned composite runtime/identity/provenance seam（已完成）**：抽取 package-internal generic runtime
    topology kernel，让现有 transient reducer/Coordinator adapter复用它，同时建立
    stable runtime-attempt provenance、same-factory definition inspector与全局 reservation
    contributor generation；不 apply R2 proposal；
@@ -1654,10 +1654,10 @@ S1-R 按以下可独立合并切片推进，每次只领取一个：
     10k churn、pure/model equivalence 与 public/transient export audit，汇总 dormant
     promotion evidence。
 
-当前只允许从 **S1-R.3a** 开始，关闭后才进入 **S1-R.3b**。Stable ingress与全部新增
-S1-R state/API仍保持dormant/package-internal，不接 Narrative/React/Web，不更新 live feature
-文档；R3a会重构既有live transient reducer/Coordinator的internal kernel，但必须由adapter保持
-全部现有transient行为。
+当前只允许从 **S1-R.3b** 开始。Stable ingress与全部新增 S1-R state/API仍保持
+dormant/package-internal，不接 Narrative/React/Web，不更新 live feature 文档；R3a 已将既有
+live transient reducer/Coordinator 收口到同一 internal kernel/authority，并由adapter保持全部
+现有transient行为。
 
 **S1-R.0 acceptance：** 只交付 internal shapes、fixed constants、result taxonomy、
 precedence/delta tables 与 pure fixture/table tests；不执行 definition schema/canonical
@@ -2139,6 +2139,31 @@ case，覆盖R3 package-owned planning/invariant/exhaustion以及registry/compos
 unit与`deno task check`外，还必须复跑受影响的Engine/examples browser matrix与prebuilt Player
 smoke，证明transient publication、receipt、identity与family behavior逐字保持。若R3a只能靠长期
 dual path保持兼容，命中stop condition；R3b在不触及live wiring时无需额外browser/E2E。
+
+**2026-08-09 S1-R.3a delivery：** live transient reducer/Coordinator 已通过 source-relative
+generic runtime kernel 与 composition-owned runtime authority 共用唯一 current state、mutation/
+reentry fence、notification owner和 application-epoch identity cursor；prepared install 以 exact
+expected-state、一次性 opaque preparation 与 commit-time gate 保持 CAS/通知原子性，原有 transient
+publication、receipt、ID spelling、revision、同步 nested notification 与 dispose 行为不变。Dormant
+stable composite seam 只认证和保存 stable desired/runtime binding：runtime attempt 使用同一 identity
+cursor，ready/preparing/gap 为 closed binding，bound ready 不得降级复用为 candidate；ready instance
+及 retained predecessor 保留 exact attempt/target identity，source revision 不得领先 current desired，
+predecessor 只能是同 publisher、同 single-root scope、不同 occurrence 的 exact current ready instance。
+Child runtime 要求 exact ready-parent topology；只有已存在的 exact `readiness_failed` child gap 可在
+parent suspended 时保留，fresh gap仍失败关闭。Same-factory R2 definition inspector、exact R1 registry、
+application epoch 与 canonical slot-catalog signature共同约束 composite factory；foreign registry/
+authority、slot drift和伪造 admitted target均不能进入，descriptor reorder不改变catalog identity。
+
+Root reservation contributor vector按 stable desired/runtime 与 transient runtime 的authentic provenance、
+role、phase和runtime sequence canonical化：row变化或slot-set ABA轮换fresh generation token，semantic
+equal重建、source-cursor-only与child-only变化保留exact token；subject snapshot只排除exact publisher
+lease，保留same-owner transient contributor。R0同时补齐`initial_nonempty`、
+`greater_same_parent_unavailable`、`surface.stable_reconcile_faulted`与`reconcile_fault`的exact
+code/delta/type floor。该切片没有读取或apply R2 proposal、没有安装accepted baseline、没有settle
+readiness、没有开放live stable ingress或family adapter，也没有把新增kernel/composite/provenance seam
+加入UI root、`./internal` barrel或package export subpath。验证通过 focused `5 files / 67 tests`、UI
+package `74 / 832`、`deno task test`（`248 / 3760`）、完整`deno task check`、Engine browser
+`101 / 101`、examples browser `45 passed / 2 skipped`与prebuilt Player `38 / 38`。
 
 #### R3b pure reconcile and synchronous owner commit
 

@@ -3,7 +3,6 @@ import {
   type DeepReadonly,
   type NonNegativeSafeInteger,
   parseNonNegativeSafeInteger,
-  parsePositiveSafeInteger,
   type StrictJsonObjectV1,
 } from "@sillymaker/base";
 
@@ -22,11 +21,12 @@ import {
   type ManagedSurfaceTransitionReceiptV1,
 } from "./managed-surface-contracts.ts";
 import { parseManagedSurfaceResolvedDefinitionV1 } from "./managed-surface-definition.ts";
-import { createManagedSurfaceTransientIdentityV1 } from "./managed-surface-identity.ts";
+import { createManagedSurfaceReducerStateV1 } from "./managed-surface-reducer.ts";
 import {
-  createManagedSurfaceReducerStateV1,
-  reduceManagedSurfaceV1,
-} from "./managed-surface-reducer.ts";
+  createManagedSurfaceRuntimeAuthorityBundleInternalV1,
+  type ManagedSurfaceRuntimeAuthorityInternalV1,
+} from "./managed-surface-runtime-authority.ts";
+import { type ManagedSurfaceRuntimeKernelInternalV1 } from "./managed-surface-runtime-kernel.ts";
 
 export type ManagedSurfaceHandleV1 = ManagedSurfaceTransitionEvidenceV1;
 export type ManagedSurfaceOwnerHandleV1 = ManagedSurfaceOwnerTransitionEvidenceV1;
@@ -172,48 +172,51 @@ function handleResultV1(
 export function createManagedSurfaceCoordinatorV1(
   input: CreateManagedSurfaceCoordinatorInputV1,
 ): ManagedSurfaceCoordinatorV1 {
+  return createManagedSurfaceCoordinatorRuntimeBundleInternalV1(input).coordinator;
+}
+
+export interface ManagedSurfaceCoordinatorRuntimeBundleInternalV1 {
+  readonly authority: ManagedSurfaceRuntimeAuthorityInternalV1;
+  readonly coordinator: ManagedSurfaceCoordinatorV1;
+}
+
+export function createManagedSurfaceCoordinatorRuntimeBundleInternalV1(
+  input: CreateManagedSurfaceCoordinatorInputV1,
+): ManagedSurfaceCoordinatorRuntimeBundleInternalV1 {
   const applicationEpoch = parseNonNegativeSafeInteger(input.applicationEpoch);
   const subscriberFailureV1 = Object.freeze({
     code: "surface.subscriber_failed" as const,
     summary: "Managed Surface publication subscriber failed.",
     details: Object.freeze({ applicationEpoch }) as StrictJsonObjectV1,
   });
-  let state = createManagedSurfaceReducerStateV1(
+  const initialState = createManagedSurfaceReducerStateV1(
     applicationEpoch,
     input.resolvedOwnerIds,
     input.resolvedSlotDescriptors,
   );
-  const resolvedOwnerIds = new Set(state.resolvedOwnerIds);
-  const resolvedSlotDescriptors = state.resolvedSlotDescriptors;
-  const listeners = new Set<() => void>();
+  const runtime = createManagedSurfaceRuntimeAuthorityBundleInternalV1({
+    initialState,
+    reportSubscriberFailure: () => input.reportSubscriberFailure?.(subscriberFailureV1),
+  });
+  return Object.freeze({
+    authority: runtime.authority,
+    coordinator: createManagedSurfaceCoordinatorFacadeInternalV1(runtime.kernel),
+  });
+}
 
-  const reportSubscriberFailure = (): void => {
-    try {
-      input.reportSubscriberFailure?.(subscriberFailureV1);
-    } catch {
-      // Diagnostics are best effort and cannot change a committed publication.
-    }
-  };
-
-  const notify = (): void => {
-    for (const listener of [...listeners]) {
-      try {
-        listener();
-      } catch {
-        reportSubscriberFailure();
-      }
-    }
-  };
+/** Source-relative façade used by the future composition-owned stable owner. */
+export function createManagedSurfaceCoordinatorFacadeInternalV1<TState>(
+  runtimeKernel: ManagedSurfaceRuntimeKernelInternalV1<TState>,
+): ManagedSurfaceCoordinatorV1 {
+  const getState = runtimeKernel.getTransientStateInternalV1;
+  const initialState = getState();
+  const applicationEpoch = initialState.publication.applicationEpoch;
+  const resolvedOwnerIds = new Set(initialState.resolvedOwnerIds);
+  const resolvedSlotDescriptors = initialState.resolvedSlotDescriptors;
 
   const transition = (
-    operation: Parameters<typeof reduceManagedSurfaceV1>[1],
-  ): ManagedSurfaceTransitionReceiptV1 => {
-    const previousPublication = state.publication;
-    const result = reduceManagedSurfaceV1(state, operation);
-    state = result.state;
-    if (state.publication !== previousPublication) notify();
-    return result.receipt;
-  };
+    operation: Parameters<typeof runtimeKernel.transitionTransientInternalV1>[0],
+  ): ManagedSurfaceTransitionReceiptV1 => runtimeKernel.transitionTransientInternalV1(operation);
 
   const rejectedReceipt = (
     code:
@@ -230,8 +233,8 @@ export function createManagedSurfaceCoordinatorV1(
     Object.freeze({
       kind: "rejected",
       code,
-      beforeTopologyRevision: state.publication.topologyRevision,
-      afterTopologyRevision: state.publication.topologyRevision,
+      beforeTopologyRevision: getState().publication.topologyRevision,
+      afterTopologyRevision: getState().publication.topologyRevision,
     });
 
   const staleReceipt = (
@@ -245,21 +248,21 @@ export function createManagedSurfaceCoordinatorV1(
     Object.freeze({
       kind: "stale",
       code,
-      beforeTopologyRevision: state.publication.topologyRevision,
-      afterTopologyRevision: state.publication.topologyRevision,
+      beforeTopologyRevision: getState().publication.topologyRevision,
+      afterTopologyRevision: getState().publication.topologyRevision,
       surfaceInstanceId,
     });
 
   const evidenceAdmissionFailure = (
     evidence: ManagedSurfaceHandleV1,
   ): ManagedSurfaceTransitionReceiptV1 | null => {
-    if (evidence.applicationEpoch !== state.publication.applicationEpoch) {
+    if (evidence.applicationEpoch !== getState().publication.applicationEpoch) {
       return staleReceipt("surface.stale_application_epoch", evidence.surfaceInstanceId);
     }
-    if (evidence.topologyRevision !== state.publication.topologyRevision) {
+    if (evidence.topologyRevision !== getState().publication.topologyRevision) {
       return staleReceipt("surface.stale_topology_revision", evidence.surfaceInstanceId);
     }
-    const current = state.publication.orderedInstances.find(
+    const current = getState().publication.orderedInstances.find(
       (instance) =>
         instance.surfaceInstanceId === evidence.surfaceInstanceId &&
         instance.readiness.kind === "ready",
@@ -272,10 +275,10 @@ export function createManagedSurfaceCoordinatorV1(
   const readinessAdmissionFailure = (
     evidence: ManagedSurfaceReadinessEvidenceV1,
   ): ManagedSurfaceTransitionReceiptV1 | null => {
-    if (evidence.applicationEpoch !== state.publication.applicationEpoch) {
+    if (evidence.applicationEpoch !== getState().publication.applicationEpoch) {
       return staleReceipt("surface.stale_application_epoch", evidence.surfaceInstanceId);
     }
-    const current = state.publication.orderedInstances.find(
+    const current = getState().publication.orderedInstances.find(
       (instance) =>
         instance.surfaceInstanceId === evidence.surfaceInstanceId &&
         instance.readiness.kind === "preparing",
@@ -290,7 +293,7 @@ export function createManagedSurfaceCoordinatorV1(
     expectedPlacement: "root" | "child",
     parent?: ManagedSurfaceHandleV1,
   ): ManagedSurfaceTransitionReceiptV1 | null => {
-    if (state.publication.coordinatorDisposed) {
+    if (getState().publication.coordinatorDisposed) {
       return rejectedReceipt("surface.coordinator_disposed");
     }
     if (!resolvedOwnerIds.has(definition.ownerId)) {
@@ -312,10 +315,10 @@ export function createManagedSurfaceCoordinatorV1(
       );
     }
     const currentParent = parent === undefined ||
-        parent.applicationEpoch !== state.publication.applicationEpoch ||
-        parent.topologyRevision !== state.publication.topologyRevision
+        parent.applicationEpoch !== getState().publication.applicationEpoch ||
+        parent.topologyRevision !== getState().publication.topologyRevision
       ? undefined
-      : state.publication.orderedInstances.find(
+      : getState().publication.orderedInstances.find(
         (instance) => instance.surfaceInstanceId === parent.surfaceInstanceId,
       );
     if (currentParent === undefined) return null;
@@ -336,24 +339,7 @@ export function createManagedSurfaceCoordinatorV1(
 
   const allocateCandidate = (
     request: ManagedSurfaceTransientOpenInputV1,
-  ): ManagedSurfaceCandidateV1 => {
-    if (state.identitySequenceHighWater >= Number.MAX_SAFE_INTEGER) {
-      throw new TypeError("ui.managed_surface_id_sequence_exhausted");
-    }
-    const sequence = parsePositiveSafeInteger(state.identitySequenceHighWater + 1);
-    const identity = createManagedSurfaceTransientIdentityV1(applicationEpoch, sequence);
-    return Object.freeze({
-      identityAllocation: identity.allocation,
-      definition: request.definition,
-      target: Object.freeze({
-        kind: "transient" as const,
-        occurrenceId: identity.occurrenceId,
-      }),
-      surfaceInstanceId: identity.surfaceInstanceId,
-      routingLeaseId: identity.routingLeaseId,
-      semanticOccurrenceId: request.semanticOccurrenceId,
-    });
-  };
+  ): ManagedSurfaceCandidateV1 => runtimeKernel.peekTransientCandidateInternalV1(request);
 
   const normalizeDefinition = (
     definition: ManagedSurfaceResolvedDefinitionV1,
@@ -394,45 +380,34 @@ export function createManagedSurfaceCoordinatorV1(
     );
 
   const coordinator: ManagedSurfaceCoordinatorV1 = {
-    getSnapshot: () => state.publication,
+    getSnapshot: runtimeKernel.getTransientSnapshotInternalV1,
 
     getHandle(surfaceInstanceId) {
-      const current = state.publication.orderedInstances.find(
+      const current = getState().publication.orderedInstances.find(
         (instance) =>
           instance.surfaceInstanceId === surfaceInstanceId &&
           instance.readiness.kind === "ready",
       );
       return current === undefined
         ? null
-        : handleV1(applicationEpoch, state.publication.topologyRevision, surfaceInstanceId);
+        : handleV1(applicationEpoch, getState().publication.topologyRevision, surfaceInstanceId);
     },
 
     getOwnerHandle(ownerId) {
-      const hasLiveInstance = state.publication.orderedInstances.some(
+      const hasLiveInstance = getState().publication.orderedInstances.some(
         (instance) =>
           instance.definition.ownerId === ownerId && instance.readiness.kind === "ready",
       );
       return hasLiveInstance
         ? Object.freeze({
           applicationEpoch,
-          topologyRevision: state.publication.topologyRevision,
+          topologyRevision: getState().publication.topologyRevision,
           ownerId,
         })
         : null;
     },
 
-    subscribe(listener) {
-      if (state.publication.coordinatorDisposed) {
-        throw new TypeError("ui.managed_surface_coordinator_disposed");
-      }
-      listeners.add(listener);
-      let subscribed = true;
-      return (): void => {
-        if (!subscribed) return;
-        subscribed = false;
-        listeners.delete(listener);
-      };
-    },
+    subscribe: runtimeKernel.subscribeTransientInternalV1,
 
     openTransientPrimary(request) {
       const definition = normalizeDefinition(request.definition);
@@ -443,7 +418,7 @@ export function createManagedSurfaceCoordinatorV1(
       if (admissionFailure !== null) {
         return handleResultV1(applicationEpoch, admissionFailure, false);
       }
-      if (state.disposedOwnerIds.includes(definition.ownerId)) {
+      if (getState().disposedOwnerIds.includes(definition.ownerId)) {
         return handleResultV1(
           applicationEpoch,
           rejectedReceipt("surface.owner_disposed"),
@@ -455,7 +430,7 @@ export function createManagedSurfaceCoordinatorV1(
       );
       if (
         rootSlot?.cardinality === "single" &&
-        state.publication.orderedInstances.some(
+        getState().publication.orderedInstances.some(
           (instance) =>
             instance.parentInstanceId === null && instance.definition.slotId === definition.slotId,
         )
@@ -483,7 +458,7 @@ export function createManagedSurfaceCoordinatorV1(
       if (admissionFailure !== null) {
         return handleResultV1(applicationEpoch, admissionFailure, false);
       }
-      if (state.disposedOwnerIds.includes(definition.ownerId)) {
+      if (getState().disposedOwnerIds.includes(definition.ownerId)) {
         return handleResultV1(
           applicationEpoch,
           rejectedReceipt("surface.owner_disposed"),
@@ -494,7 +469,7 @@ export function createManagedSurfaceCoordinatorV1(
       if (readinessFailure !== null) {
         return handleResultV1(applicationEpoch, readinessFailure, false);
       }
-      const expectedCandidate = state.publication.orderedInstances.find(
+      const expectedCandidate = getState().publication.orderedInstances.find(
         (instance) =>
           instance.surfaceInstanceId === request.expected.surfaceInstanceId &&
           instance.parentInstanceId === null &&
@@ -533,7 +508,7 @@ export function createManagedSurfaceCoordinatorV1(
       if (admissionFailure !== null) {
         return handleResultV1(applicationEpoch, admissionFailure, false);
       }
-      if (state.disposedOwnerIds.includes(definition.ownerId)) {
+      if (getState().disposedOwnerIds.includes(definition.ownerId)) {
         return handleResultV1(
           applicationEpoch,
           rejectedReceipt("surface.owner_disposed"),
@@ -544,7 +519,7 @@ export function createManagedSurfaceCoordinatorV1(
       if (evidenceFailure !== null) {
         return handleResultV1(applicationEpoch, evidenceFailure, false);
       }
-      const retained = state.publication.orderedInstances.find(
+      const retained = getState().publication.orderedInstances.find(
         (instance) =>
           instance.surfaceInstanceId === request.expected.surfaceInstanceId &&
           instance.parentInstanceId === null &&
@@ -570,20 +545,20 @@ export function createManagedSurfaceCoordinatorV1(
     },
 
     cancelTransientPrimaryReplacement(request) {
-      if (state.publication.coordinatorDisposed) {
+      if (getState().publication.coordinatorDisposed) {
         return rejectedReceipt("surface.coordinator_disposed");
       }
       const retainedFailure = evidenceAdmissionFailure(request.retained);
       if (retainedFailure !== null) return retainedFailure;
       const readinessFailure = readinessAdmissionFailure(request.pending);
       if (readinessFailure !== null) return readinessFailure;
-      const retainedRoot = state.publication.orderedInstances.find(
+      const retainedRoot = getState().publication.orderedInstances.find(
         (instance) =>
           instance.surfaceInstanceId === request.retained.surfaceInstanceId &&
           instance.parentInstanceId === null &&
           instance.readiness.kind === "ready",
       );
-      const pendingCandidate = state.publication.orderedInstances.find(
+      const pendingCandidate = getState().publication.orderedInstances.find(
         (instance) =>
           instance.surfaceInstanceId === request.pending.surfaceInstanceId &&
           instance.parentInstanceId === null &&
@@ -621,7 +596,7 @@ export function createManagedSurfaceCoordinatorV1(
       if (admissionFailure !== null) {
         return handleResultV1(applicationEpoch, admissionFailure, false);
       }
-      if (state.disposedOwnerIds.includes(definition.ownerId)) {
+      if (getState().disposedOwnerIds.includes(definition.ownerId)) {
         return handleResultV1(
           applicationEpoch,
           rejectedReceipt("surface.owner_disposed"),
@@ -632,7 +607,7 @@ export function createManagedSurfaceCoordinatorV1(
       if (evidenceFailure !== null) {
         return handleResultV1(applicationEpoch, evidenceFailure, false);
       }
-      const parent = state.publication.orderedInstances.find(
+      const parent = getState().publication.orderedInstances.find(
         (instance) =>
           instance.surfaceInstanceId === request.parent.surfaceInstanceId &&
           instance.readiness.kind === "ready",
@@ -657,7 +632,7 @@ export function createManagedSurfaceCoordinatorV1(
       );
       if (
         childSlot?.cardinality === "single" &&
-        state.publication.orderedInstances.some(
+        getState().publication.orderedInstances.some(
           (instance) =>
             instance.parentInstanceId === parent.surfaceInstanceId &&
             instance.definition.slotId === definition.slotId,
@@ -753,9 +728,7 @@ export function createManagedSurfaceCoordinatorV1(
     },
 
     dispose() {
-      const receipt = transition({ kind: "dispose_coordinator" });
-      if (state.publication.coordinatorDisposed) listeners.clear();
-      return receipt;
+      return transition({ kind: "dispose_coordinator" });
     },
   };
 

@@ -156,7 +156,10 @@ describe("dormant managed stable Surface contract", () => {
         equal_revision: ["surface.stable_source_revision_conflict"],
         owner_conflict: ["surface.stable_owner_conflict"],
       },
-      faulted: ["surface.stable_admission_faulted"],
+      faulted: [
+        "surface.stable_admission_faulted",
+        "surface.stable_reconcile_faulted",
+      ],
     });
 
     const codes = [
@@ -179,6 +182,11 @@ describe("dormant managed stable Surface contract", () => {
       | "surface.stable_publisher_lease_stale"
       | "surface.stable_source_revision_stale"
       | "surface.stable_reconcile_precondition_stale"
+    >();
+    expectTypeOf<
+      Extract<ManagedSurfaceStableReconcileResultInternalV1, { kind: "faulted" }>["code"]
+    >().toEqualTypeOf<
+      "surface.stable_admission_faulted" | "surface.stable_reconcile_faulted"
     >();
   });
 
@@ -848,7 +856,27 @@ describe("dormant managed stable Surface contract", () => {
         runtimeAllocation: "zero",
       },
       {
+        case: "initial_nonempty",
+        resultKind: "applied",
+        resultCodes: ["surface.stable_publication_applied"],
+        source: "replace_vector",
+        runtime: "retain_retire_prepare",
+        notificationCount: 1,
+        topology: "readiness_policy_derived",
+        runtimeAllocation: "preparation_count",
+      },
+      {
         case: "greater_same_all_active",
+        resultKind: "applied",
+        resultCodes: ["surface.stable_publication_applied"],
+        source: "advance_cursor",
+        runtime: "unchanged",
+        notificationCount: 1,
+        topology: "unchanged",
+        runtimeAllocation: "zero",
+      },
+      {
+        case: "greater_same_parent_unavailable",
         resultKind: "applied",
         resultCodes: ["surface.stable_publication_applied"],
         source: "advance_cursor",
@@ -981,6 +1009,16 @@ describe("dormant managed stable Surface contract", () => {
         case: "admission_fault",
         resultKind: "faulted",
         resultCodes: ["surface.stable_admission_faulted"],
+        source: "unchanged",
+        runtime: "unchanged",
+        notificationCount: 0,
+        topology: "unchanged",
+        runtimeAllocation: "zero",
+      },
+      {
+        case: "reconcile_fault",
+        resultKind: "faulted",
+        resultCodes: ["surface.stable_reconcile_faulted"],
         source: "unchanged",
         runtime: "unchanged",
         notificationCount: 0,
