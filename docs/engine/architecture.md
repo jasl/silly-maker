@@ -540,12 +540,43 @@ then clears both listener sets; repeat is unchanged and allocation-free. A
 source-relative read-only comparison probe exposes only frozen identity booleans
 and collection sizes for deterministic teardown auditing. Already-terminal
 transient state cannot seed a fresh composite with a live registry.
-The dormant stable contract now also freezes its dedicated readiness result/delta
-table and the cascade-aware empty/dispose delta rows, but no stateful settlement
-method consumes them yet. The seams still do not settle stable readiness or
-connect stable ingress to a live family. The UI root and `./internal` barrels and
-package export map are unchanged. Stable readiness/global cascade and Narrative
-migration remain planned work.
+The dormant stable owner now consumes the dedicated readiness contract through
+two source-relative `ready` and `failed` settlement methods. They enter the same
+kernel fence before reading evidence, then check application epoch, exact
+candidate attempt, lease, and source revision before inspecting whole-composite
+coherence. Ready cutover and terminal failure both run one shared topology
+reflow; stale or planning/capacity failure keeps the exact old composite and
+notifies neither listener axis. The same reflow is also the single planning
+authority for stable proposal/empty/effective-dispose transitions and for the
+specialized kernel's nonterminal transient finalizer.
+
+Planning first projects the visible roots and existing runtime through the
+shared topology policy without allocating child identities. It then combines
+new stable roots, explicitly eligible child retries, and every newly-active
+same- or other-owner parent's direct `parent_unavailable` children into one R3
+canonical planning batch. One detached shared-cursor allocation supports valid
+cross-publisher batches above 64 without inheriting the older one-at-a-time
+pending/depth limits; capacity is checked before any install or publisher
+dispose gate. Grandchildren remain gaps. Retained predecessor phase changes
+produce a same-origin authenticated aggregate while preserving exact attempts,
+and installed readiness-failure gaps retain exact provenance across later
+reflow without making forged suspended-parent gaps admissible.
+
+Transient phase materialization stays owned by the reducer's source-relative
+publication projector. A direct stable transition that changes that projection
+advances the existing transient publication/topology revisions and delivers one
+transient notification before the one composite-state notification; otherwise
+only the composite listener fires. A nonterminal transient transition coalesces
+the same projection into its existing revision and atomically rolls back to the
+old transient and stable state with `surface.transition_faulted` if phase or
+capacity planning fails. Equal-layer rows without an R2, retained-subtree, or
+existing transient preorder remain a closed planning fault rather than gaining
+an allocation-derived z-order.
+
+These stateful methods remain package-internal and source-relative: no live
+stable publisher/family/renderer ingress calls them yet. The UI root and
+`./internal` barrels and package export map are unchanged. R5 neutral harness
+coverage remains the next slice before any S4 live-family migration.
 
 ## 9. Changing the architecture
 

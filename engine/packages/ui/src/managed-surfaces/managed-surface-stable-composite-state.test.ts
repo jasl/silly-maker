@@ -116,6 +116,7 @@ function definitionV1(input: {
   readonly slotId: ManagedSurfaceSlotIdV1;
   readonly placement?: "root" | "child";
   readonly modality?: "blocking" | "non_blocking";
+  readonly layerOrder?: number;
 }): ManagedSurfaceStableDefinitionSidecarInternalV1 {
   const definition = Object.freeze({
     definitionId: input.definitionId,
@@ -123,7 +124,7 @@ function definitionV1(input: {
     ownerId: input.ownerId,
     slotId: input.slotId,
     layerId: layerIdV1,
-    layerOrder: parseNonNegativeSafeInteger(1),
+    layerOrder: parseNonNegativeSafeInteger(input.layerOrder ?? 1),
     placement: input.placement ?? "root",
     modality: input.modality ?? "blocking",
     inputPolicy: Object.freeze({ kind: "none" as const }),
@@ -392,6 +393,38 @@ function transientStateV1() {
     [workspaceOwnerIdV1, narrativeOwnerIdV1],
     resolvedSlotDescriptorsV1,
   );
+}
+
+function admitAndApplyStableTargetV1(input: {
+  readonly harness: StableHarnessV1;
+  readonly kernel: ManagedSurfaceStableCompositeRuntimeKernelInternalV1;
+  readonly publisher: ManagedSurfaceStablePublisherInternalV1;
+  readonly target: ManagedSurfaceStableAdmittedTargetInternalV1;
+  readonly sourceRevision: ManagedSurfaceStableSourceRevisionInternalV1;
+}): void {
+  const context = input.kernel.captureAdmissionContextInternalV1(input.publisher.lease);
+  if (context.kind !== "captured") throw new Error(`expected captured, got ${context.kind}`);
+  const evaluated = input.harness.authority.evaluate({
+    publication: Object.freeze({
+      publisherLease: input.publisher.lease,
+      sourceRevision: input.sourceRevision,
+      targets: Object.freeze([Object.freeze({
+        occurrenceId: input.target.occurrenceId,
+        definitionId: input.target.definitionId,
+        parentOccurrenceId: input.target.parentOccurrenceId,
+        parameters: input.target.normalizedParameters,
+      })]),
+    }),
+    acceptedBaseline: context.acceptedBaseline,
+    reservationSnapshot: context.reservationSnapshot,
+  });
+  if (evaluated.kind !== "admitted") {
+    throw new Error(`expected admitted, got ${evaluated.kind}:${evaluated.code}`);
+  }
+  expect(input.kernel.applyStableAdmissionProposalInternalV1(evaluated.proposal)).toMatchObject({
+    kind: "applied",
+    code: "surface.stable_publication_applied",
+  });
 }
 
 interface RetainedSubtreeHarnessV1 {
@@ -866,33 +899,24 @@ describe("dormant managed stable composite state", () => {
       initialTransientState: transientStateV1(),
     });
     const coordinator = createManagedSurfaceCoordinatorFacadeInternalV1(kernel);
-    const desired = desiredV1(
-      harness,
-      harness.workspaceReplacement,
-      harness.workspaceReplacementRevision,
+    expect(kernel.registerStablePublisherLeaseInternalV1(harness.workspace.lease).kind).toBe(
+      "registered",
     );
     let transientNotifications = 0;
     let stateNotifications = 0;
     coordinator.subscribe(() => transientNotifications += 1);
     kernel.subscribeStateInternalV1(() => stateNotifications += 1);
 
-    const stableIdentity = kernel.transitionStateInternalV1((current) => {
-      const allocated = allocateAttemptV1(current, desired);
-      const binding = createManagedSurfaceStablePreparingRuntimeBindingInternalV1({
-        attempt: allocated.attempt,
-        transition: "initial_open",
-        placement: "root",
-        slotCardinality: "single",
-        retainedSubtree: null,
-      });
-      return Object.freeze({
-        state: reconcileV1(allocated.state, [
-          stableDesiredCandidateV1(desired),
-          stableRuntimeCandidateV1(desired, binding),
-        ]),
-        result: allocated.attempt.identity,
-      });
+    admitAndApplyStableTargetV1({
+      harness,
+      kernel,
+      publisher: harness.workspace,
+      target: harness.workspaceRoot,
+      sourceRevision: harness.workspaceRevision,
     });
+    const stableBinding = kernel.getStateInternalV1().stableRuntimeBindings[0]?.binding;
+    if (stableBinding?.kind !== "preparing") throw new Error("expected stable preparation");
+    const stableIdentity = stableBinding.attempt.identity;
     expect(stableIdentity.surfaceInstanceId).toBe("surface-instance.e41.n1");
     expect(kernel.getStateInternalV1().transientState.identitySequenceHighWater).toBe(1);
     expect(transientNotifications).toBe(0);
@@ -903,6 +927,7 @@ describe("dormant managed stable composite state", () => {
         definitionId: rootDefinitionAV1,
         ownerId: workspaceOwnerIdV1,
         slotId: rootSlotAV1,
+        layerOrder: 2,
       }).definition,
       semanticOccurrenceId: null,
     });
@@ -1941,15 +1966,28 @@ describe("dormant managed stable composite state", () => {
       initialTransientState: transientStateV1(),
     });
     const coordinator = createManagedSurfaceCoordinatorFacadeInternalV1(kernel);
-    const desired = {
-      ...desiredV1(harness, harness.workspaceRoot, harness.workspaceRevision),
-    };
+    expect(kernel.registerStablePublisherLeaseInternalV1(harness.workspace.lease).kind).toBe(
+      "registered",
+    );
+    admitAndApplyStableTargetV1({
+      harness,
+      kernel,
+      publisher: harness.workspace,
+      target: harness.workspaceRoot,
+      sourceRevision: harness.workspaceRevision,
+    });
+    const currentEntry = kernel.getStateInternalV1().stableRuntimeBindings[0];
+    if (currentEntry === undefined) throw new Error("expected stable runtime entry");
+    const desired = { ...currentEntry.desiredTarget };
     const candidate = {
       kind: "stable_desired" as const,
       desiredTarget: desired,
     };
     kernel.transitionStateInternalV1((current) => ({
-      state: reconcileV1(current, [candidate, gapRuntimeCandidateV1(desired)]),
+      state: reconcileV1(current, [
+        candidate,
+        gapRuntimeCandidateV1(desired),
+      ]),
       result: undefined,
     }));
     const stableRows = kernel.getStateInternalV1().rootReservationContributors;
@@ -1967,6 +2005,7 @@ describe("dormant managed stable composite state", () => {
         definitionId: rootDefinitionBV1,
         ownerId: narrativeOwnerIdV1,
         slotId: rootSlotBV1,
+        layerOrder: 2,
       }).definition,
       semanticOccurrenceId: null,
     });

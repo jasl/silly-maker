@@ -78,14 +78,17 @@ baseline/runtime；publisher dispose通过S1-R.1b exact receiver把effective lea
 返回package-internal `faulted / surface.stable_reconcile_faulted`，parent candidate、child gaps、runtime
 high-water、reservation token与notification全部exact zero。R4不得把parent单独置ready后永久保留
 `parent_unavailable` child；该裁决本身没有runtime实现或live capability。随后 S1-R.4a 已把现有transient
-reducer私有的active/suspended派生抽为唯一pure topology policy并由原transient路径等价复用；R4b.1才可
-settle stable readiness。若既有nonterminal transient/stable transition让ready-suspended stable parent恢复active，
+reducer私有的active/suspended派生抽为唯一pure topology policy并由原transient路径等价复用；S1-R.4b.1
+现已在同一composite kernel上交付source-relative stable readiness settlement与whole-composite reflow。
+若既有nonterminal transient/stable transition让ready-suspended stable parent恢复active，
 同一composite transition也必须完成direct-child batch；capacity不足时回滚整个触发transition。Stable
 apply/empty/dispose ingress返回`faulted / surface.stable_reconcile_faulted`，transient post-reducer ingress返回
 既有`faulted / surface.transition_faulted` receipt，二者都不能先提交successor。
 S1-R.4b.0已进一步交付receipt-driven generic terminal prepare/gate与complete stable terminal
 successor：它以exact applied reducer receipt作为唯一分类，在exact registry-wide gate后原子
 安装已清空stable权威的state，仍不settle readiness或接入live stable family。
+S1-R.4b.1随后闭合ready/failed settlement、shared topology/cascade、canonical bulk allocation与
+stable/transient transition integration，但仍保持package-internal dormant，不接live stable family。
 Active parent只是在child attempt分配时的eligibility，不是ready child存续期间的持续不变量。只有
 topology-participating equal-layer rows在R2 topology、exact retained subtree或existing transient publication
 中都没有authoritative relative order时才fail closed；R4不把allocation、slot或lease顺序偷换成z-order。
@@ -95,9 +98,10 @@ topology-participating equal-layer rows在R2 topology、exact retained subtree�
 已完成并 promotion System 的 shared composition authority、Host readiness、confirmation
 child 与 single-writer cutover；S1-R.1a corrective、S1-R.3.0、S1-R.3a 与 R3a.1 corrective 已完成，
 S1-R.1b corrective、S1-R.3b.0、S1-R.3b.1、S1-R.4.0 entry contract 与 S1-R.4a 也已完成，
-S1-R.4b.0 terminal disposition也已完成，下一独立切片为 S1-R.4b.1 readiness settlement。
-当前active execution pointer的current/next均为S1-R.4b.1；R3b.1、R4.0、R4a与R4b.0只作为completed
-delivery保留。
+S1-R.4b.0 terminal disposition与S1-R.4b.1 readiness/cascade settlement也已完成。下一独立切片为
+S1-R.5 neutral harness/churn/dead-path audit；当前active execution pointer的current/next均为S1-R.5，
+R3b.1、R4.0、R4a、R4b.0与R4b.1只作为completed delivery保留。S4仍须等待R5完成，不能因dormant
+R4实现而提前接入live stable family。
 当前 live 能力仍以
 [architecture](../architecture.md) 与
 [features](../features.md) 为准；执行顺序见
@@ -1034,6 +1038,47 @@ replay或wire变化；R4b.1继续拥有source-bound readiness与global cascade s
 
 验证：focused `7 files / 154 tests`、UI package `76 files / 919 tests`、全量
 `250 files / 3847 tests`、`deno task check` green、browser `101/101`、examples `45 passed / 2 skipped`、
+prebuilt `38/38`。
+
+S1-R.4b.1 delivery 已完成：specialized composite kernel新增两个exact source-relative ingress：
+`settleStableReadinessReadyInternalV1(envelope)`与
+`settleStableReadinessFailedInternalV1(envelope)`。两者共享同一mutation/reentry fence，并严格按
+terminal/reentry → application epoch → current candidate attempt → exact publisher lease → exact source
+revision顺序判定；任一early stale不读取later fence。全部fence通过后才验证whole-composite
+registry/baseline/runtime coherence并调用唯一shared topology reflow，ready/failed receipt只安装一个完整
+successor或返回exact-zero fault。
+
+同一reflow现已覆盖stable readiness、greater-changed proposal、greater-empty、effective publisher dispose与
+generic nonterminal transient transition。任何blocker retirement或phase变化导致same/other-owner
+ready-suspended parent恢复active时，全部刚解除阻塞的direct `parent_unavailable` children都纳入同一原子
+plan；grandchildren保持gap。Stable phase/capacity fault在state install与publisher-dispose gate前回滚为
+`surface.stable_reconcile_faulted`，transient post-reducer fault回滚为existing
+`surface.transition_faulted`；两者都保留exact old state、accepted baseline、runtime/high-water、reservation
+token与零通知。Equal-layer且没有R2 topology、retained-subtree或existing transient preorder authority的tie同样
+fail closed，不以allocation、slot或lease sequence发明z-order。
+
+Fresh root与最终eligible child preparation先形成统一canonical request vector，再按root slot lexical、
+scope-local admitted sibling与parent/child recursion一次执行shared safe-integer capacity检查和detached bulk
+allocation。该one-shot batch不受旧pending-set 64预算限制；cross-owner合计超过64个direct children仍获得连续
+canonical identities。Late exhaustion保持零partial identity/pending attempt/强历史；greater-changed中ready
+parent的fresh child与后续root也严格按canonical path分配，不被两阶段planning重排。
+
+Replacement failure继续复用exact authenticated retained subtree，ready cutover只退休该exact aggregate；phase
+变化只重建最小ready wrapper或same-origin retained aggregate，attempt、target、parent、instance/routing identity
+保持。Source-relative child readiness failure只从exact candidate settlement产生，parent随后suspended时，shared
+reflow只保留该exact current gap；fresh child不能经该ingress伪造failure provenance。Root phase变化按existing
+contributor vector规则轮换reservation token；descendant-only变化保留exact token，other-owner
+source/occurrence/ready identity不被直接改写。
+
+成功stable transaction仍只有exact一次composite state notification；shared projection实际改变transient-facing
+publication时另有exact一次transient notification并保持transient-before-state，否则为零。Subscriber reentry先见
+完整successor，stale repeat不能再次settle；faulted rollback两类notification均为零。该切片没有接入Narrative、
+React Host或Web live stable family，没有新增public/internal barrel、transient receipt/evidence、Story API、
+Save/Persistence/canonical/digest/replay/wire变化。R5仍须完成neutral harness、bounded churn与dead-path audit，
+之后才允许按S4 gate迁移第一个真实stable-target family。
+
+验证：focused `9 files / 206 tests`、UI package `77 files / 942 tests`、全量
+`251 files / 3870 tests`、`deno task check` green、browser `101/101`、examples `45 passed / 2 skipped`、
 prebuilt `38/38`。
 
 ### 3.3 Runtime session

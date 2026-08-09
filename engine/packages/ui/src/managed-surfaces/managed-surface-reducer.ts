@@ -7,6 +7,7 @@ import type {
   ManagedSurfaceDefinitionIdV1,
   ManagedSurfaceDismissKindV1,
   ManagedSurfaceInstanceIdV1,
+  ManagedSurfaceLifecyclePhaseV1,
   ManagedSurfaceOperationV1,
   ManagedSurfaceOwnerIdV1,
   ManagedSurfaceOwnerTransitionEvidenceV1,
@@ -42,6 +43,21 @@ export interface ManagedSurfaceReducerStateV1 {
 export interface ManagedSurfaceReducerResultV1 {
   readonly state: ManagedSurfaceReducerStateV1;
   readonly receipt: ManagedSurfaceTransitionReceiptV1;
+}
+
+export interface ManagedSurfaceReducerTopologyProjectionInternalV1 {
+  readonly instance: DeepReadonly<ManagedSurfacePublishedInstanceV1>;
+  readonly phase: ManagedSurfaceLifecyclePhaseV1;
+}
+
+export type ManagedSurfaceReducerTopologyProjectionRevisionModeInternalV1 =
+  | "coalesce_existing_transition"
+  | "advance_direct_transition";
+
+export interface DeriveManagedSurfaceReducerTopologyProjectionInputInternalV1 {
+  readonly state: ManagedSurfaceReducerStateV1;
+  readonly projection: readonly ManagedSurfaceReducerTopologyProjectionInternalV1[];
+  readonly revisionMode: ManagedSurfaceReducerTopologyProjectionRevisionModeInternalV1;
 }
 
 function freezeDefinitionV1(
@@ -198,15 +214,14 @@ function ownerTraceV1(
   ]);
 }
 
-function publicationV1(
+function publicationFromOrderedInstancesV1(
   applicationEpoch: NonNegativeSafeInteger,
   publicationRevision: NonNegativeSafeInteger,
   topologyRevision: NonNegativeSafeInteger,
-  instances: readonly DeepReadonly<ManagedSurfacePublishedInstanceV1>[],
+  orderedInstances: readonly DeepReadonly<ManagedSurfacePublishedInstanceV1>[],
   disposedOwnerIds: readonly ManagedSurfaceOwnerIdV1[],
   coordinatorDisposed: boolean,
 ): DeepReadonly<ManagedSurfacePublicationV1> {
-  const orderedInstances = orderedWithDerivedPhasesV1(instances);
   const preparationFallbacks = Object.freeze(
     orderedInstances.filter(isBlockingFallbackV1).map((instance) =>
       Object.freeze({
@@ -264,6 +279,24 @@ function publicationV1(
   }) as DeepReadonly<ManagedSurfacePublicationV1>;
 }
 
+function publicationV1(
+  applicationEpoch: NonNegativeSafeInteger,
+  publicationRevision: NonNegativeSafeInteger,
+  topologyRevision: NonNegativeSafeInteger,
+  instances: readonly DeepReadonly<ManagedSurfacePublishedInstanceV1>[],
+  disposedOwnerIds: readonly ManagedSurfaceOwnerIdV1[],
+  coordinatorDisposed: boolean,
+): DeepReadonly<ManagedSurfacePublicationV1> {
+  return publicationFromOrderedInstancesV1(
+    applicationEpoch,
+    publicationRevision,
+    topologyRevision,
+    orderedWithDerivedPhasesV1(instances),
+    disposedOwnerIds,
+    coordinatorDisposed,
+  );
+}
+
 function stateV1(
   publication: DeepReadonly<ManagedSurfacePublicationV1>,
   resolvedOwnerIds: readonly ManagedSurfaceOwnerIdV1[],
@@ -277,6 +310,82 @@ function stateV1(
     resolvedSlotDescriptors: Object.freeze([...resolvedSlotDescriptors]),
     identitySequenceHighWater: parseNonNegativeSafeInteger(identitySequenceHighWater),
     disposedOwnerIds: Object.freeze([...new Set(disposedOwnerIds)]),
+  });
+}
+
+/**
+ * Materializes an exact shared-policy phase projection through the reducer's
+ * existing publication authority. Callers provide complete current-instance
+ * coverage; no identity, ordering, or phase policy is derived here.
+ */
+export function deriveManagedSurfaceReducerTopologyProjectionInternalV1(
+  input: DeriveManagedSurfaceReducerTopologyProjectionInputInternalV1,
+): ManagedSurfaceReducerStateV1 {
+  const state = input.state;
+  const projection = input.projection;
+  const revisionMode = input.revisionMode;
+  if (
+    !Array.isArray(projection) ||
+    (revisionMode !== "coalesce_existing_transition" &&
+      revisionMode !== "advance_direct_transition")
+  ) {
+    throw new TypeError("ui.managed_surface_topology_projection_invalid");
+  }
+  const currentInstances = state.publication.orderedInstances;
+  if (projection.length !== currentInstances.length) {
+    throw new TypeError("ui.managed_surface_topology_projection_invalid");
+  }
+  const currentSet = new Set(currentInstances);
+  const phaseByInstance = new Map<
+    DeepReadonly<ManagedSurfacePublishedInstanceV1>,
+    ManagedSurfaceLifecyclePhaseV1
+  >();
+  for (const row of projection) {
+    const instance = row.instance;
+    const phase = row.phase;
+    if (
+      !currentSet.has(instance) || phaseByInstance.has(instance) ||
+      (instance.readiness.kind === "preparing"
+        ? phase !== "preparing"
+        : phase !== "active" && phase !== "suspended")
+    ) {
+      throw new TypeError("ui.managed_surface_topology_projection_invalid");
+    }
+    phaseByInstance.set(instance, phase);
+  }
+  if (phaseByInstance.size !== currentInstances.length) {
+    throw new TypeError("ui.managed_surface_topology_projection_invalid");
+  }
+  let changed = false;
+  const orderedInstances = Object.freeze(
+    currentInstances.map((instance) => {
+      const phase = phaseByInstance.get(instance)!;
+      if (phase === instance.phase) return instance;
+      changed = true;
+      return withPhaseV1(instance, phase as "active" | "suspended");
+    }),
+  );
+  if (!changed) return state;
+  const publicationRevision = revisionMode === "advance_direct_transition"
+    ? parseNonNegativeSafeInteger(state.publication.publicationRevision + 1)
+    : state.publication.publicationRevision;
+  const topologyRevision = revisionMode === "advance_direct_transition"
+    ? parseNonNegativeSafeInteger(state.publication.topologyRevision + 1)
+    : state.publication.topologyRevision;
+  const publication = publicationFromOrderedInstancesV1(
+    state.publication.applicationEpoch,
+    publicationRevision,
+    topologyRevision,
+    orderedInstances,
+    state.disposedOwnerIds,
+    state.publication.coordinatorDisposed,
+  );
+  return Object.freeze({
+    publication,
+    resolvedOwnerIds: state.resolvedOwnerIds,
+    resolvedSlotDescriptors: state.resolvedSlotDescriptors,
+    identitySequenceHighWater: state.identitySequenceHighWater,
+    disposedOwnerIds: state.disposedOwnerIds,
   });
 }
 

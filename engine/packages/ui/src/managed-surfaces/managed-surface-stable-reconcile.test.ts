@@ -47,6 +47,7 @@ import {
   type ManagedSurfaceStableRuntimeEntryInternalV1,
 } from "./managed-surface-stable-composite-state.ts";
 import type {
+  ManagedSurfaceStableReadinessEnvelopeInternalV1,
   ManagedSurfaceStableReconcileResultInternalV1,
   ManagedSurfaceStableSourceRevisionInternalV1,
   ManagedSurfaceStableTargetInternalV1,
@@ -65,15 +66,22 @@ const narrativeOwnerIdV1 = parseManagedSurfaceOwnerIdV1("surface-owner.narrative
 const rootSlotAV1 = parseManagedSurfaceSlotIdV1("surface-slot.root-a");
 const rootSlotBV1 = parseManagedSurfaceSlotIdV1("surface-slot.root-b");
 const childSlotV1 = parseManagedSurfaceSlotIdV1("surface-slot.child");
+const narrativeChildSlotV1 = parseManagedSurfaceSlotIdV1("surface-slot.narrative-child");
 const rootDefinitionAV1 = parseManagedSurfaceDefinitionIdV1("surface-definition.root-a");
 const replacementDefinitionV1 = parseManagedSurfaceDefinitionIdV1(
   "surface-definition.root-a-replacement",
 );
 const rootDefinitionBV1 = parseManagedSurfaceDefinitionIdV1("surface-definition.root-b");
+const workspaceBlockerDefinitionV1 = parseManagedSurfaceDefinitionIdV1(
+  "surface-definition.workspace-blocker",
+);
 const narrativeRootDefinitionV1 = parseManagedSurfaceDefinitionIdV1(
   "surface-definition.narrative-root",
 );
 const childDefinitionV1 = parseManagedSurfaceDefinitionIdV1("surface-definition.child");
+const narrativeChildDefinitionV1 = parseManagedSurfaceDefinitionIdV1(
+  "surface-definition.narrative-child",
+);
 const layerIdV1 = parseManagedSurfaceLayerIdV1("surface-layer.reconcile-test");
 
 const resolvedSlotDescriptorsV1 = Object.freeze(
@@ -94,6 +102,12 @@ const resolvedSlotDescriptorsV1 = Object.freeze(
       slotId: childSlotV1,
       cardinality: "stack" as const,
     }),
+    Object.freeze({
+      kind: "child" as const,
+      parentDefinitionId: narrativeRootDefinitionV1,
+      slotId: narrativeChildSlotV1,
+      cardinality: "stack" as const,
+    }),
   ] satisfies readonly ManagedSurfaceResolvedSlotDescriptorV1[],
 );
 
@@ -106,6 +120,7 @@ function sidecarV1(input: {
   readonly ownerId: ManagedSurfaceOwnerIdV1;
   readonly slotId: ManagedSurfaceSlotIdV1;
   readonly placement?: "root" | "child";
+  readonly layerOrder: number;
 }): ManagedSurfaceStableDefinitionSidecarInternalV1 {
   const definition = Object.freeze({
     definitionId: input.definitionId,
@@ -113,7 +128,7 @@ function sidecarV1(input: {
     ownerId: input.ownerId,
     slotId: input.slotId,
     layerId: layerIdV1,
-    layerOrder: parseNonNegativeSafeInteger(1),
+    layerOrder: parseNonNegativeSafeInteger(input.layerOrder),
     placement: input.placement ?? "root",
     modality: "blocking" as const,
     inputPolicy: Object.freeze({ kind: "none" as const }),
@@ -139,27 +154,45 @@ const rootSidecarAV1 = sidecarV1({
   definitionId: rootDefinitionAV1,
   ownerId: workspaceOwnerIdV1,
   slotId: rootSlotAV1,
+  layerOrder: 10,
 });
 const replacementSidecarV1 = sidecarV1({
   definitionId: replacementDefinitionV1,
   ownerId: workspaceOwnerIdV1,
   slotId: rootSlotAV1,
+  layerOrder: 10,
 });
 const rootSidecarBV1 = sidecarV1({
   definitionId: rootDefinitionBV1,
   ownerId: workspaceOwnerIdV1,
   slotId: rootSlotBV1,
+  layerOrder: 20,
+});
+const workspaceBlockerSidecarV1 = sidecarV1({
+  definitionId: workspaceBlockerDefinitionV1,
+  ownerId: workspaceOwnerIdV1,
+  slotId: rootSlotAV1,
+  layerOrder: 100,
 });
 const narrativeRootSidecarV1 = sidecarV1({
   definitionId: narrativeRootDefinitionV1,
   ownerId: narrativeOwnerIdV1,
   slotId: rootSlotBV1,
+  layerOrder: 30,
 });
 const childSidecarV1 = sidecarV1({
   definitionId: childDefinitionV1,
   ownerId: workspaceOwnerIdV1,
   slotId: childSlotV1,
   placement: "child",
+  layerOrder: 40,
+});
+const narrativeChildSidecarV1 = sidecarV1({
+  definitionId: narrativeChildDefinitionV1,
+  ownerId: narrativeOwnerIdV1,
+  slotId: narrativeChildSlotV1,
+  placement: "child",
+  layerOrder: 40,
 });
 
 interface ReconcileHarnessV1 {
@@ -174,6 +207,8 @@ function harnessV1(input: {
   readonly identitySequenceHighWater?: number;
   readonly registerNarrative?: boolean;
   readonly reportSubscriberFailure?: () => void;
+  readonly rootBLayerOrder?: number;
+  readonly childLayerOrder?: number;
 } = {}): ReconcileHarnessV1 {
   const registry = createManagedSurfaceStablePublisherLeaseRegistryInternalV1({
     applicationEpoch: applicationEpochV1,
@@ -187,9 +222,22 @@ function harnessV1(input: {
     definitionSidecars: [
       rootSidecarAV1,
       replacementSidecarV1,
-      rootSidecarBV1,
+      input.rootBLayerOrder === undefined ? rootSidecarBV1 : sidecarV1({
+        definitionId: rootDefinitionBV1,
+        ownerId: workspaceOwnerIdV1,
+        slotId: rootSlotBV1,
+        layerOrder: input.rootBLayerOrder,
+      }),
+      workspaceBlockerSidecarV1,
       narrativeRootSidecarV1,
-      childSidecarV1,
+      input.childLayerOrder === undefined ? childSidecarV1 : sidecarV1({
+        definitionId: childDefinitionV1,
+        ownerId: workspaceOwnerIdV1,
+        slotId: childSlotV1,
+        placement: "child",
+        layerOrder: input.childLayerOrder,
+      }),
+      narrativeChildSidecarV1,
     ],
     resolvedSlotDescriptors: resolvedSlotDescriptorsV1,
   });
@@ -238,8 +286,10 @@ function constructionFixtureV1() {
       rootSidecarAV1,
       replacementSidecarV1,
       rootSidecarBV1,
+      workspaceBlockerSidecarV1,
       narrativeRootSidecarV1,
       childSidecarV1,
+      narrativeChildSidecarV1,
     ],
     resolvedSlotDescriptors: resolvedSlotDescriptorsV1,
   });
@@ -266,10 +316,11 @@ function rawRootV1(
 function rawChildV1(
   publisher: ManagedSurfaceStablePublisherInternalV1,
   parentOccurrenceId: ManagedSurfaceStableTargetInternalV1["occurrenceId"],
+  definitionId: ManagedSurfaceDefinitionIdV1 = childDefinitionV1,
 ): ManagedSurfaceStableTargetInternalV1 {
   return Object.freeze({
     occurrenceId: publisher.issueOccurrence(),
-    definitionId: childDefinitionV1,
+    definitionId,
     parentOccurrenceId,
     parameters: null,
   });
@@ -438,6 +489,92 @@ function installStableEntriesV1(
   });
   installStateV1(harness.kernel, current, next);
   return harness.kernel.getStateInternalV1();
+}
+
+function readinessEnvelopeV1(
+  entry: ManagedSurfaceStableRuntimeEntryInternalV1,
+): ManagedSurfaceStableReadinessEnvelopeInternalV1 {
+  if (entry.binding.kind !== "preparing") throw new Error("expected stable preparation");
+  return Object.freeze({
+    readinessEvidence: Object.freeze({
+      applicationEpoch: applicationEpochV1,
+      surfaceInstanceId: entry.binding.attempt.identity.surfaceInstanceId,
+    }),
+    publisherLease: entry.binding.attempt.desiredTarget.publisherLease,
+    sourceRevision: entry.binding.attempt.desiredTarget.sourceRevision,
+  });
+}
+
+function crossOwnerUnblockFixtureV1(input: {
+  readonly identitySequenceHighWater?: number;
+} = {}): Readonly<{
+  harness: ReconcileHarnessV1;
+  blocker: ManagedSurfaceStableTargetInternalV1;
+  narrativeParent: ManagedSurfaceStableTargetInternalV1;
+  narrativeChild: ManagedSurfaceStableTargetInternalV1;
+}> {
+  const harness = harnessV1({
+    registerNarrative: true,
+    ...(input.identitySequenceHighWater === undefined
+      ? {}
+      : { identitySequenceHighWater: input.identitySequenceHighWater }),
+  });
+  const narrativeBaseline = harness.kernel.getStateInternalV1().stableAcceptedBaselines.find(
+    (baseline) => baseline.publisherLease === harness.narrative.lease,
+  );
+  if (narrativeBaseline === undefined) throw new Error("expected narrative baseline");
+  const narrativeParent = rawRootV1(harness.narrative, narrativeRootDefinitionV1);
+  const narrativeChild = rawChildV1(
+    harness.narrative,
+    narrativeParent.occurrenceId,
+    narrativeChildDefinitionV1,
+  );
+  expect(
+    applyV1(
+      harness,
+      detachedProposalV1({
+        harness,
+        publisher: harness.narrative,
+        acceptedBaseline: narrativeBaseline,
+        targets: [narrativeParent, narrativeChild],
+      }),
+    ).kind,
+  ).toBe("applied");
+
+  const blocker = rawRootV1(harness.workspace, workspaceBlockerDefinitionV1);
+  expect(applyV1(harness, admitV1(harness, [blocker])).kind).toBe("applied");
+  const blockerEntry = harness.kernel.getStateInternalV1().stableRuntimeBindings.find((entry) =>
+    entry.desiredTarget.admittedTarget.occurrenceId === blocker.occurrenceId
+  );
+  if (blockerEntry === undefined) throw new Error("expected blocker preparation");
+  expect(
+    harness.kernel.settleStableReadinessReadyInternalV1(
+      readinessEnvelopeV1(blockerEntry),
+    ).kind,
+  ).toBe("applied");
+
+  const narrativeParentEntry = harness.kernel.getStateInternalV1().stableRuntimeBindings.find(
+    (entry) => entry.desiredTarget.admittedTarget.occurrenceId === narrativeParent.occurrenceId,
+  );
+  if (narrativeParentEntry === undefined) throw new Error("expected narrative preparation");
+  expect(
+    harness.kernel.settleStableReadinessReadyInternalV1(
+      readinessEnvelopeV1(narrativeParentEntry),
+    ).kind,
+  ).toBe("applied");
+
+  const blocked = harness.kernel.getStateInternalV1();
+  expect(
+    blocked.stableRuntimeBindings.find((entry) =>
+      entry.desiredTarget.admittedTarget.occurrenceId === narrativeParent.occurrenceId
+    )?.binding,
+  ).toMatchObject({ kind: "ready_instance", instance: { phase: "suspended" } });
+  expect(
+    blocked.stableRuntimeBindings.find((entry) =>
+      entry.desiredTarget.admittedTarget.occurrenceId === narrativeChild.occurrenceId
+    )?.binding,
+  ).toMatchObject({ kind: "gap", reason: "parent_unavailable" });
+  return Object.freeze({ harness, blocker, narrativeParent, narrativeChild });
 }
 
 function settleRootV1(
@@ -1424,11 +1561,33 @@ describe("dormant managed stable atomic reconcile", () => {
     const harness = harnessV1();
     const root = rawRootV1(harness.workspace);
     const child = rawChildV1(harness.workspace, root.occurrenceId);
-    expect(applyV1(harness, admitV1(harness, [root, child])).kind).toBe("applied");
-    settleRootV1(harness, "suspended");
+    const blocker = rawRootV1(harness.workspace, rootDefinitionBV1);
+    expect(applyV1(harness, admitV1(harness, [root, child, blocker])).kind).toBe("applied");
+    const suspended = settleRootV1(harness, "suspended");
+    const blockerEntry = suspended.stableRuntimeBindings.find((entry) =>
+      entry.desiredTarget.admittedTarget.occurrenceId === blocker.occurrenceId
+    );
+    if (blockerEntry?.binding.kind !== "preparing") {
+      throw new Error("expected blocker preparation");
+    }
+    const blockerAttempt = blockerEntry.binding.attempt;
+    installStableEntriesV1(
+      harness,
+      suspended.stableRuntimeBindings.map((entry) =>
+        entry === blockerEntry
+          ? Object.freeze({
+            ...entry,
+            binding: createManagedSurfaceStableReadyRuntimeBindingInternalV1({
+              attempt: blockerAttempt,
+              phase: "active",
+            }),
+          })
+          : entry
+      ),
+    );
     const before = harness.kernel.getStateInternalV1();
     const beforeBindings = before.stableRuntimeBindings.map((entry) => entry.binding);
-    const proposal = admitV1(harness, [root, child]);
+    const proposal = admitV1(harness, [root, child, blocker]);
 
     expect(applyV1(harness, proposal)).toEqual({
       kind: "applied",
@@ -1444,10 +1603,82 @@ describe("dormant managed stable atomic reconcile", () => {
     const after = harness.kernel.getStateInternalV1();
     expect(after.stableRuntimeBindings[0]!.binding).toBe(beforeBindings[0]);
     expect(after.stableRuntimeBindings[1]!.binding).toBe(beforeBindings[1]);
+    expect(after.stableRuntimeBindings[2]!.binding).toBe(beforeBindings[2]);
     expect(after.transientState.identitySequenceHighWater).toBe(
       before.transientState.identitySequenceHighWater,
     );
     expect(after.rootReservationGenerationToken).toBe(before.rootReservationGenerationToken);
+  });
+
+  it("defers an explicit child retry until the proposal's shared topology leaves its parent active", () => {
+    const harness = harnessV1();
+    const root = rawRootV1(harness.workspace);
+    const child = rawChildV1(harness.workspace, root.occurrenceId);
+    expect(applyV1(harness, admitV1(harness, [root, child])).kind).toBe("applied");
+    const initialRoot = harness.kernel.getStateInternalV1().stableRuntimeBindings.find((entry) =>
+      entry.desiredTarget.admittedTarget.occurrenceId === root.occurrenceId
+    );
+    if (initialRoot === undefined) throw new Error("expected root preparation");
+    expect(
+      harness.kernel.settleStableReadinessReadyInternalV1(readinessEnvelopeV1(initialRoot)).kind,
+    ).toBe("applied");
+    const childCandidate = harness.kernel.getStateInternalV1().stableRuntimeBindings.find((entry) =>
+      entry.desiredTarget.admittedTarget.occurrenceId === child.occurrenceId
+    );
+    if (childCandidate === undefined) throw new Error("expected child preparation");
+    expect(
+      harness.kernel.settleStableReadinessFailedInternalV1(
+        readinessEnvelopeV1(childCandidate),
+      ).kind,
+    ).toBe("applied");
+    const failedState = harness.kernel.getStateInternalV1();
+    const failedChild = failedState.stableRuntimeBindings.find((entry) =>
+      entry.desiredTarget.admittedTarget.occurrenceId === child.occurrenceId
+    );
+    expect(failedChild?.binding).toMatchObject({
+      kind: "gap",
+      reason: "readiness_failed",
+    });
+    const failedGap = failedChild!.binding;
+    const highWaterAfterFailure = failedState.transientState.identitySequenceHighWater;
+
+    const blocker = rawRootV1(harness.workspace, rootDefinitionBV1);
+    expect(applyV1(harness, admitV1(harness, [root, child, blocker])).kind).toBe("applied");
+    const blockedState = harness.kernel.getStateInternalV1();
+    const blockedRoot = blockedState.stableRuntimeBindings.find((entry) =>
+      entry.desiredTarget.admittedTarget.occurrenceId === root.occurrenceId
+    );
+    const blockedChild = blockedState.stableRuntimeBindings.find((entry) =>
+      entry.desiredTarget.admittedTarget.occurrenceId === child.occurrenceId
+    );
+    expect(blockedRoot?.binding).toMatchObject({
+      kind: "ready_instance",
+      instance: { phase: "suspended" },
+    });
+    expect(blockedChild?.binding).toBe(failedGap);
+    expect(blockedState.transientState.identitySequenceHighWater).toBe(
+      highWaterAfterFailure + 1,
+    );
+
+    expect(applyV1(harness, admitV1(harness, [root, child])).kind).toBe("applied");
+    const retriedState = harness.kernel.getStateInternalV1();
+    const retriedRoot = retriedState.stableRuntimeBindings.find((entry) =>
+      entry.desiredTarget.admittedTarget.occurrenceId === root.occurrenceId
+    );
+    const retriedChild = retriedState.stableRuntimeBindings.find((entry) =>
+      entry.desiredTarget.admittedTarget.occurrenceId === child.occurrenceId
+    );
+    expect(retriedRoot?.binding).toMatchObject({
+      kind: "ready_instance",
+      instance: { phase: "suspended" },
+    });
+    expect(retriedChild?.binding).toMatchObject({
+      kind: "preparing",
+      transition: "child_open",
+    });
+    expect(retriedState.transientState.identitySequenceHighWater).toBe(
+      blockedState.transientState.identitySequenceHighWater + 1,
+    );
   });
 
   it("plans initial allocations in canonical topology order, not raw cross-scope order", () => {
@@ -1485,6 +1716,195 @@ describe("dormant managed stable atomic reconcile", () => {
     expect(second.childBinding).toMatchObject({ kind: "gap", reason: "parent_unavailable" });
   });
 
+  it("allocates an eligible fresh child before a later canonical root in one greater-changed commit", () => {
+    const harness = harnessV1({ rootBLayerOrder: 1, childLayerOrder: 5 });
+    const rootA = rawRootV1(harness.workspace, rootDefinitionAV1);
+    expect(applyV1(harness, admitV1(harness, [rootA])).kind).toBe("applied");
+    const rootCandidate = harness.kernel.getStateInternalV1().stableRuntimeBindings.find((entry) =>
+      entry.desiredTarget.admittedTarget.occurrenceId === rootA.occurrenceId
+    );
+    if (rootCandidate === undefined) throw new Error("expected root preparation");
+    expect(
+      harness.kernel.settleStableReadinessReadyInternalV1(
+        readinessEnvelopeV1(rootCandidate),
+      ).kind,
+    ).toBe("applied");
+    const readyState = harness.kernel.getStateInternalV1();
+    const readyRoot = readyState.stableRuntimeBindings.find((entry) =>
+      entry.desiredTarget.admittedTarget.occurrenceId === rootA.occurrenceId
+    );
+    if (readyRoot?.binding.kind !== "ready_instance") throw new Error("expected ready root");
+    expect(readyRoot.binding.instance.phase).toBe("active");
+
+    const childA = rawChildV1(harness.workspace, rootA.occurrenceId);
+    const rootB = rawRootV1(harness.workspace, rootDefinitionBV1);
+    const beforeHighWater = readyState.transientState.identitySequenceHighWater;
+    const installedStates: ManagedSurfaceStableCompositeStateInternalV1[] = [];
+    harness.kernel.subscribeStateInternalV1(() => {
+      installedStates.push(harness.kernel.getStateInternalV1());
+    });
+
+    expect(applyV1(harness, admitV1(harness, [rootA, childA, rootB])).kind).toBe("applied");
+    const installed = harness.kernel.getStateInternalV1();
+    expect(installedStates).toEqual([installed]);
+    const childEntry = installed.stableRuntimeBindings.find((entry) =>
+      entry.desiredTarget.admittedTarget.occurrenceId === childA.occurrenceId
+    );
+    const rootBEntry = installed.stableRuntimeBindings.find((entry) =>
+      entry.desiredTarget.admittedTarget.occurrenceId === rootB.occurrenceId
+    );
+    if (
+      childEntry?.binding.kind !== "preparing" ||
+      rootBEntry?.binding.kind !== "preparing"
+    ) {
+      throw new Error("expected child and root preparations");
+    }
+    expect(childEntry.binding.attempt.parentInstanceId).toBe(
+      readyRoot.binding.instance.attempt.identity.surfaceInstanceId,
+    );
+    expect(childEntry.binding.attempt.identity.allocation.sequence).toBe(beforeHighWater + 1);
+    expect(rootBEntry.binding.attempt.identity.allocation.sequence).toBe(beforeHighWater + 2);
+    expect(installed.transientState.identitySequenceHighWater).toBe(beforeHighWater + 2);
+  });
+
+  it("cascades an unblocked cross-owner child in the same greater-empty commit", () => {
+    const { harness, narrativeParent, narrativeChild } = crossOwnerUnblockFixtureV1();
+    const before = harness.kernel.getStateInternalV1();
+    const parentBefore = before.stableRuntimeBindings.find((entry) =>
+      entry.desiredTarget.admittedTarget.occurrenceId === narrativeParent.occurrenceId
+    );
+    if (parentBefore?.binding.kind !== "ready_instance") {
+      throw new Error("expected blocked ready narrative parent");
+    }
+    const emptyProposal = admitV1(harness, []);
+    const workspaceLeaseBefore = harness.registry.inspectCurrentLease(harness.workspace.lease);
+    const observedStates: ManagedSurfaceStableCompositeStateInternalV1[] = [];
+    const transientListener = vi.fn();
+    harness.kernel.subscribeStateInternalV1(() => {
+      observedStates.push(harness.kernel.getStateInternalV1());
+    });
+    harness.kernel.subscribeTransientInternalV1(transientListener);
+
+    expect(applyV1(harness, emptyProposal)).toEqual({
+      kind: "applied",
+      code: "surface.stable_publication_applied",
+      delta: {
+        source: "accept_empty",
+        runtime: "retire_owned_targets_and_prepare_unblocked_children",
+        notificationCount: 1,
+        topology: "readiness_policy_derived",
+        runtimeAllocation: "preparation_count",
+      },
+    });
+    const installed = harness.kernel.getStateInternalV1();
+    expect(observedStates).toEqual([installed]);
+    expect(transientListener).not.toHaveBeenCalled();
+    const parentAfter = installed.stableRuntimeBindings.find((entry) =>
+      entry.desiredTarget.admittedTarget.occurrenceId === narrativeParent.occurrenceId
+    );
+    const childAfter = installed.stableRuntimeBindings.find((entry) =>
+      entry.desiredTarget.admittedTarget.occurrenceId === narrativeChild.occurrenceId
+    );
+    if (
+      parentAfter?.binding.kind !== "ready_instance" ||
+      childAfter?.binding.kind !== "preparing"
+    ) {
+      throw new Error("expected retained parent and cascaded child preparation");
+    }
+    expect(parentAfter.binding.instance.attempt).toBe(parentBefore.binding.instance.attempt);
+    expect(childAfter.binding.attempt.parentInstanceId).toBe(
+      parentBefore.binding.instance.attempt.identity.surfaceInstanceId,
+    );
+    expect(childAfter.binding.attempt.identity.allocation.sequence).toBe(
+      before.transientState.identitySequenceHighWater + 1,
+    );
+    expect(installed.transientState.identitySequenceHighWater).toBe(
+      before.transientState.identitySequenceHighWater + 1,
+    );
+    expect(harness.registry.inspectCurrentLease(harness.workspace.lease)).toBe(
+      workspaceLeaseBefore,
+    );
+  });
+
+  it("cascades an unblocked cross-owner child only after effective publisher disposal", () => {
+    const { harness, narrativeParent, narrativeChild } = crossOwnerUnblockFixtureV1();
+    const before = harness.kernel.getStateInternalV1();
+    const parentBefore = before.stableRuntimeBindings.find((entry) =>
+      entry.desiredTarget.admittedTarget.occurrenceId === narrativeParent.occurrenceId
+    );
+    if (parentBefore?.binding.kind !== "ready_instance") {
+      throw new Error("expected blocked ready narrative parent");
+    }
+    const observedStates: ManagedSurfaceStableCompositeStateInternalV1[] = [];
+    const transientListener = vi.fn();
+    harness.kernel.subscribeStateInternalV1(() => {
+      observedStates.push(harness.kernel.getStateInternalV1());
+    });
+    harness.kernel.subscribeTransientInternalV1(transientListener);
+
+    expect(harness.kernel.disposeStablePublisherLeaseInternalV1(harness.workspace.lease)).toEqual({
+      kind: "applied",
+      code: "surface.stable_publisher_disposed",
+      delta: {
+        source: "remove_lease",
+        runtime: "retire_owned_targets_and_prepare_unblocked_children",
+        notificationCount: 1,
+        topology: "readiness_policy_derived",
+        runtimeAllocation: "preparation_count",
+      },
+    });
+    const installed = harness.kernel.getStateInternalV1();
+    expect(observedStates).toEqual([installed]);
+    expect(transientListener).not.toHaveBeenCalled();
+    const parentAfter = installed.stableRuntimeBindings.find((entry) =>
+      entry.desiredTarget.admittedTarget.occurrenceId === narrativeParent.occurrenceId
+    );
+    const childAfter = installed.stableRuntimeBindings.find((entry) =>
+      entry.desiredTarget.admittedTarget.occurrenceId === narrativeChild.occurrenceId
+    );
+    if (
+      parentAfter?.binding.kind !== "ready_instance" ||
+      childAfter?.binding.kind !== "preparing"
+    ) {
+      throw new Error("expected retained parent and cascaded child preparation");
+    }
+    expect(parentAfter.binding.instance.attempt).toBe(parentBefore.binding.instance.attempt);
+    expect(childAfter.binding.attempt.parentInstanceId).toBe(
+      parentBefore.binding.instance.attempt.identity.surfaceInstanceId,
+    );
+    expect(childAfter.binding.attempt.identity.allocation.sequence).toBe(
+      before.transientState.identitySequenceHighWater + 1,
+    );
+    expect(installed.transientState.identitySequenceHighWater).toBe(
+      before.transientState.identitySequenceHighWater + 1,
+    );
+    expect(harness.registry.inspectCurrentLease(harness.workspace.lease)).toBeNull();
+  });
+
+  it("keeps state and publisher ingress exact when disposal cascade capacity is exhausted", () => {
+    const { harness } = crossOwnerUnblockFixtureV1({
+      identitySequenceHighWater: Number.MAX_SAFE_INTEGER - 2,
+    });
+    const before = harness.kernel.getStateInternalV1();
+    const workspaceLeaseBefore = harness.registry.inspectCurrentLease(harness.workspace.lease);
+    const stateListener = vi.fn();
+    const transientListener = vi.fn();
+    harness.kernel.subscribeStateInternalV1(stateListener);
+    harness.kernel.subscribeTransientInternalV1(transientListener);
+
+    expect(harness.kernel.disposeStablePublisherLeaseInternalV1(harness.workspace.lease)).toEqual({
+      kind: "faulted",
+      code: "surface.stable_reconcile_faulted",
+      delta: zeroDeltaV1,
+    });
+    expect(harness.kernel.getStateInternalV1()).toBe(before);
+    expect(harness.registry.inspectCurrentLease(harness.workspace.lease)).toBe(
+      workspaceLeaseBefore,
+    );
+    expect(stateListener).not.toHaveBeenCalled();
+    expect(transientListener).not.toHaveBeenCalled();
+  });
+
   it("retains one exact ready subtree across second replacement, failure, and disposal", () => {
     const harness = harnessV1();
     const root = rawRootV1(harness.workspace);
@@ -1520,11 +1940,15 @@ describe("dormant managed stable atomic reconcile", () => {
     expect(replacementEntry.binding.kind).toBe("preparing");
     if (replacementEntry.binding.kind !== "preparing") throw new Error("expected replacement");
     expect(replacementEntry.binding.transition).toBe("primary_replacement");
-    expect(replacementEntry.binding.retainedSubtree).toBe(retainedSubtree);
-    expect(replacementEntry.binding.retainedSubtree!.root).toBe(retainedSubtree.root);
-    expect(replacementEntry.binding.retainedSubtree!.descendants).toBe(
-      retainedSubtree.descendants,
-    );
+    const currentRetainedSubtree = replacementEntry.binding.retainedSubtree;
+    expect(currentRetainedSubtree).not.toBeNull();
+    expect(currentRetainedSubtree).not.toBe(retainedSubtree);
+    expect(currentRetainedSubtree!.root.attempt).toBe(retainedSubtree.root.attempt);
+    expect(currentRetainedSubtree!.root.phase).toBe("suspended");
+    expect(currentRetainedSubtree!.descendants).toHaveLength(retainedSubtree.descendants.length);
+    currentRetainedSubtree!.descendants.forEach((instance, index) => {
+      expect(instance.attempt).toBe(retainedSubtree.descendants[index]!.attempt);
+    });
     expect(after.transientState.identitySequenceHighWater).toBe(
       ready.transientState.identitySequenceHighWater + 1,
     );
@@ -1537,7 +1961,7 @@ describe("dormant managed stable atomic reconcile", () => {
     const secondBinding = second.stableRuntimeBindings[0]!.binding;
     if (secondBinding.kind !== "preparing") throw new Error("expected second replacement");
     expect(secondBinding.transition).toBe("primary_replacement");
-    expect(secondBinding.retainedSubtree).toBe(retainedSubtree);
+    expect(secondBinding.retainedSubtree).toBe(currentRetainedSubtree);
     expect(secondBinding.attempt).not.toBe(firstReplacementAttempt);
     expect(secondBinding.attempt.identity.allocation.sequence).toBe(
       firstReplacementAttempt.identity.allocation.sequence + 1,
@@ -1547,7 +1971,7 @@ describe("dormant managed stable atomic reconcile", () => {
     expect(failed.stableRuntimeBindings[0]!.binding).toEqual({
       kind: "gap",
       reason: "readiness_failed",
-      retainedSubtree,
+      retainedSubtree: currentRetainedSubtree,
     });
     expect(harness.kernel.disposeStablePublisherLeaseInternalV1(harness.workspace.lease)).toEqual({
       kind: "applied",

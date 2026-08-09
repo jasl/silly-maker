@@ -96,6 +96,22 @@ import type { ManagedSurfaceTopologyPolicyRowInternalV1 as ForbiddenInternalTopo
 import type { ManagedSurfaceTopologyPolicyProjectionInternalV1 as ForbiddenPublicTopologyPolicyProjectionV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose topology-policy projections.
 import type { ManagedSurfaceTopologyPolicyProjectionInternalV1 as ForbiddenInternalTopologyPolicyProjectionV1 } from "./internal.ts";
+// @ts-expect-error Reducer topology projection derivation stays source-relative.
+import type { deriveManagedSurfaceReducerTopologyProjectionInternalV1 as ForbiddenPublicReducerTopologyProjectionDerivationV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose reducer topology projection derivation.
+import type { deriveManagedSurfaceReducerTopologyProjectionInternalV1 as ForbiddenInternalReducerTopologyProjectionDerivationV1 } from "./internal.ts";
+// @ts-expect-error Reducer topology projection input stays source-relative.
+import type { DeriveManagedSurfaceReducerTopologyProjectionInputInternalV1 as ForbiddenPublicReducerTopologyProjectionInputV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose reducer topology projection input.
+import type { DeriveManagedSurfaceReducerTopologyProjectionInputInternalV1 as ForbiddenInternalReducerTopologyProjectionInputV1 } from "./internal.ts";
+// @ts-expect-error Reducer topology projections stay source-relative.
+import type { ManagedSurfaceReducerTopologyProjectionInternalV1 as ForbiddenPublicReducerTopologyProjectionV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose reducer topology projections.
+import type { ManagedSurfaceReducerTopologyProjectionInternalV1 as ForbiddenInternalReducerTopologyProjectionV1 } from "./internal.ts";
+// @ts-expect-error Reducer topology projection revision modes stay source-relative.
+import type { ManagedSurfaceReducerTopologyProjectionRevisionModeInternalV1 as ForbiddenPublicReducerTopologyProjectionRevisionModeV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose reducer topology projection revision modes.
+import type { ManagedSurfaceReducerTopologyProjectionRevisionModeInternalV1 as ForbiddenInternalReducerTopologyProjectionRevisionModeV1 } from "./internal.ts";
 // @ts-expect-error Runtime-attempt provenance stays source-relative.
 import type { ManagedSurfaceRuntimeAttemptIdentityInternalV1 as ForbiddenPublicRuntimeAttemptV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose runtime-attempt provenance.
@@ -140,6 +156,15 @@ import type { ManagedSurfaceStablePublisherLeaseDisposalCommitResultInternalV1 a
 
 describe("@sillymaker/ui public managed System surface", () => {
   it("keeps the composition-backed Host and launchers without standalone lifecycle hosts", () => {
+    type DormantRuntimeSpellingV1 =
+      | "deriveManagedSurfaceReducerTopologyProjectionInternalV1"
+      | "settleStableReadinessFailedInternalV1"
+      | "settleStableReadinessReadyInternalV1";
+
+    expectTypeOf<Extract<keyof typeof publicUiV1, DormantRuntimeSpellingV1>>()
+      .toEqualTypeOf<never>();
+    expectTypeOf<Extract<keyof typeof internalUiV1, DormantRuntimeSpellingV1>>()
+      .toEqualTypeOf<never>();
     expect(publicUiV1.SystemDialogHostV1).toBeTypeOf("function");
     expect(publicUiV1.SettingsLauncherV1).toBeTypeOf("function");
     expect(publicUiV1.SavesLauncherV1).toBeTypeOf("function");
@@ -167,6 +192,7 @@ describe("@sillymaker/ui public managed System surface", () => {
         "managedSurfaceStableReadinessDeltaContractInternalV1",
         "managedSurfaceStableReadinessFenceChecksInternalV1",
         "projectManagedSurfaceTopologyPolicyInternalV1",
+        "deriveManagedSurfaceReducerTopologyProjectionInternalV1",
         "createManagedSurfaceRuntimeKernelInternalV1",
         "createManagedSurfaceCoordinatorRuntimeBundleInternalV1",
         "createManagedSurfaceStableCompositeStateInternalV1",
@@ -186,6 +212,8 @@ describe("@sillymaker/ui public managed System surface", () => {
         "captureAdmissionContextInternalV1",
         "applyStableAdmissionProposalInternalV1",
         "disposeStablePublisherLeaseInternalV1",
+        "settleStableReadinessReadyInternalV1",
+        "settleStableReadinessFailedInternalV1",
         "allocateManagedSurfaceStableRuntimeAttemptInternalV1",
         "projectManagedSurfaceStableRootReservationSnapshotInternalV1",
         "matchesManagedSurfaceStableAdmissionAuthorityConfigurationInternalV1",

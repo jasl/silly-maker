@@ -18,15 +18,15 @@ projection seam、S1-R.2c stable-vector admission、S1-R.3.0 apply/readiness con
 S1-R.3a composition-owned composite runtime/identity/provenance seam、S1-R.3b.0 exact unpublished
 registration + admission context，以及R3b.1 entry audit发现的S1-R.1b disposal authority
 corrective、S1-R.3b.1 pure reconcile and synchronous owner commit与S1-R.4a shared runtime topology
-policy extraction、S1-R.4b.0 terminal composite disposition均已关闭，下一独立切片为S1-R.4b.1
-source-bound readiness + global cascade settlement；R4 entry
+policy extraction、S1-R.4b.0 terminal composite disposition与S1-R.4b.1 source-bound readiness +
+global cascade settlement均已关闭，下一独立切片为S1-R.5 neutral harness/churn/dead-path audit；R4 entry
 adjudication已先以独立S1-R.4.0关闭
 readiness result/capacity contract。R3b entry audit先以独立S1-R.3a.1 corrective补全ready
 retained-subtree authority，该corrective也已关闭。
 同日 S1-R pre-implementation review 将 aggregate 重切为 S1-R.0–S1-R.5，并冻结
 parent/order、专用 revision、failure divergence、empty/dispose、cross-owner、bounded
-admission 与 exact delta；S1-R.0–R4b.0及R1b（含R1a/R3a.1 corrective）已实现，R4.0 contract已关闭，
-R4b.1–R5 尚未实现。
+admission 与 exact delta；S1-R.0–R4b.1及R1b（含R1a/R3a.1 corrective）已实现，R4.0 contract已关闭，
+R5 尚未实现。
 目标合同见
 [Managed Surface lifecycle and contract harness](../design/surface-contract-harness.md)。
 本文只规定可独立交付的实施顺序；不要求一次实现 design
@@ -34,7 +34,7 @@ R4b.1–R5 尚未实现。
 
 在 [production-floor sequence](2026-07-30-production-floor-sequence.md)
 中：PF2 的 `S0 -> S1-T -> S2`、PF-DET、PF3/M2 与 PF4/S3 已完成；当前 core
-节点是 PF4/S1-R.4b.1。PF4 的顺序是 `S3 -> S1-R.0 -> S1-R.1–S1-R.5 -> S4 -> S4b`；
+节点是 PF4/S1-R.5。PF4 的顺序是 `S3 -> S1-R.0 -> S1-R.1–S1-R.5 -> S4 -> S4b`；
 S5–S6 属于 PF6。S1-R
 延后到第一个真实 externally published stable-target family 前完成；按 accepted
 target ownership，S4 Narrative 计划成为该 family，因此 S1-R 位于 S3 与 S4
@@ -1673,14 +1673,14 @@ S1-R 按以下可独立合并切片推进，每次只领取一个：
 15. **S1-R.4b.0 terminal composite disposition（已完成）**：让specialized Coordinator terminal transaction绕过
     ordinary phase/capacity，以同一prepared install原子关闭bound registry、清空stable source/runtime/
     contributors与transient topology/pending并保留bounded recipe/cursors；
-16. **S1-R.4b.1 source-bound readiness + global cascade settlement**：lease + source revision + candidate
+16. **S1-R.4b.1 source-bound readiness + global cascade settlement（已完成）**：lease + source revision + candidate
     instance fence、failure gap、retained predecessor、direct-child cascade、greater-same explicit retry 与
     stale result；
-17. **S1-R.5 neutral harness/churn/dead-path audit**：two-owner、empty/dispose、conflict、
+17. **S1-R.5 neutral harness/churn/dead-path audit（待实施）**：two-owner、empty/dispose、conflict、
     10k churn、pure/model equivalence 与 public/transient export audit，汇总 dormant
     promotion evidence。
 
-当前只允许从 **S1-R.4b.1** 开始。Stable ingress与stable-specific state/API仍保持
+当前只允许从 **S1-R.5** 开始。Stable ingress与stable-specific state/API仍保持
 dormant/package-internal，不接 Narrative/React/Web，不更新 live feature 文档；shared pure topology
 policy只经existing transient adapter live复用，R3a 已将既有live transient reducer/Coordinator 收口到
 同一 internal kernel/authority，并由adapter保持全部现有transient行为。
@@ -2524,7 +2524,37 @@ receipt/evidence、stable result或Story API，也没有改变Save/Persistence/c
 focused `7 files / 154 tests`、UI package `76 files / 919 tests`、全量`250 files / 3847 tests`、完整
 `deno task check` green、engine browser `101 / 101`、examples browser `45 passed / 2 skipped`与prebuilt Player
 `38 / 38`。S1-R.4b.0已完成；current/next均为S1-R.4b.1 source-bound readiness + global cascade settlement，
-R5仍pending。
+现由下述R4b.1 delivery取代。
+
+**2026-08-10 S1-R.4b.1 delivery：** source-relative stable readiness ingress依序执行composition
+terminal/reentry、application epoch、exact current candidate instance、publisher lease与source revision fence，
+随后才验证registry/baseline/runtime coherence；stale receipt保持exact zero delta。Exact ready/failed receipt均
+terminal-once：ready安装candidate，failed退休candidate并按initial/child/replacement规则安装或保留exact
+readiness-failure gap、retained predecessor与其authenticated subtree provenance，不把failed desired source回滚为
+runtime predecessor。
+
+Stable readiness、proposal apply、greater-empty与effective publisher dispose现在共用whole-composite topology
+reflow。每次transaction先从root intents与本次newly-ready-and-active parents收集same-owner及other-owner的
+direct-child cascade，再以canonical global bulk一次完成eligibility、shared identity capacity、phase与runtime
+planning；grandchildren仍保持gap。Phase/capacity/coherence fault在任何install以及effective dispose的R1b registry
+gate之前返回exact-zero，因此不会留下partial attempt、identity、source cursor、retained aggregate或notification。
+Ready/failed、greater-changed、empty与dispose的成功路径均只安装一个完整composite successor，stable state listener
+exact一次；只有transient-facing publication identity改变时才另发exact一次transient notification，并保持
+transient-before-state顺序。
+
+Nonterminal transient transition也通过R4a finalizer对同一whole-composite执行shared reflow：成功时listener同步
+reentry只看到完整installed successor；phase/cascade planning fault返回existing
+`faulted / surface.transition_faulted`并保留old exact state、zero transient/state notification。Terminal transient
+receipt继续旁路该hook并沿用R4b.0 terminal gate。Failure gap与retained subtree只接受same-origin、exact-current、
+authenticated provenance；second replacement/failure、blocking child使parent suspended后再恢复，以及无关合法reflow
+均保持exact member/attempt identity与bounded retirement。
+
+本批仍是dormant、source-relative stable implementation：没有开放live stable publication ingress，没有接入
+Narrative/System/React/DOM/Web family，没有扩大UI public或package-internal barrel、transient receipt/evidence或Story
+API，也没有改变Save/Persistence/canonical/digest/replay/wire。验证通过focused `9 files / 206 tests`、UI package
+`77 files / 942 tests`、全量`251 files / 3870 tests`、完整`deno task check` green、engine browser
+`101 / 101`、examples browser `45 passed / 2 skipped`与prebuilt Player `38 / 38`。S1-R.4b.1已完成；
+current/next均为S1-R.5 neutral harness/churn/dead-path audit。
 
 ### Desired/runtime divergence and retry
 

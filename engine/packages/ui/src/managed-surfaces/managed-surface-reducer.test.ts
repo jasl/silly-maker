@@ -22,10 +22,14 @@ import {
 import { createInputRouterV1 } from "../input/input-router.ts";
 import {
   createManagedSurfaceReducerStateV1,
+  deriveManagedSurfaceReducerTopologyProjectionInternalV1,
   reduceManagedSurfaceV1,
   type ManagedSurfaceReducerStateV1,
 } from "./managed-surface-reducer.ts";
-import { createManagedSurfaceTransientIdentityV1 } from "./managed-surface-identity.ts";
+import {
+  createManagedSurfaceTransientIdentityV1,
+  inspectManagedSurfaceRuntimeAttemptSequenceInternalV1,
+} from "./managed-surface-identity.ts";
 
 const resolvedOwnerIdsV1 = Object.freeze([
   parseManagedSurfaceOwnerIdV1("surface-owner.workspace"),
@@ -264,6 +268,348 @@ describe("Managed Surface package-internal contracts", () => {
       },
       candidate,
     });
+  });
+});
+
+describe("managed surface reducer topology projection", () => {
+  function projectionFixtureV1() {
+    const initial = createReducerStateV1(87);
+    const rootCandidate = candidateV1(initial, "projection-root", {
+      definition: definitionV1("projection-root", {
+        modality: "blocking",
+        layerOrder: parseNonNegativeSafeInteger(20),
+        inputPolicy: { kind: "managed", inputContextId: "overlay" },
+        focusPolicy: {
+          kind: "owns_focus",
+          initialTargetId: parseManagedSurfaceFocusTargetIdV1("focus-target.projection-root"),
+          trap: true,
+          restore: "opener",
+        },
+        navigationPolicy: { kind: "close" },
+      }),
+    });
+    const openedRoot = openPrimaryV1(initial, rootCandidate);
+    expect(openedRoot.receipt).toMatchObject({
+      kind: "applied",
+      code: "surface.readiness_ready",
+    });
+
+    const rootEvidence = {
+      applicationEpoch: openedRoot.state.publication.applicationEpoch,
+      topologyRevision: openedRoot.state.publication.topologyRevision,
+      surfaceInstanceId: rootCandidate.surfaceInstanceId,
+    };
+    const childCandidate = candidateV1(openedRoot.state, "projection-child", {
+      definition: definitionV1("projection-child", {
+        definitionId: parseManagedSurfaceDefinitionIdV1("surface.projection.child"),
+        slotId: parseManagedSurfaceSlotIdV1("surface-slot.detail"),
+        placement: "child",
+        modality: "non_blocking",
+        layerOrder: parseNonNegativeSafeInteger(30),
+        inputPolicy: { kind: "managed", inputContextId: "system" },
+        focusPolicy: {
+          kind: "owns_focus",
+          initialTargetId: parseManagedSurfaceFocusTargetIdV1("focus-target.projection-child"),
+          trap: true,
+          restore: "opener",
+        },
+        navigationPolicy: { kind: "close" },
+      }),
+    });
+    const openedChild = pushChildV1(openedRoot.state, rootEvidence, childCandidate);
+    expect(openedChild.receipt).toMatchObject({
+      kind: "applied",
+      code: "surface.readiness_ready",
+    });
+
+    const pendingCandidate = candidateV1(openedChild.state, "projection-pending", {
+      definition: definitionV1("projection-pending", {
+        definitionId: parseManagedSurfaceDefinitionIdV1("surface.projection.pending"),
+        slotId: parseManagedSurfaceSlotIdV1("surface-slot.stack"),
+        placement: "child",
+        modality: "non_blocking",
+        layerOrder: parseNonNegativeSafeInteger(40),
+        inputPolicy: { kind: "managed", inputContextId: "debug" },
+        focusPolicy: {
+          kind: "owns_focus",
+          initialTargetId: parseManagedSurfaceFocusTargetIdV1("focus-target.projection-pending"),
+          trap: true,
+          restore: "opener",
+        },
+        navigationPolicy: { kind: "close" },
+      }),
+    });
+    const pending = reduceManagedSurfaceV1(openedChild.state, {
+      kind: "prepare_child",
+      parentEvidence: {
+        applicationEpoch: openedChild.state.publication.applicationEpoch,
+        topologyRevision: openedChild.state.publication.topologyRevision,
+        surfaceInstanceId: rootCandidate.surfaceInstanceId,
+      },
+      candidate: pendingCandidate,
+    });
+    expect(pending.receipt).toMatchObject({
+      kind: "applied",
+      code: "surface.preparation_started",
+    });
+    expect(pending.state.publication.orderedInstances.map((instance) => instance.phase)).toEqual([
+      "suspended",
+      "suspended",
+      "preparing",
+    ]);
+
+    return Object.freeze({
+      state: pending.state,
+      rootCandidate,
+      childCandidate,
+      pendingCandidate,
+    });
+  }
+
+  function projectionRowsV1(
+    state: ManagedSurfaceReducerStateV1,
+    phases: Readonly<Record<string, "preparing" | "active" | "suspended">> = {},
+  ) {
+    return Object.freeze(
+      state.publication.orderedInstances.map((instance) =>
+        Object.freeze({
+          instance,
+          phase: phases[instance.surfaceInstanceId] ?? instance.phase,
+        })
+      ),
+    );
+  }
+
+  it("requires exact current instance coverage and rejects foreign, duplicate, or invalid rows", () => {
+    expect(deriveManagedSurfaceReducerTopologyProjectionInternalV1).toBeTypeOf("function");
+    const { state, rootCandidate } = projectionFixtureV1();
+    const valid = projectionRowsV1(state, {
+      [rootCandidate.surfaceInstanceId]: "active",
+    });
+    const foreignInstance = Object.freeze({ ...valid[0]!.instance });
+    const invalidInputs = [
+      valid.slice(0, -1),
+      Object.freeze([
+        Object.freeze({ instance: foreignInstance, phase: "active" as const }),
+        ...valid.slice(1),
+      ]),
+      Object.freeze([valid[0]!, valid[0]!, ...valid.slice(2)]),
+      Object.freeze([
+        Object.freeze({ instance: valid[0]!.instance, phase: "preparing" as const }),
+        ...valid.slice(1),
+      ]),
+    ];
+
+    for (const projection of invalidInputs) {
+      expect(() =>
+        deriveManagedSurfaceReducerTopologyProjectionInternalV1({
+          state,
+          projection,
+          revisionMode: "advance_direct_transition",
+        })
+      ).toThrow(TypeError);
+      expect(state.publication.orderedInstances).toHaveLength(3);
+      expect(state.publication.orderedInstances[0]?.phase).toBe("suspended");
+    }
+    expect(() =>
+      deriveManagedSurfaceReducerTopologyProjectionInternalV1({
+        state,
+        projection: valid,
+        revisionMode: "future_mode" as "advance_direct_transition",
+      })
+    ).toThrow(TypeError);
+  });
+
+  it("returns the exact state when complete projection phases are unchanged", () => {
+    const { state } = projectionFixtureV1();
+    const projection = Object.freeze(projectionRowsV1(state).toReversed());
+
+    expect(
+      deriveManagedSurfaceReducerTopologyProjectionInternalV1({
+        state,
+        projection,
+        revisionMode: "advance_direct_transition",
+      }),
+    ).toBe(state);
+    expect(
+      deriveManagedSurfaceReducerTopologyProjectionInternalV1({
+        state,
+        projection,
+        revisionMode: "coalesce_existing_transition",
+      }),
+    ).toBe(state);
+  });
+
+  it("advances a direct projection once and recomputes observable publication fields", () => {
+    const { state, rootCandidate, childCandidate, pendingCandidate } = projectionFixtureV1();
+    const beforeInstances = state.publication.orderedInstances;
+    const next: ManagedSurfaceReducerStateV1 =
+      deriveManagedSurfaceReducerTopologyProjectionInternalV1({
+        state,
+        projection: projectionRowsV1(state, {
+          [rootCandidate.surfaceInstanceId]: "active",
+        }),
+        revisionMode: "advance_direct_transition",
+      });
+
+    expect(next).not.toBe(state);
+    expect(next.publication).not.toBe(state.publication);
+    expectRevisionDeltaV1(state.publication, next.publication, 1, 1);
+    expect(next.publication.orderedInstances.map((instance) => instance.phase)).toEqual([
+      "active",
+      "suspended",
+      "preparing",
+    ]);
+    expect(next.publication.orderedInstances[0]).not.toBe(beforeInstances[0]);
+    expect(next.publication.orderedInstances[1]).toBe(beforeInstances[1]);
+    expect(next.publication.orderedInstances[2]).toBe(beforeInstances[2]);
+    expect(next.publication.inputOwner).toEqual({
+      surfaceInstanceId: rootCandidate.surfaceInstanceId,
+      inputContextId: "overlay",
+      routingLeaseId: rootCandidate.routingLeaseId,
+    });
+    expect(next.publication.focusOwner).toEqual({
+      surfaceInstanceId: rootCandidate.surfaceInstanceId,
+      initialTargetId: "focus-target.projection-root",
+      trap: true,
+      restore: "opener",
+    });
+    expect(next.publication.navigationTargetInstanceId).toBe(rootCandidate.surfaceInstanceId);
+    expect(next.publication.preparationFallbacks).toEqual([
+      {
+        kind: "blocking_fallback",
+        candidateInstanceId: pendingCandidate.surfaceInstanceId,
+      },
+    ]);
+    expect(next.publication.topmostBlockingInstanceId).toBe(rootCandidate.surfaceInstanceId);
+    expect(next.publication.ownerTrace).toEqual([
+      {
+        ownerId: "surface-owner.workspace",
+        surfaceInstanceIds: [
+          rootCandidate.surfaceInstanceId,
+          childCandidate.surfaceInstanceId,
+          pendingCandidate.surfaceInstanceId,
+        ],
+        disposed: false,
+      },
+    ]);
+    expect(next.publication.ownerTrace).not.toBe(state.publication.ownerTrace);
+    expect(next.identitySequenceHighWater).toBe(state.identitySequenceHighWater);
+    expect(next.resolvedOwnerIds).toBe(state.resolvedOwnerIds);
+    expect(next.resolvedSlotDescriptors).toBe(state.resolvedSlotDescriptors);
+    expect(next.disposedOwnerIds).toBe(state.disposedOwnerIds);
+    next.publication.orderedInstances.forEach((instance, index) => {
+      expect(inspectManagedSurfaceRuntimeAttemptSequenceInternalV1(instance)).toBe(
+        inspectManagedSurfaceRuntimeAttemptSequenceInternalV1(beforeInstances[index]!),
+      );
+    });
+  });
+
+  it("coalesces phase projection into revisions already advanced by the caller transition", () => {
+    const { state, rootCandidate } = projectionFixtureV1();
+    const next: ManagedSurfaceReducerStateV1 =
+      deriveManagedSurfaceReducerTopologyProjectionInternalV1({
+        state,
+        projection: projectionRowsV1(state, {
+          [rootCandidate.surfaceInstanceId]: "active",
+        }),
+        revisionMode: "coalesce_existing_transition",
+      });
+
+    expect(next).not.toBe(state);
+    expect(next.publication).not.toBe(state.publication);
+    expect(next.publication.publicationRevision).toBe(state.publication.publicationRevision);
+    expect(next.publication.topologyRevision).toBe(state.publication.topologyRevision);
+    expect(next.publication.orderedInstances[0]?.phase).toBe("active");
+    expect(next.identitySequenceHighWater).toBe(state.identitySequenceHighWater);
+  });
+
+  it("captures projection getters exactly once and leaves the source untouched when capture throws", () => {
+    const { state, rootCandidate } = projectionFixtureV1();
+    const phaseByInstance: Readonly<
+      Record<string, "preparing" | "active" | "suspended">
+    > = {
+      [rootCandidate.surfaceInstanceId]: "active",
+    };
+    let stateReads = 0;
+    let projectionReads = 0;
+    let revisionModeReads = 0;
+    const rowReads = state.publication.orderedInstances.map(() => ({ instance: 0, phase: 0 }));
+    const rows = state.publication.orderedInstances.map((instance, index) =>
+      Object.freeze({
+        get instance() {
+          rowReads[index]!.instance += 1;
+          return instance;
+        },
+        get phase() {
+          rowReads[index]!.phase += 1;
+          return phaseByInstance[instance.surfaceInstanceId] ?? instance.phase;
+        },
+      })
+    );
+    const next: ManagedSurfaceReducerStateV1 =
+      deriveManagedSurfaceReducerTopologyProjectionInternalV1({
+        get state() {
+          stateReads += 1;
+          return state;
+        },
+        get projection() {
+          projectionReads += 1;
+          return rows;
+        },
+        get revisionMode() {
+          revisionModeReads += 1;
+          return "advance_direct_transition" as const;
+        },
+      });
+    expect(next.publication.orderedInstances[0]?.phase).toBe("active");
+    expect({ stateReads, projectionReads, revisionModeReads }).toEqual({
+      stateReads: 1,
+      projectionReads: 1,
+      revisionModeReads: 1,
+    });
+    expect(rowReads).toEqual([
+      { instance: 1, phase: 1 },
+      { instance: 1, phase: 1 },
+      { instance: 1, phase: 1 },
+    ]);
+
+    const sourcePublication = state.publication;
+    let throwingPhaseReads = 0;
+    const throwingRows = projectionRowsV1(state).map((row, index) =>
+      index === 1
+        ? Object.freeze({
+          get instance() {
+            return row.instance;
+          },
+          get phase(): "preparing" | "active" | "suspended" {
+            throwingPhaseReads += 1;
+            throw new Error("projection phase failed");
+          },
+        })
+        : row
+    );
+    expect(() =>
+      deriveManagedSurfaceReducerTopologyProjectionInternalV1({
+        state,
+        projection: throwingRows,
+        revisionMode: "advance_direct_transition",
+      })
+    ).toThrowError("projection phase failed");
+    expect(throwingPhaseReads).toBe(1);
+    expect(state.publication).toBe(sourcePublication);
+    expect(state.publication.orderedInstances.map((instance) => instance.phase)).toEqual([
+      "suspended",
+      "suspended",
+      "preparing",
+    ]);
+    expect(
+      deriveManagedSurfaceReducerTopologyProjectionInternalV1({
+        state,
+        projection: projectionRowsV1(state),
+        revisionMode: "advance_direct_transition",
+      }),
+    ).toBe(state);
   });
 });
 
