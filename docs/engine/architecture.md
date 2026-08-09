@@ -538,7 +538,9 @@ root contributor vector changes. The gate closes the exact bound registry;
 installed state is observed. First delivery remains transient-before-state and
 then clears both listener sets; repeat is unchanged and allocation-free. A
 source-relative read-only comparison probe exposes only frozen identity booleans
-and collection sizes for deterministic teardown auditing. Already-terminal
+and collection sizes for deterministic teardown and bounded-churn auditing,
+including bound and pending attempts, preserved readiness-failure gaps, and
+stable contributor candidates. Already-terminal
 transient state cannot seed a fresh composite with a live registry.
 The dormant stable owner now consumes the dedicated readiness contract through
 two source-relative `ready` and `failed` settlement methods. They enter the same
@@ -574,9 +576,15 @@ existing transient preorder remain a closed planning fault rather than gaining
 an allocation-derived z-order.
 
 These stateful methods remain package-internal and source-relative: no live
-stable publisher/family/renderer ingress calls them yet. The UI root and
-`./internal` barrels and package export map are unchanged. R5 neutral harness
-coverage remains the next slice before any S4 live-family migration.
+stable publisher/family/renderer ingress calls them yet. A test-local neutral
+two-owner harness now checks the complete stable publication/readiness/empty/
+dispose boundary against an explicit semantic projection and runs 10,000 full
+reconcile/failure/empty cycles without retaining historical attempts, failure
+gaps, contributors, state snapshots, or receipts; the registry retains only
+the two current publishers plus scalar cursors. The UI root and `./internal`
+barrels, package export map, and transient evidence/receipt shapes remain unchanged.
+This closes the S1-R aggregate implementation gate; S4 remains the next
+independent live-family migration and is not activated by the dormant harness.
 
 ## 9. Changing the architecture
 

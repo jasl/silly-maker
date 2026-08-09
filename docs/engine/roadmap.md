@@ -77,8 +77,9 @@ workload 证据；仓库外私有实验只能提供匿名需求反馈，正式 p
 9. Surface structural/model/browser harness 与作者 API promotion；
 10. release stabilization。
 
-当前默认 linear-core 入口是第 7 项的 `PF4/S3 System dialogs`；Save 的产品级
-dry-run/backup/release fixture corpus 属于其后的 PF5/M3。
+当前默认 linear-core 入口是第 7 项的 `PF4/S4 Narrative/History`；System dialogs 与
+前置 S1-R aggregate gate 已完成，whole-canvas primary/detail 仍在后续 S4b。Save 的
+产品级 dry-run/backup/release fixture corpus 属于其后的 PF5/M3。
 
 Desktop Host persistence 是独立、条件性的 promotion lane：目标平台是
 macOS、Windows 与 Linux，当前 live wrapper/file channel 已是可用 preview，真实
@@ -214,10 +215,11 @@ AI-friendly promotion 时，声明 presentation postcondition 的 action 必须�
 evidence，并能返回 `postcondition_failed`；普通 action 不统一 envelope。弱模型
 canary 用于冻结作者 API，不阻塞每个 runtime migration commit。
 
-当前 Workspace Overlay 已是第一个 live family：Coordinator 是其唯一 writable
-lifecycle authority，Story 只声明 definition/renderer/port 并发送 intents。System、
-Narrative/History、whole-canvas family 与 stable-target reconcile 仍按 active sequence
-逐批迁移。
+System dialogs 已迁移为与 Workspace Overlay 共享同一个 composition-owned Coordinator 的
+live transient family，且两者都没有平行 writable lifecycle authority。S1-R stable-target reconcile
+aggregate gate已完成，但stable ingress仍是package-internal dormant能力；下一active family为
+Narrative/History S4，它将成为第一个真实externally published stable-target consumer。
+Whole-canvas primary/detail仍在后续S4b独立迁移。
 
 ## 8. Strategic track D — content platform and creator tooling
 

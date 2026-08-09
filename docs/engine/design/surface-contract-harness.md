@@ -98,10 +98,11 @@ topology-participating equal-layer rows在R2 topology、exact retained subtree�
 已完成并 promotion System 的 shared composition authority、Host readiness、confirmation
 child 与 single-writer cutover；S1-R.1a corrective、S1-R.3.0、S1-R.3a 与 R3a.1 corrective 已完成，
 S1-R.1b corrective、S1-R.3b.0、S1-R.3b.1、S1-R.4.0 entry contract 与 S1-R.4a 也已完成，
-S1-R.4b.0 terminal disposition与S1-R.4b.1 readiness/cascade settlement也已完成。下一独立切片为
-S1-R.5 neutral harness/churn/dead-path audit；当前active execution pointer的current/next均为S1-R.5，
-R3b.1、R4.0、R4a、R4b.0与R4b.1只作为completed delivery保留。S4仍须等待R5完成，不能因dormant
-R4实现而提前接入live stable family。
+S1-R.4b.0 terminal disposition、S1-R.4b.1 readiness/cascade settlement与S1-R.5 neutral
+harness/churn/dead-path audit均已完成，S1-R aggregate gate已关闭；当前active
+execution pointer的current/next均为S4 Narrative and History family，R3b.1、R4.0、R4a、R4b.0、
+R4b.1与R5只作为completed delivery保留。Stable implementation仍保持dormant/source-relative；R5完成只
+解除S4 entry gate，不把任何stable family提前写成live capability。
 当前 live 能力仍以
 [architecture](../architecture.md) 与
 [features](../features.md) 为准；执行顺序见
@@ -1075,11 +1076,39 @@ publication时另有exact一次transient notification并保持transient-before-s
 完整successor，stale repeat不能再次settle；faulted rollback两类notification均为零。该切片没有接入Narrative、
 React Host或Web live stable family，没有新增public/internal barrel、transient receipt/evidence、Story API、
 Save/Persistence/canonical/digest/replay/wire变化。R5仍须完成neutral harness、bounded churn与dead-path audit，
-之后才允许按S4 gate迁移第一个真实stable-target family。
+之后才允许按S4 gate迁移第一个真实stable-target family；该checkpoint现由下述R5 delivery关闭。
 
 验证：focused `9 files / 206 tests`、UI package `77 files / 942 tests`、全量
 `251 files / 3870 tests`、`deno task check` green、browser `101/101`、examples `45 passed / 2 skipped`、
 prebuilt `38/38`。
+
+S1-R.5 delivery 已完成：新增中性、test-only stable aggregate harness，以两个generic owner、generated
+occurrence与无游戏规则参数运行explicit reference trace。该trace覆盖initial root/child、ready/failure、
+cross-owner blocking、owner conflict exact-zero、greater-same gap retry、replacement failure + retained
+predecessor、greater-empty、effective/repeated dispose、fresh successor lease与stale predecessor proposal；每一步
+同时断言accepted source、runtime kind/phase、exact attempt identity、notification与shared identity high-water，
+不调用Cat Cafe、Narrative产品规则或第二份writable stable state。
+
+同一harness执行`10,000`次完整nonempty → readiness-failed → empty reconcile cycle：最终source revision
+high-water为`20,000`、occurrence与shared runtime identity high-water均为`10,000`，state notification为
+`30,000`、transient notification为`0`；current accepted vector、runtime、root contributor与registry只保留
+当前两个publisher及scalar cursors，不积累历史target/attempt/tombstone。Source-relative frozen private-provenance
+comparison补入`preservedReadinessFailureGaps`的exact Set identity与before/after size；每次failure为`1`、empty
+回到`0`，terminal successor连同bound/pending attempts、failure gaps与contributor candidates全部fresh-empty，
+且listener只收到一次完整terminal successor。
+
+Transient readiness evidence/receipt继续没有publisher lease、source revision、accepted baseline或reconcile
+cursor字段。Reviewed public/transient export与bounded import/dead-path audit确认UI root、`./internal` barrel、package
+export map及Narrative/React/Web live graph均未接入stable source-relative modules；该证据记录在delivery中，不新增
+冻结exact file inventory的常规CI测试。R5没有promotion live stable family，也没有改变Story API、
+Save/Persistence/canonical/digest/replay/wire；S1-R aggregate只作为S4第一个真实stable-target family的已关闭
+engine gate。
+
+验证：focused `12 files / 272 tests`、UI package `78 files / 946 tests`、全量
+`252 files / 3874 tests`与完整`deno task check` green。本切片只改变source-relative comparator audit seam与
+test/docs，不影响browser或build路径，因此没有机械重跑browser/examples/prebuilt；本轮最近的R4b.1证据仍为
+Engine browser `101/101`、examples `45 passed / 2 skipped`与prebuilt Player `38/38`，不把它们表述为R5
+HEAD上的重复执行。
 
 ### 3.3 Runtime session
 

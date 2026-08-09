@@ -18,15 +18,16 @@ projection seam、S1-R.2c stable-vector admission、S1-R.3.0 apply/readiness con
 S1-R.3a composition-owned composite runtime/identity/provenance seam、S1-R.3b.0 exact unpublished
 registration + admission context，以及R3b.1 entry audit发现的S1-R.1b disposal authority
 corrective、S1-R.3b.1 pure reconcile and synchronous owner commit与S1-R.4a shared runtime topology
-policy extraction、S1-R.4b.0 terminal composite disposition与S1-R.4b.1 source-bound readiness +
-global cascade settlement均已关闭，下一独立切片为S1-R.5 neutral harness/churn/dead-path audit；R4 entry
+policy extraction、S1-R.4b.0 terminal composite disposition、S1-R.4b.1 source-bound readiness +
+global cascade settlement与S1-R.5 neutral harness/churn/dead-path audit均已关闭，下一独立切片为S4
+Narrative and History family；R4 entry
 adjudication已先以独立S1-R.4.0关闭
 readiness result/capacity contract。R3b entry audit先以独立S1-R.3a.1 corrective补全ready
 retained-subtree authority，该corrective也已关闭。
 同日 S1-R pre-implementation review 将 aggregate 重切为 S1-R.0–S1-R.5，并冻结
 parent/order、专用 revision、failure divergence、empty/dispose、cross-owner、bounded
-admission 与 exact delta；S1-R.0–R4b.1及R1b（含R1a/R3a.1 corrective）已实现，R4.0 contract已关闭，
-R5 尚未实现。
+admission 与 exact delta；S1-R.0–R5及R1b（含R1a/R3a.1 corrective）已实现，R4.0 contract已关闭，
+S1-R aggregate gate已关闭。
 目标合同见
 [Managed Surface lifecycle and contract harness](../design/surface-contract-harness.md)。
 本文只规定可独立交付的实施顺序；不要求一次实现 design
@@ -34,7 +35,7 @@ R5 尚未实现。
 
 在 [production-floor sequence](2026-07-30-production-floor-sequence.md)
 中：PF2 的 `S0 -> S1-T -> S2`、PF-DET、PF3/M2 与 PF4/S3 已完成；当前 core
-节点是 PF4/S1-R.5。PF4 的顺序是 `S3 -> S1-R.0 -> S1-R.1–S1-R.5 -> S4 -> S4b`；
+节点是 PF4/S4。PF4 的顺序是 `S3 -> S1-R.0 -> S1-R.1–S1-R.5 -> S4 -> S4b`；
 S5–S6 属于 PF6。S1-R
 延后到第一个真实 externally published stable-target family 前完成；按 accepted
 target ownership，S4 Narrative 计划成为该 family，因此 S1-R 位于 S3 与 S4
@@ -1676,11 +1677,11 @@ S1-R 按以下可独立合并切片推进，每次只领取一个：
 16. **S1-R.4b.1 source-bound readiness + global cascade settlement（已完成）**：lease + source revision + candidate
     instance fence、failure gap、retained predecessor、direct-child cascade、greater-same explicit retry 与
     stale result；
-17. **S1-R.5 neutral harness/churn/dead-path audit（待实施）**：two-owner、empty/dispose、conflict、
+17. **S1-R.5 neutral harness/churn/dead-path audit（已完成）**：two-owner、empty/dispose、conflict、
     10k churn、pure/model equivalence 与 public/transient export audit，汇总 dormant
     promotion evidence。
 
-当前只允许从 **S1-R.5** 开始。Stable ingress与stable-specific state/API仍保持
+当前只允许从 **S4** 开始。Stable ingress与stable-specific state/API仍保持
 dormant/package-internal，不接 Narrative/React/Web，不更新 live feature 文档；shared pure topology
 policy只经existing transient adapter live复用，R3a 已将既有live transient reducer/Coordinator 收口到
 同一 internal kernel/authority，并由adapter保持全部现有transient行为。
@@ -2554,7 +2555,42 @@ Narrative/System/React/DOM/Web family，没有扩大UI public或package-internal
 API，也没有改变Save/Persistence/canonical/digest/replay/wire。验证通过focused `9 files / 206 tests`、UI package
 `77 files / 942 tests`、全量`251 files / 3870 tests`、完整`deno task check` green、engine browser
 `101 / 101`、examples browser `45 passed / 2 skipped`与prebuilt Player `38 / 38`。S1-R.4b.1已完成；
-current/next均为S1-R.5 neutral harness/churn/dead-path audit。
+current/next当时均为S1-R.5 neutral harness/churn/dead-path audit，现由下述R5 delivery取代。
+
+**2026-08-10 S1-R.5 delivery：** 新的source-relative neutral aggregate harness以两个独立publisher
+lease、两个root scope与中性root/child/replacement definition建立显式reference snapshot trace。Trace依序覆盖
+initial root + child、ready/failed terminal settlement、other-owner coexistence、root-slot owner conflict exact-zero、
+greater-empty、failed child的greater-same fresh retry、single-root retained replacement failure + retry/cutover、accepted
+empty、effective + repeated publisher dispose与fresh same-owner lease domain；每一步都对照plain runtime summary、
+fresh shared sequence、state/transient notification数和old-proposal stale boundary，不复制canonical/admission或production
+planner作为第二份authority。另以type-level negative assertion继续证明transient readiness evidence/receipt没有stable
+source placeholder。
+
+同一harness执行10,000次完整`root publication -> readiness failed -> accepted empty` reconcile cycle，只保留当前
+state引用而不收集历史。每次failed successor都通过既有opaque provenance comparison证明bound/pending attempt为零、
+`preservedReadinessFailureGaps`只含当前exact gap；随后的empty successor把该集合恢复为零，并保持private pending、
+contributor candidates、public runtime/contributor arrays有界。最终只允许lease/source/occurrence、accepted-occurrence与
+shared runtime identity scalar high-water单调增长；installed lineage保持`derivedFromPresent: false`、depth `0`，
+10,000个旧failure gap、attempt或state不会成为强历史。
+
+Terminal aggregate vector从同时存在accepted owner与current readiness-failure gap的state开始，证明first
+`dispose_coordinator`在exact registry close后一次清空两owner baseline/runtime/contributor及全部private
+bound/pending/failure-gap/contributor provenance。Captured transient listener先于state listener并只见完整terminal
+successor；listener内stable readiness ingress被terminal fence、nested terminal repeat unchanged，removed listener不被
+调用，subscriber fault只进入diagnostics且不rollback。首次以后listener已清空，后续repeat保持zero notification。
+
+本批对production source的唯一扩展是既有source-relative frozen comparison result补充
+`preservedReadinessFailureGaps`的identity/size row；它不暴露private collection或新增mutation authority。Bounded
+public/transient/dead-path audit确认stable stateful APIs仍未进入UI root、`./internal` barrel、package exports、
+Narrative/React/Web/browser composition或Story API；Save/Persistence/canonical/digest/replay/wire与existing transient
+contracts均无变化。至此S1-R aggregate gate关闭，但stable publication ingress/family adapter仍保持dormant，只有S4
+可以开始首个live Narrative stable-target migration。
+
+验证通过focused `12 files / 272 tests`、UI package `78 files / 946 tests`、全量
+`252 files / 3874 tests`与完整`deno task check` green。由于本批只新增source-relative comparison observation与
+DOM-free tests/docs，没有改变browser/build graph，未机械重跑browser/examples/prebuilt；沿用紧邻R4b.1已通过的
+engine browser `101 / 101`、examples browser `45 passed / 2 skipped`与prebuilt Player `38 / 38`证据。
+S1-R.5已完成；current/next均为S4 Narrative and History family。
 
 ### Desired/runtime divergence and retry
 

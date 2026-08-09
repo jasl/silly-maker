@@ -269,6 +269,8 @@ export interface ManagedSurfaceStableCompositePrivateProvenanceComparisonInterna
   readonly boundRuntimeAttempts: ManagedSurfaceStableCompositePrivateCollectionComparisonInternalV1;
   readonly pendingRuntimeAttempts:
     ManagedSurfaceStableCompositePrivateCollectionComparisonInternalV1;
+  readonly preservedReadinessFailureGaps:
+    ManagedSurfaceStableCompositePrivateCollectionComparisonInternalV1;
   readonly stableContributorCandidates:
     ManagedSurfaceStableCompositePrivateCollectionComparisonInternalV1;
   readonly after: Readonly<{
@@ -410,6 +412,12 @@ export function compareManagedSurfaceStableCompositePrivateProvenanceInternalV1(
       afterRecord.pendingRuntimeAttempts,
       beforeRecord.pendingRuntimeAttempts.size,
       afterRecord.pendingRuntimeAttempts.size,
+    ),
+    preservedReadinessFailureGaps: compareCollection(
+      beforeRecord.preservedReadinessFailureGaps,
+      afterRecord.preservedReadinessFailureGaps,
+      beforeRecord.preservedReadinessFailureGaps.size,
+      afterRecord.preservedReadinessFailureGaps.size,
     ),
     stableContributorCandidates: compareCollection(
       beforeRecord.stableContributorCandidates,
