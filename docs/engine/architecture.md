@@ -614,11 +614,12 @@ composition authority owns lifecycle mutation. A source-relative dormant seam
 now proves how future stable runtime state can share that authority and identity
 domain and holds dormant exact lease/baseline registration plus read-only
 admission context. It now applies exact stable proposals and performs atomic
-publisher disposal through that same owner, but it performs no readiness
-settlement, remains disconnected from every live stable family, and is not
-available through a package barrel. The live transient reducer now consumes the
-shared pure topology policy, while the dormant stable owner also performs the
-complete registry-gated terminal composite disposition described above. Stable
-readiness/global cascade and the Narrative migration remain planned work. Target
-documents do not alter the current data flow until each migration and its
-behavior tests land.
+publisher disposal through that same owner, settles source-bound stable
+readiness, and performs whole-composite global cascade through the shared
+topology policy. It remains disconnected from every live stable family and is
+not available through a package barrel. The live transient reducer consumes the
+same pure topology policy, while the dormant stable owner also performs the
+complete registry-gated terminal composite disposition described above. The R5
+neutral harness closes this source-relative aggregate conformance gate; the
+Narrative live migration remains planned work. Target documents do not alter
+the current data flow until that migration and its behavior tests land.
