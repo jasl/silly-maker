@@ -16,10 +16,11 @@ floor、S1-R.1 publisher lease/source/occurrence allocator、S1-R.1a captured oc
 admission proof corrective、S1-R.2a corrective admission contract、S1-R.2b Base bounded canonical
 projection seam、S1-R.2c stable-vector admission、S1-R.3.0 apply/readiness contract closure与
 S1-R.3a composition-owned composite runtime/identity/provenance seam 已关闭，下一独立切片为
-S1-R.3b pure atomic reconcile。
+S1-R.3b.0 exact unpublished registration + admission context；R3b entry audit先以独立
+S1-R.3a.1 corrective补全ready retained-subtree authority，该corrective也已关闭。
 同日 S1-R pre-implementation review 将 aggregate 重切为 S1-R.0–S1-R.5，并冻结
 parent/order、专用 revision、failure divergence、empty/dispose、cross-owner、bounded
-admission 与 exact delta；S1-R.0–R3a（含R1a corrective）已实现，R3b–R5 尚未实现。
+admission 与 exact delta；S1-R.0–R3a.1（含R1a/R3a.1 corrective）已实现，R3b.0–R5 尚未实现。
 目标合同见
 [Managed Surface lifecycle and contract harness](../design/surface-contract-harness.md)。
 本文只规定可独立交付的实施顺序；不要求一次实现 design
@@ -27,7 +28,7 @@ admission 与 exact delta；S1-R.0–R3a（含R1a corrective）已实现，R3b�
 
 在 [production-floor sequence](2026-07-30-production-floor-sequence.md)
 中：PF2 的 `S0 -> S1-T -> S2`、PF-DET、PF3/M2 与 PF4/S3 已完成；当前 core
-节点是 PF4/S1-R.3b。PF4 的顺序是 `S3 -> S1-R.0 -> S1-R.1–S1-R.5 -> S4 -> S4b`；
+节点是 PF4/S1-R.3b.0。PF4 的顺序是 `S3 -> S1-R.0 -> S1-R.1–S1-R.5 -> S4 -> S4b`；
 S5–S6 属于 PF6。S1-R
 延后到第一个真实 externally published stable-target family 前完成；按 accepted
 target ownership，S4 Narrative 计划成为该 family，因此 S1-R 位于 S3 与 S4
@@ -1644,17 +1645,24 @@ S1-R 按以下可独立合并切片推进，每次只领取一个：
    topology kernel，让现有 transient reducer/Coordinator adapter复用它，同时建立
    stable runtime-attempt provenance、same-factory definition inspector与全局 reservation
    contributor generation；不 apply R2 proposal；
-9. **S1-R.3b pure atomic reconcile state/reducer**：在同一 composite state 中原子
-   apply exact R2 proposal，一次提交 accepted desired source 与 runtime
-   preparation/topology delta，不发布 per-target intermediate state，不 settle readiness；
-10. **S1-R.4 source-bound readiness and retry**：lease + source revision + candidate
+9. **S1-R.3a.1 retained ready-subtree corrective（已完成）**：把single-root replacement的
+   predecessor从单一root引用补全为same-composite authenticated immutable ready closure；aggregate
+   在current authoritative binding中canonicalize为一个exact引用，members不再重复进入accepted runtime
+   entries；reservation只投影root，不apply proposal；
+10. **S1-R.3b.0 exact unpublished registration + admission context**：在publication ingress前把
+    exact current R1 lease与同一R2 authority产生的exact unpublished baseline动态注册进composition
+    state，并提供read-only exact baseline/reservation context；不采用absence sentinel、不apply proposal；
+11. **S1-R.3b.1 pure atomic reconcile state/reducer**：在同一 composite state 中原子
+    apply exact R2 proposal，一次提交 accepted desired source 与 runtime
+    preparation/topology delta，不发布 per-target intermediate state，不 settle readiness；
+12. **S1-R.4 source-bound readiness and retry**：lease + source revision + candidate
     instance fence、failure gap、retained predecessor、greater-same explicit retry 与 stale
     receipt；
-11. **S1-R.5 neutral harness/churn/dead-path audit**：two-owner、empty/dispose、conflict、
+13. **S1-R.5 neutral harness/churn/dead-path audit**：two-owner、empty/dispose、conflict、
     10k churn、pure/model equivalence 与 public/transient export audit，汇总 dormant
     promotion evidence。
 
-当前只允许从 **S1-R.3b** 开始。Stable ingress与全部新增 S1-R state/API仍保持
+当前只允许从 **S1-R.3b.0** 开始。Stable ingress与全部新增 S1-R state/API仍保持
 dormant/package-internal，不接 Narrative/React/Web，不更新 live feature 文档；R3a 已将既有
 live transient reducer/Coordinator 收口到同一 internal kernel/authority，并由adapter保持全部
 现有transient行为。
@@ -2072,19 +2080,22 @@ reentry先看到successor，可同步完成独立nested transition/notification�
   不重跑 schema/canonical
   admission，不从 `definitionId + contractRevision` 猜测 runtime definition。
 - 每个 accepted desired target 的 runtime binding 精确且仅能是
-  `ready_instance`、`preparing { transition, candidate, predecessor? }` 或
-  `gap { reason, predecessor? }`。Ready binding 记录 exact instance 及 active/suspended
+  `ready_instance`、`preparing { transition, candidate, retainedSubtree? }` 或
+  `gap { reason, retainedSubtree? }`。Ready binding 记录 exact instance 及 active/suspended
   phase；suspended仍是ready runtime但不具备parent eligibility。Preparing binding 的 transition 只能是 `initial_open`、`child_open` 或
   `primary_replacement`，candidate 必须保存 exact lease/source/instance，只有
-  primary replacement 可携带 predecessor；gap 必须保存 closed reason，并在
-  replacement failure 后可携带 exact predecessor。Binding 不复制可写 desired target，
-  predecessor 也不写回 accepted vector，但 gap 不得只作为两份 state 的临时差集
-  而丢失 reason/predecessor fence。
+  primary replacement 可携带 authenticated immutable ready-subtree aggregate；gap 必须保存 closed
+  reason，并在 replacement failure 后携带同一个exact aggregate。Aggregate含exact ready root与按
+  current runtime topology preorder冻结的ready active/suspended descendant closure；pending/gap不进入，
+  members不写回accepted vector且不得同时留在accepted runtime entries。它属于同一composite state，
+  不是第二份writable topology authority。
 - 只有exact `single` root `primary_replacement` preparing或它失败后的`readiness_failed` gap
-  可以携带non-null predecessor；`initial_open`、`child_open`与`parent_unavailable` gap的
-  predecessor必须为`null`，其他cross-product都是package invariant fault。
-- 只有 `single` root slot 的 ready root subtree 可成为一个 replacement candidate 的 exact
-  predecessor，且每个 slot 最多一个。Root `stack` 的新增/删除按独立 occurrence
+  可以携带non-null retained subtree；`initial_open`、`child_open`与`parent_unavailable` gap的
+  retained subtree必须为`null`，其他cross-product都是package invariant fault。
+- 只有 `single` root slot 的 exact current ready root closure 可成为一个 replacement candidate 的
+  retained subtree，且每个 slot 最多一个。Closure必须完整、same-lease、parent-chain闭合且只含ready
+  active/suspended实例；partial/reordered/duplicate/extra/foreign/clone/candidate/gap member均fail closed。
+  Root `stack` 的新增/删除按独立 occurrence
   prepare/retire，retained siblings 保留 exact instance 与 scope order，不跨 occurrence
   借用 predecessor。Child 只在 exact ready + active parent 下按 `child_open`
   prepare；child 变更/删除原子退休该 subtree，不保留 child predecessor，不 reparent。
@@ -2165,7 +2176,38 @@ readiness、没有开放live stable ingress或family adapter，也没有把新�
 package `74 / 832`、`deno task test`（`248 / 3760`）、完整`deno task check`、Engine browser
 `101 / 101`、examples browser `45 passed / 2 skipped`与prebuilt Player `38 / 38`。
 
-#### R3b pure reconcile and synchronous owner commit
+**2026-08-09 S1-R.3a.1 delivery：** dormant stable composite把single-root replacement的
+predecessor提升为same-origin authenticated immutable ready-subtree aggregate。Factory只从exact current
+ready root捕获ready active/suspended closure，并按current runtime topology preorder冻结exact root/
+descendants；shared-cursor allocation、second replacement、replacement failure与semantic no-op继续复用
+canonical current aggregate。Clone/partial/reordered/duplicate/cross-lease closure、member与accepted runtime
+entry重复以及cutover后复活均fail closed；root contributor只投影aggregate root，descendants不形成row或
+第二topology authority。新增type/factory继续缺席UI root与`./internal`barrels。本批未读proposal、未写
+baseline、未调用R1 dispose/readiness或live stable ingress。验证通过focused `2 / 31`、UI package
+`74 / 838`、全量`248 / 3766`与完整`deno task check`；下一独立切片为S1-R.3b.0。
+
+#### R3b.0 exact unpublished registration and admission context
+
+- Composition owner新增source-relative、package-internal动态registration seam；每个exact current R1 lease
+  必须在允许publication ingress前注册。Registration只接受与composite绑定的exact registry/epoch/current
+  lease，由同一个R2 admission authority恰创建一次exact unpublished baseline并把该exact object安装到
+  `stableAcceptedBaselines`；缺失baseline绝不被解释为implicit unpublished sentinel。
+- 首次registration只改变composite baseline维度：exact一次composite state notification、transient
+  publication/notification、runtime topology、allocation、contributor vector与reservation token全部不变。
+  Exact重复registration返回同一个baseline并保持exact state/notification zero；foreign/stale lease返回
+  `surface.stable_publisher_lease_stale`，registry/composite divergence返回
+  `surface.stable_reconcile_faulted`，均zero mutation。Fresh same-epoch successor lease可在旧lease effective
+  dispose后独立注册，不需要重建bundle，也不能adopt任意caller-created unpublished baseline。
+- Registration result使用独立frozen package-internal union，不能冒充R0 reconcile result：
+  `registered | unchanged | stale | faulted`；positive分支只暴露same-authority exact unpublished baseline。
+  Read-only `captureAdmissionContextInternalV1(lease)`返回该lease的exact current
+  `{ acceptedBaseline, reservationSnapshot }`，不换token、不通知、不分配，供caller构造下一次R2 evaluate
+  input。Unknown/unregistered/stale lease fail closed，不从R2重新制造seed。
+- R3b.0不inspect/apply proposal、不构造runtime plan、不dispose lease、不调用readiness/Coordinator live
+  family。若registration只能靠absence sentinel、public/transient API扩张、第二baseline map或隐式动态
+  adoption完成，立即停止并修订设计。
+
+#### R3b.1 pure reconcile and synchronous owner commit
 
 - R3b 对 exact proposal 继续使用 R3.0 的 provenance → current lease → exact baseline →
   reservation generation precedence。全部 CAS 成功后，pure reducer 才规划完整 runtime

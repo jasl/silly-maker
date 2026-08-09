@@ -84,6 +84,10 @@ import type { ManagedSurfaceStableDesiredRuntimeTargetInternalV1 as ForbiddenInt
 import type { ManagedSurfaceStableRuntimeEntryInternalV1 as ForbiddenPublicStableRuntimeEntryV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose stable runtime entries.
 import type { ManagedSurfaceStableRuntimeEntryInternalV1 as ForbiddenInternalStableRuntimeEntryV1 } from "./internal.ts";
+// @ts-expect-error Retained stable runtime subtrees stay source-relative.
+import type { ManagedSurfaceStableRetainedRuntimeSubtreeInternalV1 as ForbiddenPublicStableRetainedSubtreeV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose retained stable runtime subtrees.
+import type { ManagedSurfaceStableRetainedRuntimeSubtreeInternalV1 as ForbiddenInternalStableRetainedSubtreeV1 } from "./internal.ts";
 /* oxlint-enable no-unused-vars */
 
 describe("@sillymaker/ui public managed System surface", () => {
@@ -125,6 +129,7 @@ describe("@sillymaker/ui public managed System surface", () => {
         "createManagedSurfaceStableReadyRuntimeBindingInternalV1",
         "createManagedSurfaceStablePreparingRuntimeBindingInternalV1",
         "createManagedSurfaceStableGapRuntimeBindingInternalV1",
+        "createManagedSurfaceStableRetainedRuntimeSubtreeInternalV1",
         "allocateManagedSurfaceStableRuntimeAttemptInternalV1",
         "projectManagedSurfaceStableRootReservationSnapshotInternalV1",
         "matchesManagedSurfaceStableAdmissionAuthorityConfigurationInternalV1",

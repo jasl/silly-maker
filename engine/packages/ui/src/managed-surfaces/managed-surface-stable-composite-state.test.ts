@@ -34,11 +34,13 @@ import {
   createManagedSurfaceStableGapRuntimeBindingInternalV1,
   createManagedSurfaceStablePreparingRuntimeBindingInternalV1,
   createManagedSurfaceStableReadyRuntimeBindingInternalV1,
+  createManagedSurfaceStableRetainedRuntimeSubtreeInternalV1,
   projectManagedSurfaceStableRootReservationSnapshotInternalV1,
   reconcileManagedSurfaceStableRootReservationsInternalV1,
   type ManagedSurfaceStableCompositeStateInternalV1,
   type ManagedSurfaceStableDesiredRuntimeTargetInternalV1,
   type ManagedSurfaceStableReadyRuntimeInstanceInternalV1,
+  type ManagedSurfaceStableRetainedRuntimeSubtreeInternalV1,
   type ManagedSurfaceStableRootReservationContributorCandidateInternalV1,
   type ManagedSurfaceStableRootReservationContributorInternalV1,
   type ManagedSurfaceStableRuntimeAttemptInternalV1,
@@ -70,6 +72,10 @@ const replacementDefinitionAV1 = parseManagedSurfaceDefinitionIdV1(
 );
 const rootDefinitionBV1 = parseManagedSurfaceDefinitionIdV1("surface-definition.root-b");
 const childDefinitionV1 = parseManagedSurfaceDefinitionIdV1("surface-definition.child");
+const grandchildDefinitionV1 = parseManagedSurfaceDefinitionIdV1(
+  "surface-definition.grandchild",
+);
+const grandchildSlotV1 = parseManagedSurfaceSlotIdV1("surface-slot.grandchild");
 const layerIdV1 = parseManagedSurfaceLayerIdV1("surface-layer.workspace");
 
 const resolvedSlotDescriptorsV1 = Object.freeze(
@@ -276,7 +282,7 @@ function harnessV1(): StableHarnessV1 {
 }
 
 function desiredV1(
-  harness: StableHarnessV1,
+  harness: Pick<StableHarnessV1, "registry">,
   target: ManagedSurfaceStableAdmittedTargetInternalV1,
   sourceRevision: ManagedSurfaceStableSourceRevisionInternalV1,
 ): ManagedSurfaceStableDesiredRuntimeTargetInternalV1 {
@@ -342,7 +348,7 @@ function gapRuntimeCandidateV1(
       reason: placement === "root" ? "readiness_failed" : "parent_unavailable",
       placement,
       slotCardinality: placement === "root" ? "single" : "stack",
-      retainedPredecessor: null,
+      retainedSubtree: null,
     }),
   );
 }
@@ -383,6 +389,259 @@ function transientStateV1() {
     [workspaceOwnerIdV1, narrativeOwnerIdV1],
     resolvedSlotDescriptorsV1,
   );
+}
+
+interface RetainedSubtreeHarnessV1 {
+  readonly registry: ManagedSurfaceStablePublisherLeaseRegistryInternalV1;
+  readonly authority: ManagedSurfaceStableAdmissionAuthorityInternalV1;
+  readonly workspace: ManagedSurfaceStablePublisherInternalV1;
+  readonly narrative: ManagedSurfaceStablePublisherInternalV1;
+  readonly resolvedSlotDescriptors: readonly ManagedSurfaceResolvedSlotDescriptorV1[];
+  readonly initialRevision: ManagedSurfaceStableSourceRevisionInternalV1;
+  readonly replacementRevision: ManagedSurfaceStableSourceRevisionInternalV1;
+  readonly secondReplacementRevision: ManagedSurfaceStableSourceRevisionInternalV1;
+  readonly narrativeRevision: ManagedSurfaceStableSourceRevisionInternalV1;
+  readonly root: ManagedSurfaceStableAdmittedTargetInternalV1;
+  readonly child: ManagedSurfaceStableAdmittedTargetInternalV1;
+  readonly grandchild: ManagedSurfaceStableAdmittedTargetInternalV1;
+  readonly replacement: ManagedSurfaceStableAdmittedTargetInternalV1;
+  readonly secondReplacement: ManagedSurfaceStableAdmittedTargetInternalV1;
+  readonly narrativeRoot: ManagedSurfaceStableAdmittedTargetInternalV1;
+}
+
+function retainedSubtreeHarnessV1(): RetainedSubtreeHarnessV1 {
+  const resolvedSlotDescriptors = Object.freeze(
+    [
+      Object.freeze({
+        kind: "root" as const,
+        slotId: rootSlotAV1,
+        cardinality: "single" as const,
+      }),
+      Object.freeze({
+        kind: "root" as const,
+        slotId: rootSlotBV1,
+        cardinality: "stack" as const,
+      }),
+      Object.freeze({
+        kind: "child" as const,
+        parentDefinitionId: rootDefinitionAV1,
+        slotId: childSlotV1,
+        cardinality: "stack" as const,
+      }),
+      Object.freeze({
+        kind: "child" as const,
+        parentDefinitionId: childDefinitionV1,
+        slotId: grandchildSlotV1,
+        cardinality: "stack" as const,
+      }),
+    ] satisfies readonly ManagedSurfaceResolvedSlotDescriptorV1[],
+  );
+  const registry = createManagedSurfaceStablePublisherLeaseRegistryInternalV1({
+    applicationEpoch: applicationEpochV1,
+    resolvedOwnerIds: [workspaceOwnerIdV1, narrativeOwnerIdV1],
+    leaseSequenceAllocator: createLocalManagedSurfaceStableLeaseSequenceAllocatorInternalV1(),
+  });
+  const workspace = registry.issuePublisher(workspaceOwnerIdV1);
+  const narrative = registry.issuePublisher(narrativeOwnerIdV1);
+  const authority = createManagedSurfaceStableAdmissionAuthorityInternalV1({
+    publisherLeaseRegistry: registry,
+    definitionSidecars: [
+      definitionV1({
+        definitionId: rootDefinitionAV1,
+        ownerId: workspaceOwnerIdV1,
+        slotId: rootSlotAV1,
+      }),
+      definitionV1({
+        definitionId: replacementDefinitionAV1,
+        ownerId: workspaceOwnerIdV1,
+        slotId: rootSlotAV1,
+      }),
+      definitionV1({
+        definitionId: childDefinitionV1,
+        ownerId: workspaceOwnerIdV1,
+        slotId: childSlotV1,
+        placement: "child",
+      }),
+      definitionV1({
+        definitionId: grandchildDefinitionV1,
+        ownerId: workspaceOwnerIdV1,
+        slotId: grandchildSlotV1,
+        placement: "child",
+      }),
+      definitionV1({
+        definitionId: rootDefinitionBV1,
+        ownerId: narrativeOwnerIdV1,
+        slotId: rootSlotBV1,
+      }),
+    ],
+    resolvedSlotDescriptors,
+  });
+
+  const rootOccurrence = workspace.issueOccurrence();
+  const childOccurrence = workspace.issueOccurrence();
+  const grandchildOccurrence = workspace.issueOccurrence();
+  const initialRevision = workspace.issueSourceRevision();
+  const initial = admittedBaselineV1(authority, workspace, initialRevision, [
+    {
+      occurrenceId: rootOccurrence,
+      definitionId: rootDefinitionAV1,
+      parentOccurrenceId: null,
+      parameters: null,
+    },
+    {
+      occurrenceId: childOccurrence,
+      definitionId: childDefinitionV1,
+      parentOccurrenceId: rootOccurrence,
+      parameters: null,
+    },
+    {
+      occurrenceId: grandchildOccurrence,
+      definitionId: grandchildDefinitionV1,
+      parentOccurrenceId: childOccurrence,
+      parameters: null,
+    },
+  ]);
+
+  const replacementOccurrence = workspace.issueOccurrence();
+  const replacementRevision = workspace.issueSourceRevision();
+  const replacement = admittedBaselineV1(
+    authority,
+    workspace,
+    replacementRevision,
+    [{
+      occurrenceId: replacementOccurrence,
+      definitionId: replacementDefinitionAV1,
+      parentOccurrenceId: null,
+      parameters: null,
+    }],
+    initial,
+  );
+
+  const secondReplacementOccurrence = workspace.issueOccurrence();
+  const secondReplacementRevision = workspace.issueSourceRevision();
+  const secondReplacement = admittedBaselineV1(
+    authority,
+    workspace,
+    secondReplacementRevision,
+    [{
+      occurrenceId: secondReplacementOccurrence,
+      definitionId: replacementDefinitionAV1,
+      parentOccurrenceId: null,
+      parameters: null,
+    }],
+    replacement,
+  );
+
+  const narrativeOccurrence = narrative.issueOccurrence();
+  const narrativeRevision = narrative.issueSourceRevision();
+  const narrativeBaseline = admittedBaselineV1(authority, narrative, narrativeRevision, [{
+    occurrenceId: narrativeOccurrence,
+    definitionId: rootDefinitionBV1,
+    parentOccurrenceId: null,
+    parameters: null,
+  }]);
+
+  return Object.freeze({
+    registry,
+    authority,
+    workspace,
+    narrative,
+    resolvedSlotDescriptors,
+    initialRevision,
+    replacementRevision,
+    secondReplacementRevision,
+    narrativeRevision,
+    root: initial.targets[0]!,
+    child: initial.targets[1]!,
+    grandchild: initial.targets[2]!,
+    replacement: replacement.targets[0]!,
+    secondReplacement: secondReplacement.targets[0]!,
+    narrativeRoot: narrativeBaseline.targets[0]!,
+  });
+}
+
+interface RetainedReadySubtreeFixtureV1 {
+  readonly harness: RetainedSubtreeHarnessV1;
+  readonly state: ManagedSurfaceStableCompositeStateInternalV1;
+  readonly rootDesired: ManagedSurfaceStableDesiredRuntimeTargetInternalV1;
+  readonly childDesired: ManagedSurfaceStableDesiredRuntimeTargetInternalV1;
+  readonly grandchildDesired: ManagedSurfaceStableDesiredRuntimeTargetInternalV1;
+  readonly narrativeDesired: ManagedSurfaceStableDesiredRuntimeTargetInternalV1;
+  readonly root: ManagedSurfaceStableReadyRuntimeInstanceInternalV1;
+  readonly child: ManagedSurfaceStableReadyRuntimeInstanceInternalV1;
+  readonly grandchild: ManagedSurfaceStableReadyRuntimeInstanceInternalV1;
+  readonly narrativeRoot: ManagedSurfaceStableReadyRuntimeInstanceInternalV1;
+}
+
+function retainedReadySubtreeFixtureV1(): RetainedReadySubtreeFixtureV1 {
+  const harness = retainedSubtreeHarnessV1();
+  const rootDesired = desiredV1(harness, harness.root, harness.initialRevision);
+  const childDesired = desiredV1(harness, harness.child, harness.initialRevision);
+  const grandchildDesired = desiredV1(harness, harness.grandchild, harness.initialRevision);
+  const narrativeDesired = desiredV1(
+    harness,
+    harness.narrativeRoot,
+    harness.narrativeRevision,
+  );
+  const initial = createManagedSurfaceStableCompositeStateInternalV1({
+    admissionAuthority: harness.authority,
+    publisherLeaseRegistry: harness.registry,
+    transientState: createManagedSurfaceReducerStateV1(
+      applicationEpochV1,
+      [workspaceOwnerIdV1, narrativeOwnerIdV1],
+      harness.resolvedSlotDescriptors,
+    ),
+  });
+  const rootAllocation = allocateAttemptV1(initial, rootDesired);
+  const childAllocation = allocateAttemptV1(
+    rootAllocation.state,
+    childDesired,
+    rootAllocation.attempt.identity.surfaceInstanceId,
+  );
+  const grandchildAllocation = allocateAttemptV1(
+    childAllocation.state,
+    grandchildDesired,
+    childAllocation.attempt.identity.surfaceInstanceId,
+  );
+  const narrativeAllocation = allocateAttemptV1(
+    grandchildAllocation.state,
+    narrativeDesired,
+  );
+  const rootBinding = readyBindingV1(rootAllocation.attempt);
+  const childBinding = readyBindingV1(childAllocation.attempt);
+  const grandchildBinding = readyBindingV1(grandchildAllocation.attempt, "suspended");
+  const narrativeBinding = readyBindingV1(narrativeAllocation.attempt);
+  const state = reconcileV1(narrativeAllocation.state, [
+    stableDesiredCandidateV1(rootDesired),
+    stableRuntimeCandidateV1(rootDesired, rootBinding),
+    stableDesiredCandidateV1(childDesired),
+    stableRuntimeCandidateV1(childDesired, childBinding),
+    stableDesiredCandidateV1(grandchildDesired),
+    stableRuntimeCandidateV1(grandchildDesired, grandchildBinding),
+    stableDesiredCandidateV1(narrativeDesired),
+    stableRuntimeCandidateV1(narrativeDesired, narrativeBinding),
+  ]);
+  const readyInstance = (
+    desiredTarget: ManagedSurfaceStableDesiredRuntimeTargetInternalV1,
+  ): ManagedSurfaceStableReadyRuntimeInstanceInternalV1 => {
+    const binding = state.stableRuntimeBindings.find((entry) =>
+      entry.desiredTarget.admittedTarget === desiredTarget.admittedTarget
+    )?.binding;
+    if (binding?.kind !== "ready_instance") throw new Error("expected retained ready instance");
+    return binding.instance;
+  };
+  return Object.freeze({
+    harness,
+    state,
+    rootDesired,
+    childDesired,
+    grandchildDesired,
+    narrativeDesired,
+    root: readyInstance(rootDesired),
+    child: readyInstance(childDesired),
+    grandchild: readyInstance(grandchildDesired),
+    narrativeRoot: readyInstance(narrativeDesired),
+  });
 }
 
 describe("dormant managed stable composite state", () => {
@@ -621,7 +880,7 @@ describe("dormant managed stable composite state", () => {
         transition: "initial_open",
         placement: "root",
         slotCardinality: "single",
-        retainedPredecessor: null,
+        retainedSubtree: null,
       });
       return Object.freeze({
         state: reconcileV1(allocated.state, [
@@ -678,44 +937,44 @@ describe("dormant managed stable composite state", () => {
       Extract<ManagedSurfaceStableRuntimeBindingInternalV1, { kind: "gap" }>["reason"]
     >().toEqualTypeOf<"readiness_failed" | "parent_unavailable">();
 
-    const harness = harnessV1();
-    const currentDesired = desiredV1(
-      harness,
-      harness.workspaceRoot,
-      harness.workspaceRevision,
-    );
+    const fixture = retainedReadySubtreeFixtureV1();
+    const currentDesired = fixture.rootDesired;
     const replacementDesired = desiredV1(
-      harness,
-      harness.workspaceReplacement,
-      harness.workspaceReplacementRevision,
+      fixture.harness,
+      fixture.harness.replacement,
+      fixture.harness.replacementRevision,
     );
-    const predecessor = readyBindingV1(attemptV1(currentDesired, 1)).instance;
+    const predecessor = fixture.root;
+    const retainedSubtree = createManagedSurfaceStableRetainedRuntimeSubtreeInternalV1({
+      currentState: fixture.state,
+      root: predecessor,
+    });
     const ready = readyBindingV1(attemptV1(currentDesired, 1), "suspended");
     const initial = createManagedSurfaceStablePreparingRuntimeBindingInternalV1({
       attempt: attemptV1(currentDesired, 2),
       transition: "initial_open",
       placement: "root",
       slotCardinality: "single",
-      retainedPredecessor: null,
+      retainedSubtree: null,
     });
     const replacement = createManagedSurfaceStablePreparingRuntimeBindingInternalV1({
       attempt: attemptV1(replacementDesired, 3),
       transition: "primary_replacement",
       placement: "root",
       slotCardinality: "single",
-      retainedPredecessor: predecessor,
+      retainedSubtree,
     });
     const failedReplacement = createManagedSurfaceStableGapRuntimeBindingInternalV1({
       reason: "readiness_failed",
       placement: "root",
       slotCardinality: "single",
-      retainedPredecessor: predecessor,
+      retainedSubtree,
     });
     const parentGap = createManagedSurfaceStableGapRuntimeBindingInternalV1({
       reason: "parent_unavailable",
       placement: "child",
       slotCardinality: "stack",
-      retainedPredecessor: null,
+      retainedSubtree: null,
     });
 
     expect(ready).toEqual({
@@ -728,22 +987,22 @@ describe("dormant managed stable composite state", () => {
     expect(initial).toMatchObject({
       kind: "preparing",
       transition: "initial_open",
-      retainedPredecessor: null,
+      retainedSubtree: null,
     });
     expect(replacement).toMatchObject({
       kind: "preparing",
       transition: "primary_replacement",
-      retainedPredecessor: predecessor,
+      retainedSubtree,
     });
     expect(failedReplacement).toEqual({
       kind: "gap",
       reason: "readiness_failed",
-      retainedPredecessor: predecessor,
+      retainedSubtree,
     });
     expect(parentGap).toEqual({
       kind: "gap",
       reason: "parent_unavailable",
-      retainedPredecessor: null,
+      retainedSubtree: null,
     });
     for (
       const value of [
@@ -758,18 +1017,21 @@ describe("dormant managed stable composite state", () => {
       expect(Object.isFrozen(value)).toBe(true);
     }
     expect(ready.instance.attempt).toBe(ready.instance.attempt);
-    expect(replacement.retainedPredecessor).toBe(predecessor);
+    expect(replacement.retainedSubtree).toBe(retainedSubtree);
   });
 
   it("rejects every forbidden predecessor, transition, placement, and cardinality cross-product", () => {
-    const harness = harnessV1();
-    const desired = desiredV1(harness, harness.workspaceRoot, harness.workspaceRevision);
+    const fixture = retainedReadySubtreeFixtureV1();
+    const desired = fixture.rootDesired;
     const replacementDesired = desiredV1(
-      harness,
-      harness.workspaceReplacement,
-      harness.workspaceReplacementRevision,
+      fixture.harness,
+      fixture.harness.replacement,
+      fixture.harness.replacementRevision,
     );
-    const predecessor = readyBindingV1(attemptV1(desired, 1)).instance;
+    const retainedSubtree = createManagedSurfaceStableRetainedRuntimeSubtreeInternalV1({
+      currentState: fixture.state,
+      root: fixture.root,
+    });
 
     for (
       const invalid of [
@@ -779,7 +1041,7 @@ describe("dormant managed stable composite state", () => {
             transition: "initial_open",
             placement: "root",
             slotCardinality: "single",
-            retainedPredecessor: predecessor,
+            retainedSubtree,
           }),
         () =>
           createManagedSurfaceStablePreparingRuntimeBindingInternalV1({
@@ -787,7 +1049,7 @@ describe("dormant managed stable composite state", () => {
             transition: "child_open",
             placement: "child",
             slotCardinality: "stack",
-            retainedPredecessor: predecessor,
+            retainedSubtree,
           }),
         () =>
           createManagedSurfaceStablePreparingRuntimeBindingInternalV1({
@@ -795,7 +1057,7 @@ describe("dormant managed stable composite state", () => {
             transition: "primary_replacement",
             placement: "root",
             slotCardinality: "stack",
-            retainedPredecessor: predecessor,
+            retainedSubtree,
           }),
         () =>
           createManagedSurfaceStablePreparingRuntimeBindingInternalV1({
@@ -803,35 +1065,35 @@ describe("dormant managed stable composite state", () => {
             transition: "primary_replacement",
             placement: "root",
             slotCardinality: "single",
-            retainedPredecessor: null,
+            retainedSubtree: null,
           }),
         () =>
           createManagedSurfaceStableGapRuntimeBindingInternalV1({
             reason: "parent_unavailable",
             placement: "child",
             slotCardinality: "stack",
-            retainedPredecessor: predecessor,
+            retainedSubtree,
           }),
         () =>
           createManagedSurfaceStableGapRuntimeBindingInternalV1({
             reason: "parent_unavailable",
             placement: "root",
             slotCardinality: "single",
-            retainedPredecessor: null,
+            retainedSubtree: null,
           }),
         () =>
           createManagedSurfaceStableGapRuntimeBindingInternalV1({
             reason: "readiness_failed",
             placement: "child",
             slotCardinality: "single",
-            retainedPredecessor: predecessor,
+            retainedSubtree,
           }),
         () =>
           createManagedSurfaceStableGapRuntimeBindingInternalV1({
             reason: "readiness_failed",
             placement: "root",
             slotCardinality: "stack",
-            retainedPredecessor: predecessor,
+            retainedSubtree,
           }),
       ]
     ) {
@@ -845,11 +1107,6 @@ describe("dormant managed stable composite state", () => {
       harness,
       harness.workspaceRoot,
       harness.workspaceRevision,
-    );
-    const narrativeDesired = desiredV1(
-      harness,
-      harness.narrativeRoot,
-      harness.narrativeRevision,
     );
     const initial = createManagedSurfaceStableCompositeStateInternalV1({
       admissionAuthority: harness.authority,
@@ -868,7 +1125,7 @@ describe("dormant managed stable composite state", () => {
       reason: "parent_unavailable",
       placement: "child",
       slotCardinality: "stack",
-      retainedPredecessor: null,
+      retainedSubtree: null,
     });
     expect(() =>
       reconcileV1(initial, [
@@ -877,43 +1134,25 @@ describe("dormant managed stable composite state", () => {
       ])
     ).toThrow("ui.managed_surface_stable_runtime_binding_invalid");
 
-    const predecessorAllocation = allocateAttemptV1(initial, narrativeDesired);
-    const candidateAllocation = allocateAttemptV1(
-      predecessorAllocation.state,
-      narrativeDesired,
-    );
-    const predecessor = readyBindingV1(predecessorAllocation.attempt).instance;
+    const fixture = retainedReadySubtreeFixtureV1();
+    const narrativeSubtree = createManagedSurfaceStableRetainedRuntimeSubtreeInternalV1({
+      currentState: fixture.state,
+      root: fixture.narrativeRoot,
+    });
+    const candidateAllocation = allocateAttemptV1(fixture.state, fixture.narrativeDesired);
     const falseSingleReplacement = createManagedSurfaceStablePreparingRuntimeBindingInternalV1({
       attempt: candidateAllocation.attempt,
       transition: "primary_replacement",
       placement: "root",
       slotCardinality: "single",
-      retainedPredecessor: predecessor,
+      retainedSubtree: narrativeSubtree,
     });
     expect(() =>
       reconcileV1(candidateAllocation.state, [
-        stableDesiredCandidateV1(narrativeDesired),
-        stableRuntimeCandidateV1(narrativeDesired, falseSingleReplacement),
+        stableDesiredCandidateV1(fixture.narrativeDesired),
+        stableRuntimeCandidateV1(fixture.narrativeDesired, falseSingleReplacement),
       ])
     ).toThrow("ui.managed_surface_stable_runtime_binding_invalid");
-
-    const duplicateAllocation = allocateAttemptV1(initial, workspaceDesired);
-    const duplicatePredecessor = readyBindingV1(duplicateAllocation.attempt).instance;
-    const duplicateAttemptReplacement = createManagedSurfaceStablePreparingRuntimeBindingInternalV1(
-      {
-        attempt: duplicateAllocation.attempt,
-        transition: "primary_replacement",
-        placement: "root",
-        slotCardinality: "single",
-        retainedPredecessor: duplicatePredecessor,
-      },
-    );
-    expect(() =>
-      reconcileV1(duplicateAllocation.state, [
-        stableDesiredCandidateV1(workspaceDesired),
-        stableRuntimeCandidateV1(workspaceDesired, duplicateAttemptReplacement),
-      ])
-    ).toThrow(TypeError);
   });
 
   it("requires exactly one closed runtime binding for every accepted desired target", () => {
@@ -975,7 +1214,7 @@ describe("dormant managed stable composite state", () => {
       transition: "initial_open",
       placement: "root",
       slotCardinality: "single",
-      retainedPredecessor: null,
+      retainedSubtree: null,
     });
 
     expect(() =>
@@ -993,7 +1232,7 @@ describe("dormant managed stable composite state", () => {
       transition: "initial_open",
       placement: "root",
       slotCardinality: "single",
-      retainedPredecessor: null,
+      retainedSubtree: null,
     });
     const preparing = reconcileV1(preparingAllocation.state, [
       stableDesiredCandidateV1(desired),
@@ -1007,7 +1246,7 @@ describe("dormant managed stable composite state", () => {
       transition: capturedPreparing.transition,
       placement: "root",
       slotCardinality: "single",
-      retainedPredecessor: capturedPreparing.retainedPredecessor,
+      retainedSubtree: capturedPreparing.retainedSubtree,
     });
     expect(
       reconcileV1(preparing, [
@@ -1106,7 +1345,7 @@ describe("dormant managed stable composite state", () => {
       reason: "readiness_failed",
       placement: "child",
       slotCardinality: "stack",
-      retainedPredecessor: null,
+      retainedSubtree: null,
     });
     const active = reconcileV1(rootAllocation.state, [
       stableDesiredCandidateV1(rootDesired),
@@ -1141,7 +1380,7 @@ describe("dormant managed stable composite state", () => {
     expect(childBinding).toMatchObject({
       kind: "gap",
       reason: "readiness_failed",
-      retainedPredecessor: null,
+      retainedSubtree: null,
     });
     expect(childBinding).toBe(activeChildBinding);
     expect(suspended.transientState.identitySequenceHighWater).toBe(1);
@@ -1194,6 +1433,10 @@ describe("dormant managed stable composite state", () => {
     const currentBinding = current.stableRuntimeBindings[0]!.binding;
     expect(currentBinding.kind).toBe("ready_instance");
     if (currentBinding.kind !== "ready_instance") throw new Error("expected ready");
+    const retainedSubtree = createManagedSurfaceStableRetainedRuntimeSubtreeInternalV1({
+      currentState: current,
+      root: currentBinding.instance,
+    });
 
     const replacementAllocation = allocateAttemptV1(current, replacementDesired);
     const replacement = createManagedSurfaceStablePreparingRuntimeBindingInternalV1({
@@ -1201,7 +1444,7 @@ describe("dormant managed stable composite state", () => {
       transition: "primary_replacement",
       placement: "root",
       slotCardinality: "single",
-      retainedPredecessor: currentBinding.instance,
+      retainedSubtree,
     });
     const successor = reconcileV1(replacementAllocation.state, [
       stableDesiredCandidateV1(replacementDesired),
@@ -1212,8 +1455,8 @@ describe("dormant managed stable composite state", () => {
     const successorBinding = successor.stableRuntimeBindings[0]!.binding;
     expect(successorBinding.kind).toBe("preparing");
     if (successorBinding.kind !== "preparing") throw new Error("expected preparing");
-    expect(successorBinding.retainedPredecessor).toBe(currentBinding.instance);
-    expect(successorBinding.retainedPredecessor!.attempt).toBe(
+    expect(successorBinding.retainedSubtree).toBe(retainedSubtree);
+    expect(successorBinding.retainedSubtree!.root.attempt).toBe(
       currentBinding.instance.attempt,
     );
     expect(successor.rootReservationContributors.map((row) => row.role)).toEqual([
@@ -1226,7 +1469,7 @@ describe("dormant managed stable composite state", () => {
       reason: "readiness_failed",
       placement: "root",
       slotCardinality: "single",
-      retainedPredecessor: successorBinding.retainedPredecessor,
+      retainedSubtree: successorBinding.retainedSubtree,
     });
     const failed = reconcileV1(successor, [
       stableDesiredCandidateV1(replacementDesired),
@@ -1235,8 +1478,8 @@ describe("dormant managed stable composite state", () => {
     const capturedFailure = failed.stableRuntimeBindings[0]!.binding;
     expect(capturedFailure.kind).toBe("gap");
     if (capturedFailure.kind !== "gap") throw new Error("expected gap");
-    expect(capturedFailure.retainedPredecessor).toBe(currentBinding.instance);
-    expect(capturedFailure.retainedPredecessor!.attempt).toBe(
+    expect(capturedFailure.retainedSubtree).toBe(retainedSubtree);
+    expect(capturedFailure.retainedSubtree!.root.attempt).toBe(
       currentBinding.instance.attempt,
     );
   });
@@ -1247,11 +1490,6 @@ describe("dormant managed stable composite state", () => {
       harness,
       harness.workspaceRoot,
       harness.workspaceRevision,
-    );
-    const replacementDesired = desiredV1(
-      harness,
-      harness.workspaceReplacement,
-      harness.workspaceReplacementRevision,
     );
     const initial = createManagedSurfaceStableCompositeStateInternalV1({
       admissionAuthority: harness.authority,
@@ -1266,11 +1504,15 @@ describe("dormant managed stable composite state", () => {
     const currentBinding = current.stableRuntimeBindings[0]!.binding;
     expect(currentBinding.kind).toBe("ready_instance");
     if (currentBinding.kind !== "ready_instance") throw new Error("expected ready");
+    const retainedSubtree = createManagedSurfaceStableRetainedRuntimeSubtreeInternalV1({
+      currentState: current,
+      root: currentBinding.instance,
+    });
     const sameOccurrenceGap = createManagedSurfaceStableGapRuntimeBindingInternalV1({
       reason: "readiness_failed",
       placement: "root",
       slotCardinality: "single",
-      retainedPredecessor: currentBinding.instance,
+      retainedSubtree,
     });
     expect(() =>
       reconcileV1(current, [
@@ -1285,7 +1527,7 @@ describe("dormant managed stable composite state", () => {
       transition: "initial_open",
       placement: "root",
       slotCardinality: "single",
-      retainedPredecessor: null,
+      retainedSubtree: null,
     });
     const preparing = reconcileV1(preparingAllocation.state, [
       stableDesiredCandidateV1(currentDesired),
@@ -1295,17 +1537,11 @@ describe("dormant managed stable composite state", () => {
     expect(capturedPreparing.kind).toBe("preparing");
     if (capturedPreparing.kind !== "preparing") throw new Error("expected preparing");
     const candidateMasqueradingAsReady = readyBindingV1(capturedPreparing.attempt).instance;
-    const candidatePredecessorGap = createManagedSurfaceStableGapRuntimeBindingInternalV1({
-      reason: "readiness_failed",
-      placement: "root",
-      slotCardinality: "single",
-      retainedPredecessor: candidateMasqueradingAsReady,
-    });
     expect(() =>
-      reconcileV1(preparing, [
-        stableDesiredCandidateV1(replacementDesired),
-        stableRuntimeCandidateV1(replacementDesired, candidatePredecessorGap),
-      ])
+      createManagedSurfaceStableRetainedRuntimeSubtreeInternalV1({
+        currentState: preparing,
+        root: candidateMasqueradingAsReady,
+      })
     ).toThrowError("ui.managed_surface_stable_runtime_binding_invalid");
   });
 
@@ -1848,6 +2084,520 @@ describe("dormant managed stable composite state", () => {
         foreignReservedRootSlotIds: [],
       })
     ).toThrow(TypeError);
+  });
+
+  it("derives one authenticated frozen retained subtree in current topology preorder", () => {
+    expectTypeOf<ExactKeysV1<ManagedSurfaceStableRetainedRuntimeSubtreeInternalV1>>()
+      .toEqualTypeOf<"root" | "descendants">();
+    expectTypeOf<
+      ExactKeysV1<Extract<ManagedSurfaceStableRuntimeBindingInternalV1, { kind: "preparing" }>>
+    >().toEqualTypeOf<"kind" | "attempt" | "transition" | "retainedSubtree">();
+    expectTypeOf<
+      ExactKeysV1<Extract<ManagedSurfaceStableRuntimeBindingInternalV1, { kind: "gap" }>>
+    >().toEqualTypeOf<"kind" | "reason" | "retainedSubtree">();
+
+    const fixture = retainedReadySubtreeFixtureV1();
+    const retainedSubtree = createManagedSurfaceStableRetainedRuntimeSubtreeInternalV1({
+      currentState: fixture.state,
+      root: fixture.root,
+    });
+
+    expect(retainedSubtree).toEqual({
+      root: fixture.root,
+      descendants: [fixture.child, fixture.grandchild],
+    });
+    expect(retainedSubtree.root).toBe(fixture.root);
+    expect(retainedSubtree.descendants[0]).toBe(fixture.child);
+    expect(retainedSubtree.descendants[1]).toBe(fixture.grandchild);
+    expect(retainedSubtree.root.phase).toBe("active");
+    expect(retainedSubtree.descendants.map((instance) => instance.phase)).toEqual([
+      "active",
+      "suspended",
+    ]);
+    expect(Object.isFrozen(retainedSubtree)).toBe(true);
+    expect(Object.isFrozen(retainedSubtree.descendants)).toBe(true);
+  });
+
+  it("rejects pending, gap, cloned, reparented, duplicate, and cross-lease subtree splices", () => {
+    const fixture = retainedReadySubtreeFixtureV1();
+    const retainedSubtree = createManagedSurfaceStableRetainedRuntimeSubtreeInternalV1({
+      currentState: fixture.state,
+      root: fixture.root,
+    });
+    const pendingAllocation = allocateAttemptV1(fixture.state, fixture.rootDesired);
+    const pendingMasqueradingAsReady = readyBindingV1(pendingAllocation.attempt).instance;
+    expect(() =>
+      createManagedSurfaceStableRetainedRuntimeSubtreeInternalV1({
+        currentState: pendingAllocation.state,
+        root: pendingMasqueradingAsReady,
+      })
+    ).toThrowError("ui.managed_surface_stable_runtime_binding_invalid");
+
+    const gap = createManagedSurfaceStableGapRuntimeBindingInternalV1({
+      reason: "readiness_failed",
+      placement: "root",
+      slotCardinality: "single",
+      retainedSubtree: null,
+    });
+    const clone = Object.freeze({ ...fixture.root });
+    for (const root of [gap, clone]) {
+      expect(() =>
+        createManagedSurfaceStableRetainedRuntimeSubtreeInternalV1({
+          currentState: fixture.state,
+          root: root as unknown as ManagedSurfaceStableReadyRuntimeInstanceInternalV1,
+        })
+      ).toThrowError("ui.managed_surface_stable_runtime_binding_invalid");
+    }
+
+    const replacementDesired = desiredV1(
+      fixture.harness,
+      fixture.harness.replacement,
+      fixture.harness.replacementRevision,
+    );
+    const replacementAllocation = allocateAttemptV1(fixture.state, replacementDesired);
+    const reparentedChild = readyBindingV1(
+      attemptV1(
+        fixture.childDesired,
+        90,
+        fixture.narrativeRoot.attempt.identity.surfaceInstanceId,
+      ),
+    ).instance;
+    const authenticForeignSubtree = createManagedSurfaceStableRetainedRuntimeSubtreeInternalV1({
+      currentState: fixture.state,
+      root: fixture.narrativeRoot,
+    });
+    const forgedSubtrees = [
+      Object.freeze({
+        root: retainedSubtree.root,
+        descendants: Object.freeze([...retainedSubtree.descendants]),
+      }),
+      Object.freeze({
+        root: retainedSubtree.root,
+        descendants: Object.freeze([fixture.child, fixture.child]),
+      }),
+      Object.freeze({
+        root: retainedSubtree.root,
+        descendants: Object.freeze([reparentedChild]),
+      }),
+      Object.freeze({
+        root: retainedSubtree.root,
+        descendants: Object.freeze([pendingMasqueradingAsReady]),
+      }),
+      Object.freeze({
+        root: retainedSubtree.root,
+        descendants: Object.freeze([
+          gap as unknown as ManagedSurfaceStableReadyRuntimeInstanceInternalV1,
+        ]),
+      }),
+    ] as const;
+    for (const forged of forgedSubtrees) {
+      expect(() =>
+        createManagedSurfaceStablePreparingRuntimeBindingInternalV1({
+          attempt: replacementAllocation.attempt,
+          transition: "primary_replacement",
+          placement: "root",
+          slotCardinality: "single",
+          retainedSubtree: forged as ManagedSurfaceStableRetainedRuntimeSubtreeInternalV1,
+        })
+      ).toThrowError("ui.managed_surface_stable_runtime_binding_invalid");
+    }
+    expect(() =>
+      createManagedSurfaceStablePreparingRuntimeBindingInternalV1({
+        attempt: replacementAllocation.attempt,
+        transition: "primary_replacement",
+        placement: "root",
+        slotCardinality: "single",
+        retainedSubtree: authenticForeignSubtree,
+      })
+    ).toThrowError("ui.managed_surface_stable_runtime_binding_invalid");
+  });
+
+  it("retains one exact root subtree while only the root contributes a reservation row", () => {
+    const fixture = retainedReadySubtreeFixtureV1();
+    const retainedSubtree = createManagedSurfaceStableRetainedRuntimeSubtreeInternalV1({
+      currentState: fixture.state,
+      root: fixture.root,
+    });
+    const replacementDesired = desiredV1(
+      fixture.harness,
+      fixture.harness.replacement,
+      fixture.harness.replacementRevision,
+    );
+    const allocation = allocateAttemptV1(fixture.state, replacementDesired);
+    const replacementBinding = createManagedSurfaceStablePreparingRuntimeBindingInternalV1({
+      attempt: allocation.attempt,
+      transition: "primary_replacement",
+      placement: "root",
+      slotCardinality: "single",
+      retainedSubtree,
+    });
+    const narrativeBinding =
+      fixture.state.stableRuntimeBindings.find((entry) =>
+        entry.desiredTarget.admittedTarget === fixture.harness.narrativeRoot
+      )!.binding;
+    const successor = reconcileV1(allocation.state, [
+      stableDesiredCandidateV1(replacementDesired),
+      stableRuntimeCandidateV1(replacementDesired, replacementBinding),
+      stableDesiredCandidateV1(fixture.narrativeDesired),
+      stableRuntimeCandidateV1(fixture.narrativeDesired, narrativeBinding),
+    ]);
+
+    const captured =
+      successor.stableRuntimeBindings.find((entry) =>
+        entry.desiredTarget.admittedTarget === fixture.harness.replacement
+      )!.binding;
+    expect(captured.kind).toBe("preparing");
+    if (captured.kind !== "preparing") throw new Error("expected replacement preparing");
+    expect(captured.retainedSubtree).toBe(retainedSubtree);
+    expect(captured.retainedSubtree!.root).toBe(fixture.root);
+    expect(captured.retainedSubtree!.descendants).toBe(retainedSubtree.descendants);
+    expect(
+      successor.stableRuntimeBindings.map((entry) =>
+        entry.desiredTarget.admittedTarget.occurrenceId
+      ),
+    ).toEqual([
+      fixture.harness.replacement.occurrenceId,
+      fixture.harness.narrativeRoot.occurrenceId,
+    ]);
+
+    const workspaceRuntimeRows = successor.rootReservationContributors.filter(
+      (row): row is Extract<
+        ManagedSurfaceStableRootReservationContributorInternalV1,
+        { readonly kind: "stable_runtime" }
+      > => row.kind === "stable_runtime" && row.publisherLease === fixture.harness.workspace.lease,
+    );
+    expect(workspaceRuntimeRows.map((row) => [row.role, row.occurrenceId])).toEqual([
+      ["retained_predecessor", fixture.harness.root.occurrenceId],
+      ["candidate", fixture.harness.replacement.occurrenceId],
+    ]);
+    expect(
+      workspaceRuntimeRows.some((row) =>
+        row.occurrenceId === fixture.harness.child.occurrenceId ||
+        row.occurrenceId === fixture.harness.grandchild.occurrenceId
+      ),
+    ).toBe(false);
+  });
+
+  it("preserves the exact retained subtree through a second replacement and terminal failure", () => {
+    const fixture = retainedReadySubtreeFixtureV1();
+    const initialHighWater = fixture.state.transientState.identitySequenceHighWater;
+    const retainedSubtree = createManagedSurfaceStableRetainedRuntimeSubtreeInternalV1({
+      currentState: fixture.state,
+      root: fixture.root,
+    });
+    const firstDesired = desiredV1(
+      fixture.harness,
+      fixture.harness.replacement,
+      fixture.harness.replacementRevision,
+    );
+    const firstAllocation = allocateAttemptV1(fixture.state, firstDesired);
+    const narrativeBinding =
+      fixture.state.stableRuntimeBindings.find((entry) =>
+        entry.desiredTarget.admittedTarget === fixture.harness.narrativeRoot
+      )!.binding;
+    const first = reconcileV1(firstAllocation.state, [
+      stableDesiredCandidateV1(firstDesired),
+      stableRuntimeCandidateV1(
+        firstDesired,
+        createManagedSurfaceStablePreparingRuntimeBindingInternalV1({
+          attempt: firstAllocation.attempt,
+          transition: "primary_replacement",
+          placement: "root",
+          slotCardinality: "single",
+          retainedSubtree,
+        }),
+      ),
+      stableDesiredCandidateV1(fixture.narrativeDesired),
+      stableRuntimeCandidateV1(fixture.narrativeDesired, narrativeBinding),
+    ]);
+    expect(first.transientState.identitySequenceHighWater).toBe(initialHighWater + 1);
+    const firstBinding =
+      first.stableRuntimeBindings.find((entry) =>
+        entry.desiredTarget.admittedTarget === fixture.harness.replacement
+      )!.binding;
+    expect(firstBinding.kind).toBe("preparing");
+    if (firstBinding.kind !== "preparing") throw new Error("expected first preparing");
+
+    const secondDesired = desiredV1(
+      fixture.harness,
+      fixture.harness.secondReplacement,
+      fixture.harness.secondReplacementRevision,
+    );
+    const secondAllocation = allocateAttemptV1(first, secondDesired);
+    const second = reconcileV1(secondAllocation.state, [
+      stableDesiredCandidateV1(secondDesired),
+      stableRuntimeCandidateV1(
+        secondDesired,
+        createManagedSurfaceStablePreparingRuntimeBindingInternalV1({
+          attempt: secondAllocation.attempt,
+          transition: "primary_replacement",
+          placement: "root",
+          slotCardinality: "single",
+          retainedSubtree,
+        }),
+      ),
+      stableDesiredCandidateV1(fixture.narrativeDesired),
+      stableRuntimeCandidateV1(fixture.narrativeDesired, narrativeBinding),
+    ]);
+    const secondBinding =
+      second.stableRuntimeBindings.find((entry) =>
+        entry.desiredTarget.admittedTarget === fixture.harness.secondReplacement
+      )!.binding;
+    expect(secondBinding.kind).toBe("preparing");
+    if (secondBinding.kind !== "preparing") throw new Error("expected second preparing");
+    expect(secondBinding.retainedSubtree).toBe(retainedSubtree);
+    expect(second.transientState.identitySequenceHighWater).toBe(initialHighWater + 2);
+    expect(() =>
+      reconcileV1(second, [
+        stableDesiredCandidateV1(
+          first.stableRuntimeBindings.find((entry) =>
+            entry.desiredTarget.admittedTarget === fixture.harness.replacement
+          )!.desiredTarget,
+        ),
+        stableRuntimeCandidateV1(
+          first.stableRuntimeBindings.find((entry) =>
+            entry.desiredTarget.admittedTarget === fixture.harness.replacement
+          )!.desiredTarget,
+          firstBinding,
+        ),
+      ])
+    ).toThrowError("ui.managed_surface_stable_runtime_attempt_invalid");
+
+    const failed = reconcileV1(second, [
+      stableDesiredCandidateV1(secondDesired),
+      stableRuntimeCandidateV1(
+        secondDesired,
+        createManagedSurfaceStableGapRuntimeBindingInternalV1({
+          reason: "readiness_failed",
+          placement: "root",
+          slotCardinality: "single",
+          retainedSubtree,
+        }),
+      ),
+      stableDesiredCandidateV1(fixture.narrativeDesired),
+      stableRuntimeCandidateV1(fixture.narrativeDesired, narrativeBinding),
+    ]);
+    const failureBinding =
+      failed.stableRuntimeBindings.find((entry) =>
+        entry.desiredTarget.admittedTarget === fixture.harness.secondReplacement
+      )!.binding;
+    expect(failureBinding.kind).toBe("gap");
+    if (failureBinding.kind !== "gap") throw new Error("expected replacement failure gap");
+    expect(failureBinding.retainedSubtree).toBe(retainedSubtree);
+    expect(failureBinding.retainedSubtree!.descendants).toBe(retainedSubtree.descendants);
+    expect(failed.transientState.identitySequenceHighWater).toBe(initialHighWater + 2);
+    expect(() =>
+      reconcileV1(failed, [
+        stableDesiredCandidateV1(
+          second.stableRuntimeBindings.find((entry) =>
+            entry.desiredTarget.admittedTarget === fixture.harness.secondReplacement
+          )!.desiredTarget,
+        ),
+        stableRuntimeCandidateV1(
+          second.stableRuntimeBindings.find((entry) =>
+            entry.desiredTarget.admittedTarget === fixture.harness.secondReplacement
+          )!.desiredTarget,
+          secondBinding,
+        ),
+      ])
+    ).toThrowError("ui.managed_surface_stable_runtime_attempt_invalid");
+  });
+
+  it("reuses an exact retained subtree on semantic no-op and cannot revive it after cutover", () => {
+    const fixture = retainedReadySubtreeFixtureV1();
+    const retainedSubtree = createManagedSurfaceStableRetainedRuntimeSubtreeInternalV1({
+      currentState: fixture.state,
+      root: fixture.root,
+    });
+    const replacementDesired = desiredV1(
+      fixture.harness,
+      fixture.harness.replacement,
+      fixture.harness.replacementRevision,
+    );
+    const replacementAllocation = allocateAttemptV1(fixture.state, replacementDesired);
+    const alternateSubtree = createManagedSurfaceStableRetainedRuntimeSubtreeInternalV1({
+      currentState: replacementAllocation.state,
+      root: fixture.root,
+    });
+    expect(alternateSubtree).not.toBe(retainedSubtree);
+    const preparing = reconcileV1(replacementAllocation.state, [
+      stableDesiredCandidateV1(replacementDesired),
+      stableRuntimeCandidateV1(
+        replacementDesired,
+        createManagedSurfaceStablePreparingRuntimeBindingInternalV1({
+          attempt: replacementAllocation.attempt,
+          transition: "primary_replacement",
+          placement: "root",
+          slotCardinality: "single",
+          retainedSubtree,
+        }),
+      ),
+    ]);
+    const preparingBinding = preparing.stableRuntimeBindings[0]!.binding;
+    expect(preparingBinding.kind).toBe("preparing");
+    if (preparingBinding.kind !== "preparing") throw new Error("expected preparing");
+    expect(preparingBinding.retainedSubtree).toBe(retainedSubtree);
+
+    const rebuiltPreparing = createManagedSurfaceStablePreparingRuntimeBindingInternalV1({
+      attempt: preparingBinding.attempt,
+      transition: "primary_replacement",
+      placement: "root",
+      slotCardinality: "single",
+      retainedSubtree: alternateSubtree,
+    });
+    const same = reconcileV1(preparing, [
+      stableDesiredCandidateV1(preparing.stableRuntimeBindings[0]!.desiredTarget),
+      stableRuntimeCandidateV1(
+        preparing.stableRuntimeBindings[0]!.desiredTarget,
+        rebuiltPreparing,
+      ),
+    ]);
+    expect(same).toBe(preparing);
+    expect(same.stableRuntimeBindings[0]!.binding).toBe(preparingBinding);
+
+    const failedBinding = createManagedSurfaceStableGapRuntimeBindingInternalV1({
+      reason: "readiness_failed",
+      placement: "root",
+      slotCardinality: "single",
+      retainedSubtree,
+    });
+    const failed = reconcileV1(preparing, [
+      stableDesiredCandidateV1(preparing.stableRuntimeBindings[0]!.desiredTarget),
+      stableRuntimeCandidateV1(
+        preparing.stableRuntimeBindings[0]!.desiredTarget,
+        failedBinding,
+      ),
+    ]);
+    const rebuiltFailure = createManagedSurfaceStableGapRuntimeBindingInternalV1({
+      reason: "readiness_failed",
+      placement: "root",
+      slotCardinality: "single",
+      retainedSubtree: alternateSubtree,
+    });
+    const sameFailure = reconcileV1(failed, [
+      stableDesiredCandidateV1(failed.stableRuntimeBindings[0]!.desiredTarget),
+      stableRuntimeCandidateV1(
+        failed.stableRuntimeBindings[0]!.desiredTarget,
+        rebuiltFailure,
+      ),
+    ]);
+    expect(sameFailure).toBe(failed);
+    expect(sameFailure.stableRuntimeBindings[0]!.binding).toBe(
+      failed.stableRuntimeBindings[0]!.binding,
+    );
+
+    const ready = reconcileV1(preparing, [
+      stableDesiredCandidateV1(preparing.stableRuntimeBindings[0]!.desiredTarget),
+      stableRuntimeCandidateV1(
+        preparing.stableRuntimeBindings[0]!.desiredTarget,
+        readyBindingV1(preparingBinding.attempt),
+      ),
+    ]);
+    expect(ready.stableRuntimeBindings[0]!.binding.kind).toBe("ready_instance");
+    expect(ready.transientState.identitySequenceHighWater).toBe(
+      preparing.transientState.identitySequenceHighWater,
+    );
+    const readyToken = ready.rootReservationGenerationToken;
+
+    const secondDesired = desiredV1(
+      fixture.harness,
+      fixture.harness.secondReplacement,
+      fixture.harness.secondReplacementRevision,
+    );
+    const secondAllocation = allocateAttemptV1(ready, secondDesired);
+    const staleSubtreeBinding = createManagedSurfaceStablePreparingRuntimeBindingInternalV1({
+      attempt: secondAllocation.attempt,
+      transition: "primary_replacement",
+      placement: "root",
+      slotCardinality: "single",
+      retainedSubtree,
+    });
+    expect(() =>
+      reconcileV1(secondAllocation.state, [
+        stableDesiredCandidateV1(secondDesired),
+        stableRuntimeCandidateV1(secondDesired, staleSubtreeBinding),
+      ])
+    ).toThrowError("ui.managed_surface_stable_runtime_binding_invalid");
+    expect(ready.rootReservationGenerationToken).toBe(readyToken);
+    expect(ready.transientState.identitySequenceHighWater).toBe(
+      preparing.transientState.identitySequenceHighWater,
+    );
+  });
+
+  it("rejects retained descendants duplicated as accepted runtime entries and forbidden cross-products", () => {
+    const fixture = retainedReadySubtreeFixtureV1();
+    const retainedSubtree = createManagedSurfaceStableRetainedRuntimeSubtreeInternalV1({
+      currentState: fixture.state,
+      root: fixture.root,
+    });
+    const replacementDesired = desiredV1(
+      fixture.harness,
+      fixture.harness.replacement,
+      fixture.harness.replacementRevision,
+    );
+    const allocation = allocateAttemptV1(fixture.state, replacementDesired);
+    const replacementBinding = createManagedSurfaceStablePreparingRuntimeBindingInternalV1({
+      attempt: allocation.attempt,
+      transition: "primary_replacement",
+      placement: "root",
+      slotCardinality: "single",
+      retainedSubtree,
+    });
+    const childBinding =
+      fixture.state.stableRuntimeBindings.find((entry) =>
+        entry.desiredTarget.admittedTarget === fixture.harness.child
+      )!.binding;
+    const grandchildBinding =
+      fixture.state.stableRuntimeBindings.find((entry) =>
+        entry.desiredTarget.admittedTarget === fixture.harness.grandchild
+      )!.binding;
+    expect(() =>
+      reconcileV1(allocation.state, [
+        stableDesiredCandidateV1(replacementDesired),
+        stableRuntimeCandidateV1(replacementDesired, replacementBinding),
+        stableDesiredCandidateV1(fixture.childDesired),
+        stableRuntimeCandidateV1(fixture.childDesired, childBinding),
+        stableDesiredCandidateV1(fixture.grandchildDesired),
+        stableRuntimeCandidateV1(fixture.grandchildDesired, grandchildBinding),
+      ])
+    ).toThrowError("ui.managed_surface_stable_runtime_binding_invalid");
+
+    for (
+      const invalid of [
+        () =>
+          createManagedSurfaceStablePreparingRuntimeBindingInternalV1({
+            attempt: allocation.attempt,
+            transition: "initial_open",
+            placement: "root",
+            slotCardinality: "single",
+            retainedSubtree,
+          }),
+        () =>
+          createManagedSurfaceStablePreparingRuntimeBindingInternalV1({
+            attempt: allocation.attempt,
+            transition: "primary_replacement",
+            placement: "root",
+            slotCardinality: "stack",
+            retainedSubtree,
+          }),
+        () =>
+          createManagedSurfaceStableGapRuntimeBindingInternalV1({
+            reason: "parent_unavailable",
+            placement: "child",
+            slotCardinality: "stack",
+            retainedSubtree,
+          }),
+        () =>
+          createManagedSurfaceStableGapRuntimeBindingInternalV1({
+            reason: "readiness_failed",
+            placement: "child",
+            slotCardinality: "stack",
+            retainedSubtree,
+          }),
+      ]
+    ) {
+      expect(invalid).toThrowError("ui.managed_surface_stable_runtime_binding_invalid");
+    }
   });
 
   it("keeps normalized contributor rows and tokens opaque to callers", () => {

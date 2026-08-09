@@ -54,6 +54,17 @@ export interface ManagedSurfaceStableReadyRuntimeInstanceInternalV1 {
   readonly phase: "active" | "suspended";
 }
 
+/**
+ * Exact ready predecessor topology retained while a single-root replacement
+ * is preparing or remains in a readiness-failed gap. The root and every
+ * descendant are identities already owned by the same composite state; this
+ * aggregate is not a second mutable topology authority.
+ */
+export interface ManagedSurfaceStableRetainedRuntimeSubtreeInternalV1 {
+  readonly root: ManagedSurfaceStableReadyRuntimeInstanceInternalV1;
+  readonly descendants: readonly ManagedSurfaceStableReadyRuntimeInstanceInternalV1[];
+}
+
 export type ManagedSurfaceStableRuntimeBindingInternalV1 =
   | {
     readonly kind: "ready_instance";
@@ -63,12 +74,12 @@ export type ManagedSurfaceStableRuntimeBindingInternalV1 =
     readonly kind: "preparing";
     readonly attempt: ManagedSurfaceStableRuntimeAttemptInternalV1;
     readonly transition: "initial_open" | "primary_replacement" | "child_open";
-    readonly retainedPredecessor: ManagedSurfaceStableReadyRuntimeInstanceInternalV1 | null;
+    readonly retainedSubtree: ManagedSurfaceStableRetainedRuntimeSubtreeInternalV1 | null;
   }
   | {
     readonly kind: "gap";
     readonly reason: "readiness_failed" | "parent_unavailable";
-    readonly retainedPredecessor: ManagedSurfaceStableReadyRuntimeInstanceInternalV1 | null;
+    readonly retainedSubtree: ManagedSurfaceStableRetainedRuntimeSubtreeInternalV1 | null;
   };
 
 export interface ManagedSurfaceStableRuntimeEntryInternalV1 {
@@ -81,14 +92,14 @@ export interface CreateManagedSurfaceStablePreparingRuntimeBindingInputInternalV
   readonly transition: "initial_open" | "primary_replacement" | "child_open";
   readonly placement: "root" | "child";
   readonly slotCardinality: "single" | "stack";
-  readonly retainedPredecessor: ManagedSurfaceStableReadyRuntimeInstanceInternalV1 | null;
+  readonly retainedSubtree: ManagedSurfaceStableRetainedRuntimeSubtreeInternalV1 | null;
 }
 
 export interface CreateManagedSurfaceStableGapRuntimeBindingInputInternalV1 {
   readonly reason: "readiness_failed" | "parent_unavailable";
   readonly placement: "root" | "child";
   readonly slotCardinality: "single" | "stack";
-  readonly retainedPredecessor: ManagedSurfaceStableReadyRuntimeInstanceInternalV1 | null;
+  readonly retainedSubtree: ManagedSurfaceStableRetainedRuntimeSubtreeInternalV1 | null;
 }
 
 export function createManagedSurfaceStableReadyRuntimeBindingInternalV1(input: {
@@ -107,15 +118,21 @@ export function createManagedSurfaceStableReadyRuntimeBindingInternalV1(input: {
 export function createManagedSurfaceStablePreparingRuntimeBindingInternalV1(
   input: CreateManagedSurfaceStablePreparingRuntimeBindingInputInternalV1,
 ): Extract<ManagedSurfaceStableRuntimeBindingInternalV1, { readonly kind: "preparing" }> {
+  const retainedRecord = input.retainedSubtree === null
+    ? null
+    : assertAuthenticRetainedRuntimeSubtreeInternalV1(input.retainedSubtree);
   const replacement = input.transition === "primary_replacement";
   const targetPlacement = input.attempt.desiredTarget.admittedTarget.stackScope.kind;
   if (
     !hasExpectedManagedSurfaceRuntimeAttemptIdentityInternalV1(input.attempt.identity) ||
     targetPlacement !== input.placement ||
-    replacement !== (input.retainedPredecessor !== null) ||
+    replacement !== (input.retainedSubtree !== null) ||
     (replacement && (input.placement !== "root" || input.slotCardinality !== "single")) ||
     (input.transition === "initial_open" && input.placement !== "root") ||
-    (input.transition === "child_open" && input.placement !== "child")
+    (input.transition === "child_open" && input.placement !== "child") ||
+    (retainedRecord !== null &&
+      retainedRecord.root.attempt.desiredTarget.publisherLease !==
+        input.attempt.desiredTarget.publisherLease)
   ) {
     throw new TypeError("ui.managed_surface_stable_runtime_binding_invalid");
   }
@@ -123,17 +140,20 @@ export function createManagedSurfaceStablePreparingRuntimeBindingInternalV1(
     kind: "preparing" as const,
     attempt: input.attempt,
     transition: input.transition,
-    retainedPredecessor: input.retainedPredecessor,
+    retainedSubtree: input.retainedSubtree,
   });
 }
 
 export function createManagedSurfaceStableGapRuntimeBindingInternalV1(
   input: CreateManagedSurfaceStableGapRuntimeBindingInputInternalV1,
 ): Extract<ManagedSurfaceStableRuntimeBindingInternalV1, { readonly kind: "gap" }> {
+  if (input.retainedSubtree !== null) {
+    assertAuthenticRetainedRuntimeSubtreeInternalV1(input.retainedSubtree);
+  }
   if (
     (input.reason === "parent_unavailable" &&
-      (input.placement !== "child" || input.retainedPredecessor !== null)) ||
-    (input.retainedPredecessor !== null &&
+      (input.placement !== "child" || input.retainedSubtree !== null)) ||
+    (input.retainedSubtree !== null &&
       (input.reason !== "readiness_failed" || input.placement !== "root" ||
         input.slotCardinality !== "single"))
   ) {
@@ -142,7 +162,7 @@ export function createManagedSurfaceStableGapRuntimeBindingInternalV1(
   return Object.freeze({
     kind: "gap" as const,
     reason: input.reason,
-    retainedPredecessor: input.retainedPredecessor,
+    retainedSubtree: input.retainedSubtree,
   });
 }
 
@@ -242,6 +262,38 @@ const compositeStateAuthorityRecordsInternalV1 = new WeakMap<
   CompositeStateAuthorityRecordInternalV1
 >();
 
+interface RetainedRuntimeSubtreeAuthorityRecordInternalV1 {
+  readonly origin: object;
+  readonly root: ManagedSurfaceStableReadyRuntimeInstanceInternalV1;
+  readonly descendants: readonly ManagedSurfaceStableReadyRuntimeInstanceInternalV1[];
+}
+
+const retainedRuntimeSubtreeAuthorityRecordsInternalV1 = new WeakMap<
+  ManagedSurfaceStableRetainedRuntimeSubtreeInternalV1,
+  RetainedRuntimeSubtreeAuthorityRecordInternalV1
+>();
+
+const retainedRuntimeSubtreeCacheInternalV1 = new WeakMap<
+  ManagedSurfaceStableCompositeStateInternalV1,
+  Map<
+    ManagedSurfaceStableReadyRuntimeInstanceInternalV1,
+    ManagedSurfaceStableRetainedRuntimeSubtreeInternalV1
+  >
+>();
+
+function assertAuthenticRetainedRuntimeSubtreeInternalV1(
+  subtree: ManagedSurfaceStableRetainedRuntimeSubtreeInternalV1,
+): RetainedRuntimeSubtreeAuthorityRecordInternalV1 {
+  const record = retainedRuntimeSubtreeAuthorityRecordsInternalV1.get(subtree);
+  if (
+    record === undefined || subtree.root !== record.root ||
+    subtree.descendants !== record.descendants
+  ) {
+    throw new TypeError("ui.managed_surface_stable_runtime_binding_invalid");
+  }
+  return record;
+}
+
 export function createManagedSurfaceStableCompositeStateInternalV1(input: {
   readonly admissionAuthority: ManagedSurfaceStableAdmissionAuthorityInternalV1;
   readonly transientState: ManagedSurfaceReducerStateV1;
@@ -286,6 +338,88 @@ export function createManagedSurfaceStableCompositeStateInternalV1(input: {
     stableContributorCandidates: Object.freeze([]),
   });
   return state;
+}
+
+/**
+ * Captures the exact ready closure rooted at one current stable root. The
+ * returned aggregate is authenticated to the composite origin and contains no
+ * cloned runtime instance or mutable topology.
+ */
+export function createManagedSurfaceStableRetainedRuntimeSubtreeInternalV1(input: {
+  readonly currentState: ManagedSurfaceStableCompositeStateInternalV1;
+  readonly root: ManagedSurfaceStableReadyRuntimeInstanceInternalV1;
+}): ManagedSurfaceStableRetainedRuntimeSubtreeInternalV1 {
+  const record = compositeStateAuthorityRecordsInternalV1.get(input.currentState);
+  if (record === undefined) {
+    throw new TypeError("ui.managed_surface_stable_composite_state_invalid");
+  }
+  for (const entry of input.currentState.stableRuntimeBindings) {
+    if (
+      entry.binding.kind !== "ready_instance" &&
+      entry.binding.retainedSubtree?.root === input.root
+    ) {
+      return entry.binding.retainedSubtree;
+    }
+  }
+  let cache = retainedRuntimeSubtreeCacheInternalV1.get(input.currentState);
+  const cached = cache?.get(input.root);
+  if (cached !== undefined) return cached;
+  const readyEntries = input.currentState.stableRuntimeBindings.flatMap((entry, index) =>
+    entry.binding.kind === "ready_instance"
+      ? [{ entry, index, instance: entry.binding.instance }]
+      : []
+  );
+  const rootEntry = readyEntries.find(({ instance }) => instance === input.root);
+  if (
+    rootEntry === undefined || input.root.attempt.parentInstanceId !== null ||
+    input.root.attempt.desiredTarget.admittedTarget.stackScope.kind !== "root"
+  ) {
+    throw new TypeError("ui.managed_surface_stable_runtime_binding_invalid");
+  }
+  const descendants: ManagedSurfaceStableReadyRuntimeInstanceInternalV1[] = [];
+  const visited = new Set<ManagedSurfaceStableReadyRuntimeInstanceInternalV1>([input.root]);
+  const visitChildren = (parent: ManagedSurfaceStableReadyRuntimeInstanceInternalV1): void => {
+    const children = readyEntries
+      .filter(({ instance }) =>
+        instance.attempt.parentInstanceId === parent.attempt.identity.surfaceInstanceId
+      )
+      .sort((left, right) => {
+        const leftSlot = left.entry.desiredTarget.admittedTarget.stackScope.slotId;
+        const rightSlot = right.entry.desiredTarget.admittedTarget.stackScope.slotId;
+        return leftSlot < rightSlot ? -1 : leftSlot > rightSlot ? 1 : left.index - right.index;
+      });
+    for (const { entry, instance } of children) {
+      const desired = instance.attempt.desiredTarget;
+      if (
+        visited.has(instance) || desired.publisherLease !==
+          input.root.attempt.desiredTarget.publisherLease ||
+        desired.admittedTarget.stackScope.kind !== "child" ||
+        desired.admittedTarget.parentOccurrenceId !==
+          parent.attempt.desiredTarget.admittedTarget.occurrenceId ||
+        entry.desiredTarget.admittedTarget !== desired.admittedTarget
+      ) {
+        throw new TypeError("ui.managed_surface_stable_runtime_binding_invalid");
+      }
+      visited.add(instance);
+      descendants.push(instance);
+      visitChildren(instance);
+    }
+  };
+  visitChildren(input.root);
+  const frozenDescendants = Object.freeze(descendants);
+  const subtree = Object.freeze({
+    root: input.root,
+    descendants: frozenDescendants,
+  });
+  retainedRuntimeSubtreeAuthorityRecordsInternalV1.set(subtree, {
+    origin: record.origin,
+    root: input.root,
+    descendants: frozenDescendants,
+  });
+  cache ??= new Map();
+  cache.set(input.root, subtree);
+  retainedRuntimeSubtreeCacheInternalV1.set(input.currentState, cache);
+  return subtree;
 }
 
 export interface ManagedSurfaceStableRuntimeAttemptAllocationInternalV1 {
@@ -509,12 +643,7 @@ function captureReadyInstanceInternalV1(
   }
   const attempt = captureRuntimeAttemptInternalV1(state, record, instance.attempt);
   for (const entry of state.stableRuntimeBindings) {
-    const binding = entry.binding;
-    const candidates = binding.kind === "ready_instance"
-      ? [binding.instance]
-      : binding.retainedPredecessor === null
-      ? []
-      : [binding.retainedPredecessor];
+    const candidates = readyInstancesForBindingInternalV1(entry.binding);
     const existing = candidates.find((candidate) =>
       candidate.attempt === attempt && candidate.phase === instance.phase
     );
@@ -524,6 +653,53 @@ function captureReadyInstanceInternalV1(
     attempt,
     phase: instance.phase,
   });
+}
+
+function readyInstancesForBindingInternalV1(
+  binding: ManagedSurfaceStableRuntimeBindingInternalV1,
+): readonly ManagedSurfaceStableReadyRuntimeInstanceInternalV1[] {
+  if (binding.kind === "ready_instance") return Object.freeze([binding.instance]);
+  if (binding.retainedSubtree === null) return Object.freeze([]);
+  return Object.freeze([
+    binding.retainedSubtree.root,
+    ...binding.retainedSubtree.descendants,
+  ]);
+}
+
+function captureRetainedRuntimeSubtreeInternalV1(
+  state: ManagedSurfaceStableCompositeStateInternalV1,
+  record: CompositeStateAuthorityRecordInternalV1,
+  subtree: ManagedSurfaceStableRetainedRuntimeSubtreeInternalV1,
+): ManagedSurfaceStableRetainedRuntimeSubtreeInternalV1 {
+  const subtreeRecord = retainedRuntimeSubtreeAuthorityRecordsInternalV1.get(subtree);
+  if (
+    subtreeRecord === undefined || subtreeRecord.origin !== record.origin ||
+    subtree.root !== subtreeRecord.root || subtree.descendants !== subtreeRecord.descendants
+  ) {
+    throw new TypeError("ui.managed_surface_stable_runtime_binding_invalid");
+  }
+  const expected = createManagedSurfaceStableRetainedRuntimeSubtreeInternalV1({
+    currentState: state,
+    root: subtreeRecord.root,
+  });
+  if (
+    expected.root !== subtreeRecord.root ||
+    expected.descendants.length !== subtreeRecord.descendants.length ||
+    expected.descendants.some((instance, index) => instance !== subtreeRecord.descendants[index])
+  ) {
+    throw new TypeError("ui.managed_surface_stable_runtime_binding_invalid");
+  }
+  const currentAggregate = state.stableRuntimeBindings.find((entry) =>
+    entry.binding.kind !== "ready_instance" &&
+    entry.binding.retainedSubtree?.root === subtreeRecord.root
+  );
+  if (
+    currentAggregate !== undefined && currentAggregate.binding.kind !== "ready_instance" &&
+    currentAggregate.binding.retainedSubtree !== null
+  ) {
+    return currentAggregate.binding.retainedSubtree;
+  }
+  return subtree;
 }
 
 function captureRuntimeBindingInternalV1(
@@ -578,14 +754,14 @@ function captureRuntimeBindingInternalV1(
       binding.attempt,
       desiredTarget,
     );
-    const retainedPredecessor = binding.retainedPredecessor === null
+    const retainedSubtree = binding.retainedSubtree === null
       ? null
-      : captureReadyInstanceInternalV1(state, record, binding.retainedPredecessor);
+      : captureRetainedRuntimeSubtreeInternalV1(state, record, binding.retainedSubtree);
     const existing = state.stableRuntimeBindings.find((entry) =>
       entry.desiredTarget.admittedTarget === desiredTarget.admittedTarget &&
       entry.binding.kind === "preparing" && entry.binding.attempt === attempt &&
       entry.binding.transition === binding.transition &&
-      entry.binding.retainedPredecessor === retainedPredecessor
+      entry.binding.retainedSubtree === retainedSubtree
     );
     if (existing?.binding.kind === "preparing") return existing.binding;
     if (!pendingAttempt) {
@@ -595,7 +771,7 @@ function captureRuntimeBindingInternalV1(
       kind: "preparing" as const,
       attempt,
       transition: binding.transition,
-      retainedPredecessor,
+      retainedSubtree,
     });
   }
   if (
@@ -604,19 +780,19 @@ function captureRuntimeBindingInternalV1(
   ) {
     throw new TypeError("ui.managed_surface_stable_runtime_binding_invalid");
   }
-  const retainedPredecessor = binding.retainedPredecessor === null
+  const retainedSubtree = binding.retainedSubtree === null
     ? null
-    : captureReadyInstanceInternalV1(state, record, binding.retainedPredecessor);
+    : captureRetainedRuntimeSubtreeInternalV1(state, record, binding.retainedSubtree);
   const existing = state.stableRuntimeBindings.find((entry) =>
     entry.desiredTarget.admittedTarget === desiredTarget.admittedTarget &&
     entry.binding.kind === "gap" && entry.binding.reason === binding.reason &&
-    entry.binding.retainedPredecessor === retainedPredecessor
+    entry.binding.retainedSubtree === retainedSubtree
   );
   if (existing?.binding.kind === "gap") return existing.binding;
   return Object.freeze({
     kind: "gap" as const,
     reason: binding.reason,
-    retainedPredecessor,
+    retainedSubtree,
   });
 }
 
@@ -649,14 +825,14 @@ function bindingAttemptsInternalV1(
   binding: ManagedSurfaceStableRuntimeBindingInternalV1,
 ): readonly ManagedSurfaceStableRuntimeAttemptInternalV1[] {
   if (binding.kind === "ready_instance") return Object.freeze([binding.instance.attempt]);
+  const retainedAttempts = binding.retainedSubtree === null ? [] : [
+    binding.retainedSubtree.root.attempt,
+    ...binding.retainedSubtree.descendants.map((instance) => instance.attempt),
+  ];
   if (binding.kind === "preparing") {
-    return binding.retainedPredecessor === null
-      ? Object.freeze([binding.attempt])
-      : Object.freeze([binding.attempt, binding.retainedPredecessor.attempt]);
+    return Object.freeze([binding.attempt, ...retainedAttempts]);
   }
-  return binding.retainedPredecessor === null
-    ? Object.freeze([])
-    : Object.freeze([binding.retainedPredecessor.attempt]);
+  return Object.freeze(retainedAttempts);
 }
 
 function slotCardinalityForDesiredInternalV1(
@@ -768,18 +944,18 @@ function validateRuntimeEntryInternalV1(
       !sameDesiredRuntimeTargetInternalV1(binding.attempt.desiredTarget, desired) ||
       (binding.transition === "primary_replacement" &&
         (placement !== "root" || slotCardinality !== "single" ||
-          binding.retainedPredecessor === null)) ||
+          binding.retainedSubtree === null)) ||
       (binding.transition === "initial_open" &&
-        (placement !== "root" || binding.retainedPredecessor !== null)) ||
+        (placement !== "root" || binding.retainedSubtree !== null)) ||
       (binding.transition === "child_open" &&
-        (placement !== "child" || binding.retainedPredecessor !== null))
+        (placement !== "child" || binding.retainedSubtree !== null))
     ) {
       throw new TypeError("ui.managed_surface_stable_runtime_binding_invalid");
     }
   } else if (
     (binding.reason === "parent_unavailable" &&
-      (placement !== "child" || binding.retainedPredecessor !== null)) ||
-    (binding.retainedPredecessor !== null &&
+      (placement !== "child" || binding.retainedSubtree !== null)) ||
+    (binding.retainedSubtree !== null &&
       (binding.reason !== "readiness_failed" || placement !== "root" ||
         slotCardinality !== "single"))
   ) {
@@ -825,10 +1001,8 @@ function validateRuntimeEntryInternalV1(
   }
   const currentReadyInstances = new Set<ManagedSurfaceStableReadyRuntimeInstanceInternalV1>();
   for (const entry of state.stableRuntimeBindings) {
-    if (entry.binding.kind === "ready_instance") {
-      currentReadyInstances.add(entry.binding.instance);
-    } else if (entry.binding.retainedPredecessor !== null) {
-      currentReadyInstances.add(entry.binding.retainedPredecessor);
+    for (const instance of readyInstancesForBindingInternalV1(entry.binding)) {
+      currentReadyInstances.add(instance);
     }
   }
   for (const attempt of bindingAttemptsInternalV1(binding)) {
@@ -849,11 +1023,9 @@ function validateRuntimeEntryInternalV1(
     usedRuntimeAttempts.set(identity, attempt);
     usedRuntimeSequences.add(sequence);
   }
-  const retainedPredecessor = binding.kind === "ready_instance"
-    ? null
-    : binding.retainedPredecessor;
-  if (retainedPredecessor !== null) {
-    const predecessorDesired = retainedPredecessor.attempt.desiredTarget;
+  const retainedSubtree = binding.kind === "ready_instance" ? null : binding.retainedSubtree;
+  if (retainedSubtree !== null) {
+    const predecessorDesired = retainedSubtree.root.attempt.desiredTarget;
     if (
       predecessorDesired.publisherLease !== desired.publisherLease ||
       predecessorDesired.admittedTarget.occurrenceId === desired.admittedTarget.occurrenceId ||
@@ -861,10 +1033,46 @@ function validateRuntimeEntryInternalV1(
       predecessorDesired.admittedTarget.stackScope.kind !== "root" ||
       predecessorDesired.admittedTarget.stackScope.slotId !==
         desired.admittedTarget.stackScope.slotId ||
-      !currentReadyInstances.has(retainedPredecessor) ||
-      retainedPredecessor.attempt.parentInstanceId !== null
+      !currentReadyInstances.has(retainedSubtree.root) ||
+      retainedSubtree.root.attempt.parentInstanceId !== null
     ) {
       throw new TypeError("ui.managed_surface_stable_runtime_binding_invalid");
+    }
+    const subtreeInstances = [retainedSubtree.root, ...retainedSubtree.descendants];
+    const subtreeByInstanceId = new Map(
+      subtreeInstances.map((instance) =>
+        [
+          instance.attempt.identity.surfaceInstanceId,
+          instance,
+        ] as const
+      ),
+    );
+    if (subtreeByInstanceId.size !== subtreeInstances.length) {
+      throw new TypeError("ui.managed_surface_stable_runtime_binding_invalid");
+    }
+    for (const descendant of retainedSubtree.descendants) {
+      const descendantDesired = descendant.attempt.desiredTarget;
+      const parentInstance = descendant.attempt.parentInstanceId === null
+        ? undefined
+        : subtreeByInstanceId.get(descendant.attempt.parentInstanceId);
+      if (
+        !currentReadyInstances.has(descendant) ||
+        descendantDesired.publisherLease !== desired.publisherLease ||
+        descendantDesired.sourceRevision > desired.sourceRevision ||
+        descendantDesired.admittedTarget.stackScope.kind !== "child" ||
+        parentInstance === undefined ||
+        descendantDesired.admittedTarget.parentOccurrenceId !==
+          parentInstance.attempt.desiredTarget.admittedTarget.occurrenceId
+      ) {
+        throw new TypeError("ui.managed_surface_stable_runtime_binding_invalid");
+      }
+    }
+    for (const instance of subtreeInstances) {
+      if (
+        desiredByOccurrence.has(instance.attempt.desiredTarget.admittedTarget.occurrenceId)
+      ) {
+        throw new TypeError("ui.managed_surface_stable_runtime_binding_invalid");
+      }
     }
   }
 }
@@ -933,14 +1141,14 @@ function stableRuntimeRowsInternalV1(
         phase: "preparing" as const,
       }),
     ];
-    if (binding.retainedPredecessor !== null) {
-      rows.push(rowForInstance(binding.retainedPredecessor, "retained_predecessor"));
+    if (binding.retainedSubtree !== null) {
+      rows.push(rowForInstance(binding.retainedSubtree.root, "retained_predecessor"));
     }
     return Object.freeze(rows);
   }
-  return binding.retainedPredecessor === null
+  return binding.retainedSubtree === null
     ? Object.freeze([])
-    : Object.freeze([rowForInstance(binding.retainedPredecessor, "retained_predecessor")]);
+    : Object.freeze([rowForInstance(binding.retainedSubtree.root, "retained_predecessor")]);
 }
 
 function sameStableRuntimeEntriesInternalV1(
