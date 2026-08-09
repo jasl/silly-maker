@@ -30,7 +30,8 @@ promotion 均已关闭。2026-08-08 dormant `PF4/S3c.1 Host-commit readiness`、
 `PF4/S1-R.4b.0 terminal composite disposition`与
 `PF4/S1-R.4b.1 source-bound readiness + global cascade settlement`及
 `PF4/S1-R.5 neutral harness、bounded churn and dead-path audit`已关闭，S1-R aggregate gate已关闭；
-linear core current/next为`PF4/S4 Narrative dialogue/history`。
+`PF4/S4.0 Narrative/History contract + characterization floor`也已关闭，linear core current/next为
+`PF4/S4.1 dormant Narrative family contract/publisher bridge`。
 同日 S1-R pre-implementation review 将 external reconcile gate 重切为 S1-R.0–S1-R.5；
 顺序变化不把任何 planned stable-target contract写成 live capability。
 同日 S1-R.3 entry-gate adjudication 采用 A-prime，将原 R3 拆为单一 composite
@@ -45,7 +46,8 @@ dormant System session/catalog、S3c.0 all-family successor activation barrier �
 的 S3c.1 Host-commit readiness/Host lease、S3d exact-parent confirmation child 与
 S3e.0 composition successor acknowledgment/terminal teardown、S3e live cutover与
 promotion，以及 S1-R.0–R5（含R1a/R3a.1 corrective）与R1b disposal corrective均已完成；
-S1-R aggregate gate已关闭，下一独立切片为S4 Narrative dialogue/history。
+S1-R aggregate gate已关闭；S4.0 contract floor也已关闭，下一独立切片为S4.1 dormant Narrative
+family contract/publisher bridge。
 旧 promotion 数字保留为
 历史证据。本文是当前唯一的跨计划排序入口；
 具体合同仍由各 design 文档拥有，主要任务由五个独立计划拥有：
@@ -919,9 +921,12 @@ Surface pilot 通过后按 family 分开合并：
 
 1. S3：System dialogs；
 2. S1-R：external stable-target reconcile gate；
-3. S4：Narrative dialogue/history；
-4. S4b：whole-canvas primary/detail 独立 family；
-5. input/gesture reset（pointercancel、focus loss、visibility change）与 Browser
+3. S4.0：Narrative/History contract + characterization floor；
+4. S4.1：dormant definition/catalog、semantic publisher bridge与stable action admission；
+5. S4.2：dormant Narrative Host、Host-commit readiness与History exact child；
+6. S4.3：atomic live cutover and promotion；
+7. S4b：whole-canvas primary/detail 独立 family；
+8. input/gesture reset（pointercancel、focus loss、visibility change）与 Browser
    Agent observation。
 
 S3 是 Coordinator-owned transient family，与 Workspace Overlay 共用同一个
@@ -1345,9 +1350,33 @@ UI root、`./internal` barrel、package exports、transient contracts、Coordina
 验证通过focused `12 files / 272 tests`、UI package `78 files / 946 tests`、全量
 `252 files / 3874 tests`与`deno task check` green。本批因live application/browser graph zero diff未重跑browser、
 examples或prebuilt；最近一次R4b.1证据仍为Engine browser `101 / 101`、examples browser
-`45 passed / 2 skipped`及prebuilt Player `38 / 38`。R5关闭S1-R aggregate activation gate；linear core
-current/next现为S4 Narrative dialogue/history，该切片必须作为第一个真实externally published stable-target
-family cutover，仍禁止越过它提前接入S4b或其他live family，也不把dormant stable ingress描述为live能力。
+`45 passed / 2 skipped`及prebuilt Player `38 / 38`。R5关闭S1-R aggregate activation gate；该checkpoint的
+linear core current/next当时为S4 Narrative dialogue/history，现由下述S4.0 delivery细分并取代。
+
+**2026-08-10 S4.0 delivery：** owning design与active plans现已冻结首个真实stable family的contract，而没有
+接入live source。Dialogue是owner `surface-owner.narrative`的externally published single root（layer 40），覆盖全部
+non-null PendingInteraction kinds；History固定为任意ready-active Dialogue下的Coordinator-owned exact-parent single
+blocking child（layer 41），不再保留“child/replace”歧义。Root的Back/Escape/backdrop/routed cancel全部locked并
+restore previous owner；History四类dismiss全部关闭exact child并restore opener。两者沿用initial/child blocking
+fallback与replacement retain-current；root replace/empty/dispose成组retain/retire History subtree。
+
+Composition-owned bridge独占Narrative publisher lease、专用source revision与Surface occurrence allocator。Target参数
+只记录semantic occurrence/kind/definition/seen/renderer key boundary；同一occurrence的full normalized PendingInteraction
+canonical bytes必须exact，任一pending字段漂移在unchanged前fault。Global semantic revision、History、localization、
+reveal/audio/profile/player mode均不推进stable source。Pointer/keyboard/gamepad使用current Surface/Input/topology/physical
+gesture binding；automatic semantic action使用独立package-internal controller-attempt lease，不能伪造gesture；两类path
+current后才向Base提交`expectedOccurrenceId`，receipt分离且任一stale对semantic dispatch为零。Required-port failure在
+identity allocation前reject；React Host-commit failure才进入candidate readiness。Story只贡献pure content/controller
+ports，不手写lease/revision/occurrence或mount lifecycle host。
+
+Live cutover removal gate明确覆盖`DefaultGameRootSlotsV1.narrative`任意React lifecycle、standalone `VnLayerV1`、
+`DialoguePanelV1` local History/direct resolve、Engine Lab local History/hidden/input以及无Surface evidence direct action。
+S4据此分为S4.1 source-relative publisher/action bridge、S4.2 dormant Host/History、S4.3 tracked-consumer atomic cutover；
+仍禁止越过它提前接入S4b或其他live stable family。验证通过focused旧行为characterization
+`3 files / 35 tests`与完整`deno task check`（`252 files / 3874 tests`）green；三份docs fmt/diff-check green。本批无production/browser/
+build graph变化，未机械重跑完整browser/examples/prebuilt；S0 deterministic Chromium RED与最近R4b.1
+`101 / 101`、`45 passed / 2 skipped`、`38 / 38`只作已有证据。Linear core current/next现为S4.1 dormant
+Narrative family contract/publisher bridge。
 
 每个 family 的迁移提交必须删除旧 owner；禁止长期 adapter 双写。
 `DialoguePanelV1` / `VnLayerV1` 的 controller/view/host 拆分在 Narrative family

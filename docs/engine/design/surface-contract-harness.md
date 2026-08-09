@@ -99,10 +99,12 @@ topology-participating equal-layer rows在R2 topology、exact retained subtree�
 child 与 single-writer cutover；S1-R.1a corrective、S1-R.3.0、S1-R.3a 与 R3a.1 corrective 已完成，
 S1-R.1b corrective、S1-R.3b.0、S1-R.3b.1、S1-R.4.0 entry contract 与 S1-R.4a 也已完成，
 S1-R.4b.0 terminal disposition、S1-R.4b.1 readiness/cascade settlement与S1-R.5 neutral
-harness/churn/dead-path audit均已完成，S1-R aggregate gate已关闭；当前active
-execution pointer的current/next均为S4 Narrative and History family，R3b.1、R4.0、R4a、R4b.0、
-R4b.1与R5只作为completed delivery保留。Stable implementation仍保持dormant/source-relative；R5完成只
-解除S4 entry gate，不把任何stable family提前写成live capability。
+harness/churn/dead-path audit均已完成，S1-R aggregate gate已关闭；S4.0又已冻结首个真实
+Narrative/History stable family的topology、dismiss/focus/readiness、source projection、双重action fence与
+single-writer cutover floor。当前active execution pointer的current/next均为S4.1 dormant Narrative family
+contract/publisher bridge，R3b.1、R4.0、R4a、R4b.0、R4b.1、R5与S4.0只作为completed delivery保留。
+Stable implementation仍保持dormant/source-relative；R5只解除S4 entry gate，S4.0也没有把任何stable family
+提前写成live capability。
 当前 live 能力仍以
 [architecture](../architecture.md) 与
 [features](../features.md) 为准；执行顺序见
@@ -1109,6 +1111,100 @@ engine gate。
 test/docs，不影响browser或build路径，因此没有机械重跑browser/examples/prebuilt；本轮最近的R4b.1证据仍为
 Engine browser `101/101`、examples `45 passed / 2 skipped`与prebuilt Player `38/38`，不把它们表述为R5
 HEAD上的重复执行。
+
+### 3.2.1 S4.0 Narrative/History family contract floor
+
+S4的第一个真实stable owner固定为Narrative semantic owner。一个application epoch只由composition root为它
+创建一个publisher lease；普通Story作者、React component、renderer与`PendingInteractionV1`都不得领取或手写
+lease、source revision、Surface target occurrence或runtime instance。Composition-owned bridge只从immutable
+semantic publication投影desired vector，并与Overlay/System共用同一个composite kernel、shared identity cursor、
+Coordinator publication及successor lifetime；它不保存第二份semantic state，也不靠effect/subscription异步双写
+React local mirror。
+
+Narrative family的V1 topology与definition contract固定如下：
+
+| Definition    | Exact topology and policy                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Dialogue root | owner `surface-owner.narrative`，definition `surface.narrative.dialogue`，root slot `surface-slot.narrative.root`（`single`），layer `surface-layer.narrative` / order `40`。它是blocking、managed `narrative` input、owns-focus surface；initial target `surface-focus.narrative.primary`、`trap: true`、`restore: previous_owner`。Back/Escape/backdrop/routed cancel全部locked，navigation为`none`。Initial open使用blocking fallback，replacement retain exact current subtree。 |
+| History       | definition `surface.narrative.history`，child slot `surface-slot.narrative.history`（exact-parent `single`），同layer / order `41`。它是Coordinator-owned transient blocking child，不是stable target、semantic publication或React-local boolean。Initial target `surface-focus.narrative.history-close`、`trap: true`、`restore: opener`；Back/Escape/backdrop/routed cancel全部关闭该exact child，navigation为`close`，child open使用blocking fallback。                           |
+
+Dialogue root覆盖每个非空`PendingInteractionV1`：`say`、`choice`、`pause`、
+`presentation_barrier`与`custom`都不能再走平行的Engine Lab/Story lifecycle。History可由任意current ready+active
+Dialogue root作为parent，是否显示入口可由只读History availability决定，但topology不得按pending kind分叉；每次
+open分配fresh transient occurrence/instance。Root replacement准备期间保留exact current root+History subtree，
+replacement failure继续保留它；ready cutover、greater-empty或publisher/Coordinator disposal在同一个install中退役
+旧root与整棵History subtree，新root不会继承“History已打开”的UI session状态。
+
+Stable root target参数只携带由bridge生成并冻结的semantic boundary：
+`semanticOccurrenceId`、`kind`、`definitionId`、`seenRevision`与`rendererKey`；`rendererKey`对custom
+interaction由exact `surfaceId`生成，其余kind使用固定family key，不能由Story自由手写。Base semantic occurrence与Surface target
+occurrence/runtime instance是三个独立domain，绝不复制`interaction-occurrence.*`作为Surface ID。同一exact semantic
+occurrence + boundary在普通global `SemanticPublication.revision`、History内容、localization、reveal/audio/profile/
+seen或player-mode变化中保留exact target occurrence并且不发布新stable revision。Bridge同时保存bounded canonical
+full normalized `PendingInteractionV1` proof；同一occurrence下say text/speaker/advance policy、choice prompt/options、
+pause duration/skippable、barrier transition/recovery、custom surface/params或任一base/boundary字段只要byte-different，
+都必须在unchanged classification前closed fault，不能让active Host保留旧frame或静默换target。Localization解析结果、
+History与Host profile不属于该proof。新semantic occurrence推进Narrative专用source revision并分配
+fresh target occurrence；非空变空发布greater-empty；empty后再开仍fresh；renderer failure的显式greater-same retry
+只分配fresh candidate instance，不换target occurrence。Initial null保持registered-unpublished，rebootstrap/load/import/
+HMR successor使用fresh lease、revision domain与Surface occurrences，不携带旧semantic→Surface映射。Global semantic或
+presentation revision永远不能替代该per-lease source revision。
+
+Candidate resolver必须在identity allocation前捕获exact Story content renderer、冻结visual config、semantic dispatch
+port、immutable pending frame、read-only current History observation port、player profile、presentation clock与UI text resolver；
+voice replay与quick-menu contribution是显式optional port。Definition/schema/resolver/required-port missing、foreign或throwing
+属于preflight structured rejection，identity/topology exact zero；不能先分配candidate再把它记为readiness failure。
+Candidate React render/layout/Host-commit failure才是candidate-bound readiness failure，不能形成active-but-invisible root。
+Candidate subtree在正确Narrative portal完成Host commit、注册exact initial-focus target并安装managed input/action binding后
+才可settle ready；candidate没有ordinary semantic action、input、focus或routing authority；code-native blocking fallback
+独立持有blocking isolation、fallback-only input gate与focus scope/trap。Story content renderer只渲染controller/view props，
+不能调用Coordinator、持有`showHistory`/`active` writable lifecycle或自行注册ordinary Narrative input。
+
+所有会产生semantic resolution的路径使用同一个stable lifecycle fence与Base occurrence fence，但physical input和automatic
+controller不能伪装成同一种gesture provenance：
+
+1. Pointer、keyboard与gamepad先由current managed binding验证application epoch、Surface instance、topology revision、routing/input publication、
+   action catalog与physical gesture；并确认该binding仍属于current authenticated Narrative stable runtime。任一
+   stale/unpublished/retained-predecessor-only路径都消费该binding-origin action、返回既有Surface/Input receipt且对Base
+   dispatch为零。
+2. Auto/pause等automatic resolution使用package-internal controller-attempt lease，绑定exact application epoch、current
+   Surface instance/topology、publisher lease、target occurrence/source revision与controller generation；它没有也不得伪造
+   physical gesture ID。Root非active、source/instance被replace或controller generation失效都使attempt stale且dispatch为零。
+3. 只有physical path得到exact `unchanged / surface.action_routed`，或automatic path的exact controller attempt仍current，
+   才向Base semantic port提交捕获的
+   `expectedOccurrenceId`与resolution；Base继续执行现有queue-front occurrence/kind/choice validation。Semantic rejection
+   不回滚或乐观关闭Surface，successful semantic commit随后经新的source publication驱动root replace/empty。
+
+Surface/Input receipt与Base semantic receipt保持分离，不扩张通用transient receipt或发明universal action envelope。
+History open/close、player auto/skip/history/hidden/replay controls与typewriter/reveal本身不dispatch GameCommand、不推进
+gameplay revision/CommandLog；root非active（包括History child或更高blocker使其suspended）时automatic semantic timers
+不得推进剧情。使root suspended的同一个commit立即暂停controller、保存remaining deadline/cursor并撤销旧attempt；
+History preparation failure/close或higher blocker removal让同一root重新active时按remaining恢复，不从full duration重启；
+root replacement/empty/dispose直接取消。Timer callback与History/blocker transition经同一composition transition fence串行
+first-wins，loser只能stale且zero dispatch。`NarrativeHistoryV1`继续是authoritative Save-backed backlog，seen/profile仍是
+Host profile；二者都不是Surface lifecycle authority。
+
+Live cutover前的旧行为只作characterization evidence，不是accepted policy。S4必须把当前任意React lifecycle slot改为
+composition-created typed Narrative family declaration：Story只提供pure selector/content renderer/controller ports。
+同一个atomic cutover要迁移Engine Lab、template、Cat Cafe与Bookshop，并删除或收窄：
+
+- `DefaultGameRootSlotsV1.narrative`直接mount任意lifecycle host的能力；
+- `VnLayerV1(active, inputRouter, ...)` standalone writable lifecycle/focus/input export；
+- `DialoguePanelV1`的pending直通、local `showHistory`、embedded absolute History与direct `onResolve`；
+- Engine Lab local History/hidden topology writer、ordinary input registration与无Surface evidence的
+  `AdvanceSurfaceV1`/choice dispatch path。
+
+`DialoguePlayerController`继续拥有typewriter/auto/skip/seen/timing，`DialogueView`继续拥有speaker/text/choices/skin，
+`NarrativeSurfaceHost`独占lifecycle/input/focus/isolation/history/dismiss。旧public visual preset若保留，只能成为view-only
+content contribution；不提供能反向写lifecycle的compatibility wrapper。S4不能长期双写或先发布一套新的public generic
+Coordinator API。
+
+S4据此拆为：S4.0本contract/characterization floor；S4.1 source-relative definition/catalog、publisher projection与
+stable action-admission bridge；S4.2 dormant controller/view/Host、Host-commit readiness与History exact-child integration；
+S4.3在一个cutover中迁移全部tracked consumers、删除旧writers并完成headless/browser/prebuilt promotion。若exact-parent
+History不能与stable root共用composite authority、root/History不能原子retain/retire、同一semantic occurrence确实允许
+上述identity boundary漂移、三类设备不能共用双fence、或cutover必须保留direct resolve/local bool/standalone host双写，
+立即停止并修订设计；S4不得借机改变Save/Persistence/NarrativeHistory/Snapshot/semantic receipt合同。
 
 ### 3.3 Runtime session
 

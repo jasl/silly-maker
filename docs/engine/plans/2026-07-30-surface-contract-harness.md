@@ -19,8 +19,8 @@ S1-R.3a composition-owned composite runtime/identity/provenance seam、S1-R.3b.0
 registration + admission context，以及R3b.1 entry audit发现的S1-R.1b disposal authority
 corrective、S1-R.3b.1 pure reconcile and synchronous owner commit与S1-R.4a shared runtime topology
 policy extraction、S1-R.4b.0 terminal composite disposition、S1-R.4b.1 source-bound readiness +
-global cascade settlement与S1-R.5 neutral harness/churn/dead-path audit均已关闭，下一独立切片为S4
-Narrative and History family；R4 entry
+global cascade settlement与S1-R.5 neutral harness/churn/dead-path audit均已关闭；S4.0 Narrative/History
+contract/characterization floor也已关闭，下一独立切片为S4.1 dormant family contract/publisher bridge；R4 entry
 adjudication已先以独立S1-R.4.0关闭
 readiness result/capacity contract。R3b entry audit先以独立S1-R.3a.1 corrective补全ready
 retained-subtree authority，该corrective也已关闭。
@@ -35,7 +35,8 @@ S1-R aggregate gate已关闭。
 
 在 [production-floor sequence](2026-07-30-production-floor-sequence.md)
 中：PF2 的 `S0 -> S1-T -> S2`、PF-DET、PF3/M2 与 PF4/S3 已完成；当前 core
-节点是 PF4/S4。PF4 的顺序是 `S3 -> S1-R.0 -> S1-R.1–S1-R.5 -> S4 -> S4b`；
+节点是PF4/S4.1。PF4的顺序是
+`S3 -> S1-R.0 -> S1-R.1–S1-R.5 -> S4.0 -> S4.1 -> S4.2 -> S4.3 -> S4b`；
 S5–S6 属于 PF6。S1-R
 延后到第一个真实 externally published stable-target family 前完成；按 accepted
 target ownership，S4 Narrative 计划成为该 family，因此 S1-R 位于 S3 与 S4
@@ -1680,9 +1681,19 @@ S1-R 按以下可独立合并切片推进，每次只领取一个：
 17. **S1-R.5 neutral harness/churn/dead-path audit（已完成）**：two-owner、empty/dispose、conflict、
     10k churn、pure/model equivalence 与 public/transient export audit，汇总 dormant
     promotion evidence。
+18. **S4.0 Narrative/History contract + characterization floor（已完成）**：冻结exact root/child topology、
+    dismiss/focus/readiness、semantic→stable projection、双重action fence、Story authoring boundary与atomic removal gate；
+    只记录旧行为characterization，不接live stable ingress。
+19. **S4.1 dormant Narrative family contract/publisher bridge（当前）**：source-relative definition/catalog、
+    composition-owned lease/source/occurrence projection、stable action-admission bridge与exact results；不mount React Host。
+20. **S4.2 dormant Narrative Host + History child（待实施）**：controller/view/Host decomposition、Host-commit
+    readiness、exact-parent History、managed input/focus/dismiss与Engine Lab dormant conformance；不切live Story。
+21. **S4.3 atomic live cutover and promotion（待实施）**：同批迁移Engine Lab、template、Cat Cafe、Bookshop，
+    删除旧lifecycle writers与standalone public path，更新live docs并完成headless/browser/prebuilt promotion。
 
-当前只允许从 **S4** 开始。Stable ingress与stable-specific state/API仍保持
-dormant/package-internal，不接 Narrative/React/Web，不更新 live feature 文档；shared pure topology
+当前只允许从 **S4.1** 开始。Stable ingress与stable-specific state/API仍保持
+dormant/package-internal；S4.1允许source-relative Narrative bridge消费Base semantic contract，但不接live
+Narrative/React/Web application graph、不mount React Host，也不更新live feature文档；shared pure topology
 policy只经existing transient adapter live复用，R3a 已将既有live transient reducer/Coordinator 收口到
 同一 internal kernel/authority，并由adapter保持全部现有transient行为。
 
@@ -2590,7 +2601,7 @@ contracts均无变化。至此S1-R aggregate gate关闭，但stable publication 
 `252 files / 3874 tests`与完整`deno task check` green。由于本批只新增source-relative comparison observation与
 DOM-free tests/docs，没有改变browser/build graph，未机械重跑browser/examples/prebuilt；沿用紧邻R4b.1已通过的
 engine browser `101 / 101`、examples browser `45 passed / 2 skipped`与prebuilt Player `38 / 38`证据。
-S1-R.5已完成；current/next均为S4 Narrative and History family。
+S1-R.5完成时current/next均为S4 Narrative and History family；该checkpoint现由下述S4.0 delivery细分并取代。
 
 ### Desired/runtime divergence and retry
 
@@ -2816,9 +2827,34 @@ S4。
 
 ## 8. S4 — Narrative and History family
 
-S4 依赖 S1-R。Narrative externally published stable target 只由 semantic owner
-publication 改变；Coordinator 按 source revision reconcile，UI/controller 不直接
-写第二份 stable target。
+S4依赖已经关闭的S1-R aggregate。Narrative externally published stable target只由semantic owner
+publication投影；composition-owned bridge管理exact publisher lease、source revision与Surface occurrence，
+Coordinator按accepted proposal reconcile，UI/controller不直接写第二份stable target。
+
+S4.0已经冻结exact contract：
+
+- owner为`surface-owner.narrative`；Dialogue是`surface.narrative.dialogue`、
+  `surface-slot.narrative.root` single root、layer `surface-layer.narrative` order `40`；
+- History是`surface.narrative.history`、`surface-slot.narrative.history` exact-parent single transient child、
+  order `41`，不是stable target或React-local state；
+- Dialogue root覆盖全部非空`PendingInteractionV1` kind，blocking且拥有Narrative input/focus；Back、Escape、
+  backdrop、routed cancel均locked，focus initial=`surface-focus.narrative.primary`、trap、restore previous owner；
+- History可由任意current ready+active Dialogue root打开；它blocking并suspend root，Back/Escape/backdrop/
+  routed cancel均关闭exact child，focus initial=`surface-focus.narrative.history-close`、trap、restore opener；
+- initial root/History child使用blocking fallback，root replacement retain exact current subtree；ready cutover、empty、
+  owner/Coordinator dispose原子retire旧root+History，replacement failure保留exact subtree；
+- semantic occurrence、Surface target occurrence与runtime instance是三个identity domain。Stable parameter只含
+  `semanticOccurrenceId/kind/definitionId/seenRevision/rendererKey`（custom key由exact `surfaceId`生成）；
+  新semantic occurrence才推进dedicated source revision并
+  领取fresh Surface occurrence；同一occurrence还必须保持full normalized `PendingInteractionV1` canonical bytes exact，
+  任一pending字段漂移在unchanged前fault；global semantic revision、History、localization、reveal/audio/profile变化不推进；
+- pointer/keyboard/gamepad先通过current Surface/Input/physical-gesture binding；automatic semantic action使用独立
+  package-internal controller-attempt lease并绑定epoch/instance/topology/current stable target/controller generation，不能伪造
+  gesture；两者current后才提交Base `expectedOccurrenceId`，receipt保持分离且任一stale对semantic dispatch为零；
+- root被History或更高blocker suspend的同一commit暂停automatic timer并保存remaining deadline/cursor；failure/close或
+  blocker removal按remaining恢复，root replace/empty/dispose取消，callback与transition串行first-wins；
+  typewriter/auto/skip/seen/profile/history仍保持presentation或
+  existing Base/Host authority，不进入Surface stable target或gameplay Snapshot。
 
 ### Required decomposition
 
@@ -2834,12 +2870,52 @@ NarrativeSurfaceHost
 ```
 
 - `VnLayerV1` 与 `DialoguePanelV1` 的重复 lifecycle 合并；可以保留不同 visual preset，但 controller/host contract 只有一份；
-- History 是 managed child/replace surface，不是 panel 内绝对定位视觉层；
+- History 是exact-parent managed child，不是panel内绝对定位视觉层或root replacement；
 - narrative pending occurrence 继续属于 Base semantic contract；Surface instance
   不替代 semantic occurrence，stable target readiness 还必须绑定对应 source
   revision；
-- choice action 同时验证 semantic occurrence 与 surface/topology evidence，各自失败返回各自 receipt；
+- choice与physical advance先验证surface/topology/input/gesture evidence，timer/auto先验证controller-attempt
+  lease；只有对应path current才验证semantic occurrence，各自失败返回各自receipt，不建立universal envelope；
 - seen marking、auto/skip 与打字机不进入 gameplay Snapshot，除非 Story 明确将某项设为 gameplay rule。
+
+### S4.0 delivery and characterization
+
+S4.0只修改owning design与两份active plan。它记录而不promote当前三套旧行为：`VnLayerV1`独立拥有
+active/input/focus/isolation但没有live consumer；template/Bookshop/Cat Cafe的`DialoguePanelV1`以pending直通DOM且
+local `showHistory`只在say路径存在；Engine Lab另有local History/hidden/input writer并覆盖全部pending kinds。现有
+headless characterization保持green；S0的Chromium probe仍准确暴露background未inert、Continue无initial focus、
+History不响应Escape三项migration RED，但expected-failure不进入CI。
+
+本contract选择locked root + dismissible exact-parent child，不从偶然旧行为推断policy。它还冻结cutover removal gate：
+`DefaultGameRootSlotsV1.narrative`不能继续mount任意lifecycle host；`VnLayerV1` standalone lifecycle、
+`DialoguePanelV1` local History/direct resolve、Engine Lab local History/hidden topology与ordinary input registration必须
+同批删除或变为view-only read-only contribution。Tracked Engine Lab、template、Cat Cafe、Bookshop必须一起迁移，
+不保留effect/subscription writable mirror或反向写compatibility view。
+
+验证：focused旧行为characterization `3 files / 35 tests`、完整`deno task check`（`252 files / 3874 tests`）
+green；三份docs
+`deno fmt --check`与`git diff --check` green。本批没有production/browser/build graph变化，因此不机械重跑完整browser/
+examples/prebuilt；S0 deterministic Chromium RED与最近R4b.1 browser `101 / 101`、examples
+`45 passed / 2 skipped`、prebuilt `38 / 38`只作为已有证据，不冒充S4.0 HEAD新运行。
+
+### S4 implementation slices
+
+1. **S4.1 dormant family contract/publisher bridge（当前）**：以TDD交付source-relative exact definition/catalog、
+   composition-owned lease/registration、PendingInteraction→dedicated source revision/fresh Surface occurrence projector、
+   same-occurrence full canonical drift fault、physical-input/stable action admission与automatic controller-attempt bridge。
+   Definition/resolver/required-port failure必须在candidate allocation前reject。不得mount React Host、改public authoring或接live Story。
+2. **S4.2 dormant Host/History integration**：交付controller/view/Host decomposition、captured resolver/required-port snapshot、
+   Narrative portal Host-commit readiness/failure、exact-parent History open/close、managed input/focus/dismiss、timer suspension与
+   Engine Lab dormant conformance；candidate ready前无ordinary authority。
+3. **S4.3 atomic live cutover/promotion**：一次切换composition/DefaultGameRoot Narrative authoring与全部tracked consumers，
+   删除旧writers/exports/direct dispatch path，验证root/History retain/retire、三设备双fence、focus/inert、Narrative对既有
+   reset adapter的响应与旧evidence
+   stale rejection，随后更新architecture/features/development/authoring/website并跑受影响browser/examples/prebuilt。
+
+S4.1前stop：若需要公开lease/source/occurrence/Coordinator、复用global semantic/presentation revision、同一semantic
+occurrence实际允许full normalized `PendingInteractionV1` canonical漂移或generic result code不够用；S4.2前stop：若unsupported pending必须保留平行host、
+History不能作为same-authority exact child或Host readiness需要真实async renderer新合同；S4.3前stop：若同一cutover不能
+删除任一旧writer、三设备不能共用双fence或tracked Story需要不同business availability/transition rules。
 
 ### Input reset
 
@@ -2852,7 +2928,9 @@ web adapter 统一处理：
 - device switch（pointer/keyboard/gamepad）；
 - reduced motion/rebootstrap。
 
-**S4 acceptance：** Narrative/History 没有平行 host lifecycle；keyboard/gamepad/pointer 路线一致；旧 occurrence/instance action 稳定拒绝。
+**S4 acceptance：** Narrative/History没有平行host lifecycle；keyboard/gamepad/pointer路线一致；旧semantic
+occurrence、Surface occurrence/instance/topology/input/gesture evidence稳定拒绝；root/History source、readiness、retain/
+retire、focus/input/dismiss只有一个composition-owned authority。
 
 ## 9. S4b — Whole-canvas primary/detail family
 
