@@ -42,10 +42,14 @@ Cross-package imports use package exports and declared `workspace:*`
 dependencies. Application-only composition may stay internal to a Story package
 when no other package should consume it.
 
-`@sillymaker/base/runtime/internal` is the narrow cross-package seam for engine
-workspace composition that cannot use `src/**` imports. It is consumed only by
-`@sillymaker/web`, is absent from ordinary Base/runtime barrels, and is guarded
-by negative consumer type tests. It is not a Story API; before any npm
+`@sillymaker/base/runtime/internal` is the narrow cross-package seam for
+engine-owned implementation that cannot use `src/**` imports. Web consumes its
+Host composition seams, while UI's dormant source-relative stable-vector
+admission module consumes only the bounded canonical projection seam. It is
+absent from ordinary Base/runtime barrels and guarded by negative consumer type
+tests. The dormant UI admission module is likewise absent from the UI public
+and `./internal` barrels and is not wired to the Coordinator or any live
+Surface family. These internal paths are not Story APIs; before any npm
 publication, internal export visibility needs an explicit audience policy.
 
 `@sillymaker/ui/internal` is the equivalent Host-only composition seam. Web

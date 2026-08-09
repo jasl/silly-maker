@@ -13,11 +13,13 @@ S3c.1 Host-commit readiness/one logical Host lease、S3d exact-parent confirmati
 S3e.0 successor-acknowledgment/terminal-teardown 准备切片均已完成；2026-08-09 S3e live
 cutover and promotion 已关闭；同日 S1-R.0 stable publication/identity/failure contract
 floor、S1-R.1 publisher lease/source/occurrence allocator、S1-R.1a captured occurrence
-admission proof corrective 与 S1-R.2a corrective admission contract、S1-R.2b Base bounded canonical projection seam 已关闭，下一独立切片为
-S1-R.2c stable-vector admission。
+admission proof corrective、S1-R.2a corrective admission contract、S1-R.2b Base bounded canonical
+projection seam 与 S1-R.2c stable-vector admission 已关闭，下一独立切片为
+S1-R.3.0 apply/readiness contract closure。
 同日 S1-R pre-implementation review 将 aggregate 重切为 S1-R.0–S1-R.5，并冻结
 parent/order、专用 revision、failure divergence、empty/dispose、cross-owner、bounded
-admission 与 exact delta；S1-R.0–R2b（含R1a corrective）已实现 dormant internal floor，R2c–R5 尚未实现。
+admission 与 exact delta；S1-R.0–R2c（含R1a corrective）已实现 dormant internal floor，
+R3.0–R5 尚未实现。
 目标合同见
 [Managed Surface lifecycle and contract harness](../design/surface-contract-harness.md)。
 本文只规定可独立交付的实施顺序；不要求一次实现 design
@@ -25,7 +27,7 @@ admission 与 exact delta；S1-R.0–R2b（含R1a corrective）已实现 dormant
 
 在 [production-floor sequence](2026-07-30-production-floor-sequence.md)
 中：PF2 的 `S0 -> S1-T -> S2`、PF-DET、PF3/M2 与 PF4/S3 已完成；当前 core
-节点是 PF4/S1-R.2c。PF4 的顺序是 `S3 -> S1-R.0 -> S1-R.1–S1-R.5 -> S4 -> S4b`；
+节点是 PF4/S1-R.3.0。PF4 的顺序是 `S3 -> S1-R.0 -> S1-R.1–S1-R.5 -> S4 -> S4b`；
 S5–S6 属于 PF6。S1-R
 延后到第一个真实 externally published stable-target family 前完成；按 accepted
 target ownership，S4 Narrative 计划成为该 family，因此 S1-R 位于 S3 与 S4
@@ -1632,20 +1634,23 @@ S1-R 按以下可独立合并切片推进，每次只领取一个：
 5. **S1-R.2b bounded canonical projection seam（已完成）**：在既有
    `@sillymaker/base/runtime/internal` 建立 descriptor-safe、fully-represented、typed hard-stop
    projection + byte seam，accepted output与 public canonical bytes exact-equal；
-6. **S1-R.2c stable vector admission**：descriptor-safe exact envelope、definition schema
+6. **S1-R.2c stable vector admission（已完成）**：descriptor-safe exact envelope、definition schema
    normalization、opaque canonical bytes、full graph/slot/order/owner admission与 exact
    precondition-bound proposal；
-7. **S1-R.3 pure atomic reconcile state/reducer**：同一 composite state 中原子提交
+7. **S1-R.3.0 apply/readiness contract closure**：补齐apply-time exact CAS stale taxonomy、
+   zero-delta/notification/allocation rows与stable-only readiness envelope；不apply proposal、
+   不settle readiness；
+8. **S1-R.3 pure atomic reconcile state/reducer**：同一 composite state 中原子提交
    accepted desired source 与 Coordinator preparation/topology delta，不发布 per-target
    intermediate state；
-8. **S1-R.4 source-bound readiness and retry**：lease + source revision + candidate
+9. **S1-R.4 source-bound readiness and retry**：lease + source revision + candidate
    instance fence、failure gap、retained predecessor、greater-same explicit retry 与 stale
    receipt；
-9. **S1-R.5 neutral harness/churn/dead-path audit**：two-owner、empty/dispose、conflict、
-   10k churn、pure/model equivalence 与 public/transient export audit，汇总 dormant
-   promotion evidence。
+10. **S1-R.5 neutral harness/churn/dead-path audit**：two-owner、empty/dispose、conflict、
+    10k churn、pure/model equivalence 与 public/transient export audit，汇总 dormant
+    promotion evidence。
 
-当前只允许从 **S1-R.2c** 开始；上述切片都保持
+当前只允许从 **S1-R.3.0** 开始；上述切片都保持
 dormant/package-internal，不接 Narrative/React/Web，不更新 live feature 文档。
 
 **S1-R.0 acceptance：** 只交付 internal shapes、fixed constants、result taxonomy、
@@ -1908,12 +1913,13 @@ future R3在任何mutation前CAS，失败则proposal不得apply。尤其greater-
 
 Reservation snapshot绑定 exact subject lease + R2 factory/composite precondition，并携带任一相关
 accepted/runtime/transient reservation变化时都会换identity的opaque generation token，防止等值
-slot-set ABA。Snapshot过滤subject exact lease后，把foreign stable accepted desired（含runtime
-gap）、pending/active/retained/suspended与transient candidate/active聚合成finite root-slot
-catalog内的sorted unique set。
+slot-set ABA。R2c只验证、defensive-copy并封装已经归一化的finite root-slot catalog内sorted unique
+set，不枚举phase或读取Coordinator。R3从单一current composite state过滤subject exact lease，并把
+foreign stable accepted desired（含runtime gap）、pending/active/retained/suspended与transient
+candidate/active聚合成该set。
 Foreign authority在同root slot无论single/stack都`surface.stable_owner_conflict`；不同slot可
-共存，同owner transient不能按ownerId误过滤。R2只消费snapshot，不读live Coordinator；R3
-拥有从current composite state构造snapshot及CAS的唯一authority。
+共存，同owner transient不能按ownerId误过滤。R2只消费snapshot；R3拥有从current composite
+state构造snapshot及apply-time CAS的唯一authority。
 
 **S1-R.2a acceptance：** corrective amendment只修改 target design、本plan、cross-plan 与R0
 contract/tests。R0新增target-shape code，删除owner-scope dead code，把flat stage rows提升为
@@ -1968,11 +1974,46 @@ baseline provenance、subject-bound reservation snapshot、private canonical-byt
 same-factory `nextAcceptedBaseline`；R3只会存exact object，non-admitted/equal-same不产生next
 cursor。Tests覆盖outer/lower zero-touch、64/65、shape/
 Proxy、R1 issuance/gap-burn、graph/slot/cardinality、schema missing/undefined/default/null、
-per-target first failure、structural/normalized reuse、scope-local order、reservation phases、
+per-target first failure、structural/normalized reuse、scope-local order、normalized root-slot reservation、
 equal/greater relation、foreign/cloned provenance、reservation token ABA、callback reentry
 characterization与所有R2-owned zero delta。R2c不产生Coordinator call、allocation、notification或
 accepted-state mutation；
 验证focused → UI package → full test/check → bounded API/dead-path/adversarial audit，无额外E2E。
+
+R2c的reservation authority只接收已经归一化的foreign root-slot ID集合并做same-factory、exact
+subject lease、generation token、finite catalog与sorted-unique defensive snapshot验证；它不枚举
+stable/transient runtime phase，也不读取Coordinator。Accepted desired gap、pending/active/retained/
+suspended与transient candidate/active的聚合及exact subject过滤仍由R3从单一composite state构造。
+
+**2026-08-09 S1-R.2c delivery：** 新增source-relative dormant stable admission authority与
+mutation-sensitive tests。Factory一次性捕获finite definition/slot catalogs与schema callable/receiver，
+以private WeakMap/WeakSet证明unpublished/accepted baseline、reservation generation/snapshot、opaque
+canonical bytes及exact proposal provenance；10-stage evaluator执行descriptor-safe envelope、R1a
+proof-time occurrence admission、graph/slot/scope-local order、逐target schema + bounded canonical +
+retained-byte comparison、reservation conflict与semantic relation。Malformed R1 classification、
+foreign/cloned baseline或reservation及reflection failure结构化fault；foreign/cloned/spliced proposal
+由exact provenance inspection返回`null`，留给R3.0按closed fault映射。Equal-same和所有non-admitted
+结果不派生cursor或proposal。Proposal只携带exact captured lease/baseline/reservation与same-factory
+`nextAcceptedBaseline`，但本批不写accepted/runtime state、不调用Coordinator/notification/allocation，
+也未进入UI public/internal barrel或任何live family。Architecture只更新实际internal consumer graph；
+live feature/authoring/workflow文档不变。验证通过Base bounded + R0/R1/R2c/public API focused
+`5 files / 89 tests`、UI package `72 / 792`、`deno task test`（`246 / 3720`）与完整
+`deno task check`；三路adversarial review最终无finding。下一独立切片为S1-R.3.0。
+
+**S1-R.3.0 acceptance：** 只修订governing contract、R0 stale taxonomy/delta rows与pure table/type
+tests。Apply-time precedence固定为exact proposal provenance（foreign/clone/splice为
+`faulted / surface.stable_admission_faulted`）→ current lease（复用
+`surface.stable_publisher_lease_stale`）→ exact accepted baseline → exact reservation generation；后两项
+mismatch新增package-internal `surface.stable_reconcile_precondition_stale`。Earlier failure不读取later
+precondition；所有failure/stale都必须是exact zero source/runtime/topology delta、`0` notification/
+allocation且不得自动重跑R2 evaluator或重建reservation。R0 stale union新增code时，R2c admission
+result必须显式继续只允许publisher-lease/source-revision两种admission stale code，并以type test排除
+apply-only precondition stale。另冻结source-relative stable readiness envelope
+`{ readinessEvidence, publisherLease, sourceRevision }`：先沿用既有transient attempt epoch/instance
+fence，再校验candidate保存的exact lease/source；application-epoch mismatch保留
+`surface.stale_application_epoch`，epoch相等后的candidate/instance/lease/source mismatch统一既有
+`surface.stale_readiness`，两者都zero delta。R3.0不实现proposal apply、reservation phase aggregation、
+Coordinator mutation或readiness settlement，不扩张transient/public receipt。
 
 ### Desired/runtime divergence and retry
 
@@ -2031,7 +2072,8 @@ failure 不能留下二者撕裂。
 
 - R2a只交付 docs + R0 corrective tables/tests；R2b只在既有
   `@sillymaker/base/runtime/internal`交付 bounded canonical seam；R2c只交付source-relative
-  UI admission/proposal。R3–R5仍分别拥有composite mutation、readiness与aggregate harness；
+  UI admission/proposal；R3.0只闭合apply/readiness contract与R0 taxonomy。R3–R5仍分别拥有
+  composite mutation、readiness与aggregate harness；
 - 不接入 Narrative、System、whole-canvas、React/DOM/Web Host；Narrative
   adapter 与旧 authority cutover 属于 S4；
 - 不加入 `@sillymaker/ui` public Story barrel，不 promotion 作者 API；
@@ -2046,6 +2088,19 @@ failure 不能留下二者撕裂。
   wrong-lease artifact到达其对应check时只能fault且R2-owned state exact zero delta，R3对captured
   lease/baseline/reservation generation token做apply-time CAS；equal-same/non-admitted没有
   proposal/next cursor，admitted只存exact next baseline；
+- apply-time exact proposal provenance → lease → baseline → reservation generation precedence；foreign/
+  cloned/spliced proposal faulted，lease mismatch精确返回`surface.stable_publisher_lease_stale`，baseline
+  或reservation generation mismatch返回`surface.stable_reconcile_precondition_stale`；全部zero source/
+  runtime/topology delta、0 notification/allocation且不读取later precondition、不重新调用R2 evaluator/
+  schema/canonical或重建reservation；
+- R2c admission stale result在R0 union扩张后仍以type test只允许publisher-lease/source-revision stale；
+- 同一baseline产生两个authentic proposal时first apply胜出、second精确precondition-stale；reservation
+  slot-set即使ABA回到同值，只要generation已换代，旧proposal仍precondition-stale；
+- stable-only readiness envelope先验证既有epoch/candidate-instance attempt，再验证exact lease/source；
+  epoch mismatch保留`surface.stale_application_epoch`，其余attempt/lease/source stale复用
+  `surface.stale_readiness`，且不改变transient evidence/receipt shape；
+- unrelated other-owner publication/topology变化不得误杀仍存在且exact lease/source相等的candidate；
+  same-owner newer accepted revision必须原子cancel旧candidate，使其stable wrapper stale；
 - lower revision搭配revoked/exploding target vector、schema与reservation时后者zero touch；
   target header/shape覆盖real Array、custom prototype、sparse/accessor/symbol/extra key、64/65，
   且65在item ownKeys/descriptor之前胜出；
@@ -2329,6 +2384,10 @@ action 可组合分层 evidence，并在目标未成立时稳定返回
   parent/evict 才能工作；
 - S1-R bounded admission 必须复制/改变 canonical JSON、deep import Base `src/**`，或无法
   通过 declared workspace-only runtime/internal seam共享 canonical implementation；
+- apply-time stale proposal只能靠重跑R2/schema/canonical/reservation判断，或exact CAS前已产生
+  source/runtime/topology、notification或allocation delta；
+- stable readiness fence只能靠扩张transient/public evidence/receipt、绑定全局topology/publication
+  revision，或在stable preflight前先调用underlying settle；
 - stable admission 必须对Story schema、Proxy trap或`Reflect.ownKeys`提供sandbox级绝对
   CPU/memory bound，或必须在schema前对nested raw parameters保证getter-zero且又不增加新的
   raw-admission contract；

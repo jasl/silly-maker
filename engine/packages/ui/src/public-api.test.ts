@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, expectTypeOf, it } from "vitest";
 
+import * as internalUiV1 from "./internal.ts";
 import * as publicUiV1 from "./index.ts";
 import type {
   SaveOverlayGuardV1,
@@ -35,6 +36,10 @@ import type { SaveOverlayPropsV1 as RemovedSaveOverlayPropsV1 } from "./index.ts
 import type { SystemDialogSessionStateV1 as RemovedSystemDialogSessionStateV1 } from "./index.ts";
 // @ts-expect-error The standalone writable System store is no longer public.
 import type { SystemDialogSessionStoreV1 as RemovedSystemDialogSessionStoreV1 } from "./index.ts";
+// @ts-expect-error Dormant stable admission remains source-relative package implementation.
+import type { ManagedSurfaceStableAdmissionResultInternalV1 as ForbiddenPublicStableAdmissionResultV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose dormant stable admission.
+import type { ManagedSurfaceStableAdmissionResultInternalV1 as ForbiddenInternalStableAdmissionResultV1 } from "./internal.ts";
 /* oxlint-enable no-unused-vars */
 
 describe("@sillymaker/ui public managed System surface", () => {
@@ -54,6 +59,12 @@ describe("@sillymaker/ui public managed System surface", () => {
     ) {
       expect(publicUiV1).not.toHaveProperty(removedExport);
     }
+    expect(publicUiV1).not.toHaveProperty(
+      "createManagedSurfaceStableAdmissionAuthorityInternalV1",
+    );
+    expect(internalUiV1).not.toHaveProperty(
+      "createManagedSurfaceStableAdmissionAuthorityInternalV1",
+    );
   });
 
   it("exports the opaque facade, structured intents, and content configuration types", () => {

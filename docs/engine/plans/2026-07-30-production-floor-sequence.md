@@ -18,8 +18,9 @@ promotion 均已关闭。2026-08-08 dormant `PF4/S3c.1 Host-commit readiness`、
 `PF4/S1-R.1 publisher lease + source/occurrence allocators`、
 `PF4/S1-R.1a captured occurrence admission proof corrective`、
 `PF4/S1-R.2a corrective admission contract` 与
-`PF4/S1-R.2b Base bounded canonical projection seam` 已关闭，linear core下一独立
-切片为 `PF4/S1-R.2c stable-vector admission`。
+`PF4/S1-R.2b Base bounded canonical projection seam`、
+`PF4/S1-R.2c stable-vector admission` 已关闭，linear core下一独立切片为
+`PF4/S1-R.3.0 apply/readiness contract closure`。
 同日 S1-R pre-implementation review 将 external reconcile gate 重切为 S1-R.0–S1-R.5；
 顺序变化不把任何 planned stable-target contract写成 live capability。
 2026-08-04 已冻结 S3 的 shared-Coordinator transient topology、atomic initial-candidate
@@ -30,7 +31,8 @@ supersede/retained-active cancellation、S3b composition-owned shared Coordinato
 dormant System session/catalog、S3c.0 all-family successor activation barrier 已完成；S3
 的 S3c.1 Host-commit readiness/Host lease、S3d exact-parent confirmation child 与
 S3e.0 composition successor acknowledgment/terminal teardown、S3e live cutover与
-promotion与 S1-R.0–R2b（含R1a corrective）dormant internal floor均已完成；下一独立切片为 S1-R.2c。
+promotion与 S1-R.0–R2c（含R1a corrective）dormant internal floor均已完成；下一独立切片为
+S1-R.3.0。
 旧 promotion 数字保留为
 历史证据。本文是当前唯一的跨计划排序入口；
 具体合同仍由各 design 文档拥有，主要任务由五个独立计划拥有：
@@ -1031,8 +1033,8 @@ Save/Persistence/M2/canonical/digest/replay/wire不变，transient System未引�
 验证通过 focused cutover（14 files / 170 tests）、UI package（69 / 745）、
 `deno task test`（242 / 3631）、`deno task check`、Engine browser（101 / 101）、examples
 browser（45 passed / 2 skipped）与 prebuilt Player（38 / 38）；最终 adversarial review无
-finding。S3 promotion与 S1-R.0–R2b（含R1a corrective）完成，linear core当前节点与下一独立切片均为
-S1-R.2c；S4仍受 S1-R aggregate gate约束。
+finding。S3 promotion与 S1-R.0–R2c（含R1a corrective）完成，linear core当前节点与下一独立切片
+均为S1-R.3.0；S4仍受 S1-R aggregate gate约束。
 
 S1-R 在第一个真实 externally published stable-target family 前完成。按 accepted
 target ownership，S4 Narrative 计划从 semantic publication 派生 stable target，
@@ -1049,7 +1051,8 @@ S1-R 按以下独立可合并切片推进：S1-R.0 normative/internal-contract f
 publisher lease 与 revision/occurrence allocator；S1-R.1a captured occurrence admission proof corrective；
 S1-R.2a corrective admission contract；
 S1-R.2b Base bounded canonical projection seam；S1-R.2c UI stable-vector admission；
-S1-R.3 pure atomic reconcile；S1-R.4 readiness/retry fence；S1-R.5 neutral harness、bounded
+S1-R.3.0 apply/readiness contract closure；S1-R.3 pure atomic reconcile；S1-R.4 readiness/retry
+fence；S1-R.5 neutral harness、bounded
 churn 与 dead-path audit。S1-R.0 本身不实现 kernel mutation；S1-R aggregate 完成前不接
 Narrative/React/Web，也不更新 live feature 文档。详细目标、delta与stop rules由
 [Managed Surface lifecycle focused plan](2026-07-30-surface-contract-harness.md)拥有。
@@ -1113,6 +1116,19 @@ Surface均不变，ordinary root/runtime/authoring API没有该seam。验证通�
 `81 / 1,137`、全量
 `245 / 3,698`、`deno task check`、Deno matrix `3 / 3`及Chromium/Firefox/WebKit `6 / 6`；
 三路adversarial review无finding。下一独立切片为 R2c。
+
+**2026-08-09 S1-R.2c delivery：** UI新增source-relative、dormant stable-vector admission
+authority与tests。Finite definition/slot catalog、captured schema callable/receiver、same-factory
+baseline/reservation/proposal provenance、R1a proof-time occurrence classification、opaque defensive
+canonical bytes、scope-local identity/order与10-stage exact admission均已闭合。Reservation authority
+只封装R3提供的normalized foreign root-slot ID set，不读取Coordinator或枚举runtime phase；exact
+proposal只携带captured lease/baseline/reservation和same-factory next baseline，不写accepted/runtime
+state，也不产生notification/allocation。UI public/internal barrels、transient contracts、live family、
+Save/Persistence/canonical bytes均不变；architecture只更新实际internal consumer graph。验证通过
+Base bounded + R0/R1/R2c/public API focused `5 / 89`、UI `72 / 792`、全量`246 / 3720`与完整
+`deno task check`；三路adversarial review无finding。下一独立切片为R3.0，只闭合
+apply-time CAS stale taxonomy、zero delta与stable-readiness envelope，不提前实现R3 mutation或R4
+settlement。
 
 每个 family 的迁移提交必须删除旧 owner；禁止长期 adapter 双写。
 `DialoguePanelV1` / `VnLayerV1` 的 controller/view/host 拆分在 Narrative family
