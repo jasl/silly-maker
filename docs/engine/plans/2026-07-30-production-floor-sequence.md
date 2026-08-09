@@ -23,14 +23,14 @@ promotion 均已关闭。2026-08-08 dormant `PF4/S3c.1 Host-commit readiness`、
 `PF4/S1-R.3a composition-owned composite runtime/identity/provenance seam`、
 `PF4/S1-R.3a.1 retained ready-subtree corrective`、
 `PF4/S1-R.3b.0 exact unpublished registration + admission context`与
-`PF4/S1-R.1b composition-bound publisher disposal authority corrective`已关闭，linear core下一独立切片为
-`PF4/S1-R.3b.1 pure reconcile and synchronous owner commit`。
+`PF4/S1-R.1b composition-bound publisher disposal authority corrective`及
+`PF4/S1-R.3b.1 pure reconcile and synchronous owner commit`已关闭，linear core下一独立切片为
+`PF4/S1-R.4 source-bound readiness and retry`。
 同日 S1-R pre-implementation review 将 external reconcile gate 重切为 S1-R.0–S1-R.5；
 顺序变化不把任何 planned stable-target contract写成 live capability。
 同日 S1-R.3 entry-gate adjudication 采用 A-prime，将原 R3 拆为单一 composite
 runtime/identity/provenance seam 的 R3a 与在该 seam 上原子 apply proposal 的 R3b；
-该裁决本身只闭合交付边界；R3a/R3a.1/R3b.0与随后插入的R1b corrective现由后续delivery记录确认完成，
-R3b.1仍未实现。
+该裁决本身只闭合交付边界；R3a/R3a.1/R3b.0、随后插入的R1b corrective与R3b.1现由后续delivery记录确认完成。
 2026-08-04 已冻结 S3 的 shared-Coordinator transient topology、atomic initial-candidate
 supersede、retained-active pending cancellation、exact result/delta matrix、Host-commit
 readiness、StrictMode terminal-once fence 与 public API cutover，并已重切为 S3a–S3e。
@@ -39,8 +39,8 @@ supersede/retained-active cancellation、S3b composition-owned shared Coordinato
 dormant System session/catalog、S3c.0 all-family successor activation barrier 已完成；S3
 的 S3c.1 Host-commit readiness/Host lease、S3d exact-parent confirmation child 与
 S3e.0 composition successor acknowledgment/terminal teardown、S3e live cutover与
-promotion，以及 S1-R.0–R3b.0（含R1a/R3a.1 corrective）与R1b disposal corrective均已完成；下一独立切片为
-S1-R.3b.1。
+promotion，以及 S1-R.0–R3b.1（含R1a/R3a.1 corrective）与R1b disposal corrective均已完成；下一独立切片为
+S1-R.4。
 旧 promotion 数字保留为
 历史证据。本文是当前唯一的跨计划排序入口；
 具体合同仍由各 design 文档拥有，主要任务由五个独立计划拥有：
@@ -1199,9 +1199,9 @@ current-unregistered capture也fault，direct external dispose
 不能让fresh successor绕过未来R3b.1 atomic lifetime fence。本批没有第二kernel/baseline map，没有
 proposal inspect/apply、effective dispose、readiness或live stable family wiring，且新增类型与方法仍不进入UI
 root、`./internal` barrel或package exports。验证通过focused `2 files / 43 tests`、UI package
-`74 / 850`、全量`248 / 3778`与完整`deno task check`。Linear core下一独立切片为R3b.1 pure reconcile and
-synchronous owner commit；该历史指针随后因下述R1b corrective短暂让位，现已恢复；S4仍受S1-R
-aggregate gate约束。
+`74 / 850`、全量`248 / 3778`与完整`deno task check`。该checkpoint当时的linear core下一独立切片为
+R3b.1 pure reconcile and synchronous owner commit；该历史指针随后因下述R1b corrective短暂让位，
+现由下述R3b.1 delivery取代；S4仍受S1-R aggregate gate约束。
 
 **2026-08-09 S1-R.1b delivery：** R3b.1 entry audit确认R1原有`disposed: boolean`无法区分
 composition owner的首次effective dispose与legacy direct/registry-wide dispose，因而不能证明baseline
@@ -1214,8 +1214,28 @@ registry-wide先行dispose对该authority稳定分类为`diverged`，foreign/clo
 registry dispose API、snapshot与issuance semantics保持不变；新增local inspection/commit status不扩R0
 result code/delta，也不进入UI root、`./internal` barrel、package exports、transient或live family。
 验证通过focused `2 files / 29 tests`、UI package `74 / 857`、全量`248 / 3785`与完整
-`deno task check` green。本corrective完成后linear core current/next均恢复为R3b.1 pure
-reconcile and synchronous owner commit；S4仍受S1-R aggregate gate约束。
+`deno task check` green。本corrective完成时linear core current/next均恢复为R3b.1 pure
+reconcile and synchronous owner commit；该历史指针现由下述R3b.1 delivery取代，S4仍受S1-R aggregate
+gate约束。
+
+**2026-08-09 S1-R.3b.1 delivery：** source-relative specialized composite kernel现消费exact
+R2 proposal并在同一个state/reentry/listener/runtime-cursor owner内完成pure canonical plan与一次atomic
+install。Apply严格执行proposal provenance → current lease → exact baseline → reservation generation，随后才验证
+全owner registry coherence与accepted baseline ↔ direct runtime exact bijection；失败保持old state/token、zero
+allocation/notification。Initial、greater-same retry/cursor-only、greater-changed retained subtree、empty与capacity
+exhaustion均有mutation-sensitive evidence；canonical planning不把raw cross-scope interleaving当allocation authority，
+且subject apply/dispose保留other-owner exact baseline/runtime identities。
+
+Empty与dispose按actual binding分为observable ready/preparing/retained、nonobservable
+`parent_unavailable`与no-runtime `readiness_failed`三态，reservation token仍只跟root contributor vector变化。
+Effective dispose预构造完整successor，再以构造期claim的exact R1b authority receiver作为prepared-install gate；
+只有`disposed`打开assignment，合法repeat、foreign stale、direct/global divergence与reentrant orphan runtime各自
+fail closed。Assignment后同步listener先看到registry与composite successor，nested repeat/successor registration
+保持既有captured-vector语义，listener throw只进入diagnostics。该seam仍dormant且缺席UI root、`./internal`
+barrel与package exports；不settle readiness、不启动child cascade、不接任何live stable family。验证通过focused
+`6 files / 123 tests`、UI package `75 / 882`、全量`249 / 3810`与完整
+`deno task check` green；linear core
+current/next均为S1-R.4 source-bound readiness and retry，S4仍受S1-R aggregate gate约束。
 
 每个 family 的迁移提交必须删除旧 owner；禁止长期 adapter 双写。
 `DialoguePanelV1` / `VnLayerV1` 的 controller/view/host 拆分在 Narrative family

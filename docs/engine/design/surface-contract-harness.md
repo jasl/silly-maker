@@ -67,13 +67,20 @@ read-only admission-context capture：exact current lease 只把 same-authority 
 notification；capture 返回 exact current baseline 与 current-generation subject reservation snapshot。
 该切片不 inspect/apply proposal、不执行 effective publisher dispose、不 settle readiness，也不接 live
 stable family。
+同日 S1-R.3b.1 已在该 exact kernel/state owner 上交付 dormant atomic stable reconcile：apply依次执行
+same-factory proposal、current lease、exact baseline、reservation generation CAS，再验证全局
+baseline/runtime coherence，之后才运行detached canonical plan并以一次state notification安装exact next
+baseline/runtime；publisher dispose通过S1-R.1b exact receiver把effective lease closure与already-built state
+原子提交。该切片仍不settle stable readiness、不发布live stable topology，也不新增public/internal barrel
+入口。
 本文固定
 影响输入与焦点的 UI Surface 的权威边界、生命周期、输入代际与验证分层，并把“弱模型
 能够写出正确代码”提升为作者 API 的验收条件。S1-T 与 S2 已实现，S3a–S3e
 已完成并 promotion System 的 shared composition authority、Host readiness、confirmation
 child 与 single-writer cutover；S1-R.1a corrective、S1-R.3.0、S1-R.3a 与 R3a.1 corrective 已完成，
-S1-R.1b corrective 与 S1-R.3b.0 也已完成，下一独立切片为 S1-R.3b.1 pure reconcile and
-synchronous owner commit。
+S1-R.1b corrective、S1-R.3b.0 与 S1-R.3b.1 也已完成，下一独立切片为 S1-R.4 stable readiness
+settlement。
+当前active execution pointer的current/next均为S1-R.4；R3b.1只作为completed delivery保留。
 当前 live 能力仍以
 [architecture](../architecture.md) 与
 [features](../features.md) 为准；执行顺序见
@@ -468,7 +475,7 @@ R3 不建立与现有 Coordinator 并列的 stable runtime axis。它按entry au
 - **R3b.0 exact unpublished registration + admission context（已完成）**：publication ingress前动态注册exact
   current lease及同一R2 authority产生的exact unpublished baseline，并只读捕获exact
   baseline/reservation context；不采用absence sentinel或apply proposal；
-- **R3b.1 pure plan + stateful atomic commit**：消费 R3a state，执行 R3.0 ordered CAS、pure
+- **R3b.1 pure plan + stateful atomic commit（已完成）**：消费 R3a state，执行 R3.0 ordered CAS、pure
   runtime plan、exact next-baseline install、empty/dispose 与一次性 composite notification。
   R3b.0/R3b.1 不新增另一份 writable target/store，也不把 stable source 字段加入 transient/public
   target、publication、handle、evidence或receipt。
@@ -592,9 +599,26 @@ contributors；同owner transient contributor仍保留。之后只把剩余contr
 root-slot catalog内lexically sorted、unique slot set。不同subject snapshot可共享同一个current
 composite generation token；token不是subject-local counter。
 
-R3b先建立完全pure、detached且frozen的next plan/state，再进入stateful commit。普通proposal apply只在
-R3.0四项CAS与pure plan全部成功后一次替换current state，之后发出exact one no-throw composite
-notification。Publisher dispose的stateful顺序固定为：先在current lease仍有效时完整构造pure
+R3b先建立完全pure、detached且frozen的next plan/state，再进入stateful commit。普通proposal apply按
+same-factory exact proposal provenance、exact current lease、exact accepted baseline、exact reservation
+generation的顺序执行R3.0四项CAS；通过后必须在读取definition或分配identity前验证**全部owner**的
+baseline/runtime coherence：每个registered baseline仍绑定exact current registry lease；unpublished
+baseline没有direct runtime entry；accepted baseline的exact admitted targets与
+`stableRuntimeBindings`形成一一对应，entry保存该lease的current sequence、baseline current source
+revision与exact admitted target。Retained-subtree members只存在于authenticated aggregate，不重复计入
+direct entries。任一owner出现orphan/missing/extra/wrong-exact-target runtime都是closed
+`surface.stable_reconcile_faulted`，不得只修复subject owner或继续plan。只有ordered CAS、global
+coherence与pure canonical plan全部成功后才一次替换current state，之后发出exact one no-throw
+composite notification。
+
+Pure planning按root slot lexical topology preorder与R2 scope-local sibling order分配fresh attempts；
+single-root replacement只保留exact authenticated ready subtree，initial pending candidate不能成为
+predecessor，second replacement及replacement-failure retry继续复用同一aggregate。Sequence capacity在
+commit前完整验证；即使late exhaustion发生在多个canonical roots中间，也保持old state、identity
+high-water、reservation token与notification exact zero，已构造但未暴露的detached对象不得成为第二份
+authority。
+
+Publisher dispose的stateful顺序固定为：先在current lease仍有效时完整构造pure
 retirement plan并重算root contributor vector；只有vector exact变化才预装fresh generation token，
 unpublished、accepted-empty或child-only lease dispose保留exact token。Composition owner在构造期只
 领取一次S1-R.1b authority，并预先捕获其exact frozen receiver与exact dispose callable；commit gate只以
@@ -606,6 +630,17 @@ allocation、freeze、subscriber或user callback；subscriber failure只进入�
 因此外部同步调用不能观察“ingress已关但source/runtime未退休”的中间状态。Pure plan失败不关闭
 ingress；任何非`disposed` commit classification都不安装next state；legitimate repeat返回unchanged且
 不保留unbounded tombstone。
+
+Greater-empty与effective dispose共用closed runtime-disposition分类，不能以placement或“存在desired
+root”猜observable topology：任一ready/preparing binding或任一non-null retained subtree为
+`observable`，返回`retire_owned_targets / topology changed`；null `parent_unavailable` gap是仍需移除的
+`nonobservable` pending runtime，返回`retire_owned_targets / topology unchanged`；null
+`readiness_failed` gap没有runtime，返回`runtime/topology unchanged`。混合vector按
+`observable > nonobservable > none`归约。Root desired/contributor被移除仍可要求fresh reservation token，
+但token变化不得伪造成runtime或topology delta。R1b legitimate repeat还要求全局baseline/runtime
+coherence且该lease已无baseline/direct runtime；package-internal orphan runtime、direct/raw dispose遗留
+record或registry-wide divergence都必须fault且zero delta，不能返回already-disposed unchanged。Healthy
+inventory下foreign/clone/revoked/unknown lease仍按publisher-lease stale处理且不得读取其属性。
 
 R3a 在 R0 master inventory新增package-internal
 `surface.stable_reconcile_faulted`与独立zero-delta case `reconcile_fault`。它表示R3 composite
@@ -760,8 +795,8 @@ reservation snapshot）。Caller seed、foreign/clone/Proxy、global registry di
 gate与direct publisher-dispose fence均由
 mutation-sensitive tests覆盖；capture产生的same-authority snapshot可直接供R2 evaluate，但本批不读取或apply
 proposal、不执行publisher dispose、不settle readiness或接live stable family。验证通过focused
-`2 files / 43 tests`、UI package `74 / 850`、全量`248 / 3778`与完整`deno task check`。下一独立切片为
-S1-R.3b.1 pure reconcile and synchronous owner commit。
+`2 files / 43 tests`、UI package `74 / 850`、全量`248 / 3778`与完整`deno task check`。该checkpoint
+当时指向S1-R.3b.1；现由下述R3b.1 delivery取代。
 
 S1-R.1b composition-bound disposal authority corrective 已完成：exact authentic registry只能
 claim一次frozen authority，authority方法执行exact receiver admission；private weak provenance把
@@ -770,7 +805,29 @@ claim一次frozen authority，authority方法执行exact receiver admission；pr
 exact-lease dispose与registry-wide dispose形成divergence，foreign/clone/Proxy与second claim均fail closed；
 既有registry API、publisher issuance/cursor与public surface不变，也没有建立第二份publisher/tombstone
 authority。验证：focused `2 files / 29 tests`、UI package `74 / 857`、全量 `248 / 3785`、完整check
-green。下一独立切片仍为 S1-R.3b.1 pure reconcile and synchronous owner commit；R3b.1尚未实现。
+green。该corrective随后由下述R3b.1 owner commit消费。
+
+S1-R.3b.1 已完成：source-relative specialized kernel新增package-internal proposal apply与publisher dispose
+ingress，仍与transient facade共享exact one state、identity cursor、reentry control与notification owner。
+Apply按proposal provenance → current lease → exact baseline → reservation generation执行ordered CAS，随后
+检查全部owner的baseline/direct-runtime exact bijection，再以catalog topology preorder构造detached pure
+plan并一次安装R2 exact next baseline与stable runtime。Initial/greater-same/greater-changed/empty、blocked
+child、single-root retained subtree、initial pending supersede、second replacement/failure aggregate reuse与
+shared-sequence late exhaustion均保持closed delta和zero-mutation fault语义；stable-only commit精确
+`1 state / 0 transient` notification。
+
+Effective dispose先pure-retire owned direct runtime/retained aggregate，再通过构造期claim的S1-R.1b exact
+receiver关闭exact current lease，只有`disposed` gate成功才安装already-built state。Listener首先观察lease
+stale与source/runtime同时退休，可按既有同步reentry语义repeat并注册successor；listener failure只进
+diagnostics。True repeat unchanged，direct/registry divergence、registered mismatch及任一owner orphan runtime
+均reconcile-fault zero。Greater-empty/dispose还按observable、nonobservable parent-unavailable、no-runtime
+readiness-failed三态给出exact runtime/topology delta，同时独立维护root contributor token identity。
+
+该delivery仍是dormant source-relative capability：没有执行stable readiness receipt/settlement、没有把
+stable topology投影到live Coordinator/input/focus/portal/renderer，也没有新增public或internal barrel
+export；Save/Persistence/canonical/digest/replay/wire均未改变。验证：focused
+`6 files / 123 tests`、UI package `75 / 882`、全量 `249 / 3810`、完整
+`deno task check` green。下一独立切片为 S1-R.4 stable readiness settlement。
 
 S1-R.3.0 同时冻结R4要消费的stable-only readiness envelope。它只在source-relative dormant
 stable layer组合既有 `ManagedSurfaceReadinessEvidenceV1` attempt evidence与exact

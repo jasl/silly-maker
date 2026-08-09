@@ -157,6 +157,8 @@ describe("@sillymaker/ui public managed System surface", () => {
         "createManagedSurfaceStableRetainedRuntimeSubtreeInternalV1",
         "registerStablePublisherLeaseInternalV1",
         "captureAdmissionContextInternalV1",
+        "applyStableAdmissionProposalInternalV1",
+        "disposeStablePublisherLeaseInternalV1",
         "allocateManagedSurfaceStableRuntimeAttemptInternalV1",
         "projectManagedSurfaceStableRootReservationSnapshotInternalV1",
         "matchesManagedSurfaceStableAdmissionAuthorityConfigurationInternalV1",

@@ -17,11 +17,12 @@ admission proof corrective、S1-R.2a corrective admission contract、S1-R.2b Bas
 projection seam、S1-R.2c stable-vector admission、S1-R.3.0 apply/readiness contract closure与
 S1-R.3a composition-owned composite runtime/identity/provenance seam、S1-R.3b.0 exact unpublished
 registration + admission context，以及R3b.1 entry audit发现的S1-R.1b disposal authority
-corrective均已关闭，下一独立切片为S1-R.3b.1 pure reconcile and synchronous owner commit；R3b entry audit先以独立
-S1-R.3a.1 corrective补全ready retained-subtree authority，该corrective也已关闭。
+corrective与S1-R.3b.1 pure reconcile and synchronous owner commit均已关闭，下一独立切片为
+S1-R.4 source-bound readiness and retry；R3b entry audit先以独立S1-R.3a.1 corrective补全ready
+retained-subtree authority，该corrective也已关闭。
 同日 S1-R pre-implementation review 将 aggregate 重切为 S1-R.0–S1-R.5，并冻结
 parent/order、专用 revision、failure divergence、empty/dispose、cross-owner、bounded
-admission 与 exact delta；S1-R.0–R3b.0及R1b（含R1a/R3a.1 corrective）已实现，R3b.1–R5 尚未实现。
+admission 与 exact delta；S1-R.0–R3b.1及R1b（含R1a/R3a.1 corrective）已实现，R4–R5 尚未实现。
 目标合同见
 [Managed Surface lifecycle and contract harness](../design/surface-contract-harness.md)。
 本文只规定可独立交付的实施顺序；不要求一次实现 design
@@ -29,7 +30,7 @@ admission 与 exact delta；S1-R.0–R3b.0及R1b（含R1a/R3a.1 corrective）已
 
 在 [production-floor sequence](2026-07-30-production-floor-sequence.md)
 中：PF2 的 `S0 -> S1-T -> S2`、PF-DET、PF3/M2 与 PF4/S3 已完成；当前 core
-节点是 PF4/S1-R.3b.1。PF4 的顺序是 `S3 -> S1-R.0 -> S1-R.1–S1-R.5 -> S4 -> S4b`；
+节点是 PF4/S1-R.4。PF4 的顺序是 `S3 -> S1-R.0 -> S1-R.1–S1-R.5 -> S4 -> S4b`；
 S5–S6 属于 PF6。S1-R
 延后到第一个真实 externally published stable-target family 前完成；按 accepted
 target ownership，S4 Narrative 计划成为该 family，因此 S1-R 位于 S3 与 S4
@@ -1656,7 +1657,7 @@ S1-R 按以下可独立合并切片推进，每次只领取一个：
 11. **S1-R.1b disposal authority corrective（已完成）**：为exact R1 registry提供claim-once、
     exact-receiver disposal capability，区分composition-owned effective/repeated dispose与legacy direct/
     registry-wide divergence；不扩registry接口、不接composite；
-12. **S1-R.3b.1 pure atomic reconcile state/reducer**：在同一 composite state 中原子
+12. **S1-R.3b.1 pure atomic reconcile state/reducer（已完成）**：在同一 composite state 中原子
     apply exact R2 proposal，一次提交 accepted desired source 与 runtime
     preparation/topology delta，不发布 per-target intermediate state，不 settle readiness；
 13. **S1-R.4 source-bound readiness and retry**：lease + source revision + candidate
@@ -1666,7 +1667,7 @@ S1-R 按以下可独立合并切片推进，每次只领取一个：
     10k churn、pure/model equivalence 与 public/transient export audit，汇总 dormant
     promotion evidence。
 
-当前只允许从 **S1-R.3b.1** 开始。Stable ingress与全部新增 S1-R state/API仍保持
+当前只允许从 **S1-R.4** 开始。Stable ingress与全部新增 S1-R state/API仍保持
 dormant/package-internal，不接 Narrative/React/Web，不更新 live feature 文档；R3a 已将既有
 live transient reducer/Coordinator 收口到同一 internal kernel/authority，并由adapter保持全部
 现有transient行为。
@@ -2238,7 +2239,7 @@ mutation-sensitive coverage。Capture产出的exact current baseline与same-auth
 evaluate，但本批不inspect/apply proposal、不构造runtime plan、不dispose lease、不调用readiness或live stable
 family。新增seam仍缺席UI root、`./internal` barrel与package exports。验证通过focused
 `2 files / 43 tests`、UI package `74 / 850`、全量`248 / 3778`与完整`deno task check`；下一独立切片为
-S1-R.3b.1 pure reconcile and synchronous owner commit。
+S1-R.3b.1 pure reconcile and synchronous owner commit；该checkpoint现由下述R3b.1 delivery取代。
 
 #### S1-R.1b disposal authority corrective（已完成）
 
@@ -2257,25 +2258,30 @@ S1-R.3b.1 pure reconcile and synchronous owner commit。
 - Claim、inspection、invalid/repeated result不推进lease/source/occurrence cursor，不改变registry/publisher
   snapshot identity，也不创建per-lease authority。Same authority跨10k fresh ABA successor leases保持bounded
   scalar registry cursor与exact provenance；既有live `disposePublisherLease`/`dispose` result和行为保持兼容。
-- R1b只提供R3b.1未来owner-commit需要的lifetime provenance。当前composite kernel尚未claim或消费该
-  authority，不执行proposal apply、publisher dispose、state install或notification；新function/type仍缺席
+- R1b独立corrective只提供R3b.1 owner-commit需要的lifetime provenance；在该checkpoint，composite
+  kernel尚未claim或消费该authority，也不执行proposal apply、publisher dispose、state install或
+  notification。下述R3b.1 delivery才在同一个composition owner中claim并消费它；新function/type仍缺席
   UI root、`./internal` barrel、package exports与任何public/Story surface。
 
 **2026-08-09 S1-R.1b delivery：** R1 registry在既有weak publisher record上区分exact disposal-authority
 provenance，并交付claim-once frozen exact-receiver capability；direct/registry-wide divergence、authorized
 repeat、foreign/clone/revoked zero-read、second claim、ABA successor、claim zero-mutation与10k churn均有
 mutation-sensitive coverage。Registry/publisher/accepted-cursor既有authority surface未增长，legacy API保持
-兼容；composite消费仍留给R3b.1。验证通过focused `2 files / 29 tests`、UI package `74 / 857`、全量
-`248 / 3785`与完整`deno task check` green；下一独立切片仍为S1-R.3b.1 pure reconcile and
-synchronous owner commit。
+兼容；该checkpoint当时把composite消费留给R3b.1。验证通过focused `2 files / 29 tests`、UI package
+`74 / 857`、全量`248 / 3785`与完整`deno task check` green；后续消费见下述R3b.1 delivery。
 
-#### R3b.1 pure reconcile and synchronous owner commit
+#### R3b.1 pure reconcile and synchronous owner commit（已完成）
 
-- R3b 对 exact proposal 继续使用 R3.0 的 provenance → current lease → exact baseline →
-  reservation generation precedence。全部 CAS 成功后，pure reducer 才规划完整 runtime
-  successor；所有 definition inspection、subtree retirement、parent eligibility、identity capacity、
-  contributor vector 与 fresh token 都在安装前完成。成功结果只存 proposal 携带的
-  exact `nextAcceptedBaseline`，不 clone/recompute。
+- R3b 对 exact proposal 继续使用 R3.0 的四项 apply-time CAS：proposal provenance → current
+  lease → exact accepted baseline → exact reservation generation。全部 CAS 成功后，才验证
+  composition-global registry lifetime与accepted baseline ↔ direct stable-runtime binding的exact
+  bijection；retained subtree members仍只属于aggregate，不重复成为direct entry。任一缺失、额外、
+  cross-owner或unpublished/empty baseline带direct runtime的分歧都在pure planning前
+  `surface.stable_reconcile_faulted`，且不得读取更晚阶段。
+- Global validation成功后，pure reducer才按root slot lexical order、parent preorder与同parent admitted
+  sibling order规划一个完整runtime successor；所有definition inspection、subtree retirement、parent
+  eligibility、identity capacity、canonical contributor vector与fresh token都在安装前完成。成功结果只存
+  proposal携带的exact `nextAcceptedBaseline`，不clone/recompute，也不发布per-target intermediate state。
 - `initial_nonempty` 是独立 positive delta case：安装首个 non-empty accepted vector，
   只为当时 parent-eligible 的 targets 开始 preparation，新 parent 下的 children 保持
   gap。它与 `greater_changed` 共享一次 atomic source/runtime commit，但不伪装成
@@ -2284,6 +2290,12 @@ synchronous owner commit。
   `faulted / surface.stable_reconcile_faulted`，与 bad proposal provenance 的
   `surface.stable_admission_faulted` 分层；`reconcile_faulted` 必须保留 exact old state/token
   且为 zero source/runtime/topology、`0` notification、`0` allocation。
+- Accepted empty与publisher dispose共用exact三态owned-runtime分类：没有entry或只有无retained subtree的
+  `readiness_failed` gap为`none`，source仍提交但runtime/topology unchanged；全部owned entry均为无retained
+  subtree的gap且至少一个`parent_unavailable`为`nonobservable`，退休owned entries但topology unchanged；
+  任一preparing/ready binding或retained subtree为`observable`，退休owned entries并产生topology changed。
+  Root contributor vector/token是否变化独立按canonical root-only projection决定；source cursor或child-only
+  变化不能借该三态额外换token。
 - Pure reducer 不直接 dispose R1 registry。对 first effective publisher dispose，它先验证
   exact current lease/state，构造并 freeze 已移除 baseline、退休 exact stable-owned
   runtime/subtree并重算contributor vector的 no-throw successor，但不改 current state。只有exact root
@@ -2304,12 +2316,27 @@ synchronous owner commit。
   遍历其captured listener vector。Stateful owner 不调用会自行 notify 的 live Coordinator 来 apply
   per-target transitions。
 
-R3b 只实现 apply/dispose 的 dormant pure reducer 与上述 package-internal stateful commit
+R3b.1只实现apply/dispose的dormant pure reducer与上述package-internal stateful commit
 owner。它可创建绑定 lease/source/instance 的 preparing records，但不处理
 ready/failure receipt、不 activate candidate、不恢复 focus/input、不启动 parent-ready child
-cascade；这些全属 R4。R3b delivery必须把`architecture.md`中的internal graph更新为dormant stable
-composite owner已接到R2 admission/R1 registry、但仍无live stable family；`features.md`与
-`development.md`仍不更新。
+cascade；这些全属 R4。本批不接live stable family、React/DOM/Narrative ingress，也不settle任何
+readiness receipt。
+
+**2026-08-09 S1-R.3b.1 delivery：** dormant specialized composite owner在R3a同一个state、shared
+identity cursor、listener与reentry authority上，完成上述四项CAS、global registry + baseline/runtime
+bijection validation、canonical pure plan及一次prepared exact-current install。首次effective dispose以构造期
+claim的exact R1b receiver完成pure preflight → prepared install → `disposeCurrentPublisherLease` gate；只有
+`disposed`原子安装successor，authorized repeat在record已移除时unchanged，direct/registry-wide/orphan/
+record仍存的already-disposed divergence全部fault且zero mutation。Gate到assignment之间没有callback、
+`await`、lookup、allocation、freeze或adapter read。Accepted empty与dispose的`none | nonobservable |
+observable`三态delta、retained replacement/failure reuse、initial/late identity exhaustion、canonical
+planning order与root-only token均有mutation-sensitive coverage。每次accepted source change或首次effective
+dispose精确一次state notification、zero transient notification；listener在已安装state上同步运行，nested
+commit保持既有同步顺序，listener throw只进diagnostics且不rollback。验证通过focused
+`6 files / 123 tests`、UI package `75 / 882`、全量`249 / 3810`与完整
+`deno task check` green。本批仍为
+package-internal dormant state，不处理R4 readiness/failure/retry/cascade，也没有接入live stable family；
+下一独立切片为S1-R.4 source-bound readiness and retry。
 
 R4开工前还必须冻结direct-child cascade遇到shared identity exhaustion时的closed code与原子结果；
 R3a/R3b不得提前选择“整次ready settle失败”或“parent ready但children继续gap”中的任一语义。

@@ -503,12 +503,17 @@ authenticate a fresh reservation snapshot. The composition terminal gate runs be
 baseline, or candidate inspection. A disposed bound registry or application-epoch divergence fails globally;
 registered-registry lifetime divergence then also fails closed before candidate
 classification, so direct external dispose cannot admit a successor around the
-future atomic owner-dispose path. These source-relative seams expose neither the
-registry nor contributor/runtime evidence through a package barrel. They do not
-inspect or apply a stable proposal, execute effective publisher disposal, settle
-stable readiness, or connect stable ingress to a live family. The UI root and
-`./internal` barrels and package export map are unchanged. Stable proposal
-reconcile and Narrative migration remain planned work.
+atomic owner-dispose path. The same dormant owner now authenticates an exact R2
+proposal, applies the ordered lease/baseline/reservation preconditions, checks the
+whole baseline-to-runtime graph, and installs one canonically planned successor
+through that shared kernel. Effective publisher disposal prebuilds its successor
+and uses the claimed exact R1 disposal receiver as the no-throw commit gate, so
+registry close and composite assignment cannot expose an intermediate state;
+repeat and external divergence remain distinct. These source-relative seams expose
+neither the registry nor contributor/runtime evidence through a package barrel.
+They still do not settle stable readiness or connect stable ingress to a live
+family. The UI root and `./internal` barrels and package export map are unchanged.
+Stable readiness and Narrative migration remain planned work.
 
 ## 9. Changing the architecture
 
@@ -537,8 +542,9 @@ definitions/configuration, structured intents, and read-only views while one
 composition authority owns lifecycle mutation. A source-relative dormant seam
 now proves how future stable runtime state can share that authority and identity
 domain and holds dormant exact lease/baseline registration plus read-only
-admission context, but it performs no stable proposal apply, effective dispose,
-or readiness settlement and is not available through a package barrel.
-Stable-target reconcile and the Narrative migration remain planned work. Target
+admission context. It now applies exact stable proposals and performs atomic
+publisher disposal through that same owner, but it performs no readiness
+settlement, remains disconnected from every live stable family, and is not
+available through a package barrel. Stable readiness and the Narrative migration remain planned work. Target
 documents do not alter the current data flow until each migration and its
 behavior tests land.
