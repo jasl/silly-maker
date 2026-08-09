@@ -3,26 +3,34 @@ import type { PositiveSafeInteger } from "@sillymaker/base";
 import { describe, expect, expectTypeOf, it } from "vitest";
 
 import type {
+  ManagedSurfaceReadinessEvidenceV1,
   ManagedSurfaceSlotIdV1,
   ManagedSurfaceTargetOccurrenceIdV1,
+  ManagedSurfaceTransitionReceiptV1,
   ManagedSurfaceTransientTargetV1,
 } from "./managed-surface-contracts.ts";
 import {
   managedSurfaceStableAdmissionChecksInternalV1,
+  managedSurfaceStableApplyPreconditionChecksInternalV1,
   managedSurfaceStableContractLimitsInternalV1,
   managedSurfaceStableDeltaContractInternalV1,
   managedSurfaceStableParameterAdmissionPolicyInternalV1,
+  managedSurfaceStableReadinessFenceChecksInternalV1,
   managedSurfaceStableResultCodesInternalV1,
   type ManagedSurfaceStableAdmissionCheckRowInternalV1,
   type ManagedSurfaceStableAdmissionStageInternalV1,
   type ManagedSurfaceStableAdmittedTargetInternalV1,
+  type ManagedSurfaceStableApplyPreconditionCheckRowInternalV1,
   type ManagedSurfaceStableCanonicalParameterBytesInternalV1,
   type ManagedSurfaceStablePublicationInternalV1,
   type ManagedSurfaceStablePublicationAppliedDeltaInternalV1,
   type ManagedSurfaceStablePublisherDisposedDeltaInternalV1,
+  type ManagedSurfaceStableReadinessEnvelopeInternalV1,
+  type ManagedSurfaceStableReadinessFenceCheckRowInternalV1,
   type ManagedSurfaceStableReconcileResultInternalV1,
   type ManagedSurfaceStableResultCodeInternalV1,
   type ManagedSurfaceStableSourceRevisionInternalV1,
+  type ManagedSurfaceStableStaleCodeInternalV1,
   type ManagedSurfaceStableStackScopeInternalV1,
   type ManagedSurfaceStableTargetInternalV1,
   type ManagedSurfaceStableZeroDeltaInternalV1,
@@ -115,6 +123,7 @@ describe("dormant managed stable Surface contract", () => {
       stale: [
         "surface.stable_publisher_lease_stale",
         "surface.stable_source_revision_stale",
+        "surface.stable_reconcile_precondition_stale",
       ],
       rejected: {
         envelope_shape: ["surface.stable_publication_envelope_invalid"],
@@ -166,6 +175,11 @@ describe("dormant managed stable Surface contract", () => {
     for (const group of Object.values(managedSurfaceStableResultCodesInternalV1.rejected)) {
       expect(Object.isFrozen(group)).toBe(true);
     }
+    expectTypeOf<ManagedSurfaceStableStaleCodeInternalV1>().toEqualTypeOf<
+      | "surface.stable_publisher_lease_stale"
+      | "surface.stable_source_revision_stale"
+      | "surface.stable_reconcile_precondition_stale"
+    >();
   });
 
   it("records exact named-check precedence without ordering first-event outcomes", () => {
@@ -443,6 +457,255 @@ describe("dormant managed stable Surface contract", () => {
     }
   });
 
+  it("freezes apply-time precondition precedence with exact zero deltas", () => {
+    expectTypeOf<ExactKeysV1<ManagedSurfaceStableApplyPreconditionCheckRowInternalV1>>()
+      .toEqualTypeOf<
+        | "check"
+        | "kind"
+        | "code"
+        | "source"
+        | "runtime"
+        | "notificationCount"
+        | "topology"
+        | "runtimeAllocation"
+      >();
+    expectTypeOf<
+      Extract<
+        ManagedSurfaceStableApplyPreconditionCheckRowInternalV1,
+        { check: "proposal_provenance" }
+      >
+    >().toEqualTypeOf<
+      {
+        readonly check: "proposal_provenance";
+        readonly kind: "faulted";
+        readonly code: "surface.stable_admission_faulted";
+        readonly source: "unchanged";
+        readonly runtime: "unchanged";
+        readonly notificationCount: 0;
+        readonly topology: "unchanged";
+        readonly runtimeAllocation: "zero";
+      }
+    >();
+    expectTypeOf<
+      Extract<
+        ManagedSurfaceStableApplyPreconditionCheckRowInternalV1,
+        { kind: "faulted"; code: "surface.stable_publisher_lease_stale" }
+      >
+    >().toEqualTypeOf<never>();
+    expectTypeOf<
+      Extract<
+        ManagedSurfaceStableApplyPreconditionCheckRowInternalV1,
+        { kind: "stale"; code: "surface.stable_admission_faulted" }
+      >
+    >().toEqualTypeOf<never>();
+    expectTypeOf<ManagedSurfaceStableApplyPreconditionCheckRowInternalV1["source"]>()
+      .toEqualTypeOf<"unchanged">();
+    expectTypeOf<ManagedSurfaceStableApplyPreconditionCheckRowInternalV1["runtime"]>()
+      .toEqualTypeOf<"unchanged">();
+    expectTypeOf<ManagedSurfaceStableApplyPreconditionCheckRowInternalV1["notificationCount"]>()
+      .toEqualTypeOf<0>();
+    expectTypeOf<ManagedSurfaceStableApplyPreconditionCheckRowInternalV1["topology"]>()
+      .toEqualTypeOf<"unchanged">();
+    expectTypeOf<ManagedSurfaceStableApplyPreconditionCheckRowInternalV1["runtimeAllocation"]>()
+      .toEqualTypeOf<"zero">();
+    expectTypeOf<
+      Extract<
+        ManagedSurfaceStableApplyPreconditionCheckRowInternalV1,
+        { check: "publisher_lease_currentness" }
+      >["code"]
+    >().toEqualTypeOf<"surface.stable_publisher_lease_stale">();
+    expectTypeOf<
+      Extract<
+        ManagedSurfaceStableApplyPreconditionCheckRowInternalV1,
+        { check: "accepted_baseline_currentness" | "reservation_generation_currentness" }
+      >["code"]
+    >().toEqualTypeOf<"surface.stable_reconcile_precondition_stale">();
+
+    expect(managedSurfaceStableApplyPreconditionChecksInternalV1).toEqual([
+      {
+        check: "proposal_provenance",
+        kind: "faulted",
+        code: "surface.stable_admission_faulted",
+        source: "unchanged",
+        runtime: "unchanged",
+        notificationCount: 0,
+        topology: "unchanged",
+        runtimeAllocation: "zero",
+      },
+      {
+        check: "publisher_lease_currentness",
+        kind: "stale",
+        code: "surface.stable_publisher_lease_stale",
+        source: "unchanged",
+        runtime: "unchanged",
+        notificationCount: 0,
+        topology: "unchanged",
+        runtimeAllocation: "zero",
+      },
+      {
+        check: "accepted_baseline_currentness",
+        kind: "stale",
+        code: "surface.stable_reconcile_precondition_stale",
+        source: "unchanged",
+        runtime: "unchanged",
+        notificationCount: 0,
+        topology: "unchanged",
+        runtimeAllocation: "zero",
+      },
+      {
+        check: "reservation_generation_currentness",
+        kind: "stale",
+        code: "surface.stable_reconcile_precondition_stale",
+        source: "unchanged",
+        runtime: "unchanged",
+        notificationCount: 0,
+        topology: "unchanged",
+        runtimeAllocation: "zero",
+      },
+    ]);
+    const inventory = new Set<ManagedSurfaceStableResultCodeInternalV1>([
+      ...managedSurfaceStableResultCodesInternalV1.applied,
+      ...managedSurfaceStableResultCodesInternalV1.unchanged,
+      ...managedSurfaceStableResultCodesInternalV1.stale,
+      ...Object.values(managedSurfaceStableResultCodesInternalV1.rejected).flat(),
+      ...managedSurfaceStableResultCodesInternalV1.faulted,
+    ]);
+    expect(
+      managedSurfaceStableApplyPreconditionChecksInternalV1.every((row) => inventory.has(row.code)),
+    ).toBe(true);
+    expect(Object.isFrozen(managedSurfaceStableApplyPreconditionChecksInternalV1)).toBe(true);
+    for (const row of managedSurfaceStableApplyPreconditionChecksInternalV1) {
+      expect(Object.keys(row)).toEqual([
+        "check",
+        "kind",
+        "code",
+        "source",
+        "runtime",
+        "notificationCount",
+        "topology",
+        "runtimeAllocation",
+      ]);
+      expect(Object.isFrozen(row)).toBe(true);
+    }
+  });
+
+  it("freezes the stable-only readiness envelope and fence precedence", () => {
+    expectTypeOf<ExactKeysV1<ManagedSurfaceStableReadinessEnvelopeInternalV1>>()
+      .toEqualTypeOf<"readinessEvidence" | "publisherLease" | "sourceRevision">();
+    expectTypeOf<ManagedSurfaceStableReadinessEnvelopeInternalV1["readinessEvidence"]>()
+      .toEqualTypeOf<ManagedSurfaceReadinessEvidenceV1>();
+    expectTypeOf<
+      Extract<keyof ManagedSurfaceReadinessEvidenceV1, "publisherLease" | "sourceRevision">
+    >().toEqualTypeOf<never>();
+    expectTypeOf<ExactKeysV1<ManagedSurfaceTransitionReceiptV1>>().toEqualTypeOf<
+      | "kind"
+      | "code"
+      | "beforeTopologyRevision"
+      | "afterTopologyRevision"
+      | "surfaceInstanceId"
+    >();
+    expectTypeOf<
+      Extract<keyof ManagedSurfaceTransitionReceiptV1, "publisherLease" | "sourceRevision">
+    >().toEqualTypeOf<never>();
+    expectTypeOf<ExactKeysV1<ManagedSurfaceStableReadinessFenceCheckRowInternalV1>>()
+      .toEqualTypeOf<
+        | "check"
+        | "kind"
+        | "code"
+        | "source"
+        | "runtime"
+        | "notificationCount"
+        | "topology"
+        | "runtimeAllocation"
+      >();
+
+    expect(managedSurfaceStableReadinessFenceChecksInternalV1).toEqual([
+      {
+        check: "application_epoch",
+        kind: "stale",
+        code: "surface.stale_application_epoch",
+        source: "unchanged",
+        runtime: "unchanged",
+        notificationCount: 0,
+        topology: "unchanged",
+        runtimeAllocation: "zero",
+      },
+      {
+        check: "candidate_attempt",
+        kind: "stale",
+        code: "surface.stale_readiness",
+        source: "unchanged",
+        runtime: "unchanged",
+        notificationCount: 0,
+        topology: "unchanged",
+        runtimeAllocation: "zero",
+      },
+      {
+        check: "candidate_publisher_lease",
+        kind: "stale",
+        code: "surface.stale_readiness",
+        source: "unchanged",
+        runtime: "unchanged",
+        notificationCount: 0,
+        topology: "unchanged",
+        runtimeAllocation: "zero",
+      },
+      {
+        check: "candidate_source_revision",
+        kind: "stale",
+        code: "surface.stale_readiness",
+        source: "unchanged",
+        runtime: "unchanged",
+        notificationCount: 0,
+        topology: "unchanged",
+        runtimeAllocation: "zero",
+      },
+    ]);
+    expectTypeOf<
+      Extract<
+        ManagedSurfaceStableReadinessFenceCheckRowInternalV1,
+        { check: "application_epoch" }
+      >["code"]
+    >().toEqualTypeOf<"surface.stale_application_epoch">();
+    expectTypeOf<
+      Extract<
+        ManagedSurfaceStableReadinessFenceCheckRowInternalV1,
+        {
+          check:
+            | "candidate_attempt"
+            | "candidate_publisher_lease"
+            | "candidate_source_revision";
+        }
+      >["code"]
+    >().toEqualTypeOf<"surface.stale_readiness">();
+    expectTypeOf<ManagedSurfaceStableReadinessFenceCheckRowInternalV1["kind"]>()
+      .toEqualTypeOf<"stale">();
+    expectTypeOf<ManagedSurfaceStableReadinessFenceCheckRowInternalV1["source"]>()
+      .toEqualTypeOf<"unchanged">();
+    expectTypeOf<ManagedSurfaceStableReadinessFenceCheckRowInternalV1["runtime"]>()
+      .toEqualTypeOf<"unchanged">();
+    expectTypeOf<ManagedSurfaceStableReadinessFenceCheckRowInternalV1["notificationCount"]>()
+      .toEqualTypeOf<0>();
+    expectTypeOf<ManagedSurfaceStableReadinessFenceCheckRowInternalV1["topology"]>()
+      .toEqualTypeOf<"unchanged">();
+    expectTypeOf<ManagedSurfaceStableReadinessFenceCheckRowInternalV1["runtimeAllocation"]>()
+      .toEqualTypeOf<"zero">();
+    expect(Object.isFrozen(managedSurfaceStableReadinessFenceChecksInternalV1)).toBe(true);
+    for (const row of managedSurfaceStableReadinessFenceChecksInternalV1) {
+      expect(Object.keys(row)).toEqual([
+        "check",
+        "kind",
+        "code",
+        "source",
+        "runtime",
+        "notificationCount",
+        "topology",
+        "runtimeAllocation",
+      ]);
+      expect(Object.isFrozen(row)).toBe(true);
+    }
+  });
+
   it("freezes per-target parameter admission around first traversal events", () => {
     expect(managedSurfaceStableParameterAdmissionPolicyInternalV1).toEqual({
       targetIteration: "raw_target_order",
@@ -464,6 +727,16 @@ describe("dormant managed stable Surface contract", () => {
         case: "stale_publisher_lease",
         resultKind: "stale",
         resultCodes: ["surface.stable_publisher_lease_stale"],
+        source: "unchanged",
+        runtime: "unchanged",
+        notificationCount: 0,
+        topology: "unchanged",
+        runtimeAllocation: "zero",
+      },
+      {
+        case: "apply_reconcile_precondition_stale",
+        resultKind: "stale",
+        resultCodes: ["surface.stable_reconcile_precondition_stale"],
         source: "unchanged",
         runtime: "unchanged",
         notificationCount: 0,
@@ -734,6 +1007,13 @@ describe("dormant managed stable Surface contract", () => {
     expectTypeOf<
       Extract<ManagedSurfaceStableReconcileResultInternalV1, { kind: "stale" }>["delta"]
     >().toEqualTypeOf<ManagedSurfaceStableZeroDeltaInternalV1>();
+    expectTypeOf<
+      Extract<ManagedSurfaceStableReconcileResultInternalV1, { kind: "stale" }>["code"]
+    >().toEqualTypeOf<
+      | "surface.stable_publisher_lease_stale"
+      | "surface.stable_source_revision_stale"
+      | "surface.stable_reconcile_precondition_stale"
+    >();
     expectTypeOf<
       Extract<ManagedSurfaceStableReconcileResultInternalV1, { kind: "rejected" }>["delta"]
     >().toEqualTypeOf<ManagedSurfaceStableZeroDeltaInternalV1>();

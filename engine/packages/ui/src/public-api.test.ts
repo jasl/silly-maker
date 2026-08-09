@@ -40,6 +40,18 @@ import type { SystemDialogSessionStoreV1 as RemovedSystemDialogSessionStoreV1 } 
 import type { ManagedSurfaceStableAdmissionResultInternalV1 as ForbiddenPublicStableAdmissionResultV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose dormant stable admission.
 import type { ManagedSurfaceStableAdmissionResultInternalV1 as ForbiddenInternalStableAdmissionResultV1 } from "./internal.ts";
+// @ts-expect-error Dormant stable readiness fencing remains source-relative.
+import type { ManagedSurfaceStableReadinessEnvelopeInternalV1 as ForbiddenPublicStableReadinessEnvelopeV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose dormant stable readiness fencing.
+import type { ManagedSurfaceStableReadinessEnvelopeInternalV1 as ForbiddenInternalStableReadinessEnvelopeV1 } from "./internal.ts";
+// @ts-expect-error Apply-precondition row types stay source-relative.
+import type { ManagedSurfaceStableApplyPreconditionCheckRowInternalV1 as ForbiddenPublicStableApplyCheckV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose stable apply rows.
+import type { ManagedSurfaceStableApplyPreconditionCheckRowInternalV1 as ForbiddenInternalStableApplyCheckV1 } from "./internal.ts";
+// @ts-expect-error Readiness-fence row types stay source-relative.
+import type { ManagedSurfaceStableReadinessFenceCheckRowInternalV1 as ForbiddenPublicStableReadinessCheckV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose stable readiness rows.
+import type { ManagedSurfaceStableReadinessFenceCheckRowInternalV1 as ForbiddenInternalStableReadinessCheckV1 } from "./internal.ts";
 /* oxlint-enable no-unused-vars */
 
 describe("@sillymaker/ui public managed System surface", () => {
@@ -65,6 +77,15 @@ describe("@sillymaker/ui public managed System surface", () => {
     expect(internalUiV1).not.toHaveProperty(
       "createManagedSurfaceStableAdmissionAuthorityInternalV1",
     );
+    for (
+      const dormantContractExport of [
+        "managedSurfaceStableApplyPreconditionChecksInternalV1",
+        "managedSurfaceStableReadinessFenceChecksInternalV1",
+      ] as const
+    ) {
+      expect(publicUiV1).not.toHaveProperty(dormantContractExport);
+      expect(internalUiV1).not.toHaveProperty(dormantContractExport);
+    }
   });
 
   it("exports the opaque facade, structured intents, and content configuration types", () => {

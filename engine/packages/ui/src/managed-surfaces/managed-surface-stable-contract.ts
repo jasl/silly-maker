@@ -4,8 +4,10 @@ import type { DeepReadonly, PositiveSafeInteger, StrictJsonValueV1 } from "@sill
 import type {
   ManagedSurfaceDefinitionIdV1,
   ManagedSurfaceOwnerIdV1,
+  ManagedSurfaceReadinessEvidenceV1,
   ManagedSurfaceSlotIdV1,
   ManagedSurfaceTargetOccurrenceIdV1,
+  ManagedSurfaceTransitionCodeV1,
 } from "./managed-surface-contracts.ts";
 
 declare const managedSurfaceStablePublisherLeaseBrandInternalV1: unique symbol;
@@ -33,6 +35,13 @@ export interface ManagedSurfaceStablePublicationInternalV1 {
   readonly publisherLease: ManagedSurfaceStablePublisherLeaseInternalV1;
   readonly sourceRevision: ManagedSurfaceStableSourceRevisionInternalV1;
   readonly targets: readonly ManagedSurfaceStableTargetInternalV1[];
+}
+
+/** Stable-only readiness fence; the transient evidence shape stays unchanged. */
+export interface ManagedSurfaceStableReadinessEnvelopeInternalV1 {
+  readonly readinessEvidence: ManagedSurfaceReadinessEvidenceV1;
+  readonly publisherLease: ManagedSurfaceStablePublisherLeaseInternalV1;
+  readonly sourceRevision: ManagedSurfaceStableSourceRevisionInternalV1;
 }
 
 export type ManagedSurfaceStableStackScopeInternalV1 =
@@ -97,6 +106,7 @@ const staleCodesInternalV1 = Object.freeze(
   [
     "surface.stable_publisher_lease_stale",
     "surface.stable_source_revision_stale",
+    "surface.stable_reconcile_precondition_stale",
   ] as const,
 );
 const rejectedCodesInternalV1 = Object.freeze({
@@ -526,6 +536,7 @@ export const managedSurfaceStableParameterAdmissionPolicyInternalV1 = Object.fre
 
 export type ManagedSurfaceStableDeltaCaseInternalV1 =
   | "stale_publisher_lease"
+  | "apply_reconcile_precondition_stale"
   | "header_or_initial_invalid"
   | "lower"
   | "equal_same"
@@ -569,6 +580,82 @@ const zeroDeltaInternalV1 = Object.freeze({
   runtimeAllocation: "zero" as const,
 });
 
+function freezeApplyPreconditionCheckInternalV1<
+  const TCheck extends string,
+  const TKind extends Extract<
+    ManagedSurfaceStableReconcileResultInternalV1["kind"],
+    "faulted" | "stale"
+  >,
+  const TCode extends Extract<
+    ManagedSurfaceStableReconcileResultInternalV1,
+    { readonly kind: NoInfer<TKind> }
+  >["code"],
+>(check: TCheck, kind: TKind, code: TCode) {
+  return Object.freeze({ check, kind, code, ...zeroDeltaInternalV1 });
+}
+
+/** Ordered evidence only; S1-R.3 owns proposal application and mutation. */
+export const managedSurfaceStableApplyPreconditionChecksInternalV1 = Object.freeze([
+  freezeApplyPreconditionCheckInternalV1(
+    "proposal_provenance",
+    "faulted",
+    "surface.stable_admission_faulted",
+  ),
+  freezeApplyPreconditionCheckInternalV1(
+    "publisher_lease_currentness",
+    "stale",
+    "surface.stable_publisher_lease_stale",
+  ),
+  freezeApplyPreconditionCheckInternalV1(
+    "accepted_baseline_currentness",
+    "stale",
+    "surface.stable_reconcile_precondition_stale",
+  ),
+  freezeApplyPreconditionCheckInternalV1(
+    "reservation_generation_currentness",
+    "stale",
+    "surface.stable_reconcile_precondition_stale",
+  ),
+]);
+
+export type ManagedSurfaceStableApplyPreconditionCheckRowInternalV1 =
+  typeof managedSurfaceStableApplyPreconditionChecksInternalV1[number];
+
+type ManagedSurfaceStableReadinessStaleCodeInternalV1 = Extract<
+  ManagedSurfaceTransitionCodeV1,
+  "surface.stale_application_epoch" | "surface.stale_readiness"
+>;
+
+function freezeReadinessFenceCheckInternalV1<
+  const TCheck extends string,
+  const TCode extends ManagedSurfaceStableReadinessStaleCodeInternalV1,
+>(check: TCheck, code: TCode) {
+  return Object.freeze({ check, kind: "stale" as const, code, ...zeroDeltaInternalV1 });
+}
+
+/** Ordered stable preflight evidence only; S1-R.4 owns settlement. */
+export const managedSurfaceStableReadinessFenceChecksInternalV1 = Object.freeze([
+  freezeReadinessFenceCheckInternalV1(
+    "application_epoch",
+    "surface.stale_application_epoch",
+  ),
+  freezeReadinessFenceCheckInternalV1(
+    "candidate_attempt",
+    "surface.stale_readiness",
+  ),
+  freezeReadinessFenceCheckInternalV1(
+    "candidate_publisher_lease",
+    "surface.stale_readiness",
+  ),
+  freezeReadinessFenceCheckInternalV1(
+    "candidate_source_revision",
+    "surface.stale_readiness",
+  ),
+]);
+
+export type ManagedSurfaceStableReadinessFenceCheckRowInternalV1 =
+  typeof managedSurfaceStableReadinessFenceChecksInternalV1[number];
+
 const headerOrInitialInvalidCodesInternalV1 = Object.freeze([
   ...rejectedCodesInternalV1.envelope_shape,
   ...rejectedCodesInternalV1.source_revision,
@@ -587,6 +674,12 @@ export const managedSurfaceStableDeltaContractInternalV1 = Object.freeze([
     case: "stale_publisher_lease",
     resultKind: "stale",
     resultCodes: Object.freeze(["surface.stable_publisher_lease_stale"]),
+    ...zeroDeltaInternalV1,
+  }),
+  freezeDeltaRowInternalV1({
+    case: "apply_reconcile_precondition_stale",
+    resultKind: "stale",
+    resultCodes: Object.freeze(["surface.stable_reconcile_precondition_stale"]),
     ...zeroDeltaInternalV1,
   }),
   freezeDeltaRowInternalV1({

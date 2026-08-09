@@ -19,8 +19,8 @@ promotion 均已关闭。2026-08-08 dormant `PF4/S3c.1 Host-commit readiness`、
 `PF4/S1-R.1a captured occurrence admission proof corrective`、
 `PF4/S1-R.2a corrective admission contract` 与
 `PF4/S1-R.2b Base bounded canonical projection seam`、
-`PF4/S1-R.2c stable-vector admission` 已关闭，linear core下一独立切片为
-`PF4/S1-R.3.0 apply/readiness contract closure`。
+`PF4/S1-R.2c stable-vector admission`、`PF4/S1-R.3.0 apply/readiness contract closure`已关闭，
+linear core下一独立切片为`PF4/S1-R.3 pure atomic reconcile`。
 同日 S1-R pre-implementation review 将 external reconcile gate 重切为 S1-R.0–S1-R.5；
 顺序变化不把任何 planned stable-target contract写成 live capability。
 2026-08-04 已冻结 S3 的 shared-Coordinator transient topology、atomic initial-candidate
@@ -31,8 +31,8 @@ supersede/retained-active cancellation、S3b composition-owned shared Coordinato
 dormant System session/catalog、S3c.0 all-family successor activation barrier 已完成；S3
 的 S3c.1 Host-commit readiness/Host lease、S3d exact-parent confirmation child 与
 S3e.0 composition successor acknowledgment/terminal teardown、S3e live cutover与
-promotion与 S1-R.0–R2c（含R1a corrective）dormant internal floor均已完成；下一独立切片为
-S1-R.3.0。
+promotion与 S1-R.0–R3.0（含R1a corrective）dormant internal floor均已完成；下一独立切片为
+S1-R.3。
 旧 promotion 数字保留为
 历史证据。本文是当前唯一的跨计划排序入口；
 具体合同仍由各 design 文档拥有，主要任务由五个独立计划拥有：
@@ -1033,8 +1033,8 @@ Save/Persistence/M2/canonical/digest/replay/wire不变，transient System未引�
 验证通过 focused cutover（14 files / 170 tests）、UI package（69 / 745）、
 `deno task test`（242 / 3631）、`deno task check`、Engine browser（101 / 101）、examples
 browser（45 passed / 2 skipped）与 prebuilt Player（38 / 38）；最终 adversarial review无
-finding。S3 promotion与 S1-R.0–R2c（含R1a corrective）完成，linear core当前节点与下一独立切片
-均为S1-R.3.0；S4仍受 S1-R aggregate gate约束。
+finding。S3 promotion与 S1-R.0–R3.0（含R1a corrective）完成，linear core当前节点与下一独立切片
+均为S1-R.3；S4仍受 S1-R aggregate gate约束。
 
 S1-R 在第一个真实 externally published stable-target family 前完成。按 accepted
 target ownership，S4 Narrative 计划从 semantic publication 派生 stable target，
@@ -1129,6 +1129,15 @@ Base bounded + R0/R1/R2c/public API focused `5 / 89`、UI `72 / 792`、全量`24
 `deno task check`；三路adversarial review无finding。下一独立切片为R3.0，只闭合
 apply-time CAS stale taxonomy、zero delta与stable-readiness envelope，不提前实现R3 mutation或R4
 settlement。
+
+**2026-08-09 S1-R.3.0 delivery：** R0 pure contract新增apply-only precondition-stale code、
+exact-zero delta row、proposal provenance → lease → baseline → reservation generation ordered evidence，
+以及stable-only readiness envelope与epoch → candidate → lease → source ordered fence。R2c admission stale
+type保持只含publisher-lease/source-revision两码；transient readiness evidence/receipt与UI public/internal
+barrels均未扩张。本批不apply proposal、不聚合reservation phase、不调用Coordinator/reducer或settle
+readiness。验证通过R0/R1/R2c/public API focused `4 / 49`、UI `72 / 794`、全量`246 / 3722`
+与完整`deno task check`；三路adversarial review无finding。Linear core下一独立切片为R3 pure
+atomic reconcile，S4仍受S1-R aggregate gate约束。
 
 每个 family 的迁移提交必须删除旧 owner；禁止长期 adapter 双写。
 `DialoguePanelV1` / `VnLayerV1` 的 controller/view/host 拆分在 Narrative family

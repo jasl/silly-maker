@@ -14,12 +14,12 @@ S3e.0 successor-acknowledgment/terminal-teardown 准备切片均已完成；2026
 cutover and promotion 已关闭；同日 S1-R.0 stable publication/identity/failure contract
 floor、S1-R.1 publisher lease/source/occurrence allocator、S1-R.1a captured occurrence
 admission proof corrective、S1-R.2a corrective admission contract、S1-R.2b Base bounded canonical
-projection seam 与 S1-R.2c stable-vector admission 已关闭，下一独立切片为
-S1-R.3.0 apply/readiness contract closure。
+projection seam、S1-R.2c stable-vector admission 与 S1-R.3.0 apply/readiness contract closure已关闭，下一独立切片为
+S1-R.3 pure atomic reconcile。
 同日 S1-R pre-implementation review 将 aggregate 重切为 S1-R.0–S1-R.5，并冻结
 parent/order、专用 revision、failure divergence、empty/dispose、cross-owner、bounded
-admission 与 exact delta；S1-R.0–R2c（含R1a corrective）已实现 dormant internal floor，
-R3.0–R5 尚未实现。
+admission 与 exact delta；S1-R.0–R3.0（含R1a corrective）已实现 dormant internal floor，
+R3–R5 尚未实现。
 目标合同见
 [Managed Surface lifecycle and contract harness](../design/surface-contract-harness.md)。
 本文只规定可独立交付的实施顺序；不要求一次实现 design
@@ -27,7 +27,7 @@ R3.0–R5 尚未实现。
 
 在 [production-floor sequence](2026-07-30-production-floor-sequence.md)
 中：PF2 的 `S0 -> S1-T -> S2`、PF-DET、PF3/M2 与 PF4/S3 已完成；当前 core
-节点是 PF4/S1-R.3.0。PF4 的顺序是 `S3 -> S1-R.0 -> S1-R.1–S1-R.5 -> S4 -> S4b`；
+节点是 PF4/S1-R.3。PF4 的顺序是 `S3 -> S1-R.0 -> S1-R.1–S1-R.5 -> S4 -> S4b`；
 S5–S6 属于 PF6。S1-R
 延后到第一个真实 externally published stable-target family 前完成；按 accepted
 target ownership，S4 Narrative 计划成为该 family，因此 S1-R 位于 S3 与 S4
@@ -1637,7 +1637,7 @@ S1-R 按以下可独立合并切片推进，每次只领取一个：
 6. **S1-R.2c stable vector admission（已完成）**：descriptor-safe exact envelope、definition schema
    normalization、opaque canonical bytes、full graph/slot/order/owner admission与 exact
    precondition-bound proposal；
-7. **S1-R.3.0 apply/readiness contract closure**：补齐apply-time exact CAS stale taxonomy、
+7. **S1-R.3.0 apply/readiness contract closure（已完成）**：补齐apply-time exact CAS stale taxonomy、
    zero-delta/notification/allocation rows与stable-only readiness envelope；不apply proposal、
    不settle readiness；
 8. **S1-R.3 pure atomic reconcile state/reducer**：同一 composite state 中原子提交
@@ -1650,7 +1650,7 @@ S1-R 按以下可独立合并切片推进，每次只领取一个：
     10k churn、pure/model equivalence 与 public/transient export audit，汇总 dormant
     promotion evidence。
 
-当前只允许从 **S1-R.3.0** 开始；上述切片都保持
+当前只允许从 **S1-R.3** 开始；上述切片都保持
 dormant/package-internal，不接 Narrative/React/Web，不更新 live feature 文档。
 
 **S1-R.0 acceptance：** 只交付 internal shapes、fixed constants、result taxonomy、
@@ -2014,6 +2014,20 @@ fence，再校验candidate保存的exact lease/source；application-epoch mismat
 `surface.stale_application_epoch`，epoch相等后的candidate/instance/lease/source mismatch统一既有
 `surface.stale_readiness`，两者都zero delta。R3.0不实现proposal apply、reservation phase aggregation、
 Coordinator mutation或readiness settlement，不扩张transient/public receipt。
+
+**2026-08-09 S1-R.3.0 delivery：** R0 stable contract新增唯一apply-only stale code
+`surface.stable_reconcile_precondition_stale`、exact-zero delta case与literal-preserving ordered apply
+precondition table，冻结proposal provenance → current lease → accepted baseline → reservation generation
+precedence；proposal fault与两类stale全部flatten exact zero source/runtime/topology、notification/
+allocation evidence。Stable-only readiness envelope精确组合既有transient readiness evidence与publisher
+lease/source revision，ordered table固定application epoch → candidate attempt → candidate lease →
+candidate source，保留`surface.stale_application_epoch`与`surface.stale_readiness`分层。R2c admission
+result显式只允许publisher-lease/source-revision两种admission stale，不能吸收apply-only code；public与
+Host-internal barrel负面tests证明新envelope/table仍source-relative。本批没有apply/CAS函数、reservation
+phase aggregation、Coordinator/reducer/readiness settle或transient/public receipt改动。验证通过
+R0/R1/R2c/public API focused `4 files / 49 tests`、UI package `72 / 794`、`deno task test`
+（`246 / 3722`）与完整`deno task check`；三路adversarial review最终无finding。下一独立切片为
+S1-R.3 pure atomic reconcile。
 
 ### Desired/runtime divergence and retry
 

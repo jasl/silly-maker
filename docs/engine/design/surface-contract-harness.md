@@ -42,12 +42,15 @@ public canonical、Save/Persistence 与 live Surface authority均未改变。
 definition/slot catalog、same-factory baseline/reservation/proposal provenance、R1a proof-time
 occurrence classification、opaque canonical bytes与precondition-bound exact proposal均已闭合，
 但尚未提交accepted/runtime state或调用Coordinator。
+同日 S1-R.3.0 已把apply-time proposal/lease/baseline/reservation ordered precondition、closed stale
+taxonomy与exact zero delta，以及stable-only readiness envelope/precedence固化为R0 pure contract；
+它不执行proposal、reservation phase aggregation、Coordinator mutation或readiness settlement。
 本文固定
 影响输入与焦点的 UI Surface 的权威边界、生命周期、输入代际与验证分层，并把“弱模型
 能够写出正确代码”提升为作者 API 的验收条件。S1-T 与 S2 已实现，S3a–S3e
 已完成并 promotion System 的 shared composition authority、Host readiness、confirmation
-child 与 single-writer cutover；S1-R.1a corrective 与 S1-R.2c 已完成，下一独立切片为
-S1-R.3.0 apply/readiness contract closure。当前 live 能力仍以
+child 与 single-writer cutover；S1-R.1a corrective 与 S1-R.3.0 已完成，下一独立切片为
+S1-R.3 pure atomic reconcile。当前 live 能力仍以
 [architecture](../architecture.md) 与
 [features](../features.md) 为准；执行顺序见
 [Surface Contract Harness plan](../plans/2026-07-30-surface-contract-harness.md)。

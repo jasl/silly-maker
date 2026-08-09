@@ -326,6 +326,17 @@ describe("dormant managed stable vector admission", () => {
     expectTypeOf<Extract<ManagedSurfaceStableAdmissionResultInternalV1, { kind: "applied" }>>()
       .toEqualTypeOf<never>();
     expectTypeOf<
+      Extract<ManagedSurfaceStableAdmissionResultInternalV1, { kind: "stale" }>["code"]
+    >().toEqualTypeOf<
+      "surface.stable_publisher_lease_stale" | "surface.stable_source_revision_stale"
+    >();
+    expectTypeOf<
+      Extract<
+        Extract<ManagedSurfaceStableAdmissionResultInternalV1, { kind: "stale" }>["code"],
+        "surface.stable_reconcile_precondition_stale"
+      >
+    >().toEqualTypeOf<never>();
+    expectTypeOf<
       Extract<
         ManagedSurfaceStableAdmissionResultInternalV1,
         { code: "surface.stable_publisher_already_disposed" }

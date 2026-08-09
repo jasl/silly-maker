@@ -93,15 +93,27 @@ export interface ManagedSurfaceStableAdmissionProposalInternalV1 {
   >;
 }
 
+type ManagedSurfaceStableAdmissionStaleResultInternalV1 =
+  & Omit<
+    Extract<ManagedSurfaceStableReconcileResultInternalV1, { readonly kind: "stale" }>,
+    "code"
+  >
+  & {
+    readonly code:
+      | "surface.stable_publisher_lease_stale"
+      | "surface.stable_source_revision_stale";
+  };
+
 type ManagedSurfaceStableAdmissionZeroResultInternalV1 =
   | Omit<
     Extract<ManagedSurfaceStableReconcileResultInternalV1, { readonly kind: "unchanged" }>,
     "code"
   >
     & { readonly code: "surface.stable_publication_unchanged" }
+  | ManagedSurfaceStableAdmissionStaleResultInternalV1
   | Extract<
     ManagedSurfaceStableReconcileResultInternalV1,
-    { readonly kind: "stale" | "rejected" | "faulted" }
+    { readonly kind: "rejected" | "faulted" }
   >;
 
 export type ManagedSurfaceStableAdmissionResultInternalV1 =
