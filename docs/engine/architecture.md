@@ -493,15 +493,19 @@ successful load/import also leaves its old Saves completion stale, so it cannot
 close or finalize a fresh System root. The epoch is presentation/runtime fencing
 only and never enters a Save.
 
-The generic kernel also has an optional package-internal post-reducer
-finalization/result-override hook for future composite nonterminal reflow. It
+The generic kernel also has optional package-internal post-reducer seams for
+composite transitions. The nonterminal finalization/result-override hook
 captures the exact adapter receiver and complete output before installation,
 shares the existing mutation fence, and defaults to the reducer's exact
 state/receipt when absent. Callback or output-capture failure installs nothing;
 successful combined installation preserves transient-before-state notification
 order and synchronous listener reentry. Terminal Coordinator disposal bypasses
-this hook and retains the reducer's terminal receipt; its registry-gated
-composite disposition remains the next independent slice.
+that hook and retains the reducer's terminal receipt. A separate optional
+first-terminal prepare/gate seam is triggered only by the reducer's exact
+`applied / surface.coordinator_disposed` result. It captures and validates the
+complete successor and notification vectors before a repository-owned commit
+gate, then assigns the captured state without an intervening lookup. Adapters
+without the terminal seam retain the exact prior reducer behavior.
 
 A dormant, source-relative stable composite seam now reuses that same internal
 kernel. It binds admitted targets to exact registry/configuration provenance,
@@ -525,12 +529,23 @@ and uses the claimed exact R1 disposal receiver as the no-throw commit gate, so
 registry close and composite assignment cannot expose an intermediate state;
 repeat and external divergence remain distinct. These source-relative seams expose
 neither the registry nor contributor/runtime evidence through a package barrel.
+The same dormant owner now consumes the terminal prepare/gate seam: it derives
+one complete terminal composite successor, clears stable baselines, runtime,
+contributors, and private strong attempt/candidate provenance, preserves the
+shared identity cursor, and rotates the reservation generation only when the
+root contributor vector changes. The gate closes the exact bound registry;
+`disposed` and an external earlier `already_disposed` both converge before the
+installed state is observed. First delivery remains transient-before-state and
+then clears both listener sets; repeat is unchanged and allocation-free. A
+source-relative read-only comparison probe exposes only frozen identity booleans
+and collection sizes for deterministic teardown auditing. Already-terminal
+transient state cannot seed a fresh composite with a live registry.
 The dormant stable contract now also freezes its dedicated readiness result/delta
 table and the cascade-aware empty/dispose delta rows, but no stateful settlement
 method consumes them yet. The seams still do not settle stable readiness or
 connect stable ingress to a live family. The UI root and `./internal` barrels and
-package export map are unchanged. Terminal composite disposition, stable
-readiness/global cascade, and Narrative migration remain planned work.
+package export map are unchanged. Stable readiness/global cascade and Narrative
+migration remain planned work.
 
 ## 9. Changing the architecture
 
@@ -563,8 +578,8 @@ admission context. It now applies exact stable proposals and performs atomic
 publisher disposal through that same owner, but it performs no readiness
 settlement, remains disconnected from every live stable family, and is not
 available through a package barrel. The live transient reducer now consumes the
-shared pure topology policy, while the dormant stable side only owns the closed
-result/delta floor. Terminal composite disposition, stable readiness/global
-cascade, and the Narrative migration remain planned work. Target documents do
-not alter the current data flow until each migration and its behavior tests
-land.
+shared pure topology policy, while the dormant stable owner also performs the
+complete registry-gated terminal composite disposition described above. Stable
+readiness/global cascade and the Narrative migration remain planned work. Target
+documents do not alter the current data flow until each migration and its
+behavior tests land.

@@ -83,6 +83,9 @@ settle stable readiness。若既有nonterminal transient/stable transition让rea
 同一composite transition也必须完成direct-child batch；capacity不足时回滚整个触发transition。Stable
 apply/empty/dispose ingress返回`faulted / surface.stable_reconcile_faulted`，transient post-reducer ingress返回
 既有`faulted / surface.transition_faulted` receipt，二者都不能先提交successor。
+S1-R.4b.0已进一步交付receipt-driven generic terminal prepare/gate与complete stable terminal
+successor：它以exact applied reducer receipt作为唯一分类，在exact registry-wide gate后原子
+安装已清空stable权威的state，仍不settle readiness或接入live stable family。
 Active parent只是在child attempt分配时的eligibility，不是ready child存续期间的持续不变量。只有
 topology-participating equal-layer rows在R2 topology、exact retained subtree或existing transient publication
 中都没有authoritative relative order时才fail closed；R4不把allocation、slot或lease顺序偷换成z-order。
@@ -92,8 +95,8 @@ topology-participating equal-layer rows在R2 topology、exact retained subtree�
 已完成并 promotion System 的 shared composition authority、Host readiness、confirmation
 child 与 single-writer cutover；S1-R.1a corrective、S1-R.3.0、S1-R.3a 与 R3a.1 corrective 已完成，
 S1-R.1b corrective、S1-R.3b.0、S1-R.3b.1、S1-R.4.0 entry contract 与 S1-R.4a 也已完成，
-下一独立切片为 S1-R.4b.0 terminal disposition。
-当前active execution pointer的current/next均为S1-R.4b.0；R3b.1、R4.0与R4a只作为completed
+S1-R.4b.0 terminal disposition也已完成，下一独立切片为 S1-R.4b.1 readiness settlement。
+当前active execution pointer的current/next均为S1-R.4b.1；R3b.1、R4.0、R4a与R4b.0只作为completed
 delivery保留。
 当前 live 能力仍以
 [architecture](../architecture.md) 与
@@ -990,10 +993,47 @@ readiness/cascade-aware reconcile tables，并为generic runtime kernel增加def
 nonterminal post-reducer state/receipt override seam。该seam在安装前捕获完整successor，throw或显式fault override
 都保持old state与零notification；terminal `surface.coordinator_disposed | surface.coordinator_already_disposed`
 直接绕过generic finalizer，继续由R4b.0的terminal disposition合同拥有。R4a没有新增stateful stable settlement、
-stable state mutation、live stable ingress/family或public/internal barrel export；R4b.0与R4b.1仍未实现。
+stable state mutation、live stable ingress/family或public/internal barrel export；该历史切片当时未实现
+R4b.0与R4b.1，现由下述R4b.0 delivery接续。
 
 验证：focused `6 files / 123 tests`、UI package `76 files / 909 tests`、全量
 `250 files / 3837 tests`、`deno task check` green、browser `101/101`、examples `45 passed / 2 skipped`、
+prebuilt `38/38`。
+
+S1-R.4b.0 delivery 已完成：generic runtime kernel新增source-relative、first-terminal-only
+prepare/gate seam。它只以reducer产生的exact `applied / surface.coordinator_disposed` receipt作为
+terminal classifier，不在specialized wrapper预读或信任caller `operation.kind`；
+`surface.coordinator_already_disposed`、其他receipt与nonterminal R4a finalizer均保持原有独立路径。
+未提供terminal preparer的generic adapter继续exact保留原reducer state、receipt、notification与reentry
+语义。完整terminal successor、install validation、listener vector与gate callable全部在shared mutation
+fence内预先捕获；gate之后只把已捕获local state赋给唯一state cell，中间没有property
+lookup、allocation、freeze、callback或await。Gate/preparation/validation throw均保持exact old state与零
+notification，并释放reentry fence。
+
+Specialized composite owner以existing reducer terminal successor为oracle，在不运行topology policy、definition
+lookup、cascade或capacity allocation的前提下，一次清空全部stable accepted baselines、
+preparing/ready/retained/gap runtime bindings与root contributors。它保留exact composite origin、admission
+authority、publisher registry、transient resolved recipe/cursors与shared identity high-water；旧root
+contributor vector非空时轮换fresh reservation generation token，已空时复用exact token。
+Composite-private `boundRuntimeAttempts`、`pendingRuntimeAttempts`与
+`stableContributorCandidates`在旧集合为非空或已空时都替换为fresh-empty records；新的
+source-relative frozen provenance comparison probe只暴露identity-comparison boolean与collection size，不暴露
+Map、Set、vector、lease或registry引用，也不进入public/internal barrel。
+
+Composition构造期capture-once exact registry receiver与registry-wide `dispose` callable；gate以
+`Reflect.apply`执行，`disposed | already_disposed`都安装同一terminal successor。Raw registry已先行
+dispose、shared identity high-water已达`Number.MAX_SAFE_INTEGER`、initial preparation +
+`parent_unavailable` gap、以及retained-subtree replacement都保持terminal convergence、零identity
+allocation与旧runtime不可复活。旧prepared install在terminal commit后返回stale且不调用gate；
+已是terminal的initial transient seed在claim registry disposal authority前直接拒绝，不能作为fake
+successor seed；合法successor仍必须领取fresh application epoch与fresh registry。首次dispose仍返回
+existing applied receipt，按transient后state各exact一次顺序通知并
+清listener；repeat仍为`surface.coordinator_already_disposed` zero delta。该切片没有新增stable
+readiness settlement、live stable family/ingress、public API、internal barrel export、Save/Persistence、digest、
+replay或wire变化；R4b.1继续拥有source-bound readiness与global cascade settlement。
+
+验证：focused `7 files / 154 tests`、UI package `76 files / 919 tests`、全量
+`250 files / 3847 tests`、`deno task check` green、browser `101/101`、examples `45 passed / 2 skipped`、
 prebuilt `38/38`。
 
 ### 3.3 Runtime session

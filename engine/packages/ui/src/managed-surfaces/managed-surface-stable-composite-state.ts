@@ -245,6 +245,28 @@ export interface ManagedSurfaceStableCompositeStateInternalV1 {
   readonly stableRuntimeBindings: readonly ManagedSurfaceStableRuntimeEntryInternalV1[];
 }
 
+interface ManagedSurfaceStableCompositePrivateCollectionComparisonInternalV1 {
+  readonly sameIdentity: boolean;
+  readonly beforeSize: number;
+  readonly afterSize: number;
+}
+
+export interface ManagedSurfaceStableCompositePrivateProvenanceComparisonInternalV1 {
+  readonly sameOrigin: boolean;
+  readonly sameAdmissionAuthority: boolean;
+  readonly samePublisherLeaseRegistry: boolean;
+  readonly boundRuntimeAttempts: ManagedSurfaceStableCompositePrivateCollectionComparisonInternalV1;
+  readonly pendingRuntimeAttempts:
+    ManagedSurfaceStableCompositePrivateCollectionComparisonInternalV1;
+  readonly stableContributorCandidates:
+    ManagedSurfaceStableCompositePrivateCollectionComparisonInternalV1;
+  readonly after: Readonly<{
+    readonly installable: boolean;
+    readonly derivedFromPresent: boolean;
+    readonly derivationDepth: number;
+  }>;
+}
+
 type ManagedSurfaceStableUnpublishedBaselineInternalV1 = Extract<
   ManagedSurfaceStableAcceptedBaselineInternalV1,
   { readonly kind: "unpublished" }
@@ -327,6 +349,61 @@ const compositeStateAuthorityRecordsInternalV1 = new WeakMap<
   ManagedSurfaceStableCompositeStateInternalV1,
   CompositeStateAuthorityRecordInternalV1
 >();
+
+/**
+ * Deterministic source-relative audit seam. It exposes only frozen identity
+ * comparisons and collection sizes, never the private provenance containers.
+ */
+export function compareManagedSurfaceStableCompositePrivateProvenanceInternalV1(
+  before: ManagedSurfaceStableCompositeStateInternalV1,
+  after: ManagedSurfaceStableCompositeStateInternalV1,
+): ManagedSurfaceStableCompositePrivateProvenanceComparisonInternalV1 {
+  const beforeRecord = compositeStateAuthorityRecordsInternalV1.get(before);
+  const afterRecord = compositeStateAuthorityRecordsInternalV1.get(after);
+  if (beforeRecord === undefined || afterRecord === undefined) {
+    throw new TypeError("ui.managed_surface_stable_composite_state_invalid");
+  }
+  const compareCollection = (
+    beforeCollection: object,
+    afterCollection: object,
+    beforeSize: number,
+    afterSize: number,
+  ): ManagedSurfaceStableCompositePrivateCollectionComparisonInternalV1 =>
+    Object.freeze({
+      sameIdentity: beforeCollection === afterCollection,
+      beforeSize,
+      afterSize,
+    });
+  return Object.freeze({
+    sameOrigin: beforeRecord.origin === afterRecord.origin,
+    sameAdmissionAuthority: beforeRecord.admissionAuthority === afterRecord.admissionAuthority,
+    samePublisherLeaseRegistry:
+      beforeRecord.publisherLeaseRegistry === afterRecord.publisherLeaseRegistry,
+    boundRuntimeAttempts: compareCollection(
+      beforeRecord.boundRuntimeAttempts,
+      afterRecord.boundRuntimeAttempts,
+      beforeRecord.boundRuntimeAttempts.size,
+      afterRecord.boundRuntimeAttempts.size,
+    ),
+    pendingRuntimeAttempts: compareCollection(
+      beforeRecord.pendingRuntimeAttempts,
+      afterRecord.pendingRuntimeAttempts,
+      beforeRecord.pendingRuntimeAttempts.size,
+      afterRecord.pendingRuntimeAttempts.size,
+    ),
+    stableContributorCandidates: compareCollection(
+      beforeRecord.stableContributorCandidates,
+      afterRecord.stableContributorCandidates,
+      beforeRecord.stableContributorCandidates.length,
+      afterRecord.stableContributorCandidates.length,
+    ),
+    after: Object.freeze({
+      installable: afterRecord.installable,
+      derivedFromPresent: afterRecord.derivedFrom !== null,
+      derivationDepth: afterRecord.derivationDepth,
+    }),
+  });
+}
 
 const stalePublisherLeaseResultInternalV1 = Object.freeze({
   kind: "stale" as const,
@@ -452,7 +529,7 @@ export function createManagedSurfaceStableCompositeStateInternalV1(input: {
   }
   const registrySnapshot = publisherLeaseRegistry.getSnapshot();
   if (
-    registrySnapshot.disposed ||
+    transientState.publication.coordinatorDisposed || registrySnapshot.disposed ||
     registrySnapshot.applicationEpoch !== transientState.publication.applicationEpoch
   ) {
     throw new TypeError("ui.managed_surface_stable_composite_state_invalid");
@@ -1530,6 +1607,29 @@ function replaceTransientStateInternalV1(
     throw new TypeError("ui.managed_surface_stable_composite_state_invalid");
   }
   if (currentState.transientState === nextTransientState) return currentState;
+  if (nextTransientState.publication.coordinatorDisposed) {
+    const nextState = Object.freeze({
+      transientState: nextTransientState,
+      stableAcceptedBaselines: Object.freeze([]),
+      rootReservationContributors: currentState.rootReservationContributors.length === 0
+        ? currentState.rootReservationContributors
+        : Object.freeze([]),
+      rootReservationGenerationToken: currentState.rootReservationContributors.length === 0
+        ? currentState.rootReservationGenerationToken
+        : authorityRecord.admissionAuthority.createReservationGenerationToken(),
+      stableRuntimeBindings: Object.freeze([]),
+    });
+    compositeStateAuthorityRecordsInternalV1.set(nextState, {
+      ...authorityRecord,
+      derivedFrom: currentState,
+      derivationDepth: authorityRecord.derivationDepth + 1,
+      installable: true,
+      boundRuntimeAttempts: new Map(),
+      pendingRuntimeAttempts: new Set(),
+      stableContributorCandidates: Object.freeze([]),
+    });
+    return nextState;
+  }
   if (authorityRecord.derivationDepth >= 130) {
     throw new TypeError("ui.managed_surface_stable_composite_state_invalid");
   }
@@ -2250,6 +2350,7 @@ export function createManagedSurfaceStableCompositeRuntimeKernelInternalV1(input
     currentState: empty,
     contributorCandidates: Object.freeze([]),
   });
+  const disposePublisherLeaseRegistry = publisherLeaseRegistry.dispose;
   const runtimeKernel = createManagedSurfaceRuntimeKernelInternalV1({
     initialState,
     stateAdapter: Object.freeze({
@@ -2259,6 +2360,16 @@ export function createManagedSurfaceStableCompositeRuntimeKernelInternalV1(input
         state: ManagedSurfaceStableCompositeStateInternalV1,
         nextTransientState: ManagedSurfaceReducerStateV1,
       ) => replaceTransientStateInternalV1(state, nextTransientState),
+      prepareTerminalTransientTransition: (
+        _currentState: ManagedSurfaceStableCompositeStateInternalV1,
+        reducerSuccessorState: ManagedSurfaceStableCompositeStateInternalV1,
+      ) =>
+        Object.freeze({
+          state: reducerSuccessorState,
+          commitGate: () => {
+            Reflect.apply(disposePublisherLeaseRegistry, publisherLeaseRegistry, []);
+          },
+        }),
       validateInstallState: validateCompositeStateInstallInternalV1,
       finalizeInstallState: finalizeCompositeStateInstallInternalV1,
     }),

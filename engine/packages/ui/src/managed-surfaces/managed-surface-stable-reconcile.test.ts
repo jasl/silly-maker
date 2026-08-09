@@ -18,7 +18,10 @@ import {
   type ManagedSurfaceSlotIdV1,
 } from "./managed-surface-contracts.ts";
 import { createManagedSurfaceCoordinatorFacadeInternalV1 } from "./managed-surface-coordinator.ts";
-import { createManagedSurfaceReducerStateV1 } from "./managed-surface-reducer.ts";
+import {
+  createManagedSurfaceReducerStateV1,
+  reduceManagedSurfaceV1,
+} from "./managed-surface-reducer.ts";
 import {
   createManagedSurfaceStableAdmissionAuthorityInternalV1,
   type ManagedSurfaceStableAcceptedBaselineInternalV1,
@@ -29,6 +32,7 @@ import {
 } from "./managed-surface-stable-admission.ts";
 import {
   allocateManagedSurfaceStableRuntimeAttemptInternalV1,
+  compareManagedSurfaceStableCompositePrivateProvenanceInternalV1,
   createManagedSurfaceStableCompositeStateInternalV1,
   createManagedSurfaceStableCompositeRuntimeKernelInternalV1,
   createManagedSurfaceStableGapRuntimeBindingInternalV1,
@@ -642,6 +646,39 @@ describe("dormant managed stable atomic reconcile", () => {
     ).not.toThrow();
   });
 
+  it("rejects an already-terminal initial projection without burning the registry claim", () => {
+    const fixture = constructionFixtureV1();
+    const terminalTransientState = reduceManagedSurfaceV1(
+      fixture.initialTransientState,
+      Object.freeze({ kind: "dispose_coordinator" }),
+    ).state;
+    expect(terminalTransientState.publication.coordinatorDisposed).toBe(true);
+
+    expect(() =>
+      createManagedSurfaceStableCompositeStateInternalV1({
+        admissionAuthority: fixture.authority,
+        publisherLeaseRegistry: fixture.registry,
+        transientState: terminalTransientState,
+      })
+    ).toThrow("ui.managed_surface_stable_composite_state_invalid");
+    expect(() =>
+      createManagedSurfaceStableCompositeRuntimeKernelInternalV1({
+        admissionAuthority: fixture.authority,
+        publisherLeaseRegistry: fixture.registry,
+        initialTransientState: terminalTransientState,
+      })
+    ).toThrow("ui.managed_surface_stable_composite_state_invalid");
+    expect(fixture.registry.getSnapshot().disposed).toBe(false);
+
+    expect(
+      createManagedSurfaceStableCompositeRuntimeKernelInternalV1({
+        admissionAuthority: fixture.authority,
+        publisherLeaseRegistry: fixture.registry,
+        initialTransientState: fixture.initialTransientState,
+      }),
+    ).toBeDefined();
+  });
+
   it("rejects a second specialized kernel and second claim with exact zero state", () => {
     const fixture = constructionFixtureV1();
     const first = createManagedSurfaceStableCompositeRuntimeKernelInternalV1({
@@ -724,6 +761,227 @@ describe("dormant managed stable atomic reconcile", () => {
     );
     expect(trapCalls).toBe(0);
     expect(disposed.kernel.getStateInternalV1()).toBe(disposedState);
+  });
+
+  it("atomically terminal-disposes transient and stable runtime through one registry gate", () => {
+    const diagnostics = vi.fn();
+    const harness = harnessV1({
+      registerNarrative: true,
+      reportSubscriberFailure: diagnostics,
+    });
+    const coordinator = createManagedSurfaceCoordinatorFacadeInternalV1(harness.kernel);
+    const root = rawRootV1(harness.workspace);
+    const child = rawChildV1(harness.workspace, root.occurrenceId);
+    expect(applyV1(harness, admitV1(harness, [root, child])).kind).toBe("applied");
+    settleRootAndChildV1(harness);
+
+    const replacement = rawRootV1(harness.workspace, replacementDefinitionV1);
+    expect(applyV1(harness, admitV1(harness, [replacement])).kind).toBe("applied");
+    const replacementState = harness.kernel.getStateInternalV1();
+    expect(replacementState.stableAcceptedBaselines).toHaveLength(2);
+    expect(replacementState.stableRuntimeBindings).toHaveLength(1);
+    expect(replacementState.stableRuntimeBindings[0]?.binding).toMatchObject({
+      kind: "preparing",
+      transition: "primary_replacement",
+    });
+    if (replacementState.stableRuntimeBindings[0]?.binding.kind !== "preparing") {
+      throw new Error("expected replacement preparation");
+    }
+    expect(replacementState.stableRuntimeBindings[0].binding.retainedSubtree).not.toBeNull();
+
+    const transientPreparation = coordinator.openTransientPrimary({
+      definition: narrativeRootSidecarV1.definition,
+      semanticOccurrenceId: "semantic.terminal-transient",
+    });
+    expect(transientPreparation.receipt).toMatchObject({
+      kind: "applied",
+      code: "surface.preparation_started",
+    });
+    const before = harness.kernel.getStateInternalV1();
+    const previousGeneration = before.rootReservationGenerationToken;
+    const previousHighWater = before.transientState.identitySequenceHighWater;
+    const previousResolvedOwnerIds = before.transientState.resolvedOwnerIds;
+    const previousResolvedSlotDescriptors = before.transientState.resolvedSlotDescriptors;
+    const previousDisposedOwnerIds = before.transientState.disposedOwnerIds;
+    const stalePreparedInstall = harness.kernel.prepareStateInstallInternalV1(before, before);
+    expect(before.rootReservationContributors.length).toBeGreaterThan(0);
+    expect(before.transientState.publication.orderedInstances).toHaveLength(1);
+
+    const trace: string[] = [];
+    let nestedRepeat: ReturnType<typeof coordinator.dispose> | null = null;
+    harness.kernel.subscribeTransientInternalV1(() => {
+      throw new Error("terminal transient listener failed");
+    });
+    harness.kernel.subscribeTransientInternalV1(() => {
+      trace.push("transient");
+      const installed = harness.kernel.getStateInternalV1();
+      expect(installed.transientState.publication.coordinatorDisposed).toBe(true);
+      expect(installed.stableAcceptedBaselines).toEqual([]);
+      expect(installed.stableRuntimeBindings).toEqual([]);
+      expect(harness.registry.getSnapshot().disposed).toBe(true);
+      nestedRepeat = coordinator.dispose();
+    });
+    harness.kernel.subscribeStateInternalV1(() => {
+      trace.push("state");
+      expect(harness.kernel.getStateInternalV1().transientState.publication.coordinatorDisposed)
+        .toBe(true);
+      expect(harness.registry.getSnapshot().disposed).toBe(true);
+    });
+
+    const receipt = coordinator.dispose();
+
+    expect(receipt).toEqual({
+      kind: "applied",
+      code: "surface.coordinator_disposed",
+      beforeTopologyRevision: before.transientState.publication.topologyRevision,
+      afterTopologyRevision: before.transientState.publication.topologyRevision + 1,
+    });
+    expect(nestedRepeat).toEqual({
+      kind: "unchanged",
+      code: "surface.coordinator_already_disposed",
+      beforeTopologyRevision: receipt.afterTopologyRevision,
+      afterTopologyRevision: receipt.afterTopologyRevision,
+    });
+    expect(trace).toEqual(["transient", "state"]);
+    expect(diagnostics).toHaveBeenCalledOnce();
+
+    const terminal = harness.kernel.getStateInternalV1();
+    expect(terminal.stableAcceptedBaselines).toEqual([]);
+    expect(terminal.stableRuntimeBindings).toEqual([]);
+    expect(terminal.rootReservationContributors).toEqual([]);
+    expect(terminal.rootReservationGenerationToken).not.toBe(previousGeneration);
+    expect(terminal.transientState.publication.orderedInstances).toEqual([]);
+    expect(terminal.transientState.publication.preparationFallbacks).toEqual([]);
+    expect(terminal.transientState.identitySequenceHighWater).toBe(previousHighWater);
+    expect(terminal.transientState.resolvedOwnerIds).toEqual(previousResolvedOwnerIds);
+    expect(terminal.transientState.resolvedSlotDescriptors).toEqual(
+      previousResolvedSlotDescriptors,
+    );
+    expect(terminal.transientState.disposedOwnerIds).toEqual(previousDisposedOwnerIds);
+    const privateProvenance = compareManagedSurfaceStableCompositePrivateProvenanceInternalV1(
+      before,
+      terminal,
+    );
+    expect(Object.isFrozen(privateProvenance)).toBe(true);
+    expect(Object.isFrozen(privateProvenance.boundRuntimeAttempts)).toBe(true);
+    expect(Object.isFrozen(privateProvenance.pendingRuntimeAttempts)).toBe(true);
+    expect(Object.isFrozen(privateProvenance.stableContributorCandidates)).toBe(true);
+    expect(Object.isFrozen(privateProvenance.after)).toBe(true);
+    expect(privateProvenance.sameOrigin).toBe(true);
+    expect(privateProvenance.sameAdmissionAuthority).toBe(true);
+    expect(privateProvenance.samePublisherLeaseRegistry).toBe(true);
+    expect(privateProvenance.boundRuntimeAttempts).toMatchObject({
+      sameIdentity: false,
+      afterSize: 0,
+    });
+    expect(privateProvenance.boundRuntimeAttempts.beforeSize).toBeGreaterThan(0);
+    expect(privateProvenance.pendingRuntimeAttempts).toEqual({
+      sameIdentity: false,
+      beforeSize: 0,
+      afterSize: 0,
+    });
+    expect(privateProvenance.stableContributorCandidates).toMatchObject({
+      sameIdentity: false,
+      afterSize: 0,
+    });
+    expect(privateProvenance.stableContributorCandidates.beforeSize).toBeGreaterThan(0);
+    expect(privateProvenance.after).toEqual({
+      installable: true,
+      derivedFromPresent: false,
+      derivationDepth: 0,
+    });
+    const staleGate = vi.fn(() => true);
+    expect(
+      harness.kernel.commitPreparedStateInstallInternalV1(stalePreparedInstall, staleGate),
+    ).toBe("stale");
+    expect(staleGate).not.toHaveBeenCalled();
+    expect(harness.registry.inspectCurrentLease(harness.workspace.lease)).toBeNull();
+    expect(harness.registry.inspectCurrentLease(harness.narrative.lease)).toBeNull();
+    expect(() => harness.workspace.issueSourceRevision()).toThrow(
+      "ui.managed_surface_stable_publisher_lease_disposed",
+    );
+    expect(() => harness.kernel.subscribeStateInternalV1(() => {})).toThrow(
+      "ui.managed_surface_coordinator_disposed",
+    );
+  });
+
+  it("terminal-converges after raw registry disposal at exhausted identity capacity", () => {
+    const harness = harnessV1({ identitySequenceHighWater: Number.MAX_SAFE_INTEGER });
+    const coordinator = createManagedSurfaceCoordinatorFacadeInternalV1(harness.kernel);
+    expect(applyV1(harness, admitV1(harness, [])).kind).toBe("applied");
+    const before = harness.kernel.getStateInternalV1();
+    const previousGeneration = before.rootReservationGenerationToken;
+    const previousHighWater = before.transientState.identitySequenceHighWater;
+    expect(harness.registry.dispose()).toBe("disposed");
+
+    expect(coordinator.dispose()).toEqual({
+      kind: "applied",
+      code: "surface.coordinator_disposed",
+      beforeTopologyRevision: before.transientState.publication.topologyRevision,
+      afterTopologyRevision: before.transientState.publication.topologyRevision + 1,
+    });
+    const terminal = harness.kernel.getStateInternalV1();
+    expect(terminal.transientState.publication.coordinatorDisposed).toBe(true);
+    expect(terminal.stableAcceptedBaselines).toEqual([]);
+    expect(terminal.stableRuntimeBindings).toEqual([]);
+    expect(terminal.rootReservationContributors).toEqual([]);
+    expect(terminal.rootReservationGenerationToken).toBe(previousGeneration);
+    expect(terminal.transientState.identitySequenceHighWater).toBe(previousHighWater);
+    const privateProvenance = compareManagedSurfaceStableCompositePrivateProvenanceInternalV1(
+      before,
+      terminal,
+    );
+    expect(privateProvenance.boundRuntimeAttempts).toEqual({
+      sameIdentity: false,
+      beforeSize: 0,
+      afterSize: 0,
+    });
+    expect(privateProvenance.pendingRuntimeAttempts).toEqual({
+      sameIdentity: false,
+      beforeSize: 0,
+      afterSize: 0,
+    });
+    expect(privateProvenance.stableContributorCandidates).toEqual({
+      sameIdentity: false,
+      beforeSize: 0,
+      afterSize: 0,
+    });
+    expect(harness.registry.getSnapshot().disposed).toBe(true);
+    expect(coordinator.dispose()).toMatchObject({
+      kind: "unchanged",
+      code: "surface.coordinator_already_disposed",
+    });
+  });
+
+  it("clears initial preparation and parent-unavailable gap without allocating during disposal", () => {
+    const harness = harnessV1();
+    const coordinator = createManagedSurfaceCoordinatorFacadeInternalV1(harness.kernel);
+    const root = rawRootV1(harness.workspace);
+    const child = rawChildV1(harness.workspace, root.occurrenceId);
+    expect(applyV1(harness, admitV1(harness, [root, child])).kind).toBe("applied");
+    const before = harness.kernel.getStateInternalV1();
+    expect(before.stableAcceptedBaselines).toHaveLength(1);
+    expect(before.stableRuntimeBindings.map((entry) => entry.binding)).toMatchObject([
+      { kind: "preparing", transition: "initial_open" },
+      { kind: "gap", reason: "parent_unavailable" },
+    ]);
+    expect(before.rootReservationContributors.length).toBeGreaterThan(0);
+
+    expect(coordinator.dispose()).toMatchObject({
+      kind: "applied",
+      code: "surface.coordinator_disposed",
+    });
+    const terminal = harness.kernel.getStateInternalV1();
+    expect(terminal.stableAcceptedBaselines).toEqual([]);
+    expect(terminal.stableRuntimeBindings).toEqual([]);
+    expect(terminal.rootReservationContributors).toEqual([]);
+    expect(terminal.rootReservationGenerationToken).not.toBe(
+      before.rootReservationGenerationToken,
+    );
+    expect(terminal.transientState.identitySequenceHighWater).toBe(
+      before.transientState.identitySequenceHighWater,
+    );
+    expect(harness.registry.getSnapshot().disposed).toBe(true);
   });
 
   it("installs initial root preparation and child gap in one exact commit", () => {

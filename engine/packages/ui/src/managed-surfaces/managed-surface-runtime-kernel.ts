@@ -34,6 +34,20 @@ export interface ManagedSurfaceRuntimeKernelStateAdapterInternalV1<TState> {
     readonly state: TState;
     readonly receipt: ManagedSurfaceTransitionReceiptV1;
   }>;
+  /**
+   * First-terminal-only prepare/gate seam. The reducer receipt is the sole
+   * terminal classifier. Repository adapters provide a no-throw commit gate;
+   * a throwing gate keeps the prepared state uninstalled and unnotified.
+   */
+  prepareTerminalTransientTransition?(
+    currentState: TState,
+    reducerSuccessorState: TState,
+    operation: ManagedSurfaceOperationV1,
+    reducerReceipt: ManagedSurfaceTransitionReceiptV1,
+  ): Readonly<{
+    readonly state: TState;
+    readonly commitGate: () => void;
+  }>;
   validateInstallState?(currentState: TState, nextState: TState): void;
   /** Must not throw. Runs after assignment and before listener notification. */
   finalizeInstallState?(nextState: TState): void;
@@ -115,6 +129,7 @@ export function createManagedSurfaceRuntimeKernelInternalV1<TState>(
   const getTransientState = stateAdapter.getTransientState;
   const replaceTransientState = stateAdapter.replaceTransientState;
   const finalizeTransientTransition = stateAdapter.finalizeTransientTransition;
+  const prepareTerminalTransientTransition = stateAdapter.prepareTerminalTransientTransition;
   const validateInstallState = stateAdapter.validateInstallState;
   const finalizeInstallState = stateAdapter.finalizeInstallState;
   const reportSubscriberFailure = input.reportSubscriberFailure;
@@ -262,31 +277,63 @@ export function createManagedSurfaceRuntimeKernelInternalV1<TState>(
             previousState,
             reducerResult.state,
           ]) as TState;
+        const firstTerminalCoordinatorReceipt = reducerResult.receipt.kind === "applied" &&
+          reducerResult.receipt.code === "surface.coordinator_disposed";
         const terminalCoordinatorReceipt = reducerResult.receipt.code ===
             "surface.coordinator_disposed" ||
           reducerResult.receipt.code === "surface.coordinator_already_disposed";
-        const finalized = finalizeTransientTransition === undefined || terminalCoordinatorReceipt
-          ? Object.freeze({ state: reducerSuccessorState, receipt: reducerResult.receipt })
-          : Reflect.apply(finalizeTransientTransition, stateAdapter, [
-            previousState,
-            reducerSuccessorState,
-            operation,
-            reducerResult.receipt,
-          ]) as Readonly<{
+        let terminalCommitGate: (() => void) | undefined;
+        let finalizedState: TState;
+        let finalizedReceipt: ManagedSurfaceTransitionReceiptV1;
+        if (
+          firstTerminalCoordinatorReceipt &&
+          prepareTerminalTransientTransition !== undefined
+        ) {
+          const preparedTerminal = Reflect.apply(
+            prepareTerminalTransientTransition,
+            stateAdapter,
+            [
+              previousState,
+              reducerSuccessorState,
+              operation,
+              reducerResult.receipt,
+            ],
+          ) as Readonly<{
             readonly state: TState;
-            readonly receipt: ManagedSurfaceTransitionReceiptV1;
+            readonly commitGate: () => void;
           }>;
-        const finalizedState = finalized.state;
-        const finalizedReceipt = finalized.receipt;
+          finalizedState = preparedTerminal.state;
+          terminalCommitGate = preparedTerminal.commitGate;
+          finalizedReceipt = reducerResult.receipt;
+        } else {
+          const finalized = finalizeTransientTransition === undefined ||
+              terminalCoordinatorReceipt
+            ? Object.freeze({ state: reducerSuccessorState, receipt: reducerResult.receipt })
+            : Reflect.apply(finalizeTransientTransition, stateAdapter, [
+              previousState,
+              reducerSuccessorState,
+              operation,
+              reducerResult.receipt,
+            ]) as Readonly<{
+              readonly state: TState;
+              readonly receipt: ManagedSurfaceTransitionReceiptV1;
+            }>;
+          finalizedState = finalized.state;
+          finalizedReceipt = finalized.receipt;
+        }
         const prepared = prepareInstallRecord(
           previousState,
           finalizedState,
           previousTransientState,
         );
+        const nextState = prepared.nextState;
         notification = captureInstallNotification(prepared);
-        state = prepared.nextState;
+        if (terminalCommitGate !== undefined) {
+          Reflect.apply(terminalCommitGate, undefined, []);
+        }
+        state = nextState;
         if (finalizeInstallState !== undefined) {
-          Reflect.apply(finalizeInstallState, stateAdapter, [prepared.nextState]);
+          Reflect.apply(finalizeInstallState, stateAdapter, [nextState]);
         }
         receipt = finalizedReceipt;
       } finally {

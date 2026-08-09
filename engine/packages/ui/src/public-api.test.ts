@@ -68,6 +68,10 @@ import type { ManagedSurfaceRuntimeAuthorityInternalV1 as ForbiddenInternalRunti
 import type { ManagedSurfaceStableCompositeStateInternalV1 as ForbiddenPublicStableCompositeStateV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose stable composite state.
 import type { ManagedSurfaceStableCompositeStateInternalV1 as ForbiddenInternalStableCompositeStateV1 } from "./internal.ts";
+// @ts-expect-error Stable composite private-provenance comparisons stay source-relative.
+import type { ManagedSurfaceStableCompositePrivateProvenanceComparisonInternalV1 as ForbiddenPublicStableCompositePrivateProvenanceV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose stable composite private provenance.
+import type { ManagedSurfaceStableCompositePrivateProvenanceComparisonInternalV1 as ForbiddenInternalStableCompositePrivateProvenanceV1 } from "./internal.ts";
 // @ts-expect-error Dormant stable runtime bindings stay source-relative.
 import type { ManagedSurfaceStableRuntimeBindingInternalV1 as ForbiddenPublicStableRuntimeBindingV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose stable runtime bindings.
@@ -166,6 +170,7 @@ describe("@sillymaker/ui public managed System surface", () => {
         "createManagedSurfaceRuntimeKernelInternalV1",
         "createManagedSurfaceCoordinatorRuntimeBundleInternalV1",
         "createManagedSurfaceStableCompositeStateInternalV1",
+        "compareManagedSurfaceStableCompositePrivateProvenanceInternalV1",
         "reconcileManagedSurfaceStableRootReservationsInternalV1",
         "createManagedSurfaceCoordinatorFacadeInternalV1",
         "createManagedSurfaceRuntimeAuthorityInternalV1",
