@@ -3,8 +3,10 @@ import { parseNonNegativeSafeInteger, parsePositiveSafeInteger } from "@sillymak
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  type ManagedSurfaceOperationV1,
   type ManagedSurfaceResolvedDefinitionV1,
   type ManagedSurfaceResolvedSlotDescriptorV1,
+  type ManagedSurfaceTransitionReceiptV1,
   parseManagedSurfaceActionIdV1,
   parseManagedSurfaceDefinitionIdV1,
   parseManagedSurfaceFocusTargetIdV1,
@@ -20,6 +22,7 @@ import {
 import {
   createManagedSurfaceReducerStateV1,
   type ManagedSurfaceReducerStateV1,
+  reduceManagedSurfaceV1,
 } from "./managed-surface-reducer.ts";
 import {
   createManagedSurfaceCoordinatorRuntimeBundleInternalV1,
@@ -109,6 +112,18 @@ function stateWithHighWaterV1(
     ...state,
     identitySequenceHighWater: parseNonNegativeSafeInteger(identitySequenceHighWater),
   });
+}
+
+interface WrappedRuntimeStateV1 {
+  readonly transientState: ManagedSurfaceReducerStateV1;
+  readonly marker: string;
+}
+
+function wrappedRuntimeStateV1(
+  transientState: ManagedSurfaceReducerStateV1,
+  marker: string,
+): WrappedRuntimeStateV1 {
+  return Object.freeze({ transientState, marker });
 }
 
 describe("managed surface runtime authority", () => {
@@ -584,6 +599,408 @@ describe("managed surface runtime authority", () => {
     expect(nestedCalls).toEqual(["a:5", "a:6", "b:6", "b:6"]);
     expect(runtime.kernel.getStateInternalV1().identitySequenceHighWater).toBe(6);
     expect(transientListener).not.toHaveBeenCalled();
+  });
+
+  it("keeps the exact reducer state and receipt when no transient finalizer is present", () => {
+    const initialTransientState = createManagedSurfaceReducerStateV1(
+      applicationEpochV1,
+      Object.freeze([ownerIdV1]),
+      resolvedSlotDescriptorsV1,
+    );
+    const initialState = wrappedRuntimeStateV1(initialTransientState, "initial");
+    const operation = Object.freeze({ kind: "dispose_coordinator" as const });
+    const expected = reduceManagedSurfaceV1(initialTransientState, operation);
+    const kernel = createManagedSurfaceRuntimeKernelInternalV1<WrappedRuntimeStateV1>({
+      initialState,
+      stateAdapter: Object.freeze({
+        getTransientState: (state: WrappedRuntimeStateV1) => state.transientState,
+        replaceTransientState: (
+          state: WrappedRuntimeStateV1,
+          transientState: ManagedSurfaceReducerStateV1,
+        ) => wrappedRuntimeStateV1(transientState, state.marker),
+      }),
+    });
+
+    expect(kernel.transitionTransientInternalV1(operation)).toEqual(expected.receipt);
+    expect(kernel.getStateInternalV1()).not.toBe(initialState);
+    expect(kernel.getStateInternalV1()).toEqual({
+      transientState: expected.state,
+      marker: "initial",
+    });
+    expect(kernel.getTransientStateInternalV1()).toEqual(expected.state);
+  });
+
+  it("captures one exact-receiver transient finalizer and installs its combined successor", () => {
+    type WrappedKernelV1 = ReturnType<
+      typeof createManagedSurfaceRuntimeKernelInternalV1<WrappedRuntimeStateV1>
+    >;
+    const initialTransientState = createManagedSurfaceReducerStateV1(
+      applicationEpochV1,
+      Object.freeze([ownerIdV1]),
+      resolvedSlotDescriptorsV1,
+    );
+    const initialState = wrappedRuntimeStateV1(initialTransientState, "initial");
+    const trace: string[] = [];
+    let captureCount = 0;
+    let callbackCount = 0;
+    let kernel!: WrappedKernelV1;
+    let expectedOperation!: ManagedSurfaceOperationV1;
+    let combinedState: WrappedRuntimeStateV1 | null = null;
+
+    const finalizer = function (
+      this: unknown,
+      currentState: WrappedRuntimeStateV1,
+      reducerSuccessorState: WrappedRuntimeStateV1,
+      operation: ManagedSurfaceOperationV1,
+      reducerReceipt: ManagedSurfaceTransitionReceiptV1,
+    ) {
+      callbackCount += 1;
+      expect(this).toBe(stateAdapter);
+      expect(currentState).toBe(initialState);
+      expect(reducerSuccessorState).not.toBe(currentState);
+      expect(reducerSuccessorState.marker).toBe("reducer");
+      expect(operation).toBe(expectedOperation);
+      expect(reducerReceipt).toMatchObject({
+        kind: "applied",
+        code: "surface.preparation_started",
+        surfaceInstanceId: "surface-instance.e17.n1",
+      });
+      expect(() => kernel.transitionStateInternalV1((state) => ({ state, result: undefined })))
+        .toThrowError("ui.managed_surface_runtime_transition_in_progress");
+      expect(() => kernel.transitionTransientInternalV1({ kind: "dispose_coordinator" }))
+        .toThrowError("ui.managed_surface_runtime_transition_in_progress");
+      combinedState = wrappedRuntimeStateV1(
+        reducerSuccessorState.transientState,
+        "combined",
+      );
+      trace.push(`finalizer:${operation.kind}:${reducerReceipt.code}`);
+      return Object.freeze({ state: combinedState, receipt: reducerReceipt });
+    };
+    const stateAdapter = Object.freeze({
+      getTransientState: (state: WrappedRuntimeStateV1) => state.transientState,
+      replaceTransientState: (
+        _state: WrappedRuntimeStateV1,
+        transientState: ManagedSurfaceReducerStateV1,
+      ) => wrappedRuntimeStateV1(transientState, "reducer"),
+      get finalizeTransientTransition() {
+        captureCount += 1;
+        return finalizer;
+      },
+    });
+    kernel = createManagedSurfaceRuntimeKernelInternalV1<WrappedRuntimeStateV1>({
+      initialState,
+      stateAdapter,
+    });
+    expect(captureCount).toBe(1);
+
+    kernel.subscribeTransientInternalV1(() => {
+      const current = kernel.getStateInternalV1();
+      trace.push(`transient:${current.marker}`);
+      expect(current).toBe(combinedState);
+      kernel.transitionStateInternalV1((state) => ({
+        state: wrappedRuntimeStateV1(state.transientState, "nested"),
+        result: undefined,
+      }));
+    });
+    kernel.subscribeStateInternalV1(() => {
+      trace.push(`state:${kernel.getStateInternalV1().marker}`);
+    });
+
+    const candidate = kernel.peekTransientCandidateInternalV1({
+      definition: parseManagedSurfaceResolvedDefinitionV1(definitionV1()),
+      semanticOccurrenceId: "semantic.combined",
+    });
+    expectedOperation = Object.freeze({
+      kind: "prepare_initial",
+      applicationEpoch: applicationEpochV1,
+      candidate,
+    });
+    const receipt = kernel.transitionTransientInternalV1(expectedOperation);
+
+    expect(receipt).toMatchObject({
+      kind: "applied",
+      code: "surface.preparation_started",
+      surfaceInstanceId: "surface-instance.e17.n1",
+    });
+    expect(callbackCount).toBe(1);
+    expect(captureCount).toBe(1);
+    expect(kernel.getStateInternalV1().marker).toBe("nested");
+    expect(trace).toEqual([
+      "finalizer:prepare_initial:surface.preparation_started",
+      "transient:combined",
+      "state:nested",
+      "state:nested",
+    ]);
+  });
+
+  it("can atomically replace a transient successor with the old state and an existing fault receipt", () => {
+    type WrappedKernelV1 = ReturnType<
+      typeof createManagedSurfaceRuntimeKernelInternalV1<WrappedRuntimeStateV1>
+    >;
+    const initialTransientState = createManagedSurfaceReducerStateV1(
+      applicationEpochV1,
+      Object.freeze([ownerIdV1]),
+      resolvedSlotDescriptorsV1,
+    );
+    const initialState = wrappedRuntimeStateV1(initialTransientState, "initial");
+    let kernel!: WrappedKernelV1;
+    const stateAdapter = Object.freeze({
+      getTransientState: (state: WrappedRuntimeStateV1) => state.transientState,
+      replaceTransientState: (
+        _state: WrappedRuntimeStateV1,
+        transientState: ManagedSurfaceReducerStateV1,
+      ) => wrappedRuntimeStateV1(transientState, "reducer"),
+      finalizeTransientTransition(
+        currentState: WrappedRuntimeStateV1,
+        reducerSuccessorState: WrappedRuntimeStateV1,
+        operation: ManagedSurfaceOperationV1,
+        reducerReceipt: ManagedSurfaceTransitionReceiptV1,
+      ) {
+        expect(reducerSuccessorState).not.toBe(currentState);
+        expect(operation.kind).toBe("prepare_initial");
+        expect(reducerReceipt).toMatchObject({
+          kind: "applied",
+          code: "surface.preparation_started",
+          surfaceInstanceId: "surface-instance.e17.n1",
+        });
+        expect(() => kernel.prepareStateInstallInternalV1(currentState, reducerSuccessorState))
+          .toThrowError("ui.managed_surface_runtime_transition_in_progress");
+        return Object.freeze({
+          state: currentState,
+          receipt: Object.freeze({
+            kind: "faulted" as const,
+            code: "surface.transition_faulted" as const,
+            beforeTopologyRevision: currentState.transientState.publication.topologyRevision,
+            afterTopologyRevision: currentState.transientState.publication.topologyRevision,
+          }),
+        });
+      },
+    });
+    kernel = createManagedSurfaceRuntimeKernelInternalV1<WrappedRuntimeStateV1>({
+      initialState,
+      stateAdapter,
+    });
+    const stateListener = vi.fn();
+    const transientListener = vi.fn();
+    kernel.subscribeStateInternalV1(stateListener);
+    kernel.subscribeTransientInternalV1(transientListener);
+    const request = Object.freeze({
+      definition: parseManagedSurfaceResolvedDefinitionV1(definitionV1()),
+      semanticOccurrenceId: "semantic.rollback",
+    });
+    const candidate = kernel.peekTransientCandidateInternalV1(request);
+    const receipt = kernel.transitionTransientInternalV1(Object.freeze({
+      kind: "prepare_initial",
+      applicationEpoch: applicationEpochV1,
+      candidate,
+    }));
+
+    expect(receipt).toEqual({
+      kind: "faulted",
+      code: "surface.transition_faulted",
+      beforeTopologyRevision: 0,
+      afterTopologyRevision: 0,
+    });
+    expect(Object.keys(receipt)).toEqual([
+      "kind",
+      "code",
+      "beforeTopologyRevision",
+      "afterTopologyRevision",
+    ]);
+    expect("surfaceInstanceId" in receipt).toBe(false);
+    expect(kernel.getStateInternalV1()).toBe(initialState);
+    expect(kernel.getTransientStateInternalV1()).toBe(initialTransientState);
+    expect(kernel.peekTransientCandidateInternalV1(request)).toEqual(candidate);
+    expect(stateListener).not.toHaveBeenCalled();
+    expect(transientListener).not.toHaveBeenCalled();
+  });
+
+  it("keeps the old state and releases the shared fence when the transient finalizer throws", () => {
+    const initialTransientState = createManagedSurfaceReducerStateV1(
+      applicationEpochV1,
+      Object.freeze([ownerIdV1]),
+      resolvedSlotDescriptorsV1,
+    );
+    const initialState = wrappedRuntimeStateV1(initialTransientState, "initial");
+    let shouldThrow = true;
+    const stateAdapter = Object.freeze({
+      getTransientState: (state: WrappedRuntimeStateV1) => state.transientState,
+      replaceTransientState: (
+        _state: WrappedRuntimeStateV1,
+        transientState: ManagedSurfaceReducerStateV1,
+      ) => wrappedRuntimeStateV1(transientState, "reducer"),
+      finalizeTransientTransition(
+        _currentState: WrappedRuntimeStateV1,
+        reducerSuccessorState: WrappedRuntimeStateV1,
+        _operation: ManagedSurfaceOperationV1,
+        reducerReceipt: ManagedSurfaceTransitionReceiptV1,
+      ) {
+        if (shouldThrow) {
+          shouldThrow = false;
+          throw new Error("transient finalizer failed");
+        }
+        return Object.freeze({ state: reducerSuccessorState, receipt: reducerReceipt });
+      },
+    });
+    const kernel = createManagedSurfaceRuntimeKernelInternalV1<WrappedRuntimeStateV1>({
+      initialState,
+      stateAdapter,
+    });
+    const stateListener = vi.fn();
+    const transientListener = vi.fn();
+    kernel.subscribeStateInternalV1(stateListener);
+    kernel.subscribeTransientInternalV1(transientListener);
+    const request = Object.freeze({
+      definition: parseManagedSurfaceResolvedDefinitionV1(definitionV1()),
+      semanticOccurrenceId: "semantic.throw",
+    });
+    const candidate = kernel.peekTransientCandidateInternalV1(request);
+    const operation = Object.freeze({
+      kind: "prepare_initial" as const,
+      applicationEpoch: applicationEpochV1,
+      candidate,
+    });
+
+    expect(() => kernel.transitionTransientInternalV1(operation)).toThrowError(
+      "transient finalizer failed",
+    );
+    expect(kernel.getStateInternalV1()).toBe(initialState);
+    expect(kernel.getTransientStateInternalV1()).toBe(initialTransientState);
+    expect(stateListener).not.toHaveBeenCalled();
+    expect(transientListener).not.toHaveBeenCalled();
+    expect(
+      kernel.transitionStateInternalV1((state) => ({ state, result: "released" })),
+    ).toBe("released");
+
+    expect(kernel.transitionTransientInternalV1(operation)).toMatchObject({
+      kind: "applied",
+      code: "surface.preparation_started",
+      surfaceInstanceId: "surface-instance.e17.n1",
+    });
+    expect(kernel.getStateInternalV1().marker).toBe("reducer");
+    expect(kernel.getTransientStateInternalV1().identitySequenceHighWater).toBe(1);
+    expect(stateListener).toHaveBeenCalledOnce();
+    expect(transientListener).toHaveBeenCalledOnce();
+  });
+
+  it("captures the complete transient finalizer output before installing its state", () => {
+    const initialTransientState = createManagedSurfaceReducerStateV1(
+      applicationEpochV1,
+      Object.freeze([ownerIdV1]),
+      resolvedSlotDescriptorsV1,
+    );
+    const initialState = wrappedRuntimeStateV1(initialTransientState, "initial");
+    let stateReads = 0;
+    let receiptReads = 0;
+    const stateAdapter = Object.freeze({
+      getTransientState: (state: WrappedRuntimeStateV1) => state.transientState,
+      replaceTransientState: (
+        _state: WrappedRuntimeStateV1,
+        transientState: ManagedSurfaceReducerStateV1,
+      ) => wrappedRuntimeStateV1(transientState, "reducer"),
+      finalizeTransientTransition(
+        _currentState: WrappedRuntimeStateV1,
+        reducerSuccessorState: WrappedRuntimeStateV1,
+      ) {
+        return Object.freeze({
+          get state(): WrappedRuntimeStateV1 {
+            stateReads += 1;
+            if (stateReads !== 1) throw new Error("transient state re-read");
+            return reducerSuccessorState;
+          },
+          get receipt(): never {
+            receiptReads += 1;
+            throw new Error("transient receipt capture failed");
+          },
+        });
+      },
+    });
+    const kernel = createManagedSurfaceRuntimeKernelInternalV1<WrappedRuntimeStateV1>({
+      initialState,
+      stateAdapter,
+    });
+    const stateListener = vi.fn();
+    const transientListener = vi.fn();
+    kernel.subscribeStateInternalV1(stateListener);
+    kernel.subscribeTransientInternalV1(transientListener);
+    const request = Object.freeze({
+      definition: parseManagedSurfaceResolvedDefinitionV1(definitionV1()),
+      semanticOccurrenceId: "semantic.receipt-capture",
+    });
+    const candidate = kernel.peekTransientCandidateInternalV1(request);
+
+    expect(() =>
+      kernel.transitionTransientInternalV1(Object.freeze({
+        kind: "prepare_initial",
+        applicationEpoch: applicationEpochV1,
+        candidate,
+      }))
+    ).toThrowError("transient receipt capture failed");
+    expect(stateReads).toBe(1);
+    expect(receiptReads).toBe(1);
+    expect(kernel.getStateInternalV1()).toBe(initialState);
+    expect(kernel.getTransientStateInternalV1()).toBe(initialTransientState);
+    expect(kernel.peekTransientCandidateInternalV1(request)).toEqual(candidate);
+    expect(stateListener).not.toHaveBeenCalled();
+    expect(transientListener).not.toHaveBeenCalled();
+    expect(
+      kernel.transitionStateInternalV1((state) => ({ state, result: "released" })),
+    ).toBe("released");
+  });
+
+  it("keeps terminal coordinator disposal outside the generic transient finalizer", () => {
+    const initialTransientState = createManagedSurfaceReducerStateV1(
+      applicationEpochV1,
+      Object.freeze([ownerIdV1]),
+      resolvedSlotDescriptorsV1,
+    );
+    const initialState = wrappedRuntimeStateV1(initialTransientState, "initial");
+    const finalizer = vi.fn((
+      _currentState: WrappedRuntimeStateV1,
+      _reducerSuccessorState: WrappedRuntimeStateV1,
+      _operation: ManagedSurfaceOperationV1,
+      reducerReceipt: ManagedSurfaceTransitionReceiptV1,
+    ) => Object.freeze({ state: initialState, receipt: reducerReceipt }));
+    const kernel = createManagedSurfaceRuntimeKernelInternalV1<WrappedRuntimeStateV1>({
+      initialState,
+      stateAdapter: Object.freeze({
+        getTransientState: (state: WrappedRuntimeStateV1) => state.transientState,
+        replaceTransientState: (
+          _state: WrappedRuntimeStateV1,
+          transientState: ManagedSurfaceReducerStateV1,
+        ) => wrappedRuntimeStateV1(transientState, "terminal"),
+        finalizeTransientTransition: finalizer,
+      }),
+    });
+    const stateListener = vi.fn();
+    const transientListener = vi.fn();
+    kernel.subscribeStateInternalV1(stateListener);
+    kernel.subscribeTransientInternalV1(transientListener);
+
+    expect(kernel.transitionTransientInternalV1({ kind: "dispose_coordinator" })).toEqual({
+      kind: "applied",
+      code: "surface.coordinator_disposed",
+      beforeTopologyRevision: 0,
+      afterTopologyRevision: 1,
+    });
+    const terminalState = kernel.getStateInternalV1();
+    expect(terminalState).not.toBe(initialState);
+    expect(terminalState.marker).toBe("terminal");
+    expect(terminalState.transientState.publication.coordinatorDisposed).toBe(true);
+    expect(finalizer).not.toHaveBeenCalled();
+    expect(transientListener).toHaveBeenCalledOnce();
+    expect(stateListener).toHaveBeenCalledOnce();
+
+    expect(kernel.transitionTransientInternalV1({ kind: "dispose_coordinator" })).toEqual({
+      kind: "unchanged",
+      code: "surface.coordinator_already_disposed",
+      beforeTopologyRevision: 1,
+      afterTopologyRevision: 1,
+    });
+    expect(kernel.getStateInternalV1()).toBe(terminalState);
+    expect(finalizer).not.toHaveBeenCalled();
+    expect(transientListener).toHaveBeenCalledOnce();
+    expect(stateListener).toHaveBeenCalledOnce();
   });
 
   it("commits only same-kernel exact-current one-shot prepared installs", () => {

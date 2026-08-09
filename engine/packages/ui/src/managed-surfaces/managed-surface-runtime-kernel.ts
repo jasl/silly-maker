@@ -25,6 +25,15 @@ export interface ManagedSurfaceRuntimeKernelStateAdapterInternalV1<TState> {
     state: TState,
     nextTransientState: ManagedSurfaceReducerStateV1,
   ): TState;
+  finalizeTransientTransition?(
+    currentState: TState,
+    reducerSuccessorState: TState,
+    operation: ManagedSurfaceOperationV1,
+    reducerReceipt: ManagedSurfaceTransitionReceiptV1,
+  ): Readonly<{
+    readonly state: TState;
+    readonly receipt: ManagedSurfaceTransitionReceiptV1;
+  }>;
   validateInstallState?(currentState: TState, nextState: TState): void;
   /** Must not throw. Runs after assignment and before listener notification. */
   finalizeInstallState?(nextState: TState): void;
@@ -105,6 +114,7 @@ export function createManagedSurfaceRuntimeKernelInternalV1<TState>(
   const stateAdapter = input.stateAdapter;
   const getTransientState = stateAdapter.getTransientState;
   const replaceTransientState = stateAdapter.replaceTransientState;
+  const finalizeTransientTransition = stateAdapter.finalizeTransientTransition;
   const validateInstallState = stateAdapter.validateInstallState;
   const finalizeInstallState = stateAdapter.finalizeInstallState;
   const reportSubscriberFailure = input.reportSubscriberFailure;
@@ -241,32 +251,49 @@ export function createManagedSurfaceRuntimeKernelInternalV1<TState>(
     ): ManagedSurfaceTransitionReceiptV1 {
       beginTransition();
       let notification!: ManagedSurfaceRuntimeInstallNotificationInternalV1;
-      let result!: ReturnType<typeof reduceManagedSurfaceV1>;
+      let receipt!: ManagedSurfaceTransitionReceiptV1;
       try {
         const previousState = state;
         const previousTransientState = transientStateFor(previousState);
-        result = reduceManagedSurfaceV1(previousTransientState, operation);
-        const nextState = result.state === previousTransientState
+        const reducerResult = reduceManagedSurfaceV1(previousTransientState, operation);
+        const reducerSuccessorState = reducerResult.state === previousTransientState
           ? previousState
           : Reflect.apply(replaceTransientState, stateAdapter, [
             previousState,
-            result.state,
+            reducerResult.state,
           ]) as TState;
+        const terminalCoordinatorReceipt = reducerResult.receipt.code ===
+            "surface.coordinator_disposed" ||
+          reducerResult.receipt.code === "surface.coordinator_already_disposed";
+        const finalized = finalizeTransientTransition === undefined || terminalCoordinatorReceipt
+          ? Object.freeze({ state: reducerSuccessorState, receipt: reducerResult.receipt })
+          : Reflect.apply(finalizeTransientTransition, stateAdapter, [
+            previousState,
+            reducerSuccessorState,
+            operation,
+            reducerResult.receipt,
+          ]) as Readonly<{
+            readonly state: TState;
+            readonly receipt: ManagedSurfaceTransitionReceiptV1;
+          }>;
+        const finalizedState = finalized.state;
+        const finalizedReceipt = finalized.receipt;
         const prepared = prepareInstallRecord(
           previousState,
-          nextState,
+          finalizedState,
           previousTransientState,
         );
         notification = captureInstallNotification(prepared);
-        state = nextState;
+        state = prepared.nextState;
         if (finalizeInstallState !== undefined) {
-          Reflect.apply(finalizeInstallState, stateAdapter, [nextState]);
+          Reflect.apply(finalizeInstallState, stateAdapter, [prepared.nextState]);
         }
+        receipt = finalizedReceipt;
       } finally {
         transitionInProgress = false;
       }
       deliverInstallNotification(notification);
-      return result.receipt;
+      return receipt;
     },
     transitionStateInternalV1<TResult>(
       transition: (

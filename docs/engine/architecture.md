@@ -480,7 +480,11 @@ topology, input, focus, instance, and readiness are writable. Its only state
 owner is one composition-owned runtime authority and generic kernel: the exact
 reducer state, mutation/reentry fence, captured-listener delivery, and
 instance/routing identity cursor are shared rather than mirrored. Admission
-completes before topology mutation. Initial and child
+completes before topology mutation. Active/suspended phase derivation now runs
+through one source-relative pure topology-policy leaf. The transient reducer is
+its lossless live adapter: it supplies the existing insertion preorder and
+blocking/fallback facts, while the leaf orders only by layer plus that supplied
+preorder and never treats runtime allocation identity as z-order. Initial and child
 preparation use a code-native blocking fallback, replacement keeps the existing
 subtree until the candidate is ready, and application-epoch rotation fences
 late readiness during load, import, HMR, or another successor. After a composed
@@ -488,6 +492,16 @@ successor acknowledgment, the predecessor Root performs no family close/reset;
 successful load/import also leaves its old Saves completion stale, so it cannot
 close or finalize a fresh System root. The epoch is presentation/runtime fencing
 only and never enters a Save.
+
+The generic kernel also has an optional package-internal post-reducer
+finalization/result-override hook for future composite nonterminal reflow. It
+captures the exact adapter receiver and complete output before installation,
+shares the existing mutation fence, and defaults to the reducer's exact
+state/receipt when absent. Callback or output-capture failure installs nothing;
+successful combined installation preserves transient-before-state notification
+order and synchronous listener reentry. Terminal Coordinator disposal bypasses
+this hook and retains the reducer's terminal receipt; its registry-gated
+composite disposition remains the next independent slice.
 
 A dormant, source-relative stable composite seam now reuses that same internal
 kernel. It binds admitted targets to exact registry/configuration provenance,
@@ -511,9 +525,12 @@ and uses the claimed exact R1 disposal receiver as the no-throw commit gate, so
 registry close and composite assignment cannot expose an intermediate state;
 repeat and external divergence remain distinct. These source-relative seams expose
 neither the registry nor contributor/runtime evidence through a package barrel.
-They still do not settle stable readiness or connect stable ingress to a live
-family. The UI root and `./internal` barrels and package export map are unchanged.
-Stable readiness and Narrative migration remain planned work.
+The dormant stable contract now also freezes its dedicated readiness result/delta
+table and the cascade-aware empty/dispose delta rows, but no stateful settlement
+method consumes them yet. The seams still do not settle stable readiness or
+connect stable ingress to a live family. The UI root and `./internal` barrels and
+package export map are unchanged. Terminal composite disposition, stable
+readiness/global cascade, and Narrative migration remain planned work.
 
 ## 9. Changing the architecture
 
@@ -545,6 +562,9 @@ domain and holds dormant exact lease/baseline registration plus read-only
 admission context. It now applies exact stable proposals and performs atomic
 publisher disposal through that same owner, but it performs no readiness
 settlement, remains disconnected from every live stable family, and is not
-available through a package barrel. Stable readiness and the Narrative migration remain planned work. Target
-documents do not alter the current data flow until each migration and its
-behavior tests land.
+available through a package barrel. The live transient reducer now consumes the
+shared pure topology policy, while the dormant stable side only owns the closed
+result/delta floor. Terminal composite disposition, stable readiness/global
+cascade, and the Narrative migration remain planned work. Target documents do
+not alter the current data flow until each migration and its behavior tests
+land.

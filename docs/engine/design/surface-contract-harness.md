@@ -77,9 +77,9 @@ baseline/runtime；publisher dispose通过S1-R.1b exact receiver把effective lea
 边界：一次settlement必须在任何分配或phase安装前计算完整direct-child batch；shared identity不足时整次
 返回package-internal `faulted / surface.stable_reconcile_faulted`，parent candidate、child gaps、runtime
 high-water、reservation token与notification全部exact zero。R4不得把parent单独置ready后永久保留
-`parent_unavailable` child。现有transient reducer私有的active/suspended派生还必须先在R4a抽为唯一pure
-topology policy并由原transient路径等价复用，R4b.1才可settle stable readiness；该裁决本身没有runtime
-实现或live capability。若既有nonterminal transient/stable transition让ready-suspended stable parent恢复active，
+`parent_unavailable` child；该裁决本身没有runtime实现或live capability。随后 S1-R.4a 已把现有transient
+reducer私有的active/suspended派生抽为唯一pure topology policy并由原transient路径等价复用；R4b.1才可
+settle stable readiness。若既有nonterminal transient/stable transition让ready-suspended stable parent恢复active，
 同一composite transition也必须完成direct-child batch；capacity不足时回滚整个触发transition。Stable
 apply/empty/dispose ingress返回`faulted / surface.stable_reconcile_faulted`，transient post-reducer ingress返回
 既有`faulted / surface.transition_faulted` receipt，二者都不能先提交successor。
@@ -91,9 +91,10 @@ topology-participating equal-layer rows在R2 topology、exact retained subtree�
 能够写出正确代码”提升为作者 API 的验收条件。S1-T 与 S2 已实现，S3a–S3e
 已完成并 promotion System 的 shared composition authority、Host readiness、confirmation
 child 与 single-writer cutover；S1-R.1a corrective、S1-R.3.0、S1-R.3a 与 R3a.1 corrective 已完成，
-S1-R.1b corrective、S1-R.3b.0、S1-R.3b.1 与 S1-R.4.0 entry contract也已完成，下一独立切片为
-S1-R.4a shared runtime topology policy extraction。
-当前active execution pointer的current/next均为S1-R.4a；R3b.1与R4.0只作为completed delivery保留。
+S1-R.1b corrective、S1-R.3b.0、S1-R.3b.1、S1-R.4.0 entry contract 与 S1-R.4a 也已完成，
+下一独立切片为 S1-R.4b.0 terminal disposition。
+当前active execution pointer的current/next均为S1-R.4b.0；R3b.1、R4.0与R4a只作为completed
+delivery保留。
 当前 live 能力仍以
 [architecture](../architecture.md) 与
 [features](../features.md) 为准；执行顺序见
@@ -843,7 +844,8 @@ stable topology投影到live Coordinator/input/focus/portal/renderer，也没有
 export；Save/Persistence/canonical/digest/replay/wire均未改变。验证：focused
 `6 files / 123 tests`、UI package `75 / 882`、全量 `249 / 3810`、完整
 `deno task check` green。该checkpoint当时指向 S1-R.4 stable readiness settlement；现由下述
-S1-R.4.0 contract closure细分为R4a、R4b.0与R4b.1，并由R4a接续执行。
+S1-R.4.0 contract closure细分为R4a、R4b.0与R4b.1；该checkpoint当时由R4a接续，现由下述R4a
+delivery取代。
 
 S1-R.3.0 同时冻结R4要消费的stable-only readiness envelope。它只在source-relative dormant
 stable layer组合既有 `ManagedSurfaceReadinessEvidenceV1` attempt evidence与exact
@@ -972,6 +974,27 @@ reservation generation token，descendant-only phase变化保留exact token。Ac
 allocation edge上必需；child ready后，新的
 blocking child/higher blocker可合法让parent suspended而不取消、reparent或孤立该child，R4b.1必须相应收窄
 stable runtime validator。
+
+S1-R.4a delivery 已完成：`@sillymaker/ui` 将既有transient phase/blocking派生抽为唯一
+package-internal pure topology leaf。该leaf只消费caller提供的exact opaque subject、non-negative
+`layerOrder`、authoritative preorder、`preparing | ready` lifecycle与captured `blocksLower`，逐字段
+exact-once捕获后按layer与supplied order稳定派生frozen `preparing | active | suspended` projection；它不读取
+subject内容，也不读取runtime/allocation identity、slot、lease或其他排序来源。R3 canonical
+planning/allocation order仍是
+独立authority，不得被phase/z-order的layer排序替代。现有transient reducer已成为该leaf的lossless adapter，
+保持既有publication、receipt、revision、instance/attempt identity、blocking、notification与同步reentry语义，
+不保留第二份phase算法。
+
+同一切片也只在source-relative R0 floor新增dedicated stable readiness result/applied-delta与frozen
+readiness/cascade-aware reconcile tables，并为generic runtime kernel增加default-identity、package-internal
+nonterminal post-reducer state/receipt override seam。该seam在安装前捕获完整successor，throw或显式fault override
+都保持old state与零notification；terminal `surface.coordinator_disposed | surface.coordinator_already_disposed`
+直接绕过generic finalizer，继续由R4b.0的terminal disposition合同拥有。R4a没有新增stateful stable settlement、
+stable state mutation、live stable ingress/family或public/internal barrel export；R4b.0与R4b.1仍未实现。
+
+验证：focused `6 files / 123 tests`、UI package `76 files / 909 tests`、全量
+`250 files / 3837 tests`、`deno task check` green、browser `101/101`、examples `45 passed / 2 skipped`、
+prebuilt `38/38`。
 
 ### 3.3 Runtime session
 

@@ -204,7 +204,9 @@ export type ManagedSurfaceStableRuntimeDeltaInternalV1 =
   | "unchanged"
   | "retry_gaps"
   | "retain_retire_prepare"
-  | "retire_owned_targets";
+  | "retire_owned_targets"
+  | "retire_owned_targets_and_prepare_unblocked_children"
+  | "settle_readiness";
 export type ManagedSurfaceStableTopologyDeltaInternalV1 =
   | "unchanged"
   | "changed"
@@ -219,6 +221,14 @@ export interface ManagedSurfaceStableZeroDeltaInternalV1 {
   readonly notificationCount: 0;
   readonly topology: "unchanged";
   readonly runtimeAllocation: "zero";
+}
+
+export interface ManagedSurfaceStableReadinessAppliedDeltaInternalV1 {
+  readonly source: "unchanged";
+  readonly runtime: "settle_readiness";
+  readonly notificationCount: 1;
+  readonly topology: "readiness_policy_derived";
+  readonly runtimeAllocation: "zero" | "preparation_count";
 }
 
 export type ManagedSurfaceStablePublicationAppliedDeltaInternalV1 =
@@ -252,6 +262,13 @@ export type ManagedSurfaceStablePublicationAppliedDeltaInternalV1 =
   }
   | {
     readonly source: "accept_empty";
+    readonly runtime: "retire_owned_targets_and_prepare_unblocked_children";
+    readonly notificationCount: 1;
+    readonly topology: "readiness_policy_derived";
+    readonly runtimeAllocation: "preparation_count";
+  }
+  | {
+    readonly source: "accept_empty";
     readonly runtime: "unchanged";
     readonly notificationCount: 1;
     readonly topology: "unchanged";
@@ -272,12 +289,20 @@ export type ManagedSurfaceStablePublisherDisposedDeltaInternalV1 =
     readonly notificationCount: 1;
     readonly topology: "unchanged";
     readonly runtimeAllocation: "zero";
+  }
+  | {
+    readonly source: "remove_lease";
+    readonly runtime: "retire_owned_targets_and_prepare_unblocked_children";
+    readonly notificationCount: 1;
+    readonly topology: "readiness_policy_derived";
+    readonly runtimeAllocation: "preparation_count";
   };
 
 export type ManagedSurfaceStableDeltaInternalV1 =
   | ManagedSurfaceStableZeroDeltaInternalV1
   | ManagedSurfaceStablePublicationAppliedDeltaInternalV1
-  | ManagedSurfaceStablePublisherDisposedDeltaInternalV1;
+  | ManagedSurfaceStablePublisherDisposedDeltaInternalV1
+  | ManagedSurfaceStableReadinessAppliedDeltaInternalV1;
 
 export type ManagedSurfaceStableReconcileResultInternalV1 =
   | {
@@ -308,6 +333,23 @@ export type ManagedSurfaceStableReconcileResultInternalV1 =
   | {
     readonly kind: "faulted";
     readonly code: ManagedSurfaceStableFaultedCodeInternalV1;
+    readonly delta: ManagedSurfaceStableZeroDeltaInternalV1;
+  };
+
+export type ManagedSurfaceStableReadinessResultInternalV1 =
+  | {
+    readonly kind: "applied";
+    readonly code: "surface.readiness_ready" | "surface.readiness_failed";
+    readonly delta: ManagedSurfaceStableReadinessAppliedDeltaInternalV1;
+  }
+  | {
+    readonly kind: "stale";
+    readonly code: "surface.stale_application_epoch" | "surface.stale_readiness";
+    readonly delta: ManagedSurfaceStableZeroDeltaInternalV1;
+  }
+  | {
+    readonly kind: "faulted";
+    readonly code: "surface.stable_reconcile_faulted";
     readonly delta: ManagedSurfaceStableZeroDeltaInternalV1;
   };
 
@@ -551,19 +593,21 @@ export type ManagedSurfaceStableDeltaCaseInternalV1 =
   | "greater_changed"
   | "greater_empty_with_observable_targets"
   | "greater_empty_with_nonobservable_targets"
+  | "greater_empty_with_unblocked_children"
   | "greater_empty_without_runtime"
   | "first_empty"
   | "greater_empty_cursor_only"
   | "equal_empty"
   | "effective_dispose_with_observable_targets"
   | "effective_dispose_with_nonobservable_targets"
+  | "effective_dispose_with_unblocked_children"
   | "effective_dispose_without_runtime"
   | "repeated_dispose"
   | "admission_fault"
   | "reconcile_fault";
 
 export type ManagedSurfaceStableDeltaContractRowInternalV1 =
-  & ManagedSurfaceStableDeltaInternalV1
+  & ManagedSurfaceStableReconcileResultInternalV1["delta"]
   & {
     readonly case: ManagedSurfaceStableDeltaCaseInternalV1;
     readonly resultKind: ManagedSurfaceStableReconcileResultInternalV1["kind"];
@@ -583,6 +627,88 @@ const zeroDeltaInternalV1 = Object.freeze({
   topology: "unchanged" as const,
   runtimeAllocation: "zero" as const,
 });
+
+function freezeReadinessDeltaRowInternalV1<
+  const TCase extends string,
+  const TKind extends ManagedSurfaceStableReadinessResultInternalV1["kind"],
+  const TCode extends Extract<
+    ManagedSurfaceStableReadinessResultInternalV1,
+    { readonly kind: NoInfer<TKind> }
+  >["code"],
+  const TDelta extends Extract<
+    ManagedSurfaceStableReadinessResultInternalV1,
+    { readonly kind: NoInfer<TKind> }
+  >["delta"],
+>(
+  caseName: TCase,
+  resultKind: TKind,
+  resultCode: TCode,
+  delta: TDelta,
+): Readonly<{
+  readonly case: TCase;
+  readonly resultKind: TKind;
+  readonly resultCodes: readonly TCode[];
+  readonly source: TDelta["source"];
+  readonly runtime: TDelta["runtime"];
+  readonly notificationCount: TDelta["notificationCount"];
+  readonly topology: TDelta["topology"];
+  readonly runtimeAllocation: TDelta["runtimeAllocation"];
+}> {
+  return Object.freeze({
+    case: caseName,
+    resultKind,
+    resultCodes: Object.freeze([resultCode]),
+    source: delta.source,
+    runtime: delta.runtime,
+    notificationCount: delta.notificationCount,
+    topology: delta.topology,
+    runtimeAllocation: delta.runtimeAllocation,
+  });
+}
+
+const readinessAppliedDeltaInternalV1 = (
+  runtimeAllocation: ManagedSurfaceStableReadinessAppliedDeltaInternalV1["runtimeAllocation"],
+) =>
+  Object.freeze({
+    source: "unchanged" as const,
+    runtime: "settle_readiness" as const,
+    notificationCount: 1 as const,
+    topology: "readiness_policy_derived" as const,
+    runtimeAllocation,
+  });
+
+export const managedSurfaceStableReadinessDeltaContractInternalV1 = Object.freeze([
+  freezeReadinessDeltaRowInternalV1(
+    "readiness_ready_zero",
+    "applied",
+    "surface.readiness_ready",
+    readinessAppliedDeltaInternalV1("zero"),
+  ),
+  freezeReadinessDeltaRowInternalV1(
+    "readiness_ready_with_preparation",
+    "applied",
+    "surface.readiness_ready",
+    readinessAppliedDeltaInternalV1("preparation_count"),
+  ),
+  freezeReadinessDeltaRowInternalV1(
+    "readiness_failed_zero",
+    "applied",
+    "surface.readiness_failed",
+    readinessAppliedDeltaInternalV1("zero"),
+  ),
+  freezeReadinessDeltaRowInternalV1(
+    "readiness_failed_with_preparation",
+    "applied",
+    "surface.readiness_failed",
+    readinessAppliedDeltaInternalV1("preparation_count"),
+  ),
+  freezeReadinessDeltaRowInternalV1(
+    "readiness_fault",
+    "faulted",
+    "surface.stable_reconcile_faulted",
+    zeroDeltaInternalV1,
+  ),
+]);
 
 function freezeApplyPreconditionCheckInternalV1<
   const TCheck extends string,
@@ -793,6 +919,16 @@ export const managedSurfaceStableDeltaContractInternalV1 = Object.freeze([
     runtimeAllocation: "zero",
   }),
   freezeDeltaRowInternalV1({
+    case: "greater_empty_with_unblocked_children",
+    resultKind: "applied",
+    resultCodes: Object.freeze(["surface.stable_publication_applied"]),
+    source: "accept_empty",
+    runtime: "retire_owned_targets_and_prepare_unblocked_children",
+    notificationCount: 1,
+    topology: "readiness_policy_derived",
+    runtimeAllocation: "preparation_count",
+  }),
+  freezeDeltaRowInternalV1({
     case: "greater_empty_without_runtime",
     resultKind: "applied",
     resultCodes: Object.freeze(["surface.stable_publication_applied"]),
@@ -847,6 +983,16 @@ export const managedSurfaceStableDeltaContractInternalV1 = Object.freeze([
     notificationCount: 1,
     topology: "unchanged",
     runtimeAllocation: "zero",
+  }),
+  freezeDeltaRowInternalV1({
+    case: "effective_dispose_with_unblocked_children",
+    resultKind: "applied",
+    resultCodes: Object.freeze(["surface.stable_publisher_disposed"]),
+    source: "remove_lease",
+    runtime: "retire_owned_targets_and_prepare_unblocked_children",
+    notificationCount: 1,
+    topology: "readiness_policy_derived",
+    runtimeAllocation: "preparation_count",
   }),
   freezeDeltaRowInternalV1({
     case: "effective_dispose_without_runtime",

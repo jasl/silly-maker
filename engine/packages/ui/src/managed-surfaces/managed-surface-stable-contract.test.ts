@@ -15,6 +15,7 @@ import {
   managedSurfaceStableContractLimitsInternalV1,
   managedSurfaceStableDeltaContractInternalV1,
   managedSurfaceStableParameterAdmissionPolicyInternalV1,
+  managedSurfaceStableReadinessDeltaContractInternalV1,
   managedSurfaceStableReadinessFenceChecksInternalV1,
   managedSurfaceStableResultCodesInternalV1,
   type ManagedSurfaceStableAdmissionCheckRowInternalV1,
@@ -22,13 +23,18 @@ import {
   type ManagedSurfaceStableAdmittedTargetInternalV1,
   type ManagedSurfaceStableApplyPreconditionCheckRowInternalV1,
   type ManagedSurfaceStableCanonicalParameterBytesInternalV1,
+  type ManagedSurfaceStableDeltaContractRowInternalV1,
+  type ManagedSurfaceStableDeltaInternalV1,
   type ManagedSurfaceStablePublicationInternalV1,
   type ManagedSurfaceStablePublicationAppliedDeltaInternalV1,
   type ManagedSurfaceStablePublisherDisposedDeltaInternalV1,
+  type ManagedSurfaceStableReadinessAppliedDeltaInternalV1,
   type ManagedSurfaceStableReadinessEnvelopeInternalV1,
   type ManagedSurfaceStableReadinessFenceCheckRowInternalV1,
+  type ManagedSurfaceStableReadinessResultInternalV1,
   type ManagedSurfaceStableReconcileResultInternalV1,
   type ManagedSurfaceStableResultCodeInternalV1,
+  type ManagedSurfaceStableRuntimeDeltaInternalV1,
   type ManagedSurfaceStableSourceRevisionInternalV1,
   type ManagedSurfaceStableStaleCodeInternalV1,
   type ManagedSurfaceStableStackScopeInternalV1,
@@ -714,6 +720,128 @@ describe("dormant managed stable Surface contract", () => {
     }
   });
 
+  it("freezes dedicated stable readiness settlement results and deltas", () => {
+    type ReadinessDeltaRowV1 = typeof managedSurfaceStableReadinessDeltaContractInternalV1[number];
+
+    expectTypeOf<ExactKeysV1<ManagedSurfaceStableReadinessResultInternalV1>>()
+      .toEqualTypeOf<"kind" | "code" | "delta">();
+    expectTypeOf<ManagedSurfaceStableReadinessResultInternalV1["kind"]>()
+      .toEqualTypeOf<"applied" | "stale" | "faulted">();
+    expectTypeOf<
+      Extract<ManagedSurfaceStableReadinessResultInternalV1, { kind: "applied" }>["code"]
+    >().toEqualTypeOf<"surface.readiness_ready" | "surface.readiness_failed">();
+    expectTypeOf<
+      Extract<ManagedSurfaceStableReadinessResultInternalV1, { kind: "applied" }>["delta"]
+    >().toEqualTypeOf<ManagedSurfaceStableReadinessAppliedDeltaInternalV1>();
+    expectTypeOf<
+      Extract<ManagedSurfaceStableReadinessResultInternalV1, { kind: "stale" }>["code"]
+    >().toEqualTypeOf<"surface.stale_application_epoch" | "surface.stale_readiness">();
+    expectTypeOf<
+      Extract<ManagedSurfaceStableReadinessResultInternalV1, { kind: "stale" }>["delta"]
+    >().toEqualTypeOf<ManagedSurfaceStableZeroDeltaInternalV1>();
+    expectTypeOf<
+      Extract<ManagedSurfaceStableReadinessResultInternalV1, { kind: "faulted" }>["code"]
+    >().toEqualTypeOf<"surface.stable_reconcile_faulted">();
+    expectTypeOf<
+      Extract<ManagedSurfaceStableReadinessResultInternalV1, { kind: "faulted" }>["delta"]
+    >().toEqualTypeOf<ManagedSurfaceStableZeroDeltaInternalV1>();
+    expectTypeOf<
+      Extract<ManagedSurfaceStableReadinessResultInternalV1, { kind: "unchanged" | "rejected" }>
+    >().toEqualTypeOf<never>();
+    expectTypeOf<ExactKeysV1<ManagedSurfaceStableReadinessAppliedDeltaInternalV1>>()
+      .toEqualTypeOf<
+        "source" | "runtime" | "notificationCount" | "topology" | "runtimeAllocation"
+      >();
+    expectTypeOf<ManagedSurfaceStableReadinessAppliedDeltaInternalV1["source"]>()
+      .toEqualTypeOf<"unchanged">();
+    expectTypeOf<ManagedSurfaceStableReadinessAppliedDeltaInternalV1["runtime"]>()
+      .toEqualTypeOf<"settle_readiness">();
+    expectTypeOf<ManagedSurfaceStableReadinessAppliedDeltaInternalV1["notificationCount"]>()
+      .toEqualTypeOf<1>();
+    expectTypeOf<ManagedSurfaceStableReadinessAppliedDeltaInternalV1["topology"]>()
+      .toEqualTypeOf<"readiness_policy_derived">();
+    expectTypeOf<ManagedSurfaceStableReadinessAppliedDeltaInternalV1["runtimeAllocation"]>()
+      .toEqualTypeOf<"zero" | "preparation_count">();
+    expectTypeOf<ExactKeysV1<ReadinessDeltaRowV1>>().toEqualTypeOf<
+      | "case"
+      | "resultKind"
+      | "resultCodes"
+      | "source"
+      | "runtime"
+      | "notificationCount"
+      | "topology"
+      | "runtimeAllocation"
+    >();
+
+    expect(managedSurfaceStableReadinessDeltaContractInternalV1).toEqual([
+      {
+        case: "readiness_ready_zero",
+        resultKind: "applied",
+        resultCodes: ["surface.readiness_ready"],
+        source: "unchanged",
+        runtime: "settle_readiness",
+        notificationCount: 1,
+        topology: "readiness_policy_derived",
+        runtimeAllocation: "zero",
+      },
+      {
+        case: "readiness_ready_with_preparation",
+        resultKind: "applied",
+        resultCodes: ["surface.readiness_ready"],
+        source: "unchanged",
+        runtime: "settle_readiness",
+        notificationCount: 1,
+        topology: "readiness_policy_derived",
+        runtimeAllocation: "preparation_count",
+      },
+      {
+        case: "readiness_failed_zero",
+        resultKind: "applied",
+        resultCodes: ["surface.readiness_failed"],
+        source: "unchanged",
+        runtime: "settle_readiness",
+        notificationCount: 1,
+        topology: "readiness_policy_derived",
+        runtimeAllocation: "zero",
+      },
+      {
+        case: "readiness_failed_with_preparation",
+        resultKind: "applied",
+        resultCodes: ["surface.readiness_failed"],
+        source: "unchanged",
+        runtime: "settle_readiness",
+        notificationCount: 1,
+        topology: "readiness_policy_derived",
+        runtimeAllocation: "preparation_count",
+      },
+      {
+        case: "readiness_fault",
+        resultKind: "faulted",
+        resultCodes: ["surface.stable_reconcile_faulted"],
+        source: "unchanged",
+        runtime: "unchanged",
+        notificationCount: 0,
+        topology: "unchanged",
+        runtimeAllocation: "zero",
+      },
+    ]);
+    expect(Object.isFrozen(managedSurfaceStableReadinessDeltaContractInternalV1)).toBe(true);
+    for (const row of managedSurfaceStableReadinessDeltaContractInternalV1) {
+      expect(Object.keys(row)).toEqual([
+        "case",
+        "resultKind",
+        "resultCodes",
+        "source",
+        "runtime",
+        "notificationCount",
+        "topology",
+        "runtimeAllocation",
+      ]);
+      expect(Object.isFrozen(row)).toBe(true);
+      expect(Object.isFrozen(row.resultCodes)).toBe(true);
+    }
+  });
+
   it("freezes per-target parameter admission around first traversal events", () => {
     expect(managedSurfaceStableParameterAdmissionPolicyInternalV1).toEqual({
       targetIteration: "raw_target_order",
@@ -730,6 +858,67 @@ describe("dormant managed stable Surface contract", () => {
   });
 
   it("freezes exact source and runtime deltas for every R0 decision row", () => {
+    type DeltaFromRowV1<
+      TRow extends {
+        readonly source: unknown;
+        readonly runtime: unknown;
+        readonly notificationCount: unknown;
+        readonly topology: unknown;
+        readonly runtimeAllocation: unknown;
+      },
+    > = TRow extends unknown ? Pick<
+        TRow,
+        "source" | "runtime" | "notificationCount" | "topology" | "runtimeAllocation"
+      >
+      : never;
+
+    expectTypeOf<ManagedSurfaceStableDeltaInternalV1>().toEqualTypeOf<
+      | ManagedSurfaceStableReconcileResultInternalV1["delta"]
+      | ManagedSurfaceStableReadinessAppliedDeltaInternalV1
+    >();
+    expectTypeOf<
+      Extract<ManagedSurfaceStableDeltaInternalV1, { runtime: "settle_readiness" }>
+    >().toEqualTypeOf<ManagedSurfaceStableReadinessAppliedDeltaInternalV1>();
+    expectTypeOf<DeltaFromRowV1<ManagedSurfaceStableDeltaContractRowInternalV1>>()
+      .toEqualTypeOf<ManagedSurfaceStableReconcileResultInternalV1["delta"]>();
+    expectTypeOf<
+      Extract<
+        DeltaFromRowV1<ManagedSurfaceStableDeltaContractRowInternalV1>,
+        { runtime: "settle_readiness" }
+      >
+    >().toEqualTypeOf<never>();
+    expectTypeOf<ManagedSurfaceStableRuntimeDeltaInternalV1>().toEqualTypeOf<
+      | "unchanged"
+      | "retry_gaps"
+      | "retain_retire_prepare"
+      | "retire_owned_targets"
+      | "retire_owned_targets_and_prepare_unblocked_children"
+      | "settle_readiness"
+    >();
+    expectTypeOf<
+      Extract<
+        ManagedSurfaceStablePublicationAppliedDeltaInternalV1,
+        { runtime: "retire_owned_targets_and_prepare_unblocked_children" }
+      >
+    >().toEqualTypeOf<{
+      readonly source: "accept_empty";
+      readonly runtime: "retire_owned_targets_and_prepare_unblocked_children";
+      readonly notificationCount: 1;
+      readonly topology: "readiness_policy_derived";
+      readonly runtimeAllocation: "preparation_count";
+    }>();
+    expectTypeOf<
+      Extract<
+        ManagedSurfaceStablePublisherDisposedDeltaInternalV1,
+        { runtime: "retire_owned_targets_and_prepare_unblocked_children" }
+      >
+    >().toEqualTypeOf<{
+      readonly source: "remove_lease";
+      readonly runtime: "retire_owned_targets_and_prepare_unblocked_children";
+      readonly notificationCount: 1;
+      readonly topology: "readiness_policy_derived";
+      readonly runtimeAllocation: "preparation_count";
+    }>();
     expect(managedSurfaceStableDeltaContractInternalV1).toEqual([
       {
         case: "stale_publisher_lease",
@@ -926,6 +1115,16 @@ describe("dormant managed stable Surface contract", () => {
         runtimeAllocation: "zero",
       },
       {
+        case: "greater_empty_with_unblocked_children",
+        resultKind: "applied",
+        resultCodes: ["surface.stable_publication_applied"],
+        source: "accept_empty",
+        runtime: "retire_owned_targets_and_prepare_unblocked_children",
+        notificationCount: 1,
+        topology: "readiness_policy_derived",
+        runtimeAllocation: "preparation_count",
+      },
+      {
         case: "greater_empty_without_runtime",
         resultKind: "applied",
         resultCodes: ["surface.stable_publication_applied"],
@@ -984,6 +1183,16 @@ describe("dormant managed stable Surface contract", () => {
         notificationCount: 1,
         topology: "unchanged",
         runtimeAllocation: "zero",
+      },
+      {
+        case: "effective_dispose_with_unblocked_children",
+        resultKind: "applied",
+        resultCodes: ["surface.stable_publisher_disposed"],
+        source: "remove_lease",
+        runtime: "retire_owned_targets_and_prepare_unblocked_children",
+        notificationCount: 1,
+        topology: "readiness_policy_derived",
+        runtimeAllocation: "preparation_count",
       },
       {
         case: "effective_dispose_without_runtime",

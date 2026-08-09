@@ -17,14 +17,15 @@ admission proof corrective、S1-R.2a corrective admission contract、S1-R.2b Bas
 projection seam、S1-R.2c stable-vector admission、S1-R.3.0 apply/readiness contract closure与
 S1-R.3a composition-owned composite runtime/identity/provenance seam、S1-R.3b.0 exact unpublished
 registration + admission context，以及R3b.1 entry audit发现的S1-R.1b disposal authority
-corrective与S1-R.3b.1 pure reconcile and synchronous owner commit均已关闭，下一独立切片为
-S1-R.4a shared runtime topology policy extraction；R4 entry adjudication已先以独立S1-R.4.0关闭
+corrective、S1-R.3b.1 pure reconcile and synchronous owner commit与S1-R.4a shared runtime topology
+policy extraction均已关闭，下一独立切片为S1-R.4b.0 terminal composite disposition；R4 entry
+adjudication已先以独立S1-R.4.0关闭
 readiness result/capacity contract。R3b entry audit先以独立S1-R.3a.1 corrective补全ready
 retained-subtree authority，该corrective也已关闭。
 同日 S1-R pre-implementation review 将 aggregate 重切为 S1-R.0–S1-R.5，并冻结
 parent/order、专用 revision、failure divergence、empty/dispose、cross-owner、bounded
-admission 与 exact delta；S1-R.0–R3b.1及R1b（含R1a/R3a.1 corrective）已实现，R4.0 contract已关闭，
-R4a–R5 尚未实现。
+admission 与 exact delta；S1-R.0–R4a及R1b（含R1a/R3a.1 corrective）已实现，R4.0 contract已关闭，
+R4b.0–R5 尚未实现。
 目标合同见
 [Managed Surface lifecycle and contract harness](../design/surface-contract-harness.md)。
 本文只规定可独立交付的实施顺序；不要求一次实现 design
@@ -32,7 +33,7 @@ R4a–R5 尚未实现。
 
 在 [production-floor sequence](2026-07-30-production-floor-sequence.md)
 中：PF2 的 `S0 -> S1-T -> S2`、PF-DET、PF3/M2 与 PF4/S3 已完成；当前 core
-节点是 PF4/S1-R.4a。PF4 的顺序是 `S3 -> S1-R.0 -> S1-R.1–S1-R.5 -> S4 -> S4b`；
+节点是 PF4/S1-R.4b.0。PF4 的顺序是 `S3 -> S1-R.0 -> S1-R.1–S1-R.5 -> S4 -> S4b`；
 S5–S6 属于 PF6。S1-R
 延后到第一个真实 externally published stable-target family 前完成；按 accepted
 target ownership，S4 Narrative 计划成为该 family，因此 S1-R 位于 S3 与 S4
@@ -1665,7 +1666,7 @@ S1-R 按以下可独立合并切片推进，每次只领取一个：
 13. **S1-R.4.0 readiness result/capacity contract closure（已完成）**：冻结dedicated package-internal
     settlement result、stable fence、shared identity exhaustion的all-or-nothing fault与single topology-policy
     authority；不settle readiness；
-14. **S1-R.4a shared runtime topology policy extraction**：把existing transient reducer私有的
+14. **S1-R.4a shared runtime topology policy extraction（已完成）**：把existing transient reducer私有的
     phase/blocking policy抽为package-internal pure leaf并由原transient adapter等价复用，同时交付R4.0
     result/delta table floor与generic post-reducer override seam；不新增stateful stable settlement；
 15. **S1-R.4b.0 terminal composite disposition**：让specialized Coordinator terminal transaction绕过
@@ -1678,10 +1679,10 @@ S1-R 按以下可独立合并切片推进，每次只领取一个：
     10k churn、pure/model equivalence 与 public/transient export audit，汇总 dormant
     promotion evidence。
 
-当前只允许从 **S1-R.4a** 开始。Stable ingress与全部新增 S1-R state/API仍保持
-dormant/package-internal，不接 Narrative/React/Web，不更新 live feature 文档；R3a 已将既有
-live transient reducer/Coordinator 收口到同一 internal kernel/authority，并由adapter保持全部
-现有transient行为。
+当前只允许从 **S1-R.4b.0** 开始。Stable ingress与stable-specific state/API仍保持
+dormant/package-internal，不接 Narrative/React/Web，不更新 live feature 文档；shared pure topology
+policy只经existing transient adapter live复用，R3a 已将既有live transient reducer/Coordinator 收口到
+同一 internal kernel/authority，并由adapter保持全部现有transient行为。
 
 **S1-R.0 acceptance：** 只交付 internal shapes、fixed constants、result taxonomy、
 precedence/delta tables 与 pure fixture/table tests；不执行 definition schema/canonical
@@ -2347,7 +2348,7 @@ commit保持既有同步顺序，listener throw只进diagnostics且不rollback�
 `6 files / 123 tests`、UI package `75 / 882`、全量`249 / 3810`与完整
 `deno task check` green。本批仍为
 package-internal dormant state，不处理R4 readiness/failure/retry/cascade，也没有接入live stable family；
-下一独立切片为S1-R.4a shared runtime topology policy extraction。
+该checkpoint的下一独立切片为S1-R.4a shared runtime topology policy extraction，现由下述R4a delivery取代。
 
 #### R4.0 readiness result/capacity contract closure（已完成）
 
@@ -2458,7 +2459,33 @@ notification后clear listeners；repeat保持`surface.coordinator_already_dispos
 
 R4.0是exact三文档的design-only delivery，没有runtime/API/live capability。Target design、focused plan与
 cross-plan均通过`deno fmt --check`、`git diff --check`及三路identity/lifecycle/API adversarial review；
-current/next均为R4a，随后按R4b.0 → R4b.1推进。
+该checkpoint的current/next均为R4a，现由下述R4a delivery取代。
+
+**2026-08-09 S1-R.4a delivery：** 新的package-internal pure topology policy只消费caller按authoritative
+preorder提供的opaque subject、non-negative `layerOrder`、`preparing | ready` lifecycle与captured
+`blocksLower`，稳定派生`preparing | active | suspended`而不解析subject内容或发明identity/z-order tie-breaker。
+Existing transient reducer已改为该policy的lossless adapter；initial/child blocking fallback、hidden
+primary-replacement preparation、ready blocking instance、equal-layer insertion order、publication/receipt/
+revision/object identity、focus/input与同步notification/reentry均保持exact旧行为。
+
+Generic runtime kernel state adapter同时获得default-identity `finalizeTransientTransition` seam。Callable在
+construction时exact capture一次并以exact adapter receiver调用；它在shared transition fence内接收current
+state、reducer successor、exact operation与reducer receipt，可返回combined state与existing receipt override。
+完整finalizer output在prepare/install前一次capture；callback或output getter throw保持old state、zero
+notification并释放fence。返回old state与existing `faulted / surface.transition_faulted`可原子回滚且不暴露
+detached identity；成功只从同一install按existing transient-before-state captured-vector顺序通知，listener
+reentry先见完整successor。Terminal `surface.coordinator_disposed | surface.coordinator_already_disposed`
+receipt在generic hook前旁路，first/repeat不能被override或复活；R4b.0仍独立负责bound registry gate与完整
+terminal composite successor。
+
+Stable R0 contract在本批只交付source-relative readiness result/delta types与frozen tables，包括ready/failed
+applied、epoch/attempt/lease/source stale、planning/capacity fault，以及cascade-aware greater-empty/effective-
+dispose applied rows；没有新增stateful readiness method、stable runtime mutation、terminal registry disposal或
+global child cascade。本批未接Narrative/React/Web stable family，未扩大public/internal barrel、transient
+receipt/evidence或Story API，也未改变Save/Persistence/canonical/digest/replay/wire。验证通过focused
+`6 files / 123 tests`、UI package `76 files / 909 tests`、全量`250 files / 3837 tests`、完整
+`deno task check` green、engine browser `101 / 101`、examples browser `45 passed / 2 skipped`与prebuilt
+`38 / 38`。S1-R.4a已完成；current/next均为S1-R.4b.0 terminal composite disposition，R4b.1与R5仍pending。
 
 ### Desired/runtime divergence and retry
 

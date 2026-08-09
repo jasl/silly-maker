@@ -44,6 +44,14 @@ import type { ManagedSurfaceStableAdmissionResultInternalV1 as ForbiddenInternal
 import type { ManagedSurfaceStableReadinessEnvelopeInternalV1 as ForbiddenPublicStableReadinessEnvelopeV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose dormant stable readiness fencing.
 import type { ManagedSurfaceStableReadinessEnvelopeInternalV1 as ForbiddenInternalStableReadinessEnvelopeV1 } from "./internal.ts";
+// @ts-expect-error Stable readiness applied deltas remain source-relative.
+import type { ManagedSurfaceStableReadinessAppliedDeltaInternalV1 as ForbiddenPublicStableReadinessAppliedDeltaV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose stable readiness applied deltas.
+import type { ManagedSurfaceStableReadinessAppliedDeltaInternalV1 as ForbiddenInternalStableReadinessAppliedDeltaV1 } from "./internal.ts";
+// @ts-expect-error Stable readiness settlement results remain source-relative.
+import type { ManagedSurfaceStableReadinessResultInternalV1 as ForbiddenPublicStableReadinessResultV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose stable readiness settlement results.
+import type { ManagedSurfaceStableReadinessResultInternalV1 as ForbiddenInternalStableReadinessResultV1 } from "./internal.ts";
 // @ts-expect-error Apply-precondition row types stay source-relative.
 import type { ManagedSurfaceStableApplyPreconditionCheckRowInternalV1 as ForbiddenPublicStableApplyCheckV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose stable apply rows.
@@ -72,6 +80,18 @@ import type { ManagedSurfaceStableRootReservationContributorInternalV1 as Forbid
 import type { ManagedSurfaceRuntimeKernelInternalV1 as ForbiddenPublicRuntimeKernelV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose the generic runtime kernel.
 import type { ManagedSurfaceRuntimeKernelInternalV1 as ForbiddenInternalRuntimeKernelV1 } from "./internal.ts";
+// @ts-expect-error The generic runtime-kernel state adapter stays source-relative.
+import type { ManagedSurfaceRuntimeKernelStateAdapterInternalV1 as ForbiddenPublicRuntimeKernelStateAdapterV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose the runtime-kernel state adapter.
+import type { ManagedSurfaceRuntimeKernelStateAdapterInternalV1 as ForbiddenInternalRuntimeKernelStateAdapterV1 } from "./internal.ts";
+// @ts-expect-error The shared topology-policy row stays source-relative.
+import type { ManagedSurfaceTopologyPolicyRowInternalV1 as ForbiddenPublicTopologyPolicyRowV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose topology-policy rows.
+import type { ManagedSurfaceTopologyPolicyRowInternalV1 as ForbiddenInternalTopologyPolicyRowV1 } from "./internal.ts";
+// @ts-expect-error The shared topology-policy projection stays source-relative.
+import type { ManagedSurfaceTopologyPolicyProjectionInternalV1 as ForbiddenPublicTopologyPolicyProjectionV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose topology-policy projections.
+import type { ManagedSurfaceTopologyPolicyProjectionInternalV1 as ForbiddenInternalTopologyPolicyProjectionV1 } from "./internal.ts";
 // @ts-expect-error Runtime-attempt provenance stays source-relative.
 import type { ManagedSurfaceRuntimeAttemptIdentityInternalV1 as ForbiddenPublicRuntimeAttemptV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose runtime-attempt provenance.
@@ -140,7 +160,9 @@ describe("@sillymaker/ui public managed System surface", () => {
     for (
       const dormantContractExport of [
         "managedSurfaceStableApplyPreconditionChecksInternalV1",
+        "managedSurfaceStableReadinessDeltaContractInternalV1",
         "managedSurfaceStableReadinessFenceChecksInternalV1",
+        "projectManagedSurfaceTopologyPolicyInternalV1",
         "createManagedSurfaceRuntimeKernelInternalV1",
         "createManagedSurfaceCoordinatorRuntimeBundleInternalV1",
         "createManagedSurfaceStableCompositeStateInternalV1",

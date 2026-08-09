@@ -25,8 +25,9 @@ promotion 均已关闭。2026-08-08 dormant `PF4/S3c.1 Host-commit readiness`、
 `PF4/S1-R.3b.0 exact unpublished registration + admission context`与
 `PF4/S1-R.1b composition-bound publisher disposal authority corrective`及
 `PF4/S1-R.3b.1 pure reconcile and synchronous owner commit`、
-`PF4/S1-R.4.0 readiness result/capacity contract closure`已关闭，linear core下一独立切片为
-`PF4/S1-R.4a shared runtime topology policy extraction`。
+`PF4/S1-R.4.0 readiness result/capacity contract closure`与
+`PF4/S1-R.4a shared runtime topology policy extraction`已关闭，linear core下一独立切片为
+`PF4/S1-R.4b.0 terminal composite disposition`。
 同日 S1-R pre-implementation review 将 external reconcile gate 重切为 S1-R.0–S1-R.5；
 顺序变化不把任何 planned stable-target contract写成 live capability。
 同日 S1-R.3 entry-gate adjudication 采用 A-prime，将原 R3 拆为单一 composite
@@ -40,8 +41,8 @@ supersede/retained-active cancellation、S3b composition-owned shared Coordinato
 dormant System session/catalog、S3c.0 all-family successor activation barrier 已完成；S3
 的 S3c.1 Host-commit readiness/Host lease、S3d exact-parent confirmation child 与
 S3e.0 composition successor acknowledgment/terminal teardown、S3e live cutover与
-promotion，以及 S1-R.0–R4.0（含R1a/R3a.1 corrective）与R1b disposal corrective均已完成；下一独立切片为
-S1-R.4a。
+promotion，以及 S1-R.0–R4a（含R1a/R3a.1 corrective）与R1b disposal corrective均已完成；下一独立切片为
+S1-R.4b.0。
 旧 promotion 数字保留为
 历史证据。本文是当前唯一的跨计划排序入口；
 具体合同仍由各 design 文档拥有，主要任务由五个独立计划拥有：
@@ -1261,10 +1262,28 @@ preparation-count delta，transient path失败回滚整个transition并复用exi
 以registry-wide disposal gate原子清空stable source/runtime/contributors与transient topology/pending，保留bounded
 recipe/cursors并置terminal publication。Active parent只是child allocation edge，不是ready
 child的持续存续条件；mixed/cross-scope equal-layer且没有authoritative order时fail closed，不能把allocation、slot或
-lease顺序变成z-order。本批只修改target design与active plans，没有runtime/API/live capability；linear core
-current/next均为S1-R.4a shared runtime topology policy extraction，R4b.0先关闭terminal disposition、
-R4b.1随后settle source-bound readiness与global cascade，S4仍受
+lease顺序变成z-order。本批只修改target design与active plans，没有runtime/API/live capability；该checkpoint
+当时的linear core current/next均为S1-R.4a shared runtime topology policy extraction，现由下述R4a delivery
+取代。R4b.0先关闭terminal disposition、R4b.1随后settle source-bound readiness与global cascade，S4仍受
 S1-R aggregate gate约束。该三文档delivery通过`deno fmt --check`、`git diff --check`与三路adversarial review。
+
+**2026-08-09 S1-R.4a delivery：** live transient reducer现将既有layer-order、blocking fallback与
+ready active/suspended派生委托给唯一source-relative、package-internal pure topology policy；opaque subject、
+non-negative layer order、caller preorder、lifecycle与blocking字段只captured一次，equal-layer继续使用exact
+supplied order，projection保持subject identity并冻结。Generic single runtime kernel新增source-relative、optional、
+default-identity post-reducer finalization/result-override seam；callback以exact receiver captured一次，完整
+state/receipt在install前captured；throw保持old state与zero notification，以existing fault receipt override时由
+exact old state完成rollback，terminal Coordinator dispose receipt绕过该hook。Stable R0 source-relative contract只新增
+dedicated readiness result/delta frozen table与
+greater-empty/effective-dispose cascade-aware preparation-count rows；没有新增stateful stable settlement method、
+stable readiness mutation或live stable family wiring。UI package root与`./internal` barrels、package exports及
+transient public receipt/evidence shape均未扩张。
+
+验证通过focused `6 files / 123 tests`、UI package `76 files / 909 tests`、全量
+`250 files / 3837 tests`、`deno task check` green、Engine browser
+`101 / 101`、examples browser `45 passed / 2 skipped`与prebuilt Player `38 / 38`。Linear core current/next均为
+S1-R.4b.0 terminal composite disposition；随后依次为R4b.1 source-bound readiness + global cascade settlement、
+R5 neutral harness/bounded churn/dead-path audit，再进入仍受S1-R aggregate gate约束的S4。
 
 每个 family 的迁移提交必须删除旧 owner；禁止长期 adapter 双写。
 `DialoguePanelV1` / `VnLayerV1` 的 controller/view/host 拆分在 Narrative family

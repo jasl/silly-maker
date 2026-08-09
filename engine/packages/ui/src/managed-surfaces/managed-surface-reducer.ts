@@ -29,6 +29,7 @@ import {
   hasExpectedManagedSurfaceTransientIdentityV1,
   recordManagedSurfaceRuntimeAttemptSequenceInternalV1,
 } from "./managed-surface-identity.ts";
+import { projectManagedSurfaceTopologyPolicyInternalV1 } from "./managed-surface-topology-policy.ts";
 
 export interface ManagedSurfaceReducerStateV1 {
   readonly publication: DeepReadonly<ManagedSurfacePublicationV1>;
@@ -113,31 +114,24 @@ function withReadyReadinessV1(
 function orderedWithDerivedPhasesV1(
   instances: readonly DeepReadonly<ManagedSurfacePublishedInstanceV1>[],
 ): readonly DeepReadonly<ManagedSurfacePublishedInstanceV1>[] {
-  const ordered = instances
-    .map((instance, insertionIndex) => ({ instance, insertionIndex }))
-    .sort(
-      (left, right) =>
-        left.instance.definition.layerOrder - right.instance.definition.layerOrder ||
-        left.insertionIndex - right.insertionIndex,
-    )
-    .map(({ instance }) => instance);
-  let topmostBlockingIndex = -1;
-  for (let index = 0; index < ordered.length; index += 1) {
-    const instance = ordered[index];
-    if (
-      instance !== undefined &&
-      ((instance.readiness.kind === "ready" && instance.definition.modality === "blocking") ||
-        isBlockingFallbackV1(instance))
-    ) {
-      topmostBlockingIndex = index;
-    }
-  }
   return Object.freeze(
-    ordered.map((instance, index) =>
-      instance.readiness.kind === "preparing" ? instance : withPhaseV1(
-        instance,
-        topmostBlockingIndex >= 0 && index < topmostBlockingIndex ? "suspended" : "active",
-      )
+    projectManagedSurfaceTopologyPolicyInternalV1(
+      Object.freeze(
+        instances.map((instance) =>
+          Object.freeze({
+            subject: instance,
+            layerOrder: instance.definition.layerOrder,
+            lifecycle: instance.readiness.kind === "preparing"
+              ? "preparing" as const
+              : "ready" as const,
+            blocksLower: (instance.readiness.kind === "ready" &&
+              instance.definition.modality === "blocking") ||
+              isBlockingFallbackV1(instance),
+          })
+        ),
+      ),
+    ).map(({ subject: instance, phase }) =>
+      phase === "preparing" ? instance : withPhaseV1(instance, phase)
     ),
   );
 }
