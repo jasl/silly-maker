@@ -21,13 +21,14 @@ promotion 均已关闭。2026-08-08 dormant `PF4/S3c.1 Host-commit readiness`、
 `PF4/S1-R.2b Base bounded canonical projection seam`、
 `PF4/S1-R.2c stable-vector admission`、`PF4/S1-R.3.0 apply/readiness contract closure`与
 `PF4/S1-R.3a composition-owned composite runtime/identity/provenance seam`、
-`PF4/S1-R.3a.1 retained ready-subtree corrective`已关闭，linear core下一独立切片为
-`PF4/S1-R.3b.0 exact unpublished registration + admission context`。
+`PF4/S1-R.3a.1 retained ready-subtree corrective`与
+`PF4/S1-R.3b.0 exact unpublished registration + admission context`已关闭，linear core下一独立切片为
+`PF4/S1-R.3b.1 pure reconcile and synchronous owner commit`。
 同日 S1-R pre-implementation review 将 external reconcile gate 重切为 S1-R.0–S1-R.5；
 顺序变化不把任何 planned stable-target contract写成 live capability。
 同日 S1-R.3 entry-gate adjudication 采用 A-prime，将原 R3 拆为单一 composite
 runtime/identity/provenance seam 的 R3a 与在该 seam 上原子 apply proposal 的 R3b；
-该裁决本身只闭合交付边界；R3a/R3a.1现由后续delivery记录确认完成，R3b.0/R3b.1仍未实现。
+该裁决本身只闭合交付边界；R3a/R3a.1/R3b.0现由后续delivery记录确认完成，R3b.1仍未实现。
 2026-08-04 已冻结 S3 的 shared-Coordinator transient topology、atomic initial-candidate
 supersede、retained-active pending cancellation、exact result/delta matrix、Host-commit
 readiness、StrictMode terminal-once fence 与 public API cutover，并已重切为 S3a–S3e。
@@ -36,8 +37,8 @@ supersede/retained-active cancellation、S3b composition-owned shared Coordinato
 dormant System session/catalog、S3c.0 all-family successor activation barrier 已完成；S3
 的 S3c.1 Host-commit readiness/Host lease、S3d exact-parent confirmation child 与
 S3e.0 composition successor acknowledgment/terminal teardown、S3e live cutover与
-promotion，以及 S1-R.0–R3a.1（含R1a/R3a.1 corrective）均已完成；下一独立切片为
-S1-R.3b.0。
+promotion，以及 S1-R.0–R3b.0（含R1a/R3a.1 corrective）均已完成；下一独立切片为
+S1-R.3b.1。
 旧 promotion 数字保留为
 历史证据。本文是当前唯一的跨计划排序入口；
 具体合同仍由各 design 文档拥有，主要任务由五个独立计划拥有：
@@ -1180,8 +1181,23 @@ successor、second replacement与failure复用exact aggregate，cutover后不能
 aggregate root，child-only membership不形成row/token authority；new type/factory不进入UI root、
 `./internal`barrel或package export map。本批不apply proposal、不写baseline、不dispose R1、不settle
 readiness或接live family。验证通过focused `2 / 31`、UI package `74 / 838`、全量`248 / 3766`与完整
-`deno task check`。Linear core下一独立切片为R3b.0 exact unpublished registration + admission context；
-S4仍受S1-R aggregate gate约束。
+`deno task check`。该checkpoint当时指向R3b.0，现由下述R3b.0 delivery取代；S4仍受S1-R aggregate
+gate约束。
+
+**2026-08-09 S1-R.3b.0 delivery：** 同一个composition-owned specialized composite kernel现以
+source-relative dormant seam动态注册exact current publisher lease。首次注册只把same-authority exact
+unpublished baseline安装进唯一、按authentic lease sequence canonical化的`stableAcceptedBaselines`，产生
+`1 state / 0 transient` notification；repeat/stale/fault/capture均保持exact state与transient projection。
+Registration closed union区分`registered`的unpublished baseline、`unchanged`的exact current
+`unpublished | accepted` baseline、`stale`与`faulted`；capture closed union区分
+`captured { acceptedBaseline, reservationSnapshot } | stale | faulted`。Bound registry整体disposed/epoch
+divergence与任一registered baseline/registry divergence都在candidate classification前全局fault；
+current-unregistered capture也fault，direct external dispose
+不能让fresh successor绕过未来R3b.1 atomic lifetime fence。本批没有第二kernel/baseline map，没有
+proposal inspect/apply、effective dispose、readiness或live stable family wiring，且新增类型与方法仍不进入UI
+root、`./internal` barrel或package exports。验证通过focused `2 files / 43 tests`、UI package
+`74 / 850`、全量`248 / 3778`与完整`deno task check`。Linear core下一独立切片为R3b.1 pure reconcile and
+synchronous owner commit；S4仍受S1-R aggregate gate约束。
 
 每个 family 的迁移提交必须删除旧 owner；禁止长期 adapter 双写。
 `DialoguePanelV1` / `VnLayerV1` 的 controller/view/host 拆分在 Narrative family

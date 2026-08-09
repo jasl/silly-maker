@@ -88,6 +88,18 @@ import type { ManagedSurfaceStableRuntimeEntryInternalV1 as ForbiddenInternalSta
 import type { ManagedSurfaceStableRetainedRuntimeSubtreeInternalV1 as ForbiddenPublicStableRetainedSubtreeV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose retained stable runtime subtrees.
 import type { ManagedSurfaceStableRetainedRuntimeSubtreeInternalV1 as ForbiddenInternalStableRetainedSubtreeV1 } from "./internal.ts";
+// @ts-expect-error Stable publisher registration results stay source-relative.
+import type { ManagedSurfaceStablePublisherLeaseRegistrationResultInternalV1 as ForbiddenPublicStableRegistrationResultV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose stable publisher registration results.
+import type { ManagedSurfaceStablePublisherLeaseRegistrationResultInternalV1 as ForbiddenInternalStableRegistrationResultV1 } from "./internal.ts";
+// @ts-expect-error Stable admission-context capture results stay source-relative.
+import type { ManagedSurfaceStableAdmissionContextCaptureResultInternalV1 as ForbiddenPublicStableAdmissionContextV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose stable admission-context capture results.
+import type { ManagedSurfaceStableAdmissionContextCaptureResultInternalV1 as ForbiddenInternalStableAdmissionContextV1 } from "./internal.ts";
+// @ts-expect-error The stable composition kernel remains source-relative.
+import type { ManagedSurfaceStableCompositeRuntimeKernelInternalV1 as ForbiddenPublicStableCompositeKernelV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose the stable composition kernel.
+import type { ManagedSurfaceStableCompositeRuntimeKernelInternalV1 as ForbiddenInternalStableCompositeKernelV1 } from "./internal.ts";
 /* oxlint-enable no-unused-vars */
 
 describe("@sillymaker/ui public managed System surface", () => {
@@ -130,6 +142,8 @@ describe("@sillymaker/ui public managed System surface", () => {
         "createManagedSurfaceStablePreparingRuntimeBindingInternalV1",
         "createManagedSurfaceStableGapRuntimeBindingInternalV1",
         "createManagedSurfaceStableRetainedRuntimeSubtreeInternalV1",
+        "registerStablePublisherLeaseInternalV1",
+        "captureAdmissionContextInternalV1",
         "allocateManagedSurfaceStableRuntimeAttemptInternalV1",
         "projectManagedSurfaceStableRootReservationSnapshotInternalV1",
         "matchesManagedSurfaceStableAdmissionAuthorityConfigurationInternalV1",

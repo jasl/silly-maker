@@ -238,6 +238,54 @@ export interface ManagedSurfaceStableCompositeStateInternalV1 {
   readonly stableRuntimeBindings: readonly ManagedSurfaceStableRuntimeEntryInternalV1[];
 }
 
+type ManagedSurfaceStableUnpublishedBaselineInternalV1 = Extract<
+  ManagedSurfaceStableAcceptedBaselineInternalV1,
+  { readonly kind: "unpublished" }
+>;
+
+export type ManagedSurfaceStablePublisherLeaseRegistrationResultInternalV1 =
+  | {
+    readonly kind: "registered";
+    readonly acceptedBaseline: ManagedSurfaceStableUnpublishedBaselineInternalV1;
+  }
+  | {
+    readonly kind: "unchanged";
+    readonly acceptedBaseline: ManagedSurfaceStableAcceptedBaselineInternalV1;
+  }
+  | {
+    readonly kind: "stale";
+    readonly code: "surface.stable_publisher_lease_stale";
+  }
+  | {
+    readonly kind: "faulted";
+    readonly code: "surface.stable_reconcile_faulted";
+  };
+
+export type ManagedSurfaceStableAdmissionContextCaptureResultInternalV1 =
+  | {
+    readonly kind: "captured";
+    readonly acceptedBaseline: ManagedSurfaceStableAcceptedBaselineInternalV1;
+    readonly reservationSnapshot: ManagedSurfaceStableRootReservationSnapshotInternalV1;
+  }
+  | {
+    readonly kind: "stale";
+    readonly code: "surface.stable_publisher_lease_stale";
+  }
+  | {
+    readonly kind: "faulted";
+    readonly code: "surface.stable_reconcile_faulted";
+  };
+
+export interface ManagedSurfaceStableCompositeRuntimeKernelInternalV1
+  extends ManagedSurfaceRuntimeKernelInternalV1<ManagedSurfaceStableCompositeStateInternalV1> {
+  registerStablePublisherLeaseInternalV1(
+    publisherLease: unknown,
+  ): ManagedSurfaceStablePublisherLeaseRegistrationResultInternalV1;
+  captureAdmissionContextInternalV1(
+    publisherLease: unknown,
+  ): ManagedSurfaceStableAdmissionContextCaptureResultInternalV1;
+}
+
 interface CompositeStateAuthorityRecordInternalV1 {
   readonly admissionAuthority: ManagedSurfaceStableAdmissionAuthorityInternalV1;
   readonly createRootReservationSnapshot: ManagedSurfaceStableAdmissionAuthorityInternalV1[
@@ -261,6 +309,16 @@ const compositeStateAuthorityRecordsInternalV1 = new WeakMap<
   ManagedSurfaceStableCompositeStateInternalV1,
   CompositeStateAuthorityRecordInternalV1
 >();
+
+const stalePublisherLeaseResultInternalV1 = Object.freeze({
+  kind: "stale" as const,
+  code: "surface.stable_publisher_lease_stale" as const,
+});
+
+const reconcileFaultResultInternalV1 = Object.freeze({
+  kind: "faulted" as const,
+  code: "surface.stable_reconcile_faulted" as const,
+});
 
 interface RetainedRuntimeSubtreeAuthorityRecordInternalV1 {
   readonly origin: object;
@@ -1442,12 +1500,92 @@ function finalizeCompositeStateInstallInternalV1(
   record.derivationDepth = 0;
 }
 
+interface CurrentStableBaselineInventoryInternalV1 {
+  readonly byPublisherLease: ReadonlyMap<
+    ManagedSurfaceStablePublisherLeaseInternalV1,
+    ManagedSurfaceStableAcceptedBaselineInternalV1
+  >;
+  readonly leaseSequenceByPublisherLease: ReadonlyMap<
+    ManagedSurfaceStablePublisherLeaseInternalV1,
+    PositiveSafeInteger
+  >;
+}
+
+function inspectCurrentStableBaselineInventoryInternalV1(
+  state: ManagedSurfaceStableCompositeStateInternalV1,
+  authorityRecord: CompositeStateAuthorityRecordInternalV1,
+): CurrentStableBaselineInventoryInternalV1 | null {
+  const registrySnapshot = authorityRecord.publisherLeaseRegistry.getSnapshot();
+  if (
+    registrySnapshot.disposed ||
+    registrySnapshot.applicationEpoch !== state.transientState.publication.applicationEpoch
+  ) {
+    return null;
+  }
+  const byPublisherLease = new Map<
+    ManagedSurfaceStablePublisherLeaseInternalV1,
+    ManagedSurfaceStableAcceptedBaselineInternalV1
+  >();
+  const leaseSequenceByPublisherLease = new Map<
+    ManagedSurfaceStablePublisherLeaseInternalV1,
+    PositiveSafeInteger
+  >();
+  let previousLeaseSequence = 0;
+  for (const baseline of state.stableAcceptedBaselines) {
+    const publisherLease = baseline.publisherLease;
+    if (byPublisherLease.has(publisherLease)) return null;
+    const currentLease = Reflect.apply(
+      authorityRecord.publisherLeaseRegistry.inspectCurrentLease,
+      authorityRecord.publisherLeaseRegistry,
+      [publisherLease],
+    );
+    if (currentLease === null || currentLease.leaseSequence <= previousLeaseSequence) {
+      return null;
+    }
+    previousLeaseSequence = currentLease.leaseSequence;
+    byPublisherLease.set(publisherLease, baseline);
+    leaseSequenceByPublisherLease.set(publisherLease, currentLease.leaseSequence);
+  }
+  return Object.freeze({ byPublisherLease, leaseSequenceByPublisherLease });
+}
+
+function deriveRegisteredStableBaselineStateInternalV1(
+  currentState: ManagedSurfaceStableCompositeStateInternalV1,
+  authorityRecord: CompositeStateAuthorityRecordInternalV1,
+  acceptedBaseline: ManagedSurfaceStableUnpublishedBaselineInternalV1,
+  leaseSequence: PositiveSafeInteger,
+  inventory: CurrentStableBaselineInventoryInternalV1,
+): ManagedSurfaceStableCompositeStateInternalV1 {
+  if (authorityRecord.derivationDepth >= 130 || authorityRecord.pendingRuntimeAttempts.size > 0) {
+    throw new TypeError("ui.managed_surface_stable_composite_state_invalid");
+  }
+  const leaseSequenceByPublisherLease = new Map(inventory.leaseSequenceByPublisherLease);
+  leaseSequenceByPublisherLease.set(acceptedBaseline.publisherLease, leaseSequence);
+  const stableAcceptedBaselines = Object.freeze(
+    [...currentState.stableAcceptedBaselines, acceptedBaseline].sort((left, right) =>
+      leaseSequenceByPublisherLease.get(left.publisherLease)! -
+      leaseSequenceByPublisherLease.get(right.publisherLease)!
+    ),
+  );
+  const nextState = Object.freeze({
+    ...currentState,
+    stableAcceptedBaselines,
+  });
+  compositeStateAuthorityRecordsInternalV1.set(nextState, {
+    ...authorityRecord,
+    derivedFrom: currentState,
+    derivationDepth: authorityRecord.derivationDepth + 1,
+    installable: true,
+  });
+  return nextState;
+}
+
 export function createManagedSurfaceStableCompositeRuntimeKernelInternalV1(input: {
   readonly admissionAuthority: ManagedSurfaceStableAdmissionAuthorityInternalV1;
   readonly publisherLeaseRegistry: ManagedSurfaceStablePublisherLeaseRegistryInternalV1;
   readonly initialTransientState: ManagedSurfaceReducerStateV1;
   readonly reportSubscriberFailure?: () => void;
-}): ManagedSurfaceRuntimeKernelInternalV1<ManagedSurfaceStableCompositeStateInternalV1> {
+}): ManagedSurfaceStableCompositeRuntimeKernelInternalV1 {
   const empty = createManagedSurfaceStableCompositeStateInternalV1({
     admissionAuthority: input.admissionAuthority,
     publisherLeaseRegistry: input.publisherLeaseRegistry,
@@ -1457,7 +1595,7 @@ export function createManagedSurfaceStableCompositeRuntimeKernelInternalV1(input
     currentState: empty,
     contributorCandidates: Object.freeze([]),
   });
-  return createManagedSurfaceRuntimeKernelInternalV1({
+  const runtimeKernel = createManagedSurfaceRuntimeKernelInternalV1({
     initialState,
     stateAdapter: Object.freeze({
       getTransientState: (state: ManagedSurfaceStableCompositeStateInternalV1) =>
@@ -1472,6 +1610,107 @@ export function createManagedSurfaceStableCompositeRuntimeKernelInternalV1(input
     ...(input.reportSubscriberFailure === undefined
       ? {}
       : { reportSubscriberFailure: input.reportSubscriberFailure }),
+  });
+  return Object.freeze({
+    ...runtimeKernel,
+    registerStablePublisherLeaseInternalV1(
+      publisherLeaseInput: unknown,
+    ): ManagedSurfaceStablePublisherLeaseRegistrationResultInternalV1 {
+      return runtimeKernel.transitionStateInternalV1<
+        ManagedSurfaceStablePublisherLeaseRegistrationResultInternalV1
+      >((currentState) => {
+        const authorityRecord = compositeStateAuthorityRecordsInternalV1.get(currentState);
+        if (authorityRecord === undefined) {
+          return Object.freeze({
+            state: currentState,
+            result: reconcileFaultResultInternalV1,
+          });
+        }
+        const inventory = inspectCurrentStableBaselineInventoryInternalV1(
+          currentState,
+          authorityRecord,
+        );
+        if (inventory === null) {
+          return Object.freeze({
+            state: currentState,
+            result: reconcileFaultResultInternalV1,
+          });
+        }
+        const currentLease = Reflect.apply(
+          authorityRecord.publisherLeaseRegistry.inspectCurrentLease,
+          authorityRecord.publisherLeaseRegistry,
+          [publisherLeaseInput],
+        );
+        if (currentLease === null) {
+          return Object.freeze({
+            state: currentState,
+            result: stalePublisherLeaseResultInternalV1,
+          });
+        }
+        const publisherLease = publisherLeaseInput as ManagedSurfaceStablePublisherLeaseInternalV1;
+        const currentBaseline = inventory.byPublisherLease.get(publisherLease);
+        if (currentBaseline !== undefined) {
+          return Object.freeze({
+            state: currentState,
+            result: Object.freeze({
+              kind: "unchanged" as const,
+              acceptedBaseline: currentBaseline,
+            }),
+          });
+        }
+        const acceptedBaseline = Reflect.apply(
+          authorityRecord.admissionAuthority.createUnpublishedBaseline,
+          authorityRecord.admissionAuthority,
+          [publisherLease],
+        ) as ManagedSurfaceStableUnpublishedBaselineInternalV1;
+        const nextState = deriveRegisteredStableBaselineStateInternalV1(
+          currentState,
+          authorityRecord,
+          acceptedBaseline,
+          currentLease.leaseSequence,
+          inventory,
+        );
+        return Object.freeze({
+          state: nextState,
+          result: Object.freeze({
+            kind: "registered" as const,
+            acceptedBaseline,
+          }),
+        });
+      });
+    },
+    captureAdmissionContextInternalV1(
+      publisherLeaseInput: unknown,
+    ): ManagedSurfaceStableAdmissionContextCaptureResultInternalV1 {
+      const currentState = runtimeKernel.getStateInternalV1();
+      if (currentState.transientState.publication.coordinatorDisposed) {
+        throw new TypeError("ui.managed_surface_coordinator_disposed");
+      }
+      const authorityRecord = compositeStateAuthorityRecordsInternalV1.get(currentState);
+      if (authorityRecord === undefined) return reconcileFaultResultInternalV1;
+      const inventory = inspectCurrentStableBaselineInventoryInternalV1(
+        currentState,
+        authorityRecord,
+      );
+      if (inventory === null) return reconcileFaultResultInternalV1;
+      const currentLease = Reflect.apply(
+        authorityRecord.publisherLeaseRegistry.inspectCurrentLease,
+        authorityRecord.publisherLeaseRegistry,
+        [publisherLeaseInput],
+      );
+      if (currentLease === null) return stalePublisherLeaseResultInternalV1;
+      const publisherLease = publisherLeaseInput as ManagedSurfaceStablePublisherLeaseInternalV1;
+      const acceptedBaseline = inventory.byPublisherLease.get(publisherLease);
+      if (acceptedBaseline === undefined) return reconcileFaultResultInternalV1;
+      return Object.freeze({
+        kind: "captured" as const,
+        acceptedBaseline,
+        reservationSnapshot: projectManagedSurfaceStableRootReservationSnapshotInternalV1({
+          state: currentState,
+          subjectPublisherLease: publisherLease,
+        }),
+      });
+    },
   });
 }
 

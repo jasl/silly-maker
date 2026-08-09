@@ -37,8 +37,11 @@ import {
   createManagedSurfaceStableRetainedRuntimeSubtreeInternalV1,
   projectManagedSurfaceStableRootReservationSnapshotInternalV1,
   reconcileManagedSurfaceStableRootReservationsInternalV1,
+  type ManagedSurfaceStableAdmissionContextCaptureResultInternalV1,
   type ManagedSurfaceStableCompositeStateInternalV1,
+  type ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
   type ManagedSurfaceStableDesiredRuntimeTargetInternalV1,
+  type ManagedSurfaceStablePublisherLeaseRegistrationResultInternalV1,
   type ManagedSurfaceStableReadyRuntimeInstanceInternalV1,
   type ManagedSurfaceStableRetainedRuntimeSubtreeInternalV1,
   type ManagedSurfaceStableRootReservationContributorCandidateInternalV1,
@@ -2623,5 +2626,575 @@ describe("dormant managed stable composite state", () => {
         ManagedSurfaceStableAdmissionAuthorityInternalV1["createReservationGenerationToken"]
       >
     >();
+  });
+});
+
+describe("dormant stable publisher registration", () => {
+  function registrationFixtureV1() {
+    const harness = harnessV1();
+    const kernel = createManagedSurfaceStableCompositeRuntimeKernelInternalV1({
+      admissionAuthority: harness.authority,
+      publisherLeaseRegistry: harness.registry,
+      initialTransientState: transientStateV1(),
+    });
+    return Object.freeze({ harness, kernel });
+  }
+
+  function expectRegistrationResultV1(
+    result: ManagedSurfaceStablePublisherLeaseRegistrationResultInternalV1,
+    kind: ManagedSurfaceStablePublisherLeaseRegistrationResultInternalV1["kind"],
+  ): void {
+    expect(result.kind).toBe(kind);
+    expect(Object.isFrozen(result)).toBe(true);
+  }
+
+  it("registers one exact unpublished baseline with one state notification and zero transient delta", () => {
+    const { harness, kernel } = registrationFixtureV1();
+    expectTypeOf(kernel).toEqualTypeOf<
+      ManagedSurfaceStableCompositeRuntimeKernelInternalV1
+    >();
+    const before = kernel.getStateInternalV1();
+    const beforeTransientSnapshot = kernel.getTransientSnapshotInternalV1();
+    const stateListener = vi.fn();
+    const transientListener = vi.fn();
+    let reentrantResult: ManagedSurfaceStablePublisherLeaseRegistrationResultInternalV1 | null =
+      null;
+    kernel.subscribeTransientInternalV1(transientListener);
+    kernel.subscribeStateInternalV1(() => {
+      stateListener();
+      const installed = kernel.getStateInternalV1();
+      expect(installed.stableAcceptedBaselines).toHaveLength(1);
+      reentrantResult = kernel.registerStablePublisherLeaseInternalV1(
+        harness.workspace.lease,
+      );
+    });
+
+    const result = kernel.registerStablePublisherLeaseInternalV1(harness.workspace.lease);
+    expectRegistrationResultV1(result, "registered");
+    expect(result).toMatchObject({
+      kind: "registered",
+      acceptedBaseline: {
+        kind: "unpublished",
+        publisherLease: harness.workspace.lease,
+      },
+    });
+    if (result.kind !== "registered") throw new Error("expected registered result");
+    expect(Object.keys(result)).toEqual(["kind", "acceptedBaseline"]);
+    expect(Object.isFrozen(result.acceptedBaseline)).toBe(true);
+
+    const after = kernel.getStateInternalV1();
+    expect(after).not.toBe(before);
+    expect(Object.isFrozen(after)).toBe(true);
+    expect(Object.isFrozen(after.stableAcceptedBaselines)).toBe(true);
+    expect(after.stableAcceptedBaselines).toEqual([result.acceptedBaseline]);
+    expect(after.stableAcceptedBaselines[0]).toBe(result.acceptedBaseline);
+    expect(after.transientState).toBe(before.transientState);
+    expect(after.rootReservationContributors).toBe(before.rootReservationContributors);
+    expect(after.rootReservationGenerationToken).toBe(
+      before.rootReservationGenerationToken,
+    );
+    expect(after.stableRuntimeBindings).toBe(before.stableRuntimeBindings);
+    expect(kernel.getTransientSnapshotInternalV1()).toBe(beforeTransientSnapshot);
+    expect(stateListener).toHaveBeenCalledTimes(1);
+    expect(transientListener).not.toHaveBeenCalled();
+
+    const nestedResult = reentrantResult as
+      | ManagedSurfaceStablePublisherLeaseRegistrationResultInternalV1
+      | null;
+    expectRegistrationResultV1(nestedResult!, "unchanged");
+    expect(nestedResult).toMatchObject({
+      kind: "unchanged",
+      acceptedBaseline: result.acceptedBaseline,
+    });
+    if (nestedResult?.kind !== "unchanged") {
+      throw new Error("expected reentrant unchanged result");
+    }
+    expect(nestedResult.acceptedBaseline).toBe(result.acceptedBaseline);
+    expect(kernel.getStateInternalV1()).toBe(after);
+    expect(stateListener).toHaveBeenCalledTimes(1);
+    expect(transientListener).not.toHaveBeenCalled();
+  });
+
+  it("does not treat absence or a caller-created authentic seed as the registered baseline", () => {
+    const { harness, kernel } = registrationFixtureV1();
+    const callerSeed = harness.authority.createUnpublishedBaseline(harness.workspace.lease);
+    const before = kernel.getStateInternalV1();
+    expect(before.stableAcceptedBaselines).toEqual([]);
+    const missing = kernel.captureAdmissionContextInternalV1(harness.workspace.lease);
+    expect(missing).toEqual({
+      kind: "faulted",
+      code: "surface.stable_reconcile_faulted",
+    });
+    expect(Object.isFrozen(missing)).toBe(true);
+    expect(kernel.getStateInternalV1()).toBe(before);
+
+    const result = kernel.registerStablePublisherLeaseInternalV1(harness.workspace.lease);
+    expectRegistrationResultV1(result, "registered");
+    if (result.kind !== "registered") throw new Error("expected registered result");
+    expect(result.acceptedBaseline).not.toBe(callerSeed);
+    expect(kernel.getStateInternalV1().stableAcceptedBaselines).toEqual([
+      result.acceptedBaseline,
+    ]);
+    expect(kernel.getStateInternalV1().stableAcceptedBaselines).not.toContain(callerSeed);
+  });
+
+  it("canonicalizes registered baselines by authentic lease sequence", () => {
+    const { harness, kernel } = registrationFixtureV1();
+    const stateListener = vi.fn();
+    const transientListener = vi.fn();
+    kernel.subscribeStateInternalV1(stateListener);
+    kernel.subscribeTransientInternalV1(transientListener);
+
+    const narrative = kernel.registerStablePublisherLeaseInternalV1(harness.narrative.lease);
+    const workspace = kernel.registerStablePublisherLeaseInternalV1(harness.workspace.lease);
+    expectRegistrationResultV1(narrative, "registered");
+    expectRegistrationResultV1(workspace, "registered");
+    if (narrative.kind !== "registered" || workspace.kind !== "registered") {
+      throw new Error("expected two registered baselines");
+    }
+    const registered = kernel.getStateInternalV1();
+    expect(registered.stableAcceptedBaselines).toEqual([
+      workspace.acceptedBaseline,
+      narrative.acceptedBaseline,
+    ]);
+    expect(stateListener).toHaveBeenCalledTimes(2);
+    expect(transientListener).not.toHaveBeenCalled();
+
+    expect(kernel.registerStablePublisherLeaseInternalV1(harness.workspace.lease)).toEqual({
+      kind: "unchanged",
+      acceptedBaseline: workspace.acceptedBaseline,
+    });
+    expect(kernel.registerStablePublisherLeaseInternalV1(harness.narrative.lease)).toEqual({
+      kind: "unchanged",
+      acceptedBaseline: narrative.acceptedBaseline,
+    });
+    expect(kernel.getStateInternalV1()).toBe(registered);
+    expect(stateListener).toHaveBeenCalledTimes(2);
+    expect(transientListener).not.toHaveBeenCalled();
+  });
+
+  it("keeps foreign opaque candidates stale after a valid baseline is registered", () => {
+    const { harness, kernel } = registrationFixtureV1();
+    expect(kernel.registerStablePublisherLeaseInternalV1(harness.workspace.lease).kind).toBe(
+      "registered",
+    );
+    const foreignRegistry = createManagedSurfaceStablePublisherLeaseRegistryInternalV1({
+      applicationEpoch: applicationEpochV1,
+      resolvedOwnerIds: [workspaceOwnerIdV1, narrativeOwnerIdV1],
+      leaseSequenceAllocator: createLocalManagedSurfaceStableLeaseSequenceAllocatorInternalV1(),
+    });
+    const foreignPublisher = foreignRegistry.issuePublisher(narrativeOwnerIdV1);
+    const trap = vi.fn();
+    const proxyLease = new Proxy(foreignPublisher.lease as object, {
+      get() {
+        trap();
+        throw new Error("foreign lease proxy must remain opaque");
+      },
+      ownKeys() {
+        trap();
+        throw new Error("foreign lease proxy must remain opaque");
+      },
+    });
+    const before = kernel.getStateInternalV1();
+    const stateListener = vi.fn();
+    const transientListener = vi.fn();
+    kernel.subscribeStateInternalV1(stateListener);
+    kernel.subscribeTransientInternalV1(transientListener);
+
+    for (const value of [foreignPublisher.lease, proxyLease]) {
+      expect(kernel.registerStablePublisherLeaseInternalV1(value)).toEqual({
+        kind: "stale",
+        code: "surface.stable_publisher_lease_stale",
+      });
+      expect(kernel.captureAdmissionContextInternalV1(value)).toEqual({
+        kind: "stale",
+        code: "surface.stable_publisher_lease_stale",
+      });
+    }
+    expect(trap).not.toHaveBeenCalled();
+    expect(kernel.getStateInternalV1()).toBe(before);
+    expect(stateListener).not.toHaveBeenCalled();
+    expect(transientListener).not.toHaveBeenCalled();
+  });
+
+  it("closes registration and context ingress before touching a candidate after coordinator dispose", () => {
+    const { harness, kernel } = registrationFixtureV1();
+    expect(kernel.registerStablePublisherLeaseInternalV1(harness.workspace.lease).kind).toBe(
+      "registered",
+    );
+    const coordinator = createManagedSurfaceCoordinatorFacadeInternalV1(kernel);
+    const stateListener = vi.fn();
+    const transientListener = vi.fn();
+    kernel.subscribeStateInternalV1(stateListener);
+    kernel.subscribeTransientInternalV1(transientListener);
+    expect(coordinator.dispose()).toMatchObject({ kind: "applied" });
+    const disposed = kernel.getStateInternalV1();
+    expect(stateListener).toHaveBeenCalledTimes(1);
+    expect(transientListener).toHaveBeenCalledTimes(1);
+
+    const trap = vi.fn();
+    const proxyLease = new Proxy(harness.workspace.lease as object, {
+      get() {
+        trap();
+        throw new Error("disposed composition must not inspect a candidate lease");
+      },
+      ownKeys() {
+        trap();
+        throw new Error("disposed composition must not inspect a candidate lease");
+      },
+    });
+    expect(() => kernel.registerStablePublisherLeaseInternalV1(proxyLease)).toThrowError(
+      "ui.managed_surface_coordinator_disposed",
+    );
+    expect(() => kernel.captureAdmissionContextInternalV1(proxyLease)).toThrowError(
+      "ui.managed_surface_coordinator_disposed",
+    );
+    expect(trap).not.toHaveBeenCalled();
+    expect(kernel.getStateInternalV1()).toBe(disposed);
+    expect(stateListener).toHaveBeenCalledTimes(1);
+    expect(transientListener).toHaveBeenCalledTimes(1);
+  });
+
+  it("shares the exact runtime transition fence with registration planning", () => {
+    const { harness, kernel } = registrationFixtureV1();
+    const initial = kernel.getStateInternalV1();
+    const stateListener = vi.fn();
+    const transientListener = vi.fn();
+    kernel.subscribeStateInternalV1(stateListener);
+    kernel.subscribeTransientInternalV1(transientListener);
+
+    kernel.transitionStateInternalV1((currentState) => {
+      expect(currentState).toBe(initial);
+      expect(() => kernel.registerStablePublisherLeaseInternalV1(harness.workspace.lease))
+        .toThrowError("ui.managed_surface_runtime_transition_in_progress");
+      expect(currentState.stableAcceptedBaselines).toEqual([]);
+      return Object.freeze({ state: currentState, result: undefined });
+    });
+    expect(kernel.getStateInternalV1()).toBe(initial);
+    expect(stateListener).not.toHaveBeenCalled();
+    expect(transientListener).not.toHaveBeenCalled();
+
+    expect(kernel.registerStablePublisherLeaseInternalV1(harness.workspace.lease).kind).toBe(
+      "registered",
+    );
+    expect(kernel.getStateInternalV1().stableAcceptedBaselines).toHaveLength(1);
+    expect(stateListener).toHaveBeenCalledTimes(1);
+    expect(transientListener).not.toHaveBeenCalled();
+  });
+
+  it("treats a disposed bound registry as global reconcile divergence before candidate inspection", () => {
+    const { harness, kernel } = registrationFixtureV1();
+    expect(harness.registry.dispose()).toBe("disposed");
+    const before = kernel.getStateInternalV1();
+    const trap = vi.fn();
+    const proxyLease = new Proxy(harness.workspace.lease as object, {
+      get() {
+        trap();
+        throw new Error("disposed registry must win before candidate inspection");
+      },
+      ownKeys() {
+        trap();
+        throw new Error("disposed registry must win before candidate inspection");
+      },
+    });
+
+    expect(kernel.registerStablePublisherLeaseInternalV1(proxyLease)).toEqual({
+      kind: "faulted",
+      code: "surface.stable_reconcile_faulted",
+    });
+    expect(kernel.captureAdmissionContextInternalV1(proxyLease)).toEqual({
+      kind: "faulted",
+      code: "surface.stable_reconcile_faulted",
+    });
+    expect(trap).not.toHaveBeenCalled();
+    expect(kernel.getStateInternalV1()).toBe(before);
+  });
+
+  it("returns stale for foreign, cloned, disposed-unregistered, and trap-bearing lease values", () => {
+    const { harness, kernel } = registrationFixtureV1();
+    const foreignRegistry = createManagedSurfaceStablePublisherLeaseRegistryInternalV1({
+      applicationEpoch: applicationEpochV1,
+      resolvedOwnerIds: [workspaceOwnerIdV1, narrativeOwnerIdV1],
+      leaseSequenceAllocator: createLocalManagedSurfaceStableLeaseSequenceAllocatorInternalV1(),
+    });
+    const foreignPublisher = foreignRegistry.issuePublisher(workspaceOwnerIdV1);
+    const clonedLease = Object.freeze({ ...harness.workspace.lease });
+    const trap = vi.fn();
+    const proxyLease = new Proxy(harness.workspace.lease as object, {
+      get() {
+        trap();
+        throw new Error("lease proxy must remain opaque");
+      },
+      ownKeys() {
+        trap();
+        throw new Error("lease proxy must remain opaque");
+      },
+    });
+    expect(harness.registry.disposePublisherLease(harness.narrative.lease)).toBe("disposed");
+    const before = kernel.getStateInternalV1();
+    const stateListener = vi.fn();
+    const transientListener = vi.fn();
+    kernel.subscribeStateInternalV1(stateListener);
+    kernel.subscribeTransientInternalV1(transientListener);
+
+    for (
+      const lease of [
+        foreignPublisher.lease,
+        clonedLease,
+        proxyLease,
+        harness.narrative.lease,
+        null,
+        "surface-stable-publisher.e41.n1",
+      ]
+    ) {
+      const result = kernel.registerStablePublisherLeaseInternalV1(lease);
+      expectRegistrationResultV1(result, "stale");
+      expect(result).toEqual({
+        kind: "stale",
+        code: "surface.stable_publisher_lease_stale",
+      });
+      const captured = kernel.captureAdmissionContextInternalV1(lease);
+      expect(captured).toEqual({
+        kind: "stale",
+        code: "surface.stable_publisher_lease_stale",
+      });
+      expect(Object.isFrozen(captured)).toBe(true);
+    }
+    expect(trap).not.toHaveBeenCalled();
+    expect(kernel.getStateInternalV1()).toBe(before);
+    expect(stateListener).not.toHaveBeenCalled();
+    expect(transientListener).not.toHaveBeenCalled();
+  });
+
+  it("classifies a registered lease that loses registry currentness as reconcile divergence", () => {
+    const { harness, kernel } = registrationFixtureV1();
+    const registered = kernel.registerStablePublisherLeaseInternalV1(harness.workspace.lease);
+    expectRegistrationResultV1(registered, "registered");
+    const installed = kernel.getStateInternalV1();
+    const stateListener = vi.fn();
+    const transientListener = vi.fn();
+    kernel.subscribeStateInternalV1(stateListener);
+    kernel.subscribeTransientInternalV1(transientListener);
+
+    expect(harness.registry.disposePublisherLease(harness.workspace.lease)).toBe("disposed");
+    const result = kernel.registerStablePublisherLeaseInternalV1(harness.workspace.lease);
+    expectRegistrationResultV1(result, "faulted");
+    expect(result).toEqual({
+      kind: "faulted",
+      code: "surface.stable_reconcile_faulted",
+    });
+    expect(kernel.captureAdmissionContextInternalV1(harness.workspace.lease)).toEqual({
+      kind: "faulted",
+      code: "surface.stable_reconcile_faulted",
+    });
+
+    const clonedLease = Object.freeze({ ...harness.workspace.lease });
+    const cloneResult = kernel.registerStablePublisherLeaseInternalV1(clonedLease);
+    expectRegistrationResultV1(cloneResult, "faulted");
+    expect(kernel.captureAdmissionContextInternalV1(clonedLease)).toEqual({
+      kind: "faulted",
+      code: "surface.stable_reconcile_faulted",
+    });
+    const trap = vi.fn();
+    const proxyLease = new Proxy(harness.workspace.lease as object, {
+      get() {
+        trap();
+        throw new Error("divergent registry must not inspect a candidate proxy");
+      },
+      ownKeys() {
+        trap();
+        throw new Error("divergent registry must not inspect a candidate proxy");
+      },
+    });
+    expect(kernel.registerStablePublisherLeaseInternalV1(proxyLease)).toEqual({
+      kind: "faulted",
+      code: "surface.stable_reconcile_faulted",
+    });
+    expect(kernel.captureAdmissionContextInternalV1(proxyLease)).toEqual({
+      kind: "faulted",
+      code: "surface.stable_reconcile_faulted",
+    });
+    expect(kernel.registerStablePublisherLeaseInternalV1(harness.narrative.lease)).toEqual({
+      kind: "faulted",
+      code: "surface.stable_reconcile_faulted",
+    });
+    const successor = harness.registry.issuePublisher(workspaceOwnerIdV1);
+    expect(kernel.registerStablePublisherLeaseInternalV1(successor.lease)).toEqual({
+      kind: "faulted",
+      code: "surface.stable_reconcile_faulted",
+    });
+    expect(kernel.captureAdmissionContextInternalV1(successor.lease)).toEqual({
+      kind: "faulted",
+      code: "surface.stable_reconcile_faulted",
+    });
+    expect(trap).not.toHaveBeenCalled();
+    expect(kernel.getStateInternalV1()).toBe(installed);
+    expect(stateListener).not.toHaveBeenCalled();
+    expect(transientListener).not.toHaveBeenCalled();
+  });
+
+  it("registers a fresh same-epoch successor when no retired composite record exists", () => {
+    const { harness, kernel } = registrationFixtureV1();
+    const before = kernel.getStateInternalV1();
+    expect(harness.registry.disposePublisherLease(harness.workspace.lease)).toBe("disposed");
+    const successor = harness.registry.issuePublisher(workspaceOwnerIdV1);
+
+    const stale = kernel.registerStablePublisherLeaseInternalV1(harness.workspace.lease);
+    expectRegistrationResultV1(stale, "stale");
+    const registered = kernel.registerStablePublisherLeaseInternalV1(successor.lease);
+    expectRegistrationResultV1(registered, "registered");
+    if (registered.kind !== "registered") throw new Error("expected successor registration");
+    expect(registered.acceptedBaseline.publisherLease).toBe(successor.lease);
+    expect(registered.acceptedBaseline.publisherLease).not.toBe(harness.workspace.lease);
+    expect(kernel.getStateInternalV1()).not.toBe(before);
+    expect(kernel.getStateInternalV1().stableAcceptedBaselines).toEqual([
+      registered.acceptedBaseline,
+    ]);
+  });
+
+  it("captures exact current admission context without mutation and feeds only R2 evaluation", () => {
+    const { harness, kernel } = registrationFixtureV1();
+    expect(harness.registry.disposePublisherLease(harness.workspace.lease)).toBe("disposed");
+    const publisher = harness.registry.issuePublisher(workspaceOwnerIdV1);
+    const registered = kernel.registerStablePublisherLeaseInternalV1(publisher.lease);
+    if (registered.kind !== "registered") throw new Error("expected registration");
+    const coordinator = createManagedSurfaceCoordinatorFacadeInternalV1(kernel);
+    coordinator.openTransientPrimary({
+      definition: definitionV1({
+        definitionId: rootDefinitionBV1,
+        ownerId: narrativeOwnerIdV1,
+        slotId: rootSlotBV1,
+      }).definition,
+      semanticOccurrenceId: null,
+    });
+    const before = kernel.getStateInternalV1();
+    const stateListener = vi.fn();
+    const transientListener = vi.fn();
+    kernel.subscribeStateInternalV1(stateListener);
+    kernel.subscribeTransientInternalV1(transientListener);
+
+    const context = kernel.captureAdmissionContextInternalV1(publisher.lease);
+    expect(context.kind).toBe("captured");
+    if (context.kind !== "captured") throw new Error("expected captured context");
+    expect(Object.keys(context)).toEqual([
+      "kind",
+      "acceptedBaseline",
+      "reservationSnapshot",
+    ]);
+    expect(Object.isFrozen(context)).toBe(true);
+    expect(context.acceptedBaseline).toBe(registered.acceptedBaseline);
+    expect(context.acceptedBaseline).toBe(before.stableAcceptedBaselines[0]);
+    expect(Object.isFrozen(context.reservationSnapshot)).toBe(true);
+    expect(context.reservationSnapshot.subjectPublisherLease).toBe(publisher.lease);
+    expect(context.reservationSnapshot.generationToken).toBe(
+      before.rootReservationGenerationToken,
+    );
+    expect(context.reservationSnapshot.reservedRootSlotIds).toEqual([rootSlotBV1]);
+    expect(kernel.getStateInternalV1()).toBe(before);
+    expect(stateListener).not.toHaveBeenCalled();
+    expect(transientListener).not.toHaveBeenCalled();
+
+    const occurrenceId = publisher.issueOccurrence();
+    const sourceRevision = publisher.issueSourceRevision();
+    const evaluated = harness.authority.evaluate({
+      publication: {
+        publisherLease: publisher.lease,
+        sourceRevision,
+        targets: [{
+          occurrenceId,
+          definitionId: rootDefinitionAV1,
+          parentOccurrenceId: null,
+          parameters: null,
+        }],
+      },
+      acceptedBaseline: context.acceptedBaseline,
+      reservationSnapshot: context.reservationSnapshot,
+    });
+    expect(evaluated.kind).toBe("admitted");
+    expect(kernel.getStateInternalV1()).toBe(before);
+    expect(before.stableAcceptedBaselines[0]).toBe(registered.acceptedBaseline);
+    expect(stateListener).not.toHaveBeenCalled();
+    expect(transientListener).not.toHaveBeenCalled();
+  });
+
+  it("keeps the registration and admission-context type surfaces exact and source-relative", () => {
+    expectTypeOf<ManagedSurfaceStablePublisherLeaseRegistrationResultInternalV1["kind"]>()
+      .toEqualTypeOf<"registered" | "unchanged" | "stale" | "faulted">();
+    expectTypeOf<
+      ExactKeysV1<
+        Extract<
+          ManagedSurfaceStablePublisherLeaseRegistrationResultInternalV1,
+          { readonly kind: "registered" | "unchanged" }
+        >
+      >
+    >().toEqualTypeOf<"kind" | "acceptedBaseline">();
+    expectTypeOf<
+      ExactKeysV1<
+        Extract<
+          ManagedSurfaceStablePublisherLeaseRegistrationResultInternalV1,
+          { readonly kind: "stale" | "faulted" }
+        >
+      >
+    >().toEqualTypeOf<"kind" | "code">();
+    expectTypeOf<
+      Extract<
+        ManagedSurfaceStablePublisherLeaseRegistrationResultInternalV1,
+        { readonly kind: "registered" }
+      >["acceptedBaseline"]["kind"]
+    >().toEqualTypeOf<"unpublished">();
+    expectTypeOf<
+      Extract<
+        ManagedSurfaceStablePublisherLeaseRegistrationResultInternalV1,
+        { readonly kind: "unchanged" }
+      >["acceptedBaseline"]["kind"]
+    >().toEqualTypeOf<"unpublished" | "accepted">();
+    expectTypeOf<
+      Extract<
+        ManagedSurfaceStablePublisherLeaseRegistrationResultInternalV1,
+        { readonly kind: "stale" }
+      >["code"]
+    >().toEqualTypeOf<"surface.stable_publisher_lease_stale">();
+    expectTypeOf<
+      Extract<
+        ManagedSurfaceStablePublisherLeaseRegistrationResultInternalV1,
+        { readonly kind: "faulted" }
+      >["code"]
+    >().toEqualTypeOf<"surface.stable_reconcile_faulted">();
+    expectTypeOf<ManagedSurfaceStableAdmissionContextCaptureResultInternalV1["kind"]>()
+      .toEqualTypeOf<"captured" | "stale" | "faulted">();
+    expectTypeOf<
+      ExactKeysV1<
+        Extract<
+          ManagedSurfaceStableAdmissionContextCaptureResultInternalV1,
+          { readonly kind: "captured" }
+        >
+      >
+    >().toEqualTypeOf<"kind" | "acceptedBaseline" | "reservationSnapshot">();
+    expectTypeOf<
+      Extract<
+        ManagedSurfaceStableAdmissionContextCaptureResultInternalV1,
+        { readonly kind: "captured" }
+      >["acceptedBaseline"]["kind"]
+    >().toEqualTypeOf<"unpublished" | "accepted">();
+    expectTypeOf<
+      ExactKeysV1<
+        Extract<
+          ManagedSurfaceStableAdmissionContextCaptureResultInternalV1,
+          { readonly kind: "stale" | "faulted" }
+        >
+      >
+    >().toEqualTypeOf<"kind" | "code">();
+    expectTypeOf<
+      Extract<
+        ManagedSurfaceStableAdmissionContextCaptureResultInternalV1,
+        { readonly kind: "stale" }
+      >["code"]
+    >().toEqualTypeOf<"surface.stable_publisher_lease_stale">();
+    expectTypeOf<
+      Extract<
+        ManagedSurfaceStableAdmissionContextCaptureResultInternalV1,
+        { readonly kind: "faulted" }
+      >["code"]
+    >().toEqualTypeOf<"surface.stable_reconcile_faulted">();
   });
 });

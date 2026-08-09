@@ -45,12 +45,14 @@ when no other package should consume it.
 `@sillymaker/base/runtime/internal` is the narrow cross-package seam for
 engine-owned implementation that cannot use `src/**` imports. Web consumes its
 Host composition seams, while UI's dormant source-relative stable-vector
-admission module consumes only the bounded canonical projection seam. It is
-absent from ordinary Base/runtime barrels and guarded by negative consumer type
-tests. The dormant UI admission module is likewise absent from the UI public
-and `./internal` barrels and is not wired to the Coordinator or any live
-Surface family. These internal paths are not Story APIs; before any npm
-publication, internal export visibility needs an explicit audience policy.
+admission module consumes only the bounded canonical projection seam; the
+composite registration/context seam consumes that same UI admission authority.
+The Base seam is absent from ordinary Base/runtime barrels and guarded by
+negative consumer type tests. The dormant UI admission module is likewise
+absent from the UI public and `./internal` barrels and is not wired to the
+Coordinator or any live Surface family. These internal paths are not Story
+APIs; before any npm publication, internal export visibility needs an explicit
+audience policy.
 
 `@sillymaker/ui/internal` is the equivalent Host-only composition seam. Web
 uses it to inject the realm-stable Managed Surface epoch allocator; Stories use
@@ -488,12 +490,25 @@ close or finalize a fresh System root. The epoch is presentation/runtime fencing
 only and never enters a Save.
 
 A dormant, source-relative stable composite seam now reuses that same internal
-kernel. It binds admitted targets to exact registry/configuration provenance and
-derives the stable root-contributor vector and its generation without exposing
-the registry, contributor evidence, or runtime identity. It does not apply a
-stable proposal, settle stable readiness, or connect stable ingress to a live
-family. The UI root and `./internal` barrels and package export map are
-unchanged. Stable-target reconcile and Narrative migration remain planned work.
+kernel. It binds admitted targets to exact registry/configuration provenance,
+derives the stable root-contributor vector and its generation, and can
+dynamically register an exact current stable publisher lease before future
+ingress. The same R2 authority creates the exact unpublished baseline, and the
+composite's single canonical `stableAcceptedBaselines` array remains its only
+baseline authority. First registration commits one composite-state notification
+and no transient notification; read-only context capture returns a frozen exact current
+baseline plus same-authority current-generation reservation snapshot without
+composite/source/runtime mutation or runtime identity allocation, while each capture may create and
+authenticate a fresh reservation snapshot. The composition terminal gate runs before registry,
+baseline, or candidate inspection. A disposed bound registry or application-epoch divergence fails globally;
+registered-registry lifetime divergence then also fails closed before candidate
+classification, so direct external dispose cannot admit a successor around the
+future atomic owner-dispose path. These source-relative seams expose neither the
+registry nor contributor/runtime evidence through a package barrel. They do not
+inspect or apply a stable proposal, execute effective publisher disposal, settle
+stable readiness, or connect stable ingress to a live family. The UI root and
+`./internal` barrels and package export map are unchanged. Stable proposal
+reconcile and Narrative migration remain planned work.
 
 ## 9. Changing the architecture
 
@@ -521,7 +536,9 @@ System dialogs are its live transient adopters: their public facades expose only
 definitions/configuration, structured intents, and read-only views while one
 composition authority owns lifecycle mutation. A source-relative dormant seam
 now proves how future stable runtime state can share that authority and identity
-domain, but it performs no stable proposal apply/readiness settlement and is not
-available through a package barrel. Stable-target reconcile and the Narrative
-migration remain planned work. Target documents do not alter the current data
-flow until each migration and its behavior tests land.
+domain and holds dormant exact lease/baseline registration plus read-only
+admission context, but it performs no stable proposal apply, effective dispose,
+or readiness settlement and is not available through a package barrel.
+Stable-target reconcile and the Narrative migration remain planned work. Target
+documents do not alter the current data flow until each migration and its
+behavior tests land.

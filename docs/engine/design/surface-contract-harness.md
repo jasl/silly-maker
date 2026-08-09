@@ -57,12 +57,19 @@ canonical aggregate，其exact root 与ready active/suspended descendant closure
 entries；pending/gap 不进入，root-only reservation
 projection、second replacement/failure identity reuse 与 retirement fencing 已由测试闭合；它仍未
 apply proposal、安装 accepted baseline 或接入 live stable family。
+同日 S1-R.3b.0 已在同一个 composition-owned kernel 上交付 dormant dynamic registration 与
+read-only admission-context capture：exact current lease 只把 same-authority exact unpublished baseline
+安装到唯一 `stableAcceptedBaselines` array，首次注册产生一次 composite state notification、零 transient
+notification；capture 返回 exact current baseline 与 current-generation subject reservation snapshot。
+该切片不 inspect/apply proposal、不执行 effective publisher dispose、不 settle readiness，也不接 live
+stable family。
 本文固定
 影响输入与焦点的 UI Surface 的权威边界、生命周期、输入代际与验证分层，并把“弱模型
 能够写出正确代码”提升为作者 API 的验收条件。S1-T 与 S2 已实现，S3a–S3e
 已完成并 promotion System 的 shared composition authority、Host readiness、confirmation
 child 与 single-writer cutover；S1-R.1a corrective、S1-R.3.0、S1-R.3a 与 R3a.1 corrective 已完成，
-下一独立切片为 S1-R.3b.0 exact unpublished registration + admission context。当前 live 能力仍以
+S1-R.3b.0 也已完成，下一独立切片为 S1-R.3b.1 pure reconcile and synchronous owner commit。
+当前 live 能力仍以
 [architecture](../architecture.md) 与
 [features](../features.md) 为准；执行顺序见
 [Surface Contract Harness plan](../plans/2026-07-30-surface-contract-harness.md)。
@@ -433,7 +440,7 @@ R3 不建立与现有 Coordinator 并列的 stable runtime axis。它按entry au
 - **R3a.1 retained ready-subtree corrective**：在同一composite state内认证single-root replacement
   的exact ready root/descendant closure，并让current authoritative binding canonicalize到一个aggregate；
   不新增runtime owner或执行proposal；
-- **R3b.0 exact unpublished registration + admission context**：publication ingress前动态注册exact
+- **R3b.0 exact unpublished registration + admission context（已完成）**：publication ingress前动态注册exact
   current lease及同一R2 authority产生的exact unpublished baseline，并只读捕获exact
   baseline/reservation context；不采用absence sentinel或apply proposal；
 - **R3b.1 pure plan + stateful atomic commit**：消费 R3a state，执行 R3.0 ordered CAS、pure
@@ -652,14 +659,34 @@ notification为`1`，runtime/topology/allocation均`0`；它只在没有older pe
 
 R3b.0 采用dynamic closed registration，不采用absence sentinel。每个exact current R1 publisher lease
 必须在publication ingress前由composition owner注册；同一个R2 admission authority为该lease恰创建一次
-exact unpublished baseline，并把该exact object安装为composite current baseline。Missing record永远不等于
-unpublished current，caller-created authentic-looking seed也不能被lazy adopt。首次registration只改变
-baseline维度并产生exact一次composite notification；transient projection/notification、runtime topology、
-identity high-water、root contributor vector与reservation token全部保持。Exact repeat返回同一baseline且
-zero mutation；fresh same-epoch successor lease可在old lease effective dispose后注册。Read-only admission
-context capture只返回registered lease的exact current baseline与由current contributor generation构造的
-same-authority subject snapshot，不换token、不通知、不分配。Registration使用独立package-internal
-`registered | unchanged | stale | faulted` result，不能冒充R0 reconcile result或在内部apply proposal。
+exact unpublished baseline，并把该exact object安装到composite唯一 authoritative
+`stableAcceptedBaselines` array。Missing record永远不等于unpublished current，caller-created
+authentic-looking seed也不能被lazy adopt。首次registration只改变baseline维度并产生exact一次composite
+state notification；transient projection/notification、runtime topology、identity high-water、root contributor
+vector与reservation token全部保持。Exact repeat返回同一个exact current baseline且zero mutation；fresh
+same-epoch successor lease只可在R3b.1 effective dispose已从registry与composite同时移除old record后注册。
+
+Registration使用独立frozen package-internal union，不能冒充R0 reconcile result或在内部apply proposal：
+
+- `registered { acceptedBaseline }`：只携带本次same-authority exact unpublished baseline；
+- `unchanged { acceptedBaseline }`：携带composite中exact current baseline，允许其为`unpublished`或
+  `accepted`；
+- `stale { code: "surface.stable_publisher_lease_stale" }`；
+- `faulted { code: "surface.stable_reconcile_faulted" }`。
+
+Read-only `captureAdmissionContextInternalV1(lease)`同样返回frozen closed union：
+`captured { acceptedBaseline, reservationSnapshot } | stale | faulted`。`captured`只暴露registered lease的
+exact current baseline与由current contributor generation构造的same-authority subject snapshot，不换token、
+不通知、不分配runtime identity，也不改变composite/source/runtime state；每次capture仍创建并认证一个fresh
+reservation snapshot。Composition lifecycle gate先于该closed union：`coordinatorDisposed`直接抛既有
+`ui.managed_surface_coordinator_disposed`且不触碰registry/baseline/candidate。只有lifecycle gate通过后，
+bound registry整体disposed或application epoch diverged先全局`faulted`；registration/capture随后验证全部
+registered baseline仍对应exact current registry lease；
+任一registered record与registry发生lifetime divergence时，在检查candidate前全局返回`faulted`。无record的
+unknown/foreign/noncurrent candidate只在registry lifetime current且没有registered divergence时返回`stale`；
+exact current但尚未registered的capture返回`faulted`。
+Direct external dispose遗留composite record会封闭该composition lifetime：old、foreign、clone与fresh
+successor的registration/capture均先返回`faulted`，不能绕过R3b.1的atomic effective-dispose path。
 
 Accepted empty vector remains distinguishable from “lease has never published”, so equal-empty
 is idempotent and lower revisions stay stale。Lease dispose first closes publisher ingress, is
@@ -692,7 +719,18 @@ duplicate/cross-lease closure、ready descendants同时留在accepted runtime en
 retired aggregate均fail closed；root reservation只投影aggregate root，descendants不形成row或第二份
 topology authority。该corrective不读取proposal、不写baseline、不调用R1 dispose/readiness或live
 Coordinator。验证通过focused `2 / 31`、UI package `74 / 838`、全量`248 / 3766`与完整
-`deno task check`。下一独立切片为 S1-R.3b.0 exact unpublished registration + admission context。
+`deno task check`。该checkpoint当时指向 S1-R.3b.0；现由下述R3b.0 delivery取代。
+
+S1-R.3b.0 已完成：source-relative specialized composite kernel在原有exact state/reentry/listener owner上增加
+dynamic registration与read-only context capture，没有建立第二kernel或baseline map。Baseline array按authentic
+lease sequence canonical化；首次注册exact `1 state / 0 transient` notification，repeat/stale/fault/capture均
+保持zero composite/source/runtime mutation与zero runtime identity allocation（capture只创建并认证fresh
+reservation snapshot）。Caller seed、foreign/clone/Proxy、global registry divergence、Coordinator terminal
+gate与direct publisher-dispose fence均由
+mutation-sensitive tests覆盖；capture产生的same-authority snapshot可直接供R2 evaluate，但本批不读取或apply
+proposal、不执行publisher dispose、不settle readiness或接live stable family。验证通过focused
+`2 files / 43 tests`、UI package `74 / 850`、全量`248 / 3778`与完整`deno task check`。下一独立切片为
+S1-R.3b.1 pure reconcile and synchronous owner commit。
 
 S1-R.3.0 同时冻结R4要消费的stable-only readiness envelope。它只在source-relative dormant
 stable layer组合既有 `ManagedSurfaceReadinessEvidenceV1` attempt evidence与exact
