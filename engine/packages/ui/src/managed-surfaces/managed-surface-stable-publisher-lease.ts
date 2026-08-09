@@ -93,6 +93,31 @@ export type ManagedSurfaceStableOccurrenceHighWaterClassificationInternalV1 =
   | "reused"
   | "fresh";
 
+export type ManagedSurfaceStablePublisherLeaseDisposalInspectionInternalV1 =
+  | "current"
+  | "already_disposed"
+  | "diverged"
+  | "stale";
+
+export type ManagedSurfaceStablePublisherLeaseDisposalCommitResultInternalV1 =
+  | "disposed"
+  | "already_disposed"
+  | "diverged"
+  | "stale";
+
+/**
+ * Claim-once composition capability for distinguishing an owner commit from
+ * legacy or registry-wide disposal. It owns no publisher state of its own.
+ */
+export interface ManagedSurfaceStablePublisherLeaseDisposalAuthorityInternalV1 {
+  inspectPublisherLeaseDisposal(
+    publisherLease: unknown,
+  ): ManagedSurfaceStablePublisherLeaseDisposalInspectionInternalV1;
+  disposeCurrentPublisherLease(
+    publisherLease: unknown,
+  ): ManagedSurfaceStablePublisherLeaseDisposalCommitResultInternalV1;
+}
+
 export interface ManagedSurfaceStablePublisherLeaseRegistryInternalV1 {
   getSnapshot(): ManagedSurfaceStablePublisherLeaseRegistrySnapshotInternalV1;
   issuePublisher(ownerId: ManagedSurfaceOwnerIdV1): ManagedSurfaceStablePublisherInternalV1;
@@ -151,6 +176,7 @@ interface PublisherRecordInternalV1 {
   sourceRevisionIssuanceHighWater: NonNegativeSafeInteger;
   occurrenceIssuanceHighWater: NonNegativeSafeInteger;
   disposed: boolean;
+  disposedBy: object | null;
   snapshot: ManagedSurfaceStablePublisherLeaseSnapshotInternalV1 | null;
 }
 
@@ -181,6 +207,52 @@ const acceptedOccurrenceAdmissionProofRecordsInternalV1 = new WeakMap<
   AcceptedOccurrenceAdmissionProofRecordInternalV1
 >();
 const claimedLeaseDomainAllocatorsInternalV1 = new WeakSet<object>();
+const publisherLeaseDisposalAuthorityClaimsInternalV1 = new WeakMap<
+  ManagedSurfaceStablePublisherLeaseRegistryInternalV1,
+  () => ManagedSurfaceStablePublisherLeaseDisposalAuthorityInternalV1
+>();
+interface PublisherLeaseDisposalAuthorityRecordInternalV1 {
+  readonly inspectPublisherLeaseDisposal: (
+    publisherLease: unknown,
+  ) => ManagedSurfaceStablePublisherLeaseDisposalInspectionInternalV1;
+  readonly disposeCurrentPublisherLease: (
+    publisherLease: unknown,
+  ) => ManagedSurfaceStablePublisherLeaseDisposalCommitResultInternalV1;
+}
+const publisherLeaseDisposalAuthorityRecordsInternalV1 = new WeakMap<
+  ManagedSurfaceStablePublisherLeaseDisposalAuthorityInternalV1,
+  PublisherLeaseDisposalAuthorityRecordInternalV1
+>();
+
+function requirePublisherLeaseDisposalAuthorityInternalV1(
+  receiver: unknown,
+): PublisherLeaseDisposalAuthorityRecordInternalV1 {
+  const authorityRecord =
+    (typeof receiver === "object" || typeof receiver === "function") && receiver !== null
+      ? publisherLeaseDisposalAuthorityRecordsInternalV1.get(
+        receiver as ManagedSurfaceStablePublisherLeaseDisposalAuthorityInternalV1,
+      )
+      : undefined;
+  if (authorityRecord === undefined) {
+    throw new TypeError("ui.managed_surface_stable_disposal_authority_invalid");
+  }
+  return authorityRecord;
+}
+
+export function claimManagedSurfaceStablePublisherLeaseDisposalAuthorityInternalV1(
+  registry: unknown,
+): ManagedSurfaceStablePublisherLeaseDisposalAuthorityInternalV1 {
+  if ((typeof registry !== "object" && typeof registry !== "function") || registry === null) {
+    throw new TypeError("ui.managed_surface_stable_disposal_authority_invalid");
+  }
+  const claim = publisherLeaseDisposalAuthorityClaimsInternalV1.get(
+    registry as ManagedSurfaceStablePublisherLeaseRegistryInternalV1,
+  );
+  if (claim === undefined) {
+    throw new TypeError("ui.managed_surface_stable_disposal_authority_invalid");
+  }
+  return claim();
+}
 
 const foreignOccurrenceAdmissionClassificationInternalV1 = Object.freeze({
   kind: "foreign" as const,
@@ -321,6 +393,7 @@ export function createManagedSurfaceStablePublisherLeaseRegistryInternalV1(
   let leaseSequenceHighWater: NonNegativeSafeInteger = parseNonNegativeSafeInteger(0);
   let disposed = false;
   let allocationInProgress = false;
+  let disposalAuthorityClaimed = false;
   let registrySnapshot: ManagedSurfaceStablePublisherLeaseRegistrySnapshotInternalV1 | null = null;
 
   const getRegistrySnapshot = (): ManagedSurfaceStablePublisherLeaseRegistrySnapshotInternalV1 => {
@@ -362,9 +435,11 @@ export function createManagedSurfaceStablePublisherLeaseRegistryInternalV1(
 
   const disposeRecord = (
     record: PublisherRecordInternalV1,
+    disposedBy: object | null,
   ): "disposed" | "already_disposed" => {
     if (record.disposed) return "already_disposed";
     record.disposed = true;
+    record.disposedBy = disposedBy;
     record.snapshot = null;
     if (currentPublisherByOwner.get(record.ownerId) === record) {
       currentPublisherByOwner.delete(record.ownerId);
@@ -425,6 +500,7 @@ export function createManagedSurfaceStablePublisherLeaseRegistryInternalV1(
           sourceRevisionIssuanceHighWater: parseNonNegativeSafeInteger(0),
           occurrenceIssuanceHighWater: parseNonNegativeSafeInteger(0),
           disposed: false,
+          disposedBy: null,
           snapshot: null,
         };
 
@@ -681,19 +757,69 @@ export function createManagedSurfaceStablePublisherLeaseRegistryInternalV1(
     ): "disposed" | "already_disposed" | "stale" {
       const record = publisherRecordForUnknownInternalV1(publisherLease);
       if (record === null || record.registryIdentity !== registryIdentity) return "stale";
-      return disposeRecord(record);
+      return disposeRecord(record, null);
     },
     dispose(): "disposed" | "already_disposed" {
       if (disposed) return "already_disposed";
       disposed = true;
       for (const record of currentPublisherByOwner.values()) {
         record.disposed = true;
+        record.disposedBy = null;
         record.snapshot = null;
       }
       currentPublisherByOwner.clear();
       registrySnapshot = null;
       return "disposed";
     },
+  });
+
+  publisherLeaseDisposalAuthorityClaimsInternalV1.set(registry, () => {
+    if (disposalAuthorityClaimed) {
+      throw new TypeError("ui.managed_surface_stable_disposal_authority_claimed");
+    }
+    if (disposed) {
+      throw new TypeError("ui.managed_surface_stable_disposal_authority_invalid");
+    }
+    disposalAuthorityClaimed = true;
+    const inspectPublisherLeaseDisposal = (
+      publisherLease: unknown,
+    ): ManagedSurfaceStablePublisherLeaseDisposalInspectionInternalV1 => {
+      const record = publisherRecordForUnknownInternalV1(publisherLease);
+      if (record === null || record.registryIdentity !== registryIdentity) return "stale";
+      if (record.disposed) {
+        return record.disposedBy === authority ? "already_disposed" : "diverged";
+      }
+      return isCurrentRecord(record) ? "current" : "diverged";
+    };
+    const disposeCurrentPublisherLease = (
+      publisherLease: unknown,
+    ): ManagedSurfaceStablePublisherLeaseDisposalCommitResultInternalV1 => {
+      const inspection = inspectPublisherLeaseDisposal(publisherLease);
+      if (inspection !== "current") return inspection;
+      const record = publisherRecordForUnknownInternalV1(publisherLease)!;
+      return disposeRecord(record, authority);
+    };
+    const authority = Object.freeze({
+      inspectPublisherLeaseDisposal(
+        this: unknown,
+        publisherLease: unknown,
+      ): ManagedSurfaceStablePublisherLeaseDisposalInspectionInternalV1 {
+        return requirePublisherLeaseDisposalAuthorityInternalV1(this)
+          .inspectPublisherLeaseDisposal(publisherLease);
+      },
+      disposeCurrentPublisherLease(
+        this: unknown,
+        publisherLease: unknown,
+      ): ManagedSurfaceStablePublisherLeaseDisposalCommitResultInternalV1 {
+        return requirePublisherLeaseDisposalAuthorityInternalV1(this)
+          .disposeCurrentPublisherLease(publisherLease);
+      },
+    });
+    publisherLeaseDisposalAuthorityRecordsInternalV1.set(authority, {
+      inspectPublisherLeaseDisposal,
+      disposeCurrentPublisherLease,
+    });
+    return authority;
   });
 
   return registry;

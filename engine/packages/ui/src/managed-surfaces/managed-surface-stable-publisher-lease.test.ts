@@ -17,11 +17,15 @@ import type {
 } from "./managed-surface-stable-contract.ts";
 import {
   advanceManagedSurfaceStableSequenceInternalV1,
+  claimManagedSurfaceStablePublisherLeaseDisposalAuthorityInternalV1,
   createLocalManagedSurfaceStableLeaseSequenceAllocatorInternalV1,
   createManagedSurfaceStablePublisherLeaseRegistryInternalV1,
   type ManagedSurfaceStableAcceptedOccurrenceHighWaterInternalV1,
   type ManagedSurfaceStableAcceptedOccurrenceAdmissionProofInternalV1,
   type ManagedSurfaceStablePublisherInternalV1,
+  type ManagedSurfaceStablePublisherLeaseDisposalAuthorityInternalV1,
+  type ManagedSurfaceStablePublisherLeaseDisposalCommitResultInternalV1,
+  type ManagedSurfaceStablePublisherLeaseDisposalInspectionInternalV1,
   type ManagedSurfaceStablePublisherLeaseRegistryInternalV1,
   type ManagedSurfaceStablePublisherLeaseRegistrySnapshotInternalV1,
   type ManagedSurfaceStablePublisherLeaseSnapshotInternalV1,
@@ -798,6 +802,278 @@ describe("dormant managed stable publisher lease", () => {
         parseNonNegativeSafeInteger(0),
       )
     ).toThrow("ui.managed_surface_stable_accepted_occurrence_cursor_invalid");
+  });
+
+  it("claims one frozen narrow disposal authority and preserves the registry surface", () => {
+    expectTypeOf<keyof ManagedSurfaceStablePublisherLeaseDisposalAuthorityInternalV1>()
+      .toEqualTypeOf<"inspectPublisherLeaseDisposal" | "disposeCurrentPublisherLease">();
+    expectTypeOf<ManagedSurfaceStablePublisherLeaseDisposalInspectionInternalV1>()
+      .toEqualTypeOf<"current" | "already_disposed" | "diverged" | "stale">();
+    expectTypeOf<ManagedSurfaceStablePublisherLeaseDisposalCommitResultInternalV1>()
+      .toEqualTypeOf<"disposed" | "already_disposed" | "diverged" | "stale">();
+    expectTypeOf<
+      ReturnType<
+        ManagedSurfaceStablePublisherLeaseDisposalAuthorityInternalV1[
+          "inspectPublisherLeaseDisposal"
+        ]
+      >
+    >().toEqualTypeOf<ManagedSurfaceStablePublisherLeaseDisposalInspectionInternalV1>();
+    expectTypeOf<
+      ReturnType<
+        ManagedSurfaceStablePublisherLeaseDisposalAuthorityInternalV1[
+          "disposeCurrentPublisherLease"
+        ]
+      >
+    >().toEqualTypeOf<ManagedSurfaceStablePublisherLeaseDisposalCommitResultInternalV1>();
+    expectTypeOf<keyof ManagedSurfaceStablePublisherLeaseRegistryInternalV1>()
+      .toEqualTypeOf<
+        | "getSnapshot"
+        | "issuePublisher"
+        | "inspectCurrentLease"
+        | "inspectIssuedOccurrence"
+        | "classifyOccurrenceAgainstAcceptedHighWater"
+        | "createAcceptedOccurrenceHighWater"
+        | "advanceAcceptedOccurrenceHighWater"
+        | "captureAcceptedOccurrenceAdmissionProof"
+        | "classifyOccurrenceAgainstAdmissionProof"
+        | "deriveAcceptedOccurrenceHighWaterFromAdmissionProof"
+        | "disposePublisherLease"
+        | "dispose"
+      >();
+
+    const registry = registryV1({ owners: [workspaceOwnerIdV1] });
+    const authority = claimManagedSurfaceStablePublisherLeaseDisposalAuthorityInternalV1(registry);
+    const publisher = registry.issuePublisher(workspaceOwnerIdV1);
+
+    expect(Object.isFrozen(authority)).toBe(true);
+    expect(Reflect.ownKeys(authority)).toEqual([
+      "inspectPublisherLeaseDisposal",
+      "disposeCurrentPublisherLease",
+    ]);
+    expect(authority.inspectPublisherLeaseDisposal(publisher.lease)).toBe("current");
+    expect(() => claimManagedSurfaceStablePublisherLeaseDisposalAuthorityInternalV1(registry))
+      .toThrow("ui.managed_surface_stable_disposal_authority_claimed");
+    expect(authority.inspectPublisherLeaseDisposal(publisher.lease)).toBe("current");
+  });
+
+  it("binds both disposal methods to the exact claimed authority receiver", () => {
+    const registry = registryV1({ owners: [workspaceOwnerIdV1] });
+    const authority = claimManagedSurfaceStablePublisherLeaseDisposalAuthorityInternalV1(registry);
+    const publisher = registry.issuePublisher(workspaceOwnerIdV1);
+    const inspect = authority.inspectPublisherLeaseDisposal;
+    const disposeCurrent = authority.disposeCurrentPublisherLease;
+    const spread = Object.freeze({ ...authority });
+    const proxy = new Proxy(authority, {});
+    const revokedReceiver = Proxy.revocable(authority, {});
+    revokedReceiver.revoke();
+    let candidateTrapCalls = 0;
+    const candidate = new Proxy(Object.freeze({}), {
+      get() {
+        candidateTrapCalls += 1;
+        throw new Error("invalid receiver must win before candidate inspection");
+      },
+      ownKeys() {
+        candidateTrapCalls += 1;
+        throw new Error("invalid receiver must win before candidate enumeration");
+      },
+    });
+
+    expect(Reflect.apply(inspect, authority, [publisher.lease])).toBe("current");
+    for (const receiver of [undefined, null, spread, proxy, revokedReceiver.proxy]) {
+      expect(() => Reflect.apply(inspect, receiver, [candidate])).toThrow(
+        "ui.managed_surface_stable_disposal_authority_invalid",
+      );
+      expect(() => Reflect.apply(disposeCurrent, receiver, [candidate])).toThrow(
+        "ui.managed_surface_stable_disposal_authority_invalid",
+      );
+    }
+    expect(() => inspect(publisher.lease)).toThrow(
+      "ui.managed_surface_stable_disposal_authority_invalid",
+    );
+    expect(() => disposeCurrent(publisher.lease)).toThrow(
+      "ui.managed_surface_stable_disposal_authority_invalid",
+    );
+    expect(candidateTrapCalls).toBe(0);
+    expect(authority.inspectPublisherLeaseDisposal(publisher.lease)).toBe("current");
+    expect(Reflect.apply(disposeCurrent, authority, [publisher.lease])).toBe("disposed");
+  });
+
+  it("claims only exact registries without reading forged, proxied, or revoked values", () => {
+    const registry = registryV1({ owners: [workspaceOwnerIdV1] });
+    const publisher = registry.issuePublisher(workspaceOwnerIdV1);
+    const registrySnapshot = registry.getSnapshot();
+    const publisherSnapshot = publisher.getSnapshot();
+    const accepted = registry.createAcceptedOccurrenceHighWater(publisher.lease);
+    const clonedRegistry = Object.freeze({ ...registry });
+    let trapCalls = 0;
+    const trapRegistry = new Proxy(registry, {
+      get() {
+        trapCalls += 1;
+        throw new Error("claim must use exact registry provenance");
+      },
+      ownKeys() {
+        trapCalls += 1;
+        throw new Error("claim must not enumerate a registry candidate");
+      },
+    });
+    const revokedRegistry = Proxy.revocable(registry, {});
+    revokedRegistry.revoke();
+
+    for (
+      const candidate of [
+        Object.freeze({}),
+        clonedRegistry,
+        trapRegistry,
+        revokedRegistry.proxy,
+        null,
+        "managed-surface-registry",
+      ]
+    ) {
+      expect(() => claimManagedSurfaceStablePublisherLeaseDisposalAuthorityInternalV1(candidate))
+        .toThrow("ui.managed_surface_stable_disposal_authority_invalid");
+    }
+    expect(trapCalls).toBe(0);
+    expect(registry.getSnapshot()).toBe(registrySnapshot);
+    expect(publisher.getSnapshot()).toBe(publisherSnapshot);
+    expect(accepted.occurrenceSequenceHighWater).toBe(0);
+
+    const authority = claimManagedSurfaceStablePublisherLeaseDisposalAuthorityInternalV1(registry);
+    expect(registry.getSnapshot()).toBe(registrySnapshot);
+    expect(publisher.getSnapshot()).toBe(publisherSnapshot);
+    expect(accepted.occurrenceSequenceHighWater).toBe(0);
+    expect(authority.inspectPublisherLeaseDisposal(publisher.lease)).toBe("current");
+    expect(registry.getSnapshot()).toBe(registrySnapshot);
+    expect(publisher.getSnapshot()).toBe(publisherSnapshot);
+
+    const disposedRegistry = registryV1({ owners: [workspaceOwnerIdV1] });
+    expect(disposedRegistry.dispose()).toBe("disposed");
+    expect(() =>
+      claimManagedSurfaceStablePublisherLeaseDisposalAuthorityInternalV1(disposedRegistry)
+    ).toThrow("ui.managed_surface_stable_disposal_authority_invalid");
+  });
+
+  it("records authority disposal provenance across repeat and ABA successor leases", () => {
+    const registry = registryV1({ owners: [workspaceOwnerIdV1] });
+    const authority = claimManagedSurfaceStablePublisherLeaseDisposalAuthorityInternalV1(registry);
+    const predecessor = registry.issuePublisher(workspaceOwnerIdV1);
+    const predecessorSnapshot = predecessor.getSnapshot();
+
+    expect(authority.inspectPublisherLeaseDisposal(predecessor.lease)).toBe("current");
+    expect(authority.disposeCurrentPublisherLease(predecessor.lease)).toBe("disposed");
+    expect(authority.inspectPublisherLeaseDisposal(predecessor.lease)).toBe("already_disposed");
+    expect(authority.disposeCurrentPublisherLease(predecessor.lease)).toBe("already_disposed");
+    expect(predecessor.getSnapshot()).not.toBe(predecessorSnapshot);
+    expect(predecessor.getSnapshot().disposed).toBe(true);
+
+    const successor = registry.issuePublisher(workspaceOwnerIdV1);
+    expect(successor.lease).not.toBe(predecessor.lease);
+    expect(authority.inspectPublisherLeaseDisposal(predecessor.lease)).toBe("already_disposed");
+    expect(authority.inspectPublisherLeaseDisposal(successor.lease)).toBe("current");
+    expect(authority.disposeCurrentPublisherLease(successor.lease)).toBe("disposed");
+    expect(authority.inspectPublisherLeaseDisposal(successor.lease)).toBe("already_disposed");
+    expect(authority.inspectPublisherLeaseDisposal(predecessor.lease)).toBe("already_disposed");
+  });
+
+  it("uses one claimed authority across 10k fresh ABA leases without authority growth", () => {
+    const registry = registryV1({ owners: [workspaceOwnerIdV1] });
+    const authority = claimManagedSurfaceStablePublisherLeaseDisposalAuthorityInternalV1(registry);
+    const authorityKeys = Reflect.ownKeys(authority);
+    let publisher = registry.issuePublisher(workspaceOwnerIdV1);
+
+    for (let index = 0; index < 10_000; index += 1) {
+      const predecessor = publisher;
+      expect(authority.inspectPublisherLeaseDisposal(predecessor.lease)).toBe("current");
+      expect(authority.disposeCurrentPublisherLease(predecessor.lease)).toBe("disposed");
+      expect(authority.inspectPublisherLeaseDisposal(predecessor.lease)).toBe(
+        "already_disposed",
+      );
+      publisher = registry.issuePublisher(workspaceOwnerIdV1);
+      expect(authority.inspectPublisherLeaseDisposal(publisher.lease)).toBe("current");
+    }
+
+    expect(Reflect.ownKeys(authority)).toEqual(authorityKeys);
+    expect(Object.isFrozen(authority)).toBe(true);
+    expect(registry.getSnapshot()).toEqual({
+      applicationEpoch: 23,
+      leaseSequenceHighWater: 10_001,
+      currentPublisherCount: 1,
+      disposed: false,
+    });
+    expect(() => claimManagedSurfaceStablePublisherLeaseDisposalAuthorityInternalV1(registry))
+      .toThrow("ui.managed_surface_stable_disposal_authority_claimed");
+    expect(authority.inspectPublisherLeaseDisposal(publisher.lease)).toBe("current");
+  });
+
+  it("distinguishes legacy direct and registry-wide disposal as divergence", () => {
+    const directRegistry = registryV1({ owners: [workspaceOwnerIdV1] });
+    const directAuthority = claimManagedSurfaceStablePublisherLeaseDisposalAuthorityInternalV1(
+      directRegistry,
+    );
+    const directPublisher = directRegistry.issuePublisher(workspaceOwnerIdV1);
+
+    expect(directRegistry.disposePublisherLease(directPublisher.lease)).toBe("disposed");
+    expect(directRegistry.disposePublisherLease(directPublisher.lease)).toBe("already_disposed");
+    expect(directAuthority.inspectPublisherLeaseDisposal(directPublisher.lease)).toBe("diverged");
+    expect(directAuthority.disposeCurrentPublisherLease(directPublisher.lease)).toBe("diverged");
+    const directSuccessor = directRegistry.issuePublisher(workspaceOwnerIdV1);
+    expect(directAuthority.inspectPublisherLeaseDisposal(directPublisher.lease)).toBe("diverged");
+    expect(directAuthority.inspectPublisherLeaseDisposal(directSuccessor.lease)).toBe("current");
+
+    const registryWide = registryV1({ owners: [workspaceOwnerIdV1] });
+    const registryWideAuthority =
+      claimManagedSurfaceStablePublisherLeaseDisposalAuthorityInternalV1(registryWide);
+    const registryWidePublisher = registryWide.issuePublisher(workspaceOwnerIdV1);
+    expect(registryWide.dispose()).toBe("disposed");
+    expect(registryWide.dispose()).toBe("already_disposed");
+    expect(registryWideAuthority.inspectPublisherLeaseDisposal(registryWidePublisher.lease)).toBe(
+      "diverged",
+    );
+    expect(registryWideAuthority.disposeCurrentPublisherLease(registryWidePublisher.lease)).toBe(
+      "diverged",
+    );
+  });
+
+  it("classifies foreign, cloned, and revoked candidates as stale without property reads", () => {
+    const registry = registryV1({ owners: [workspaceOwnerIdV1] });
+    const authority = claimManagedSurfaceStablePublisherLeaseDisposalAuthorityInternalV1(registry);
+    const publisher = registry.issuePublisher(workspaceOwnerIdV1);
+    const foreignRegistry = registryV1({ owners: [workspaceOwnerIdV1] });
+    const foreignPublisher = foreignRegistry.issuePublisher(workspaceOwnerIdV1);
+    const clonedLease = Object.freeze({ ...publisher.lease });
+    let trapCalls = 0;
+    const trapLease = new Proxy(Object.freeze({}), {
+      get() {
+        trapCalls += 1;
+        throw new Error("disposal authority must not read candidate properties");
+      },
+      ownKeys() {
+        trapCalls += 1;
+        throw new Error("disposal authority must not enumerate candidate properties");
+      },
+    });
+    const revokedLease = Proxy.revocable(Object.freeze({}), {});
+    revokedLease.revoke();
+    const registrySnapshot = registry.getSnapshot();
+    const publisherSnapshot = publisher.getSnapshot();
+
+    for (
+      const candidate of [
+        foreignPublisher.lease,
+        clonedLease,
+        trapLease,
+        revokedLease.proxy,
+        Object.freeze({}),
+        null,
+        "surface-stable-publisher.e23.n1",
+      ]
+    ) {
+      expect(authority.inspectPublisherLeaseDisposal(candidate)).toBe("stale");
+      expect(authority.disposeCurrentPublisherLease(candidate)).toBe("stale");
+    }
+    expect(trapCalls).toBe(0);
+    expect(registry.getSnapshot()).toBe(registrySnapshot);
+    expect(publisher.getSnapshot()).toBe(publisherSnapshot);
+    expect(authority.inspectPublisherLeaseDisposal(publisher.lease)).toBe("current");
   });
 
   it("disposes issuance idempotently and fences old lease ABA after a fresh lease", () => {

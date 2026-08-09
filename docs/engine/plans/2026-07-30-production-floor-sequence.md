@@ -21,14 +21,16 @@ promotion 均已关闭。2026-08-08 dormant `PF4/S3c.1 Host-commit readiness`、
 `PF4/S1-R.2b Base bounded canonical projection seam`、
 `PF4/S1-R.2c stable-vector admission`、`PF4/S1-R.3.0 apply/readiness contract closure`与
 `PF4/S1-R.3a composition-owned composite runtime/identity/provenance seam`、
-`PF4/S1-R.3a.1 retained ready-subtree corrective`与
-`PF4/S1-R.3b.0 exact unpublished registration + admission context`已关闭，linear core下一独立切片为
+`PF4/S1-R.3a.1 retained ready-subtree corrective`、
+`PF4/S1-R.3b.0 exact unpublished registration + admission context`与
+`PF4/S1-R.1b composition-bound publisher disposal authority corrective`已关闭，linear core下一独立切片为
 `PF4/S1-R.3b.1 pure reconcile and synchronous owner commit`。
 同日 S1-R pre-implementation review 将 external reconcile gate 重切为 S1-R.0–S1-R.5；
 顺序变化不把任何 planned stable-target contract写成 live capability。
 同日 S1-R.3 entry-gate adjudication 采用 A-prime，将原 R3 拆为单一 composite
 runtime/identity/provenance seam 的 R3a 与在该 seam 上原子 apply proposal 的 R3b；
-该裁决本身只闭合交付边界；R3a/R3a.1/R3b.0现由后续delivery记录确认完成，R3b.1仍未实现。
+该裁决本身只闭合交付边界；R3a/R3a.1/R3b.0与随后插入的R1b corrective现由后续delivery记录确认完成，
+R3b.1仍未实现。
 2026-08-04 已冻结 S3 的 shared-Coordinator transient topology、atomic initial-candidate
 supersede、retained-active pending cancellation、exact result/delta matrix、Host-commit
 readiness、StrictMode terminal-once fence 与 public API cutover，并已重切为 S3a–S3e。
@@ -37,7 +39,7 @@ supersede/retained-active cancellation、S3b composition-owned shared Coordinato
 dormant System session/catalog、S3c.0 all-family successor activation barrier 已完成；S3
 的 S3c.1 Host-commit readiness/Host lease、S3d exact-parent confirmation child 与
 S3e.0 composition successor acknowledgment/terminal teardown、S3e live cutover与
-promotion，以及 S1-R.0–R3b.0（含R1a/R3a.1 corrective）均已完成；下一独立切片为
+promotion，以及 S1-R.0–R3b.0（含R1a/R3a.1 corrective）与R1b disposal corrective均已完成；下一独立切片为
 S1-R.3b.1。
 旧 promotion 数字保留为
 历史证据。本文是当前唯一的跨计划排序入口；
@@ -1059,7 +1061,8 @@ S1-R.2a corrective admission contract；
 S1-R.2b Base bounded canonical projection seam；S1-R.2c UI stable-vector admission；
 S1-R.3.0 apply/readiness contract closure；S1-R.3a composition-owned composite runtime/identity/provenance seam；
 S1-R.3a.1 retained ready-subtree corrective；S1-R.3b.0 exact unpublished registration + admission
-context；S1-R.3b.1 pure atomic reconcile；S1-R.4 readiness/retry fence；S1-R.5 neutral harness、bounded
+context；S1-R.1b composition-bound publisher disposal authority corrective；S1-R.3b.1 pure atomic
+reconcile；S1-R.4 readiness/retry fence；S1-R.5 neutral harness、bounded
 churn 与 dead-path audit。S1-R.0 本身不实现 kernel mutation；S1-R aggregate 完成前不接
 Narrative/React/Web，也不更新 live feature 文档。详细目标、delta与stop rules由
 [Managed Surface lifecycle focused plan](2026-07-30-surface-contract-harness.md)拥有。
@@ -1197,7 +1200,22 @@ current-unregistered capture也fault，direct external dispose
 proposal inspect/apply、effective dispose、readiness或live stable family wiring，且新增类型与方法仍不进入UI
 root、`./internal` barrel或package exports。验证通过focused `2 files / 43 tests`、UI package
 `74 / 850`、全量`248 / 3778`与完整`deno task check`。Linear core下一独立切片为R3b.1 pure reconcile and
-synchronous owner commit；S4仍受S1-R aggregate gate约束。
+synchronous owner commit；该历史指针随后因下述R1b corrective短暂让位，现已恢复；S4仍受S1-R
+aggregate gate约束。
+
+**2026-08-09 S1-R.1b delivery：** R3b.1 entry audit确认R1原有`disposed: boolean`无法区分
+composition owner的首次effective dispose与legacy direct/registry-wide dispose，因而不能证明baseline
+已移除后的repeat属于同一owner commit。R1现在提供source-relative、claim-once的narrow disposal
+authority：纯`inspectPublisherLeaseDisposal`与commit-only`disposeCurrentPublisherLease`都要求exact
+authority receiver，clone、Proxy或extracted method不能复制capability；exact registry只能claim一次。
+Publisher record只保存首次dispose的exact authority provenance，不增加随history增长的tombstone
+collection；同一authority首次/重复dispose分别返回`disposed`/`already_disposed`，legacy direct或
+registry-wide先行dispose对该authority稳定分类为`diverged`，foreign/clone lease为`stale`。既有raw
+registry dispose API、snapshot与issuance semantics保持不变；新增local inspection/commit status不扩R0
+result code/delta，也不进入UI root、`./internal` barrel、package exports、transient或live family。
+验证通过focused `2 files / 29 tests`、UI package `74 / 857`、全量`248 / 3785`与完整
+`deno task check` green。本corrective完成后linear core current/next均恢复为R3b.1 pure
+reconcile and synchronous owner commit；S4仍受S1-R aggregate gate约束。
 
 每个 family 的迁移提交必须删除旧 owner；禁止长期 adapter 双写。
 `DialoguePanelV1` / `VnLayerV1` 的 controller/view/host 拆分在 Narrative family

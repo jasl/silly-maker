@@ -100,6 +100,18 @@ import type { ManagedSurfaceStableAdmissionContextCaptureResultInternalV1 as For
 import type { ManagedSurfaceStableCompositeRuntimeKernelInternalV1 as ForbiddenPublicStableCompositeKernelV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose the stable composition kernel.
 import type { ManagedSurfaceStableCompositeRuntimeKernelInternalV1 as ForbiddenInternalStableCompositeKernelV1 } from "./internal.ts";
+// @ts-expect-error Stable publisher disposal authority stays source-relative.
+import type { ManagedSurfaceStablePublisherLeaseDisposalAuthorityInternalV1 as ForbiddenPublicStableDisposalAuthorityV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose stable publisher disposal authority.
+import type { ManagedSurfaceStablePublisherLeaseDisposalAuthorityInternalV1 as ForbiddenInternalStableDisposalAuthorityV1 } from "./internal.ts";
+// @ts-expect-error Stable publisher disposal inspection stays source-relative.
+import type { ManagedSurfaceStablePublisherLeaseDisposalInspectionInternalV1 as ForbiddenPublicStableDisposalInspectionV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose disposal inspection.
+import type { ManagedSurfaceStablePublisherLeaseDisposalInspectionInternalV1 as ForbiddenInternalStableDisposalInspectionV1 } from "./internal.ts";
+// @ts-expect-error Stable publisher disposal commit results stay source-relative.
+import type { ManagedSurfaceStablePublisherLeaseDisposalCommitResultInternalV1 as ForbiddenPublicStableDisposalCommitResultV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose disposal commit results.
+import type { ManagedSurfaceStablePublisherLeaseDisposalCommitResultInternalV1 as ForbiddenInternalStableDisposalCommitResultV1 } from "./internal.ts";
 /* oxlint-enable no-unused-vars */
 
 describe("@sillymaker/ui public managed System surface", () => {
@@ -138,6 +150,7 @@ describe("@sillymaker/ui public managed System surface", () => {
         "createManagedSurfaceRuntimeAuthorityBundleInternalV1",
         "createManagedSurfaceTransientRuntimeKernelInternalV1",
         "createManagedSurfaceStableCompositeRuntimeKernelInternalV1",
+        "claimManagedSurfaceStablePublisherLeaseDisposalAuthorityInternalV1",
         "createManagedSurfaceStableReadyRuntimeBindingInternalV1",
         "createManagedSurfaceStablePreparingRuntimeBindingInternalV1",
         "createManagedSurfaceStableGapRuntimeBindingInternalV1",

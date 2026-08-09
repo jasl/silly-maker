@@ -27,7 +27,11 @@ package-internal dormant contract；S1-R.1 已进一步固定 composition-owned 
 registry、opaque lease、source/occurrence issuance、immutable accepted-occurrence high-water、
 dispose/ABA 与 bounded churn；S1-R.1a corrective 又补上 exact accepted-cursor-bound、
 capture-time occurrence issuance proof，使 R2 admission 在 Proxy/schema reentry 后仍只按
-stage-2 precondition分类并延迟派生 next cursor。它们仍不是 live capability。
+stage-2 precondition分类并延迟派生 next cursor。S1-R.1b composition-bound disposal
+authority corrective 进一步补上 exact registry 的 claim-once authority 与 exact receiver
+admission，使后续 owner commit 能区分同一 authority 的重复 dispose、legacy direct dispose
+与 registry-wide dispose；它不建立第二份 publisher state 或 tombstone authority。它们仍不是
+live capability。
 同日 S1-R.2 entry-gate review 进一步冻结 post-lower target capture、per-target
 hard-stop canonical traversal、scope-local vector equality、subject-bound root reservation
 与 exact accepted-baseline/proposal provenance；R2 按 corrective contract、Base bounded
@@ -68,7 +72,8 @@ stable family。
 能够写出正确代码”提升为作者 API 的验收条件。S1-T 与 S2 已实现，S3a–S3e
 已完成并 promotion System 的 shared composition authority、Host readiness、confirmation
 child 与 single-writer cutover；S1-R.1a corrective、S1-R.3.0、S1-R.3a 与 R3a.1 corrective 已完成，
-S1-R.3b.0 也已完成，下一独立切片为 S1-R.3b.1 pure reconcile and synchronous owner commit。
+S1-R.1b corrective 与 S1-R.3b.0 也已完成，下一独立切片为 S1-R.3b.1 pure reconcile and
+synchronous owner commit。
 当前 live 能力仍以
 [architecture](../architecture.md) 与
 [features](../features.md) 为准；执行顺序见
@@ -311,6 +316,26 @@ high-water。Proof-bound classification与late cursor derivation只读取这些 
 的immutable cursor；它不写accepted authority。现有current-only inspect/classify/advance及dispose
 语义保持不变；若callback已dispose/replace lease，R2仍可形成相对captured precondition的proposal，
 但R3b必须由lease/baseline/reservation exact CAS阻止它apply。
+
+S1-R.1b 为 composition owner 增加 package-internal、claim-once 的 publisher-lease disposal
+authority。Claim 只接受 exact authentic registry；同一 registry 只能成功领取一次，registry 已
+dispose、foreign/clone/Proxy receiver 或第二次 claim 均在任何 publisher mutation 前 fail closed。
+Authority object frozen，其 `inspectPublisherLeaseDisposal` 与
+`disposeCurrentPublisherLease` 方法只接受该 exact authority object 作为 receiver；detached callable、
+wrong receiver 或伪造 shape 不取得 disposal authority。真实 authority/registry/publisher 关联及首次
+disposer provenance 只保存在 package-private WeakMap/record，authority 自身不拥有第二份 publisher
+state，也不建立随历史增长的 tombstone set。
+
+Pure inspection 的 closed classification 固定为
+`current | already_disposed | diverged | stale`；commit classification 固定为
+`disposed | already_disposed | diverged | stale`。只有该 authority 的 exact current lease 可从
+`current` 进入 `disposed`；由同一 exact authority 首次关闭的 lease 在重复调用时返回
+`already_disposed`。既有 raw registry exact-lease dispose 或 registry-wide dispose 保留原有
+package-internal shape/语义，但其首次 disposer provenance 为 legacy/global，authority 随后必须返回
+`diverged`，不能把它冒充 composition owner 的成功或幂等重复。Foreign lease在exact authority下返回
+`stale`；foreign/forged registry claim与wrong/cloned/Proxy/extracted authority receiver则以
+`ui.managed_surface_stable_disposal_authority_invalid` fail closed。不允许领取第二个 authority 来重新解释上述 provenance。该 corrective 不扩公开 API、
+不改变 R1 issuance/cursor 语义，也不自行退休 composite source/runtime state。
 
 Stable publication 在任何 identity allocation 或 Coordinator mutation 前完成 bounded
 exact admission。R2 evaluator 每次只消费三份 per-evaluation value input：untrusted raw
@@ -571,16 +596,22 @@ R3b先建立完全pure、detached且frozen的next plan/state，再进入stateful
 R3.0四项CAS与pure plan全部成功后一次替换current state，之后发出exact one no-throw composite
 notification。Publisher dispose的stateful顺序固定为：先在current lease仍有效时完整构造pure
 retirement plan并重算root contributor vector；只有vector exact变化才预装fresh generation token，
-unpublished、accepted-empty或child-only lease dispose保留exact token。再由captured R1 registry method
-关闭exact lease ingress；若返回预期effective dispose，立即安装already-built state；最后才通知。关闭ingress之后不得再执行可能throw的definition lookup、
+unpublished、accepted-empty或child-only lease dispose保留exact token。Composition owner在构造期只
+领取一次S1-R.1b authority，并预先捕获其exact frozen receiver与exact dispose callable；commit gate只以
+该receiver调用该callable关闭exact lease ingress。只有 `disposed` 才允许立即安装already-built state；
+`already_disposed` 仅在composite已不存在该lease record的真正重复调用中返回unchanged，若composite仍
+持有record则是closed reconcile fault；`diverged`或`stale`均不安装plan。最后才通知。Raw registry
+exact-lease dispose或registry-wide dispose不能冒充owner commit。关闭ingress之后不得再执行可能throw的definition lookup、
 allocation、freeze、subscriber或user callback；subscriber failure只进入既有best-effort diagnostics。
 因此外部同步调用不能观察“ingress已关但source/runtime未退休”的中间状态。Pure plan失败不关闭
-ingress；R1返回stale不安装plan；repeat exact-token dispose返回unchanged且不保留unbounded tombstone。
+ingress；任何非`disposed` commit classification都不安装next state；legitimate repeat返回unchanged且
+不保留unbounded tombstone。
 
 R3a 在 R0 master inventory新增package-internal
 `surface.stable_reconcile_faulted`与独立zero-delta case `reconcile_fault`。它表示R3 composite
 planning、shared identity exhaustion或package-owned runtime invariant无法形成完整next state，
-也覆盖R1已返回`already_disposed`但composite仍持有该lease record的dispose divergence；结果为`faulted`且保持
+也覆盖disposal authority返回`diverged`，或返回`already_disposed`但composite仍持有该lease record的
+dispose divergence；结果为`faulted`且保持
 exact original state、zero source/runtime/topology、`0` notification/allocation。它不能复用
 `surface.stable_admission_faulted`，也不能捕获Story/renderer callback error。任何planning fault都必须
 发生在state install、effective R1 dispose或notification之前；已存在的dispose divergence只报告
@@ -731,6 +762,15 @@ mutation-sensitive tests覆盖；capture产生的same-authority snapshot可直�
 proposal、不执行publisher dispose、不settle readiness或接live stable family。验证通过focused
 `2 files / 43 tests`、UI package `74 / 850`、全量`248 / 3778`与完整`deno task check`。下一独立切片为
 S1-R.3b.1 pure reconcile and synchronous owner commit。
+
+S1-R.1b composition-bound disposal authority corrective 已完成：exact authentic registry只能
+claim一次frozen authority，authority方法执行exact receiver admission；private weak provenance把
+`current | already_disposed | diverged | stale` inspection与
+`disposed | already_disposed | diverged | stale` commit分类闭合。Same-authority repeat保持幂等，raw
+exact-lease dispose与registry-wide dispose形成divergence，foreign/clone/Proxy与second claim均fail closed；
+既有registry API、publisher issuance/cursor与public surface不变，也没有建立第二份publisher/tombstone
+authority。验证：focused `2 files / 29 tests`、UI package `74 / 857`、全量 `248 / 3785`、完整check
+green。下一独立切片仍为 S1-R.3b.1 pure reconcile and synchronous owner commit；R3b.1尚未实现。
 
 S1-R.3.0 同时冻结R4要消费的stable-only readiness envelope。它只在source-relative dormant
 stable layer组合既有 `ManagedSurfaceReadinessEvidenceV1` attempt evidence与exact

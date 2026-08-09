@@ -16,12 +16,12 @@ floor、S1-R.1 publisher lease/source/occurrence allocator、S1-R.1a captured oc
 admission proof corrective、S1-R.2a corrective admission contract、S1-R.2b Base bounded canonical
 projection seam、S1-R.2c stable-vector admission、S1-R.3.0 apply/readiness contract closure与
 S1-R.3a composition-owned composite runtime/identity/provenance seam、S1-R.3b.0 exact unpublished
-registration + admission context 已关闭，下一独立切片为S1-R.3b.1 pure reconcile and synchronous owner
-commit；R3b entry audit先以独立
+registration + admission context，以及R3b.1 entry audit发现的S1-R.1b disposal authority
+corrective均已关闭，下一独立切片为S1-R.3b.1 pure reconcile and synchronous owner commit；R3b entry audit先以独立
 S1-R.3a.1 corrective补全ready retained-subtree authority，该corrective也已关闭。
 同日 S1-R pre-implementation review 将 aggregate 重切为 S1-R.0–S1-R.5，并冻结
 parent/order、专用 revision、failure divergence、empty/dispose、cross-owner、bounded
-admission 与 exact delta；S1-R.0–R3b.0（含R1a/R3a.1 corrective）已实现，R3b.1–R5 尚未实现。
+admission 与 exact delta；S1-R.0–R3b.0及R1b（含R1a/R3a.1 corrective）已实现，R3b.1–R5 尚未实现。
 目标合同见
 [Managed Surface lifecycle and contract harness](../design/surface-contract-harness.md)。
 本文只规定可独立交付的实施顺序；不要求一次实现 design
@@ -1653,13 +1653,16 @@ S1-R 按以下可独立合并切片推进，每次只领取一个：
 10. **S1-R.3b.0 exact unpublished registration + admission context（已完成）**：在publication ingress前把
     exact current R1 lease与同一R2 authority产生的exact unpublished baseline动态注册进composition
     state，并提供read-only exact baseline/reservation context；不采用absence sentinel、不apply proposal；
-11. **S1-R.3b.1 pure atomic reconcile state/reducer**：在同一 composite state 中原子
+11. **S1-R.1b disposal authority corrective（已完成）**：为exact R1 registry提供claim-once、
+    exact-receiver disposal capability，区分composition-owned effective/repeated dispose与legacy direct/
+    registry-wide divergence；不扩registry接口、不接composite；
+12. **S1-R.3b.1 pure atomic reconcile state/reducer**：在同一 composite state 中原子
     apply exact R2 proposal，一次提交 accepted desired source 与 runtime
     preparation/topology delta，不发布 per-target intermediate state，不 settle readiness；
-12. **S1-R.4 source-bound readiness and retry**：lease + source revision + candidate
+13. **S1-R.4 source-bound readiness and retry**：lease + source revision + candidate
     instance fence、failure gap、retained predecessor、greater-same explicit retry 与 stale
     receipt；
-13. **S1-R.5 neutral harness/churn/dead-path audit**：two-owner、empty/dispose、conflict、
+14. **S1-R.5 neutral harness/churn/dead-path audit**：two-owner、empty/dispose、conflict、
     10k churn、pure/model equivalence 与 public/transient export audit，汇总 dormant
     promotion evidence。
 
@@ -2237,6 +2240,35 @@ family。新增seam仍缺席UI root、`./internal` barrel与package exports。�
 `2 files / 43 tests`、UI package `74 / 850`、全量`248 / 3778`与完整`deno task check`；下一独立切片为
 S1-R.3b.1 pure reconcile and synchronous owner commit。
 
+#### S1-R.1b disposal authority corrective（已完成）
+
+- R3b.1 effective-dispose entry audit确认，既有R1
+  `disposePublisherLease`的`already_disposed`无法区分“同一个composition owner已经完成exact dispose”与
+  “legacy direct dispose或registry-wide dispose已经使registry/composite分歧”。R1b因此新增source-relative、
+  package-internal `claimManagedSurfaceStablePublisherLeaseDisposalAuthorityInternalV1(exactRegistry)`；每个
+  exact registry只能claim一次，返回frozen、exact-receiver capability，且不把claim/disposal方法加入既有
+  registry、publisher或public API。
+- Authority只含`inspectPublisherLeaseDisposal`与`disposeCurrentPublisherLease`。Pure inspection closed
+  result为`current | already_disposed | diverged | stale`；current-dispose closed result为
+  `disposed | already_disposed | diverged | stale`。只有同一个exact authority成功关闭的lease可成为
+  `already_disposed`；legacy `disposePublisherLease`与registry-wide `dispose`形成`diverged`；foreign、clone、
+  Proxy/revoked、wrong-registry evidence为`stale`且不读取caller properties。Clone/spread/proxy receiver与
+  extracted method不能冒充authority，只有exact receiver（包括`Reflect.apply`绑定exact authority）可用。
+- Claim、inspection、invalid/repeated result不推进lease/source/occurrence cursor，不改变registry/publisher
+  snapshot identity，也不创建per-lease authority。Same authority跨10k fresh ABA successor leases保持bounded
+  scalar registry cursor与exact provenance；既有live `disposePublisherLease`/`dispose` result和行为保持兼容。
+- R1b只提供R3b.1未来owner-commit需要的lifetime provenance。当前composite kernel尚未claim或消费该
+  authority，不执行proposal apply、publisher dispose、state install或notification；新function/type仍缺席
+  UI root、`./internal` barrel、package exports与任何public/Story surface。
+
+**2026-08-09 S1-R.1b delivery：** R1 registry在既有weak publisher record上区分exact disposal-authority
+provenance，并交付claim-once frozen exact-receiver capability；direct/registry-wide divergence、authorized
+repeat、foreign/clone/revoked zero-read、second claim、ABA successor、claim zero-mutation与10k churn均有
+mutation-sensitive coverage。Registry/publisher/accepted-cursor既有authority surface未增长，legacy API保持
+兼容；composite消费仍留给R3b.1。验证通过focused `2 files / 29 tests`、UI package `74 / 857`、全量
+`248 / 3785`与完整`deno task check` green；下一独立切片仍为S1-R.3b.1 pure reconcile and
+synchronous owner commit。
+
 #### R3b.1 pure reconcile and synchronous owner commit
 
 - R3b 对 exact proposal 继续使用 R3.0 的 provenance → current lease → exact baseline →
@@ -2256,13 +2288,14 @@ S1-R.3b.1 pure reconcile and synchronous owner commit。
   exact current lease/state，构造并 freeze 已移除 baseline、退休 exact stable-owned
   runtime/subtree并重算contributor vector的 no-throw successor，但不改 current state。只有exact root
   contributor vector变化才换代token；unpublished、accepted-empty或child-only lease dispose保留exact token。
-  Stateful composite owner 持有唯一 R1 dispose ingress，以 reentrancy fence 封闭并发
-  mutation，先调用 captured exact-token `disposePublisherLease`。只有精确返回
-  `disposed` 才立即以一次不会抛错的 current-state assignment 安装已构造 successor；
+  Stateful composite owner在构造期claim唯一R1b disposal authority，以 reentrancy fence 封闭并发
+  mutation，并以captured exact authority receiver调用captured
+  `disposeCurrentPublisherLease`。只有精确返回`disposed`才立即以一次不会抛错的
+  current-state assignment安装已构造successor；
   registry close 与 assignment 之间没有 callback、`await`、allocation、freeze、lookup 或任何
   其他可抛工作。因此 ingress 先关闭，但同步 JS observer 不可观测到 registry/
-  composite 撕裂。`already_disposed` 只能与已移除 composite record 形成 repeated
-  unchanged；若 registry 与 composite record 分歧，属于 invariant fault，不能当成普通
+  composite 撕裂。`already_disposed`只能与已移除composite record形成repeated unchanged；若record仍
+  存在则属于invariant fault。`diverged | stale`不安装plan；任何registry/composite分歧都不能当成普通
   success/repeated dispose，必须返回`surface.stable_reconcile_faulted`、保持composite state且zero
   notification/allocation。
 - 状态安装完成并释放 mutation fence 后才发送一次 composite notification。
