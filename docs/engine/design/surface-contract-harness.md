@@ -73,14 +73,27 @@ baseline/runtime coherence，之后才运行detached canonical plan并以一次s
 baseline/runtime；publisher dispose通过S1-R.1b exact receiver把effective lease closure与already-built state
 原子提交。该切片仍不settle stable readiness、不发布live stable topology，也不新增public/internal barrel
 入口。
+同日 R4 entry adjudication 以 S1-R.4.0 独立关闭 direct-child cascade capacity 与 shared topology-policy
+边界：一次settlement必须在任何分配或phase安装前计算完整direct-child batch；shared identity不足时整次
+返回package-internal `faulted / surface.stable_reconcile_faulted`，parent candidate、child gaps、runtime
+high-water、reservation token与notification全部exact zero。R4不得把parent单独置ready后永久保留
+`parent_unavailable` child。现有transient reducer私有的active/suspended派生还必须先在R4a抽为唯一pure
+topology policy并由原transient路径等价复用，R4b.1才可settle stable readiness；该裁决本身没有runtime
+实现或live capability。若既有nonterminal transient/stable transition让ready-suspended stable parent恢复active，
+同一composite transition也必须完成direct-child batch；capacity不足时回滚整个触发transition。Stable
+apply/empty/dispose ingress返回`faulted / surface.stable_reconcile_faulted`，transient post-reducer ingress返回
+既有`faulted / surface.transition_faulted` receipt，二者都不能先提交successor。
+Active parent只是在child attempt分配时的eligibility，不是ready child存续期间的持续不变量。只有
+topology-participating equal-layer rows在R2 topology、exact retained subtree或existing transient publication
+中都没有authoritative relative order时才fail closed；R4不把allocation、slot或lease顺序偷换成z-order。
 本文固定
 影响输入与焦点的 UI Surface 的权威边界、生命周期、输入代际与验证分层，并把“弱模型
 能够写出正确代码”提升为作者 API 的验收条件。S1-T 与 S2 已实现，S3a–S3e
 已完成并 promotion System 的 shared composition authority、Host readiness、confirmation
 child 与 single-writer cutover；S1-R.1a corrective、S1-R.3.0、S1-R.3a 与 R3a.1 corrective 已完成，
-S1-R.1b corrective、S1-R.3b.0 与 S1-R.3b.1 也已完成，下一独立切片为 S1-R.4 stable readiness
-settlement。
-当前active execution pointer的current/next均为S1-R.4；R3b.1只作为completed delivery保留。
+S1-R.1b corrective、S1-R.3b.0、S1-R.3b.1 与 S1-R.4.0 entry contract也已完成，下一独立切片为
+S1-R.4a shared runtime topology policy extraction。
+当前active execution pointer的current/next均为S1-R.4a；R3b.1与R4.0只作为completed delivery保留。
 当前 live 能力仍以
 [architecture](../architecture.md) 与
 [features](../features.md) 为准；执行顺序见
@@ -756,8 +769,10 @@ successor的registration/capture均先返回`faulted`，不能绕过R3b.1的atom
 
 Accepted empty vector remains distinguishable from “lease has never published”, so equal-empty
 is idempotent and lower revisions stay stale。Lease dispose first closes publisher ingress, is
-idempotent on repeat, makes all old publication/readiness evidence stale, clears that lease's
-accepted cursor/vector, and does not affect another owner。Stale、equal-same、equal-different、
+idempotent on repeat, makes all old publication/readiness evidence stale, and clears that lease's
+accepted cursor/vector。它不得改写另一owner的accepted source/occurrence、direct-retire、reparent或替换其
+runtime identity；shared topology policy引出的phase变化与刚解除阻塞child preparation属于同一原子
+composition consequence，不算subject对另一owner source的越权写入。Stale、equal-same、equal-different、
 greater-invalid 与 repeated dispose 产生 `0` composite notification；任何 accepted source
 change（包括 cursor-only、greater-empty）以及首次 effective dispose 精确产生 `1`
 composite reconcile notification，且不得再泄漏 transient family duplicate notification
@@ -827,7 +842,8 @@ readiness-failed三态给出exact runtime/topology delta，同时独立维护roo
 stable topology投影到live Coordinator/input/focus/portal/renderer，也没有新增public或internal barrel
 export；Save/Persistence/canonical/digest/replay/wire均未改变。验证：focused
 `6 files / 123 tests`、UI package `75 / 882`、全量 `249 / 3810`、完整
-`deno task check` green。下一独立切片为 S1-R.4 stable readiness settlement。
+`deno task check` green。该checkpoint当时指向 S1-R.4 stable readiness settlement；现由下述
+S1-R.4.0 contract closure细分为R4a、R4b.0与R4b.1，并由R4a接续执行。
 
 S1-R.3.0 同时冻结R4要消费的stable-only readiness envelope。它只在source-relative dormant
 stable layer组合既有 `ManagedSurfaceReadinessEvidenceV1` attempt evidence与exact
@@ -837,6 +853,125 @@ lease/source。Application-epoch mismatch保留既有`surface.stale_application_
 candidate absent/settled/cancelled、instance attempt mismatch或exact lease/source mismatch统一返回既有
 `surface.stale_readiness`。两类stale都保持accepted/runtime/topology、notification与allocation exact
 zero delta；只有全部fence相等才进入R4 settle/retry transition。
+
+#### S1-R.4.0 readiness, topology, and cascade contract
+
+R4不扩张transient/public `ManagedSurfaceTransitionReceiptV1`或readiness evidence。它新增独立的
+source-relative `ManagedSurfaceStableReadinessResultInternalV1` closed union：
+
+- `applied`复用`surface.readiness_ready | surface.readiness_failed`；delta固定
+  `source: unchanged`、`runtime: settle_readiness`、`notificationCount: 1`、
+  `topology: readiness_policy_derived`，并按同一transition实际启动的preparation使用
+  `runtimeAllocation: zero | preparation_count`；这里的`notificationCount`只计一次composite state
+  notification，不允许按target拆分；
+- `stale`复用`surface.stale_application_epoch | surface.stale_readiness`并携带exact stable zero delta；
+- package-owned phase、graph、planning或shared-capacity invariant无法形成完整successor时复用
+  `faulted / surface.stable_reconcile_faulted`与exact stable zero delta。
+
+R4a只在stable R0 source-relative contract中交付上述result/delta type与frozen table，不新增stateful
+settlement method或stable state mutation。R4b.1随后只在exact specialized composite kernel增加
+`settleStableReadinessReadyInternalV1(envelope)`与
+`settleStableReadinessFailedInternalV1(envelope)`，两者都返回该dedicated union；不得用一个dynamic
+outcome parser建立第二条readiness admission。两个method依次经过composition terminal/reentry gate、
+application epoch、exact current preparing candidate/attempt、candidate保存的exact publisher lease、
+candidate保存的exact source revision；early failure不得读取later fence。全部fence通过后才验证全体
+registry/baseline/direct-runtime coherence、运行shared topology policy、计算phase/cutover、全体本次
+newly-ready-and-active stable parents与其刚解除阻塞的direct `parent_unavailable` children，并一次形成
+完整successor。
+
+R4a把现有transient reducer私有的phase算法抽为唯一package-internal pure leaf。其输入是caller已经按
+authoritative preorder排列的frozen rows；每行只携带exact opaque `subject`、non-negative
+`layerOrder`、`preparing | ready` lifecycle与caller-captured `blocksLower`。Pure policy只按
+`layerOrder`再按exact supplied preorder稳定排序，找到topmost blocking row，并输出保留exact subject
+identity的frozen `preparing | active | suspended` projection；它不得解析subject、ID或来源。
+`blocksLower`只在ready blocking instance或initial/child blocking fallback为true；hidden nonblocking
+primary-replacement candidate不参与visible z-order，retained predecessor/subtree才参与。Transient reducer
+必须改为该leaf的lossless adapter，并以golden corpus证明publication、receipt、revision、identity、
+notification与同步reentry逐字等价；不得保留第二份phase算法。
+
+Stable caller只可使用R2同一accepted vector的topology preorder（parent-before-child与scope-local sibling
+order）和exact retained-subtree preorder。Parent/child即使属于不同scope，只要上述R2 relation已给出
+order就是合法；primary replacement只以retained visible subtree参与。只有两个topology-participating
+rows处于相同`layerOrder`且在R2 topology、exact retained subtree或existing transient publication中都没有
+authoritative relative order时才fail closed。典型包括mixed stable/transient roots、不同publisher roots或
+互不相关stable scopes的equal-layer tie；R4不得用runtime sequence、allocation order、slot lexical或lease
+sequence发明z-order。
+
+Ready或failed settlement都可能解除blocking edge。Initial/child blocking failure会退休terminal candidate
+与fallback，并可能让既有ready-suspended parent恢复active；replacement failure通常不分配identity并继续
+持有exact retained subtree。所有本次newly-ready-and-active parents的direct children必须先按existing R3
+canonical planning/allocation order（root slot lexical → scope-local admitted sibling → parent/child slot
+recursion）组成一个global batch，再进行一次shared safe-integer identity-capacity检查；grandchildren仍
+保持gap。唯一semantic capacity是composition shared identity cursor，不得把R2的per-publisher 64-target
+bound、detached allocator pending-set 64或lineage-depth 130提升为global cascade上限。R4b.1必须提供一次性bulk
+detached allocation/capture seam，允许多个publisher合计超过64个合法direct children并在一个successor中
+得到连续canonical identities；任何失败都不得留下partial ID、pending attempt或强历史。
+
+若global batch容量不足，整个stable settlement返回`faulted / surface.stable_reconcile_faulted`：candidate、
+fallback、parent/child/grandchild binding、retained subtree、accepted baseline、runtime array、high-water、
+root contributor vector/token保持exact identity，零allocation且两类notification均为零。不得先把parent置
+ready或先退休failed fallback后留下永久`parent_unavailable` gap。因为ready/failed receipt都是candidate
+terminal-once，future live composition必须把这种post-fence planning fault同步提升为existing terminal
+application teardown；它不是可重试pending结果。Dormant R4b.1只返回package-internal fault并保持old state，
+不得在本切片自行发明public terminal receipt。
+
+Shared policy也约束非readiness transition。Stable proposal apply（包括greater-changed）、greater-empty或
+effective publisher dispose若移除blocker，必须在同一stable plan里启动全部本次newly-active accepted stable
+parents（same或other owner）的direct-child batch；
+phase/capacity失败在任何state install或R1 dispose gate之前回滚，并复用
+`faulted / surface.stable_reconcile_faulted` zero delta。Greater-empty/effective-dispose因此在R4a给R0新增
+closed applied delta variant：source仍为`accept_empty | remove_lease`，runtime为
+`retire_owned_targets_and_prepare_unblocked_children`，topology为`readiness_policy_derived`，allocation为
+`preparation_count`；既有zero-allocation三态rows在没有新eligible child时保持不变。Greater-changed既有
+`retain_retire_prepare / preparation_count`统计subject与same/other-owner global cascade的全部fresh
+preparations。任何stable composite transaction仍只计exact一次state notification；若其shared phase result改变
+transient-facing publication identity，则另有exact一次transient notification并保持transient-before-state，
+否则为零；faulted rollback两类均为零。
+
+Transient close、owner dispose或其他nonterminal transient transition若触发同类reflow，R4a的generic
+kernel提供default-identity、package-internal post-reducer finalization/result-override seam；R4b.1用它在安装前
+合并stable phase/cascade。任一phase/capacity fault都回滚整个transient successor并返回existing
+`faulted / surface.transition_faulted` receipt，before/after topology相等、无surface identity暴露且两类
+notification为零；成功仍只有existing one transient notification，并且exact one composite state
+notification，继续保持transient-before-state captured-vector顺序。Direct stable settle只从同一composite
+state安装一次；若shared projection实际改变transient-facing publication则同样只通知transient listener一次，
+否则为零。Source-relative stable ingress在S4前没有ordinary live caller，因此该内部投影能力不等于live
+stable family promotion。
+
+若被回滚的transient operation本身是terminal-once `readiness_ready | readiness_failed`，其receipt与stable
+readiness一样不可重放；live composition必须在向Host/renderer返回前同步进入existing S3e terminal
+application teardown。普通open/close/owner-dispose等nonterminal operation的faulted rollback仍保持old state并可
+由caller显式重试，不得把所有transition fault都误升格为terminal。
+
+Terminal `dispose_coordinator`不属于上述nonterminal reflow，也不得被phase ambiguity或identity exhaustion
+阻止。R4b先以R4b.0独立关闭terminal disposition，再由R4b.1实现readiness：specialized composite owner在
+mutation fence内以existing transient reducer terminal result为oracle，pure-build并validate一个完整terminal
+successor，清空所有stable accepted baselines、preparing/ready/retained/gap bindings与root contributors，
+保留shared identity high-water，generation token只按existing contributor-vector change规则fresh/reuse，且
+把composite-private `boundRuntimeAttempts`、`pendingRuntimeAttempts`与
+`stableContributorCandidates`等strong provenance collections替换为fresh empty records；不得靠清空public arrays
+却继续强持旧attempt/subtree/lease。它不运行topology policy、cascade、definition lookup或capacity allocation。
+全部可抛工作完成后，通过现有
+prepared-install gate以构造期capture-once exact registry receiver与exact `dispose` callable执行
+`Reflect.apply`；
+`disposed | already_disposed`都收敛到同一terminal install，随后按existing顺序exact一次transient listener、
+一次composite state listener并清空两组listener。Registry close到assignment之间不得有property lookup、
+allocation、freeze、callback或await。首次返回existing `applied / surface.coordinator_disposed`，repeat保持
+existing `unchanged / surface.coordinator_already_disposed` zero delta。Terminal path即使遇到外部先行registry
+dispose也优先完成安全收口，不把ordinary R1b divergence规则用于阻止whole-composition teardown；fresh
+successor必须使用fresh epoch与fresh registry。
+
+Publisher边界仍禁止修改other-owner accepted source、occurrence authority、direct retirement、reparent或
+identity replacement；但global shared-policy consequence可以原子改变other-owner ready phase或为其刚解除
+阻塞的child创建fresh binding。Policy phase不变时，R3b已经锁定的baseline、entry、ready instance/binding与
+retained aggregate继续exact复用；phase改变时只重建最小ready phase wrapper/binding，exact runtime attempt、
+admitted target、parent instance、surface instance ID与routing identity保持。Retained-subtree任一ready member
+phase改变时构造same-origin authenticated current aggregate，exact preorder与member attempt/identity不变；之后的
+failure/second replacement只复用该current canonical aggregate。Root phase变化按existing contributor rule轮换
+reservation generation token，descendant-only phase变化保留exact token。Active parent只在child attempt
+allocation edge上必需；child ready后，新的
+blocking child/higher blocker可合法让parent suspended而不取消、reparent或孤立该child，R4b.1必须相应收窄
+stable runtime validator。
 
 ### 3.3 Runtime session
 
@@ -1830,8 +1965,8 @@ definitions、创建新 instance/topology revision；不得反序列化旧 live 
   exact admitted-target inspector取得；
 - publisher ingress关闭后dispose commit仍可能执行会throw的planning/allocation/freeze/user callback，
   或subscriber failure能阻止already-built composite state安装；
-- R4 parent-ready direct-child cascade会耗尽shared identity、却没有closed code与atomic successor
-  contract；该边界必须在R4 RED前另行裁决，R3a/R3b不得暗选partial settle；
+- R4 parent-ready direct-child cascade无法满足R4.0已经冻结的all-or-nothing capacity、closed
+  `surface.stable_reconcile_faulted`或transient-trigger rollback contract，而只能partial settle或留下虚假gap；
 - 多 target parent-dependent readiness 需要一种无法由现有 transition-kind policy
   推导的整 vector 同步 activation 语义；
 - binding-origin Surface action 必须绕过 stale/unpublished fence才能复用普通

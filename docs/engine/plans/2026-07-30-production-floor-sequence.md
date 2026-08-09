@@ -24,8 +24,9 @@ promotion 均已关闭。2026-08-08 dormant `PF4/S3c.1 Host-commit readiness`、
 `PF4/S1-R.3a.1 retained ready-subtree corrective`、
 `PF4/S1-R.3b.0 exact unpublished registration + admission context`与
 `PF4/S1-R.1b composition-bound publisher disposal authority corrective`及
-`PF4/S1-R.3b.1 pure reconcile and synchronous owner commit`已关闭，linear core下一独立切片为
-`PF4/S1-R.4 source-bound readiness and retry`。
+`PF4/S1-R.3b.1 pure reconcile and synchronous owner commit`、
+`PF4/S1-R.4.0 readiness result/capacity contract closure`已关闭，linear core下一独立切片为
+`PF4/S1-R.4a shared runtime topology policy extraction`。
 同日 S1-R pre-implementation review 将 external reconcile gate 重切为 S1-R.0–S1-R.5；
 顺序变化不把任何 planned stable-target contract写成 live capability。
 同日 S1-R.3 entry-gate adjudication 采用 A-prime，将原 R3 拆为单一 composite
@@ -39,8 +40,8 @@ supersede/retained-active cancellation、S3b composition-owned shared Coordinato
 dormant System session/catalog、S3c.0 all-family successor activation barrier 已完成；S3
 的 S3c.1 Host-commit readiness/Host lease、S3d exact-parent confirmation child 与
 S3e.0 composition successor acknowledgment/terminal teardown、S3e live cutover与
-promotion，以及 S1-R.0–R3b.1（含R1a/R3a.1 corrective）与R1b disposal corrective均已完成；下一独立切片为
-S1-R.4。
+promotion，以及 S1-R.0–R4.0（含R1a/R3a.1 corrective）与R1b disposal corrective均已完成；下一独立切片为
+S1-R.4a。
 旧 promotion 数字保留为
 历史证据。本文是当前唯一的跨计划排序入口；
 具体合同仍由各 design 文档拥有，主要任务由五个独立计划拥有：
@@ -1062,7 +1063,10 @@ S1-R.2b Base bounded canonical projection seam；S1-R.2c UI stable-vector admiss
 S1-R.3.0 apply/readiness contract closure；S1-R.3a composition-owned composite runtime/identity/provenance seam；
 S1-R.3a.1 retained ready-subtree corrective；S1-R.3b.0 exact unpublished registration + admission
 context；S1-R.1b composition-bound publisher disposal authority corrective；S1-R.3b.1 pure atomic
-reconcile；S1-R.4 readiness/retry fence；S1-R.5 neutral harness、bounded
+reconcile；S1-R.4.0 readiness result/capacity contract closure；S1-R.4a shared runtime topology
+policy extraction；S1-R.4b.0 terminal composite disposition；S1-R.4b.1 source-bound readiness + global
+cascade settlement；
+S1-R.5 neutral harness、bounded
 churn 与 dead-path audit。S1-R.0 本身不实现 kernel mutation；S1-R aggregate 完成前不接
 Narrative/React/Web，也不更新 live feature 文档。详细目标、delta与stop rules由
 [Managed Surface lifecycle focused plan](2026-07-30-surface-contract-harness.md)拥有。
@@ -1235,7 +1239,32 @@ fail closed。Assignment后同步listener先看到registry与composite successor
 barrel与package exports；不settle readiness、不启动child cascade、不接任何live stable family。验证通过focused
 `6 files / 123 tests`、UI package `75 / 882`、全量`249 / 3810`与完整
 `deno task check` green；linear core
-current/next均为S1-R.4 source-bound readiness and retry，S4仍受S1-R aggregate gate约束。
+current/next在该checkpoint均为S1-R.4 source-bound readiness and retry；现由下述R4.0 delivery细分并取代，
+S4仍受S1-R aggregate gate约束。
+
+**2026-08-09 S1-R.4.0 delivery：** R4 entry stop现以独立contract slice闭合。Stable readiness使用
+dedicated source-relative result union与两个exact ready/failed methods：两条positive path复用existing readiness codes与一次
+readiness-policy-derived composite delta，epoch/attempt/lease/source mismatch复用existing stale codes，
+package-owned planning/capacity failure复用`faulted / surface.stable_reconcile_faulted`；它不扩张transient
+evidence或receipt。Ready成功或blocking failure使parent ready-suspended→active所引出的direct-child batch都必须先完整plan并一次检查
+shared cursor；capacity不足时整次settlement exact zero，禁止parent-ready + permanent child gap partial
+success；stable或transient terminal-once readiness receipt后的planning fault由future live adapter同步升级为
+existing terminal application teardown。Global batch沿用R3 canonical planning/allocation order且只受shared
+safe-integer cursor约束，不能把per-publisher
+64或internal lineage budget升级为
+跨owner上限。Existing transient phase/blocking派生必须先在R4a抽为唯一pure policy并由live transient reducer等价
+复用，R4b.1不得复制第二份topology authority。Nonterminal transition若让same/other-owner stable parent恢复
+active，也必须把
+direct-child batch纳入同一install；stable apply/empty/dispose失败复用stable reconcile fault并扩展closed
+preparation-count delta，transient path失败回滚整个transition并复用existing
+`faulted / surface.transition_faulted` receipt。R4b.0 terminal Coordinator dispose则优先绕过phase/capacity，
+以registry-wide disposal gate原子清空stable source/runtime/contributors与transient topology/pending，保留bounded
+recipe/cursors并置terminal publication。Active parent只是child allocation edge，不是ready
+child的持续存续条件；mixed/cross-scope equal-layer且没有authoritative order时fail closed，不能把allocation、slot或
+lease顺序变成z-order。本批只修改target design与active plans，没有runtime/API/live capability；linear core
+current/next均为S1-R.4a shared runtime topology policy extraction，R4b.0先关闭terminal disposition、
+R4b.1随后settle source-bound readiness与global cascade，S4仍受
+S1-R aggregate gate约束。该三文档delivery通过`deno fmt --check`、`git diff --check`与三路adversarial review。
 
 每个 family 的迁移提交必须删除旧 owner；禁止长期 adapter 双写。
 `DialoguePanelV1` / `VnLayerV1` 的 controller/view/host 拆分在 Narrative family
