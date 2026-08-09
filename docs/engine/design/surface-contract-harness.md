@@ -101,8 +101,9 @@ S1-R.1b corrective、S1-R.3b.0、S1-R.3b.1、S1-R.4.0 entry contract 与 S1-R.4a
 S1-R.4b.0 terminal disposition、S1-R.4b.1 readiness/cascade settlement与S1-R.5 neutral
 harness/churn/dead-path audit均已完成，S1-R aggregate gate已关闭；S4.0又已冻结首个真实
 Narrative/History stable family的topology、dismiss/focus/readiness、source projection、双重action fence与
-single-writer cutover floor。当前active execution pointer的current/next均为S4.1 dormant Narrative family
-contract/publisher bridge，R3b.1、R4.0、R4a、R4b.0、R4b.1、R5与S4.0只作为completed delivery保留。
+single-writer cutover floor；S4.1a也已交付dormant Narrative family catalog、publisher projection与
+candidate preflight。当前active execution pointer的current/next均为S4.1b authenticated physical/automatic
+action admission，R3b.1、R4.0、R4a、R4b.0、R4b.1、R5、S4.0与S4.1a只作为completed delivery保留。
 Stable implementation仍保持dormant/source-relative；R5只解除S4 entry gate，S4.0也没有把任何stable family
 提前写成live capability。
 当前 live 能力仍以
@@ -1160,6 +1161,32 @@ Candidate subtree在正确Narrative portal完成Host commit、注册exact initia
 独立持有blocking isolation、fallback-only input gate与focus scope/trap。Story content renderer只渲染controller/view props，
 不能调用Coordinator、持有`showHistory`/`active` writable lifecycle或自行注册ordinary Narrative input。
 
+S4.1a冻结的candidate preflight结果是Narrative source-relative contract，不扩张generic stable
+result table。Callback只能返回下列exact tagged data record之一：
+
+- `{ kind: "captured", candidateSnapshot }`；
+- `{ kind: "rejected", code: "narrative.renderer_missing" }`；
+- `{ kind: "rejected", code: "narrative.required_port_missing", portId }`；
+- `{ kind: "faulted", code: "narrative.candidate_preflight_faulted" }`。
+
+`portId`是closed set：`narrative.semantic_dispatch`、`narrative.history_observation`、
+`narrative.player_profile`、`narrative.presentation_clock`与`narrative.text_resolver`。Renderer
+缺失独立于required-port分类；voice replay与quick-menu contribution是`null`或exact opaque
+optional identity，不进入required-port set。三类Narrative rejection/fault result都携带exact stable
+zero delta，但不进入`ManagedSurfaceStableResultCodeInternalV1`、R0 result tables、public facade或
+public/internal barrel。
+
+Preflight result与`candidateSnapshot`都以exact own-key/data-descriptor capture读取；不调用返回对象的
+value getter，多余/缺失key、accessor、unknown tag/code/port ID、async result、hostile reflection或
+malformed snapshot都收敛为`narrative.candidate_preflight_faulted`。Captured snapshot只保存新的
+frozen record与exact renderer/config/port identities，不保存caller result object作为第二authority。
+Callback及全部descriptor capture完成后，bridge必须先重验exact publisher lease、accepted
+baseline与reservation generation；已提交的nested publication/disposal/successor先于外层
+preflight result，loser的issuance/state/notification均为zero。只有currentness仍exact才重验
+source/occurrence capacity并分配identity。Readiness-failed的explicit retry必须重新preflight并捕获
+fresh candidate snapshot，同时保留exact semantic proof与Surface target occurrence；它只推进source
+revision并分配fresh runtime candidate。
+
 所有会产生semantic resolution的路径使用同一个stable lifecycle fence与Base occurrence fence，但physical input和automatic
 controller不能伪装成同一种gesture provenance：
 
@@ -1199,12 +1226,30 @@ composition-created typed Narrative family declaration：Story只提供pure sele
 content contribution；不提供能反向写lifecycle的compatibility wrapper。S4不能长期双写或先发布一套新的public generic
 Coordinator API。
 
-S4据此拆为：S4.0本contract/characterization floor；S4.1 source-relative definition/catalog、publisher projection与
-stable action-admission bridge；S4.2 dormant controller/view/Host、Host-commit readiness与History exact-child integration；
+S4据此拆为：S4.0本contract/characterization floor；S4.1a source-relative definition/catalog、publisher
+projection与candidate preflight；S4.1b authenticated physical/automatic action admission；S4.2 dormant
+controller/view/Host、Host-commit readiness与History exact-child integration；
 S4.3在一个cutover中迁移全部tracked consumers、删除旧writers并完成headless/browser/prebuilt promotion。若exact-parent
 History不能与stable root共用composite authority、root/History不能原子retain/retire、同一semantic occurrence确实允许
 上述identity boundary漂移、三类设备不能共用双fence、或cutover必须保留direct resolve/local bool/standalone host双写，
 立即停止并修订设计；S4不得借机改变Save/Persistence/NarrativeHistory/Snapshot/semantic receipt合同。
+
+**S4.1a delivery：** 已交付source-relative exact Narrative family catalog、composition-owned publisher
+projection与candidate preflight：Dialogue是stable root，History仍是后续Host才接入的exact-parent transient
+child；bridge使用Narrative专用publisher lease/source revision/target occurrence，并以full normalized
+`PendingInteractionV1`的bounded canonical proof区分exact unchanged与same-occurrence drift。Factory捕获exact
+definition/schema/catalog provenance，candidate preflight捕获exact Story renderer、config、required/optional ports与
+immutable pending frame；callback完成后的baseline/reservation/capacity fence使nested winner原子先于
+outer result，failure retry则以同exact semantic proof/target occurrence捕获fresh snapshot并且不复用
+failed candidate。Registration cleanup/postcheck与dense exact catalog matcher闭合construction与successor provenance；
+generic stable result table、public/package barrel与live Narrative Host/cutover均无promotion。Authenticated
+physical/automatic action admission仍属S4.1b，Host-commit readiness、History child与live consumer migration仍属
+S4.2–S4.3。
+
+S4.1a验证证据为focused `5 files / 138 tests`、UI `79 files / 989 tests`、full
+`253 files / 3917 tests`与`deno task check` green。本批没有机械重跑browser/examples/prebuilt；
+`101 / 101`、`45 passed / 2 skipped`与`38 / 38`是最近先前切片的unchanged evidence，
+不冒充S4.1a HEAD的新验证。
 
 ### 3.3 Runtime session
 

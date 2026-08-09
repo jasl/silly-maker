@@ -152,12 +152,68 @@ import type { ManagedSurfaceStablePublisherLeaseDisposalInspectionInternalV1 as 
 import type { ManagedSurfaceStablePublisherLeaseDisposalCommitResultInternalV1 as ForbiddenPublicStableDisposalCommitResultV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose disposal commit results.
 import type { ManagedSurfaceStablePublisherLeaseDisposalCommitResultInternalV1 as ForbiddenInternalStableDisposalCommitResultV1 } from "./internal.ts";
+// @ts-expect-error Narrative stable-family contracts remain source-relative until live promotion.
+import type { NarrativeManagedSurfaceFamilyContractInternalV1 as ForbiddenPublicNarrativeStableFamilyV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative stable-family contracts.
+import type { NarrativeManagedSurfaceFamilyContractInternalV1 as ForbiddenInternalNarrativeStableFamilyV1 } from "./internal.ts";
+// @ts-expect-error Narrative stable publisher bridges remain source-relative until live promotion.
+import type { NarrativeStablePublisherBridgeInternalV1 as ForbiddenPublicNarrativeStableBridgeV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative stable publisher bridges.
+import type { NarrativeStablePublisherBridgeInternalV1 as ForbiddenInternalNarrativeStableBridgeV1 } from "./internal.ts";
+// @ts-expect-error Narrative admitted-frame proof remains source-relative.
+import type { NarrativeStableAdmittedFrameInternalV1 as ForbiddenPublicNarrativeStableFrameV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative admitted-frame proof.
+import type { NarrativeStableAdmittedFrameInternalV1 as ForbiddenInternalNarrativeStableFrameV1 } from "./internal.ts";
+// @ts-expect-error Narrative candidate snapshots remain source-relative until Host promotion.
+import type { NarrativeStableCandidateSnapshotInternalV1 as ForbiddenPublicNarrativeCandidateSnapshotV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative candidate snapshots.
+import type { NarrativeStableCandidateSnapshotInternalV1 as ForbiddenInternalNarrativeCandidateSnapshotV1 } from "./internal.ts";
+// @ts-expect-error Narrative candidate preflight remains source-relative until Host promotion.
+import type { NarrativeStableCandidatePreflightInternalV1 as ForbiddenPublicNarrativeCandidatePreflightV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative candidate preflight.
+import type { NarrativeStableCandidatePreflightInternalV1 as ForbiddenInternalNarrativeCandidatePreflightV1 } from "./internal.ts";
+// @ts-expect-error Narrative required-port identifiers remain source-relative.
+import type { NarrativeStableRequiredPortIdInternalV1 as ForbiddenPublicNarrativeRequiredPortIdV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative required-port identifiers.
+import type { NarrativeStableRequiredPortIdInternalV1 as ForbiddenInternalNarrativeRequiredPortIdV1 } from "./internal.ts";
+// @ts-expect-error Narrative preflight rejection codes remain source-relative.
+import type { NarrativeStableCandidatePreflightRejectionCodeInternalV1 as ForbiddenPublicNarrativeCandidatePreflightRejectionCodeV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative preflight rejection codes.
+import type { NarrativeStableCandidatePreflightRejectionCodeInternalV1 as ForbiddenInternalNarrativeCandidatePreflightRejectionCodeV1 } from "./internal.ts";
+// @ts-expect-error Narrative preflight results remain source-relative.
+import type { NarrativeStableCandidatePreflightResultInternalV1 as ForbiddenPublicNarrativeCandidatePreflightResultV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative preflight results.
+import type { NarrativeStableCandidatePreflightResultInternalV1 as ForbiddenInternalNarrativeCandidatePreflightResultV1 } from "./internal.ts";
+// @ts-expect-error Narrative publisher-bridge results remain source-relative.
+import type { NarrativeStablePublisherBridgeResultInternalV1 as ForbiddenPublicNarrativePublisherBridgeResultV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative publisher-bridge results.
+import type { NarrativeStablePublisherBridgeResultInternalV1 as ForbiddenInternalNarrativePublisherBridgeResultV1 } from "./internal.ts";
+// @ts-expect-error Narrative bridge construction inputs remain source-relative.
+import type { CreateNarrativeStablePublisherBridgeInputInternalV1 as ForbiddenPublicNarrativeStableBridgeInputV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative bridge construction inputs.
+import type { CreateNarrativeStablePublisherBridgeInputInternalV1 as ForbiddenInternalNarrativeStableBridgeInputV1 } from "./internal.ts";
+// @ts-expect-error Family configuration matching remains source-relative.
+import type { matchesManagedSurfaceStableAdmissionAuthorityFamilyConfigurationInternalV1 as ForbiddenPublicStableFamilyConfigurationMatcherV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose family configuration matching.
+import type { matchesManagedSurfaceStableAdmissionAuthorityFamilyConfigurationInternalV1 as ForbiddenInternalStableFamilyConfigurationMatcherV1 } from "./internal.ts";
+// @ts-expect-error Composite-kernel configuration matching remains source-relative.
+import type { matchesManagedSurfaceStableCompositeRuntimeKernelConfigurationInternalV1 as ForbiddenPublicStableCompositeConfigurationMatcherV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose composite-kernel configuration matching.
+import type { matchesManagedSurfaceStableCompositeRuntimeKernelConfigurationInternalV1 as ForbiddenInternalStableCompositeConfigurationMatcherV1 } from "./internal.ts";
 /* oxlint-enable no-unused-vars */
 
 describe("@sillymaker/ui public managed System surface", () => {
   it("keeps the composition-backed Host and launchers without standalone lifecycle hosts", () => {
     type DormantRuntimeSpellingV1 =
+      | "createNarrativeManagedSurfaceFamilyContractInternalV1"
+      | "createNarrativeStablePublisherBridgeInternalV1"
       | "deriveManagedSurfaceReducerTopologyProjectionInternalV1"
+      | "matchesManagedSurfaceStableAdmissionAuthorityFamilyConfigurationInternalV1"
+      | "matchesManagedSurfaceStableCompositeRuntimeKernelConfigurationInternalV1"
+      | "NarrativeStableRequiredPortIdInternalV1"
+      | "NarrativeStableCandidatePreflightRejectionCodeInternalV1"
+      | "NarrativeStableCandidatePreflightResultInternalV1"
+      | "NarrativeStablePublisherBridgeResultInternalV1"
       | "settleStableReadinessFailedInternalV1"
       | "settleStableReadinessReadyInternalV1";
 
@@ -217,6 +273,14 @@ describe("@sillymaker/ui public managed System surface", () => {
         "allocateManagedSurfaceStableRuntimeAttemptInternalV1",
         "projectManagedSurfaceStableRootReservationSnapshotInternalV1",
         "matchesManagedSurfaceStableAdmissionAuthorityConfigurationInternalV1",
+        "matchesManagedSurfaceStableAdmissionAuthorityFamilyConfigurationInternalV1",
+        "matchesManagedSurfaceStableCompositeRuntimeKernelConfigurationInternalV1",
+        "createNarrativeManagedSurfaceFamilyContractInternalV1",
+        "createNarrativeStablePublisherBridgeInternalV1",
+        "NarrativeStableRequiredPortIdInternalV1",
+        "NarrativeStableCandidatePreflightRejectionCodeInternalV1",
+        "NarrativeStableCandidatePreflightResultInternalV1",
+        "NarrativeStablePublisherBridgeResultInternalV1",
         "createManagedSurfaceRuntimeAttemptIdentityInternalV1",
         "hasExpectedManagedSurfaceRuntimeAttemptIdentityInternalV1",
         "recordManagedSurfaceRuntimeAttemptSequenceInternalV1",

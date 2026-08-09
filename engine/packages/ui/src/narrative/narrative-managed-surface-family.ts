@@ -1,0 +1,1026 @@
+// SPDX-License-Identifier: MIT
+import {
+  canonicalJsonBytes,
+  parseInteractionOccurrenceIdV1,
+  parseModuleId,
+  parsePendingInteractionV1,
+  parsePositiveSafeInteger,
+  type PendingInteractionV1,
+  type RuntimeSchemaV1,
+} from "@sillymaker/base";
+
+import {
+  parseManagedSurfaceActionIdV1,
+  parseManagedSurfaceDefinitionIdV1,
+  parseManagedSurfaceFocusTargetIdV1,
+  parseManagedSurfaceLayerIdV1,
+  parseManagedSurfaceOwnerIdV1,
+  parseManagedSurfaceSlotIdV1,
+  type ManagedSurfaceOwnerIdV1,
+  type ManagedSurfaceResolvedDefinitionV1,
+  type ManagedSurfaceResolvedSlotDescriptorV1,
+} from "../managed-surfaces/managed-surface-contracts.ts";
+import { parseManagedSurfaceResolvedDefinitionV1 } from "../managed-surfaces/managed-surface-definition.ts";
+import {
+  matchesManagedSurfaceStableAdmissionAuthorityFamilyConfigurationInternalV1,
+  type ManagedSurfaceStableAcceptedBaselineInternalV1,
+  type ManagedSurfaceStableAdmissionAuthorityInternalV1,
+  type ManagedSurfaceStableAdmissionResultInternalV1,
+  type ManagedSurfaceStableDefinitionSidecarInternalV1,
+  type ManagedSurfaceStableRootReservationSnapshotInternalV1,
+} from "../managed-surfaces/managed-surface-stable-admission.ts";
+import {
+  matchesManagedSurfaceStableCompositeRuntimeKernelConfigurationInternalV1,
+  type ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
+} from "../managed-surfaces/managed-surface-stable-composite-state.ts";
+import type {
+  ManagedSurfaceStableAdmittedTargetInternalV1,
+  ManagedSurfaceStablePublisherLeaseInternalV1,
+  ManagedSurfaceStableReconcileResultInternalV1,
+  ManagedSurfaceStableSourceRevisionInternalV1,
+  ManagedSurfaceStableTargetInternalV1,
+} from "../managed-surfaces/managed-surface-stable-contract.ts";
+import type {
+  ManagedSurfaceStablePublisherInternalV1,
+  ManagedSurfaceStablePublisherLeaseRegistryInternalV1,
+} from "../managed-surfaces/managed-surface-stable-publisher-lease.ts";
+
+export interface NarrativeManagedSurfaceFamilyContractInternalV1 {
+  readonly ownerId: ManagedSurfaceOwnerIdV1;
+  readonly resolvedOwnerIds: readonly ManagedSurfaceOwnerIdV1[];
+  readonly resolvedSlotDescriptors: readonly ManagedSurfaceResolvedSlotDescriptorV1[];
+  readonly definitions: Readonly<{
+    readonly dialogue: ManagedSurfaceResolvedDefinitionV1;
+    readonly history: ManagedSurfaceResolvedDefinitionV1;
+  }>;
+  readonly stableDefinitionSidecars: readonly ManagedSurfaceStableDefinitionSidecarInternalV1[];
+}
+
+export interface NarrativeStableAdmittedFrameInternalV1 {
+  readonly semanticOccurrenceId: string;
+  readonly rendererKey: string;
+  readonly pending: PendingInteractionV1;
+  readonly candidateSnapshot: NarrativeStableCandidateSnapshotInternalV1;
+}
+
+export interface NarrativeStableCandidateSnapshotInternalV1 {
+  readonly rendererComponent: object | ((...args: never[]) => unknown);
+  readonly visualConfig: Readonly<object>;
+  readonly semanticDispatchPort: object | ((...args: never[]) => unknown);
+  readonly historyObservationPort: object | ((...args: never[]) => unknown);
+  readonly playerProfile: Readonly<object>;
+  readonly presentationClock: object | ((...args: never[]) => unknown);
+  readonly textResolver: object | ((...args: never[]) => unknown);
+  readonly voiceReplayPort: object | ((...args: never[]) => unknown) | null;
+  readonly quickMenuContribution: object | ((...args: never[]) => unknown) | null;
+}
+
+export type NarrativeStableRequiredPortIdInternalV1 =
+  | "narrative.semantic_dispatch"
+  | "narrative.history_observation"
+  | "narrative.player_profile"
+  | "narrative.presentation_clock"
+  | "narrative.text_resolver";
+
+export type NarrativeStableCandidatePreflightRejectionCodeInternalV1 =
+  | "narrative.renderer_missing"
+  | "narrative.required_port_missing";
+
+export type NarrativeStableCandidatePreflightResultInternalV1 =
+  | Readonly<{
+    readonly kind: "captured";
+    readonly candidateSnapshot: unknown;
+  }>
+  | Readonly<{
+    readonly kind: "rejected";
+    readonly code: "narrative.renderer_missing";
+  }>
+  | Readonly<{
+    readonly kind: "rejected";
+    readonly code: "narrative.required_port_missing";
+    readonly portId: NarrativeStableRequiredPortIdInternalV1;
+  }>
+  | Readonly<{
+    readonly kind: "faulted";
+    readonly code: "narrative.candidate_preflight_faulted";
+  }>;
+
+export interface NarrativeStableCandidatePreflightInternalV1 {
+  preflightCandidateInternalV1(
+    pending: PendingInteractionV1,
+    rendererKey: string,
+  ): NarrativeStableCandidatePreflightResultInternalV1;
+}
+
+type NarrativeStableCandidatePreflightZeroDeltaInternalV1 = Readonly<{
+  readonly source: "unchanged";
+  readonly runtime: "unchanged";
+  readonly notificationCount: 0;
+  readonly topology: "unchanged";
+  readonly runtimeAllocation: "zero";
+}>;
+
+export type NarrativeStablePublisherBridgeResultInternalV1 =
+  | ManagedSurfaceStableReconcileResultInternalV1
+  | Readonly<{
+    readonly kind: "rejected";
+    readonly code: "narrative.renderer_missing";
+    readonly delta: NarrativeStableCandidatePreflightZeroDeltaInternalV1;
+  }>
+  | Readonly<{
+    readonly kind: "rejected";
+    readonly code: "narrative.required_port_missing";
+    readonly portId: NarrativeStableRequiredPortIdInternalV1;
+    readonly delta: NarrativeStableCandidatePreflightZeroDeltaInternalV1;
+  }>
+  | Readonly<{
+    readonly kind: "faulted";
+    readonly code: "narrative.candidate_preflight_faulted";
+    readonly delta: NarrativeStableCandidatePreflightZeroDeltaInternalV1;
+  }>;
+
+export interface NarrativeStablePublisherBridgeInternalV1 {
+  reconcilePendingInternalV1(
+    pending: unknown,
+  ): NarrativeStablePublisherBridgeResultInternalV1;
+  retryCurrentPendingInternalV1(): NarrativeStablePublisherBridgeResultInternalV1;
+  disposeInternalV1(): ManagedSurfaceStableReconcileResultInternalV1;
+  inspectAdmittedTargetFrameInternalV1(
+    target: unknown,
+  ): NarrativeStableAdmittedFrameInternalV1 | null;
+}
+
+export interface CreateNarrativeStablePublisherBridgeInputInternalV1 {
+  readonly publisherLeaseRegistry: ManagedSurfaceStablePublisherLeaseRegistryInternalV1;
+  readonly admissionAuthority: ManagedSurfaceStableAdmissionAuthorityInternalV1;
+  readonly compositeRuntimeKernel: ManagedSurfaceStableCompositeRuntimeKernelInternalV1;
+  readonly candidatePreflight: NarrativeStableCandidatePreflightInternalV1;
+  readonly exactAggregateDefinitionSidecars:
+    readonly ManagedSurfaceStableDefinitionSidecarInternalV1[];
+  readonly exactAggregateSlotDescriptors: readonly ManagedSurfaceResolvedSlotDescriptorV1[];
+}
+
+interface NarrativeStableParametersInternalV1 {
+  readonly semanticOccurrenceId: string;
+  readonly kind: PendingInteractionV1["kind"];
+  readonly definitionId: string;
+  readonly seenRevision: number;
+  readonly rendererKey: string;
+}
+
+interface NarrativeTargetFrameRecordInternalV1 {
+  readonly bridgeIdentity: object;
+  readonly sourceRevision: ManagedSurfaceStableSourceRevisionInternalV1;
+  readonly canonicalPendingBytes: Uint8Array;
+  readonly frame: NarrativeStableAdmittedFrameInternalV1;
+}
+
+const narrativeTargetFrameRecordsInternalV1 = new WeakMap<
+  ManagedSurfaceStableAdmittedTargetInternalV1,
+  NarrativeTargetFrameRecordInternalV1
+>();
+
+const stableZeroDeltaInternalV1 = Object.freeze({
+  source: "unchanged" as const,
+  runtime: "unchanged" as const,
+  notificationCount: 0 as const,
+  topology: "unchanged" as const,
+  runtimeAllocation: "zero" as const,
+});
+
+const stableUnchangedResultInternalV1 = Object.freeze({
+  kind: "unchanged" as const,
+  code: "surface.stable_publication_unchanged" as const,
+  delta: stableZeroDeltaInternalV1,
+});
+
+const stablePublisherStaleResultInternalV1 = Object.freeze({
+  kind: "stale" as const,
+  code: "surface.stable_publisher_lease_stale" as const,
+  delta: stableZeroDeltaInternalV1,
+});
+
+const narrativeRendererMissingResultInternalV1 = Object.freeze({
+  kind: "rejected" as const,
+  code: "narrative.renderer_missing" as const,
+  delta: stableZeroDeltaInternalV1,
+});
+
+const narrativeCandidatePreflightFaultedResultInternalV1 = Object.freeze({
+  kind: "faulted" as const,
+  code: "narrative.candidate_preflight_faulted" as const,
+  delta: stableZeroDeltaInternalV1,
+});
+
+const stableReconcilePreconditionStaleResultInternalV1 = Object.freeze({
+  kind: "stale" as const,
+  code: "surface.stable_reconcile_precondition_stale" as const,
+  delta: stableZeroDeltaInternalV1,
+});
+
+const stableSchemaRejectedResultInternalV1 = Object.freeze({
+  kind: "rejected" as const,
+  code: "surface.stable_schema_invalid" as const,
+  delta: stableZeroDeltaInternalV1,
+});
+
+const stableReconcileFaultedResultInternalV1 = Object.freeze({
+  kind: "faulted" as const,
+  code: "surface.stable_reconcile_faulted" as const,
+  delta: stableZeroDeltaInternalV1,
+});
+
+function hasExactDataKeysInternalV1(
+  value: unknown,
+  keys: readonly string[],
+): value is Readonly<Record<string, unknown>> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const prototype = Reflect.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) return false;
+  const ownKeys = Reflect.ownKeys(value);
+  if (
+    ownKeys.length !== keys.length ||
+    ownKeys.some((key) => typeof key !== "string") ||
+    !keys.every((key) => Object.hasOwn(value, key))
+  ) {
+    return false;
+  }
+  return keys.every((key) => {
+    const descriptor = Reflect.getOwnPropertyDescriptor(value, key);
+    return descriptor !== undefined && "value" in descriptor;
+  });
+}
+
+interface CapturedOwnDataRecordInternalV1 {
+  readonly keys: readonly string[];
+  readonly values: Readonly<Record<string, unknown>>;
+}
+
+function captureOwnDataRecordInternalV1(
+  value: unknown,
+): CapturedOwnDataRecordInternalV1 | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  if (Reflect.getPrototypeOf(value) !== Object.prototype) return null;
+  const ownKeys = Reflect.ownKeys(value);
+  if (ownKeys.some((key) => typeof key !== "string")) return null;
+  const keys = ownKeys as string[];
+  const values = Object.create(null) as Record<string, unknown>;
+  for (const key of keys) {
+    const descriptor = Reflect.getOwnPropertyDescriptor(value, key);
+    if (descriptor === undefined || !("value" in descriptor)) return null;
+    Object.defineProperty(values, key, {
+      configurable: false,
+      enumerable: true,
+      writable: false,
+      value: descriptor.value,
+    });
+  }
+  return Object.freeze({
+    keys: Object.freeze([...keys]),
+    values: Object.freeze(values),
+  });
+}
+
+function capturedRecordHasExactKeysInternalV1(
+  record: CapturedOwnDataRecordInternalV1,
+  expectedKeys: readonly string[],
+): boolean {
+  if (record.keys.length !== expectedKeys.length) return false;
+  const actualKeys = new Set(record.keys);
+  return expectedKeys.every((key) => actualKeys.has(key));
+}
+
+function narrativeParametersSchemaInternalV1(): RuntimeSchemaV1<unknown> {
+  return Object.freeze({
+    parse(value: unknown): NarrativeStableParametersInternalV1 {
+      const keys = [
+        "semanticOccurrenceId",
+        "kind",
+        "definitionId",
+        "seenRevision",
+        "rendererKey",
+      ] as const;
+      if (!hasExactDataKeysInternalV1(value, keys)) {
+        throw new TypeError("ui.narrative_stable_parameters_invalid");
+      }
+      const kind = value.kind;
+      if (
+        kind !== "say" && kind !== "choice" && kind !== "pause" &&
+        kind !== "presentation_barrier" && kind !== "custom"
+      ) {
+        throw new TypeError("ui.narrative_stable_parameters_invalid");
+      }
+      return Object.freeze({
+        semanticOccurrenceId: parseInteractionOccurrenceIdV1(value.semanticOccurrenceId),
+        kind,
+        definitionId: parseModuleId(value.definitionId),
+        seenRevision: parsePositiveSafeInteger(value.seenRevision),
+        rendererKey: parseModuleId(value.rendererKey),
+      });
+    },
+  });
+}
+
+const ownerIdInternalV1 = parseManagedSurfaceOwnerIdV1("surface-owner.narrative");
+const rootSlotIdInternalV1 = parseManagedSurfaceSlotIdV1("surface-slot.narrative.root");
+const historySlotIdInternalV1 = parseManagedSurfaceSlotIdV1(
+  "surface-slot.narrative.history",
+);
+const dialogueDefinitionIdInternalV1 = parseManagedSurfaceDefinitionIdV1(
+  "surface.narrative.dialogue",
+);
+const historyDefinitionIdInternalV1 = parseManagedSurfaceDefinitionIdV1(
+  "surface.narrative.history",
+);
+const narrativeLayerIdInternalV1 = parseManagedSurfaceLayerIdV1("surface-layer.narrative");
+
+const readinessPolicyInternalV1 = Object.freeze({
+  initialOpen: "blocking_fallback" as const,
+  primaryReplacement: "retain_current" as const,
+  childOpen: "blocking_fallback" as const,
+});
+
+const dialogueDefinitionInternalV1 = parseManagedSurfaceResolvedDefinitionV1({
+  definitionId: dialogueDefinitionIdInternalV1,
+  contractRevision: parsePositiveSafeInteger(1),
+  ownerId: ownerIdInternalV1,
+  slotId: rootSlotIdInternalV1,
+  layerId: narrativeLayerIdInternalV1,
+  layerOrder: 40,
+  placement: "root",
+  modality: "blocking",
+  inputPolicy: Object.freeze({ kind: "managed", inputContextId: "narrative" }),
+  dismissPolicy: Object.freeze({
+    back: false,
+    escape: false,
+    backdrop: false,
+    routedCancel: false,
+  }),
+  focusPolicy: Object.freeze({
+    kind: "owns_focus",
+    initialTargetId: parseManagedSurfaceFocusTargetIdV1(
+      "surface-focus.narrative.primary",
+    ),
+    trap: true,
+    restore: "previous_owner",
+  }),
+  navigationPolicy: Object.freeze({ kind: "none" }),
+  actionIds: Object.freeze(
+    [
+      "ui.confirm",
+      "narrative.advance",
+      "narrative.choose",
+      "narrative.resume",
+      "narrative.custom",
+      "player.toggle_auto",
+      "player.toggle_skip",
+      "player.toggle_history",
+      "player.toggle_ui",
+      "player.replay_voice",
+    ].map(parseManagedSurfaceActionIdV1),
+  ),
+  readiness: readinessPolicyInternalV1,
+});
+
+const historyDefinitionInternalV1 = parseManagedSurfaceResolvedDefinitionV1({
+  definitionId: historyDefinitionIdInternalV1,
+  contractRevision: parsePositiveSafeInteger(1),
+  ownerId: ownerIdInternalV1,
+  slotId: historySlotIdInternalV1,
+  layerId: narrativeLayerIdInternalV1,
+  layerOrder: 41,
+  placement: "child",
+  modality: "blocking",
+  inputPolicy: Object.freeze({ kind: "managed", inputContextId: "narrative" }),
+  dismissPolicy: Object.freeze({
+    back: true,
+    escape: true,
+    backdrop: true,
+    routedCancel: true,
+  }),
+  focusPolicy: Object.freeze({
+    kind: "owns_focus",
+    initialTargetId: parseManagedSurfaceFocusTargetIdV1(
+      "surface-focus.narrative.history-close",
+    ),
+    trap: true,
+    restore: "opener",
+  }),
+  navigationPolicy: Object.freeze({ kind: "close" }),
+  actionIds: Object.freeze(
+    ["ui.cancel", "player.toggle_history"].map(parseManagedSurfaceActionIdV1),
+  ),
+  readiness: readinessPolicyInternalV1,
+});
+
+const rootSlotDescriptorInternalV1 = Object.freeze({
+  kind: "root" as const,
+  slotId: rootSlotIdInternalV1,
+  cardinality: "single" as const,
+});
+const historySlotDescriptorInternalV1 = Object.freeze({
+  kind: "child" as const,
+  parentDefinitionId: dialogueDefinitionIdInternalV1,
+  slotId: historySlotIdInternalV1,
+  cardinality: "single" as const,
+});
+const dialogueSidecarInternalV1: ManagedSurfaceStableDefinitionSidecarInternalV1 = Object.freeze({
+  definition: dialogueDefinitionInternalV1,
+  parameterSchema: narrativeParametersSchemaInternalV1(),
+});
+
+const narrativeManagedSurfaceFamilyContractInternalV1:
+  NarrativeManagedSurfaceFamilyContractInternalV1 = Object.freeze({
+    ownerId: ownerIdInternalV1,
+    resolvedOwnerIds: Object.freeze([ownerIdInternalV1]),
+    resolvedSlotDescriptors: Object.freeze([
+      rootSlotDescriptorInternalV1,
+      historySlotDescriptorInternalV1,
+    ]),
+    definitions: Object.freeze({
+      dialogue: dialogueDefinitionInternalV1,
+      history: historyDefinitionInternalV1,
+    }),
+    stableDefinitionSidecars: Object.freeze([dialogueSidecarInternalV1]),
+  });
+
+export function createNarrativeManagedSurfaceFamilyContractInternalV1(): NarrativeManagedSurfaceFamilyContractInternalV1 {
+  return narrativeManagedSurfaceFamilyContractInternalV1;
+}
+
+function bytesEqualInternalV1(left: Uint8Array, right: Uint8Array): boolean {
+  if (left.byteLength !== right.byteLength) return false;
+  for (let index = 0; index < left.byteLength; index += 1) {
+    if (left[index] !== right[index]) return false;
+  }
+  return true;
+}
+
+function isOpaqueCandidatePortInternalV1(
+  value: unknown,
+): value is object | ((...args: never[]) => unknown) {
+  return (typeof value === "object" || typeof value === "function") && value !== null;
+}
+
+function captureCandidateSnapshotInternalV1(
+  value: unknown,
+): NarrativeStableCandidateSnapshotInternalV1 | null {
+  const keys = [
+    "rendererComponent",
+    "visualConfig",
+    "semanticDispatchPort",
+    "historyObservationPort",
+    "playerProfile",
+    "presentationClock",
+    "textResolver",
+    "voiceReplayPort",
+    "quickMenuContribution",
+  ] as const;
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  if (Reflect.getPrototypeOf(value) !== Object.prototype) return null;
+  const ownKeys = Reflect.ownKeys(value);
+  if (ownKeys.length !== keys.length) return null;
+  const captured: Record<(typeof keys)[number], unknown> = Object.create(null);
+  for (const key of keys) {
+    const descriptor = Reflect.getOwnPropertyDescriptor(value, key);
+    if (descriptor === undefined || !("value" in descriptor)) return null;
+    captured[key] = descriptor.value;
+  }
+  for (const key of ownKeys) {
+    if (typeof key !== "string" || !Object.hasOwn(captured, key)) return null;
+  }
+  if (
+    !isOpaqueCandidatePortInternalV1(captured.rendererComponent) ||
+    typeof captured.visualConfig !== "object" || captured.visualConfig === null ||
+    !Object.isFrozen(captured.visualConfig) ||
+    !isOpaqueCandidatePortInternalV1(captured.semanticDispatchPort) ||
+    !isOpaqueCandidatePortInternalV1(captured.historyObservationPort) ||
+    typeof captured.playerProfile !== "object" || captured.playerProfile === null ||
+    !Object.isFrozen(captured.playerProfile) ||
+    !isOpaqueCandidatePortInternalV1(captured.presentationClock) ||
+    !isOpaqueCandidatePortInternalV1(captured.textResolver) ||
+    (captured.voiceReplayPort !== null &&
+      !isOpaqueCandidatePortInternalV1(captured.voiceReplayPort)) ||
+    (captured.quickMenuContribution !== null &&
+      !isOpaqueCandidatePortInternalV1(captured.quickMenuContribution))
+  ) {
+    return null;
+  }
+  return Object.freeze({
+    rendererComponent: captured.rendererComponent,
+    visualConfig: captured.visualConfig,
+    semanticDispatchPort: captured.semanticDispatchPort,
+    historyObservationPort: captured.historyObservationPort,
+    playerProfile: captured.playerProfile,
+    presentationClock: captured.presentationClock,
+    textResolver: captured.textResolver,
+    voiceReplayPort: captured.voiceReplayPort,
+    quickMenuContribution: captured.quickMenuContribution,
+  });
+}
+
+function parseNarrativeStableRequiredPortIdInternalV1(
+  value: unknown,
+): NarrativeStableRequiredPortIdInternalV1 | null {
+  switch (value) {
+    case "narrative.semantic_dispatch":
+    case "narrative.history_observation":
+    case "narrative.player_profile":
+    case "narrative.presentation_clock":
+    case "narrative.text_resolver":
+      return value;
+    default:
+      return null;
+  }
+}
+
+function narrativeRequiredPortMissingResultInternalV1(
+  portId: NarrativeStableRequiredPortIdInternalV1,
+): NarrativeStablePublisherBridgeResultInternalV1 {
+  return Object.freeze({
+    kind: "rejected" as const,
+    code: "narrative.required_port_missing" as const,
+    portId,
+    delta: stableZeroDeltaInternalV1,
+  });
+}
+
+function rendererKeyInternalV1(pending: PendingInteractionV1): string {
+  return pending.kind === "custom" ? pending.surfaceId : `narrative.renderer.${pending.kind}`;
+}
+
+function stableContextResultInternalV1(
+  result:
+    | { readonly kind: "stale"; readonly code: "surface.stable_publisher_lease_stale" }
+    | { readonly kind: "faulted"; readonly code: "surface.stable_reconcile_faulted" },
+): ManagedSurfaceStableReconcileResultInternalV1 {
+  return result.kind === "stale"
+    ? stablePublisherStaleResultInternalV1
+    : stableReconcileFaultedResultInternalV1;
+}
+
+export function createNarrativeStablePublisherBridgeInternalV1(
+  input: CreateNarrativeStablePublisherBridgeInputInternalV1,
+): NarrativeStablePublisherBridgeInternalV1 {
+  const publisherLeaseRegistry = input.publisherLeaseRegistry;
+  const admissionAuthority = input.admissionAuthority;
+  const compositeRuntimeKernel = input.compositeRuntimeKernel;
+  const exactAggregateDefinitionSidecars = input.exactAggregateDefinitionSidecars;
+  const exactAggregateSlotDescriptors = input.exactAggregateSlotDescriptors;
+  const contract = narrativeManagedSurfaceFamilyContractInternalV1;
+  if (
+    !matchesManagedSurfaceStableAdmissionAuthorityFamilyConfigurationInternalV1(
+      admissionAuthority,
+      publisherLeaseRegistry,
+      exactAggregateDefinitionSidecars,
+      exactAggregateSlotDescriptors,
+      contract.stableDefinitionSidecars,
+      contract.resolvedSlotDescriptors,
+    ) ||
+    !matchesManagedSurfaceStableCompositeRuntimeKernelConfigurationInternalV1(
+      compositeRuntimeKernel,
+      admissionAuthority,
+      publisherLeaseRegistry,
+    )
+  ) {
+    throw new TypeError("ui.narrative_stable_composition_invalid");
+  }
+  const candidatePreflight = input.candidatePreflight;
+  if (
+    (typeof candidatePreflight !== "object" && typeof candidatePreflight !== "function") ||
+    candidatePreflight === null
+  ) {
+    throw new TypeError("ui.narrative_stable_composition_invalid");
+  }
+  let preflightCandidate: unknown;
+  try {
+    preflightCandidate = candidatePreflight.preflightCandidateInternalV1;
+  } catch {
+    throw new TypeError("ui.narrative_stable_composition_invalid");
+  }
+  if (typeof preflightCandidate !== "function") {
+    throw new TypeError("ui.narrative_stable_composition_invalid");
+  }
+
+  const issuePublisher = publisherLeaseRegistry.issuePublisher;
+  const inspectCurrentLease = publisherLeaseRegistry.inspectCurrentLease;
+  const disposePublisherLease = publisherLeaseRegistry.disposePublisherLease;
+  const registerStablePublisherLease =
+    compositeRuntimeKernel.registerStablePublisherLeaseInternalV1;
+  const captureAdmissionContext = compositeRuntimeKernel.captureAdmissionContextInternalV1;
+  const applyStableAdmissionProposal =
+    compositeRuntimeKernel.applyStableAdmissionProposalInternalV1;
+  const disposeStablePublisherLease = compositeRuntimeKernel.disposeStablePublisherLeaseInternalV1;
+  let issuedPublisher: ManagedSurfaceStablePublisherInternalV1 | null = null;
+  let issuedPublisherLease: ManagedSurfaceStablePublisherLeaseInternalV1 | null = null;
+  let registered = false;
+  try {
+    issuedPublisher = Reflect.apply(issuePublisher, publisherLeaseRegistry, [ownerIdInternalV1]);
+    issuedPublisherLease = issuedPublisher.lease;
+    const registration = Reflect.apply(
+      registerStablePublisherLease,
+      compositeRuntimeKernel,
+      [issuedPublisherLease],
+    );
+    if (registration.kind !== "registered") {
+      throw new TypeError("ui.narrative_stable_composition_invalid");
+    }
+    registered = true;
+    const captured = Reflect.apply(captureAdmissionContext, compositeRuntimeKernel, [
+      issuedPublisherLease,
+    ]);
+    const leaseSnapshot = Reflect.apply(inspectCurrentLease, publisherLeaseRegistry, [
+      issuedPublisherLease,
+    ]);
+    if (
+      captured.kind !== "captured" || captured.acceptedBaseline.kind !== "unpublished" ||
+      captured.acceptedBaseline.publisherLease !== issuedPublisherLease ||
+      leaseSnapshot?.ownerId !== ownerIdInternalV1 || leaseSnapshot.disposed
+    ) {
+      throw new TypeError("ui.narrative_stable_composition_invalid");
+    }
+  } catch (error) {
+    if (issuedPublisherLease !== null) {
+      try {
+        if (registered) {
+          Reflect.apply(disposeStablePublisherLease, compositeRuntimeKernel, [
+            issuedPublisherLease,
+          ]);
+        } else if (
+          Reflect.apply(inspectCurrentLease, publisherLeaseRegistry, [issuedPublisherLease]) !==
+            null
+        ) {
+          Reflect.apply(disposePublisherLease, publisherLeaseRegistry, [issuedPublisherLease]);
+        }
+      } catch {
+        // A synchronous listener may already have terminal-disposed the composition.
+      }
+    }
+    throw error;
+  }
+  if (issuedPublisher === null || issuedPublisherLease === null) {
+    throw new TypeError("ui.narrative_stable_composition_invalid");
+  }
+  const publisher = issuedPublisher;
+  const publisherLease = issuedPublisherLease;
+  const bridgeIdentity = Object.freeze({});
+  const evaluateStablePublication = admissionAuthority.evaluate;
+  const getPublisherSnapshot = publisher.getSnapshot;
+  const issueSourceRevision = publisher.issueSourceRevision;
+  const issueOccurrence = publisher.issueOccurrence;
+
+  type CapturedContextInternalV1 = Readonly<{
+    readonly acceptedBaseline: ManagedSurfaceStableAcceptedBaselineInternalV1;
+    readonly reservationSnapshot: ManagedSurfaceStableRootReservationSnapshotInternalV1;
+  }>;
+
+  type CurrentProjectionInternalV1 =
+    | Readonly<{
+      readonly kind: "empty";
+      readonly context: CapturedContextInternalV1;
+    }>
+    | Readonly<{
+      readonly kind: "target";
+      readonly context: CapturedContextInternalV1;
+      readonly target: ManagedSurfaceStableAdmittedTargetInternalV1;
+      readonly record: NarrativeTargetFrameRecordInternalV1;
+    }>;
+
+  const captureCurrentProjection = ():
+    | CurrentProjectionInternalV1
+    | ManagedSurfaceStableReconcileResultInternalV1 => {
+    const captured = Reflect.apply(captureAdmissionContext, compositeRuntimeKernel, [
+      publisherLease,
+    ]);
+    if (captured.kind !== "captured") return stableContextResultInternalV1(captured);
+    const context = Object.freeze({
+      acceptedBaseline: captured.acceptedBaseline,
+      reservationSnapshot: captured.reservationSnapshot,
+    });
+    const baseline = captured.acceptedBaseline;
+    if (baseline.publisherLease !== publisherLease) return stableReconcileFaultedResultInternalV1;
+    if (baseline.kind === "unpublished") return Object.freeze({ kind: "empty", context });
+    if (baseline.ownerId !== ownerIdInternalV1) return stableReconcileFaultedResultInternalV1;
+    if (baseline.targets.length === 0) return Object.freeze({ kind: "empty", context });
+    if (baseline.targets.length !== 1) return stableReconcileFaultedResultInternalV1;
+    const target = baseline.targets[0]!;
+    const record = narrativeTargetFrameRecordsInternalV1.get(target);
+    if (
+      target.publisherLease !== publisherLease ||
+      target.ownerId !== ownerIdInternalV1 ||
+      target.definitionId !== dialogueDefinitionIdInternalV1 ||
+      target.parentOccurrenceId !== null ||
+      record === undefined ||
+      record.bridgeIdentity !== bridgeIdentity ||
+      record.sourceRevision !== baseline.sourceRevision
+    ) {
+      return stableReconcileFaultedResultInternalV1;
+    }
+    return Object.freeze({ kind: "target", context, target, record });
+  };
+
+  const hasIssuanceCapacity = (needsOccurrence: boolean): boolean => {
+    const snapshot = Reflect.apply(getPublisherSnapshot, publisher, []);
+    return snapshot.sourceRevisionIssuanceHighWater < Number.MAX_SAFE_INTEGER &&
+      (!needsOccurrence || snapshot.occurrenceIssuanceHighWater < Number.MAX_SAFE_INTEGER);
+  };
+
+  const captureCandidatePreflight = (
+    pending: PendingInteractionV1,
+    rendererKey: string,
+  ):
+    | Readonly<{
+      readonly kind: "captured";
+      readonly snapshot: NarrativeStableCandidateSnapshotInternalV1;
+    }>
+    | Readonly<{
+      readonly kind: "result";
+      readonly result: NarrativeStablePublisherBridgeResultInternalV1;
+    }> => {
+    let rawPreflightResult: unknown;
+    try {
+      rawPreflightResult = Reflect.apply(
+        preflightCandidate,
+        candidatePreflight,
+        [pending, rendererKey],
+      );
+    } catch {
+      return Object.freeze({
+        kind: "result" as const,
+        result: narrativeCandidatePreflightFaultedResultInternalV1,
+      });
+    }
+    try {
+      const capturedResult = captureOwnDataRecordInternalV1(rawPreflightResult);
+      if (capturedResult === null) {
+        return Object.freeze({
+          kind: "result" as const,
+          result: narrativeCandidatePreflightFaultedResultInternalV1,
+        });
+      }
+      const fields = capturedResult.values;
+      if (
+        !capturedRecordHasExactKeysInternalV1(capturedResult, [
+          "kind",
+          "candidateSnapshot",
+        ]) || fields.kind !== "captured"
+      ) {
+        if (
+          capturedRecordHasExactKeysInternalV1(capturedResult, ["kind", "code"]) &&
+          fields.kind === "rejected" && fields.code === "narrative.renderer_missing"
+        ) {
+          return Object.freeze({
+            kind: "result" as const,
+            result: narrativeRendererMissingResultInternalV1,
+          });
+        }
+        if (
+          capturedRecordHasExactKeysInternalV1(capturedResult, [
+            "kind",
+            "code",
+            "portId",
+          ]) && fields.kind === "rejected" &&
+          fields.code === "narrative.required_port_missing"
+        ) {
+          const portId = parseNarrativeStableRequiredPortIdInternalV1(fields.portId);
+          if (portId !== null) {
+            return Object.freeze({
+              kind: "result" as const,
+              result: narrativeRequiredPortMissingResultInternalV1(portId),
+            });
+          }
+        }
+        if (
+          capturedRecordHasExactKeysInternalV1(capturedResult, ["kind", "code"]) &&
+          fields.kind === "faulted" &&
+          fields.code === "narrative.candidate_preflight_faulted"
+        ) {
+          return Object.freeze({
+            kind: "result" as const,
+            result: narrativeCandidatePreflightFaultedResultInternalV1,
+          });
+        }
+        return Object.freeze({
+          kind: "result" as const,
+          result: narrativeCandidatePreflightFaultedResultInternalV1,
+        });
+      }
+      const candidateSnapshot = captureCandidateSnapshotInternalV1(
+        fields.candidateSnapshot,
+      );
+      if (candidateSnapshot !== null) {
+        return Object.freeze({ kind: "captured" as const, snapshot: candidateSnapshot });
+      }
+    } catch {
+      // Malformed or hostile preflight output is a family preflight fault.
+    }
+    return Object.freeze({
+      kind: "result" as const,
+      result: narrativeCandidatePreflightFaultedResultInternalV1,
+    });
+  };
+
+  const applyPublication = (
+    context: CapturedContextInternalV1,
+    sourceRevision: ManagedSurfaceStableSourceRevisionInternalV1,
+    targets: readonly ManagedSurfaceStableTargetInternalV1[],
+    record: NarrativeTargetFrameRecordInternalV1 | null,
+  ): ManagedSurfaceStableReconcileResultInternalV1 => {
+    const publication = Object.freeze({
+      publisherLease,
+      sourceRevision,
+      targets,
+    });
+    const evaluated = Reflect.apply(evaluateStablePublication, admissionAuthority, [{
+      publication,
+      acceptedBaseline: context.acceptedBaseline,
+      reservationSnapshot: context.reservationSnapshot,
+    }]) as ManagedSurfaceStableAdmissionResultInternalV1;
+    if (evaluated.kind !== "admitted") return evaluated;
+    const admittedTargets = evaluated.proposal.nextAcceptedBaseline.targets;
+    if (
+      (record === null && admittedTargets.length !== 0) ||
+      (record !== null && admittedTargets.length !== 1)
+    ) {
+      return stableReconcileFaultedResultInternalV1;
+    }
+    if (record !== null) {
+      const admittedTarget = admittedTargets[0]!;
+      const previousRecord = narrativeTargetFrameRecordsInternalV1.get(admittedTarget);
+      narrativeTargetFrameRecordsInternalV1.set(admittedTarget, record);
+      const applied = Reflect.apply(applyStableAdmissionProposal, compositeRuntimeKernel, [
+        evaluated.proposal,
+      ]);
+      if (applied.kind !== "applied") {
+        if (narrativeTargetFrameRecordsInternalV1.get(admittedTarget) === record) {
+          if (previousRecord === undefined) {
+            narrativeTargetFrameRecordsInternalV1.delete(admittedTarget);
+          } else {
+            narrativeTargetFrameRecordsInternalV1.set(admittedTarget, previousRecord);
+          }
+        }
+      }
+      return applied;
+    }
+    return Reflect.apply(applyStableAdmissionProposal, compositeRuntimeKernel, [
+      evaluated.proposal,
+    ]);
+  };
+
+  const bridge: NarrativeStablePublisherBridgeInternalV1 = Object.freeze({
+    reconcilePendingInternalV1(
+      pendingInput: unknown,
+    ): NarrativeStablePublisherBridgeResultInternalV1 {
+      const current = captureCurrentProjection();
+      if (!("context" in current)) return current;
+
+      if (pendingInput === null) {
+        if (current.kind === "empty") return stableUnchangedResultInternalV1;
+        if (!hasIssuanceCapacity(false)) return stableReconcileFaultedResultInternalV1;
+        const sourceRevision = Reflect.apply(issueSourceRevision, publisher, []);
+        return applyPublication(current.context, sourceRevision, Object.freeze([]), null);
+      }
+
+      let pending: PendingInteractionV1;
+      let canonicalPendingBytes: Uint8Array;
+      try {
+        pending = parsePendingInteractionV1(pendingInput);
+        canonicalPendingBytes = canonicalJsonBytes(pending);
+      } catch {
+        return stableSchemaRejectedResultInternalV1;
+      }
+
+      if (
+        current.kind === "target" &&
+        current.record.frame.semanticOccurrenceId === pending.occurrenceId
+      ) {
+        return bytesEqualInternalV1(
+            current.record.canonicalPendingBytes,
+            canonicalPendingBytes,
+          )
+          ? stableUnchangedResultInternalV1
+          : stableReconcileFaultedResultInternalV1;
+      }
+      if (!hasIssuanceCapacity(true)) return stableReconcileFaultedResultInternalV1;
+
+      const rendererKey = rendererKeyInternalV1(pending);
+      const preflight = captureCandidatePreflight(pending, rendererKey);
+      const refreshed = captureCurrentProjection();
+      if (!("context" in refreshed)) return refreshed;
+      if (
+        refreshed.context.acceptedBaseline !== current.context.acceptedBaseline ||
+        refreshed.context.reservationSnapshot.generationToken !==
+          current.context.reservationSnapshot.generationToken
+      ) {
+        return stableReconcilePreconditionStaleResultInternalV1;
+      }
+      if (preflight.kind === "result") return preflight.result;
+      if (!hasIssuanceCapacity(true)) return stableReconcileFaultedResultInternalV1;
+      const frame = Object.freeze({
+        semanticOccurrenceId: pending.occurrenceId,
+        rendererKey,
+        pending,
+        candidateSnapshot: preflight.snapshot,
+      });
+      const sourceRevision = Reflect.apply(issueSourceRevision, publisher, []);
+      const occurrenceId = Reflect.apply(issueOccurrence, publisher, []);
+      const parameters: NarrativeStableParametersInternalV1 = Object.freeze({
+        semanticOccurrenceId: pending.occurrenceId,
+        kind: pending.kind,
+        definitionId: pending.definitionId,
+        seenRevision: pending.seenRevision,
+        rendererKey,
+      });
+      const record: NarrativeTargetFrameRecordInternalV1 = Object.freeze({
+        bridgeIdentity,
+        sourceRevision,
+        canonicalPendingBytes: Uint8Array.from(canonicalPendingBytes),
+        frame,
+      });
+      const target: ManagedSurfaceStableTargetInternalV1 = Object.freeze({
+        occurrenceId,
+        definitionId: dialogueDefinitionIdInternalV1,
+        parentOccurrenceId: null,
+        parameters,
+      });
+      return applyPublication(
+        refreshed.context,
+        sourceRevision,
+        Object.freeze([target]),
+        record,
+      );
+    },
+
+    retryCurrentPendingInternalV1(): NarrativeStablePublisherBridgeResultInternalV1 {
+      const current = captureCurrentProjection();
+      if (!("context" in current)) return current;
+      if (current.kind !== "target") return stableUnchangedResultInternalV1;
+      const runtimeEntry = compositeRuntimeKernel.getStateInternalV1().stableRuntimeBindings.find(
+        (entry) => entry.desiredTarget.admittedTarget === current.target,
+      );
+      if (
+        runtimeEntry?.binding.kind !== "gap" ||
+        runtimeEntry.binding.reason !== "readiness_failed"
+      ) {
+        return stableUnchangedResultInternalV1;
+      }
+      if (!hasIssuanceCapacity(false)) return stableReconcileFaultedResultInternalV1;
+      const preflight = captureCandidatePreflight(
+        current.record.frame.pending,
+        current.record.frame.rendererKey,
+      );
+      const refreshed = captureCurrentProjection();
+      if (!("context" in refreshed)) return refreshed;
+      if (
+        refreshed.context.acceptedBaseline !== current.context.acceptedBaseline ||
+        refreshed.context.reservationSnapshot.generationToken !==
+          current.context.reservationSnapshot.generationToken
+      ) {
+        return stableReconcilePreconditionStaleResultInternalV1;
+      }
+      if (preflight.kind === "result") return preflight.result;
+      if (!hasIssuanceCapacity(false)) return stableReconcileFaultedResultInternalV1;
+      const sourceRevision = Reflect.apply(issueSourceRevision, publisher, []);
+      const frame: NarrativeStableAdmittedFrameInternalV1 = Object.freeze({
+        ...current.record.frame,
+        candidateSnapshot: preflight.snapshot,
+      });
+      const record: NarrativeTargetFrameRecordInternalV1 = Object.freeze({
+        ...current.record,
+        sourceRevision,
+        frame,
+      });
+      const target: ManagedSurfaceStableTargetInternalV1 = Object.freeze({
+        occurrenceId: current.target.occurrenceId,
+        definitionId: current.target.definitionId,
+        parentOccurrenceId: current.target.parentOccurrenceId,
+        parameters: current.target.normalizedParameters,
+      });
+      return applyPublication(
+        refreshed.context,
+        sourceRevision,
+        Object.freeze([target]),
+        record,
+      );
+    },
+
+    disposeInternalV1(): ManagedSurfaceStableReconcileResultInternalV1 {
+      return Reflect.apply(disposeStablePublisherLease, compositeRuntimeKernel, [
+        publisherLease,
+      ]);
+    },
+
+    inspectAdmittedTargetFrameInternalV1(
+      target: unknown,
+    ): NarrativeStableAdmittedFrameInternalV1 | null {
+      if ((typeof target !== "object" && typeof target !== "function") || target === null) {
+        return null;
+      }
+      const record = narrativeTargetFrameRecordsInternalV1.get(
+        target as ManagedSurfaceStableAdmittedTargetInternalV1,
+      );
+      return record?.bridgeIdentity === bridgeIdentity ? record.frame : null;
+    },
+  });
+  return bridge;
+}

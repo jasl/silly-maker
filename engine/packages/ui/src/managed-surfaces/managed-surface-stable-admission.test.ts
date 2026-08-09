@@ -25,6 +25,7 @@ import type {
 } from "./managed-surface-stable-contract.ts";
 import {
   createManagedSurfaceStableAdmissionAuthorityInternalV1,
+  matchesManagedSurfaceStableAdmissionAuthorityFamilyConfigurationInternalV1,
   type ManagedSurfaceStableAcceptedBaselineInternalV1,
   type ManagedSurfaceStableAdmissionAuthorityInternalV1,
   type ManagedSurfaceStableAdmissionProposalInternalV1,
@@ -440,6 +441,109 @@ describe("dormant managed stable vector admission", () => {
         ]),
       })
     ).toThrow(TypeError);
+  });
+
+  it("matches an exact aggregate family catalog without accepting duplicate-sidecar omission", () => {
+    const registry = registryV1();
+    const sidecars = definitionSidecarsV1();
+    let sidecarFieldReads = 0;
+    const input = Object.defineProperties({}, {
+      publisherLeaseRegistry: { value: registry, enumerable: true },
+      definitionSidecars: {
+        enumerable: true,
+        get() {
+          sidecarFieldReads += 1;
+          return sidecars;
+        },
+      },
+      resolvedSlotDescriptors: {
+        value: resolvedSlotDescriptorsV1,
+        enumerable: true,
+      },
+    }) as Parameters<typeof createManagedSurfaceStableAdmissionAuthorityInternalV1>[0];
+    const authority = createManagedSurfaceStableAdmissionAuthorityInternalV1(input);
+    expect(sidecarFieldReads).toBe(1);
+
+    expect(
+      matchesManagedSurfaceStableAdmissionAuthorityFamilyConfigurationInternalV1(
+        authority,
+        registry,
+        sidecars,
+        resolvedSlotDescriptorsV1,
+        sidecars,
+        resolvedSlotDescriptorsV1,
+      ),
+    ).toBe(true);
+    expect(
+      matchesManagedSurfaceStableAdmissionAuthorityFamilyConfigurationInternalV1(
+        authority,
+        registry,
+        Object.freeze([sidecars[0]!, ...sidecars.slice(0, -1)]),
+        resolvedSlotDescriptorsV1,
+        sidecars,
+        resolvedSlotDescriptorsV1,
+      ),
+    ).toBe(false);
+    expect(
+      matchesManagedSurfaceStableAdmissionAuthorityFamilyConfigurationInternalV1(
+        authority,
+        registry,
+        Object.freeze([{ ...sidecars[0]! }, ...sidecars.slice(1)]),
+        resolvedSlotDescriptorsV1,
+        sidecars,
+        resolvedSlotDescriptorsV1,
+      ),
+    ).toBe(false);
+    expect(
+      matchesManagedSurfaceStableAdmissionAuthorityFamilyConfigurationInternalV1(
+        authority,
+        registryV1(),
+        sidecars,
+        resolvedSlotDescriptorsV1,
+        sidecars,
+        resolvedSlotDescriptorsV1,
+      ),
+    ).toBe(false);
+
+    let overriddenMethodCalls = 0;
+    const methodOverriddenSidecars = [...sidecars];
+    Object.defineProperty(methodOverriddenSidecars, "every", {
+      value: () => {
+        overriddenMethodCalls += 1;
+        return true;
+      },
+    });
+    expect(
+      matchesManagedSurfaceStableAdmissionAuthorityFamilyConfigurationInternalV1(
+        authority,
+        registry,
+        methodOverriddenSidecars,
+        resolvedSlotDescriptorsV1,
+        sidecars,
+        resolvedSlotDescriptorsV1,
+      ),
+    ).toBe(false);
+    expect(overriddenMethodCalls).toBe(0);
+
+    let overriddenIteratorCalls = 0;
+    const iteratorOverriddenSlots = [...resolvedSlotDescriptorsV1];
+    Object.defineProperty(iteratorOverriddenSlots, Symbol.iterator, {
+      value: () => {
+        overriddenIteratorCalls += 1;
+        throw new Error("must not invoke caller iterator");
+      },
+    });
+    expect(
+      matchesManagedSurfaceStableAdmissionAuthorityFamilyConfigurationInternalV1(
+        authority,
+        registry,
+        sidecars,
+        iteratorOverriddenSlots,
+        sidecars,
+        resolvedSlotDescriptorsV1,
+      ),
+    ).toBe(false);
+    expect(overriddenIteratorCalls).toBe(0);
   });
 
   it("admits initial normalized identity with detached frozen bytes and exact proposal provenance", () => {

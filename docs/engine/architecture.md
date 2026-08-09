@@ -586,6 +586,30 @@ barrels, package export map, and transient evidence/receipt shapes remain unchan
 This closes the S1-R aggregate implementation gate; S4 remains the next
 independent live-family migration and is not activated by the dormant harness.
 
+The first S4 Narrative slice now adds a source-relative family declaration and
+publisher bridge without connecting that bridge to React, Web, or a Story. The
+declaration fixes the Dialogue stable root and History transient child recipes;
+the bridge claims one exact composition-bound publisher, registers its
+unpublished baseline, and projects each normalized `PendingInteractionV1` into
+a dedicated per-lease source revision and fresh Surface occurrence. It retains
+one bounded full-pending canonical proof for same-occurrence drift detection and
+prepositions the candidate frame before synchronous composite notification.
+Readiness-failure retry keeps the target occurrence but re-runs candidate
+preflight and binds a fresh snapshot to the new source revision.
+
+Candidate preflight captures one exact data-only tagged result plus one exact
+data-only snapshot without invoking caller getters. Expected family admission
+outcomes are source-relative `narrative.renderer_missing` and
+`narrative.required_port_missing` over a closed five-port inventory; malformed,
+throwing, or explicitly faulted preflight converges to
+`narrative.candidate_preflight_faulted`. These results carry exact zero delta
+and do not extend the generic stable-result table. Every callback outcome is
+followed by an exact lease/baseline/reservation currentness check before it can
+win; successful capture then rechecks source/occurrence capacity before any
+issuance. The UI barrels and package exports remain unchanged. Authenticated
+physical/automatic action admission, Host/History integration, and live Story
+cutover remain later S4 slices.
+
 ## 9. Changing the architecture
 
 Architecture evolution is expected. A substantial change should state:
@@ -616,10 +640,12 @@ domain and holds dormant exact lease/baseline registration plus read-only
 admission context. It now applies exact stable proposals and performs atomic
 publisher disposal through that same owner, settles source-bound stable
 readiness, and performs whole-composite global cascade through the shared
-topology policy. It remains disconnected from every live stable family and is
-not available through a package barrel. The live transient reducer consumes the
-same pure topology policy, while the dormant stable owner also performs the
-complete registry-gated terminal composite disposition described above. The R5
-neutral harness closes this source-relative aggregate conformance gate; the
-Narrative live migration remains planned work. Target documents do not alter
-the current data flow until that migration and its behavior tests land.
+topology policy. It remains unavailable through a package barrel. The live
+transient reducer consumes the same pure topology policy, while the dormant
+stable owner also performs the complete registry-gated terminal composite
+disposition described above. The R5 neutral harness closes the generic
+source-relative aggregate conformance gate. S4.1a now consumes it through the
+dormant Narrative family/publisher bridge above; S4.1b authenticated action
+admission is the next independent slice, while Host integration and the
+Narrative live migration remain planned work. Target documents do not alter the
+current data flow until that migration and its behavior tests land.

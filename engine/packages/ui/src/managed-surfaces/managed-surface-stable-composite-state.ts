@@ -372,6 +372,32 @@ const compositeStateAuthorityRecordsInternalV1 = new WeakMap<
   CompositeStateAuthorityRecordInternalV1
 >();
 
+interface CompositeRuntimeKernelConfigurationRecordInternalV1 {
+  readonly admissionAuthority: ManagedSurfaceStableAdmissionAuthorityInternalV1;
+  readonly publisherLeaseRegistry: ManagedSurfaceStablePublisherLeaseRegistryInternalV1;
+}
+
+const compositeRuntimeKernelConfigurationRecordsInternalV1 = new WeakMap<
+  ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
+  CompositeRuntimeKernelConfigurationRecordInternalV1
+>();
+
+/** Source-relative exact configuration proof for composition-owned family adapters. */
+export function matchesManagedSurfaceStableCompositeRuntimeKernelConfigurationInternalV1(
+  kernel: unknown,
+  admissionAuthority: unknown,
+  publisherLeaseRegistry: unknown,
+): boolean {
+  if ((typeof kernel !== "object" && typeof kernel !== "function") || kernel === null) {
+    return false;
+  }
+  const record = compositeRuntimeKernelConfigurationRecordsInternalV1.get(
+    kernel as ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
+  );
+  return record !== undefined && record.admissionAuthority === admissionAuthority &&
+    record.publisherLeaseRegistry === publisherLeaseRegistry;
+}
+
 /**
  * Deterministic source-relative audit seam. It exposes only frozen identity
  * comparisons and collection sizes, never the private provenance containers.
@@ -3547,7 +3573,7 @@ export function createManagedSurfaceStableCompositeRuntimeKernelInternalV1(input
         }
       },
     );
-  return Object.freeze({
+  const compositeKernel: ManagedSurfaceStableCompositeRuntimeKernelInternalV1 = Object.freeze({
     ...runtimeKernel,
     registerStablePublisherLeaseInternalV1(
       publisherLeaseInput: unknown,
@@ -3853,6 +3879,11 @@ export function createManagedSurfaceStableCompositeRuntimeKernelInternalV1(input
         : stableReconcileFaultedResultInternalV1;
     },
   });
+  compositeRuntimeKernelConfigurationRecordsInternalV1.set(compositeKernel, {
+    admissionAuthority,
+    publisherLeaseRegistry,
+  });
+  return compositeKernel;
 }
 
 export function projectManagedSurfaceStableRootReservationSnapshotInternalV1(input: {

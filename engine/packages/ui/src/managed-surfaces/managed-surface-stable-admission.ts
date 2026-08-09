@@ -191,6 +191,8 @@ interface ReservationRecordInternalV1 {
 
 interface AdmissionAuthorityConfigurationRecordInternalV1 {
   readonly publisherLeaseRegistry: ManagedSurfaceStablePublisherLeaseRegistryInternalV1;
+  readonly definitionSidecars: WeakSet<object>;
+  readonly definitionSidecarCount: number;
   readonly slotDescriptorSignatures: readonly string[];
 }
 
@@ -355,6 +357,115 @@ export function matchesManagedSurfaceStableAdmissionAuthorityConfigurationIntern
   }
 }
 
+function captureDenseOwnDataArrayInternalV1(value: unknown): readonly unknown[] | null {
+  if (!Array.isArray(value) || Reflect.getPrototypeOf(value) !== Array.prototype) return null;
+  const lengthDescriptor = Reflect.getOwnPropertyDescriptor(value, "length");
+  if (
+    lengthDescriptor === undefined || !("value" in lengthDescriptor) ||
+    !Number.isSafeInteger(lengthDescriptor.value) || lengthDescriptor.value < 0
+  ) {
+    return null;
+  }
+  const length = lengthDescriptor.value as number;
+  const ownKeys = Reflect.ownKeys(value);
+  if (ownKeys.length !== length + 1) return null;
+  const captured: unknown[] = [];
+  for (let index = 0; index < length; index += 1) {
+    const descriptor = Reflect.getOwnPropertyDescriptor(value, String(index));
+    if (descriptor === undefined || !("value" in descriptor)) return null;
+    captured.push(descriptor.value);
+  }
+  for (const key of ownKeys) {
+    if (key === "length") continue;
+    if (typeof key !== "string" || !/^(?:0|[1-9][0-9]*)$/u.test(key)) return null;
+    const index = Number(key);
+    if (!Number.isSafeInteger(index) || index < 0 || index >= length) return null;
+  }
+  return Object.freeze(captured);
+}
+
+/**
+ * Source-relative family composition proof. Required sidecars are compared by
+ * exact identity while the aggregate slot recipe is compared by normalized
+ * signatures, so a family cannot accidentally bind to a look-alike authority.
+ */
+export function matchesManagedSurfaceStableAdmissionAuthorityFamilyConfigurationInternalV1(
+  authority: unknown,
+  publisherLeaseRegistry: unknown,
+  exactAggregateDefinitionSidecars: unknown,
+  exactAggregateSlotDescriptors: unknown,
+  requiredDefinitionSidecars: unknown,
+  requiredSlotDescriptors: unknown,
+): boolean {
+  if ((typeof authority !== "object" && typeof authority !== "function") || authority === null) {
+    return false;
+  }
+  const record = admissionAuthorityConfigurationRecordsInternalV1.get(
+    authority as ManagedSurfaceStableAdmissionAuthorityInternalV1,
+  );
+  if (record === undefined || record.publisherLeaseRegistry !== publisherLeaseRegistry) {
+    return false;
+  }
+  try {
+    const aggregateSidecars = captureDenseOwnDataArrayInternalV1(
+      exactAggregateDefinitionSidecars,
+    );
+    const aggregateSlots = captureDenseOwnDataArrayInternalV1(
+      exactAggregateSlotDescriptors,
+    );
+    const requiredSidecars = captureDenseOwnDataArrayInternalV1(requiredDefinitionSidecars);
+    const requiredSlots = captureDenseOwnDataArrayInternalV1(requiredSlotDescriptors);
+    if (
+      aggregateSidecars === null || aggregateSlots === null ||
+      requiredSidecars === null || requiredSlots === null ||
+      aggregateSidecars.length !== record.definitionSidecarCount
+    ) {
+      return false;
+    }
+    const aggregateSidecarSet = new Set<object>();
+    for (const sidecar of aggregateSidecars) {
+      if (
+        (typeof sidecar !== "object" && typeof sidecar !== "function") ||
+        sidecar === null || aggregateSidecarSet.has(sidecar) ||
+        !record.definitionSidecars.has(sidecar)
+      ) {
+        return false;
+      }
+      aggregateSidecarSet.add(sidecar);
+    }
+    for (const requiredSidecar of requiredSidecars) {
+      if (
+        (typeof requiredSidecar !== "object" && typeof requiredSidecar !== "function") ||
+        requiredSidecar === null || !aggregateSidecarSet.has(requiredSidecar)
+      ) {
+        return false;
+      }
+    }
+
+    if (aggregateSlots.length !== record.slotDescriptorSignatures.length) return false;
+    const aggregateSlotSignatures = new Set<string>();
+    for (const value of aggregateSlots) {
+      const signature = slotDescriptorSignatureInternalV1(
+        freezeSlotDescriptorInternalV1(value as ManagedSurfaceResolvedSlotDescriptorV1),
+      );
+      if (aggregateSlotSignatures.has(signature)) return false;
+      aggregateSlotSignatures.add(signature);
+    }
+    for (const signature of record.slotDescriptorSignatures) {
+      if (!aggregateSlotSignatures.has(signature)) return false;
+    }
+    for (const value of requiredSlots) {
+      const signature = slotDescriptorSignatureInternalV1(
+        freezeSlotDescriptorInternalV1(value as ManagedSurfaceResolvedSlotDescriptorV1),
+      );
+      if (!aggregateSlotSignatures.has(signature)) return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function stackScopeKeyInternalV1(scope: ManagedSurfaceStableStackScopeInternalV1): string {
   return scope.kind === "root"
     ? `root:${scope.slotId}`
@@ -475,6 +586,8 @@ export function createManagedSurfaceStableAdmissionAuthorityInternalV1(
   input: CreateManagedSurfaceStableAdmissionAuthorityInputInternalV1,
 ): ManagedSurfaceStableAdmissionAuthorityInternalV1 {
   const publisherLeaseRegistry = input.publisherLeaseRegistry;
+  const definitionSidecars = input.definitionSidecars;
+  const resolvedSlotDescriptors = input.resolvedSlotDescriptors;
   const inspectCurrentLease = publisherLeaseRegistry.inspectCurrentLease;
   const createAcceptedOccurrenceHighWater =
     publisherLeaseRegistry.createAcceptedOccurrenceHighWater;
@@ -486,7 +599,8 @@ export function createManagedSurfaceStableAdmissionAuthorityInternalV1(
     publisherLeaseRegistry.deriveAcceptedOccurrenceHighWaterFromAdmissionProof;
 
   const definitions = new Map<ManagedSurfaceDefinitionIdV1, DefinitionRecordInternalV1>();
-  for (const sidecar of input.definitionSidecars) {
+  const capturedDefinitionSidecars: object[] = [];
+  for (const sidecar of definitionSidecars) {
     const definition = parseManagedSurfaceResolvedDefinitionV1(sidecar.definition);
     if (definitions.has(definition.definitionId)) {
       throw new TypeError("ui.managed_surface_stable_definition_duplicate");
@@ -500,11 +614,12 @@ export function createManagedSurfaceStableAdmissionAuthorityInternalV1(
         schemaParse: schema.parse,
       }),
     );
+    capturedDefinitionSidecars.push(sidecar);
   }
 
   const slotDescriptors = new Map<string, ManagedSurfaceResolvedSlotDescriptorV1>();
   const rootSlotIds = new Set<ManagedSurfaceSlotIdV1>();
-  for (const value of input.resolvedSlotDescriptors) {
+  for (const value of resolvedSlotDescriptors) {
     const descriptor = freezeSlotDescriptorInternalV1(value);
     const key = slotDescriptorKeyInternalV1(descriptor);
     if (slotDescriptors.has(key)) {
@@ -1234,6 +1349,8 @@ export function createManagedSurfaceStableAdmissionAuthorityInternalV1(
 
   admissionAuthorityConfigurationRecordsInternalV1.set(authority, {
     publisherLeaseRegistry,
+    definitionSidecars: new WeakSet(capturedDefinitionSidecars),
+    definitionSidecarCount: capturedDefinitionSidecars.length,
     slotDescriptorSignatures,
   });
 

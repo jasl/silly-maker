@@ -20,7 +20,8 @@ registration + admission context，以及R3b.1 entry audit发现的S1-R.1b dispo
 corrective、S1-R.3b.1 pure reconcile and synchronous owner commit与S1-R.4a shared runtime topology
 policy extraction、S1-R.4b.0 terminal composite disposition、S1-R.4b.1 source-bound readiness +
 global cascade settlement与S1-R.5 neutral harness/churn/dead-path audit均已关闭；S4.0 Narrative/History
-contract/characterization floor也已关闭，下一独立切片为S4.1 dormant family contract/publisher bridge；R4 entry
+contract/characterization floor与S4.1a dormant family contract/publisher projector均已关闭，下一独立切片为
+S4.1b dormant stable-action/controller-attempt admission；R4 entry
 adjudication已先以独立S1-R.4.0关闭
 readiness result/capacity contract。R3b entry audit先以独立S1-R.3a.1 corrective补全ready
 retained-subtree authority，该corrective也已关闭。
@@ -35,8 +36,8 @@ S1-R aggregate gate已关闭。
 
 在 [production-floor sequence](2026-07-30-production-floor-sequence.md)
 中：PF2 的 `S0 -> S1-T -> S2`、PF-DET、PF3/M2 与 PF4/S3 已完成；当前 core
-节点是PF4/S4.1。PF4的顺序是
-`S3 -> S1-R.0 -> S1-R.1–S1-R.5 -> S4.0 -> S4.1 -> S4.2 -> S4.3 -> S4b`；
+节点是PF4/S4.1b。PF4的顺序是
+`S3 -> S1-R.0 -> S1-R.1–S1-R.5 -> S4.0 -> S4.1a -> S4.1b -> S4.2 -> S4.3 -> S4b`；
 S5–S6 属于 PF6。S1-R
 延后到第一个真实 externally published stable-target family 前完成；按 accepted
 target ownership，S4 Narrative 计划成为该 family，因此 S1-R 位于 S3 与 S4
@@ -1684,14 +1685,17 @@ S1-R 按以下可独立合并切片推进，每次只领取一个：
 18. **S4.0 Narrative/History contract + characterization floor（已完成）**：冻结exact root/child topology、
     dismiss/focus/readiness、semantic→stable projection、双重action fence、Story authoring boundary与atomic removal gate；
     只记录旧行为characterization，不接live stable ingress。
-19. **S4.1 dormant Narrative family contract/publisher bridge（当前）**：source-relative definition/catalog、
-    composition-owned lease/source/occurrence projection、stable action-admission bridge与exact results；不mount React Host。
-20. **S4.2 dormant Narrative Host + History child（待实施）**：controller/view/Host decomposition、Host-commit
+19. **S4.1a dormant Narrative family contract/publisher projector（已完成）**：source-relative definition/catalog、
+    composition-owned lease registration、PendingInteraction→dedicated source/occurrence projection、full canonical proof与
+    candidate preflight exact results；不接action admission、React Host或live ingress。
+20. **S4.1b dormant stable-action/controller-attempt admission（当前）**：分别建立physical binding与automatic
+    controller-attempt的package-internal双fence，并只在exact current Narrative runtime上提交semantic resolution。
+21. **S4.2 dormant Narrative Host + History child（待实施）**：controller/view/Host decomposition、Host-commit
     readiness、exact-parent History、managed input/focus/dismiss与Engine Lab dormant conformance；不切live Story。
-21. **S4.3 atomic live cutover and promotion（待实施）**：同批迁移Engine Lab、template、Cat Cafe、Bookshop，
+22. **S4.3 atomic live cutover and promotion（待实施）**：同批迁移Engine Lab、template、Cat Cafe、Bookshop，
     删除旧lifecycle writers与standalone public path，更新live docs并完成headless/browser/prebuilt promotion。
 
-当前只允许从 **S4.1** 开始。Stable ingress与stable-specific state/API仍保持
+当前只允许从 **S4.1b** 开始。Stable ingress与stable-specific state/API仍保持
 dormant/package-internal；S4.1允许source-relative Narrative bridge消费Base semantic contract，但不接live
 Narrative/React/Web application graph、不mount React Host，也不更新live feature文档；shared pure topology
 policy只经existing transient adapter live复用，R3a 已将既有live transient reducer/Coordinator 收口到
@@ -2900,20 +2904,60 @@ examples/prebuilt；S0 deterministic Chromium RED与最近R4b.1 browser `101 / 1
 
 ### S4 implementation slices
 
-1. **S4.1 dormant family contract/publisher bridge（当前）**：以TDD交付source-relative exact definition/catalog、
-   composition-owned lease/registration、PendingInteraction→dedicated source revision/fresh Surface occurrence projector、
-   same-occurrence full canonical drift fault、physical-input/stable action admission与automatic controller-attempt bridge。
-   Definition/resolver/required-port failure必须在candidate allocation前reject。不得mount React Host、改public authoring或接live Story。
-2. **S4.2 dormant Host/History integration**：交付controller/view/Host decomposition、captured resolver/required-port snapshot、
+1. **S4.1a dormant family contract/publisher projector（已完成）**：以TDD交付source-relative exact
+   definition/catalog、composition-owned lease/registration、PendingInteraction→dedicated source revision/fresh Surface
+   occurrence projector、same-occurrence full canonical drift fault与candidate preflight exact results；不接action admission。
+2. **S4.1b dormant stable-action/controller-attempt admission（当前）**：交付physical Surface/Input/gesture binding与
+   automatic controller-attempt的分离provenance、current stable runtime fence、semantic occurrence提交与stale zero-dispatch；
+   不mount React Host、改public authoring或接live Story。
+3. **S4.2 dormant Host/History integration（待实施）**：交付controller/view/Host decomposition、captured resolver/required-port snapshot、
    Narrative portal Host-commit readiness/failure、exact-parent History open/close、managed input/focus/dismiss、timer suspension与
    Engine Lab dormant conformance；candidate ready前无ordinary authority。
-3. **S4.3 atomic live cutover/promotion**：一次切换composition/DefaultGameRoot Narrative authoring与全部tracked consumers，
+4. **S4.3 atomic live cutover/promotion（待实施）**：一次切换composition/DefaultGameRoot Narrative authoring与全部tracked consumers，
    删除旧writers/exports/direct dispatch path，验证root/History retain/retire、三设备双fence、focus/inert、Narrative对既有
    reset adapter的响应与旧evidence
    stale rejection，随后更新architecture/features/development/authoring/website并跑受影响browser/examples/prebuilt。
 
-S4.1前stop：若需要公开lease/source/occurrence/Coordinator、复用global semantic/presentation revision、同一semantic
-occurrence实际允许full normalized `PendingInteractionV1` canonical漂移或generic result code不够用；S4.2前stop：若unsupported pending必须保留平行host、
+### S4.1a delivery — dormant family contract and publisher projector
+
+S4.1a新增source-relative Narrative family contract：`surface-owner.narrative`拥有blocking Dialogue single root，
+History保持同owner的exact-parent transient child而不进入stable target vector。Family construction以descriptor-safe dense
+own-data snapshot验证exact aggregate definition sidecars与normalized slot recipe，并证明admission authority、publisher
+registry与composite kernel来自同一composition配置；该seam不进入UI root、`./internal`或package export barrel。
+
+Composition-owned bridge领取一个fresh publisher lease并注册exact unpublished baseline。Registration前或registration
+throw会raw-cleanup已领取但未注册的lease；registration同步notification后还会重验exact current lease与unpublished
+baseline，失败则经composition disposal authority退休旧lease。Listener若已retire predecessor并安装合法successor，失败
+清理只作用于旧lease，不能删除successor。Initial null不签发source或occurrence；`say`、`choice`、`pause`、
+`presentation_barrier`与`custom`的每个新semantic occurrence都发布dedicated source revision与fresh Surface occurrence，
+nonempty→empty只推进source，empty后reopen仍fresh。同一semantic occurrence先比较full normalized
+`PendingInteractionV1` canonical bytes：byte-equal
+复用exact accepted identity，任一字段漂移closed fault；bridge只保留WeakMap-bound admitted frame proof，不建立第二份
+semantic writable state。
+
+Candidate preflight callable在construction时以exact receiver捕获一次；每个new/retry candidate在任何source/occurrence或
+runtime identity allocation前执行。它只接受descriptor-captured exact tagged结果：`captured`、
+`rejected / narrative.renderer_missing`、`rejected / narrative.required_port_missing`（closed bounded `portId`）或
+`faulted / narrative.candidate_preflight_faulted`。Malformed/throwing result或snapshot稳定归family fault；required ports必须为
+opaque identity，voice replay与quick-menu contribution只接受`null`或opaque identity。无论callback返回、throw还是经
+Proxy捕获失败，bridge都先重验exact lease、accepted baseline与reservation generation；同步nested reconcile/dispose/
+terminal transition first-wins，loser零issuance。Readiness-failed greater-same retry重新preflight，保留target occurrence并只在
+成功后推进source与分配fresh runtime candidate；rejection保留exact failure gap、frame、cursor、topology与notification。
+
+本批尚未实现physical stable-action admission、automatic controller-attempt lease、semantic dispatch双fence、React Host、
+History transient lifecycle或live Story/application ingress；这些分别由S4.1b、S4.2与S4.3拥有。没有新增public API、
+generic stable result code、barrel export或live feature声明。批准的Narrative专用preflight result仅为source-relative
+package-internal contract，关闭了本批发现的generic result-code stop而不扩大generic Surface receipt。
+
+验证：focused `5 files / 138 tests`、UI package `79 files / 989 tests`、全量
+`253 files / 3917 tests`与完整`deno task check` green。S4.1a没有接browser/build/live application路径，因此未机械重跑
+browser、examples或prebuilt；最近已有的Engine browser `101 / 101`、examples `45 passed / 2 skipped`与prebuilt Player
+`38 / 38`只作为既有证据，不表述为S4.1a HEAD上的重复执行。S4.1a已完成；current/next均为S4.1b dormant
+stable-action/controller-attempt admission。
+
+S4.1 aggregate stop在S4.1b继续有效：若后续证据要求公开lease/source/occurrence/Coordinator、复用global
+semantic/presentation revision、允许同一semantic occurrence的full normalized `PendingInteractionV1` canonical漂移，
+或余下action admission仍需要扩大generic result code，立即停止；S4.2前stop：若unsupported pending必须保留平行host、
 History不能作为same-authority exact child或Host readiness需要真实async renderer新合同；S4.3前stop：若同一cutover不能
 删除任一旧writer、三设备不能共用双fence或tracked Story需要不同business availability/transition rules。
 
