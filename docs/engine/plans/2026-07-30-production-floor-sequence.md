@@ -42,7 +42,7 @@ promotion 均已关闭。2026-08-08 dormant `PF4/S3c.1 Host-commit readiness`、
 `PF4/S4.1b.1b.1b.2b.1a physical Say reveal-first admission`及
 `PF4/S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor`也已关闭，
 linear core current/next均为
-`PF4/S4.1b.1b.1b.2b.2 barrier acknowledgment/recovery`。
+`PF4/S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment`。
 同日 S1-R pre-implementation review 将 external reconcile gate 重切为 S1-R.0–S1-R.5；
 顺序变化不把任何 planned stable-target contract写成 live capability。
 同日 S1-R.3 entry-gate adjudication 采用 A-prime，将原 R3 拆为单一 composite
@@ -64,7 +64,7 @@ S4.1b.1b.1b.1 automatic pause-expiry controller-attempt admission/dispatch floor
 S4.1b.1b.1b.2a custom physical payload admission与S4.1b.1b.1b.2b.0 remaining mapping
 policy adjudication及S4.1b.1b.1b.2b.1a physical Say reveal-first admission也已关闭，
 S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor也已关闭，下一独立切片为
-S4.1b.1b.1b.2b.2 barrier acknowledgment/recovery。
+S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment。
 旧 promotion 数字保留为
 历史证据。本文是当前唯一的跨计划排序入口；
 具体合同仍由各 design 文档拥有，主要任务由五个独立计划拥有：
@@ -949,12 +949,13 @@ Surface pilot 通过后按 family 分开合并：
 11. S4.1b.1b.1b.2b.0：remaining mapping policy adjudication（已完成）；
 12. S4.1b.1b.1b.2b.1a：physical Say reveal-first admission（已完成）；
 13. S4.1b.1b.1b.2b.1b：content-auto Say controller-attempt floor（已完成）；
-14. S4.1b.1b.1b.2b.2：barrier acknowledgment/recovery（当前）；
-15. S4.1b.1b.1b.2b.3：player controls；
-16. S4.2：dormant Narrative Host、Host-commit readiness与History exact child；
-17. S4.3：atomic live cutover and promotion；
-18. S4b：whole-canvas primary/detail 独立 family；
-19. input/gesture reset（pointercancel、focus loss、visibility change）与 Browser
+14. S4.1b.1b.1b.2b.2a：normal Stage→Narrative acknowledgment（当前）；
+15. S4.1b.1b.1b.2b.2b：settle/replay recovery；
+16. S4.1b.1b.1b.2b.3：player controls；
+17. S4.2：dormant Narrative Host、Host-commit readiness与History exact child；
+18. S4.3：atomic live cutover and promotion；
+19. S4b：whole-canvas primary/detail 独立 family；
+20. input/gesture reset（pointercancel、focus loss、visibility change）与 Browser
     Agent observation。
 
 S3 是 Coordinator-owned transient family，与 Workspace Overlay 共用同一个
@@ -1664,8 +1665,45 @@ Narrative claimant，没有实现clock、timer、deadline、`autoWaitMs` schedul
 验证通过focused `7 files / 236 tests`、UI package `79 files / 1054 tests`、full `253 files / 3984 tests`与完整
 `deno task check`。本批未重跑browser/examples/prebuilt；最近已有Engine browser `101 / 101`、examples browser
 `45 passed / 2 skipped`与prebuilt Player `38 / 38`只作prior evidence，不冒充本HEAD验证。Linear core current/next均为
-S4.1b.1b.1b.2b.2 barrier acknowledgment/recovery；后续顺序保持S4.1b.1b.1b.2b.2 →
-S4.1b.1b.1b.2b.3 → S4.2 → S4.3 → S4b。
+S4.1b.1b.1b.2b.2 barrier acknowledgment/recovery，现由下述docs-only amendment细分并取代。
+
+**PF4/S4.1b.1b.1b.2b.2 execution-order amendment（docs-only）：** Barrier实现拆为
+S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment与
+S4.1b.1b.1b.2b.2b settle/replay recovery；后续顺序固定为
+S4.1b.1b.1b.2b.2a → S4.1b.1b.1b.2b.2b → S4.1b.1b.1b.2b.3 → S4.2 → S4.3 → S4b。
+
+`.2a`在同一claimed Stage retarget plan中只允许恰好一个`acknowledge: true`且logical original
+transition ID与pending expected ID相同的run；0个或多个匹配都必须在interrupt、run start或Stage
+state mutation前fail closed。Reduced-motion settle/fallback的source-relative proof绑定logical original ID与exact
+effective run occurrence，不改变现有public acknowledgment spelling。Stage reconciler只允许一个claim-once exact
+authority；claim后retarget/skip/suspend/resume/dispose等mutation只能经该authority，raw Stage method不得形成
+第二writer。Full plan后与每个old-run terminal/public-observer callback后都由descriptor-captured exact commit guard复验
+Narrative target/canonical/generation；false为Stage-private `stale`、throw/invalid为planning fault，final true后到commit无任何
+caller callback/property read。Frozen zero-key run proof绑定exact Stage authority/Host generation、run occurrence、logical transition ID与
+presentation epoch，不从copyable public acknowledgment事后重建。Narrative另以同一composition claim把该proof与
+authenticated target/semantic occurrence/full canonical pending bytes组合成target-level evidence；Stage模块不读取Narrative
+identity。Narrative的source-relative `NarrativeStableBarrierTerminalDispatchResultInternalV1`为closed
+`dispatched/Promise | retained/null | cancelled/null | stale/null | faulted/null`；preparing/suspended只能把terminal
+evidence放入单个O(1) target slot，private delivery先于全部public Stage subscriber/ack/diagnostic且只store evidence；
+显式flush时的exact current ready-active target/frame/semantic port/runtime与composition ingress全部open才能提交
+`barrier_completed`。Pending claim由target-level evidence拥有；drain后exact CAS清理，target/semantic occurrence/canonical
+pending仍current则恢复
+retained并只允许后续显式flush重试，已退役则只清bounded tombstone。
+
+`.2b`只在composition-owned fresh presentation/controller generation内处理recovery：generation只来自initial
+coherent bootstrap、application successor或由`captureCurrentPresentationGenerationInternalV1()`证明的accepted higher Stage
+presentation epoch，React remount、StrictMode、effect/
+callback identity不得mint fresh generation。`loadRecovery: "settle"`只为generation建立时已存在的exact
+barrier签发独立automatic recovery attempt；同generation后续发布的barrier仍必须等待真实Stage
+proof。`loadRecovery: "replay"`在没有accepted replay capability时继续保持pending、zero semantic dispatch，并只返回
+once-per exact target/generation的`narrative.barrier_replay_unsupported`。Normal acknowledgment与recovery共用同一
+per-boundary first-win/in-flight claim，loser只能stale且zero dispatch。
+
+本amendment不接Host/React/Web/live Narrative或legacy Engine Lab callback，不新增public/`./internal` barrel、package
+export、generic Managed Surface result/receipt，不改Base interaction/evaluator/queue、Save/Persistence/canonical/digest/replay/
+wire或S4b。它只改execution order与accepted implementation boundary，不声称source/test/runtime delivery，也不记录
+unit/browser/build evidence。Linear core current/next均为
+S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment。
 
 每个 family 的迁移提交必须删除旧 owner；禁止长期 adapter 双写。
 `DialoguePanelV1` / `VnLayerV1` 的 controller/view/host 拆分在 Narrative family

@@ -110,9 +110,9 @@ admission/dispatch floor，S4.1b.1b.1b.2a又已交付custom physical payload adm
 S4.1b.1b.1b.2b.0现已冻结remaining Say/barrier/player policy，
 S4.1b.1b.1b.2b.1a又已交付physical Say reveal-first admission，
 S4.1b.1b.1b.2b.1b又已交付content-auto Say controller-attempt floor。
-当前active execution pointer的current/next均为S4.1b.1b.1b.2b.2 barrier acknowledgment/recovery；
-之后依次为
-S4.1b.1b.1b.2b.3 player controls、S4.2、S4.3与S4b。
+当前active execution pointer的current/next均为S4.1b.1b.1b.2b.2a normal
+Stage→Narrative acknowledgment vertical；之后依次为
+S4.1b.1b.1b.2b.2b settle/replay recovery、S4.1b.1b.1b.2b.3 player controls、S4.2、S4.3与S4b。
 R3b.1、R4.0、R4a、R4b.0、R4b.1、R5、S4.0、S4.1a、S4.1b.0、S4.1b.1a、S4.1b.1b.0与
 S4.1b.1b.1a、S4.1b.1b.1b.1、S4.1b.1b.1b.2a、S4.1b.1b.1b.2b.0与
 S4.1b.1b.1b.2b.1a与S4.1b.1b.1b.2b.1b只作为completed
@@ -1290,16 +1290,16 @@ S4.1b.1b.1b.2b → S4.2 → S4.3 → S4b。
 characterization evidence；本合同现按下表冻结S4 V1的accepted policy，后续实现不得再从`VnLayerV1`、
 `DialoguePanelV1`或Engine Lab的local writer择一复制：
 
-| Path                       | Accepted V1 policy                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Say physical activation    | `ui.confirm`与`narrative.advance`是同一个activate-say alias。两者都必须先通过current Surface/Input/publication/gesture fence并绑定exact current Say frame与Host-owned reveal generation。入口捕获的reveal尚未完成时，该事件只调用exact `revealAll` capability并返回presentation handled，semantic attempt与Base dispatch均为零；入口已完成时才可签发one-shot physical Say attempt并提交`{ kind: "advance" }`。同一个事件只能二选一，不能在reveal callback后继续advance；reduced-motion初始即complete时首次activation可直接advance。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| Say automatic and playback | `advancePolicy: "confirm"`表示player mode为normal时没有content-owned automatic advance；它不禁止用户显式Auto或Skip。`advancePolicy: "auto"`表示即使player mode为normal，也在全文reveal完成后等待current Host profile `autoWaitMs`并由controller attempt自动advance；manual activation仍可first-win。显式player Auto对两种policy都采用同一full-reveal + `autoWaitMs`规则。Skip优先于content/player auto：`skip_read`只越过seen Say，`skip_all`可越过unread Say，二者都可绕过reveal wait，但遇choice、pause、barrier或custom立即回到normal。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| Barrier                    | `presentation_barrier`没有ordinary physical action。Publisher reconcile先接受desired target；随后与Narrative bridge/composite kernel同一composition authority、publisher lease及claim-once Stage authority才可原子arm proof并启动run。Frozen zero-key proof绑定exact Stage reconciler/Host generation、run occurrence、transition ID、presentation epoch、application epoch、opaque authenticated target occurrence、semantic occurrence，以及full normalized `PendingInteractionV1` canonical bytes；它明确不绑定source revision、runtime instance或fresh candidate delivery snapshot，也不能从public acknowledgment字段或可复制target spelling事后重建。同transition ID的foreign run不能复用。同步instant/reduced-motion terminal outcome只进入该target的单个O(1) current slot；candidate preparing/suspended时可以保存evidence但不能dispatch。Dispatch时才捕获并绑定current source revision、candidate frame/semantic port与runtime instance，并要求exact target/canonical pending ready-active且ingress open。Same-target readiness retry只有canonical pending bytes exact时可复用target-level evidence；replacement/semantic occurrence或canonical-byte变化、empty/application successor/dispose丢弃。Outcome `completed`、`skipped`与`interrupted`可one-shot提交exact `barrier_completed`；`cancelled`也terminal-seal该run proof但保持zero dispatch。 |
-| Barrier recovery           | `loadRecovery: "settle"`只在barrier已存在于fresh presentation/controller generation时，于fresh Host ready-active且ingress open后用独立automatic recovery attempt完成，不重放旧visual edge；同一generation稍后新发布的barrier仍须等待真实Stage acknowledgment。这里的fresh generation只来自composition-owned application successor、accepted presentation-anchor epoch rotation或initial coherent bootstrap，React remount、StrictMode probe与effect/callback identity都不能触发settle。`loadRecovery: "replay"`继续可由Base解析，但S4 V1 UI在没有accepted replay capability前fail closed：保持barrier pending、zero semantic dispatch并返回once-per exact target/generation的source-relative `narrative.barrier_replay_unsupported` result。Headless/Agent trusted semantic adapter继续按Base occurrence + transition ID直接完成，不被UI proof反向扩张。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| Player Auto/Skip           | Playback mode是composition/Host controller-owned transient `normal \| auto \| skip`，不写PlayerProfile、Game Save、GameCommand或CommandLog；同一mode的toggle回到normal，另一mode的toggle原子切换。Mode可跨连续Say与暂时root suspension保留；suspension在同一commit保存remaining deadline/cursor并撤销attempt，恢复用fresh generation继续remaining。新non-Say boundary、empty、epoch/lease successor或dispose使mode回normal并取消旧timer/attempt。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| History                    | 只有current ready+active Dialogue root且read-only availability为true时，`player.toggle_history`才发布Coordinator exact-parent History child intent；active History的`player.toggle_history`或`ui.cancel`关闭该exact child并restore opener。Unavailable返回family-local ignored/zero topology；因为action已由static managed catalog认证，Input仍consumed且不向lower context fall through。没有React-local boolean。History prepare/active使root suspended，因此沿用上述pause/resume语义。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| Voice replay               | `player.replay_voice`只在exact current ready+active Say可用。Candidate preflight把optional voice adapter收窄为descriptor-captured exact receiver与own-data callable `replayCurrentVoiceInternalV1(): boolean`，route时不重新读取caller object；`true`为handled，absent/`false`为family-local unavailable/ignored，throw为family-local fault，均不形成semantic resolution。因为该action已由static managed catalog认证，三种outcome的Input route都保持consumed，不向lower context fall through。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| UI visibility              | `player.toggle_ui`从Narrative V1 managed definition action catalog移除；该隐藏能力defer，generic input action ID可保留，但S4不得接入它。除非未来先冻结一个始终visible、focusable且同authority-owned的show affordance，否则blocking、owns-focus、trap root不能进入fully hidden状态。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Path                       | Accepted V1 policy                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Say physical activation    | `ui.confirm`与`narrative.advance`是同一个activate-say alias。两者都必须先通过current Surface/Input/publication/gesture fence并绑定exact current Say frame与Host-owned reveal generation。入口捕获的reveal尚未完成时，该事件只调用exact `revealAll` capability并返回presentation handled，semantic attempt与Base dispatch均为零；入口已完成时才可签发one-shot physical Say attempt并提交`{ kind: "advance" }`。同一个事件只能二选一，不能在reveal callback后继续advance；reduced-motion初始即complete时首次activation可直接advance。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Say automatic and playback | `advancePolicy: "confirm"`表示player mode为normal时没有content-owned automatic advance；它不禁止用户显式Auto或Skip。`advancePolicy: "auto"`表示即使player mode为normal，也在全文reveal完成后等待current Host profile `autoWaitMs`并由controller attempt自动advance；manual activation仍可first-win。显式player Auto对两种policy都采用同一full-reveal + `autoWaitMs`规则。Skip优先于content/player auto：`skip_read`只越过seen Say，`skip_all`可越过unread Say，二者都可绕过reveal wait，但遇choice、pause、barrier或custom立即回到normal。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Barrier                    | `presentation_barrier`没有ordinary physical action。Publisher reconcile先接受desired target；随后与Narrative bridge/composite kernel同一composition authority、publisher lease及claim-once Stage authority才可原子arm proof并启动run。Stage的frozen zero-key proof只绑定exact Stage reconciler/Host generation、run occurrence、logical transition ID与presentation epoch；Narrative以同一composition claim另把该proof与application epoch、opaque authenticated target occurrence、semantic occurrence及full normalized `PendingInteractionV1` canonical bytes组合成target-level evidence。该composite evidence明确不绑定source revision、runtime instance或fresh candidate delivery snapshot，也不能从public acknowledgment字段或可复制target spelling事后重建；Stage模块不读取Narrative identity，同transition ID的foreign run不能复用。同步instant/reduced-motion terminal outcome只进入该target的单个O(1) current slot；candidate preparing/suspended时可以保存evidence但不能dispatch。Dispatch时才捕获并绑定current source revision、candidate frame/semantic port与runtime instance，并要求exact target/canonical pending ready-active且ingress open。Same-target readiness retry只有canonical pending bytes exact时可复用target-level evidence；replacement/semantic occurrence或canonical-byte变化、empty/application successor/dispose丢弃。Outcome `completed`、`skipped`与`interrupted`可one-shot提交exact `barrier_completed`；`cancelled`也terminal-seal该run proof但保持zero dispatch。 |
+| Barrier recovery           | `loadRecovery: "settle"`只在barrier已存在于fresh presentation/controller generation时，于fresh Host ready-active且ingress open后用独立automatic recovery attempt完成，不重放旧visual edge；同一generation稍后新发布的barrier仍须等待真实Stage acknowledgment。这里的fresh generation只来自initial coherent bootstrap、composition-owned application successor或由`captureCurrentPresentationGenerationInternalV1()`证明的accepted higher Stage presentation epoch，React remount、StrictMode probe与effect/callback identity都不能触发settle。`loadRecovery: "replay"`继续可由Base解析，但S4 V1 UI在没有accepted replay capability前fail closed：保持barrier pending、zero semantic dispatch并返回once-per exact target/generation的source-relative `narrative.barrier_replay_unsupported` result。Headless/Agent trusted semantic adapter继按Base occurrence + transition ID直接完成，不被UI proof反向扩张。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Player Auto/Skip           | Playback mode是composition/Host controller-owned transient `normal \| auto \| skip`，不写PlayerProfile、Game Save、GameCommand或CommandLog；同一mode的toggle回到normal，另一mode的toggle原子切换。Mode可跨连续Say与暂时root suspension保留；suspension在同一commit保存remaining deadline/cursor并撤销attempt，恢复用fresh generation继续remaining。新non-Say boundary、empty、epoch/lease successor或dispose使mode回normal并取消旧timer/attempt。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| History                    | 只有current ready+active Dialogue root且read-only availability为true时，`player.toggle_history`才发布Coordinator exact-parent History child intent；active History的`player.toggle_history`或`ui.cancel`关闭该exact child并restore opener。Unavailable返回family-local ignored/zero topology；因为action已由static managed catalog认证，Input仍consumed且不向lower context fall through。没有React-local boolean。History prepare/active使root suspended，因此沿用上述pause/resume语义。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Voice replay               | `player.replay_voice`只在exact current ready+active Say可用。Candidate preflight把optional voice adapter收窄为descriptor-captured exact receiver与own-data callable `replayCurrentVoiceInternalV1(): boolean`，route时不重新读取caller object；`true`为handled，absent/`false`为family-local unavailable/ignored，throw为family-local fault，均不形成semantic resolution。因为该action已由static managed catalog认证，三种outcome的Input route都保持consumed，不向lower context fall through。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| UI visibility              | `player.toggle_ui`从Narrative V1 managed definition action catalog移除；该隐藏能力defer，generic input action ID可保留，但S4不得接入它。除非未来先冻结一个始终visible、focusable且同authority-owned的show affordance，否则blocking、owns-focus、trap root不能进入fully hidden状态。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 
 Replay unsupported的source-relative closed row是exact frozen
 `{ kind: "unsupported", code: "narrative.barrier_replay_unsupported", completion: null }`。每个exact
@@ -1322,13 +1322,16 @@ zero也只在完整successor安装并通知后由next clock tick触发，不能�
 立即冻结retained predecessor controller；Say successor ready后可保留player mode，但必须按fresh frame重建reveal/timer。
 现有`TextRevealV1`没有该pause/resume合同，S4.2不得把它原样当成accepted controller。
 
-同一Say boundary的manual、content/player auto与skip共享一个package-internal in-flight claim；Barrier terminal
-evidence也有同样的single-dispatch claim。Winner在调用semantic port前原子seal，Promise pending期间全部competitor都
-zero dispatch。Sync throw规范化为rejected Promise而不回滚claim或Surface。Dispatch wrapper在向controller暴露completion
-settlement前必须drain该调用已经触发的semantic publication与Narrative bridge reconcile；随后检查exact target/source/frame：
-若source已变化则随旧frame退役，若exact source仍current才可释放in-flight并从retained reveal/terminal evidence签发fresh
-attempt。Resolved/rejected completion都不检查opaque Story result。实现若不能证明completion前publication drain ordering，
-就必须停止，不能永久seal无commit边界或冒险重复dispatch。
+同一Say boundary的manual、content/player auto与skip共享一个package-internal in-flight claim；Barrier则由
+target-level evidence拥有独立single-dispatch claim，不把claim绑到短命source/frame/controller。Winner在调用
+semantic port前原子seal，Promise pending期间全部competitor和Barrier flush都zero dispatch。Sync throw规范化为
+rejected Promise而不回滚claim或Surface。Dispatch wrapper在向controller暴露completion settlement前必须drain该调用
+已经触发的semantic publication与Narrative bridge reconcile，随后只以exact claim token做CAS清理。Say继续按
+exact controller/source/frame释放或退役；Barrier若exact target、semantic occurrence与canonical pending仍current，则只把
+evidence恢复为retained，后续一次显式flush再fresh-capture source/frame/port/proof，不在settlement stack里自动重试。
+若target/canonical已退役，completion只清理bounded tombstone而不复活evidence；old completion不能ABA-clear
+successor token。Resolved/rejected completion都不检查opaque Story result。实现若不能证明completion前publication
+drain ordering，就必须停止，不能永久seal无commit边界或冒险重复dispatch。
 
 该adjudication只改变accepted target contract与linear execution order，没有runtime source、test、Host、React/Web或
 live Story claimant，也不声称上述路径已实现。它不新增raw renderer authority、public/`./internal` barrel、package
@@ -1336,7 +1339,8 @@ export、generic stable/action result code、receipt或universal envelope；不�
 PlayerProfile preference format、Save/Persistence/canonical/digest/replay/wire或S4b。实现顺序固定为
 S4.1b.1b.1b.2b.1a physical Say reveal-first admission →
 S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor →
-S4.1b.1b.1b.2b.2 barrier acknowledgment/recovery →
+S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment vertical →
+S4.1b.1b.1b.2b.2b settle/replay recovery →
 S4.1b.1b.1b.2b.3 player controls → S4.2。若Say需要把raw reveal/controller authority交给renderer、Barrier replay
 必须在没有exact replay descriptor/capability时推进、player control要求fully hidden focus-trapped root，或任一路径要求
 扩大generic/public receipt/result，立即停止并修订合同。
@@ -1364,7 +1368,8 @@ controller-attempt admission/dispatch floor；S4.1b.1b.1b.2a custom physical pay
 S4.1b.1b.1b.2b.0 remaining mapping policy adjudication（已完成）；
 S4.1b.1b.1b.2b.1a physical Say reveal-first admission（已完成）；
 S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor（已完成）；
-S4.1b.1b.1b.2b.2 barrier acknowledgment/recovery（当前）；
+S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment vertical（当前）；
+S4.1b.1b.1b.2b.2b settle/replay recovery；
 S4.1b.1b.1b.2b.3 player controls；S4.2 dormant
 controller/view/Host、Host-commit readiness与History exact-child integration；
 S4.3在一个cutover中迁移全部tracked consumers、删除旧writers并完成headless/browser/prebuilt promotion。若exact-parent
@@ -1483,8 +1488,8 @@ S4.1b.1b.1a验证通过focused `7 files / 192 tests`、UI `79 files / 1010 tests
 `253 files / 3938 tests`与`deno task check` green。本批未重跑browser/examples/prebuilt；`101 / 101`、
 `45 passed / 2 skipped`与`38 / 38`仅是先前已有证据，不冒充本批HEAD验证。
 该checkpoint当时的current/next是S4.1b.1b.1b.2a；现已由上述.2a delivery推进。
-Active current/next现均为S4.1b.1b.1b.2b.2；后续顺序保持
-S4.1b.1b.1b.2b.2 →
+Active current/next现均为S4.1b.1b.1b.2b.2a；后续顺序保持
+S4.1b.1b.1b.2b.2a → S4.1b.1b.1b.2b.2b →
 S4.1b.1b.1b.2b.3 → S4.2 → S4.3 → S4b。
 
 **S4.1b.1b.1b.2b.1 execution-order amendment：** Say先拆成两个vertical。`.1a`沿用既有
@@ -1606,7 +1611,145 @@ Host/React/live claimant，也没有新增public/`./internal` barrel、package e
 `deno task check` green。本批未重跑browser/examples/prebuilt；Engine browser `101 / 101`、examples
 `45 passed / 2 skipped`与prebuilt Player `38 / 38`仅为prior evidence，不冒充本批HEAD验证。
 S4.1b.1b.1b.2b.1b已完成；active current/next现均推进为
-S4.1b.1b.1b.2b.2 barrier acknowledgment/recovery。
+S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment vertical。
+
+**S4.1b.1b.1b.2b.2 entry amendment（docs-only）：** Barrier先拆为
+S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment vertical，再做
+S4.1b.1b.1b.2b.2b settle/replay recovery；两者完成后才进入S4.1b.1b.1b.2b.3
+player controls。本amendment只冻结source-relative合同，没有runtime、test、Host/live claimant或delivery evidence。
+
+`.2b.2a`先为exact `StageReconcilerV1`建立claim-once、package-internal
+`StageAcknowledgedRunAuthorityInternalV1`。`claimStageAcknowledgedRunAuthorityInternalV1(reconciler,
+exactClaimant)`把reconciler/Host generation绑定到一个exact claimant；同claimant重复claim复用同一authority，foreign、clone或
+wrong receiver fail closed。Claim成功后，`retarget`、`skipAll`、`suspend`、`resume`与`dispose`等所有mutation entry只能经
+该exact authority；raw public mutation method保持现有shape但在post-claim调用时zero mutation。Public `frame`与
+`subscribe`继续是read-only observation，未被claim的ordinary public reconciler路径保持byte-for-byte既有行为。
+Authority以显式`retargetInternalV1`、`skipAllInternalV1`、`suspendInternalV1`、`resumeInternalV1`与
+`disposeInternalV1`保留这些mutation，并额外提供：
+
+```ts
+retargetWithAcknowledgedRunInternalV1(input: {
+  readonly retarget: StageRetargetInputV1;
+  readonly expectedTransitionId: string;
+  readonly commitGuard: StageAcknowledgedRunCommitGuardInternalV1;
+  readonly terminalPort: StageAcknowledgedRunTerminalPortInternalV1;
+}): StageAcknowledgedRunRetargetResultInternalV1;
+```
+
+`StageAcknowledgedRunProofInternalV1`是frozen zero-key opaque capability；
+`StageAcknowledgedRunCommitGuardInternalV1`与`StageAcknowledgedRunTerminalPortInternalV1`都只接受descriptor-captured
+exact own-data receiver/callable。Guard由Narrative controller私有创建，只向Stage返回boolean currentness，不暴露
+target/canonical/generation identity。两个port的exact one-method shape分别是
+`isCommitCurrentInternalV1(): boolean`与
+`deliverTerminalInternalV1(input: Readonly<{ proof: StageAcknowledgedRunProofInternalV1;
+outcome: PresentationRunOutcomeV1 }>): void`；terminal input是frozen exact `{ proof, outcome }`。Stage retarget result也是
+frozen exact record，并固定为：
+
+```ts
+type StageAcknowledgedRunRetargetResultInternalV1 =
+  | Readonly<{
+    readonly kind: "armed";
+    readonly proof: StageAcknowledgedRunProofInternalV1;
+  }>
+  | Readonly<{
+    readonly kind: "stale";
+    readonly proof: null;
+  }>
+  | Readonly<{
+    readonly kind: "faulted";
+    readonly code:
+      | "stage.acknowledged_run_unmatched"
+      | "stage.acknowledged_run_ambiguous"
+      | "stage.acknowledged_run_faulted";
+    readonly proof: null;
+  }>;
+```
+
+Acknowledged retarget先descriptor-capture完整input，并对整次Stage change只执行一次full plan；Story catalog、reduced-motion/
+fallback、readiness与选择run所需的caller callback不得二次读取。Matching按original logical resolved definition的
+`acknowledge: true`与Barrier `expectedTransitionId`判断，而不是按effective reduced-motion fallback ID。Full plan必须恰好
+一个match：零个为`stage.acknowledged_run_unmatched`，多个为`stage.acknowledged_run_ambiguous`，planning/callback throw、
+invalid result或内部provenance破坏为`stage.acknowledged_run_faulted`。这些planning fault和第一次guard失败都发生在
+任何old-run interruption、Stage target/active-run mutation、occurrence counter、notification或proof mint之前，因而整个
+internal retarget exact zero；不得通过重新调用raw `retarget`降级继续。
+
+唯一match完成full plan后先调用一次exact commit guard。Guard返回`false`为`stale`，throw、invalid return或
+planning/guard reentry为`stage.acknowledged_run_faulted`。
+若随后中断已有armed run，每一个old run的private terminal、public acknowledgment/diagnostic与Stage
+subscription callback全部完成后都要再调用guard；一旦stale/fault就停止中断余下old runs，且只保留已经发生的
+old interruption/notification，new occurrence/proof/target/run仍为zero。最后一次guard返回`true`后到new
+occurrence/proof/target/run assignment之间不得再有caller callback、property lookup或其他可抛工作。Logical proof只能在
+该final guard后mint，绑定exact Stage authority/reconciler Host generation、current presentation epoch、original expected
+transition ID与opaque effective run occurrence；普通run、cut/zero-duration、
+reduced-motion instant settle和fallback使用同一规则。
+任意full-plan、guard、old-terminal或public-observer callback里尝试nested same-authority mutation都以zero delta返回并标记
+outer operation；callback后guard若已为false，`stale`优先，否则该reentry使outer返回
+`stage.acknowledged_run_faulted`。Post-claim raw public mutation只是fail-closed bypass，不能藉此改变该precedence。
+Proof与private terminal delivery必须在任何readiness wait、run start或同步instant terminal前安装。
+Claimed run的terminal必须先irreversibly seal exact proof并向captured terminal port delivery，然后才向任何public Stage
+frame subscriber、`StageTransitionAcknowledgmentV1`或diagnostic callback暴露terminal。这些public observer的throw在claimed
+path上被隔离，不能阻断private delivery、复活run、回滚Stage commit或跳过下一次commit guard；不带
+private proof的unclaimed ordinary public path仍保持已有callback/notification行为。Stage在调用private terminal port前已经
+terminal-seal proof；hostile port throw被隔离、该proof不重送，并且不阻断run cleanup或后续public observer。Narrative的
+captured port必须把自身内部失败收敛为cached `faulted` terminal result，不向Stage抛出。
+
+Narrative同批新增`NarrativeStableBarrierAcknowledgmentControllerInternalV1`与
+`createNarrativeStableBarrierAcknowledgmentControllerInternalV1({ bridge, stageReconciler })`。Factory从bridge private
+provenance自行claim同一composite kernel的stable ready-active authority和上述Stage authority，不接受caller传入任一raw
+authority。Controller只暴露`retargetCurrentBarrierStageInternalV1(retarget)`、
+`flushRetainedTerminalInternalV1(): NarrativeStableBarrierTerminalDispatchResultInternalV1 | null`与
+`disposeInternalV1()`；construction与每个method均要求exact receiver，second/foreign
+claim、clone、Proxy与disposed successor在读取caller payload前fail closed。
+
+`NarrativeStableBarrierStageRetargetResultInternalV1`是frozen exact
+`armed { completion: null } | stale { completion: null } | faulted { code: Stage三种code,
+completion: null }`。Barrier target-level record绑定opaque admitted target、publisher/application lifetime、semantic occurrence、
+full normalized PendingInteraction canonical bytes与Stage run proof；它明确不保留source revision、candidate snapshot、semantic
+port或runtime instance。Same-target readiness retry因复用exact admitted target且canonical bytes不变而保留该evidence；source/
+frame/port只在dispatch时从bridge重新捕获。Replacement、semantic occurrence/canonical drift、empty、application/publisher
+successor、foreign Stage generation或dispose立即seal并丢弃旧evidence。
+
+Terminal exact proof先不可逆spend，再按application/target/canonical currentness分类。Private terminal port只在O(1)
+target-level slot中seal/store evidence，不在Stage terminal call stack内调用semantic port；所有semantic admission都由后续显式
+`flushRetainedTerminalInternalV1()`发起，因而instant terminal也有可观测的closed result。`cancelled`只seal run并缓存
+`cancelled`、semantic zero；`completed | skipped | interrupted`保存为唯一retained terminal evidence。Flush在preparing/
+suspended/gap上返回`retained`；只有exact ready-active时才取得fresh target/source/frame/semantic-port/runtime proof并进入
+shared Barrier callback/semantic-in-flight claim。Pending期间repeat flush只返回同exact cached `dispatched` result identity且zero new
+dispatch；无current evidence/result时返回`null`。
+`NarrativeStableBarrierTerminalDispatchResultInternalV1`固定为
+`dispatched { completion: Promise<unknown> } | retained { completion: null } |
+cancelled { completion: null } | stale { completion: null } | faulted { completion: null }`。Winner在semantic call前seal，
+repeat/foreign/clone/competing terminal全部zero；sync throw规范化为rejected Promise。In-flight token属于target-level
+evidence而不属于某个source/frame/controller；pending期间source/frame successor可安装，但不能取得第二个claim。
+Completion继续遵守既有publication + bridge drain contract，随后只用exact token CAS清理：若target/semantic
+occurrence/canonical pending仍current，则恢复retained state，且只能由后续显式flush捕获fresh source/frame/port/proof再试；
+若target-level evidence已退役，completion只清理bounded tombstone。Old completion不能清除successor claim，不读取
+opaque Story result，也不在settlement stack内自动重试。
+
+`.2b.2b`在同一controller上新增`StagePresentationGenerationProofInternalV1`、
+`NarrativeStableBarrierRecoveryGenerationInternalV1`与`NarrativeStableBarrierRecoveryAttemptInternalV1`，均为frozen zero-key
+opaque capability。Stage authority的`captureCurrentPresentationGenerationInternalV1()`只从已接受的current Stage epoch产生
+exact reconciler/Host-generation proof；Narrative的`synchronizeRecoveryGenerationInternalV1()`把它与bridge/application
+identity组合，并只保留一个current O(1) generation。新application bridge的首次capture是initial coherent bootstrap；higher
+accepted presentation epoch安装fresh generation，equal epoch返回unchanged并复用exact generation，lower epoch返回stale，
+invalid/foreign proof返回faulted。React remount、StrictMode或callback/effect identity即使更换reconciler，只要application bridge与
+presentation epoch相同就不得resnapshot target或产生fresh recovery generation。
+
+Generation安装时只捕获当时已经存在的exact Barrier target、semantic occurrence与canonical pending bytes；同generation之后才
+发布的Barrier、replacement或canonical drift都不获得settle资格。Controller新增
+`issueSettleRecoveryAttemptInternalV1(): NarrativeStableBarrierRecoveryAttemptInternalV1 | null`与
+`dispatchSettleRecoveryInternalV1(attempt): NarrativeStableBarrierRecoveryDispatchResultInternalV1`。Attempt只为eligible
+`loadRecovery: "settle"` target签发，并在dispatch时要求fresh ready-active target/source/frame/port/runtime proof；它没有gesture、
+input-owner、clock或renderer字段。Recovery dispatch result固定为
+`dispatched { completion: Promise<unknown> } | stale { completion: null } | faulted { completion: null }`，并与normal Stage terminal
+共享Barrier callback/semantic-in-flight first-wins claim、Promise drain与exact CAS。
+
+`loadRecovery: "replay"`不签发attempt。`readReplayRecoveryUnsupportedInternalV1()`按exact target/generation返回并缓存唯一
+frozen `{ kind: "unsupported", code: "narrative.barrier_replay_unsupported", completion: null }`；repeat复用同一identity且
+notification、semantic、source、runtime与topology均zero，target/generation successor才可建立fresh result。Replay unsupported与
+settle共享同一once-per-target/generation recovery claim，但不伪造Stage proof或semantic-in-flight。`.2b.2a/.2b.2b`都不得修改
+public `StageReconcilerV1`/acknowledgment shape、root或`./internal` barrel、package export、generic Surface result/receipt、Base
+interaction/Save/replay/wire或live Engine Lab writer；这些source-relative vertical完成后才允许进入`.2b.3`。
 
 ### 3.3 Runtime session
 
