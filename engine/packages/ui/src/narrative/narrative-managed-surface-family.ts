@@ -1043,7 +1043,7 @@ const readinessPolicyInternalV1 = Object.freeze({
 
 const dialogueDefinitionInternalV1 = parseManagedSurfaceResolvedDefinitionV1({
   definitionId: dialogueDefinitionIdInternalV1,
-  contractRevision: parsePositiveSafeInteger(1),
+  contractRevision: parsePositiveSafeInteger(2),
   ownerId: ownerIdInternalV1,
   slotId: rootSlotIdInternalV1,
   layerId: narrativeLayerIdInternalV1,
@@ -1076,7 +1076,6 @@ const dialogueDefinitionInternalV1 = parseManagedSurfaceResolvedDefinitionV1({
       "player.toggle_auto",
       "player.toggle_skip",
       "player.toggle_history",
-      "player.toggle_ui",
       "player.replay_voice",
     ].map(parseManagedSurfaceActionIdV1),
   ),

@@ -44,9 +44,10 @@ promotion 均已关闭。2026-08-08 dormant `PF4/S3c.1 Host-commit readiness`、
 `PF4/S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment`与
 `PF4/S4.1b.1b.1b.2b.2b.0 recovery generation admission contract`及
 `PF4/S4.1b.1b.1b.2b.2b.1 settle/replay recovery implementation`也已关闭；
-`PF4/S4.1b.1b.1b.2b.3.0 player-controls execution split` docs-only checkpoint也已关闭，
+`PF4/S4.1b.1b.1b.2b.3.0 player-controls execution split` docs-only checkpoint与
+`PF4/S4.1b.1b.1b.2b.3a toggle-ui Narrative catalog corrective`也已关闭，
 linear core current/next均为
-`PF4/S4.1b.1b.1b.2b.3a toggle-ui Narrative catalog corrective`。
+`PF4/S4.1b.1b.1b.2b.3b voice replay physical route`。
 同日 S1-R pre-implementation review 将 external reconcile gate 重切为 S1-R.0–S1-R.5；
 顺序变化不把任何 planned stable-target contract写成 live capability。
 同日 S1-R.3 entry-gate adjudication 采用 A-prime，将原 R3 拆为单一 composite
@@ -71,8 +72,9 @@ S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor与
 S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment与
 S4.1b.1b.1b.2b.2b.0 recovery generation admission contract及
 S4.1b.1b.1b.2b.2b.1 settle/replay recovery implementation也已关闭；
-S4.1b.1b.1b.2b.3.0 player-controls execution split docs-only checkpoint也已关闭，下一独立切片为
-S4.1b.1b.1b.2b.3a toggle-ui Narrative catalog corrective。
+S4.1b.1b.1b.2b.3.0 player-controls execution split docs-only checkpoint与
+S4.1b.1b.1b.2b.3a toggle-ui Narrative catalog corrective也已关闭，下一独立切片为
+S4.1b.1b.1b.2b.3b voice replay physical route。
 旧 promotion 数字保留为
 历史证据。本文是当前唯一的跨计划排序入口；
 具体合同仍由各 design 文档拥有，主要任务由五个独立计划拥有：
@@ -962,8 +964,8 @@ Surface pilot 通过后按 family 分开合并：
 16. S4.1b.1b.1b.2b.2b.1：settle/replay recovery implementation（已完成）；
 17. S4.1b.1b.1b.2b.3：player controls（superseded checkpoint；由`.2b.3.0`细分）；
 18. S4.1b.1b.1b.2b.3.0：player-controls execution split（docs-only，已完成）；
-19. S4.1b.1b.1b.2b.3a：toggle-ui Narrative catalog corrective（当前）；
-20. S4.1b.1b.1b.2b.3b：voice replay physical route；
+19. S4.1b.1b.1b.2b.3a：toggle-ui Narrative catalog corrective（已完成）；
+20. S4.1b.1b.1b.2b.3b：voice replay physical route（当前）；
 21. S4.1b.1b.1b.2b.3c：bridge-owned Auto/Skip transient mode floor；
 22. S4.1b.1b.1b.2b.3d：History exact-parent open intent floor；
 23. S4.2：dormant Narrative Host、Host-commit readiness、timer scheduling与History exact-child lifecycle；
@@ -1823,8 +1825,30 @@ lifecycle。
 claimant或product/browser/build交付，不新增public/`./internal` barrel、package export、generic Managed
 Surface result/receipt或第二topology authority，也不修改Base、Save/Persistence、canonical/digest/replay/wire
 或S4b。它不记录unit/browser/build验证证据；只运行本文件`deno fmt --check`与
-`git diff --check`。Linear core current/next均为
-**S4.1b.1b.1b.2b.3a toggle-ui Narrative catalog corrective**。
+`git diff --check`。该checkpoint当时的linear core current/next均为
+**S4.1b.1b.1b.2b.3a toggle-ui Narrative catalog corrective**，现由下述delivery推进。
+
+**PF4/S4.1b.1b.1b.2b.3a toggle-ui Narrative catalog corrective delivery（completed）：**
+Dialogue static definition contract的`actionIds`是definition identity的组成部分，其`contractRevision`因此从
+`1`推进为`2`；该revision中唯一的catalog变化是移除`player.toggle_ui`，其他Dialogue
+definition policy与action ID逐项保持。History definition没有改变：它继续是`contractRevision: 1`，且exact
+catalog仍只有`ui.cancel`与`player.toggle_history`。
+
+Generic `playerInputActionIdsV1.toggleUi` 及其`player.toggle_ui` spelling仍保留，Engine Lab/Story的legacy
+live toggle-ui mapping与local hidden/input characterization均为zero diff。从Narrative binding产生的removed
+toggle-ui action现在稳定返回`rejected / surface.action_unpublished`；外层Input仍为
+`consumed / input.managed_surface_consumed`，不向lower context fall through，不调用authenticated consumer或
+semantic dispatch，也不改变state/topology/notification。因consumer未被调用，该negative route也不spend
+与它一起传入的authentic one-shot attempt。
+
+本delivery的production/test变更只在`@sillymaker/ui` Narrative family的source-relative implementation与同目录
+test；没有新增或修改public/`./internal` barrel、package export、generic Input/Managed Surface
+route/result/receipt、Base/Web/React Host、live Narrative claimant或tracked Story writer。验证通过focused
+`2 files / 156 tests`、UI package `79 files / 1123 tests`、full `253 files / 4053 tests`与完整
+`deno task check`。本批因live browser/build graph zero diff未重跑browser、examples或prebuilt；先前的Engine
+browser `101 / 101`、examples browser `45 passed / 2 skipped`与prebuilt Player `38 / 38`只作prior
+evidence，不冒充本HEAD验证。Linear core current/next均推进为
+**S4.1b.1b.1b.2b.3b voice replay physical route**。
 
 每个 family 的迁移提交必须删除旧 owner；禁止长期 adapter 双写。
 `DialoguePanelV1` / `VnLayerV1` 的 controller/view/host 拆分在 Narrative family

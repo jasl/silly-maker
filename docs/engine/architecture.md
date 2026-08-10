@@ -943,8 +943,29 @@ Host/React/Web, or live Story claimant change. Verification passed focused
 `8 files / 315 tests`, UI `79 files / 1122 tests`, full `253 files / 4052
 tests`, and `deno task check`, plus fresh engine browser `101 / 101`, examples
 browser `45 passed / 2 skipped`, and prebuilt Player `38 / 38`.
-S4.1b.1b.1b.2b.2b.1 is complete; current/next is
-S4.1b.1b.1b.2b.3, player controls.
+S4.1b.1b.1b.2b.2b.1 is complete; at that delivery checkpoint, current/next
+was the aggregate S4.1b.1b.1b.2b.3 player-controls entry, which the active
+plans have since split into independently mergeable controls.
+
+S4.1b.1b.1b.2b.3a now removes `player.toggle_ui` from the dormant Dialogue
+managed-definition action catalog. Because executable action IDs are part of
+the static definition contract, `surface.narrative.dialogue` advances from
+contract revision 1 to 2. The History child remains revision 1 with only
+`ui.cancel` and `player.toggle_history`, and the Dialogue sidecar continues to
+reference the exact revised Dialogue definition.
+
+The generic `playerInputActionIdsV1.toggleUi` value and the existing live
+Engine Lab/Dialogue characterization remain unchanged. An authenticated
+binding-origin `player.toggle_ui` envelope is therefore consumed by Input but
+rejected as `surface.action_unpublished` before the Narrative consumer; it has
+zero lower-context fallthrough, semantic dispatch, topology, notification, or
+attempt-spend effect. This corrective adds no hide/show state, generic route
+result, package export, public API, or live claimant. Verification passed
+focused `2 files / 156 tests`, UI `79 files / 1123 tests`, full
+`253 files / 4053 tests`, and `deno task check`. Browser `101 / 101`, examples
+`45 passed / 2 skipped`, and prebuilt Player `38 / 38` remain prior evidence
+and were not rerun. S4.1b.1b.1b.2b.3a is complete; current/next is
+S4.1b.1b.1b.2b.3b, the source-relative voice replay physical route.
 
 ## 9. Changing the architecture
 
@@ -998,8 +1019,10 @@ admission path described above. S4.1b.1b.1b.2b.1b adds the clock-free
 content-auto path on that same controller. S4.1b.1b.1b.2b.2a adds the dormant
 normal Stage-to-Narrative Barrier acknowledgment claimant described above.
 S4.1b.1b.1b.2b.2b.1 adds the bridge-owned settle/replay recovery generation,
-attempt, and unsupported-result floor described above. S4.1b.1b.1b.2b.3
-player controls is current/next. Host integration and the Narrative live
-migration remain planned work; the implemented source-relative claimant does
-not alter the live Host data flow until that migration and its behavior tests
-land.
+attempt, and unsupported-result floor described above. S4.1b.1b.1b.2b.3a
+applies the Dialogue catalog corrective described above, while retaining the
+generic input action and legacy live characterization. S4.1b.1b.1b.2b.3b
+voice replay is current/next, followed by the bridge-owned Auto/Skip mode and
+History-intent floors. Host integration and the Narrative live migration
+remain planned work; the implemented source-relative claimant does not alter
+the live Host data flow until that migration and its behavior tests land.

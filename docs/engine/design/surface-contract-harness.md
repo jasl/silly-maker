@@ -113,14 +113,16 @@ S4.1b.1b.1b.2b.1b又已交付content-auto Say controller-attempt floor，
 S4.1b.1b.1b.2b.2a又已交付normal Stage→Narrative acknowledgment vertical，
 S4.1b.1b.1b.2b.2b.0又已冻结recovery generation admission entry contract，
 S4.1b.1b.1b.2b.2b.1现已交付settle/replay recovery implementation，
-S4.1b.1b.1b.2b.3.0又已冻结player-controls execution split。
-当前active execution pointer的current/next均为S4.1b.1b.1b.2b.3a toggle-ui Narrative catalog corrective；之后依次为
-S4.1b.1b.1b.2b.3b voice replay physical route、S4.1b.1b.1b.2b.3c bridge-owned Auto/Skip transient mode floor、
+S4.1b.1b.1b.2b.3.0又已冻结player-controls execution split，
+S4.1b.1b.1b.2b.3a现已交付toggle-ui Narrative catalog corrective。
+当前active execution pointer的current/next均为S4.1b.1b.1b.2b.3b voice replay physical route；之后依次为
+S4.1b.1b.1b.2b.3c bridge-owned Auto/Skip transient mode floor、
 S4.1b.1b.1b.2b.3d History exact-parent open intent floor、S4.2、S4.3与S4b。
 R3b.1、R4.0、R4a、R4b.0、R4b.1、R5、S4.0、S4.1a、S4.1b.0、S4.1b.1a、S4.1b.1b.0与
 S4.1b.1b.1a、S4.1b.1b.1b.1、S4.1b.1b.1b.2a、S4.1b.1b.1b.2b.0与
 S4.1b.1b.1b.2b.1a、S4.1b.1b.1b.2b.1b、S4.1b.1b.1b.2b.2a、
-S4.1b.1b.1b.2b.2b.0、S4.1b.1b.1b.2b.2b.1与S4.1b.1b.1b.2b.3.0只作为completed
+S4.1b.1b.1b.2b.2b.0、S4.1b.1b.1b.2b.2b.1、S4.1b.1b.1b.2b.3.0与
+S4.1b.1b.1b.2b.3a只作为completed
 delivery/checkpoint保留。
 Stable implementation仍保持dormant/source-relative；R5只解除S4 entry gate，S4.0也没有把任何stable family
 提前写成live capability。
@@ -1348,8 +1350,8 @@ S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment vertical →
 S4.1b.1b.1b.2b.2b.0 recovery generation admission entry amendment（已完成）→
 S4.1b.1b.1b.2b.2b.1 settle/replay recovery implementation（已完成）→
 S4.1b.1b.1b.2b.3.0 player-controls execution split（docs-only，已完成）→
-S4.1b.1b.1b.2b.3a toggle-ui Narrative catalog corrective（当前）→
-S4.1b.1b.1b.2b.3b voice replay physical route →
+S4.1b.1b.1b.2b.3a toggle-ui Narrative catalog corrective（已完成）→
+S4.1b.1b.1b.2b.3b voice replay physical route（当前）→
 S4.1b.1b.1b.2b.3c bridge-owned Auto/Skip transient mode floor →
 S4.1b.1b.1b.2b.3d History exact-parent open intent floor → S4.2。若Say需要把raw reveal/controller authority交给renderer、Barrier replay
 必须在没有exact replay descriptor/capability时推进、player control要求fully hidden focus-trapped root，或任一路径要求
@@ -1383,8 +1385,8 @@ S4.1b.1b.1b.2b.2b.0 recovery generation admission entry amendment（docs-only，
 S4.1b.1b.1b.2b.2b.1 settle/replay recovery implementation（已完成）；
 S4.1b.1b.1b.2b.3 aggregate player controls（superseded checkpoint）；
 S4.1b.1b.1b.2b.3.0 player-controls execution split（docs-only，已完成）；
-S4.1b.1b.1b.2b.3a toggle-ui Narrative catalog corrective（当前）；
-S4.1b.1b.1b.2b.3b voice replay physical route；
+S4.1b.1b.1b.2b.3a toggle-ui Narrative catalog corrective（已完成）；
+S4.1b.1b.1b.2b.3b voice replay physical route（当前）；
 S4.1b.1b.1b.2b.3c bridge-owned Auto/Skip transient mode floor；
 S4.1b.1b.1b.2b.3d History exact-parent open intent floor；S4.2 dormant
 controller/view/Host、Host-commit readiness与History exact-child integration；
@@ -1504,8 +1506,8 @@ S4.1b.1b.1a验证通过focused `7 files / 192 tests`、UI `79 files / 1010 tests
 `253 files / 3938 tests`与`deno task check` green。本批未重跑browser/examples/prebuilt；`101 / 101`、
 `45 passed / 2 skipped`与`38 / 38`仅是先前已有证据，不冒充本批HEAD验证。
 该checkpoint当时的current/next是S4.1b.1b.1b.2a；现已由上述.2a delivery推进。
-Active current/next现均为S4.1b.1b.1b.2b.3a；后续顺序保持
-S4.1b.1b.1b.2b.3a → S4.1b.1b.1b.2b.3b → S4.1b.1b.1b.2b.3c →
+Active current/next现均为S4.1b.1b.1b.2b.3b；后续顺序保持
+S4.1b.1b.1b.2b.3b → S4.1b.1b.1b.2b.3c →
 S4.1b.1b.1b.2b.3d → S4.2 → S4.3 → S4b。
 
 **S4.1b.1b.1b.2b.1 execution-order amendment：** Say先拆成两个vertical。`.1a`沿用既有
@@ -1914,10 +1916,10 @@ toggle原子切换；History仍只通过exact-parent intent进入Coordinator；v
 `player.toggle_ui`仍不得进入Narrative managed route。被supersede的只是aggregate implementation pointer，不是这些产品语义或
 S4.2/S4.3 ownership。
 
-**S4.1b.1b.1b.2b.3.0 player-controls execution split（docs-only，已完成）：** 后续player controls按四个独立
+**S4.1b.1b.1b.2b.3.0 player-controls execution split（docs-only，历史checkpoint）：** 后续player controls按四个独立
 mergeable source-relative切片推进，禁止把catalog corrective、optional callback、mode authority与History topology重新合并：
 
-1. **`.2b.3a toggle-ui Narrative catalog corrective（当前）`** 只从Dialogue managed definition action catalog删除
+1. **`.2b.3a toggle-ui Narrative catalog corrective（已完成）`** 只从Dialogue managed definition action catalog删除
    `player.toggle_ui`。Generic `playerInputActionIdsV1.toggleUi`与其input action ID继续保留；既有live `DialoguePanelV1`/
    `VnLayerV1`只作characterization且本切片不删除、不改写。该切片不建立hide/show state、fallback action、route、attempt、
    Host或public兼容层，也不顺带修改其他player action。
@@ -1943,8 +1945,26 @@ contract或提前接Host/React/Web/live Story，均立即停止并修订设计�
 
 本amendment只调整execution order与implementation ownership，没有source、test、runtime、Host/live claimant或delivery
 evidence；不新增public/`./internal` barrel、package export、generic Surface result/receipt，也不改变Base interaction、PlayerProfile、
-Save/Persistence/canonical/digest/replay/wire或S4b。验证仅为本设计文档`deno fmt --check`与`git diff --check`。Active
-current/next现均为S4.1b.1b.1b.2b.3a toggle-ui Narrative catalog corrective。
+Save/Persistence/canonical/digest/replay/wire或S4b。验证仅为本设计文档`deno fmt --check`与`git diff --check`。该checkpoint
+当时的current/next均为S4.1b.1b.1b.2b.3a toggle-ui Narrative catalog corrective，现由下述delivery关闭。
+
+**S4.1b.1b.1b.2b.3a toggle-ui Narrative catalog corrective delivery：** Dialogue managed definition的
+static action/admission contract由revision `1`推进为`2`，且唯一catalog mutation是删除`player.toggle_ui`；History继续保持
+revision `1`与exact `ui.cancel | player.toggle_history` catalog。Stable sidecar仍exact引用该Dialogue definition，target parameter
+schema/canonical不变；generic `playerInputActionIdsV1.toggleUi`与`player.toggle_ui` input ID均保留，既有live
+`DialoguePanelV1`/`VnLayerV1`及Engine Lab legacy characterization没有source diff。
+
+Removed binding-origin `player.toggle_ui`现在返回`surface.action_unpublished`且Input保持consumed；lower handler、claimed
+consumer、semantic dispatch、topology与notification均为zero，已有authentic attempt也不被spent。该corrective只修改source-relative
+Narrative definition与同目录mutation-sensitive tests，没有新增hide/show route、Host/React/Web/live claimant、public root、
+`./internal` barrel、package export或generic Surface/Input result，也不改变Base interaction、PlayerProfile、Save/Persistence、
+canonical/digest/replay/wire或S4b。
+
+验证通过focused `2 files / 156 tests`、UI `79 files / 1123 tests`、full `253 files / 4053 tests`与完整
+`deno task check`。本source-relative dormant corrective没有改变browser/build/live graph，
+因此未机械重跑browser/examples/prebuilt；Engine browser `101 / 101`、examples `45 passed / 2 skipped`与prebuilt Player
+`38 / 38`仅为prior evidence，不冒充本批HEAD验证。S4.1b.1b.1b.2b.3a已完成；active current/next均推进为
+S4.1b.1b.1b.2b.3b voice replay physical route，随后依次为`.2b.3c → .2b.3d → S4.2 → S4.3 → S4b`。
 
 ### 3.3 Runtime session
 

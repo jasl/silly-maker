@@ -16,6 +16,7 @@ import {
 } from "@sillymaker/base";
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
 
+import { inputHandledV1, playerInputActionIdsV1 } from "../input/contracts.ts";
 import { createInputRouterV1 } from "../input/input-router.ts";
 import {
   createManualPresentationClockV1,
@@ -978,7 +979,7 @@ describe("Narrative stable Managed Surface family", () => {
     ]);
     expect(contract.definitions.dialogue).toEqual({
       definitionId: "surface.narrative.dialogue",
-      contractRevision: 1,
+      contractRevision: 2,
       ownerId: "surface-owner.narrative",
       slotId: "surface-slot.narrative.root",
       layerId: "surface-layer.narrative",
@@ -1003,7 +1004,6 @@ describe("Narrative stable Managed Surface family", () => {
         "player.toggle_auto",
         "player.toggle_skip",
         "player.toggle_history",
-        "player.toggle_ui",
         "player.replay_voice",
       ],
       readiness: {
@@ -1014,6 +1014,7 @@ describe("Narrative stable Managed Surface family", () => {
     });
     expect(contract.definitions.history).toMatchObject({
       definitionId: "surface.narrative.history",
+      contractRevision: 1,
       ownerId: "surface-owner.narrative",
       slotId: "surface-slot.narrative.history",
       layerId: "surface-layer.narrative",
@@ -1029,6 +1030,11 @@ describe("Narrative stable Managed Surface family", () => {
       },
       navigationPolicy: { kind: "close" },
     });
+    expect(contract.definitions.history.actionIds).toEqual([
+      "ui.cancel",
+      "player.toggle_history",
+    ]);
+    expect(playerInputActionIdsV1.toggleUi).toBe("player.toggle_ui");
     expect(contract.stableDefinitionSidecars).toHaveLength(1);
     expect(contract.stableDefinitionSidecars[0]?.definition).toBe(
       contract.definitions.dialogue,
@@ -2352,6 +2358,64 @@ describe("Narrative stable Managed Surface family", () => {
       completion: null,
     });
     expect(dispatchResolution).toHaveBeenCalledOnce();
+  });
+
+  it("consumes removed binding-origin toggle-ui as unpublished without lower fallthrough", async () => {
+    const dispatchResolution = vi.fn(() => Promise.resolve("dispatched"));
+    const fixture = physicalChoiceHarnessV1({
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: dispatchResolution,
+      }),
+    });
+    const lower = vi.fn(() => inputHandledV1);
+    fixture.inputRouter.register({ context: "gameplay", handle: lower });
+    const attempt = fixture.admission.issueChoiceAttemptInternalV1("choice.test.first");
+    expect(attempt).not.toBeNull();
+    const beforeState = fixture.harness.kernel.getStateInternalV1();
+    const beforeNotificationCount = fixture.harness.stateNotificationCount();
+
+    const result = fixture.admission.routeInternalV1(
+      fixture.admission.createEnvelopeInternalV1({
+        actionId: parseManagedSurfaceActionIdV1(playerInputActionIdsV1.toggleUi),
+        gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.toggle-ui-unpublished"),
+      }),
+      attempt,
+    );
+
+    expect(result).toMatchObject({
+      route: {
+        input: {
+          kind: "consumed",
+          code: "input.managed_surface_consumed",
+        },
+        surface: {
+          kind: "rejected",
+          code: "surface.action_unpublished",
+        },
+      },
+      consumerResult: null,
+    });
+    expect(lower).not.toHaveBeenCalled();
+    expect(dispatchResolution).not.toHaveBeenCalled();
+    expect(fixture.harness.kernel.getStateInternalV1()).toBe(beforeState);
+    expect(fixture.harness.stateNotificationCount()).toBe(beforeNotificationCount);
+
+    const accepted = fixture.admission.routeInternalV1(
+      fixture.admission.createEnvelopeInternalV1({
+        actionId: narrativeChooseActionIdV1,
+        gestureId: parseManagedSurfaceGestureIdV1(
+          "gesture.narrative.toggle-ui-attempt-preserved",
+        ),
+      }),
+      attempt,
+    );
+    expect(accepted.consumerResult).toMatchObject({ kind: "dispatched" });
+    if (accepted.consumerResult?.kind !== "dispatched") {
+      throw new Error("removed catalog action must not spend the authentic choice attempt");
+    }
+    await expect(accepted.consumerResult.completion).resolves.toBe("dispatched");
+    expect(dispatchResolution).toHaveBeenCalledOnce();
+    expect(lower).not.toHaveBeenCalled();
   });
 
   it("keeps gesture failure, source replacement, retained runtime, phase-wrapper change, and dispose at zero dispatch", () => {
