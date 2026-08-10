@@ -296,6 +296,30 @@ import type { NarrativeStableHistoryChildPreparationInternalV1 as ForbiddenInter
 import type { NarrativeStableHistoryChildPreparationResultInternalV1 as ForbiddenPublicNarrativeHistoryChildPreparationResultV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Narrative History-child preparation results.
 import type { NarrativeStableHistoryChildPreparationResultInternalV1 as ForbiddenInternalNarrativeHistoryChildPreparationResultV1 } from "./internal.ts";
+// @ts-expect-error Narrative stable root preparations remain source-relative until Host promotion.
+import type { NarrativeStableRootPreparationInternalV1 as ForbiddenPublicNarrativeStableRootPreparationV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative stable root preparations.
+import type { NarrativeStableRootPreparationInternalV1 as ForbiddenInternalNarrativeStableRootPreparationV1 } from "./internal.ts";
+// @ts-expect-error Narrative readiness entries remain source-relative until Host promotion.
+import type { NarrativeStableReadinessEntryInternalV1 as ForbiddenPublicNarrativeStableReadinessEntryV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative readiness entries.
+import type { NarrativeStableReadinessEntryInternalV1 as ForbiddenInternalNarrativeStableReadinessEntryV1 } from "./internal.ts";
+// @ts-expect-error Narrative readiness snapshots remain source-relative until Host promotion.
+import type { NarrativeStableReadinessSnapshotInternalV1 as ForbiddenPublicNarrativeStableReadinessSnapshotV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative readiness snapshots.
+import type { NarrativeStableReadinessSnapshotInternalV1 as ForbiddenInternalNarrativeStableReadinessSnapshotV1 } from "./internal.ts";
+// @ts-expect-error Narrative Host leases remain source-relative until Host promotion.
+import type { NarrativeStableHostLeaseInternalV1 as ForbiddenPublicNarrativeStableHostLeaseV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative Host leases.
+import type { NarrativeStableHostLeaseInternalV1 as ForbiddenInternalNarrativeStableHostLeaseV1 } from "./internal.ts";
+// @ts-expect-error Narrative stable sessions remain source-relative until Host promotion.
+import type { NarrativeStableSessionInternalV1 as ForbiddenPublicNarrativeStableSessionV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative stable sessions.
+import type { NarrativeStableSessionInternalV1 as ForbiddenInternalNarrativeStableSessionV1 } from "./internal.ts";
+// @ts-expect-error Narrative stable-session construction remains source-relative until Host promotion.
+import type { createNarrativeStableSessionInternalV1 as ForbiddenPublicNarrativeStableSessionFactoryV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative stable-session construction.
+import type { createNarrativeStableSessionInternalV1 as ForbiddenInternalNarrativeStableSessionFactoryV1 } from "./internal.ts";
 // @ts-expect-error Stage acknowledged-run proofs remain source-relative.
 import type { StageAcknowledgedRunProofInternalV1 as ForbiddenPublicStageAcknowledgedRunProofV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Stage acknowledged-run proofs.
@@ -551,6 +575,18 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "createNarrativeStableHistoryChildLifecycleInternalV1"
       | "NarrativeStableHistoryChildPreparationInternalV1"
       | "NarrativeStableHistoryChildPreparationResultInternalV1"
+      | "NarrativeStableRootPreparationInternalV1"
+      | "NarrativeStableReadinessEntryInternalV1"
+      | "NarrativeStableReadinessSnapshotInternalV1"
+      | "NarrativeStableHostLeaseInternalV1"
+      | "NarrativeStableSessionInternalV1"
+      | "createNarrativeStableSessionInternalV1"
+      | "getReadinessSnapshotInternalV1"
+      | "subscribeInternalV1"
+      | "getHistoryChildLifecycleInternalV1"
+      | "attachHostInternalV1"
+      | "isCurrentInternalV1"
+      | "releaseInternalV1"
       | "redeemHistoryOpenIntentInternalV1"
       | "readHistoryAvailabilityInternalV1"
       | "issueHistoryOpenAttemptInternalV1"
@@ -712,6 +748,18 @@ describe("@sillymaker/ui public managed System surface", () => {
         "createNarrativeStableHistoryChildLifecycleInternalV1",
         "NarrativeStableHistoryChildPreparationInternalV1",
         "NarrativeStableHistoryChildPreparationResultInternalV1",
+        "NarrativeStableRootPreparationInternalV1",
+        "NarrativeStableReadinessEntryInternalV1",
+        "NarrativeStableReadinessSnapshotInternalV1",
+        "NarrativeStableHostLeaseInternalV1",
+        "NarrativeStableSessionInternalV1",
+        "createNarrativeStableSessionInternalV1",
+        "getReadinessSnapshotInternalV1",
+        "subscribeInternalV1",
+        "getHistoryChildLifecycleInternalV1",
+        "attachHostInternalV1",
+        "isCurrentInternalV1",
+        "releaseInternalV1",
         "redeemHistoryOpenIntentInternalV1",
         "readHistoryAvailabilityInternalV1",
         "issueHistoryOpenAttemptInternalV1",

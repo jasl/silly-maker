@@ -69,6 +69,7 @@ import {
   createNarrativeStablePauseExpiryControllerInternalV1,
   createNarrativeStablePhysicalActionAdmissionInternalV1,
   createNarrativeStablePublisherBridgeInternalV1,
+  createNarrativeStableSessionInternalV1,
   createNarrativeStableSayRevealControllerInternalV1,
   createNarrativeStableHistoryChildLifecycleInternalV1,
   type CreateNarrativeStablePhysicalActionAdmissionInputInternalV1,
@@ -118,6 +119,10 @@ import {
   type NarrativeStableVoiceReplayDispatchResultInternalV1,
   type NarrativeStableVoiceReplayPortInternalV1,
 } from "./narrative-managed-surface-family.ts";
+import type {
+  NarrativeStableReadinessEntryInternalV1,
+  NarrativeStableReadinessSnapshotInternalV1,
+} from "./narrative-managed-surface-session.ts";
 
 const applicationEpochV1 = parseNonNegativeSafeInteger(91);
 const narrativeChooseActionIdV1 = parseManagedSurfaceActionIdV1("narrative.choose");
@@ -9932,12 +9937,21 @@ describe("Narrative stable Managed Surface family", () => {
     const lifecycle = createNarrativeStableHistoryChildLifecycleInternalV1({
       bridge: fixture.harness.bridge,
     });
+    const session = createNarrativeStableSessionInternalV1({
+      bridge: fixture.harness.bridge,
+    });
     const winner = mintHistoryOpenIntentV1(fixture.admission, "child-first-winner");
     const loser = mintHistoryOpenIntentV1(fixture.admission, "child-first-loser");
     const notifications = fixture.harness.stateNotificationCount();
 
     const installed = lifecycle.redeemHistoryOpenIntentInternalV1(winner);
     expect(installed.kind).toBe("preparing");
+    if (installed.kind !== "preparing") throw new Error("expected History preparation");
+    const installedSnapshot = session.getReadinessSnapshotInternalV1();
+    expect(installedSnapshot.entries).toEqual([{
+      kind: "history",
+      preparation: installed.preparation,
+    }]);
     expect(fixture.harness.stateNotificationCount()).toBe(notifications + 1);
     const installedState = fixture.harness.kernel.getStateInternalV1();
     const winnerRepeat = lifecycle.redeemHistoryOpenIntentInternalV1(winner);
@@ -9945,6 +9959,9 @@ describe("Narrative stable Managed Surface family", () => {
     expect(winnerRepeat).toEqual({ kind: "stale", completion: null });
     expect(occupiedLoser).toBe(winnerRepeat);
     expect(Reflect.ownKeys(occupiedLoser)).toEqual(["kind", "completion"]);
+    expect(session.getReadinessSnapshotInternalV1()).toBe(installedSnapshot);
+    expect(session.getReadinessSnapshotInternalV1().entries[0]?.preparation)
+      .toBe(installed.preparation);
     expect(fixture.harness.kernel.getStateInternalV1()).toBe(installedState);
     expect(fixture.harness.stateNotificationCount()).toBe(notifications + 1);
 
@@ -10129,9 +10146,14 @@ describe("Narrative stable Managed Surface family", () => {
     const lifecycle = createNarrativeStableHistoryChildLifecycleInternalV1({
       bridge: fixture.harness.bridge,
     });
+    const session = createNarrativeStableSessionInternalV1({
+      bridge: fixture.harness.bridge,
+    });
+    expect(session.getHistoryChildLifecycleInternalV1()).toBe(lifecycle);
     const intent = mintHistoryOpenIntentV1(fixture.admission, "child-listener-reentry");
     let nested: NarrativeStableHistoryChildPreparationResultInternalV1 | null = null;
-    const unsubscribe = fixture.harness.kernel.subscribeStateInternalV1(() => {
+    const observedSnapshots: NarrativeStableReadinessSnapshotInternalV1[] = [];
+    const listener = vi.fn(() => {
       const state = fixture.harness.kernel.getStateInternalV1();
       const root = state.stableRuntimeBindings[0];
       if (root?.binding.kind !== "ready_instance") {
@@ -10144,11 +10166,28 @@ describe("Narrative stable Managed Surface family", () => {
         parentInstanceId: root.binding.instance.attempt.identity.surfaceInstanceId,
         phase: "preparing",
       });
+      const observedSnapshot = session.getReadinessSnapshotInternalV1();
+      observedSnapshots.push(observedSnapshot);
+      expect(
+        observedSnapshot.entries.map((entry: NarrativeStableReadinessEntryInternalV1) =>
+          entry.kind
+        ),
+      ).toEqual(["history"]);
       nested = lifecycle.redeemHistoryOpenIntentInternalV1(intent);
     });
+    const unsubscribe = session.subscribeInternalV1(listener);
 
     const outer = lifecycle.redeemHistoryOpenIntentInternalV1(intent);
     expect(outer.kind).toBe("preparing");
+    expect(listener).toHaveBeenCalledOnce();
+    if (outer.kind !== "preparing") throw new Error("expected History preparation");
+    const observedSnapshot = observedSnapshots[0];
+    if (observedSnapshot === undefined) throw new Error("expected observed snapshot");
+    expect(observedSnapshot.entries[0]).toEqual({
+      kind: "history",
+      preparation: outer.preparation,
+    });
+    expect(session.getReadinessSnapshotInternalV1()).toBe(observedSnapshot);
     expect(nested).toEqual({ kind: "stale", completion: null });
     expect(lifecycle.redeemHistoryOpenIntentInternalV1(intent)).toBe(nested);
     unsubscribe();

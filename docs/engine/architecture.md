@@ -1163,8 +1163,61 @@ Lab Auto-mode timer timeout; that exact test passed in isolation and the full
 suite passed on immediate rerun. Browser `101 / 101`, examples
 `45 passed / 2 skipped`, and prebuilt Player `38 / 38` remain prior evidence and
 were not rerun. The superseded broad S4.2 checkpoint, its S4.2.0 docs-only
-execution split, and S4.2.1 are complete. Current/next is S4.2.2, followed by
-S4.2.3, S4.2.4, S4.2.5, S4.3, and S4b.
+execution split, and S4.2.1 are complete. At that delivery checkpoint,
+current/next was S4.2.2, which the exact entry and implementation delivered
+below split further.
+
+S4.2.2.1 now implements the DOM-free Narrative session/readiness attachment
+floor defined by the completed S4.2.2.0 exact entry. Each exact active
+publisher bridge retains one frozen source-relative session and one exact
+History-child lifecycle. A lifecycle created before the session is adopted by
+that session; a same-kernel bridge successor receives fresh session and
+lifecycle identities while reusing only the existing per-kernel
+Narrative-family claimant. The standalone session module owns types only. The
+family bridge remains the sole runtime owner of every private record and
+factory.
+
+The existing History prepared-install guard now authenticates and records the
+opaque History preparation and the bridge-private eventual-session slot before
+composite state assignment and synchronous notification. False, stale,
+faulted, or losing gates register nothing. Root preparations are separately
+memoized from the exact current stable preparing attempt. A session projects
+only current opaque root and History preparations into a frozen root-first
+vector of at most two entries. Repeated reads return the same cached snapshot
+identity while that exact vector is unchanged; a real entry or order change
+mints a fresh frozen vector and snapshot. History structural currentness covers
+both the current ready root and a retained predecessor during replacement
+preparation or failure without exposing generic candidates, readiness evidence,
+instance IDs, renderer data, or a second topology store.
+
+One composite subscription per session updates that cache and contains
+subscriber failure. The getter also refreshes lazily, so a kernel listener
+registered before the session still observes the preparation installed by the
+same notification. If an earlier subscriber terminalizes the bridge, delivery
+stops before later captured subscribers run. Bridge disposal fences the
+session, lease, lifecycle, cached snapshot, and subscription before entering
+the composite transition. An externally committed Coordinator terminal is
+likewise detected by the observer and every authority-bearing session ingress,
+closing the assignment-before-observer window without notifying session
+subscribers.
+
+`attachHostInternalV1` is still DOM-free: it owns only one logical Host identity
+and a fresh exact lease generation for each same-identity reattach. A distinct
+identity conflicts before kernel inspection. Release is idempotent and uses one
+coalesced per-session microtask to clear only the still-released current
+generation; it never settles readiness or mutates Surface, input, focus, or
+topology. Session snapshots, preparations, leases, and old generations remain
+WeakMap-authenticated with only bounded current strong slots. Root and
+`./internal` public inventories reject every new type, factory, and member
+spelling; no barrel, package export, React, action-route, stable-composite, or
+live claimant changed.
+
+Verification passed focused `3 files / 209 tests`, UI `80 files / 1222 tests`,
+full `254 files / 4152 tests`, and the complete `deno task check`. Browser
+`101 / 101`, examples `45 passed / 2 skipped`, and prebuilt Player `38 / 38`
+remain prior evidence and were not rerun. S4.2.2.0 and S4.2.2.1 are complete.
+Current/next is S4.2.2.2, whose own exact React/renderer/input/readiness entry
+must land before RED, followed by S4.2.3, S4.2.4, S4.2.5, S4.3, and S4b.
 
 ## 9. Changing the architecture
 
@@ -1232,7 +1285,11 @@ The superseded broad S4.2 checkpoint and S4.2.0 docs-only entry split dormant
 execution into independently mergeable floors. S4.2.1 adds the exact-parent
 cross-axis reducer plan, composite prepared-install authority, structural
 retain/cascade, and bridge-bound History intent redemption described above.
-Current/next is S4.2.2, followed by S4.2.3, S4.2.4, S4.2.5, S4.3, and S4b.
+S4.2.2.0 then freezes the Narrative session/readiness split, and S4.2.2.1 adds
+the retained DOM-free session, opaque preparation snapshot, single Host lease,
+and terminal fencing described above. Current/next is S4.2.2.2, whose own exact
+entry must precede implementation, followed by S4.2.3, S4.2.4, S4.2.5, S4.3,
+and S4b.
 Host integration and the Narrative live migration remain planned work; the
 implemented source-relative claimant does not alter the live Host data flow
 until that migration and its behavior tests land.

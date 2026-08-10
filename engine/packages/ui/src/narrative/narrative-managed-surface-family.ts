@@ -57,6 +57,7 @@ import {
   type ManagedSurfaceStableExactParentTransientChildCandidateInternalV1,
   type ManagedSurfaceStableExactParentTransientChildCommitGuardInternalV1,
   type ManagedSurfaceStableReadyActiveTargetProofInternalV1,
+  type ManagedSurfaceStableRuntimeAttemptInternalV1,
 } from "../managed-surfaces/managed-surface-stable-composite-state.ts";
 import type {
   ManagedSurfaceStableAdmittedTargetInternalV1,
@@ -81,6 +82,13 @@ import {
   type StageReconcilerV1,
   type StageRetargetInputV1,
 } from "../stage/stage-reconciler.ts";
+import type {
+  NarrativeStableHostLeaseInternalV1,
+  NarrativeStableReadinessEntryInternalV1,
+  NarrativeStableReadinessSnapshotInternalV1,
+  NarrativeStableRootPreparationInternalV1,
+  NarrativeStableSessionInternalV1,
+} from "./narrative-managed-surface-session.ts";
 
 const freezeNarrativePhysicalActionDataInternalV1 = Object.freeze;
 const applyNarrativePhysicalActionInternalV1 = Reflect.apply;
@@ -663,6 +671,9 @@ interface NarrativeStablePublisherBridgeRecordInternalV1 {
     | NarrativeStableCurrentTargetProjectionInternalV1
     | null;
   active: boolean;
+  historyChildLifecycle: NarrativeStableHistoryChildLifecycleInternalV1 | null;
+  currentHistoryPreparation: NarrativeStableHistoryChildPreparationInternalV1 | null;
+  session: NarrativeStableSessionInternalV1 | null;
   currentModeState: NarrativeStablePlaybackModeStateInternalV1;
   physicalActionAdmissionClaim: object | null;
   pauseExpiryControllerClaim: object | null;
@@ -875,6 +886,62 @@ const narrativeStableHistoryChildLifecycleRecordsInternalV1 = new WeakMap<
 const narrativeStableHistoryChildPreparationRecordsInternalV1 = new WeakMap<
   NarrativeStableHistoryChildPreparationInternalV1,
   NarrativeStableHistoryChildPreparationRecordInternalV1
+>();
+const recordNarrativeStableHistoryChildPreparationInternalV1 =
+  narrativeStableHistoryChildPreparationRecordsInternalV1.set.bind(
+    narrativeStableHistoryChildPreparationRecordsInternalV1,
+  );
+
+interface NarrativeStableRootPreparationRecordInternalV1 {
+  readonly session: NarrativeStableSessionInternalV1;
+  readonly bridgeRecord: NarrativeStablePublisherBridgeRecordInternalV1;
+  readonly attempt: ManagedSurfaceStableRuntimeAttemptInternalV1;
+  readonly target: ManagedSurfaceStableAdmittedTargetInternalV1;
+  readonly sourceRevision: ManagedSurfaceStableSourceRevisionInternalV1;
+  readonly frame: NarrativeStableAdmittedFrameInternalV1;
+}
+
+interface NarrativeStableHostLeaseRecordInternalV1 {
+  readonly session: NarrativeStableSessionInternalV1;
+  readonly sessionRecord: NarrativeStableSessionRecordInternalV1;
+  readonly hostIdentity: object;
+  readonly lease: NarrativeStableHostLeaseInternalV1;
+  active: boolean;
+}
+
+interface NarrativeStableSessionRecordInternalV1 {
+  readonly bridge: NarrativeStablePublisherBridgeInternalV1;
+  readonly bridgeRecord: NarrativeStablePublisherBridgeRecordInternalV1;
+  readonly historyChildLifecycle: NarrativeStableHistoryChildLifecycleInternalV1;
+  readonly listeners: Set<() => void>;
+  currentRootAttempt: ManagedSurfaceStableRuntimeAttemptInternalV1 | null;
+  currentRootPreparation: NarrativeStableRootPreparationInternalV1 | null;
+  currentRootEntry:
+    | Extract<NarrativeStableReadinessEntryInternalV1, { readonly kind: "root" }>
+    | null;
+  currentHistoryEntry:
+    | Extract<NarrativeStableReadinessEntryInternalV1, { readonly kind: "history" }>
+    | null;
+  currentSnapshot: NarrativeStableReadinessSnapshotInternalV1;
+  lastNotifiedSnapshot: NarrativeStableReadinessSnapshotInternalV1;
+  currentHostLease: NarrativeStableHostLeaseRecordInternalV1 | null;
+  hostCleanupScheduled: boolean;
+  unsubscribeStateInternalV1: () => void;
+  subscribed: boolean;
+  terminal: boolean;
+}
+
+const narrativeStableRootPreparationRecordsInternalV1 = new WeakMap<
+  NarrativeStableRootPreparationInternalV1,
+  NarrativeStableRootPreparationRecordInternalV1
+>();
+const narrativeStableSessionRecordsInternalV1 = new WeakMap<
+  NarrativeStableSessionInternalV1,
+  NarrativeStableSessionRecordInternalV1
+>();
+const narrativeStableHostLeaseRecordsInternalV1 = new WeakMap<
+  NarrativeStableHostLeaseInternalV1,
+  NarrativeStableHostLeaseRecordInternalV1
 >();
 
 interface NarrativeStableSayContentAutoAttemptRecordInternalV1 {
@@ -2250,6 +2317,9 @@ export function createNarrativeStablePublisherBridgeInternalV1(
         : createNarrativePlaybackModeStateInternalV1("normal");
       bridgeActive = false;
       if (bridgeRecord !== undefined) bridgeRecord.active = false;
+      if (bridgeRecord !== undefined) {
+        terminalizeNarrativeStableSessionInternalV1(bridgeRecord);
+      }
       if (
         bridgeRecord !== undefined && predecessorModeState !== null &&
         terminalModeState !== null
@@ -2300,6 +2370,9 @@ export function createNarrativeStablePublisherBridgeInternalV1(
         : null;
     },
     active: true,
+    historyChildLifecycle: null,
+    currentHistoryPreparation: null,
+    session: null,
     currentModeState: createNarrativePlaybackModeStateInternalV1("normal"),
     physicalActionAdmissionClaim: null,
     pauseExpiryControllerClaim: null,
@@ -2463,7 +2536,12 @@ function redeemNarrativeStableHistoryChildIntentInternalV1(
         ) {
           return false;
         }
+        recordNarrativeStableHistoryChildPreparationInternalV1(
+          preparation,
+          preparationRecord,
+        );
         preparationRecord.candidate = candidate;
+        lifecycleRecord.bridgeRecord.currentHistoryPreparation = preparation;
         intentRecord.spent = true;
         return true;
       },
@@ -2497,11 +2575,6 @@ function redeemNarrativeStableHistoryChildIntentInternalV1(
   if (prepared.kind === "stale") return narrativeHistoryChildStaleResultInternalV1;
   if (prepared.kind === "faulted") return narrativeHistoryChildFaultedResultInternalV1;
 
-  applyNarrativePhysicalActionInternalV1(
-    setNarrativeWeakMapValueInternalV1,
-    narrativeStableHistoryChildPreparationRecordsInternalV1,
-    [preparation, preparationRecord],
-  );
   return preparingResult;
 }
 
@@ -2532,6 +2605,9 @@ export function createNarrativeStableHistoryChildLifecycleInternalV1(
   const bridgeRecord = narrativeStablePublisherBridgeRecordsInternalV1.get(exactBridge);
   if (bridgeRecord === undefined || !bridgeRecord.active) {
     throw new TypeError("ui.narrative_stable_history_child_lifecycle_invalid");
+  }
+  if (bridgeRecord.historyChildLifecycle !== null) {
+    return bridgeRecord.historyChildLifecycle;
   }
 
   let childAuthority: ManagedSurfaceStableExactParentTransientChildAuthorityInternalV1;
@@ -2570,7 +2646,489 @@ export function createNarrativeStableHistoryChildLifecycleInternalV1(
       childAuthority,
     }),
   );
+  bridgeRecord.historyChildLifecycle = lifecycle;
   return lifecycle;
+}
+
+function createNarrativeStableReadinessSnapshotInternalV1(
+  entries: readonly NarrativeStableReadinessEntryInternalV1[],
+): NarrativeStableReadinessSnapshotInternalV1 {
+  return freezeNarrativePhysicalActionDataInternalV1({
+    entries: freezeNarrativePhysicalActionDataInternalV1([...entries]),
+  });
+}
+
+function matchesNarrativeStableHistoryParentAttemptInternalV1(
+  attempt: ManagedSurfaceStableRuntimeAttemptInternalV1,
+  preparationRecord: NarrativeStableHistoryChildPreparationRecordInternalV1,
+): boolean {
+  return attempt.desiredTarget.admittedTarget === preparationRecord.intentRecord.directParent &&
+    attempt.desiredTarget.sourceRevision === preparationRecord.intentRecord.sourceRevision;
+}
+
+function captureNarrativeStableRootPreparationInternalV1(
+  session: NarrativeStableSessionInternalV1,
+  record: NarrativeStableSessionRecordInternalV1,
+): NarrativeStableRootPreparationInternalV1 | null {
+  const current = record.bridgeRecord.captureCurrentTargetInternalV1();
+  if (current === null) {
+    record.currentRootAttempt = null;
+    record.currentRootPreparation = null;
+    return null;
+  }
+  const runtimeEntry = record.bridgeRecord.compositeRuntimeKernel.getStateInternalV1()
+    .stableRuntimeBindings.find((entry) =>
+      entry.desiredTarget.admittedTarget === current.target &&
+      entry.desiredTarget.sourceRevision === current.sourceRevision
+    );
+  if (runtimeEntry?.binding.kind !== "preparing") {
+    record.currentRootAttempt = null;
+    record.currentRootPreparation = null;
+    return null;
+  }
+  const attempt = runtimeEntry.binding.attempt;
+  if (
+    record.currentRootAttempt === attempt &&
+    record.currentRootPreparation !== null
+  ) {
+    return record.currentRootPreparation;
+  }
+  const preparation = freezeNarrativePhysicalActionDataInternalV1(
+    {},
+  ) as NarrativeStableRootPreparationInternalV1;
+  narrativeStableRootPreparationRecordsInternalV1.set(
+    preparation,
+    freezeNarrativePhysicalActionDataInternalV1({
+      session,
+      bridgeRecord: record.bridgeRecord,
+      attempt,
+      target: current.target,
+      sourceRevision: current.sourceRevision,
+      frame: current.frame,
+    }),
+  );
+  record.currentRootAttempt = attempt;
+  record.currentRootPreparation = preparation;
+  return preparation;
+}
+
+function captureNarrativeStableHistoryPreparationInternalV1(
+  record: NarrativeStableSessionRecordInternalV1,
+): NarrativeStableHistoryChildPreparationInternalV1 | null {
+  const preparation = record.bridgeRecord.currentHistoryPreparation;
+  if (preparation === null) return null;
+  const preparationRecord = narrativeStableHistoryChildPreparationRecordsInternalV1.get(
+    preparation,
+  );
+  if (
+    preparationRecord === undefined || preparationRecord.candidate === null ||
+    preparationRecord.lifecycle !== record.historyChildLifecycle ||
+    preparationRecord.lifecycleRecord.bridgeRecord !== record.bridgeRecord
+  ) {
+    if (record.bridgeRecord.currentHistoryPreparation === preparation) {
+      record.bridgeRecord.currentHistoryPreparation = null;
+    }
+    return null;
+  }
+
+  const state = record.bridgeRecord.compositeRuntimeKernel.getStateInternalV1();
+  const parentInstanceIds = new Set<string>();
+  for (const entry of state.stableRuntimeBindings) {
+    if (
+      entry.binding.kind === "ready_instance" &&
+      matchesNarrativeStableHistoryParentAttemptInternalV1(
+        entry.binding.instance.attempt,
+        preparationRecord,
+      )
+    ) {
+      parentInstanceIds.add(entry.binding.instance.attempt.identity.surfaceInstanceId);
+      continue;
+    }
+    const retainedRoot = entry.binding.kind === "preparing" || entry.binding.kind === "gap"
+      ? entry.binding.retainedSubtree?.root ?? null
+      : null;
+    if (
+      retainedRoot !== null &&
+      matchesNarrativeStableHistoryParentAttemptInternalV1(
+        retainedRoot.attempt,
+        preparationRecord,
+      )
+    ) {
+      parentInstanceIds.add(retainedRoot.attempt.identity.surfaceInstanceId);
+    }
+  }
+  const matchingChildren = state.transientState.publication.orderedInstances.filter((instance) =>
+    instance.definition.definitionId === historyDefinitionIdInternalV1 &&
+    instance.parentInstanceId !== null &&
+    parentInstanceIds.has(instance.parentInstanceId) &&
+    instance.readiness.kind === "preparing" &&
+    instance.readiness.transition === "child_open"
+  );
+  const current = matchingChildren.length === 1;
+  if (!current) {
+    if (record.bridgeRecord.currentHistoryPreparation === preparation) {
+      record.bridgeRecord.currentHistoryPreparation = null;
+    }
+    return null;
+  }
+  return preparation;
+}
+
+function refreshNarrativeStableSessionSnapshotInternalV1(
+  session: NarrativeStableSessionInternalV1,
+  record: NarrativeStableSessionRecordInternalV1,
+): boolean {
+  const previousSnapshot = record.currentSnapshot;
+  if (
+    !record.terminal &&
+    terminalizeNarrativeStableSessionIfCoordinatorDisposedInternalV1(record.bridgeRecord)
+  ) {
+    return record.currentSnapshot !== previousSnapshot;
+  }
+  let rootPreparation: NarrativeStableRootPreparationInternalV1 | null = null;
+  let historyPreparation: NarrativeStableHistoryChildPreparationInternalV1 | null = null;
+  if (!record.terminal && record.bridgeRecord.active) {
+    try {
+      rootPreparation = captureNarrativeStableRootPreparationInternalV1(session, record);
+      historyPreparation = captureNarrativeStableHistoryPreparationInternalV1(record);
+    } catch {
+      rootPreparation = null;
+      historyPreparation = null;
+      record.currentRootAttempt = null;
+      record.currentRootPreparation = null;
+    }
+  }
+
+  const rootEntry = rootPreparation === null
+    ? null
+    : record.currentRootEntry?.preparation === rootPreparation
+    ? record.currentRootEntry
+    : freezeNarrativePhysicalActionDataInternalV1({
+      kind: "root" as const,
+      preparation: rootPreparation,
+    });
+  const historyEntry = historyPreparation === null
+    ? null
+    : record.currentHistoryEntry?.preparation === historyPreparation
+    ? record.currentHistoryEntry
+    : freezeNarrativePhysicalActionDataInternalV1({
+      kind: "history" as const,
+      preparation: historyPreparation,
+    });
+  record.currentRootEntry = rootEntry;
+  record.currentHistoryEntry = historyEntry;
+
+  const previousEntries = record.currentSnapshot.entries;
+  const nextEntries = rootEntry === null
+    ? historyEntry === null ? [] : [historyEntry]
+    : historyEntry === null
+    ? [rootEntry]
+    : [rootEntry, historyEntry];
+  if (
+    previousEntries.length === nextEntries.length &&
+    previousEntries.every((entry, index) => entry === nextEntries[index])
+  ) {
+    return false;
+  }
+  record.currentSnapshot = createNarrativeStableReadinessSnapshotInternalV1(nextEntries);
+  return true;
+}
+
+function notifyNarrativeStableSessionStateInternalV1(
+  session: NarrativeStableSessionInternalV1,
+  record: NarrativeStableSessionRecordInternalV1,
+): void {
+  if (record.terminal || !record.bridgeRecord.active) return;
+  refreshNarrativeStableSessionSnapshotInternalV1(session, record);
+  if (record.currentSnapshot === record.lastNotifiedSnapshot) return;
+  record.lastNotifiedSnapshot = record.currentSnapshot;
+  const listeners = freezeNarrativePhysicalActionDataInternalV1([...record.listeners]);
+  for (const listener of listeners) {
+    if (record.terminal || !record.bridgeRecord.active) break;
+    try {
+      listener();
+    } catch {
+      // Session subscribers are isolated after the composite transition commits.
+    }
+  }
+}
+
+function terminalizeNarrativeStableSessionInternalV1(
+  bridgeRecord: NarrativeStablePublisherBridgeRecordInternalV1,
+): void {
+  bridgeRecord.currentHistoryPreparation = null;
+  const session = bridgeRecord.session;
+  if (session === null) return;
+  const record = narrativeStableSessionRecordsInternalV1.get(session);
+  if (record === undefined || record.terminal) return;
+  record.terminal = true;
+  record.currentRootAttempt = null;
+  record.currentRootPreparation = null;
+  record.currentRootEntry = null;
+  record.currentHistoryEntry = null;
+  if (record.currentSnapshot.entries.length !== 0) {
+    record.currentSnapshot = createNarrativeStableReadinessSnapshotInternalV1([]);
+  }
+  record.lastNotifiedSnapshot = record.currentSnapshot;
+  const currentLease = record.currentHostLease;
+  if (currentLease !== null) currentLease.active = false;
+  record.currentHostLease = null;
+  record.listeners.clear();
+  if (!record.subscribed) return;
+  record.subscribed = false;
+  try {
+    record.unsubscribeStateInternalV1();
+  } catch {
+    // Terminal fencing remains exact when an unsubscribe wrapper throws.
+  }
+}
+
+function terminalizeNarrativeStableSessionIfCoordinatorDisposedInternalV1(
+  bridgeRecord: NarrativeStablePublisherBridgeRecordInternalV1,
+): boolean {
+  if (!bridgeRecord.active) return true;
+  let disposed = true;
+  try {
+    disposed = bridgeRecord.compositeRuntimeKernel.getStateInternalV1().transientState.publication
+      .coordinatorDisposed;
+  } catch {
+    // An unreadable composition is terminal for every session ingress.
+  }
+  if (!disposed) return false;
+  bridgeRecord.active = false;
+  terminalizeNarrativeStableSessionInternalV1(bridgeRecord);
+  return true;
+}
+
+export function createNarrativeStableSessionInternalV1(
+  input: Readonly<{ readonly bridge: NarrativeStablePublisherBridgeInternalV1 }>,
+): NarrativeStableSessionInternalV1 {
+  let bridge: unknown;
+  try {
+    if ((typeof input !== "object" && typeof input !== "function") || input === null) {
+      throw new TypeError("ui.narrative_stable_session_invalid");
+    }
+    const keys = Reflect.ownKeys(input);
+    const descriptor = Reflect.getOwnPropertyDescriptor(input, "bridge");
+    if (
+      keys.length !== 1 || keys[0] !== "bridge" || descriptor === undefined ||
+      !("value" in descriptor)
+    ) {
+      throw new TypeError("ui.narrative_stable_session_invalid");
+    }
+    bridge = descriptor.value;
+  } catch {
+    throw new TypeError("ui.narrative_stable_session_invalid");
+  }
+  if ((typeof bridge !== "object" && typeof bridge !== "function") || bridge === null) {
+    throw new TypeError("ui.narrative_stable_session_invalid");
+  }
+  const exactBridge = bridge as NarrativeStablePublisherBridgeInternalV1;
+  const bridgeRecord = narrativeStablePublisherBridgeRecordsInternalV1.get(exactBridge);
+  if (
+    bridgeRecord === undefined || !bridgeRecord.active ||
+    terminalizeNarrativeStableSessionIfCoordinatorDisposedInternalV1(bridgeRecord)
+  ) {
+    throw new TypeError("ui.narrative_stable_session_invalid");
+  }
+  if (bridgeRecord.session !== null) return bridgeRecord.session;
+
+  let historyChildLifecycle: NarrativeStableHistoryChildLifecycleInternalV1;
+  try {
+    historyChildLifecycle = createNarrativeStableHistoryChildLifecycleInternalV1({
+      bridge: exactBridge,
+    });
+  } catch {
+    throw new TypeError("ui.narrative_stable_session_invalid");
+  }
+
+  let session!: NarrativeStableSessionInternalV1;
+  let sessionRecord!: NarrativeStableSessionRecordInternalV1;
+  session = freezeNarrativePhysicalActionDataInternalV1({
+    getReadinessSnapshotInternalV1(
+      this: NarrativeStableSessionInternalV1,
+    ): NarrativeStableReadinessSnapshotInternalV1 {
+      if (
+        this !== session || narrativeStableSessionRecordsInternalV1.get(session) !== sessionRecord
+      ) {
+        throw new TypeError("ui.narrative_stable_session_invalid");
+      }
+      refreshNarrativeStableSessionSnapshotInternalV1(session, sessionRecord);
+      return sessionRecord.currentSnapshot;
+    },
+
+    subscribeInternalV1(
+      this: NarrativeStableSessionInternalV1,
+      listener: () => void,
+    ): () => void {
+      if (
+        this !== session ||
+        narrativeStableSessionRecordsInternalV1.get(session) !== sessionRecord ||
+        typeof listener !== "function"
+      ) {
+        throw new TypeError("ui.narrative_stable_session_invalid");
+      }
+      if (
+        sessionRecord.terminal || !sessionRecord.bridgeRecord.active ||
+        terminalizeNarrativeStableSessionIfCoordinatorDisposedInternalV1(
+          sessionRecord.bridgeRecord,
+        )
+      ) {
+        return freezeNarrativePhysicalActionDataInternalV1((): void => {});
+      }
+      sessionRecord.listeners.add(listener);
+      let subscribed = true;
+      return freezeNarrativePhysicalActionDataInternalV1((): void => {
+        if (!subscribed) return;
+        subscribed = false;
+        sessionRecord.listeners.delete(listener);
+      });
+    },
+
+    getHistoryChildLifecycleInternalV1(
+      this: NarrativeStableSessionInternalV1,
+    ): NarrativeStableHistoryChildLifecycleInternalV1 {
+      if (
+        this !== session || narrativeStableSessionRecordsInternalV1.get(session) !== sessionRecord
+      ) {
+        throw new TypeError("ui.narrative_stable_session_invalid");
+      }
+      return sessionRecord.historyChildLifecycle;
+    },
+
+    attachHostInternalV1(
+      this: NarrativeStableSessionInternalV1,
+      attachmentInput: Readonly<{ readonly hostIdentity: object }>,
+    ): NarrativeStableHostLeaseInternalV1 {
+      if (
+        this !== session || narrativeStableSessionRecordsInternalV1.get(session) !== sessionRecord
+      ) {
+        throw new TypeError("ui.narrative_stable_session_invalid");
+      }
+      let hostIdentity: unknown;
+      try {
+        if (
+          (typeof attachmentInput !== "object" && typeof attachmentInput !== "function") ||
+          attachmentInput === null
+        ) {
+          throw new TypeError("ui.narrative_stable_host_attachment_invalid");
+        }
+        const keys = Reflect.ownKeys(attachmentInput);
+        const descriptor = Reflect.getOwnPropertyDescriptor(attachmentInput, "hostIdentity");
+        if (
+          keys.length !== 1 || keys[0] !== "hostIdentity" || descriptor === undefined ||
+          !("value" in descriptor)
+        ) {
+          throw new TypeError("ui.narrative_stable_host_attachment_invalid");
+        }
+        hostIdentity = descriptor.value;
+      } catch {
+        throw new TypeError("ui.narrative_stable_host_attachment_invalid");
+      }
+      if (
+        (typeof hostIdentity !== "object" && typeof hostIdentity !== "function") ||
+        hostIdentity === null || sessionRecord.terminal || !sessionRecord.bridgeRecord.active
+      ) {
+        throw new TypeError("ui.narrative_stable_host_attachment_invalid");
+      }
+      const predecessor = sessionRecord.currentHostLease;
+      if (predecessor !== null && predecessor.hostIdentity !== hostIdentity) {
+        throw new TypeError("ui.narrative_stable_host_lease_conflict");
+      }
+      if (
+        terminalizeNarrativeStableSessionIfCoordinatorDisposedInternalV1(
+          sessionRecord.bridgeRecord,
+        )
+      ) {
+        throw new TypeError("ui.narrative_stable_host_attachment_invalid");
+      }
+      if (predecessor !== null) predecessor.active = false;
+
+      let lease!: NarrativeStableHostLeaseInternalV1;
+      let leaseRecord!: NarrativeStableHostLeaseRecordInternalV1;
+      lease = freezeNarrativePhysicalActionDataInternalV1({
+        isCurrentInternalV1(this: NarrativeStableHostLeaseInternalV1): boolean {
+          if (
+            this !== lease || narrativeStableHostLeaseRecordsInternalV1.get(lease) !== leaseRecord
+          ) {
+            throw new TypeError("ui.narrative_stable_host_attachment_invalid");
+          }
+          if (
+            terminalizeNarrativeStableSessionIfCoordinatorDisposedInternalV1(
+              sessionRecord.bridgeRecord,
+            )
+          ) {
+            return false;
+          }
+          return leaseRecord.active && !sessionRecord.terminal &&
+            sessionRecord.bridgeRecord.active && sessionRecord.currentHostLease === leaseRecord;
+        },
+        releaseInternalV1(this: NarrativeStableHostLeaseInternalV1): void {
+          if (
+            this !== lease || narrativeStableHostLeaseRecordsInternalV1.get(lease) !== leaseRecord
+          ) {
+            throw new TypeError("ui.narrative_stable_host_attachment_invalid");
+          }
+          if (!leaseRecord.active) return;
+          leaseRecord.active = false;
+          if (!sessionRecord.hostCleanupScheduled) {
+            sessionRecord.hostCleanupScheduled = true;
+            queueMicrotask(() => {
+              sessionRecord.hostCleanupScheduled = false;
+              if (sessionRecord.currentHostLease?.active === false) {
+                sessionRecord.currentHostLease = null;
+              }
+            });
+          }
+        },
+      });
+      leaseRecord = {
+        session,
+        sessionRecord,
+        hostIdentity: hostIdentity as object,
+        lease,
+        active: true,
+      };
+      narrativeStableHostLeaseRecordsInternalV1.set(lease, leaseRecord);
+      sessionRecord.currentHostLease = leaseRecord;
+      return lease;
+    },
+  });
+
+  const initialSnapshot = createNarrativeStableReadinessSnapshotInternalV1([]);
+  sessionRecord = {
+    bridge: exactBridge,
+    bridgeRecord,
+    historyChildLifecycle,
+    listeners: new Set(),
+    currentRootAttempt: null,
+    currentRootPreparation: null,
+    currentRootEntry: null,
+    currentHistoryEntry: null,
+    currentSnapshot: initialSnapshot,
+    lastNotifiedSnapshot: initialSnapshot,
+    currentHostLease: null,
+    hostCleanupScheduled: false,
+    unsubscribeStateInternalV1: (): void => {},
+    subscribed: false,
+    terminal: false,
+  };
+  narrativeStableSessionRecordsInternalV1.set(session, sessionRecord);
+  refreshNarrativeStableSessionSnapshotInternalV1(session, sessionRecord);
+  sessionRecord.lastNotifiedSnapshot = sessionRecord.currentSnapshot;
+  try {
+    sessionRecord.unsubscribeStateInternalV1 = applyNarrativePhysicalActionInternalV1(
+      bridgeRecord.subscribeStateInternalV1,
+      bridgeRecord.compositeRuntimeKernel,
+      [() => notifyNarrativeStableSessionStateInternalV1(session, sessionRecord)],
+    ) as () => void;
+    sessionRecord.subscribed = true;
+  } catch {
+    narrativeStableSessionRecordsInternalV1.delete(session);
+    throw new TypeError("ui.narrative_stable_session_invalid");
+  }
+  bridgeRecord.session = session;
+  return session;
 }
 
 function captureOwnCallableInternalV1(
