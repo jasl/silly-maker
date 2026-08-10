@@ -7,11 +7,14 @@ import {
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import {
+  parseManagedSurfaceActionIdV1,
   parseManagedSurfaceDefinitionIdV1,
   parseManagedSurfaceInstanceIdV1,
   parseManagedSurfaceLayerIdV1,
   parseManagedSurfaceOwnerIdV1,
+  parseManagedSurfaceRoutingLeaseIdV1,
   parseManagedSurfaceSlotIdV1,
+  type ManagedSurfaceActionIdV1,
   type ManagedSurfaceDefinitionIdV1,
   type ManagedSurfaceOwnerIdV1,
   type ManagedSurfaceResolvedDefinitionV1,
@@ -28,6 +31,7 @@ import {
   type ManagedSurfaceStableDefinitionSidecarInternalV1,
 } from "./managed-surface-stable-admission.ts";
 import {
+  claimManagedSurfaceStableActionRouteAuthorityInternalV1,
   createManagedSurfaceStableCompositeStateInternalV1,
   createManagedSurfaceStableCompositeRuntimeKernelInternalV1,
   allocateManagedSurfaceStableRuntimeAttemptInternalV1,
@@ -80,6 +84,8 @@ const grandchildDefinitionV1 = parseManagedSurfaceDefinitionIdV1(
 );
 const grandchildSlotV1 = parseManagedSurfaceSlotIdV1("surface-slot.grandchild");
 const layerIdV1 = parseManagedSurfaceLayerIdV1("surface-layer.workspace");
+const narrativeAdvanceActionIdV1 = parseManagedSurfaceActionIdV1("narrative.advance");
+const narrativeOtherActionIdV1 = parseManagedSurfaceActionIdV1("narrative.other");
 
 const resolvedSlotDescriptorsV1 = Object.freeze(
   [
@@ -117,6 +123,8 @@ function definitionV1(input: {
   readonly placement?: "root" | "child";
   readonly modality?: "blocking" | "non_blocking";
   readonly layerOrder?: number;
+  readonly managedInput?: boolean;
+  readonly actionIds?: readonly ManagedSurfaceActionIdV1[];
 }): ManagedSurfaceStableDefinitionSidecarInternalV1 {
   const definition = Object.freeze({
     definitionId: input.definitionId,
@@ -127,7 +135,9 @@ function definitionV1(input: {
     layerOrder: parseNonNegativeSafeInteger(input.layerOrder ?? 1),
     placement: input.placement ?? "root",
     modality: input.modality ?? "blocking",
-    inputPolicy: Object.freeze({ kind: "none" as const }),
+    inputPolicy: input.managedInput === true
+      ? Object.freeze({ kind: "managed" as const, inputContextId: "narrative" as const })
+      : Object.freeze({ kind: "none" as const }),
     dismissPolicy: Object.freeze({
       back: true,
       escape: true,
@@ -136,7 +146,7 @@ function definitionV1(input: {
     }),
     focusPolicy: Object.freeze({ kind: "none" as const }),
     navigationPolicy: Object.freeze({ kind: "close" as const }),
-    actionIds: Object.freeze([]),
+    actionIds: Object.freeze([...(input.actionIds ?? [])]),
     readiness: Object.freeze({
       initialOpen: "blocking_fallback" as const,
       primaryReplacement: "retain_current" as const,
@@ -191,7 +201,12 @@ function admittedBaselineV1(
   return result.proposal.nextAcceptedBaseline;
 }
 
-function harnessV1(): StableHarnessV1 {
+function harnessV1(input: {
+  readonly managedInput?: boolean;
+  readonly workspaceLayerOrder?: number;
+  readonly narrativeLayerOrder?: number;
+  readonly actionIds?: readonly ManagedSurfaceActionIdV1[];
+} = {}): StableHarnessV1 {
   const registry = createManagedSurfaceStablePublisherLeaseRegistryInternalV1({
     applicationEpoch: applicationEpochV1,
     resolvedOwnerIds: [workspaceOwnerIdV1, narrativeOwnerIdV1],
@@ -206,11 +221,17 @@ function harnessV1(): StableHarnessV1 {
         definitionId: rootDefinitionAV1,
         ownerId: workspaceOwnerIdV1,
         slotId: rootSlotAV1,
+        layerOrder: input.workspaceLayerOrder ?? 1,
+        managedInput: input.managedInput === true,
+        actionIds: input.actionIds ?? [],
       }),
       definitionV1({
         definitionId: replacementDefinitionAV1,
         ownerId: workspaceOwnerIdV1,
         slotId: rootSlotAV1,
+        layerOrder: input.workspaceLayerOrder ?? 1,
+        managedInput: input.managedInput === true,
+        actionIds: input.actionIds ?? [],
       }),
       definitionV1({
         definitionId: childDefinitionV1,
@@ -222,6 +243,9 @@ function harnessV1(): StableHarnessV1 {
         definitionId: rootDefinitionBV1,
         ownerId: narrativeOwnerIdV1,
         slotId: rootSlotBV1,
+        layerOrder: input.narrativeLayerOrder ?? 1,
+        managedInput: input.managedInput === true,
+        actionIds: input.actionIds ?? [],
       }),
     ],
     resolvedSlotDescriptors: resolvedSlotDescriptorsV1,
@@ -401,7 +425,7 @@ function admitAndApplyStableTargetV1(input: {
   readonly publisher: ManagedSurfaceStablePublisherInternalV1;
   readonly target: ManagedSurfaceStableAdmittedTargetInternalV1;
   readonly sourceRevision: ManagedSurfaceStableSourceRevisionInternalV1;
-}): void {
+}): ManagedSurfaceStableAdmittedTargetInternalV1 {
   const context = input.kernel.captureAdmissionContextInternalV1(input.publisher.lease);
   if (context.kind !== "captured") throw new Error(`expected captured, got ${context.kind}`);
   const evaluated = input.harness.authority.evaluate({
@@ -425,6 +449,71 @@ function admitAndApplyStableTargetV1(input: {
     kind: "applied",
     code: "surface.stable_publication_applied",
   });
+  const [installedTarget] = evaluated.proposal.nextAcceptedBaseline.targets;
+  if (installedTarget === undefined) throw new Error("expected installed stable target");
+  return installedTarget;
+}
+
+function stableActionFixtureV1() {
+  const harness = harnessV1({
+    managedInput: true,
+    workspaceLayerOrder: 10,
+    narrativeLayerOrder: 20,
+    actionIds: [narrativeAdvanceActionIdV1],
+  });
+  const kernel = createManagedSurfaceStableCompositeRuntimeKernelInternalV1({
+    admissionAuthority: harness.authority,
+    publisherLeaseRegistry: harness.registry,
+    initialTransientState: transientStateV1(),
+  });
+  expect(kernel.registerStablePublisherLeaseInternalV1(harness.workspace.lease).kind).toBe(
+    "registered",
+  );
+  expect(kernel.registerStablePublisherLeaseInternalV1(harness.narrative.lease).kind).toBe(
+    "registered",
+  );
+  return Object.freeze({
+    harness,
+    kernel,
+    authority: claimManagedSurfaceStableActionRouteAuthorityInternalV1(kernel),
+  });
+}
+
+function settleCurrentStablePreparationReadyV1(
+  kernel: ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
+  target: ManagedSurfaceStableAdmittedTargetInternalV1,
+): void {
+  const entry = kernel.getStateInternalV1().stableRuntimeBindings.find((candidate) =>
+    candidate.desiredTarget.admittedTarget.occurrenceId === target.occurrenceId
+  );
+  if (entry?.binding.kind !== "preparing") {
+    throw new Error("expected current stable preparation");
+  }
+  expect(kernel.settleStableReadinessReadyInternalV1(Object.freeze({
+    readinessEvidence: Object.freeze({
+      applicationEpoch: applicationEpochV1,
+      surfaceInstanceId: entry.binding.attempt.identity.surfaceInstanceId,
+    }),
+    publisherLease: entry.desiredTarget.publisherLease,
+    sourceRevision: entry.desiredTarget.sourceRevision,
+  }))).toMatchObject({ kind: "applied" });
+}
+
+function publishReadyStableTargetV1(input: {
+  readonly fixture: ReturnType<typeof stableActionFixtureV1>;
+  readonly publisher: ManagedSurfaceStablePublisherInternalV1;
+  readonly target: ManagedSurfaceStableAdmittedTargetInternalV1;
+  readonly sourceRevision: ManagedSurfaceStableSourceRevisionInternalV1;
+}): ManagedSurfaceStableAdmittedTargetInternalV1 {
+  const installedTarget = admitAndApplyStableTargetV1({
+    harness: input.fixture.harness,
+    kernel: input.fixture.kernel,
+    publisher: input.publisher,
+    target: input.target,
+    sourceRevision: input.sourceRevision,
+  });
+  settleCurrentStablePreparationReadyV1(input.fixture.kernel, installedTarget);
+  return installedTarget;
 }
 
 interface RetainedSubtreeHarnessV1 {
@@ -2665,6 +2754,298 @@ describe("dormant managed stable composite state", () => {
         ManagedSurfaceStableAdmissionAuthorityInternalV1["createReservationGenerationToken"]
       >
     >();
+  });
+});
+
+describe("dormant managed stable action-route authority", () => {
+  it("captures and routes only the exact direct active stable input target", () => {
+    const fixture = stableActionFixtureV1();
+    const authority = fixture.authority;
+    expect(claimManagedSurfaceStableActionRouteAuthorityInternalV1(fixture.kernel)).toBe(
+      authority,
+    );
+    expect(Object.isFrozen(authority)).toBe(true);
+    expect(Reflect.ownKeys(authority)).toEqual([
+      "captureCurrentStableInputInternalV1",
+      "routeActionInternalV1",
+      "isCurrentDirectTargetInternalV1",
+    ]);
+    expect(authority.captureCurrentStableInputInternalV1()).toEqual({ kind: "unavailable" });
+
+    const installedTarget = admitAndApplyStableTargetV1({
+      harness: fixture.harness,
+      kernel: fixture.kernel,
+      publisher: fixture.harness.workspace,
+      target: fixture.harness.workspaceRoot,
+      sourceRevision: fixture.harness.workspaceRevision,
+    });
+    expect(authority.captureCurrentStableInputInternalV1()).toEqual({ kind: "unavailable" });
+    settleCurrentStablePreparationReadyV1(
+      fixture.kernel,
+      installedTarget,
+    );
+
+    const captured = authority.captureCurrentStableInputInternalV1();
+    expect(captured.kind).toBe("captured");
+    if (captured.kind !== "captured") throw new Error("expected captured stable input");
+    expect(Reflect.ownKeys(captured)).toEqual([
+      "kind",
+      "contract",
+      "directTarget",
+      "sourceRevision",
+      "targetProof",
+    ]);
+    expect(Object.isFrozen(captured)).toBe(true);
+    expect(captured.directTarget).toBe(installedTarget);
+    expect(captured.sourceRevision).toBe(fixture.harness.workspaceRevision);
+    expect(captured.targetProof).not.toBeNull();
+    expect(captured.contract).toMatchObject({
+      applicationEpoch: applicationEpochV1,
+      ownerId: workspaceOwnerIdV1,
+      inputContextId: "narrative",
+      actionIds: [narrativeAdvanceActionIdV1],
+    });
+    expect(Object.isFrozen(captured.contract)).toBe(true);
+    expect(Object.isFrozen(captured.contract.actionIds)).toBe(true);
+    expect(authority.isCurrentDirectTargetInternalV1(captured.targetProof)).toBe(true);
+
+    const before = fixture.kernel.getStateInternalV1();
+    const stateListener = vi.fn();
+    fixture.kernel.subscribeStateInternalV1(stateListener);
+    const receipt = authority.routeActionInternalV1(Object.freeze({
+      evidence: Object.freeze({
+        applicationEpoch: captured.contract.applicationEpoch,
+        topologyRevision: captured.contract.topologyRevision,
+        surfaceInstanceId: captured.contract.surfaceInstanceId,
+      }),
+      actionId: narrativeAdvanceActionIdV1,
+      routingLeaseId: captured.contract.routingLeaseId,
+    }));
+    expect(receipt).toEqual({
+      kind: "unchanged",
+      code: "surface.action_routed",
+      beforeTopologyRevision: captured.contract.topologyRevision,
+      afterTopologyRevision: captured.contract.topologyRevision,
+      surfaceInstanceId: captured.contract.surfaceInstanceId,
+    });
+    expect(fixture.kernel.getStateInternalV1()).toBe(before);
+    expect(stateListener).not.toHaveBeenCalled();
+  });
+
+  it("routes stable actions with exact evidence and owner precedence without mutating state", () => {
+    const fixture = stableActionFixtureV1();
+    publishReadyStableTargetV1({
+      fixture,
+      publisher: fixture.harness.workspace,
+      target: fixture.harness.workspaceRoot,
+      sourceRevision: fixture.harness.workspaceRevision,
+    });
+    const captured = fixture.authority.captureCurrentStableInputInternalV1();
+    expect(captured.kind).toBe("captured");
+    if (captured.kind !== "captured") throw new Error("expected captured stable input");
+    const before = fixture.kernel.getStateInternalV1();
+    const stateListener = vi.fn();
+    const coordinator = createManagedSurfaceCoordinatorFacadeInternalV1(fixture.kernel);
+    const transientListener = vi.fn();
+    fixture.kernel.subscribeStateInternalV1(stateListener);
+    coordinator.subscribe(transientListener);
+    const route = (input: {
+      readonly applicationEpoch?: number;
+      readonly topologyRevision?: number;
+      readonly surfaceInstanceId?: ReturnType<typeof parseManagedSurfaceInstanceIdV1>;
+      readonly routingLeaseId?: ReturnType<typeof parseManagedSurfaceRoutingLeaseIdV1>;
+      readonly actionId?: ManagedSurfaceActionIdV1;
+    }) =>
+      fixture.authority.routeActionInternalV1(Object.freeze({
+        evidence: Object.freeze({
+          applicationEpoch: parseNonNegativeSafeInteger(
+            input.applicationEpoch ?? captured.contract.applicationEpoch,
+          ),
+          topologyRevision: parseNonNegativeSafeInteger(
+            input.topologyRevision ?? captured.contract.topologyRevision,
+          ),
+          surfaceInstanceId: input.surfaceInstanceId ?? captured.contract.surfaceInstanceId,
+        }),
+        routingLeaseId: input.routingLeaseId ?? captured.contract.routingLeaseId,
+        actionId: input.actionId ?? narrativeAdvanceActionIdV1,
+      }));
+
+    expect(route({
+      applicationEpoch: captured.contract.applicationEpoch + 1,
+      topologyRevision: captured.contract.topologyRevision + 1,
+      surfaceInstanceId: parseManagedSurfaceInstanceIdV1("surface-instance.e41.n999"),
+      routingLeaseId: parseManagedSurfaceRoutingLeaseIdV1("surface-lease.e41.n999"),
+      actionId: narrativeOtherActionIdV1,
+    })).toMatchObject({ kind: "stale", code: "surface.stale_application_epoch" });
+    expect(route({
+      topologyRevision: captured.contract.topologyRevision + 1,
+      surfaceInstanceId: parseManagedSurfaceInstanceIdV1("surface-instance.e41.n999"),
+      routingLeaseId: parseManagedSurfaceRoutingLeaseIdV1("surface-lease.e41.n999"),
+      actionId: narrativeOtherActionIdV1,
+    })).toMatchObject({ kind: "stale", code: "surface.stale_topology_revision" });
+    expect(route({
+      surfaceInstanceId: parseManagedSurfaceInstanceIdV1("surface-instance.e41.n999"),
+      routingLeaseId: parseManagedSurfaceRoutingLeaseIdV1("surface-lease.e41.n999"),
+      actionId: narrativeOtherActionIdV1,
+    })).toMatchObject({ kind: "stale", code: "surface.stale_instance" });
+    expect(route({
+      routingLeaseId: parseManagedSurfaceRoutingLeaseIdV1("surface-lease.e41.n999"),
+      actionId: narrativeOtherActionIdV1,
+    })).toMatchObject({ kind: "stale", code: "surface.stale_routing_lease" });
+    expect(route({ actionId: narrativeOtherActionIdV1 })).toMatchObject({
+      kind: "rejected",
+      code: "surface.action_unpublished",
+    });
+    expect(fixture.kernel.getStateInternalV1()).toBe(before);
+    expect(stateListener).not.toHaveBeenCalled();
+    expect(transientListener).not.toHaveBeenCalled();
+
+    const blocker = coordinator.openTransientPrimary({
+      definition: definitionV1({
+        definitionId: rootDefinitionBV1,
+        ownerId: narrativeOwnerIdV1,
+        slotId: rootSlotBV1,
+        layerOrder: 30,
+        modality: "blocking",
+      }).definition,
+      semanticOccurrenceId: null,
+    });
+    expect(blocker.receipt.kind).toBe("applied");
+    expect(blocker.readiness?.ready().receipt.kind).toBe("applied");
+    stateListener.mockClear();
+    transientListener.mockClear();
+    const blockedState = fixture.kernel.getStateInternalV1();
+    expect(route({
+      topologyRevision: coordinator.getSnapshot().topologyRevision,
+    })).toMatchObject({ kind: "rejected", code: "surface.not_input_owner" });
+    expect(fixture.kernel.getStateInternalV1()).toBe(blockedState);
+    expect(stateListener).not.toHaveBeenCalled();
+    expect(transientListener).not.toHaveBeenCalled();
+  });
+
+  it("invalidates exact direct-target proof on source advance and replacement retention", () => {
+    const fixture = stableActionFixtureV1();
+    publishReadyStableTargetV1({
+      fixture,
+      publisher: fixture.harness.workspace,
+      target: fixture.harness.workspaceRoot,
+      sourceRevision: fixture.harness.workspaceRevision,
+    });
+    const initial = fixture.authority.captureCurrentStableInputInternalV1();
+    expect(initial.kind).toBe("captured");
+    if (initial.kind !== "captured" || initial.targetProof === null) {
+      throw new Error("expected initial direct-target proof");
+    }
+
+    const sourceRevision = fixture.harness.workspace.issueSourceRevision();
+    const sourceAdvancedTarget = admitAndApplyStableTargetV1({
+      harness: fixture.harness,
+      kernel: fixture.kernel,
+      publisher: fixture.harness.workspace,
+      target: fixture.harness.workspaceRoot,
+      sourceRevision,
+    });
+    expect(fixture.authority.isCurrentDirectTargetInternalV1(initial.targetProof)).toBe(false);
+    const sourceAdvanced = fixture.authority.captureCurrentStableInputInternalV1();
+    expect(sourceAdvanced.kind).toBe("captured");
+    if (sourceAdvanced.kind !== "captured" || sourceAdvanced.targetProof === null) {
+      throw new Error("expected source-advanced direct-target proof");
+    }
+    expect(sourceAdvanced.directTarget).toBe(sourceAdvancedTarget);
+    expect(sourceAdvanced.sourceRevision).toBe(sourceRevision);
+    expect(fixture.authority.isCurrentDirectTargetInternalV1(sourceAdvanced.targetProof)).toBe(
+      true,
+    );
+
+    const replacementRevision = fixture.harness.workspace.issueSourceRevision();
+    admitAndApplyStableTargetV1({
+      harness: fixture.harness,
+      kernel: fixture.kernel,
+      publisher: fixture.harness.workspace,
+      target: fixture.harness.workspaceReplacement,
+      sourceRevision: replacementRevision,
+    });
+    expect(fixture.authority.isCurrentDirectTargetInternalV1(sourceAdvanced.targetProof)).toBe(
+      false,
+    );
+    const retained = fixture.authority.captureCurrentStableInputInternalV1();
+    expect(retained.kind).toBe("captured");
+    if (retained.kind !== "captured") throw new Error("expected retained input binding");
+    expect(retained.contract.surfaceInstanceId).toBe(initial.contract.surfaceInstanceId);
+    expect(retained.directTarget).toBeNull();
+    expect(retained.sourceRevision).toBeNull();
+    expect(retained.targetProof).toBeNull();
+    const retainedState = fixture.kernel.getStateInternalV1();
+    expect(fixture.authority.routeActionInternalV1(Object.freeze({
+      evidence: Object.freeze({
+        applicationEpoch: retained.contract.applicationEpoch,
+        topologyRevision: retained.contract.topologyRevision,
+        surfaceInstanceId: retained.contract.surfaceInstanceId,
+      }),
+      actionId: narrativeAdvanceActionIdV1,
+      routingLeaseId: retained.contract.routingLeaseId,
+    }))).toMatchObject({ kind: "unchanged", code: "surface.action_routed" });
+    expect(fixture.kernel.getStateInternalV1()).toBe(retainedState);
+  });
+
+  it("rejects cloned, foreign, revoked, and terminal direct-target proofs", () => {
+    const fixture = stableActionFixtureV1();
+    publishReadyStableTargetV1({
+      fixture,
+      publisher: fixture.harness.workspace,
+      target: fixture.harness.workspaceRoot,
+      sourceRevision: fixture.harness.workspaceRevision,
+    });
+    const captured = fixture.authority.captureCurrentStableInputInternalV1();
+    if (captured.kind !== "captured" || captured.targetProof === null) {
+      throw new Error("expected direct-target proof");
+    }
+    const propertyRead = vi.fn();
+    const clone = Object.defineProperty({}, "trap", { get: propertyRead });
+    const revoked = Proxy.revocable({}, {});
+    revoked.revoke();
+    const foreign = stableActionFixtureV1();
+
+    expect(fixture.authority.isCurrentDirectTargetInternalV1(captured.targetProof)).toBe(true);
+    expect(fixture.authority.isCurrentDirectTargetInternalV1(clone)).toBe(false);
+    expect(fixture.authority.isCurrentDirectTargetInternalV1(revoked.proxy)).toBe(false);
+    expect(foreign.authority.isCurrentDirectTargetInternalV1(captured.targetProof)).toBe(false);
+    expect(propertyRead).not.toHaveBeenCalled();
+
+    const coordinator = createManagedSurfaceCoordinatorFacadeInternalV1(fixture.kernel);
+    expect(coordinator.dispose().kind).toBe("applied");
+    expect(fixture.authority.isCurrentDirectTargetInternalV1(captured.targetProof)).toBe(false);
+    expect(fixture.authority.captureCurrentStableInputInternalV1()).toEqual({
+      kind: "unavailable",
+    });
+  });
+
+  it("does not capture a direct stable input target while shared topology suspends it", () => {
+    const fixture = stableActionFixtureV1();
+    publishReadyStableTargetV1({
+      fixture,
+      publisher: fixture.harness.workspace,
+      target: fixture.harness.workspaceRoot,
+      sourceRevision: fixture.harness.workspaceRevision,
+    });
+    expect(fixture.authority.captureCurrentStableInputInternalV1().kind).toBe("captured");
+
+    const coordinator = createManagedSurfaceCoordinatorFacadeInternalV1(fixture.kernel);
+    const blocker = coordinator.openTransientPrimary({
+      definition: definitionV1({
+        definitionId: rootDefinitionBV1,
+        ownerId: narrativeOwnerIdV1,
+        slotId: rootSlotBV1,
+        layerOrder: 30,
+        modality: "blocking",
+      }).definition,
+      semanticOccurrenceId: null,
+    });
+    expect(blocker.receipt.kind).toBe("applied");
+    expect(blocker.readiness?.ready().receipt.kind).toBe("applied");
+    expect(fixture.authority.captureCurrentStableInputInternalV1()).toEqual({
+      kind: "unavailable",
+    });
   });
 });
 

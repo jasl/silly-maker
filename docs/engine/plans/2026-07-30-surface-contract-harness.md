@@ -20,8 +20,9 @@ registration + admission context，以及R3b.1 entry audit发现的S1-R.1b dispo
 corrective、S1-R.3b.1 pure reconcile and synchronous owner commit与S1-R.4a shared runtime topology
 policy extraction、S1-R.4b.0 terminal composite disposition、S1-R.4b.1 source-bound readiness +
 global cascade settlement与S1-R.5 neutral harness/churn/dead-path audit均已关闭；S4.0 Narrative/History
-contract/characterization floor与S4.1a dormant family contract/publisher projector均已关闭，下一独立切片为
-S4.1b dormant stable-action/controller-attempt admission；R4 entry
+contract/characterization floor、S4.1a dormant family contract/publisher projector与S4.1b.0 shared
+contract-bound action gate均已关闭，下一独立切片为S4.1b.1 Narrative semantic callable/action mapping与
+controller-attempt admission；R4 entry
 adjudication已先以独立S1-R.4.0关闭
 readiness result/capacity contract。R3b entry audit先以独立S1-R.3a.1 corrective补全ready
 retained-subtree authority，该corrective也已关闭。
@@ -36,8 +37,8 @@ S1-R aggregate gate已关闭。
 
 在 [production-floor sequence](2026-07-30-production-floor-sequence.md)
 中：PF2 的 `S0 -> S1-T -> S2`、PF-DET、PF3/M2 与 PF4/S3 已完成；当前 core
-节点是PF4/S4.1b。PF4的顺序是
-`S3 -> S1-R.0 -> S1-R.1–S1-R.5 -> S4.0 -> S4.1a -> S4.1b -> S4.2 -> S4.3 -> S4b`；
+节点是PF4/S4.1b.1。PF4的顺序是
+`S3 -> S1-R.0 -> S1-R.1–S1-R.5 -> S4.0 -> S4.1a -> S4.1b.0 -> S4.1b.1 -> S4.2 -> S4.3 -> S4b`；
 S5–S6 属于 PF6。S1-R
 延后到第一个真实 externally published stable-target family 前完成；按 accepted
 target ownership，S4 Narrative 计划成为该 family，因此 S1-R 位于 S3 与 S4
@@ -1688,14 +1689,18 @@ S1-R 按以下可独立合并切片推进，每次只领取一个：
 19. **S4.1a dormant Narrative family contract/publisher projector（已完成）**：source-relative definition/catalog、
     composition-owned lease registration、PendingInteraction→dedicated source/occurrence projection、full canonical proof与
     candidate preflight exact results；不接action admission、React Host或live ingress。
-20. **S4.1b dormant stable-action/controller-attempt admission（当前）**：分别建立physical binding与automatic
-    controller-attempt的package-internal双fence，并只在exact current Narrative runtime上提交semantic resolution。
-21. **S4.2 dormant Narrative Host + History child（待实施）**：controller/view/Host decomposition、Host-commit
+20. **S4.1b.0 shared contract-bound action gate + stable topology proof（已完成）**：让live default transient
+    route adapter无损复用family-neutral binding，并建立claim-once continuation与composition-owned stable direct-target
+    proof；不定义Narrative semantic callable/action mapping，不提交semantic resolution。
+21. **S4.1b.1 Narrative semantic callable/action mapping + controller-attempt admission（当前）**：先冻结Narrative
+    action catalog到exact semantic callable/result的映射，再完成physical与automatic controller-attempt双fence，且只在
+    exact current Narrative runtime上提交semantic resolution。
+22. **S4.2 dormant Narrative Host + History child（待实施）**：controller/view/Host decomposition、Host-commit
     readiness、exact-parent History、managed input/focus/dismiss与Engine Lab dormant conformance；不切live Story。
-22. **S4.3 atomic live cutover and promotion（待实施）**：同批迁移Engine Lab、template、Cat Cafe、Bookshop，
+23. **S4.3 atomic live cutover and promotion（待实施）**：同批迁移Engine Lab、template、Cat Cafe、Bookshop，
     删除旧lifecycle writers与standalone public path，更新live docs并完成headless/browser/prebuilt promotion。
 
-当前只允许从 **S4.1b** 开始。Stable ingress与stable-specific state/API仍保持
+当前只允许从 **S4.1b.1** 开始。Stable ingress与stable-specific state/API仍保持
 dormant/package-internal；S4.1允许source-relative Narrative bridge消费Base semantic contract，但不接live
 Narrative/React/Web application graph、不mount React Host，也不更新live feature文档；shared pure topology
 policy只经existing transient adapter live复用，R3a 已将既有live transient reducer/Coordinator 收口到
@@ -2907,13 +2912,17 @@ examples/prebuilt；S0 deterministic Chromium RED与最近R4b.1 browser `101 / 1
 1. **S4.1a dormant family contract/publisher projector（已完成）**：以TDD交付source-relative exact
    definition/catalog、composition-owned lease/registration、PendingInteraction→dedicated source revision/fresh Surface
    occurrence projector、same-occurrence full canonical drift fault与candidate preflight exact results；不接action admission。
-2. **S4.1b dormant stable-action/controller-attempt admission（当前）**：交付physical Surface/Input/gesture binding与
-   automatic controller-attempt的分离provenance、current stable runtime fence、semantic occurrence提交与stale zero-dispatch；
-   不mount React Host、改public authoring或接live Story。
-3. **S4.2 dormant Host/History integration（待实施）**：交付controller/view/Host decomposition、captured resolver/required-port snapshot、
+2. **S4.1b.0 shared contract-bound action gate + stable topology proof（已完成）**：交付family-neutral
+   claim-once continuation、live default transient adapter无损适配与composition-owned stable direct-target proof；不定义
+   Narrative semantic callable/action mapping或提交semantic resolution。
+3. **S4.1b.1 Narrative semantic callable/action mapping + controller-attempt admission（当前）**：先冻结exact action
+   catalog到semantic callable/result的映射，再交付physical Surface/Input/gesture与automatic controller-attempt的分离
+   provenance、current stable runtime fence、semantic occurrence提交与stale zero-dispatch；不mount React Host、改public
+   authoring或接live Story。
+4. **S4.2 dormant Host/History integration（待实施）**：交付controller/view/Host decomposition、captured resolver/required-port snapshot、
    Narrative portal Host-commit readiness/failure、exact-parent History open/close、managed input/focus/dismiss、timer suspension与
    Engine Lab dormant conformance；candidate ready前无ordinary authority。
-4. **S4.3 atomic live cutover/promotion（待实施）**：一次切换composition/DefaultGameRoot Narrative authoring与全部tracked consumers，
+5. **S4.3 atomic live cutover/promotion（待实施）**：一次切换composition/DefaultGameRoot Narrative authoring与全部tracked consumers，
    删除旧writers/exports/direct dispatch path，验证root/History retain/retire、三设备双fence、focus/inert、Narrative对既有
    reset adapter的响应与旧evidence
    stale rejection，随后更新architecture/features/development/authoring/website并跑受影响browser/examples/prebuilt。
@@ -2952,10 +2961,41 @@ package-internal contract，关闭了本批发现的generic result-code stop而�
 验证：focused `5 files / 138 tests`、UI package `79 files / 989 tests`、全量
 `253 files / 3917 tests`与完整`deno task check` green。S4.1a没有接browser/build/live application路径，因此未机械重跑
 browser、examples或prebuilt；最近已有的Engine browser `101 / 101`、examples `45 passed / 2 skipped`与prebuilt Player
-`38 / 38`只作为既有证据，不表述为S4.1a HEAD上的重复执行。S4.1a已完成；current/next均为S4.1b dormant
-stable-action/controller-attempt admission。
+`38 / 38`只作为既有证据，不表述为S4.1a HEAD上的重复执行。S4.1a完成时current/next均为S4.1b dormant
+stable-action/controller-attempt admission；该checkpoint现由下述S4.1b.0 delivery取代。
 
-S4.1 aggregate stop在S4.1b继续有效：若后续证据要求公开lease/source/occurrence/Coordinator、复用global
+### S4.1b.0 delivery — shared contract-bound action gate and stable topology proof
+
+S4.1b.0把既有Managed Surface action binding抽为family-neutral、contract-bound route adapter。Live default
+`createManagedSurfaceActionBindingV1`仍从exact transient Coordinator publication导出同一binding contract，并以构造期
+捕获的exact receiver/callable适配新route authority；既有envelope、input fallthrough/consume、Surface receipt、registration/
+revision retain与dispose行为逐项保持。相同contract只在同一authority下复用binding；foreign authority、clone、second claim、
+disposed publication与同步reentry均fail closed，continuation throw后route fence会释放，后续合法调用可恢复。
+
+Authentic binding只允许一次package-internal continuation claim。每次claimed route先完成binding publication、physical gesture、
+Surface route，再次完成publication/gesture/publication currentness检查，只有exact `unchanged / surface.action_routed`才调用一次
+owner continuation；任一stale/rejected/faulted route对continuation为零，direct untagged InputRouter仍按原优先级fall through，
+claim后绕过claimed facade直接调用原binding只会consume已认证输入而不会调用continuation或lower handler。Dispose同时seal
+claim与registration，repeat dispose不复活route。
+
+同一composition-owned stable composite authority新增只读stable action seam：它从shared topology唯一current input owner捕获
+exact binding contract，并只为ready+active、直接对应current desired stable target的实例签发opaque direct-target proof。Stable
+route沿用application epoch → topology revision → instance → whole-topology input owner → routing lease → action catalog precedence，且不修改
+composite state或通知listener。Source advance、replacement、suspension、empty/dispose/terminal、foreign/clone/revoked proof都会使
+旧proof稳定失效。Retain-current replacement期间旧runtime route仍可保持physical Surface receipt，但该capture的
+`directTarget/sourceRevision/targetProof`均为`null`，因此不能被后续Narrative semantic admission误认作current desired target。
+
+本批没有定义Narrative action ID到semantic callable/result的closed mapping，没有调用Base semantic dispatch，没有建立automatic
+controller-attempt lease，也没有接Narrative bridge、React Host、live Story/application ingress、public/internal barrel或feature
+声明。因此S4.1b.0不宣称Narrative semantic admission或live cutover；S4.1b.1必须先裁决并冻结semantic callable/action mapping，
+再消费本批的physical route与direct-target proof。
+
+验证：focused `7 files / 172 tests`、UI package `79 files / 999 tests`、全量
+`253 files / 3927 tests`、完整`deno task check`、Engine browser `101 / 101`、examples
+`45 passed / 2 skipped`与prebuilt Player `38 / 38`均green。S4.1b.0已完成；current/next均为
+**S4.1b.1 Narrative semantic callable/action mapping + controller-attempt admission**。
+
+S4.1 aggregate stop在S4.1b.1继续有效：若后续证据要求公开lease/source/occurrence/Coordinator、复用global
 semantic/presentation revision、允许同一semantic occurrence的full normalized `PendingInteractionV1` canonical漂移，
 或余下action admission仍需要扩大generic result code，立即停止；S4.2前stop：若unsupported pending必须保留平行host、
 History不能作为same-authority exact child或Host readiness需要真实async renderer新合同；S4.3前stop：若同一cutover不能

@@ -102,8 +102,9 @@ S1-R.4b.0 terminal disposition、S1-R.4b.1 readiness/cascade settlement与S1-R.5
 harness/churn/dead-path audit均已完成，S1-R aggregate gate已关闭；S4.0又已冻结首个真实
 Narrative/History stable family的topology、dismiss/focus/readiness、source projection、双重action fence与
 single-writer cutover floor；S4.1a也已交付dormant Narrative family catalog、publisher projection与
-candidate preflight。当前active execution pointer的current/next均为S4.1b authenticated physical/automatic
-action admission，R3b.1、R4.0、R4a、R4b.0、R4b.1、R5、S4.0与S4.1a只作为completed delivery保留。
+candidate preflight，S4.1b.0又已闭合shared contract-bound action route core与whole-composite stable input
+authority。当前active execution pointer的current/next均为S4.1b.1 Narrative semantic action admission；
+R3b.1、R4.0、R4a、R4b.0、R4b.1、R5、S4.0、S4.1a与S4.1b.0只作为completed delivery保留。
 Stable implementation仍保持dormant/source-relative；R5只解除S4 entry gate，S4.0也没有把任何stable family
 提前写成live capability。
 当前 live 能力仍以
@@ -1227,7 +1228,8 @@ content contribution；不提供能反向写lifecycle的compatibility wrapper。
 Coordinator API。
 
 S4据此拆为：S4.0本contract/characterization floor；S4.1a source-relative definition/catalog、publisher
-projection与candidate preflight；S4.1b authenticated physical/automatic action admission；S4.2 dormant
+projection与candidate preflight；S4.1b.0 shared contract-bound physical route core与stable input authority；
+S4.1b.1 authenticated physical/automatic semantic action admission；S4.2 dormant
 controller/view/Host、Host-commit readiness与History exact-child integration；
 S4.3在一个cutover中迁移全部tracked consumers、删除旧writers并完成headless/browser/prebuilt promotion。若exact-parent
 History不能与stable root共用composite authority、root/History不能原子retain/retire、同一semantic occurrence确实允许
@@ -1250,6 +1252,33 @@ S4.1a验证证据为focused `5 files / 138 tests`、UI `79 files / 989 tests`、
 `253 files / 3917 tests`与`deno task check` green。本批没有机械重跑browser/examples/prebuilt；
 `101 / 101`、`45 passed / 2 skipped`与`38 / 38`是最近先前切片的unchanged evidence，
 不冒充S4.1a HEAD的新验证。
+
+**S4.1b.0 delivery：** 已将transient action adapter底层提取为同一package-internal、source-relative
+contract-bound route core；现有Coordinator adapter继续通过该core保持六字段action envelope、input publication、
+physical gesture双检、managed-gate优先级、direct untagged fallthrough及既有Surface/Input receipt语义。Same
+authority与value-equal contract复用exact binding、registration及publication revision，foreign authority在任何
+replacement registration前fail closed；authenticated claim只在exact `unchanged / surface.action_routed`、current
+publication与current physical gesture全部通过后执行一次owner continuation，stale/unpublished/dispose/reentry与
+continuation throw均不落入ordinary lower handler。
+
+同一composite kernel现提供whole-topology selected stable input authority：它从shared transient+stable phase
+projection选择最高current active managed owner，不从单独stable列表或transient publication猜测所有权。Current
+direct ready target产生绑定exact authority/kernel/application epoch/topology/instance/admitted target（含publisher
+lease与occurrence）/source revision的opaque weak proof；source advance、replacement、foreign/clone/ABA与terminal
+successor均使旧proof失效。Retained predecessor仍可保留exact current physical binding与既有route receipt，但返回
+`directTarget/sourceRevision/targetProof = null`，因此不能冒充current semantic source。Route receipt严格沿用
+application epoch → topology revision → instance → whole-topology input owner → routing lease → action catalog
+precedence，所有capture、proof check与route结果均为zero state/topology/notification mutation。
+
+本切片没有定义或调用Narrative semantic dispatch port，没有建立`actionId`到current pending kind/resolution的映射，
+也没有接入automatic controller-attempt、Narrative Host、History child、public/internal barrel或live family。
+S4.1b.1开始RED前必须先冻结package-internal semantic port的exact callable/result边界，以及每个Narrative
+`actionId`对各类normalized `PendingInteractionV1`的允许resolution与rejection mapping；不得把opaque candidate
+port identity、physical gesture receipt或automatic attempt伪装为该semantic合同。
+
+S4.1b.0验证通过focused `7 files / 172 tests`、UI `79 files / 999 tests`、full
+`253 files / 3927 tests`、`deno task check` green、engine browser `101 / 101`、examples
+`45 passed / 2 skipped`与prebuilt `38 / 38`。Active current/next现为S4.1b.1；S4.2–S4.3顺序不变。
 
 ### 3.3 Runtime session
 

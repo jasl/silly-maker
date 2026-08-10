@@ -610,6 +610,25 @@ issuance. The UI barrels and package exports remain unchanged. Authenticated
 physical/automatic action admission, Host/History integration, and live Story
 cutover remain later S4 slices.
 
+S4.1b.0 now factors the existing managed action route through one
+source-relative contract-bound core while preserving the live transient adapter's
+public shape and behavior. The same per-`InputRouter` publication registry and
+private managed-dispatch context still own publication and gesture admission. An
+optional claimed continuation can run only after the exact Surface route succeeds
+and both publication and gesture currentness are rechecked; an untagged router
+event remains ordinary input, while a binding-origin route cannot fall through
+after a claim. The stable composite derives its selected managed input owner from
+the same whole-composite topology projection used for phase ordering. It exposes
+an opaque direct-target proof only for the exact current accepted ready target;
+a retained predecessor may preserve its routing contract but carries no direct
+target, source revision, or semantic proof. Preparing, suspended, foreign,
+replaced, disposed, and stale-source targets cannot authenticate. These seams
+remain source-relative and add no root, `./internal`, package, InputRouter,
+Coordinator, or action-envelope export. Narrative semantic dispatch and
+automatic controller-attempt admission are not implemented by this floor;
+S4.1b.1 must first freeze the callable semantic-port contract and exact
+action-to-resolution table before consuming it.
+
 ## 9. Changing the architecture
 
 Architecture evolution is expected. A substantial change should state:
@@ -645,7 +664,9 @@ transient reducer consumes the same pure topology policy, while the dormant
 stable owner also performs the complete registry-gated terminal composite
 disposition described above. The R5 neutral harness closes the generic
 source-relative aggregate conformance gate. S4.1a now consumes it through the
-dormant Narrative family/publisher bridge above; S4.1b authenticated action
-admission is the next independent slice, while Host integration and the
-Narrative live migration remain planned work. Target documents do not alter the
-current data flow until that migration and its behavior tests land.
+dormant Narrative family/publisher bridge above, and S4.1b.0 supplies the shared
+contract-bound physical gate plus whole-topology stable input-owner proof.
+S4.1b.1 Narrative physical/automatic semantic admission is the next independent
+slice; Host integration and the Narrative live migration remain planned work.
+Target documents do not alter the current data flow until that migration and
+its behavior tests land.

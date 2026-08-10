@@ -19,6 +19,7 @@ import {
   type ManagedSurfaceResolvedDefinitionV1,
   type ManagedSurfaceResolvedSlotDescriptorV1,
   type ManagedSurfaceGestureIdV1,
+  type ManagedSurfaceTransitionReceiptV1,
   parseManagedSurfaceActionIdV1,
   parseManagedSurfaceDefinitionIdV1,
   parseManagedSurfaceFocusTargetIdV1,
@@ -30,7 +31,9 @@ import {
   parseManagedSurfaceSlotIdV1,
 } from "./managed-surface-contracts.ts";
 import {
+  claimManagedSurfaceAuthenticatedActionRouteInternalV1,
   createManagedSurfaceActionBindingV1,
+  createManagedSurfaceContractBoundActionBindingInternalV1,
   equalManagedSurfaceInputBindingContractV1,
   type ManagedSurfaceActionBindingV1,
   type ManagedSurfaceInputBindingContractV1,
@@ -149,6 +152,16 @@ function inputBindingContractV1(
     actionIds: Object.freeze([activateActionIdV1]),
     topologyRevision: parseNonNegativeSafeInteger(1),
     ...overrides,
+  });
+}
+
+function routedReceiptForContractV1(contract: ManagedSurfaceInputBindingContractV1) {
+  return Object.freeze({
+    kind: "unchanged" as const,
+    code: "surface.action_routed" as const,
+    beforeTopologyRevision: contract.topologyRevision,
+    afterTopologyRevision: contract.topologyRevision,
+    surfaceInstanceId: contract.surfaceInstanceId,
   });
 }
 
@@ -1100,5 +1113,276 @@ describe("Managed Surface action route", () => {
     expect(Object.isFrozen(receipt)).toBe(true);
     expect(fixture.coordinator.getSnapshot()).toBe(before);
     expect(listener).not.toHaveBeenCalled();
+  });
+
+  it("reuses one contract-bound binding for the same authority and rejects a foreign authority", () => {
+    const countingRouter = createCountingInputRouterV1();
+    const contract = inputBindingContractV1();
+    let routeResult: ManagedSurfaceTransitionReceiptV1 = routedReceiptForContractV1(contract);
+    const authority = Object.freeze({
+      routeActionInternalV1: vi.fn(() => routeResult),
+    });
+    const firstGestureCurrent = vi.fn(() => false);
+    const first = createManagedSurfaceContractBoundActionBindingInternalV1({
+      authority,
+      contract,
+      inputRouter: countingRouter.router,
+      isGestureCurrent: firstGestureCurrent,
+      registerManagedInputHandler: countingRouter.registerManagedInputHandler,
+    });
+    const firstEnvelope = first.createEnvelope({
+      actionId: activateActionIdV1,
+      gestureId: gestureV1("contract-bound-first"),
+    });
+    const retainedGestureCurrent = vi.fn(() => true);
+    const alternateRegistrar = vi.fn(countingRouter.registerManagedInputHandler);
+
+    const retained = createManagedSurfaceContractBoundActionBindingInternalV1({
+      authority,
+      contract: inputBindingContractV1(),
+      inputRouter: countingRouter.router,
+      isGestureCurrent: retainedGestureCurrent,
+      registerManagedInputHandler: alternateRegistrar,
+    });
+
+    expect(retained).toBe(first);
+    expect(
+      retained.createEnvelope({
+        actionId: activateActionIdV1,
+        gestureId: gestureV1("contract-bound-retained"),
+      }).inputPublicationRevision,
+    ).toBe(firstEnvelope.inputPublicationRevision);
+    expect(countingRouter.getRegistrationCount()).toBe(1);
+    expect(alternateRegistrar).not.toHaveBeenCalled();
+
+    routeResult = Object.freeze({
+      ...routedReceiptForContractV1(contract),
+      kind: "rejected" as const,
+      code: "surface.action_unpublished" as const,
+    });
+    expect(first.route(firstEnvelope)).toMatchObject({
+      input: { kind: "consumed" },
+      surface: { kind: "rejected", code: "surface.action_unpublished" },
+    });
+    expect(firstGestureCurrent).not.toHaveBeenCalled();
+    expect(retainedGestureCurrent).toHaveBeenCalledOnce();
+
+    const foreignAuthority = Object.freeze({
+      routeActionInternalV1: vi.fn(() => routedReceiptForContractV1(contract)),
+    });
+    expect(() =>
+      createManagedSurfaceContractBoundActionBindingInternalV1({
+        authority: foreignAuthority,
+        contract: inputBindingContractV1(),
+        inputRouter: countingRouter.router,
+        isGestureCurrent: () => true,
+        registerManagedInputHandler: vi.fn(countingRouter.registerManagedInputHandler),
+      })
+    ).toThrowError("ui.managed_surface_input_authority_conflict");
+    expect(countingRouter.getRegistrationCount()).toBe(1);
+    expect(countingRouter.getUnregistrationCount()).toBe(0);
+  });
+
+  it("runs a claimed continuation once after surface and physical-gesture admission", () => {
+    const countingRouter = createCountingInputRouterV1();
+    const contract = inputBindingContractV1();
+    const order: string[] = [];
+    const lower = vi.fn(() => {
+      order.push("lower");
+      return inputHandledV1;
+    });
+    countingRouter.router.register({ context: "overlay", handle: lower });
+    const authority = Object.freeze({
+      routeActionInternalV1: vi.fn(() => {
+        order.push("surface");
+        return routedReceiptForContractV1(contract);
+      }),
+    });
+    const binding = createManagedSurfaceContractBoundActionBindingInternalV1({
+      authority,
+      contract,
+      inputRouter: countingRouter.router,
+      isGestureCurrent: () => {
+        order.push("gesture");
+        return true;
+      },
+      registerManagedInputHandler: countingRouter.registerManagedInputHandler,
+    });
+    const consumerResult = Object.freeze({ kind: "semantic-dispatched" as const });
+    const consume = vi.fn(() => {
+      order.push("consumer");
+      return consumerResult;
+    });
+    const claimed = claimManagedSurfaceAuthenticatedActionRouteInternalV1(binding, consume);
+    const envelope = binding.createEnvelope({
+      actionId: activateActionIdV1,
+      gestureId: gestureV1("claimed-current"),
+    });
+    const opaqueAttempt = Object.freeze({ kind: "physical-attempt" as const });
+
+    const result = claimed.routeInternalV1(envelope, opaqueAttempt);
+
+    expect(Reflect.ownKeys(result)).toEqual(["route", "consumerResult"]);
+    expect(result).toEqual({
+      route: {
+        input: {
+          kind: "consumed",
+          code: "input.managed_surface_consumed",
+          gestureId: "gesture.test.claimed-current",
+          inputPublicationRevision: envelope.inputPublicationRevision,
+        },
+        surface: routedReceiptForContractV1(contract),
+      },
+      consumerResult,
+    });
+    expect(Object.isFrozen(result)).toBe(true);
+    expect(consume).toHaveBeenCalledOnce();
+    expect(order).toEqual(["gesture", "surface", "gesture", "consumer"]);
+    expect(lower).not.toHaveBeenCalled();
+  });
+
+  it("keeps direct untagged input fallthrough while a claimed route consumes binding-origin input", () => {
+    const countingRouter = createCountingInputRouterV1();
+    const contract = inputBindingContractV1();
+    const lower = vi.fn(() => inputHandledV1);
+    countingRouter.router.register({ context: "overlay", handle: lower });
+    const binding = createManagedSurfaceContractBoundActionBindingInternalV1({
+      authority: Object.freeze({
+        routeActionInternalV1: () => routedReceiptForContractV1(contract),
+      }),
+      contract,
+      inputRouter: countingRouter.router,
+      isGestureCurrent: () => true,
+      registerManagedInputHandler: countingRouter.registerManagedInputHandler,
+    });
+    const consume = vi.fn(() => "consumed-by-owner");
+    const claimed = claimManagedSurfaceAuthenticatedActionRouteInternalV1(binding, consume);
+
+    expect(
+      countingRouter.router.route({
+        kind: "action",
+        actionId: parseInputActionIdV1(activateActionIdV1),
+      }),
+    ).toEqual({ kind: "handled", context: "overlay" });
+    expect(lower).toHaveBeenCalledOnce();
+    expect(consume).not.toHaveBeenCalled();
+
+    const rawEnvelope = binding.createEnvelope({
+      actionId: activateActionIdV1,
+      gestureId: gestureV1("claimed-raw-binding"),
+    });
+    expect(binding.route(rawEnvelope)).toEqual({
+      input: {
+        kind: "consumed",
+        code: "input.managed_surface_consumed",
+        gestureId: rawEnvelope.gestureId,
+        inputPublicationRevision: rawEnvelope.inputPublicationRevision,
+      },
+      surface: routedReceiptForContractV1(contract),
+    });
+    expect(lower).toHaveBeenCalledOnce();
+    expect(consume).not.toHaveBeenCalled();
+
+    const result = claimed.routeInternalV1(
+      binding.createEnvelope({
+        actionId: activateActionIdV1,
+        gestureId: gestureV1("claimed-no-fallthrough"),
+      }),
+      Object.freeze({ kind: "attempt" }),
+    );
+    expect(result.consumerResult).toBe("consumed-by-owner");
+    expect(result.route.input.code).toBe("input.managed_surface_consumed");
+    expect(lower).toHaveBeenCalledOnce();
+    expect(consume).toHaveBeenCalledOnce();
+  });
+
+  it("claims an authentic binding once and seals the route on dispose", () => {
+    const countingRouter = createCountingInputRouterV1();
+    const contract = inputBindingContractV1();
+    const lower = vi.fn(() => inputHandledV1);
+    countingRouter.router.register({ context: "overlay", handle: lower });
+    const binding = createManagedSurfaceContractBoundActionBindingInternalV1({
+      authority: Object.freeze({
+        routeActionInternalV1: () => routedReceiptForContractV1(contract),
+      }),
+      contract,
+      inputRouter: countingRouter.router,
+      isGestureCurrent: () => true,
+      registerManagedInputHandler: countingRouter.registerManagedInputHandler,
+    });
+    const consume = vi.fn(() => "semantic");
+    const claimed = claimManagedSurfaceAuthenticatedActionRouteInternalV1(binding, consume);
+    const envelope = binding.createEnvelope({
+      actionId: activateActionIdV1,
+      gestureId: gestureV1("claimed-dispose"),
+    });
+
+    expect(() => claimManagedSurfaceAuthenticatedActionRouteInternalV1(binding, vi.fn()))
+      .toThrow(TypeError);
+    expect(() =>
+      claimManagedSurfaceAuthenticatedActionRouteInternalV1(
+        { ...binding } as ManagedSurfaceActionBindingV1,
+        vi.fn(),
+      )
+    ).toThrow(TypeError);
+
+    claimed.disposeInternalV1();
+    claimed.disposeInternalV1();
+    expect(claimed.routeInternalV1(envelope, Object.freeze({ kind: "attempt" }))).toEqual({
+      route: {
+        input: {
+          kind: "consumed",
+          code: "input.stale_publication",
+          gestureId: envelope.gestureId,
+          inputPublicationRevision: envelope.inputPublicationRevision,
+        },
+        surface: null,
+      },
+      consumerResult: null,
+    });
+    expect(consume).not.toHaveBeenCalled();
+    expect(lower).not.toHaveBeenCalled();
+    expect(countingRouter.getActiveRegistrationCount()).toBe(0);
+  });
+
+  it("fences reentry and resets the claim after a throwing continuation", () => {
+    const countingRouter = createCountingInputRouterV1();
+    const contract = inputBindingContractV1();
+    const lower = vi.fn(() => inputHandledV1);
+    countingRouter.router.register({ context: "overlay", handle: lower });
+    const binding = createManagedSurfaceContractBoundActionBindingInternalV1({
+      authority: Object.freeze({
+        routeActionInternalV1: () => routedReceiptForContractV1(contract),
+      }),
+      contract,
+      inputRouter: countingRouter.router,
+      isGestureCurrent: () => true,
+      registerManagedInputHandler: countingRouter.registerManagedInputHandler,
+    });
+    const envelope = binding.createEnvelope({
+      actionId: activateActionIdV1,
+      gestureId: gestureV1("claimed-reentry"),
+    });
+    const attempt = Object.freeze({ kind: "attempt" });
+    const sentinel = new Error("semantic dispatch failed");
+    let claimed!: ReturnType<typeof claimManagedSurfaceAuthenticatedActionRouteInternalV1>;
+    let mode: "reenter" | "throw" | "succeed" = "reenter";
+    const consume = vi.fn(() => {
+      if (mode === "reenter") {
+        expect(() => claimed.routeInternalV1(envelope, attempt)).toThrow(TypeError);
+        return "outer";
+      }
+      if (mode === "throw") throw sentinel;
+      return "recovered";
+    });
+    claimed = claimManagedSurfaceAuthenticatedActionRouteInternalV1(binding, consume);
+
+    expect(claimed.routeInternalV1(envelope, attempt).consumerResult).toBe("outer");
+    mode = "throw";
+    expect(() => claimed.routeInternalV1(envelope, attempt)).toThrow(sentinel);
+    mode = "succeed";
+    expect(claimed.routeInternalV1(envelope, attempt).consumerResult).toBe("recovered");
+    expect(consume).toHaveBeenCalledTimes(3);
+    expect(lower).not.toHaveBeenCalled();
   });
 });

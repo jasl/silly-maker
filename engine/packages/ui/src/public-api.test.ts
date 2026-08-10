@@ -200,6 +200,46 @@ import type { matchesManagedSurfaceStableAdmissionAuthorityFamilyConfigurationIn
 import type { matchesManagedSurfaceStableCompositeRuntimeKernelConfigurationInternalV1 as ForbiddenPublicStableCompositeConfigurationMatcherV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose composite-kernel configuration matching.
 import type { matchesManagedSurfaceStableCompositeRuntimeKernelConfigurationInternalV1 as ForbiddenInternalStableCompositeConfigurationMatcherV1 } from "./internal.ts";
+// @ts-expect-error Contract-bound action-route authorities stay source-relative.
+import type { ManagedSurfaceContractBoundActionRouteAuthorityInternalV1 as ForbiddenPublicContractBoundActionRouteAuthorityV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose contract-bound action-route authorities.
+import type { ManagedSurfaceContractBoundActionRouteAuthorityInternalV1 as ForbiddenInternalContractBoundActionRouteAuthorityV1 } from "./internal.ts";
+// @ts-expect-error Contract-bound action-binding inputs stay source-relative.
+import type { CreateManagedSurfaceContractBoundActionBindingInputInternalV1 as ForbiddenPublicContractBoundActionBindingInputV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose contract-bound action-binding inputs.
+import type { CreateManagedSurfaceContractBoundActionBindingInputInternalV1 as ForbiddenInternalContractBoundActionBindingInputV1 } from "./internal.ts";
+// @ts-expect-error Authenticated action-route results stay source-relative.
+import type { ManagedSurfaceAuthenticatedActionRouteResultInternalV1 as ForbiddenPublicAuthenticatedActionRouteResultV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose authenticated action-route results.
+import type { ManagedSurfaceAuthenticatedActionRouteResultInternalV1 as ForbiddenInternalAuthenticatedActionRouteResultV1 } from "./internal.ts";
+// @ts-expect-error Authenticated action routes stay source-relative.
+import type { ManagedSurfaceAuthenticatedActionRouteInternalV1 as ForbiddenPublicAuthenticatedActionRouteV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose authenticated action routes.
+import type { ManagedSurfaceAuthenticatedActionRouteInternalV1 as ForbiddenInternalAuthenticatedActionRouteV1 } from "./internal.ts";
+// @ts-expect-error Contract-bound action-binding construction stays source-relative.
+import type { createManagedSurfaceContractBoundActionBindingInternalV1 as ForbiddenPublicContractBoundActionBindingFactoryV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose contract-bound action-binding construction.
+import type { createManagedSurfaceContractBoundActionBindingInternalV1 as ForbiddenInternalContractBoundActionBindingFactoryV1 } from "./internal.ts";
+// @ts-expect-error Authenticated action-route claims stay source-relative.
+import type { claimManagedSurfaceAuthenticatedActionRouteInternalV1 as ForbiddenPublicAuthenticatedActionRouteClaimV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose authenticated action-route claims.
+import type { claimManagedSurfaceAuthenticatedActionRouteInternalV1 as ForbiddenInternalAuthenticatedActionRouteClaimV1 } from "./internal.ts";
+// @ts-expect-error Stable direct-action proofs stay source-relative.
+import type { ManagedSurfaceStableDirectActionTargetProofInternalV1 as ForbiddenPublicStableDirectActionTargetProofV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose stable direct-action proofs.
+import type { ManagedSurfaceStableDirectActionTargetProofInternalV1 as ForbiddenInternalStableDirectActionTargetProofV1 } from "./internal.ts";
+// @ts-expect-error Stable action-input capture results stay source-relative.
+import type { ManagedSurfaceStableActionInputCaptureResultInternalV1 as ForbiddenPublicStableActionInputCaptureResultV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose stable action-input capture results.
+import type { ManagedSurfaceStableActionInputCaptureResultInternalV1 as ForbiddenInternalStableActionInputCaptureResultV1 } from "./internal.ts";
+// @ts-expect-error Stable action-route authorities stay source-relative.
+import type { ManagedSurfaceStableActionRouteAuthorityInternalV1 as ForbiddenPublicStableActionRouteAuthorityV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose stable action-route authorities.
+import type { ManagedSurfaceStableActionRouteAuthorityInternalV1 as ForbiddenInternalStableActionRouteAuthorityV1 } from "./internal.ts";
+// @ts-expect-error Stable action-route authority claims stay source-relative.
+import type { claimManagedSurfaceStableActionRouteAuthorityInternalV1 as ForbiddenPublicStableActionRouteAuthorityClaimV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose stable action-route authority claims.
+import type { claimManagedSurfaceStableActionRouteAuthorityInternalV1 as ForbiddenInternalStableActionRouteAuthorityClaimV1 } from "./internal.ts";
 /* oxlint-enable no-unused-vars */
 
 describe("@sillymaker/ui public managed System surface", () => {
@@ -214,6 +254,16 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "NarrativeStableCandidatePreflightRejectionCodeInternalV1"
       | "NarrativeStableCandidatePreflightResultInternalV1"
       | "NarrativeStablePublisherBridgeResultInternalV1"
+      | "ManagedSurfaceContractBoundActionRouteAuthorityInternalV1"
+      | "CreateManagedSurfaceContractBoundActionBindingInputInternalV1"
+      | "ManagedSurfaceAuthenticatedActionRouteResultInternalV1"
+      | "ManagedSurfaceAuthenticatedActionRouteInternalV1"
+      | "createManagedSurfaceContractBoundActionBindingInternalV1"
+      | "claimManagedSurfaceAuthenticatedActionRouteInternalV1"
+      | "ManagedSurfaceStableDirectActionTargetProofInternalV1"
+      | "ManagedSurfaceStableActionInputCaptureResultInternalV1"
+      | "ManagedSurfaceStableActionRouteAuthorityInternalV1"
+      | "claimManagedSurfaceStableActionRouteAuthorityInternalV1"
       | "settleStableReadinessFailedInternalV1"
       | "settleStableReadinessReadyInternalV1";
 
@@ -281,6 +331,16 @@ describe("@sillymaker/ui public managed System surface", () => {
         "NarrativeStableCandidatePreflightRejectionCodeInternalV1",
         "NarrativeStableCandidatePreflightResultInternalV1",
         "NarrativeStablePublisherBridgeResultInternalV1",
+        "ManagedSurfaceContractBoundActionRouteAuthorityInternalV1",
+        "CreateManagedSurfaceContractBoundActionBindingInputInternalV1",
+        "ManagedSurfaceAuthenticatedActionRouteResultInternalV1",
+        "ManagedSurfaceAuthenticatedActionRouteInternalV1",
+        "createManagedSurfaceContractBoundActionBindingInternalV1",
+        "claimManagedSurfaceAuthenticatedActionRouteInternalV1",
+        "ManagedSurfaceStableDirectActionTargetProofInternalV1",
+        "ManagedSurfaceStableActionInputCaptureResultInternalV1",
+        "ManagedSurfaceStableActionRouteAuthorityInternalV1",
+        "claimManagedSurfaceStableActionRouteAuthorityInternalV1",
         "createManagedSurfaceRuntimeAttemptIdentityInternalV1",
         "hasExpectedManagedSurfaceRuntimeAttemptIdentityInternalV1",
         "recordManagedSurfaceRuntimeAttemptSequenceInternalV1",
