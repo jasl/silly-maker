@@ -53,8 +53,9 @@ promotion 均已关闭。2026-08-08 dormant `PF4/S3c.1 Host-commit readiness`、
 `PF4/S4.1b.1b.1b.2b.3d.0 History exact-parent open-intent exact entry contract` docs-only checkpoint及
 `PF4/S4.1b.1b.1b.2b.3d.1 History exact-parent open intent implementation`也已关闭；
 原`.2b.3d` broad checkpoint现已superseded，`.3d.0/.3d.1` entry pointer现为completed
-historical chain；linear core current/next与implementation gate均推进为`S4.2`，随后依次为
-`S4.3 -> S4b`。
+historical chain；原`S4.2` broad checkpoint也已由completed docs-only `S4.2.0`重切，linear core
+current/next与implementation gate现为`S4.2.1`，随后依次为
+`S4.2.2 -> S4.2.3 -> S4.2.4 -> S4.2.5 -> S4.3 -> S4b`。
 同日 S1-R pre-implementation review 将 external reconcile gate 重切为 S1-R.0–S1-R.5；
 顺序变化不把任何 planned stable-target contract写成 live capability。
 同日 S1-R.3 entry-gate adjudication 采用 A-prime，将原 R3 拆为单一 composite
@@ -88,7 +89,8 @@ S4.1b.1b.1b.2b.3c.1 bridge-owned Auto/Skip transient mode floor implementation�
 S4.1b.1b.1b.2b.3d.0 History exact-parent open-intent exact entry contract docs-only checkpoint及
 S4.1b.1b.1b.2b.3d.1 History exact-parent open intent implementation也已关闭；
 原`.2b.3d` broad checkpoint已superseded，`.3d.0/.3d.1` entry pointer现为completed
-historical chain；下一独立切片与implementation gate均为S4.2，随后依次为S4.3与S4b。
+historical chain；原S4.2 broad checkpoint也已由completed docs-only S4.2.0重切；下一独立切片与
+implementation gate均为S4.2.1，随后依次为S4.2.2、S4.2.3、S4.2.4、S4.2.5、S4.3与S4b。
 旧 promotion 数字保留为
 历史证据。本文是当前唯一的跨计划排序入口；
 具体合同仍由各 design 文档拥有，主要任务由五个独立计划拥有：
@@ -988,10 +990,16 @@ Surface pilot 通过后按 family 分开合并：
 26. S4.1b.1b.1b.2b.3d：History exact-parent open intent floor（superseded checkpoint；由`.2b.3d.0`细分）；
 27. S4.1b.1b.1b.2b.3d.0：History exact-parent open-intent exact entry contract（docs-only，已完成）；
 28. S4.1b.1b.1b.2b.3d.1：History exact-parent open intent implementation（已完成）；
-29. S4.2：dormant Narrative Host、Host-commit readiness、timer scheduling与History exact-child lifecycle（当前）；
-30. S4.3：atomic live cutover and promotion；
-31. S4b：whole-canvas primary/detail 独立 family；
-32. input/gesture reset（pointercancel、focus loss、visibility change）与 Browser
+29. S4.2：dormant Narrative Host、Host-commit readiness、timer scheduling与History exact-child lifecycle（superseded broad checkpoint）；
+30. S4.2.0：Narrative/History dormant execution split（docs-only，已完成）；
+31. S4.2.1：History atomic cross-axis preparation（当前）；
+32. S4.2.2：Narrative session与Host-commit readiness；
+33. S4.2.3：History close/dismiss/input/focus lifecycle；
+34. S4.2.4：controller timers与History suspension/resume；
+35. S4.2.5：dormant Engine Lab conformance；
+36. S4.3：atomic live cutover and promotion；
+37. S4b：whole-canvas primary/detail 独立 family；
+38. input/gesture reset（pointercancel、focus loss、visibility change）与 Browser
     Agent observation。
 
 S3 是 Coordinator-owned transient family，与 Workspace Overlay 共用同一个
@@ -2113,8 +2121,8 @@ owning design或留给S4.2。
 本`.3d.0` amendment严格只修改本cross-plan文件，没有source、test、runtime、architecture、Host/live claimant、public API或
 delivery evidence，也不把此前focused/UI/full/check/browser/examples/prebuilt结果表述为本批验证。验证仅为本文件
 `deno fmt --check`与`git diff --check`。`.3d.0`及随后的`.3d.1`现均为completed historical entry；本entry pointer
-由下述delivery取代，linear core current/next与implementation gate均为 **S4.2**，有效顺序为
-**S4.2 → S4.3 → S4b**。
+由下述delivery取代。该History intent delivery checkpoint完成时，linear core current/next与implementation gate曾推进为
+**S4.2** broad checkpoint；该pointer随后又由下述S4.2.0 split历史化。
 
 **PF4/S4.1b.1b.1b.2b.3d.1 History exact-parent open intent implementation delivery（completed）：**
 Narrative candidate preflight现required-capture exact ordinary own-data History availability receiver/callable，并把zero-key captured
@@ -2131,7 +2139,89 @@ open。Public与`./internal` barrels/package exports、generic Managed Surface/I
 DialoguePanel/Engine Lab/Story writer均保持zero diff。验证通过focused `2 files / 189 tests`、UI package
 `79 files / 1188 tests`、full `253 files / 4118 tests`与完整`deno task check`。本批未重跑browser、examples或prebuilt；先前Engine
 browser `101 / 101`、examples browser `45 passed / 2 skipped`与prebuilt Player `38 / 38`只作prior evidence，不冒充本HEAD验证。
-Linear core current/next与implementation gate均推进为 **S4.2**；后续有效顺序为 **S4.2 → S4.3 → S4b**。
+该delivery当时把linear core current/next与implementation gate推进为 **S4.2** broad checkpoint；该checkpoint现由
+下述`.0` amendment细分并取代。
+
+**PF4/S4.2.0 Narrative/History dormant execution split（docs-only，completed）：** 原S4.2 broad
+checkpoint不再作为一个合并切片。唯一有效线性顺序为 **S4.2.1 History atomic cross-axis
+preparation（当前）→ S4.2.2 Narrative session与Host-commit readiness → S4.2.3 History
+close/dismiss/input/focus lifecycle → S4.2.4 controller timers与History suspension/resume →
+S4.2.5 dormant Engine Lab conformance → S4.3 atomic live cutover and promotion → S4b**。后项只能
+消费前项已合并合同；不得把这些authority重新合并进一次Host/controller/topology refactor。
+
+`.1`只兑换`.3d.1` mint的opaque History intent并原子建立exact-parent child preparation。Dialogue
+root是stable composite runtime node，不在transient publication中，因此不存在可由public/transient
+Coordinator取得的authentic parent handle；实现不得伪造`ManagedSurfaceHandleV1`、parent evidence或调用public
+Coordinator API。唯一允许的cross-axis入口是从exact composite kernel claim的source-relative、composition-owned
+authority；它在composite state内认证current ready-active stable parent，并委托一个只接受该已认证stable parent与
+History candidate的narrow reducer helper建立transient child。该helper不是新
+`ManagedSurfaceOperationV1` row，也不进入Coordinator、generic contracts或任何barrel。
+
+该cross-axis mutation authority必须按`(kernel, exactClaimant)` claim-exclusive：composition-owned Narrative-family
+record为每个exact composite kernel只mint并strong-hold一个frozen zero-own-key claimant；same kernel + exact same
+claimant重复claim复用同一authority。该package-private claimant可由同一composition/kernel中的bridge successor复用，但每个
+bridge lifecycle必须另绑定exact current active bridge，使old bridge/intent保持stale而successor正常使用同一composite
+authority。Foreign kernel、clone/foreign claimant或borrowed/wrong-receiver调用全部fail closed；没有release、transfer、
+reclaim、foreign/caller mint seam，也不得把mutation实现做成按kernel全局缓存、可由任意caller取得的callable。Composition/kernel
+terminal后该claim永久不可复活。
+
+Family result精确为`NarrativeStableHistoryChildPreparationResultInternalV1`：fresh frozen
+`{ kind: "preparing", preparation, completion: null }`携带zero-own-key
+`NarrativeStableHistoryChildPreparationInternalV1`，canonical frozen
+`{ kind: "stale" | "faulted", completion: null }`不携带preparation；own keys分别exact为
+`kind | preparation | completion`与`kind | completion`。Preparation的private provenance绑定exact composite kernel、
+Narrative bridge、fresh History occurrence/instance及preparing child，留给`.2`接管session/readiness，且不暴露raw
+parent/target/occurrence/instance、Coordinator handle/evidence或generic receipt/code。Composite authority内部可以用
+`installed`描述prepared-state install，Narrative family只能把它映射为`preparing`，不得泄漏generic/internal result。
+Clone、foreign、repeat、spent intent，parent proof/target/source/frame漂移，root已preparing/suspended/retained/terminal，或exact single child
+已占用均收敛为`stale`；coherence、definition、identity/capacity或planning fault收敛为`faulted`。Availability只采用
+`.3d.1`已经认证的route-time `true`，`.1`不得重调availability或读取opaque History observation content。
+
+Intent provenance/currentness、child definition/slot/cardinality与fresh identity先对exact current composite state完成
+pure plan，再用既有one-shot prepared-state install gate提交。只有gate确认same intent仍authentic且unspent，并将该
+intent one-way标记spent后，才安装preparing successor；因此只有family `preparing`消费intent。Internal prepared-state
+token stale/invalid、gate未调用或返回false、commit abort及所有`stale | faulted`路径都保持intent unspent以及state、identity high-water、
+topology与notification exact zero；不得先提供standalone check/spend/consume/redeem seam。两个pre-minted intent的
+first winner建立preparing child并spent，loser因root已suspended/slot已占用返回unspent `stale`；winner repeat也为
+`stale`。Loser虽未spend，其topology-bound proof已经永久stale；child后来close也不能复活该old intent，fresh vacancy必须
+重新mint fresh intent。
+
+Applied successor只新增一个`child_open` blocking-fallback History candidate，`parentInstanceId`绑定exact stable
+Dialogue runtime instance，使root在同一composite install中进入suspended；stable accepted source/vector、semantic/gameplay
+state与History content保持zero diff，并只发布一次完整successor notification。Root replacement preparation与failure必须
+structurally retain exact root+History subtree及其identity；replacement ready cutover、greater-empty、publisher或composite
+terminal必须在同一install cascade-retire整棵History subtree，不能reparent给successor root。`.1`不settle readiness、
+不关闭child，也不安装Host/input/focus/timer authority；这些分别由`.2`、`.3`与`.4`领取。
+
+`.1`的implementation scope exact只有下列七个existing files：
+
+- `engine/packages/ui/src/managed-surfaces/managed-surface-reducer.ts`；
+- `engine/packages/ui/src/managed-surfaces/managed-surface-reducer.test.ts`；
+- `engine/packages/ui/src/managed-surfaces/managed-surface-stable-composite-state.ts`；
+- `engine/packages/ui/src/managed-surfaces/managed-surface-stable-composite-state.test.ts`；
+- `engine/packages/ui/src/narrative/narrative-managed-surface-family.ts`；
+- `engine/packages/ui/src/narrative/narrative-managed-surface-family.test.ts`；
+- `engine/packages/ui/src/public-api.test.ts` negative guards。
+
+Hard stop：`.1`只允许在上述seven-file scope内新增source-relative internal cross-axis authority；若需要修改
+`managed-surface-runtime-kernel.ts`、扩大generic/public runtime-kernel API/contract、Coordinator、`managed-surface-contracts.ts`、generic action/result/receipt/code、
+UI root/`./internal`/package exports，或需要React/Web/Base/Save/wire、Host/session、History observation/content、
+close/dismiss/input/focus、controller/reveal/timer、Engine Lab/Story/live claimant或legacy writer，立即停止并修订owning
+contract。若narrow helper不能在不新增`ManagedSurfaceOperationV1`或public Coordinator parent handle的前提下表达
+cross-axis child，prepared install gate不能保证applied-only spend，或retain/cascade不能与root在一个composite successor内
+闭合，也必须在RED前停止；不得以第二topology authority、split check/spend或generic/public ABI绕过。
+
+`.2`只消费`.1` family preparation，并在其private record上建立dormant Narrative session、single Host lease、root/History candidate attachment、
+React Host-commit readiness/candidate failure及ready前必需的initial-focus与input/action registration；它不实现这些binding的
+close/dismiss route lifecycle。`.3`独占History preparing/active close、四类dismiss、exact opener restore及
+pointer/keyboard/gamepad managed input/focus lifecycle；`.4`再独占bridge-owned mode的controller observation、reveal/auto/skip
+clock、deadline/remaining/generation及History/higher-blocker suspend/resume。`.5`只接dormant Engine Lab conformance，
+不切换tracked live writer；只有S4.3可原子接入live composition/Stories并删除legacy owners/exports。
+
+本`.0` amendment严格只修改本cross-plan文件；没有source、test、runtime、architecture、Host/React/Web/live
+claimant、public API或delivery evidence。验证只要求本文件`deno fmt --check`与`git diff --check`。`.0`现为
+completed historical entry；唯一current/next、core slice与implementation gate均为 **S4.2.1 History atomic
+cross-axis preparation**。
 
 每个 family 的迁移提交必须删除旧 owner；禁止长期 adapter 双写。
 `DialoguePanelV1` / `VnLayerV1` 的 controller/view/host 拆分在 Narrative family
