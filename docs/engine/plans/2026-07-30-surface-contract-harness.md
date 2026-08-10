@@ -32,8 +32,9 @@ S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment也已关闭；其后
 S4.1b.1b.1b.2b.2b.0 generation admission amendment已以docs-only关闭，
 S4.1b.1b.1b.2b.2b.1 settle/replay recovery implementation也已关闭；其后原
 S4.1b.1b.1b.2b.3 player controls entry已由S4.1b.1b.1b.2b.3.0 docs-only execution split
-取代，S4.1b.1b.1b.2b.3a toggle-ui Narrative catalog corrective也已关闭；当前独立切片为
-S4.1b.1b.1b.2b.3b voice replay physical route。R4 entry
+取代，S4.1b.1b.1b.2b.3a toggle-ui Narrative catalog corrective与
+S4.1b.1b.1b.2b.3b.0 voice-replay exact entry amendment也已关闭；当前独立切片为
+S4.1b.1b.1b.2b.3b.1 voice replay physical route implementation。R4 entry
 adjudication已先以独立S1-R.4.0关闭
 readiness result/capacity contract。R3b entry audit先以独立S1-R.3a.1 corrective补全ready
 retained-subtree authority，该corrective也已关闭。
@@ -48,8 +49,8 @@ S1-R aggregate gate已关闭。
 
 在 [production-floor sequence](2026-07-30-production-floor-sequence.md)
 中：PF2 的 `S0 -> S1-T -> S2`、PF-DET、PF3/M2 与 PF4/S3 已完成；当前 core
-节点是PF4/S4.1b.1b.1b.2b.3b。PF4的顺序是
-`S3 -> S1-R.0 -> S1-R.1–S1-R.5 -> S4.0 -> S4.1a -> S4.1b.0 -> S4.1b.1a -> S4.1b.1b.0 -> S4.1b.1b.1a -> S4.1b.1b.1b.1 -> S4.1b.1b.1b.2a -> S4.1b.1b.1b.2b.0 -> S4.1b.1b.1b.2b.1a -> S4.1b.1b.1b.2b.1b -> S4.1b.1b.1b.2b.2a -> S4.1b.1b.1b.2b.2b.0 -> S4.1b.1b.1b.2b.2b.1 -> S4.1b.1b.1b.2b.3.0 -> S4.1b.1b.1b.2b.3a -> S4.1b.1b.1b.2b.3b -> S4.1b.1b.1b.2b.3c -> S4.1b.1b.1b.2b.3d -> S4.2 -> S4.3 -> S4b`；
+节点是PF4/S4.1b.1b.1b.2b.3b.1。PF4的顺序是
+`S3 -> S1-R.0 -> S1-R.1–S1-R.5 -> S4.0 -> S4.1a -> S4.1b.0 -> S4.1b.1a -> S4.1b.1b.0 -> S4.1b.1b.1a -> S4.1b.1b.1b.1 -> S4.1b.1b.1b.2a -> S4.1b.1b.1b.2b.0 -> S4.1b.1b.1b.2b.1a -> S4.1b.1b.1b.2b.1b -> S4.1b.1b.1b.2b.2a -> S4.1b.1b.1b.2b.2b.0 -> S4.1b.1b.1b.2b.2b.1 -> S4.1b.1b.1b.2b.3.0 -> S4.1b.1b.1b.2b.3a -> S4.1b.1b.1b.2b.3b.0 -> S4.1b.1b.1b.2b.3b.1 -> S4.1b.1b.1b.2b.3c -> S4.1b.1b.1b.2b.3d -> S4.2 -> S4.3 -> S4b`；
 S5–S6 属于 PF6。S1-R
 延后到第一个真实 externally published stable-target family 前完成；按 accepted
 target ownership，S4 Narrative 计划成为该 family，因此 S1-R 位于 S3 与 S4
@@ -1739,18 +1740,22 @@ S1-R 按以下可独立合并切片推进，每次只领取一个：
     `.3a -> .3b -> .3c -> .3d`线性边界、current/next与stop，不声明runtime delivery。
 34. **S4.1b.1b.1b.2b.3a toggle-ui Narrative catalog corrective（已完成）**：只从Dialogue
     managed definition action catalog移除`player.toggle_ui`；保留generic input ID与legacy live characterization。
-35. **S4.1b.1b.1b.2b.3b voice replay physical route（当前）**：RED前先冻结exact captured optional
-    callable、attempt与family-local result；不扩张generic/public contract。
-36. **S4.1b.1b.1b.2b.3c bridge-owned Auto/Skip transient mode floor（待实施）**：只交付
+35. **S4.1b.1b.1b.2b.3b voice replay physical route（已被entry细分的checkpoint）**：不再直接实施，
+    由`.3b.0` exact entry amendment与`.3b.1` implementation取代。
+36. **S4.1b.1b.1b.2b.3b.0 voice-replay exact entry amendment（已完成，docs-only）**：冻结raw/captured
+    optional port、attempt/result、existing bridge `sayCallbackClaim`复用、route precedence、RED matrix与stop，不声明runtime delivery。
+37. **S4.1b.1b.1b.2b.3b.1 voice replay physical route implementation（当前）**：只实现exact current
+    ready-active Say的captured optional callback route，不扩张generic/public contract。
+38. **S4.1b.1b.1b.2b.3c bridge-owned Auto/Skip transient mode floor（待实施）**：只交付
     `normal | auto | skip` mode与physical route/result floor；clock/timer/deadline/remaining及scheduling留S4.2。
-37. **S4.1b.1b.1b.2b.3d History exact-parent open intent floor（待实施）**：只交付read-only
+39. **S4.1b.1b.1b.2b.3d History exact-parent open intent floor（待实施）**：只交付read-only
     availability、opaque open intent与consumed family-local result；不改变topology，History child lifecycle留S4.2。
-38. **S4.2 dormant Narrative Host + History child（待实施）**：controller/view/Host decomposition、Host-commit
+40. **S4.2 dormant Narrative Host + History child（待实施）**：controller/view/Host decomposition、Host-commit
     readiness、exact-parent History、managed input/focus/dismiss与Engine Lab dormant conformance；不切live Story。
-39. **S4.3 atomic live cutover and promotion（待实施）**：同批迁移Engine Lab、template、Cat Cafe、Bookshop，
+41. **S4.3 atomic live cutover and promotion（待实施）**：同批迁移Engine Lab、template、Cat Cafe、Bookshop，
     删除旧lifecycle writers与standalone public path，更新live docs并完成headless/browser/prebuilt promotion。
 
-当前只允许从 **S4.1b.1b.1b.2b.3b** 开始。Stable ingress与stable-specific state/API仍保持
+当前只允许从 **S4.1b.1b.1b.2b.3b.1** 开始。Stable ingress与stable-specific state/API仍保持
 dormant/package-internal；S4.1允许source-relative Narrative bridge消费Base semantic contract，但不接live
 Narrative/React/Web application graph、不mount React Host，也不更新live feature文档；shared pure topology
 policy只经existing transient adapter live复用，R3a 已将既有live transient reducer/Coordinator 收口到
@@ -3004,17 +3009,21 @@ examples/prebuilt；S0 deterministic Chromium RED与最近R4b.1 browser `101 / 1
     toggle-ui catalog、voice、mode与History intent四个独立切片的线性边界。
 16. **S4.1b.1b.1b.2b.3a toggle-ui Narrative catalog corrective（已完成）**：只从Dialogue managed
     catalog移除`player.toggle_ui`，保留generic input ID及legacy live characterization。
-17. **S4.1b.1b.1b.2b.3b voice replay physical route（当前）**：RED前冻结descriptor-captured
-    optional callable、attempt与exact family-local result；不接generic/public API。
-18. **S4.1b.1b.1b.2b.3c bridge-owned Auto/Skip transient mode floor（待实施）**：只交付transient
+17. **S4.1b.1b.1b.2b.3b voice replay physical route（已被entry细分的checkpoint）**：由`.3b.0`
+    docs-only contract与`.3b.1` implementation取代。
+18. **S4.1b.1b.1b.2b.3b.0 voice-replay exact entry amendment（已完成，docs-only）**：冻结
+    descriptor-captured optional callable、attempt/result、existing bridge `sayCallbackClaim`复用、precedence、RED matrix与stop。
+19. **S4.1b.1b.1b.2b.3b.1 voice replay physical route implementation（当前）**：只交付exact current
+    ready-active Say的package-internal physical route，不接generic/public API。
+20. **S4.1b.1b.1b.2b.3c bridge-owned Auto/Skip transient mode floor（待实施）**：只交付transient
     mode与route/result，不实现clock、timer、deadline、remaining或scheduling。
-19. **S4.1b.1b.1b.2b.3d History exact-parent open intent floor（待实施）**：只交付exact read-only
+21. **S4.1b.1b.1b.2b.3d History exact-parent open intent floor（待实施）**：只交付exact read-only
     availability、opaque one-shot open intent与`requested | ignored | stale | faulted` family result；Input仍consumed，
     不调用Coordinator或改变topology。
-20. **S4.2 dormant Host/History integration（待实施）**：交付controller/view/Host decomposition、captured resolver/required-port snapshot、
+22. **S4.2 dormant Host/History integration（待实施）**：交付controller/view/Host decomposition、captured resolver/required-port snapshot、
     Narrative portal Host-commit readiness/failure、exact-parent History open/close、managed input/focus/dismiss、timer suspension与
     Engine Lab dormant conformance；candidate ready前无ordinary authority。
-21. **S4.3 atomic live cutover/promotion（待实施）**：一次切换composition/DefaultGameRoot Narrative authoring与全部tracked consumers，
+23. **S4.3 atomic live cutover/promotion（待实施）**：一次切换composition/DefaultGameRoot Narrative authoring与全部tracked consumers，
     删除旧writers/exports/direct dispatch path，验证root/History retain/retire、三设备双fence、focus/inert、Narrative对既有
     reset adapter的响应与旧evidence
     stale rejection，随后更新architecture/features/development/authoring/website并跑受影响browser/examples/prebuilt。
@@ -3703,9 +3712,8 @@ generic Surface result/receipt，也不改动Base interaction、Save/Persistence
    既有binding-origin该action因此走`surface.action_unpublished`且Input保持consumed/zero lower fallthrough；generic
    unclaimed input仍遵循既有InputRouter语义。该corrective不接隐藏能力，不允许blocking、owns-focus、trap Dialogue root进入
    fully hidden状态。
-2. **S4.1b.1b.1b.2b.3b voice replay physical route（当前）**：实现RED前必须先冻结descriptor-safe captured
-   optional voice receiver/own-data callable、exact current ready-active Say attempt provenance与closed family-local handled/
-   ignored/stale/faulted result。该route不形成semantic resolution，不扩张generic Surface/Input result、public API、barrel或package export。
+2. **S4.1b.1b.1b.2b.3b voice replay physical route（已被entry细分的checkpoint）**：原边界保持，
+   但不再直接实施；由`.3b.0` docs-only exact entry与`.3b.1` implementation取代。
 3. **S4.1b.1b.1b.2b.3c bridge-owned Auto/Skip transient mode floor**：只在Narrative bridge/composition
    lifetime内交付`normal | auto | skip` mutually-exclusive mode、toggle route与exact result；不读取或调度clock，不实现timer、
    deadline、remaining、reveal cursor或automatic semantic dispatch。Mode scheduling、suspend/resume remaining与同transition
@@ -3720,8 +3728,8 @@ generic Surface result/receipt，也不改动Base interaction、Save/Persistence
    same-composition transition fence内消费intent并交付actual History child lifecycle。
 
 因此唯一线性implementation order与current/next gate为
-**S4.1b.1b.1b.2b.3b → S4.1b.1b.1b.2b.3c → S4.1b.1b.1b.2b.3d → S4.2 → S4.3 → S4b**。
-`.3a`的历史stop为若必须删除generic input ID、修改legacy live writer或实现fully-hidden topology则停止；`.3b`若需要raw
+**S4.1b.1b.1b.2b.3b.0 → S4.1b.1b.1b.2b.3b.1 → S4.1b.1b.1b.2b.3c → S4.1b.1b.1b.2b.3d → S4.2 → S4.3 → S4b**。
+`.3a`的历史stop为若必须删除generic input ID、修改legacy live writer或实现fully-hidden topology则停止；`.3b.1`若需要raw
 renderer authority或generic/public result expansion则停止；`.3c`若mode
 floor必须同时实现clock/timer/deadline/remaining则停止并把执行部分留S4.2；`.3d`若intent emission必须直接修改topology、
 暴露raw Coordinator/parent identity或承担History close/focus/dismiss则停止并留S4.2。
@@ -3750,9 +3758,142 @@ replay/wire及live feature documentation。验证通过focused `2 files / 156 te
 `253 files / 4053 tests`与完整`deno task check`。本批未重跑browser/examples/prebuilt；Engine browser `101 / 101`、examples
 `45 passed / 2 skipped`与prebuilt Player `38 / 38`只作为prior evidence，不冒充本delivery HEAD新验证。
 
-S4.1b.1b.1b.2b.3a已完成；active current/next与唯一implementation gate现均推进为
-**S4.1b.1b.1b.2b.3b voice replay physical route**，随后依次为S4.1b.1b.1b.2b.3c、
-S4.1b.1b.1b.2b.3d、S4.2、S4.3与S4b。
+S4.1b.1b.1b.2b.3a已完成；其后的原`.3b` checkpoint现由下述`.3b.0` exact entry amendment
+细分，不再直接实施。
+
+### S4.1b.1b.1b.2b.3b.0 entry amendment — exact voice-replay route contract
+
+原 **S4.1b.1b.1b.2b.3b voice replay physical route** 标记为superseded checkpoint；本docs-only
+entry冻结exact contract，实际source/test切片为
+**S4.1b.1b.1b.2b.3b.1 voice replay physical route implementation**。
+
+本entry使用以下closed、package-internal名称，`.3b.1`不得另造平行authority或把raw adapter暴露给renderer：
+
+- `NarrativeStableVoiceReplayPortInternalV1`是candidate preflight接收的raw optional port。非`null` receiver必须是
+  non-array plain object、prototype exact `Object.prototype`、own keys exact only
+  `replayCurrentVoiceInternalV1`，且该key必须是own data descriptor callable `(): boolean`。Array/function、null-prototype/
+  foreign-prototype object、extra string或symbol key、accessor、inherited/missing/non-callable descriptor及prototype/ownKeys/
+  descriptor trap/throw均使整个candidate稳定归`narrative.candidate_preflight_faulted`，且source/occurrence/runtime/topology/
+  notification allocation为零。
+- `NarrativeStableCapturedVoiceReplayPortInternalV1`是preflight建立的frozen zero-key branded handle；private
+  WeakMap只保存exact raw receiver与该次descriptor-captured callable。Admitted frame只保存该handle或`null`，route
+  不持有可调用raw identity，不重新读取caller property。Raw callable随后被替换、删除或改成accessor也不能改变已接受
+  frame；调用时zero arguments且`this`必须仍是exact captured receiver。
+- `NarrativeStableVoiceReplayActionAttemptInternalV1`是frozen zero-key、one-shot authenticated physical attempt；
+  它绑定issuing admission、current stable input contract、现有`ManagedSurfaceStableDirectActionTargetProofInternalV1`、exact
+  target、source revision、admitted frame与captured voice handle或`null`，不新增ready-active-proof type，也不携带raw
+  receiver/callable、action spelling或可复制target字段。Ready-active由current route/input/direct-target/frame复验共同证明。
+- `NarrativeStableVoiceReplayDispatchResultInternalV1`是exact closed union：
+  `{ kind: "handled", completion: null } | { kind: "ignored", completion: null } |
+  { kind: "stale", completion: null } | { kind: "faulted", completion: null }`。四个result均frozen；它只进入
+  既有`NarrativeStablePhysicalActionDispatchResultInternalV1`的Narrative-local union及authenticated consumer result，不扩张
+  generic `ManagedSurfaceActionRouteResultV1`、Input receipt/code或Surface receipt/code。
+
+Voice replay必须复用`NarrativeStablePublisherBridgeRecordInternalV1`既有bridge-wide `sayCallbackClaim`，不得新增
+`voiceReplayCallbackClaim`或第二callback authority。Generic authenticated route的`routeInProgress`只约束一个binding/claim；
+它不能阻止callback同步dispose old admission、在same frame建立fresh binding/admission后从successor reenter。Issue要求
+`bridgeRecord.sayCallbackClaim === null`且`bridgeRecord.saySemanticInFlightClaim === null`；route则在authentic voice attempt先spend并完成
+currentness复验。Captured handle为`null`时直接返回`ignored`且不安装任何claim；只有non-null binding才重验这两个shared claim，
+并由winner以exact identity CAS把own claim安装到`sayCallbackClaim`。该claim存在期间，existing manual Say与content-auto路径
+沿用其既有检查而不能issue/dispatch，same-frame successor也不能mint fresh voice attempt或进入第二次voice callback。
+Outer release/finally只在`bridgeRecord.sayCallbackClaim === ownClaim`时清理；old route绝不能ABA-clear successor claim或
+successor admission；physical admission dispose也不得清理或转移该claim，只有持有own token的outer finally可以exact-CAS
+release。Voice claim永不转移到`bridgeRecord.saySemanticInFlightClaim`。本切片不新增callback lifecycle observer或ready-active-proof type；
+existing direct-target proof、exact route/input/frame pre/post capture与既有shared Say claim是唯一voice lifecycle authority。
+
+`issueVoiceReplayAttemptInternalV1()`只在admission仍current、existing `bridgeRecord.sayCallbackClaim`与
+`bridgeRecord.saySemanticInFlightClaim`均为空，且exact current frame为ready-active `say`时返回attempt；availability不取决于voice port
+是否为`null`，因为absent是可路由的`ignored` outcome。
+Current ready-active Say的`advancePolicy: "confirm" | "auto"`都可issue。Choice、pause、custom、barrier、empty、preparing、
+retained replacement、suspended、exiting、publisher/bridge/admission/coordinator disposed均不可issue；其中barrier/empty沿用既有
+physical-admission construction unavailable，其他kind的live admission调用该method返回`null`。Issue不调用voice callback，
+也不读取semantic dispatch port或形成semantic resolution。Authentic attempt可按不同真实gesture重复签发，但每个identity只可
+被一个winning route spend。
+
+Exact route precedence固定如下，`.3b.1`测试必须以mutation方式证明顺序而非只测最终kind：
+
+1. 先完整通过existing generic envelope/application/terminal/coherence、topology/instance/input owner/routing lease/action
+   catalog、input publication与gesture fences。任一generic fence失败时consumer保持`null`，voice callback为零且传入attempt
+   不spend；Input/Surface receipt沿用generic既有合同。
+2. Consumer只把exact `player.replay_voice`映射到voice replay。Unmapped/wrong action或未进入consumer的unpublished action
+   不得spend authentic voice attempt。
+3. Exact voice mapping先认证attempt identity：必须是same admission、correct `voice_replay` kind且unspent；spoof、clone、
+   foreign-admission、wrong-kind或already-spent attempt closed为`stale`且callback为零，并不得spend任何其他authentic attempt。
+   一旦authentic same-admission correct-kind unspent voice attempt进入consumer，就必须立即one-shot spend；spend发生在current
+   proof/frame/handle/callback-claim precheck之前，后续任何family-local `handled | ignored | stale | faulted`都不回滚spent。
+4. Spend之后按`bridgeRecord.physicalActionAdmissionClaim === admissionClaim` → current direct-target proof → current stable input
+   contract/direct target/source revision → exact admitted frame且`pending.kind === "say"` → frame内captured handle identity顺序复验；
+   route/input/direct-target/frame共同证明ready-active。Proof/capture throw或任一漂移均为`stale`且不调用callback。Captured handle为
+   `null`时不读取raw value、不安装`sayCallbackClaim`并直接返回`ignored`。只有non-null binding才继续要求existing
+   `bridgeRecord.sayCallbackClaim`与`bridgeRecord.saySemanticInFlightClaim`均为空并CAS安装own
+   shared claim；claim conflict为spent `stale`。CAS后必须再次重验exact physical-admission claim、direct-target proof、stable input
+   contract、target/source/frame/handle及`bridgeRecord.saySemanticInFlightClaim === null`；post-claim drift为spent `stale`并exact-CAS release，
+   callback为零。仍current的winner才以exact captured receiver/callable同步调用一次。Nested
+   `issueVoiceReplayAttemptInternalV1()`必须返回`null`；same-binding nested route沿用generic
+   `ui.managed_surface_action_route_in_progress`，manual/content-auto reentry由shared `sayCallbackClaim`拒绝，old-admission dispose +
+   same-frame successor binding也不得绕过该claim。
+5. 无论callback返回还是throw，先执行postcheck：`bridgeRecord.sayCallbackClaim === ownClaim`、
+   `bridgeRecord.physicalActionAdmissionClaim === admissionClaim`、admission active、bridge lifecycle、exact current route/input/
+   direct-target proof仍共同证明ready-active，且target/source/frame与captured handle必须全部仍相同。Target/source/frame replacement、root suspension、
+   bridge/admission/coordinator dispose、successor admission或claim drift一律以`stale`覆盖callback的`true`、`false`、invalid return
+   或throw；随后按exact CAS只释放own claim。
+6. Non-null binding只有postcheck仍current时才分类callback：captured callable返回exact `true`为`handled`，返回exact
+   `false`为`ignored`，同步throw或非boolean return为`faulted`；port absent已在step 4直接`ignored`。Throw不向route caller传播；
+   四类outcome均已spend attempt，repeat route为`stale`，claim释放后fresh gesture可签发fresh attempt。
+
+Authenticated `player.replay_voice`通过generic gate后，`handled | ignored | stale | faulted`四类family result的Input均为
+`consumed / input.managed_surface_consumed`，Surface均保持既有`unchanged / surface.action_routed`，lower context不fall through。
+Ordinary absent/true/false/throw/nonboolean路径的semantic resolution/dispatch、gameplay、source/runtime、topology与notification均为
+exact zero；kernel state与notification count保持identity/count不变。若callback显式触发replacement/suspend/dispose，测试只接受
+该nested operation自身的exact delta，outer voice route不得再增加semantic/topology/notification mutation，且最终仍以
+postcheck `stale`收口。
+
+`.3b.1`的exact RED matrix为：
+
+- **Raw/captured port**：`null`与exact one-key plain-object own-data callable可preflight；array/function、
+  null/foreign prototype、extra string/symbol key、getter、inherited、missing、non-callable及prototype/ownKeys/descriptor
+  throw在任何issuance前family-fault。Proxy证明只读structural descriptors、不触发value getter；caller method drift后仍只以
+  original callable + exact receiver调用。
+- **Type/API shape**：Admission新增且只新增`issueVoiceReplayAttemptInternalV1`；raw port、captured handle、zero-key
+  attempt与四分支exact frozen result使用上述名称/shape，attempt复用existing direct-target proof且不新增ready-active-proof type，
+  result只并入existing Narrative-local physical union，也不新增barrel/export/generic result。Borrowed issue返回`null`，borrowed
+  route继续抛既有`ui.narrative_stable_action_admission_invalid`。
+- **Kind/phase availability**：Ready-active Say在port present/absent及`confirm/auto`下均签发；choice/pause/custom与
+  preparing/replacement/suspended/exiting/disposed返回`null`，barrier/empty construction仍unavailable。
+- **Happy/closed outcomes**：Callback exact `true -> handled`、`false -> ignored`、absent `-> ignored`、
+  throw/nonboolean `-> faulted`；absent路径证明zero callback/zero `sayCallbackClaim` install，其余路径证明shared claim exact CAS。
+  全部Input consumed、surface routed、lower/semantic/topology/notify zero，attempt repeat stale且fresh attempt可再次执行。
+- **Generic-before-spend**：Stale publication/gesture与unpublished/unmapped action保持consumer/callback zero且authentic
+  attempt unspent；同一attempt随后通过fresh valid replay envelope只执行一次。
+- **Attempt authenticity**：Spoof、clone、foreign admission、wrong kind、already-spent attempt均不能调用callback；
+  cross-kind/unmapped probing不spend对应authentic attempt。
+- **Pre-route lifecycle**：Target/source/frame replacement、retained preparing、suspension及bridge/admission/coordinator
+  dispose在callback前closed；generic已截获时consumer为`null`且attempt unspent，否则authentic voice consumer返回family
+  `stale`且attempt已spent；两者都callback/semantic zero。
+- **Spend/reentry**：Callback内观察原attempt已spent；same-binding nested route被generic in-progress fence拒绝，nested voice
+  issue为`null`；manual Say/content-auto issue/dispatch也因shared `sayCallbackClaim`不能进入。Caught reentry或ordinary callback
+  结束后claim不poison，fresh attempt仍可执行。Claim conflict与post-claim currentness drift均为spent `stale`、zero callback并
+  exact-CAS release；claim从不转移到semantic-in-flight slot。
+- **Cross-binding hole**：Callback同步dispose old admission并在same target/source/frame建立successor admission；successor在
+  outer shared claim存续时不能mint/token-route第二callback，`physicalActionAdmissionClaim` postcheck使outer为`stale`。Outer
+  exact-CAS cleanup后successor可签发fresh attempt，old cleanup不能ABA-clear或poison successor。
+- **Postcheck precedence**：Callback分别返回true/false、throw，同时nested替换target/source/frame、suspend或dispose；每项
+  最终都必须是`stale`，且route只保留nested operation的exact delta，不追加semantic/topology/notify。
+
+Implementation stop：若`.3b.1`需要直接调用raw opaque candidate identity、route时重读caller property、新增
+`voiceReplayCallbackClaim`而不复用existing bridge `sayCallbackClaim`、把claim放在单个admission/binding、允许old cleanup无
+identity CAS清理、为voice新增ready-active-proof type、在`null` handle路径安装callback claim、遗漏post-callback exact
+`physicalActionAdmissionClaim`校验、把postcheck放在callback result分类之后、让port absent无法issue，或要求异步/Promise voice
+callback，立即停止并修订owning design。若需要修改Dialogue definition/catalog/revision、generic Input/
+Managed Surface action/result/receipt/code、public root或`./internal` barrel/package export，或需要semantic resolution、Coordinator/
+topology mutation、persistent observer、React/Web/Host/live audio claimant、History replay、Auto/Skip mode/timer、Base interaction、
+PlayerProfile、Save/Persistence、canonical/digest/replay/wire，也立即停止；这些都不属于`.3b.1`。
+
+本amendment严格为docs-only：没有source、test、runtime、Host/React/Web/live claimant或delivery evidence，也不把此前
+focused/UI/full/check/browser/examples/prebuilt结果冒充本批新验证。验证只要求本文件`deno fmt --check`与
+`git diff --check`。唯一active current/next与implementation gate现为
+**S4.1b.1b.1b.2b.3b.1 voice replay physical route implementation**；随后依次为
+S4.1b.1b.1b.2b.3c、S4.1b.1b.1b.2b.3d、S4.2、S4.3与S4b。
 
 S4.1 aggregate stop在S4.1b.1b.1b.1–S4.1b.1b.1b.2b.3d继续有效：若后续证据要求公开lease/source/occurrence/Coordinator、复用global
 semantic/presentation revision、允许同一semantic occurrence的full normalized `PendingInteractionV1` canonical漂移，
