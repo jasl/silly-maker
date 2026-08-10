@@ -40,9 +40,10 @@ promotion 均已关闭。2026-08-08 dormant `PF4/S3c.1 Host-commit readiness`、
 `PF4/S4.1b.1b.1b.2a custom physical payload admission`及
 `PF4/S4.1b.1b.1b.2b.0 remaining mapping policy adjudication`与
 `PF4/S4.1b.1b.1b.2b.1a physical Say reveal-first admission`及
-`PF4/S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor`也已关闭，
+`PF4/S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor`与
+`PF4/S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment`也已关闭，
 linear core current/next均为
-`PF4/S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment`。
+`PF4/S4.1b.1b.1b.2b.2b settle/replay recovery`。
 同日 S1-R pre-implementation review 将 external reconcile gate 重切为 S1-R.0–S1-R.5；
 顺序变化不把任何 planned stable-target contract写成 live capability。
 同日 S1-R.3 entry-gate adjudication 采用 A-prime，将原 R3 拆为单一 composite
@@ -63,8 +64,9 @@ S4.1b.1b.0 choice-only physical semantic admission、S4.1b.1b.1a skippable-pause
 S4.1b.1b.1b.1 automatic pause-expiry controller-attempt admission/dispatch floor及
 S4.1b.1b.1b.2a custom physical payload admission与S4.1b.1b.1b.2b.0 remaining mapping
 policy adjudication及S4.1b.1b.1b.2b.1a physical Say reveal-first admission也已关闭，
-S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor也已关闭，下一独立切片为
-S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment。
+S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor与
+S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment也已关闭，下一独立切片为
+S4.1b.1b.1b.2b.2b settle/replay recovery。
 旧 promotion 数字保留为
 历史证据。本文是当前唯一的跨计划排序入口；
 具体合同仍由各 design 文档拥有，主要任务由五个独立计划拥有：
@@ -949,8 +951,8 @@ Surface pilot 通过后按 family 分开合并：
 11. S4.1b.1b.1b.2b.0：remaining mapping policy adjudication（已完成）；
 12. S4.1b.1b.1b.2b.1a：physical Say reveal-first admission（已完成）；
 13. S4.1b.1b.1b.2b.1b：content-auto Say controller-attempt floor（已完成）；
-14. S4.1b.1b.1b.2b.2a：normal Stage→Narrative acknowledgment（当前）；
-15. S4.1b.1b.1b.2b.2b：settle/replay recovery；
+14. S4.1b.1b.1b.2b.2a：normal Stage→Narrative acknowledgment（已完成）；
+15. S4.1b.1b.1b.2b.2b：settle/replay recovery（当前）；
 16. S4.1b.1b.1b.2b.3：player controls；
 17. S4.2：dormant Narrative Host、Host-commit readiness与History exact child；
 18. S4.3：atomic live cutover and promotion；
@@ -1689,6 +1691,8 @@ evidence放入单个O(1) target slot，private delivery先于全部public Stage 
 `barrier_completed`。Pending claim由target-level evidence拥有；drain后exact CAS清理，target/semantic occurrence/canonical
 pending仍current则恢复
 retained并只允许后续显式flush重试，已退役则只清bounded tombstone。
+同一Stage authority以WeakMap-authenticated proof提供read-only terminal-stack currentness；public callback内nested flush保持
+`retained`/zero semantic，Stage terminal调用返回后立即允许explicit flush，不用microtask或Host retry猜测stack边界。
 
 `.2b`只在composition-owned fresh presentation/controller generation内处理recovery：generation只来自initial
 coherent bootstrap、application successor或由`captureCurrentPresentationGenerationInternalV1()`证明的accepted higher Stage
@@ -1702,8 +1706,40 @@ per-boundary first-win/in-flight claim，loser只能stale且zero dispatch。
 本amendment不接Host/React/Web/live Narrative或legacy Engine Lab callback，不新增public/`./internal` barrel、package
 export、generic Managed Surface result/receipt，不改Base interaction/evaluator/queue、Save/Persistence/canonical/digest/replay/
 wire或S4b。它只改execution order与accepted implementation boundary，不声称source/test/runtime delivery，也不记录
-unit/browser/build evidence。Linear core current/next均为
-S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment。
+unit/browser/build evidence。该checkpoint当时的linear core current/next均为
+S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment，现由下述delivery推进。
+
+**PF4/S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment delivery（completed）：**
+Stage reconciler现在提供source-relative、claim-exclusive的acknowledged-run authority；claim后旧raw mutation入口不再形成
+第二writer，但未claimed的public Stage行为与acknowledgment shape保持不变。Claimed retarget先以单次full plan解析logical
+transition、fallback与readiness，并在post-suppression changes中要求恰好一个`acknowledge: true`且original logical
+transition ID与current Barrier expected ID相同的run；0个、多个、resolver fault或planning reentry均在new target、run、
+occurrence、proof与notification mutation前fail closed。Planning及interrupting期间Stage-owned run/readiness clock tick由同一
+operation gate延后；每个old run完成private terminal、public acknowledgment、diagnostic与subscriber callback后都复验exact
+commit guard，final true后只以captured intrinsic和内部plain-data assignment提交，避免half-arm。Frozen zero-key proof只在该
+commit点绑定exact authority、presentation epoch、logical ID与effective run occurrence；proof-authenticated terminal-stack query
+覆盖instant、animated、old interruption与readiness-timeout路径，使private terminal先seal/store，再允许public observers，且
+terminal call stack退出后立即恢复explicit flush资格。
+
+Narrative侧新增同样source-relative的Barrier acknowledgment controller，并把Stage proof与authenticated target occurrence、
+semantic occurrence及full canonical normalized PendingInteraction bytes组合为target-level evidence；source/frame/semantic port与
+ready-active runtime只在explicit flush时fresh capture。第一份terminal evidence以exact target claim first-win：old interrupted或
+cancelled terminal会使外层new arm stale，后续terminal不得覆盖；`completed | skipped | interrupted`可retained并在ingress open后
+提交frozen `barrier_completed`，`cancelled`永久semantic-zero。Preparing、readiness-failed retry与blocking suspension均可保留
+target evidence；same-target retry只更新fresh source/frame/opaque port，replacement、semantic/canonical drift、empty、epoch与
+lifetime successor则退休。Semantic Promise期间target-level in-flight token与bounded tombstone跨controller dispose和source
+successor保持first-win；post-publication/reconcile drain后只以exact-token CAS恢复retained retry或清理retired tombstone，old
+completion不能ABA清除successor claim。Public Stage callback/subscriber内nested flush固定retained/zero semantic，Stage terminal
+返回后同栈的下一次explicit flush即可dispatch，不依赖microtask或Host retry猜测。
+
+本delivery只修改Stage与Narrative的source-relative implementation、同目录tests、public-boundary negative guards及governing/
+architecture文档；没有接Host/React/Web/live Narrative claimant，没有扩张UI root/`./internal` barrel、package export、generic
+Managed Surface result/receipt，也没有修改Base interaction/evaluator/queue、Save/Persistence/canonical/digest/replay/wire或S4b。
+验证通过focused `8 files / 292 tests`、UI package `79 files / 1099 tests`、full `253 files / 4029 tests`与完整
+`deno task check`；本HEAD还fresh通过Engine browser `101 / 101`、examples browser `45 passed / 2 skipped`与prebuilt Player
+`38 / 38`。Linear core current/next均推进为
+S4.1b.1b.1b.2b.2b settle/replay recovery；后续顺序保持
+S4.1b.1b.1b.2b.2b → S4.1b.1b.1b.2b.3 → S4.2 → S4.3 → S4b。
 
 每个 family 的迁移提交必须删除旧 owner；禁止长期 adapter 双写。
 `DialoguePanelV1` / `VnLayerV1` 的 controller/view/host 拆分在 Narrative family

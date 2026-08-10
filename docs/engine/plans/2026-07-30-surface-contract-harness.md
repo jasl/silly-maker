@@ -27,8 +27,9 @@ S4.1b.1b.1b.1 automatic pause-expiry controller-attempt admission/dispatch floor
 S4.1b.1b.1b.2a custom physical payload admission及S4.1b.1b.1b.2b.0 remaining mapping
 policy adjudication、S4.1b.1b.1b.2b.1a physical Say reveal-first admission与
 S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor均已关闭；S4.1b.1b.1b.2b.2
-entry amendment又把barrier工作拆为normal acknowledgment与recovery两个vertical；下一独立切片为
-S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment。R4 entry
+entry amendment又把barrier工作拆为normal acknowledgment与recovery两个vertical，其中
+S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment也已关闭；下一独立切片为
+S4.1b.1b.1b.2b.2b settle/replay recovery。R4 entry
 adjudication已先以独立S1-R.4.0关闭
 readiness result/capacity contract。R3b entry audit先以独立S1-R.3a.1 corrective补全ready
 retained-subtree authority，该corrective也已关闭。
@@ -43,7 +44,7 @@ S1-R aggregate gate已关闭。
 
 在 [production-floor sequence](2026-07-30-production-floor-sequence.md)
 中：PF2 的 `S0 -> S1-T -> S2`、PF-DET、PF3/M2 与 PF4/S3 已完成；当前 core
-节点是PF4/S4.1b.1b.1b.2b.2a。PF4的顺序是
+节点是PF4/S4.1b.1b.1b.2b.2b。PF4的顺序是
 `S3 -> S1-R.0 -> S1-R.1–S1-R.5 -> S4.0 -> S4.1a -> S4.1b.0 -> S4.1b.1a -> S4.1b.1b.0 -> S4.1b.1b.1a -> S4.1b.1b.1b.1 -> S4.1b.1b.1b.2a -> S4.1b.1b.1b.2b.0 -> S4.1b.1b.1b.2b.1a -> S4.1b.1b.1b.2b.1b -> S4.1b.1b.1b.2b.2a -> S4.1b.1b.1b.2b.2b -> S4.1b.1b.1b.2b.3 -> S4.2 -> S4.3 -> S4b`；
 S5–S6 属于 PF6。S1-R
 延后到第一个真实 externally published stable-target family 前完成；按 accepted
@@ -1719,10 +1720,10 @@ S1-R 按以下可独立合并切片推进，每次只领取一个：
     两种alias并借用独立bridge-private reveal controller，交付reveal-only/advance closed result；不接automatic或Host/live wiring。
 28. **S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor（已完成）**：只为
     `advancePolicy: "auto"`交付ready-active、无gestureautomatic attempt并复用同一claim；不接timer或player Auto/Skip。
-29. **S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment（当前）**：交付claim-exclusive
+29. **S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment（已完成）**：交付claim-exclusive
     Stage mutation authority、full-plan exact-one logical transition/run proof、target-level terminal evidence及
     current ready-active one-shot `barrier_completed` dispatch；不接recovery generation或live Host。
-30. **S4.1b.1b.1b.2b.2b settle/replay recovery（待实施）**：交付authenticated
+30. **S4.1b.1b.1b.2b.2b settle/replay recovery（当前）**：交付authenticated
     composition generation、preexisting-only settle attempt与replay unsupported/fail-closed；不实现replay capability。
 31. **S4.1b.1b.1b.2b.3 player controls（待实施）**：实现Auto/Skip mode floor、History intent、
     captured voice replay与Narrative catalog移除`player.toggle_ui`；实际History lifecycle留S4.2。
@@ -1731,7 +1732,7 @@ S1-R 按以下可独立合并切片推进，每次只领取一个：
 33. **S4.3 atomic live cutover and promotion（待实施）**：同批迁移Engine Lab、template、Cat Cafe、Bookshop，
     删除旧lifecycle writers与standalone public path，更新live docs并完成headless/browser/prebuilt promotion。
 
-当前只允许从 **S4.1b.1b.1b.2b.2a** 开始。Stable ingress与stable-specific state/API仍保持
+当前只允许从 **S4.1b.1b.1b.2b.2b** 开始。Stable ingress与stable-specific state/API仍保持
 dormant/package-internal；S4.1允许source-relative Narrative bridge消费Base semantic contract，但不接live
 Narrative/React/Web application graph、不mount React Host，也不更新live feature文档；shared pure topology
 policy只经existing transient adapter live复用，R3a 已将既有live transient reducer/Coordinator 收口到
@@ -2970,10 +2971,10 @@ examples/prebuilt；S0 deterministic Chromium RED与最近R4b.1 browser `101 / 1
    automatic/timer/Host/live wiring仍延期。
 10. **S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor（已完成）**：只为
     `advancePolicy: "auto"`交付ready-active无gestureattempt，复用同一generation/claim；timer与player Auto/Skip延期。
-11. **S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment（当前）**：交付claim-exclusive
+11. **S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment（已完成）**：交付claim-exclusive
     Stage mutation authority、full-plan exact-one logical transition/run proof、target-level terminal evidence与
     current ready-active one-shot dispatch；不接recovery generation或live Host。
-12. **S4.1b.1b.1b.2b.2b settle/replay recovery（待实施）**：交付authenticated
+12. **S4.1b.1b.1b.2b.2b settle/replay recovery（当前）**：交付authenticated
     composition generation、preexisting-only settle attempt与replay unsupported/fail-closed；不实现replay capability。
 13. **S4.1b.1b.1b.2b.3 player controls（待实施）**：交付Auto/Skip、History intent、voice replay及
     `player.toggle_ui` catalog removal；History child lifecycle仍归S4.2。
@@ -3337,17 +3338,18 @@ WeakMap provenance经10k `not_ready` rotation保持有界、state/notification/i
 result扩张。验证通过focused `7 files / 236 tests`、UI package `79 files / 1054 tests`、full
 `253 files / 3984 tests`与`deno task check` green。本批未重跑browser/examples/prebuilt；Engine browser `101 / 101`、
 examples `45 passed / 2 skipped`与prebuilt Player `38 / 38`只作prior evidence，不冒充本批HEAD验证。
-S4.1b.1b.1b.2b.1b已完成；current/next均为
-**S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment**，后续顺序保持
+S4.1b.1b.1b.2b.1b完成时current/next均为
+**S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment**；该checkpoint现由下述`.2a`
+delivery关闭，后续顺序保持
 S4.1b.1b.1b.2b.2a → S4.1b.1b.1b.2b.2b → S4.1b.1b.1b.2b.3 → S4.2 → S4.3 → S4b。
 
-### S4.1b.1b.1b.2b.2 entry amendment — barrier acknowledgment/recovery（docs-only）
+### S4.1b.1b.1b.2b.2 entry checkpoint — barrier acknowledgment/recovery（docs-only，已完成）
 
 Barrier先拆为 **S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment** 与
 **S4.1b.1b.1b.2b.2b settle/replay recovery**。`.2a`必须把exact Stage run与current
 Narrative target的normal terminal path端到端闭合；`.2b`随后消费composition-owned fresh generation与
 shared ingress，不能把React mount/effect伪装成recovery provenance。两批均保持source-relative、package-internal、
-dormant且可独立合并；本amendment不记录runtime delivery或验证证据。
+dormant且可独立合并；本checkpoint在实施前只冻结合同，不把当时的文档状态写成runtime delivery或验证证据。
 
 `.2a`为每个exact Stage reconciler/Host generation只允许一个exact claimant通过
 `claimStageAcknowledgedRunAuthorityInternalV1(reconciler, exactClaimant)`取得
@@ -3361,6 +3363,10 @@ public acknowledgment字段重建。Authority保留对应的`*InternalV1` mutati
 acknowledged-run入口；`StageAcknowledgedRunCommitGuardInternalV1`与`terminalPort`都必须descriptor-capture exact own-data
 receiver/callable，两者的exact one-method shape分别是`isCommitCurrentInternalV1(): boolean`与
 `deliverTerminalInternalV1({ proof, outcome }): void`，terminal input固定为frozen `{ proof, outcome }`。
+同一authority另提供read-only
+`isAcknowledgedRunTerminalStackActiveInternalV1(proof: unknown): boolean`；它只对same-authority、WeakMap-authenticated exact
+proof返回private-terminal加其后public ack/diagnostic/subscription stack是否尚未退出，foreign、clone、unissued与已退出proof
+均返回`false`且zero caller-field read。
 
 Acknowledged retarget先在单一reentry fence内形成完整plan：从exact previous/next target与active-run snapshot推导change，
 先模拟same-entry interruption suppression，再解析每个logical/original transition与effective reduced-motion behavior；在
@@ -3427,6 +3433,8 @@ same exact cached dispatched result且zero new dispatch，无current evidence/re
 `dispatched { completion: Promise<unknown> } | retained { completion: null } |
 cancelled { completion: null } | stale { completion: null } | faulted { completion: null }`；retained只有exact eligible
 evidence尚不能在current ready-active runtime dispatch时成立，stale/faulted不得降级为retained或cancelled。
+Public Stage callback内的nested flush必须因上述proof-bound terminal-stack状态返回`retained`且semantic zero；Stage terminal调用
+返回后同栈的explicit flush已处于stack外并可立即继续admission，不得以microtask gate延迟或要求Host猜测retry。
 
 每次eligible flush签发fresh frozen zero-key attempt，绑定current target-level evidence、fresh source/frame/semantic port/
 runtime ready-active proof与controller generation。Final currentness check后，attempt在调用semantic port前不可逆spend并占用
@@ -3479,6 +3487,40 @@ barrel、generic result/receipt、Base interaction/Save/Persistence/canonical/di
 full plan、claim后仍存在第二个Stage mutation writer、public callback throw可阻断private proof或留下partial arm、target evidence
 必须绑定source/candidate才能跨retry、semantic completion不能证明drain与CAS、recovery只能借React lifecycle或cloneable public
 acknowledgment建立freshness，或实现需要扩大public/generic contract，立即停止并修订design/active plan。
+
+### S4.1b.1b.1b.2b.2a delivery — normal Stage→Narrative acknowledgment
+
+`.2a`已交付exact Stage reconciler/Host generation上的claim-exclusive、package-internal
+`StageAcknowledgedRunAuthorityInternalV1`。未claim的ordinary public reconciler与frame/subscription/acknowledgment
+shape保持既有行为；claim后所有Stage mutation只能经同一authority，raw writer、foreign claimant、clone与wrong receiver均
+fail closed。Acknowledged retarget只形成一次full plan，并在任何new mutation前验证exact-one logical transition ID；零个、多个及
+planning/callback/provenance fault分别保持exact Stage zero delta。Narrative提供descriptor-captured commit guard；Stage在full plan后及
+每个old-run terminal/public-observer stack退出后重验，最后一次`true`到new occurrence/proof/target/run assignment之间没有caller
+callback或可抛读取。Opaque proof在run readiness/start前完成绑定；private terminal先于public acknowledgment、diagnostic与subscriber
+不可逆seal，public observer throw及deferred clock rearm failure不能回滚claimed run或形成Stage/Narrative分叉。
+
+Stage authority的proof-bound `isAcknowledgedRunTerminalStackActiveInternalV1`只认证same-authority exact proof，Narrative因此不使用
+microtask或Host retry猜测terminal stack。`NarrativeStableBarrierAcknowledgmentControllerInternalV1`从bridge private provenance
+自行claim Stage与composition stable-action authority；Stage terminal port只把`completed | skipped | interrupted`保存为eligible
+target-level evidence，`cancelled`terminal-seal且semantic zero。Semantic port只由显式
+`flushRetainedTerminalInternalV1()`触发：private/public terminal callback中的nested flush稳定返回`retained`，Stage terminal调用返回后
+immediate explicit flush即可进入ready-active admission；instant/cut、animated、asset wait与reduced-motion fallback共享同一规则。
+
+Evidence只绑定exact admitted target、semantic occurrence与full normalized pending canonical bytes。Preparing、真实blocking
+suspension及`readiness_failed` gap保留eligible evidence而不dispatch；resume后可fresh flush。Same-target retry复用exact target-level
+evidence，但dispatch重新捕获fresh source/frame/semantic port/runtime proof，旧port保持zero。Replacement、empty、epoch/publisher/
+controller dispose同步retire current evidence与observer。每个Barrier boundary只有一个callback/semantic-in-flight claim；Promise pending
+期间repeat与competitor均zero new dispatch并复用cached result。Source/frame successor可安装，但旧claim作为bounded tombstone继续阻挡
+fresh proof；drain后只以exact token CAS清理并允许显式fresh retry，old completion、late receipt、foreign/clone proof与dispose/recreate
+均不能ABA-clear successor claim。Target/run 10k churn保持O(1) current evidence、observer与provenance。
+
+本delivery仍是source-relative、package-internal dormant floor：没有recovery generation、settle/replay recovery、真实Barrier replay、
+Stage/Narrative React Host、live Story claimant、timer/player mode/History，也没有public或`./internal` barrel、package export、generic
+Surface result/receipt、Base interaction、Save/Persistence/canonical/digest/replay/wire变化。验证通过focused
+`8 files / 292 tests`、UI package `79 files / 1099 tests`、full `253 files / 4029 tests`与`deno task check` green；fresh
+Engine browser `101 / 101`、examples `45 passed / 2 skipped`、prebuilt Player `38 / 38`均green。
+S4.1b.1b.1b.2b.2a已完成；active current/next现均推进为
+**S4.1b.1b.1b.2b.2b settle/replay recovery**，随后依次为S4.1b.1b.1b.2b.3、S4.2、S4.3与S4b。
 
 S4.1 aggregate stop在S4.1b.1b.1b.1–S4.1b.1b.1b.2b.3继续有效：若后续证据要求公开lease/source/occurrence/Coordinator、复用global
 semantic/presentation revision、允许同一semantic occurrence的full normalized `PendingInteractionV1` canonical漂移，

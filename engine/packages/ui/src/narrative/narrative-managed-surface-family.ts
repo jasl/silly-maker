@@ -62,6 +62,16 @@ import type {
   ManagedSurfaceStablePublisherInternalV1,
   ManagedSurfaceStablePublisherLeaseRegistryInternalV1,
 } from "../managed-surfaces/managed-surface-stable-publisher-lease.ts";
+import {
+  claimStageAcknowledgedRunAuthorityInternalV1,
+  type StageAcknowledgedRunAuthorityInternalV1,
+  type StageAcknowledgedRunCommitGuardInternalV1,
+  type StageAcknowledgedRunProofInternalV1,
+  type StageAcknowledgedRunRetargetResultInternalV1,
+  type StageAcknowledgedRunTerminalPortInternalV1,
+  type StageReconcilerV1,
+  type StageRetargetInputV1,
+} from "../stage/stage-reconciler.ts";
 
 const freezeNarrativePhysicalActionDataInternalV1 = Object.freeze;
 
@@ -268,6 +278,61 @@ export interface NarrativeStableSayRevealControllerInternalV1 {
   disposeInternalV1(): void;
 }
 
+export type NarrativeStableBarrierStageRetargetResultInternalV1 =
+  | Readonly<{
+    readonly kind: "armed";
+    readonly completion: null;
+  }>
+  | Readonly<{
+    readonly kind: "stale";
+    readonly completion: null;
+  }>
+  | Readonly<{
+    readonly kind: "faulted";
+    readonly code:
+      | "stage.acknowledged_run_unmatched"
+      | "stage.acknowledged_run_ambiguous"
+      | "stage.acknowledged_run_faulted";
+    readonly completion: null;
+  }>;
+
+export type NarrativeStableBarrierTerminalDispatchResultInternalV1 =
+  | Readonly<{
+    readonly kind: "dispatched";
+    readonly completion: Promise<unknown>;
+  }>
+  | Readonly<{
+    readonly kind: "retained";
+    readonly completion: null;
+  }>
+  | Readonly<{
+    readonly kind: "cancelled";
+    readonly completion: null;
+  }>
+  | Readonly<{
+    readonly kind: "stale";
+    readonly completion: null;
+  }>
+  | Readonly<{
+    readonly kind: "faulted";
+    readonly completion: null;
+  }>;
+
+export interface CreateNarrativeStableBarrierAcknowledgmentControllerInputInternalV1 {
+  readonly bridge: NarrativeStablePublisherBridgeInternalV1;
+  readonly stageReconciler: StageReconcilerV1;
+}
+
+export interface NarrativeStableBarrierAcknowledgmentControllerInternalV1 {
+  retargetCurrentBarrierStageInternalV1(
+    retarget: StageRetargetInputV1,
+  ): NarrativeStableBarrierStageRetargetResultInternalV1;
+  flushRetainedTerminalInternalV1():
+    | NarrativeStableBarrierTerminalDispatchResultInternalV1
+    | null;
+  disposeInternalV1(): void;
+}
+
 declare const narrativeStablePauseExpiryControllerAttemptBrandInternalV1: unique symbol;
 
 export interface NarrativeStablePauseExpiryControllerAttemptInternalV1 {
@@ -366,6 +431,7 @@ interface NarrativeTargetFrameRecordInternalV1 {
 interface NarrativeStableCurrentTargetProjectionInternalV1 {
   readonly target: ManagedSurfaceStableAdmittedTargetInternalV1;
   readonly sourceRevision: ManagedSurfaceStableSourceRevisionInternalV1;
+  readonly canonicalPendingBytes: Uint8Array;
   readonly frame: NarrativeStableAdmittedFrameInternalV1;
 }
 
@@ -379,6 +445,11 @@ interface NarrativeStablePublisherBridgeRecordInternalV1 {
   sayRevealControllerClaim: object | null;
   sayCallbackClaim: object | null;
   saySemanticInFlightClaim: object | null;
+  readonly barrierStageClaimant: object;
+  barrierAcknowledgmentControllerClaim: object | null;
+  barrierTargetTerminalClaim: object | null;
+  barrierCallbackClaim: object | null;
+  barrierSemanticInFlightClaim: object | null;
 }
 
 const narrativeTargetFrameRecordsInternalV1 = new WeakMap<
@@ -511,6 +582,44 @@ const narrativeStableSayRevealControllerRecordsInternalV1 = new WeakMap<
   NarrativeStableSayRevealControllerRecordInternalV1
 >();
 
+interface NarrativeStableBarrierTargetIdentityInternalV1 {
+  readonly target: ManagedSurfaceStableAdmittedTargetInternalV1;
+  readonly semanticOccurrenceId: string;
+  readonly canonicalPendingBytes: Uint8Array;
+  readonly expectedTransitionId: string;
+}
+
+interface NarrativeStableBarrierTerminalEvidenceInternalV1 {
+  readonly targetIdentity: NarrativeStableBarrierTargetIdentityInternalV1;
+  readonly proof: StageAcknowledgedRunProofInternalV1;
+  readonly outcome: "completed" | "skipped" | "interrupted" | "cancelled";
+  readonly terminalClaim: object;
+  retired: boolean;
+  inFlightClaim: object | null;
+  dispatchedResult:
+    | Readonly<{
+      readonly kind: "dispatched";
+      readonly completion: Promise<unknown>;
+    }>
+    | null;
+}
+
+interface NarrativeStableBarrierAcknowledgmentControllerRecordInternalV1 {
+  readonly bridgeRecord: NarrativeStablePublisherBridgeRecordInternalV1;
+  readonly controllerClaim: object;
+  readonly stageAuthority: StageAcknowledgedRunAuthorityInternalV1;
+  readonly stableActionAuthority: ManagedSurfaceStableActionRouteAuthorityInternalV1;
+  active: boolean;
+  stageRetargetInProgress: boolean;
+  evidence: NarrativeStableBarrierTerminalEvidenceInternalV1 | null;
+  terminalResult: NarrativeStableBarrierTerminalDispatchResultInternalV1 | null;
+}
+
+const narrativeStableBarrierAcknowledgmentControllerRecordsInternalV1 = new WeakMap<
+  NarrativeStableBarrierAcknowledgmentControllerInternalV1,
+  NarrativeStableBarrierAcknowledgmentControllerRecordInternalV1
+>();
+
 interface NarrativeStablePauseExpiryControllerAttemptRecordInternalV1 {
   readonly controller: NarrativeStablePauseExpiryControllerInternalV1;
   readonly proof: ManagedSurfaceStableReadyActiveTargetProofInternalV1;
@@ -610,6 +719,49 @@ const narrativePauseExpiryFaultedResultInternalV1 = Object.freeze({
   kind: "faulted" as const,
   completion: null,
 });
+
+const narrativeBarrierStageArmedResultInternalV1 = Object.freeze({
+  kind: "armed" as const,
+  completion: null,
+});
+
+const narrativeBarrierStageStaleResultInternalV1 = Object.freeze({
+  kind: "stale" as const,
+  completion: null,
+});
+
+const narrativeBarrierRetainedResultInternalV1 = Object.freeze({
+  kind: "retained" as const,
+  completion: null,
+});
+
+const narrativeBarrierCancelledResultInternalV1 = Object.freeze({
+  kind: "cancelled" as const,
+  completion: null,
+});
+
+const narrativeBarrierStaleResultInternalV1 = Object.freeze({
+  kind: "stale" as const,
+  completion: null,
+});
+
+const narrativeBarrierFaultedResultInternalV1 = Object.freeze({
+  kind: "faulted" as const,
+  completion: null,
+});
+
+function narrativeBarrierStageFaultedResultInternalV1(
+  code:
+    | "stage.acknowledged_run_unmatched"
+    | "stage.acknowledged_run_ambiguous"
+    | "stage.acknowledged_run_faulted",
+): NarrativeStableBarrierStageRetargetResultInternalV1 {
+  return freezeNarrativePhysicalActionDataInternalV1({
+    kind: "faulted" as const,
+    code,
+    completion: null,
+  });
+}
 
 function hasExactDataKeysInternalV1(
   value: unknown,
@@ -1445,6 +1597,7 @@ export function createNarrativeStablePublisherBridgeInternalV1(
         ? Object.freeze({
           target: current.target,
           sourceRevision: current.record.sourceRevision,
+          canonicalPendingBytes: current.record.canonicalPendingBytes,
           frame: current.record.frame,
         })
         : null;
@@ -1454,6 +1607,11 @@ export function createNarrativeStablePublisherBridgeInternalV1(
     sayRevealControllerClaim: null,
     sayCallbackClaim: null,
     saySemanticInFlightClaim: null,
+    barrierStageClaimant: freezeNarrativePhysicalActionDataInternalV1({}),
+    barrierAcknowledgmentControllerClaim: null,
+    barrierTargetTerminalClaim: null,
+    barrierCallbackClaim: null,
+    barrierSemanticInFlightClaim: null,
   });
   return bridge;
 }
@@ -2966,4 +3124,512 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
     },
   });
   return authority;
+}
+
+export function createNarrativeStableBarrierAcknowledgmentControllerInternalV1(
+  input: CreateNarrativeStableBarrierAcknowledgmentControllerInputInternalV1,
+): NarrativeStableBarrierAcknowledgmentControllerInternalV1 {
+  let inputRecord: CapturedOwnDataRecordInternalV1 | null = null;
+  try {
+    inputRecord = captureOwnDataRecordInternalV1(input);
+  } catch {
+    inputRecord = null;
+  }
+  if (
+    inputRecord === null ||
+    !capturedRecordHasExactKeysInternalV1(inputRecord, ["bridge", "stageReconciler"])
+  ) {
+    throw new TypeError("ui.narrative_stable_barrier_controller_invalid");
+  }
+  const bridge = inputRecord.values.bridge as NarrativeStablePublisherBridgeInternalV1;
+  const stageReconciler = inputRecord.values.stageReconciler as StageReconcilerV1;
+  const bridgeRecord = narrativeStablePublisherBridgeRecordsInternalV1.get(bridge);
+  if (
+    bridgeRecord === undefined || bridgeRecord.barrierAcknowledgmentControllerClaim !== null
+  ) {
+    throw new TypeError("ui.narrative_stable_barrier_controller_invalid");
+  }
+
+  const captureCurrentBarrierIdentity = ():
+    | NarrativeStableBarrierTargetIdentityInternalV1
+    | null => {
+    const current = bridgeRecord.captureCurrentTargetInternalV1();
+    if (
+      current === null || current.frame.pending.kind !== "presentation_barrier" ||
+      !narrativeStableSemanticResolutionPortBindingsInternalV1.has(
+        current.frame.candidateSnapshot.semanticDispatchPort,
+      )
+    ) {
+      return null;
+    }
+    return freezeNarrativePhysicalActionDataInternalV1({
+      target: current.target,
+      semanticOccurrenceId: current.frame.semanticOccurrenceId,
+      canonicalPendingBytes: current.canonicalPendingBytes,
+      expectedTransitionId: current.frame.pending.expectedTransitionId,
+    });
+  };
+
+  const identityStillCurrent = (
+    identity: NarrativeStableBarrierTargetIdentityInternalV1,
+  ): boolean => {
+    const current = bridgeRecord.captureCurrentTargetInternalV1();
+    return current !== null && current.target === identity.target &&
+      current.frame.pending.kind === "presentation_barrier" &&
+      current.frame.semanticOccurrenceId === identity.semanticOccurrenceId &&
+      current.frame.pending.expectedTransitionId === identity.expectedTransitionId &&
+      bytesEqualInternalV1(current.canonicalPendingBytes, identity.canonicalPendingBytes);
+  };
+
+  let initialIdentity: NarrativeStableBarrierTargetIdentityInternalV1 | null;
+  try {
+    initialIdentity = captureCurrentBarrierIdentity();
+  } catch {
+    initialIdentity = null;
+  }
+  if (initialIdentity === null) {
+    throw new TypeError("ui.narrative_stable_barrier_controller_unavailable");
+  }
+
+  const controllerClaim = freezeNarrativePhysicalActionDataInternalV1({});
+  let stageAuthority: StageAcknowledgedRunAuthorityInternalV1;
+  let stableActionAuthority: ManagedSurfaceStableActionRouteAuthorityInternalV1;
+  try {
+    stageAuthority = claimStageAcknowledgedRunAuthorityInternalV1(
+      stageReconciler,
+      bridgeRecord.barrierStageClaimant,
+    );
+    stableActionAuthority = claimManagedSurfaceStableActionRouteAuthorityInternalV1(
+      bridgeRecord.compositeRuntimeKernel,
+    );
+  } catch (error) {
+    throw new TypeError("ui.narrative_stable_barrier_controller_invalid", { cause: error });
+  }
+
+  let controller!: NarrativeStableBarrierAcknowledgmentControllerInternalV1;
+  const record: NarrativeStableBarrierAcknowledgmentControllerRecordInternalV1 = {
+    bridgeRecord,
+    controllerClaim,
+    stageAuthority,
+    stableActionAuthority,
+    active: true,
+    stageRetargetInProgress: false,
+    evidence: null,
+    terminalResult: null,
+  };
+
+  const subscribeState = captureOwnCallableInternalV1(
+    bridgeRecord.compositeRuntimeKernel,
+    "subscribeStateInternalV1",
+  );
+  if (subscribeState === null) {
+    throw new TypeError("ui.narrative_stable_barrier_controller_invalid");
+  }
+  let observerActive = true;
+  let unsubscribeState = (): void => {};
+  const releaseObserver = (): void => {
+    if (!observerActive) return;
+    observerActive = false;
+    try {
+      unsubscribeState();
+    } catch {
+      // Exact claim cleanup remains fail closed when an observer wrapper throws.
+    }
+  };
+
+  const mapStageResult = (
+    result: StageAcknowledgedRunRetargetResultInternalV1,
+  ): NarrativeStableBarrierStageRetargetResultInternalV1 => {
+    if (result.kind === "armed") return narrativeBarrierStageArmedResultInternalV1;
+    if (result.kind === "stale") return narrativeBarrierStageStaleResultInternalV1;
+    return narrativeBarrierStageFaultedResultInternalV1(result.code);
+  };
+
+  const retireEvidence = (
+    result: NarrativeStableBarrierTerminalDispatchResultInternalV1,
+  ): NarrativeStableBarrierTerminalDispatchResultInternalV1 => {
+    const evidence = record.evidence;
+    if (evidence !== null) {
+      evidence.retired = true;
+      if (
+        evidence.inFlightClaim !== null &&
+        bridgeRecord.barrierSemanticInFlightClaim === evidence.inFlightClaim
+      ) {
+        record.terminalResult = result;
+        return result;
+      }
+      if (
+        evidence.inFlightClaim !== null &&
+        bridgeRecord.barrierCallbackClaim === evidence.inFlightClaim
+      ) {
+        bridgeRecord.barrierCallbackClaim = null;
+      }
+      evidence.inFlightClaim = null;
+      if (bridgeRecord.barrierTargetTerminalClaim === evidence.terminalClaim) {
+        bridgeRecord.barrierTargetTerminalClaim = null;
+      }
+    }
+    record.evidence = null;
+    record.terminalResult = result;
+    if (!record.active) releaseObserver();
+    return result;
+  };
+
+  controller = freezeNarrativePhysicalActionDataInternalV1({
+    retargetCurrentBarrierStageInternalV1(
+      this: NarrativeStableBarrierAcknowledgmentControllerInternalV1,
+      retarget: StageRetargetInputV1,
+    ): NarrativeStableBarrierStageRetargetResultInternalV1 {
+      if (this !== controller) {
+        throw new TypeError("ui.narrative_stable_barrier_controller_invalid");
+      }
+      if (
+        !record.active ||
+        bridgeRecord.barrierAcknowledgmentControllerClaim !== controllerClaim
+      ) {
+        return narrativeBarrierStageStaleResultInternalV1;
+      }
+      if (bridgeRecord.barrierTargetTerminalClaim !== null) {
+        const currentEvidence = record.evidence;
+        if (
+          currentEvidence !== null && !currentEvidence.retired &&
+          !identityStillCurrent(currentEvidence.targetIdentity)
+        ) {
+          retireEvidence(narrativeBarrierStaleResultInternalV1);
+        }
+        if (bridgeRecord.barrierTargetTerminalClaim !== null) {
+          return narrativeBarrierStageStaleResultInternalV1;
+        }
+      }
+
+      let targetIdentity: NarrativeStableBarrierTargetIdentityInternalV1 | null;
+      try {
+        targetIdentity = captureCurrentBarrierIdentity();
+      } catch {
+        targetIdentity = null;
+      }
+      if (targetIdentity === null) return narrativeBarrierStageStaleResultInternalV1;
+      const expectedTerminalClaim = bridgeRecord.barrierTargetTerminalClaim;
+
+      let terminalDelivered = false;
+      let installedTerminalClaim: object | null = null;
+      const commitGuard: StageAcknowledgedRunCommitGuardInternalV1 =
+        freezeNarrativePhysicalActionDataInternalV1({
+          isCommitCurrentInternalV1(): boolean {
+            return record.active &&
+              bridgeRecord.barrierAcknowledgmentControllerClaim === controllerClaim &&
+              bridgeRecord.barrierTargetTerminalClaim === expectedTerminalClaim &&
+              identityStillCurrent(targetIdentity!);
+          },
+        });
+      const terminalPort: StageAcknowledgedRunTerminalPortInternalV1 =
+        freezeNarrativePhysicalActionDataInternalV1({
+          deliverTerminalInternalV1(
+            terminal: Parameters<
+              StageAcknowledgedRunTerminalPortInternalV1["deliverTerminalInternalV1"]
+            >[0],
+          ): void {
+            if (terminalDelivered) return;
+            terminalDelivered = true;
+            try {
+              if (
+                !record.active ||
+                bridgeRecord.barrierAcknowledgmentControllerClaim !== controllerClaim ||
+                !identityStillCurrent(targetIdentity!)
+              ) {
+                record.evidence = null;
+                record.terminalResult = narrativeBarrierStaleResultInternalV1;
+                return;
+              }
+              if (bridgeRecord.barrierTargetTerminalClaim !== null) return;
+              const terminalClaim = freezeNarrativePhysicalActionDataInternalV1({});
+              installedTerminalClaim = terminalClaim;
+              bridgeRecord.barrierTargetTerminalClaim = terminalClaim;
+              const evidence: NarrativeStableBarrierTerminalEvidenceInternalV1 = {
+                targetIdentity: targetIdentity!,
+                proof: terminal.proof,
+                outcome: terminal.outcome,
+                terminalClaim,
+                retired: false,
+                inFlightClaim: null,
+                dispatchedResult: null,
+              };
+              record.evidence = evidence;
+              record.terminalResult = terminal.outcome === "cancelled"
+                ? narrativeBarrierCancelledResultInternalV1
+                : narrativeBarrierRetainedResultInternalV1;
+            } catch {
+              if (
+                installedTerminalClaim !== null &&
+                bridgeRecord.barrierTargetTerminalClaim === installedTerminalClaim &&
+                record.evidence === null
+              ) {
+                bridgeRecord.barrierTargetTerminalClaim = null;
+              }
+              record.evidence = null;
+              record.terminalResult = narrativeBarrierFaultedResultInternalV1;
+            }
+          },
+        });
+
+      let stageResult: StageAcknowledgedRunRetargetResultInternalV1;
+      record.stageRetargetInProgress = true;
+      try {
+        stageResult = stageAuthority.retargetWithAcknowledgedRunInternalV1({
+          retarget,
+          expectedTransitionId: targetIdentity.expectedTransitionId,
+          commitGuard,
+          terminalPort,
+        });
+      } catch {
+        return narrativeBarrierStageFaultedResultInternalV1(
+          "stage.acknowledged_run_faulted",
+        );
+      } finally {
+        record.stageRetargetInProgress = false;
+      }
+      return mapStageResult(stageResult);
+    },
+
+    flushRetainedTerminalInternalV1(
+      this: NarrativeStableBarrierAcknowledgmentControllerInternalV1,
+    ): NarrativeStableBarrierTerminalDispatchResultInternalV1 | null {
+      if (this !== controller) {
+        throw new TypeError("ui.narrative_stable_barrier_controller_invalid");
+      }
+      if (
+        !record.active ||
+        bridgeRecord.barrierAcknowledgmentControllerClaim !== controllerClaim
+      ) {
+        return null;
+      }
+      const evidence = record.evidence;
+      if (evidence === null) return record.terminalResult;
+      if (evidence.retired) return narrativeBarrierStaleResultInternalV1;
+      let targetCurrent = false;
+      try {
+        targetCurrent = identityStillCurrent(evidence.targetIdentity);
+      } catch {
+        targetCurrent = false;
+      }
+      if (!targetCurrent) {
+        return retireEvidence(narrativeBarrierStaleResultInternalV1);
+      }
+      if (evidence.outcome === "cancelled") {
+        record.terminalResult = narrativeBarrierCancelledResultInternalV1;
+        return record.terminalResult;
+      }
+      if (evidence.dispatchedResult !== null) return evidence.dispatchedResult;
+      let terminalStackActive = false;
+      try {
+        terminalStackActive = record.stageAuthority
+          .isAcknowledgedRunTerminalStackActiveInternalV1(evidence.proof);
+      } catch {
+        record.terminalResult = narrativeBarrierFaultedResultInternalV1;
+        return record.terminalResult;
+      }
+      if (record.stageRetargetInProgress || terminalStackActive) {
+        record.terminalResult = narrativeBarrierRetainedResultInternalV1;
+        return record.terminalResult;
+      }
+      if (
+        evidence.inFlightClaim !== null || bridgeRecord.barrierCallbackClaim !== null ||
+        bridgeRecord.barrierSemanticInFlightClaim !== null
+      ) {
+        return narrativeBarrierStaleResultInternalV1;
+      }
+
+      let current: NarrativeStableCurrentTargetProjectionInternalV1 | null = null;
+      try {
+        current = bridgeRecord.captureCurrentTargetInternalV1();
+      } catch {
+        return retireEvidence(narrativeBarrierStaleResultInternalV1);
+      }
+      if (
+        current === null || current.target !== evidence.targetIdentity.target ||
+        current.frame.pending.kind !== "presentation_barrier" ||
+        current.frame.semanticOccurrenceId !== evidence.targetIdentity.semanticOccurrenceId ||
+        !bytesEqualInternalV1(
+          current.canonicalPendingBytes,
+          evidence.targetIdentity.canonicalPendingBytes,
+        )
+      ) {
+        return retireEvidence(narrativeBarrierStaleResultInternalV1);
+      }
+      let captured;
+      try {
+        captured = stableActionAuthority.captureReadyActiveStableTargetInternalV1(
+          current.target,
+        );
+      } catch {
+        return narrativeBarrierFaultedResultInternalV1;
+      }
+      if (captured.kind === "unavailable") {
+        record.terminalResult = narrativeBarrierRetainedResultInternalV1;
+        return record.terminalResult;
+      }
+      if (captured.kind === "faulted") {
+        record.terminalResult = narrativeBarrierFaultedResultInternalV1;
+        return record.terminalResult;
+      }
+      if (
+        captured.directTarget !== current.target ||
+        captured.sourceRevision !== current.sourceRevision ||
+        !stableActionAuthority.isCurrentReadyActiveStableTargetInternalV1(captured.proof)
+      ) {
+        record.terminalResult = narrativeBarrierRetainedResultInternalV1;
+        return record.terminalResult;
+      }
+      const portBinding = narrativeStableSemanticResolutionPortBindingsInternalV1.get(
+        current.frame.candidateSnapshot.semanticDispatchPort,
+      );
+      if (portBinding === undefined) {
+        record.terminalResult = narrativeBarrierFaultedResultInternalV1;
+        return record.terminalResult;
+      }
+
+      const boundaryClaim = freezeNarrativePhysicalActionDataInternalV1({});
+      bridgeRecord.barrierCallbackClaim = boundaryClaim;
+      evidence.inFlightClaim = boundaryClaim;
+      if (
+        !identityStillCurrent(evidence.targetIdentity) ||
+        !stableActionAuthority.isCurrentReadyActiveStableTargetInternalV1(captured.proof) ||
+        bridgeRecord.barrierCallbackClaim !== boundaryClaim
+      ) {
+        return retireEvidence(narrativeBarrierStaleResultInternalV1);
+      }
+      bridgeRecord.barrierCallbackClaim = null;
+      bridgeRecord.barrierSemanticInFlightClaim = boundaryClaim;
+      const resolution: InteractionResolutionV1 = freezeNarrativePhysicalActionDataInternalV1({
+        kind: "barrier_completed" as const,
+        transitionId: evidence.targetIdentity.expectedTransitionId,
+      });
+      const request = freezeNarrativePhysicalActionDataInternalV1({
+        expectedOccurrenceId: current.frame.pending.occurrenceId,
+        resolution,
+      }) satisfies NarrativeStableSemanticResolutionRequestInternalV1;
+
+      let semanticCompletion: Promise<unknown>;
+      try {
+        semanticCompletion = Promise.resolve(
+          Reflect.apply(portBinding.dispatchResolution, portBinding.receiver, [request]),
+        );
+      } catch (error) {
+        semanticCompletion = Promise.reject(error);
+      }
+      const settle = (): void => {
+        try {
+          if (
+            bridgeRecord.barrierSemanticInFlightClaim !== boundaryClaim ||
+            evidence.inFlightClaim !== boundaryClaim
+          ) {
+            return;
+          }
+          bridgeRecord.barrierSemanticInFlightClaim = null;
+          evidence.inFlightClaim = null;
+          evidence.dispatchedResult = null;
+          let stillCurrent = false;
+          try {
+            stillCurrent = !evidence.retired && identityStillCurrent(evidence.targetIdentity);
+          } catch {
+            stillCurrent = false;
+          }
+          if (
+            record.active && record.evidence === evidence && stillCurrent &&
+            bridgeRecord.barrierAcknowledgmentControllerClaim === controllerClaim
+          ) {
+            record.terminalResult = narrativeBarrierRetainedResultInternalV1;
+            return;
+          }
+          if (bridgeRecord.barrierTargetTerminalClaim === evidence.terminalClaim) {
+            bridgeRecord.barrierTargetTerminalClaim = null;
+          }
+          if (record.evidence === evidence) {
+            record.evidence = null;
+            record.terminalResult = narrativeBarrierStaleResultInternalV1;
+          }
+        } finally {
+          if (!record.active) releaseObserver();
+        }
+      };
+      const completion = semanticCompletion.then(
+        (value) => {
+          settle();
+          return value;
+        },
+        (error) => {
+          settle();
+          throw error;
+        },
+      );
+      const dispatched = freezeNarrativePhysicalActionDataInternalV1({
+        kind: "dispatched" as const,
+        completion,
+      });
+      evidence.dispatchedResult = dispatched;
+      record.terminalResult = dispatched;
+      return dispatched;
+    },
+
+    disposeInternalV1(
+      this: NarrativeStableBarrierAcknowledgmentControllerInternalV1,
+    ): void {
+      if (this !== controller || !record.active) return;
+      record.active = false;
+      const evidence = record.evidence;
+      const semanticPending = evidence?.inFlightClaim !== null &&
+        evidence?.inFlightClaim !== undefined &&
+        bridgeRecord.barrierSemanticInFlightClaim === evidence.inFlightClaim;
+      if (!semanticPending && evidence !== null) {
+        if (bridgeRecord.barrierCallbackClaim === evidence.inFlightClaim) {
+          bridgeRecord.barrierCallbackClaim = null;
+        }
+        if (bridgeRecord.barrierTargetTerminalClaim === evidence.terminalClaim) {
+          bridgeRecord.barrierTargetTerminalClaim = null;
+        }
+        record.evidence = null;
+      }
+      record.terminalResult = null;
+      if (bridgeRecord.barrierAcknowledgmentControllerClaim === controllerClaim) {
+        bridgeRecord.barrierAcknowledgmentControllerClaim = null;
+      }
+      if (!semanticPending) releaseObserver();
+    },
+  });
+  narrativeStableBarrierAcknowledgmentControllerRecordsInternalV1.set(controller, record);
+  bridgeRecord.barrierAcknowledgmentControllerClaim = controllerClaim;
+  try {
+    const subscribed = Reflect.apply(
+      subscribeState,
+      bridgeRecord.compositeRuntimeKernel,
+      [
+        () => {
+          const evidence = record.evidence;
+          if (evidence === null) {
+            if (!record.active) releaseObserver();
+            return;
+          }
+          let current = false;
+          try {
+            current = identityStillCurrent(evidence.targetIdentity);
+          } catch {
+            current = false;
+          }
+          if (!current) retireEvidence(narrativeBarrierStaleResultInternalV1);
+        },
+      ],
+    );
+    if (typeof subscribed !== "function") {
+      throw new TypeError("ui.narrative_stable_barrier_controller_invalid");
+    }
+    unsubscribeState = subscribed as () => void;
+  } catch {
+    record.active = false;
+    if (bridgeRecord.barrierAcknowledgmentControllerClaim === controllerClaim) {
+      bridgeRecord.barrierAcknowledgmentControllerClaim = null;
+    }
+    releaseObserver();
+    throw new TypeError("ui.narrative_stable_barrier_controller_invalid");
+  }
+  return controller;
 }

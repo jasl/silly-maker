@@ -109,13 +109,13 @@ skippable-pause physical resume，S4.1b.1b.1b.1又已交付automatic pause-expir
 admission/dispatch floor，S4.1b.1b.1b.2a又已交付custom physical payload admission，
 S4.1b.1b.1b.2b.0现已冻结remaining Say/barrier/player policy，
 S4.1b.1b.1b.2b.1a又已交付physical Say reveal-first admission，
-S4.1b.1b.1b.2b.1b又已交付content-auto Say controller-attempt floor。
-当前active execution pointer的current/next均为S4.1b.1b.1b.2b.2a normal
-Stage→Narrative acknowledgment vertical；之后依次为
-S4.1b.1b.1b.2b.2b settle/replay recovery、S4.1b.1b.1b.2b.3 player controls、S4.2、S4.3与S4b。
+S4.1b.1b.1b.2b.1b又已交付content-auto Say controller-attempt floor，
+S4.1b.1b.1b.2b.2a又已交付normal Stage→Narrative acknowledgment vertical。
+当前active execution pointer的current/next均为S4.1b.1b.1b.2b.2b settle/replay recovery；之后依次为
+S4.1b.1b.1b.2b.3 player controls、S4.2、S4.3与S4b。
 R3b.1、R4.0、R4a、R4b.0、R4b.1、R5、S4.0、S4.1a、S4.1b.0、S4.1b.1a、S4.1b.1b.0与
 S4.1b.1b.1a、S4.1b.1b.1b.1、S4.1b.1b.1b.2a、S4.1b.1b.1b.2b.0与
-S4.1b.1b.1b.2b.1a与S4.1b.1b.1b.2b.1b只作为completed
+S4.1b.1b.1b.2b.1a、S4.1b.1b.1b.2b.1b与S4.1b.1b.1b.2b.2a只作为completed
 delivery保留。
 Stable implementation仍保持dormant/source-relative；R5只解除S4 entry gate，S4.0也没有把任何stable family
 提前写成live capability。
@@ -1368,8 +1368,8 @@ controller-attempt admission/dispatch floor；S4.1b.1b.1b.2a custom physical pay
 S4.1b.1b.1b.2b.0 remaining mapping policy adjudication（已完成）；
 S4.1b.1b.1b.2b.1a physical Say reveal-first admission（已完成）；
 S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor（已完成）；
-S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment vertical（当前）；
-S4.1b.1b.1b.2b.2b settle/replay recovery；
+S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment vertical（已完成）；
+S4.1b.1b.1b.2b.2b settle/replay recovery（当前）；
 S4.1b.1b.1b.2b.3 player controls；S4.2 dormant
 controller/view/Host、Host-commit readiness与History exact-child integration；
 S4.3在一个cutover中迁移全部tracked consumers、删除旧writers并完成headless/browser/prebuilt promotion。若exact-parent
@@ -1488,8 +1488,8 @@ S4.1b.1b.1a验证通过focused `7 files / 192 tests`、UI `79 files / 1010 tests
 `253 files / 3938 tests`与`deno task check` green。本批未重跑browser/examples/prebuilt；`101 / 101`、
 `45 passed / 2 skipped`与`38 / 38`仅是先前已有证据，不冒充本批HEAD验证。
 该checkpoint当时的current/next是S4.1b.1b.1b.2a；现已由上述.2a delivery推进。
-Active current/next现均为S4.1b.1b.1b.2b.2a；后续顺序保持
-S4.1b.1b.1b.2b.2a → S4.1b.1b.1b.2b.2b →
+Active current/next现均为S4.1b.1b.1b.2b.2b；后续顺序保持
+S4.1b.1b.1b.2b.2b →
 S4.1b.1b.1b.2b.3 → S4.2 → S4.3 → S4b。
 
 **S4.1b.1b.1b.2b.1 execution-order amendment：** Say先拆成两个vertical。`.1a`沿用既有
@@ -1611,12 +1611,13 @@ Host/React/live claimant，也没有新增public/`./internal` barrel、package e
 `deno task check` green。本批未重跑browser/examples/prebuilt；Engine browser `101 / 101`、examples
 `45 passed / 2 skipped`与prebuilt Player `38 / 38`仅为prior evidence，不冒充本批HEAD验证。
 S4.1b.1b.1b.2b.1b已完成；active current/next现均推进为
-S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment vertical。
+S4.1b.1b.1b.2b.2b settle/replay recovery；S4.1b.1b.1b.2b.2a已由下述delivery关闭。
 
-**S4.1b.1b.1b.2b.2 entry amendment（docs-only）：** Barrier先拆为
+**S4.1b.1b.1b.2b.2 entry amendment（历史checkpoint）：** Barrier先拆为
 S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment vertical，再做
 S4.1b.1b.1b.2b.2b settle/replay recovery；两者完成后才进入S4.1b.1b.1b.2b.3
-player controls。本amendment只冻结source-relative合同，没有runtime、test、Host/live claimant或delivery evidence。
+player controls。该checkpoint当时只冻结source-relative合同，没有runtime、test、Host/live claimant或delivery evidence；
+现已由下述`.2b.2a` delivery部分关闭。
 
 `.2b.2a`先为exact `StageReconcilerV1`建立claim-once、package-internal
 `StageAcknowledgedRunAuthorityInternalV1`。`claimStageAcknowledgedRunAuthorityInternalV1(reconciler,
@@ -1634,6 +1635,10 @@ retargetWithAcknowledgedRunInternalV1(input: {
   readonly commitGuard: StageAcknowledgedRunCommitGuardInternalV1;
   readonly terminalPort: StageAcknowledgedRunTerminalPortInternalV1;
 }): StageAcknowledgedRunRetargetResultInternalV1;
+
+isAcknowledgedRunTerminalStackActiveInternalV1(
+  proof: unknown,
+): boolean;
 ```
 
 `StageAcknowledgedRunProofInternalV1`是frozen zero-key opaque capability；
@@ -1692,6 +1697,10 @@ path上被隔离，不能阻断private delivery、复活run、回滚Stage commit
 private proof的unclaimed ordinary public path仍保持已有callback/notification行为。Stage在调用private terminal port前已经
 terminal-seal proof；hostile port throw被隔离、该proof不重送，并且不阻断run cleanup或后续public observer。Narrative的
 captured port必须把自身内部失败收敛为cached `faulted` terminal result，不向Stage抛出。
+同一authority的read-only `isAcknowledgedRunTerminalStackActiveInternalV1(proof)`只对same-authority、WeakMap-authenticated
+exact proof返回当前private-terminal/public-observer stack状态；foreign、clone、unissued或已退出terminal stack一律为`false`且
+不读取caller字段。Narrative显式flush以该proof-bound状态区分public callback内的`retained`与Stage terminal调用返回后的
+fresh dispatch，不得用microtask、React effect或Host retry猜测terminal stack边界。
 
 Narrative同批新增`NarrativeStableBarrierAcknowledgmentControllerInternalV1`与
 `createNarrativeStableBarrierAcknowledgmentControllerInternalV1({ bridge, stageReconciler })`。Factory从bridge private
@@ -1725,6 +1734,37 @@ Completion继续遵守既有publication + bridge drain contract，随后只用ex
 occurrence/canonical pending仍current，则恢复retained state，且只能由后续显式flush捕获fresh source/frame/port/proof再试；
 若target-level evidence已退役，completion只清理bounded tombstone。Old completion不能清除successor claim，不读取
 opaque Story result，也不在settlement stack内自动重试。
+
+**S4.1b.1b.1b.2b.2a delivery：** Claimed Stage现以一个claim-once、exact-receiver authority独占
+`StageReconcilerV1` mutation；claim后的raw writer全部fail closed，read-only frame/subscription与unclaimed ordinary路径保持
+原合同。Acknowledged retarget先对完整change plan执行一次detached planning，先应用old-run suppression，再只按original
+logical transition ID接受exact-one acknowledged edge；fallback/effective transition ID不能替代该identity，zero/multiple match、
+hostile callback与nested mutation均按已冻结precedence exact-zero/fault。Planning与每次old-run interruption期间的clock ticket
+被隔离；每个old private terminal、public acknowledgment/diagnostic与subscriber callback完整返回后均重验同一guard，final
+guard成功到commit之间只执行captured-intrinsic与local assignment，不再动态读取caller/global prototype或留下half-arm。
+
+每个accepted run签发fresh frozen zero-key opaque proof。Stage先不可逆seal并调用exact captured private terminal port，之后才
+进入public acknowledgment、diagnostic与subscriber；private/public observer throw均被隔离，proof只delivery一次且run cleanup、
+后续guard与notification继续。`isAcknowledgedRunTerminalStackActiveInternalV1`只对same-authority exact proof在private/public/
+diagnostic/subscriber terminal stack内返回`true`，回调退出、clone、foreign、unissued与wrong provenance均fail closed且不读取
+caller字段。Instant、animated、asset readiness、reduced fallback与`completed | skipped | interrupted | cancelled`共用该proof与
+terminal-stack合同。
+
+同批Narrative Barrier controller以exact opaque target、semantic occurrence与normalized pending canonical evidence绑定Stage arm，
+但不把可替换source/frame/port伪装成target identity。Target的第一个terminal winner原子占有target-level slot并使仍在外层的
+旧arm postcheck变为stale；preparing、same-target readiness retry与suspended期间保留eligible evidence，replacement、canonical/
+semantic drift、empty与publisher/application successor则同步退役。Terminal callback只记录`completed | skipped | interrupted`
+eligible evidence或`cancelled` zero-semantic outcome；semantic调用只能由显式flush在fresh ready-active source/frame/port/proof
+复验后发起。Target-level Promise claim、bounded tombstone、lifecycle observer与exact-token CAS保证pending completion不会被
+dispose/successor清空、old completion不会ABA-clear fresh claim，并在publication + bridge drain后只恢复仍current的retained
+evidence；`cancelled`始终semantic dispatch为零。
+
+本delivery仍是source-relative dormant floor：没有接入live Narrative Host、React/Web、Story consumer或public Stage writer，
+没有新增public root、`./internal` barrel、package export、generic Surface/action/result、Base interaction、Save/Persistence、
+canonical/digest/replay/wire合同。验证通过focused `8 files / 292 tests`、UI `79 files / 1099 tests`、full
+`253 files / 4029 tests`与`deno task check` green；fresh Engine browser为`101 / 101`、examples为
+`45 passed / 2 skipped`、prebuilt Player为`38 / 38`。S4.1b.1b.1b.2b.2a现已完成；active current/next均推进为
+S4.1b.1b.1b.2b.2b settle/replay recovery。
 
 `.2b.2b`在同一controller上新增`StagePresentationGenerationProofInternalV1`、
 `NarrativeStableBarrierRecoveryGenerationInternalV1`与`NarrativeStableBarrierRecoveryAttemptInternalV1`，均为frozen zero-key

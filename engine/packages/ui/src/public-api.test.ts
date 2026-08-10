@@ -232,6 +232,50 @@ import type { NarrativeStableSayContentAutoAttemptInternalV1 as ForbiddenInterna
 import type { NarrativeStableSayContentAutoDispatchResultInternalV1 as ForbiddenPublicNarrativeSayContentAutoDispatchResultV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Narrative Say content-auto dispatch results.
 import type { NarrativeStableSayContentAutoDispatchResultInternalV1 as ForbiddenInternalNarrativeSayContentAutoDispatchResultV1 } from "./internal.ts";
+// @ts-expect-error Stage acknowledged-run proofs remain source-relative.
+import type { StageAcknowledgedRunProofInternalV1 as ForbiddenPublicStageAcknowledgedRunProofV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Stage acknowledged-run proofs.
+import type { StageAcknowledgedRunProofInternalV1 as ForbiddenInternalStageAcknowledgedRunProofV1 } from "./internal.ts";
+// @ts-expect-error Stage acknowledged-run commit guards remain source-relative.
+import type { StageAcknowledgedRunCommitGuardInternalV1 as ForbiddenPublicStageAcknowledgedRunCommitGuardV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Stage acknowledged-run commit guards.
+import type { StageAcknowledgedRunCommitGuardInternalV1 as ForbiddenInternalStageAcknowledgedRunCommitGuardV1 } from "./internal.ts";
+// @ts-expect-error Stage acknowledged-run terminal ports remain source-relative.
+import type { StageAcknowledgedRunTerminalPortInternalV1 as ForbiddenPublicStageAcknowledgedRunTerminalPortV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Stage acknowledged-run terminal ports.
+import type { StageAcknowledgedRunTerminalPortInternalV1 as ForbiddenInternalStageAcknowledgedRunTerminalPortV1 } from "./internal.ts";
+// @ts-expect-error Stage acknowledged-run retarget results remain source-relative.
+import type { StageAcknowledgedRunRetargetResultInternalV1 as ForbiddenPublicStageAcknowledgedRunRetargetResultV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Stage acknowledged-run retarget results.
+import type { StageAcknowledgedRunRetargetResultInternalV1 as ForbiddenInternalStageAcknowledgedRunRetargetResultV1 } from "./internal.ts";
+// @ts-expect-error Stage acknowledged-run authorities remain source-relative.
+import type { StageAcknowledgedRunAuthorityInternalV1 as ForbiddenPublicStageAcknowledgedRunAuthorityV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Stage acknowledged-run authorities.
+import type { StageAcknowledgedRunAuthorityInternalV1 as ForbiddenInternalStageAcknowledgedRunAuthorityV1 } from "./internal.ts";
+// @ts-expect-error Stage acknowledged-run authority claiming remains source-relative.
+import type { claimStageAcknowledgedRunAuthorityInternalV1 as ForbiddenPublicStageAcknowledgedRunAuthorityClaimV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Stage acknowledged-run authority claiming.
+import type { claimStageAcknowledgedRunAuthorityInternalV1 as ForbiddenInternalStageAcknowledgedRunAuthorityClaimV1 } from "./internal.ts";
+// @ts-expect-error Narrative Barrier Stage-retarget results remain source-relative.
+import type { NarrativeStableBarrierStageRetargetResultInternalV1 as ForbiddenPublicNarrativeBarrierStageRetargetResultV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative Barrier Stage-retarget results.
+import type { NarrativeStableBarrierStageRetargetResultInternalV1 as ForbiddenInternalNarrativeBarrierStageRetargetResultV1 } from "./internal.ts";
+// @ts-expect-error Narrative Barrier terminal-dispatch results remain source-relative.
+import type { NarrativeStableBarrierTerminalDispatchResultInternalV1 as ForbiddenPublicNarrativeBarrierTerminalDispatchResultV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative Barrier terminal-dispatch results.
+import type { NarrativeStableBarrierTerminalDispatchResultInternalV1 as ForbiddenInternalNarrativeBarrierTerminalDispatchResultV1 } from "./internal.ts";
+// @ts-expect-error Narrative Barrier controller inputs remain source-relative.
+import type { CreateNarrativeStableBarrierAcknowledgmentControllerInputInternalV1 as ForbiddenPublicNarrativeBarrierControllerInputV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative Barrier controller inputs.
+import type { CreateNarrativeStableBarrierAcknowledgmentControllerInputInternalV1 as ForbiddenInternalNarrativeBarrierControllerInputV1 } from "./internal.ts";
+// @ts-expect-error Narrative Barrier controllers remain source-relative.
+import type { NarrativeStableBarrierAcknowledgmentControllerInternalV1 as ForbiddenPublicNarrativeBarrierControllerV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative Barrier controllers.
+import type { NarrativeStableBarrierAcknowledgmentControllerInternalV1 as ForbiddenInternalNarrativeBarrierControllerV1 } from "./internal.ts";
+// @ts-expect-error Narrative Barrier controller construction remains source-relative.
+import type { createNarrativeStableBarrierAcknowledgmentControllerInternalV1 as ForbiddenPublicNarrativeBarrierControllerFactoryV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative Barrier controller construction.
+import type { createNarrativeStableBarrierAcknowledgmentControllerInternalV1 as ForbiddenInternalNarrativeBarrierControllerFactoryV1 } from "./internal.ts";
 // @ts-expect-error Narrative Say reveal-controller inputs remain source-relative.
 import type { CreateNarrativeStableSayRevealControllerInputInternalV1 as ForbiddenPublicNarrativeSayRevealControllerInputV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Narrative Say reveal-controller inputs.
@@ -360,6 +404,17 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "NarrativeStableSayActivationAttemptInternalV1"
       | "NarrativeStableSayContentAutoAttemptInternalV1"
       | "NarrativeStableSayContentAutoDispatchResultInternalV1"
+      | "StageAcknowledgedRunProofInternalV1"
+      | "StageAcknowledgedRunCommitGuardInternalV1"
+      | "StageAcknowledgedRunTerminalPortInternalV1"
+      | "StageAcknowledgedRunRetargetResultInternalV1"
+      | "StageAcknowledgedRunAuthorityInternalV1"
+      | "claimStageAcknowledgedRunAuthorityInternalV1"
+      | "NarrativeStableBarrierStageRetargetResultInternalV1"
+      | "NarrativeStableBarrierTerminalDispatchResultInternalV1"
+      | "CreateNarrativeStableBarrierAcknowledgmentControllerInputInternalV1"
+      | "NarrativeStableBarrierAcknowledgmentControllerInternalV1"
+      | "createNarrativeStableBarrierAcknowledgmentControllerInternalV1"
       | "CreateNarrativeStableSayRevealControllerInputInternalV1"
       | "NarrativeStableSayRevealControllerInternalV1"
       | "createNarrativeStableSayRevealControllerInternalV1"
@@ -463,6 +518,17 @@ describe("@sillymaker/ui public managed System surface", () => {
         "NarrativeStableSayActivationAttemptInternalV1",
         "NarrativeStableSayContentAutoAttemptInternalV1",
         "NarrativeStableSayContentAutoDispatchResultInternalV1",
+        "StageAcknowledgedRunProofInternalV1",
+        "StageAcknowledgedRunCommitGuardInternalV1",
+        "StageAcknowledgedRunTerminalPortInternalV1",
+        "StageAcknowledgedRunRetargetResultInternalV1",
+        "StageAcknowledgedRunAuthorityInternalV1",
+        "claimStageAcknowledgedRunAuthorityInternalV1",
+        "NarrativeStableBarrierStageRetargetResultInternalV1",
+        "NarrativeStableBarrierTerminalDispatchResultInternalV1",
+        "CreateNarrativeStableBarrierAcknowledgmentControllerInputInternalV1",
+        "NarrativeStableBarrierAcknowledgmentControllerInternalV1",
+        "createNarrativeStableBarrierAcknowledgmentControllerInternalV1",
         "CreateNarrativeStableSayRevealControllerInputInternalV1",
         "NarrativeStableSayRevealControllerInternalV1",
         "createNarrativeStableSayRevealControllerInternalV1",

@@ -1,12 +1,36 @@
 // SPDX-License-Identifier: MIT
 import {
   canonicalJsonBytes,
+  createSemanticStageStateV1,
   parseNonNegativeSafeInteger,
   parsePendingInteractionV1,
+  parseStageTransitionDefinitionV1,
+  projectStageRenderTargetV1,
+  reduceStageMutationsV1,
+  type AssetId,
+  type SemanticStageStateV1,
+  type StageContentCatalogV1,
+  type StageRenderTargetV1,
+  type StageTransitionCatalogV1,
+  type StageTransitionDefinitionV1,
 } from "@sillymaker/base";
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import { createInputRouterV1 } from "../input/input-router.ts";
+import {
+  createManualPresentationClockV1,
+  type ManualPresentationClockV1,
+} from "../presentation-run/presentation-clock.ts";
+import {
+  claimStageAcknowledgedRunAuthorityInternalV1,
+  createStageReconcilerV1,
+} from "../stage/stage-reconciler.ts";
+import type {
+  StageAcknowledgedRunAuthorityInternalV1,
+  StageReconcilerV1,
+  StageRetargetInputV1,
+  StageTransitionAcknowledgmentV1,
+} from "../stage/stage-reconciler.ts";
 import {
   parseManagedSurfaceActionIdV1,
   parseManagedSurfaceGestureIdV1,
@@ -36,17 +60,22 @@ import {
 } from "../managed-surfaces/managed-surface-stable-publisher-lease.ts";
 import {
   createNarrativeManagedSurfaceFamilyContractInternalV1,
+  createNarrativeStableBarrierAcknowledgmentControllerInternalV1,
   createNarrativeStablePauseExpiryControllerInternalV1,
   createNarrativeStablePhysicalActionAdmissionInternalV1,
   createNarrativeStablePublisherBridgeInternalV1,
   createNarrativeStableSayRevealControllerInternalV1,
   type CreateNarrativeStablePhysicalActionAdmissionInputInternalV1,
+  type CreateNarrativeStableBarrierAcknowledgmentControllerInputInternalV1,
   type CreateNarrativeStableSayRevealControllerInputInternalV1,
   type NarrativeManagedSurfaceFamilyContractInternalV1,
   type NarrativeStableCandidatePreflightInternalV1,
   type NarrativeStableCandidatePreflightRejectionCodeInternalV1,
   type NarrativeStableCandidatePreflightResultInternalV1,
   type NarrativeStableChoiceActionAttemptInternalV1,
+  type NarrativeStableBarrierAcknowledgmentControllerInternalV1,
+  type NarrativeStableBarrierStageRetargetResultInternalV1,
+  type NarrativeStableBarrierTerminalDispatchResultInternalV1,
   type NarrativeStableCustomActionAttemptInternalV1,
   type NarrativeStablePauseResumeActionAttemptInternalV1,
   type NarrativeStablePauseExpiryControllerAttemptInternalV1,
@@ -234,6 +263,125 @@ function pendingV1(
     default:
       throw new Error(`unsupported pending kind: ${String(kind)}`);
   }
+}
+
+const barrierStageContentCatalogV1: StageContentCatalogV1 = Object.freeze({
+  resolveContent: (contentId: Parameters<StageContentCatalogV1["resolveContent"]>[0]) =>
+    Object.freeze({
+      rendererId: "renderer.test.barrier-stage",
+      assetIds: Object.freeze([`asset.for.${contentId}` as AssetId]),
+      accessibleName: `Barrier stage ${contentId}`,
+      props: Object.freeze({}),
+    }),
+});
+
+function barrierStageStateV1(contents: readonly string[]): SemanticStageStateV1 {
+  const initial = createSemanticStageStateV1({
+    stageId: "stage.test.barrier",
+    layerIds: ["layer.test.barrier"],
+  });
+  const result = reduceStageMutationsV1(
+    initial,
+    contents.map((contentId, index) => ({
+      kind: "show",
+      layerId: "layer.test.barrier",
+      tag: `tag.test.barrier-${String(index)}`,
+      contentId,
+    })),
+  );
+  if (result.kind !== "applied") throw new Error("barrier Stage fixture must apply");
+  return result.state;
+}
+
+function barrierStageTargetV1(...contents: readonly string[]): StageRenderTargetV1 {
+  return projectStageRenderTargetV1(
+    barrierStageStateV1(contents),
+    barrierStageContentCatalogV1,
+  ).target;
+}
+
+function barrierTransitionDefinitionV1(
+  overrides: Partial<StageTransitionDefinitionV1> = {},
+): StageTransitionDefinitionV1 {
+  return parseStageTransitionDefinitionV1({
+    transitionId: "transition.test.fade",
+    kind: "crossfade",
+    durationMs: 100,
+    easing: "linear",
+    inputPolicy: "target_active",
+    interruption: "settle_and_retarget",
+    reducedMotion: { kind: "settle" },
+    readiness: { kind: "immediate" },
+    acknowledge: true,
+    slide: null,
+    ...overrides,
+  });
+}
+
+function barrierTransitionCatalogV1(
+  resolve: StageTransitionCatalogV1["resolveTransition"],
+  byId: Readonly<Record<string, StageTransitionDefinitionV1>> = {},
+): StageTransitionCatalogV1 {
+  return Object.freeze({
+    resolveTransition: resolve,
+    resolveTransitionById: (
+      transitionId: Parameters<NonNullable<StageTransitionCatalogV1["resolveTransitionById"]>>[0],
+    ) => byId[transitionId] ?? null,
+  });
+}
+
+interface BarrierStageHarnessV1 {
+  readonly clock: ManualPresentationClockV1;
+  readonly reconciler: StageReconcilerV1;
+  readonly authority: StageAcknowledgedRunAuthorityInternalV1 | null;
+  readonly initialTarget: StageRenderTargetV1;
+  readonly nextTarget: StageRenderTargetV1;
+  readonly thirdTarget: StageRenderTargetV1;
+}
+
+function createBarrierStageHarnessV1(input: {
+  readonly claimant?: object;
+  readonly transition?: StageTransitionDefinitionV1;
+  readonly resolveTransition?: StageTransitionCatalogV1["resolveTransition"];
+  readonly initialContents?: readonly string[];
+  readonly nextContents?: readonly string[];
+  readonly prefersReducedMotion?: () => boolean;
+  readonly assetsReady?: (assetIds: readonly AssetId[]) => boolean;
+  readonly onAcknowledgment?: (acknowledgment: StageTransitionAcknowledgmentV1) => void;
+}): BarrierStageHarnessV1 {
+  const clock = createManualPresentationClockV1();
+  const transition = input.transition ?? barrierTransitionDefinitionV1();
+  const reconciler = createStageReconcilerV1({
+    clock,
+    catalog: barrierTransitionCatalogV1(
+      input.resolveTransition ?? (() => transition),
+      { [transition.transitionId]: transition },
+    ),
+    ...(input.prefersReducedMotion === undefined
+      ? {}
+      : { prefersReducedMotion: input.prefersReducedMotion }),
+    ...(input.assetsReady === undefined ? {} : { assetsReady: input.assetsReady }),
+    ...(input.onAcknowledgment === undefined ? {} : { onAcknowledgment: input.onAcknowledgment }),
+  });
+  const initialTarget = barrierStageTargetV1(
+    ...(input.initialContents ?? ["content.test.barrier-a"]),
+  );
+  const nextTarget = barrierStageTargetV1(
+    ...(input.nextContents ?? ["content.test.barrier-b"]),
+  );
+  const thirdTarget = barrierStageTargetV1("content.test.barrier-c");
+  reconciler.retarget({ target: initialTarget, revision: 1, epoch: applicationEpochV1 });
+  const authority = input.claimant === undefined
+    ? null
+    : claimStageAcknowledgedRunAuthorityInternalV1(reconciler, input.claimant);
+  return { clock, reconciler, authority, initialTarget, nextTarget, thirdTarget };
+}
+
+function barrierRetargetInputV1(
+  target: StageRenderTargetV1,
+  revision: number,
+): StageRetargetInputV1 {
+  return Object.freeze({ target, revision, epoch: applicationEpochV1 });
 }
 
 function expectZeroResultV1(
@@ -469,6 +617,77 @@ function automaticPauseHarnessV1(input: {
   settleCurrentNarrativeReadyV1(harness);
   const controller = createNarrativeStablePauseExpiryControllerInternalV1(harness.bridge);
   return { harness, controller, semanticDispatchPort };
+}
+
+interface NarrativeBarrierHarnessV1 {
+  readonly harness: NarrativeHarnessV1;
+  readonly stage: BarrierStageHarnessV1;
+  readonly controller: NarrativeStableBarrierAcknowledgmentControllerInternalV1;
+  readonly semanticDispatchPort: NarrativeStableSemanticResolutionPortInternalV1;
+}
+
+function narrativeBarrierHarnessV1(input: {
+  readonly semanticDispatchPort?: NarrativeStableSemanticResolutionPortInternalV1;
+  readonly transition?: StageTransitionDefinitionV1;
+  readonly resolveTransition?: StageTransitionCatalogV1["resolveTransition"];
+  readonly initialContents?: readonly string[];
+  readonly nextContents?: readonly string[];
+  readonly pending?: unknown;
+  readonly settleReady?: boolean;
+  readonly prefersReducedMotion?: () => boolean;
+  readonly assetsReady?: (assetIds: readonly AssetId[]) => boolean;
+  readonly onAcknowledgment?: (acknowledgment: StageTransitionAcknowledgmentV1) => void;
+} = {}): NarrativeBarrierHarnessV1 {
+  const semanticDispatchPort = input.semanticDispatchPort ?? defaultSemanticDispatchPortV1;
+  const harness = harnessV1({
+    candidatePreflight: Object.freeze({
+      preflightCandidateInternalV1: () =>
+        capturedCandidatePreflightResultV1(Object.freeze({
+          ...defaultCandidateSnapshotV1,
+          semanticDispatchPort,
+        })),
+    }),
+  });
+  expect(
+    harness.bridge.reconcilePendingInternalV1(
+      input.pending ?? pendingV1("presentation_barrier"),
+    ),
+  ).toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
+  if (input.settleReady ?? true) settleCurrentNarrativeReadyV1(harness);
+  const stage = createBarrierStageHarnessV1({
+    ...(input.transition === undefined ? {} : { transition: input.transition }),
+    ...(input.resolveTransition === undefined
+      ? {}
+      : { resolveTransition: input.resolveTransition }),
+    ...(input.initialContents === undefined ? {} : { initialContents: input.initialContents }),
+    ...(input.nextContents === undefined ? {} : { nextContents: input.nextContents }),
+    ...(input.prefersReducedMotion === undefined
+      ? {}
+      : { prefersReducedMotion: input.prefersReducedMotion }),
+    ...(input.assetsReady === undefined ? {} : { assetsReady: input.assetsReady }),
+    ...(input.onAcknowledgment === undefined ? {} : { onAcknowledgment: input.onAcknowledgment }),
+  });
+  const controllerInput = Object.freeze({
+    bridge: harness.bridge,
+    stageReconciler: stage.reconciler,
+  }) satisfies CreateNarrativeStableBarrierAcknowledgmentControllerInputInternalV1;
+  const controller = createNarrativeStableBarrierAcknowledgmentControllerInternalV1(
+    controllerInput,
+  );
+  return { harness, stage, controller, semanticDispatchPort };
+}
+
+function expectBarrierResultFrozenV1(
+  result:
+    | NarrativeStableBarrierStageRetargetResultInternalV1
+    | NarrativeStableBarrierTerminalDispatchResultInternalV1,
+): void {
+  expect(Object.isFrozen(result)).toBe(true);
+  expect(Object.keys(result)).toEqual(
+    result.kind === "faulted" && "code" in result
+      ? ["kind", "code", "completion"]
+      : ["kind", "completion"],
+  );
 }
 
 function nonBlockingNarrativeHarnessV1(
@@ -5029,5 +5248,699 @@ describe("Narrative stable Managed Surface family", () => {
     expect(fixture.harness.stateNotificationCount()).toBe(notifications);
     fixture.controller.disposeInternalV1();
     fixture.admission.disposeInternalV1();
+  });
+
+  it("claims one exact current Barrier controller without burning construction failure", () => {
+    expectTypeOf<NarrativeStableBarrierAcknowledgmentControllerInternalV1>().toMatchTypeOf<{
+      retargetCurrentBarrierStageInternalV1(
+        retarget: StageRetargetInputV1,
+      ): NarrativeStableBarrierStageRetargetResultInternalV1;
+      flushRetainedTerminalInternalV1():
+        | NarrativeStableBarrierTerminalDispatchResultInternalV1
+        | null;
+      disposeInternalV1(): void;
+    }>();
+
+    const noBarrier = harnessV1();
+    const noBarrierStage = createBarrierStageHarnessV1({});
+    expect(() =>
+      createNarrativeStableBarrierAcknowledgmentControllerInternalV1({
+        bridge: noBarrier.bridge,
+        stageReconciler: noBarrierStage.reconciler,
+      })
+    ).toThrow(TypeError);
+
+    const harness = harnessV1();
+    expect(harness.bridge.reconcilePendingInternalV1(pendingV1("presentation_barrier")))
+      .toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
+    settleCurrentNarrativeReadyV1(harness);
+    const foreignStage = createBarrierStageHarnessV1({ claimant: Object.freeze({}) });
+    expect(foreignStage.authority).not.toBeNull();
+    expect(() =>
+      createNarrativeStableBarrierAcknowledgmentControllerInternalV1({
+        bridge: harness.bridge,
+        stageReconciler: foreignStage.reconciler,
+      })
+    ).toThrow(TypeError);
+
+    const stage = createBarrierStageHarnessV1({});
+    const input = Object.freeze({
+      bridge: harness.bridge,
+      stageReconciler: stage.reconciler,
+    }) satisfies CreateNarrativeStableBarrierAcknowledgmentControllerInputInternalV1;
+    const controller = createNarrativeStableBarrierAcknowledgmentControllerInternalV1(input);
+    expect(Object.isFrozen(controller)).toBe(true);
+    expect(() => createNarrativeStableBarrierAcknowledgmentControllerInternalV1(input)).toThrow(
+      TypeError,
+    );
+    controller.disposeInternalV1();
+
+    const successor = createNarrativeStableBarrierAcknowledgmentControllerInternalV1(input);
+    expect(successor).not.toBe(controller);
+    expect(controller.flushRetainedTerminalInternalV1()).toBeNull();
+    successor.disposeInternalV1();
+  });
+
+  it("stores an instant Barrier terminal until explicit flush and seals its Promise", async () => {
+    let settleSemantic!: (value: unknown) => void;
+    const semanticCompletion = new Promise<unknown>((resolve) => {
+      settleSemantic = resolve;
+    });
+    let capturedRequest: unknown = null;
+    const dispatchResolution = vi.fn((request: unknown) => {
+      capturedRequest = request;
+      return semanticCompletion;
+    });
+    const fixture = narrativeBarrierHarnessV1({
+      transition: barrierTransitionDefinitionV1({ kind: "cut", durationMs: 0 }),
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: dispatchResolution,
+      }),
+    });
+
+    const state = fixture.harness.kernel.getStateInternalV1();
+    const notifications = fixture.harness.stateNotificationCount();
+    const armed = fixture.controller.retargetCurrentBarrierStageInternalV1(
+      barrierRetargetInputV1(fixture.stage.nextTarget, 2),
+    );
+    expect(armed).toEqual({ kind: "armed", completion: null });
+    expectBarrierResultFrozenV1(armed);
+    expect(dispatchResolution).not.toHaveBeenCalled();
+    expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
+    expect(fixture.harness.stateNotificationCount()).toBe(notifications);
+
+    const dispatched = fixture.controller.flushRetainedTerminalInternalV1();
+    expect(dispatched).toMatchObject({ kind: "dispatched" });
+    if (dispatched?.kind !== "dispatched") throw new Error("expected Barrier dispatch");
+    expectBarrierResultFrozenV1(dispatched);
+    expect(capturedRequest).toEqual({
+      expectedOccurrenceId: occurrenceV1(1),
+      resolution: {
+        kind: "barrier_completed",
+        transitionId: "transition.test.fade",
+      },
+    });
+    expect(Object.isFrozen(capturedRequest)).toBe(true);
+    expect(Object.isFrozen((capturedRequest as { readonly resolution: object }).resolution))
+      .toBe(true);
+    expect(fixture.controller.flushRetainedTerminalInternalV1()).toBe(dispatched);
+    expect(dispatchResolution).toHaveBeenCalledOnce();
+
+    settleSemantic("barrier-drained");
+    await expect(dispatched.completion).resolves.toBe("barrier-drained");
+    const retried = fixture.controller.flushRetainedTerminalInternalV1();
+    expect(retried).toMatchObject({ kind: "dispatched" });
+    expect(retried).not.toBe(dispatched);
+    expect(dispatchResolution).toHaveBeenCalledTimes(2);
+    fixture.controller.disposeInternalV1();
+  });
+
+  it("retains eligible terminals while unavailable and seals cancelled runs at zero dispatch", () => {
+    const preparingDispatch = vi.fn(() => new Promise<unknown>(() => {}));
+    const preparing = narrativeBarrierHarnessV1({
+      transition: barrierTransitionDefinitionV1({ kind: "cut", durationMs: 0 }),
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: preparingDispatch,
+      }),
+      settleReady: false,
+    });
+    expect(
+      preparing.controller.retargetCurrentBarrierStageInternalV1(
+        barrierRetargetInputV1(preparing.stage.nextTarget, 2),
+      ),
+    ).toEqual({ kind: "armed", completion: null });
+    const retained = preparing.controller.flushRetainedTerminalInternalV1();
+    expect(retained).toEqual({ kind: "retained", completion: null });
+    expectBarrierResultFrozenV1(retained!);
+    expect(preparingDispatch).not.toHaveBeenCalled();
+    settleCurrentNarrativeReadyV1(preparing.harness);
+    expect(preparing.controller.flushRetainedTerminalInternalV1()).toMatchObject({
+      kind: "dispatched",
+    });
+    expect(preparingDispatch).toHaveBeenCalledOnce();
+    preparing.controller.disposeInternalV1();
+
+    const cancelledDispatch = vi.fn(() => Promise.resolve("must-not-dispatch"));
+    const cancelled = narrativeBarrierHarnessV1({
+      transition: barrierTransitionDefinitionV1({ interruption: "cancel_to_target" }),
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: cancelledDispatch,
+      }),
+    });
+    expect(
+      cancelled.controller.retargetCurrentBarrierStageInternalV1(
+        barrierRetargetInputV1(cancelled.stage.nextTarget, 2),
+      ),
+    ).toEqual({ kind: "armed", completion: null });
+    expect(
+      cancelled.controller.retargetCurrentBarrierStageInternalV1(
+        barrierRetargetInputV1(cancelled.stage.thirdTarget, 3),
+      ),
+    ).toEqual({
+      kind: "faulted",
+      code: "stage.acknowledged_run_unmatched",
+      completion: null,
+    });
+    expect(cancelled.controller.flushRetainedTerminalInternalV1()).toBeNull();
+    expect(
+      cancelled.controller.retargetCurrentBarrierStageInternalV1(
+        barrierRetargetInputV1(
+          barrierStageTargetV1(
+            "content.test.barrier-c",
+            "content.test.barrier-d",
+          ),
+          4,
+        ),
+      ),
+    ).toEqual({ kind: "stale", completion: null });
+    const cancelledResult = cancelled.controller.flushRetainedTerminalInternalV1();
+    expect(cancelledResult).toEqual({ kind: "cancelled", completion: null });
+    expectBarrierResultFrozenV1(cancelledResult!);
+    expect(cancelledDispatch).not.toHaveBeenCalled();
+    cancelled.controller.disposeInternalV1();
+  });
+
+  it("keeps the first cancelled terminal and rejects the successor acknowledged edge", () => {
+    const animated = barrierTransitionDefinitionV1({ interruption: "cancel_to_target" });
+    const instant = barrierTransitionDefinitionV1({
+      kind: "cut",
+      durationMs: 0,
+      interruption: "settle_and_retarget",
+    });
+    let resolutionCount = 0;
+    const dispatchResolution = vi.fn(() => Promise.resolve("must-not-dispatch"));
+    const fixture = narrativeBarrierHarnessV1({
+      transition: animated,
+      resolveTransition: () => {
+        resolutionCount += 1;
+        return resolutionCount === 1 ? animated : instant;
+      },
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: dispatchResolution,
+      }),
+    });
+
+    expect(
+      fixture.controller.retargetCurrentBarrierStageInternalV1(
+        barrierRetargetInputV1(fixture.stage.nextTarget, 2),
+      ),
+    ).toEqual({ kind: "armed", completion: null });
+    expect(
+      fixture.controller.retargetCurrentBarrierStageInternalV1(
+        barrierRetargetInputV1(
+          barrierStageTargetV1(
+            "content.test.barrier-c",
+            "content.test.barrier-d",
+          ),
+          3,
+        ),
+      ),
+    ).toEqual({ kind: "stale", completion: null });
+
+    expect(fixture.stage.reconciler.frame().settled).toBe(true);
+    expect(fixture.stage.reconciler.frame().layers[0]?.entries[0]?.entry.contentId).toBe(
+      "content.test.barrier-b",
+    );
+
+    const result = fixture.controller.flushRetainedTerminalInternalV1();
+    expect(result).toEqual({ kind: "cancelled", completion: null });
+    expectBarrierResultFrozenV1(result!);
+    expect(dispatchResolution).not.toHaveBeenCalled();
+    fixture.controller.disposeInternalV1();
+  });
+
+  it("lets an eligible old terminal first-win and rejects the successor Stage proof", async () => {
+    const animated = barrierTransitionDefinitionV1({ interruption: "settle_and_retarget" });
+    const instant = barrierTransitionDefinitionV1({ kind: "cut", durationMs: 0 });
+    const other = barrierTransitionDefinitionV1({
+      transitionId: "transition.test.other",
+      kind: "cut",
+      durationMs: 0,
+    });
+    let firstResolution = true;
+    const publicAcknowledgments = vi.fn();
+    const dispatchResolution = vi.fn(() => Promise.resolve("old-terminal-drained"));
+    const fixture = narrativeBarrierHarnessV1({
+      transition: animated,
+      resolveTransition: (change) => {
+        if (firstResolution) {
+          firstResolution = false;
+          return animated;
+        }
+        return change.kind === "enter" ? instant : other;
+      },
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: dispatchResolution,
+      }),
+      onAcknowledgment: publicAcknowledgments,
+    });
+
+    expect(
+      fixture.controller.retargetCurrentBarrierStageInternalV1(
+        barrierRetargetInputV1(fixture.stage.nextTarget, 2),
+      ),
+    ).toEqual({ kind: "armed", completion: null });
+    expect(
+      fixture.controller.retargetCurrentBarrierStageInternalV1(
+        barrierRetargetInputV1(
+          barrierStageTargetV1(
+            "content.test.barrier-c",
+            "content.test.barrier-d",
+          ),
+          3,
+        ),
+      ),
+    ).toEqual({ kind: "stale", completion: null });
+
+    expect(publicAcknowledgments).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ outcome: "interrupted" }),
+    );
+    expect(fixture.stage.reconciler.frame().settled).toBe(true);
+    expect(fixture.stage.reconciler.frame().layers[0]?.entries[0]?.entry.contentId).toBe(
+      "content.test.barrier-b",
+    );
+    expect(fixture.stage.clock.pendingTickCount()).toBe(0);
+    const retained = fixture.controller.flushRetainedTerminalInternalV1();
+    expect(retained).toMatchObject({ kind: "dispatched" });
+    if (retained?.kind !== "dispatched") throw new Error("expected old terminal dispatch");
+    await expect(retained.completion).resolves.toBe("old-terminal-drained");
+    expect(dispatchResolution).toHaveBeenCalledOnce();
+    fixture.controller.disposeInternalV1();
+  });
+
+  it("keeps a disposed controller's semantic claim until its Promise drains", async () => {
+    let settleFirst!: (value: unknown) => void;
+    const firstCompletion = new Promise<unknown>((resolve) => {
+      settleFirst = resolve;
+    });
+    let dispatchCount = 0;
+    const dispatchResolution = vi.fn(() => {
+      dispatchCount += 1;
+      return dispatchCount === 1 ? firstCompletion : Promise.resolve("successor-drained");
+    });
+    const fixture = narrativeBarrierHarnessV1({
+      transition: barrierTransitionDefinitionV1({ kind: "cut", durationMs: 0 }),
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: dispatchResolution,
+      }),
+    });
+
+    expect(
+      fixture.controller.retargetCurrentBarrierStageInternalV1(
+        barrierRetargetInputV1(fixture.stage.nextTarget, 2),
+      ),
+    ).toEqual({ kind: "armed", completion: null });
+    const first = fixture.controller.flushRetainedTerminalInternalV1();
+    if (first?.kind !== "dispatched") throw new Error("expected first Barrier dispatch");
+    fixture.controller.disposeInternalV1();
+
+    const successor = createNarrativeStableBarrierAcknowledgmentControllerInternalV1({
+      bridge: fixture.harness.bridge,
+      stageReconciler: fixture.stage.reconciler,
+    });
+    const blocked = successor.retargetCurrentBarrierStageInternalV1(
+      barrierRetargetInputV1(fixture.stage.thirdTarget, 3),
+    );
+    expect(blocked).toEqual({ kind: "stale", completion: null });
+    expect(
+      successor.retargetCurrentBarrierStageInternalV1(
+        barrierRetargetInputV1(fixture.stage.thirdTarget, 3),
+      ),
+    ).toBe(blocked);
+    expect(successor.flushRetainedTerminalInternalV1()).toBeNull();
+    expect(dispatchResolution).toHaveBeenCalledOnce();
+
+    settleFirst("first-drained");
+    await expect(first.completion).resolves.toBe("first-drained");
+    expect(
+      successor.retargetCurrentBarrierStageInternalV1(
+        barrierRetargetInputV1(fixture.stage.thirdTarget, 3),
+      ),
+    ).toEqual({ kind: "armed", completion: null });
+    const retried = successor.flushRetainedTerminalInternalV1();
+    if (retried?.kind !== "dispatched") throw new Error("expected successor Barrier dispatch");
+    await expect(retried.completion).resolves.toBe("successor-drained");
+    expect(dispatchResolution).toHaveBeenCalledTimes(2);
+    successor.disposeInternalV1();
+  });
+
+  it("defers public Stage callback flushes until the terminal stack exits", () => {
+    const dispatchResolution = vi.fn(() => Promise.resolve("drained"));
+    const nestedResults: Array<
+      NarrativeStableBarrierTerminalDispatchResultInternalV1 | null
+    > = [];
+    let controller: NarrativeStableBarrierAcknowledgmentControllerInternalV1 | null = null;
+    const fixture = narrativeBarrierHarnessV1({
+      transition: barrierTransitionDefinitionV1({ kind: "cut", durationMs: 0 }),
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: dispatchResolution,
+      }),
+      onAcknowledgment: () => {
+        if (controller !== null) {
+          nestedResults.push(controller.flushRetainedTerminalInternalV1());
+        }
+      },
+    });
+    controller = fixture.controller;
+    const unsubscribe = fixture.stage.reconciler.subscribe(() => {
+      if (controller !== null) {
+        nestedResults.push(controller.flushRetainedTerminalInternalV1());
+      }
+    });
+
+    expect(
+      fixture.controller.retargetCurrentBarrierStageInternalV1(
+        barrierRetargetInputV1(fixture.stage.nextTarget, 2),
+      ),
+    ).toEqual({ kind: "armed", completion: null });
+    expect(nestedResults).toEqual([
+      { kind: "retained", completion: null },
+      { kind: "retained", completion: null },
+    ]);
+    expect(dispatchResolution).not.toHaveBeenCalled();
+
+    expect(fixture.controller.flushRetainedTerminalInternalV1()).toMatchObject({
+      kind: "dispatched",
+    });
+    expect(dispatchResolution).toHaveBeenCalledOnce();
+    unsubscribe();
+    fixture.controller.disposeInternalV1();
+  });
+
+  it("releases an animated terminal gate exactly when the Stage callback stack exits", () => {
+    const dispatchResolution = vi.fn(() => Promise.resolve("drained"));
+    const nestedResults: Array<
+      NarrativeStableBarrierTerminalDispatchResultInternalV1 | null
+    > = [];
+    let controller: NarrativeStableBarrierAcknowledgmentControllerInternalV1 | null = null;
+    const fixture = narrativeBarrierHarnessV1({
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: dispatchResolution,
+      }),
+      onAcknowledgment: () => {
+        if (controller !== null) {
+          nestedResults.push(controller.flushRetainedTerminalInternalV1());
+        }
+      },
+    });
+    controller = fixture.controller;
+    const unsubscribe = fixture.stage.reconciler.subscribe(() => {
+      if (controller !== null) {
+        nestedResults.push(controller.flushRetainedTerminalInternalV1());
+      }
+    });
+
+    expect(
+      fixture.controller.retargetCurrentBarrierStageInternalV1(
+        barrierRetargetInputV1(fixture.stage.nextTarget, 2),
+      ),
+    ).toEqual({ kind: "armed", completion: null });
+    expect(dispatchResolution).not.toHaveBeenCalled();
+    nestedResults.length = 0;
+
+    fixture.stage.clock.advance(100);
+    expect(nestedResults).toEqual([
+      { kind: "retained", completion: null },
+      { kind: "retained", completion: null },
+    ]);
+    expect(dispatchResolution).not.toHaveBeenCalled();
+
+    expect(fixture.controller.flushRetainedTerminalInternalV1()).toMatchObject({
+      kind: "dispatched",
+    });
+    expect(dispatchResolution).toHaveBeenCalledOnce();
+    unsubscribe();
+    fixture.controller.disposeInternalV1();
+  });
+
+  it("retains eligible Barrier evidence across a real blocking suspension and resumes fresh", async () => {
+    const dispatchResolution = vi.fn(() => Promise.resolve("barrier-resumed"));
+    const semanticDispatchPort = Object.freeze({
+      dispatchResolutionInternalV1: dispatchResolution,
+    });
+    const { harness, nonBlockingDefinition: blockingDefinition } = nonBlockingNarrativeHarnessV1(
+      semanticDispatchPort,
+      90,
+      "blocking",
+    );
+    expect(harness.bridge.reconcilePendingInternalV1(pendingV1("presentation_barrier")))
+      .toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
+    settleCurrentNarrativeReadyV1(harness);
+    const stage = createBarrierStageHarnessV1({
+      transition: barrierTransitionDefinitionV1({ kind: "cut", durationMs: 0 }),
+    });
+    const controller = createNarrativeStableBarrierAcknowledgmentControllerInternalV1({
+      bridge: harness.bridge,
+      stageReconciler: stage.reconciler,
+    });
+    expect(
+      controller.retargetCurrentBarrierStageInternalV1(
+        barrierRetargetInputV1(stage.nextTarget, 2),
+      ),
+    ).toEqual({ kind: "armed", completion: null });
+
+    const retainedDuringPreparation: Array<
+      NarrativeStableBarrierTerminalDispatchResultInternalV1 | null
+    > = [];
+    const blocker = openNonBlockingSurfaceV1(
+      harness,
+      blockingDefinition,
+      "suspended",
+      "candidate",
+      () => retainedDuringPreparation.push(controller.flushRetainedTerminalInternalV1()),
+      "suspended",
+    );
+    expect(retainedDuringPreparation).toEqual([{ kind: "retained", completion: null }]);
+    expect(controller.flushRetainedTerminalInternalV1()).toBe(
+      retainedDuringPreparation[0],
+    );
+    expect(dispatchResolution).not.toHaveBeenCalled();
+
+    const suspendedPublication = harness.kernel.getStateInternalV1().transientState.publication;
+    expect(harness.kernel.transitionTransientInternalV1({
+      kind: "close_expected",
+      evidence: Object.freeze({
+        applicationEpoch: applicationEpochV1,
+        topologyRevision: suspendedPublication.topologyRevision,
+        surfaceInstanceId: blocker.surfaceInstanceId,
+      }),
+    })).toMatchObject({ kind: "applied" });
+    const resumed = harness.kernel.getStateInternalV1().stableRuntimeBindings[0];
+    expect(resumed?.binding.kind).toBe("ready_instance");
+    if (resumed?.binding.kind !== "ready_instance") {
+      throw new Error("expected resumed Narrative Barrier");
+    }
+    expect(resumed.binding.instance.phase).toBe("active");
+
+    const dispatched = controller.flushRetainedTerminalInternalV1();
+    expect(dispatched).toMatchObject({ kind: "dispatched" });
+    if (dispatched?.kind !== "dispatched") throw new Error("expected resumed Barrier dispatch");
+    await expect(dispatched.completion).resolves.toBe("barrier-resumed");
+    expect(dispatchResolution).toHaveBeenCalledOnce();
+    controller.disposeInternalV1();
+  });
+
+  it("rebinds retained Barrier evidence to the fresh frame and semantic port after readiness retry", async () => {
+    const oldDispatch = vi.fn(() => Promise.resolve("old-port-must-not-run"));
+    const freshDispatch = vi.fn(() => Promise.resolve("fresh-port-drained"));
+    const oldPort = Object.freeze({ dispatchResolutionInternalV1: oldDispatch });
+    const freshPort = Object.freeze({ dispatchResolutionInternalV1: freshDispatch });
+    let preflightCount = 0;
+    const harness = harnessV1({
+      candidatePreflight: Object.freeze({
+        preflightCandidateInternalV1: () => {
+          preflightCount += 1;
+          return capturedCandidatePreflightResultV1(Object.freeze({
+            ...defaultCandidateSnapshotV1,
+            semanticDispatchPort: preflightCount === 1 ? oldPort : freshPort,
+          }));
+        },
+      }),
+    });
+    expect(harness.bridge.reconcilePendingInternalV1(pendingV1("presentation_barrier")))
+      .toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
+    const initialBaseline = narrativeBaselineV1(harness);
+    if (initialBaseline.kind !== "accepted") throw new Error("expected Barrier baseline");
+    const target = initialBaseline.targets[0]!;
+    const initialFrame = harness.bridge.inspectAdmittedTargetFrameInternalV1(target);
+    if (initialFrame === null) throw new Error("expected initial Barrier frame");
+    const initialSemanticPort = initialFrame.candidateSnapshot.semanticDispatchPort;
+    expect(Object.isFrozen(initialSemanticPort)).toBe(true);
+
+    const stage = createBarrierStageHarnessV1({
+      transition: barrierTransitionDefinitionV1({ kind: "cut", durationMs: 0 }),
+    });
+    const controller = createNarrativeStableBarrierAcknowledgmentControllerInternalV1({
+      bridge: harness.bridge,
+      stageReconciler: stage.reconciler,
+    });
+    expect(
+      controller.retargetCurrentBarrierStageInternalV1(
+        barrierRetargetInputV1(stage.nextTarget, 2),
+      ),
+    ).toEqual({ kind: "armed", completion: null });
+
+    const preparing = harness.kernel.getStateInternalV1().stableRuntimeBindings[0];
+    if (preparing?.binding.kind !== "preparing") throw new Error("expected Barrier preparation");
+    expect(harness.kernel.settleStableReadinessFailedInternalV1({
+      readinessEvidence: Object.freeze({
+        applicationEpoch: applicationEpochV1,
+        surfaceInstanceId: preparing.binding.attempt.identity.surfaceInstanceId,
+      }),
+      publisherLease: preparing.desiredTarget.publisherLease,
+      sourceRevision: preparing.desiredTarget.sourceRevision,
+    })).toMatchObject({ kind: "applied", code: "surface.readiness_failed" });
+    expect(controller.flushRetainedTerminalInternalV1()).toEqual({
+      kind: "retained",
+      completion: null,
+    });
+    expect(oldDispatch).not.toHaveBeenCalled();
+
+    expect(harness.bridge.retryCurrentPendingInternalV1()).toMatchObject({
+      kind: "applied",
+      code: "surface.stable_publication_applied",
+    });
+    expect(preflightCount).toBe(2);
+    const retriedBaseline = narrativeBaselineV1(harness);
+    if (retriedBaseline.kind !== "accepted") throw new Error("expected retried baseline");
+    expect(retriedBaseline.targets[0]).toBe(target);
+    expect(retriedBaseline.sourceRevision).toBe(2);
+    const retriedFrame = harness.bridge.inspectAdmittedTargetFrameInternalV1(target);
+    if (retriedFrame === null) throw new Error("expected retried Barrier frame");
+    expect(retriedFrame).not.toBe(initialFrame);
+    expect(retriedFrame.candidateSnapshot.semanticDispatchPort).not.toBe(
+      initialSemanticPort,
+    );
+    settleCurrentNarrativeReadyV1(harness);
+
+    const dispatched = controller.flushRetainedTerminalInternalV1();
+    expect(dispatched).toMatchObject({ kind: "dispatched" });
+    if (dispatched?.kind !== "dispatched") throw new Error("expected retried Barrier dispatch");
+    await expect(dispatched.completion).resolves.toBe("fresh-port-drained");
+    expect(oldDispatch).not.toHaveBeenCalled();
+    expect(freshDispatch).toHaveBeenCalledExactlyOnceWith({
+      expectedOccurrenceId: occurrenceV1(1),
+      resolution: {
+        kind: "barrier_completed",
+        transitionId: "transition.test.fade",
+      },
+    });
+    controller.disposeInternalV1();
+  });
+
+  it("keeps a source-successor tombstone until the old semantic Promise drains", async () => {
+    let settleOld!: (value: unknown) => void;
+    let settleFresh!: (value: unknown) => void;
+    const oldCompletion = new Promise<unknown>((resolve) => {
+      settleOld = resolve;
+    });
+    const freshCompletion = new Promise<unknown>((resolve) => {
+      settleFresh = resolve;
+    });
+    const oldDispatch = vi.fn(() => oldCompletion);
+    const freshDispatch = vi.fn(() => freshCompletion);
+    const oldPort = Object.freeze({ dispatchResolutionInternalV1: oldDispatch });
+    const freshPort = Object.freeze({ dispatchResolutionInternalV1: freshDispatch });
+    let preflightCount = 0;
+    const harness = harnessV1({
+      candidatePreflight: Object.freeze({
+        preflightCandidateInternalV1: () => {
+          preflightCount += 1;
+          return capturedCandidatePreflightResultV1(Object.freeze({
+            ...defaultCandidateSnapshotV1,
+            semanticDispatchPort: preflightCount === 1 ? oldPort : freshPort,
+          }));
+        },
+      }),
+    });
+    expect(harness.bridge.reconcilePendingInternalV1(pendingV1("presentation_barrier")))
+      .toMatchObject({ kind: "applied" });
+    settleCurrentNarrativeReadyV1(harness);
+    const stage = createBarrierStageHarnessV1({
+      transition: barrierTransitionDefinitionV1({ kind: "cut", durationMs: 0 }),
+    });
+    const controller = createNarrativeStableBarrierAcknowledgmentControllerInternalV1({
+      bridge: harness.bridge,
+      stageReconciler: stage.reconciler,
+    });
+    expect(
+      controller.retargetCurrentBarrierStageInternalV1(
+        barrierRetargetInputV1(stage.nextTarget, 2),
+      ),
+    ).toEqual({ kind: "armed", completion: null });
+    const oldResult = controller.flushRetainedTerminalInternalV1();
+    if (oldResult?.kind !== "dispatched") throw new Error("expected old Barrier dispatch");
+
+    expect(
+      harness.bridge.reconcilePendingInternalV1(pendingV1("presentation_barrier", 2)),
+    ).toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
+    settleCurrentNarrativeReadyV1(harness);
+    expect(controller.flushRetainedTerminalInternalV1()).toEqual({
+      kind: "stale",
+      completion: null,
+    });
+    expect(
+      controller.retargetCurrentBarrierStageInternalV1(
+        barrierRetargetInputV1(stage.thirdTarget, 3),
+      ),
+    ).toEqual({ kind: "stale", completion: null });
+    expect(freshDispatch).not.toHaveBeenCalled();
+
+    settleOld("old-source-drained");
+    await Promise.resolve();
+    expect(
+      controller.retargetCurrentBarrierStageInternalV1(
+        barrierRetargetInputV1(stage.thirdTarget, 3),
+      ),
+    ).toEqual({ kind: "armed", completion: null });
+    const freshResult = controller.flushRetainedTerminalInternalV1();
+    if (freshResult?.kind !== "dispatched") throw new Error("expected fresh Barrier dispatch");
+    await expect(oldResult.completion).resolves.toBe("old-source-drained");
+    expect(controller.flushRetainedTerminalInternalV1()).toBe(freshResult);
+    expect(oldDispatch).toHaveBeenCalledOnce();
+    expect(freshDispatch).toHaveBeenCalledExactlyOnceWith({
+      expectedOccurrenceId: occurrenceV1(2),
+      resolution: {
+        kind: "barrier_completed",
+        transitionId: "transition.test.fade",
+      },
+    });
+
+    settleFresh("fresh-source-drained");
+    await expect(freshResult.completion).resolves.toBe("fresh-source-drained");
+    controller.disposeInternalV1();
+  });
+
+  it("preserves the semantic Promise outcome when target drift makes cleanup currentness throw", async () => {
+    let settleSemantic!: (value: unknown) => void;
+    const semanticCompletion = new Promise<unknown>((resolve) => {
+      settleSemantic = resolve;
+    });
+    const fixture = narrativeBarrierHarnessV1({
+      transition: barrierTransitionDefinitionV1({ kind: "cut", durationMs: 0 }),
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: () => semanticCompletion,
+      }),
+    });
+
+    expect(
+      fixture.controller.retargetCurrentBarrierStageInternalV1(
+        barrierRetargetInputV1(fixture.stage.nextTarget, 2),
+      ),
+    ).toEqual({ kind: "armed", completion: null });
+    const dispatched = fixture.controller.flushRetainedTerminalInternalV1();
+    if (dispatched?.kind !== "dispatched") throw new Error("expected Barrier dispatch");
+    expect(
+      fixture.harness.bridge.reconcilePendingInternalV1(
+        pendingV1("presentation_barrier", 2),
+      ),
+    ).toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
+    expect(
+      fixture.harness.kernel.transitionTransientInternalV1({ kind: "dispose_coordinator" }),
+    ).toMatchObject({ kind: "applied", code: "surface.coordinator_disposed" });
+
+    settleSemantic("preserved-outcome");
+    await expect(dispatched.completion).resolves.toBe("preserved-outcome");
+    fixture.controller.disposeInternalV1();
   });
 });

@@ -832,6 +832,68 @@ examples `45 passed / 2 skipped`, and prebuilt Player `38 / 38` remain prior
 evidence and were not rerun. S4.1b.1b.1b.2b.1b is complete; current/next is
 S4.1b.1b.1b.2b.2, the presentation-barrier acknowledgment/recovery floor.
 
+S4.1b.1b.1b.2b.2a now implements the normal Stage-to-Narrative Barrier
+acknowledgment path. Stage owns a source-relative acknowledged-run authority
+claimed by one exact claimant per reconciler. Repeating the same claim returns
+the same authority; a foreign or cloned claimant fails closed. Once claimed,
+that authority is the only Stage mutation writer. The ordinary unclaimed
+`StageReconcilerV1` API and its raw retarget, acknowledgment, frame, and
+subscription behavior are unchanged.
+
+An acknowledged retarget first builds the complete transition plan without
+mutating target, revision, occurrence, run, or proof state. Exactly one logical
+transition must both request acknowledgment and match the expected transition
+ID; zero, multiple, malformed, or throwing resolutions fail closed. The exact
+commit guard runs after planning and again after each synchronous old-run
+interruption and its observers. A stale guard stops without committing the new
+Stage delta; a throwing, invalid, or reentrant guard faults it. The final
+successful guard is followed only by prebuilt, callback-free local publication,
+including the captured WeakMap proof install, so no caller work can expose a
+half-committed target/proof/run.
+
+Each armed run receives a frozen zero-key opaque proof authenticated by its
+exact Stage authority. Private terminal delivery is sealed and occurs before
+public acknowledgments, diagnostics, and Stage subscribers; observer failures
+are contained. The same authority exposes a read-only, exact-receiver terminal-
+stack query that uses proof identity rather than caller fields. Its depth covers
+instant and animated completion, old-run settle/cancel interruption, and the
+readiness-timeout diagnostic/final-notification tail, then returns false as soon
+as that proof-bound terminal stack exits.
+
+The Narrative side remains a dormant, source-relative claimant constructed from
+the bridge's private composition provenance; no non-test Host, React, Web, or
+Story integration creates it. It stores at most one target-level terminal
+evidence record bound to the exact target, semantic occurrence, and full
+canonical pending bytes. Stage terminal delivery only installs that evidence.
+Semantic `barrier_completed` admission happens later through an explicit flush,
+which re-captures the fresh source revision, admitted frame, semantic receiver,
+and current ready-active runtime proof. A terminal-stack, preparation,
+suspension, or readiness-failure gap retains eligible evidence without semantic
+dispatch.
+
+| Stage terminal outcome | Narrative evidence and explicit-flush behavior                                          |
+| ---------------------- | --------------------------------------------------------------------------------------- |
+| `completed`            | Eligible; retain until current ready-active admission can dispatch `barrier_completed`. |
+| `skipped`              | Eligible; same retained/explicit-flush path as completion.                              |
+| `interrupted`          | Eligible; the old run may first-win before a successor Stage proof commits.             |
+| `cancelled`            | Terminal-sealed as `cancelled`; never dispatches a semantic resolution.                 |
+
+An eligible dispatch occupies one target-level in-flight claim. Repeated flushes
+while it is pending return the same frozen dispatched result and Promise. Promise
+settlement releases only that exact claim by CAS: a still-current target returns
+to retained state for a later explicit retry, while retired evidence leaves only
+a bounded tombstone until the old Promise drains and cannot ABA-clear a
+successor. The closed Narrative terminal result remains
+`dispatched | retained | cancelled | stale | faulted` without expanding a
+generic Managed Surface result or public API.
+
+This delivery adds no UI root, `./internal`, or package export. Verification
+passed focused `8 files / 292 tests`, UI `79 files / 1099 tests`, full
+`253 files / 4029 tests`, and `deno task check`, plus fresh engine browser
+`101 / 101`, examples browser `45 passed / 2 skipped`, and prebuilt Player
+`38 / 38`. S4.1b.1b.1b.2b.2a is complete; current/next is
+S4.1b.1b.1b.2b.2b, settle/replay recovery.
+
 ## 9. Changing the architecture
 
 Architecture evolution is expected. A substantial change should state:
@@ -881,8 +943,9 @@ S4.1b.1b.1b.2a adds authenticated custom payload dispatch plus the bounded
 interaction JSON dangerous-own-key corrective described above.
 S4.1b.1b.1b.2b.1a adds the dormant physical Say reveal-first controller and
 admission path described above. S4.1b.1b.1b.2b.1b adds the clock-free
-content-auto path on that same controller. S4.1b.1b.1b.2b.2 barrier
-acknowledgment/recovery is current/next; player-control delivery follows it.
-Host integration and the Narrative live migration remain planned work.
-Target documents do not alter the current data flow until that migration and
-its behavior tests land.
+content-auto path on that same controller. S4.1b.1b.1b.2b.2a adds the dormant
+normal Stage-to-Narrative Barrier acknowledgment claimant described above.
+S4.1b.1b.1b.2b.2b settle/replay recovery is current/next; player-control
+delivery follows it. Host integration and the Narrative live migration remain
+planned work; the implemented source-relative claimant does not alter the live
+Host data flow until that migration and its behavior tests land.
