@@ -2639,7 +2639,8 @@ React exact names为`NarrativeSurfaceHostPropsInternalV1`与`NarrativeSurfaceHos
 `portalContainer`、`inputRouter`、`isGestureCurrent`。Component内部以stable ref mint `hostIdentity`，caller不能传bridge/kernel/attachment/
 render source/renderer catalog/focus manager/Coordinator。Host只向explicit `HTMLDivElement` portal container createPortal，不读取GameStage/System
 portal hook；preparing shell在ready前保持fallback/inert/`aria-hidden`，render/layout成功后于microtask重验shell `isConnected`且exact portal
-`contains(shell)`、prepared binding/consumer ready、same session/runtime/attachment generation、entry/shell与focus registration才mint/settle。
+`contains(shell)`、prepared binding/consumer ready、same session/runtime/attachment generation、entry/shell与focus registration。Layout成功后先同步
+mint exact readyCommit，再于该coalesced microtask重验上述currentness并settle；不得把mint本身推迟到microtask。
 Active/suspended entry仅在same logical Host + same portal grace reattach时可返回`reattached`，重新绑定fresh mount/consumer/focus generation但不settle
 readiness、不改topology/input publication或notify。Pre-ready renderer constructor/render、History canonical observation、ref/layout/portal containment或
 ready-mint fault只terminal-once failed；只有settlement `settled`才标记accepted-ready。Accepted-ready/`reattached` render/lifecycle error交回outer

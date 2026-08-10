@@ -5133,8 +5133,8 @@ retained aggregate before successor，max-three代表retained root + History + p
 Preparing shell `visibility: hidden`但保留layout，并同时`inert`、`aria-hidden`、pointer-disabled；不得用HTML `hidden`或`display: none`。
 Suspended root继续视觉挂载在History后方，保持renderer/local subtree identity，但必须`inert`、`aria-hidden`、pointer-disabled，**不得**
 `visibility: hidden`/`display: none`；active entry才visible、interactive。Initial root与History preparation在candidate外保留code-native fallback，
-replacement preparation则让retained root + History subtree继续visible、interactive并保持focus ownership；failure只移除candidate/fallback并恢复
-exact retained aggregate，ready cutover才同批退休old aggregate。
+replacement preparation则让retained aggregate按既有phase保持挂载/可见：active History继续interactive、suspended root继续inert，并保持
+History focus ownership；failure只移除candidate/fallback并恢复exact retained aggregate，ready cutover才同批退休old aggregate。
 
 Host acquisition exact names为`CreateNarrativeStableHostRuntimeInputInternalV1`、
 `NarrativeStableHostRuntimeInternalV1`与`createNarrativeStableHostRuntimeInternalV1(input)`。Input只接受exact own-data
