@@ -34,8 +34,10 @@ S4.1b.1b.1b.2b.2b.1 settle/replay recovery implementation也已关闭；其后�
 S4.1b.1b.1b.2b.3 player controls entry已由S4.1b.1b.1b.2b.3.0 docs-only execution split
 取代，S4.1b.1b.1b.2b.3a toggle-ui Narrative catalog corrective与
 S4.1b.1b.1b.2b.3b.0 voice-replay exact entry amendment及
-S4.1b.1b.1b.2b.3b.1 voice replay physical route implementation也已关闭；当前独立切片为
-S4.1b.1b.1b.2b.3c bridge-owned Auto/Skip transient mode floor。R4 entry
+S4.1b.1b.1b.2b.3b.1 voice replay physical route implementation也已关闭；原
+S4.1b.1b.1b.2b.3c broad mode floor又由S4.1b.1b.1b.2b.3c.0 docs-only exact entry
+amendment细分并取代；当前独立切片为S4.1b.1b.1b.2b.3c.1 bridge-owned Auto/Skip
+transient mode implementation。R4 entry
 adjudication已先以独立S1-R.4.0关闭
 readiness result/capacity contract。R3b entry audit先以独立S1-R.3a.1 corrective补全ready
 retained-subtree authority，该corrective也已关闭。
@@ -50,8 +52,8 @@ S1-R aggregate gate已关闭。
 
 在 [production-floor sequence](2026-07-30-production-floor-sequence.md)
 中：PF2 的 `S0 -> S1-T -> S2`、PF-DET、PF3/M2 与 PF4/S3 已完成；当前 core
-节点是PF4/S4.1b.1b.1b.2b.3c。PF4的顺序是
-`S3 -> S1-R.0 -> S1-R.1–S1-R.5 -> S4.0 -> S4.1a -> S4.1b.0 -> S4.1b.1a -> S4.1b.1b.0 -> S4.1b.1b.1a -> S4.1b.1b.1b.1 -> S4.1b.1b.1b.2a -> S4.1b.1b.1b.2b.0 -> S4.1b.1b.1b.2b.1a -> S4.1b.1b.1b.2b.1b -> S4.1b.1b.1b.2b.2a -> S4.1b.1b.1b.2b.2b.0 -> S4.1b.1b.1b.2b.2b.1 -> S4.1b.1b.1b.2b.3.0 -> S4.1b.1b.1b.2b.3a -> S4.1b.1b.1b.2b.3b.0 -> S4.1b.1b.1b.2b.3b.1 -> S4.1b.1b.1b.2b.3c -> S4.1b.1b.1b.2b.3d -> S4.2 -> S4.3 -> S4b`；
+节点是PF4/S4.1b.1b.1b.2b.3c.1。PF4的顺序是
+`S3 -> S1-R.0 -> S1-R.1–S1-R.5 -> S4.0 -> S4.1a -> S4.1b.0 -> S4.1b.1a -> S4.1b.1b.0 -> S4.1b.1b.1a -> S4.1b.1b.1b.1 -> S4.1b.1b.1b.2a -> S4.1b.1b.1b.2b.0 -> S4.1b.1b.1b.2b.1a -> S4.1b.1b.1b.2b.1b -> S4.1b.1b.1b.2b.2a -> S4.1b.1b.1b.2b.2b.0 -> S4.1b.1b.1b.2b.2b.1 -> S4.1b.1b.1b.2b.3.0 -> S4.1b.1b.1b.2b.3a -> S4.1b.1b.1b.2b.3b.0 -> S4.1b.1b.1b.2b.3b.1 -> S4.1b.1b.1b.2b.3c.0 -> S4.1b.1b.1b.2b.3c.1 -> S4.1b.1b.1b.2b.3d -> S4.2 -> S4.3 -> S4b`；
 S5–S6 属于 PF6。S1-R
 延后到第一个真实 externally published stable-target family 前完成；按 accepted
 target ownership，S4 Narrative 计划成为该 family，因此 S1-R 位于 S3 与 S4
@@ -1747,16 +1749,20 @@ S1-R 按以下可独立合并切片推进，每次只领取一个：
     optional port、attempt/result、existing bridge `sayCallbackClaim`复用、route precedence、RED matrix与stop，不声明runtime delivery。
 37. **S4.1b.1b.1b.2b.3b.1 voice replay physical route implementation（已完成）**：只实现exact current
     ready-active Say的captured optional callback route，不扩张generic/public contract。
-38. **S4.1b.1b.1b.2b.3c bridge-owned Auto/Skip transient mode floor（当前）**：只交付
-    `normal | auto | skip` mode与physical route/result floor；clock/timer/deadline/remaining及scheduling留S4.2。
-39. **S4.1b.1b.1b.2b.3d History exact-parent open intent floor（待实施）**：只交付read-only
+38. **S4.1b.1b.1b.2b.3c bridge-owned Auto/Skip transient mode floor（已被entry细分的历史checkpoint）**：
+    不再直接实施，由`.3c.0` exact entry amendment与`.3c.1` implementation取代。
+39. **S4.1b.1b.1b.2b.3c.0 Auto/Skip exact entry amendment（已完成，docs-only）**：冻结
+    bridge-owned mode state、attempt/result、route/lifecycle atomicity、RED matrix与stop，不声明runtime delivery。
+40. **S4.1b.1b.1b.2b.3c.1 bridge-owned Auto/Skip transient mode implementation（当前）**：只实现
+    `.3c.0`冻结的mode与physical route/result floor；clock/timer/deadline/remaining及scheduling留S4.2。
+41. **S4.1b.1b.1b.2b.3d History exact-parent open intent floor（待实施）**：只交付read-only
     availability、opaque open intent与consumed family-local result；不改变topology，History child lifecycle留S4.2。
-40. **S4.2 dormant Narrative Host + History child（待实施）**：controller/view/Host decomposition、Host-commit
+42. **S4.2 dormant Narrative Host + History child（待实施）**：controller/view/Host decomposition、Host-commit
     readiness、exact-parent History、managed input/focus/dismiss与Engine Lab dormant conformance；不切live Story。
-41. **S4.3 atomic live cutover and promotion（待实施）**：同批迁移Engine Lab、template、Cat Cafe、Bookshop，
+43. **S4.3 atomic live cutover and promotion（待实施）**：同批迁移Engine Lab、template、Cat Cafe、Bookshop，
     删除旧lifecycle writers与standalone public path，更新live docs并完成headless/browser/prebuilt promotion。
 
-当前只允许从 **S4.1b.1b.1b.2b.3c** 开始。Stable ingress与stable-specific state/API仍保持
+当前只允许从 **S4.1b.1b.1b.2b.3c.1** 开始。Stable ingress与stable-specific state/API仍保持
 dormant/package-internal；S4.1允许source-relative Narrative bridge消费Base semantic contract，但不接live
 Narrative/React/Web application graph、不mount React Host，也不更新live feature文档；shared pure topology
 policy只经existing transient adapter live复用，R3a 已将既有live transient reducer/Coordinator 收口到
@@ -3016,15 +3022,19 @@ examples/prebuilt；S0 deterministic Chromium RED与最近R4b.1 browser `101 / 1
     descriptor-captured optional callable、attempt/result、existing bridge `sayCallbackClaim`复用、precedence、RED matrix与stop。
 19. **S4.1b.1b.1b.2b.3b.1 voice replay physical route implementation（已完成）**：只交付exact current
     ready-active Say的package-internal physical route，不接generic/public API。
-20. **S4.1b.1b.1b.2b.3c bridge-owned Auto/Skip transient mode floor（当前）**：只交付transient
-    mode与route/result，不实现clock、timer、deadline、remaining或scheduling。
-21. **S4.1b.1b.1b.2b.3d History exact-parent open intent floor（待实施）**：只交付exact read-only
+20. **S4.1b.1b.1b.2b.3c bridge-owned Auto/Skip transient mode floor（已被entry细分的历史checkpoint）**：
+    不再直接实施，由`.3c.0` exact entry amendment与`.3c.1` implementation取代。
+21. **S4.1b.1b.1b.2b.3c.0 Auto/Skip exact entry amendment（已完成，docs-only）**：冻结
+    bridge-owned mode state、attempt/result、route/lifecycle atomicity、RED matrix与stop，不声明runtime delivery。
+22. **S4.1b.1b.1b.2b.3c.1 bridge-owned Auto/Skip transient mode implementation（当前）**：只实现
+    `.3c.0`冻结的mode与physical route/result，不实现clock、timer、deadline、remaining或scheduling。
+23. **S4.1b.1b.1b.2b.3d History exact-parent open intent floor（待实施）**：只交付exact read-only
     availability、opaque one-shot open intent与`requested | ignored | stale | faulted` family result；Input仍consumed，
     不调用Coordinator或改变topology。
-22. **S4.2 dormant Host/History integration（待实施）**：交付controller/view/Host decomposition、captured resolver/required-port snapshot、
+24. **S4.2 dormant Host/History integration（待实施）**：交付controller/view/Host decomposition、captured resolver/required-port snapshot、
     Narrative portal Host-commit readiness/failure、exact-parent History open/close、managed input/focus/dismiss、timer suspension与
     Engine Lab dormant conformance；candidate ready前无ordinary authority。
-23. **S4.3 atomic live cutover/promotion（待实施）**：一次切换composition/DefaultGameRoot Narrative authoring与全部tracked consumers，
+25. **S4.3 atomic live cutover/promotion（待实施）**：一次切换composition/DefaultGameRoot Narrative authoring与全部tracked consumers，
     删除旧writers/exports/direct dispatch path，验证root/History retain/retire、三设备双fence、focus/inert、Narrative对既有
     reset adapter的响应与旧evidence
     stale rejection，随后更新architecture/features/development/authoring/website并跑受影响browser/examples/prebuilt。
@@ -3715,10 +3725,11 @@ generic Surface result/receipt，也不改动Base interaction、Save/Persistence
    fully hidden状态。
 2. **S4.1b.1b.1b.2b.3b voice replay physical route（已被entry细分的checkpoint）**：原边界保持，
    但不再直接实施；由`.3b.0` docs-only exact entry与`.3b.1` implementation取代。
-3. **S4.1b.1b.1b.2b.3c bridge-owned Auto/Skip transient mode floor**：只在Narrative bridge/composition
-   lifetime内交付`normal | auto | skip` mutually-exclusive mode、toggle route与exact result；不读取或调度clock，不实现timer、
-   deadline、remaining、reveal cursor或automatic semantic dispatch。Mode scheduling、suspend/resume remaining与同transition
-   first-win全部留S4.2的`DialoguePlayerController`/Host。
+3. **S4.1b.1b.1b.2b.3c bridge-owned Auto/Skip transient mode floor（已被entry细分的历史checkpoint）**：
+   原边界只要求Narrative bridge/composition lifetime内的`normal | auto | skip` mutually-exclusive mode、toggle route与
+   exact result；它不再直接实施，现由`.3c.0` docs-only exact entry与`.3c.1` implementation取代。Clock、timer、deadline、
+   remaining、reveal cursor、automatic semantic dispatch、mode scheduling、suspend/resume remaining与同transition semantic
+   first-win仍全部留S4.2的`DialoguePlayerController`/Host。
 4. **S4.1b.1b.1b.2b.3d History exact-parent open intent floor**：只在managed physical route与exact current
    ready-active Dialogue parent proof通过后读取descriptor-captured read-only History availability。Unavailable返回consumed
    family-local ignored；throw/invalid、proof drift与stale attempt分别返回faulted/stale。Authenticated catalog route的Input在
@@ -3728,10 +3739,11 @@ generic Surface result/receipt，也不改动Base interaction、Save/Persistence
    `player.toggle_history`/`ui.cancel` close、focus restore、dismiss、root suspension或timer coordination。这些全部由S4.2在
    same-composition transition fence内消费intent并交付actual History child lifecycle。
 
-因此本历史amendment当时冻结的唯一线性implementation order为
-**S4.1b.1b.1b.2b.3b.0 → S4.1b.1b.1b.2b.3b.1 → S4.1b.1b.1b.2b.3c → S4.1b.1b.1b.2b.3d → S4.2 → S4.3 → S4b**。
+因此本历史amendment当时冻结的线性implementation order包含原`.3c` broad checkpoint；该checkpoint现已由下述
+`.3c.0`/`.3c.1`细分。当前有效顺序为
+**S4.1b.1b.1b.2b.3b.0 → S4.1b.1b.1b.2b.3b.1 → S4.1b.1b.1b.2b.3c.0 → S4.1b.1b.1b.2b.3c.1 → S4.1b.1b.1b.2b.3d → S4.2 → S4.3 → S4b**。
 `.3a`的历史stop为若必须删除generic input ID、修改legacy live writer或实现fully-hidden topology则停止；`.3b.1`的历史stop为若需要raw
-renderer authority或generic/public result expansion则停止；`.3c`若mode
+renderer authority或generic/public result expansion则停止；`.3c.1`若mode
 floor必须同时实现clock/timer/deadline/remaining则停止并把执行部分留S4.2；`.3d`若intent emission必须直接修改topology、
 暴露raw Coordinator/parent identity或承担History close/focus/dismiss则停止并留S4.2。
 
@@ -3892,9 +3904,9 @@ PlayerProfile、Save/Persistence、canonical/digest/replay/wire，也立即停�
 
 本amendment严格为docs-only：没有source、test、runtime、Host/React/Web/live claimant或delivery evidence，也不把此前
 focused/UI/full/check/browser/examples/prebuilt结果冒充本批新验证。验证只要求本文件`deno fmt --check`与
-`git diff --check`。该entry现只作为`.3b.1` delivery的historical contract保留；唯一active current/next与
-implementation gate已推进为 **S4.1b.1b.1b.2b.3c bridge-owned Auto/Skip transient mode floor**，随后依次为
-S4.1b.1b.1b.2b.3d、S4.2、S4.3与S4b。
+`git diff --check`。该entry现只作为`.3b.1` delivery的historical contract保留；它当时把active current/next与
+implementation gate推进到原 **S4.1b.1b.1b.2b.3c bridge-owned Auto/Skip transient mode floor**，该broad checkpoint现由
+下述`.3c.0` amendment与`.3c.1` implementation取代。
 
 ### S4.1b.1b.1b.2b.3b.1 delivery — exact voice replay physical route
 
@@ -3949,9 +3961,178 @@ callback observer、timer/profile/mode/History intent、PlayerProfile、Save/Per
 验证通过focused `2 files / 137 tests`、UI package `79 files / 1136 tests`、full `253 files / 4066 tests`与完整
 `deno task check`。本source-relative dormant route没有改变browser/build/live graph，因此本批未机械重跑browser/examples/prebuilt；
 Engine browser `101 / 101`、examples `45 passed / 2 skipped`与prebuilt Player `38 / 38`仅为prior evidence，不冒充本delivery
-HEAD新验证。S4.1b.1b.1b.2b.3b.1已完成；唯一active current/next与implementation gate现均为
-**S4.1b.1b.1b.2b.3c bridge-owned Auto/Skip transient mode floor**，随后依次为
-S4.1b.1b.1b.2b.3d、S4.2、S4.3与S4b。
+HEAD新验证。S4.1b.1b.1b.2b.3b.1已完成；本delivery当时把active current/next与implementation gate推进到原
+**S4.1b.1b.1b.2b.3c bridge-owned Auto/Skip transient mode floor**，该broad checkpoint现由下述`.3c.0`
+amendment与`.3c.1` implementation取代。
+
+### S4.1b.1b.1b.2b.3c.0 entry amendment — exact bridge-owned Auto/Skip mode contract（已完成，docs-only）
+
+原 **S4.1b.1b.1b.2b.3c bridge-owned Auto/Skip transient mode floor** 只保留为产品边界与历史
+implementation pointer，不再直接实施；实际delivery线性拆为本`.3c.0` exact entry与`.3c.1`
+implementation。Mode type精确命名为`NarrativeStablePlaybackModeInternalV1`，其closed value只有
+`"normal" | "auto" | "skip"`。既有`NarrativeStablePublisherBridgeInternalV1`只新增read-only
+`readPlaybackModeInternalV1(): NarrativeStablePlaybackModeInternalV1`；不得增加`setMode`、raw writer、public
+store或第二controller authority。
+
+Bridge record是唯一mode writer，并只strong-hold一个module-private、fresh frozen、own key exact only `mode`的current state
+identity；fresh bridge先mint一个fresh normal identity，read method只投影current identity的primitive `mode`。每次effective Say
+toggle都必须mint fresh successor state，即使value从`normal → auto → normal`也不得复用最初normal identity；mode transition不分配
+numeric revision/counter，也不按source/frame建立strong history。Exact six-transition table固定为：
+
+| Current state | Requested mode | Exact successor |
+| ------------- | -------------- | --------------- |
+| `normal`      | `auto`         | `auto`          |
+| `auto`        | `auto`         | `normal`        |
+| `skip`        | `auto`         | `auto`          |
+| `normal`      | `skip`         | `skip`          |
+| `auto`        | `skip`         | `skip`          |
+| `skip`        | `skip`         | `normal`        |
+
+One-shot physical attempt精确命名为`NarrativeStablePlaybackModeToggleActionAttemptInternalV1`，是frozen
+zero-own-key branded capability。既有`NarrativeStablePhysicalActionAdmissionInternalV1`只新增
+`issuePlaybackModeToggleAttemptInternalV1(requestedMode: "auto" | "skip"):
+NarrativeStablePlaybackModeToggleActionAttemptInternalV1 | null`，并继续使用同一个bridge-owned
+`physicalActionAdmissionClaim`、同一个contract-bound binding与既有`routeInternalV1`；不得新增mode binding、claimed
+route、controller或gesture authority。Package-local `WeakMap` record只绑定exact issuing admission、direct-target proof、
+direct target、source revision、admitted frame、requested mode、exact issuance mode-state identity与mutable one-shot `spent`；它不保存
+semantic port、numeric revision、mode history、timer、observer或current-attempt strong slot。Attempt handle被caller释放后，其WeakMap
+record与old issuance state可一并回收；bridge本身只strong-hold current state。
+
+Family result精确命名为`NarrativeStablePlaybackModeToggleDispatchResultInternalV1`，其closed frozen rows为
+`{ kind: "toggled", mode: NarrativeStablePlaybackModeInternalV1, completion: null } |
+{ kind: "ignored", completion: null } | { kind: "stale", completion: null } |
+{ kind: "faulted", completion: null }`。`toggled` own key exact为`kind | mode | completion`，其余三行own key exact为
+`kind | completion`；三个successor mode各复用一个canonical toggled result identity，ignored/stale/faulted也各复用
+canonical identity。该type只并入既有`NarrativeStablePhysicalActionDispatchResultInternalV1`的Narrative-local union，
+不得扩张generic Managed Surface/Input result、receipt或code。
+
+Issue availability固定如下：
+
+- `requestedMode`只有exact `auto | skip`可进入capture；invalid runtime input、borrowed/retired admission、closed/non-current
+  bridge、application/coordinator terminal或`bridgeRecord.sayCallbackClaim !== null`都返回`null`且zero attempt allocation。
+- Exact current ready-active direct Dialogue `say | choice | pause | custom | presentation_barrier`均可签发。Say route按上述
+  table toggle；choice、pause、custom与barrier只为published player control签发authentic attempt，使correct route得到consumed
+  family-local `ignored`且mode保持normal。`.3c.1`因此可把barrier加入physical-admission construction kind whitelist，但该
+  whitelist expansion只允许Auto/Skip mode control；不得签发Barrier semantic attempt、读取Stage proof或改变acknowledgment/run。
+- Empty没有runtime/input owner且不构造physical admission；preparing、readiness gap、retained predecessor、suspended、exiting、
+  publisher/bridge/admission/coordinator disposed也不可issue。Accepted non-Say boundary在ready前已经normal，若exact current
+  non-Say route观察到其他mode identity则是family invariant fault，不得把它修复或分类为toggle。
+- `sayCallbackClaim`只作为同步callback-stack reentry guard：claim存在时fresh issue为`null`，pre-signed authentic correct
+  attempt若仍进入consumer则先spend再返回`stale`。Mode route从不安装、释放或转移该claim。它明确不读取、不占用也不清理
+  `saySemanticInFlightClaim`；semantic Promise pending但callback stack已退出时仍可toggle future mode，且不得spend/retire
+  existing manual activation或content-auto attempt。
+
+Exact authenticated route precedence固定为：
+
+1. 先完整通过既有application/terminal/coherence、topology/instance/input owner/routing lease/action catalog、input publication与
+   gesture fences。Generic fence阻止consumer时`consumerResult`保持`null`，传入的authentic mode attempt不spend，Input/Surface
+   receipt沿用既有合同。
+2. Consumer只把exact `player.toggle_auto`映射到requested `auto`、`player.toggle_skip`映射到requested `skip`。Unmapped/
+   unpublished action在读取attempt前返回既有结果；same-admission authentic mode token与另一toggle action或任意non-mode action
+   mismatch也必须在spend前返回`unmapped`。该token随后仍可由其exact matching action使用；mode action也不得spend传入的其他
+   authentic choice/pause/custom/Say/voice token。
+3. Exact action/mode mapping再以WeakMap验证attempt为same-admission、correct mode-toggle kind且unspent。Spoof、clone、foreign
+   admission、wrong kind与already-spent identity返回`stale`，且不得spend另一authentic capability。Same-admission correct-kind、
+   requested-mode exact的attempt进入consumer后立即不可逆spend；后续ignored/stale/faulted均不回滚。Attempt record的exact issuance
+   mode-state identity不是value/revision hint，而是后续final CAS必须仍命中的opaque predecessor。
+4. Spend后依次复验`bridgeRecord.physicalActionAdmissionClaim === admissionClaim`、admission与bridge/application/coordinator active、
+   `sayCallbackClaim === null`、direct-target proof、current stable input contract/direct target/source revision、exact admitted frame
+   identity及current ready-active phase。Known lifecycle/proof/source/frame/state drift返回`stale`；captured authority fault或impossible
+   mode/kind invariant返回`faulted`。这里不读取raw renderer、semantic port、clock、profile或mode subscriber。
+5. Exact current Say先从attempt绑定的issuance state value按six-transition table计算successor mode，并在final proof/CAS前mint fresh
+   frozen successor state、选择已存在的canonical toggled result；所有可能throw的allocation/freeze工作必须在final gate前完成，throw为
+   spent `faulted`且mode不变。随后重验step 4全部currentness及
+   `bridgeRecord.currentModeState === attempt.issuanceModeState`，winner才在无user callback/getter/allocation/notification的同步CAS
+   commit point安装fresh successor并返回`toggled`。Exact current choice/pause/custom/barrier要求current/issuance state identity仍相同且
+   mode已经是normal，返回`ignored`而不rotate identity。Mode commit后没有post-callback stale reclassification窗口；同一issuance
+   state上pre-signed的distinct competitors只有first token可CAS成功，其余即使primitive mode后来ABA回到相同spelling也必须spent
+   `stale`。Fresh attempt只有在前一commit后重新issue，才绑定fresh current state并可线性toggle。
+
+`toggled | ignored | stale | faulted`四类family result只要consumer已进入，outer Input都为
+`consumed / input.managed_surface_consumed`，Surface保持既有`unchanged / surface.action_routed`，lower context不fall through。
+Mode route的semantic resolution、Base dispatch、gameplay、source/runtime、topology、identity high-water与composite/transient
+notification全部为exact zero。`.3c.1`不得新增mode subscriber、listener set、notification queue、mode-specific revision或
+observer；同步route result是toggle的唯一通知，S4.2 Host以后只消费该result及既有composite publication，不成为第二mode writer。
+`readPlaybackModeInternalV1()`必须先以bridge/composite currentness fail closed：application/coordinator terminal、old application anchor或
+closed bridge及currentness capture throw一律读取为`normal`，但该projection不伪造mode notification，也不允许issue/route复活old
+state。Terminal在generic route前已经可见时consumer为`null`且attempt不spend；若terminal只在generic gate后、family consumer前的
+reentrant callback发生，correct authentic attempt仍须先spend再以`stale`收口。两种precedence都保持zero mode mutation。
+
+Mode lifecycle与stable reconcile必须共享同一bridge record并满足以下atomic order：
+
+- Accepted Say→Say source/frame successor保留exact mode-state identity，包括new target preparing、readiness-failed gap、retry与
+  fresh ready frame；old attempt仍因target/source/frame/admission drift失效。Temporary root suspension/resume也保留mode，旧attempt
+  随direct ready-active/input proof撤销；`.3c.1`不保存reveal cursor、deadline或remaining。
+- Accepted choice/pause/custom/barrier或greater-empty必须回到normal。若current mode非normal，reset须先mint fresh frozen normal
+  successor；current已经normal时保持exact identity、不作无意义rotation。Reset只可在schema/canonical/preflight/
+  admission plan全部成功后、existing composite apply与其captured listener notification之前pre-stage；因此既有state listener在
+  source/runtime successor第一次可见时已经read到normal。若apply返回stale/faulted/rejected或在accepted install前throw，必须把
+  exact predecessor mode identity原子restore，fresh failed successor变为unreachable，保持source/runtime/topology与两类notification既有
+  zero-delta；schema/preflight
+  rejection、same-occurrence byte-equal unchanged、same-occurrence canonical drift fault与issuance exhaustion也不得reset。
+- Successful apply返回后不得再次写normal：existing composite listener可在完整successor上同步nested reconcile fresh Say并经fresh
+  admission toggle mode；外层source reconcile不能clobber该later linearized mode。Listener throw只进既有diagnostics，不能rollback
+  installed source或mode。Mode reset不新增第二notification；它只随该source commit既有的exact composite/transient notification
+  vector可见。
+- Physical admission dispose/recreate与Say reveal controller dispose/recreate不reset同一bridge的mode；它们只退休各自attempt/proof。
+  Effective bridge dispose必须先关闭`bridgeActive`；current nonnormal时预先mint并安装fresh normal state，already-normal则不rotate，
+  随后退休existing recovery generation并调用
+  composite publisher-lease terminal dispose；terminal listener只能看到ingress closed + normal。Underlying fail-closed divergence不回滚
+  bridge terminal mode，repeat dispose保持normal且不新增notification。Fresh application epoch/publisher lease只能经fresh bridge从normal
+  开始；在bridge dispose前先发生的application/coordinator terminal也必须由read/currentness gate立即投影normal、拒绝issue/route，old
+  token保持zero mode mutation。Old bridge/attempt不能把mode带入successor或在cleanup时ABA-write successor。
+
+**S4.1b.1b.1b.2b.3c.1 acceptance：** implementation必须先交付以下mutation-sensitive RED matrix：
+
+- **Type/state/result shape**：exact mode union、bridge own read method、fresh frozen one-key current/successor state、zero-key attempt、
+  exact issuance-state binding、exact issue signature与四分支frozen result；六个transition逐行断言read value、fresh successor/old
+  predecessor inequality、canonical result identity及exact own keys。Invalid requested mode与borrowed/retired issue为zero allocation；
+  read-only API没有setter/subscriber。
+- **Kind/phase availability**：Ready-active Say的`confirm | auto` policy均可toggle；ready-active choice/pause/custom/barrier均issue并
+  consumed ignored；barrier route证明zero Stage/semantic/run mutation。Empty无admission，preparing/gap/retained/suspended/exiting/
+  disposed不可issue，且现有non-mode action behavior与Dialogue definition catalog/revision保持exact。
+- **Generic-before-spend与cross-kind**：stale application/topology/input publication/gesture、unpublished/unmapped action与wrong requested
+  mode均不spend authentic attempt；同一token随后用fresh matching envelope只toggle一次。Spoof/clone/foreign/wrong-kind/repeat返回
+  stale，且mode token与existing choice/pause/custom/Say/voice token互不烧掉。
+- **Exact-state first-win/ABA**：同一current state预签auto/skip或同-mode多个attempt，first winning CAS安装fresh successor，其余均spent
+  stale。保留最初normal attempt，另用fresh attempts完成`normal → auto → normal`后重放最初token，必须因old state identity而stale，
+  不能按primitive `normal`误通过；failed CAS不安装已mint successor或改变canonical result identity。
+- **Precommit currentness**：正确mapping先spend，再分别旋转target、source、frame、phase、physical admission、bridge/coordinator与
+  direct input proof；known drift都stale/zero mode，authority/invariant fault为faulted，repeat保持stale。Success path证明state/result先
+  detached-freeze、commit后无throw/rollback窗口。
+- **Shared Say claims**：`sayCallbackClaim`已占用时fresh issue为`null`；pre-signed route为spent stale且不影响claim。Callback claim
+  释放后fresh attempt正常。Manual/content-auto已持有`saySemanticInFlightClaim`的Promise-pending row仍可toggle，且claim token、manual/
+  content-auto attempt spend/current slot与semantic dispatch count全部不变。
+- **Source/lifecycle matrix**：active Auto/Skip分别经过Say→Say preparing/failed/retry/ready与root suspend/resume仍保留identity；经过
+  choice/pause/custom/barrier/empty则fresh-reset normal并在existing listener首次调用前可见，already-normal boundary不rotate。Schema/
+  preflight/admission/apply stale/fault路径恢复exact predecessor且zero notification；listener throw不rollback，listener nested fresh Say +
+  toggle不被outer reset覆盖。
+- **Owner successor/terminal**：physical admission与reveal controller dispose/recreate保留mode；bridge dispose listener读到inactive +
+  normal，underlying fault与repeat dispose不复活。Raw application/coordinator terminal在bridge disposal前也使read fail-closed normal、
+  issue unavailable；terminal-before-generic保持consumer `null`/attempt unspent，generic-after-terminal race进入family consumer则spent
+  stale，两者route都zero mode。Fresh bridge/epoch/lease从fresh normal开始，old attempt/cleanup不能跨authority写mode。
+- **Zero delta/public boundary**：每个physical result都证明lower/semantic/source/runtime/topology/composite/transient notification zero；
+  reset只复用existing source/terminal notification，不出现mode observer。Mode/attempt/result/read method只有source-relative type/runtime
+  import；UI root、`./internal` barrel与package export均以negative tests保持缺席。
+- **Boundedness**：10,000次toggle、Say/non-Say source rotation、suspend/resume与admission successor只由bridge strong-hold当前一个
+  fresh state；没有listener/queue/numeric revision/history/tombstone或attempt strong slot，canonical result identity有界。Old state只可被
+  caller仍持有的attempt经WeakMap record间接保留，caller释放attempt后provenance与old state均可回收。
+
+Implementation stop：若`.3c.1`需要public/generic mode store、setter/subscriber、第二mode writer/controller/binding/claimed route、
+mode notification或把mode塞入generic composite/public Surface state，立即停止并修订owning design。若non-Say/empty reset无法在existing
+composite notification前pre-stage且在failed apply上restore，或outer source reconcile必须在listener返回后无条件重写normal，也立即停止。
+若需要读取/占用/清理`saySemanticInFlightClaim`、改变`sayCallbackClaim` ownership、retire/spend manual或content-auto attempt、
+实现timer/clock/deadline/remaining/reveal cursor、`autoWaitMs`/skip scheduling、automatic semantic dispatch、same-transition semantic
+first-win、History topology、React/Web/Host/live claimant或legacy `PlaybackControllerV1` dual write，全部停止并留S4.2/S4.3。若需要修改
+Dialogue action catalog/revision、generic Input/Managed Surface result/receipt/code、UI root或`./internal` barrel/package export，或需要
+Base、PlayerProfile、Save/Persistence、canonical/digest/replay/wire变化，也不属于`.3c.1`。
+
+**S4.1b.1b.1b.2b.3c.0 docs-only acceptance：** 本amendment没有source、test、runtime、Host/React/Web/live claimant或
+delivery evidence，也不把此前
+focused/UI/full/check/browser/examples/prebuilt结果冒充本批验证。验证只要求本文件`deno fmt --check`与`git diff --check`。
+原`.3c` broad checkpoint与本`.3c.0` entry现均为historical contract；唯一active current/next与implementation gate已推进为
+**S4.1b.1b.1b.2b.3c.1 bridge-owned Auto/Skip transient mode implementation**，有效后续顺序为
+**S4.1b.1b.1b.2b.3c.1 → S4.1b.1b.1b.2b.3d → S4.2 → S4.3 → S4b**。
 
 S4.1 aggregate stop在S4.1b.1b.1b.1–S4.1b.1b.1b.2b.3d继续有效：若后续证据要求公开lease/source/occurrence/Coordinator、复用global
 semantic/presentation revision、允许同一semantic occurrence的full normalized `PendingInteractionV1` canonical漂移，

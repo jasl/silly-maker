@@ -47,8 +47,10 @@ promotion 均已关闭。2026-08-08 dormant `PF4/S3c.1 Host-commit readiness`、
 `PF4/S4.1b.1b.1b.2b.3.0 player-controls execution split` docs-only checkpoint与
 `PF4/S4.1b.1b.1b.2b.3a toggle-ui Narrative catalog corrective`及
 `PF4/S4.1b.1b.1b.2b.3b.0 voice-replay entry contract` docs-only checkpoint与
-`PF4/S4.1b.1b.1b.2b.3b.1 voice replay physical route implementation`也已关闭，linear core
-current/next均推进为`PF4/S4.1b.1b.1b.2b.3c bridge-owned Auto/Skip transient mode floor`。
+`PF4/S4.1b.1b.1b.2b.3b.1 voice replay physical route implementation`及
+`PF4/S4.1b.1b.1b.2b.3c.0 Auto/Skip exact entry contract` docs-only checkpoint也已关闭，linear
+core current/next均推进为
+`PF4/S4.1b.1b.1b.2b.3c.1 bridge-owned Auto/Skip transient mode floor implementation`。
 同日 S1-R pre-implementation review 将 external reconcile gate 重切为 S1-R.0–S1-R.5；
 顺序变化不把任何 planned stable-target contract写成 live capability。
 同日 S1-R.3 entry-gate adjudication 采用 A-prime，将原 R3 拆为单一 composite
@@ -76,8 +78,9 @@ S4.1b.1b.1b.2b.2b.1 settle/replay recovery implementation也已关闭；
 S4.1b.1b.1b.2b.3.0 player-controls execution split docs-only checkpoint与
 S4.1b.1b.1b.2b.3a toggle-ui Narrative catalog corrective及
 S4.1b.1b.1b.2b.3b.0 voice-replay entry contract docs-only checkpoint与
-S4.1b.1b.1b.2b.3b.1 voice replay physical route implementation也已关闭，下一独立切片为
-S4.1b.1b.1b.2b.3c bridge-owned Auto/Skip transient mode floor。
+S4.1b.1b.1b.2b.3b.1 voice replay physical route implementation及
+S4.1b.1b.1b.2b.3c.0 Auto/Skip exact entry contract docs-only checkpoint也已关闭，下一独立切片为
+S4.1b.1b.1b.2b.3c.1 bridge-owned Auto/Skip transient mode floor implementation。
 旧 promotion 数字保留为
 历史证据。本文是当前唯一的跨计划排序入口；
 具体合同仍由各 design 文档拥有，主要任务由五个独立计划拥有：
@@ -971,12 +974,14 @@ Surface pilot 通过后按 family 分开合并：
 20. S4.1b.1b.1b.2b.3b：voice replay physical route（superseded checkpoint；由`.2b.3b.0`细分）；
 21. S4.1b.1b.1b.2b.3b.0：voice-replay entry contract（docs-only，已完成）；
 22. S4.1b.1b.1b.2b.3b.1：voice replay physical route implementation（已完成）；
-23. S4.1b.1b.1b.2b.3c：bridge-owned Auto/Skip transient mode floor（当前）；
-24. S4.1b.1b.1b.2b.3d：History exact-parent open intent floor；
-25. S4.2：dormant Narrative Host、Host-commit readiness、timer scheduling与History exact-child lifecycle；
-26. S4.3：atomic live cutover and promotion；
-27. S4b：whole-canvas primary/detail 独立 family；
-28. input/gesture reset（pointercancel、focus loss、visibility change）与 Browser
+23. S4.1b.1b.1b.2b.3c：bridge-owned Auto/Skip transient mode floor（superseded checkpoint；由`.2b.3c.0`细分）；
+24. S4.1b.1b.1b.2b.3c.0：Auto/Skip exact entry contract（docs-only，已完成）；
+25. S4.1b.1b.1b.2b.3c.1：bridge-owned Auto/Skip transient mode floor implementation（当前）；
+26. S4.1b.1b.1b.2b.3d：History exact-parent open intent floor；
+27. S4.2：dormant Narrative Host、Host-commit readiness、timer scheduling与History exact-child lifecycle；
+28. S4.3：atomic live cutover and promotion；
+29. S4b：whole-canvas primary/detail 独立 family；
+30. input/gesture reset（pointercancel、focus loss、visibility change）与 Browser
     Agent observation。
 
 S3 是 Coordinator-owned transient family，与 Workspace Overlay 共用同一个
@@ -1808,7 +1813,8 @@ S4.1b.1b.1b.2b.3 player controls标记为superseded checkpoint，不再作为一
 S4.1b.1b.1b.2b.3a toggle-ui Narrative catalog corrective →
 S4.1b.1b.1b.2b.3b.0 voice-replay entry contract →
 S4.1b.1b.1b.2b.3b.1 voice replay physical route implementation →
-S4.1b.1b.1b.2b.3c bridge-owned Auto/Skip transient mode floor →
+S4.1b.1b.1b.2b.3c.0 Auto/Skip exact entry contract →
+S4.1b.1b.1b.2b.3c.1 bridge-owned Auto/Skip transient mode floor implementation →
 S4.1b.1b.1b.2b.3d History exact-parent open intent floor → S4.2 → S4.3 → S4b。
 
 `.3a`只从Dialogue managed action catalog移除`player.toggle_ui`；它不删除generic
@@ -1819,8 +1825,9 @@ route：optional adapter在candidate preflight以exact receiver与own-data
 absent/`false`为family-local ignored，throw为family-local faulted，proof/callback drift为stale；closed
 family result为`handled | ignored | stale | faulted`，全部保持Input consumed且semantic resolution为zero。
 
-`.3c`只建立bridge-owned transient `normal | auto | skip` mode authority及mutually-exclusive toggle
-floor，不读clock、不建立timer/deadline、不安排automatic advance/skip，也不保存suspension
+原`.3c` broad checkpoint现由`.3c.0` exact entry与`.3c.1` implementation取代，不再直接实施；其
+accepted mode boundary仍只建立bridge-owned transient `normal | auto | skip` authority及mutually-exclusive
+toggle floor，不读clock、不建立timer/deadline、不安排automatic advance/skip，也不保存suspension
 remaining duration/cursor。`.3d`只签发绑定current ready-active Dialogue、read-only availability与
 exact parent的opaque History open intent；它不调用Coordinator打开/关闭child，不分配transient
 occurrence/instance，也不产生topology、readiness、focus或dismiss mutation。S4.2继续独占
@@ -1929,7 +1936,60 @@ claimant、audio presenter、Auto/Skip、History或第二callback/route authorit
 package `79 files / 1136 tests`、full `253 files / 4066 tests`与完整`deno task check`。本批因live browser/build graph
 zero diff未重跑browser、examples或prebuilt；先前的Engine browser `101 / 101`、examples browser
 `45 passed / 2 skipped`与prebuilt Player `38 / 38`只作prior evidence，不冒充本HEAD验证。Linear core current/next均推进为
-**S4.1b.1b.1b.2b.3c bridge-owned Auto/Skip transient mode floor**；随后依次为
+**S4.1b.1b.1b.2b.3c broad Auto/Skip checkpoint**；该checkpoint现由下述`.3c.0` docs-only exact entry与
+`.3c.1` implementation线性取代，不再直接实施。
+
+**PF4/S4.1b.1b.1b.2b.3c.0 Auto/Skip exact entry contract（docs-only，completed）：** 原
+S4.1b.1b.1b.2b.3c bridge-owned Auto/Skip transient mode floor标记为superseded checkpoint；实际source/test
+implementation由S4.1b.1b.1b.2b.3c.1独占。本entry把bridge-private single-writer mode冻结为
+`NarrativeStablePlaybackModeInternalV1 = "normal" | "auto" | "skip"`。每个Narrative bridge/application
+lifetime initial mint一个fresh `normal` private mode-state identity；每次effective Say toggle都mint并原子安装fresh identity。
+Bridge只strong-hold exact one current identity；旧identity只可随caller-retained opaque attempt存在于private `WeakMap` record，
+production strong state保持O(1)。Identity不进入raw/public data、attempt字段、UI root、`./internal` barrel或package export。
+Bridge只提供read-only `readPlaybackModeInternalV1()`，不得新增arbitrary `setMode`、第二writer或mode subscriber。
+
+Physical admission只新增frozen zero-key、one-shot、source-relative
+`NarrativeStablePlaybackModeToggleActionAttemptInternalV1`及
+`issuePlaybackModeToggleAttemptInternalV1("auto" | "skip")`。Attempt绑定issuing admission、private mode-state
+identity与exact current stable input/target/source/frame proof；requested mode在issue时固定，route不得从caller接受第三个mode、
+借用legacy public `PlaybackControllerV1`或在React/controller local state复制authority。Closed family-local
+`NarrativeStablePlaybackModeToggleDispatchResultInternalV1`只含`toggled | ignored | stale | faulted`四个frozen
+branch且`completion`均为`null`；`toggled`携带exact next mode。它只并入existing Narrative physical result union，不扩张
+generic Managed Surface/Input result、receipt或code。
+
+Exact ready-active Say的六行toggle matrix固定为`normal + auto -> auto`、`normal + skip -> skip`、
+`auto + auto -> normal`、`skip + skip -> normal`、`auto + skip -> skip`与`skip + auto -> auto`；同mode
+toggle回normal，cross-mode在一个同步transition内切到requested mode。Current ready-active choice、pause、
+`presentation_barrier`或custom上的authenticated Auto/Skip route返回`ignored`并保持normal；empty没有physical route。
+Generic application/terminal/coherence、Surface/Input/publication/gesture fence先于family consumer与attempt spend；unmapped或未进入
+consumer不spend，authentic correct-kind attempt一旦进入consumer即one-shot spend，之后identity/proof/source/frame/claim drift归
+`stale`，内部mode transition fault归`faulted`，均不得改mode。
+
+Accepted Say→Say replacement、same-pending unchanged、readiness retry与temporary root suspension保留exact mode-state
+identity/value，但旧target/source/frame-bound attempt立即stale；accepted新non-Say boundary或empty必须在composite state
+notification前把non-normal mode以fresh normal identity reset，使同步listener只能观察new publication + normal；already-normal
+boundary保持current normal identity即可。若stable apply返回stale/rejected/faulted或throw，preinstalled reset必须在返回前恢复
+exact old identity/value，且state/notification/mode delta均为zero。Fresh application/publisher lease使用fresh normal identity；
+bridge dispose先把own identity terminal-reset/seal，再进入underlying disposal notification。Coordinator/application terminal后，
+`readPlaybackModeInternalV1()`必须通过existing lifecycle/currentness seam fail-closed返回`normal`，mode attempt issue与route均
+unavailable且zero mode delta；这一fail-closed行为不要求新增subscriber主动改写private slot。
+
+Issue要求existing bridge-wide `sayCallbackClaim`为空；preissued correct-kind attempt进入mapped consumer后先one-shot spend，
+随后若该claim已非空则返回`stale`且mode不变。Mode toggle从不安装、转移或清理该claim，也不调用renderer/content callback。
+它完全不读取、不要求、也不安装或清理`saySemanticInFlightClaim`；semantic Promise pending期间仍允许切换future mode，但本route
+自身不形成semantic resolution或dispatch。它不新增mode subscriber、clock、timer、deadline、`autoWaitMs`、remaining、
+reveal cursor、automatic advance或skip stepping；这些仍由S4.2
+`DialoguePlayerController`/Host独占。Mode-only success除private mode value外必须保持semantic/gameplay、stable/composite state、
+source/runtime、topology与notification exact zero；future S4.2 controller作为route caller消费`toggled` result，并在既有
+publication notification后通过read-only method重读reset，不把observation变成第二writer。
+
+`.3c.1` source/test scope只允许source-relative Narrative family implementation、同目录mutation-sensitive test与
+`engine/packages/ui/src/public-api.test.ts` negative guards；Dialogue revision `2` catalog、generic
+`playerInputActionIdsV1.toggleAuto/toggleSkip`、legacy public PlaybackController/DialoguePanel/Engine Lab/Story writer、Base/Web/React
+Host及live feature docs均保持zero diff。该entry amendment没有code、test、runtime、Host/live claimant、public API或delivery
+evidence，不记录focused/UI/full/check/browser/examples/prebuilt结果；验证只运行本文件`deno fmt --check`与
+`git diff --check`。Linear core current/next现均为
+**S4.1b.1b.1b.2b.3c.1 bridge-owned Auto/Skip transient mode floor implementation**；随后依次为
 **S4.1b.1b.1b.2b.3d → S4.2 → S4.3 → S4b**。
 
 每个 family 的迁移提交必须删除旧 owner；禁止长期 adapter 双写。
