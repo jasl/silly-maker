@@ -626,8 +626,13 @@ replaced, disposed, and stale-source targets cannot authenticate. These seams
 remain source-relative and add no root, `./internal`, package, InputRouter,
 Coordinator, or action-envelope export. Narrative semantic dispatch and
 automatic controller-attempt admission are not implemented by this floor;
-S4.1b.1 must first freeze the callable semantic-port contract and exact
-action-to-resolution table before consuming it.
+S4.1b.1a now preserves the authenticated envelope action ID through that gate
+by passing a frozen exact `{ actionId, attempt }` to the claimed continuation;
+the opaque attempt cannot replace the authenticated action ID. This corrective
+has no non-test claimant and adds no semantic dispatch. S4.1b.1b must freeze the
+callable semantic-port contract together with an exact action-to-resolution
+mapping/proof authority before consuming it; no raw resolution ingress is
+exposed ahead of that mapping.
 
 ## 9. Changing the architecture
 
@@ -666,7 +671,9 @@ disposition described above. The R5 neutral harness closes the generic
 source-relative aggregate conformance gate. S4.1a now consumes it through the
 dormant Narrative family/publisher bridge above, and S4.1b.0 supplies the shared
 contract-bound physical gate plus whole-topology stable input-owner proof.
-S4.1b.1 Narrative physical/automatic semantic admission is the next independent
-slice; Host integration and the Narrative live migration remain planned work.
+S4.1b.1a preserves authenticated action context through the claimed route
+without dispatching semantic work. S4.1b.1b Narrative physical/automatic
+semantic admission is the next independent slice; Host integration and the
+Narrative live migration remain planned work.
 Target documents do not alter the current data flow until that migration and
 its behavior tests land.

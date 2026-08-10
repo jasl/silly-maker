@@ -82,6 +82,11 @@ export interface ManagedSurfaceAuthenticatedActionRouteResultInternalV1<TResult>
   readonly consumerResult: TResult | null;
 }
 
+export interface ManagedSurfaceAuthenticatedActionContinuationInputInternalV1<TAttempt> {
+  readonly actionId: ManagedSurfaceActionIdV1;
+  readonly attempt: TAttempt;
+}
+
 export interface ManagedSurfaceAuthenticatedActionRouteInternalV1<TAttempt, TResult> {
   routeInternalV1(
     envelope: ManagedSurfaceActionEnvelopeV1,
@@ -142,7 +147,9 @@ interface ManagedSurfaceActionBindingRecordV1 {
 }
 
 interface ManagedSurfaceAuthenticatedActionClaimRecordInternalV1 {
-  readonly consume: (attempt: unknown) => unknown;
+  readonly consume: (
+    input: ManagedSurfaceAuthenticatedActionContinuationInputInternalV1<unknown>,
+  ) => unknown;
   active: boolean;
   routeInProgress: boolean;
 }
@@ -357,7 +364,11 @@ export function createManagedSurfaceContractBoundActionBindingInternalV1(
     if (claim !== null) {
       const invocation = dispatch.claimInvocation;
       if (claim.active && invocation?.claim === claim) {
-        invocation.result = Reflect.apply(claim.consume, undefined, [invocation.attempt]);
+        const continuationInput = Object.freeze({
+          actionId: dispatch.envelope.actionId,
+          attempt: invocation.attempt,
+        }) satisfies ManagedSurfaceAuthenticatedActionContinuationInputInternalV1<unknown>;
+        invocation.result = Reflect.apply(claim.consume, undefined, [continuationInput]);
         invocation.invoked = true;
       }
       return inputHandledV1;
@@ -450,7 +461,9 @@ export function createManagedSurfaceContractBoundActionBindingInternalV1(
 
 export function claimManagedSurfaceAuthenticatedActionRouteInternalV1<TAttempt, TResult>(
   binding: ManagedSurfaceActionBindingV1,
-  consume: (attempt: TAttempt) => TResult,
+  consume: (
+    input: ManagedSurfaceAuthenticatedActionContinuationInputInternalV1<TAttempt>,
+  ) => TResult,
 ): ManagedSurfaceAuthenticatedActionRouteInternalV1<TAttempt, TResult> {
   const record = bindingRecordsV1.get(binding);
   if (
@@ -460,7 +473,9 @@ export function claimManagedSurfaceAuthenticatedActionRouteInternalV1<TAttempt, 
     throw new TypeError("ui.managed_surface_action_route_claim_invalid");
   }
   const claim: ManagedSurfaceAuthenticatedActionClaimRecordInternalV1 = {
-    consume: consume as (attempt: unknown) => unknown,
+    consume: consume as (
+      input: ManagedSurfaceAuthenticatedActionContinuationInputInternalV1<unknown>,
+    ) => unknown,
     active: true,
     routeInProgress: false,
   };

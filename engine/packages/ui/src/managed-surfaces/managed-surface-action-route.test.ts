@@ -1209,7 +1209,9 @@ describe("Managed Surface action route", () => {
       registerManagedInputHandler: countingRouter.registerManagedInputHandler,
     });
     const consumerResult = Object.freeze({ kind: "semantic-dispatched" as const });
-    const consume = vi.fn(() => {
+    let authenticatedContinuationInput: unknown;
+    const consume = vi.fn((input: unknown) => {
+      authenticatedContinuationInput = input;
       order.push("consumer");
       return consumerResult;
     });
@@ -1218,7 +1220,10 @@ describe("Managed Surface action route", () => {
       actionId: activateActionIdV1,
       gestureId: gestureV1("claimed-current"),
     });
-    const opaqueAttempt = Object.freeze({ kind: "physical-attempt" as const });
+    const opaqueAttempt = Object.freeze({
+      kind: "physical-attempt" as const,
+      actionId: otherActionIdV1,
+    });
 
     const result = claimed.routeInternalV1(envelope, opaqueAttempt);
 
@@ -1237,6 +1242,21 @@ describe("Managed Surface action route", () => {
     });
     expect(Object.isFrozen(result)).toBe(true);
     expect(consume).toHaveBeenCalledOnce();
+    expect(Reflect.ownKeys(authenticatedContinuationInput as object)).toEqual([
+      "actionId",
+      "attempt",
+    ]);
+    expect(authenticatedContinuationInput).toEqual({
+      actionId: activateActionIdV1,
+      attempt: opaqueAttempt,
+    });
+    expect(Object.isFrozen(authenticatedContinuationInput)).toBe(true);
+    expect(
+      (authenticatedContinuationInput as { readonly attempt: unknown }).attempt,
+    ).toBe(opaqueAttempt);
+    expect(
+      (authenticatedContinuationInput as { readonly actionId: unknown }).actionId,
+    ).not.toBe(opaqueAttempt.actionId);
     expect(order).toEqual(["gesture", "surface", "gesture", "consumer"]);
     expect(lower).not.toHaveBeenCalled();
   });

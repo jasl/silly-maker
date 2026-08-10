@@ -212,6 +212,10 @@ import type { CreateManagedSurfaceContractBoundActionBindingInputInternalV1 as F
 import type { ManagedSurfaceAuthenticatedActionRouteResultInternalV1 as ForbiddenPublicAuthenticatedActionRouteResultV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose authenticated action-route results.
 import type { ManagedSurfaceAuthenticatedActionRouteResultInternalV1 as ForbiddenInternalAuthenticatedActionRouteResultV1 } from "./internal.ts";
+// @ts-expect-error Authenticated action continuation inputs stay source-relative.
+import type { ManagedSurfaceAuthenticatedActionContinuationInputInternalV1 as ForbiddenPublicAuthenticatedActionContinuationInputV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose authenticated action continuation inputs.
+import type { ManagedSurfaceAuthenticatedActionContinuationInputInternalV1 as ForbiddenInternalAuthenticatedActionContinuationInputV1 } from "./internal.ts";
 // @ts-expect-error Authenticated action routes stay source-relative.
 import type { ManagedSurfaceAuthenticatedActionRouteInternalV1 as ForbiddenPublicAuthenticatedActionRouteV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose authenticated action routes.
@@ -257,6 +261,7 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "ManagedSurfaceContractBoundActionRouteAuthorityInternalV1"
       | "CreateManagedSurfaceContractBoundActionBindingInputInternalV1"
       | "ManagedSurfaceAuthenticatedActionRouteResultInternalV1"
+      | "ManagedSurfaceAuthenticatedActionContinuationInputInternalV1"
       | "ManagedSurfaceAuthenticatedActionRouteInternalV1"
       | "createManagedSurfaceContractBoundActionBindingInternalV1"
       | "claimManagedSurfaceAuthenticatedActionRouteInternalV1"
@@ -334,6 +339,7 @@ describe("@sillymaker/ui public managed System surface", () => {
         "ManagedSurfaceContractBoundActionRouteAuthorityInternalV1",
         "CreateManagedSurfaceContractBoundActionBindingInputInternalV1",
         "ManagedSurfaceAuthenticatedActionRouteResultInternalV1",
+        "ManagedSurfaceAuthenticatedActionContinuationInputInternalV1",
         "ManagedSurfaceAuthenticatedActionRouteInternalV1",
         "createManagedSurfaceContractBoundActionBindingInternalV1",
         "claimManagedSurfaceAuthenticatedActionRouteInternalV1",
