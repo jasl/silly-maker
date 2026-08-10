@@ -111,13 +111,14 @@ S4.1b.1b.1b.2b.0现已冻结remaining Say/barrier/player policy，
 S4.1b.1b.1b.2b.1a又已交付physical Say reveal-first admission，
 S4.1b.1b.1b.2b.1b又已交付content-auto Say controller-attempt floor，
 S4.1b.1b.1b.2b.2a又已交付normal Stage→Narrative acknowledgment vertical，
-S4.1b.1b.1b.2b.2b.0又已冻结recovery generation admission entry contract。
-当前active execution pointer的current/next均为S4.1b.1b.1b.2b.2b.1 settle/replay recovery implementation；之后依次为
-S4.1b.1b.1b.2b.3 player controls、S4.2、S4.3与S4b。
+S4.1b.1b.1b.2b.2b.0又已冻结recovery generation admission entry contract，
+S4.1b.1b.1b.2b.2b.1现已交付settle/replay recovery implementation。
+当前active execution pointer的current/next均为S4.1b.1b.1b.2b.3 player controls；之后依次为
+S4.2、S4.3与S4b。
 R3b.1、R4.0、R4a、R4b.0、R4b.1、R5、S4.0、S4.1a、S4.1b.0、S4.1b.1a、S4.1b.1b.0与
 S4.1b.1b.1a、S4.1b.1b.1b.1、S4.1b.1b.1b.2a、S4.1b.1b.1b.2b.0与
-S4.1b.1b.1b.2b.1a、S4.1b.1b.1b.2b.1b与S4.1b.1b.1b.2b.2a只作为completed
-delivery保留。
+S4.1b.1b.1b.2b.1a、S4.1b.1b.1b.2b.1b、S4.1b.1b.1b.2b.2a、
+S4.1b.1b.1b.2b.2b.0与S4.1b.1b.1b.2b.2b.1只作为completed delivery保留。
 Stable implementation仍保持dormant/source-relative；R5只解除S4 entry gate，S4.0也没有把任何stable family
 提前写成live capability。
 当前 live 能力仍以
@@ -1342,8 +1343,8 @@ S4.1b.1b.1b.2b.1a physical Say reveal-first admission →
 S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor →
 S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment vertical →
 S4.1b.1b.1b.2b.2b.0 recovery generation admission entry amendment（已完成）→
-S4.1b.1b.1b.2b.2b.1 settle/replay recovery implementation（当前）→
-S4.1b.1b.1b.2b.3 player controls → S4.2。若Say需要把raw reveal/controller authority交给renderer、Barrier replay
+S4.1b.1b.1b.2b.2b.1 settle/replay recovery implementation（已完成）→
+S4.1b.1b.1b.2b.3 player controls（当前）→ S4.2。若Say需要把raw reveal/controller authority交给renderer、Barrier replay
 必须在没有exact replay descriptor/capability时推进、player control要求fully hidden focus-trapped root，或任一路径要求
 扩大generic/public receipt/result，立即停止并修订合同。
 
@@ -1372,8 +1373,8 @@ S4.1b.1b.1b.2b.1a physical Say reveal-first admission（已完成）；
 S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor（已完成）；
 S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment vertical（已完成）；
 S4.1b.1b.1b.2b.2b.0 recovery generation admission entry amendment（docs-only，已完成）；
-S4.1b.1b.1b.2b.2b.1 settle/replay recovery implementation（当前）；
-S4.1b.1b.1b.2b.3 player controls；S4.2 dormant
+S4.1b.1b.1b.2b.2b.1 settle/replay recovery implementation（已完成）；
+S4.1b.1b.1b.2b.3 player controls（当前）；S4.2 dormant
 controller/view/Host、Host-commit readiness与History exact-child integration；
 S4.3在一个cutover中迁移全部tracked consumers、删除旧writers并完成headless/browser/prebuilt promotion。若exact-parent
 History不能与stable root共用composite authority、root/History不能原子retain/retire、同一semantic occurrence确实允许
@@ -1491,8 +1492,7 @@ S4.1b.1b.1a验证通过focused `7 files / 192 tests`、UI `79 files / 1010 tests
 `253 files / 3938 tests`与`deno task check` green。本批未重跑browser/examples/prebuilt；`101 / 101`、
 `45 passed / 2 skipped`与`38 / 38`仅是先前已有证据，不冒充本批HEAD验证。
 该checkpoint当时的current/next是S4.1b.1b.1b.2a；现已由上述.2a delivery推进。
-Active current/next现均为S4.1b.1b.1b.2b.2b.1；后续顺序保持
-S4.1b.1b.1b.2b.2b.1 →
+Active current/next现均为S4.1b.1b.1b.2b.3；后续顺序保持
 S4.1b.1b.1b.2b.3 → S4.2 → S4.3 → S4b。
 
 **S4.1b.1b.1b.2b.1 execution-order amendment：** Say先拆成两个vertical。`.1a`沿用既有
@@ -1615,7 +1615,7 @@ Host/React/live claimant，也没有新增public/`./internal` barrel、package e
 `45 passed / 2 skipped`与prebuilt Player `38 / 38`仅为prior evidence，不冒充本批HEAD验证。
 S4.1b.1b.1b.2b.1b已完成；该checkpoint的current/next推进为
 S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment；该切片已由下述delivery关闭，当前又经
-`.2b.2b.0` docs checkpoint推进到`.2b.2b.1` settle/replay recovery implementation。
+`.2b.2b.0` docs checkpoint与`.2b.2b.1` delivery推进到`.2b.3` player controls。
 
 **S4.1b.1b.1b.2b.2 entry amendment（历史checkpoint）：** Barrier先拆为
 S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment vertical，再做
@@ -1769,7 +1769,8 @@ evidence；`cancelled`始终semantic dispatch为零。
 canonical/digest/replay/wire合同。验证通过focused `8 files / 292 tests`、UI `79 files / 1099 tests`、full
 `253 files / 4029 tests`与`deno task check` green；fresh Engine browser为`101 / 101`、examples为
 `45 passed / 2 skipped`、prebuilt Player为`38 / 38`。S4.1b.1b.1b.2b.2a现已完成；active current/next均推进为
-S4.1b.1b.1b.2b.2b.1 settle/replay recovery implementation；其前置`.2b.2b.0` docs checkpoint见下。
+S4.1b.1b.1b.2b.2b.1 settle/replay recovery implementation；该切片现已由下述delivery关闭，其前置
+`.2b.2b.0` docs checkpoint见下。
 
 **S4.1b.1b.1b.2b.2b.0 recovery generation admission entry amendment（docs-only，已完成）：**
 既有`NarrativeStableBarrierAcknowledgmentControllerInternalV1`提升为同一composition/application bridge拥有的长寿命controller，
@@ -1841,7 +1842,7 @@ dispatch。
 
 本docs checkpoint只冻结admission、identity与precedence，没有实现source、test、runtime或live wiring，也不记录delivery/evidence。
 它不新增public/`./internal` barrel、package export、raw public acknowledgment、React timing authority、generic Surface result、Base、
-Save/Persistence/replay/wire变化。S4.1b.1b.1b.2b.2b.1为当前 implementation slice。
+Save/Persistence/replay/wire变化。S4.1b.1b.1b.2b.2b.1是其后的implementation slice，现已由下述delivery关闭。
 
 `.2b.2b.1`在上述bridge-owned generation上新增frozen zero-key
 `NarrativeStableBarrierRecoveryAttemptInternalV1`。Generation安装时只认当时已经存在的preexisting Barrier identity；同generation
@@ -1860,6 +1861,36 @@ notification、semantic、source、runtime与topology均zero。只有fresh insta
 settle共享同一once-per-target/generation recovery claim，但不伪造Stage proof或semantic-in-flight。`.2b.2a/.2b.2b.0/.2b.2b.1`都不得修改
 public `StageReconcilerV1`/acknowledgment shape、root或`./internal` barrel、package export、generic Surface result/receipt、Base
 interaction/Save/replay/wire或live Engine Lab writer；这些source-relative vertical完成后才允许进入`.2b.3`。
+
+**S4.1b.1b.1b.2b.2b.1 settle/replay recovery delivery：** Claimed Stage authority现独占
+presentation-generation retarget与capture。Initial/higher/lower replacement只能经
+`retargetPresentationGenerationInternalV1`写入；ordinary writer收窄为initialized same-epoch retarget，same-epoch与disposed
+generation retarget保持stale。Current strong proof slot与prior-proof WeakMap provenance以O(1)闭合initial/equal/higher/lower、numeric
+ABA与foreign classification，其中lower relation精确映射为`stale/proof:null`而不签发lower proof；generation、acknowledged-run、ordinary、skip及其callback reentry又统一经过同一authority mutation
+fence，nested mutation不得旁路或半写Stage state。
+
+Recovery authority完整落在composition/application bridge：exact Stage authority/proof、stable action authority、activation-gate
+binding、preexisting target或`null`、current attempt、replay cache、callback claim与独立generation observer都由bridge record持有。
+Controller可在empty/non-Barrier状态构造；dispose/recreate controller会继承同一bridge generation、attempt、cache与observer，fresh
+controller在same Stage authority下仍可dispatch尚存活的attempt。Bridge/application disposal先关闭family ingress再进入composite
+notification；target/generation retirement释放observer，而controller缺席时observer仍会按readiness、source或frame drift同步退役旧
+attempt。Exact activation gate在synchronize、issue、dispatch与replay read前后都descriptor-revalidate，并且只接受closed→open单向
+变化；descriptor drift、open→closed、foreign Stage authority/proof或bridge successor全部fail closed。Gate callback中的nested
+synchronize/retarget会poison inner与outer operation，并以CAS保留old generation，不留下partial install。
+
+Settle attempt是绑定exact preexisting target/generation及fresh ready-active source/frame/port/proof的frozen zero-key capability，不含
+gesture、input owner或clock。Normal terminal与recovery settle共用Barrier target/callback/semantic first-win claim、publication + bridge
+drain和Promise tombstone exact CAS；同步throw规范化为rejected completion，old completion只能清理自己的bounded tombstone，不能
+ABA-clear successor claim。Replay row不签发attempt，而是按exact preexisting target/generation缓存唯一unsupported result；repeat与
+same-generation successor保持zero semantic/runtime/topology mutation。Nested issue/dispatch/observer reentry、controller transfer、fresh
+bridge ABA与`10k` generation rotation均由mutation-sensitive tests闭合。
+
+本delivery仍是source-relative dormant floor：没有接入Narrative Host、React/Web、live Story claimant或Engine Lab writer，也没有
+新增public root、`./internal` barrel、package export、generic Surface/action/result、Base interaction、Save/Persistence、canonical/
+digest/replay/wire合同。验证通过focused `8 files / 315 tests`、UI `79 files / 1122 tests`、full
+`253 files / 4052 tests`与`deno task check` green；fresh Engine browser为`101 / 101`、examples为
+`45 passed / 2 skipped`、prebuilt Player为`38 / 38`。S4.1b.1b.1b.2b.2b.1现已完成；active current/next均推进为
+S4.1b.1b.1b.2b.3 player controls。
 
 ### 3.3 Runtime session
 

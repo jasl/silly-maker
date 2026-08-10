@@ -891,8 +891,60 @@ This delivery adds no UI root, `./internal`, or package export. Verification
 passed focused `8 files / 292 tests`, UI `79 files / 1099 tests`, full
 `253 files / 4029 tests`, and `deno task check`, plus fresh engine browser
 `101 / 101`, examples browser `45 passed / 2 skipped`, and prebuilt Player
-`38 / 38`. S4.1b.1b.1b.2b.2a is complete; current/next is
-S4.1b.1b.1b.2b.2b, settle/replay recovery.
+`38 / 38`. S4.1b.1b.1b.2b.2a is complete; at that delivery checkpoint,
+current/next was S4.1b.1b.1b.2b.2b.1, the settle/replay recovery
+implementation now delivered below.
+
+S4.1b.1b.1b.2b.2b.1 now implements the dormant Barrier recovery floor. The
+claimed Stage authority owns the only presentation-generation writer: it
+retargets initial or different epochs, leaves same-epoch and disposed requests
+stale, and narrows the legacy claimed writer to an already initialized exact
+same epoch. A frozen zero-key generation proof is authenticated to that exact
+authority and reconciler, cached for the current epoch, and relates prior
+same-authority proofs as `initial | equal | higher`, while a current epoch lower
+than the authenticated prior proof returns `stale`; prior proofs remain
+WeakMap-only provenance, so rotation retains O(1) strong state. The same Stage
+mutation fence covers generation, ordinary, skip, and acknowledged retargets,
+while the proof-bound terminal-stack query remains read-only during contained
+callbacks.
+
+The existing Narrative Barrier controller is now composition-scoped and may be
+constructed before any Barrier is current. Recovery state lives on the bridge,
+not the controller: one exact Stage authority/proof, stable action authority,
+captured one-way activation gate, preexisting target or null, observer, current
+settle attempt, and replay result cache survive same-bridge controller
+replacement. Initial and higher generation installation snapshots the target
+exactly once while the gate is closed; equal reuses the exact snapshot, lower
+is stale, and foreign Stage authorities fault without reading the gate or
+target. Gate descriptors and receiver/callable identity are checked before and
+after every caller callback, and nested synchronization or Stage retarget
+poisons the outer transaction so the old generation remains intact.
+
+Only a preexisting `loadRecovery: "settle"` Barrier may issue a frozen zero-key
+attempt after that exact gate opens and the target is ready-active. It does not
+use a gesture, selected input owner, clock, or timer. Dispatch spends the
+attempt only after generation, gate, target/source/frame/semantic-port, and
+ready-active proof checks, then shares the normal Barrier target, callback, and
+semantic in-flight claims. Normal Stage evidence and recovery therefore remain
+first-wins. Promise settlement releases only its exact tombstone by CAS;
+higher/lower rotation, source successors, controller replacement, and old
+completion cannot clear a successor claim. A preexisting
+`loadRecovery: "replay"` Barrier instead yields one frozen cached
+`narrative.barrier_replay_unsupported` result per exact generation/target and
+never fabricates a Stage proof or semantic dispatch.
+
+The bridge closes recovery ingress before application-disposal notifications,
+and its generation observer retires stale attempts before synchronous
+replacement or suspension observers can reenter. Fresh application bridges
+form fresh domains; foreign, clone, wrong-receiver, stale-generation, and
+disposed attempts fail before semantic work. The implementation remains
+source-relative and has no package-barrel, public Stage receipt, Base/Save,
+Host/React/Web, or live Story claimant change. Verification passed focused
+`8 files / 315 tests`, UI `79 files / 1122 tests`, full `253 files / 4052
+tests`, and `deno task check`, plus fresh engine browser `101 / 101`, examples
+browser `45 passed / 2 skipped`, and prebuilt Player `38 / 38`.
+S4.1b.1b.1b.2b.2b.1 is complete; current/next is
+S4.1b.1b.1b.2b.3, player controls.
 
 ## 9. Changing the architecture
 
@@ -945,7 +997,9 @@ S4.1b.1b.1b.2b.1a adds the dormant physical Say reveal-first controller and
 admission path described above. S4.1b.1b.1b.2b.1b adds the clock-free
 content-auto path on that same controller. S4.1b.1b.1b.2b.2a adds the dormant
 normal Stage-to-Narrative Barrier acknowledgment claimant described above.
-S4.1b.1b.1b.2b.2b settle/replay recovery is current/next; player-control
-delivery follows it. Host integration and the Narrative live migration remain
-planned work; the implemented source-relative claimant does not alter the live
-Host data flow until that migration and its behavior tests land.
+S4.1b.1b.1b.2b.2b.1 adds the bridge-owned settle/replay recovery generation,
+attempt, and unsupported-result floor described above. S4.1b.1b.1b.2b.3
+player controls is current/next. Host integration and the Narrative live
+migration remain planned work; the implemented source-relative claimant does
+not alter the live Host data flow until that migration and its behavior tests
+land.

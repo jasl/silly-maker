@@ -25,6 +25,8 @@ import type {
   StageAcknowledgedRunCommitGuardInternalV1,
   StageAcknowledgedRunRetargetResultInternalV1,
   StageAcknowledgedRunTerminalPortInternalV1,
+  StagePresentationGenerationCaptureResultInternalV1,
+  StagePresentationGenerationRetargetResultInternalV1,
   StageRenderFrameV1,
 } from "./stage-reconciler.ts";
 
@@ -131,6 +133,38 @@ function expectExactAcknowledgedResultV1(
   expect(Object.keys(result)).toEqual(
     result.kind === "faulted" ? ["kind", "code", "proof"] : ["kind", "proof"],
   );
+}
+
+function expectExactPresentationGenerationCaptureV1(
+  result: StagePresentationGenerationCaptureResultInternalV1,
+): void {
+  expect(Object.isFrozen(result)).toBe(true);
+  if (result.kind === "captured") {
+    expect(Reflect.ownKeys(result)).toEqual(["kind", "relation", "proof"]);
+    expect(Object.isFrozen(result.proof)).toBe(true);
+    expect(Reflect.ownKeys(result.proof)).toEqual([]);
+    return;
+  }
+  expect(Reflect.ownKeys(result)).toEqual(["kind", "proof"]);
+  expect(result.proof).toBeNull();
+}
+
+function expectExactPresentationGenerationRetargetV1(
+  result: StagePresentationGenerationRetargetResultInternalV1,
+): void {
+  expect(Object.isFrozen(result)).toBe(true);
+  expect(Reflect.ownKeys(result)).toEqual(["kind"]);
+}
+
+function installPresentationGenerationV1(
+  authority: StageAcknowledgedRunAuthorityInternalV1,
+  input: Parameters<
+    StageAcknowledgedRunAuthorityInternalV1["retargetPresentationGenerationInternalV1"]
+  >[0],
+): void {
+  const result = authority.retargetPresentationGenerationInternalV1(input);
+  expectExactPresentationGenerationRetargetV1(result);
+  expect(result).toEqual({ kind: "retargeted" });
 }
 
 function acknowledgedRetargetV1(
@@ -614,6 +648,595 @@ describe("createStageReconcilerV1", () => {
   });
 });
 
+describe("Stage presentation-generation authority", () => {
+  it("authenticates initial, equal, higher, lower, numeric-ABA, and foreign proof relations", () => {
+    const clock = createManualPresentationClockV1();
+    const reconciler = createStageReconcilerV1({
+      clock,
+      catalog: catalogV1(() => null),
+    });
+    const authority = claimStageAcknowledgedRunAuthorityInternalV1(
+      reconciler,
+      Object.freeze({}),
+    );
+
+    const noCurrent = authority.captureCurrentPresentationGenerationInternalV1(null);
+    expectExactPresentationGenerationCaptureV1(noCurrent);
+    expect(noCurrent).toEqual({ kind: "stale", proof: null });
+
+    installPresentationGenerationV1(authority, {
+      target: targetOfV1([showBackV1]),
+      revision: 1,
+      epoch: 10,
+    });
+    const initial = authority.captureCurrentPresentationGenerationInternalV1(null);
+    expectExactPresentationGenerationCaptureV1(initial);
+    if (initial.kind !== "captured") throw new Error("initial generation must capture");
+    expect(initial.relation).toBe("initial");
+
+    const equal1 = authority.captureCurrentPresentationGenerationInternalV1(initial.proof);
+    const equal2 = authority.captureCurrentPresentationGenerationInternalV1(initial.proof);
+    expectExactPresentationGenerationCaptureV1(equal1);
+    expectExactPresentationGenerationCaptureV1(equal2);
+    expect(equal1).toMatchObject({ kind: "captured", relation: "equal" });
+    expect(equal2).toMatchObject({ kind: "captured", relation: "equal" });
+    if (equal1.kind !== "captured" || equal2.kind !== "captured") {
+      throw new Error("equal generation must capture");
+    }
+    expect(equal1.proof).toBe(initial.proof);
+    expect(equal2.proof).toBe(initial.proof);
+
+    installPresentationGenerationV1(authority, {
+      target: targetOfV1([{ ...showBackV1, contentId: "content.test.higher" }]),
+      revision: 2,
+      epoch: 11,
+    });
+    const higher = authority.captureCurrentPresentationGenerationInternalV1(initial.proof);
+    expectExactPresentationGenerationCaptureV1(higher);
+    if (higher.kind !== "captured") throw new Error("higher generation must capture");
+    expect(higher.relation).toBe("higher");
+    expect(higher.proof).not.toBe(initial.proof);
+
+    installPresentationGenerationV1(authority, {
+      target: targetOfV1([{ ...showBackV1, contentId: "content.test.lower" }]),
+      revision: 3,
+      epoch: 9,
+    });
+    const lower = authority.captureCurrentPresentationGenerationInternalV1(higher.proof);
+    expectExactPresentationGenerationCaptureV1(lower);
+    expect(lower).toEqual({ kind: "stale", proof: null });
+
+    installPresentationGenerationV1(authority, {
+      target: targetOfV1([{ ...showBackV1, contentId: "content.test.aba" }]),
+      revision: 4,
+      epoch: 10,
+    });
+    const aba = authority.captureCurrentPresentationGenerationInternalV1(initial.proof);
+    expectExactPresentationGenerationCaptureV1(aba);
+    expect(aba).toEqual({ kind: "stale", proof: null });
+    const freshAfterAba = authority.captureCurrentPresentationGenerationInternalV1(null);
+    expectExactPresentationGenerationCaptureV1(freshAfterAba);
+    if (freshAfterAba.kind !== "captured") throw new Error("ABA current must recapture");
+    expect(freshAfterAba.relation).toBe("initial");
+    expect(freshAfterAba.proof).not.toBe(initial.proof);
+
+    const foreignReconciler = createStageReconcilerV1({
+      clock: createManualPresentationClockV1(),
+      catalog: catalogV1(() => null),
+    });
+    const foreignAuthority = claimStageAcknowledgedRunAuthorityInternalV1(
+      foreignReconciler,
+      Object.freeze({}),
+    );
+    installPresentationGenerationV1(foreignAuthority, {
+      target: targetOfV1([showBackV1]),
+      revision: 1,
+      epoch: 10,
+    });
+    const foreign = foreignAuthority.captureCurrentPresentationGenerationInternalV1(null);
+    if (foreign.kind !== "captured") throw new Error("foreign fixture must capture");
+    const foreignResult = authority.captureCurrentPresentationGenerationInternalV1(
+      foreign.proof,
+    );
+    expectExactPresentationGenerationCaptureV1(foreignResult);
+    expect(foreignResult).toEqual({ kind: "faulted", proof: null });
+
+    const clonedResult = authority.captureCurrentPresentationGenerationInternalV1(
+      Object.freeze({ ...freshAfterAba.proof }),
+    );
+    expectExactPresentationGenerationCaptureV1(clonedResult);
+    expect(clonedResult).toEqual({ kind: "faulted", proof: null });
+
+    for (const malformed of [undefined, false, 0, -0, "", "proof", Object.freeze({})]) {
+      const malformedResult = authority.captureCurrentPresentationGenerationInternalV1(malformed);
+      expectExactPresentationGenerationCaptureV1(malformedResult);
+      expect(malformedResult).toEqual({ kind: "faulted", proof: null });
+    }
+
+    let trapCalls = 0;
+    const hostile = new Proxy(Object.freeze({}), {
+      get: () => {
+        trapCalls += 1;
+        throw new Error("proof field read");
+      },
+      getOwnPropertyDescriptor: () => {
+        trapCalls += 1;
+        throw new Error("proof descriptor read");
+      },
+      ownKeys: () => {
+        trapCalls += 1;
+        throw new Error("proof keys read");
+      },
+    });
+    const hostileResult = authority.captureCurrentPresentationGenerationInternalV1(hostile);
+    expectExactPresentationGenerationCaptureV1(hostileResult);
+    expect(hostileResult).toEqual({ kind: "faulted", proof: null });
+    expect(trapCalls).toBe(0);
+
+    const revoked = Proxy.revocable(Object.freeze({}), {});
+    revoked.revoke();
+    const revokedResult = authority.captureCurrentPresentationGenerationInternalV1(
+      revoked.proxy,
+    );
+    expectExactPresentationGenerationCaptureV1(revokedResult);
+    expect(revokedResult).toEqual({ kind: "faulted", proof: null });
+
+    const capture = authority.captureCurrentPresentationGenerationInternalV1;
+    expect(() => Reflect.apply(capture, Object.freeze({}), [hostile])).toThrow(TypeError);
+    expect(trapCalls).toBe(0);
+    foreignAuthority.disposeInternalV1();
+    authority.disposeInternalV1();
+  });
+
+  it("makes generation retarget the sole claimed epoch writer without rotating same-epoch proof", () => {
+    const clock = createManualPresentationClockV1();
+    const reconciler = createStageReconcilerV1({
+      clock,
+      catalog: catalogV1(() => null),
+    });
+    const authority = claimStageAcknowledgedRunAuthorityInternalV1(
+      reconciler,
+      Object.freeze({}),
+    );
+    let notifications = 0;
+    reconciler.subscribe(() => {
+      notifications += 1;
+    });
+
+    reconciler.retarget({ target: targetOfV1([showBackV1]), revision: 1, epoch: 4 });
+    authority.retargetInternalV1({
+      target: targetOfV1([showBackV1]),
+      revision: 1,
+      epoch: 4,
+    });
+    expect(() => reconciler.frame()).toThrow(TypeError);
+    expect(notifications).toBe(0);
+    expect(authority.captureCurrentPresentationGenerationInternalV1(null)).toEqual({
+      kind: "stale",
+      proof: null,
+    });
+
+    const initialRetarget = authority.retargetPresentationGenerationInternalV1({
+      target: targetOfV1([showBackV1]),
+      revision: 1,
+      epoch: 4,
+    });
+    expectExactPresentationGenerationRetargetV1(initialRetarget);
+    expect(initialRetarget).toEqual({ kind: "retargeted" });
+    expect(notifications).toBe(1);
+    expect(reconciler.frame().layers[0]?.entries[0]?.entry.contentId).toBe("content.test.a");
+    const initial = authority.captureCurrentPresentationGenerationInternalV1(null);
+    if (initial.kind !== "captured") throw new Error("initial generation must capture");
+
+    const beforeSameGeneration = reconciler.frame();
+    const sameGeneration = authority.retargetPresentationGenerationInternalV1({
+      target: targetOfV1([{ ...showBackV1, contentId: "content.test.forbidden" }]),
+      revision: 2,
+      epoch: 4,
+    });
+    expectExactPresentationGenerationRetargetV1(sameGeneration);
+    expect(sameGeneration).toEqual({ kind: "stale" });
+    expect(reconciler.frame()).toEqual(beforeSameGeneration);
+    expect(notifications).toBe(1);
+
+    authority.retargetInternalV1({
+      target: targetOfV1([{ ...showBackV1, contentId: "content.test.ordinary" }]),
+      revision: 2,
+      epoch: 4,
+    });
+    expect(notifications).toBe(2);
+    expect(reconciler.frame().layers[0]?.entries[0]?.entry.contentId).toBe(
+      "content.test.ordinary",
+    );
+    const afterOrdinary = authority.captureCurrentPresentationGenerationInternalV1(
+      initial.proof,
+    );
+    expectExactPresentationGenerationCaptureV1(afterOrdinary);
+    if (afterOrdinary.kind !== "captured") throw new Error("same epoch must capture");
+    expect(afterOrdinary.relation).toBe("equal");
+    expect(afterOrdinary.proof).toBe(initial.proof);
+
+    const beforeLegacyMismatch = reconciler.frame();
+    authority.retargetInternalV1({
+      target: targetOfV1([{ ...showBackV1, contentId: "content.test.raw-higher" }]),
+      revision: 3,
+      epoch: 8,
+    });
+    authority.retargetInternalV1({
+      target: targetOfV1([{ ...showBackV1, contentId: "content.test.raw-lower" }]),
+      revision: 4,
+      epoch: 2,
+    });
+    expect(reconciler.frame()).toEqual(beforeLegacyMismatch);
+    expect(notifications).toBe(2);
+    const afterLegacyMismatch = authority.captureCurrentPresentationGenerationInternalV1(
+      initial.proof,
+    );
+    if (afterLegacyMismatch.kind !== "captured") {
+      throw new Error("legacy mismatch must preserve proof");
+    }
+    expect(afterLegacyMismatch.relation).toBe("equal");
+    expect(afterLegacyMismatch.proof).toBe(initial.proof);
+
+    installPresentationGenerationV1(authority, {
+      target: targetOfV1([{ ...showBackV1, contentId: "content.test.real-higher" }]),
+      revision: 3,
+      epoch: 8,
+    });
+    expect(notifications).toBe(3);
+    const higher = authority.captureCurrentPresentationGenerationInternalV1(initial.proof);
+    if (higher.kind !== "captured") throw new Error("higher generation must capture");
+    expect(higher.relation).toBe("higher");
+    expect(higher.proof).not.toBe(initial.proof);
+
+    installPresentationGenerationV1(authority, {
+      target: targetOfV1([{ ...showBackV1, contentId: "content.test.real-lower" }]),
+      revision: 4,
+      epoch: 2,
+    });
+    expect(notifications).toBe(4);
+    const lower = authority.captureCurrentPresentationGenerationInternalV1(higher.proof);
+    expectExactPresentationGenerationCaptureV1(lower);
+    expect(lower).toEqual({ kind: "stale", proof: null });
+
+    authority.disposeInternalV1();
+    const disposedRetarget = authority.retargetPresentationGenerationInternalV1({
+      target: targetOfV1([showBackV1]),
+      revision: 5,
+      epoch: 9,
+    });
+    expectExactPresentationGenerationRetargetV1(disposedRetarget);
+    expect(disposedRetarget).toEqual({ kind: "stale" });
+    const disposedCapture = authority.captureCurrentPresentationGenerationInternalV1(
+      higher.proof,
+    );
+    expectExactPresentationGenerationCaptureV1(disposedCapture);
+    expect(disposedCapture).toEqual({ kind: "stale", proof: null });
+  });
+
+  it("faults presentation-generation access during acknowledged planning and interruption", () => {
+    let authority!: StageAcknowledgedRunAuthorityInternalV1;
+    let currentProof: Extract<
+      StagePresentationGenerationCaptureResultInternalV1,
+      { readonly kind: "captured" }
+    >["proof"];
+    let planningCapture: StagePresentationGenerationCaptureResultInternalV1 | null = null;
+    let planningRetarget: StagePresentationGenerationRetargetResultInternalV1 | null = null;
+    let injectPlanning = false;
+    const transitionId = "transition.test.generation-reentry";
+    const reconciler = createStageReconcilerV1({
+      clock: createManualPresentationClockV1(),
+      catalog: catalogV1(() => {
+        if (injectPlanning) {
+          planningCapture = authority.captureCurrentPresentationGenerationInternalV1(
+            currentProof,
+          );
+          planningRetarget = authority.retargetPresentationGenerationInternalV1({
+            target: targetOfV1([{ ...showBackV1, contentId: "content.test.nested" }]),
+            revision: 99,
+            epoch: 2,
+          });
+        }
+        return definitionV1({ transitionId, acknowledge: true });
+      }),
+    });
+    authority = claimStageAcknowledgedRunAuthorityInternalV1(reconciler, Object.freeze({}));
+    installPresentationGenerationV1(authority, {
+      target: targetOfV1([showBackV1]),
+      revision: 1,
+      epoch: 1,
+    });
+    const captured = authority.captureCurrentPresentationGenerationInternalV1(null);
+    if (captured.kind !== "captured") throw new Error("planning fixture must capture");
+    currentProof = captured.proof;
+    const beforePlanning = reconciler.frame();
+    let planningNotifications = 0;
+    const unsubscribePlanning = reconciler.subscribe(() => {
+      planningNotifications += 1;
+    });
+    injectPlanning = true;
+    const planning = acknowledgedRetargetV1(authority, {
+      target: targetOfV1([{ ...showBackV1, contentId: "content.test.planned" }]),
+      revision: 2,
+      epoch: 1,
+      expectedTransitionId: transitionId,
+    });
+    expect(planning).toMatchObject({ kind: "faulted", code: "stage.acknowledged_run_faulted" });
+    expect(planningCapture).toEqual({ kind: "faulted", proof: null });
+    expect(planningRetarget).toEqual({ kind: "faulted" });
+    expect(reconciler.frame()).toEqual(beforePlanning);
+    expect(planningNotifications).toBe(0);
+    unsubscribePlanning();
+
+    injectPlanning = false;
+    let interruptionCapture: StagePresentationGenerationCaptureResultInternalV1 | null = null;
+    let interruptionRetarget: StagePresentationGenerationRetargetResultInternalV1 | null = null;
+    const first = acknowledgedRetargetV1(authority, {
+      target: targetOfV1([{ ...showBackV1, contentId: "content.test.first" }]),
+      revision: 3,
+      epoch: 1,
+      expectedTransitionId: transitionId,
+      terminalPort: terminalPortV1((_input) => {
+        interruptionCapture = authority.captureCurrentPresentationGenerationInternalV1(
+          currentProof,
+        );
+        interruptionRetarget = authority.retargetPresentationGenerationInternalV1({
+          target: targetOfV1([{ ...showBackV1, contentId: "content.test.interrupt" }]),
+          revision: 100,
+          epoch: 2,
+        });
+      }),
+    });
+    if (first.kind !== "armed") throw new Error("interruption fixture must arm");
+    const interrupted = acknowledgedRetargetV1(authority, {
+      target: targetOfV1([{ ...showBackV1, contentId: "content.test.second" }]),
+      revision: 4,
+      epoch: 1,
+      expectedTransitionId: transitionId,
+    });
+    expect(interrupted).toMatchObject({
+      kind: "faulted",
+      code: "stage.acknowledged_run_faulted",
+    });
+    expect(interruptionCapture).toEqual({ kind: "faulted", proof: null });
+    expect(interruptionRetarget).toEqual({ kind: "faulted" });
+    expect(reconciler.frame().layers[0]?.entries[0]?.entry.contentId).toBe(
+      "content.test.first",
+    );
+    const afterInterruption = authority.captureCurrentPresentationGenerationInternalV1(
+      currentProof,
+    );
+    if (afterInterruption.kind !== "captured") {
+      throw new Error("interruption must preserve presentation generation");
+    }
+    expect(afterInterruption.relation).toBe("equal");
+    expect(afterInterruption.proof).toBe(currentProof);
+    authority.disposeInternalV1();
+  });
+
+  it("fences subscriber reentry and exact receivers during generation replacement", () => {
+    const transitionId = "transition.test.generation-mutation-reentry";
+    const reconciler = createStageReconcilerV1({
+      clock: createManualPresentationClockV1(),
+      catalog: catalogV1(() => definitionV1({ transitionId, acknowledge: true, kind: "cut" })),
+    });
+    const authority = claimStageAcknowledgedRunAuthorityInternalV1(
+      reconciler,
+      Object.freeze({}),
+    );
+    installPresentationGenerationV1(authority, {
+      target: targetOfV1([showBackV1]),
+      revision: 1,
+      epoch: 1,
+    });
+    const initial = authority.captureCurrentPresentationGenerationInternalV1(null);
+    if (initial.kind !== "captured") throw new Error("reentry fixture must capture");
+    let nestedCapture: StagePresentationGenerationCaptureResultInternalV1 | null = null;
+    let nestedRetarget: StagePresentationGenerationRetargetResultInternalV1 | null = null;
+    let nestedAcknowledged: StageAcknowledgedRunRetargetResultInternalV1 | null = null;
+    let terminalStackReadable: boolean | null = null;
+    const nestedTerminal = vi.fn();
+    let notifications = 0;
+    const unsubscribe = reconciler.subscribe(() => {
+      notifications += 1;
+      if (notifications !== 1) return;
+      terminalStackReadable = authority.isAcknowledgedRunTerminalStackActiveInternalV1(
+        initial.proof,
+      );
+      nestedCapture = authority.captureCurrentPresentationGenerationInternalV1(initial.proof);
+      nestedRetarget = authority.retargetPresentationGenerationInternalV1({
+        target: targetOfV1([{ ...showBackV1, contentId: "content.test.nested" }]),
+        revision: 3,
+        epoch: 3,
+      });
+      nestedAcknowledged = acknowledgedRetargetV1(authority, {
+        target: targetOfV1([{
+          ...showBackV1,
+          contentId: "content.test.nested-acknowledged",
+        }]),
+        revision: 3,
+        epoch: 2,
+        expectedTransitionId: transitionId,
+        terminalPort: terminalPortV1((input) => nestedTerminal(input)),
+      });
+    });
+    const outer = authority.retargetPresentationGenerationInternalV1({
+      target: targetOfV1([{ ...showBackV1, contentId: "content.test.outer" }]),
+      revision: 2,
+      epoch: 2,
+    });
+    expectExactPresentationGenerationRetargetV1(outer);
+    expect(outer).toEqual({ kind: "retargeted" });
+    expect(nestedCapture).toEqual({ kind: "faulted", proof: null });
+    expect(nestedRetarget).toEqual({ kind: "faulted" });
+    expect(nestedAcknowledged).toEqual({
+      kind: "faulted",
+      code: "stage.acknowledged_run_faulted",
+      proof: null,
+    });
+    expect(nestedTerminal).not.toHaveBeenCalled();
+    expect(terminalStackReadable).toBe(false);
+    expect(notifications).toBe(1);
+    expect(reconciler.frame().layers[0]?.entries[0]?.entry.contentId).toBe(
+      "content.test.outer",
+    );
+    const after = authority.captureCurrentPresentationGenerationInternalV1(initial.proof);
+    if (after.kind !== "captured") throw new Error("outer generation must capture");
+    expect(after.relation).toBe("higher");
+    expect(after.proof).not.toBe(initial.proof);
+
+    let inputTrapCalls = 0;
+    const hostileInput = new Proxy(Object.freeze({}), {
+      get: () => {
+        inputTrapCalls += 1;
+        throw new Error("retarget input read");
+      },
+      getOwnPropertyDescriptor: () => {
+        inputTrapCalls += 1;
+        throw new Error("retarget descriptor read");
+      },
+      ownKeys: () => {
+        inputTrapCalls += 1;
+        throw new Error("retarget keys read");
+      },
+    });
+    const retarget = authority.retargetPresentationGenerationInternalV1;
+    expect(() => Reflect.apply(retarget, Object.freeze({}), [hostileInput])).toThrow(TypeError);
+    const capture = authority.captureCurrentPresentationGenerationInternalV1;
+    expect(() => Reflect.apply(capture, Object.freeze({}), [hostileInput])).toThrow(TypeError);
+    expect(inputTrapCalls).toBe(0);
+    unsubscribe();
+    authority.disposeInternalV1();
+  });
+
+  it("fences acknowledged retarget reentry from a skip terminal callback", () => {
+    const transitionId = "transition.test.skip-mutation-reentry";
+    const reconciler = createStageReconcilerV1({
+      clock: createManualPresentationClockV1(),
+      catalog: catalogV1(() => definitionV1({ transitionId, acknowledge: true })),
+    });
+    const authority = claimStageAcknowledgedRunAuthorityInternalV1(
+      reconciler,
+      Object.freeze({}),
+    );
+    installPresentationGenerationV1(authority, {
+      target: targetOfV1([showBackV1]),
+      revision: 1,
+      epoch: 1,
+    });
+    let nestedAcknowledged: StageAcknowledgedRunRetargetResultInternalV1 | null = null;
+    let terminalStackReadable: boolean | null = null;
+    const nestedTerminal = vi.fn();
+    let outerProof: unknown = null;
+    const outerTerminal = vi.fn((input: StageAcknowledgedTerminalInputV1) => {
+      terminalStackReadable = authority.isAcknowledgedRunTerminalStackActiveInternalV1(
+        input.proof,
+      );
+      nestedAcknowledged = acknowledgedRetargetV1(authority, {
+        target: targetOfV1([{
+          ...showBackV1,
+          contentId: "content.test.skip-nested",
+        }]),
+        revision: 3,
+        epoch: 1,
+        expectedTransitionId: transitionId,
+        terminalPort: terminalPortV1((nestedInput) => nestedTerminal(nestedInput)),
+      });
+    });
+    const armed = acknowledgedRetargetV1(authority, {
+      target: targetOfV1([{
+        ...showBackV1,
+        contentId: "content.test.skip-outer",
+      }]),
+      revision: 2,
+      epoch: 1,
+      expectedTransitionId: transitionId,
+      terminalPort: terminalPortV1((input) => outerTerminal(input)),
+    });
+    if (armed.kind !== "armed") throw new Error("skip fixture must arm");
+    outerProof = armed.proof;
+
+    let notifications = 0;
+    const unsubscribe = reconciler.subscribe(() => {
+      notifications += 1;
+    });
+
+    authority.skipAllInternalV1();
+
+    expect(outerTerminal).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ proof: outerProof, outcome: "skipped" }),
+    );
+    expect(nestedAcknowledged).toEqual({
+      kind: "faulted",
+      code: "stage.acknowledged_run_faulted",
+      proof: null,
+    });
+    expect(nestedTerminal).not.toHaveBeenCalled();
+    expect(terminalStackReadable).toBe(true);
+    expect(authority.isAcknowledgedRunTerminalStackActiveInternalV1(outerProof)).toBe(false);
+    expect(notifications).toBe(1);
+    expect(reconciler.frame().layers[0]?.entries[0]?.entry.contentId).toBe(
+      "content.test.skip-outer",
+    );
+    unsubscribe();
+    authority.disposeInternalV1();
+  });
+
+  it("keeps one current proof across 10,000 accepted generation rotations", () => {
+    const clock = createManualPresentationClockV1();
+    const reconciler = createStageReconcilerV1({
+      clock,
+      catalog: catalogV1(() => null),
+    });
+    const authority = claimStageAcknowledgedRunAuthorityInternalV1(
+      reconciler,
+      Object.freeze({}),
+    );
+    const authorityKeys = Reflect.ownKeys(authority);
+    const observedProofs = new WeakSet<object>();
+    const target = targetOfV1([showBackV1]);
+    let previousProof: object | null = null;
+    let notifications = 0;
+    reconciler.subscribe(() => {
+      notifications += 1;
+    });
+
+    for (let index = 0; index < 10_000; index += 1) {
+      const retarget = authority.retargetPresentationGenerationInternalV1({
+        target,
+        revision: index + 1,
+        epoch: index,
+      });
+      if (retarget.kind !== "retargeted" || !Object.isFrozen(retarget)) {
+        throw new Error("every generation rotation must retarget exactly once");
+      }
+      const captured = authority.captureCurrentPresentationGenerationInternalV1(previousProof);
+      if (
+        captured.kind !== "captured" ||
+        captured.relation !== (index === 0 ? "initial" : "higher") ||
+        !Object.isFrozen(captured) || !Object.isFrozen(captured.proof) ||
+        Reflect.ownKeys(captured.proof).length !== 0 ||
+        observedProofs.has(captured.proof)
+      ) {
+        throw new Error("every accepted epoch must mint one fresh opaque proof");
+      }
+      observedProofs.add(captured.proof);
+      previousProof = captured.proof;
+    }
+
+    const equal = authority.captureCurrentPresentationGenerationInternalV1(previousProof);
+    expectExactPresentationGenerationCaptureV1(equal);
+    if (equal.kind !== "captured") throw new Error("last generation must remain current");
+    expect(equal.relation).toBe("equal");
+    expect(equal.proof).toBe(previousProof);
+    expect(notifications).toBe(10_000);
+    expect(clock.pendingTickCount()).toBe(0);
+    expect(reconciler.frame().settled).toBe(true);
+    expect(Reflect.ownKeys(authority)).toEqual(authorityKeys);
+    authority.disposeInternalV1();
+  });
+});
+
 describe("Stage acknowledged-run authority", () => {
   it("preserves the unclaimed raw contract and makes one exact claimant the sole writer", () => {
     const rawClock = createManualPresentationClockV1();
@@ -660,7 +1283,11 @@ describe("Stage acknowledged-run authority", () => {
     reconciler.dispose();
     expect(() => reconciler.frame()).toThrow(TypeError);
 
-    authority.retargetInternalV1({ target: targetOfV1([showBackV1]), revision: 1, epoch: 0 });
+    installPresentationGenerationV1(authority, {
+      target: targetOfV1([showBackV1]),
+      revision: 1,
+      epoch: 0,
+    });
     const result = acknowledgedRetargetV1(authority, {
       target: targetOfV1([{ ...showBackV1, contentId: "content.test.b" }]),
       revision: 2,
@@ -721,7 +1348,7 @@ describe("Stage acknowledged-run authority", () => {
         reconciler,
         Object.freeze({}),
       );
-      authority.retargetInternalV1({
+      installPresentationGenerationV1(authority, {
         target: targetOfV1([showBackV1]),
         revision: 1,
         epoch: 0,
@@ -797,7 +1424,7 @@ describe("Stage acknowledged-run authority", () => {
         },
       });
       authority = claimStageAcknowledgedRunAuthorityInternalV1(reconciler, Object.freeze({}));
-      authority.retargetInternalV1({
+      installPresentationGenerationV1(authority, {
         target: targetOfV1([showBackV1]),
         revision: 1,
         epoch: 0,
@@ -845,7 +1472,7 @@ it.each(["false", "throw", "invalid", "reenter"] as const)(
       ),
     });
     authority = claimStageAcknowledgedRunAuthorityInternalV1(reconciler, Object.freeze({}));
-    authority.retargetInternalV1({
+    installPresentationGenerationV1(authority, {
       target: targetOfV1([showBackV1]),
       revision: 1,
       epoch: 0,
@@ -928,7 +1555,11 @@ it("matches the logical transition while preserving the effective fallback ackno
     reconciler,
     Object.freeze({}),
   );
-  authority.retargetInternalV1({ target: targetOfV1([showBackV1]), revision: 1, epoch: 0 });
+  installPresentationGenerationV1(authority, {
+    target: targetOfV1([showBackV1]),
+    revision: 1,
+    epoch: 0,
+  });
   const nextTarget = targetOfV1([{ ...showBackV1, contentId: "content.test.b" }]);
 
   const effectiveIdAttempt = acknowledgedRetargetV1(authority, {
@@ -997,7 +1628,7 @@ it.each(
       reconciler,
       Object.freeze({}),
     );
-    authority.retargetInternalV1({
+    installPresentationGenerationV1(authority, {
       target: targetOfV1([showBackV1]),
       revision: 1,
       epoch: 0,
@@ -1039,7 +1670,7 @@ it("keeps only one observable target while alternating 10k instant acknowledged 
   const authorityKeys = Reflect.ownKeys(authority);
   const targetA = targetOfV1([showBackV1]);
   const targetB = targetOfV1([{ ...showBackV1, contentId: "content.test.b" }]);
-  authority.retargetInternalV1({ target: targetA, revision: 1, epoch: 0 });
+  installPresentationGenerationV1(authority, { target: targetA, revision: 1, epoch: 0 });
 
   const observedProofs = new WeakSet<object>();
   let deliveredProof: unknown = null;
@@ -1123,7 +1754,7 @@ it("authenticates only the exact proof while its terminal callback stack is acti
     reconciler,
     Object.freeze({}),
   );
-  authority.retargetInternalV1({
+  installPresentationGenerationV1(authority, {
     target: targetOfV1([showBackV1]),
     revision: 1,
     epoch: 0,
@@ -1251,7 +1882,7 @@ it("seals a readiness terminal once and isolates every throwing observer in its 
     reconciler,
     Object.freeze({}),
   );
-  authority.retargetInternalV1({
+  installPresentationGenerationV1(authority, {
     target: targetOfV1([showBackV1]),
     revision: 1,
     epoch: 0,
@@ -1327,7 +1958,7 @@ it.each(["public", "subscriber"] as const)(
       reconciler,
       Object.freeze({}),
     );
-    authority.retargetInternalV1({
+    installPresentationGenerationV1(authority, {
       target: targetOfV1([showBackV1]),
       revision: 1,
       epoch: 0,
@@ -1391,7 +2022,7 @@ it("does not let a planning callback complete an old run before the first guard"
     reconciler,
     Object.freeze({}),
   );
-  authority.retargetInternalV1({
+  installPresentationGenerationV1(authority, {
     target: targetOfV1([showBackV1]),
     revision: 1,
     epoch: 0,
@@ -1485,7 +2116,7 @@ it.each([
           contentId: frontContentId,
         },
       ]);
-    authority.retargetInternalV1({
+    installPresentationGenerationV1(authority, {
       target: target("content.test.a", "content.test.x"),
       revision: 1,
       epoch: 0,
@@ -1537,7 +2168,7 @@ it("cannot half-commit when a post-guard global freeze lookup becomes hostile", 
     reconciler,
     Object.freeze({}),
   );
-  authority.retargetInternalV1({
+  installPresentationGenerationV1(authority, {
     target: targetOfV1([showBackV1]),
     revision: 1,
     epoch: 0,
@@ -1601,7 +2232,7 @@ it("does not dynamically consult Array.prototype.some after the final guard", ()
     reconciler,
     Object.freeze({}),
   );
-  authority.retargetInternalV1({
+  installPresentationGenerationV1(authority, {
     target: targetOfV1([showBackV1]),
     revision: 1,
     epoch: 0,
@@ -1687,7 +2318,7 @@ it("does not leak an acknowledged proof through a planning-time WeakMap.set repl
     reconciler,
     Object.freeze({}),
   );
-  authority.retargetInternalV1({
+  installPresentationGenerationV1(authority, {
     target: targetOfV1([showBackV1]),
     revision: 1,
     epoch: 0,
@@ -1751,7 +2382,7 @@ it.each(["stale", "faulted"] as const)(
       reconciler,
       Object.freeze({}),
     );
-    authority.retargetInternalV1({
+    installPresentationGenerationV1(authority, {
       target: targetOfV1([showBackV1]),
       revision: 1,
       epoch: 0,
@@ -1845,7 +2476,7 @@ it("defers a second old clock terminal until the first interruption guard comple
         contentId: frontContentId,
       },
     ]);
-  authority.retargetInternalV1({
+  installPresentationGenerationV1(authority, {
     target: target("content.test.a", "content.test.x"),
     revision: 1,
     epoch: 0,
@@ -1908,7 +2539,11 @@ it("retains one proof through asset readiness and reports completed or bounded s
     Object.freeze({}),
   );
   const port = terminalPortV1((input) => terminalInputs.push(input));
-  authority.retargetInternalV1({ target: targetOfV1([showBackV1]), revision: 1, epoch: 0 });
+  installPresentationGenerationV1(authority, {
+    target: targetOfV1([showBackV1]),
+    revision: 1,
+    epoch: 0,
+  });
 
   const completed = acknowledgedRetargetV1(authority, {
     target: targetOfV1([{ ...showBackV1, contentId: "content.test.b" }]),
@@ -1963,7 +2598,7 @@ it.each(
       reconciler,
       Object.freeze({}),
     );
-    authority.retargetInternalV1({
+    installPresentationGenerationV1(authority, {
       target: targetOfV1([showBackV1]),
       revision: 1,
       epoch: 0,

@@ -256,6 +256,38 @@ import type { StageAcknowledgedRunAuthorityInternalV1 as ForbiddenInternalStageA
 import type { claimStageAcknowledgedRunAuthorityInternalV1 as ForbiddenPublicStageAcknowledgedRunAuthorityClaimV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Stage acknowledged-run authority claiming.
 import type { claimStageAcknowledgedRunAuthorityInternalV1 as ForbiddenInternalStageAcknowledgedRunAuthorityClaimV1 } from "./internal.ts";
+// @ts-expect-error Stage presentation-generation proofs remain source-relative.
+import type { StagePresentationGenerationProofInternalV1 as ForbiddenPublicStagePresentationGenerationProofV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Stage presentation-generation proofs.
+import type { StagePresentationGenerationProofInternalV1 as ForbiddenInternalStagePresentationGenerationProofV1 } from "./internal.ts";
+// @ts-expect-error Stage presentation-generation capture results remain source-relative.
+import type { StagePresentationGenerationCaptureResultInternalV1 as ForbiddenPublicStagePresentationGenerationCaptureResultV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Stage presentation-generation capture results.
+import type { StagePresentationGenerationCaptureResultInternalV1 as ForbiddenInternalStagePresentationGenerationCaptureResultV1 } from "./internal.ts";
+// @ts-expect-error Stage presentation-generation retarget results remain source-relative.
+import type { StagePresentationGenerationRetargetResultInternalV1 as ForbiddenPublicStagePresentationGenerationRetargetResultV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Stage presentation-generation retarget results.
+import type { StagePresentationGenerationRetargetResultInternalV1 as ForbiddenInternalStagePresentationGenerationRetargetResultV1 } from "./internal.ts";
+// @ts-expect-error Narrative Barrier recovery generations remain source-relative.
+import type { NarrativeStableBarrierRecoveryGenerationInternalV1 as ForbiddenPublicNarrativeBarrierRecoveryGenerationV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative Barrier recovery generations.
+import type { NarrativeStableBarrierRecoveryGenerationInternalV1 as ForbiddenInternalNarrativeBarrierRecoveryGenerationV1 } from "./internal.ts";
+// @ts-expect-error Narrative Barrier recovery-generation synchronization results remain source-relative.
+import type { NarrativeStableBarrierRecoveryGenerationSynchronizationResultInternalV1 as ForbiddenPublicNarrativeBarrierRecoveryGenerationSynchronizationResultV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative Barrier recovery-generation synchronization results.
+import type { NarrativeStableBarrierRecoveryGenerationSynchronizationResultInternalV1 as ForbiddenInternalNarrativeBarrierRecoveryGenerationSynchronizationResultV1 } from "./internal.ts";
+// @ts-expect-error Narrative Barrier recovery attempts remain source-relative.
+import type { NarrativeStableBarrierRecoveryAttemptInternalV1 as ForbiddenPublicNarrativeBarrierRecoveryAttemptV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative Barrier recovery attempts.
+import type { NarrativeStableBarrierRecoveryAttemptInternalV1 as ForbiddenInternalNarrativeBarrierRecoveryAttemptV1 } from "./internal.ts";
+// @ts-expect-error Narrative Barrier recovery dispatch results remain source-relative.
+import type { NarrativeStableBarrierRecoveryDispatchResultInternalV1 as ForbiddenPublicNarrativeBarrierRecoveryDispatchResultV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative Barrier recovery dispatch results.
+import type { NarrativeStableBarrierRecoveryDispatchResultInternalV1 as ForbiddenInternalNarrativeBarrierRecoveryDispatchResultV1 } from "./internal.ts";
+// @ts-expect-error Narrative Barrier replay-recovery unsupported results remain source-relative.
+import type { NarrativeStableBarrierReplayRecoveryUnsupportedResultInternalV1 as ForbiddenPublicNarrativeBarrierReplayRecoveryUnsupportedResultV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative Barrier replay-recovery unsupported results.
+import type { NarrativeStableBarrierReplayRecoveryUnsupportedResultInternalV1 as ForbiddenInternalNarrativeBarrierReplayRecoveryUnsupportedResultV1 } from "./internal.ts";
 // @ts-expect-error Narrative Barrier Stage-retarget results remain source-relative.
 import type { NarrativeStableBarrierStageRetargetResultInternalV1 as ForbiddenPublicNarrativeBarrierStageRetargetResultV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Narrative Barrier Stage-retarget results.
@@ -410,6 +442,21 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "StageAcknowledgedRunRetargetResultInternalV1"
       | "StageAcknowledgedRunAuthorityInternalV1"
       | "claimStageAcknowledgedRunAuthorityInternalV1"
+      | "StagePresentationGenerationProofInternalV1"
+      | "StagePresentationGenerationCaptureResultInternalV1"
+      | "StagePresentationGenerationRetargetResultInternalV1"
+      | "captureCurrentPresentationGenerationInternalV1"
+      | "retargetPresentationGenerationInternalV1"
+      | "NarrativeStableBarrierRecoveryGenerationInternalV1"
+      | "NarrativeStableBarrierRecoveryGenerationSynchronizationResultInternalV1"
+      | "NarrativeStableBarrierRecoveryAttemptInternalV1"
+      | "NarrativeStableBarrierRecoveryDispatchResultInternalV1"
+      | "NarrativeStableBarrierReplayRecoveryUnsupportedResultInternalV1"
+      | "retargetPresentationStageInternalV1"
+      | "synchronizeRecoveryGenerationInternalV1"
+      | "issueSettleRecoveryAttemptInternalV1"
+      | "dispatchSettleRecoveryInternalV1"
+      | "readReplayRecoveryUnsupportedInternalV1"
       | "NarrativeStableBarrierStageRetargetResultInternalV1"
       | "NarrativeStableBarrierTerminalDispatchResultInternalV1"
       | "CreateNarrativeStableBarrierAcknowledgmentControllerInputInternalV1"
@@ -524,6 +571,21 @@ describe("@sillymaker/ui public managed System surface", () => {
         "StageAcknowledgedRunRetargetResultInternalV1",
         "StageAcknowledgedRunAuthorityInternalV1",
         "claimStageAcknowledgedRunAuthorityInternalV1",
+        "StagePresentationGenerationProofInternalV1",
+        "StagePresentationGenerationCaptureResultInternalV1",
+        "StagePresentationGenerationRetargetResultInternalV1",
+        "captureCurrentPresentationGenerationInternalV1",
+        "retargetPresentationGenerationInternalV1",
+        "NarrativeStableBarrierRecoveryGenerationInternalV1",
+        "NarrativeStableBarrierRecoveryGenerationSynchronizationResultInternalV1",
+        "NarrativeStableBarrierRecoveryAttemptInternalV1",
+        "NarrativeStableBarrierRecoveryDispatchResultInternalV1",
+        "NarrativeStableBarrierReplayRecoveryUnsupportedResultInternalV1",
+        "retargetPresentationStageInternalV1",
+        "synchronizeRecoveryGenerationInternalV1",
+        "issueSettleRecoveryAttemptInternalV1",
+        "dispatchSettleRecoveryInternalV1",
+        "readReplayRecoveryUnsupportedInternalV1",
         "NarrativeStableBarrierStageRetargetResultInternalV1",
         "NarrativeStableBarrierTerminalDispatchResultInternalV1",
         "CreateNarrativeStableBarrierAcknowledgmentControllerInputInternalV1",

@@ -27,6 +27,7 @@ import {
 } from "../stage/stage-reconciler.ts";
 import type {
   StageAcknowledgedRunAuthorityInternalV1,
+  StagePresentationGenerationRetargetResultInternalV1,
   StageReconcilerV1,
   StageRetargetInputV1,
   StageTransitionAcknowledgmentV1,
@@ -36,6 +37,9 @@ import {
   parseManagedSurfaceGestureIdV1,
   parseManagedSurfaceSlotIdV1,
 } from "../managed-surfaces/managed-surface-contracts.ts";
+import type {
+  ManagedSurfaceFamilyActivationGateInternalV1,
+} from "../managed-surfaces/managed-surface-composition-runtime.ts";
 import {
   parseManagedSurfaceResolvedDefinitionV1,
 } from "../managed-surfaces/managed-surface-definition.ts";
@@ -74,6 +78,10 @@ import {
   type NarrativeStableCandidatePreflightResultInternalV1,
   type NarrativeStableChoiceActionAttemptInternalV1,
   type NarrativeStableBarrierAcknowledgmentControllerInternalV1,
+  type NarrativeStableBarrierRecoveryAttemptInternalV1,
+  type NarrativeStableBarrierRecoveryDispatchResultInternalV1,
+  type NarrativeStableBarrierRecoveryGenerationInternalV1,
+  type NarrativeStableBarrierRecoveryGenerationSynchronizationResultInternalV1,
   type NarrativeStableBarrierStageRetargetResultInternalV1,
   type NarrativeStableBarrierTerminalDispatchResultInternalV1,
   type NarrativeStableCustomActionAttemptInternalV1,
@@ -382,6 +390,59 @@ function barrierRetargetInputV1(
   revision: number,
 ): StageRetargetInputV1 {
   return Object.freeze({ target, revision, epoch: applicationEpochV1 });
+}
+
+function barrierPresentationRetargetInputV1(
+  target: StageRenderTargetV1,
+  revision: number,
+  epoch: number,
+): StageRetargetInputV1 {
+  return Object.freeze({
+    target,
+    revision,
+    epoch: parseNonNegativeSafeInteger(epoch),
+  });
+}
+
+function barrierPendingWithRecoveryV1(
+  loadRecovery: "settle" | "replay",
+  sequence = 1,
+): unknown {
+  return {
+    ...(pendingV1("presentation_barrier", sequence) as Record<string, unknown>),
+    loadRecovery,
+  };
+}
+
+interface MutableActivationGateV1 {
+  readonly gate: ManagedSurfaceFamilyActivationGateInternalV1;
+  readonly isOpen: () => boolean;
+  open(): void;
+  close(): void;
+  fault(error: Error | null): void;
+}
+
+function mutableActivationGateV1(initiallyOpen = false): MutableActivationGateV1 {
+  let open = initiallyOpen;
+  let fault: Error | null = null;
+  const isOpen = vi.fn(() => {
+    if (fault !== null) throw fault;
+    return open;
+  });
+  const gate = Object.freeze({ isOpen }) satisfies ManagedSurfaceFamilyActivationGateInternalV1;
+  return {
+    gate,
+    isOpen,
+    open: () => {
+      open = true;
+    },
+    close: () => {
+      open = false;
+    },
+    fault: (error) => {
+      fault = error;
+    },
+  };
 }
 
 function expectZeroResultV1(
@@ -5255,6 +5316,25 @@ describe("Narrative stable Managed Surface family", () => {
       retargetCurrentBarrierStageInternalV1(
         retarget: StageRetargetInputV1,
       ): NarrativeStableBarrierStageRetargetResultInternalV1;
+      retargetPresentationStageInternalV1(
+        retarget: StageRetargetInputV1,
+      ): StagePresentationGenerationRetargetResultInternalV1;
+      synchronizeRecoveryGenerationInternalV1(
+        activationGate: ManagedSurfaceFamilyActivationGateInternalV1,
+      ): NarrativeStableBarrierRecoveryGenerationSynchronizationResultInternalV1;
+      issueSettleRecoveryAttemptInternalV1():
+        | NarrativeStableBarrierRecoveryAttemptInternalV1
+        | null;
+      dispatchSettleRecoveryInternalV1(
+        attempt: unknown,
+      ): NarrativeStableBarrierRecoveryDispatchResultInternalV1;
+      readReplayRecoveryUnsupportedInternalV1():
+        | Readonly<{
+          readonly kind: "unsupported";
+          readonly code: "narrative.barrier_replay_unsupported";
+          readonly completion: null;
+        }>
+        | null;
       flushRetainedTerminalInternalV1():
         | NarrativeStableBarrierTerminalDispatchResultInternalV1
         | null;
@@ -5263,12 +5343,30 @@ describe("Narrative stable Managed Surface family", () => {
 
     const noBarrier = harnessV1();
     const noBarrierStage = createBarrierStageHarnessV1({});
-    expect(() =>
-      createNarrativeStableBarrierAcknowledgmentControllerInternalV1({
-        bridge: noBarrier.bridge,
-        stageReconciler: noBarrierStage.reconciler,
-      })
-    ).toThrow(TypeError);
+    const noBarrierController = createNarrativeStableBarrierAcknowledgmentControllerInternalV1({
+      bridge: noBarrier.bridge,
+      stageReconciler: noBarrierStage.reconciler,
+    });
+    expect(
+      noBarrierController.retargetCurrentBarrierStageInternalV1(
+        barrierRetargetInputV1(noBarrierStage.nextTarget, 2),
+      ),
+    ).toEqual({ kind: "stale", completion: null });
+    expect(noBarrierController.flushRetainedTerminalInternalV1()).toBeNull();
+    noBarrierController.disposeInternalV1();
+
+    const nonBarrier = harnessV1();
+    expect(nonBarrier.bridge.reconcilePendingInternalV1(pendingV1("say"))).toMatchObject({
+      kind: "applied",
+    });
+    settleCurrentNarrativeReadyV1(nonBarrier);
+    const nonBarrierStage = createBarrierStageHarnessV1({});
+    const nonBarrierController = createNarrativeStableBarrierAcknowledgmentControllerInternalV1({
+      bridge: nonBarrier.bridge,
+      stageReconciler: nonBarrierStage.reconciler,
+    });
+    expect(nonBarrierController.flushRetainedTerminalInternalV1()).toBeNull();
+    nonBarrierController.disposeInternalV1();
 
     const harness = harnessV1();
     expect(harness.bridge.reconcilePendingInternalV1(pendingV1("presentation_barrier")))
@@ -5942,5 +6040,1254 @@ describe("Narrative stable Managed Surface family", () => {
     settleSemantic("preserved-outcome");
     await expect(dispatched.completion).resolves.toBe("preserved-outcome");
     fixture.controller.disposeInternalV1();
+  });
+
+  it("owns one recovery generation across empty bootstrap, exact gate reuse, and controller recreation", () => {
+    const harness = harnessV1();
+    const stage = createBarrierStageHarnessV1({});
+    const controller = createNarrativeStableBarrierAcknowledgmentControllerInternalV1({
+      bridge: harness.bridge,
+      stageReconciler: stage.reconciler,
+    });
+    const gate = mutableActivationGateV1();
+    const installed = controller.synchronizeRecoveryGenerationInternalV1(gate.gate);
+    expect(installed).toMatchObject({ kind: "installed" });
+    expect(Object.isFrozen(installed)).toBe(true);
+    if (installed.kind !== "installed") throw new Error("expected recovery generation");
+    expectTypeOf(installed.generation).toEqualTypeOf<
+      NarrativeStableBarrierRecoveryGenerationInternalV1
+    >();
+    expect(Object.isFrozen(installed.generation)).toBe(true);
+    expect(Reflect.ownKeys(installed.generation)).toEqual([]);
+    expect(gate.isOpen).toHaveBeenCalledTimes(2);
+
+    const state = harness.kernel.getStateInternalV1();
+    const notifications = harness.stateNotificationCount();
+    gate.fault(new Error("equal must not re-read the stored gate"));
+    const unchanged = controller.synchronizeRecoveryGenerationInternalV1(gate.gate);
+    expect(unchanged).toEqual({ kind: "unchanged", generation: installed.generation });
+    expect(Object.isFrozen(unchanged)).toBe(true);
+    expect(gate.isOpen).toHaveBeenCalledTimes(2);
+    expect(harness.kernel.getStateInternalV1()).toBe(state);
+    expect(harness.stateNotificationCount()).toBe(notifications);
+
+    const foreignGate = mutableActivationGateV1();
+    expect(controller.synchronizeRecoveryGenerationInternalV1(foreignGate.gate)).toEqual({
+      kind: "faulted",
+      generation: null,
+    });
+    expect(foreignGate.isOpen).not.toHaveBeenCalled();
+
+    gate.fault(null);
+    gate.open();
+    expect(
+      harness.bridge.reconcilePendingInternalV1(barrierPendingWithRecoveryV1("settle")),
+    ).toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
+    settleCurrentNarrativeReadyV1(harness);
+    expect(controller.issueSettleRecoveryAttemptInternalV1()).toBeNull();
+    expect(controller.readReplayRecoveryUnsupportedInternalV1()).toBeNull();
+
+    controller.disposeInternalV1();
+    const successor = createNarrativeStableBarrierAcknowledgmentControllerInternalV1({
+      bridge: harness.bridge,
+      stageReconciler: stage.reconciler,
+    });
+    expect(successor.synchronizeRecoveryGenerationInternalV1(gate.gate)).toEqual({
+      kind: "unchanged",
+      generation: installed.generation,
+    });
+    expect(gate.isOpen).toHaveBeenCalledTimes(2);
+    successor.disposeInternalV1();
+
+    const foreignStage = createBarrierStageHarnessV1({});
+    const foreignController = createNarrativeStableBarrierAcknowledgmentControllerInternalV1({
+      bridge: harness.bridge,
+      stageReconciler: foreignStage.reconciler,
+    });
+    expect(foreignController.synchronizeRecoveryGenerationInternalV1(gate.gate)).toEqual({
+      kind: "faulted",
+      generation: null,
+    });
+    expect(gate.isOpen).toHaveBeenCalledTimes(2);
+    foreignController.disposeInternalV1();
+  });
+
+  it("rejects activation-gate descriptor drift before install, issue, or cached replay", () => {
+    const settle = narrativeBarrierHarnessV1({
+      pending: barrierPendingWithRecoveryV1("settle"),
+    });
+    let settleOpen = false;
+    let mutateSettleGate = false;
+    let settleGate!: ManagedSurfaceFamilyActivationGateInternalV1;
+    const settleReplacement = vi.fn(() => true);
+    const settleIsOpen = vi.fn(() => {
+      if (mutateSettleGate) {
+        Object.defineProperty(settleGate, "isOpen", { value: settleReplacement });
+      }
+      return settleOpen;
+    });
+    settleGate = { isOpen: settleIsOpen };
+    expect(settle.controller.synchronizeRecoveryGenerationInternalV1(settleGate))
+      .toMatchObject({ kind: "installed" });
+    settleOpen = true;
+    mutateSettleGate = true;
+    expect(settle.controller.issueSettleRecoveryAttemptInternalV1()).toBeNull();
+    expect(settleReplacement).not.toHaveBeenCalled();
+    settle.controller.disposeInternalV1();
+
+    const bootstrap = narrativeBarrierHarnessV1({
+      pending: barrierPendingWithRecoveryV1("settle"),
+    });
+    let bootstrapReads = 0;
+    let bootstrapGate!: ManagedSurfaceFamilyActivationGateInternalV1;
+    const bootstrapReplacement = vi.fn(() => false);
+    const bootstrapIsOpen = vi.fn(() => {
+      bootstrapReads += 1;
+      if (bootstrapReads === 2) {
+        Object.defineProperty(bootstrapGate, "isOpen", { value: bootstrapReplacement });
+      }
+      return false;
+    });
+    bootstrapGate = { isOpen: bootstrapIsOpen };
+    expect(bootstrap.controller.synchronizeRecoveryGenerationInternalV1(bootstrapGate)).toEqual({
+      kind: "stale",
+      generation: null,
+    });
+    expect(bootstrapReplacement).not.toHaveBeenCalled();
+    expect(bootstrap.controller.synchronizeRecoveryGenerationInternalV1(bootstrapGate))
+      .toMatchObject({ kind: "installed" });
+    bootstrap.controller.disposeInternalV1();
+
+    const replay = narrativeBarrierHarnessV1({
+      pending: barrierPendingWithRecoveryV1("replay"),
+    });
+    let replayOpen = false;
+    const replayIsOpen = vi.fn(() => replayOpen);
+    const replayGate: ManagedSurfaceFamilyActivationGateInternalV1 = {
+      isOpen: replayIsOpen,
+    };
+    expect(replay.controller.synchronizeRecoveryGenerationInternalV1(replayGate))
+      .toMatchObject({ kind: "installed" });
+    replayOpen = true;
+    const cached = replay.controller.readReplayRecoveryUnsupportedInternalV1();
+    expect(cached).not.toBeNull();
+    const replayReplacement = vi.fn(() => true);
+    Object.defineProperty(replayGate, "isOpen", { value: replayReplacement });
+    expect(replay.controller.readReplayRecoveryUnsupportedInternalV1()).toBeNull();
+    expect(replayReplacement).not.toHaveBeenCalled();
+    replay.controller.disposeInternalV1();
+  });
+
+  it("transfers one recovery attempt across controller disposal and seals gate callback reentry", async () => {
+    const directDispatch = vi.fn(() => Promise.resolve("successor-direct"));
+    const direct = narrativeBarrierHarnessV1({
+      pending: barrierPendingWithRecoveryV1("settle"),
+      semanticDispatchPort: Object.freeze({ dispatchResolutionInternalV1: directDispatch }),
+    });
+    const directGate = mutableActivationGateV1();
+    expect(direct.controller.synchronizeRecoveryGenerationInternalV1(directGate.gate))
+      .toMatchObject({ kind: "installed" });
+    directGate.open();
+    const directAttempt = direct.controller.issueSettleRecoveryAttemptInternalV1();
+    expect(directAttempt).not.toBeNull();
+    direct.controller.disposeInternalV1();
+    const directSuccessor = createNarrativeStableBarrierAcknowledgmentControllerInternalV1({
+      bridge: direct.harness.bridge,
+      stageReconciler: direct.stage.reconciler,
+    });
+    const directResult = directSuccessor.dispatchSettleRecoveryInternalV1(directAttempt);
+    if (directResult.kind !== "dispatched") throw new Error("expected successor dispatch");
+    await expect(directResult.completion).resolves.toBe("successor-direct");
+    expect(directSuccessor.dispatchSettleRecoveryInternalV1(directAttempt)).toEqual({
+      kind: "stale",
+      completion: null,
+    });
+    directSuccessor.disposeInternalV1();
+
+    const reentrantDispatch = vi.fn(() => Promise.resolve("successor-reentrant"));
+    const reentrant = narrativeBarrierHarnessV1({
+      pending: barrierPendingWithRecoveryV1("settle"),
+      semanticDispatchPort: Object.freeze({ dispatchResolutionInternalV1: reentrantDispatch }),
+    });
+    let gateReads = 0;
+    let reenterOnGate = false;
+    let reentrantAttempt: NarrativeStableBarrierRecoveryAttemptInternalV1 | null = null;
+    let successor: NarrativeStableBarrierAcknowledgmentControllerInternalV1 | null = null;
+    let nestedResult: NarrativeStableBarrierRecoveryDispatchResultInternalV1 | null = null;
+    const reentrantGate: ManagedSurfaceFamilyActivationGateInternalV1 = {
+      isOpen: vi.fn(() => {
+        gateReads += 1;
+        if (reenterOnGate) {
+          reenterOnGate = false;
+          reentrant.controller.disposeInternalV1();
+          successor = createNarrativeStableBarrierAcknowledgmentControllerInternalV1({
+            bridge: reentrant.harness.bridge,
+            stageReconciler: reentrant.stage.reconciler,
+          });
+          nestedResult = successor.dispatchSettleRecoveryInternalV1(reentrantAttempt);
+        }
+        return gateReads > 2;
+      }),
+    };
+    expect(reentrant.controller.synchronizeRecoveryGenerationInternalV1(reentrantGate))
+      .toMatchObject({ kind: "installed" });
+    reentrantAttempt = reentrant.controller.issueSettleRecoveryAttemptInternalV1();
+    expect(reentrantAttempt).not.toBeNull();
+    reenterOnGate = true;
+    expect(reentrant.controller.dispatchSettleRecoveryInternalV1(reentrantAttempt)).toEqual({
+      kind: "stale",
+      completion: null,
+    });
+    expect(nestedResult).toEqual({ kind: "stale", completion: null });
+    if (successor === null) throw new Error("expected reentrant successor");
+    const exactSuccessor =
+      successor as unknown as NarrativeStableBarrierAcknowledgmentControllerInternalV1;
+    const successorResult = exactSuccessor.dispatchSettleRecoveryInternalV1(reentrantAttempt);
+    if (successorResult.kind !== "dispatched") throw new Error("expected transferred dispatch");
+    await expect(successorResult.completion).resolves.toBe("successor-reentrant");
+    expect(reentrantDispatch).toHaveBeenCalledOnce();
+    exactSuccessor.disposeInternalV1();
+  });
+
+  it("keeps the generation observer alive without a controller and retires a suspended attempt", async () => {
+    const dispatchResolution = vi.fn(() => Promise.resolve("observer-fresh"));
+    const semanticPort = Object.freeze({ dispatchResolutionInternalV1: dispatchResolution });
+    const { harness, nonBlockingDefinition: blockingDefinition } = nonBlockingNarrativeHarnessV1(
+      semanticPort,
+      90,
+      "blocking",
+    );
+    expect(
+      harness.bridge.reconcilePendingInternalV1(barrierPendingWithRecoveryV1("settle")),
+    ).toMatchObject({ kind: "applied" });
+    settleCurrentNarrativeReadyV1(harness);
+    const stage = createBarrierStageHarnessV1({});
+    const controller = createNarrativeStableBarrierAcknowledgmentControllerInternalV1({
+      bridge: harness.bridge,
+      stageReconciler: stage.reconciler,
+    });
+    const gate = mutableActivationGateV1();
+    expect(controller.synchronizeRecoveryGenerationInternalV1(gate.gate))
+      .toMatchObject({ kind: "installed" });
+    gate.open();
+    const retiredAttempt = controller.issueSettleRecoveryAttemptInternalV1();
+    expect(retiredAttempt).not.toBeNull();
+    controller.disposeInternalV1();
+
+    const blocker = openNonBlockingSurfaceV1(
+      harness,
+      blockingDefinition,
+      "suspended",
+      "candidate",
+      () => {},
+      "suspended",
+    );
+    const blockedPublication = harness.kernel.getStateInternalV1().transientState.publication;
+    expect(harness.kernel.transitionTransientInternalV1({
+      kind: "close_expected",
+      evidence: Object.freeze({
+        applicationEpoch: applicationEpochV1,
+        topologyRevision: blockedPublication.topologyRevision,
+        surfaceInstanceId: blocker.surfaceInstanceId,
+      }),
+    })).toMatchObject({ kind: "applied" });
+
+    const successor = createNarrativeStableBarrierAcknowledgmentControllerInternalV1({
+      bridge: harness.bridge,
+      stageReconciler: stage.reconciler,
+    });
+    expect(successor.dispatchSettleRecoveryInternalV1(retiredAttempt)).toEqual({
+      kind: "stale",
+      completion: null,
+    });
+    const freshAttempt = successor.issueSettleRecoveryAttemptInternalV1();
+    expect(freshAttempt).not.toBeNull();
+    const fresh = successor.dispatchSettleRecoveryInternalV1(freshAttempt);
+    if (fresh.kind !== "dispatched") throw new Error("expected observer-fresh dispatch");
+    await expect(fresh.completion).resolves.toBe("observer-fresh");
+    expect(dispatchResolution).toHaveBeenCalledOnce();
+    successor.disposeInternalV1();
+  });
+
+  it("binds an installed generation to one exact Stage authority before every retarget", () => {
+    const fixture = narrativeBarrierHarnessV1({
+      pending: barrierPendingWithRecoveryV1("settle"),
+    });
+    const gate = mutableActivationGateV1();
+    expect(fixture.controller.synchronizeRecoveryGenerationInternalV1(gate.gate))
+      .toMatchObject({ kind: "installed" });
+    const gateReads = (gate.isOpen as ReturnType<typeof vi.fn>).mock.calls.length;
+    fixture.controller.disposeInternalV1();
+
+    const foreignStage = createBarrierStageHarnessV1({});
+    const foreignFrame = foreignStage.reconciler.frame();
+    let foreignNotifications = 0;
+    const unsubscribe = foreignStage.reconciler.subscribe(() => {
+      foreignNotifications += 1;
+    });
+    const foreign = createNarrativeStableBarrierAcknowledgmentControllerInternalV1({
+      bridge: fixture.harness.bridge,
+      stageReconciler: foreignStage.reconciler,
+    });
+    expect(
+      foreign.retargetPresentationStageInternalV1(
+        barrierPresentationRetargetInputV1(foreignStage.nextTarget, 2, 92),
+      ),
+    ).toEqual({ kind: "faulted" });
+    expect(
+      foreign.retargetCurrentBarrierStageInternalV1(
+        barrierRetargetInputV1(foreignStage.nextTarget, 2),
+      ),
+    ).toEqual({
+      kind: "faulted",
+      code: "stage.acknowledged_run_faulted",
+      completion: null,
+    });
+    gate.fault(new Error("foreign Stage must not read the stored gate"));
+    expect(foreign.synchronizeRecoveryGenerationInternalV1(gate.gate)).toEqual({
+      kind: "faulted",
+      generation: null,
+    });
+    expect((gate.isOpen as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(gateReads);
+    expect(foreignStage.reconciler.frame()).toEqual(foreignFrame);
+    expect(foreignNotifications).toBe(0);
+    unsubscribe();
+    foreign.disposeInternalV1();
+  });
+
+  it("keeps only the current attempt and observer across 10k higher-generation rotations", () => {
+    const dispatchResolution = vi.fn(() => Promise.resolve("must-not-dispatch"));
+    const fixture = narrativeBarrierHarnessV1({
+      pending: barrierPendingWithRecoveryV1("settle"),
+      semanticDispatchPort: Object.freeze({ dispatchResolutionInternalV1: dispatchResolution }),
+    });
+    const stableState = fixture.harness.kernel.getStateInternalV1();
+    const stableNotifications = fixture.harness.stateNotificationCount();
+    let gateOpen = false;
+    let gate: ManagedSurfaceFamilyActivationGateInternalV1 = {
+      isOpen: () => gateOpen,
+    };
+    expect(fixture.controller.synchronizeRecoveryGenerationInternalV1(gate))
+      .toMatchObject({ kind: "installed" });
+    gateOpen = true;
+    let previousAttempt = fixture.controller.issueSettleRecoveryAttemptInternalV1();
+    expect(previousAttempt).not.toBeNull();
+
+    for (let index = 0; index < 10_000; index += 1) {
+      expect(
+        fixture.controller.retargetPresentationStageInternalV1(
+          barrierPresentationRetargetInputV1(
+            index % 2 === 0 ? fixture.stage.nextTarget : fixture.stage.thirdTarget,
+            index + 2,
+            index + 92,
+          ),
+        ),
+      ).toEqual({ kind: "retargeted" });
+      gateOpen = false;
+      gate = { isOpen: () => gateOpen };
+      expect(fixture.controller.synchronizeRecoveryGenerationInternalV1(gate))
+        .toMatchObject({ kind: "installed" });
+      expect(fixture.controller.dispatchSettleRecoveryInternalV1(previousAttempt)).toEqual({
+        kind: "stale",
+        completion: null,
+      });
+      gateOpen = true;
+      previousAttempt = fixture.controller.issueSettleRecoveryAttemptInternalV1();
+      expect(previousAttempt).not.toBeNull();
+    }
+
+    expect(fixture.harness.kernel.getStateInternalV1()).toBe(stableState);
+    expect(fixture.harness.stateNotificationCount()).toBe(stableNotifications);
+    expect(dispatchResolution).not.toHaveBeenCalled();
+    expect(fixture.harness.bridge.disposeInternalV1()).toMatchObject({ kind: "applied" });
+    expect(fixture.controller.dispatchSettleRecoveryInternalV1(previousAttempt)).toEqual({
+      kind: "stale",
+      completion: null,
+    });
+    fixture.controller.disposeInternalV1();
+  });
+
+  it("advances presentation generations only through the claimed wrapper and fences equal or lower rows", () => {
+    const fixture = narrativeBarrierHarnessV1({
+      pending: barrierPendingWithRecoveryV1("settle"),
+    });
+    const initialGate = mutableActivationGateV1();
+    const initial = fixture.controller.synchronizeRecoveryGenerationInternalV1(
+      initialGate.gate,
+    );
+    if (initial.kind !== "installed") throw new Error("expected initial generation");
+    let stageNotifications = 0;
+    const unsubscribe = fixture.stage.reconciler.subscribe(() => {
+      stageNotifications += 1;
+    });
+    const frame = fixture.stage.reconciler.frame();
+
+    expect(
+      fixture.controller.retargetPresentationStageInternalV1(
+        barrierPresentationRetargetInputV1(fixture.stage.thirdTarget, 2, 91),
+      ),
+    ).toEqual({ kind: "stale" });
+    expect(fixture.stage.reconciler.frame()).toEqual(frame);
+    expect(stageNotifications).toBe(0);
+
+    initialGate.fault(new Error("equal generation must be zero-read"));
+    expect(
+      fixture.controller.synchronizeRecoveryGenerationInternalV1(initialGate.gate),
+    ).toEqual({ kind: "unchanged", generation: initial.generation });
+    expect(initialGate.isOpen).toHaveBeenCalledTimes(2);
+
+    const higherGate = mutableActivationGateV1();
+    expect(
+      fixture.controller.retargetPresentationStageInternalV1(
+        barrierPresentationRetargetInputV1(fixture.stage.nextTarget, 2, 92),
+      ),
+    ).toEqual({ kind: "retargeted" });
+    expect(stageNotifications).toBe(1);
+    const higher = fixture.controller.synchronizeRecoveryGenerationInternalV1(higherGate.gate);
+    expect(higher).toMatchObject({ kind: "installed" });
+    if (higher.kind !== "installed") throw new Error("expected higher generation");
+    expect(higher.generation).not.toBe(initial.generation);
+    expect(higherGate.isOpen).toHaveBeenCalledTimes(2);
+
+    const lowerGate = mutableActivationGateV1();
+    lowerGate.fault(new Error("lower generation must be zero-read"));
+    expect(
+      fixture.controller.retargetPresentationStageInternalV1(
+        barrierPresentationRetargetInputV1(fixture.stage.thirdTarget, 3, 90),
+      ),
+    ).toEqual({ kind: "retargeted" });
+    expect(stageNotifications).toBe(2);
+    expect(
+      fixture.controller.synchronizeRecoveryGenerationInternalV1(lowerGate.gate),
+    ).toEqual({ kind: "stale", generation: null });
+    expect(lowerGate.isOpen).not.toHaveBeenCalled();
+
+    unsubscribe();
+    fixture.controller.disposeInternalV1();
+  });
+
+  it("fences every recovery ingress before bridge disposal can reenter Stage", () => {
+    const fixture = narrativeBarrierHarnessV1({
+      pending: barrierPendingWithRecoveryV1("settle"),
+    });
+    const gate = mutableActivationGateV1();
+    expect(fixture.controller.synchronizeRecoveryGenerationInternalV1(gate.gate))
+      .toMatchObject({ kind: "installed" });
+    gate.open();
+    const attempt = fixture.controller.issueSettleRecoveryAttemptInternalV1();
+    expect(attempt).not.toBeNull();
+
+    const stageFrame = fixture.stage.reconciler.frame();
+    let stageNotifications = 0;
+    const unsubscribe = fixture.stage.reconciler.subscribe(() => {
+      stageNotifications += 1;
+    });
+    const gateReads = (gate.isOpen as ReturnType<typeof vi.fn>).mock.calls.length;
+    expect(fixture.harness.bridge.disposeInternalV1()).toMatchObject({ kind: "applied" });
+
+    expect(
+      fixture.controller.retargetPresentationStageInternalV1(
+        barrierPresentationRetargetInputV1(fixture.stage.nextTarget, 2, 92),
+      ),
+    ).toEqual({ kind: "stale" });
+    expect(fixture.stage.reconciler.frame()).toEqual(stageFrame);
+    expect(stageNotifications).toBe(0);
+    expect(fixture.controller.synchronizeRecoveryGenerationInternalV1(gate.gate)).toEqual({
+      kind: "stale",
+      generation: null,
+    });
+    expect((gate.isOpen as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(gateReads);
+    expect(fixture.controller.issueSettleRecoveryAttemptInternalV1()).toBeNull();
+    expect(fixture.controller.dispatchSettleRecoveryInternalV1(attempt)).toEqual({
+      kind: "stale",
+      completion: null,
+    });
+    expect(fixture.controller.readReplayRecoveryUnsupportedInternalV1()).toBeNull();
+
+    fixture.controller.disposeInternalV1();
+    expect(() =>
+      createNarrativeStableBarrierAcknowledgmentControllerInternalV1({
+        bridge: fixture.harness.bridge,
+        stageReconciler: fixture.stage.reconciler,
+      })
+    ).toThrowError("ui.narrative_stable_barrier_controller_invalid");
+    unsubscribe();
+  });
+
+  it("keeps same-epoch stale retarget current but fences unsynchronized higher and lower generations", async () => {
+    const sameDispatch = vi.fn(() => Promise.resolve("same-epoch"));
+    const same = narrativeBarrierHarnessV1({
+      pending: barrierPendingWithRecoveryV1("settle"),
+      semanticDispatchPort: Object.freeze({ dispatchResolutionInternalV1: sameDispatch }),
+    });
+    const sameGate = mutableActivationGateV1();
+    expect(same.controller.synchronizeRecoveryGenerationInternalV1(sameGate.gate))
+      .toMatchObject({ kind: "installed" });
+    sameGate.open();
+    const sameAttempt = same.controller.issueSettleRecoveryAttemptInternalV1();
+    expect(sameAttempt).not.toBeNull();
+    expect(
+      same.controller.retargetPresentationStageInternalV1(
+        barrierPresentationRetargetInputV1(same.stage.nextTarget, 2, 91),
+      ),
+    ).toEqual({ kind: "stale" });
+    const sameResult = same.controller.dispatchSettleRecoveryInternalV1(sameAttempt);
+    if (sameResult.kind !== "dispatched") throw new Error("expected same-epoch dispatch");
+    await expect(sameResult.completion).resolves.toBe("same-epoch");
+    expect(sameDispatch).toHaveBeenCalledOnce();
+    same.controller.disposeInternalV1();
+
+    for (const epoch of [92, 90]) {
+      const dispatchResolution = vi.fn(() => Promise.resolve("must-not-dispatch"));
+      const fixture = narrativeBarrierHarnessV1({
+        pending: barrierPendingWithRecoveryV1("settle"),
+        semanticDispatchPort: Object.freeze({ dispatchResolutionInternalV1: dispatchResolution }),
+      });
+      const gate = mutableActivationGateV1();
+      expect(fixture.controller.synchronizeRecoveryGenerationInternalV1(gate.gate))
+        .toMatchObject({ kind: "installed" });
+      gate.open();
+      const attempt = fixture.controller.issueSettleRecoveryAttemptInternalV1();
+      expect(attempt).not.toBeNull();
+      expect(
+        fixture.controller.retargetPresentationStageInternalV1(
+          barrierPresentationRetargetInputV1(fixture.stage.nextTarget, 2, epoch),
+        ),
+      ).toEqual({ kind: "retargeted" });
+      expect(fixture.controller.dispatchSettleRecoveryInternalV1(attempt)).toEqual({
+        kind: "stale",
+        completion: null,
+      });
+      expect(fixture.controller.issueSettleRecoveryAttemptInternalV1()).toBeNull();
+      expect(fixture.controller.readReplayRecoveryUnsupportedInternalV1()).toBeNull();
+      expect(dispatchResolution).not.toHaveBeenCalled();
+      fixture.controller.disposeInternalV1();
+    }
+  });
+
+  it("dispatches one ready-active settle recovery behind the exact gate and one-shot attempt", async () => {
+    let capturedRequest: unknown = null;
+    const semanticReceipt = Object.freeze({ kind: "settled-recovery" as const });
+    const dispatchResolution = vi.fn((request: unknown) => {
+      capturedRequest = request;
+      return Promise.resolve(semanticReceipt);
+    });
+    const fixture = narrativeBarrierHarnessV1({
+      pending: barrierPendingWithRecoveryV1("settle"),
+      semanticDispatchPort: Object.freeze({ dispatchResolutionInternalV1: dispatchResolution }),
+    });
+    const state = fixture.harness.kernel.getStateInternalV1();
+    const notifications = fixture.harness.stateNotificationCount();
+    const gate = mutableActivationGateV1();
+    expect(fixture.controller.synchronizeRecoveryGenerationInternalV1(gate.gate)).toMatchObject({
+      kind: "installed",
+    });
+    expect(fixture.controller.issueSettleRecoveryAttemptInternalV1()).toBeNull();
+
+    gate.open();
+    const driftedAttempt = fixture.controller.issueSettleRecoveryAttemptInternalV1();
+    expect(driftedAttempt).not.toBeNull();
+    expect(Object.isFrozen(driftedAttempt)).toBe(true);
+    expect(Reflect.ownKeys(driftedAttempt as object)).toEqual([]);
+    expect(fixture.controller.issueSettleRecoveryAttemptInternalV1()).toBeNull();
+    expect(
+      fixture.controller.dispatchSettleRecoveryInternalV1({
+        ...(driftedAttempt as object),
+      }),
+    ).toEqual({ kind: "stale", completion: null });
+    gate.close();
+    expect(fixture.controller.dispatchSettleRecoveryInternalV1(driftedAttempt)).toEqual({
+      kind: "stale",
+      completion: null,
+    });
+    expect(fixture.controller.issueSettleRecoveryAttemptInternalV1()).toBeNull();
+
+    const faultGate = mutableActivationGateV1();
+    expect(
+      fixture.controller.retargetPresentationStageInternalV1(
+        barrierPresentationRetargetInputV1(fixture.stage.nextTarget, 2, 92),
+      ),
+    ).toEqual({ kind: "retargeted" });
+    expect(fixture.controller.synchronizeRecoveryGenerationInternalV1(faultGate.gate))
+      .toMatchObject({ kind: "installed" });
+    faultGate.open();
+    const faultedAttempt = fixture.controller.issueSettleRecoveryAttemptInternalV1();
+    expect(faultedAttempt).not.toBeNull();
+    faultGate.fault(new Error("gate dispatch fault"));
+    expect(fixture.controller.dispatchSettleRecoveryInternalV1(faultedAttempt)).toEqual({
+      kind: "faulted",
+      completion: null,
+    });
+
+    const successGate = mutableActivationGateV1();
+    expect(
+      fixture.controller.retargetPresentationStageInternalV1(
+        barrierPresentationRetargetInputV1(fixture.stage.nextTarget, 3, 93),
+      ),
+    ).toEqual({ kind: "retargeted" });
+    expect(fixture.controller.synchronizeRecoveryGenerationInternalV1(successGate.gate))
+      .toMatchObject({ kind: "installed" });
+    successGate.open();
+    const attempt = fixture.controller.issueSettleRecoveryAttemptInternalV1();
+    expect(attempt).not.toBeNull();
+    const dispatched = fixture.controller.dispatchSettleRecoveryInternalV1(attempt);
+    expect(dispatched).toMatchObject({ kind: "dispatched" });
+    if (dispatched.kind !== "dispatched") throw new Error("expected settle dispatch");
+    expect(Object.isFrozen(dispatched)).toBe(true);
+    expect(capturedRequest).toEqual({
+      expectedOccurrenceId: occurrenceV1(1),
+      resolution: {
+        kind: "barrier_completed",
+        transitionId: "transition.test.fade",
+      },
+    });
+    expect(Object.isFrozen(capturedRequest)).toBe(true);
+    expect(Object.isFrozen((capturedRequest as { readonly resolution: object }).resolution))
+      .toBe(true);
+    await expect(dispatched.completion).resolves.toBe(semanticReceipt);
+    expect(fixture.controller.dispatchSettleRecoveryInternalV1(attempt)).toEqual({
+      kind: "stale",
+      completion: null,
+    });
+    expect(dispatchResolution).toHaveBeenCalledOnce();
+    expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
+    expect(fixture.harness.stateNotificationCount()).toBe(notifications);
+    fixture.controller.disposeInternalV1();
+  });
+
+  it("shares first-win and Promise tombstones across normal, higher, and lower recovery paths", async () => {
+    let settleOld!: (value: unknown) => void;
+    const oldCompletion = new Promise<unknown>((resolve) => {
+      settleOld = resolve;
+    });
+    let dispatchCount = 0;
+    const dispatchResolution = vi.fn(() => {
+      dispatchCount += 1;
+      return dispatchCount === 1 ? oldCompletion : Promise.resolve("fresh-drained");
+    });
+    const fixture = narrativeBarrierHarnessV1({
+      transition: barrierTransitionDefinitionV1({ kind: "cut", durationMs: 0 }),
+      pending: barrierPendingWithRecoveryV1("settle"),
+      semanticDispatchPort: Object.freeze({ dispatchResolutionInternalV1: dispatchResolution }),
+    });
+    const initialGate = mutableActivationGateV1();
+    expect(fixture.controller.synchronizeRecoveryGenerationInternalV1(initialGate.gate))
+      .toMatchObject({ kind: "installed" });
+    initialGate.open();
+    const attempt = fixture.controller.issueSettleRecoveryAttemptInternalV1();
+    expect(attempt).not.toBeNull();
+    const oldResult = fixture.controller.dispatchSettleRecoveryInternalV1(attempt);
+    if (oldResult.kind !== "dispatched") throw new Error("expected old recovery dispatch");
+
+    expect(
+      fixture.controller.retargetCurrentBarrierStageInternalV1(
+        barrierRetargetInputV1(fixture.stage.nextTarget, 2),
+      ),
+    ).toEqual({ kind: "stale", completion: null });
+
+    const higherGate = mutableActivationGateV1();
+    expect(
+      fixture.controller.retargetPresentationStageInternalV1(
+        barrierPresentationRetargetInputV1(fixture.stage.nextTarget, 2, 92),
+      ),
+    ).toEqual({ kind: "retargeted" });
+    expect(fixture.controller.synchronizeRecoveryGenerationInternalV1(higherGate.gate))
+      .toMatchObject({ kind: "installed" });
+    higherGate.open();
+    const higherCompetitor = fixture.controller.issueSettleRecoveryAttemptInternalV1();
+    expect(higherCompetitor).not.toBeNull();
+    expect(fixture.controller.dispatchSettleRecoveryInternalV1(higherCompetitor)).toEqual({
+      kind: "stale",
+      completion: null,
+    });
+
+    const lowerGate = mutableActivationGateV1();
+    expect(
+      fixture.controller.retargetPresentationStageInternalV1(
+        barrierPresentationRetargetInputV1(fixture.stage.thirdTarget, 3, 90),
+      ),
+    ).toEqual({ kind: "retargeted" });
+    expect(fixture.controller.synchronizeRecoveryGenerationInternalV1(lowerGate.gate)).toEqual({
+      kind: "stale",
+      generation: null,
+    });
+    expect(
+      fixture.controller.retargetCurrentBarrierStageInternalV1(
+        barrierPresentationRetargetInputV1(fixture.stage.nextTarget, 4, 90),
+      ),
+    ).toEqual({ kind: "stale", completion: null });
+
+    const finalGate = mutableActivationGateV1();
+    expect(
+      fixture.controller.retargetPresentationStageInternalV1(
+        barrierPresentationRetargetInputV1(fixture.stage.nextTarget, 4, 93),
+      ),
+    ).toEqual({ kind: "retargeted" });
+    expect(fixture.controller.synchronizeRecoveryGenerationInternalV1(finalGate.gate))
+      .toMatchObject({ kind: "installed" });
+    finalGate.open();
+    const finalCompetitor = fixture.controller.issueSettleRecoveryAttemptInternalV1();
+    expect(finalCompetitor).not.toBeNull();
+    expect(fixture.controller.dispatchSettleRecoveryInternalV1(finalCompetitor)).toEqual({
+      kind: "stale",
+      completion: null,
+    });
+    expect(dispatchResolution).toHaveBeenCalledOnce();
+
+    settleOld("old-drained");
+    await expect(oldResult.completion).resolves.toBe("old-drained");
+    const freshAttempt = fixture.controller.issueSettleRecoveryAttemptInternalV1();
+    expect(freshAttempt).not.toBeNull();
+    const freshResult = fixture.controller.dispatchSettleRecoveryInternalV1(freshAttempt);
+    if (freshResult.kind !== "dispatched") throw new Error("expected fresh recovery dispatch");
+    await expect(freshResult.completion).resolves.toBe("fresh-drained");
+    expect(dispatchResolution).toHaveBeenCalledTimes(2);
+    fixture.controller.disposeInternalV1();
+  });
+
+  it("first-wins normal evidence and invalidates recovery attempts on every target lifecycle fence", async () => {
+    const normalDispatch = vi.fn(() => Promise.resolve("normal-first"));
+    const normalFirst = narrativeBarrierHarnessV1({
+      transition: barrierTransitionDefinitionV1({ kind: "cut", durationMs: 0 }),
+      pending: barrierPendingWithRecoveryV1("settle"),
+      semanticDispatchPort: Object.freeze({ dispatchResolutionInternalV1: normalDispatch }),
+    });
+    const normalGate = mutableActivationGateV1();
+    expect(normalFirst.controller.synchronizeRecoveryGenerationInternalV1(normalGate.gate))
+      .toMatchObject({ kind: "installed" });
+    normalGate.open();
+    const recoveryCompetitor = normalFirst.controller.issueSettleRecoveryAttemptInternalV1();
+    expect(recoveryCompetitor).not.toBeNull();
+    expect(
+      normalFirst.controller.retargetCurrentBarrierStageInternalV1(
+        barrierRetargetInputV1(normalFirst.stage.nextTarget, 2),
+      ),
+    ).toEqual({ kind: "armed", completion: null });
+    expect(
+      normalFirst.controller.dispatchSettleRecoveryInternalV1(recoveryCompetitor),
+    ).toEqual({ kind: "stale", completion: null });
+    const normalResult = normalFirst.controller.flushRetainedTerminalInternalV1();
+    if (normalResult?.kind !== "dispatched") throw new Error("expected normal first-win");
+    await expect(normalResult.completion).resolves.toBe("normal-first");
+    expect(normalDispatch).toHaveBeenCalledOnce();
+    normalFirst.controller.disposeInternalV1();
+
+    const suspendedParts = nonBlockingNarrativeHarnessV1(
+      defaultSemanticDispatchPortV1,
+      90,
+      "blocking",
+    );
+    expect(
+      suspendedParts.harness.bridge.reconcilePendingInternalV1(
+        barrierPendingWithRecoveryV1("settle"),
+      ),
+    ).toMatchObject({ kind: "applied" });
+    settleCurrentNarrativeReadyV1(suspendedParts.harness);
+    const suspendedStage = createBarrierStageHarnessV1({});
+    const suspendedController = createNarrativeStableBarrierAcknowledgmentControllerInternalV1({
+      bridge: suspendedParts.harness.bridge,
+      stageReconciler: suspendedStage.reconciler,
+    });
+    const suspendedGate = mutableActivationGateV1();
+    expect(suspendedController.synchronizeRecoveryGenerationInternalV1(suspendedGate.gate))
+      .toMatchObject({ kind: "installed" });
+    suspendedGate.open();
+    const suspendedAttempt = suspendedController.issueSettleRecoveryAttemptInternalV1();
+    expect(suspendedAttempt).not.toBeNull();
+    openNonBlockingSurfaceV1(
+      suspendedParts.harness,
+      suspendedParts.nonBlockingDefinition,
+      "suspended",
+      "candidate",
+      () => {},
+      "suspended",
+    );
+    expect(suspendedController.dispatchSettleRecoveryInternalV1(suspendedAttempt)).toEqual({
+      kind: "stale",
+      completion: null,
+    });
+    expect(suspendedController.issueSettleRecoveryAttemptInternalV1()).toBeNull();
+    suspendedController.disposeInternalV1();
+
+    const sourceDispatch = vi.fn(() => Promise.resolve("source-rebound"));
+    const sourceHarness = harnessV1({
+      candidatePreflight: Object.freeze({
+        preflightCandidateInternalV1: () =>
+          capturedCandidatePreflightResultV1(Object.freeze({
+            ...defaultCandidateSnapshotV1,
+            semanticDispatchPort: Object.freeze({
+              dispatchResolutionInternalV1: sourceDispatch,
+            }),
+          })),
+      }),
+    });
+    expect(
+      sourceHarness.bridge.reconcilePendingInternalV1(
+        barrierPendingWithRecoveryV1("settle"),
+      ),
+    ).toMatchObject({ kind: "applied" });
+    const sourceStage = createBarrierStageHarnessV1({});
+    const sourceController = createNarrativeStableBarrierAcknowledgmentControllerInternalV1({
+      bridge: sourceHarness.bridge,
+      stageReconciler: sourceStage.reconciler,
+    });
+    const sourceGate = mutableActivationGateV1();
+    expect(sourceController.synchronizeRecoveryGenerationInternalV1(sourceGate.gate))
+      .toMatchObject({ kind: "installed" });
+    const preparing = sourceHarness.kernel.getStateInternalV1().stableRuntimeBindings[0];
+    if (preparing?.binding.kind !== "preparing") throw new Error("expected source preparation");
+    expect(sourceHarness.kernel.settleStableReadinessFailedInternalV1({
+      readinessEvidence: Object.freeze({
+        applicationEpoch: applicationEpochV1,
+        surfaceInstanceId: preparing.binding.attempt.identity.surfaceInstanceId,
+      }),
+      publisherLease: preparing.desiredTarget.publisherLease,
+      sourceRevision: preparing.desiredTarget.sourceRevision,
+    })).toMatchObject({ kind: "applied", code: "surface.readiness_failed" });
+    expect(sourceHarness.bridge.retryCurrentPendingInternalV1()).toMatchObject({
+      kind: "applied",
+      code: "surface.stable_publication_applied",
+    });
+    settleCurrentNarrativeReadyV1(sourceHarness);
+    sourceGate.open();
+    const freshSourceAttempt = sourceController.issueSettleRecoveryAttemptInternalV1();
+    expect(freshSourceAttempt).not.toBeNull();
+    const freshSource = sourceController.dispatchSettleRecoveryInternalV1(
+      freshSourceAttempt,
+    );
+    if (freshSource.kind !== "dispatched") throw new Error("expected source rebound");
+    await expect(freshSource.completion).resolves.toBe("source-rebound");
+    sourceController.disposeInternalV1();
+
+    for (const mutation of ["replacement", "empty", "application_dispose"] as const) {
+      const dispatchResolution = vi.fn(() => Promise.resolve("must-not-dispatch"));
+      const fixture = narrativeBarrierHarnessV1({
+        pending: barrierPendingWithRecoveryV1("settle"),
+        semanticDispatchPort: Object.freeze({ dispatchResolutionInternalV1: dispatchResolution }),
+      });
+      const gate = mutableActivationGateV1();
+      expect(fixture.controller.synchronizeRecoveryGenerationInternalV1(gate.gate))
+        .toMatchObject({ kind: "installed" });
+      gate.open();
+      const attempt = fixture.controller.issueSettleRecoveryAttemptInternalV1();
+      expect(attempt).not.toBeNull();
+      if (mutation === "replacement") {
+        expect(
+          fixture.harness.bridge.reconcilePendingInternalV1(
+            barrierPendingWithRecoveryV1("settle", 2),
+          ),
+        ).toMatchObject({ kind: "applied" });
+      } else if (mutation === "empty") {
+        expect(fixture.harness.bridge.reconcilePendingInternalV1(null)).toMatchObject({
+          kind: "applied",
+        });
+      } else {
+        expect(fixture.harness.bridge.disposeInternalV1()).toMatchObject({ kind: "applied" });
+      }
+      expect(fixture.controller.dispatchSettleRecoveryInternalV1(attempt)).toEqual({
+        kind: "stale",
+        completion: null,
+      });
+      expect(fixture.controller.issueSettleRecoveryAttemptInternalV1()).toBeNull();
+      expect(dispatchResolution).not.toHaveBeenCalled();
+      fixture.controller.disposeInternalV1();
+    }
+  });
+
+  it("caches replay unsupported without taking the normal terminal claim across 10k reads", async () => {
+    const dispatchResolution = vi.fn(() => Promise.resolve("normal-drained"));
+    const fixture = narrativeBarrierHarnessV1({
+      transition: barrierTransitionDefinitionV1({ kind: "cut", durationMs: 0 }),
+      pending: barrierPendingWithRecoveryV1("replay"),
+      semanticDispatchPort: Object.freeze({ dispatchResolutionInternalV1: dispatchResolution }),
+    });
+    const gate = mutableActivationGateV1();
+    const installed = fixture.controller.synchronizeRecoveryGenerationInternalV1(gate.gate);
+    if (installed.kind !== "installed") throw new Error("expected replay generation");
+    gate.open();
+    const unsupported = fixture.controller.readReplayRecoveryUnsupportedInternalV1();
+    expect(unsupported).toEqual({
+      kind: "unsupported",
+      code: "narrative.barrier_replay_unsupported",
+      completion: null,
+    });
+    expect(Object.isFrozen(unsupported)).toBe(true);
+    expect(fixture.controller.issueSettleRecoveryAttemptInternalV1()).toBeNull();
+    const state = fixture.harness.kernel.getStateInternalV1();
+    const notifications = fixture.harness.stateNotificationCount();
+    const gateReads = (gate.isOpen as ReturnType<typeof vi.fn>).mock.calls.length;
+    for (let index = 0; index < 10_000; index += 1) {
+      expect(fixture.controller.readReplayRecoveryUnsupportedInternalV1()).toBe(unsupported);
+      expect(fixture.controller.synchronizeRecoveryGenerationInternalV1(gate.gate)).toEqual({
+        kind: "unchanged",
+        generation: installed.generation,
+      });
+    }
+    expect((gate.isOpen as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(
+      gateReads + 10_000,
+    );
+    expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
+    expect(fixture.harness.stateNotificationCount()).toBe(notifications);
+    expect(dispatchResolution).not.toHaveBeenCalled();
+
+    expect(
+      fixture.controller.retargetCurrentBarrierStageInternalV1(
+        barrierRetargetInputV1(fixture.stage.nextTarget, 2),
+      ),
+    ).toEqual({ kind: "armed", completion: null });
+    const normal = fixture.controller.flushRetainedTerminalInternalV1();
+    if (normal?.kind !== "dispatched") throw new Error("expected normal Barrier dispatch");
+    await expect(normal.completion).resolves.toBe("normal-drained");
+    expect(dispatchResolution).toHaveBeenCalledOnce();
+
+    const higherGate = mutableActivationGateV1();
+    expect(
+      fixture.controller.retargetPresentationStageInternalV1(
+        barrierPresentationRetargetInputV1(fixture.stage.thirdTarget, 3, 92),
+      ),
+    ).toEqual({ kind: "retargeted" });
+    expect(fixture.controller.synchronizeRecoveryGenerationInternalV1(higherGate.gate))
+      .toMatchObject({ kind: "installed" });
+    higherGate.open();
+    const freshUnsupported = fixture.controller.readReplayRecoveryUnsupportedInternalV1();
+    expect(freshUnsupported).toEqual(unsupported);
+    expect(freshUnsupported).not.toBe(unsupported);
+    fixture.controller.disposeInternalV1();
+  });
+
+  it("admits only exact gates and rolls back a second-read target drift with nested sync", () => {
+    let accessorReads = 0;
+    const accessor = Object.defineProperty({}, "isOpen", {
+      get() {
+        accessorReads += 1;
+        return () => false;
+      },
+    });
+    const symbolKey = Symbol("extra-gate-key");
+    const malformedGates: readonly unknown[] = [
+      accessor,
+      { isOpen: () => false, extra: true },
+      { isOpen: () => false, [symbolKey]: true },
+      Object.assign(Object.create({ inherited: true }), { isOpen: () => false }),
+      Object.assign(Object.create(null), { isOpen: () => false }),
+      { isOpen: false },
+    ];
+    for (const malformed of malformedGates) {
+      const fixture = narrativeBarrierHarnessV1({
+        pending: barrierPendingWithRecoveryV1("settle"),
+      });
+      expect(
+        fixture.controller.synchronizeRecoveryGenerationInternalV1(
+          malformed as ManagedSurfaceFamilyActivationGateInternalV1,
+        ),
+      ).toEqual({ kind: "faulted", generation: null });
+      fixture.controller.disposeInternalV1();
+    }
+    expect(accessorReads).toBe(0);
+
+    const invalidRows = [
+      { expected: "stale", invoke: () => true },
+      {
+        expected: "faulted",
+        invoke: () => {
+          throw new Error("gate fault");
+        },
+      },
+      { expected: "faulted", invoke: () => "not-boolean" },
+    ] as const;
+    for (const row of invalidRows) {
+      const fixture = narrativeBarrierHarnessV1({
+        pending: barrierPendingWithRecoveryV1("settle"),
+      });
+      const gate = {
+        isOpen: row.invoke,
+      } as unknown as ManagedSurfaceFamilyActivationGateInternalV1;
+      expect(fixture.controller.synchronizeRecoveryGenerationInternalV1(gate)).toEqual({
+        kind: row.expected,
+        generation: null,
+      });
+      fixture.controller.disposeInternalV1();
+    }
+
+    const receiverFixture = narrativeBarrierHarnessV1({
+      pending: barrierPendingWithRecoveryV1("settle"),
+    });
+    let receiverGate!: ManagedSurfaceFamilyActivationGateInternalV1;
+    const receiver = vi.fn(function (this: unknown) {
+      expect(this).toBe(receiverGate);
+      return false;
+    });
+    receiverGate = { isOpen: receiver };
+    expect(receiverFixture.controller.synchronizeRecoveryGenerationInternalV1(receiverGate))
+      .toMatchObject({ kind: "installed" });
+    expect(receiver).toHaveBeenCalledTimes(2);
+    receiverFixture.controller.disposeInternalV1();
+
+    const drift = narrativeBarrierHarnessV1({
+      pending: barrierPendingWithRecoveryV1("settle"),
+    });
+    const initialGate = mutableActivationGateV1();
+    const initial = drift.controller.synchronizeRecoveryGenerationInternalV1(initialGate.gate);
+    if (initial.kind !== "installed") throw new Error("expected initial generation");
+    expect(
+      drift.controller.retargetPresentationStageInternalV1(
+        barrierPresentationRetargetInputV1(drift.stage.nextTarget, 2, 92),
+      ),
+    ).toEqual({ kind: "retargeted" });
+    let publicationResult: unknown = null;
+    let driftReads = 0;
+    const driftGate: ManagedSurfaceFamilyActivationGateInternalV1 = {
+      isOpen: vi.fn(() => {
+        driftReads += 1;
+        if (driftReads === 2) {
+          publicationResult = drift.harness.bridge.reconcilePendingInternalV1(
+            barrierPendingWithRecoveryV1("settle", 2),
+          );
+        }
+        return false;
+      }),
+    };
+    expect(drift.controller.synchronizeRecoveryGenerationInternalV1(driftGate)).toEqual({
+      kind: "stale",
+      generation: null,
+    });
+    expect(publicationResult).toMatchObject({ kind: "applied" });
+    const retryGate = mutableActivationGateV1();
+    const retry = drift.controller.synchronizeRecoveryGenerationInternalV1(retryGate.gate);
+    expect(retry).toMatchObject({ kind: "installed" });
+    if (retry.kind !== "installed") throw new Error("expected retry generation");
+    expect(retry.generation).not.toBe(initial.generation);
+    drift.controller.disposeInternalV1();
+
+    const nested = narrativeBarrierHarnessV1({
+      pending: barrierPendingWithRecoveryV1("settle"),
+    });
+    const nestedInitialGate = mutableActivationGateV1();
+    const nestedInitial = nested.controller.synchronizeRecoveryGenerationInternalV1(
+      nestedInitialGate.gate,
+    );
+    if (nestedInitial.kind !== "installed") throw new Error("expected nested initial");
+    expect(
+      nested.controller.retargetPresentationStageInternalV1(
+        barrierPresentationRetargetInputV1(nested.stage.nextTarget, 2, 92),
+      ),
+    ).toEqual({ kind: "retargeted" });
+    const rejectedNestedGate = mutableActivationGateV1();
+    let rejectedNested:
+      | NarrativeStableBarrierRecoveryGenerationSynchronizationResultInternalV1
+      | null = null;
+    let nestedReads = 0;
+    const outerGate: ManagedSurfaceFamilyActivationGateInternalV1 = {
+      isOpen: vi.fn(() => {
+        nestedReads += 1;
+        if (nestedReads === 2) {
+          rejectedNested = nested.controller.synchronizeRecoveryGenerationInternalV1(
+            rejectedNestedGate.gate,
+          );
+        }
+        return false;
+      }),
+    };
+    expect(nested.controller.synchronizeRecoveryGenerationInternalV1(outerGate)).toEqual({
+      kind: "faulted",
+      generation: null,
+    });
+    expect(rejectedNested).toEqual({ kind: "faulted", generation: null });
+    expect(rejectedNestedGate.isOpen).not.toHaveBeenCalled();
+    const nestedRetryGate = mutableActivationGateV1();
+    const nestedRetry = nested.controller.synchronizeRecoveryGenerationInternalV1(
+      nestedRetryGate.gate,
+    );
+    expect(nestedRetry).toMatchObject({ kind: "installed" });
+    if (nestedRetry.kind !== "installed") throw new Error("expected nested retry");
+    expect(nestedRetry.generation).not.toBe(nestedInitial.generation);
+    nested.controller.disposeInternalV1();
+  });
+
+  it("keeps semantic throw and rejection attempts spent until their exact Promise drains", async () => {
+    for (const mode of ["throw", "reject"] as const) {
+      const failure = new Error(`semantic-${mode}`);
+      const dispatchResolution = vi.fn(() => {
+        if (mode === "throw") throw failure;
+        return Promise.reject(failure);
+      });
+      const fixture = narrativeBarrierHarnessV1({
+        pending: barrierPendingWithRecoveryV1("settle"),
+        semanticDispatchPort: Object.freeze({ dispatchResolutionInternalV1: dispatchResolution }),
+      });
+      const gate = mutableActivationGateV1();
+      expect(fixture.controller.synchronizeRecoveryGenerationInternalV1(gate.gate))
+        .toMatchObject({ kind: "installed" });
+      gate.open();
+      const attempt = fixture.controller.issueSettleRecoveryAttemptInternalV1();
+      expect(attempt).not.toBeNull();
+      const dispatched = fixture.controller.dispatchSettleRecoveryInternalV1(attempt);
+      expect(dispatched).toMatchObject({ kind: "dispatched" });
+      expect(Object.isFrozen(dispatched)).toBe(true);
+      if (dispatched.kind !== "dispatched") throw new Error("expected rejected dispatch");
+      const rejected = expect(dispatched.completion).rejects.toBe(failure);
+      expect(fixture.controller.dispatchSettleRecoveryInternalV1(attempt)).toEqual({
+        kind: "stale",
+        completion: null,
+      });
+      const competitor = fixture.controller.issueSettleRecoveryAttemptInternalV1();
+      expect(competitor).not.toBeNull();
+      expect(fixture.controller.dispatchSettleRecoveryInternalV1(competitor)).toEqual({
+        kind: "stale",
+        completion: null,
+      });
+      expect(dispatchResolution).toHaveBeenCalledOnce();
+      await rejected;
+
+      const fresh = fixture.controller.issueSettleRecoveryAttemptInternalV1();
+      expect(fresh).not.toBeNull();
+      const freshResult = fixture.controller.dispatchSettleRecoveryInternalV1(fresh);
+      if (freshResult.kind !== "dispatched") throw new Error("expected fresh dispatch");
+      await expect(freshResult.completion).rejects.toBe(failure);
+      expect(dispatchResolution).toHaveBeenCalledTimes(2);
+      fixture.controller.disposeInternalV1();
+    }
+  });
+
+  it("rejects old attempts across fresh bridge domains and mints fresh replay identities", () => {
+    const oldSettleDispatch = vi.fn(() => Promise.resolve("old-must-not-dispatch"));
+    const oldSettle = narrativeBarrierHarnessV1({
+      pending: barrierPendingWithRecoveryV1("settle"),
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: oldSettleDispatch,
+      }),
+    });
+    const oldGate = mutableActivationGateV1();
+    expect(oldSettle.controller.synchronizeRecoveryGenerationInternalV1(oldGate.gate))
+      .toMatchObject({ kind: "installed" });
+    oldGate.open();
+    const oldAttempt = oldSettle.controller.issueSettleRecoveryAttemptInternalV1();
+    expect(oldAttempt).not.toBeNull();
+
+    const freshSettleDispatch = vi.fn(() => Promise.resolve("fresh-must-not-dispatch"));
+    const freshSettle = narrativeBarrierHarnessV1({
+      pending: barrierPendingWithRecoveryV1("settle"),
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: freshSettleDispatch,
+      }),
+    });
+    const freshGate = mutableActivationGateV1();
+    expect(freshSettle.controller.synchronizeRecoveryGenerationInternalV1(freshGate.gate))
+      .toMatchObject({ kind: "installed" });
+    freshGate.open();
+    expect(freshSettle.controller.dispatchSettleRecoveryInternalV1(oldAttempt)).toEqual({
+      kind: "stale",
+      completion: null,
+    });
+    expect(oldSettleDispatch).not.toHaveBeenCalled();
+    expect(freshSettleDispatch).not.toHaveBeenCalled();
+
+    const oldReplay = narrativeBarrierHarnessV1({
+      pending: barrierPendingWithRecoveryV1("replay"),
+    });
+    const oldReplayGate = mutableActivationGateV1();
+    expect(oldReplay.controller.synchronizeRecoveryGenerationInternalV1(oldReplayGate.gate))
+      .toMatchObject({ kind: "installed" });
+    oldReplayGate.open();
+    const oldUnsupported = oldReplay.controller.readReplayRecoveryUnsupportedInternalV1();
+    expect(oldUnsupported).not.toBeNull();
+
+    const freshReplay = narrativeBarrierHarnessV1({
+      pending: barrierPendingWithRecoveryV1("replay"),
+    });
+    const freshReplayGate = mutableActivationGateV1();
+    expect(freshReplay.controller.synchronizeRecoveryGenerationInternalV1(freshReplayGate.gate))
+      .toMatchObject({ kind: "installed" });
+    freshReplayGate.open();
+    const freshUnsupported = freshReplay.controller.readReplayRecoveryUnsupportedInternalV1();
+    expect(freshUnsupported).toEqual(oldUnsupported);
+    expect(freshUnsupported).not.toBe(oldUnsupported);
+
+    oldSettle.controller.disposeInternalV1();
+    freshSettle.controller.disposeInternalV1();
+    oldReplay.controller.disposeInternalV1();
+    freshReplay.controller.disposeInternalV1();
+  });
+
+  it("retires attempts before later state subscribers can reenter on replacement or suspension", () => {
+    const replacementDispatch = vi.fn(() => Promise.resolve("replacement-must-not-dispatch"));
+    const replacement = narrativeBarrierHarnessV1({
+      pending: barrierPendingWithRecoveryV1("settle"),
+      semanticDispatchPort: Object.freeze({ dispatchResolutionInternalV1: replacementDispatch }),
+    });
+    const replacementGate = mutableActivationGateV1();
+    expect(
+      replacement.controller.synchronizeRecoveryGenerationInternalV1(replacementGate.gate),
+    ).toMatchObject({ kind: "installed" });
+    replacementGate.open();
+    const replacementAttempt = replacement.controller.issueSettleRecoveryAttemptInternalV1();
+    expect(replacementAttempt).not.toBeNull();
+    let replacementNested: NarrativeStableBarrierRecoveryDispatchResultInternalV1 | null = null;
+    const unsubscribeReplacement = replacement.harness.kernel.subscribeStateInternalV1(() => {
+      replacementNested = replacement.controller.dispatchSettleRecoveryInternalV1(
+        replacementAttempt,
+      );
+    });
+    expect(
+      replacement.harness.bridge.reconcilePendingInternalV1(
+        barrierPendingWithRecoveryV1("settle", 2),
+      ),
+    ).toMatchObject({ kind: "applied" });
+    expect(replacementNested).toEqual({ kind: "stale", completion: null });
+    expect(replacementDispatch).not.toHaveBeenCalled();
+    unsubscribeReplacement();
+    replacement.controller.disposeInternalV1();
+
+    const suspendDispatch = vi.fn(() => Promise.resolve("suspend-must-not-dispatch"));
+    const suspendPort = Object.freeze({ dispatchResolutionInternalV1: suspendDispatch });
+    const { harness, nonBlockingDefinition: blockingDefinition } = nonBlockingNarrativeHarnessV1(
+      suspendPort,
+      90,
+      "blocking",
+    );
+    expect(harness.bridge.reconcilePendingInternalV1(barrierPendingWithRecoveryV1("settle")))
+      .toMatchObject({ kind: "applied" });
+    settleCurrentNarrativeReadyV1(harness);
+    const stage = createBarrierStageHarnessV1({});
+    const controller = createNarrativeStableBarrierAcknowledgmentControllerInternalV1({
+      bridge: harness.bridge,
+      stageReconciler: stage.reconciler,
+    });
+    const suspendGate = mutableActivationGateV1();
+    expect(controller.synchronizeRecoveryGenerationInternalV1(suspendGate.gate))
+      .toMatchObject({ kind: "installed" });
+    suspendGate.open();
+    const suspendAttempt = controller.issueSettleRecoveryAttemptInternalV1();
+    expect(suspendAttempt).not.toBeNull();
+    const nestedSuspensionResults: NarrativeStableBarrierRecoveryDispatchResultInternalV1[] = [];
+    const unsubscribeSuspension = harness.kernel.subscribeStateInternalV1(() => {
+      nestedSuspensionResults.push(
+        controller.dispatchSettleRecoveryInternalV1(suspendAttempt),
+      );
+    });
+    const blocker = openNonBlockingSurfaceV1(
+      harness,
+      blockingDefinition,
+      "suspended",
+      "candidate",
+      () => {},
+      "suspended",
+    );
+    expect(nestedSuspensionResults.length).toBeGreaterThan(0);
+    expect(nestedSuspensionResults).toEqual(
+      nestedSuspensionResults.map(() => ({ kind: "stale", completion: null })),
+    );
+    expect(suspendDispatch).not.toHaveBeenCalled();
+    unsubscribeSuspension();
+    const publication = harness.kernel.getStateInternalV1().transientState.publication;
+    expect(harness.kernel.transitionTransientInternalV1({
+      kind: "close_expected",
+      evidence: Object.freeze({
+        applicationEpoch: applicationEpochV1,
+        topologyRevision: publication.topologyRevision,
+        surfaceInstanceId: blocker.surfaceInstanceId,
+      }),
+    })).toMatchObject({ kind: "applied" });
+    controller.disposeInternalV1();
   });
 });

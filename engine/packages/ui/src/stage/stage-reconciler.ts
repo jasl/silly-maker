@@ -108,6 +108,32 @@ export interface StageAcknowledgedRunProofInternalV1 {
   readonly [stageAcknowledgedRunProofBrandInternalV1]: true;
 }
 
+declare const stagePresentationGenerationProofBrandInternalV1: unique symbol;
+
+export interface StagePresentationGenerationProofInternalV1 {
+  readonly [stagePresentationGenerationProofBrandInternalV1]: true;
+}
+
+export type StagePresentationGenerationCaptureResultInternalV1 =
+  | Readonly<{
+    readonly kind: "captured";
+    readonly relation: "initial" | "equal" | "higher";
+    readonly proof: StagePresentationGenerationProofInternalV1;
+  }>
+  | Readonly<{
+    readonly kind: "stale";
+    readonly proof: null;
+  }>
+  | Readonly<{
+    readonly kind: "faulted";
+    readonly proof: null;
+  }>;
+
+export type StagePresentationGenerationRetargetResultInternalV1 =
+  | Readonly<{ readonly kind: "retargeted" }>
+  | Readonly<{ readonly kind: "stale" }>
+  | Readonly<{ readonly kind: "faulted" }>;
+
 export interface StageAcknowledgedRunCommitGuardInternalV1 {
   isCommitCurrentInternalV1(): boolean;
 }
@@ -141,6 +167,12 @@ export type StageAcknowledgedRunRetargetResultInternalV1 =
 
 export interface StageAcknowledgedRunAuthorityInternalV1 {
   retargetInternalV1(input: StageRetargetInputV1): void;
+  retargetPresentationGenerationInternalV1(
+    input: StageRetargetInputV1,
+  ): StagePresentationGenerationRetargetResultInternalV1;
+  captureCurrentPresentationGenerationInternalV1(
+    previousProof: unknown,
+  ): StagePresentationGenerationCaptureResultInternalV1;
   retargetWithAcknowledgedRunInternalV1(
     input: Readonly<{
       readonly retarget: StageRetargetInputV1;
@@ -180,6 +212,13 @@ interface StageAcknowledgedRunProofRecordInternalV1 {
   terminalStackDepth: number;
 }
 
+interface StagePresentationGenerationProofRecordInternalV1 {
+  readonly authority: StageAcknowledgedRunAuthorityInternalV1;
+  readonly reconciler: StageReconcilerV1;
+  readonly epoch: number;
+  readonly proof: StagePresentationGenerationProofInternalV1;
+}
+
 interface StageReconcilerAcknowledgedRunClaimInternalV1 {
   claim(exactClaimant: unknown): StageAcknowledgedRunAuthorityInternalV1;
 }
@@ -192,10 +231,24 @@ const stageAcknowledgedRunProofRecordsInternalV1 = new WeakMap<
   StageAcknowledgedRunProofInternalV1,
   StageAcknowledgedRunProofRecordInternalV1
 >();
+const stagePresentationGenerationProofRecordsInternalV1 = new WeakMap<
+  StagePresentationGenerationProofInternalV1,
+  StagePresentationGenerationProofRecordInternalV1
+>();
 const freezeStageAcknowledgedRunDataInternalV1 = Object.freeze;
 const applyStageAcknowledgedRunIntrinsicInternalV1 = Reflect.apply;
+const isArrayStageRecordIntrinsicInternalV1 = Array.isArray;
+const getPrototypeOfStageRecordIntrinsicInternalV1 = Reflect.getPrototypeOf;
+const ownKeysStageRecordIntrinsicInternalV1 = Reflect.ownKeys;
+const hasOwnStageRecordIntrinsicInternalV1 = Object.hasOwn;
+const getOwnPropertyDescriptorStageRecordIntrinsicInternalV1 = Reflect.getOwnPropertyDescriptor;
+const createStageRecordIntrinsicInternalV1 = Object.create;
+const stageRecordObjectPrototypeInternalV1 = Object.prototype;
+const isSafeIntegerStageGenerationIntrinsicInternalV1 = Number.isSafeInteger;
 const getStageAcknowledgedRunProofRecordIntrinsicInternalV1 = WeakMap.prototype.get;
 const setStageAcknowledgedRunProofRecordIntrinsicInternalV1 = WeakMap.prototype.set;
+const getStagePresentationGenerationProofRecordIntrinsicInternalV1 = WeakMap.prototype.get;
+const setStagePresentationGenerationProofRecordIntrinsicInternalV1 = WeakMap.prototype.set;
 
 const stageAcknowledgedRunStaleResultInternalV1 = Object.freeze({
   kind: "stale" as const,
@@ -216,24 +269,46 @@ const stageAcknowledgedRunFaultedResultInternalV1 = Object.freeze({
   code: "stage.acknowledged_run_faulted" as const,
   proof: null,
 });
+const stagePresentationGenerationStaleCaptureResultInternalV1 =
+  freezeStageAcknowledgedRunDataInternalV1({
+    kind: "stale" as const,
+    proof: null,
+  });
+const stagePresentationGenerationFaultedCaptureResultInternalV1 =
+  freezeStageAcknowledgedRunDataInternalV1({
+    kind: "faulted" as const,
+    proof: null,
+  });
+const stagePresentationGenerationRetargetedResultInternalV1 =
+  freezeStageAcknowledgedRunDataInternalV1({ kind: "retargeted" as const });
+const stagePresentationGenerationStaleRetargetResultInternalV1 =
+  freezeStageAcknowledgedRunDataInternalV1({ kind: "stale" as const });
+const stagePresentationGenerationFaultedRetargetResultInternalV1 =
+  freezeStageAcknowledgedRunDataInternalV1({ kind: "faulted" as const });
 
 function captureExactOwnDataRecordInternalV1(
   value: unknown,
   expectedKeys: readonly string[],
 ): Readonly<Record<string, unknown>> | null {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
-  if (Reflect.getPrototypeOf(value) !== Object.prototype) return null;
-  const ownKeys = Reflect.ownKeys(value);
+  if (typeof value !== "object" || value === null || isArrayStageRecordIntrinsicInternalV1(value)) {
+    return null;
+  }
   if (
-    ownKeys.length !== expectedKeys.length ||
-    ownKeys.some((key) => typeof key !== "string") ||
-    !expectedKeys.every((key) => Object.hasOwn(value, key))
+    getPrototypeOfStageRecordIntrinsicInternalV1(value) !== stageRecordObjectPrototypeInternalV1
   ) {
     return null;
   }
-  const captured = Object.create(null) as Record<string, unknown>;
+  const ownKeys = ownKeysStageRecordIntrinsicInternalV1(value);
+  if (ownKeys.length !== expectedKeys.length) return null;
+  for (const ownKey of ownKeys) {
+    if (typeof ownKey !== "string") return null;
+  }
+  for (const expectedKey of expectedKeys) {
+    if (!hasOwnStageRecordIntrinsicInternalV1(value, expectedKey)) return null;
+  }
+  const captured = createStageRecordIntrinsicInternalV1(null) as Record<string, unknown>;
   for (const key of expectedKeys) {
-    const descriptor = Reflect.getOwnPropertyDescriptor(value, key);
+    const descriptor = getOwnPropertyDescriptorStageRecordIntrinsicInternalV1(value, key);
     if (descriptor === undefined || !("value" in descriptor)) return null;
     captured[key] = descriptor.value;
   }
@@ -392,6 +467,9 @@ export function createStageReconcilerV1(
   let exactClaimant: object | ((...args: never[]) => unknown) | null = null;
   let authority!: StageAcknowledgedRunAuthorityInternalV1;
   let reconciler!: StageReconcilerV1;
+  let currentPresentationGenerationProofRecord:
+    | StagePresentationGenerationProofRecordInternalV1
+    | null = null;
 
   interface AcknowledgedRunOperationInternalV1 {
     phase: "planning" | "interrupting" | "committed";
@@ -721,6 +799,7 @@ export function createStageReconcilerV1(
       acknowledgedRunOperation.reentryCount += 1;
       return;
     }
+    if (authorityMutationDepth !== 0) return;
     authorityMutationDepth += 1;
     try {
       mutation();
@@ -883,11 +962,193 @@ export function createStageReconcilerV1(
   const disposeLegacy = (): void => {
     if (disposed) return;
     disposed = true;
+    currentPresentationGenerationProofRecord = null;
     readinessTickCancel?.();
     readinessTickCancel = undefined;
     for (const transition of active) transition.run.dispose();
     active = [];
     listeners.clear();
+  };
+
+  const capturePresentationGenerationRetargetInput = (
+    input: unknown,
+  ): StageRetargetInputV1 | null => {
+    const raw = captureExactOwnDataRecordInternalV1(input, [
+      "target",
+      "revision",
+      "epoch",
+    ]);
+    if (
+      raw === null ||
+      typeof raw.revision !== "number" ||
+      !isSafeIntegerStageGenerationIntrinsicInternalV1(raw.revision) ||
+      raw.revision < 0 ||
+      typeof raw.epoch !== "number" ||
+      !isSafeIntegerStageGenerationIntrinsicInternalV1(raw.epoch) ||
+      raw.epoch < 0
+    ) {
+      return null;
+    }
+    return freezeStageAcknowledgedRunDataInternalV1({
+      target: raw.target as StageRenderTargetV1,
+      revision: raw.revision,
+      epoch: raw.epoch,
+    });
+  };
+
+  const mintCurrentPresentationGenerationProof = (
+    epoch: number,
+  ): StagePresentationGenerationProofRecordInternalV1 => {
+    const proof = freezeStageAcknowledgedRunDataInternalV1(
+      {},
+    ) as StagePresentationGenerationProofInternalV1;
+    const record: StagePresentationGenerationProofRecordInternalV1 = {
+      authority,
+      reconciler,
+      epoch,
+      proof,
+    };
+    applyStageAcknowledgedRunIntrinsicInternalV1(
+      setStagePresentationGenerationProofRecordIntrinsicInternalV1,
+      stagePresentationGenerationProofRecordsInternalV1,
+      [proof, record],
+    );
+    currentPresentationGenerationProofRecord = record;
+    return record;
+  };
+
+  const currentPresentationGenerationProof = (
+    epoch: number,
+  ): StagePresentationGenerationProofRecordInternalV1 | null => {
+    const current = currentPresentationGenerationProofRecord;
+    if (current === null) return mintCurrentPresentationGenerationProof(epoch);
+    if (
+      current.authority !== authority || current.reconciler !== reconciler ||
+      current.epoch !== epoch
+    ) {
+      return null;
+    }
+    return current;
+  };
+
+  const captureCurrentPresentationGeneration = (
+    previousProof: unknown,
+  ): StagePresentationGenerationCaptureResultInternalV1 => {
+    if (acknowledgedRunOperation !== null) {
+      acknowledgedRunOperation.reentryCount += 1;
+      return stagePresentationGenerationFaultedCaptureResultInternalV1;
+    }
+    if (authorityMutationDepth !== 0) {
+      return stagePresentationGenerationFaultedCaptureResultInternalV1;
+    }
+    if (
+      disposed || currentTarget === null || currentRevision === null ||
+      currentEpoch === null
+    ) {
+      return stagePresentationGenerationStaleCaptureResultInternalV1;
+    }
+
+    if (previousProof === null) {
+      const current = currentPresentationGenerationProof(currentEpoch);
+      if (current === null) {
+        return stagePresentationGenerationFaultedCaptureResultInternalV1;
+      }
+      return freezeStageAcknowledgedRunDataInternalV1({
+        kind: "captured" as const,
+        relation: "initial" as const,
+        proof: current.proof,
+      });
+    }
+    if (
+      (typeof previousProof !== "object" && typeof previousProof !== "function") ||
+      previousProof === null
+    ) {
+      return stagePresentationGenerationFaultedCaptureResultInternalV1;
+    }
+
+    let previous: StagePresentationGenerationProofRecordInternalV1 | undefined;
+    try {
+      previous = applyStageAcknowledgedRunIntrinsicInternalV1(
+        getStagePresentationGenerationProofRecordIntrinsicInternalV1,
+        stagePresentationGenerationProofRecordsInternalV1,
+        [previousProof],
+      ) as StagePresentationGenerationProofRecordInternalV1 | undefined;
+    } catch {
+      return stagePresentationGenerationFaultedCaptureResultInternalV1;
+    }
+    if (
+      previous === undefined || previous.authority !== authority ||
+      previous.reconciler !== reconciler || previous.proof !== previousProof
+    ) {
+      return stagePresentationGenerationFaultedCaptureResultInternalV1;
+    }
+
+    const current = currentPresentationGenerationProofRecord;
+    if (previous.epoch === currentEpoch) {
+      if (current !== previous) {
+        return stagePresentationGenerationStaleCaptureResultInternalV1;
+      }
+      return freezeStageAcknowledgedRunDataInternalV1({
+        kind: "captured" as const,
+        relation: "equal" as const,
+        proof: current.proof,
+      });
+    }
+    if (previous.epoch > currentEpoch) {
+      return stagePresentationGenerationStaleCaptureResultInternalV1;
+    }
+    if (previous.epoch < currentEpoch) {
+      const higher = currentPresentationGenerationProof(currentEpoch);
+      if (higher === null) {
+        return stagePresentationGenerationFaultedCaptureResultInternalV1;
+      }
+      return freezeStageAcknowledgedRunDataInternalV1({
+        kind: "captured" as const,
+        relation: "higher" as const,
+        proof: higher.proof,
+      });
+    }
+    return stagePresentationGenerationFaultedCaptureResultInternalV1;
+  };
+
+  const retargetPresentationGeneration = (
+    input: unknown,
+  ): StagePresentationGenerationRetargetResultInternalV1 => {
+    if (acknowledgedRunOperation !== null) {
+      acknowledgedRunOperation.reentryCount += 1;
+      return stagePresentationGenerationFaultedRetargetResultInternalV1;
+    }
+    if (authorityMutationDepth !== 0) {
+      return stagePresentationGenerationFaultedRetargetResultInternalV1;
+    }
+    if (disposed) return stagePresentationGenerationStaleRetargetResultInternalV1;
+
+    authorityMutationDepth += 1;
+    try {
+      const retarget = capturePresentationGenerationRetargetInput(input);
+      if (retarget === null) {
+        return stagePresentationGenerationFaultedRetargetResultInternalV1;
+      }
+      const initialized = currentTarget !== null || currentRevision !== null ||
+        currentEpoch !== null;
+      if (
+        initialized &&
+        (currentTarget === null || currentRevision === null || currentEpoch === null)
+      ) {
+        return stagePresentationGenerationFaultedRetargetResultInternalV1;
+      }
+      if (currentEpoch === retarget.epoch) {
+        return stagePresentationGenerationStaleRetargetResultInternalV1;
+      }
+
+      retargetLegacy(retarget, true);
+      currentPresentationGenerationProofRecord = null;
+      return stagePresentationGenerationRetargetedResultInternalV1;
+    } catch {
+      return stagePresentationGenerationFaultedRetargetResultInternalV1;
+    } finally {
+      authorityMutationDepth -= 1;
+    }
   };
 
   interface PlannedAcknowledgedEdgeInternalV1 {
@@ -1247,7 +1508,33 @@ export function createStageReconcilerV1(
       if (this !== authority) {
         throw new TypeError("ui.stage_acknowledged_run_authority_invalid");
       }
-      performAuthorityMutation(() => retargetLegacy(input, true));
+      performAuthorityMutation(() => {
+        if (
+          disposed || currentTarget === null || currentRevision === null ||
+          currentEpoch === null || input.epoch !== currentEpoch
+        ) {
+          return;
+        }
+        retargetLegacy(input, true);
+      });
+    },
+    retargetPresentationGenerationInternalV1(
+      this: StageAcknowledgedRunAuthorityInternalV1,
+      input: StageRetargetInputV1,
+    ): StagePresentationGenerationRetargetResultInternalV1 {
+      if (this !== authority) {
+        throw new TypeError("ui.stage_acknowledged_run_authority_invalid");
+      }
+      return retargetPresentationGeneration(input);
+    },
+    captureCurrentPresentationGenerationInternalV1(
+      this: StageAcknowledgedRunAuthorityInternalV1,
+      previousProof: unknown,
+    ): StagePresentationGenerationCaptureResultInternalV1 {
+      if (this !== authority) {
+        throw new TypeError("ui.stage_acknowledged_run_authority_invalid");
+      }
+      return captureCurrentPresentationGeneration(previousProof);
     },
     retargetWithAcknowledgedRunInternalV1(
       this: StageAcknowledgedRunAuthorityInternalV1,
@@ -1263,6 +1550,9 @@ export function createStageReconcilerV1(
       }
       if (acknowledgedRunOperation !== null) {
         acknowledgedRunOperation.reentryCount += 1;
+        return stageAcknowledgedRunFaultedResultInternalV1;
+      }
+      if (authorityMutationDepth !== 0) {
         return stageAcknowledgedRunFaultedResultInternalV1;
       }
       return retargetWithAcknowledgedRun(input);
