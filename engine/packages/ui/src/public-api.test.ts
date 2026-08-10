@@ -224,6 +224,14 @@ import type { NarrativeStablePauseResumeActionAttemptInternalV1 as ForbiddenInte
 import type { NarrativeStableSayActivationAttemptInternalV1 as ForbiddenPublicNarrativeSayActivationAttemptV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Narrative Say activation attempts.
 import type { NarrativeStableSayActivationAttemptInternalV1 as ForbiddenInternalNarrativeSayActivationAttemptV1 } from "./internal.ts";
+// @ts-expect-error Narrative Say content-auto attempts remain source-relative.
+import type { NarrativeStableSayContentAutoAttemptInternalV1 as ForbiddenPublicNarrativeSayContentAutoAttemptV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative Say content-auto attempts.
+import type { NarrativeStableSayContentAutoAttemptInternalV1 as ForbiddenInternalNarrativeSayContentAutoAttemptV1 } from "./internal.ts";
+// @ts-expect-error Narrative Say content-auto dispatch results remain source-relative.
+import type { NarrativeStableSayContentAutoDispatchResultInternalV1 as ForbiddenPublicNarrativeSayContentAutoDispatchResultV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative Say content-auto dispatch results.
+import type { NarrativeStableSayContentAutoDispatchResultInternalV1 as ForbiddenInternalNarrativeSayContentAutoDispatchResultV1 } from "./internal.ts";
 // @ts-expect-error Narrative Say reveal-controller inputs remain source-relative.
 import type { CreateNarrativeStableSayRevealControllerInputInternalV1 as ForbiddenPublicNarrativeSayRevealControllerInputV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Narrative Say reveal-controller inputs.
@@ -350,6 +358,8 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "NarrativeStableCustomActionAttemptInternalV1"
       | "NarrativeStablePauseResumeActionAttemptInternalV1"
       | "NarrativeStableSayActivationAttemptInternalV1"
+      | "NarrativeStableSayContentAutoAttemptInternalV1"
+      | "NarrativeStableSayContentAutoDispatchResultInternalV1"
       | "CreateNarrativeStableSayRevealControllerInputInternalV1"
       | "NarrativeStableSayRevealControllerInternalV1"
       | "createNarrativeStableSayRevealControllerInternalV1"
@@ -451,6 +461,8 @@ describe("@sillymaker/ui public managed System surface", () => {
         "NarrativeStableCustomActionAttemptInternalV1",
         "NarrativeStablePauseResumeActionAttemptInternalV1",
         "NarrativeStableSayActivationAttemptInternalV1",
+        "NarrativeStableSayContentAutoAttemptInternalV1",
+        "NarrativeStableSayContentAutoDispatchResultInternalV1",
         "CreateNarrativeStableSayRevealControllerInputInternalV1",
         "NarrativeStableSayRevealControllerInternalV1",
         "createNarrativeStableSayRevealControllerInternalV1",

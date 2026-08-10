@@ -796,6 +796,42 @@ Player `38 / 38` remain prior evidence and were not rerun for this dormant
 slice. S4.1b.1b.1b.2b.1a is complete; current/next is
 S4.1b.1b.1b.2b.1b, the clock-free content-auto Say controller-attempt floor.
 
+S4.1b.1b.1b.2b.1b now extends that same dormant per-frame reveal controller
+with the clock-free content-auto attempt path. `advancePolicy: "confirm"`
+cannot issue it. An exact current ready-active `auto` Say may issue one frozen
+zero-key attempt bound to the controller generation, target/source/frame,
+semantic port, and a fresh topology-sensitive ready-active proof. Issuance is
+phase-free and does not require the physical admission, selected input owner,
+gesture, PlayerProfile, PresentationClock, or a timer. Active-only topology
+change stales the old proof but allows the same controller to issue a fresh
+attempt; a real blocking suspension revokes that controller generation and
+requires a fresh one after resume.
+
+Automatic dispatch acquires the existing bridge callback gate, irreversibly
+spends the attempt, and retires any presigned physical competitor before
+reading the captured reveal phase exactly once. Post-callback target, source,
+frame, controller, port, and proof drift wins as `stale`; an exact-current
+incomplete phase returns the frozen Narrative-only `not_ready` result without
+calling `revealAll` or semantic dispatch, and an exact-current invalid/throwing
+phase returns `faulted`. Only complete converts the same callback token to the
+existing semantic in-flight claim and uses the shared frozen `advance` request
+and post-drain completion path. Physical Say dispatch reciprocally retires a
+presigned automatic attempt, so either path is first-wins and the loser stays
+stale after the winner settles.
+
+The automatic attempt has a separate WeakMap provenance record and one current
+strong slot but does not create another controller, route, topology, or
+semantic authority. Source/frame successors retire the old claim, old
+completions cannot ABA-clear a successor, clone/foreign/wrong-receiver attempts
+fail before reveal reads, and 10,000 not-ready rotations retain no strong
+attempt history. This source-relative delivery still has no clock, deadline,
+player Auto/Skip, Host/React/live claimant, package-barrel, or generic result
+edge. Verification passed focused `7 files / 236 tests`, UI `79 files / 1054
+tests`, full `253 files / 3984 tests`, and `deno task check`. Browser `101 / 101`,
+examples `45 passed / 2 skipped`, and prebuilt Player `38 / 38` remain prior
+evidence and were not rerun. S4.1b.1b.1b.2b.1b is complete; current/next is
+S4.1b.1b.1b.2b.2, the presentation-barrier acknowledgment/recovery floor.
+
 ## 9. Changing the architecture
 
 Architecture evolution is expected. A substantial change should state:
@@ -844,8 +880,9 @@ both skippable values through the global-coherence-gated ready-active proof.
 S4.1b.1b.1b.2a adds authenticated custom payload dispatch plus the bounded
 interaction JSON dangerous-own-key corrective described above.
 S4.1b.1b.1b.2b.1a adds the dormant physical Say reveal-first controller and
-admission path described above. S4.1b.1b.1b.2b.1b content-auto Say admission is
-current/next; barrier and player-control delivery follows it.
+admission path described above. S4.1b.1b.1b.2b.1b adds the clock-free
+content-auto path on that same controller. S4.1b.1b.1b.2b.2 barrier
+acknowledgment/recovery is current/next; player-control delivery follows it.
 Host integration and the Narrative live migration remain planned work.
 Target documents do not alter the current data flow until that migration and
 its behavior tests land.

@@ -39,9 +39,10 @@ promotion 均已关闭。2026-08-08 dormant `PF4/S3c.1 Host-commit readiness`、
 `PF4/S4.1b.1b.1b.1 automatic pause-expiry controller-attempt admission/dispatch floor`及
 `PF4/S4.1b.1b.1b.2a custom physical payload admission`及
 `PF4/S4.1b.1b.1b.2b.0 remaining mapping policy adjudication`与
-`PF4/S4.1b.1b.1b.2b.1a physical Say reveal-first admission`也已关闭，
+`PF4/S4.1b.1b.1b.2b.1a physical Say reveal-first admission`及
+`PF4/S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor`也已关闭，
 linear core current/next均为
-`PF4/S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor`。
+`PF4/S4.1b.1b.1b.2b.2 barrier acknowledgment/recovery`。
 同日 S1-R pre-implementation review 将 external reconcile gate 重切为 S1-R.0–S1-R.5；
 顺序变化不把任何 planned stable-target contract写成 live capability。
 同日 S1-R.3 entry-gate adjudication 采用 A-prime，将原 R3 拆为单一 composite
@@ -62,7 +63,8 @@ S4.1b.1b.0 choice-only physical semantic admission、S4.1b.1b.1a skippable-pause
 S4.1b.1b.1b.1 automatic pause-expiry controller-attempt admission/dispatch floor及
 S4.1b.1b.1b.2a custom physical payload admission与S4.1b.1b.1b.2b.0 remaining mapping
 policy adjudication及S4.1b.1b.1b.2b.1a physical Say reveal-first admission也已关闭，
-下一独立切片为S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor。
+S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor也已关闭，下一独立切片为
+S4.1b.1b.1b.2b.2 barrier acknowledgment/recovery。
 旧 promotion 数字保留为
 历史证据。本文是当前唯一的跨计划排序入口；
 具体合同仍由各 design 文档拥有，主要任务由五个独立计划拥有：
@@ -946,8 +948,8 @@ Surface pilot 通过后按 family 分开合并：
 10. S4.1b.1b.1b.2a：custom physical payload admission（已完成）；
 11. S4.1b.1b.1b.2b.0：remaining mapping policy adjudication（已完成）；
 12. S4.1b.1b.1b.2b.1a：physical Say reveal-first admission（已完成）；
-13. S4.1b.1b.1b.2b.1b：content-auto Say controller-attempt floor（当前）；
-14. S4.1b.1b.1b.2b.2：barrier acknowledgment/recovery；
+13. S4.1b.1b.1b.2b.1b：content-auto Say controller-attempt floor（已完成）；
+14. S4.1b.1b.1b.2b.2：barrier acknowledgment/recovery（当前）；
 15. S4.1b.1b.1b.2b.3：player controls；
 16. S4.2：dormant Narrative Host、Host-commit readiness与History exact child；
 17. S4.3：atomic live cutover and promotion；
@@ -1610,8 +1612,9 @@ Managed Surface result/receipt、Base/Save/Persistence/wire或第二份topology 
 
 验证通过focused `7 files / 226 tests`、UI package `79 files / 1044 tests`、full `253 files / 3974 tests`与
 `deno task check`。本批没有重跑browser/examples/prebuilt；最近已有的Engine browser `101 / 101`、examples browser
-`45 passed / 2 skipped`与prebuilt Player `38 / 38`只作prior evidence，不冒充本HEAD验证。Linear core current/next均为
-S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor；后续顺序保持S4.1b.1b.1b.2b.1b →
+`45 passed / 2 skipped`与prebuilt Player `38 / 38`只作prior evidence，不冒充本HEAD验证。该checkpoint当时的linear core
+current/next均为S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor，现由下述entry amendment与delivery推进；
+后续顺序保持S4.1b.1b.1b.2b.1b →
 S4.1b.1b.1b.2b.2 → S4.1b.1b.1b.2b.3 → S4.2 → S4.3 → S4b。
 
 **PF4/S4.1b.1b.1b.2b.1b entry amendment（docs-only）：** 本切片扩展同一个source-relative
@@ -1637,8 +1640,32 @@ settlement与exact claim CAS释放，旧attempt或旧completion不能清除、�
 
 本entry amendment不实现clock、timer、deadline、`autoWaitMs`、suspend remaining、Host scheduling或player Auto/Skip，
 不接React/Web/live Narrative claimant，也不修改physical admission、Base interaction、generic Surface contracts、public/
-`./internal` barrel、package export、Save/Persistence/wire。它不表示runtime delivery、不记录验证证据，linear current/next仍为
-S4.1b.1b.1b.2b.1b；完成后才可推进S4.1b.1b.1b.2b.2。
+`./internal` barrel、package export、Save/Persistence/wire。它当时不表示runtime delivery、不记录验证证据，linear
+current/next仍为S4.1b.1b.1b.2b.1b；现由下述delivery推进。
+
+**PF4/S4.1b.1b.1b.2b.1b content-auto Say controller-attempt delivery（completed）：** 同一个source-relative
+`NarrativeStableSayRevealControllerInternalV1`现在只为`advancePolicy: "auto"`的exact current ready-active Say签发
+phase-free、frozen zero-key、topology-proof-bound automatic attempt；confirm policy、stale proof、suspended/retained/
+preparing target、occupied callback或semantic in-flight均保持mint zero。Dispatch通过attempt-bound target/source/frame/
+semantic port与ready-active proof后取得既有shared callback gate、spend attempt并退休presigned manual competitor，随后且只随后
+读取一次captured reveal phase。Post-callback drift固定`stale/null`并优先于throw/invalid；exact-current incomplete返回
+`not_ready/null`且不调用`revealAll`、不提交semantic resolution，exact-current throw/invalid返回`faulted/null`，只有complete
+才把同一gate转为既有per-frame semantic in-flight并提交frozen `advance` request。
+
+Manual与content-auto各自最多预签一个attempt，但共享同一个first-win boundary与post-publication/reconcile-drain completion；
+active-only topology churn只stale旧proof并允许同controller fresh issue，blocking suspension撤销generation，source/frame successor、
+empty与dispose退休旧claim，旧attempt/completion不能ABA清除successor。Clone、foreign receiver/attempt、repeat、callback reentry及
+profile/clock对象均不能绕过proof或形成额外读取；10k `not_ready` rotation不改变composite state、notification或保留强attempt
+history。
+
+本delivery只修改source-relative Narrative source、同目录tests与public API negative guards；没有接Host/React/Web/live
+Narrative claimant，没有实现clock、timer、deadline、`autoWaitMs` scheduling或player Auto/Skip，也没有扩张UI root/
+`./internal` barrel、package export、physical/generic Managed Surface result/receipt、Base、Save/Persistence或wire。
+验证通过focused `7 files / 236 tests`、UI package `79 files / 1054 tests`、full `253 files / 3984 tests`与完整
+`deno task check`。本批未重跑browser/examples/prebuilt；最近已有Engine browser `101 / 101`、examples browser
+`45 passed / 2 skipped`与prebuilt Player `38 / 38`只作prior evidence，不冒充本HEAD验证。Linear core current/next均为
+S4.1b.1b.1b.2b.2 barrier acknowledgment/recovery；后续顺序保持S4.1b.1b.1b.2b.2 →
+S4.1b.1b.1b.2b.3 → S4.2 → S4.3 → S4b。
 
 每个 family 的迁移提交必须删除旧 owner；禁止长期 adapter 双写。
 `DialoguePanelV1` / `VnLayerV1` 的 controller/view/host 拆分在 Narrative family

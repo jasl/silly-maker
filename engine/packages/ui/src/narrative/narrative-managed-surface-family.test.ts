@@ -58,6 +58,8 @@ import {
   type NarrativeStablePublisherBridgeResultInternalV1,
   type NarrativeStableRequiredPortIdInternalV1,
   type NarrativeStableSayActivationAttemptInternalV1,
+  type NarrativeStableSayContentAutoAttemptInternalV1,
+  type NarrativeStableSayContentAutoDispatchResultInternalV1,
   type NarrativeStableSayRevealControllerInternalV1,
   type NarrativeStableSayRevealGenerationPortInternalV1,
   type NarrativeStableSemanticResolutionPortInternalV1,
@@ -393,6 +395,8 @@ function physicalSayHarnessV1(input: {
   readonly revealGenerationPort?: NarrativeStableSayRevealGenerationPortInternalV1;
   readonly isGestureCurrent?: () => boolean;
   readonly advancePolicy?: "confirm" | "auto";
+  readonly playerProfile?: unknown;
+  readonly presentationClock?: unknown;
 } = {}) {
   const semanticDispatchPort = input.semanticDispatchPort ?? defaultSemanticDispatchPortV1;
   const harness = harnessV1({
@@ -401,6 +405,9 @@ function physicalSayHarnessV1(input: {
         capturedCandidatePreflightResultV1(Object.freeze({
           ...defaultCandidateSnapshotV1,
           semanticDispatchPort,
+          playerProfile: input.playerProfile ?? defaultCandidateSnapshotV1.playerProfile,
+          presentationClock: input.presentationClock ??
+            defaultCandidateSnapshotV1.presentationClock,
         })),
     }),
   });
@@ -3502,7 +3509,11 @@ describe("Narrative stable Managed Surface family", () => {
       NarrativeStableSayRevealControllerInternalV1
     >();
     expect(Object.isFrozen(fixture.controller)).toBe(true);
-    expect(Reflect.ownKeys(fixture.controller)).toEqual(["disposeInternalV1"]);
+    expect(Reflect.ownKeys(fixture.controller)).toEqual([
+      "issueContentAutoAttemptInternalV1",
+      "dispatchContentAutoInternalV1",
+      "disposeInternalV1",
+    ]);
     expect(phaseReads).toBe(0);
 
     const attempt = fixture.admission.issueSayActivationAttemptInternalV1(
@@ -3521,6 +3532,549 @@ describe("Narrative stable Managed Surface family", () => {
         revealGenerationPort: revealPort,
       })
     ).toThrowError("ui.narrative_stable_say_reveal_controller_invalid");
+    fixture.controller.disposeInternalV1();
+    fixture.admission.disposeInternalV1();
+  });
+
+  it("issues one phase-free content-auto attempt only for an auto Say", () => {
+    type ExpectedContentAutoResultV1 =
+      | Readonly<{ readonly kind: "dispatched"; readonly completion: Promise<unknown> }>
+      | Readonly<{ readonly kind: "not_ready"; readonly completion: null }>
+      | Readonly<{ readonly kind: "stale"; readonly completion: null }>
+      | Readonly<{ readonly kind: "faulted"; readonly completion: null }>;
+    expectTypeOf<NarrativeStableSayContentAutoDispatchResultInternalV1>()
+      .toEqualTypeOf<ExpectedContentAutoResultV1>();
+
+    const confirmPhase = vi.fn(() => "complete" as const);
+    const confirm = physicalSayHarnessV1({
+      advancePolicy: "confirm",
+      revealGenerationPort: Object.freeze({
+        capturePhaseInternalV1: confirmPhase,
+        revealAllInternalV1: vi.fn(),
+      }),
+    });
+    expect(confirm.controller.issueContentAutoAttemptInternalV1()).toBeNull();
+    expect(confirmPhase).not.toHaveBeenCalled();
+    confirm.controller.disposeInternalV1();
+    confirm.admission.disposeInternalV1();
+
+    const autoPhase = vi.fn(() => "complete" as const);
+    const auto = physicalSayHarnessV1({
+      advancePolicy: "auto",
+      revealGenerationPort: Object.freeze({
+        capturePhaseInternalV1: autoPhase,
+        revealAllInternalV1: vi.fn(),
+      }),
+    });
+    const state = auto.harness.kernel.getStateInternalV1();
+    const notifications = auto.harness.stateNotificationCount();
+    const attempt = auto.controller.issueContentAutoAttemptInternalV1();
+    expectTypeOf(attempt).toEqualTypeOf<NarrativeStableSayContentAutoAttemptInternalV1 | null>();
+    expect(attempt).not.toBeNull();
+    expect(Object.isFrozen(attempt)).toBe(true);
+    expect(Reflect.ownKeys(attempt as object)).toEqual([]);
+    expect(auto.controller.issueContentAutoAttemptInternalV1()).toBeNull();
+    expect(autoPhase).not.toHaveBeenCalled();
+    expect(auto.harness.kernel.getStateInternalV1()).toBe(state);
+    expect(auto.harness.stateNotificationCount()).toBe(notifications);
+    auto.controller.disposeInternalV1();
+    auto.admission.disposeInternalV1();
+  });
+
+  it("classifies content-auto reveal phase after spend without revealing or dispatching", () => {
+    let phase: unknown = "incomplete";
+    let throwPhase = false;
+    const capturePhase = vi.fn(() => {
+      if (throwPhase) throw null;
+      return phase as "incomplete" | "complete";
+    });
+    const revealAll = vi.fn();
+    const dispatchResolution = vi.fn(() => Promise.resolve("must-not-dispatch"));
+    const fixture = physicalSayHarnessV1({
+      advancePolicy: "auto",
+      revealGenerationPort: Object.freeze({
+        capturePhaseInternalV1: capturePhase,
+        revealAllInternalV1: revealAll,
+      }),
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: dispatchResolution,
+      }),
+    });
+    const state = fixture.harness.kernel.getStateInternalV1();
+    const notifications = fixture.harness.stateNotificationCount();
+
+    const incompleteManual = fixture.admission.issueSayActivationAttemptInternalV1(
+      fixture.controller,
+    );
+    const incomplete = fixture.controller.issueContentAutoAttemptInternalV1();
+    expect(incompleteManual).not.toBeNull();
+    expect(incomplete).not.toBeNull();
+    expect(fixture.controller.dispatchContentAutoInternalV1(incomplete)).toEqual({
+      kind: "not_ready",
+      completion: null,
+    });
+    expect(
+      fixture.controller.dispatchContentAutoInternalV1(incomplete),
+    ).toEqual({ kind: "stale", completion: null });
+    expect(
+      fixture.admission.routeInternalV1(
+        fixture.admission.createEnvelopeInternalV1({
+          actionId: narrativeAdvanceActionIdV1,
+          gestureId: parseManagedSurfaceGestureIdV1(
+            "gesture.narrative.say-auto-not-ready-retired-manual",
+          ),
+        }),
+        incompleteManual,
+      ).consumerResult,
+    ).toEqual({ kind: "stale", completion: null });
+
+    phase = "invalid";
+    const invalidManual = fixture.admission.issueSayActivationAttemptInternalV1(
+      fixture.controller,
+    );
+    const invalid = fixture.controller.issueContentAutoAttemptInternalV1();
+    expect(invalidManual).not.toBeNull();
+    expect(invalid).not.toBeNull();
+    expect(fixture.controller.dispatchContentAutoInternalV1(invalid)).toEqual({
+      kind: "faulted",
+      completion: null,
+    });
+    expect(
+      fixture.admission.routeInternalV1(
+        fixture.admission.createEnvelopeInternalV1({
+          actionId: narrativeConfirmActionIdV1,
+          gestureId: parseManagedSurfaceGestureIdV1(
+            "gesture.narrative.say-auto-fault-retired-manual",
+          ),
+        }),
+        invalidManual,
+      ).consumerResult,
+    ).toEqual({ kind: "stale", completion: null });
+
+    throwPhase = true;
+    const throwing = fixture.controller.issueContentAutoAttemptInternalV1();
+    expect(throwing).not.toBeNull();
+    expect(fixture.controller.dispatchContentAutoInternalV1(throwing)).toEqual({
+      kind: "faulted",
+      completion: null,
+    });
+    expect(capturePhase).toHaveBeenCalledTimes(3);
+    expect(revealAll).not.toHaveBeenCalled();
+    expect(dispatchResolution).not.toHaveBeenCalled();
+    expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
+    expect(fixture.harness.stateNotificationCount()).toBe(notifications);
+    fixture.controller.disposeInternalV1();
+    fixture.admission.disposeInternalV1();
+  });
+
+  it("lets content-auto first-win the shared Say boundary and releases after drain", async () => {
+    let settle!: (value: unknown) => void;
+    const semanticCompletion = new Promise<unknown>((resolve) => {
+      settle = resolve;
+    });
+    let capturedRequest: unknown = null;
+    const dispatchResolution = vi.fn((request: unknown) => {
+      capturedRequest = request;
+      return semanticCompletion;
+    });
+    let playerProfileReads = 0;
+    let presentationClockReads = 0;
+    const fixture = physicalSayHarnessV1({
+      advancePolicy: "auto",
+      playerProfile: new Proxy(Object.freeze({ locale: "en" }), {
+        get: (target, key, receiver) => {
+          playerProfileReads += 1;
+          return Reflect.get(target, key, receiver);
+        },
+      }),
+      presentationClock: new Proxy({ kind: "manual-clock" }, {
+        get: (target, key, receiver) => {
+          presentationClockReads += 1;
+          return Reflect.get(target, key, receiver);
+        },
+      }),
+      revealGenerationPort: Object.freeze({
+        capturePhaseInternalV1: () => "complete" as const,
+        revealAllInternalV1: vi.fn(),
+      }),
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: dispatchResolution,
+      }),
+    });
+    const playerProfileReadsAfterPreflight = playerProfileReads;
+    const presentationClockReadsAfterPreflight = presentationClockReads;
+    const manual = fixture.admission.issueSayActivationAttemptInternalV1(fixture.controller);
+    const automatic = fixture.controller.issueContentAutoAttemptInternalV1();
+    expect(manual).not.toBeNull();
+    expect(automatic).not.toBeNull();
+
+    const automaticResult = fixture.controller.dispatchContentAutoInternalV1(automatic);
+    expect(automaticResult).toMatchObject({ kind: "dispatched" });
+    if (automaticResult.kind !== "dispatched") throw new Error("expected content-auto dispatch");
+    expect(Object.isFrozen(automaticResult)).toBe(true);
+    expect(capturedRequest).toEqual({
+      expectedOccurrenceId: occurrenceV1(1),
+      resolution: { kind: "advance" },
+    });
+    expect(Object.isFrozen(capturedRequest)).toBe(true);
+    expect(
+      fixture.admission.routeInternalV1(
+        fixture.admission.createEnvelopeInternalV1({
+          actionId: narrativeAdvanceActionIdV1,
+          gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.say-auto-won"),
+        }),
+        manual,
+      ).consumerResult,
+    ).toEqual({ kind: "stale", completion: null });
+    expect(fixture.controller.issueContentAutoAttemptInternalV1()).toBeNull();
+    expect(
+      fixture.admission.issueSayActivationAttemptInternalV1(fixture.controller),
+    ).toBeNull();
+
+    settle("auto-drained");
+    await expect(automaticResult.completion).resolves.toBe("auto-drained");
+    expect(
+      fixture.admission.routeInternalV1(
+        fixture.admission.createEnvelopeInternalV1({
+          actionId: narrativeAdvanceActionIdV1,
+          gestureId: parseManagedSurfaceGestureIdV1(
+            "gesture.narrative.say-auto-old-manual-after-drain",
+          ),
+        }),
+        manual,
+      ).consumerResult,
+    ).toEqual({ kind: "stale", completion: null });
+    expect(fixture.controller.issueContentAutoAttemptInternalV1()).not.toBeNull();
+    expect(dispatchResolution).toHaveBeenCalledOnce();
+    expect(playerProfileReads).toBe(playerProfileReadsAfterPreflight);
+    expect(presentationClockReads).toBe(presentationClockReadsAfterPreflight);
+    fixture.controller.disposeInternalV1();
+    fixture.admission.disposeInternalV1();
+  });
+
+  it("lets physical Say first-win a presigned content-auto competitor", async () => {
+    const dispatchResolution = vi.fn(() => Promise.resolve("manual-drained"));
+    const fixture = physicalSayHarnessV1({
+      advancePolicy: "auto",
+      revealGenerationPort: Object.freeze({
+        capturePhaseInternalV1: () => "complete" as const,
+        revealAllInternalV1: vi.fn(),
+      }),
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: dispatchResolution,
+      }),
+    });
+    const automatic = fixture.controller.issueContentAutoAttemptInternalV1();
+    const manual = fixture.admission.issueSayActivationAttemptInternalV1(fixture.controller);
+    expect(automatic).not.toBeNull();
+    expect(manual).not.toBeNull();
+    const manualResult = fixture.admission.routeInternalV1(
+      fixture.admission.createEnvelopeInternalV1({
+        actionId: narrativeConfirmActionIdV1,
+        gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.say-manual-won"),
+      }),
+      manual,
+    );
+    expect(manualResult.consumerResult).toMatchObject({ kind: "dispatched" });
+    expect(fixture.controller.dispatchContentAutoInternalV1(automatic)).toEqual({
+      kind: "stale",
+      completion: null,
+    });
+    if (manualResult.consumerResult?.kind !== "dispatched") {
+      throw new Error("expected manual Say dispatch");
+    }
+    await expect(manualResult.consumerResult.completion).resolves.toBe("manual-drained");
+    expect(fixture.controller.dispatchContentAutoInternalV1(automatic)).toEqual({
+      kind: "stale",
+      completion: null,
+    });
+    expect(dispatchResolution).toHaveBeenCalledOnce();
+    fixture.controller.disposeInternalV1();
+    fixture.admission.disposeInternalV1();
+  });
+
+  it("rejects cloned, foreign, and wrong-receiver content-auto attempts without phase reads", async () => {
+    const capturePhase = vi.fn(() => "complete" as const);
+    const dispatchResolution = vi.fn(() => Promise.resolve("content-auto-dispatched"));
+    const fixture = physicalSayHarnessV1({
+      advancePolicy: "auto",
+      revealGenerationPort: Object.freeze({
+        capturePhaseInternalV1: capturePhase,
+        revealAllInternalV1: vi.fn(),
+      }),
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: dispatchResolution,
+      }),
+    });
+    const attempt = fixture.controller.issueContentAutoAttemptInternalV1();
+    expect(attempt).not.toBeNull();
+    expect(fixture.controller.dispatchContentAutoInternalV1({ ...(attempt as object) })).toEqual({
+      kind: "stale",
+      completion: null,
+    });
+    expect(
+      Reflect.apply(fixture.controller.dispatchContentAutoInternalV1, Object.freeze({}), [
+        attempt,
+      ]),
+    ).toEqual({ kind: "stale", completion: null });
+
+    const foreign = physicalSayHarnessV1({ advancePolicy: "auto" });
+    const foreignAttempt = foreign.controller.issueContentAutoAttemptInternalV1();
+    expect(foreignAttempt).not.toBeNull();
+    expect(fixture.controller.dispatchContentAutoInternalV1(foreignAttempt)).toEqual({
+      kind: "stale",
+      completion: null,
+    });
+    expect(capturePhase).not.toHaveBeenCalled();
+    const result = fixture.controller.dispatchContentAutoInternalV1(attempt);
+    expect(result).toMatchObject({ kind: "dispatched" });
+    if (result.kind !== "dispatched") throw new Error("expected authentic content-auto dispatch");
+    await expect(result.completion).resolves.toBe("content-auto-dispatched");
+    expect(capturePhase).toHaveBeenCalledOnce();
+    expect(dispatchResolution).toHaveBeenCalledOnce();
+    fixture.controller.disposeInternalV1();
+    fixture.admission.disposeInternalV1();
+    foreign.controller.disposeInternalV1();
+    foreign.admission.disposeInternalV1();
+  });
+
+  it("refreshes topology-bound auto proof without depending on the physical input owner", async () => {
+    const revealGenerationPort = Object.freeze({
+      capturePhaseInternalV1: () => "complete" as const,
+      revealAllInternalV1: vi.fn(),
+    });
+
+    const lowerDispatch = vi.fn(() => Promise.resolve("lower-auto"));
+    const lower = nonBlockingNarrativeHarnessV1(
+      Object.freeze({ dispatchResolutionInternalV1: lowerDispatch }),
+      10,
+    );
+    expect(
+      lower.harness.bridge.reconcilePendingInternalV1({
+        ...(pendingV1("say") as Record<string, unknown>),
+        advancePolicy: "auto",
+      }),
+    ).toMatchObject({ kind: "applied" });
+    settleCurrentNarrativeReadyV1(lower.harness);
+    const lowerController = createNarrativeStableSayRevealControllerInternalV1({
+      bridge: lower.harness.bridge,
+      revealGenerationPort,
+    });
+    const lowerOld = lowerController.issueContentAutoAttemptInternalV1();
+    expect(lowerOld).not.toBeNull();
+    openNonBlockingSurfaceV1(
+      lower.harness,
+      lower.nonBlockingDefinition,
+      "active",
+      "narrative",
+    );
+    expect(lowerController.dispatchContentAutoInternalV1(lowerOld)).toEqual({
+      kind: "stale",
+      completion: null,
+    });
+    const lowerFresh = lowerController.issueContentAutoAttemptInternalV1();
+    expect(lowerFresh).not.toBeNull();
+    const lowerResult = lowerController.dispatchContentAutoInternalV1(lowerFresh);
+    expect(lowerResult).toMatchObject({ kind: "dispatched" });
+    if (lowerResult.kind !== "dispatched") throw new Error("expected lower auto dispatch");
+    await expect(lowerResult.completion).resolves.toBe("lower-auto");
+    expect(lowerDispatch).toHaveBeenCalledOnce();
+    lowerController.disposeInternalV1();
+
+    const higherDispatch = vi.fn(() => Promise.resolve("higher-auto"));
+    const higher = nonBlockingNarrativeHarnessV1(
+      Object.freeze({ dispatchResolutionInternalV1: higherDispatch }),
+    );
+    expect(
+      higher.harness.bridge.reconcilePendingInternalV1({
+        ...(pendingV1("say") as Record<string, unknown>),
+        advancePolicy: "auto",
+      }),
+    ).toMatchObject({ kind: "applied" });
+    settleCurrentNarrativeReadyV1(higher.harness);
+    const higherOld = createNarrativeStableSayRevealControllerInternalV1({
+      bridge: higher.harness.bridge,
+      revealGenerationPort,
+    });
+    const higherOldAttempt = higherOld.issueContentAutoAttemptInternalV1();
+    expect(higherOldAttempt).not.toBeNull();
+    openNonBlockingSurfaceV1(
+      higher.harness,
+      higher.nonBlockingDefinition,
+      "suspended",
+      "candidate",
+    );
+    expect(higherOld.dispatchContentAutoInternalV1(higherOldAttempt)).toEqual({
+      kind: "stale",
+      completion: null,
+    });
+    const higherFresh = createNarrativeStableSayRevealControllerInternalV1({
+      bridge: higher.harness.bridge,
+      revealGenerationPort,
+    });
+    const higherFreshAttempt = higherFresh.issueContentAutoAttemptInternalV1();
+    expect(higherFreshAttempt).not.toBeNull();
+    const higherResult = higherFresh.dispatchContentAutoInternalV1(higherFreshAttempt);
+    expect(higherResult).toMatchObject({ kind: "dispatched" });
+    if (higherResult.kind !== "dispatched") throw new Error("expected higher auto dispatch");
+    await expect(higherResult.completion).resolves.toBe("higher-auto");
+    expect(higherDispatch).toHaveBeenCalledOnce();
+    higherOld.disposeInternalV1();
+    higherFresh.disposeInternalV1();
+  });
+
+  it("revokes a content-auto generation across a real blocking suspension", async () => {
+    const capturePhase = vi.fn(() => "complete" as const);
+    const dispatchResolution = vi.fn(() => Promise.resolve("resumed-auto"));
+    const { harness, nonBlockingDefinition: blockingDefinition } = nonBlockingNarrativeHarnessV1(
+      Object.freeze({ dispatchResolutionInternalV1: dispatchResolution }),
+      90,
+      "blocking",
+    );
+    expect(
+      harness.bridge.reconcilePendingInternalV1({
+        ...(pendingV1("say") as Record<string, unknown>),
+        advancePolicy: "auto",
+      }),
+    ).toMatchObject({ kind: "applied" });
+    settleCurrentNarrativeReadyV1(harness);
+    const revealGenerationPort = Object.freeze({
+      capturePhaseInternalV1: capturePhase,
+      revealAllInternalV1: vi.fn(),
+    });
+    const oldController = createNarrativeStableSayRevealControllerInternalV1({
+      bridge: harness.bridge,
+      revealGenerationPort,
+    });
+    const oldAttempt = oldController.issueContentAutoAttemptInternalV1();
+    expect(oldAttempt).not.toBeNull();
+    const blocker = openNonBlockingSurfaceV1(
+      harness,
+      blockingDefinition,
+      "suspended",
+      "candidate",
+      () => {},
+      "suspended",
+    );
+    expect(oldController.dispatchContentAutoInternalV1(oldAttempt)).toEqual({
+      kind: "stale",
+      completion: null,
+    });
+    expect(capturePhase).not.toHaveBeenCalled();
+
+    const suspendedPublication = harness.kernel.getStateInternalV1().transientState.publication;
+    expect(harness.kernel.transitionTransientInternalV1({
+      kind: "close_expected",
+      evidence: Object.freeze({
+        applicationEpoch: applicationEpochV1,
+        topologyRevision: suspendedPublication.topologyRevision,
+        surfaceInstanceId: blocker.surfaceInstanceId,
+      }),
+    })).toMatchObject({ kind: "applied" });
+    const freshController = createNarrativeStableSayRevealControllerInternalV1({
+      bridge: harness.bridge,
+      revealGenerationPort,
+    });
+    const freshAttempt = freshController.issueContentAutoAttemptInternalV1();
+    expect(freshAttempt).not.toBeNull();
+    const result = freshController.dispatchContentAutoInternalV1(freshAttempt);
+    expect(result).toMatchObject({ kind: "dispatched" });
+    if (result.kind !== "dispatched") throw new Error("expected resumed auto dispatch");
+    await expect(result.completion).resolves.toBe("resumed-auto");
+    expect(capturePhase).toHaveBeenCalledOnce();
+    expect(dispatchResolution).toHaveBeenCalledOnce();
+    oldController.disposeInternalV1();
+    freshController.disposeInternalV1();
+  });
+
+  it("does not let an old content-auto completion clear a successor source claim", async () => {
+    let settleOld!: (value: unknown) => void;
+    let settleSuccessor!: (value: unknown) => void;
+    const oldCompletion = new Promise<unknown>((resolve) => {
+      settleOld = resolve;
+    });
+    const successorCompletion = new Promise<unknown>((resolve) => {
+      settleSuccessor = resolve;
+    });
+    const dispatchResolution = vi.fn()
+      .mockImplementationOnce(() => oldCompletion)
+      .mockImplementationOnce(() => successorCompletion);
+    const revealGenerationPort = Object.freeze({
+      capturePhaseInternalV1: () => "complete" as const,
+      revealAllInternalV1: vi.fn(),
+    });
+    const fixture = physicalSayHarnessV1({
+      advancePolicy: "auto",
+      revealGenerationPort,
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: dispatchResolution,
+      }),
+    });
+    const oldAttempt = fixture.controller.issueContentAutoAttemptInternalV1();
+    expect(oldAttempt).not.toBeNull();
+    const oldResult = fixture.controller.dispatchContentAutoInternalV1(oldAttempt);
+    expect(oldResult).toMatchObject({ kind: "dispatched" });
+    if (oldResult.kind !== "dispatched") throw new Error("expected old auto dispatch");
+
+    expect(
+      fixture.harness.bridge.reconcilePendingInternalV1({
+        ...(pendingV1("say", 2) as Record<string, unknown>),
+        advancePolicy: "auto",
+      }),
+    ).toMatchObject({ kind: "applied" });
+    settleCurrentNarrativeReadyV1(fixture.harness);
+    const successorController = createNarrativeStableSayRevealControllerInternalV1({
+      bridge: fixture.harness.bridge,
+      revealGenerationPort,
+    });
+    const successorAttempt = successorController.issueContentAutoAttemptInternalV1();
+    expect(successorAttempt).not.toBeNull();
+    const successorResult = successorController.dispatchContentAutoInternalV1(successorAttempt);
+    expect(successorResult).toMatchObject({ kind: "dispatched" });
+    if (successorResult.kind !== "dispatched") {
+      throw new Error("expected successor auto dispatch");
+    }
+
+    settleOld("old-auto-drained");
+    await expect(oldResult.completion).resolves.toBe("old-auto-drained");
+    expect(successorController.issueContentAutoAttemptInternalV1()).toBeNull();
+    settleSuccessor("successor-auto-drained");
+    await expect(successorResult.completion).resolves.toBe("successor-auto-drained");
+    expect(successorController.issueContentAutoAttemptInternalV1()).not.toBeNull();
+    expect(dispatchResolution).toHaveBeenCalledTimes(2);
+    fixture.controller.disposeInternalV1();
+    fixture.admission.disposeInternalV1();
+    successorController.disposeInternalV1();
+  });
+
+  it("gives content-auto callback drift stale precedence over a phase fault", () => {
+    let fixture!: ReturnType<typeof physicalSayHarnessV1>;
+    const dispatchResolution = vi.fn(() => Promise.resolve("must-not-dispatch"));
+    fixture = physicalSayHarnessV1({
+      advancePolicy: "auto",
+      revealGenerationPort: Object.freeze({
+        capturePhaseInternalV1: () => {
+          expect(
+            fixture.harness.bridge.reconcilePendingInternalV1({
+              ...(pendingV1("say", 2) as Record<string, unknown>),
+              advancePolicy: "auto",
+            }),
+          ).toMatchObject({ kind: "applied" });
+          throw null;
+        },
+        revealAllInternalV1: vi.fn(),
+      }),
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: dispatchResolution,
+      }),
+    });
+    const attempt = fixture.controller.issueContentAutoAttemptInternalV1();
+    expect(attempt).not.toBeNull();
+    expect(fixture.controller.dispatchContentAutoInternalV1(attempt)).toEqual({
+      kind: "stale",
+      completion: null,
+    });
+    expect(dispatchResolution).not.toHaveBeenCalled();
     fixture.controller.disposeInternalV1();
     fixture.admission.disposeInternalV1();
   });
@@ -4436,6 +4990,40 @@ describe("Narrative stable Managed Surface family", () => {
     }
     expect(capturePhase).toHaveBeenCalledTimes(10_000);
     expect(revealAll).toHaveBeenCalledTimes(10_000);
+    expect(dispatchResolution).not.toHaveBeenCalled();
+    expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
+    expect(fixture.harness.stateNotificationCount()).toBe(notifications);
+    fixture.controller.disposeInternalV1();
+    fixture.admission.disposeInternalV1();
+  });
+
+  it("keeps 10k content-auto not-ready rotations behaviorally bounded", () => {
+    const capturePhase = vi.fn(() => "incomplete" as const);
+    const revealAll = vi.fn();
+    const dispatchResolution = vi.fn(() => Promise.resolve("must-not-dispatch"));
+    const fixture = physicalSayHarnessV1({
+      advancePolicy: "auto",
+      revealGenerationPort: Object.freeze({
+        capturePhaseInternalV1: capturePhase,
+        revealAllInternalV1: revealAll,
+      }),
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: dispatchResolution,
+      }),
+    });
+    const state = fixture.harness.kernel.getStateInternalV1();
+    const notifications = fixture.harness.stateNotificationCount();
+    let notReadyResult: unknown = null;
+    for (let index = 0; index < 10_000; index += 1) {
+      const attempt = fixture.controller.issueContentAutoAttemptInternalV1();
+      expect(attempt).not.toBeNull();
+      const result = fixture.controller.dispatchContentAutoInternalV1(attempt);
+      expect(result).toEqual({ kind: "not_ready", completion: null });
+      if (notReadyResult === null) notReadyResult = result;
+      else expect(result).toBe(notReadyResult);
+    }
+    expect(capturePhase).toHaveBeenCalledTimes(10_000);
+    expect(revealAll).not.toHaveBeenCalled();
     expect(dispatchResolution).not.toHaveBeenCalled();
     expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
     expect(fixture.harness.stateNotificationCount()).toBe(notifications);

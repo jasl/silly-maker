@@ -108,14 +108,14 @@ S4.1b.1b.0已交付choice-only authenticated physical semantic admission，S4.1b
 skippable-pause physical resume，S4.1b.1b.1b.1又已交付automatic pause-expiry controller-attempt
 admission/dispatch floor，S4.1b.1b.1b.2a又已交付custom physical payload admission，
 S4.1b.1b.1b.2b.0现已冻结remaining Say/barrier/player policy，
-S4.1b.1b.1b.2b.1a又已交付physical Say reveal-first admission。
-当前active execution pointer的current/next均为S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor；
+S4.1b.1b.1b.2b.1a又已交付physical Say reveal-first admission，
+S4.1b.1b.1b.2b.1b又已交付content-auto Say controller-attempt floor。
+当前active execution pointer的current/next均为S4.1b.1b.1b.2b.2 barrier acknowledgment/recovery；
 之后依次为
-S4.1b.1b.1b.2b.2 barrier acknowledgment/recovery、
 S4.1b.1b.1b.2b.3 player controls、S4.2、S4.3与S4b。
 R3b.1、R4.0、R4a、R4b.0、R4b.1、R5、S4.0、S4.1a、S4.1b.0、S4.1b.1a、S4.1b.1b.0与
 S4.1b.1b.1a、S4.1b.1b.1b.1、S4.1b.1b.1b.2a、S4.1b.1b.1b.2b.0与
-S4.1b.1b.1b.2b.1a只作为completed
+S4.1b.1b.1b.2b.1a与S4.1b.1b.1b.2b.1b只作为completed
 delivery保留。
 Stable implementation仍保持dormant/source-relative；R5只解除S4 entry gate，S4.0也没有把任何stable family
 提前写成live capability。
@@ -1363,8 +1363,8 @@ semantic action admission；S4.1b.1b.1a skippable-pause physical resume；S4.1b.
 controller-attempt admission/dispatch floor；S4.1b.1b.1b.2a custom physical payload admission（已完成）；
 S4.1b.1b.1b.2b.0 remaining mapping policy adjudication（已完成）；
 S4.1b.1b.1b.2b.1a physical Say reveal-first admission（已完成）；
-S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor（当前）；
-S4.1b.1b.1b.2b.2 barrier acknowledgment/recovery；
+S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor（已完成）；
+S4.1b.1b.1b.2b.2 barrier acknowledgment/recovery（当前）；
 S4.1b.1b.1b.2b.3 player controls；S4.2 dormant
 controller/view/Host、Host-commit readiness与History exact-child integration；
 S4.3在一个cutover中迁移全部tracked consumers、删除旧writers并完成headless/browser/prebuilt promotion。若exact-parent
@@ -1483,8 +1483,8 @@ S4.1b.1b.1a验证通过focused `7 files / 192 tests`、UI `79 files / 1010 tests
 `253 files / 3938 tests`与`deno task check` green。本批未重跑browser/examples/prebuilt；`101 / 101`、
 `45 passed / 2 skipped`与`38 / 38`仅是先前已有证据，不冒充本批HEAD验证。
 该checkpoint当时的current/next是S4.1b.1b.1b.2a；现已由上述.2a delivery推进。
-Active current/next现均为S4.1b.1b.1b.2b.1b；后续顺序保持
-S4.1b.1b.1b.2b.1b → S4.1b.1b.1b.2b.2 →
+Active current/next现均为S4.1b.1b.1b.2b.2；后续顺序保持
+S4.1b.1b.1b.2b.2 →
 S4.1b.1b.1b.2b.3 → S4.2 → S4.3 → S4b。
 
 **S4.1b.1b.1b.2b.1 execution-order amendment：** Say先拆成两个vertical。`.1a`沿用既有
@@ -1542,8 +1542,8 @@ settle前不能建立竞争boundary。Source/frame漂移则退休旧claim；旧c
 Managed Surface result，也没有实现content-auto、clock、timer、deadline、player Auto/Skip、barrier或History。
 S4.1b.1b.1b.2b.1a验证通过focused `7 files / 226 tests`、UI `79 files / 1044 tests`、full
 `253 files / 3974 tests`与`deno task check` green。本批未重跑browser/examples/prebuilt；`101 / 101`、
-`45 passed / 2 skipped`与`38 / 38`仅为先前已有证据，不冒充本批HEAD验证。Active current/next现均为
-S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor。
+`45 passed / 2 skipped`与`38 / 38`仅为先前已有证据，不冒充本批HEAD验证。该checkpoint当时的active
+current/next均为S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor，现由下述delivery推进。
 
 **S4.1b.1b.1b.2b.1b entry amendment（docs-only）：** content-auto沿用上述exact per-frame Say reveal
 controller record与shared callback/semantic in-flight claim，不建立第二个controller、route authority或input
@@ -1577,7 +1577,36 @@ boundary：任一方先取得gate时必须同步retire另一方尚未spend的att
 competitor，旧attempt与旧completion也不能ABA作用于fresh controller/source claim。Completion仍沿用`.1a`的
 publication + synchronous Narrative reconcile drain与exact-token CAS释放合同。该entry amendment不实现clock、
 `autoWaitMs`、deadline、player Auto/Skip、Host/React/live claimant，也不改变Base、Save/Persistence、canonical、
-digest、replay或wire；S4.1b.1b.1b.2b.1b仍是current/next，完成实现与验证后才能记录delivery。
+digest、replay或wire；该checkpoint当时保持S4.1b.1b.1b.2b.1b为current/next，现由下述delivery关闭。
+
+**S4.1b.1b.1b.2b.1b content-auto Say controller-attempt delivery：** 现有exact per-frame Say reveal
+controller新增source-relative content-auto issue/dispatch，但没有建立第二个controller、route authority、input
+binding或semantic in-flight claim。`issueContentAutoAttemptInternalV1`只为`advancePolicy: "auto"`的exact current
+direct Say取得fresh ready-active proof并至多保留一个frozen zero-key WeakMap attempt；它保持phase-free，不依赖
+whole-topology input owner或physical admission，也不读取gesture、player profile、presentation clock或Host callback。
+Topology revision变化使old proof stale；root仍ready-active时同一controller可签发fresh proof，真实blocking suspension、
+source/frame replacement、empty与dispose则撤销generation并要求fresh controller。
+
+`dispatchContentAutoInternalV1`以exact receiver/controller/attempt/proof取得shared callback gate，先不可逆spend并
+retire尚未spend的manual competitor，再读取一次captured phase并postcheck exact controller/target/source/frame/port。
+Drift固定优先返回frozen `stale/null`；exact-current `incomplete`返回`not_ready/null`且不调用`revealAll`；
+exact-current throw或invalid返回`faulted/null`；只有exact-current `complete`才转为shared semantic in-flight、
+final-recheck并提交frozen `advance` request，返回`dispatched` post-drain Promise。Physical Say route取得同一gate时也
+reciprocal retire content-auto competitor；双方可预签但只能first-win，`not_ready`与`faulted`也不会使已退休manual
+attempt复活。
+
+Manual与content-auto共用`.1a`已经证明的Promise drain、same-frame suspension observer与exact-token CAS释放。Source
+successor可在old completion pending时建立fresh claim，old completion不能ABA清除successor；clone、foreign、wrong
+receiver、repeat与stale proof全部在phase前fail closed。Private provenance只增加一个WeakMap record与一个current strong
+slot；`10k`次`not_ready` rotation复用exact frozen result identity且不增长composite state或notification count。
+
+本delivery仍是source-relative/dormant floor：没有clock、timer、`autoWaitMs`、deadline、player Auto/Skip、
+Host/React/live claimant，也没有新增public/`./internal` barrel、package export或generic Surface action/result。
+验证通过focused `7 files / 236 tests`、UI `79 files / 1054 tests`、full `253 files / 3984 tests`与
+`deno task check` green。本批未重跑browser/examples/prebuilt；Engine browser `101 / 101`、examples
+`45 passed / 2 skipped`与prebuilt Player `38 / 38`仅为prior evidence，不冒充本批HEAD验证。
+S4.1b.1b.1b.2b.1b已完成；active current/next现均推进为
+S4.1b.1b.1b.2b.2 barrier acknowledgment/recovery。
 
 ### 3.3 Runtime session
 

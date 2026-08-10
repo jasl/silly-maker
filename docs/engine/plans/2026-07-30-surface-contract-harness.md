@@ -25,8 +25,9 @@ contract-bound action gate、S4.1b.1a authenticated action context corrective及
 choice-only physical semantic vertical、S4.1b.1b.1a skippable-pause physical resume vertical与
 S4.1b.1b.1b.1 automatic pause-expiry controller-attempt admission/dispatch floor及
 S4.1b.1b.1b.2a custom physical payload admission及S4.1b.1b.1b.2b.0 remaining mapping
-policy adjudication与S4.1b.1b.1b.2b.1a physical Say reveal-first admission均已关闭；下一独立切片为
-S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor。R4 entry
+policy adjudication、S4.1b.1b.1b.2b.1a physical Say reveal-first admission与
+S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor均已关闭；下一独立切片为
+S4.1b.1b.1b.2b.2 barrier acknowledgment/recovery。R4 entry
 adjudication已先以独立S1-R.4.0关闭
 readiness result/capacity contract。R3b entry audit先以独立S1-R.3a.1 corrective补全ready
 retained-subtree authority，该corrective也已关闭。
@@ -41,7 +42,7 @@ S1-R aggregate gate已关闭。
 
 在 [production-floor sequence](2026-07-30-production-floor-sequence.md)
 中：PF2 的 `S0 -> S1-T -> S2`、PF-DET、PF3/M2 与 PF4/S3 已完成；当前 core
-节点是PF4/S4.1b.1b.1b.2b.1b。PF4的顺序是
+节点是PF4/S4.1b.1b.1b.2b.2。PF4的顺序是
 `S3 -> S1-R.0 -> S1-R.1–S1-R.5 -> S4.0 -> S4.1a -> S4.1b.0 -> S4.1b.1a -> S4.1b.1b.0 -> S4.1b.1b.1a -> S4.1b.1b.1b.1 -> S4.1b.1b.1b.2a -> S4.1b.1b.1b.2b.0 -> S4.1b.1b.1b.2b.1a -> S4.1b.1b.1b.2b.1b -> S4.1b.1b.1b.2b.2 -> S4.1b.1b.1b.2b.3 -> S4.2 -> S4.3 -> S4b`；
 S5–S6 属于 PF6。S1-R
 延后到第一个真实 externally published stable-target family 前完成；按 accepted
@@ -1715,9 +1716,9 @@ S1-R 按以下可独立合并切片推进，每次只领取一个：
     presentation-barrier与player-control policy及后续独立切片，不把characterization伪装成runtime delivery。
 27. **S4.1b.1b.1b.2b.1a physical Say reveal-first admission（已完成）**：在既有physical admission内实现
     两种alias并借用独立bridge-private reveal controller，交付reveal-only/advance closed result；不接automatic或Host/live wiring。
-28. **S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor（当前）**：只为
+28. **S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor（已完成）**：只为
     `advancePolicy: "auto"`交付ready-active、无gestureautomatic attempt并复用同一claim；不接timer或player Auto/Skip。
-29. **S4.1b.1b.1b.2b.2 barrier acknowledgment/recovery（待实施）**：实现exact Stage run acknowledgment、
+29. **S4.1b.1b.1b.2b.2 barrier acknowledgment/recovery（当前）**：实现exact Stage run acknowledgment、
     eligible outcome、settle recovery与replay fail-closed；不实现replay capability。
 30. **S4.1b.1b.1b.2b.3 player controls（待实施）**：实现Auto/Skip mode floor、History intent、
     captured voice replay与Narrative catalog移除`player.toggle_ui`；实际History lifecycle留S4.2。
@@ -1726,7 +1727,7 @@ S1-R 按以下可独立合并切片推进，每次只领取一个：
 32. **S4.3 atomic live cutover and promotion（待实施）**：同批迁移Engine Lab、template、Cat Cafe、Bookshop，
     删除旧lifecycle writers与standalone public path，更新live docs并完成headless/browser/prebuilt promotion。
 
-当前只允许从 **S4.1b.1b.1b.2b.1b** 开始。Stable ingress与stable-specific state/API仍保持
+当前只允许从 **S4.1b.1b.1b.2b.2** 开始。Stable ingress与stable-specific state/API仍保持
 dormant/package-internal；S4.1允许source-relative Narrative bridge消费Base semantic contract，但不接live
 Narrative/React/Web application graph、不mount React Host，也不更新live feature文档；shared pure topology
 policy只经existing transient adapter live复用，R3a 已将既有live transient reducer/Coordinator 收口到
@@ -2963,9 +2964,9 @@ examples/prebuilt；S0 deterministic Chromium RED与最近R4b.1 browser `101 / 1
 9. **S4.1b.1b.1b.2b.1a physical Say reveal-first admission（已完成）**：交付`ui.confirm`/
    `narrative.advance` reveal-first、exact reveal generation、closed reveal/advance result与共享in-flight claim；
    automatic/timer/Host/live wiring仍延期。
-10. **S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor（当前）**：只为
+10. **S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor（已完成）**：只为
     `advancePolicy: "auto"`交付ready-active无gestureattempt，复用同一generation/claim；timer与player Auto/Skip延期。
-11. **S4.1b.1b.1b.2b.2 barrier acknowledgment/recovery（待实施）**：交付exact Stage run proof、
+11. **S4.1b.1b.1b.2b.2 barrier acknowledgment/recovery（当前）**：交付exact Stage run proof、
     eligible outcomes、settle recovery与replay unsupported/fail-closed。
 12. **S4.1b.1b.1b.2b.3 player controls（待实施）**：交付Auto/Skip、History intent、voice replay及
     `player.toggle_ui` catalog removal；History child lifecycle仍归S4.2。
@@ -3254,8 +3255,7 @@ claimant，也没有public/internal barrel、package export或generic action/sta
 `7 files / 226 tests`、UI package `79 files / 1044 tests`、全量`253 files / 3974 tests`与完整`deno task check`。
 本批未重跑browser/examples/prebuilt；Engine browser `101 / 101`、examples `45 passed / 2 skipped`与prebuilt Player
 `38 / 38`仅是最近已有证据，不冒充本批HEAD验证。S4.1b.1b.1b.2b.1a已完成；current/next均为
-**S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor**，随后依次是S4.1b.1b.1b.2b.2、
-S4.1b.1b.1b.2b.3、S4.2、S4.3与S4b。
+**S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor**；该checkpoint现由下述entry amendment与delivery推进。
 
 ### S4.1b.1b.1b.2b.1b entry amendment — content-auto Say controller-attempt floor（docs-only）
 
@@ -3298,10 +3298,40 @@ resume保留exact pending claim与bounded observer直到drain；source/frame rep
 resolved/rejected completion都必须在该调用触发的semantic publication与同步Narrative bridge reconcile drain后、向caller
 暴露settlement前完成exact claim/observer cleanup。无论manual还是auto，Promise pending期间全部competitor均为zero dispatch。
 
-本entry amendment保持S4.1b.1b.1b.2b.1b为current/pending，不记录实现或验证证据。它不读取clock，不创建timer/deadline/
+本entry amendment当时保持S4.1b.1b.1b.2b.1b为current/pending，不记录实现或验证证据；现由下述delivery关闭。它不读取clock，不创建timer/deadline/
 remaining，不实现`autoWaitMs` scheduling、player Auto/Skip、Host/React/live claimant、Barrier、History或S4.2 controller。
 若实现需要第二个Say lifecycle authority、raw renderer semantic port、timer/Host接线、generic/public result扩张，或不能证明
 manual/auto共享gate与post-drain exact cleanup，立即停止并修订合同。
+
+### S4.1b.1b.1b.2b.1b delivery — content-auto Say controller-attempt floor
+
+现有per-current-frame `NarrativeStableSayRevealControllerInternalV1`已直接交付phase-free
+`issueContentAutoAttemptInternalV1`与`dispatchContentAutoInternalV1`，没有建立第二个controller、bridge claim或semantic
+authority。Issue只为`advancePolicy: "auto"`的exact current ready-active Say签发独立brand、frozen zero-key、WeakMap-authenticated
+attempt；attempt保存exact controller claim、target/source/frame/semantic port与fresh ready-active proof。Confirm policy、inactive/
+suspended/retained/preparing generation、occupied callback/semantic gate、foreign receiver、clone与current-proof duplicate全部
+mint zero，且issue不读取phase、player profile、presentation clock、Input owner或gesture。
+
+Dispatch按entry contract取得shared callback gate后spend exact attempt并同步退休同帧manual/auto competitor，再且只再读取一次
+captured phase。Post-callback target/source/frame/readiness漂移固定为`stale/null`并优先于callback outcome；exact
+`incomplete`返回`not_ready/null`，throw/invalid返回`faulted/null`，complete才把同一gate原子转换为既有per-frame semantic
+in-flight claim并提交frozen `advance` request。四类result均为exact frozen Narrative-private shape；manual与auto双方winner都使
+loser在callback、Promise pending及settlement后永久stale，`not_ready`或`faulted`也不会复活presigned manual token。Resolve、
+reject与sync throw继续归一化为post-drain Promise completion，并在settlement暴露前以exact CAS清理claim/observer。
+
+Active-only topology churn保留同一controller generation，但旧proof/attempt stale且可用fresh proof重新签发；较高
+nonblocking input owner也不成为automatic admission前提。真实blocking suspension撤销未提交controller/attempt，resume需要fresh
+generation；已提交semantic claim继续沿用`.1a`的same-frame suspend preservation。Source/frame successor退休旧claim，old
+completion不能清除successor in-flight。Clone/foreign/wrong receiver在phase read前fail closed；single current attempt slot与
+WeakMap provenance经10k `not_ready` rotation保持有界、state/notification/identity high-water为zero。
+
+本delivery仍是source-relative dormant floor：没有读取clock、创建timer/deadline/remaining或实现`autoWaitMs` scheduling，
+没有player Auto/Skip、Host/React/live claimant、Barrier、History，也没有UI root/`./internal` barrel、package export或generic
+result扩张。验证通过focused `7 files / 236 tests`、UI package `79 files / 1054 tests`、full
+`253 files / 3984 tests`与`deno task check` green。本批未重跑browser/examples/prebuilt；Engine browser `101 / 101`、
+examples `45 passed / 2 skipped`与prebuilt Player `38 / 38`只作prior evidence，不冒充本批HEAD验证。
+S4.1b.1b.1b.2b.1b已完成；current/next均为 **S4.1b.1b.1b.2b.2 barrier acknowledgment/recovery**，后续顺序保持
+S4.1b.1b.1b.2b.2 → S4.1b.1b.1b.2b.3 → S4.2 → S4.3 → S4b。
 
 S4.1 aggregate stop在S4.1b.1b.1b.1–S4.1b.1b.1b.2b.3继续有效：若后续证据要求公开lease/source/occurrence/Coordinator、复用global
 semantic/presentation revision、允许同一semantic occurrence的full normalized `PendingInteractionV1` canonical漂移，

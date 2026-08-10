@@ -231,12 +231,40 @@ export interface NarrativeStableSayActivationAttemptInternalV1 {
   readonly [narrativeStableSayActivationAttemptBrandInternalV1]: true;
 }
 
+declare const narrativeStableSayContentAutoAttemptBrandInternalV1: unique symbol;
+
+export interface NarrativeStableSayContentAutoAttemptInternalV1 {
+  readonly [narrativeStableSayContentAutoAttemptBrandInternalV1]: true;
+}
+
+export type NarrativeStableSayContentAutoDispatchResultInternalV1 =
+  | Readonly<{
+    readonly kind: "dispatched";
+    readonly completion: Promise<unknown>;
+  }>
+  | Readonly<{
+    readonly kind: "not_ready";
+    readonly completion: null;
+  }>
+  | Readonly<{
+    readonly kind: "stale";
+    readonly completion: null;
+  }>
+  | Readonly<{
+    readonly kind: "faulted";
+    readonly completion: null;
+  }>;
+
 export interface CreateNarrativeStableSayRevealControllerInputInternalV1 {
   readonly bridge: NarrativeStablePublisherBridgeInternalV1;
   readonly revealGenerationPort: NarrativeStableSayRevealGenerationPortInternalV1;
 }
 
 export interface NarrativeStableSayRevealControllerInternalV1 {
+  issueContentAutoAttemptInternalV1(): NarrativeStableSayContentAutoAttemptInternalV1 | null;
+  dispatchContentAutoInternalV1(
+    attempt: unknown,
+  ): NarrativeStableSayContentAutoDispatchResultInternalV1;
   disposeInternalV1(): void;
 }
 
@@ -421,6 +449,36 @@ const narrativeStablePhysicalActionAttemptRecordsInternalV1 = new WeakMap<
   NarrativeStablePhysicalActionAttemptRecordInternalV1
 >();
 
+interface NarrativeStableSayContentAutoAttemptRecordInternalV1 {
+  readonly controller: NarrativeStableSayRevealControllerInternalV1;
+  readonly controllerClaim: object;
+  readonly proof: ManagedSurfaceStableReadyActiveTargetProofInternalV1;
+  readonly directTarget: ManagedSurfaceStableAdmittedTargetInternalV1;
+  readonly sourceRevision: ManagedSurfaceStableSourceRevisionInternalV1;
+  readonly frame: NarrativeStableAdmittedFrameInternalV1;
+  readonly semanticDispatchPort: NarrativeStableCapturedSemanticResolutionPortInternalV1;
+  spent: boolean;
+}
+
+const narrativeStableSayContentAutoAttemptRecordsInternalV1 = new WeakMap<
+  NarrativeStableSayContentAutoAttemptInternalV1,
+  NarrativeStableSayContentAutoAttemptRecordInternalV1
+>();
+
+type NarrativeStableSayAdvanceDispatchResultInternalV1 =
+  | Readonly<{
+    readonly kind: "dispatched";
+    readonly completion: Promise<unknown>;
+  }>
+  | Readonly<{
+    readonly kind: "stale";
+    readonly completion: null;
+  }>
+  | Readonly<{
+    readonly kind: "faulted";
+    readonly completion: null;
+  }>;
+
 interface NarrativeStableSayRevealControllerRecordInternalV1 {
   readonly bridgeRecord: NarrativeStablePublisherBridgeRecordInternalV1;
   readonly controllerClaim: object;
@@ -438,9 +496,14 @@ interface NarrativeStableSayRevealControllerRecordInternalV1 {
   readonly isCurrentInternalV1: () => boolean;
   readonly revokeInternalV1: (retireSemanticBoundary?: boolean) => void;
   readonly releaseLifecycleObserverInternalV1: () => void;
+  readonly dispatchAdvanceInternalV1: (
+    boundaryClaim: object,
+    captureExactCurrentFrame: () => NarrativeStableAdmittedFrameInternalV1 | null,
+  ) => NarrativeStableSayAdvanceDispatchResultInternalV1;
   active: boolean;
   callbackClaim: object | null;
   currentActivationAttempt: NarrativeStableSayActivationAttemptInternalV1 | null;
+  currentContentAutoAttempt: NarrativeStableSayContentAutoAttemptInternalV1 | null;
 }
 
 const narrativeStableSayRevealControllerRecordsInternalV1 = new WeakMap<
@@ -530,6 +593,11 @@ const narrativePhysicalActionFaultedResultInternalV1 = Object.freeze({
 
 const narrativePhysicalActionRevealedResultInternalV1 = Object.freeze({
   kind: "revealed" as const,
+  completion: null,
+});
+
+const narrativeSayContentAutoNotReadyResultInternalV1 = Object.freeze({
+  kind: "not_ready" as const,
   completion: null,
 });
 
@@ -1464,8 +1532,15 @@ export function createNarrativeStableSayRevealControllerInternalV1(
     stableActionAuthority,
     "captureReadyActiveStableTargetInternalV1",
   );
+  const isCurrentReadyActiveTarget = captureOwnCallableInternalV1(
+    stableActionAuthority,
+    "isCurrentReadyActiveStableTargetInternalV1",
+  );
   const subscribeState = captureOwnCallableInternalV1(kernel, "subscribeStateInternalV1");
-  if (captureReadyActiveTarget === null || subscribeState === null) {
+  if (
+    captureReadyActiveTarget === null || isCurrentReadyActiveTarget === null ||
+    subscribeState === null
+  ) {
     throw new TypeError("ui.narrative_stable_say_reveal_controller_invalid");
   }
 
@@ -1474,6 +1549,7 @@ export function createNarrativeStableSayRevealControllerInternalV1(
       readonly target: ManagedSurfaceStableAdmittedTargetInternalV1;
       readonly sourceRevision: ManagedSurfaceStableSourceRevisionInternalV1;
       readonly frame: NarrativeStableAdmittedFrameInternalV1;
+      readonly proof: ManagedSurfaceStableReadyActiveTargetProofInternalV1;
     }>
     | null => {
     const current = bridgeRecord.captureCurrentTargetInternalV1();
@@ -1498,11 +1574,7 @@ export function createNarrativeStableSayRevealControllerInternalV1(
     ) {
       return null;
     }
-    return Object.freeze({
-      target: current.target,
-      sourceRevision: current.sourceRevision,
-      frame: current.frame,
-    });
+    return Object.freeze({ ...current, proof: captured.proof });
   };
 
   let initial;
@@ -1554,6 +1626,22 @@ export function createNarrativeStableSayRevealControllerInternalV1(
       // Revocation is fail closed even when a diagnostic wrapper throws.
     }
   };
+  const retireCurrentActivationAttempt = (): void => {
+    if (record.currentActivationAttempt === null) return;
+    const attemptRecord = narrativeStablePhysicalActionAttemptRecordsInternalV1.get(
+      record.currentActivationAttempt,
+    );
+    if (attemptRecord !== undefined) attemptRecord.spent = true;
+    record.currentActivationAttempt = null;
+  };
+  const retireCurrentContentAutoAttempt = (): void => {
+    if (record.currentContentAutoAttempt === null) return;
+    const attemptRecord = narrativeStableSayContentAutoAttemptRecordsInternalV1.get(
+      record.currentContentAutoAttempt,
+    );
+    if (attemptRecord !== undefined) attemptRecord.spent = true;
+    record.currentContentAutoAttempt = null;
+  };
   const revoke = (retireSemanticBoundary = false): void => {
     if (!record.active) return;
     const boundaryClaim = record.callbackClaim;
@@ -1567,20 +1655,264 @@ export function createNarrativeStableSayRevealControllerInternalV1(
       bridgeRecord.saySemanticInFlightClaim = null;
     }
     if (!preserveSemanticObserver) record.callbackClaim = null;
-    if (record.currentActivationAttempt !== null) {
-      const attemptRecord = narrativeStablePhysicalActionAttemptRecordsInternalV1.get(
-        record.currentActivationAttempt,
-      );
-      if (attemptRecord !== undefined) attemptRecord.spent = true;
-      record.currentActivationAttempt = null;
-    }
+    retireCurrentActivationAttempt();
+    retireCurrentContentAutoAttempt();
     if (!preserveSemanticObserver) releaseLifecycleObserver();
     if (bridgeRecord.sayRevealControllerClaim === controllerClaim) {
       bridgeRecord.sayRevealControllerClaim = null;
     }
   };
 
+  const releaseBoundary = (boundaryClaim: object): void => {
+    if (bridgeRecord.sayCallbackClaim === boundaryClaim) {
+      bridgeRecord.sayCallbackClaim = null;
+    }
+    if (bridgeRecord.saySemanticInFlightClaim === boundaryClaim) {
+      bridgeRecord.saySemanticInFlightClaim = null;
+    }
+    if (record.callbackClaim === boundaryClaim) {
+      record.callbackClaim = null;
+    }
+    if (!record.active) releaseLifecycleObserver();
+  };
+
+  const dispatchAdvance = (
+    boundaryClaim: object,
+    captureExactCurrentFrame: () => NarrativeStableAdmittedFrameInternalV1 | null,
+  ): NarrativeStableSayAdvanceDispatchResultInternalV1 => {
+    let currentFrame: NarrativeStableAdmittedFrameInternalV1 | null = null;
+    try {
+      currentFrame = captureExactCurrentFrame();
+    } catch {
+      currentFrame = null;
+    }
+    if (currentFrame === null) {
+      releaseBoundary(boundaryClaim);
+      return narrativePhysicalActionStaleResultInternalV1;
+    }
+    const portBinding = narrativeStableSemanticResolutionPortBindingsInternalV1.get(
+      record.semanticDispatchPort,
+    );
+    if (portBinding === undefined) {
+      releaseBoundary(boundaryClaim);
+      return narrativePhysicalActionFaultedResultInternalV1;
+    }
+    if (
+      bridgeRecord.sayCallbackClaim !== boundaryClaim ||
+      record.callbackClaim !== boundaryClaim ||
+      bridgeRecord.saySemanticInFlightClaim !== null
+    ) {
+      releaseBoundary(boundaryClaim);
+      return narrativePhysicalActionStaleResultInternalV1;
+    }
+    bridgeRecord.sayCallbackClaim = null;
+    bridgeRecord.saySemanticInFlightClaim = boundaryClaim;
+    const resolution: InteractionResolutionV1 = freezeNarrativePhysicalActionDataInternalV1({
+      kind: "advance" as const,
+    });
+    const request = freezeNarrativePhysicalActionDataInternalV1({
+      expectedOccurrenceId: currentFrame.pending.occurrenceId,
+      resolution,
+    }) satisfies NarrativeStableSemanticResolutionRequestInternalV1;
+    try {
+      if (captureExactCurrentFrame() === null) {
+        releaseBoundary(boundaryClaim);
+        return narrativePhysicalActionStaleResultInternalV1;
+      }
+    } catch {
+      releaseBoundary(boundaryClaim);
+      return narrativePhysicalActionStaleResultInternalV1;
+    }
+
+    let semanticCompletion: Promise<unknown>;
+    try {
+      semanticCompletion = Promise.resolve(
+        Reflect.apply(portBinding.dispatchResolution, portBinding.receiver, [request]),
+      );
+    } catch (error) {
+      semanticCompletion = Promise.reject(error);
+    }
+    const settleBoundary = (): void => {
+      try {
+        if (record.active && !record.isCurrentInternalV1()) {
+          record.revokeInternalV1(true);
+        }
+      } catch {
+        return;
+      }
+      releaseBoundary(boundaryClaim);
+    };
+    const completion = semanticCompletion.then(
+      (value) => {
+        settleBoundary();
+        return value;
+      },
+      (error) => {
+        settleBoundary();
+        throw error;
+      },
+    );
+    return freezeNarrativePhysicalActionDataInternalV1({
+      kind: "dispatched" as const,
+      completion,
+    });
+  };
+
   controller = freezeNarrativePhysicalActionDataInternalV1({
+    issueContentAutoAttemptInternalV1(
+      this: NarrativeStableSayRevealControllerInternalV1,
+    ): NarrativeStableSayContentAutoAttemptInternalV1 | null {
+      if (
+        this !== controller || !record.active || record.frame.pending.kind !== "say" ||
+        record.frame.pending.advancePolicy !== "auto" || record.callbackClaim !== null ||
+        bridgeRecord.sayCallbackClaim !== null ||
+        bridgeRecord.saySemanticInFlightClaim !== null
+      ) {
+        return null;
+      }
+      try {
+        if (record.currentContentAutoAttempt !== null) {
+          const predecessor = narrativeStableSayContentAutoAttemptRecordsInternalV1.get(
+            record.currentContentAutoAttempt,
+          );
+          if (
+            predecessor === undefined ||
+            Reflect.apply(isCurrentReadyActiveTarget, stableActionAuthority, [
+                predecessor.proof,
+              ]) === true
+          ) {
+            return null;
+          }
+          predecessor.spent = true;
+          record.currentContentAutoAttempt = null;
+        }
+        const current = captureCurrentSay();
+        if (
+          current === null || current.target !== record.directTarget ||
+          current.sourceRevision !== record.sourceRevision || current.frame !== record.frame ||
+          current.frame.pending.kind !== "say" || current.frame.pending.advancePolicy !== "auto" ||
+          current.frame.candidateSnapshot.semanticDispatchPort !== record.semanticDispatchPort ||
+          !record.active || bridgeRecord.sayRevealControllerClaim !== record.controllerClaim ||
+          record.callbackClaim !== null || bridgeRecord.sayCallbackClaim !== null ||
+          bridgeRecord.saySemanticInFlightClaim !== null
+        ) {
+          return null;
+        }
+        const attempt = freezeNarrativePhysicalActionDataInternalV1(
+          {},
+        ) as NarrativeStableSayContentAutoAttemptInternalV1;
+        narrativeStableSayContentAutoAttemptRecordsInternalV1.set(attempt, {
+          controller,
+          controllerClaim: record.controllerClaim,
+          proof: current.proof,
+          directTarget: current.target,
+          sourceRevision: current.sourceRevision,
+          frame: current.frame,
+          semanticDispatchPort: current.frame.candidateSnapshot.semanticDispatchPort,
+          spent: false,
+        });
+        record.currentContentAutoAttempt = attempt;
+        return attempt;
+      } catch {
+        return null;
+      }
+    },
+    dispatchContentAutoInternalV1(
+      this: NarrativeStableSayRevealControllerInternalV1,
+      attempt: unknown,
+    ): NarrativeStableSayContentAutoDispatchResultInternalV1 {
+      if (
+        this !== controller || !record.active ||
+        (typeof attempt !== "object" && typeof attempt !== "function") || attempt === null
+      ) {
+        return narrativePhysicalActionStaleResultInternalV1;
+      }
+      const attemptRecord = narrativeStableSayContentAutoAttemptRecordsInternalV1.get(
+        attempt as NarrativeStableSayContentAutoAttemptInternalV1,
+      );
+      if (
+        attemptRecord === undefined || attemptRecord.controller !== controller ||
+        attemptRecord.controllerClaim !== record.controllerClaim || attemptRecord.spent ||
+        record.currentContentAutoAttempt !== attempt
+      ) {
+        return narrativePhysicalActionStaleResultInternalV1;
+      }
+
+      const captureExactCurrentFrame = (): NarrativeStableAdmittedFrameInternalV1 | null => {
+        if (
+          !record.active || bridgeRecord.sayRevealControllerClaim !== record.controllerClaim ||
+          record.directTarget !== attemptRecord.directTarget ||
+          record.sourceRevision !== attemptRecord.sourceRevision ||
+          record.frame !== attemptRecord.frame ||
+          record.semanticDispatchPort !== attemptRecord.semanticDispatchPort ||
+          Reflect.apply(isCurrentReadyActiveTarget, stableActionAuthority, [
+              attemptRecord.proof,
+            ]) !== true
+        ) {
+          return null;
+        }
+        const current = bridgeRecord.captureCurrentTargetInternalV1();
+        return current !== null && current.target === attemptRecord.directTarget &&
+            current.sourceRevision === attemptRecord.sourceRevision &&
+            current.frame === attemptRecord.frame && current.frame.pending.kind === "say" &&
+            current.frame.pending.advancePolicy === "auto" &&
+            current.frame.candidateSnapshot.semanticDispatchPort ===
+              attemptRecord.semanticDispatchPort
+          ? current.frame
+          : null;
+      };
+
+      try {
+        if (captureExactCurrentFrame() === null) {
+          return narrativePhysicalActionStaleResultInternalV1;
+        }
+      } catch {
+        return narrativePhysicalActionStaleResultInternalV1;
+      }
+      if (
+        record.callbackClaim !== null || bridgeRecord.sayCallbackClaim !== null ||
+        bridgeRecord.saySemanticInFlightClaim !== null
+      ) {
+        return narrativePhysicalActionStaleResultInternalV1;
+      }
+
+      const boundaryClaim = freezeNarrativePhysicalActionDataInternalV1({});
+      record.callbackClaim = boundaryClaim;
+      bridgeRecord.sayCallbackClaim = boundaryClaim;
+      attemptRecord.spent = true;
+      record.currentContentAutoAttempt = null;
+      retireCurrentActivationAttempt();
+
+      let phase: unknown;
+      let phaseThrew = false;
+      try {
+        phase = Reflect.apply(record.capturePhase, record.receiver, []);
+      } catch {
+        phaseThrew = true;
+      }
+      let currentFrame: NarrativeStableAdmittedFrameInternalV1 | null = null;
+      try {
+        currentFrame = captureExactCurrentFrame();
+      } catch {
+        currentFrame = null;
+      }
+      if (
+        currentFrame === null || record.callbackClaim !== boundaryClaim ||
+        bridgeRecord.sayCallbackClaim !== boundaryClaim
+      ) {
+        releaseBoundary(boundaryClaim);
+        return narrativePhysicalActionStaleResultInternalV1;
+      }
+      if (phaseThrew || (phase !== "incomplete" && phase !== "complete")) {
+        releaseBoundary(boundaryClaim);
+        return narrativePhysicalActionFaultedResultInternalV1;
+      }
+      if (phase === "incomplete") {
+        releaseBoundary(boundaryClaim);
+        return narrativeSayContentAutoNotReadyResultInternalV1;
+      }
+      return dispatchAdvance(boundaryClaim, captureExactCurrentFrame);
+    },
     disposeInternalV1(this: NarrativeStableSayRevealControllerInternalV1): void {
       if (this !== controller) return;
       revoke(false);
@@ -1599,9 +1931,11 @@ export function createNarrativeStableSayRevealControllerInternalV1(
     isCurrentInternalV1: generationStillCurrent,
     revokeInternalV1: revoke,
     releaseLifecycleObserverInternalV1: releaseLifecycleObserver,
+    dispatchAdvanceInternalV1: dispatchAdvance,
     active: true,
     callbackClaim: null,
     currentActivationAttempt: null,
+    currentContentAutoAttempt: null,
   };
   narrativeStableSayRevealControllerRecordsInternalV1.set(controller, record);
   bridgeRecord.sayRevealControllerClaim = controllerClaim;
@@ -2098,6 +2432,13 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
           bridgeRecord.sayCallbackClaim = boundaryClaim;
           record.spent = true;
           controllerRecord.currentActivationAttempt = null;
+          if (controllerRecord.currentContentAutoAttempt !== null) {
+            const automaticCompetitor = narrativeStableSayContentAutoAttemptRecordsInternalV1.get(
+              controllerRecord.currentContentAutoAttempt,
+            );
+            if (automaticCompetitor !== undefined) automaticCompetitor.spent = true;
+            controllerRecord.currentContentAutoAttempt = null;
+          }
 
           const releaseCallbackBoundary = (): void => {
             if (bridgeRecord.sayCallbackClaim === boundaryClaim) {
@@ -2112,15 +2453,15 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
           };
 
           let phase: unknown;
-          let phaseError: unknown = null;
+          let phaseThrew = false;
           try {
             phase = Reflect.apply(
               controllerRecord.capturePhase,
               controllerRecord.receiver,
               [],
             );
-          } catch (error) {
-            phaseError = error;
+          } catch {
+            phaseThrew = true;
           }
 
           let currentFrame: NarrativeStableAdmittedFrameInternalV1 | null = null;
@@ -2133,7 +2474,7 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
             releaseCallbackBoundary();
             return narrativePhysicalActionStaleResultInternalV1;
           }
-          if (phaseError !== null || (phase !== "incomplete" && phase !== "complete")) {
+          if (phaseThrew || (phase !== "incomplete" && phase !== "complete")) {
             releaseCallbackBoundary();
             return narrativePhysicalActionFaultedResultInternalV1;
           }
@@ -2157,86 +2498,10 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
               : narrativePhysicalActionRevealedResultInternalV1;
           }
 
-          const portBinding = narrativeStableSemanticResolutionPortBindingsInternalV1.get(
-            record.semanticDispatchPort,
+          return controllerRecord.dispatchAdvanceInternalV1(
+            boundaryClaim,
+            captureExactCurrentSayFrame,
           );
-          if (portBinding === undefined) {
-            releaseCallbackBoundary();
-            return narrativePhysicalActionFaultedResultInternalV1;
-          }
-          if (bridgeRecord.sayCallbackClaim !== boundaryClaim) {
-            releaseCallbackBoundary();
-            return narrativePhysicalActionStaleResultInternalV1;
-          }
-          bridgeRecord.sayCallbackClaim = null;
-          bridgeRecord.saySemanticInFlightClaim = boundaryClaim;
-          const resolution: InteractionResolutionV1 = freezeNarrativePhysicalActionDataInternalV1(
-            { kind: "advance" as const },
-          );
-          const request = freezeNarrativePhysicalActionDataInternalV1({
-            expectedOccurrenceId: currentFrame.pending.occurrenceId,
-            resolution,
-          }) satisfies NarrativeStableSemanticResolutionRequestInternalV1;
-          try {
-            if (captureExactCurrentSayFrame() === null) {
-              if (bridgeRecord.saySemanticInFlightClaim === boundaryClaim) {
-                bridgeRecord.saySemanticInFlightClaim = null;
-              }
-              if (controllerRecord.callbackClaim === boundaryClaim) {
-                controllerRecord.callbackClaim = null;
-              }
-              return narrativePhysicalActionStaleResultInternalV1;
-            }
-          } catch {
-            if (bridgeRecord.saySemanticInFlightClaim === boundaryClaim) {
-              bridgeRecord.saySemanticInFlightClaim = null;
-            }
-            if (controllerRecord.callbackClaim === boundaryClaim) {
-              controllerRecord.callbackClaim = null;
-            }
-            return narrativePhysicalActionStaleResultInternalV1;
-          }
-
-          let semanticCompletion: Promise<unknown>;
-          try {
-            semanticCompletion = Promise.resolve(
-              Reflect.apply(portBinding.dispatchResolution, portBinding.receiver, [request]),
-            );
-          } catch (error) {
-            semanticCompletion = Promise.reject(error);
-          }
-          const settleBoundary = (): void => {
-            try {
-              if (controllerRecord.active && !controllerRecord.isCurrentInternalV1()) {
-                controllerRecord.revokeInternalV1(true);
-              }
-            } catch {
-              return;
-            }
-            if (bridgeRecord.saySemanticInFlightClaim === boundaryClaim) {
-              bridgeRecord.saySemanticInFlightClaim = null;
-            }
-            if (controllerRecord.callbackClaim === boundaryClaim) {
-              controllerRecord.callbackClaim = null;
-            }
-            if (!controllerRecord.active) {
-              controllerRecord.releaseLifecycleObserverInternalV1();
-            }
-          };
-          const completion = semanticCompletion.then(
-            (value) => {
-              settleBoundary();
-              return value;
-            },
-            (error) => {
-              settleBoundary();
-              throw error;
-            },
-          );
-          return freezeNarrativePhysicalActionDataInternalV1({
-            kind: "dispatched" as const,
-            completion,
-          });
         }
         record.spent = true;
 
