@@ -46,9 +46,9 @@ promotion 均已关闭。2026-08-08 dormant `PF4/S3c.1 Host-commit readiness`、
 `PF4/S4.1b.1b.1b.2b.2b.1 settle/replay recovery implementation`也已关闭；
 `PF4/S4.1b.1b.1b.2b.3.0 player-controls execution split` docs-only checkpoint与
 `PF4/S4.1b.1b.1b.2b.3a toggle-ui Narrative catalog corrective`及
-`PF4/S4.1b.1b.1b.2b.3b.0 voice-replay entry contract` docs-only checkpoint也已关闭，
-linear core current/next均为
-`PF4/S4.1b.1b.1b.2b.3b.1 voice replay physical route implementation`。
+`PF4/S4.1b.1b.1b.2b.3b.0 voice-replay entry contract` docs-only checkpoint与
+`PF4/S4.1b.1b.1b.2b.3b.1 voice replay physical route implementation`也已关闭，linear core
+current/next均推进为`PF4/S4.1b.1b.1b.2b.3c bridge-owned Auto/Skip transient mode floor`。
 同日 S1-R pre-implementation review 将 external reconcile gate 重切为 S1-R.0–S1-R.5；
 顺序变化不把任何 planned stable-target contract写成 live capability。
 同日 S1-R.3 entry-gate adjudication 采用 A-prime，将原 R3 拆为单一 composite
@@ -75,8 +75,9 @@ S4.1b.1b.1b.2b.2b.0 recovery generation admission contract及
 S4.1b.1b.1b.2b.2b.1 settle/replay recovery implementation也已关闭；
 S4.1b.1b.1b.2b.3.0 player-controls execution split docs-only checkpoint与
 S4.1b.1b.1b.2b.3a toggle-ui Narrative catalog corrective及
-S4.1b.1b.1b.2b.3b.0 voice-replay entry contract docs-only checkpoint也已关闭，下一独立切片为
-S4.1b.1b.1b.2b.3b.1 voice replay physical route implementation。
+S4.1b.1b.1b.2b.3b.0 voice-replay entry contract docs-only checkpoint与
+S4.1b.1b.1b.2b.3b.1 voice replay physical route implementation也已关闭，下一独立切片为
+S4.1b.1b.1b.2b.3c bridge-owned Auto/Skip transient mode floor。
 旧 promotion 数字保留为
 历史证据。本文是当前唯一的跨计划排序入口；
 具体合同仍由各 design 文档拥有，主要任务由五个独立计划拥有：
@@ -969,8 +970,8 @@ Surface pilot 通过后按 family 分开合并：
 19. S4.1b.1b.1b.2b.3a：toggle-ui Narrative catalog corrective（已完成）；
 20. S4.1b.1b.1b.2b.3b：voice replay physical route（superseded checkpoint；由`.2b.3b.0`细分）；
 21. S4.1b.1b.1b.2b.3b.0：voice-replay entry contract（docs-only，已完成）；
-22. S4.1b.1b.1b.2b.3b.1：voice replay physical route implementation（当前）；
-23. S4.1b.1b.1b.2b.3c：bridge-owned Auto/Skip transient mode floor；
+22. S4.1b.1b.1b.2b.3b.1：voice replay physical route implementation（已完成）；
+23. S4.1b.1b.1b.2b.3c：bridge-owned Auto/Skip transient mode floor（当前）；
 24. S4.1b.1b.1b.2b.3d：History exact-parent open intent floor；
 25. S4.2：dormant Narrative Host、Host-commit readiness、timer scheduling与History exact-child lifecycle；
 26. S4.3：atomic live cutover and promotion；
@@ -1908,12 +1909,28 @@ audio presenter、Base/Web/React Host、live claimant与tracked Story writer均�
 必须包含callback内dispose/recreate physical admission并尝试跨binding reentry，证明nested callback/semantic/lower/state/topology/
 notification均为zero、outer稳定stale、exact bridge claim必定释放，且fresh admission只能在outer boundary结束后正常使用。
 
-`.3b.1`的future acceptance必须先跑Narrative family与public-boundary focused tests，再跑UI package、full unit与完整
+`.3b.1`的acceptance要求先跑Narrative family与public-boundary focused tests，再跑UI package、full unit与完整
 `deno task check`；若source/runtime scope保持dormant且live browser/build graph zero diff，不机械重跑browser/examples/prebuilt，
 其先前结果只能标为prior evidence。该entry amendment本身没有code、test、runtime、Host/live claimant、public API或delivery
-evidence，不记录上述命令结果；只验证本文件`deno fmt --check`与`git diff --check`。Linear core current/next均为
-**S4.1b.1b.1b.2b.3b.1 voice replay physical route implementation**，随后依次为
-**S4.1b.1b.1b.2b.3c → S4.1b.1b.1b.2b.3d → S4.2 → S4.3 → S4b**。
+evidence，不记录上述命令结果；只验证本文件`deno fmt --check`与`git diff --check`。该checkpoint当时的linear core
+current/next均为 **S4.1b.1b.1b.2b.3b.1 voice replay physical route implementation**，现由下述delivery推进。
+
+**PF4/S4.1b.1b.1b.2b.3b.1 voice replay physical route implementation delivery（completed）：**
+Candidate preflight现把exact optional raw voice port descriptor-capture为frozen zero-key handle；既有
+`NarrativeStablePhysicalActionAdmissionInternalV1`仍是唯一route/admission authority，并只签发same-admission、one-shot
+voice attempt。Exact `player.replay_voice` consumer在generic gate之后spend authentic attempt，复用bridge-wide
+`sayCallbackClaim`与既有manual/content-auto形成single first-win callback boundary；callback后的admission/proof/frame/handle
+漂移先归stale，own claim只以exact CAS释放。Absent/true/false/throw或nonboolean分别收口为ignored/handled/ignored/faulted，
+全部保持Input consumed、semantic dispatch与authoritative/composite state、topology、notification为zero。
+
+本delivery只修改source-relative Narrative family implementation、同目录mutation-sensitive test与public-boundary negative
+guards；没有新增generic result、UI root/`./internal` barrel或package export，也没有接Host/React/Web/live Narrative
+claimant、audio presenter、Auto/Skip、History或第二callback/route authority。验证通过focused `2 files / 137 tests`、UI
+package `79 files / 1136 tests`、full `253 files / 4066 tests`与完整`deno task check`。本批因live browser/build graph
+zero diff未重跑browser、examples或prebuilt；先前的Engine browser `101 / 101`、examples browser
+`45 passed / 2 skipped`与prebuilt Player `38 / 38`只作prior evidence，不冒充本HEAD验证。Linear core current/next均推进为
+**S4.1b.1b.1b.2b.3c bridge-owned Auto/Skip transient mode floor**；随后依次为
+**S4.1b.1b.1b.2b.3d → S4.2 → S4.3 → S4b**。
 
 每个 family 的迁移提交必须删除旧 owner；禁止长期 adapter 双写。
 `DialoguePanelV1` / `VnLayerV1` 的 controller/view/host 拆分在 Narrative family

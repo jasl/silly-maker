@@ -33,8 +33,9 @@ S4.1b.1b.1b.2b.2b.0 generation admission amendment已以docs-only关闭，
 S4.1b.1b.1b.2b.2b.1 settle/replay recovery implementation也已关闭；其后原
 S4.1b.1b.1b.2b.3 player controls entry已由S4.1b.1b.1b.2b.3.0 docs-only execution split
 取代，S4.1b.1b.1b.2b.3a toggle-ui Narrative catalog corrective与
-S4.1b.1b.1b.2b.3b.0 voice-replay exact entry amendment也已关闭；当前独立切片为
-S4.1b.1b.1b.2b.3b.1 voice replay physical route implementation。R4 entry
+S4.1b.1b.1b.2b.3b.0 voice-replay exact entry amendment及
+S4.1b.1b.1b.2b.3b.1 voice replay physical route implementation也已关闭；当前独立切片为
+S4.1b.1b.1b.2b.3c bridge-owned Auto/Skip transient mode floor。R4 entry
 adjudication已先以独立S1-R.4.0关闭
 readiness result/capacity contract。R3b entry audit先以独立S1-R.3a.1 corrective补全ready
 retained-subtree authority，该corrective也已关闭。
@@ -49,7 +50,7 @@ S1-R aggregate gate已关闭。
 
 在 [production-floor sequence](2026-07-30-production-floor-sequence.md)
 中：PF2 的 `S0 -> S1-T -> S2`、PF-DET、PF3/M2 与 PF4/S3 已完成；当前 core
-节点是PF4/S4.1b.1b.1b.2b.3b.1。PF4的顺序是
+节点是PF4/S4.1b.1b.1b.2b.3c。PF4的顺序是
 `S3 -> S1-R.0 -> S1-R.1–S1-R.5 -> S4.0 -> S4.1a -> S4.1b.0 -> S4.1b.1a -> S4.1b.1b.0 -> S4.1b.1b.1a -> S4.1b.1b.1b.1 -> S4.1b.1b.1b.2a -> S4.1b.1b.1b.2b.0 -> S4.1b.1b.1b.2b.1a -> S4.1b.1b.1b.2b.1b -> S4.1b.1b.1b.2b.2a -> S4.1b.1b.1b.2b.2b.0 -> S4.1b.1b.1b.2b.2b.1 -> S4.1b.1b.1b.2b.3.0 -> S4.1b.1b.1b.2b.3a -> S4.1b.1b.1b.2b.3b.0 -> S4.1b.1b.1b.2b.3b.1 -> S4.1b.1b.1b.2b.3c -> S4.1b.1b.1b.2b.3d -> S4.2 -> S4.3 -> S4b`；
 S5–S6 属于 PF6。S1-R
 延后到第一个真实 externally published stable-target family 前完成；按 accepted
@@ -1744,9 +1745,9 @@ S1-R 按以下可独立合并切片推进，每次只领取一个：
     由`.3b.0` exact entry amendment与`.3b.1` implementation取代。
 36. **S4.1b.1b.1b.2b.3b.0 voice-replay exact entry amendment（已完成，docs-only）**：冻结raw/captured
     optional port、attempt/result、existing bridge `sayCallbackClaim`复用、route precedence、RED matrix与stop，不声明runtime delivery。
-37. **S4.1b.1b.1b.2b.3b.1 voice replay physical route implementation（当前）**：只实现exact current
+37. **S4.1b.1b.1b.2b.3b.1 voice replay physical route implementation（已完成）**：只实现exact current
     ready-active Say的captured optional callback route，不扩张generic/public contract。
-38. **S4.1b.1b.1b.2b.3c bridge-owned Auto/Skip transient mode floor（待实施）**：只交付
+38. **S4.1b.1b.1b.2b.3c bridge-owned Auto/Skip transient mode floor（当前）**：只交付
     `normal | auto | skip` mode与physical route/result floor；clock/timer/deadline/remaining及scheduling留S4.2。
 39. **S4.1b.1b.1b.2b.3d History exact-parent open intent floor（待实施）**：只交付read-only
     availability、opaque open intent与consumed family-local result；不改变topology，History child lifecycle留S4.2。
@@ -1755,7 +1756,7 @@ S1-R 按以下可独立合并切片推进，每次只领取一个：
 41. **S4.3 atomic live cutover and promotion（待实施）**：同批迁移Engine Lab、template、Cat Cafe、Bookshop，
     删除旧lifecycle writers与standalone public path，更新live docs并完成headless/browser/prebuilt promotion。
 
-当前只允许从 **S4.1b.1b.1b.2b.3b.1** 开始。Stable ingress与stable-specific state/API仍保持
+当前只允许从 **S4.1b.1b.1b.2b.3c** 开始。Stable ingress与stable-specific state/API仍保持
 dormant/package-internal；S4.1允许source-relative Narrative bridge消费Base semantic contract，但不接live
 Narrative/React/Web application graph、不mount React Host，也不更新live feature文档；shared pure topology
 policy只经existing transient adapter live复用，R3a 已将既有live transient reducer/Coordinator 收口到
@@ -3013,9 +3014,9 @@ examples/prebuilt；S0 deterministic Chromium RED与最近R4b.1 browser `101 / 1
     docs-only contract与`.3b.1` implementation取代。
 18. **S4.1b.1b.1b.2b.3b.0 voice-replay exact entry amendment（已完成，docs-only）**：冻结
     descriptor-captured optional callable、attempt/result、existing bridge `sayCallbackClaim`复用、precedence、RED matrix与stop。
-19. **S4.1b.1b.1b.2b.3b.1 voice replay physical route implementation（当前）**：只交付exact current
+19. **S4.1b.1b.1b.2b.3b.1 voice replay physical route implementation（已完成）**：只交付exact current
     ready-active Say的package-internal physical route，不接generic/public API。
-20. **S4.1b.1b.1b.2b.3c bridge-owned Auto/Skip transient mode floor（待实施）**：只交付transient
+20. **S4.1b.1b.1b.2b.3c bridge-owned Auto/Skip transient mode floor（当前）**：只交付transient
     mode与route/result，不实现clock、timer、deadline、remaining或scheduling。
 21. **S4.1b.1b.1b.2b.3d History exact-parent open intent floor（待实施）**：只交付exact read-only
     availability、opaque one-shot open intent与`requested | ignored | stale | faulted` family result；Input仍consumed，
@@ -3727,9 +3728,9 @@ generic Surface result/receipt，也不改动Base interaction、Save/Persistence
    `player.toggle_history`/`ui.cancel` close、focus restore、dismiss、root suspension或timer coordination。这些全部由S4.2在
    same-composition transition fence内消费intent并交付actual History child lifecycle。
 
-因此唯一线性implementation order与current/next gate为
+因此本历史amendment当时冻结的唯一线性implementation order为
 **S4.1b.1b.1b.2b.3b.0 → S4.1b.1b.1b.2b.3b.1 → S4.1b.1b.1b.2b.3c → S4.1b.1b.1b.2b.3d → S4.2 → S4.3 → S4b**。
-`.3a`的历史stop为若必须删除generic input ID、修改legacy live writer或实现fully-hidden topology则停止；`.3b.1`若需要raw
+`.3a`的历史stop为若必须删除generic input ID、修改legacy live writer或实现fully-hidden topology则停止；`.3b.1`的历史stop为若需要raw
 renderer authority或generic/public result expansion则停止；`.3c`若mode
 floor必须同时实现clock/timer/deadline/remaining则停止并把执行部分留S4.2；`.3d`若intent emission必须直接修改topology、
 暴露raw Coordinator/parent identity或承担History close/focus/dismiss则停止并留S4.2。
@@ -3761,11 +3762,11 @@ replay/wire及live feature documentation。验证通过focused `2 files / 156 te
 S4.1b.1b.1b.2b.3a已完成；其后的原`.3b` checkpoint现由下述`.3b.0` exact entry amendment
 细分，不再直接实施。
 
-### S4.1b.1b.1b.2b.3b.0 entry amendment — exact voice-replay route contract
+### S4.1b.1b.1b.2b.3b.0 entry amendment — exact voice-replay route contract（已完成，历史 checkpoint）
 
 原 **S4.1b.1b.1b.2b.3b voice replay physical route** 标记为superseded checkpoint；本docs-only
-entry冻结exact contract，实际source/test切片为
-**S4.1b.1b.1b.2b.3b.1 voice replay physical route implementation**。
+entry冻结exact contract；实际source/test切片
+**S4.1b.1b.1b.2b.3b.1 voice replay physical route implementation**现已由下述delivery履行。
 
 本entry使用以下closed、package-internal名称，`.3b.1`不得另造平行authority或把raw adapter暴露给renderer：
 
@@ -3891,9 +3892,66 @@ PlayerProfile、Save/Persistence、canonical/digest/replay/wire，也立即停�
 
 本amendment严格为docs-only：没有source、test、runtime、Host/React/Web/live claimant或delivery evidence，也不把此前
 focused/UI/full/check/browser/examples/prebuilt结果冒充本批新验证。验证只要求本文件`deno fmt --check`与
-`git diff --check`。唯一active current/next与implementation gate现为
-**S4.1b.1b.1b.2b.3b.1 voice replay physical route implementation**；随后依次为
-S4.1b.1b.1b.2b.3c、S4.1b.1b.1b.2b.3d、S4.2、S4.3与S4b。
+`git diff --check`。该entry现只作为`.3b.1` delivery的historical contract保留；唯一active current/next与
+implementation gate已推进为 **S4.1b.1b.1b.2b.3c bridge-owned Auto/Skip transient mode floor**，随后依次为
+S4.1b.1b.1b.2b.3d、S4.2、S4.3与S4b。
+
+### S4.1b.1b.1b.2b.3b.1 delivery — exact voice replay physical route
+
+本delivery在既有source-relative Narrative family内实现`.3b.0`冻结的四个closed contract。
+`NarrativeStableVoiceReplayPortInternalV1`只接受`null`或prototype exact为`Object.prototype`、own key exact only
+`replayCurrentVoiceInternalV1`且该key为own data descriptor callable的plain object；malformed shape、symbol/extra key、accessor、
+foreign/null prototype与prototype/ownKeys/descriptor trap都在candidate preflight归一化为
+`narrative.candidate_preflight_faulted`，并保持source/occurrence/runtime/topology/notification allocation为零。Preflight只读
+structural descriptor一次，将exact raw receiver与captured callable保存在package-private `WeakMap`，向admitted frame只交付frozen
+zero-key `NarrativeStableCapturedVoiceReplayPortInternalV1` handle或`null`；route不重新读取raw property，因此caller后续替换method
+不会改变已捕获callable或receiver。
+
+既有`NarrativeStablePhysicalActionAdmissionInternalV1`只新增
+`issueVoiceReplayAttemptInternalV1()`；它只为same-admission exact current ready-active Say签发frozen zero-key
+`NarrativeStableVoiceReplayActionAttemptInternalV1`，复用现有
+`ManagedSurfaceStableDirectActionTargetProofInternalV1`、stable input contract、direct target、source revision与exact admitted frame，
+没有新增ready-active proof或第二binding/controller。Voice port absent仍可签发，使authenticated
+`player.replay_voice`稳定得到family-local `ignored`。Result是exact frozen
+`NarrativeStableVoiceReplayDispatchResultInternalV1`四分支`handled | ignored | stale | faulted`，只并入既有Narrative-local
+`NarrativeStablePhysicalActionDispatchResultInternalV1`，不扩generic Surface/Input route、receipt或code。
+
+Route先完整执行既有application/topology/input owner/routing lease/action catalog/input publication/gesture gate；generic gate未调用
+consumer、unpublished或unmapped action均不spend authentic voice attempt。Exact `player.replay_voice` consumer先验证same-admission、
+correct-kind、unspent opaque identity并立即spend，再按physical-admission claim、direct-target proof、current stable input
+contract/target/source、exact Say frame及captured handle identity复验。Handle为`null`直接`ignored`且不读取、安装或释放callback claim；
+non-null handle复用bridge-wide既有`sayCallbackClaim`与`saySemanticInFlightClaim` first-win fence，以exact token CAS覆盖callback
+前后currentness复验，并只用`Reflect.apply(capturedCallable, exactReceiver, [])`同步调用一次。仍current时strict `true`为`handled`、
+strict `false`为`ignored`、throw或non-boolean为`faulted`；callback内source/frame/suspension/dispose/successor drift先于return/throw分类，
+统一以`stale`收口，finally只释放exact own claim。
+
+Shared claim同时封闭same-binding route reentry、nested voice issuance、manual Say与content-auto issue/dispatch，也覆盖callback同步dispose
+old admission并在same frame创建successor admission的cross-binding hole。Outer callback存续期间successor不能签发fresh voice/manual/
+content-auto attempt，old attempt跨authority只能`stale`；outer postcheck以physical-admission claim drift返回`stale`，exact-CAS cleanup后
+successor与先前未spend的content-auto token可正常继续，old cleanup不poison successor。四种voice family outcome的Input均保持
+`consumed / input.managed_surface_consumed`，Surface保持`unchanged / surface.action_routed`，lower handler、semantic resolution、
+Base dispatch与gameplay mutation为零；outer voice route不追加topology或notification mutation，callback显式触发的source/frame/
+suspension/dispose只保留该nested operation自身的exact delta。
+
+Mutation-sensitive matrix覆盖：raw null/exact/malformed port、transparent Proxy zero value-read、accessor getter zero invocation、captured
+callable/receiver drift；exact API/zero-key handle/attempt/frozen result、borrowed receiver、clone/spoof/foreign/wrong-kind与cross-kind
+attempt；present/absent及confirm/auto Say、non-Say/retained/suspended/terminal phase；true/false/throw/non-boolean/absent closed outcomes、
+repeat/fresh attempt；generic-before-spend、pre-route source/frame/retained replacement与admission/coordinator terminal；shared-claim conflict、
+same-binding in-progress、pre-signed content-auto dispatch、dispose/recreate successor及post-callback source/suspension/admission/bridge drift。
+
+Runtime/test scope严格只有
+`engine/packages/ui/src/narrative/narrative-managed-surface-family.ts`、同目录family test与
+`engine/packages/ui/src/public-api.test.ts` negative guard。没有修改Dialogue definition/catalog/revision、
+`playerInputActionIdsV1.replayVoice`或`player.replay_voice` spelling、generic action/Input合同、UI root、`./internal` barrel、package export、
+audio presenter、Base/Web/React Host、live claimant或tracked Story writer；也没有新增semantic path、Coordinator/topology mutation、
+callback observer、timer/profile/mode/History intent、PlayerProfile、Save/Persistence、canonical/digest/replay/wire或public compatibility layer。
+
+验证通过focused `2 files / 137 tests`、UI package `79 files / 1136 tests`、full `253 files / 4066 tests`与完整
+`deno task check`。本source-relative dormant route没有改变browser/build/live graph，因此本批未机械重跑browser/examples/prebuilt；
+Engine browser `101 / 101`、examples `45 passed / 2 skipped`与prebuilt Player `38 / 38`仅为prior evidence，不冒充本delivery
+HEAD新验证。S4.1b.1b.1b.2b.3b.1已完成；唯一active current/next与implementation gate现均为
+**S4.1b.1b.1b.2b.3c bridge-owned Auto/Skip transient mode floor**，随后依次为
+S4.1b.1b.1b.2b.3d、S4.2、S4.3与S4b。
 
 S4.1 aggregate stop在S4.1b.1b.1b.1–S4.1b.1b.1b.2b.3d继续有效：若后续证据要求公开lease/source/occurrence/Coordinator、复用global
 semantic/presentation revision、允许同一semantic occurrence的full normalized `PendingInteractionV1` canonical漂移，

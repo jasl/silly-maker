@@ -964,8 +964,44 @@ result, package export, public API, or live claimant. Verification passed
 focused `2 files / 156 tests`, UI `79 files / 1123 tests`, full
 `253 files / 4053 tests`, and `deno task check`. Browser `101 / 101`, examples
 `45 passed / 2 skipped`, and prebuilt Player `38 / 38` remain prior evidence
-and were not rerun. S4.1b.1b.1b.2b.3a is complete; current/next is
-S4.1b.1b.1b.2b.3b, the source-relative voice replay physical route.
+and were not rerun. S4.1b.1b.1b.2b.3a is complete; at that delivery
+checkpoint, current/next was the voice-replay implementation delivered below.
+
+S4.1b.1b.1b.2b.3b.1 now adds the dormant, source-relative voice replay
+physical route. Candidate preflight accepts either no voice port or one exact
+plain own-data `replayCurrentVoiceInternalV1(): boolean` callable. It captures
+the callable and its exact receiver once into a private WeakMap and stores only
+a frozen zero-key handle in the admitted frame; later property replacement,
+accessors, clones, and malformed adapters cannot become invocation authority.
+
+The existing Narrative physical admission is still the only managed binding
+and route owner. It issues a frozen zero-key, one-shot voice attempt only for
+the exact current ready-active Say, including when the optional port is absent.
+The authenticated generic route runs before any spend. Once the exact
+`player.replay_voice` mapping authenticates a same-admission attempt, it spends
+the attempt, rechecks the direct-target proof, stable input contract,
+target/source/frame, and captured handle, then returns `ignored` for an absent
+port or invokes the captured callable with its original receiver and no
+arguments.
+
+Non-null invocation reuses the bridge-wide `sayCallbackClaim`; it does not add
+a voice-specific claim, controller, binding, or semantic path. The shared claim
+blocks manual/content-auto and cross-binding reentry. Post-callback
+target/source/suspension/disposal drift wins as `stale`; otherwise exact `true`
+is `handled`, exact `false` is `ignored`, and throw or non-boolean output is
+`faulted`. Cleanup releases only its own token by exact CAS. All four outcomes
+remain Input-consumed, and the outer voice route adds zero semantic, gameplay,
+topology, or notification delta. A callback-triggered source, suspension, or
+disposal operation retains only that nested operation's exact delta.
+
+The port, captured handle, attempt, and result remain source-relative and are
+absent from the UI root, `./internal`, and package exports. No generic route,
+Base, Host/React/Web, audio presenter, or live Story claimant changed.
+Verification passed focused `2 files / 137 tests`, UI `79 files / 1136 tests`,
+full `253 files / 4066 tests`, and `deno task check`. Browser `101 / 101`,
+examples `45 passed / 2 skipped`, and prebuilt Player `38 / 38` remain prior
+evidence and were not rerun. S4.1b.1b.1b.2b.3b.1 is complete; current/next is
+S4.1b.1b.1b.2b.3c, the bridge-owned Auto/Skip transient-mode floor.
 
 ## 9. Changing the architecture
 
@@ -1021,8 +1057,10 @@ normal Stage-to-Narrative Barrier acknowledgment claimant described above.
 S4.1b.1b.1b.2b.2b.1 adds the bridge-owned settle/replay recovery generation,
 attempt, and unsupported-result floor described above. S4.1b.1b.1b.2b.3a
 applies the Dialogue catalog corrective described above, while retaining the
-generic input action and legacy live characterization. S4.1b.1b.1b.2b.3b
-voice replay is current/next, followed by the bridge-owned Auto/Skip mode and
-History-intent floors. Host integration and the Narrative live migration
-remain planned work; the implemented source-relative claimant does not alter
-the live Host data flow until that migration and its behavior tests land.
+generic input action and legacy live characterization. S4.1b.1b.1b.2b.3b.1
+adds the captured optional voice replay route on the same physical admission
+and shared Say callback fence. The bridge-owned Auto/Skip mode is current/next,
+followed by the History-intent floor. Host integration and the Narrative live
+migration remain planned work; the implemented source-relative claimant does
+not alter the live Host data flow until that migration and its behavior tests
+land.

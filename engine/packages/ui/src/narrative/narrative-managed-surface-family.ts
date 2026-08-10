@@ -119,10 +119,20 @@ export interface NarrativeStableSayRevealGenerationPortInternalV1 {
   readonly revealAllInternalV1: () => void;
 }
 
+export interface NarrativeStableVoiceReplayPortInternalV1 {
+  readonly replayCurrentVoiceInternalV1: () => boolean;
+}
+
 declare const narrativeStableCapturedSemanticResolutionPortBrandInternalV1: unique symbol;
 
 export interface NarrativeStableCapturedSemanticResolutionPortInternalV1 {
   readonly [narrativeStableCapturedSemanticResolutionPortBrandInternalV1]: true;
+}
+
+declare const narrativeStableCapturedVoiceReplayPortBrandInternalV1: unique symbol;
+
+export interface NarrativeStableCapturedVoiceReplayPortInternalV1 {
+  readonly [narrativeStableCapturedVoiceReplayPortBrandInternalV1]: true;
 }
 
 export interface NarrativeStableCandidateSnapshotInternalV1 {
@@ -133,7 +143,7 @@ export interface NarrativeStableCandidateSnapshotInternalV1 {
   readonly playerProfile: Readonly<object>;
   readonly presentationClock: object | ((...args: never[]) => unknown);
   readonly textResolver: object | ((...args: never[]) => unknown);
-  readonly voiceReplayPort: object | ((...args: never[]) => unknown) | null;
+  readonly voiceReplayPort: NarrativeStableCapturedVoiceReplayPortInternalV1 | null;
   readonly quickMenuContribution: object | ((...args: never[]) => unknown) | null;
 }
 
@@ -251,6 +261,30 @@ declare const narrativeStableSayContentAutoAttemptBrandInternalV1: unique symbol
 export interface NarrativeStableSayContentAutoAttemptInternalV1 {
   readonly [narrativeStableSayContentAutoAttemptBrandInternalV1]: true;
 }
+
+declare const narrativeStableVoiceReplayActionAttemptBrandInternalV1: unique symbol;
+
+export interface NarrativeStableVoiceReplayActionAttemptInternalV1 {
+  readonly [narrativeStableVoiceReplayActionAttemptBrandInternalV1]: true;
+}
+
+export type NarrativeStableVoiceReplayDispatchResultInternalV1 =
+  | Readonly<{
+    readonly kind: "handled";
+    readonly completion: null;
+  }>
+  | Readonly<{
+    readonly kind: "ignored";
+    readonly completion: null;
+  }>
+  | Readonly<{
+    readonly kind: "stale";
+    readonly completion: null;
+  }>
+  | Readonly<{
+    readonly kind: "faulted";
+    readonly completion: null;
+  }>;
 
 export type NarrativeStableSayContentAutoDispatchResultInternalV1 =
   | Readonly<{
@@ -449,7 +483,8 @@ export type NarrativeStablePhysicalActionDispatchResultInternalV1 =
   | Readonly<{
     readonly kind: "faulted";
     readonly completion: null;
-  }>;
+  }>
+  | NarrativeStableVoiceReplayDispatchResultInternalV1;
 
 export interface CreateNarrativeStablePhysicalActionAdmissionInputInternalV1 {
   readonly bridge: NarrativeStablePublisherBridgeInternalV1;
@@ -472,6 +507,7 @@ export interface NarrativeStablePhysicalActionAdmissionInternalV1 {
   issueSayActivationAttemptInternalV1(
     controller: unknown,
   ): NarrativeStableSayActivationAttemptInternalV1 | null;
+  issueVoiceReplayAttemptInternalV1(): NarrativeStableVoiceReplayActionAttemptInternalV1 | null;
   routeInternalV1(
     envelope: ManagedSurfaceActionEnvelopeV1,
     attempt: unknown,
@@ -543,6 +579,13 @@ interface NarrativeStableSemanticResolutionPortBindingInternalV1 {
   ];
 }
 
+interface NarrativeStableVoiceReplayPortBindingInternalV1 {
+  readonly receiver: NarrativeStableVoiceReplayPortInternalV1;
+  readonly replayCurrentVoice: NarrativeStableVoiceReplayPortInternalV1[
+    "replayCurrentVoiceInternalV1"
+  ];
+}
+
 interface NarrativeStablePhysicalActionAttemptRecordBaseInternalV1 {
   readonly authority: NarrativeStablePhysicalActionAdmissionInternalV1;
   readonly targetProof: ManagedSurfaceStableDirectActionTargetProofInternalV1;
@@ -587,12 +630,32 @@ const narrativeStableSemanticResolutionPortBindingsInternalV1 = new WeakMap<
   NarrativeStableCapturedSemanticResolutionPortInternalV1,
   NarrativeStableSemanticResolutionPortBindingInternalV1
 >();
+const narrativeStableVoiceReplayPortBindingsInternalV1 = new WeakMap<
+  NarrativeStableCapturedVoiceReplayPortInternalV1,
+  NarrativeStableVoiceReplayPortBindingInternalV1
+>();
 const narrativeStablePhysicalActionAttemptRecordsInternalV1 = new WeakMap<
   | NarrativeStableChoiceActionAttemptInternalV1
   | NarrativeStablePauseResumeActionAttemptInternalV1
   | NarrativeStableCustomActionAttemptInternalV1
   | NarrativeStableSayActivationAttemptInternalV1,
   NarrativeStablePhysicalActionAttemptRecordInternalV1
+>();
+
+interface NarrativeStableVoiceReplayActionAttemptRecordInternalV1 {
+  readonly kind: "voice_replay";
+  readonly authority: NarrativeStablePhysicalActionAdmissionInternalV1;
+  readonly targetProof: ManagedSurfaceStableDirectActionTargetProofInternalV1;
+  readonly directTarget: ManagedSurfaceStableAdmittedTargetInternalV1;
+  readonly sourceRevision: ManagedSurfaceStableSourceRevisionInternalV1;
+  readonly frame: NarrativeStableAdmittedFrameInternalV1;
+  readonly voiceReplayPort: NarrativeStableCapturedVoiceReplayPortInternalV1 | null;
+  spent: boolean;
+}
+
+const narrativeStableVoiceReplayActionAttemptRecordsInternalV1 = new WeakMap<
+  NarrativeStableVoiceReplayActionAttemptInternalV1,
+  NarrativeStableVoiceReplayActionAttemptRecordInternalV1
 >();
 
 interface NarrativeStableSayContentAutoAttemptRecordInternalV1 {
@@ -848,6 +911,16 @@ const narrativePhysicalActionRevealedResultInternalV1 = Object.freeze({
   completion: null,
 });
 
+const narrativeVoiceReplayHandledResultInternalV1 = Object.freeze({
+  kind: "handled" as const,
+  completion: null,
+});
+
+const narrativeVoiceReplayIgnoredResultInternalV1 = Object.freeze({
+  kind: "ignored" as const,
+  completion: null,
+});
+
 const narrativeSayContentAutoNotReadyResultInternalV1 = Object.freeze({
   kind: "not_ready" as const,
   completion: null,
@@ -1034,6 +1107,9 @@ const narrativeResumeActionIdInternalV1 = parseManagedSurfaceActionIdV1("narrati
 const narrativeCustomActionIdInternalV1 = parseManagedSurfaceActionIdV1("narrative.custom");
 const narrativeConfirmActionIdInternalV1 = parseManagedSurfaceActionIdV1("ui.confirm");
 const narrativeAdvanceActionIdInternalV1 = parseManagedSurfaceActionIdV1("narrative.advance");
+const narrativeReplayVoiceActionIdInternalV1 = parseManagedSurfaceActionIdV1(
+  "player.replay_voice",
+);
 
 const readinessPolicyInternalV1 = Object.freeze({
   initialOpen: "blocking_fallback" as const,
@@ -1188,6 +1264,28 @@ function captureSemanticResolutionPortInternalV1(
   return handle;
 }
 
+function captureVoiceReplayPortInternalV1(
+  value: unknown,
+): NarrativeStableCapturedVoiceReplayPortInternalV1 | null {
+  const record = captureOwnDataRecordInternalV1(value);
+  if (
+    record === null ||
+    !capturedRecordHasExactKeysInternalV1(record, ["replayCurrentVoiceInternalV1"]) ||
+    typeof record.values.replayCurrentVoiceInternalV1 !== "function"
+  ) {
+    return null;
+  }
+  const handle = Object.freeze({}) as NarrativeStableCapturedVoiceReplayPortInternalV1;
+  narrativeStableVoiceReplayPortBindingsInternalV1.set(handle, {
+    receiver: value as NarrativeStableVoiceReplayPortInternalV1,
+    replayCurrentVoice: record.values
+      .replayCurrentVoiceInternalV1 as NarrativeStableVoiceReplayPortInternalV1[
+        "replayCurrentVoiceInternalV1"
+      ],
+  });
+  return handle;
+}
+
 function captureCandidateSnapshotInternalV1(
   value: unknown,
 ): NarrativeStableCandidateSnapshotInternalV1 | null {
@@ -1218,6 +1316,9 @@ function captureCandidateSnapshotInternalV1(
   const semanticDispatchPort = captureSemanticResolutionPortInternalV1(
     captured.semanticDispatchPort,
   );
+  const voiceReplayPort = captured.voiceReplayPort === null
+    ? null
+    : captureVoiceReplayPortInternalV1(captured.voiceReplayPort);
   if (
     !isOpaqueCandidatePortInternalV1(captured.rendererComponent) ||
     typeof captured.visualConfig !== "object" || captured.visualConfig === null ||
@@ -1228,8 +1329,7 @@ function captureCandidateSnapshotInternalV1(
     !Object.isFrozen(captured.playerProfile) ||
     !isOpaqueCandidatePortInternalV1(captured.presentationClock) ||
     !isOpaqueCandidatePortInternalV1(captured.textResolver) ||
-    (captured.voiceReplayPort !== null &&
-      !isOpaqueCandidatePortInternalV1(captured.voiceReplayPort)) ||
+    (captured.voiceReplayPort !== null && voiceReplayPort === null) ||
     (captured.quickMenuContribution !== null &&
       !isOpaqueCandidatePortInternalV1(captured.quickMenuContribution))
   ) {
@@ -1243,7 +1343,7 @@ function captureCandidateSnapshotInternalV1(
     playerProfile: captured.playerProfile,
     presentationClock: captured.presentationClock,
     textResolver: captured.textResolver,
-    voiceReplayPort: captured.voiceReplayPort,
+    voiceReplayPort,
     quickMenuContribution: captured.quickMenuContribution,
   });
 }
@@ -2695,7 +2795,9 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
         }
         const isSayAlias = actionId === narrativeConfirmActionIdInternalV1 ||
           actionId === narrativeAdvanceActionIdInternalV1;
-        const mappedKind = actionId === narrativeChooseActionIdInternalV1
+        const mappedKind = actionId === narrativeReplayVoiceActionIdInternalV1
+          ? "voice_replay"
+          : actionId === narrativeChooseActionIdInternalV1
           ? "choice"
           : actionId === narrativeResumeActionIdInternalV1
           ? "pause_resume"
@@ -2706,6 +2808,152 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
           : null;
         if (mappedKind === null) {
           return narrativePhysicalActionUnmappedResultInternalV1;
+        }
+        if (mappedKind === "voice_replay") {
+          if (
+            (typeof attempt !== "object" && typeof attempt !== "function") || attempt === null
+          ) {
+            return narrativePhysicalActionStaleResultInternalV1;
+          }
+          const record = narrativeStableVoiceReplayActionAttemptRecordsInternalV1.get(
+            attempt as NarrativeStableVoiceReplayActionAttemptInternalV1,
+          );
+          if (
+            record === undefined || record.kind !== "voice_replay" ||
+            record.authority !== authority || record.spent
+          ) {
+            return narrativePhysicalActionStaleResultInternalV1;
+          }
+          record.spent = true;
+
+          const captureExactCurrentVoiceFrame = ():
+            | NarrativeStableAdmittedFrameInternalV1
+            | null => {
+            if (
+              bridgeRecord.physicalActionAdmissionClaim !== admissionClaim || !active ||
+              !bridgeRecord.isActiveInternalV1()
+            ) {
+              return null;
+            }
+            if (
+              Reflect.apply(isCurrentDirectTarget, stableActionAuthority, [record.targetProof]) !==
+                true
+            ) {
+              return null;
+            }
+            const current = Reflect.apply(
+              captureCurrentStableInput,
+              stableActionAuthority,
+              [],
+            ) as ReturnType<
+              ManagedSurfaceStableActionRouteAuthorityInternalV1[
+                "captureCurrentStableInputInternalV1"
+              ]
+            >;
+            if (
+              current.kind !== "captured" || current.directTarget !== record.directTarget ||
+              current.sourceRevision !== record.sourceRevision || current.targetProof === null ||
+              !equalManagedSurfaceInputBindingContractV1(
+                current.contract,
+                capturedInitial.contract,
+              )
+            ) {
+              return null;
+            }
+            const frame = Reflect.apply(inspectAdmittedTargetFrame, bridge, [
+              current.directTarget,
+            ]) as NarrativeStableAdmittedFrameInternalV1 | null;
+            return frame === record.frame && frame?.pending.kind === "say" &&
+                frame.candidateSnapshot.voiceReplayPort === record.voiceReplayPort
+              ? frame
+              : null;
+          };
+
+          try {
+            if (captureExactCurrentVoiceFrame() === null) {
+              return narrativePhysicalActionStaleResultInternalV1;
+            }
+          } catch {
+            return narrativePhysicalActionStaleResultInternalV1;
+          }
+          if (record.voiceReplayPort === null) {
+            return narrativeVoiceReplayIgnoredResultInternalV1;
+          }
+          const voiceBinding = narrativeStableVoiceReplayPortBindingsInternalV1.get(
+            record.voiceReplayPort,
+          );
+          if (voiceBinding === undefined) return narrativePhysicalActionStaleResultInternalV1;
+          if (
+            bridgeRecord.sayCallbackClaim !== null ||
+            bridgeRecord.saySemanticInFlightClaim !== null
+          ) {
+            return narrativePhysicalActionStaleResultInternalV1;
+          }
+
+          const callbackClaim = freezeNarrativePhysicalActionDataInternalV1({});
+          bridgeRecord.sayCallbackClaim = callbackClaim;
+          try {
+            let currentFrame: NarrativeStableAdmittedFrameInternalV1 | null = null;
+            try {
+              currentFrame = captureExactCurrentVoiceFrame();
+            } catch {
+              currentFrame = null;
+            }
+            if (
+              currentFrame === null || bridgeRecord.sayCallbackClaim !== callbackClaim ||
+              bridgeRecord.saySemanticInFlightClaim !== null
+            ) {
+              return narrativePhysicalActionStaleResultInternalV1;
+            }
+
+            let callbackOutcome: unknown;
+            let callbackThrew = false;
+            try {
+              callbackOutcome = Reflect.apply(
+                voiceBinding.replayCurrentVoice,
+                voiceBinding.receiver,
+                [],
+              );
+            } catch {
+              callbackThrew = true;
+            }
+
+            try {
+              currentFrame = captureExactCurrentVoiceFrame();
+            } catch {
+              currentFrame = null;
+            }
+            if (
+              currentFrame === null || bridgeRecord.sayCallbackClaim !== callbackClaim ||
+              bridgeRecord.saySemanticInFlightClaim !== null
+            ) {
+              return narrativePhysicalActionStaleResultInternalV1;
+            }
+            if (callbackThrew || typeof callbackOutcome !== "boolean") {
+              return narrativePhysicalActionFaultedResultInternalV1;
+            }
+            return callbackOutcome
+              ? narrativeVoiceReplayHandledResultInternalV1
+              : narrativeVoiceReplayIgnoredResultInternalV1;
+          } finally {
+            if (bridgeRecord.sayCallbackClaim === callbackClaim) {
+              bridgeRecord.sayCallbackClaim = null;
+            }
+          }
+        }
+        if (
+          isSayAlias &&
+          (typeof attempt === "object" || typeof attempt === "function") && attempt !== null
+        ) {
+          const voiceRecord = narrativeStableVoiceReplayActionAttemptRecordsInternalV1.get(
+            attempt as NarrativeStableVoiceReplayActionAttemptInternalV1,
+          );
+          if (
+            voiceRecord !== undefined && voiceRecord.authority === authority &&
+            !voiceRecord.spent
+          ) {
+            return narrativePhysicalActionUnmappedResultInternalV1;
+          }
         }
         if ((typeof attempt !== "object" && typeof attempt !== "function") || attempt === null) {
           return narrativePhysicalActionStaleResultInternalV1;
@@ -3313,6 +3561,71 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
           spent: false,
         });
         controllerRecord.currentActivationAttempt = attempt;
+        return attempt;
+      } catch {
+        return null;
+      }
+    },
+    issueVoiceReplayAttemptInternalV1(
+      this: NarrativeStablePhysicalActionAdmissionInternalV1,
+    ): NarrativeStableVoiceReplayActionAttemptInternalV1 | null {
+      if (
+        this !== authority || !active ||
+        bridgeRecord.physicalActionAdmissionClaim !== admissionClaim ||
+        bridgeRecord.sayCallbackClaim !== null ||
+        bridgeRecord.saySemanticInFlightClaim !== null
+      ) {
+        return null;
+      }
+      try {
+        if (!bridgeRecord.isActiveInternalV1()) return null;
+        const current = Reflect.apply(
+          captureCurrentStableInput,
+          stableActionAuthority,
+          [],
+        ) as ReturnType<
+          ManagedSurfaceStableActionRouteAuthorityInternalV1[
+            "captureCurrentStableInputInternalV1"
+          ]
+        >;
+        if (
+          current.kind !== "captured" || current.directTarget === null ||
+          current.sourceRevision === null || current.targetProof === null ||
+          !equalManagedSurfaceInputBindingContractV1(current.contract, capturedInitial.contract) ||
+          Reflect.apply(isCurrentDirectTarget, stableActionAuthority, [current.targetProof]) !==
+            true
+        ) {
+          return null;
+        }
+        const frame = Reflect.apply(inspectAdmittedTargetFrame, bridge, [
+          current.directTarget,
+        ]) as NarrativeStableAdmittedFrameInternalV1 | null;
+        if (
+          frame === null || frame.pending.kind !== "say" ||
+          (frame.candidateSnapshot.voiceReplayPort !== null &&
+            !narrativeStableVoiceReplayPortBindingsInternalV1.has(
+              frame.candidateSnapshot.voiceReplayPort,
+            )) ||
+          !active || !bridgeRecord.isActiveInternalV1() ||
+          bridgeRecord.physicalActionAdmissionClaim !== admissionClaim ||
+          bridgeRecord.sayCallbackClaim !== null ||
+          bridgeRecord.saySemanticInFlightClaim !== null
+        ) {
+          return null;
+        }
+        const attempt = freezeNarrativePhysicalActionDataInternalV1(
+          {},
+        ) as NarrativeStableVoiceReplayActionAttemptInternalV1;
+        narrativeStableVoiceReplayActionAttemptRecordsInternalV1.set(attempt, {
+          kind: "voice_replay",
+          authority,
+          targetProof: current.targetProof,
+          directTarget: current.directTarget,
+          sourceRevision: current.sourceRevision,
+          frame,
+          voiceReplayPort: frame.candidateSnapshot.voiceReplayPort,
+          spent: false,
+        });
         return attempt;
       } catch {
         return null;

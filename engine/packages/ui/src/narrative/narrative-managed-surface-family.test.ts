@@ -101,6 +101,10 @@ import {
   type NarrativeStableSayRevealControllerInternalV1,
   type NarrativeStableSayRevealGenerationPortInternalV1,
   type NarrativeStableSemanticResolutionPortInternalV1,
+  type NarrativeStableCapturedVoiceReplayPortInternalV1,
+  type NarrativeStableVoiceReplayActionAttemptInternalV1,
+  type NarrativeStableVoiceReplayDispatchResultInternalV1,
+  type NarrativeStableVoiceReplayPortInternalV1,
 } from "./narrative-managed-surface-family.ts";
 
 const applicationEpochV1 = parseNonNegativeSafeInteger(91);
@@ -109,6 +113,9 @@ const narrativeConfirmActionIdV1 = parseManagedSurfaceActionIdV1("ui.confirm");
 const narrativeAdvanceActionIdV1 = parseManagedSurfaceActionIdV1("narrative.advance");
 const narrativeResumeActionIdV1 = parseManagedSurfaceActionIdV1("narrative.resume");
 const narrativeCustomActionIdV1 = parseManagedSurfaceActionIdV1("narrative.custom");
+const narrativeReplayVoiceActionIdV1 = parseManagedSurfaceActionIdV1(
+  playerInputActionIdsV1.replayVoice,
+);
 const narrativeUnknownActionIdV1 = parseManagedSurfaceActionIdV1("narrative.unknown");
 const zeroDeltaV1 = Object.freeze({
   source: "unchanged" as const,
@@ -607,6 +614,7 @@ function physicalSayHarnessV1(input: {
   readonly advancePolicy?: "confirm" | "auto";
   readonly playerProfile?: unknown;
   readonly presentationClock?: unknown;
+  readonly voiceReplayPort?: unknown;
 } = {}) {
   const semanticDispatchPort = input.semanticDispatchPort ?? defaultSemanticDispatchPortV1;
   const harness = harnessV1({
@@ -618,6 +626,7 @@ function physicalSayHarnessV1(input: {
           playerProfile: input.playerProfile ?? defaultCandidateSnapshotV1.playerProfile,
           presentationClock: input.presentationClock ??
             defaultCandidateSnapshotV1.presentationClock,
+          voiceReplayPort: input.voiceReplayPort ?? defaultCandidateSnapshotV1.voiceReplayPort,
         })),
     }),
   });
@@ -756,6 +765,7 @@ function nonBlockingNarrativeHarnessV1(
   semanticDispatchPort: NarrativeStableSemanticResolutionPortInternalV1,
   layerOrder = 90,
   modality: "non_blocking" | "blocking" = "non_blocking",
+  voiceReplayPort: unknown = defaultCandidateSnapshotV1.voiceReplayPort,
 ) {
   const contract = createNarrativeManagedSurfaceFamilyContractInternalV1();
   const nonBlockingDefinition = parseManagedSurfaceResolvedDefinitionV1({
@@ -819,6 +829,7 @@ function nonBlockingNarrativeHarnessV1(
         capturedCandidatePreflightResultV1(Object.freeze({
           ...defaultCandidateSnapshotV1,
           semanticDispatchPort,
+          voiceReplayPort,
         })),
     }),
     exactAggregateDefinitionSidecars: contract.stableDefinitionSidecars,
@@ -2091,6 +2102,8 @@ describe("Narrative stable Managed Surface family", () => {
     type ExpectedDispatchResultV1 =
       | Readonly<{ readonly kind: "dispatched"; readonly completion: Promise<unknown> }>
       | Readonly<{ readonly kind: "revealed"; readonly completion: null }>
+      | Readonly<{ readonly kind: "handled"; readonly completion: null }>
+      | Readonly<{ readonly kind: "ignored"; readonly completion: null }>
       | Readonly<{ readonly kind: "unmapped"; readonly completion: null }>
       | Readonly<{ readonly kind: "stale"; readonly completion: null }>
       | Readonly<{ readonly kind: "faulted"; readonly completion: null }>;
@@ -2104,6 +2117,7 @@ describe("Narrative stable Managed Surface family", () => {
       "issuePauseResumeAttemptInternalV1",
       "issueCustomAttemptInternalV1",
       "issueSayActivationAttemptInternalV1",
+      "issueVoiceReplayAttemptInternalV1",
       "routeInternalV1",
       "disposeInternalV1",
     ]);
@@ -5373,6 +5387,819 @@ describe("Narrative stable Managed Surface family", () => {
     expect(fixture.harness.stateNotificationCount()).toBe(notifications);
     fixture.controller.disposeInternalV1();
     fixture.admission.disposeInternalV1();
+  });
+
+  it("captures one exact voice port handle and rejects every malformed raw shape", () => {
+    type ExpectedVoiceResultV1 =
+      | Readonly<{ readonly kind: "handled"; readonly completion: null }>
+      | Readonly<{ readonly kind: "ignored"; readonly completion: null }>
+      | Readonly<{ readonly kind: "stale"; readonly completion: null }>
+      | Readonly<{ readonly kind: "faulted"; readonly completion: null }>;
+    expectTypeOf<NarrativeStableVoiceReplayDispatchResultInternalV1>()
+      .toEqualTypeOf<ExpectedVoiceResultV1>();
+
+    const originalReplay = vi.fn(function (this: unknown) {
+      expect(this).toBe(rawPort);
+      expect(arguments).toHaveLength(0);
+      return true;
+    });
+    const replacementReplay = vi.fn(() => false);
+    const rawPort = {
+      replayCurrentVoiceInternalV1: originalReplay,
+    } satisfies NarrativeStableVoiceReplayPortInternalV1;
+    const fixture = physicalSayHarnessV1({ voiceReplayPort: rawPort });
+    const baseline = narrativeBaselineV1(fixture.harness);
+    if (baseline.kind !== "accepted") throw new Error("expected accepted voice baseline");
+    const frame = fixture.harness.bridge.inspectAdmittedTargetFrameInternalV1(
+      baseline.targets[0],
+    );
+    if (frame === null) throw new Error("expected admitted voice frame");
+    expectTypeOf(frame.candidateSnapshot.voiceReplayPort).toEqualTypeOf<
+      NarrativeStableCapturedVoiceReplayPortInternalV1 | null
+    >();
+    const capturedHandle = frame.candidateSnapshot.voiceReplayPort;
+    expect(capturedHandle).not.toBe(rawPort);
+    expect(capturedHandle).not.toBeNull();
+    expect(Object.isFrozen(capturedHandle)).toBe(true);
+    expect(Reflect.ownKeys(capturedHandle as object)).toEqual([]);
+
+    rawPort.replayCurrentVoiceInternalV1 = replacementReplay;
+    const attempt = fixture.admission.issueVoiceReplayAttemptInternalV1();
+    expectTypeOf(attempt).toEqualTypeOf<
+      NarrativeStableVoiceReplayActionAttemptInternalV1 | null
+    >();
+    expect(attempt).not.toBeNull();
+    const result = fixture.admission.routeInternalV1(
+      fixture.admission.createEnvelopeInternalV1({
+        actionId: narrativeReplayVoiceActionIdV1,
+        gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.voice-captured"),
+      }),
+      attempt,
+    );
+    expect(result.consumerResult).toEqual({ kind: "handled", completion: null });
+    expect(originalReplay).toHaveBeenCalledOnce();
+    expect(replacementReplay).not.toHaveBeenCalled();
+
+    const proxyValueRead = vi.fn();
+    let proxyPort!: NarrativeStableVoiceReplayPortInternalV1;
+    const proxyReplay = vi.fn(function (this: unknown) {
+      expect(this).toBe(proxyPort);
+      expect(arguments).toHaveLength(0);
+      return true;
+    });
+    proxyPort = new Proxy({ replayCurrentVoiceInternalV1: proxyReplay }, {
+      get(target, key, receiver) {
+        proxyValueRead(key);
+        return Reflect.get(target, key, receiver);
+      },
+    });
+    const proxyFixture = physicalSayHarnessV1({ voiceReplayPort: proxyPort });
+    const proxyAttempt = proxyFixture.admission.issueVoiceReplayAttemptInternalV1();
+    expect(proxyAttempt).not.toBeNull();
+    expect(
+      proxyFixture.admission.routeInternalV1(
+        proxyFixture.admission.createEnvelopeInternalV1({
+          actionId: narrativeReplayVoiceActionIdV1,
+          gestureId: parseManagedSurfaceGestureIdV1(
+            "gesture.narrative.voice-transparent-proxy",
+          ),
+        }),
+        proxyAttempt,
+      ).consumerResult,
+    ).toEqual({ kind: "handled", completion: null });
+    expect(proxyValueRead).not.toHaveBeenCalled();
+    expect(proxyReplay).toHaveBeenCalledOnce();
+
+    const inherited = Object.create({
+      replayCurrentVoiceInternalV1: () => true,
+    }) as object;
+    const accessorRead = vi.fn(() => () => true);
+    const accessor = Object.defineProperty({}, "replayCurrentVoiceInternalV1", {
+      enumerable: true,
+      get: accessorRead,
+    });
+    const extraSymbol = Object.assign(
+      { replayCurrentVoiceInternalV1: () => true },
+      { [Symbol("extra")]: true },
+    );
+    const malformedPorts: readonly unknown[] = Object.freeze([
+      [],
+      Object.assign(() => true, { replayCurrentVoiceInternalV1: () => true }),
+      Object.assign(Object.create(null), { replayCurrentVoiceInternalV1: () => true }),
+      Object.assign(Object.create({ foreign: true }), {
+        replayCurrentVoiceInternalV1: () => true,
+      }),
+      { replayCurrentVoiceInternalV1: () => true, extra: true },
+      extraSymbol,
+      accessor,
+      inherited,
+      {},
+      { replayCurrentVoiceInternalV1: false },
+      new Proxy({ replayCurrentVoiceInternalV1: () => true }, {
+        getPrototypeOf() {
+          throw new Error("voice prototype trap");
+        },
+      }),
+      new Proxy({ replayCurrentVoiceInternalV1: () => true }, {
+        ownKeys() {
+          throw new Error("voice ownKeys trap");
+        },
+      }),
+      new Proxy({ replayCurrentVoiceInternalV1: () => true }, {
+        getOwnPropertyDescriptor() {
+          throw new Error("voice descriptor trap");
+        },
+      }),
+    ]);
+    for (const voiceReplayPort of malformedPorts) {
+      const malformed = harnessV1({
+        candidatePreflight: Object.freeze({
+          preflightCandidateInternalV1: () =>
+            capturedCandidatePreflightResultV1(Object.freeze({
+              ...defaultCandidateSnapshotV1,
+              voiceReplayPort,
+            })),
+        }),
+      });
+      const before = malformed.kernel.getStateInternalV1();
+      expectZeroResultV1(
+        malformed.bridge.reconcilePendingInternalV1(pendingV1("say")),
+        "faulted",
+        "narrative.candidate_preflight_faulted",
+      );
+      expect(malformed.kernel.getStateInternalV1()).toBe(before);
+      expect(malformed.stateNotificationCount()).toBe(0);
+      expect(publisherSnapshotV1(malformed)).toMatchObject({
+        sourceRevisionIssuanceHighWater: 0,
+        occurrenceIssuanceHighWater: 0,
+      });
+    }
+    expect(accessorRead).not.toHaveBeenCalled();
+    proxyFixture.controller.disposeInternalV1();
+    proxyFixture.admission.disposeInternalV1();
+    fixture.controller.disposeInternalV1();
+    fixture.admission.disposeInternalV1();
+  });
+
+  it.each(
+    [
+      ["absent", null, "ignored"],
+      ["true", true, "handled"],
+      ["false", false, "ignored"],
+      ["throw", "throw", "faulted"],
+      ["nonboolean", "invalid", "faulted"],
+    ] as const,
+  )("routes voice replay %s as one consumed exact result", (_label, outcome, kind) => {
+    const semanticDispatch = vi.fn(() => Promise.resolve("must-not-dispatch"));
+    let rawPort: NarrativeStableVoiceReplayPortInternalV1 | null = null;
+    const replay = vi.fn(function (this: unknown) {
+      expect(this).toBe(rawPort);
+      expect(arguments).toHaveLength(0);
+      if (outcome === "throw") throw new Error("voice replay failed");
+      return outcome;
+    });
+    if (outcome !== null) {
+      rawPort = {
+        replayCurrentVoiceInternalV1: replay,
+      } as unknown as NarrativeStableVoiceReplayPortInternalV1;
+    }
+    const fixture = physicalSayHarnessV1({
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: semanticDispatch,
+      }),
+      voiceReplayPort: rawPort,
+    });
+    const lower = vi.fn(() => inputHandledV1);
+    fixture.inputRouter.register({ context: "gameplay", handle: lower });
+    const state = fixture.harness.kernel.getStateInternalV1();
+    const notifications = fixture.harness.stateNotificationCount();
+    const attempt = fixture.admission.issueVoiceReplayAttemptInternalV1();
+    expect(attempt).not.toBeNull();
+    expect(Object.isFrozen(attempt)).toBe(true);
+    expect(Reflect.ownKeys(attempt as object)).toEqual([]);
+    const envelope = fixture.admission.createEnvelopeInternalV1({
+      actionId: narrativeReplayVoiceActionIdV1,
+      gestureId: parseManagedSurfaceGestureIdV1(`gesture.narrative.voice-${_label}`),
+    });
+    const result = fixture.admission.routeInternalV1(envelope, attempt);
+    expect(result).toMatchObject({
+      route: {
+        input: { kind: "consumed", code: "input.managed_surface_consumed" },
+        surface: { kind: "unchanged", code: "surface.action_routed" },
+      },
+      consumerResult: { kind, completion: null },
+    });
+    expect(Object.isFrozen(result.consumerResult)).toBe(true);
+    expect(replay).toHaveBeenCalledTimes(outcome === null ? 0 : 1);
+    expect(lower).not.toHaveBeenCalled();
+    expect(semanticDispatch).not.toHaveBeenCalled();
+    expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
+    expect(fixture.harness.stateNotificationCount()).toBe(notifications);
+    expect(fixture.admission.routeInternalV1(envelope, attempt).consumerResult).toEqual({
+      kind: "stale",
+      completion: null,
+    });
+    expect(fixture.admission.issueVoiceReplayAttemptInternalV1()).not.toBeNull();
+    fixture.controller.disposeInternalV1();
+    fixture.admission.disposeInternalV1();
+  });
+
+  it("runs generic fences and action mapping before spending an authentic voice attempt", () => {
+    let gestureCurrent = false;
+    const replay = vi.fn(() => true);
+    const rawPort = {
+      replayCurrentVoiceInternalV1: replay,
+    } satisfies NarrativeStableVoiceReplayPortInternalV1;
+    const fixture = physicalSayHarnessV1({
+      isGestureCurrent: () => gestureCurrent,
+      voiceReplayPort: rawPort,
+    });
+    const attempt = fixture.admission.issueVoiceReplayAttemptInternalV1();
+    expect(attempt).not.toBeNull();
+    const replayEnvelope = fixture.admission.createEnvelopeInternalV1({
+      actionId: narrativeReplayVoiceActionIdV1,
+      gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.voice-generic-first"),
+    });
+    expect(fixture.admission.routeInternalV1(replayEnvelope, attempt)).toMatchObject({
+      route: { input: { code: "input.stale_gesture" }, surface: null },
+      consumerResult: null,
+    });
+    gestureCurrent = true;
+    expect(fixture.admission.routeInternalV1(replayEnvelope, attempt).consumerResult).toEqual({
+      kind: "handled",
+      completion: null,
+    });
+
+    const wrongActionAttempt = fixture.admission.issueVoiceReplayAttemptInternalV1();
+    expect(wrongActionAttempt).not.toBeNull();
+    expect(
+      fixture.admission.routeInternalV1(
+        fixture.admission.createEnvelopeInternalV1({
+          actionId: narrativeConfirmActionIdV1,
+          gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.voice-unmapped"),
+        }),
+        wrongActionAttempt,
+      ).consumerResult,
+    ).toEqual({ kind: "unmapped", completion: null });
+    expect(fixture.admission.routeInternalV1(replayEnvelope, wrongActionAttempt).consumerResult)
+      .toEqual({ kind: "handled", completion: null });
+
+    const unpublishedAttempt = fixture.admission.issueVoiceReplayAttemptInternalV1();
+    expect(unpublishedAttempt).not.toBeNull();
+    expect(
+      fixture.admission.routeInternalV1(
+        fixture.admission.createEnvelopeInternalV1({
+          actionId: narrativeUnknownActionIdV1,
+          gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.voice-unpublished"),
+        }),
+        unpublishedAttempt,
+      ),
+    ).toMatchObject({
+      route: { surface: { kind: "rejected", code: "surface.action_unpublished" } },
+      consumerResult: null,
+    });
+    expect(fixture.admission.routeInternalV1(replayEnvelope, unpublishedAttempt).consumerResult)
+      .toEqual({ kind: "handled", completion: null });
+
+    const sayAttempt = fixture.admission.issueSayActivationAttemptInternalV1(
+      fixture.controller,
+    );
+    expect(sayAttempt).not.toBeNull();
+    expect(fixture.admission.routeInternalV1(replayEnvelope, sayAttempt).consumerResult).toEqual({
+      kind: "stale",
+      completion: null,
+    });
+    expect(replay).toHaveBeenCalledTimes(3);
+    fixture.controller.disposeInternalV1();
+    fixture.admission.disposeInternalV1();
+  });
+
+  it("separates family-local pre-route drift from generic terminal fences", () => {
+    const sourceReplay = vi.fn(() => true);
+    const source = physicalSayHarnessV1({
+      voiceReplayPort: {
+        replayCurrentVoiceInternalV1: sourceReplay,
+      } satisfies NarrativeStableVoiceReplayPortInternalV1,
+    });
+    const sourceAttempt = source.admission.issueVoiceReplayAttemptInternalV1();
+    expect(sourceAttempt).not.toBeNull();
+    const sourceEnvelope = source.admission.createEnvelopeInternalV1({
+      actionId: narrativeReplayVoiceActionIdV1,
+      gestureId: parseManagedSurfaceGestureIdV1(
+        "gesture.narrative.voice-pre-route-source",
+      ),
+    });
+    expect(source.harness.bridge.reconcilePendingInternalV1(pendingV1("say", 2)))
+      .toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
+    const replacement = source.harness.kernel.getStateInternalV1().stableRuntimeBindings[0]
+      ?.binding;
+    if (replacement?.kind !== "preparing") {
+      throw new Error("expected retained voice replacement");
+    }
+    expect(replacement.retainedSubtree).not.toBeNull();
+    expect(source.admission.issueVoiceReplayAttemptInternalV1()).toBeNull();
+    const replacementState = source.harness.kernel.getStateInternalV1();
+    const replacementNotifications = source.harness.stateNotificationCount();
+    expect(source.admission.routeInternalV1(sourceEnvelope, sourceAttempt)).toMatchObject({
+      route: {
+        input: { kind: "consumed", code: "input.managed_surface_consumed" },
+        surface: { kind: "unchanged", code: "surface.action_routed" },
+      },
+      consumerResult: { kind: "stale", completion: null },
+    });
+    expect(sourceReplay).not.toHaveBeenCalled();
+    expect(source.harness.kernel.getStateInternalV1()).toBe(replacementState);
+    expect(source.harness.stateNotificationCount()).toBe(replacementNotifications);
+    expect(source.admission.routeInternalV1(sourceEnvelope, sourceAttempt).consumerResult)
+      .toEqual({ kind: "stale", completion: null });
+    expect(sourceReplay).not.toHaveBeenCalled();
+    source.controller.disposeInternalV1();
+    source.admission.disposeInternalV1();
+
+    for (const terminal of ["admission", "coordinator"] as const) {
+      const terminalReplay = vi.fn(() => true);
+      const fixture = physicalSayHarnessV1({
+        voiceReplayPort: {
+          replayCurrentVoiceInternalV1: terminalReplay,
+        } satisfies NarrativeStableVoiceReplayPortInternalV1,
+      });
+      const attempt = fixture.admission.issueVoiceReplayAttemptInternalV1();
+      expect(attempt).not.toBeNull();
+      const envelope = fixture.admission.createEnvelopeInternalV1({
+        actionId: narrativeReplayVoiceActionIdV1,
+        gestureId: parseManagedSurfaceGestureIdV1(
+          `gesture.narrative.voice-pre-route-${terminal}`,
+        ),
+      });
+      if (terminal === "admission") {
+        fixture.admission.disposeInternalV1();
+      } else {
+        expect(fixture.harness.kernel.transitionTransientInternalV1({
+          kind: "dispose_coordinator",
+        })).toMatchObject({ kind: "applied", code: "surface.coordinator_disposed" });
+      }
+      const state = fixture.harness.kernel.getStateInternalV1();
+      const notifications = fixture.harness.stateNotificationCount();
+      expect(fixture.admission.routeInternalV1(envelope, attempt).consumerResult).toBeNull();
+      expect(terminalReplay).not.toHaveBeenCalled();
+      expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
+      expect(fixture.harness.stateNotificationCount()).toBe(notifications);
+      fixture.controller.disposeInternalV1();
+      fixture.admission.disposeInternalV1();
+    }
+  });
+
+  it("keeps voice attempts opaque, admission-bound, and isolated from Say attempts", () => {
+    const replay = vi.fn(() => true);
+    const revealAll = vi.fn();
+    const fixture = physicalSayHarnessV1({
+      voiceReplayPort: {
+        replayCurrentVoiceInternalV1: replay,
+      } satisfies NarrativeStableVoiceReplayPortInternalV1,
+      revealGenerationPort: Object.freeze({
+        capturePhaseInternalV1: () => "incomplete" as const,
+        revealAllInternalV1: revealAll,
+      }),
+    });
+    const replayEnvelope = fixture.admission.createEnvelopeInternalV1({
+      actionId: narrativeReplayVoiceActionIdV1,
+      gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.voice-authenticity"),
+    });
+    const voiceAttempt = fixture.admission.issueVoiceReplayAttemptInternalV1();
+    if (voiceAttempt === null) throw new Error("expected authentic voice attempt");
+    const borrowedRoute = fixture.admission.routeInternalV1;
+    expect(() => Reflect.apply(borrowedRoute, Object.freeze({}), [replayEnvelope, voiceAttempt]))
+      .toThrowError("ui.narrative_stable_action_admission_invalid");
+    for (
+      const spoof of [
+        Object.freeze({ ...voiceAttempt }),
+        Object.freeze({}),
+      ]
+    ) {
+      expect(fixture.admission.routeInternalV1(replayEnvelope, spoof).consumerResult).toEqual({
+        kind: "stale",
+        completion: null,
+      });
+    }
+    expect(replay).not.toHaveBeenCalled();
+    expect(fixture.admission.routeInternalV1(replayEnvelope, voiceAttempt).consumerResult).toEqual({
+      kind: "handled",
+      completion: null,
+    });
+
+    const borrowedIssue = fixture.admission.issueVoiceReplayAttemptInternalV1;
+    expect(Reflect.apply(borrowedIssue, Object.freeze({}), [])).toBeNull();
+
+    const foreignReplay = vi.fn(() => true);
+    const foreign = physicalSayHarnessV1({
+      voiceReplayPort: {
+        replayCurrentVoiceInternalV1: foreignReplay,
+      } satisfies NarrativeStableVoiceReplayPortInternalV1,
+    });
+    const foreignAttempt = foreign.admission.issueVoiceReplayAttemptInternalV1();
+    if (foreignAttempt === null) throw new Error("expected foreign voice attempt");
+    expect(
+      fixture.admission.routeInternalV1(replayEnvelope, foreignAttempt).consumerResult,
+    ).toEqual({ kind: "stale", completion: null });
+    expect(foreignReplay).not.toHaveBeenCalled();
+    expect(
+      foreign.admission.routeInternalV1(
+        foreign.admission.createEnvelopeInternalV1({
+          actionId: narrativeReplayVoiceActionIdV1,
+          gestureId: parseManagedSurfaceGestureIdV1(
+            "gesture.narrative.voice-authenticity-foreign",
+          ),
+        }),
+        foreignAttempt,
+      ).consumerResult,
+    ).toEqual({ kind: "handled", completion: null });
+
+    const sayAttempt = fixture.admission.issueSayActivationAttemptInternalV1(
+      fixture.controller,
+    );
+    if (sayAttempt === null) throw new Error("expected authentic Say attempt");
+    expect(fixture.admission.routeInternalV1(replayEnvelope, sayAttempt).consumerResult).toEqual({
+      kind: "stale",
+      completion: null,
+    });
+    expect(
+      fixture.admission.routeInternalV1(
+        fixture.admission.createEnvelopeInternalV1({
+          actionId: narrativeConfirmActionIdV1,
+          gestureId: parseManagedSurfaceGestureIdV1(
+            "gesture.narrative.voice-authenticity-say",
+          ),
+        }),
+        sayAttempt,
+      ).consumerResult,
+    ).toEqual({ kind: "revealed", completion: null });
+    expect(revealAll).toHaveBeenCalledOnce();
+    expect(replay).toHaveBeenCalledOnce();
+    expect(foreignReplay).toHaveBeenCalledOnce();
+
+    foreign.controller.disposeInternalV1();
+    foreign.admission.disposeInternalV1();
+    fixture.controller.disposeInternalV1();
+    fixture.admission.disposeInternalV1();
+  });
+
+  it("issues only for current Say and spends before a shared content-auto claim", () => {
+    const choice = physicalChoiceHarnessV1();
+    const pause = physicalPauseHarnessV1();
+    const custom = physicalCustomHarnessV1();
+    expect(choice.admission.issueVoiceReplayAttemptInternalV1()).toBeNull();
+    expect(pause.admission.issueVoiceReplayAttemptInternalV1()).toBeNull();
+    expect(custom.admission.issueVoiceReplayAttemptInternalV1()).toBeNull();
+    choice.admission.disposeInternalV1();
+    pause.admission.disposeInternalV1();
+    custom.admission.disposeInternalV1();
+
+    let fixture!: ReturnType<typeof physicalSayHarnessV1>;
+    let voiceAttempt: NarrativeStableVoiceReplayActionAttemptInternalV1 | null = null;
+    let voiceEnvelope!: ReturnType<
+      NarrativeStablePhysicalActionAdmissionInternalV1["createEnvelopeInternalV1"]
+    >;
+    let nestedVoiceResult: NarrativeStablePhysicalActionDispatchResultInternalV1 | null = null;
+    const replay = vi.fn(() => true);
+    const capturePhase = vi.fn(() => {
+      nestedVoiceResult = fixture.admission.routeInternalV1(
+        voiceEnvelope,
+        voiceAttempt,
+      ).consumerResult;
+      return "incomplete" as const;
+    });
+    fixture = physicalSayHarnessV1({
+      advancePolicy: "auto",
+      revealGenerationPort: Object.freeze({
+        capturePhaseInternalV1: capturePhase,
+        revealAllInternalV1: vi.fn(),
+      }),
+      voiceReplayPort: {
+        replayCurrentVoiceInternalV1: replay,
+      } satisfies NarrativeStableVoiceReplayPortInternalV1,
+    });
+    voiceAttempt = fixture.admission.issueVoiceReplayAttemptInternalV1();
+    expect(voiceAttempt).not.toBeNull();
+    voiceEnvelope = fixture.admission.createEnvelopeInternalV1({
+      actionId: narrativeReplayVoiceActionIdV1,
+      gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.voice-auto-first-win"),
+    });
+    const automaticAttempt = fixture.controller.issueContentAutoAttemptInternalV1();
+    expect(automaticAttempt).not.toBeNull();
+    expect(fixture.controller.dispatchContentAutoInternalV1(automaticAttempt)).toEqual({
+      kind: "not_ready",
+      completion: null,
+    });
+    expect(nestedVoiceResult).toEqual({ kind: "stale", completion: null });
+    expect(fixture.admission.routeInternalV1(voiceEnvelope, voiceAttempt).consumerResult).toEqual({
+      kind: "stale",
+      completion: null,
+    });
+    expect(replay).not.toHaveBeenCalled();
+    fixture.controller.disposeInternalV1();
+    fixture.admission.disposeInternalV1();
+  });
+
+  it("distinguishes active-only topology churn from a real blocking suspension", () => {
+    const active = physicalSayHarnessV1();
+    const beforeChurn = active.admission.issueVoiceReplayAttemptInternalV1();
+    expect(beforeChurn).not.toBeNull();
+    suspendCurrentNarrativeV1(active.harness);
+    const afterChurn = active.admission.issueVoiceReplayAttemptInternalV1();
+    expect(afterChurn).not.toBeNull();
+    expect(afterChurn).not.toBe(beforeChurn);
+    active.controller.disposeInternalV1();
+    active.admission.disposeInternalV1();
+
+    const blocked = nonBlockingNarrativeHarnessV1(
+      defaultSemanticDispatchPortV1,
+      90,
+      "blocking",
+    );
+    expect(blocked.harness.bridge.reconcilePendingInternalV1(pendingV1("say"))).toMatchObject({
+      kind: "applied",
+      code: "surface.stable_publication_applied",
+    });
+    settleCurrentNarrativeReadyV1(blocked.harness);
+    const blockedController = createNarrativeStableSayRevealControllerInternalV1({
+      bridge: blocked.harness.bridge,
+      revealGenerationPort: Object.freeze({
+        capturePhaseInternalV1: () => "incomplete" as const,
+        revealAllInternalV1: () => {},
+      }),
+    });
+    const blockedAdmission = createNarrativeStablePhysicalActionAdmissionInternalV1({
+      bridge: blocked.harness.bridge,
+      inputRouter: createInputRouterV1(),
+      isGestureCurrent: () => true,
+    });
+    const suspendedAttempt = blockedAdmission.issueVoiceReplayAttemptInternalV1();
+    expect(suspendedAttempt).not.toBeNull();
+    const suspendedEnvelope = blockedAdmission.createEnvelopeInternalV1({
+      actionId: narrativeReplayVoiceActionIdV1,
+      gestureId: parseManagedSurfaceGestureIdV1(
+        "gesture.narrative.voice-real-blocking-suspension",
+      ),
+    });
+    openNonBlockingSurfaceV1(
+      blocked.harness,
+      blocked.nonBlockingDefinition,
+      "suspended",
+      "candidate",
+      () => {},
+      "suspended",
+    );
+    const suspendedBinding = blocked.harness.kernel.getStateInternalV1().stableRuntimeBindings[0]
+      ?.binding;
+    if (suspendedBinding?.kind !== "ready_instance") {
+      throw new Error("expected ready Narrative root during blocking suspension");
+    }
+    expect(suspendedBinding.instance.phase).toBe("suspended");
+    expect(blockedAdmission.issueVoiceReplayAttemptInternalV1()).toBeNull();
+    expect(
+      blockedAdmission.routeInternalV1(suspendedEnvelope, suspendedAttempt).consumerResult,
+    ).toBeNull();
+    blockedController.disposeInternalV1();
+    blockedAdmission.disposeInternalV1();
+  });
+
+  it("gives post-callback target, suspension, and disposal drift stale precedence", () => {
+    for (
+      const [drift, outcome] of [
+        ["source", true],
+        ["suspend", false],
+        ["admission_dispose", "throw"],
+        ["bridge_dispose", "invalid"],
+      ] as const
+    ) {
+      let fixture!: ReturnType<typeof physicalSayHarnessV1>;
+      let nestedState: unknown = null;
+      let nestedNotifications: number | null = null;
+      let rawPort!: NarrativeStableVoiceReplayPortInternalV1;
+      let blockingDefinition:
+        | ReturnType<typeof parseManagedSurfaceResolvedDefinitionV1>
+        | null = null;
+      const semanticDispatch = vi.fn(() => Promise.resolve("must-not-dispatch"));
+      const replay = vi.fn(function (this: unknown) {
+        expect(this).toBe(rawPort);
+        if (drift === "source") {
+          expect(fixture.harness.bridge.reconcilePendingInternalV1(pendingV1("say", 2)))
+            .toMatchObject({ kind: "applied" });
+        } else if (drift === "suspend") {
+          if (blockingDefinition === null) throw new Error("expected blocking definition");
+          openNonBlockingSurfaceV1(
+            fixture.harness,
+            blockingDefinition,
+            "suspended",
+            "candidate",
+            () => {},
+            "suspended",
+          );
+          const suspendedBinding = fixture.harness.kernel.getStateInternalV1()
+            .stableRuntimeBindings[0]?.binding;
+          if (suspendedBinding?.kind !== "ready_instance") {
+            throw new Error("expected ready Narrative root after callback suspension");
+          }
+          expect(suspendedBinding.instance.phase).toBe("suspended");
+        } else if (drift === "admission_dispose") {
+          fixture.admission.disposeInternalV1();
+        } else {
+          expect(fixture.harness.bridge.disposeInternalV1()).toMatchObject({
+            kind: "applied",
+            code: "surface.stable_publisher_disposed",
+          });
+        }
+        nestedState = fixture.harness.kernel.getStateInternalV1();
+        nestedNotifications = fixture.harness.stateNotificationCount();
+        if (outcome === "throw") throw new Error("voice callback drifted and threw");
+        return outcome;
+      });
+      rawPort = {
+        replayCurrentVoiceInternalV1: replay,
+      } as unknown as NarrativeStableVoiceReplayPortInternalV1;
+      const semanticDispatchPort = Object.freeze({
+        dispatchResolutionInternalV1: semanticDispatch,
+      });
+      if (drift === "suspend") {
+        const blocked = nonBlockingNarrativeHarnessV1(
+          semanticDispatchPort,
+          90,
+          "blocking",
+          rawPort,
+        );
+        blockingDefinition = blocked.nonBlockingDefinition;
+        expect(blocked.harness.bridge.reconcilePendingInternalV1(pendingV1("say")))
+          .toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
+        settleCurrentNarrativeReadyV1(blocked.harness);
+        const revealGenerationPort = Object.freeze({
+          capturePhaseInternalV1: () => "incomplete" as const,
+          revealAllInternalV1: () => {},
+        });
+        const controller = createNarrativeStableSayRevealControllerInternalV1({
+          bridge: blocked.harness.bridge,
+          revealGenerationPort,
+        });
+        const inputRouter = createInputRouterV1();
+        const admission = createNarrativeStablePhysicalActionAdmissionInternalV1({
+          bridge: blocked.harness.bridge,
+          inputRouter,
+          isGestureCurrent: () => true,
+        });
+        fixture = {
+          harness: blocked.harness,
+          inputRouter,
+          admission,
+          controller,
+          revealGenerationPort,
+          semanticDispatchPort,
+        };
+      } else {
+        fixture = physicalSayHarnessV1({
+          voiceReplayPort: rawPort,
+          semanticDispatchPort,
+        });
+      }
+      const attempt = fixture.admission.issueVoiceReplayAttemptInternalV1();
+      expect(attempt).not.toBeNull();
+      const result = fixture.admission.routeInternalV1(
+        fixture.admission.createEnvelopeInternalV1({
+          actionId: narrativeReplayVoiceActionIdV1,
+          gestureId: parseManagedSurfaceGestureIdV1(`gesture.narrative.voice-drift-${drift}`),
+        }),
+        attempt,
+      );
+      expect(result.consumerResult).toEqual({ kind: "stale", completion: null });
+      expect(replay).toHaveBeenCalledOnce();
+      expect(semanticDispatch).not.toHaveBeenCalled();
+      expect(nestedState).not.toBeNull();
+      expect(fixture.harness.kernel.getStateInternalV1()).toBe(nestedState);
+      expect(fixture.harness.stateNotificationCount()).toBe(nestedNotifications);
+      fixture.controller.disposeInternalV1();
+      fixture.admission.disposeInternalV1();
+    }
+  });
+
+  it("shares the Say callback claim across dispose/recreate reentry and releases a fresh successor", () => {
+    let fixture!: ReturnType<typeof physicalSayHarnessV1>;
+    const successorHolder: {
+      current: NarrativeStablePhysicalActionAdmissionInternalV1 | null;
+    } = { current: null };
+    let outerAttempt: NarrativeStableVoiceReplayActionAttemptInternalV1 | null = null;
+    let outerEnvelope!: ReturnType<
+      NarrativeStablePhysicalActionAdmissionInternalV1["createEnvelopeInternalV1"]
+    >;
+    let manualAttempt: NarrativeStableSayActivationAttemptInternalV1 | null = null;
+    let manualEnvelope!: ReturnType<
+      NarrativeStablePhysicalActionAdmissionInternalV1["createEnvelopeInternalV1"]
+    >;
+    let contentAutoAttempt: NarrativeStableSayContentAutoAttemptInternalV1 | null = null;
+    let nestedRouteResult: NarrativeStablePhysicalActionDispatchResultInternalV1 | null = null;
+    let replayCalls = 0;
+    const capturePhase = vi.fn(() => "incomplete" as const);
+    const revealAll = vi.fn();
+    const semanticDispatch = vi.fn(() => Promise.resolve("must-not-dispatch"));
+    const replay = vi.fn(function (this: unknown) {
+      expect(this).toBe(rawPort);
+      replayCalls += 1;
+      if (replayCalls !== 1) return true;
+      expect(fixture.admission.issueVoiceReplayAttemptInternalV1()).toBeNull();
+      expect(
+        fixture.admission.issueSayActivationAttemptInternalV1(fixture.controller),
+      ).toBeNull();
+      expect(fixture.controller.issueContentAutoAttemptInternalV1()).toBeNull();
+      expect(() => fixture.admission.routeInternalV1(manualEnvelope, manualAttempt))
+        .toThrowError("ui.managed_surface_action_route_in_progress");
+      expect(fixture.controller.dispatchContentAutoInternalV1(contentAutoAttempt)).toEqual({
+        kind: "stale",
+        completion: null,
+      });
+      expect(capturePhase).not.toHaveBeenCalled();
+      expect(revealAll).not.toHaveBeenCalled();
+      expect(semanticDispatch).not.toHaveBeenCalled();
+      fixture.admission.disposeInternalV1();
+      const successor = createNarrativeStablePhysicalActionAdmissionInternalV1({
+        bridge: fixture.harness.bridge,
+        inputRouter: fixture.inputRouter,
+        isGestureCurrent: () => true,
+      });
+      successorHolder.current = successor;
+      expect(successor.issueVoiceReplayAttemptInternalV1()).toBeNull();
+      expect(successor.issueSayActivationAttemptInternalV1(fixture.controller)).toBeNull();
+      nestedRouteResult = successor.routeInternalV1(
+        successor.createEnvelopeInternalV1({
+          actionId: narrativeReplayVoiceActionIdV1,
+          gestureId: parseManagedSurfaceGestureIdV1(
+            "gesture.narrative.voice-successor-nested",
+          ),
+        }),
+        outerAttempt,
+      ).consumerResult;
+      return true;
+    });
+    const rawPort = {
+      replayCurrentVoiceInternalV1: replay,
+    } satisfies NarrativeStableVoiceReplayPortInternalV1;
+    fixture = physicalSayHarnessV1({
+      advancePolicy: "auto",
+      voiceReplayPort: rawPort,
+      revealGenerationPort: Object.freeze({
+        capturePhaseInternalV1: capturePhase,
+        revealAllInternalV1: revealAll,
+      }),
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: semanticDispatch,
+      }),
+    });
+    const state = fixture.harness.kernel.getStateInternalV1();
+    const notifications = fixture.harness.stateNotificationCount();
+    manualAttempt = fixture.admission.issueSayActivationAttemptInternalV1(
+      fixture.controller,
+    );
+    expect(manualAttempt).not.toBeNull();
+    manualEnvelope = fixture.admission.createEnvelopeInternalV1({
+      actionId: narrativeConfirmActionIdV1,
+      gestureId: parseManagedSurfaceGestureIdV1(
+        "gesture.narrative.voice-successor-manual",
+      ),
+    });
+    contentAutoAttempt = fixture.controller.issueContentAutoAttemptInternalV1();
+    expect(contentAutoAttempt).not.toBeNull();
+    outerAttempt = fixture.admission.issueVoiceReplayAttemptInternalV1();
+    expect(outerAttempt).not.toBeNull();
+    outerEnvelope = fixture.admission.createEnvelopeInternalV1({
+      actionId: narrativeReplayVoiceActionIdV1,
+      gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.voice-successor-outer"),
+    });
+    const outer = fixture.admission.routeInternalV1(outerEnvelope, outerAttempt);
+    expect(outer.consumerResult).toEqual({ kind: "stale", completion: null });
+    expect(nestedRouteResult).toEqual({ kind: "stale", completion: null });
+    expect(capturePhase).not.toHaveBeenCalled();
+    expect(fixture.controller.dispatchContentAutoInternalV1(contentAutoAttempt)).toEqual({
+      kind: "not_ready",
+      completion: null,
+    });
+    expect(capturePhase).toHaveBeenCalledOnce();
+    expect(revealAll).not.toHaveBeenCalled();
+    expect(semanticDispatch).not.toHaveBeenCalled();
+    const successor = successorHolder.current;
+    expect(successor).not.toBeNull();
+    if (successor === null) throw new Error("expected successor voice admission");
+    const freshAttempt = successor.issueVoiceReplayAttemptInternalV1();
+    expect(freshAttempt).not.toBeNull();
+    expect(
+      successor.routeInternalV1(
+        successor.createEnvelopeInternalV1({
+          actionId: narrativeReplayVoiceActionIdV1,
+          gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.voice-successor-fresh"),
+        }),
+        freshAttempt,
+      ).consumerResult,
+    ).toEqual({ kind: "handled", completion: null });
+    expect(replay).toHaveBeenCalledTimes(2);
+    expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
+    expect(fixture.harness.stateNotificationCount()).toBe(notifications);
+    fixture.controller.disposeInternalV1();
+    successor.disposeInternalV1();
   });
 
   it("claims one exact current Barrier controller without burning construction failure", () => {

@@ -204,10 +204,18 @@ import type { NarrativeStableSemanticResolutionPortInternalV1 as ForbiddenIntern
 import type { NarrativeStableSayRevealGenerationPortInternalV1 as ForbiddenPublicNarrativeSayRevealPortV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Narrative Say reveal-generation ports.
 import type { NarrativeStableSayRevealGenerationPortInternalV1 as ForbiddenInternalNarrativeSayRevealPortV1 } from "./internal.ts";
+// @ts-expect-error Narrative voice-replay ports remain source-relative until Host promotion.
+import type { NarrativeStableVoiceReplayPortInternalV1 as ForbiddenPublicNarrativeVoiceReplayPortV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative voice-replay ports.
+import type { NarrativeStableVoiceReplayPortInternalV1 as ForbiddenInternalNarrativeVoiceReplayPortV1 } from "./internal.ts";
 // @ts-expect-error Captured Narrative semantic-resolution ports remain source-relative.
 import type { NarrativeStableCapturedSemanticResolutionPortInternalV1 as ForbiddenPublicNarrativeCapturedSemanticResolutionPortV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose captured Narrative semantic-resolution ports.
 import type { NarrativeStableCapturedSemanticResolutionPortInternalV1 as ForbiddenInternalNarrativeCapturedSemanticResolutionPortV1 } from "./internal.ts";
+// @ts-expect-error Captured Narrative voice-replay ports remain source-relative.
+import type { NarrativeStableCapturedVoiceReplayPortInternalV1 as ForbiddenPublicNarrativeCapturedVoiceReplayPortV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose captured Narrative voice-replay ports.
+import type { NarrativeStableCapturedVoiceReplayPortInternalV1 as ForbiddenInternalNarrativeCapturedVoiceReplayPortV1 } from "./internal.ts";
 // @ts-expect-error Narrative choice-action attempts remain source-relative.
 import type { NarrativeStableChoiceActionAttemptInternalV1 as ForbiddenPublicNarrativeChoiceActionAttemptV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Narrative choice-action attempts.
@@ -232,6 +240,14 @@ import type { NarrativeStableSayContentAutoAttemptInternalV1 as ForbiddenInterna
 import type { NarrativeStableSayContentAutoDispatchResultInternalV1 as ForbiddenPublicNarrativeSayContentAutoDispatchResultV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Narrative Say content-auto dispatch results.
 import type { NarrativeStableSayContentAutoDispatchResultInternalV1 as ForbiddenInternalNarrativeSayContentAutoDispatchResultV1 } from "./internal.ts";
+// @ts-expect-error Narrative voice-replay action attempts remain source-relative.
+import type { NarrativeStableVoiceReplayActionAttemptInternalV1 as ForbiddenPublicNarrativeVoiceReplayActionAttemptV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative voice-replay action attempts.
+import type { NarrativeStableVoiceReplayActionAttemptInternalV1 as ForbiddenInternalNarrativeVoiceReplayActionAttemptV1 } from "./internal.ts";
+// @ts-expect-error Narrative voice-replay dispatch results remain source-relative.
+import type { NarrativeStableVoiceReplayDispatchResultInternalV1 as ForbiddenPublicNarrativeVoiceReplayDispatchResultV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative voice-replay dispatch results.
+import type { NarrativeStableVoiceReplayDispatchResultInternalV1 as ForbiddenInternalNarrativeVoiceReplayDispatchResultV1 } from "./internal.ts";
 // @ts-expect-error Stage acknowledged-run proofs remain source-relative.
 import type { StageAcknowledgedRunProofInternalV1 as ForbiddenPublicStageAcknowledgedRunProofV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Stage acknowledged-run proofs.
@@ -429,13 +445,18 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "NarrativeStableSemanticResolutionRequestInternalV1"
       | "NarrativeStableSemanticResolutionPortInternalV1"
       | "NarrativeStableSayRevealGenerationPortInternalV1"
+      | "NarrativeStableVoiceReplayPortInternalV1"
       | "NarrativeStableCapturedSemanticResolutionPortInternalV1"
+      | "NarrativeStableCapturedVoiceReplayPortInternalV1"
       | "NarrativeStableChoiceActionAttemptInternalV1"
       | "NarrativeStableCustomActionAttemptInternalV1"
       | "NarrativeStablePauseResumeActionAttemptInternalV1"
       | "NarrativeStableSayActivationAttemptInternalV1"
       | "NarrativeStableSayContentAutoAttemptInternalV1"
       | "NarrativeStableSayContentAutoDispatchResultInternalV1"
+      | "NarrativeStableVoiceReplayActionAttemptInternalV1"
+      | "NarrativeStableVoiceReplayDispatchResultInternalV1"
+      | "issueVoiceReplayAttemptInternalV1"
       | "StageAcknowledgedRunProofInternalV1"
       | "StageAcknowledgedRunCommitGuardInternalV1"
       | "StageAcknowledgedRunTerminalPortInternalV1"
@@ -558,13 +579,18 @@ describe("@sillymaker/ui public managed System surface", () => {
         "NarrativeStableSemanticResolutionRequestInternalV1",
         "NarrativeStableSemanticResolutionPortInternalV1",
         "NarrativeStableSayRevealGenerationPortInternalV1",
+        "NarrativeStableVoiceReplayPortInternalV1",
         "NarrativeStableCapturedSemanticResolutionPortInternalV1",
+        "NarrativeStableCapturedVoiceReplayPortInternalV1",
         "NarrativeStableChoiceActionAttemptInternalV1",
         "NarrativeStableCustomActionAttemptInternalV1",
         "NarrativeStablePauseResumeActionAttemptInternalV1",
         "NarrativeStableSayActivationAttemptInternalV1",
         "NarrativeStableSayContentAutoAttemptInternalV1",
         "NarrativeStableSayContentAutoDispatchResultInternalV1",
+        "NarrativeStableVoiceReplayActionAttemptInternalV1",
+        "NarrativeStableVoiceReplayDispatchResultInternalV1",
+        "issueVoiceReplayAttemptInternalV1",
         "StageAcknowledgedRunProofInternalV1",
         "StageAcknowledgedRunCommitGuardInternalV1",
         "StageAcknowledgedRunTerminalPortInternalV1",
