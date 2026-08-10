@@ -208,6 +208,10 @@ import type { NarrativeStableCapturedSemanticResolutionPortInternalV1 as Forbidd
 import type { NarrativeStableChoiceActionAttemptInternalV1 as ForbiddenPublicNarrativeChoiceActionAttemptV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Narrative choice-action attempts.
 import type { NarrativeStableChoiceActionAttemptInternalV1 as ForbiddenInternalNarrativeChoiceActionAttemptV1 } from "./internal.ts";
+// @ts-expect-error Narrative custom-action attempts remain source-relative.
+import type { NarrativeStableCustomActionAttemptInternalV1 as ForbiddenPublicNarrativeCustomActionAttemptV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative custom-action attempts.
+import type { NarrativeStableCustomActionAttemptInternalV1 as ForbiddenInternalNarrativeCustomActionAttemptV1 } from "./internal.ts";
 // @ts-expect-error Narrative pause-resume action attempts remain source-relative.
 import type { NarrativeStablePauseResumeActionAttemptInternalV1 as ForbiddenPublicNarrativePauseResumeActionAttemptV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Narrative pause-resume action attempts.
@@ -322,6 +326,7 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "NarrativeStableSemanticResolutionPortInternalV1"
       | "NarrativeStableCapturedSemanticResolutionPortInternalV1"
       | "NarrativeStableChoiceActionAttemptInternalV1"
+      | "NarrativeStableCustomActionAttemptInternalV1"
       | "NarrativeStablePauseResumeActionAttemptInternalV1"
       | "NarrativeStablePauseExpiryControllerAttemptInternalV1"
       | "NarrativeStablePauseExpiryDispatchResultInternalV1"
@@ -417,6 +422,7 @@ describe("@sillymaker/ui public managed System surface", () => {
         "NarrativeStableSemanticResolutionPortInternalV1",
         "NarrativeStableCapturedSemanticResolutionPortInternalV1",
         "NarrativeStableChoiceActionAttemptInternalV1",
+        "NarrativeStableCustomActionAttemptInternalV1",
         "NarrativeStablePauseResumeActionAttemptInternalV1",
         "NarrativeStablePauseExpiryControllerAttemptInternalV1",
         "NarrativeStablePauseExpiryDispatchResultInternalV1",

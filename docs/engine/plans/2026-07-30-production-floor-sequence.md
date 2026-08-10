@@ -36,9 +36,10 @@ promotion 均已关闭。2026-08-08 dormant `PF4/S3c.1 Host-commit readiness`、
 `PF4/S4.1b.1a authenticated action continuation context`与
 `PF4/S4.1b.1b.0 choice-only physical semantic admission`及
 `PF4/S4.1b.1b.1a skippable-pause physical resume`与
-`PF4/S4.1b.1b.1b.1 automatic pause-expiry controller-attempt admission/dispatch floor`也已关闭，
+`PF4/S4.1b.1b.1b.1 automatic pause-expiry controller-attempt admission/dispatch floor`及
+`PF4/S4.1b.1b.1b.2a custom physical payload admission`也已关闭，
 linear core current/next均为
-`PF4/S4.1b.1b.1b.2 remaining mapping adjudication/implementation`。
+`PF4/S4.1b.1b.1b.2b remaining say/barrier/player adjudication`。
 同日 S1-R pre-implementation review 将 external reconcile gate 重切为 S1-R.0–S1-R.5；
 顺序变化不把任何 planned stable-target contract写成 live capability。
 同日 S1-R.3 entry-gate adjudication 采用 A-prime，将原 R3 拆为单一 composite
@@ -56,8 +57,9 @@ promotion，以及 S1-R.0–R5（含R1a/R3a.1 corrective）与R1b disposal corre
 S1-R aggregate gate已关闭；S4.0 contract floor、S4.1a dormant family/publisher/preflight与
 S4.1b.0 shared route gate/composite owner proof、S4.1b.1a authenticated action context corrective及
 S4.1b.1b.0 choice-only physical semantic admission、S4.1b.1b.1a skippable-pause physical resume与
-S4.1b.1b.1b.1 automatic pause-expiry controller-attempt admission/dispatch floor也已关闭，下一独立切片为
-S4.1b.1b.1b.2 remaining mapping adjudication/implementation。
+S4.1b.1b.1b.1 automatic pause-expiry controller-attempt admission/dispatch floor及
+S4.1b.1b.1b.2a custom physical payload admission也已关闭，下一独立切片为
+S4.1b.1b.1b.2b remaining say/barrier/player adjudication。
 旧 promotion 数字保留为
 历史证据。本文是当前唯一的跨计划排序入口；
 具体合同仍由各 design 文档拥有，主要任务由五个独立计划拥有：
@@ -938,11 +940,12 @@ Surface pilot 通过后按 family 分开合并：
 7. S4.1b.1b.0：choice-only physical semantic admission；
 8. S4.1b.1b.1a：skippable-pause physical resume；
 9. S4.1b.1b.1b.1：automatic pause-expiry controller-attempt admission/dispatch floor（已完成）；
-10. S4.1b.1b.1b.2：remaining mapping adjudication/implementation（当前）；
-11. S4.2：dormant Narrative Host、Host-commit readiness与History exact child；
-12. S4.3：atomic live cutover and promotion；
-13. S4b：whole-canvas primary/detail 独立 family；
-14. input/gesture reset（pointercancel、focus loss、visibility change）与 Browser
+10. S4.1b.1b.1b.2a：custom physical payload admission（已完成）；
+11. S4.1b.1b.1b.2b：remaining say/barrier/player adjudication（当前）；
+12. S4.2：dormant Narrative Host、Host-commit readiness与History exact child；
+13. S4.3：atomic live cutover and promotion；
+14. S4b：whole-canvas primary/detail 独立 family；
+15. input/gesture reset（pointercancel、focus loss、visibility change）与 Browser
     Agent observation。
 
 S3 是 Coordinator-owned transient family，与 Workspace Overlay 共用同一个
@@ -1499,7 +1502,49 @@ export、generic stable/action result/delta table与generic receipt/code均无�
 验证通过focused `7 files / 204 tests`、UI package `79 files / 1022 tests`、full `253 files / 3950 tests`与完整
 `deno task check` green。本批没有改变live browser/build graph，因此未重跑browser/examples/prebuilt；最近已有的Engine browser
 `101 / 101`、examples browser `45 passed / 2 skipped`与prebuilt Player `38 / 38`只作prior evidence，不冒充本HEAD验证。
-Linear core current/next均为S4.1b.1b.1b.2；后续顺序保持S4.1b.1b.1b.2 → S4.2 → S4.3 → S4b。
+该checkpoint当时的linear core current/next均为S4.1b.1b.1b.2，现由下述execution-order amendment细分并取代。
+
+**2026-08-10 S4.1b.1b.1b.2 execution-order amendment：** 原remaining mapping切片拆为
+S4.1b.1b.1b.2a custom physical payload admission与S4.1b.1b.1b.2b remaining say/barrier/player
+adjudication。Linear core current/next均为S4.1b.1b.1b.2a；后续顺序保持
+S4.1b.1b.1b.2a → S4.1b.1b.1b.2b → S4.2 → S4.3 → S4b。该checkpoint现由下述
+S4.1b.1b.1b.2a delivery取代。
+
+S4.1b.1b.1b.2a只扩展既有source-relative、package-internal且由后续S4.2 Host独占持有的physical admission
+capability；Story content renderer不取得admission object或raw semantic port。Custom payload先经Base bounded interaction
+`StrictJsonObjectV1` projection形成detached、deep-frozen data，再与exact current custom frame、target/source、captured
+semantic port及one-shot attempt绑定；dispatch仍必须通过Surface/Input/physical-gesture fence。既有Base queue-front
+resolution admission与Story custom schema/evaluator保持最终业务校验authority，UI不复制Story payload规则。
+
+本切片不裁决Say的`ui.confirm`/`narrative.advance`、reveal-first或`advancePolicy`，不定义
+presentation-barrier acknowledgment或player-control policy；不实现Narrative Host/renderer lifecycle、History、timer或live
+cutover，也不改变Base resolution union/evaluator/queue-front或Save format，不修改generic Surface result/receipt、UI root/
+`./internal` barrel或package exports。上述remaining policy继续由S4.1b.1b.1b.2b拥有；本amendment不声明runtime delivery或验证结果。
+
+**2026-08-10 S4.1b.1b.1b.2a delivery：** Existing Narrative physical admission现为exact current、ready+active
+direct custom frame签发frozen zero-key one-shot attempt。Caller payload先经Base `parseInteractionResolutionV1`的custom分支
+投影成detached、deep-frozen `StrictJsonObjectV1`；任意payload getter/reentry后都重新验证exact active admission claim、target/source、
+frame与captured semantic port，旧admission在parse期间dispose并建立successor时不能返回旧token。只有authenticated
+`narrative.custom`完整通过Surface/Input/publication/physical-gesture fence且token仍same-admission/current/unspent时才提交frozen
+`{ expectedOccurrenceId, resolution: { kind: "custom", payload } }`；unmapped/cross-kind/clone/foreign/stale/repeat路径保持semantic
+dispatch为零，Story rejection或semantic callable同步throw只作用于completion且不回滚Surface/composite state。Narrative module在
+payload getter前捕获exact `Object.freeze`，并用它冻结attempt、resolution、request与dispatched result，避免Base→UI handoff留下
+mutable action evidence。
+
+同批修正了既有public bounded interaction JSON projection对dangerous enumerable keys的runtime-dependent shape：
+module-captured `Object.defineProperty`逐项建立exact own enumerable data property，并由module-captured `Object.freeze`递归冻结，
+因此`__proto__`、`constructor`与`prototype`不会触发legacy setter、改变projection prototype或从canonical bytes中消失；payload
+getter即使替换这两项global intrinsic也不能改变本次projection。普通maintained pending/resolution spelling与bytes保持不变；Base resolution
+union、evaluator、queue-front authority与Save format均未改变，也没有新增public export或format migration。
+
+本批仍没有Narrative Host、renderer lifecycle、History、timer、React/Web claimant或live Story cutover；UI root、`./internal`
+barrel、package export、generic stable/action result/delta table及generic receipt/code均无扩张。Say advance/reveal/
+`advancePolicy`、presentation-barrier acknowledgment与player controls继续由S4.1b.1b.1b.2b裁决。
+
+验证通过focused `8 files / 216 tests`、UI package `79 files / 1028 tests`、full `253 files / 3958 tests`与完整
+`deno task check`；当前HEAD的Engine browser `101 / 101`、examples browser `45 passed / 2 skipped`及prebuilt Player
+`38 / 38`也全部通过。Linear core current/next均推进为S4.1b.1b.1b.2b；后续顺序保持
+S4.1b.1b.1b.2b → S4.2 → S4.3 → S4b。
 
 每个 family 的迁移提交必须删除旧 owner；禁止长期 adapter 双写。
 `DialoguePanelV1` / `VnLayerV1` 的 controller/view/host 拆分在 Narrative family

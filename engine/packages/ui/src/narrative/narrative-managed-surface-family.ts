@@ -2,6 +2,7 @@
 import {
   canonicalJsonBytes,
   parseInteractionOccurrenceIdV1,
+  parseInteractionResolutionV1,
   parseModuleId,
   parsePendingInteractionV1,
   parsePositiveSafeInteger,
@@ -61,6 +62,8 @@ import type {
   ManagedSurfaceStablePublisherInternalV1,
   ManagedSurfaceStablePublisherLeaseRegistryInternalV1,
 } from "../managed-surfaces/managed-surface-stable-publisher-lease.ts";
+
+const freezeNarrativePhysicalActionDataInternalV1 = Object.freeze;
 
 export interface NarrativeManagedSurfaceFamilyContractInternalV1 {
   readonly ownerId: ManagedSurfaceOwnerIdV1;
@@ -206,6 +209,12 @@ export interface NarrativeStablePauseResumeActionAttemptInternalV1 {
   readonly [narrativeStablePauseResumeActionAttemptBrandInternalV1]: true;
 }
 
+declare const narrativeStableCustomActionAttemptBrandInternalV1: unique symbol;
+
+export interface NarrativeStableCustomActionAttemptInternalV1 {
+  readonly [narrativeStableCustomActionAttemptBrandInternalV1]: true;
+}
+
 declare const narrativeStablePauseExpiryControllerAttemptBrandInternalV1: unique symbol;
 
 export interface NarrativeStablePauseExpiryControllerAttemptInternalV1 {
@@ -267,6 +276,9 @@ export interface NarrativeStablePhysicalActionAdmissionInternalV1 {
     choiceId: unknown,
   ): NarrativeStableChoiceActionAttemptInternalV1 | null;
   issuePauseResumeAttemptInternalV1(): NarrativeStablePauseResumeActionAttemptInternalV1 | null;
+  issueCustomAttemptInternalV1(
+    payload: unknown,
+  ): NarrativeStableCustomActionAttemptInternalV1 | null;
   routeInternalV1(
     envelope: ManagedSurfaceActionEnvelopeV1,
     attempt: unknown,
@@ -345,6 +357,13 @@ type NarrativeStablePhysicalActionAttemptRecordInternalV1 =
     & Readonly<{
       readonly kind: "pause_resume";
     }>
+  )
+  | (
+    & NarrativeStablePhysicalActionAttemptRecordBaseInternalV1
+    & Readonly<{
+      readonly kind: "custom";
+      readonly payload: Extract<InteractionResolutionV1, { readonly kind: "custom" }>["payload"];
+    }>
   );
 
 const narrativeStableSemanticResolutionPortBindingsInternalV1 = new WeakMap<
@@ -353,7 +372,8 @@ const narrativeStableSemanticResolutionPortBindingsInternalV1 = new WeakMap<
 >();
 const narrativeStablePhysicalActionAttemptRecordsInternalV1 = new WeakMap<
   | NarrativeStableChoiceActionAttemptInternalV1
-  | NarrativeStablePauseResumeActionAttemptInternalV1,
+  | NarrativeStablePauseResumeActionAttemptInternalV1
+  | NarrativeStableCustomActionAttemptInternalV1,
   NarrativeStablePhysicalActionAttemptRecordInternalV1
 >();
 
@@ -552,6 +572,7 @@ const historyDefinitionIdInternalV1 = parseManagedSurfaceDefinitionIdV1(
 const narrativeLayerIdInternalV1 = parseManagedSurfaceLayerIdV1("surface-layer.narrative");
 const narrativeChooseActionIdInternalV1 = parseManagedSurfaceActionIdV1("narrative.choose");
 const narrativeResumeActionIdInternalV1 = parseManagedSurfaceActionIdV1("narrative.resume");
+const narrativeCustomActionIdInternalV1 = parseManagedSurfaceActionIdV1("narrative.custom");
 
 const readinessPolicyInternalV1 = Object.freeze({
   initialOpen: "blocking_fallback" as const,
@@ -1608,7 +1629,8 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
   ]) as NarrativeStableAdmittedFrameInternalV1 | null;
   if (
     initialFrame === null ||
-    (initialFrame.pending.kind !== "choice" && initialFrame.pending.kind !== "pause") ||
+    (initialFrame.pending.kind !== "choice" && initialFrame.pending.kind !== "pause" &&
+      initialFrame.pending.kind !== "custom") ||
     !narrativeStableSemanticResolutionPortBindingsInternalV1.has(
       initialFrame.candidateSnapshot.semanticDispatchPort,
     )
@@ -1642,6 +1664,8 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
           ? "choice"
           : actionId === narrativeResumeActionIdInternalV1
           ? "pause_resume"
+          : actionId === narrativeCustomActionIdInternalV1
+          ? "custom"
           : null;
         if (mappedKind === null) {
           return narrativePhysicalActionUnmappedResultInternalV1;
@@ -1652,7 +1676,8 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
         const record = narrativeStablePhysicalActionAttemptRecordsInternalV1.get(
           attempt as
             | NarrativeStableChoiceActionAttemptInternalV1
-            | NarrativeStablePauseResumeActionAttemptInternalV1,
+            | NarrativeStablePauseResumeActionAttemptInternalV1
+            | NarrativeStableCustomActionAttemptInternalV1,
         );
         if (
           record === undefined || record.authority !== authority || record.spent ||
@@ -1695,7 +1720,9 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
             (record.kind === "choice"
               ? currentFrame.pending.kind !== "choice" ||
                 !currentFrame.pending.options.some((option) => option.choiceId === record.choiceId)
-              : currentFrame.pending.kind !== "pause" || !currentFrame.pending.skippable)
+              : record.kind === "pause_resume"
+              ? currentFrame.pending.kind !== "pause" || !currentFrame.pending.skippable
+              : currentFrame.pending.kind !== "custom")
           ) {
             return narrativePhysicalActionStaleResultInternalV1;
           }
@@ -1704,12 +1731,17 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
           );
           if (portBinding === undefined) return narrativePhysicalActionFaultedResultInternalV1;
           const resolution: InteractionResolutionV1 = record.kind === "choice"
-            ? Object.freeze({
+            ? freezeNarrativePhysicalActionDataInternalV1({
               kind: "choose" as const,
               choiceId: record.choiceId,
             })
-            : Object.freeze({ kind: "resume" as const });
-          const request = Object.freeze({
+            : record.kind === "pause_resume"
+            ? freezeNarrativePhysicalActionDataInternalV1({ kind: "resume" as const })
+            : freezeNarrativePhysicalActionDataInternalV1({
+              kind: "custom" as const,
+              payload: record.payload,
+            });
+          const request = freezeNarrativePhysicalActionDataInternalV1({
             expectedOccurrenceId: currentFrame.pending.occurrenceId,
             resolution,
           }) satisfies NarrativeStableSemanticResolutionRequestInternalV1;
@@ -1727,7 +1759,10 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
           } catch (error) {
             completion = Promise.reject(error);
           }
-          return Object.freeze({ kind: "dispatched" as const, completion });
+          return freezeNarrativePhysicalActionDataInternalV1({
+            kind: "dispatched" as const,
+            completion,
+          });
         } catch {
           return narrativePhysicalActionFaultedResultInternalV1;
         }
@@ -1894,6 +1929,95 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
           directTarget: current.directTarget,
           sourceRevision: current.sourceRevision,
           frame,
+          semanticDispatchPort: frame.candidateSnapshot.semanticDispatchPort,
+          spent: false,
+        });
+        return attempt;
+      } catch {
+        return null;
+      }
+    },
+    issueCustomAttemptInternalV1(
+      this: NarrativeStablePhysicalActionAdmissionInternalV1,
+      payload: unknown,
+    ): NarrativeStableCustomActionAttemptInternalV1 | null {
+      if (this !== authority || !active) return null;
+      try {
+        const current = Reflect.apply(
+          captureCurrentStableInput,
+          stableActionAuthority,
+          [],
+        ) as ReturnType<
+          ManagedSurfaceStableActionRouteAuthorityInternalV1[
+            "captureCurrentStableInputInternalV1"
+          ]
+        >;
+        if (
+          current.kind !== "captured" || current.directTarget === null ||
+          current.sourceRevision === null || current.targetProof === null ||
+          !equalManagedSurfaceInputBindingContractV1(current.contract, capturedInitial.contract) ||
+          Reflect.apply(isCurrentDirectTarget, stableActionAuthority, [current.targetProof]) !==
+            true
+        ) {
+          return null;
+        }
+        const frame = Reflect.apply(inspectAdmittedTargetFrame, bridge, [
+          current.directTarget,
+        ]) as NarrativeStableAdmittedFrameInternalV1 | null;
+        if (
+          frame === null || frame.pending.kind !== "custom" ||
+          !narrativeStableSemanticResolutionPortBindingsInternalV1.has(
+            frame.candidateSnapshot.semanticDispatchPort,
+          )
+        ) {
+          return null;
+        }
+
+        const resolution = parseInteractionResolutionV1(
+          freezeNarrativePhysicalActionDataInternalV1({ kind: "custom" as const, payload }),
+        );
+        if (resolution.kind !== "custom") return null;
+        if (!active || bridgeRecord.physicalActionAdmissionClaim !== admissionClaim) return null;
+
+        const refreshed = Reflect.apply(
+          captureCurrentStableInput,
+          stableActionAuthority,
+          [],
+        ) as ReturnType<
+          ManagedSurfaceStableActionRouteAuthorityInternalV1[
+            "captureCurrentStableInputInternalV1"
+          ]
+        >;
+        if (
+          refreshed.kind !== "captured" || refreshed.directTarget !== current.directTarget ||
+          refreshed.sourceRevision !== current.sourceRevision || refreshed.targetProof === null ||
+          !equalManagedSurfaceInputBindingContractV1(
+            refreshed.contract,
+            capturedInitial.contract,
+          ) ||
+          Reflect.apply(isCurrentDirectTarget, stableActionAuthority, [
+              refreshed.targetProof,
+            ]) !== true ||
+          Reflect.apply(inspectAdmittedTargetFrame, bridge, [
+              refreshed.directTarget,
+            ]) !== frame ||
+          !active ||
+          bridgeRecord.physicalActionAdmissionClaim !== admissionClaim
+        ) {
+          return null;
+        }
+
+        const attempt = freezeNarrativePhysicalActionDataInternalV1(
+          {},
+        ) as NarrativeStableCustomActionAttemptInternalV1;
+        narrativeStablePhysicalActionAttemptRecordsInternalV1.set(attempt, {
+          kind: "custom",
+          authority,
+          targetProof: refreshed.targetProof,
+          directTarget: refreshed.directTarget,
+          sourceRevision: refreshed.sourceRevision,
+          frame,
+          payload: resolution.payload,
           semanticDispatchPort: frame.candidateSnapshot.semanticDispatchPort,
           spent: false,
         });

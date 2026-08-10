@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
+import { canonicalJsonBytes } from "./canonical-json.ts";
 import { PresentationDataError } from "./presentation-data.ts";
 import {
   evaluateInteractionResolutionV1,
@@ -101,6 +102,154 @@ describe("PendingInteractionV1", () => {
     expect(() => parsePendingInteractionV1({ kind: "teleport" })).toThrow(
       "interaction_kind_invalid",
     );
+  });
+
+  it("projects dangerous custom JSON keys as exact frozen own data without legacy setters", () => {
+    const legacyProtoDescriptor = Object.getOwnPropertyDescriptor(
+      Object.prototype,
+      "__proto__",
+    );
+    if (legacyProtoDescriptor === undefined || legacyProtoDescriptor.configurable !== true) {
+      throw new Error("expected configurable Object.prototype.__proto__ accessor");
+    }
+
+    const dangerousRecordV1 = () => {
+      const record: Record<string, unknown> = {};
+      for (
+        const [key, value] of [
+          ["__proto__", { safe: 1 }],
+          ["constructor", { safe: 2 }],
+          ["prototype", { safe: 3 }],
+        ] as const
+      ) {
+        Object.defineProperty(record, key, {
+          value,
+          writable: true,
+          enumerable: true,
+          configurable: true,
+        });
+      }
+      return record;
+    };
+    const resolutionRawNested = dangerousRecordV1();
+    const pendingRawNested = dangerousRecordV1();
+    let legacySetterCalls = 0;
+
+    // oxlint-disable-next-line no-extend-native -- characterizes the legacy setter boundary
+    Object.defineProperty(Object.prototype, "__proto__", {
+      ...legacyProtoDescriptor,
+      set(_value: unknown) {
+        legacySetterCalls += 1;
+      },
+    });
+    try {
+      const resolution = parseInteractionResolutionV1({
+        kind: "custom",
+        payload: { nested: resolutionRawNested },
+      });
+      if (resolution.kind !== "custom") throw new Error("expected custom resolution");
+      const pending = parsePendingInteractionV1({
+        kind: "custom",
+        definitionId: "interaction.test.dangerous-keys",
+        seenRevision: 1,
+        occurrenceId: interactionOccurrenceIdV1(9),
+        surfaceId: "surface.test.dangerous-keys",
+        params: { nested: pendingRawNested },
+      });
+      if (pending.kind !== "custom") throw new Error("expected custom interaction");
+
+      expect(legacySetterCalls).toBe(0);
+      const expectedBytes =
+        '{"nested":{"__proto__":{"safe":1},"constructor":{"safe":2},"prototype":{"safe":3}}}';
+      for (
+        const [projected, raw] of [
+          [resolution.payload.nested, resolutionRawNested],
+          [pending.params.nested, pendingRawNested],
+        ] as const
+      ) {
+        expect(projected).not.toBe(raw);
+        expect(Object.getPrototypeOf(projected)).toBe(Object.prototype);
+        expect(Reflect.ownKeys(projected as object)).toEqual([
+          "__proto__",
+          "constructor",
+          "prototype",
+        ]);
+        expect(Object.isFrozen(projected)).toBe(true);
+        for (
+          const [key, value] of [
+            ["__proto__", { safe: 1 }],
+            ["constructor", { safe: 2 }],
+            ["prototype", { safe: 3 }],
+          ] as const
+        ) {
+          const descriptor = Object.getOwnPropertyDescriptor(projected, key);
+          expect(descriptor).toEqual({
+            value,
+            writable: false,
+            enumerable: true,
+            configurable: false,
+          });
+          expect(Object.isFrozen(descriptor?.value)).toBe(true);
+        }
+      }
+      expect(new TextDecoder().decode(canonicalJsonBytes(resolution.payload))).toBe(expectedBytes);
+      expect(new TextDecoder().decode(canonicalJsonBytes(pending.params))).toBe(expectedBytes);
+    } finally {
+      // oxlint-disable-next-line no-extend-native -- restores the exact intrinsic descriptor
+      Object.defineProperty(Object.prototype, "__proto__", legacyProtoDescriptor);
+    }
+  });
+
+  it("uses captured projection intrinsics across payload getter reentry", () => {
+    const defineProperty = Object.defineProperty;
+    const freeze = Object.freeze;
+    const payload: Record<string, unknown> = {};
+    let getterCalls = 0;
+    defineProperty(payload, "a", {
+      enumerable: true,
+      configurable: true,
+      get() {
+        getterCalls += 1;
+        Object.defineProperty = ((_target: object) => _target) as typeof Object.defineProperty;
+        Object.freeze = ((value: object) => value) as typeof Object.freeze;
+        return 1;
+      },
+    });
+    defineProperty(payload, "b", {
+      enumerable: true,
+      configurable: true,
+      writable: true,
+      value: [2],
+    });
+
+    let resolution;
+    try {
+      resolution = parseInteractionResolutionV1({ kind: "custom", payload });
+    } finally {
+      Object.defineProperty = defineProperty;
+      Object.freeze = freeze;
+    }
+    if (resolution.kind !== "custom") throw new Error("expected custom resolution");
+    const projected = resolution.payload;
+
+    expect(getterCalls).toBe(1);
+    expect(Object.isFrozen(resolution)).toBe(true);
+    expect(Reflect.ownKeys(projected)).toEqual(["a", "b"]);
+    expect(Object.isFrozen(projected)).toBe(true);
+    expect(Object.getOwnPropertyDescriptor(projected, "a")).toEqual({
+      value: 1,
+      writable: false,
+      enumerable: true,
+      configurable: false,
+    });
+    expect(Object.getOwnPropertyDescriptor(projected, "b")).toEqual({
+      value: [2],
+      writable: false,
+      enumerable: true,
+      configurable: false,
+    });
+    expect(Object.isFrozen(projected.b)).toBe(true);
+    expect(new TextDecoder().decode(canonicalJsonBytes(projected))).toBe('{"a":1,"b":[2]}');
   });
 
   it("evaluates resolutions with one shared occurrence-fenced evaluator", () => {

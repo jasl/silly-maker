@@ -106,11 +106,11 @@ candidate preflight，S4.1b.0又已闭合shared contract-bound action route core
 authority，S4.1b.1a又把authenticated envelope action ID保留到claimed continuation，
 S4.1b.1b.0已交付choice-only authenticated physical semantic admission，S4.1b.1b.1a又已交付
 skippable-pause physical resume，S4.1b.1b.1b.1又已交付automatic pause-expiry controller-attempt
-admission/dispatch floor。
-当前active execution pointer的current/next均为S4.1b.1b.1b.2 remaining mapping adjudication/implementation；
-之后仍依次为S4.2、S4.3与S4b。
+admission/dispatch floor，S4.1b.1b.1b.2a又已交付custom physical payload admission。
+当前active execution pointer的current/next均为S4.1b.1b.1b.2b remaining Say/barrier/player adjudication；
+之后依次为S4.2、S4.3与S4b。
 R3b.1、R4.0、R4a、R4b.0、R4b.1、R5、S4.0、S4.1a、S4.1b.0、S4.1b.1a、S4.1b.1b.0与
-S4.1b.1b.1a、S4.1b.1b.1b.1只作为completed delivery保留。
+S4.1b.1b.1a、S4.1b.1b.1b.1、S4.1b.1b.1b.2a只作为completed delivery保留。
 Stable implementation仍保持dormant/source-relative；R5只解除S4 entry gate，S4.0也没有把任何stable family
 提前写成live capability。
 当前 live 能力仍以
@@ -1239,12 +1239,45 @@ captured receiver/callable proof，随后提交冻结的`{ expectedOccurrenceId,
 确定性10k controller/attempt rotation证明current listener/claim与attempt provenance保持有界，不保留强controller/attempt
 history，也不改变source/runtime state或identity high-water。本delivery不读取clock、不创建timer，也不拥有deadline、remaining
 duration/cursor或suspension scheduling；这些执行状态仍由S4.2的`DialoguePlayerController`拥有。它也没有接入Host、History、
-live Story或新增public/internal barrel、package export。Say的`ui.confirm`/`narrative.advance`、reveal-first与`advancePolicy`，
-custom payload proof、presentation-barrier acknowledgment及player-control policy继续保持stop，归S4.1b.1b.1b.2裁决与实现。
+live Story或新增public/internal barrel、package export。Custom physical payload admission现已由下述
+S4.1b.1b.1b.2a delivery独立收口；Say的`ui.confirm`/`narrative.advance`、reveal-first与`advancePolicy`、
+presentation-barrier acknowledgment及player-control policy继续保持stop，归S4.1b.1b.1b.2b裁决与实现。
 
 S4.1b.1b.1b.1验证通过focused `7 files / 204 tests`、UI `79 files / 1022 tests`、full
 `253 files / 3950 tests`与`deno task check` green。本批未重跑browser/examples/prebuilt；`101 / 101`、
 `45 passed / 2 skipped`与`38 / 38`仅是先前已有证据，不冒充本批HEAD验证。
+
+**S4.1b.1b.1b.2a custom physical payload delivery：** `narrative.custom`已有唯一closed
+Base resolution形状`{ kind: "custom", payload }`，并由Base queue-front按current occurrence、pending kind与
+Story-owned custom schema重新验证。Source-relative physical admission现以Host-owned narrow custom callback
+floor签发attempt，而不接受raw `InteractionResolutionV1`：payload先经`parseInteractionResolutionV1`的custom
+分支投影为detached、canonical-keyed、deep-frozen `StrictJsonObjectV1`。因为payload getter可以reenter或
+dispose admission，parse后必须先重验same exact admission claim，再重新capture exact direct target、source revision、
+admitted frame和captured semantic port；在mint前final check中上述target/source/frame/port与claim仍必须
+exact current。旧admission不能在getter中dispose并安装fresh successor后为新authority签发attempt。
+
+Attempt是frozen zero-key、same-admission one-shot capability。只有authenticated `narrative.custom`可在既有
+Surface/publication/gesture fence后进入route；wrong/unmapped/cross-kind在spend前返回。正确route先不可逆地
+spend attempt，再完成最后一次exact direct-target/source/frame/port proof才调用captured semantic receiver/
+callable。Semantic callable的sync throw规范化为rejected completion `Promise`，不回滚attempt spend或Surface
+state。Narrative module在payload getter前捕获exact `Object.freeze`，并用它冻结attempt、resolution、request与
+dispatched result，使Base→UI handoff不能留下mutable action evidence。Story queue-front仍是custom payload的最终
+schema authority；UI不预判Story-owned payload schema。
+
+本delivery同时修正Base bounded interaction `StrictJsonObjectV1` projection：投影按canonical key order
+保留enumerable `__proto__`、`constructor`与`prototype` own-data member，并使用module-initialization时
+captured exact `Object.defineProperty`与`Object.freeze`完成member install和deep-freeze。Payload getter后续篡改
+global intrinsic不能改变本次projection或留下mutable result。Ordinary maintained input的值、canonical bytes与
+failure mapping保持不变；`InteractionResolutionV1` union、evaluator、queue语义、Save format/wire均未改变。
+
+该admission authority不暴露给Story renderer；S4.2 Host只能把当次admission收窄为narrow bound
+custom callback。本delivery不新增renderer-generation identity，不改变Base/generic Surface result或receipt，也不接
+Host/live consumer。Say、barrier与player controls仍留在S4.1b.1b.1b.2b；S4.2不得在2b裁决前启动。
+
+S4.1b.1b.1b.2a验证通过focused `8 files / 216 tests`、UI `79 files / 1028 tests`、full
+`253 files / 3958 tests`、`deno task check` green、fresh Engine browser `101 / 101`、examples
+`45 passed / 2 skipped`和prebuilt `38 / 38`。Active current/next现均为S4.1b.1b.1b.2b；后续顺序为
+S4.1b.1b.1b.2b → S4.2 → S4.3 → S4b。
 
 Live cutover前的旧行为只作characterization evidence，不是accepted policy。S4必须把当前任意React lifecycle slot改为
 composition-created typed Narrative family declaration：Story只提供pure selector/content renderer/controller ports。
@@ -1265,7 +1298,8 @@ S4据此拆为：S4.0本contract/characterization floor；S4.1a source-relative 
 projection与candidate preflight；S4.1b.0 shared contract-bound physical route core与stable input authority；
 S4.1b.1a authenticated action continuation context corrective；S4.1b.1b.0 choice-only authenticated physical
 semantic action admission；S4.1b.1b.1a skippable-pause physical resume；S4.1b.1b.1b.1 automatic pause-expiry
-controller-attempt admission/dispatch floor；S4.1b.1b.1b.2 remaining mapping adjudication/implementation；S4.2 dormant
+controller-attempt admission/dispatch floor；S4.1b.1b.1b.2a custom physical payload admission（已完成）；
+S4.1b.1b.1b.2b remaining Say/barrier/player adjudication（当前）；S4.2 dormant
 controller/view/Host、Host-commit readiness与History exact-child integration；
 S4.3在一个cutover中迁移全部tracked consumers、删除旧writers并完成headless/browser/prebuilt promotion。若exact-parent
 History不能与stable root共用composite authority、root/History不能原子retain/retire、同一semantic occurrence确实允许
@@ -1352,8 +1386,8 @@ Surface route；raw claimed route、Surface/Input fence failure、reentry与dupl
 
 本切片没有实现`say`、`pause`、`custom`、`presentation_barrier`或player control mapping，没有automatic controller-attempt、
 Narrative Host/History/live consumer，也没有修改generic stable/action result table、public/internal barrel或package exports。
-这些remaining路径现由S4.1b.1b.1a、S4.1b.1b.1b.1与S4.1b.1b.1b.2依次收口；Host、readiness与live
-cutover仍属于S4.2–S4.3。
+这些remaining路径现由S4.1b.1b.1a、S4.1b.1b.1b.1、S4.1b.1b.1b.2a与S4.1b.1b.1b.2b
+依次收口；Host、readiness与live cutover仍属于S4.2–S4.3。
 
 S4.1b.1b.0验证通过focused `7 files / 187 tests`、UI `79 files / 1005 tests`、full
 `253 files / 3933 tests`与`deno task check` green。本批尚未重跑browser/examples/prebuilt；最近已有的`101 / 101`、
@@ -1376,13 +1410,14 @@ receiver/callable dispatch。Semantic callable同步throw继续规范化为rejec
 
 本切片没有实现automatic controller-attempt、say advance/reveal policy、custom payload、presentation-barrier proof或player
 controls，没有接Narrative Host/History/live consumer，也没有扩张public/internal barrel、package export、generic stable/action
-result table或receipt。Automatic pause-expiry floor现归S4.1b.1b.1b.1；其余mapping stop归
-S4.1b.1b.1b.2，Host/timer与live cutover仍由S4.2–S4.3拥有。
+result table或receipt。Automatic pause-expiry floor后续已由S4.1b.1b.1b.1交付，custom payload又由
+S4.1b.1b.1b.2a交付；其余mapping stop归S4.1b.1b.1b.2b，Host/timer与live cutover仍由S4.2–S4.3拥有。
 
 S4.1b.1b.1a验证通过focused `7 files / 192 tests`、UI `79 files / 1010 tests`、full
 `253 files / 3938 tests`与`deno task check` green。本批未重跑browser/examples/prebuilt；`101 / 101`、
 `45 passed / 2 skipped`与`38 / 38`仅是先前已有证据，不冒充本批HEAD验证。
-Active current/next现均为S4.1b.1b.1b.2；后续顺序保持S4.1b.1b.1b.2 → S4.2 → S4.3 → S4b。
+该checkpoint当时的current/next是S4.1b.1b.1b.2a；现已由上述.2a delivery推进。
+Active current/next现均为S4.1b.1b.1b.2b；后续顺序保持S4.1b.1b.1b.2b → S4.2 → S4.3 → S4b。
 
 ### 3.3 Runtime session
 

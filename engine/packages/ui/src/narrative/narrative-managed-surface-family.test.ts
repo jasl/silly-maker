@@ -45,6 +45,7 @@ import {
   type NarrativeStableCandidatePreflightRejectionCodeInternalV1,
   type NarrativeStableCandidatePreflightResultInternalV1,
   type NarrativeStableChoiceActionAttemptInternalV1,
+  type NarrativeStableCustomActionAttemptInternalV1,
   type NarrativeStablePauseResumeActionAttemptInternalV1,
   type NarrativeStablePauseExpiryControllerAttemptInternalV1,
   type NarrativeStablePauseExpiryControllerInternalV1,
@@ -62,6 +63,7 @@ const narrativeChooseActionIdV1 = parseManagedSurfaceActionIdV1("narrative.choos
 const narrativeConfirmActionIdV1 = parseManagedSurfaceActionIdV1("ui.confirm");
 const narrativeAdvanceActionIdV1 = parseManagedSurfaceActionIdV1("narrative.advance");
 const narrativeResumeActionIdV1 = parseManagedSurfaceActionIdV1("narrative.resume");
+const narrativeCustomActionIdV1 = parseManagedSurfaceActionIdV1("narrative.custom");
 const narrativeUnknownActionIdV1 = parseManagedSurfaceActionIdV1("narrative.unknown");
 const zeroDeltaV1 = Object.freeze({
   source: "unchanged" as const,
@@ -350,6 +352,34 @@ function physicalPauseHarnessV1(input: {
     isGestureCurrent: input.isGestureCurrent ?? (() => true),
   }) satisfies CreateNarrativeStablePhysicalActionAdmissionInputInternalV1;
   const admission = createNarrativeStablePhysicalActionAdmissionInternalV1(admissionInput);
+  return { harness, inputRouter, admission, semanticDispatchPort };
+}
+
+function physicalCustomHarnessV1(input: {
+  readonly semanticDispatchPort?: NarrativeStableSemanticResolutionPortInternalV1;
+  readonly isGestureCurrent?: () => boolean;
+} = {}) {
+  const semanticDispatchPort = input.semanticDispatchPort ?? defaultSemanticDispatchPortV1;
+  const harness = harnessV1({
+    candidatePreflight: Object.freeze({
+      preflightCandidateInternalV1: () =>
+        capturedCandidatePreflightResultV1(Object.freeze({
+          ...defaultCandidateSnapshotV1,
+          semanticDispatchPort,
+        })),
+    }),
+  });
+  expect(harness.bridge.reconcilePendingInternalV1(pendingV1("custom"))).toMatchObject({
+    kind: "applied",
+    code: "surface.stable_publication_applied",
+  });
+  settleCurrentNarrativeReadyV1(harness);
+  const inputRouter = createInputRouterV1();
+  const admission = createNarrativeStablePhysicalActionAdmissionInternalV1({
+    bridge: harness.bridge,
+    inputRouter,
+    isGestureCurrent: input.isGestureCurrent ?? (() => true),
+  });
   return { harness, inputRouter, admission, semanticDispatchPort };
 }
 
@@ -1722,6 +1752,7 @@ describe("Narrative stable Managed Surface family", () => {
       "createEnvelopeInternalV1",
       "issueChoiceAttemptInternalV1",
       "issuePauseResumeAttemptInternalV1",
+      "issueCustomAttemptInternalV1",
       "routeInternalV1",
       "disposeInternalV1",
     ]);
@@ -2387,6 +2418,561 @@ describe("Narrative stable Managed Surface family", () => {
     await expect(result.consumerResult.completion).rejects.toBe(sentinel);
     expect(dispatchResolution).toHaveBeenCalledOnce();
     expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
+  });
+
+  it("dispatches one authenticated custom payload from a detached frozen Base projection", async () => {
+    const semanticReceipt = Object.freeze({ kind: "custom-accepted" as const });
+    let capturedRequest: unknown = null;
+    let semanticPort!: NarrativeStableSemanticResolutionPortInternalV1;
+    const dispatchResolution = vi.fn(function (this: unknown, request: unknown) {
+      expect(this).toBe(semanticPort);
+      capturedRequest = request;
+      return Promise.resolve(semanticReceipt);
+    });
+    semanticPort = Object.freeze({ dispatchResolutionInternalV1: dispatchResolution });
+    const fixture = physicalCustomHarnessV1({ semanticDispatchPort: semanticPort });
+    const state = fixture.harness.kernel.getStateInternalV1();
+    const notifications = fixture.harness.stateNotificationCount();
+    const rawPayload = {
+      z: 2,
+      a: { list: [1, { label: "original" }], enabled: true },
+      nil: null,
+    };
+
+    const attempt = fixture.admission.issueCustomAttemptInternalV1(rawPayload);
+    expectTypeOf(attempt).toEqualTypeOf<
+      NarrativeStableCustomActionAttemptInternalV1 | null
+    >();
+    expect(attempt).not.toBeNull();
+    expect(Object.isFrozen(attempt)).toBe(true);
+    expect(Reflect.ownKeys(attempt as object)).toEqual([]);
+
+    rawPayload.z = 99;
+    rawPayload.a.enabled = false;
+    rawPayload.a.list[1] = { label: "mutated" };
+    const result = fixture.admission.routeInternalV1(
+      fixture.admission.createEnvelopeInternalV1({
+        actionId: narrativeCustomActionIdV1,
+        gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.custom-current"),
+      }),
+      attempt,
+    );
+    expect(result.route).toMatchObject({
+      input: { kind: "consumed", code: "input.managed_surface_consumed" },
+      surface: { kind: "unchanged", code: "surface.action_routed" },
+    });
+    expect(result.consumerResult).toMatchObject({ kind: "dispatched" });
+    if (result.consumerResult?.kind !== "dispatched") {
+      throw new Error("expected custom semantic dispatch completion");
+    }
+    await expect(result.consumerResult.completion).resolves.toBe(semanticReceipt);
+    expect(dispatchResolution).toHaveBeenCalledOnce();
+    expect(capturedRequest).toEqual({
+      expectedOccurrenceId: occurrenceV1(1),
+      resolution: {
+        kind: "custom",
+        payload: {
+          a: { enabled: true, list: [1, { label: "original" }] },
+          nil: null,
+          z: 2,
+        },
+      },
+    });
+    expect(Object.isFrozen(capturedRequest)).toBe(true);
+    const capturedResolution = (capturedRequest as {
+      readonly resolution: { readonly payload: Record<string, unknown> };
+    }).resolution;
+    expect(Object.isFrozen(capturedResolution)).toBe(true);
+    expect(Object.isFrozen(capturedResolution.payload)).toBe(true);
+    expect(Reflect.ownKeys(capturedResolution.payload)).toEqual(["a", "nil", "z"]);
+    expect(
+      Object.isFrozen(
+        (capturedResolution.payload.a as { readonly list: readonly unknown[] }).list,
+      ),
+    ).toBe(true);
+    expect([...canonicalJsonBytes(capturedResolution.payload)]).toEqual([
+      ...canonicalJsonBytes({
+        a: { enabled: true, list: [1, { label: "original" }] },
+        nil: null,
+        z: 2,
+      }),
+    ]);
+    expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
+    expect(fixture.harness.stateNotificationCount()).toBe(notifications);
+    expect(
+      fixture.admission.routeInternalV1(
+        fixture.admission.createEnvelopeInternalV1({
+          actionId: narrativeCustomActionIdV1,
+          gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.custom-repeat"),
+        }),
+        attempt,
+      ).consumerResult,
+    ).toEqual({ kind: "stale", completion: null });
+  });
+
+  it("keeps the custom attempt and semantic request frozen after payload getter reentry", async () => {
+    const freeze = Object.freeze;
+    const semanticReceipt = freeze({ kind: "custom-intrinsic-safe" as const });
+    let capturedRequest: unknown = null;
+    let semanticPort!: NarrativeStableSemanticResolutionPortInternalV1;
+    const dispatchResolution = vi.fn(function (this: unknown, request: unknown) {
+      expect(this).toBe(semanticPort);
+      capturedRequest = request;
+      return Promise.resolve(semanticReceipt);
+    });
+    semanticPort = freeze({ dispatchResolutionInternalV1: dispatchResolution });
+    const fixture = physicalCustomHarnessV1({ semanticDispatchPort: semanticPort });
+    const state = fixture.harness.kernel.getStateInternalV1();
+    const notifications = fixture.harness.stateNotificationCount();
+    const envelope = fixture.admission.createEnvelopeInternalV1({
+      actionId: narrativeCustomActionIdV1,
+      gestureId: parseManagedSurfaceGestureIdV1(
+        "gesture.narrative.custom-freeze-reentry",
+      ),
+    });
+    const payload = Object.defineProperty({ b: [2] }, "a", {
+      enumerable: true,
+      get() {
+        Object.freeze = ((value: object) => value) as typeof Object.freeze;
+        return 1;
+      },
+    });
+    let attempt: NarrativeStableCustomActionAttemptInternalV1 | null = null;
+    let result:
+      | ReturnType<
+        NarrativeStablePhysicalActionAdmissionInternalV1["routeInternalV1"]
+      >
+      | null = null;
+
+    try {
+      attempt = fixture.admission.issueCustomAttemptInternalV1(payload);
+      if (attempt === null) throw new Error("expected custom attempt");
+      result = fixture.admission.routeInternalV1(envelope, attempt);
+    } finally {
+      Object.freeze = freeze;
+    }
+
+    expect(attempt).not.toBeNull();
+    expect(Object.isFrozen(attempt)).toBe(true);
+    expect(Reflect.ownKeys(attempt as object)).toEqual([]);
+    expect(result?.consumerResult).toMatchObject({ kind: "dispatched" });
+    if (result?.consumerResult?.kind !== "dispatched") {
+      throw new Error("expected intrinsic-safe custom dispatch");
+    }
+    expect(Object.isFrozen(result.consumerResult)).toBe(true);
+    await expect(result.consumerResult.completion).resolves.toBe(semanticReceipt);
+    expect(dispatchResolution).toHaveBeenCalledOnce();
+    expect(capturedRequest).toEqual({
+      expectedOccurrenceId: occurrenceV1(1),
+      resolution: {
+        kind: "custom",
+        payload: { a: 1, b: [2] },
+      },
+    });
+    expect(Object.isFrozen(capturedRequest)).toBe(true);
+    const capturedResolution = (capturedRequest as {
+      readonly resolution: { readonly payload: Record<string, unknown> };
+    }).resolution;
+    expect(Object.isFrozen(capturedResolution)).toBe(true);
+    expect(Object.isFrozen(capturedResolution.payload)).toBe(true);
+    expect(Object.isFrozen(capturedResolution.payload.b)).toBe(true);
+    expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
+    expect(fixture.harness.stateNotificationCount()).toBe(notifications);
+  });
+
+  it("rejects invalid or hostile custom payloads before minting a capability", async () => {
+    const fixture = physicalCustomHarnessV1();
+    const state = fixture.harness.kernel.getStateInternalV1();
+    const notifications = fixture.harness.stateNotificationCount();
+    let getterCalls = 0;
+    const throwingGetter = Object.defineProperty({}, "value", {
+      enumerable: true,
+      get() {
+        getterCalls += 1;
+        throw new Error("custom payload getter failed");
+      },
+    });
+    const revoked = Proxy.revocable({}, {});
+    revoked.revoke();
+
+    for (
+      const invalid of [
+        null,
+        undefined,
+        [],
+        Object.freeze({ value: 1.5 }),
+        Object.freeze({ value: Number.MAX_SAFE_INTEGER + 1 }),
+        Object.freeze({ value: undefined }),
+        Object.freeze({ value: new Date(0) }),
+        throwingGetter,
+        revoked.proxy,
+      ]
+    ) {
+      expect(fixture.admission.issueCustomAttemptInternalV1(invalid)).toBeNull();
+    }
+    expect(getterCalls).toBe(1);
+    expect(fixture.admission.issueChoiceAttemptInternalV1("choice.test.first")).toBeNull();
+    expect(fixture.admission.issuePauseResumeAttemptInternalV1()).toBeNull();
+    expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
+    expect(fixture.harness.stateNotificationCount()).toBe(notifications);
+
+    const reentrant = physicalCustomHarnessV1();
+    let nestedResult: unknown = null;
+    let reentrantGetterCalls = 0;
+    const reentrantPayload = Object.defineProperty({}, "value", {
+      enumerable: true,
+      get() {
+        reentrantGetterCalls += 1;
+        nestedResult = reentrant.harness.bridge.reconcilePendingInternalV1(
+          pendingV1("custom", 2),
+        );
+        return 3;
+      },
+    });
+    expect(reentrant.admission.issueCustomAttemptInternalV1(reentrantPayload)).toBeNull();
+    expect(reentrantGetterCalls).toBe(1);
+    expect(nestedResult).toMatchObject({
+      kind: "applied",
+      code: "surface.stable_publication_applied",
+    });
+
+    const disposedDuringParse = physicalCustomHarnessV1();
+    let successorAdmission: NarrativeStablePhysicalActionAdmissionInternalV1 | undefined;
+    const disposingPayload = Object.defineProperty({}, "value", {
+      enumerable: true,
+      get() {
+        disposedDuringParse.admission.disposeInternalV1();
+        successorAdmission = createNarrativeStablePhysicalActionAdmissionInternalV1({
+          bridge: disposedDuringParse.harness.bridge,
+          inputRouter: disposedDuringParse.inputRouter,
+          isGestureCurrent: () => true,
+        });
+        return 4;
+      },
+    });
+    expect(disposedDuringParse.admission.issueCustomAttemptInternalV1(disposingPayload))
+      .toBeNull();
+    if (successorAdmission === undefined) throw new Error("expected successor admission");
+    const successorAttempt = successorAdmission.issueCustomAttemptInternalV1({ value: 5 });
+    expect(successorAttempt).not.toBeNull();
+    const successorResult = successorAdmission.routeInternalV1(
+      successorAdmission.createEnvelopeInternalV1({
+        actionId: narrativeCustomActionIdV1,
+        gestureId: parseManagedSurfaceGestureIdV1(
+          "gesture.narrative.custom-dispose-reentry-successor",
+        ),
+      }),
+      successorAttempt,
+    );
+    expect(successorResult.consumerResult).toMatchObject({ kind: "dispatched" });
+    if (successorResult.consumerResult?.kind !== "dispatched") {
+      throw new Error("expected successor custom dispatch");
+    }
+    await expect(successorResult.consumerResult.completion).resolves.toBeUndefined();
+    successorAdmission.disposeInternalV1();
+
+    const recovered = fixture.admission.issueCustomAttemptInternalV1({ value: 2 });
+    expect(recovered).not.toBeNull();
+  });
+
+  it("does not spend a custom attempt on unmapped, cross-kind, clone, or foreign routes", async () => {
+    const dispatchResolution = vi.fn(() => Promise.resolve("custom-dispatched"));
+    const fixture = physicalCustomHarnessV1({
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: dispatchResolution,
+      }),
+    });
+    const attempt = fixture.admission.issueCustomAttemptInternalV1({ value: 2 });
+    expect(attempt).not.toBeNull();
+
+    for (
+      const [actionId, gestureId] of [
+        [narrativeConfirmActionIdV1, "gesture.narrative.custom-confirm-unmapped"],
+        [narrativeAdvanceActionIdV1, "gesture.narrative.custom-advance-unmapped"],
+      ] as const
+    ) {
+      expect(
+        fixture.admission.routeInternalV1(
+          fixture.admission.createEnvelopeInternalV1({
+            actionId,
+            gestureId: parseManagedSurfaceGestureIdV1(gestureId),
+          }),
+          attempt,
+        ).consumerResult,
+      ).toEqual({ kind: "unmapped", completion: null });
+    }
+    for (
+      const [actionId, gestureId] of [
+        [narrativeChooseActionIdV1, "gesture.narrative.custom-choice-cross-kind"],
+        [narrativeResumeActionIdV1, "gesture.narrative.custom-resume-cross-kind"],
+      ] as const
+    ) {
+      expect(
+        fixture.admission.routeInternalV1(
+          fixture.admission.createEnvelopeInternalV1({
+            actionId,
+            gestureId: parseManagedSurfaceGestureIdV1(gestureId),
+          }),
+          attempt,
+        ).consumerResult,
+      ).toEqual({ kind: "stale", completion: null });
+    }
+    expect(
+      fixture.admission.routeInternalV1(
+        fixture.admission.createEnvelopeInternalV1({
+          actionId: narrativeCustomActionIdV1,
+          gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.custom-clone"),
+        }),
+        { ...(attempt as object) },
+      ).consumerResult,
+    ).toEqual({ kind: "stale", completion: null });
+
+    const foreignDispatch = vi.fn(() => Promise.resolve("foreign-custom"));
+    const foreign = physicalCustomHarnessV1({
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: foreignDispatch,
+      }),
+    });
+    const foreignAttempt = foreign.admission.issueCustomAttemptInternalV1({ value: 3 });
+    expect(foreignAttempt).not.toBeNull();
+    expect(
+      fixture.admission.routeInternalV1(
+        fixture.admission.createEnvelopeInternalV1({
+          actionId: narrativeCustomActionIdV1,
+          gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.custom-foreign"),
+        }),
+        foreignAttempt,
+      ).consumerResult,
+    ).toEqual({ kind: "stale", completion: null });
+    expect(dispatchResolution).not.toHaveBeenCalled();
+
+    const accepted = fixture.admission.routeInternalV1(
+      fixture.admission.createEnvelopeInternalV1({
+        actionId: narrativeCustomActionIdV1,
+        gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.custom-after-mismatch"),
+      }),
+      attempt,
+    );
+    expect(accepted.consumerResult).toMatchObject({ kind: "dispatched" });
+    if (accepted.consumerResult?.kind !== "dispatched") {
+      throw new Error("expected custom dispatch after non-consuming mismatches");
+    }
+    await expect(accepted.consumerResult.completion).resolves.toBe("custom-dispatched");
+    expect(dispatchResolution).toHaveBeenCalledOnce();
+
+    const foreignAccepted = foreign.admission.routeInternalV1(
+      foreign.admission.createEnvelopeInternalV1({
+        actionId: narrativeCustomActionIdV1,
+        gestureId: parseManagedSurfaceGestureIdV1(
+          "gesture.narrative.custom-foreign-current",
+        ),
+      }),
+      foreignAttempt,
+    );
+    expect(foreignAccepted.consumerResult).toMatchObject({ kind: "dispatched" });
+    if (foreignAccepted.consumerResult?.kind !== "dispatched") {
+      throw new Error("expected foreign custom attempt on its own authority");
+    }
+    await expect(foreignAccepted.consumerResult.completion).resolves.toBe("foreign-custom");
+    expect(foreignDispatch).toHaveBeenCalledOnce();
+    foreign.admission.disposeInternalV1();
+  });
+
+  it("keeps stale gesture, retained replacement, suspension, and disposal at zero custom dispatch", async () => {
+    let gestureCurrent = false;
+    const dispatchResolution = vi.fn(() => Promise.resolve("custom-dispatched"));
+    const fixture = physicalCustomHarnessV1({
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: dispatchResolution,
+      }),
+      isGestureCurrent: () => gestureCurrent,
+    });
+    const gestureAttempt = fixture.admission.issueCustomAttemptInternalV1({ value: 1 });
+    expect(gestureAttempt).not.toBeNull();
+    expect(
+      fixture.admission.routeInternalV1(
+        fixture.admission.createEnvelopeInternalV1({
+          actionId: narrativeCustomActionIdV1,
+          gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.custom-stale"),
+        }),
+        gestureAttempt,
+      ),
+    ).toMatchObject({
+      route: { input: { code: "input.stale_gesture" }, surface: null },
+      consumerResult: null,
+    });
+    gestureCurrent = true;
+    const recovered = fixture.admission.routeInternalV1(
+      fixture.admission.createEnvelopeInternalV1({
+        actionId: narrativeCustomActionIdV1,
+        gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.custom-recovered"),
+      }),
+      gestureAttempt,
+    );
+    expect(recovered.consumerResult).toMatchObject({ kind: "dispatched" });
+    if (recovered.consumerResult?.kind !== "dispatched") {
+      throw new Error("expected custom dispatch after stale gesture");
+    }
+    await expect(recovered.consumerResult.completion).resolves.toBe("custom-dispatched");
+    expect(dispatchResolution).toHaveBeenCalledOnce();
+
+    const replacementAttempt = fixture.admission.issueCustomAttemptInternalV1({ value: 2 });
+    expect(replacementAttempt).not.toBeNull();
+    expect(fixture.harness.bridge.reconcilePendingInternalV1(pendingV1("custom", 2)))
+      .toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
+    const replacementState = fixture.harness.kernel.getStateInternalV1();
+    expect(replacementState.stableRuntimeBindings[0]?.binding).toMatchObject({
+      kind: "preparing",
+      transition: "primary_replacement",
+    });
+    if (replacementState.stableRuntimeBindings[0]?.binding.kind !== "preparing") {
+      throw new Error("expected retained custom replacement");
+    }
+    expect(replacementState.stableRuntimeBindings[0].binding.retainedSubtree).not.toBeNull();
+    expect(fixture.admission.issueCustomAttemptInternalV1({ value: 3 })).toBeNull();
+    expect(
+      fixture.admission.routeInternalV1(
+        fixture.admission.createEnvelopeInternalV1({
+          actionId: narrativeCustomActionIdV1,
+          gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.custom-replaced"),
+        }),
+        replacementAttempt,
+      ).consumerResult,
+    ).toEqual({ kind: "stale", completion: null });
+
+    const suspended = physicalCustomHarnessV1({
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: dispatchResolution,
+      }),
+    });
+    const suspendedAttempt = suspended.admission.issueCustomAttemptInternalV1({ value: 4 });
+    expect(suspendedAttempt).not.toBeNull();
+    suspendCurrentNarrativeV1(suspended.harness);
+    expect(
+      suspended.admission.routeInternalV1(
+        suspended.admission.createEnvelopeInternalV1({
+          actionId: narrativeCustomActionIdV1,
+          gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.custom-suspended"),
+        }),
+        suspendedAttempt,
+      ).consumerResult,
+    ).toEqual({ kind: "stale", completion: null });
+
+    const publisherDisposed = physicalCustomHarnessV1({
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: dispatchResolution,
+      }),
+    });
+    const publisherAttempt = publisherDisposed.admission.issueCustomAttemptInternalV1({
+      value: 5,
+    });
+    expect(publisherAttempt).not.toBeNull();
+    const publisherEnvelope = publisherDisposed.admission.createEnvelopeInternalV1({
+      actionId: narrativeCustomActionIdV1,
+      gestureId: parseManagedSurfaceGestureIdV1(
+        "gesture.narrative.custom-publisher-disposed",
+      ),
+    });
+    expect(publisherDisposed.harness.bridge.disposeInternalV1()).toMatchObject({
+      kind: "applied",
+      code: "surface.stable_publisher_disposed",
+    });
+    expect(
+      publisherDisposed.admission.routeInternalV1(
+        publisherEnvelope,
+        publisherAttempt,
+      ),
+    ).toMatchObject({
+      route: {
+        input: { code: "input.managed_surface_consumed" },
+        surface: { kind: "stale", code: "surface.stale_instance" },
+      },
+      consumerResult: null,
+    });
+
+    const admissionDisposed = physicalCustomHarnessV1({
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: dispatchResolution,
+      }),
+    });
+    const disposedAttempt = admissionDisposed.admission.issueCustomAttemptInternalV1({ value: 6 });
+    expect(disposedAttempt).not.toBeNull();
+    const disposedEnvelope = admissionDisposed.admission.createEnvelopeInternalV1({
+      actionId: narrativeCustomActionIdV1,
+      gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.custom-disposed"),
+    });
+    admissionDisposed.admission.disposeInternalV1();
+    expect(
+      admissionDisposed.admission.routeInternalV1(disposedEnvelope, disposedAttempt),
+    ).toMatchObject({
+      route: { input: { code: "input.stale_publication" }, surface: null },
+      consumerResult: null,
+    });
+    expect(dispatchResolution).toHaveBeenCalledOnce();
+  });
+
+  it("spends custom attempts without rolling back Story rejection or synchronous throw", async () => {
+    const semanticRejected = Object.freeze({
+      kind: "rejected" as const,
+      code: "interaction.payload_invalid" as const,
+    });
+    const sentinel = new Error("custom semantic dispatch failed");
+    const dispatchResolution = vi.fn()
+      .mockResolvedValueOnce(semanticRejected)
+      .mockImplementationOnce(() => {
+        throw sentinel;
+      });
+    const fixture = physicalCustomHarnessV1({
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: dispatchResolution,
+      }),
+    });
+    const state = fixture.harness.kernel.getStateInternalV1();
+    const notifications = fixture.harness.stateNotificationCount();
+
+    const rejectedAttempt = fixture.admission.issueCustomAttemptInternalV1({ value: 99 });
+    expect(rejectedAttempt).not.toBeNull();
+    const rejected = fixture.admission.routeInternalV1(
+      fixture.admission.createEnvelopeInternalV1({
+        actionId: narrativeCustomActionIdV1,
+        gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.custom-rejected"),
+      }),
+      rejectedAttempt,
+    );
+    expect(rejected.consumerResult).toMatchObject({ kind: "dispatched" });
+    if (rejected.consumerResult?.kind !== "dispatched") {
+      throw new Error("expected custom rejection completion");
+    }
+    await expect(rejected.consumerResult.completion).resolves.toBe(semanticRejected);
+    expect(
+      fixture.admission.routeInternalV1(
+        fixture.admission.createEnvelopeInternalV1({
+          actionId: narrativeCustomActionIdV1,
+          gestureId: parseManagedSurfaceGestureIdV1(
+            "gesture.narrative.custom-rejected-repeat",
+          ),
+        }),
+        rejectedAttempt,
+      ).consumerResult,
+    ).toEqual({ kind: "stale", completion: null });
+
+    const throwingAttempt = fixture.admission.issueCustomAttemptInternalV1({ value: 2 });
+    expect(throwingAttempt).not.toBeNull();
+    const throwing = fixture.admission.routeInternalV1(
+      fixture.admission.createEnvelopeInternalV1({
+        actionId: narrativeCustomActionIdV1,
+        gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.custom-throw"),
+      }),
+      throwingAttempt,
+    );
+    expect(throwing.consumerResult).toMatchObject({ kind: "dispatched" });
+    if (throwing.consumerResult?.kind !== "dispatched") {
+      throw new Error("expected rejected custom semantic completion");
+    }
+    await expect(throwing.consumerResult.completion).rejects.toBe(sentinel);
+    expect(dispatchResolution).toHaveBeenCalledTimes(2);
+    expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
+    expect(fixture.harness.stateNotificationCount()).toBe(notifications);
   });
 
   it("dispatches one clock-free automatic pause expiry for skippable and unskippable pauses", async () => {

@@ -23,8 +23,9 @@ global cascade settlement与S1-R.5 neutral harness/churn/dead-path audit均已�
 contract/characterization floor、S4.1a dormant family contract/publisher projector与S4.1b.0 shared
 contract-bound action gate、S4.1b.1a authenticated action context corrective及S4.1b.1b.0
 choice-only physical semantic vertical、S4.1b.1b.1a skippable-pause physical resume vertical与
-S4.1b.1b.1b.1 automatic pause-expiry controller-attempt admission/dispatch floor均已关闭，
-下一独立切片为S4.1b.1b.1b.2 remaining mapping adjudication/implementation。R4 entry
+S4.1b.1b.1b.1 automatic pause-expiry controller-attempt admission/dispatch floor及
+S4.1b.1b.1b.2a custom physical payload admission均已关闭；下一独立切片为
+S4.1b.1b.1b.2b remaining Say/barrier/player adjudication。R4 entry
 adjudication已先以独立S1-R.4.0关闭
 readiness result/capacity contract。R3b entry audit先以独立S1-R.3a.1 corrective补全ready
 retained-subtree authority，该corrective也已关闭。
@@ -39,8 +40,8 @@ S1-R aggregate gate已关闭。
 
 在 [production-floor sequence](2026-07-30-production-floor-sequence.md)
 中：PF2 的 `S0 -> S1-T -> S2`、PF-DET、PF3/M2 与 PF4/S3 已完成；当前 core
-节点是PF4/S4.1b.1b.1b.2。PF4的顺序是
-`S3 -> S1-R.0 -> S1-R.1–S1-R.5 -> S4.0 -> S4.1a -> S4.1b.0 -> S4.1b.1a -> S4.1b.1b.0 -> S4.1b.1b.1a -> S4.1b.1b.1b.1 -> S4.1b.1b.1b.2 -> S4.2 -> S4.3 -> S4b`；
+节点是PF4/S4.1b.1b.1b.2b。PF4的顺序是
+`S3 -> S1-R.0 -> S1-R.1–S1-R.5 -> S4.0 -> S4.1a -> S4.1b.0 -> S4.1b.1a -> S4.1b.1b.0 -> S4.1b.1b.1a -> S4.1b.1b.1b.1 -> S4.1b.1b.1b.2a -> S4.1b.1b.1b.2b -> S4.2 -> S4.3 -> S4b`；
 S5–S6 属于 PF6。S1-R
 延后到第一个真实 externally published stable-target family 前完成；按 accepted
 target ownership，S4 Narrative 计划成为该 family，因此 S1-R 位于 S3 与 S4
@@ -1704,14 +1705,19 @@ S1-R 按以下可独立合并切片推进，每次只领取一个：
     opaque one-shot resume attempt并以`narrative.resume`提交exact `resume` resolution；不实现automatic timer或其他mapping。
 24. **S4.1b.1b.1b.1 automatic pause-expiry controller-attempt admission/dispatch floor（已完成）**：只为exact
     current ready+active direct Pause建立composition-bound automatic attempt与`resume` dispatch fence；不实现timer/deadline/remaining。
-25. **S4.1b.1b.1b.2 remaining mapping adjudication/implementation（当前）**：裁决并实现Say、custom、
+25. **S4.1b.1b.1b.2a custom physical payload admission（已完成）**：以composition/Host-owned
+    physical admission为唯一capability，只为current custom frame交付`narrative.custom`的bounded interaction
+    `StrictJsonObjectV1` payload、
+    one-shot attempt、physical gesture/final target proof与Base queue-front Story schema复验；不暴露raw admission
+    authority、gesture/envelope minting或generic semantic ingress。
+26. **S4.1b.1b.1b.2b remaining Say/barrier/player adjudication（当前）**：裁决并实现Say、
     presentation-barrier与player-control的余下mapping，不把未裁决策略伪装成generic Surface合同。
-26. **S4.2 dormant Narrative Host + History child（待实施）**：controller/view/Host decomposition、Host-commit
+27. **S4.2 dormant Narrative Host + History child（待实施）**：controller/view/Host decomposition、Host-commit
     readiness、exact-parent History、managed input/focus/dismiss与Engine Lab dormant conformance；不切live Story。
-27. **S4.3 atomic live cutover and promotion（待实施）**：同批迁移Engine Lab、template、Cat Cafe、Bookshop，
+28. **S4.3 atomic live cutover and promotion（待实施）**：同批迁移Engine Lab、template、Cat Cafe、Bookshop，
     删除旧lifecycle writers与standalone public path，更新live docs并完成headless/browser/prebuilt promotion。
 
-当前只允许从 **S4.1b.1b.1b.2** 开始。Stable ingress与stable-specific state/API仍保持
+当前只允许从 **S4.1b.1b.1b.2b** 开始。Stable ingress与stable-specific state/API仍保持
 dormant/package-internal；S4.1允许source-relative Narrative bridge消费Base semantic contract，但不接live
 Narrative/React/Web application graph、不mount React Host，也不更新live feature文档；shared pure topology
 policy只经existing transient adapter live复用，R3a 已将既有live transient reducer/Coordinator 收口到
@@ -2938,16 +2944,21 @@ examples/prebuilt；S0 deterministic Chromium RED与最近R4b.1 browser `101 / 1
 6. **S4.1b.1b.1b.1 automatic pause-expiry controller-attempt admission/dispatch floor（已完成）**：为任意exact
    current ready+active direct Pause（`skippable: true | false`）交付独立controller-attempt provenance、current stable runtime fence、
    exact `resume` semantic occurrence提交与stale zero-dispatch；不实现clock/timer/deadline/remaining或Host scheduling。
-7. **S4.1b.1b.1b.2 remaining mapping adjudication/implementation（当前）**：裁决并实现Say的
-   `ui.confirm`/`narrative.advance`、reveal-first与`advancePolicy`、custom payload proof、presentation-barrier acknowledgment及
+7. **S4.1b.1b.1b.2a custom physical payload admission（已完成）**：复用唯一composition/Host-owned
+   physical admission，只向exact mounted custom renderer提供narrow callback。Payload经Base bounded interaction
+   `StrictJsonObjectV1` projection形成detached/frozen value，attempt绑定current frame/source/target/semantic port；只有`narrative.custom`的
+   current Surface/Input/gesture route通过后才spend，并在semantic call前最后复验exact target/frame/port。Base queue front
+   继续负责occurrence/kind与Story `isCustomPayloadValid`复验。
+8. **S4.1b.1b.1b.2b remaining Say/barrier/player adjudication（当前）**：裁决并实现Say的
+   `ui.confirm`/`narrative.advance`、reveal-first与`advancePolicy`、presentation-barrier acknowledgment及
    player-control policy；不扩大generic Surface result/receipt。
-8. **S4.2 dormant Host/History integration（待实施）**：交付controller/view/Host decomposition、captured resolver/required-port snapshot、
+9. **S4.2 dormant Host/History integration（待实施）**：交付controller/view/Host decomposition、captured resolver/required-port snapshot、
    Narrative portal Host-commit readiness/failure、exact-parent History open/close、managed input/focus/dismiss、timer suspension与
    Engine Lab dormant conformance；candidate ready前无ordinary authority。
-9. **S4.3 atomic live cutover/promotion（待实施）**：一次切换composition/DefaultGameRoot Narrative authoring与全部tracked consumers，
-   删除旧writers/exports/direct dispatch path，验证root/History retain/retire、三设备双fence、focus/inert、Narrative对既有
-   reset adapter的响应与旧evidence
-   stale rejection，随后更新architecture/features/development/authoring/website并跑受影响browser/examples/prebuilt。
+10. **S4.3 atomic live cutover/promotion（待实施）**：一次切换composition/DefaultGameRoot Narrative authoring与全部tracked consumers，
+    删除旧writers/exports/direct dispatch path，验证root/History retain/retire、三设备双fence、focus/inert、Narrative对既有
+    reset adapter的响应与旧evidence
+    stale rejection，随后更新architecture/features/development/authoring/website并跑受影响browser/examples/prebuilt。
 
 ### S4.1a delivery — dormant family contract and publisher projector
 
@@ -3108,17 +3119,53 @@ dispose rotation不推进publisher source/occurrence、runtime identity或Surfac
 没有历史Set/array或数值generation cursor。
 
 本floor不读取`presentationClock`、不创建timer，也不保存deadline、remaining duration/cursor或suspension scheduling；这些执行状态
-仍由S4.2的`DialoguePlayerController`/Host拥有。Say、custom、presentation-barrier与player-control mapping仍保持stop并由
-S4.1b.1b.1b.2裁决。本批保持source-relative/dormant；没有Narrative Host、History child、React/Web/Story claimant、root或
+仍由S4.2的`DialoguePlayerController`/Host拥有。Custom physical payload已重切为下一独立S4.1b.1b.1b.2a；
+Say、presentation-barrier与player-control mapping仍保持stop并由S4.1b.1b.1b.2b裁决。本批保持source-relative/dormant；
+没有Narrative Host、History child、React/Web/Story claimant、root或
 `./internal` barrel、package export或live browser/build graph变化。
 
 验证通过focused `7 files / 204 tests`、UI package `79 files / 1022 tests`、全量
 `253 files / 3950 tests`与完整`deno task check` green。本批未机械重跑browser/examples/prebuilt；最近已有的Engine browser
 `101 / 101`、examples `45 passed / 2 skipped`与prebuilt Player `38 / 38`只作先前证据，不冒充本HEAD验证。
 S4.1b.1b.1b.1已完成；current/next现为
-**S4.1b.1b.1b.2 remaining mapping adjudication/implementation**，随后仍为S4.2、S4.3与S4b。
+**S4.1b.1b.1b.2a custom physical payload admission**；该checkpoint现由下述delivery取代。
 
-S4.1 aggregate stop在S4.1b.1b.1b.1–S4.1b.1b.1b.2继续有效：若后续证据要求公开lease/source/occurrence/Coordinator、复用global
+### S4.1b.1b.1b.2a delivery — custom physical payload admission
+
+本批在既有source-relative、composition/Host-owned physical admission上完成`narrative.custom`的authenticated
+physical-to-semantic vertical。Dormant harness中的admission只接受exact current ready+active custom frame的payload；S4.2 Host
+后续只能向当次renderer交付绑定该admission的narrow callback。Payload先经Base
+`parseInteractionResolutionV1` custom分支投影为detached、canonical-keyed、deep-frozen
+`StrictJsonObjectV1`，再签发frozen zero-key one-shot attempt。Attempt只在private WeakMap中绑定exact admission authority、
+direct-target proof、target、source revision、admitted frame、captured semantic port与该payload，不把raw receiver、callable、
+envelope minting或generic semantic ingress交给Story renderer。
+
+Payload traversal可能执行getter，因此attempt issuance在投影后重验active admission与exact claim，并重新capture exact current
+target/source/contract/frame/proof；getter同步发布fresh occurrence会使outer issuance返回`null`，getter同步dispose并安装successor时
+旧authority也不能签发token或清除successor claim。Authenticated route仍先完成Surface/input publication/physical gesture fence；
+unmapped action与mapped cross-kind attempt在spend前返回，只有same-authority `narrative.custom` attempt会one-shot spend。随后再次
+核对current target/source/frame/semantic port并完成最后一次direct-target proof，才以captured exact receiver/callable提交frozen
+`{ expectedOccurrenceId, resolution: { kind: "custom", payload } }`。Clone、foreign、repeat、retained replacement、suspended、
+publisher/admission dispose或stale gesture均不能触发semantic dispatch；sync throw规范化为rejected completion `Promise`，Story
+rejection与throw均不回滚attempt spend或composite state。Narrative module在payload getter前捕获exact `Object.freeze`，并用它冻结
+attempt、resolution、request与dispatched result，避免Base→UI handoff留下mutable action evidence。Base queue front继续按current occurrence、pending kind及Story-owned
+`isCustomPayloadValid`执行最终业务校验，UI没有复制custom schema。
+
+本批同时修复了Base既有bounded interaction JSON projector的cross-runtime dangerous-own-key缺口：`__proto__`、`constructor`与
+`prototype`现在通过module-captured exact `Object.defineProperty`建立own enumerable data descriptor，并由module-captured
+`Object.freeze`递归冻结；payload getter即使同步替换这两项global intrinsic也不能丢key、触发legacy setter、改变输出prototype或
+留下可写结果。Deno与Node/browser
+因此对该bounded interaction `StrictJsonObjectV1` direct-object输入收敛到相同own keys、descriptors与canonical bytes。这个corrective确实改变了此前在标准
+Node/browser上错误投影dangerous `__proto__`的Base行为，不能表述为Base semantics zero diff；Base resolution union、evaluator、
+queue contract、Save format以及ordinary maintained interaction bytes保持不变。
+
+本delivery仍是dormant/source-relative seam：没有实现Say、presentation-barrier或player-control policy，没有接Narrative Host、
+History、React/Web/live Story，也没有新增public/internal barrel、package export或generic Surface result/receipt。验证通过focused
+`8 files / 216 tests`、UI package `79 files / 1028 tests`、全量`253 files / 3958 tests`、完整`deno task check`、fresh
+Engine browser `101 / 101`、examples `45 passed / 2 skipped`与prebuilt Player `38 / 38`。S4.1b.1b.1b.2a已完成；
+current/next均为 **S4.1b.1b.1b.2b remaining Say/barrier/player adjudication**，随后才是S4.2、S4.3与S4b。
+
+S4.1 aggregate stop在S4.1b.1b.1b.1–S4.1b.1b.1b.2b继续有效：若后续证据要求公开lease/source/occurrence/Coordinator、复用global
 semantic/presentation revision、允许同一semantic occurrence的full normalized `PendingInteractionV1` canonical漂移，
 或余下action admission仍需要扩大generic result code，立即停止；S4.2前stop：若unsupported pending必须保留平行host、
 History不能作为same-authority exact child或Host readiness需要真实async renderer新合同；S4.3前stop：若同一cutover不能

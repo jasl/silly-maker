@@ -684,9 +684,9 @@ token.
 Preparing, replacement, retained-only, suspended, disposed, foreign, cloned,
 and repeated capabilities dispatch nothing; a synchronous semantic throw only
 rejects the returned completion Promise and does not roll back Surface state.
-The slice remains source-relative and dormant. Remaining say, custom, barrier,
-and player-control policies stay with S4.1b.1b.1b.2; no raw resolution ingress
-is exposed ahead of those mappings.
+The slice remains source-relative and dormant. At that checkpoint, remaining
+say, custom, barrier, and player-control policies stayed with
+S4.1b.1b.1b.2; no raw resolution ingress was exposed ahead of those mappings.
 
 S4.1b.1b.1b.1 now adds the bridge-private automatic pause-expiry controller on
 top of that same stable authority. An exact current direct ready-and-active
@@ -710,8 +710,43 @@ deadline, remaining-duration state, or scheduler. Verification for the slice
 passed focused `7 files / 204 tests`, UI `79 files / 1022 tests`, full
 `253 files / 3950 tests`, and `deno task check`. Browser `101 / 101`, examples
 `45 passed / 2 skipped`, and prebuilt Player `38 / 38` are prior evidence only
-and were not rerun for this slice. S4.1b.1b.1b.1 is complete; current/next is
-S4.1b.1b.1b.2 remaining mapping adjudication and implementation.
+and were not rerun for this slice. At that checkpoint S4.1b.1b.1b.1 was
+complete and current/next was S4.1b.1b.1b.2 remaining mapping adjudication and
+implementation; the next delivery refines that node.
+
+S4.1b.1b.1b.2a extends the same dormant physical admission with authenticated
+`narrative.custom` dispatch. The Host-owned admission first captures the exact
+current direct custom target, source-bound admitted frame, stable proof, and
+preflight-captured semantic receiver/callable. It then projects the proposed
+payload through Base's `parseInteractionResolutionV1` custom branch. Because
+that projection may invoke caller accessors, the admission rechecks its exact
+active claim and recaptures the target, source, routing contract, frame, and
+proof before it mints a frozen zero-key one-shot attempt. A getter-triggered
+dispose or successor publication therefore wins without leaving a predecessor
+capability. Only the authenticated `narrative.custom` route can spend that
+attempt; mapped cross-kind and unsupported actions fail before spending, and a
+final proof/frame/port check immediately precedes the frozen semantic request.
+The Narrative module captures its own exact freeze intrinsic before any payload
+getter can run and uses it for the attempt, resolution, request, and dispatched
+result, so the Base-to-UI handoff cannot leave mutable action evidence.
+Base remains the queue-front Story-schema authority, and semantic rejection or
+a synchronous port throw does not roll back Surface state.
+
+This slice also corrects Base's bounded interaction `StrictJsonObjectV1`
+projection. Sorted enumerable keys are defined as exact own data members, so
+`__proto__`, `constructor`, and `prototype` survive without invoking the legacy
+prototype setter or changing the detached object's prototype. The projector
+captures its property-definition and freeze intrinsics at module initialization,
+so a payload getter cannot truncate or unfreeze the remaining projection.
+Ordinary maintained payload bytes are unchanged; the interaction-resolution
+union, evaluator, session queue, and Save format are unchanged. The Narrative
+seam remains source-relative and has no live Host/Story claimant, public or
+`./internal` barrel, package export, raw semantic port, or caller-owned gesture
+authority. Verification passed focused `8 files / 216 tests`, UI
+`79 files / 1028 tests`, full `253 files / 3958 tests`, `deno task check`, engine
+browser `101 / 101`, examples browser `45 passed / 2 skipped`, and prebuilt
+Player `38 / 38`. S4.1b.1b.1b.2a is complete; current/next is
+S4.1b.1b.1b.2b remaining Say/barrier/player adjudication.
 
 ## 9. Changing the architecture
 
@@ -758,7 +793,9 @@ exact current skippable pause while retaining the same single binding for a
 non-skippable pause without minting a physical semantic capability.
 S4.1b.1b.1b.1 adds the bridge-private automatic pause-expiry controller for
 both skippable values through the global-coherence-gated ready-active proof.
-S4.1b.1b.1b.2 remaining mapping adjudication/implementation is current/next;
+S4.1b.1b.1b.2a adds authenticated custom payload dispatch plus the bounded
+interaction JSON dangerous-own-key corrective described above.
+S4.1b.1b.1b.2b remaining Say/barrier/player adjudication is current/next;
 Host integration and the Narrative live migration remain planned work.
 Target documents do not alter the current data flow until that migration and
 its behavior tests land.
