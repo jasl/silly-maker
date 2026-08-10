@@ -1713,7 +1713,7 @@ S1-R 按以下可独立合并切片推进，每次只领取一个：
 26. **S4.1b.1b.1b.2b.0 remaining mapping policy adjudication（已完成）**：docs-only冻结Say、
     presentation-barrier与player-control policy及后续独立切片，不把characterization伪装成runtime delivery。
 27. **S4.1b.1b.1b.2b.1a physical Say reveal-first admission（当前）**：在既有physical admission内实现
-    两种alias、exact reveal generation、reveal-only/advance closed result与per-frame in-flight claim；不接automatic或Host。
+    两种alias并借用独立bridge-private reveal controller，交付reveal-only/advance closed result；不接automatic或Host/live wiring。
 28. **S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor（待实施）**：只为
     `advancePolicy: "auto"`交付ready-active、无gestureautomatic attempt并复用同一claim；不接timer或player Auto/Skip。
 29. **S4.1b.1b.1b.2b.2 barrier acknowledgment/recovery（待实施）**：实现exact Stage run acknowledgment、
@@ -3212,7 +3212,12 @@ focus-trapped root或generic/public receipt/result expansion，立即停止。
 Host-owned exact reveal generation、两种Say alias、reveal-only exact frozen
 `{ kind: "revealed", completion: null }`与complete-phase one-shot `advance`。Reveal port仅含descriptor-captured
 own-data `capturePhaseInternalV1`/`revealAllInternalV1`，renderer只拿当次bound callback；入口phase只捕获一次，
-同一事件不能reveal后再advance。`.1a`同时安装per-frame in-flight claim；captured semantic port的现有one-key
+同一事件不能reveal后再advance。Bridge-private per-current-Say-frame reveal controller独立于可替换的
+`physicalActionAdmissionClaim`，拥有captured port与exact in-flight claim：source/frame/readiness/lifetime loss撤销，
+active-only topology/InputRouter binding churn保留；physical admission只借用它，old admission/token不能影响fresh controller，
+`.1b`也复用同一record。Stale Surface/target/generation在phase读取前返回`stale/null`；phase callback后、mint前重验
+controller/admission/target/source/frame。Authenticated attempt先spend再调用port；phase invalid/throw或`revealAll` throw均为
+`faulted/null`、semantic与semantic in-flight zero；只有complete row才seal claim。Captured semantic port的现有one-key
 callable shape不变，但返回Promise必须在该dispatch触发的semantic publication与bridge reconcile drain完成后才settle，
 Family再按exact unchanged source释放claim或随changed source退役。`.1b`只实现`advancePolicy: "auto"`的
 ready-active、无gesturecontroller attempt，不读取clock、不建timer，也不实现player Auto/Skip。该amendment没有

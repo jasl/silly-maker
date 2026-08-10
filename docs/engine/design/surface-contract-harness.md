@@ -1485,8 +1485,8 @@ Active current/next现均为S4.1b.1b.1b.2b.1a；后续顺序保持
 S4.1b.1b.1b.2b.1a → S4.1b.1b.1b.2b.1b → S4.1b.1b.1b.2b.2 →
 S4.1b.1b.1b.2b.3 → S4.2 → S4.3 → S4b。
 
-**S4.1b.1b.1b.2b.1 execution-order amendment：** Say先拆成两个vertical。`.1a`只在既有
-composition-owned physical admission内交付两种alias的reveal-first路径：Host提供一个exact plain-data
+**S4.1b.1b.1b.2b.1 execution-order amendment：** Say先拆成两个vertical。`.1a`沿用既有
+composition-owned physical admission交付两种alias的reveal-first路径：Host提供一个exact plain-data
 reveal-generation port，只有own-data callable `capturePhaseInternalV1(): "incomplete" | "complete"`与
 `revealAllInternalV1(): void`；factory在任何attempt issuance前descriptor-capture exact receiver/callables，
 renderer只能得到当次bound activation callback，不能持有raw port、admission、gesture或envelope minting authority。
@@ -1495,15 +1495,24 @@ renderer只能得到当次bound activation callback，不能持有raw port、adm
 `advance`并返回既有`dispatched` completion。入口phase只读取一次，reveal callback即使同步变成complete，同一事件也不得
 继续advance；reduced-motion初始complete自然走advance row。
 
-`.1a`同时建立bridge-private、per-Say-frame single in-flight claim，供manual与后续automatic共用。Winner在semantic
-call前seal；pending期间competitor为stale/zero dispatch。现有captured one-key
+Reveal generation与single in-flight不属于可替换的physical admission：bridge-private
+`sayRevealControllerClaim`按exact current Say target/source/frame单独claim，拥有captured receiver/callables与exact
+dispatch-claim token。Source/frame漂移、suspend、empty、publisher/Coordinator dispose撤销controller；仅改变topology或
+InputRouter binding且root仍ready-active时保留同一controller/claim。Physical admission只借用该exact controller，可独立
+dispose/recreate；old admission/token不能清除或作用于fresh controller。`.1b`复用同一controller record，不创建第二authority。
+
+Stale Surface/target/controller generation必须在读取phase前返回既有`stale/null`。`capturePhase`返回后且mint前，必须重验
+exact controller/admission/target/source/frame；callback reentry loser为zero。Authenticated mapping验证完成后先spend activation
+attempt，再调用captured port；phase throw/非`incomplete | complete`或`revealAll` throw均返回既有`faulted/null`，semantic
+dispatch为零且不安装semantic in-flight claim。Incomplete success为`revealed/null`；complete row才原子seal per-frame
+single in-flight并提交semantic call。Winner pending期间competitor为stale/zero dispatch。现有captured one-key
 `dispatchResolutionInternalV1(): Promise<unknown>`不扩shape，但其source-relative composition-adapter合同收紧为：
 返回Promise只能在该调用触发的semantic publication与对应Narrative bridge reconcile全部drain后settle。Family以该
 post-drain settlement包装completion；settlement前若exact source/frame已变化则claim随旧generation退役，仍exact current才
 释放并允许fresh manual attempt，resolved/rejected都不解释opaque Story result。S4.2必须用真实adapter证明该ordering；若不能，
 立即停止，不能提前释放或永久seal。
 
-`.1b`随后只交付`advancePolicy: "auto"`的ready-active、无gesturecontent-auto controller-attempt floor，并复用同一
+`.1b`随后只交付`advancePolicy: "auto"`的ready-active、无 gesture 的 content-auto controller-attempt floor，并复用同一
 generation/in-flight claim；它不读取clock、不创建timer/deadline、不实现player Auto/Skip。Player Auto/Skip仍由`.2b.3`
 冻结的mode authority拥有，实际scheduling与suspend remaining仍归S4.2。本amendment只调整execution order与exact
 source-relative result/Promise boundary，没有source/test/runtime/live claimant、public/barrel或generic result变更。

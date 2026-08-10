@@ -1578,7 +1578,11 @@ S4.1b.1b.1b.2b.1，现由下述execution-order amendment细分并取代。
 **PF4/S4.1b.1b.1b.2b.1 execution-order amendment（docs-only）：** Say实现先拆为
 S4.1b.1b.1b.2b.1a physical reveal-first与S4.1b.1b.1b.2b.1b content-auto controller attempt。
 `.1a`沿用唯一physical route authority，冻结exact Host-owned reveal-generation port、两种alias、reveal-only
-`revealed/null`与complete-phase `advance/Promise`，并安装manual/automatic共享的per-frame in-flight claim。
+`revealed/null`与complete-phase `advance/Promise`。Bridge-private per-current-Say-frame reveal controller/dispatch claim
+独立于可替换physical admission：active-only topology/InputRouter binding churn保留controller，source/frame/suspend/lifetime
+loss撤销；admission只借用exact controller，old admission/token不能影响fresh generation。Stale target/generation在phase读取前
+返回`stale/null`；phase callback后重验exact currentness，authenticated attempt先spend，phase invalid/throw或`revealAll`
+throw为`faulted/null`且不安装semantic in-flight；complete才seal共享claim。
 Captured semantic port保持one-key callable，但其Promise只有在semantic publication与bridge reconcile drain后才可settle；
 Family只从该post-drain settlement按exact source释放claim。`.1b`仅为`advancePolicy: "auto"`交付ready-active、
 无gestureattempt；clock/timer、player Auto/Skip、Host/live接线继续延期。本amendment没有runtime或验证证据。
