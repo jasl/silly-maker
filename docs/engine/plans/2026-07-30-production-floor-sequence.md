@@ -2672,6 +2672,19 @@ action/readiness claims、retain/cascade及无retired cleanup history的10k boun
 - `engine/packages/ui/src/managed-surfaces/managed-surface-stable-composite-state.ts`及同名`.test.ts`；
 - `engine/packages/ui/src/public-api.test.ts`。
 
+Broader UI matrix若命中本entry刻意替换的旧per-binding unregister或ordinary generic History-readiness旁路，额外只允许更新下列
+**5个test-only characterization files**，且不扩production source scope：
+
+- `engine/packages/ui/src/managed-surfaces/managed-surface-coordinator-lifetime.test.ts`；
+- `engine/packages/ui/src/managed-surfaces/managed-surface-composition-runtime.test.ts`；
+- `engine/packages/ui/src/composer/create-game-ui-composition.test.ts`；
+- `engine/packages/ui/src/narrative/narrative-managed-surface-family.test.ts`；
+- `engine/packages/ui/src/narrative/narrative-managed-surface-session.test.ts`。
+
+前三者必须以one stable dispatcher、logical current-pointer/terminal ingress fencing取代旧unregister计数或callback所有权；后两者必须经
+claimed readiness或existing structural cascade清理History，不能重新开放generic `readiness_failed` bypass。不得因此修改Coordinator、
+composition runtime、Narrative source、router、generic receipt/code、barrel/package或live graph。
+
 `.2.2.2.2` RED至少覆盖raw/captured/render History observation的fresh-equal/fresh-different/same-identity-mutated canonical-byte identity、one raw
 subscription与canonical-change-only notification，以及raw prototype/accessor/proxy/throwing descriptor getter-zero并collapse existing preflight
 fault；覆盖branded-string render key、renderer/entry/snapshot/source exact identity、initial/replacement root与History ready/fail、retained-before-

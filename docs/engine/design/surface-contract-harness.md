@@ -3142,6 +3142,20 @@ notification全部保持zero delta。
 - `engine/packages/ui/src/managed-surfaces/managed-surface-stable-composite-state.ts`及同名`.test.ts`；
 - `engine/packages/ui/src/public-api.test.ts`。
 
+Implementation-wide UI matrix若命中本entry刻意替换的旧per-binding unregister或ordinary generic
+History-readiness旁路，允许再更新以下**5个test-only characterization files**，不得借此扩张production source：
+
+- `engine/packages/ui/src/managed-surfaces/managed-surface-coordinator-lifetime.test.ts`；
+- `engine/packages/ui/src/managed-surfaces/managed-surface-composition-runtime.test.ts`；
+- `engine/packages/ui/src/composer/create-game-ui-composition.test.ts`；
+- `engine/packages/ui/src/narrative/narrative-managed-surface-family.test.ts`；
+- `engine/packages/ui/src/narrative/narrative-managed-surface-session.test.ts`。
+
+前三者必须改为证明one stable dispatcher在logical binding dispose/replacement后保持one registration、inactive/current-pointer
+fail-closed且不再依赖unregister callback作为terminal owner；后两者只能用claimed readiness或existing structural cascade清理History，
+不得重新开放generic `readiness_failed` bypass。该test-only amendment不授权修改Coordinator、composition runtime、Narrative source、router、
+generic operation/result/code或任何barrel/package/live graph。
+
 `.2.2.2.2`的History observation先把candidate preflight中的opaque placeholder替换为exact source-relative
 `NarrativeStableHistoryObservationPortInternalV1`，其own-data callables精确为
 `getSnapshotInternalV1(): DeepReadonly<NarrativeHistoryV1>`与`subscribeInternalV1(listener: () => void): () => void`。Preflight在任何

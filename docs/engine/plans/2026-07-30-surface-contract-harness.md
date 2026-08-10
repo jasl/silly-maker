@@ -5070,6 +5070,19 @@ inventory negative；prepared handle、guard、root guarded ready/failed、Histo
 - `engine/packages/ui/src/managed-surfaces/managed-surface-stable-composite-state.ts`及同名`.test.ts`；
 - `engine/packages/ui/src/public-api.test.ts`。
 
+Broader UI matrix若命中本entry刻意替换的旧per-binding unregister或ordinary generic History-readiness旁路，额外只允许更新以下
+**5个test-only characterization files**：
+
+- `engine/packages/ui/src/managed-surfaces/managed-surface-coordinator-lifetime.test.ts`；
+- `engine/packages/ui/src/managed-surfaces/managed-surface-composition-runtime.test.ts`；
+- `engine/packages/ui/src/composer/create-game-ui-composition.test.ts`；
+- `engine/packages/ui/src/narrative/narrative-managed-surface-family.test.ts`；
+- `engine/packages/ui/src/narrative/narrative-managed-surface-session.test.ts`。
+
+前三者改为锁定one stable dispatcher、logical current-pointer fencing与terminal ingress，而不再把per-binding unregister callback当作
+lifetime owner；后两者只能经claimed readiness或existing structural cascade清理History，不得重开generic `readiness_failed` bypass。
+该test-only amendment不扩张任何production source、generic operation/result/code、Narrative/Coordinator authority、barrel/package或live graph。
+
 `.2.2.2.2`的History observation先把candidate preflight中的opaque placeholder替换为exact source-relative
 `NarrativeStableHistoryObservationPortInternalV1`，其own-data callables精确为
 `getSnapshotInternalV1(): DeepReadonly<NarrativeHistoryV1>`与`subscribeInternalV1(listener: () => void): () => void`。Preflight在任何
