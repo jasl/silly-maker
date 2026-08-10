@@ -118,16 +118,17 @@ S4.1b.1b.1b.2b.3a现已交付toggle-ui Narrative catalog corrective，
 S4.1b.1b.1b.2b.3b.0又已冻结voice replay entry contract，
 S4.1b.1b.1b.2b.3b.1现已交付voice replay physical route implementation，
 S4.1b.1b.1b.2b.3c.0又已冻结bridge-owned Auto/Skip exact entry contract，
-S4.1b.1b.1b.2b.3c.1现已交付bridge-owned Auto/Skip transient mode implementation。
-当前active execution pointer的current/next均为S4.1b.1b.1b.2b.3d History exact-parent open intent
-floor；之后依次为S4.2、S4.3与S4b。
+S4.1b.1b.1b.2b.3c.1现已交付bridge-owned Auto/Skip transient mode implementation，
+原S4.1b.1b.1b.2b.3d History broad checkpoint又已由S4.1b.1b.1b.2b.3d.0 exact entry contract
+细分并取代。当前active execution pointer的current/next均为
+S4.1b.1b.1b.2b.3d.1 History exact-parent open intent implementation；之后依次为S4.2、S4.3与S4b。
 R3b.1、R4.0、R4a、R4b.0、R4b.1、R5、S4.0、S4.1a、S4.1b.0、S4.1b.1a、S4.1b.1b.0与
 S4.1b.1b.1a、S4.1b.1b.1b.1、S4.1b.1b.1b.2a、S4.1b.1b.1b.2b.0与
 S4.1b.1b.1b.2b.1a、S4.1b.1b.1b.2b.1b、S4.1b.1b.1b.2b.2a、
 S4.1b.1b.1b.2b.2b.0、S4.1b.1b.1b.2b.2b.1、S4.1b.1b.1b.2b.3.0与
 S4.1b.1b.1b.2b.3a、S4.1b.1b.1b.2b.3b.0、S4.1b.1b.1b.2b.3b.1与
-S4.1b.1b.1b.2b.3c.0、S4.1b.1b.1b.2b.3c.1只作为completed
-delivery/checkpoint保留。
+S4.1b.1b.1b.2b.3c.0、S4.1b.1b.1b.2b.3c.1与S4.1b.1b.1b.2b.3d.0只作为completed
+delivery/checkpoint保留；S4.1b.1b.1b.2b.3d只作为已被entry细分的历史checkpoint保留。
 Stable implementation仍保持dormant/source-relative；R5只解除S4 entry gate，S4.0也没有把任何stable family
 提前写成live capability。
 当前 live 能力仍以
@@ -1361,7 +1362,9 @@ S4.1b.1b.1b.2b.3b.1 voice replay physical route implementation（已完成）→
 S4.1b.1b.1b.2b.3c bridge-owned Auto/Skip transient mode floor（已细分的历史checkpoint）→
 S4.1b.1b.1b.2b.3c.0 bridge-owned Auto/Skip entry contract（docs-only，已完成）→
 S4.1b.1b.1b.2b.3c.1 bridge-owned Auto/Skip transient mode implementation（已完成）→
-S4.1b.1b.1b.2b.3d History exact-parent open intent floor（当前）→ S4.2。若Say需要把raw reveal/controller authority交给renderer、Barrier replay
+S4.1b.1b.1b.2b.3d History exact-parent open intent floor（已细分的历史checkpoint）→
+S4.1b.1b.1b.2b.3d.0 History exact-parent open intent entry contract（docs-only，已完成）→
+S4.1b.1b.1b.2b.3d.1 History exact-parent open intent implementation（当前）→ S4.2。若Say需要把raw reveal/controller authority交给renderer、Barrier replay
 必须在没有exact replay descriptor/capability时推进、player control要求fully hidden focus-trapped root，或任一路径要求
 扩大generic/public receipt/result，立即停止并修订合同。
 
@@ -1400,7 +1403,9 @@ S4.1b.1b.1b.2b.3b.1 voice replay physical route implementation（已完成）；
 S4.1b.1b.1b.2b.3c bridge-owned Auto/Skip transient mode floor（已细分的历史checkpoint）；
 S4.1b.1b.1b.2b.3c.0 bridge-owned Auto/Skip entry contract（docs-only，已完成）；
 S4.1b.1b.1b.2b.3c.1 bridge-owned Auto/Skip transient mode implementation（已完成）；
-S4.1b.1b.1b.2b.3d History exact-parent open intent floor（当前）；S4.2 dormant
+S4.1b.1b.1b.2b.3d History exact-parent open intent floor（已细分的历史checkpoint）；
+S4.1b.1b.1b.2b.3d.0 History exact-parent open intent entry contract（docs-only，已完成）；
+S4.1b.1b.1b.2b.3d.1 History exact-parent open intent implementation（当前）；S4.2 dormant
 controller/view/Host、Host-commit readiness与History exact-child integration；
 S4.3在一个cutover中迁移全部tracked consumers、删除旧writers并完成headless/browser/prebuilt promotion。若exact-parent
 History不能与stable root共用composite authority、root/History不能原子retain/retire、同一semantic occurrence确实允许
@@ -1518,8 +1523,8 @@ S4.1b.1b.1a验证通过focused `7 files / 192 tests`、UI `79 files / 1010 tests
 `253 files / 3938 tests`与`deno task check` green。本批未重跑browser/examples/prebuilt；`101 / 101`、
 `45 passed / 2 skipped`与`38 / 38`仅是先前已有证据，不冒充本批HEAD验证。
 该checkpoint当时的current/next是S4.1b.1b.1b.2a；现已由上述.2a delivery推进。
-Active current/next现均为S4.1b.1b.1b.2b.3d；后续顺序保持
-S4.1b.1b.1b.2b.3d → S4.2 → S4.3 → S4b。
+Active current/next现均为S4.1b.1b.1b.2b.3d.1；后续顺序保持
+S4.1b.1b.1b.2b.3d.1 → S4.2 → S4.3 → S4b。
 
 **S4.1b.1b.1b.2b.1 execution-order amendment：** Say先拆成两个vertical。`.1a`沿用既有
 composition-owned physical admission交付两种alias的reveal-first路径：Host提供一个exact plain-data
@@ -1946,14 +1951,15 @@ mergeable source-relative切片推进，禁止把catalog corrective、optional c
    不读取presentation clock/profile timing、不创建timer、deadline、remaining或semantic auto/skip attempt。Full-reveal/
    `autoWaitMs` scheduling、skip stepping、suspension remaining与fresh resume generation全部仍归S4.2。该checkpoint
    已由`.2b.3c.0` docs-only exact entry与`.2b.3c.1` implementation线性取代并完成。
-4. **`.2b.3d History exact-parent open intent floor`** 只读取current ready-active Dialogue root的read-only History
+4. **`.2b.3d History exact-parent open intent floor（已细分的历史checkpoint）`** 只读取current ready-active Dialogue root的read-only History
    availability，并把authenticated `player.toggle_history`收窄为package-internal opaque exact-parent open intent及family-local
    `requested | ignored | stale | faulted` result；Input consumed是authenticated route属性，不是family result kind。它不分配History occurrence/instance、不修改composite topology、不安装
-   child readiness/input/focus/dismiss或React-local boolean；actual History child open/close与`ui.cancel` integration仍归S4.2。
+   child readiness/input/focus/dismiss或React-local boolean；actual History child open/close与`ui.cancel` integration仍归S4.2。该checkpoint
+   已由`.2b.3d.0` docs-only exact entry与`.2b.3d.1` implementation线性取代。
 
-线性顺序固定为`.2b.3a → .2b.3b.0 → .2b.3b.1 → .2b.3c.0 → .2b.3c.1 → .2b.3d → S4.2 → S4.3 → S4b`；
+线性顺序固定为`.2b.3a → .2b.3b.0 → .2b.3b.1 → .2b.3c.0 → .2b.3c.1 → .2b.3d.0 → .2b.3d.1 → S4.2 → S4.3 → S4b`；
 `.3b.1`已按`.3b.0`冻结的exact optional callable/attempt/result完成，`.3c.1`也已按`.3c.0`冻结的mode exact
-entry完成；active current/next均为`.3d`。`.3d`若
+entry完成，`.3d` broad checkpoint也已由`.3d.0`细分；active current/next均为`.3d.1`。`.3d.1`若
 必须在intent slice直接修改topology，或任一切片要求删除generic input ID、修改legacy live characterization、扩generic/public
 contract或提前接Host/React/Web/live Story，均立即停止并修订设计。
 
@@ -2233,7 +2239,7 @@ apply返回后才reset，也不得用persistent kernel observer、revision count
 evidence，也不把既有focused/UI/full/check/browser/examples/prebuilt结果冒充本批验证。验证只要求
 本文件`deno fmt --check`与`git diff --check`。`.3c.0`完成时曾把active current/next与implementation gate推进为
 **S4.1b.1b.1b.2b.3c.1 bridge-owned Auto/Skip transient mode implementation**；该pointer现由下述delivery
-历史化，active current/next已推进为`.2b.3d`。
+历史化；随后`.2b.3d` broad checkpoint又由`.2b.3d.0` exact entry细分，active current/next现已推进为`.2b.3d.1`。
 
 **S4.1b.1b.1b.2b.3c.1 bridge-owned Auto/Skip transient mode implementation delivery（已完成）：**
 Narrative bridge现以一个fresh frozen、own key exact only `mode`的private state identity作为Auto/Skip唯一writer；fresh
@@ -2278,8 +2284,155 @@ scheduling。
 验证通过focused `2 files / 153 tests`、UI `79 files / 1152 tests`、full `253 files / 4082 tests`与完整
 `deno task check`。本批未重跑browser、examples或prebuilt；Engine browser `101 / 101`、examples
 `45 passed / 2 skipped`与prebuilt Player `38 / 38`只作为prior evidence，不冒充本批HEAD验证。
-`.2b.3c.1`现已完成；active current/next均推进为**S4.1b.1b.1b.2b.3d History exact-parent open intent floor**，
-随后依次为S4.2、S4.3与S4b。
+`.2b.3c.1`完成时，active current/next曾推进为**S4.1b.1b.1b.2b.3d History exact-parent open intent floor**；
+该broad checkpoint现由下述`.3d.0` exact entry细分，active current/next均为
+**S4.1b.1b.1b.2b.3d.1 History exact-parent open intent implementation**，随后依次为S4.2、S4.3与S4b。
+
+**S4.1b.1b.1b.2b.3d.0 History exact-parent open intent entry contract（docs-only，已完成）：**
+`.2b.3d` broad floor只作为已细分的历史checkpoint保留；actual delivery线性拆为本`.3d.0` exact contract与
+`.3d.1` implementation。本entry只冻结source-relative availability observation、authenticated physical route与
+future exact-parent intent handoff，不把S4.2的Coordinator child transaction、Host或live consumer提前写成已实现能力。
+
+History availability使用独立raw port
+`NarrativeStableHistoryAvailabilityPortInternalV1`。Raw value必须是`Object.prototype`的ordinary object，且exact sole
+own string key为own-data callable `readHistoryAvailabilityInternalV1(): boolean`；array、function、`null`、foreign/null
+prototype、extra string/symbol key、accessor、inherited/missing/non-callable member及prototype/ownKeys/descriptor trap均不合法。
+Candidate preflight descriptor-capture exact raw receiver与callable到package-private WeakMap binding
+`{ receiver, readHistoryAvailability }`，admitted candidate snapshot只保存fresh frozen zero-own-key
+`NarrativeStableCapturedHistoryAvailabilityPortInternalV1` handle，并把该field精确命名为`historyAvailabilityPort`。
+Route不得重读raw object；捕获后删除、替换或把method改成accessor也不能转移authority。既有opaque
+`historyObservationPort`保持原字段、原required-port语义与原identity，留给S4.2 History content observation；`.3d.1`
+不得调用、替换或把它误当availability authority。
+
+`historyAvailabilityPort`是新的required candidate port；missing resolver port沿用exact rejected row
+`{ kind: "rejected", code: "narrative.required_port_missing", portId: "narrative.history_availability" }`与existing exact zero
+delta。`NarrativeStableRequiredPortIdInternalV1`只增加`"narrative.history_availability"`。Present但malformed、descriptor
+capture fault或trap沿用existing `{ kind: "faulted", code: "narrative.candidate_preflight_faulted" }`与exact zero delta，
+不得新增History-specific rejection/fault code。Preflight rejection/fault都发生在source、runtime allocation、topology与
+notification mutation前。
+
+Physical attempt精确命名为frozen zero-own-key branded
+`NarrativeStableHistoryOpenActionAttemptInternalV1`；future child capability精确命名为另一个fresh frozen zero-own-key branded
+`NarrativeStableHistoryOpenIntentInternalV1`。Family result精确命名为
+`NarrativeStableHistoryOpenDispatchResultInternalV1`，是以下exact frozen closed union：
+
+```ts
+export type NarrativeStableHistoryOpenDispatchResultInternalV1 =
+  | Readonly<{
+    readonly kind: "requested";
+    readonly intent: NarrativeStableHistoryOpenIntentInternalV1;
+    readonly completion: null;
+  }>
+  | Readonly<{ readonly kind: "ignored"; readonly completion: null }>
+  | Readonly<{ readonly kind: "stale"; readonly completion: null }>
+  | Readonly<{ readonly kind: "faulted"; readonly completion: null }>;
+```
+
+只有`requested`携带exact own-data `intent`；其own key exact为`kind | intent | completion`，其余三个canonical
+singleton的own key exact为`kind | completion`。所有`completion`都exact为`null`，没有Promise、Coordinator receipt或generic
+Surface delta。既有`NarrativeStablePhysicalActionDispatchResultInternalV1`只在source-relative union中加入该result；generic
+Managed Surface/Input result与receipt不变。
+
+既有`NarrativeStablePhysicalActionAdmissionInternalV1`只新增
+`issueHistoryOpenAttemptInternalV1(): NarrativeStableHistoryOpenActionAttemptInternalV1 | null`；existing
+`routeInternalV1(envelope, attempt)`把exact `player.toggle_history`映射为family-private `history_open`，不新增第二binding、route、
+controller或standalone dispatch/intent-redemption method。Issue沿用exact receiver guard，只在same admission仍current、bridge active、
+existing stable action/input contract与direct-target proof current、exact direct Dialogue parent为ready-active、source/frame/
+`historyAvailabilityPort` handle exact、existing `sayCallbackClaim === null`且existing
+`saySemanticInFlightClaim === null`时mint attempt；它不调用availability callable。`say | choice | pause | custom |
+presentation_barrier`五种current Dialogue pending均可issue，History availability/topology不得按pending kind分叉；empty、preparing、
+gap、retained、suspended、terminal、disposed或non-Dialogue input owner均返回`null`。
+
+Attempt的package-private WeakMap record own fields exact为`kind: "history_open"`、exact issuing physical
+`authority`、existing `stableActionAuthority`、`targetProof`、`directParent`、`sourceRevision`、`frame`、
+`historyAvailabilityPort`与mutable `spent`。它不保存raw availability/observation port、Coordinator、History
+occurrence/instance、numeric revision、timer或subscriber。Future intent的separate WeakMap record own fields exact为`bridge`、
+`stableActionAuthority`、`targetProof`、`directParent`、`sourceRevision`、`frame`与mutable `spent`；proof已private绑定kernel、
+application epoch、topology revision与ready runtime instance，不复制或暴露这些identity scalar。Intent不绑定
+physical-admission lifetime；mint后仅dispose/recreate该admission不使它失效，但parent replacement/preparation、source retry、
+suspension（即使随后resume）、empty及application/coordinator/bridge terminal会使future redemption stale。Bridge/admission不
+strong-hold attempt、intent、current-intent slot或历史；caller释放token后WeakMap record可回收，production retained state保持O(1)。
+
+Ordered precedence固定如下：
+
+1. Existing contract-bound route先验证application epoch、topology/instance、input owner、routing lease、static action catalog、
+   input publication与gesture。若consumer未进入，`consumerResult` exact为`null`，attempt不spent，existing outer Input/Surface
+   result保持权威。
+2. Consumer先映射action再认证attempt。Same-admission unspent History token探测任何non-History mapped action，或
+   same-admission unspent other-kind token探测`player.toggle_history`，都返回existing physical `unmapped`且不spend，随后correct
+   route仍可用；spoof、frozen structural clone、unrecognized token、foreign bridge/admission、disposed predecessor与repeat token返回
+   History `stale`。只有same-admission correct-kind unspent identity可继续，并在任何callback/availability read前立即把`spent`改为
+   `true`。
+3. Spent winner依次重验physical admission claim/active bridge、existing stable action authority与direct-target proof、current stable
+   input contract、exact `directParent`、source revision、frame与captured availability handle。Identity/currentness mismatch为
+   `stale`；authority capture/inspection throw或existing captured binding内部不合法为`faulted`。然后要求existing
+   `sayCallbackClaim`与`saySemanticInFlightClaim`仍均为`null`；conflict使本attempt保持spent并返回`stale`。
+4. Winner mint fresh frozen zero-key callback token，以exact identity CAS安装到existing bridge-wide `sayCallbackClaim`，随后重复
+   admission/proof/parent/source/frame/handle及`bridgeRecord.saySemanticInFlightClaim === null`复验；仍current才以captured
+   receiver调用captured `readHistoryAvailabilityInternalV1` exactly once。History不得安装、转移、spend或清理
+   `saySemanticInFlightClaim`。Callback claim覆盖整个call与post-call recheck；existing claim-aware Say manual/content-auto/voice/mode及
+   nested History路径继续共享这一个synchronous fence，不新增parallel History callback slot。
+5. Callback后先再次重验同一admission/proof/parent/source/frame/handle、own callback token与semantic-in-flight null，再解释
+   outcome；因此callback内dispose/successor、suspension、source/frame replacement或claim displacement固定以`stale`优先于
+   throw/return。仍current时exact `false`返回canonical `ignored`，throw或任意non-boolean返回canonical `faulted`，exact `true`
+   才mint fresh intent record与`requested` result；intent/result construction fault返回`faulted`且不得泄漏half-authorized intent，
+   return前还要完成最后currentness gate。`finally`只有在`bridgeRecord.sayCallbackClaim === ownToken`时才清理；old/foreign
+   cleanup不得ABA-clear successor token，admission dispose与bridge teardown也不主动清理或转移该claim。
+
+`requested | ignored | stale | faulted`四个family outcome都由已认证route包裹为Input consumed、Surface unchanged；本History
+consumer自身向lower context、History/Coordinator topology、semantic resolution、Base/gameplay dispatch、Stage
+acknowledgment/recovery、runtime与notification追加的delta均为zero。Callback内其他already-authorized nested operation仍由各自
+existing contract拥有其exact delta，`.3d.1`不为choice/pause/custom/barrier retroactively增加`sayCallbackClaim`检查；任一nested
+operation若改变parent/source/frame，History outer postcheck固定返回stale。`presentation_barrier`上的availability true可以返回
+`requested`、false可以返回`ignored`，但History path自身不得读取、调用或改变Stage claimant、acknowledgment/recovery proof或
+semantic authority。Input consumed来自static catalog与authenticated route，不是第五个family result kind；all-operation
+same-transition serialization继续由S4.2拥有。
+
+`.3d.1`只mint future one-use intent：一个physical attempt最多返回一个intent，intent private record以`spent: false`保留future
+redemption state，但本切片没有claim/inspect/consume/redeem method，也不声称已测试intent redemption。S4.2必须在同一个
+composition/Coordinator exact-parent transition内原子重验intent的bridge/action authority/proof/direct parent/source/frame、
+one-shot spend并prepare/open exact History child；不得先spend再异步或分步尝试topology mutation。Clone、foreign、repeat、parent
+replacement及open-first-win的redemption tests也属于S4.2。若`.3d.1` acceptance要求现在可观察redemption，必须停止并重新切分，
+不能为测试方便新增raw-parent inspector、separate claim token或提前调用Coordinator。
+
+`.3d.1`的mutation-sensitive RED matrix至少覆盖：
+
+1. raw availability port exact descriptor matrix、new required-port missing row、malformed/trap existing fault row与exact zero delta；
+   captured handle frozen zero-key，raw member后改、删除/accessor replacement仍调用original receiver/callable；opaque
+   `historyObservationPort`完全不被读取或改写；
+2. 五种ready-active Dialogue pending的issue与route：boolean `true`为fresh exact requested/intent，`false`为canonical ignored，
+   throw/non-boolean为canonical faulted；callback exact once，result/attempt/intent frozen exact own-key shape，所有completion null；
+3. wrong receiver、spoof/clone/proxy、foreign bridge/admission、disposed/recreated admission、repeat及cross-kind/cross-action；
+   mapping-before-spend mismatch可用correct route恢复，correct mapped token则在claim/currentness conflict前spend；
+4. target/source/frame/handle replacement、readiness retry、preparing/retained/suspension/terminal、application/topology successor、bridge
+   dispose与ABA away/back；same serialized pending bytes不能恢复old proof/token；
+5. preexisting callback/semantic-in-flight claim使issue为`null`，pre-signed correct route为spent-stale；availability callback中的
+   nested History与existing claim-aware Say manual/content-auto/voice/mode competitor、source/frame replacement、dispose/successor及
+   post-call stale-over-outcome precedence；own-token cleanup不能清除successor claim，claim release后fresh attempt仍可用；
+6. `presentation_barrier` true/false/throw/non-boolean及source drift都证明History path对Stage acknowledgment/recovery、semantic、
+   runtime、topology、notification的outer-added delta为zero；choice/pause/custom/Say同样证明History path不自行形成semantic/
+   gameplay dispatch，authorized nested operation的existing exact delta与outer stale另行断言；
+7. `10k` issue/route/ABA churn不建立strong attempt/intent history、current-intent slot、subscriber、timer、deadline或tombstone，bridge
+   production retained state为O(1)；
+8. UI root与`./internal`同时对raw/captured availability port、attempt、intent、result及
+   `readHistoryAvailabilityInternalV1`/`issueHistoryOpenAttemptInternalV1` spelling做type/runtime negative guard；barrel、package export、
+   live/legacy/generic inventory exact zero diff。
+
+Real stop固定为：availability若需要async Promise、subscription、getter、React/controller-local writable mirror、polling/timer或
+pending-kind-specific Story business rule，先修订合同并留S4.2；exact-parent intent若需要向caller暴露raw Coordinator、parent target/
+occurrence/instance/source/lease、扩大generic/public result/receipt/barrel或新增separate redemption API，立即停止；若existing stable
+action/direct-target/frame seam不足而必须新增generic ready proof/public authority，立即停止；若不能复用existing bridge-wide
+`sayCallbackClaim`并要求parallel History slot，立即停止。任何History occurrence/instance allocation、prepare/open/close、active
+History的`player.toggle_history | ui.cancel`、focus restore、dismiss、root suspension、timer/remaining coordination、Host/React/Web/
+Engine Lab/live Story claimant均仍由S4.2/S4.3拥有，不得进入`.3d.1`。
+
+本entry不修改Dialogue/History definition、revision或catalog（History继续exact `ui.cancel | player.toggle_history`），不删除generic
+input ID，不接legacy `DialoguePanelV1` local boolean，不改变Base interaction、PlayerProfile、Save/Persistence、canonical/digest/replay/
+wire、S4b或live feature documentation；也不新增source、test、runtime、Host/live claimant或product/browser/build delivery evidence。
+验证只要求本设计文档`deno fmt --check`与`git diff --check`，既有focused/UI/full/check/browser/examples/prebuilt结果均不得冒充本
+docs-only checkpoint的新证据。`.3d.0`现已完成；active current/next与implementation gate均推进为
+**S4.1b.1b.1b.2b.3d.1 History exact-parent open intent implementation**，有效后续顺序为
+**S4.1b.1b.1b.2b.3d.1 → S4.2 → S4.3 → S4b**。
 
 ### 3.3 Runtime session
 
