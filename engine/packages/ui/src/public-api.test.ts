@@ -208,6 +208,10 @@ import type { NarrativeStableSayRevealGenerationPortInternalV1 as ForbiddenInter
 import type { NarrativeStableVoiceReplayPortInternalV1 as ForbiddenPublicNarrativeVoiceReplayPortV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Narrative voice-replay ports.
 import type { NarrativeStableVoiceReplayPortInternalV1 as ForbiddenInternalNarrativeVoiceReplayPortV1 } from "./internal.ts";
+// @ts-expect-error Narrative playback modes remain source-relative until Host promotion.
+import type { NarrativeStablePlaybackModeInternalV1 as ForbiddenPublicNarrativePlaybackModeV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative playback modes.
+import type { NarrativeStablePlaybackModeInternalV1 as ForbiddenInternalNarrativePlaybackModeV1 } from "./internal.ts";
 // @ts-expect-error Captured Narrative semantic-resolution ports remain source-relative.
 import type { NarrativeStableCapturedSemanticResolutionPortInternalV1 as ForbiddenPublicNarrativeCapturedSemanticResolutionPortV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose captured Narrative semantic-resolution ports.
@@ -248,6 +252,14 @@ import type { NarrativeStableVoiceReplayActionAttemptInternalV1 as ForbiddenInte
 import type { NarrativeStableVoiceReplayDispatchResultInternalV1 as ForbiddenPublicNarrativeVoiceReplayDispatchResultV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Narrative voice-replay dispatch results.
 import type { NarrativeStableVoiceReplayDispatchResultInternalV1 as ForbiddenInternalNarrativeVoiceReplayDispatchResultV1 } from "./internal.ts";
+// @ts-expect-error Narrative playback-mode toggle attempts remain source-relative.
+import type { NarrativeStablePlaybackModeToggleActionAttemptInternalV1 as ForbiddenPublicNarrativePlaybackModeToggleAttemptV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative playback-mode toggle attempts.
+import type { NarrativeStablePlaybackModeToggleActionAttemptInternalV1 as ForbiddenInternalNarrativePlaybackModeToggleAttemptV1 } from "./internal.ts";
+// @ts-expect-error Narrative playback-mode toggle dispatch results remain source-relative.
+import type { NarrativeStablePlaybackModeToggleDispatchResultInternalV1 as ForbiddenPublicNarrativePlaybackModeToggleDispatchResultV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative playback-mode toggle dispatch results.
+import type { NarrativeStablePlaybackModeToggleDispatchResultInternalV1 as ForbiddenInternalNarrativePlaybackModeToggleDispatchResultV1 } from "./internal.ts";
 // @ts-expect-error Stage acknowledged-run proofs remain source-relative.
 import type { StageAcknowledgedRunProofInternalV1 as ForbiddenPublicStageAcknowledgedRunProofV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Stage acknowledged-run proofs.
@@ -446,6 +458,7 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "NarrativeStableSemanticResolutionPortInternalV1"
       | "NarrativeStableSayRevealGenerationPortInternalV1"
       | "NarrativeStableVoiceReplayPortInternalV1"
+      | "NarrativeStablePlaybackModeInternalV1"
       | "NarrativeStableCapturedSemanticResolutionPortInternalV1"
       | "NarrativeStableCapturedVoiceReplayPortInternalV1"
       | "NarrativeStableChoiceActionAttemptInternalV1"
@@ -457,6 +470,10 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "NarrativeStableVoiceReplayActionAttemptInternalV1"
       | "NarrativeStableVoiceReplayDispatchResultInternalV1"
       | "issueVoiceReplayAttemptInternalV1"
+      | "NarrativeStablePlaybackModeToggleActionAttemptInternalV1"
+      | "NarrativeStablePlaybackModeToggleDispatchResultInternalV1"
+      | "readPlaybackModeInternalV1"
+      | "issuePlaybackModeToggleAttemptInternalV1"
       | "StageAcknowledgedRunProofInternalV1"
       | "StageAcknowledgedRunCommitGuardInternalV1"
       | "StageAcknowledgedRunTerminalPortInternalV1"
@@ -580,6 +597,7 @@ describe("@sillymaker/ui public managed System surface", () => {
         "NarrativeStableSemanticResolutionPortInternalV1",
         "NarrativeStableSayRevealGenerationPortInternalV1",
         "NarrativeStableVoiceReplayPortInternalV1",
+        "NarrativeStablePlaybackModeInternalV1",
         "NarrativeStableCapturedSemanticResolutionPortInternalV1",
         "NarrativeStableCapturedVoiceReplayPortInternalV1",
         "NarrativeStableChoiceActionAttemptInternalV1",
@@ -591,6 +609,10 @@ describe("@sillymaker/ui public managed System surface", () => {
         "NarrativeStableVoiceReplayActionAttemptInternalV1",
         "NarrativeStableVoiceReplayDispatchResultInternalV1",
         "issueVoiceReplayAttemptInternalV1",
+        "NarrativeStablePlaybackModeToggleActionAttemptInternalV1",
+        "NarrativeStablePlaybackModeToggleDispatchResultInternalV1",
+        "readPlaybackModeInternalV1",
+        "issuePlaybackModeToggleAttemptInternalV1",
         "StageAcknowledgedRunProofInternalV1",
         "StageAcknowledgedRunCommitGuardInternalV1",
         "StageAcknowledgedRunTerminalPortInternalV1",

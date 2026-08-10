@@ -92,6 +92,9 @@ import {
   type NarrativeStablePauseExpiryDispatchResultInternalV1,
   type NarrativeStablePhysicalActionAdmissionInternalV1,
   type NarrativeStablePhysicalActionDispatchResultInternalV1,
+  type NarrativeStablePlaybackModeInternalV1,
+  type NarrativeStablePlaybackModeToggleActionAttemptInternalV1,
+  type NarrativeStablePlaybackModeToggleDispatchResultInternalV1,
   type NarrativeStablePublisherBridgeInternalV1,
   type NarrativeStablePublisherBridgeResultInternalV1,
   type NarrativeStableRequiredPortIdInternalV1,
@@ -115,6 +118,12 @@ const narrativeResumeActionIdV1 = parseManagedSurfaceActionIdV1("narrative.resum
 const narrativeCustomActionIdV1 = parseManagedSurfaceActionIdV1("narrative.custom");
 const narrativeReplayVoiceActionIdV1 = parseManagedSurfaceActionIdV1(
   playerInputActionIdsV1.replayVoice,
+);
+const narrativeToggleAutoActionIdV1 = parseManagedSurfaceActionIdV1(
+  playerInputActionIdsV1.toggleAuto,
+);
+const narrativeToggleSkipActionIdV1 = parseManagedSurfaceActionIdV1(
+  playerInputActionIdsV1.toggleSkip,
 );
 const narrativeUnknownActionIdV1 = parseManagedSurfaceActionIdV1("narrative.unknown");
 const zeroDeltaV1 = Object.freeze({
@@ -660,6 +669,25 @@ function physicalSayHarnessV1(input: {
     revealGenerationPort,
     semanticDispatchPort,
   };
+}
+
+function routePlaybackModeToggleV1(
+  admission: NarrativeStablePhysicalActionAdmissionInternalV1,
+  requestedMode: "auto" | "skip",
+  attempt: unknown,
+  gestureSuffix: string,
+) {
+  return admission.routeInternalV1(
+    admission.createEnvelopeInternalV1({
+      actionId: requestedMode === "auto"
+        ? narrativeToggleAutoActionIdV1
+        : narrativeToggleSkipActionIdV1,
+      gestureId: parseManagedSurfaceGestureIdV1(
+        `gesture.narrative.playback-mode-${gestureSuffix}`,
+      ),
+    }),
+    attempt,
+  );
 }
 
 function automaticPauseHarnessV1(input: {
@@ -2104,6 +2132,11 @@ describe("Narrative stable Managed Surface family", () => {
       | Readonly<{ readonly kind: "revealed"; readonly completion: null }>
       | Readonly<{ readonly kind: "handled"; readonly completion: null }>
       | Readonly<{ readonly kind: "ignored"; readonly completion: null }>
+      | Readonly<{
+        readonly kind: "toggled";
+        readonly mode: NarrativeStablePlaybackModeInternalV1;
+        readonly completion: null;
+      }>
       | Readonly<{ readonly kind: "unmapped"; readonly completion: null }>
       | Readonly<{ readonly kind: "stale"; readonly completion: null }>
       | Readonly<{ readonly kind: "faulted"; readonly completion: null }>;
@@ -2118,6 +2151,7 @@ describe("Narrative stable Managed Surface family", () => {
       "issueCustomAttemptInternalV1",
       "issueSayActivationAttemptInternalV1",
       "issueVoiceReplayAttemptInternalV1",
+      "issuePlaybackModeToggleAttemptInternalV1",
       "routeInternalV1",
       "disposeInternalV1",
     ]);
@@ -6200,6 +6234,1349 @@ describe("Narrative stable Managed Surface family", () => {
     expect(fixture.harness.stateNotificationCount()).toBe(notifications);
     fixture.controller.disposeInternalV1();
     successor.disposeInternalV1();
+  });
+
+  it("owns one exact playback mode and applies the six toggle transitions without ABA", () => {
+    expectTypeOf<NarrativeStablePublisherBridgeInternalV1>().toMatchTypeOf<{
+      readPlaybackModeInternalV1(): NarrativeStablePlaybackModeInternalV1;
+    }>();
+    expectTypeOf<NarrativeStablePhysicalActionAdmissionInternalV1>().toMatchTypeOf<{
+      issuePlaybackModeToggleAttemptInternalV1(
+        requestedMode: "auto" | "skip",
+      ): NarrativeStablePlaybackModeToggleActionAttemptInternalV1 | null;
+    }>();
+    expectTypeOf<NarrativeStablePlaybackModeToggleDispatchResultInternalV1>()
+      .toMatchTypeOf<
+        | Readonly<{
+          readonly kind: "toggled";
+          readonly mode: NarrativeStablePlaybackModeInternalV1;
+          readonly completion: null;
+        }>
+        | Readonly<{
+          readonly kind: "ignored" | "stale" | "faulted";
+          readonly completion: null;
+        }>
+      >();
+
+    const fixture = physicalSayHarnessV1();
+    expect(fixture.harness.bridge.readPlaybackModeInternalV1()).toBe("normal");
+    expect(Object.keys(fixture.harness.bridge)).toContain("readPlaybackModeInternalV1");
+    expect(Object.keys(fixture.admission)).toContain(
+      "issuePlaybackModeToggleAttemptInternalV1",
+    );
+
+    const staleFromInitial = fixture.admission.issuePlaybackModeToggleAttemptInternalV1(
+      "skip",
+    );
+    expect(staleFromInitial).not.toBeNull();
+    const transitions = [
+      ["auto", "auto"],
+      ["auto", "normal"],
+      ["skip", "skip"],
+      ["skip", "normal"],
+      ["auto", "auto"],
+      ["skip", "skip"],
+      ["auto", "auto"],
+    ] as const;
+    const state = fixture.harness.kernel.getStateInternalV1();
+    const notifications = fixture.harness.stateNotificationCount();
+    for (const [transitionIndex, [requestedMode, expectedMode]] of transitions.entries()) {
+      const attempt = fixture.admission.issuePlaybackModeToggleAttemptInternalV1(
+        requestedMode,
+      );
+      expect(attempt).not.toBeNull();
+      const result = routePlaybackModeToggleV1(
+        fixture.admission,
+        requestedMode,
+        attempt,
+        `${requestedMode}-${expectedMode}`,
+      );
+      expect(result).toMatchObject({
+        route: {
+          input: { kind: "consumed", code: "input.managed_surface_consumed" },
+          surface: { kind: "unchanged", code: "surface.action_routed" },
+        },
+        consumerResult: { kind: "toggled", mode: expectedMode, completion: null },
+      });
+      expect(Object.isFrozen(result.consumerResult)).toBe(true);
+      expect(fixture.harness.bridge.readPlaybackModeInternalV1()).toBe(expectedMode);
+      if (transitionIndex === 1) {
+        expect(
+          routePlaybackModeToggleV1(
+            fixture.admission,
+            "skip",
+            staleFromInitial,
+            "aba-returned-to-normal",
+          ).consumerResult,
+        ).toEqual({ kind: "stale", completion: null });
+      }
+    }
+    expect(
+      routePlaybackModeToggleV1(
+        fixture.admission,
+        "skip",
+        staleFromInitial,
+        "aba-stale",
+      ).consumerResult,
+    ).toEqual({ kind: "stale", completion: null });
+    expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
+    expect(fixture.harness.stateNotificationCount()).toBe(notifications);
+    fixture.controller.disposeInternalV1();
+    fixture.admission.disposeInternalV1();
+  });
+
+  it("consumes mode toggles as ignored on every ready-active non-Say kind", () => {
+    for (
+      const kind of [
+        "choice",
+        "pause",
+        "custom",
+      ] as const
+    ) {
+      const semanticDispatch = vi.fn(() => Promise.resolve("must-not-dispatch"));
+      const harness = harnessV1({
+        candidatePreflight: Object.freeze({
+          preflightCandidateInternalV1: () =>
+            capturedCandidatePreflightResultV1(Object.freeze({
+              ...defaultCandidateSnapshotV1,
+              semanticDispatchPort: Object.freeze({
+                dispatchResolutionInternalV1: semanticDispatch,
+              }),
+            })),
+        }),
+      });
+      expect(harness.bridge.reconcilePendingInternalV1(pendingV1(kind))).toMatchObject({
+        kind: "applied",
+        code: "surface.stable_publication_applied",
+      });
+      settleCurrentNarrativeReadyV1(harness);
+      const admission = createNarrativeStablePhysicalActionAdmissionInternalV1({
+        bridge: harness.bridge,
+        inputRouter: createInputRouterV1(),
+        isGestureCurrent: () => true,
+      });
+      const attempt = admission.issuePlaybackModeToggleAttemptInternalV1("auto");
+      expect(attempt).not.toBeNull();
+      const state = harness.kernel.getStateInternalV1();
+      const notifications = harness.stateNotificationCount();
+      const ignored = routePlaybackModeToggleV1(
+        admission,
+        "auto",
+        attempt,
+        `ignored-${kind}`,
+      );
+      expect(ignored).toMatchObject({
+        route: {
+          input: { kind: "consumed", code: "input.managed_surface_consumed" },
+          surface: { kind: "unchanged", code: "surface.action_routed" },
+        },
+        consumerResult: { kind: "ignored", completion: null },
+      });
+      expect(Object.isFrozen(ignored.consumerResult)).toBe(true);
+      expect(Reflect.ownKeys(ignored.consumerResult as object)).toEqual([
+        "kind",
+        "completion",
+      ]);
+      expect(
+        routePlaybackModeToggleV1(admission, "auto", attempt, `ignored-repeat-${kind}`)
+          .consumerResult,
+      ).toEqual({ kind: "stale", completion: null });
+      expect(harness.bridge.readPlaybackModeInternalV1()).toBe("normal");
+      expect(semanticDispatch).not.toHaveBeenCalled();
+      expect(harness.kernel.getStateInternalV1()).toBe(state);
+      expect(harness.stateNotificationCount()).toBe(notifications);
+      admission.disposeInternalV1();
+    }
+
+    const semanticDispatch = vi.fn(() => Promise.resolve("must-not-dispatch"));
+    const barrier = narrativeBarrierHarnessV1({
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: semanticDispatch,
+      }),
+    });
+    let stageNotifications = 0;
+    const unsubscribeStage = barrier.stage.reconciler.subscribe(() => {
+      stageNotifications += 1;
+    });
+    const stageFrame = barrier.stage.reconciler.frame();
+    const admission = createNarrativeStablePhysicalActionAdmissionInternalV1({
+      bridge: barrier.harness.bridge,
+      inputRouter: createInputRouterV1(),
+      isGestureCurrent: () => true,
+    });
+    const attempt = admission.issuePlaybackModeToggleAttemptInternalV1("skip");
+    expect(attempt).not.toBeNull();
+    expect(admission.issueChoiceAttemptInternalV1("choice.test.first")).toBeNull();
+    expect(admission.issuePauseResumeAttemptInternalV1()).toBeNull();
+    expect(admission.issueCustomAttemptInternalV1(Object.freeze({}))).toBeNull();
+    expect(admission.issueSayActivationAttemptInternalV1(barrier.controller)).toBeNull();
+    expect(admission.issueVoiceReplayAttemptInternalV1()).toBeNull();
+    const state = barrier.harness.kernel.getStateInternalV1();
+    const notifications = barrier.harness.stateNotificationCount();
+    expect(
+      routePlaybackModeToggleV1(admission, "skip", attempt, "ignored-barrier"),
+    ).toMatchObject({
+      route: {
+        input: { kind: "consumed", code: "input.managed_surface_consumed" },
+        surface: { kind: "unchanged", code: "surface.action_routed" },
+      },
+      consumerResult: { kind: "ignored", completion: null },
+    });
+    expect(barrier.harness.bridge.readPlaybackModeInternalV1()).toBe("normal");
+    expect(Object.isFrozen(
+      routePlaybackModeToggleV1(
+        admission,
+        "skip",
+        admission.issuePlaybackModeToggleAttemptInternalV1("skip"),
+        "ignored-barrier-shape",
+      ).consumerResult,
+    )).toBe(true);
+    expect(semanticDispatch).not.toHaveBeenCalled();
+    expect(barrier.stage.reconciler.frame()).toEqual(stageFrame);
+    expect(stageNotifications).toBe(0);
+    expect(barrier.harness.kernel.getStateInternalV1()).toBe(state);
+    expect(barrier.harness.stateNotificationCount()).toBe(notifications);
+    unsubscribeStage();
+    admission.disposeInternalV1();
+    barrier.controller.disposeInternalV1();
+  });
+
+  it("resets before non-Say and empty publication notifications but preserves rejected replacement", () => {
+    const nonSay = physicalSayHarnessV1();
+    const autoAttempt = nonSay.admission.issuePlaybackModeToggleAttemptInternalV1("auto");
+    expect(
+      routePlaybackModeToggleV1(nonSay.admission, "auto", autoAttempt, "reset-non-say")
+        .consumerResult,
+    ).toMatchObject({ kind: "toggled", mode: "auto" });
+    const observedModes: NarrativeStablePlaybackModeInternalV1[] = [];
+    const unsubscribe = nonSay.harness.kernel.subscribeStateInternalV1(() => {
+      observedModes.push(nonSay.harness.bridge.readPlaybackModeInternalV1());
+    });
+    expect(nonSay.harness.bridge.reconcilePendingInternalV1(pendingV1("choice", 2)))
+      .toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
+    expect(observedModes.length).toBeGreaterThan(0);
+    expect(observedModes.every((mode) => mode === "normal")).toBe(true);
+    expect(nonSay.harness.bridge.readPlaybackModeInternalV1()).toBe("normal");
+    unsubscribe();
+    nonSay.admission.disposeInternalV1();
+    expect(nonSay.harness.bridge.reconcilePendingInternalV1(pendingV1("say", 3)))
+      .toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
+    settleCurrentNarrativeReadyV1(nonSay.harness);
+    const nonSaySuccessorAdmission = createNarrativeStablePhysicalActionAdmissionInternalV1({
+      bridge: nonSay.harness.bridge,
+      inputRouter: createInputRouterV1(),
+      isGestureCurrent: () => true,
+    });
+    const afterNonSayReset = nonSaySuccessorAdmission
+      .issuePlaybackModeToggleAttemptInternalV1("auto");
+    expect(
+      routePlaybackModeToggleV1(
+        nonSaySuccessorAdmission,
+        "auto",
+        afterNonSayReset,
+        "after-non-say-reset",
+      ).consumerResult,
+    ).toEqual({ kind: "toggled", mode: "auto", completion: null });
+    nonSaySuccessorAdmission.disposeInternalV1();
+    nonSay.controller.disposeInternalV1();
+
+    const emptied = physicalSayHarnessV1();
+    const skipAttempt = emptied.admission.issuePlaybackModeToggleAttemptInternalV1("skip");
+    expect(
+      routePlaybackModeToggleV1(emptied.admission, "skip", skipAttempt, "reset-empty")
+        .consumerResult,
+    ).toMatchObject({ kind: "toggled", mode: "skip" });
+    const emptyModes: NarrativeStablePlaybackModeInternalV1[] = [];
+    const unsubscribeEmpty = emptied.harness.kernel.subscribeStateInternalV1(() => {
+      emptyModes.push(emptied.harness.bridge.readPlaybackModeInternalV1());
+    });
+    expect(emptied.harness.bridge.reconcilePendingInternalV1(null)).toMatchObject({
+      kind: "applied",
+      code: "surface.stable_publication_applied",
+    });
+    expect(emptyModes.length).toBeGreaterThan(0);
+    expect(emptyModes.every((mode) => mode === "normal")).toBe(true);
+    expect(emptied.harness.bridge.readPlaybackModeInternalV1()).toBe("normal");
+    unsubscribeEmpty();
+    emptied.admission.disposeInternalV1();
+    expect(emptied.harness.bridge.reconcilePendingInternalV1(pendingV1("say", 2)))
+      .toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
+    settleCurrentNarrativeReadyV1(emptied.harness);
+    const emptySuccessorAdmission = createNarrativeStablePhysicalActionAdmissionInternalV1({
+      bridge: emptied.harness.bridge,
+      inputRouter: createInputRouterV1(),
+      isGestureCurrent: () => true,
+    });
+    const afterEmptyReset = emptySuccessorAdmission
+      .issuePlaybackModeToggleAttemptInternalV1("skip");
+    expect(
+      routePlaybackModeToggleV1(
+        emptySuccessorAdmission,
+        "skip",
+        afterEmptyReset,
+        "after-empty-reset",
+      ).consumerResult,
+    ).toEqual({ kind: "toggled", mode: "skip", completion: null });
+    emptySuccessorAdmission.disposeInternalV1();
+    emptied.controller.disposeInternalV1();
+
+    let preflightCalls = 0;
+    const rejected = harnessV1({
+      candidatePreflight: Object.freeze({
+        preflightCandidateInternalV1: () => {
+          preflightCalls += 1;
+          return preflightCalls === 1 ? capturedCandidatePreflightResultV1() : Object.freeze({
+            kind: "rejected" as const,
+            code: "narrative.renderer_missing" as const,
+          });
+        },
+      }),
+    });
+    expect(rejected.bridge.reconcilePendingInternalV1(pendingV1("say"))).toMatchObject({
+      kind: "applied",
+    });
+    settleCurrentNarrativeReadyV1(rejected);
+    const rejectedAdmission = createNarrativeStablePhysicalActionAdmissionInternalV1({
+      bridge: rejected.bridge,
+      inputRouter: createInputRouterV1(),
+      isGestureCurrent: () => true,
+    });
+    const rejectedAttempt = rejectedAdmission.issuePlaybackModeToggleAttemptInternalV1("auto");
+    expect(
+      routePlaybackModeToggleV1(
+        rejectedAdmission,
+        "auto",
+        rejectedAttempt,
+        "rejected-retains",
+      ).consumerResult,
+    ).toMatchObject({ kind: "toggled", mode: "auto" });
+    expect(rejected.bridge.reconcilePendingInternalV1(pendingV1("choice", 2)))
+      .toMatchObject({ kind: "rejected", code: "narrative.renderer_missing" });
+    expect(rejected.bridge.readPlaybackModeInternalV1()).toBe("auto");
+    rejectedAdmission.disposeInternalV1();
+  });
+
+  it("resets both active modes before every remaining non-Say boundary notification", () => {
+    for (
+      const [kind, mode] of [
+        ["pause", "auto"],
+        ["custom", "skip"],
+        ["presentation_barrier", "auto"],
+      ] as const
+    ) {
+      const fixture = physicalSayHarnessV1();
+      const attempt = fixture.admission.issuePlaybackModeToggleAttemptInternalV1(mode);
+      expect(
+        routePlaybackModeToggleV1(
+          fixture.admission,
+          mode,
+          attempt,
+          `reset-${mode}-before-${kind}`,
+        ).consumerResult,
+      ).toEqual({ kind: "toggled", mode, completion: null });
+      const observedModes: NarrativeStablePlaybackModeInternalV1[] = [];
+      const unsubscribe = fixture.harness.kernel.subscribeStateInternalV1(() => {
+        observedModes.push(fixture.harness.bridge.readPlaybackModeInternalV1());
+      });
+      expect(fixture.harness.bridge.reconcilePendingInternalV1(pendingV1(kind, 2)))
+        .toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
+      expect(observedModes.length).toBeGreaterThan(0);
+      expect(observedModes.every((observed) => observed === "normal")).toBe(true);
+      expect(fixture.harness.bridge.readPlaybackModeInternalV1()).toBe("normal");
+      unsubscribe();
+      fixture.controller.disposeInternalV1();
+      fixture.admission.disposeInternalV1();
+    }
+  });
+
+  it("does not clobber a listener-installed Say successor after the outer reset commits", () => {
+    const fixture = physicalSayHarnessV1();
+    const enableAuto = fixture.admission.issuePlaybackModeToggleAttemptInternalV1("auto");
+    expect(
+      routePlaybackModeToggleV1(
+        fixture.admission,
+        "auto",
+        enableAuto,
+        "listener-successor-enable-auto",
+      ).consumerResult,
+    ).toEqual({ kind: "toggled", mode: "auto", completion: null });
+
+    let handledOuterNotification = false;
+    const successorAdmission: {
+      current: NarrativeStablePhysicalActionAdmissionInternalV1 | null;
+    } = { current: null };
+    let nestedResult: NarrativeStablePhysicalActionDispatchResultInternalV1 | null = null;
+    const unsubscribe = fixture.harness.kernel.subscribeStateInternalV1(() => {
+      if (handledOuterNotification) return;
+      handledOuterNotification = true;
+      expect(fixture.harness.bridge.readPlaybackModeInternalV1()).toBe("normal");
+      fixture.admission.disposeInternalV1();
+      expect(fixture.harness.bridge.reconcilePendingInternalV1(pendingV1("say", 3)))
+        .toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
+      settleCurrentNarrativeReadyV1(fixture.harness);
+      const installedAdmission = createNarrativeStablePhysicalActionAdmissionInternalV1({
+        bridge: fixture.harness.bridge,
+        inputRouter: createInputRouterV1(),
+        isGestureCurrent: () => true,
+      });
+      successorAdmission.current = installedAdmission;
+      const skipAttempt = installedAdmission.issuePlaybackModeToggleAttemptInternalV1("skip");
+      nestedResult = routePlaybackModeToggleV1(
+        installedAdmission,
+        "skip",
+        skipAttempt,
+        "listener-successor-toggle",
+      ).consumerResult;
+    });
+
+    expect(fixture.harness.bridge.reconcilePendingInternalV1(pendingV1("choice", 2)))
+      .toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
+    expect(nestedResult).toEqual({ kind: "toggled", mode: "skip", completion: null });
+    expect(fixture.harness.bridge.readPlaybackModeInternalV1()).toBe("skip");
+    unsubscribe();
+    successorAdmission.current?.disposeInternalV1();
+    fixture.controller.disposeInternalV1();
+  });
+
+  it("rolls provisional mode reset back by exact identity on non-applied and throwing apply", () => {
+    for (
+      const behavior of [
+        "stale",
+        "faulted",
+        "throw_restore",
+        "throw_after_successor",
+      ] as const
+    ) {
+      const fixture = physicalSayHarnessV1();
+      const enableAuto = fixture.admission.issuePlaybackModeToggleAttemptInternalV1("auto");
+      expect(
+        routePlaybackModeToggleV1(
+          fixture.admission,
+          "auto",
+          enableAuto,
+          `rollback-enable-auto-${behavior}`,
+        ).consumerResult,
+      ).toEqual({ kind: "toggled", mode: "auto", completion: null });
+      const predecessorAttempt = fixture.admission
+        .issuePlaybackModeToggleAttemptInternalV1("skip");
+      if (predecessorAttempt === null) throw new Error("expected predecessor mode attempt");
+
+      const applyStableAdmissionProposal =
+        fixture.harness.kernel.applyStableAdmissionProposalInternalV1;
+      const originalReflectApply = Reflect.apply;
+      const reflectApplyDescriptor = Object.getOwnPropertyDescriptor(Reflect, "apply");
+      if (reflectApplyDescriptor === undefined) {
+        throw new Error("expected Reflect.apply descriptor");
+      }
+      const injectedFailure = new Error("injected stable apply failure");
+      const staleResult = Object.freeze({
+        kind: "stale" as const,
+        code: "surface.stable_reconcile_precondition_stale" as const,
+        delta: zeroDeltaV1,
+      });
+      const faultedResult = Object.freeze({
+        kind: "faulted" as const,
+        code: "surface.stable_reconcile_faulted" as const,
+        delta: zeroDeltaV1,
+      });
+      let intercepted = false;
+      function hookedReflectApply<
+        TThis,
+        TArguments extends readonly unknown[],
+        TResult,
+      >(
+        target: (this: TThis, ...args: TArguments) => TResult,
+        thisArgument: TThis,
+        argumentsList: TArguments,
+      ): TResult {
+        if (
+          (target as unknown) === applyStableAdmissionProposal &&
+          (thisArgument as unknown) === fixture.harness.kernel
+        ) {
+          intercepted = true;
+          if (behavior === "throw_after_successor") {
+            const successorAttempt = fixture.admission
+              .issuePlaybackModeToggleAttemptInternalV1("skip");
+            expect(successorAttempt).not.toBeNull();
+            expect(
+              routePlaybackModeToggleV1(
+                fixture.admission,
+                "skip",
+                successorAttempt,
+                "rollback-successor",
+              ).consumerResult,
+            ).toEqual({ kind: "toggled", mode: "skip", completion: null });
+          }
+          if (behavior === "throw_restore" || behavior === "throw_after_successor") {
+            throw injectedFailure;
+          }
+          return (behavior === "faulted" ? faultedResult : staleResult) as TResult;
+        }
+        return originalReflectApply(target, thisArgument, argumentsList);
+      }
+      Object.defineProperty(Reflect, "apply", {
+        ...reflectApplyDescriptor,
+        value: hookedReflectApply,
+      });
+
+      try {
+        if (behavior === "stale" || behavior === "faulted") {
+          expect(fixture.harness.bridge.reconcilePendingInternalV1(pendingV1("choice", 2)))
+            .toEqual(behavior === "stale" ? staleResult : faultedResult);
+        } else {
+          expect(() => fixture.harness.bridge.reconcilePendingInternalV1(pendingV1("choice", 2)))
+            .toThrow(injectedFailure);
+        }
+      } finally {
+        Object.defineProperty(Reflect, "apply", reflectApplyDescriptor);
+      }
+
+      expect(intercepted).toBe(true);
+      if (behavior !== "throw_after_successor") {
+        expect(fixture.harness.bridge.readPlaybackModeInternalV1()).toBe("auto");
+        expect(
+          routePlaybackModeToggleV1(
+            fixture.admission,
+            "skip",
+            predecessorAttempt,
+            "rollback-predecessor-restored",
+          ).consumerResult,
+        ).toEqual({ kind: "toggled", mode: "skip", completion: null });
+      } else {
+        expect(fixture.harness.bridge.readPlaybackModeInternalV1()).toBe("skip");
+        expect(
+          routePlaybackModeToggleV1(
+            fixture.admission,
+            "skip",
+            predecessorAttempt,
+            "rollback-predecessor-stale",
+          ).consumerResult,
+        ).toEqual({ kind: "stale", completion: null });
+      }
+      fixture.controller.disposeInternalV1();
+      fixture.admission.disposeInternalV1();
+    }
+  });
+
+  it("retains mode across Say replacement and blocking suspension while retiring old attempts", () => {
+    const replacement = physicalSayHarnessV1();
+    const enableAuto = replacement.admission.issuePlaybackModeToggleAttemptInternalV1("auto");
+    expect(
+      routePlaybackModeToggleV1(
+        replacement.admission,
+        "auto",
+        enableAuto,
+        "replacement-enable-auto",
+      ).consumerResult,
+    ).toEqual({ kind: "toggled", mode: "auto", completion: null });
+    const oldReplacementAttempt = replacement.admission
+      .issuePlaybackModeToggleAttemptInternalV1("skip");
+    expect(oldReplacementAttempt).not.toBeNull();
+    expect(replacement.harness.bridge.reconcilePendingInternalV1(pendingV1("say", 2)))
+      .toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
+    expect(replacement.harness.bridge.readPlaybackModeInternalV1()).toBe("auto");
+    settleCurrentNarrativeReadyV1(replacement.harness);
+    replacement.admission.disposeInternalV1();
+    const replacementAdmission = createNarrativeStablePhysicalActionAdmissionInternalV1({
+      bridge: replacement.harness.bridge,
+      inputRouter: createInputRouterV1(),
+      isGestureCurrent: () => true,
+    });
+    expect(
+      routePlaybackModeToggleV1(
+        replacementAdmission,
+        "skip",
+        oldReplacementAttempt,
+        "replacement-old-attempt",
+      ).consumerResult,
+    ).toEqual({ kind: "stale", completion: null });
+    const replacementFresh = replacementAdmission
+      .issuePlaybackModeToggleAttemptInternalV1("skip");
+    expect(
+      routePlaybackModeToggleV1(
+        replacementAdmission,
+        "skip",
+        replacementFresh,
+        "replacement-fresh-attempt",
+      ).consumerResult,
+    ).toEqual({ kind: "toggled", mode: "skip", completion: null });
+    replacementAdmission.disposeInternalV1();
+    replacement.controller.disposeInternalV1();
+
+    const suspended = nonBlockingNarrativeHarnessV1(
+      defaultSemanticDispatchPortV1,
+      90,
+      "blocking",
+    );
+    expect(suspended.harness.bridge.reconcilePendingInternalV1(pendingV1("say")))
+      .toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
+    settleCurrentNarrativeReadyV1(suspended.harness);
+    const suspendedAdmission = createNarrativeStablePhysicalActionAdmissionInternalV1({
+      bridge: suspended.harness.bridge,
+      inputRouter: createInputRouterV1(),
+      isGestureCurrent: () => true,
+    });
+    const suspendedAuto = suspendedAdmission.issuePlaybackModeToggleAttemptInternalV1("auto");
+    expect(
+      routePlaybackModeToggleV1(
+        suspendedAdmission,
+        "auto",
+        suspendedAuto,
+        "suspension-enable-auto",
+      ).consumerResult,
+    ).toEqual({ kind: "toggled", mode: "auto", completion: null });
+    const oldSuspendedAttempt = suspendedAdmission
+      .issuePlaybackModeToggleAttemptInternalV1("skip");
+    expect(oldSuspendedAttempt).not.toBeNull();
+    const blocker = openNonBlockingSurfaceV1(
+      suspended.harness,
+      suspended.nonBlockingDefinition,
+      "suspended",
+      "candidate",
+      () => {
+        expect(suspended.harness.bridge.readPlaybackModeInternalV1()).toBe("auto");
+        expect(
+          suspendedAdmission.issuePlaybackModeToggleAttemptInternalV1("skip"),
+        ).toBeNull();
+      },
+      "suspended",
+    );
+    expect(suspended.harness.bridge.readPlaybackModeInternalV1()).toBe("auto");
+    const beforeClose = suspended.harness.kernel.getTransientSnapshotInternalV1();
+    expect(suspended.harness.kernel.transitionTransientInternalV1({
+      kind: "close_expected",
+      evidence: Object.freeze({
+        applicationEpoch: applicationEpochV1,
+        topologyRevision: beforeClose.topologyRevision,
+        surfaceInstanceId: blocker.surfaceInstanceId,
+      }),
+    })).toMatchObject({ kind: "applied", code: "surface.closed" });
+    expect(suspended.harness.bridge.readPlaybackModeInternalV1()).toBe("auto");
+    suspendedAdmission.disposeInternalV1();
+    const resumedAdmission = createNarrativeStablePhysicalActionAdmissionInternalV1({
+      bridge: suspended.harness.bridge,
+      inputRouter: createInputRouterV1(),
+      isGestureCurrent: () => true,
+    });
+    expect(
+      routePlaybackModeToggleV1(
+        resumedAdmission,
+        "skip",
+        oldSuspendedAttempt,
+        "suspension-old-attempt",
+      ).consumerResult,
+    ).toEqual({ kind: "stale", completion: null });
+    const afterSuspension = resumedAdmission
+      .issuePlaybackModeToggleAttemptInternalV1("skip");
+    expect(
+      routePlaybackModeToggleV1(
+        resumedAdmission,
+        "skip",
+        afterSuspension,
+        "suspension-fresh-attempt",
+      ).consumerResult,
+    ).toEqual({ kind: "toggled", mode: "skip", completion: null });
+    resumedAdmission.disposeInternalV1();
+  });
+
+  it("retains mode through readiness failure and retry while rebinding the source frame", () => {
+    const fixture = physicalSayHarnessV1();
+    const enableSkip = fixture.admission.issuePlaybackModeToggleAttemptInternalV1("skip");
+    expect(
+      routePlaybackModeToggleV1(
+        fixture.admission,
+        "skip",
+        enableSkip,
+        "retry-enable-skip",
+      ).consumerResult,
+    ).toEqual({ kind: "toggled", mode: "skip", completion: null });
+    const oldAttempt = fixture.admission.issuePlaybackModeToggleAttemptInternalV1("auto");
+    expect(oldAttempt).not.toBeNull();
+
+    expect(fixture.harness.bridge.reconcilePendingInternalV1(pendingV1("say", 2)))
+      .toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
+    const preparing = fixture.harness.kernel.getStateInternalV1().stableRuntimeBindings[0];
+    if (preparing?.binding.kind !== "preparing") {
+      throw new Error("expected replacement Say preparation");
+    }
+    expect(fixture.harness.kernel.settleStableReadinessFailedInternalV1({
+      readinessEvidence: Object.freeze({
+        applicationEpoch: applicationEpochV1,
+        surfaceInstanceId: preparing.binding.attempt.identity.surfaceInstanceId,
+      }),
+      publisherLease: preparing.desiredTarget.publisherLease,
+      sourceRevision: preparing.desiredTarget.sourceRevision,
+    })).toMatchObject({ kind: "applied", code: "surface.readiness_failed" });
+    expect(fixture.harness.bridge.readPlaybackModeInternalV1()).toBe("skip");
+    expect(fixture.harness.bridge.retryCurrentPendingInternalV1()).toMatchObject({
+      kind: "applied",
+      code: "surface.stable_publication_applied",
+    });
+    settleCurrentNarrativeReadyV1(fixture.harness);
+    fixture.admission.disposeInternalV1();
+    const retriedAdmission = createNarrativeStablePhysicalActionAdmissionInternalV1({
+      bridge: fixture.harness.bridge,
+      inputRouter: createInputRouterV1(),
+      isGestureCurrent: () => true,
+    });
+    expect(
+      routePlaybackModeToggleV1(
+        retriedAdmission,
+        "auto",
+        oldAttempt,
+        "retry-old-source-attempt",
+      ).consumerResult,
+    ).toEqual({ kind: "stale", completion: null });
+    const freshAttempt = retriedAdmission.issuePlaybackModeToggleAttemptInternalV1("auto");
+    expect(
+      routePlaybackModeToggleV1(
+        retriedAdmission,
+        "auto",
+        freshAttempt,
+        "retry-fresh-source-attempt",
+      ).consumerResult,
+    ).toEqual({ kind: "toggled", mode: "auto", completion: null });
+    retriedAdmission.disposeInternalV1();
+    fixture.controller.disposeInternalV1();
+  });
+
+  it("retains mode across physical admission and Say controller recreation", () => {
+    const fixture = physicalSayHarnessV1();
+    const enableAuto = fixture.admission.issuePlaybackModeToggleAttemptInternalV1("auto");
+    expect(
+      routePlaybackModeToggleV1(
+        fixture.admission,
+        "auto",
+        enableAuto,
+        "recreate-enable-auto",
+      ).consumerResult,
+    ).toEqual({ kind: "toggled", mode: "auto", completion: null });
+
+    fixture.admission.disposeInternalV1();
+    expect(fixture.harness.bridge.readPlaybackModeInternalV1()).toBe("auto");
+    fixture.controller.disposeInternalV1();
+    expect(fixture.harness.bridge.readPlaybackModeInternalV1()).toBe("auto");
+
+    const successorController = createNarrativeStableSayRevealControllerInternalV1({
+      bridge: fixture.harness.bridge,
+      revealGenerationPort: Object.freeze({
+        capturePhaseInternalV1: () => "incomplete" as const,
+        revealAllInternalV1: vi.fn(),
+      }),
+    });
+    const successorAdmission = createNarrativeStablePhysicalActionAdmissionInternalV1({
+      bridge: fixture.harness.bridge,
+      inputRouter: fixture.inputRouter,
+      isGestureCurrent: () => true,
+    });
+    const disableAuto = successorAdmission.issuePlaybackModeToggleAttemptInternalV1("auto");
+    expect(
+      routePlaybackModeToggleV1(
+        successorAdmission,
+        "auto",
+        disableAuto,
+        "recreate-disable-auto",
+      ).consumerResult,
+    ).toEqual({ kind: "toggled", mode: "normal", completion: null });
+
+    successorController.disposeInternalV1();
+    successorAdmission.disposeInternalV1();
+  });
+
+  it("keeps 10k toggle attempts bounded and never revives a scalar-ABA predecessor", () => {
+    const fixture = physicalSayHarnessV1();
+    const state = fixture.harness.kernel.getStateInternalV1();
+    const notifications = fixture.harness.stateNotificationCount();
+    const predecessor = fixture.admission.issuePlaybackModeToggleAttemptInternalV1("auto");
+    expect(predecessor).not.toBeNull();
+    let autoResult: NarrativeStablePhysicalActionDispatchResultInternalV1 | null = null;
+    let normalResult: NarrativeStablePhysicalActionDispatchResultInternalV1 | null = null;
+
+    for (let index = 0; index < 10_000; index += 1) {
+      const attempt = fixture.admission.issuePlaybackModeToggleAttemptInternalV1("auto");
+      if (attempt === null) throw new Error("expected bounded mode attempt");
+      const result = routePlaybackModeToggleV1(
+        fixture.admission,
+        "auto",
+        attempt,
+        `bounded-${String(index)}`,
+      ).consumerResult;
+      const expectedMode = index % 2 === 0 ? "auto" : "normal";
+      expect(result).toEqual({ kind: "toggled", mode: expectedMode, completion: null });
+      if (expectedMode === "auto") {
+        autoResult ??= result;
+        expect(result).toBe(autoResult);
+      } else {
+        normalResult ??= result;
+        expect(result).toBe(normalResult);
+      }
+    }
+
+    expect(fixture.harness.bridge.readPlaybackModeInternalV1()).toBe("normal");
+    expect(
+      routePlaybackModeToggleV1(
+        fixture.admission,
+        "auto",
+        predecessor,
+        "bounded-aba-predecessor",
+      ).consumerResult,
+    ).toEqual({ kind: "stale", completion: null });
+    expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
+    expect(fixture.harness.stateNotificationCount()).toBe(notifications);
+    fixture.controller.disposeInternalV1();
+    fixture.admission.disposeInternalV1();
+  });
+
+  it("guards callback reentry while allowing a toggle during semantic completion", async () => {
+    let callbackFixture!: ReturnType<typeof physicalSayHarnessV1>;
+    let nestedResult: NarrativeStablePhysicalActionDispatchResultInternalV1 | null = null;
+    let presigned: NarrativeStablePlaybackModeToggleActionAttemptInternalV1 | null = null;
+    let envelope!: ReturnType<
+      NarrativeStablePhysicalActionAdmissionInternalV1["createEnvelopeInternalV1"]
+    >;
+    const capturePhase = vi.fn(() => {
+      expect(
+        callbackFixture.admission.issuePlaybackModeToggleAttemptInternalV1("auto"),
+      ).toBeNull();
+      nestedResult = callbackFixture.admission.routeInternalV1(envelope, presigned)
+        .consumerResult;
+      return "incomplete" as const;
+    });
+    callbackFixture = physicalSayHarnessV1({
+      advancePolicy: "auto",
+      revealGenerationPort: Object.freeze({
+        capturePhaseInternalV1: capturePhase,
+        revealAllInternalV1: vi.fn(),
+      }),
+    });
+    presigned = callbackFixture.admission.issuePlaybackModeToggleAttemptInternalV1("auto");
+    expect(presigned).not.toBeNull();
+    envelope = callbackFixture.admission.createEnvelopeInternalV1({
+      actionId: narrativeToggleAutoActionIdV1,
+      gestureId: parseManagedSurfaceGestureIdV1(
+        "gesture.narrative.playback-mode-callback-guard",
+      ),
+    });
+    const automaticAttempt = callbackFixture.controller.issueContentAutoAttemptInternalV1();
+    expect(automaticAttempt).not.toBeNull();
+    expect(callbackFixture.controller.dispatchContentAutoInternalV1(automaticAttempt)).toEqual({
+      kind: "not_ready",
+      completion: null,
+    });
+    expect(nestedResult).toEqual({ kind: "stale", completion: null });
+    expect(callbackFixture.harness.bridge.readPlaybackModeInternalV1()).toBe("normal");
+    expect(
+      routePlaybackModeToggleV1(
+        callbackFixture.admission,
+        "auto",
+        presigned,
+        "callback-presigned-remains-spent",
+      ).consumerResult,
+    ).toEqual({ kind: "stale", completion: null });
+    const fresh = callbackFixture.admission.issuePlaybackModeToggleAttemptInternalV1("auto");
+    expect(
+      routePlaybackModeToggleV1(
+        callbackFixture.admission,
+        "auto",
+        fresh,
+        "callback-released",
+      ).consumerResult,
+    ).toMatchObject({ kind: "toggled", mode: "auto" });
+    callbackFixture.controller.disposeInternalV1();
+    callbackFixture.admission.disposeInternalV1();
+
+    let resolveSemantic!: (value: unknown) => void;
+    const pendingSemantic = new Promise<unknown>((resolve) => {
+      resolveSemantic = resolve;
+    });
+    const pendingFixture = physicalSayHarnessV1({
+      revealGenerationPort: Object.freeze({
+        capturePhaseInternalV1: () => "complete" as const,
+        revealAllInternalV1: vi.fn(),
+      }),
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: () => pendingSemantic,
+      }),
+    });
+    const sayAttempt = pendingFixture.admission.issueSayActivationAttemptInternalV1(
+      pendingFixture.controller,
+    );
+    const dispatched = pendingFixture.admission.routeInternalV1(
+      pendingFixture.admission.createEnvelopeInternalV1({
+        actionId: narrativeConfirmActionIdV1,
+        gestureId: parseManagedSurfaceGestureIdV1(
+          "gesture.narrative.playback-mode-semantic-pending",
+        ),
+      }),
+      sayAttempt,
+    );
+    expect(dispatched.consumerResult).toMatchObject({ kind: "dispatched" });
+    const duringPending = pendingFixture.admission.issuePlaybackModeToggleAttemptInternalV1(
+      "skip",
+    );
+    expect(duringPending).not.toBeNull();
+    expect(
+      routePlaybackModeToggleV1(
+        pendingFixture.admission,
+        "skip",
+        duringPending,
+        "semantic-pending-allowed",
+      ).consumerResult,
+    ).toMatchObject({ kind: "toggled", mode: "skip" });
+    resolveSemantic("drained");
+    if (dispatched.consumerResult?.kind !== "dispatched") {
+      throw new Error("expected pending semantic dispatch");
+    }
+    await expect(dispatched.consumerResult.completion).resolves.toBe("drained");
+    pendingFixture.controller.disposeInternalV1();
+    pendingFixture.admission.disposeInternalV1();
+  });
+
+  it("keeps mode attempts opaque and unspent across mapping and generic route fences", () => {
+    const fixture = physicalSayHarnessV1();
+    const admission = fixture.admission;
+    const borrowedIssue = admission.issuePlaybackModeToggleAttemptInternalV1;
+    expect(Reflect.apply(borrowedIssue, Object.freeze({}), ["auto"])).toBeNull();
+    expect(Reflect.apply(borrowedIssue, admission, ["normal"])).toBeNull();
+
+    const autoAttempt = admission.issuePlaybackModeToggleAttemptInternalV1("auto");
+    if (autoAttempt === null) throw new Error("expected opaque Auto attempt");
+    expect(Object.isFrozen(autoAttempt)).toBe(true);
+    expect(Reflect.ownKeys(autoAttempt)).toEqual([]);
+    for (
+      const [forged, suffix] of [
+        [Object.freeze({ ...autoAttempt }), "clone"],
+        [Object.freeze({}), "spoof"],
+      ] as const
+    ) {
+      expect(
+        routePlaybackModeToggleV1(admission, "auto", forged, `forged-${suffix}`)
+          .consumerResult,
+      ).toEqual({ kind: "stale", completion: null });
+    }
+    expect(
+      routePlaybackModeToggleV1(admission, "skip", autoAttempt, "auto-as-skip")
+        .consumerResult,
+    ).toEqual({ kind: "unmapped", completion: null });
+    expect(
+      routePlaybackModeToggleV1(admission, "auto", autoAttempt, "auto-after-skip-probe")
+        .consumerResult,
+    ).toEqual({ kind: "toggled", mode: "auto", completion: null });
+
+    const skipAttempt = admission.issuePlaybackModeToggleAttemptInternalV1("skip");
+    if (skipAttempt === null) throw new Error("expected opaque Skip attempt");
+    expect(
+      routePlaybackModeToggleV1(admission, "auto", skipAttempt, "skip-as-auto")
+        .consumerResult,
+    ).toEqual({ kind: "unmapped", completion: null });
+    expect(
+      routePlaybackModeToggleV1(admission, "skip", skipAttempt, "skip-after-auto-probe")
+        .consumerResult,
+    ).toEqual({ kind: "toggled", mode: "skip", completion: null });
+
+    const crossKindAttempt = admission.issuePlaybackModeToggleAttemptInternalV1("auto");
+    if (crossKindAttempt === null) throw new Error("expected cross-kind mode attempt");
+    for (
+      const [actionId, suffix] of [
+        [narrativeChooseActionIdV1, "choice"],
+        [narrativeConfirmActionIdV1, "say"],
+        [narrativeReplayVoiceActionIdV1, "voice"],
+      ] as const
+    ) {
+      const result = admission.routeInternalV1(
+        admission.createEnvelopeInternalV1({
+          actionId,
+          gestureId: parseManagedSurfaceGestureIdV1(
+            `gesture.narrative.playback-mode-cross-kind-${suffix}`,
+          ),
+        }),
+        crossKindAttempt,
+      );
+      expect(result).toMatchObject({
+        route: {
+          input: { kind: "consumed", code: "input.managed_surface_consumed" },
+          surface: { kind: "unchanged", code: "surface.action_routed" },
+        },
+        consumerResult: { kind: "unmapped", completion: null },
+      });
+    }
+    expect(
+      routePlaybackModeToggleV1(
+        admission,
+        "auto",
+        crossKindAttempt,
+        "cross-kind-recovered",
+      ).consumerResult,
+    ).toEqual({ kind: "toggled", mode: "auto", completion: null });
+
+    const unpublishedAttempt = admission.issuePlaybackModeToggleAttemptInternalV1("auto");
+    if (unpublishedAttempt === null) throw new Error("expected unpublished-probe attempt");
+    const unpublished = admission.routeInternalV1(
+      admission.createEnvelopeInternalV1({
+        actionId: narrativeUnknownActionIdV1,
+        gestureId: parseManagedSurfaceGestureIdV1(
+          "gesture.narrative.playback-mode-unpublished",
+        ),
+      }),
+      unpublishedAttempt,
+    );
+    expect(unpublished).toMatchObject({
+      route: {
+        input: { kind: "consumed", code: "input.managed_surface_consumed" },
+        surface: { kind: "rejected", code: "surface.action_unpublished" },
+      },
+      consumerResult: null,
+    });
+    expect(
+      routePlaybackModeToggleV1(
+        admission,
+        "auto",
+        unpublishedAttempt,
+        "unpublished-recovered",
+      ).consumerResult,
+    ).toEqual({ kind: "toggled", mode: "normal", completion: null });
+
+    let gestureCurrent = false;
+    const gestureFixture = physicalSayHarnessV1({
+      isGestureCurrent: () => gestureCurrent,
+    });
+    const gestureAttempt = gestureFixture.admission
+      .issuePlaybackModeToggleAttemptInternalV1("skip");
+    if (gestureAttempt === null) throw new Error("expected gesture-fenced attempt");
+    const gestureEnvelope = gestureFixture.admission.createEnvelopeInternalV1({
+      actionId: narrativeToggleSkipActionIdV1,
+      gestureId: parseManagedSurfaceGestureIdV1(
+        "gesture.narrative.playback-mode-gesture-fence",
+      ),
+    });
+    expect(
+      gestureFixture.admission.routeInternalV1(gestureEnvelope, gestureAttempt),
+    ).toMatchObject({
+      route: { input: { code: "input.stale_gesture" }, surface: null },
+      consumerResult: null,
+    });
+    gestureCurrent = true;
+    expect(
+      gestureFixture.admission.routeInternalV1(gestureEnvelope, gestureAttempt)
+        .consumerResult,
+    ).toEqual({ kind: "toggled", mode: "skip", completion: null });
+
+    const foreign = physicalSayHarnessV1();
+    const foreignAttempt = foreign.admission.issuePlaybackModeToggleAttemptInternalV1("auto");
+    expect(foreignAttempt).not.toBeNull();
+    expect(
+      routePlaybackModeToggleV1(
+        admission,
+        "auto",
+        foreignAttempt,
+        "foreign-on-local-admission",
+      ).consumerResult,
+    ).toEqual({ kind: "stale", completion: null });
+    expect(
+      routePlaybackModeToggleV1(
+        foreign.admission,
+        "auto",
+        foreignAttempt,
+        "foreign-on-own-admission",
+      ).consumerResult,
+    ).toEqual({ kind: "toggled", mode: "auto", completion: null });
+
+    foreign.controller.disposeInternalV1();
+    foreign.admission.disposeInternalV1();
+    gestureFixture.controller.disposeInternalV1();
+    gestureFixture.admission.disposeInternalV1();
+    fixture.controller.disposeInternalV1();
+    fixture.admission.disposeInternalV1();
+  });
+
+  it("does not spend authentic non-mode capabilities when they probe a mode action", () => {
+    const probeModeAction = (
+      admission: NarrativeStablePhysicalActionAdmissionInternalV1,
+      attempt: unknown,
+      suffix: string,
+    ): void => {
+      expect(
+        routePlaybackModeToggleV1(admission, "auto", attempt, `other-token-${suffix}`)
+          .consumerResult,
+      ).toEqual({ kind: "stale", completion: null });
+    };
+    const routeCorrect = (
+      admission: NarrativeStablePhysicalActionAdmissionInternalV1,
+      actionId: ReturnType<typeof parseManagedSurfaceActionIdV1>,
+      attempt: unknown,
+      suffix: string,
+    ) =>
+      admission.routeInternalV1(
+        admission.createEnvelopeInternalV1({
+          actionId,
+          gestureId: parseManagedSurfaceGestureIdV1(
+            `gesture.narrative.playback-mode-other-token-correct-${suffix}`,
+          ),
+        }),
+        attempt,
+      ).consumerResult;
+
+    const choice = physicalChoiceHarnessV1();
+    const choiceAttempt = choice.admission.issueChoiceAttemptInternalV1("choice.test.first");
+    expect(choiceAttempt).not.toBeNull();
+    probeModeAction(choice.admission, choiceAttempt, "choice");
+    expect(routeCorrect(choice.admission, narrativeChooseActionIdV1, choiceAttempt, "choice"))
+      .toMatchObject({ kind: "dispatched" });
+    choice.admission.disposeInternalV1();
+
+    const pause = physicalPauseHarnessV1();
+    const pauseAttempt = pause.admission.issuePauseResumeAttemptInternalV1();
+    expect(pauseAttempt).not.toBeNull();
+    probeModeAction(pause.admission, pauseAttempt, "pause");
+    expect(routeCorrect(pause.admission, narrativeResumeActionIdV1, pauseAttempt, "pause"))
+      .toMatchObject({ kind: "dispatched" });
+    pause.admission.disposeInternalV1();
+
+    const custom = physicalCustomHarnessV1();
+    const customAttempt = custom.admission.issueCustomAttemptInternalV1({ value: 1 });
+    expect(customAttempt).not.toBeNull();
+    probeModeAction(custom.admission, customAttempt, "custom");
+    expect(routeCorrect(custom.admission, narrativeCustomActionIdV1, customAttempt, "custom"))
+      .toMatchObject({ kind: "dispatched" });
+    custom.admission.disposeInternalV1();
+
+    const say = physicalSayHarnessV1({
+      voiceReplayPort: Object.freeze({
+        replayCurrentVoiceInternalV1: () => true,
+      }),
+    });
+    const sayAttempt = say.admission.issueSayActivationAttemptInternalV1(say.controller);
+    expect(sayAttempt).not.toBeNull();
+    probeModeAction(say.admission, sayAttempt, "say");
+    expect(routeCorrect(say.admission, narrativeConfirmActionIdV1, sayAttempt, "say"))
+      .toEqual({ kind: "revealed", completion: null });
+    const voiceAttempt = say.admission.issueVoiceReplayAttemptInternalV1();
+    expect(voiceAttempt).not.toBeNull();
+    probeModeAction(say.admission, voiceAttempt, "voice");
+    expect(routeCorrect(say.admission, narrativeReplayVoiceActionIdV1, voiceAttempt, "voice"))
+      .toEqual({ kind: "handled", completion: null });
+    say.controller.disposeInternalV1();
+    say.admission.disposeInternalV1();
+  });
+
+  it("returns the canonical faulted mode result after a spent private capture fault", () => {
+    const reflectApplyDescriptor = Object.getOwnPropertyDescriptor(Reflect, "apply");
+    if (reflectApplyDescriptor === undefined) {
+      throw new Error("expected Reflect.apply descriptor");
+    }
+    const originalReflectApply = Reflect.apply;
+    let gestureReads = 0;
+    let currentnessCallable: unknown = null;
+    let hookInstalled = false;
+    function hookedReflectApply<
+      TThis,
+      TArguments extends readonly unknown[],
+      TResult,
+    >(
+      target: (this: TThis, ...args: TArguments) => TResult,
+      thisArgument: TThis,
+      argumentsList: TArguments,
+    ): TResult {
+      if ((target as unknown) === currentnessCallable) {
+        throw new Error("injected direct-target capture fault");
+      }
+      return originalReflectApply(target, thisArgument, argumentsList);
+    }
+
+    const fixture = physicalSayHarnessV1({
+      isGestureCurrent: () => {
+        gestureReads += 1;
+        if (gestureReads === 2) {
+          Object.defineProperty(Reflect, "apply", {
+            ...reflectApplyDescriptor,
+            value: hookedReflectApply,
+          });
+          hookInstalled = true;
+        }
+        return true;
+      },
+    });
+    currentnessCallable = claimManagedSurfaceStableActionRouteAuthorityInternalV1(
+      fixture.harness.kernel,
+    ).isCurrentDirectTargetInternalV1;
+    const attempt = fixture.admission.issuePlaybackModeToggleAttemptInternalV1("auto");
+    expect(attempt).not.toBeNull();
+
+    let result: ReturnType<typeof routePlaybackModeToggleV1>;
+    try {
+      result = routePlaybackModeToggleV1(
+        fixture.admission,
+        "auto",
+        attempt,
+        "faulted-private-capture",
+      );
+    } finally {
+      Object.defineProperty(Reflect, "apply", reflectApplyDescriptor);
+    }
+    expect(hookInstalled).toBe(true);
+    expect(result.consumerResult).toEqual({ kind: "faulted", completion: null });
+    expect(Object.isFrozen(result.consumerResult)).toBe(true);
+    expect(Reflect.ownKeys(result.consumerResult as object)).toEqual([
+      "kind",
+      "completion",
+    ]);
+    expect(fixture.harness.bridge.readPlaybackModeInternalV1()).toBe("normal");
+    expect(
+      routePlaybackModeToggleV1(
+        fixture.admission,
+        "auto",
+        attempt,
+        "faulted-attempt-remains-spent",
+      ).consumerResult,
+    ).toEqual({ kind: "stale", completion: null });
+    fixture.controller.disposeInternalV1();
+    fixture.admission.disposeInternalV1();
+  });
+
+  it("first-wins one mode state and fails closed with canonical results after terminal fences", () => {
+    const fixture = physicalSayHarnessV1();
+    const autoAttempt = fixture.admission.issuePlaybackModeToggleAttemptInternalV1("auto");
+    const skipCompetitor = fixture.admission.issuePlaybackModeToggleAttemptInternalV1("skip");
+    expect(autoAttempt).not.toBeNull();
+    expect(skipCompetitor).not.toBeNull();
+
+    const autoWinner = routePlaybackModeToggleV1(
+      fixture.admission,
+      "auto",
+      autoAttempt,
+      "same-state-auto-winner",
+    ).consumerResult;
+    expect(autoWinner).toEqual({ kind: "toggled", mode: "auto", completion: null });
+    expect(Object.isFrozen(autoWinner)).toBe(true);
+    expect(Reflect.ownKeys(autoWinner as object)).toEqual(["kind", "mode", "completion"]);
+    const staleCompetitor = routePlaybackModeToggleV1(
+      fixture.admission,
+      "skip",
+      skipCompetitor,
+      "same-state-skip-loser",
+    ).consumerResult;
+    expect(staleCompetitor).toEqual({ kind: "stale", completion: null });
+    expect(Object.isFrozen(staleCompetitor)).toBe(true);
+    expect(Reflect.ownKeys(staleCompetitor as object)).toEqual(["kind", "completion"]);
+    expect(fixture.harness.bridge.readPlaybackModeInternalV1()).toBe("auto");
+    expect(
+      routePlaybackModeToggleV1(
+        fixture.admission,
+        "auto",
+        autoAttempt,
+        "same-state-winner-repeat",
+      ).consumerResult,
+    ).toBe(staleCompetitor);
+
+    const toSkip = fixture.admission.issuePlaybackModeToggleAttemptInternalV1("skip");
+    expect(
+      routePlaybackModeToggleV1(fixture.admission, "skip", toSkip, "canonical-to-skip")
+        .consumerResult,
+    ).toEqual({ kind: "toggled", mode: "skip", completion: null });
+    const backToAuto = fixture.admission.issuePlaybackModeToggleAttemptInternalV1("auto");
+    expect(
+      routePlaybackModeToggleV1(
+        fixture.admission,
+        "auto",
+        backToAuto,
+        "canonical-back-to-auto",
+      ).consumerResult,
+    ).toBe(autoWinner);
+    fixture.controller.disposeInternalV1();
+    fixture.admission.disposeInternalV1();
+
+    for (const terminal of ["bridge", "coordinator"] as const) {
+      const terminalFixture = physicalSayHarnessV1();
+      const enabled = terminalFixture.admission.issuePlaybackModeToggleAttemptInternalV1(
+        "auto",
+      );
+      expect(
+        routePlaybackModeToggleV1(
+          terminalFixture.admission,
+          "auto",
+          enabled,
+          `terminal-${terminal}-enable`,
+        ).consumerResult,
+      ).toEqual({ kind: "toggled", mode: "auto", completion: null });
+      const presigned = terminalFixture.admission.issuePlaybackModeToggleAttemptInternalV1(
+        "skip",
+      );
+      expect(presigned).not.toBeNull();
+      const envelope = terminalFixture.admission.createEnvelopeInternalV1({
+        actionId: narrativeToggleSkipActionIdV1,
+        gestureId: parseManagedSurfaceGestureIdV1(
+          `gesture.narrative.playback-mode-terminal-${terminal}`,
+        ),
+      });
+      const observedModes: NarrativeStablePlaybackModeInternalV1[] = [];
+      const unsubscribe = terminalFixture.harness.kernel.subscribeStateInternalV1(() => {
+        observedModes.push(
+          terminalFixture.harness.bridge.readPlaybackModeInternalV1(),
+        );
+      });
+      if (terminal === "bridge") {
+        expect(terminalFixture.harness.bridge.disposeInternalV1()).toMatchObject({
+          kind: "applied",
+          code: "surface.stable_publisher_disposed",
+        });
+      } else {
+        expect(terminalFixture.harness.kernel.transitionTransientInternalV1({
+          kind: "dispose_coordinator",
+        })).toMatchObject({ kind: "applied", code: "surface.coordinator_disposed" });
+      }
+      expect(observedModes.length).toBeGreaterThan(0);
+      expect(observedModes.every((mode) => mode === "normal")).toBe(true);
+      expect(terminalFixture.harness.bridge.readPlaybackModeInternalV1()).toBe("normal");
+      expect(
+        terminalFixture.admission.issuePlaybackModeToggleAttemptInternalV1("auto"),
+      ).toBeNull();
+      const state = terminalFixture.harness.kernel.getStateInternalV1();
+      const notifications = terminalFixture.harness.stateNotificationCount();
+      const terminalRoute = terminalFixture.admission.routeInternalV1(envelope, presigned);
+      expect(terminalRoute.consumerResult).toBeNull();
+      expect(terminalFixture.harness.bridge.readPlaybackModeInternalV1()).toBe("normal");
+      expect(terminalFixture.harness.kernel.getStateInternalV1()).toBe(state);
+      expect(terminalFixture.harness.stateNotificationCount()).toBe(notifications);
+      unsubscribe();
+      terminalFixture.controller.disposeInternalV1();
+      terminalFixture.admission.disposeInternalV1();
+    }
+  });
+
+  it("spends then returns stale when bridge terminal lands after the generic route gate", () => {
+    let fixture!: ReturnType<typeof physicalSayHarnessV1>;
+    let gestureReads = 0;
+    fixture = physicalSayHarnessV1({
+      isGestureCurrent: () => {
+        gestureReads += 1;
+        if (gestureReads === 2) {
+          expect(fixture.harness.bridge.disposeInternalV1()).toMatchObject({
+            kind: "applied",
+            code: "surface.stable_publisher_disposed",
+          });
+        }
+        return true;
+      },
+    });
+    const attempt = fixture.admission.issuePlaybackModeToggleAttemptInternalV1("auto");
+    expect(attempt).not.toBeNull();
+    const result = routePlaybackModeToggleV1(
+      fixture.admission,
+      "auto",
+      attempt,
+      "terminal-after-generic-gate",
+    );
+    expect(gestureReads).toBe(2);
+    expect(result).toMatchObject({
+      route: {
+        input: { kind: "consumed", code: "input.managed_surface_consumed" },
+        surface: { kind: "unchanged", code: "surface.action_routed" },
+      },
+      consumerResult: { kind: "stale", completion: null },
+    });
+    expect(fixture.harness.bridge.readPlaybackModeInternalV1()).toBe("normal");
+    fixture.controller.disposeInternalV1();
+    fixture.admission.disposeInternalV1();
   });
 
   it("claims one exact current Barrier controller without burning construction failure", () => {

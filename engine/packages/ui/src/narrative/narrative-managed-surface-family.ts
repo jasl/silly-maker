@@ -212,6 +212,7 @@ export type NarrativeStablePublisherBridgeResultInternalV1 =
   }>;
 
 export interface NarrativeStablePublisherBridgeInternalV1 {
+  readPlaybackModeInternalV1(): NarrativeStablePlaybackModeInternalV1;
   reconcilePendingInternalV1(
     pending: unknown,
   ): NarrativeStablePublisherBridgeResultInternalV1;
@@ -267,6 +268,33 @@ declare const narrativeStableVoiceReplayActionAttemptBrandInternalV1: unique sym
 export interface NarrativeStableVoiceReplayActionAttemptInternalV1 {
   readonly [narrativeStableVoiceReplayActionAttemptBrandInternalV1]: true;
 }
+
+export type NarrativeStablePlaybackModeInternalV1 = "normal" | "auto" | "skip";
+
+declare const narrativeStablePlaybackModeToggleActionAttemptBrandInternalV1: unique symbol;
+
+export interface NarrativeStablePlaybackModeToggleActionAttemptInternalV1 {
+  readonly [narrativeStablePlaybackModeToggleActionAttemptBrandInternalV1]: true;
+}
+
+export type NarrativeStablePlaybackModeToggleDispatchResultInternalV1 =
+  | Readonly<{
+    readonly kind: "toggled";
+    readonly mode: NarrativeStablePlaybackModeInternalV1;
+    readonly completion: null;
+  }>
+  | Readonly<{
+    readonly kind: "ignored";
+    readonly completion: null;
+  }>
+  | Readonly<{
+    readonly kind: "stale";
+    readonly completion: null;
+  }>
+  | Readonly<{
+    readonly kind: "faulted";
+    readonly completion: null;
+  }>;
 
 export type NarrativeStableVoiceReplayDispatchResultInternalV1 =
   | Readonly<{
@@ -484,7 +512,8 @@ export type NarrativeStablePhysicalActionDispatchResultInternalV1 =
     readonly kind: "faulted";
     readonly completion: null;
   }>
-  | NarrativeStableVoiceReplayDispatchResultInternalV1;
+  | NarrativeStableVoiceReplayDispatchResultInternalV1
+  | NarrativeStablePlaybackModeToggleDispatchResultInternalV1;
 
 export interface CreateNarrativeStablePhysicalActionAdmissionInputInternalV1 {
   readonly bridge: NarrativeStablePublisherBridgeInternalV1;
@@ -508,6 +537,9 @@ export interface NarrativeStablePhysicalActionAdmissionInternalV1 {
     controller: unknown,
   ): NarrativeStableSayActivationAttemptInternalV1 | null;
   issueVoiceReplayAttemptInternalV1(): NarrativeStableVoiceReplayActionAttemptInternalV1 | null;
+  issuePlaybackModeToggleAttemptInternalV1(
+    requestedMode: "auto" | "skip",
+  ): NarrativeStablePlaybackModeToggleActionAttemptInternalV1 | null;
   routeInternalV1(
     envelope: ManagedSurfaceActionEnvelopeV1,
     attempt: unknown,
@@ -539,6 +571,10 @@ interface NarrativeStableCurrentTargetProjectionInternalV1 {
   readonly frame: NarrativeStableAdmittedFrameInternalV1;
 }
 
+interface NarrativeStablePlaybackModeStateInternalV1 {
+  readonly mode: NarrativeStablePlaybackModeInternalV1;
+}
+
 interface NarrativeStablePublisherBridgeRecordInternalV1 {
   readonly compositeRuntimeKernel: ManagedSurfaceStableCompositeRuntimeKernelInternalV1;
   readonly isActiveInternalV1: () => boolean;
@@ -548,6 +584,7 @@ interface NarrativeStablePublisherBridgeRecordInternalV1 {
   readonly captureCurrentTargetInternalV1: () =>
     | NarrativeStableCurrentTargetProjectionInternalV1
     | null;
+  currentModeState: NarrativeStablePlaybackModeStateInternalV1;
   physicalActionAdmissionClaim: object | null;
   pauseExpiryControllerClaim: object | null;
   sayRevealControllerClaim: object | null;
@@ -561,6 +598,16 @@ interface NarrativeStablePublisherBridgeRecordInternalV1 {
   barrierRecoverySynchronizationClaim: object | null;
   barrierRecoverySynchronizationPoisoned: boolean;
   barrierRecoveryGeneration: NarrativeStableBarrierRecoveryGenerationRecordInternalV1 | null;
+}
+
+function compareAndSetNarrativePlaybackModeStateInternalV1(
+  bridgeRecord: NarrativeStablePublisherBridgeRecordInternalV1,
+  expectedState: NarrativeStablePlaybackModeStateInternalV1,
+  successorState: NarrativeStablePlaybackModeStateInternalV1,
+): boolean {
+  if (bridgeRecord.currentModeState !== expectedState) return false;
+  bridgeRecord.currentModeState = successorState;
+  return true;
 }
 
 const narrativeTargetFrameRecordsInternalV1 = new WeakMap<
@@ -656,6 +703,22 @@ interface NarrativeStableVoiceReplayActionAttemptRecordInternalV1 {
 const narrativeStableVoiceReplayActionAttemptRecordsInternalV1 = new WeakMap<
   NarrativeStableVoiceReplayActionAttemptInternalV1,
   NarrativeStableVoiceReplayActionAttemptRecordInternalV1
+>();
+
+interface NarrativeStablePlaybackModeToggleActionAttemptRecordInternalV1 {
+  readonly authority: NarrativeStablePhysicalActionAdmissionInternalV1;
+  readonly requestedMode: "auto" | "skip";
+  readonly targetProof: ManagedSurfaceStableDirectActionTargetProofInternalV1;
+  readonly directTarget: ManagedSurfaceStableAdmittedTargetInternalV1;
+  readonly sourceRevision: ManagedSurfaceStableSourceRevisionInternalV1;
+  readonly frame: NarrativeStableAdmittedFrameInternalV1;
+  readonly issuanceModeState: NarrativeStablePlaybackModeStateInternalV1;
+  spent: boolean;
+}
+
+const narrativeStablePlaybackModeToggleActionAttemptRecordsInternalV1 = new WeakMap<
+  NarrativeStablePlaybackModeToggleActionAttemptInternalV1,
+  NarrativeStablePlaybackModeToggleActionAttemptRecordInternalV1
 >();
 
 interface NarrativeStableSayContentAutoAttemptRecordInternalV1 {
@@ -891,6 +954,62 @@ const stableReconcileFaultedResultInternalV1 = Object.freeze({
   delta: stableZeroDeltaInternalV1,
 });
 
+function createNarrativePlaybackModeStateInternalV1(
+  mode: NarrativeStablePlaybackModeInternalV1,
+): NarrativeStablePlaybackModeStateInternalV1 {
+  return freezeNarrativePhysicalActionDataInternalV1({ mode });
+}
+
+const narrativePlaybackModeToggledNormalResultInternalV1 = Object.freeze({
+  kind: "toggled" as const,
+  mode: "normal" as const,
+  completion: null,
+});
+
+const narrativePlaybackModeToggledAutoResultInternalV1 = Object.freeze({
+  kind: "toggled" as const,
+  mode: "auto" as const,
+  completion: null,
+});
+
+const narrativePlaybackModeToggledSkipResultInternalV1 = Object.freeze({
+  kind: "toggled" as const,
+  mode: "skip" as const,
+  completion: null,
+});
+
+const narrativePlaybackModeIgnoredResultInternalV1 = Object.freeze({
+  kind: "ignored" as const,
+  completion: null,
+});
+
+const narrativePlaybackModeStaleResultInternalV1 = Object.freeze({
+  kind: "stale" as const,
+  completion: null,
+});
+
+const narrativePlaybackModeFaultedResultInternalV1 = Object.freeze({
+  kind: "faulted" as const,
+  completion: null,
+});
+
+function playbackModeToggledResultInternalV1(
+  mode: NarrativeStablePlaybackModeInternalV1,
+): Extract<NarrativeStablePlaybackModeToggleDispatchResultInternalV1, { kind: "toggled" }> {
+  return mode === "normal"
+    ? narrativePlaybackModeToggledNormalResultInternalV1
+    : mode === "auto"
+    ? narrativePlaybackModeToggledAutoResultInternalV1
+    : narrativePlaybackModeToggledSkipResultInternalV1;
+}
+
+function toggledPlaybackModeInternalV1(
+  currentMode: NarrativeStablePlaybackModeInternalV1,
+  requestedMode: "auto" | "skip",
+): NarrativeStablePlaybackModeInternalV1 {
+  return currentMode === requestedMode ? "normal" : requestedMode;
+}
+
 const narrativePhysicalActionStaleResultInternalV1 = Object.freeze({
   kind: "stale" as const,
   completion: null,
@@ -1109,6 +1228,12 @@ const narrativeConfirmActionIdInternalV1 = parseManagedSurfaceActionIdV1("ui.con
 const narrativeAdvanceActionIdInternalV1 = parseManagedSurfaceActionIdV1("narrative.advance");
 const narrativeReplayVoiceActionIdInternalV1 = parseManagedSurfaceActionIdV1(
   "player.replay_voice",
+);
+const narrativeToggleAutoActionIdInternalV1 = parseManagedSurfaceActionIdV1(
+  "player.toggle_auto",
+);
+const narrativeToggleSkipActionIdInternalV1 = parseManagedSurfaceActionIdV1(
+  "player.toggle_skip",
 );
 
 const readinessPolicyInternalV1 = Object.freeze({
@@ -1681,30 +1806,86 @@ export function createNarrativeStablePublisherBridgeInternalV1(
     ) {
       return stableReconcileFaultedResultInternalV1;
     }
-    if (record !== null) {
-      const admittedTarget = admittedTargets[0]!;
-      const previousRecord = narrativeTargetFrameRecordsInternalV1.get(admittedTarget);
-      narrativeTargetFrameRecordsInternalV1.set(admittedTarget, record);
+    const bridgeRecord = narrativeStablePublisherBridgeRecordsInternalV1.get(bridge);
+    if (bridgeRecord === undefined) return stableReconcileFaultedResultInternalV1;
+    const admittedTarget = record === null ? null : admittedTargets[0]!;
+    const previousTargetRecord = admittedTarget === null
+      ? undefined
+      : narrativeTargetFrameRecordsInternalV1.get(admittedTarget);
+    let predecessorModeState: NarrativeStablePlaybackModeStateInternalV1 | null = null;
+    let provisionalModeState: NarrativeStablePlaybackModeStateInternalV1 | null = null;
+    if (
+      (record === null || record.frame.pending.kind !== "say") &&
+      bridgeRecord.currentModeState.mode !== "normal"
+    ) {
+      predecessorModeState = bridgeRecord.currentModeState;
+      provisionalModeState = createNarrativePlaybackModeStateInternalV1("normal");
+      if (
+        !compareAndSetNarrativePlaybackModeStateInternalV1(
+          bridgeRecord,
+          predecessorModeState,
+          provisionalModeState,
+        )
+      ) {
+        return stableReconcileFaultedResultInternalV1;
+      }
+    }
+
+    const restorePrestage = (): void => {
+      try {
+        if (
+          admittedTarget !== null && record !== null &&
+          narrativeTargetFrameRecordsInternalV1.get(admittedTarget) === record
+        ) {
+          if (previousTargetRecord === undefined) {
+            narrativeTargetFrameRecordsInternalV1.delete(admittedTarget);
+          } else {
+            narrativeTargetFrameRecordsInternalV1.set(admittedTarget, previousTargetRecord);
+          }
+        }
+      } finally {
+        if (
+          predecessorModeState !== null && provisionalModeState !== null
+        ) {
+          compareAndSetNarrativePlaybackModeStateInternalV1(
+            bridgeRecord,
+            provisionalModeState,
+            predecessorModeState,
+          );
+        }
+      }
+    };
+
+    try {
+      if (admittedTarget !== null && record !== null) {
+        narrativeTargetFrameRecordsInternalV1.set(admittedTarget, record);
+      }
       const applied = Reflect.apply(applyStableAdmissionProposal, compositeRuntimeKernel, [
         evaluated.proposal,
       ]);
       if (applied.kind !== "applied") {
-        if (narrativeTargetFrameRecordsInternalV1.get(admittedTarget) === record) {
-          if (previousRecord === undefined) {
-            narrativeTargetFrameRecordsInternalV1.delete(admittedTarget);
-          } else {
-            narrativeTargetFrameRecordsInternalV1.set(admittedTarget, previousRecord);
-          }
-        }
+        restorePrestage();
       }
       return applied;
+    } catch (error) {
+      restorePrestage();
+      throw error;
     }
-    return Reflect.apply(applyStableAdmissionProposal, compositeRuntimeKernel, [
-      evaluated.proposal,
-    ]);
   };
 
   const bridge: NarrativeStablePublisherBridgeInternalV1 = Object.freeze({
+    readPlaybackModeInternalV1(): NarrativeStablePlaybackModeInternalV1 {
+      if (!bridgeActive) return "normal";
+      const bridgeRecord = narrativeStablePublisherBridgeRecordsInternalV1.get(bridge);
+      if (bridgeRecord === undefined) return "normal";
+      try {
+        const current = captureCurrentProjection();
+        return bridgeActive && "context" in current ? bridgeRecord.currentModeState.mode : "normal";
+      } catch {
+        return "normal";
+      }
+    },
+
     reconcilePendingInternalV1(
       pendingInput: unknown,
     ): NarrativeStablePublisherBridgeResultInternalV1 {
@@ -1845,8 +2026,22 @@ export function createNarrativeStablePublisherBridgeInternalV1(
       // Fence every family ingress before the composite transition can notify
       // synchronous listeners. Disposal is terminal for this bridge even when
       // the underlying authority reports a fail-closed divergence.
-      bridgeActive = false;
       const bridgeRecord = narrativeStablePublisherBridgeRecordsInternalV1.get(bridge);
+      const predecessorModeState = bridgeRecord?.currentModeState ?? null;
+      const terminalModeState = predecessorModeState?.mode === "normal"
+        ? null
+        : createNarrativePlaybackModeStateInternalV1("normal");
+      bridgeActive = false;
+      if (
+        bridgeRecord !== undefined && predecessorModeState !== null &&
+        terminalModeState !== null
+      ) {
+        compareAndSetNarrativePlaybackModeStateInternalV1(
+          bridgeRecord,
+          predecessorModeState,
+          terminalModeState,
+        );
+      }
       const recoveryGeneration = bridgeRecord?.barrierRecoveryGeneration;
       if (recoveryGeneration !== undefined && recoveryGeneration !== null) {
         retireNarrativeBarrierRecoveryGenerationInternalV1(recoveryGeneration);
@@ -1886,6 +2081,7 @@ export function createNarrativeStablePublisherBridgeInternalV1(
         })
         : null;
     },
+    currentModeState: createNarrativePlaybackModeStateInternalV1("normal"),
     physicalActionAdmissionClaim: null,
     pauseExpiryControllerClaim: null,
     sayRevealControllerClaim: null,
@@ -2763,7 +2959,8 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
   if (
     initialFrame === null ||
     (initialFrame.pending.kind !== "say" && initialFrame.pending.kind !== "choice" &&
-      initialFrame.pending.kind !== "pause" && initialFrame.pending.kind !== "custom") ||
+      initialFrame.pending.kind !== "pause" && initialFrame.pending.kind !== "custom" &&
+      initialFrame.pending.kind !== "presentation_barrier") ||
     !narrativeStableSemanticResolutionPortBindingsInternalV1.has(
       initialFrame.candidateSnapshot.semanticDispatchPort,
     )
@@ -2795,7 +2992,14 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
         }
         const isSayAlias = actionId === narrativeConfirmActionIdInternalV1 ||
           actionId === narrativeAdvanceActionIdInternalV1;
-        const mappedKind = actionId === narrativeReplayVoiceActionIdInternalV1
+        const requestedPlaybackMode = actionId === narrativeToggleAutoActionIdInternalV1
+          ? "auto"
+          : actionId === narrativeToggleSkipActionIdInternalV1
+          ? "skip"
+          : null;
+        const mappedKind = requestedPlaybackMode !== null
+          ? "playback_mode_toggle"
+          : actionId === narrativeReplayVoiceActionIdInternalV1
           ? "voice_replay"
           : actionId === narrativeChooseActionIdInternalV1
           ? "choice"
@@ -2808,6 +3012,166 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
           : null;
         if (mappedKind === null) {
           return narrativePhysicalActionUnmappedResultInternalV1;
+        }
+        if (
+          (typeof attempt === "object" || typeof attempt === "function") && attempt !== null
+        ) {
+          const playbackModeRecord = narrativeStablePlaybackModeToggleActionAttemptRecordsInternalV1
+            .get(
+              attempt as NarrativeStablePlaybackModeToggleActionAttemptInternalV1,
+            );
+          if (
+            playbackModeRecord !== undefined && playbackModeRecord.authority === authority &&
+            !playbackModeRecord.spent &&
+            (requestedPlaybackMode === null ||
+              playbackModeRecord.requestedMode !== requestedPlaybackMode)
+          ) {
+            return narrativePhysicalActionUnmappedResultInternalV1;
+          }
+        }
+        if (mappedKind === "playback_mode_toggle") {
+          if (
+            (typeof attempt !== "object" && typeof attempt !== "function") || attempt === null
+          ) {
+            return narrativePlaybackModeStaleResultInternalV1;
+          }
+          const record = narrativeStablePlaybackModeToggleActionAttemptRecordsInternalV1.get(
+            attempt as NarrativeStablePlaybackModeToggleActionAttemptInternalV1,
+          );
+          if (
+            record === undefined || record.authority !== authority || record.spent ||
+            record.requestedMode !== requestedPlaybackMode
+          ) {
+            return narrativePlaybackModeStaleResultInternalV1;
+          }
+          record.spent = true;
+
+          const classifyCurrentPlaybackModeTarget = ():
+            | "say"
+            | "non_say"
+            | "stale"
+            | "faulted" => {
+            if (
+              !active || bridgeRecord.physicalActionAdmissionClaim !== admissionClaim ||
+              !bridgeRecord.isActiveInternalV1() || bridgeRecord.sayCallbackClaim !== null ||
+              bridgeRecord.currentModeState !== record.issuanceModeState
+            ) {
+              return "stale";
+            }
+
+            let targetIsCurrent: unknown;
+            try {
+              targetIsCurrent = Reflect.apply(isCurrentDirectTarget, stableActionAuthority, [
+                record.targetProof,
+              ]);
+            } catch {
+              return "faulted";
+            }
+            if (targetIsCurrent !== true) return "stale";
+
+            let current: ReturnType<
+              ManagedSurfaceStableActionRouteAuthorityInternalV1[
+                "captureCurrentStableInputInternalV1"
+              ]
+            >;
+            try {
+              current = Reflect.apply(
+                captureCurrentStableInput,
+                stableActionAuthority,
+                [],
+              ) as typeof current;
+            } catch {
+              return "faulted";
+            }
+            if (current.kind === "faulted") return "faulted";
+            if (
+              current.kind !== "captured" || current.directTarget !== record.directTarget ||
+              current.sourceRevision !== record.sourceRevision || current.targetProof === null ||
+              !equalManagedSurfaceInputBindingContractV1(
+                current.contract,
+                capturedInitial.contract,
+              )
+            ) {
+              return "stale";
+            }
+
+            try {
+              if (
+                Reflect.apply(isCurrentDirectTarget, stableActionAuthority, [
+                  current.targetProof,
+                ]) !== true
+              ) {
+                return "stale";
+              }
+            } catch {
+              return "faulted";
+            }
+
+            let currentFrame: NarrativeStableAdmittedFrameInternalV1 | null;
+            try {
+              currentFrame = Reflect.apply(inspectAdmittedTargetFrame, bridge, [
+                current.directTarget,
+              ]) as NarrativeStableAdmittedFrameInternalV1 | null;
+            } catch {
+              return "faulted";
+            }
+            if (currentFrame !== record.frame) return "stale";
+            if (currentFrame.pending.kind === "say") return "say";
+            if (
+              currentFrame.pending.kind === "choice" || currentFrame.pending.kind === "pause" ||
+              currentFrame.pending.kind === "custom" ||
+              currentFrame.pending.kind === "presentation_barrier"
+            ) {
+              return "non_say";
+            }
+            return "faulted";
+          };
+
+          const currentKind = classifyCurrentPlaybackModeTarget();
+          if (currentKind === "stale") return narrativePlaybackModeStaleResultInternalV1;
+          if (currentKind === "faulted") return narrativePlaybackModeFaultedResultInternalV1;
+          if (currentKind === "non_say") {
+            return record.issuanceModeState.mode === "normal"
+              ? narrativePlaybackModeIgnoredResultInternalV1
+              : narrativePlaybackModeFaultedResultInternalV1;
+          }
+
+          let successorModeState: NarrativeStablePlaybackModeStateInternalV1;
+          let toggledResult: Extract<
+            NarrativeStablePlaybackModeToggleDispatchResultInternalV1,
+            { kind: "toggled" }
+          >;
+          try {
+            const successorMode = toggledPlaybackModeInternalV1(
+              record.issuanceModeState.mode,
+              requestedPlaybackMode,
+            );
+            successorModeState = createNarrativePlaybackModeStateInternalV1(successorMode);
+            toggledResult = playbackModeToggledResultInternalV1(successorMode);
+          } catch {
+            return narrativePlaybackModeFaultedResultInternalV1;
+          }
+
+          const finalKind = classifyCurrentPlaybackModeTarget();
+          if (finalKind === "stale") return narrativePlaybackModeStaleResultInternalV1;
+          if (finalKind !== "say") return narrativePlaybackModeFaultedResultInternalV1;
+          if (
+            !active || bridgeRecord.physicalActionAdmissionClaim !== admissionClaim ||
+            !bridgeRecord.isActiveInternalV1() || bridgeRecord.sayCallbackClaim !== null ||
+            bridgeRecord.currentModeState !== record.issuanceModeState
+          ) {
+            return narrativePlaybackModeStaleResultInternalV1;
+          }
+          if (
+            !compareAndSetNarrativePlaybackModeStateInternalV1(
+              bridgeRecord,
+              record.issuanceModeState,
+              successorModeState,
+            )
+          ) {
+            return narrativePlaybackModeStaleResultInternalV1;
+          }
+          return toggledResult;
         }
         if (mappedKind === "voice_replay") {
           if (
@@ -3624,6 +3988,71 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
           sourceRevision: current.sourceRevision,
           frame,
           voiceReplayPort: frame.candidateSnapshot.voiceReplayPort,
+          spent: false,
+        });
+        return attempt;
+      } catch {
+        return null;
+      }
+    },
+    issuePlaybackModeToggleAttemptInternalV1(
+      this: NarrativeStablePhysicalActionAdmissionInternalV1,
+      requestedMode: "auto" | "skip",
+    ): NarrativeStablePlaybackModeToggleActionAttemptInternalV1 | null {
+      if (
+        this !== authority || !active ||
+        (requestedMode !== "auto" && requestedMode !== "skip") ||
+        bridgeRecord.physicalActionAdmissionClaim !== admissionClaim ||
+        !bridgeRecord.isActiveInternalV1() || bridgeRecord.sayCallbackClaim !== null
+      ) {
+        return null;
+      }
+      try {
+        const issuanceModeState = bridgeRecord.currentModeState;
+        const current = Reflect.apply(
+          captureCurrentStableInput,
+          stableActionAuthority,
+          [],
+        ) as ReturnType<
+          ManagedSurfaceStableActionRouteAuthorityInternalV1[
+            "captureCurrentStableInputInternalV1"
+          ]
+        >;
+        if (
+          current.kind !== "captured" || current.directTarget === null ||
+          current.sourceRevision === null || current.targetProof === null ||
+          !equalManagedSurfaceInputBindingContractV1(current.contract, capturedInitial.contract) ||
+          Reflect.apply(isCurrentDirectTarget, stableActionAuthority, [current.targetProof]) !==
+            true
+        ) {
+          return null;
+        }
+        const frame = Reflect.apply(inspectAdmittedTargetFrame, bridge, [
+          current.directTarget,
+        ]) as NarrativeStableAdmittedFrameInternalV1 | null;
+        if (
+          frame === null ||
+          (frame.pending.kind !== "say" && frame.pending.kind !== "choice" &&
+            frame.pending.kind !== "pause" && frame.pending.kind !== "custom" &&
+            frame.pending.kind !== "presentation_barrier") ||
+          (frame.pending.kind !== "say" && issuanceModeState.mode !== "normal") ||
+          !active || bridgeRecord.physicalActionAdmissionClaim !== admissionClaim ||
+          !bridgeRecord.isActiveInternalV1() || bridgeRecord.sayCallbackClaim !== null ||
+          bridgeRecord.currentModeState !== issuanceModeState
+        ) {
+          return null;
+        }
+        const attempt = freezeNarrativePhysicalActionDataInternalV1(
+          {},
+        ) as NarrativeStablePlaybackModeToggleActionAttemptInternalV1;
+        narrativeStablePlaybackModeToggleActionAttemptRecordsInternalV1.set(attempt, {
+          authority,
+          requestedMode,
+          targetProof: current.targetProof,
+          directTarget: current.directTarget,
+          sourceRevision: current.sourceRevision,
+          frame,
+          issuanceModeState,
           spent: false,
         });
         return attempt;

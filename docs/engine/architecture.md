@@ -1000,8 +1000,58 @@ Base, Host/React/Web, audio presenter, or live Story claimant changed.
 Verification passed focused `2 files / 137 tests`, UI `79 files / 1136 tests`,
 full `253 files / 4066 tests`, and `deno task check`. Browser `101 / 101`,
 examples `45 passed / 2 skipped`, and prebuilt Player `38 / 38` remain prior
-evidence and were not rerun. S4.1b.1b.1b.2b.3b.1 is complete; current/next is
-S4.1b.1b.1b.2b.3c, the bridge-owned Auto/Skip transient-mode floor.
+evidence and were not rerun. S4.1b.1b.1b.2b.3b.1 is complete; at that delivery
+checkpoint, current/next was the Auto/Skip implementation delivered below.
+
+S4.1b.1b.1b.2b.3c.1 now implements the dormant, source-relative bridge-owned
+Auto/Skip transient-mode floor. Each Narrative bridge starts with one fresh,
+frozen, private one-key `normal` mode-state identity. Its record is the only
+writer and strongly retains only the exact current identity; the bridge exposes
+only the read-only `readPlaybackModeInternalV1()` primitive projection. Every
+effective toggle installs another fresh identity, so a primitive
+`normal -> auto -> normal` cycle cannot revive a capability bound to the first
+`normal` state.
+
+The existing physical admission remains the only binding and route authority.
+It issues frozen zero-key, one-shot Auto/Skip attempts bound to the exact
+admission, requested mode, issuance mode-state identity, and current
+target/source/frame proof. Generic application, Surface, Input, publication,
+catalog, and gesture fences run before spend. An exact mapped attempt spends
+once, rechecks the complete currentness set, computes the six closed Say toggle
+transitions, and commits a fresh successor by identity CAS. Ready-active choice,
+pause, custom, and `presentation_barrier` targets can authenticate the same
+controls, but their consumed family result is `ignored` while mode remains
+`normal`; the Barrier path neither reads nor changes Stage or semantic
+authority.
+
+Accepted Say successors, readiness retry, and temporary root suspension retain
+the current mode identity while their old target/source/frame-bound attempts
+become stale. When the current mode is non-`normal`, an accepted non-Say
+boundary or empty publication instead pre-stages a fresh `normal` identity
+after schema, preflight, and admission planning but before composite apply and
+its synchronous listeners; an already-`normal` boundary preserves its exact
+mode-state identity. A
+non-applied result or throw restores the exact predecessor by CAS; a successful
+apply performs no later mode write, so a listener-installed Say successor and
+toggle cannot be clobbered. Mode issue and route share only the synchronous Say
+callback claim as their reentry guard. They do not read, install, release, or
+otherwise participate in the Say semantic-in-flight claim, so a pending
+semantic Promise does not block a later mode toggle.
+
+Bridge, application, and coordinator terminal state make the read projection
+fail closed to `normal` and closes fresh issue and route ingress. The mode adds
+no subscriber, notification, numeric revision, timer, clock, deadline,
+remaining state, semantic dispatch, gameplay mutation, or persistent data. Its
+strong bridge state stays O(1), with old identities retained only behind
+caller-held attempt keys. The mode, attempts, results, and read method remain
+source-relative and absent from the UI root, `./internal`, package exports,
+generic Managed Surface contracts, Host/React/Web, and live Story integration.
+Verification passed focused `2 files / 153 tests`, UI `79 files / 1152 tests`,
+full `253 files / 4082 tests`, and `deno task check`. Browser `101 / 101`,
+examples `45 passed / 2 skipped`, and prebuilt Player `38 / 38` remain prior
+evidence and were not rerun. The superseded S4.1b.1b.1b.2b.3c broad checkpoint,
+its S4.1b.1b.1b.2b.3c.0 docs-only entry, and S4.1b.1b.1b.2b.3c.1 are complete;
+current/next is S4.1b.1b.1b.2b.3d, the History-intent floor.
 
 ## 9. Changing the architecture
 
@@ -1059,8 +1109,10 @@ attempt, and unsupported-result floor described above. S4.1b.1b.1b.2b.3a
 applies the Dialogue catalog corrective described above, while retaining the
 generic input action and legacy live characterization. S4.1b.1b.1b.2b.3b.1
 adds the captured optional voice replay route on the same physical admission
-and shared Say callback fence. The bridge-owned Auto/Skip mode is current/next,
-followed by the History-intent floor. Host integration and the Narrative live
-migration remain planned work; the implemented source-relative claimant does
-not alter the live Host data flow until that migration and its behavior tests
-land.
+and shared Say callback fence. S4.1b.1b.1b.2b.3c.1 adds the bridge-owned
+Auto/Skip identity, authenticated toggle, atomic reset, and fail-closed terminal
+floor described above; the superseded broad `.3c` checkpoint and docs-only
+`.3c.0` entry are historical. Current/next is S4.1b.1b.1b.2b.3d, the
+History-intent floor. Host integration and the Narrative live migration remain
+planned work; the implemented source-relative claimant does not alter the live
+Host data flow until that migration and its behavior tests land.

@@ -36,8 +36,9 @@ S4.1b.1b.1b.2b.3 player controls entry已由S4.1b.1b.1b.2b.3.0 docs-only executi
 S4.1b.1b.1b.2b.3b.0 voice-replay exact entry amendment及
 S4.1b.1b.1b.2b.3b.1 voice replay physical route implementation也已关闭；原
 S4.1b.1b.1b.2b.3c broad mode floor又由S4.1b.1b.1b.2b.3c.0 docs-only exact entry
-amendment细分并取代；当前独立切片为S4.1b.1b.1b.2b.3c.1 bridge-owned Auto/Skip
-transient mode implementation。R4 entry
+amendment细分并取代；S4.1b.1b.1b.2b.3c.1 bridge-owned Auto/Skip transient mode
+implementation也已关闭；当前独立切片为S4.1b.1b.1b.2b.3d History exact-parent open intent
+floor。R4 entry
 adjudication已先以独立S1-R.4.0关闭
 readiness result/capacity contract。R3b entry audit先以独立S1-R.3a.1 corrective补全ready
 retained-subtree authority，该corrective也已关闭。
@@ -52,7 +53,7 @@ S1-R aggregate gate已关闭。
 
 在 [production-floor sequence](2026-07-30-production-floor-sequence.md)
 中：PF2 的 `S0 -> S1-T -> S2`、PF-DET、PF3/M2 与 PF4/S3 已完成；当前 core
-节点是PF4/S4.1b.1b.1b.2b.3c.1。PF4的顺序是
+节点是PF4/S4.1b.1b.1b.2b.3d。PF4的顺序是
 `S3 -> S1-R.0 -> S1-R.1–S1-R.5 -> S4.0 -> S4.1a -> S4.1b.0 -> S4.1b.1a -> S4.1b.1b.0 -> S4.1b.1b.1a -> S4.1b.1b.1b.1 -> S4.1b.1b.1b.2a -> S4.1b.1b.1b.2b.0 -> S4.1b.1b.1b.2b.1a -> S4.1b.1b.1b.2b.1b -> S4.1b.1b.1b.2b.2a -> S4.1b.1b.1b.2b.2b.0 -> S4.1b.1b.1b.2b.2b.1 -> S4.1b.1b.1b.2b.3.0 -> S4.1b.1b.1b.2b.3a -> S4.1b.1b.1b.2b.3b.0 -> S4.1b.1b.1b.2b.3b.1 -> S4.1b.1b.1b.2b.3c.0 -> S4.1b.1b.1b.2b.3c.1 -> S4.1b.1b.1b.2b.3d -> S4.2 -> S4.3 -> S4b`；
 S5–S6 属于 PF6。S1-R
 延后到第一个真实 externally published stable-target family 前完成；按 accepted
@@ -1753,16 +1754,16 @@ S1-R 按以下可独立合并切片推进，每次只领取一个：
     不再直接实施，由`.3c.0` exact entry amendment与`.3c.1` implementation取代。
 39. **S4.1b.1b.1b.2b.3c.0 Auto/Skip exact entry amendment（已完成，docs-only）**：冻结
     bridge-owned mode state、attempt/result、route/lifecycle atomicity、RED matrix与stop，不声明runtime delivery。
-40. **S4.1b.1b.1b.2b.3c.1 bridge-owned Auto/Skip transient mode implementation（当前）**：只实现
+40. **S4.1b.1b.1b.2b.3c.1 bridge-owned Auto/Skip transient mode implementation（已完成）**：只实现
     `.3c.0`冻结的mode与physical route/result floor；clock/timer/deadline/remaining及scheduling留S4.2。
-41. **S4.1b.1b.1b.2b.3d History exact-parent open intent floor（待实施）**：只交付read-only
+41. **S4.1b.1b.1b.2b.3d History exact-parent open intent floor（当前）**：只交付read-only
     availability、opaque open intent与consumed family-local result；不改变topology，History child lifecycle留S4.2。
 42. **S4.2 dormant Narrative Host + History child（待实施）**：controller/view/Host decomposition、Host-commit
     readiness、exact-parent History、managed input/focus/dismiss与Engine Lab dormant conformance；不切live Story。
 43. **S4.3 atomic live cutover and promotion（待实施）**：同批迁移Engine Lab、template、Cat Cafe、Bookshop，
     删除旧lifecycle writers与standalone public path，更新live docs并完成headless/browser/prebuilt promotion。
 
-当前只允许从 **S4.1b.1b.1b.2b.3c.1** 开始。Stable ingress与stable-specific state/API仍保持
+当前只允许从 **S4.1b.1b.1b.2b.3d** 开始。Stable ingress与stable-specific state/API仍保持
 dormant/package-internal；S4.1允许source-relative Narrative bridge消费Base semantic contract，但不接live
 Narrative/React/Web application graph、不mount React Host，也不更新live feature文档；shared pure topology
 policy只经existing transient adapter live复用，R3a 已将既有live transient reducer/Coordinator 收口到
@@ -3026,9 +3027,9 @@ examples/prebuilt；S0 deterministic Chromium RED与最近R4b.1 browser `101 / 1
     不再直接实施，由`.3c.0` exact entry amendment与`.3c.1` implementation取代。
 21. **S4.1b.1b.1b.2b.3c.0 Auto/Skip exact entry amendment（已完成，docs-only）**：冻结
     bridge-owned mode state、attempt/result、route/lifecycle atomicity、RED matrix与stop，不声明runtime delivery。
-22. **S4.1b.1b.1b.2b.3c.1 bridge-owned Auto/Skip transient mode implementation（当前）**：只实现
+22. **S4.1b.1b.1b.2b.3c.1 bridge-owned Auto/Skip transient mode implementation（已完成）**：只实现
     `.3c.0`冻结的mode与physical route/result，不实现clock、timer、deadline、remaining或scheduling。
-23. **S4.1b.1b.1b.2b.3d History exact-parent open intent floor（待实施）**：只交付exact read-only
+23. **S4.1b.1b.1b.2b.3d History exact-parent open intent floor（当前）**：只交付exact read-only
     availability、opaque one-shot open intent与`requested | ignored | stale | faulted` family result；Input仍consumed，
     不调用Coordinator或改变topology。
 24. **S4.2 dormant Host/History integration（待实施）**：交付controller/view/Host decomposition、captured resolver/required-port snapshot、
@@ -3739,9 +3740,9 @@ generic Surface result/receipt，也不改动Base interaction、Save/Persistence
    `player.toggle_history`/`ui.cancel` close、focus restore、dismiss、root suspension或timer coordination。这些全部由S4.2在
    same-composition transition fence内消费intent并交付actual History child lifecycle。
 
-因此本历史amendment当时冻结的线性implementation order包含原`.3c` broad checkpoint；该checkpoint现已由下述
-`.3c.0`/`.3c.1`细分。当前有效顺序为
-**S4.1b.1b.1b.2b.3b.0 → S4.1b.1b.1b.2b.3b.1 → S4.1b.1b.1b.2b.3c.0 → S4.1b.1b.1b.2b.3c.1 → S4.1b.1b.1b.2b.3d → S4.2 → S4.3 → S4b**。
+因此本历史amendment当时冻结的线性implementation order包含原`.3c` broad checkpoint；该checkpoint后来由
+`.3c.0`/`.3c.1`细分，且`.3b.0–.3c.1`现均已完成。当前有效顺序为
+**S4.1b.1b.1b.2b.3d → S4.2 → S4.3 → S4b**。
 `.3a`的历史stop为若必须删除generic input ID、修改legacy live writer或实现fully-hidden topology则停止；`.3b.1`的历史stop为若需要raw
 renderer authority或generic/public result expansion则停止；`.3c.1`若mode
 floor必须同时实现clock/timer/deadline/remaining则停止并把执行部分留S4.2；`.3d`若intent emission必须直接修改topology、
@@ -4130,9 +4131,56 @@ Base、PlayerProfile、Save/Persistence、canonical/digest/replay/wire变化，�
 **S4.1b.1b.1b.2b.3c.0 docs-only acceptance：** 本amendment没有source、test、runtime、Host/React/Web/live claimant或
 delivery evidence，也不把此前
 focused/UI/full/check/browser/examples/prebuilt结果冒充本批验证。验证只要求本文件`deno fmt --check`与`git diff --check`。
-原`.3c` broad checkpoint与本`.3c.0` entry现均为historical contract；唯一active current/next与implementation gate已推进为
-**S4.1b.1b.1b.2b.3c.1 bridge-owned Auto/Skip transient mode implementation**，有效后续顺序为
-**S4.1b.1b.1b.2b.3c.1 → S4.1b.1b.1b.2b.3d → S4.2 → S4.3 → S4b**。
+原`.3c` broad checkpoint与本`.3c.0` entry现均只作为historical contract保留；下述`.3c.1`
+delivery已按该exact entry关闭implementation。
+
+### S4.1b.1b.1b.2b.3c.1 delivery — bridge-owned Auto/Skip transient mode（已完成）
+
+Narrative publisher bridge现在是player playback mode的唯一writer：新增exact
+`NarrativeStablePlaybackModeInternalV1 = "normal" | "auto" | "skip"`与read-only
+`readPlaybackModeInternalV1()`，bridge record只strong-hold一个fresh frozen、own-key exact one `mode`的
+current state。Fresh bridge从fresh normal identity开始；每个effective Say toggle都先mint detached fresh successor state，
+再以exact issuance-state CAS提交，因此`normal → auto → normal`不会复用最初normal identity，pre-signed competitor与scalar
+ABA replay均spent `stale`。三个mode spelling各有canonical frozen `toggled` result，`ignored | stale | faulted`也各复用
+bounded canonical identity。
+
+既有physical admission只新增
+`issuePlaybackModeToggleAttemptInternalV1(requestedMode: "auto" | "skip")`。Fresh frozen zero-key attempt的package-local
+WeakMap provenance绑定exact admission、requested mode、direct-target proof、target/source/frame与issuance mode-state identity，
+不建立第二binding、claimed route、controller、revision、subscriber或current-attempt strong slot。Exact
+`player.toggle_auto | player.toggle_skip`按six-transition table切换current Say；wrong requested mode与non-mode action mismatch在
+spend前返回既有`unmapped`，spoof/clone/foreign/wrong-kind/repeat fail closed，其他choice/pause/custom/Say/voice authentic
+capability也不会被mode probe烧掉。Ready-active choice/pause/custom与presentation Barrier可签发mode attempt，但correct route只
+consumed family-local `ignored`并保持normal；Barrier不签发其他physical capability，也不读取或改变Stage、run、acknowledgment或
+semantic authority。所有mode physical outcome保持existing Input consumed/Surface unchanged，semantic、gameplay、source/runtime、
+topology与notification exact zero。
+
+Mode reset与stable source commit共用同一个bridge record：current mode非normal时，accepted
+choice/pause/custom/barrier或greater-empty只在schema、canonical、preflight及admission plan成功后、existing composite
+apply/notification前pre-stage fresh normal；already-normal boundary保留exact mode-state identity。non-applied或pre-install throw以
+exact CAS恢复predecessor，successful apply返回后不再post-write，因此listener内安装的fresh Say successor/toggle不会被outer reset
+覆盖。Accepted Say→Say preparing/readiness-failed/retry/ready与temporary root suspension/resume保留exact mode identity，但旧
+target/source/frame/input attempt仍stale；physical admission或Say reveal controller dispose/recreate也不reset mode。Effective bridge
+dispose先关闭ingress并让terminal listener只读到normal；application/coordinator terminal同样通过currentness projection fail closed，
+terminal-before-generic保持consumer `null`，generic gate后发生的terminal race则先spend再返回canonical `stale`。
+`sayCallbackClaim`仍只是同步callback-stack guard：claim存续时fresh issue为`null`、pre-signed route为spent stale；mode path不读取、
+占用或清理`saySemanticInFlightClaim`，所以manual semantic Promise pending但callback stack已退出时仍可toggle future mode。
+10,000次toggle、source/readiness/suspension/admission successor churn证明bridge只strong-hold当前state，旧state只由caller仍持有的
+WeakMap-keyed attempt间接保留。
+
+本delivery仍是source-relative、package-internal dormant floor；UI root与`./internal` barrel/package export以negative tests保持
+缺席，也没有generic mode store/result、setter/subscriber、mode notification、Base/PlayerProfile/Save/Persistence或
+canonical/digest/replay/wire变化。它不实现clock、timer、deadline、remaining、reveal cursor、`autoWaitMs`/Skip scheduling、
+automatic semantic dispatch、History topology/intent、React/Web/Host/live claimant或legacy `PlaybackControllerV1` dual write；这些
+继续留给`.3d`、S4.2与S4.3。
+
+验证通过focused `2 files / 153 tests`、UI package `79 files / 1152 tests`、full
+`253 files / 4082 tests`与完整`deno task check`。本source-relative dormant route没有改变browser/build/live graph，因此本批未重跑
+browser/examples/prebuilt；Engine browser `101 / 101`、examples `45 passed / 2 skipped`与prebuilt Player `38 / 38`只作为prior
+evidence，不冒充本delivery HEAD新验证。原`.3c` broad checkpoint、`.3c.0` entry与`.3c.1` implementation现均为completed
+historical record；唯一active current/next、core slice与implementation gate均推进为
+**S4.1b.1b.1b.2b.3d History exact-parent open intent floor**，有效后续顺序为
+**S4.1b.1b.1b.2b.3d → S4.2 → S4.3 → S4b**。
 
 S4.1 aggregate stop在S4.1b.1b.1b.1–S4.1b.1b.1b.2b.3d继续有效：若后续证据要求公开lease/source/occurrence/Coordinator、复用global
 semantic/presentation revision、允许同一semantic occurrence的full normalized `PendingInteractionV1` canonical漂移，
