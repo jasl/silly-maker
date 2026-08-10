@@ -46,6 +46,8 @@ import {
   type ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
   type ManagedSurfaceStableDesiredRuntimeTargetInternalV1,
   type ManagedSurfaceStablePublisherLeaseRegistrationResultInternalV1,
+  type ManagedSurfaceStableReadyActiveTargetCaptureResultInternalV1,
+  type ManagedSurfaceStableReadyActiveTargetProofInternalV1,
   type ManagedSurfaceStableReadyRuntimeInstanceInternalV1,
   type ManagedSurfaceStableRetainedRuntimeSubtreeInternalV1,
   type ManagedSurfaceStableRootReservationContributorCandidateInternalV1,
@@ -202,13 +204,14 @@ function admittedBaselineV1(
 }
 
 function harnessV1(input: {
+  readonly applicationEpoch?: ReturnType<typeof parseNonNegativeSafeInteger>;
   readonly managedInput?: boolean;
   readonly workspaceLayerOrder?: number;
   readonly narrativeLayerOrder?: number;
   readonly actionIds?: readonly ManagedSurfaceActionIdV1[];
 } = {}): StableHarnessV1 {
   const registry = createManagedSurfaceStablePublisherLeaseRegistryInternalV1({
-    applicationEpoch: applicationEpochV1,
+    applicationEpoch: input.applicationEpoch ?? applicationEpochV1,
     resolvedOwnerIds: [workspaceOwnerIdV1, narrativeOwnerIdV1],
     leaseSequenceAllocator: createLocalManagedSurfaceStableLeaseSequenceAllocatorInternalV1(),
   });
@@ -411,9 +414,11 @@ function reconcileV1(
   });
 }
 
-function transientStateV1() {
+function transientStateV1(
+  applicationEpoch: ReturnType<typeof parseNonNegativeSafeInteger> = applicationEpochV1,
+) {
   return createManagedSurfaceReducerStateV1(
-    applicationEpochV1,
+    applicationEpoch,
     [workspaceOwnerIdV1, narrativeOwnerIdV1],
     resolvedSlotDescriptorsV1,
   );
@@ -454,8 +459,11 @@ function admitAndApplyStableTargetV1(input: {
   return installedTarget;
 }
 
-function stableActionFixtureV1() {
+function stableActionFixtureV1(input: {
+  readonly applicationEpoch?: ReturnType<typeof parseNonNegativeSafeInteger>;
+} = {}) {
   const harness = harnessV1({
+    ...(input.applicationEpoch === undefined ? {} : { applicationEpoch: input.applicationEpoch }),
     managedInput: true,
     workspaceLayerOrder: 10,
     narrativeLayerOrder: 20,
@@ -464,7 +472,7 @@ function stableActionFixtureV1() {
   const kernel = createManagedSurfaceStableCompositeRuntimeKernelInternalV1({
     admissionAuthority: harness.authority,
     publisherLeaseRegistry: harness.registry,
-    initialTransientState: transientStateV1(),
+    initialTransientState: transientStateV1(harness.registry.getSnapshot().applicationEpoch),
   });
   expect(kernel.registerStablePublisherLeaseInternalV1(harness.workspace.lease).kind).toBe(
     "registered",
@@ -491,12 +499,56 @@ function settleCurrentStablePreparationReadyV1(
   }
   expect(kernel.settleStableReadinessReadyInternalV1(Object.freeze({
     readinessEvidence: Object.freeze({
-      applicationEpoch: applicationEpochV1,
+      applicationEpoch: kernel.getStateInternalV1().transientState.publication.applicationEpoch,
       surfaceInstanceId: entry.binding.attempt.identity.surfaceInstanceId,
     }),
     publisherLease: entry.desiredTarget.publisherLease,
     sourceRevision: entry.desiredTarget.sourceRevision,
   }))).toMatchObject({ kind: "applied" });
+}
+
+function settleCurrentStablePreparationFailedV1(
+  kernel: ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
+  target: ManagedSurfaceStableAdmittedTargetInternalV1,
+): void {
+  const entry = kernel.getStateInternalV1().stableRuntimeBindings.find((candidate) =>
+    candidate.desiredTarget.admittedTarget.occurrenceId === target.occurrenceId
+  );
+  if (entry?.binding.kind !== "preparing") {
+    throw new Error("expected current stable preparation");
+  }
+  expect(kernel.settleStableReadinessFailedInternalV1(Object.freeze({
+    readinessEvidence: Object.freeze({
+      applicationEpoch: kernel.getStateInternalV1().transientState.publication.applicationEpoch,
+      surfaceInstanceId: entry.binding.attempt.identity.surfaceInstanceId,
+    }),
+    publisherLease: entry.desiredTarget.publisherLease,
+    sourceRevision: entry.desiredTarget.sourceRevision,
+  }))).toMatchObject({ kind: "applied" });
+}
+
+function applyEmptyStablePublicationV1(input: {
+  readonly fixture: ReturnType<typeof stableActionFixtureV1>;
+  readonly publisher: ManagedSurfaceStablePublisherInternalV1;
+  readonly sourceRevision: ManagedSurfaceStableSourceRevisionInternalV1;
+}): void {
+  const context = input.fixture.kernel.captureAdmissionContextInternalV1(input.publisher.lease);
+  if (context.kind !== "captured") throw new Error(`expected captured, got ${context.kind}`);
+  const evaluated = input.fixture.harness.authority.evaluate({
+    publication: Object.freeze({
+      publisherLease: input.publisher.lease,
+      sourceRevision: input.sourceRevision,
+      targets: Object.freeze([]),
+    }),
+    acceptedBaseline: context.acceptedBaseline,
+    reservationSnapshot: context.reservationSnapshot,
+  });
+  if (evaluated.kind !== "admitted") {
+    throw new Error(`expected admitted, got ${evaluated.kind}:${evaluated.code}`);
+  }
+  expect(
+    input.fixture.kernel.applyStableAdmissionProposalInternalV1(evaluated.proposal),
+  ).toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
 }
 
 function publishReadyStableTargetV1(input: {
@@ -2767,8 +2819,10 @@ describe("dormant managed stable action-route authority", () => {
     expect(Object.isFrozen(authority)).toBe(true);
     expect(Reflect.ownKeys(authority)).toEqual([
       "captureCurrentStableInputInternalV1",
+      "captureReadyActiveStableTargetInternalV1",
       "routeActionInternalV1",
       "isCurrentDirectTargetInternalV1",
+      "isCurrentReadyActiveStableTargetInternalV1",
     ]);
     expect(authority.captureCurrentStableInputInternalV1()).toEqual({ kind: "unavailable" });
 
@@ -2830,6 +2884,437 @@ describe("dormant managed stable action-route authority", () => {
     });
     expect(fixture.kernel.getStateInternalV1()).toBe(before);
     expect(stateListener).not.toHaveBeenCalled();
+  });
+
+  it("captures an exact direct ready-active target independently of the input owner", () => {
+    const fixture = stableActionFixtureV1();
+    const installedTarget = publishReadyStableTargetV1({
+      fixture,
+      publisher: fixture.harness.workspace,
+      target: fixture.harness.workspaceRoot,
+      sourceRevision: fixture.harness.workspaceRevision,
+    });
+    expectTypeOf<
+      typeof fixture.authority.captureReadyActiveStableTargetInternalV1
+    >().returns.toEqualTypeOf<ManagedSurfaceStableReadyActiveTargetCaptureResultInternalV1>();
+    expectTypeOf<
+      ExactKeysV1<
+        Extract<
+          ManagedSurfaceStableReadyActiveTargetCaptureResultInternalV1,
+          { readonly kind: "captured" }
+        >
+      >
+    >().toEqualTypeOf<"kind" | "directTarget" | "sourceRevision" | "proof">();
+    expectTypeOf<
+      ExactKeysV1<
+        Extract<
+          ManagedSurfaceStableReadyActiveTargetCaptureResultInternalV1,
+          { readonly kind: "unavailable" }
+        >
+      >
+    >().toEqualTypeOf<"kind">();
+    expectTypeOf<
+      ExactKeysV1<
+        Extract<
+          ManagedSurfaceStableReadyActiveTargetCaptureResultInternalV1,
+          { readonly kind: "faulted" }
+        >
+      >
+    >().toEqualTypeOf<"kind" | "code">();
+
+    const initial = fixture.authority.captureReadyActiveStableTargetInternalV1(installedTarget);
+    expect(initial.kind).toBe("captured");
+    if (initial.kind !== "captured") throw new Error("expected ready-active proof");
+    expect(Reflect.ownKeys(initial)).toEqual([
+      "kind",
+      "directTarget",
+      "sourceRevision",
+      "proof",
+    ]);
+    expect(Object.isFrozen(initial)).toBe(true);
+    expect(initial.directTarget).toBe(installedTarget);
+    expect(initial.sourceRevision).toBe(fixture.harness.workspaceRevision);
+    expectTypeOf(initial.proof).toEqualTypeOf<
+      ManagedSurfaceStableReadyActiveTargetProofInternalV1
+    >();
+    expect(Reflect.ownKeys(initial.proof)).toEqual([]);
+    expect(Object.isFrozen(initial.proof)).toBe(true);
+    expect(
+      fixture.authority.isCurrentReadyActiveStableTargetInternalV1(initial.proof),
+    ).toBe(true);
+
+    const coordinator = createManagedSurfaceCoordinatorFacadeInternalV1(fixture.kernel);
+    const higherInput = coordinator.openTransientPrimary({
+      definition: definitionV1({
+        definitionId: rootDefinitionBV1,
+        ownerId: narrativeOwnerIdV1,
+        slotId: rootSlotBV1,
+        layerOrder: 30,
+        modality: "non_blocking",
+        managedInput: true,
+        actionIds: [narrativeAdvanceActionIdV1],
+      }).definition,
+      semanticOccurrenceId: null,
+    });
+    expect(higherInput.receipt.kind).toBe("applied");
+    expect(higherInput.readiness?.ready().receipt.kind).toBe("applied");
+    expect(fixture.authority.captureCurrentStableInputInternalV1()).toEqual({
+      kind: "unavailable",
+    });
+    expect(
+      fixture.authority.isCurrentReadyActiveStableTargetInternalV1(initial.proof),
+    ).toBe(false);
+
+    const before = fixture.kernel.getStateInternalV1();
+    const stateListener = vi.fn();
+    const transientListener = vi.fn();
+    fixture.kernel.subscribeStateInternalV1(stateListener);
+    coordinator.subscribe(transientListener);
+    const fresh = fixture.authority.captureReadyActiveStableTargetInternalV1(installedTarget);
+    expect(fresh.kind).toBe("captured");
+    if (fresh.kind !== "captured") throw new Error("expected fresh ready-active proof");
+    expect(fresh.directTarget).toBe(installedTarget);
+    expect(fresh.sourceRevision).toBe(fixture.harness.workspaceRevision);
+    expect(
+      fixture.authority.isCurrentReadyActiveStableTargetInternalV1(fresh.proof),
+    ).toBe(true);
+    expect(fixture.kernel.getStateInternalV1()).toBe(before);
+    expect(stateListener).not.toHaveBeenCalled();
+    expect(transientListener).not.toHaveBeenCalled();
+  });
+
+  it("rejects preparing, gap, retained, and suspended targets", () => {
+    const preparingFixture = stableActionFixtureV1();
+    const preparing = admitAndApplyStableTargetV1({
+      harness: preparingFixture.harness,
+      kernel: preparingFixture.kernel,
+      publisher: preparingFixture.harness.workspace,
+      target: preparingFixture.harness.workspaceRoot,
+      sourceRevision: preparingFixture.harness.workspaceRevision,
+    });
+    expect(
+      preparingFixture.authority.captureReadyActiveStableTargetInternalV1(preparing),
+    ).toEqual({ kind: "unavailable" });
+    settleCurrentStablePreparationFailedV1(preparingFixture.kernel, preparing);
+    expect(
+      preparingFixture.authority.captureReadyActiveStableTargetInternalV1(preparing),
+    ).toEqual({ kind: "unavailable" });
+
+    const retainedFixture = stableActionFixtureV1();
+    const retained = publishReadyStableTargetV1({
+      fixture: retainedFixture,
+      publisher: retainedFixture.harness.workspace,
+      target: retainedFixture.harness.workspaceRoot,
+      sourceRevision: retainedFixture.harness.workspaceRevision,
+    });
+    const retainedProof = retainedFixture.authority
+      .captureReadyActiveStableTargetInternalV1(retained);
+    if (retainedProof.kind !== "captured") throw new Error("expected retained predecessor proof");
+    const replacement = admitAndApplyStableTargetV1({
+      harness: retainedFixture.harness,
+      kernel: retainedFixture.kernel,
+      publisher: retainedFixture.harness.workspace,
+      target: retainedFixture.harness.workspaceReplacement,
+      sourceRevision: retainedFixture.harness.workspaceReplacementRevision,
+    });
+    expect(
+      retainedFixture.authority.isCurrentReadyActiveStableTargetInternalV1(
+        retainedProof.proof,
+      ),
+    ).toBe(false);
+    expect(
+      retainedFixture.authority.captureReadyActiveStableTargetInternalV1(retained),
+    ).toEqual({ kind: "unavailable" });
+    expect(
+      retainedFixture.authority.captureReadyActiveStableTargetInternalV1(replacement),
+    ).toEqual({ kind: "unavailable" });
+
+    const suspendedFixture = stableActionFixtureV1();
+    const suspended = publishReadyStableTargetV1({
+      fixture: suspendedFixture,
+      publisher: suspendedFixture.harness.workspace,
+      target: suspendedFixture.harness.workspaceRoot,
+      sourceRevision: suspendedFixture.harness.workspaceRevision,
+    });
+    const suspendedProof = suspendedFixture.authority
+      .captureReadyActiveStableTargetInternalV1(suspended);
+    if (suspendedProof.kind !== "captured") throw new Error("expected active target proof");
+    const coordinator = createManagedSurfaceCoordinatorFacadeInternalV1(
+      suspendedFixture.kernel,
+    );
+    const blocker = coordinator.openTransientPrimary({
+      definition: definitionV1({
+        definitionId: rootDefinitionBV1,
+        ownerId: narrativeOwnerIdV1,
+        slotId: rootSlotBV1,
+        layerOrder: 30,
+        modality: "blocking",
+      }).definition,
+      semanticOccurrenceId: null,
+    });
+    expect(blocker.receipt.kind).toBe("applied");
+    expect(blocker.readiness?.ready().receipt.kind).toBe("applied");
+    expect(
+      suspendedFixture.authority.captureReadyActiveStableTargetInternalV1(suspended),
+    ).toEqual({ kind: "unavailable" });
+    expect(
+      suspendedFixture.authority.isCurrentReadyActiveStableTargetInternalV1(
+        suspendedProof.proof,
+      ),
+    ).toBe(false);
+  });
+
+  it("invalidates ready-active proofs across source, topology, empty, disposal, and epoch fences", () => {
+    const sourceFixture = stableActionFixtureV1();
+    const sourceTarget = publishReadyStableTargetV1({
+      fixture: sourceFixture,
+      publisher: sourceFixture.harness.workspace,
+      target: sourceFixture.harness.workspaceRoot,
+      sourceRevision: sourceFixture.harness.workspaceRevision,
+    });
+    const initial = sourceFixture.authority.captureReadyActiveStableTargetInternalV1(sourceTarget);
+    if (initial.kind !== "captured") throw new Error("expected initial ready-active proof");
+    const nextSourceRevision = sourceFixture.harness.workspace.issueSourceRevision();
+    const sourceAdvancedTarget = admitAndApplyStableTargetV1({
+      harness: sourceFixture.harness,
+      kernel: sourceFixture.kernel,
+      publisher: sourceFixture.harness.workspace,
+      target: sourceTarget,
+      sourceRevision: nextSourceRevision,
+    });
+    expect(
+      sourceFixture.authority.isCurrentReadyActiveStableTargetInternalV1(initial.proof),
+    ).toBe(false);
+    const sourceAdvanced = sourceFixture.authority
+      .captureReadyActiveStableTargetInternalV1(sourceAdvancedTarget);
+    expect(sourceAdvanced.kind).toBe("captured");
+    if (sourceAdvanced.kind !== "captured") throw new Error("expected source-advanced proof");
+    expect(sourceAdvanced.sourceRevision).toBe(nextSourceRevision);
+    expect(sourceAdvanced.directTarget).toBe(sourceAdvancedTarget);
+
+    admitAndApplyStableTargetV1({
+      harness: sourceFixture.harness,
+      kernel: sourceFixture.kernel,
+      publisher: sourceFixture.harness.workspace,
+      target: sourceFixture.harness.workspaceReplacement,
+      sourceRevision: sourceFixture.harness.workspace.issueSourceRevision(),
+    });
+    expect(
+      sourceFixture.authority.isCurrentReadyActiveStableTargetInternalV1(
+        sourceAdvanced.proof,
+      ),
+    ).toBe(false);
+
+    const emptyFixture = stableActionFixtureV1();
+    const emptyTarget = publishReadyStableTargetV1({
+      fixture: emptyFixture,
+      publisher: emptyFixture.harness.workspace,
+      target: emptyFixture.harness.workspaceRoot,
+      sourceRevision: emptyFixture.harness.workspaceRevision,
+    });
+    const emptyProof = emptyFixture.authority
+      .captureReadyActiveStableTargetInternalV1(emptyTarget);
+    if (emptyProof.kind !== "captured") throw new Error("expected pre-empty proof");
+    applyEmptyStablePublicationV1({
+      fixture: emptyFixture,
+      publisher: emptyFixture.harness.workspace,
+      sourceRevision: emptyFixture.harness.workspace.issueSourceRevision(),
+    });
+    expect(
+      emptyFixture.authority.isCurrentReadyActiveStableTargetInternalV1(emptyProof.proof),
+    ).toBe(false);
+    expect(
+      emptyFixture.authority.captureReadyActiveStableTargetInternalV1(emptyTarget),
+    ).toEqual({ kind: "unavailable" });
+
+    const disposedFixture = stableActionFixtureV1();
+    const disposedTarget = publishReadyStableTargetV1({
+      fixture: disposedFixture,
+      publisher: disposedFixture.harness.workspace,
+      target: disposedFixture.harness.workspaceRoot,
+      sourceRevision: disposedFixture.harness.workspaceRevision,
+    });
+    const disposedProof = disposedFixture.authority
+      .captureReadyActiveStableTargetInternalV1(disposedTarget);
+    if (disposedProof.kind !== "captured") throw new Error("expected pre-disposal proof");
+    const disposedCoordinator = createManagedSurfaceCoordinatorFacadeInternalV1(
+      disposedFixture.kernel,
+    );
+    expect(disposedCoordinator.dispose().kind).toBe("applied");
+    expect(
+      disposedFixture.authority.isCurrentReadyActiveStableTargetInternalV1(
+        disposedProof.proof,
+      ),
+    ).toBe(false);
+
+    const successorFixture = stableActionFixtureV1({
+      applicationEpoch: parseNonNegativeSafeInteger(applicationEpochV1 + 1),
+    });
+    const successorTarget = publishReadyStableTargetV1({
+      fixture: successorFixture,
+      publisher: successorFixture.harness.workspace,
+      target: successorFixture.harness.workspaceRoot,
+      sourceRevision: successorFixture.harness.workspaceRevision,
+    });
+    const successorCapture = successorFixture.authority
+      .captureReadyActiveStableTargetInternalV1(successorTarget);
+    expect(successorCapture.kind).toBe("captured");
+    expect(
+      successorFixture.authority.isCurrentReadyActiveStableTargetInternalV1(
+        disposedProof.proof,
+      ),
+    ).toBe(false);
+    expect(
+      successorFixture.authority.captureReadyActiveStableTargetInternalV1(disposedTarget),
+    ).toEqual({ kind: "unavailable" });
+  });
+
+  it("rejects hostile, cloned, and foreign target and proof identities without reads or mutation", () => {
+    const fixture = stableActionFixtureV1();
+    const installedTarget = publishReadyStableTargetV1({
+      fixture,
+      publisher: fixture.harness.workspace,
+      target: fixture.harness.workspaceRoot,
+      sourceRevision: fixture.harness.workspaceRevision,
+    });
+    const captured = fixture.authority
+      .captureReadyActiveStableTargetInternalV1(installedTarget);
+    if (captured.kind !== "captured") throw new Error("expected ready-active proof");
+    const foreign = stableActionFixtureV1();
+    const foreignTarget = publishReadyStableTargetV1({
+      fixture: foreign,
+      publisher: foreign.harness.workspace,
+      target: foreign.harness.workspaceRoot,
+      sourceRevision: foreign.harness.workspaceRevision,
+    });
+    const foreignCaptured = foreign.authority
+      .captureReadyActiveStableTargetInternalV1(foreignTarget);
+    if (foreignCaptured.kind !== "captured") throw new Error("expected foreign proof");
+    const targetRead = vi.fn();
+    const proofRead = vi.fn();
+    const hostileTarget = Object.defineProperty({}, "occurrenceId", { get: targetRead });
+    const hostileProof = Object.defineProperty({}, "proof", { get: proofRead });
+    const revokedTarget = Proxy.revocable({}, {});
+    const revokedProof = Proxy.revocable({}, {});
+    revokedTarget.revoke();
+    revokedProof.revoke();
+    const clonedTarget = Object.freeze({ ...installedTarget });
+
+    const before = fixture.kernel.getStateInternalV1();
+    const stateListener = vi.fn();
+    fixture.kernel.subscribeStateInternalV1(stateListener);
+    for (
+      const invalidTarget of [
+        null,
+        undefined,
+        hostileTarget,
+        revokedTarget.proxy,
+        clonedTarget,
+        foreignTarget,
+        captured.proof,
+      ]
+    ) {
+      expect(
+        fixture.authority.captureReadyActiveStableTargetInternalV1(invalidTarget),
+      ).toEqual({ kind: "unavailable" });
+    }
+    for (
+      const invalidProof of [
+        null,
+        undefined,
+        hostileProof,
+        revokedProof.proxy,
+        Object.freeze({ ...captured.proof }),
+        foreignCaptured.proof,
+      ]
+    ) {
+      expect(
+        fixture.authority.isCurrentReadyActiveStableTargetInternalV1(invalidProof),
+      ).toBe(false);
+    }
+    expect(targetRead).not.toHaveBeenCalled();
+    expect(proofRead).not.toHaveBeenCalled();
+    expect(fixture.kernel.getStateInternalV1()).toBe(before);
+    expect(stateListener).not.toHaveBeenCalled();
+    expect(
+      fixture.authority.isCurrentReadyActiveStableTargetInternalV1(captured.proof),
+    ).toBe(true);
+  });
+
+  it("fails every stable action path closed on raw publisher-registry divergence", () => {
+    const fixture = stableActionFixtureV1();
+    const installedTarget = publishReadyStableTargetV1({
+      fixture,
+      publisher: fixture.harness.workspace,
+      target: fixture.harness.workspaceRoot,
+      sourceRevision: fixture.harness.workspaceRevision,
+    });
+    const physical = fixture.authority.captureCurrentStableInputInternalV1();
+    if (physical.kind !== "captured" || physical.targetProof === null) {
+      throw new Error("expected direct physical proof");
+    }
+    const readyActive = fixture.authority
+      .captureReadyActiveStableTargetInternalV1(installedTarget);
+    if (readyActive.kind !== "captured") throw new Error("expected ready-active proof");
+    const before = fixture.kernel.getStateInternalV1();
+    const stateListener = vi.fn();
+    const coordinator = createManagedSurfaceCoordinatorFacadeInternalV1(fixture.kernel);
+    const transientListener = vi.fn();
+    fixture.kernel.subscribeStateInternalV1(stateListener);
+    coordinator.subscribe(transientListener);
+
+    expect(
+      fixture.harness.registry.disposePublisherLease(fixture.harness.workspace.lease),
+    ).toBe("disposed");
+    expect(fixture.kernel.getStateInternalV1()).toBe(before);
+    expect(
+      fixture.authority.isCurrentDirectTargetInternalV1(physical.targetProof),
+    ).toBe(false);
+    expect(
+      fixture.authority.isCurrentReadyActiveStableTargetInternalV1(readyActive.proof),
+    ).toBe(false);
+    expect(fixture.authority.captureCurrentStableInputInternalV1()).toEqual({
+      kind: "faulted",
+      code: "surface.stable_reconcile_faulted",
+    });
+    expect(
+      fixture.authority.captureReadyActiveStableTargetInternalV1(installedTarget),
+    ).toEqual({
+      kind: "faulted",
+      code: "surface.stable_reconcile_faulted",
+    });
+
+    const route = (applicationEpoch: number, topologyRevision: number) =>
+      fixture.authority.routeActionInternalV1(Object.freeze({
+        evidence: Object.freeze({
+          applicationEpoch: parseNonNegativeSafeInteger(applicationEpoch),
+          topologyRevision: parseNonNegativeSafeInteger(topologyRevision),
+          surfaceInstanceId: physical.contract.surfaceInstanceId,
+        }),
+        actionId: narrativeAdvanceActionIdV1,
+        routingLeaseId: physical.contract.routingLeaseId,
+      }));
+    expect(route(
+      physical.contract.applicationEpoch + 1,
+      physical.contract.topologyRevision + 1,
+    )).toMatchObject({ kind: "stale", code: "surface.stale_application_epoch" });
+    expect(route(
+      physical.contract.applicationEpoch,
+      physical.contract.topologyRevision + 1,
+    )).toMatchObject({ kind: "stale", code: "surface.stale_topology_revision" });
+    expect(route(
+      physical.contract.applicationEpoch,
+      physical.contract.topologyRevision,
+    )).toEqual({
+      kind: "faulted",
+      code: "surface.transition_faulted",
+      beforeTopologyRevision: physical.contract.topologyRevision,
+      afterTopologyRevision: physical.contract.topologyRevision,
+      surfaceInstanceId: physical.contract.surfaceInstanceId,
+    });
+    expect(fixture.kernel.getStateInternalV1()).toBe(before);
+    expect(stateListener).not.toHaveBeenCalled();
+    expect(transientListener).not.toHaveBeenCalled();
   });
 
   it("routes stable actions with exact evidence and owner precedence without mutating state", () => {

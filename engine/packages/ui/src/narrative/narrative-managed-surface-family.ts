@@ -48,6 +48,7 @@ import {
   type ManagedSurfaceStableActionRouteAuthorityInternalV1,
   type ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
   type ManagedSurfaceStableDirectActionTargetProofInternalV1,
+  type ManagedSurfaceStableReadyActiveTargetProofInternalV1,
 } from "../managed-surfaces/managed-surface-stable-composite-state.ts";
 import type {
   ManagedSurfaceStableAdmittedTargetInternalV1,
@@ -205,6 +206,34 @@ export interface NarrativeStablePauseResumeActionAttemptInternalV1 {
   readonly [narrativeStablePauseResumeActionAttemptBrandInternalV1]: true;
 }
 
+declare const narrativeStablePauseExpiryControllerAttemptBrandInternalV1: unique symbol;
+
+export interface NarrativeStablePauseExpiryControllerAttemptInternalV1 {
+  readonly [narrativeStablePauseExpiryControllerAttemptBrandInternalV1]: true;
+}
+
+export type NarrativeStablePauseExpiryDispatchResultInternalV1 =
+  | Readonly<{
+    readonly kind: "dispatched";
+    readonly completion: Promise<unknown>;
+  }>
+  | Readonly<{
+    readonly kind: "stale";
+    readonly completion: null;
+  }>
+  | Readonly<{
+    readonly kind: "faulted";
+    readonly completion: null;
+  }>;
+
+export interface NarrativeStablePauseExpiryControllerInternalV1 {
+  issueAttemptInternalV1(): NarrativeStablePauseExpiryControllerAttemptInternalV1 | null;
+  dispatchInternalV1(
+    attempt: unknown,
+  ): NarrativeStablePauseExpiryDispatchResultInternalV1;
+  disposeInternalV1(): void;
+}
+
 export type NarrativeStablePhysicalActionDispatchResultInternalV1 =
   | Readonly<{
     readonly kind: "dispatched";
@@ -262,9 +291,19 @@ interface NarrativeTargetFrameRecordInternalV1 {
   readonly frame: NarrativeStableAdmittedFrameInternalV1;
 }
 
+interface NarrativeStableCurrentTargetProjectionInternalV1 {
+  readonly target: ManagedSurfaceStableAdmittedTargetInternalV1;
+  readonly sourceRevision: ManagedSurfaceStableSourceRevisionInternalV1;
+  readonly frame: NarrativeStableAdmittedFrameInternalV1;
+}
+
 interface NarrativeStablePublisherBridgeRecordInternalV1 {
   readonly compositeRuntimeKernel: ManagedSurfaceStableCompositeRuntimeKernelInternalV1;
+  readonly captureCurrentTargetInternalV1: () =>
+    | NarrativeStableCurrentTargetProjectionInternalV1
+    | null;
   physicalActionAdmissionClaim: object | null;
+  pauseExpiryControllerClaim: object | null;
 }
 
 const narrativeTargetFrameRecordsInternalV1 = new WeakMap<
@@ -316,6 +355,21 @@ const narrativeStablePhysicalActionAttemptRecordsInternalV1 = new WeakMap<
   | NarrativeStableChoiceActionAttemptInternalV1
   | NarrativeStablePauseResumeActionAttemptInternalV1,
   NarrativeStablePhysicalActionAttemptRecordInternalV1
+>();
+
+interface NarrativeStablePauseExpiryControllerAttemptRecordInternalV1 {
+  readonly controller: NarrativeStablePauseExpiryControllerInternalV1;
+  readonly proof: ManagedSurfaceStableReadyActiveTargetProofInternalV1;
+  readonly directTarget: ManagedSurfaceStableAdmittedTargetInternalV1;
+  readonly sourceRevision: ManagedSurfaceStableSourceRevisionInternalV1;
+  readonly frame: NarrativeStableAdmittedFrameInternalV1;
+  readonly semanticDispatchPort: NarrativeStableCapturedSemanticResolutionPortInternalV1;
+  spent: boolean;
+}
+
+const narrativeStablePauseExpiryControllerAttemptRecordsInternalV1 = new WeakMap<
+  NarrativeStablePauseExpiryControllerAttemptInternalV1,
+  NarrativeStablePauseExpiryControllerAttemptRecordInternalV1
 >();
 
 const stableZeroDeltaInternalV1 = Object.freeze({
@@ -379,6 +433,16 @@ const narrativePhysicalActionUnmappedResultInternalV1 = Object.freeze({
 });
 
 const narrativePhysicalActionFaultedResultInternalV1 = Object.freeze({
+  kind: "faulted" as const,
+  completion: null,
+});
+
+const narrativePauseExpiryStaleResultInternalV1 = Object.freeze({
+  kind: "stale" as const,
+  completion: null,
+});
+
+const narrativePauseExpiryFaultedResultInternalV1 = Object.freeze({
   kind: "faulted" as const,
   completion: null,
 });
@@ -1208,7 +1272,18 @@ export function createNarrativeStablePublisherBridgeInternalV1(
   });
   narrativeStablePublisherBridgeRecordsInternalV1.set(bridge, {
     compositeRuntimeKernel,
+    captureCurrentTargetInternalV1: () => {
+      const current = captureCurrentProjection();
+      return current.kind === "target"
+        ? Object.freeze({
+          target: current.target,
+          sourceRevision: current.record.sourceRevision,
+          frame: current.record.frame,
+        })
+        : null;
+    },
     physicalActionAdmissionClaim: null,
+    pauseExpiryControllerClaim: null,
   });
   return bridge;
 }
@@ -1222,6 +1297,255 @@ function captureOwnCallableInternalV1(
   return descriptor !== undefined && "value" in descriptor && typeof descriptor.value === "function"
     ? descriptor.value as (...args: unknown[]) => unknown
     : null;
+}
+
+export function createNarrativeStablePauseExpiryControllerInternalV1(
+  bridge: NarrativeStablePublisherBridgeInternalV1,
+): NarrativeStablePauseExpiryControllerInternalV1 {
+  const bridgeRecord = narrativeStablePublisherBridgeRecordsInternalV1.get(bridge);
+  if (bridgeRecord === undefined || bridgeRecord.pauseExpiryControllerClaim !== null) {
+    throw new TypeError("ui.narrative_stable_pause_expiry_controller_invalid");
+  }
+  const kernel = bridgeRecord.compositeRuntimeKernel;
+  const stableActionAuthority = claimManagedSurfaceStableActionRouteAuthorityInternalV1(kernel);
+  const captureReadyActiveTarget = captureOwnCallableInternalV1(
+    stableActionAuthority,
+    "captureReadyActiveStableTargetInternalV1",
+  );
+  const isCurrentReadyActiveTarget = captureOwnCallableInternalV1(
+    stableActionAuthority,
+    "isCurrentReadyActiveStableTargetInternalV1",
+  );
+  const subscribeState = captureOwnCallableInternalV1(kernel, "subscribeStateInternalV1");
+  if (
+    captureReadyActiveTarget === null || isCurrentReadyActiveTarget === null ||
+    subscribeState === null
+  ) {
+    throw new TypeError("ui.narrative_stable_pause_expiry_controller_invalid");
+  }
+
+  const captureCurrentPause = ():
+    | Readonly<{
+      readonly target: ManagedSurfaceStableAdmittedTargetInternalV1;
+      readonly sourceRevision: ManagedSurfaceStableSourceRevisionInternalV1;
+      readonly frame: NarrativeStableAdmittedFrameInternalV1;
+      readonly proof: ManagedSurfaceStableReadyActiveTargetProofInternalV1;
+    }>
+    | null => {
+    const current = bridgeRecord.captureCurrentTargetInternalV1();
+    if (
+      current === null || current.frame.pending.kind !== "pause" ||
+      !narrativeStableSemanticResolutionPortBindingsInternalV1.has(
+        current.frame.candidateSnapshot.semanticDispatchPort,
+      )
+    ) {
+      return null;
+    }
+    const captured = Reflect.apply(captureReadyActiveTarget, stableActionAuthority, [
+      current.target,
+    ]) as ReturnType<
+      ManagedSurfaceStableActionRouteAuthorityInternalV1[
+        "captureReadyActiveStableTargetInternalV1"
+      ]
+    >;
+    if (
+      captured.kind !== "captured" || captured.directTarget !== current.target ||
+      captured.sourceRevision !== current.sourceRevision
+    ) {
+      return null;
+    }
+    return Object.freeze({ ...current, proof: captured.proof });
+  };
+
+  let initial;
+  try {
+    initial = captureCurrentPause();
+  } catch (error) {
+    throw new TypeError("ui.narrative_stable_pause_expiry_controller_unavailable", {
+      cause: error,
+    });
+  }
+  if (initial === null) {
+    throw new TypeError("ui.narrative_stable_pause_expiry_controller_unavailable");
+  }
+
+  let active = true;
+  let semanticDispatchStarted = false;
+  let currentAttempt: NarrativeStablePauseExpiryControllerAttemptInternalV1 | null = null;
+  let unsubscribeState = (): void => {};
+  let controller!: NarrativeStablePauseExpiryControllerInternalV1;
+  const controllerClaim = Object.freeze({});
+  bridgeRecord.pauseExpiryControllerClaim = controllerClaim;
+
+  const revoke = (): void => {
+    if (!active) return;
+    active = false;
+    currentAttempt = null;
+    try {
+      unsubscribeState();
+    } catch {
+      // Revocation remains fail closed even if a caller-provided diagnostic wrapper fails.
+    }
+    if (bridgeRecord.pauseExpiryControllerClaim === controllerClaim) {
+      bridgeRecord.pauseExpiryControllerClaim = null;
+    }
+  };
+
+  const generationStillCurrent = (): boolean => {
+    const current = captureCurrentPause();
+    return current !== null && current.target === initial.target &&
+      current.sourceRevision === initial.sourceRevision && current.frame === initial.frame;
+  };
+
+  try {
+    const unsubscribe = Reflect.apply(subscribeState, kernel, [() => {
+      if (!active) return;
+      try {
+        if (!generationStillCurrent()) revoke();
+      } catch {
+        revoke();
+      }
+    }]);
+    if (typeof unsubscribe !== "function") {
+      throw new TypeError("ui.narrative_stable_pause_expiry_controller_invalid");
+    }
+    unsubscribeState = unsubscribe as () => void;
+    if (!generationStillCurrent()) {
+      throw new TypeError("ui.narrative_stable_pause_expiry_controller_unavailable");
+    }
+  } catch (error) {
+    revoke();
+    if (
+      error instanceof TypeError &&
+      error.message === "ui.narrative_stable_pause_expiry_controller_unavailable"
+    ) {
+      throw error;
+    }
+    throw new TypeError("ui.narrative_stable_pause_expiry_controller_unavailable", {
+      cause: error,
+    });
+  }
+
+  controller = Object.freeze({
+    issueAttemptInternalV1(
+      this: NarrativeStablePauseExpiryControllerInternalV1,
+    ): NarrativeStablePauseExpiryControllerAttemptInternalV1 | null {
+      if (this !== controller || !active || semanticDispatchStarted) return null;
+      try {
+        if (currentAttempt !== null) {
+          const currentRecord = narrativeStablePauseExpiryControllerAttemptRecordsInternalV1.get(
+            currentAttempt,
+          );
+          if (
+            currentRecord === undefined ||
+            Reflect.apply(isCurrentReadyActiveTarget, stableActionAuthority, [
+                currentRecord.proof,
+              ]) === true
+          ) {
+            return null;
+          }
+          currentRecord.spent = true;
+          currentAttempt = null;
+        }
+        const current = captureCurrentPause();
+        if (
+          current === null || current.target !== initial.target ||
+          current.sourceRevision !== initial.sourceRevision || current.frame !== initial.frame
+        ) {
+          revoke();
+          return null;
+        }
+        const attempt = Object.freeze(
+          {},
+        ) as NarrativeStablePauseExpiryControllerAttemptInternalV1;
+        narrativeStablePauseExpiryControllerAttemptRecordsInternalV1.set(attempt, {
+          controller,
+          proof: current.proof,
+          directTarget: current.target,
+          sourceRevision: current.sourceRevision,
+          frame: current.frame,
+          semanticDispatchPort: current.frame.candidateSnapshot.semanticDispatchPort,
+          spent: false,
+        });
+        currentAttempt = attempt;
+        return attempt;
+      } catch {
+        return null;
+      }
+    },
+    dispatchInternalV1(
+      this: NarrativeStablePauseExpiryControllerInternalV1,
+      attempt: unknown,
+    ): NarrativeStablePauseExpiryDispatchResultInternalV1 {
+      if (this !== controller || !active) return narrativePauseExpiryStaleResultInternalV1;
+      if ((typeof attempt !== "object" && typeof attempt !== "function") || attempt === null) {
+        return narrativePauseExpiryStaleResultInternalV1;
+      }
+      const record = narrativeStablePauseExpiryControllerAttemptRecordsInternalV1.get(
+        attempt as NarrativeStablePauseExpiryControllerAttemptInternalV1,
+      );
+      if (
+        record === undefined || record.controller !== controller || record.spent ||
+        currentAttempt !== attempt
+      ) {
+        return narrativePauseExpiryStaleResultInternalV1;
+      }
+      record.spent = true;
+      currentAttempt = null;
+
+      try {
+        if (
+          Reflect.apply(isCurrentReadyActiveTarget, stableActionAuthority, [record.proof]) !== true
+        ) {
+          return narrativePauseExpiryStaleResultInternalV1;
+        }
+        const current = bridgeRecord.captureCurrentTargetInternalV1();
+        if (
+          current === null || current.target !== record.directTarget ||
+          current.sourceRevision !== record.sourceRevision || current.frame !== record.frame ||
+          current.frame.pending.kind !== "pause" ||
+          current.frame.candidateSnapshot.semanticDispatchPort !== record.semanticDispatchPort ||
+          current.frame.pending.occurrenceId !== record.frame.pending.occurrenceId
+        ) {
+          return narrativePauseExpiryStaleResultInternalV1;
+        }
+        const portBinding = narrativeStableSemanticResolutionPortBindingsInternalV1.get(
+          record.semanticDispatchPort,
+        );
+        if (portBinding === undefined) return narrativePauseExpiryFaultedResultInternalV1;
+        const resolution: InteractionResolutionV1 = Object.freeze({ kind: "resume" as const });
+        const request = Object.freeze({
+          expectedOccurrenceId: current.frame.pending.occurrenceId,
+          resolution,
+        }) satisfies NarrativeStableSemanticResolutionRequestInternalV1;
+        const dispatchResolution = portBinding.dispatchResolution;
+        const dispatchReceiver = portBinding.receiver;
+        const dispatchArguments = Object.freeze([request]);
+        if (
+          Reflect.apply(isCurrentReadyActiveTarget, stableActionAuthority, [record.proof]) !== true
+        ) {
+          return narrativePauseExpiryStaleResultInternalV1;
+        }
+        semanticDispatchStarted = true;
+        let completion: Promise<unknown>;
+        try {
+          completion = Promise.resolve(
+            Reflect.apply(dispatchResolution, dispatchReceiver, dispatchArguments),
+          );
+        } catch (error) {
+          completion = Promise.reject(error);
+        }
+        return Object.freeze({ kind: "dispatched" as const, completion });
+      } catch {
+        return narrativePauseExpiryStaleResultInternalV1;
+      }
+    },
+    disposeInternalV1(this: NarrativeStablePauseExpiryControllerInternalV1): void {
+      if (this !== controller) return;
+      revoke();
+    },
+  });
+  return controller;
 }
 
 export function createNarrativeStablePhysicalActionAdmissionInternalV1(

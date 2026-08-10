@@ -357,6 +357,25 @@ export interface ManagedSurfaceStableDirectActionTargetProofInternalV1 {
   readonly [managedSurfaceStableDirectActionTargetProofBrandInternalV1]: true;
 }
 
+declare const managedSurfaceStableReadyActiveTargetProofBrandInternalV1: unique symbol;
+
+export interface ManagedSurfaceStableReadyActiveTargetProofInternalV1 {
+  readonly [managedSurfaceStableReadyActiveTargetProofBrandInternalV1]: true;
+}
+
+export type ManagedSurfaceStableReadyActiveTargetCaptureResultInternalV1 =
+  | Readonly<{
+    readonly kind: "captured";
+    readonly directTarget: ManagedSurfaceStableAdmittedTargetInternalV1;
+    readonly sourceRevision: ManagedSurfaceStableSourceRevisionInternalV1;
+    readonly proof: ManagedSurfaceStableReadyActiveTargetProofInternalV1;
+  }>
+  | Readonly<{ readonly kind: "unavailable" }>
+  | Readonly<{
+    readonly kind: "faulted";
+    readonly code: "surface.stable_reconcile_faulted";
+  }>;
+
 export type ManagedSurfaceStableActionInputCaptureResultInternalV1 =
   | Readonly<{
     readonly kind: "captured";
@@ -374,9 +393,15 @@ export type ManagedSurfaceStableActionInputCaptureResultInternalV1 =
 export interface ManagedSurfaceStableActionRouteAuthorityInternalV1
   extends ManagedSurfaceContractBoundActionRouteAuthorityInternalV1 {
   captureCurrentStableInputInternalV1(): ManagedSurfaceStableActionInputCaptureResultInternalV1;
+  captureReadyActiveStableTargetInternalV1(
+    target: unknown,
+  ): ManagedSurfaceStableReadyActiveTargetCaptureResultInternalV1;
   isCurrentDirectTargetInternalV1(
     proof: unknown,
   ): proof is ManagedSurfaceStableDirectActionTargetProofInternalV1;
+  isCurrentReadyActiveStableTargetInternalV1(
+    proof: unknown,
+  ): proof is ManagedSurfaceStableReadyActiveTargetProofInternalV1;
 }
 
 interface CompositeStateAuthorityRecordInternalV1 {
@@ -426,6 +451,17 @@ interface ManagedSurfaceStableDirectActionTargetProofRecordInternalV1 {
   readonly sourceRevision: ManagedSurfaceStableSourceRevisionInternalV1;
 }
 
+interface ManagedSurfaceStableReadyActiveTargetProofRecordInternalV1 {
+  readonly authority: ManagedSurfaceStableActionRouteAuthorityInternalV1;
+  readonly kernel: ManagedSurfaceStableCompositeRuntimeKernelInternalV1;
+  readonly applicationEpoch: number;
+  readonly topologyRevision: number;
+  readonly instance: ManagedSurfaceStableReadyRuntimeInstanceInternalV1;
+  readonly publisherLease: ManagedSurfaceStablePublisherLeaseInternalV1;
+  readonly directTarget: ManagedSurfaceStableAdmittedTargetInternalV1;
+  readonly sourceRevision: ManagedSurfaceStableSourceRevisionInternalV1;
+}
+
 const stableActionRouteAuthoritiesInternalV1 = new WeakMap<
   ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
   ManagedSurfaceStableActionRouteAuthorityInternalV1
@@ -433,6 +469,10 @@ const stableActionRouteAuthoritiesInternalV1 = new WeakMap<
 const stableDirectActionTargetProofRecordsInternalV1 = new WeakMap<
   object,
   ManagedSurfaceStableDirectActionTargetProofRecordInternalV1
+>();
+const stableReadyActiveTargetProofRecordsInternalV1 = new WeakMap<
+  object,
+  ManagedSurfaceStableReadyActiveTargetProofRecordInternalV1
 >();
 
 /** Source-relative exact configuration proof for composition-owned family adapters. */
@@ -3979,10 +4019,23 @@ export function claimManagedSurfaceStableActionRouteAuthorityInternalV1(
   });
   let authority!: ManagedSurfaceStableActionRouteAuthorityInternalV1;
 
+  const hasCoherentStableState = (
+    state: ManagedSurfaceStableCompositeStateInternalV1,
+  ): boolean => {
+    const authorityRecord = compositeStateAuthorityRecordsInternalV1.get(state);
+    if (authorityRecord === undefined) return false;
+    const inventory = inspectCurrentStableBaselineInventoryInternalV1(state, authorityRecord);
+    return inventory !== null && hasExpectedStableBaselineRuntimeCoherenceInternalV1(
+      state,
+      inventory,
+    );
+  };
+
   const captureFromState = (
     state: ManagedSurfaceStableCompositeStateInternalV1,
   ): ManagedSurfaceStableActionInputCaptureResultInternalV1 => {
     try {
+      if (!hasCoherentStableState(state)) return faultedResult;
       const projection = projectWholeCompositeTopologyInternalV1(state);
       const node = projection.inputNode;
       if (
@@ -4041,6 +4094,56 @@ export function claimManagedSurfaceStableActionRouteAuthorityInternalV1(
     }
   };
 
+  const captureReadyActiveTargetFromState = (
+    state: ManagedSurfaceStableCompositeStateInternalV1,
+    target: unknown,
+  ): ManagedSurfaceStableReadyActiveTargetCaptureResultInternalV1 => {
+    try {
+      if (!hasCoherentStableState(state)) return faultedResult;
+      const projection = projectWholeCompositeTopologyInternalV1(state);
+      const node = projection.nodes.find((candidate) =>
+        candidate.axis === "stable" && candidate.directTarget === target
+      );
+      if (
+        node === undefined || node.axis !== "stable" || node.instance === null ||
+        node.baseline === null || node.directTarget === null || node.retainedSubtree !== null ||
+        projection.stablePhaseByInstance.get(node.instance) !== "active"
+      ) {
+        return unavailableResult;
+      }
+      const entry = state.stableRuntimeBindings.find((candidate) =>
+        candidate.desiredTarget.admittedTarget === node.directTarget &&
+        candidate.desiredTarget.publisherLease === node.directTarget?.publisherLease &&
+        candidate.desiredTarget.sourceRevision === node.baseline?.sourceRevision &&
+        candidate.binding.kind === "ready_instance" &&
+        candidate.binding.instance === node.instance
+      );
+      if (entry?.binding.kind !== "ready_instance") return faultedResult;
+      const publication = state.transientState.publication;
+      const proof = Object.freeze(
+        {},
+      ) as ManagedSurfaceStableReadyActiveTargetProofInternalV1;
+      stableReadyActiveTargetProofRecordsInternalV1.set(proof, {
+        authority,
+        kernel,
+        applicationEpoch: publication.applicationEpoch,
+        topologyRevision: publication.topologyRevision,
+        instance: node.instance,
+        publisherLease: entry.desiredTarget.publisherLease,
+        directTarget: node.directTarget,
+        sourceRevision: node.baseline.sourceRevision,
+      });
+      return Object.freeze({
+        kind: "captured" as const,
+        directTarget: node.directTarget,
+        sourceRevision: node.baseline.sourceRevision,
+        proof,
+      });
+    } catch {
+      return faultedResult;
+    }
+  };
+
   const authorityCandidate: ManagedSurfaceStableActionRouteAuthorityInternalV1 = {
     captureCurrentStableInputInternalV1(
       this: ManagedSurfaceStableActionRouteAuthorityInternalV1,
@@ -4053,6 +4156,20 @@ export function claimManagedSurfaceStableActionRouteAuthorityInternalV1(
       }
       return kernel.transitionStateInternalV1((state) =>
         Object.freeze({ state, result: captureFromState(state) })
+      );
+    },
+    captureReadyActiveStableTargetInternalV1(
+      this: ManagedSurfaceStableActionRouteAuthorityInternalV1,
+      target: unknown,
+    ): ManagedSurfaceStableReadyActiveTargetCaptureResultInternalV1 {
+      if (this !== authority) {
+        throw new TypeError("ui.managed_surface_stable_action_authority_invalid");
+      }
+      if (kernel.getTransientSnapshotInternalV1().coordinatorDisposed) {
+        return unavailableResult;
+      }
+      return kernel.transitionStateInternalV1((state) =>
+        Object.freeze({ state, result: captureReadyActiveTargetFromState(state, target) })
       );
     },
     routeActionInternalV1(
@@ -4090,6 +4207,15 @@ export function claimManagedSurfaceStableActionRouteAuthorityInternalV1(
           );
         } else {
           try {
+            if (!hasCoherentStableState(state)) {
+              receipt = stableActionRouteReceiptInternalV1(
+                state,
+                "faulted",
+                "surface.transition_faulted",
+                evidence.surfaceInstanceId,
+              );
+              return Object.freeze({ state, result: receipt });
+            }
             const projection = projectWholeCompositeTopologyInternalV1(state);
             const targetNode = projection.nodes.find((node) =>
               node.axis === "stable" && node.instance !== null &&
@@ -4164,6 +4290,9 @@ export function claimManagedSurfaceStableActionRouteAuthorityInternalV1(
       return kernel.transitionStateInternalV1((state) => {
         let current = false;
         try {
+          if (!hasCoherentStableState(state)) {
+            return Object.freeze({ state, result: false });
+          }
           const publication = state.transientState.publication;
           const projection = projectWholeCompositeTopologyInternalV1(state);
           const node = projection.inputNode;
@@ -4173,6 +4302,47 @@ export function claimManagedSurfaceStableActionRouteAuthorityInternalV1(
             node.baseline !== null && node.directTarget === record.directTarget &&
             node.retainedSubtree === null &&
             node.baseline.sourceRevision === record.sourceRevision;
+        } catch {
+          current = false;
+        }
+        return Object.freeze({ state, result: current });
+      });
+    },
+    isCurrentReadyActiveStableTargetInternalV1(
+      this: ManagedSurfaceStableActionRouteAuthorityInternalV1,
+      proof: unknown,
+    ): proof is ManagedSurfaceStableReadyActiveTargetProofInternalV1 {
+      if (this !== authority) {
+        throw new TypeError("ui.managed_surface_stable_action_authority_invalid");
+      }
+      if ((typeof proof !== "object" && typeof proof !== "function") || proof === null) {
+        return false;
+      }
+      const record = stableReadyActiveTargetProofRecordsInternalV1.get(proof);
+      if (record === undefined || record.authority !== authority || record.kernel !== kernel) {
+        return false;
+      }
+      if (kernel.getTransientSnapshotInternalV1().coordinatorDisposed) return false;
+      return kernel.transitionStateInternalV1((state) => {
+        let current = false;
+        try {
+          if (!hasCoherentStableState(state)) {
+            return Object.freeze({ state, result: false });
+          }
+          const publication = state.transientState.publication;
+          const projection = projectWholeCompositeTopologyInternalV1(state);
+          const node = projection.nodes.find((candidate) =>
+            candidate.axis === "stable" && candidate.instance === record.instance
+          );
+          current = publication.applicationEpoch === record.applicationEpoch &&
+            publication.topologyRevision === record.topologyRevision &&
+            node?.axis === "stable" && node.instance === record.instance &&
+            node.baseline !== null && node.directTarget === record.directTarget &&
+            node.retainedSubtree === null &&
+            node.directTarget.publisherLease === record.publisherLease &&
+            node.baseline.publisherLease === record.publisherLease &&
+            node.baseline.sourceRevision === record.sourceRevision &&
+            projection.stablePhaseByInstance.get(record.instance) === "active";
         } catch {
           current = false;
         }

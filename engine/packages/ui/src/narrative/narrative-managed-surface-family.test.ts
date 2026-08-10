@@ -10,7 +10,11 @@ import { createInputRouterV1 } from "../input/input-router.ts";
 import {
   parseManagedSurfaceActionIdV1,
   parseManagedSurfaceGestureIdV1,
+  parseManagedSurfaceSlotIdV1,
 } from "../managed-surfaces/managed-surface-contracts.ts";
+import {
+  parseManagedSurfaceResolvedDefinitionV1,
+} from "../managed-surfaces/managed-surface-definition.ts";
 import { createManagedSurfaceReducerStateV1 } from "../managed-surfaces/managed-surface-reducer.ts";
 import {
   createManagedSurfaceStableAdmissionAuthorityInternalV1,
@@ -32,6 +36,7 @@ import {
 } from "../managed-surfaces/managed-surface-stable-publisher-lease.ts";
 import {
   createNarrativeManagedSurfaceFamilyContractInternalV1,
+  createNarrativeStablePauseExpiryControllerInternalV1,
   createNarrativeStablePhysicalActionAdmissionInternalV1,
   createNarrativeStablePublisherBridgeInternalV1,
   type CreateNarrativeStablePhysicalActionAdmissionInputInternalV1,
@@ -41,6 +46,9 @@ import {
   type NarrativeStableCandidatePreflightResultInternalV1,
   type NarrativeStableChoiceActionAttemptInternalV1,
   type NarrativeStablePauseResumeActionAttemptInternalV1,
+  type NarrativeStablePauseExpiryControllerAttemptInternalV1,
+  type NarrativeStablePauseExpiryControllerInternalV1,
+  type NarrativeStablePauseExpiryDispatchResultInternalV1,
   type NarrativeStablePhysicalActionAdmissionInternalV1,
   type NarrativeStablePhysicalActionDispatchResultInternalV1,
   type NarrativeStablePublisherBridgeInternalV1,
@@ -343,6 +351,177 @@ function physicalPauseHarnessV1(input: {
   }) satisfies CreateNarrativeStablePhysicalActionAdmissionInputInternalV1;
   const admission = createNarrativeStablePhysicalActionAdmissionInternalV1(admissionInput);
   return { harness, inputRouter, admission, semanticDispatchPort };
+}
+
+function automaticPauseHarnessV1(input: {
+  readonly semanticDispatchPort?: NarrativeStableSemanticResolutionPortInternalV1;
+  readonly skippable?: boolean;
+  readonly presentationClock?: object | ((...args: never[]) => unknown);
+} = {}) {
+  const semanticDispatchPort = input.semanticDispatchPort ?? defaultSemanticDispatchPortV1;
+  const harness = harnessV1({
+    candidatePreflight: Object.freeze({
+      preflightCandidateInternalV1: () =>
+        capturedCandidatePreflightResultV1(Object.freeze({
+          ...defaultCandidateSnapshotV1,
+          semanticDispatchPort,
+          presentationClock: input.presentationClock ??
+            defaultCandidateSnapshotV1.presentationClock,
+        })),
+    }),
+  });
+  expect(
+    harness.bridge.reconcilePendingInternalV1({
+      ...(pendingV1("pause") as Record<string, unknown>),
+      skippable: input.skippable ?? true,
+    }),
+  ).toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
+  settleCurrentNarrativeReadyV1(harness);
+  const controller = createNarrativeStablePauseExpiryControllerInternalV1(harness.bridge);
+  return { harness, controller, semanticDispatchPort };
+}
+
+function nonBlockingNarrativeHarnessV1(
+  semanticDispatchPort: NarrativeStableSemanticResolutionPortInternalV1,
+  layerOrder = 90,
+) {
+  const contract = createNarrativeManagedSurfaceFamilyContractInternalV1();
+  const nonBlockingDefinition = parseManagedSurfaceResolvedDefinitionV1({
+    definitionId: "surface.test.nonblocking-input",
+    contractRevision: 1,
+    ownerId: "surface-owner.test-nonblocking",
+    slotId: "surface-slot.test-nonblocking",
+    layerId: "surface-layer.test-nonblocking",
+    layerOrder,
+    placement: "root",
+    modality: "non_blocking",
+    inputPolicy: { kind: "managed", inputContextId: "overlay" },
+    dismissPolicy: { back: false, escape: false, backdrop: false, routedCancel: false },
+    focusPolicy: { kind: "none" },
+    navigationPolicy: { kind: "none" },
+    actionIds: [],
+    readiness: {
+      initialOpen: "blocking_fallback",
+      primaryReplacement: "retain_current",
+      childOpen: "blocking_fallback",
+    },
+  });
+  const extraSlot = Object.freeze({
+    kind: "root" as const,
+    slotId: parseManagedSurfaceSlotIdV1("surface-slot.test-nonblocking"),
+    cardinality: "single" as const,
+  });
+  const resolvedOwnerIds = Object.freeze([
+    ...contract.resolvedOwnerIds,
+    nonBlockingDefinition.ownerId,
+  ]);
+  const resolvedSlotDescriptors = Object.freeze([
+    ...contract.resolvedSlotDescriptors,
+    extraSlot,
+  ]);
+  const registry = createManagedSurfaceStablePublisherLeaseRegistryInternalV1({
+    applicationEpoch: applicationEpochV1,
+    resolvedOwnerIds,
+    leaseSequenceAllocator: createLocalManagedSurfaceStableLeaseSequenceAllocatorInternalV1(),
+  });
+  const authority = createManagedSurfaceStableAdmissionAuthorityInternalV1({
+    publisherLeaseRegistry: registry,
+    definitionSidecars: contract.stableDefinitionSidecars,
+    resolvedSlotDescriptors,
+  });
+  const kernel = createManagedSurfaceStableCompositeRuntimeKernelInternalV1({
+    admissionAuthority: authority,
+    publisherLeaseRegistry: registry,
+    initialTransientState: createManagedSurfaceReducerStateV1(
+      applicationEpochV1,
+      resolvedOwnerIds,
+      resolvedSlotDescriptors,
+    ),
+  });
+  const bridge = createNarrativeStablePublisherBridgeInternalV1({
+    publisherLeaseRegistry: registry,
+    admissionAuthority: authority,
+    compositeRuntimeKernel: kernel,
+    candidatePreflight: Object.freeze({
+      preflightCandidateInternalV1: () =>
+        capturedCandidatePreflightResultV1(Object.freeze({
+          ...defaultCandidateSnapshotV1,
+          semanticDispatchPort,
+        })),
+    }),
+    exactAggregateDefinitionSidecars: contract.stableDefinitionSidecars,
+    exactAggregateSlotDescriptors: resolvedSlotDescriptors,
+  });
+  let stateNotifications = 0;
+  kernel.subscribeStateInternalV1(() => {
+    stateNotifications += 1;
+  });
+  const harness: NarrativeHarnessV1 = {
+    contract,
+    registry,
+    authority,
+    kernel,
+    bridge,
+    stateNotificationCount: () => stateNotifications,
+  };
+  return { harness, nonBlockingDefinition };
+}
+
+function openNonBlockingSurfaceV1(
+  harness: NarrativeHarnessV1,
+  definition: ReturnType<typeof parseManagedSurfaceResolvedDefinitionV1>,
+  expectedPreparationPhase: "active" | "suspended",
+  expectedInputOwner: "narrative" | "candidate",
+  duringPreparation: () => void = () => {},
+): void {
+  const before = harness.kernel.getStateInternalV1();
+  const stableBefore = before.stableRuntimeBindings[0];
+  if (stableBefore?.binding.kind !== "ready_instance") {
+    throw new Error("expected ready Narrative root before nonblocking input owner");
+  }
+  expect(stableBefore.binding.instance.phase).toBe("active");
+  const candidate = harness.kernel.peekTransientCandidateInternalV1({
+    definition,
+    semanticOccurrenceId: null,
+  });
+  expect(harness.kernel.transitionTransientInternalV1({
+    kind: "prepare_initial",
+    applicationEpoch: applicationEpochV1,
+    candidate,
+  })).toMatchObject({
+    kind: "applied",
+    code: "surface.preparation_started",
+    surfaceInstanceId: candidate.surfaceInstanceId,
+  });
+  const preparingState = harness.kernel.getStateInternalV1();
+  const preparingStable = preparingState.stableRuntimeBindings[0];
+  if (preparingStable?.binding.kind !== "ready_instance") {
+    throw new Error("expected ready Narrative root during nonblocking preparation");
+  }
+  expect(preparingStable.binding.instance.phase).toBe(expectedPreparationPhase);
+  duringPreparation();
+  expect(harness.kernel.transitionTransientInternalV1({
+    kind: "readiness_ready",
+    evidence: Object.freeze({
+      applicationEpoch: applicationEpochV1,
+      surfaceInstanceId: candidate.surfaceInstanceId,
+    }),
+  })).toMatchObject({ kind: "applied", code: "surface.readiness_ready" });
+  const after = harness.kernel.getStateInternalV1();
+  const stableAfter = after.stableRuntimeBindings[0];
+  if (stableAfter?.binding.kind !== "ready_instance") {
+    throw new Error("expected ready Narrative root after nonblocking input owner");
+  }
+  expect(stableAfter.binding.instance.phase).toBe("active");
+  if (expectedInputOwner === "candidate") {
+    expect(after.transientState.publication.inputOwner?.surfaceInstanceId).toBe(
+      candidate.surfaceInstanceId,
+    );
+  } else {
+    expect(after.transientState.publication.inputOwner?.surfaceInstanceId).not.toBe(
+      candidate.surfaceInstanceId,
+    );
+  }
 }
 
 describe("Narrative stable Managed Surface family", () => {
@@ -2209,6 +2388,421 @@ describe("Narrative stable Managed Surface family", () => {
     expect(dispatchResolution).toHaveBeenCalledOnce();
     expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
   });
+
+  it("dispatches one clock-free automatic pause expiry for skippable and unskippable pauses", async () => {
+    type ExpectedPauseExpiryResultV1 =
+      | Readonly<{ readonly kind: "dispatched"; readonly completion: Promise<unknown> }>
+      | Readonly<{ readonly kind: "stale"; readonly completion: null }>
+      | Readonly<{ readonly kind: "faulted"; readonly completion: null }>;
+    expectTypeOf<NarrativeStablePauseExpiryDispatchResultInternalV1>()
+      .toEqualTypeOf<ExpectedPauseExpiryResultV1>();
+
+    for (const skippable of [true, false] as const) {
+      let clockReads = 0;
+      const presentationClock = new Proxy({}, {
+        get() {
+          clockReads += 1;
+          throw new Error("the controller-attempt floor must not read a clock");
+        },
+      });
+      const semanticReceipt = Object.freeze({ kind: "pause-expired" as const, skippable });
+      let capturedRequest: unknown = null;
+      let semanticPort!: NarrativeStableSemanticResolutionPortInternalV1;
+      const dispatchResolution = vi.fn(function (this: unknown, request: unknown) {
+        expect(this).toBe(semanticPort);
+        capturedRequest = request;
+        return Promise.resolve(semanticReceipt);
+      });
+      semanticPort = Object.freeze({ dispatchResolutionInternalV1: dispatchResolution });
+      const fixture = automaticPauseHarnessV1({
+        semanticDispatchPort: semanticPort,
+        skippable,
+        presentationClock,
+      });
+      const state = fixture.harness.kernel.getStateInternalV1();
+      const notifications = fixture.harness.stateNotificationCount();
+      const controller = fixture.controller;
+      expectTypeOf(controller).toEqualTypeOf<NarrativeStablePauseExpiryControllerInternalV1>();
+      expect(Object.isFrozen(controller)).toBe(true);
+      expect(Reflect.ownKeys(controller)).toEqual([
+        "issueAttemptInternalV1",
+        "dispatchInternalV1",
+        "disposeInternalV1",
+      ]);
+
+      const attempt = controller.issueAttemptInternalV1();
+      expectTypeOf(attempt).toEqualTypeOf<
+        NarrativeStablePauseExpiryControllerAttemptInternalV1 | null
+      >();
+      expect(attempt).not.toBeNull();
+      expect(Object.isFrozen(attempt)).toBe(true);
+      expect(Reflect.ownKeys(attempt as object)).toEqual([]);
+      expect(controller.issueAttemptInternalV1()).toBeNull();
+
+      const result = controller.dispatchInternalV1(attempt);
+      expectTypeOf(result).toEqualTypeOf<NarrativeStablePauseExpiryDispatchResultInternalV1>();
+      expect(result).toMatchObject({ kind: "dispatched" });
+      expect(Object.isFrozen(result)).toBe(true);
+      if (result.kind !== "dispatched") throw new Error("expected automatic pause dispatch");
+      expect(result.completion).toBeInstanceOf(Promise);
+      await expect(result.completion).resolves.toBe(semanticReceipt);
+      expect(dispatchResolution).toHaveBeenCalledOnce();
+      expect(capturedRequest).toEqual({
+        expectedOccurrenceId: occurrenceV1(1),
+        resolution: { kind: "resume" },
+      });
+      expect(Object.isFrozen(capturedRequest)).toBe(true);
+      expect(
+        Object.isFrozen((capturedRequest as { readonly resolution: object }).resolution),
+      ).toBe(true);
+      expect(controller.dispatchInternalV1(attempt)).toEqual({
+        kind: "stale",
+        completion: null,
+      });
+      expect(dispatchResolution).toHaveBeenCalledOnce();
+      expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
+      expect(fixture.harness.stateNotificationCount()).toBe(notifications);
+      expect(clockReads).toBe(0);
+      controller.disposeInternalV1();
+    }
+  });
+
+  it("keeps attempts generation-bound across clones, foreign controllers, and A-to-B replacement", async () => {
+    const dispatchResolution = vi.fn(() => Promise.resolve("automatic-resumed"));
+    const semanticPort = Object.freeze({ dispatchResolutionInternalV1: dispatchResolution });
+    const fixture = automaticPauseHarnessV1({ semanticDispatchPort: semanticPort });
+    const controllerA = fixture.controller;
+    const attemptA = controllerA.issueAttemptInternalV1();
+    expect(attemptA).not.toBeNull();
+    expect(controllerA.dispatchInternalV1({ ...(attemptA as object) })).toEqual({
+      kind: "stale",
+      completion: null,
+    });
+
+    const foreign = automaticPauseHarnessV1();
+    const foreignAttempt = foreign.controller.issueAttemptInternalV1();
+    expect(foreignAttempt).not.toBeNull();
+    expect(controllerA.dispatchInternalV1(foreignAttempt)).toEqual({
+      kind: "stale",
+      completion: null,
+    });
+    expect(dispatchResolution).not.toHaveBeenCalled();
+
+    expect(fixture.harness.bridge.reconcilePendingInternalV1(pendingV1("pause", 2)))
+      .toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
+    expect(controllerA.dispatchInternalV1(attemptA)).toEqual({
+      kind: "stale",
+      completion: null,
+    });
+    expect(() => createNarrativeStablePauseExpiryControllerInternalV1(fixture.harness.bridge))
+      .toThrowError("ui.narrative_stable_pause_expiry_controller_unavailable");
+    expect(dispatchResolution).not.toHaveBeenCalled();
+    controllerA.disposeInternalV1();
+    settleCurrentNarrativeReadyV1(fixture.harness);
+
+    const controllerB = createNarrativeStablePauseExpiryControllerInternalV1(
+      fixture.harness.bridge,
+    );
+    const attemptB = controllerB.issueAttemptInternalV1();
+    expect(attemptB).not.toBeNull();
+    const resultB = controllerB.dispatchInternalV1(attemptB);
+    expect(resultB).toMatchObject({ kind: "dispatched" });
+    if (resultB.kind !== "dispatched") throw new Error("expected B generation dispatch");
+    await expect(resultB.completion).resolves.toBe("automatic-resumed");
+    expect(dispatchResolution).toHaveBeenCalledOnce();
+    expect(controllerB.dispatchInternalV1(attemptB)).toEqual({
+      kind: "stale",
+      completion: null,
+    });
+
+    controllerB.disposeInternalV1();
+    foreign.controller.disposeInternalV1();
+  });
+
+  it("stales the old topology attempt but admits a fresh controller under a higher nonblocking input owner", async () => {
+    const dispatchResolution = vi.fn(() => Promise.resolve("nonblocking-resumed"));
+    const semanticPort = Object.freeze({ dispatchResolutionInternalV1: dispatchResolution });
+    const { harness, nonBlockingDefinition } = nonBlockingNarrativeHarnessV1(semanticPort);
+    expect(harness.bridge.reconcilePendingInternalV1(pendingV1("pause"))).toMatchObject({
+      kind: "applied",
+      code: "surface.stable_publication_applied",
+    });
+    settleCurrentNarrativeReadyV1(harness);
+    const oldController = createNarrativeStablePauseExpiryControllerInternalV1(harness.bridge);
+    const oldAttempt = oldController.issueAttemptInternalV1();
+    expect(oldAttempt).not.toBeNull();
+
+    openNonBlockingSurfaceV1(
+      harness,
+      nonBlockingDefinition,
+      "suspended",
+      "candidate",
+      () => {
+        expect(() => createNarrativeStablePauseExpiryControllerInternalV1(harness.bridge))
+          .toThrowError("ui.narrative_stable_pause_expiry_controller_unavailable");
+      },
+    );
+    expect(oldController.dispatchInternalV1(oldAttempt)).toEqual({
+      kind: "stale",
+      completion: null,
+    });
+
+    const state = harness.kernel.getStateInternalV1();
+    const notifications = harness.stateNotificationCount();
+    const freshController = createNarrativeStablePauseExpiryControllerInternalV1(
+      harness.bridge,
+    );
+    oldController.disposeInternalV1();
+    expect(() => createNarrativeStablePauseExpiryControllerInternalV1(harness.bridge))
+      .toThrowError("ui.narrative_stable_pause_expiry_controller_invalid");
+    const freshAttempt = freshController.issueAttemptInternalV1();
+    expect(freshAttempt).not.toBeNull();
+    const result = freshController.dispatchInternalV1(freshAttempt);
+    expect(result).toMatchObject({ kind: "dispatched" });
+    if (result.kind !== "dispatched") throw new Error("expected nonblocking dispatch");
+    await expect(result.completion).resolves.toBe("nonblocking-resumed");
+    expect(dispatchResolution).toHaveBeenCalledOnce();
+    expect(harness.kernel.getStateInternalV1()).toBe(state);
+    expect(harness.stateNotificationCount()).toBe(notifications);
+    expect(state.transientState.publication.inputOwner?.surfaceInstanceId).not.toBe(
+      state.stableRuntimeBindings[0]?.binding.kind === "ready_instance"
+        ? state.stableRuntimeBindings[0].binding.instance.attempt.identity.surfaceInstanceId
+        : null,
+    );
+    freshController.disposeInternalV1();
+  });
+
+  it("reissues within the same generation after lower nonblocking topology changes without suspending Narrative", async () => {
+    const dispatchResolution = vi.fn(() => Promise.resolve("lower-nonblocking-resumed"));
+    const semanticPort = Object.freeze({ dispatchResolutionInternalV1: dispatchResolution });
+    const { harness, nonBlockingDefinition } = nonBlockingNarrativeHarnessV1(
+      semanticPort,
+      10,
+    );
+    expect(harness.bridge.reconcilePendingInternalV1(pendingV1("pause"))).toMatchObject({
+      kind: "applied",
+      code: "surface.stable_publication_applied",
+    });
+    settleCurrentNarrativeReadyV1(harness);
+    const controller = createNarrativeStablePauseExpiryControllerInternalV1(harness.bridge);
+    const oldAttempt = controller.issueAttemptInternalV1();
+    expect(oldAttempt).not.toBeNull();
+
+    openNonBlockingSurfaceV1(harness, nonBlockingDefinition, "active", "narrative");
+    expect(controller.dispatchInternalV1(oldAttempt)).toEqual({
+      kind: "stale",
+      completion: null,
+    });
+    expect(dispatchResolution).not.toHaveBeenCalled();
+
+    const state = harness.kernel.getStateInternalV1();
+    const notifications = harness.stateNotificationCount();
+    const freshAttempt = controller.issueAttemptInternalV1();
+    expect(freshAttempt).not.toBeNull();
+    expect(freshAttempt).not.toBe(oldAttempt);
+    const result = controller.dispatchInternalV1(freshAttempt);
+    expect(result).toMatchObject({ kind: "dispatched" });
+    if (result.kind !== "dispatched") {
+      throw new Error("expected same-generation lower-topology dispatch");
+    }
+    await expect(result.completion).resolves.toBe("lower-nonblocking-resumed");
+    expect(dispatchResolution).toHaveBeenCalledOnce();
+    expect(harness.kernel.getStateInternalV1()).toBe(state);
+    expect(harness.stateNotificationCount()).toBe(notifications);
+    controller.disposeInternalV1();
+  });
+
+  it("fences suspension, empty, publisher disposal, controller disposal, and terminal disposal", () => {
+    const dispatchResolution = vi.fn(() => Promise.resolve("must-not-dispatch"));
+    const semanticPort = Object.freeze({ dispatchResolutionInternalV1: dispatchResolution });
+
+    const nonPause = physicalChoiceHarnessV1({ semanticDispatchPort: semanticPort });
+    expect(() => createNarrativeStablePauseExpiryControllerInternalV1(nonPause.harness.bridge))
+      .toThrowError("ui.narrative_stable_pause_expiry_controller_unavailable");
+    nonPause.admission.disposeInternalV1();
+
+    const preparing = harnessV1({
+      candidatePreflight: Object.freeze({
+        preflightCandidateInternalV1: () =>
+          capturedCandidatePreflightResultV1(Object.freeze({
+            ...defaultCandidateSnapshotV1,
+            semanticDispatchPort: semanticPort,
+          })),
+      }),
+    });
+    expect(preparing.bridge.reconcilePendingInternalV1(pendingV1("pause"))).toMatchObject({
+      kind: "applied",
+      code: "surface.stable_publication_applied",
+    });
+    expect(() => createNarrativeStablePauseExpiryControllerInternalV1(preparing.bridge))
+      .toThrowError("ui.narrative_stable_pause_expiry_controller_unavailable");
+
+    const suspended = automaticPauseHarnessV1({ semanticDispatchPort: semanticPort });
+    const suspendedAttempt = suspended.controller.issueAttemptInternalV1();
+    expect(suspendedAttempt).not.toBeNull();
+    suspendCurrentNarrativeV1(suspended.harness);
+    expect(suspended.controller.dispatchInternalV1(suspendedAttempt)).toEqual({
+      kind: "stale",
+      completion: null,
+    });
+
+    const emptied = automaticPauseHarnessV1({ semanticDispatchPort: semanticPort });
+    const emptiedAttempt = emptied.controller.issueAttemptInternalV1();
+    expect(emptiedAttempt).not.toBeNull();
+    expect(emptied.harness.bridge.reconcilePendingInternalV1(null)).toMatchObject({
+      kind: "applied",
+      code: "surface.stable_publication_applied",
+    });
+    expect(emptied.controller.dispatchInternalV1(emptiedAttempt)).toEqual({
+      kind: "stale",
+      completion: null,
+    });
+
+    const publisherDisposed = automaticPauseHarnessV1({
+      semanticDispatchPort: semanticPort,
+    });
+    const publisherDisposedAttempt = publisherDisposed.controller.issueAttemptInternalV1();
+    expect(publisherDisposedAttempt).not.toBeNull();
+    expect(publisherDisposed.harness.bridge.disposeInternalV1()).toMatchObject({
+      kind: "applied",
+      code: "surface.stable_publisher_disposed",
+    });
+    expect(
+      publisherDisposed.controller.dispatchInternalV1(publisherDisposedAttempt),
+    ).toEqual({ kind: "stale", completion: null });
+
+    const controllerDisposed = automaticPauseHarnessV1({
+      semanticDispatchPort: semanticPort,
+    });
+    const controllerDisposedAttempt = controllerDisposed.controller.issueAttemptInternalV1();
+    expect(controllerDisposedAttempt).not.toBeNull();
+    controllerDisposed.controller.disposeInternalV1();
+    expect(controllerDisposed.controller.dispatchInternalV1(controllerDisposedAttempt)).toEqual({
+      kind: "stale",
+      completion: null,
+    });
+    const fresh = createNarrativeStablePauseExpiryControllerInternalV1(
+      controllerDisposed.harness.bridge,
+    );
+    expect(fresh.issueAttemptInternalV1()).not.toBeNull();
+    fresh.disposeInternalV1();
+
+    const terminal = automaticPauseHarnessV1({ semanticDispatchPort: semanticPort });
+    const terminalAttempt = terminal.controller.issueAttemptInternalV1();
+    expect(terminalAttempt).not.toBeNull();
+    expect(terminal.harness.kernel.transitionTransientInternalV1({
+      kind: "dispose_coordinator",
+    })).toMatchObject({ kind: "applied", code: "surface.coordinator_disposed" });
+    expect(terminal.controller.dispatchInternalV1(terminalAttempt)).toEqual({
+      kind: "stale",
+      completion: null,
+    });
+    expect(dispatchResolution).not.toHaveBeenCalled();
+
+    suspended.controller.disposeInternalV1();
+    emptied.controller.disposeInternalV1();
+    publisherDisposed.controller.disposeInternalV1();
+    terminal.controller.disposeInternalV1();
+  });
+
+  it("normalizes semantic throw, spends before reentry, and preserves exact successor claims", async () => {
+    const sentinel = new Error("automatic pause semantic dispatch failed");
+    let controller!: NarrativeStablePauseExpiryControllerInternalV1;
+    let attempt!: NarrativeStablePauseExpiryControllerAttemptInternalV1;
+    let reentrantResult: NarrativeStablePauseExpiryDispatchResultInternalV1 | null = null;
+    const dispatchResolution = vi.fn(() => {
+      reentrantResult = controller.dispatchInternalV1(attempt);
+      throw sentinel;
+    });
+    const fixture = automaticPauseHarnessV1({
+      semanticDispatchPort: Object.freeze({ dispatchResolutionInternalV1: dispatchResolution }),
+    });
+    controller = fixture.controller;
+    expect(() => createNarrativeStablePauseExpiryControllerInternalV1(fixture.harness.bridge))
+      .toThrowError("ui.narrative_stable_pause_expiry_controller_invalid");
+    const issued = controller.issueAttemptInternalV1();
+    if (issued === null) throw new Error("expected automatic pause attempt");
+    attempt = issued;
+    const state = fixture.harness.kernel.getStateInternalV1();
+    const notifications = fixture.harness.stateNotificationCount();
+    const result = controller.dispatchInternalV1(attempt);
+    expect(result).toMatchObject({ kind: "dispatched" });
+    if (result.kind !== "dispatched") throw new Error("expected rejected completion");
+    await expect(result.completion).rejects.toBe(sentinel);
+    expect(reentrantResult).toEqual({ kind: "stale", completion: null });
+    expect(dispatchResolution).toHaveBeenCalledOnce();
+    expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
+    expect(fixture.harness.stateNotificationCount()).toBe(notifications);
+
+    controller.disposeInternalV1();
+    const successor = createNarrativeStablePauseExpiryControllerInternalV1(
+      fixture.harness.bridge,
+    );
+    controller.disposeInternalV1();
+    expect(() => createNarrativeStablePauseExpiryControllerInternalV1(fixture.harness.bridge))
+      .toThrowError("ui.narrative_stable_pause_expiry_controller_invalid");
+    expect(successor.issueAttemptInternalV1()).not.toBeNull();
+    successor.disposeInternalV1();
+  });
+
+  it(
+    "bounds ten-thousand controller rotations without timer, source, or runtime churn",
+    () => {
+      let activeController: NarrativeStablePauseExpiryControllerInternalV1 | null = null;
+      let activeAttempt: NarrativeStablePauseExpiryControllerAttemptInternalV1 | null = null;
+      let reentrantResult: NarrativeStablePauseExpiryDispatchResultInternalV1 | null = null;
+      const dispatchResolution = vi.fn(() => {
+        if (activeController === null || activeAttempt === null) {
+          throw new Error("missing active automatic controller");
+        }
+        reentrantResult = activeController.dispatchInternalV1(activeAttempt);
+        return Promise.resolve("bounded-resume");
+      });
+      const fixture = automaticPauseHarnessV1({
+        semanticDispatchPort: Object.freeze({ dispatchResolutionInternalV1: dispatchResolution }),
+      });
+      const state = fixture.harness.kernel.getStateInternalV1();
+      const notifications = fixture.harness.stateNotificationCount();
+      const publisherBefore = publisherSnapshotV1(fixture.harness);
+      let controller = fixture.controller;
+      for (let index = 0; index < 10_000; index += 1) {
+        const attempt = controller.issueAttemptInternalV1();
+        if (attempt === null) throw new Error(`missing automatic attempt at rotation ${index}`);
+        if (index === 0 || index === 9_999) {
+          expect(Object.isFrozen(attempt)).toBe(true);
+          expect(Reflect.ownKeys(attempt)).toEqual([]);
+        }
+        controller.disposeInternalV1();
+        if (index < 9_999) {
+          controller = createNarrativeStablePauseExpiryControllerInternalV1(
+            fixture.harness.bridge,
+          );
+        }
+      }
+
+      activeController = createNarrativeStablePauseExpiryControllerInternalV1(
+        fixture.harness.bridge,
+      );
+      activeAttempt = activeController.issueAttemptInternalV1();
+      expect(activeAttempt).not.toBeNull();
+      const result = activeController.dispatchInternalV1(activeAttempt);
+      expect(result).toMatchObject({ kind: "dispatched" });
+      expect(reentrantResult).toEqual({ kind: "stale", completion: null });
+      expect(dispatchResolution).toHaveBeenCalledOnce();
+      expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
+      expect(fixture.harness.stateNotificationCount()).toBe(notifications);
+      expect(publisherSnapshotV1(fixture.harness)).toMatchObject({
+        sourceRevisionIssuanceHighWater: publisherBefore.sourceRevisionIssuanceHighWater,
+        occurrenceIssuanceHighWater: publisherBefore.occurrenceIssuanceHighWater,
+      });
+      expect(fixture.harness.registry.getSnapshot()).toMatchObject({
+        leaseSequenceHighWater: 1,
+        currentPublisherCount: 1,
+      });
+      activeController.disposeInternalV1();
+    },
+    30_000,
+  );
 
   it("normalizes a synchronous semantic-port throw to a rejected completion without rollback", async () => {
     const sentinel = new Error("semantic dispatch failed");

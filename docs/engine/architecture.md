@@ -1,6 +1,6 @@
 # SillyMaker architecture
 
-状态：持续维护的现状文档。最后结构性复核：2026-08-04。
+状态：持续维护的现状文档。最后结构性复核：2026-08-10。
 
 本文描述当前实现的主要边界和数据流。它不是冻结 ABI；修改包职责、权威状态、Story
 组合、持久化格式或公开入口时，应同时更新本文、相应类型和行为测试。
@@ -606,9 +606,10 @@ throwing, or explicitly faulted preflight converges to
 and do not extend the generic stable-result table. Every callback outcome is
 followed by an exact lease/baseline/reservation currentness check before it can
 win; successful capture then rechecks source/occurrence capacity before any
-issuance. The UI barrels and package exports remain unchanged. Authenticated
-physical/automatic action admission, Host/History integration, and live Story
-cutover remain later S4 slices.
+issuance. The UI barrels and package exports remain unchanged. The family
+bridge itself exposes no action admission; the source-relative physical and
+automatic adapters described below consume it without changing those barrels.
+Host/History integration and live Story cutover remain later S4 slices.
 
 S4.1b.0 now factors the existing managed action route through one
 source-relative contract-bound core while preserving the live transient adapter's
@@ -631,6 +632,21 @@ by passing a frozen exact `{ actionId, attempt }` to the claimed continuation;
 the opaque attempt cannot replace the authenticated action ID. This corrective
 has no non-test claimant and adds no semantic dispatch.
 
+The same shared stable action authority now also issues a source-relative
+ready-active proof for an exact direct stable target independently of which
+whole-composite node currently owns managed input. The proof binds the exact
+application epoch, topology revision, runtime instance, publisher lease,
+target occurrence/source revision, and active phase; any topology change
+invalidates the old proof, while the same still-active target can be captured
+again. Physical input capture, ready-active capture, both proof-currentness
+checks, and routed physical actions all first require the exact registry
+inventory and baseline-to-runtime graph to remain coherent. After the existing
+application-epoch/topology evidence precedence, a raw publisher-registry
+dispose or registry-wide divergence therefore faults the route and invalidates
+both proof kinds instead of leaving either physical or automatic semantic
+dispatch usable. This is an extension of the same cached kernel authority, not
+a second lifecycle or topology owner.
+
 S4.1b.1b.0 now closes one narrow, source-relative semantic vertical for
 `narrative.choose`. Candidate preflight descriptor-captures the exact receiver
 and one own data `dispatchResolutionInternalV1` callable before candidate or
@@ -643,9 +659,10 @@ input-publication, and gesture gates authenticate `narrative.choose`, the same
 admission rechecks target, source, frame, and port provenance, then invokes the
 captured receiver with a frozen `{ expectedOccurrenceId, resolution: {
 kind: "choose", choiceId } }` request. A synchronous port throw becomes a
-rejected completion and does not roll back Surface state. Wrong mapped actions
-are reported source-relatively as unmapped without consuming the choice
-attempt; stale or replaced targets dispatch nothing. One active admission owns
+rejected completion and does not roll back Surface state. Unsupported action
+IDs return source-relative `unmapped` before attempt inspection; a supported
+action paired with the wrong attempt kind returns `stale` before spending that
+token. Stale or replaced targets dispatch nothing. One active admission owns
 the binding, and exact disposal releases only that admission's claim so a later
 ready occurrence can bind a fresh successor. The seam remains dormant and adds
 no generic result code, barrel, package export, React Host, or live Story edge.
@@ -660,14 +677,41 @@ before the one-shot token is spent. The admitted route rechecks the exact
 target, source, frame, captured semantic port, and `skippable` flag, then sends
 a frozen `{ expectedOccurrenceId, resolution: { kind: "resume" } }` request to
 the preflight-captured receiver and callable. `ui.confirm`,
-`narrative.advance`, player controls, and every other unmapped action are
-rejected before attempt inspection and cannot consume a valid pause token.
+`narrative.advance`, player controls, and every other unsupported action return
+`unmapped` before attempt inspection and cannot consume a valid pause token;
+mapped choice/resume cross-kind attempts return `stale` before spending either
+token.
 Preparing, replacement, retained-only, suspended, disposed, foreign, cloned,
 and repeated capabilities dispatch nothing; a synchronous semantic throw only
 rejects the returned completion Promise and does not roll back Surface state.
 The slice remains source-relative and dormant. Remaining say, custom, barrier,
-player-control, and automatic-controller policies stay with S4.1b.1b.1b; no
-raw resolution ingress is exposed ahead of those mappings.
+and player-control policies stay with S4.1b.1b.1b.2; no raw resolution ingress
+is exposed ahead of those mappings.
+
+S4.1b.1b.1b.1 now adds the bridge-private automatic pause-expiry controller on
+top of that same stable authority. An exact current direct ready-and-active
+pause can create one composition-bound controller whether `skippable` is
+`true` or `false`; the flag continues to gate only the physical resume token.
+The controller holds one current frozen zero-key attempt and binds it to its
+generation, exact ready-active proof, target/source, admitted frame, and
+preflight-captured semantic receiver/callable. It uses no gesture or
+`InputRouter` evidence. A topology change makes the old attempt stale, but the
+same generation may mint a fresh topology-bound attempt when the same target is
+still active. Suspension revokes the generation; replacement, empty,
+publisher/coordinator disposal, or source/frame change also prevent dispatch.
+Only an exact unspent current attempt submits the frozen
+`{ expectedOccurrenceId, resolution: { kind: "resume" } }` request. The
+semantic result is normalized to a Promise, so a synchronous throw becomes a
+rejected completion without rolling back Surface state.
+
+This controller remains dormant and source-relative: it adds no live Story or
+React Host edge, public/`./internal` barrel, package export, timer, clock read,
+deadline, remaining-duration state, or scheduler. Verification for the slice
+passed focused `7 files / 204 tests`, UI `79 files / 1022 tests`, full
+`253 files / 3950 tests`, and `deno task check`. Browser `101 / 101`, examples
+`45 passed / 2 skipped`, and prebuilt Player `38 / 38` are prior evidence only
+and were not rerun for this slice. S4.1b.1b.1b.1 is complete; current/next is
+S4.1b.1b.1b.2 remaining mapping adjudication and implementation.
 
 ## 9. Changing the architecture
 
@@ -711,9 +755,10 @@ without dispatching semantic work. S4.1b.1b.0 now consumes that context only
 for authenticated current-choice dispatch through the exact preflight-captured
 semantic callable. S4.1b.1b.1a adds authenticated physical resume only for an
 exact current skippable pause while retaining the same single binding for a
-non-skippable pause without minting a semantic capability. S4.1b.1b.1b
-remaining physical mappings and automatic controller-attempt admission are the
-next independent slice; Host integration and the Narrative live migration
-remain planned work.
+non-skippable pause without minting a physical semantic capability.
+S4.1b.1b.1b.1 adds the bridge-private automatic pause-expiry controller for
+both skippable values through the global-coherence-gated ready-active proof.
+S4.1b.1b.1b.2 remaining mapping adjudication/implementation is current/next;
+Host integration and the Narrative live migration remain planned work.
 Target documents do not alter the current data flow until that migration and
 its behavior tests land.
