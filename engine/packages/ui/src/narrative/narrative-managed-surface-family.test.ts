@@ -805,19 +805,21 @@ function mintHistoryOpenIntentV1(
   return result.intent;
 }
 
-function closeCurrentHistoryChildV1(harness: NarrativeHarnessV1): void {
+function retireCurrentHistoryChildWithRootCutoverV1(
+  harness: NarrativeHarnessV1,
+  sequence: number,
+): void {
   const publication = harness.kernel.getStateInternalV1().transientState.publication;
   const child = publication.orderedInstances.find((instance) =>
     instance.definition.definitionId === "surface.narrative.history"
   );
   if (child === undefined) throw new Error("expected current History child");
-  expect(harness.kernel.transitionTransientInternalV1({
-    kind: "readiness_failed",
-    evidence: Object.freeze({
-      applicationEpoch: applicationEpochV1,
-      surfaceInstanceId: child.surfaceInstanceId,
-    }),
-  })).toMatchObject({ kind: "applied", code: "surface.readiness_failed" });
+  expect(harness.bridge.reconcilePendingInternalV1(pendingV1("say", sequence)))
+    .toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
+  settleCurrentNarrativeReadyV1(harness);
+  expect(
+    harness.kernel.getStateInternalV1().transientState.publication.orderedInstances,
+  ).toEqual([]);
 }
 
 function createNarrativeBridgeSuccessorV1(
@@ -9965,7 +9967,7 @@ describe("Narrative stable Managed Surface family", () => {
     expect(fixture.harness.kernel.getStateInternalV1()).toBe(installedState);
     expect(fixture.harness.stateNotificationCount()).toBe(notifications + 1);
 
-    closeCurrentHistoryChildV1(fixture.harness);
+    retireCurrentHistoryChildWithRootCutoverV1(fixture.harness, 2);
     const closedState = fixture.harness.kernel.getStateInternalV1();
     expect(closedState.transientState.publication.orderedInstances).toEqual([]);
     const root = closedState.stableRuntimeBindings[0];
@@ -10280,7 +10282,7 @@ describe("Narrative stable Managed Surface family", () => {
         throw new Error("expected fresh bounded preparation");
       }
       previousPreparation = result.preparation;
-      closeCurrentHistoryChildV1(fixture.harness);
+      retireCurrentHistoryChildWithRootCutoverV1(fixture.harness, index + 2);
       admission.disposeInternalV1();
       admission = createNarrativeStablePhysicalActionAdmissionInternalV1({
         bridge: fixture.harness.bridge,
@@ -10295,10 +10297,10 @@ describe("Narrative stable Managed Surface family", () => {
     if (root?.binding.kind !== "ready_instance") throw new Error("expected final Dialogue root");
     expect(root.binding.instance.phase).toBe("active");
     expect(availabilityReads).toBe(10_000);
-    expect(fixture.harness.stateNotificationCount()).toBe(notifications + 20_000);
+    expect(fixture.harness.stateNotificationCount()).toBe(notifications + 30_000);
     expect(publisherSnapshotV1(fixture.harness)).toMatchObject({
-      sourceRevisionIssuanceHighWater: publisherBefore.sourceRevisionIssuanceHighWater,
-      occurrenceIssuanceHighWater: publisherBefore.occurrenceIssuanceHighWater,
+      sourceRevisionIssuanceHighWater: publisherBefore.sourceRevisionIssuanceHighWater + 10_000,
+      occurrenceIssuanceHighWater: publisherBefore.occurrenceIssuanceHighWater + 10_000,
     });
     admission.disposeInternalV1();
   });

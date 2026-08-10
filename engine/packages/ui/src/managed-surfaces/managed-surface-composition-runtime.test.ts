@@ -177,8 +177,24 @@ describe("composition-owned Managed Surface runtime", () => {
     expect(fixture.runtime.getCurrent()).toBe(current);
     expect(fixture.maximumActiveRegistrations()).toBe(1);
     expect(fixture.activeRegistrations()).toBe(1);
+    const binding = current.bindCurrentInput();
+    const gesture = current.gestureLease.begin();
+    const envelope = binding.createEnvelope({
+      actionId: parseManagedSurfaceActionIdV1("surface-action.cancel"),
+      gestureId: gesture,
+    });
     fixture.runtime.dispose();
-    expect(fixture.activeRegistrations()).toBe(0);
+    expect(current.isIngressOpen()).toBe(false);
+    expect(current.gestureLease.isCurrent(gesture)).toBe(false);
+    expect(binding.route(envelope)).toMatchObject({
+      input: { kind: "consumed", code: "input.stale_publication" },
+      surface: null,
+    });
+    expect({
+      registered: fixture.registrationCount(),
+      unregistered: fixture.unregistrationCount(),
+      active: fixture.activeRegistrations(),
+    }).toEqual({ registered: 1, unregistered: 0, active: 1 });
   });
 
   it("retains one input binding and gesture through replacement preparation and failure", () => {
@@ -264,11 +280,21 @@ describe("composition-owned Managed Surface runtime", () => {
       unregistered: fixture.unregistrationCount(),
       active: fixture.activeRegistrations(),
       maximumActive: fixture.maximumActiveRegistrations(),
-    }).toEqual({ registered: 2, unregistered: 1, active: 1, maximumActive: 1 });
+    }).toEqual({ registered: 1, unregistered: 0, active: 1, maximumActive: 1 });
+    expect(retainedBinding.route(retainedEnvelope)).toMatchObject({
+      input: { kind: "consumed", code: "input.stale_publication" },
+      surface: null,
+    });
 
     fixture.runtime.dispose();
-    expect(fixture.unregistrationCount()).toBe(2);
-    expect(fixture.activeRegistrations()).toBe(0);
+    expect(runtime.isIngressOpen()).toBe(false);
+    expect(activeBinding.route(activeEnvelope)).toMatchObject({
+      input: { kind: "consumed", code: "input.stale_publication" },
+      surface: null,
+    });
+    expect(fixture.registrationCount()).toBe(1);
+    expect(fixture.unregistrationCount()).toBe(0);
+    expect(fixture.activeRegistrations()).toBe(1);
   });
 
   it("rotates both families behind one successor allocation and stale readiness fence", () => {

@@ -532,6 +532,58 @@ import type { ManagedSurfaceReducerCrossAxisParentProjectionInternalV1 as Forbid
 import type { DeriveManagedSurfaceReducerCrossAxisChildPreparationInputInternalV1 as ForbiddenPublicReducerCrossAxisChildPreparationInputV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose cross-axis reducer preparation inputs.
 import type { DeriveManagedSurfaceReducerCrossAxisChildPreparationInputInternalV1 as ForbiddenInternalReducerCrossAxisChildPreparationInputV1 } from "./internal.ts";
+// @ts-expect-error Prepared contract-bound action-binding inputs stay source-relative.
+import type { PrepareManagedSurfaceContractBoundActionBindingInputInternalV1 as ForbiddenPublicPreparedContractBoundActionBindingInputV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose prepared contract-bound action-binding inputs.
+import type { PrepareManagedSurfaceContractBoundActionBindingInputInternalV1 as ForbiddenInternalPreparedContractBoundActionBindingInputV1 } from "./internal.ts";
+// @ts-expect-error Prepared contract-bound action bindings stay source-relative.
+import type { ManagedSurfacePreparedContractBoundActionBindingInternalV1 as ForbiddenPublicPreparedContractBoundActionBindingV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose prepared contract-bound action bindings.
+import type { ManagedSurfacePreparedContractBoundActionBindingInternalV1 as ForbiddenInternalPreparedContractBoundActionBindingV1 } from "./internal.ts";
+// @ts-expect-error Prepared contract-bound action-binding construction stays source-relative.
+import type { prepareManagedSurfaceContractBoundActionBindingInternalV1 as ForbiddenPublicPreparedContractBoundActionBindingFactoryV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose prepared contract-bound action-binding construction.
+import type { prepareManagedSurfaceContractBoundActionBindingInternalV1 as ForbiddenInternalPreparedContractBoundActionBindingFactoryV1 } from "./internal.ts";
+// @ts-expect-error Prepared authenticated action-route claims stay source-relative.
+import type { claimManagedSurfacePreparedAuthenticatedActionRouteInternalV1 as ForbiddenPublicPreparedAuthenticatedActionRouteClaimV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose prepared authenticated action-route claims.
+import type { claimManagedSurfacePreparedAuthenticatedActionRouteInternalV1 as ForbiddenInternalPreparedAuthenticatedActionRouteClaimV1 } from "./internal.ts";
+// @ts-expect-error Prepared input-binding contract tokens stay source-relative.
+import type { ManagedSurfacePreparedInputBindingContractInternalV1 as ForbiddenPublicPreparedInputBindingContractV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose prepared input-binding contract tokens.
+import type { ManagedSurfacePreparedInputBindingContractInternalV1 as ForbiddenInternalPreparedInputBindingContractV1 } from "./internal.ts";
+// @ts-expect-error Prepared input-binding contract capture stays source-relative.
+import type { captureManagedSurfacePreparedInputBindingContractInternalV1 as ForbiddenPublicPreparedInputBindingContractCaptureV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose prepared input-binding contract capture.
+import type { captureManagedSurfacePreparedInputBindingContractInternalV1 as ForbiddenInternalPreparedInputBindingContractCaptureV1 } from "./internal.ts";
+// @ts-expect-error Stable readiness commit guards stay source-relative.
+import type { ManagedSurfaceStableReadinessCommitGuardInternalV1 as ForbiddenPublicStableReadinessCommitGuardV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose stable readiness commit guards.
+import type { ManagedSurfaceStableReadinessCommitGuardInternalV1 as ForbiddenInternalStableReadinessCommitGuardV1 } from "./internal.ts";
+// @ts-expect-error Stable exact-parent transient-child readiness results stay source-relative.
+import type { ManagedSurfaceStableExactParentTransientChildReadinessResultInternalV1 as ForbiddenPublicStableExactParentTransientChildReadinessResultV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose stable exact-parent transient-child readiness results.
+import type { ManagedSurfaceStableExactParentTransientChildReadinessResultInternalV1 as ForbiddenInternalStableExactParentTransientChildReadinessResultV1 } from "./internal.ts";
+// @ts-expect-error Stable exact-parent transient-child readiness authorities stay source-relative.
+import type { ManagedSurfaceStableExactParentTransientChildReadinessAuthorityInternalV1 as ForbiddenPublicStableExactParentTransientChildReadinessAuthorityV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose stable exact-parent transient-child readiness authorities.
+import type { ManagedSurfaceStableExactParentTransientChildReadinessAuthorityInternalV1 as ForbiddenInternalStableExactParentTransientChildReadinessAuthorityV1 } from "./internal.ts";
+// @ts-expect-error Stable exact-parent transient-child readiness authority claims stay source-relative.
+import type { claimManagedSurfaceStableExactParentTransientChildReadinessAuthorityInternalV1 as ForbiddenPublicStableExactParentTransientChildReadinessAuthorityClaimV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose stable exact-parent transient-child readiness authority claims.
+import type { claimManagedSurfaceStableExactParentTransientChildReadinessAuthorityInternalV1 as ForbiddenInternalStableExactParentTransientChildReadinessAuthorityClaimV1 } from "./internal.ts";
+// @ts-expect-error Stable exact-parent transient-child action-input capture results stay source-relative.
+import type { ManagedSurfaceStableExactParentTransientChildActionInputCaptureResultInternalV1 as ForbiddenPublicStableExactParentTransientChildActionInputCaptureResultV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose stable exact-parent transient-child action-input capture results.
+import type { ManagedSurfaceStableExactParentTransientChildActionInputCaptureResultInternalV1 as ForbiddenInternalStableExactParentTransientChildActionInputCaptureResultV1 } from "./internal.ts";
+// @ts-expect-error Stable exact-parent transient-child action-route authorities stay source-relative.
+import type { ManagedSurfaceStableExactParentTransientChildActionRouteAuthorityInternalV1 as ForbiddenPublicStableExactParentTransientChildActionRouteAuthorityV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose stable exact-parent transient-child action-route authorities.
+import type { ManagedSurfaceStableExactParentTransientChildActionRouteAuthorityInternalV1 as ForbiddenInternalStableExactParentTransientChildActionRouteAuthorityV1 } from "./internal.ts";
+// @ts-expect-error Stable exact-parent transient-child action-route authority claims stay source-relative.
+import type { claimManagedSurfaceStableExactParentTransientChildActionRouteAuthorityInternalV1 as ForbiddenPublicStableExactParentTransientChildActionRouteAuthorityClaimV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose stable exact-parent transient-child action-route authority claims.
+import type { claimManagedSurfaceStableExactParentTransientChildActionRouteAuthorityInternalV1 as ForbiddenInternalStableExactParentTransientChildActionRouteAuthorityClaimV1 } from "./internal.ts";
 /* oxlint-enable no-unused-vars */
 
 describe("@sillymaker/ui public managed System surface", () => {
@@ -634,6 +686,19 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "ManagedSurfaceAuthenticatedActionRouteInternalV1"
       | "createManagedSurfaceContractBoundActionBindingInternalV1"
       | "claimManagedSurfaceAuthenticatedActionRouteInternalV1"
+      | "PrepareManagedSurfaceContractBoundActionBindingInputInternalV1"
+      | "ManagedSurfacePreparedContractBoundActionBindingInternalV1"
+      | "prepareManagedSurfaceContractBoundActionBindingInternalV1"
+      | "claimManagedSurfacePreparedAuthenticatedActionRouteInternalV1"
+      | "ManagedSurfacePreparedInputBindingContractInternalV1"
+      | "captureManagedSurfacePreparedInputBindingContractInternalV1"
+      | "ManagedSurfaceStableReadinessCommitGuardInternalV1"
+      | "ManagedSurfaceStableExactParentTransientChildReadinessResultInternalV1"
+      | "ManagedSurfaceStableExactParentTransientChildReadinessAuthorityInternalV1"
+      | "claimManagedSurfaceStableExactParentTransientChildReadinessAuthorityInternalV1"
+      | "ManagedSurfaceStableExactParentTransientChildActionInputCaptureResultInternalV1"
+      | "ManagedSurfaceStableExactParentTransientChildActionRouteAuthorityInternalV1"
+      | "claimManagedSurfaceStableExactParentTransientChildActionRouteAuthorityInternalV1"
       | "ManagedSurfaceStableDirectActionTargetProofInternalV1"
       | "ManagedSurfaceStableReadyActiveTargetProofInternalV1"
       | "ManagedSurfaceStableReadyActiveTargetCaptureResultInternalV1"
@@ -650,6 +715,13 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "DeriveManagedSurfaceReducerCrossAxisChildPreparationInputInternalV1"
       | "prepareExactParentTransientChildInternalV1"
       | "commitInternalV1"
+      | "abortInternalV1"
+      | "getBindingInternalV1"
+      | "settleStableReadinessReadyWithCommitGuardInternalV1"
+      | "settleStableReadinessFailedWithCommitGuardInternalV1"
+      | "settleExactParentTransientChildReadinessReadyInternalV1"
+      | "settleExactParentTransientChildReadinessFailedInternalV1"
+      | "captureCurrentExactParentTransientChildInputInternalV1"
       | "captureReadyActiveStableTargetInternalV1"
       | "isCurrentReadyActiveStableTargetInternalV1"
       | "settleStableReadinessFailedInternalV1"
@@ -807,6 +879,19 @@ describe("@sillymaker/ui public managed System surface", () => {
         "ManagedSurfaceAuthenticatedActionRouteInternalV1",
         "createManagedSurfaceContractBoundActionBindingInternalV1",
         "claimManagedSurfaceAuthenticatedActionRouteInternalV1",
+        "PrepareManagedSurfaceContractBoundActionBindingInputInternalV1",
+        "ManagedSurfacePreparedContractBoundActionBindingInternalV1",
+        "prepareManagedSurfaceContractBoundActionBindingInternalV1",
+        "claimManagedSurfacePreparedAuthenticatedActionRouteInternalV1",
+        "ManagedSurfacePreparedInputBindingContractInternalV1",
+        "captureManagedSurfacePreparedInputBindingContractInternalV1",
+        "ManagedSurfaceStableReadinessCommitGuardInternalV1",
+        "ManagedSurfaceStableExactParentTransientChildReadinessResultInternalV1",
+        "ManagedSurfaceStableExactParentTransientChildReadinessAuthorityInternalV1",
+        "claimManagedSurfaceStableExactParentTransientChildReadinessAuthorityInternalV1",
+        "ManagedSurfaceStableExactParentTransientChildActionInputCaptureResultInternalV1",
+        "ManagedSurfaceStableExactParentTransientChildActionRouteAuthorityInternalV1",
+        "claimManagedSurfaceStableExactParentTransientChildActionRouteAuthorityInternalV1",
         "ManagedSurfaceStableDirectActionTargetProofInternalV1",
         "ManagedSurfaceStableReadyActiveTargetProofInternalV1",
         "ManagedSurfaceStableReadyActiveTargetCaptureResultInternalV1",
@@ -823,6 +908,13 @@ describe("@sillymaker/ui public managed System surface", () => {
         "DeriveManagedSurfaceReducerCrossAxisChildPreparationInputInternalV1",
         "prepareExactParentTransientChildInternalV1",
         "commitInternalV1",
+        "abortInternalV1",
+        "getBindingInternalV1",
+        "settleStableReadinessReadyWithCommitGuardInternalV1",
+        "settleStableReadinessFailedWithCommitGuardInternalV1",
+        "settleExactParentTransientChildReadinessReadyInternalV1",
+        "settleExactParentTransientChildReadinessFailedInternalV1",
+        "captureCurrentExactParentTransientChildInputInternalV1",
         "captureReadyActiveStableTargetInternalV1",
         "isCurrentReadyActiveStableTargetInternalV1",
         "createManagedSurfaceRuntimeAttemptIdentityInternalV1",

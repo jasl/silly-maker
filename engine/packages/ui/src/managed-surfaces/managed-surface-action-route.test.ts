@@ -19,6 +19,7 @@ import {
   type ManagedSurfaceResolvedDefinitionV1,
   type ManagedSurfaceResolvedSlotDescriptorV1,
   type ManagedSurfaceGestureIdV1,
+  type ManagedSurfaceRouteActionInputV1,
   type ManagedSurfaceTransitionReceiptV1,
   parseManagedSurfaceActionIdV1,
   parseManagedSurfaceDefinitionIdV1,
@@ -31,12 +32,17 @@ import {
   parseManagedSurfaceSlotIdV1,
 } from "./managed-surface-contracts.ts";
 import {
+  captureManagedSurfacePreparedInputBindingContractInternalV1,
   claimManagedSurfaceAuthenticatedActionRouteInternalV1,
+  claimManagedSurfacePreparedAuthenticatedActionRouteInternalV1,
   createManagedSurfaceActionBindingV1,
   createManagedSurfaceContractBoundActionBindingInternalV1,
   equalManagedSurfaceInputBindingContractV1,
+  prepareManagedSurfaceContractBoundActionBindingInternalV1,
   type ManagedSurfaceActionBindingV1,
   type ManagedSurfaceInputBindingContractV1,
+  type ManagedSurfacePreparedContractBoundActionBindingInternalV1,
+  type ManagedSurfacePreparedInputBindingContractInternalV1,
 } from "./managed-surface-action-route.ts";
 import {
   createManagedSurfaceCoordinatorV1 as createManagedSurfaceCoordinatorImplementationV1,
@@ -162,6 +168,22 @@ function routedReceiptForContractV1(contract: ManagedSurfaceInputBindingContract
     beforeTopologyRevision: contract.topologyRevision,
     afterTopologyRevision: contract.topologyRevision,
     surfaceInstanceId: contract.surfaceInstanceId,
+  });
+}
+
+function createContractBoundAuthorityV1() {
+  const routeActionInternalV1 = vi.fn((input: ManagedSurfaceRouteActionInputV1) =>
+    Object.freeze({
+      kind: "unchanged" as const,
+      code: "surface.action_routed" as const,
+      beforeTopologyRevision: input.evidence.topologyRevision,
+      afterTopologyRevision: input.evidence.topologyRevision,
+      surfaceInstanceId: input.evidence.surfaceInstanceId,
+    })
+  );
+  return Object.freeze({
+    authority: Object.freeze({ routeActionInternalV1 }),
+    routeActionInternalV1,
   });
 }
 
@@ -1362,7 +1384,7 @@ describe("Managed Surface action route", () => {
     });
     expect(consume).not.toHaveBeenCalled();
     expect(lower).not.toHaveBeenCalled();
-    expect(countingRouter.getActiveRegistrationCount()).toBe(0);
+    expect(countingRouter.getActiveRegistrationCount()).toBe(1);
   });
 
   it("fences reentry and resets the claim after a throwing continuation", () => {
@@ -1404,5 +1426,883 @@ describe("Managed Surface action route", () => {
     expect(claimed.routeInternalV1(envelope, attempt).consumerResult).toBe("recovered");
     expect(consume).toHaveBeenCalledTimes(3);
     expect(lower).not.toHaveBeenCalled();
+  });
+
+  it("consumes one claimed invocation once across same-event router reentry", () => {
+    const countingRouter = createCountingInputRouterV1();
+    const contract = inputBindingContractV1();
+    let routeActionCount = 0;
+    const routeActionInternalV1 = vi.fn(() => {
+      routeActionCount += 1;
+      return routeActionCount === 1 ? routedReceiptForContractV1(contract) : Object.freeze({
+        kind: "rejected" as const,
+        code: "surface.not_input_owner" as const,
+        beforeTopologyRevision: contract.topologyRevision,
+        afterTopologyRevision: contract.topologyRevision,
+        surfaceInstanceId: contract.surfaceInstanceId,
+      });
+    });
+    const isGestureCurrent = vi.fn(() => true);
+    const binding = createManagedSurfaceContractBoundActionBindingInternalV1({
+      authority: Object.freeze({ routeActionInternalV1 }),
+      contract,
+      inputRouter: countingRouter.router,
+      isGestureCurrent,
+      registerManagedInputHandler: countingRouter.registerManagedInputHandler,
+    });
+    let reentered = false;
+    let nestedRoute: unknown = null;
+    countingRouter.router.register({
+      context: "debug",
+      handle: (event) => {
+        if (!reentered) {
+          reentered = true;
+          nestedRoute = countingRouter.router.route(event);
+        }
+        return inputIgnoredV1;
+      },
+    });
+    const consumerResult = Object.freeze({ kind: "same-event-consumer" as const });
+    const consume = vi.fn(() => consumerResult);
+    const claimed = claimManagedSurfaceAuthenticatedActionRouteInternalV1(binding, consume);
+    const envelope = binding.createEnvelope({
+      actionId: activateActionIdV1,
+      gestureId: gestureV1("claimed-same-event-reentry"),
+    });
+
+    expect(claimed.routeInternalV1(envelope, Object.freeze({ kind: "attempt" }))).toMatchObject({
+      route: {
+        input: { kind: "consumed", code: "input.managed_surface_consumed" },
+        surface: { kind: "unchanged", code: "surface.action_routed" },
+      },
+      consumerResult,
+    });
+    expect(nestedRoute).toEqual({ kind: "handled", context: "overlay" });
+    expect(routeActionInternalV1).toHaveBeenCalledOnce();
+    expect(isGestureCurrent).toHaveBeenCalledTimes(2);
+    expect(consume).toHaveBeenCalledOnce();
+  });
+
+  it("prepares and preclaims one zero-key contract-token binding before a plain-only commit", () => {
+    const countingRouter = createCountingInputRouterV1();
+    const currentContract = inputBindingContractV1();
+    const currentAuthority = createContractBoundAuthorityV1();
+    const current = createManagedSurfaceContractBoundActionBindingInternalV1({
+      authority: currentAuthority.authority,
+      contract: currentContract,
+      inputRouter: countingRouter.router,
+      isGestureCurrent: () => true,
+      registerManagedInputHandler: countingRouter.registerManagedInputHandler,
+    });
+    const oldEnvelope = current.createEnvelope({
+      actionId: activateActionIdV1,
+      gestureId: gestureV1("prepared-old"),
+    });
+    const candidateAuthority = createContractBoundAuthorityV1();
+    const gestureCurrent = vi.fn(() => true);
+    const prepared = prepareManagedSurfaceContractBoundActionBindingInternalV1({
+      authority: candidateAuthority.authority,
+      inputContextId: "overlay",
+      inputRouter: countingRouter.router,
+      isGestureCurrent: gestureCurrent,
+      registerManagedInputHandler: vi.fn(countingRouter.registerManagedInputHandler),
+    });
+    const rawContract = {
+      applicationEpoch: parseNonNegativeSafeInteger(4),
+      ownerId: parseManagedSurfaceOwnerIdV1("surface-owner.workspace"),
+      surfaceInstanceId: parseManagedSurfaceInstanceIdV1("surface-instance.e4.n2"),
+      inputContextId: "overlay" as const,
+      routingLeaseId: parseManagedSurfaceRoutingLeaseIdV1("surface-lease.e4.n2"),
+      actionIds: [activateActionIdV1],
+      topologyRevision: parseNonNegativeSafeInteger(2),
+    } satisfies ManagedSurfaceInputBindingContractV1;
+    const contractToken = captureManagedSurfacePreparedInputBindingContractInternalV1(
+      rawContract,
+    );
+    rawContract.surfaceInstanceId = parseManagedSurfaceInstanceIdV1(
+      "surface-instance.mutated",
+    );
+    rawContract.topologyRevision = parseNonNegativeSafeInteger(999);
+    rawContract.actionIds[0] = otherActionIdV1;
+    const consumerResult = Object.freeze({ kind: "consumer-result" as const });
+    const consume = vi.fn(() => consumerResult);
+    const claimed = claimManagedSurfacePreparedAuthenticatedActionRouteInternalV1(
+      prepared,
+      consume,
+    );
+
+    expect(Reflect.ownKeys(prepared)).toEqual([
+      "commitInternalV1",
+      "abortInternalV1",
+      "getBindingInternalV1",
+    ]);
+    expect(Object.isFrozen(prepared)).toBe(true);
+    expect(prepared.getBindingInternalV1()).toBeNull();
+    expect(Reflect.ownKeys(contractToken)).toEqual([]);
+    expect(Object.isFrozen(contractToken)).toBe(true);
+    expect(Reflect.ownKeys(claimed)).toEqual(["routeInternalV1", "disposeInternalV1"]);
+    expect(Object.isFrozen(claimed)).toBe(true);
+    expect(countingRouter.getRegistrationCount()).toBe(1);
+
+    candidateAuthority.routeActionInternalV1.mockClear();
+    expect(prepared.commitInternalV1(contractToken)).toBe(true);
+    expect(prepared.commitInternalV1(contractToken)).toBe(false);
+    expect(candidateAuthority.routeActionInternalV1).not.toHaveBeenCalled();
+    expect(gestureCurrent).not.toHaveBeenCalled();
+    expect(consume).not.toHaveBeenCalled();
+    expect(countingRouter.getRegistrationCount()).toBe(1);
+    expect(countingRouter.getUnregistrationCount()).toBe(0);
+
+    const binding = prepared.getBindingInternalV1();
+    expect(binding).not.toBeNull();
+    expect(prepared.getBindingInternalV1()).toBe(binding);
+    const envelope = binding!.createEnvelope({
+      actionId: activateActionIdV1,
+      gestureId: gestureV1("prepared-current"),
+    });
+    expect(envelope).toMatchObject({
+      surfaceInstanceId: "surface-instance.e4.n2",
+      surfaceTopologyRevision: 2,
+      inputPublicationRevision: 2,
+    });
+    const opaqueAttempt = Object.freeze({ kind: "prepared-attempt" as const });
+    expect(claimed.routeInternalV1(envelope, opaqueAttempt)).toMatchObject({
+      route: {
+        input: { kind: "consumed", code: "input.managed_surface_consumed" },
+        surface: { kind: "unchanged", code: "surface.action_routed" },
+      },
+      consumerResult,
+    });
+    expect(consume).toHaveBeenCalledOnce();
+    expect(current.route(oldEnvelope)).toMatchObject({
+      input: { kind: "consumed", code: "input.stale_publication" },
+      surface: null,
+    });
+  });
+
+  it("rejects forged tokens and receivers and keeps abort exact, idempotent, and zero-delta", () => {
+    const countingRouter = createCountingInputRouterV1();
+    const currentAuthority = createContractBoundAuthorityV1();
+    const current = createManagedSurfaceContractBoundActionBindingInternalV1({
+      authority: currentAuthority.authority,
+      contract: inputBindingContractV1(),
+      inputRouter: countingRouter.router,
+      isGestureCurrent: () => true,
+      registerManagedInputHandler: countingRouter.registerManagedInputHandler,
+    });
+    const currentEnvelope = current.createEnvelope({
+      actionId: activateActionIdV1,
+      gestureId: gestureV1("prepared-abort-current"),
+    });
+    const candidateAuthority = createContractBoundAuthorityV1();
+    const createPrepared = () =>
+      prepareManagedSurfaceContractBoundActionBindingInternalV1({
+        authority: candidateAuthority.authority,
+        inputContextId: "overlay",
+        inputRouter: countingRouter.router,
+        isGestureCurrent: () => true,
+        registerManagedInputHandler: vi.fn(countingRouter.registerManagedInputHandler),
+      });
+    const token = captureManagedSurfacePreparedInputBindingContractInternalV1(
+      inputBindingContractV1({
+        surfaceInstanceId: parseManagedSurfaceInstanceIdV1("surface-instance.e4.n2"),
+        routingLeaseId: parseManagedSurfaceRoutingLeaseIdV1("surface-lease.e4.n2"),
+        topologyRevision: parseNonNegativeSafeInteger(2),
+      }),
+    );
+    const forgedToken = { ...token } as ManagedSurfacePreparedInputBindingContractInternalV1;
+    const forgedPrepared = {
+      ...createPrepared(),
+    } as ManagedSurfacePreparedContractBoundActionBindingInternalV1;
+    expect(() =>
+      claimManagedSurfacePreparedAuthenticatedActionRouteInternalV1(
+        forgedPrepared,
+        vi.fn(),
+      )
+    ).toThrowError("ui.managed_surface_action_route_claim_invalid");
+
+    const forgedAttempt = createPrepared();
+    expect(forgedAttempt.commitInternalV1(forgedToken)).toBe(false);
+    expect(forgedAttempt.getBindingInternalV1()).toBeNull();
+    const abortAttempt = createPrepared();
+    abortAttempt.abortInternalV1();
+    abortAttempt.abortInternalV1();
+    expect(abortAttempt.commitInternalV1(token)).toBe(false);
+    expect(abortAttempt.getBindingInternalV1()).toBeNull();
+    expect(Reflect.apply(abortAttempt.commitInternalV1, {}, [token])).toBe(false);
+    expect(Reflect.apply(abortAttempt.getBindingInternalV1, {}, [])).toBeNull();
+
+    expect(current.route(currentEnvelope)).toMatchObject({
+      input: { kind: "unhandled" },
+      surface: { kind: "unchanged", code: "surface.action_routed" },
+    });
+    expect(countingRouter.getRegistrationCount()).toBe(1);
+    expect(countingRouter.getUnregistrationCount()).toBe(0);
+  });
+
+  it("terminal-aborts failed commits, releases both slots, and rejects post-commit preclaims", () => {
+    const countingRouter = createCountingInputRouterV1();
+    const authorityA = createContractBoundAuthorityV1();
+    const authorityB = createContractBoundAuthorityV1();
+    const authorityC = createContractBoundAuthorityV1();
+    const prepareFor = (
+      authority: ReturnType<typeof createContractBoundAuthorityV1>["authority"],
+    ) =>
+      prepareManagedSurfaceContractBoundActionBindingInternalV1({
+        authority,
+        inputContextId: "overlay",
+        inputRouter: countingRouter.router,
+        isGestureCurrent: () => true,
+        registerManagedInputHandler: countingRouter.registerManagedInputHandler,
+      });
+    const preparationA = prepareFor(authorityA.authority);
+    const preparationB = prepareFor(authorityB.authority);
+    const wrongContextToken = captureManagedSurfacePreparedInputBindingContractInternalV1(
+      inputBindingContractV1({ inputContextId: "system" }),
+    );
+
+    expect(preparationA.commitInternalV1(wrongContextToken)).toBe(false);
+    expect(preparationB.commitInternalV1(wrongContextToken)).toBe(false);
+    expect(preparationA.getBindingInternalV1()).toBeNull();
+    expect(preparationB.getBindingInternalV1()).toBeNull();
+    expect(() =>
+      claimManagedSurfacePreparedAuthenticatedActionRouteInternalV1(
+        preparationA,
+        vi.fn(),
+      )
+    ).toThrowError("ui.managed_surface_action_route_claim_invalid");
+    expect(() =>
+      claimManagedSurfacePreparedAuthenticatedActionRouteInternalV1(
+        preparationB,
+        vi.fn(),
+      )
+    ).toThrowError("ui.managed_surface_action_route_claim_invalid");
+
+    const preparationC = prepareFor(authorityC.authority);
+    preparationC.abortInternalV1();
+    expect(countingRouter.getRegistrationCount()).toBe(1);
+    expect(countingRouter.getActiveRegistrationCount()).toBe(1);
+    expect(countingRouter.getUnregistrationCount()).toBe(0);
+  });
+
+  it("descriptor-captures prepared input and raw contracts without invoking accessors", () => {
+    const countingRouter = createCountingInputRouterV1();
+    const authorityGetter = vi.fn(() => () => routedReceiptForContractV1(inputBindingContractV1()));
+    const accessorAuthority = Object.defineProperty({}, "routeActionInternalV1", {
+      configurable: true,
+      enumerable: true,
+      get: authorityGetter,
+    });
+    const registrar = vi.fn(countingRouter.registerManagedInputHandler);
+    expect(() =>
+      prepareManagedSurfaceContractBoundActionBindingInternalV1({
+        authority: accessorAuthority as never,
+        inputContextId: "overlay",
+        inputRouter: countingRouter.router,
+        isGestureCurrent: () => true,
+        registerManagedInputHandler: registrar,
+      })
+    ).toThrowError("ui.managed_surface_input_authority_invalid");
+    expect(authorityGetter).not.toHaveBeenCalled();
+    expect(registrar).not.toHaveBeenCalled();
+
+    const contractGetter = vi.fn(() => parseNonNegativeSafeInteger(4));
+    const contractWithAccessor = Object.defineProperties({}, {
+      applicationEpoch: { enumerable: true, get: contractGetter },
+      ownerId: { enumerable: true, value: parseManagedSurfaceOwnerIdV1("surface-owner.workspace") },
+      surfaceInstanceId: {
+        enumerable: true,
+        value: parseManagedSurfaceInstanceIdV1("surface-instance.e4.n2"),
+      },
+      inputContextId: { enumerable: true, value: "overlay" },
+      routingLeaseId: {
+        enumerable: true,
+        value: parseManagedSurfaceRoutingLeaseIdV1("surface-lease.e4.n2"),
+      },
+      actionIds: { enumerable: true, value: [activateActionIdV1] },
+      topologyRevision: { enumerable: true, value: parseNonNegativeSafeInteger(2) },
+    });
+    expect(() =>
+      captureManagedSurfacePreparedInputBindingContractInternalV1(
+        contractWithAccessor as ManagedSurfaceInputBindingContractV1,
+      )
+    ).toThrow(TypeError);
+    expect(contractGetter).not.toHaveBeenCalled();
+  });
+
+  it("bounds two latest-per-authority preparations and makes the first current-pointer commit win", () => {
+    const countingRouter = createCountingInputRouterV1();
+    const currentAuthority = createContractBoundAuthorityV1();
+    const current = createManagedSurfaceContractBoundActionBindingInternalV1({
+      authority: currentAuthority.authority,
+      contract: inputBindingContractV1(),
+      inputRouter: countingRouter.router,
+      isGestureCurrent: () => true,
+      registerManagedInputHandler: countingRouter.registerManagedInputHandler,
+    });
+    const currentEnvelope = current.createEnvelope({
+      actionId: activateActionIdV1,
+      gestureId: gestureV1("prepared-two-current"),
+    });
+    const authorityA = createContractBoundAuthorityV1();
+    const authorityB = createContractBoundAuthorityV1();
+    const authorityC = createContractBoundAuthorityV1();
+    const prepareFor = (
+      authority: ReturnType<typeof createContractBoundAuthorityV1>["authority"],
+      registerManagedInputHandler: typeof registerManagedInputHandlerV1 =
+        countingRouter.registerManagedInputHandler,
+    ) =>
+      prepareManagedSurfaceContractBoundActionBindingInternalV1({
+        authority,
+        inputContextId: "overlay",
+        inputRouter: countingRouter.router,
+        isGestureCurrent: () => true,
+        registerManagedInputHandler,
+      });
+    const preparationA1 = prepareFor(authorityA.authority);
+    const preparationB1 = prepareFor(authorityB.authority);
+    const thirdRegistrar = vi.fn(countingRouter.registerManagedInputHandler);
+    expect(() => prepareFor(authorityC.authority, thirdRegistrar)).toThrowError(
+      "ui.managed_surface_input_authority_conflict",
+    );
+    expect(thirdRegistrar).not.toHaveBeenCalled();
+    const preparationA2 = prepareFor(authorityA.authority, thirdRegistrar);
+    expect(thirdRegistrar).not.toHaveBeenCalled();
+
+    const contractA = captureManagedSurfacePreparedInputBindingContractInternalV1(
+      inputBindingContractV1({
+        surfaceInstanceId: parseManagedSurfaceInstanceIdV1("surface-instance.e4.a"),
+        routingLeaseId: parseManagedSurfaceRoutingLeaseIdV1("surface-lease.e4.a"),
+        topologyRevision: parseNonNegativeSafeInteger(4),
+      }),
+    );
+    const contractB = captureManagedSurfacePreparedInputBindingContractInternalV1(
+      inputBindingContractV1({
+        surfaceInstanceId: parseManagedSurfaceInstanceIdV1("surface-instance.e4.b"),
+        routingLeaseId: parseManagedSurfaceRoutingLeaseIdV1("surface-lease.e4.b"),
+        topologyRevision: parseNonNegativeSafeInteger(5),
+      }),
+    );
+    expect(preparationA1.commitInternalV1(contractA)).toBe(false);
+    expect(current.route(currentEnvelope)).toMatchObject({
+      input: { kind: "unhandled" },
+      surface: { kind: "unchanged", code: "surface.action_routed" },
+    });
+    expect(preparationA2.commitInternalV1(contractA)).toBe(true);
+    expect(
+      preparationA2.getBindingInternalV1()!.createEnvelope({
+        actionId: activateActionIdV1,
+        gestureId: gestureV1("prepared-two-a"),
+      }).inputPublicationRevision,
+    ).toBe(4);
+    expect(preparationB1.commitInternalV1(contractB)).toBe(false);
+
+    const preparationB2 = prepareFor(authorityB.authority, thirdRegistrar);
+    expect(preparationB2.commitInternalV1(contractB)).toBe(true);
+    expect(
+      preparationB2.getBindingInternalV1()!.createEnvelope({
+        actionId: activateActionIdV1,
+        gestureId: gestureV1("prepared-two-b"),
+      }).inputPublicationRevision,
+    ).toBe(5);
+    expect(countingRouter.getRegistrationCount()).toBe(1);
+    expect(countingRouter.getUnregistrationCount()).toBe(0);
+  });
+
+  it("burns aborted reservations without rollback and keeps dispatcher/preparation retention bounded over 10k churn", () => {
+    const countingRouter = createCountingInputRouterV1();
+    const currentAuthority = createContractBoundAuthorityV1();
+    const current = createManagedSurfaceContractBoundActionBindingInternalV1({
+      authority: currentAuthority.authority,
+      contract: inputBindingContractV1(),
+      inputRouter: countingRouter.router,
+      isGestureCurrent: () => true,
+      registerManagedInputHandler: countingRouter.registerManagedInputHandler,
+    });
+    const queued = current.createEnvelope({
+      actionId: activateActionIdV1,
+      gestureId: gestureV1("prepared-churn-current"),
+    });
+    const candidateAuthority = createContractBoundAuthorityV1();
+
+    for (let index = 0; index < 10_000; index += 1) {
+      const prepared = prepareManagedSurfaceContractBoundActionBindingInternalV1({
+        authority: candidateAuthority.authority,
+        inputContextId: "overlay",
+        inputRouter: countingRouter.router,
+        isGestureCurrent: () => true,
+        registerManagedInputHandler: vi.fn(countingRouter.registerManagedInputHandler),
+      });
+      prepared.abortInternalV1();
+    }
+    expect(current.route(queued)).toMatchObject({
+      input: { kind: "unhandled" },
+      surface: { kind: "unchanged", code: "surface.action_routed" },
+    });
+
+    const finalPrepared = prepareManagedSurfaceContractBoundActionBindingInternalV1({
+      authority: candidateAuthority.authority,
+      inputContextId: "overlay",
+      inputRouter: countingRouter.router,
+      isGestureCurrent: () => true,
+      registerManagedInputHandler: vi.fn(countingRouter.registerManagedInputHandler),
+    });
+    const finalToken = captureManagedSurfacePreparedInputBindingContractInternalV1(
+      inputBindingContractV1({
+        surfaceInstanceId: parseManagedSurfaceInstanceIdV1("surface-instance.e4.final"),
+        routingLeaseId: parseManagedSurfaceRoutingLeaseIdV1("surface-lease.e4.final"),
+        topologyRevision: parseNonNegativeSafeInteger(10_002),
+      }),
+    );
+    expect(finalPrepared.commitInternalV1(finalToken)).toBe(true);
+    expect(
+      finalPrepared.getBindingInternalV1()!.createEnvelope({
+        actionId: activateActionIdV1,
+        gestureId: gestureV1("prepared-churn-final"),
+      }).inputPublicationRevision,
+    ).toBe(10_002);
+    expect(countingRouter.getRegistrationCount()).toBe(1);
+    expect(countingRouter.getUnregistrationCount()).toBe(0);
+    expect(countingRouter.getActiveRegistrationCount()).toBe(1);
+  });
+
+  it("keeps 10k sequential committed replacements on one dispatcher without revision reuse", () => {
+    const countingRouter = createCountingInputRouterV1();
+    const initialAuthority = createContractBoundAuthorityV1();
+    let currentBinding = createManagedSurfaceContractBoundActionBindingInternalV1({
+      authority: initialAuthority.authority,
+      contract: inputBindingContractV1(),
+      inputRouter: countingRouter.router,
+      isGestureCurrent: () => true,
+      registerManagedInputHandler: countingRouter.registerManagedInputHandler,
+    });
+    let currentEnvelope = currentBinding.createEnvelope({
+      actionId: activateActionIdV1,
+      gestureId: gestureV1("sequential-commit-initial"),
+    });
+    expect(currentEnvelope.inputPublicationRevision).toBe(1);
+
+    for (let index = 0; index < 10_000; index += 1) {
+      const authority = createContractBoundAuthorityV1();
+      const prepared = prepareManagedSurfaceContractBoundActionBindingInternalV1({
+        authority: authority.authority,
+        inputContextId: "overlay",
+        inputRouter: countingRouter.router,
+        isGestureCurrent: () => true,
+        registerManagedInputHandler: vi.fn(countingRouter.registerManagedInputHandler),
+      });
+      const token = captureManagedSurfacePreparedInputBindingContractInternalV1(
+        inputBindingContractV1({
+          surfaceInstanceId: parseManagedSurfaceInstanceIdV1(
+            `surface-instance.e4.commit-${index}`,
+          ),
+          routingLeaseId: parseManagedSurfaceRoutingLeaseIdV1(
+            `surface-lease.e4.commit-${index}`,
+          ),
+          topologyRevision: parseNonNegativeSafeInteger(index + 2),
+        }),
+      );
+      expect(prepared.commitInternalV1(token)).toBe(true);
+      const successor = prepared.getBindingInternalV1();
+      expect(successor).not.toBeNull();
+      const successorEnvelope = successor!.createEnvelope({
+        actionId: activateActionIdV1,
+        gestureId: gestureV1(`sequential-commit-${index}`),
+      });
+      expect(successorEnvelope.inputPublicationRevision).toBe(index + 2);
+      expect(currentBinding.route(currentEnvelope)).toMatchObject({
+        input: { kind: "consumed", code: "input.stale_publication" },
+        surface: null,
+      });
+      currentBinding = successor!;
+      currentEnvelope = successorEnvelope;
+    }
+
+    expect(currentEnvelope.inputPublicationRevision).toBe(10_001);
+    expect(countingRouter.getRegistrationCount()).toBe(1);
+    expect(countingRouter.getActiveRegistrationCount()).toBe(1);
+    expect(countingRouter.getUnregistrationCount()).toBe(0);
+  });
+
+  it("prepares the first empty-context dispatcher once and retains its first registrar", () => {
+    const countingRouter = createCountingInputRouterV1();
+    const authority = createContractBoundAuthorityV1();
+    const firstRegistrar = vi.fn(countingRouter.registerManagedInputHandler);
+    const firstRegistrarGetter = vi.fn(() => firstRegistrar);
+    const firstAccessorInput = Object.defineProperties({}, {
+      authority: { enumerable: true, value: authority.authority },
+      inputContextId: { enumerable: true, value: "overlay" },
+      inputRouter: { enumerable: true, value: countingRouter.router },
+      isGestureCurrent: { enumerable: true, value: () => true },
+      registerManagedInputHandler: { enumerable: true, get: firstRegistrarGetter },
+    });
+    expect(() =>
+      prepareManagedSurfaceContractBoundActionBindingInternalV1(firstAccessorInput as never)
+    ).toThrow(TypeError);
+    expect(firstRegistrarGetter).not.toHaveBeenCalled();
+    expect(firstRegistrar).not.toHaveBeenCalled();
+    expect(countingRouter.getRegistrationCount()).toBe(0);
+
+    const first = prepareManagedSurfaceContractBoundActionBindingInternalV1({
+      authority: authority.authority,
+      inputContextId: "overlay",
+      inputRouter: countingRouter.router,
+      isGestureCurrent: () => true,
+      registerManagedInputHandler: firstRegistrar,
+    });
+    expect(firstRegistrar).toHaveBeenCalledOnce();
+    expect(countingRouter.getRegistrationCount()).toBe(1);
+    first.abortInternalV1();
+
+    const alternateRegistrar = vi.fn(countingRouter.registerManagedInputHandler);
+    const alternateRegistrarGetter = vi.fn(() => alternateRegistrar);
+    const optionalRegistrarDescriptorRead = vi.fn();
+    const alternateAccessorInput = new Proxy(
+      Object.defineProperties({}, {
+        authority: { enumerable: true, value: authority.authority },
+        inputContextId: { enumerable: true, value: "overlay" },
+        inputRouter: { enumerable: true, value: countingRouter.router },
+        isGestureCurrent: { enumerable: true, value: () => true },
+        registerManagedInputHandler: { enumerable: true, get: alternateRegistrarGetter },
+      }),
+      {
+        getOwnPropertyDescriptor(target, property) {
+          if (property === "registerManagedInputHandler") {
+            optionalRegistrarDescriptorRead();
+            throw new Error("later registrar descriptor must remain unread");
+          }
+          return Reflect.getOwnPropertyDescriptor(target, property);
+        },
+      },
+    );
+    const successor = prepareManagedSurfaceContractBoundActionBindingInternalV1(
+      alternateAccessorInput as never,
+    );
+    const token = captureManagedSurfacePreparedInputBindingContractInternalV1(
+      inputBindingContractV1(),
+    );
+    expect(successor.commitInternalV1(token)).toBe(true);
+    expect(optionalRegistrarDescriptorRead).not.toHaveBeenCalled();
+    expect(alternateRegistrarGetter).not.toHaveBeenCalled();
+    expect(alternateRegistrar).not.toHaveBeenCalled();
+    expect(countingRouter.getRegistrationCount()).toBe(1);
+    expect(countingRouter.getUnregistrationCount()).toBe(0);
+  });
+
+  it("fails closed when the first registrar synchronously reenters the same router context", () => {
+    const countingRouter = createCountingInputRouterV1();
+    const outerAuthority = createContractBoundAuthorityV1();
+    const nestedAuthority = createContractBoundAuthorityV1();
+    let registrarCallCount = 0;
+    let nestedError: unknown = null;
+    const reentrantRegistrar: typeof registerManagedInputHandlerV1 = (router, registration) => {
+      registrarCallCount += 1;
+      if (registrarCallCount === 1) {
+        try {
+          prepareManagedSurfaceContractBoundActionBindingInternalV1({
+            authority: nestedAuthority.authority,
+            inputContextId: "overlay",
+            inputRouter: countingRouter.router,
+            isGestureCurrent: () => true,
+            registerManagedInputHandler: reentrantRegistrar,
+          });
+        } catch (error) {
+          nestedError = error;
+        }
+      }
+      return countingRouter.registerManagedInputHandler(router, registration);
+    };
+
+    const prepared = prepareManagedSurfaceContractBoundActionBindingInternalV1({
+      authority: outerAuthority.authority,
+      inputContextId: "overlay",
+      inputRouter: countingRouter.router,
+      isGestureCurrent: () => true,
+      registerManagedInputHandler: reentrantRegistrar,
+    });
+    const token = captureManagedSurfacePreparedInputBindingContractInternalV1(
+      inputBindingContractV1(),
+    );
+
+    expect(prepared.commitInternalV1(token)).toBe(true);
+    expect(nestedError).toBeInstanceOf(TypeError);
+    expect((nestedError as TypeError).message).toBe(
+      "ui.managed_surface_input_authority_conflict",
+    );
+    expect(registrarCallCount).toBe(1);
+    expect(countingRouter.getRegistrationCount()).toBe(1);
+    expect(countingRouter.getActiveRegistrationCount()).toBe(1);
+    expect(countingRouter.getUnregistrationCount()).toBe(0);
+  });
+
+  it("poisons a context when its first registrar throws after registration without accumulating dispatchers", () => {
+    const countingRouter = createCountingInputRouterV1();
+    const firstAuthority = createContractBoundAuthorityV1();
+    const sentinel = new Error("registrar failed after registration");
+    const sideEffectingRegistrar: typeof registerManagedInputHandlerV1 = (
+      router,
+      registration,
+    ) => {
+      countingRouter.registerManagedInputHandler(router, registration);
+      throw sentinel;
+    };
+
+    expect(() =>
+      prepareManagedSurfaceContractBoundActionBindingInternalV1({
+        authority: firstAuthority.authority,
+        inputContextId: "overlay",
+        inputRouter: countingRouter.router,
+        isGestureCurrent: () => true,
+        registerManagedInputHandler: sideEffectingRegistrar,
+      })
+    ).toThrowError("ui.managed_surface_input_authority_invalid");
+    expect(countingRouter.getRegistrationCount()).toBe(1);
+    expect(countingRouter.getActiveRegistrationCount()).toBe(1);
+
+    const alternateRegistrar = vi.fn(countingRouter.registerManagedInputHandler);
+    for (
+      const authority of [
+        createContractBoundAuthorityV1().authority,
+        createContractBoundAuthorityV1().authority,
+      ]
+    ) {
+      expect(() =>
+        prepareManagedSurfaceContractBoundActionBindingInternalV1({
+          authority,
+          inputContextId: "overlay",
+          inputRouter: countingRouter.router,
+          isGestureCurrent: () => true,
+          registerManagedInputHandler: alternateRegistrar,
+        })
+      ).toThrowError("ui.managed_surface_input_authority_conflict");
+    }
+    expect(alternateRegistrar).not.toHaveBeenCalled();
+    expect(countingRouter.getRegistrationCount()).toBe(1);
+    expect(countingRouter.getActiveRegistrationCount()).toBe(1);
+    expect(countingRouter.getUnregistrationCount()).toBe(0);
+  });
+
+  it("lets a preclaimed route dispose its inert preparation before commit", () => {
+    const countingRouter = createCountingInputRouterV1();
+    const authority = createContractBoundAuthorityV1();
+    const prepared = prepareManagedSurfaceContractBoundActionBindingInternalV1({
+      authority: authority.authority,
+      inputContextId: "overlay",
+      inputRouter: countingRouter.router,
+      isGestureCurrent: () => true,
+      registerManagedInputHandler: countingRouter.registerManagedInputHandler,
+    });
+    const claimed = claimManagedSurfacePreparedAuthenticatedActionRouteInternalV1(
+      prepared,
+      vi.fn(),
+    );
+    const token = captureManagedSurfacePreparedInputBindingContractInternalV1(
+      inputBindingContractV1(),
+    );
+
+    claimed.disposeInternalV1();
+    claimed.disposeInternalV1();
+    expect(prepared.commitInternalV1(token)).toBe(false);
+    expect(prepared.getBindingInternalV1()).toBeNull();
+
+    const successor = prepareManagedSurfaceContractBoundActionBindingInternalV1({
+      authority: authority.authority,
+      inputContextId: "overlay",
+      inputRouter: countingRouter.router,
+      isGestureCurrent: () => true,
+    });
+    expect(successor.commitInternalV1(token)).toBe(true);
+    expect(successor.getBindingInternalV1()).not.toBeNull();
+    expect(countingRouter.getRegistrationCount()).toBe(1);
+  });
+
+  it("keeps independent current bindings and stable dispatchers per router input context", () => {
+    const countingRouter = createCountingInputRouterV1();
+    const overlayAuthority = createContractBoundAuthorityV1();
+    const overlay = createManagedSurfaceContractBoundActionBindingInternalV1({
+      authority: overlayAuthority.authority,
+      contract: inputBindingContractV1(),
+      inputRouter: countingRouter.router,
+      isGestureCurrent: () => true,
+      registerManagedInputHandler: countingRouter.registerManagedInputHandler,
+    });
+    const systemAuthority = createContractBoundAuthorityV1();
+    const system = createManagedSurfaceContractBoundActionBindingInternalV1({
+      authority: systemAuthority.authority,
+      contract: inputBindingContractV1({
+        inputContextId: "system",
+        surfaceInstanceId: parseManagedSurfaceInstanceIdV1("surface-instance.e4.system"),
+        routingLeaseId: parseManagedSurfaceRoutingLeaseIdV1("surface-lease.e4.system"),
+      }),
+      inputRouter: countingRouter.router,
+      isGestureCurrent: () => true,
+      registerManagedInputHandler: countingRouter.registerManagedInputHandler,
+    });
+    const overlayEnvelope = overlay.createEnvelope({
+      actionId: activateActionIdV1,
+      gestureId: gestureV1("context-overlay"),
+    });
+    const systemEnvelope = system.createEnvelope({
+      actionId: activateActionIdV1,
+      gestureId: gestureV1("context-system"),
+    });
+
+    expect(overlay.route(overlayEnvelope)).toMatchObject({
+      surface: { kind: "unchanged", code: "surface.action_routed" },
+    });
+    expect(system.route(systemEnvelope)).toMatchObject({
+      surface: { kind: "unchanged", code: "surface.action_routed" },
+    });
+    expect(countingRouter.getRegistrationCount()).toBe(2);
+
+    const overlaySuccessorAuthority = createContractBoundAuthorityV1();
+    const overlaySuccessor = prepareManagedSurfaceContractBoundActionBindingInternalV1({
+      authority: overlaySuccessorAuthority.authority,
+      inputContextId: "overlay",
+      inputRouter: countingRouter.router,
+      isGestureCurrent: () => true,
+      registerManagedInputHandler: vi.fn(countingRouter.registerManagedInputHandler),
+    });
+    expect(overlaySuccessor.commitInternalV1(
+      captureManagedSurfacePreparedInputBindingContractInternalV1(
+        inputBindingContractV1({
+          surfaceInstanceId: parseManagedSurfaceInstanceIdV1(
+            "surface-instance.e4.overlay-successor",
+          ),
+          routingLeaseId: parseManagedSurfaceRoutingLeaseIdV1(
+            "surface-lease.e4.overlay-successor",
+          ),
+          topologyRevision: parseNonNegativeSafeInteger(2),
+        }),
+      ),
+    )).toBe(true);
+    expect(overlay.route(overlayEnvelope)).toMatchObject({
+      input: { code: "input.stale_publication" },
+      surface: null,
+    });
+    expect(system.route(systemEnvelope)).toMatchObject({
+      surface: { kind: "unchanged", code: "surface.action_routed" },
+    });
+    expect(countingRouter.getRegistrationCount()).toBe(2);
+    expect(countingRouter.getUnregistrationCount()).toBe(0);
+  });
+
+  it("enforces exact prepared input descriptors and one preclaim with receiver fencing", () => {
+    const countingRouter = createCountingInputRouterV1();
+    const authority = createContractBoundAuthorityV1();
+    createManagedSurfaceContractBoundActionBindingInternalV1({
+      authority: authority.authority,
+      contract: inputBindingContractV1(),
+      inputRouter: countingRouter.router,
+      isGestureCurrent: () => true,
+      registerManagedInputHandler: countingRouter.registerManagedInputHandler,
+    });
+    const candidateAuthority = createContractBoundAuthorityV1();
+    const baseInput = {
+      authority: candidateAuthority.authority,
+      inputContextId: "overlay" as const,
+      inputRouter: countingRouter.router,
+      isGestureCurrent: () => true,
+    };
+    expect(() =>
+      prepareManagedSurfaceContractBoundActionBindingInternalV1({
+        ...baseInput,
+        extra: true,
+      } as never)
+    ).toThrow(TypeError);
+    expect(() =>
+      prepareManagedSurfaceContractBoundActionBindingInternalV1({
+        authority: baseInput.authority,
+        inputContextId: baseInput.inputContextId,
+        inputRouter: baseInput.inputRouter,
+      } as never)
+    ).toThrow(TypeError);
+
+    const prepared = prepareManagedSurfaceContractBoundActionBindingInternalV1(baseInput);
+    const claimed = claimManagedSurfacePreparedAuthenticatedActionRouteInternalV1(
+      prepared,
+      vi.fn(() => "claimed"),
+    );
+    expect(() => claimManagedSurfacePreparedAuthenticatedActionRouteInternalV1(prepared, vi.fn()))
+      .toThrowError("ui.managed_surface_action_route_claim_invalid");
+    const token = captureManagedSurfacePreparedInputBindingContractInternalV1(
+      inputBindingContractV1({
+        surfaceInstanceId: parseManagedSurfaceInstanceIdV1("surface-instance.e4.claimed"),
+        routingLeaseId: parseManagedSurfaceRoutingLeaseIdV1("surface-lease.e4.claimed"),
+        topologyRevision: parseNonNegativeSafeInteger(2),
+      }),
+    );
+    expect(prepared.commitInternalV1(token)).toBe(true);
+    const binding = prepared.getBindingInternalV1()!;
+    const envelope = binding.createEnvelope({
+      actionId: activateActionIdV1,
+      gestureId: gestureV1("prepared-borrowed-claim"),
+    });
+    expect(() => Reflect.apply(claimed.routeInternalV1, {}, [envelope, {}])).toThrowError(
+      "ui.managed_surface_action_route_claim_invalid",
+    );
+
+    const aborted = prepareManagedSurfaceContractBoundActionBindingInternalV1(baseInput);
+    aborted.abortInternalV1();
+    expect(() => claimManagedSurfacePreparedAuthenticatedActionRouteInternalV1(aborted, vi.fn()))
+      .toThrowError("ui.managed_surface_action_route_claim_invalid");
+  });
+
+  it("rejects contract-token context, authority-use, and expected-current drift without publication", () => {
+    const countingRouter = createCountingInputRouterV1();
+    const currentAuthority = createContractBoundAuthorityV1();
+    const current = createManagedSurfaceContractBoundActionBindingInternalV1({
+      authority: currentAuthority.authority,
+      contract: inputBindingContractV1(),
+      inputRouter: countingRouter.router,
+      isGestureCurrent: () => true,
+      registerManagedInputHandler: countingRouter.registerManagedInputHandler,
+    });
+    const queued = current.createEnvelope({
+      actionId: activateActionIdV1,
+      gestureId: gestureV1("prepared-drift-current"),
+    });
+    const authorityA = createContractBoundAuthorityV1();
+    const authorityB = createContractBoundAuthorityV1();
+    const prepareFor = (
+      authority: ReturnType<typeof createContractBoundAuthorityV1>["authority"],
+    ) =>
+      prepareManagedSurfaceContractBoundActionBindingInternalV1({
+        authority,
+        inputContextId: "overlay",
+        inputRouter: countingRouter.router,
+        isGestureCurrent: () => true,
+      });
+    const wrongContext = prepareFor(authorityA.authority);
+    const systemToken = captureManagedSurfacePreparedInputBindingContractInternalV1(
+      inputBindingContractV1({ inputContextId: "system" }),
+    );
+    expect(wrongContext.commitInternalV1(systemToken)).toBe(false);
+    expect(current.route(queued)).toMatchObject({
+      surface: { kind: "unchanged", code: "surface.action_routed" },
+    });
+
+    const preparationA = prepareFor(authorityA.authority);
+    const preparationB = prepareFor(authorityB.authority);
+    const tokenA = captureManagedSurfacePreparedInputBindingContractInternalV1(
+      inputBindingContractV1({
+        surfaceInstanceId: parseManagedSurfaceInstanceIdV1("surface-instance.e4.drift-a"),
+        routingLeaseId: parseManagedSurfaceRoutingLeaseIdV1("surface-lease.e4.drift-a"),
+        topologyRevision: parseNonNegativeSafeInteger(3),
+      }),
+    );
+    const tokenB = captureManagedSurfacePreparedInputBindingContractInternalV1(
+      inputBindingContractV1({
+        surfaceInstanceId: parseManagedSurfaceInstanceIdV1("surface-instance.e4.drift-b"),
+        routingLeaseId: parseManagedSurfaceRoutingLeaseIdV1("surface-lease.e4.drift-b"),
+        topologyRevision: parseNonNegativeSafeInteger(4),
+      }),
+    );
+    expect(preparationA.commitInternalV1(tokenA)).toBe(true);
+    expect(preparationB.commitInternalV1(tokenB)).toBe(false);
+    const foreignAuthorityAttempt = prepareFor(authorityB.authority);
+    expect(foreignAuthorityAttempt.commitInternalV1(tokenA)).toBe(false);
+    expect(countingRouter.getRegistrationCount()).toBe(1);
+    expect(countingRouter.getUnregistrationCount()).toBe(0);
   });
 });

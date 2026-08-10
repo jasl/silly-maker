@@ -23,7 +23,6 @@ import {
   type ManagedSurfaceApplicationEpochAllocatorV1,
   type ManagedSurfaceCoordinatorRecipeV1,
   type ManagedSurfaceCoordinatorSuccessorKindV1,
-  type ManagedSurfaceCoordinatorLifetimeV1,
   type ManagedSurfaceCoordinatorRuntimeV1,
 } from "./managed-surface-coordinator-lifetime.ts";
 import {
@@ -172,20 +171,19 @@ describe("Managed Surface application lifetime", () => {
       router.register({ context: "overlay", handle: () => inputHandledV1 });
       const events: string[] = [];
       let activeManagedRegistrations = 0;
-      let lifetime!: ManagedSurfaceCoordinatorLifetimeV1;
-      let predecessor!: ManagedSurfaceCoordinatorRuntimeV1;
-      let predecessorGesture!: ReturnType<
-        ManagedSurfaceCoordinatorRuntimeV1["gestureLease"]["begin"]
-      >;
+      let managedRegistrations = 0;
+      let managedUnregistrations = 0;
 
       const registerManagedInputHandler = (
         target: typeof router,
         registration: ManagedInputHandlerRegistrationV1,
       ): () => void => {
+        managedRegistrations += 1;
         activeManagedRegistrations += 1;
         const unregister = registerManagedInputHandlerV1(target, registration);
         events.push("register");
         return () => {
+          managedUnregistrations += 1;
           activeManagedRegistrations -= 1;
           unregister();
           events.push("unregister");
@@ -195,8 +193,23 @@ describe("Managed Surface application lifetime", () => {
         events.push(`allocate:${epoch}`);
         if (call !== 2) return;
         expect(lifetime.getCurrent()).toBeNull();
-        expect(activeManagedRegistrations).toBe(0);
+        expect({
+          activeManagedRegistrations,
+          managedRegistrations,
+          managedUnregistrations,
+        }).toEqual({
+          activeManagedRegistrations: 1,
+          managedRegistrations: 1,
+          managedUnregistrations: 0,
+        });
         expect(predecessor.gestureLease.isCurrent(predecessorGesture)).toBe(false);
+        expect(predecessorBinding.route(predecessorBinding.createEnvelope({
+          actionId: parseManagedSurfaceActionIdV1("surface-action.activate"),
+          gestureId: predecessorGesture,
+        }))).toMatchObject({
+          input: { kind: "consumed", code: "input.stale_publication" },
+          surface: null,
+        });
         expect(predecessor.coordinator.getSnapshot()).toMatchObject({
           orderedInstances: [],
           inputOwner: null,
@@ -210,17 +223,17 @@ describe("Managed Surface application lifetime", () => {
         return createManagedSurfaceCoordinatorV1(input);
       };
 
-      lifetime = createManagedSurfaceCoordinatorLifetimeV1({
+      const lifetime = createManagedSurfaceCoordinatorLifetimeV1({
         epochAllocator,
         inputRouter: router,
         initialRecipe: recipeV1,
         registerManagedInputHandler,
         createCoordinator,
       });
-      predecessor = lifetime.getCurrent()!;
+      const predecessor = lifetime.getCurrent()!;
       openV1(predecessor);
-      predecessorGesture = predecessor.gestureLease.begin();
-      predecessor.bindCurrentInput();
+      const predecessorGesture = predecessor.gestureLease.begin();
+      const predecessorBinding = predecessor.bindCurrentInput();
       predecessor.coordinator.subscribe(() => {
         if (!predecessor.coordinator.getSnapshot().coordinatorDisposed) return;
         events.push("coordinator_disposed");
@@ -232,7 +245,6 @@ describe("Managed Surface application lifetime", () => {
       const successor = lifetime.replace({ kind, recipe: recipeV1 });
 
       expect(events).toEqual([
-        "unregister",
         "coordinator_disposed",
         "allocate:47",
         "create:47",
@@ -249,6 +261,15 @@ describe("Managed Surface application lifetime", () => {
       lifetime.dispose();
       expect(lifetime.getCurrent()).toBeNull();
       expect(successor.isIngressOpen()).toBe(false);
+      expect({
+        activeManagedRegistrations,
+        managedRegistrations,
+        managedUnregistrations,
+      }).toEqual({
+        activeManagedRegistrations: 1,
+        managedRegistrations: 1,
+        managedUnregistrations: 0,
+      });
     },
   );
 
@@ -442,11 +463,11 @@ describe("Managed Surface application lifetime", () => {
         topologyRevision: 3,
         focusOwner: candidateInstanceId,
         navigationTarget: candidateInstanceId,
-        activeRegistrations: 0,
+        activeRegistrations: 1,
         retainedGestureCurrent: false,
       },
     ]);
-    expect(registrations.unregistered()).toBe(1);
+    expect(registrations.unregistered()).toBe(0);
     expect(retainedBinding.route(retainedEnvelope)).toMatchObject({
       input: { kind: "consumed", code: "input.stale_publication" },
       surface: null,
@@ -456,18 +477,26 @@ describe("Managed Surface application lifetime", () => {
     const successorGesture = runtime.gestureLease.begin();
     const successorBinding = runtime.bindCurrentInput();
     expect(successorBinding).not.toBe(retainedBinding);
-    expect(registrations.registered()).toBe(2);
+    expect(registrations.registered()).toBe(1);
     expect(registrations.active()).toBe(1);
-    expect(successorBinding.route(successorBinding.createEnvelope({
+    const successorEnvelope = successorBinding.createEnvelope({
       actionId: parseManagedSurfaceActionIdV1("surface-action.activate"),
       gestureId: successorGesture,
-    }))).toMatchObject({
+    });
+    expect(successorBinding.route(successorEnvelope)).toMatchObject({
       input: { kind: "consumed", code: "input.managed_surface_consumed" },
       surface: { kind: "unchanged", code: "surface.action_routed" },
     });
     expect(ordinaryInputCalls).toBe(2);
 
     lifetime.dispose();
+    expect(successorBinding.route(successorEnvelope)).toMatchObject({
+      input: { kind: "consumed", code: "input.stale_publication" },
+      surface: null,
+    });
+    expect(registrations.registered()).toBe(1);
+    expect(registrations.unregistered()).toBe(0);
+    expect(registrations.active()).toBe(1);
   });
 
   it("keeps the exact binding and gesture when a pending replacement is cancelled", () => {
@@ -582,7 +611,7 @@ describe("Managed Surface application lifetime", () => {
         inputOwner: null,
         focusOwner: null,
         navigationTargetInstanceId: null,
-        activeRegistrations: 0,
+        activeRegistrations: 1,
         parentGestureCurrent: false,
       },
     ]);
@@ -603,13 +632,16 @@ describe("Managed Surface application lifetime", () => {
       navigationTargetInstanceId: parentHandle.surfaceInstanceId,
     });
     expect(runtime.gestureLease.isCurrent(parentGesture)).toBe(false);
-    expect(registrations.active()).toBe(0);
+    expect(registrations.active()).toBe(1);
     const restoredBinding = runtime.bindCurrentInput();
     expect(restoredBinding).not.toBe(parentBinding);
-    expect(registrations.registered()).toBe(2);
+    expect(registrations.registered()).toBe(1);
     expect(registrations.active()).toBe(1);
 
     lifetime.dispose();
+    expect(registrations.registered()).toBe(1);
+    expect(registrations.unregistered()).toBe(0);
+    expect(registrations.active()).toBe(1);
   });
 
   it("cancels pending readiness across an epoch rotation before successor ingress", () => {
@@ -671,28 +703,22 @@ describe("Managed Surface application lifetime", () => {
     lifetime.dispose();
   });
 
-  it("fences reentrant readiness from input cleanup before terminal disposal", () => {
+  it("fences reentrant readiness from the predecessor terminal notification", () => {
     const router = createInputRouterV1();
     router.register({ context: "overlay", handle: () => inputHandledV1 });
-    let pending!: ManagedSurfaceHandleResultV1;
+    const registrations = countingManagedInputRegistrationV1();
     let reentrantReadiness: ManagedSurfaceHandleResultV1 | undefined;
     const lifetime = createManagedSurfaceCoordinatorLifetimeV1({
       epochAllocator: deterministicAllocatorV1([51, 53]),
       inputRouter: router,
       initialRecipe: recipeV1,
-      registerManagedInputHandler(target, registration) {
-        const unregister = registerManagedInputHandlerV1(target, registration);
-        return () => {
-          unregister();
-          reentrantReadiness = pending.readiness!.ready();
-        };
-      },
+      registerManagedInputHandler: registrations.register,
     });
     const predecessor = lifetime.getCurrent()!;
     const retainedHandle = openV1(predecessor);
     const retainedGesture = predecessor.gestureLease.begin();
     predecessor.bindCurrentInput();
-    pending = predecessor.coordinator.replaceTransientPrimary({
+    const pending = predecessor.coordinator.replaceTransientPrimary({
       definition: definitionV1(),
       semanticOccurrenceId: null,
       expected: retainedHandle,
@@ -709,6 +735,9 @@ describe("Managed Surface application lifetime", () => {
         topologyRevision: snapshot.topologyRevision,
         coordinatorDisposed: snapshot.coordinatorDisposed,
       });
+      if (snapshot.coordinatorDisposed) {
+        reentrantReadiness = pending.readiness!.ready();
+      }
     });
 
     const successor = lifetime.replace({
@@ -735,6 +764,9 @@ describe("Managed Surface application lifetime", () => {
     expect(predecessor.gestureLease.isCurrent(retainedGesture)).toBe(false);
     expect(predecessor.coordinator.getSnapshot().orderedInstances).toEqual([]);
     expect(successor.isIngressOpen()).toBe(true);
+    expect(registrations.registered()).toBe(1);
+    expect(registrations.unregistered()).toBe(0);
+    expect(registrations.active()).toBe(1);
 
     lifetime.dispose();
   });
@@ -794,29 +826,19 @@ describe("Managed Surface application lifetime", () => {
     lifetime.dispose();
   });
 
-  it("closes every predecessor runtime ingress before unregister callbacks run", () => {
+  it("closes every predecessor runtime ingress before terminal notification reentry", () => {
     const router = createInputRouterV1();
     router.register({ context: "overlay", handle: () => inputHandledV1 });
-    let predecessor!: ManagedSurfaceCoordinatorRuntimeV1;
+    const registrations = countingManagedInputRegistrationV1();
     let reentrantReceipt: unknown;
     let reentrantFailure: unknown;
     const lifetime = createManagedSurfaceCoordinatorLifetimeV1({
       epochAllocator: deterministicAllocatorV1([11, 12]),
       inputRouter: router,
       initialRecipe: recipeV1,
-      registerManagedInputHandler(target, registration) {
-        const unregister = registerManagedInputHandlerV1(target, registration);
-        return () => {
-          unregister();
-          try {
-            reentrantReceipt = predecessor.coordinator.closeTop();
-          } catch (error) {
-            reentrantFailure = error;
-          }
-        };
-      },
+      registerManagedInputHandler: registrations.register,
     });
-    predecessor = lifetime.getCurrent()!;
+    const predecessor = lifetime.getCurrent()!;
     const predecessorHandle = openV1(predecessor);
     const predecessorOwnerHandle = predecessor.coordinator.getOwnerHandle(ownerIdV1)!;
     const predecessorInstance = predecessor.coordinator.getSnapshot().orderedInstances[0]!;
@@ -834,6 +856,13 @@ describe("Managed Surface application lifetime", () => {
         publicationRevision: snapshot.publicationRevision,
         topologyRevision: snapshot.topologyRevision,
       });
+      if (snapshot.coordinatorDisposed) {
+        try {
+          reentrantReceipt = predecessor.coordinator.closeTop();
+        } catch (error) {
+          reentrantFailure = error;
+        }
+      }
     });
 
     const successor = lifetime.replace({ kind: "hmr_successor", recipe: recipeV1 });
@@ -995,16 +1024,21 @@ describe("Managed Surface application lifetime", () => {
     expect(predecessor.gestureLease.isCurrent(predecessorGesture)).toBe(false);
     expect(successor).toBe(lifetime.getCurrent());
     expect(successor.isIngressOpen()).toBe(true);
+    expect(registrations.registered()).toBe(1);
+    expect(registrations.unregistered()).toBe(0);
+    expect(registrations.active()).toBe(1);
 
     lifetime.dispose();
   });
 
-  it("fails closed when a completed unregister reports failure and continues cleanup", () => {
+  it("fails closed on terminal cleanup failure without unregistering the stable dispatcher", () => {
     const router = createInputRouterV1();
     router.register({ context: "overlay", handle: () => inputHandledV1 });
     let allocatorCalls = 0;
     let coordinatorCreates = 0;
     let activeManagedRegistrations = 0;
+    let managedUnregistrations = 0;
+    const cleanupFailure = new Error("test.coordinator_dispose_failed");
     const epochAllocator: ManagedSurfaceApplicationEpochAllocatorV1 = {
       allocate() {
         allocatorCalls += 1;
@@ -1017,22 +1051,33 @@ describe("Managed Surface application lifetime", () => {
       initialRecipe: recipeV1,
       createCoordinator(input) {
         coordinatorCreates += 1;
-        return createManagedSurfaceCoordinatorV1(input);
+        const coordinator = createManagedSurfaceCoordinatorV1(input);
+        return Object.freeze({
+          ...coordinator,
+          dispose() {
+            coordinator.dispose();
+            throw cleanupFailure;
+          },
+        });
       },
       registerManagedInputHandler(target, registration) {
         activeManagedRegistrations += 1;
         const unregister = registerManagedInputHandlerV1(target, registration);
         return () => {
+          managedUnregistrations += 1;
           activeManagedRegistrations -= 1;
           unregister();
-          throw new Error("test.unregister_failed");
         };
       },
     });
     const predecessor = lifetime.getCurrent()!;
     openV1(predecessor);
     const gesture = predecessor.gestureLease.begin();
-    predecessor.bindCurrentInput();
+    const binding = predecessor.bindCurrentInput();
+    const envelope = binding.createEnvelope({
+      actionId: parseManagedSurfaceActionIdV1("surface-action.activate"),
+      gestureId: gesture,
+    });
 
     let failure: unknown;
     try {
@@ -1043,11 +1088,17 @@ describe("Managed Surface application lifetime", () => {
 
     expect(failure).toBeInstanceOf(AggregateError);
     expect((failure as AggregateError).errors).toHaveLength(1);
+    expect((failure as AggregateError).errors[0]).toBe(cleanupFailure);
     expect((failure as Error).message).toBe("ui.managed_surface_successor_cleanup_failed");
     expect(lifetime.getCurrent()).toBeNull();
-    expect(activeManagedRegistrations).toBe(0);
+    expect(activeManagedRegistrations).toBe(1);
+    expect(managedUnregistrations).toBe(0);
     expect(predecessor.gestureLease.isCurrent(gesture)).toBe(false);
     expect(predecessor.coordinator.getSnapshot().coordinatorDisposed).toBe(true);
+    expect(binding.route(envelope)).toMatchObject({
+      input: { kind: "consumed", code: "input.stale_publication" },
+      surface: null,
+    });
     expect(allocatorCalls).toBe(1);
     expect(coordinatorCreates).toBe(1);
     expect(() => lifetime.replace({ kind: "coordinator_successor", recipe: recipeV1 }))

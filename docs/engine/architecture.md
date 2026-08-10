@@ -1216,8 +1216,67 @@ Verification passed focused `3 files / 209 tests`, UI `80 files / 1222 tests`,
 full `254 files / 4152 tests`, and the complete `deno task check`. Browser
 `101 / 101`, examples `45 passed / 2 skipped`, and prebuilt Player `38 / 38`
 remain prior evidence and were not rerun. S4.2.2.0 and S4.2.2.1 are complete.
-Current/next is S4.2.2.2, whose own exact React/renderer/input/readiness entry
-must land before RED, followed by S4.2.3, S4.2.4, S4.2.5, S4.3, and S4b.
+At that checkpoint, current/next was S4.2.2.2, whose own exact
+React/renderer/input/readiness entry still had to land before RED. That entry
+and its generic atomic substrate are now complete; current/next is
+S4.2.2.2.2, followed by S4.2.3, S4.2.4, S4.2.5, S4.3, and S4b.
+
+S4.2.2.2.1 now implements the DOM-free generic Host-commit atomic substrate
+defined by the completed S4.2.2.2.0 exact entry. Contract-bound action routing
+can reserve an inert binding against an exact router/context without replacing
+the current logical binding. A frozen zero-key token carries the canonical
+future input contract, and a source-relative prepared handle exposes only
+one-shot commit, abort, and post-commit binding lookup. An authenticated
+consumer may be claimed before commit. The commit itself performs only exact
+token, slot, and expected-current checks plus module-owned pointer writes; it
+does not call the router, registrar, gesture callback, action authority, or
+consumer.
+
+Each exact router/context retains one stable managed dispatcher, one logical
+current record, and at most two latest-per-authority inert preparations. The
+router owns one scalar publication-revision high-water, so aborts and stale
+attempts burn gaps without rolling evidence back. The first registrar is
+descriptor-captured only while creating that dispatcher; later registrar
+properties are not read, and an initializing registrar that may already have
+performed side effects poisons the bounded context rather than allowing a
+second registration. Successful replacement clears all predecessor links,
+while retired records remain reachable only through caller-retained opaque
+handles. Direct untagged input still falls through, binding-origin input keeps
+the existing routed/unhandled semantics, and a claimed same-event reentry can
+enter the authenticated action/gesture/consumer gate only once.
+
+Stable-composite readiness now has guarded root ready and failed settlement,
+plus an independent same-claimant exact-parent transient-child readiness
+authority for History. The pure successor supplies either a captured future
+contract token or exact `null`; only a successful no-throw guard can precede
+state assignment and synchronous notification. A separate History child action
+authority captures only current ready input provenance. Ordinary generic
+readiness, close, dismiss, History actions, and owner mutation against an
+authenticated cross-axis child retain their existing stale-evidence precedence
+but otherwise return `rejected / surface.invalid_transition` with zero state,
+identity, cursor, binding, and notification delta. Claimed readiness and the
+existing replacement, empty, publisher-disposal, and Coordinator-terminal
+structural cascades remain the only applied paths.
+
+Candidate provenance is WeakMap-authenticated by the live exact instance and
+stores only its origin and bounded identity/evidence fields; it does not retain
+a predecessor state or second topology. The stable dispatcher likewise remains
+physically registered across logical replacement and terminal disposal while
+the current pointer, gesture, and Coordinator ingress fail closed. Existing UI
+characterizations now assert that boundary directly instead of using
+per-binding unregister callbacks as a lifecycle owner. Prior Narrative cleanup
+characterizations retire History through an allowed root cutover rather than
+reopening the newly fenced generic readiness-failure path.
+
+This delivery changes no public or `./internal` barrel, package export, generic
+Coordinator operation/result/code, Narrative production source, React Host,
+renderer, focus, timer, or live Story graph. Verification passed focused
+`3 files / 119 tests`, UI `80 files / 1244 tests`, full
+`254 files / 4174 tests`, and the complete `deno task check`. Browser
+`101 / 101`, examples `45 passed / 2 skipped`, and prebuilt Player `38 / 38`
+remain prior evidence and were not rerun. S4.2.2.2.0 and S4.2.2.2.1 are
+complete. Current/next is S4.2.2.2.2, the dormant Narrative React Host slice,
+followed by S4.2.3, S4.2.4, S4.2.5, S4.3, and S4b.
 
 ## 9. Changing the architecture
 
@@ -1287,9 +1346,10 @@ cross-axis reducer plan, composite prepared-install authority, structural
 retain/cascade, and bridge-bound History intent redemption described above.
 S4.2.2.0 then freezes the Narrative session/readiness split, and S4.2.2.1 adds
 the retained DOM-free session, opaque preparation snapshot, single Host lease,
-and terminal fencing described above. Current/next is S4.2.2.2, whose own exact
-entry must precede implementation, followed by S4.2.3, S4.2.4, S4.2.5, S4.3,
-and S4b.
+and terminal fencing described above. S4.2.2.2.0 then freezes the Host-commit
+split, and S4.2.2.2.1 adds the prepared action binding, guarded root/History
+readiness, cross-axis generic fence, and stable dispatcher described above.
+Current/next is S4.2.2.2.2, followed by S4.2.3, S4.2.4, S4.2.5, S4.3, and S4b.
 Host integration and the Narrative live migration remain planned work; the
 implemented source-relative claimant does not alter the live Host data flow
 until that migration and its behavior tests land.

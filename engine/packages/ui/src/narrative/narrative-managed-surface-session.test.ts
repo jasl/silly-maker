@@ -284,19 +284,18 @@ function prepareHistoryV1(
   return result.preparation;
 }
 
-function closeCurrentHistoryV1(harness: NarrativeSessionHarnessV1): void {
+function retireCurrentHistoryWithRootCutoverV1(harness: NarrativeSessionHarnessV1): void {
   const child = harness.kernel.getStateInternalV1().transientState.publication
     .orderedInstances.find((instance) =>
       instance.definition.definitionId === "surface.narrative.history"
     );
   if (child === undefined) throw new Error("expected preparing History child");
-  expect(harness.kernel.transitionTransientInternalV1({
-    kind: "readiness_failed",
-    evidence: Object.freeze({
-      applicationEpoch: applicationEpochV1,
-      surfaceInstanceId: child.surfaceInstanceId,
-    }),
-  })).toMatchObject({ kind: "applied", code: "surface.readiness_failed" });
+  expect(harness.bridge.reconcilePendingInternalV1(pendingV1("say", 3)))
+    .toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
+  settleCurrentRootReadyV1(harness);
+  expect(
+    harness.kernel.getStateInternalV1().transientState.publication.orderedInstances,
+  ).toEqual([]);
 }
 
 function expectFrozenOwnMethodsV1(value: object, keys: readonly string[]): void {
@@ -669,7 +668,7 @@ describe("Narrative stable session", () => {
     }]);
     expect(retainedHistory).not.toBe(historyOnly);
 
-    closeCurrentHistoryV1(harness);
+    retireCurrentHistoryWithRootCutoverV1(harness);
     const retiredEmpty = session.getReadinessSnapshotInternalV1();
     expect(retiredEmpty.entries).toEqual([]);
     expect(retiredEmpty).not.toBe(readyEmpty);

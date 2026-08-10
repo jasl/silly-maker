@@ -23,6 +23,7 @@ import {
 } from "./managed-surface-contracts.ts";
 import { createManagedSurfaceCoordinatorFacadeInternalV1 } from "./managed-surface-coordinator.ts";
 import { createManagedSurfaceRuntimeAttemptIdentityInternalV1 } from "./managed-surface-identity.ts";
+import type { ManagedSurfacePreparedInputBindingContractInternalV1 } from "./managed-surface-action-route.ts";
 import { createManagedSurfaceReducerStateV1 } from "./managed-surface-reducer.ts";
 import {
   createManagedSurfaceStableAdmissionAuthorityInternalV1,
@@ -32,6 +33,8 @@ import {
 } from "./managed-surface-stable-admission.ts";
 import {
   claimManagedSurfaceStableExactParentTransientChildAuthorityInternalV1,
+  claimManagedSurfaceStableExactParentTransientChildActionRouteAuthorityInternalV1,
+  claimManagedSurfaceStableExactParentTransientChildReadinessAuthorityInternalV1,
   claimManagedSurfaceStableActionRouteAuthorityInternalV1,
   createManagedSurfaceStableCompositeStateInternalV1,
   createManagedSurfaceStableCompositeRuntimeKernelInternalV1,
@@ -47,9 +50,14 @@ import {
   type ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
   type ManagedSurfaceStableDesiredRuntimeTargetInternalV1,
   type ManagedSurfaceStableExactParentTransientChildAuthorityInternalV1,
+  type ManagedSurfaceStableExactParentTransientChildActionInputCaptureResultInternalV1,
+  type ManagedSurfaceStableExactParentTransientChildActionRouteAuthorityInternalV1,
   type ManagedSurfaceStableExactParentTransientChildCandidateInternalV1,
   type ManagedSurfaceStableExactParentTransientChildCommitGuardInternalV1,
   type ManagedSurfaceStableExactParentTransientChildPreparationResultInternalV1,
+  type ManagedSurfaceStableExactParentTransientChildReadinessAuthorityInternalV1,
+  type ManagedSurfaceStableExactParentTransientChildReadinessResultInternalV1,
+  type ManagedSurfaceStableReadinessCommitGuardInternalV1,
   type ManagedSurfaceStablePublisherLeaseRegistrationResultInternalV1,
   type ManagedSurfaceStableReadyActiveTargetCaptureResultInternalV1,
   type ManagedSurfaceStableReadyActiveTargetProofInternalV1,
@@ -120,6 +128,12 @@ const resolvedSlotDescriptorsV1 = Object.freeze(
       kind: "child" as const,
       parentDefinitionId: rootDefinitionAV1,
       slotId: historySlotV1,
+      cardinality: "single" as const,
+    }),
+    Object.freeze({
+      kind: "child" as const,
+      parentDefinitionId: historyDefinitionV1,
+      slotId: grandchildSlotV1,
       cardinality: "single" as const,
     }),
   ] satisfies readonly ManagedSurfaceResolvedSlotDescriptorV1[],
@@ -240,6 +254,7 @@ function harnessV1(input: {
     placement: "child",
     layerOrder: (input.workspaceLayerOrder ?? 1) + 1,
     managedInput: true,
+    actionIds: [narrativeAdvanceActionIdV1, narrativeOtherActionIdV1],
   });
   const authority = createManagedSurfaceStableAdmissionAuthorityInternalV1({
     publisherLeaseRegistry: registry,
@@ -275,6 +290,13 @@ function harnessV1(input: {
         actionIds: input.actionIds ?? [],
       }),
       historyDefinitionSidecar,
+      definitionV1({
+        definitionId: grandchildDefinitionV1,
+        ownerId: workspaceOwnerIdV1,
+        slotId: grandchildSlotV1,
+        placement: "child",
+        layerOrder: (input.workspaceLayerOrder ?? 1) + 2,
+      }),
     ],
     resolvedSlotDescriptors: resolvedSlotDescriptorsV1,
   });
@@ -588,6 +610,48 @@ function prepareExactParentTransientHistoryV1(
     semanticOccurrenceId: null,
     commitGuard: Object.freeze({ commitInternalV1 }),
   }));
+}
+
+function installedExactParentTransientHistoryV1() {
+  const fixture = exactParentTransientChildFixtureV1();
+  const installed = prepareExactParentTransientHistoryV1(fixture, () => true);
+  if (installed.kind !== "installed") {
+    throw new Error(`expected installed History, got ${installed.kind}`);
+  }
+  return Object.freeze({
+    ...fixture,
+    candidate: installed.candidate,
+    readinessAuthority:
+      claimManagedSurfaceStableExactParentTransientChildReadinessAuthorityInternalV1(
+        fixture.kernel,
+        fixture.claimant,
+      ),
+    childActionAuthority:
+      claimManagedSurfaceStableExactParentTransientChildActionRouteAuthorityInternalV1(
+        fixture.kernel,
+        fixture.claimant,
+      ),
+  });
+}
+
+function currentStableReadinessEnvelopeV1(
+  kernel: ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
+  target: ManagedSurfaceStableAdmittedTargetInternalV1,
+) {
+  const entry = kernel.getStateInternalV1().stableRuntimeBindings.find((candidate) =>
+    candidate.desiredTarget.admittedTarget.occurrenceId === target.occurrenceId
+  );
+  if (entry?.binding.kind !== "preparing") {
+    throw new Error("expected current stable preparation");
+  }
+  return Object.freeze({
+    readinessEvidence: Object.freeze({
+      applicationEpoch: kernel.getStateInternalV1().transientState.publication.applicationEpoch,
+      surfaceInstanceId: entry.binding.attempt.identity.surfaceInstanceId,
+    }),
+    publisherLease: entry.desiredTarget.publisherLease,
+    sourceRevision: entry.desiredTarget.sourceRevision,
+  });
 }
 
 function settleCurrentStablePreparationReadyV1(
@@ -3124,24 +3188,32 @@ describe("managed stable exact-parent transient-child authority", () => {
 
   it("returns historical installed after a listener immediately retires the authenticated child", () => {
     const fixture = exactParentTransientChildFixtureV1();
+    const readinessAuthority =
+      claimManagedSurfaceStableExactParentTransientChildReadinessAuthorityInternalV1(
+        fixture.kernel,
+        fixture.claimant,
+      );
+    let installedCandidate:
+      | ManagedSurfaceStableExactParentTransientChildCandidateInternalV1
+      | null = null;
     let retired = false;
     let unsubscribe = (): void => {};
     unsubscribe = fixture.kernel.subscribeTransientInternalV1(() => {
       unsubscribe();
-      const child = fixture.kernel.getStateInternalV1().transientState.publication
-        .orderedInstances[0];
-      if (child === undefined) throw new Error("expected installed child before listener retire");
-      expect(fixture.kernel.transitionTransientInternalV1({
-        kind: "readiness_failed",
-        evidence: Object.freeze({
-          applicationEpoch: applicationEpochV1,
-          surfaceInstanceId: child.surfaceInstanceId,
-        }),
-      })).toMatchObject({ kind: "applied", code: "surface.readiness_failed" });
+      if (installedCandidate === null) {
+        throw new Error("expected authenticated candidate before listener retire");
+      }
+      expect(readinessAuthority.settleExactParentTransientChildReadinessFailedInternalV1(
+        installedCandidate,
+        Object.freeze({ commitInternalV1: () => true }),
+      )).toEqual({ kind: "applied" });
       retired = true;
     });
 
-    const historical = prepareExactParentTransientHistoryV1(fixture, () => true);
+    const historical = prepareExactParentTransientHistoryV1(fixture, (candidate) => {
+      installedCandidate = candidate;
+      return true;
+    });
 
     expect(historical.kind).toBe("installed");
     expect(retired).toBe(true);
@@ -3360,6 +3432,16 @@ describe("managed stable exact-parent transient-child authority", () => {
 
   it("keeps 10,000 prepare-retire cycles bounded to current topology and scalar cursors", () => {
     const fixture = exactParentTransientChildFixtureV1();
+    const readinessAuthority =
+      claimManagedSurfaceStableExactParentTransientChildReadinessAuthorityInternalV1(
+        fixture.kernel,
+        fixture.claimant,
+      );
+    const childActionAuthority =
+      claimManagedSurfaceStableExactParentTransientChildActionRouteAuthorityInternalV1(
+        fixture.kernel,
+        fixture.claimant,
+      );
     const actionAuthority = claimManagedSurfaceStableActionRouteAuthorityInternalV1(
       fixture.kernel,
     );
@@ -3386,16 +3468,11 @@ describe("managed stable exact-parent transient-child authority", () => {
       if (installed.kind !== "installed") {
         throw new Error(`expected installed child at cycle ${index}`);
       }
-      const child = fixture.kernel.getStateInternalV1().transientState.publication
-        .orderedInstances[0];
-      if (child === undefined) throw new Error(`expected child at cycle ${index}`);
-      const retired = fixture.kernel.transitionTransientInternalV1({
-        kind: "readiness_failed",
-        evidence: Object.freeze({
-          applicationEpoch: applicationEpochV1,
-          surfaceInstanceId: child.surfaceInstanceId,
-        }),
-      });
+      const retired = readinessAuthority
+        .settleExactParentTransientChildReadinessFailedInternalV1(
+          installed.candidate,
+          Object.freeze({ commitInternalV1: () => true }),
+        );
       if (retired.kind !== "applied") {
         throw new Error(`expected structural retirement at cycle ${index}`);
       }
@@ -3416,6 +3493,747 @@ describe("managed stable exact-parent transient-child authority", () => {
         fixture.claimant,
       ),
     ).toBe(fixture.authority);
+    expect(
+      claimManagedSurfaceStableExactParentTransientChildReadinessAuthorityInternalV1(
+        fixture.kernel,
+        fixture.claimant,
+      ),
+    ).toBe(readinessAuthority);
+    expect(
+      claimManagedSurfaceStableExactParentTransientChildActionRouteAuthorityInternalV1(
+        fixture.kernel,
+        fixture.claimant,
+      ),
+    ).toBe(childActionAuthority);
+  });
+});
+
+describe("managed stable guarded readiness and cross-axis child routing", () => {
+  it("freezes independent same-claimant readiness and action authority surfaces", () => {
+    expectTypeOf<ExactKeysV1<ManagedSurfaceStableReadinessCommitGuardInternalV1>>()
+      .toEqualTypeOf<"commitInternalV1">();
+    expectTypeOf<ManagedSurfaceStableReadinessCommitGuardInternalV1["commitInternalV1"]>()
+      .toEqualTypeOf<
+        (contract: ManagedSurfacePreparedInputBindingContractInternalV1 | null) => boolean
+      >();
+    expectTypeOf<
+      ExactKeysV1<ManagedSurfaceStableExactParentTransientChildReadinessAuthorityInternalV1>
+    >().toEqualTypeOf<
+      | "settleExactParentTransientChildReadinessReadyInternalV1"
+      | "settleExactParentTransientChildReadinessFailedInternalV1"
+    >();
+    expectTypeOf<ManagedSurfaceStableExactParentTransientChildReadinessResultInternalV1["kind"]>()
+      .toEqualTypeOf<"applied" | "stale" | "faulted">();
+    expectTypeOf<
+      ExactKeysV1<ManagedSurfaceStableExactParentTransientChildReadinessResultInternalV1>
+    >().toEqualTypeOf<"kind">();
+    expectTypeOf<
+      ExactKeysV1<ManagedSurfaceStableExactParentTransientChildActionRouteAuthorityInternalV1>
+    >().toEqualTypeOf<
+      | "captureCurrentExactParentTransientChildInputInternalV1"
+      | "routeActionInternalV1"
+    >();
+    expectTypeOf<
+      ExactKeysV1<ManagedSurfaceStableExactParentTransientChildActionInputCaptureResultInternalV1>
+    >().toEqualTypeOf<"kind" | "contract" | "code">();
+
+    const fixture = installedExactParentTransientHistoryV1();
+    expect(Object.isFrozen(fixture.readinessAuthority)).toBe(true);
+    expect(Reflect.ownKeys(fixture.readinessAuthority)).toEqual([
+      "settleExactParentTransientChildReadinessReadyInternalV1",
+      "settleExactParentTransientChildReadinessFailedInternalV1",
+    ]);
+    expect(Object.isFrozen(fixture.childActionAuthority)).toBe(true);
+    expect(Reflect.ownKeys(fixture.childActionAuthority)).toEqual([
+      "captureCurrentExactParentTransientChildInputInternalV1",
+      "routeActionInternalV1",
+    ]);
+    expect(
+      claimManagedSurfaceStableExactParentTransientChildReadinessAuthorityInternalV1(
+        fixture.kernel,
+        fixture.claimant,
+      ),
+    ).toBe(fixture.readinessAuthority);
+    expect(
+      claimManagedSurfaceStableExactParentTransientChildActionRouteAuthorityInternalV1(
+        fixture.kernel,
+        fixture.claimant,
+      ),
+    ).toBe(fixture.childActionAuthority);
+
+    const claimantTrap = vi.fn();
+    const foreignClaimant = new Proxy(Object.freeze({}), {
+      get() {
+        claimantTrap();
+        throw new Error("claimant read");
+      },
+      ownKeys() {
+        claimantTrap();
+        throw new Error("claimant enumerated");
+      },
+    });
+    expect(() =>
+      claimManagedSurfaceStableExactParentTransientChildReadinessAuthorityInternalV1(
+        fixture.kernel,
+        foreignClaimant,
+      )
+    ).toThrowError(
+      "ui.managed_surface_stable_exact_parent_transient_child_readiness_claim_invalid",
+    );
+    expect(() =>
+      claimManagedSurfaceStableExactParentTransientChildActionRouteAuthorityInternalV1(
+        fixture.kernel,
+        foreignClaimant,
+      )
+    ).toThrowError(
+      "ui.managed_surface_stable_exact_parent_transient_child_action_claim_invalid",
+    );
+    expect(claimantTrap).not.toHaveBeenCalled();
+
+    const ready = fixture.readinessAuthority
+      .settleExactParentTransientChildReadinessReadyInternalV1;
+    expect(() =>
+      Reflect.apply(ready, Object.freeze({}), [
+        fixture.candidate,
+        Object.freeze({ commitInternalV1: () => true }),
+      ])
+    ).toThrowError(
+      "ui.managed_surface_stable_exact_parent_transient_child_readiness_claim_invalid",
+    );
+    const capture = fixture.childActionAuthority
+      .captureCurrentExactParentTransientChildInputInternalV1;
+    expect(() => Reflect.apply(capture, Object.freeze({}), [fixture.candidate])).toThrowError(
+      "ui.managed_surface_stable_exact_parent_transient_child_action_claim_invalid",
+    );
+    expect(() =>
+      fixture.readinessAuthority.settleExactParentTransientChildReadinessReadyInternalV1(
+        Object.freeze({}),
+        Object.freeze({ commitInternalV1: () => true }),
+      )
+    ).toThrowError(
+      "ui.managed_surface_stable_exact_parent_transient_child_readiness_claim_invalid",
+    );
+  });
+
+  it("commits guarded root ready and initial failure before synchronous notification", () => {
+    const readyFixture = stableActionFixtureV1();
+    const readyTarget = admitAndApplyStableTargetV1({
+      harness: readyFixture.harness,
+      kernel: readyFixture.kernel,
+      publisher: readyFixture.harness.workspace,
+      target: readyFixture.harness.workspaceRoot,
+      sourceRevision: readyFixture.harness.workspaceRevision,
+    });
+    const readyEnvelope = currentStableReadinessEnvelopeV1(readyFixture.kernel, readyTarget);
+    const readyBefore = readyFixture.kernel.getStateInternalV1();
+    let readyCommitted = false;
+    const readyListener = vi.fn(() => {
+      expect(readyCommitted).toBe(true);
+      expect(readyFixture.kernel.getStateInternalV1()).not.toBe(readyBefore);
+      expect(readyFixture.kernel.getStateInternalV1().stableRuntimeBindings[0]?.binding)
+        .toMatchObject({ kind: "ready_instance", instance: { phase: "active" } });
+    });
+    readyFixture.kernel.subscribeStateInternalV1(readyListener);
+    const readyGuard = vi.fn(
+      (contract: ManagedSurfacePreparedInputBindingContractInternalV1 | null) => {
+        expect(readyFixture.kernel.getStateInternalV1()).toBe(readyBefore);
+        expect(contract).not.toBeNull();
+        expect(Object.isFrozen(contract)).toBe(true);
+        expect(Reflect.ownKeys(contract!)).toEqual([]);
+        readyCommitted = true;
+        return true;
+      },
+    );
+
+    expect(readyFixture.kernel.settleStableReadinessReadyWithCommitGuardInternalV1(
+      readyEnvelope,
+      Object.freeze({ commitInternalV1: readyGuard }),
+    )).toMatchObject({ kind: "applied", code: "surface.readiness_ready" });
+    expect(readyGuard).toHaveBeenCalledTimes(1);
+    expect(readyListener).toHaveBeenCalledTimes(1);
+    const staleRootGuard = vi.fn(() => true);
+    expect(readyFixture.kernel.settleStableReadinessFailedWithCommitGuardInternalV1(
+      readyEnvelope,
+      Object.freeze({ commitInternalV1: staleRootGuard }),
+    )).toMatchObject({ kind: "stale", code: "surface.stale_readiness" });
+    expect(staleRootGuard).not.toHaveBeenCalled();
+    const staleRootGuardTrap = vi.fn();
+    const staleRootTrappingGuard = new Proxy(Object.freeze({}), {
+      getOwnPropertyDescriptor() {
+        staleRootGuardTrap();
+        throw new Error("stale root guard descriptor read");
+      },
+      ownKeys() {
+        staleRootGuardTrap();
+        throw new Error("stale root guard keys read");
+      },
+    });
+    expect(readyFixture.kernel.settleStableReadinessFailedWithCommitGuardInternalV1(
+      readyEnvelope,
+      staleRootTrappingGuard as ManagedSurfaceStableReadinessCommitGuardInternalV1,
+    )).toMatchObject({ kind: "stale", code: "surface.stale_readiness" });
+    expect(staleRootGuardTrap).not.toHaveBeenCalled();
+
+    const failedFixture = stableActionFixtureV1();
+    const failedTarget = admitAndApplyStableTargetV1({
+      harness: failedFixture.harness,
+      kernel: failedFixture.kernel,
+      publisher: failedFixture.harness.workspace,
+      target: failedFixture.harness.workspaceRoot,
+      sourceRevision: failedFixture.harness.workspaceRevision,
+    });
+    const failedEnvelope = currentStableReadinessEnvelopeV1(failedFixture.kernel, failedTarget);
+    const failedBefore = failedFixture.kernel.getStateInternalV1();
+    let failedCommitted = false;
+    failedFixture.kernel.subscribeStateInternalV1(() => {
+      expect(failedCommitted).toBe(true);
+      expect(failedFixture.kernel.getStateInternalV1().stableRuntimeBindings[0]?.binding)
+        .toMatchObject({ kind: "gap", reason: "readiness_failed" });
+    });
+    const failedGuard = vi.fn(
+      (contract: ManagedSurfacePreparedInputBindingContractInternalV1 | null) => {
+        expect(failedFixture.kernel.getStateInternalV1()).toBe(failedBefore);
+        expect(contract).toBeNull();
+        failedCommitted = true;
+        return true;
+      },
+    );
+
+    expect(failedFixture.kernel.settleStableReadinessFailedWithCommitGuardInternalV1(
+      failedEnvelope,
+      Object.freeze({ commitInternalV1: failedGuard }),
+    )).toMatchObject({ kind: "applied", code: "surface.readiness_failed" });
+    expect(failedGuard).toHaveBeenCalledTimes(1);
+
+    const replacementFixture = exactParentTransientChildFixtureV1();
+    const replacement = admitAndApplyStableTargetV1({
+      harness: replacementFixture.harness,
+      kernel: replacementFixture.kernel,
+      publisher: replacementFixture.harness.workspace,
+      target: replacementFixture.harness.workspaceReplacement,
+      sourceRevision: replacementFixture.harness.workspaceReplacementRevision,
+    });
+    const replacementEnvelope = currentStableReadinessEnvelopeV1(
+      replacementFixture.kernel,
+      replacement,
+    );
+    const replacementBefore = replacementFixture.kernel.getStateInternalV1();
+    let replacementCommitted = false;
+    replacementFixture.kernel.subscribeStateInternalV1(() => {
+      expect(replacementCommitted).toBe(true);
+      expect(replacementFixture.kernel.getStateInternalV1().stableRuntimeBindings[0]?.binding)
+        .toMatchObject({
+          kind: "gap",
+          reason: "readiness_failed",
+          retainedSubtree: { root: { phase: "active" } },
+        });
+    });
+    expect(replacementFixture.kernel.settleStableReadinessFailedWithCommitGuardInternalV1(
+      replacementEnvelope,
+      Object.freeze({
+        commitInternalV1(
+          contract: ManagedSurfacePreparedInputBindingContractInternalV1 | null,
+        ) {
+          expect(replacementFixture.kernel.getStateInternalV1()).toBe(replacementBefore);
+          expect(contract).not.toBeNull();
+          replacementCommitted = true;
+          return true;
+        },
+      }),
+    )).toMatchObject({ kind: "applied", code: "surface.readiness_failed" });
+
+    const guardRows = [
+      Object.freeze({ commitInternalV1: () => false }),
+      Object.freeze({
+        commitInternalV1: () => {
+          throw new Error("root guard fault");
+        },
+      }),
+      Object.freeze({ commitInternalV1: () => "true" as unknown as boolean }),
+    ];
+    const expectedKinds = ["stale", "faulted", "faulted"] as const;
+    for (const [index, guard] of guardRows.entries()) {
+      const fixture = stableActionFixtureV1();
+      const target = admitAndApplyStableTargetV1({
+        harness: fixture.harness,
+        kernel: fixture.kernel,
+        publisher: fixture.harness.workspace,
+        target: fixture.harness.workspaceRoot,
+        sourceRevision: fixture.harness.workspaceRevision,
+      });
+      const envelope = currentStableReadinessEnvelopeV1(fixture.kernel, target);
+      const before = fixture.kernel.getStateInternalV1();
+      const listener = vi.fn();
+      fixture.kernel.subscribeStateInternalV1(listener);
+      expect(
+        fixture.kernel.settleStableReadinessFailedWithCommitGuardInternalV1(
+          envelope,
+          guard,
+        ).kind,
+      ).toBe(expectedKinds[index]);
+      expect(fixture.kernel.getStateInternalV1()).toBe(before);
+      expect(listener).not.toHaveBeenCalled();
+    }
+    for (const [index, guard] of guardRows.entries()) {
+      const fixture = stableActionFixtureV1();
+      const target = admitAndApplyStableTargetV1({
+        harness: fixture.harness,
+        kernel: fixture.kernel,
+        publisher: fixture.harness.workspace,
+        target: fixture.harness.workspaceRoot,
+        sourceRevision: fixture.harness.workspaceRevision,
+      });
+      const envelope = currentStableReadinessEnvelopeV1(fixture.kernel, target);
+      const before = fixture.kernel.getStateInternalV1();
+      expect(
+        fixture.kernel.settleStableReadinessReadyWithCommitGuardInternalV1(
+          envelope,
+          guard,
+        ).kind,
+      ).toBe(expectedKinds[index]);
+      expect(fixture.kernel.getStateInternalV1()).toBe(before);
+    }
+  });
+
+  it("settles History ready or failed once through the same nullable-token gate", () => {
+    const readyFixture = installedExactParentTransientHistoryV1();
+    const readyBefore = readyFixture.kernel.getStateInternalV1();
+    let readyCommitted = false;
+    readyFixture.kernel.subscribeStateInternalV1(() => {
+      expect(readyCommitted).toBe(true);
+      const state = readyFixture.kernel.getStateInternalV1();
+      expect(state.transientState.publication.orderedInstances[0]).toMatchObject({
+        readiness: { kind: "ready" },
+        phase: "active",
+      });
+    });
+    const ready = readyFixture.readinessAuthority
+      .settleExactParentTransientChildReadinessReadyInternalV1(
+        readyFixture.candidate,
+        Object.freeze({
+          commitInternalV1(
+            contract: ManagedSurfacePreparedInputBindingContractInternalV1 | null,
+          ) {
+            expect(readyFixture.kernel.getStateInternalV1()).toBe(readyBefore);
+            expect(contract).not.toBeNull();
+            readyCommitted = true;
+            return true;
+          },
+        }),
+      );
+    expect(ready).toEqual({ kind: "applied" });
+    expect(Object.isFrozen(ready)).toBe(true);
+    const lateFailGuard = vi.fn(() => true);
+    const lateFailed = readyFixture.readinessAuthority
+      .settleExactParentTransientChildReadinessFailedInternalV1(
+        readyFixture.candidate,
+        Object.freeze({ commitInternalV1: lateFailGuard }),
+      );
+    expect(lateFailed).toEqual({ kind: "stale" });
+    expect(
+      readyFixture.readinessAuthority
+        .settleExactParentTransientChildReadinessFailedInternalV1(
+          readyFixture.candidate,
+          Object.freeze({ commitInternalV1: lateFailGuard }),
+        ),
+    ).toBe(lateFailed);
+    expect(lateFailGuard).not.toHaveBeenCalled();
+    const staleHistoryGuardTrap = vi.fn();
+    const staleHistoryTrappingGuard = new Proxy(Object.freeze({}), {
+      getOwnPropertyDescriptor() {
+        staleHistoryGuardTrap();
+        throw new Error("stale History guard descriptor read");
+      },
+      ownKeys() {
+        staleHistoryGuardTrap();
+        throw new Error("stale History guard keys read");
+      },
+    });
+    expect(
+      readyFixture.readinessAuthority
+        .settleExactParentTransientChildReadinessFailedInternalV1(
+          readyFixture.candidate,
+          staleHistoryTrappingGuard as ManagedSurfaceStableReadinessCommitGuardInternalV1,
+        ),
+    ).toBe(lateFailed);
+    expect(staleHistoryGuardTrap).not.toHaveBeenCalled();
+
+    const failedFixture = installedExactParentTransientHistoryV1();
+    const failedBefore = failedFixture.kernel.getStateInternalV1();
+    let failedCommitted = false;
+    failedFixture.kernel.subscribeStateInternalV1(() => {
+      expect(failedCommitted).toBe(true);
+      const state = failedFixture.kernel.getStateInternalV1();
+      expect(state.transientState.publication.orderedInstances).toEqual([]);
+      expect(state.stableRuntimeBindings[0]?.binding).toMatchObject({
+        kind: "ready_instance",
+        instance: { phase: "active" },
+      });
+    });
+    const failed = failedFixture.readinessAuthority
+      .settleExactParentTransientChildReadinessFailedInternalV1(
+        failedFixture.candidate,
+        Object.freeze({
+          commitInternalV1(
+            contract: ManagedSurfacePreparedInputBindingContractInternalV1 | null,
+          ) {
+            expect(failedFixture.kernel.getStateInternalV1()).toBe(failedBefore);
+            expect(contract).not.toBeNull();
+            failedCommitted = true;
+            return true;
+          },
+        }),
+      );
+    expect(failed).toEqual({ kind: "applied" });
+    expect(
+      failedFixture.readinessAuthority
+        .settleExactParentTransientChildReadinessReadyInternalV1(
+          failedFixture.candidate,
+          Object.freeze({ commitInternalV1: vi.fn(() => true) }),
+        ),
+    ).toEqual({ kind: "stale" });
+
+    const guardedRows = [
+      Object.freeze({ commitInternalV1: () => false }),
+      Object.freeze({
+        commitInternalV1: () => {
+          throw new Error("guard fault");
+        },
+      }),
+      Object.freeze({ commitInternalV1: () => "true" as unknown as boolean }),
+    ];
+    const expectedKinds = ["stale", "faulted", "faulted"] as const;
+    const guardedResults: ManagedSurfaceStableExactParentTransientChildReadinessResultInternalV1[] =
+      [];
+    for (const [index, guard] of guardedRows.entries()) {
+      const fixture = installedExactParentTransientHistoryV1();
+      const before = fixture.kernel.getStateInternalV1();
+      const listener = vi.fn();
+      fixture.kernel.subscribeStateInternalV1(listener);
+      const result = fixture.readinessAuthority
+        .settleExactParentTransientChildReadinessReadyInternalV1(
+          fixture.candidate,
+          guard,
+        );
+      guardedResults.push(result);
+      expect(result).toEqual({ kind: expectedKinds[index] });
+      expect(fixture.kernel.getStateInternalV1()).toBe(before);
+      expect(listener).not.toHaveBeenCalled();
+    }
+    expect(guardedResults[2]).toBe(guardedResults[1]);
+
+    const failedGuardedResults:
+      ManagedSurfaceStableExactParentTransientChildReadinessResultInternalV1[] = [];
+    for (const [index, guard] of guardedRows.entries()) {
+      const fixture = installedExactParentTransientHistoryV1();
+      const before = fixture.kernel.getStateInternalV1();
+      const result = fixture.readinessAuthority
+        .settleExactParentTransientChildReadinessFailedInternalV1(
+          fixture.candidate,
+          guard,
+        );
+      failedGuardedResults.push(result);
+      expect(result).toEqual({ kind: expectedKinds[index] });
+      expect(fixture.kernel.getStateInternalV1()).toBe(before);
+    }
+    expect(failedGuardedResults[0]).toBe(guardedResults[0]);
+    expect(failedGuardedResults[1]).toBe(guardedResults[1]);
+    expect(failedGuardedResults[2]).toBe(guardedResults[1]);
+  });
+
+  it("rejects malformed readiness guards without invoking accessors or mutating state", () => {
+    const guards: object[] = [];
+    const extra = vi.fn(() => true);
+    guards.push(Object.freeze({ commitInternalV1: extra, extra: true }));
+    const getter = vi.fn(() => () => true);
+    guards.push(Object.freeze(Object.defineProperty({}, "commitInternalV1", { get: getter })));
+    guards.push({ commitInternalV1: vi.fn(() => true) });
+
+    for (const guard of guards) {
+      const fixture = installedExactParentTransientHistoryV1();
+      const before = fixture.kernel.getStateInternalV1();
+      expect(
+        fixture.readinessAuthority.settleExactParentTransientChildReadinessReadyInternalV1(
+          fixture.candidate,
+          guard as ManagedSurfaceStableReadinessCommitGuardInternalV1,
+        ),
+      ).toEqual({ kind: "faulted" });
+      expect(fixture.kernel.getStateInternalV1()).toBe(before);
+    }
+    expect(extra).not.toHaveBeenCalled();
+    expect(getter).not.toHaveBeenCalled();
+  });
+
+  it("returns historical applied after listener terminal reentry and preserves structural cascades", () => {
+    const reentryFixture = installedExactParentTransientHistoryV1();
+    let terminalReceipt:
+      | ReturnType<
+        ManagedSurfaceStableCompositeRuntimeKernelInternalV1["transitionTransientInternalV1"]
+      >
+      | null = null;
+    const unsubscribe = reentryFixture.kernel.subscribeStateInternalV1(() => {
+      unsubscribe();
+      terminalReceipt = reentryFixture.kernel.transitionTransientInternalV1({
+        kind: "dispose_coordinator",
+      });
+    });
+    const historical = reentryFixture.readinessAuthority
+      .settleExactParentTransientChildReadinessReadyInternalV1(
+        reentryFixture.candidate,
+        Object.freeze({ commitInternalV1: () => true }),
+      );
+    expect(historical).toEqual({ kind: "applied" });
+    expect(terminalReceipt).toMatchObject({
+      kind: "applied",
+      code: "surface.coordinator_disposed",
+    });
+    expect(reentryFixture.kernel.getStateInternalV1().transientState.publication)
+      .toMatchObject({ coordinatorDisposed: true, orderedInstances: [] });
+    expect(reentryFixture.kernel.getStateInternalV1().stableRuntimeBindings).toEqual([]);
+
+    const disposeFixture = installedExactParentTransientHistoryV1();
+    expect(
+      disposeFixture.readinessAuthority.settleExactParentTransientChildReadinessReadyInternalV1(
+        disposeFixture.candidate,
+        Object.freeze({ commitInternalV1: () => true }),
+      ),
+    ).toEqual({ kind: "applied" });
+    expect(
+      disposeFixture.kernel.disposeStablePublisherLeaseInternalV1(
+        disposeFixture.harness.workspace.lease,
+      ),
+    ).toMatchObject({ kind: "applied", code: "surface.stable_publisher_disposed" });
+    expect(disposeFixture.kernel.getStateInternalV1().transientState.publication.orderedInstances)
+      .toEqual([]);
+    expect(disposeFixture.kernel.getStateInternalV1().stableRuntimeBindings).toEqual([]);
+  });
+
+  it("captures only the exact current ready History action contract", () => {
+    const fixture = installedExactParentTransientHistoryV1();
+    expect(
+      fixture.childActionAuthority.captureCurrentExactParentTransientChildInputInternalV1(
+        fixture.candidate,
+      ),
+    ).toEqual({ kind: "unavailable" });
+    expect(
+      fixture.readinessAuthority.settleExactParentTransientChildReadinessReadyInternalV1(
+        fixture.candidate,
+        Object.freeze({ commitInternalV1: () => true }),
+      ),
+    ).toEqual({ kind: "applied" });
+
+    const captured = fixture.childActionAuthority
+      .captureCurrentExactParentTransientChildInputInternalV1(fixture.candidate);
+    expect(captured.kind).toBe("captured");
+    if (captured.kind !== "captured") throw new Error("expected captured History input");
+    const child = fixture.kernel.getStateInternalV1().transientState.publication
+      .orderedInstances[0]!;
+    expect(captured.contract).toMatchObject({
+      applicationEpoch: applicationEpochV1,
+      ownerId: workspaceOwnerIdV1,
+      surfaceInstanceId: child.surfaceInstanceId,
+      routingLeaseId: child.routingLeaseId,
+      actionIds: [narrativeAdvanceActionIdV1, narrativeOtherActionIdV1],
+    });
+    expect(Object.isFrozen(captured.contract)).toBe(true);
+    expect(Object.isFrozen(captured.contract.actionIds)).toBe(true);
+
+    for (const actionId of [narrativeAdvanceActionIdV1, narrativeOtherActionIdV1]) {
+      expect(fixture.childActionAuthority.routeActionInternalV1(Object.freeze({
+        evidence: Object.freeze({
+          applicationEpoch: captured.contract.applicationEpoch,
+          topologyRevision: captured.contract.topologyRevision,
+          surfaceInstanceId: captured.contract.surfaceInstanceId,
+        }),
+        actionId,
+        routingLeaseId: captured.contract.routingLeaseId,
+      }))).toMatchObject({ kind: "unchanged", code: "surface.action_routed" });
+    }
+    expect(() =>
+      fixture.childActionAuthority.captureCurrentExactParentTransientChildInputInternalV1(
+        Object.freeze({}),
+      )
+    ).toThrowError(
+      "ui.managed_surface_stable_exact_parent_transient_child_action_claim_invalid",
+    );
+
+    applyEmptyStablePublicationV1({
+      fixture,
+      publisher: fixture.harness.workspace,
+      sourceRevision: fixture.harness.workspace.issueSourceRevision(),
+    });
+    expect(
+      fixture.childActionAuthority.captureCurrentExactParentTransientChildInputInternalV1(
+        fixture.candidate,
+      ),
+    ).toEqual({ kind: "unavailable" });
+  });
+
+  it("fences ordinary current History mutation after stale evidence precedence", () => {
+    const preparingFixture = installedExactParentTransientHistoryV1();
+    const preparingState = preparingFixture.kernel.getStateInternalV1();
+    const preparingChild = preparingState.transientState.publication.orderedInstances[0]!;
+    const preparingEvidence = Object.freeze({
+      applicationEpoch: applicationEpochV1,
+      surfaceInstanceId: preparingChild.surfaceInstanceId,
+    });
+    const preparingOperations = [
+      Object.freeze({ kind: "readiness_ready" as const, evidence: preparingEvidence }),
+      Object.freeze({ kind: "readiness_failed" as const, evidence: preparingEvidence }),
+      Object.freeze({
+        kind: "route_fallback_dismiss_exact_candidate" as const,
+        dismissKind: "routed_cancel" as const,
+        evidence: preparingEvidence,
+      }),
+      Object.freeze({
+        kind: "route_fallback_dismiss_with_owner_preparation_cancel" as const,
+        dismissKind: "routed_cancel" as const,
+        evidence: preparingEvidence,
+        ownerId: workspaceOwnerIdV1,
+      }),
+    ];
+    for (const operation of preparingOperations) {
+      expect(preparingFixture.kernel.transitionTransientInternalV1(operation)).toMatchObject({
+        kind: "rejected",
+        code: "surface.invalid_transition",
+      });
+      expect(preparingFixture.kernel.getStateInternalV1()).toBe(preparingState);
+    }
+
+    expect(preparingFixture.kernel.transitionTransientInternalV1({
+      kind: "readiness_failed",
+      evidence: Object.freeze({
+        applicationEpoch: parseNonNegativeSafeInteger(applicationEpochV1 + 1),
+        surfaceInstanceId: preparingChild.surfaceInstanceId,
+      }),
+    })).toMatchObject({ kind: "stale", code: "surface.stale_application_epoch" });
+
+    const fixture = installedExactParentTransientHistoryV1();
+    expect(
+      fixture.readinessAuthority.settleExactParentTransientChildReadinessReadyInternalV1(
+        fixture.candidate,
+        Object.freeze({ commitInternalV1: () => true }),
+      ),
+    ).toEqual({ kind: "applied" });
+    const before = fixture.kernel.getStateInternalV1();
+    const publication = before.transientState.publication;
+    const child = publication.orderedInstances[0]!;
+    const evidence = Object.freeze({
+      applicationEpoch: publication.applicationEpoch,
+      topologyRevision: publication.topologyRevision,
+      surfaceInstanceId: child.surfaceInstanceId,
+    });
+    const replacementCandidate = fixture.kernel.peekTransientCandidateInternalV1({
+      definition: fixture.harness.historyDefinition,
+      semanticOccurrenceId: null,
+    });
+    const grandchildCandidate = fixture.kernel.peekTransientCandidateInternalV1({
+      definition: definitionV1({
+        definitionId: grandchildDefinitionV1,
+        ownerId: workspaceOwnerIdV1,
+        slotId: grandchildSlotV1,
+        placement: "child",
+        layerOrder: 12,
+      }).definition,
+      semanticOccurrenceId: null,
+    });
+    const operations = [
+      Object.freeze({
+        kind: "prepare_child" as const,
+        parentEvidence: evidence,
+        candidate: grandchildCandidate,
+      }),
+      Object.freeze({ kind: "close_expected" as const, evidence }),
+      Object.freeze({
+        kind: "close_expected_with_owner_preparation_cancel" as const,
+        evidence,
+        ownerId: workspaceOwnerIdV1,
+      }),
+      Object.freeze({
+        kind: "route_dismiss" as const,
+        dismissKind: "routed_cancel" as const,
+        evidence,
+      }),
+      Object.freeze({
+        kind: "route_dismiss_with_owner_preparation_cancel" as const,
+        dismissKind: "routed_cancel" as const,
+        evidence,
+        ownerId: workspaceOwnerIdV1,
+      }),
+      Object.freeze({
+        kind: "route_action" as const,
+        evidence,
+        actionId: narrativeAdvanceActionIdV1,
+        routingLeaseId: child.routingLeaseId,
+      }),
+      Object.freeze({
+        kind: "route_action" as const,
+        evidence,
+        actionId: narrativeOtherActionIdV1,
+        routingLeaseId: child.routingLeaseId,
+      }),
+      Object.freeze({
+        kind: "close_owner" as const,
+        evidence: Object.freeze({
+          applicationEpoch: applicationEpochV1,
+          topologyRevision: publication.topologyRevision,
+          ownerId: workspaceOwnerIdV1,
+        }),
+      }),
+      Object.freeze({
+        kind: "dispose_owner" as const,
+        applicationEpoch: publication.applicationEpoch,
+        ownerId: workspaceOwnerIdV1,
+      }),
+      Object.freeze({
+        kind: "close_top" as const,
+        applicationEpoch: publication.applicationEpoch,
+      }),
+      Object.freeze({
+        kind: "close_top_with_owner_preparation_cancel" as const,
+        applicationEpoch: publication.applicationEpoch,
+        ownerId: workspaceOwnerIdV1,
+      }),
+    ];
+    const stateListener = vi.fn();
+    const transientListener = vi.fn();
+    fixture.kernel.subscribeStateInternalV1(stateListener);
+    fixture.kernel.subscribeTransientInternalV1(transientListener);
+    expect(fixture.kernel.transitionTransientInternalV1({
+      kind: "prepare_replacement",
+      expected: evidence,
+      candidate: replacementCandidate,
+    })).toMatchObject({ kind: "rejected", code: "surface.slot_placement_mismatch" });
+    expect(fixture.kernel.getStateInternalV1()).toBe(before);
+    for (const operation of operations) {
+      const receipt = fixture.kernel.transitionTransientInternalV1(operation);
+      expect(receipt, operation.kind).toMatchObject({
+        kind: "rejected",
+        code: "surface.invalid_transition",
+        beforeTopologyRevision: publication.topologyRevision,
+        afterTopologyRevision: publication.topologyRevision,
+      });
+      expect(fixture.kernel.getStateInternalV1()).toBe(before);
+    }
+    expect(stateListener).not.toHaveBeenCalled();
+    expect(transientListener).not.toHaveBeenCalled();
+
+    expect(fixture.kernel.transitionTransientInternalV1({
+      kind: "close_expected",
+      evidence: Object.freeze({
+        ...evidence,
+        topologyRevision: parseNonNegativeSafeInteger(evidence.topologyRevision + 1),
+      }),
+    })).toMatchObject({ kind: "stale", code: "surface.stale_topology_revision" });
+    expect(fixture.kernel.transitionTransientInternalV1({
+      kind: "route_action",
+      evidence,
+      actionId: narrativeAdvanceActionIdV1,
+      routingLeaseId: parseManagedSurfaceRoutingLeaseIdV1(
+        "surface-routing-lease.app-41.attempt-999",
+      ),
+    })).toMatchObject({ kind: "stale", code: "surface.stale_routing_lease" });
+    expect(fixture.kernel.getStateInternalV1()).toBe(before);
   });
 });
 

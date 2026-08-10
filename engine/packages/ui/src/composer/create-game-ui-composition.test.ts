@@ -971,7 +971,7 @@ describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () 
     }
   });
 
-  it("retains one input binding while both family observers process a replacement", async () => {
+  it("retains one dispatcher while both family observers replace the logical binding", async () => {
     const replacementDefinition = defineWorkspaceOverlayV1({
       id: "overlay.epoch-replacement" as const,
       contractRevision: 1,
@@ -1122,6 +1122,10 @@ describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () 
         retainedEnvelope.inputPublicationRevision + 2,
       );
       expect(runtime.gestureLease.isCurrent(retainedGesture)).toBe(false);
+      expect(retainedBinding.route(retainedEnvelope)).toMatchObject({
+        input: { kind: "consumed", code: "input.stale_publication" },
+        surface: null,
+      });
       expect({
         registrations,
         unregistrations,
@@ -1130,8 +1134,8 @@ describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () 
         overlayNotifications,
         systemNotifications,
       }).toEqual({
-        registrations: 2,
-        unregistrations: 1,
+        registrations: 1,
+        unregistrations: 0,
         activeRegistrations: 1,
         maximumActiveRegistrations: 1,
         overlayNotifications: 4,
@@ -1143,9 +1147,9 @@ describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () 
       composition.dispose();
     }
     expect({ registrations, unregistrations, activeRegistrations }).toEqual({
-      registrations: 2,
-      unregistrations: 2,
-      activeRegistrations: 0,
+      registrations: 1,
+      unregistrations: 0,
+      activeRegistrations: 1,
     });
   });
 });
