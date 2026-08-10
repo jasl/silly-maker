@@ -60,6 +60,18 @@ export interface DeriveManagedSurfaceReducerTopologyProjectionInputInternalV1 {
   readonly revisionMode: ManagedSurfaceReducerTopologyProjectionRevisionModeInternalV1;
 }
 
+export interface ManagedSurfaceReducerCrossAxisParentProjectionInternalV1 {
+  readonly surfaceInstanceId: ManagedSurfaceInstanceIdV1;
+  readonly definition: DeepReadonly<ManagedSurfaceResolvedDefinitionV1>;
+  readonly phase: "active";
+}
+
+export interface DeriveManagedSurfaceReducerCrossAxisChildPreparationInputInternalV1 {
+  readonly state: ManagedSurfaceReducerStateV1;
+  readonly parent: ManagedSurfaceReducerCrossAxisParentProjectionInternalV1;
+  readonly candidate: ManagedSurfaceCandidateV1;
+}
+
 function freezeDefinitionV1(
   definition: ManagedSurfaceResolvedDefinitionV1,
 ): DeepReadonly<ManagedSurfaceResolvedDefinitionV1> {
@@ -832,6 +844,100 @@ function settleReadinessV1(
     state.disposedOwnerIds,
     false,
     candidate.surfaceInstanceId,
+    true,
+  );
+}
+
+/**
+ * Derives one transient child preparation for a stable parent already
+ * authenticated by the owning composite authority. The parent deliberately
+ * remains absent from the transient publication and this helper does not mint
+ * generic parent evidence.
+ */
+export function deriveManagedSurfaceReducerCrossAxisChildPreparationInternalV1(
+  input: DeriveManagedSurfaceReducerCrossAxisChildPreparationInputInternalV1,
+): ManagedSurfaceReducerResultV1 {
+  let state = input.state;
+  const parent = input.parent;
+  const candidate = input.candidate;
+  if (state.publication.coordinatorDisposed) {
+    return unchangedResultV1(state, "rejected", "surface.coordinator_disposed");
+  }
+  if (!state.resolvedOwnerIds.includes(candidate.definition.ownerId)) {
+    return unchangedResultV1(state, "rejected", "surface.unknown_owner");
+  }
+  if (candidate.definition.placement !== "child") {
+    return unchangedResultV1(state, "rejected", "surface.slot_placement_mismatch");
+  }
+  const slotDescriptor = childSlotDescriptorV1(
+    state,
+    parent.definition.definitionId,
+    candidate.definition.slotId,
+  );
+  if (slotDescriptor === undefined) {
+    const hasRootDescriptor = rootSlotDescriptorV1(state, candidate.definition.slotId) !==
+      undefined;
+    return unchangedResultV1(
+      state,
+      "rejected",
+      hasRootDescriptor ? "surface.slot_placement_mismatch" : "surface.slot_not_resolved",
+    );
+  }
+  if (slotDescriptor.cardinality !== "single") {
+    return unchangedResultV1(
+      state,
+      "rejected",
+      "surface.invalid_transition",
+      candidate.surfaceInstanceId,
+    );
+  }
+  if (
+    parent.phase !== "active" ||
+    parent.definition.ownerId !== candidate.definition.ownerId ||
+    parent.definition.layerId !== candidate.definition.layerId ||
+    candidate.definition.layerOrder < parent.definition.layerOrder ||
+    state.publication.orderedInstances.some(
+      (instance) => instance.surfaceInstanceId === parent.surfaceInstanceId,
+    )
+  ) {
+    return unchangedResultV1(
+      state,
+      "rejected",
+      "surface.invalid_parent",
+      candidate.surfaceInstanceId,
+    );
+  }
+  const identityFailure = candidateIdentityFailureV1(state, candidate);
+  if (identityFailure !== null) return identityFailure;
+  const openFailure = openPreconditionFailureV1(state, candidate);
+  if (openFailure !== null) return openFailure;
+  if (
+    state.publication.orderedInstances.some(
+      (instance) =>
+        instance.parentInstanceId === parent.surfaceInstanceId &&
+        instance.definition.slotId === candidate.definition.slotId,
+    )
+  ) {
+    return unchangedResultV1(
+      state,
+      "rejected",
+      "surface.slot_occupied",
+      candidate.surfaceInstanceId,
+    );
+  }
+  state = withAdmittedCandidateIdentityV1(state, candidate);
+  const instance = freezePublishedInstanceV1(
+    candidate,
+    parent.surfaceInstanceId,
+    Object.freeze({ kind: "preparing", transition: "child_open" }),
+  );
+  return appliedResultV1(
+    state,
+    "surface.preparation_started",
+    [...state.publication.orderedInstances, instance],
+    state.disposedOwnerIds,
+    false,
+    instance.surfaceInstanceId,
     true,
   );
 }

@@ -70,6 +70,7 @@ import {
   createNarrativeStablePhysicalActionAdmissionInternalV1,
   createNarrativeStablePublisherBridgeInternalV1,
   createNarrativeStableSayRevealControllerInternalV1,
+  createNarrativeStableHistoryChildLifecycleInternalV1,
   type CreateNarrativeStablePhysicalActionAdmissionInputInternalV1,
   type CreateNarrativeStableBarrierAcknowledgmentControllerInputInternalV1,
   type CreateNarrativeStableSayRevealControllerInputInternalV1,
@@ -89,6 +90,9 @@ import {
   type NarrativeStableCapturedHistoryAvailabilityPortInternalV1,
   type NarrativeStableHistoryAvailabilityPortInternalV1,
   type NarrativeStableHistoryOpenActionAttemptInternalV1,
+  type NarrativeStableHistoryChildLifecycleInternalV1,
+  type NarrativeStableHistoryChildPreparationInternalV1,
+  type NarrativeStableHistoryChildPreparationResultInternalV1,
   type NarrativeStableHistoryOpenDispatchResultInternalV1,
   type NarrativeStableHistoryOpenIntentInternalV1,
   type NarrativeStablePauseResumeActionAttemptInternalV1,
@@ -781,6 +785,47 @@ function expectHistoryRouteConsumedV1(
   });
   expect(result.consumerResult).not.toBeNull();
   return result.consumerResult as NarrativeStableHistoryOpenDispatchResultInternalV1;
+}
+
+function mintHistoryOpenIntentV1(
+  admission: NarrativeStablePhysicalActionAdmissionInternalV1,
+  gestureSuffix: string,
+): NarrativeStableHistoryOpenIntentInternalV1 {
+  const attempt = admission.issueHistoryOpenAttemptInternalV1();
+  if (attempt === null) throw new Error("expected History-open attempt");
+  const result = expectHistoryRouteConsumedV1(
+    routeHistoryOpenV1(admission, attempt, gestureSuffix),
+  );
+  if (result.kind !== "requested") throw new Error("expected History-open intent");
+  return result.intent;
+}
+
+function closeCurrentHistoryChildV1(harness: NarrativeHarnessV1): void {
+  const publication = harness.kernel.getStateInternalV1().transientState.publication;
+  const child = publication.orderedInstances.find((instance) =>
+    instance.definition.definitionId === "surface.narrative.history"
+  );
+  if (child === undefined) throw new Error("expected current History child");
+  expect(harness.kernel.transitionTransientInternalV1({
+    kind: "readiness_failed",
+    evidence: Object.freeze({
+      applicationEpoch: applicationEpochV1,
+      surfaceInstanceId: child.surfaceInstanceId,
+    }),
+  })).toMatchObject({ kind: "applied", code: "surface.readiness_failed" });
+}
+
+function createNarrativeBridgeSuccessorV1(
+  harness: NarrativeHarnessV1,
+): NarrativeStablePublisherBridgeInternalV1 {
+  return createNarrativeStablePublisherBridgeInternalV1({
+    publisherLeaseRegistry: harness.registry,
+    admissionAuthority: harness.authority,
+    compositeRuntimeKernel: harness.kernel,
+    candidatePreflight: defaultCandidatePreflightV1,
+    exactAggregateDefinitionSidecars: harness.contract.stableDefinitionSidecars,
+    exactAggregateSlotDescriptors: harness.contract.resolvedSlotDescriptors,
+  });
 }
 
 function automaticPauseHarnessV1(input: {
@@ -9815,6 +9860,408 @@ describe("Narrative stable Managed Surface family", () => {
       }),
     })).toMatchObject({ kind: "applied" });
     controller.disposeInternalV1();
+  });
+
+  it("exposes only the exact bridge-bound History-child lifecycle and opaque preparation", () => {
+    type ExpectedHistoryChildPreparationResultV1 =
+      | Readonly<{
+        readonly kind: "preparing";
+        readonly preparation: NarrativeStableHistoryChildPreparationInternalV1;
+        readonly completion: null;
+      }>
+      | Readonly<{ readonly kind: "stale"; readonly completion: null }>
+      | Readonly<{ readonly kind: "faulted"; readonly completion: null }>;
+    expectTypeOf<NarrativeStableHistoryChildPreparationResultInternalV1>()
+      .toEqualTypeOf<ExpectedHistoryChildPreparationResultV1>();
+    expectTypeOf<keyof NarrativeStableHistoryChildLifecycleInternalV1>()
+      .toEqualTypeOf<"redeemHistoryOpenIntentInternalV1">();
+    expectTypeOf<
+      NarrativeStableHistoryChildLifecycleInternalV1[
+        "redeemHistoryOpenIntentInternalV1"
+      ]
+    >().toEqualTypeOf<
+      (intent: unknown) => NarrativeStableHistoryChildPreparationResultInternalV1
+    >();
+    expectTypeOf<Parameters<typeof createNarrativeStableHistoryChildLifecycleInternalV1>>()
+      .toEqualTypeOf<[
+        Readonly<{ readonly bridge: NarrativeStablePublisherBridgeInternalV1 }>,
+      ]>();
+
+    const fixture = physicalHistoryHarnessV1();
+    const lifecycle = createNarrativeStableHistoryChildLifecycleInternalV1({
+      bridge: fixture.harness.bridge,
+    });
+    expect(Object.isFrozen(lifecycle)).toBe(true);
+    expect(Reflect.ownKeys(lifecycle)).toEqual(["redeemHistoryOpenIntentInternalV1"]);
+    const intent = mintHistoryOpenIntentV1(fixture.admission, "child-lifecycle-shape");
+    fixture.admission.disposeInternalV1();
+    const successorAdmission = createNarrativeStablePhysicalActionAdmissionInternalV1({
+      bridge: fixture.harness.bridge,
+      inputRouter: fixture.inputRouter,
+      isGestureCurrent: () => true,
+    });
+    const notifications = fixture.harness.stateNotificationCount();
+
+    const result = lifecycle.redeemHistoryOpenIntentInternalV1(intent);
+    expect(result.kind).toBe("preparing");
+    expect(result.completion).toBeNull();
+    expect(Object.isFrozen(result)).toBe(true);
+    expect(Reflect.ownKeys(result)).toEqual(["kind", "preparation", "completion"]);
+    if (result.kind !== "preparing") throw new Error("expected History preparation");
+    expect(Object.isFrozen(result.preparation)).toBe(true);
+    expect(Reflect.ownKeys(result.preparation)).toEqual([]);
+
+    const state = fixture.harness.kernel.getStateInternalV1();
+    const root = state.stableRuntimeBindings[0];
+    if (root?.binding.kind !== "ready_instance") throw new Error("expected Dialogue root");
+    expect(root.binding.instance.phase).toBe("suspended");
+    expect(state.transientState.publication.orderedInstances).toHaveLength(1);
+    expect(state.transientState.publication.orderedInstances[0]).toMatchObject({
+      definition: { definitionId: "surface.narrative.history" },
+      parentInstanceId: root.binding.instance.attempt.identity.surfaceInstanceId,
+      semanticOccurrenceId: null,
+      phase: "preparing",
+      readiness: { kind: "preparing", transition: "child_open" },
+    });
+    expect(fixture.harness.stateNotificationCount()).toBe(notifications + 1);
+    successorAdmission.disposeInternalV1();
+  });
+
+  it("spends only the first installed History intent and never revives an unspent loser", () => {
+    const fixture = physicalHistoryHarnessV1();
+    const lifecycle = createNarrativeStableHistoryChildLifecycleInternalV1({
+      bridge: fixture.harness.bridge,
+    });
+    const winner = mintHistoryOpenIntentV1(fixture.admission, "child-first-winner");
+    const loser = mintHistoryOpenIntentV1(fixture.admission, "child-first-loser");
+    const notifications = fixture.harness.stateNotificationCount();
+
+    const installed = lifecycle.redeemHistoryOpenIntentInternalV1(winner);
+    expect(installed.kind).toBe("preparing");
+    expect(fixture.harness.stateNotificationCount()).toBe(notifications + 1);
+    const installedState = fixture.harness.kernel.getStateInternalV1();
+    const winnerRepeat = lifecycle.redeemHistoryOpenIntentInternalV1(winner);
+    const occupiedLoser = lifecycle.redeemHistoryOpenIntentInternalV1(loser);
+    expect(winnerRepeat).toEqual({ kind: "stale", completion: null });
+    expect(occupiedLoser).toBe(winnerRepeat);
+    expect(Reflect.ownKeys(occupiedLoser)).toEqual(["kind", "completion"]);
+    expect(fixture.harness.kernel.getStateInternalV1()).toBe(installedState);
+    expect(fixture.harness.stateNotificationCount()).toBe(notifications + 1);
+
+    closeCurrentHistoryChildV1(fixture.harness);
+    const closedState = fixture.harness.kernel.getStateInternalV1();
+    expect(closedState.transientState.publication.orderedInstances).toEqual([]);
+    const root = closedState.stableRuntimeBindings[0];
+    if (root?.binding.kind !== "ready_instance") throw new Error("expected resumed Dialogue");
+    expect(root.binding.instance.phase).toBe("active");
+    expect(lifecycle.redeemHistoryOpenIntentInternalV1(loser)).toBe(occupiedLoser);
+    expect(fixture.harness.kernel.getStateInternalV1()).toBe(closedState);
+
+    fixture.admission.disposeInternalV1();
+    const successorAdmission = createNarrativeStablePhysicalActionAdmissionInternalV1({
+      bridge: fixture.harness.bridge,
+      inputRouter: fixture.inputRouter,
+      isGestureCurrent: () => true,
+    });
+    const fresh = mintHistoryOpenIntentV1(successorAdmission, "child-fresh-vacancy");
+    const freshResult = lifecycle.redeemHistoryOpenIntentInternalV1(fresh);
+    expect(freshResult.kind).toBe("preparing");
+    expect(freshResult).not.toBe(installed);
+    successorAdmission.disposeInternalV1();
+  });
+
+  it("rejects clone, foreign, repeat, and wrong-receiver redemption without reads", () => {
+    const fixture = physicalHistoryHarnessV1();
+    const lifecycle = createNarrativeStableHistoryChildLifecycleInternalV1({
+      bridge: fixture.harness.bridge,
+    });
+    const intent = mintHistoryOpenIntentV1(fixture.admission, "child-authentic");
+    const foreign = physicalHistoryHarnessV1({ kind: "choice" });
+    const foreignLifecycle = createNarrativeStableHistoryChildLifecycleInternalV1({
+      bridge: foreign.harness.bridge,
+    });
+    const foreignIntent = mintHistoryOpenIntentV1(foreign.admission, "child-foreign");
+    const stale = lifecycle.redeemHistoryOpenIntentInternalV1(Object.freeze({}));
+    expect(stale).toEqual({ kind: "stale", completion: null });
+    expect(lifecycle.redeemHistoryOpenIntentInternalV1(Object.freeze({ ...intent })))
+      .toBe(stale);
+    expect(lifecycle.redeemHistoryOpenIntentInternalV1(foreignIntent)).toBe(stale);
+    expect(foreignLifecycle.redeemHistoryOpenIntentInternalV1(intent)).toBe(stale);
+    const redeem = lifecycle.redeemHistoryOpenIntentInternalV1;
+    expect(Reflect.apply(redeem, Object.freeze({}), [intent])).toBe(stale);
+
+    const installed = lifecycle.redeemHistoryOpenIntentInternalV1(intent);
+    expect(installed.kind).toBe("preparing");
+    expect(lifecycle.redeemHistoryOpenIntentInternalV1(intent)).toBe(stale);
+    expect(foreignLifecycle.redeemHistoryOpenIntentInternalV1(foreignIntent).kind)
+      .toBe("preparing");
+    fixture.admission.disposeInternalV1();
+    foreign.admission.disposeInternalV1();
+  });
+
+  it("reuses one family claimant for a same-kernel bridge successor while fencing the old bridge", () => {
+    const fixture = physicalHistoryHarnessV1();
+    const oldLifecycle = createNarrativeStableHistoryChildLifecycleInternalV1({
+      bridge: fixture.harness.bridge,
+    });
+    const oldIntent = mintHistoryOpenIntentV1(fixture.admission, "child-old-bridge");
+    fixture.admission.disposeInternalV1();
+    fixture.harness.bridge.disposeInternalV1();
+    expect(oldLifecycle.redeemHistoryOpenIntentInternalV1(oldIntent)).toEqual({
+      kind: "stale",
+      completion: null,
+    });
+
+    const successorBridge = createNarrativeBridgeSuccessorV1(fixture.harness);
+    const successorHarness: NarrativeHarnessV1 = {
+      ...fixture.harness,
+      bridge: successorBridge,
+    };
+    expect(successorBridge.reconcilePendingInternalV1(pendingV1("custom", 2)))
+      .toMatchObject({ kind: "applied" });
+    settleCurrentNarrativeReadyV1(successorHarness);
+    const successorLifecycle = createNarrativeStableHistoryChildLifecycleInternalV1({
+      bridge: successorBridge,
+    });
+    expect(successorLifecycle.redeemHistoryOpenIntentInternalV1(oldIntent)).toEqual({
+      kind: "stale",
+      completion: null,
+    });
+    const successorAdmission = createNarrativeStablePhysicalActionAdmissionInternalV1({
+      bridge: successorBridge,
+      inputRouter: createInputRouterV1(),
+      isGestureCurrent: () => true,
+    });
+    const successorIntent = mintHistoryOpenIntentV1(
+      successorAdmission,
+      "child-successor-bridge",
+    );
+    expect(successorLifecycle.redeemHistoryOpenIntentInternalV1(successorIntent).kind)
+      .toBe("preparing");
+    expect(oldLifecycle.redeemHistoryOpenIntentInternalV1(successorIntent)).toEqual({
+      kind: "stale",
+      completion: null,
+    });
+    successorAdmission.disposeInternalV1();
+    successorBridge.disposeInternalV1();
+  });
+
+  it("leaves a History intent unspent across callback and semantic in-flight claims", async () => {
+    let lifecycle!: NarrativeStableHistoryChildLifecycleInternalV1;
+    let callbackIntent!: NarrativeStableHistoryOpenIntentInternalV1;
+    let nestedCallbackResult: NarrativeStableHistoryChildPreparationResultInternalV1 | null = null;
+    let availabilityReads = 0;
+    const fixture = physicalHistoryHarnessV1({
+      historyAvailabilityPort: historyAvailabilityPortV1(() => {
+        availabilityReads += 1;
+        if (availabilityReads === 2) {
+          nestedCallbackResult = lifecycle.redeemHistoryOpenIntentInternalV1(callbackIntent);
+        }
+        return true;
+      }),
+    });
+    lifecycle = createNarrativeStableHistoryChildLifecycleInternalV1({
+      bridge: fixture.harness.bridge,
+    });
+    callbackIntent = mintHistoryOpenIntentV1(fixture.admission, "child-callback-before");
+    const callbackCompetitor = mintHistoryOpenIntentV1(
+      fixture.admission,
+      "child-callback-owned",
+    );
+    expect(nestedCallbackResult).toEqual({ kind: "stale", completion: null });
+    expect(lifecycle.redeemHistoryOpenIntentInternalV1(callbackIntent).kind)
+      .toBe("preparing");
+    expect(lifecycle.redeemHistoryOpenIntentInternalV1(callbackCompetitor)).toEqual({
+      kind: "stale",
+      completion: null,
+    });
+    fixture.admission.disposeInternalV1();
+
+    let resolveSemantic!: (value: unknown) => void;
+    const semanticCompletion = new Promise<unknown>((resolve) => {
+      resolveSemantic = resolve;
+    });
+    const semanticFixture = physicalHistoryHarnessV1({
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: () => semanticCompletion,
+      }),
+    });
+    const semanticLifecycle = createNarrativeStableHistoryChildLifecycleInternalV1({
+      bridge: semanticFixture.harness.bridge,
+    });
+    const semanticIntent = mintHistoryOpenIntentV1(
+      semanticFixture.admission,
+      "child-semantic-before",
+    );
+    const controller = createNarrativeStableSayRevealControllerInternalV1({
+      bridge: semanticFixture.harness.bridge,
+      revealGenerationPort: Object.freeze({
+        capturePhaseInternalV1: () => "complete" as const,
+        revealAllInternalV1: vi.fn(),
+      }),
+    });
+    const sayAttempt = semanticFixture.admission.issueSayActivationAttemptInternalV1(
+      controller,
+    );
+    const sayResult = semanticFixture.admission.routeInternalV1(
+      semanticFixture.admission.createEnvelopeInternalV1({
+        actionId: narrativeConfirmActionIdV1,
+        gestureId: parseManagedSurfaceGestureIdV1(
+          "gesture.narrative.history-child-semantic",
+        ),
+      }),
+      sayAttempt,
+    ).consumerResult;
+    expect(sayResult?.kind).toBe("dispatched");
+    expect(semanticLifecycle.redeemHistoryOpenIntentInternalV1(semanticIntent))
+      .toEqual({ kind: "stale", completion: null });
+    resolveSemantic("complete");
+    if (sayResult?.kind !== "dispatched") throw new Error("expected semantic dispatch");
+    await expect(sayResult.completion).resolves.toBe("complete");
+    expect(semanticLifecycle.redeemHistoryOpenIntentInternalV1(semanticIntent).kind)
+      .toBe("preparing");
+    controller.disposeInternalV1();
+    semanticFixture.admission.disposeInternalV1();
+  });
+
+  it("publishes the complete prepared successor before synchronous listener reentry", () => {
+    const fixture = physicalHistoryHarnessV1();
+    const lifecycle = createNarrativeStableHistoryChildLifecycleInternalV1({
+      bridge: fixture.harness.bridge,
+    });
+    const intent = mintHistoryOpenIntentV1(fixture.admission, "child-listener-reentry");
+    let nested: NarrativeStableHistoryChildPreparationResultInternalV1 | null = null;
+    const unsubscribe = fixture.harness.kernel.subscribeStateInternalV1(() => {
+      const state = fixture.harness.kernel.getStateInternalV1();
+      const root = state.stableRuntimeBindings[0];
+      if (root?.binding.kind !== "ready_instance") {
+        throw new Error("listener expected ready Dialogue root");
+      }
+      expect(root.binding.instance.phase).toBe("suspended");
+      expect(state.transientState.publication.orderedInstances).toHaveLength(1);
+      expect(state.transientState.publication.orderedInstances[0]).toMatchObject({
+        definition: { definitionId: "surface.narrative.history" },
+        parentInstanceId: root.binding.instance.attempt.identity.surfaceInstanceId,
+        phase: "preparing",
+      });
+      nested = lifecycle.redeemHistoryOpenIntentInternalV1(intent);
+    });
+
+    const outer = lifecycle.redeemHistoryOpenIntentInternalV1(intent);
+    expect(outer.kind).toBe("preparing");
+    expect(nested).toEqual({ kind: "stale", completion: null });
+    expect(lifecycle.redeemHistoryOpenIntentInternalV1(intent)).toBe(nested);
+    unsubscribe();
+    fixture.admission.disposeInternalV1();
+  });
+
+  it("maps raw stable publisher divergence to one canonical fault without spending intent", () => {
+    let canonicalFault: NarrativeStableHistoryChildPreparationResultInternalV1 | null = null;
+    for (let index = 0; index < 2; index += 1) {
+      const fixture = physicalHistoryHarnessV1();
+      const lifecycle = createNarrativeStableHistoryChildLifecycleInternalV1({
+        bridge: fixture.harness.bridge,
+      });
+      const intent = mintHistoryOpenIntentV1(fixture.admission, `child-fault-${index}`);
+      expect(
+        fixture.harness.registry.disposePublisherLease(
+          narrativeBaselineV1(fixture.harness).publisherLease,
+        ),
+      ).toBe("disposed");
+      const state = fixture.harness.kernel.getStateInternalV1();
+      const notifications = fixture.harness.stateNotificationCount();
+      const result = lifecycle.redeemHistoryOpenIntentInternalV1(intent);
+      expect(result).toEqual({ kind: "faulted", completion: null });
+      expect(Object.isFrozen(result)).toBe(true);
+      expect(Reflect.ownKeys(result)).toEqual(["kind", "completion"]);
+      if (canonicalFault === null) canonicalFault = result;
+      else expect(result).toBe(canonicalFault);
+      expect(lifecycle.redeemHistoryOpenIntentInternalV1(intent)).toBe(result);
+      expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
+      expect(fixture.harness.stateNotificationCount()).toBe(notifications);
+      fixture.admission.disposeInternalV1();
+    }
+  });
+
+  it("prepares Barrier History with exact Stage and semantic zero", () => {
+    const semanticDispatch = vi.fn(() => Promise.resolve("must-not-dispatch"));
+    const fixture = narrativeBarrierHarnessV1({
+      historyAvailabilityPort: historyAvailabilityPortV1(() => true),
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: semanticDispatch,
+      }),
+    });
+    const admission = createNarrativeStablePhysicalActionAdmissionInternalV1({
+      bridge: fixture.harness.bridge,
+      inputRouter: createInputRouterV1(),
+      isGestureCurrent: () => true,
+    });
+    const lifecycle = createNarrativeStableHistoryChildLifecycleInternalV1({
+      bridge: fixture.harness.bridge,
+    });
+    const stageFrame = fixture.stage.reconciler.frame();
+    let stageNotifications = 0;
+    const unsubscribeStage = fixture.stage.reconciler.subscribe(() => {
+      stageNotifications += 1;
+    });
+    const intent = mintHistoryOpenIntentV1(admission, "child-barrier-zero");
+    const notifications = fixture.harness.stateNotificationCount();
+
+    expect(lifecycle.redeemHistoryOpenIntentInternalV1(intent).kind).toBe("preparing");
+    expect(fixture.stage.reconciler.frame()).toEqual(stageFrame);
+    expect(stageNotifications).toBe(0);
+    expect(semanticDispatch).not.toHaveBeenCalled();
+    expect(fixture.harness.stateNotificationCount()).toBe(notifications + 1);
+    unsubscribeStage();
+    admission.disposeInternalV1();
+    fixture.controller.disposeInternalV1();
+  });
+
+  it("prepares then retires 10k History children without live-state growth", () => {
+    let availabilityReads = 0;
+    const fixture = physicalHistoryHarnessV1({
+      historyAvailabilityPort: historyAvailabilityPortV1(() => {
+        availabilityReads += 1;
+        return true;
+      }),
+    });
+    const lifecycle = createNarrativeStableHistoryChildLifecycleInternalV1({
+      bridge: fixture.harness.bridge,
+    });
+    const notifications = fixture.harness.stateNotificationCount();
+    const publisherBefore = publisherSnapshotV1(fixture.harness);
+    let admission = fixture.admission;
+    let previousPreparation: NarrativeStableHistoryChildPreparationInternalV1 | null = null;
+
+    for (let index = 0; index < 10_000; index += 1) {
+      const intent = mintHistoryOpenIntentV1(admission, `child-bounded-${String(index)}`);
+      const result = lifecycle.redeemHistoryOpenIntentInternalV1(intent);
+      if (result.kind !== "preparing") throw new Error("expected bounded preparation");
+      if (result.preparation === previousPreparation) {
+        throw new Error("expected fresh bounded preparation");
+      }
+      previousPreparation = result.preparation;
+      closeCurrentHistoryChildV1(fixture.harness);
+      admission.disposeInternalV1();
+      admission = createNarrativeStablePhysicalActionAdmissionInternalV1({
+        bridge: fixture.harness.bridge,
+        inputRouter: fixture.inputRouter,
+        isGestureCurrent: () => true,
+      });
+    }
+
+    const state = fixture.harness.kernel.getStateInternalV1();
+    expect(state.transientState.publication.orderedInstances).toEqual([]);
+    const root = state.stableRuntimeBindings[0];
+    if (root?.binding.kind !== "ready_instance") throw new Error("expected final Dialogue root");
+    expect(root.binding.instance.phase).toBe("active");
+    expect(availabilityReads).toBe(10_000);
+    expect(fixture.harness.stateNotificationCount()).toBe(notifications + 20_000);
+    expect(publisherSnapshotV1(fixture.harness)).toMatchObject({
+      sourceRevisionIssuanceHighWater: publisherBefore.sourceRevisionIssuanceHighWater,
+      occurrenceIssuanceHighWater: publisherBefore.occurrenceIssuanceHighWater,
+    });
+    admission.disposeInternalV1();
   });
 
   it.each(

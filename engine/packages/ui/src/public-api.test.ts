@@ -280,6 +280,22 @@ import type { NarrativeStableHistoryOpenIntentInternalV1 as ForbiddenInternalNar
 import type { NarrativeStableHistoryOpenDispatchResultInternalV1 as ForbiddenPublicNarrativeHistoryOpenDispatchResultV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Narrative History-open dispatch results.
 import type { NarrativeStableHistoryOpenDispatchResultInternalV1 as ForbiddenInternalNarrativeHistoryOpenDispatchResultV1 } from "./internal.ts";
+// @ts-expect-error Narrative History-child lifecycles remain source-relative.
+import type { NarrativeStableHistoryChildLifecycleInternalV1 as ForbiddenPublicNarrativeHistoryChildLifecycleV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative History-child lifecycles.
+import type { NarrativeStableHistoryChildLifecycleInternalV1 as ForbiddenInternalNarrativeHistoryChildLifecycleV1 } from "./internal.ts";
+// @ts-expect-error Narrative History-child lifecycle construction remains source-relative.
+import type { createNarrativeStableHistoryChildLifecycleInternalV1 as ForbiddenPublicNarrativeHistoryChildLifecycleFactoryV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative History-child lifecycle construction.
+import type { createNarrativeStableHistoryChildLifecycleInternalV1 as ForbiddenInternalNarrativeHistoryChildLifecycleFactoryV1 } from "./internal.ts";
+// @ts-expect-error Narrative History-child preparations remain source-relative.
+import type { NarrativeStableHistoryChildPreparationInternalV1 as ForbiddenPublicNarrativeHistoryChildPreparationV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative History-child preparations.
+import type { NarrativeStableHistoryChildPreparationInternalV1 as ForbiddenInternalNarrativeHistoryChildPreparationV1 } from "./internal.ts";
+// @ts-expect-error Narrative History-child preparation results remain source-relative.
+import type { NarrativeStableHistoryChildPreparationResultInternalV1 as ForbiddenPublicNarrativeHistoryChildPreparationResultV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative History-child preparation results.
+import type { NarrativeStableHistoryChildPreparationResultInternalV1 as ForbiddenInternalNarrativeHistoryChildPreparationResultV1 } from "./internal.ts";
 // @ts-expect-error Stage acknowledged-run proofs remain source-relative.
 import type { StageAcknowledgedRunProofInternalV1 as ForbiddenPublicStageAcknowledgedRunProofV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Stage acknowledged-run proofs.
@@ -460,6 +476,38 @@ import type { ManagedSurfaceStableActionRouteAuthorityInternalV1 as ForbiddenInt
 import type { claimManagedSurfaceStableActionRouteAuthorityInternalV1 as ForbiddenPublicStableActionRouteAuthorityClaimV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose stable action-route authority claims.
 import type { claimManagedSurfaceStableActionRouteAuthorityInternalV1 as ForbiddenInternalStableActionRouteAuthorityClaimV1 } from "./internal.ts";
+// @ts-expect-error Stable exact-parent transient-child authorities remain source-relative.
+import type { ManagedSurfaceStableExactParentTransientChildAuthorityInternalV1 as ForbiddenPublicStableExactParentTransientChildAuthorityV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose stable exact-parent transient-child authorities.
+import type { ManagedSurfaceStableExactParentTransientChildAuthorityInternalV1 as ForbiddenInternalStableExactParentTransientChildAuthorityV1 } from "./internal.ts";
+// @ts-expect-error Stable exact-parent transient-child authority claims remain source-relative.
+import type { claimManagedSurfaceStableExactParentTransientChildAuthorityInternalV1 as ForbiddenPublicStableExactParentTransientChildAuthorityClaimV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose stable exact-parent transient-child authority claims.
+import type { claimManagedSurfaceStableExactParentTransientChildAuthorityInternalV1 as ForbiddenInternalStableExactParentTransientChildAuthorityClaimV1 } from "./internal.ts";
+// @ts-expect-error Stable exact-parent transient-child commit guards remain source-relative.
+import type { ManagedSurfaceStableExactParentTransientChildCommitGuardInternalV1 as ForbiddenPublicStableExactParentTransientChildCommitGuardV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose stable exact-parent transient-child commit guards.
+import type { ManagedSurfaceStableExactParentTransientChildCommitGuardInternalV1 as ForbiddenInternalStableExactParentTransientChildCommitGuardV1 } from "./internal.ts";
+// @ts-expect-error Stable exact-parent transient-child candidates remain source-relative.
+import type { ManagedSurfaceStableExactParentTransientChildCandidateInternalV1 as ForbiddenPublicStableExactParentTransientChildCandidateV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose stable exact-parent transient-child candidates.
+import type { ManagedSurfaceStableExactParentTransientChildCandidateInternalV1 as ForbiddenInternalStableExactParentTransientChildCandidateV1 } from "./internal.ts";
+// @ts-expect-error Stable exact-parent transient-child preparation results remain source-relative.
+import type { ManagedSurfaceStableExactParentTransientChildPreparationResultInternalV1 as ForbiddenPublicStableExactParentTransientChildPreparationResultV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose stable exact-parent transient-child preparation results.
+import type { ManagedSurfaceStableExactParentTransientChildPreparationResultInternalV1 as ForbiddenInternalStableExactParentTransientChildPreparationResultV1 } from "./internal.ts";
+// @ts-expect-error Cross-axis reducer preparation remains source-relative.
+import type { deriveManagedSurfaceReducerCrossAxisChildPreparationInternalV1 as ForbiddenPublicReducerCrossAxisChildPreparationV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose cross-axis reducer preparation.
+import type { deriveManagedSurfaceReducerCrossAxisChildPreparationInternalV1 as ForbiddenInternalReducerCrossAxisChildPreparationV1 } from "./internal.ts";
+// @ts-expect-error Cross-axis reducer parent projections remain source-relative.
+import type { ManagedSurfaceReducerCrossAxisParentProjectionInternalV1 as ForbiddenPublicReducerCrossAxisParentProjectionV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose cross-axis reducer parent projections.
+import type { ManagedSurfaceReducerCrossAxisParentProjectionInternalV1 as ForbiddenInternalReducerCrossAxisParentProjectionV1 } from "./internal.ts";
+// @ts-expect-error Cross-axis reducer preparation inputs remain source-relative.
+import type { DeriveManagedSurfaceReducerCrossAxisChildPreparationInputInternalV1 as ForbiddenPublicReducerCrossAxisChildPreparationInputV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose cross-axis reducer preparation inputs.
+import type { DeriveManagedSurfaceReducerCrossAxisChildPreparationInputInternalV1 as ForbiddenInternalReducerCrossAxisChildPreparationInputV1 } from "./internal.ts";
 /* oxlint-enable no-unused-vars */
 
 describe("@sillymaker/ui public managed System surface", () => {
@@ -499,6 +547,11 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "NarrativeStableHistoryOpenActionAttemptInternalV1"
       | "NarrativeStableHistoryOpenIntentInternalV1"
       | "NarrativeStableHistoryOpenDispatchResultInternalV1"
+      | "NarrativeStableHistoryChildLifecycleInternalV1"
+      | "createNarrativeStableHistoryChildLifecycleInternalV1"
+      | "NarrativeStableHistoryChildPreparationInternalV1"
+      | "NarrativeStableHistoryChildPreparationResultInternalV1"
+      | "redeemHistoryOpenIntentInternalV1"
       | "readHistoryAvailabilityInternalV1"
       | "issueHistoryOpenAttemptInternalV1"
       | "StageAcknowledgedRunProofInternalV1"
@@ -551,6 +604,16 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "ManagedSurfaceStableActionInputCaptureResultInternalV1"
       | "ManagedSurfaceStableActionRouteAuthorityInternalV1"
       | "claimManagedSurfaceStableActionRouteAuthorityInternalV1"
+      | "ManagedSurfaceStableExactParentTransientChildAuthorityInternalV1"
+      | "claimManagedSurfaceStableExactParentTransientChildAuthorityInternalV1"
+      | "ManagedSurfaceStableExactParentTransientChildCommitGuardInternalV1"
+      | "ManagedSurfaceStableExactParentTransientChildCandidateInternalV1"
+      | "ManagedSurfaceStableExactParentTransientChildPreparationResultInternalV1"
+      | "deriveManagedSurfaceReducerCrossAxisChildPreparationInternalV1"
+      | "ManagedSurfaceReducerCrossAxisParentProjectionInternalV1"
+      | "DeriveManagedSurfaceReducerCrossAxisChildPreparationInputInternalV1"
+      | "prepareExactParentTransientChildInternalV1"
+      | "commitInternalV1"
       | "captureReadyActiveStableTargetInternalV1"
       | "isCurrentReadyActiveStableTargetInternalV1"
       | "settleStableReadinessFailedInternalV1"
@@ -645,6 +708,11 @@ describe("@sillymaker/ui public managed System surface", () => {
         "NarrativeStableHistoryOpenActionAttemptInternalV1",
         "NarrativeStableHistoryOpenIntentInternalV1",
         "NarrativeStableHistoryOpenDispatchResultInternalV1",
+        "NarrativeStableHistoryChildLifecycleInternalV1",
+        "createNarrativeStableHistoryChildLifecycleInternalV1",
+        "NarrativeStableHistoryChildPreparationInternalV1",
+        "NarrativeStableHistoryChildPreparationResultInternalV1",
+        "redeemHistoryOpenIntentInternalV1",
         "readHistoryAvailabilityInternalV1",
         "issueHistoryOpenAttemptInternalV1",
         "StageAcknowledgedRunProofInternalV1",
@@ -697,6 +765,16 @@ describe("@sillymaker/ui public managed System surface", () => {
         "ManagedSurfaceStableActionInputCaptureResultInternalV1",
         "ManagedSurfaceStableActionRouteAuthorityInternalV1",
         "claimManagedSurfaceStableActionRouteAuthorityInternalV1",
+        "ManagedSurfaceStableExactParentTransientChildAuthorityInternalV1",
+        "claimManagedSurfaceStableExactParentTransientChildAuthorityInternalV1",
+        "ManagedSurfaceStableExactParentTransientChildCommitGuardInternalV1",
+        "ManagedSurfaceStableExactParentTransientChildCandidateInternalV1",
+        "ManagedSurfaceStableExactParentTransientChildPreparationResultInternalV1",
+        "deriveManagedSurfaceReducerCrossAxisChildPreparationInternalV1",
+        "ManagedSurfaceReducerCrossAxisParentProjectionInternalV1",
+        "DeriveManagedSurfaceReducerCrossAxisChildPreparationInputInternalV1",
+        "prepareExactParentTransientChildInternalV1",
+        "commitInternalV1",
         "captureReadyActiveStableTargetInternalV1",
         "isCurrentReadyActiveStableTargetInternalV1",
         "createManagedSurfaceRuntimeAttemptIdentityInternalV1",

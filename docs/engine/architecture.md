@@ -1103,8 +1103,68 @@ full `253 files / 4118 tests`, and `deno task check`. Browser `101 / 101`,
 examples `45 passed / 2 skipped`, and prebuilt Player `38 / 38` remain prior
 evidence and were not rerun. The superseded S4.1b.1b.1b.2b.3d broad
 checkpoint, its S4.1b.1b.1b.2b.3d.0 docs-only entry, and
-S4.1b.1b.1b.2b.3d.1 are complete; current/next is S4.2, followed by S4.3 and
-S4b.
+S4.1b.1b.1b.2b.3d.1 are complete; at that delivery checkpoint, current/next
+was the dormant S4.2 execution split and atomic History-child preparation floor
+delivered below.
+
+S4.2.1 now implements the dormant, DOM-free exact-parent History-child
+preparation floor. A narrow reducer helper can pure-plan one transient
+`preparing / child_open` instance whose `parentInstanceId` is an authenticated
+stable ready-instance identity absent from the transient publication. The
+ordinary reducer and generic Coordinator still cannot fabricate that
+cross-axis link. The stable composite owns its validation against the exact
+stable parent, shared application identity cursor, resolved single child slot,
+owner/layer rules, and whole-composite topology policy.
+
+One source-relative, first-claimant authority is retained per exact composite
+kernel and reused only by the same Narrative-family claimant. It authenticates
+the existing direct-target proof and current ready-active parent, builds and
+validates the complete successor, and then uses the runtime kernel's existing
+prepared-state install. The descriptor-captured commit guard receives one
+fresh frozen zero-key candidate and may only perform the Narrative intent's
+no-throw identity CAS from unspent to spent. A false, throwing, non-boolean,
+stale, or faulted gate installs no state and spends no intent. On success the
+generic candidate is authenticated after the guard wins but before state
+assignment, so synchronous listeners cannot observe an installed child without
+its committed capability state.
+
+Cross-axis provenance remains structurally derived rather than introducing a
+second topology store. Stable replacement preparation and readiness failure
+retain the exact old parent plus History child. Successful cutover, greater
+empty publication, publisher disposal, and Coordinator terminal disposition
+retire the old parent and its cross-axis subtree in the same composite install;
+the child is never promoted to a transient root or reparented to the successor.
+Preparing children retire through the existing readiness-failure transition,
+while ready children use the existing exact close transition.
+
+The Narrative family exposes only a source-relative bridge-bound History-child
+lifecycle. It revalidates the `.3d.1` intent, exact active bridge, stable action
+authority, direct parent/source/frame proof, and existing callback and semantic
+claims before planning. The kernel-keyed family claimant survives a same-kernel
+bridge successor, while each lifecycle remains bound to its exact bridge so a
+disposed predecessor and all of its intents stay stale. Only the prepared
+install guard spends the intent. A successful call returns a fresh frozen
+zero-key preparation through the closed `preparing` result; stale and faulted
+rows are canonical. Listener reentry sees the spent intent, installed child,
+and suspended parent as one boundary, and an immediate later retirement does
+not rewrite the historical successful result.
+
+This slice adds no Host lease, readiness API, History content observation,
+close/dismiss/focus route, timer, React integration, generic Coordinator
+operation, public receipt, barrel export, or live Story claimant. Attempts,
+generic candidates, and Narrative preparations remain WeakMap-authenticated;
+the kernel and bridge retain only current structural state and one per-kernel
+claimant/authority, as exercised by 10,000 prepare/retire cycles.
+
+Verification passed focused `4 files / 297 tests`, UI `79 files / 1211 tests`,
+full `253 files / 4141 tests`, typecheck, lint, formatting, diff checks, and
+`deno task check`. The first full test pass encountered one unrelated Engine
+Lab Auto-mode timer timeout; that exact test passed in isolation and the full
+suite passed on immediate rerun. Browser `101 / 101`, examples
+`45 passed / 2 skipped`, and prebuilt Player `38 / 38` remain prior evidence and
+were not rerun. The superseded broad S4.2 checkpoint, its S4.2.0 docs-only
+execution split, and S4.2.1 are complete. Current/next is S4.2.2, followed by
+S4.2.3, S4.2.4, S4.2.5, S4.3, and S4b.
 
 ## 9. Changing the architecture
 
@@ -1168,7 +1228,11 @@ floor described above; the superseded broad `.3c` checkpoint and docs-only
 `.3c.0` entry are historical. S4.1b.1b.1b.2b.3d.1 adds the captured History
 availability route and future exact-parent intent floor described above; the
 superseded broad `.3d` checkpoint and docs-only `.3d.0` entry are historical.
-Current/next is S4.2, followed by S4.3 and S4b. Host integration and the
-Narrative live migration remain planned work; the implemented source-relative
-claimant does not alter the live Host data flow until that migration and its
-behavior tests land.
+The superseded broad S4.2 checkpoint and S4.2.0 docs-only entry split dormant
+execution into independently mergeable floors. S4.2.1 adds the exact-parent
+cross-axis reducer plan, composite prepared-install authority, structural
+retain/cascade, and bridge-bound History intent redemption described above.
+Current/next is S4.2.2, followed by S4.2.3, S4.2.4, S4.2.5, S4.3, and S4b.
+Host integration and the Narrative live migration remain planned work; the
+implemented source-relative claimant does not alter the live Host data flow
+until that migration and its behavior tests land.

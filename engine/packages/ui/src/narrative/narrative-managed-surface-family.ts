@@ -47,11 +47,15 @@ import {
   type ManagedSurfaceStableRootReservationSnapshotInternalV1,
 } from "../managed-surfaces/managed-surface-stable-admission.ts";
 import {
+  claimManagedSurfaceStableExactParentTransientChildAuthorityInternalV1,
   claimManagedSurfaceStableActionRouteAuthorityInternalV1,
   matchesManagedSurfaceStableCompositeRuntimeKernelConfigurationInternalV1,
   type ManagedSurfaceStableActionRouteAuthorityInternalV1,
   type ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
   type ManagedSurfaceStableDirectActionTargetProofInternalV1,
+  type ManagedSurfaceStableExactParentTransientChildAuthorityInternalV1,
+  type ManagedSurfaceStableExactParentTransientChildCandidateInternalV1,
+  type ManagedSurfaceStableExactParentTransientChildCommitGuardInternalV1,
   type ManagedSurfaceStableReadyActiveTargetProofInternalV1,
 } from "../managed-surfaces/managed-surface-stable-composite-state.ts";
 import type {
@@ -321,6 +325,33 @@ export type NarrativeStableHistoryOpenDispatchResultInternalV1 =
     readonly kind: "faulted";
     readonly completion: null;
   }>;
+
+declare const narrativeStableHistoryChildPreparationBrandInternalV1: unique symbol;
+
+export interface NarrativeStableHistoryChildPreparationInternalV1 {
+  readonly [narrativeStableHistoryChildPreparationBrandInternalV1]: true;
+}
+
+export type NarrativeStableHistoryChildPreparationResultInternalV1 =
+  | Readonly<{
+    readonly kind: "preparing";
+    readonly preparation: NarrativeStableHistoryChildPreparationInternalV1;
+    readonly completion: null;
+  }>
+  | Readonly<{
+    readonly kind: "stale";
+    readonly completion: null;
+  }>
+  | Readonly<{
+    readonly kind: "faulted";
+    readonly completion: null;
+  }>;
+
+export interface NarrativeStableHistoryChildLifecycleInternalV1 {
+  redeemHistoryOpenIntentInternalV1(
+    intent: unknown,
+  ): NarrativeStableHistoryChildPreparationResultInternalV1;
+}
 
 export type NarrativeStablePlaybackModeToggleDispatchResultInternalV1 =
   | Readonly<{
@@ -631,6 +662,7 @@ interface NarrativeStablePublisherBridgeRecordInternalV1 {
   readonly captureCurrentTargetInternalV1: () =>
     | NarrativeStableCurrentTargetProjectionInternalV1
     | null;
+  active: boolean;
   currentModeState: NarrativeStablePlaybackModeStateInternalV1;
   physicalActionAdmissionClaim: object | null;
   pauseExpiryControllerClaim: object | null;
@@ -809,6 +841,40 @@ interface NarrativeStableHistoryOpenIntentRecordInternalV1 {
 const narrativeStableHistoryOpenIntentRecordsInternalV1 = new WeakMap<
   NarrativeStableHistoryOpenIntentInternalV1,
   NarrativeStableHistoryOpenIntentRecordInternalV1
+>();
+
+interface NarrativeStableHistoryChildFamilyClaimRecordInternalV1 {
+  readonly claimant: object;
+  readonly authority: ManagedSurfaceStableExactParentTransientChildAuthorityInternalV1;
+}
+
+interface NarrativeStableHistoryChildLifecycleRecordInternalV1 {
+  readonly bridge: NarrativeStablePublisherBridgeInternalV1;
+  readonly bridgeRecord: NarrativeStablePublisherBridgeRecordInternalV1;
+  readonly compositeRuntimeKernel: ManagedSurfaceStableCompositeRuntimeKernelInternalV1;
+  readonly stableActionAuthority: ManagedSurfaceStableActionRouteAuthorityInternalV1;
+  readonly childAuthority: ManagedSurfaceStableExactParentTransientChildAuthorityInternalV1;
+}
+
+interface NarrativeStableHistoryChildPreparationRecordInternalV1 {
+  readonly lifecycle: NarrativeStableHistoryChildLifecycleInternalV1;
+  readonly lifecycleRecord: NarrativeStableHistoryChildLifecycleRecordInternalV1;
+  readonly intent: NarrativeStableHistoryOpenIntentInternalV1;
+  readonly intentRecord: NarrativeStableHistoryOpenIntentRecordInternalV1;
+  candidate: ManagedSurfaceStableExactParentTransientChildCandidateInternalV1 | null;
+}
+
+const narrativeStableHistoryChildFamilyClaimsInternalV1 = new WeakMap<
+  ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
+  NarrativeStableHistoryChildFamilyClaimRecordInternalV1
+>();
+const narrativeStableHistoryChildLifecycleRecordsInternalV1 = new WeakMap<
+  NarrativeStableHistoryChildLifecycleInternalV1,
+  NarrativeStableHistoryChildLifecycleRecordInternalV1
+>();
+const narrativeStableHistoryChildPreparationRecordsInternalV1 = new WeakMap<
+  NarrativeStableHistoryChildPreparationInternalV1,
+  NarrativeStableHistoryChildPreparationRecordInternalV1
 >();
 
 interface NarrativeStableSayContentAutoAttemptRecordInternalV1 {
@@ -1141,6 +1207,16 @@ const narrativeHistoryOpenStaleResultInternalV1 = Object.freeze({
 });
 
 const narrativeHistoryOpenFaultedResultInternalV1 = Object.freeze({
+  kind: "faulted" as const,
+  completion: null,
+});
+
+const narrativeHistoryChildStaleResultInternalV1 = Object.freeze({
+  kind: "stale" as const,
+  completion: null,
+});
+
+const narrativeHistoryChildFaultedResultInternalV1 = Object.freeze({
   kind: "faulted" as const,
   completion: null,
 });
@@ -2173,6 +2249,7 @@ export function createNarrativeStablePublisherBridgeInternalV1(
         ? null
         : createNarrativePlaybackModeStateInternalV1("normal");
       bridgeActive = false;
+      if (bridgeRecord !== undefined) bridgeRecord.active = false;
       if (
         bridgeRecord !== undefined && predecessorModeState !== null &&
         terminalModeState !== null
@@ -2222,6 +2299,7 @@ export function createNarrativeStablePublisherBridgeInternalV1(
         })
         : null;
     },
+    active: true,
     currentModeState: createNarrativePlaybackModeStateInternalV1("normal"),
     physicalActionAdmissionClaim: null,
     pauseExpiryControllerClaim: null,
@@ -2238,6 +2316,261 @@ export function createNarrativeStablePublisherBridgeInternalV1(
     barrierRecoveryGeneration: null,
   });
   return bridge;
+}
+
+function claimNarrativeStableHistoryChildFamilyAuthorityInternalV1(
+  kernel: ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
+): ManagedSurfaceStableExactParentTransientChildAuthorityInternalV1 {
+  const retained = narrativeStableHistoryChildFamilyClaimsInternalV1.get(kernel);
+  if (retained !== undefined) return retained.authority;
+  const claimant = freezeNarrativePhysicalActionDataInternalV1({});
+  const authority = claimManagedSurfaceStableExactParentTransientChildAuthorityInternalV1(
+    kernel,
+    claimant,
+  );
+  const record = freezeNarrativePhysicalActionDataInternalV1({ claimant, authority });
+  narrativeStableHistoryChildFamilyClaimsInternalV1.set(kernel, record);
+  return authority;
+}
+
+function classifyNarrativeStableHistoryChildIntentInternalV1(
+  lifecycle: NarrativeStableHistoryChildLifecycleInternalV1,
+  lifecycleRecord: NarrativeStableHistoryChildLifecycleRecordInternalV1,
+  intent: NarrativeStableHistoryOpenIntentInternalV1,
+  intentRecord: NarrativeStableHistoryOpenIntentRecordInternalV1,
+): "current" | "stale" | "faulted" {
+  const bridgeRecord = lifecycleRecord.bridgeRecord;
+  if (
+    narrativeStableHistoryChildLifecycleRecordsInternalV1.get(lifecycle) !==
+      lifecycleRecord ||
+    narrativeStableHistoryOpenIntentRecordsInternalV1.get(intent) !== intentRecord ||
+    intentRecord.bridge !== lifecycleRecord.bridge || intentRecord.spent ||
+    intentRecord.stableActionAuthority !== lifecycleRecord.stableActionAuthority ||
+    !bridgeRecord.active ||
+    narrativeStablePublisherBridgeRecordsInternalV1.get(lifecycleRecord.bridge) !==
+      bridgeRecord ||
+    bridgeRecord.sayCallbackClaim !== null ||
+    bridgeRecord.saySemanticInFlightClaim !== null
+  ) {
+    return "stale";
+  }
+
+  try {
+    const readyActive = applyNarrativePhysicalActionInternalV1(
+      lifecycleRecord.stableActionAuthority.captureReadyActiveStableTargetInternalV1,
+      lifecycleRecord.stableActionAuthority,
+      [intentRecord.directParent],
+    ) as ReturnType<
+      ManagedSurfaceStableActionRouteAuthorityInternalV1[
+        "captureReadyActiveStableTargetInternalV1"
+      ]
+    >;
+    if (readyActive.kind === "faulted") return "faulted";
+    if (
+      readyActive.kind !== "captured" ||
+      readyActive.directTarget !== intentRecord.directParent ||
+      readyActive.sourceRevision !== intentRecord.sourceRevision
+    ) {
+      return "stale";
+    }
+    if (
+      !applyNarrativePhysicalActionInternalV1(
+        lifecycleRecord.stableActionAuthority.isCurrentDirectTargetInternalV1,
+        lifecycleRecord.stableActionAuthority,
+        [intentRecord.targetProof],
+      )
+    ) {
+      return "stale";
+    }
+    const current = bridgeRecord.captureCurrentTargetInternalV1();
+    if (
+      current === null || current.target !== intentRecord.directParent ||
+      current.sourceRevision !== intentRecord.sourceRevision ||
+      current.frame !== intentRecord.frame
+    ) {
+      return "stale";
+    }
+    return "current";
+  } catch {
+    return "faulted";
+  }
+}
+
+function redeemNarrativeStableHistoryChildIntentInternalV1(
+  lifecycle: NarrativeStableHistoryChildLifecycleInternalV1,
+  receiver: unknown,
+  intent: unknown,
+): NarrativeStableHistoryChildPreparationResultInternalV1 {
+  if (receiver !== lifecycle) return narrativeHistoryChildStaleResultInternalV1;
+  const lifecycleRecord = narrativeStableHistoryChildLifecycleRecordsInternalV1.get(lifecycle);
+  if (
+    lifecycleRecord === undefined ||
+    ((typeof intent !== "object" && typeof intent !== "function") || intent === null)
+  ) {
+    return narrativeHistoryChildStaleResultInternalV1;
+  }
+  const exactIntent = intent as NarrativeStableHistoryOpenIntentInternalV1;
+  const intentRecord = narrativeStableHistoryOpenIntentRecordsInternalV1.get(exactIntent);
+  if (intentRecord === undefined) return narrativeHistoryChildStaleResultInternalV1;
+  const classification = classifyNarrativeStableHistoryChildIntentInternalV1(
+    lifecycle,
+    lifecycleRecord,
+    exactIntent,
+    intentRecord,
+  );
+  if (classification === "stale") return narrativeHistoryChildStaleResultInternalV1;
+  if (classification === "faulted") return narrativeHistoryChildFaultedResultInternalV1;
+
+  let preparation!: NarrativeStableHistoryChildPreparationInternalV1;
+  let preparationRecord!: NarrativeStableHistoryChildPreparationRecordInternalV1;
+  let preparingResult!: Extract<
+    NarrativeStableHistoryChildPreparationResultInternalV1,
+    { readonly kind: "preparing" }
+  >;
+  let commitGuard!: ManagedSurfaceStableExactParentTransientChildCommitGuardInternalV1;
+  let authorityInput!: Parameters<
+    ManagedSurfaceStableExactParentTransientChildAuthorityInternalV1[
+      "prepareExactParentTransientChildInternalV1"
+    ]
+  >[0];
+  try {
+    preparation = freezeNarrativePhysicalActionDataInternalV1(
+      {},
+    ) as NarrativeStableHistoryChildPreparationInternalV1;
+    preparationRecord = {
+      lifecycle,
+      lifecycleRecord,
+      intent: exactIntent,
+      intentRecord,
+      candidate: null,
+    };
+    preparingResult = freezeNarrativePhysicalActionDataInternalV1({
+      kind: "preparing" as const,
+      preparation,
+      completion: null,
+    });
+    commitGuard = freezeNarrativePhysicalActionDataInternalV1({
+      commitInternalV1(
+        candidate: ManagedSurfaceStableExactParentTransientChildCandidateInternalV1,
+      ): boolean {
+        if (
+          preparationRecord.candidate !== null || intentRecord.spent ||
+          intentRecord.bridge !== lifecycleRecord.bridge ||
+          intentRecord.stableActionAuthority !== lifecycleRecord.stableActionAuthority ||
+          !lifecycleRecord.bridgeRecord.active ||
+          lifecycleRecord.bridgeRecord.sayCallbackClaim !== null ||
+          lifecycleRecord.bridgeRecord.saySemanticInFlightClaim !== null
+        ) {
+          return false;
+        }
+        preparationRecord.candidate = candidate;
+        intentRecord.spent = true;
+        return true;
+      },
+    });
+    authorityInput = freezeNarrativePhysicalActionDataInternalV1({
+      parentProof: intentRecord.targetProof,
+      expectedParent: intentRecord.directParent,
+      expectedSourceRevision: intentRecord.sourceRevision,
+      definition: historyDefinitionInternalV1,
+      semanticOccurrenceId: null,
+      commitGuard,
+    });
+  } catch {
+    return narrativeHistoryChildFaultedResultInternalV1;
+  }
+
+  let prepared: ReturnType<
+    ManagedSurfaceStableExactParentTransientChildAuthorityInternalV1[
+      "prepareExactParentTransientChildInternalV1"
+    ]
+  >;
+  try {
+    prepared = applyNarrativePhysicalActionInternalV1(
+      lifecycleRecord.childAuthority.prepareExactParentTransientChildInternalV1,
+      lifecycleRecord.childAuthority,
+      [authorityInput],
+    ) as typeof prepared;
+  } catch {
+    return narrativeHistoryChildFaultedResultInternalV1;
+  }
+  if (prepared.kind === "stale") return narrativeHistoryChildStaleResultInternalV1;
+  if (prepared.kind === "faulted") return narrativeHistoryChildFaultedResultInternalV1;
+
+  applyNarrativePhysicalActionInternalV1(
+    setNarrativeWeakMapValueInternalV1,
+    narrativeStableHistoryChildPreparationRecordsInternalV1,
+    [preparation, preparationRecord],
+  );
+  return preparingResult;
+}
+
+export function createNarrativeStableHistoryChildLifecycleInternalV1(
+  input: Readonly<{ readonly bridge: NarrativeStablePublisherBridgeInternalV1 }>,
+): NarrativeStableHistoryChildLifecycleInternalV1 {
+  let bridge: unknown;
+  try {
+    if ((typeof input !== "object" && typeof input !== "function") || input === null) {
+      throw new TypeError("ui.narrative_stable_history_child_lifecycle_invalid");
+    }
+    const keys = Reflect.ownKeys(input);
+    const descriptor = Object.getOwnPropertyDescriptor(input, "bridge");
+    if (
+      keys.length !== 1 || keys[0] !== "bridge" || descriptor === undefined ||
+      !("value" in descriptor)
+    ) {
+      throw new TypeError("ui.narrative_stable_history_child_lifecycle_invalid");
+    }
+    bridge = descriptor.value;
+  } catch {
+    throw new TypeError("ui.narrative_stable_history_child_lifecycle_invalid");
+  }
+  if ((typeof bridge !== "object" && typeof bridge !== "function") || bridge === null) {
+    throw new TypeError("ui.narrative_stable_history_child_lifecycle_invalid");
+  }
+  const exactBridge = bridge as NarrativeStablePublisherBridgeInternalV1;
+  const bridgeRecord = narrativeStablePublisherBridgeRecordsInternalV1.get(exactBridge);
+  if (bridgeRecord === undefined || !bridgeRecord.active) {
+    throw new TypeError("ui.narrative_stable_history_child_lifecycle_invalid");
+  }
+
+  let childAuthority: ManagedSurfaceStableExactParentTransientChildAuthorityInternalV1;
+  let stableActionAuthority: ManagedSurfaceStableActionRouteAuthorityInternalV1;
+  try {
+    childAuthority = claimNarrativeStableHistoryChildFamilyAuthorityInternalV1(
+      bridgeRecord.compositeRuntimeKernel,
+    );
+    stableActionAuthority = claimManagedSurfaceStableActionRouteAuthorityInternalV1(
+      bridgeRecord.compositeRuntimeKernel,
+    );
+  } catch {
+    throw new TypeError("ui.narrative_stable_history_child_lifecycle_invalid");
+  }
+
+  let lifecycle!: NarrativeStableHistoryChildLifecycleInternalV1;
+  lifecycle = freezeNarrativePhysicalActionDataInternalV1({
+    redeemHistoryOpenIntentInternalV1(
+      this: NarrativeStableHistoryChildLifecycleInternalV1,
+      intent: unknown,
+    ): NarrativeStableHistoryChildPreparationResultInternalV1 {
+      return redeemNarrativeStableHistoryChildIntentInternalV1(
+        lifecycle,
+        this,
+        intent,
+      );
+    },
+  });
+  narrativeStableHistoryChildLifecycleRecordsInternalV1.set(
+    lifecycle,
+    freezeNarrativePhysicalActionDataInternalV1({
+      bridge: exactBridge,
+      bridgeRecord,
+      compositeRuntimeKernel: bridgeRecord.compositeRuntimeKernel,
+      stableActionAuthority,
+      childAuthority,
+    }),
+  );
+  return lifecycle;
 }
 
 function captureOwnCallableInternalV1(

@@ -31,6 +31,7 @@ import {
   type ManagedSurfaceStableDefinitionSidecarInternalV1,
 } from "./managed-surface-stable-admission.ts";
 import {
+  claimManagedSurfaceStableExactParentTransientChildAuthorityInternalV1,
   claimManagedSurfaceStableActionRouteAuthorityInternalV1,
   createManagedSurfaceStableCompositeStateInternalV1,
   createManagedSurfaceStableCompositeRuntimeKernelInternalV1,
@@ -45,6 +46,10 @@ import {
   type ManagedSurfaceStableCompositeStateInternalV1,
   type ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
   type ManagedSurfaceStableDesiredRuntimeTargetInternalV1,
+  type ManagedSurfaceStableExactParentTransientChildAuthorityInternalV1,
+  type ManagedSurfaceStableExactParentTransientChildCandidateInternalV1,
+  type ManagedSurfaceStableExactParentTransientChildCommitGuardInternalV1,
+  type ManagedSurfaceStableExactParentTransientChildPreparationResultInternalV1,
   type ManagedSurfaceStablePublisherLeaseRegistrationResultInternalV1,
   type ManagedSurfaceStableReadyActiveTargetCaptureResultInternalV1,
   type ManagedSurfaceStableReadyActiveTargetProofInternalV1,
@@ -75,12 +80,16 @@ const narrativeOwnerIdV1 = parseManagedSurfaceOwnerIdV1("surface-owner.narrative
 const rootSlotAV1 = parseManagedSurfaceSlotIdV1("surface-slot.root-a");
 const rootSlotBV1 = parseManagedSurfaceSlotIdV1("surface-slot.root-b");
 const childSlotV1 = parseManagedSurfaceSlotIdV1("surface-slot.child");
+const historySlotV1 = parseManagedSurfaceSlotIdV1("surface-slot.history");
 const rootDefinitionAV1 = parseManagedSurfaceDefinitionIdV1("surface-definition.root-a");
 const replacementDefinitionAV1 = parseManagedSurfaceDefinitionIdV1(
   "surface-definition.root-a-replacement",
 );
 const rootDefinitionBV1 = parseManagedSurfaceDefinitionIdV1("surface-definition.root-b");
 const childDefinitionV1 = parseManagedSurfaceDefinitionIdV1("surface-definition.child");
+const historyDefinitionV1 = parseManagedSurfaceDefinitionIdV1(
+  "surface-definition.history",
+);
 const grandchildDefinitionV1 = parseManagedSurfaceDefinitionIdV1(
   "surface-definition.grandchild",
 );
@@ -106,6 +115,12 @@ const resolvedSlotDescriptorsV1 = Object.freeze(
       parentDefinitionId: rootDefinitionAV1,
       slotId: childSlotV1,
       cardinality: "stack" as const,
+    }),
+    Object.freeze({
+      kind: "child" as const,
+      parentDefinitionId: rootDefinitionAV1,
+      slotId: historySlotV1,
+      cardinality: "single" as const,
     }),
   ] satisfies readonly ManagedSurfaceResolvedSlotDescriptorV1[],
 );
@@ -170,6 +185,7 @@ interface StableHarnessV1 {
   readonly workspaceRevision: ManagedSurfaceStableSourceRevisionInternalV1;
   readonly workspaceReplacementRevision: ManagedSurfaceStableSourceRevisionInternalV1;
   readonly narrativeRevision: ManagedSurfaceStableSourceRevisionInternalV1;
+  readonly historyDefinition: ManagedSurfaceResolvedDefinitionV1;
   readonly workspaceReplacementBaseline: Extract<
     ManagedSurfaceStableAcceptedBaselineInternalV1,
     { readonly kind: "accepted" }
@@ -217,6 +233,14 @@ function harnessV1(input: {
   });
   const workspace = registry.issuePublisher(workspaceOwnerIdV1);
   const narrative = registry.issuePublisher(narrativeOwnerIdV1);
+  const historyDefinitionSidecar = definitionV1({
+    definitionId: historyDefinitionV1,
+    ownerId: workspaceOwnerIdV1,
+    slotId: historySlotV1,
+    placement: "child",
+    layerOrder: (input.workspaceLayerOrder ?? 1) + 1,
+    managedInput: true,
+  });
   const authority = createManagedSurfaceStableAdmissionAuthorityInternalV1({
     publisherLeaseRegistry: registry,
     definitionSidecars: [
@@ -250,6 +274,7 @@ function harnessV1(input: {
         managedInput: input.managedInput === true,
         actionIds: input.actionIds ?? [],
       }),
+      historyDefinitionSidecar,
     ],
     resolvedSlotDescriptors: resolvedSlotDescriptorsV1,
   });
@@ -308,6 +333,7 @@ function harnessV1(input: {
     workspaceRevision,
     workspaceReplacementRevision,
     narrativeRevision,
+    historyDefinition: historyDefinitionSidecar.definition,
     workspaceReplacementBaseline,
   };
 }
@@ -416,12 +442,17 @@ function reconcileV1(
 
 function transientStateV1(
   applicationEpoch: ReturnType<typeof parseNonNegativeSafeInteger> = applicationEpochV1,
+  identitySequenceHighWater: ReturnType<typeof parseNonNegativeSafeInteger> =
+    parseNonNegativeSafeInteger(0),
 ) {
-  return createManagedSurfaceReducerStateV1(
+  const state = createManagedSurfaceReducerStateV1(
     applicationEpoch,
     [workspaceOwnerIdV1, narrativeOwnerIdV1],
     resolvedSlotDescriptorsV1,
   );
+  return identitySequenceHighWater === 0
+    ? state
+    : Object.freeze({ ...state, identitySequenceHighWater });
 }
 
 function admitAndApplyStableTargetV1(input: {
@@ -487,6 +518,78 @@ function stableActionFixtureV1(input: {
   });
 }
 
+function exactParentTransientChildFixtureV1(input: {
+  readonly identitySequenceHighWater?: ReturnType<typeof parseNonNegativeSafeInteger>;
+} = {}) {
+  const harness = harnessV1({
+    managedInput: true,
+    workspaceLayerOrder: 10,
+    narrativeLayerOrder: 20,
+    actionIds: [narrativeAdvanceActionIdV1],
+  });
+  const kernel = createManagedSurfaceStableCompositeRuntimeKernelInternalV1({
+    admissionAuthority: harness.authority,
+    publisherLeaseRegistry: harness.registry,
+    initialTransientState: transientStateV1(
+      harness.registry.getSnapshot().applicationEpoch,
+      input.identitySequenceHighWater ?? parseNonNegativeSafeInteger(0),
+    ),
+  });
+  expect(kernel.registerStablePublisherLeaseInternalV1(harness.workspace.lease).kind).toBe(
+    "registered",
+  );
+  const parent = admitAndApplyStableTargetV1({
+    harness,
+    kernel,
+    publisher: harness.workspace,
+    target: harness.workspaceRoot,
+    sourceRevision: harness.workspaceRevision,
+  });
+  settleCurrentStablePreparationReadyV1(kernel, parent);
+  const actionAuthority = claimManagedSurfaceStableActionRouteAuthorityInternalV1(kernel);
+  const captured = actionAuthority.captureCurrentStableInputInternalV1();
+  if (
+    captured.kind !== "captured" || captured.directTarget === null ||
+    captured.sourceRevision === null || captured.targetProof === null
+  ) {
+    throw new Error("expected exact stable direct-parent proof");
+  }
+  const parentProof = captured.targetProof;
+  const expectedParent = captured.directTarget;
+  const expectedSourceRevision = captured.sourceRevision;
+  const claimant = Object.freeze({});
+  return Object.freeze({
+    harness,
+    kernel,
+    parent,
+    captured,
+    parentProof,
+    expectedParent,
+    expectedSourceRevision,
+    claimant,
+    authority: claimManagedSurfaceStableExactParentTransientChildAuthorityInternalV1(
+      kernel,
+      claimant,
+    ),
+  });
+}
+
+function prepareExactParentTransientHistoryV1(
+  fixture: ReturnType<typeof exactParentTransientChildFixtureV1>,
+  commitInternalV1: (
+    candidate: ManagedSurfaceStableExactParentTransientChildCandidateInternalV1,
+  ) => boolean,
+) {
+  return fixture.authority.prepareExactParentTransientChildInternalV1(Object.freeze({
+    parentProof: fixture.parentProof,
+    expectedParent: fixture.expectedParent,
+    expectedSourceRevision: fixture.expectedSourceRevision,
+    definition: fixture.harness.historyDefinition,
+    semanticOccurrenceId: null,
+    commitGuard: Object.freeze({ commitInternalV1 }),
+  }));
+}
+
 function settleCurrentStablePreparationReadyV1(
   kernel: ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
   target: ManagedSurfaceStableAdmittedTargetInternalV1,
@@ -528,7 +631,7 @@ function settleCurrentStablePreparationFailedV1(
 }
 
 function applyEmptyStablePublicationV1(input: {
-  readonly fixture: ReturnType<typeof stableActionFixtureV1>;
+  readonly fixture: Pick<ReturnType<typeof stableActionFixtureV1>, "harness" | "kernel">;
   readonly publisher: ManagedSurfaceStablePublisherInternalV1;
   readonly sourceRevision: ManagedSurfaceStableSourceRevisionInternalV1;
 }): void {
@@ -2806,6 +2909,513 @@ describe("dormant managed stable composite state", () => {
         ManagedSurfaceStableAdmissionAuthorityInternalV1["createReservationGenerationToken"]
       >
     >();
+  });
+});
+
+describe("managed stable exact-parent transient-child authority", () => {
+  it("claims one exact retained authority per kernel and rejects foreign claims zero-read", () => {
+    const fixture = stableActionFixtureV1();
+    const exactClaimant = Object.freeze({});
+    const authority = claimManagedSurfaceStableExactParentTransientChildAuthorityInternalV1(
+      fixture.kernel,
+      exactClaimant,
+    );
+
+    expect(Object.isFrozen(authority)).toBe(true);
+    expect(Reflect.ownKeys(authority)).toEqual([
+      "prepareExactParentTransientChildInternalV1",
+    ]);
+    expect(
+      claimManagedSurfaceStableExactParentTransientChildAuthorityInternalV1(
+        fixture.kernel,
+        exactClaimant,
+      ),
+    ).toBe(authority);
+
+    const claimantTrap = vi.fn();
+    const foreignClaimant = new Proxy(Object.freeze({}), {
+      getOwnPropertyDescriptor() {
+        claimantTrap();
+        throw new Error("foreign claimant inspected");
+      },
+      get() {
+        claimantTrap();
+        throw new Error("foreign claimant read");
+      },
+      ownKeys() {
+        claimantTrap();
+        throw new Error("foreign claimant enumerated");
+      },
+    });
+    expect(() =>
+      claimManagedSurfaceStableExactParentTransientChildAuthorityInternalV1(
+        fixture.kernel,
+        foreignClaimant,
+      )
+    ).toThrowError("ui.managed_surface_stable_exact_parent_transient_child_claim_invalid");
+    expect(claimantTrap).not.toHaveBeenCalled();
+    expect(() =>
+      claimManagedSurfaceStableExactParentTransientChildAuthorityInternalV1(
+        {} as ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
+        exactClaimant,
+      )
+    ).toThrowError("ui.managed_surface_stable_exact_parent_transient_child_claim_invalid");
+
+    const prepare = authority.prepareExactParentTransientChildInternalV1;
+    expect(() => Reflect.apply(prepare, Object.freeze({}), [Object.freeze({})])).toThrowError(
+      "ui.managed_surface_stable_exact_parent_transient_child_claim_invalid",
+    );
+  });
+
+  it("freezes the exact source-relative authority, guard, candidate, and result shapes", () => {
+    expectTypeOf<
+      ExactKeysV1<ManagedSurfaceStableExactParentTransientChildAuthorityInternalV1>
+    >().toEqualTypeOf<"prepareExactParentTransientChildInternalV1">();
+    expectTypeOf<
+      ExactKeysV1<ManagedSurfaceStableExactParentTransientChildCommitGuardInternalV1>
+    >().toEqualTypeOf<"commitInternalV1">();
+    expectTypeOf<
+      ManagedSurfaceStableExactParentTransientChildCommitGuardInternalV1["commitInternalV1"]
+    >().toEqualTypeOf<
+      (candidate: ManagedSurfaceStableExactParentTransientChildCandidateInternalV1) => boolean
+    >();
+    expectTypeOf<
+      ManagedSurfaceStableExactParentTransientChildPreparationResultInternalV1["kind"]
+    >().toEqualTypeOf<"installed" | "stale" | "faulted">();
+    expectTypeOf<
+      ExactKeysV1<ManagedSurfaceStableExactParentTransientChildPreparationResultInternalV1>
+    >().toEqualTypeOf<"kind" | "candidate">();
+  });
+
+  it("atomically installs one exact cross-axis child through the captured guard", () => {
+    const fixture = exactParentTransientChildFixtureV1();
+    const before = fixture.kernel.getStateInternalV1();
+    const parentEntry = before.stableRuntimeBindings.find((entry) =>
+      entry.desiredTarget.admittedTarget === fixture.parent
+    );
+    if (parentEntry?.binding.kind !== "ready_instance") {
+      throw new Error("expected ready stable parent");
+    }
+    const parentInstanceId = parentEntry.binding.instance.attempt.identity.surfaceInstanceId;
+    const observed: string[] = [];
+    fixture.kernel.subscribeTransientInternalV1(() => {
+      const state = fixture.kernel.getStateInternalV1();
+      expect(state).not.toBe(before);
+      expect(state.transientState.publication.orderedInstances).toHaveLength(1);
+      observed.push("transient");
+    });
+    fixture.kernel.subscribeStateInternalV1(() => {
+      expect(fixture.kernel.getStateInternalV1().transientState.publication.orderedInstances)
+        .toHaveLength(1);
+      observed.push("state");
+    });
+    let guardedCandidate:
+      | ManagedSurfaceStableExactParentTransientChildCandidateInternalV1
+      | null = null;
+    const guard = vi.fn((
+      candidate: ManagedSurfaceStableExactParentTransientChildCandidateInternalV1,
+    ) => {
+      expect(fixture.kernel.getStateInternalV1()).toBe(before);
+      expect(Object.isFrozen(candidate)).toBe(true);
+      expect(Reflect.ownKeys(candidate)).toEqual([]);
+      guardedCandidate = candidate;
+      return true;
+    });
+
+    const result = prepareExactParentTransientHistoryV1(fixture, guard);
+
+    expect(result.kind).toBe("installed");
+    expect(Object.isFrozen(result)).toBe(true);
+    expect(Reflect.ownKeys(result)).toEqual(["kind", "candidate"]);
+    if (result.kind !== "installed") throw new Error("expected installed child");
+    expect(result.candidate).toBe(guardedCandidate);
+    expect(guard).toHaveBeenCalledTimes(1);
+    expect(observed).toEqual(["transient", "state"]);
+    const installed = fixture.kernel.getStateInternalV1();
+    expect(installed.transientState.identitySequenceHighWater).toBe(
+      before.transientState.identitySequenceHighWater + 1,
+    );
+    expect(installed.transientState.publication.topologyRevision).toBe(
+      before.transientState.publication.topologyRevision + 1,
+    );
+    expect(installed.transientState.publication.publicationRevision).toBe(
+      before.transientState.publication.publicationRevision + 1,
+    );
+    const [history] = installed.transientState.publication.orderedInstances;
+    expect(history).toMatchObject({
+      parentInstanceId,
+      definition: {
+        definitionId: historyDefinitionV1,
+        ownerId: workspaceOwnerIdV1,
+        slotId: historySlotV1,
+        placement: "child",
+      },
+      semanticOccurrenceId: null,
+      phase: "preparing",
+      readiness: { kind: "preparing", transition: "child_open" },
+    });
+    expect(
+      installed.transientState.publication.orderedInstances.some((instance) =>
+        instance.surfaceInstanceId === parentInstanceId
+      ),
+    ).toBe(false);
+    const phasedParent = installed.stableRuntimeBindings.find((entry) =>
+      entry.desiredTarget.admittedTarget === fixture.parent
+    );
+    expect(phasedParent?.binding).toMatchObject({
+      kind: "ready_instance",
+      instance: { phase: "suspended" },
+    });
+  });
+
+  it("keeps false-gate aborts and capacity faults exact, unallocated, and retryable", () => {
+    const abortedFixture = exactParentTransientChildFixtureV1();
+    const beforeAbort = abortedFixture.kernel.getStateInternalV1();
+    const stateListener = vi.fn();
+    const transientListener = vi.fn();
+    abortedFixture.kernel.subscribeStateInternalV1(stateListener);
+    abortedFixture.kernel.subscribeTransientInternalV1(transientListener);
+    const falseGuard = vi.fn(() => false);
+
+    const aborted = prepareExactParentTransientHistoryV1(abortedFixture, falseGuard);
+
+    expect(aborted).toEqual({ kind: "stale" });
+    expect(Object.isFrozen(aborted)).toBe(true);
+    expect(falseGuard).toHaveBeenCalledTimes(1);
+    expect(abortedFixture.kernel.getStateInternalV1()).toBe(beforeAbort);
+    expect(stateListener).not.toHaveBeenCalled();
+    expect(transientListener).not.toHaveBeenCalled();
+    const retried = prepareExactParentTransientHistoryV1(abortedFixture, () => true);
+    expect(retried.kind).toBe("installed");
+
+    const capacityFixture = exactParentTransientChildFixtureV1({
+      identitySequenceHighWater: parseNonNegativeSafeInteger(Number.MAX_SAFE_INTEGER - 1),
+    });
+    const beforeFault = capacityFixture.kernel.getStateInternalV1();
+    expect(beforeFault.transientState.identitySequenceHighWater).toBe(Number.MAX_SAFE_INTEGER);
+    const faultGuard = vi.fn(() => true);
+    const faulted = prepareExactParentTransientHistoryV1(capacityFixture, faultGuard);
+    expect(faulted).toEqual({ kind: "faulted" });
+    expect(Object.isFrozen(faulted)).toBe(true);
+    expect(Reflect.ownKeys(faulted)).toEqual(["kind"]);
+    expect(faultGuard).not.toHaveBeenCalled();
+    expect(capacityFixture.kernel.getStateInternalV1()).toBe(beforeFault);
+  });
+
+  it("notifies only after install and makes listener reentry observe the stale proof", () => {
+    const fixture = exactParentTransientChildFixtureV1();
+    const nested: ManagedSurfaceStableExactParentTransientChildPreparationResultInternalV1[] = [];
+    fixture.kernel.subscribeTransientInternalV1(() => {
+      nested.push(prepareExactParentTransientHistoryV1(fixture, () => true));
+    });
+    fixture.kernel.subscribeStateInternalV1(() => {
+      nested.push(prepareExactParentTransientHistoryV1(fixture, () => true));
+    });
+
+    const installed = prepareExactParentTransientHistoryV1(fixture, () => true);
+
+    expect(installed.kind).toBe("installed");
+    expect(nested).toHaveLength(2);
+    expect(nested[0]).toEqual({ kind: "stale" });
+    expect(nested[1]).toBe(nested[0]);
+    expect(fixture.kernel.getStateInternalV1().transientState.publication.orderedInstances)
+      .toHaveLength(1);
+  });
+
+  it("returns historical installed after a listener immediately retires the authenticated child", () => {
+    const fixture = exactParentTransientChildFixtureV1();
+    let retired = false;
+    let unsubscribe = (): void => {};
+    unsubscribe = fixture.kernel.subscribeTransientInternalV1(() => {
+      unsubscribe();
+      const child = fixture.kernel.getStateInternalV1().transientState.publication
+        .orderedInstances[0];
+      if (child === undefined) throw new Error("expected installed child before listener retire");
+      expect(fixture.kernel.transitionTransientInternalV1({
+        kind: "readiness_failed",
+        evidence: Object.freeze({
+          applicationEpoch: applicationEpochV1,
+          surfaceInstanceId: child.surfaceInstanceId,
+        }),
+      })).toMatchObject({ kind: "applied", code: "surface.readiness_failed" });
+      retired = true;
+    });
+
+    const historical = prepareExactParentTransientHistoryV1(fixture, () => true);
+
+    expect(historical.kind).toBe("installed");
+    expect(retired).toBe(true);
+    const current = fixture.kernel.getStateInternalV1();
+    expect(current.transientState.publication.orderedInstances).toEqual([]);
+    expect(current.stableRuntimeBindings[0]?.binding).toMatchObject({
+      kind: "ready_instance",
+      instance: { phase: "active" },
+    });
+  });
+
+  it("rejects foreign proof/parent/source and faults invalid definition/guard with exact zero", () => {
+    const fixture = exactParentTransientChildFixtureV1();
+    const foreign = exactParentTransientChildFixtureV1();
+    const before = fixture.kernel.getStateInternalV1();
+    const guard = vi.fn(() => true);
+    const commitGuard = Object.freeze({ commitInternalV1: guard });
+    const call = (
+      input: Readonly<{
+        readonly parentProof: unknown;
+        readonly expectedParent: unknown;
+        readonly expectedSourceRevision: unknown;
+        readonly definition: ManagedSurfaceResolvedDefinitionV1;
+        readonly commitGuard: object;
+      }>,
+    ) =>
+      fixture.authority.prepareExactParentTransientChildInternalV1(
+        Object.freeze({
+          ...input,
+          semanticOccurrenceId: null,
+        }) as Parameters<
+          ManagedSurfaceStableExactParentTransientChildAuthorityInternalV1[
+            "prepareExactParentTransientChildInternalV1"
+          ]
+        >[0],
+      );
+    const staleRows = [
+      call({
+        parentProof: foreign.parentProof,
+        expectedParent: fixture.expectedParent,
+        expectedSourceRevision: fixture.expectedSourceRevision,
+        definition: fixture.harness.historyDefinition,
+        commitGuard,
+      }),
+      call({
+        parentProof: fixture.parentProof,
+        expectedParent: fixture.harness.workspaceReplacement,
+        expectedSourceRevision: fixture.expectedSourceRevision,
+        definition: fixture.harness.historyDefinition,
+        commitGuard,
+      }),
+      call({
+        parentProof: fixture.parentProof,
+        expectedParent: fixture.expectedParent,
+        expectedSourceRevision: fixture.harness.workspaceReplacementRevision,
+        definition: fixture.harness.historyDefinition,
+        commitGuard,
+      }),
+    ];
+    expect(staleRows.every((row) => row.kind === "stale")).toBe(true);
+    expect(staleRows[1]).toBe(staleRows[0]);
+    expect(staleRows[2]).toBe(staleRows[0]);
+
+    const foreignOwnerDefinition = Object.freeze({
+      ...fixture.harness.historyDefinition,
+      ownerId: narrativeOwnerIdV1,
+    });
+    const stackSlotDefinition = Object.freeze({
+      ...fixture.harness.historyDefinition,
+      slotId: childSlotV1,
+    });
+    const extraGuard = Object.freeze({ commitInternalV1: guard, extra: true });
+    const faultRows = [
+      call({
+        parentProof: fixture.parentProof,
+        expectedParent: fixture.expectedParent,
+        expectedSourceRevision: fixture.expectedSourceRevision,
+        definition: foreignOwnerDefinition,
+        commitGuard,
+      }),
+      call({
+        parentProof: fixture.parentProof,
+        expectedParent: fixture.expectedParent,
+        expectedSourceRevision: fixture.expectedSourceRevision,
+        definition: stackSlotDefinition,
+        commitGuard,
+      }),
+      call({
+        parentProof: fixture.parentProof,
+        expectedParent: fixture.expectedParent,
+        expectedSourceRevision: fixture.expectedSourceRevision,
+        definition: fixture.harness.historyDefinition,
+        commitGuard: extraGuard,
+      }),
+    ];
+    expect(faultRows.every((row) => row.kind === "faulted")).toBe(true);
+    expect(faultRows[1]).toBe(faultRows[0]);
+    expect(faultRows[2]).toBe(faultRows[0]);
+    expect(guard).not.toHaveBeenCalled();
+    expect(fixture.kernel.getStateInternalV1()).toBe(before);
+  });
+
+  it("retains the exact child through replacement preparation/failure and cascades on cutover", () => {
+    const retainedFixture = exactParentTransientChildFixtureV1();
+    expect(prepareExactParentTransientHistoryV1(retainedFixture, () => true).kind).toBe(
+      "installed",
+    );
+    const retainedChild = retainedFixture.kernel.getStateInternalV1().transientState.publication
+      .orderedInstances[0]!;
+    const retainedParentId = retainedChild.parentInstanceId;
+    const replacement = admitAndApplyStableTargetV1({
+      harness: retainedFixture.harness,
+      kernel: retainedFixture.kernel,
+      publisher: retainedFixture.harness.workspace,
+      target: retainedFixture.harness.workspaceReplacement,
+      sourceRevision: retainedFixture.harness.workspaceReplacementRevision,
+    });
+    const preparing = retainedFixture.kernel.getStateInternalV1();
+    expect(preparing.transientState.publication.orderedInstances[0]).toBe(retainedChild);
+    const preparingReplacement = preparing.stableRuntimeBindings.find((entry) =>
+      entry.desiredTarget.admittedTarget === replacement
+    );
+    expect(preparingReplacement?.binding).toMatchObject({
+      kind: "preparing",
+      transition: "primary_replacement",
+      retainedSubtree: {
+        root: { attempt: { identity: { surfaceInstanceId: retainedParentId } } },
+      },
+    });
+    settleCurrentStablePreparationFailedV1(retainedFixture.kernel, replacement);
+    const failed = retainedFixture.kernel.getStateInternalV1();
+    expect(failed.transientState.publication.orderedInstances[0]).toBe(retainedChild);
+    expect(failed.stableRuntimeBindings[0]?.binding).toMatchObject({
+      kind: "gap",
+      reason: "readiness_failed",
+      retainedSubtree: {
+        root: { attempt: { identity: { surfaceInstanceId: retainedParentId } } },
+      },
+    });
+
+    const cutoverFixture = exactParentTransientChildFixtureV1();
+    expect(prepareExactParentTransientHistoryV1(cutoverFixture, () => true).kind).toBe(
+      "installed",
+    );
+    const cutoverChild = cutoverFixture.kernel.getStateInternalV1().transientState.publication
+      .orderedInstances[0]!;
+    const cutoverParentId = cutoverChild.parentInstanceId;
+    const cutoverReplacement = admitAndApplyStableTargetV1({
+      harness: cutoverFixture.harness,
+      kernel: cutoverFixture.kernel,
+      publisher: cutoverFixture.harness.workspace,
+      target: cutoverFixture.harness.workspaceReplacement,
+      sourceRevision: cutoverFixture.harness.workspaceReplacementRevision,
+    });
+    const transientListener = vi.fn();
+    const stateListener = vi.fn();
+    cutoverFixture.kernel.subscribeTransientInternalV1(transientListener);
+    cutoverFixture.kernel.subscribeStateInternalV1(stateListener);
+
+    settleCurrentStablePreparationReadyV1(cutoverFixture.kernel, cutoverReplacement);
+
+    const cutover = cutoverFixture.kernel.getStateInternalV1();
+    expect(cutover.transientState.publication.orderedInstances).toEqual([]);
+    expect(cutover.stableRuntimeBindings).toHaveLength(1);
+    expect(cutover.stableRuntimeBindings[0]?.binding).toMatchObject({
+      kind: "ready_instance",
+      instance: { phase: "active" },
+    });
+    expect(cutover.stableRuntimeBindings[0]?.binding).not.toMatchObject({
+      instance: { attempt: { identity: { surfaceInstanceId: cutoverParentId } } },
+    });
+    expect(transientListener).toHaveBeenCalledTimes(1);
+    expect(stateListener).toHaveBeenCalledTimes(1);
+  });
+
+  it("cascades the child with greater-empty, publisher disposal, and Coordinator terminal", () => {
+    const emptyFixture = exactParentTransientChildFixtureV1();
+    expect(prepareExactParentTransientHistoryV1(emptyFixture, () => true).kind).toBe(
+      "installed",
+    );
+    applyEmptyStablePublicationV1({
+      fixture: emptyFixture,
+      publisher: emptyFixture.harness.workspace,
+      sourceRevision: emptyFixture.harness.workspace.issueSourceRevision(),
+    });
+    expect(emptyFixture.kernel.getStateInternalV1().stableRuntimeBindings).toEqual([]);
+    expect(emptyFixture.kernel.getStateInternalV1().transientState.publication.orderedInstances)
+      .toEqual([]);
+
+    const disposeFixture = exactParentTransientChildFixtureV1();
+    expect(prepareExactParentTransientHistoryV1(disposeFixture, () => true).kind).toBe(
+      "installed",
+    );
+    expect(
+      disposeFixture.kernel.disposeStablePublisherLeaseInternalV1(
+        disposeFixture.harness.workspace.lease,
+      ),
+    ).toMatchObject({ kind: "applied", code: "surface.stable_publisher_disposed" });
+    expect(disposeFixture.kernel.getStateInternalV1().stableRuntimeBindings).toEqual([]);
+    expect(
+      disposeFixture.kernel.getStateInternalV1().transientState.publication.orderedInstances,
+    ).toEqual([]);
+
+    const terminalFixture = exactParentTransientChildFixtureV1();
+    expect(prepareExactParentTransientHistoryV1(terminalFixture, () => true).kind).toBe(
+      "installed",
+    );
+    expect(terminalFixture.kernel.transitionTransientInternalV1({
+      kind: "dispose_coordinator",
+    })).toMatchObject({ kind: "applied", code: "surface.coordinator_disposed" });
+    const terminal = terminalFixture.kernel.getStateInternalV1();
+    expect(terminal.stableRuntimeBindings).toEqual([]);
+    expect(terminal.transientState.publication.orderedInstances).toEqual([]);
+    expect(terminal.transientState.publication.coordinatorDisposed).toBe(true);
+  });
+
+  it("keeps 10,000 prepare-retire cycles bounded to current topology and scalar cursors", () => {
+    const fixture = exactParentTransientChildFixtureV1();
+    const actionAuthority = claimManagedSurfaceStableActionRouteAuthorityInternalV1(
+      fixture.kernel,
+    );
+    const initialHighWater = fixture.kernel.getStateInternalV1().transientState
+      .identitySequenceHighWater;
+    for (let index = 0; index < 10_000; index += 1) {
+      const captured = actionAuthority.captureCurrentStableInputInternalV1();
+      if (
+        captured.kind !== "captured" || captured.targetProof === null ||
+        captured.directTarget === null || captured.sourceRevision === null
+      ) {
+        throw new Error(`expected fresh direct-parent proof at cycle ${index}`);
+      }
+      const installed = fixture.authority.prepareExactParentTransientChildInternalV1(
+        Object.freeze({
+          parentProof: captured.targetProof,
+          expectedParent: captured.directTarget,
+          expectedSourceRevision: captured.sourceRevision,
+          definition: fixture.harness.historyDefinition,
+          semanticOccurrenceId: null,
+          commitGuard: Object.freeze({ commitInternalV1: () => true }),
+        }),
+      );
+      if (installed.kind !== "installed") {
+        throw new Error(`expected installed child at cycle ${index}`);
+      }
+      const child = fixture.kernel.getStateInternalV1().transientState.publication
+        .orderedInstances[0];
+      if (child === undefined) throw new Error(`expected child at cycle ${index}`);
+      const retired = fixture.kernel.transitionTransientInternalV1({
+        kind: "readiness_failed",
+        evidence: Object.freeze({
+          applicationEpoch: applicationEpochV1,
+          surfaceInstanceId: child.surfaceInstanceId,
+        }),
+      });
+      if (retired.kind !== "applied") {
+        throw new Error(`expected structural retirement at cycle ${index}`);
+      }
+    }
+    const finalState = fixture.kernel.getStateInternalV1();
+    expect(finalState.transientState.publication.orderedInstances).toEqual([]);
+    expect(finalState.stableRuntimeBindings).toHaveLength(1);
+    expect(finalState.stableRuntimeBindings[0]?.binding).toMatchObject({
+      kind: "ready_instance",
+      instance: { phase: "active" },
+    });
+    expect(finalState.transientState.identitySequenceHighWater).toBe(
+      initialHighWater + 10_000,
+    );
+    expect(
+      claimManagedSurfaceStableExactParentTransientChildAuthorityInternalV1(
+        fixture.kernel,
+        fixture.claimant,
+      ),
+    ).toBe(fixture.authority);
   });
 });
 

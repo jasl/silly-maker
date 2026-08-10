@@ -22,8 +22,10 @@ import {
 import { createInputRouterV1 } from "../input/input-router.ts";
 import {
   createManagedSurfaceReducerStateV1,
+  deriveManagedSurfaceReducerCrossAxisChildPreparationInternalV1,
   deriveManagedSurfaceReducerTopologyProjectionInternalV1,
   reduceManagedSurfaceV1,
+  type ManagedSurfaceReducerCrossAxisParentProjectionInternalV1,
   type ManagedSurfaceReducerStateV1,
 } from "./managed-surface-reducer.ts";
 import {
@@ -268,6 +270,278 @@ describe("Managed Surface package-internal contracts", () => {
       },
       candidate,
     });
+  });
+});
+
+describe("managed surface reducer cross-axis child preparation", () => {
+  const singleChildSlotDescriptorsV1 = Object.freeze(
+    resolvedSlotDescriptorsV1.map((descriptor) =>
+      descriptor.kind === "child" && descriptor.slotId === "surface-slot.detail"
+        ? Object.freeze({ ...descriptor, cardinality: "single" as const })
+        : descriptor
+    ),
+  );
+
+  function crossAxisFixtureV1() {
+    const initialState = createReducerStateV1(
+      91,
+      resolvedOwnerIdsV1,
+      singleChildSlotDescriptorsV1,
+    );
+    const parentIdentity = createManagedSurfaceTransientIdentityV1(
+      initialState.publication.applicationEpoch,
+      parsePositiveSafeInteger(1),
+    );
+    const state = Object.freeze({
+      ...initialState,
+      identitySequenceHighWater: parseNonNegativeSafeInteger(1),
+    });
+    const parent = Object.freeze({
+      surfaceInstanceId: parentIdentity.surfaceInstanceId,
+      definition: Object.freeze(definitionV1("cross-axis-parent")),
+      phase: "active" as const,
+    }) satisfies ManagedSurfaceReducerCrossAxisParentProjectionInternalV1;
+    const candidate = candidateV1(state, "cross-axis-history", {
+      definition: definitionV1("cross-axis-history", {
+        definitionId: parseManagedSurfaceDefinitionIdV1("surface.history"),
+        slotId: parseManagedSurfaceSlotIdV1("surface-slot.detail"),
+        placement: "child",
+        modality: "blocking",
+        layerOrder: parseNonNegativeSafeInteger(30),
+      }),
+    });
+    return Object.freeze({ state, parent, candidate });
+  }
+
+  it("derives one preparing child linked to an authenticated parent absent from transient publication", () => {
+    expect(deriveManagedSurfaceReducerCrossAxisChildPreparationInternalV1).toBeTypeOf("function");
+    const { state, parent, candidate } = crossAxisFixtureV1();
+
+    const result = deriveManagedSurfaceReducerCrossAxisChildPreparationInternalV1({
+      state,
+      parent,
+      candidate,
+    });
+
+    expect(result.receipt).toMatchObject({
+      kind: "applied",
+      code: "surface.preparation_started",
+      surfaceInstanceId: candidate.surfaceInstanceId,
+    });
+    expect(result.state).not.toBe(state);
+    expect(state.publication.orderedInstances).toEqual([]);
+    expect(state.identitySequenceHighWater).toBe(1);
+    expectRevisionDeltaV1(state.publication, result.state.publication, 1, 1);
+    expect(result.state.identitySequenceHighWater).toBe(2);
+    expect(result.state.publication.orderedInstances).toHaveLength(1);
+    const child = result.state.publication.orderedInstances[0]!;
+    expect(child).toMatchObject({
+      surfaceInstanceId: candidate.surfaceInstanceId,
+      parentInstanceId: parent.surfaceInstanceId,
+      phase: "preparing",
+      readiness: { kind: "preparing", transition: "child_open" },
+      definition: {
+        definitionId: candidate.definition.definitionId,
+        ownerId: parent.definition.ownerId,
+        slotId: candidate.definition.slotId,
+      },
+    });
+    expect(Object.isFrozen(child)).toBe(true);
+    expect(inspectManagedSurfaceRuntimeAttemptSequenceInternalV1(child)).toBe(2);
+    expect(result.state.publication.preparationFallbacks).toEqual([
+      {
+        kind: "blocking_fallback",
+        candidateInstanceId: candidate.surfaceInstanceId,
+      },
+    ]);
+    expect(result.state.publication.inputOwner).toBeNull();
+    expect(
+      result.state.publication.orderedInstances.some(
+        (instance) => instance.surfaceInstanceId === parent.surfaceInstanceId,
+      ),
+    ).toBe(false);
+  });
+
+  it("rejects wrong placement, owner, layer, slot, cardinality, or parent phase without allocation", () => {
+    const cases = [
+      {
+        name: "root candidate",
+        definition: { placement: "root" as const },
+        code: "surface.slot_placement_mismatch",
+      },
+      {
+        name: "foreign owner",
+        definition: {
+          ownerId: parseManagedSurfaceOwnerIdV1("surface-owner.other"),
+        },
+        code: "surface.invalid_parent",
+      },
+      {
+        name: "foreign layer",
+        definition: {
+          layerId: parseManagedSurfaceLayerIdV1("surface-layer.system"),
+        },
+        code: "surface.invalid_parent",
+      },
+      {
+        name: "lower layer",
+        definition: { layerOrder: parseNonNegativeSafeInteger(10) },
+        code: "surface.invalid_parent",
+      },
+      {
+        name: "root slot",
+        definition: { slotId: parseManagedSurfaceSlotIdV1("surface-slot.primary") },
+        code: "surface.slot_placement_mismatch",
+      },
+      {
+        name: "missing slot",
+        definition: { slotId: parseManagedSurfaceSlotIdV1("surface-slot.missing-child") },
+        code: "surface.slot_not_resolved",
+      },
+      {
+        name: "stack cardinality",
+        definition: { slotId: parseManagedSurfaceSlotIdV1("surface-slot.stack") },
+        code: "surface.invalid_transition",
+      },
+    ] as const;
+
+    for (const testCase of cases) {
+      const { state, parent, candidate } = crossAxisFixtureV1();
+      const result = deriveManagedSurfaceReducerCrossAxisChildPreparationInternalV1({
+        state,
+        parent,
+        candidate: {
+          ...candidate,
+          definition: definitionV1(testCase.name, {
+            ...candidate.definition,
+            ...testCase.definition,
+          }),
+        },
+      });
+
+      expect(result.receipt, testCase.name).toMatchObject({
+        kind: "rejected",
+        code: testCase.code,
+      });
+      expect(result.state, testCase.name).toBe(state);
+      expect(result.state.publication, testCase.name).toBe(state.publication);
+      expect(result.state.identitySequenceHighWater, testCase.name).toBe(1);
+    }
+
+    const { state, parent, candidate } = crossAxisFixtureV1();
+    const suspended = deriveManagedSurfaceReducerCrossAxisChildPreparationInternalV1({
+      state,
+      parent: Object.freeze({
+        ...parent,
+        phase: "suspended",
+      }) as unknown as ManagedSurfaceReducerCrossAxisParentProjectionInternalV1,
+      candidate,
+    });
+    expect(suspended.receipt).toMatchObject({
+      kind: "rejected",
+      code: "surface.invalid_parent",
+    });
+    expect(suspended.state).toBe(state);
+    expect(suspended.state.identitySequenceHighWater).toBe(1);
+  });
+
+  it("keeps identity and publication exact on invalid allocation or occupied single slot", () => {
+    const { state, parent, candidate } = crossAxisFixtureV1();
+    const skippedIdentity = createManagedSurfaceTransientIdentityV1(
+      state.publication.applicationEpoch,
+      parsePositiveSafeInteger(3),
+    );
+    const invalidIdentity = deriveManagedSurfaceReducerCrossAxisChildPreparationInternalV1({
+      state,
+      parent,
+      candidate: {
+        ...candidate,
+        identityAllocation: skippedIdentity.allocation,
+        target: { kind: "transient", occurrenceId: skippedIdentity.occurrenceId },
+        surfaceInstanceId: skippedIdentity.surfaceInstanceId,
+        routingLeaseId: skippedIdentity.routingLeaseId,
+      },
+    });
+    expect(invalidIdentity.receipt).toMatchObject({
+      kind: "rejected",
+      code: "surface.invalid_identity_allocation",
+    });
+    expect(invalidIdentity.state).toBe(state);
+    expect(invalidIdentity.state.publication).toBe(state.publication);
+    expect(invalidIdentity.state.identitySequenceHighWater).toBe(1);
+
+    const installed = deriveManagedSurfaceReducerCrossAxisChildPreparationInternalV1({
+      state,
+      parent,
+      candidate,
+    });
+    const secondCandidate = candidateV1(installed.state, "cross-axis-history-second", {
+      definition: candidate.definition,
+    });
+    const occupied = deriveManagedSurfaceReducerCrossAxisChildPreparationInternalV1({
+      state: installed.state,
+      parent,
+      candidate: secondCandidate,
+    });
+    expect(occupied.receipt).toMatchObject({
+      kind: "rejected",
+      code: "surface.slot_occupied",
+    });
+    expect(occupied.state).toBe(installed.state);
+    expect(occupied.state.publication).toBe(installed.state.publication);
+    expect(occupied.state.identitySequenceHighWater).toBe(2);
+    expect(occupied.state.publication.orderedInstances).toHaveLength(1);
+  });
+
+  it("does not let the ordinary reducer fabricate an absent stable parent or reuse a transient parent projection", () => {
+    const { state, parent, candidate } = crossAxisFixtureV1();
+    const generic = reduceManagedSurfaceV1(state, {
+      kind: "prepare_child",
+      parentEvidence: {
+        applicationEpoch: state.publication.applicationEpoch,
+        topologyRevision: state.publication.topologyRevision,
+        surfaceInstanceId: parent.surfaceInstanceId,
+      },
+      candidate,
+    });
+    expect(generic.receipt).toMatchObject({
+      kind: "stale",
+      code: "surface.stale_instance",
+    });
+    expect(generic.state).toBe(state);
+    expect(generic.state.identitySequenceHighWater).toBe(1);
+
+    const transientInitial = createReducerStateV1(
+      92,
+      resolvedOwnerIdsV1,
+      singleChildSlotDescriptorsV1,
+    );
+    const rootCandidate = candidateV1(transientInitial, "transient-parent");
+    const transientState = openPrimaryV1(transientInitial, rootCandidate).state;
+    const transientParent = transientState.publication.orderedInstances[0]!;
+    const transientChild = candidateV1(transientState, "transient-cross-axis-child", {
+      definition: definitionV1("transient-cross-axis-child", {
+        definitionId: parseManagedSurfaceDefinitionIdV1("surface.transient-cross-axis-child"),
+        slotId: parseManagedSurfaceSlotIdV1("surface-slot.detail"),
+        placement: "child",
+        layerOrder: parseNonNegativeSafeInteger(30),
+      }),
+    });
+    const crossAxis = deriveManagedSurfaceReducerCrossAxisChildPreparationInternalV1({
+      state: transientState,
+      parent: {
+        surfaceInstanceId: transientParent.surfaceInstanceId,
+        definition: transientParent.definition,
+        phase: "active",
+      },
+      candidate: transientChild,
+    });
+    expect(crossAxis.receipt).toMatchObject({
+      kind: "rejected",
+      code: "surface.invalid_parent",
+    });
+    expect(crossAxis.state).toBe(transientState);
+    expect(crossAxis.state.identitySequenceHighWater).toBe(1);
   });
 });
 
