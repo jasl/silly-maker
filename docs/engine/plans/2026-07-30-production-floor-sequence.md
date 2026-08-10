@@ -40,7 +40,7 @@ promotion 均已关闭。2026-08-08 dormant `PF4/S3c.1 Host-commit readiness`、
 `PF4/S4.1b.1b.1b.2a custom physical payload admission`及
 `PF4/S4.1b.1b.1b.2b.0 remaining mapping policy adjudication`也已关闭，
 linear core current/next均为
-`PF4/S4.1b.1b.1b.2b.1 Say reveal/advance admission`。
+`PF4/S4.1b.1b.1b.2b.1a physical Say reveal-first admission`。
 同日 S1-R pre-implementation review 将 external reconcile gate 重切为 S1-R.0–S1-R.5；
 顺序变化不把任何 planned stable-target contract写成 live capability。
 同日 S1-R.3 entry-gate adjudication 采用 A-prime，将原 R3 拆为单一 composite
@@ -60,7 +60,7 @@ S4.1b.0 shared route gate/composite owner proof、S4.1b.1a authenticated action 
 S4.1b.1b.0 choice-only physical semantic admission、S4.1b.1b.1a skippable-pause physical resume与
 S4.1b.1b.1b.1 automatic pause-expiry controller-attempt admission/dispatch floor及
 S4.1b.1b.1b.2a custom physical payload admission与S4.1b.1b.1b.2b.0 remaining mapping
-policy adjudication也已关闭，下一独立切片为S4.1b.1b.1b.2b.1 Say reveal/advance admission。
+policy adjudication也已关闭，下一独立切片为S4.1b.1b.1b.2b.1a physical Say reveal-first admission。
 旧 promotion 数字保留为
 历史证据。本文是当前唯一的跨计划排序入口；
 具体合同仍由各 design 文档拥有，主要任务由五个独立计划拥有：
@@ -943,13 +943,14 @@ Surface pilot 通过后按 family 分开合并：
 9. S4.1b.1b.1b.1：automatic pause-expiry controller-attempt admission/dispatch floor（已完成）；
 10. S4.1b.1b.1b.2a：custom physical payload admission（已完成）；
 11. S4.1b.1b.1b.2b.0：remaining mapping policy adjudication（已完成）；
-12. S4.1b.1b.1b.2b.1：Say reveal/advance admission（当前）；
-13. S4.1b.1b.1b.2b.2：barrier acknowledgment/recovery；
-14. S4.1b.1b.1b.2b.3：player controls；
-15. S4.2：dormant Narrative Host、Host-commit readiness与History exact child；
-16. S4.3：atomic live cutover and promotion；
-17. S4b：whole-canvas primary/detail 独立 family；
-18. input/gesture reset（pointercancel、focus loss、visibility change）与 Browser
+12. S4.1b.1b.1b.2b.1a：physical Say reveal-first admission（当前）；
+13. S4.1b.1b.1b.2b.1b：content-auto Say controller-attempt floor；
+14. S4.1b.1b.1b.2b.2：barrier acknowledgment/recovery；
+15. S4.1b.1b.1b.2b.3：player controls；
+16. S4.2：dormant Narrative Host、Host-commit readiness与History exact child；
+17. S4.3：atomic live cutover and promotion；
+18. S4b：whole-canvas primary/detail 独立 family；
+19. input/gesture reset（pointercancel、focus loss、visibility change）与 Browser
     Agent observation。
 
 S3 是 Coordinator-owned transient family，与 Workspace Overlay 共用同一个
@@ -1571,8 +1572,18 @@ result为once-per target/generation且state/source/topology/semantic exact zero�
 
 本adjudication没有source/test/runtime、Host/React/Web/live Story、public/internal barrel、package export、generic
 result/receipt、Base/Save/Persistence/wire或S4b变更；不冒充runtime delivery，也不记录product/browser/build evidence。
-验证仅为exact四文档`deno fmt --check`与`git diff --check`。Linear core current/next现为
-S4.1b.1b.1b.2b.1；后续顺序固定为S4.1b.1b.1b.2b.1 → S4.1b.1b.1b.2b.2 →
+验证仅为exact四文档`deno fmt --check`与`git diff --check`。该checkpoint当时的linear core current/next为
+S4.1b.1b.1b.2b.1，现由下述execution-order amendment细分并取代。
+
+**PF4/S4.1b.1b.1b.2b.1 execution-order amendment（docs-only）：** Say实现先拆为
+S4.1b.1b.1b.2b.1a physical reveal-first与S4.1b.1b.1b.2b.1b content-auto controller attempt。
+`.1a`沿用唯一physical route authority，冻结exact Host-owned reveal-generation port、两种alias、reveal-only
+`revealed/null`与complete-phase `advance/Promise`，并安装manual/automatic共享的per-frame in-flight claim。
+Captured semantic port保持one-key callable，但其Promise只有在semantic publication与bridge reconcile drain后才可settle；
+Family只从该post-drain settlement按exact source释放claim。`.1b`仅为`advancePolicy: "auto"`交付ready-active、
+无gestureattempt；clock/timer、player Auto/Skip、Host/live接线继续延期。本amendment没有runtime或验证证据。
+Linear core current/next现为S4.1b.1b.1b.2b.1a；后续顺序固定为S4.1b.1b.1b.2b.1a →
+S4.1b.1b.1b.2b.1b → S4.1b.1b.1b.2b.2 →
 S4.1b.1b.1b.2b.3 → S4.2 → S4.3 → S4b。
 
 每个 family 的迁移提交必须删除旧 owner；禁止长期 adapter 双写。
