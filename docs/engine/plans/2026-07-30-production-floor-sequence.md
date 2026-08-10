@@ -43,9 +43,10 @@ promotion 均已关闭。2026-08-08 dormant `PF4/S3c.1 Host-commit readiness`、
 `PF4/S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor`与
 `PF4/S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment`与
 `PF4/S4.1b.1b.1b.2b.2b.0 recovery generation admission contract`及
-`PF4/S4.1b.1b.1b.2b.2b.1 settle/replay recovery implementation`也已关闭，
+`PF4/S4.1b.1b.1b.2b.2b.1 settle/replay recovery implementation`也已关闭；
+`PF4/S4.1b.1b.1b.2b.3.0 player-controls execution split` docs-only checkpoint也已关闭，
 linear core current/next均为
-`PF4/S4.1b.1b.1b.2b.3 player controls`。
+`PF4/S4.1b.1b.1b.2b.3a toggle-ui Narrative catalog corrective`。
 同日 S1-R pre-implementation review 将 external reconcile gate 重切为 S1-R.0–S1-R.5；
 顺序变化不把任何 planned stable-target contract写成 live capability。
 同日 S1-R.3 entry-gate adjudication 采用 A-prime，将原 R3 拆为单一 composite
@@ -69,8 +70,9 @@ policy adjudication及S4.1b.1b.1b.2b.1a physical Say reveal-first admission也�
 S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor与
 S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment与
 S4.1b.1b.1b.2b.2b.0 recovery generation admission contract及
-S4.1b.1b.1b.2b.2b.1 settle/replay recovery implementation也已关闭，下一独立切片为
-S4.1b.1b.1b.2b.3 player controls。
+S4.1b.1b.1b.2b.2b.1 settle/replay recovery implementation也已关闭；
+S4.1b.1b.1b.2b.3.0 player-controls execution split docs-only checkpoint也已关闭，下一独立切片为
+S4.1b.1b.1b.2b.3a toggle-ui Narrative catalog corrective。
 旧 promotion 数字保留为
 历史证据。本文是当前唯一的跨计划排序入口；
 具体合同仍由各 design 文档拥有，主要任务由五个独立计划拥有：
@@ -958,11 +960,16 @@ Surface pilot 通过后按 family 分开合并：
 14. S4.1b.1b.1b.2b.2a：normal Stage→Narrative acknowledgment（已完成）；
 15. S4.1b.1b.1b.2b.2b.0：recovery generation admission contract（docs-only checkpoint，已完成）；
 16. S4.1b.1b.1b.2b.2b.1：settle/replay recovery implementation（已完成）；
-17. S4.1b.1b.1b.2b.3：player controls（当前）；
-18. S4.2：dormant Narrative Host、Host-commit readiness与History exact child；
-19. S4.3：atomic live cutover and promotion；
-20. S4b：whole-canvas primary/detail 独立 family；
-21. input/gesture reset（pointercancel、focus loss、visibility change）与 Browser
+17. S4.1b.1b.1b.2b.3：player controls（superseded checkpoint；由`.2b.3.0`细分）；
+18. S4.1b.1b.1b.2b.3.0：player-controls execution split（docs-only，已完成）；
+19. S4.1b.1b.1b.2b.3a：toggle-ui Narrative catalog corrective（当前）；
+20. S4.1b.1b.1b.2b.3b：voice replay physical route；
+21. S4.1b.1b.1b.2b.3c：bridge-owned Auto/Skip transient mode floor；
+22. S4.1b.1b.1b.2b.3d：History exact-parent open intent floor；
+23. S4.2：dormant Narrative Host、Host-commit readiness、timer scheduling与History exact-child lifecycle；
+24. S4.3：atomic live cutover and promotion；
+25. S4b：whole-canvas primary/detail 独立 family；
+26. input/gesture reset（pointercancel、focus loss、visibility change）与 Browser
     Agent observation。
 
 S3 是 Coordinator-owned transient family，与 Workspace Overlay 共用同一个
@@ -1786,7 +1793,38 @@ root或`./internal` barrel、package export、generic Managed Surface result/rec
 Save/Persistence/canonical/digest/replay/wire或S4b。验证通过focused `8 files / 315 tests`、UI package
 `79 files / 1122 tests`、full `253 files / 4052 tests`与完整`deno task check`；本HEAD还fresh通过Engine browser
 `101 / 101`、examples browser `45 passed / 2 skipped`与prebuilt Player `38 / 38`。Linear core current/next均推进为
-**S4.1b.1b.1b.2b.3 player controls**；后续顺序保持S4.1b.1b.1b.2b.3 → S4.2 → S4.3 → S4b。
+**S4.1b.1b.1b.2b.3 player controls** 原checkpoint；该checkpoint现由下述`.2b.3.0`
+docs-only amendment细分并取代。
+
+**PF4/S4.1b.1b.1b.2b.3.0 player-controls execution split（docs-only，已完成）：** 原
+S4.1b.1b.1b.2b.3 player controls标记为superseded checkpoint，不再作为一个合并切片。新的线性顺序为
+S4.1b.1b.1b.2b.3a toggle-ui Narrative catalog corrective →
+S4.1b.1b.1b.2b.3b voice replay physical route →
+S4.1b.1b.1b.2b.3c bridge-owned Auto/Skip transient mode floor →
+S4.1b.1b.1b.2b.3d History exact-parent open intent floor → S4.2 → S4.3 → S4b。
+
+`.3a`只从Dialogue managed action catalog移除`player.toggle_ui`；它不删除generic
+`playerInputActionIdsV1.toggleUi`或`player.toggle_ui` input ID，也不修改、删除或接管live legacy
+Narrative writer/consumer。`.3b`只为exact current ready-active Say交付captured optional voice
+route：optional adapter在candidate preflight以exact receiver与own-data
+`replayCurrentVoiceInternalV1(): boolean` callable捕获，route不重读caller object；`true`为handled，
+absent/`false`为family-local ignored，throw为family-local faulted，proof/callback drift为stale；closed
+family result为`handled | ignored | stale | faulted`，全部保持Input consumed且semantic resolution为zero。
+
+`.3c`只建立bridge-owned transient `normal | auto | skip` mode authority及mutually-exclusive toggle
+floor，不读clock、不建立timer/deadline、不安排automatic advance/skip，也不保存suspension
+remaining duration/cursor。`.3d`只签发绑定current ready-active Dialogue、read-only availability与
+exact parent的opaque History open intent；它不调用Coordinator打开/关闭child，不分配transient
+occurrence/instance，也不产生topology、readiness、focus或dismiss mutation。S4.2继续独占
+timer/deadline/remaining scheduling、History exact-child open/close与完整Host/readiness/input/focus/dismiss
+lifecycle。
+
+本amendment只修改execution order与accepted slice boundary；没有code、test、runtime、Host/React/Web/live
+claimant或product/browser/build交付，不新增public/`./internal` barrel、package export、generic Managed
+Surface result/receipt或第二topology authority，也不修改Base、Save/Persistence、canonical/digest/replay/wire
+或S4b。它不记录unit/browser/build验证证据；只运行本文件`deno fmt --check`与
+`git diff --check`。Linear core current/next均为
+**S4.1b.1b.1b.2b.3a toggle-ui Narrative catalog corrective**。
 
 每个 family 的迁移提交必须删除旧 owner；禁止长期 adapter 双写。
 `DialoguePanelV1` / `VnLayerV1` 的 controller/view/host 拆分在 Narrative family

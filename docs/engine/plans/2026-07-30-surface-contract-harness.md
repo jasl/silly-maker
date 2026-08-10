@@ -30,8 +30,9 @@ S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor均已关闭；S4.1b.
 entry amendment又把barrier工作拆为normal acknowledgment与recovery两个vertical，其中
 S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment也已关闭；其后
 S4.1b.1b.1b.2b.2b.0 generation admission amendment已以docs-only关闭，
-S4.1b.1b.1b.2b.2b.1 settle/replay recovery implementation也已关闭；当前独立切片为
-S4.1b.1b.1b.2b.3 player controls。R4 entry
+S4.1b.1b.1b.2b.2b.1 settle/replay recovery implementation也已关闭；其后原
+S4.1b.1b.1b.2b.3 player controls entry已由S4.1b.1b.1b.2b.3.0 docs-only execution split
+取代，当前独立切片为S4.1b.1b.1b.2b.3a toggle-ui Narrative catalog corrective。R4 entry
 adjudication已先以独立S1-R.4.0关闭
 readiness result/capacity contract。R3b entry audit先以独立S1-R.3a.1 corrective补全ready
 retained-subtree authority，该corrective也已关闭。
@@ -46,8 +47,8 @@ S1-R aggregate gate已关闭。
 
 在 [production-floor sequence](2026-07-30-production-floor-sequence.md)
 中：PF2 的 `S0 -> S1-T -> S2`、PF-DET、PF3/M2 与 PF4/S3 已完成；当前 core
-节点是PF4/S4.1b.1b.1b.2b.3。PF4的顺序是
-`S3 -> S1-R.0 -> S1-R.1–S1-R.5 -> S4.0 -> S4.1a -> S4.1b.0 -> S4.1b.1a -> S4.1b.1b.0 -> S4.1b.1b.1a -> S4.1b.1b.1b.1 -> S4.1b.1b.1b.2a -> S4.1b.1b.1b.2b.0 -> S4.1b.1b.1b.2b.1a -> S4.1b.1b.1b.2b.1b -> S4.1b.1b.1b.2b.2a -> S4.1b.1b.1b.2b.2b.0 -> S4.1b.1b.1b.2b.2b.1 -> S4.1b.1b.1b.2b.3 -> S4.2 -> S4.3 -> S4b`；
+节点是PF4/S4.1b.1b.1b.2b.3a。PF4的顺序是
+`S3 -> S1-R.0 -> S1-R.1–S1-R.5 -> S4.0 -> S4.1a -> S4.1b.0 -> S4.1b.1a -> S4.1b.1b.0 -> S4.1b.1b.1a -> S4.1b.1b.1b.1 -> S4.1b.1b.1b.2a -> S4.1b.1b.1b.2b.0 -> S4.1b.1b.1b.2b.1a -> S4.1b.1b.1b.2b.1b -> S4.1b.1b.1b.2b.2a -> S4.1b.1b.1b.2b.2b.0 -> S4.1b.1b.1b.2b.2b.1 -> S4.1b.1b.1b.2b.3.0 -> S4.1b.1b.1b.2b.3a -> S4.1b.1b.1b.2b.3b -> S4.1b.1b.1b.2b.3c -> S4.1b.1b.1b.2b.3d -> S4.2 -> S4.3 -> S4b`；
 S5–S6 属于 PF6。S1-R
 延后到第一个真实 externally published stable-target family 前完成；按 accepted
 target ownership，S4 Narrative 计划成为该 family，因此 S1-R 位于 S3 与 S4
@@ -1731,14 +1732,24 @@ S1-R 按以下可独立合并切片推进，每次只领取一个：
 31. **S4.1b.1b.1b.2b.2b.1 settle/replay recovery implementation（已完成）**：交付
     authenticated composition generation、preexisting-only settle attempt与replay unsupported/fail-closed；不实现
     replay capability。
-32. **S4.1b.1b.1b.2b.3 player controls（当前）**：实现Auto/Skip mode floor、History intent、
-    captured voice replay与Narrative catalog移除`player.toggle_ui`；实际History lifecycle留S4.2。
-33. **S4.2 dormant Narrative Host + History child（待实施）**：controller/view/Host decomposition、Host-commit
+32. **S4.1b.1b.1b.2b.3 player controls（已被细分的历史checkpoint）**：原聚合entry不再直接实施，
+    由下述`.3.0` execution split及`.3a–.3d`取代。
+33. **S4.1b.1b.1b.2b.3.0 player-controls execution split（已完成，docs-only）**：只冻结
+    `.3a -> .3b -> .3c -> .3d`线性边界、current/next与stop，不声明runtime delivery。
+34. **S4.1b.1b.1b.2b.3a toggle-ui Narrative catalog corrective（当前）**：只从Dialogue
+    managed definition action catalog移除`player.toggle_ui`；保留generic input ID与legacy live characterization。
+35. **S4.1b.1b.1b.2b.3b voice replay physical route（待实施）**：RED前先冻结exact captured optional
+    callable、attempt与family-local result；不扩张generic/public contract。
+36. **S4.1b.1b.1b.2b.3c bridge-owned Auto/Skip transient mode floor（待实施）**：只交付
+    `normal | auto | skip` mode与physical route/result floor；clock/timer/deadline/remaining及scheduling留S4.2。
+37. **S4.1b.1b.1b.2b.3d History exact-parent open intent floor（待实施）**：只交付read-only
+    availability、opaque open intent与consumed family-local result；不改变topology，History child lifecycle留S4.2。
+38. **S4.2 dormant Narrative Host + History child（待实施）**：controller/view/Host decomposition、Host-commit
     readiness、exact-parent History、managed input/focus/dismiss与Engine Lab dormant conformance；不切live Story。
-34. **S4.3 atomic live cutover and promotion（待实施）**：同批迁移Engine Lab、template、Cat Cafe、Bookshop，
+39. **S4.3 atomic live cutover and promotion（待实施）**：同批迁移Engine Lab、template、Cat Cafe、Bookshop，
     删除旧lifecycle writers与standalone public path，更新live docs并完成headless/browser/prebuilt promotion。
 
-当前只允许从 **S4.1b.1b.1b.2b.3** 开始。Stable ingress与stable-specific state/API仍保持
+当前只允许从 **S4.1b.1b.1b.2b.3a** 开始。Stable ingress与stable-specific state/API仍保持
 dormant/package-internal；S4.1允许source-relative Narrative bridge消费Base semantic contract，但不接live
 Narrative/React/Web application graph、不mount React Host，也不更新live feature文档；shared pure topology
 policy只经existing transient adapter live复用，R3a 已将既有live transient reducer/Coordinator 收口到
@@ -2986,12 +2997,23 @@ examples/prebuilt；S0 deterministic Chromium RED与最近R4b.1 browser `101 / 1
 13. **S4.1b.1b.1b.2b.2b.1 settle/replay recovery implementation（已完成）**：交付
     authenticated composition generation、preexisting-only settle attempt与replay unsupported/fail-closed；不实现
     replay capability。
-14. **S4.1b.1b.1b.2b.3 player controls（当前）**：交付Auto/Skip、History intent、voice replay及
-    `player.toggle_ui` catalog removal；History child lifecycle仍归S4.2。
-15. **S4.2 dormant Host/History integration（待实施）**：交付controller/view/Host decomposition、captured resolver/required-port snapshot、
+14. **S4.1b.1b.1b.2b.3 player controls（已被细分的历史checkpoint）**：原聚合entry不再直接实施，
+    由`.3.0`与`.3a–.3d`取代。
+15. **S4.1b.1b.1b.2b.3.0 player-controls execution split（已完成，docs-only）**：冻结
+    toggle-ui catalog、voice、mode与History intent四个独立切片的线性边界。
+16. **S4.1b.1b.1b.2b.3a toggle-ui Narrative catalog corrective（当前）**：只从Dialogue managed
+    catalog移除`player.toggle_ui`，保留generic input ID及legacy live characterization。
+17. **S4.1b.1b.1b.2b.3b voice replay physical route（待实施）**：RED前冻结descriptor-captured
+    optional callable、attempt与exact family-local result；不接generic/public API。
+18. **S4.1b.1b.1b.2b.3c bridge-owned Auto/Skip transient mode floor（待实施）**：只交付transient
+    mode与route/result，不实现clock、timer、deadline、remaining或scheduling。
+19. **S4.1b.1b.1b.2b.3d History exact-parent open intent floor（待实施）**：只交付exact read-only
+    availability、opaque one-shot open intent与`requested | ignored | stale | faulted` family result；Input仍consumed，
+    不调用Coordinator或改变topology。
+20. **S4.2 dormant Host/History integration（待实施）**：交付controller/view/Host decomposition、captured resolver/required-port snapshot、
     Narrative portal Host-commit readiness/failure、exact-parent History open/close、managed input/focus/dismiss、timer suspension与
     Engine Lab dormant conformance；candidate ready前无ordinary authority。
-16. **S4.3 atomic live cutover/promotion（待实施）**：一次切换composition/DefaultGameRoot Narrative authoring与全部tracked consumers，
+21. **S4.3 atomic live cutover/promotion（待实施）**：一次切换composition/DefaultGameRoot Narrative authoring与全部tracked consumers，
     删除旧writers/exports/direct dispatch path，验证root/History retain/retire、三设备双fence、focus/inert、Narrative对既有
     reset adapter的响应与旧evidence
     stale rejection，随后更新architecture/features/development/authoring/website并跑受影响browser/examples/prebuilt。
@@ -3225,7 +3247,8 @@ source-relative result。
 architecture/features/development，也不记录unit/browser/build evidence。验证只要求四文档`deno fmt --check`与
 `git diff --check`。实现线性顺序固定为S4.1b.1b.1b.2b.1a → S4.1b.1b.1b.2b.1b →
 S4.1b.1b.1b.2b.2a → S4.1b.1b.1b.2b.2b.0 → S4.1b.1b.1b.2b.2b.1 →
-S4.1b.1b.1b.2b.3 → S4.2；若需要raw renderer/controller authority、无proof的barrier replay、fully hidden
+S4.1b.1b.1b.2b.3.0 → S4.1b.1b.1b.2b.3a → S4.1b.1b.1b.2b.3b →
+S4.1b.1b.1b.2b.3c → S4.1b.1b.1b.2b.3d → S4.2；若需要raw renderer/controller authority、无proof的barrier replay、fully hidden
 focus-trapped root或generic/public receipt/result expansion，立即停止。
 
 **S4.1b.1b.1b.2b.1 execution-order amendment（docs-only）：** `.1a`只在既有physical admission中交付
@@ -3352,7 +3375,8 @@ S4.1b.1b.1b.2b.1b完成时current/next均为
 **S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment**；该checkpoint现由下述`.2a`
 delivery关闭，后续顺序保持
 S4.1b.1b.1b.2b.2a → S4.1b.1b.1b.2b.2b.0 → S4.1b.1b.1b.2b.2b.1 →
-S4.1b.1b.1b.2b.3 → S4.2 → S4.3 → S4b。
+S4.1b.1b.1b.2b.3.0 → S4.1b.1b.1b.2b.3a → S4.1b.1b.1b.2b.3b →
+S4.1b.1b.1b.2b.3c → S4.1b.1b.1b.2b.3d → S4.2 → S4.3 → S4b。
 
 ### S4.1b.1b.1b.2b.2 entry checkpoint — barrier acknowledgment/recovery（docs-only，已完成）
 
@@ -3665,9 +3689,47 @@ generic Surface result/receipt，也不改动Base interaction、Save/Persistence
 验证通过focused `8 files / 315 tests`、UI package `79 files / 1122 tests`、full `253 files / 4052 tests`与
 `deno task check`；fresh Engine browser `101 / 101`、examples `45 passed / 2 skipped`与prebuilt Player
 `38 / 38`均green。S4.1b.1b.1b.2b.2b.1已完成；active current/next与唯一implementation gate现均为
-**S4.1b.1b.1b.2b.3 player controls**，随后依次为S4.2、S4.3与S4b。
+**S4.1b.1b.1b.2b.3 player controls**；该聚合checkpoint现由下述`.3.0` amendment取代。
 
-S4.1 aggregate stop在S4.1b.1b.1b.1–S4.1b.1b.1b.2b.3继续有效：若后续证据要求公开lease/source/occurrence/Coordinator、复用global
+### S4.1b.1b.1b.2b.3.0 amendment — player-controls execution split
+
+原 **S4.1b.1b.1b.2b.3 player controls** 是历史聚合checkpoint，不再作为可直接实施的current entry。
+本docs-only amendment把它线性拆为：
+
+1. **S4.1b.1b.1b.2b.3a toggle-ui Narrative catalog corrective（当前）**：只从
+   `surface.narrative.dialogue`的managed definition action catalog移除`player.toggle_ui`。Generic
+   `playerInputActionIdsV1.toggleUi`继续保留；Engine Lab及tracked Story的legacy local hidden/input characterization也不在本批删除或改线。
+   既有binding-origin该action因此走`surface.action_unpublished`且Input保持consumed/zero lower fallthrough；generic
+   unclaimed input仍遵循既有InputRouter语义。该corrective不接隐藏能力，不允许blocking、owns-focus、trap Dialogue root进入
+   fully hidden状态。
+2. **S4.1b.1b.1b.2b.3b voice replay physical route**：实现RED前必须先冻结descriptor-safe captured
+   optional voice receiver/own-data callable、exact current ready-active Say attempt provenance与closed family-local handled/
+   ignored/stale/faulted result。该route不形成semantic resolution，不扩张generic Surface/Input result、public API、barrel或package export。
+3. **S4.1b.1b.1b.2b.3c bridge-owned Auto/Skip transient mode floor**：只在Narrative bridge/composition
+   lifetime内交付`normal | auto | skip` mutually-exclusive mode、toggle route与exact result；不读取或调度clock，不实现timer、
+   deadline、remaining、reveal cursor或automatic semantic dispatch。Mode scheduling、suspend/resume remaining与同transition
+   first-win全部留S4.2的`DialoguePlayerController`/Host。
+4. **S4.1b.1b.1b.2b.3d History exact-parent open intent floor**：只在managed physical route与exact current
+   ready-active Dialogue parent proof通过后读取descriptor-captured read-only History availability。Unavailable返回consumed
+   family-local ignored；throw/invalid、proof drift与stale attempt分别返回faulted/stale。Authenticated catalog route的Input在
+   `requested | ignored | stale | faulted`四类family-local outcome下都保持consumed，不向lower context fall through，且
+   topology/semantic/gameplay mutation为零。Available只mint frozen、opaque、one-shot、package-internal exact-parent open intent；
+   本批不调用Coordinator、不prepare/open/close child、不分配History occurrence/instance，也不实现active History的
+   `player.toggle_history`/`ui.cancel` close、focus restore、dismiss、root suspension或timer coordination。这些全部由S4.2在
+   same-composition transition fence内消费intent并交付actual History child lifecycle。
+
+因此唯一线性implementation order与current/next gate为
+**S4.1b.1b.1b.2b.3a → S4.1b.1b.1b.2b.3b → S4.1b.1b.1b.2b.3c →
+S4.1b.1b.1b.2b.3d → S4.2 → S4.3 → S4b**。`.3a`若必须删除generic input ID、修改legacy live writer或实现
+fully-hidden topology则停止；`.3b`若需要raw renderer authority或generic/public result expansion则停止；`.3c`若mode
+floor必须同时实现clock/timer/deadline/remaining则停止并把执行部分留S4.2；`.3d`若intent emission必须直接修改topology、
+暴露raw Coordinator/parent identity或承担History close/focus/dismiss则停止并留S4.2。
+
+本amendment严格为docs-only：没有source、test、runtime、React/Web/live claimant、public API或delivery evidence变化，
+也不把此前focused/UI/full/check/browser/examples/prebuilt结果冒充本批新证据。验证只要求本文件
+`deno fmt --check`与`git diff --check`。
+
+S4.1 aggregate stop在S4.1b.1b.1b.1–S4.1b.1b.1b.2b.3d继续有效：若后续证据要求公开lease/source/occurrence/Coordinator、复用global
 semantic/presentation revision、允许同一semantic occurrence的full normalized `PendingInteractionV1` canonical漂移，
 或余下action admission仍需要扩大generic result code，立即停止；S4.2前stop：若unsupported pending必须保留平行host、
 History不能作为same-authority exact child或Host readiness需要真实async renderer新合同；S4.3前stop：若同一cutover不能
