@@ -41,9 +41,10 @@ promotion 均已关闭。2026-08-08 dormant `PF4/S3c.1 Host-commit readiness`、
 `PF4/S4.1b.1b.1b.2b.0 remaining mapping policy adjudication`与
 `PF4/S4.1b.1b.1b.2b.1a physical Say reveal-first admission`及
 `PF4/S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor`与
-`PF4/S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment`也已关闭，
+`PF4/S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment`与
+`PF4/S4.1b.1b.1b.2b.2b.0 recovery generation admission contract`也已关闭，
 linear core current/next均为
-`PF4/S4.1b.1b.1b.2b.2b settle/replay recovery`。
+`PF4/S4.1b.1b.1b.2b.2b.1 settle/replay recovery implementation`。
 同日 S1-R pre-implementation review 将 external reconcile gate 重切为 S1-R.0–S1-R.5；
 顺序变化不把任何 planned stable-target contract写成 live capability。
 同日 S1-R.3 entry-gate adjudication 采用 A-prime，将原 R3 拆为单一 composite
@@ -65,8 +66,9 @@ S4.1b.1b.1b.1 automatic pause-expiry controller-attempt admission/dispatch floor
 S4.1b.1b.1b.2a custom physical payload admission与S4.1b.1b.1b.2b.0 remaining mapping
 policy adjudication及S4.1b.1b.1b.2b.1a physical Say reveal-first admission也已关闭，
 S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor与
-S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment也已关闭，下一独立切片为
-S4.1b.1b.1b.2b.2b settle/replay recovery。
+S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment与
+S4.1b.1b.1b.2b.2b.0 recovery generation admission contract也已关闭，下一独立切片为
+S4.1b.1b.1b.2b.2b.1 settle/replay recovery implementation。
 旧 promotion 数字保留为
 历史证据。本文是当前唯一的跨计划排序入口；
 具体合同仍由各 design 文档拥有，主要任务由五个独立计划拥有：
@@ -952,12 +954,13 @@ Surface pilot 通过后按 family 分开合并：
 12. S4.1b.1b.1b.2b.1a：physical Say reveal-first admission（已完成）；
 13. S4.1b.1b.1b.2b.1b：content-auto Say controller-attempt floor（已完成）；
 14. S4.1b.1b.1b.2b.2a：normal Stage→Narrative acknowledgment（已完成）；
-15. S4.1b.1b.1b.2b.2b：settle/replay recovery（当前）；
-16. S4.1b.1b.1b.2b.3：player controls；
-17. S4.2：dormant Narrative Host、Host-commit readiness与History exact child；
-18. S4.3：atomic live cutover and promotion；
-19. S4b：whole-canvas primary/detail 独立 family；
-20. input/gesture reset（pointercancel、focus loss、visibility change）与 Browser
+15. S4.1b.1b.1b.2b.2b.0：recovery generation admission contract（docs-only checkpoint，已完成）；
+16. S4.1b.1b.1b.2b.2b.1：settle/replay recovery implementation（当前）；
+17. S4.1b.1b.1b.2b.3：player controls；
+18. S4.2：dormant Narrative Host、Host-commit readiness与History exact child；
+19. S4.3：atomic live cutover and promotion；
+20. S4b：whole-canvas primary/detail 独立 family；
+21. input/gesture reset（pointercancel、focus loss、visibility change）与 Browser
     Agent observation。
 
 S3 是 Coordinator-owned transient family，与 Workspace Overlay 共用同一个
@@ -1671,8 +1674,9 @@ S4.1b.1b.1b.2b.2 barrier acknowledgment/recovery，现由下述docs-only amendme
 
 **PF4/S4.1b.1b.1b.2b.2 execution-order amendment（docs-only）：** Barrier实现拆为
 S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment与
-S4.1b.1b.1b.2b.2b settle/replay recovery；后续顺序固定为
-S4.1b.1b.1b.2b.2a → S4.1b.1b.1b.2b.2b → S4.1b.1b.1b.2b.3 → S4.2 → S4.3 → S4b。
+S4.1b.1b.1b.2b.2b settle/replay recovery；该节点现进一步拆分，后续顺序固定为
+S4.1b.1b.1b.2b.2a → S4.1b.1b.1b.2b.2b.0 → S4.1b.1b.1b.2b.2b.1 →
+S4.1b.1b.1b.2b.3 → S4.2 → S4.3 → S4b。
 
 `.2a`在同一claimed Stage retarget plan中只允许恰好一个`acknowledge: true`且logical original
 transition ID与pending expected ID相同的run；0个或多个匹配都必须在interrupt、run start或Stage
@@ -1737,9 +1741,23 @@ architecture文档；没有接Host/React/Web/live Narrative claimant，没有扩
 Managed Surface result/receipt，也没有修改Base interaction/evaluator/queue、Save/Persistence/canonical/digest/replay/wire或S4b。
 验证通过focused `8 files / 292 tests`、UI package `79 files / 1099 tests`、full `253 files / 4029 tests`与完整
 `deno task check`；本HEAD还fresh通过Engine browser `101 / 101`、examples browser `45 passed / 2 skipped`与prebuilt Player
-`38 / 38`。Linear core current/next均推进为
-S4.1b.1b.1b.2b.2b settle/replay recovery；后续顺序保持
-S4.1b.1b.1b.2b.2b → S4.1b.1b.1b.2b.3 → S4.2 → S4.3 → S4b。
+`38 / 38`。该delivery完成时linear core current/next均推进为
+S4.1b.1b.1b.2b.2b settle/replay recovery，现由下述docs-only checkpoint进一步拆分。
+
+**PF4/S4.1b.1b.1b.2b.2b.0 recovery generation admission contract checkpoint
+（docs-only，已完成）：** Recovery generation继续复用`.2a`的同一个claim-exclusive Stage authority与同一个
+Narrative Barrier controller/bridge authority，不新增第二个cursor、anchor token或writer。Stage current proof只由既有
+authority认证，并相对bridge保留的prior proof判定initial/equal/higher，lower直接映射stale；bridge只保留一个O(1) current generation及
+generation建立时的exact preexisting Barrier target-or-null。Equal复用exact generation与原target-or-null，保持zero
+resnapshot；同application bridge上的fresh reconciler proof为foreign并fail closed，不把React remount、StrictMode或callback/
+effect identity提升为freshness。Claim后presentation epoch只经existing controller委托同一Stage authority的generation-retarget
+入口推进，same epoch与reentry fail closed，禁止raw public writer或test hook。Initial/higher安装还绑定descriptor-captured exact activation gate：安装时必须closed，后续
+recovery issuance/dispatch时必须是同一gate且open。Application successor只能以fresh bridge/authority建立initial generation。
+
+本checkpoint只冻结admission合同与execution split；没有source/test/runtime delivery或验证证据，没有接Host/React/Web/live
+Narrative claimant，也不新增public或`./internal` barrel、package export、generic Managed Surface result/receipt。Linear core
+current/next均为 **S4.1b.1b.1b.2b.2b.1 settle/replay recovery implementation**；后续顺序保持
+S4.1b.1b.1b.2b.2b.1 → S4.1b.1b.1b.2b.3 → S4.2 → S4.3 → S4b。
 
 每个 family 的迁移提交必须删除旧 owner；禁止长期 adapter 双写。
 `DialoguePanelV1` / `VnLayerV1` 的 controller/view/host 拆分在 Narrative family

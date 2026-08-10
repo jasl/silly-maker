@@ -110,8 +110,9 @@ admission/dispatch floor，S4.1b.1b.1b.2a又已交付custom physical payload adm
 S4.1b.1b.1b.2b.0现已冻结remaining Say/barrier/player policy，
 S4.1b.1b.1b.2b.1a又已交付physical Say reveal-first admission，
 S4.1b.1b.1b.2b.1b又已交付content-auto Say controller-attempt floor，
-S4.1b.1b.1b.2b.2a又已交付normal Stage→Narrative acknowledgment vertical。
-当前active execution pointer的current/next均为S4.1b.1b.1b.2b.2b settle/replay recovery；之后依次为
+S4.1b.1b.1b.2b.2a又已交付normal Stage→Narrative acknowledgment vertical，
+S4.1b.1b.1b.2b.2b.0又已冻结recovery generation admission entry contract。
+当前active execution pointer的current/next均为S4.1b.1b.1b.2b.2b.1 settle/replay recovery implementation；之后依次为
 S4.1b.1b.1b.2b.3 player controls、S4.2、S4.3与S4b。
 R3b.1、R4.0、R4a、R4b.0、R4b.1、R5、S4.0、S4.1a、S4.1b.0、S4.1b.1a、S4.1b.1b.0与
 S4.1b.1b.1a、S4.1b.1b.1b.1、S4.1b.1b.1b.2a、S4.1b.1b.1b.2b.0与
@@ -1340,7 +1341,8 @@ PlayerProfile preference format、Save/Persistence/canonical/digest/replay/wire�
 S4.1b.1b.1b.2b.1a physical Say reveal-first admission →
 S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor →
 S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment vertical →
-S4.1b.1b.1b.2b.2b settle/replay recovery →
+S4.1b.1b.1b.2b.2b.0 recovery generation admission entry amendment（已完成）→
+S4.1b.1b.1b.2b.2b.1 settle/replay recovery implementation（当前）→
 S4.1b.1b.1b.2b.3 player controls → S4.2。若Say需要把raw reveal/controller authority交给renderer、Barrier replay
 必须在没有exact replay descriptor/capability时推进、player control要求fully hidden focus-trapped root，或任一路径要求
 扩大generic/public receipt/result，立即停止并修订合同。
@@ -1369,7 +1371,8 @@ S4.1b.1b.1b.2b.0 remaining mapping policy adjudication（已完成）；
 S4.1b.1b.1b.2b.1a physical Say reveal-first admission（已完成）；
 S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor（已完成）；
 S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment vertical（已完成）；
-S4.1b.1b.1b.2b.2b settle/replay recovery（当前）；
+S4.1b.1b.1b.2b.2b.0 recovery generation admission entry amendment（docs-only，已完成）；
+S4.1b.1b.1b.2b.2b.1 settle/replay recovery implementation（当前）；
 S4.1b.1b.1b.2b.3 player controls；S4.2 dormant
 controller/view/Host、Host-commit readiness与History exact-child integration；
 S4.3在一个cutover中迁移全部tracked consumers、删除旧writers并完成headless/browser/prebuilt promotion。若exact-parent
@@ -1488,8 +1491,8 @@ S4.1b.1b.1a验证通过focused `7 files / 192 tests`、UI `79 files / 1010 tests
 `253 files / 3938 tests`与`deno task check` green。本批未重跑browser/examples/prebuilt；`101 / 101`、
 `45 passed / 2 skipped`与`38 / 38`仅是先前已有证据，不冒充本批HEAD验证。
 该checkpoint当时的current/next是S4.1b.1b.1b.2a；现已由上述.2a delivery推进。
-Active current/next现均为S4.1b.1b.1b.2b.2b；后续顺序保持
-S4.1b.1b.1b.2b.2b →
+Active current/next现均为S4.1b.1b.1b.2b.2b.1；后续顺序保持
+S4.1b.1b.1b.2b.2b.1 →
 S4.1b.1b.1b.2b.3 → S4.2 → S4.3 → S4b。
 
 **S4.1b.1b.1b.2b.1 execution-order amendment：** Say先拆成两个vertical。`.1a`沿用既有
@@ -1610,12 +1613,14 @@ Host/React/live claimant，也没有新增public/`./internal` barrel、package e
 验证通过focused `7 files / 236 tests`、UI `79 files / 1054 tests`、full `253 files / 3984 tests`与
 `deno task check` green。本批未重跑browser/examples/prebuilt；Engine browser `101 / 101`、examples
 `45 passed / 2 skipped`与prebuilt Player `38 / 38`仅为prior evidence，不冒充本批HEAD验证。
-S4.1b.1b.1b.2b.1b已完成；active current/next现均推进为
-S4.1b.1b.1b.2b.2b settle/replay recovery；S4.1b.1b.1b.2b.2a已由下述delivery关闭。
+S4.1b.1b.1b.2b.1b已完成；该checkpoint的current/next推进为
+S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment；该切片已由下述delivery关闭，当前又经
+`.2b.2b.0` docs checkpoint推进到`.2b.2b.1` settle/replay recovery implementation。
 
 **S4.1b.1b.1b.2b.2 entry amendment（历史checkpoint）：** Barrier先拆为
 S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment vertical，再做
-S4.1b.1b.1b.2b.2b settle/replay recovery；两者完成后才进入S4.1b.1b.1b.2b.3
+S4.1b.1b.1b.2b.2b settle/replay recovery（现已细分为`.2b.2b.0` docs checkpoint与`.2b.2b.1`
+implementation）；两者完成后才进入S4.1b.1b.1b.2b.3
 player controls。该checkpoint当时只冻结source-relative合同，没有runtime、test、Host/live claimant或delivery evidence；
 现已由下述`.2b.2a` delivery部分关闭。
 
@@ -1764,19 +1769,83 @@ evidence；`cancelled`始终semantic dispatch为零。
 canonical/digest/replay/wire合同。验证通过focused `8 files / 292 tests`、UI `79 files / 1099 tests`、full
 `253 files / 4029 tests`与`deno task check` green；fresh Engine browser为`101 / 101`、examples为
 `45 passed / 2 skipped`、prebuilt Player为`38 / 38`。S4.1b.1b.1b.2b.2a现已完成；active current/next均推进为
-S4.1b.1b.1b.2b.2b settle/replay recovery。
+S4.1b.1b.1b.2b.2b.1 settle/replay recovery implementation；其前置`.2b.2b.0` docs checkpoint见下。
 
-`.2b.2b`在同一controller上新增`StagePresentationGenerationProofInternalV1`、
-`NarrativeStableBarrierRecoveryGenerationInternalV1`与`NarrativeStableBarrierRecoveryAttemptInternalV1`，均为frozen zero-key
-opaque capability。Stage authority的`captureCurrentPresentationGenerationInternalV1()`只从已接受的current Stage epoch产生
-exact reconciler/Host-generation proof；Narrative的`synchronizeRecoveryGenerationInternalV1()`把它与bridge/application
-identity组合，并只保留一个current O(1) generation。新application bridge的首次capture是initial coherent bootstrap；higher
-accepted presentation epoch安装fresh generation，equal epoch返回unchanged并复用exact generation，lower epoch返回stale，
-invalid/foreign proof返回faulted。React remount、StrictMode或callback/effect identity即使更换reconciler，只要application bridge与
-presentation epoch相同就不得resnapshot target或产生fresh recovery generation。
+**S4.1b.1b.1b.2b.2b.0 recovery generation admission entry amendment（docs-only，已完成）：**
+既有`NarrativeStableBarrierAcknowledgmentControllerInternalV1`提升为同一composition/application bridge拥有的长寿命controller，
+仍是唯一Barrier Stage claimant，但构造与claim不再要求当时已经存在Barrier target。没有current Barrier时，normal
+`retargetCurrentBarrierStageInternalV1`稳定返回既有`{ kind: "stale", completion: null }`，
+`flushRetainedTerminalInternalV1`返回`null`；不得为缺失target伪造Stage run、terminal evidence或semantic dispatch。Recovery
+generation、preexisting target capture、attempt/result cache与once-per target/generation claim都存入
+`NarrativeStablePublisherBridgeRecordInternalV1`，不能存进React/controller-local lifecycle或在StrictMode重建时丢失。
 
-Generation安装时只捕获当时已经存在的exact Barrier target、semantic occurrence与canonical pending bytes；同generation之后才
-发布的Barrier、replacement或canonical drift都不获得settle资格。Controller新增
+Stage新增frozen zero-key opaque `StagePresentationGenerationProofInternalV1`与exact frozen
+`StagePresentationGenerationCaptureResultInternalV1`。既有exact
+`StageAcknowledgedRunAuthorityInternalV1.captureCurrentPresentationGenerationInternalV1(previousProof: unknown | null)`只按同一
+authority/reconciler的accepted current Stage epoch返回closed union：
+`{ kind: "captured", relation: "initial" | "equal" | "higher", proof } |
+{ kind: "stale", proof: null } | { kind: "faulted", proof: null }`。
+Numeric epoch不进入Narrative或任何cloneable result。`null`只表达caller尚无accepted generation；same-authority current proof在
+same epoch返回`equal`并复用exact cached proof；每次accepted epoch transition先撤销current cache，下一次capture才签发fresh
+proof，exact prior proof只在current epoch严格更高时返回`higher`。Current Stage unavailable、current epoch较低，或numeric ABA回到
+same epoch后收到noncurrent old proof均返回`stale`；foreign
+authority/reconciler proof、clone、unissued、invalid shape与hostile value返回`faulted`且zero caller-field read。Stage只保留current
+strong slot，旧proof provenance留在WeakMap而不形成历史vector；dispose撤销current proof。Acknowledged-run planning/interrupting
+operation或其他authority mutation尚在栈内时的capture稳定`faulted`并进入既有reentry fence，不得读取、mint或替换generation
+proof。Public Stage reconciler、acknowledgment
+shape、run proof与writer authority不变。
+
+Claim之后presentation epoch只能由同一个Stage authority推进，不能借已经封闭的public `retarget`或test-only后门。
+Stage authority因此同时新增exact frozen `StagePresentationGenerationRetargetResultInternalV1`：
+`{ kind: "retargeted" } | { kind: "stale" } | { kind: "faulted" }`，以及
+`retargetPresentationGenerationInternalV1(retarget: StageRetargetInputV1)`。该入口只接受initial bootstrap或
+`retarget.epoch !== current accepted epoch`的presentation-generation replacement，并沿既有contained epoch-change路径静默
+dispose old runs、安装stable target/revision/epoch后通知；same epoch固定`stale`且target/run/revision/notification zero，disposed
+固定`stale`，acknowledged planning/interrupting、nested mutation或callback reentry固定`faulted`。既有Barrier controller只增加
+exact-receiver wrapper `retargetPresentationStageInternalV1(retarget)`并返回同一Stage result；wrapper与normal acknowledged retarget
+共用`stageRetargetInProgress` fence，不持有第二Stage writer，也不读取或修改Narrative recovery generation。Higher/lower relation
+测试必须先经该真实wrapper推进Stage，再显式调用synchronize；不得直接拿raw authority或public reconciler制造epoch。
+Initial/higher/lower retarget与same-epoch stale都不得读取、清除或替换Narrative的`barrierTargetTerminalClaim`、callback/
+semantic-in-flight claim或Promise tombstone；generation relation失败不能把presentation replacement变成第二次semantic dispatch，
+old completion仍是其exact CAS owner。
+
+为保持single writer，claim后的既有`StageAcknowledgedRunAuthorityInternalV1.retargetInternalV1(retarget)`同步收窄为只处理
+already-initialized且`retarget.epoch === current accepted epoch`的ordinary same-generation retarget；current epoch尚未初始化或epoch
+mismatch时exact zero mutation/notification。Initial/higher/lower presentation replacement只能走上述新generation-retarget方法，
+normal acknowledged Barrier edge只能走`retargetWithAcknowledgedRunInternalV1`；三条入口不得互相旁路。
+
+Narrative新增frozen zero-key `NarrativeStableBarrierRecoveryGenerationInternalV1`与exact frozen
+`NarrativeStableBarrierRecoveryGenerationSynchronizationResultInternalV1`：
+`{ kind: "installed", generation } | { kind: "unchanged", generation } |
+{ kind: "stale", generation: null } | { kind: "faulted", generation: null }`。Controller的
+`synchronizeRecoveryGenerationInternalV1(activationGate)`只接受同一composition source-relative提供的exact
+`ManagedSurfaceFamilyActivationGateInternalV1`，并descriptor-capture exact one-key own-data
+`isOpen(): boolean` receiver/callable；该binding只能从`false`单向转为`true`，不新增第二个gate、cursor或generation authority。
+Initial/higher row才可读取gate或target：supplied fresh gate必须保持closed，随后捕获当时exact current
+Barrier target、semantic occurrence与canonical pending bytes，允许target为`null`，再按Stage current proof、same exact gate binding、
+bridge/application identity与captured target做callback-safe postcheck，并重验同一captured callable仍为closed，全部成立才原子安装
+fresh generation；每个initial/higher row可提供一个fresh closed gate并替换旧stored binding，gate不是controller construction固定的
+永久对象。Equal row复用exact
+generation、preexisting target、attempt/result/claim identity，只比较supplied gate与stored binding的exact object identity，且对
+gate属性与target projection均zero read；lower/stale Stage row也
+保持gate、target、result与notification zero。Accessor/extra-key/foreign-prototype/noncallable gate、wrong receiver或Stage proof
+fault稳定`faulted`且zero mutation。该gate是source-relative exact data-callable port而不是opaque provenance capability；plain exact
+callable clone不能仅靠structure区分，所以composition Host必须独占并不得向renderer、React effect或其他caller泄露、复制或伪造它。
+
+同一controller绑定的same reconciler/authority才可形成`equal`。React remount、StrictMode与effect/callback identity本身既不mint
+proof也不调用synchronize；换成new reconciler/authority的same numeric epoch属于foreign并返回`faulted`，不能借numeric equality
+resnapshot target。Application successor必须使用fresh bridge/controller/gate domain，并从`initial`安装fresh generation；old gate、
+proof、generation、attempt与result均不能跨bridge ABA复活。已存exact gate必须在任何settle/replay issue或dispatch前变为open；仍
+closed、open后重新报告closed、captured callable throw/invalid result、bridge/proof successor或dispose均fail closed且zero semantic
+dispatch。
+
+本docs checkpoint只冻结admission、identity与precedence，没有实现source、test、runtime或live wiring，也不记录delivery/evidence。
+它不新增public/`./internal` barrel、package export、raw public acknowledgment、React timing authority、generic Surface result、Base、
+Save/Persistence/replay/wire变化。S4.1b.1b.1b.2b.2b.1为当前 implementation slice。
+
+`.2b.2b.1`在上述bridge-owned generation上新增frozen zero-key
+`NarrativeStableBarrierRecoveryAttemptInternalV1`。Generation安装时只认当时已经存在的preexisting Barrier identity；同generation
+之后才发布的Barrier、replacement或canonical drift都不获得settle资格。Controller新增
 `issueSettleRecoveryAttemptInternalV1(): NarrativeStableBarrierRecoveryAttemptInternalV1 | null`与
 `dispatchSettleRecoveryInternalV1(attempt): NarrativeStableBarrierRecoveryDispatchResultInternalV1`。Attempt只为eligible
 `loadRecovery: "settle"` target签发，并在dispatch时要求fresh ready-active target/source/frame/port/runtime proof；它没有gesture、
@@ -1786,8 +1855,9 @@ input-owner、clock或renderer字段。Recovery dispatch result固定为
 
 `loadRecovery: "replay"`不签发attempt。`readReplayRecoveryUnsupportedInternalV1()`按exact target/generation返回并缓存唯一
 frozen `{ kind: "unsupported", code: "narrative.barrier_replay_unsupported", completion: null }`；repeat复用同一identity且
-notification、semantic、source、runtime与topology均zero，target/generation successor才可建立fresh result。Replay unsupported与
-settle共享同一once-per-target/generation recovery claim，但不伪造Stage proof或semantic-in-flight。`.2b.2a/.2b.2b`都不得修改
+notification、semantic、source、runtime与topology均zero。只有fresh installed generation可建立fresh result；successor target
+必须先被该fresh generation捕获为preexisting，same-generation target successor保持ineligible。Replay unsupported与
+settle共享同一once-per-target/generation recovery claim，但不伪造Stage proof或semantic-in-flight。`.2b.2a/.2b.2b.0/.2b.2b.1`都不得修改
 public `StageReconcilerV1`/acknowledgment shape、root或`./internal` barrel、package export、generic Surface result/receipt、Base
 interaction/Save/replay/wire或live Engine Lab writer；这些source-relative vertical完成后才允许进入`.2b.3`。
 
