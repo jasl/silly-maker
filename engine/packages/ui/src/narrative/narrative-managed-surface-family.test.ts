@@ -4,16 +4,26 @@ import {
   parseNonNegativeSafeInteger,
   parsePendingInteractionV1,
 } from "@sillymaker/base";
-import { describe, expect, expectTypeOf, it } from "vitest";
+import { describe, expect, expectTypeOf, it, vi } from "vitest";
 
+import { createInputRouterV1 } from "../input/input-router.ts";
+import {
+  parseManagedSurfaceActionIdV1,
+  parseManagedSurfaceGestureIdV1,
+} from "../managed-surfaces/managed-surface-contracts.ts";
 import { createManagedSurfaceReducerStateV1 } from "../managed-surfaces/managed-surface-reducer.ts";
 import {
   createManagedSurfaceStableAdmissionAuthorityInternalV1,
   type ManagedSurfaceStableAdmissionAuthorityInternalV1,
 } from "../managed-surfaces/managed-surface-stable-admission.ts";
 import {
+  claimManagedSurfaceStableActionRouteAuthorityInternalV1,
   createManagedSurfaceStableCompositeRuntimeKernelInternalV1,
+  createManagedSurfaceStableReadyRuntimeBindingInternalV1,
+  reconcileManagedSurfaceStableRootReservationsInternalV1,
   type ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
+  type ManagedSurfaceStableRootReservationContributorCandidateInternalV1,
+  type ManagedSurfaceStableRuntimeEntryInternalV1,
 } from "../managed-surfaces/managed-surface-stable-composite-state.ts";
 import {
   createLocalManagedSurfaceStableLeaseSequenceAllocatorInternalV1,
@@ -22,17 +32,26 @@ import {
 } from "../managed-surfaces/managed-surface-stable-publisher-lease.ts";
 import {
   createNarrativeManagedSurfaceFamilyContractInternalV1,
+  createNarrativeStablePhysicalActionAdmissionInternalV1,
   createNarrativeStablePublisherBridgeInternalV1,
+  type CreateNarrativeStablePhysicalActionAdmissionInputInternalV1,
   type NarrativeManagedSurfaceFamilyContractInternalV1,
   type NarrativeStableCandidatePreflightInternalV1,
   type NarrativeStableCandidatePreflightRejectionCodeInternalV1,
   type NarrativeStableCandidatePreflightResultInternalV1,
+  type NarrativeStableChoiceActionAttemptInternalV1,
+  type NarrativeStablePhysicalActionAdmissionInternalV1,
+  type NarrativeStablePhysicalActionDispatchResultInternalV1,
   type NarrativeStablePublisherBridgeInternalV1,
   type NarrativeStablePublisherBridgeResultInternalV1,
   type NarrativeStableRequiredPortIdInternalV1,
+  type NarrativeStableSemanticResolutionPortInternalV1,
 } from "./narrative-managed-surface-family.ts";
 
 const applicationEpochV1 = parseNonNegativeSafeInteger(91);
+const narrativeChooseActionIdV1 = parseManagedSurfaceActionIdV1("narrative.choose");
+const narrativeConfirmActionIdV1 = parseManagedSurfaceActionIdV1("ui.confirm");
+const narrativeUnknownActionIdV1 = parseManagedSurfaceActionIdV1("narrative.unknown");
 const zeroDeltaV1 = Object.freeze({
   source: "unchanged" as const,
   runtime: "unchanged" as const,
@@ -40,10 +59,13 @@ const zeroDeltaV1 = Object.freeze({
   topology: "unchanged" as const,
   runtimeAllocation: "zero" as const,
 });
+const defaultSemanticDispatchPortV1 = Object.freeze({
+  dispatchResolutionInternalV1: (_request: unknown) => Promise.resolve(undefined),
+}) satisfies NarrativeStableSemanticResolutionPortInternalV1;
 const defaultCandidateSnapshotV1 = Object.freeze({
   rendererComponent: Object.freeze({ kind: "dialogue-renderer" }),
   visualConfig: Object.freeze({ skin: "test" }),
-  semanticDispatchPort: Object.freeze({ kind: "semantic-dispatch" }),
+  semanticDispatchPort: defaultSemanticDispatchPortV1,
   historyObservationPort: Object.freeze({ kind: "history-observation" }),
   playerProfile: Object.freeze({ locale: "en" }),
   presentationClock: Object.freeze({ kind: "manual-clock" }),
@@ -201,6 +223,89 @@ function expectZeroResultV1(
 ): void {
   expect(value).toEqual({ kind, code, delta: zeroDeltaV1 });
   expect(Object.isFrozen(value)).toBe(true);
+}
+
+function settleCurrentNarrativeReadyV1(harness: NarrativeHarnessV1): void {
+  const entry = harness.kernel.getStateInternalV1().stableRuntimeBindings[0];
+  if (entry?.binding.kind !== "preparing") throw new Error("expected Narrative preparation");
+  expect(
+    harness.kernel.settleStableReadinessReadyInternalV1({
+      readinessEvidence: Object.freeze({
+        applicationEpoch: applicationEpochV1,
+        surfaceInstanceId: entry.binding.attempt.identity.surfaceInstanceId,
+      }),
+      publisherLease: entry.desiredTarget.publisherLease,
+      sourceRevision: entry.desiredTarget.sourceRevision,
+    }),
+  ).toMatchObject({ kind: "applied", code: "surface.readiness_ready" });
+}
+
+function stableContributorCandidatesV1(
+  entries: readonly ManagedSurfaceStableRuntimeEntryInternalV1[],
+): readonly ManagedSurfaceStableRootReservationContributorCandidateInternalV1[] {
+  return Object.freeze(entries.flatMap((entry) => [
+    Object.freeze({ kind: "stable_desired" as const, desiredTarget: entry.desiredTarget }),
+    Object.freeze({
+      kind: "stable_runtime" as const,
+      desiredTarget: entry.desiredTarget,
+      binding: entry.binding,
+    }),
+  ]));
+}
+
+function suspendCurrentNarrativeV1(harness: NarrativeHarnessV1): void {
+  const current = harness.kernel.getStateInternalV1();
+  const entry = current.stableRuntimeBindings[0];
+  if (entry?.binding.kind !== "ready_instance") throw new Error("expected ready Narrative root");
+  const suspended = createManagedSurfaceStableReadyRuntimeBindingInternalV1({
+    attempt: entry.binding.instance.attempt,
+    phase: "suspended",
+  });
+  const entries = Object.freeze(
+    current.stableRuntimeBindings.map((candidate) =>
+      candidate === entry ? Object.freeze({ ...candidate, binding: suspended }) : candidate
+    ),
+  );
+  const next = reconcileManagedSurfaceStableRootReservationsInternalV1({
+    currentState: current,
+    contributorCandidates: stableContributorCandidatesV1(entries),
+  });
+  const prepared = harness.kernel.prepareStateInstallInternalV1(current, next);
+  expect(harness.kernel.commitPreparedStateInstallInternalV1(prepared, () => true)).toBe(
+    "installed",
+  );
+}
+
+function physicalChoiceHarnessV1(input: {
+  readonly semanticDispatchPort?: NarrativeStableSemanticResolutionPortInternalV1;
+  readonly isGestureCurrent?: () => boolean;
+} = {}) {
+  const semanticDispatchPort = input.semanticDispatchPort ?? defaultSemanticDispatchPortV1;
+  const harness = harnessV1({
+    candidatePreflight: Object.freeze({
+      preflightCandidateInternalV1: () =>
+        capturedCandidatePreflightResultV1(Object.freeze({
+          ...defaultCandidateSnapshotV1,
+          semanticDispatchPort,
+        })),
+    }),
+  });
+  expect(harness.bridge.reconcilePendingInternalV1(pendingV1("choice"))).toMatchObject({
+    kind: "applied",
+    code: "surface.stable_publication_applied",
+  });
+  settleCurrentNarrativeReadyV1(harness);
+  const inputRouter = createInputRouterV1();
+  const stableActionAuthority = claimManagedSurfaceStableActionRouteAuthorityInternalV1(
+    harness.kernel,
+  );
+  const admissionInput = Object.freeze({
+    bridge: harness.bridge,
+    inputRouter,
+    isGestureCurrent: input.isGestureCurrent ?? (() => true),
+  }) satisfies CreateNarrativeStablePhysicalActionAdmissionInputInternalV1;
+  const admission = createNarrativeStablePhysicalActionAdmissionInternalV1(admissionInput);
+  return { harness, inputRouter, stableActionAuthority, admission, semanticDispatchPort };
 }
 
 describe("Narrative stable Managed Surface family", () => {
@@ -548,9 +653,15 @@ describe("Narrative stable Managed Surface family", () => {
       acceptedBaseline.targets[0]!,
     )?.candidateSnapshot;
     expect(captured).not.toBe(defaultCandidateSnapshotV1);
-    expect(captured).toEqual(defaultCandidateSnapshotV1);
+    expect(captured).toEqual({
+      ...defaultCandidateSnapshotV1,
+      semanticDispatchPort: captured?.semanticDispatchPort,
+    });
     expect(Object.isFrozen(captured)).toBe(true);
     expect(captured?.rendererComponent).toBe(defaultCandidateSnapshotV1.rendererComponent);
+    expect(captured?.semanticDispatchPort).not.toBe(defaultSemanticDispatchPortV1);
+    expect(Object.isFrozen(captured?.semanticDispatchPort)).toBe(true);
+    expect(Reflect.ownKeys(captured?.semanticDispatchPort as object)).toEqual([]);
 
     const missing = harnessV1({
       candidatePreflight: Object.freeze({
@@ -742,6 +853,11 @@ describe("Narrative stable Managed Surface family", () => {
       "textResolver",
       { get: () => defaultCandidateSnapshotV1.textResolver, enumerable: true },
     );
+    const semanticDispatchPortAccessor = Object.defineProperty(
+      {},
+      "dispatchResolutionInternalV1",
+      { get: () => () => Promise.resolve(undefined), enumerable: true },
+    );
     const malformedResults: readonly unknown[] = Object.freeze([
       Object.freeze({}),
       Promise.resolve(capturedCandidatePreflightResultV1()),
@@ -780,6 +896,27 @@ describe("Narrative stable Managed Surface family", () => {
       })),
       capturedCandidatePreflightResultV1(candidateSnapshotMissingQuickMenu),
       capturedCandidatePreflightResultV1(candidateSnapshotAccessor),
+      capturedCandidatePreflightResultV1(Object.freeze({
+        ...defaultCandidateSnapshotV1,
+        semanticDispatchPort: Object.freeze({
+          ...defaultSemanticDispatchPortV1,
+          extra: true,
+        }),
+      })),
+      capturedCandidatePreflightResultV1(Object.freeze({
+        ...defaultCandidateSnapshotV1,
+        semanticDispatchPort: semanticDispatchPortAccessor,
+      })),
+      capturedCandidatePreflightResultV1(Object.freeze({
+        ...defaultCandidateSnapshotV1,
+        semanticDispatchPort: Object.freeze({ dispatchResolutionInternalV1: null }),
+      })),
+      capturedCandidatePreflightResultV1(Object.freeze({
+        ...defaultCandidateSnapshotV1,
+        semanticDispatchPort: Object.freeze(Object.assign(Object.create(null), {
+          dispatchResolutionInternalV1: () => Promise.resolve(undefined),
+        })),
+      })),
     ]);
     for (const rawResult of malformedResults) {
       const harness = harnessV1({
@@ -952,10 +1089,17 @@ describe("Narrative stable Managed Surface family", () => {
       semanticOccurrenceId: occurrenceV1(1),
       rendererKey,
       pending: parsePendingInteractionV1(pending),
-      candidateSnapshot: defaultCandidateSnapshotV1,
+      candidateSnapshot: {
+        ...defaultCandidateSnapshotV1,
+        semanticDispatchPort: frame?.candidateSnapshot.semanticDispatchPort,
+      },
     });
     expect(Object.isFrozen(frame)).toBe(true);
     expect(Object.isFrozen(frame?.pending)).toBe(true);
+    expect(frame?.candidateSnapshot.semanticDispatchPort).not.toBe(
+      defaultSemanticDispatchPortV1,
+    );
+    expect(Reflect.ownKeys(frame?.candidateSnapshot.semanticDispatchPort as object)).toEqual([]);
     expect(publisherSnapshotV1(harness)).toMatchObject({
       sourceRevisionIssuanceHighWater: 1,
       occurrenceIssuanceHighWater: 1,
@@ -1333,5 +1477,406 @@ describe("Narrative stable Managed Surface family", () => {
       leaseSequenceHighWater: 2,
       currentPublisherCount: 1,
     });
+  });
+
+  it("dispatches one authenticated current choice through the exact captured semantic port", async () => {
+    const semanticReceipt = Object.freeze({ kind: "semantic-accepted" as const });
+    let capturedRequest: unknown = null;
+    let semanticPort!: NarrativeStableSemanticResolutionPortInternalV1;
+    const dispatchResolution = vi.fn(function (this: unknown, request: unknown) {
+      expect(this).toBe(semanticPort);
+      capturedRequest = request;
+      return Promise.resolve(semanticReceipt);
+    });
+    semanticPort = Object.freeze({
+      dispatchResolutionInternalV1: dispatchResolution,
+    });
+    const fixture = physicalChoiceHarnessV1({ semanticDispatchPort: semanticPort });
+    const admission = fixture.admission;
+    type ExpectedDispatchResultV1 =
+      | Readonly<{ readonly kind: "dispatched"; readonly completion: Promise<unknown> }>
+      | Readonly<{ readonly kind: "unmapped"; readonly completion: null }>
+      | Readonly<{ readonly kind: "stale"; readonly completion: null }>
+      | Readonly<{ readonly kind: "faulted"; readonly completion: null }>;
+    expectTypeOf<NarrativeStablePhysicalActionDispatchResultInternalV1>()
+      .toEqualTypeOf<ExpectedDispatchResultV1>();
+    expectTypeOf(admission).toEqualTypeOf<NarrativeStablePhysicalActionAdmissionInternalV1>();
+    expect(Object.isFrozen(admission)).toBe(true);
+    expect(Reflect.ownKeys(admission)).toEqual([
+      "createEnvelopeInternalV1",
+      "issueChoiceAttemptInternalV1",
+      "routeInternalV1",
+      "disposeInternalV1",
+    ]);
+    expect(() =>
+      createNarrativeStablePhysicalActionAdmissionInternalV1({
+        bridge: fixture.harness.bridge,
+        inputRouter: fixture.inputRouter,
+        isGestureCurrent: () => false,
+      })
+    ).toThrowError("ui.narrative_stable_action_admission_invalid");
+
+    const attempt = admission.issueChoiceAttemptInternalV1("choice.test.first");
+    expectTypeOf(attempt).toEqualTypeOf<NarrativeStableChoiceActionAttemptInternalV1 | null>();
+    expect(attempt).not.toBeNull();
+    expect(Object.isFrozen(attempt)).toBe(true);
+    expect(Reflect.ownKeys(attempt as object)).toEqual([]);
+    const envelope = admission.createEnvelopeInternalV1({
+      actionId: narrativeChooseActionIdV1,
+      gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.choice-current"),
+    });
+
+    const result = admission.routeInternalV1(envelope, attempt);
+    expectTypeOf(result.consumerResult).toEqualTypeOf<
+      NarrativeStablePhysicalActionDispatchResultInternalV1 | null
+    >();
+    expect(Reflect.ownKeys(result)).toEqual(["route", "consumerResult"]);
+    expect(result.route).toMatchObject({
+      input: { kind: "consumed", code: "input.managed_surface_consumed" },
+      surface: { kind: "unchanged", code: "surface.action_routed" },
+    });
+    expect(result.consumerResult).toMatchObject({ kind: "dispatched" });
+    expect(Object.isFrozen(result.consumerResult)).toBe(true);
+    if (result.consumerResult?.kind !== "dispatched") {
+      throw new Error("expected semantic dispatch completion");
+    }
+    expect(result.consumerResult.completion).toBeInstanceOf(Promise);
+    await expect(result.consumerResult.completion).resolves.toBe(semanticReceipt);
+    expect(dispatchResolution).toHaveBeenCalledOnce();
+    expect(Reflect.ownKeys(capturedRequest as object)).toEqual([
+      "expectedOccurrenceId",
+      "resolution",
+    ]);
+    expect(capturedRequest).toEqual({
+      expectedOccurrenceId: occurrenceV1(1),
+      resolution: { kind: "choose", choiceId: "choice.test.first" },
+    });
+    expect(Object.isFrozen(capturedRequest)).toBe(true);
+    expect(
+      Object.isFrozen((capturedRequest as { readonly resolution: object }).resolution),
+    ).toBe(true);
+
+    admission.disposeInternalV1();
+    expect(
+      fixture.harness.bridge.reconcilePendingInternalV1(pendingV1("choice", 2)),
+    ).toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
+    settleCurrentNarrativeReadyV1(fixture.harness);
+    const successorAdmission = createNarrativeStablePhysicalActionAdmissionInternalV1({
+      bridge: fixture.harness.bridge,
+      inputRouter: fixture.inputRouter,
+      isGestureCurrent: () => true,
+    });
+    expect(successorAdmission).not.toBe(admission);
+    expect(
+      successorAdmission.issueChoiceAttemptInternalV1("choice.test.second"),
+    ).not.toBeNull();
+    successorAdmission.disposeInternalV1();
+  });
+
+  it("captures the semantic callable before candidate allocation and never re-reads it", async () => {
+    const originalReceipt = Object.freeze({ kind: "original-semantic-receipt" as const });
+    let semanticPort!: {
+      dispatchResolutionInternalV1: (request: unknown) => Promise<unknown>;
+    };
+    const originalDispatch = vi.fn(function (this: unknown) {
+      expect(this).toBe(semanticPort);
+      return Promise.resolve(originalReceipt);
+    });
+    const replacementDispatch = vi.fn(() => Promise.resolve("replacement-must-not-run"));
+    semanticPort = { dispatchResolutionInternalV1: originalDispatch };
+    const fixture = physicalChoiceHarnessV1({ semanticDispatchPort: semanticPort });
+    semanticPort.dispatchResolutionInternalV1 = replacementDispatch;
+    const attempt = fixture.admission.issueChoiceAttemptInternalV1("choice.test.first");
+    expect(attempt).not.toBeNull();
+    const result = fixture.admission.routeInternalV1(
+      fixture.admission.createEnvelopeInternalV1({
+        actionId: narrativeChooseActionIdV1,
+        gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.choice-captured-callable"),
+      }),
+      attempt,
+    );
+    expect(result.consumerResult).toMatchObject({ kind: "dispatched" });
+    if (result.consumerResult?.kind !== "dispatched") {
+      throw new Error("expected captured semantic dispatch completion");
+    }
+    await expect(result.consumerResult.completion).resolves.toBe(originalReceipt);
+    expect(originalDispatch).toHaveBeenCalledOnce();
+    expect(replacementDispatch).not.toHaveBeenCalled();
+  });
+
+  it("admits only a current ready choice without burning preparing or non-choice failures", () => {
+    const harness = harnessV1();
+    const inputRouter = createInputRouterV1();
+    expect(harness.bridge.reconcilePendingInternalV1(pendingV1("choice"))).toMatchObject({
+      kind: "applied",
+      code: "surface.stable_publication_applied",
+    });
+    expect(() =>
+      createNarrativeStablePhysicalActionAdmissionInternalV1({
+        bridge: harness.bridge,
+        inputRouter,
+        isGestureCurrent: () => true,
+      })
+    ).toThrowError("ui.narrative_stable_action_admission_unavailable");
+
+    settleCurrentNarrativeReadyV1(harness);
+    const first = createNarrativeStablePhysicalActionAdmissionInternalV1({
+      bridge: harness.bridge,
+      inputRouter,
+      isGestureCurrent: () => true,
+    });
+    first.disposeInternalV1();
+    expect(harness.bridge.reconcilePendingInternalV1(pendingV1("say", 2))).toMatchObject({
+      kind: "applied",
+      code: "surface.stable_publication_applied",
+    });
+    settleCurrentNarrativeReadyV1(harness);
+    expect(() =>
+      createNarrativeStablePhysicalActionAdmissionInternalV1({
+        bridge: harness.bridge,
+        inputRouter,
+        isGestureCurrent: () => true,
+      })
+    ).toThrowError("ui.narrative_stable_action_admission_unavailable");
+
+    expect(harness.bridge.reconcilePendingInternalV1(pendingV1("choice", 3))).toMatchObject({
+      kind: "applied",
+      code: "surface.stable_publication_applied",
+    });
+    settleCurrentNarrativeReadyV1(harness);
+    const successor = createNarrativeStablePhysicalActionAdmissionInternalV1({
+      bridge: harness.bridge,
+      inputRouter,
+      isGestureCurrent: () => true,
+    });
+    expect(successor.issueChoiceAttemptInternalV1("choice.test.first")).not.toBeNull();
+    successor.disposeInternalV1();
+  });
+
+  it("rejects unknown, spoofed, cloned, wrong-action, and repeated attempts without raw ingress", async () => {
+    const dispatchResolution = vi.fn(() => Promise.resolve("dispatched"));
+    const fixture = physicalChoiceHarnessV1({
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: dispatchResolution,
+      }),
+    });
+    const admission = fixture.admission;
+    expect(admission.issueChoiceAttemptInternalV1("choice.test.unknown")).toBeNull();
+    const wrongActionAttempt = admission.issueChoiceAttemptInternalV1("choice.test.second");
+    expect(wrongActionAttempt).not.toBeNull();
+
+    const wrongAction = admission.createEnvelopeInternalV1({
+      actionId: narrativeConfirmActionIdV1,
+      gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.choice-wrong-action"),
+    });
+    expect(admission.routeInternalV1(wrongAction, wrongActionAttempt).consumerResult).toEqual({
+      kind: "unmapped",
+      completion: null,
+    });
+    const recoveryEnvelope = admission.createEnvelopeInternalV1({
+      actionId: narrativeChooseActionIdV1,
+      gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.choice-after-wrong-action"),
+    });
+    const recovered = admission.routeInternalV1(recoveryEnvelope, wrongActionAttempt);
+    expect(recovered.consumerResult).toMatchObject({ kind: "dispatched" });
+    if (recovered.consumerResult?.kind !== "dispatched") {
+      throw new Error("wrong action must not consume an authentic choice attempt");
+    }
+    await expect(recovered.consumerResult.completion).resolves.toBe("dispatched");
+    expect(dispatchResolution).toHaveBeenCalledOnce();
+    dispatchResolution.mockClear();
+
+    const spoof = Object.freeze({
+      actionId: narrativeChooseActionIdV1,
+      choiceId: "choice.test.second",
+    });
+    const validEnvelope = admission.createEnvelopeInternalV1({
+      actionId: narrativeChooseActionIdV1,
+      gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.choice-valid"),
+    });
+    expect(admission.routeInternalV1(validEnvelope, spoof).consumerResult).toEqual({
+      kind: "stale",
+      completion: null,
+    });
+    const cloneAttempt = admission.issueChoiceAttemptInternalV1("choice.test.second");
+    expect(cloneAttempt).not.toBeNull();
+    expect(
+      admission.routeInternalV1(validEnvelope, { ...(cloneAttempt as object) }).consumerResult,
+    ).toEqual({ kind: "stale", completion: null });
+
+    const foreignDispatch = vi.fn(() => Promise.resolve("foreign-dispatched"));
+    const foreignFixture = physicalChoiceHarnessV1({
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: foreignDispatch,
+      }),
+    });
+    const foreignAttempt = foreignFixture.admission.issueChoiceAttemptInternalV1(
+      "choice.test.second",
+    );
+    expect(foreignAttempt).not.toBeNull();
+    expect(admission.routeInternalV1(validEnvelope, foreignAttempt).consumerResult).toEqual({
+      kind: "stale",
+      completion: null,
+    });
+    const foreignResult = foreignFixture.admission.routeInternalV1(
+      foreignFixture.admission.createEnvelopeInternalV1({
+        actionId: narrativeChooseActionIdV1,
+        gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.choice-foreign-owner"),
+      }),
+      foreignAttempt,
+    );
+    expect(foreignResult.consumerResult).toMatchObject({ kind: "dispatched" });
+    if (foreignResult.consumerResult?.kind !== "dispatched") {
+      throw new Error("foreign admission must retain its own authentic attempt");
+    }
+    await expect(foreignResult.consumerResult.completion).resolves.toBe("foreign-dispatched");
+    expect(foreignDispatch).toHaveBeenCalledOnce();
+    foreignFixture.admission.disposeInternalV1();
+
+    const attempt = admission.issueChoiceAttemptInternalV1("choice.test.second");
+    expect(attempt).not.toBeNull();
+    const unpublished = admission.createEnvelopeInternalV1({
+      actionId: narrativeUnknownActionIdV1,
+      gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.choice-unpublished"),
+    });
+    const unpublishedResult = admission.routeInternalV1(unpublished, attempt);
+    expect(unpublishedResult.route.surface).toMatchObject({
+      kind: "rejected",
+      code: "surface.action_unpublished",
+    });
+    expect(unpublishedResult.consumerResult).toBeNull();
+    expect(dispatchResolution).not.toHaveBeenCalled();
+
+    const accepted = admission.routeInternalV1(validEnvelope, attempt);
+    expect(accepted.consumerResult).toMatchObject({ kind: "dispatched" });
+    if (accepted.consumerResult?.kind !== "dispatched") {
+      throw new Error("expected semantic dispatch completion");
+    }
+    await expect(accepted.consumerResult.completion).resolves.toBe("dispatched");
+    expect(dispatchResolution).toHaveBeenCalledOnce();
+    expect(admission.routeInternalV1(validEnvelope, attempt).consumerResult).toEqual({
+      kind: "stale",
+      completion: null,
+    });
+    expect(dispatchResolution).toHaveBeenCalledOnce();
+  });
+
+  it("keeps gesture failure, source replacement, retained runtime, phase-wrapper change, and dispose at zero dispatch", () => {
+    let gestureCurrent = false;
+    const dispatchResolution = vi.fn(() => Promise.resolve("must-not-dispatch"));
+    const fixture = physicalChoiceHarnessV1({
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: dispatchResolution,
+      }),
+      isGestureCurrent: () => gestureCurrent,
+    });
+    const admission = fixture.admission;
+    const gestureAttempt = admission.issueChoiceAttemptInternalV1("choice.test.first");
+    expect(gestureAttempt).not.toBeNull();
+    const gestureEnvelope = admission.createEnvelopeInternalV1({
+      actionId: narrativeChooseActionIdV1,
+      gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.choice-stale"),
+    });
+    expect(admission.routeInternalV1(gestureEnvelope, gestureAttempt)).toMatchObject({
+      route: { input: { code: "input.stale_gesture" }, surface: null },
+      consumerResult: null,
+    });
+    expect(dispatchResolution).not.toHaveBeenCalled();
+
+    gestureCurrent = true;
+    const replacementAttempt = admission.issueChoiceAttemptInternalV1("choice.test.first");
+    expect(replacementAttempt).not.toBeNull();
+    expect(
+      fixture.harness.bridge.reconcilePendingInternalV1(pendingV1("choice", 2)),
+    ).toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
+    const replacementState = fixture.harness.kernel.getStateInternalV1();
+    expect(replacementState.stableRuntimeBindings[0]?.binding).toMatchObject({
+      kind: "preparing",
+      transition: "primary_replacement",
+    });
+    if (replacementState.stableRuntimeBindings[0]?.binding.kind !== "preparing") {
+      throw new Error("expected retained replacement");
+    }
+    expect(replacementState.stableRuntimeBindings[0].binding.retainedSubtree).not.toBeNull();
+    expect(admission.issueChoiceAttemptInternalV1("choice.test.first")).toBeNull();
+    expect(admission.routeInternalV1(gestureEnvelope, replacementAttempt).consumerResult)
+      .toEqual({ kind: "stale", completion: null });
+    expect(dispatchResolution).not.toHaveBeenCalled();
+
+    const suspendedFixture = physicalChoiceHarnessV1({
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: dispatchResolution,
+      }),
+    });
+    const suspendedAttempt = suspendedFixture.admission.issueChoiceAttemptInternalV1(
+      "choice.test.first",
+    );
+    expect(suspendedAttempt).not.toBeNull();
+    const suspendedEnvelope = suspendedFixture.admission.createEnvelopeInternalV1({
+      actionId: narrativeChooseActionIdV1,
+      gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.choice-suspended"),
+    });
+    suspendCurrentNarrativeV1(suspendedFixture.harness);
+    expect(
+      suspendedFixture.admission.routeInternalV1(suspendedEnvelope, suspendedAttempt)
+        .consumerResult,
+    ).toEqual({ kind: "stale", completion: null });
+    expect(dispatchResolution).not.toHaveBeenCalled();
+
+    const disposedFixture = physicalChoiceHarnessV1({
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: dispatchResolution,
+      }),
+    });
+    const disposedAttempt = disposedFixture.admission.issueChoiceAttemptInternalV1(
+      "choice.test.first",
+    );
+    expect(disposedAttempt).not.toBeNull();
+    const disposedEnvelope = disposedFixture.admission.createEnvelopeInternalV1({
+      actionId: narrativeChooseActionIdV1,
+      gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.choice-disposed"),
+    });
+    disposedFixture.admission.disposeInternalV1();
+    expect(
+      disposedFixture.admission.routeInternalV1(disposedEnvelope, disposedAttempt),
+    ).toMatchObject({
+      route: { input: { code: "input.stale_publication" }, surface: null },
+      consumerResult: null,
+    });
+    expect(dispatchResolution).not.toHaveBeenCalled();
+  });
+
+  it("normalizes a synchronous semantic-port throw to a rejected completion without rollback", async () => {
+    const sentinel = new Error("semantic dispatch failed");
+    let semanticPort!: NarrativeStableSemanticResolutionPortInternalV1;
+    const dispatchResolution = vi.fn(function (this: unknown) {
+      expect(this).toBe(semanticPort);
+      throw sentinel;
+    });
+    semanticPort = Object.freeze({
+      dispatchResolutionInternalV1: dispatchResolution,
+    });
+    const fixture = physicalChoiceHarnessV1({ semanticDispatchPort: semanticPort });
+    const state = fixture.harness.kernel.getStateInternalV1();
+    const attempt = fixture.admission.issueChoiceAttemptInternalV1("choice.test.first");
+    expect(attempt).not.toBeNull();
+    const envelope = fixture.admission.createEnvelopeInternalV1({
+      actionId: narrativeChooseActionIdV1,
+      gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.choice-throw"),
+    });
+
+    const result = fixture.admission.routeInternalV1(envelope, attempt);
+    expect(result.consumerResult).toMatchObject({ kind: "dispatched" });
+    if (result.consumerResult?.kind !== "dispatched") {
+      throw new Error("expected rejected semantic completion");
+    }
+    expect(result.consumerResult.completion).toBeInstanceOf(Promise);
+    await expect(result.consumerResult.completion).rejects.toBe(sentinel);
+    expect(dispatchResolution).toHaveBeenCalledOnce();
+    expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
+    expect(
+      fixture.admission.routeInternalV1(envelope, attempt).consumerResult,
+    ).toEqual({ kind: "stale", completion: null });
+    expect(dispatchResolution).toHaveBeenCalledOnce();
   });
 });

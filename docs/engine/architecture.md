@@ -629,10 +629,29 @@ automatic controller-attempt admission are not implemented by this floor;
 S4.1b.1a now preserves the authenticated envelope action ID through that gate
 by passing a frozen exact `{ actionId, attempt }` to the claimed continuation;
 the opaque attempt cannot replace the authenticated action ID. This corrective
-has no non-test claimant and adds no semantic dispatch. S4.1b.1b must freeze the
-callable semantic-port contract together with an exact action-to-resolution
-mapping/proof authority before consuming it; no raw resolution ingress is
-exposed ahead of that mapping.
+has no non-test claimant and adds no semantic dispatch.
+
+S4.1b.1b.0 now closes one narrow, source-relative semantic vertical for
+`narrative.choose`. Candidate preflight descriptor-captures the exact receiver
+and one own data `dispatchResolutionInternalV1` callable before candidate or
+runtime identity allocation, then exposes only a frozen zero-key handle in the
+admitted frame. A physical admission derives the stable action authority only
+from its authenticated bridge's composite kernel. It can mint a one-shot
+zero-key choice attempt only for the exact current ready-and-active direct
+choice target and an option in that captured frame. After the shared Surface,
+input-publication, and gesture gates authenticate `narrative.choose`, the same
+admission rechecks target, source, frame, and port provenance, then invokes the
+captured receiver with a frozen `{ expectedOccurrenceId, resolution: {
+kind: "choose", choiceId } }` request. A synchronous port throw becomes a
+rejected completion and does not roll back Surface state. Wrong mapped actions
+are reported source-relatively as unmapped without consuming the choice
+attempt; stale or replaced targets dispatch nothing. One active admission owns
+the binding, and exact disposal releases only that admission's claim so a later
+ready occurrence can bind a fresh successor. The seam remains dormant and adds
+no generic result code, barrel, package export, React Host, or live Story edge.
+Remaining say, pause, custom, barrier, player-control, and automatic-controller
+policies stay with S4.1b.1b.1; no raw resolution ingress is exposed ahead of
+those mappings.
 
 ## 9. Changing the architecture
 
@@ -672,8 +691,10 @@ source-relative aggregate conformance gate. S4.1a now consumes it through the
 dormant Narrative family/publisher bridge above, and S4.1b.0 supplies the shared
 contract-bound physical gate plus whole-topology stable input-owner proof.
 S4.1b.1a preserves authenticated action context through the claimed route
-without dispatching semantic work. S4.1b.1b Narrative physical/automatic
-semantic admission is the next independent slice; Host integration and the
-Narrative live migration remain planned work.
+without dispatching semantic work. S4.1b.1b.0 now consumes that context only
+for authenticated current-choice dispatch through the exact preflight-captured
+semantic callable. S4.1b.1b.1 remaining physical mappings and automatic
+controller-attempt admission are the next independent slice; Host integration
+and the Narrative live migration remain planned work.
 Target documents do not alter the current data flow until that migration and
 its behavior tests land.

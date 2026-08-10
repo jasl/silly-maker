@@ -103,9 +103,10 @@ harness/churn/dead-path audit均已完成，S1-R aggregate gate已关闭；S4.0�
 Narrative/History stable family的topology、dismiss/focus/readiness、source projection、双重action fence与
 single-writer cutover floor；S4.1a也已交付dormant Narrative family catalog、publisher projection与
 candidate preflight，S4.1b.0又已闭合shared contract-bound action route core与whole-composite stable input
-authority，S4.1b.1a又把authenticated envelope action ID保留到claimed continuation。
-当前active execution pointer的current/next均为S4.1b.1b Narrative semantic action admission；
-R3b.1、R4.0、R4a、R4b.0、R4b.1、R5、S4.0、S4.1a、S4.1b.0与S4.1b.1a只作为completed delivery保留。
+authority，S4.1b.1a又把authenticated envelope action ID保留到claimed continuation，
+S4.1b.1b.0已交付choice-only authenticated physical semantic admission。
+当前active execution pointer的current/next均为S4.1b.1b.1 remaining physical + automatic semantic action admission；
+R3b.1、R4.0、R4a、R4b.0、R4b.1、R5、S4.0、S4.1a、S4.1b.0、S4.1b.1a与S4.1b.1b.0只作为completed delivery保留。
 Stable implementation仍保持dormant/source-relative；R5只解除S4 entry gate，S4.0也没有把任何stable family
 提前写成live capability。
 当前 live 能力仍以
@@ -1230,8 +1231,8 @@ Coordinator API。
 
 S4据此拆为：S4.0本contract/characterization floor；S4.1a source-relative definition/catalog、publisher
 projection与candidate preflight；S4.1b.0 shared contract-bound physical route core与stable input authority；
-S4.1b.1a authenticated action continuation context corrective；S4.1b.1b authenticated physical/automatic semantic
-action admission；S4.2 dormant
+S4.1b.1a authenticated action continuation context corrective；S4.1b.1b.0 choice-only authenticated physical
+semantic action admission；S4.1b.1b.1 remaining physical mapping与automatic controller-attempt admission；S4.2 dormant
 controller/view/Host、Host-commit readiness与History exact-child integration；
 S4.3在一个cutover中迁移全部tracked consumers、删除旧writers并完成headless/browser/prebuilt promotion。若exact-parent
 History不能与stable root共用composite authority、root/History不能原子retain/retire、同一semantic occurrence确实允许
@@ -1296,7 +1297,34 @@ raw `{ expectedOccurrenceId, resolution }` ingress提前暴露；S4.1b.1b必须�
 签发的proof调用exact captured receiver/callable。验证通过focused `7 files / 172 tests`、UI
 `79 files / 999 tests`、full `253 files / 3927 tests`与`deno task check` green。本批没有改变browser/build graph，
 因此未机械重跑browser/examples/prebuilt；S4.1b.0的`101 / 101`、`45 passed / 2 skipped`与`38 / 38`只作最近已有证据。
-Active current/next现为S4.1b.1b；后续顺序保持S4.1b.1b → S4.2 → S4.3 → S4b。
+该checkpoint当时的active current/next为S4.1b.1b，现由下述S4.1b.1b.0 delivery继续细分。
+
+**S4.1b.1b.0 delivery：** Narrative candidate preflight现将required semantic dispatch port限定为exact
+one-key own data-descriptor callable，并把exact receiver/callable存入package-private weak binding；candidate snapshot只持有
+frozen zero-key opaque capture handle，不暴露raw port或可替换method。Physical action admission不接受caller提供的stable
+authority，而是从bridge-private record取得same-composite kernel并领取whole-topology stable action authority；同一bridge
+同时只允许一个live admission claim，dispose释放exact claim后successor admission可以重新领取。
+
+只有current direct ready+active choice target、同一admission签发且未消费的opaque choice attempt、以及完整通过
+Surface/input/publication/gesture fence的authenticated `narrative.choose`能够dispatch。Attempt以WeakMap绑定exact
+authority、target proof、direct target、source revision、admitted frame、choice ID与captured port；成功路径构造并冻结
+`{ expectedOccurrenceId, resolution: { kind: "choose", choiceId } }`，以捕获的exact receiver/callable调用semantic port。
+Attempt是frozen zero-key、same-admission one-shot capability；clone、repeat、source advance、replacement、retained-only、
+suspended与dispose均不能dispatch或落入lower ordinary handler。
+
+Choice admission的source-relative结果保持closed：successful dispatch返回`dispatched`与exact completion `Promise`；
+authenticated但不属于choice mapping的action返回`unmapped`，stale proof/attempt返回`stale`，private capture invariant失败返回
+`faulted`，后三者的completion均为`null`。Semantic callable同步throw被转换为rejected completion `Promise`，不回滚已完成的
+Surface route；raw claimed route、Surface/Input fence failure、reentry与duplicate live construction都不会产生semantic dispatch。
+
+本切片没有实现`say`、`pause`、`custom`、`presentation_barrier`或player control mapping，没有automatic controller-attempt、
+Narrative Host/History/live consumer，也没有修改generic stable/action result table、public/internal barrel或package exports。
+这些remaining physical与automatic路径属于S4.1b.1b.1；Host、readiness与live cutover仍属于S4.2–S4.3。
+
+S4.1b.1b.0验证通过focused `7 files / 187 tests`、UI `79 files / 1005 tests`、full
+`253 files / 3933 tests`与`deno task check` green。本批尚未重跑browser/examples/prebuilt；最近已有的`101 / 101`、
+`45 passed / 2 skipped`与`38 / 38`仅作先前切片证据，不冒充S4.1b.1b.0 HEAD验证。
+Active current/next现为S4.1b.1b.1；后续顺序保持S4.1b.1b.1 → S4.2 → S4.3 → S4b。
 
 ### 3.3 Runtime session
 

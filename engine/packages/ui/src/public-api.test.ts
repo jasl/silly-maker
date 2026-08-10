@@ -192,6 +192,38 @@ import type { NarrativeStablePublisherBridgeResultInternalV1 as ForbiddenInterna
 import type { CreateNarrativeStablePublisherBridgeInputInternalV1 as ForbiddenPublicNarrativeStableBridgeInputV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Narrative bridge construction inputs.
 import type { CreateNarrativeStablePublisherBridgeInputInternalV1 as ForbiddenInternalNarrativeStableBridgeInputV1 } from "./internal.ts";
+// @ts-expect-error Narrative semantic-resolution requests remain source-relative.
+import type { NarrativeStableSemanticResolutionRequestInternalV1 as ForbiddenPublicNarrativeSemanticResolutionRequestV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative semantic-resolution requests.
+import type { NarrativeStableSemanticResolutionRequestInternalV1 as ForbiddenInternalNarrativeSemanticResolutionRequestV1 } from "./internal.ts";
+// @ts-expect-error Narrative semantic-resolution ports remain source-relative.
+import type { NarrativeStableSemanticResolutionPortInternalV1 as ForbiddenPublicNarrativeSemanticResolutionPortV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative semantic-resolution ports.
+import type { NarrativeStableSemanticResolutionPortInternalV1 as ForbiddenInternalNarrativeSemanticResolutionPortV1 } from "./internal.ts";
+// @ts-expect-error Captured Narrative semantic-resolution ports remain source-relative.
+import type { NarrativeStableCapturedSemanticResolutionPortInternalV1 as ForbiddenPublicNarrativeCapturedSemanticResolutionPortV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose captured Narrative semantic-resolution ports.
+import type { NarrativeStableCapturedSemanticResolutionPortInternalV1 as ForbiddenInternalNarrativeCapturedSemanticResolutionPortV1 } from "./internal.ts";
+// @ts-expect-error Narrative choice-action attempts remain source-relative.
+import type { NarrativeStableChoiceActionAttemptInternalV1 as ForbiddenPublicNarrativeChoiceActionAttemptV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative choice-action attempts.
+import type { NarrativeStableChoiceActionAttemptInternalV1 as ForbiddenInternalNarrativeChoiceActionAttemptV1 } from "./internal.ts";
+// @ts-expect-error Narrative physical-action dispatch results remain source-relative.
+import type { NarrativeStablePhysicalActionDispatchResultInternalV1 as ForbiddenPublicNarrativePhysicalActionDispatchResultV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative physical-action dispatch results.
+import type { NarrativeStablePhysicalActionDispatchResultInternalV1 as ForbiddenInternalNarrativePhysicalActionDispatchResultV1 } from "./internal.ts";
+// @ts-expect-error Narrative physical-action admission inputs remain source-relative.
+import type { CreateNarrativeStablePhysicalActionAdmissionInputInternalV1 as ForbiddenPublicNarrativePhysicalActionAdmissionInputV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative physical-action admission inputs.
+import type { CreateNarrativeStablePhysicalActionAdmissionInputInternalV1 as ForbiddenInternalNarrativePhysicalActionAdmissionInputV1 } from "./internal.ts";
+// @ts-expect-error Narrative physical-action admission remains source-relative.
+import type { NarrativeStablePhysicalActionAdmissionInternalV1 as ForbiddenPublicNarrativePhysicalActionAdmissionV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative physical-action admission.
+import type { NarrativeStablePhysicalActionAdmissionInternalV1 as ForbiddenInternalNarrativePhysicalActionAdmissionV1 } from "./internal.ts";
+// @ts-expect-error Narrative physical-action admission construction remains source-relative.
+import type { createNarrativeStablePhysicalActionAdmissionInternalV1 as ForbiddenPublicNarrativePhysicalActionAdmissionFactoryV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative physical-action admission construction.
+import type { createNarrativeStablePhysicalActionAdmissionInternalV1 as ForbiddenInternalNarrativePhysicalActionAdmissionFactoryV1 } from "./internal.ts";
 // @ts-expect-error Family configuration matching remains source-relative.
 import type { matchesManagedSurfaceStableAdmissionAuthorityFamilyConfigurationInternalV1 as ForbiddenPublicStableFamilyConfigurationMatcherV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose family configuration matching.
@@ -258,6 +290,14 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "NarrativeStableCandidatePreflightRejectionCodeInternalV1"
       | "NarrativeStableCandidatePreflightResultInternalV1"
       | "NarrativeStablePublisherBridgeResultInternalV1"
+      | "NarrativeStableSemanticResolutionRequestInternalV1"
+      | "NarrativeStableSemanticResolutionPortInternalV1"
+      | "NarrativeStableCapturedSemanticResolutionPortInternalV1"
+      | "NarrativeStableChoiceActionAttemptInternalV1"
+      | "NarrativeStablePhysicalActionDispatchResultInternalV1"
+      | "CreateNarrativeStablePhysicalActionAdmissionInputInternalV1"
+      | "NarrativeStablePhysicalActionAdmissionInternalV1"
+      | "createNarrativeStablePhysicalActionAdmissionInternalV1"
       | "ManagedSurfaceContractBoundActionRouteAuthorityInternalV1"
       | "CreateManagedSurfaceContractBoundActionBindingInputInternalV1"
       | "ManagedSurfaceAuthenticatedActionRouteResultInternalV1"
@@ -336,6 +376,14 @@ describe("@sillymaker/ui public managed System surface", () => {
         "NarrativeStableCandidatePreflightRejectionCodeInternalV1",
         "NarrativeStableCandidatePreflightResultInternalV1",
         "NarrativeStablePublisherBridgeResultInternalV1",
+        "NarrativeStableSemanticResolutionRequestInternalV1",
+        "NarrativeStableSemanticResolutionPortInternalV1",
+        "NarrativeStableCapturedSemanticResolutionPortInternalV1",
+        "NarrativeStableChoiceActionAttemptInternalV1",
+        "NarrativeStablePhysicalActionDispatchResultInternalV1",
+        "CreateNarrativeStablePhysicalActionAdmissionInputInternalV1",
+        "NarrativeStablePhysicalActionAdmissionInternalV1",
+        "createNarrativeStablePhysicalActionAdmissionInternalV1",
         "ManagedSurfaceContractBoundActionRouteAuthorityInternalV1",
         "CreateManagedSurfaceContractBoundActionBindingInputInternalV1",
         "ManagedSurfaceAuthenticatedActionRouteResultInternalV1",
