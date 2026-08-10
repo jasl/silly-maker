@@ -40,6 +40,7 @@ import {
   type NarrativeStableCandidatePreflightRejectionCodeInternalV1,
   type NarrativeStableCandidatePreflightResultInternalV1,
   type NarrativeStableChoiceActionAttemptInternalV1,
+  type NarrativeStablePauseResumeActionAttemptInternalV1,
   type NarrativeStablePhysicalActionAdmissionInternalV1,
   type NarrativeStablePhysicalActionDispatchResultInternalV1,
   type NarrativeStablePublisherBridgeInternalV1,
@@ -51,6 +52,8 @@ import {
 const applicationEpochV1 = parseNonNegativeSafeInteger(91);
 const narrativeChooseActionIdV1 = parseManagedSurfaceActionIdV1("narrative.choose");
 const narrativeConfirmActionIdV1 = parseManagedSurfaceActionIdV1("ui.confirm");
+const narrativeAdvanceActionIdV1 = parseManagedSurfaceActionIdV1("narrative.advance");
+const narrativeResumeActionIdV1 = parseManagedSurfaceActionIdV1("narrative.resume");
 const narrativeUnknownActionIdV1 = parseManagedSurfaceActionIdV1("narrative.unknown");
 const zeroDeltaV1 = Object.freeze({
   source: "unchanged" as const,
@@ -306,6 +309,40 @@ function physicalChoiceHarnessV1(input: {
   }) satisfies CreateNarrativeStablePhysicalActionAdmissionInputInternalV1;
   const admission = createNarrativeStablePhysicalActionAdmissionInternalV1(admissionInput);
   return { harness, inputRouter, stableActionAuthority, admission, semanticDispatchPort };
+}
+
+function physicalPauseHarnessV1(input: {
+  readonly semanticDispatchPort?: NarrativeStableSemanticResolutionPortInternalV1;
+  readonly isGestureCurrent?: () => boolean;
+  readonly skippable?: boolean;
+} = {}) {
+  const semanticDispatchPort = input.semanticDispatchPort ?? defaultSemanticDispatchPortV1;
+  const harness = harnessV1({
+    candidatePreflight: Object.freeze({
+      preflightCandidateInternalV1: () =>
+        capturedCandidatePreflightResultV1(Object.freeze({
+          ...defaultCandidateSnapshotV1,
+          semanticDispatchPort,
+        })),
+    }),
+  });
+  const pending = {
+    ...(pendingV1("pause") as Record<string, unknown>),
+    skippable: input.skippable ?? true,
+  };
+  expect(harness.bridge.reconcilePendingInternalV1(pending)).toMatchObject({
+    kind: "applied",
+    code: "surface.stable_publication_applied",
+  });
+  settleCurrentNarrativeReadyV1(harness);
+  const inputRouter = createInputRouterV1();
+  const admissionInput = Object.freeze({
+    bridge: harness.bridge,
+    inputRouter,
+    isGestureCurrent: input.isGestureCurrent ?? (() => true),
+  }) satisfies CreateNarrativeStablePhysicalActionAdmissionInputInternalV1;
+  const admission = createNarrativeStablePhysicalActionAdmissionInternalV1(admissionInput);
+  return { harness, inputRouter, admission, semanticDispatchPort };
 }
 
 describe("Narrative stable Managed Surface family", () => {
@@ -1505,6 +1542,7 @@ describe("Narrative stable Managed Surface family", () => {
     expect(Reflect.ownKeys(admission)).toEqual([
       "createEnvelopeInternalV1",
       "issueChoiceAttemptInternalV1",
+      "issuePauseResumeAttemptInternalV1",
       "routeInternalV1",
       "disposeInternalV1",
     ]);
@@ -1844,6 +1882,332 @@ describe("Narrative stable Managed Surface family", () => {
       consumerResult: null,
     });
     expect(dispatchResolution).not.toHaveBeenCalled();
+  });
+
+  it("dispatches one authenticated skippable pause resume through the exact captured semantic port", async () => {
+    const semanticReceipt = Object.freeze({ kind: "pause-resumed" as const });
+    let capturedRequest: unknown = null;
+    let semanticPort!: NarrativeStableSemanticResolutionPortInternalV1;
+    const dispatchResolution = vi.fn(function (this: unknown, request: unknown) {
+      expect(this).toBe(semanticPort);
+      capturedRequest = request;
+      return Promise.resolve(semanticReceipt);
+    });
+    semanticPort = Object.freeze({ dispatchResolutionInternalV1: dispatchResolution });
+    const fixture = physicalPauseHarnessV1({ semanticDispatchPort: semanticPort });
+    const state = fixture.harness.kernel.getStateInternalV1();
+
+    const attempt = fixture.admission.issuePauseResumeAttemptInternalV1();
+    expectTypeOf(attempt).toEqualTypeOf<
+      NarrativeStablePauseResumeActionAttemptInternalV1 | null
+    >();
+    expect(attempt).not.toBeNull();
+    expect(Object.isFrozen(attempt)).toBe(true);
+    expect(Reflect.ownKeys(attempt as object)).toEqual([]);
+    expect(fixture.admission.issueChoiceAttemptInternalV1("choice.test.first")).toBeNull();
+
+    const result = fixture.admission.routeInternalV1(
+      fixture.admission.createEnvelopeInternalV1({
+        actionId: narrativeResumeActionIdV1,
+        gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.pause-resume-current"),
+      }),
+      attempt,
+    );
+    expect(result.route).toMatchObject({
+      input: { kind: "consumed", code: "input.managed_surface_consumed" },
+      surface: { kind: "unchanged", code: "surface.action_routed" },
+    });
+    expect(result.consumerResult).toMatchObject({ kind: "dispatched" });
+    if (result.consumerResult?.kind !== "dispatched") {
+      throw new Error("expected pause resume completion");
+    }
+    await expect(result.consumerResult.completion).resolves.toBe(semanticReceipt);
+    expect(dispatchResolution).toHaveBeenCalledOnce();
+    expect(capturedRequest).toEqual({
+      expectedOccurrenceId: occurrenceV1(1),
+      resolution: { kind: "resume" },
+    });
+    expect(Object.isFrozen(capturedRequest)).toBe(true);
+    expect(
+      Object.isFrozen((capturedRequest as { readonly resolution: object }).resolution),
+    ).toBe(true);
+    expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
+    expect(
+      fixture.admission.routeInternalV1(
+        fixture.admission.createEnvelopeInternalV1({
+          actionId: narrativeResumeActionIdV1,
+          gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.pause-resume-repeat"),
+        }),
+        attempt,
+      ).consumerResult,
+    ).toEqual({ kind: "stale", completion: null });
+    expect(dispatchResolution).toHaveBeenCalledOnce();
+  });
+
+  it("constructs for a ready pause but issues manual resume only when skippable", () => {
+    const preparing = harnessV1();
+    expect(preparing.bridge.reconcilePendingInternalV1(pendingV1("pause"))).toMatchObject({
+      kind: "applied",
+      code: "surface.stable_publication_applied",
+    });
+    expect(() =>
+      createNarrativeStablePhysicalActionAdmissionInternalV1({
+        bridge: preparing.bridge,
+        inputRouter: createInputRouterV1(),
+        isGestureCurrent: () => true,
+      })
+    ).toThrowError("ui.narrative_stable_action_admission_unavailable");
+
+    const nonSkippableDispatch = vi.fn(() => Promise.resolve("must-not-dispatch"));
+    const nonSkippable = physicalPauseHarnessV1({
+      skippable: false,
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: nonSkippableDispatch,
+      }),
+    });
+    expect(() =>
+      createNarrativeStablePhysicalActionAdmissionInternalV1({
+        bridge: nonSkippable.harness.bridge,
+        inputRouter: nonSkippable.inputRouter,
+        isGestureCurrent: () => true,
+      })
+    ).toThrowError("ui.narrative_stable_action_admission_invalid");
+    expect(nonSkippable.admission.issuePauseResumeAttemptInternalV1()).toBeNull();
+    expect(nonSkippable.admission.issueChoiceAttemptInternalV1("choice.test.first")).toBeNull();
+    expect(
+      nonSkippable.admission.routeInternalV1(
+        nonSkippable.admission.createEnvelopeInternalV1({
+          actionId: narrativeResumeActionIdV1,
+          gestureId: parseManagedSurfaceGestureIdV1(
+            "gesture.narrative.pause-non-skippable",
+          ),
+        }),
+        null,
+      ).consumerResult,
+    ).toEqual({ kind: "stale", completion: null });
+    expect(nonSkippableDispatch).not.toHaveBeenCalled();
+    nonSkippable.admission.disposeInternalV1();
+    const freshNonSkippable = createNarrativeStablePhysicalActionAdmissionInternalV1({
+      bridge: nonSkippable.harness.bridge,
+      inputRouter: nonSkippable.inputRouter,
+      isGestureCurrent: () => true,
+    });
+    expect(freshNonSkippable).not.toBe(nonSkippable.admission);
+    expect(freshNonSkippable.issuePauseResumeAttemptInternalV1()).toBeNull();
+    freshNonSkippable.disposeInternalV1();
+  });
+
+  it("keeps wrong actions and foreign attempt kinds from consuming an authentic pause resume", async () => {
+    const dispatchResolution = vi.fn(() => Promise.resolve("pause-dispatched"));
+    const fixture = physicalPauseHarnessV1({
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: dispatchResolution,
+      }),
+    });
+    const attempt = fixture.admission.issuePauseResumeAttemptInternalV1();
+    expect(attempt).not.toBeNull();
+
+    expect(
+      fixture.admission.routeInternalV1(
+        fixture.admission.createEnvelopeInternalV1({
+          actionId: narrativeChooseActionIdV1,
+          gestureId: parseManagedSurfaceGestureIdV1(
+            "gesture.narrative.pause-choice-mapped-mismatch",
+          ),
+        }),
+        attempt,
+      ).consumerResult,
+    ).toEqual({ kind: "stale", completion: null });
+
+    for (
+      const [actionId, gestureId] of [
+        [narrativeConfirmActionIdV1, "gesture.narrative.pause-confirm-unmapped"],
+        [narrativeAdvanceActionIdV1, "gesture.narrative.pause-advance-unmapped"],
+      ] as const
+    ) {
+      expect(
+        fixture.admission.routeInternalV1(
+          fixture.admission.createEnvelopeInternalV1({
+            actionId,
+            gestureId: parseManagedSurfaceGestureIdV1(gestureId),
+          }),
+          attempt,
+        ).consumerResult,
+      ).toEqual({ kind: "unmapped", completion: null });
+    }
+    expect(dispatchResolution).not.toHaveBeenCalled();
+
+    expect(
+      fixture.admission.routeInternalV1(
+        fixture.admission.createEnvelopeInternalV1({
+          actionId: narrativeResumeActionIdV1,
+          gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.pause-clone"),
+        }),
+        { ...(attempt as object) },
+      ).consumerResult,
+    ).toEqual({ kind: "stale", completion: null });
+
+    const choiceFixture = physicalChoiceHarnessV1();
+    const choiceAttempt = choiceFixture.admission.issueChoiceAttemptInternalV1(
+      "choice.test.first",
+    );
+    expect(choiceAttempt).not.toBeNull();
+    expect(
+      fixture.admission.routeInternalV1(
+        fixture.admission.createEnvelopeInternalV1({
+          actionId: narrativeResumeActionIdV1,
+          gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.pause-choice-attempt"),
+        }),
+        choiceAttempt,
+      ).consumerResult,
+    ).toEqual({ kind: "stale", completion: null });
+
+    const foreignPause = physicalPauseHarnessV1();
+    const foreignPauseAttempt = foreignPause.admission.issuePauseResumeAttemptInternalV1();
+    expect(foreignPauseAttempt).not.toBeNull();
+    expect(
+      fixture.admission.routeInternalV1(
+        fixture.admission.createEnvelopeInternalV1({
+          actionId: narrativeResumeActionIdV1,
+          gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.pause-foreign"),
+        }),
+        foreignPauseAttempt,
+      ).consumerResult,
+    ).toEqual({ kind: "stale", completion: null });
+
+    const dispatched = fixture.admission.routeInternalV1(
+      fixture.admission.createEnvelopeInternalV1({
+        actionId: narrativeResumeActionIdV1,
+        gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.pause-after-unmapped"),
+      }),
+      attempt,
+    );
+    expect(dispatched.consumerResult).toMatchObject({ kind: "dispatched" });
+    if (dispatched.consumerResult?.kind !== "dispatched") {
+      throw new Error("expected authentic pause resume after unmapped actions");
+    }
+    await expect(dispatched.consumerResult.completion).resolves.toBe("pause-dispatched");
+    expect(dispatchResolution).toHaveBeenCalledOnce();
+
+    choiceFixture.admission.disposeInternalV1();
+    foreignPause.admission.disposeInternalV1();
+  });
+
+  it("keeps stale gesture, source replacement, suspension, and dispose at zero pause dispatch", async () => {
+    let gestureCurrent = false;
+    const dispatchResolution = vi.fn(() => Promise.resolve("pause-dispatched"));
+    const fixture = physicalPauseHarnessV1({
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: dispatchResolution,
+      }),
+      isGestureCurrent: () => gestureCurrent,
+    });
+    const staleGestureAttempt = fixture.admission.issuePauseResumeAttemptInternalV1();
+    expect(staleGestureAttempt).not.toBeNull();
+    const staleGestureEnvelope = fixture.admission.createEnvelopeInternalV1({
+      actionId: narrativeResumeActionIdV1,
+      gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.pause-stale"),
+    });
+    expect(fixture.admission.routeInternalV1(staleGestureEnvelope, staleGestureAttempt))
+      .toMatchObject({
+        route: { input: { code: "input.stale_gesture" }, surface: null },
+        consumerResult: null,
+      });
+    gestureCurrent = true;
+    const recovered = fixture.admission.routeInternalV1(
+      fixture.admission.createEnvelopeInternalV1({
+        actionId: narrativeResumeActionIdV1,
+        gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.pause-recovered"),
+      }),
+      staleGestureAttempt,
+    );
+    expect(recovered.consumerResult).toMatchObject({ kind: "dispatched" });
+    if (recovered.consumerResult?.kind !== "dispatched") {
+      throw new Error("expected pause resume after stale gesture");
+    }
+    await expect(recovered.consumerResult.completion).resolves.toBe("pause-dispatched");
+    expect(dispatchResolution).toHaveBeenCalledOnce();
+
+    const replacementAttempt = fixture.admission.issuePauseResumeAttemptInternalV1();
+    expect(replacementAttempt).not.toBeNull();
+    expect(fixture.harness.bridge.reconcilePendingInternalV1(pendingV1("pause", 2)))
+      .toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
+    expect(fixture.admission.issuePauseResumeAttemptInternalV1()).toBeNull();
+    expect(
+      fixture.admission.routeInternalV1(
+        fixture.admission.createEnvelopeInternalV1({
+          actionId: narrativeResumeActionIdV1,
+          gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.pause-replaced"),
+        }),
+        replacementAttempt,
+      ).consumerResult,
+    ).toEqual({ kind: "stale", completion: null });
+    expect(dispatchResolution).toHaveBeenCalledOnce();
+
+    const suspended = physicalPauseHarnessV1({
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: dispatchResolution,
+      }),
+    });
+    const suspendedAttempt = suspended.admission.issuePauseResumeAttemptInternalV1();
+    expect(suspendedAttempt).not.toBeNull();
+    suspendCurrentNarrativeV1(suspended.harness);
+    expect(
+      suspended.admission.routeInternalV1(
+        suspended.admission.createEnvelopeInternalV1({
+          actionId: narrativeResumeActionIdV1,
+          gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.pause-suspended"),
+        }),
+        suspendedAttempt,
+      ).consumerResult,
+    ).toEqual({ kind: "stale", completion: null });
+
+    const disposed = physicalPauseHarnessV1({
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: dispatchResolution,
+      }),
+    });
+    const disposedAttempt = disposed.admission.issuePauseResumeAttemptInternalV1();
+    expect(disposedAttempt).not.toBeNull();
+    const disposedEnvelope = disposed.admission.createEnvelopeInternalV1({
+      actionId: narrativeResumeActionIdV1,
+      gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.pause-disposed"),
+    });
+    disposed.admission.disposeInternalV1();
+    expect(disposed.admission.routeInternalV1(disposedEnvelope, disposedAttempt)).toMatchObject({
+      route: { input: { code: "input.stale_publication" }, surface: null },
+      consumerResult: null,
+    });
+    expect(dispatchResolution).toHaveBeenCalledOnce();
+  });
+
+  it("normalizes a synchronous pause semantic-port throw without rolling back state", async () => {
+    const sentinel = new Error("pause semantic dispatch failed");
+    const dispatchResolution = vi.fn(() => {
+      throw sentinel;
+    });
+    const fixture = physicalPauseHarnessV1({
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: dispatchResolution,
+      }),
+    });
+    const state = fixture.harness.kernel.getStateInternalV1();
+    const attempt = fixture.admission.issuePauseResumeAttemptInternalV1();
+    expect(attempt).not.toBeNull();
+    const result = fixture.admission.routeInternalV1(
+      fixture.admission.createEnvelopeInternalV1({
+        actionId: narrativeResumeActionIdV1,
+        gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.pause-throw"),
+      }),
+      attempt,
+    );
+    expect(result.consumerResult).toMatchObject({ kind: "dispatched" });
+    if (result.consumerResult?.kind !== "dispatched") {
+      throw new Error("expected rejected pause semantic completion");
+    }
+    await expect(result.consumerResult.completion).rejects.toBe(sentinel);
+    expect(dispatchResolution).toHaveBeenCalledOnce();
+    expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
   });
 
   it("normalizes a synchronous semantic-port throw to a rejected completion without rollback", async () => {

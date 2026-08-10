@@ -22,8 +22,9 @@ policy extraction、S1-R.4b.0 terminal composite disposition、S1-R.4b.1 source-
 global cascade settlement与S1-R.5 neutral harness/churn/dead-path audit均已关闭；S4.0 Narrative/History
 contract/characterization floor、S4.1a dormant family contract/publisher projector与S4.1b.0 shared
 contract-bound action gate、S4.1b.1a authenticated action context corrective及S4.1b.1b.0
-choice-only physical semantic vertical均已关闭，下一独立切片为S4.1b.1b.1 remaining Narrative action
-mapping + automatic controller-attempt admission；R4 entry
+choice-only physical semantic vertical与S4.1b.1b.1a skippable-pause physical resume vertical均已关闭，
+下一独立切片为S4.1b.1b.1b remaining Narrative physical mapping + automatic controller-attempt
+admission；R4 entry
 adjudication已先以独立S1-R.4.0关闭
 readiness result/capacity contract。R3b entry audit先以独立S1-R.3a.1 corrective补全ready
 retained-subtree authority，该corrective也已关闭。
@@ -38,8 +39,8 @@ S1-R aggregate gate已关闭。
 
 在 [production-floor sequence](2026-07-30-production-floor-sequence.md)
 中：PF2 的 `S0 -> S1-T -> S2`、PF-DET、PF3/M2 与 PF4/S3 已完成；当前 core
-节点是PF4/S4.1b.1b.1。PF4的顺序是
-`S3 -> S1-R.0 -> S1-R.1–S1-R.5 -> S4.0 -> S4.1a -> S4.1b.0 -> S4.1b.1a -> S4.1b.1b.0 -> S4.1b.1b.1 -> S4.2 -> S4.3 -> S4b`；
+节点是PF4/S4.1b.1b.1b。PF4的顺序是
+`S3 -> S1-R.0 -> S1-R.1–S1-R.5 -> S4.0 -> S4.1a -> S4.1b.0 -> S4.1b.1a -> S4.1b.1b.0 -> S4.1b.1b.1a -> S4.1b.1b.1b -> S4.2 -> S4.3 -> S4b`；
 S5–S6 属于 PF6。S1-R
 延后到第一个真实 externally published stable-target family 前完成；按 accepted
 target ownership，S4 Narrative 计划成为该 family，因此 S1-R 位于 S3 与 S4
@@ -1698,15 +1699,18 @@ S1-R 按以下可独立合并切片推进，每次只领取一个：
 22. **S4.1b.1b.0 choice-only physical semantic vertical（已完成）**：以唯一source-relative Narrative
     action authority交付`narrative.choose`的exact physical route、opaque one-shot attempt、current target/frame/semantic
     occurrence fence与captured semantic callable；不实现其余action mapping、automatic attempt、Host或live ingress。
-23. **S4.1b.1b.1 remaining action mapping + automatic controller-attempt admission（当前）**：补齐其余Narrative
-    action catalog到exact semantic callable/result的映射，并完成automatic controller-attempt fence；只在exact current
-    Narrative runtime上提交semantic resolution。
-24. **S4.2 dormant Narrative Host + History child（待实施）**：controller/view/Host decomposition、Host-commit
+23. **S4.1b.1b.1a skippable-pause physical resume vertical（已完成）**：扩展同一source-relative
+    action authority，使任意current ready+active pause都可持有唯一physical binding，但只有`skippable: true`可签发
+    opaque one-shot resume attempt并以`narrative.resume`提交exact `resume` resolution；不实现automatic timer或其他mapping。
+24. **S4.1b.1b.1b remaining physical mapping + automatic controller-attempt admission（当前）**：补齐其余
+    Narrative action catalog到exact semantic callable/result的映射，并完成automatic controller-attempt fence；只在
+    exact current Narrative runtime上提交semantic resolution。
+25. **S4.2 dormant Narrative Host + History child（待实施）**：controller/view/Host decomposition、Host-commit
     readiness、exact-parent History、managed input/focus/dismiss与Engine Lab dormant conformance；不切live Story。
-25. **S4.3 atomic live cutover and promotion（待实施）**：同批迁移Engine Lab、template、Cat Cafe、Bookshop，
+26. **S4.3 atomic live cutover and promotion（待实施）**：同批迁移Engine Lab、template、Cat Cafe、Bookshop，
     删除旧lifecycle writers与standalone public path，更新live docs并完成headless/browser/prebuilt promotion。
 
-当前只允许从 **S4.1b.1b.1** 开始。Stable ingress与stable-specific state/API仍保持
+当前只允许从 **S4.1b.1b.1b** 开始。Stable ingress与stable-specific state/API仍保持
 dormant/package-internal；S4.1允许source-relative Narrative bridge消费Base semantic contract，但不接live
 Narrative/React/Web application graph、不mount React Host，也不更新live feature文档；shared pure topology
 policy只经existing transient adapter live复用，R3a 已将既有live transient reducer/Coordinator 收口到
@@ -2927,13 +2931,16 @@ examples/prebuilt；S0 deterministic Chromium RED与最近R4b.1 browser `101 / 1
    callable/result的第一条closed mapping，以physical Surface/Input/gesture route、opaque one-shot choice attempt、current
    direct-target/frame/occurrence recheck及Promise normalization完成一个端到端dormant vertical；不接其余mapping或automatic
    controller attempt。
-5. **S4.1b.1b.1 remaining action mapping + automatic controller-attempt admission（当前）**：补齐余下exact action
-   catalog mapping，再交付automatic controller-attempt的独立provenance、current stable runtime fence、semantic occurrence
-   提交与stale zero-dispatch；不mount React Host、改public authoring或接live Story。
-6. **S4.2 dormant Host/History integration（待实施）**：交付controller/view/Host decomposition、captured resolver/required-port snapshot、
+5. **S4.1b.1b.1a skippable-pause physical resume vertical（已完成）**：复用choice vertical的exact
+   physical route/semantic callable，只为`skippable: true` pause签发manual resume attempt；non-skippable pause仍拥有同一
+   managed binding但不获得manual semantic capability，不接automatic timer。
+6. **S4.1b.1b.1b remaining physical mapping + automatic controller-attempt admission（当前）**：补齐余下exact
+   action catalog mapping，再交付automatic controller-attempt的独立provenance、current stable runtime fence、semantic
+   occurrence提交与stale zero-dispatch；不mount React Host、改public authoring或接live Story。
+7. **S4.2 dormant Host/History integration（待实施）**：交付controller/view/Host decomposition、captured resolver/required-port snapshot、
    Narrative portal Host-commit readiness/failure、exact-parent History open/close、managed input/focus/dismiss、timer suspension与
    Engine Lab dormant conformance；candidate ready前无ordinary authority。
-7. **S4.3 atomic live cutover/promotion（待实施）**：一次切换composition/DefaultGameRoot Narrative authoring与全部tracked consumers，
+8. **S4.3 atomic live cutover/promotion（待实施）**：一次切换composition/DefaultGameRoot Narrative authoring与全部tracked consumers，
    删除旧writers/exports/direct dispatch path，验证root/History retain/retire、三设备双fence、focus/inert、Narrative对既有
    reset adapter的响应与旧evidence
    stale rejection，随后更新architecture/features/development/authoring/website并跑受影响browser/examples/prebuilt。
@@ -3042,9 +3049,38 @@ Story/application ingress、public Story API、public/internal barrel、package 
 Narrative ingress仍是source-relative dormant seam，不构成live cutover。验证：focused `7 files / 187 tests`；UI package
 `79 files / 1005 tests`、全量`253 files / 3933 tests`、完整check green。本批没有改变browser/build graph，未机械重跑
 browser、examples或prebuilt；`101 / 101`、`45 passed / 2 skipped`与`38 / 38`仅作先前已有证据。S4.1b.1b.0已完成；
-current/next均为 **S4.1b.1b.1 remaining action mapping + automatic controller-attempt admission**。
+该checkpoint现由下述S4.1b.1b.1a delivery继续细分并取代。
 
-S4.1 aggregate stop在S4.1b.1b.1继续有效：若后续证据要求公开lease/source/occurrence/Coordinator、复用global
+### S4.1b.1b.1a delivery — skippable-pause physical resume vertical
+
+本批在同一source-relative Narrative physical action authority上完成pause的manual resume vertical。Factory只为current
+ready+active choice或pause构造一个exact live admission claim；preparing、retained-only、suspended与其他pending kind保持
+unavailable。任意ready pause不论`skippable`都可持有同一managed physical binding，以便后续Host继续承载History与player
+controls；`skippable: false`只是不签发manual semantic capability，不建立第二factory、parallel input writer或按kind分叉的
+lifecycle。Duplicate construction在改写gesture或binding前拒绝，construction/postcheck failure只清除自身exact claim；dispose
+seal route并释放自身claim，随后同bridge/InputRouter可创建fresh admission。
+
+只有`skippable: true`的exact current pause可签发frozen zero-key、same-admission one-shot resume attempt。Attempt绑定exact
+authority、direct-target proof、target、source revision、admitted frame与captured semantic port；`narrative.resume`先通过既有
+Surface/input publication/physical gesture fence，continuation再按action mapping、attempt authority/kind/spent验证后一次消费，
+重验current direct target、source、frame、semantic occurrence、`skippable`与port，并在最后一次direct proof后以captured exact
+receiver/callable提交frozen `{ expectedOccurrenceId, resolution: { kind: "resume" } }`。Unmapped action、wrong attempt kind与
+outer publication/gesture failure不消费authentic pause attempt；clone、foreign、repeat、replacement/retained、suspended或
+disposed proof稳定zero-dispatch。Non-skippable pause的attempt issuance为`null`，raw/null attempt不能调用semantic port。
+
+Semantic callable同步throw仍归一为rejected completion `Promise`；physical Surface receipt保持exact
+`unchanged / surface.action_routed`，source-relative consumer result返回`dispatched`，且不会回滚或改写已经安装的composite
+state。Successful semantic completion同样不乐观关闭root，后续仍由semantic publication驱动replace/empty。本批没有
+实现say advance/auto、custom、presentation barrier、player-control semantic mapping或automatic controller-attempt/timer，也没有
+接Narrative Host/History/React/live Story，未新增public/internal barrel、package export或generic receipt/code。
+
+验证：focused `7 files / 192 tests`、UI package `79 files / 1010 tests`、全量
+`253 files / 3938 tests`与完整`deno task check` green。本批未改变browser/build/live application graph，因此未机械重跑
+browser、examples或prebuilt；最近已有的Engine browser `101 / 101`、examples `45 passed / 2 skipped`与prebuilt Player
+`38 / 38`只作先前证据，不冒充本HEAD验证。S4.1b.1b.1a已完成；current/next均为
+**S4.1b.1b.1b remaining physical mapping + automatic controller-attempt admission**。
+
+S4.1 aggregate stop在S4.1b.1b.1b继续有效：若后续证据要求公开lease/source/occurrence/Coordinator、复用global
 semantic/presentation revision、允许同一semantic occurrence的full normalized `PendingInteractionV1` canonical漂移，
 或余下action admission仍需要扩大generic result code，立即停止；S4.2前stop：若unsupported pending必须保留平行host、
 History不能作为same-authority exact child或Host readiness需要真实async renderer新合同；S4.3前stop：若同一cutover不能

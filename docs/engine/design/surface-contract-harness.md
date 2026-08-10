@@ -104,9 +104,11 @@ Narrative/History stable family的topology、dismiss/focus/readiness、source pr
 single-writer cutover floor；S4.1a也已交付dormant Narrative family catalog、publisher projection与
 candidate preflight，S4.1b.0又已闭合shared contract-bound action route core与whole-composite stable input
 authority，S4.1b.1a又把authenticated envelope action ID保留到claimed continuation，
-S4.1b.1b.0已交付choice-only authenticated physical semantic admission。
-当前active execution pointer的current/next均为S4.1b.1b.1 remaining physical + automatic semantic action admission；
-R3b.1、R4.0、R4a、R4b.0、R4b.1、R5、S4.0、S4.1a、S4.1b.0、S4.1b.1a与S4.1b.1b.0只作为completed delivery保留。
+S4.1b.1b.0已交付choice-only authenticated physical semantic admission，S4.1b.1b.1a又已交付
+skippable-pause physical resume。
+当前active execution pointer的current/next均为S4.1b.1b.1b remaining physical mapping + automatic controller-attempt admission；
+R3b.1、R4.0、R4a、R4b.0、R4b.1、R5、S4.0、S4.1a、S4.1b.0、S4.1b.1a、S4.1b.1b.0与
+S4.1b.1b.1a只作为completed delivery保留。
 Stable implementation仍保持dormant/source-relative；R5只解除S4 entry gate，S4.0也没有把任何stable family
 提前写成live capability。
 当前 live 能力仍以
@@ -1232,7 +1234,8 @@ Coordinator API。
 S4据此拆为：S4.0本contract/characterization floor；S4.1a source-relative definition/catalog、publisher
 projection与candidate preflight；S4.1b.0 shared contract-bound physical route core与stable input authority；
 S4.1b.1a authenticated action continuation context corrective；S4.1b.1b.0 choice-only authenticated physical
-semantic action admission；S4.1b.1b.1 remaining physical mapping与automatic controller-attempt admission；S4.2 dormant
+semantic action admission；S4.1b.1b.1a skippable-pause physical resume；S4.1b.1b.1b remaining physical mapping与
+automatic controller-attempt admission；S4.2 dormant
 controller/view/Host、Host-commit readiness与History exact-child integration；
 S4.3在一个cutover中迁移全部tracked consumers、删除旧writers并完成headless/browser/prebuilt promotion。若exact-parent
 History不能与stable root共用composite authority、root/History不能原子retain/retire、同一semantic occurrence确实允许
@@ -1324,7 +1327,30 @@ Narrative Host/History/live consumer，也没有修改generic stable/action resu
 S4.1b.1b.0验证通过focused `7 files / 187 tests`、UI `79 files / 1005 tests`、full
 `253 files / 3933 tests`与`deno task check` green。本批尚未重跑browser/examples/prebuilt；最近已有的`101 / 101`、
 `45 passed / 2 skipped`与`38 / 38`仅作先前切片证据，不冒充S4.1b.1b.0 HEAD验证。
-Active current/next现为S4.1b.1b.1；后续顺序保持S4.1b.1b.1 → S4.2 → S4.3 → S4b。
+该checkpoint当时的active current/next为S4.1b.1b.1，现由下述S4.1b.1b.1a delivery继续细分。
+
+**S4.1b.1b.1a delivery：** 同一个source-relative physical admission现在允许任意current direct
+ready+active pause持有exact one live contract-bound binding，但只有full normalized pending明确声明`skippable: true`时才签发
+frozen zero-key pause-resume attempt；non-skippable pause没有semantic resume capability，preparing、retained-only或suspended
+target仍不能建立current admission。Choice与pause token共用一个package-private discriminated WeakMap record，分别绑定exact
+authority、direct-target proof、source revision、admitted frame与captured semantic port，不新增强引用attempt history或第二份
+lifecycle authority。
+
+Shared continuation先从authenticated action ID推导closed attempt kind；`ui.confirm`、`narrative.advance`及其他unmapped action在
+读取或消费token前返回`unmapped`，mapped cross-kind、clone、foreign、repeat与stale token也不会烧掉另一个合法capability。
+只有authenticated `narrative.resume`与same-admission、unspent pause token完全匹配，且target/source/frame/port仍exact current、
+pause仍skippable时，才构造并冻结`{ expectedOccurrenceId, resolution: { kind: "resume" } }`，以S4.1a捕获的exact
+receiver/callable dispatch。Semantic callable同步throw继续规范化为rejected completion `Promise`，不回滚已完成的Surface route
+或改变composite state；source replacement、suspension、dispose、stale gesture与重复调用均保持semantic dispatch为zero。
+
+本切片没有实现automatic controller-attempt、say advance/reveal policy、custom payload、presentation-barrier proof或player
+controls，没有接Narrative Host/History/live consumer，也没有扩张public/internal barrel、package export、generic stable/action
+result table或receipt。它们仍由S4.1b.1b.1b及S4.2–S4.3拥有。
+
+S4.1b.1b.1a验证通过focused `7 files / 192 tests`、UI `79 files / 1010 tests`、full
+`253 files / 3938 tests`与`deno task check` green。本批未重跑browser/examples/prebuilt；`101 / 101`、
+`45 passed / 2 skipped`与`38 / 38`仅是先前已有证据，不冒充本批HEAD验证。
+Active current/next现为S4.1b.1b.1b；后续顺序保持S4.1b.1b.1b → S4.2 → S4.3 → S4b。
 
 ### 3.3 Runtime session
 

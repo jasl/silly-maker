@@ -649,9 +649,25 @@ attempt; stale or replaced targets dispatch nothing. One active admission owns
 the binding, and exact disposal releases only that admission's claim so a later
 ready occurrence can bind a fresh successor. The seam remains dormant and adds
 no generic result code, barrel, package export, React Host, or live Story edge.
-Remaining say, pause, custom, barrier, player-control, and automatic-controller
-policies stay with S4.1b.1b.1; no raw resolution ingress is exposed ahead of
-those mappings.
+
+S4.1b.1b.1a extends that same admission authority with the first remaining
+physical mapping: `narrative.resume` for a current direct ready-and-active
+pause. Every ready pause may hold the root's single managed physical binding,
+but only a frame whose exact captured `skippable` flag is `true` can mint a
+frozen zero-key pause-resume attempt. Choice and pause attempts share one
+discriminated WeakMap provenance authority; action-to-attempt kind is checked
+before the one-shot token is spent. The admitted route rechecks the exact
+target, source, frame, captured semantic port, and `skippable` flag, then sends
+a frozen `{ expectedOccurrenceId, resolution: { kind: "resume" } }` request to
+the preflight-captured receiver and callable. `ui.confirm`,
+`narrative.advance`, player controls, and every other unmapped action are
+rejected before attempt inspection and cannot consume a valid pause token.
+Preparing, replacement, retained-only, suspended, disposed, foreign, cloned,
+and repeated capabilities dispatch nothing; a synchronous semantic throw only
+rejects the returned completion Promise and does not roll back Surface state.
+The slice remains source-relative and dormant. Remaining say, custom, barrier,
+player-control, and automatic-controller policies stay with S4.1b.1b.1b; no
+raw resolution ingress is exposed ahead of those mappings.
 
 ## 9. Changing the architecture
 
@@ -693,8 +709,11 @@ contract-bound physical gate plus whole-topology stable input-owner proof.
 S4.1b.1a preserves authenticated action context through the claimed route
 without dispatching semantic work. S4.1b.1b.0 now consumes that context only
 for authenticated current-choice dispatch through the exact preflight-captured
-semantic callable. S4.1b.1b.1 remaining physical mappings and automatic
-controller-attempt admission are the next independent slice; Host integration
-and the Narrative live migration remain planned work.
+semantic callable. S4.1b.1b.1a adds authenticated physical resume only for an
+exact current skippable pause while retaining the same single binding for a
+non-skippable pause without minting a semantic capability. S4.1b.1b.1b
+remaining physical mappings and automatic controller-attempt admission are the
+next independent slice; Host integration and the Narrative live migration
+remain planned work.
 Target documents do not alter the current data flow until that migration and
 its behavior tests land.

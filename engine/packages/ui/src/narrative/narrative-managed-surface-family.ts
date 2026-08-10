@@ -199,6 +199,12 @@ export interface NarrativeStableChoiceActionAttemptInternalV1 {
   readonly [narrativeStableChoiceActionAttemptBrandInternalV1]: true;
 }
 
+declare const narrativeStablePauseResumeActionAttemptBrandInternalV1: unique symbol;
+
+export interface NarrativeStablePauseResumeActionAttemptInternalV1 {
+  readonly [narrativeStablePauseResumeActionAttemptBrandInternalV1]: true;
+}
+
 export type NarrativeStablePhysicalActionDispatchResultInternalV1 =
   | Readonly<{
     readonly kind: "dispatched";
@@ -231,6 +237,7 @@ export interface NarrativeStablePhysicalActionAdmissionInternalV1 {
   issueChoiceAttemptInternalV1(
     choiceId: unknown,
   ): NarrativeStableChoiceActionAttemptInternalV1 | null;
+  issuePauseResumeAttemptInternalV1(): NarrativeStablePauseResumeActionAttemptInternalV1 | null;
   routeInternalV1(
     envelope: ManagedSurfaceActionEnvelopeV1,
     attempt: unknown,
@@ -276,24 +283,39 @@ interface NarrativeStableSemanticResolutionPortBindingInternalV1 {
   ];
 }
 
-interface NarrativeStableChoiceActionAttemptRecordInternalV1 {
+interface NarrativeStablePhysicalActionAttemptRecordBaseInternalV1 {
   readonly authority: NarrativeStablePhysicalActionAdmissionInternalV1;
   readonly targetProof: ManagedSurfaceStableDirectActionTargetProofInternalV1;
   readonly directTarget: ManagedSurfaceStableAdmittedTargetInternalV1;
   readonly sourceRevision: ManagedSurfaceStableSourceRevisionInternalV1;
   readonly frame: NarrativeStableAdmittedFrameInternalV1;
-  readonly choiceId: string;
   readonly semanticDispatchPort: NarrativeStableCapturedSemanticResolutionPortInternalV1;
   spent: boolean;
 }
+
+type NarrativeStablePhysicalActionAttemptRecordInternalV1 =
+  | (
+    & NarrativeStablePhysicalActionAttemptRecordBaseInternalV1
+    & Readonly<{
+      readonly kind: "choice";
+      readonly choiceId: string;
+    }>
+  )
+  | (
+    & NarrativeStablePhysicalActionAttemptRecordBaseInternalV1
+    & Readonly<{
+      readonly kind: "pause_resume";
+    }>
+  );
 
 const narrativeStableSemanticResolutionPortBindingsInternalV1 = new WeakMap<
   NarrativeStableCapturedSemanticResolutionPortInternalV1,
   NarrativeStableSemanticResolutionPortBindingInternalV1
 >();
-const narrativeStableChoiceActionAttemptRecordsInternalV1 = new WeakMap<
-  NarrativeStableChoiceActionAttemptInternalV1,
-  NarrativeStableChoiceActionAttemptRecordInternalV1
+const narrativeStablePhysicalActionAttemptRecordsInternalV1 = new WeakMap<
+  | NarrativeStableChoiceActionAttemptInternalV1
+  | NarrativeStablePauseResumeActionAttemptInternalV1,
+  NarrativeStablePhysicalActionAttemptRecordInternalV1
 >();
 
 const stableZeroDeltaInternalV1 = Object.freeze({
@@ -465,6 +487,7 @@ const historyDefinitionIdInternalV1 = parseManagedSurfaceDefinitionIdV1(
 );
 const narrativeLayerIdInternalV1 = parseManagedSurfaceLayerIdV1("surface-layer.narrative");
 const narrativeChooseActionIdInternalV1 = parseManagedSurfaceActionIdV1("narrative.choose");
+const narrativeResumeActionIdInternalV1 = parseManagedSurfaceActionIdV1("narrative.resume");
 
 const readinessPolicyInternalV1 = Object.freeze({
   initialOpen: "blocking_fallback" as const,
@@ -1260,7 +1283,8 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
     capturedInitial.directTarget,
   ]) as NarrativeStableAdmittedFrameInternalV1 | null;
   if (
-    initialFrame === null || initialFrame.pending.kind !== "choice" ||
+    initialFrame === null ||
+    (initialFrame.pending.kind !== "choice" && initialFrame.pending.kind !== "pause") ||
     !narrativeStableSemanticResolutionPortBindingsInternalV1.has(
       initialFrame.candidateSnapshot.semanticDispatchPort,
     )
@@ -1290,16 +1314,26 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
         if (!active) {
           return narrativePhysicalActionStaleResultInternalV1;
         }
-        if (actionId !== narrativeChooseActionIdInternalV1) {
+        const mappedKind = actionId === narrativeChooseActionIdInternalV1
+          ? "choice"
+          : actionId === narrativeResumeActionIdInternalV1
+          ? "pause_resume"
+          : null;
+        if (mappedKind === null) {
           return narrativePhysicalActionUnmappedResultInternalV1;
         }
         if ((typeof attempt !== "object" && typeof attempt !== "function") || attempt === null) {
           return narrativePhysicalActionStaleResultInternalV1;
         }
-        const record = narrativeStableChoiceActionAttemptRecordsInternalV1.get(
-          attempt as NarrativeStableChoiceActionAttemptInternalV1,
+        const record = narrativeStablePhysicalActionAttemptRecordsInternalV1.get(
+          attempt as
+            | NarrativeStableChoiceActionAttemptInternalV1
+            | NarrativeStablePauseResumeActionAttemptInternalV1,
         );
-        if (record === undefined || record.authority !== authority || record.spent) {
+        if (
+          record === undefined || record.authority !== authority || record.spent ||
+          record.kind !== mappedKind
+        ) {
           return narrativePhysicalActionStaleResultInternalV1;
         }
         record.spent = true;
@@ -1331,10 +1365,13 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
             current.directTarget,
           ]) as NarrativeStableAdmittedFrameInternalV1 | null;
           if (
-            currentFrame !== record.frame || currentFrame?.pending.kind !== "choice" ||
+            currentFrame !== record.frame || currentFrame === null ||
             currentFrame.candidateSnapshot.semanticDispatchPort !== record.semanticDispatchPort ||
             currentFrame.pending.occurrenceId !== record.frame.pending.occurrenceId ||
-            !currentFrame.pending.options.some((option) => option.choiceId === record.choiceId)
+            (record.kind === "choice"
+              ? currentFrame.pending.kind !== "choice" ||
+                !currentFrame.pending.options.some((option) => option.choiceId === record.choiceId)
+              : currentFrame.pending.kind !== "pause" || !currentFrame.pending.skippable)
           ) {
             return narrativePhysicalActionStaleResultInternalV1;
           }
@@ -1342,10 +1379,12 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
             record.semanticDispatchPort,
           );
           if (portBinding === undefined) return narrativePhysicalActionFaultedResultInternalV1;
-          const resolution = Object.freeze({
-            kind: "choose" as const,
-            choiceId: record.choiceId,
-          }) satisfies Extract<InteractionResolutionV1, { readonly kind: "choose" }>;
+          const resolution: InteractionResolutionV1 = record.kind === "choice"
+            ? Object.freeze({
+              kind: "choose" as const,
+              choiceId: record.choiceId,
+            })
+            : Object.freeze({ kind: "resume" as const });
           const request = Object.freeze({
             expectedOccurrenceId: currentFrame.pending.occurrenceId,
             resolution,
@@ -1471,13 +1510,66 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
         const attempt = Object.freeze(
           {},
         ) as NarrativeStableChoiceActionAttemptInternalV1;
-        narrativeStableChoiceActionAttemptRecordsInternalV1.set(attempt, {
+        narrativeStablePhysicalActionAttemptRecordsInternalV1.set(attempt, {
+          kind: "choice",
           authority,
           targetProof: current.targetProof,
           directTarget: current.directTarget,
           sourceRevision: current.sourceRevision,
           frame,
           choiceId,
+          semanticDispatchPort: frame.candidateSnapshot.semanticDispatchPort,
+          spent: false,
+        });
+        return attempt;
+      } catch {
+        return null;
+      }
+    },
+    issuePauseResumeAttemptInternalV1(
+      this: NarrativeStablePhysicalActionAdmissionInternalV1,
+    ): NarrativeStablePauseResumeActionAttemptInternalV1 | null {
+      if (this !== authority || !active) return null;
+      try {
+        const current = Reflect.apply(
+          captureCurrentStableInput,
+          stableActionAuthority,
+          [],
+        ) as ReturnType<
+          ManagedSurfaceStableActionRouteAuthorityInternalV1[
+            "captureCurrentStableInputInternalV1"
+          ]
+        >;
+        if (
+          current.kind !== "captured" || current.directTarget === null ||
+          current.sourceRevision === null || current.targetProof === null ||
+          !equalManagedSurfaceInputBindingContractV1(current.contract, capturedInitial.contract) ||
+          Reflect.apply(isCurrentDirectTarget, stableActionAuthority, [current.targetProof]) !==
+            true
+        ) {
+          return null;
+        }
+        const frame = Reflect.apply(inspectAdmittedTargetFrame, bridge, [
+          current.directTarget,
+        ]) as NarrativeStableAdmittedFrameInternalV1 | null;
+        if (
+          frame === null || frame.pending.kind !== "pause" || !frame.pending.skippable ||
+          !narrativeStableSemanticResolutionPortBindingsInternalV1.has(
+            frame.candidateSnapshot.semanticDispatchPort,
+          )
+        ) {
+          return null;
+        }
+        const attempt = Object.freeze(
+          {},
+        ) as NarrativeStablePauseResumeActionAttemptInternalV1;
+        narrativeStablePhysicalActionAttemptRecordsInternalV1.set(attempt, {
+          kind: "pause_resume",
+          authority,
+          targetProof: current.targetProof,
+          directTarget: current.directTarget,
+          sourceRevision: current.sourceRevision,
+          frame,
           semanticDispatchPort: frame.candidateSnapshot.semanticDispatchPort,
           spent: false,
         });
