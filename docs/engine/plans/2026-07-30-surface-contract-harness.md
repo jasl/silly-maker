@@ -3215,9 +3215,11 @@ own-data `capturePhaseInternalV1`/`revealAllInternalV1`，renderer只拿当次bo
 同一事件不能reveal后再advance。Bridge-private per-current-Say-frame reveal controller独立于可替换的
 `physicalActionAdmissionClaim`，拥有captured port与exact in-flight claim：source/frame/readiness/lifetime loss撤销，
 active-only topology/InputRouter binding churn保留；physical admission只借用它，old admission/token不能影响fresh controller，
-`.1b`也复用同一record。Stale Surface/target/generation在phase读取前返回`stale/null`；phase callback后、mint前重验
-controller/admission/target/source/frame。Authenticated attempt先spend再调用port；phase invalid/throw或`revealAll` throw均为
-`faulted/null`、semantic与semantic in-flight zero；只有complete row才seal claim。Captured semantic port的现有one-key
+`.1b`也复用同一record。Issuance只绑定current identities、不读取phase，失败为attempt `null`/mint zero。Authenticated
+route完成generic fence与mapping后取得controller boundary gate、验证currentness、spend，再调用一次`capturePhase`；callback
+后先重验，drift的`stale/null`优先于invalid/throw的`faulted/null`。Incomplete再调用一次`revealAll`并post-recheck，drift为
+stale、仍current的throw为faulted、success为`revealed/null`；semantic/in-flight均zero。只有complete row才把boundary
+gate转为semantic in-flight。Captured semantic port的现有one-key
 callable shape不变，但返回Promise必须在该dispatch触发的semantic publication与bridge reconcile drain完成后才settle，
 Family再按exact unchanged source释放claim或随changed source退役。`.1b`只实现`advancePolicy: "auto"`的
 ready-active、无gesturecontroller attempt，不读取clock、不建timer，也不实现player Auto/Skip。该amendment没有

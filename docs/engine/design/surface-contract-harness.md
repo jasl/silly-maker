@@ -1501,11 +1501,14 @@ dispatch-claim token。Source/frame漂移、suspend、empty、publisher/Coordina
 InputRouter binding且root仍ready-active时保留同一controller/claim。Physical admission只借用该exact controller，可独立
 dispose/recreate；old admission/token不能清除或作用于fresh controller。`.1b`复用同一controller record，不创建第二authority。
 
-Stale Surface/target/controller generation必须在读取phase前返回既有`stale/null`。`capturePhase`返回后且mint前，必须重验
-exact controller/admission/target/source/frame；callback reentry loser为zero。Authenticated mapping验证完成后先spend activation
-attempt，再调用captured port；phase throw/非`incomplete | complete`或`revealAll` throw均返回既有`faulted/null`，semantic
-dispatch为零且不安装semantic in-flight claim。Incomplete success为`revealed/null`；complete row才原子seal per-frame
-single in-flight并提交semantic call。Winner pending期间competitor为stale/zero dispatch。现有captured one-key
+Attempt issuance只验证并绑定exact admission/controller/target/source/frame，不读取phase；失败返回`null`且mint zero。
+Route完成generic Surface/Input/publication/gesture fence、alias/token mapping与controller currentness后，先取得exact controller
+boundary gate并spend activation token，再且只再调用一次captured `capturePhase`。Callback返回或throw后先重验exact
+controller/admission/target/source/frame：若已漂移则`stale/null`优先；仍current时phase throw或非
+`incomplete | complete`才返回`faulted/null`。Incomplete row调用一次captured `revealAll`，随后再次重验；漂移为
+`stale/null`，仍current的throw为`faulted/null`，success为`revealed/null`。这些路径semantic dispatch均为零且不安装
+semantic in-flight claim；complete row才把同一boundary gate原子转为per-frame semantic in-flight并提交call。Callback
+reentry与pending competitor均为stale/zero dispatch。现有captured one-key
 `dispatchResolutionInternalV1(): Promise<unknown>`不扩shape，但其source-relative composition-adapter合同收紧为：
 返回Promise只能在该调用触发的semantic publication与对应Narrative bridge reconcile全部drain后settle。Family以该
 post-drain settlement包装completion；settlement前若exact source/frame已变化则claim随旧generation退役，仍exact current才
