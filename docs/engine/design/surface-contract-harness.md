@@ -1545,6 +1545,40 @@ S4.1b.1b.1b.2b.1a验证通过focused `7 files / 226 tests`、UI `79 files / 1044
 `45 passed / 2 skipped`与`38 / 38`仅为先前已有证据，不冒充本批HEAD验证。Active current/next现均为
 S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor。
 
+**S4.1b.1b.1b.2b.1b entry amendment（docs-only）：** content-auto沿用上述exact per-frame Say reveal
+controller record与shared callback/semantic in-flight claim，不建立第二个controller、route authority或input
+binding。Source-relative opaque attempt固定命名为
+`NarrativeStableSayContentAutoAttemptInternalV1`；现有
+`NarrativeStableSayRevealControllerInternalV1`只新增
+`issueContentAutoAttemptInternalV1(): NarrativeStableSayContentAutoAttemptInternalV1 | null`与
+`dispatchContentAutoInternalV1(attempt: unknown): NarrativeStableSayContentAutoDispatchResultInternalV1`。
+后者是exact frozen source-relative union：`dispatched`携带post-drain `Promise` completion，`not_ready`、
+`stale`与`faulted`均携带`completion: null`。这些类型与方法不进入public/`./internal` barrel、package export
+或generic Managed Surface action/result contract。
+
+Issue保持phase-free：它只接受`advancePolicy: "auto"`的exact current direct Say target/source/frame，取得
+fresh ready-active target proof，要求controller/generation仍current、shared callback与semantic in-flight均为空，
+并至多保留一个current automatic attempt。它不读取reveal phase，也不依赖whole-topology input owner、
+physical admission、gesture、clock、Host profile或timer；失败返回`null`且mint zero。Automatic attempt使用
+frozen zero-key identity与source-relative WeakMap provenance，绑定exact controller claim、target、source、frame、
+semantic port及该次fresh ready-active proof。旧proof、clone、foreign、repeat、suspended/preparing/retained target、
+source/frame successor、empty或dispose均不得成为current attempt。
+
+Dispatch先以exact receiver/attempt/controller与fresh ready-active proof取得同一bridge callback gate，再不可逆
+spend attempt，随后且只随后调用一次captured `capturePhaseInternalV1`。Callback返回或throw后先重验exact
+controller/target/source/frame/semantic port与ready-active proof：任一漂移固定为`stale/null`并优先于callback
+invalid/throw；exact-current `incomplete`返回`not_ready/null`，不调用`revealAllInternalV1`且semantic dispatch为零；
+exact-current throw或非`incomplete | complete`返回`faulted/null`。只有exact-current `complete`才把callback gate
+原子转换为现有per-frame semantic in-flight claim、final-recheck exact frame/port，并提交同一个frozen
+`{ kind: "advance" }` semantic request；sync throw仍规范化为rejected post-drain completion，不回滚spend或claim。
+
+Manual activation与content-auto可以各自预签一个bounded attempt，但二者共享一个first-wins callback/in-flight
+boundary：任一方先取得gate时必须同步retire另一方尚未spend的attempt；Promise pending期间不能签发或dispatch
+competitor，旧attempt与旧completion也不能ABA作用于fresh controller/source claim。Completion仍沿用`.1a`的
+publication + synchronous Narrative reconcile drain与exact-token CAS释放合同。该entry amendment不实现clock、
+`autoWaitMs`、deadline、player Auto/Skip、Host/React/live claimant，也不改变Base、Save/Persistence、canonical、
+digest、replay或wire；S4.1b.1b.1b.2b.1b仍是current/next，完成实现与验证后才能记录delivery。
+
 ### 3.3 Runtime session
 
 纯 `ManagedSurfaceSessionState` 根据已解析定义和 target 管理有界拓扑：

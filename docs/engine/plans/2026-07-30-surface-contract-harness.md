@@ -3257,6 +3257,52 @@ claimant，也没有public/internal barrel、package export或generic action/sta
 **S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor**，随后依次是S4.1b.1b.1b.2b.2、
 S4.1b.1b.1b.2b.3、S4.2、S4.3与S4b。
 
+### S4.1b.1b.1b.2b.1b entry amendment — content-auto Say controller-attempt floor（docs-only）
+
+本切片不建立第二个Say controller或bridge claim。现有exact per-current-frame
+`NarrativeStableSayRevealControllerInternalV1`直接增加
+`issueContentAutoAttemptInternalV1(): NarrativeStableSayContentAutoAttemptInternalV1 | null`与
+`dispatchContentAutoInternalV1(attempt: unknown): NarrativeStableSayContentAutoDispatchResultInternalV1`。
+Content-auto attempt是独立brand、frozen zero-key、WeakMap-authenticated one-shot capability；result是exact frozen
+closed union：`{ kind: "dispatched", completion: Promise<unknown> } |
+{ kind: "not_ready", completion: null } | { kind: "stale", completion: null } |
+{ kind: "faulted", completion: null }`。这些名称与结果只存在于Narrative source-relative内部模块，不进入UI root、`./internal`
+barrel、package export或generic Managed Surface result。
+
+Issue保持phase-free：它只接受exact controller receiver、`advancePolicy: "auto"`的exact current Say frame、ready-active
+controller generation、current target/source/frame/semantic port与fresh ready-active proof。它不读取
+`capturePhaseInternalV1`，不调用`revealAllInternalV1`，也不依赖physical admission、InputRouter、input owner、gesture、clock
+或timer。Confirm policy、inactive/suspended/retained/preparing controller、callback/semantic gate已占用、foreign receiver或
+current-proof unspent auto attempt都返回`null`且mint zero。Active-only topology变化保留同一controller generation，但使旧proof/
+attempt stale；同一generation可退休该旧attempt并用fresh proof签发新attempt。一个controller只强保留一个current auto
+attempt，不保留attempt history。
+
+Dispatch ordered contract固定为：exact controller receiver/lifetime → exact attempt provenance/current/unspent → ready-active
+proof与target/source/frame/port/`advancePolicy`复验 → shared Say callback gate available → 原子claim gate、spend auto attempt并
+退休同一frame的current manual与auto competitor → 只调用一次captured `capturePhaseInternalV1` → post-callback exact
+controller/target/source/frame/port/readiness proof复验。Post-check drift固定返回`stale/null`且优先于callback outcome；仍exact
+current的`incomplete`返回`not_ready/null`，throw或非`incomplete | complete`返回`faulted/null`，三者semantic dispatch均为
+zero并释放callback gate。Auto path从不调用`revealAllInternalV1`。只有仍exact current的`complete`把同一callback gate原子
+转成既有per-frame `saySemanticInFlightClaim`，完成最后proof check并提交frozen
+`{ expectedOccurrenceId, resolution: { kind: "advance" } }`。
+
+Manual与content-auto允许各自预签发一个attempt，但共用同一个bridge callback gate与semantic in-flight claim。先取得
+callback gate的一方同步退休另一方的旧attempt；loser在winner的callback、semantic Promise pending及settlement以后都不能
+复活。`not_ready`或`faulted`只允许重新签发fresh attempt，不恢复旧competitor。Physical reveal-only、manual complete与auto
+complete也必须沿用同一first-wins helper/slot，不能复制一份平行semantic authority。
+
+Lifecycle继续复用`.1a`：active-only topology churn保留controller、撤销旧attempt并允许fresh proof；blocking suspension立即
+撤销controller与未提交attempt，resume只能建立fresh controller generation。若semantic dispatch已经开始，同帧suspend/
+resume保留exact pending claim与bounded observer直到drain；source/frame replacement、empty、publisher/Coordinator dispose
+则退休旧claim，old completion只能以exact CAS清理自身，不能清除successor。Semantic sync throw归一化为rejected Promise；
+resolved/rejected completion都必须在该调用触发的semantic publication与同步Narrative bridge reconcile drain后、向caller
+暴露settlement前完成exact claim/observer cleanup。无论manual还是auto，Promise pending期间全部competitor均为zero dispatch。
+
+本entry amendment保持S4.1b.1b.1b.2b.1b为current/pending，不记录实现或验证证据。它不读取clock，不创建timer/deadline/
+remaining，不实现`autoWaitMs` scheduling、player Auto/Skip、Host/React/live claimant、Barrier、History或S4.2 controller。
+若实现需要第二个Say lifecycle authority、raw renderer semantic port、timer/Host接线、generic/public result扩张，或不能证明
+manual/auto共享gate与post-drain exact cleanup，立即停止并修订合同。
+
 S4.1 aggregate stop在S4.1b.1b.1b.1–S4.1b.1b.1b.2b.3继续有效：若后续证据要求公开lease/source/occurrence/Coordinator、复用global
 semantic/presentation revision、允许同一semantic occurrence的full normalized `PendingInteractionV1` canonical漂移，
 或余下action admission仍需要扩大generic result code，立即停止；S4.2前stop：若unsupported pending必须保留平行host、

@@ -1614,6 +1614,32 @@ Managed Surface result/receipt、Base/Save/Persistence/wire或第二份topology 
 S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor；后续顺序保持S4.1b.1b.1b.2b.1b →
 S4.1b.1b.1b.2b.2 → S4.1b.1b.1b.2b.3 → S4.2 → S4.3 → S4b。
 
+**PF4/S4.1b.1b.1b.2b.1b entry amendment（docs-only）：** 本切片扩展同一个source-relative
+`NarrativeStableSayRevealControllerInternalV1`，不创建第二个controller、factory或dispatch authority。新增
+`NarrativeStableSayContentAutoAttemptInternalV1`与
+`NarrativeStableSayContentAutoDispatchResultInternalV1`；现有controller增加
+`issueContentAutoAttemptInternalV1()`与`dispatchContentAutoInternalV1(attempt)`。Result是exact closed union：
+`dispatched/Promise`、`not_ready/null`、`stale/null`与`faulted/null`；它只属于Narrative source-relative
+consumer，不进入physical action result、generic Managed Surface result/receipt或任一barrel。
+
+Issuance保持phase-free，只在exact receiver/controller仍current、pending仍为`advancePolicy: "auto"`的Say、target仍
+ready-active且target/source/frame/semantic port与fresh topology-bound ready-active proof完全匹配、shared callback与semantic
+in-flight均为空时，签发一个frozen zero-key one-shot attempt；否则返回`null`且mint zero。同一controller只保留一个current
+automatic attempt与WeakMap provenance，不保留强attempt history。Dispatch先验证exact receiver、controller、attempt
+provenance与one-shot currentness，再通过attempt-bound ready-active proof及target/source/frame/port重验，取得与manual activation共用的
+`sayCallbackClaim`并在读取phase前spend attempt。随后只调用一次captured `capturePhaseInternalV1`；callback后先重验全部
+currentness，任一drift固定返回`stale/null`并优先于callback throw或invalid value。仍current的throw或非
+`incomplete | complete`返回`faulted/null`；`incomplete`返回exact frozen`not_ready/null`，不调用`revealAll`且semantic
+dispatch为零；只有`complete`才把同一个callback claim原子转换为既有per-frame `saySemanticInFlightClaim`并提交frozen
+`advance` request。Manual与automatic可以各自预签一个bounded attempt，但共享同一个first-win/in-flight boundary；任一方
+先取得gate时同步retire另一方尚未spend的attempt。Semantic completion仍沿用`.1a`的post-publication/reconcile-drain
+settlement与exact claim CAS释放，旧attempt或旧completion不能清除、消费或释放successor claim。
+
+本entry amendment不实现clock、timer、deadline、`autoWaitMs`、suspend remaining、Host scheduling或player Auto/Skip，
+不接React/Web/live Narrative claimant，也不修改physical admission、Base interaction、generic Surface contracts、public/
+`./internal` barrel、package export、Save/Persistence/wire。它不表示runtime delivery、不记录验证证据，linear current/next仍为
+S4.1b.1b.1b.2b.1b；完成后才可推进S4.1b.1b.1b.2b.2。
+
 每个 family 的迁移提交必须删除旧 owner；禁止长期 adapter 双写。
 `DialoguePanelV1` / `VnLayerV1` 的 controller/view/host 拆分在 Narrative family
 中完成，不与 Overlay pilot 混合。
