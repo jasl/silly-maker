@@ -107,13 +107,15 @@ authority，S4.1b.1a又把authenticated envelope action ID保留到claimed conti
 S4.1b.1b.0已交付choice-only authenticated physical semantic admission，S4.1b.1b.1a又已交付
 skippable-pause physical resume，S4.1b.1b.1b.1又已交付automatic pause-expiry controller-attempt
 admission/dispatch floor，S4.1b.1b.1b.2a又已交付custom physical payload admission，
-S4.1b.1b.1b.2b.0现已冻结remaining Say/barrier/player policy。
-当前active execution pointer的current/next均为S4.1b.1b.1b.2b.1a physical Say reveal-first admission；
-之后依次为S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor、
+S4.1b.1b.1b.2b.0现已冻结remaining Say/barrier/player policy，
+S4.1b.1b.1b.2b.1a又已交付physical Say reveal-first admission。
+当前active execution pointer的current/next均为S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor；
+之后依次为
 S4.1b.1b.1b.2b.2 barrier acknowledgment/recovery、
 S4.1b.1b.1b.2b.3 player controls、S4.2、S4.3与S4b。
 R3b.1、R4.0、R4a、R4b.0、R4b.1、R5、S4.0、S4.1a、S4.1b.0、S4.1b.1a、S4.1b.1b.0与
-S4.1b.1b.1a、S4.1b.1b.1b.1、S4.1b.1b.1b.2a与S4.1b.1b.1b.2b.0只作为completed
+S4.1b.1b.1a、S4.1b.1b.1b.1、S4.1b.1b.1b.2a、S4.1b.1b.1b.2b.0与
+S4.1b.1b.1b.2b.1a只作为completed
 delivery保留。
 Stable implementation仍保持dormant/source-relative；R5只解除S4 entry gate，S4.0也没有把任何stable family
 提前写成live capability。
@@ -1360,8 +1362,8 @@ S4.1b.1a authenticated action continuation context corrective；S4.1b.1b.0 choic
 semantic action admission；S4.1b.1b.1a skippable-pause physical resume；S4.1b.1b.1b.1 automatic pause-expiry
 controller-attempt admission/dispatch floor；S4.1b.1b.1b.2a custom physical payload admission（已完成）；
 S4.1b.1b.1b.2b.0 remaining mapping policy adjudication（已完成）；
-S4.1b.1b.1b.2b.1a physical Say reveal-first admission（当前）；
-S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor；
+S4.1b.1b.1b.2b.1a physical Say reveal-first admission（已完成）；
+S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor（当前）；
 S4.1b.1b.1b.2b.2 barrier acknowledgment/recovery；
 S4.1b.1b.1b.2b.3 player controls；S4.2 dormant
 controller/view/Host、Host-commit readiness与History exact-child integration；
@@ -1481,8 +1483,8 @@ S4.1b.1b.1a验证通过focused `7 files / 192 tests`、UI `79 files / 1010 tests
 `253 files / 3938 tests`与`deno task check` green。本批未重跑browser/examples/prebuilt；`101 / 101`、
 `45 passed / 2 skipped`与`38 / 38`仅是先前已有证据，不冒充本批HEAD验证。
 该checkpoint当时的current/next是S4.1b.1b.1b.2a；现已由上述.2a delivery推进。
-Active current/next现均为S4.1b.1b.1b.2b.1a；后续顺序保持
-S4.1b.1b.1b.2b.1a → S4.1b.1b.1b.2b.1b → S4.1b.1b.1b.2b.2 →
+Active current/next现均为S4.1b.1b.1b.2b.1b；后续顺序保持
+S4.1b.1b.1b.2b.1b → S4.1b.1b.1b.2b.2 →
 S4.1b.1b.1b.2b.3 → S4.2 → S4.3 → S4b。
 
 **S4.1b.1b.1b.2b.1 execution-order amendment：** Say先拆成两个vertical。`.1a`沿用既有
@@ -1519,6 +1521,29 @@ post-drain settlement包装completion；settlement前若exact source/frame已变
 generation/in-flight claim；它不读取clock、不创建timer/deadline、不实现player Auto/Skip。Player Auto/Skip仍由`.2b.3`
 冻结的mode authority拥有，实际scheduling与suspend remaining仍归S4.2。本amendment只调整execution order与exact
 source-relative result/Promise boundary，没有source/test/runtime/live claimant、public/barrel或generic result变更。
+
+**S4.1b.1b.1b.2b.1a physical Say reveal-first delivery：** Narrative family现为exact current
+Say frame建立独立的per-frame reveal controller claim；它与可替换的composition-owned physical admission
+不是同一个authority。Controller descriptor-capture exact phase/reveal receiver与callable，physical admission只为
+`ui.confirm`和`narrative.advance`两个activate-say alias签发绑定该generation的opaque attempt；替换或dispose
+physical admission不会绕过或清除仍current的controller gate，controller dispose后也可由同一bridge/router建立fresh
+successor admission。
+
+Route仍先经过shared Surface/Input/publication/gesture proof，再以bridge-private callback gate完成phase/reveal
+first-wins。Phase或reveal callback中的同步reentry若使controller、admission、target、source或frame漂移，结果固定为
+`stale`并优先于callback throw/fault；exact current incomplete只reveal且semantic dispatch为零，exact current complete
+才把callback gate转成交给该frame的single semantic in-flight claim并提交`advance`。Same-frame blocking suspension会
+撤销ready-active controller与attempt，但保留该pending semantic claim及其bounded lifecycle observer；resume后在旧completion
+settle前不能建立竞争boundary。Source/frame漂移则退休旧claim；旧completion只以exact claim identity CAS释放自身，不能
+清除fresh successor claim。Resolve、reject与sync throw归一化为Promise completion，并都在completion向caller暴露前完成
+该调用已经触发的semantic publication及同步Narrative bridge reconcile drain、exact claim释放与inactive observer回收。
+
+本delivery仍是source-relative/dormant family floor：没有接入live Host/renderer，没有新增public/barrel或generic
+Managed Surface result，也没有实现content-auto、clock、timer、deadline、player Auto/Skip、barrier或History。
+S4.1b.1b.1b.2b.1a验证通过focused `7 files / 226 tests`、UI `79 files / 1044 tests`、full
+`253 files / 3974 tests`与`deno task check` green。本批未重跑browser/examples/prebuilt；`101 / 101`、
+`45 passed / 2 skipped`与`38 / 38`仅为先前已有证据，不冒充本批HEAD验证。Active current/next现均为
+S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor。
 
 ### 3.3 Runtime session
 

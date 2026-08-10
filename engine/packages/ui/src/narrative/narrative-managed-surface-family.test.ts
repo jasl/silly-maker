@@ -39,7 +39,9 @@ import {
   createNarrativeStablePauseExpiryControllerInternalV1,
   createNarrativeStablePhysicalActionAdmissionInternalV1,
   createNarrativeStablePublisherBridgeInternalV1,
+  createNarrativeStableSayRevealControllerInternalV1,
   type CreateNarrativeStablePhysicalActionAdmissionInputInternalV1,
+  type CreateNarrativeStableSayRevealControllerInputInternalV1,
   type NarrativeManagedSurfaceFamilyContractInternalV1,
   type NarrativeStableCandidatePreflightInternalV1,
   type NarrativeStableCandidatePreflightRejectionCodeInternalV1,
@@ -55,6 +57,9 @@ import {
   type NarrativeStablePublisherBridgeInternalV1,
   type NarrativeStablePublisherBridgeResultInternalV1,
   type NarrativeStableRequiredPortIdInternalV1,
+  type NarrativeStableSayActivationAttemptInternalV1,
+  type NarrativeStableSayRevealControllerInternalV1,
+  type NarrativeStableSayRevealGenerationPortInternalV1,
   type NarrativeStableSemanticResolutionPortInternalV1,
 } from "./narrative-managed-surface-family.ts";
 
@@ -383,6 +388,54 @@ function physicalCustomHarnessV1(input: {
   return { harness, inputRouter, admission, semanticDispatchPort };
 }
 
+function physicalSayHarnessV1(input: {
+  readonly semanticDispatchPort?: NarrativeStableSemanticResolutionPortInternalV1;
+  readonly revealGenerationPort?: NarrativeStableSayRevealGenerationPortInternalV1;
+  readonly isGestureCurrent?: () => boolean;
+  readonly advancePolicy?: "confirm" | "auto";
+} = {}) {
+  const semanticDispatchPort = input.semanticDispatchPort ?? defaultSemanticDispatchPortV1;
+  const harness = harnessV1({
+    candidatePreflight: Object.freeze({
+      preflightCandidateInternalV1: () =>
+        capturedCandidatePreflightResultV1(Object.freeze({
+          ...defaultCandidateSnapshotV1,
+          semanticDispatchPort,
+        })),
+    }),
+  });
+  expect(
+    harness.bridge.reconcilePendingInternalV1({
+      ...(pendingV1("say") as Record<string, unknown>),
+      advancePolicy: input.advancePolicy ?? "confirm",
+    }),
+  ).toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
+  settleCurrentNarrativeReadyV1(harness);
+  const revealGenerationPort = input.revealGenerationPort ?? Object.freeze({
+    capturePhaseInternalV1: () => "incomplete" as const,
+    revealAllInternalV1: () => {},
+  });
+  const controllerInput = Object.freeze({
+    bridge: harness.bridge,
+    revealGenerationPort,
+  }) satisfies CreateNarrativeStableSayRevealControllerInputInternalV1;
+  const controller = createNarrativeStableSayRevealControllerInternalV1(controllerInput);
+  const inputRouter = createInputRouterV1();
+  const admission = createNarrativeStablePhysicalActionAdmissionInternalV1({
+    bridge: harness.bridge,
+    inputRouter,
+    isGestureCurrent: input.isGestureCurrent ?? (() => true),
+  });
+  return {
+    harness,
+    inputRouter,
+    admission,
+    controller,
+    revealGenerationPort,
+    semanticDispatchPort,
+  };
+}
+
 function automaticPauseHarnessV1(input: {
   readonly semanticDispatchPort?: NarrativeStableSemanticResolutionPortInternalV1;
   readonly skippable?: boolean;
@@ -414,6 +467,7 @@ function automaticPauseHarnessV1(input: {
 function nonBlockingNarrativeHarnessV1(
   semanticDispatchPort: NarrativeStableSemanticResolutionPortInternalV1,
   layerOrder = 90,
+  modality: "non_blocking" | "blocking" = "non_blocking",
 ) {
   const contract = createNarrativeManagedSurfaceFamilyContractInternalV1();
   const nonBlockingDefinition = parseManagedSurfaceResolvedDefinitionV1({
@@ -424,7 +478,7 @@ function nonBlockingNarrativeHarnessV1(
     layerId: "surface-layer.test-nonblocking",
     layerOrder,
     placement: "root",
-    modality: "non_blocking",
+    modality,
     inputPolicy: { kind: "managed", inputContextId: "overlay" },
     dismissPolicy: { back: false, escape: false, backdrop: false, routedCancel: false },
     focusPolicy: { kind: "none" },
@@ -503,7 +557,8 @@ function openNonBlockingSurfaceV1(
   expectedPreparationPhase: "active" | "suspended",
   expectedInputOwner: "narrative" | "candidate",
   duringPreparation: () => void = () => {},
-): void {
+  expectedReadyPhase: "active" | "suspended" = "active",
+) {
   const before = harness.kernel.getStateInternalV1();
   const stableBefore = before.stableRuntimeBindings[0];
   if (stableBefore?.binding.kind !== "ready_instance") {
@@ -542,7 +597,7 @@ function openNonBlockingSurfaceV1(
   if (stableAfter?.binding.kind !== "ready_instance") {
     throw new Error("expected ready Narrative root after nonblocking input owner");
   }
-  expect(stableAfter.binding.instance.phase).toBe("active");
+  expect(stableAfter.binding.instance.phase).toBe(expectedReadyPhase);
   if (expectedInputOwner === "candidate") {
     expect(after.transientState.publication.inputOwner?.surfaceInstanceId).toBe(
       candidate.surfaceInstanceId,
@@ -552,6 +607,7 @@ function openNonBlockingSurfaceV1(
       candidate.surfaceInstanceId,
     );
   }
+  return candidate;
 }
 
 describe("Narrative stable Managed Surface family", () => {
@@ -1741,6 +1797,7 @@ describe("Narrative stable Managed Surface family", () => {
     const admission = fixture.admission;
     type ExpectedDispatchResultV1 =
       | Readonly<{ readonly kind: "dispatched"; readonly completion: Promise<unknown> }>
+      | Readonly<{ readonly kind: "revealed"; readonly completion: null }>
       | Readonly<{ readonly kind: "unmapped"; readonly completion: null }>
       | Readonly<{ readonly kind: "stale"; readonly completion: null }>
       | Readonly<{ readonly kind: "faulted"; readonly completion: null }>;
@@ -1753,6 +1810,7 @@ describe("Narrative stable Managed Surface family", () => {
       "issueChoiceAttemptInternalV1",
       "issuePauseResumeAttemptInternalV1",
       "issueCustomAttemptInternalV1",
+      "issueSayActivationAttemptInternalV1",
       "routeInternalV1",
       "disposeInternalV1",
     ]);
@@ -1852,7 +1910,7 @@ describe("Narrative stable Managed Surface family", () => {
     expect(replacementDispatch).not.toHaveBeenCalled();
   });
 
-  it("admits only a current ready choice without burning preparing or non-choice failures", () => {
+  it("admits current ready choice and Say without burning preparing failures", () => {
     const harness = harnessV1();
     const inputRouter = createInputRouterV1();
     expect(harness.bridge.reconcilePendingInternalV1(pendingV1("choice"))).toMatchObject({
@@ -1879,13 +1937,13 @@ describe("Narrative stable Managed Surface family", () => {
       code: "surface.stable_publication_applied",
     });
     settleCurrentNarrativeReadyV1(harness);
-    expect(() =>
-      createNarrativeStablePhysicalActionAdmissionInternalV1({
-        bridge: harness.bridge,
-        inputRouter,
-        isGestureCurrent: () => true,
-      })
-    ).toThrowError("ui.narrative_stable_action_admission_unavailable");
+    const sayAdmission = createNarrativeStablePhysicalActionAdmissionInternalV1({
+      bridge: harness.bridge,
+      inputRouter,
+      isGestureCurrent: () => true,
+    });
+    expect(sayAdmission.issueChoiceAttemptInternalV1("choice.test.first")).toBeNull();
+    sayAdmission.disposeInternalV1();
 
     expect(harness.bridge.reconcilePendingInternalV1(pendingV1("choice", 3))).toMatchObject({
       kind: "applied",
@@ -3422,5 +3480,966 @@ describe("Narrative stable Managed Surface family", () => {
       fixture.admission.routeInternalV1(envelope, attempt).consumerResult,
     ).toEqual({ kind: "stale", completion: null });
     expect(dispatchResolution).toHaveBeenCalledOnce();
+  });
+
+  it("captures one Say reveal generation and keeps attempt issuance phase-free", () => {
+    let phaseReads = 0;
+    let revealPort!: NarrativeStableSayRevealGenerationPortInternalV1;
+    const capturePhase = vi.fn(function (this: unknown) {
+      expect(this).toBe(revealPort);
+      phaseReads += 1;
+      return "incomplete" as const;
+    });
+    const revealAll = vi.fn(function (this: unknown) {
+      expect(this).toBe(revealPort);
+    });
+    revealPort = Object.freeze({
+      capturePhaseInternalV1: capturePhase,
+      revealAllInternalV1: revealAll,
+    });
+    const fixture = physicalSayHarnessV1({ revealGenerationPort: revealPort });
+    expectTypeOf(fixture.controller).toEqualTypeOf<
+      NarrativeStableSayRevealControllerInternalV1
+    >();
+    expect(Object.isFrozen(fixture.controller)).toBe(true);
+    expect(Reflect.ownKeys(fixture.controller)).toEqual(["disposeInternalV1"]);
+    expect(phaseReads).toBe(0);
+
+    const attempt = fixture.admission.issueSayActivationAttemptInternalV1(
+      fixture.controller,
+    );
+    expectTypeOf(attempt).toEqualTypeOf<NarrativeStableSayActivationAttemptInternalV1 | null>();
+    expect(attempt).not.toBeNull();
+    expect(Object.isFrozen(attempt)).toBe(true);
+    expect(Reflect.ownKeys(attempt as object)).toEqual([]);
+    expect(phaseReads).toBe(0);
+    expect(revealAll).not.toHaveBeenCalled();
+
+    expect(() =>
+      createNarrativeStableSayRevealControllerInternalV1({
+        bridge: fixture.harness.bridge,
+        revealGenerationPort: revealPort,
+      })
+    ).toThrowError("ui.narrative_stable_say_reveal_controller_invalid");
+    fixture.controller.disposeInternalV1();
+    fixture.admission.disposeInternalV1();
+  });
+
+  for (
+    const [actionId, label] of [
+      [narrativeConfirmActionIdV1, "confirm"],
+      [narrativeAdvanceActionIdV1, "advance"],
+    ] as const
+  ) {
+    it(`routes ${label} through reveal-only without semantic fallthrough`, () => {
+      let phase: "incomplete" | "complete" = "incomplete";
+      let reentrantAttempt: NarrativeStableSayActivationAttemptInternalV1 | null | undefined;
+      let attempt: NarrativeStableSayActivationAttemptInternalV1 | null = null;
+      let envelope:
+        | ReturnType<
+          NarrativeStablePhysicalActionAdmissionInternalV1["createEnvelopeInternalV1"]
+        >
+        | null = null;
+      const dispatchResolution = vi.fn(() => Promise.resolve("must-not-dispatch"));
+      const revealPort = Object.freeze({
+        capturePhaseInternalV1: vi.fn(() => phase),
+        revealAllInternalV1: vi.fn(() => {
+          phase = "complete";
+          reentrantAttempt = fixture.admission.issueSayActivationAttemptInternalV1(
+            fixture.controller,
+          );
+        }),
+      }) satisfies NarrativeStableSayRevealGenerationPortInternalV1;
+      const fixture = physicalSayHarnessV1({
+        revealGenerationPort: revealPort,
+        semanticDispatchPort: Object.freeze({
+          dispatchResolutionInternalV1: dispatchResolution,
+        }),
+      });
+      attempt = fixture.admission.issueSayActivationAttemptInternalV1(fixture.controller);
+      expect(attempt).not.toBeNull();
+      envelope = fixture.admission.createEnvelopeInternalV1({
+        actionId,
+        gestureId: parseManagedSurfaceGestureIdV1(`gesture.narrative.say-${label}`),
+      });
+      const state = fixture.harness.kernel.getStateInternalV1();
+      const notifications = fixture.harness.stateNotificationCount();
+      const result = fixture.admission.routeInternalV1(envelope, attempt);
+      expect(result.consumerResult).toEqual({ kind: "revealed", completion: null });
+      expect(Object.isFrozen(result.consumerResult)).toBe(true);
+      expect(revealPort.capturePhaseInternalV1).toHaveBeenCalledOnce();
+      expect(revealPort.revealAllInternalV1).toHaveBeenCalledOnce();
+      expect(reentrantAttempt).toBeNull();
+      expect(dispatchResolution).not.toHaveBeenCalled();
+      expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
+      expect(fixture.harness.stateNotificationCount()).toBe(notifications);
+      expect(
+        fixture.admission.routeInternalV1(envelope, attempt).consumerResult,
+      ).toEqual({ kind: "stale", completion: null });
+      fixture.controller.disposeInternalV1();
+      fixture.admission.disposeInternalV1();
+    });
+  }
+
+  it("seals complete Say advance until the drain-complete Promise releases the frame", async () => {
+    let settleSemantic!: (value: unknown) => void;
+    const semanticCompletion = new Promise<unknown>((resolve) => {
+      settleSemantic = resolve;
+    });
+    let capturedRequest: unknown = null;
+    const dispatchResolution = vi.fn((request: unknown) => {
+      capturedRequest = request;
+      return semanticCompletion;
+    });
+    const fixture = physicalSayHarnessV1({
+      revealGenerationPort: Object.freeze({
+        capturePhaseInternalV1: () => "complete" as const,
+        revealAllInternalV1: vi.fn(),
+      }),
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: dispatchResolution,
+      }),
+    });
+    const first = fixture.admission.issueSayActivationAttemptInternalV1(fixture.controller);
+    expect(first).not.toBeNull();
+    expect(
+      fixture.admission.routeInternalV1(
+        fixture.admission.createEnvelopeInternalV1({
+          actionId: narrativeChooseActionIdV1,
+          gestureId: parseManagedSurfaceGestureIdV1(
+            "gesture.narrative.say-choice-unmapped",
+          ),
+        }),
+        first,
+      ).consumerResult,
+    ).toEqual({ kind: "stale", completion: null });
+    const firstResult = fixture.admission.routeInternalV1(
+      fixture.admission.createEnvelopeInternalV1({
+        actionId: narrativeConfirmActionIdV1,
+        gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.say-complete"),
+      }),
+      first,
+    );
+    expect(firstResult.consumerResult).toMatchObject({ kind: "dispatched" });
+    if (firstResult.consumerResult?.kind !== "dispatched") {
+      throw new Error("expected Say semantic dispatch");
+    }
+    expect(Object.isFrozen(firstResult.consumerResult)).toBe(true);
+    expect(dispatchResolution).toHaveBeenCalledOnce();
+    expect(capturedRequest).toEqual({
+      expectedOccurrenceId: occurrenceV1(1),
+      resolution: { kind: "advance" },
+    });
+    expect(Object.isFrozen(capturedRequest)).toBe(true);
+    expect(Object.isFrozen((capturedRequest as { readonly resolution: object }).resolution))
+      .toBe(true);
+    expect(
+      fixture.admission.issueSayActivationAttemptInternalV1(fixture.controller),
+    ).toBeNull();
+
+    settleSemantic("advanced");
+    await expect(firstResult.consumerResult.completion).resolves.toBe("advanced");
+    const fresh = fixture.admission.issueSayActivationAttemptInternalV1(fixture.controller);
+    expect(fresh).not.toBeNull();
+    const second = fixture.admission.routeInternalV1(
+      fixture.admission.createEnvelopeInternalV1({
+        actionId: narrativeAdvanceActionIdV1,
+        gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.say-fresh"),
+      }),
+      fresh,
+    );
+    expect(second.consumerResult).toMatchObject({ kind: "dispatched" });
+    expect(dispatchResolution).toHaveBeenCalledTimes(2);
+    fixture.controller.disposeInternalV1();
+    fixture.admission.disposeInternalV1();
+  });
+
+  it("runs the physical fence before phase and closes invalid or throwing reveal callbacks", () => {
+    let gestureCurrent = false;
+    let phase: unknown = "invalid";
+    const capturePhase = vi.fn(() => phase as "incomplete");
+    const revealAll = vi.fn(() => {
+      throw new Error("reveal failed");
+    });
+    const dispatchResolution = vi.fn(() => Promise.resolve("must-not-dispatch"));
+    const fixture = physicalSayHarnessV1({
+      isGestureCurrent: () => gestureCurrent,
+      revealGenerationPort: Object.freeze({
+        capturePhaseInternalV1: capturePhase,
+        revealAllInternalV1: revealAll,
+      }),
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: dispatchResolution,
+      }),
+    });
+    const staleGestureAttempt = fixture.admission.issueSayActivationAttemptInternalV1(
+      fixture.controller,
+    );
+    expect(staleGestureAttempt).not.toBeNull();
+    const staleEnvelope = fixture.admission.createEnvelopeInternalV1({
+      actionId: narrativeConfirmActionIdV1,
+      gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.say-stale"),
+    });
+    expect(fixture.admission.routeInternalV1(staleEnvelope, staleGestureAttempt)).toMatchObject({
+      route: { input: { code: "input.stale_gesture" }, surface: null },
+      consumerResult: null,
+    });
+    expect(capturePhase).not.toHaveBeenCalled();
+
+    gestureCurrent = true;
+    expect(
+      fixture.admission.routeInternalV1(staleEnvelope, staleGestureAttempt).consumerResult,
+    ).toEqual({ kind: "faulted", completion: null });
+    expect(capturePhase).toHaveBeenCalledOnce();
+    expect(revealAll).not.toHaveBeenCalled();
+    expect(dispatchResolution).not.toHaveBeenCalled();
+
+    phase = "incomplete";
+    const throwingAttempt = fixture.admission.issueSayActivationAttemptInternalV1(
+      fixture.controller,
+    );
+    expect(throwingAttempt).not.toBeNull();
+    expect(
+      fixture.admission.routeInternalV1(
+        fixture.admission.createEnvelopeInternalV1({
+          actionId: narrativeAdvanceActionIdV1,
+          gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.say-reveal-throw"),
+        }),
+        throwingAttempt,
+      ).consumerResult,
+    ).toEqual({ kind: "faulted", completion: null });
+    expect(revealAll).toHaveBeenCalledOnce();
+    expect(dispatchResolution).not.toHaveBeenCalled();
+    expect(
+      fixture.admission.issueSayActivationAttemptInternalV1(fixture.controller),
+    ).not.toBeNull();
+    fixture.controller.disposeInternalV1();
+    fixture.admission.disposeInternalV1();
+  });
+
+  it("captures exact reveal callables without burning the bridge claim on malformed ports", () => {
+    const semanticDispatchPort = Object.freeze({
+      dispatchResolutionInternalV1: vi.fn(() => Promise.resolve("must-not-dispatch")),
+    });
+    const harness = harnessV1({
+      candidatePreflight: Object.freeze({
+        preflightCandidateInternalV1: () =>
+          capturedCandidatePreflightResultV1(Object.freeze({
+            ...defaultCandidateSnapshotV1,
+            semanticDispatchPort,
+          })),
+      }),
+    });
+    expect(harness.bridge.reconcilePendingInternalV1(pendingV1("say"))).toMatchObject({
+      kind: "applied",
+      code: "surface.stable_publication_applied",
+    });
+    settleCurrentNarrativeReadyV1(harness);
+
+    let accessorReads = 0;
+    const malformed = Object.create(Object.prototype);
+    Object.defineProperties(malformed, {
+      capturePhaseInternalV1: {
+        enumerable: true,
+        get: () => {
+          accessorReads += 1;
+          return () => "incomplete";
+        },
+      },
+      revealAllInternalV1: {
+        enumerable: true,
+        value: () => {},
+      },
+    });
+    expect(() =>
+      createNarrativeStableSayRevealControllerInternalV1({
+        bridge: harness.bridge,
+        revealGenerationPort: malformed,
+      })
+    ).toThrowError("ui.narrative_stable_say_reveal_controller_invalid");
+    expect(accessorReads).toBe(0);
+
+    const exactPortShape = {
+      capturePhaseInternalV1: () => "incomplete" as const,
+      revealAllInternalV1: () => {},
+    };
+    const malformedPorts = [
+      { ...exactPortShape, extra: true },
+      Object.assign({ ...exactPortShape }, { [Symbol("extra")]: true }),
+      Object.assign(Object.create(null), exactPortShape),
+      { ...exactPortShape, capturePhaseInternalV1: "not-callable" },
+      { ...exactPortShape, revealAllInternalV1: 1 },
+    ];
+    for (const malformedPort of malformedPorts) {
+      expect(() =>
+        createNarrativeStableSayRevealControllerInternalV1({
+          bridge: harness.bridge,
+          revealGenerationPort:
+            malformedPort as unknown as NarrativeStableSayRevealGenerationPortInternalV1,
+        })
+      ).toThrowError("ui.narrative_stable_say_reveal_controller_invalid");
+    }
+
+    const originalPhase = vi.fn(function (this: unknown) {
+      expect(this).toBe(mutablePort);
+      return "incomplete" as const;
+    });
+    const originalReveal = vi.fn(function (this: unknown) {
+      expect(this).toBe(mutablePort);
+    });
+    const replacementPhase = vi.fn(() => "complete" as const);
+    const replacementReveal = vi.fn();
+    const mutablePort: {
+      capturePhaseInternalV1: NarrativeStableSayRevealGenerationPortInternalV1[
+        "capturePhaseInternalV1"
+      ];
+      revealAllInternalV1: NarrativeStableSayRevealGenerationPortInternalV1[
+        "revealAllInternalV1"
+      ];
+    } = {
+      capturePhaseInternalV1: originalPhase,
+      revealAllInternalV1: originalReveal,
+    };
+    const controller = createNarrativeStableSayRevealControllerInternalV1({
+      bridge: harness.bridge,
+      revealGenerationPort: mutablePort,
+    });
+    mutablePort.capturePhaseInternalV1 = replacementPhase;
+    mutablePort.revealAllInternalV1 = replacementReveal;
+    const admission = createNarrativeStablePhysicalActionAdmissionInternalV1({
+      bridge: harness.bridge,
+      inputRouter: createInputRouterV1(),
+      isGestureCurrent: () => true,
+    });
+    const attempt = admission.issueSayActivationAttemptInternalV1(controller);
+    expect(attempt).not.toBeNull();
+    expect(
+      admission.routeInternalV1(
+        admission.createEnvelopeInternalV1({
+          actionId: narrativeConfirmActionIdV1,
+          gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.say-captured-port"),
+        }),
+        attempt,
+      ).consumerResult,
+    ).toEqual({ kind: "revealed", completion: null });
+    expect(originalPhase).toHaveBeenCalledOnce();
+    expect(originalReveal).toHaveBeenCalledOnce();
+    expect(replacementPhase).not.toHaveBeenCalled();
+    expect(replacementReveal).not.toHaveBeenCalled();
+    controller.disposeInternalV1();
+    admission.disposeInternalV1();
+  });
+
+  it("preserves the Say controller across physical binding churn and invalidates the old token", () => {
+    const semanticDispatchPort = Object.freeze({
+      dispatchResolutionInternalV1: vi.fn(() => Promise.resolve("must-not-dispatch")),
+    });
+    const { harness, nonBlockingDefinition } = nonBlockingNarrativeHarnessV1(
+      semanticDispatchPort,
+      10,
+    );
+    expect(harness.bridge.reconcilePendingInternalV1(pendingV1("say"))).toMatchObject({
+      kind: "applied",
+      code: "surface.stable_publication_applied",
+    });
+    settleCurrentNarrativeReadyV1(harness);
+    const capturePhase = vi.fn(() => "incomplete" as const);
+    const revealAll = vi.fn();
+    const controller = createNarrativeStableSayRevealControllerInternalV1({
+      bridge: harness.bridge,
+      revealGenerationPort: Object.freeze({
+        capturePhaseInternalV1: capturePhase,
+        revealAllInternalV1: revealAll,
+      }),
+    });
+    const inputRouter = createInputRouterV1();
+    const firstAdmission = createNarrativeStablePhysicalActionAdmissionInternalV1({
+      bridge: harness.bridge,
+      inputRouter,
+      isGestureCurrent: () => true,
+    });
+    const oldAttempt = firstAdmission.issueSayActivationAttemptInternalV1(controller);
+    expect(oldAttempt).not.toBeNull();
+    const oldEnvelope = firstAdmission.createEnvelopeInternalV1({
+      actionId: narrativeConfirmActionIdV1,
+      gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.say-old-topology"),
+    });
+
+    openNonBlockingSurfaceV1(harness, nonBlockingDefinition, "active", "narrative");
+    expect(firstAdmission.routeInternalV1(oldEnvelope, oldAttempt).consumerResult).toBeNull();
+    expect(capturePhase).not.toHaveBeenCalled();
+    expect(() =>
+      createNarrativeStableSayRevealControllerInternalV1({
+        bridge: harness.bridge,
+        revealGenerationPort: Object.freeze({
+          capturePhaseInternalV1: () => "incomplete" as const,
+          revealAllInternalV1: () => {},
+        }),
+      })
+    ).toThrowError("ui.narrative_stable_say_reveal_controller_invalid");
+
+    firstAdmission.disposeInternalV1();
+    const successorAdmission = createNarrativeStablePhysicalActionAdmissionInternalV1({
+      bridge: harness.bridge,
+      inputRouter,
+      isGestureCurrent: () => true,
+    });
+    const freshAttempt = successorAdmission.issueSayActivationAttemptInternalV1(controller);
+    expect(freshAttempt).not.toBeNull();
+    expect(freshAttempt).not.toBe(oldAttempt);
+    const freshResult = successorAdmission.routeInternalV1(
+      successorAdmission.createEnvelopeInternalV1({
+        actionId: narrativeAdvanceActionIdV1,
+        gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.say-fresh-topology"),
+      }),
+      freshAttempt,
+    );
+    expect(freshResult.consumerResult).toEqual({ kind: "revealed", completion: null });
+    expect(capturePhase).toHaveBeenCalledOnce();
+    expect(revealAll).toHaveBeenCalledOnce();
+    controller.disposeInternalV1();
+    successorAdmission.disposeInternalV1();
+  });
+
+  it("gives callback reentry stale precedence over phase and reveal faults", () => {
+    for (const callback of ["phase", "reveal"] as const) {
+      let fixture!: ReturnType<typeof physicalSayHarnessV1>;
+      const dispatchResolution = vi.fn(() => Promise.resolve("must-not-dispatch"));
+      const replaceCurrent = () => {
+        expect(fixture.harness.bridge.reconcilePendingInternalV1(pendingV1("say", 2)))
+          .toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
+      };
+      fixture = physicalSayHarnessV1({
+        revealGenerationPort: Object.freeze({
+          capturePhaseInternalV1: () => {
+            if (callback === "phase") {
+              replaceCurrent();
+              throw new Error("phase loses to replacement");
+            }
+            return "incomplete" as const;
+          },
+          revealAllInternalV1: () => {
+            replaceCurrent();
+            throw new Error("reveal loses to replacement");
+          },
+        }),
+        semanticDispatchPort: Object.freeze({
+          dispatchResolutionInternalV1: dispatchResolution,
+        }),
+      });
+      const attempt = fixture.admission.issueSayActivationAttemptInternalV1(
+        fixture.controller,
+      );
+      expect(attempt).not.toBeNull();
+      const result = fixture.admission.routeInternalV1(
+        fixture.admission.createEnvelopeInternalV1({
+          actionId: narrativeConfirmActionIdV1,
+          gestureId: parseManagedSurfaceGestureIdV1(
+            `gesture.narrative.say-${callback}-reentry`,
+          ),
+        }),
+        attempt,
+      );
+      expect(result.consumerResult).toEqual({ kind: "stale", completion: null });
+      expect(dispatchResolution).not.toHaveBeenCalled();
+      expect(
+        fixture.admission.issueSayActivationAttemptInternalV1(fixture.controller),
+        callback,
+      ).toBeNull();
+      fixture.controller.disposeInternalV1();
+      fixture.admission.disposeInternalV1();
+    }
+  });
+
+  it("classifies nullish reveal throws as faults while the frame stays current", () => {
+    for (const thrown of [null, undefined]) {
+      const dispatchResolution = vi.fn(() => Promise.resolve("must-not-dispatch"));
+      const fixture = physicalSayHarnessV1({
+        revealGenerationPort: Object.freeze({
+          capturePhaseInternalV1: () => "incomplete" as const,
+          revealAllInternalV1: () => {
+            throw thrown;
+          },
+        }),
+        semanticDispatchPort: Object.freeze({
+          dispatchResolutionInternalV1: dispatchResolution,
+        }),
+      });
+      const attempt = fixture.admission.issueSayActivationAttemptInternalV1(
+        fixture.controller,
+      );
+      expect(attempt).not.toBeNull();
+      expect(
+        fixture.admission.routeInternalV1(
+          fixture.admission.createEnvelopeInternalV1({
+            actionId: narrativeConfirmActionIdV1,
+            gestureId: parseManagedSurfaceGestureIdV1(
+              `gesture.narrative.say-nullish-${String(thrown)}`,
+            ),
+          }),
+          attempt,
+        ).consumerResult,
+      ).toEqual({ kind: "faulted", completion: null });
+      expect(dispatchResolution).not.toHaveBeenCalled();
+      expect(
+        fixture.admission.issueSayActivationAttemptInternalV1(fixture.controller),
+      ).not.toBeNull();
+      fixture.controller.disposeInternalV1();
+      fixture.admission.disposeInternalV1();
+    }
+  });
+
+  it("holds the bridge callback gate across reentrant controller replacement", () => {
+    let fixture!: ReturnType<typeof physicalSayHarnessV1>;
+    let nestedControllerCreation: unknown = null;
+    const successorRevealPort = Object.freeze({
+      capturePhaseInternalV1: () => "incomplete" as const,
+      revealAllInternalV1: vi.fn(),
+    });
+    fixture = physicalSayHarnessV1({
+      revealGenerationPort: Object.freeze({
+        capturePhaseInternalV1: () => {
+          fixture.controller.disposeInternalV1();
+          fixture.admission.disposeInternalV1();
+          try {
+            nestedControllerCreation = createNarrativeStableSayRevealControllerInternalV1({
+              bridge: fixture.harness.bridge,
+              revealGenerationPort: successorRevealPort,
+            });
+          } catch (error) {
+            nestedControllerCreation = error;
+          }
+          return "complete" as const;
+        },
+        revealAllInternalV1: vi.fn(),
+      }),
+    });
+    const attempt = fixture.admission.issueSayActivationAttemptInternalV1(fixture.controller);
+    expect(attempt).not.toBeNull();
+    expect(
+      fixture.admission.routeInternalV1(
+        fixture.admission.createEnvelopeInternalV1({
+          actionId: narrativeConfirmActionIdV1,
+          gestureId: parseManagedSurfaceGestureIdV1(
+            "gesture.narrative.say-controller-reentry",
+          ),
+        }),
+        attempt,
+      ).consumerResult,
+    ).toEqual({ kind: "stale", completion: null });
+    expect(nestedControllerCreation).toBeInstanceOf(TypeError);
+    expect((nestedControllerCreation as TypeError).message).toBe(
+      "ui.narrative_stable_say_reveal_controller_invalid",
+    );
+
+    const successorController = createNarrativeStableSayRevealControllerInternalV1({
+      bridge: fixture.harness.bridge,
+      revealGenerationPort: successorRevealPort,
+    });
+    const successorAdmission = createNarrativeStablePhysicalActionAdmissionInternalV1({
+      bridge: fixture.harness.bridge,
+      inputRouter: fixture.inputRouter,
+      isGestureCurrent: () => true,
+    });
+    expect(
+      successorAdmission.issueSayActivationAttemptInternalV1(successorController),
+    ).not.toBeNull();
+    successorController.disposeInternalV1();
+    successorAdmission.disposeInternalV1();
+  });
+
+  it("fails closed before reveal reads on suspension and raw registry divergence", () => {
+    for (const failure of ["suspension", "registry_divergence"] as const) {
+      const capturePhase = vi.fn(() => "incomplete" as const);
+      const revealAll = vi.fn();
+      const dispatchResolution = vi.fn(() => Promise.resolve("must-not-dispatch"));
+      const revealGenerationPort = Object.freeze({
+        capturePhaseInternalV1: capturePhase,
+        revealAllInternalV1: revealAll,
+      });
+      const semanticDispatchPort = Object.freeze({
+        dispatchResolutionInternalV1: dispatchResolution,
+      });
+      let blockingDefinition:
+        | ReturnType<typeof parseManagedSurfaceResolvedDefinitionV1>
+        | null = null;
+      const fixture = failure === "suspension"
+        ? (() => {
+          const parts = nonBlockingNarrativeHarnessV1(
+            semanticDispatchPort,
+            90,
+            "blocking",
+          );
+          blockingDefinition = parts.nonBlockingDefinition;
+          expect(parts.harness.bridge.reconcilePendingInternalV1(pendingV1("say")))
+            .toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
+          settleCurrentNarrativeReadyV1(parts.harness);
+          const controller = createNarrativeStableSayRevealControllerInternalV1({
+            bridge: parts.harness.bridge,
+            revealGenerationPort,
+          });
+          const inputRouter = createInputRouterV1();
+          const admission = createNarrativeStablePhysicalActionAdmissionInternalV1({
+            bridge: parts.harness.bridge,
+            inputRouter,
+            isGestureCurrent: () => true,
+          });
+          return { ...parts, inputRouter, admission, controller };
+        })()
+        : physicalSayHarnessV1({ revealGenerationPort, semanticDispatchPort });
+      const attempt = fixture.admission.issueSayActivationAttemptInternalV1(
+        fixture.controller,
+      );
+      expect(attempt).not.toBeNull();
+      const envelope = fixture.admission.createEnvelopeInternalV1({
+        actionId: narrativeConfirmActionIdV1,
+        gestureId: parseManagedSurfaceGestureIdV1(
+          `gesture.narrative.say-${failure}`,
+        ),
+      });
+      if (failure === "suspension") {
+        if (blockingDefinition === null) throw new Error("expected blocking definition");
+        openNonBlockingSurfaceV1(
+          fixture.harness,
+          blockingDefinition,
+          "suspended",
+          "candidate",
+          () => {},
+          "suspended",
+        );
+      } else {
+        expect(
+          fixture.harness.registry.disposePublisherLease(
+            narrativeBaselineV1(fixture.harness).publisherLease,
+          ),
+        ).toBe("disposed");
+      }
+      const result = fixture.admission.routeInternalV1(envelope, attempt);
+      expect(result.consumerResult).toBeNull();
+      expect(capturePhase).not.toHaveBeenCalled();
+      expect(revealAll).not.toHaveBeenCalled();
+      expect(dispatchResolution).not.toHaveBeenCalled();
+      expect(
+        fixture.admission.issueSayActivationAttemptInternalV1(fixture.controller),
+        failure,
+      ).toBeNull();
+      fixture.controller.disposeInternalV1();
+      fixture.admission.disposeInternalV1();
+    }
+  });
+
+  it("keeps the semantic boundary sealed across admission and controller replacement", async () => {
+    let settleSemantic!: (value: unknown) => void;
+    const semanticCompletion = new Promise<unknown>((resolve) => {
+      settleSemantic = resolve;
+    });
+    const dispatchResolution = vi.fn(() => semanticCompletion);
+    const fixture = physicalSayHarnessV1({
+      revealGenerationPort: Object.freeze({
+        capturePhaseInternalV1: () => "complete" as const,
+        revealAllInternalV1: vi.fn(),
+      }),
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: dispatchResolution,
+      }),
+    });
+    const oldAttempt = fixture.admission.issueSayActivationAttemptInternalV1(
+      fixture.controller,
+    );
+    expect(oldAttempt).not.toBeNull();
+    const oldResult = fixture.admission.routeInternalV1(
+      fixture.admission.createEnvelopeInternalV1({
+        actionId: narrativeConfirmActionIdV1,
+        gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.say-pending-old"),
+      }),
+      oldAttempt,
+    );
+    expect(oldResult.consumerResult).toMatchObject({ kind: "dispatched" });
+    if (oldResult.consumerResult?.kind !== "dispatched") {
+      throw new Error("expected pending Say dispatch");
+    }
+
+    fixture.admission.disposeInternalV1();
+    const successorAdmission = createNarrativeStablePhysicalActionAdmissionInternalV1({
+      bridge: fixture.harness.bridge,
+      inputRouter: fixture.inputRouter,
+      isGestureCurrent: () => true,
+    });
+    fixture.controller.disposeInternalV1();
+    const successorController = createNarrativeStableSayRevealControllerInternalV1({
+      bridge: fixture.harness.bridge,
+      revealGenerationPort: Object.freeze({
+        capturePhaseInternalV1: () => "complete" as const,
+        revealAllInternalV1: vi.fn(),
+      }),
+    });
+    expect(
+      successorAdmission.issueSayActivationAttemptInternalV1(successorController),
+    ).toBeNull();
+
+    settleSemantic("drained");
+    await expect(oldResult.consumerResult.completion).resolves.toBe("drained");
+    const freshAttempt = successorAdmission.issueSayActivationAttemptInternalV1(
+      successorController,
+    );
+    expect(freshAttempt).not.toBeNull();
+    fixture.controller.disposeInternalV1();
+    expect(
+      successorAdmission.issueSayActivationAttemptInternalV1(successorController),
+    ).toBeNull();
+    successorController.disposeInternalV1();
+    successorAdmission.disposeInternalV1();
+    expect(dispatchResolution).toHaveBeenCalledOnce();
+  });
+
+  it("keeps a same-frame semantic claim sealed across suspension and resume", async () => {
+    let settleSemantic!: (value: unknown) => void;
+    const semanticCompletion = new Promise<unknown>((resolve) => {
+      settleSemantic = resolve;
+    });
+    const revealGenerationPort = Object.freeze({
+      capturePhaseInternalV1: () => "complete" as const,
+      revealAllInternalV1: vi.fn(),
+    });
+    const semanticDispatchPort = Object.freeze({
+      dispatchResolutionInternalV1: vi.fn(() => semanticCompletion),
+    });
+    const { harness, nonBlockingDefinition: blockingDefinition } = nonBlockingNarrativeHarnessV1(
+      semanticDispatchPort,
+      90,
+      "blocking",
+    );
+    expect(harness.bridge.reconcilePendingInternalV1(pendingV1("say"))).toMatchObject({
+      kind: "applied",
+      code: "surface.stable_publication_applied",
+    });
+    settleCurrentNarrativeReadyV1(harness);
+    const inputRouter = createInputRouterV1();
+    const fixture = {
+      harness,
+      inputRouter,
+      controller: createNarrativeStableSayRevealControllerInternalV1({
+        bridge: harness.bridge,
+        revealGenerationPort,
+      }),
+      admission: createNarrativeStablePhysicalActionAdmissionInternalV1({
+        bridge: harness.bridge,
+        inputRouter,
+        isGestureCurrent: () => true,
+      }),
+    };
+    const attempt = fixture.admission.issueSayActivationAttemptInternalV1(fixture.controller);
+    expect(attempt).not.toBeNull();
+    const pending = fixture.admission.routeInternalV1(
+      fixture.admission.createEnvelopeInternalV1({
+        actionId: narrativeConfirmActionIdV1,
+        gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.say-suspend-pending"),
+      }),
+      attempt,
+    );
+    expect(pending.consumerResult).toMatchObject({ kind: "dispatched" });
+    if (pending.consumerResult?.kind !== "dispatched") {
+      throw new Error("expected pending Say dispatch before suspension");
+    }
+
+    const blocker = openNonBlockingSurfaceV1(
+      fixture.harness,
+      blockingDefinition,
+      "suspended",
+      "candidate",
+      () => {},
+      "suspended",
+    );
+    const suspendedPublication = fixture.harness.kernel.getStateInternalV1().transientState
+      .publication;
+    expect(fixture.harness.kernel.transitionTransientInternalV1({
+      kind: "close_expected",
+      evidence: Object.freeze({
+        applicationEpoch: applicationEpochV1,
+        topologyRevision: suspendedPublication.topologyRevision,
+        surfaceInstanceId: blocker.surfaceInstanceId,
+      }),
+    })).toMatchObject({ kind: "applied" });
+    fixture.admission.disposeInternalV1();
+    const successorController = createNarrativeStableSayRevealControllerInternalV1({
+      bridge: fixture.harness.bridge,
+      revealGenerationPort,
+    });
+    const successorAdmission = createNarrativeStablePhysicalActionAdmissionInternalV1({
+      bridge: fixture.harness.bridge,
+      inputRouter: fixture.inputRouter,
+      isGestureCurrent: () => true,
+    });
+    expect(
+      successorAdmission.issueSayActivationAttemptInternalV1(successorController),
+    ).toBeNull();
+
+    settleSemantic("resumed-drain");
+    await expect(pending.consumerResult.completion).resolves.toBe("resumed-drain");
+    expect(
+      successorAdmission.issueSayActivationAttemptInternalV1(successorController),
+    ).not.toBeNull();
+    fixture.controller.disposeInternalV1();
+    successorController.disposeInternalV1();
+    successorAdmission.disposeInternalV1();
+  });
+
+  it("retires a changed-source claim without letting its old completion clear the successor", async () => {
+    let settleOld!: (value: unknown) => void;
+    let settleSuccessor!: (value: unknown) => void;
+    const oldCompletion = new Promise<unknown>((resolve) => {
+      settleOld = resolve;
+    });
+    const successorCompletion = new Promise<unknown>((resolve) => {
+      settleSuccessor = resolve;
+    });
+    const dispatchResolution = vi.fn(() =>
+      dispatchResolution.mock.calls.length === 1 ? oldCompletion : successorCompletion
+    );
+    const revealGenerationPort = Object.freeze({
+      capturePhaseInternalV1: () => "complete" as const,
+      revealAllInternalV1: vi.fn(),
+    });
+    const fixture = physicalSayHarnessV1({
+      revealGenerationPort,
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: dispatchResolution,
+      }),
+    });
+    const oldAttempt = fixture.admission.issueSayActivationAttemptInternalV1(
+      fixture.controller,
+    );
+    expect(oldAttempt).not.toBeNull();
+    const oldResult = fixture.admission.routeInternalV1(
+      fixture.admission.createEnvelopeInternalV1({
+        actionId: narrativeConfirmActionIdV1,
+        gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.say-old-source"),
+      }),
+      oldAttempt,
+    );
+    expect(oldResult.consumerResult).toMatchObject({ kind: "dispatched" });
+    if (oldResult.consumerResult?.kind !== "dispatched") {
+      throw new Error("expected old-source Say dispatch");
+    }
+
+    fixture.controller.disposeInternalV1();
+    expect(fixture.harness.bridge.reconcilePendingInternalV1(pendingV1("say", 2)))
+      .toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
+    fixture.admission.disposeInternalV1();
+    settleCurrentNarrativeReadyV1(fixture.harness);
+    const successorController = createNarrativeStableSayRevealControllerInternalV1({
+      bridge: fixture.harness.bridge,
+      revealGenerationPort,
+    });
+    const successorAdmission = createNarrativeStablePhysicalActionAdmissionInternalV1({
+      bridge: fixture.harness.bridge,
+      inputRouter: fixture.inputRouter,
+      isGestureCurrent: () => true,
+    });
+    const successorAttempt = successorAdmission.issueSayActivationAttemptInternalV1(
+      successorController,
+    );
+    expect(successorAttempt).not.toBeNull();
+    const successorResult = successorAdmission.routeInternalV1(
+      successorAdmission.createEnvelopeInternalV1({
+        actionId: narrativeAdvanceActionIdV1,
+        gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.say-successor-source"),
+      }),
+      successorAttempt,
+    );
+    expect(successorResult.consumerResult).toMatchObject({ kind: "dispatched" });
+    if (successorResult.consumerResult?.kind !== "dispatched") {
+      throw new Error("expected successor-source Say dispatch");
+    }
+
+    settleOld("old-drained");
+    await expect(oldResult.consumerResult.completion).resolves.toBe("old-drained");
+    expect(
+      successorAdmission.issueSayActivationAttemptInternalV1(successorController),
+    ).toBeNull();
+    settleSuccessor("successor-drained");
+    await expect(successorResult.consumerResult.completion).resolves.toBe(
+      "successor-drained",
+    );
+    expect(
+      successorAdmission.issueSayActivationAttemptInternalV1(successorController),
+    ).not.toBeNull();
+    fixture.controller.disposeInternalV1();
+    successorController.disposeInternalV1();
+    successorAdmission.disposeInternalV1();
+  });
+
+  it("releases same-frame semantic rejection before exposing completion", async () => {
+    const sentinel = new Error("semantic dispatch rejected after drain");
+    const dispatchResolution = vi.fn(() => {
+      throw sentinel;
+    });
+    const fixture = physicalSayHarnessV1({
+      revealGenerationPort: Object.freeze({
+        capturePhaseInternalV1: () => "complete" as const,
+        revealAllInternalV1: vi.fn(),
+      }),
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: dispatchResolution,
+      }),
+    });
+    const attempt = fixture.admission.issueSayActivationAttemptInternalV1(fixture.controller);
+    expect(attempt).not.toBeNull();
+    const result = fixture.admission.routeInternalV1(
+      fixture.admission.createEnvelopeInternalV1({
+        actionId: narrativeAdvanceActionIdV1,
+        gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.say-rejected"),
+      }),
+      attempt,
+    );
+    expect(result.consumerResult).toMatchObject({ kind: "dispatched" });
+    if (result.consumerResult?.kind !== "dispatched") {
+      throw new Error("expected rejected Say completion");
+    }
+    await expect(result.consumerResult.completion).rejects.toBe(sentinel);
+    expect(
+      fixture.admission.issueSayActivationAttemptInternalV1(fixture.controller),
+    ).not.toBeNull();
+    fixture.controller.disposeInternalV1();
+    fixture.admission.disposeInternalV1();
+  });
+
+  it("keeps 10k reveal-only rotations behaviorally bounded", () => {
+    const capturePhase = vi.fn(() => "incomplete" as const);
+    const revealAll = vi.fn();
+    const dispatchResolution = vi.fn(() => Promise.resolve("must-not-dispatch"));
+    const fixture = physicalSayHarnessV1({
+      revealGenerationPort: Object.freeze({
+        capturePhaseInternalV1: capturePhase,
+        revealAllInternalV1: revealAll,
+      }),
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: dispatchResolution,
+      }),
+    });
+    const state = fixture.harness.kernel.getStateInternalV1();
+    const notifications = fixture.harness.stateNotificationCount();
+    const envelope = fixture.admission.createEnvelopeInternalV1({
+      actionId: narrativeConfirmActionIdV1,
+      gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.say-10k"),
+    });
+    let revealedResult: unknown = null;
+    for (let index = 0; index < 10_000; index += 1) {
+      const attempt = fixture.admission.issueSayActivationAttemptInternalV1(
+        fixture.controller,
+      );
+      expect(attempt).not.toBeNull();
+      const consumerResult = fixture.admission.routeInternalV1(envelope, attempt).consumerResult;
+      expect(consumerResult).toEqual({ kind: "revealed", completion: null });
+      if (revealedResult === null) revealedResult = consumerResult;
+      else expect(consumerResult).toBe(revealedResult);
+    }
+    expect(capturePhase).toHaveBeenCalledTimes(10_000);
+    expect(revealAll).toHaveBeenCalledTimes(10_000);
+    expect(dispatchResolution).not.toHaveBeenCalled();
+    expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
+    expect(fixture.harness.stateNotificationCount()).toBe(notifications);
+    fixture.controller.disposeInternalV1();
+    fixture.admission.disposeInternalV1();
   });
 });

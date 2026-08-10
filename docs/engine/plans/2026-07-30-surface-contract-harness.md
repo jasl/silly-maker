@@ -25,7 +25,8 @@ contract-bound action gate、S4.1b.1a authenticated action context corrective及
 choice-only physical semantic vertical、S4.1b.1b.1a skippable-pause physical resume vertical与
 S4.1b.1b.1b.1 automatic pause-expiry controller-attempt admission/dispatch floor及
 S4.1b.1b.1b.2a custom physical payload admission及S4.1b.1b.1b.2b.0 remaining mapping
-policy adjudication均已关闭；下一独立切片为S4.1b.1b.1b.2b.1a physical Say reveal-first admission。R4 entry
+policy adjudication与S4.1b.1b.1b.2b.1a physical Say reveal-first admission均已关闭；下一独立切片为
+S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor。R4 entry
 adjudication已先以独立S1-R.4.0关闭
 readiness result/capacity contract。R3b entry audit先以独立S1-R.3a.1 corrective补全ready
 retained-subtree authority，该corrective也已关闭。
@@ -40,7 +41,7 @@ S1-R aggregate gate已关闭。
 
 在 [production-floor sequence](2026-07-30-production-floor-sequence.md)
 中：PF2 的 `S0 -> S1-T -> S2`、PF-DET、PF3/M2 与 PF4/S3 已完成；当前 core
-节点是PF4/S4.1b.1b.1b.2b.1a。PF4的顺序是
+节点是PF4/S4.1b.1b.1b.2b.1b。PF4的顺序是
 `S3 -> S1-R.0 -> S1-R.1–S1-R.5 -> S4.0 -> S4.1a -> S4.1b.0 -> S4.1b.1a -> S4.1b.1b.0 -> S4.1b.1b.1a -> S4.1b.1b.1b.1 -> S4.1b.1b.1b.2a -> S4.1b.1b.1b.2b.0 -> S4.1b.1b.1b.2b.1a -> S4.1b.1b.1b.2b.1b -> S4.1b.1b.1b.2b.2 -> S4.1b.1b.1b.2b.3 -> S4.2 -> S4.3 -> S4b`；
 S5–S6 属于 PF6。S1-R
 延后到第一个真实 externally published stable-target family 前完成；按 accepted
@@ -1712,9 +1713,9 @@ S1-R 按以下可独立合并切片推进，每次只领取一个：
     authority、gesture/envelope minting或generic semantic ingress。
 26. **S4.1b.1b.1b.2b.0 remaining mapping policy adjudication（已完成）**：docs-only冻结Say、
     presentation-barrier与player-control policy及后续独立切片，不把characterization伪装成runtime delivery。
-27. **S4.1b.1b.1b.2b.1a physical Say reveal-first admission（当前）**：在既有physical admission内实现
+27. **S4.1b.1b.1b.2b.1a physical Say reveal-first admission（已完成）**：在既有physical admission内实现
     两种alias并借用独立bridge-private reveal controller，交付reveal-only/advance closed result；不接automatic或Host/live wiring。
-28. **S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor（待实施）**：只为
+28. **S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor（当前）**：只为
     `advancePolicy: "auto"`交付ready-active、无gestureautomatic attempt并复用同一claim；不接timer或player Auto/Skip。
 29. **S4.1b.1b.1b.2b.2 barrier acknowledgment/recovery（待实施）**：实现exact Stage run acknowledgment、
     eligible outcome、settle recovery与replay fail-closed；不实现replay capability。
@@ -1725,7 +1726,7 @@ S1-R 按以下可独立合并切片推进，每次只领取一个：
 32. **S4.3 atomic live cutover and promotion（待实施）**：同批迁移Engine Lab、template、Cat Cafe、Bookshop，
     删除旧lifecycle writers与standalone public path，更新live docs并完成headless/browser/prebuilt promotion。
 
-当前只允许从 **S4.1b.1b.1b.2b.1a** 开始。Stable ingress与stable-specific state/API仍保持
+当前只允许从 **S4.1b.1b.1b.2b.1b** 开始。Stable ingress与stable-specific state/API仍保持
 dormant/package-internal；S4.1允许source-relative Narrative bridge消费Base semantic contract，但不接live
 Narrative/React/Web application graph、不mount React Host，也不更新live feature文档；shared pure topology
 policy只经existing transient adapter live复用，R3a 已将既有live transient reducer/Coordinator 收口到
@@ -2959,10 +2960,10 @@ examples/prebuilt；S0 deterministic Chromium RED与最近R4b.1 browser `101 / 1
    继续负责occurrence/kind与Story `isCustomPayloadValid`复验。
 8. **S4.1b.1b.1b.2b.0 remaining mapping policy adjudication（已完成）**：docs-only冻结Say、barrier与
    player controls的exact mapping/provenance/first-wins policy；不声明runtime delivery。
-9. **S4.1b.1b.1b.2b.1a physical Say reveal-first admission（当前）**：交付`ui.confirm`/
+9. **S4.1b.1b.1b.2b.1a physical Say reveal-first admission（已完成）**：交付`ui.confirm`/
    `narrative.advance` reveal-first、exact reveal generation、closed reveal/advance result与共享in-flight claim；
    automatic/timer/Host/live wiring仍延期。
-10. **S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor（待实施）**：只为
+10. **S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor（当前）**：只为
     `advancePolicy: "auto"`交付ready-active无gestureattempt，复用同一generation/claim；timer与player Auto/Skip延期。
 11. **S4.1b.1b.1b.2b.2 barrier acknowledgment/recovery（待实施）**：交付exact Stage run proof、
     eligible outcomes、settle recovery与replay unsupported/fail-closed。
@@ -3179,8 +3180,8 @@ queue contract、Save format以及ordinary maintained interaction bytes保持不
 History、React/Web/live Story，也没有新增public/internal barrel、package export或generic Surface result/receipt。验证通过focused
 `8 files / 216 tests`、UI package `79 files / 1028 tests`、全量`253 files / 3958 tests`、完整`deno task check`、fresh
 Engine browser `101 / 101`、examples `45 passed / 2 skipped`与prebuilt Player `38 / 38`。S4.1b.1b.1b.2a已完成；
-current/next均为 **S4.1b.1b.1b.2b.1a physical Say reveal-first admission**，随后依次是
-S4.1b.1b.1b.2b.1b、S4.1b.1b.1b.2b.2、S4.1b.1b.1b.2b.3、S4.2、S4.3与S4b。
+该checkpoint的current/next均为 **S4.1b.1b.1b.2b.1a physical Say reveal-first admission**；现由下述`.1a`
+delivery推进。
 
 **S4.1b.1b.1b.2b.0 policy adjudication delivery（docs-only）：** accepted mapping以
 [design contract](../design/surface-contract-harness.md)的closed table为唯一authority：`ui.confirm`与
@@ -3224,6 +3225,37 @@ callable shape不变，但返回Promise必须在该dispatch触发的semantic pub
 Family再按exact unchanged source释放claim或随changed source退役。`.1b`只实现`advancePolicy: "auto"`的
 ready-active、无gesturecontroller attempt，不读取clock、不建timer，也不实现player Auto/Skip。该amendment没有
 source/test/runtime/live claimant或public/generic contract变更。
+
+### S4.1b.1b.1b.2b.1a delivery — physical Say reveal-first admission
+
+本批在既有唯一physical admission上交付`ui.confirm`与`narrative.advance`的Say-only alias，同时保留Choice、Pause与
+Custom对这两个action的既有`unmapped`结果。Host reveal generation以exact two-key plain-data port进入；factory只捕获
+own-data `capturePhaseInternalV1`/`revealAllInternalV1`的exact receiver/callables；该plain-data port本身不是opaque
+provenance token，accessor、额外字段、foreign prototype、任一非callable member或重复claim均不能建立controller，
+也不会烧掉bridge claim。Bridge-private per-current-Say-frame controller与可替换
+`physicalActionAdmissionClaim`相互独立：admission重建可复用仍current的controller，controller successor也不能被old
+admission/token清理或调用。
+
+Attempt是frozen zero-key、same-admission/controller one-shot capability；issuance只绑定exact target/source/frame/semantic
+port而不读取phase。Route先完成Surface/Input/publication/gesture与alias/token fence，再以bridge callback claim串行读取一次
+captured phase。Callback后与`revealAll`后都重新验证exact admission/controller/target/source/frame；drift的`stale/null`
+优先于invalid/throw的`faulted/null`。Incomplete只返回exact frozen`revealed/null`且semantic dispatch为零；complete才把
+callback claim原子转换为semantic in-flight并提交frozen`{ expectedOccurrenceId, resolution: { kind: "advance" } }`。
+
+Semantic in-flight claim与reveal-controller claim分离并以exact token CAS清理。Physical admission或controller重建不会释放
+pending boundary；同帧blocking suspension撤销reveal generation但保留semantic claim与bounded lifecycle observer，Promise
+drain完成后才释放。Source/frame/empty/lifetime drift会退休旧claim；old completion不能清除successor claim。Raw registry
+divergence、retained/preparing/suspended target、stale gesture、callback reentry、clone/foreign/repeat与dispose均在读取phase或
+semantic dispatch前fail closed。Controller/attempt provenance由WeakMap与单个current callback/in-flight slot保持有界，10k
+reveal-only rotation不保留强attempt history或改变composite state/identity high-water。
+
+本delivery仍是source-relative dormant floor：没有content-auto attempt、clock/timer/deadline、player Auto/Skip、Host/React/live
+claimant，也没有public/internal barrel、package export或generic action/stable result扩张。验证通过focused
+`7 files / 226 tests`、UI package `79 files / 1044 tests`、全量`253 files / 3974 tests`与完整`deno task check`。
+本批未重跑browser/examples/prebuilt；Engine browser `101 / 101`、examples `45 passed / 2 skipped`与prebuilt Player
+`38 / 38`仅是最近已有证据，不冒充本批HEAD验证。S4.1b.1b.1b.2b.1a已完成；current/next均为
+**S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor**，随后依次是S4.1b.1b.1b.2b.2、
+S4.1b.1b.1b.2b.3、S4.2、S4.3与S4b。
 
 S4.1 aggregate stop在S4.1b.1b.1b.1–S4.1b.1b.1b.2b.3继续有效：若后续证据要求公开lease/source/occurrence/Coordinator、复用global
 semantic/presentation revision、允许同一semantic occurrence的full normalized `PendingInteractionV1` canonical漂移，

@@ -748,6 +748,54 @@ browser `101 / 101`, examples browser `45 passed / 2 skipped`, and prebuilt
 Player `38 / 38`. S4.1b.1b.1b.2a is complete; current/next is
 S4.1b.1b.1b.2b remaining Say/barrier/player adjudication.
 
+S4.1b.1b.1b.2b.1a now adds the dormant physical Say reveal-first vertical.
+A bridge-private reveal controller descriptor-captures one exact plain-data
+Host port with `capturePhaseInternalV1` and `revealAllInternalV1` callables for
+the current Say target/source/frame. That per-frame controller is distinct from
+the replaceable physical admission and survives input-binding or active-only
+topology churn; source/frame/lifetime loss or a real blocking suspension
+revokes the reveal generation. The physical admission remains the only
+`InputRouter` binding and mints a frozen zero-key activation attempt without
+reading reveal phase. Both authenticated `ui.confirm` and
+`narrative.advance` consume that same attempt kind after the existing Surface,
+publication, gesture, direct-target, and frame fences. Non-Say attempts retain
+their previous `unmapped` alias behavior, while other mapped cross-kind tokens
+remain `stale` without being spent.
+
+The routed continuation installs an exact bridge callback gate, spends the
+attempt, and only then calls the captured phase function. A callback-triggered
+source or authority change wins as `stale`; a still-current invalid phase or
+throw is `faulted`. An incomplete phase invokes the captured reveal callable
+once and returns the frozen Narrative-only `{ kind: "revealed", completion:
+null }` result after another exact currentness check, with zero semantic
+dispatch. A complete phase atomically converts the same boundary to the
+per-frame semantic in-flight claim and submits the frozen `advance` request to
+the preflight-captured semantic receiver/callable. The semantic port Promise
+contract is still one-key and source-relative, but settlement now denotes that
+semantic publication and synchronous bridge reconcile have drained; the
+wrapped completion releases the exact same-frame claim before it becomes
+observable and never inspects the opaque Story result.
+
+Callback and semantic claims use separate exact tokens. Reentrant controller
+or admission replacement cannot dispatch through the synchronous callback
+window. Manual controller disposal while a semantic Promise is pending keeps a
+bounded read-only lifecycle observer: same-frame settlement releases it, a
+source/frame successor retires the old claim, and an old completion cannot
+ABA-clear a successor claim. A real suspension revokes the reveal controller
+but retains the same-frame semantic claim across resume until its completion;
+active-only topology churn instead preserves the current reveal controller.
+The private state remains bounded to one controller, activation attempt,
+callback claim, and semantic claim, with only WeakMap provenance behind them.
+
+This delivery remains source-relative and has no package-barrel, generic
+Managed Surface result/receipt, React Host, Story, or live input edge. Its
+verification passed focused `7 files / 226 tests`, UI `79 files / 1044 tests`,
+full `253 files / 3974 tests`, and `deno task check` (including the E2E Story
+build). Browser `101 / 101`, examples `45 passed / 2 skipped`, and prebuilt
+Player `38 / 38` remain prior evidence and were not rerun for this dormant
+slice. S4.1b.1b.1b.2b.1a is complete; current/next is
+S4.1b.1b.1b.2b.1b, the clock-free content-auto Say controller-attempt floor.
+
 ## 9. Changing the architecture
 
 Architecture evolution is expected. A substantial change should state:
@@ -795,7 +843,9 @@ S4.1b.1b.1b.1 adds the bridge-private automatic pause-expiry controller for
 both skippable values through the global-coherence-gated ready-active proof.
 S4.1b.1b.1b.2a adds authenticated custom payload dispatch plus the bounded
 interaction JSON dangerous-own-key corrective described above.
-S4.1b.1b.1b.2b remaining Say/barrier/player adjudication is current/next;
+S4.1b.1b.1b.2b.1a adds the dormant physical Say reveal-first controller and
+admission path described above. S4.1b.1b.1b.2b.1b content-auto Say admission is
+current/next; barrier and player-control delivery follows it.
 Host integration and the Narrative live migration remain planned work.
 Target documents do not alter the current data flow until that migration and
 its behavior tests land.

@@ -38,9 +38,10 @@ promotion 均已关闭。2026-08-08 dormant `PF4/S3c.1 Host-commit readiness`、
 `PF4/S4.1b.1b.1a skippable-pause physical resume`与
 `PF4/S4.1b.1b.1b.1 automatic pause-expiry controller-attempt admission/dispatch floor`及
 `PF4/S4.1b.1b.1b.2a custom physical payload admission`及
-`PF4/S4.1b.1b.1b.2b.0 remaining mapping policy adjudication`也已关闭，
+`PF4/S4.1b.1b.1b.2b.0 remaining mapping policy adjudication`与
+`PF4/S4.1b.1b.1b.2b.1a physical Say reveal-first admission`也已关闭，
 linear core current/next均为
-`PF4/S4.1b.1b.1b.2b.1a physical Say reveal-first admission`。
+`PF4/S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor`。
 同日 S1-R pre-implementation review 将 external reconcile gate 重切为 S1-R.0–S1-R.5；
 顺序变化不把任何 planned stable-target contract写成 live capability。
 同日 S1-R.3 entry-gate adjudication 采用 A-prime，将原 R3 拆为单一 composite
@@ -60,7 +61,8 @@ S4.1b.0 shared route gate/composite owner proof、S4.1b.1a authenticated action 
 S4.1b.1b.0 choice-only physical semantic admission、S4.1b.1b.1a skippable-pause physical resume与
 S4.1b.1b.1b.1 automatic pause-expiry controller-attempt admission/dispatch floor及
 S4.1b.1b.1b.2a custom physical payload admission与S4.1b.1b.1b.2b.0 remaining mapping
-policy adjudication也已关闭，下一独立切片为S4.1b.1b.1b.2b.1a physical Say reveal-first admission。
+policy adjudication及S4.1b.1b.1b.2b.1a physical Say reveal-first admission也已关闭，
+下一独立切片为S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor。
 旧 promotion 数字保留为
 历史证据。本文是当前唯一的跨计划排序入口；
 具体合同仍由各 design 文档拥有，主要任务由五个独立计划拥有：
@@ -943,8 +945,8 @@ Surface pilot 通过后按 family 分开合并：
 9. S4.1b.1b.1b.1：automatic pause-expiry controller-attempt admission/dispatch floor（已完成）；
 10. S4.1b.1b.1b.2a：custom physical payload admission（已完成）；
 11. S4.1b.1b.1b.2b.0：remaining mapping policy adjudication（已完成）；
-12. S4.1b.1b.1b.2b.1a：physical Say reveal-first admission（当前）；
-13. S4.1b.1b.1b.2b.1b：content-auto Say controller-attempt floor；
+12. S4.1b.1b.1b.2b.1a：physical Say reveal-first admission（已完成）；
+13. S4.1b.1b.1b.2b.1b：content-auto Say controller-attempt floor（当前）；
 14. S4.1b.1b.1b.2b.2：barrier acknowledgment/recovery；
 15. S4.1b.1b.1b.2b.3：player controls；
 16. S4.2：dormant Narrative Host、Host-commit readiness与History exact child；
@@ -1587,9 +1589,30 @@ semantic in-flight。所有negative/reveal-only路径semantic dispatch zero。
 Captured semantic port保持one-key callable，但其Promise只有在semantic publication与bridge reconcile drain后才可settle；
 Family只从该post-drain settlement按exact source释放claim。`.1b`仅为`advancePolicy: "auto"`交付ready-active、
 无gestureattempt；clock/timer、player Auto/Skip、Host/live接线继续延期。本amendment没有runtime或验证证据。
-Linear core current/next现为S4.1b.1b.1b.2b.1a；后续顺序固定为S4.1b.1b.1b.2b.1a →
+该checkpoint当时的linear core current/next为S4.1b.1b.1b.2b.1a，现由下述delivery推进；后续顺序固定为
 S4.1b.1b.1b.2b.1b → S4.1b.1b.1b.2b.2 →
 S4.1b.1b.1b.2b.3 → S4.2 → S4.3 → S4b。
+
+**PF4/S4.1b.1b.1b.2b.1a physical Say reveal-first admission delivery（completed）：**
+`@sillymaker/ui`的source-relative dormant Narrative family现为`ui.confirm`与`narrative.advance`复用同一个
+physical Say activation route：composition捕获exact own-data reveal-generation port与per-current-Say-frame
+controller，attempt issuance只绑定current admission/controller/target/source/frame而不读取phase；authenticated route
+先完成generic Surface/Input/publication/gesture fence，再以one-shot callback gate读取一次phase。Incomplete只调用captured
+`revealAll`并返回exact frozen`revealed/null`，complete才提交`advance`并返回既有`dispatched/Promise`；callback drift、
+invalid/throw、stale token与raw coherence failure遵守closed precedence并保持semantic dispatch zero。
+
+Bridge-private callback/semantic claims把同一frame的manual competitor封在drain-complete Promise之后；active-only topology/
+InputRouter churn保留controller，suspend/resume保留同一frame semantic boundary，source/frame replacement则退休旧claim，且旧
+completion不能清除successor claim。Lifecycle observer在controller失效、semantic settlement或source retirement后有界释放。
+本批的实现与测试diff只修改Narrative source、同目录tests与public API negative guards；没有接Host/React/Web/live Narrative claimant，
+没有实现`.1b` content-auto、clock/timer、Player/Barrier，也没有扩张UI root/`./internal` barrel、package export、generic
+Managed Surface result/receipt、Base/Save/Persistence/wire或第二份topology authority。
+
+验证通过focused `7 files / 226 tests`、UI package `79 files / 1044 tests`、full `253 files / 3974 tests`与
+`deno task check`。本批没有重跑browser/examples/prebuilt；最近已有的Engine browser `101 / 101`、examples browser
+`45 passed / 2 skipped`与prebuilt Player `38 / 38`只作prior evidence，不冒充本HEAD验证。Linear core current/next均为
+S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor；后续顺序保持S4.1b.1b.1b.2b.1b →
+S4.1b.1b.1b.2b.2 → S4.1b.1b.1b.2b.3 → S4.2 → S4.3 → S4b。
 
 每个 family 的迁移提交必须删除旧 owner；禁止长期 adapter 双写。
 `DialoguePanelV1` / `VnLayerV1` 的 controller/view/host 拆分在 Narrative family

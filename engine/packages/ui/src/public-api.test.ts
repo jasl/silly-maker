@@ -200,6 +200,10 @@ import type { NarrativeStableSemanticResolutionRequestInternalV1 as ForbiddenInt
 import type { NarrativeStableSemanticResolutionPortInternalV1 as ForbiddenPublicNarrativeSemanticResolutionPortV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Narrative semantic-resolution ports.
 import type { NarrativeStableSemanticResolutionPortInternalV1 as ForbiddenInternalNarrativeSemanticResolutionPortV1 } from "./internal.ts";
+// @ts-expect-error Narrative Say reveal-generation ports remain source-relative until Host promotion.
+import type { NarrativeStableSayRevealGenerationPortInternalV1 as ForbiddenPublicNarrativeSayRevealPortV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative Say reveal-generation ports.
+import type { NarrativeStableSayRevealGenerationPortInternalV1 as ForbiddenInternalNarrativeSayRevealPortV1 } from "./internal.ts";
 // @ts-expect-error Captured Narrative semantic-resolution ports remain source-relative.
 import type { NarrativeStableCapturedSemanticResolutionPortInternalV1 as ForbiddenPublicNarrativeCapturedSemanticResolutionPortV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose captured Narrative semantic-resolution ports.
@@ -216,6 +220,22 @@ import type { NarrativeStableCustomActionAttemptInternalV1 as ForbiddenInternalN
 import type { NarrativeStablePauseResumeActionAttemptInternalV1 as ForbiddenPublicNarrativePauseResumeActionAttemptV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Narrative pause-resume action attempts.
 import type { NarrativeStablePauseResumeActionAttemptInternalV1 as ForbiddenInternalNarrativePauseResumeActionAttemptV1 } from "./internal.ts";
+// @ts-expect-error Narrative Say activation attempts remain source-relative.
+import type { NarrativeStableSayActivationAttemptInternalV1 as ForbiddenPublicNarrativeSayActivationAttemptV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative Say activation attempts.
+import type { NarrativeStableSayActivationAttemptInternalV1 as ForbiddenInternalNarrativeSayActivationAttemptV1 } from "./internal.ts";
+// @ts-expect-error Narrative Say reveal-controller inputs remain source-relative.
+import type { CreateNarrativeStableSayRevealControllerInputInternalV1 as ForbiddenPublicNarrativeSayRevealControllerInputV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative Say reveal-controller inputs.
+import type { CreateNarrativeStableSayRevealControllerInputInternalV1 as ForbiddenInternalNarrativeSayRevealControllerInputV1 } from "./internal.ts";
+// @ts-expect-error Narrative Say reveal controllers remain source-relative.
+import type { NarrativeStableSayRevealControllerInternalV1 as ForbiddenPublicNarrativeSayRevealControllerV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative Say reveal controllers.
+import type { NarrativeStableSayRevealControllerInternalV1 as ForbiddenInternalNarrativeSayRevealControllerV1 } from "./internal.ts";
+// @ts-expect-error Narrative Say reveal-controller construction remains source-relative.
+import type { createNarrativeStableSayRevealControllerInternalV1 as ForbiddenPublicNarrativeSayRevealControllerFactoryV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative Say reveal-controller construction.
+import type { createNarrativeStableSayRevealControllerInternalV1 as ForbiddenInternalNarrativeSayRevealControllerFactoryV1 } from "./internal.ts";
 // @ts-expect-error Narrative pause-expiry controller attempts remain source-relative.
 import type { NarrativeStablePauseExpiryControllerAttemptInternalV1 as ForbiddenPublicNarrativePauseExpiryControllerAttemptV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Narrative pause-expiry controller attempts.
@@ -324,10 +344,15 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "NarrativeStablePublisherBridgeResultInternalV1"
       | "NarrativeStableSemanticResolutionRequestInternalV1"
       | "NarrativeStableSemanticResolutionPortInternalV1"
+      | "NarrativeStableSayRevealGenerationPortInternalV1"
       | "NarrativeStableCapturedSemanticResolutionPortInternalV1"
       | "NarrativeStableChoiceActionAttemptInternalV1"
       | "NarrativeStableCustomActionAttemptInternalV1"
       | "NarrativeStablePauseResumeActionAttemptInternalV1"
+      | "NarrativeStableSayActivationAttemptInternalV1"
+      | "CreateNarrativeStableSayRevealControllerInputInternalV1"
+      | "NarrativeStableSayRevealControllerInternalV1"
+      | "createNarrativeStableSayRevealControllerInternalV1"
       | "NarrativeStablePauseExpiryControllerAttemptInternalV1"
       | "NarrativeStablePauseExpiryDispatchResultInternalV1"
       | "NarrativeStablePauseExpiryControllerInternalV1"
@@ -420,10 +445,15 @@ describe("@sillymaker/ui public managed System surface", () => {
         "NarrativeStablePublisherBridgeResultInternalV1",
         "NarrativeStableSemanticResolutionRequestInternalV1",
         "NarrativeStableSemanticResolutionPortInternalV1",
+        "NarrativeStableSayRevealGenerationPortInternalV1",
         "NarrativeStableCapturedSemanticResolutionPortInternalV1",
         "NarrativeStableChoiceActionAttemptInternalV1",
         "NarrativeStableCustomActionAttemptInternalV1",
         "NarrativeStablePauseResumeActionAttemptInternalV1",
+        "NarrativeStableSayActivationAttemptInternalV1",
+        "CreateNarrativeStableSayRevealControllerInputInternalV1",
+        "NarrativeStableSayRevealControllerInternalV1",
+        "createNarrativeStableSayRevealControllerInternalV1",
         "NarrativeStablePauseExpiryControllerAttemptInternalV1",
         "NarrativeStablePauseExpiryDispatchResultInternalV1",
         "NarrativeStablePauseExpiryControllerInternalV1",
