@@ -1051,7 +1051,60 @@ full `253 files / 4082 tests`, and `deno task check`. Browser `101 / 101`,
 examples `45 passed / 2 skipped`, and prebuilt Player `38 / 38` remain prior
 evidence and were not rerun. The superseded S4.1b.1b.1b.2b.3c broad checkpoint,
 its S4.1b.1b.1b.2b.3c.0 docs-only entry, and S4.1b.1b.1b.2b.3c.1 are complete;
-current/next is S4.1b.1b.1b.2b.3d, the History-intent floor.
+at that delivery checkpoint, current/next was the History-intent floor
+delivered below.
+
+S4.1b.1b.1b.2b.3d.1 now implements the dormant, source-relative History
+exact-parent open-intent floor. Candidate preflight keeps the existing opaque
+`historyObservationPort` unchanged for later History content integration and
+separately requires one exact ordinary-object
+`readHistoryAvailabilityInternalV1(): boolean` port. It descriptor-captures
+the original receiver and callable into a private WeakMap and stores only a
+fresh frozen zero-key handle in the admitted frame. Missing availability uses
+the existing `narrative.required_port_missing` result with
+`narrative.history_availability`; malformed or trapping adapters use the
+existing candidate-preflight fault and allocate no stable publication state.
+
+The existing physical admission remains the sole binding and route owner. It
+can issue a frozen zero-key History attempt for each exact current ready-active
+Dialogue parent kind: Say, choice, pause, custom, or `presentation_barrier`.
+The attempt is privately bound to its issuing admission, the stable action
+authority and direct-target proof, parent/source/frame, and captured
+availability handle. Existing application, topology, Input, catalog,
+publication, and gesture gates run before the family consumer and before any
+spend. Mapping or cross-kind probes leave an authentic token unspent; a
+correct `player.toggle_history` route spends once before its family
+currentness and claim checks.
+
+Availability invocation reuses the bridge-wide `sayCallbackClaim` and requires
+the existing Say semantic-in-flight claim to remain empty, without installing
+or clearing that semantic claim. The route rechecks the exact
+admission/parent/source/frame/handle before and after calling the captured
+receiver once. Callback-triggered replacement, suspension, disposal, or claim
+drift wins as `stale`; otherwise exact `false` is the canonical `ignored`
+result, throw or non-boolean is canonical `faulted`, and exact `true` creates a
+fresh frozen zero-key intent plus exact `requested` result. Cleanup clears
+only its own callback token by identity CAS. The Barrier carrier path neither
+reads nor changes Stage acknowledgment, recovery, or semantic authority, and
+the outer History route adds zero topology, runtime, semantic, gameplay, or
+notification delta.
+
+Attempts and intents are authenticated only by package-private WeakMaps; the
+bridge and admission retain no current token or token history, so production
+strong state stays O(1). This slice only mints the future exact-parent intent.
+It does not expose an inspection/redemption method or perform a Coordinator
+child transaction; S4.2 owns atomic revalidation, one-shot spend, and History
+child prepare/open. All new port, handle, attempt, intent, result, and issue
+spellings remain absent from the UI root, `./internal`, package exports,
+generic Managed Surface APIs, Host/React/Web, and live Story wiring.
+
+Verification passed focused `2 files / 189 tests`, UI `79 files / 1188 tests`,
+full `253 files / 4118 tests`, and `deno task check`. Browser `101 / 101`,
+examples `45 passed / 2 skipped`, and prebuilt Player `38 / 38` remain prior
+evidence and were not rerun. The superseded S4.1b.1b.1b.2b.3d broad
+checkpoint, its S4.1b.1b.1b.2b.3d.0 docs-only entry, and
+S4.1b.1b.1b.2b.3d.1 are complete; current/next is S4.2, followed by S4.3 and
+S4b.
 
 ## 9. Changing the architecture
 
@@ -1112,7 +1165,10 @@ adds the captured optional voice replay route on the same physical admission
 and shared Say callback fence. S4.1b.1b.1b.2b.3c.1 adds the bridge-owned
 Auto/Skip identity, authenticated toggle, atomic reset, and fail-closed terminal
 floor described above; the superseded broad `.3c` checkpoint and docs-only
-`.3c.0` entry are historical. Current/next is S4.1b.1b.1b.2b.3d, the
-History-intent floor. Host integration and the Narrative live migration remain
-planned work; the implemented source-relative claimant does not alter the live
-Host data flow until that migration and its behavior tests land.
+`.3c.0` entry are historical. S4.1b.1b.1b.2b.3d.1 adds the captured History
+availability route and future exact-parent intent floor described above; the
+superseded broad `.3d` checkpoint and docs-only `.3d.0` entry are historical.
+Current/next is S4.2, followed by S4.3 and S4b. Host integration and the
+Narrative live migration remain planned work; the implemented source-relative
+claimant does not alter the live Host data flow until that migration and its
+behavior tests land.

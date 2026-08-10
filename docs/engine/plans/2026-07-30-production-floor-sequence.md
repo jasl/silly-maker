@@ -50,10 +50,11 @@ promotion 均已关闭。2026-08-08 dormant `PF4/S3c.1 Host-commit readiness`、
 `PF4/S4.1b.1b.1b.2b.3b.1 voice replay physical route implementation`、
 `PF4/S4.1b.1b.1b.2b.3c.0 Auto/Skip exact entry contract` docs-only checkpoint及
 `PF4/S4.1b.1b.1b.2b.3c.1 bridge-owned Auto/Skip transient mode floor implementation`与
-`PF4/S4.1b.1b.1b.2b.3d.0 History exact-parent open-intent exact entry contract` docs-only checkpoint也已关闭；
-原`.2b.3d` broad checkpoint现已superseded，linear core current/next均推进为
-`PF4/S4.1b.1b.1b.2b.3d.1 History exact-parent open intent implementation`，随后依次为
-`S4.2 -> S4.3 -> S4b`。
+`PF4/S4.1b.1b.1b.2b.3d.0 History exact-parent open-intent exact entry contract` docs-only checkpoint及
+`PF4/S4.1b.1b.1b.2b.3d.1 History exact-parent open intent implementation`也已关闭；
+原`.2b.3d` broad checkpoint现已superseded，`.3d.0/.3d.1` entry pointer现为completed
+historical chain；linear core current/next与implementation gate均推进为`S4.2`，随后依次为
+`S4.3 -> S4b`。
 同日 S1-R pre-implementation review 将 external reconcile gate 重切为 S1-R.0–S1-R.5；
 顺序变化不把任何 planned stable-target contract写成 live capability。
 同日 S1-R.3 entry-gate adjudication 采用 A-prime，将原 R3 拆为单一 composite
@@ -84,10 +85,10 @@ S4.1b.1b.1b.2b.3b.0 voice-replay entry contract docs-only checkpoint与
 S4.1b.1b.1b.2b.3b.1 voice replay physical route implementation、
 S4.1b.1b.1b.2b.3c.0 Auto/Skip exact entry contract docs-only checkpoint及
 S4.1b.1b.1b.2b.3c.1 bridge-owned Auto/Skip transient mode floor implementation与
-S4.1b.1b.1b.2b.3d.0 History exact-parent open-intent exact entry contract docs-only checkpoint也已关闭；
-原`.2b.3d` broad checkpoint已superseded，下一独立切片为
-S4.1b.1b.1b.2b.3d.1 History exact-parent open intent implementation，随后依次为
-S4.2、S4.3与S4b。
+S4.1b.1b.1b.2b.3d.0 History exact-parent open-intent exact entry contract docs-only checkpoint及
+S4.1b.1b.1b.2b.3d.1 History exact-parent open intent implementation也已关闭；
+原`.2b.3d` broad checkpoint已superseded，`.3d.0/.3d.1` entry pointer现为completed
+historical chain；下一独立切片与implementation gate均为S4.2，随后依次为S4.3与S4b。
 旧 promotion 数字保留为
 历史证据。本文是当前唯一的跨计划排序入口；
 具体合同仍由各 design 文档拥有，主要任务由五个独立计划拥有：
@@ -986,8 +987,8 @@ Surface pilot 通过后按 family 分开合并：
 25. S4.1b.1b.1b.2b.3c.1：bridge-owned Auto/Skip transient mode floor implementation（已完成）；
 26. S4.1b.1b.1b.2b.3d：History exact-parent open intent floor（superseded checkpoint；由`.2b.3d.0`细分）；
 27. S4.1b.1b.1b.2b.3d.0：History exact-parent open-intent exact entry contract（docs-only，已完成）；
-28. S4.1b.1b.1b.2b.3d.1：History exact-parent open intent implementation（当前）；
-29. S4.2：dormant Narrative Host、Host-commit readiness、timer scheduling与History exact-child lifecycle；
+28. S4.1b.1b.1b.2b.3d.1：History exact-parent open intent implementation（已完成）；
+29. S4.2：dormant Narrative Host、Host-commit readiness、timer scheduling与History exact-child lifecycle（当前）；
 30. S4.3：atomic live cutover and promotion；
 31. S4b：whole-canvas primary/detail 独立 family；
 32. input/gesture reset（pointercancel、focus loss、visibility change）与 Browser
@@ -1818,14 +1819,16 @@ Save/Persistence/canonical/digest/replay/wire或S4b。验证通过focused `8 fil
 docs-only amendment细分并取代。
 
 **PF4/S4.1b.1b.1b.2b.3.0 player-controls execution split（docs-only，已完成）：** 原
-S4.1b.1b.1b.2b.3 player controls标记为superseded checkpoint，不再作为一个合并切片。有效线性顺序现为
+S4.1b.1b.1b.2b.3 player controls标记为superseded checkpoint，不再作为一个合并切片。该amendment当时记录的
+有效线性顺序为
 S4.1b.1b.1b.2b.3a toggle-ui Narrative catalog corrective →
 S4.1b.1b.1b.2b.3b.0 voice-replay entry contract →
 S4.1b.1b.1b.2b.3b.1 voice replay physical route implementation →
 S4.1b.1b.1b.2b.3c.0 Auto/Skip exact entry contract →
 S4.1b.1b.1b.2b.3c.1 bridge-owned Auto/Skip transient mode floor implementation →
 S4.1b.1b.1b.2b.3d.0 History exact-parent open-intent exact entry contract →
-S4.1b.1b.1b.2b.3d.1 History exact-parent open intent implementation → S4.2 → S4.3 → S4b。
+S4.1b.1b.1b.2b.3d.1 History exact-parent open intent implementation → S4.2 → S4.3 → S4b；
+其中`.3d.0/.3d.1`现均为completed historical entry，现行pointer见下述delivery。
 
 `.3a`只从Dialogue managed action catalog移除`player.toggle_ui`；它不删除generic
 `playerInputActionIdsV1.toggleUi`或`player.toggle_ui` input ID，也不修改、删除或接管live legacy
@@ -2109,9 +2112,26 @@ owning design或留给S4.2。
 
 本`.3d.0` amendment严格只修改本cross-plan文件，没有source、test、runtime、architecture、Host/live claimant、public API或
 delivery evidence，也不把此前focused/UI/full/check/browser/examples/prebuilt结果表述为本批验证。验证仅为本文件
-`deno fmt --check`与`git diff --check`。`.3d.0`现为completed historical entry；linear core唯一active current/next与
-implementation gate均为 **S4.1b.1b.1b.2b.3d.1 History exact-parent open intent implementation**，有效顺序为
-**S4.1b.1b.1b.2b.3d.1 → S4.2 → S4.3 → S4b**。
+`deno fmt --check`与`git diff --check`。`.3d.0`及随后的`.3d.1`现均为completed historical entry；本entry pointer
+由下述delivery取代，linear core current/next与implementation gate均为 **S4.2**，有效顺序为
+**S4.2 → S4.3 → S4b**。
+
+**PF4/S4.1b.1b.1b.2b.3d.1 History exact-parent open intent implementation delivery（completed）：**
+Narrative candidate preflight现required-capture exact ordinary own-data History availability receiver/callable，并把zero-key captured
+handle与新的`narrative.history_availability` required-port ID绑定；既有opaque History observation port保持独立且未调用。Exact
+current ready-active `say | choice | pause | custom | presentation_barrier`可签发frozen zero-key one-shot History attempt；
+`player.toggle_history`仍先通过既有generic application/topology/input/catalog/publication/gesture gate，随后按authenticity、mapping、
+current parent/source/frame/handle与shared callback/semantic claims完成spend及pre/post-callback重验。Availability exact `false`返回
+canonical `ignored`，exact `true`返回fresh frozen `requested` result与opaque zero-key intent，throw或non-boolean返回`faulted`，任一
+callback后currentness/claim漂移优先返回`stale`；ordinary route不提交semantic completion，也不创建History identity或Stage delta。
+
+`.3d.1`只mint供未来消费的exact-parent one-use intent，不提供redeem/consume/inspect seam，也不在本切片验证或spend该intent；S4.2
+继续独占intent provenance/current-parent的原子重验与spend，以及同一个composition-owned Coordinator transition中的History child
+open。Public与`./internal` barrels/package exports、generic Managed Surface/Input result/receipt、live graph、React/Host、legacy
+DialoguePanel/Engine Lab/Story writer均保持zero diff。验证通过focused `2 files / 189 tests`、UI package
+`79 files / 1188 tests`、full `253 files / 4118 tests`与完整`deno task check`。本批未重跑browser、examples或prebuilt；先前Engine
+browser `101 / 101`、examples browser `45 passed / 2 skipped`与prebuilt Player `38 / 38`只作prior evidence，不冒充本HEAD验证。
+Linear core current/next与implementation gate均推进为 **S4.2**；后续有效顺序为 **S4.2 → S4.3 → S4b**。
 
 每个 family 的迁移提交必须删除旧 owner；禁止长期 adapter 双写。
 `DialoguePanelV1` / `VnLayerV1` 的 controller/view/host 拆分在 Narrative family

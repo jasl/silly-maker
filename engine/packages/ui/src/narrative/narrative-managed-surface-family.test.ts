@@ -86,6 +86,11 @@ import {
   type NarrativeStableBarrierStageRetargetResultInternalV1,
   type NarrativeStableBarrierTerminalDispatchResultInternalV1,
   type NarrativeStableCustomActionAttemptInternalV1,
+  type NarrativeStableCapturedHistoryAvailabilityPortInternalV1,
+  type NarrativeStableHistoryAvailabilityPortInternalV1,
+  type NarrativeStableHistoryOpenActionAttemptInternalV1,
+  type NarrativeStableHistoryOpenDispatchResultInternalV1,
+  type NarrativeStableHistoryOpenIntentInternalV1,
   type NarrativeStablePauseResumeActionAttemptInternalV1,
   type NarrativeStablePauseExpiryControllerAttemptInternalV1,
   type NarrativeStablePauseExpiryControllerInternalV1,
@@ -125,6 +130,9 @@ const narrativeToggleAutoActionIdV1 = parseManagedSurfaceActionIdV1(
 const narrativeToggleSkipActionIdV1 = parseManagedSurfaceActionIdV1(
   playerInputActionIdsV1.toggleSkip,
 );
+const narrativeToggleHistoryActionIdV1 = parseManagedSurfaceActionIdV1(
+  playerInputActionIdsV1.toggleHistory,
+);
 const narrativeUnknownActionIdV1 = parseManagedSurfaceActionIdV1("narrative.unknown");
 const zeroDeltaV1 = Object.freeze({
   source: "unchanged" as const,
@@ -136,11 +144,15 @@ const zeroDeltaV1 = Object.freeze({
 const defaultSemanticDispatchPortV1 = Object.freeze({
   dispatchResolutionInternalV1: (_request: unknown) => Promise.resolve(undefined),
 }) satisfies NarrativeStableSemanticResolutionPortInternalV1;
+const defaultHistoryAvailabilityPortV1 = Object.freeze({
+  readHistoryAvailabilityInternalV1: () => true,
+}) satisfies NarrativeStableHistoryAvailabilityPortInternalV1;
 const defaultCandidateSnapshotV1 = Object.freeze({
   rendererComponent: Object.freeze({ kind: "dialogue-renderer" }),
   visualConfig: Object.freeze({ skin: "test" }),
   semanticDispatchPort: defaultSemanticDispatchPortV1,
   historyObservationPort: Object.freeze({ kind: "history-observation" }),
+  historyAvailabilityPort: defaultHistoryAvailabilityPortV1,
   playerProfile: Object.freeze({ locale: "en" }),
   presentationClock: Object.freeze({ kind: "manual-clock" }),
   textResolver: Object.freeze({ kind: "text-resolver" }),
@@ -621,6 +633,7 @@ function physicalSayHarnessV1(input: {
   readonly revealGenerationPort?: NarrativeStableSayRevealGenerationPortInternalV1;
   readonly isGestureCurrent?: () => boolean;
   readonly advancePolicy?: "confirm" | "auto";
+  readonly historyAvailabilityPort?: unknown;
   readonly playerProfile?: unknown;
   readonly presentationClock?: unknown;
   readonly voiceReplayPort?: unknown;
@@ -632,6 +645,8 @@ function physicalSayHarnessV1(input: {
         capturedCandidatePreflightResultV1(Object.freeze({
           ...defaultCandidateSnapshotV1,
           semanticDispatchPort,
+          historyAvailabilityPort: input.historyAvailabilityPort ??
+            defaultCandidateSnapshotV1.historyAvailabilityPort,
           playerProfile: input.playerProfile ?? defaultCandidateSnapshotV1.playerProfile,
           presentationClock: input.presentationClock ??
             defaultCandidateSnapshotV1.presentationClock,
@@ -690,6 +705,84 @@ function routePlaybackModeToggleV1(
   );
 }
 
+type NarrativeReadyPendingKindV1 =
+  | "say"
+  | "choice"
+  | "pause"
+  | "custom"
+  | "presentation_barrier";
+
+function historyAvailabilityPortV1(
+  readHistoryAvailabilityInternalV1: () => boolean,
+): NarrativeStableHistoryAvailabilityPortInternalV1 {
+  return { readHistoryAvailabilityInternalV1 };
+}
+
+function physicalHistoryHarnessV1(input: {
+  readonly kind?: NarrativeReadyPendingKindV1;
+  readonly historyAvailabilityPort?: unknown;
+  readonly historyObservationPort?: unknown;
+  readonly semanticDispatchPort?: NarrativeStableSemanticResolutionPortInternalV1;
+  readonly isGestureCurrent?: () => boolean;
+} = {}) {
+  const kind = input.kind ?? "say";
+  const semanticDispatchPort = input.semanticDispatchPort ?? defaultSemanticDispatchPortV1;
+  const historyObservationPort = input.historyObservationPort ??
+    defaultCandidateSnapshotV1.historyObservationPort;
+  const historyAvailabilityPort = input.historyAvailabilityPort ??
+    defaultCandidateSnapshotV1.historyAvailabilityPort;
+  const harness = harnessV1({
+    candidatePreflight: Object.freeze({
+      preflightCandidateInternalV1: () =>
+        capturedCandidatePreflightResultV1(Object.freeze({
+          ...defaultCandidateSnapshotV1,
+          semanticDispatchPort,
+          historyObservationPort,
+          historyAvailabilityPort,
+        })),
+    }),
+  });
+  expect(harness.bridge.reconcilePendingInternalV1(pendingV1(kind))).toMatchObject({
+    kind: "applied",
+    code: "surface.stable_publication_applied",
+  });
+  settleCurrentNarrativeReadyV1(harness);
+  const inputRouter = createInputRouterV1();
+  const admission = createNarrativeStablePhysicalActionAdmissionInternalV1({
+    bridge: harness.bridge,
+    inputRouter,
+    isGestureCurrent: input.isGestureCurrent ?? (() => true),
+  });
+  return { harness, inputRouter, admission, semanticDispatchPort };
+}
+
+function routeHistoryOpenV1(
+  admission: NarrativeStablePhysicalActionAdmissionInternalV1,
+  attempt: unknown,
+  gestureSuffix: string,
+) {
+  return admission.routeInternalV1(
+    admission.createEnvelopeInternalV1({
+      actionId: narrativeToggleHistoryActionIdV1,
+      gestureId: parseManagedSurfaceGestureIdV1(
+        `gesture.narrative.history-open-${gestureSuffix}`,
+      ),
+    }),
+    attempt,
+  );
+}
+
+function expectHistoryRouteConsumedV1(
+  result: ReturnType<typeof routeHistoryOpenV1>,
+): NarrativeStableHistoryOpenDispatchResultInternalV1 {
+  expect(result.route).toMatchObject({
+    input: { kind: "consumed", code: "input.managed_surface_consumed" },
+    surface: { kind: "unchanged", code: "surface.action_routed" },
+  });
+  expect(result.consumerResult).not.toBeNull();
+  return result.consumerResult as NarrativeStableHistoryOpenDispatchResultInternalV1;
+}
+
 function automaticPauseHarnessV1(input: {
   readonly semanticDispatchPort?: NarrativeStableSemanticResolutionPortInternalV1;
   readonly skippable?: boolean;
@@ -727,6 +820,7 @@ interface NarrativeBarrierHarnessV1 {
 
 function narrativeBarrierHarnessV1(input: {
   readonly semanticDispatchPort?: NarrativeStableSemanticResolutionPortInternalV1;
+  readonly historyAvailabilityPort?: unknown;
   readonly transition?: StageTransitionDefinitionV1;
   readonly resolveTransition?: StageTransitionCatalogV1["resolveTransition"];
   readonly initialContents?: readonly string[];
@@ -744,6 +838,8 @@ function narrativeBarrierHarnessV1(input: {
         capturedCandidatePreflightResultV1(Object.freeze({
           ...defaultCandidateSnapshotV1,
           semanticDispatchPort,
+          historyAvailabilityPort: input.historyAvailabilityPort ??
+            defaultCandidateSnapshotV1.historyAvailabilityPort,
         })),
     }),
   });
@@ -975,6 +1071,7 @@ describe("Narrative stable Managed Surface family", () => {
     expectTypeOf<NarrativeStableRequiredPortIdInternalV1>().toEqualTypeOf<
       | "narrative.semantic_dispatch"
       | "narrative.history_observation"
+      | "narrative.history_availability"
       | "narrative.player_profile"
       | "narrative.presentation_clock"
       | "narrative.text_resolver"
@@ -1290,12 +1387,19 @@ describe("Narrative stable Managed Surface family", () => {
     expect(captured).toEqual({
       ...defaultCandidateSnapshotV1,
       semanticDispatchPort: captured?.semanticDispatchPort,
+      historyAvailabilityPort: captured?.historyAvailabilityPort,
     });
     expect(Object.isFrozen(captured)).toBe(true);
     expect(captured?.rendererComponent).toBe(defaultCandidateSnapshotV1.rendererComponent);
     expect(captured?.semanticDispatchPort).not.toBe(defaultSemanticDispatchPortV1);
     expect(Object.isFrozen(captured?.semanticDispatchPort)).toBe(true);
     expect(Reflect.ownKeys(captured?.semanticDispatchPort as object)).toEqual([]);
+    expect(captured?.historyAvailabilityPort).not.toBe(defaultHistoryAvailabilityPortV1);
+    expectTypeOf(captured?.historyAvailabilityPort).toEqualTypeOf<
+      NarrativeStableCapturedHistoryAvailabilityPortInternalV1 | undefined
+    >();
+    expect(Object.isFrozen(captured?.historyAvailabilityPort)).toBe(true);
+    expect(Reflect.ownKeys(captured?.historyAvailabilityPort as object)).toEqual([]);
 
     const missing = harnessV1({
       candidatePreflight: Object.freeze({
@@ -1359,6 +1463,7 @@ describe("Narrative stable Managed Surface family", () => {
     [
       "narrative.semantic_dispatch",
       "narrative.history_observation",
+      "narrative.history_availability",
       "narrative.player_profile",
       "narrative.presentation_clock",
       "narrative.text_resolver",
@@ -1458,8 +1563,152 @@ describe("Narrative stable Managed Surface family", () => {
     expect(resultValueReads).toBe(0);
     expect(snapshotPrototypeReads).toBe(1);
     expect(snapshotOwnKeyReads).toBe(1);
-    expect(snapshotDescriptorReads).toBe(9);
+    expect(snapshotDescriptorReads).toBe(10);
     expect(snapshotValueReads).toBe(0);
+  });
+
+  it("validates the separate raw History availability descriptor before any allocation", () => {
+    expectTypeOf<NarrativeStableHistoryAvailabilityPortInternalV1>().toEqualTypeOf<
+      Readonly<{ readonly readHistoryAvailabilityInternalV1: () => boolean }>
+    >();
+    const inherited = Object.create({
+      readHistoryAvailabilityInternalV1: () => true,
+    });
+    const accessor = Object.defineProperty({}, "readHistoryAvailabilityInternalV1", {
+      get: () => () => true,
+      enumerable: true,
+    });
+    const extraSymbol = Object.assign(
+      { readHistoryAvailabilityInternalV1: () => true },
+      { [Symbol("extra")]: true },
+    );
+    const trap = (name: "prototype" | "keys" | "descriptor") =>
+      new Proxy(
+        { readHistoryAvailabilityInternalV1: () => true },
+        {
+          ...(name === "prototype"
+            ? {
+              getPrototypeOf: () => {
+                throw new Error("prototype trap");
+              },
+            }
+            : {}),
+          ...(name === "keys"
+            ? {
+              ownKeys: () => {
+                throw new Error("keys trap");
+              },
+            }
+            : {}),
+          ...(name === "descriptor"
+            ? {
+              getOwnPropertyDescriptor: () => {
+                throw new Error("descriptor trap");
+              },
+            }
+            : {}),
+        },
+      );
+    const malformedPorts: readonly unknown[] = [
+      null,
+      [],
+      () => true,
+      Object.create(null),
+      Object.create({}),
+      {},
+      inherited,
+      accessor,
+      { readHistoryAvailabilityInternalV1: true },
+      { readHistoryAvailabilityInternalV1: () => true, extra: true },
+      extraSymbol,
+      trap("prototype"),
+      trap("keys"),
+      trap("descriptor"),
+    ];
+
+    for (const historyAvailabilityPort of malformedPorts) {
+      const harness = harnessV1({
+        candidatePreflight: Object.freeze({
+          preflightCandidateInternalV1: () =>
+            capturedCandidatePreflightResultV1(Object.freeze({
+              ...defaultCandidateSnapshotV1,
+              historyAvailabilityPort,
+            })),
+        }),
+      });
+      const state = harness.kernel.getStateInternalV1();
+      expectZeroResultV1(
+        harness.bridge.reconcilePendingInternalV1(pendingV1("say")),
+        "faulted",
+        "narrative.candidate_preflight_faulted",
+      );
+      expect(harness.kernel.getStateInternalV1()).toBe(state);
+      expect(publisherSnapshotV1(harness)).toMatchObject({
+        sourceRevisionIssuanceHighWater: 0,
+        occurrenceIssuanceHighWater: 0,
+      });
+      expect(harness.stateNotificationCount()).toBe(0);
+    }
+  });
+
+  it("retains the original History availability callable and receiver without observing History content", () => {
+    let rawPort!: NarrativeStableHistoryAvailabilityPortInternalV1;
+    const original = vi.fn(function (this: unknown, ...args: readonly unknown[]) {
+      expect(this).toBe(rawPort);
+      expect(args).toEqual([]);
+      return true;
+    });
+    const replacement = vi.fn(() => false);
+    rawPort = {
+      readHistoryAvailabilityInternalV1: original,
+    };
+    const observationReads = vi.fn();
+    const opaqueObservation = new Proxy(Object.freeze({}), {
+      get() {
+        observationReads();
+        throw new Error("History content observation must stay opaque");
+      },
+      getPrototypeOf() {
+        observationReads();
+        throw new Error("History content observation must stay opaque");
+      },
+      ownKeys() {
+        observationReads();
+        throw new Error("History content observation must stay opaque");
+      },
+    });
+    const fixture = physicalHistoryHarnessV1({
+      historyAvailabilityPort: rawPort,
+      historyObservationPort: opaqueObservation,
+    });
+    const baseline = narrativeBaselineV1(fixture.harness);
+    if (baseline.kind !== "accepted") throw new Error("expected History baseline");
+    const captured = fixture.harness.bridge.inspectAdmittedTargetFrameInternalV1(
+      baseline.targets[0]!,
+    )?.candidateSnapshot.historyAvailabilityPort;
+    expectTypeOf(captured).toEqualTypeOf<
+      NarrativeStableCapturedHistoryAvailabilityPortInternalV1 | undefined
+    >();
+    expect(captured).not.toBe(rawPort);
+    expect(Object.isFrozen(captured)).toBe(true);
+    expect(Reflect.ownKeys(captured as object)).toEqual([]);
+
+    Object.defineProperty(rawPort, "readHistoryAvailabilityInternalV1", {
+      get() {
+        throw new Error("captured availability must not re-read the raw member");
+      },
+      configurable: true,
+    });
+    const attempt = fixture.admission.issueHistoryOpenAttemptInternalV1();
+    expect(attempt).not.toBeNull();
+    const result = expectHistoryRouteConsumedV1(
+      routeHistoryOpenV1(fixture.admission, attempt, "captured-original"),
+    );
+    expect(result.kind).toBe("requested");
+    expect(original).toHaveBeenCalledOnce();
+    expect(replacement).not.toHaveBeenCalled();
+    expect(observationReads).not.toHaveBeenCalled();
+    fixture.admission.disposeInternalV1();
   });
 
   it("maps declared faults and malformed tagged results or snapshots to the family fault", () => {
@@ -1477,6 +1726,7 @@ describe("Narrative stable Managed Surface family", () => {
       visualConfig: defaultCandidateSnapshotV1.visualConfig,
       semanticDispatchPort: defaultCandidateSnapshotV1.semanticDispatchPort,
       historyObservationPort: defaultCandidateSnapshotV1.historyObservationPort,
+      historyAvailabilityPort: defaultCandidateSnapshotV1.historyAvailabilityPort,
       playerProfile: defaultCandidateSnapshotV1.playerProfile,
       presentationClock: defaultCandidateSnapshotV1.presentationClock,
       textResolver: defaultCandidateSnapshotV1.textResolver,
@@ -1726,6 +1976,7 @@ describe("Narrative stable Managed Surface family", () => {
       candidateSnapshot: {
         ...defaultCandidateSnapshotV1,
         semanticDispatchPort: frame?.candidateSnapshot.semanticDispatchPort,
+        historyAvailabilityPort: frame?.candidateSnapshot.historyAvailabilityPort,
       },
     });
     expect(Object.isFrozen(frame)).toBe(true);
@@ -1734,6 +1985,11 @@ describe("Narrative stable Managed Surface family", () => {
       defaultSemanticDispatchPortV1,
     );
     expect(Reflect.ownKeys(frame?.candidateSnapshot.semanticDispatchPort as object)).toEqual([]);
+    expect(frame?.candidateSnapshot.historyAvailabilityPort).not.toBe(
+      defaultHistoryAvailabilityPortV1,
+    );
+    expect(Reflect.ownKeys(frame?.candidateSnapshot.historyAvailabilityPort as object))
+      .toEqual([]);
     expect(publisherSnapshotV1(harness)).toMatchObject({
       sourceRevisionIssuanceHighWater: 1,
       occurrenceIssuanceHighWater: 1,
@@ -2137,6 +2393,7 @@ describe("Narrative stable Managed Surface family", () => {
         readonly mode: NarrativeStablePlaybackModeInternalV1;
         readonly completion: null;
       }>
+      | NarrativeStableHistoryOpenDispatchResultInternalV1
       | Readonly<{ readonly kind: "unmapped"; readonly completion: null }>
       | Readonly<{ readonly kind: "stale"; readonly completion: null }>
       | Readonly<{ readonly kind: "faulted"; readonly completion: null }>;
@@ -2152,6 +2409,7 @@ describe("Narrative stable Managed Surface family", () => {
       "issueSayActivationAttemptInternalV1",
       "issueVoiceReplayAttemptInternalV1",
       "issuePlaybackModeToggleAttemptInternalV1",
+      "issueHistoryOpenAttemptInternalV1",
       "routeInternalV1",
       "disposeInternalV1",
     ]);
@@ -9557,5 +9815,599 @@ describe("Narrative stable Managed Surface family", () => {
       }),
     })).toMatchObject({ kind: "applied" });
     controller.disposeInternalV1();
+  });
+
+  it.each(
+    (["say", "choice", "pause", "custom", "presentation_barrier"] as const).flatMap(
+      (kind) =>
+        [
+          [kind, "true", (): boolean => true, "requested"],
+          [kind, "false", (): boolean => false, "ignored"],
+          [kind, "throw", (): boolean => {
+            throw new Error("availability fault");
+          }, "faulted"],
+          [kind, "nonboolean", (): boolean => "yes" as unknown as boolean, "faulted"],
+        ] as const,
+    ),
+  )("routes History on ready-active %s with %s", (
+    kind,
+    _label,
+    outcome,
+    expectedKind,
+  ) => {
+    type ExpectedHistoryResultV1 =
+      | Readonly<{
+        readonly kind: "requested";
+        readonly intent: NarrativeStableHistoryOpenIntentInternalV1;
+        readonly completion: null;
+      }>
+      | Readonly<{ readonly kind: "ignored"; readonly completion: null }>
+      | Readonly<{ readonly kind: "stale"; readonly completion: null }>
+      | Readonly<{ readonly kind: "faulted"; readonly completion: null }>;
+    expectTypeOf<NarrativeStableHistoryOpenDispatchResultInternalV1>()
+      .toEqualTypeOf<ExpectedHistoryResultV1>();
+    expectTypeOf<NarrativeStablePhysicalActionAdmissionInternalV1>().toMatchTypeOf<{
+      issueHistoryOpenAttemptInternalV1():
+        | NarrativeStableHistoryOpenActionAttemptInternalV1
+        | null;
+    }>();
+
+    const readAvailability = vi.fn(outcome);
+    const semanticDispatch = vi.fn(() => Promise.resolve("must-not-dispatch"));
+    const fixture = physicalHistoryHarnessV1({
+      kind,
+      historyAvailabilityPort: historyAvailabilityPortV1(readAvailability),
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: semanticDispatch,
+      }),
+    });
+    const state = fixture.harness.kernel.getStateInternalV1();
+    const notifications = fixture.harness.stateNotificationCount();
+    const attempt = fixture.admission.issueHistoryOpenAttemptInternalV1();
+    expectTypeOf(attempt).toEqualTypeOf<
+      NarrativeStableHistoryOpenActionAttemptInternalV1 | null
+    >();
+    if (attempt === null) throw new Error("expected History attempt");
+    expect(Object.isFrozen(attempt)).toBe(true);
+    expect(Reflect.ownKeys(attempt)).toEqual([]);
+
+    const result = expectHistoryRouteConsumedV1(
+      routeHistoryOpenV1(fixture.admission, attempt, `${kind}-${_label}`),
+    );
+    expect(result.kind).toBe(expectedKind);
+    expect(result.completion).toBeNull();
+    expect(Object.isFrozen(result)).toBe(true);
+    expect(Reflect.ownKeys(result)).toEqual(
+      expectedKind === "requested" ? ["kind", "intent", "completion"] : ["kind", "completion"],
+    );
+    if (result.kind === "requested") {
+      expect(Object.isFrozen(result.intent)).toBe(true);
+      expect(Reflect.ownKeys(result.intent)).toEqual([]);
+    }
+    expect(
+      routeHistoryOpenV1(fixture.admission, attempt, `${kind}-${_label}-repeat`)
+        .consumerResult,
+    ).toEqual({ kind: "stale", completion: null });
+    expect(readAvailability).toHaveBeenCalledOnce();
+    expect(semanticDispatch).not.toHaveBeenCalled();
+    expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
+    expect(fixture.harness.stateNotificationCount()).toBe(notifications);
+    fixture.admission.disposeInternalV1();
+  });
+
+  it("reuses canonical ignored, stale, and faulted History rows across fresh admissions", () => {
+    for (
+      const [expectedKind, outcome] of [
+        ["ignored", (): boolean => false],
+        ["faulted", (): boolean => {
+          throw new Error("canonical History fault");
+        }],
+        ["stale", (): boolean => true],
+      ] as const
+    ) {
+      let canonical: NarrativeStableHistoryOpenDispatchResultInternalV1 | null = null;
+      for (let index = 0; index < 2; index += 1) {
+        const fixture = physicalHistoryHarnessV1({
+          historyAvailabilityPort: historyAvailabilityPortV1(outcome),
+        });
+        const attempt = fixture.admission.issueHistoryOpenAttemptInternalV1();
+        const first = expectHistoryRouteConsumedV1(
+          routeHistoryOpenV1(fixture.admission, attempt, `canonical-${expectedKind}-${index}`),
+        );
+        const result = expectedKind === "stale"
+          ? expectHistoryRouteConsumedV1(
+            routeHistoryOpenV1(
+              fixture.admission,
+              attempt,
+              `canonical-${expectedKind}-${index}-repeat`,
+            ),
+          )
+          : first;
+        expect(result.kind).toBe(expectedKind);
+        if (canonical === null) canonical = result;
+        else expect(result).toBe(canonical);
+        fixture.admission.disposeInternalV1();
+      }
+    }
+  });
+
+  it("issues History only for a current ready-active Dialogue and retires every old attempt", () => {
+    const replacement = physicalHistoryHarnessV1();
+    const replacementAttempt = replacement.admission.issueHistoryOpenAttemptInternalV1();
+    expect(replacementAttempt).not.toBeNull();
+    expect(replacement.harness.bridge.reconcilePendingInternalV1(pendingV1("say", 2)))
+      .toMatchObject({ kind: "applied" });
+    expect(replacement.admission.issueHistoryOpenAttemptInternalV1()).toBeNull();
+    expect(
+      routeHistoryOpenV1(replacement.admission, replacementAttempt, "replacement")
+        .consumerResult,
+    ).toEqual({ kind: "stale", completion: null });
+
+    const activeChurn = physicalHistoryHarnessV1({ kind: "choice" });
+    const churnAttempt = activeChurn.admission.issueHistoryOpenAttemptInternalV1();
+    suspendCurrentNarrativeV1(activeChurn.harness);
+    expect(activeChurn.admission.issueHistoryOpenAttemptInternalV1()).not.toBeNull();
+    expect(
+      routeHistoryOpenV1(activeChurn.admission, churnAttempt, "active-churn").consumerResult,
+    ).toEqual({ kind: "stale", completion: null });
+
+    const blocked = nonBlockingNarrativeHarnessV1(
+      defaultSemanticDispatchPortV1,
+      90,
+      "blocking",
+    );
+    expect(blocked.harness.bridge.reconcilePendingInternalV1(pendingV1("choice")))
+      .toMatchObject({ kind: "applied" });
+    settleCurrentNarrativeReadyV1(blocked.harness);
+    const blockedAdmission = createNarrativeStablePhysicalActionAdmissionInternalV1({
+      bridge: blocked.harness.bridge,
+      inputRouter: createInputRouterV1(),
+      isGestureCurrent: () => true,
+    });
+    const blockedAttempt = blockedAdmission.issueHistoryOpenAttemptInternalV1();
+    expect(blockedAttempt).not.toBeNull();
+    openNonBlockingSurfaceV1(
+      blocked.harness,
+      blocked.nonBlockingDefinition,
+      "suspended",
+      "candidate",
+      () => {},
+      "suspended",
+    );
+    expect(blockedAdmission.issueHistoryOpenAttemptInternalV1()).toBeNull();
+    expect(
+      routeHistoryOpenV1(blockedAdmission, blockedAttempt, "blocking-suspension")
+        .consumerResult,
+    ).toBeNull();
+
+    const emptied = physicalHistoryHarnessV1({ kind: "pause" });
+    const emptiedAttempt = emptied.admission.issueHistoryOpenAttemptInternalV1();
+    expect(emptied.harness.bridge.reconcilePendingInternalV1(null)).toMatchObject({
+      kind: "applied",
+    });
+    expect(emptied.admission.issueHistoryOpenAttemptInternalV1()).toBeNull();
+    expect(
+      routeHistoryOpenV1(emptied.admission, emptiedAttempt, "empty").consumerResult,
+    ).toBeNull();
+
+    const disposed = physicalHistoryHarnessV1({ kind: "custom" });
+    disposed.admission.disposeInternalV1();
+    expect(disposed.admission.issueHistoryOpenAttemptInternalV1()).toBeNull();
+
+    const terminal = physicalHistoryHarnessV1({ kind: "presentation_barrier" });
+    const terminalAttempt = terminal.admission.issueHistoryOpenAttemptInternalV1();
+    expect(terminal.harness.kernel.transitionTransientInternalV1({
+      kind: "dispose_coordinator",
+    })).toMatchObject({ kind: "applied" });
+    expect(terminal.admission.issueHistoryOpenAttemptInternalV1()).toBeNull();
+    expect(
+      routeHistoryOpenV1(terminal.admission, terminalAttempt, "terminal").consumerResult,
+    ).toBeNull();
+
+    replacement.admission.disposeInternalV1();
+    activeChurn.admission.disposeInternalV1();
+    blockedAdmission.disposeInternalV1();
+    emptied.admission.disposeInternalV1();
+    terminal.admission.disposeInternalV1();
+  });
+
+  it("runs generic and action-mapping fences before spending authentic History capabilities", () => {
+    let gestureCurrent = false;
+    const fixture = physicalHistoryHarnessV1({
+      isGestureCurrent: () => gestureCurrent,
+    });
+    const admission = fixture.admission;
+    const borrowedIssue = admission.issueHistoryOpenAttemptInternalV1;
+    expect(Reflect.apply(borrowedIssue, Object.freeze({}), [])).toBeNull();
+    const attempt = admission.issueHistoryOpenAttemptInternalV1();
+    expect(attempt).not.toBeNull();
+    const envelope = admission.createEnvelopeInternalV1({
+      actionId: narrativeToggleHistoryActionIdV1,
+      gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.history-generic"),
+    });
+    expect(admission.routeInternalV1(envelope, attempt)).toMatchObject({
+      route: { input: { code: "input.stale_gesture" }, surface: null },
+      consumerResult: null,
+    });
+    gestureCurrent = true;
+    expect(
+      admission.routeInternalV1(
+        admission.createEnvelopeInternalV1({
+          actionId: narrativeUnknownActionIdV1,
+          gestureId: parseManagedSurfaceGestureIdV1(
+            "gesture.narrative.history-unpublished",
+          ),
+        }),
+        attempt,
+      ).consumerResult,
+    ).toBeNull();
+    expect(
+      routePlaybackModeToggleV1(admission, "auto", attempt, "history-as-mode")
+        .consumerResult,
+    ).toEqual({ kind: "unmapped", completion: null });
+    expect(
+      routeHistoryOpenV1(admission, attempt, "after-generic-and-mapping").consumerResult,
+    ).toMatchObject({ kind: "requested" });
+
+    const modeAttempt = admission.issuePlaybackModeToggleAttemptInternalV1("auto");
+    expect(modeAttempt).not.toBeNull();
+    expect(routeHistoryOpenV1(admission, modeAttempt, "mode-as-history").consumerResult)
+      .toEqual({ kind: "unmapped", completion: null });
+    expect(
+      routePlaybackModeToggleV1(admission, "auto", modeAttempt, "mode-recovered")
+        .consumerResult,
+    ).toMatchObject({ kind: "toggled" });
+
+    const authentic = admission.issueHistoryOpenAttemptInternalV1();
+    if (authentic === null) throw new Error("expected authentic History attempt");
+    expect(routeHistoryOpenV1(admission, Object.freeze({}), "spoof").consumerResult)
+      .toEqual({ kind: "stale", completion: null });
+    expect(
+      routeHistoryOpenV1(admission, Object.freeze({ ...authentic }), "clone")
+        .consumerResult,
+    ).toEqual({ kind: "stale", completion: null });
+    expect(routeHistoryOpenV1(admission, authentic, "authentic").consumerResult)
+      .toMatchObject({ kind: "requested" });
+    expect(routeHistoryOpenV1(admission, authentic, "repeat").consumerResult)
+      .toEqual({ kind: "stale", completion: null });
+
+    const foreign = physicalHistoryHarnessV1();
+    const foreignAttempt = foreign.admission.issueHistoryOpenAttemptInternalV1();
+    expect(foreignAttempt).not.toBeNull();
+    expect(routeHistoryOpenV1(admission, foreignAttempt, "foreign").consumerResult)
+      .toEqual({ kind: "stale", completion: null });
+    expect(
+      routeHistoryOpenV1(foreign.admission, foreignAttempt, "foreign-own")
+        .consumerResult,
+    ).toMatchObject({ kind: "requested" });
+    foreign.admission.disposeInternalV1();
+    admission.disposeInternalV1();
+  });
+
+  it("spends a pre-signed History route while content-auto owns the shared callback claim", () => {
+    let fixture!: ReturnType<typeof physicalSayHarnessV1>;
+    let presigned: NarrativeStableHistoryOpenActionAttemptInternalV1 | null = null;
+    let envelope!: ReturnType<
+      NarrativeStablePhysicalActionAdmissionInternalV1["createEnvelopeInternalV1"]
+    >;
+    let nestedResult: NarrativeStablePhysicalActionDispatchResultInternalV1 | null = null;
+    const availability = vi.fn(() => true);
+    const capturePhase = vi.fn(() => {
+      expect(fixture.admission.issueHistoryOpenAttemptInternalV1()).toBeNull();
+      nestedResult = fixture.admission.routeInternalV1(envelope, presigned).consumerResult;
+      return "incomplete" as const;
+    });
+    fixture = physicalSayHarnessV1({
+      advancePolicy: "auto",
+      historyAvailabilityPort: historyAvailabilityPortV1(availability),
+      revealGenerationPort: Object.freeze({
+        capturePhaseInternalV1: capturePhase,
+        revealAllInternalV1: vi.fn(),
+      }),
+    });
+    presigned = fixture.admission.issueHistoryOpenAttemptInternalV1();
+    expect(presigned).not.toBeNull();
+    envelope = fixture.admission.createEnvelopeInternalV1({
+      actionId: narrativeToggleHistoryActionIdV1,
+      gestureId: parseManagedSurfaceGestureIdV1(
+        "gesture.narrative.history-content-auto-claim",
+      ),
+    });
+    const automaticAttempt = fixture.controller.issueContentAutoAttemptInternalV1();
+    expect(automaticAttempt).not.toBeNull();
+    expect(fixture.controller.dispatchContentAutoInternalV1(automaticAttempt)).toEqual({
+      kind: "not_ready",
+      completion: null,
+    });
+    expect(nestedResult).toEqual({ kind: "stale", completion: null });
+    expect(availability).not.toHaveBeenCalled();
+    expect(
+      routeHistoryOpenV1(fixture.admission, presigned, "content-auto-spent").consumerResult,
+    ).toEqual({ kind: "stale", completion: null });
+
+    const fresh = fixture.admission.issueHistoryOpenAttemptInternalV1();
+    expect(routeHistoryOpenV1(fixture.admission, fresh, "content-auto-released").consumerResult)
+      .toMatchObject({ kind: "requested" });
+    expect(availability).toHaveBeenCalledOnce();
+    fixture.controller.disposeInternalV1();
+    fixture.admission.disposeInternalV1();
+  });
+
+  it("reuses the shared callback claim across History reentry and releases unspent competitors", () => {
+    let fixture!: ReturnType<typeof physicalHistoryHarnessV1>;
+    let nestedAttempt: NarrativeStableHistoryOpenActionAttemptInternalV1 | null = null;
+    let nestedEnvelope!: ReturnType<
+      NarrativeStablePhysicalActionAdmissionInternalV1["createEnvelopeInternalV1"]
+    >;
+    const availability = vi.fn(() => {
+      expect(fixture.admission.issueHistoryOpenAttemptInternalV1()).toBeNull();
+      expect(fixture.admission.issuePlaybackModeToggleAttemptInternalV1("auto"))
+        .toBeNull();
+      expect(() => fixture.admission.routeInternalV1(nestedEnvelope, nestedAttempt))
+        .toThrowError("ui.managed_surface_action_route_in_progress");
+      return true;
+    });
+    fixture = physicalHistoryHarnessV1({
+      historyAvailabilityPort: historyAvailabilityPortV1(availability),
+    });
+    nestedAttempt = fixture.admission.issueHistoryOpenAttemptInternalV1();
+    const outerAttempt = fixture.admission.issueHistoryOpenAttemptInternalV1();
+    expect(nestedAttempt).not.toBeNull();
+    expect(outerAttempt).not.toBeNull();
+    nestedEnvelope = fixture.admission.createEnvelopeInternalV1({
+      actionId: narrativeToggleHistoryActionIdV1,
+      gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.history-nested"),
+    });
+    expect(routeHistoryOpenV1(fixture.admission, outerAttempt, "outer").consumerResult)
+      .toMatchObject({ kind: "requested" });
+    expect(
+      routeHistoryOpenV1(fixture.admission, nestedAttempt, "nested-after-release")
+        .consumerResult,
+    ).toMatchObject({ kind: "requested" });
+    expect(availability).toHaveBeenCalledTimes(2);
+    fixture.admission.disposeInternalV1();
+  });
+
+  it("makes semantic in-flight first-win without installing or clearing that claim", async () => {
+    let resolveSemantic!: (value: unknown) => void;
+    const semanticCompletion = new Promise<unknown>((resolve) => {
+      resolveSemantic = resolve;
+    });
+    const availability = vi.fn(() => true);
+    const fixture = physicalHistoryHarnessV1({
+      historyAvailabilityPort: historyAvailabilityPortV1(availability),
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: () => semanticCompletion,
+      }),
+    });
+    const controller = createNarrativeStableSayRevealControllerInternalV1({
+      bridge: fixture.harness.bridge,
+      revealGenerationPort: Object.freeze({
+        capturePhaseInternalV1: () => "complete" as const,
+        revealAllInternalV1: vi.fn(),
+      }),
+    });
+    const presignedHistory = fixture.admission.issueHistoryOpenAttemptInternalV1();
+    const sayAttempt = fixture.admission.issueSayActivationAttemptInternalV1(controller);
+    const sayResult = fixture.admission.routeInternalV1(
+      fixture.admission.createEnvelopeInternalV1({
+        actionId: narrativeConfirmActionIdV1,
+        gestureId: parseManagedSurfaceGestureIdV1(
+          "gesture.narrative.history-semantic-winner",
+        ),
+      }),
+      sayAttempt,
+    );
+    expect(sayResult.consumerResult).toMatchObject({ kind: "dispatched" });
+    expect(fixture.admission.issueHistoryOpenAttemptInternalV1()).toBeNull();
+    expect(
+      routeHistoryOpenV1(fixture.admission, presignedHistory, "semantic-pending")
+        .consumerResult,
+    ).toEqual({ kind: "stale", completion: null });
+    expect(availability).not.toHaveBeenCalled();
+
+    resolveSemantic("complete");
+    if (sayResult.consumerResult?.kind !== "dispatched") {
+      throw new Error("expected semantic completion");
+    }
+    await expect(sayResult.consumerResult.completion).resolves.toBe("complete");
+    const fresh = fixture.admission.issueHistoryOpenAttemptInternalV1();
+    expect(routeHistoryOpenV1(fixture.admission, fresh, "semantic-released").consumerResult)
+      .toMatchObject({ kind: "requested" });
+    expect(availability).toHaveBeenCalledOnce();
+    controller.disposeInternalV1();
+    fixture.admission.disposeInternalV1();
+  });
+
+  it("guards cross-admission callback reentry and CAS-releases only the owned claim", () => {
+    let fixture!: ReturnType<typeof physicalHistoryHarnessV1>;
+    let successor: NarrativeStablePhysicalActionAdmissionInternalV1 | null = null;
+    let controller!: NarrativeStableSayRevealControllerInternalV1;
+    let calls = 0;
+    const availability = vi.fn(() => {
+      calls += 1;
+      if (calls !== 1) return true;
+      fixture.admission.disposeInternalV1();
+      successor = createNarrativeStablePhysicalActionAdmissionInternalV1({
+        bridge: fixture.harness.bridge,
+        inputRouter: fixture.inputRouter,
+        isGestureCurrent: () => true,
+      });
+      expect(successor.issueHistoryOpenAttemptInternalV1()).toBeNull();
+      expect(successor.issuePlaybackModeToggleAttemptInternalV1("auto")).toBeNull();
+      expect(successor.issueSayActivationAttemptInternalV1(controller)).toBeNull();
+      return true;
+    });
+    fixture = physicalHistoryHarnessV1({
+      historyAvailabilityPort: historyAvailabilityPortV1(availability),
+    });
+    controller = createNarrativeStableSayRevealControllerInternalV1({
+      bridge: fixture.harness.bridge,
+      revealGenerationPort: Object.freeze({
+        capturePhaseInternalV1: () => "incomplete" as const,
+        revealAllInternalV1: vi.fn(),
+      }),
+    });
+    const outerAttempt = fixture.admission.issueHistoryOpenAttemptInternalV1();
+    expect(
+      routeHistoryOpenV1(fixture.admission, outerAttempt, "dispose-recreate")
+        .consumerResult,
+    ).toEqual({ kind: "stale", completion: null });
+    if (successor === null) throw new Error("expected successor History admission");
+    const installedSuccessor =
+      successor as unknown as NarrativeStablePhysicalActionAdmissionInternalV1;
+    const fresh = installedSuccessor.issueHistoryOpenAttemptInternalV1();
+    expect(routeHistoryOpenV1(installedSuccessor, fresh, "successor-fresh").consumerResult)
+      .toMatchObject({ kind: "requested" });
+    expect(availability).toHaveBeenCalledTimes(2);
+    controller.disposeInternalV1();
+    installedSuccessor.disposeInternalV1();
+  });
+
+  it("gives every post-callback parent, source, suspension, and terminal drift stale precedence", () => {
+    for (
+      const drift of [
+        "replacement",
+        "readiness_retry",
+        "suspension",
+        "bridge_terminal",
+        "coordinator_terminal",
+      ] as const
+    ) {
+      let fixture!: ReturnType<typeof physicalHistoryHarnessV1>;
+      const availability = vi.fn(() => {
+        if (drift === "replacement") {
+          expect(fixture.harness.bridge.reconcilePendingInternalV1(pendingV1("say", 2)))
+            .toMatchObject({ kind: "applied" });
+          return true;
+        }
+        if (drift === "readiness_retry") {
+          expect(fixture.harness.bridge.reconcilePendingInternalV1(pendingV1("say", 2)))
+            .toMatchObject({ kind: "applied" });
+          const entry = fixture.harness.kernel.getStateInternalV1()
+            .stableRuntimeBindings[0];
+          if (entry?.binding.kind !== "preparing") {
+            throw new Error("expected replacement preparation");
+          }
+          expect(fixture.harness.kernel.settleStableReadinessFailedInternalV1({
+            readinessEvidence: Object.freeze({
+              applicationEpoch: applicationEpochV1,
+              surfaceInstanceId: entry.binding.attempt.identity.surfaceInstanceId,
+            }),
+            publisherLease: entry.desiredTarget.publisherLease,
+            sourceRevision: entry.desiredTarget.sourceRevision,
+          })).toMatchObject({ kind: "applied" });
+          expect(fixture.harness.bridge.retryCurrentPendingInternalV1()).toMatchObject({
+            kind: "applied",
+          });
+          return false;
+        }
+        if (drift === "suspension") {
+          suspendCurrentNarrativeV1(fixture.harness);
+          return "not-boolean" as unknown as boolean;
+        }
+        if (drift === "bridge_terminal") {
+          fixture.harness.bridge.disposeInternalV1();
+          throw new Error("terminal callback fault must lose to stale");
+        }
+        fixture.harness.kernel.transitionTransientInternalV1({
+          kind: "dispose_coordinator",
+        });
+        return true;
+      });
+      fixture = physicalHistoryHarnessV1({
+        historyAvailabilityPort: historyAvailabilityPortV1(availability),
+      });
+      const attempt = fixture.admission.issueHistoryOpenAttemptInternalV1();
+      const result = expectHistoryRouteConsumedV1(
+        routeHistoryOpenV1(fixture.admission, attempt, `post-call-${drift}`),
+      );
+      expect(result).toEqual({ kind: "stale", completion: null });
+      expect(Reflect.ownKeys(result)).toEqual(["kind", "completion"]);
+      expect(availability).toHaveBeenCalledOnce();
+      fixture.admission.disposeInternalV1();
+    }
+  });
+
+  it.each(
+    [
+      ["true", (): boolean => true, "requested"],
+      ["false", (): boolean => false, "ignored"],
+      ["throw", (): boolean => {
+        throw new Error("barrier availability fault");
+      }, "faulted"],
+      ["nonboolean", (): boolean => 1 as unknown as boolean, "faulted"],
+    ] as const,
+  )("keeps Barrier Stage and semantic authority exact zero for %s", (
+    label,
+    outcome,
+    expectedKind,
+  ) => {
+    const semanticDispatch = vi.fn(() => Promise.resolve("must-not-dispatch"));
+    const fixture = narrativeBarrierHarnessV1({
+      historyAvailabilityPort: historyAvailabilityPortV1(outcome),
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: semanticDispatch,
+      }),
+    });
+    let stageNotifications = 0;
+    const unsubscribe = fixture.stage.reconciler.subscribe(() => {
+      stageNotifications += 1;
+    });
+    const stageFrame = fixture.stage.reconciler.frame();
+    const state = fixture.harness.kernel.getStateInternalV1();
+    const notifications = fixture.harness.stateNotificationCount();
+    const admission = createNarrativeStablePhysicalActionAdmissionInternalV1({
+      bridge: fixture.harness.bridge,
+      inputRouter: createInputRouterV1(),
+      isGestureCurrent: () => true,
+    });
+    const attempt = admission.issueHistoryOpenAttemptInternalV1();
+    const result = expectHistoryRouteConsumedV1(
+      routeHistoryOpenV1(admission, attempt, `barrier-${label}`),
+    );
+    expect(result.kind).toBe(expectedKind);
+    expect(semanticDispatch).not.toHaveBeenCalled();
+    expect(fixture.stage.reconciler.frame()).toEqual(stageFrame);
+    expect(stageNotifications).toBe(0);
+    expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
+    expect(fixture.harness.stateNotificationCount()).toBe(notifications);
+    unsubscribe();
+    admission.disposeInternalV1();
+    fixture.controller.disposeInternalV1();
+  });
+
+  it("mints fresh opaque History intents across 10k attempts without production state growth", () => {
+    let availabilityReads = 0;
+    const fixture = physicalHistoryHarnessV1({
+      historyAvailabilityPort: historyAvailabilityPortV1(() => {
+        availabilityReads += 1;
+        return true;
+      }),
+    });
+    const state = fixture.harness.kernel.getStateInternalV1();
+    const notifications = fixture.harness.stateNotificationCount();
+    const publisherBefore = publisherSnapshotV1(fixture.harness);
+    let previousIntent: NarrativeStableHistoryOpenIntentInternalV1 | null = null;
+    for (let index = 0; index < 10_000; index += 1) {
+      const attempt = fixture.admission.issueHistoryOpenAttemptInternalV1();
+      if (attempt === null) throw new Error("expected bounded History attempt");
+      const result = expectHistoryRouteConsumedV1(
+        routeHistoryOpenV1(fixture.admission, attempt, `bounded-${String(index)}`),
+      );
+      if (result.kind !== "requested") throw new Error("expected History intent");
+      expect(result.intent).not.toBe(previousIntent);
+      expect(Object.isFrozen(result.intent)).toBe(true);
+      expect(Reflect.ownKeys(result.intent)).toEqual([]);
+      previousIntent = result.intent;
+    }
+    expect(availabilityReads).toBe(10_000);
+    expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
+    expect(fixture.harness.stateNotificationCount()).toBe(notifications);
+    expect(publisherSnapshotV1(fixture.harness)).toMatchObject({
+      sourceRevisionIssuanceHighWater: publisherBefore.sourceRevisionIssuanceHighWater,
+      occurrenceIssuanceHighWater: publisherBefore.occurrenceIssuanceHighWater,
+    });
+    fixture.admission.disposeInternalV1();
   });
 });
