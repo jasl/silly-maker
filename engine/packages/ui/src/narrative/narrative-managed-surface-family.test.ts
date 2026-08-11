@@ -41,6 +41,7 @@ import {
   parseManagedSurfaceActionIdV1,
   parseManagedSurfaceGestureIdV1,
   parseManagedSurfaceSlotIdV1,
+  type ManagedSurfaceDismissKindV1,
 } from "../managed-surfaces/managed-surface-contracts.ts";
 import type {
   ManagedSurfaceFamilyActivationGateInternalV1,
@@ -100,7 +101,9 @@ import {
   type NarrativeStableHistoryRendererPropsInternalV1,
   type NarrativeStableHistoryRenderObservationInternalV1,
   type NarrativeStableHistoryOpenActionAttemptInternalV1,
+  type NarrativeStableHistoryChildControllerInternalV1,
   type NarrativeStableHistoryChildLifecycleInternalV1,
+  type NarrativeStableHistoryChildLifecycleResultInternalV1,
   type NarrativeStableHistoryChildPreparationInternalV1,
   type NarrativeStableHistoryChildPreparationResultInternalV1,
   type NarrativeStableHistoryOpenDispatchResultInternalV1,
@@ -2612,6 +2615,7 @@ describe("Narrative stable Managed Surface family", () => {
         readonly completion: null;
       }>
       | NarrativeStableHistoryOpenDispatchResultInternalV1
+      | NarrativeStableHistoryChildLifecycleResultInternalV1
       | Readonly<{ readonly kind: "unmapped"; readonly completion: null }>
       | Readonly<{ readonly kind: "stale"; readonly completion: null }>
       | Readonly<{ readonly kind: "faulted"; readonly completion: null }>;
@@ -10036,6 +10040,12 @@ describe("Narrative stable Managed Surface family", () => {
   });
 
   it("exposes only the exact bridge-bound History-child lifecycle and opaque preparation", () => {
+    type ExpectedHistoryChildLifecycleResultV1 =
+      | Readonly<{ readonly kind: "closed"; readonly completion: null }>
+      | Readonly<{ readonly kind: "dismissed"; readonly completion: null }>
+      | Readonly<{ readonly kind: "locked"; readonly completion: null }>
+      | Readonly<{ readonly kind: "stale"; readonly completion: null }>
+      | Readonly<{ readonly kind: "faulted"; readonly completion: null }>;
     type ExpectedHistoryChildPreparationResultV1 =
       | Readonly<{
         readonly kind: "preparing";
@@ -10046,6 +10056,22 @@ describe("Narrative stable Managed Surface family", () => {
       | Readonly<{ readonly kind: "faulted"; readonly completion: null }>;
     expectTypeOf<NarrativeStableHistoryChildPreparationResultInternalV1>()
       .toEqualTypeOf<ExpectedHistoryChildPreparationResultV1>();
+    expectTypeOf<NarrativeStableHistoryChildLifecycleResultInternalV1>()
+      .toEqualTypeOf<ExpectedHistoryChildLifecycleResultV1>();
+    expectTypeOf<NarrativeStableHistoryChildLifecycleResultInternalV1>()
+      .toMatchTypeOf<NarrativeStablePhysicalActionDispatchResultInternalV1>();
+    expectTypeOf<keyof NarrativeStableHistoryChildControllerInternalV1>()
+      .toEqualTypeOf<"closeInternalV1" | "dismissInternalV1">();
+    expectTypeOf<
+      NarrativeStableHistoryChildControllerInternalV1["closeInternalV1"]
+    >().toEqualTypeOf<() => NarrativeStableHistoryChildLifecycleResultInternalV1>();
+    expectTypeOf<
+      NarrativeStableHistoryChildControllerInternalV1["dismissInternalV1"]
+    >().toEqualTypeOf<
+      (
+        dismissKind: ManagedSurfaceDismissKindV1,
+      ) => NarrativeStableHistoryChildLifecycleResultInternalV1
+    >();
     expectTypeOf<keyof NarrativeStableHistoryChildLifecycleInternalV1>()
       .toEqualTypeOf<"redeemHistoryOpenIntentInternalV1">();
     expectTypeOf<

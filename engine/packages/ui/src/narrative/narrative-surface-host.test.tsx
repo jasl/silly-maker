@@ -7,11 +7,16 @@ import {
   parseNonNegativeSafeInteger,
   type NarrativeHistoryV1,
 } from "@sillymaker/base";
-import { act, cleanup, render } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { Component, StrictMode, useSyncExternalStore, type ErrorInfo, type ReactNode } from "react";
 import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 
-import { playerInputActionIdsV1 } from "../input/contracts.ts";
+import {
+  inputHandledV1,
+  playerInputActionIdsV1,
+  systemInputActionIdsV1,
+  type InputActionIdV1,
+} from "../input/contracts.ts";
 import { createInputRouterV1 } from "../input/input-router.ts";
 import {
   parseManagedSurfaceActionIdV1,
@@ -50,14 +55,26 @@ import {
   NarrativeSurfaceHostInternalV1,
   type NarrativeSurfaceHostPropsInternalV1,
 } from "./narrative-surface-host.tsx";
+import { GameStageV1, type GameStageLayersV1 } from "../shell/game-stage.tsx";
 
 const applicationEpochV1 = parseNonNegativeSafeInteger(211);
 const toggleHistoryActionIdV1 = parseManagedSurfaceActionIdV1(
   playerInputActionIdsV1.toggleHistory,
 );
 
+const emptyStageLayersV1 = Object.freeze({
+  background: null,
+  character: null,
+  sceneInteraction: null,
+  hud: null,
+  workspaceOverlay: null,
+  narrative: null,
+  system: null,
+}) satisfies GameStageLayersV1;
+
 afterEach(() => {
   cleanup();
+  document.body.replaceChildren();
   vi.restoreAllMocks();
 });
 
@@ -229,6 +246,76 @@ function openHistoryV1(
   if (redeemed.kind !== "preparing") throw new Error("expected History preparation");
 }
 
+type HistoryRenderEntryV1 = Extract<
+  NarrativeStableHostRenderEntryInternalV1,
+  { readonly kind: "history" }
+>;
+
+function currentHistoryRenderEntryV1(
+  runtime: NarrativeStableHostRuntimeInternalV1,
+): HistoryRenderEntryV1 {
+  const entry = runtime.renderSource.getSnapshotInternalV1().entries.find((candidate) =>
+    candidate.kind === "history"
+  );
+  if (entry?.kind !== "history") throw new Error("expected current History render entry");
+  return entry;
+}
+
+function routeActionV1(
+  harness: ReturnType<typeof hostHarnessV1>,
+  actionId: InputActionIdV1,
+) {
+  return harness.inputRouter.route(Object.freeze({ kind: "action" as const, actionId }));
+}
+
+function narrativeRenderShellV1(descendant: Element | null): HTMLDivElement {
+  const shell = descendant?.closest<HTMLDivElement>(
+    "[data-narrative-surface-render-shell]",
+  );
+  if (!(shell instanceof HTMLDivElement)) {
+    throw new Error("expected narrative render shell");
+  }
+  return shell;
+}
+
+function narrativeFocusScopeV1(descendant: Element | null): HTMLDivElement {
+  const renderShell = narrativeRenderShellV1(descendant);
+  const scope = renderShell.parentElement;
+  if (
+    !(scope instanceof HTMLDivElement) ||
+    !scope.hasAttribute("data-narrative-surface-focus-scope")
+  ) {
+    throw new Error("expected narrative focus scope");
+  }
+  return scope;
+}
+
+function StagedNarrativeHostV1(
+  props: NarrativeSurfaceHostPropsInternalV1 & Readonly<{ onLowerAction: () => void }>,
+) {
+  return (
+    <GameStageV1
+      accessibleName="Narrative Host gesture stage"
+      layers={Object.freeze({
+        ...emptyStageLayersV1,
+        sceneInteraction: (
+          <button type="button" data-testid="narrative-lower-action" onClick={props.onLowerAction}>
+            Lower action
+          </button>
+        ),
+        narrative: (
+          <NarrativeSurfaceHostInternalV1
+            session={props.session}
+            portalContainer={props.portalContainer}
+            inputRouter={props.inputRouter}
+            isGestureCurrent={props.isGestureCurrent}
+          />
+        ),
+      })}
+    />
+  );
+}
+
 function historyWithOneEntryV1(): NarrativeHistoryV1 {
   return appendNarrativeHistoryV1(
     emptyNarrativeHistoryV1,
@@ -331,7 +418,7 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     expect(NarrativeSurfaceHostInternalV1).toEqual(expect.any(Function));
   });
 
-  it("portals one hidden-with-layout shell, then activates the same shell after commit", async () => {
+  it("keeps a focusable outer scope around the hidden render shell, then activates both in place", async () => {
     const readyMint = vi.spyOn(
       narrativeFamilyModuleV1,
       "prepareNarrativeStableHostReadyCommitInternalV1",
@@ -363,27 +450,46 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     );
     expect(renderer).not.toBeNull();
     expect(view.container).not.toContainElement(renderer);
-    const shell = renderer?.parentElement;
-    expect(shell).toBeInstanceOf(HTMLDivElement);
-    expect(shell).toHaveAttribute("tabindex", "-1");
-    expect(shell).toHaveAttribute("inert");
-    expect(shell).toHaveAttribute("aria-hidden", "true");
-    expect(shell).not.toHaveAttribute("hidden");
-    expect(shell).toHaveStyle({ visibility: "hidden", pointerEvents: "none" });
-    expect(shell?.style.display).not.toBe("none");
+    const renderShell = narrativeRenderShellV1(renderer);
+    const focusScope = narrativeFocusScopeV1(renderer);
+    expect(renderer?.parentElement).toBe(renderShell);
+    expect(renderShell).toHaveAttribute("data-narrative-surface-render-shell", "dialogue");
+    expect(renderShell.parentElement).toBe(focusScope);
+    expect(renderShell).toHaveAttribute("inert");
+    expect(renderShell).toHaveAttribute("aria-hidden", "true");
+    expect(renderShell).not.toHaveAttribute("hidden");
+    expect(renderShell).toHaveStyle({ visibility: "hidden", pointerEvents: "none" });
+    expect(renderShell.style.display).not.toBe("none");
+    expect(focusScope).toHaveAttribute("data-narrative-surface-focus-scope", "dialogue");
+    expect(focusScope).toHaveAttribute("tabindex", "-1");
+    expect(focusScope).not.toHaveAttribute("inert");
+    expect(focusScope).not.toHaveAttribute("aria-hidden");
+    expect(focusScope).not.toHaveAttribute("hidden");
+    expect(focusScope.style.visibility).not.toBe("hidden");
+    expect(focusScope.style.pointerEvents).not.toBe("none");
+    expect(document.activeElement).toBe(focusScope);
     expect(harness.kernel.getStateInternalV1().stableRuntimeBindings[0]?.binding.kind)
       .toBe("preparing");
     expect(readyMint).toHaveBeenCalledOnce();
+    expect(readyMint).toHaveBeenCalledWith(expect.objectContaining({
+      portalShell: focusScope,
+      initialFocusTarget: focusScope,
+    }));
 
     await flushHostMicrotasksV1();
 
     expect(portalContainer.querySelector('[data-testid="narrative-host-renderer"]')).toBe(
       renderer,
     );
-    expect(shell).not.toHaveAttribute("inert");
-    expect(shell).not.toHaveAttribute("aria-hidden");
-    expect(shell?.style.visibility).not.toBe("hidden");
-    expect(shell?.style.pointerEvents).not.toBe("none");
+    expect(renderer?.parentElement).toBe(renderShell);
+    expect(renderShell.parentElement).toBe(focusScope);
+    expect(renderShell).not.toHaveAttribute("inert");
+    expect(renderShell).not.toHaveAttribute("aria-hidden");
+    expect(renderShell.style.visibility).not.toBe("hidden");
+    expect(renderShell.style.pointerEvents).not.toBe("none");
+    expect(focusScope).not.toHaveAttribute("inert");
+    expect(focusScope).not.toHaveAttribute("aria-hidden");
+    expect(document.activeElement).toBe(focusScope);
     expect(harness.kernel.getStateInternalV1().stableRuntimeBindings[0]?.binding.kind)
       .toBe("ready_instance");
     expect(rendererProps.at(-1)).toMatchObject({ kind: "dialogue" });
@@ -500,6 +606,713 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     portalContainer.remove();
   });
 
+  it("keeps one exact controller on the History render entry without forwarding it to renderer props", async () => {
+    const createRuntime = vi.spyOn(
+      narrativeFamilyModuleV1,
+      "createNarrativeStableHostRuntimeInternalV1",
+    );
+    const renderedHistoryProps: NarrativeStableRendererPropsInternalV1[] = [];
+    const Renderer = (props: NarrativeStableRendererPropsInternalV1) => {
+      if (props.kind === "history") renderedHistoryProps.push(props);
+      return <output data-render-kind={props.kind}>{props.kind}</output>;
+    };
+    const harness = hostHarnessV1(Renderer);
+    expect(harness.bridge.reconcilePendingInternalV1(pendingSayV1())).toMatchObject({
+      kind: "applied",
+    });
+    const portalContainer = document.createElement("div");
+    document.body.append(portalContainer);
+    const view = render(
+      <NarrativeSurfaceHostInternalV1
+        session={harness.session}
+        portalContainer={portalContainer}
+        inputRouter={harness.inputRouter}
+        isGestureCurrent={harness.isGestureCurrent}
+      />,
+    );
+    await flushHostMicrotasksV1();
+
+    const runtime = createRuntime.mock.results.at(-1)?.value as
+      | NarrativeStableHostRuntimeInternalV1
+      | undefined;
+    const committedGestureCurrent = createRuntime.mock.calls.at(-1)?.[0].isGestureCurrent;
+    if (runtime === undefined || committedGestureCurrent === undefined) {
+      throw new Error("expected current Host runtime");
+    }
+    act(() => openHistoryV1(harness, "controller-entry", committedGestureCurrent));
+
+    const preparingEntry = runtime.renderSource.getSnapshotInternalV1().entries.find((entry) =>
+      entry.kind === "history"
+    );
+    if (preparingEntry?.kind !== "history") throw new Error("expected preparing History entry");
+    expect(Reflect.ownKeys(preparingEntry).map(String).sort()).toEqual([
+      "controller",
+      "historyObservation",
+      "initialFocusTargetId",
+      "kind",
+      "parentRenderKey",
+      "phase",
+      "preparation",
+      "renderKey",
+      "rendererComponent",
+      "rendererProps",
+    ]);
+    expect(Object.isFrozen(preparingEntry.controller)).toBe(true);
+    expect(Reflect.ownKeys(preparingEntry.controller).map(String).sort()).toEqual([
+      "closeInternalV1",
+      "dismissInternalV1",
+    ]);
+    const controller = preparingEntry.controller;
+
+    await flushHostMicrotasksV1();
+
+    const activeEntry = runtime.renderSource.getSnapshotInternalV1().entries.find((entry) =>
+      entry.kind === "history"
+    );
+    if (activeEntry?.kind !== "history") throw new Error("expected active History entry");
+    expect(activeEntry.phase).toBe("active");
+    expect(activeEntry.controller).toBe(controller);
+    view.rerender(
+      <NarrativeSurfaceHostInternalV1
+        session={harness.session}
+        portalContainer={portalContainer}
+        inputRouter={harness.inputRouter}
+        isGestureCurrent={() => true}
+      />,
+    );
+    await flushHostMicrotasksV1();
+    expect(createRuntime).toHaveBeenCalledOnce();
+    expect(currentHistoryRenderEntryV1(runtime).controller).toBe(controller);
+    const latestHistoryProps = renderedHistoryProps.at(-1);
+    if (latestHistoryProps?.kind !== "history") throw new Error("expected History props");
+    expect(Reflect.ownKeys(latestHistoryProps).map(String).sort()).toEqual([
+      "history",
+      "kind",
+      "playerProfile",
+      "textResolver",
+      "visualConfig",
+    ]);
+    expect("controller" in latestHistoryProps).toBe(false);
+
+    view.unmount();
+    await flushHostMicrotasksV1();
+    portalContainer.remove();
+  });
+
+  it.each(
+    [
+      ["toggle", playerInputActionIdsV1.toggleHistory],
+      ["cancel", systemInputActionIdsV1.cancel],
+    ] as const,
+  )(
+    "routes preparing History %s through one blocking fallback before the retained root",
+    async (_label, actionId) => {
+      const createRuntime = vi.spyOn(
+        narrativeFamilyModuleV1,
+        "createNarrativeStableHostRuntimeInternalV1",
+      );
+      const Renderer = (props: NarrativeStableRendererPropsInternalV1) => (
+        <output data-render-kind={`fallback-${props.kind}`}>{props.kind}</output>
+      );
+      const harness = hostHarnessV1(Renderer);
+      const lowerInput = vi.fn(() => inputHandledV1);
+      harness.inputRouter.register({ context: "gameplay", handle: lowerInput });
+      expect(harness.bridge.reconcilePendingInternalV1(pendingSayV1())).toMatchObject({
+        kind: "applied",
+      });
+      const portalContainer = document.createElement("div");
+      document.body.append(portalContainer);
+      const view = render(
+        <NarrativeSurfaceHostInternalV1
+          session={harness.session}
+          portalContainer={portalContainer}
+          inputRouter={harness.inputRouter}
+          isGestureCurrent={harness.isGestureCurrent}
+        />,
+      );
+      await flushHostMicrotasksV1();
+      const runtime = createRuntime.mock.results.at(-1)?.value as
+        | NarrativeStableHostRuntimeInternalV1
+        | undefined;
+      const committedGestureCurrent = createRuntime.mock.calls.at(-1)?.[0].isGestureCurrent;
+      if (runtime === undefined || committedGestureCurrent === undefined) {
+        throw new Error("expected current Host runtime");
+      }
+
+      act(() => openHistoryV1(harness, `fallback-${_label}`, committedGestureCurrent));
+      expect(currentHistoryRenderEntryV1(runtime).phase).toBe("preparing");
+      expect(portalContainer.querySelector('[data-render-kind="fallback-history"]')).not.toBeNull();
+
+      let routed: ReturnType<typeof routeActionV1> | undefined;
+      act(() => {
+        routed = routeActionV1(harness, actionId);
+      });
+
+      expect(routed).toEqual({ kind: "handled", context: "narrative" });
+      expect(lowerInput).not.toHaveBeenCalled();
+      expect(runtime.renderSource.getSnapshotInternalV1().entries).toHaveLength(1);
+      expect(runtime.renderSource.getSnapshotInternalV1().entries[0]).toMatchObject({
+        kind: "dialogue",
+        phase: "active",
+      });
+      expect(harness.kernel.getStateInternalV1().stableRuntimeBindings).toHaveLength(1);
+      expect(harness.kernel.getStateInternalV1().stableRuntimeBindings[0]?.binding).toMatchObject({
+        kind: "ready_instance",
+        instance: { phase: "active" },
+      });
+
+      lowerInput.mockClear();
+      const viewportAfterClose = Object.freeze({
+        kind: "viewport_point" as const,
+        phase: "begin" as const,
+        point: Object.freeze({ x: 4, y: 9 }),
+        pointerId: parseNonNegativeSafeInteger(1),
+        pointerType: "mouse" as const,
+      });
+      expect(harness.inputRouter.route(viewportAfterClose)).toEqual({
+        kind: "handled",
+        context: "gameplay",
+      });
+      expect(lowerInput).toHaveBeenCalledOnce();
+
+      view.unmount();
+      await flushHostMicrotasksV1();
+      portalContainer.remove();
+    },
+  );
+
+  it.each(
+    [
+      ["toggle", playerInputActionIdsV1.toggleHistory],
+      ["cancel", systemInputActionIdsV1.cancel],
+    ] as const,
+  )(
+    "withdraws the preparing fallback before raw active History %s can bypass authenticated admission",
+    async (_label, actionId) => {
+      const createRuntime = vi.spyOn(
+        narrativeFamilyModuleV1,
+        "createNarrativeStableHostRuntimeInternalV1",
+      );
+      const Renderer = (props: NarrativeStableRendererPropsInternalV1) => (
+        <output data-render-kind={`active-${props.kind}`}>{props.kind}</output>
+      );
+      const harness = hostHarnessV1(Renderer);
+      const lowerInput = vi.fn(() => inputHandledV1);
+      harness.inputRouter.register({ context: "gameplay", handle: lowerInput });
+      expect(harness.bridge.reconcilePendingInternalV1(pendingSayV1())).toMatchObject({
+        kind: "applied",
+      });
+      const portalContainer = document.createElement("div");
+      document.body.append(portalContainer);
+      const view = render(
+        <NarrativeSurfaceHostInternalV1
+          session={harness.session}
+          portalContainer={portalContainer}
+          inputRouter={harness.inputRouter}
+          isGestureCurrent={harness.isGestureCurrent}
+        />,
+      );
+      await flushHostMicrotasksV1();
+      const runtime = createRuntime.mock.results.at(-1)?.value as
+        | NarrativeStableHostRuntimeInternalV1
+        | undefined;
+      const committedGestureCurrent = createRuntime.mock.calls.at(-1)?.[0].isGestureCurrent;
+      if (runtime === undefined || committedGestureCurrent === undefined) {
+        throw new Error("expected current Host runtime");
+      }
+      act(() => openHistoryV1(harness, `active-${_label}`, committedGestureCurrent));
+      await flushHostMicrotasksV1();
+      expect(currentHistoryRenderEntryV1(runtime).phase).toBe("active");
+      const notificationsBeforeClose = harness.stateNotificationCount();
+
+      let routed: ReturnType<typeof routeActionV1> | undefined;
+      act(() => {
+        routed = routeActionV1(harness, actionId);
+      });
+
+      expect(routed).toEqual({ kind: "handled", context: "gameplay" });
+      expect(lowerInput).toHaveBeenCalledOnce();
+      expect(currentHistoryRenderEntryV1(runtime).phase).toBe("active");
+      expect(runtime.renderSource.getSnapshotInternalV1().entries).toHaveLength(2);
+      expect(harness.stateNotificationCount()).toBe(notificationsBeforeClose);
+
+      view.unmount();
+      await flushHostMicrotasksV1();
+      portalContainer.remove();
+    },
+  );
+
+  it("captures the eligible previous owner before initial focus, traps root Tab, and restores on initial failure", async () => {
+    const createRuntime = vi.spyOn(
+      narrativeFamilyModuleV1,
+      "createNarrativeStableHostRuntimeInternalV1",
+    );
+    const Renderer = () => (
+      <div data-testid="root-focus-content">
+        <button type="button" data-testid="root-focus-first">First</button>
+        <button type="button" data-testid="root-focus-last">Last</button>
+      </div>
+    );
+    const previousOwner = document.createElement("button");
+    previousOwner.type = "button";
+    previousOwner.textContent = "Previous owner";
+    document.body.append(previousOwner);
+    previousOwner.focus();
+    expect(document.activeElement).toBe(previousOwner);
+    const harness = hostHarnessV1(Renderer);
+    expect(harness.bridge.reconcilePendingInternalV1(pendingSayV1())).toMatchObject({
+      kind: "applied",
+    });
+    const portalContainer = document.createElement("div");
+    document.body.append(portalContainer);
+    const view = render(
+      <NarrativeSurfaceHostInternalV1
+        session={harness.session}
+        portalContainer={portalContainer}
+        inputRouter={harness.inputRouter}
+        isGestureCurrent={harness.isGestureCurrent}
+      />,
+    );
+    const runtime = createRuntime.mock.results.at(-1)?.value as
+      | NarrativeStableHostRuntimeInternalV1
+      | undefined;
+    if (runtime === undefined) throw new Error("expected current Host runtime");
+    const rootContent = portalContainer.querySelector<HTMLElement>(
+      '[data-testid="root-focus-content"]',
+    );
+    const rootFocusScope = narrativeFocusScopeV1(rootContent);
+    expect(document.activeElement).toBe(rootFocusScope);
+
+    fireEvent.keyDown(rootFocusScope, { key: "Tab" });
+    expect(document.activeElement).toBe(rootFocusScope);
+    fireEvent.keyDown(rootFocusScope, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(rootFocusScope);
+
+    const rootEntry = runtime.renderSource.getSnapshotInternalV1().entries.find((entry) =>
+      entry.kind === "dialogue" && entry.phase === "preparing"
+    );
+    if (rootEntry?.kind !== "dialogue" || rootEntry.preparation === null) {
+      throw new Error("expected preparing root entry");
+    }
+    act(() => {
+      expect(runtime.attachment.settleRootReadinessFailedInternalV1(rootEntry.preparation!))
+        .toEqual({ kind: "settled", completion: null });
+    });
+    await flushHostMicrotasksV1();
+
+    expect(portalContainer).toBeEmptyDOMElement();
+    expect(document.activeElement).toBe(previousOwner);
+
+    view.unmount();
+    await flushHostMicrotasksV1();
+    portalContainer.remove();
+    previousOwner.remove();
+  });
+
+  it("focuses the ready root shell and keeps a no-tabbable root inside its closed Tab trap", async () => {
+    const Renderer = () => <output data-testid="root-focus-empty">Dialogue</output>;
+    const harness = hostHarnessV1(Renderer);
+    expect(harness.bridge.reconcilePendingInternalV1(pendingSayV1())).toMatchObject({
+      kind: "applied",
+    });
+    const portalContainer = document.createElement("div");
+    document.body.append(portalContainer);
+    const view = render(
+      <NarrativeSurfaceHostInternalV1
+        session={harness.session}
+        portalContainer={portalContainer}
+        inputRouter={harness.inputRouter}
+        isGestureCurrent={harness.isGestureCurrent}
+      />,
+    );
+    await flushHostMicrotasksV1();
+    const rootContent = portalContainer.querySelector<HTMLElement>(
+      '[data-testid="root-focus-empty"]',
+    );
+    const rootFocusScope = narrativeFocusScopeV1(rootContent);
+    expect(document.activeElement).toBe(rootFocusScope);
+
+    fireEvent.keyDown(rootFocusScope, { key: "Tab" });
+    expect(document.activeElement).toBe(rootFocusScope);
+    fireEvent.keyDown(rootFocusScope, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(rootFocusScope);
+    const escapedFocus = document.createElement("button");
+    escapedFocus.type = "button";
+    escapedFocus.textContent = "Escaped focus";
+    document.body.append(escapedFocus);
+    escapedFocus.focus();
+    fireEvent.focusIn(escapedFocus);
+    await flushHostMicrotasksV1();
+    expect(document.activeElement).toBe(rootFocusScope);
+
+    view.unmount();
+    await flushHostMicrotasksV1();
+    portalContainer.remove();
+    escapedFocus.remove();
+  });
+
+  it("captures the Host-local History opener before fallback focus and restores it only after topology commit", async () => {
+    const createRuntime = vi.spyOn(
+      narrativeFamilyModuleV1,
+      "createNarrativeStableHostRuntimeInternalV1",
+    );
+    const Renderer = (props: NarrativeStableRendererPropsInternalV1) =>
+      props.kind === "dialogue"
+        ? <button type="button" data-testid="history-opener">Open History</button>
+        : (
+          <div data-testid="history-focus-content">
+            <button type="button" data-testid="history-focus-first">First</button>
+            <button type="button" data-testid="history-focus-last">Last</button>
+          </div>
+        );
+    const harness = hostHarnessV1(Renderer);
+    expect(harness.bridge.reconcilePendingInternalV1(pendingSayV1())).toMatchObject({
+      kind: "applied",
+    });
+    const portalContainer = document.createElement("div");
+    document.body.append(portalContainer);
+    const view = render(
+      <NarrativeSurfaceHostInternalV1
+        session={harness.session}
+        portalContainer={portalContainer}
+        inputRouter={harness.inputRouter}
+        isGestureCurrent={harness.isGestureCurrent}
+      />,
+    );
+    await flushHostMicrotasksV1();
+    const runtime = createRuntime.mock.results.at(-1)?.value as
+      | NarrativeStableHostRuntimeInternalV1
+      | undefined;
+    const committedGestureCurrent = createRuntime.mock.calls.at(-1)?.[0].isGestureCurrent;
+    if (runtime === undefined || committedGestureCurrent === undefined) {
+      throw new Error("expected current Host runtime");
+    }
+    const opener = portalContainer.querySelector<HTMLElement>('[data-testid="history-opener"]');
+    if (opener === null) throw new Error("expected Dialogue opener");
+    expect(narrativeFocusScopeV1(opener)).toHaveAttribute(
+      "data-narrative-surface-focus-scope",
+      "dialogue",
+    );
+    opener.focus();
+
+    act(() => openHistoryV1(harness, "focus-opener", committedGestureCurrent));
+    const historyContent = portalContainer.querySelector<HTMLElement>(
+      '[data-testid="history-focus-content"]',
+    );
+    const historyFocusScope = narrativeFocusScopeV1(historyContent);
+    expect(currentHistoryRenderEntryV1(runtime).phase).toBe("preparing");
+    expect(document.activeElement).toBe(historyFocusScope);
+
+    await flushHostMicrotasksV1();
+    expect(currentHistoryRenderEntryV1(runtime).phase).toBe("active");
+    expect(document.activeElement).toBe(historyFocusScope);
+    const first = portalContainer.querySelector<HTMLElement>('[data-testid="history-focus-first"]');
+    const last = portalContainer.querySelector<HTMLElement>('[data-testid="history-focus-last"]');
+    if (first === null || last === null) throw new Error("expected History focus controls");
+    last.focus();
+    fireEvent.keyDown(last, { key: "Tab" });
+    expect(document.activeElement).toBe(first);
+    first.focus();
+    fireEvent.keyDown(first, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(last);
+    historyFocusScope.focus();
+
+    const focus = vi.spyOn(HTMLElement.prototype, "focus");
+    const focusCallsBeforeClose = focus.mock.calls.length;
+    let focusCallsAtTopologyCommit: number | null = null;
+    let bindingAtTopologyCommit: unknown = null;
+    const unsubscribe = harness.kernel.subscribeStateInternalV1(() => {
+      if (harness.kernel.getStateInternalV1().stableRuntimeBindings.length !== 1) return;
+      const onlyBinding = harness.kernel.getStateInternalV1().stableRuntimeBindings[0]?.binding;
+      if (onlyBinding?.kind !== "ready_instance" || onlyBinding.instance.phase !== "active") return;
+      focusCallsAtTopologyCommit = focus.mock.calls.length;
+      bindingAtTopologyCommit = onlyBinding;
+    });
+
+    let closeResult:
+      | ReturnType<HistoryRenderEntryV1["controller"]["dismissInternalV1"]>
+      | undefined;
+    act(() => {
+      closeResult = currentHistoryRenderEntryV1(runtime).controller.dismissInternalV1(
+        "routed_cancel",
+      );
+    });
+    unsubscribe();
+
+    expect(closeResult).toEqual({ kind: "dismissed", completion: null });
+    expect(bindingAtTopologyCommit).toMatchObject({
+      kind: "ready_instance",
+      instance: { phase: "active" },
+    });
+    expect(focusCallsAtTopologyCommit).toBe(focusCallsBeforeClose);
+    await flushHostMicrotasksV1();
+    expect(document.activeElement).toBe(opener);
+
+    view.unmount();
+    await flushHostMicrotasksV1();
+    portalContainer.remove();
+  });
+
+  it.each(["disconnected_opener", "external_owner"] as const)(
+    "revalidates History restore against %s instead of forcing stale focus",
+    async (mode) => {
+      const createRuntime = vi.spyOn(
+        narrativeFamilyModuleV1,
+        "createNarrativeStableHostRuntimeInternalV1",
+      );
+      const Renderer = (props: NarrativeStableRendererPropsInternalV1) =>
+        props.kind === "dialogue"
+          ? <button type="button" data-testid={`restore-opener-${mode}`}>Dialogue</button>
+          : <output data-testid={`restore-history-${mode}`}>History</output>;
+      const harness = hostHarnessV1(Renderer);
+      expect(harness.bridge.reconcilePendingInternalV1(pendingSayV1())).toMatchObject({
+        kind: "applied",
+      });
+      const portalContainer = document.createElement("div");
+      document.body.append(portalContainer);
+      const view = render(
+        <NarrativeSurfaceHostInternalV1
+          session={harness.session}
+          portalContainer={portalContainer}
+          inputRouter={harness.inputRouter}
+          isGestureCurrent={harness.isGestureCurrent}
+        />,
+      );
+      await flushHostMicrotasksV1();
+      const runtime = createRuntime.mock.results.at(-1)?.value as
+        | NarrativeStableHostRuntimeInternalV1
+        | undefined;
+      const committedGestureCurrent = createRuntime.mock.calls.at(-1)?.[0].isGestureCurrent;
+      if (runtime === undefined || committedGestureCurrent === undefined) {
+        throw new Error("expected current Host runtime");
+      }
+      const opener = portalContainer.querySelector<HTMLElement>(
+        `[data-testid="restore-opener-${mode}"]`,
+      );
+      if (opener === null) throw new Error("expected restore opener");
+      const rootFocusScope = narrativeFocusScopeV1(opener);
+      opener.focus();
+      act(() => openHistoryV1(harness, `restore-${mode}`, committedGestureCurrent));
+      await flushHostMicrotasksV1();
+      expect(currentHistoryRenderEntryV1(runtime).phase).toBe("active");
+
+      let expectedFocus: HTMLElement;
+      let externalFocusReentered = false;
+      let stopExternalFocusReentry = (): void => {};
+      if (mode === "disconnected_opener") {
+        opener.remove();
+        expectedFocus = rootFocusScope;
+      } else {
+        const externalOwner = document.createElement("button");
+        externalOwner.type = "button";
+        externalOwner.textContent = "Higher external focus owner";
+        document.body.append(externalOwner);
+        expectedFocus = externalOwner;
+        stopExternalFocusReentry = harness.kernel.subscribeStateInternalV1(() => {
+          const bindings = harness.kernel.getStateInternalV1().stableRuntimeBindings;
+          if (
+            externalFocusReentered || bindings.length !== 1 ||
+            bindings[0]?.binding.kind !== "ready_instance" ||
+            bindings[0].binding.instance.phase !== "active"
+          ) return;
+          externalFocusReentered = true;
+          externalOwner.focus();
+        });
+      }
+      act(() => {
+        const controller = currentHistoryRenderEntryV1(runtime).controller;
+        expect(
+          mode === "disconnected_opener"
+            ? controller.closeInternalV1()
+            : controller.dismissInternalV1("routed_cancel"),
+        ).toEqual({
+          kind: mode === "disconnected_opener" ? "closed" : "dismissed",
+          completion: null,
+        });
+      });
+      stopExternalFocusReentry();
+      await flushHostMicrotasksV1();
+
+      expect(runtime.renderSource.getSnapshotInternalV1().entries).toHaveLength(1);
+      if (mode === "external_owner") expect(externalFocusReentered).toBe(true);
+      expect(document.activeElement).toBe(expectedFocus);
+
+      view.unmount();
+      await flushHostMicrotasksV1();
+      portalContainer.remove();
+      if (expectedFocus !== rootFocusScope) expectedFocus.remove();
+    },
+  );
+
+  it("contains History focus faults without rolling back committed topology", async () => {
+    const createRuntime = vi.spyOn(
+      narrativeFamilyModuleV1,
+      "createNarrativeStableHostRuntimeInternalV1",
+    );
+    const Renderer = (props: NarrativeStableRendererPropsInternalV1) =>
+      props.kind === "dialogue"
+        ? <button type="button" data-testid="focus-fault-root">Dialogue</button>
+        : <output data-testid="focus-fault-history">History</output>;
+    const harness = hostHarnessV1(Renderer);
+    expect(harness.bridge.reconcilePendingInternalV1(pendingSayV1())).toMatchObject({
+      kind: "applied",
+    });
+    const portalContainer = document.createElement("div");
+    document.body.append(portalContainer);
+    const view = render(
+      <NarrativeSurfaceHostInternalV1
+        session={harness.session}
+        portalContainer={portalContainer}
+        inputRouter={harness.inputRouter}
+        isGestureCurrent={harness.isGestureCurrent}
+      />,
+    );
+    await flushHostMicrotasksV1();
+    const runtime = createRuntime.mock.results.at(-1)?.value as
+      | NarrativeStableHostRuntimeInternalV1
+      | undefined;
+    const committedGestureCurrent = createRuntime.mock.calls.at(-1)?.[0].isGestureCurrent;
+    if (runtime === undefined || committedGestureCurrent === undefined) {
+      throw new Error("expected current Host runtime");
+    }
+    const nativeFocus = HTMLElement.prototype.focus;
+    let containedHistoryFocusFaults = 0;
+    vi.spyOn(HTMLElement.prototype, "focus").mockImplementation(function (
+      this: HTMLElement,
+      options?: FocusOptions,
+    ) {
+      if (this.querySelector('[data-testid="focus-fault-history"]') !== null) {
+        containedHistoryFocusFaults += 1;
+        throw new Error("synthetic History focus fault");
+      }
+      nativeFocus.call(this, options);
+    });
+
+    act(() => openHistoryV1(harness, "focus-fault", committedGestureCurrent));
+    await flushHostMicrotasksV1();
+
+    expect(containedHistoryFocusFaults).toBeGreaterThan(0);
+    expect(currentHistoryRenderEntryV1(runtime).phase).toBe("active");
+    expect(runtime.renderSource.getSnapshotInternalV1().entries).toHaveLength(2);
+
+    act(() => {
+      expect(currentHistoryRenderEntryV1(runtime).controller.dismissInternalV1("routed_cancel"))
+        .toEqual({
+          kind: "dismissed",
+          completion: null,
+        });
+    });
+    expect(runtime.renderSource.getSnapshotInternalV1().entries).toHaveLength(1);
+
+    view.unmount();
+    await flushHostMicrotasksV1();
+    portalContainer.remove();
+  });
+
+  it("dismisses only exact primary backdrop gestures, fences the residual click, and keeps Escape fence-free", async () => {
+    const createRuntime = vi.spyOn(
+      narrativeFamilyModuleV1,
+      "createNarrativeStableHostRuntimeInternalV1",
+    );
+    const Renderer = (props: NarrativeStableRendererPropsInternalV1) =>
+      props.kind === "dialogue"
+        ? <button type="button" data-testid="gesture-root">Dialogue</button>
+        : (
+          <button
+            type="button"
+            data-testid="gesture-history-content"
+            data-devdock-escape-owner="true"
+          >
+            History
+          </button>
+        );
+    const harness = hostHarnessV1(Renderer);
+    expect(harness.bridge.reconcilePendingInternalV1(pendingSayV1())).toMatchObject({
+      kind: "applied",
+    });
+    const portalContainer = document.createElement("div");
+    document.body.append(portalContainer);
+    const lowerAction = vi.fn();
+    const view = render(
+      <StagedNarrativeHostV1
+        session={harness.session}
+        portalContainer={portalContainer}
+        inputRouter={harness.inputRouter}
+        isGestureCurrent={harness.isGestureCurrent}
+        onLowerAction={lowerAction}
+      />,
+    );
+    await flushHostMicrotasksV1();
+    const runtime = createRuntime.mock.results.at(-1)?.value as
+      | NarrativeStableHostRuntimeInternalV1
+      | undefined;
+    const committedGestureCurrent = createRuntime.mock.calls.at(-1)?.[0].isGestureCurrent;
+    if (runtime === undefined || committedGestureCurrent === undefined) {
+      throw new Error("expected current Host runtime");
+    }
+    act(() => openHistoryV1(harness, "pointer-dismiss", committedGestureCurrent));
+    await flushHostMicrotasksV1();
+    let historyContent = portalContainer.querySelector<HTMLElement>(
+      '[data-testid="gesture-history-content"]',
+    );
+    if (historyContent === null) throw new Error("expected active History gesture content");
+    let historyFocusScope = narrativeFocusScopeV1(historyContent);
+    const backdropScope = historyFocusScope;
+
+    fireEvent.keyDown(historyContent, { key: "Escape" });
+    expect(currentHistoryRenderEntryV1(runtime).phase).toBe("active");
+
+    fireEvent.pointerDown(backdropScope, { button: 0, isPrimary: true, pointerId: 11 });
+    fireEvent.pointerUp(backdropScope, { button: 0, isPrimary: true, pointerId: 12 });
+    expect(currentHistoryRenderEntryV1(runtime).phase).toBe("active");
+
+    fireEvent.pointerDown(historyContent, { button: 0, isPrimary: true, pointerId: 13 });
+    fireEvent.pointerUp(historyContent, { button: 0, isPrimary: true, pointerId: 13 });
+    expect(currentHistoryRenderEntryV1(runtime).phase).toBe("active");
+
+    act(() => {
+      fireEvent.pointerDown(backdropScope, { button: 0, isPrimary: true, pointerId: 14 });
+      fireEvent.pointerUp(backdropScope, { button: 0, isPrimary: true, pointerId: 14 });
+    });
+    expect(runtime.renderSource.getSnapshotInternalV1().entries).toHaveLength(1);
+
+    const lowerControl = screen.getByTestId("narrative-lower-action");
+    const residualPointerClick = new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+      detail: 1,
+    });
+    lowerControl.dispatchEvent(residualPointerClick);
+    expect(residualPointerClick.defaultPrevented).toBe(true);
+    expect(lowerAction).not.toHaveBeenCalled();
+
+    act(() => openHistoryV1(harness, "escape-dismiss", committedGestureCurrent));
+    await flushHostMicrotasksV1();
+    historyContent = portalContainer.querySelector<HTMLElement>(
+      '[data-testid="gesture-history-content"]',
+    );
+    historyFocusScope = narrativeFocusScopeV1(historyContent);
+    act(() => {
+      fireEvent.keyDown(historyFocusScope, { key: "Escape" });
+    });
+    expect(runtime.renderSource.getSnapshotInternalV1().entries).toHaveLength(1);
+
+    const postEscapePointerClick = new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+      detail: 1,
+    });
+    lowerControl.dispatchEvent(postEscapePointerClick);
+    expect(postEscapePointerClick.defaultPrevented).toBe(false);
+    expect(lowerAction).toHaveBeenCalledOnce();
+
+    view.unmount();
+    await flushHostMicrotasksV1();
+    portalContainer.remove();
+  });
+
   it("renders max-three phases, retains exact root and History on failure, then cuts over atomically", async () => {
     const createRuntime = vi.spyOn(
       narrativeFamilyModuleV1,
@@ -538,19 +1351,26 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     if (runtime === undefined) throw new Error("expected Host runtime");
     const committedGestureCurrent = createRuntime.mock.calls.at(-1)?.[0].isGestureCurrent;
     if (committedGestureCurrent === undefined) throw new Error("expected Host gesture seam");
-
-    act(() => openHistoryV1(harness, "max-three-open", committedGestureCurrent));
-    await flushHostMicrotasksV1();
     const rootRenderer = portalContainer.querySelector<HTMLElement>(
       '[data-occurrence-id="interaction-occurrence.1"]',
     );
+    if (rootRenderer === null) throw new Error("expected retained root renderer");
+    rootRenderer.focus();
+
+    act(() => openHistoryV1(harness, "max-three-open", committedGestureCurrent));
+    await flushHostMicrotasksV1();
     const historyRenderer = portalContainer.querySelector<HTMLElement>(
       '[data-render-kind="max-three-history"]',
     );
     const rootShell = rootRenderer?.parentElement;
     const historyShell = historyRenderer?.parentElement;
+    const rootFocusScope = narrativeFocusScopeV1(rootRenderer);
+    const historyFocusScope = narrativeFocusScopeV1(historyRenderer);
     expect(rootShell).toHaveAttribute("inert");
     expect(historyShell).not.toHaveAttribute("inert");
+    expect(rootFocusScope).toHaveAttribute("inert");
+    expect(historyFocusScope).not.toHaveAttribute("inert");
+    expect(document.activeElement).toBe(historyFocusScope);
 
     act(() => {
       expect(harness.bridge.reconcilePendingInternalV1(pendingSayV1(2))).toMatchObject({
@@ -561,6 +1381,7 @@ describe("NarrativeSurfaceHostInternalV1", () => {
       '[data-occurrence-id="interaction-occurrence.2"]',
     );
     const failedReplacementShell = failedReplacementRenderer?.parentElement;
+    const failedReplacementFocusScope = narrativeFocusScopeV1(failedReplacementRenderer);
     expect(portalContainer.children).toHaveLength(3);
     expect(rootRenderer?.parentElement).toBe(rootShell);
     expect(rootShell).toHaveAttribute("inert");
@@ -579,6 +1400,10 @@ describe("NarrativeSurfaceHostInternalV1", () => {
       visibility: "hidden",
       pointerEvents: "none",
     });
+    expect(failedReplacementFocusScope).toHaveAttribute("inert");
+    expect(failedReplacementFocusScope).toHaveAttribute("aria-hidden", "true");
+    expect(failedReplacementFocusScope).toHaveStyle({ pointerEvents: "none" });
+    expect(failedReplacementFocusScope.style.visibility).not.toBe("hidden");
 
     const failedReplacement = runtime.renderSource.getSnapshotInternalV1().entries.find((entry) =>
       entry.kind === "dialogue" && entry.phase === "preparing" &&
@@ -602,6 +1427,7 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     expect(historyRenderer?.isConnected).toBe(true);
     expect(historyShell).not.toHaveAttribute("inert");
     expect(failedReplacementRenderer?.isConnected).toBe(false);
+    expect(document.activeElement).toBe(historyFocusScope);
 
     act(() => {
       expect(harness.bridge.reconcilePendingInternalV1(pendingSayV1(3))).toMatchObject({
@@ -612,8 +1438,11 @@ describe("NarrativeSurfaceHostInternalV1", () => {
       '[data-occurrence-id="interaction-occurrence.3"]',
     );
     const successorShell = successorRenderer?.parentElement;
+    const successorFocusScope = narrativeFocusScopeV1(successorRenderer);
     expect(portalContainer.children).toHaveLength(3);
     expect(successorShell).toHaveStyle({ visibility: "hidden", pointerEvents: "none" });
+    expect(successorFocusScope).toHaveAttribute("inert");
+    expect(successorFocusScope.style.visibility).not.toBe("hidden");
 
     await flushHostMicrotasksV1();
 
@@ -623,6 +1452,11 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     expect(successorShell).not.toHaveAttribute("inert");
     expect(successorShell).not.toHaveAttribute("aria-hidden");
     expect(successorShell?.style.visibility).not.toBe("hidden");
+    expect(successorFocusScope).not.toHaveAttribute("inert");
+    expect(successorFocusScope).not.toHaveAttribute("aria-hidden");
+    expect(successorRenderer?.parentElement?.parentElement).toBe(successorFocusScope);
+    expect(document.activeElement).toBe(successorFocusScope);
+    expect(document.activeElement).not.toBe(rootRenderer);
     expect(rootRenderer?.isConnected).toBe(false);
     expect(historyRenderer?.isConnected).toBe(false);
     expect(harness.kernel.getStateInternalV1().stableRuntimeBindings).toHaveLength(1);
@@ -721,6 +1555,23 @@ describe("NarrativeSurfaceHostInternalV1", () => {
       createRuntime.mock.calls[0]?.[0].hostIdentity,
     );
     expect(createRuntime.mock.calls[1]?.[0].portalContainer).toBe(portalContainer);
+    const runtime = createRuntime.mock.results.at(-1)?.value as
+      | NarrativeStableHostRuntimeInternalV1
+      | undefined;
+    const committedGestureCurrent = createRuntime.mock.calls.at(-1)?.[0].isGestureCurrent;
+    if (runtime === undefined || committedGestureCurrent === undefined) {
+      throw new Error("expected StrictMode Host runtime");
+    }
+    act(() => openHistoryV1(harness, "strict-fallback", committedGestureCurrent));
+    expect(currentHistoryRenderEntryV1(runtime).phase).toBe("preparing");
+    const notificationsBeforeClose = harness.stateNotificationCount();
+    let routed: ReturnType<typeof routeActionV1> | undefined;
+    act(() => {
+      routed = routeActionV1(harness, systemInputActionIdsV1.cancel);
+    });
+    expect(routed).toEqual({ kind: "handled", context: "narrative" });
+    expect(runtime.renderSource.getSnapshotInternalV1().entries).toHaveLength(1);
+    expect(harness.stateNotificationCount()).toBe(notificationsBeforeClose + 1);
 
     view.unmount();
     await flushHostMicrotasksV1();
@@ -1144,8 +1995,220 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     portalContainer.remove();
   });
 
+  it.each(["publisher_dispose", "coordinator_dispose"] as const)(
+    "does not restore the root previous owner when a mounted Host receives %s terminal state",
+    async (terminalKind) => {
+      const Renderer = () => <button type="button" data-testid="terminal-root">Dialogue</button>;
+      const previousOwner = document.createElement("button");
+      previousOwner.type = "button";
+      previousOwner.textContent = "Terminal previous owner";
+      document.body.append(previousOwner);
+      previousOwner.focus();
+      const harness = hostHarnessV1(Renderer);
+      expect(harness.bridge.reconcilePendingInternalV1(pendingSayV1())).toMatchObject({
+        kind: "applied",
+      });
+      const portalContainer = document.createElement("div");
+      document.body.append(portalContainer);
+      const view = render(
+        <>
+          <output data-testid="terminal-host-mounted">Mounted</output>
+          <NarrativeSurfaceHostInternalV1
+            session={harness.session}
+            portalContainer={portalContainer}
+            inputRouter={harness.inputRouter}
+            isGestureCurrent={harness.isGestureCurrent}
+          />
+        </>,
+      );
+      await flushHostMicrotasksV1();
+      expect(document.activeElement).toBe(narrativeFocusScopeV1(
+        portalContainer.querySelector('[data-testid="terminal-root"]'),
+      ));
+
+      const previousOwnerFocus = vi.spyOn(previousOwner, "focus");
+      const queuedMicrotask = vi.spyOn(globalThis, "queueMicrotask");
+      const queuedBeforeTerminal = queuedMicrotask.mock.calls.length;
+      act(() => {
+        expect(
+          terminalKind === "publisher_dispose"
+            ? harness.bridge.disposeInternalV1()
+            : harness.kernel.transitionTransientInternalV1({ kind: "dispose_coordinator" }),
+        ).toMatchObject({
+          kind: "applied",
+          code: terminalKind === "publisher_dispose"
+            ? "surface.stable_publisher_disposed"
+            : "surface.coordinator_disposed",
+        });
+      });
+      const queuedRestoreCount = queuedMicrotask.mock.calls.length - queuedBeforeTerminal;
+      expect(portalContainer).toBeEmptyDOMElement();
+      expect(view.container.querySelector('[data-testid="terminal-host-mounted"]')).not.toBeNull();
+
+      await flushHostMicrotasksV1();
+
+      expect({
+        previousOwnerFocusCount: previousOwnerFocus.mock.calls.length,
+        queuedRestoreCount,
+      }).toEqual({
+        previousOwnerFocusCount: 0,
+        queuedRestoreCount: 0,
+      });
+
+      view.unmount();
+      portalContainer.remove();
+      previousOwner.remove();
+    },
+  );
+
+  it.each(["publisher_dispose", "coordinator_dispose"] as const)(
+    "does not queue root or History focus restoration when a mounted History Host receives %s terminal state",
+    async (terminalKind) => {
+      const createRuntime = vi.spyOn(
+        narrativeFamilyModuleV1,
+        "createNarrativeStableHostRuntimeInternalV1",
+      );
+      const Renderer = (props: NarrativeStableRendererPropsInternalV1) =>
+        props.kind === "dialogue"
+          ? <button type="button" data-testid="terminal-history-opener">Open</button>
+          : <output data-testid="terminal-history">History</output>;
+      const previousOwner = document.createElement("button");
+      previousOwner.type = "button";
+      previousOwner.textContent = "Terminal root previous owner";
+      document.body.append(previousOwner);
+      previousOwner.focus();
+      const harness = hostHarnessV1(Renderer);
+      expect(harness.bridge.reconcilePendingInternalV1(pendingSayV1())).toMatchObject({
+        kind: "applied",
+      });
+      const portalContainer = document.createElement("div");
+      document.body.append(portalContainer);
+      const view = render(
+        <>
+          <output data-testid="terminal-history-host-mounted">Mounted</output>
+          <NarrativeSurfaceHostInternalV1
+            session={harness.session}
+            portalContainer={portalContainer}
+            inputRouter={harness.inputRouter}
+            isGestureCurrent={harness.isGestureCurrent}
+          />
+        </>,
+      );
+      await flushHostMicrotasksV1();
+      const runtime = createRuntime.mock.results.at(-1)?.value as
+        | NarrativeStableHostRuntimeInternalV1
+        | undefined;
+      const committedGestureCurrent = createRuntime.mock.calls.at(-1)?.[0].isGestureCurrent;
+      if (runtime === undefined || committedGestureCurrent === undefined) {
+        throw new Error("expected current Host runtime");
+      }
+      const opener = portalContainer.querySelector<HTMLElement>(
+        '[data-testid="terminal-history-opener"]',
+      );
+      if (opener === null) throw new Error("expected History opener");
+      opener.focus();
+      act(() => openHistoryV1(harness, `terminal-${terminalKind}`, committedGestureCurrent));
+      await flushHostMicrotasksV1();
+      expect(currentHistoryRenderEntryV1(runtime).phase).toBe("active");
+
+      const previousOwnerFocus = vi.spyOn(previousOwner, "focus");
+      const openerFocus = vi.spyOn(opener, "focus");
+      const queuedMicrotask = vi.spyOn(globalThis, "queueMicrotask");
+      const queuedBeforeTerminal = queuedMicrotask.mock.calls.length;
+      act(() => {
+        expect(
+          terminalKind === "publisher_dispose"
+            ? harness.bridge.disposeInternalV1()
+            : harness.kernel.transitionTransientInternalV1({ kind: "dispose_coordinator" }),
+        ).toMatchObject({ kind: "applied" });
+      });
+      const queuedRestoreCount = queuedMicrotask.mock.calls.length - queuedBeforeTerminal;
+      expect(portalContainer).toBeEmptyDOMElement();
+      expect(
+        view.container.querySelector('[data-testid="terminal-history-host-mounted"]'),
+      ).not.toBeNull();
+
+      await flushHostMicrotasksV1();
+
+      expect({
+        openerFocusCount: openerFocus.mock.calls.length,
+        previousOwnerFocusCount: previousOwnerFocus.mock.calls.length,
+        queuedRestoreCount,
+      }).toEqual({
+        openerFocusCount: 0,
+        previousOwnerFocusCount: 0,
+        queuedRestoreCount: 0,
+      });
+
+      view.unmount();
+      portalContainer.remove();
+      previousOwner.remove();
+    },
+  );
+
+  it("suppresses an already queued root restore when publisher disposal wins before delivery", async () => {
+    const Renderer = () => <button type="button">Dialogue</button>;
+    const previousOwner = document.createElement("button");
+    previousOwner.type = "button";
+    previousOwner.textContent = "Queued terminal previous owner";
+    document.body.append(previousOwner);
+    previousOwner.focus();
+    const harness = hostHarnessV1(Renderer);
+    expect(harness.bridge.reconcilePendingInternalV1(pendingSayV1())).toMatchObject({
+      kind: "applied",
+    });
+    const portalContainer = document.createElement("div");
+    document.body.append(portalContainer);
+    const view = render(
+      <>
+        <output data-testid="queued-terminal-host-mounted">Mounted</output>
+        <NarrativeSurfaceHostInternalV1
+          session={harness.session}
+          portalContainer={portalContainer}
+          inputRouter={harness.inputRouter}
+          isGestureCurrent={harness.isGestureCurrent}
+        />
+      </>,
+    );
+    await flushHostMicrotasksV1();
+
+    const queuedRestores: VoidFunction[] = [];
+    vi.spyOn(globalThis, "queueMicrotask").mockImplementation((callback) => {
+      queuedRestores.push(callback);
+    });
+    const previousOwnerFocus = vi.spyOn(previousOwner, "focus");
+    act(() => {
+      expect(harness.bridge.reconcilePendingInternalV1(null)).toMatchObject({ kind: "applied" });
+    });
+    expect(queuedRestores).toHaveLength(1);
+    const queuedRestore = queuedRestores[0];
+    if (queuedRestore === undefined) throw new Error("expected queued root focus restore");
+
+    act(() => {
+      expect(harness.bridge.disposeInternalV1()).toMatchObject({
+        kind: "applied",
+        code: "surface.stable_publisher_disposed",
+      });
+      queuedRestore();
+    });
+
+    expect(previousOwnerFocus).not.toHaveBeenCalled();
+    expect(portalContainer).toBeEmptyDOMElement();
+    expect(view.container.querySelector('[data-testid="queued-terminal-host-mounted"]'))
+      .not.toBeNull();
+
+    view.unmount();
+    portalContainer.remove();
+    previousOwner.remove();
+  });
+
   it("terminally disposes a ready ref-null detach without rewriting it as failed", async () => {
     const Renderer = () => <button type="button" data-testid="ready-dialogue">Dialogue</button>;
+    const previousOwner = document.createElement("button");
+    previousOwner.type = "button";
+    previousOwner.textContent = "Terminal previous owner";
+    document.body.append(previousOwner);
+    previousOwner.focus();
     const harness = hostHarnessV1(Renderer);
     expect(harness.bridge.reconcilePendingInternalV1(pendingSayV1())).toMatchObject({
       kind: "applied",
@@ -1163,6 +2226,10 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     await flushHostMicrotasksV1();
     expect(harness.kernel.getStateInternalV1().stableRuntimeBindings[0]?.binding.kind)
       .toBe("ready_instance");
+    const readyRenderer = portalContainer.querySelector<HTMLElement>(
+      '[data-testid="ready-dialogue"]',
+    );
+    expect(document.activeElement).toBe(narrativeFocusScopeV1(readyRenderer));
 
     view.unmount();
     await flushHostMicrotasksV1();
@@ -1170,6 +2237,8 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     expect(harness.bindingKinds).not.toContain("gap");
     expect(harness.kernel.getStateInternalV1().stableRuntimeBindings).toEqual([]);
     expect(harness.session.getReadinessSnapshotInternalV1().entries).toEqual([]);
+    expect(document.activeElement).not.toBe(previousOwner);
     portalContainer.remove();
+    previousOwner.remove();
   });
 });

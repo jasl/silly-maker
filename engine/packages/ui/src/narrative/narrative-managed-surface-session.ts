@@ -7,6 +7,7 @@ import type {
 import type {
   NarrativeStableDialogueRendererPropsInternalV1,
   NarrativeStableHistoryChildLifecycleInternalV1,
+  NarrativeStableHistoryChildControllerInternalV1,
   NarrativeStableHistoryChildPreparationInternalV1,
   NarrativeStableHistoryRenderObservationInternalV1,
   NarrativeStableHistoryRendererPropsInternalV1,
@@ -78,6 +79,7 @@ export type NarrativeStableHostRenderEntryInternalV1 =
     readonly rendererComponent: NarrativeStableRendererComponentInternalV1;
     readonly rendererProps: Omit<NarrativeStableHistoryRendererPropsInternalV1, "history">;
     readonly historyObservation: NarrativeStableHistoryRenderObservationInternalV1;
+    readonly controller: NarrativeStableHistoryChildControllerInternalV1;
   }>;
 
 export interface NarrativeStableHostRenderSnapshotInternalV1 {

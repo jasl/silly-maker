@@ -284,6 +284,14 @@ import type { NarrativeStableHistoryOpenDispatchResultInternalV1 as ForbiddenInt
 import type { NarrativeStableHistoryChildLifecycleInternalV1 as ForbiddenPublicNarrativeHistoryChildLifecycleV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Narrative History-child lifecycles.
 import type { NarrativeStableHistoryChildLifecycleInternalV1 as ForbiddenInternalNarrativeHistoryChildLifecycleV1 } from "./internal.ts";
+// @ts-expect-error Narrative History-child lifecycle results remain source-relative.
+import type { NarrativeStableHistoryChildLifecycleResultInternalV1 as ForbiddenPublicNarrativeHistoryChildLifecycleResultV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative History-child lifecycle results.
+import type { NarrativeStableHistoryChildLifecycleResultInternalV1 as ForbiddenInternalNarrativeHistoryChildLifecycleResultV1 } from "./internal.ts";
+// @ts-expect-error Narrative History-child controllers remain source-relative.
+import type { NarrativeStableHistoryChildControllerInternalV1 as ForbiddenPublicNarrativeHistoryChildControllerV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative History-child controllers.
+import type { NarrativeStableHistoryChildControllerInternalV1 as ForbiddenInternalNarrativeHistoryChildControllerV1 } from "./internal.ts";
 // @ts-expect-error Narrative History-child lifecycle construction remains source-relative.
 import type { createNarrativeStableHistoryChildLifecycleInternalV1 as ForbiddenPublicNarrativeHistoryChildLifecycleFactoryV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Narrative History-child lifecycle construction.
@@ -380,6 +388,10 @@ import type { NarrativeStableHostRuntimeInternalV1 as ForbiddenInternalNarrative
 import type { createNarrativeStableHostRuntimeInternalV1 as ForbiddenPublicNarrativeHostRuntimeFactoryV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Narrative Host runtime construction.
 import type { createNarrativeStableHostRuntimeInternalV1 as ForbiddenInternalNarrativeHostRuntimeFactoryV1 } from "./internal.ts";
+// @ts-expect-error Narrative Host runtime-current inspection remains source-relative.
+import type { isNarrativeStableHostRuntimeCurrentInternalV1 as ForbiddenPublicNarrativeHostRuntimeCurrentInspectionV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative Host runtime-current inspection.
+import type { isNarrativeStableHostRuntimeCurrentInternalV1 as ForbiddenInternalNarrativeHostRuntimeCurrentInspectionV1 } from "./internal.ts";
 // @ts-expect-error Narrative readiness settlement results remain source-relative.
 import type { NarrativeStableReadinessSettlementResultInternalV1 as ForbiddenPublicNarrativeReadinessSettlementResultV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Narrative readiness settlement results.
@@ -732,6 +744,8 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "NarrativeStableHistoryOpenIntentInternalV1"
       | "NarrativeStableHistoryOpenDispatchResultInternalV1"
       | "NarrativeStableHistoryChildLifecycleInternalV1"
+      | "NarrativeStableHistoryChildLifecycleResultInternalV1"
+      | "NarrativeStableHistoryChildControllerInternalV1"
       | "createNarrativeStableHistoryChildLifecycleInternalV1"
       | "NarrativeStableHistoryChildPreparationInternalV1"
       | "NarrativeStableHistoryChildPreparationResultInternalV1"
@@ -756,6 +770,7 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "CreateNarrativeStableHostRuntimeInputInternalV1"
       | "NarrativeStableHostRuntimeInternalV1"
       | "createNarrativeStableHostRuntimeInternalV1"
+      | "isNarrativeStableHostRuntimeCurrentInternalV1"
       | "NarrativeStableReadinessSettlementResultInternalV1"
       | "NarrativeStableHostAttachmentInternalV1"
       | "NarrativeStableHostReadyCommitInternalV1"
@@ -782,6 +797,7 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "rendererProps"
       | "parentRenderKey"
       | "historyObservation"
+      | "controller"
       | "entries"
       | "session"
       | "hostIdentity"
@@ -797,6 +813,8 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "getSnapshotInternalV1"
       | "subscribeInternalV1"
       | "getHistoryChildLifecycleInternalV1"
+      | "closeInternalV1"
+      | "dismissInternalV1"
       | "attachHostInternalV1"
       | "isCurrentInternalV1"
       | "settleRootReadinessReadyInternalV1"
@@ -988,6 +1006,8 @@ describe("@sillymaker/ui public managed System surface", () => {
         "NarrativeStableHistoryOpenIntentInternalV1",
         "NarrativeStableHistoryOpenDispatchResultInternalV1",
         "NarrativeStableHistoryChildLifecycleInternalV1",
+        "NarrativeStableHistoryChildLifecycleResultInternalV1",
+        "NarrativeStableHistoryChildControllerInternalV1",
         "createNarrativeStableHistoryChildLifecycleInternalV1",
         "NarrativeStableHistoryChildPreparationInternalV1",
         "NarrativeStableHistoryChildPreparationResultInternalV1",
@@ -1038,6 +1058,7 @@ describe("@sillymaker/ui public managed System surface", () => {
         "rendererProps",
         "parentRenderKey",
         "historyObservation",
+        "controller",
         "entries",
         "session",
         "hostIdentity",
@@ -1053,6 +1074,8 @@ describe("@sillymaker/ui public managed System surface", () => {
         "getSnapshotInternalV1",
         "subscribeInternalV1",
         "getHistoryChildLifecycleInternalV1",
+        "closeInternalV1",
+        "dismissInternalV1",
         "attachHostInternalV1",
         "isCurrentInternalV1",
         "settleRootReadinessReadyInternalV1",
@@ -1100,6 +1123,7 @@ describe("@sillymaker/ui public managed System surface", () => {
         "CreateNarrativeStablePhysicalActionAdmissionInputInternalV1",
         "NarrativeStablePhysicalActionAdmissionInternalV1",
         "createNarrativeStablePhysicalActionAdmissionInternalV1",
+        "isNarrativeStableHostRuntimeCurrentInternalV1",
         "ManagedSurfaceContractBoundActionRouteAuthorityInternalV1",
         "CreateManagedSurfaceContractBoundActionBindingInputInternalV1",
         "ManagedSurfaceAuthenticatedActionRouteResultInternalV1",

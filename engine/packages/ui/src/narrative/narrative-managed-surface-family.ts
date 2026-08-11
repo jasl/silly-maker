@@ -15,7 +15,16 @@ import {
 } from "@sillymaker/base";
 import type { ElementType } from "react";
 
-import type { InputRouterV1 } from "../input/contracts.ts";
+import {
+  inputHandledV1,
+  inputIgnoredV1,
+  playerInputActionIdsV1,
+  systemInputActionIdsV1,
+  type InputEventV1,
+  type InputHandlerResultV1,
+  type InputRouterV1,
+} from "../input/contracts.ts";
+import { registerManagedInputHandlerV1 } from "../input/input-router.ts";
 import {
   claimManagedSurfacePreparedAuthenticatedActionRouteInternalV1,
   claimManagedSurfaceAuthenticatedActionRouteInternalV1,
@@ -31,6 +40,7 @@ import {
 import {
   type ManagedSurfaceActionEnvelopeV1,
   type ManagedSurfaceActionIdV1,
+  type ManagedSurfaceDismissKindV1,
   type ManagedSurfaceFocusTargetIdV1,
   parseManagedSurfaceActionIdV1,
   parseManagedSurfaceDefinitionIdV1,
@@ -58,6 +68,7 @@ import {
 import {
   type ManagedSurfaceStableReadinessCommitGuardInternalV1,
   claimManagedSurfaceStableExactParentTransientChildAuthorityInternalV1,
+  claimManagedSurfaceStableExactParentTransientChildLifecycleAuthorityInternalV1,
   claimManagedSurfaceStableExactParentTransientChildReadinessAuthorityInternalV1,
   claimManagedSurfaceStableExactParentTransientChildActionRouteAuthorityInternalV1,
   claimManagedSurfaceStableActionRouteAuthorityInternalV1,
@@ -68,6 +79,8 @@ import {
   type ManagedSurfaceStableExactParentTransientChildAuthorityInternalV1,
   type ManagedSurfaceStableExactParentTransientChildCandidateInternalV1,
   type ManagedSurfaceStableExactParentTransientChildCommitGuardInternalV1,
+  type ManagedSurfaceStableExactParentTransientChildLifecycleAuthorityInternalV1,
+  type ManagedSurfaceStableExactParentTransientChildLifecycleCommitGuardInternalV1,
   type ManagedSurfaceStableExactParentTransientChildReadinessAuthorityInternalV1,
   type ManagedSurfaceStableExactParentTransientChildActionRouteAuthorityInternalV1,
   type ManagedSurfaceStableReadyActiveTargetProofInternalV1,
@@ -136,6 +149,26 @@ const narrativeStableReadinessStaleResultInternalV1 = Object.freeze({
   completion: null,
 });
 const narrativeStableReadinessFaultedResultInternalV1 = Object.freeze({
+  kind: "faulted" as const,
+  completion: null,
+});
+const narrativeStableHistoryChildClosedResultInternalV1 = Object.freeze({
+  kind: "closed" as const,
+  completion: null,
+});
+const narrativeStableHistoryChildDismissedResultInternalV1 = Object.freeze({
+  kind: "dismissed" as const,
+  completion: null,
+});
+const narrativeStableHistoryChildLockedResultInternalV1 = Object.freeze({
+  kind: "locked" as const,
+  completion: null,
+});
+const narrativeStableHistoryChildLifecycleStaleResultInternalV1 = Object.freeze({
+  kind: "stale" as const,
+  completion: null,
+});
+const narrativeStableHistoryChildLifecycleFaultedResultInternalV1 = Object.freeze({
   kind: "faulted" as const,
   completion: null,
 });
@@ -442,6 +475,20 @@ export type NarrativeStableHistoryChildPreparationResultInternalV1 =
     readonly completion: null;
   }>;
 
+export type NarrativeStableHistoryChildLifecycleResultInternalV1 =
+  | Readonly<{ readonly kind: "closed"; readonly completion: null }>
+  | Readonly<{ readonly kind: "dismissed"; readonly completion: null }>
+  | Readonly<{ readonly kind: "locked"; readonly completion: null }>
+  | Readonly<{ readonly kind: "stale"; readonly completion: null }>
+  | Readonly<{ readonly kind: "faulted"; readonly completion: null }>;
+
+export interface NarrativeStableHistoryChildControllerInternalV1 {
+  closeInternalV1(): NarrativeStableHistoryChildLifecycleResultInternalV1;
+  dismissInternalV1(
+    dismissKind: ManagedSurfaceDismissKindV1,
+  ): NarrativeStableHistoryChildLifecycleResultInternalV1;
+}
+
 export interface NarrativeStableHistoryChildLifecycleInternalV1 {
   redeemHistoryOpenIntentInternalV1(
     intent: unknown,
@@ -685,7 +732,8 @@ export type NarrativeStablePhysicalActionDispatchResultInternalV1 =
   }>
   | NarrativeStableVoiceReplayDispatchResultInternalV1
   | NarrativeStablePlaybackModeToggleDispatchResultInternalV1
-  | NarrativeStableHistoryOpenDispatchResultInternalV1;
+  | NarrativeStableHistoryOpenDispatchResultInternalV1
+  | NarrativeStableHistoryChildLifecycleResultInternalV1;
 
 export interface CreateNarrativeStablePhysicalActionAdmissionInputInternalV1 {
   readonly bridge: NarrativeStablePublisherBridgeInternalV1;
@@ -966,6 +1014,8 @@ interface NarrativeStableHistoryChildFamilyClaimRecordInternalV1 {
     ManagedSurfaceStableExactParentTransientChildReadinessAuthorityInternalV1;
   readonly actionAuthority:
     ManagedSurfaceStableExactParentTransientChildActionRouteAuthorityInternalV1;
+  readonly lifecycleAuthority:
+    ManagedSurfaceStableExactParentTransientChildLifecycleAuthorityInternalV1;
 }
 
 interface NarrativeStableHistoryChildLifecycleRecordInternalV1 {
@@ -981,7 +1031,12 @@ interface NarrativeStableHistoryChildPreparationRecordInternalV1 {
   readonly lifecycleRecord: NarrativeStableHistoryChildLifecycleRecordInternalV1;
   readonly intent: NarrativeStableHistoryOpenIntentInternalV1;
   readonly intentRecord: NarrativeStableHistoryOpenIntentRecordInternalV1;
+  readonly controller: NarrativeStableHistoryChildControllerInternalV1;
   candidate: ManagedSurfaceStableExactParentTransientChildCandidateInternalV1 | null;
+}
+
+interface NarrativeStableHistoryChildControllerRecordInternalV1 {
+  preparationRecord: NarrativeStableHistoryChildPreparationRecordInternalV1 | null;
 }
 
 const narrativeStableHistoryChildFamilyClaimsInternalV1 = new WeakMap<
@@ -995,6 +1050,10 @@ const narrativeStableHistoryChildLifecycleRecordsInternalV1 = new WeakMap<
 const narrativeStableHistoryChildPreparationRecordsInternalV1 = new WeakMap<
   NarrativeStableHistoryChildPreparationInternalV1,
   NarrativeStableHistoryChildPreparationRecordInternalV1
+>();
+const narrativeStableHistoryChildControllerRecordsInternalV1 = new WeakMap<
+  NarrativeStableHistoryChildControllerInternalV1,
+  NarrativeStableHistoryChildControllerRecordInternalV1
 >();
 const recordNarrativeStableHistoryChildPreparationInternalV1 =
   narrativeStableHistoryChildPreparationRecordsInternalV1.set.bind(
@@ -1086,6 +1145,8 @@ interface NarrativeStableHostRuntimeRecordInternalV1 {
   readonly readyCommits: Set<NarrativeStableHostReadyCommitRecordInternalV1>;
   readonly focusGeneration: object;
   readonly attachmentHolder: NarrativeStableHostAttachmentHolderInternalV1;
+  fallbackInputUnregister: (() => void) | null;
+  fallbackInputEntry: NarrativeStableHostRenderEntryInternalV1 | null;
   active: boolean;
 }
 
@@ -1221,6 +1282,14 @@ function retireNarrativeStableHostRuntimeExposureInternalV1(
   record: NarrativeStableHostRuntimeRecordInternalV1,
 ): void {
   record.active = false;
+  const unregisterFallbackInput = record.fallbackInputUnregister;
+  record.fallbackInputUnregister = null;
+  record.fallbackInputEntry = null;
+  try {
+    unregisterFallbackInput?.();
+  } catch {
+    // The retired generation stays logically fenced when cleanup is hostile.
+  }
   for (const readyRecord of [...record.readyCommits]) {
     retireNarrativeStableHostReadyCommitRecordInternalV1(readyRecord);
   }
@@ -1228,6 +1297,77 @@ function retireNarrativeStableHostRuntimeExposureInternalV1(
   retiredNarrativeStableHostRuntimesInternalV1.add(record.runtime);
   narrativeStableHostRuntimeRecordsInternalV1.delete(record.runtime);
   narrativeStableHostAttachmentRecordsInternalV1.delete(record.attachment);
+}
+
+function handleNarrativeStableHostFallbackInputInternalV1(
+  runtimeRecord: NarrativeStableHostRuntimeRecordInternalV1,
+  event: DeepReadonly<InputEventV1>,
+): InputHandlerResultV1 {
+  const sessionRecord = runtimeRecord.sessionRecord;
+  if (
+    !runtimeRecord.active || sessionRecord.terminal ||
+    sessionRecord.currentHostRuntime !== runtimeRecord
+  ) return inputIgnoredV1;
+  const fallback = runtimeRecord.fallbackInputEntry;
+  if (
+    fallback === null || !sessionRecord.currentRenderSnapshot.entries.includes(fallback) ||
+    fallback.phase !== "preparing" || event.kind === "pointer_cancel" ||
+    event.kind === "focus_loss"
+  ) {
+    return inputIgnoredV1;
+  }
+  if (fallback.kind === "history" && event.kind === "action") {
+    if (event.actionId === playerInputActionIdsV1.toggleHistory) {
+      fallback.controller.closeInternalV1();
+    } else if (event.actionId === systemInputActionIdsV1.cancel) {
+      fallback.controller.dismissInternalV1("routed_cancel");
+    }
+  }
+  return inputHandledV1;
+}
+
+function reconcileNarrativeStableHostFallbackInputInternalV1(
+  runtimeRecord: NarrativeStableHostRuntimeRecordInternalV1,
+): void {
+  if (!runtimeRecord.active) return;
+  const entries = runtimeRecord.sessionRecord.currentRenderSnapshot.entries;
+  const history = entries.find((entry) => entry.kind === "history" && entry.phase === "preparing");
+  const hasCommittedRoot = entries.some((entry) =>
+    entry.kind === "dialogue" && (entry.phase === "active" || entry.phase === "suspended")
+  );
+  const initialRoot = hasCommittedRoot
+    ? undefined
+    : entries.find((entry) => entry.kind === "dialogue" && entry.phase === "preparing");
+  const fallback = history ?? initialRoot ?? null;
+  if (
+    runtimeRecord.fallbackInputEntry === fallback &&
+    (fallback === null
+      ? runtimeRecord.fallbackInputUnregister === null
+      : runtimeRecord.fallbackInputUnregister !== null)
+  ) return;
+  const unregister = runtimeRecord.fallbackInputUnregister;
+  runtimeRecord.fallbackInputEntry = null;
+  runtimeRecord.fallbackInputUnregister = null;
+  try {
+    unregister?.();
+  } catch {
+    // Logical fencing precedes physical cleanup.
+  }
+  if (fallback === null || !runtimeRecord.active) return;
+  runtimeRecord.fallbackInputEntry = fallback;
+  try {
+    runtimeRecord.fallbackInputUnregister = registerManagedInputHandlerV1(
+      runtimeRecord.inputRouter,
+      freezeNarrativePhysicalActionDataInternalV1({
+        context: "narrative" as const,
+        handle: (event: DeepReadonly<InputEventV1>) =>
+          handleNarrativeStableHostFallbackInputInternalV1(runtimeRecord, event),
+      }),
+    );
+  } catch (error) {
+    runtimeRecord.fallbackInputEntry = null;
+    throw error;
+  }
 }
 
 interface NarrativeStableSayContentAutoAttemptRecordInternalV1 {
@@ -1772,6 +1912,7 @@ const narrativeToggleSkipActionIdInternalV1 = parseManagedSurfaceActionIdV1(
 const narrativeToggleHistoryActionIdInternalV1 = parseManagedSurfaceActionIdV1(
   "player.toggle_history",
 );
+const narrativeCancelActionIdInternalV1 = parseManagedSurfaceActionIdV1("ui.cancel");
 
 const readinessPolicyInternalV1 = Object.freeze({
   initialOpen: "blocking_fallback" as const,
@@ -2736,14 +2877,349 @@ function claimNarrativeStableHistoryChildFamilyAuthorityInternalV1(
       kernel,
       claimant,
     );
+  const lifecycleAuthority =
+    claimManagedSurfaceStableExactParentTransientChildLifecycleAuthorityInternalV1(
+      kernel,
+      claimant,
+    );
   const record = freezeNarrativePhysicalActionDataInternalV1({
     claimant,
     authority,
     readinessAuthority,
     actionAuthority,
+    lifecycleAuthority,
   });
   narrativeStableHistoryChildFamilyClaimsInternalV1.set(kernel, record);
   return authority;
+}
+
+function commitNarrativeStableHistoryChildLifecycleRootBindingInternalV1(
+  runtimeRecord: NarrativeStableHostRuntimeRecordInternalV1,
+  restoredRoot: NarrativeStableHostCandidateActionBindingRecordInternalV1,
+  predecessorRoot: NarrativeStableHostCandidateActionBindingRecordInternalV1,
+  childBinding: NarrativeStableHostCandidateActionBindingRecordInternalV1,
+  expectedFocusOwnership: NarrativeStableHostCandidateActionBindingRecordInternalV1,
+  contract: ManagedSurfacePreparedInputBindingContractInternalV1,
+): boolean {
+  const sessionRecord = runtimeRecord.sessionRecord;
+  const bridgeRecord = sessionRecord.bridgeRecord;
+  if (
+    !runtimeRecord.active || sessionRecord.terminal || !bridgeRecord.active ||
+    sessionRecord.currentHostRuntime !== runtimeRecord ||
+    bridgeRecord.currentHostRootActionBinding !== predecessorRoot ||
+    !predecessorRoot.active || !predecessorRoot.committed ||
+    predecessorRoot.sessionRecord !== sessionRecord ||
+    !childBinding.active || childBinding.sessionRecord !== sessionRecord ||
+    restoredRoot.sessionRecord !== sessionRecord || restoredRoot.runtimeRecord !== runtimeRecord ||
+    !restoredRoot.active || restoredRoot.committed ||
+    sessionRecord.currentHostFocusOwnership !== expectedFocusOwnership ||
+    expectedFocusOwnership !== (childBinding.committed ? childBinding : predecessorRoot) ||
+    bridgeRecord.physicalActionAdmissionClaim !==
+      (childBinding.committed ? childBinding.admissionClaim : predecessorRoot.admissionClaim)
+  ) {
+    return false;
+  }
+  const prepared = restoredRoot.prepared;
+  if (prepared === null || !prepared.commitInternalV1(contract)) return false;
+  const binding = prepared.getBindingInternalV1();
+  if (binding === null) return false;
+
+  const focusTargetId = predecessorRoot.focusTargetId;
+  const focusAttachment = predecessorRoot.focusAttachment;
+  restoredRoot.prepared = null;
+  restoredRoot.binding = binding;
+  restoredRoot.committed = true;
+  restoredRoot.focusTargetId = focusTargetId;
+  restoredRoot.focusAttachment = focusAttachment;
+  bridgeRecord.currentHostRootActionBinding = restoredRoot;
+  bridgeRecord.hostPhysicalActionAdmission = null;
+  bridgeRecord.physicalActionAdmissionClaim = restoredRoot.admissionClaim;
+  sessionRecord.currentHostFocusOwnership = restoredRoot;
+  runtimeRecord.fallbackInputEntry = null;
+
+  for (const retired of [predecessorRoot, childBinding]) {
+    retired.active = false;
+    retired.committed = false;
+    retired.delegate = null;
+    retired.focusAttachment = null;
+    retired.runtimeRecord = null;
+  }
+  return true;
+}
+
+function reconcileNarrativeStableHistoryChildLifecycleBindingsInternalV1(
+  session: NarrativeStableSessionInternalV1,
+  sessionRecord: NarrativeStableSessionRecordInternalV1,
+  restoredRoot: NarrativeStableHostCandidateActionBindingRecordInternalV1,
+  predecessorRoot: NarrativeStableHostCandidateActionBindingRecordInternalV1,
+  childBinding: NarrativeStableHostCandidateActionBindingRecordInternalV1,
+  applied: boolean,
+): void {
+  if (!applied) {
+    const supersededAuthority = restoredRoot.authority;
+    retireNarrativeStableHostCandidateActionBindingInternalV1(restoredRoot);
+    let repaired = true;
+    if (supersededAuthority !== null) {
+      for (const candidate of sessionRecord.actionBindingRecords) {
+        if (
+          !candidate.active || candidate.committed || candidate.authority !== supersededAuthority
+        ) continue;
+        const previousPrepared = candidate.prepared;
+        const previousRoute = candidate.claimedRoute;
+        candidate.prepared = null;
+        candidate.claimedRoute = null;
+        try {
+          previousPrepared?.abortInternalV1();
+        } catch {
+          // The replacement below owns the fail-closed repair.
+        }
+        try {
+          previousRoute?.disposeInternalV1();
+        } catch {
+          // The dormant route is already unreachable from the dispatcher.
+        }
+        try {
+          const prepared = prepareManagedSurfaceContractBoundActionBindingInternalV1({
+            authority: supersededAuthority,
+            inputContextId: "narrative",
+            inputRouter: runtimeRecordInputRouterInternalV1(candidate, sessionRecord),
+            isGestureCurrent: runtimeRecordGestureFenceInternalV1(candidate, sessionRecord),
+          });
+          candidate.prepared = prepared;
+          candidate.claimedRoute = claimNarrativeStableHostCandidateActionRouteInternalV1(
+            candidate,
+            prepared,
+          );
+        } catch {
+          repaired = false;
+          break;
+        }
+      }
+    }
+    sessionRecord.actionBindingRecords = sessionRecord.actionBindingRecords.filter((record) =>
+      record.active
+    );
+    const runtimeRecord = sessionRecord.currentHostRuntime;
+    if (
+      !repaired && runtimeRecord !== null && runtimeRecord.active && !sessionRecord.terminal
+    ) {
+      freshRepairNarrativeStableHostCandidateActionBindingsInternalV1(runtimeRecord);
+      notifyNarrativeStableHostRenderStateInternalV1(session, sessionRecord);
+    }
+    return;
+  }
+  retireNarrativeStableHostCandidateActionBindingInternalV1(predecessorRoot);
+  retireNarrativeStableHostCandidateActionBindingInternalV1(childBinding);
+  sessionRecord.actionBindingRecords = sessionRecord.actionBindingRecords.filter((record) =>
+    record.active
+  );
+  const runtimeRecord = sessionRecord.currentHostRuntime;
+  if (runtimeRecord === null || !runtimeRecord.active || sessionRecord.terminal) return;
+  freshRepairNarrativeStableHostCandidateActionBindingsInternalV1(runtimeRecord);
+  notifyNarrativeStableHostRenderStateInternalV1(session, sessionRecord);
+}
+
+function runtimeRecordInputRouterInternalV1(
+  record: NarrativeStableHostCandidateActionBindingRecordInternalV1,
+  sessionRecord: NarrativeStableSessionRecordInternalV1,
+): InputRouterV1 {
+  const runtimeRecord = sessionRecord.currentHostRuntime;
+  if (
+    runtimeRecord === null || !runtimeRecord.active || record.runtimeRecord !== runtimeRecord ||
+    record.inputRouter !== runtimeRecord.inputRouter
+  ) throw new TypeError("ui.narrative_stable_host_attachment_invalid");
+  return runtimeRecord.inputRouter;
+}
+
+function runtimeRecordGestureFenceInternalV1(
+  record: NarrativeStableHostCandidateActionBindingRecordInternalV1,
+  sessionRecord: NarrativeStableSessionRecordInternalV1,
+): (gestureId: ManagedSurfaceGestureIdV1) => boolean {
+  const runtimeRecord = sessionRecord.currentHostRuntime;
+  if (
+    runtimeRecord === null || !runtimeRecord.active || record.runtimeRecord !== runtimeRecord ||
+    record.isGestureCurrent !== runtimeRecord.isGestureCurrent
+  ) throw new TypeError("ui.narrative_stable_host_attachment_invalid");
+  return runtimeRecord.isGestureCurrent;
+}
+
+function transitionNarrativeStableHistoryChildControllerInternalV1(
+  controller: NarrativeStableHistoryChildControllerInternalV1,
+  receiver: unknown,
+  dismissKind: ManagedSurfaceDismissKindV1 | null,
+): NarrativeStableHistoryChildLifecycleResultInternalV1 {
+  const controllerRecord = narrativeStableHistoryChildControllerRecordsInternalV1.get(controller);
+  if (receiver !== controller || controllerRecord === undefined) {
+    throw new TypeError("ui.narrative_stable_history_child_controller_invalid");
+  }
+  const preparationRecord = controllerRecord.preparationRecord;
+  const candidate = preparationRecord?.candidate ?? null;
+  if (preparationRecord === null || candidate === null) {
+    return narrativeStableHistoryChildLifecycleStaleResultInternalV1;
+  }
+  const bridgeRecord = preparationRecord.lifecycleRecord.bridgeRecord;
+  if (
+    !bridgeRecord.active || bridgeRecord.currentHistoryCandidateRecord !== preparationRecord ||
+    (bridgeRecord.currentHistoryPreparation !== null &&
+      narrativeStableHistoryChildPreparationRecordsInternalV1.get(
+          bridgeRecord.currentHistoryPreparation,
+        ) !== preparationRecord)
+  ) {
+    return narrativeStableHistoryChildLifecycleStaleResultInternalV1;
+  }
+  const session = bridgeRecord.session;
+  const sessionRecord = session === null
+    ? null
+    : narrativeStableSessionRecordsInternalV1.get(session) ?? null;
+  const runtimeRecord = sessionRecord?.currentHostRuntime ?? null;
+  if (
+    session === null || sessionRecord === null || runtimeRecord === null ||
+    sessionRecord.terminal || !runtimeRecord.active ||
+    sessionRecord.currentHostRuntime !== runtimeRecord
+  ) {
+    return narrativeStableHistoryChildLifecycleStaleResultInternalV1;
+  }
+  const childBinding = findNarrativeStableHostActionBindingRecordInternalV1(
+    sessionRecord,
+    candidate,
+  );
+  const predecessorRoot = bridgeRecord.currentHostRootActionBinding;
+  if (
+    childBinding === null || predecessorRoot === null ||
+    !predecessorRoot.active || !predecessorRoot.committed
+  ) {
+    return narrativeStableHistoryChildLifecycleStaleResultInternalV1;
+  }
+  let restoredRoot: NarrativeStableHostCandidateActionBindingRecordInternalV1 | null = null;
+  try {
+    restoredRoot = prepareNarrativeStableHostRootRestorationActionBindingInternalV1(runtimeRecord);
+  } catch {
+    restoredRoot = null;
+  }
+  if (restoredRoot === null) {
+    return narrativeStableHistoryChildLifecycleFaultedResultInternalV1;
+  }
+  const expectedFocusOwnership = sessionRecord.currentHostFocusOwnership;
+  if (
+    expectedFocusOwnership === null ||
+    expectedFocusOwnership !== (childBinding.committed ? childBinding : predecessorRoot)
+  ) {
+    reconcileNarrativeStableHistoryChildLifecycleBindingsInternalV1(
+      session,
+      sessionRecord,
+      restoredRoot,
+      predecessorRoot,
+      childBinding,
+      false,
+    );
+    return narrativeStableHistoryChildLifecycleStaleResultInternalV1;
+  }
+  let invoked = false;
+  const guard = freezeNarrativePhysicalActionDataInternalV1({
+    commitInternalV1(
+      contract: ManagedSurfacePreparedInputBindingContractInternalV1,
+    ): boolean {
+      if (invoked) return false;
+      invoked = true;
+      return commitNarrativeStableHistoryChildLifecycleRootBindingInternalV1(
+        runtimeRecord,
+        restoredRoot,
+        predecessorRoot,
+        childBinding,
+        expectedFocusOwnership,
+        contract,
+      );
+    },
+  }) satisfies ManagedSurfaceStableExactParentTransientChildLifecycleCommitGuardInternalV1;
+  const familyClaim = narrativeStableHistoryChildFamilyClaimsInternalV1.get(
+    preparationRecord.lifecycleRecord.compositeRuntimeKernel,
+  );
+  if (familyClaim === undefined) {
+    reconcileNarrativeStableHistoryChildLifecycleBindingsInternalV1(
+      session,
+      sessionRecord,
+      restoredRoot,
+      predecessorRoot,
+      childBinding,
+      false,
+    );
+    return narrativeStableHistoryChildLifecycleFaultedResultInternalV1;
+  }
+  let result: ReturnType<
+    ManagedSurfaceStableExactParentTransientChildLifecycleAuthorityInternalV1[
+      "closeExactParentTransientChildInternalV1"
+    ]
+  >;
+  try {
+    result = dismissKind === null
+      ? applyNarrativePhysicalActionInternalV1(
+        familyClaim.lifecycleAuthority.closeExactParentTransientChildInternalV1,
+        familyClaim.lifecycleAuthority,
+        [candidate, guard],
+      ) as typeof result
+      : applyNarrativePhysicalActionInternalV1(
+        familyClaim.lifecycleAuthority.dismissExactParentTransientChildInternalV1,
+        familyClaim.lifecycleAuthority,
+        [candidate, dismissKind, guard],
+      ) as typeof result;
+  } catch {
+    reconcileNarrativeStableHistoryChildLifecycleBindingsInternalV1(
+      session,
+      sessionRecord,
+      restoredRoot,
+      predecessorRoot,
+      childBinding,
+      false,
+    );
+    return narrativeStableHistoryChildLifecycleFaultedResultInternalV1;
+  }
+  const applied = result.kind === "applied";
+  reconcileNarrativeStableHistoryChildLifecycleBindingsInternalV1(
+    session,
+    sessionRecord,
+    restoredRoot,
+    predecessorRoot,
+    childBinding,
+    applied,
+  );
+  if (result.kind === "applied") {
+    return result.code === "surface.closed"
+      ? narrativeStableHistoryChildClosedResultInternalV1
+      : narrativeStableHistoryChildDismissedResultInternalV1;
+  }
+  if (result.kind === "locked") return narrativeStableHistoryChildLockedResultInternalV1;
+  return result.kind === "stale"
+    ? narrativeStableHistoryChildLifecycleStaleResultInternalV1
+    : narrativeStableHistoryChildLifecycleFaultedResultInternalV1;
+}
+
+function createNarrativeStableHistoryChildControllerInternalV1(
+  controllerRecord: NarrativeStableHistoryChildControllerRecordInternalV1,
+): NarrativeStableHistoryChildControllerInternalV1 {
+  let controller!: NarrativeStableHistoryChildControllerInternalV1;
+  controller = freezeNarrativePhysicalActionDataInternalV1({
+    closeInternalV1(
+      this: NarrativeStableHistoryChildControllerInternalV1,
+    ): NarrativeStableHistoryChildLifecycleResultInternalV1 {
+      return transitionNarrativeStableHistoryChildControllerInternalV1(
+        controller,
+        this,
+        null,
+      );
+    },
+    dismissInternalV1(
+      this: NarrativeStableHistoryChildControllerInternalV1,
+      dismissKind: ManagedSurfaceDismissKindV1,
+    ): NarrativeStableHistoryChildLifecycleResultInternalV1 {
+      return transitionNarrativeStableHistoryChildControllerInternalV1(
+        controller,
+        this,
+        dismissKind,
+      );
+    },
+  });
+  narrativeStableHistoryChildControllerRecordsInternalV1.set(controller, controllerRecord);
+  return controller;
 }
 
 function classifyNarrativeStableHistoryChildIntentInternalV1(
@@ -2836,6 +3312,8 @@ function redeemNarrativeStableHistoryChildIntentInternalV1(
 
   let preparation!: NarrativeStableHistoryChildPreparationInternalV1;
   let preparationRecord!: NarrativeStableHistoryChildPreparationRecordInternalV1;
+  let controllerRecord!: NarrativeStableHistoryChildControllerRecordInternalV1;
+  let controller!: NarrativeStableHistoryChildControllerInternalV1;
   let preparingResult!: Extract<
     NarrativeStableHistoryChildPreparationResultInternalV1,
     { readonly kind: "preparing" }
@@ -2850,13 +3328,17 @@ function redeemNarrativeStableHistoryChildIntentInternalV1(
     preparation = freezeNarrativePhysicalActionDataInternalV1(
       {},
     ) as NarrativeStableHistoryChildPreparationInternalV1;
+    controllerRecord = { preparationRecord: null };
+    controller = createNarrativeStableHistoryChildControllerInternalV1(controllerRecord);
     preparationRecord = {
       lifecycle,
       lifecycleRecord,
       intent: exactIntent,
       intentRecord,
+      controller,
       candidate: null,
     };
+    controllerRecord.preparationRecord = preparationRecord;
     preparingResult = freezeNarrativePhysicalActionDataInternalV1({
       kind: "preparing" as const,
       preparation,
@@ -2896,6 +3378,7 @@ function redeemNarrativeStableHistoryChildIntentInternalV1(
       commitGuard,
     });
   } catch {
+    if (controllerRecord !== undefined) controllerRecord.preparationRecord = null;
     return narrativeHistoryChildFaultedResultInternalV1;
   }
 
@@ -2911,10 +3394,17 @@ function redeemNarrativeStableHistoryChildIntentInternalV1(
       [authorityInput],
     ) as typeof prepared;
   } catch {
+    controllerRecord.preparationRecord = null;
     return narrativeHistoryChildFaultedResultInternalV1;
   }
-  if (prepared.kind === "stale") return narrativeHistoryChildStaleResultInternalV1;
-  if (prepared.kind === "faulted") return narrativeHistoryChildFaultedResultInternalV1;
+  if (prepared.kind === "stale") {
+    controllerRecord.preparationRecord = null;
+    return narrativeHistoryChildStaleResultInternalV1;
+  }
+  if (prepared.kind === "faulted") {
+    controllerRecord.preparationRecord = null;
+    return narrativeHistoryChildFaultedResultInternalV1;
+  }
 
   return preparingResult;
 }
@@ -3283,6 +3773,12 @@ function deriveNarrativeStableHistoryRenderEntryInternalV1(
     instance.parentInstanceId !== null && parentIds.has(instance.parentInstanceId)
   );
   if (children.length !== 1) {
+    const controllerRecord = narrativeStableHistoryChildControllerRecordsInternalV1.get(
+      preparationRecord.controller,
+    );
+    if (controllerRecord?.preparationRecord === preparationRecord) {
+      controllerRecord.preparationRecord = null;
+    }
     record.bridgeRecord.currentHistoryCandidateRecord = null;
     return null;
   }
@@ -3318,6 +3814,7 @@ function deriveNarrativeStableHistoryRenderEntryInternalV1(
   if (
     previous?.kind === "history" && previous.phase === phase &&
     previous.preparation === preparation && previous.parentRenderKey === parent.renderKey &&
+    previous.controller === preparationRecord.controller &&
     narrativeStableHostRenderEntryRecordsInternalV1.get(previous)?.actionBindingGeneration ===
       actionBindingGeneration
   ) return previous;
@@ -3346,6 +3843,7 @@ function deriveNarrativeStableHistoryRenderEntryInternalV1(
     rendererComponent: frame.candidateSnapshot.rendererComponent,
     rendererProps,
     historyObservation,
+    controller: preparationRecord.controller,
   });
   narrativeStableHostRenderEntryRecordsInternalV1.set(entry, {
     sessionRecord: record,
@@ -3457,7 +3955,33 @@ function commitNarrativeStableHostCandidateActionBindingInternalV1(
     bridgeRecord.hostPhysicalActionAdmission = null;
     bridgeRecord.physicalActionAdmissionClaim = record.admissionClaim;
   }
+  runtimeRecord.fallbackInputEntry = null;
   return true;
+}
+
+function claimNarrativeStableHostCandidateActionRouteInternalV1(
+  record: NarrativeStableHostCandidateActionBindingRecordInternalV1,
+  prepared: ManagedSurfacePreparedContractBoundActionBindingInternalV1,
+): ManagedSurfaceAuthenticatedActionRouteInternalV1<
+  unknown,
+  NarrativeStablePhysicalActionDispatchResultInternalV1
+> {
+  return claimManagedSurfacePreparedAuthenticatedActionRouteInternalV1<
+    unknown,
+    NarrativeStablePhysicalActionDispatchResultInternalV1
+  >(
+    prepared,
+    (input): NarrativeStablePhysicalActionDispatchResultInternalV1 => {
+      const currentRuntimeRecord = record.runtimeRecord;
+      if (
+        !record.active || !record.committed || currentRuntimeRecord === null ||
+        !currentRuntimeRecord.active ||
+        currentRuntimeRecord.sessionRecord.currentHostRuntime !== currentRuntimeRecord
+      ) return narrativePhysicalActionStaleResultInternalV1;
+      const delegate = record.delegate;
+      return delegate === null ? narrativePhysicalActionStaleResultInternalV1 : delegate(input);
+    },
+  );
 }
 
 function prepareNarrativeStableHostCandidateActionBindingInternalV1(
@@ -3493,43 +4017,46 @@ function prepareNarrativeStableHostCandidateActionBindingInternalV1(
     inputRouter: runtimeRecord.inputRouter,
     isGestureCurrent: runtimeRecord.isGestureCurrent,
   });
-  let record!: NarrativeStableHostCandidateActionBindingRecordInternalV1;
+  const record: NarrativeStableHostCandidateActionBindingRecordInternalV1 = {
+    kind,
+    sessionRecord,
+    provenance,
+    authority,
+    admissionClaim: freezeNarrativePhysicalActionDataInternalV1({}),
+    bindingGeneration: freezeNarrativePhysicalActionDataInternalV1({}),
+    inputRouter: runtimeRecord.inputRouter,
+    isGestureCurrent: runtimeRecord.isGestureCurrent,
+    runtimeRecord,
+    prepared,
+    claimedRoute: null,
+    binding: null,
+    focusTargetId: null,
+    focusAttachment: null,
+    delegate: null,
+    active: true,
+    committed: false,
+  };
   try {
-    const claimedRoute = claimManagedSurfacePreparedAuthenticatedActionRouteInternalV1<
-      unknown,
-      NarrativeStablePhysicalActionDispatchResultInternalV1
-    >(
+    record.claimedRoute = claimNarrativeStableHostCandidateActionRouteInternalV1(
+      record,
       prepared,
-      (input): NarrativeStablePhysicalActionDispatchResultInternalV1 => {
-        const currentRuntimeRecord = record.runtimeRecord;
-        if (
-          !record.active || !record.committed || currentRuntimeRecord === null ||
-          !currentRuntimeRecord.active ||
-          currentRuntimeRecord.sessionRecord.currentHostRuntime !== currentRuntimeRecord
-        ) return narrativePhysicalActionStaleResultInternalV1;
-        const delegate = record.delegate;
-        return delegate === null ? narrativePhysicalActionStaleResultInternalV1 : delegate(input);
-      },
     );
-    record = {
-      kind,
-      sessionRecord,
-      provenance,
-      authority,
-      admissionClaim: freezeNarrativePhysicalActionDataInternalV1({}),
-      bindingGeneration: freezeNarrativePhysicalActionDataInternalV1({}),
-      inputRouter: runtimeRecord.inputRouter,
-      isGestureCurrent: runtimeRecord.isGestureCurrent,
-      runtimeRecord,
-      prepared,
-      claimedRoute,
-      binding: null,
-      focusTargetId: null,
-      focusAttachment: null,
-      delegate: null,
-      active: true,
-      committed: false,
-    };
+    if (kind === "history") {
+      const preparationRecord = sessionRecord.bridgeRecord.currentHistoryCandidateRecord;
+      if (preparationRecord?.candidate === provenance) {
+        const controller = preparationRecord.controller;
+        record.delegate = (input): NarrativeStablePhysicalActionDispatchResultInternalV1 => {
+          if (input.attempt !== null) return narrativePhysicalActionStaleResultInternalV1;
+          if (input.actionId === narrativeToggleHistoryActionIdInternalV1) {
+            return controller.closeInternalV1();
+          }
+          if (input.actionId === narrativeCancelActionIdInternalV1) {
+            return controller.dismissInternalV1("routed_cancel");
+          }
+          return narrativePhysicalActionStaleResultInternalV1;
+        };
+      }
+    }
   } catch (error) {
     prepared.abortInternalV1();
     throw error;
@@ -3690,6 +4217,23 @@ function refreshNarrativeStableHostRenderSnapshotInternalV1(
       ) {
         retireNarrativeStableHistoryRenderObservationInternalV1(previous.historyObservation);
       }
+      if (
+        previous.kind === "history" &&
+        !entries.some((entry) =>
+          entry.kind === "history" && entry.controller === previous.controller
+        )
+      ) {
+        const controllerRecord = narrativeStableHistoryChildControllerRecordsInternalV1.get(
+          previous.controller,
+        );
+        const preparationRecord = controllerRecord?.preparationRecord ?? null;
+        if (
+          controllerRecord !== undefined &&
+          preparationRecord?.controller === previous.controller
+        ) {
+          controllerRecord.preparationRecord = null;
+        }
+      }
       narrativeStableHostRenderEntryRecordsInternalV1.delete(previous);
     }
   }
@@ -3709,6 +4253,7 @@ function notifyNarrativeStableHostRenderStateInternalV1(
       ensureNarrativeStableHostCandidateActionBindingsInternalV1(runtimeRecord);
       changed = refreshNarrativeStableHostRenderSnapshotInternalV1(session, record) || changed;
       reconcileNarrativeStableHostCandidateActionBindingsInternalV1(record);
+      reconcileNarrativeStableHostFallbackInputInternalV1(runtimeRecord);
     }
   } catch {
     // Wake the current Host so its getSnapshot/render boundary observes the fault.
@@ -3925,6 +4470,15 @@ function notifyNarrativeStableSessionStateInternalV1(
 function terminalizeNarrativeStableSessionInternalV1(
   bridgeRecord: NarrativeStablePublisherBridgeRecordInternalV1,
 ): void {
+  const historyCandidateRecord = bridgeRecord.currentHistoryCandidateRecord;
+  if (historyCandidateRecord !== null) {
+    const controllerRecord = narrativeStableHistoryChildControllerRecordsInternalV1.get(
+      historyCandidateRecord.controller,
+    );
+    if (controllerRecord?.preparationRecord === historyCandidateRecord) {
+      controllerRecord.preparationRecord = null;
+    }
+  }
   bridgeRecord.currentHistoryPreparation = null;
   bridgeRecord.currentHistoryCandidateRecord = null;
   const session = bridgeRecord.session;
@@ -3949,6 +4503,12 @@ function terminalizeNarrativeStableSessionInternalV1(
     }
     if (entry.kind === "history") {
       retireNarrativeStableHistoryRenderObservationInternalV1(entry.historyObservation);
+      const controllerRecord = narrativeStableHistoryChildControllerRecordsInternalV1.get(
+        entry.controller,
+      );
+      if (controllerRecord?.preparationRecord?.controller === entry.controller) {
+        controllerRecord.preparationRecord = null;
+      }
     }
     narrativeStableHostRenderEntryRecordsInternalV1.delete(entry);
   }
@@ -4521,6 +5081,7 @@ export function createNarrativeStableHostRuntimeInternalV1(
             if (readyRecord === null && contract === null && restorationRecord !== null) {
               retireNarrativeStableHostCandidateActionBindingInternalV1(restorationRecord);
             }
+            runtimeRecord.fallbackInputEntry = null;
             return true;
           },
         });
@@ -4665,6 +5226,7 @@ export function createNarrativeStableHostRuntimeInternalV1(
             if (readyRecord === null && contract === null && restorationRecord !== null) {
               retireNarrativeStableHostCandidateActionBindingInternalV1(restorationRecord);
             }
+            runtimeRecord.fallbackInputEntry = null;
             return true;
           },
         });
@@ -4834,6 +5396,8 @@ export function createNarrativeStableHostRuntimeInternalV1(
       readyCommits: new Set(),
       focusGeneration: freezeNarrativePhysicalActionDataInternalV1({}),
       attachmentHolder,
+      fallbackInputUnregister: null,
+      fallbackInputEntry: null,
       active: true,
     };
     partialRuntimeRecord = runtimeRecord;
@@ -4843,6 +5407,7 @@ export function createNarrativeStableHostRuntimeInternalV1(
     ensureNarrativeStableHostCandidateActionBindingsInternalV1(runtimeRecord);
     refreshNarrativeStableHostRenderSnapshotInternalV1(session, sessionRecord);
     reconcileNarrativeStableHostCandidateActionBindingsInternalV1(sessionRecord);
+    reconcileNarrativeStableHostFallbackInputInternalV1(runtimeRecord);
     if (predecessorRuntime !== null) {
       for (const actionBindingRecord of sessionRecord.actionBindingRecords) {
         if (actionBindingRecord.focusAttachment?.runtimeRecord === predecessorRuntime) {
@@ -4900,6 +5465,27 @@ export function createNarrativeStableHostRuntimeInternalV1(
     }
     throw new TypeError("ui.narrative_stable_host_attachment_invalid");
   }
+}
+
+export function isNarrativeStableHostRuntimeCurrentInternalV1(
+  runtime: NarrativeStableHostRuntimeInternalV1,
+): boolean {
+  if (
+    (typeof runtime !== "object" && typeof runtime !== "function") || runtime === null
+  ) return false;
+  const runtimeRecord = narrativeStableHostRuntimeRecordsInternalV1.get(runtime);
+  if (
+    runtimeRecord === undefined || runtimeRecord.runtime !== runtime || !runtimeRecord.active
+  ) return false;
+  const sessionRecord = runtimeRecord.sessionRecord;
+  if (
+    sessionRecord.terminal || !sessionRecord.bridgeRecord.active ||
+    sessionRecord.currentHostRuntime !== runtimeRecord
+  ) return false;
+  const leaseRecord = narrativeStableHostLeaseRecordsInternalV1.get(runtimeRecord.lease);
+  return leaseRecord !== undefined && leaseRecord.lease === runtimeRecord.lease &&
+    leaseRecord.sessionRecord === sessionRecord && leaseRecord.active &&
+    sessionRecord.currentHostLease === leaseRecord;
 }
 
 export function prepareNarrativeStableHostReadyCommitInternalV1(

@@ -12,6 +12,7 @@ import {
   playerInputActionIdsV1,
   systemInputActionIdsV1,
 } from "../input/contracts.ts";
+import * as inputRouterModuleV1 from "../input/input-router.ts";
 import { createInputRouterV1 } from "../input/input-router.ts";
 import * as managedSurfaceActionRouteModuleV1 from "../managed-surfaces/managed-surface-action-route.ts";
 import type {
@@ -20,6 +21,7 @@ import type {
 import {
   parseManagedSurfaceActionIdV1,
   parseManagedSurfaceGestureIdV1,
+  type ManagedSurfaceDismissKindV1,
 } from "../managed-surfaces/managed-surface-contracts.ts";
 import { createManagedSurfaceReducerStateV1 } from "../managed-surfaces/managed-surface-reducer.ts";
 import {
@@ -49,7 +51,9 @@ import {
   prepareNarrativeStableHostReadyCommitInternalV1,
   type NarrativeManagedSurfaceFamilyContractInternalV1,
   type NarrativeStableCandidatePreflightInternalV1,
+  type NarrativeStableHistoryChildControllerInternalV1,
   type NarrativeStableHistoryChildLifecycleInternalV1,
+  type NarrativeStableHistoryChildLifecycleResultInternalV1,
   type NarrativeStableHistoryChildPreparationInternalV1,
   type NarrativeStableHistoryOpenIntentInternalV1,
   type NarrativeStableHistoryObservationPortInternalV1,
@@ -421,6 +425,113 @@ function preparingEntryV1(
   return entry;
 }
 
+type NarrativeStableHistoryHostRenderEntryV1 = Extract<
+  NarrativeStableHostRenderEntryInternalV1,
+  { readonly kind: "history" }
+>;
+
+function currentHistoryEntryV1(
+  runtime: NarrativeStableHostRuntimeInternalV1,
+  phase?: "preparing" | "active" | "suspended",
+): NarrativeStableHistoryHostRenderEntryV1 {
+  const entry = runtime.renderSource.getSnapshotInternalV1().entries.find((candidate) =>
+    candidate.kind === "history" && (phase === undefined || candidate.phase === phase)
+  );
+  if (entry?.kind !== "history") {
+    throw new Error(
+      phase === undefined ? "expected current History entry" : `expected ${phase} History entry`,
+    );
+  }
+  return entry;
+}
+
+function exactHistoryControllerV1(
+  entry: NarrativeStableHistoryHostRenderEntryV1,
+): NarrativeStableHistoryChildControllerInternalV1 {
+  expect(Object.hasOwn(entry, "controller")).toBe(true);
+  expect(Object.isFrozen(entry.controller)).toBe(true);
+  expectFrozenOwnMethodsV1(entry.controller, [
+    "closeInternalV1",
+    "dismissInternalV1",
+  ]);
+  return entry.controller;
+}
+
+function expectExactHistoryLifecycleResultV1(
+  result: NarrativeStableHistoryChildLifecycleResultInternalV1,
+  kind: NarrativeStableHistoryChildLifecycleResultInternalV1["kind"],
+): void {
+  expect(result).toEqual({ kind, completion: null });
+  expect(Object.isFrozen(result)).toBe(true);
+  expect(Reflect.ownKeys(result)).toEqual(["kind", "completion"]);
+}
+
+function trackManagedInputRegistrationsV1(): Readonly<{
+  activeCount(router: ReturnType<typeof createInputRouterV1>): number;
+}> {
+  const registerManagedInputHandler = inputRouterModuleV1.registerManagedInputHandlerV1;
+  const activeByRouter = new WeakMap<
+    ReturnType<typeof createInputRouterV1>,
+    Set<() => void>
+  >();
+  vi.spyOn(inputRouterModuleV1, "registerManagedInputHandlerV1").mockImplementation(
+    (router, registration) => {
+      const unregister = registerManagedInputHandler(router, registration);
+      const active = activeByRouter.get(router) ?? new Set<() => void>();
+      activeByRouter.set(router, active);
+      let registered = true;
+      const unregisterTracked = (): void => {
+        if (!registered) return;
+        registered = false;
+        active.delete(unregisterTracked);
+        unregister();
+      };
+      active.add(unregisterTracked);
+      return unregisterTracked;
+    },
+  );
+  return Object.freeze({
+    activeCount: (router: ReturnType<typeof createInputRouterV1>): number =>
+      activeByRouter.get(router)?.size ?? 0,
+  });
+}
+
+function createPreparingHistoryHostFixtureV1(
+  suffix: string,
+  sequence: number,
+): Readonly<{
+  fixture: NarrativeHostFixtureV1;
+  historyPreparation: NarrativeStableHistoryChildPreparationInternalV1;
+  historyEntry: NarrativeStableHistoryHostRenderEntryV1;
+}> {
+  const fixture = createNarrativeHostFixtureV1();
+  expect(fixture.harness.bridge.reconcilePendingInternalV1(pendingV1("say", sequence)))
+    .toMatchObject({ kind: "applied" });
+  const root = preparingEntryV1(fixture.runtime, "dialogue");
+  if (root.kind !== "dialogue" || root.preparation === null) {
+    throw new Error("expected root preparation");
+  }
+  expect(fixture.runtime.attachment.settleRootReadinessReadyInternalV1(
+    root.preparation,
+    prepareReadyCommitV1(fixture.runtime, root, fixture.portalContainer),
+  )).toEqual({ kind: "settled", completion: null });
+  const minted = mintHistoryIntentV1(
+    fixture.harness,
+    suffix,
+    fixture.inputRouter,
+    fixture.isGestureCurrent,
+  );
+  const history = fixture.session.getHistoryChildLifecycleInternalV1()
+    .redeemHistoryOpenIntentInternalV1(minted.intent);
+  minted.dispose();
+  if (history.kind !== "preparing") throw new Error("expected History preparation");
+  return Object.freeze({
+    fixture,
+    historyPreparation: history.preparation,
+    historyEntry: currentHistoryEntryV1(fixture.runtime, "preparing"),
+  });
+}
+
 function prepareReadyCommitV1(
   runtime: NarrativeStableHostRuntimeInternalV1,
   entry: NarrativeStableHostRenderEntryInternalV1,
@@ -570,6 +681,20 @@ describe("Narrative stable session", () => {
       "preparing" | "active" | "suspended"
     >();
     expectTypeOf<NarrativeStableHostRenderKeyInternalV1>().toMatchTypeOf<string>();
+    expectTypeOf<keyof NarrativeStableHistoryHostRenderEntryV1>().toEqualTypeOf<
+      | "kind"
+      | "phase"
+      | "renderKey"
+      | "parentRenderKey"
+      | "preparation"
+      | "initialFocusTargetId"
+      | "rendererComponent"
+      | "rendererProps"
+      | "historyObservation"
+      | "controller"
+    >();
+    expectTypeOf<NarrativeStableHistoryHostRenderEntryV1["controller"]>()
+      .toEqualTypeOf<NarrativeStableHistoryChildControllerInternalV1>();
     expectTypeOf<keyof NarrativeStableHostRenderSnapshotInternalV1>().toEqualTypeOf<"entries">();
     expectTypeOf<keyof NarrativeStableHostRenderSourceInternalV1>().toEqualTypeOf<
       "getSnapshotInternalV1" | "subscribeInternalV1"
@@ -980,102 +1105,95 @@ describe("Narrative stable session", () => {
     historyFailure.fixture.disposePortal();
   });
 
-  it("keeps both ready History actions consumed and topology-free through Host grace", async () => {
-    const prepareBinding = vi.spyOn(
-      managedSurfaceActionRouteModuleV1,
-      "prepareManagedSurfaceContractBoundActionBindingInternalV1",
-    );
-    const preclaimRoute = vi.spyOn(
-      managedSurfaceActionRouteModuleV1,
-      "claimManagedSurfacePreparedAuthenticatedActionRouteInternalV1",
-    );
-    const { fixture } = createReadyHistoryHostFixtureV1("ready-actions", 40);
-    const lower = vi.fn(() => inputHandledV1);
-    const unregisterLower = fixture.inputRouter.register({
-      context: "gameplay",
-      handle: lower,
-    });
-    const preparedBeforeAdoption = prepareBinding.mock.calls.length;
-    const claimsBeforeAdoption = preclaimRoute.mock.calls.length;
-    const historyAdmission = createNarrativeStablePhysicalActionAdmissionInternalV1({
-      bridge: fixture.harness.bridge,
-      inputRouter: fixture.inputRouter,
-      isGestureCurrent: fixture.isGestureCurrent,
-    });
-    expect(prepareBinding).toHaveBeenCalledTimes(preparedBeforeAdoption);
-    expect(preclaimRoute).toHaveBeenCalledTimes(claimsBeforeAdoption);
+  it("binds one exact controller across preparing, ready, and same-portal Host reattach", async () => {
+    const preparing = createPreparingHistoryHostFixtureV1("controller-preparing", 40);
+    const preparingController = exactHistoryControllerV1(preparing.historyEntry);
+    expect(Reflect.ownKeys(preparing.historyEntry).map(String).sort()).toEqual([
+      "controller",
+      "historyObservation",
+      "initialFocusTargetId",
+      "kind",
+      "parentRenderKey",
+      "phase",
+      "preparation",
+      "renderKey",
+      "rendererComponent",
+      "rendererProps",
+    ]);
+    const preparingClosed = preparingController.closeInternalV1();
+    expectExactHistoryLifecycleResultV1(preparingClosed, "closed");
+    expect(preparing.fixture.runtime.renderSource.getSnapshotInternalV1().entries).toEqual([
+      expect.objectContaining({ kind: "dialogue", phase: "active" }),
+    ]);
+    const canonicalStale = preparingController.closeInternalV1();
+    expectExactHistoryLifecycleResultV1(canonicalStale, "stale");
+    expect(preparingController.dismissInternalV1(
+      "invalid" as ManagedSurfaceDismissKindV1,
+    )).toBe(canonicalStale);
 
-    const state = fixture.harness.kernel.getStateInternalV1();
-    const renderSnapshot = fixture.runtime.renderSource.getSnapshotInternalV1();
-    const notifications = fixture.harness.stateNotificationCount();
-    const actions = [cancelHistoryActionIdV1, toggleHistoryActionIdV1] as const;
-    const routeHistoryAction = (
-      actionId: (typeof actions)[number],
-      suffix: string,
-    ) =>
-      historyAdmission.routeInternalV1(
-        historyAdmission.createEnvelopeInternalV1({
-          actionId,
-          gestureId: parseManagedSurfaceGestureIdV1(`gesture.session-test.${suffix}`),
+    const ready = createPreparingHistoryHostFixtureV1("controller-ready", 41);
+    const readyPreparingController = exactHistoryControllerV1(ready.historyEntry);
+    const stateBeforeInvalid = ready.fixture.harness.kernel.getStateInternalV1();
+    const renderBeforeInvalid = ready.fixture.runtime.renderSource.getSnapshotInternalV1();
+    const notificationsBeforeInvalid = ready.fixture.harness.stateNotificationCount();
+    const invalidDismiss = readyPreparingController.dismissInternalV1(
+      "invalid" as ManagedSurfaceDismissKindV1,
+    );
+    expectExactHistoryLifecycleResultV1(invalidDismiss, "faulted");
+    expect(ready.fixture.harness.kernel.getStateInternalV1()).toBe(stateBeforeInvalid);
+    expect(ready.fixture.runtime.renderSource.getSnapshotInternalV1()).toBe(
+      renderBeforeInvalid,
+    );
+    expect(ready.fixture.harness.stateNotificationCount()).toBe(notificationsBeforeInvalid);
+
+    const borrowedClose = readyPreparingController.closeInternalV1;
+    const borrowedDismiss = readyPreparingController.dismissInternalV1;
+    for (
+      const receiver of [
+        undefined,
+        Object.freeze({}),
+        Object.freeze({
+          ...readyPreparingController,
         }),
-        Object.freeze({ kind: "host-history-no-op", suffix }),
+      ]
+    ) {
+      expectTypeErrorV1(
+        () => Reflect.apply(borrowedClose, receiver, []),
+        "ui.narrative_stable_history_child_controller_invalid",
       );
-    const expectHistoryNoOp = (
-      routed: ReturnType<typeof routeHistoryAction>,
-    ): void => {
-      expect(routed.route).toMatchObject({
-        input: {
-          kind: "consumed",
-          code: "input.managed_surface_consumed",
-        },
-        surface: {
-          kind: "unchanged",
-          code: "surface.action_routed",
-        },
-      });
-      expect(routed.consumerResult).toMatchObject({ completion: null });
-      expect(["stale", "unmapped"]).toContain(routed.consumerResult?.kind);
-    };
-    for (const [index, actionId] of actions.entries()) {
-      expectHistoryNoOp(routeHistoryAction(actionId, `ready-history-${String(index)}`));
-      expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
-      expect(fixture.runtime.renderSource.getSnapshotInternalV1()).toBe(renderSnapshot);
-      expect(fixture.harness.stateNotificationCount()).toBe(notifications);
+      expectTypeErrorV1(
+        () => Reflect.apply(borrowedDismiss, receiver, ["back"]),
+        "ui.narrative_stable_history_child_controller_invalid",
+      );
     }
-    expect(lower).not.toHaveBeenCalled();
+    expect(ready.fixture.harness.kernel.getStateInternalV1()).toBe(stateBeforeInvalid);
+    expect(ready.fixture.runtime.renderSource.getSnapshotInternalV1()).toBe(
+      renderBeforeInvalid,
+    );
 
-    fixture.runtime.attachment.releaseInternalV1();
-    for (const [index, actionId] of actions.entries()) {
-      expect(routeHistoryAction(actionId, `released-history-${String(index)}`)).toEqual({
-        route: {
-          input: expect.objectContaining({
-            kind: "consumed",
-            code: "input.managed_surface_consumed",
-          }),
-          surface: expect.objectContaining({
-            kind: "unchanged",
-            code: "surface.action_routed",
-          }),
-        },
-        consumerResult: { kind: "stale", completion: null },
-      });
-    }
-    expect(lower).not.toHaveBeenCalled();
-    expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
-    expect(fixture.harness.stateNotificationCount()).toBe(notifications);
+    expect(ready.fixture.runtime.attachment.settleHistoryReadinessReadyInternalV1(
+      ready.historyPreparation,
+      prepareReadyCommitV1(
+        ready.fixture.runtime,
+        ready.historyEntry,
+        ready.fixture.portalContainer,
+      ),
+    )).toEqual({ kind: "settled", completion: null });
+    const activeEntry = currentHistoryEntryV1(ready.fixture.runtime, "active");
+    expect(exactHistoryControllerV1(activeEntry)).toBe(readyPreparingController);
 
+    ready.fixture.runtime.attachment.releaseInternalV1();
     const successor = createNarrativeStableHostRuntimeInternalV1(Object.freeze({
-      session: fixture.session,
-      hostIdentity: fixture.hostIdentity,
-      portalContainer: fixture.portalContainer,
-      inputRouter: fixture.inputRouter,
-      isGestureCurrent: fixture.isGestureCurrent,
+      session: ready.fixture.session,
+      hostIdentity: ready.fixture.hostIdentity,
+      portalContainer: ready.fixture.portalContainer,
+      inputRouter: ready.fixture.inputRouter,
+      isGestureCurrent: ready.fixture.isGestureCurrent,
     }));
-    expect(successor.renderSource).toBe(fixture.runtime.renderSource);
     for (const entry of successor.renderSource.getSnapshotInternalV1().entries) {
       const shell = document.createElement("div");
       shell.tabIndex = -1;
-      fixture.portalContainer.append(shell);
+      ready.fixture.portalContainer.append(shell);
       expect(prepareNarrativeStableHostReadyCommitInternalV1(Object.freeze({
         hostRuntime: successor,
         renderEntry: entry,
@@ -1083,23 +1201,527 @@ describe("Narrative stable session", () => {
         initialFocusTarget: shell,
       }))).toEqual({ kind: "reattached", completion: null });
     }
-    await Promise.resolve();
-    expect(successor.renderSource.getSnapshotInternalV1()).toBe(renderSnapshot);
-    expect(createNarrativeStablePhysicalActionAdmissionInternalV1({
-      bridge: fixture.harness.bridge,
-      inputRouter: fixture.inputRouter,
-      isGestureCurrent: fixture.isGestureCurrent,
-    })).toBe(historyAdmission);
-    expect(prepareBinding).toHaveBeenCalledTimes(preparedBeforeAdoption);
-    expect(preclaimRoute).toHaveBeenCalledTimes(claimsBeforeAdoption);
-    expectHistoryNoOp(routeHistoryAction(toggleHistoryActionIdV1, "reattached-history"));
-    expect(lower).not.toHaveBeenCalled();
-    expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
-    expect(fixture.harness.stateNotificationCount()).toBe(notifications);
+    expect(exactHistoryControllerV1(currentHistoryEntryV1(successor, "active")))
+      .toBe(readyPreparingController);
+    const readyClosed = readyPreparingController.closeInternalV1();
+    expect(readyClosed).toBe(preparingClosed);
+    expectExactHistoryLifecycleResultV1(readyClosed, "closed");
+    expect(readyPreparingController.closeInternalV1()).toBe(canonicalStale);
 
-    historyAdmission.disposeInternalV1();
-    unregisterLower();
+    preparing.fixture.runtime.attachment.releaseInternalV1();
+    preparing.fixture.disposePortal();
     successor.attachment.releaseInternalV1();
+    await Promise.resolve();
+    ready.fixture.disposePortal();
+  });
+
+  it("maps every internal dismiss kind in both History phases to canonical family results", () => {
+    const dismissKinds = [
+      "back",
+      "escape",
+      "backdrop",
+      "routed_cancel",
+    ] as const satisfies readonly ManagedSurfaceDismissKindV1[];
+    const phases = ["preparing", "active"] as const;
+    let canonicalDismissed: NarrativeStableHistoryChildLifecycleResultInternalV1 | null = null;
+    let canonicalStale: NarrativeStableHistoryChildLifecycleResultInternalV1 | null = null;
+    let sequence = 50;
+    for (const phase of phases) {
+      for (const dismissKind of dismissKinds) {
+        const current = createPreparingHistoryHostFixtureV1(
+          `dismiss-${phase}-${dismissKind}`,
+          sequence,
+        );
+        sequence += 1;
+        if (phase === "active") {
+          expect(current.fixture.runtime.attachment.settleHistoryReadinessReadyInternalV1(
+            current.historyPreparation,
+            prepareReadyCommitV1(
+              current.fixture.runtime,
+              current.historyEntry,
+              current.fixture.portalContainer,
+            ),
+          )).toEqual({ kind: "settled", completion: null });
+        }
+        const controller = exactHistoryControllerV1(
+          currentHistoryEntryV1(current.fixture.runtime, phase),
+        );
+        const dismissed = controller.dismissInternalV1(dismissKind);
+        expectExactHistoryLifecycleResultV1(dismissed, "dismissed");
+        if (canonicalDismissed === null) canonicalDismissed = dismissed;
+        else expect(dismissed).toBe(canonicalDismissed);
+        expect(current.fixture.runtime.renderSource.getSnapshotInternalV1().entries).toEqual([
+          expect.objectContaining({ kind: "dialogue", phase: "active" }),
+        ]);
+        const stale = controller.dismissInternalV1(dismissKind);
+        expectExactHistoryLifecycleResultV1(stale, "stale");
+        if (canonicalStale === null) canonicalStale = stale;
+        else expect(stale).toBe(canonicalStale);
+        current.fixture.runtime.attachment.releaseInternalV1();
+        current.fixture.disposePortal();
+      }
+    }
+  });
+
+  it("routes initial-root and preparing-History fallback input without lower fallthrough", () => {
+    const rootFixture = createNarrativeHostFixtureV1();
+    expect(rootFixture.harness.bridge.reconcilePendingInternalV1(pendingV1("say", 70)))
+      .toMatchObject({ kind: "applied" });
+    const root = preparingEntryV1(rootFixture.runtime, "dialogue");
+    if (root.kind !== "dialogue" || root.preparation === null) {
+      throw new Error("expected preparing Dialogue root");
+    }
+    const lowerRoot = vi.fn(() => inputHandledV1);
+    const unregisterLowerRoot = rootFixture.inputRouter.register({
+      context: "gameplay",
+      handle: lowerRoot,
+    });
+    const rootState = rootFixture.harness.kernel.getStateInternalV1();
+    for (
+      const actionId of [
+        playerInputActionIdsV1.toggleHistory,
+        playerInputActionIdsV1.toggleAuto,
+        systemInputActionIdsV1.cancel,
+      ]
+    ) {
+      expect(rootFixture.inputRouter.route(Object.freeze({ kind: "action" as const, actionId })))
+        .toEqual({ kind: "handled", context: "narrative" });
+      expect(rootFixture.harness.kernel.getStateInternalV1()).toBe(rootState);
+    }
+    expect(rootFixture.inputRouter.route(Object.freeze({
+      kind: "viewport_point" as const,
+      phase: "activate" as const,
+      point: Object.freeze({ x: 1, y: 2 }),
+      pointerId: parseNonNegativeSafeInteger(1),
+      pointerType: "mouse" as const,
+    }))).toEqual({ kind: "handled", context: "narrative" });
+    expect(lowerRoot).not.toHaveBeenCalled();
+    expect(rootFixture.runtime.attachment.settleRootReadinessFailedInternalV1(
+      root.preparation,
+    )).toEqual({ kind: "settled", completion: null });
+    unregisterLowerRoot();
+    rootFixture.runtime.attachment.releaseInternalV1();
+    rootFixture.disposePortal();
+
+    for (
+      const [index, actionId] of [
+        playerInputActionIdsV1.toggleHistory,
+        systemInputActionIdsV1.cancel,
+      ].entries()
+    ) {
+      const current = createPreparingHistoryHostFixtureV1(
+        `fallback-close-${String(index)}`,
+        71 + index,
+      );
+      const controller = exactHistoryControllerV1(current.historyEntry);
+      const lowerHistory = vi.fn(() => inputHandledV1);
+      const unregisterLowerHistory = current.fixture.inputRouter.register({
+        context: "gameplay",
+        handle: lowerHistory,
+      });
+      expect(current.fixture.inputRouter.route(Object.freeze({
+        kind: "action" as const,
+        actionId: playerInputActionIdsV1.toggleAuto,
+      }))).toEqual({ kind: "handled", context: "narrative" });
+      expect(current.fixture.inputRouter.route(Object.freeze({
+        kind: "viewport_point" as const,
+        phase: "begin" as const,
+        point: Object.freeze({ x: 3, y: 4 }),
+        pointerId: parseNonNegativeSafeInteger(2),
+        pointerType: "touch" as const,
+      }))).toEqual({ kind: "handled", context: "narrative" });
+      expect(currentHistoryEntryV1(current.fixture.runtime, "preparing").controller)
+        .toBe(controller);
+      expect(current.fixture.inputRouter.route(Object.freeze({
+        kind: "action" as const,
+        actionId,
+      }))).toEqual({ kind: "handled", context: "narrative" });
+      expect(current.fixture.runtime.renderSource.getSnapshotInternalV1().entries).toEqual([
+        expect.objectContaining({ kind: "dialogue", phase: "active" }),
+      ]);
+      expectExactHistoryLifecycleResultV1(controller.closeInternalV1(), "stale");
+      expect(lowerHistory).not.toHaveBeenCalled();
+      unregisterLowerHistory();
+      current.fixture.runtime.attachment.releaseInternalV1();
+      current.fixture.disposePortal();
+    }
+  });
+
+  it("physically unregisters each fallback after ready, failure, or explicit close", () => {
+    const registrations = trackManagedInputRegistrationsV1();
+
+    for (const outcome of ["ready", "failed"] as const) {
+      const fixture = createNarrativeHostFixtureV1();
+      expect(fixture.harness.bridge.reconcilePendingInternalV1(
+        pendingV1("say", outcome === "ready" ? 73 : 74),
+      )).toMatchObject({ kind: "applied" });
+      const root = preparingEntryV1(fixture.runtime, "dialogue");
+      if (root.kind !== "dialogue" || root.preparation === null) {
+        throw new Error("expected preparing Dialogue fallback");
+      }
+      expect(registrations.activeCount(fixture.inputRouter)).toBe(2);
+      const settled = outcome === "ready"
+        ? fixture.runtime.attachment.settleRootReadinessReadyInternalV1(
+          root.preparation,
+          prepareReadyCommitV1(fixture.runtime, root, fixture.portalContainer),
+        )
+        : fixture.runtime.attachment.settleRootReadinessFailedInternalV1(root.preparation);
+      expect(settled).toEqual({ kind: "settled", completion: null });
+      expect(registrations.activeCount(fixture.inputRouter)).toBe(1);
+      fixture.runtime.attachment.releaseInternalV1();
+      fixture.disposePortal();
+    }
+
+    for (const outcome of ["closed", "ready", "failed"] as const) {
+      const current = createPreparingHistoryHostFixtureV1(
+        `fallback-history-${outcome}`,
+        outcome === "closed" ? 75 : outcome === "ready" ? 76 : 77,
+      );
+      expect(registrations.activeCount(current.fixture.inputRouter)).toBe(2);
+      const settled = outcome === "closed"
+        ? exactHistoryControllerV1(current.historyEntry).closeInternalV1()
+        : outcome === "ready"
+        ? current.fixture.runtime.attachment.settleHistoryReadinessReadyInternalV1(
+          current.historyPreparation,
+          prepareReadyCommitV1(
+            current.fixture.runtime,
+            current.historyEntry,
+            current.fixture.portalContainer,
+          ),
+        )
+        : current.fixture.runtime.attachment.settleHistoryReadinessFailedInternalV1(
+          current.historyPreparation,
+        );
+      expect(settled).toMatchObject({
+        kind: outcome === "closed" ? "closed" : "settled",
+        completion: null,
+      });
+      expect(registrations.activeCount(current.fixture.inputRouter)).toBe(1);
+      current.fixture.runtime.attachment.releaseInternalV1();
+      current.fixture.disposePortal();
+    }
+  });
+
+  it("commits the fresh root binding before close publication and preserves listener-reentrant ABA", () => {
+    const prepareBinding = vi.spyOn(
+      managedSurfaceActionRouteModuleV1,
+      "prepareManagedSurfaceContractBoundActionBindingInternalV1",
+    );
+    const { fixture, historyEntry } = createReadyHistoryHostFixtureV1(
+      "close-listener-reentry",
+      75,
+    );
+    const controller = exactHistoryControllerV1(historyEntry);
+    const rootBefore = fixture.runtime.renderSource.getSnapshotInternalV1().entries.find((entry) =>
+      entry.kind === "dialogue"
+    );
+    if (rootBefore?.kind !== "dialogue") throw new Error("expected retained Dialogue root");
+    const preparedBeforeClose = prepareBinding.mock.results.length;
+    let nestedPreparation: NarrativeStableHistoryChildPreparationInternalV1 | null = null;
+    let nestedController: NarrativeStableHistoryChildControllerInternalV1 | null = null;
+    let reentered = false;
+    const unsubscribe = fixture.runtime.renderSource.subscribeInternalV1(() => {
+      const snapshot = fixture.runtime.renderSource.getSnapshotInternalV1();
+      if (reentered || snapshot.entries.some((entry) => entry.kind === "history")) return;
+      reentered = true;
+      expect(snapshot.entries).toEqual([
+        expect.objectContaining({
+          kind: "dialogue",
+          phase: "active",
+          renderKey: rootBefore.renderKey,
+        }),
+      ]);
+      const closePreparedBindings = prepareBinding.mock.results.slice(preparedBeforeClose)
+        .flatMap((result) =>
+          result.type === "return"
+            ? [result.value as ManagedSurfacePreparedContractBoundActionBindingInternalV1]
+            : []
+        );
+      expect(closePreparedBindings.length).toBeGreaterThan(0);
+      expect(closePreparedBindings.some((binding) => binding.getBindingInternalV1() !== null)).toBe(
+        true,
+      );
+
+      const minted = mintHistoryIntentV1(
+        fixture.harness,
+        "close-listener-fresh-child",
+        fixture.inputRouter,
+        fixture.isGestureCurrent,
+      );
+      const nested = fixture.session.getHistoryChildLifecycleInternalV1()
+        .redeemHistoryOpenIntentInternalV1(minted.intent);
+      minted.dispose();
+      if (nested.kind !== "preparing") {
+        throw new Error("expected listener-reentrant History preparation");
+      }
+      nestedPreparation = nested.preparation;
+      const freshEntry = currentHistoryEntryV1(fixture.runtime, "preparing");
+      expect(freshEntry.parentRenderKey).toBe(rootBefore.renderKey);
+      nestedController = exactHistoryControllerV1(freshEntry);
+    });
+
+    const outer = controller.closeInternalV1();
+    expectExactHistoryLifecycleResultV1(outer, "closed");
+    expect(reentered).toBe(true);
+    expect(nestedPreparation).not.toBeNull();
+    expect(nestedController).not.toBeNull();
+    expect(nestedController).not.toBe(controller);
+    expectExactHistoryLifecycleResultV1(controller.closeInternalV1(), "stale");
+    const freshController =
+      nestedController as unknown as NarrativeStableHistoryChildControllerInternalV1;
+    expect(currentHistoryEntryV1(fixture.runtime, "preparing").controller)
+      .toBe(freshController);
+    expectExactHistoryLifecycleResultV1(
+      freshController.dismissInternalV1("back"),
+      "dismissed",
+    );
+    unsubscribe();
+    fixture.runtime.attachment.releaseInternalV1();
+    fixture.disposePortal();
+  });
+
+  it("retains a History controller across failed root replacement and fences it on cutover", () => {
+    const failed = createConcurrentPendingHostFixtureV1("controller-root-failure", 76);
+    const retainedController = exactHistoryControllerV1(
+      currentHistoryEntryV1(failed.fixture.runtime, "preparing"),
+    );
+    expect(failed.fixture.runtime.attachment.settleRootReadinessFailedInternalV1(
+      failed.replacementPreparation,
+    )).toEqual({ kind: "settled", completion: null });
+    expect(exactHistoryControllerV1(
+      currentHistoryEntryV1(failed.fixture.runtime, "preparing"),
+    )).toBe(retainedController);
+    expectExactHistoryLifecycleResultV1(retainedController.closeInternalV1(), "closed");
+    failed.fixture.runtime.attachment.releaseInternalV1();
+    failed.fixture.disposePortal();
+
+    const cutover = createConcurrentPendingHostFixtureV1("controller-root-cutover", 78);
+    const retiredController = exactHistoryControllerV1(
+      currentHistoryEntryV1(cutover.fixture.runtime, "preparing"),
+    );
+    const replacementEntry = cutover.fixture.runtime.renderSource.getSnapshotInternalV1().entries
+      .findLast((entry) => entry.kind === "dialogue" && entry.phase === "preparing");
+    if (replacementEntry?.kind !== "dialogue" || replacementEntry.preparation === null) {
+      throw new Error("expected root replacement entry");
+    }
+    expect(cutover.fixture.runtime.attachment.settleRootReadinessReadyInternalV1(
+      cutover.replacementPreparation,
+      prepareReadyCommitV1(
+        cutover.fixture.runtime,
+        replacementEntry,
+        cutover.fixture.portalContainer,
+      ),
+    )).toEqual({ kind: "settled", completion: null });
+    expect(cutover.fixture.runtime.renderSource.getSnapshotInternalV1().entries).toEqual([
+      expect.objectContaining({ kind: "dialogue", phase: "active" }),
+    ]);
+    expectExactHistoryLifecycleResultV1(retiredController.closeInternalV1(), "stale");
+    cutover.fixture.runtime.attachment.releaseInternalV1();
+    cutover.fixture.disposePortal();
+  });
+
+  it.each(
+    [
+      [toggleHistoryActionIdV1, "closed"],
+      [cancelHistoryActionIdV1, "dismissed"],
+    ] as const,
+  )(
+    "routes ready History %s through one action_routed close result %s",
+    (actionId, expectedKind) => {
+      const prepareBinding = vi.spyOn(
+        managedSurfaceActionRouteModuleV1,
+        "prepareManagedSurfaceContractBoundActionBindingInternalV1",
+      );
+      const preclaimRoute = vi.spyOn(
+        managedSurfaceActionRouteModuleV1,
+        "claimManagedSurfacePreparedAuthenticatedActionRouteInternalV1",
+      );
+      const { fixture, historyEntry } = createReadyHistoryHostFixtureV1(
+        `ready-action-${expectedKind}`,
+        expectedKind === "closed" ? 80 : 81,
+      );
+      const controller = exactHistoryControllerV1(historyEntry);
+      const lower = vi.fn(() => inputHandledV1);
+      const unregisterLower = fixture.inputRouter.register({
+        context: "gameplay",
+        handle: lower,
+      });
+      const preparedBeforeAdoption = prepareBinding.mock.calls.length;
+      const claimsBeforeAdoption = preclaimRoute.mock.calls.length;
+      const historyAdmission = createNarrativeStablePhysicalActionAdmissionInternalV1({
+        bridge: fixture.harness.bridge,
+        inputRouter: fixture.inputRouter,
+        isGestureCurrent: fixture.isGestureCurrent,
+      });
+      expect(prepareBinding).toHaveBeenCalledTimes(preparedBeforeAdoption);
+      expect(preclaimRoute).toHaveBeenCalledTimes(claimsBeforeAdoption);
+
+      const stateBeforeAttemptForgery = fixture.harness.kernel.getStateInternalV1();
+      const renderBeforeAttemptForgery = fixture.runtime.renderSource.getSnapshotInternalV1();
+      const notificationsBeforeAttemptForgery = fixture.harness.stateNotificationCount();
+      const attemptTrap = {
+        get: vi.fn(() => {
+          throw new Error("History close attempt must remain unread");
+        }),
+        ownKeys: vi.fn(() => {
+          throw new Error("History close attempt must remain unreflected");
+        }),
+        getOwnPropertyDescriptor: vi.fn(() => {
+          throw new Error("History close attempt descriptor must remain unread");
+        }),
+      };
+      const forgedAttempt = new Proxy({}, attemptTrap);
+      const forgedRoute = historyAdmission.routeInternalV1(
+        historyAdmission.createEnvelopeInternalV1({
+          actionId,
+          gestureId: parseManagedSurfaceGestureIdV1(
+            `gesture.session-test.ready-forged-${expectedKind}`,
+          ),
+        }),
+        forgedAttempt,
+      );
+      expect(forgedRoute).toMatchObject({
+        route: {
+          input: { kind: "consumed", code: "input.managed_surface_consumed" },
+          surface: { kind: "unchanged", code: "surface.action_routed" },
+        },
+        consumerResult: { kind: "stale", completion: null },
+      });
+      expect(attemptTrap.get).not.toHaveBeenCalled();
+      expect(attemptTrap.ownKeys).not.toHaveBeenCalled();
+      expect(attemptTrap.getOwnPropertyDescriptor).not.toHaveBeenCalled();
+      expect(fixture.harness.kernel.getStateInternalV1()).toBe(stateBeforeAttemptForgery);
+      expect(fixture.runtime.renderSource.getSnapshotInternalV1()).toBe(
+        renderBeforeAttemptForgery,
+      );
+      expect(fixture.harness.stateNotificationCount()).toBe(notificationsBeforeAttemptForgery);
+
+      const routed = historyAdmission.routeInternalV1(
+        historyAdmission.createEnvelopeInternalV1({
+          actionId,
+          gestureId: parseManagedSurfaceGestureIdV1(
+            `gesture.session-test.ready-${expectedKind}`,
+          ),
+        }),
+        null,
+      );
+      expect(routed).toMatchObject({
+        route: {
+          input: { kind: "consumed", code: "input.managed_surface_consumed" },
+          surface: { kind: "unchanged", code: "surface.action_routed" },
+        },
+        consumerResult: { kind: expectedKind, completion: null },
+      });
+      if (routed.consumerResult === null) throw new Error("expected History consumer result");
+      expectExactHistoryLifecycleResultV1(
+        routed.consumerResult as NarrativeStableHistoryChildLifecycleResultInternalV1,
+        expectedKind,
+      );
+      expect(fixture.runtime.renderSource.getSnapshotInternalV1().entries).toEqual([
+        expect.objectContaining({ kind: "dialogue", phase: "active" }),
+      ]);
+      expectExactHistoryLifecycleResultV1(controller.closeInternalV1(), "stale");
+      expect(lower).not.toHaveBeenCalled();
+
+      historyAdmission.disposeInternalV1();
+      unregisterLower();
+      fixture.runtime.attachment.releaseInternalV1();
+      fixture.disposePortal();
+    },
+  );
+
+  it("churns 10k fallback controllers without retaining child, registration, or DOM state", () => {
+    const fixture = createNarrativeHostFixtureV1();
+    expect(fixture.harness.bridge.reconcilePendingInternalV1(pendingV1("say", 90)))
+      .toMatchObject({ kind: "applied" });
+    const root = preparingEntryV1(fixture.runtime, "dialogue");
+    if (root.kind !== "dialogue" || root.preparation === null) {
+      throw new Error("expected bounded root preparation");
+    }
+    expect(fixture.runtime.attachment.settleRootReadinessReadyInternalV1(
+      root.preparation,
+      prepareReadyCommitV1(fixture.runtime, root, fixture.portalContainer),
+    )).toEqual({ kind: "settled", completion: null });
+    const retainedRoot = fixture.runtime.renderSource.getSnapshotInternalV1().entries[0];
+    if (retainedRoot?.kind !== "dialogue") throw new Error("expected bounded retained root");
+    const initialState = fixture.harness.kernel.getStateInternalV1();
+    const initialNotifications = fixture.harness.stateNotificationCount();
+    const initialPortalChildren = fixture.portalContainer.childElementCount;
+    const lower = vi.fn(() => inputHandledV1);
+    const unregisterLower = fixture.inputRouter.register({
+      context: "gameplay",
+      handle: lower,
+    });
+    let previousController: NarrativeStableHistoryChildControllerInternalV1 | null = null;
+    let canonicalClosed: NarrativeStableHistoryChildLifecycleResultInternalV1 | null = null;
+    let canonicalDismissed: NarrativeStableHistoryChildLifecycleResultInternalV1 | null = null;
+    let canonicalStale: NarrativeStableHistoryChildLifecycleResultInternalV1 | null = null;
+
+    for (let index = 0; index < 10_000; index += 1) {
+      const minted = mintHistoryIntentV1(
+        fixture.harness,
+        `bounded-controller-${String(index)}`,
+        fixture.inputRouter,
+        fixture.isGestureCurrent,
+      );
+      const prepared = fixture.session.getHistoryChildLifecycleInternalV1()
+        .redeemHistoryOpenIntentInternalV1(minted.intent);
+      minted.dispose();
+      if (prepared.kind !== "preparing") {
+        throw new Error("expected bounded History preparation");
+      }
+      const entry = currentHistoryEntryV1(fixture.runtime, "preparing");
+      const controller = exactHistoryControllerV1(entry);
+      if (controller === previousController) throw new Error("expected fresh bounded controller");
+      if (previousController !== null) {
+        const predecessorStale = previousController.closeInternalV1();
+        if (canonicalStale === null) canonicalStale = predecessorStale;
+        else expect(predecessorStale).toBe(canonicalStale);
+        expectExactHistoryLifecycleResultV1(predecessorStale, "stale");
+      }
+      expect(fixture.inputRouter.route(Object.freeze({
+        kind: "action" as const,
+        actionId: playerInputActionIdsV1.toggleAuto,
+      }))).toEqual({ kind: "handled", context: "narrative" });
+      expect(currentHistoryEntryV1(fixture.runtime, "preparing").controller).toBe(controller);
+
+      const result = index % 2 === 0
+        ? controller.closeInternalV1()
+        : controller.dismissInternalV1("back");
+      if (index % 2 === 0) {
+        expectExactHistoryLifecycleResultV1(result, "closed");
+        if (canonicalClosed === null) canonicalClosed = result;
+        else expect(result).toBe(canonicalClosed);
+      } else {
+        expectExactHistoryLifecycleResultV1(result, "dismissed");
+        if (canonicalDismissed === null) canonicalDismissed = result;
+        else expect(result).toBe(canonicalDismissed);
+      }
+      previousController = controller;
+    }
+
+    const finalState = fixture.harness.kernel.getStateInternalV1();
+    expect(finalState.transientState.publication.orderedInstances).toEqual([]);
+    expect(finalState.transientState.identitySequenceHighWater).toBe(
+      initialState.transientState.identitySequenceHighWater + 10_000,
+    );
+    expect(finalState.stableRuntimeBindings).toHaveLength(1);
+    expect(finalState.stableRuntimeBindings[0]?.binding).toMatchObject({
+      kind: "ready_instance",
+      instance: { phase: "active" },
+    });
+    expect(fixture.runtime.renderSource.getSnapshotInternalV1().entries).toEqual([
+      expect.objectContaining({
+        kind: "dialogue",
+        phase: "active",
+        renderKey: retainedRoot.renderKey,
+      }),
+    ]);
+    expect(fixture.harness.stateNotificationCount()).toBe(initialNotifications + 20_000);
+    expect(fixture.portalContainer.childElementCount).toBe(initialPortalChildren);
+    expect(lower).not.toHaveBeenCalled();
+    unregisterLower();
+    fixture.runtime.attachment.releaseInternalV1();
     fixture.disposePortal();
   });
 
