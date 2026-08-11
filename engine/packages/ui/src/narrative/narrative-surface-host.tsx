@@ -30,6 +30,400 @@ import type {
   NarrativeStableSessionInternalV1,
 } from "./narrative-managed-surface-session.ts";
 
+export interface NarrativeSurfaceHostPhysicalIngressContextInternalV1 {
+  readonly inputRouter: InputRouterV1;
+  readonly isGestureCurrent: (
+    gestureId: ManagedSurfaceGestureIdV1,
+  ) => boolean;
+  readonly isCurrentInternalV1: () => boolean;
+}
+
+export interface RegisterNarrativeSurfaceHostPhysicalIngressInputInternalV1 {
+  readonly session: NarrativeStableSessionInternalV1;
+  readonly portalContainer: HTMLDivElement;
+  readonly inputRouter: InputRouterV1;
+  readonly attachInternalV1: (
+    context: NarrativeSurfaceHostPhysicalIngressContextInternalV1,
+  ) => () => void;
+}
+
+type NarrativeSurfaceHostPhysicalIngressAttachInternalV1 =
+  RegisterNarrativeSurfaceHostPhysicalIngressInputInternalV1["attachInternalV1"];
+
+interface NarrativeSurfaceHostPhysicalIngressGenerationInternalV1 {
+  active: boolean;
+  runtime: NarrativeStableHostRuntimeInternalV1 | null;
+  detach: (() => void) | null;
+  detachCalled: boolean;
+}
+
+interface NarrativeSurfaceHostPhysicalIngressRegistrationInternalV1 {
+  active: boolean;
+  session: NarrativeStableSessionInternalV1 | null;
+  portalContainer: HTMLDivElement | null;
+  inputRouter: InputRouterV1 | null;
+  attach: NarrativeSurfaceHostPhysicalIngressAttachInternalV1 | null;
+  generation: NarrativeSurfaceHostPhysicalIngressGenerationInternalV1 | null;
+}
+
+interface NarrativeSurfaceHostPhysicalIngressPortalRegistryInternalV1 {
+  readonly registrations: WeakMap<
+    InputRouterV1,
+    NarrativeSurfaceHostPhysicalIngressRegistrationInternalV1
+  >;
+  activeRegistrationCount: number;
+}
+
+interface NarrativeSurfaceHostPhysicalIngressSessionRegistryInternalV1 {
+  readonly portals: WeakMap<
+    HTMLDivElement,
+    NarrativeSurfaceHostPhysicalIngressPortalRegistryInternalV1
+  >;
+  activePortalCount: number;
+}
+
+const narrativeSurfaceHostPhysicalIngressInvalidInternalV1 =
+  "ui.narrative_surface_host_physical_ingress_invalid";
+const narrativeSurfaceHostPhysicalIngressRegistrationsInternalV1 = new WeakMap<
+  NarrativeStableSessionInternalV1,
+  NarrativeSurfaceHostPhysicalIngressSessionRegistryInternalV1
+>();
+
+function isNarrativeSurfaceHostPhysicalIngressCallableInternalV1(
+  value: unknown,
+): value is (...args: never[]) => unknown {
+  if (typeof value !== "function") return false;
+  try {
+    if (Reflect.get(value, "then") !== undefined) return false;
+    const visited = new Set<object>();
+    let current: object | null = value;
+    while (current !== null) {
+      if (visited.has(current)) return false;
+      visited.add(current);
+      if (Reflect.getOwnPropertyDescriptor(current, "then") !== undefined) return false;
+      current = Reflect.getPrototypeOf(current);
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function captureNarrativeSurfaceHostPhysicalIngressRecordInternalV1(
+  value: unknown,
+  expectedKeys: readonly string[],
+): Readonly<Record<string, unknown>> | null {
+  try {
+    if (
+      typeof value !== "object" || value === null || Array.isArray(value) ||
+      Reflect.getPrototypeOf(value) !== Object.prototype || !Object.isFrozen(value)
+    ) return null;
+    const ownKeys = Reflect.ownKeys(value);
+    if (
+      ownKeys.length !== expectedKeys.length ||
+      ownKeys.some((key) => typeof key !== "string" || !expectedKeys.includes(key))
+    ) return null;
+    const captured: Record<string, unknown> = Object.create(null);
+    for (const key of expectedKeys) {
+      const descriptor = Reflect.getOwnPropertyDescriptor(value, key);
+      if (
+        descriptor === undefined || !("value" in descriptor) || descriptor.enumerable !== true ||
+        descriptor.configurable !== false || descriptor.writable !== false ||
+        Reflect.get(value, key) !== descriptor.value
+      ) return null;
+      captured[key] = descriptor.value;
+    }
+    return captured;
+  } catch {
+    return null;
+  }
+}
+
+function isNarrativeSurfaceHostPhysicalIngressSessionInternalV1(
+  value: unknown,
+): value is NarrativeStableSessionInternalV1 {
+  const captured = captureNarrativeSurfaceHostPhysicalIngressRecordInternalV1(value, [
+    "getReadinessSnapshotInternalV1",
+    "subscribeInternalV1",
+    "getHistoryChildLifecycleInternalV1",
+    "attachHostInternalV1",
+  ]);
+  return captured !== null &&
+    isNarrativeSurfaceHostPhysicalIngressCallableInternalV1(
+      captured.getReadinessSnapshotInternalV1,
+    ) &&
+    isNarrativeSurfaceHostPhysicalIngressCallableInternalV1(captured.subscribeInternalV1) &&
+    isNarrativeSurfaceHostPhysicalIngressCallableInternalV1(
+      captured.getHistoryChildLifecycleInternalV1,
+    ) &&
+    isNarrativeSurfaceHostPhysicalIngressCallableInternalV1(captured.attachHostInternalV1);
+}
+
+function isNarrativeSurfaceHostPhysicalIngressRouterInternalV1(
+  value: unknown,
+): value is InputRouterV1 {
+  const captured = captureNarrativeSurfaceHostPhysicalIngressRecordInternalV1(value, [
+    "register",
+    "route",
+    "clearTransientInput",
+  ]);
+  return captured !== null &&
+    isNarrativeSurfaceHostPhysicalIngressCallableInternalV1(captured.register) &&
+    isNarrativeSurfaceHostPhysicalIngressCallableInternalV1(captured.route) &&
+    isNarrativeSurfaceHostPhysicalIngressCallableInternalV1(captured.clearTransientInput);
+}
+
+function isNarrativeSurfaceHostPhysicalIngressPortalContainerInternalV1(
+  value: unknown,
+): value is HTMLDivElement {
+  try {
+    return typeof HTMLDivElement === "function" && value instanceof HTMLDivElement;
+  } catch {
+    return false;
+  }
+}
+
+function getNarrativeSurfaceHostPhysicalIngressRegistrationInternalV1(
+  session: NarrativeStableSessionInternalV1,
+  portalContainer: HTMLDivElement,
+  inputRouter: InputRouterV1,
+): NarrativeSurfaceHostPhysicalIngressRegistrationInternalV1 | null {
+  return narrativeSurfaceHostPhysicalIngressRegistrationsInternalV1.get(session)
+    ?.portals.get(portalContainer)?.registrations.get(inputRouter) ?? null;
+}
+
+function setNarrativeSurfaceHostPhysicalIngressRegistrationInternalV1(
+  session: NarrativeStableSessionInternalV1,
+  portalContainer: HTMLDivElement,
+  inputRouter: InputRouterV1,
+  registration: NarrativeSurfaceHostPhysicalIngressRegistrationInternalV1,
+): void {
+  let sessionRegistry = narrativeSurfaceHostPhysicalIngressRegistrationsInternalV1.get(session);
+  if (sessionRegistry === undefined) {
+    sessionRegistry = {
+      portals: new WeakMap(),
+      activePortalCount: 0,
+    };
+    narrativeSurfaceHostPhysicalIngressRegistrationsInternalV1.set(session, sessionRegistry);
+  }
+  let portalRegistry = sessionRegistry.portals.get(portalContainer);
+  if (portalRegistry === undefined) {
+    portalRegistry = {
+      registrations: new WeakMap(),
+      activeRegistrationCount: 0,
+    };
+    sessionRegistry.portals.set(portalContainer, portalRegistry);
+    sessionRegistry.activePortalCount += 1;
+  }
+  portalRegistry.registrations.set(inputRouter, registration);
+  portalRegistry.activeRegistrationCount += 1;
+}
+
+function deleteNarrativeSurfaceHostPhysicalIngressRegistrationInternalV1(
+  registration: NarrativeSurfaceHostPhysicalIngressRegistrationInternalV1,
+): void {
+  const session = registration.session;
+  const portalContainer = registration.portalContainer;
+  const inputRouter = registration.inputRouter;
+  if (
+    session === null || portalContainer === null || inputRouter === null ||
+    getNarrativeSurfaceHostPhysicalIngressRegistrationInternalV1(
+        session,
+        portalContainer,
+        inputRouter,
+      ) !== registration
+  ) return;
+  const sessionRegistry = narrativeSurfaceHostPhysicalIngressRegistrationsInternalV1.get(session);
+  const portalRegistry = sessionRegistry?.portals.get(portalContainer);
+  if (sessionRegistry === undefined || portalRegistry === undefined) return;
+  portalRegistry.registrations.delete(inputRouter);
+  portalRegistry.activeRegistrationCount -= 1;
+  if (portalRegistry.activeRegistrationCount !== 0) return;
+  sessionRegistry.portals.delete(portalContainer);
+  sessionRegistry.activePortalCount -= 1;
+  if (sessionRegistry.activePortalCount === 0) {
+    narrativeSurfaceHostPhysicalIngressRegistrationsInternalV1.delete(session);
+  }
+}
+
+function isNarrativeSurfaceHostPhysicalIngressRegistrationCurrentInternalV1(
+  registration: NarrativeSurfaceHostPhysicalIngressRegistrationInternalV1,
+): boolean {
+  const session = registration.session;
+  const portalContainer = registration.portalContainer;
+  const inputRouter = registration.inputRouter;
+  return registration.active && session !== null && portalContainer !== null &&
+    inputRouter !== null &&
+    getNarrativeSurfaceHostPhysicalIngressRegistrationInternalV1(
+        session,
+        portalContainer,
+        inputRouter,
+      ) === registration;
+}
+
+function detachNarrativeSurfaceHostPhysicalIngressGenerationInternalV1(
+  generation: NarrativeSurfaceHostPhysicalIngressGenerationInternalV1,
+): void {
+  const detach = generation.detach;
+  if (detach === null || generation.detachCalled) return;
+  generation.detachCalled = true;
+  generation.detach = null;
+  try {
+    Reflect.apply(detach, undefined, []);
+  } catch {
+    // Physical-ingress detachment cannot interrupt Host attachment cleanup.
+  }
+}
+
+function fenceNarrativeSurfaceHostPhysicalIngressGenerationInternalV1(
+  registration: NarrativeSurfaceHostPhysicalIngressRegistrationInternalV1,
+  generation: NarrativeSurfaceHostPhysicalIngressGenerationInternalV1,
+): void {
+  generation.active = false;
+  if (registration.generation === generation) registration.generation = null;
+}
+
+function releaseNarrativeSurfaceHostPhysicalIngressRegistrationInternalV1(
+  registration: NarrativeSurfaceHostPhysicalIngressRegistrationInternalV1,
+): void {
+  if (!registration.active) return;
+  registration.active = false;
+  const generation = registration.generation;
+  registration.generation = null;
+  deleteNarrativeSurfaceHostPhysicalIngressRegistrationInternalV1(registration);
+  registration.session = null;
+  registration.portalContainer = null;
+  registration.inputRouter = null;
+  registration.attach = null;
+  if (generation === null) return;
+  generation.active = false;
+  detachNarrativeSurfaceHostPhysicalIngressGenerationInternalV1(generation);
+}
+
+export function registerNarrativeSurfaceHostPhysicalIngressInternalV1(
+  input: RegisterNarrativeSurfaceHostPhysicalIngressInputInternalV1,
+): () => void {
+  const captured = captureNarrativeSurfaceHostPhysicalIngressRecordInternalV1(input, [
+    "session",
+    "portalContainer",
+    "inputRouter",
+    "attachInternalV1",
+  ]);
+  const session = captured?.session;
+  const portalContainer = captured?.portalContainer;
+  const inputRouter = captured?.inputRouter;
+  const attach = captured?.attachInternalV1;
+  if (
+    !isNarrativeSurfaceHostPhysicalIngressSessionInternalV1(session) ||
+    !isNarrativeSurfaceHostPhysicalIngressPortalContainerInternalV1(portalContainer) ||
+    !isNarrativeSurfaceHostPhysicalIngressRouterInternalV1(inputRouter) ||
+    !isNarrativeSurfaceHostPhysicalIngressCallableInternalV1(attach) ||
+    getNarrativeSurfaceHostPhysicalIngressRegistrationInternalV1(
+        session,
+        portalContainer,
+        inputRouter,
+      ) !== null
+  ) {
+    throw new TypeError(narrativeSurfaceHostPhysicalIngressInvalidInternalV1);
+  }
+  const registration: NarrativeSurfaceHostPhysicalIngressRegistrationInternalV1 = {
+    active: true,
+    session,
+    portalContainer,
+    inputRouter,
+    attach: attach as NarrativeSurfaceHostPhysicalIngressAttachInternalV1,
+    generation: null,
+  };
+  const cleanup = Object.freeze((): void => {
+    releaseNarrativeSurfaceHostPhysicalIngressRegistrationInternalV1(registration);
+  });
+  setNarrativeSurfaceHostPhysicalIngressRegistrationInternalV1(
+    session,
+    portalContainer,
+    inputRouter,
+    registration,
+  );
+  return cleanup;
+}
+
+function isNarrativeSurfaceHostPhysicalIngressGenerationCurrentInternalV1(
+  registration: NarrativeSurfaceHostPhysicalIngressRegistrationInternalV1,
+  generation: NarrativeSurfaceHostPhysicalIngressGenerationInternalV1,
+): boolean {
+  const runtime = generation.runtime;
+  if (
+    runtime === null || !generation.active || registration.generation !== generation ||
+    !isNarrativeSurfaceHostPhysicalIngressRegistrationCurrentInternalV1(registration)
+  ) return false;
+  try {
+    return isNarrativeStableHostRuntimeCurrentInternalV1(runtime);
+  } catch {
+    return false;
+  }
+}
+
+function claimNarrativeSurfaceHostPhysicalIngressGenerationInternalV1(
+  session: NarrativeStableSessionInternalV1,
+  portalContainer: HTMLDivElement,
+  inputRouter: InputRouterV1,
+  isGestureCurrent: (gestureId: ManagedSurfaceGestureIdV1) => boolean,
+  runtime: NarrativeStableHostRuntimeInternalV1,
+):
+  | Readonly<{
+    readonly registration: NarrativeSurfaceHostPhysicalIngressRegistrationInternalV1;
+    readonly generation: NarrativeSurfaceHostPhysicalIngressGenerationInternalV1;
+    readonly context: NarrativeSurfaceHostPhysicalIngressContextInternalV1;
+    readonly attach: NarrativeSurfaceHostPhysicalIngressAttachInternalV1;
+  }>
+  | null {
+  const registration = getNarrativeSurfaceHostPhysicalIngressRegistrationInternalV1(
+    session,
+    portalContainer,
+    inputRouter,
+  );
+  if (registration === null) return null;
+  const attach = registration.attach;
+  if (
+    !isNarrativeSurfaceHostPhysicalIngressRegistrationCurrentInternalV1(registration) ||
+    attach === null || registration.generation !== null
+  ) {
+    throw new TypeError(narrativeSurfaceHostPhysicalIngressInvalidInternalV1);
+  }
+  const generation: NarrativeSurfaceHostPhysicalIngressGenerationInternalV1 = {
+    active: true,
+    runtime,
+    detach: null,
+    detachCalled: false,
+  };
+  registration.generation = generation;
+  const context = Object.freeze({
+    inputRouter,
+    isGestureCurrent,
+    isCurrentInternalV1: (): boolean =>
+      isNarrativeSurfaceHostPhysicalIngressGenerationCurrentInternalV1(
+        registration,
+        generation,
+      ),
+  }) satisfies NarrativeSurfaceHostPhysicalIngressContextInternalV1;
+  return Object.freeze({ registration, generation, context, attach });
+}
+
+function rollbackNarrativeSurfaceHostPhysicalIngressGenerationInternalV1(
+  runtime: NarrativeStableHostRuntimeInternalV1,
+  registration: NarrativeSurfaceHostPhysicalIngressRegistrationInternalV1,
+  generation: NarrativeSurfaceHostPhysicalIngressGenerationInternalV1,
+): void {
+  fenceNarrativeSurfaceHostPhysicalIngressGenerationInternalV1(registration, generation);
+  detachNarrativeSurfaceHostPhysicalIngressGenerationInternalV1(generation);
+  try {
+    runtime.attachment.releaseInternalV1();
+  } catch {
+    // Preserve the physical-ingress setup failure after best-effort runtime rollback.
+  } finally {
+    generation.runtime = null;
+  }
+}
+
 export interface NarrativeSurfaceHostPropsInternalV1 {
   readonly session: NarrativeStableSessionInternalV1;
   readonly portalContainer: HTMLDivElement;
@@ -795,6 +1189,61 @@ export function NarrativeSurfaceHostInternalV1(
       inputRouter: props.inputRouter,
       isGestureCurrent: stableIsGestureCurrent,
     });
+    let physicalIngress: ReturnType<
+      typeof claimNarrativeSurfaceHostPhysicalIngressGenerationInternalV1
+    >;
+    try {
+      physicalIngress = claimNarrativeSurfaceHostPhysicalIngressGenerationInternalV1(
+        props.session,
+        props.portalContainer,
+        props.inputRouter,
+        stableIsGestureCurrent,
+        next,
+      );
+    } catch (error) {
+      try {
+        next.attachment.releaseInternalV1();
+      } catch {
+        // Preserve the physical-ingress claim failure after best-effort runtime rollback.
+      }
+      throw error;
+    }
+    if (physicalIngress !== null) {
+      let detach: unknown;
+      try {
+        detach = Reflect.apply(physicalIngress.attach, undefined, [physicalIngress.context]);
+      } catch (error) {
+        rollbackNarrativeSurfaceHostPhysicalIngressGenerationInternalV1(
+          next,
+          physicalIngress.registration,
+          physicalIngress.generation,
+        );
+        throw error;
+      }
+      if (!isNarrativeSurfaceHostPhysicalIngressCallableInternalV1(detach)) {
+        rollbackNarrativeSurfaceHostPhysicalIngressGenerationInternalV1(
+          next,
+          physicalIngress.registration,
+          physicalIngress.generation,
+        );
+        throw new TypeError(narrativeSurfaceHostPhysicalIngressInvalidInternalV1);
+      }
+      physicalIngress.generation.detach = detach as () => void;
+      if (
+        !isNarrativeSurfaceHostPhysicalIngressGenerationCurrentInternalV1(
+          physicalIngress.registration,
+          physicalIngress.generation,
+        )
+      ) {
+        rollbackNarrativeSurfaceHostPhysicalIngressGenerationInternalV1(
+          next,
+          physicalIngress.registration,
+          physicalIngress.generation,
+        );
+        setMounted(null);
+        return undefined;
+      }
+    }
     setMounted(Object.freeze({
       runtime: next,
       session: props.session,
@@ -802,7 +1251,25 @@ export function NarrativeSurfaceHostInternalV1(
       inputRouter: props.inputRouter,
     }));
     return () => {
-      next.attachment.releaseInternalV1();
+      if (physicalIngress === null) {
+        next.attachment.releaseInternalV1();
+        return;
+      }
+      fenceNarrativeSurfaceHostPhysicalIngressGenerationInternalV1(
+        physicalIngress.registration,
+        physicalIngress.generation,
+      );
+      try {
+        detachNarrativeSurfaceHostPhysicalIngressGenerationInternalV1(
+          physicalIngress.generation,
+        );
+      } finally {
+        try {
+          next.attachment.releaseInternalV1();
+        } finally {
+          physicalIngress.generation.runtime = null;
+        }
+      }
     };
   }, [props.inputRouter, props.portalContainer, props.session, stableIsGestureCurrent]);
   const runtime = mounted !== null && mounted.session === props.session &&

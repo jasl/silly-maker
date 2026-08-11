@@ -804,6 +804,18 @@ import type { claimManagedSurfaceStableExactParentTransientChildLifecycleAuthori
 import type { bindManagedInputRouterFacadeInternalV1 as ForbiddenPublicManagedInputRouterFacadeBindingV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose managed InputRouter facade bindings.
 import type { bindManagedInputRouterFacadeInternalV1 as ForbiddenInternalManagedInputRouterFacadeBindingV1 } from "./internal.ts";
+// @ts-expect-error Narrative Host physical-ingress contexts remain source-relative.
+import type { NarrativeSurfaceHostPhysicalIngressContextInternalV1 as ForbiddenPublicNarrativeSurfaceHostPhysicalIngressContextV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative Host physical-ingress contexts.
+import type { NarrativeSurfaceHostPhysicalIngressContextInternalV1 as ForbiddenInternalNarrativeSurfaceHostPhysicalIngressContextV1 } from "./internal.ts";
+// @ts-expect-error Narrative Host physical-ingress registration inputs remain source-relative.
+import type { RegisterNarrativeSurfaceHostPhysicalIngressInputInternalV1 as ForbiddenPublicNarrativeSurfaceHostPhysicalIngressRegistrationInputV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative Host physical-ingress registration inputs.
+import type { RegisterNarrativeSurfaceHostPhysicalIngressInputInternalV1 as ForbiddenInternalNarrativeSurfaceHostPhysicalIngressRegistrationInputV1 } from "./internal.ts";
+// @ts-expect-error Narrative Host physical-ingress registration remains source-relative.
+import type { registerNarrativeSurfaceHostPhysicalIngressInternalV1 as ForbiddenPublicNarrativeSurfaceHostPhysicalIngressRegistrationV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative Host physical-ingress registration.
+import type { registerNarrativeSurfaceHostPhysicalIngressInternalV1 as ForbiddenInternalNarrativeSurfaceHostPhysicalIngressRegistrationV1 } from "./internal.ts";
 /* oxlint-enable no-unused-vars */
 
 describe("@sillymaker/ui public managed System surface", () => {
@@ -815,6 +827,9 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "ManagedSurfaceStableCompositeStateInstallParticipantInternalV1"
       | "claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1"
       | "bindManagedInputRouterFacadeInternalV1"
+      | "NarrativeSurfaceHostPhysicalIngressContextInternalV1"
+      | "RegisterNarrativeSurfaceHostPhysicalIngressInputInternalV1"
+      | "registerNarrativeSurfaceHostPhysicalIngressInternalV1"
       | "createNarrativeManagedSurfaceFamilyContractInternalV1"
       | "createNarrativeStablePublisherBridgeInternalV1"
       | "deriveManagedSurfaceReducerTopologyProjectionInternalV1"
@@ -1115,6 +1130,9 @@ describe("@sillymaker/ui public managed System surface", () => {
         "ManagedSurfaceStableCompositeStateInstallParticipantInternalV1",
         "claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1",
         "bindManagedInputRouterFacadeInternalV1",
+        "NarrativeSurfaceHostPhysicalIngressContextInternalV1",
+        "RegisterNarrativeSurfaceHostPhysicalIngressInputInternalV1",
+        "registerNarrativeSurfaceHostPhysicalIngressInternalV1",
         "claimManagedSurfaceStablePublisherLeaseDisposalAuthorityInternalV1",
         "createManagedSurfaceStableReadyRuntimeBindingInternalV1",
         "createManagedSurfaceStablePreparingRuntimeBindingInternalV1",
