@@ -66,7 +66,7 @@ substrate、`.4.2` DOM-free Narrative DialoguePlayerController core与`.4.3` dor
 historical；原S4.2.5 broad checkpoint又由completed docs-only `.5.0`细分并转为historical；原`.5.1` broad implementation
 checkpoint也已由`.5.1a`–`.5.1c`细分并转为historical；`.5.1a` managed InputRouter facade corrective与`.5.1b` Host physical ingress corrective
 现也已交付并转为historical。Current/next、core slice与direct RED/implementation gate现推进为
-**S4.3.1a composition-owned shared-kernel substrate（当前）**，随后依次为 **S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（当前） → S4.3.1b → S4b**。
+**S4.3.1b tracked-consumer atomic cutover and promotion（当前）**，随后依次为 **S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（已完成；historical） → S4.3.1b（当前） → S4b**。
 同日 S1-R pre-implementation review 将 external reconcile gate 重切为 S1-R.0–S1-R.5；
 顺序变化不把任何 planned stable-target contract写成 live capability。
 同日 S1-R.3 entry-gate adjudication 采用 A-prime，将原 R3 拆为单一 composite
@@ -111,7 +111,7 @@ prepared state-install participant substrate、S4.2.4.2 DOM-free Narrative Dialo
 player-view integration现也已关闭；原S4.2.5 broad checkpoint已由completed docs-only `.5.0`细分并转为historical；原`.5.1` broad
 implementation checkpoint也已由`.5.1a`–`.5.1c`细分并转为historical；`.5.1a` managed InputRouter facade corrective与`.5.1b` Host physical
 ingress corrective现也已关闭。下一独立切片、current/next、core slice与direct RED/implementation gate均为
-**S4.3.1a composition-owned shared-kernel substrate（当前）**，随后依次为 **S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（当前） → S4.3.1b → S4b**。
+**S4.3.1b tracked-consumer atomic cutover and promotion（当前）**，随后依次为 **S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（已完成；historical） → S4.3.1b（当前） → S4b**。
 旧 promotion 数字保留为
 历史证据。本文是当前唯一的跨计划排序入口；
 具体合同仍由各 design 文档拥有，主要任务由五个独立计划拥有：
@@ -1038,8 +1038,8 @@ Surface pilot 通过后按 family 分开合并：
 53. S4.2.5.1c：dormant Engine Lab Narrative conformance implementation（已完成）；
 54. S4.3 broad checkpoint：atomic live cutover and promotion（historical）；
 55. S4.3.0：production Narrative atomic-cutover exact entry（docs-only，已完成）；
-56. S4.3.1a：composition-owned shared-kernel substrate（当前）；
-57. S4.3.1b：tracked-consumer atomic cutover and promotion；
+56. S4.3.1a：composition-owned shared-kernel substrate（已完成；historical）；
+57. S4.3.1b：tracked-consumer atomic cutover and promotion（当前）；
 58. S4b：whole-canvas primary/detail 独立 family；
 59. input/gesture reset（pointercancel、focus loss、visibility change）与 Browser
     Agent observation。
@@ -1603,7 +1603,7 @@ export、generic stable/action result/delta table与generic receipt/code均无�
 **2026-08-10 S4.1b.1b.1b.2 execution-order amendment：** 原remaining mapping切片拆为
 S4.1b.1b.1b.2a custom physical payload admission与S4.1b.1b.1b.2b remaining say/barrier/player
 adjudication。Linear core current/next均为S4.1b.1b.1b.2a；后续顺序保持
-S4.1b.1b.1b.2a → S4.1b.1b.1b.2b → S4.2 → S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（当前） → S4.3.1b → S4b。该checkpoint现由下述
+S4.1b.1b.1b.2a → S4.1b.1b.1b.2b → S4.2 → S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（已完成；historical） → S4.3.1b（当前） → S4b。该checkpoint现由下述
 S4.1b.1b.1b.2a delivery取代。
 
 S4.1b.1b.1b.2a只扩展既有source-relative、package-internal且由后续S4.2 Host独占持有的physical admission
@@ -1680,7 +1680,7 @@ Family只从该post-drain settlement按exact source释放claim。`.1b`仅为`adv
 无gestureattempt；clock/timer、player Auto/Skip、Host/live接线继续延期。本amendment没有runtime或验证证据。
 该checkpoint当时的linear core current/next为S4.1b.1b.1b.2b.1a，现由下述delivery推进；后续顺序固定为
 S4.1b.1b.1b.2b.1b → S4.1b.1b.1b.2b.2 →
-S4.1b.1b.1b.2b.3 → S4.2 → S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（当前） → S4.3.1b → S4b。
+S4.1b.1b.1b.2b.3 → S4.2 → S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（已完成；historical） → S4.3.1b（当前） → S4b。
 
 **PF4/S4.1b.1b.1b.2b.1a physical Say reveal-first admission delivery（completed）：**
 `@sillymaker/ui`的source-relative dormant Narrative family现为`ui.confirm`与`narrative.advance`复用同一个
@@ -1702,7 +1702,7 @@ Managed Surface result/receipt、Base/Save/Persistence/wire或第二份topology 
 `45 passed / 2 skipped`与prebuilt Player `38 / 38`只作prior evidence，不冒充本HEAD验证。该checkpoint当时的linear core
 current/next均为S4.1b.1b.1b.2b.1b content-auto Say controller-attempt floor，现由下述entry amendment与delivery推进；
 后续顺序保持S4.1b.1b.1b.2b.1b →
-S4.1b.1b.1b.2b.2 → S4.1b.1b.1b.2b.3 → S4.2 → S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（当前） → S4.3.1b → S4b。
+S4.1b.1b.1b.2b.2 → S4.1b.1b.1b.2b.3 → S4.2 → S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（已完成；historical） → S4.3.1b（当前） → S4b。
 
 **PF4/S4.1b.1b.1b.2b.1b entry amendment（docs-only）：** 本切片扩展同一个source-relative
 `NarrativeStableSayRevealControllerInternalV1`，不创建第二个controller、factory或dispatch authority。新增
@@ -1757,7 +1757,7 @@ S4.1b.1b.1b.2b.2 barrier acknowledgment/recovery，现由下述docs-only amendme
 S4.1b.1b.1b.2b.2a normal Stage→Narrative acknowledgment与
 S4.1b.1b.1b.2b.2b settle/replay recovery；该节点现进一步拆分，后续顺序固定为
 S4.1b.1b.1b.2b.2a → S4.1b.1b.1b.2b.2b.0 → S4.1b.1b.1b.2b.2b.1 →
-S4.1b.1b.1b.2b.3 → S4.2 → S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（当前） → S4.3.1b → S4b。
+S4.1b.1b.1b.2b.3 → S4.2 → S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（已完成；historical） → S4.3.1b（当前） → S4b。
 
 `.2a`在同一claimed Stage retarget plan中只允许恰好一个`acknowledge: true`且logical original
 transition ID与pending expected ID相同的run；0个或多个匹配都必须在interrupt、run start或Stage
@@ -1838,7 +1838,7 @@ recovery issuance/dispatch时必须是同一gate且open。Application successor�
 本checkpoint只冻结admission合同与execution split；没有source/test/runtime delivery或验证证据，没有接Host/React/Web/live
 Narrative claimant，也不新增public或`./internal` barrel、package export、generic Managed Surface result/receipt。Linear core
 current/next当时均为 **S4.1b.1b.1b.2b.2b.1 settle/replay recovery implementation**；现由下述
-delivery推进。后续顺序保持S4.1b.1b.1b.2b.2b.1 → S4.1b.1b.1b.2b.3 → S4.2 → S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（当前） → S4.3.1b → S4b。
+delivery推进。后续顺序保持S4.1b.1b.1b.2b.2b.1 → S4.1b.1b.1b.2b.3 → S4.2 → S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（已完成；historical） → S4.3.1b（当前） → S4b。
 
 **PF4/S4.1b.1b.1b.2b.2b.1 settle/replay recovery implementation delivery（completed）：**
 Claimed Stage reconciler现以同一个source-relative authority提供唯一presentation-generation writer与current-generation proof：
@@ -1877,7 +1877,7 @@ S4.1b.1b.1b.2b.3b.1 voice replay physical route implementation →
 S4.1b.1b.1b.2b.3c.0 Auto/Skip exact entry contract →
 S4.1b.1b.1b.2b.3c.1 bridge-owned Auto/Skip transient mode floor implementation →
 S4.1b.1b.1b.2b.3d.0 History exact-parent open-intent exact entry contract →
-S4.1b.1b.1b.2b.3d.1 History exact-parent open intent implementation → S4.2 → S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（当前） → S4.3.1b → S4b；
+S4.1b.1b.1b.2b.3d.1 History exact-parent open intent implementation → S4.2 → S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（已完成；historical） → S4.3.1b（当前） → S4b；
 其中`.3d.0/.3d.1`现均为completed historical entry，现行pointer见下述delivery。
 
 `.3a`只从Dialogue managed action catalog移除`player.toggle_ui`；它不删除generic
@@ -2194,7 +2194,7 @@ S4.2.4.2 DOM-free Narrative DialoguePlayerController core（已完成）→ S4.2
 S4.2.5 broad checkpoint（historical）→ S4.2.5.0 dormant Engine Lab Narrative conformance exact entry（docs-only，已完成）→
 S4.2.5.1 broad implementation checkpoint（historical）→ S4.2.5.1a managed InputRouter facade corrective（已完成）→
 S4.2.5.1b Host physical ingress corrective（已完成）→ S4.2.5.1c dormant Engine Lab Narrative conformance implementation（已完成）→
-S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（当前） → S4.3.1b → S4b**。后项只能
+S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（已完成；historical） → S4.3.1b（当前） → S4b**。后项只能
 消费前项已合并合同；不得把这些authority重新合并进一次Host/controller/topology refactor。
 
 `.1`只兑换`.3d.1` mint的opaque History intent并原子建立exact-parent child preparation。Dialogue
@@ -2326,7 +2326,7 @@ session/readiness observation、React Host、ready/fail、focus与ready前action
 5. **S4.2.3.0（completed）→ S4.2.3.1（completed）→ S4.2.3.2（completed）→ S4.2.4.0（docs-only，completed）→
    S4.2.4.1（completed）→ S4.2.4.2（completed）→ S4.2.4.3（completed）→
    S4.2.5 broad checkpoint（historical）→ S4.2.5.0（docs-only，completed）→ S4.2.5.1 broad checkpoint（historical）→
-   S4.2.5.1a（已完成）→ S4.2.5.1b（已完成）→ S4.2.5.1c（已完成）→ S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（当前） → S4.3.1b → S4b**：
+   S4.2.5.1a（已完成）→ S4.2.5.1b（已完成）→ S4.2.5.1c（已完成）→ S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（已完成；historical） → S4.3.1b（当前） → S4b**：
    先冻结并依次交付generic exact History-child lifecycle substrate与dormant Narrative close/input/root + History
    focus Host lifecycle，再保持controller timers/suspension、dormant Engine Lab、atomic live cutover及whole-canvas family。
 
@@ -2518,8 +2518,8 @@ before RED**；该entry随后由下述`.2.2.2.0`关闭并重切，当时的唯�
 `.3.1`与`.3.2` gate现也由下述delivery关闭；原S4.2.4 broad checkpoint现由completed docs-only `.4.0`
 关闭并重切；`.4.1`、`.4.2`与`.4.3` gate现也由下述delivery关闭。原S4.2.5 broad checkpoint又由completed docs-only `.5.0`细分并转为
 historical；原`.5.1` broad implementation checkpoint也已由`.5.1a`–`.5.1c`细分并转为historical；`.5.1a`、`.5.1b`与`.5.1c`现也已由上述delivery关闭。
-当前唯一direct RED/implementation gate为 **S4.3.1a composition-owned shared-kernel substrate（当前）**；唯一有效顺序为
-**S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（当前） → S4.3.1b → S4b**。
+当前唯一direct RED/implementation gate为 **S4.3.1b tracked-consumer atomic cutover and promotion（当前）**；唯一有效顺序为
+**S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（已完成；historical） → S4.3.1b（当前） → S4b**。
 
 **PF4/S4.2.2.2.0 dormant React Narrative Host exact entry（docs-only，completed）：** 原S4.2.2.2把generic
 prepared action binding、root/History guarded readiness、cross-axis action fence、immutable Narrative render source、React portal Host、
@@ -2536,7 +2536,7 @@ S4.2.2.1 readiness snapshot都不能冒充ready前atomic handoff或ready/retaine
 4. 后续固定为 **S4.2.3.0（completed）→ S4.2.3.1（completed）→ S4.2.3.2（completed）→
    S4.2.4.0（docs-only，completed）→ S4.2.4.1（completed）→ S4.2.4.2（completed）→ S4.2.4.3（completed）→
    S4.2.5 broad checkpoint（historical）→ S4.2.5.0（docs-only，completed）→ S4.2.5.1 broad checkpoint（historical）→
-   S4.2.5.1a（已完成）→ S4.2.5.1b（已完成）→ S4.2.5.1c（已完成）→ S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（当前） → S4.3.1b → S4b**；
+   S4.2.5.1a（已完成）→ S4.2.5.1b（已完成）→ S4.2.5.1c（已完成）→ S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（已完成；historical） → S4.3.1b（当前） → S4b**；
    generic exact child lifecycle、Narrative close/input/root + History actual DOM focus、timer、Engine Lab与live cutover
    必须依次保持各自authority，不得提前并入。
 
@@ -2773,7 +2773,7 @@ full/check、browser/examples/prebuilt prior evidence均不能冒充本docs-only
 historical；该entry交付时的current/next、core slice与implementation gate为 **S4.2.2.2.1 DOM-free generic Host-commit atomic substrate**，随后依次为
 **S4.2.2.2.2 → S4.2.3.0 → S4.2.3.1 → S4.2.3.2 → S4.2.4.0 → S4.2.4.1 → S4.2.4.2 →
 S4.2.4.3 → S4.2.5 broad checkpoint（historical）→ S4.2.5.0（completed）→ S4.2.5.1 broad checkpoint（historical）→
-S4.2.5.1a（已完成）→ S4.2.5.1b（已完成）→ S4.2.5.1c（已完成）→ S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（当前） → S4.3.1b → S4b**。
+S4.2.5.1a（已完成）→ S4.2.5.1b（已完成）→ S4.2.5.1c（已完成）→ S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（已完成；historical） → S4.3.1b（当前） → S4b**。
 该`.2.2.2.1` gate现已由下述delivery关闭，`.3.0`也已由下述docs-only entry关闭。
 
 **PF4/S4.2.2.2.1 DOM-free generic Host-commit atomic substrate delivery（completed）：** implementation source与
@@ -2807,8 +2807,8 @@ checkpoints；原S4.2.3 exact-entry gate现也由下述completed `.3.0`关闭并
 `.3.2`现也由下述delivery关闭。原S4.2.4 broad checkpoint现由completed docs-only `.4.0`关闭并重切；`.4.1`也已由下述
 delivery关闭，`.4.2`与`.4.3`也已由下述delivery关闭；原S4.2.5 broad checkpoint又由completed `.5.0`细分并转为historical；原`.5.1`
 broad implementation checkpoint也已由`.5.1a`–`.5.1c`细分并转为historical，`.5.1a`、`.5.1b`与`.5.1c`现也已由上述delivery关闭。唯一current/next、core
-slice与direct RED/implementation gate现为 **S4.3.1a composition-owned shared-kernel substrate（当前）**；唯一有效顺序为
-**S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（当前） → S4.3.1b → S4b**。
+slice与direct RED/implementation gate现为 **S4.3.1b tracked-consumer atomic cutover and promotion（当前）**；唯一有效顺序为
+**S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（已完成；historical） → S4.3.1b（当前） → S4b**。
 
 **PF4/S4.2.2.2.2 dormant Narrative React Host delivery（completed）：** implementation与primary RED严格落在
 family source/test、session source/test、new Host source/test及`public-api.test.ts`七文件，全部保持source-relative、
@@ -2845,8 +2845,8 @@ evidence。S4.2.2.2.2据此转为completed historical checkpoint；其原S4.2.3 
 current/next、core slice与implementation gate推进为原S4.2.4 broad checkpoint；该checkpoint现由completed docs-only `.4.0`
 关闭并重切，`.4.1`、`.4.2`与`.4.3`也已由下述delivery关闭；原S4.2.5 broad checkpoint又由completed `.5.0`细分并转为historical；原`.5.1`
 broad implementation checkpoint也已由`.5.1a`–`.5.1c`细分并转为historical，`.5.1a`、`.5.1b`与`.5.1c`现也已由上述delivery关闭。唯一current/next、core
-slice与direct RED/implementation gate为 **S4.3.1a composition-owned shared-kernel substrate（当前）**，后续顺序为
-**S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（当前） → S4.3.1b → S4b**。
+slice与direct RED/implementation gate为 **S4.3.1b tracked-consumer atomic cutover and promotion（当前）**，后续顺序为
+**S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（已完成；historical） → S4.3.1b（当前） → S4b**。
 
 **PF4/S4.2.3.0 History close/dismiss/input/focus lifecycle exact entry（docs-only，completed）：** 原
 S4.2.3把generic exact-child topology lifecycle、Narrative action/input route、preparing fallback、React Host focus/opener与
@@ -2859,7 +2859,7 @@ physical dismiss混在一个checkpoint；它现只作superseded broad checkpoint
    History controller、preparing/active close、managed input、root + History actual focus/trap/restore及physical dismiss；
 4. **S4.2.4.0（docs-only，completed）→ S4.2.4.1（completed）→ S4.2.4.2（completed）→ S4.2.4.3（completed）→
    S4.2.5 broad checkpoint（historical）→ S4.2.5.0（docs-only，completed）→ S4.2.5.1 broad checkpoint（historical）→
-   S4.2.5.1a（已完成）→ S4.2.5.1b（已完成）→ S4.2.5.1c（已完成）→ S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（当前） → S4.3.1b → S4b**：
+   S4.2.5.1a（已完成）→ S4.2.5.1b（已完成）→ S4.2.5.1c（已完成）→ S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（已完成；historical） → S4.3.1b（当前） → S4b**：
    随后才依次交付generic prepared state-install participant substrate、DOM-free controller timers/suspension、dormant Host
    player-view integration、dormant Engine Lab、atomic live cutover及whole-canvas family。
 
@@ -3118,7 +3118,7 @@ delivery未重跑browser/examples/prebuilt；先前Engine browser `101 / 101`、
 checkpoint现由completed docs-only `.4.0`关闭并重切，`.4.1`、`.4.2`与`.4.3`也已由下述delivery关闭；原S4.2.5 broad checkpoint又由completed
 docs-only `.5.0`细分并转为historical；原`.5.1` broad implementation checkpoint也已由`.5.1a`–`.5.1c`细分并转为historical；`.5.1a`、`.5.1b`与`.5.1c`
 现也已关闭。唯一live/current/next、core slice与direct RED/implementation gate现推进到
-**S4.3.1a composition-owned shared-kernel substrate（当前）**；唯一有效顺序为 **S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（当前） → S4.3.1b → S4b**。
+**S4.3.1b tracked-consumer atomic cutover and promotion（当前）**；唯一有效顺序为 **S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（已完成；historical） → S4.3.1b（当前） → S4b**。
 
 **S4.2.4.0 exact Dialogue player timing/suspension entry（docs-only，已完成）：** 原S4.2.4把generic state-install
 atomic participant、DOM-free clock/player controller与React Host view projection混成一个broad checkpoint；现只作为superseded historical
@@ -3132,7 +3132,7 @@ entry。唯一有效顺序冻结为：
 4. **S4.2.4.3 dormant Host player-view integration（completed）**：最后把cached immutable player observation接入existing session/render source/React Host，
    renderer只取得passive view data；
 5. **S4.2.5 broad checkpoint（historical）→ S4.2.5.0（docs-only，completed）→ S4.2.5.1 broad checkpoint（historical）→
-   S4.2.5.1a（已完成）→ S4.2.5.1b（已完成）→ S4.2.5.1c（已完成）→ S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（当前） → S4.3.1b → S4b**：
+   S4.2.5.1a（已完成）→ S4.2.5.1b（已完成）→ S4.2.5.1c（已完成）→ S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（已完成；historical） → S4.3.1b（当前） → S4b**：
    随后依次进入dormant Engine Lab Narrative conformance implementation、live atomic cutover与whole-canvas family。
 
 `.4.1`新增的generic runtime exact contract为：
@@ -3533,7 +3533,7 @@ browser/examples/prebuilt；先前Engine browser **101 / 101**、examples browse
 evidence，不冒充commit `1438b32`的HEAD验证。`.4.3`据此转为completed historical checkpoint；原S4.2.5 broad checkpoint由completed
 docs-only `.5.0`细分并转为historical；原`.5.1` broad implementation checkpoint也已由`.5.1a`–`.5.1c`细分并转为historical；`.5.1a`、`.5.1b`与`.5.1c`
 现也已关闭。唯一live/current/next、core slice与direct RED/implementation gate推进到
-**S4.3.1a composition-owned shared-kernel substrate（当前）**；唯一有效顺序为 **S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（当前） → S4.3.1b → S4b**。
+**S4.3.1b tracked-consumer atomic cutover and promotion（当前）**；唯一有效顺序为 **S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（已完成；historical） → S4.3.1b（当前） → S4b**。
 
 **S4.2.5.0 dormant Engine Lab Narrative conformance exact entry correction（docs-only，已完成）：** 原S4.2.5把production-clean
 conformance package entry、high-level rig、real Engine Lab semantic adapter、React Host、mutually-exclusive legacy opt-in、boundedness与
@@ -3550,8 +3550,8 @@ promotion boundary留成一句broad checkpoint，不能直接进入RED或impleme
    opt-in，不切换tracked live writer；
 7. **S4.3 broad checkpoint（historical）**：已由`.3.0`细分，不再直接进入RED；
 8. **S4.3.0 production Narrative atomic-cutover exact entry（docs-only，已完成）**：冻结replacement contract与两批执行边界；
-9. **S4.3.1a composition-owned shared-kernel substrate（当前）**：先交付package-internal production binding；
-10. **S4.3.1b tracked-consumer atomic cutover and promotion**：同批迁移Engine Lab、template、Cat Cafe与Bookshop，删除legacy
+9. **S4.3.1a composition-owned shared-kernel substrate（已完成；historical）**：已交付package-internal production binding；
+10. **S4.3.1b tracked-consumer atomic cutover and promotion（当前）**：同批迁移Engine Lab、template、Cat Cafe与Bookshop，删除legacy
     lifecycle writers/standalone public path，并完成headless/browser/prebuilt promotion；
 11. **S4b whole-canvas primary/detail family**：保持后续独立family boundary。
 
@@ -3625,7 +3625,7 @@ conformance与live writer在commit中均保持zero expansion。验证通过focus
 build均为green。本delivery未重跑browser/examples/prebuilt；先前Engine browser **101 / 101**、examples browser **45 passed / 2 skipped**与prebuilt Player
 **38 / 38**只作prior evidence，不冒充commit `0f41e41`的HEAD验证。`.5.1a`据此转为completed historical checkpoint；`.5.1b`现也已由下述delivery
 关闭。唯一live/current/next、core slice与direct RED/implementation gate推进到
-**S4.3.1a composition-owned shared-kernel substrate（当前）**；唯一有效顺序为 **S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（当前） → S4.3.1b → S4b**。
+**S4.3.1b tracked-consumer atomic cutover and promotion（当前）**；唯一有效顺序为 **S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（已完成；historical） → S4.3.1b（当前） → S4b**。
 
 **2026-08-11 S4.2.5.1a callable prototype bound corrective delivery addendum（commit `ceabebf`，已完成）：** 本addendum
 精确只记录`engine/packages/ui/src/input/input-router.ts`与`engine/packages/ui/src/input/input-router.test.ts`两文件的窄纠正；其他source、test、runtime、
@@ -3637,7 +3637,7 @@ Mutation-sensitive focused input-router证据先以未修正实现得到RED **53
 相邻input-router/composer/public API focused matrix为 **81 / 81**，全仓typecheck与exact two-file oxlint、fmt、diff check均green。本窄addendum
 没有重跑UI package、canonical `deno task check`、full、browser、examples或prebuilt；commit `0f41e41`与其他旧批次的任何结果都不复用为commit
 `ceabebf`的HEAD证据。`.5.1a`保持completed/historical；唯一live current/next、core slice与direct RED/implementation gate仍为
-**S4.3.1a composition-owned shared-kernel substrate（当前）**；唯一有效顺序为 **S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（当前） → S4.3.1b → S4b**。
+**S4.3.1b tracked-consumer atomic cutover and promotion（当前）**；唯一有效顺序为 **S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（已完成；historical） → S4.3.1b（当前） → S4b**。
 
 #### S4.2.5.1b Host physical ingress corrective（已完成）
 
@@ -3937,8 +3937,8 @@ green。Default/browser/examples/prebuilt promotion仍归S4.3；prior result不�
 features、development、website、Host/public/live capability，也不复用`.4.3` focused/UI/full/browser/examples/prebuilt evidence冒充新验证。Docs-only
 verification只有三份target docs的`deno fmt --check`与scoped `git diff --check`。`.5.0`保持completed correction，原`.5.1`只作historical broad
 entry；`.5.1a`、`.5.1b`与`.5.1c`现已由上述delivery关闭。唯一live current/next、core slice与direct RED/implementation gate为
-**S4.3.1a composition-owned shared-kernel substrate（当前）**，唯一后续顺序为
-**S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（当前） → S4.3.1b → S4b**。
+**S4.3.1b tracked-consumer atomic cutover and promotion（当前）**，唯一后续顺序为
+**S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（已完成；historical） → S4.3.1b（当前） → S4b**。
 
 **2026-08-11 S4.2.5.1c dormant Engine Lab Narrative conformance delivery（commit `a926b8c`，已完成）：** 本delivery严格保持original exact seven-file scope：`engine/packages/ui/package.json`、
 `engine/packages/ui/src/conformance/index.tsx`、`engine/packages/ui/src/conformance/index.test.tsx`、
@@ -3956,7 +3956,7 @@ HEAD verification通过focused `3 files / 42 tests`、UI package `84 files / 151
 
 `.5.1c`现已完成并转为historical checkpoint。原broad S4.3也已由下述`.3.0` exact entry细分并转为historical；不得直接在原broad
 checkpoint上进入RED。唯一live current/next、core slice与direct RED/implementation gate现统一推进为
-**S4.3.1a composition-owned shared-kernel substrate（当前）**，唯一后续顺序为 **S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（当前） → S4.3.1b → S4b**。
+**S4.3.1b tracked-consumer atomic cutover and promotion（当前）**，唯一后续顺序为 **S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（已完成；historical） → S4.3.1b（当前） → S4b**。
 
 ### S4.3.0 production Narrative atomic-cutover exact entry（docs-only，已完成）
 
@@ -3965,9 +3965,9 @@ composition-owned shared-kernel/Stage接线，以及旧writer/export/source的�
 
 1. **S4.3 broad checkpoint（historical）**：只保留既有behavior与atomic-removal gate，不再直接进入RED；
 2. **S4.3.0 exact entry（docs-only，已完成）**：冻结本节contract、两批RED、scope、promotion evidence与stop；
-3. **S4.3.1a composition-owned shared-kernel substrate（当前）**：只交付package-internal production binding，不改变四个tracked Story的default
+3. **S4.3.1a composition-owned shared-kernel substrate（已完成；historical）**：已交付package-internal production binding，不改变四个tracked Story的default
    writer、不新增root authoring export，也不删除dormant `/conformance`；
-4. **S4.3.1b tracked-consumer atomic cutover and promotion**：同一merge batch公开high-level authoring seam、迁移四个tracked
+4. **S4.3.1b tracked-consumer atomic cutover and promotion（当前）**：同一merge batch公开high-level authoring seam、迁移四个tracked
    Stories、删除所有旧writer/export/direct path，并完成headless/browser/examples/prebuilt promotion；
 5. **S4b**：随后才进入whole-canvas primary/detail family。
 
@@ -4112,7 +4112,7 @@ authority；`DefaultGameRootV1`不得再因application epoch key物理remount ac
 fresh `target/revision/epoch`并走claimed driver retarget。只有true Stage/composition unmount可令current driver terminal dispose；predecessor
 driver、effect cleanup与late visibility callback均不得命中successor。
 
-#### S4.3.1a composition-owned shared-kernel substrate
+#### S4.3.1a composition-owned shared-kernel substrate（已完成；historical）
 
 Actual Stage reconciler在successor前后保持同一mounted identity；new bridge只复用composition claimant/driver，不重claim、不调用
 public no-op lifecycle，不因epoch wrapper key重建clock/timeline/reconciler。
@@ -4168,6 +4168,52 @@ family notifications。若该顺序需要修改generic reducer/Coordinator contr
 8. Claimed Stage driver对ordinary retarget、visibility suspend/resume、skip与true terminal dispose各精确调用authority internal
    method一次，public no-op methods调用量为零；successor不以fresh claimant重claim、不因epoch key重建persistent
    Stage，old driver/cleanup/visibility callback对successor语义增量为零。
+
+**2026-08-12 S4.3.1a composition-owned shared-kernel substrate delivery（commit `03bade7`，已完成）：** 本delivery严格保持上述exact thirteen-file scope：
+`engine/packages/ui/src/managed-surfaces/managed-surface-composition-runtime.ts`及其test、
+`engine/packages/ui/src/composer/create-game-ui-composition.ts`及其test、
+`engine/packages/ui/src/composer/default-game-root.tsx`及其test、
+`engine/packages/ui/src/narrative/narrative-surface-composition.tsx`（new）及其test（new）、
+`engine/packages/ui/src/narrative/narrative-managed-surface-family.ts`及其test、
+`engine/packages/ui/src/stage/semantic-stage.tsx`及其test，以及`engine/packages/ui/src/public-api.test.ts`；commit中恰好只有这十三个
+source/test文件。UI package/root与`./internal` barrel、package exports、Web、Base、四个tracked Story default writer及dormant
+`/conformance`均为zero-diff。
+
+Composition现以one stable composite kernel让Overlay、System与Narrative共享application epoch、Coordinator facade、InputRouter、gesture
+lease、successor gate与terminal cascade；Narrative只读取既有presentation publication fanout，保持one upstream semantic subscription。
+Successor严格执行三family detach → one runtime/kernel replace → 全部prepare/arm → one shared gate open → current managed-input sync →
+no-throw family notification flush → application anchor publish；任一prepare、arm、Stage bind或reentrant reconcile fault都会先fence
+Narrative/Host/Stage再terminal-seal完整composition，不留下partial successor、第二kernel或late predecessor authority。
+
+Hosted composition constructor以默认`null`的第三位置参数接收exact private frozen bundle
+`{ definition, playerProfile, presentationClock, prefersReducedMotion }`。该bundle在任何Host property read、semantic subscription、application
+epoch/runtime/InputRouter/kernel allocation或Story callable前完成outer own-data descriptor、exact keys、definition及environment callable validation；
+malformed/accessor/inherited/proxy/thenable保持zero claim/subscription/runtime。每次Story selector返回的selection在进入bridge/candidate use前也作
+exact frozen capture，hostile selector/preflight则terminal rollback完整composition。Captured `playerProfile`与`presentationClock`保留原对象identity，
+使后续consumer以原receiver调用；`prefersReducedMotion`保留原callable并在每次消费时live重读，不被constructor snapshot。既有two-argument/default
+`null`路径完全不变；bundle、其type与capture helper均保持package-private且不进入root、`./internal`、package export或public member。该structural seam允许
+`.3.1b`在其既定Narrative/Web文件内传入public definition与Web-owned environment，不需再次修改composer，也不向Story暴露raw environment authority。
+Choice availability、History、profile/text churn只更新occurrence-fenced observation；root与`./internal`的compile/runtime inventories及
+`GameUiCompositionV1`、`SemanticStagePropsV1`、`DefaultGameRootPropsV1` exact key probes证明没有public member或low-level authority扩张。
+
+Production DefaultRoot以stable portal挂composition-owned Host；pointer、keyboard、gamepad与renderer-bound callbacks共用exact
+Surface + semantic + gesture/currentness fence，递归route与late completion fail closed。Actual SemanticStage由composition-scoped same claimant
+claim一次并通过exact six-method private driver跨application successor复用；normal/initial recovery/replay-unsupported/instant/animated Barrier、
+same-stack tick drain、stale completion、StrictMode setup-cleanup-setup grace与true unmount terminal cleanup均保持exactly-once。10,000
+source/candidate/controller/availability/successor churn证明one current session/subscription/claimant/driver及bounded **O(1)** retained state；public
+`onAcknowledgment` compatibility仍保留到`.3.1b` atomic deletion。
+
+Final `03bade7` HEAD verification通过focused `7 files / 318 tests`、UI package `85 files / 1555 tests`与canonical
+`260 files / 4491 tests`；canonical `deno fmt --check`覆盖`955 files`，lint、styles、typecheck、determinism、assets、five registered Story
+checks与E2E production build（Vite transformed `418 modules`）全部green。第一轮hosted-definition corrective先得到exact `2 failures` RED；
+第二轮hosted-environment bundle corrective也先得到exact `2 failures` RED，最终composer `32 / 32` GREEN关闭两项corrective。
+Pre-corrective第一次并行canonical中两个既有10,000-churn rows触发timeout；两行保持原断言隔离复跑均green，随后当时的完整canonical rerun也green。
+该中间过程不冒充最终证据：final amended commit `03bade7`的canonical独立clean通过`4491 / 4491`，没有timeout。本批未运行browser、examples或
+prebuilt promotion；这些仍完整归`.3.1b`。
+
+`.3.1a`现已完成并转为historical checkpoint。唯一live current/next、core slice与direct RED/implementation gate现为
+**S4.3.1b tracked-consumer atomic cutover and promotion（当前）**；冻结线性顺序为
+**S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（已完成；historical） → S4.3.1b（当前） → S4b**。
 
 #### S4.3.1b tracked-consumer atomic cutover and promotion
 
@@ -4326,16 +4372,16 @@ Narrative reconcile drain；三设备/reset路线不能共用dual fence；不能
 digest、replay/wire或S4b whole-canvas contract。任何stop命中都记录concrete evidence并暂停，不以测试放宽或dead compatibility path绕过。
 
 本`.3.0`严格docs-only，只修改本design与两份owning plans，不交付source/test/runtime/architecture/public/live capability，也不把`.5.1c`
-runtime evidence冒充本entry验证。Verification只有三份target docs的`deno fmt --check`与scoped `git diff --check`。Entry closeout后唯一
-live current/next、core slice与direct RED gate为**S4.3.1a composition-owned shared-kernel substrate（当前）**；`.3.1a`交付并单独commit/docs
-closeout后才进入`.3.1b`，`.3.1b`完整promotion后才进入S4b。
+runtime evidence冒充本entry验证。Verification只有三份target docs的`deno fmt --check`与scoped `git diff --check`。`.3.1a`现已由commit
+`03bade7`交付并经本design closeout转为historical；唯一live current/next、core slice与direct RED gate为
+**S4.3.1b tracked-consumer atomic cutover and promotion（当前）**，其完整promotion后才进入S4b。
 
 本`.4.0`严格只修改本design与两份owning plans，不修改source/test/runtime/architecture/features/development/roadmap/website/live graph，也不
 复用旧runtime evidence冒充delivery。Verification只有三份target docs的`deno fmt --check`与scoped `git diff --check`。本entry完成时唯一active
 current/next、core slice与direct RED gate曾为**S4.2.4.1 generic prepared state-install participant substrate**；该gate现已由上述delivery关闭。
 原S4.2.5 broad checkpoint已由completed `.5.0`细分并转为historical；原`.5.1` broad implementation checkpoint也已由`.5.1a`–`.5.1c`
 细分并转为historical，`.5.1a`、`.5.1b`与`.5.1c`现也已关闭；当前唯一顺序为
-**S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（当前） → S4.3.1b → S4b**。
+**S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（已完成；historical） → S4.3.1b（当前） → S4b**。
 
 每个 family 的迁移提交必须删除旧 owner；禁止长期 adapter 双写。
 `DialoguePanelV1` / `VnLayerV1` 的 controller/view/host 拆分在 Narrative family
