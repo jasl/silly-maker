@@ -1544,8 +1544,52 @@ formatting, lint, style lint, typecheck, determinism, assets, all Story checks,
 and the e2e production build. Browser `101 / 101`, examples
 `45 passed / 2 skipped`, and prebuilt Player `38 / 38` remain prior evidence
 and were not rerun because the controller remains dormant. S4.2.4.2 is
-complete. Current/next is S4.2.4.3, dormant Host player-view integration,
-followed by S4.2.5, S4.3, and S4b.
+complete. At that checkpoint, current/next was S4.2.4.3, the dormant Host
+player-view integration delivered below.
+
+S4.2.4.3 now materializes the cached Dialogue-player view through the dormant
+Narrative Host without exposing the controller or any timing authority to a
+renderer. Each Dialogue render entry carries one source-relative, frozen
+observation plus one permanently bound safe text resolver. A keyed Host child
+subscribes through `useSyncExternalStore` and supplies the renderer with the
+current immutable `playerView` and safe `playerProfile`; raw controller,
+clock, deadline, mode-writer, semantic, observation, and provenance objects
+remain outside renderer props.
+
+One exact attempt and frame retain the same observation, resolver, render key,
+DOM shell, and subscription across preparing, ready, History suspension,
+resume, StrictMode, and Host reattachment. Only a fresh frame creates a fresh
+materialization. Replacement, failure, empty, terminal, controller fault, and
+retry synchronously fence the old resolver and controller ingress; retained
+observations return one final passive snapshot and accept only no-op late
+subscriptions. Terminal observation delivery occurs after the complete kernel
+listener vector, while an unsubscribe in that interval still suppresses its
+own pending callback.
+
+History renderer props inherit the exact parent's current safe profile and
+resolver. Profile identity changes refresh same-key History props without
+replacing its controller, History observation, DOM shell, focus owner, or
+focused descendant; value-equal publication is identity-stable. Raw
+profile/clock/text/subscription faults before a Dialogue entry is ready become
+a cached fault observation that the entry boundary settles once as readiness
+failure. The same fault on an already accepted entry remains owned by the
+outer diagnostics boundary. Retry and terminal cleanup scrub the fault frame,
+raw bindings, listeners, and resolver holder.
+
+This delivery changes exactly the Narrative family source/test pair, session
+source/test pair, Host source/test pair, and
+`engine/packages/ui/src/public-api.test.ts`. Root and `./internal` inventories
+reject the two new source-relative top-level types and the
+`playerObservation`/`playerView` member spellings; public barrels, package
+exports, Web, Stories, and live composition remain unchanged. Verification
+passed focused `4 files / 296 tests`, UI `83 files / 1442 tests`, full
+`257 files / 4372 tests`, and the complete `deno task check`, including
+formatting, lint, style lint, typecheck, determinism, assets, all Story checks,
+and the e2e production build. Browser `101 / 101`, examples
+`45 passed / 2 skipped`, and prebuilt Player `38 / 38` remain prior evidence
+and were not rerun because this Host path remains dormant. S4.2.4.3 is
+complete. Current/next is S4.2.5, the dormant Engine Lab conformance exact
+entry before RED, followed by S4.3 and S4b.
 
 ## 9. Changing the architecture
 
@@ -1632,7 +1676,13 @@ ABA-fenced logical commit, post-notification completion, and bounded terminal
 ownership described above. S4.2.4.2 adds the exact captured Dialogue-player
 ports, cached controller view, UTF-16 reveal timing, shared-claim
 manual/content/player/Skip/Pause scheduling, same-install suspension, and
-bounded clock/profile lifecycle described above. Current/next is S4.2.4.3,
-dormant Host player-view integration, followed by S4.2.5, S4.3, and S4b. Live
-renderer migration remains planned work; the source-relative Host does not
-alter the live Host data flow until those slices and their behavior tests land.
+bounded clock/profile lifecycle described above. At that checkpoint,
+current/next was S4.2.4.3, the dormant Host player-view integration described
+above. S4.2.4.3 adds the
+cached safe observation and resolver, keyed `useSyncExternalStore` Host child,
+current History profile projection, fault-boundary handoff, focus-preserving
+same-frame lifecycle, and bounded terminal fencing described above.
+Current/next is S4.2.5, the dormant Engine Lab conformance exact entry before
+RED, followed by S4.3 and S4b. Live renderer migration remains planned work;
+the source-relative Host does not alter the live Host data flow until those
+slices and their behavior tests land.
