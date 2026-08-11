@@ -2937,6 +2937,27 @@ shell target。Root replacement preparation/failure继承same previous-owner led
 greater-empty或ordinary root retirement仅在focus仍由Narrative Host拥有时恢复connected previous owner；application successor、Coordinator/
 session terminal与external focus owner必须分别抑制stale restore。
 
+本entry对`.2.2.2.2`的preparing shell结构作窄精化：每个Host render entry使用one outer focus scope包裹one inner renderer shell。
+Outer scope是ready-commit的exact `portalShell`与registered `initialFocusTarget`；当它是current preparing fallback focus owner时必须保持
+connected、focusable、非`inert`且不使用`visibility: hidden`或`aria-hidden`，从而真实浏览器可以取得focus并执行trap。Inner renderer shell在
+ready前继续`inert`、`aria-hidden`、不可见且pointer-disabled，renderer content绝不提前可见或interactive；suspended/nonowner entry继续按其
+phase fence。不得用jsdom对hidden/inert programmatic focus的宽松行为替代该DOM结构。
+
+`.3.2`同时新增不扩runtime object shape的source-relative纯查询：
+
+```ts
+export function isNarrativeStableHostRuntimeCurrentInternalV1(
+  runtime: NarrativeStableHostRuntimeInternalV1,
+): boolean;
+```
+
+它只在input是module-owned exact runtime record、该record仍为session current Host runtime、exact lease current且session/bridge active时返回
+`true`；malformed、foreign、released、superseded、detached或terminal runtime一律no-throw返回`false`。查询不得mutation、分配、读取DOM/router
+或调用caller callable，也不得把lease/session/bridge字段加进`NarrativeStableHostRuntimeInternalV1`。Root previous-owner与History opener
+restore在排队前以及coalesced microtask执行前都必须重验该查询；任何一次为false都suppress并scrub对应ledger，尤其mounted Host收到
+bridge/Coordinator terminal empty snapshot时绝不restore。该top-level spelling按既有规则加入UI root、`./internal` type/runtime negative
+inventory；它不新增object member。实现仍落在既有family/Host/public三项、`.3.2` seven-file scope不扩张。
+
 History opener也只由Host-local bounded ledger拥有：exact History candidate第一次取得focus之前，从surviving exact parent shell内capture
 connected、same-ownerDocument且不是`body`的active `HTMLElement`；preparing History fallback随后取得focus、trap并使parent suspended/inert，ready History再聚焦已注册的exact
 History shell target。Explicit close、四类dismiss或readiness failure后，若same exact parent仍survive且没有successor History，最终focus恢复

@@ -5496,6 +5496,27 @@ registered shell，closed Tab/Shift+Tab cycle且无tabbable时回shell。Root re
 failure不抢focus，cutover focus successor且不restore retired previous owner；ordinary initial failure/empty可restore，但application successor、
 Coordinator/session terminal、true detach或higher external focus owner必须suppress。
 
+本entry对`.2.2.2.2`的preparing shell结构作窄精化：每个Host render entry使用one outer focus scope包裹one inner renderer shell。
+Outer scope是ready-commit的exact `portalShell`与registered `initialFocusTarget`；当它是current preparing fallback focus owner时必须保持
+connected、focusable、非`inert`且不使用`visibility: hidden`或`aria-hidden`，从而真实浏览器可以取得focus并执行trap。Inner renderer shell在
+ready前继续`inert`、`aria-hidden`、不可见且pointer-disabled，renderer content绝不提前可见或interactive；suspended/nonowner entry继续按其
+phase fence。不得用jsdom对hidden/inert programmatic focus的宽松行为替代该DOM结构。
+
+`.3.2`同时新增不扩runtime object shape的source-relative纯查询：
+
+```ts
+export function isNarrativeStableHostRuntimeCurrentInternalV1(
+  runtime: NarrativeStableHostRuntimeInternalV1,
+): boolean;
+```
+
+它只在input是module-owned exact runtime record、该record仍为session current Host runtime、exact lease current且session/bridge active时返回
+`true`；malformed、foreign、released、superseded、detached或terminal runtime一律no-throw返回`false`。查询不得mutation、分配、读取DOM/router
+或调用caller callable，也不得把lease/session/bridge字段加进`NarrativeStableHostRuntimeInternalV1`。Root previous-owner与History opener
+restore在排队前以及coalesced microtask执行前都必须重验该查询；任何一次为false都suppress并scrub对应ledger，尤其mounted Host收到
+bridge/Coordinator terminal empty snapshot时绝不restore。该top-level spelling按既有规则加入UI root、`./internal` type/runtime negative
+inventory；它不新增object member。实现仍落在既有family/Host/public三项、`.3.2` seven-file scope不扩张。
+
 History opener在exact candidate第一次fallback/active focus前从surviving active parent shell capture connected、same-ownerDocument、位于exact
 parent shell内且不是`body`的`HTMLElement`；无eligible
 opener则record null。Preparing fallback随后focus/trap并保持root suspended/inert，ready History focus exact shell。Child close/dismiss/readiness fail后
