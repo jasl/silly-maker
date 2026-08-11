@@ -1451,8 +1451,60 @@ Verification passed focused `4 files / 263 tests`, UI
 formatting, diff checks, and the complete `deno task check`. Browser
 `101 / 101`, examples `45 passed / 2 skipped`, and prebuilt Player `38 / 38`
 remain prior evidence and were not rerun because the Host is still dormant.
-S4.2.3.2 is complete. Current/next is S4.2.4 exact entry before RED,
-followed by S4.2.5, S4.3, and S4b.
+S4.2.3.2 is complete. At that checkpoint, current/next was S4.2.4, whose
+completed S4.2.4.0 exact entry split player timing delivery into the generic
+prepared state-install participant substrate delivered below, the DOM-free
+Narrative DialoguePlayerController core, and dormant Host player-view
+integration.
+
+S4.2.4.1 now supplies that generic participant substrate across all three
+runtime-kernel assignment paths: ordinary transient transitions, direct state
+transitions, and prepared-state commits. One source-relative claimant installs
+a frozen exact participant. For each real state change, planning first derives
+the exact previous and next states under the existing transition lock; the
+participant then prepares outside the lock, revalidates state, install
+generation, participant identity, and its own exact prepared value after the
+lock is reacquired, commits logical controller fencing before the sole state
+assignment, and completes physical cancellation or scheduling only after the
+full existing listener vector returns.
+
+Prepared-token authentication and initial currentness still precede every
+participant callback. Post-prepare state or participant drift, including an
+A-to-B-to-A identity cycle, is stale; participant descriptor, validation, or
+logical-commit faults preserve exact-zero state and notification effects.
+Existing operation-guard false and throwing behavior remains compatible:
+false aborts the authenticated participant, while a throwing guard aborts once
+and rethrows the original error. Terminal assignment permanently fences the
+claim before listeners while still allowing that historical transaction to
+complete once after notification.
+
+The stable-composite wrapper reaches the generic runtime only through its
+existing private configuration alias; it does not extend either frozen kernel
+shape or create a reverse package dependency. One weak registry stores a
+kernel-keyed claim record and a participant-keyed owner token with no reverse
+kernel reference. The token permanently prevents participant transfer across
+kernels while allowing an abandoned nonterminal kernel to be reclaimed; a
+terminal record scrubs claimant, participant, and callback references. No
+participant vector, prepared-identity tombstone, module-owned append-only
+install history, or second composition authority is retained, including
+through 10,000 sequential installs. Caller-retained unconsumed opaque prepared
+tokens and their expected/next state records remain the explicit existing
+exception; consuming a token releases its record.
+
+This delivery changes exactly the runtime-kernel source/new test pair, the
+stable-composite source/test pair, and
+`engine/packages/ui/src/public-api.test.ts`. Root and `./internal` inventories
+reject every new top-level and member spelling; no public barrel, package
+export, reducer, InputRouter, Coordinator, Narrative source, React Host, or
+live Story composition changes. Verification passed focused
+`3 files / 129 tests`, UI `82 files / 1357 tests`, full
+`256 files / 4287 tests`, typecheck, lint, formatting, diff checks, and the
+complete `deno task check`. Browser `101 / 101`, examples
+`45 passed / 2 skipped`, and prebuilt Player `38 / 38` remain prior evidence
+and were not rerun because this package-internal substrate has no live
+composition wiring. S4.2.4.0 and S4.2.4.1 are complete. Current/next is
+S4.2.4.2, the DOM-free Narrative DialoguePlayerController core, followed by
+S4.2.4.3, S4.2.5, S4.3, and S4b.
 
 ## 9. Changing the architecture
 
@@ -1533,7 +1585,11 @@ guarded parent input restoration, and preserved ordinary generic fence
 described above. S4.2.3.2 adds the candidate-bound Narrative History
 controller, managed fallback teardown, actual root/History focus lifecycle,
 physical dismiss fencing, and terminal-safe restore query described above.
-Current/next is S4.2.4 exact entry before RED, followed by S4.2.5, S4.3,
-and S4b. Player control/timing and the live migration remain planned work; the
+S4.2.4.0 freezes the exact Dialogue-player timing split, and S4.2.4.1 adds the
+generic prepared state-install participant, stable-composite private claim,
+ABA-fenced logical commit, post-notification completion, and bounded terminal
+ownership described above. Current/next is S4.2.4.2, the DOM-free Narrative
+DialoguePlayerController core, followed by S4.2.4.3, S4.2.5, S4.3, and S4b.
+Player rendering integration and the live migration remain planned work; the
 source-relative Host does not alter the live Host data flow until those slices
 and their behavior tests land.
