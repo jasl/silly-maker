@@ -58,8 +58,9 @@ History atomic cross-axis preparation现也已关闭；原`S4.2.2` broad checkpo
 `S4.2.2.0`细分，`S4.2.2.1` DOM-free Narrative session/readiness attachment floor现也已关闭；
 原`S4.2.2.2` broad dormant Host又由completed docs-only `S4.2.2.2.0`重切；linear core
 `.2.2.2.1` DOM-free generic Host-commit atomic substrate与`.2.2.2.2` dormant Narrative React Host现也已关闭并转为
-historical。current/next、core slice与implementation gate现为 **S4.2.3 History close/dismiss/input/focus lifecycle
-own exact entry before RED**，随后依次为`S4.2.4 -> S4.2.5 -> S4.3 -> S4b`。
+historical。原S4.2.3 History close/dismiss/input/focus broad checkpoint已由completed docs-only `S4.2.3.0`重切；
+current/next、core slice与implementation gate现为 **S4.2.3.1 DOM-free generic exact History-child lifecycle substrate**，
+随后依次为`S4.2.3.2 -> S4.2.4 -> S4.2.5 -> S4.3 -> S4b`。
 同日 S1-R pre-implementation review 将 external reconcile gate 重切为 S1-R.0–S1-R.5；
 顺序变化不把任何 planned stable-target contract写成 live capability。
 同日 S1-R.3 entry-gate adjudication 采用 A-prime，将原 R3 拆为单一 composite
@@ -97,8 +98,9 @@ historical chain；原S4.2 broad checkpoint也已由completed docs-only S4.2.0�
 cross-axis preparation与S4.2.2.1 DOM-free Narrative session/readiness attachment floor现也已完成；原S4.2.2 broad
 checkpoint又由completed docs-only S4.2.2.0细分；原S4.2.2.2 broad dormant Host现也由completed docs-only
 S4.2.2.2.0重切，S4.2.2.2.1 DOM-free generic Host-commit atomic substrate与S4.2.2.2.2 dormant Narrative React
-Host现也已关闭。下一独立切片、current/next、core slice与implementation gate均为 **S4.2.3 own exact entry before
-RED**，随后依次为S4.2.4、S4.2.5、S4.3与S4b。
+Host现也已关闭；原S4.2.3 broad checkpoint现又由completed docs-only S4.2.3.0重切。下一独立切片、current/next、
+core slice与implementation gate均为 **S4.2.3.1 DOM-free generic exact History-child lifecycle substrate**，
+随后依次为S4.2.3.2、S4.2.4、S4.2.5、S4.3与S4b。
 旧 promotion 数字保留为
 历史证据。本文是当前唯一的跨计划排序入口；
 具体合同仍由各 design 文档拥有，主要任务由五个独立计划拥有：
@@ -1008,12 +1010,15 @@ Surface pilot 通过后按 family 分开合并：
 36. S4.2.2.2.0：guarded readiness/input与Narrative Host exact entry（docs-only，已完成）；
 37. S4.2.2.2.1：DOM-free generic Host-commit atomic substrate（已完成）；
 38. S4.2.2.2.2：dormant Narrative React Host（已完成）；
-39. S4.2.3：History close/dismiss/input/focus lifecycle（当前；own exact entry before RED）；
-40. S4.2.4：controller timers与History suspension/resume；
-41. S4.2.5：dormant Engine Lab conformance；
-42. S4.3：atomic live cutover and promotion；
-43. S4b：whole-canvas primary/detail 独立 family；
-44. input/gesture reset（pointercancel、focus loss、visibility change）与 Browser
+39. S4.2.3：History close/dismiss/input/focus lifecycle（superseded broad checkpoint）；
+40. S4.2.3.0：History lifecycle exact entry与execution split（docs-only，已完成）；
+41. S4.2.3.1：DOM-free generic exact History-child lifecycle substrate（当前）；
+42. S4.2.3.2：dormant Narrative close/input/root + History focus Host lifecycle；
+43. S4.2.4：controller timers与History suspension/resume；
+44. S4.2.5：dormant Engine Lab conformance；
+45. S4.3：atomic live cutover and promotion；
+46. S4b：whole-canvas primary/detail 独立 family；
+47. input/gesture reset（pointercancel、focus loss、visibility change）与 Browser
     Agent observation。
 
 S3 是 Coordinator-owned transient family，与 Workspace Overlay 共用同一个
@@ -2159,7 +2164,8 @@ browser `101 / 101`、examples browser `45 passed / 2 skipped`与prebuilt Player
 **PF4/S4.2.0 Narrative/History dormant execution split（docs-only，completed）：** 原S4.2 broad
 checkpoint不再作为一个合并切片。唯一有效线性顺序为 **S4.2.1 History atomic cross-axis
 preparation（现已完成）→ S4.2.2 Narrative session与Host-commit readiness（现又由`.2.2.0`及`.2.2.1`–`.2.2.2`
-细分）→ S4.2.3 History close/dismiss/input/focus lifecycle → S4.2.4 controller timers与History suspension/resume →
+细分）→ S4.2.3 History close/dismiss/input/focus lifecycle（现又由`.3.0`及`.3.1`–`.3.2`细分）→
+S4.2.4 controller timers与History suspension/resume →
 S4.2.5 dormant Engine Lab conformance → S4.3 atomic live cutover and promotion → S4b**。后项只能
 消费前项已合并合同；不得把这些authority重新合并进一次Host/controller/topology refactor。
 
@@ -2227,8 +2233,9 @@ cross-axis child，prepared install gate不能保证applied-only spend，或reta
 
 `.2`只消费`.1` family preparation，并在其private record上建立dormant Narrative session、single Host lease、root/History candidate attachment、
 React Host-commit readiness/candidate failure及ready前必需的initial-focus与input/action registration；它不实现这些binding的
-close/dismiss route lifecycle。`.3`独占History preparing/active close、四类dismiss、exact opener restore及
-pointer/keyboard/gamepad managed input/focus lifecycle；`.4`再独占bridge-owned mode的controller observation、reveal/auto/skip
+close/dismiss route lifecycle。该lifecycle随后又由`.3.0`细分：`.3.1`独占DOM-free generic exact-child close/dismiss substrate，`.3.2`
+独占History preparing/active close、四类dismiss、exact opener restore及pointer/keyboard/gamepad managed input与root + History focus
+lifecycle；`.4`再独占bridge-owned mode的controller observation、reveal/auto/skip
 clock、deadline/remaining/generation及History/higher-blocker suspend/resume。`.5`只接dormant Engine Lab conformance，
 不切换tracked live writer；只有S4.3可原子接入live composition/Stories并删除legacy owners/exports。
 
@@ -2288,8 +2295,9 @@ session/readiness observation、React Host、ready/fail、focus与ready前action
 3. **S4.2.2.2（superseded broad checkpoint）**：已由`.2.2.2.0–.2`重切，不能再作为implementation gate；
 4. **S4.2.2.2.0（docs-only，completed）→ .2.2.2.1（completed）→ .2.2.2.2（completed）**：先冻结exact generic/
    Narrative/React boundary，再分别交付DOM-free generic Host-commit atomic substrate与dormant Narrative React Host；
-5. **S4.2.3 → S4.2.4 → S4.2.5 → S4.3 → S4b**：依次保持History close/dismiss/input/focus、controller timers/
-   suspension、dormant Engine Lab、atomic live cutover及whole-canvas family。
+5. **S4.2.3.0（completed）→ S4.2.3.1（当前）→ S4.2.3.2 → S4.2.4 → S4.2.5 → S4.3 → S4b**：
+   先冻结并依次交付generic exact History-child lifecycle substrate与dormant Narrative close/input/root + History
+   focus Host lifecycle，再保持controller timers/suspension、dormant Engine Lab、atomic live cutover及whole-canvas family。
 
 `.2.2.1`的session/factory entry精确命名为frozen `NarrativeStableSessionInternalV1`及
 `createNarrativeStableSessionInternalV1(input: Readonly<{ readonly bridge: NarrativeStablePublisherBridgeInternalV1 }>): NarrativeStableSessionInternalV1`；
@@ -2396,7 +2404,7 @@ kernel transition fence内调用router、Host、bridge、Coordinator或Story cal
 Generic `applied`/Narrative `settled`同步listener首见ready state时focus/binding必须已同批激活，不得形成ready-then-effect或
 active-but-invisible窗口。
 History prepared binding可认证并拥有child input，但本切片没有close consumer；`ui.cancel`/`player.toggle_history`保持stable consumed且
-topology zero，active/preparing close、dismiss与opener focus restore仍归`.3`。
+topology zero，active/preparing exact lifecycle substrate归`.3.1`，Narrative close/input与opener/root + History focus restore归`.3.2`。
 
 `.2.2.2`的expected implementation scope严格只有以下十一文件：
 
@@ -2430,7 +2438,8 @@ observation必须暴露mutable/raw Story state，renderer必须取得Coordinator
 新的async renderer promise/stream contract，或ready History无法对generic Coordinator close/dismiss/owner mutation保持existing-code
 zero delta且将具体code留给`.2.2.2` own entry冻结，先落`.2.2.2` docs-only entry并停止RED；不得以ready-then-effect、raw slot lookup、
 second session/topology/input writer、
-generic/public API或live cutover绕过。History close/dismiss/focus/opener留`.3`，clock/reveal/Auto/Skip timer/suspension留`.4`，Engine Lab
+generic/public API或live cutover绕过。Generic exact History-child lifecycle留`.3.1`，Narrative close/input/focus/opener留`.3.2`，
+clock/reveal/Auto/Skip timer/suspension留`.4`，Engine Lab
 wiring留`.5`，GameStage Narrative portal/composer/Story migration与legacy writer/export deletion留S4.3。
 
 本entry严格只修改三份owning planning/design文档中的合同文本；本cross-plan change本身只修改本文件，没有source、test、runtime、
@@ -2474,7 +2483,8 @@ zero expansion。验证通过focused **3 files / 209 tests**、UI package **80 f
 `101 / 101`、examples browser `45 passed / 2 skipped`与prebuilt Player `38 / 38`只作prior evidence，不冒充本delivery
 HEAD新验证。该delivery当时把current推进到原 **S4.2.2.2 dormant React Narrative Host own docs-only exact entry
 before RED**；该entry随后由下述`.2.2.2.0`关闭并重切，当时的唯一implementation gate为`.2.2.2.1`；该`.1`与
-`.2.2.2.2` gate现亦已由下述delivery关闭，当前唯一implementation gate为 **S4.2.3 own exact entry before RED**。
+`.2.2.2.2` gate现亦已由下述delivery关闭；原S4.2.3 exact-entry gate现由下述completed `.3.0`关闭并重切，
+当前唯一implementation gate为 **S4.2.3.1 DOM-free generic exact History-child lifecycle substrate**。
 
 **PF4/S4.2.2.2.0 dormant React Narrative Host exact entry（docs-only，completed）：** 原S4.2.2.2把generic
 prepared action binding、root/History guarded readiness、cross-axis action fence、immutable Narrative render source、React portal Host、
@@ -2488,8 +2498,9 @@ S4.2.2.1 readiness snapshot都不能冒充ready前atomic handoff或ready/retaine
 3. **S4.2.2.2.2 dormant Narrative React Host（completed）**：只改family pair、session pair、new Host pair与`public-api.test.ts`共七文件，
    交付immutable renderer/History observation、Host runtime/component、explicit portal、layout acknowledgment、prepared binding与
    Host-local focus registration、StrictMode generation、pre-ready error boundary及real-detach terminal cleanup；
-4. 后续固定为 **S4.2.3 own exact entry before RED（当前）→ S4.2.4 → S4.2.5 → S4.3 → S4b**；actual DOM focus/History close、timer、
-   Engine Lab与live cutover不得提前并入。
+4. 后续固定为 **S4.2.3.0（completed）→ S4.2.3.1（当前）→ S4.2.3.2 → S4.2.4 → S4.2.5 → S4.3 → S4b**；
+   generic exact child lifecycle、Narrative close/input/root + History actual DOM focus、timer、Engine Lab与live cutover
+   必须依次保持各自authority，不得提前并入。
 
 `.2.2.2.1`新增source-relative
 `PrepareManagedSurfaceContractBoundActionBindingInputInternalV1`，exact own-data fields只有`authority`、`inputContextId`、
@@ -2564,8 +2575,8 @@ Generic bypass按stale evidence first、applied-only fence second：stale epoch/
 ordinary generic transition原本会applied到authenticated current cross-axis History时才回滚exact current composite state并统一返回
 `rejected / surface.invalid_transition`。Fence覆盖ordinary readiness ready/failed、close expected/top、dismiss、两个History action、selective
 owner cancel/dispose与direct child mutation；topology、input publication、cursor、binding与notification均zero。Claimed readiness、
-S4.2.1 retain/cutover/empty/publisher或bridge disposal/Coordinator terminal structural cascade继续applied，不能误拦；S4.2.3只能新增exact
-current History close/dismiss authority，不能删除该generic fence。
+S4.2.1 retain/cutover/empty/publisher或bridge disposal/Coordinator terminal structural cascade继续applied，不能误拦；S4.2.3.1只能新增
+separate same-claimant exact current History-child lifecycle authority，不能删除该generic fence。
 
 `.2.2.2.2`冻结raw
 `NarrativeStableHistoryObservationPortInternalV1` exact methods为
@@ -2629,7 +2640,7 @@ NarrativeStableHostReadyCommitPreparationResultInternalV1`；input exact own-dat
 Readonly<{ kind: "reattached"; completion: null }> | Readonly<{ kind: "stale"; completion: null }> |
 Readonly<{ kind: "faulted"; completion: null }>`。Prepared token private record绑定exact runtime/attachment generation/render entry/portal/
 shell/initial target/prepared binding与Host-local focus-registration；shared guard是其唯一activation CAS。Actual `.focus()`、trap、restore与
-History opener仍归S4.2.3，不能在kernel fence内执行。Engine-owned shell必须以`tabIndex={-1}`注册entry exact
+History opener仍归S4.2.3.2，不能在kernel fence内执行。Engine-owned shell必须以`tabIndex={-1}`注册entry exact
 `initialFocusTargetId`；本slice只原子切换registration ownership，不能调用`.focus()`。
 
 Family不得新增Narrative-parallel child action authority name；`.2`只用per-kernel same claimant private claim `.1`的generic child action authority，
@@ -2713,14 +2724,16 @@ Hard stop：`.1`若必须在guard内调用external callable、读取caller descr
 dispatcher与scalar O(1)，
 或generic fence会拦截claimed/structural cascade，停止并修订。
 `.2`若必须暴露raw/mutable History/Story/Coordinator authority、用readiness snapshot渲染ready subtree、在guard内调用DOM/React/router、
-以generic close处理detach、需要async renderer promise/stream、parallel Host或越过seven-file scope，也停止并修订。History actual close/
-dismiss/DOM focus/opener归S4.2.3，controller/reveal/timer/suspension归S4.2.4，Engine Lab归S4.2.5，GameStage/Story/live cutover归S4.3。
+以generic close处理detach、需要async renderer promise/stream、parallel Host或越过seven-file scope，也停止并修订。History exact lifecycle
+substrate归S4.2.3.1，Narrative close/input与root + History actual DOM focus/opener归S4.2.3.2，controller/reveal/timer/suspension归
+S4.2.4，Engine Lab归S4.2.5，GameStage/Story/live cutover归S4.3。
 
 本entry在三份owning design/planning docs中同步exact contract；本cross-plan change本身只修改本文件，没有source/test/runtime/architecture/
 React Host/public/live diff，也没有新runtime delivery evidence。只要求本文件`deno fmt --check`与`git diff --check`；S4.2.2.1的focused/UI/
 full/check、browser/examples/prebuilt prior evidence均不能冒充本docs-only checkpoint验证。原S4.2.2.2 broad checkpoint与本`.0`现均为
 historical；该entry交付时的current/next、core slice与implementation gate为 **S4.2.2.2.1 DOM-free generic Host-commit atomic substrate**，随后依次为
-**S4.2.2.2.2 → S4.2.3 → S4.2.4 → S4.2.5 → S4.3 → S4b**。该`.1` gate现已由下述delivery关闭。
+**S4.2.2.2.2 → S4.2.3.0 → S4.2.3.1 → S4.2.3.2 → S4.2.4 → S4.2.5 → S4.3 → S4b**。
+该`.2.2.2.1` gate现已由下述delivery关闭，`.3.0`也已由下述docs-only entry关闭。
 
 **PF4/S4.2.2.2.1 DOM-free generic Host-commit atomic substrate delivery（completed）：** implementation source与
 primary RED严格落在action-route pair、stable-composite pair与`public-api.test.ts`五文件；本entry明确授权的五份test-only
@@ -2749,8 +2762,9 @@ UI root与`./internal`对全部new top-level/member spelling的type/runtime nega
 **254 files / 4174 tests**与完整`deno task check`（含format、lint、styles、typecheck、determinism、assets、all Story checks及e2e build）。
 本source-relative delivery未重跑browser/examples/prebuilt；先前Engine browser `101 / 101`、examples browser
 `45 passed / 2 skipped`与prebuilt Player `38 / 38`只作prior evidence。`.2.2.2.0/.1/.2`现均为completed historical
-checkpoints；唯一current/next、core slice与implementation gate现为 **S4.2.3 own exact entry before RED**，随后为
-**S4.2.4 → S4.2.5 → S4.3 → S4b**。
+checkpoints；原S4.2.3 exact-entry gate现也由下述completed `.3.0`关闭并重切。唯一current/next、core slice与implementation gate现为
+**S4.2.3.1 DOM-free generic exact History-child lifecycle substrate**，随后为
+**S4.2.3.2 → S4.2.4 → S4.2.5 → S4.3 → S4b**。
 
 **PF4/S4.2.2.2.2 dormant Narrative React Host delivery（completed）：** implementation与primary RED严格落在
 family source/test、session source/test、new Host source/test及`public-api.test.ts`七文件，全部保持source-relative、
@@ -2781,9 +2795,196 @@ runtime/type inventory对全部new top-level与member spelling保持negative gua
 验证通过focused **4 files / 238 tests**、UI package **81 files / 1273 tests**、full **255 files / 4203 tests**，以及完整
 `deno task check`、`deno task typecheck`、`deno task lint`、相关文件`deno fmt --check`与`git diff --check`。本HEAD未重跑
 browser/examples/prebuilt；先前Engine browser `101 / 101`、examples browser `45 passed / 2 skipped`与prebuilt Player `38 / 38`只作prior
-evidence。S4.2.2.2.2据此转为completed historical checkpoint；linear core/current/next与implementation gate现统一推进到
-**S4.2.3 History close/dismiss/input/focus lifecycle own exact entry before RED**，后续exact scope与顺序仍为
-**S4.2.4 → S4.2.5 → S4.3 → S4b**。
+evidence。S4.2.2.2.2据此转为completed historical checkpoint；其原S4.2.3 exact-entry pointer现由下述completed `.3.0`
+关闭并重切。linear core/current/next与implementation gate现统一推进到
+**S4.2.3.1 DOM-free generic exact History-child lifecycle substrate**，后续exact scope与顺序为
+**S4.2.3.2 → S4.2.4 → S4.2.5 → S4.3 → S4b**。
+
+**PF4/S4.2.3.0 History close/dismiss/input/focus lifecycle exact entry（docs-only，completed）：** 原
+S4.2.3把generic exact-child topology lifecycle、Narrative action/input route、preparing fallback、React Host focus/opener与
+physical dismiss混在一个checkpoint；它现只作superseded broad checkpoint，不再直接进入RED或implementation。唯一有效线性顺序冻结为：
+
+1. **S4.2.3.0（本entry，completed）**：只冻结下述exact names/shapes、atomic protocol、RED、file scope与stop；
+2. **S4.2.3.1 DOM-free generic exact History-child lifecycle substrate（当前）**：只交付separate same-claimant
+   exact-child close/dismiss authority与whole-composite atomic handoff，不接Narrative/React/DOM/Host；
+3. **S4.2.3.2 dormant Narrative close/input/root + History focus Host lifecycle**：一次性交付candidate-bound
+   History controller、preparing/active close、managed input、root + History actual focus/trap/restore及physical dismiss；
+4. **S4.2.4 → S4.2.5 → S4.3 → S4b**：随后才依次交付controller timers/suspension、dormant Engine Lab、
+   atomic live cutover及whole-canvas family。
+
+`.3.1`新增独立、source-relative、package-internal
+`ManagedSurfaceStableExactParentTransientChildLifecycleCommitGuardInternalV1`，其frozen exact sole member为
+`commitInternalV1(contract: ManagedSurfacePreparedInputBindingContractInternalV1): boolean`。这里的contract必须是transition外从
+pure successor capture的authenticated **nonnull** token：History close/dismiss必然恢复surviving exact Dialogue parent的full input
+contract，不能用`null`冒充closed composite，也不能在kernel transition fence内读取raw contract、调用router或重建binding。
+
+Closed generic result精确命名为
+`ManagedSurfaceStableExactParentTransientChildLifecycleResultInternalV1`，且只有以下frozen exact rows：
+
+- `Readonly<{ kind: "applied"; code: "surface.closed" | "surface.dismissed" }>`；
+- `Readonly<{ kind: "locked"; code: "surface.dismiss_locked" }>`；
+- `Readonly<{ kind: "stale" }>`；
+- `Readonly<{ kind: "faulted" }>`。
+
+Lifecycle authority精确命名为
+`ManagedSurfaceStableExactParentTransientChildLifecycleAuthorityInternalV1`，其frozen exact methods只有：
+
+- `closeExactParentTransientChildInternalV1(candidate: unknown, guard:
+  ManagedSurfaceStableExactParentTransientChildLifecycleCommitGuardInternalV1):
+  ManagedSurfaceStableExactParentTransientChildLifecycleResultInternalV1`；
+- `dismissExactParentTransientChildInternalV1(candidate: unknown, dismissKind: ManagedSurfaceDismissKindV1,
+  guard: ManagedSurfaceStableExactParentTransientChildLifecycleCommitGuardInternalV1):
+  ManagedSurfaceStableExactParentTransientChildLifecycleResultInternalV1`。
+
+Exact claim为
+`claimManagedSurfaceStableExactParentTransientChildLifecycleAuthorityInternalV1(kernel, exactClaimant)`。它是与
+S4.2.1 preparation、S4.2.2.2.1 readiness/action claims分离的fourth authority record，但必须先命中same kernel的existing
+preparation claim及**same exact claimant**；same claimant repeat返回same retained authority，different/missing claimant、foreign kernel、
+borrowed receiver或spoof在candidate/state read前以
+`ui.managed_surface_stable_exact_parent_transient_child_lifecycle_claim_invalid`抛TypeError。它没有release、transfer、
+second claimant或Narrative-parallel claim。
+
+Generic lifecycle algorithm固定为authenticated candidate first、pure whole-composite successor second、nonnull contract capture与prepared
+install third、guard CAS与state assignment last。Explicit close先认证candidate仍是current exact top History child，再对preparing与ready
+两相都使用existing **`close_top`** pure operation；不得使用`close_expected`、`readiness_failed`、generic Coordinator handle或任何
+`*_with_owner_preparation_cancel` variant。Dismiss在candidate preparing时使用existing
+`route_fallback_dismiss_exact_candidate`，ready-active时使用existing `route_dismiss`；invalid dismiss kind必须在policy lookup与guard前
+faulted/zero，locked policy返回`locked / surface.dismiss_locked`且不调用guard。Successful close精确映射
+`applied / surface.closed`，successful dismiss精确映射`applied / surface.dismissed`。
+
+Pure successor必须只退休exact History child、恢复同一Dialogue parent为active并一次性重建whole-composite input/publication；same-owner
+root replacement preparation、retained root DOM/session identity、semantic frame、History content与allocation high-water保持不变。Stale
+candidate/currentness必须先于policy与guard capture/invocation返回canonical `stale`。Guard只在prepared state仍installable且
+candidate/provenance/policy仍exact时接收nonnull token并调用一次；只有exact `true`才允许assignment，guard `false`返回canonical
+`stale`，throw或nonboolean返回canonical `faulted`；token/candidate/lineage drift同样不得产生partial binding、topology、input
+publication、notification或owner-preparation cancel。State assignment完成后才解锁并同步通知；listener首见child absent时必须已经看见
+parent resumed及restored binding，listener立即开
+successor History时outer close不得命中successor。
+
+S4.2.2.2.1 ordinary generic protected-child fence继续原样保留：ordinary readiness、close expected/top、dismiss、History actions与owner
+mutation对authenticated current cross-axis History仍按stale evidence first、applied-only fence second返回existing
+`rejected / surface.invalid_transition` exact zero。只有本separate lifecycle authority可越过该applied-only fence；claimed readiness及
+root replacement retain/failure、ready cutover、empty、publisher/bridge disposal和Coordinator terminal structural cascade继续保持既有
+applied语义。本slice不修改Narrative consumer，因此ready History的`ui.cancel`与`player.toggle_history`仍stable-consumed/no-op，
+preparing History仍无ordinary input；不能形成“已close但尚无opener restore”的中间delivery。
+
+`.3.1` mutation-sensitive RED至少覆盖：
+
+1. authority/guard/claim/result的exact keys、frozen rows、descriptor/accessor/extra-key/borrowed receiver、same-claimant reuse、
+   foreign claimant/kernel及claim error，并对全部top-level/member spelling保留UI root与`./internal` type/runtime negative inventory；
+2. preparing与ready各自explicit close，及两phase × Back/Escape/backdrop/routed-cancel；success精确为
+   `+1 topology / +1 input / 0 allocation / 1 notification`，child消失、same parent active；
+3. invalid dismiss kind before policy/guard、locked policy exact zero、stale candidate/evidence precedence、guard false/throw/nonboolean与
+   prepared install drift exact zero；
+4. retained root + History + same-owner root replacement preparation/failure保持replacement与exact parent；close/dismiss不得触发owner
+   preparation cancel，root ready cutover/empty/terminal与user close first-winner，loser stale；
+5. generic closeExpected/closeTop/dismiss/readiness/actions/owner mutation继续`surface.invalid_transition`，claimed lifecycle成功及claimed
+   readiness/structural cascade作为positive controls；
+6. synchronous listener即时route、open successor、replace/empty/dispose与subscriber throw containment，不产生split binding、double close或
+   outer-callback successor retirement；
+7. 10,000轮prepare/ready/close/dismiss/stale/replacement churn只保留one retained lifecycle authority、existing bounded candidate records、
+   scalar revision/high-water与current claimant，没有per-close token、tombstone或append-only history；Narrative topology/action/focus保持zero diff。
+
+`.3.1` implementation scope严格只有以下**3 files**：
+
+- `engine/packages/ui/src/managed-surfaces/managed-surface-stable-composite-state.ts`；
+- `engine/packages/ui/src/managed-surfaces/managed-surface-stable-composite-state.test.ts`；
+- `engine/packages/ui/src/public-api.test.ts` negative guards。
+
+`.3.1` hard stop：若close/dismiss不能只靠existing pure `close_top`、fallback dismiss、ready dismiss、whole-composite reflow与prepared install
+表达，若必须新增`ManagedSurfaceOperationV1`、修改reducer/input-router/runtime-kernel/Coordinator/managed-surface public contract或generic
+receipt/code，若nonnull resumed-parent token不能在transition外capture，或generic fence/structural cascade必须被删除，立即停止并修订本entry。
+不得把Narrative family/session/Host、DOM/focus/opener、GameStage/React/Web、Base/Save/wire、Engine Lab/Story/live writer、timer/controller或
+legacy deletion并入该three-file substrate。
+
+`.3.2`在Narrative boundary新增frozen source-relative
+`NarrativeStableHistoryChildControllerInternalV1`，exact methods只有
+`closeInternalV1(): NarrativeStableHistoryChildLifecycleResultInternalV1`与
+`dismissInternalV1(dismissKind: ManagedSurfaceDismissKindV1): NarrativeStableHistoryChildLifecycleResultInternalV1`。Closed
+`NarrativeStableHistoryChildLifecycleResultInternalV1`只有五个frozen exact rows：
+
+- `Readonly<{ kind: "closed"; completion: null }>`；
+- `Readonly<{ kind: "dismissed"; completion: null }>`；
+- `Readonly<{ kind: "locked"; completion: null }>`；
+- `Readonly<{ kind: "stale"; completion: null }>`；
+- `Readonly<{ kind: "faulted"; completion: null }>`。
+
+每个History candidate取得one exact controller，preparing → ready与same-host/same-portal reattach保留controller identity，retired child、root
+cutover、empty、terminal、real detach及fresh successor child永久fence old controller。Controller只作为History Host render entry的exact
+`controller` field存在；它不进入`NarrativeStableHistoryRendererPropsInternalV1`、renderer component、History observation、Story
+props或任何barrel/package export，也不暴露candidate、parent、Coordinator、evidence、opener或focus ledger。Family只把`.3.1` generic
+`applied / surface.closed`映射`closed`、`applied / surface.dismissed`映射`dismissed`，并把locked/stale/faulted逐行映射；不新增第二topology
+writer或新的generic receipt/code。Borrowed controller receiver必须抛
+`ui.narrative_stable_history_child_controller_invalid`。
+
+Active History的existing ready action route必须先通过application/topology/instance/input-owner/routing/publication/catalog/gesture gates，且
+`attempt`必须exact `null`并保持unread。`player.toggle_history`随后调用exact controller explicit close，`ui.cancel`调用
+`dismissInternalV1("routed_cancel")`；两者都保持managed Input consumed、outer receipt为historical
+`unchanged / surface.action_routed`、close result只进入`consumerResult`，且不向retained root/lower context fall through。Preparing
+History继续不commit ordinary candidate binding，而由one Host-generation-bound **fallback-only managed input registration**先于retained root
+dispatcher处理：`player.toggle_history` explicit close，`ui.cancel` routed-cancel dismiss，其他action与viewport_point被blocking fallback handled，
+`pointer_cancel`与`focus_loss`保持ignored/reset。Ready/fail/close/release必须在同一generation handoff撤销fallback registration；StrictMode
+不得double register或留下ready-then-effect窗口。Dialogue root四类dismiss继续locked；root `ui.cancel`与background input必须被Narrative
+managed isolation消费且topology exact zero。
+
+`.3.2`同时独占Dialogue root与History的**actual DOM focus/trap/restore**。Initial Dialogue blocking fallback在第一次root focus前Host-local
+capture exact previous owner；它必须是connected、same-ownerDocument、位于current Host scope外且不是`body`的`HTMLElement`。Fallback取得
+Narrative stage isolation、focus scope与closed Tab trap；ready root聚焦`.2.2.2.2`已注册的exact
+shell target。Root replacement preparation/failure继承same previous-owner ledger且不抢retained subtree focus；replacement cutover聚焦successor，
+greater-empty或ordinary root retirement仅在focus仍由Narrative Host拥有时恢复connected previous owner；application successor、Coordinator/
+session terminal与external focus owner必须分别抑制stale restore。
+
+History opener也只由Host-local bounded ledger拥有：exact History candidate第一次取得focus之前，从surviving exact parent shell内capture
+connected、same-ownerDocument且不是`body`的active `HTMLElement`；preparing History fallback随后取得focus、trap并使parent suspended/inert，ready History再聚焦已注册的exact
+History shell target。Explicit close、四类dismiss或readiness failure后，若same exact parent仍survive且没有successor History，最终focus恢复
+connected exact opener；opener断开才退回same parent registered initial target。Root + History同commit退休、root replacement cutover、
+successor child已存在、application/Host terminal或external focus已取得ownership时不得intermediate restore。Ledger只保留current root owner与
+current History opener，retirement/terminal同步scrub，不进入caller-retained snapshot/controller。
+
+Physical dismiss只消费existing contracts：Back在本dormant slice只通过controller/internal route覆盖，不新增Web `CloseWatcher`或browser
+navigation ingress；Escape由active/fallback Host key route，backdrop只接受primary matching pointer gesture。Host只复用existing
+`useStageInputIsolationV1("narrative", blocking)`与`useStagePointerGestureFenceV1("narrative")`；backdrop必须先arm persistent stage pointer
+fence再同步dismiss，Escape/Back/routed cancel不得arm。不得修改GameStage或从GameStage读取portal/composer/live Story authority。
+
+`.3.2` mutation-sensitive RED至少覆盖：
+
+1. controller/result/render-entry `controller` exact keys、frozen/identity/member negatives；renderer props、History observation、UI root、
+   `./internal`与package exports均看不到controller/opener/parent/Coordinator；
+2. preparing toggle/cancel/Back/Escape/backdrop close exact candidate且保留root replacement；fallback managed registration抢先、blocking input
+   no-fallthrough、ready/fail/close/release atomic unregister与StrictMode exact counts；
+3. active toggle explicit `closed`、active/routed/physical dismiss `dismissed`、locked/stale/faulted mapping及double/late/foreign/grace callback；
+   action被consumed且success精确one topology/input commit/notification；
+4. initial root fallback/ready shell focus、Dialogue四类locked、Tab正反向closed loop、无tabbable时shell fallback、focusin escape recapture、
+   suspended/preparing successor不抢focus；
+5. History Host-local opener在首次History focus前capture，preparing fallback→ready target，close/fail四dismiss restore connected opener，
+   disconnected opener→same parent target，same-commit parent retirement/successor child/terminal/external owner suppress intermediate restore；
+6. backdrop primary matching、pointer fence before close、residual click不穿透，Escape/Back/routed cancel zero fence；keyboard/gamepad/pointer使用同一
+   candidate/controller/currentness gate；
+7. same-host/same-portal reattach、real detach、root/History race、listener reentry、focus throw与subscriber throw containment；DOM focus fault不得
+   rollback已提交topology或关闭successor；
+8. 10,000轮open/focus/dismiss/reattach只保留one Host runtime、bounded current controller/fallback registration/root-owner/History-opener slots与
+   existing render/action/focus records，无DOM ref、generation、controller或tombstone history。
+
+`.3.2` implementation scope严格只有以下**7 files**：
+
+- `engine/packages/ui/src/narrative/narrative-managed-surface-family.ts`及同名`.test.ts`；
+- `engine/packages/ui/src/narrative/narrative-managed-surface-session.ts`及同名`.test.ts`；
+- `engine/packages/ui/src/narrative/narrative-surface-host.tsx`及`narrative-surface-host.test.tsx`；
+- `engine/packages/ui/src/public-api.test.ts` negative guards。
+
+`.3.2` hard stop：若controller必须进入renderer/Story props或暴露raw candidate/parent/Coordinator/evidence，若close与opener restore不能作为
+one candidate-bound Host lifecycle交付，若需要修改`.3.1` generic authority、input-router source、reducer、GameStage、CSS、composer/Web/Base/
+Save/wire、Engine Lab/template/examples/live Story或legacy writer，立即停止并修订。不得用React local `showHistory`、第二input/focus writer、
+async check-then-close/rollback、owner-preparation-cancel、ready后passive-effect binding、caller-retained DOM ledger或unbounded generation map绕过。
+Reveal/Auto/Skip timer与History suspension remaining留S4.2.4，Engine Lab留S4.2.5，Narrative portal/composer/tracked Story迁移、legacy
+writer/export删除与browser/prebuilt promotion留S4.3。
+
+本`.3.0` amendment在三份owning design/planning docs中同步exact contract；本cross-plan change本身严格只修改本文件，没有source、test、
+runtime、architecture、Host/React/GameStage/live claimant、public API或delivery evidence diff。验证只要求本文件
+`deno fmt --check`与scoped `git diff --check`；既有focused/UI/full/check/browser/examples/prebuilt只作prior evidence，不能冒充本docs-only
+checkpoint的新runtime验证。S4.2.3 broad checkpoint与本`.3.0`据此转为completed historical entry；唯一current/next、core slice与
+implementation gate现为 **S4.2.3.1 DOM-free generic exact History-child lifecycle substrate**，随后为
+**S4.2.3.2 → S4.2.4 → S4.2.5 → S4.3 → S4b**。
 
 每个 family 的迁移提交必须删除旧 owner；禁止长期 adapter 双写。
 `DialoguePanelV1` / `VnLayerV1` 的 controller/view/host 拆分在 Narrative family
