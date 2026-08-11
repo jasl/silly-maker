@@ -1349,8 +1349,57 @@ top-level and member spelling. Verification passed focused
 complete `deno task check`. Browser `101 / 101`, examples
 `45 passed / 2 skipped`, and prebuilt Player `38 / 38` remain prior evidence
 because this path is dormant and does not enter the live composition graph.
-S4.2.2.2.2 is complete. Current/next is S4.2.3, whose own exact entry must land
-before RED, followed by S4.2.4, S4.2.5, S4.3, and S4b.
+S4.2.2.2.2 is complete. At that checkpoint, current/next was S4.2.3, whose
+completed S4.2.3.0 exact entry split implementation into the generic exact
+History-child lifecycle substrate delivered below and the dormant Narrative
+close/input/root + History focus Host lifecycle.
+
+S4.2.3.1 now implements the source-relative exact History-child lifecycle
+substrate frozen by that entry. A separate
+`ManagedSurfaceStableExactParentTransientChildLifecycleAuthorityInternalV1`
+is claimed by the same exact composite claimant as preparation, readiness, and
+action, but it exposes only authenticated close and dismiss methods. The first
+claimant remains exclusive, the same claimant receives the retained authority,
+and a foreign claimant, cloned authority, stale candidate, or borrowed method
+cannot mutate state.
+
+Both preparing and ready History close use the authenticated reducer
+`close_top` transition after exact current close-target validation; user close
+does not masquerade as readiness failure and does not use the ready-only
+`close_expected` route. Preparing dismiss uses exact-candidate fallback
+dismiss, while ready dismiss uses routed dismiss. Each applied path validates
+the exact receipt code and child instance, preserves the active stable parent
+and any same-owner root replacement, derives the parent's nonnull future input
+contract, and prepares whole-composite reflow before entering the install gate.
+Only a successful frozen commit guard may commit that parent contract before
+Surface state assignment and synchronous notification. Guard false is stale;
+throwing or non-boolean guards are faulted; locked, stale, and faulted paths
+leave state, allocation, input publication, and notification identity exact.
+
+The existing generic protected-child fence remains unchanged: ordinary close,
+dismiss, owner mutation, and action operations still cannot bypass the claimed
+cross-axis child. Claimed readiness settlement and structural root cutover,
+empty, publisher disposal, and Coordinator-terminal cascades remain separately
+allowed. Listener reentry observes the restored parent and closed child as one
+boundary, and a fresh child installed by that listener is not rewritten by the
+historical outer result. Claim records remain weakly kernel-keyed and retain no
+per-close token, topology, tombstone, or history, including through 10,000
+lifecycle cycles.
+
+This delivery changes only the stable-composite source/test pair and
+`engine/packages/ui/src/public-api.test.ts`; it changes no reducer,
+runtime-kernel, Coordinator, Narrative production source, React Host, public or
+`./internal` barrel, package export, or live Story composition. Root and
+`./internal` inventories reject all new top-level and member spellings.
+Verification passed focused
+`2 files / 78 tests`, UI `81 files / 1281 tests`, full
+`255 files / 4211 tests`, typecheck, lint, formatting, diff checks, and the
+complete `deno task check`. Browser `101 / 101`, examples
+`45 passed / 2 skipped`, and prebuilt Player `38 / 38` remain prior evidence
+and were not rerun because the path is still dormant. S4.2.3.0 and S4.2.3.1
+are complete. Current/next is S4.2.3.2, the dormant Narrative
+close/input/root + History focus Host lifecycle, followed by S4.2.4, S4.2.5,
+S4.3, and S4b.
 
 ## 9. Changing the architecture
 
@@ -1425,8 +1474,11 @@ split, and S4.2.2.2.1 adds the prepared action binding, guarded root/History
 readiness, cross-axis generic fence, and stable dispatcher described above;
 S4.2.2.2.2 adds the dormant Narrative Host, canonical History observation,
 cached render source, guarded action/focus commit, and StrictMode-safe portal
-lifecycle described above. Current/next is S4.2.3, whose own exact entry must
-land before RED, followed by S4.2.4, S4.2.5, S4.3, and S4b. History
-close/dismiss/focus behavior and the Narrative live migration remain planned
-work; the source-relative Host does not alter the live Host data flow until
-those slices and their behavior tests land.
+lifecycle described above. S4.2.3.0 freezes the exact History lifecycle split,
+and S4.2.3.1 adds the same-claimant exact-child close/dismiss authority,
+guarded parent input restoration, and preserved ordinary generic fence
+described above. Current/next is S4.2.3.2, the dormant Narrative
+close/input/root + History focus Host lifecycle, followed by S4.2.4, S4.2.5,
+S4.3, and S4b. Narrative controller adoption, actual DOM focus, and the live
+migration remain planned work; the source-relative Host does not alter the live
+Host data flow until those slices and their behavior tests land.
