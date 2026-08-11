@@ -801,6 +801,32 @@ describe("bindManagedInputRouterFacadeInternalV1", () => {
     ).toThrowError("ui.managed_input_router_required");
   });
 
+  it("rejects a callable with an over-budget fresh Proxy prototype chain", () => {
+    const target = createInputRouterV1();
+    const facade = createInputRouterFacadeV1(target);
+    const gate = vi.fn(() => true);
+    let prototype: object | null = Function.prototype;
+    for (let depth = 0; depth < 128; depth += 1) {
+      const next: object | null = prototype;
+      prototype = new Proxy({}, { getPrototypeOf: (): object | null => next });
+    }
+    Object.setPrototypeOf(gate, prototype);
+
+    expect(() =>
+      bindManagedInputRouterFacadeInternalV1(
+        Object.freeze({ facade, target, isIngressOpen: gate }),
+      )
+    ).toThrowError("ui.managed_input_router_facade_invalid");
+    expect(gate).not.toHaveBeenCalled();
+    expect(facade.route(actionEventV1())).toBe(inputIgnoredV1);
+    expect(() =>
+      registerManagedInputHandlerV1(facade, {
+        context: "narrative",
+        handle: () => inputHandledV1,
+      })
+    ).toThrowError("ui.managed_input_router_required");
+  });
+
   it("bounds 10,000 fresh facade generations without accumulating dispatch paths", () => {
     let handled = 0;
     for (let index = 0; index < 10_000; index += 1) {

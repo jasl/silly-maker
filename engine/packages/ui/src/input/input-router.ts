@@ -72,6 +72,7 @@ const managedInputRegistrarsV1 = new WeakMap<InputRouterV1, ManagedInputRegistra
 const directManagedInputRegistrarsV1 = new WeakMap<InputRouterV1, ManagedInputRegistrarV1>();
 const managedInputRouterFacadeTerminalInternalV1 = Object.freeze({ kind: "terminal" as const });
 const managedInputRouterFacadeNoopInternalV1 = Object.freeze((): void => {});
+const managedInputRouterFacadeCallablePrototypeDepthLimitInternalV1 = 64;
 
 interface ManagedInputRouterFacadeRecordInternalV1 {
   active: boolean;
@@ -114,7 +115,10 @@ function isCallableWithoutThenV1(value: unknown): value is (...args: never[]) =>
     if (Reflect.get(value, "then") !== undefined) return false;
     const visited = new Set<object>();
     let current: object | null = value;
+    let remainingDepth = managedInputRouterFacadeCallablePrototypeDepthLimitInternalV1;
     while (current !== null) {
+      if (remainingDepth === 0) return false;
+      remainingDepth -= 1;
       if (visited.has(current)) return false;
       visited.add(current);
       if (Reflect.getOwnPropertyDescriptor(current, "then") !== undefined) return false;
