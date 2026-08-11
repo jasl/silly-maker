@@ -3904,6 +3904,16 @@ export interface ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1 
 }
 ```
 
+Generic runtime registry的唯一入口精确为：
+
+```ts
+export function claimManagedSurfaceRuntimeStateInstallParticipantInternalV1<TState>(
+  kernel: ManagedSurfaceRuntimeKernelInternalV1<TState>,
+  exactClaimant: object,
+  participant: ManagedSurfaceRuntimeStateInstallParticipantInternalV1<TState>,
+): ManagedSurfaceRuntimeStateInstallParticipantInternalV1<TState>;
+```
+
 Stable-composite specialization与claim精确为：
 
 ```ts
@@ -3920,14 +3930,22 @@ export function claimManagedSurfaceStableCompositeStateInstallParticipantInterna
 ): ManagedSurfaceStableCompositeStateInstallParticipantInternalV1;
 ```
 
-Participant与prepared value都必须是frozen exact own-data method object；descriptor/accessor/extra/missing key、borrowed receiver、clone、foreign
-kernel/claimant/participant与second claimant在state read或callback前fail closed。Same kernel + same exact claimant + same exact participant repeat返回
-retained exact participant；没有release、transfer、participant vector或第二composition authority。Production retained state只有每kernel one weak
-claim record与最多one current prepared transaction；terminal install后claim永久fenced且不保留previous/next/controller/timestamp history。
+Generic helper是runtime kernel读取participant的唯一注册缝；stable wrapper只能从既有private configuration record解析exact composite→runtime-kernel
+alias并委托该helper，不得反向import stable module、扩kernel/input/adapter object shape或建立第二registry。Claim input participant必须是frozen exact
+one-own-data-method object；其descriptor/accessor/extra/missing/nonfunction key、foreign kernel/claimant/participant与second claimant统一在state read或
+participant callback前抛exact `TypeError("ui.managed_surface_runtime_state_install_participant_claim_invalid")`。Same kernel + same exact claimant +
+same exact participant repeat返回retained exact participant；没有release、transfer、participant vector或第二composition authority。
+
+`prepareStateInstallInternalV1()`返回的nonnull prepared value只能在该callback返回后capture：它必须是frozen exact four-own-data-method object；
+malformed/accessor/extra/missing/nonfunction method统一走下述participant-fault matrix，尚未authenticate时没有abort。Capture成功后generic kernel始终
+以该exact prepared receiver调用captured methods；producer自己的receiver/one-shot guard负责把reused identity判为validate stale/fault，generic不建立
+consumed-identity tombstone。Production retained state只有每kernel one weak claim record与最多one current prepared transaction；terminal install后claim
+永久fenced且不保留previous/next/controller/timestamp history。
 
 Kernel的三个assignment入口——ordinary transient transition、`transitionStateInternalV1`与prepared-state commit——统一使用下列顺序：
 
-1. 在既有transition lock内只运行pure reducer/transition并derive exact `previousState`/`nextState`；`previous === next`不调用participant；
+1. 在既有transition lock内只运行pure reducer/transition并derive exact `previousState`/`nextState`；prepared path先authenticate exact token并验证
+   initial expected state，clone/foreign/consumed token或initial drift在participant callback前返回existing `invalid | stale`；`previous === next`不调用participant；
 2. 释放lock后调用一次captured participant `prepareStateInstallInternalV1(previous,next)`；Narrative可以在这里调用descriptor-captured clock
    `nowInternalV1()`并把该successful prepared timestamp固定为本次transition timestamp，但不得mutation kernel state；callback同步reentry若安装
    successor，外层稍后只可stale；
@@ -3942,10 +3960,23 @@ Kernel的三个assignment入口——ordinary transient transition、`transition
    malformed/missing/throwing-descriptor value时没有prepared abort且postcondition同样exact zero。Abort本身必须no-throw且不得调用
    clock/router/DOM/user code。
 
-Direct transient participant drift使用既有`rejected / surface.invalid_transition` exact-zero receipt，participant fault使用既有
-`faulted / surface.transition_faulted`；direct generic state transition分别抛既有state-stale或source-relative participant-fault TypeError，
-prepared install继续映射existing `stale | aborted`。本entry不新增`ManagedSurfaceOperationV1`、public receipt/code或generic rollback。Operation
-guard与participant logical commit之间不允许fallible caller work；若实现不能证明operation guard成功后logical commit必定no-throw，`.4.1`停止。
+Exact `null` prepare result表示本次transition不参与，后续按既有路径安装且没有validate/commit/abort/complete callback。其余结果分类冻结为：
+
+- existing adapter planning/validation fault保持原error且没有participant callback；prepared clone/foreign/consumed token返回`invalid`、initial expected
+  drift返回`stale`，同样没有participant callback；
+- prepare callback后的expected-state ABA/current-participant drift或`validateInternalV1()` exact false：direct transient返回既有
+  `rejected / surface.invalid_transition` exact-zero receipt，direct generic state transition抛既有
+  `TypeError("ui.managed_surface_runtime_state_stale")`，prepared install返回existing `stale`；authenticated prepared value先abort once；
+- participant prepare throw/malformed、validate throw/nonboolean：direct transient返回既有`faulted / surface.transition_faulted` exact-zero
+  receipt，direct generic state transition抛exact
+  `TypeError("ui.managed_surface_runtime_state_install_participant_faulted")`，prepared install返回existing `aborted`；
+- boolean operation guard exact false保持existing `aborted`；operation guard throw先abort authenticated participant，再原样rethrow original error、
+  consume prepared token且state/notification zero，保持既有prepared与terminal guard compatibility；
+- successful assignment后`completeInstalledInternalV1()` throw必须contain且不得改变已提交result/receipt；unexpected logical-commit throw按participant
+  fault隔离state assignment，但由于logical commit不得包含fallible caller work，若不能证明其no-throw与controller-delta atomicity，`.4.1`停止。
+
+本entry不新增`ManagedSurfaceOperationV1`、public receipt/code或generic rollback。Operation guard与participant logical commit之间不允许fallible
+caller work。
 
 `.4.1` mutation RED必须覆盖三assignment入口、exact descriptor/claim/receiver、previous-equals-next unread、prepare callback reentry、expected-state
 ABA、validate false/throw/nonboolean、operation guard false/throw、logical commit ordering、notification reentry、cancel/request throw、terminal及
